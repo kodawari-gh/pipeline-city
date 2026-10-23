@@ -17,6 +17,12 @@ export function driveBody(kind: DriveKind, slot: string): Rect {
   return kind === 'hdd' ? { x: c.x + 46, y: c.y + 28, w: 640, h: 444 } : { x: c.x + 46, y: c.y + 78, w: 520, h: 344 };
 }
 
+/** The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`). */
+export function osBadgeRect(kind: DriveKind, slot: string): Rect {
+  const b = driveBody(kind, slot);
+  return kind === 'ssd-nvme' ? { x: b.x + 10, y: b.y + 250, w: b.w - 20, h: 62 } : { x: b.x + 14, y: b.y + 12, w: 140, h: 62 };
+}
+
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
 export const slotRect = (slot: string): Rect => (slot === 'm20' ? BR.m2 : BAY_CELLS[slot === 'sata1' ? 1 : 0]!);
 

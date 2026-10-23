@@ -41,7 +41,8 @@ The CPU socket is the origin. West of the board: the **key tray** (under the mon
 - **Bus flows (OS)**: `booting-os` lights the boot drive's bus and cable, DMI and memory (drive to RAM/CPU); `ingesting` runs key to drive (USB, DMI, drive bus); `flashing` runs drive to key. Idle stays dark.
 - **USB LED** follows `keyActivity`: enumerating slow amber blink, ingesting fast amber, flashing fast cyan, done steady green that breathes (collect the key). Without an OS the old loading/writing blink applies.
 - **Held keys** (`held`, `HELD`, `heldArt`): a small rack west of the case under the tray, holding `snapshot.held[]`. Each key shows its `stage` (`INGESTING`, `QUEUED`, `JOB RUNNING`, `DONE - PLUG AGAIN`, `WRITING RESULT`, `RESULT SAVED`) with a coloured band; a key whose result is ready gets the pulsing green ring and the rack header says `N READY - PLUG TO COLLECT`. Clicking a held key plugs it (same as a tray key).
-- **OS screen** (`os`): when an OS is installed, powered and the monitor is live, in `booting-os`, `idle-os`, `running-os`, `ingesting`, `flashing`, the monitor shows a terminal-style status screen built from `snapshot.os`, `storage`, `held`, `display`: OS name/tier and state, uptime, program slots and queue use, the running job with a sliding progress cue, queue rows (`+N AHEAD` / `NEXT` / `DONE`), a `PLUG KEY ... TO COLLECT` line, storage use of the boot drive, and the live POST/boot lines while booting. Fields that are missing are skipped. Otherwise the plain CLI text, `NO SIGNAL` and POST behave as before. `os` is hoverable/selectable only while an OS is installed (always a valid `flyTo`/`highlight` target).
+- **OS screen** (display only): when an OS is installed, powered and the monitor is live, in `booting-os`, `idle-os`, `running-os`, `ingesting`, `flashing`, the monitor shows a terminal-style status screen built from `snapshot.os`, `storage`, `held`, `display`: OS name/tier and state, uptime, program slots and queue use, the running job with a sliding progress cue, queue rows (`+N AHEAD` / `NEXT` / `DONE`), a `PLUG KEY ... TO COLLECT` line, storage use of the boot drive, and the live POST/boot lines while booting. Missing fields are skipped. Otherwise plain CLI text, `NO SIGNAL` and POST as before. The screen is **not** a hit target: the monitor is one object (`monitor`).
+- **OS badge** (`os`): a small `OS` chip with a status dot on the drive that hosts the OS (`snapshot.os.slot`; HDD or SATA SSD in the bay, NVMe on M.2; `osBadgeRect` in `drives.ts`). The dot follows the phase on the game clock: booting pulses amber, idle steady green, ingesting / flashing blink, running breathes cyan. The badge is the hover / `selected` / `highlight` / `flyTo` target `os` and exists only while an OS is installed on a present drive; clicking the drive body still selects the drive's device id.
 
 ## Game-time clock
 
@@ -145,7 +146,7 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 | `bay` | the drive cage (cells are `sata0` / `sata1`) |
 | `sata0`, `sata1`, `m20` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
 | `held` | the rack of ingested keys waiting for their result |
-| `os` | the OS screen area of the monitor (hover/select only while an OS is installed) |
+| `os` | the OS badge on the drive that hosts the OS (exists only while an OS is installed); the monitor screen is display only |
 | `psu.readout` | the PSU's live panel |
 | `tray` | the key tray |
 | `key:<keyId>` | a key in the tray or in the USB port |

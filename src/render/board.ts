@@ -8,7 +8,7 @@ import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type View } from './camera';
 import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt } from './case';
-import { driveArt, driveBody, driveKindOf, slotRect, type DriveKind } from './drives';
+import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { box, clear, dashed, label } from './ink';
@@ -119,6 +119,18 @@ export async function mountBoard(host: HTMLElement) {
   let caseBake: Sprite | null = null;
   let builtOnce = false;
   const driveSlotsSeen = new Set<string>();
+  const slotKind = new Map<string, DriveKind>();
+  /** The OS badge on the host drive (id 'os'); its rect follows the snapshot, so the hit entry reads it live. */
+  let osRect: Rect = { x: 0, y: 0, w: 0, h: 0 };
+  const applyBadge = (s: Snapshot | null) => {
+    const slot = s?.os?.slot, kind = slot ? slotKind.get(slot) : undefined;
+    if (!s?.os || !slot || !kind || !s.storage.some((d) => d.slot === slot)) {
+      scene.rects.delete('os'); scene.interactive.delete('os'); live.setOsBadge(null, 'off'); return;
+    }
+    osRect = osBadgeRect(kind, slot);
+    scene.rects.set('os', osRect); scene.interactive.add('os');
+    live.setOsBadge(osRect, s.phase);
+  };
   const slides: { node: Container; t0: number }[] = [];
   const parts: Part[] = [];
   let mainHits: Hit[] = [];
@@ -309,6 +321,7 @@ export async function mountBoard(host: HTMLElement) {
       const spec = getSpec(sd.spec) as { visual: string; name: string; capacityBytes?: number } | undefined;
       if (!spec) continue;
       const kind: DriveKind = driveKindOf(spec.visual), body = driveBody(kind, sd.slot);
+      slotKind.set(sd.slot, kind);
       const node = new Container(), lg = new Graphics();
       node.addChild(driveArt(T, kind, sd.slot, spec.name, `${Math.round((spec.capacityBytes ?? 0) / 1024)}K`), lg);
       driveLayer.addChild(node);
@@ -320,6 +333,7 @@ export async function mountBoard(host: HTMLElement) {
       deviceHits.push({ id: sd.id, rect: body });
     }
     driveSlotsSeen.clear();
+    for (const k of [...slotKind.keys()]) if (!storageDevs.some((d) => d.slot === k)) slotKind.delete(k);
     for (const sd of storageDevs) driveSlotsSeen.add(sd.slot);
     builtOnce = true;
     const emptyG = new Graphics();
@@ -348,9 +362,8 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
     scene.rects.set('case', CASE); scene.interactive.add('case');
     scene.rects.set('held', HELD); scene.interactive.add('held');
-    scene.rects.set('os', SCREEN); scene.interactive.add('os');
 
-    mainHits = [{ id: 'os', rect: SCREEN, cond: () => !!lastSnap?.os }, ...dieHits];
+    mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
     if (coolerHit) mainHits.push(coolerHit);
     mainHits.push(...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
@@ -380,6 +393,7 @@ export async function mountBoard(host: HTMLElement) {
     cableKey = ''; propsKey = '';
     syncCables(s, true);
     syncProps(s, true);
+    applyBadge(s);
     onZoom();
   }
 
@@ -538,6 +552,7 @@ export async function mountBoard(host: HTMLElement) {
     lastSnap = s;
     if (keyOf(s) !== sceneKey) build(s);
     else { syncCables(s); syncProps(s); }
+    applyBadge(s);
     live.update(s, now);
     pipeline.update(s, fast, now);
   });

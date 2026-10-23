@@ -90,6 +90,10 @@ export class Live {
   diskLevel = 0;
   private keyActivity: KeyActivity = 'none';
   private osRows: Text[] = [];
+  private badgeG = new Graphics();
+  private badgeText: Text | null = null;
+  private badgeRect: Rect | null = null;
+  private badgePhase: Snapshot['phase'] | 'off' = 'off';
   private osG = new Graphics();
   private osSig = '';
   private osOn = false;
@@ -135,7 +139,7 @@ export class Live {
     flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
   ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
@@ -212,6 +216,9 @@ export class Live {
       this.dots.push(s);
       this.root.addChild(s);
     }
+    if (!this.badgeText) this.badgeText = new Text({ text: 'OS', style: { fontFamily: HEAD, fontSize: 44, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
+    this.badgeText.anchor.set(0, 0.5);
+    this.root.addChild(this.badgeG, this.badgeText);
     this.root.addChild(this.bootG, this.gauge, this.badge, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal, this.panelFan, ...Object.values(this.psuTexts));
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
@@ -241,6 +248,9 @@ export class Live {
     }
     return this.osRows;
   }
+
+  /** The OS badge on the host drive (null: no OS). The dot animates on the game clock in `frame`. */
+  setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
   setZoom(z: number) { this.zoom = z; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
@@ -536,6 +546,28 @@ export class Live {
     });
   }
 
+  private drawBadge(now: number) {
+    const g = this.badgeG, r = this.badgeRect, t = this.badgeText!, T = this.T;
+    g.clear();
+    t.visible = !!r;
+    if (!r) return;
+    const ph = this.badgePhase;
+    box(g, r.x, r.y, r.w, r.h, 14, { fill: T.dark ? '#0b1226' : '#ffffff', fa: 0.92, stroke: T.st, lw: 5, sa: 0.85 });
+    const dotX = r.x + r.w - 30, dotY = r.y + r.h / 2;
+    let col = T.st, a = 1;
+    if (ph === 'booting-os') { col = T.ld; a = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 0.008)); }
+    else if (ph === 'idle-os') col = T.st;
+    else if (ph === 'ingesting') { col = T.mul; a = Math.floor(now / 140) % 2 ? 1 : 0.4; }
+    else if (ph === 'running-os') { col = T.alu; a = 0.6 + 0.4 * Math.sin(now * 0.012); }
+    else if (ph === 'flashing') { col = T.ld; a = Math.floor(now / 140) % 2 ? 1 : 0.4; }
+    else if (ph === 'off' || ph === 'error') { col = T.mute; a = 0.5; }
+    else col = T.mute;
+    g.circle(dotX, dotY, 22).fill({ color: col, alpha: 0.25 * a });
+    g.circle(dotX, dotY, 13).fill({ color: col, alpha: a });
+    t.position.set(r.x + 20, r.y + r.h / 2);
+    t.style.fill = T.st;
+  }
+
   /** Per-frame progress cue under the current job row: an indeterminate block sliding on a track (game time). */
   private drawOsBar(now: number) {
     const g = this.osG;
@@ -646,6 +678,7 @@ export class Live {
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
     this.drawOsBar(now);
+    this.drawBadge(now);
 
     this.drawBoot(now, dt);
 
