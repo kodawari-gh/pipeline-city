@@ -478,6 +478,6 @@ export async function mountBoard(host: HTMLElement) {
   });
   void lastFrame;
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene, beginPartDrag };
   return app;
 }

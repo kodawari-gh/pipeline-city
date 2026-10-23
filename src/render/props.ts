@@ -149,26 +149,26 @@ export function keyStick(T: Theme, k: KeySnap, compact = false): Container {
   const span = Math.max(1, k.deadlineTick - k.arrivalTick), frac = clamp01(k.age / span);
   const bar = (y: number, w: number) => {
     const b = new Graphics();
-    b.roundRect(tx, y, w, 24, 12).fill({ color: '#000000', alpha: 0.3 });
-    if (frac > 0) b.roundRect(tx, y, Math.max(24, w * frac), 24, 12).fill({ color: col });
+    b.roundRect(tx, y, w, 28, 14).fill({ color: '#000000', alpha: 0.3 });
+    if (frac > 0) b.roundRect(tx, y, Math.max(28, w * frac), 28, 14).fill({ color: col });
     c.addChild(b);
   };
   if (compact) {
-    c.addChild(label(fit(k.label, 88, tw, 0.6), tx, k.done ? -48 : -34, 88, T.ink, { head: true }));
+    c.addChild(label(fit(k.label, 96, tw, 0.6), tx, k.done ? -48 : -34, 96, T.ink, { head: true }));
     if (k.done) c.addChild(label('DONE', tx, 40, 56, col, { weight: '700' }));
     else bar(34, tw);
     return c;
   }
-  c.addChild(label(fit(k.label, 76, tw, 0.6), tx, -66, 76, T.ink, { head: true }));
+  c.addChild(label(fit(k.label, 88, tw, 0.6), tx, -62, 88, T.ink, { head: true }));
   if (k.done) {
     c.addChild(label('DONE', tx, 4, 56, col, { weight: '700' }));
     c.addChild(label(fit(k.result || k.template, 44, tw, 0.62), tx, 62, 44, T.mute));
   } else {
-    c.addChild(label(fit(k.template, 48, tw), tx, -6, 48, T.mute));
+    c.addChild(label(fit(k.template, 56, tw), tx, 2, 56, T.mute));
     const txt = k.late ? 'LATE' : `${k.age}/${span}s`;
-    const tW = txt.length * 40 * 0.62 + 20;
-    bar(44, tw - tW);
-    c.addChild(label(txt, tx + tw, 56, 40, col, { anchor: [1, 0.5], weight: '700' }));
+    const tW = txt.length * 48 * 0.62 + 24;
+    bar(50, tw - tW);
+    c.addChild(label(txt, tx + tw, 64, 48, col, { anchor: [1, 0.5], weight: '700' }));
   }
   return c;
 }
