@@ -39,7 +39,14 @@ const HOLD: Partial<Record<BusKind, number>> = { mem: 900, nvme: 1600, dmi: 1300
  * redraws a few small Graphics and Texts, per-frame work moves pooled sprites and rotates fans.
  */
 export class Live {
+  /** Interior art on top of the board (buses, cable glow, PSU readout, drives, OS badge). Hidden with the interior at far zoom. */
   readonly root = new Container();
+  /** External things that stay at any zoom: the monitor screen content, the USB port LED, the monitor LED, the video cable glow. */
+  readonly ext = new Container();
+  private extG = new Graphics();
+  private extDots: Sprite[] = [];
+  private interior = true;
+  private pchDrawn = false;
   private glows = new Map<string, Glow>();
   private fans: { c: Container; kind: string; speed: number; target: number }[] = [];
   private dots: Sprite[] = [];
@@ -141,8 +148,10 @@ export class Live {
     flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
   ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
+    for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
+    this.extDots = [];
     this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
     this.hasPsu = flags.psu;
@@ -192,8 +201,8 @@ export class Live {
       const color = cable.kind === 'video' ? T.st : cable.kind === 'atx' ? T.ld : cable.kind === 'cpu' ? T.alu : T.br;
       g.stroke({ width: cable.w * 0.34, color, alpha: 1, cap: 'butt', join: 'round' });
       g.alpha = 0;
-      this.root.addChild(g);
-      nDots += 3;
+      // the video cable runs outside the case: its glow and pulses live in the always-visible layer
+      if (cable.kind === 'video') this.ext.addChild(g); else { this.root.addChild(g); nDots += 3; }
       this.cables.push({ cable, g, level: 0, target: 0, color });
     }
     this.drives.clear();
@@ -221,7 +230,13 @@ export class Live {
     if (!this.badgeText) this.badgeText = new Text({ text: 'OS', style: { fontFamily: HEAD, fontSize: 44, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
     this.badgeText.anchor.set(0, 0.5);
     this.root.addChild(this.badgeG, this.badgeText);
-    this.root.addChild(this.bootG, this.gauge, this.badge, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal, this.panelFan, ...Object.values(this.psuTexts));
+    this.root.addChild(this.bootG, this.gauge, this.badge, this.panelFan, ...Object.values(this.psuTexts));
+    if (cables.some((c) => c.kind === 'video')) for (let i = 0; i < 3; i++) {
+      const sp = new Sprite(this.dotTex);
+      sp.anchor.set(0.5); sp.visible = false;
+      this.extDots.push(sp); this.ext.addChild(sp);
+    }
+    this.ext.addChild(this.extG, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
     this.panelFan.visible = showPsu;
@@ -255,6 +270,8 @@ export class Live {
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
   setZoom(z: number) { this.zoom = z; }
+  /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
+  setInterior(on: boolean) { this.interior = on; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
   setConnected(c: Set<CableKind>) { this.connected = c; }
   setPlugged(p: boolean) { this.plugged = p; }
@@ -443,28 +460,30 @@ export class Live {
     void s;
   }
 
-  /** PCH glow and scan bars, USB activity LED, monitor power LED, thin boot progress bar. */
+  /** PCH glow and scan bars (interior), USB activity LED, monitor power LED, thin boot progress bar (external). */
   private drawBoot(now: number, dt: number) {
     const T = this.T, g = this.bootG, ph = this.bootPhase;
     const busy = this.powered && (ph === 'posting' || ph === 'loading' || ph === 'writing');
     this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
     const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
-    const sig = `${this.pchLevel < 0.01 ? 0 : 1}|${showBar}|${this.plugged}|${this.powered}|${this.monitorLive}|${ph}`;
-    if (sig.startsWith('0|false|') && this.lastBootDraw === sig && !this.hasDisplay && !this.plugged) return;
-    this.lastBootDraw = sig;
-    g.clear();
     // PCH: outline glow plus a row of activity bars that scan while it works
     const c = BR.chip, lv = this.pchLevel;
-    if (lv > 0.01) {
-      for (let i = 0; i < 3; i++) { const e = 8 + i * 16; box(g, c.x - e, c.y - e, c.w + 2 * e, c.h + 2 * e, 26 + e, { stroke: T.mul, lw: 14, sa: 0.55 * lv * (1 - i / 3) }); }
-      const n = 9, bw = (c.w - 100) / n;
-      for (let i = 0; i < n; i++) {
-        const k = (Math.sin(now * 0.012 + i * 0.9) + 1) / 2;
-        g.rect(c.x + 50 + i * bw + 6, c.y + c.h - 120 - 110 * k, bw - 12, 30 + 110 * k).fill({ color: T.mul, alpha: (0.25 + 0.55 * k) * lv });
+    if (this.interior && (lv > 0.01 || this.pchDrawn)) {
+      g.clear();
+      this.pchDrawn = lv > 0.01;
+      if (lv > 0.01) {
+        for (let i = 0; i < 3; i++) { const e = 8 + i * 16; box(g, c.x - e, c.y - e, c.w + 2 * e, c.h + 2 * e, 26 + e, { stroke: T.mul, lw: 14, sa: 0.55 * lv * (1 - i / 3) }); }
+        const n = 9, bw = (c.w - 100) / n;
+        for (let i = 0; i < n; i++) {
+          const k = (Math.sin(now * 0.012 + i * 0.9) + 1) / 2;
+          g.rect(c.x + 50 + i * bw + 6, c.y + c.h - 120 - 110 * k, bw - 12, 30 + 110 * k).fill({ color: T.mul, alpha: (0.25 + 0.55 * k) * lv });
+        }
       }
     }
-    // USB port LED: dark with no key; steady green with a key in; with an OS it follows keyActivity (enumerating: slow amber blink,
-    // ingesting / flashing: fast blink, done: steady green that breathes = collect the key); without an OS it blinks while loading or writing
+    const e = this.extG;
+    e.clear();
+    // USB port LED: dark with no power or no key; steady green with a key in; with an OS it follows keyActivity (enumerating: slow amber
+    // blink, ingesting / flashing: fast blink, done: steady green that breathes = collect the key); without an OS it blinks while loading or writing
     const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52, act = this.keyActivity;
     let col: string | null = null, on = true, la = 1;
     if (!this.powered) { /* the USB port is dead without power */ }
@@ -472,24 +491,24 @@ export class Live {
     else if (act === 'ingesting') { col = T.ld; on = Math.floor(now / 130) % 2 === 0; }
     else if (act === 'flashing') { col = T.alu; on = Math.floor(now / 130) % 2 === 0; }
     else if (act === 'done') { col = T.st; la = 0.75 + 0.25 * Math.sin(now * 0.005); }
-    else if (this.plugged && this.powered) {
-      const active = this.powered && (ph === 'loading' || ph === 'writing');
+    else if (this.plugged) {
+      const active = ph === 'loading' || ph === 'writing';
       col = active ? T.ld : T.st; on = active ? Math.floor(now / 140) % 2 === 0 : true;
     }
     if (col) {
-      if (on) g.circle(lx, ly, 30).fill({ color: col, alpha: 0.3 * la });
-      g.circle(lx, ly, 15).fill({ color: on ? col : '#2a3150', alpha: on ? la : 0.7 });
-    } else g.circle(lx, ly, 15).fill({ color: '#2a3150', alpha: 0.6 });
+      if (on) e.circle(lx, ly, 30).fill({ color: col, alpha: 0.3 * la });
+      e.circle(lx, ly, 15).fill({ color: on ? col : '#2a3150', alpha: on ? la : 0.7 });
+    } else e.circle(lx, ly, 15).fill({ color: '#2a3150', alpha: 0.6 });
     // monitor power LED (green live, amber standby) and the boot bar under the picture
     if (this.hasDisplay) {
       const m = MONITOR, s = SCREEN, cy = s.y + s.h + 14 + (m.y + m.h - (s.y + s.h + 14)) / 2;
-      g.circle(m.x + m.w - 150, cy, 19).fill({ color: '#0a0f1a' });
-      const col = this.monitorLive ? (this.powered ? T.st : T.ld) : T.mute;
-      g.circle(m.x + m.w - 150, cy, 15).fill({ color: col, alpha: this.monitorLive ? 1 : 0.4 });
+      e.circle(m.x + m.w - 150, cy, 19).fill({ color: '#0a0f1a' });
+      const col2 = this.monitorLive ? (this.powered ? T.st : T.ld) : T.mute;
+      e.circle(m.x + m.w - 150, cy, 15).fill({ color: col2, alpha: this.monitorLive ? 1 : 0.4 });
       if (showBar) {
         const bx = s.x + 60, by = s.y + s.h - 36, bw = s.w - 120;
-        g.roundRect(bx, by, bw, 14, 7).fill({ color: '#0e1830' });
-        g.roundRect(bx, by, Math.max(14, bw * clamp(this.bootProgress)), 14, 7).fill({ color: T.st, alpha: 0.9 });
+        e.roundRect(bx, by, bw, 14, 7).fill({ color: '#0e1830' });
+        e.roundRect(bx, by, Math.max(14, bw * clamp(this.bootProgress)), 14, 7).fill({ color: T.st, alpha: 0.9 });
       }
     }
   }
@@ -613,6 +632,7 @@ export class Live {
 
   /** Per-frame animation. dt in seconds. */
   frame(dt: number, now: number) {
+    const inner = this.interior;
     this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));
@@ -620,7 +640,7 @@ export class Live {
       f.c.rotation += f.speed * dt;
     }
     const psuFan = this.fans.find((f) => f.kind === 'psu');
-    if (this.hasPsu) {
+    if (this.hasPsu && inner) {
       this.panelFan.rotation += (psuFan?.speed ?? 0) * dt;
       // fan rpm readout, and a first-order PSU temperature that follows load (estimated; the sim does not model PSU heat)
       const target = this.psuOff ? 25 : 25 + 34 * Math.pow(clamp(this.psuRatio, 0, 1.4), 1.5);
@@ -631,7 +651,7 @@ export class Live {
       const tc = Math.round(this.psuTemp), tt = `${tc}°C`;
       if (this.psuTexts.temp.text !== tt) { const T = this.T; const c = tc >= 70 ? T.bad : tc >= 55 ? T.ld : T.st; this.psuTexts.temp.text = tt; this.psuTexts.temp.style.fill = c; }
     }
-    for (const gl of this.glows.values()) {
+    if (inner) for (const gl of this.glows.values()) {
       const pulse = 0.85 + 0.15 * Math.sin(now * 0.004 + gl.t.rect.x);
       gl.g.alpha = clamp(gl.base * pulse, 0, 1);
     }
@@ -647,7 +667,7 @@ export class Live {
       sp.position.set(p[0], p[1]);
       sp.tint = col; sp.alpha = a; sp.scale.set(r * scale);
     };
-    for (const l of this.lit.values()) {
+    for (const l of inner ? this.lit.values() : []) {
       const power = l.pulses === 0;
       if (power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g.alpha = l.level * 0.55; continue; }
       const on = l.hold > now;
@@ -661,11 +681,19 @@ export class Live {
       }
     }
     for (const lc of this.cables) {
+      const video = lc.cable.kind === 'video';
+      if (!video && !inner) continue;
       lc.level += (lc.target - lc.level) * Math.min(1, dt * 2.5);
       lc.g.alpha = lc.level * 0.55;
+      if (video) for (const sp of this.extDots) sp.visible = false;
       if (lc.level < 0.03) continue;
-      const lane = lc.cable.path, dir = lc.cable.kind === 'video' ? 1 : -1;
-      for (let j = 0; j < 3; j++) put(pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3), lc.color, 0.85 * lc.level, 1.4);
+      const lane = lc.cable.path, dir = video ? 1 : -1;
+      for (let j = 0; j < 3; j++) {
+        const pt = pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3);
+        const sp = video ? this.extDots[j] : this.dots[k++];
+        if (!sp) continue;
+        sp.visible = true; sp.position.set(pt[0], pt[1]); sp.tint = lc.color; sp.alpha = 0.85 * lc.level; sp.scale.set(r * 1.4);
+      }
     }
     // drives: platter / head / LED only while busy; SATA cable pulses while data moves
     this.diskLevel = 0;
@@ -679,9 +707,9 @@ export class Live {
       dr.led += (lt - dr.led) * Math.min(1, dt * 14);
       if (!lit && dr.led < 0.03) dr.led = 0;
       const sig = `${Math.round(dr.spin * 20)}|${Math.round(dr.head * 40)}|${Math.round(dr.led * 10)}|${dr.burnt}`;
-      if (sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
+      if (inner && sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
       this.diskLevel = Math.max(this.diskLevel, dr.led);
-      if (dr.lane) {
+      if (dr.lane && inner) {
         dr.level += ((flow ? 1 : 0) - dr.level) * Math.min(1, dt * (flow ? 9 : 2.2));
         dr.glow.alpha = dr.level * 0.5;
         if (dr.level > 0.03) for (let j = 0; j < 4; j++) put(pointAt(dr.lane, this.phase * 1.4 * dr.dir + (j * dr.lane.len) / 4), T.mul, 0.95 * dr.level);
@@ -689,14 +717,14 @@ export class Live {
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
     this.drawOsBar(now);
-    this.drawBadge(now);
+    if (inner) this.drawBadge(now);
 
     this.drawBoot(now, dt);
 
     // DRAM chips flash while the memory bus is busy
     const mf = clamp(1 - (now - this.memAt) / 900);
     this.dramFlash.clear();
-    if (mf > 0) {
+    if (mf > 0 && inner) {
       let n = 0;
       for (const c of this.dramChips) {
         if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { fill: this.T.alu, fa: mf * 0.55, stroke: this.T.alu, lw: 5 });

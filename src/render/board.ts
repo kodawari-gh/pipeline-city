@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
 import { hover, viewInset } from '../game/hover';
+import { dragging, highlight } from '../game/interaction';
 import { snapshot, speed } from '../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
 import type { StorageSnap } from '../sim/game/game';
@@ -11,6 +12,7 @@ import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt 
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
+import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PKG, PSU, PSU_PANEL,
@@ -22,7 +24,7 @@ import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { onThemeChange, readTheme, type Theme } from './theme';
 
-interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean }
+interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean }
 
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -36,6 +38,17 @@ const DEV_BAKE_RES = 0.25;
 /** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
 const Z_BAKE_PROPS = 0.2;
 const PROPS_FRAME = new Rectangle(-7560, 280, 3500, 2950);
+
+/**
+ * Level of detail on the camera scale, as multiples of the fit zoom (the zoom of the default overview, `fits.z`).
+ * At or above `LOD.fadeFrom` the interior shows as always; between `fadeFrom` and `fadeTo` the exterior case crossfades in over it;
+ * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. `minZoom` is how far the camera may
+ * zoom out (it used to be 0.7). Tune these four numbers, nothing else depends on them.
+ */
+export const LOD = { fadeFrom: 0.7, fadeTo: 0.5, minZoom: 0.2 };
+/** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
+const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'held' || id === 'case'
+  || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display');
 
 /** The routed cables never change (geometry only); built once. */
 const ALL_CABLES = buildCables();
@@ -88,7 +101,17 @@ export async function mountBoard(host: HTMLElement) {
   const coolerLayer = new Container();
   const deviceBakeLayer = new Container();
   const fanLayer = new Container();
+  /** Internal cables (ATX, CPU, ...), inside the interior group; the video cable runs outside the case and has its own layer. */
   const cableLayer = new Container();
+  const cableExtLayer = new Container();
+  /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
+  const monitorLayer = new Container();
+  const interior = new Container();
+  const exteriorLayer = new Container();
+  const stripG = new Graphics();
+  let exteriorSprite: Sprite | null = null;
+  let extDrives: { slot: string }[] = [];
+  let monitorCached = false;
   const propsLayer = new Container();
   const chromeLayer = new Container();
   const chromeBakeLayer = new Container();
@@ -107,7 +130,9 @@ export async function mountBoard(host: HTMLElement) {
   });
   interactRef = interact;
   interact.setTheme(T);
-  world.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, chromeBakeLayer, chromeLayer, propsLayer, live.root, interact.fx);
+  interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
+  exteriorLayer.addChild(stripG);
+  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, chromeBakeLayer, chromeLayer, propsLayer, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -155,8 +180,24 @@ export async function mountBoard(host: HTMLElement) {
   const mergeHits = () => { allHits = [...propHits, ...cableHits, ...mainHits]; };
 
   // ---- LOD driven by zoom ----
+  /** 0..1: how much the exterior case covers the interior (zoom crossfade, pulled back to 0 while a drag or a highlight needs the inside). */
+  let extA = 0;
+  /** 0..1: the interior is being revealed regardless of zoom (dragging a part or cable, highlighting an internal id). */
+  let reveal = 0;
+  const applyLod = () => {
+    const f = fits.z > 0 ? fits.z : 0.1;
+    extA = smooth(LOD.fadeFrom, LOD.fadeTo, camera.z / f) * (1 - reveal);
+    exteriorLayer.alpha = extA;
+    exteriorLayer.visible = extA > 0.004;
+    interior.visible = extA < 0.996;
+    live.setInterior(interior.visible);
+    // the monitor is one cached texture far out
+    const want = camera.z < Z_BAKE_DEV;
+    if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
+  };
   const onZoom = () => {
     const z = camera.z;
+    applyLod();
     const labelsOn = z > 0.12, partLabels = z > 0.22;
     if (boardArt) boardArt.labels.visible = labelsOn;
     const baked = !!boardBake && z < Z_BAKE;
@@ -204,6 +245,8 @@ export async function mountBoard(host: HTMLElement) {
     boardBake = null; deviceBake = null; caseBake = null; caseVec = null;
     clear(caseLayer); clear(sataLayer); clear(driveLayer); clear(glassLayer); slides.length = 0;
     clear(boardLayer); clear(deviceLayer); clear(coolerLayer); clear(deviceBakeLayer); clear(fanLayer);
+    monitorLayer.cacheAsTexture(false); monitorCached = false; clear(monitorLayer);
+    exteriorSprite?.texture.destroy(true); exteriorSprite?.destroy(); exteriorSprite = null;
     parts.length = 0;
     const tier = s?.boardTier ?? 0;
     boardArt = buildBoard(T, tier);
@@ -279,7 +322,7 @@ export async function mountBoard(host: HTMLElement) {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
         const p = monitorArt(T, true);
-        deviceLayer.addChild(p.root); parts.push(p);
+        monitorLayer.addChild(p.root);
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
         deviceHits.push({ id: 'monitor', rect: MONITOR });
         scene.rects.set(d.id, MONITOR); scene.rects.set('monitor', MONITOR);
@@ -348,12 +391,16 @@ export async function mountBoard(host: HTMLElement) {
         continue;
       }
       const pts: [number, number][] = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]];
+      if (h.id.startsWith('display')) {
+        // no monitor installed: a dashed bay outside the case (not a NO SIGNAL screen; that needs a monitor and power)
+        const mg = new Graphics();
+        dashed(mg, pts, 40, 30); mg.stroke({ width: 10, color: T.mute, alpha: 0.7 });
+        box(mg, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
+        monitorLayer.addChild(mg, label('MONITOR BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
+        continue;
+      }
       dashed(emptyG, pts, 40, 30);
       emptyG.stroke({ width: 10, color: T.mute, alpha: 0.7 });
-      if (h.id.startsWith('display')) {
-        box(emptyG, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
-        deviceLayer.addChild(label('NO SIGNAL', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
-      }
       if (h.id.startsWith('atx')) deviceLayer.addChild(label('PSU BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
     }
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
@@ -366,7 +413,7 @@ export async function mountBoard(host: HTMLElement) {
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
     if (coolerHit) mainHits.push(coolerHit);
-    mainHits.push(...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
+    mainHits.push({ id: 'case', rect: CASE, extOnly: true }, ...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
       { id: 'bay', rect: BAY },
       // the chassis frame (panel, side walls, floor) is the case; the glass area stays free so the board is not outlined by accident
       { id: 'case', rect: CASE_PANEL, more: [
@@ -384,6 +431,22 @@ export async function mountBoard(host: HTMLElement) {
     deviceBake = new Sprite(app.renderer.generateTexture({ target: deviceLayer, frame: wf, resolution: DEV_BAKE_RES, antialias: true }));
     deviceBake.position.set(wf.x, wf.y);
     deviceBakeLayer.addChild(deviceBake);
+
+    // the far-zoom exterior: built once per scene, baked to one texture; only the accent strip is live
+    {
+      const bt = BOARD_TIERS[tier];
+      const ext = exteriorArt(T, {
+        nSata: slots.sata ?? 0,
+        drives: storageDevs.map((d) => ({ slot: d.slot, kind: slotKind.get(d.slot) ?? 'hdd' })).filter((d) => d.kind !== 'ssd-nvme'),
+        features: bt?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
+      });
+      const tx = app.renderer.generateTexture({ target: ext, frame: new Rectangle(EXTERIOR_FRAME.x, EXTERIOR_FRAME.y, EXTERIOR_FRAME.w, EXTERIOR_FRAME.h), resolution: 0.35, antialias: true });
+      ext.destroy({ children: true });
+      exteriorSprite = new Sprite(tx);
+      exteriorSprite.position.set(EXTERIOR_FRAME.x, EXTERIOR_FRAME.y);
+      exteriorLayer.addChildAt(exteriorSprite, 0);
+      extDrives = storageDevs.filter((d) => slotKind.get(d.slot) !== 'ssd-nvme').map((d) => ({ slot: d.slot }));
+    }
 
     const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
@@ -411,7 +474,7 @@ export async function mountBoard(host: HTMLElement) {
     const key = `${T.dark}|` + states.map((x) => x.c.kind + ':' + x.state).join(',');
     if (!force && key === cableKey) return;
     cableKey = key;
-    clear(cableLayer);
+    clear(cableLayer); clear(cableExtLayer);
     cableHits = [];
     scene.cables.clear();
     for (const k of ['atx', 'cpu', 'video', 'pcie'] as const) { scene.interactive.delete('cable.' + k); scene.rects.delete('cable.' + k); }
@@ -426,12 +489,12 @@ export async function mountBoard(host: HTMLElement) {
       if (state === 'connected') {
         connectedKinds.add(c.kind);
         const p = cableArt(T, c);
-        cableLayer.addChild(p.root);
+        (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const rs = laneRects(c.path, c.w / 2 + 10);
         cableHits.push({ id: 'cable.' + c.kind, rect: rs[0]!, more: [...rs.slice(1), plugRect(c.a), plugRect(c.b)] });
       } else if (state === 'loose') {
         const p = looseCableArt(T, c);
-        cableLayer.addChild(p.root);
+        (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const pad = (r: Rect, e = 30): Rect => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
         const rs = laneRects(lo.path, c.w * 0.31 + 10);
         cableHits.push({ id: 'cable.' + c.kind, rect: pad(rest), more: [...rs, plugRect(c.kind === 'video' ? c.b : c.a)] });
@@ -504,7 +567,7 @@ export async function mountBoard(host: HTMLElement) {
     const was = atOverview();
     change();
     fits = camera.fit(WORLD);
-    camera.minZ = fits.z * 0.7;
+    camera.minZ = fits.z * LOD.minZoom;
     if (was) camera.set(fits); else camera.apply();
   };
   reframe(() => { camera.resize(app.screen.width, app.screen.height); camera.inset = { ...viewInset.peek() }; });
@@ -516,7 +579,9 @@ export async function mountBoard(host: HTMLElement) {
   // ---- hit testing: hover and click write the shared signals ----
   const hitAt = (cx: number, cy: number): string | null => {
     const w = camera.toWorld(cx, cy), z = camera.z;
+    const ext = extA > 0.5; // the exterior covers the interior: only the always-external ids (and the whole case) can be hit
     for (const h of allHits) {
+      if (ext ? !isExternalId(h.id) : h.extOnly) continue;
       if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max) || (h.cond && !h.cond())) continue;
       for (const r of h.more ? [h.rect, ...h.more] : [h.rect]) if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
     }
@@ -557,6 +622,24 @@ export async function mountBoard(host: HTMLElement) {
     pipeline.update(s, fast, now);
   });
 
+  // ---- far-zoom exterior: reveal on demand, accent strip ----
+  /** True while something the player is doing needs the inside: a part or an internal cable is dragged, or an internal id is highlighted. */
+  const needsInterior = () => {
+    const d = dragging.peek();
+    if (d && (d.kind === 'part' || (d.kind === 'cable' && d.id !== 'cable.video'))) return true;
+    for (const id of highlight.peek()) if (!isExternalId(id) && interact.rectsFor(id).length > 0) return true;
+    return false;
+  };
+  const lodFrame = (dt: number) => {
+    const target = needsInterior() ? 1 : 0;
+    if (reveal !== target) {
+      reveal += (target - reveal) * (1 - Math.exp(-dt * 9));
+      if (Math.abs(target - reveal) < 0.004) reveal = target;
+      applyLod();
+    }
+    if (exteriorLayer.visible) drawStrip(stripG, T, stripModeOf(lastSnap), gt, live.diskLevel, extDrives);
+  };
+
   // ---- frame loop ----
   app.ticker.add((tk) => {
     const now = performance.now();
@@ -565,6 +648,7 @@ export async function mountBoard(host: HTMLElement) {
     const gdt = dt * timeScale();
     gt += gdt * 1000;
     camera.update(now);
+    lodFrame(dt);
     live.frame(gdt, gt);
     pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
@@ -577,6 +661,6 @@ export async function mountBoard(host: HTMLElement) {
     }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene, beginPartDrag };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }
