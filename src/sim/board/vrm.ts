@@ -8,6 +8,9 @@ export const VRM_OVERLOAD = 1;
 /** Per-phase load above which the VRM accumulates burn-out stress even when cool. */
 export const VRM_BURN_RATIO = 1.6;
 
+/** Burn-out stress per tick while overloaded (or hot past unstableC) and hotter than throttleC: 10 stress burns the board. */
+export const VRM_HOT_STRESS = 0.25;
+
 /** CPU core voltage: 1 V at base clock, rising 0.3 V per unit of clock ratio (floored at 0.7 V). */
 export function coreVoltage(r: number): number {
   return Math.max(0.7, 1 + 0.3 * (r - 1));

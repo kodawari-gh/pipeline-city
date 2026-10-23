@@ -22,7 +22,7 @@
 import type { Prng } from "../machine/prng";
 import { deviceSpec, findDevices, installedPsu, type Board, type InstalledDevice } from "./board";
 import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, type DeviceKind } from "./specs";
-import { currentDemand, efficiency, errorProb, lossW, loadRatio, VRM_BURN_RATIO, VRM_OVERLOAD } from "./vrm";
+import { currentDemand, efficiency, errorProb, lossW, loadRatio, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
 
 export const THROTTLE_MIN = 0.8;
 export const TRIP_RATIO = 1.5;
@@ -209,7 +209,9 @@ export class ThermalModel {
     v.throttle = throttle;
     v.unstable = !board.burnt && live && (now.ratio > VRM_OVERLOAD || v.tempC > vspec.unstableC);
     v.errProb = v.unstable ? errorProb(vspec, now.ratio, v.tempC) : 0;
+    // Burn-out stress: fast when far over the limits, slow when overloaded AND hot (so cooling the VRM saves it), else it recovers.
     if (v.tempC > vspec.damageC || now.ratio > VRM_BURN_RATIO) v.stress++;
+    else if (v.unstable && v.tempC > vspec.throttleC) v.stress += VRM_HOT_STRESS;
     else v.stress = Math.max(0, v.stress - 1);
     if (v.stress >= DAMAGE_TICKS && !board.burnt) board.burnt = true;
   }
