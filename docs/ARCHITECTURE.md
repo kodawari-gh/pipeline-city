@@ -32,7 +32,10 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Toy ISA, toy hardware that "kinda makes sense".** No real ISA or emulator. The ISA grows as programs need it.
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
-- **32-bit words, 16 general registers.**
+- **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
+- **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
+- **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
+- **Calls:** a link register and a stack pointer register with a minimal convention, so stack traffic is real and visible in the memory view and kernels compose as functions.
 - **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. Interrupts and DMA are not in scope for now.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
 - **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order.
@@ -142,7 +145,7 @@ Desktop first. Pointer events stay generic so touch pan/pinch works on the board
 ## Open questions
 
 - Typed-array layout conventions per engine (see Sim internals).
-- Instruction encoding format and the GPU instruction set.
+- Exact opcodes, field widths per format and register roles (link, stack pointer, zero), plus the GPU instruction set.
 - Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
 - Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
 - Exact shape of the world-map / datacenter layer (far future, not designed).
