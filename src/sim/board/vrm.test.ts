@@ -199,7 +199,7 @@ describe("VRM cooling", () => {
 });
 
 describe("the game around the VRM", () => {
-  const busy = { baseDemandPerTick: 1, queueCap: 10, startQueue: [{ template: "cli.log" }] };
+  const busy = { baseDemandPerTick: 1, queueCap: 10, coldBootTicks: 0, startQueue: [{ template: "cli.log" }] };
 
   /** Preassembled Starter game with a cpu2 and a 100 W PSU (and optionally a liquid cooler), bot-assembled. */
   function weakGame(liquid: boolean, seed = 5): { g: Game; op: Operator } {

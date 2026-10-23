@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ECONOMY } from "./economy";
 import { Game, type GameOptions } from "./game";
 import { Operator, play } from "./operator";
 
@@ -22,7 +23,7 @@ function oneJob(items: string[], template: string, scale = 1, seed = 1) {
 const cpuOf = (g: Game) => g.snapshot().devices.find((d) => d.kind === "cpu")!;
 
 describe("pacing (real start: bare board, then the bot assembles the crate)", () => {
-  it("first job (power on to payout) is about 40-60 s, the first payout buys a part soon after", () => {
+  it("first job (power on to payout) is about 65-95 s (cold boot included), the first payout buys a part soon after", () => {
     const g = new Game({ seed: 1 });
     const op = new Operator(g, 2); // a human needs a couple of seconds per manual step
     let powerOnAt = 0;
@@ -43,13 +44,13 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
     }
     expect(powerOnAt).toBeLessThanOrEqual(12); // a few manual steps: install, plug a key, press power
     const firstJob = payAt - powerOnAt;
-    expect(firstJob).toBeGreaterThanOrEqual(40);
-    expect(firstJob).toBeLessThanOrEqual(60);
+    expect(firstJob).toBeGreaterThanOrEqual(65); // was 40-60 before the 30 s cold boot (ECONOMY.coldBootTicks)
+    expect(firstJob).toBeLessThanOrEqual(95);
     expect(firstPay).toBeGreaterThan(30);
     expect(firstId).toBe(1);
     expect(firstAffordable).toBeLessThanOrEqual(payAt + 60); // the cheapest part ($50 cooler) soon after
     expect(firstTier).toBeGreaterThanOrEqual(payAt);
-    expect(firstTier).toBeLessThanOrEqual(300);
+    expect(firstTier).toBeLessThanOrEqual(400);
   });
 
   it("slow start: across 30 seeds the first $100 lands in a bounded time and the first job is unchanged", () => {
@@ -64,9 +65,9 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
         op.step();
         if (!first && g.completed > 0) {
           first = t;
-          expect(first).toBeGreaterThanOrEqual(40);
-          expect(first).toBeLessThanOrEqual(60);
-          expect(g.lastCompleted!.payout).toBeGreaterThanOrEqual(40);
+          expect(first).toBeGreaterThanOrEqual(65);
+          expect(first).toBeLessThanOrEqual(100);
+          expect(g.lastCompleted!.payout).toBeGreaterThanOrEqual(30); // the longer first cycle earns a smaller speed bonus
           expect(g.lastCompleted!.payout).toBeLessThanOrEqual(75);
         }
         if (g.money >= 100) t100 = t;
@@ -74,7 +75,7 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
       times.push(t100);
     }
     expect(Math.min(...times)).toBeGreaterThan(0);
-    expect(Math.max(...times)).toBeLessThanOrEqual(360);
+    expect(Math.max(...times)).toBeLessThanOrEqual(560); // was 360 before the 30 s cold boot per job
   });
 
   it("the first job leaves its text on the monitor and on the key", () => {
@@ -112,25 +113,34 @@ describe("queue, reputation and demand", () => {
     expect(s.demandRate).toBeLessThan(fresh.demandRate);
   });
 
-  it("slow service shrinks demand, fast service grows it", () => {
-    /** Mean reputation over the second half of a 900 s run (a single instant is noisy: a lull freezes the average). */
+  it("slow service shrinks demand, fast service holds it up", () => {
+    /** Mean reputation over the second half of a 1500 s run (a single instant is noisy: a lull freezes the average). */
     const meanRep = (g: Game): number => {
       let sum = 0;
       let n = 0;
-      play(g, 900, 2, (gg, t) => { if (t > 450 && t % 10 === 0) { sum += gg.snapshot().reputation; n++; } });
+      play(g, 1500, 2, (gg, t) => { if (t > 750 && t % 10 === 0) { sum += gg.snapshot().reputation; n++; } });
       return sum / n;
     };
-    const slow = new Game({ seed: 2 });
-    const fast = new Game({ seed: 2 });
-    fast.money = 1e6;
-    fast.purchase("cpu1");
-    fast.purchase("ram1");
-    const rs = meanRep(slow);
-    const rf = meanRep(fast);
-    expect(rs).toBeLessThan(1);
-    expect(rf).toBeGreaterThan(1);
-    expect(rf).toBeGreaterThan(rs * 1.5);
-    expect(fast.completed).toBeGreaterThan(slow.completed);
+    // Averaged over three seeds and a longer run than before the manual boot loop (about 100 s per job at the start, so
+    // the reputation of a single seed is noisy); the claim is the same: the faster machine keeps clients happier.
+    let rs = 0;
+    let rf = 0;
+    let doneSlow = 0;
+    let doneFast = 0;
+    for (const seed of [2, 3, 4]) {
+      const slow = new Game({ seed });
+      const fast = new Game({ seed });
+      fast.money = 1e6;
+      fast.purchase("cpu1");
+      fast.purchase("ram1");
+      rs += meanRep(slow) / 3;
+      rf += meanRep(fast) / 3;
+      doneSlow += slow.completed;
+      doneFast += fast.completed;
+    }
+    expect(rs).toBeLessThan(0.6);
+    expect(rf).toBeGreaterThan(rs * 1.25);
+    expect(doneFast).toBeGreaterThan(doneSlow * 1.5);
   });
 
   it("no clients arrive before the first boot, and the first key's clock starts at the first boot", () => {
@@ -248,10 +258,11 @@ describe("board upgrade purchase", () => {
 
 describe("CPU tier vs RAM tier depends on the job profile", () => {
   it("log: CPU pays off, RAM does nothing", () => {
+    const cold = ECONOMY.coldBootTicks; // fixed hardware delay, not shortened by a faster CPU
     const base = oneJob([], "cli.log").execTicks;
     const cpu = oneJob(["cpu1"], "cli.log").execTicks;
     const ram = oneJob(["ram1"], "cli.log").execTicks;
-    expect(base / cpu).toBeGreaterThan(2.5);
+    expect((base - cold) / (cpu - cold)).toBeGreaterThan(2.5);
     expect(Math.abs(base - ram)).toBeLessThanOrEqual(6); // only the one-off reboot for the swap
   });
 
@@ -319,6 +330,7 @@ describe("overclock, heat and errors", () => {
   const busy: GameOptions["economy"] = {
     baseDemandPerTick: 1, repMin: 1, queueCap: 20,
     mix: [{ template: "cli", weight: 1, minRamBytes: 0 }], // thermal tests use plain CLI jobs only
+    coldBootTicks: 0, // the cold-boot wait idles the CPU and cools it; these tests are about a CPU that never rests
   };
 
   /** cpu2 (35 W at base) needs the 100 W PSU, and runs hot on the stock cooler. */
@@ -346,7 +358,8 @@ describe("overclock, heat and errors", () => {
     const b = new Game({ seed: 5, preassembled: true, economy: busy });
     expect(b.setCpuClock(1.5).ok).toBe(true);
     play(b, 500);
-    expect(b.completed).toBeGreaterThan(a.completed * 1.2);
+    // 1.2 before the manual loop; its fixed per-job steps (cold boot, power off/on, plug, remove) dilute the gain.
+    expect(b.completed).toBeGreaterThan(a.completed * 1.08);
     expect(cpuOf(b).burnt).toBe(false);
   });
 

@@ -73,7 +73,7 @@ describe('host message handling', () => {
     handleMessage(h, { type: 'connectCable', cable: 'video' });
     expect(snap(handleMessage(h, { type: 'powerButton' })).phase).toBe('posting');
     expect(types(handleMessage(h, { type: 'disconnectCable', cable: 'video' }))).toEqual(['error', 'snapshot']); // powered on
-    advance(h, 12_000);
+    for (let i = 0; i < 8; i++) advance(h, 12_000); // past the cold boot and POST
     expect(h.game!.currentPhase()).toBe('halted'); // no key at boot
     const key = snap(handleMessage(h, { type: 'plugKey', keyId: 1 }));
     expect(key.tray.map((k) => k.id)).not.toContain(1);

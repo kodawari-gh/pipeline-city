@@ -248,10 +248,12 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
   });
 
   it("leaves the exact text the generator promised on the key, for every template and CPU tier", () => {
-    for (const [cpu, extra] of [["cpu0", []], ["cpu1", []], ["cpu2", ["psu1"]]] as const) {
+    // cpu2 gets the strongest board: on the Starter VRM it droops and crashes, which is a different test.
+    for (const [cpu, extra] of [["cpu0", []], ["cpu1", []], ["cpu2", ["board1", "board2", "board3", "psu1"]]] as const) {
       for (const [template, scale] of [["cli.log", 1], ["cli.calc", 1], ["cli.checksum", 1], ["cli.scan", 2]] as const) {
         const g = new Game({ seed: 7, preassembled: true, economy: { ...NO_ARRIVALS, startQueue: [{ template, scale }] } });
         g.money = 1e6;
+        g.powerButton(); // boards are bought while powered off
         for (const p of [...extra, ...(cpu === "cpu0" ? [] : [cpu])]) g.purchase(p);
         new Operator(g).assemble(false);
         const snap = g.snapshot().tray[0]!;

@@ -21,7 +21,7 @@ export class Operator {
     if (g.hasOs()) return this.stepOs(plugged);
     const phase = g.currentPhase();
     // A halted machine (job done, or no key at boot) stays halted until it is power-cycled by hand.
-    if (g.powered && !plugged && (phase === "halted" || phase === "error")) return this.act(() => { g.powerButton(); });
+    if (g.powered && !plugged && phase === "halted") return this.act(() => { g.powerButton(); });
     if (!g.powered && !plugged && g.trayKeyIds().length > 0) return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
     if (!g.powered && plugged) return this.act(() => { g.powerButton(); });
     this.wait = 0;

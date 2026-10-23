@@ -754,15 +754,16 @@ export class Game {
     this.baseTick++;
     this.arrivals();
     const running = this.powered && !this.postError && !this.fault();
-    if (running && this.bootDelay > 0) this.bootDelay--;
+    const delayed = running && this.bootDelay > 0; // PSU power-good, fans, BIOS init: the CPU is not executing yet
+    if (delayed) this.bootDelay--;
     else if (running) {
       this.pch.usbTick();
       this.machine.advanceBaseTick();
       this.afterMachine();
     }
     const phase = this.currentPhase();
-    const busy = phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
-      || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
+    const busy = !delayed && (phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
+      || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing");
     const load = busy ? 1 : this.cfg.idleLoad;
     const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
     const boardWasOk = !this.board.burnt;
