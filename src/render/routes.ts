@@ -225,3 +225,55 @@ export function laneRects(l: Lane, pad: number): Rect[] {
   }
   return rs;
 }
+
+// ---------------------------------------------------------------- loose (unplugged) cables
+
+/** The end of each cable the player moves: the board end of the PSU cables, the board (HDMI) end of the video cable. */
+export const movablePlug = (c: Cable): Plug => (c.kind === 'video' ? c.a : c.b);
+
+export interface Loose {
+  /** Stub from the fixed end (PSU socket / monitor port) to the loose plug. */
+  path: Lane;
+  /** The loose plug lying at rest. */
+  plug: Plug;
+  /** Where the cable is fixed (PSU socket top, monitor side port) and the direction it leaves that fixed end. */
+  anchor: Pt;
+  anchorDir: Pt;
+}
+
+/** Scale of a loose plug relative to the fully seated one (the 24-pin plug is huge next to the PSU). */
+export const LOOSE_SCALE = 0.54;
+
+/** Where an unplugged cable's loose plug rests: the PSU cables in the gutter by the PSU, the HDMI cable near the monitor. */
+export function looseCable(c: Cable): Loose {
+  if (c.kind === 'video') {
+    const y = VIDEO_Y + 420;
+    const plug: Plug = { x: -3580, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] };
+    const route: Pt[] = [[-3990, VIDEO_Y], [-3880, VIDEO_Y], [-3880, y], [-3580 - 220 + 8, y]];
+    return { path: mkLane(roundedPath(route, 90)), plug, anchor: [-4000, VIDEO_Y], anchorDir: [1, 0] };
+  }
+  const x = c.a.x;
+  const w = Math.round(movablePlug(c).w * LOOSE_SCALE), l = 150;
+  const top = c.kind === 'atx' ? 1800 : c.kind === 'cpu' ? 2200 : 1450;
+  const plug: Plug = { x, y: top, dx: 0, dy: 1, w, l, pins: movablePlug(c).pins };
+  const route: Pt[] = [[x, PORT_Y - 130 + 20], [x, top + l - 6]];
+  return { path: mkLane(roundedPath(route, 1)), plug, anchor: [x, PORT_Y - 130 + 20], anchorDir: [0, -1] };
+}
+
+/** Sag cubic from the fixed end to the pointer, sampled; the cable the player stretches while dragging a plug. */
+export function rubberBand(anchor: Pt, anchorDir: Pt, tip: Pt, steps = 28): Pt[] {
+  const dx = tip[0] - anchor[0], dy = tip[1] - anchor[1], d = Math.hypot(dx, dy);
+  const lead = Math.min(520, d * 0.45 + 80);
+  const p1: Pt = [anchor[0] + anchorDir[0] * lead, anchor[1] + anchorDir[1] * lead];
+  const sag = Math.min(260, d * 0.12);
+  const p2: Pt = [tip[0] - dx * 0.22, tip[1] - dy * 0.22 + sag];
+  const out: Pt[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, u = 1 - t;
+    out.push([
+      u * u * u * anchor[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * tip[0],
+      u * u * u * anchor[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * tip[1],
+    ]);
+  }
+  return out;
+}

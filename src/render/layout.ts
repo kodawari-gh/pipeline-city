@@ -99,7 +99,21 @@ export const MONITOR: Rect = { x: -7500, y: -2250, w: 3300, h: 1995 };
 /** Y of the video cable and of the HDMI port on the rear I/O. */
 export const VIDEO_Y = -1150;
 
-/** Everything the camera should see at once (board, PSU, monitor, cables). */
+// ---- assembly props: the parts crate, the USB key tray, the power button, the USB port ----
+/** Parts crate, south-west of the board (below the monitor and the key tray). */
+export const CRATE: Rect = { x: -7500, y: 1480, w: 3200, h: 2060 };
+/** USB key tray, just under the monitor stand: 4 columns by 3 rows of keys (queue cap 10). */
+export const TRAY: Rect = { x: -7500, y: 330, w: 3300, h: 960 };
+export const TRAY_COLS = 4;
+/** Power button plate, west of the board between the I/O panel and the crate. */
+export const POWER_PLATE: Rect = { x: -4130, y: 1480, w: 640, h: 900 };
+export const POWER_BTN = { x: -3810, y: 1850, r: 175 };
+/** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
+export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
+/** HDMI socket on the rear I/O panel (the video plug goes here). */
+export const HDMI_PORT: Rect = { x: BR.io.x, y: VIDEO_Y - 60, w: 240, h: 120 };
+
+/** Everything the camera should see at once (board, PSU, monitor, cables, crate, tray). */
 export const WORLD: Rect = { x: -7650, y: -2650, w: 11800, h: 6650 };
 
 // ---- hover region list (ids are the contract with the UI) ----
