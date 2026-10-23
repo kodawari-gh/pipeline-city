@@ -17,6 +17,8 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `props.ts` | world props: part icons (drag ghost), USB key tray, wide key stick, power button and its lights |
 | `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts (`beginPartDrag`) / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
 | `pipeline.ts` | zoomed-in CPU chips and stage highlights |
+| `case.ts` | the PC case: chassis, glass, drive bay cage, SATA data cables and power leads |
+| `drives.ts` | drive art (`hdd`, `ssd-sata`, `ssd-nvme`) and their live parts (platter, head arm, activity LED) |
 | `ink.ts` | small Graphics / Text helpers |
 
 ## World layout
@@ -29,6 +31,21 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 ```
 
 The CPU socket is the origin. West of the board: the **key tray** (under the monitor stand, 2 columns of wide keys) and the **power plate** (between the tray and the board's rear I/O). There is no crate in the world: the inventory is an HTML menu (`src/ui`) that starts part drags with `beginPartDrag`. Board `x -3400..3400, y -2500..2500`; PSU below it (`y 2750..3850`, wider than the board by the cable gutter); monitor to the west (`x -7500..-4200`, screen 3120x1755 world units, readable at overview zoom). `WORLD` in `layout.ts` is the rectangle the camera fits. On the board: rear I/O on the west edge (HDMI at the height of the video cable), chipset between I/O and CPU, VRM row north of the CPU, DIMMs and M.2 east, PCIe slots south, power connectors on the east edge.
+
+## The case, the bay and the OS screen (storage and OS phase)
+
+- **Case** (`CASE`, `case.ts`): a thin, low-contrast chassis around the motherboard and the PSU. West wall by the rear I/O (keys and the HDMI cable pass through), top panel with brand, vents, status lights, **the power button** (`power`) and a **disk activity LED** (lit only while a drive is busy), a quiet glass side over the board, a PSU compartment and feet. The monitor, the key tray and the held rack sit outside it. The chassis is static (a vector layer close up, one baked texture below zoom 0.14). The camera fit (`WORLD`) covers the case, the monitor and the tray.
+- **Drive bay** (`BAY`, `BAY_CELLS`): a 2-cell cage east of the PSU. Cell 0 is slot `sata0`, cell 1 is `sata1`. An installed drive slides in (650 ms) and its **SATA data cable** (`sataCablePath`) runs to the board's SATA port (two ports on the bottom edge, `sataPort(i)`), plus a power lead from the PSU's east face. Slots come from `snapshot.slots` / `BOARD_TIERS` (only existing slots are drawn live; absent ones are faint).
+- **Drives**: `hdd` (3.5in, label, platter and head arm), `ssd-sata` (slim 2.5in with a window onto controller and NAND), `ssd-nvme` (M.2 stick on the board's M.2 slot with a heat spreader). They animate only while `storage[].busy` (platter spin, head swing, LED blink); a bus (SATA or NVMe trace plus the cable) lights only then or in an OS flow.
+- **Drop targets**: `sata0`, `sata1`, `m20` are drop targets when empty (storage) and when occupied (an OS item is dropped on an installed drive; `inventory[].freeSlots` decides). A refused OS drop on a bare socket explains it.
+- **Bus flows (OS)**: `booting-os` lights the boot drive's bus and cable, DMI and memory (drive to RAM/CPU); `ingesting` runs key to drive (USB, DMI, drive bus); `flashing` runs drive to key. Idle stays dark.
+- **USB LED** follows `keyActivity`: enumerating slow amber blink, ingesting fast amber, flashing fast cyan, done steady green that breathes (collect the key). Without an OS the old loading/writing blink applies.
+- **Held keys** (`held`, `HELD`, `heldArt`): a small rack west of the case under the tray, holding `snapshot.held[]`. Each key shows its `stage` (`INGESTING`, `QUEUED`, `JOB RUNNING`, `DONE - PLUG AGAIN`, `WRITING RESULT`, `RESULT SAVED`) with a coloured band; a key whose result is ready gets the pulsing green ring and the rack header says `N READY - PLUG TO COLLECT`. Clicking a held key plugs it (same as a tray key).
+- **OS screen** (`os`): when an OS is installed, powered and the monitor is live, in `booting-os`, `idle-os`, `running-os`, `ingesting`, `flashing`, the monitor shows a terminal-style status screen built from `snapshot.os`, `storage`, `held`, `display`: OS name/tier and state, uptime, program slots and queue use, the running job with a sliding progress cue, queue rows (`+N AHEAD` / `NEXT` / `DONE`), a `PLUG KEY ... TO COLLECT` line, storage use of the boot drive, and the live POST/boot lines while booting. Fields that are missing are skipped. Otherwise the plain CLI text, `NO SIGNAL` and POST behave as before. `os` is hoverable/selectable only while an OS is installed (always a valid `flyTo`/`highlight` target).
+
+## Game-time clock
+
+Every animation that belongs to the machine runs on one **game clock** (`gt` in `board.ts`, milliseconds) that advances by `frame time * timeScale` with `timeScale` = 0 when paused (`speed` 0), 1 at 1x, 2 at 4x, 3 at 16x. `Live.frame`, `PipelineView.frame` (chip tweens), the LEDs, fans, platter, head, bus and cable pulses, the PCH bars, the boot bar, the OS progress cue, the done ring and the power LED blink all take `gt` instead of wall time, and snapshot-time holds (bus fade timers) use `gt` too, so a pause freezes them exactly and a resume continues without a jump. Wall time still drives: camera pan/zoom/flights, hover lift and outline, drag ghost and drop-target pulses, tutorial highlight rings, toasts and the slide-in of a new drive.
 
 ## Layers (bottom to top)
 
@@ -124,11 +141,16 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 | slot ids (`cpu0`, `dimm0`..., `cooler0`, `display0`, `atx0`, `pcie0`) | the socket / bay, filled or empty |
 | device ids (`dev1`...) | an installed CPU, DIMM or cooler |
 | `psu`, `monitor` | the installed (or empty) PSU and monitor |
+| `case` | the chassis frame (top panel, side walls, floor); the glass area belongs to the board |
+| `bay` | the drive cage (cells are `sata0` / `sata1`) |
+| `sata0`, `sata1`, `m20` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
+| `held` | the rack of ingested keys waiting for their result |
+| `os` | the OS screen area of the monitor (hover/select only while an OS is installed) |
 | `psu.readout` | the PSU's live panel |
 | `tray` | the key tray |
 | `key:<keyId>` | a key in the tray or in the USB port |
 | `usb` | the USB port on the rear I/O |
-| `power` | the power button |
+| `power` | the power button (on the case's top panel, with the on / off / error and disk lights) |
 | `chipset` | the PCH |
 | `board` | the whole motherboard (a highlight / flyTo target only; not clickable) |
 | `cable.atx`, `cable.cpu`, `cable.video` (`cable.pcie` is plumbed, never drawn) | a cable: the plug is what is grabbed; as a highlight target it rings the plug and, while loose, also the matching board socket |
