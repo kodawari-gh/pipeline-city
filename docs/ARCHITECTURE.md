@@ -33,6 +33,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
 - **Final ISA spec: [`docs/ISA.md`](ISA.md).**
+- **Machine, bus, clocks and engine interface: [`docs/MACHINE.md`](MACHINE.md).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
