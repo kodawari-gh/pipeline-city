@@ -1,13 +1,14 @@
 import { useEffect } from 'preact/hooks';
 import { highlight } from '../game/interaction';
 import { snapshot } from '../game/store';
-import { finishTutorial, skipTutorial, startTutorial, tutorial } from './state';
+import { inventoryOpen, finishTutorial, skipTutorial, startTutorial, tutorial } from './state';
 import { currentStep, stepCount, stepProblem } from './tutorial';
 
 /**
  * The guided tutorial card. The step comes from the snapshot's progress flags (see tutorial.ts), never from a Next
  * button: only the welcome card (Start) and the last card (Got it) have buttons. While a step is active its target ids
- * are written to `highlight`, which the renderer pulses.
+ * are written to `highlight`, which the renderer pulses (and the HUD pulses the inventory button). Install steps open
+ * the inventory, since that is where the parts are.
  */
 export function TutorialCard() {
   const s = snapshot.value;
@@ -18,6 +19,7 @@ export function TutorialCard() {
 
   useEffect(() => {
     highlight.value = targets;
+    if (targets.some((t) => t.startsWith('inv:'))) inventoryOpen.value = true;
     // `targets` is derived from `key`; re-run only when the ids change.
   }, [key]);
   useEffect(() => () => { highlight.value = []; }, []);
@@ -31,7 +33,7 @@ export function TutorialCard() {
     <aside class="card tut" aria-label="Tutorial" data-step={step.id}>
       <div class="thead">
         <span class="mute">{label}</span>
-        <button class="link" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip tutorial</button>
+        <button class="link" onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
       </div>
       <div class="ptitle">{step.title}</div>
       <div class="pplain">{step.text}</div>

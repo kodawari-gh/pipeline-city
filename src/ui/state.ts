@@ -37,10 +37,15 @@ export function toggleTheme() {
   writeStore(THEME_KEY, theme.value);
 }
 
-// ---- stats drawer (the only drawer; part upgrades live in the contextual picker) ----
+// ---- stats drawer (part upgrades live in the contextual picker) ----
 
 export const statsOpen = signal(false);
 export const toggleStats = () => { statsOpen.value = !statsOpen.value; };
+
+// ---- inventory tray (spare parts; drag them from here onto the board) ----
+
+export const inventoryOpen = signal(false);
+export const toggleInventory = () => { inventoryOpen.value = !inventoryOpen.value; };
 
 // ---- guided tutorial (per viewer) ----
 

@@ -77,9 +77,9 @@ export const REGIONS: Record<string, Description> = {
     nerd: 'CLI display driven by the PCH through the HDMI path. Rows 0-3 POST, 5 status, 8 the job output.',
   },
   crate: {
-    title: 'Crate',
-    plain: 'Spare parts waiting to be installed. Drag them onto the matching socket on the board.',
-    nerd: 'The inventory. Purchases land here; parts only change while the machine is off.',
+    title: 'Inventory',
+    plain: 'Spare parts you own but have not fitted. Open the inventory (top bar) and drag them onto the matching socket.',
+    nerd: 'The inventory: purchases land here; parts only change while the machine is off.',
   },
   tray: {
     title: 'Key tray',

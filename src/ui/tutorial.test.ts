@@ -159,6 +159,25 @@ describe('step targets (what the renderer pulses)', () => {
     expect(cpu.targets(snap())).toEqual(['inv:inv1', 'cpu0']);
   });
 
+  it('no step points at the old crate: the welcome card highlights the inventory button', () => {
+    for (const step of STEPS) {
+      expect(step.targets(snap({ devices: [dev()] })), step.id).not.toContain('crate');
+    }
+    expect(STEPS[0]!.targets(snap())).toEqual(['inventory']);
+  });
+
+  it('install steps point at their inventory items (inv:) and the socket, and the last card points at the new part', () => {
+    expect(STEPS.find((x) => x.id === 'ram')!.targets(snap())).toEqual(['inv:inv3', 'dimm0', 'dimm1']);
+    expect(STEPS.find((x) => x.id === 'spend')!.targets(snap())).toEqual(['inventory']);
+    expect(STEPS.find((x) => x.id === 'done')!.targets(snap())).toEqual(['inv:inv1']);
+  });
+
+  it('the welcome and last cards tell the player to open the inventory and drag parts from it', () => {
+    expect(STEPS[0]!.text).toMatch(/open the inventory/i);
+    expect(STEPS.find((x) => x.id === 'cpu')!.text).toMatch(/inventory/);
+    for (const step of STEPS) expect(step.text, step.id).not.toMatch(/\bcrate\b/i);
+  });
+
   it('the power step pulses the button; the key step pulses the USB port and the key', () => {
     expect(STEPS.find((x) => x.id === 'power')!.targets(snap())).toEqual(['power']);
     expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap({ tray: [key({ id: 9 })] }))).toEqual(['usb', 'key:9']);

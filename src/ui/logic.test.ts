@@ -139,7 +139,7 @@ describe('descriptions', () => {
 
   it('crate items and keys', () => {
     const s = snap({ tray: [key({ id: 4, label: '#90 log' })] });
-    expect(describeId('inv:inv1', s)?.plain).toMatch(/In the crate/);
+    expect(describeId('inv:inv1', s)?.plain).toMatch(/In your inventory/);
     expect(describeId('key:4', s)?.title).toBe('Client key #90 log');
   });
 

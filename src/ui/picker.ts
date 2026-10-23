@@ -1,30 +1,15 @@
 // Contextual part picker, pure logic: what the side card shows for the selected id. No DOM, no signals.
-// The card opens only when the renderer selects something (`selected`). Parts and cables are placed by dragging in
-// the world; the card only offers purchases (into the crate), the clock, power actions and job actions.
+// The card opens only when the renderer selects something (`selected`). Parts are placed by dragging from the
+// inventory tray (or the world); the card offers purchases (into the inventory), the clock, power and job actions.
 
-import { getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { AMBIENT_C, BOARD_TIERS, getSpec, specsOfKind, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level } from './logic';
 import { JOB_TYPES } from './regions';
 
-export type PickerKind = DeviceKind | 'board' | 'crate' | 'key' | 'tray' | 'power' | 'usb' | 'info';
+export type PickerKind = DeviceKind | 'board' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
-
-export interface PickerRow {
-  /** Spec id (installed or upgrade) or inventory id (crate). */
-  id: string;
-  name: string;
-  /** Tier, for upgrades and parts. */
-  tier?: number;
-  /** One line of key stats. */
-  brief: string;
-  tag: 'installed' | 'crate' | 'upgrade';
-  /** Upgrade price and buy state (upgrades only). */
-  price?: number;
-  state?: BuyState;
-  /** Why it cannot be bought now, or why an installed part is flagged. */
-  reason?: string;
-}
+export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -37,14 +22,45 @@ export interface PickerAction {
   why?: string;
 }
 
+/** One numeric property of a part, for the bars. `value` is in `unit`; bars use `goodness` (0..1). */
+export interface Stat {
+  key: string;
+  label: string;
+  icon: IconName;
+  value: number;
+  unit: string;
+  higherIsBetter: boolean;
+}
+
+/** One rung of the upgrade ladder for a kind of part. */
+export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked';
+export interface LadderStep {
+  /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
+  specId: string;
+  name: string;
+  tier: number;
+  state: LadderState;
+  price?: number;
+  /** Why it cannot be bought (poor, blocked) or a short note (crate, locked). */
+  reason?: string;
+  /** Installed device instance id, for the installed rung. */
+  devId?: string;
+  /** Inventory item id, for the crate rung. */
+  invId?: string;
+}
+
 export interface PickerModel {
   id: string;
   kind: PickerKind;
   title: string;
   plain: string;
   nerd: string;
-  rows: PickerRow[];
-  /** Shown under the rows when there is nothing to list. */
+  /** Upgrade ladder for part kinds: owned, next and blocked rungs (older tiers are left out). */
+  ladder: LadderStep[];
+  /** Spec id of the part in this socket (or the first of its kind), for the before/after bars. */
+  current: string | null;
+  /** The spec the player selected (an inventory part, or a spec id): the default option for the bars. */
+  focus: string | null;
   emptyText?: string;
   lines: PickerLine[];
   actions: PickerAction[];
@@ -54,7 +70,132 @@ export interface PickerModel {
   device?: DeviceSnap;
 }
 
-/** One line of key stats for a spec. */
+/** Relative throughput per base clock tick, by engine. A placeholder guess like the other balance numbers. */
+export function ipcGuess(e: CpuSpec['engine']): number {
+  if (e.kind === 'unpipelined') return 0.2;
+  if (e.kind === 'inorder') return e.forwarding ? 0.8 : 0.55;
+  return 1;
+}
+
+/** Board ids in the board ladder, one per tier. */
+export const boardId = (tier: number) => `board${tier}`;
+
+/** Every spec id of a kind, ordered by tier (or the board tiers). */
+export function catalogOf(kind: PickerKind): string[] {
+  if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display') {
+    return specsOfKind(kind).map((x) => x.id);
+  }
+  return [];
+}
+
+/** Numeric stats of a spec (or a board tier). Empty for an unknown id. */
+export function statsOf(specId: string): Stat[] {
+  if (/^board\d+$/.test(specId)) {
+    const bt = BOARD_TIERS[Number(specId.slice(5))];
+    if (!bt) return [];
+    const total = Object.values(bt.slots).reduce((a, n) => a + (n ?? 0), 0);
+    return [
+      { key: 'dimm', label: 'Memory slots', icon: 'memory', value: bt.slots.dimm ?? 0, unit: '', higherIsBetter: true },
+      { key: 'slots', label: 'Slots', icon: 'slot', value: total, unit: '', higherIsBetter: true },
+    ];
+  }
+  const spec = getSpec(specId);
+  if (!spec) return [];
+  switch (spec.kind) {
+    case 'cpu': return [
+      { key: 'speed', label: 'Speed', icon: 'clock', value: Math.round(spec.clock.base * ipcGuess(spec.engine) * 100) / 100, unit: '', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'ram': return [
+      { key: 'size', label: 'Memory', icon: 'memory', value: spec.sizeBytes / 1024, unit: 'K', higherIsBetter: true },
+      { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latency, unit: 'ticks', higherIsBetter: false },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'psu': return [{ key: 'watts', label: 'Capacity', icon: 'bolt', value: spec.watts, unit: 'W', higherIsBetter: true }];
+    case 'cooler': return [
+      { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
+  }
+}
+
+/** Bar length for one stat: 1 for the best part of its kind, less for the rest (0..1). */
+export function goodness(kind: PickerKind, key: string, value: number, higherIsBetter: boolean): number {
+  const vals = catalogOf(kind).flatMap((id) => statsOf(id).filter((x) => x.key === key).map((x) => x.value)).filter((v) => v > 0);
+  if (!vals.length || value <= 0) return 0;
+  const best = higherIsBetter ? Math.max(...vals) : Math.min(...vals);
+  const g = higherIsBetter ? value / best : best / value;
+  return Math.min(1, Math.max(0, g));
+}
+
+export interface CompareRow {
+  key: string;
+  label: string;
+  icon: IconName;
+  /** Bar lengths 0..1 for the current part (null when there is none) and the option. */
+  cur: number | null;
+  opt: number;
+  curText: string | null;
+  optText: string;
+  /** better / worse / same, for the colour of the delta. Null with no current part. */
+  trend: 'better' | 'worse' | 'same' | null;
+  deltaText: string | null;
+}
+
+const fmtStat = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+
+/** Before/after rows for the option against the current part of the same kind. */
+export function compareRows(kind: PickerKind, current: string | null, option: string): CompareRow[] {
+  const cur = current ? statsOf(current) : [];
+  return statsOf(option).map((o) => {
+    const c = cur.find((x) => x.key === o.key) ?? null;
+    const trend: CompareRow['trend'] = c === null ? null
+      : o.value === c.value ? 'same'
+      : (o.higherIsBetter ? o.value > c.value : o.value < c.value) ? 'better' : 'worse';
+    const diff = c ? o.value - c.value : 0;
+    const unit = o.unit ? ` ${o.unit}` : '';
+    return {
+      key: o.key, label: o.label, icon: o.icon,
+      cur: c ? goodness(kind, o.key, c.value, o.higherIsBetter) : null,
+      opt: goodness(kind, o.key, o.value, o.higherIsBetter),
+      curText: c ? `${fmtStat(c.value)}${unit}` : null,
+      optText: `${fmtStat(o.value)}${unit}`,
+      trend,
+      deltaText: c ? (diff === 0 ? 'same' : `${diff > 0 ? '+' : '-'}${fmtStat(Math.abs(diff))}${unit}`) : null,
+    };
+  });
+}
+
+/**
+ * Overclock zones on the clock axis, from the sim's own steady-state heat model (thermal.ts): the clock at which a
+ * full-load CPU with this cooler settles at its throttle and unstable temperatures. Raw values (may lie outside the
+ * clock range); the dial clamps them when it draws.
+ */
+export interface ClockZones { min: number; max: number; throttleAt: number; unstableAt: number }
+
+export function clockZones(cpu: CpuSpec, cooler: CoolerSpec | undefined): ClockZones {
+  const coeff = cpu.thermal.passive + (cooler?.coolingPerC ?? 0);
+  const heat = cpu.loadW * cpu.heatFactor;
+  const at = (t: number) => (heat > 0 ? cpu.clock.base * Math.cbrt(((t - AMBIENT_C) * coeff) / heat) : cpu.clock.max);
+  return { min: cpu.clock.min, max: cpu.clock.max, throttleAt: at(cpu.thermal.throttleC), unstableAt: at(cpu.thermal.unstableC) };
+}
+
+/** Steady temperature estimate (C) at a clock, same model as `clockZones`. */
+export function estTempC(cpu: CpuSpec, cooler: CoolerSpec | undefined, clock: number): number {
+  const r = clock / cpu.clock.base;
+  return AMBIENT_C + (cpu.loadW * cpu.heatFactor * r ** 3) / (cpu.thermal.passive + (cooler?.coolingPerC ?? 0));
+}
+
+export type ZoneName = 'safe' | 'throttle' | 'unstable';
+export function zoneOf(z: ClockZones, clock: number): ZoneName {
+  if (clock >= z.unstableAt) return 'unstable';
+  if (clock >= z.throttleAt) return 'throttle';
+  return 'safe';
+}
+
+/** One line of key stats for a spec (used in tooltips and the nerd text). */
 export function specBrief(spec: DeviceSpec): string {
   switch (spec.kind) {
     case 'cpu': {
@@ -77,7 +218,7 @@ const SLOT_KIND: Record<string, DeviceKind> = {
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board'> = { psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board' };
 
-/** The kind a selected id stands for, if any (slot, device, crate item, spec id, world object or board tier). */
+/** The kind a selected id stands for, if any (slot, device, inventory item, spec id, world object or board tier). */
 export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | null {
   const slot = s.slots.find((x) => x.id === id);
   if (slot) return SLOT_KIND[slot.type] ?? null;
@@ -94,27 +235,39 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | null {
   return null;
 }
 
-function upgradeRows(s: Snapshot, kind: DeviceKind | 'board'): PickerRow[] {
-  const rows: PickerRow[] = [];
-  for (const d of s.devices.filter((x) => x.kind === kind)) {
-    const spec = getSpec(d.spec);
-    rows.push({ id: d.spec, name: d.name, tier: spec?.tier, brief: spec ? specBrief(spec) : '', tag: 'installed', reason: d.burnt ? 'burnt out' : undefined });
+/**
+ * The upgrade ladder for a kind: installed and inventory rungs, then each tier the sim offers (ready, poor, blocked).
+ * Tiers older than the best part you own are left out; tiers the sim does not offer and you do not own are `locked`.
+ */
+export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
+  const installed: Array<{ spec: string; devId: string }> = kind === 'board'
+    ? [{ spec: boardId(s.boardTier), devId: '' }]
+    : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
+  const crate = kind === 'board' ? [] : s.inventory.filter((i) => i.kind === kind);
+  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? -1);
+  const ownedMax = Math.max(-1, ...installed.map((x) => tierOf(x.spec)), ...crate.map((x) => tierOf(x.spec)));
+  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name) ?? id;
+  const out: LadderStep[] = [];
+  for (const id of catalogOf(kind)) {
+    const tier = tierOf(id);
+    const name = nameOf(id);
+    const inst = installed.find((x) => x.spec === id);
+    if (inst) { out.push({ specId: id, name, tier, state: 'installed', devId: inst.devId || undefined }); continue; }
+    const inv = crate.find((x) => x.spec === id);
+    if (inv) { out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason: 'In your inventory: drag it onto its socket' }); continue; }
+    if (tier < ownedMax) continue;
+    const p = s.purchases.find((x) => x.id === id);
+    if (p) {
+      const state: BuyState = p.blocked ? 'blocked' : p.affordable ? 'ready' : 'poor';
+      out.push({
+        specId: id, name, tier, state, price: p.price,
+        reason: p.blocked ?? (p.affordable ? undefined : `Need ${fmtMoney(p.price - s.money)} more`),
+      });
+    } else {
+      out.push({ specId: id, name, tier, state: 'locked', reason: 'Not available yet' });
+    }
   }
-  for (const it of s.inventory.filter((x) => x.kind === kind)) {
-    const spec = getSpec(it.spec);
-    rows.push({ id: it.id, name: it.name, tier: spec?.tier, brief: spec ? specBrief(spec) : '', tag: 'crate', reason: 'in the crate: drag it onto a socket' });
-  }
-  const ups = s.purchases.filter((p) => p.kind === kind).sort((a, b) => a.price - b.price);
-  for (const p of ups) {
-    const spec = getSpec(p.id);
-    const state: BuyState = p.blocked ? 'blocked' : p.affordable ? 'ready' : 'poor';
-    rows.push({
-      id: p.id, name: p.name, tier: spec?.tier, brief: spec ? specBrief(spec) : 'bigger board, more sockets',
-      tag: 'upgrade', price: p.price, state,
-      reason: p.blocked ?? (p.affordable ? undefined : `Need ${fmtMoney(p.price - s.money)} more`),
-    });
-  }
-  return rows;
+  return out;
 }
 
 /** Plain lines about a key: what it is, how late, what it pays. */
@@ -138,27 +291,12 @@ export function allKeys(s: Snapshot): KeySnap[] {
 const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replace(/-/g, ' ')}` : 'Status: off');
 
 function emptyCard(id: string, kind: PickerKind, title: string, plain: string, nerd: string): PickerModel {
-  return { id, kind, title, plain, nerd, rows: [], lines: [], actions: [], clock: false };
+  return { id, kind, title, plain, nerd, ladder: [], current: null, focus: null, lines: [], actions: [], clock: false };
 }
 
 /** The picker card for a selected id, or null when there is nothing to show. */
 export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | null {
   if (!id || !s) return null;
-
-  if (id === 'crate') {
-    const d = describeId('crate')!;
-    const rows: PickerRow[] = s.inventory.map((it) => {
-      const spec = getSpec(it.spec);
-      return { id: it.id, name: it.name, tier: spec?.tier, brief: spec ? specBrief(spec) : '', tag: 'crate', reason: 'drag it onto a socket' };
-    });
-    return {
-      ...emptyCard(id, 'crate', `${d.title} (${s.inventory.length})`, d.plain, d.nerd), rows,
-      emptyText: 'The crate is empty. Buy a part from the upgrade list on any part on the board.',
-      lines: s.inventory.length
-        ? [{ level: 'info', text: 'Drag a part onto its socket. Parts only change while the machine is off.' }]
-        : [],
-    };
-  }
 
   if (id.startsWith('key:')) {
     const k = allKeys(s).find((x) => x.id === Number(id.slice(4)));
@@ -227,8 +365,9 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
 
   const kind = kindOf(id, s);
   if (kind) {
-    // A slot id: empty socket, or the part in it. A device id, a spec id, a crate item or a world object otherwise.
+    // A slot id: empty socket, or the part in it. A device id, a spec id, an inventory item or a world object otherwise.
     const slot = s.slots.find((x) => x.id === id);
+    const invItem = id.startsWith('inv:') ? s.inventory.find((x) => x.id === id.slice(4)) : undefined;
     const dev = slot?.deviceId
       ? s.devices.find((d) => d.id === slot.deviceId)
       : WORLD_KIND[id] ? s.devices.find((d) => d.kind === kind)
@@ -237,10 +376,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const d = (dev && !emptySocket ? describeId(dev.spec) : describeId(id, s))
       ?? describeId(id)
       ?? { title: KIND_LABEL[kind], plain: '', nerd: '' };
-    const rows = upgradeRows(s, kind);
+    const ladder = ladderFor(s, kind);
+    const current = kind === 'board'
+      ? boardId(s.boardTier)
+      : dev?.spec ?? (slot ? null : s.devices.find((x) => x.kind === kind)?.spec ?? null);
     const lines: PickerLine[] = [];
-    if (emptySocket) lines.push({ level: 'info', text: 'Empty socket. Drag a matching part from the crate onto it.' });
-    if (s.powered && rows.some((r) => r.tag !== 'installed')) lines.push({ level: 'info', text: 'Power the machine off to swap parts.' });
+    if (emptySocket) lines.push({ level: 'info', text: 'Empty socket. Drag a matching part from the inventory onto it.' });
+    if (invItem) lines.push({ level: 'info', text: s.powered ? 'Power the machine off to install it.' : 'Drag it onto its socket.' });
     const actions: PickerAction[] = [];
     if (kind === 'psu') {
       const p = s.power;
@@ -260,14 +402,22 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       : dev ? dev.name : d.title;
     return {
       ...emptyCard(id, kind, title, d.plain, d.nerd),
-      rows, lines, actions,
+      ladder, current, lines, actions,
+      focus: invItem ? invItem.spec : getSpec(id) ? id : null,
       device: emptySocket ? undefined : dev,
       clock: kind === 'cpu' && !!s.cpuClock && !!dev && !dev.burnt,
-      emptyText: rows.some((r) => r.tag === 'upgrade') ? undefined : 'Nothing better to buy right now.',
+      emptyText: ladder.some((r) => r.state === 'ready' || r.state === 'poor' || r.state === 'blocked') ? undefined : 'Nothing better to buy right now.',
     };
   }
 
   const desc = describeId(id, s);
   if (desc) return emptyCard(id, 'info', desc.title, desc.plain, desc.nerd);
   return null;
+}
+
+/** The installed cooler, for the clock zones. */
+export function installedCooler(s: Snapshot): CoolerSpec | undefined {
+  const c = s.devices.find((d: DeviceSnap) => d.kind === 'cooler');
+  const spec = c ? getSpec(c.spec) : undefined;
+  return spec?.kind === 'cooler' ? spec : undefined;
 }

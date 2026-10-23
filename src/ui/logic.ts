@@ -189,7 +189,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      return d && { ...d, plain: d.plain + ' In the crate: drag it into a socket.' };
+      return d && { ...d, plain: d.plain + ' In your inventory: drag it into a socket.' };
     }
     if (id.startsWith('key:')) {
       const k = [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));

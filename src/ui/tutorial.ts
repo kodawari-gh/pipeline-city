@@ -37,23 +37,26 @@ const installTargets = (kind: string) => (s: Snapshot): string[] => {
   return [...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
 };
 
+/** The HUD's inventory button. A UI-only id: the renderer ignores it, the HUD pulses the button. */
+export const INVENTORY_ID = 'inventory';
+
 export const STEPS: StepDef[] = [
   {
     id: 'welcome', title: 'Welcome', flag: null,
-    text: 'You run a one-person computer workshop. Clients send small jobs on USB keys; your machine does them and you get paid. First, build the machine from the parts in the crate.',
-    targets: () => ['crate'],
+    text: 'You run a one-person computer workshop. Clients send small jobs on USB keys; your machine does them and you get paid. First, open the inventory (top right) and build the machine from the parts in it.',
+    targets: () => [INVENTORY_ID],
   },
   { id: 'cpu', title: 'Install the processor', flag: 'cpuInstalled',
-    text: 'Drag the processor (CPU) from the crate onto the big square socket in the middle of the board.',
+    text: 'Open the inventory and drag the processor (CPU) onto the big square socket in the middle of the board.',
     targets: installTargets('cpu') },
   { id: 'ram', title: 'Install the memory', flag: 'ramInstalled',
-    text: 'Drag the memory (RAM) from the crate into a long memory slot next to the processor.',
+    text: 'Drag a memory stick (RAM) from the inventory into a long memory slot next to the processor.',
     targets: installTargets('ram') },
   { id: 'psu', title: 'Install the power supply', flag: 'psuInstalled',
-    text: 'Drag the power supply (PSU) from the crate into the bay below the board.',
+    text: 'Drag the power supply (PSU) from the inventory into the bay below the board.',
     targets: installTargets('psu') },
   { id: 'monitor', title: 'Install the monitor', flag: 'monitorInstalled',
-    text: 'Drag the monitor from the crate onto the display port. It will show what the machine is doing.',
+    text: 'Drag the monitor from the inventory onto the display port. It will show what the machine is doing.',
     targets: installTargets('display') },
   { id: 'atx', title: 'Connect the main power cable', flag: 'atxConnected',
     text: 'Plug in the big ATX cable: drag its end from the power supply to the matching socket on the board.',
@@ -77,13 +80,13 @@ export const STEPS: StepDef[] = [
     text: 'Done! Pull the key out of the USB port to hand it back. You are paid when it is removed, and idle time is lost income.',
     targets: () => ['usb'] },
   { id: 'spend', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'Click a part, such as the processor, to see its upgrades. Buy one. It goes into the crate.',
+    text: 'Click the processor on the board to see its upgrades. Buy one. It goes into the inventory.',
     targets: (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
-      return cpu ? [cpu.slot] : ['crate'];
+      return cpu ? [cpu.slot] : [INVENTORY_ID];
     } },
   { id: 'done', title: 'Workshop open', flag: null,
-    text: 'Now drag your new part from the crate onto its socket (power the machine off first). Keep the keys moving: one day a router will plug them in for you.',
+    text: 'Your new part is in the inventory. Power the machine off, then drag it onto its socket. Keep the keys moving: one day a router will plug them in for you.',
     targets: (s) => (s.inventory[0] ? [`inv:${s.inventory[0].id}`] : []) },
 ];
 
@@ -148,7 +151,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
       const kind = step.id === 'monitor' ? 'display' : step.id;
       const items = invOf(s, kind);
-      if (!items.length) return `No ${kind} in the crate. Remove one from the board or buy another.`;
+      if (!items.length) return `No ${kind} in the inventory. Buy one from a part on the board.`;
       return items.every((i) => !i.freeSlots.length && !i.swapSlots.length) ? items[0]!.reason ?? null : null;
     }
     case 'atx': case 'cpuPower': case 'video': {
