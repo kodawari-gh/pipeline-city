@@ -48,7 +48,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
   return {
     money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, boardTier: 0, pipe: null,
     display: '', counters: {}, completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0,
-    reputation: 1, demandRate: 0.1, devices: [STOCK_COOLER], power: { totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
+    reputation: 1, demandRate: 0.1, devices: [STOCK_COOLER], power: { vrmLossW: 0, totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
     cpuClock: null, purchases: PURCHASES, pendingPurchases: [],
     phase: 'off', phaseReason: null, powered: false, bootProgress: 0, monitorLive: false,
     noPowerReason: 'Install a power supply and connect the ATX cable first.', postBlocker: null,

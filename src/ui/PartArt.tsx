@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { BOARD_TIERS, getSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
+import { getOsSpec } from '../sim/os';
 import { goodness } from './picker';
 
 // Inline SVG illustrations of each part, drawn from its spec: a CPU die with its pipeline per tier, RAM sticks (count
@@ -137,6 +138,66 @@ function Board({ tier }: { tier: number }) {
   );
 }
 
+/** HDD: a spinning platter with an actuator arm (slow and cheap). */
+function Hdd() {
+  return (
+    <>
+      <rect x={14} y={10} width={92} height={64} rx={6} class="plate edge" />
+      <circle cx={52} cy={42} r={27} class="die" />
+      <circle cx={52} cy={42} r={19} class="fanring" />
+      <circle cx={52} cy={42} r={11} class="fanring" />
+      <circle cx={52} cy={42} r={3.5} class="ink" />
+      <path d="M92 20 L84 52" class="blade" />
+      <rect x={80} y={50} width={10} height={6} rx={1.5} class="ink" />
+      <rect x={18} y={66} width={14} height={5} rx={1} class="pin" />
+    </>
+  );
+}
+
+/** SATA SSD: a flat 2.5-inch board with memory chips and the SATA connector (fast, but on the old bus). */
+function SsdSata() {
+  return (
+    <>
+      <rect x={18} y={14} width={84} height={56} rx={4} class="plate edge" />
+      {[0, 1, 2, 3].map((i) => <rect key={i} x={28 + i * 17} y={24} width={12} height={16} rx={1.5} class="stick" />)}
+      {[0, 1, 2, 3].map((i) => <rect key={i} x={28 + i * 17} y={46} width={12} height={5} rx={1} class="chipd" />)}
+      <rect x={22} y={60} width={62} height={6} rx={1} class="ink2" />
+      <rect x={86} y={62} width={14} height={8} rx={1.5} class="pin" />
+    </>
+  );
+}
+
+/** NVMe stick: a long thin M.2 card with a notch and a row of chips (the fastest). */
+function SsdNvme() {
+  return (
+    <>
+      <rect x={10} y={34} width={100} height={18} rx={2} class="plate edge" />
+      {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={22 + i * 15} y={39} width={10} height={8} rx={1} class="chipd" />)}
+      <rect x={98} y={34} width={12} height={18} rx={1} class="ink2" />
+      <rect x={10} y={52} width={100} height={3} rx={1} class="pin" />
+    </>
+  );
+}
+
+/** The OS as a disc: one ring for the resident OS, more rings and a scheduler dot for the later tiers. */
+function OsDisc({ tier }: { tier: number }) {
+  const rings = Math.max(1, Math.min(3, tier));
+  return (
+    <>
+      <circle cx={60} cy={42} r={34} class="plate edge" />
+      {Array.from({ length: rings }, (_, i) => (
+        <circle key={i} cx={60} cy={42} r={27 - i * 8} class="fanring" />
+      ))}
+      <path d="M60 22 L68 42 L60 62 L52 42 Z" class="ink" />
+      <circle cx={60} cy={42} r={3} class="ink-on" />
+      {tier >= 3 && Array.from({ length: 4 }, (_, i) => {
+        const a = (i * Math.PI) / 2;
+        return <circle key={i} cx={60 + Math.cos(a) * 20} cy={42 + Math.sin(a) * 20} r={2.2} class="ink-on" />;
+      })}
+    </>
+  );
+}
+
 function Display() {
   return (
     <>
@@ -153,7 +214,9 @@ function Display() {
 export function PartArt({ id, size = 64, label }: { id: string; size?: number; label?: string }) {
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
+  const os = getOsSpec(id);
   if (bm) body = <Board tier={Number(bm[1])} />;
+  else if (os) body = <OsDisc tier={os.tier} />;
   else {
     const spec = getSpec(id);
     if (spec) {
@@ -163,6 +226,9 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'cooler': body = <Cooler tier={spec.tier} />; break;
         case 'psu': body = <Psu spec={spec} />; break;
         case 'display': body = <Display />; break;
+        case 'storage':
+          body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
+          break;
       }
     }
   }

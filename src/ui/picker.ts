@@ -3,18 +3,23 @@
 // inventory tray (or the world); the card offers purchases (into the inventory), the clock, power and job actions.
 
 import { AMBIENT_C, BOARD_TIERS, getSpec, specsOfKind, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
+import { getOsSpec, OS_SPECS } from '../sim/os';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level } from './logic';
 import { JOB_TYPES } from './regions';
 
-export type PickerKind = DeviceKind | 'board' | 'key' | 'tray' | 'power' | 'usb' | 'info';
+/** The storage block size (bytes), as in the sim's storage device. */
+const BLOCK_BYTES = 256;
+
+export type PickerKind = DeviceKind | 'board' | 'os' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
 export interface PickerAction {
-  id: 'power' | 'powerCycle' | 'plug' | 'eject';
+  id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstallOs';
   label: string;
   keyId?: number;
   primary?: boolean;
@@ -83,10 +88,16 @@ export const boardId = (tier: number) => `board${tier}`;
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage') {
     return specsOfKind(kind).map((x) => x.id);
   }
+  if (kind === 'os') return OS_SPECS.map((o) => o.id);
   return [];
+}
+
+/** Sustained throughput of a drive at its base clock, bytes per second (the same model as the sim's storage device). */
+export function drivePerSecond(spec: { clock: { base: number }; blockTicks: number }): number {
+  return Math.round((spec.clock.base * ECONOMY.cpuCyclesPerClock * BLOCK_BYTES) / spec.blockTicks);
 }
 
 /** Numeric stats of a spec (or a board tier). Empty for an unknown id. */
@@ -100,6 +111,13 @@ export function statsOf(specId: string): Stat[] {
       { key: 'slots', label: 'Slots', icon: 'slot', value: total, unit: '', higherIsBetter: true },
     ];
   }
+  const os = getOsSpec(specId);
+  if (os) return [
+    { key: 'programs', label: 'Programs', icon: 'cpu', value: os.programSlots, unit: '', higherIsBetter: true },
+    { key: 'queue', label: 'Queue', icon: 'slot', value: os.queueSlots, unit: 'jobs', higherIsBetter: true },
+    { key: 'memory', label: 'Memory needed', icon: 'memory', value: os.minRamBytes / 1024, unit: 'K', higherIsBetter: false },
+    { key: 'disk', label: 'Disk needed', icon: 'memory', value: os.diskBytes / 1024, unit: 'K', higherIsBetter: false },
+  ];
   const spec = getSpec(specId);
   if (!spec) return [];
   switch (spec.kind) {
@@ -118,9 +136,11 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
+    case 'vrm-sink': return [{ key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true }];
     case 'storage': return [
       { key: 'size', label: 'Capacity', icon: 'memory', value: spec.capacityBytes / 1024, unit: 'K', higherIsBetter: true },
       { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latencyTicks, unit: 'ticks', higherIsBetter: false },
+      { key: 'throughput', label: 'Throughput', icon: 'clock', value: drivePerSecond(spec), unit: 'B/s', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
   }
@@ -216,27 +236,29 @@ export function specBrief(spec: DeviceSpec): string {
     case 'cooler': return `${spec.coolingPerC} W/C cooling`;
     case 'display': return 'text monitor';
     case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
+    case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
   }
 }
 
 const SLOT_KIND: Record<string, DeviceKind> = {
-  cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display',
+  cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
 };
-const WORLD_KIND: Record<string, DeviceKind | 'board'> = { psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board' };
+const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os'> = { psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os' };
 
 /** The kind a selected id stands for, if any (slot, device, inventory item, spec id, world object or board tier). */
-export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | null {
+export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | null {
   const slot = s.slots.find((x) => x.id === id);
   if (slot) return SLOT_KIND[slot.type] ?? null;
   const dev = s.devices.find((d) => d.id === id);
   if (dev) return dev.kind;
   if (id.startsWith('inv:')) {
     const it = s.inventory.find((x) => x.id === id.slice(4));
-    return it && it.kind !== 'os' ? it.kind : null;
+    return it ? it.kind : null;
   }
   if (WORLD_KIND[id]) return WORLD_KIND[id]!;
   const spec = getSpec(id);
   if (spec) return spec.kind;
+  if (getOsSpec(id)) return 'os';
   if (/^board[0-9]+$/.test(id)) return 'board';
   return null;
 }
@@ -248,11 +270,13 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | null {
 export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
   const installed: Array<{ spec: string; devId: string }> = kind === 'board'
     ? [{ spec: boardId(s.boardTier), devId: '' }]
-    : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
+    : kind === 'os'
+      ? (s.os ? [{ spec: s.os.spec, devId: '' }] : [])
+      : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
   const crate = kind === 'board' ? [] : s.inventory.filter((i) => i.kind === kind);
-  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? -1);
+  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? -1);
   const ownedMax = Math.max(-1, ...installed.map((x) => tierOf(x.spec)), ...crate.map((x) => tierOf(x.spec)));
-  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name) ?? id;
+  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name) ?? id;
   const out: LadderStep[] = [];
   for (const id of catalogOf(kind)) {
     const tier = tierOf(id);
@@ -260,9 +284,18 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
     const inst = installed.find((x) => x.spec === id);
     if (inst) { out.push({ specId: id, name, tier, state: 'installed', devId: inst.devId || undefined }); continue; }
     const inv = crate.find((x) => x.spec === id);
-    if (inv) { out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason: 'In your inventory: drag it onto its socket' }); continue; }
+    if (inv) {
+      // A spare that the sim will not fit right now says why (memory minimum, free capacity, no slot); otherwise it can go in.
+      const reason = inv.installable ? 'In your inventory: drag it onto its socket' : inv.reason ?? 'Nothing to fit it to right now';
+      out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason });
+      continue;
+    }
     if (tier < ownedMax) continue;
     const p = s.purchases.find((x) => x.id === id);
+    if (p?.later) {
+      out.push({ specId: id, name, tier, state: 'locked', reason: p.description ?? 'Not available yet' });
+      continue;
+    }
     if (p) {
       const state: BuyState = p.blocked ? 'blocked' : p.affordable ? 'ready' : 'poor';
       out.push({
@@ -385,9 +418,14 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const ladder = ladderFor(s, kind);
     const current = kind === 'board'
       ? boardId(s.boardTier)
+      : kind === 'os' ? s.os?.spec ?? null
       : dev?.spec ?? (slot ? null : s.devices.find((x) => x.kind === kind)?.spec ?? null);
     const lines: PickerLine[] = [];
-    if (invItem) lines.push({ level: 'info', text: s.powered ? 'Power the machine off to install it.' : 'Drag it onto its socket.' });
+    if (invItem) {
+      lines.push({ level: 'info', text: s.powered ? 'Power the machine off to install it.' : 'Drag it onto its socket.' });
+      const why = s.inventory.find((x) => x.id === invItem.id)?.reason;
+      if (why && !s.powered) lines.push({ level: 'warn', text: `${why.charAt(0).toUpperCase()}${why.slice(1)}.` });
+    }
     const actions: PickerAction[] = [];
     if (kind === 'psu') {
       const p = s.power;
@@ -396,6 +434,27 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
         text: `Load ${p.totalW.toFixed(0)} W of ${p.budgetW.toFixed(0)} W${p.tripped ? ' (tripped)' : ''}`,
       });
       if (p.tripped) actions.push({ id: 'powerCycle', label: 'Power cycle', primary: true });
+    }
+    if (kind === 'storage' && dev) {
+      const st = s.storage.find((x) => x.deviceId === dev.id);
+      if (st) {
+        const full = st.usedBytes / st.capacityBytes > 0.9;
+        lines.push({
+          level: full ? 'warn' : 'info',
+          text: `Used ${Math.round(st.usedBytes / 1024)}K of ${Math.round(st.capacityBytes / 1024)}K${st.hasOs ? '. Holds the operating system.' : '.'}`,
+        });
+      }
+    }
+    if (kind === 'os') {
+      if (s.os) {
+        lines.push({
+          level: s.os.up ? 'info' : 'warn',
+          text: `Installed on the drive in ${s.os.slot}. ${s.os.queue.length} of ${s.os.queueSlots} queue slots used.`,
+        });
+        actions.push({ id: 'uninstallOs', label: 'Uninstall OS', why: s.powered ? 'Power the machine off first' : undefined });
+      } else {
+        lines.push({ level: 'info', text: 'No operating system installed. It installs onto a drive, and the machine boots from the drive.' });
+      }
     }
     const cpu = kind === 'cpu' ? dev : undefined;
     if (cpu) {
@@ -409,7 +468,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       ...emptyCard(id, kind, title, d.plain, d.nerd),
       ladder, current, lines, actions,
       // A spec id that is neither a slot nor a fitted part (a shop or ladder item) is the comparison to show.
-      focus: invItem ? invItem.spec : !slot && !dev && getSpec(id) ? id : null,
+      focus: invItem ? invItem.spec : !slot && !dev && (getSpec(id) || getOsSpec(id)) ? id : null,
       device: emptySocket ? undefined : dev,
       clock: kind === 'cpu' && !!s.cpuClock && !!dev && !dev.burnt,
       emptyText: ladder.some((r) => r.state === 'ready' || r.state === 'poor' || r.state === 'blocked') ? undefined : 'Nothing better to buy right now.',

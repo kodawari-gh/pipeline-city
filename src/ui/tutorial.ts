@@ -3,6 +3,7 @@
 // save mid-way resumes at the right step, and out-of-order actions are simply skipped past. Only the welcome card
 // (Start) and the last card (Got it) have buttons, plus the one-time "Next lesson: the OS" offer. No DOM, no signals.
 
+import { getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
@@ -49,6 +50,17 @@ const OLD_FLAGS: Array<keyof Progress> = [
 ];
 
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board'];
+/**
+ * A bought upgrade that is still waiting to be fitted: a part in the inventory that is a higher tier than the best one
+ * installed of its kind (on a one-DIMM board it swaps with the old stick, which then returns to the inventory as a lower tier).
+ */
+export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): boolean => {
+  if (!PART_KINDS.includes(i.kind)) return false;
+  const spec = getSpec(i.spec);
+  if (!spec) return false;
+  const have = s.devices.filter((d) => d.kind === spec.kind && !d.burnt);
+  return have.length === 0 || Math.max(...have.map((d) => getSpec(d.spec)?.tier ?? -1)) < spec.tier;
+};
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
 /** Inventory items of a kind plus the free slots they fit. */
 const installTargets = (kind: string) => (s: Snapshot): string[] => {
@@ -115,11 +127,11 @@ export const STEPS: StepDef[] = [
     } },
   // ---- storage and the OS ----
   { id: 'fit', title: 'Fit your new part', flag: null,
-    done: (s) => !s.inventory.some((i) => PART_KINDS.includes(i.kind) && i.freeSlots.length > 0),
+    done: (s) => !s.inventory.some((i) => pendingUpgrade(s, i)),
     text: `Power the machine off, then drag the part you bought from the inventory onto its socket. The operating system needs ${OS_RAM_KB}K of memory fitted.`,
     targets: (s) => s.inventory
-      .filter((i) => PART_KINDS.includes(i.kind) && i.freeSlots.length > 0)
-      .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots]) },
+      .filter((i) => pendingUpgrade(s, i))
+      .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots]) },
   { id: 'buyDrive', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
     text: 'The machine needs somewhere to keep an operating system. Click the drive bay to see the drives: an HDD is slow and cheap, an SSD is faster.',

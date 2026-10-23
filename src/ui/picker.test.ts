@@ -114,7 +114,7 @@ describe('picker contents per id', () => {
   });
 
   it('power button after a PSU trip: power cycle comes first', () => {
-    const s = snap({ power: { totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true }, powered: true, phase: 'error', phaseReason: 'power supply tripped' });
+    const s = snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true }, powered: true, phase: 'error', phaseReason: 'power supply tripped' });
     const m = pickerFor('power', s)!;
     expect(m.actions.map((a) => a.id)).toEqual(['powerCycle', 'power']);
     expect(m.lines[0]!.level).toBe('bad');
@@ -124,7 +124,7 @@ describe('picker contents per id', () => {
     const s = snap({
       devices: [dev({ id: 'dev2', spec: 'psu0', kind: 'psu', name: 'PSU 40 W', slot: 'atx0' })],
       slots: [{ id: 'atx0', type: 'atx', deviceId: 'dev2' }],
-      power: { totalW: 95, budgetW: 40, psuFactor: 0.4, off: false, tripped: true },
+      power: { vrmLossW: 0, totalW: 95, budgetW: 40, psuFactor: 0.4, off: false, tripped: true },
       money: 100,
     });
     const m = pickerFor('psu', s)!;
@@ -167,7 +167,7 @@ describe('picker contents per id', () => {
     const s = snap({ purchases: [...PURCHASES, { id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: false }] });
     const m = pickerFor('board', s)!;
     expect(m.kind).toBe('board');
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['board0', 'installed'], ['board1', 'poor']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['board0', 'installed'], ['board1', 'poor'], ['board2', 'locked'], ['board3', 'locked']]);
   });
 });
 

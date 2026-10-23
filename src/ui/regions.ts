@@ -46,13 +46,33 @@ export const REGIONS: Record<string, Description> = {
   },
   m2: {
     title: 'M.2 storage slot',
-    plain: 'A slot for fast storage. Empty for now: jobs arrive on USB keys instead.',
-    nerd: 'M.2 NVMe, PCIe x4. Not populated; program loads are only drawn here for show.',
+    plain: 'A slot for fast NVMe drives. Needs the bigger board. Drag a drive here.',
+    nerd: 'M.2 NVMe, PCIe x4: the m2 slot. Accepts the NVMe drive; a missing slot is shown as a shop reason.',
   },
   sata: {
-    title: 'SATA port',
-    plain: 'Connector for old-style disks. Nothing is attached.',
-    nerd: 'SATA 6 Gb/s from the chipset. No devices exist in the sim yet.',
+    title: 'Drive bay (SATA)',
+    plain: 'Where the storage drives go. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
+    nerd: 'SATA drive bays (sata0, sata1 on bigger boards). A drive draws PSU watts; there is no separate connector in the sim.',
+  },
+  bay: {
+    title: 'Drive bay (SATA)',
+    plain: 'Where the storage drives go. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
+    nerd: 'SATA drive bays (sata0, sata1 on bigger boards). A drive draws PSU watts; there is no separate connector in the sim.',
+  },
+  case: {
+    title: 'Computer case',
+    plain: 'The box everything sits in: the board, the power supply and the drive bays.',
+    nerd: 'Chassis. Decor only: the parts inside are what matter.',
+  },
+  held: {
+    title: 'Held keys',
+    plain: 'Keys the OS has taken and you have unplugged. The OS keeps their jobs. Plug one back in when it has a result to collect it.',
+    nerd: 'Ingested keys waiting for their flash. Powering off returns them to the tray unserved (their jobs restart).',
+  },
+  os: {
+    title: 'Operating system',
+    plain: 'The software that keeps the machine running and takes jobs from the USB keys, one at a time. Click to see the systems on offer.',
+    nerd: 'The OS shelf and, when installed, the OS screen on the monitor: the boot image sits on the drive, the job queue in kernel RAM.',
   },
   bat: {
     title: 'Clock battery',

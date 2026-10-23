@@ -53,7 +53,7 @@ describe('HUD status text', () => {
     expect(c.level).toBe('bad');
   });
   it('a tripped supply overrides the phase', () => {
-    expect(statusChip(snap({ phase: 'running', power: { totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true } })).text).toBe('Tripped');
+    expect(statusChip(snap({ phase: 'running', power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true } })).text).toBe('Tripped');
   });
   it('off says why the power button would do nothing', () => {
     expect(statusChip(snap()).title).toMatch(/power supply/);
@@ -89,8 +89,8 @@ describe('hints', () => {
     expect(triggeredHints(snap({ devices: [dev({ unstable: true })] }))).toContain('overheat');
     expect(triggeredHints(snap({ queueLength: 3 }))).toContain('queue');
     expect(triggeredHints(snap({ devices: [dev({ burnt: true })] }))).toContain('burnt');
-    expect(triggeredHints(snap({ power: { totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }))).toEqual(['trip']);
-    expect(triggeredHints(snap({ power: { totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }))).toEqual(['brownout']);
+    expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }))).toEqual(['trip']);
+    expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }))).toEqual(['brownout']);
   });
   it('shows each only once', () => {
     const s = snap({ queueLength: 5 });
@@ -123,7 +123,7 @@ describe('descriptions', () => {
     expect(describeId('cpu2')?.nerd).toContain('forwarding');
     expect(describeId('ram1')?.nerd).toContain('32K');
     expect(describeId('board')?.title).toBe('Motherboard');
-    expect(describeId('board1')?.nerd).toMatch(/atx-plus/);
+    expect(describeId('board1')?.nerd).toMatch(/slots: .*1 atx/);
     expect(describeId('nope')).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { selected } from '../game/hover';
-import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot } from '../game/store';
+import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot, uninstallOs } from '../game/store';
 import { getSpec, type CpuSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
 import { fmtClock, fmtMoney } from './logic';
@@ -31,6 +31,11 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
       case 'locked': return <span class="need mute" title={step.reason}><Icon name="lock" size={11} /> Later</span>;
     }
   })();
+  // A spare the sim will not fit right now (e.g. the OS needs more memory fitted first): the reason is in the rung.
+  const spareBlocked = step.state === 'crate' && !step.reason?.startsWith('In your inventory');
+  const footText = spareBlocked
+    ? <span class="need warn" title={step.reason}><Icon name="lock" size={11} /> Not yet</span>
+    : foot;
   const title = step.reason ?? (step.state === 'installed' ? 'Fitted in the machine' : step.state === 'crate' ? step.reason : step.name);
   return (
     <div
@@ -42,7 +47,7 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
       <span class="rtier">Tier {step.tier}</span>
       <PartArt id={step.specId} size={64} />
       <span class="rname">{shortName(step.name)}</span>
-      <span class="rfoot">{foot}</span>
+      <span class="rfoot">{footText}</span>
     </div>
   );
 }
@@ -128,17 +133,30 @@ function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
 }
 
 function Action({ a }: { a: PickerAction }) {
+  // Uninstalling wipes the drive: it takes two presses (the first asks, the second does it).
+  const [armed, setArmed] = useState(false);
   const run = () => {
     switch (a.id) {
       case 'power': powerButton(); break;
       case 'powerCycle': powerCycle(); break;
       case 'plug': if (a.keyId !== undefined) plugKey(a.keyId); break;
       case 'eject': ejectKey(); break;
+      case 'uninstallOs':
+        if (!armed) { setArmed(true); return; }
+        setArmed(false);
+        uninstallOs();
+        break;
     }
   };
+  const label = a.id === 'uninstallOs' && armed ? 'Really uninstall? The drive is wiped' : a.label;
   return (
-    <button class={a.primary ? 'primary' : ''} disabled={!!a.why} title={a.why} onClick={run}>
-      {a.label}
+    <button
+      class={a.primary || (a.id === 'uninstallOs' && armed) ? 'primary' : ''}
+      disabled={!!a.why}
+      title={a.why ?? (a.id === 'uninstallOs' ? 'Takes the OS off its drive and back into your inventory. The drive is wiped.' : undefined)}
+      onClick={run}
+    >
+      {label}
     </button>
   );
 }

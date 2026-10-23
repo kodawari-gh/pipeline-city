@@ -2,6 +2,7 @@
 
 import { BOARD_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
+import { getOsSpec } from '../sim/os';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
@@ -19,8 +20,9 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export const KIND_LABEL: Record<DeviceKind | 'board', string> = {
-  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Storage', board: 'Motherboard',
+export const KIND_LABEL: Record<DeviceKind | 'board' | 'os', string> = {
+  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard',
+  os: 'Operating system', 'vrm-sink': 'VRM cooling',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -95,6 +97,7 @@ export const HINTS: Record<string, Hint> = {
   burnt: { id: 'burnt', text: 'A part burnt out and does nothing now. Buy a replacement of the same kind.' },
   trip: { id: 'trip', text: 'The power supply tripped: too much draw. Power cycle it, then reduce load or buy a bigger supply.' },
   brownout: { id: 'brownout', text: 'The power supply is overloaded, so everything is slowed down. Upgrade it or lower the clock.' },
+  osFull: { id: 'osFull', text: 'The OS queue is full: a plugged key stays in the tray until a job finishes and frees a slot.' },
 };
 
 /** Hint ids triggered by this snapshot (ignores whether they were already shown). */
@@ -107,6 +110,8 @@ export function triggeredHints(s: Snapshot): string[] {
   if (s.devices.some((d) => d.burnt)) out.push('burnt');
   if (s.power.tripped) out.push('trip');
   else if (s.power.psuFactor < 1 && !s.power.off) out.push('brownout');
+  // The OS has no free queue slot and keys are waiting (a plugged key stays stage "tray" then).
+  if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) out.push('osFull');
   return out;
 }
 
@@ -133,6 +138,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   cooler: 'Pulls heat off the processor so it can run fast without slowing down or breaking.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
+  'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
 };
 
@@ -148,6 +154,7 @@ export function describeSpec(spec: DeviceSpec): Description {
   }
   if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`);
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`);
+  if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
   if (spec.clock) bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);
   if (spec.kind !== 'psu') bits.push(`${spec.idleW}-${spec.loadW} W`);
@@ -165,9 +172,22 @@ const SLOT_PLAIN: Record<string, string> = {
   cooler: 'cooler mount: sits on the processor',
   display: 'monitor port: drag a monitor here',
   pcie: 'expansion slot (nothing fits yet)',
-  sata: 'disk port (nothing fits yet)',
+  sata: 'drive bay (SATA): drag a drive here',
+  m2: 'M.2 slot (fast NVMe drives): drag a drive here',
   usb: 'USB port',
 };
+
+/** Plain words and the nerd line for an operating system item or installed OS. */
+function describeOs(id: string): Description | null {
+  const os = getOsSpec(id);
+  if (!os) return null;
+  const later = os.later ? ' Not available yet.' : '';
+  return {
+    title: os.name,
+    plain: `${os.description}${later}`,
+    nerd: `tier ${os.tier} | needs ${os.minRamBytes / 1024}K RAM, ${os.diskBytes / 1024}K disk | ${os.programSlots} program slot(s), ${os.queueSlots} queue slots`,
+  };
+}
 
 /**
  * Description for a hovered/selected id: a spec id, a region id, a world id, or (with the snapshot) a slot (empty or
@@ -190,21 +210,26 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      return d && { ...d, plain: d.plain + ' In your inventory: drag it into a socket.' };
+      const where = it?.kind === 'os' ? 'drag it onto a drive' : 'drag it into a socket';
+      return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
-      const k = [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
+      const k = [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
       if (k) {
+        const held = s.held.some((x) => x.id === k.id);
         return {
           title: `Client key ${k.label}`,
-          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`,
-          nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts}`,
+          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`
+            + (held ? ' The OS is holding this job: plug the key in again once it has a result.' : ''),
+          nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts} | stage ${k.stage}`,
         };
       }
     }
   }
   const spec = getSpec(id);
   if (spec) return describeSpec(spec);
+  const osDesc = describeOs(id);
+  if (osDesc) return osDesc;
   const tier = /^board([0-9]+)$/.exec(id);
   const bt = tier ? BOARD_TIERS[Number(tier[1])] : undefined;
   if (bt) {
@@ -234,23 +259,54 @@ export function statusChip(s: Snapshot): { text: string; title: string; level: C
     case 'writing': return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };
     case 'done-remove-key': return { text: 'Remove key', title: 'The job is done. Pull the key to get paid.', level: 'warn' };
     case 'error': return { text: `Error: ${s.phaseReason ?? 'stopped'}`, title: s.phaseReason ?? 'The machine stopped.', level: 'bad' };
-    case 'booting-os': return { text: 'Booting OS', title: 'Loading the operating system from the drive.', level: 'ok' };
-    case 'idle-os': return { text: 'OS idle', title: 'The OS is running and waiting for work.', level: 'warn' };
-    case 'ingesting': return { text: 'Ingesting', title: 'The OS is copying a key into its job queue.', level: 'ok' };
-    case 'running-os': return { text: 'Running job', title: 'The OS is running a queued job.', level: 'ok' };
-    case 'flashing': return { text: 'Flashing', title: 'Writing a result onto the plugged key.', level: 'ok' };
+    case 'booting-os': {
+      const pct = Math.round(Math.min(1, Math.max(0, s.bootProgress)) * 100);
+      return { text: `Booting OS ${pct}%`, title: 'Loading the OS from the drive. Boot time depends on the processor and the drive.', level: 'ok' };
+    }
+    case 'idle-os': return {
+      text: 'OS idle',
+      title: s.plugged ? 'The OS is up. Keys wait for it to take them.' : 'The OS is up and waiting for a key. Plug one into the USB port.',
+      level: 'warn',
+    };
+    case 'ingesting': return {
+      text: `Ingesting ${s.plugged?.label ?? ''}`.trim(),
+      title: 'The OS is copying the plugged key\'s job onto the drive and queueing it. Keep the key in until it is queued.',
+      level: 'ok',
+    };
+    case 'running-os': {
+      const run = s.os?.queue.find((j) => j.state === 'running');
+      return {
+        text: run ? `Running ${run.label}` : 'Running job',
+        title: 'The OS runs one queued job at a time. Keys wait in its queue until their turn.',
+        level: 'ok',
+      };
+    }
+    case 'flashing': return {
+      text: `Flashing ${s.plugged?.label ?? ''}`.trim(),
+      title: 'Writing the finished result onto the plugged key. Keep it in until it lands.',
+      level: 'ok',
+    };
   }
 }
 
-/** Keys waiting in the tray (not the plugged one): count and the age of the oldest. */
-export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; text: string } {
+/** Whether a phase is the OS doing work right now (its chip pulses; the pulse stops while the game is paused). */
+export const isOsActivity = (phase: Snapshot['phase']) =>
+  phase === 'booting-os' || phase === 'ingesting' || phase === 'running-os' || phase === 'flashing';
+
+/**
+ * Keys waiting in the tray (not the plugged one): count and the age of the oldest. Held keys (ingested by the OS and
+ * unplugged, waiting for their result) are counted separately.
+ */
+export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; held: number; text: string } {
   const count = s.tray.length;
+  const held = s.held.length;
   const oldest = count ? Math.max(...s.tray.map((k) => k.age)) : null;
   const late = s.tray.some((k) => k.late);
-  const text = count === 0
+  const waiting = count === 0
     ? 'no keys waiting'
     : `${count} key${count === 1 ? '' : 's'} waiting, oldest ${fmtTicks(oldest ?? 0)}`;
-  return { count, cap: s.queueCap, oldest, late, text };
+  const text = held ? `${waiting}, ${held} held for collection` : waiting;
+  return { count, cap: s.queueCap, oldest, late, held, text };
 }
 
 /**

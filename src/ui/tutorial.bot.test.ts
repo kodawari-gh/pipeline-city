@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../sim/game/game';
 import type { Snapshot } from '../sim/game/game';
-import { currentStep, INITIAL_TUTORIAL, STEPS, type StepId } from './tutorial';
+import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId } from './tutorial';
 
 const ST = { ...INITIAL_TUTORIAL, welcomed: true };
 const MAX_STEP_TICKS = 600;
@@ -27,10 +27,11 @@ function act(g: Game, s: Snapshot, id: StepId): void {
   // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
   if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
   const powerOff = () => { if (g.powered) g.powerButton(); };
-  const installPart = (kinds: string[]) => {
+  // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
+  const installPart = (kinds: string[], pick: (i: Snapshot['inventory'][number]) => boolean = () => true) => {
     powerOff();
-    const item = s.inventory.find((i) => kinds.includes(i.kind) && i.freeSlots.length > 0);
-    if (item) g.install(item.id, item.freeSlots[0]);
+    const item = s.inventory.find((i) => kinds.includes(i.kind) && pick(i) && (i.freeSlots.length + i.swapSlots.length) > 0);
+    if (item) g.install(item.id, item.freeSlots[0] ?? item.swapSlots[0]);
   };
   const buy = (specId: string, price: number) => {
     const p = s.purchases.find((x) => x.id === specId);
@@ -62,7 +63,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       if (s.plugged?.done) g.ejectKey();
       break;
     case 'spend': buy('ram1', 100); break;
-    case 'fit': installPart(PART_KINDS.filter((k) => k !== 'storage' && k !== 'os')); break;
+    case 'fit': installPart(PART_KINDS, (i) => pendingUpgrade(s, i)); break;
     case 'buyDrive': buy('hdd0', 40); break;
     case 'drive': installPart(['storage']); break;
     case 'buyOs': buy('os1', 150); break;
