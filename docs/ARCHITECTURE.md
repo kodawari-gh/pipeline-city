@@ -52,12 +52,36 @@ Scale is unbounded (one chip, then rack, datacenter, beyond), so tiers must be d
 
 Config only, never micro-state: `{ version, seed, money, unlocked upgrades, board layout, ... }`. Pipeline contents are rebuilt by replay on load. Every save has a `version`; add a migration when the shape changes.
 
+## Progression
+
+A tech tree **per device**, not one global tree. Start with CPU and RAM, then buy other devices (IO, screens, GPU, ...) when demand requires them. Each device needs good visuals and must connect to the motherboard realistically (slots, buses, traces). A machine must be fully decked out before the player may buy another one.
+
+Early game is a guided tour (unpipelined CPU running a CLI program, then pipeline, cache, superscalar, OoO), with branching opening up as devices unlock.
+
+## Demand
+
+Latency-driven. Requests arrive at a rate that rises with reputation, and reputation follows recent turnaround time. Slow service shrinks demand and fast service grows it. Under-provisioned machines build visible queues.
+
+## Power and cooling
+
+Macro board level, and currently missing from the prototype. The PSU has a wattage budget, each device draws power under load, and cooling removes heat. A hot chip throttles its clock, which feeds back into throughput and so into the economy. A few numbers and simple feedback, not a physics sim. Devices therefore need power and thermal properties from the start.
+
+## Programs
+
+Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (`src/sim/asm`). Programs are **generated and composable**: a library of small kernels (loop, memcpy, hash, parse, matmul, poll a device, ...) is combined by scenario templates ("web request", "GPU render / HPC", "multiprocessor simulation", "secure execution") with seeded parameters such as size, memory footprint and device calls. Output is real assembly, deterministic per seed, and must make sense: it should visibly do something on the devices it touches.
+
+## Snapshots and threading
+
+- One sim worker. Machines share nothing except a message bus, so sharding to a worker pool later is a scheduling change.
+- The renderer tells the worker which machine is focused. That machine streams detailed state, and others send a few summary numbers per tick, so cost stays bounded as the fleet grows.
+- No SharedArrayBuffer for now (needs cross-origin isolation headers, awkward on static hosting).
+
 ## Open questions
 
-- Demand curve and upgrade tree (needs game design pass).
-- Snapshot size and rate once many machines exist (diffing vs full snapshots).
-- Where the assembler for toy-ISA programs lives (`src/sim/asm`?) and what the program format is.
-- Multi-machine scheduling in the worker (one worker, or one per machine group).
+- Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
+- Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
+- Calibration cache: keying (program seed + hardware config) and invalidation.
+- Save file: how generated program seeds and per-machine device layouts are stored.
 
 ## Commands
 
