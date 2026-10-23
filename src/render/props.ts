@@ -312,7 +312,8 @@ export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: numb
   const blink = 0.55 + 0.45 * Math.sin(now * 0.008);
   const on = st.powered && !st.error;
   const lights: [number, string, boolean, number][] = [
-    [CASE_LEDS.on, T.st, on, 1], [CASE_LEDS.off, T.ld, !st.powered && !st.error, 1], [CASE_LEDS.err, T.bad, st.error, st.error ? blink : 1],
+    // OFF is the standby light: it needs a working PSU on the wall (blocked = no PSU / burnt PSU / ATX unplugged / dead board)
+    [CASE_LEDS.on, T.st, on, 1], [CASE_LEDS.off, T.ld, !st.powered && !st.error && !st.blocked, 1], [CASE_LEDS.err, T.bad, st.error, st.error ? blink : 1],
     [CASE_LEDS.disk, T.ld, disk > 0.02, disk],
   ];
   for (const [x, c, lit, a] of lights) {

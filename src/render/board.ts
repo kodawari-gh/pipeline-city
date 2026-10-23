@@ -443,7 +443,7 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- props: tray, power button, the key in the USB port ----
   function syncProps(s: Snapshot | null, force = false) {
-    const powered = !!s?.powered, error = s?.phase === 'error' || !!s?.power.tripped;
+    const powered = !!s?.powered, error = s?.phase === 'error' || !!s?.power.tripped || !!s?.board?.burnt;
     powerState = { powered, error, blocked: !!s?.noPowerReason };
     const key = [
       T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',

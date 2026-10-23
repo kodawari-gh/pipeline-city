@@ -77,6 +77,8 @@ export class Live {
   private bootProgress = 0;
   private monitorLive = false;
   private powered = false;
+  /** Machine switched on AND the power path is healthy (PSU not tripped, board not dead): fans spin, lights glow, buses move data. */
+  private liveOn = false;
   private hasDisplay = false;
   /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
   private bootG = new Graphics();
@@ -339,13 +341,20 @@ export class Live {
     }
     this.keyActivity = s.keyActivity ?? 'none';
     this.updateOsScreen(s, now);
+    // no power, no motion: a switched off, tripped or dead machine has no pulses, flashes or spinning drives
+    this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
+    if (!this.liveOn) {
+      for (const l of this.lit.values()) if (l.pulses > 0) l.hold = 0;
+      for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.flowUntil = -1e9; }
+      this.memAt = -1e9;
+    }
 
     // ---- power ----
     const psuDev = s.devices.find((d) => d.kind === 'psu');
     const ratio = s.power.budgetW > 0 ? s.power.totalW / s.power.budgetW : 0;
     this.psuRatio = ratio; this.psuOff = s.power.off; this.psuTripped = s.power.tripped;
     this.psuW = s.power.totalW; this.psuBudget = psuDev ? s.power.budgetW : 0;
-    const flow = !s.power.off && !s.power.tripped;
+    const flow = !s.power.off && !s.power.tripped && !s.board?.burnt;
     const level = (w: number) => (flow && s.power.budgetW > 0 ? clamp(Math.sqrt(w / s.power.budgetW) * 1.15) : 0);
     const cpuW = cpu?.powerW ?? 0;
     const ramW = s.devices.filter((d) => d.kind === 'ram').reduce((a, d) => a + d.powerW, 0);
@@ -363,11 +372,11 @@ export class Live {
       const gl = this.glows.get(d.id);
       if (d.kind === 'cooler') {
         const f = this.fans.find((x) => x.kind === 'cooler');
-        if (f) f.target = d.burnt ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
+        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
       }
       if (d.kind === 'psu') {
         const f = this.fans.find((x) => x.kind === 'psu');
-        if (f) f.target = s.power.tripped || s.power.off ? 0 : 1 + 8 * clamp(ratio);
+        if (f) f.target = !this.liveOn ? 0 : 1 + 8 * clamp(ratio);
         continue;
       }
       if (!gl) continue;
@@ -390,7 +399,7 @@ export class Live {
 
     // CLI monitor: last lines that fit, wrapped to the screen width
     const txt = s.monitorLive ? s.display : '';
-    this.noSignal.visible = this.hasDisplay && !s.monitorLive;
+    this.noSignal.visible = this.hasDisplay && s.powered && !s.monitorLive;
     if (txt !== this.shownText) {
       this.shownText = txt;
       const cols = 32, rows = 8, lines: string[] = [];
@@ -458,11 +467,12 @@ export class Live {
     // ingesting / flashing: fast blink, done: steady green that breathes = collect the key); without an OS it blinks while loading or writing
     const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52, act = this.keyActivity;
     let col: string | null = null, on = true, la = 1;
-    if (act === 'enumerating') { col = T.ld; on = Math.floor(now / 450) % 2 === 0; }
+    if (!this.powered) { /* the USB port is dead without power */ }
+    else if (act === 'enumerating') { col = T.ld; on = Math.floor(now / 450) % 2 === 0; }
     else if (act === 'ingesting') { col = T.ld; on = Math.floor(now / 130) % 2 === 0; }
     else if (act === 'flashing') { col = T.alu; on = Math.floor(now / 130) % 2 === 0; }
     else if (act === 'done') { col = T.st; la = 0.75 + 0.25 * Math.sin(now * 0.005); }
-    else if (this.plugged) {
+    else if (this.plugged && this.powered) {
       const active = this.powered && (ph === 'loading' || ph === 'writing');
       col = active ? T.ld : T.st; on = active ? Math.floor(now / 140) % 2 === 0 : true;
     }
@@ -605,7 +615,8 @@ export class Live {
   frame(dt: number, now: number) {
     this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
-      f.speed += (f.target - f.speed) * Math.min(1, dt * 2);
+      f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));
+      if (f.target === 0 && f.speed < 0.08) f.speed = 0; // a fan without power comes to rest (no endless creep)
       f.c.rotation += f.speed * dt;
     }
     const psuFan = this.fans.find((f) => f.kind === 'psu');
