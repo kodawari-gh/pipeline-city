@@ -82,6 +82,7 @@ export class Interact {
   private edge: { id: string; x: number; y: number }[] = [];
   private noteText: Text;
   private noteBg = new Graphics();
+  private noteSet = false;
 
   constructor(private camera: Camera, private canvas: HTMLCanvasElement, private flyToRects: (rs: Rect[]) => void) {
     this.fx.addChild(this.g, this.ghost);
@@ -438,6 +439,7 @@ export class Interact {
     const d = this.drag;
     this.noteText.visible = false;
     this.noteBg.clear();
+    this.noteSet = false;
     if (d && s) this.drawDrag(d, now, lw, s);
 
     // ---- return / fade animations ----
@@ -489,7 +491,7 @@ export class Interact {
           const e = 12 + 12 * pulse + (over ? 14 : 0);
           box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 40, { fill: col, fa: over ? 0.28 : 0.07 + 0.08 * pulse, stroke: col, lw: lw * (over ? 2.2 : 1.6), sa: over ? 1 : 0.55 + 0.4 * pulse });
         } else if (id !== 'board') {
-          box(g, r.x, r.y, r.w, r.h, 30, { fill: T.bg, fa: 0.55 });
+          box(g, r.x, r.y, r.w, r.h, 30, { fill: T.bg, fa: ok ? 0.55 : 0.28 });
         }
       }
       // ghost follows the pointer at a steady on-screen size; over a target it settles on the socket
@@ -555,7 +557,7 @@ export class Interact {
       this.ghost.scale.set(1);
       if (!d.snapped) this.note('Drag the plug to the glowing socket', d.cx, d.cy, T.mute);
     }
-    this.noteText.visible = this.noteText.text !== '' && !!d;
+    this.noteText.visible = this.noteSet && !!d;
   }
 
   /** A one-line hint following the pointer while dragging (screen space). */
@@ -567,6 +569,7 @@ export class Interact {
     t.anchor.set(0, 0);
     t.position.set(clamp(sx + 24, 14, Math.max(14, this.camera.w - t.width - 14)), clamp(sy + 28, 12, Math.max(12, this.camera.h - t.height - 14)));
     t.visible = true;
+    this.noteSet = true;
     this.noteBg.clear();
     box(this.noteBg, t.x - 8, t.y - 5, t.width + 16, t.height + 10, 7, { fill: this.T.dark ? '#0b1226' : '#ffffff', fa: 0.92, stroke: color === this.T.bad ? this.T.bad : this.T.line, lw: 1.5 });
   }

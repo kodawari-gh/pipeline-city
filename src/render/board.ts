@@ -88,10 +88,10 @@ export async function mountBoard(host: HTMLElement) {
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
   const interact = new Interact(camera, app.canvas, (rs) => {
-    const x0 = Math.min(...rs.map((r) => r.x)) - 500, y0 = Math.min(...rs.map((r) => r.y)) - 500;
-    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + 500, y1 = Math.max(...rs.map((r) => r.y + r.h)) + 500;
+    const x0 = Math.min(...rs.map((r) => r.x)) - 900, y0 = Math.min(...rs.map((r) => r.y)) - 900;
+    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + 900, y1 = Math.max(...rs.map((r) => r.y + r.h)) + 900;
     const v = camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.9);
-    camera.flyTo({ ...v, z: Math.min(Math.max(v.z, camera.fit(WORLD).z), 0.4) });
+    camera.flyTo({ ...v, z: Math.min(Math.max(v.z, camera.fit(WORLD).z), 0.3) });
   });
   interactRef = interact;
   interact.setTheme(T);
