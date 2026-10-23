@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
 import {
-  BD, BOARD_SEED, BR, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, rng,
+  BD, BOARD_SEED, BR, sataPort, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, rng,
 } from './layout';
 import { box, disc, label } from './ink';
 import { buildBuses, type Bus, type Lane } from './routes';
@@ -130,14 +130,14 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.stroke({ width: 7, color: P.edge, alpha: 0.9 });
     labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
   }
-  // ---- SATA ----
-  for (let i = 0; i < 5; i++) {
-    const x = BR.sata.x + i * 170, live = i < nSata, a = live ? 1 : 0.35;
-    box(g, x, BR.sata.y, 140, BR.sata.h, 10, { fill: P.sub, stroke: P.edge, lw: 5, fa: a, sa: a });
-    g.rect(x + 20, BR.sata.y + 20, 100, 30).fill({ color: P.dark, alpha: a });
-    g.rect(x + 20, BR.sata.y + 66, 70, 14).fill({ color: P.via, alpha: 0.5 * a });
+  // ---- SATA: two ports on the bottom edge, mouths facing down (the drive cables rise into them) ----
+  for (let i = 0; i < 2; i++) {
+    const p = sataPort(i), live = i < nSata, a = live ? 1 : 0.35;
+    box(g, p.x, p.y, p.w, p.h, 10, { fill: P.sub, stroke: P.edge, lw: 5, fa: a, sa: a });
+    g.rect(p.x + 20, p.y + 16, 100, 30).fill({ color: P.dark, alpha: a });
+    g.rect(p.x + 20, p.y + 62, 70, 14).fill({ color: P.via, alpha: 0.5 * a });
+    labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 26, 30, P.silk, { anchor: [0.5, 0.5], a }));
   }
-  lbl('SATA 1-5', BR.sata.x, BR.sata.y + BR.sata.h + 40);
 
   // ---- power connectors on the east edge (plugs from the PSU sit on these) ----
   const conn = (r: { x: number; y: number; w: number; h: number }, rows: number, cols: number, name: string, a = 1) => {
@@ -219,10 +219,10 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
         g.rect(px, py, w, h);
       }
     };
-    row(-1250, -1060, 14, 60); row(-2300, 420, 10, 60); row(-2300, 360, 10, 60); row(1100, 1720, 12, 62); row(1100, 1780, 12, 62);
+    row(-1250, -1060, 14, 60); row(1100, 1720, 12, 62); row(1100, 1780, 12, 62);
     row(2700, 900, 8, 60, true); row(-1250, 820, 10, 60);
     g.fill({ color: P.panel });
-    row(-1250, -1060, 14, 60); row(-2300, 420, 10, 60); row(1100, 1720, 12, 62);
+    row(-1250, -1060, 14, 60); row(1100, 1720, 12, 62);
     g.fill({ color: P.via, alpha: 0.25 });
   }
   {

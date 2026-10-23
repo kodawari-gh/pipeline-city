@@ -22,7 +22,8 @@ export const BR = {
   cpw: { x: 3100, y: -2200, w: 300, h: 420 },
   pciew: { x: 3100, y: 1000, w: 300, h: 330 },
   m2: { x: 2420, y: -800, w: 200, h: 1300 },
-  sata: { x: -2300, y: 640, w: 850, h: 110 },
+  /** Two SATA ports on the bottom edge (port 0 east, port 1 west, mouths facing down). */
+  sata: { x: -2150, y: 2290, w: 310, h: 110 },
   hex: { x: 300, y: 2230, w: 760, h: 200 },
   qr: { x: 1500, y: 2060, w: 240, h: 240 },
   audio: { x: -3380, y: 640, w: 560, h: 330 },
@@ -103,16 +104,38 @@ export const VIDEO_Y = -1150;
 /** USB key tray, just under the monitor stand: 2 columns by 5 rows of wide keys (queue cap 10). */
 export const TRAY: Rect = { x: -7500, y: 330, w: 3300, h: 1620 };
 export const TRAY_COLS = 2;
-/** Power button plate, west of the board, between the key tray and the I/O panel. */
-export const POWER_PLATE: Rect = { x: -4130, y: 1480, w: 640, h: 900 };
-export const POWER_BTN = { x: -3810, y: 1850, r: 175 };
+// ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
+/** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
+export const CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };
+/** Inside of the chassis (glass area plus the PSU compartment). */
+export const CASE_IN: Rect = { x: -3640, y: -2700, w: 8740, h: 6690 };
+/** Top panel strip: brand, vents, disk LED, status lights, power button. */
+export const CASE_PANEL: Rect = { x: -3800, y: -3100, w: 9060, h: 400 };
+/** The glass side window: motherboard area. */
+export const CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
+/** Power button on the top panel and the status lights beside it. */
+export const POWER_BTN = { x: 4660, y: -2900, r: 130 };
+export const CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
+/** The 2-position SATA drive bay (a cage right of the PSU). Cell 0 = slot sata0 (top), cell 1 = sata1. */
+export const BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
+export const BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
+/** Where a drive's SATA data cable runs: column x in the cage gap, lane y under the board, port x on the board edge. */
+export const SATA_LINK = [
+  { col: 4160, lane: 2590, port: -1910 },
+  { col: 4100, lane: 2650, port: -2080 },
+] as const;
+/** Board port rect for SATA index i. */
+export const sataPort = (i: number): Rect => ({ x: BR.sata.x + (1 - i) * 170, y: BR.sata.y, w: 140, h: BR.sata.h });
+/** Key rack ("held" keys the OS has ingested, waiting for their result), under the tray. */
+export const HELD: Rect = { x: -5900, y: 2150, w: 1670, h: 1000 };
+
 /** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
 export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: BR.io.x, y: VIDEO_Y - 60, w: 240, h: 120 };
 
 /** Everything the camera should see at once (board, PSU, monitor, cables, tray). */
-export const WORLD: Rect = { x: -7650, y: -2650, w: 11800, h: 6650 };
+export const WORLD: Rect = { x: -7650, y: -3250, w: 13150, h: 7600 };
 
 // ---- hover region list (ids are the contract with the UI) ----
 export const REGIONS: { id: string; rect: Rect }[] = [

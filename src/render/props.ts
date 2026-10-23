@@ -1,7 +1,9 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { KeySnap } from '../sim/game/game';
+import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
-import { POWER_BTN, POWER_PLATE, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
+import { wallTone } from './case';
+import { CASE_LEDS, HELD, POWER_BTN, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.
@@ -41,6 +43,8 @@ function accentOf(T: Theme, kind: string): string {
     case 'display': return T.st;
     case 'cooler': return T.alu;
     case 'board': return T.br;
+    case 'storage': return T.mul;
+    case 'os': return T.st;
     default: return T.mute;
   }
 }
@@ -96,6 +100,30 @@ export function partIcon(T: Theme, kind: string, _spec = ''): Container {
     g.fill({ color: T.line });
     for (let i = 0; i < 5; i++) g.rect(-180 + i * 56, 130, 38, 28);
     g.fill({ color: T.pin, alpha: 0.8 });
+  } else if (kind === 'storage') {
+    const v = getSpec(_spec)?.visual ?? 'hdd';
+    if (v === 'ssd-nvme') {
+      box(g, -60, -200, 120, 400, 10, { fill: mix(body, '#10333a', 0.5), ...edge() });
+      box(g, -66, -190, 132, 120, 8, { fill: mix(body, '#ffffff', 0.2), stroke: T.alu, lw: 5 });
+      for (let i = 0; i < 8; i++) g.rect(-50 + i * 13, 150, 9, 40);
+      g.fill({ color: T.pin });
+      box(g, -42, -30, 84, 70, 6, { fill: T.die, stroke: T.line, lw: 4 });
+    } else if (v === 'ssd-sata') {
+      box(g, -190, -120, 380, 240, 22, { fill: mix(body, '#ffffff', 0.12), ...edge() });
+      box(g, -150, -80, 200, 130, 8, { fill: T.die, stroke: T.line, lw: 4 });
+      box(g, -120, -60, 60, 60, 6, { fill: T.tile, stroke: a, lw: 5 });
+      disc(g, 130, 70, 12, { fill: a });
+    } else {
+      box(g, -200, -150, 400, 300, 22, { fill: mix(body, '#ffffff', 0.12), ...edge() });
+      disc(g, -50, -10, 100, { fill: T.die, stroke: a, lw: 6 });
+      disc(g, -50, -10, 22, { fill: a });
+      g.moveTo(40, 100).lineTo(110, -70).stroke({ width: 14, color: a, alpha: 0.8, cap: 'round' });
+      box(g, 100, -110, 70, 220, 8, { fill: T.tile, stroke: T.line, lw: 4 });
+    }
+  } else if (kind === 'os') {
+    box(g, -190, -150, 380, 300, 22, { fill: '#050a0c', ...edge() });
+    c.addChild(label('>_', -140, -20, 150, a, { head: true }));
+    g.rect(-140, 70, 220, 14).fill({ color: a, alpha: 0.6 });
   } else {
     box(g, -160, -160, 320, 320, 24, { fill: body, ...edge() });
     c.addChild(label('?', 0, 0, 200, a, { head: true, anchor: [0.5, 0.5] }));
@@ -116,6 +144,19 @@ export function urgencyOf(k: KeySnap): Urgency {
   if (k.late) return 'late';
   const span = Math.max(1, k.deadlineTick - k.arrivalTick);
   return k.age / span > 0.65 ? 'soon' : 'ok';
+}
+
+/** What an OS-ingested key is doing, as a short label and a colour (null for keys in the tray or without an OS). */
+export function stageInfo(T: Theme, k: KeySnap): { text: string; color: string } | null {
+  switch (k.stage) {
+    case 'ingesting': return { text: 'INGESTING', color: T.mul };
+    case 'queued': return { text: 'QUEUED', color: T.mute };
+    case 'running': return { text: 'JOB RUNNING', color: T.alu };
+    case 'result': return { text: 'DONE - PLUG AGAIN', color: T.st };
+    case 'flashing': return { text: 'WRITING RESULT', color: T.ld };
+    case 'done': return { text: 'RESULT SAVED', color: T.st };
+    default: return null;
+  }
 }
 
 export const urgencyColor = (T: Theme, u: Urgency) => (u === 'late' ? T.bad : u === 'soon' ? T.ld : T.st);
@@ -153,14 +194,20 @@ export function keyStick(T: Theme, k: KeySnap, compact = false): Container {
     if (frac > 0) b.roundRect(tx, y, Math.max(28, w * frac), 28, 14).fill({ color: col });
     c.addChild(b);
   };
+  const stg = stageInfo(T, k);
+  if (stg) g.rect(bx + 26, -h / 2, 22, h).fill({ color: stg.color, alpha: 1 });
   if (compact) {
-    c.addChild(label(fit(k.label, 96, tw, 0.6), tx, k.done ? -48 : -34, 96, T.ink, { head: true }));
-    if (k.done) c.addChild(label('DONE', tx, 40, 56, col, { weight: '700' }));
+    c.addChild(label(fit(k.label, 96, tw, 0.6), tx, k.done || stg ? -48 : -34, 96, T.ink, { head: true }));
+    if (stg) c.addChild(label(fit(stg.text, 50, tw, 0.62), tx, 44, 50, stg.color, { weight: '700' }));
+    else if (k.done) c.addChild(label('DONE', tx, 40, 56, col, { weight: '700' }));
     else bar(34, tw);
     return c;
   }
   c.addChild(label(fit(k.label, 88, tw, 0.6), tx, -62, 88, T.ink, { head: true }));
-  if (k.done) {
+  if (stg) {
+    c.addChild(label(stg.text, tx, 20, 60, stg.color, { weight: '700' }));
+    bar(66, tw);
+  } else if (k.done) {
     c.addChild(label('DONE', tx, 4, 56, col, { weight: '700' }));
     c.addChild(label(fit(k.result || k.template, 44, tw, 0.62), tx, 62, 44, T.mute));
   } else {
@@ -230,58 +277,89 @@ export function pluggedKeyArt(T: Theme, k: KeySnap): PropsArt {
 
 export interface PowerState { powered: boolean; error: boolean; blocked: boolean }
 
+/** The power button on the case's top panel (the status lights are drawn per frame by `drawPowerLeds`). */
 export function powerArt(T: Theme, st: PowerState): PropsArt {
-  const root = new Container(), chrome = new Container();
-  const g = new Graphics();
-  root.addChild(chrome);
-  chrome.addChild(g);
-  const p = POWER_PLATE, b = POWER_BTN;
-  const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
-  box(g, p.x + 10, p.y + 18, p.w, p.h, 40, { fill: '#000000', fa: 0.22 });
-  box(g, p.x, p.y, p.w, p.h, 40, { fill: shell, stroke: T.line, lw: 8 });
-  chrome.addChild(label('POWER', p.x + p.w / 2, p.y + 80, 78, T.ink, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
-  // the button (lifts and scales as one object)
+  const root = new Container();
+  const b = POWER_BTN;
+  const shell = wallTone(T);
   const node = new Container(), vec = new Container();
   const bg = new Graphics();
   node.addChild(vec);
   vec.addChild(bg);
   const ring = st.error ? T.bad : st.powered ? T.st : T.mute;
-  disc(bg, 0, 14, b.r + 18, { fill: '#000000', fa: 0.3 });
-  disc(bg, 0, 0, b.r + 18, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 12, sa: st.powered || st.error ? 1 : 0.7 });
-  disc(bg, 0, 0, b.r - 10, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 6 });
-  // power symbol
-  bg.arc(0, 8, 78, -Math.PI * 0.32, Math.PI * 1.32 + Math.PI * 0.0, true).stroke({ width: 18, color: ring, cap: 'round' });
-  bg.moveTo(0, -78).lineTo(0, -4).stroke({ width: 18, color: ring, cap: 'round' });
+  disc(bg, 0, 12, b.r + 14, { fill: '#000000', fa: 0.3 });
+  disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered || st.error ? 1 : 0.7 });
+  disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 5 });
+  const k = b.r / 175;
+  bg.arc(0, 8 * k, 78 * k, -Math.PI * 0.32, Math.PI * 1.32, true).stroke({ width: 15, color: ring, cap: 'round' });
+  bg.moveTo(0, -78 * k).lineTo(0, -4 * k).stroke({ width: 15, color: ring, cap: 'round' });
   node.position.set(b.x, b.y);
   root.addChild(node);
-  // lights
   const led = new Graphics();
   root.addChild(led);
-  const ly = p.y + p.h - 175;
-  const items: [string, number][] = [['ON', -190], ['OFF', 0], ['ERR', 190]];
-  for (const [t, dx] of items) chrome.addChild(label(t, p.x + p.w / 2 + dx, ly + 70, 40, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
   return {
-    root, chrome,
-    objs: [{ id: 'power', rect: { x: b.x - b.r - 24, y: b.y - b.r - 24, w: (b.r + 24) * 2, h: (b.r + 24) * 2 }, node, vec, base: { x: b.x, y: b.y, s: 1 } }],
+    root,
+    objs: [{ id: 'power', rect: { x: b.x - b.r - 20, y: b.y - b.r - 20, w: (b.r + 20) * 2, h: (b.r + 20) * 2 }, node, vec, base: { x: b.x, y: b.y, s: 1 } }],
     led,
     ledText: null,
   };
 }
 
-/** Redraw the three status lights (call every frame; cheap). */
-export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: number) {
+/** Redraw the status lights on the case panel: on / off / error and the disk activity LED (every frame; cheap). `now` is game time. */
+export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: number, disk = 0) {
   led.clear();
-  const p = POWER_PLATE, ly = p.y + p.h - 175;
+  const ly = CASE_LEDS.y;
   const blink = 0.55 + 0.45 * Math.sin(now * 0.008);
   const on = st.powered && !st.error;
   const lights: [number, string, boolean, number][] = [
-    [-190, T.st, on, 1], [0, T.ld, !st.powered && !st.error, 1], [190, T.bad, st.error, st.error ? blink : 1],
+    [CASE_LEDS.on, T.st, on, 1], [CASE_LEDS.off, T.ld, !st.powered && !st.error, 1], [CASE_LEDS.err, T.bad, st.error, st.error ? blink : 1],
+    [CASE_LEDS.disk, T.ld, disk > 0.02, disk],
   ];
-  for (const [dx, c, lit, a] of lights) {
-    const x = p.x + p.w / 2 + dx;
-    if (lit) led.circle(x, ly, 44).fill({ color: c, alpha: 0.25 * a });
-    led.circle(x, ly, 26).fill({ color: lit ? c : mix(c, T.bg, 0.8), alpha: lit ? a : 0.55 }).stroke({ width: 5, color: T.line, alpha: 0.8 });
+  for (const [x, c, lit, a] of lights) {
+    if (lit) led.circle(x, ly, 40).fill({ color: c, alpha: 0.22 * a });
+    led.circle(x, ly, 22).fill({ color: lit ? c : mix(c, T.bg, 0.8), alpha: lit ? 0.4 + 0.6 * a : 0.55 }).stroke({ width: 4, color: T.line, alpha: 0.8 });
   }
+}
+
+// ---------------------------------------------------------------- held keys (the OS ingested them; they wait for their result)
+
+export const HELD_COLS = 2, HELD_ROWS = 3;
+export const heldKeyCentre = (i: number) => {
+  const col = i % HELD_COLS, row = Math.floor(i / HELD_COLS);
+  return { x: HELD.x + 50 + KEY_LEN_PLUGGED / 2 + col * (KEY_LEN_PLUGGED + 50), y: HELD.y + 235 + row * 262 };
+};
+
+export function heldArt(T: Theme, keys: KeySnap[]): PropsArt {
+  const root = new Container(), chrome = new Container();
+  const g = new Graphics();
+  root.addChild(chrome);
+  chrome.addChild(g);
+  const r = HELD;
+  const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
+  const ready = keys.filter((k) => k.stage === 'result').length;
+  box(g, r.x + 10, r.y + 16, r.w, r.h, 36, { fill: '#000000', fa: 0.2 });
+  box(g, r.x, r.y, r.w, r.h, 36, { fill: shell, stroke: ready ? T.st : T.line, lw: 8, sa: ready ? 0.9 : 0.8 });
+  box(g, r.x + 30, r.y + 110, r.w - 60, r.h - 140, 20, { fill: '#000000', fa: 0.25 });
+  chrome.addChild(label('HELD KEYS', r.x + 70, r.y + 62, 62, ready ? T.st : T.mute, { head: true }));
+  const note = keys.length === 0 ? 'NONE HELD' : ready ? `${ready} READY - PLUG TO COLLECT` : `${keys.length} WAITING FOR THE OS`;
+  chrome.addChild(label(note, r.x + r.w - 70, r.y + 62, 40, ready ? T.st : T.mute, { anchor: [1, 0.5], a: keys.length ? 1 : 0.8 }));
+  for (let i = keys.length; i < HELD_COLS * HELD_ROWS; i++) {
+    const p = heldKeyCentre(i), w = KEY_LEN_PLUGGED, h = KEY_H;
+    const pts: [number, number][] = [[p.x - w / 2, p.y - h / 2], [p.x + w / 2, p.y - h / 2], [p.x + w / 2, p.y + h / 2], [p.x - w / 2, p.y + h / 2], [p.x - w / 2, p.y - h / 2]];
+    dashed(g, pts, 24, 20);
+  }
+  g.stroke({ width: 5, color: T.mute, alpha: 0.25 });
+  const objs: PropObj[] = [];
+  keys.slice(0, HELD_COLS * HELD_ROWS).forEach((k, i) => {
+    const p = heldKeyCentre(i);
+    const vec = keyStick(T, k, true), node = new Container();
+    node.addChild(vec);
+    node.position.set(p.x, p.y);
+    root.addChild(node);
+    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
+  });
+  if (keys.length > HELD_COLS * HELD_ROWS) chrome.addChild(label(`+${keys.length - HELD_COLS * HELD_ROWS} more`, r.x + r.w - 70, r.y + r.h - 24, 36, T.mute, { anchor: [1, 0.5] }));
+  return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
 export { clamp01, centre, MONO, HEAD };

@@ -119,8 +119,8 @@ export function buildBuses(): Bus[] {
   // USB: chipset west edge to the rear I/O
   buses.push(mk('usb', [[BR.chip.x, 0], [BR.io.x + BR.io.w, 0]], 4, 26, 9));
 
-  // SATA: chipset south edge to SATA port 1
-  buses.push(mk('sata', [[BR.sata.x + 75, BR.chip.y + BR.chip.h], [BR.sata.x + 75, BR.sata.y]], 4, 24, 9));
+  // SATA: chipset south edge straight down to the two ports on the bottom edge (the drive cables continue from there)
+  buses.push(mk('sata', [[BR.sata.x + BR.sata.w / 2, BR.chip.y + BR.chip.h], [BR.sata.x + BR.sata.w / 2, BR.sata.y]], 4, 24, 9));
 
   // display: CPU west edge, jog up, to the HDMI port on the rear I/O
   buses.push(mk('video', [[px, -640], [-1560, -640], [-1560, VIDEO_Y], [BR.io.x + BR.io.w, VIDEO_Y]], 4, 28, 11, 200));
