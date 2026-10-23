@@ -13,7 +13,8 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees), every board bus, power conductors, the PSU and video cables with their plugs |
 | `boardArt.ts` | static motherboard (plate, dim bus traces, VRMs, connectors, rear I/O, sockets, a little quiet decoration) |
 | `devices.ts` | static art of installed devices: CPU package + die floorplan, DIMM, cooler, PSU shroud, monitor, sleeved cables and plugs |
-| `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text and NO SIGNAL, heat glow, fans, DRAM flashes, boot visuals (PCH glow, USB LED, boot bar) |
+| `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text and NO SIGNAL, heat glow, fans, DRAM flashes, boot visuals (PCH glow, USB LED, boot bar), the VRM glow, power-good light, crash flash and the dead-board look. Two roots: `root` (interior) and `ext` (monitor screen, USB / monitor LEDs, video cable glow) |
+| `exterior.ts` | the far-zoom exterior case (static art baked to one texture) and its live accent strip, `LOD` thresholds are in `board.ts` |
 | `props.ts` | world props: part icons (drag ghost), USB key tray, wide key stick, power button and its lights |
 | `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts (`beginPartDrag`) / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
 | `pipeline.ts` | zoomed-in CPU chips and stage highlights |
@@ -46,9 +47,32 @@ The CPU socket is the origin. West of the board: the **key tray** (under the mon
 
 ## Game-time clock
 
-Every animation that belongs to the machine runs on one **game clock** (`gt` in `board.ts`, milliseconds) that advances by `frame time * timeScale` with `timeScale` = 0 when paused (`speed` 0), 1 at 1x, 2 at 4x, 3 at 16x. `Live.frame`, `PipelineView.frame` (chip tweens), the LEDs, fans, platter, head, bus and cable pulses, the PCH bars, the boot bar, the OS progress cue, the done ring and the power LED blink all take `gt` instead of wall time, and snapshot-time holds (bus fade timers) use `gt` too, so a pause freezes them exactly and a resume continues without a jump. Wall time still drives: camera pan/zoom/flights, hover lift and outline, drag ghost and drop-target pulses, tutorial highlight rings, toasts and the slide-in of a new drive.
+Every animation that belongs to the machine runs on one **game clock** (`gt` in `board.ts`, milliseconds) that advances by `frame time * timeScale` with `timeScale` = 0 when paused (`speed` 0), 1 at 1x, 2 at 4x, 3 at 16x. `Live.frame`, `PipelineView.frame` (chip tweens), the LEDs, fans, the VRM glow and the exterior accent strip, platter, head, bus and cable pulses, the PCH bars, the boot bar, the OS progress cue, the done ring and the power LED blink all take `gt` instead of wall time, and snapshot-time holds (bus fade timers) use `gt` too, so a pause freezes them exactly and a resume continues without a jump. Wall time still drives: camera pan/zoom/flights, hover lift and outline, drag ghost and drop-target pulses, tutorial highlight rings, toasts and the slide-in of a new drive.
+
+## Level of detail: interior and exterior (far zoom)
+
+The camera scale drives one clean LOD, in multiples of the **fit zoom** (`fits.z`, the zoom of the default overview). Constants are `LOD` in `board.ts` (exported, also `window.__board.LOD` in dev):
+
+| Zoom (x fit) | What shows |
+|---|---|
+| `>= 0.7` (`LOD.fadeFrom`) | the interior, exactly as before (the default overview is 1.0) |
+| 0.7 to 0.5 (`fadeFrom` to `fadeTo`) | the exterior case **crossfades in** over the interior (smoothstep; the exterior alpha is the fade, the interior stays opaque below it, so there are no see-through artefacts) |
+| `<= 0.5` (`LOD.fadeTo`) | exterior only: the interior group is `visible = false` and `Live.setInterior(false)` skips all interior per-frame work |
+| `0.2` (`LOD.minZoom`) | how far the camera can zoom out (it used to stop at 0.7) |
+
+**Interior group** (`interior` container): case chassis, board, devices (CPU, DIMMs, PSU, cooler, heatsink, bay, drives), SATA cables, ATX / CPU cables, glass, cooler, pipeline view, and `live.root` (bus flows, PSU readout, OS badge, VRM glow, PCH). **Always external** (outside the group, drawn at every zoom): the monitor (`monitorLayer`, one cached texture far out), the video cable (`cableExtLayer`), the tray, the held rack, the power button and its lights, the plugged key, and `live.ext` (monitor screen text and OS screen, USB LED, monitor LED, boot bar, video cable glow).
+
+**Exterior case** (`exterior.ts`, `exteriorLayer` above the interior, below the external things): an opaque chassis on the same `CASE` rectangle, so the power button, its on / off / error / disk lights, the USB port and the video cable need no moving. Brushed steel body with a lit top edge, the top panel with vents and brand, a **smoked tempered glass** side (opaque, only two faint diagonal reflections, no internals), a perforated PSU intake and nameplate, feet, and the **drive bay front** (a faceplate per installed HDD / SATA SSD, a blanking plate for an empty cell, a flat plate for the cell this tier lacks; NVMe lives on the board and is not visible). The **rear I/O plate** shows the external connectors this board has: audio, an ethernet jack only when `features.ethernetMbps > 0`, HDMI, a second display port only when `displayPorts >= 2`, and `usbPorts` of the four USB positions (bare outlines for the rest). The static art is built once per (theme, tier, drives) and baked to one texture (0.35x). The only live part is the **accent strip** (a thin bar on the front rim, plus the drive-front activity LEDs), on the game clock: off dark; idle a dim steady cyan; working (posting, loading, running, writing, any OS phase) a bright pulse travelling down the strip; error (`phase error` or PSU trip) blinking red; dead board a steady dim red. Dark and light themes use the same structure (steel body, smoked glass in both).
+
+**Interaction at far zoom** (exterior alpha above 0.5): only external ids can be hit: `power`, `usb`, `monitor` (hover writes the device id as before), `display0` (the empty monitor bay), `tray`, `held`, `key:<id>`, `cable.video`, and `case` (the **whole** chassis rectangle). Interior ids (slots, devices, cables, `bay`, `os`, `psu`, regions, die tiles) are not hit targets then. Below 0.5 exterior alpha the interior hits are back.
+
+**Revealing the interior on demand.** While a part or an internal cable is being dragged (`dragging.kind` `part`, or `cable` other than `cable.video`), or while `highlight` contains an **internal** id that exists right now (anything that is not one of the external ids above), the exterior fades away (about 0.3 s, wall time) regardless of zoom, so drag and drop and the tutorial work from any distance. It fades back when the drag ends and the highlight is gone. `flyTo(id)` is unchanged (it ends at a zoom of at least the fit zoom, so the interior shows). Highlights on `monitor`, `power`, `usb`, `tray`, `key:*`, `held`, `case`, `display0`, `cable.video` do not reveal. In dev, `window.__board.lod()` returns `{extA, reveal, interior}`.
+
+**Performance.** When fully exterior, the interior layers are neither updated nor drawn (static layers stay baked; the live interior work is skipped, only fans / drive LED levels / the disk LED keep their cheap state). Measured in headless Chrome with software GL (SwiftShader, 1360x800, a full machine with a SATA SSD, the same scene before and after this change): overview 32 ms/frame before and 33 ms after (no regression); mid-fade (x0.6) 24 ms; exterior (x0.45) 8-9 ms; far (x0.25) 8 ms (before, the camera could not go below 24 ms). Real GPU numbers were not measured.
 
 ## Layers (bottom to top)
+
+(Everything in this list up to the live layer is inside the `interior` group; the monitor, the video cable and the props are above the exterior layer, see the LOD section.)
 
 1. **Board**: `buildBoard(theme, boardTier)`, deterministic, built once per (theme, tier, installed set) and never touched per frame. Retained Pixi geometry plus a **baked texture** (0.4x) shown instead of the vector board below zoom 0.2.
 2. **Devices**: static art per installed device (CPU, DIMMs by `slot`, PSU, monitor, cables). Empty typed slots are visible sockets and dashed bays. Below zoom 0.14 the whole layer is one **baked texture** (0.25x). The PSU fan (blades plus grill) lives in a separate `fanLayer` above the bake so it keeps spinning; the cooler has its own layer.
@@ -100,7 +124,7 @@ Label plate (model, rated watts), vent slots, fan grill, output sockets, and a r
 
 ## Camera
 
-World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. The camera frames the board in the area not covered by UI: `camera.inset` (CSS px) comes from the `viewInset` signal in `src/game/hover.ts`, which the HUD writes from the measured bar and dock/drawer rects (`InsetReporter` in `Hud.tsx`). The view centre and `fit()` use the free area, so the overview shows the whole scene (board, PSU, monitor) beside the shop; if the camera is at the overview when the free area changes (window resize, panel opened/closed) it re-fits, otherwise the view is left alone. Drag pans, wheel and two-finger pinch zoom about the cursor, any input cancels a flight. `F` flies to the die, `B` to the whole scene (board, PSU, monitor, cables). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
+World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. The camera frames the board in the area not covered by UI: `camera.inset` (CSS px) comes from the `viewInset` signal in `src/game/hover.ts`, which the HUD writes from the measured bar and dock/drawer rects (`InsetReporter` in `Hud.tsx`). The view centre and `fit()` use the free area, so the overview shows the whole scene (board, PSU, monitor) beside the shop; if the camera is at the overview when the free area changes (window resize, panel opened/closed) it re-fits, otherwise the view is left alone. Drag pans, wheel and two-finger pinch zoom about the cursor (down to 0.2x of the fit zoom, see the LOD section), any input cancels a flight. `F` flies to the die, `B` to the whole scene (board, PSU, monitor, cables). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
 
 ## Theme tokens
 
@@ -120,7 +144,7 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 
 - Heat glow colour: temperature blend cyan, amber, red (red when `unstable`), only above about 42 C. Burnt: dark overlay with a red X, no glow.
 - Badge above the CPU: `THROTTLED n%`, `UNSTABLE`, `PSU TRIPPED`, `NO POWER`, `CPU BURNT OUT`.
-- Fans (cooler, PSU) spin faster with CPU temperature and PSU load, and stop when burnt, tripped or off.
+- Fans (cooler or liquid pump, PSU, and the VRM heatsink fan `vrm-sink-fan`) spin faster with CPU temperature, PSU load, and CPU load (VRM sink fan), and are **still unless the machine is powered**: `liveOn = snapshot.powered && !power.off && !power.tripped && !board.burnt`. A fan that loses power spins down in about a second and then rests exactly (no creep).
 - CLI monitor shows `snapshot.display` (`READY.` when idle and empty): the last 8 lines, wrapped at 32 columns, in 150 world unit type so it reads at overview zoom.
 - Pipeline: chips are keyed by dynamic instruction id and coloured by class (alu cyan, mul violet, load amber, store green, branch/jump magenta). Bubbles are dashed boxes labelled by cause (flush in red, with the tile tinted). Stalled occupants get an amber ring. Chips tween from their old stage to the new one over about 0.8 of the time since the last snapshot (max 0.9 s); retired chips slide out of WB, squashed ones drop and fade. No tweening at 4x/16x or when snapshots arrive faster than 350 ms apart.
 
@@ -142,7 +166,10 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 | slot ids (`cpu0`, `dimm0`..., `cooler0`, `display0`, `atx0`, `pcie0`) | the socket / bay, filled or empty |
 | device ids (`dev1`...) | an installed CPU, DIMM or cooler |
 | `psu`, `monitor` | the installed (or empty) PSU and monitor |
-| `case` | the chassis frame (top panel, side walls, floor); the glass area belongs to the board |
+| `case` | the chassis frame (top panel, side walls, floor); the glass area belongs to the board. At far zoom (exterior view) it is the whole case rectangle |
+| `vrm` | the VRM block north of the CPU (phases, PWM, power-good light); also a `highlight` / `flyTo` target now |
+| `vrm-sink0` | the VRM heatsink pad (slot id), empty or filled; an installed heatsink is also hoverable by its device id |
+| `dimm0`..`dimm7`, `pcie0`..`pcie3` | up to eight DIMM and four PCIe slots, a tier has the first ones |
 | `bay` | the drive cage (cells are `sata0` / `sata1`) |
 | `sata0`, `sata1`, `m20` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
 | `held` | the rack of ingested keys waiting for their result |
@@ -188,7 +215,23 @@ In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard, flyTo, inter
 - **PCH** (`chipset`): when powered and posting, loading or writing it gets a violet outline glow and a row of animated activity bars; calm in every other phase.
 - **Buses carry the data** (existing lanes only; a bus lights only while its phase moves data and fades about 1.7 s after): posting lights DMI; loading runs USB port to PCH, PCH to CPU (DMI) and CPU to RAM (memory bus); writing runs RAM to CPU, CPU to PCH and PCH to the USB port. The video bus and cable still light when the monitor text changes (and only when `monitorLive`).
 - **USB port LED**: dark with no key, steady green with a key in, blinking amber while loading or writing.
-- **Monitor**: shows `snapshot.display` when `monitorLive`; **NO SIGNAL** when a monitor is installed but not live (no video cable); a blank screen when live and the machine is off. Its power LED is green when live and powered, amber when live and off. A thin green bar under the picture follows `bootProgress` during `posting` and `loading`.
+- **Monitor**: shows `snapshot.display` when `monitorLive`; **NO SIGNAL** only when a monitor is installed, the machine is **powered** and it is not live (no video cable); a blank screen when live and the machine is off, and a blank screen with a dark LED when off with no cable. An empty monitor bay is drawn as `MONITOR BAY` (a dashed placeholder, never NO SIGNAL). Its power LED is green when live and powered, amber when live and off. A thin green bar under the picture follows `bootProgress` during `posting` and `loading`.
+
+## Power-off rules (everything that moves needs power)
+
+With the machine off, tripped or dead (`board.burnt`): every fan is still (cooler fan or pump, PSU fan and its readout fan, the VRM sink fan), no bus or cable carries pulses or glow (holds are cleared at the snapshot), no DRAM flash, drives are idle (platter, head, LED), the USB LED is dark, the case lights show only what is true (the green ON light needs power; the amber OFF standby light needs a working PSU path, so it is dark when `noPowerReason` is set (no PSU, burnt PSU, ATX unplugged, dead board); ERR is red when the phase is `error`, the PSU tripped or the board is dead), the VRM glow is off and its power-good light is dark (red blinking when dead), the monitor is blank. Heat glow stays while parts cool (it is temperature). All animation is on the game clock, so a pause freezes it. The PSU readout's temperature still cools down for a few seconds (a low-pass of the estimate).
+
+## Board tiers and the VRM
+
+One shared board layout; a tier **fills** it, slots it lacks stay bare (empty pads, missing socket or jack, no connector), so a board upgrade visibly fills the board in. `buildBoard(T, tier)` reads `BOARD_TIERS[tier]` (`slots`, `features`, `vrm.phases`):
+
+- **DIMMs: up to 8**, two rows of four with the memory bus between them (`DIMM_X(i) = 1400 + (i % 4) * 220`, `DIMM_Y(i)` is -840 for `dimm0..3` and 150 for `dimm4..7`, `DIMM_H` 690, `DIMM_GAP`). Row 0 pins face down, row 1 sticks are drawn upside down so the pins face the bus; each stick shows 4 DRAM chips. Unfitted sockets are faint with a cross.
+- **PCIe: up to 4** (`PCIE_RAILS`, x16 / x8 / x4 / x1 lengths), **SATA 2**, **M.2** (bare with `M.2 · not fitted` when `slots.m2` is 0), **USB up to 4** (2x2 on the rear plate, `USB_POS`; the first is the key port), **ethernet** jack only if `features.ethernetMbps > 0` (with a speed label), a **second display port** only if `displayPorts >= 2`, the **vrm-sink** slot (a dashed pad over the MOSFET strip).
+- **Tier hint**: the board colour (Starter a plain grey-green, Basic the base blue, Mainstream a deeper teal, Enthusiast a dark violet), the silkscreen `MB-<n>000 · <NAME> · REV A`, a thin trim line round the plate on Mainstream and Enthusiast (a second line and `OVERCLOCK READY` on the top tier).
+- **VRM** (`BR.vrm`, hover id `vrm`): a PWM controller with a power-good light, then up to 6 phase blocks (`vrmPhase(i)`; a tier draws `phases` of them, the rest are bare pads). Each block: a MOSFET pair, a choke (ferrite with copper winding) and two capacitors. **Glow** (`Live.drawVrm`, per frame): per phase, brightness `0.1 + 0.5 * loadRatio + 0.45 * heat` with `heat = (tempC - 45) / (throttleC - 45)`, colour cool cyan, amber near the throttle point, red when hot or `unstable` (which also flickers); the phases pulse one after another (interleaved), faster the harder the CPU pulls. Off with no power. The power-good light is green, an amber blink when unstable, a red blink when dead, dark when off.
+- **Heatsinks** (`vrmSinkArt`, kind `vrm-sink`, slot `vrm-sink0`, covers the MOSFET strip `VRM_SINK`): `vrm-sink-fins` (thin dense fins), `vrm-sink-big` (tall fins with a copper heat pipe), `vrm-sink-fan` (fins plus a small spinning fan at the east end; speed follows the sink's own draw, 0.3 W idle to 1.5 W under load, stills with the power rules).
+- **Crash flash**: a new `fault` entry in `snapshot.log` (the first snapshot only records the existing log) flashes the VRM block red and white for about 0.9 s of game time.
+- **Dead board** (`board.burnt`): the whole board is dimmed, the VRM is scorched (soot blots, cracks), the power-good light blinks red, the badge over the CPU says `BOARD DEAD`, everything is dark and still (see the power-off rules), the case ERR light is red and the exterior strip is a steady dim red.
 
 ## Performance
 
@@ -197,6 +240,7 @@ Static layers are cached (the tray / power plate chrome is one texture below zoo
 ## Known gaps
 
 - Text is rasterised at 2x once; at zoom above about 2 it softens (no SDF/bitmap font yet).
+- At far zoom the monitor text is small (zoom scales it with everything else; it is readable down to about 0.5x of the fit zoom, a shape only below). The exterior is baked at 0.35x, so it is soft if forced visible at high zoom (it never is, the LOD fades it out above 0.7x). The 8 DIMM sockets use shorter sticks (4 chips) than the old single bank, and the second row's memory taps are drawn but only lit by the shared memory bus.
 - The liquid cooler's tubes end in fittings (no radiator art). No GPU, NVMe, SATA or USB devices exist in the sim, so those buses never light (the PCIe cable is plumbed but never drawn).
 - PSU temperature and fan rpm are renderer estimates from load (see above).
 - Touch drags were verified with synthesized touch events (CDP), not on a device; there is no hover on touch. Installed parts cannot be dragged back out (the UI picker uninstalls). Loose cable plugs and tray keys are small at overview zoom (use the tutorial rings, `flyTo` or zoom).
