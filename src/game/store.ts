@@ -81,6 +81,8 @@ export const disconnectCable = (cable: string) => send({ type: 'disconnectCable'
 export const powerButton = () => send({ type: 'powerButton' });
 export const plugKey = (keyId: number) => send({ type: 'plugKey', keyId });
 export const ejectKey = () => send({ type: 'ejectKey' });
+/** Take the OS off its drive (back to the inventory). Only while the machine is off. */
+export const uninstallOs = () => send({ type: 'uninstallOs' });
 export function setSpeed(s: Speed) {
   speed.value = s;
   send({ type: 'setSpeed', speed: s });

@@ -41,6 +41,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'powerButton': return refusable(g, 'powerButton', g.powerButton());
       case 'plugKey': return refusable(g, 'plugKey', g.plugKey(msg.keyId));
       case 'ejectKey': return refusable(g, 'ejectKey', g.ejectKey());
+      case 'uninstallOs': return refusable(g, 'uninstallOs', g.uninstallOs());
       case 'powerCycle':
         g.powerCycle();
         return [{ type: 'snapshot', snapshot: g.snapshot() }];

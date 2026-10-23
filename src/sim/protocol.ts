@@ -28,6 +28,8 @@ export type ToSim =
   | { type: 'powerButton' }
   | { type: 'plugKey'; keyId: number }
   | { type: 'ejectKey' }
+  // Storage and the OS (docs/OS.md). Installing a drive or an OS uses `install` (an OS takes the storage slot id as slotId).
+  | { type: 'uninstallOs' }
   | { type: 'requestSave' };
 
 export type FromSim =
