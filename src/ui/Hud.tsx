@@ -5,7 +5,7 @@ import {
   autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim,
 } from '../game/store';
 import { SPEEDS } from '../sim/protocol';
-import { fmtMoney, fmtNum, fmtTicks, queueReadout, statusChip } from './logic';
+import { fmtMoney, fmtNum, fmtTicks, isOsActivity, queueReadout, statusChip } from './logic';
 import { Icon } from './Icons';
 import { InventoryButton, InventoryPanel } from './Inventory';
 import { PickerCard } from './PickerCard';
@@ -85,6 +85,7 @@ function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
     <div class={`stat ${q.late ? 'bad' : ''}`} title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
       <span class="label">keys</span>
       <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
+      {q.held > 0 && <span class="value held" title="Held keys: the OS has their jobs, plug them back in to collect">+{q.held}<span class="mute"> held</span></span>}
     </div>
   );
 }
@@ -102,7 +103,8 @@ function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
 /** Machine phase chip: Off, POST, Waiting for key, Loading, Running, Writing, Remove key, Error + reason. */
 function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const c = statusChip(s);
-  return <span class={`chip ${c.level}`} role="status" title={c.title}>{c.text}</span>;
+  // The chip pulses while the OS is doing work; `.paused` on the root stops it when the game is paused.
+  return <span class={`chip ${c.level} ${isOsActivity(s.phase) ? 'live' : ''}`} role="status" title={c.title}>{c.text}</span>;
 }
 
 /** Secondary actions: stats, save files, tutorial, hints and a new game. Kept out of the bar. */
