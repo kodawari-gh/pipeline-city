@@ -33,7 +33,7 @@ describe("save/load v2", () => {
     run(g, 10);
     const save = g.toSave();
     expect(save.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(2);
+    expect(SAVE_VERSION).toBe(3);
     const text = JSON.stringify(save);
     expect(JSON.parse(text)).toEqual(save);
     expect(text).not.toMatch(/"(regs|ram|pipeline|program|registers)"/i);
@@ -239,15 +239,18 @@ describe("migration v1 -> v2", () => {
     expect(s.plugged).toBeNull();
     expect(s.inventory.map((i) => i.spec)).toEqual(["ram1"]); // the purchase that was waiting for the next request
     expect(s.progress.poweredOn).toBe(true);
-    expect(Object.values(s.progress).every((v) => v)).toBe(true);
+    // An existing player skips the tutorial: every milestone that existed in v1 is reached (the v3 storage/OS ones are not).
+    const { storageInstalled, osInstalled, firstOsJob, ...legacy } = s.progress;
+    expect([storageInstalled, osInstalled, firstOsJob]).toEqual([false, false, false]);
+    expect(Object.values(legacy).every((v) => v)).toBe(true);
     expect(s.lastCompleted).toMatchObject({ id: 6, payout: 61 });
     expect(l.machine.prng.getState()).toBe(123456789);
     expect(s.cpuClock!.value).toBe(2);
   });
 
-  it("produces a valid v2 save that round-trips, and the migrated game plays", () => {
+  it("produces a valid current save that round-trips, and the migrated game plays", () => {
     const m = migrate(json(V1)) as { version: number };
-    expect(m.version).toBe(2);
+    expect(m.version).toBe(3);
     const l = Game.fromSave(json(V1));
     expect(Game.fromSave(json(l.toSave())).toSave()).toEqual(l.toSave());
     const op = new Operator(l, 1);

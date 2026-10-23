@@ -1,11 +1,12 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import { boardFromJson, CABLE_IDS, type BoardJson, type Cables } from "../board";
+import { boardFromJson, CABLE_IDS, getSpec, type BoardJson, type Cables } from "../board";
+import { getOsSpec } from "../os";
 import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** A key (job) as seeds/params only; the program is regenerated on load. */
 export interface SavedKey {
@@ -53,23 +54,45 @@ export interface Progress {
   firstJobDone: boolean;
   firstKeyEjected: boolean;
   firstPurchase: boolean;
+  /** A storage device was installed (v3). */
+  storageInstalled: boolean;
+  /** An OS was installed on a storage device (v3). */
+  osInstalled: boolean;
+  /** A job ingested and run by the OS was delivered to its client (v3). */
+  firstOsJob: boolean;
 }
 
 export const PROGRESS_KEYS: readonly (keyof Progress)[] = [
   "cpuInstalled", "psuInstalled", "ramInstalled", "monitorInstalled", "atxConnected", "cpuPowerConnected",
   "videoConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
+  "storageInstalled", "osInstalled", "firstOsJob",
 ];
 
+/** Milestones added after the tutorial existed (v3): "all" (an existing or preassembled player) leaves them false. */
+const NEW_FLAGS: readonly (keyof Progress)[] = ["storageInstalled", "osInstalled", "firstOsJob"];
+
 export const newProgress = (all = false): Progress =>
-  Object.fromEntries(PROGRESS_KEYS.map((k) => [k, all])) as unknown as Progress;
+  Object.fromEntries(PROGRESS_KEYS.map((k) => [k, all && !NEW_FLAGS.includes(k)])) as unknown as Progress;
 
 export interface SavedInventoryItem {
   id: string;
   spec: string;
 }
 
-export interface SaveV2 {
+/** The OS installed on a storage device (identified by the installed device's id). */
+export interface SavedOs {
+  /** Item id, `os1`... */
+  spec: string;
+  deviceId: string;
+}
+
+/** The shape before storage and the OS (v2). Only the migration reads it. */
+export interface SaveV2 extends Omit<SaveV3, "version" | "os"> {
   version: 2;
+}
+
+export interface SaveV3 {
+  version: 3;
   /** Seed the machine was created with (kept for reference; the live stream is `prngState`). */
   seed: number;
   /** Machine PRNG state (one uint32). */
@@ -95,9 +118,11 @@ export interface SaveV2 {
   /** PSU hard trip flag. Temperatures and wear restart at ambient/zero. */
   tripped: boolean;
   progress: Progress;
+  /** The installed OS, or null (the machine then boots one job per key). Disk contents are rebuilt on load. */
+  os: SavedOs | null;
 }
 
-export type Save = SaveV2;
+export type Save = SaveV3;
 
 /** The shape before the USB keys (v1). Only the migration reads it. */
 export interface SaveV1 {
@@ -145,6 +170,11 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       progress: newProgress(true),
     };
   },
+  /** v2 -> v3: no storage or OS yet, so the machine keeps the reboot-per-job flow; the three new milestones start false. */
+  2: (s: SaveV2): SaveV3 => {
+    if (!isObj(s.progress) || !isObj(s.board)) throw new Error("save: not a valid version 2 save");
+    return { ...s, version: 3, os: null, progress: { ...s.progress, storageInstalled: false, osInstalled: false, firstOsJob: false } };
+  },
 };
 
 /** Bring any known older save up to the current version. Identity for current-version saves. */
@@ -166,7 +196,7 @@ export function migrate(save: unknown): unknown {
 }
 
 /** Migrate and validate untrusted input (parsed JSON). Throws Error with a clear message. */
-export function parseSave(input: unknown): SaveV2 {
+export function parseSave(input: unknown): SaveV3 {
   const s = migrate(input) as Record<string, unknown>;
   const num = (k: string, min = 0): number => {
     const x = s[k];
@@ -207,8 +237,16 @@ export function parseSave(input: unknown): SaveV2 {
       throw new Error('save: "plugged" needs attempts, pluggedAt, doneAt, done and result');
     }
   }
+  if (s.os !== null) {
+    const o = s.os;
+    if (!isObj(o) || typeof o.spec !== "string" || typeof o.deviceId !== "string") throw new Error('save: "os" must be {spec, deviceId} or null');
+    const os = getOsSpec(o.spec);
+    if (!os || os.later) throw new Error(`save: unknown OS "${String(o.spec)}"`);
+    const dev = (s.board as unknown as BoardJson).devices.find((d) => d.id === o.deviceId);
+    if (!dev || getSpec(dev.spec)?.kind !== "storage") throw new Error('save: "os" must name an installed storage device');
+  }
   if (s.lastCompleted !== null && !isObj(s.lastCompleted)) throw new Error('save: "lastCompleted" must be an object or null');
-  return s as unknown as SaveV2;
+  return s as unknown as SaveV3;
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);

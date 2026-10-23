@@ -4,9 +4,9 @@
 import type { EngineConfig } from "../engines";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "usb" | "cooler" | "display" | "atx" | "atx-plus";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage";
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
 export interface ClockRange { min: number; base: number; max: number }
@@ -80,7 +80,20 @@ export interface DisplaySpec extends SpecBase {
   writeLatency: number;
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec;
+/**
+ * A block device on the bus (see src/sim/machine/storage.ts). Timing is in the device's own clock ticks: a command
+ * takes `latencyTicks` (skipped for the block right after the previous one) plus `blockTicks` for the 256-byte block.
+ * SATA drives draw from the PSU budget (watts only, no separate connector); NVMe needs the M.2 slot.
+ */
+export interface StorageSpec extends SpecBase {
+  kind: "storage";
+  clock: ClockRange;
+  capacityBytes: number;
+  latencyTicks: number;
+  blockTicks: number;
+}
+
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -89,6 +102,7 @@ export const DAMAGE_TICKS = 10;
 const cpuThermal: ThermalSpec = { passive: 0.15, mass: 20, throttleC: 70, unstableC: 85, damageC: 95 };
 const ramThermal: ThermalSpec = { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 100 };
 const dispThermal: ThermalSpec = { passive: 0.3, mass: 30, throttleC: 80, unstableC: 95, damageC: 110 };
+const storageThermal: ThermalSpec = { passive: 0.4, mass: 25, throttleC: 55, unstableC: 70, damageC: 85 };
 const inertThermal: ThermalSpec = { passive: 1, mass: 50, throttleC: 999, unstableC: 999, damageC: 999 };
 
 const specList: DeviceSpec[] = [
@@ -126,6 +140,16 @@ const specList: DeviceSpec[] = [
   { id: "cooler2", kind: "cooler", tier: 2, name: "Liquid loop", slot: "cooler", price: 300, idleW: 1, loadW: 6, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8 },
 
+  { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
+    capacityBytes: 96 * 1024, latencyTicks: 720, blockTicks: 72 },
+  { id: "ssd1", kind: "storage", tier: 1, name: "SATA SSD 64K", slot: "sata", price: 150, idleW: 0.5, loadW: 2.5, heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 }, thermal: storageThermal, visual: "ssd-sata",
+    capacityBytes: 64 * 1024, latencyTicks: 72, blockTicks: 36 },
+  { id: "nvme2", kind: "storage", tier: 2, name: "NVMe SSD 128K", slot: "m2", price: 400, idleW: 1, loadW: 6, heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
+    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14 },
+
   { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
 ];
@@ -154,5 +178,5 @@ export const BOARD_TIERS: readonly BoardTierSpec[] = [
   { tier: 0, name: "Mini board", price: 0, visual: "board-mini",
     slots: { cpu: 1, dimm: 2, sata: 1, usb: 1, atx: 1, cooler: 1, display: 1 } },
   { tier: 1, name: "ATX+ board", price: 300, visual: "board-atxplus",
-    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, usb: 2, "atx-plus": 1, cooler: 1, display: 1 } },
+    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, m2: 1, usb: 2, "atx-plus": 1, cooler: 1, display: 1 } },
 ];

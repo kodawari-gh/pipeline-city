@@ -110,6 +110,7 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
     cpuInstalled: has('cpu'), psuInstalled: has('psu'), ramInstalled: has('ram'), monitorInstalled: has('display'),
     atxConnected: cable('atx'), cpuPowerConnected: cable('cpu'), videoConnected: cable('video'),
     poweredOn: s.powered && s.phase !== 'off',
+    storageInstalled: s.storage.length > 0, osInstalled: !!s.os, firstOsJob: s.progress.firstOsJob,
     firstKeyPlugged: !!s.plugged || done,
     firstJobDone: done,
     firstKeyEjected: ejected,

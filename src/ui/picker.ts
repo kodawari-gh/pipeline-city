@@ -118,6 +118,11 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
+    case 'storage': return [
+      { key: 'size', label: 'Capacity', icon: 'memory', value: spec.capacityBytes / 1024, unit: 'K', higherIsBetter: true },
+      { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latencyTicks, unit: 'ticks', higherIsBetter: false },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
   }
 }
 
@@ -210,6 +215,7 @@ export function specBrief(spec: DeviceSpec): string {
     case 'psu': return `${spec.watts} W${spec.slot === 'atx-plus' ? ', needs ATX+ board' : ''}`;
     case 'cooler': return `${spec.coolingPerC} W/C cooling`;
     case 'display': return 'text monitor';
+    case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
   }
 }
 
@@ -226,7 +232,7 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | null {
   if (dev) return dev.kind;
   if (id.startsWith('inv:')) {
     const it = s.inventory.find((x) => x.id === id.slice(4));
-    return it ? it.kind : null;
+    return it && it.kind !== 'os' ? it.kind : null;
   }
   if (WORLD_KIND[id]) return WORLD_KIND[id]!;
   const spec = getSpec(id);

@@ -20,7 +20,7 @@ export function fmtClock(c: number): string {
 }
 
 export const KIND_LABEL: Record<DeviceKind | 'board', string> = {
-  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', board: 'Motherboard',
+  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Storage', board: 'Motherboard',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -133,6 +133,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   cooler: 'Pulls heat off the processor so it can run fast without slowing down or breaking.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
+  storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
 };
 
 export function describeSpec(spec: DeviceSpec): Description {
@@ -233,6 +234,11 @@ export function statusChip(s: Snapshot): { text: string; title: string; level: C
     case 'writing': return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };
     case 'done-remove-key': return { text: 'Remove key', title: 'The job is done. Pull the key to get paid.', level: 'warn' };
     case 'error': return { text: `Error: ${s.phaseReason ?? 'stopped'}`, title: s.phaseReason ?? 'The machine stopped.', level: 'bad' };
+    case 'booting-os': return { text: 'Booting OS', title: 'Loading the operating system from the drive.', level: 'ok' };
+    case 'idle-os': return { text: 'OS idle', title: 'The OS is running and waiting for work.', level: 'warn' };
+    case 'ingesting': return { text: 'Ingesting', title: 'The OS is copying a key into its job queue.', level: 'ok' };
+    case 'running-os': return { text: 'Running job', title: 'The OS is running a queued job.', level: 'ok' };
+    case 'flashing': return { text: 'Flashing', title: 'Writing a result onto the plugged key.', level: 'ok' };
   }
 }
 

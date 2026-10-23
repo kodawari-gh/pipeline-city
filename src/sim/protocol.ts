@@ -2,11 +2,11 @@
 // free of DOM and Pixi imports: it is shared by both sides.
 
 import type { Snapshot } from './game/game';
-import type { SaveV2 } from './game/save';
+import type { SaveV3 } from './game/save';
 
-export type { Snapshot, SaveV2 };
-/** The current save shape (older versions are migrated on load). */
-export type SaveV1 = SaveV2;
+export type { Snapshot, SaveV3 };
+/** The current save shape (older versions are migrated on load). The old name is kept for the main thread. */
+export type SaveV1 = SaveV3;
 
 /** Speed as a multiplier of base ticks per second (0 = paused). */
 export type Speed = 0 | 1 | 4 | 16;

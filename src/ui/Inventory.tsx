@@ -53,7 +53,7 @@ function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active
     >
       <PartArt id={it.spec} size={64} />
       <span class="tname">{shortName(it.name)}</span>
-      <span class="tkind">{KIND_LABEL[it.kind]}</span>
+      <span class="tkind">{it.kind === 'os' ? 'Software' : KIND_LABEL[it.kind]}</span>
       {why && <span class="tlock" aria-label={why}><Icon name="lock" size={11} /></span>}
     </div>
   );

@@ -10,39 +10,15 @@
 
 import { assemble } from "../asm";
 import { printDec } from "../gen/kernels";
+import { BLK_READ } from "../os/blockasm";
+import { ROW, STATUS_ROW, status, textStores } from "../os/asmtext";
 import {
-  DISPLAY_BASE, DISPLAY_COLS, JOB_ROW, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
-  PchPhase, ROM_DONE_VECTOR, USER_BASE,
+  DISPLAY_BASE, JOB_ROW, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
+  PchPhase, ROM_DONE_VECTOR, USER_BASE, KERNEL_BASE, KERNEL_DONE, OS_HEADER, OS_HEADER_BASE, OS_MAGIC,
 } from "../isa/memmap";
 
-const ROW = DISPLAY_COLS;
-
 /** Rows of the monitor used by the ROM (the job writes from JOB_ROW). */
-export const POST_ROWS = { bios: 0, cpu: 1, ram: 2, usb: 3, status: 5 } as const;
-
-/** Packed word stores for a text at byte offset `off` from s0 (display base). NUL bytes are skipped placeholders. */
-function textStores(off: number, text: string): string[] {
-  if (off % 4 !== 0) throw new RangeError("text must start on a word boundary");
-  const out: string[] = [];
-  for (let w = 0; w * 4 < text.length; w++) {
-    let val = 0;
-    let any = false;
-    for (let i = 0; i < 4; i++) {
-      const c = text.charCodeAt(w * 4 + i);
-      if (!Number.isNaN(c) && c !== 0) {
-        val |= c << (8 * i);
-        any = true;
-      }
-    }
-    if (any) out.push(`  li t0, ${val >>> 0}`, `  sw t0, ${off + 4 * w}(s0)`);
-  }
-  return out;
-}
-
-/** Status line (row 5), always 12 characters so each text fully replaces the last. */
-function status(text: string): string[] {
-  return textStores(POST_ROWS.status * ROW, text.padEnd(12));
-}
+export const POST_ROWS = { bios: 0, cpu: 1, ram: 2, usb: 3, status: STATUS_ROW } as const;
 
 const setPhase = (p: number): string[] => [`  li t0, ${p}`, `  sw t0, ${PCH_REG.PHASE}(s3)`];
 const mark = (n: number): string[] => [`  li t0, ${n}`, `  sw t0, ${PCH_REG.PROGRESS}(s3)`];
@@ -78,6 +54,34 @@ export const ROM_SOURCE = [
   ...mark(3),
   ...textStores(POST_ROWS.usb * ROW, "USB OK"),
   ...mark(4),
+  // --- an OS on a storage device? Load its kernel with real block reads and hand over; otherwise the key loader below ---
+  `  lw s1, ${PCH_REG.BOOT_DEV}(s3)`,
+  "  beq s1, zero, keyloader",
+  ...setPhase(PchPhase.OsBoot),
+  ...status("BOOTING OS"),
+  "  mv a0, s1",
+  "  li a1, 0",
+  `  li a2, ${OS_HEADER_BASE}`,
+  "  call blk_read", // block 0: the boot header
+  "  lw t0, 0(a2)",
+  `  li t1, ${OS_MAGIC}`,
+  "  bne t0, t1, keyloader", // not a bootable disk: fall back to the key loader
+  `  lw s2, ${4 * OS_HEADER.TOTAL_BLOCKS}(a2)`,
+  "  addi s2, s2, -1",
+  "oskern:", // blocks 1.. follow the header in RAM (the kernel starts at KERNEL_BASE)
+  "  beq s2, zero, oshand",
+  "  addi a1, a1, 1",
+  "  addi a2, a2, 256",
+  "  mv a0, s1",
+  "  call blk_read",
+  "  addi s2, s2, -1",
+  "  j oskern",
+  "oshand:",
+  "  li t0, 1",
+  `  sw t0, ${PCH_REG.OS_MODE}(s3)`,
+  `  li t0, ${KERNEL_BASE}`,
+  "  jalr ra, t0, 0",
+  "keyloader:",
   // --- wait for a key ---
   ...setPhase(PchPhase.Waiting),
   ...status("INSERT KEY"),
@@ -109,6 +113,11 @@ export const ROM_SOURCE = [
   // --- epilogue: results back to the key ---
   "epilogue:",
   `  li s3, ${PCH_BASE}`,
+  `  lw t0, ${PCH_REG.OS_MODE}(s3)`, // under an OS a finished job returns to the kernel, not to the key writer
+  "  beq t0, zero, epilogue_keys",
+  `  li t0, ${KERNEL_DONE}`,
+  "  jalr zero, t0, 0",
+  "epilogue_keys:",
   `  li s0, ${DISPLAY_BASE}`,
   ...setPhase(PchPhase.Writing),
   ...status("WRITING"),
@@ -140,6 +149,8 @@ export const ROM_SOURCE = [
   "  j reset",
   "",
   printDec("print_dec", 2).asm,
+  "",
+  BLK_READ,
   "",
 ].join("\n");
 

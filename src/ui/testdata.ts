@@ -10,7 +10,7 @@ export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
 
 export const key = (o: Partial<KeySnap> = {}): KeySnap => ({
   id: 1, template: 'cli.log', type: 'log', jobNo: 72, label: '#72 log', arrivalTick: 0, deadlineTick: 120, age: 10,
-  late: false, payoutEstimate: 50, attempts: 1, done: false, result: '', ...o,
+  late: false, payoutEstimate: 50, attempts: 1, done: false, result: '', stage: 'tray', ...o,
 });
 
 /** The bare board: every socket empty except the stock heatsink. */
@@ -59,6 +59,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
       { id: 'video', name: 'Video cable', connected: false, blocked: 'the monitor is not installed' },
     ] as Snapshot['cables'],
     tray: [], plugged: null, progress: NO_PROGRESS, log: [],
+    storage: [], os: null, held: [], keyActivity: 'none',
     ...o,
   } as Snapshot;
 }

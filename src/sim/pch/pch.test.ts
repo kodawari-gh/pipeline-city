@@ -50,7 +50,7 @@ describe("PCH device", () => {
     expect(word(p, PCH_REG.RAM_KB)).toBe(32);
     expect(word(p, PCH_REG.CPU_TIER)).toBe(1);
     expect(word(p, PCH_REG.PHASE)).toBe(PchPhase.Posting);
-    p.plug({ program: new Uint32Array([0x11223344, 5]), done: false, result: "" });
+    p.plug({ id: 1, program: new Uint32Array([0x11223344, 5]), done: false, result: "" });
     expect(word(p, PCH_REG.STATUS)).toBe(1);
     expect(word(p, PCH_REG.KEY_LEN)).toBe(2);
     expect(word(p, 0x1000)).toBe(0x11223344); // key window
@@ -67,7 +67,7 @@ describe("PCH device", () => {
     display.cells[3] = 65;
     p.write(PCH_REG.CTRL, 1);
     expect(display.cells[3]).toBe(0);
-    const key = { program: new Uint32Array(1), done: false, result: "" };
+    const key = { id: 1, program: new Uint32Array(1), done: false, result: "" };
     p.plug(key);
     "OK 7".split("").forEach((c, i) => p.write(0x4000 + i, c.charCodeAt(0)));
     p.write(PCH_REG.RESULT_LEN, 2);

@@ -1,6 +1,7 @@
 // Economy: placeholder balance config plus pure helpers (demand, reputation, payout, purchase catalog).
 // No DOM. Every number that affects balance is in ECONOMY; see docs/GAME.md for how pacing was set.
 
+import { getOsSpec } from "../os";
 import {
   BOARD_TIERS, boardFromJson, boardToJson, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
   type Board, type DeviceKind, type DeviceSpec, type Result,
@@ -68,6 +69,12 @@ export interface EconomyConfig {
   giveUpTurnaround: number;
   /** Flat dollars per job, on top of `payPerInstr * work`: covers the boot and the manual plug/unplug. */
   payBase: number;
+  /**
+   * USB latency under an OS (base ticks): a plugged key needs this long to enumerate before the kernel may read it,
+   * and a result needs `usbFlashTicks` to land on the key. Without an OS both are 0. The network source removes them.
+   */
+  usbEnumTicks: number;
+  usbFlashTicks: number;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -92,6 +99,8 @@ export const ECONOMY: EconomyConfig = {
   startMoney: 0,
   giveUpTurnaround: 180,
   payBase: 20,
+  usbEnumTicks: 3,
+  usbFlashTicks: 2,
 };
 
 export function reputation(cfg: EconomyConfig, avgTurnaround: number): number {
@@ -162,7 +171,7 @@ export function boardTierOf(id: string): number | undefined {
 
 export function offerPrice(id: string): number | undefined {
   const t = boardTierOf(id);
-  return t !== undefined ? BOARD_TIERS[t]?.price : getSpec(id)?.price;
+  return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price);
 }
 
 /** Buy an offer on a board: swap a part, or move to the bigger board (every device is carried over). */

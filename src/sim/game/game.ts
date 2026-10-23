@@ -11,19 +11,21 @@ import {
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard,
   type Board, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
+  specsOfKind, type StorageSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
-import { JOB_ROW, PchPhase } from "../isa/memmap";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference } from "../gen";
-import { Machine } from "../machine";
+import { Disk, Machine, StoragePort } from "../machine";
+import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
   applyOffer, boardTierOf, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, reputation,
   type EconomyConfig,
 } from "./economy";
 import {
-  newProgress, parseSave, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV2,
+  newProgress, parseSave, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV3,
 } from "./save";
 import { UsbTray, type Job } from "./work";
 
@@ -106,24 +108,35 @@ export interface StageSnap {
 export interface PurchaseSnap {
   id: string;
   name: string;
-  kind: DeviceKind | "board";
+  kind: DeviceKind | "board" | "os";
   price: number;
   affordable: boolean;
   /** Set if the board would refuse it right now (e.g. PSU too small, no slot). */
   blocked?: string;
+  /** A planned tier that cannot be bought yet (locked in the shop). */
+  later?: boolean;
+  description?: string;
 }
 
-/** Machine phase (see docs/ASSEMBLY.md). */
-export type Phase = "off" | "posting" | "waiting-for-key" | "loading" | "running" | "writing" | "done-remove-key" | "error";
+/**
+ * Machine phase (see docs/ASSEMBLY.md and docs/OS.md). The first group is the boot-per-key flow; the second is what a
+ * machine with an OS goes through: it boots the kernel once, then idles, ingests keys, runs jobs and flashes results.
+ */
+export type Phase =
+  | "off" | "posting" | "waiting-for-key" | "loading" | "running" | "writing" | "done-remove-key" | "error"
+  | "booting-os" | "idle-os" | "ingesting" | "running-os" | "flashing";
+
+/** Where a key's job stands. Legacy (no OS) keys are "tray", then "done" once the ROM wrote the result. */
+export type KeyStage = "tray" | "ingesting" | "queued" | "running" | "result" | "flashing" | "done";
 
 /** A part you own but have not installed. */
 export interface InventorySnap {
   /** Inventory item id (what `install` takes). */
   id: string;
   spec: string;
-  kind: DeviceKind | "board";
+  kind: DeviceKind | "board" | "os";
   name: string;
-  /** Free slot ids it fits right now (drop targets). For a board item: ["board"] if the upgrade is possible. */
+  /** Free slot ids it fits right now (drop targets). For a board item: ["board"]; for an OS: the storage slots it can go on. */
   freeSlots: string[];
   /** Occupied slot ids it could be swapped into (the old part returns to the inventory). */
   swapSlots: string[];
@@ -170,7 +183,63 @@ export interface KeySnap {
   done: boolean;
   /** Result text on the key (when done). */
   result: string;
+  /** With an OS: tray (not ingested), ingesting, queued/running/result (ingested: in the OS queue), flashing, done. */
+  stage: KeyStage;
 }
+
+/** A storage device and its live statistics. */
+export interface StorageSnap {
+  deviceId: string;
+  /** Board slot id (sata0, sata1, m20). */
+  slot: string;
+  spec: string;
+  name: string;
+  burnt: boolean;
+  capacityBytes: number;
+  usedBytes: number;
+  bytesRead: number;
+  bytesWritten: number;
+  /** The drive is working on a command right now. */
+  busy: boolean;
+  /** Device ticks for a non-sequential access, and per 256-byte block. */
+  latencyTicks: number;
+  blockTicks: number;
+  /** Streaming throughput in bytes per second at the current effective clock. */
+  bytesPerSecond: number;
+  /** The OS lives on this device. */
+  hasOs: boolean;
+}
+
+/** One ingested job in the OS queue. */
+export interface OsJobSnap {
+  /** Kernel table slot (0..7). */
+  slot: number;
+  keyId: number;
+  label: string;
+  state: "queued" | "running" | "result";
+  /** 0 = running now or next to run; counts queued jobs ahead of it. Results awaiting delivery use -1. */
+  ahead: number;
+}
+
+export interface OsSnap {
+  spec: string;
+  tier: number;
+  name: string;
+  /** Storage device and slot it is installed on. */
+  deviceId: string;
+  slot: string;
+  /** Programs the kernel may run at once (1 for v1). */
+  programSlots: number;
+  /** Jobs the queue can hold (OS tier field, bounded by disk space). */
+  queueSlots: number;
+  /** The kernel is up (booted and powered). */
+  up: boolean;
+  queue: OsJobSnap[];
+  runningKeyId: number | null;
+}
+
+/** What the USB port's LED would be doing. */
+export type KeyActivity = "none" | "enumerating" | "ingesting" | "flashing" | "done";
 
 export interface GameEvent {
   tick: number;
@@ -248,6 +317,16 @@ export interface Snapshot {
   progress: Progress;
   /** Most recent notable events, oldest first. */
   log: GameEvent[];
+
+  // ---- storage and the OS (docs/OS.md) ----
+  /** Installed storage devices with capacity, use and traffic. */
+  storage: StorageSnap[];
+  /** The installed OS, its queue and slot counts, or null (boot-per-key flow). */
+  os: OsSnap | null;
+  /** Keys the OS has ingested that the player unplugged: they wait for their result (plug them again to collect it). */
+  held: KeySnap[];
+  /** USB port LED: enumerating, ingesting, flashing, done (collect the key). */
+  keyActivity: KeyActivity;
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };
@@ -256,6 +335,16 @@ interface InvItem {
   id: string;
   spec: string;
 }
+
+/** The installed OS: its spec, the storage device it lives on and the queue bound worked out at install time. */
+interface InstalledOs {
+  spec: OsSpec;
+  deviceId: string;
+  queueSlots: number;
+}
+
+/** A row of the kernel's job table (read from RAM). */
+interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }
 
 const LOG_CAP = 16;
 
@@ -279,11 +368,18 @@ export class Game {
   private inventory: InvItem[] = [];
   private nextInvId = 1;
   private readonly tray: UsbTray<Key>;
+  /** Keys the OS ingested and the player unplugged, waiting for their result. */
+  private held: Key[] = [];
   private plugged: Key | null = null;
+  private readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
+  private readonly disks = new Map<string, Disk>();
+  private os: InstalledOs | null = null;
   private pchKey: PchKey | null = null;
   private nextKeyId = 1;
   private avgTurnaround: number;
   private postError: { reason: string; short: string } | null = null;
+  /** Bytes the OS drive had read when the machine booted (for the boot progress bar). */
+  private bootRead0 = 0;
   private log: GameEvent[] = [];
 
   private readonly seed: number;
@@ -302,6 +398,7 @@ export class Game {
     this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: 64 * 1024 });
     this.pch = new Pch(this.machine.display);
     this.machine.addDevice(this.pch);
+    for (const p of this.ports) this.machine.addDevice(p);
     this.thermal = new ThermalModel(this.machine.prng);
     for (const spec of ["cpu0", "psu0", "ram0", "display0"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
@@ -328,6 +425,8 @@ export class Game {
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const item = this.inventory.find((i) => i.id === invId);
     if (!item) return { ok: false, reason: `no inventory item "${invId}"` };
+    const osSpec = getOsSpec(item.spec);
+    if (osSpec) return this.installOs(item, osSpec, slotId);
     const tier = boardTierOf(item.spec);
     if (tier !== undefined) {
       const r = upgradeBoard(this.board, tier);
@@ -341,6 +440,7 @@ export class Game {
     this.removeItem(item.id);
     if (r.replaced) {
       const old = r.replaced;
+      this.disks.delete(old.id);
       if (!old.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.spec });
     }
     this.afterBoardChange();
@@ -354,8 +454,10 @@ export class Game {
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const dev = this.board.devices.find((d) => d.id === deviceId);
     if (!dev) return { ok: false, reason: `no installed device "${deviceId}"` };
+    if (this.os?.deviceId === deviceId) return { ok: false, reason: `the OS is installed on ${deviceSpec(dev).name}: uninstall the OS first` };
     const r = uninstall(this.board, deviceId);
     if (!r.ok) return r;
+    this.disks.delete(deviceId);
     let invId: string | null = null;
     if (!dev.burnt) {
       invId = `inv${this.nextInvId++}`;
@@ -390,6 +492,17 @@ export class Game {
    * able to take the whole plan (a bigger CPU needs a big enough PSU somewhere in the plan).
    */
   purchase(itemId: string): Result<{ invId: string }> {
+    const extra = this.extraOffers().find((o) => o.id === itemId);
+    if (extra) {
+      if (extra.blocked) return { ok: false, reason: extra.blocked };
+      if (this.money < extra.price) return { ok: false, reason: `needs $${extra.price}, have $${this.money}` };
+      this.money -= extra.price;
+      const invId = `inv${this.nextInvId++}`;
+      this.inventory.push({ id: invId, spec: itemId });
+      this.progress.firstPurchase = true;
+      this.note("purchase", `bought ${extra.name} for $${extra.price}`);
+      return { ok: true, invId };
+    }
     const cand = offers(this.plannedBoard()).find((s) => s.id === itemId);
     if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
     if (this.money < cand.price) return { ok: false, reason: `needs $${cand.price}, have $${this.money}` };
@@ -427,6 +540,7 @@ export class Game {
       this.pch.powerOff();
       this.machine.display.clear();
       this.thermal.powerCycle();
+      this.returnHeld();
       this.note("power", "powered off");
       return { ok: true, powered: false };
     }
@@ -447,7 +561,8 @@ export class Game {
   /** Plug a key from the tray into the USB port. One program at a time: a key already in the port must come out first. */
   plugKey(keyId: number): Result<{ key: number }> {
     if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
-    const key = this.tray.take(keyId);
+    const heldAt = this.held.findIndex((k) => k.id === keyId);
+    const key = heldAt >= 0 ? this.held.splice(heldAt, 1)[0] : this.tray.take(keyId);
     if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
     let program: Uint32Array;
     try {
@@ -456,9 +571,9 @@ export class Game {
       this.tray.giveBack(key);
       return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
     }
-    key.pluggedAt = this.baseTick;
+    if (heldAt < 0) key.pluggedAt = this.baseTick;
     this.plugged = key;
-    this.pchKey = { program, done: key.done, result: key.result };
+    this.pchKey = { id: key.id, program, done: key.done, result: key.result };
     this.pch.plug(this.pchKey);
     this.progress.firstKeyPlugged = true;
     this.note("key", `key ${key.id} plugged in`);
@@ -478,7 +593,13 @@ export class Game {
     this.pchKey = null;
     this.pch.unplug();
     if (!key.done) {
-      key.attempts++;
+      if (this.kernelJobs().some((j) => j.key === key.id)) {
+        // Ingested by the OS: the client lets the player keep the key until the result is ready; plug it again to collect.
+        this.held.push(key);
+        this.note("key", `key ${key.id} ingested: plug it again for the result`);
+        return { ok: true, payout: 0, done: false };
+      }
+      if (!this.os) key.attempts++;
       this.tray.giveBack(key);
       this.note("key", `key ${key.id} pulled before the job finished`);
       if (this.powered && !this.postError && (phase === "loading" || phase === "running" || phase === "writing")) this.coldBoot();
@@ -491,6 +612,10 @@ export class Game {
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
     this.progress.firstKeyEjected = true;
+    if (this.os) {
+      this.progress.firstOsJob = true;
+      this.freeKernelSlot(key.id); // delivery is the receipt: the kernel's slot for this job is free again
+    }
     this.lastCompleted = {
       id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - key.pluggedAt, late,
       attempts: key.attempts, completedAt: this.baseTick,
@@ -533,13 +658,17 @@ export class Game {
     this.arrivals();
     const running = this.powered && !this.postError && !this.fault();
     if (running) {
+      this.pch.usbTick();
       this.machine.advanceBaseTick();
       this.afterMachine();
     }
     const phase = this.currentPhase();
-    const busy = phase === "posting" || phase === "loading" || phase === "running" || phase === "writing";
+    const busy = phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
+      || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
     const load = busy ? 1 : this.cfg.idleLoad;
-    this.thermal.step(this.board, { cpu: load, ram: load, display: load }, this.powered);
+    const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
+    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad }, this.powered);
+    this.syncStorage(); // a drive that burnt out drops off the bus
     if (this.powered && busy) {
       // A thermal error crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
       const cpu = findDevices(this.board, "cpu")[0];
@@ -569,10 +698,17 @@ export class Game {
       if (!r.ok) p.blocked = r.reason;
       return p;
     });
+    for (const o of this.extraOffers()) {
+      purchases.push({
+        id: o.id, name: o.name, kind: o.kind, price: o.price, affordable: this.money >= o.price,
+        ...(o.blocked ? { blocked: o.blocked } : {}), ...(o.later ? { later: true } : {}), ...(o.description ? { description: o.description } : {}),
+      });
+    }
     const phase = this.currentPhase();
     const live = this.monitorLive();
     const plugged = this.plugged;
     const chk = bootCheck(this.board, this.cables);
+    const jobs = this.kernelJobs();
     return {
       money: this.money,
       cycle: this.machine.clock.ticks("cpu"),
@@ -629,15 +765,19 @@ export class Game {
         const blocked = cableBlocked(this.board, c.id);
         return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
       }),
-      tray: this.tray.waiting().map((k) => this.keySnap(k)),
-      plugged: plugged && this.keySnap(plugged),
+      tray: this.tray.waiting().map((k) => this.keySnap(k, jobs)),
+      plugged: plugged && this.keySnap(plugged, jobs),
       progress: { ...this.progress },
       log: this.log.map((e) => ({ ...e })),
+      storage: this.storageSnaps(),
+      os: this.osSnap(jobs),
+      held: this.held.map((k) => this.keySnap(k, jobs)),
+      keyActivity: this.keyActivity(),
     };
   }
 
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
-  toSave(): SaveV2 {
+  toSave(): SaveV3 {
     const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline });
     const p = this.plugged;
     const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
@@ -657,10 +797,12 @@ export class Game {
       inventory: this.inventory.map((i) => ({ ...i })),
       nextInvId: this.nextInvId,
       cables: { ...this.cables },
-      tray: this.tray.waiting().map(sk),
+      // Keys held by the OS come back as plain tray keys: the kernel's queue is RAM and does not survive a load.
+      tray: [...this.tray.waiting(), ...this.held].sort((a, b) => a.id - b.id).map(sk),
       plugged,
       tripped: this.thermal.power.tripped,
       progress: { ...this.progress },
+      os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
     };
   }
 
@@ -687,6 +829,7 @@ export class Game {
     g.cables = { ...s.cables };
     g.progress = { ...s.progress };
     g.log = [];
+    if (s.os) g.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
     try {
       g.tray.set(s.tray.map((k) => g.rebuild(k)));
       if (s.plugged) {
@@ -698,7 +841,7 @@ export class Game {
         key.doneAt = p.doneAt;
         key.result = p.result;
         g.plugged = key;
-        g.pchKey = { program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program, done: key.done, result: key.result };
+        g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program, done: key.done, result: key.result };
         g.pch.plug(g.pchKey);
       }
     } catch (e) {
@@ -706,6 +849,7 @@ export class Game {
     }
     if (s.tripped) g.thermal.power = { ...g.thermal.power, tripped: true };
     g.powered = false;
+    g.syncStorage();
     g.syncRates(false);
     return g;
   }
@@ -724,7 +868,7 @@ export class Game {
   }
 
   private flagInstalled(kind: DeviceKind): void {
-    const flag: Partial<Record<DeviceKind, keyof Progress>> = { cpu: "cpuInstalled", psu: "psuInstalled", ram: "ramInstalled", display: "monitorInstalled" };
+    const flag: Partial<Record<DeviceKind, keyof Progress>> = { cpu: "cpuInstalled", psu: "psuInstalled", ram: "ramInstalled", display: "monitorInstalled", storage: "storageInstalled" };
     const f = flag[kind];
     if (f) this.progress[f] = true;
   }
@@ -752,11 +896,13 @@ export class Game {
     } else {
       slot = freeSlots(board, spec.slot)[0]?.id;
       if (slot === undefined) {
-        occupant = findDevices(board, spec.kind)[0];
+        const slots = boardSlots(board);
+        occupant = findDevices(board, spec.kind).find((d) => slotAccepts(slots.find((s) => s.id === d.slot)!.type, spec.slot));
         if (!occupant) return install(board, specId); // fails with the board's own reason
         slot = occupant.slot;
       }
     }
+    if (occupant && occupant.id === this.os?.deviceId) return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
     const backup = boardToJson(board);
     if (occupant) uninstall(board, occupant.id);
     const r = install(board, specId, slot);
@@ -776,7 +922,9 @@ export class Game {
   private plannedBoard(): Board {
     const b = boardFromJson(boardToJson(this.board));
     const tierOf = (id: string): number => (boardTierOf(id) !== undefined ? -1 : getSpec(id)!.tier);
-    for (const it of [...this.inventory].sort((a, c) => tierOf(a.spec) - tierOf(c.spec))) {
+    // Storage drives and OSes are not one-per-machine upgrades: they never replace a part in the plan.
+    const planned = this.inventory.filter((it) => !getOsSpec(it.spec) && getSpec(it.spec)?.kind !== "storage");
+    for (const it of planned.sort((a, c) => tierOf(a.spec) - tierOf(c.spec))) {
       const spec = getSpec(it.spec);
       const have = spec ? findDevices(b, spec.kind)[0] : undefined;
       if (have && deviceSpec(have).tier >= spec!.tier && !have.burnt) continue;
@@ -788,6 +936,25 @@ export class Game {
   private inventorySnap(ignorePower = false): InventorySnap[] {
     const off = ignorePower || !this.powered;
     return this.inventory.map((it) => {
+      const os = getOsSpec(it.spec);
+      if (os) {
+        const free: string[] = [];
+        let why: string | undefined = os.later ? `${os.name} is not available yet` : this.os ? `${this.os.spec.name} is already installed` : undefined;
+        if (why === undefined) {
+          for (const d of this.board.devices) {
+            if (deviceSpec(d).kind !== "storage") continue;
+            const block = this.osBlock(os, d);
+            if (block) why ??= block;
+            else free.push(d.slot);
+          }
+          if (free.length === 0) why ??= "install a storage drive first";
+        }
+        const ok = free.length > 0 && off;
+        return {
+          id: it.id, spec: it.spec, kind: "os" as const, name: os.name, freeSlots: free, swapSlots: [], installable: ok,
+          ...(ok ? {} : { reason: !off && free.length > 0 ? "power the machine off first" : why }),
+        };
+      }
       const tier = boardTierOf(it.spec);
       if (tier !== undefined) {
         const t = boardFromJson(boardToJson(this.board));
@@ -820,6 +987,217 @@ export class Game {
     });
   }
 
+  // ---------- internals: storage and the OS ----------
+
+  /** The drive's media for an installed storage device (created blank the first time). */
+  private diskFor(d: InstalledDevice): Disk {
+    let disk = this.disks.get(d.id);
+    if (!disk) {
+      const s = deviceSpec(d) as StorageSpec;
+      disk = new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks);
+      this.disks.set(d.id, disk);
+    }
+    return disk;
+  }
+
+  /** Attach each working drive to its port (a burnt or removed drive drops off the bus). */
+  private syncStorage(): void {
+    for (const port of this.ports) {
+      const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "storage" && !x.burnt);
+      port.attach(d ? this.diskFor(d) : null);
+    }
+  }
+
+  /** The port the OS boots from, if its drive works. */
+  private osPort(): StoragePort | null {
+    if (!this.os) return null;
+    const d = this.board.devices.find((x) => x.id === this.os!.deviceId);
+    if (!d || d.burnt) return null;
+    const port = this.ports.find((p) => p.name === d.slot);
+    return port?.media ? port : null;
+  }
+
+  /** The kernel's job table, read straight from RAM (empty unless the kernel is up). */
+  private kernelJobs(): KernelJob[] {
+    if (!this.powered || !this.pch.osMode || this.postError) return [];
+    const bus = this.machine.bus;
+    const out: KernelJob[] = [];
+    for (let i = 0; i < KDATA_SLOTS; i++) {
+      const at = KDATA_BASE + i * KSLOT_BYTES;
+      const state = bus.load32(at + KSLOT.STATE);
+      if (state === JobState.Free) continue;
+      out.push({ slot: i, state, key: bus.load32(at + KSLOT.KEY), len: bus.load32(at + KSLOT.LEN), seq: bus.load32(at + KSLOT.SEQ) });
+    }
+    return out;
+  }
+
+  private freeKernelSlot(keyId: number): void {
+    for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(KDATA_BASE + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
+  }
+
+  /** Power off or reboot loses the kernel's queue (it is RAM): the client takes back every ingested key unserved. */
+  private returnHeld(): void {
+    for (const k of this.held) this.tray.giveBack(k);
+    this.held = [];
+  }
+
+  /** Why the OS cannot go on this drive, or null. */
+  private osBlock(os: OsSpec, d: InstalledDevice): string | null {
+    const s = deviceSpec(d);
+    if (d.burnt) return `${s.name} is burnt out`;
+    const ram = this.installedRamBytes();
+    if (ram < os.minRamBytes) return `${os.name} needs ${os.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`;
+    const disk = this.diskFor(d);
+    const need = os.diskBytes + SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES;
+    const free = disk.capacityBytes - disk.usedBytes;
+    if (free < need) return `${os.name} needs ${need / 1024}K free on ${s.name}, only ${Math.floor(free / 1024)}K free`;
+    return null;
+  }
+
+  private installOs(item: InvItem, os: OsSpec, slotId?: string): Result<{ deviceId: string | null; slot: string }> {
+    if (this.powered) return { ok: false, reason: "power the machine off first" };
+    if (os.later) return { ok: false, reason: `${os.name} is not available yet` };
+    if (this.os) return { ok: false, reason: `${this.os.spec.name} is already installed: uninstall it first` };
+    const drives = this.board.devices.filter((d) => deviceSpec(d).kind === "storage" && (slotId === undefined || d.slot === slotId));
+    if (drives.length === 0) return { ok: false, reason: slotId === undefined ? "install a storage drive first" : `no storage drive in slot "${slotId}"` };
+    let why = "";
+    for (const d of drives) {
+      const block = this.osBlock(os, d);
+      if (block) {
+        why ||= block;
+        continue;
+      }
+      this.formatOs(os, d.id, true);
+      this.removeItem(item.id);
+      this.progress.osInstalled = true;
+      this.note("install", `${os.name} installed on ${deviceSpec(d).name}`);
+      return { ok: true, deviceId: d.id, slot: d.slot };
+    }
+    return { ok: false, reason: why };
+  }
+
+  /** Write the boot image to the drive and record the OS (also used when loading a save). */
+  private formatOs(os: OsSpec, deviceId: string, count = true): void {
+    const dev = this.board.devices.find((d) => d.id === deviceId);
+    if (!dev || deviceSpec(dev).kind !== "storage") throw new Error("save: the OS drive is missing");
+    const disk = this.diskFor(dev);
+    const osBlocks = Math.ceil(os.diskBytes / BLOCK_BYTES);
+    const queueSlots = queueSlotsFor(os, disk.capacityBytes - disk.usedBytes - os.diskBytes, BLOCK_BYTES);
+    if (queueSlots < 1) throw new Error("save: the OS does not fit its drive");
+    disk.poke(0, bootImage({ queueSlots, programSlots: os.programSlots, spoolLba: osBlocks, spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier }));
+    disk.reserve(0, osBlocks);
+    if (count) disk.bytesWritten += os.diskBytes;
+    this.os = { spec: os, deviceId, queueSlots };
+  }
+
+  /** Take the OS off its drive (back to the inventory; the drive is wiped). Only while off. */
+  uninstallOs(): Result<{ invId: string }> {
+    if (this.powered) return { ok: false, reason: "power the machine off first" };
+    const os = this.os;
+    if (!os) return { ok: false, reason: "no OS is installed" };
+    this.disks.get(os.deviceId)?.format();
+    this.os = null;
+    this.returnHeld();
+    const invId = `inv${this.nextInvId++}`;
+    this.inventory.push({ id: invId, spec: os.spec.id });
+    this.note("install", `${os.spec.name} removed`);
+    return { ok: true, invId };
+  }
+
+  /** Storage drives and OS tiers for sale, with the first reason each cannot be bought now. */
+  private extraOffers(): PurchaseSnap[] {
+    const out: PurchaseSnap[] = [];
+    const plan = this.plannedBoard();
+    const ownedSpecs = new Set([...this.board.devices.map((d) => d.spec), ...this.inventory.map((i) => i.spec)]);
+    const planSlots = boardSlots(plan);
+    for (const s of specsOfKind("storage")) {
+      if (ownedSpecs.has(s.id)) continue;
+      const total = planSlots.filter((x) => slotAccepts(x.type, s.slot)).length;
+      const used = this.board.devices.filter((d) => deviceSpec(d).kind === "storage" && deviceSpec(d).slot === s.slot).length
+        + this.inventory.filter((i) => getSpec(i.spec)?.kind === "storage" && getSpec(i.spec)!.slot === s.slot).length;
+      const o: PurchaseSnap = { id: s.id, name: s.name, kind: "storage", price: s.price, affordable: this.money >= s.price };
+      if (total === 0) o.blocked = s.slot === "m2" ? "needs an M.2 slot (bigger board)" : "the board has no SATA slot";
+      else if (used >= total) o.blocked = `no free ${s.slot === "m2" ? "M.2" : "SATA"} slot (${total} of ${total} used or owned)`;
+      out.push(o);
+    }
+    const haveDrive = this.board.devices.some((d) => deviceSpec(d).kind === "storage") || this.inventory.some((i) => getSpec(i.spec)?.kind === "storage");
+    const planRam = findDevices(plan, "ram").reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
+    const haveOs = !!this.os || this.inventory.some((i) => getOsSpec(i.spec));
+    for (const os of OS_SPECS) {
+      const o: PurchaseSnap = {
+        id: os.id, name: os.name, kind: "os", price: os.price, affordable: this.money >= os.price, description: os.description,
+        ...(os.later ? { later: true } : {}),
+      };
+      if (os.later) o.blocked = "planned: not available yet";
+      else if (haveOs) o.blocked = "you already own an OS";
+      else if (!haveDrive) o.blocked = "needs a storage drive to install on";
+      else if (planRam < os.minRamBytes) o.blocked = `needs ${os.minRamBytes / 1024}K of RAM`;
+      out.push(o);
+    }
+    return out;
+  }
+
+  private storageSnaps(): StorageSnap[] {
+    return this.board.devices.filter((d) => deviceSpec(d).kind === "storage").map((d) => {
+      const s = deviceSpec(d) as StorageSpec;
+      const disk = this.diskFor(d);
+      const port = this.ports.find((p) => p.name === d.slot);
+      const clk = this.thermal.state(d.id)?.effClock ?? 0;
+      return {
+        deviceId: d.id, slot: d.slot, spec: d.spec, name: s.name, burnt: !!d.burnt,
+        capacityBytes: disk.capacityBytes, usedBytes: disk.usedBytes, bytesRead: disk.bytesRead, bytesWritten: disk.bytesWritten,
+        busy: !!port?.isBusy && port.media === disk, latencyTicks: s.latencyTicks, blockTicks: s.blockTicks,
+        bytesPerSecond: Math.round((clk * this.cfg.cpuCyclesPerClock * BLOCK_BYTES) / s.blockTicks),
+        hasOs: this.os?.deviceId === d.id,
+      };
+    });
+  }
+
+  private osSnap(jobs: KernelJob[]): OsSnap | null {
+    const os = this.os;
+    if (!os) return null;
+    const dev = this.board.devices.find((d) => d.id === os.deviceId)!;
+    const running = jobs.find((j) => j.state === JobState.Running);
+    const queued = jobs.filter((j) => j.state === JobState.Queued).sort((a, b) => a.seq - b.seq);
+    const results = jobs.filter((j) => j.state === JobState.Result).sort((a, b) => a.seq - b.seq);
+    const label = (id: number): string => {
+      const k = this.plugged?.id === id ? this.plugged : this.held.find((x) => x.id === id);
+      return k ? this.keySnap(k, jobs).label : `key ${id}`;
+    };
+    const row = (j: KernelJob, state: OsJobSnap["state"], ahead: number): OsJobSnap => ({ slot: j.slot, keyId: j.key, label: label(j.key), state, ahead });
+    return {
+      spec: os.spec.id, tier: os.spec.tier, name: os.spec.name, deviceId: os.deviceId, slot: dev.slot,
+      programSlots: os.spec.programSlots, queueSlots: os.queueSlots, up: this.powered && this.pch.osMode && !this.postError,
+      queue: [
+        ...(running ? [row(running, "running", 0)] : []),
+        ...queued.map((j, i) => row(j, "queued", i + (running ? 1 : 0))),
+        ...results.map((j) => row(j, "result", -1)),
+      ],
+      runningKeyId: running?.key ?? null,
+    };
+  }
+
+  private stageOf(k: Key, jobs: KernelJob[]): KeyStage {
+    if (k.done) return "done";
+    const j = jobs.find((x) => x.key === k.id);
+    const byState = (s: number): KeyStage => (s === JobState.Result ? "result" : s === JobState.Running ? "running" : "queued");
+    if (k === this.plugged) {
+      if (this.pch.flashing) return "flashing";
+      if (j) return byState(j.state);
+      return this.pch.phase === PchPhase.OsIngest ? "ingesting" : "tray";
+    }
+    return j ? byState(j.state) : this.held.includes(k) ? "queued" : "tray";
+  }
+
+  private keyActivity(): KeyActivity {
+    const k = this.plugged;
+    if (!k) return "none";
+    if (k.done) return "done";
+    if (this.pch.flashing) return "flashing";
+    if (!this.pch.ready) return "enumerating";
+    return this.pch.phase === PchPhase.OsIngest ? "ingesting" : "none";
+  }
+
   // ---------- internals: machine ----------
 
   private monitorLive(): boolean {
@@ -835,6 +1213,7 @@ export class Game {
     if (cpu?.burnt) return "the CPU burnt out";
     const psu = findDevices(this.board, "psu")[0];
     if (psu?.burnt) return "the PSU burnt out";
+    if (this.os && this.pch.osMode && this.board.devices.find((d) => d.id === this.os!.deviceId)?.burnt) return "the OS drive burnt out";
     return null;
   }
 
@@ -854,6 +1233,16 @@ export class Game {
     const ram = findDevices(this.board, "ram").filter((d) => !d.burnt).reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
     const cpu = findDevices(this.board, "cpu")[0]!;
     this.pch.powerOn(ram >> 10, deviceSpec(cpu).tier);
+    // A bootable OS drive: the ROM loads the kernel from it. USB then has latency (enumerating, flashing).
+    this.syncStorage();
+    this.returnHeld();
+    for (const p of this.ports) p.reset();
+    const boot = this.osPort();
+    this.pch.bootDev = boot ? boot.base : 0;
+    this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
+    this.pch.flashTicks = boot ? this.cfg.usbFlashTicks : 0;
+    if (boot && this.pchKey) this.pch.plug(this.pchKey); // the plugged key enumerates again
+    this.bootRead0 = boot?.media?.bytesRead ?? 0;
     this.syncRates(false);
     applyEngine(this.board, this.machine, ROM_IMAGE);
     if (!this.progress.poweredOn) {
@@ -876,6 +1265,11 @@ export class Game {
       case PchPhase.Running: return "running";
       case PchPhase.Writing: return "writing";
       case PchPhase.Done: return "done-remove-key";
+      case PchPhase.OsBoot: return "booting-os";
+      case PchPhase.OsIdle: return "idle-os";
+      case PchPhase.OsIngest: return "ingesting";
+      case PchPhase.OsRun: return "running-os";
+      case PchPhase.OsFlash: return "flashing";
       default: return "posting";
     }
   }
@@ -885,7 +1279,11 @@ export class Game {
       case "posting": return (this.pch.progress / 4) * 0.4;
       case "waiting-for-key": return 0.4;
       case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
-      case "running": case "writing": case "done-remove-key": return 1;
+      case "booting-os": {
+        const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
+        return 0.4 + 0.6 * Math.min(1, read / (BOOT_BLOCKS * BLOCK_BYTES));
+      }
+      case "running": case "writing": case "done-remove-key": case "idle-os": case "ingesting": case "running-os": case "flashing": return 1;
       default: return 0;
     }
   }
@@ -905,7 +1303,7 @@ export class Game {
   /** Set the CPU and display domain rates from the board, then scale by cpuCyclesPerClock. */
   private syncRates(useThermal: boolean): void {
     applyRates(this.board, this.machine, useThermal ? this.thermal : undefined);
-    for (const name of ["cpu", "display"]) {
+    for (const name of ["cpu", "display", ...STORAGE_PORTS]) {
       const r = this.machine.clock.getRate(name);
       this.machine.clock.setRate(name, { mul: r.mul * this.cfg.cpuCyclesPerClock, div: r.div });
     }
@@ -975,7 +1373,8 @@ export class Game {
 
   /** Turnaround that drives reputation: the average, or the oldest waiting key's age if that is worse. */
   private serviceTurnaround(): number {
-    const oldest = this.tray.waiting()[0];
+    const waiting = [...this.tray.waiting(), ...this.held];
+    const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
     const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;
     return Math.max(this.avgTurnaround, age);
   }
@@ -988,8 +1387,9 @@ export class Game {
     return payout(this.cfg, k.work * payMulFor(this.cfg, k.template, k.scale), this.cfg.targetTurnaround, false);
   }
 
-  private keySnap(k: Key): KeySnap {
+  private keySnap(k: Key, jobs: KernelJob[]): KeySnap {
     return {
+      stage: this.stageOf(k, jobs),
       id: k.id, template: k.template, type: k.type, jobNo: k.jobNo, label: `#${String(k.jobNo).padStart(2, "0")} ${k.type}`,
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,

@@ -9,6 +9,8 @@ import type { Display } from "../machine/display";
 
 /** A USB key as the controller sees it: the program to load and the result the ROM wrote back. */
 export interface PchKey {
+  /** The client's job number (what the kernel files the job under). */
+  id: number;
   program: Uint32Array;
   /** The ROM wrote DONE: the key holds a result. */
   done: boolean;
@@ -34,9 +36,23 @@ export class Pch implements Device {
   /** Hardware facts the ROM reads during POST (set by the game at power-on). */
   ramKB = 0;
   cpuTier = 0;
+  /** Base address of the storage port that holds a bootable OS, or 0 (set by the game at power-on). */
+  bootDev = 0;
+  /** The ROM handed over to the kernel. */
+  osMode = false;
+  /** USB latency in base ticks (the game sets these when an OS is installed; 0 = instant, the key-per-boot flow). */
+  enumTicks = 0;
+  flashTicks = 0;
+  /** The plugged key has finished enumerating (the kernel only touches ready keys). */
+  ready = true;
+  /** A result is being flashed onto the plugged key. */
+  flashing = false;
 
   /** The key was pulled since the ROM last acknowledged (so a quick unplug and replug is not missed). */
   private removed = false;
+  private enumLeft = 0;
+  private flashLeft = 0;
+  private flashText = "";
   private resultLen = 0;
   private readonly result = new Uint8Array(RESULT_BYTES);
 
@@ -51,6 +67,9 @@ export class Pch implements Device {
     this.wordsRead = 0;
     this.resultLen = 0;
     this.removed = false;
+    this.osMode = false;
+    this.flashing = false;
+    this.flashLeft = 0;
     this.result.fill(0);
   }
 
@@ -63,17 +82,39 @@ export class Pch implements Device {
   plug(key: PchKey): void {
     this.key = key;
     this.wordsRead = 0;
+    this.enumLeft = this.enumTicks;
+    this.ready = this.enumTicks <= 0;
+    this.flashing = false;
+    this.flashLeft = 0;
   }
 
   unplug(): void {
     if (this.key) this.removed = true;
     this.key = null;
     this.wordsRead = 0;
+    this.ready = true;
+    this.flashing = false;
+    this.flashLeft = 0;
+  }
+
+  /** USB timers, once per base tick: the plugged key finishes enumerating, a flash lands on the key. */
+  usbTick(): void {
+    if (!this.key) return;
+    if (!this.ready && --this.enumLeft <= 0) this.ready = true;
+    if (this.flashing && --this.flashLeft <= 0) {
+      this.flashing = false;
+      this.key.done = true;
+      this.key.result = this.flashText;
+    }
   }
 
   private reg(off: number): number {
     switch (off) {
-      case PCH_REG.STATUS: return (this.key ? 1 : 0) | (this.key?.done ? 2 : 0) | (this.removed ? 4 : 0);
+      case PCH_REG.STATUS:
+        return (this.key ? 1 : 0) | (this.key?.done ? 2 : 0) | (this.removed ? 4 : 0) | (this.osMode && this.key && this.ready ? 8 : 0) | (this.flashing ? 16 : 0);
+      case PCH_REG.BOOT_DEV: return this.bootDev;
+      case PCH_REG.OS_MODE: return this.osMode ? 1 : 0;
+      case PCH_REG.KEY_ID: return this.key?.id ?? 0;
       case PCH_REG.KEY_LEN: return this.key ? this.key.program.length : 0;
       case PCH_REG.PHASE: return this.phase;
       case PCH_REG.RAM_KB: return this.ramKB;
@@ -109,10 +150,18 @@ export class Pch implements Device {
           if (val & 2) this.removed = false;
           break;
         case PCH_REG.RESULT_LEN: this.resultLen = Math.min(val, PCH_RESULT_WORDS); break;
+        case PCH_REG.OS_MODE: this.osMode = (val & 1) !== 0; break;
         case PCH_REG.DONE:
           if (val & 1 && this.key) {
-            this.key.done = true;
-            this.key.result = this.resultText();
+            if (this.flashTicks > 0 && this.osMode) {
+              // Under an OS the result takes a while to land on the key; pulling the key meanwhile loses it.
+              this.flashing = true;
+              this.flashLeft = this.flashTicks;
+              this.flashText = this.resultText();
+            } else {
+              this.key.done = true;
+              this.key.result = this.resultText();
+            }
           }
           break;
       }

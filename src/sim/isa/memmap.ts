@@ -29,7 +29,10 @@ export const PCH_BASE = 0x4002_0000;
 export const PCH_SIZE = 0x5000;
 /** Registers (word-sized): offsets from PCH_BASE. */
 export const PCH_REG = {
-  /** ro: bit0 key plugged, bit1 key already holds a result, bit2 a key was pulled since the last CTRL bit1 acknowledge. */
+  /**
+   * ro: bit0 key plugged, bit1 key already holds a result, bit2 a key was pulled since the last CTRL bit1 acknowledge,
+   * bit3 key enumerated (USB ready; only reported once the ROM has handed over to an OS), bit4 result being flashed onto the key.
+   */
   STATUS: 0x00,
   /** ro: program length of the plugged key, in words. */
   KEY_LEN: 0x04,
@@ -47,6 +50,12 @@ export const PCH_REG = {
   DONE: 0x1c,
   /** rw: POST progress marks written by the ROM. */
   PROGRESS: 0x20,
+  /** ro: base address of the storage port holding a bootable OS, or 0 (the ROM then runs the per-job key loader). */
+  BOOT_DEV: 0x24,
+  /** rw: the ROM sets 1 when it hands over to the kernel (a finished job then jumps to the kernel, not the ROM epilogue). */
+  OS_MODE: 0x28,
+  /** ro: id of the plugged key (the client's job number). */
+  KEY_ID: 0x2c,
 } as const;
 /** Read-only window onto the plugged key's program (word reads). */
 export const PCH_KEY_WINDOW = 0x1000;
@@ -56,4 +65,50 @@ export const PCH_RESULT_WINDOW = 0x4000;
 export const PCH_RESULT_WORDS = 8;
 
 /** Values of PCH_REG.PHASE. */
-export const PchPhase = { Off: 0, Posting: 1, Waiting: 2, Loading: 3, Running: 4, Writing: 5, Done: 6 } as const;
+export const PchPhase = {
+  Off: 0, Posting: 1, Waiting: 2, Loading: 3, Running: 4, Writing: 5, Done: 6,
+  /** OS mode (the kernel writes these): booting the kernel from disk, idle, ingesting a key, running a job, flashing a result. */
+  OsBoot: 7, OsIdle: 8, OsIngest: 9, OsRun: 10, OsFlash: 11,
+} as const;
+
+// ---- Storage ports (block devices) and the OS. See docs/BOARD.md (storage) and docs/OS.md.
+
+/** Storage port k (slot ids in STORAGE_PORTS order) sits at STORAGE_BASE + k * STORAGE_STRIDE. */
+export const STORAGE_BASE = 0x4003_0000;
+export const STORAGE_STRIDE = 0x1000;
+/** Slot ids that carry a block device, in port order (the board slot id doubles as the port / clock domain name). */
+export const STORAGE_PORTS: readonly string[] = ["sata0", "sata1", "m20"];
+/** A block is 64 words. */
+export const BLOCK_BYTES = 256;
+export const BLOCK_WORDS = 64;
+/** Port registers (word access, offsets from the port base). */
+export const STORAGE_REG = {
+  /** ro: bit0 busy, bit1 error (bad lba, no media, command while busy), bit2 media present. */
+  STATUS: 0x00,
+  /** rw: block address for the next command. */
+  LBA: 0x04,
+  /** wo: 1 = read block LBA into the buffer, 2 = write the buffer to block LBA. Starts when written. */
+  CMD: 0x08,
+  /** ro: capacity in blocks. */
+  BLOCKS: 0x0c,
+} as const;
+/** The one-block data buffer window. */
+export const STORAGE_BUF = 0x100;
+export const StorageStatus = { Busy: 1, Error: 2, Present: 4 } as const;
+
+/** Boot disk layout: block 0 is the header, the kernel image follows; both are copied to RAM at OS_HEADER_BASE. */
+export const OS_HEADER_BASE = 0xc000;
+export const KERNEL_BASE = 0xc100;
+/** Kernel entry points: KERNEL_BASE + 0 boots, + 4 is where a finished job lands (the ROM epilogue jumps there in OS mode). */
+export const KERNEL_DONE = KERNEL_BASE + 4;
+/** Header words: magic, total blocks (header + kernel), queue slots, program slots, spool start block, spool blocks per job, OS tier. */
+export const OS_MAGIC = 0x3153_564f;
+export const OS_HEADER = { MAGIC: 0, TOTAL_BLOCKS: 1, QUEUE_SLOTS: 2, PROGRAM_SLOTS: 3, SPOOL_LBA: 4, SPOOL_BLOCKS: 5, TIER: 6 } as const;
+/** Kernel job table in RAM: KDATA_SLOTS slots of KSLOT_BYTES; see docs/OS.md. */
+export const KDATA_BASE = 0xe000;
+export const KDATA_SLOTS = 8;
+export const KSLOT_BYTES = 64;
+/** Slot word offsets (bytes). */
+export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48 } as const;
+/** Job slot states. */
+export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
