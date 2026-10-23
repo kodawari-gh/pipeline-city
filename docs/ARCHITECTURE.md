@@ -32,6 +32,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Toy ISA, toy hardware that "kinda makes sense".** No real ISA or emulator. The ISA grows as programs need it.
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
+- **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
 - **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
 
@@ -90,11 +91,35 @@ Macro board level, and currently missing from the prototype. The PSU has a watta
 
 Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (`src/sim/asm`). Programs are **generated and composable**: a library of small kernels (loop, memcpy, hash, parse, matmul, poll a device, ...) is combined by scenario templates ("web request", "GPU render / HPC", "multiprocessor simulation", "secure execution") with seeded parameters such as size, memory footprint and device calls. Output is real assembly, deterministic per seed, and must make sense: it should visibly do something on the devices it touches.
 
+## Sim internals
+
+State lives in **typed arrays (structure-of-arrays) from the start**, not per-instruction objects. This is a deliberate choice for the unbounded-scale goal and cheap worker transfer. The legacy prototype used plain objects and ran 6 to 10 microseconds per cycle, so the cost is development friction (harder to write and debug while the design moves), not a need for speed at the default 1 Hz. Keep engine code behind interfaces so layouts can change per engine.
+
 ## Snapshots and threading
 
 - One sim worker. Machines share nothing except a message bus, so sharding to a worker pool later is a scheduling change.
 - The renderer tells the worker which machine is focused. That machine streams detailed state, and others send a few summary numbers per tick, so cost stays bounded as the fleet grows.
 - No SharedArrayBuffer for now (needs cross-origin isolation headers, awkward on static hosting).
+
+## Pacing and first decision
+
+At 1 tick/s the first request should take **about 20 to 40 seconds** on the starting unpipelined CPU, roughly 20 to 40 instructions of generated CLI program. Faster hardware shrinks that sharply. The first purchase is a visible **CPU vs RAM trade-off**: with limited money the player picks a faster clock or more RAM/cache, and the first workload's profile makes each pay off differently.
+
+## Devices as seen by programs
+
+The CLI monitor is a memory-mapped framebuffer. Generated programs write real strings (status lines, job ids, progress) with store instructions, so what the player reads is produced by the program and slow device writes are visible on the bus.
+
+## Calibration cache
+
+Fast-model entries are keyed by **program seed + hardware-config hash**, measured lazily on first run and **persisted in the save**, so offline catch-up works on load. Changing a part invalidates only affected entries.
+
+## Verification
+
+Every engine configuration must match a trivial reference interpreter on generated programs with random hazards (as in `legacy/tools/test-sim.js`). On top of that: golden cycle traces for a few programs to catch accidental timing changes (timing drives the economy), and a determinism test per seed.
+
+## Look and feel
+
+Cyberpunk-minimal with a dark/light toggle, as in the prototype. Theme tokens drive both Pixi and Preact. Minimal text, with explanations on hover and a few contextual hints on first occurrence of something (first stall, overheat, queue). No tutorial. No audio for the POC.
 
 ## Milestone 1
 
@@ -106,9 +131,9 @@ Desktop first. Pointer events stay generic so touch pan/pinch works on the board
 
 ## Open questions
 
+- Typed-array layout per engine (see Sim internals) and the shared conventions for it.
 - Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
 - Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
-- Calibration cache: keying (program seed + hardware config) and invalidation.
 - Exact shape of the world-map / datacenter layer (far future, not designed).
 
 ## Commands
