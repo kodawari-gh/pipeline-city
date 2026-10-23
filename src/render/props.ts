@@ -17,7 +17,12 @@ export interface PropObj {
   base: { x: number; y: number; s: number };
 }
 
-export interface PropsArt { root: Container; objs: PropObj[]; led: Graphics; ledText: Text | null }
+export interface PropsArt {
+  root: Container;
+  /** Static art (boxes, labels): board.ts bakes it into a texture at far zoom. Lives inside `root` until moved. */
+  chrome?: Container;
+  objs: PropObj[]; led: Graphics; ledText: Text | null;
+}
 
 const centre = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 const shortName = (n: string) => n.replace(/ \(.*$/, '');
@@ -106,9 +111,10 @@ function cellFor(n: number, w: number, h: number): number {
 }
 
 export function crateArt(T: Theme, items: InventorySnap[]): PropsArt {
-  const root = new Container();
+  const root = new Container(), chrome = new Container();
   const g = new Graphics();
-  root.addChild(g);
+  root.addChild(chrome);
+  chrome.addChild(g);
   const r = CRATE;
   const wood = mix(T.sub, T.ld, T.dark ? 0.16 : 0.22), woodDark = mix(wood, '#000000', 0.35);
   box(g, r.x + 14, r.y + 26, r.w, r.h, 40, { fill: '#000000', fa: 0.22 });
@@ -118,8 +124,8 @@ export function crateArt(T: Theme, items: InventorySnap[]): PropsArt {
   box(g, inner.x, inner.y, inner.w, inner.h, 24, { fill: woodDark, fa: 0.8, stroke: T.ld, lw: 5, sa: 0.5 });
   for (let x = r.x + 160; x < r.x + r.w - 100; x += 300) g.moveTo(x, r.y + r.h - 90).lineTo(x, r.y + r.h - 18);
   g.stroke({ width: 9, color: woodDark, alpha: 0.9 });
-  root.addChild(label('STARTER CRATE', r.x + 100, r.y + 78, 84, T.ld, { head: true }));
-  root.addChild(label(items.length ? `${items.length} part${items.length === 1 ? '' : 's'} - drag onto the board` : 'EMPTY', r.x + r.w - 100, r.y + 78, 46, T.mute, { anchor: [1, 0.5] }));
+  chrome.addChild(label('STARTER CRATE', r.x + 100, r.y + 78, 84, T.ld, { head: true }));
+  chrome.addChild(label(items.length ? `${items.length} part${items.length === 1 ? '' : 's'} - drag onto the board` : 'EMPTY', r.x + r.w - 100, r.y + 78, 46, T.mute, { anchor: [1, 0.5] }));
   const objs: PropObj[] = [];
   const cell = cellFor(items.length, inner.w, inner.h);
   const cols = Math.max(1, Math.floor(inner.w / cell)), rowH = cell * 0.92;
@@ -140,7 +146,7 @@ export function crateArt(T: Theme, items: InventorySnap[]): PropsArt {
     const hw = 280 * sc, hh = 310 * sc;
     objs.push({ id: 'inv:' + it.id, rect: { x: cx - hw, y: cy - hh, w: hw * 2, h: hh * 2 }, node, base: { x: cx, y: cy, s: sc } });
   });
-  return { root, objs, led: new Graphics(), ledText: null };
+  return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
 /** The world rect of the crate and its interior (used for the crate hit area). */
@@ -188,17 +194,18 @@ export const trayKeyCentre = (i: number) => {
 export const pluggedKeyCentre = () => ({ x: USB_PORT.x + 190 - KEY_LEN / 2, y: USB_PORT.y + USB_PORT.h / 2 });
 
 export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
-  const root = new Container();
+  const root = new Container(), chrome = new Container();
   const g = new Graphics();
-  root.addChild(g);
+  root.addChild(chrome);
+  chrome.addChild(g);
   const r = TRAY;
   const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
   box(g, r.x + 12, r.y + 20, r.w, r.h, 36, { fill: '#000000', fa: 0.22 });
   box(g, r.x, r.y, r.w, r.h, 36, { fill: shell, stroke: T.mul, lw: 10, sa: 0.8 });
   box(g, r.x + 40, r.y + 150, r.w - 80, r.h - 190, 20, { fill: '#000000', fa: 0.28 });
-  root.addChild(label('USB KEY TRAY', r.x + 90, r.y + 76, 72, T.mul, { head: true }));
+  chrome.addChild(label('USB KEY TRAY', r.x + 90, r.y + 76, 72, T.mul, { head: true }));
   const empty = keys.length === 0;
-  root.addChild(label(empty ? 'NO WORK WAITING' : `${keys.length} waiting`, r.x + r.w - 90, r.y + 76, 46, empty ? T.mute : T.ink, { anchor: [1, 0.5], a: empty ? 0.8 : 1 }));
+  chrome.addChild(label(empty ? 'NO WORK WAITING' : `${keys.length} waiting`, r.x + r.w - 90, r.y + 76, 46, empty ? T.mute : T.ink, { anchor: [1, 0.5], a: empty ? 0.8 : 1 }));
   // empty key bays (dashed outlines) so the tray reads as a tray even when empty
   const bays = 12;
   for (let i = keys.length; i < bays; i++) {
@@ -215,7 +222,7 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
     root.addChild(node);
     objs.push({ id: 'key:' + k.id, rect: { x: p.x - 300, y: p.y - 100, w: 600, h: 200 }, node, base: { x: p.x, y: p.y, s: 1 } });
   });
-  return { root, objs, led: new Graphics(), ledText: null };
+  return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
 /** The key sitting in the USB port (drawn above the board art). */
@@ -233,14 +240,15 @@ export function pluggedKeyArt(T: Theme, k: KeySnap): PropsArt {
 export interface PowerState { powered: boolean; error: boolean; blocked: boolean }
 
 export function powerArt(T: Theme, st: PowerState): PropsArt {
-  const root = new Container();
+  const root = new Container(), chrome = new Container();
   const g = new Graphics();
-  root.addChild(g);
+  root.addChild(chrome);
+  chrome.addChild(g);
   const p = POWER_PLATE, b = POWER_BTN;
   const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
   box(g, p.x + 10, p.y + 18, p.w, p.h, 40, { fill: '#000000', fa: 0.22 });
   box(g, p.x, p.y, p.w, p.h, 40, { fill: shell, stroke: T.line, lw: 8 });
-  root.addChild(label('POWER', p.x + p.w / 2, p.y + 80, 78, T.ink, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
+  chrome.addChild(label('POWER', p.x + p.w / 2, p.y + 80, 78, T.ink, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
   // the button (lifts and scales as one object)
   const node = new Container();
   const bg = new Graphics();
@@ -259,9 +267,9 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   root.addChild(led);
   const ly = p.y + p.h - 175;
   const items: [string, number][] = [['ON', -190], ['OFF', 0], ['ERR', 190]];
-  for (const [t, dx] of items) root.addChild(label(t, p.x + p.w / 2 + dx, ly + 70, 40, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
+  for (const [t, dx] of items) chrome.addChild(label(t, p.x + p.w / 2 + dx, ly + 70, 40, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
   return {
-    root,
+    root, chrome,
     objs: [{ id: 'power', rect: { x: b.x - b.r - 24, y: b.y - b.r - 24, w: (b.r + 24) * 2, h: (b.r + 24) * 2 }, node, base: { x: b.x, y: b.y, s: 1 } }],
     led,
     ledText: null,

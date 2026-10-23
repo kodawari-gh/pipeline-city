@@ -30,6 +30,12 @@ const BAKE_RES = 0.4;
 /** Below this zoom the static devices, PSU, monitor and cables are one baked texture too. */
 const Z_BAKE_DEV = 0.14;
 const DEV_BAKE_RES = 0.25;
+/** Below this zoom the crate, tray and power plate chrome (boxes, labels) is one baked texture. */
+const Z_BAKE_PROPS = 0.2;
+const PROPS_FRAME = new Rectangle(-7560, 280, 4130, 3320);
+
+/** The routed cables never change (geometry only); built once. */
+const ALL_CABLES = buildCables();
 
 /** The matching board connector for each cable (drop target). */
 const CONNECTOR: Record<CableKind, Rect> = { atx: BR.atx, cpu: BR.cpw, pcie: BR.pciew, video: HDMI_PORT };
@@ -72,6 +78,11 @@ export async function mountBoard(host: HTMLElement) {
   const fanLayer = new Container();
   const cableLayer = new Container();
   const propsLayer = new Container();
+  const chromeLayer = new Container();
+  const chromeBakeLayer = new Container();
+  let chromeBake: Sprite | null = null;
+  /** Hover-animated props: vector art close up, one small baked sprite far out. */
+  let propBakes: { vec: Container; bake: Sprite }[] = [];
   const pipeline = new PipelineView();
   const live = new Live(app.renderer, T.dark);
   const camera = new Camera(world, app.canvas);
@@ -84,7 +95,7 @@ export async function mountBoard(host: HTMLElement) {
   });
   interactRef = interact;
   interact.setTheme(T);
-  world.addChild(boardLayer, deviceLayer, deviceBakeLayer, fanLayer, cableLayer, coolerLayer, pipeline.root, propsLayer, live.root, interact.fx);
+  world.addChild(boardLayer, deviceLayer, deviceBakeLayer, fanLayer, cableLayer, coolerLayer, pipeline.root, chromeBakeLayer, chromeLayer, propsLayer, live.root, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -126,6 +137,9 @@ export async function mountBoard(host: HTMLElement) {
     coolerLayer.visible = coolerLayer.alpha > 0.01;
     pipeline.root.alpha = smooth(0.42, 0.58, z);
     pipeline.root.visible = pipeline.root.alpha > 0.01;
+    for (const pb of propBakes) { pb.vec.visible = z >= Z_BAKE_PROPS; pb.bake.visible = z < Z_BAKE_PROPS; }
+    chromeLayer.visible = !chromeBake || z >= Z_BAKE_PROPS;
+    chromeBakeLayer.visible = !!chromeBake && z < Z_BAKE_PROPS;
     live.setZoom(z);
   };
   camera.onChange = onZoom;
@@ -276,7 +290,7 @@ export async function mountBoard(host: HTMLElement) {
     deviceBakeLayer.addChild(deviceBake);
 
     const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
-    const cables = buildCables().filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
+    const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay });
     pipeline.setTheme(T);
     sceneKey = keyOf(s);
@@ -291,7 +305,7 @@ export async function mountBoard(host: HTMLElement) {
     const now = performance.now();
     const hasPsu = !!s?.devices.some((d) => d.kind === 'psu'), hasDisplay = !!s?.devices.some((d) => d.kind === 'display');
     const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
-    const cables = buildCables().filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
+    const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     const states = cables.map((c) => {
       const snapC = s?.cables.find((x) => x.id === c.kind);
       const connected = snapC ? interact.cableStateOf(c.kind, snapC.connected, now) : true;
@@ -340,13 +354,26 @@ export async function mountBoard(host: HTMLElement) {
     ].join('|');
     if (!force && key === propsKey) return;
     propsKey = key;
-    clear(propsLayer);
+    chromeBake?.texture.destroy(true); chromeBake = null;
+    for (const pb of propBakes) pb.bake.texture.destroy(true);
+    propBakes = [];
+    clear(propsLayer); clear(chromeLayer); clear(chromeBakeLayer);
     propsArt = [];
     propHits = [];
     for (const id of [...scene.props.keys()]) { scene.interactive.delete(id); scene.rects.delete(id); }
     scene.props.clear();
     const add = (a: PropsArt) => {
       propsLayer.addChild(a.root); propsArt.push(a);
+      if (a.chrome) chromeLayer.addChild(a.chrome);
+      for (const o of a.objs) {
+        const vec = new Container();
+        for (const ch of o.node.removeChildren()) vec.addChild(ch);
+        const bake = new Sprite(app.renderer.generateTexture({ target: vec, resolution: 0.5, antialias: true }));
+        const b = vec.getLocalBounds();
+        bake.position.set(b.x, b.y);
+        o.node.addChild(vec, bake);
+        propBakes.push({ vec, bake });
+      }
       for (const o of a.objs) { scene.props.set(o.id, o); scene.rects.set(o.id, o.rect); scene.interactive.add(o.id); }
     };
     const order: PropObj[] = [];
@@ -362,6 +389,11 @@ export async function mountBoard(host: HTMLElement) {
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
       { id: 'crate', rect: CRATE }, { id: 'tray', rect: TRAY },
     ];
+    chromeLayer.visible = true;
+    chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: PROPS_FRAME, resolution: 0.3, antialias: true }));
+    chromeBake.position.set(PROPS_FRAME.x, PROPS_FRAME.y);
+    chromeBakeLayer.addChild(chromeBake);
+    onZoom();
     mergeHits();
     if (s) live.setPlugged(!!s.plugged);
   }

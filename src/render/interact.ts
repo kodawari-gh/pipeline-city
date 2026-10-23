@@ -606,11 +606,11 @@ export class Interact {
         const kx = dx === 0 ? Infinity : (dx > 0 ? right - fx : left - fx) / dx, ky = dy === 0 ? Infinity : (dy > 0 ? bottom - fy : top - fy) / dy;
         const kk = Math.min(Math.abs(kx), Math.abs(ky));
         const px = fx + dx * kk, py = fy + dy * kk, a = Math.atan2(dy, dx);
-        const R = 15 + 3 * beat;
+        const R = 19 + 3 * beat;
         hg.circle(px, py, R + 7).fill({ color: col, alpha: 0.18 + 0.15 * beat });
         hg.circle(px, py, R).fill({ color: T.dark ? '#0b1226' : '#ffffff', alpha: 0.95 }).stroke({ width: 2.5, color: col });
         const ca = Math.cos(a), sa = Math.sin(a);
-        hg.poly([px + ca * 9, py + sa * 9, px - ca * 6 - sa * 7, py - sa * 6 + ca * 7, px - ca * 6 + sa * 7, py - sa * 6 - ca * 7]).fill({ color: col });
+        hg.poly([px + ca * 15, py + sa * 15, px - ca * 8 - sa * 11, py - sa * 8 + ca * 11, px - ca * 3, py - sa * 3, px - ca * 8 + sa * 11, py - sa * 8 - ca * 11]).fill({ color: col });
         this.edge.push({ id, x: px, y: py });
       }
     }
