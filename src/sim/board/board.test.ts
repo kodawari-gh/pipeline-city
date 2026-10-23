@@ -12,7 +12,7 @@ function ok<T extends { ok: boolean }>(r: T): T {
 }
 
 function basicBoard(opts: { cpu?: string; cooler?: string; psu?: string } = {}): Board {
-  const b = createBoard(0);
+  const b = createBoard(1);
   ok(install(b, opts.cpu ?? "cpu0"));
   ok(install(b, "ram0"));
   ok(install(b, "display0"));
@@ -26,13 +26,13 @@ const dropCooler = (b: Board) => ok(uninstall(b, b.devices.find((d) => d.spec.st
 
 describe("slots and PSU validation", () => {
   it("installs into matching free slots", () => {
-    const b = createBoard(0);
+    const b = createBoard(1);
     expect(ok(install(b, "ram0"))).toMatchObject({ slot: "dimm0" });
     expect(ok(install(b, "ram0"))).toMatchObject({ slot: "dimm1" });
   });
 
   it("rejects wrong slot, no free slot, no such slot, unknown spec", () => {
-    const b = createBoard(0);
+    const b = createBoard(1);
     ok(install(b, "ram0", "dimm1"));
     const wrong = install(b, "ram0", "sata0");
     expect(!wrong.ok && wrong.reason).toMatch(/needs a dimm slot/);
@@ -46,35 +46,35 @@ describe("slots and PSU validation", () => {
     ok(install(b, "cpu0"));
     const second = install(b, "cpu1");
     expect(!second.ok && second.reason).toMatch(/no free cpu slot/);
-    const noPcie = install(createBoard(0), "cpu0", "cpu0");
+    const noPcie = install(createBoard(1), "cpu0", "cpu0");
     expect(noPcie.ok).toBe(true);
   });
 
   it("PSU needs a matching connector", () => {
-    const r = install(createBoard(0), "psu2");
+    const r = install(createBoard(1), "psu2");
     expect(!r.ok && r.reason).toMatch(/no atx-plus slot/);
-    expect(install(createBoard(1), "psu2").ok).toBe(true);
-    expect(install(createBoard(1), "psu0").ok).toBe(true); // a plain ATX PSU fits the ATX+ connector
+    expect(install(createBoard(2), "psu2").ok).toBe(true);
+    expect(install(createBoard(2), "psu0").ok).toBe(true); // a plain ATX PSU fits the ATX+ connector
   });
 
   it("PSU watts are checked both ways", () => {
-    const b = createBoard(0);
+    const b = createBoard(1);
     ok(install(b, "cpu1"));
     ok(install(b, "ram0"));
     ok(install(b, "display0"));
     ok(install(b, "psu0")); // rated 20 + 2 + 3 = 25 W <= 40
     ok(install(b, "ram2")); // 30 W
     ok(install(b, "cooler2")); // 36 W
-    const over = install(createBoard(0), "ram2");
+    const over = install(createBoard(1), "ram2");
     expect(over.ok).toBe(true);
-    const b2 = createBoard(0);
+    const b2 = createBoard(1);
     ok(install(b2, "psu0"));
     ok(install(b2, "cpu2")); // 35 W
     const tooMuch = install(b2, "ram2"); // 40 W exactly: fits
     expect(tooMuch.ok).toBe(true);
     const full = install(b2, "display0"); // 43 W
     expect(!full.ok && full.reason).toMatch(/PSU gives 40 W/);
-    const weak = createBoard(0);
+    const weak = createBoard(1);
     ok(install(weak, "cpu2"));
     ok(install(weak, "ram2"));
     ok(install(weak, "display0"));
@@ -100,26 +100,26 @@ describe("board upgrade", () => {
     const b = basicBoard({ psu: "psu1", cpu: "cpu1" });
     const before = boardToJson(b);
     ok(setClock(b, cpuId(b), 2.5));
-    ok(upgradeBoard(b, 1));
-    expect(b.tier).toBe(1);
+    ok(upgradeBoard(b, 2));
+    expect(b.tier).toBe(2);
     expect(b.devices.map((d) => d.id)).toEqual(before.devices.map((d) => d.id));
     expect(b.devices.find((d) => d.spec === "psu1")!.slot).toBe("atx-plus0");
     expect(b.devices.find((d) => d.spec === "cpu1")!.clock).toBe(2.5);
     expect(b.devices.find((d) => d.spec === "ram0")!.slot).toBe("dimm0");
-    expect(boardFromJson(boardToJson(b)).tier).toBe(1); // still a valid save
+    expect(boardFromJson(boardToJson(b)).tier).toBe(2); // still a valid save
     expect(installedPsu(b)!.spec.id).toBe("psu1");
   });
 
   it("unlocks the ATX+ PSU and extra DIMMs, and refuses smaller or unknown tiers", () => {
     const small = basicBoard({ psu: "psu1" });
     expect(install(small, "psu2").ok).toBe(false);
-    ok(upgradeBoard(small, 1));
+    ok(upgradeBoard(small, 2));
     ok(uninstall(small, installedPsu(small)!.dev.id));
     ok(install(small, "psu2"));
     ok(install(small, "ram0"));
     ok(install(small, "ram0"));
+    expect(upgradeBoard(small, 2).ok).toBe(false);
     expect(upgradeBoard(small, 1).ok).toBe(false);
-    expect(upgradeBoard(small, 0).ok).toBe(false);
     expect(upgradeBoard(small, 9).ok).toBe(false);
   });
 
@@ -169,7 +169,8 @@ describe("thermal", () => {
   });
 
   it("overclock without cooling heats, throttles, errors, then burns", () => {
-    const b = basicBoard();
+    // psu1: the VRM loss is now drawn from the PSU, so the 40 W PSU would brown out on the first tick.
+    const b = basicBoard({ psu: "psu1" });
     dropCooler(b);
     setClock(b, cpuId(b), 1.5);
     const { trace } = run(b, 200);
@@ -310,6 +311,6 @@ describe("apply", () => {
     expect(applyEngine(b, m, prog)).toBe(true);
     for (let i = 0; i < 20 && !m.engine!.halted; i++) m.engine!.step();
     expect(m.engine!.halted).toBe(true);
-    expect(applyEngine(createBoard(0), m, prog)).toBe(false);
+    expect(applyEngine(createBoard(1), m, prog)).toBe(false);
   });
 });
