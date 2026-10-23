@@ -11,15 +11,16 @@ Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` 
 | cpu | `engine: EngineConfig` | cpu0 unpipelined (1), cpu1 in-order no forwarding (2), cpu2 in-order + forwarding, 16-line cache (3) |
 | ram | `sizeBytes, latency` (RAM ticks per access) | 16K lat 200, 32K lat 12 (2x clock), 64K lat 4 (3x clock) |
 | psu | `watts` | 40 W and 100 W (`atx`), 250 W (`atx-plus`) |
-| cooler | `coolingPerC` (W per degree C, CPU only) | stock 0.35, tower 0.8, liquid 1.8 |
+| cooler | `coolingPerC` (W per degree C, CPU only), `vrmAirPerC` (airflow over the VRM) | stock 0.35 / 0.05, tower 0.8 / 0.25, liquid 1.8 / **0** |
 | display | `writeLatency` | CLI monitor |
+| vrm-sink | `coolingPerC` | vsink0 fins (0.25), vsink1 big fins (0.5), vsink2 fins + fan (1.0, draws 0.3 / 1.5 W). Bolts onto the board VRM, slot `vrm-sink`, see [`VRM.md`](VRM.md) |
 | storage | `capacityBytes, latencyTicks, blockTicks` | hdd0 HDD 96K (SATA, clock 1), ssd1 SATA SSD 64K (SATA, clock 2), nvme2 NVMe SSD 128K (M.2, clock 4). A block device on the bus, see [`OS.md`](OS.md) |
 
-Slot types: `cpu dimm pcie sata m2 usb cooler display atx atx-plus`. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, a second sata, **1 m2**, `atx-plus` instead of `atx`. **`sata` and `m2` are real, typed and installable** (storage drives; slot ids `sata0`, `sata1`, `m20`; a drive's clock domain is named after its slot). SATA power rule: a SATA drive needs a free sata slot and its `loadW` inside the PSU rated load (no connector count); NVMe needs the m2 slot. Tier ladder and the unlock principle: [`TECHTREE.md`](TECHTREE.md). An `atx-plus` slot also accepts plain `atx` PSUs (`slotAccepts`). `upgradeBoard(board, tier)` moves to a bigger tier carrying devices over (see GAME.md purchases).
+Slot types: `cpu dimm pcie sata m2 usb cooler display atx atx-plus vrm-sink`. **Board tiers are a four-step ladder with a VRM each: Starter, Basic, Mainstream, Enthusiast (table, VRM and heatsinks in [`VRM.md`](VRM.md))**. The Starter board has 1 DIMM, 1 SATA, 1 USB, 1 display, ATX power, no PCIe, no M.2, no ethernet; slots a tier lacks are absent from `boardSlots` and from `snapshot.slots` (the renderer draws them unpopulated on one shared layout). `BoardTierSpec` = `{tier, name, price, slots, features: {ethernetMbps, usbPorts, displayPorts}, vrm: VrmSpec, visual}`; `features.ethernetMbps` (0, 100, 100, 1000) is a field only, the network phase will read it. The text below that mentions "tier 0 / tier 1" slot counts is the old two-tier layout: the old tier 0 is now Basic, the old tier 1 Mainstream. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, a second sata, **1 m2**, `atx-plus` instead of `atx`. **`sata` and `m2` are real, typed and installable** (storage drives; slot ids `sata0`, `sata1`, `m20`; a drive's clock domain is named after its slot). SATA power rule: a SATA drive needs a free sata slot and its `loadW` inside the PSU rated load (no connector count); NVMe needs the m2 slot. Tier ladder and the unlock principle: [`TECHTREE.md`](TECHTREE.md). An `atx-plus` slot also accepts plain `atx` PSUs (`slotAccepts`). `upgradeBoard(board, tier)` moves to a bigger tier (or the same tier again while the board is burnt, which clears the flag) carrying devices over (see GAME.md purchases).
 
 ## Board (`board.ts`)
 
-`Board = {tier, nextId, devices: InstalledDevice[]}`, `InstalledDevice = {id, spec, slot, clock?, burnt?}`. Plain data; slots are derived from the tier (`boardSlots`, ids like `dimm0`).
+`Board = {tier, nextId, devices: InstalledDevice[], burnt?}` (`burnt`: the VRM burnt out, the board is dead), `InstalledDevice = {id, spec, slot, clock?, burnt?}`. Plain data; slots are derived from the tier (`boardSlots`, ids like `dimm0`).
 
 - `install(board, specId, slotId?)` returns `{ok:true,id,slot}` or `{ok:false,reason}`: wrong slot type, slot used, no free slot, no such slot, or PSU limits. Auto-picks the first free slot of the right type.
 - PSU rule: a PSU needs a matching connector and `watts >= rated load` (sum of `loadW` at base clocks of all non-PSU parts). With a PSU present, a new part is refused if rated load would exceed it. Overclocking can still exceed the budget at run time (brownout below).
@@ -53,3 +54,9 @@ Cables are board connectors that are either plugged or not: `CableId` = `atx` (2
 The thermal model's `step(board, loads, powered = true)` takes a `powered` flag: false means switched off (nothing draws, parts cool, the trip latch is untouched).
 
 Other changes for the assembly phase: `ram0` latency 100 to 200 (RAM stays a real choice now that jobs boot first), `Display` has `connected` (no monitor: writes go nowhere) and `setText` (the PCH's own POST error text).
+
+## The VRM and the board ladder
+
+The VRM is a per-tier component, simulated inside `ThermalModel.step` (state in `th.vrm`, maths in `vrm.ts`): its conversion loss is added to the PSU draw (`th.power.vrmLossW` is included in `totalW`), a hot VRM multiplies the CPU clock by a factor in [0.8, 1], overload or heat makes `th.vrmErrorRoll()` fire (PRNG only while unstable), and sustained trouble sets `board.burnt` (a dead board: `bootCheck.noPower = "board dead: replace the board"`, nothing draws). Full model, numbers and the plain-words explanation: [`VRM.md`](VRM.md). Snapshot: `snapshot.board` (tier, name, burnt, features, slots, vrm, vrmSink) and `snapshot.power.vrmLossW`.
+
+Heatsink slot `vrm-sink`: one per board on every tier (the Starter board too). Cooler coupling: an air cooler adds `vrmAirPerC` of cooling to the VRM, a liquid cooler adds none. Board tiers carry the VRM's strength (phases x amps: 24, 36, 60, 120 A). Tests: `src/sim/board/vrm.test.ts`.

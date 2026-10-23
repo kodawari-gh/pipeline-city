@@ -54,7 +54,7 @@ Behaviours:
 
 ### Worked numbers (placeholders, see vrm.test.ts)
 
-Stock `cpu1` on Starter: 20 A of 24 A, 0.78 efficiency, VRM about 40 C. `cpu2` (35 W) on Starter: 1.46 of rating, unstable at once (about 14% crash chance per busy tick), heats to throttle after about 100 ticks, equilibrium near 98 C at throttle 0.9, then burns after about 40 more ticks; with a fan heatsink it stays cool and is merely unstable (crashing). The same `cpu2` on Mainstream: 58% of rating, 34 C. Liquid cooling `cpu1` overclocked to 2.1 on Starter: VRM 71 C versus about 45 C with a tower cooler.
+Stock `cpu1` on Starter: 20 A of 24 A, 0.78 efficiency, VRM about 40 C. `cpu2` (35 W) on Starter: 1.46 of rating, unstable at once (about 14% crash chance per busy tick), heats to throttle after about 100 ticks, equilibrium near 98 C at throttle 0.9, then burns after about 40 more ticks; with a fan heatsink it stays cool and is merely unstable (crashing). The same `cpu2` on Mainstream: 58% of rating, 34 C. Liquid cooling `cpu1` overclocked to 2.1 on Starter: VRM 71 C versus a clearly cooler VRM with a tower cooler (it blows air over the VRM).
 
 ### What must not happen
 

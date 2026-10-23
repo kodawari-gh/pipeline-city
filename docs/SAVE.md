@@ -2,17 +2,17 @@
 
 Code: `src/sim/game/save.ts` (format, `parseSave`, `migrate`), `Game.toSave()` / `Game.fromSave(save, economy?)` in `game.ts`, `src/sim/protocol.ts` (messages), `src/sim/host.ts` (pure worker logic), `src/sim/worker.ts` (thin wiring), `src/game/store.ts` (main thread).
 
-## Shape (`SaveV3`, `SAVE_VERSION` = 3)
+## Shape (`SaveV4`, `SAVE_VERSION` = 4)
 
 Plain JSON, config only:
 
-`version` (3), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextKeyId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it and the tray), `lastCompleted`, `board` (`boardToJson`: tier, **installed** devices with spec, slot, clock setting, `burnt`), `inventory` (`[{id, spec}]`: owned, not installed; `spec` is a device id or a board tier id like `board1`), `nextInvId`, `cables` (`{atx, cpu, video}` booleans), `tray` (keys lying in the tray as `{id, template, seed, scale, arrival, deadline}`, oldest first), `plugged` (the key in the USB port, or null: same fields plus `attempts`, `pluggedAt`, `done`, `doneAt`, `result`), `tripped` (PSU hard trip), `progress` (the tutorial milestones, 15 booleans, see ASSEMBLY.md), `os` (v3: `{spec, deviceId}` of the installed OS, or `null`; the drive is the installed storage device with that id). Storage drives are plain `board.devices` entries and `inventory` may hold storage and OS item ids. Keys the OS has ingested and the player unplugged are saved as plain `tray` keys (the kernel's queue is RAM and does not survive).
+`version` (4), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextKeyId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it and the tray), `lastCompleted`, `board` (`boardToJson`: tier, **installed** devices with spec, slot, clock setting, `burnt`, and (v4) the board's own `burnt` flag: a dead VRM), `inventory` (`[{id, spec}]`: owned, not installed; `spec` is a device id or a board tier id like `board1`), `nextInvId`, `cables` (`{atx, cpu, video}` booleans), `tray` (keys lying in the tray as `{id, template, seed, scale, arrival, deadline}`, oldest first), `plugged` (the key in the USB port, or null: same fields plus `attempts`, `pluggedAt`, `done`, `doneAt`, `result`), `tripped` (PSU hard trip), `progress` (the tutorial milestones, 15 booleans, see ASSEMBLY.md), `os` (v3: `{spec, deviceId}` of the installed OS, or `null`; the drive is the installed storage device with that id). Storage drives are plain `board.devices` entries and `inventory` may hold storage and OS item ids. Keys the OS has ingested and the player unplugged are saved as plain `tray` keys (the kernel's queue is RAM and does not survive).
 
 Programs are regenerated from `template + seed + scale` on load. About 1.5 KB.
 
 ## Not preserved
 
-Powered state and phase (the game always loads **powered off**), disk contents and statistics (the boot image is rebuilt from `os` on load; `bytesRead/Written` restart), the kernel's job table, pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures and burn-damage accumulators (temperatures restart at ambient), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). Fast-model calibration cache does not exist yet.
+Powered state and phase (the game always loads **powered off**), disk contents and statistics (the boot image is rebuilt from `os` on load; `bytesRead/Written` restart), the kernel's job table, pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures, the VRM temperature and burn-damage accumulators (temperatures restart at ambient; the board's burnt flag is saved), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). Fast-model calibration cache does not exist yet.
 
 ## Load semantics
 
@@ -28,6 +28,8 @@ There is no offline progress: while the game is closed nothing runs, because wit
 ## Versioning
 
 `parseSave(unknown)` runs `migrate` (chain `MIGRATIONS[n]`: v_n to v_n+1), then validates (types, ranges, known specs and templates, board via `boardFromJson`, cables, progress) and throws `Error("save: ...")` with a specific message. Newer-than-supported and unknown versions are rejected. When the shape changes: bump `SAVE_VERSION`, add the migration, keep an old fixture in the tests (`save.test.ts` has a v1 fixture).
+
+**Migration 3 to 4** (board tier ladder and VRM): the old tier numbering shifts. **Old tier 0 (2 DIMMs, ATX) becomes Basic (tier 1); old tier 1 (the ATX+ board) becomes Mainstream (tier 2)**, so every installed part stays valid (all old slot ids exist on the new tier). Inventory ids shift the same way (`board1` becomes `board2`). Nothing else changes; the board is not burnt. A fresh v4 game starts on the new Starter board (tier 0). Tested in `save.test.ts` (`migration v3 -> v4`).
 
 **Migration 2 to 3**: adds `os: null` and the three new milestones (`storageInstalled`, `osInstalled`, `firstOsJob`) as false. A v2 save has no storage or OS, so it loads powered off and keeps the reboot-per-job flow exactly as before (tested: the migrated game plays identically to the same game re-saved as v3).
 

@@ -33,8 +33,24 @@ Stock heatsink (starter), tower fan, liquid loop: cooler slot and watts. Planned
 ## PSU (built: 3)
 40 W, 100 W (plain ATX), 250 W (needs the ATX+ connector, i.e. the bigger board). Planned: 500 W+ with PCIe power connectors for GPUs, a connector count (SATA, PCIe, 8-pin) instead of watts alone.
 
-## Board (built: 2)
-Mini board (1 SATA, 0 M.2, 2 DIMM), ATX+ board (2 SATA, 1 M.2, 4 DIMM, 2 PCIe, 2 USB, ATX+ power). Planned: a workstation board (more DIMMs, PCIe, M.2, a second CPU socket) and a server board.
+## Board (built: 4)
+| Tier | Board | Slots | Features | VRM | Price |
+|---|---|---|---|---|---|
+| 0 | Starter | 1 DIMM, 1 SATA, 1 USB, 0 PCIe, 0 M.2, ATX | HDMI x1, no ethernet | 2 x 12 A | start board (replacement $40) |
+| 1 | Basic | 2 DIMM, 2 SATA, 2 USB, 1 PCIe, ATX | 100 Mbit ethernet | 3 x 12 A | $150 |
+| 2 | Mainstream | 4 DIMM, 2 SATA, 1 M.2, 3 USB, 2 PCIe, ATX+ | 100 Mbit, 2 display ports | 4 x 15 A | $300 |
+| 3 | Enthusiast | 8 DIMM, 2 SATA, 1 M.2, 4 USB, 4 PCIe, ATX+ | 1 Gbit, 2 display ports | 6 x 20 A | $700 |
+
+You buy the **next tier** (`board1`, `board2`, `board3`), only while the machine is off; installed parts carry over. The requirement that matters: a CPU needs a VRM that can feed it (cpu2 wants Mainstream, a smaller board crashes and eventually burns). Planned: a second CPU socket and a server board. See [`VRM.md`](VRM.md).
+
+## VRM heatsink (built: 3)
+| Tier | Part | Effect | Price |
+|---|---|---|---|
+| 0 | vsink0 passive fins | 0.25 W/C of VRM cooling | $30 |
+| 1 | vsink1 big fins | 0.5 W/C | $70 |
+| 2 | vsink2 fins + small fan | 1.0 W/C, draws up to 1.5 W | $140 |
+
+A `vrm-sink` slot on every board. Matters with a liquid CPU cooler (no airflow over the VRM) and when overclocking.
 
 ## Display (built: 1)
 CLI monitor (text). Planned: a framebuffer/graphics display (needs a GPU on PCIe), bigger resolutions for render jobs.

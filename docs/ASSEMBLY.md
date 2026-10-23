@@ -8,7 +8,7 @@ The game starts with a bare board and a free **starter crate** (an inventory). T
 
 ## Start state (`new Game({seed})`)
 
-- Board tier 0, **empty sockets**, stock heatsink (`cooler0`) already mounted. Decision: the crate holds exactly the four parts, so the passive heatsink ships on the board (the CPU needs it: without a cooler the 10 W starter CPU would run past its unstable temperature).
+- Board tier 0 (**Starter**: 1 DIMM, 1 SATA, 1 USB, 1 display, ATX, a `vrm-sink` slot, no PCIe or M.2), **empty sockets**, stock heatsink (`cooler0`) already mounted. Decision: the crate holds exactly the four parts, so the passive heatsink ships on the board (the CPU needs it: without a cooler the 10 W starter CPU would run past its unstable temperature).
 - Powered off, phase `off`. Money `ECONOMY.startMoney` = $0. No cables connected. No progress flags.
 - **Inventory (the crate)**: `inv1` `cpu0` (unpipelined), `inv2` `psu0` (40 W), `inv3` `ram0` (16K), `inv4` `display0` (CLI monitor).
 - The tray holds one key (a `cli.log` job, the guided first job). Its clock starts at the first real boot, see "Keys".
@@ -20,12 +20,12 @@ All actions return `{ok: true, ...}` or `{ok: false, reason}` with a human-reada
 
 | Call | What it does |
 |---|---|
-| `install(invId, slotId?)` | Put an inventory item into the machine. With `slotId`: a free compatible slot, or an occupied slot of the **same kind** (swap: the old part returns to the inventory, a burnt one is scrapped). Without: the first free compatible slot, else swap with the installed part of that kind. A board item (`board1`) upgrades the board and carries every part and cable over (slot id `"board"`, the old board is not kept). Validates slot type and the PSU rules (connector, watts vs rated load); on a refusal nothing changes. Returns `{deviceId, slot}`. |
+| `install(invId, slotId?)` | Put an inventory item into the machine. With `slotId`: a free compatible slot, or an occupied slot of the **same kind** (swap: the old part returns to the inventory, a burnt one is scrapped). Without: the first free compatible slot, else swap with the installed part of that kind. A board item (`board1`...) upgrades the board (or replaces a burnt one of the same tier) and carries every part and cable over (slot id `"board"`, the old board is not kept). Validates slot type and the PSU rules (connector, watts vs rated load); on a refusal nothing changes. Returns `{deviceId, slot}`. |
 | `uninstall(deviceId)` | Remove an installed part; it goes to the inventory (a burnt part is scrapped). Returns `{invId}`. Unplugs the cables that ran from it. |
 | `connectCable(cable)` / `disconnectCable(cable)` | `cable` is `"atx"` (24-pin, PSU to board), `"cpu"` (8-pin, PSU to the CPU socket) or `"video"` (board display output to the monitor). Connecting needs the source part installed (PSU for atx/cpu, monitor for video). A `"pcie"` cable arrives with GPUs. |
 | `powerButton()` | Off to on or on to off, see "Power and POST". Returns `{powered}`. |
 | `plugKey(keyId)` / `ejectKey()` | See "Keys". `ejectKey` returns `{payout, done}`. |
-| `purchase(specId)` | Buy a catalog item (`cpu1`, `ram1`, `cooler1`, `psu1`, `board1`, ...). Money is spent now and the item goes to the **inventory**; nothing is installed. Returns `{invId}`. Only upgrades over what you own (installed or in the inventory) are offered; the plan must pass the board's rules (cpu2 needs a 100 W PSU somewhere in the plan). |
+| `purchase(specId)` | Buy a catalog item (`cpu1`, `ram1`, `cooler1`, `psu1`, `board1`, ...). Money is spent now and the item goes to the **inventory**; nothing is installed. Returns `{invId}`. A board (`board<tier>`, only the next tier, or the same tier while the board is burnt) can be bought **only while powered off** (reason "powered off required"); `vsink0..2` are the VRM heatsinks. Only upgrades over what you own (installed or in the inventory) are offered; the plan must pass the board's rules (cpu2 needs a 100 W PSU somewhere in the plan). |
 | `setCpuClock(clock)` | Overclock/underclock the installed CPU (allowed while on). |
 | `powerCycle()` | Clear a PSU trip and reboot. |
 | `advanceBaseTick()` | One second of game time. |
@@ -150,3 +150,7 @@ Measured over 30 seeds with a bot that needs 2 s per manual step (`game.test.ts`
 `ToSim` additions (`uninstallOs` came with the OS, see OS.md): `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey`. Each replies with a `snapshot`, preceded by an `error {message}` if it was refused (`"<call>: <reason>"`). `purchase` now means "buy to the inventory". Store functions (`src/game/store.ts`): `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey` (plus the existing `purchase`, `setCpuClock`, `powerCycle`, `setSpeed`, `exportSave`, `importSave`); a refusal lands in the `lastError` signal.
 
 `src/ui/Shop.tsx` has a minimal "Machine" section (power, cables, install and remove buttons, plug/remove key) so the old UI stays playable until the drag-and-drop UI exists.
+
+## Board ladder and the VRM (see [`VRM.md`](VRM.md))
+
+The board has four tiers (Starter, Basic, Mainstream, Enthusiast); `Snapshot.board` holds the tier name, `features`, the slots it has, the `vrm` state and the installed heatsink. The VRM can crash the machine ("VRM voltage droop", same path as a thermal error, logged) and burn out: a burnt board gives phase `error` with reason **"board dead: replace the board"**, the power button refuses, the installed parts stay in their slots, and the fix is buying a board of the same or a higher tier (powered off) and installing it. The tutorial installs one RAM stick, which fits the Starter board's single DIMM slot (tested by the tutorial bot).
