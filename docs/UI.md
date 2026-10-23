@@ -19,7 +19,7 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 |---|---|
 | `logic.ts` (+ `logic.test.ts`) | Pure: formatting, stats helpers, hint triggers, `describeId`, `statusChip` (HUD phase text), `queueReadout`, `friendlyError` (refusal wording), `clockWarning`. |
 | `picker.ts` (+ `picker.test.ts`) | Pure: `pickerFor(id, snapshot)` builds the card model (title, lines, actions, the upgrade **ladder**, the `current` and `focus` parts). Also `statsOf` (numeric stats per part), `goodness` and `compareRows` (before/after bars), `clockZones` / `estTempC` / `zoneOf` (overclock zones). |
-| `tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (welcome card, 12 steps, last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
+| `tutorial.ts` (+ `tutorial.test.ts`) | Pure: the tutorial steps (welcome card, 13 steps before the OS lesson, last card), `currentStep` derived from snapshot progress flags, step problems, replay baseline. `INVENTORY_ID` is the HUD button's id. |
 | `regions.ts` | Plain + nerd text for region ids, world ids and die stages. `JOB_TYPES` for key jobs. |
 | `state.ts` | UI signals: theme, stats drawer, the inventory tray, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
 | `testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
@@ -79,37 +79,38 @@ Buttons that the sim would refuse are disabled, with the reason in their tooltip
 
 ## Tutorial (`tutorial.ts`, `TutorialCard.tsx`)
 
-The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/save.ts`), so a loaded save resumes at the right step, and an action done out of order is simply skipped past when its flag is already set. Nothing advances on a Next button: only **Start** (welcome) and **Got it** (last card) have buttons. Skip is always available; **Replay tutorial** is in the menu. The flags are the same as before; the crate is gone from the steps.
+The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/save.ts`), so a loaded save resumes at the right step, and an action done out of order is simply skipped past when its flag is already set. Nothing advances on a Next button: only **Start** (welcome) and **Got it** (last card) have buttons. Skip is always available; **Replay tutorial** is in the menu. The cooler step refuses clearly: dragging it before the CPU shows the sim's reason (`install the CPU first: the cooler mounts on it`), and pressing power without it leaves the cooler step active with the PCH reason (`no CPU cooler installed`). The picker and tooltip call the slot a `cooler mount: mounts on the CPU`. Test fixtures (`testdata.ts`): the bare board has no cooler device and the crate has `inv5` the stock cooler (not installable until a CPU is in).
 
 | # | Step | Flag that completes it | Highlight |
 |---|---|---|---|
 | - | Welcome (Start): open the inventory | none (button) | `inventory` (the HUD button) |
 | 1 | Install the processor | `cpuInstalled` | `inv:<cpu>`, `cpu0` |
-| 2 | Install the memory | `ramInstalled` | `inv:<ram>`, `dimm0`, `dimm1` |
-| 3 | Install the power supply | `psuInstalled` | `inv:<psu>`, `atx0` |
-| 4 | Install the monitor | `monitorInstalled` | `inv:<display>`, `display0` |
-| 5 | Connect the main power cable | `atxConnected` | `cable.atx`, `psu` |
-| 6 | Connect the processor power cable | `cpuPowerConnected` | `cable.cpu`, `psu` |
-| 7 | Connect the video cable | `videoConnected` | `cable.video`, `monitor` |
-| 8 | Press the power button | `poweredOn` (a real boot started) | `power` |
-| 9 | Plug in a client key | `firstKeyPlugged` | `usb`, `key:<first in tray>` |
-| 10 | Watch it work | `firstJobDone` | `monitor` |
-| 11 | Remove the key (paid on removal) | `firstKeyEjected` | `usb` |
-| 12 | Spend your first money | `firstPurchase` | the CPU's slot, or `inventory` |
-| 13 | Fit your new part | no bought upgrade still in the inventory (`pendingUpgrade`: a higher tier than the best installed of its kind; a swap counts) | `inv:` item and its socket (free or swap) |
-| 14 | Buy a drive | live: a storage item owned or installed | `bay` |
-| 15 | Install the drive | `storageInstalled` | `inv:` storage item and its `sata`/`m2` slot |
-| 16 | Buy an operating system | live: an OS owned or installed | `bay` (the systems are listed on the bay's shelf) |
-| 17 | Install the OS on the drive | `osInstalled` | `inv:` OS item and the drive's slot |
-| 18 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `monitor` (boot text), `os` (the badge) |
-| 19 | Plug in a key: the OS takes it | live: `held` non-empty, or the plugged key is `queued`, `running`, `result`, `flashing` or `done` | `usb`, `key:` |
-| 20 | Unplug it: the OS keeps the job | live: `held` non-empty, or the plugged key is `result`, `flashing` or `done` | `usb`, `key:` |
-| 21 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `os` (the badge), `held` |
-| 22 | Plug the key back in to collect | live: the plugged key is `flashing` or `done` | `usb`, `key:` |
-| 23 | Remove the key to get paid | `firstOsJob` | `usb`, `key:` |
+| 2 | Install the cooler: the fan sits on the CPU to carry heat away and spins only while powered | `coolerInstalled` | `inventory`, `inv:<cooler>`, `cooler0` |
+| 3 | Install the memory | `ramInstalled` | `inv:<ram>`, `dimm0`, `dimm1` |
+| 4 | Install the power supply | `psuInstalled` | `inv:<psu>`, `atx0` |
+| 5 | Install the monitor | `monitorInstalled` | `inv:<display>`, `display0` |
+| 6 | Connect the main power cable | `atxConnected` | `cable.atx`, `psu` |
+| 7 | Connect the processor power cable | `cpuPowerConnected` | `cable.cpu`, `psu` |
+| 8 | Connect the video cable | `videoConnected` | `cable.video`, `monitor` |
+| 9 | Press the power button | `poweredOn` (a real boot started) | `power` |
+| 10 | Plug in a client key | `firstKeyPlugged` | `usb`, `key:<first in tray>` |
+| 11 | Watch it work | `firstJobDone` | `monitor` |
+| 12 | Remove the key (paid on removal) | `firstKeyEjected` | `usb` |
+| 13 | Spend your first money | `firstPurchase` | the CPU's slot, or `inventory` |
+| 14 | Fit your new part | no bought upgrade still in the inventory (`pendingUpgrade`: a higher tier than the best installed of its kind; a swap counts) | `inv:` item and its socket (free or swap) |
+| 15 | Buy a drive | live: a storage item owned or installed | `bay` |
+| 16 | Install the drive | `storageInstalled` | `inv:` storage item and its `sata`/`m2` slot |
+| 17 | Buy an operating system | live: an OS owned or installed | `bay` (the systems are listed on the bay's shelf) |
+| 18 | Install the OS on the drive | `osInstalled` | `inv:` OS item and the drive's slot |
+| 19 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `monitor` (boot text), `os` (the badge) |
+| 20 | Plug in a key: the OS takes it | live: `held` non-empty, or the plugged key is `queued`, `running`, `result`, `flashing` or `done` | `usb`, `key:` |
+| 21 | Unplug it: the OS keeps the job | live: `held` non-empty, or the plugged key is `result`, `flashing` or `done` | `usb`, `key:` |
+| 22 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `os` (the badge), `held` |
+| 23 | Plug the key back in to collect | live: the plugged key is `flashing` or `done` | `usb`, `key:` |
+| 24 | Remove the key to get paid | `firstOsJob` | `usb`, `key:` |
 | - | Workshop open (Got it): the OS runs jobs; a network card and a router will replace the USB keys | none (button) | none |
 
-Steps 13 to 23 are the storage and OS lesson. A player who finished the first twelve steps (or a migrated save with those flags) is **not** forced through them: the card becomes one offer, **Next lesson: the OS** (Start the lesson, or Not now, which never comes back). Taking it sets `osLesson` and starts at the drive. `osLesson` and `offered` are persisted next to the old flags.
+Steps 14 to 24 are the storage and OS lesson. A player who finished the first thirteen (the first twelve in the old numbering; `OLD_FLAGS` deliberately excludes `coolerInstalled`, which loading derives) (or a migrated save with those flags) is **not** forced through them: the card becomes one offer, **Next lesson: the OS** (Start the lesson, or Not now, which never comes back). Taking it sets `osLesson` and starts at the drive. `osLesson` and `offered` are persisted next to the old flags.
 
 **Live steps** have no flag: `isDone(step, snapshot, progress)` reads the sim's own state (owned items, the phase, `KeySnap.stage`, `held[]`). Nothing completes a step with a Next button. The bot test (`tutorial.bot.test.ts`) plays the whole lesson through public Game actions, in order, with each step under 600 s of game time, and checks that no action is refused. It serves the queue (plug, eject, power on) until the OS is installed, because the first purchase needs money.
 

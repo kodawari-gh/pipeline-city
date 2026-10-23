@@ -21,7 +21,7 @@ Public fields for tests/tools: `money`, `baseTick`, `completed`, `errors`, `drop
 
 Per `advanceBaseTick`: key arrivals (two PRNG draws per tick) -> `machine.advanceBaseTick()` if powered and not halted (the ROM and the plugged key's job run on the CPU engine; the PCH registers drive the phase) -> `thermal.step` (powered or not) -> thermal error roll while the CPU is busy -> `syncRates`. Everything random comes from the machine PRNG, so a seed plus a player script is fully reproducible (`src/sim/game/operator.ts` is such a script).
 
-Starting machine: see ASSEMBLY.md (bare board and crate). With `preassembled: true`: board tier 0 with `cpu0` (unpipelined), `ram0` (16K), `display0`, `cooler0` (stock), `psu0` (40 W), cables connected, powered on. The Machine's RAM is allocated at 64K regardless of the installed DIMM (RAM size is fixed at Machine construction); the installed RAM changes the size the PCH reports, the cache miss penalty (several sticks run at the slowest one) and which jobs arrive (`mix.minRamBytes`, an optional unlock; the starting mix has none).
+Starting machine: see ASSEMBLY.md (bare board and crate; the stock cooler is in the crate and mounts on the CPU). With `preassembled: true`: board tier 0 with `cpu0` (unpipelined), `ram0` (16K), `display0`, `cooler0` (stock), `psu0` (40 W), cables connected, powered on. The Machine's RAM is allocated at 64K regardless of the installed DIMM (RAM size is fixed at Machine construction); the installed RAM changes the size the PCH reports, the cache miss penalty (several sticks run at the slowest one) and which jobs arrive (`mix.minRamBytes`, an optional unlock; the starting mix has none).
 
 ## Jobs
 

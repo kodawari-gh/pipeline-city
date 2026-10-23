@@ -83,7 +83,7 @@ Buying: `board<N>` is offered for the next tier, and for the same tier when the 
 | vsink1 | Big fins | 0.5 | 0 / 0 | $70 |
 | vsink2 | Fins and small fan | 1.0 | 0.3 / 1.5 (follows CPU load) | $140 |
 
-Coupling to the CPU cooler (`CoolerSpec.vrmAirPerC`): stock heatsink 0.05, tower fan 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
+Coupling to the CPU cooler (it now mounts on the installed CPU, so with no CPU or cooler the VRM gets no airflow; `CoolerSpec.vrmAirPerC`): stock heatsink 0.05, tower fan 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
 
 ## Snapshot (`snapshot.board`)
 

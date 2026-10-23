@@ -8,9 +8,10 @@ The game starts with a bare board and a free **starter crate** (an inventory). T
 
 ## Start state (`new Game({seed})`)
 
-- Board tier 0 (**Starter**: 1 DIMM, 1 SATA, 1 USB, 1 display, ATX, a `vrm-sink` slot, no PCIe or M.2), **empty sockets**, stock heatsink (`cooler0`) already mounted. Decision: the crate holds exactly the four parts, so the passive heatsink ships on the board (the CPU needs it: without a cooler the 10 W starter CPU would run past its unstable temperature).
+- Board tier 0 (**Starter**: 1 DIMM, 1 SATA, 1 USB, 1 display, ATX, a `vrm-sink` slot, no PCIe or M.2), **empty sockets**, nothing mounted. The stock cooler (`cooler0`) is in the crate: a cooler mounts on the CPU, so it is a real install step.
 - Powered off, phase `off`. Money `ECONOMY.startMoney` = $0. No cables connected. No progress flags.
-- **Inventory (the crate)**: `inv1` `cpu0` (unpipelined), `inv2` `psu0` (40 W), `inv3` `ram0` (16K), `inv4` `display0` (CLI monitor).
+- **Inventory (the crate)**: `inv1` `cpu0` (unpipelined), `inv2` `psu0` (40 W), `inv3` `ram0` (16K), `inv4` `display0` (CLI monitor), `inv5` `cooler0` (stock heatsink and fan; last, so the older ids did not shift).
+- **Cooler rules**: `install` of a cooler is refused with `install the CPU first: the cooler mounts on it` while no CPU is installed (the inventory item shows that reason). `uninstall` of the last CPU also takes the mounted cooler back to the inventory (a second inventory item, noted in the log). Swapping the CPU for another keeps the cooler mounted. A better cooler goes through the normal swap and the old one returns to the inventory. Power-on without a working cooler is a POST error (like a missing CPU): phase `error`, `phaseReason` / `postBlocker` `no CPU cooler installed: it mounts on the CPU`, the monitor shows `NO CPU COOLER` and the machine stays halted until powered off and fixed. `new Game({preassembled: true})` is still fully assembled, cooler included.
 - The tray holds one key (a `cli.log` job, the guided first job). Its clock starts at the first real boot, see "Keys".
 - `new Game({seed, preassembled: true})` is the dev/test shortcut: everything installed, all cables connected, all milestones reached, power already on, the same single starter key in the tray. `src/sim/game/operator.ts` has a bot (`Operator`, `play`) that drives the machine like a patient player; the economy and trade-off tests use it.
 
@@ -139,7 +140,7 @@ KeySnap = { id, template, type, jobNo, label, arrivalTick, deadlineTick, age, la
 
 `snapshot.progress`, persistent (saved), sticky once true, set only by real successful events:
 
-`cpuInstalled`, `psuInstalled`, `ramInstalled`, `monitorInstalled`, `storageInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstPurchase` (a purchase succeeded), `osInstalled` (an OS was installed on a drive), `firstOsJob` (a job ingested by the OS was delivered). The last three were added in save v3 and stay false for migrated and preassembled games. The guided tutorial gates on these; `completed` is the job count.
+`cpuInstalled`, `coolerInstalled` (a cooler was mounted; derived from the board when loading a save that lacks it), `psuInstalled`, `ramInstalled`, `monitorInstalled`, `storageInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstPurchase` (a purchase succeeded), `osInstalled` (an OS was installed on a drive), `firstOsJob` (a job ingested by the OS was delivered). The last three were added in save v3 and stay false for migrated and preassembled games. The guided tutorial gates on these; `completed` is the job count.
 
 ## Pacing (starting machine, 1x)
 
