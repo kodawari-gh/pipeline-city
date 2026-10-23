@@ -7,13 +7,15 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | File | Role |
 |---|---|
 | `board.ts` | scene graph, scene rebuild, LOD by zoom, hit-testing, snapshot effect, frame loop |
-| `camera.ts` | pan / zoom / pinch (pointer events), tweened flights, `F` and `B` keys |
+| `camera.ts` | pan / zoom / pinch (pointer events), tweened flights, `F` and `B` keys, the `onGrab` hook that lets a drag take over from panning |
 | `theme.ts` | theme tokens (below) |
 | `layout.ts` | world coordinates (board, DIMMs, PSU, monitor, die floorplan), seeded PRNG, hover regions |
 | `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees), every board bus, power conductors, the PSU and video cables with their plugs |
 | `boardArt.ts` | static motherboard (plate, dim bus traces, VRMs, connectors, rear I/O, sockets, a little quiet decoration) |
 | `devices.ts` | static art of installed devices: CPU package + die floorplan, DIMM, cooler, PSU shroud, monitor, sleeved cables and plugs |
-| `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text, heat glow, fans, DRAM flashes |
+| `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text and NO SIGNAL, heat glow, fans, DRAM flashes, boot visuals (PCH glow, USB LED, boot bar) |
+| `props.ts` | world props: parts crate with item icons, USB key tray, key stick, power button and its lights |
+| `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
 | `pipeline.ts` | zoomed-in CPU chips and stage highlights |
 | `ink.ts` | small Graphics / Text helpers |
 
@@ -22,10 +24,11 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 ```
  monitor ---- video cable ---- [ motherboard ] | cable gutter
  (16:9, stand)   (HDMI)        rear I/O west   |  PSU cables rise to the east-edge connectors
+ key tray, crate, power plate below the monitor
                               [ PSU shroud, full width, readout panel, output sockets ]
 ```
 
-The CPU socket is the origin. Board `x -3400..3400, y -2500..2500`; PSU below it (`y 2750..3850`, wider than the board by the cable gutter); monitor to the west (`x -7500..-4200`, screen 3120x1755 world units, readable at overview zoom). `WORLD` in `layout.ts` is the rectangle the camera fits. On the board: rear I/O on the west edge (HDMI at the height of the video cable), chipset between I/O and CPU, VRM row north of the CPU, DIMMs and M.2 east, PCIe slots south, power connectors on the east edge.
+The CPU socket is the origin. West and south of the board: the **key tray** (under the monitor stand), the **crate** (below the tray) and the **power plate** (between the crate and the board's rear I/O). Board `x -3400..3400, y -2500..2500`; PSU below it (`y 2750..3850`, wider than the board by the cable gutter); monitor to the west (`x -7500..-4200`, screen 3120x1755 world units, readable at overview zoom). `WORLD` in `layout.ts` is the rectangle the camera fits. On the board: rear I/O on the west edge (HDMI at the height of the video cable), chipset between I/O and CPU, VRM row north of the CPU, DIMMs and M.2 east, PCIe slots south, power connectors on the east edge.
 
 ## Layers (bottom to top)
 
@@ -57,6 +60,8 @@ Working parts (CPU, DIMMs, cooler, PSU, monitor, the cables) use the full theme 
 | `pwrcpu` | CPU 8-pin along the top into the VRM row | CPU current |
 | `pwr5` | ATX 24-pin down the east side to the DRAM VRM | RAM current |
 | `vcore` | VRM row straight down to the package | CPU current |
+
+Cables have three states (`syncCables` in `board.ts`, a layer of its own so plugging never rebuilds the baked scene): **connected** (routed, as below), **loose** (`looseCable` in `routes.ts`: a short stub from the PSU socket / monitor port ending in a plug that lies at rest, the PSU plugs in the gutter east of the board, the HDMI plug just outside the rear I/O; no routed cable, no glow) and **held** (in the player's hand: `interact.ts` draws a rubber-band cable from the fixed end to the pointer). The source part must be installed for the cable to exist at all.
 
 PSU cables (`buildCables`): sleeved, braided look, rounded corners, plug at both ends. They leave the PSU's top-edge sockets, rise through the cable gutter east of the board and turn west into plugs that sit on the board connectors. The cable that turns lowest is innermost, so no cable crosses another. ATX 24-pin and CPU 8-pin exist whenever a PSU is installed; the PCIe 6-pin only when a device occupies a `pcie*` slot (none exists today). The HDMI cable (straight, thick, plugs on both ends) goes from the rear I/O HDMI port to the monitor's side port and exists only with a display installed.
 
@@ -105,22 +110,73 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 
 `hover` is `{id, x, y}` (client pixels) or null, written on pointer move (mouse only; hidden while dragging). `selected` is the id of the clicked thing or null (click on nothing). Hit order, first match wins:
 
-0. Cables and the PSU readout (new, checked first): `cable.atx cable.cpu cable.pcie cable.video` (sleeve and both plugs) and `psu.readout`.
-1. Die tiles when zoom >= 0.45: `cpu.IF cpu.ID cpu.EX cpu.MEM cpu.WB cpu.IC cpu.BP cpu.CLK cpu.DC cpu.RF cpu.UNCORE cpu.MC cpu.IO cpu.L2`
-2. Cooler spec id (zoom < 0.45), CPU package spec id, RAM spec id (per stick), PSU spec id, display spec id. Installed devices use the **spec id**, so two identical DIMMs share an id.
-3. Empty slots by **slot id**: `dimm1`, `cpu0`, `cooler0`, `display0`, `atx0`, `pcie0`...
-4. Decor regions: `vrm` (core VRM row), `vrm2` (DRAM VRM), `pcie chipset io atx cpw m2 sata bat audio hex qr`.
+0. **Props** (new): `power`, the plugged key, tray keys (`key:<keyId>`), crate parts (`inv:<inventoryId>`), then `usb`, `crate`, `tray`.
+1. Cables and the PSU readout: `cable.atx cable.cpu cable.pcie cable.video` (sleeve, loose stub or plug) and `psu.readout`.
+2. Die tiles when zoom >= 0.45: `cpu.IF cpu.ID cpu.EX cpu.MEM cpu.WB cpu.IC cpu.BP cpu.CLK cpu.DC cpu.RF cpu.UNCORE cpu.MC cpu.IO cpu.L2`
+3. Installed parts: the **device instance id** from the snapshot (`dev1`...) for the CPU, each DIMM and the cooler (the cooler wins below zoom 0.45); `psu` for the PSU body and `monitor` for the monitor. For `hover` only, those two are written as the device id so the existing tooltips keep working; `selected` gets `psu` / `monitor`.
+4. Empty slots by **slot id**: `cpu0 dimm0..3 cooler0 display0 atx0 atx-plus0 pcie0 pcie1`.
+5. `chipset` (the PCH), then decor regions: `vrm vrm2 pcie io atx cpw m2 sata bat audio hex qr`.
 
-The PSU face, fan, label and sockets hit as the PSU spec id; the whole monitor (bezel, screen, stand) hits as the display spec id. Ids the UI does not know yet (`describeId` in `src/ui/logic.ts` returns null, so no tooltip): `cable.atx cable.cpu cable.pcie cable.video psu.readout` and all the region ids above (`board` is the only region it describes today).
+**Full id list** (everything the renderer writes to `selected` / `hover`, and everything `highlight`, `flyTo` and `hasTarget` accept):
+
+| id | what |
+|---|---|
+| slot ids (`cpu0`, `dimm0`..., `cooler0`, `display0`, `atx0`, `pcie0`) | the socket / bay, filled or empty |
+| device ids (`dev1`...) | an installed CPU, DIMM or cooler |
+| `psu`, `monitor` | the installed (or empty) PSU and monitor |
+| `psu.readout` | the PSU's live panel |
+| `inv:<inventoryId>` | a part in the crate |
+| `crate` | the crate itself |
+| `tray` | the key tray |
+| `key:<keyId>` | a key in the tray or in the USB port |
+| `usb` | the USB port on the rear I/O |
+| `power` | the power button |
+| `chipset` | the PCH |
+| `board` | the whole motherboard (a highlight / flyTo target only; not clickable) |
+| `cable.atx`, `cable.cpu`, `cable.video` (`cable.pcie` is plumbed, never drawn) | a cable: the plug is what is grabbed; as a highlight target it rings the plug and, while loose, also the matching board socket |
+
+Click behaviour on top of writing `selected`: `power` calls `powerButton()` (and shows `noPowerReason` as a message when it would do nothing); `key:<id>` in the tray calls `plugKey`, the plugged key calls `ejectKey` (not while loading, running or writing: a message explains). A refused sim action (`lastError`) is shown as a short message at the point where the player acted.
+
+## Interaction (hover, drag and drop)
+
+Input is pointer events only (mouse, touch, pen). `camera.onGrab` decides at pointer down whether the gesture is a drag of something (crate part, cable plug, key) or a pan; dragging empty space pans, and a second finger cancels a drag and starts a pinch. A press that moves less than 6 px is a click.
+
+- **Hover affordance** (`interact.ts`): every interactive id (everything in the table above except decor regions, die tiles and `board`) eases a lift and 7 percent scale on movable props (crate parts, keys, the power button) and an accent outline glow on everything, with a `pointer` cursor, or `grab` on draggables (`grabbing` while dragging). Installed parts and sockets are baked into textures, so they get the outline only. Decor never animates.
+- **Parts**: dragging from the crate shows a ghost (steady on-screen size) and dims the crate item. Valid targets (`inventory[].freeSlots` green, `swapSlots` amber, `["board"]` for a board upgrade) pulse; every other socket is dimmed; over a valid socket the ghost settles on it. Drop on a valid socket calls `install(invId, slotId)` (the ghost fades into it); anywhere else it flies back. A refused drop shows the reason next to the pointer (`inventory[].reason`, "Power the machine off first" while powered, or "<part> does not fit the <type> socket"). While powered the whole drag shows the reason beside the ghost and the sockets are only lightly dimmed.
+- **Cables**: the plug rests loose beside its source. Dragging it stretches a sagging cable from the fixed end (PSU socket / monitor port) to the pointer; the matching board socket pulses; within reach the plug snaps into the socket pose. Drop there: `connectCable(kind)`, and the routed cable appears when the snapshot confirms (the state is optimistic for up to 1.5 s). Elsewhere it falls back to its rest spot. Dragging a connected plug away calls `disconnectCable(kind)` immediately and the plug is in hand. Powered machine: a message, no drag. Dropping next to the wrong socket says so.
+- **Keys**: drag a key from the tray to the USB port (`plugKey`; the port pulses green, or red with a message when a key is already in), or click it. The plugged key is clicked or dragged away from the port to eject (`ejectKey`, payout); while loading, running or writing it refuses with a message. While the machine waits for the key to be removed (`done-remove-key`) a green ring pulses around it.
+- **Power**: click calls `powerButton()`. Its lights show on (green), off (amber) and error (red, blinking; also a PSU trip).
+
+`dragging` (`src/game/interaction.ts`) is `{kind: 'part' | 'cable' | 'key', id}` during a drag and null otherwise.
+
+## Tutorial support
+
+The UI writes `highlight` (`src/game/interaction.ts`, an array of ids from the table above). Each resolvable id gets a pulsing amber double ring and a bobbing arrow above it, sized to stay readable at any zoom. When the target is off-screen (outside the free area, see `viewInset`) a round edge indicator with an arrow sits on the border of the free area pointing at it; clicking it flies there. Ids that do not exist right now (an `inv:` part already installed, `cable.atx` before a PSU exists) are skipped silently.
+
+Exports of `board.ts`:
+
+- `flyTo(id): boolean` flies the camera to any id in the table (some context around it, zoom capped at 0.3); returns false for an unknown id. Also `window.__board.flyTo` in dev.
+- `hasTarget(id): boolean`: whether the id exists in the world right now.
+- `flyToCpu()`, `flyToBoard()` as before.
+
+In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard, flyTo, interact, scene}` is exposed; `scene.rects` maps every id to its world rect and `interact.rectsFor(id)` returns the rects a highlight would ring (the screenshot scripts use it to drive real mouse events).
+
+## Boot visuals
+
+- **PCH** (`chipset`): when powered and posting, loading or writing it gets a violet outline glow and a row of animated activity bars; calm in every other phase.
+- **Buses carry the data** (existing lanes only; a bus lights only while its phase moves data and fades about 1.7 s after): posting lights DMI; loading runs USB port to PCH, PCH to CPU (DMI) and CPU to RAM (memory bus); writing runs RAM to CPU, CPU to PCH and PCH to the USB port. The video bus and cable still light when the monitor text changes (and only when `monitorLive`).
+- **USB port LED**: dark with no key, steady green with a key in, blinking amber while loading or writing.
+- **Monitor**: shows `snapshot.display` when `monitorLive`; **NO SIGNAL** when a monitor is installed but not live (no video cable); a blank screen when live and the machine is off. Its power LED is green when live and powered, amber when live and off. A thin green bar under the picture follows `bootProgress` during `posting` and `loading`.
 
 ## Performance
 
-Static layers are cached: retained geometry, the board texture below zoom 0.2 and the device layer texture (devices, PSU, monitor, cables) below zoom 0.14. Textures are destroyed on rebuild. Per frame JS is the fan rotation, the pooled dot sprites (only lit buses and cables show pulses) and one DRAM flash Graphics only while the memory bus is lit. Per snapshot: a few Graphics (heat glow, PSU gauge) and a handful of Text updates (only when the string changed). Measured in headless Chrome with software GL (SwiftShader, 1360x800, GPU-bound and pessimistic), full machine installed: page baseline about 16 ms/frame, overview 19-23 ms (44 ms before the device bake: the device layer alone cost 28 ms), PSU mid-zoom 33 ms, DIMM mid-zoom (zoom 0.35) 62 ms, CPU die 56 ms. Real GPU numbers were not measured.
+Static layers are cached (the crate / tray / power plate chrome is one texture below zoom 0.2, each prop node is cached as a texture below zoom 0.2, the cables are their own small layer): retained geometry, the board texture below zoom 0.2 and the device layer texture (devices, PSU, monitor, cables) below zoom 0.14. Textures are destroyed on rebuild. Per frame JS is the fan rotation, the pooled dot sprites (only lit buses and cables show pulses) and one DRAM flash Graphics only while the memory bus is lit. Per snapshot: a few Graphics (heat glow, PSU gauge) and a handful of Text updates (only when the string changed). Measured in headless Chrome with software GL (SwiftShader, 1360x800, GPU-bound and pessimistic), full machine installed: page baseline about 16 ms/frame, overview 19-23 ms (44 ms before the device bake: the device layer alone cost 28 ms), PSU mid-zoom 33 ms, DIMM mid-zoom (zoom 0.35) 62 ms, CPU die 56 ms. Real GPU numbers were not measured. With the assembly props (same setup): bare or assembled overview about 20 ms/frame (mostly 16.7 ms with an occasional 33 ms), dragging a key about 20-33 ms, boot with the PCH and buses lit about 21 ms at overview and about 56 ms at zoom 0.22 (GPU-bound, like the DIMM mid-zoom number above). Before baking the props the overview was 32 ms.
 
 ## Known gaps
 
 - Text is rasterised at 2x once; at zoom above about 2 it softens (no SDF/bitmap font yet).
 - The liquid cooler's tubes end in fittings (no radiator art). No GPU, NVMe, SATA or USB devices exist in the sim, so those buses never light (the PCIe cable is plumbed but never drawn).
 - PSU temperature and fan rpm are renderer estimates from load (see above).
+- Touch drags were verified with synthesized touch events (CDP), not on a device; there is no hover on touch. Installed parts cannot be dragged back out to the crate (the UI picker uninstalls). Loose cable plugs and tray keys are small at overview zoom (use the tutorial rings, `flyTo` or zoom).
 - Bus lanes are 9-11 world units wide, about a pixel at overview zoom; the pulses carry the activity there.
 - Chips are single-width; superscalar and out-of-order engines will need a wider stage layout and a bigger `pipe`.
