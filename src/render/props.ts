@@ -116,8 +116,6 @@ export function crateArt(T: Theme, items: InventorySnap[]): PropsArt {
   // interior (looking down into the open crate), slats on the walls
   const inner = { x: r.x + 90, y: r.y + 150, w: r.w - 180, h: r.h - 250 };
   box(g, inner.x, inner.y, inner.w, inner.h, 24, { fill: woodDark, fa: 0.8, stroke: T.ld, lw: 5, sa: 0.5 });
-  for (let x = r.x + 160; x < r.x + r.w - 100; x += 300) g.moveTo(x, r.y + 24).lineTo(x, r.y + 130);
-  g.stroke({ width: 9, color: woodDark, alpha: 0.9 });
   for (let x = r.x + 160; x < r.x + r.w - 100; x += 300) g.moveTo(x, r.y + r.h - 90).lineTo(x, r.y + r.h - 18);
   g.stroke({ width: 9, color: woodDark, alpha: 0.9 });
   root.addChild(label('STARTER CRATE', r.x + 100, r.y + 78, 84, T.ld, { head: true }));
@@ -175,15 +173,15 @@ export function keyStick(T: Theme, k: KeySnap): Container {
   g.rect(128, -22, 28, 44).fill({ color: '#3a4254' });
   g.rect(180, -22, 28, 44).fill({ color: '#3a4254' });
   g.circle(-250 + 4, 0, 0);
-  c.addChild(label(k.label, -176, 0, 62, T.ink, { head: true, anchor: [0.5, 0.5] }));
-  if (k.done) c.addChild(label('DONE', -176, 62, 34, col, { anchor: [0.5, 0.5], weight: '700' }));
+  c.addChild(label(k.label, -78, k.done ? -22 : 0, 60, T.ink, { head: true, anchor: [0.5, 0.5] }));
+  if (k.done) c.addChild(label('DONE', -78, 52, 38, col, { anchor: [0.5, 0.5], weight: '700' }));
   return c;
 }
 
 export const trayKeyCentre = (i: number) => {
   const pitch = (TRAY.w - 240) / TRAY_COLS;
   const col = i % TRAY_COLS, row = Math.floor(i / TRAY_COLS);
-  return { x: TRAY.x + 120 + KEY_LEN / 2 + col * pitch, y: TRAY.y + 270 + row * 290 };
+  return { x: TRAY.x + 120 + KEY_LEN / 2 + col * pitch, y: TRAY.y + 255 + row * 270 };
 };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */

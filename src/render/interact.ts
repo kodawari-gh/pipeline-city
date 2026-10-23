@@ -81,10 +81,11 @@ export class Interact {
   private actionAt: { x: number; y: number; t: number } = { x: 0, y: 0, t: -1e9 };
   private edge: { id: string; x: number; y: number }[] = [];
   private noteText: Text;
+  private noteBg = new Graphics();
 
   constructor(private camera: Camera, private canvas: HTMLCanvasElement, private flyToRects: (rs: Rect[]) => void) {
     this.fx.addChild(this.g, this.ghost);
-    this.hud.addChild(this.hg, this.notes);
+    this.hud.addChild(this.hg, this.notes, this.noteBg);
     this.noteText = new Text({ text: '', style: { fontFamily: MONO, fontSize: 13, fontWeight: '700', fill: '#ffffff', wordWrap: true, wordWrapWidth: 260 }, resolution: 2 });
     this.noteText.visible = false;
     this.hud.addChild(this.noteText);
@@ -436,6 +437,7 @@ export class Interact {
     // ---- drag visuals ----
     const d = this.drag;
     this.noteText.visible = false;
+    this.noteBg.clear();
     if (d && s) this.drawDrag(d, now, lw, s);
 
     // ---- return / fade animations ----
@@ -445,6 +447,16 @@ export class Interact {
       if (b.to === 'return') { b.c.position.set(b.fx + (b.tx - b.fx) * e, b.fy + (b.ty - b.fy) * e); b.c.alpha = 1 - t * t; }
       else { b.c.position.set(b.fx + (b.tx - b.fx) * e, b.fy + (b.ty - b.fy) * e); b.c.alpha = 1 - t; b.c.scale.set(b.c.scale.x * (1 - 0.04)); }
       if (t >= 1) { b.c.destroy({ children: true }); this.back.splice(i, 1); }
+    }
+
+    // ---- the machine is waiting for the player to pull the key ----
+    if (s?.phase === 'done-remove-key' && s.plugged && !d) {
+      const o = this.scene.props.get('key:' + s.plugged.id);
+      if (o) {
+        const beat = 0.5 + 0.5 * Math.sin(now * 0.006), r = o.rect, e = 16 + 14 * beat;
+        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 50, { stroke: T.st, lw: lw * 1.8, sa: 0.5 + 0.5 * beat });
+        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 50, { fill: T.st, fa: 0.08 * beat });
+      }
     }
 
     // ---- tutorial highlights ----
@@ -543,7 +555,7 @@ export class Interact {
       this.ghost.scale.set(1);
       if (!d.snapped) this.note('Drag the plug to the glowing socket', d.cx, d.cy, T.mute);
     }
-    this.noteText.visible = this.noteText.text !== '';
+    this.noteText.visible = this.noteText.text !== '' && !!d;
   }
 
   /** A one-line hint following the pointer while dragging (screen space). */
@@ -553,8 +565,10 @@ export class Interact {
     if (t.text !== text) t.text = text;
     t.style.fill = color === this.T.mute ? (this.T.dark ? '#cfd8f5' : '#26324f') : color;
     t.anchor.set(0, 0);
-    t.position.set(clamp(sx + 24, 6, Math.max(6, this.camera.w - t.width - 8)), clamp(sy + 26, 6, Math.max(6, this.camera.h - t.height - 8)));
+    t.position.set(clamp(sx + 24, 14, Math.max(14, this.camera.w - t.width - 14)), clamp(sy + 28, 12, Math.max(12, this.camera.h - t.height - 14)));
     t.visible = true;
+    this.noteBg.clear();
+    box(this.noteBg, t.x - 8, t.y - 5, t.width + 16, t.height + 10, 7, { fill: this.T.dark ? '#0b1226' : '#ffffff', fa: 0.92, stroke: color === this.T.bad ? this.T.bad : this.T.line, lw: 1.5 });
   }
 
   // ------------------------------------------------------------------ tutorial highlight rings and edge arrows
