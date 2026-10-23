@@ -4,9 +4,9 @@
 import type { EngineConfig } from "../engines";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink";
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
 export interface ClockRange { min: number; base: number; max: number }
@@ -71,6 +71,15 @@ export interface CoolerSpec extends SpecBase {
   kind: "cooler";
   /** Extra heat removal from the CPU, W per degree C above ambient. */
   coolingPerC: number;
+  /** Airflow the cooler gives the VRM, W per degree C above ambient (an air cooler blows over it, liquid does not). */
+  vrmAirPerC: number;
+}
+
+/** A heatsink bolted onto the board's VRM (see docs/VRM.md). A fan version draws idleW..loadW. */
+export interface VrmSinkSpec extends SpecBase {
+  kind: "vrm-sink";
+  /** Heat removal from the VRM, W per degree C above ambient. */
+  coolingPerC: number;
 }
 
 export interface DisplaySpec extends SpecBase {
@@ -93,7 +102,7 @@ export interface StorageSpec extends SpecBase {
   blockTicks: number;
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec;
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -134,11 +143,18 @@ const specList: DeviceSpec[] = [
     thermal: inertThermal, visual: "psu-big", watts: 250 },
 
   { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35 },
+    thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },
   { id: "cooler1", kind: "cooler", tier: 1, name: "Tower fan", slot: "cooler", price: 50, idleW: 0.5, loadW: 3, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8 },
+    thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8, vrmAirPerC: 0.25 },
   { id: "cooler2", kind: "cooler", tier: 2, name: "Liquid loop", slot: "cooler", price: 300, idleW: 1, loadW: 6, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8 },
+    thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8, vrmAirPerC: 0 },
+
+  { id: "vsink0", kind: "vrm-sink", tier: 0, name: "VRM fins", slot: "vrm-sink", price: 30, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
+  { id: "vsink1", kind: "vrm-sink", tier: 1, name: "VRM big fins", slot: "vrm-sink", price: 70, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
+  { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fins + fan", slot: "vrm-sink", price: 140, idleW: 0.3, loadW: 1.5, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1 },
 
   { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
@@ -165,18 +181,60 @@ export function specsOfKind<K extends DeviceKind>(kind: K): Extract<DeviceSpec, 
   return specList.filter((s) => s.kind === kind).sort((a, b) => a.tier - b.tier) as Extract<DeviceSpec, { kind: K }>[];
 }
 
-/** Board tiers: slot counts by type. */
+/** The board's voltage regulator (see docs/VRM.md): phases of buck converters feeding the CPU. */
+export interface VrmSpec {
+  phases: number;
+  ampsPerPhase: number;
+  /** Best efficiency (0..1), reached at moderate per-phase load. */
+  peakEfficiency: number;
+  /** Voltage ripple 0..1 (lower is better quality): raises the error chance when unstable. */
+  ripple: number;
+  /** Joules per degree C. */
+  mass: number;
+  /** Passive heat loss to the case, W per degree C above ambient. */
+  passive: number;
+  throttleC: number;
+  unstableC: number;
+  damageC: number;
+}
+
+/** Board features beyond slots. Ethernet is a feature field only until the network phase. */
+export interface BoardFeatures {
+  /** Onboard ethernet speed in Mbit/s, 0 = none. */
+  ethernetMbps: number;
+  usbPorts: number;
+  displayPorts: number;
+}
+
+/** Board tiers: slot counts by type (a slot a tier lacks is absent), features and the VRM. */
 export interface BoardTierSpec {
   tier: number;
   name: string;
+  /** Price to buy it (also the price of a replacement of the same tier when the board is burnt). */
   price: number;
   slots: Partial<Record<SlotType, number>>;
+  features: BoardFeatures;
+  vrm: VrmSpec;
   visual: string;
 }
 
+const vrmTemps = { throttleC: 90, unstableC: 105, damageC: 120 };
+
 export const BOARD_TIERS: readonly BoardTierSpec[] = [
-  { tier: 0, name: "Mini board", price: 0, visual: "board-mini",
-    slots: { cpu: 1, dimm: 2, sata: 1, usb: 1, atx: 1, cooler: 1, display: 1 } },
-  { tier: 1, name: "ATX+ board", price: 300, visual: "board-atxplus",
-    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, m2: 1, usb: 2, "atx-plus": 1, cooler: 1, display: 1 } },
+  { tier: 0, name: "Starter", price: 40, visual: "board-starter",
+    slots: { cpu: 1, dimm: 1, sata: 1, usb: 1, atx: 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
+    vrm: { phases: 2, ampsPerPhase: 12, peakEfficiency: 0.8, ripple: 0.6, mass: 20, passive: 0.15, ...vrmTemps } },
+  { tier: 1, name: "Basic", price: 150, visual: "board-basic",
+    slots: { cpu: 1, dimm: 2, pcie: 1, sata: 2, usb: 2, atx: 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    features: { ethernetMbps: 100, usbPorts: 2, displayPorts: 1 },
+    vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps } },
+  { tier: 2, name: "Mainstream", price: 300, visual: "board-mainstream",
+    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, m2: 1, usb: 3, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    features: { ethernetMbps: 100, usbPorts: 3, displayPorts: 2 },
+    vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps } },
+  { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
+    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 2, m2: 1, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
+    vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps } },
 ];

@@ -19,6 +19,8 @@ export interface Board {
   tier: number;
   nextId: number;
   devices: InstalledDevice[];
+  /** The board's VRM burnt out: the board is dead (nothing powers on) until replaced by the same or a higher tier. */
+  burnt?: boolean;
 }
 
 export interface SlotInfo { id: string; type: SlotType }
@@ -122,13 +124,14 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
 }
 
 /**
- * Move to the next board tier, carrying every installed device over (same instance ids, clocks and burnt flags).
+ * Move to the next board tier (or, when the board is burnt, the same tier again), carrying every installed device over (same instance ids, clocks and burnt flags).
  * A device keeps its slot id if the new board has an accepting slot with that id, otherwise it takes the first free
  * accepting slot (e.g. the plain ATX PSU moves to the ATX+ connector). On failure the board is left untouched.
  */
 export function upgradeBoard(board: Board, tier: number): Result<object> {
   if (!BOARD_TIERS[tier]) return { ok: false, reason: `unknown board tier ${tier}` };
-  if (tier <= board.tier) return { ok: false, reason: "not a bigger board" };
+  // A dead board may be replaced by one of the same tier.
+  if (tier < board.tier || (tier === board.tier && !board.burnt)) return { ok: false, reason: "not a bigger board" };
   const next: Board = { tier, nextId: board.nextId, devices: [] };
   const slots = boardSlots(next);
   const used = new Set<string>();
@@ -145,6 +148,7 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   }
   board.tier = next.tier;
   board.devices = next.devices;
+  delete board.burnt; // the dead board is gone
   return { ok: true };
 }
 
@@ -194,6 +198,7 @@ export function boardFromJson(json: BoardJson): Board {
     if (d.burnt) dev.burnt = true;
     board.devices.push(dev);
   }
+  if (json.burnt) board.burnt = true;
   board.nextId = Math.max(json.nextId, ...board.devices.map((d) => Number(d.id.replace(/\D/g, "")) + 1), 1);
   return board;
 }

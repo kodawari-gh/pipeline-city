@@ -12,13 +12,17 @@
 //   Above unstableC: errorRoll() can return true (probability 1% + 2% per degree, max 50%).
 //   Above damageC for DAMAGE_TICKS accumulated ticks (cooler ticks forgive 1 each): the device is burnt
 //   (InstalledDevice.burnt = true, persists in the save, clock 0 and no draw until replaced).
+// The board's VRM (docs/VRM.md) is stepped here too: its loss (CPU power x (1/efficiency - 1)) is drawn from the PSU,
+//   its temperature lives in `vrm`, a hot VRM trims the CPU clock (same 0.8 floor), overload or heat makes
+//   vrmErrorRoll() fire, and sustained overload or heat burns the board (Board.burnt).
 // Brownout rule: total draw > PSU watts -> every clock is scaled by watts/draw (forced throttle).
 //   Total draw > 1.5x PSU watts (or a burnt PSU) -> hard trip: everything off (clock 0) until powerCycle().
 //   No PSU installed -> machine is off (not latched).
 
 import type { Prng } from "../machine/prng";
 import { deviceSpec, findDevices, installedPsu, type Board, type InstalledDevice } from "./board";
-import { AMBIENT_C, DAMAGE_TICKS, type DeviceKind } from "./specs";
+import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, type DeviceKind } from "./specs";
+import { currentDemand, efficiency, errorProb, lossW, loadRatio, VRM_BURN_RATIO, VRM_OVERLOAD } from "./vrm";
 
 export const THROTTLE_MIN = 0.8;
 export const TRIP_RATIO = 1.5;
@@ -38,8 +42,29 @@ export interface DeviceThermal {
   errProb: number;
 }
 
+/** The board VRM's live state (temperature restarts at ambient on load; the burnt flag is Board.burnt). */
+export interface VrmThermal {
+  tempC: number;
+  /** Heat made this tick (the conversion loss), W. */
+  heatW: number;
+  /** CPU current demand over the phases' rating. */
+  loadRatio: number;
+  efficiency: number;
+  /** The VRM's own thermal factor in [THROTTLE_MIN, 1] (multiplied into the CPU clock). */
+  throttle: number;
+  unstable: boolean;
+  /** Accumulated ticks of overload or heat past the damage limits. */
+  stress: number;
+  /** Chance vrmErrorRoll() returns true this tick (0 when stable). */
+  errProb: number;
+}
+
+const freshVrm = (): VrmThermal => ({ tempC: AMBIENT_C, heatW: 0, loadRatio: 0, efficiency: 1, throttle: 1, unstable: false, stress: 0, errProb: 0 });
+
 export interface PowerReport {
   totalW: number;
+  /** Of totalW, the VRM's conversion loss. */
+  vrmLossW: number;
   budgetW: number;
   /** 1 normally; budget/draw when over budget. */
   psuFactor: number;
@@ -52,7 +77,8 @@ export type Loads = Partial<Record<DeviceKind, number>>;
 
 export class ThermalModel {
   readonly devices = new Map<string, DeviceThermal>();
-  power: PowerReport = { totalW: 0, budgetW: 0, psuFactor: 1, off: true, tripped: false };
+  vrm: VrmThermal = freshVrm();
+  power: PowerReport = { totalW: 0, vrmLossW: 0, budgetW: 0, psuFactor: 1, off: true, tripped: false };
 
   constructor(private readonly prng: Prng) {}
 
@@ -80,6 +106,12 @@ export class ThermalModel {
     return this.prng.next() < s.errProb;
   }
 
+  /** True if a voltage-droop crash should hit now. Consumes PRNG state only while the VRM is unstable. */
+  vrmErrorRoll(): boolean {
+    if (!this.vrm.unstable) return false;
+    return this.prng.next() < this.vrm.errProb;
+  }
+
   /**
    * Advance one base tick. `loads` is the utilisation (0..1) per device kind; default 1. With `powered` false the
    * machine is switched off (nothing draws, parts cool down); the trip latch is left alone.
@@ -87,7 +119,8 @@ export class ThermalModel {
   step(board: Board, loads: Loads = {}, powered = true): void {
     const psu = installedPsu(board);
     const tripped = this.power.tripped;
-    const live = powered && !!psu && !psu.dev.burnt && !tripped;
+    const live = powered && !!psu && !psu.dev.burnt && !tripped && !board.burnt;
+    const vspec = BOARD_TIERS[board.tier]!.vrm;
     const load = (d: InstalledDevice): number => loads[deviceSpec(d).kind] ?? 1;
     const cpuLoad = Math.max(0, ...findDevices(board, "cpu").map(load));
 
@@ -98,6 +131,8 @@ export class ThermalModel {
       const t = deviceSpec(d).thermal;
       therm.set(d.id, st.tempC <= t.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (st.tempC - t.throttleC) / (t.unstableC - t.throttleC)));
     }
+    // The VRM's thermal factor (last tick's temperature) trims the CPU on top of its own.
+    const vrmThrottle = this.vrm.tempC <= vspec.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (this.vrm.tempC - vspec.throttleC) / (vspec.unstableC - vspec.throttleC));
     // Forget removed devices.
     for (const id of [...this.devices.keys()]) if (!board.devices.some((d) => d.id === id)) this.devices.delete(id);
 
@@ -106,14 +141,24 @@ export class ThermalModel {
       if (!live || d.burnt) return { w: 0, clk: 0 };
       if (!spec.clock) {
         // Cooler fan follows CPU load; PSU draws nothing of its own in this model.
-        return { w: spec.kind === "cooler" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
+        return { w: spec.kind === "cooler" || spec.kind === "vrm-sink" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
       }
-      const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * psuFactor;
+      const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * (spec.kind === "cpu" ? vrmThrottle : 1) * psuFactor;
       const r = clk / spec.clock.base;
       return { w: spec.idleW * r + (spec.loadW - spec.idleW) * load(d) * r * r * r, clk };
     };
 
-    let total = 0;
+    // The VRM between PSU and CPU: the CPU's power at this PSU factor, the current it needs, and what the VRM wastes.
+    const cpuDev = findDevices(board, "cpu").find((d) => !d.burnt);
+    const vrmAt = (psuFactor: number): { ratio: number; eff: number; loss: number } => {
+      if (!cpuDev || !live) return { ratio: 0, eff: vspec.peakEfficiency, loss: 0 };
+      const cs = deviceSpec(cpuDev);
+      const p = powerOf(cpuDev, psuFactor);
+      const ratio = loadRatio(vspec, currentDemand(p.w, p.clk / cs.clock!.base));
+      const eff = efficiency(vspec, ratio);
+      return { ratio, eff, loss: lossW(p.w, eff) };
+    };
+    let total = vrmAt(1).loss;
     for (const d of board.devices) total += powerOf(d, 1).w;
     const budget = psu && !psu.dev.burnt ? psu.spec.watts : 0;
     let psuFactor = 1;
@@ -123,7 +168,8 @@ export class ThermalModel {
       if (total > budget * TRIP_RATIO) nowTripped = true;
     }
     const effLive = live && !nowTripped;
-    let drawn = 0;
+    const vrmNow = vrmAt(effLive ? psuFactor : 1);
+    let drawn = effLive ? vrmNow.loss : 0;
 
     const cooler = findDevices(board, "cooler").find((d) => !d.burnt);
     const coolerK = effLive && cooler ? (deviceSpec(cooler) as { coolingPerC: number }).coolingPerC : 0;
@@ -146,7 +192,26 @@ export class ThermalModel {
       else st.stress = Math.max(0, st.stress - 1);
       if (st.stress >= DAMAGE_TICKS && !d.burnt) d.burnt = true;
     }
-    this.power = { totalW: drawn, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
+    this.stepVrm(board, vspec, vrmNow, vrmThrottle, effLive);
+    this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
+  }
+
+  private stepVrm(board: Board, vspec: (typeof BOARD_TIERS)[number]["vrm"], now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean): void {
+    const v = this.vrm;
+    const sink = live ? findDevices(board, "vrm-sink").find((d) => !d.burnt) : undefined;
+    const cooler = live ? findDevices(board, "cooler").find((d) => !d.burnt) : undefined;
+    const sinkK = sink ? (deviceSpec(sink) as { coolingPerC: number }).coolingPerC : 0;
+    const airK = cooler ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC : 0;
+    v.heatW = now.loss;
+    v.tempC += (now.loss - (vspec.passive + sinkK + airK) * (v.tempC - AMBIENT_C)) / vspec.mass;
+    v.loadRatio = now.ratio;
+    v.efficiency = now.eff;
+    v.throttle = throttle;
+    v.unstable = !board.burnt && live && (now.ratio > VRM_OVERLOAD || v.tempC > vspec.unstableC);
+    v.errProb = v.unstable ? errorProb(vspec, now.ratio, v.tempC) : 0;
+    if (v.tempC > vspec.damageC || now.ratio > VRM_BURN_RATIO) v.stress++;
+    else v.stress = Math.max(0, v.stress - 1);
+    if (v.stress >= DAMAGE_TICKS && !board.burnt) board.burnt = true;
   }
 
   private ensure(d: InstalledDevice): DeviceThermal {
