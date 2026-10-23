@@ -1,7 +1,8 @@
-// Pure UI logic: formatting, shop grouping, hint triggers, device descriptions. No DOM, no signals.
+// Pure UI logic: formatting, stats helpers, hint triggers, device descriptions, HUD status text. No DOM, no signals.
 
 import { BOARD_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
-import type { DeviceSnap, PurchaseSnap, Snapshot } from '../sim/game/game';
+import type { DeviceSnap, Snapshot } from '../sim/game/game';
+import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
 
@@ -18,32 +19,11 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export type ShopKind = DeviceKind | 'board';
-export const KIND_ORDER: ShopKind[] = ['cpu', 'ram', 'cooler', 'psu', 'board', 'display'];
-export const KIND_LABEL: Record<ShopKind, string> = {
-  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', board: 'Motherboard', display: 'Display',
+export const KIND_LABEL: Record<DeviceKind | 'board', string> = {
+  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', board: 'Motherboard',
 };
 
-export type ShopState = 'ready' | 'poor' | 'blocked';
-export interface ShopItem extends PurchaseSnap { state: ShopState; reason: string; pending: boolean }
-export interface ShopGroup { kind: ShopKind; label: string; items: ShopItem[] }
-
-/** Group purchases by device kind (stable kind order, cheapest first) with a state and hover reason. */
-export function groupPurchases(purchases: PurchaseSnap[], pending: string[] = [], money = 0): ShopGroup[] {
-  const groups: ShopGroup[] = [];
-  for (const kind of KIND_ORDER) {
-    const items = purchases
-      .filter((p) => p.kind === kind)
-      .sort((a, b) => a.price - b.price)
-      .map<ShopItem>((p) => {
-        const state: ShopState = p.blocked ? 'blocked' : p.affordable ? 'ready' : 'poor';
-        const reason = p.blocked ?? (p.affordable ? '' : `Need ${fmtMoney(p.price - money)} more`);
-        return { ...p, state, reason, pending: pending.includes(p.id) };
-      });
-    if (items.length) groups.push({ kind, label: KIND_LABEL[kind], items });
-  }
-  return groups;
-}
+export type Level = 'ok' | 'warn' | 'bad';
 
 // ---- stats ----
 
@@ -74,8 +54,6 @@ export function cacheHitRate(counters: Record<string, number>): number | null {
   const m = counters.cacheMisses ?? 0;
   return h + m > 0 ? h / (h + m) : null;
 }
-
-export type Level = 'ok' | 'warn' | 'bad';
 
 /** Temperature level from the device's own thermal spec. */
 export function tempLevel(tempC: number, spec: DeviceSpec | undefined): Level {
@@ -113,7 +91,7 @@ export const HINTS: Record<string, Hint> = {
   stall: { id: 'stall', text: 'A stall: part of the CPU is waiting instead of working. Faster or smarter processors waste fewer cycles.' },
   throttle: { id: 'throttle', text: 'Throttling: the processor is too hot, so it slows itself down. Better cooling or a lower clock helps.' },
   overheat: { id: 'overheat', text: 'Overheating: the processor is making errors and restarting requests. Cool it down before it burns.' },
-  queue: { id: 'queue', text: 'Requests are piling up. Slow answers hurt your reputation, and reputation brings demand.' },
+  queue: { id: 'queue', text: 'Keys are piling up in the tray. Slow answers hurt your reputation, and reputation brings demand.' },
   burnt: { id: 'burnt', text: 'A part burnt out and does nothing now. Buy a replacement of the same kind.' },
   trip: { id: 'trip', text: 'The power supply tripped: too much draw. Power cycle it, then reduce load or buy a bigger supply.' },
   brownout: { id: 'brownout', text: 'The power supply is overloaded, so everything is slowed down. Upgrade it or lower the clock.' },
@@ -132,7 +110,7 @@ export function triggeredHints(s: Snapshot): string[] {
   return out;
 }
 
-/** Hints to show now: triggered and not yet seen. */
+/** Hints shown at once. */
 export const MAX_TOASTS = 2;
 
 /** Move queued hints into the visible list until `max` are visible. Pure. */
@@ -145,24 +123,16 @@ export function newHints(s: Snapshot, seen: ReadonlySet<string>): Hint[] {
   return triggeredHints(s).filter((id) => !seen.has(id)).map((id) => HINTS[id]!);
 }
 
-// ---- descriptions for tooltip / device panel ----
+// ---- descriptions for tooltip / picker ----
 
-export interface Description { title: string; plain: string; nerd: string }
+export type { Description };
 
 const PLAIN_KIND: Record<DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
   cooler: 'Pulls heat off the processor so it can run fast without slowing down or breaking.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
-  display: 'Shows the result of each request. A request is done when its output has appeared here.',
-};
-
-const REGIONS: Record<string, Description> = {
-  board: {
-    title: 'Motherboard',
-    plain: 'Everything plugs into this. Each part has its own socket.',
-    nerd: 'Mini board: 1 CPU, 2 DIMM, 1 ATX, 1 cooler, 1 display slot. Bigger boards cost more.',
-  },
+  display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
 };
 
 export function describeSpec(spec: DeviceSpec): Description {
@@ -186,8 +156,52 @@ export function describeSpec(spec: DeviceSpec): Description {
   return { title: spec.name, plain: PLAIN_KIND[spec.kind], nerd: bits.join(' | ') };
 }
 
-/** Description for a hovered/selected id: a spec id, a region id, or unknown (null). */
-export function describeId(id: string): Description | null {
+const SLOT_PLAIN: Record<string, string> = {
+  cpu: 'processor socket: drag a processor here',
+  dimm: 'memory slot: drag a RAM stick here',
+  atx: 'power supply bay: drag a power supply here',
+  'atx-plus': 'power supply bay (ATX+): drag a big power supply here',
+  cooler: 'cooler mount: sits on the processor',
+  display: 'monitor port: drag a monitor here',
+  pcie: 'expansion slot (nothing fits yet)',
+  sata: 'disk port (nothing fits yet)',
+  usb: 'USB port',
+};
+
+/**
+ * Description for a hovered/selected id: a spec id, a region id, a world id, or (with the snapshot) a slot (empty or
+ * occupied), an installed device instance, a crate item or a client key. Unknown ids give null.
+ */
+export function describeId(id: string, s?: Snapshot | null): Description | null {
+  if (s) {
+    const slot = s.slots.find((x) => x.id === id);
+    if (slot) {
+      if (!slot.deviceId) {
+        return SLOT_PLAIN[slot.type]
+          ? { title: 'Empty socket', plain: 'An empty ' + SLOT_PLAIN[slot.type] + '.', nerd: `slot ${slot.id} | type ${slot.type}` }
+          : null;
+      }
+      const occupant = s.devices.find((d) => d.id === slot.deviceId);
+      if (occupant) return describeId(occupant.spec);
+    }
+    const dev = s.devices.find((d) => d.id === id);
+    if (dev) return describeId(dev.spec);
+    if (id.startsWith('inv:')) {
+      const it = s.inventory.find((x) => x.id === id.slice(4));
+      const d = it ? describeId(it.spec) : null;
+      return d && { ...d, plain: d.plain + ' In the crate: drag it into a socket.' };
+    }
+    if (id.startsWith('key:')) {
+      const k = [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
+      if (k) {
+        return {
+          title: `Client key ${k.label}`,
+          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`,
+          nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts}`,
+        };
+      }
+    }
+  }
   const spec = getSpec(id);
   if (spec) return describeSpec(spec);
   const tier = /^board([0-9]+)$/.exec(id);
@@ -203,7 +217,41 @@ export function describeId(id: string): Description | null {
   return REGIONS[id] ?? null;
 }
 
-/** Live device reading for a spec id or device instance id, if that part is installed. */
-export function liveDevice(s: Snapshot | null, id: string): DeviceSnap | undefined {
-  return s?.devices.find((d) => d.spec === id || d.id === id);
+// ---- HUD status text ----
+
+export type ChipLevel = 'idle' | 'ok' | 'warn' | 'bad';
+
+/** Short machine status for the HUD chip. */
+export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
+  if (s.power.tripped) return { text: 'Tripped', title: 'The power supply tripped. Power cycle it from the power button.', level: 'bad' };
+  switch (s.phase) {
+    case 'off': return { text: 'Off', title: s.noPowerReason ?? 'The machine is off.', level: 'idle' };
+    case 'posting': return { text: 'POST', title: 'Power-on self-test: the chipset checks the parts.', level: 'ok' };
+    case 'waiting-for-key': return { text: 'Waiting for key', title: 'Plug a client key into the USB port.', level: 'warn' };
+    case 'loading': return { text: 'Loading', title: 'Copying the job from the key into memory.', level: 'ok' };
+    case 'running': return { text: 'Running', title: 'The processor is running the job.', level: 'ok' };
+    case 'writing': return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };
+    case 'done-remove-key': return { text: 'Remove key', title: 'The job is done. Pull the key to get paid.', level: 'warn' };
+    case 'error': return { text: `Error: ${s.phaseReason ?? 'stopped'}`, title: s.phaseReason ?? 'The machine stopped.', level: 'bad' };
+  }
+}
+
+/** Keys waiting in the tray (not the plugged one): count and the age of the oldest. */
+export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; text: string } {
+  const count = s.tray.length;
+  const oldest = count ? Math.max(...s.tray.map((k) => k.age)) : null;
+  const late = s.tray.some((k) => k.late);
+  const text = count === 0
+    ? 'no keys waiting'
+    : `${count} key${count === 1 ? '' : 's'} waiting, oldest ${fmtTicks(oldest ?? 0)}`;
+  return { count, cap: s.queueCap, oldest, late, text };
+}
+
+/**
+ * The sim refuses out-of-order actions with "<call>: <reason>". Show just the reason, as a plain sentence.
+ */
+export function friendlyError(message: string): string {
+  const m = /^[a-zA-Z]+: (.*)$/.exec(message);
+  const reason = (m ? m[1]! : message).trim();
+  return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }

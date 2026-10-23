@@ -1,24 +1,27 @@
 import './ui.css';
-import { useEffect } from 'preact/hooks';
-import { viewInset } from '../game/hover';
+import { useEffect, useState } from 'preact/hooks';
+import { selected, viewInset } from '../game/hover';
 import {
-  autosaveOffer, exportSave, importSave, lastError, setSpeed, snapshot, speed, startSim,
+  autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim,
 } from '../game/store';
 import { SPEEDS } from '../sim/protocol';
-import { fmtMoney, fmtNum, fmtTicks } from './logic';
-import { panel, theme, toggleTheme, togglePanel } from './state';
+import { fmtMoney, fmtNum, fmtTicks, queueReadout, statusChip } from './logic';
 import { Meter } from './Meter';
-import { Shop } from './Shop';
+import { PickerCard } from './PickerCard';
 import { Stats } from './Stats';
-import { DevicePanel, Tooltip } from './Hover';
-import { Toasts } from './Toasts';
+import { Tooltip } from './Hover';
+import { Notice, Toasts } from './Toasts';
+import { TutorialCard } from './TutorialCard';
+import {
+  replayTutorial, resetHints, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial,
+} from './state';
+import { currentStep } from './tutorial';
 
 const speedLabel = (s: number) => (s === 0 ? 'II' : `${s}x`);
 const speedTitle = (s: number) => (s === 0 ? 'Pause' : `Run at ${s}x`);
 
 function StartPrompt() {
   const offer = autosaveOffer.value;
-  const err = lastError.value;
   if (offer) {
     return (
       <div class="card prompt">
@@ -28,66 +31,59 @@ function StartPrompt() {
           <button class="primary" onClick={() => startSim(offer)}>Continue</button>
           <button onClick={() => startSim(null)}>New game</button>
         </div>
-        {err && <div class="err">{err}</div>}
       </div>
     );
   }
-  return <div class="card prompt mute">starting...{err && <div class="err">{err}</div>}</div>;
+  return <div class="card prompt mute">starting...</div>;
 }
 
 /**
- * Tells the board camera how much of the screen the HUD bar and the dock (a side panel, or a bottom drawer on
- * narrow screens) cover, so the overview frames the whole board in the free area.
+ * Tells the board camera how much of the screen the bar and the side cards cover, so the overview frames the board in
+ * the free area. Re-measured whenever the HUD's contents change (a card opens, the tutorial moves on, a toast appears).
  */
 function InsetReporter() {
-  const p = panel.value;
-  const started = !!snapshot.value;
   useEffect(() => {
+    const hud = document.getElementById('hud');
     const measure = () => {
       const W = window.innerWidth, H = window.innerHeight;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       const bar = document.querySelector('.hud');
-      const dock = document.querySelector('.dock');
       if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom) + 8;
-      if (dock) {
-        const r = dock.getBoundingClientRect();
-        if (r.width < W * 0.8) next.right = Math.ceil(W - r.left) + 8;
-        else next.bottom = Math.ceil(H - r.top) + 8;
+      for (const el of document.querySelectorAll('.dock, .picker, .tut')) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0) continue;
+        if (r.width >= W * 0.8) next.bottom = Math.max(next.bottom, Math.ceil(H - r.top) + 8);
+        else if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right) + 8);
+        else next.right = Math.max(next.right, Math.ceil(W - r.left) + 8);
       }
       const cur = viewInset.peek();
       if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    for (const el of [document.querySelector('.hud'), document.querySelector('.dock')]) if (el) ro.observe(el);
+    const mo = hud ? new MutationObserver(measure) : null;
+    if (hud) mo!.observe(hud, { childList: true, subtree: true });
     window.addEventListener('resize', measure);
-    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
-  }, [p, started]);
+    return () => { mo?.disconnect(); window.removeEventListener('resize', measure); };
+  }, []);
   return null;
 }
 
-function Queue() {
-  const s = snapshot.value!;
-  const r = s.request;
-  const frac = r ? Math.min(1, Math.max(0, (s.baseTick - r.arrivalTick) / Math.max(1, r.deadlineTick - r.arrivalTick))) : 0;
-  const late = r && s.baseTick > r.deadlineTick;
+/** Keys waiting in the tray and the age of the oldest. */
+function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
+  const q = queueReadout(s);
   return (
-    <div class="stat" title={`Waiting requests: ${s.queueLength} of ${s.queueCap}. The bar is time since the current request arrived, against its soft deadline.`}>
+    <div class="stat" title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
       <span class="label">queue</span>
-      <span class="value">{s.queueLength}<span class="mute">/{s.queueCap}</span></span>
-      <span class="sub">
-        {r ? <>{r.template} {late ? 'late' : fmtTicks(s.baseTick - r.arrivalTick)}{r.attempts > 1 ? ` (try ${r.attempts})` : ''}</> : 'idle'}
-      </span>
-      <Meter value={frac} level={late ? 'bad' : frac > 0.7 ? 'warn' : 'ok'} label="Current request time against its deadline" />
+      <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
+      <span class={`sub ${q.late ? 'bad' : ''}`}>{q.oldest === null ? 'no keys waiting' : `oldest ${fmtTicks(q.oldest)}${q.late ? ' (late)' : ''}`}</span>
     </div>
   );
 }
 
-function Reputation() {
-  const s = snapshot.value!;
+function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const perMin = s.demandRate * 60;
   return (
-    <div class="stat" title="Reputation comes from how fast you answer. Higher reputation brings more requests.">
+    <div class="stat" title="Reputation comes from how fast you answer. Higher reputation brings more keys.">
       <span class="label">reputation</span>
       <span class="value">{fmtNum(s.reputation, 2)}</span>
       <span class="sub">demand {fmtNum(perMin, 1)}/min</span>
@@ -96,23 +92,71 @@ function Reputation() {
   );
 }
 
+/** Machine phase chip: Off, POST, Waiting for key, Loading, Running, Writing, Remove key, Error + reason. */
+function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
+  const c = statusChip(s);
+  return (
+    <div class="stat chipwrap">
+      <span class="label">machine</span>
+      <span class={`chip ${c.level}`} role="status" title={c.title}>{c.text}</span>
+    </div>
+  );
+}
+
+/** Secondary actions, grouped so the bar stays uncluttered. */
+function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
+  const [open, setOpen] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+  const active = currentStep(s, tutorial.value) !== null;
+  const close = () => { setOpen(false); setConfirmNew(false); };
+  return (
+    <div class="menu">
+      <button class={open ? 'on' : ''} aria-expanded={open} aria-label="Menu" title="Menu" onClick={() => { setOpen(!open); setConfirmNew(false); }}>
+        ...
+      </button>
+      {open && (
+        <div class="card menu-pop" role="menu">
+          <button role="menuitem" onClick={() => { replayTutorial(s); close(); }}>Replay tutorial</button>
+          {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }}>Skip tutorial</button>}
+          <button role="menuitem" onClick={() => { resetHints(); close(); }}>Show hints again</button>
+          <button role="menuitem" class={confirmNew ? 'bad' : ''} onClick={() => {
+            if (!confirmNew) { setConfirmNew(true); return; }
+            close();
+            startSim(null);
+          }}>
+            {confirmNew ? 'Really start a new game?' : 'New game'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Hud() {
   const s = snapshot.value;
   if (!s) return <StartPrompt />;
-  const err = lastError.value;
-  const p = panel.value;
+  const crateCount = s.inventory.length;
+  const crateOn = selected.value === 'crate';
   return (
     <>
       <InsetReporter />
       <header class="hud">
-        <div class="money" title="Money. Finish requests to earn more.">{fmtMoney(s.money)}</div>
-        <div class="stat" title="Seconds of game time at 1x">
-          <span class="label">tick</span>
-          <span class="value">{s.baseTick}</span>
+        <div class="money" title="Money. Finish client keys to earn more.">{fmtMoney(s.money)}</div>
+        <div class="stat" title="Game time at 1x (seconds)">
+          <span class="label">time</span>
+          <span class="value">{fmtTicks(s.baseTick)}</span>
         </div>
-        <Reputation />
-        <Queue />
+        <Reputation s={s} />
+        <Queue s={s} />
+        <PhaseChip s={s} />
         <div class="grow" />
+        <button
+          class={`badge ${crateOn ? 'on' : ''}`} aria-pressed={crateOn}
+          title="Spare parts waiting in the crate. Click to see them."
+          onClick={() => { selected.value = crateOn ? null : 'crate'; }}
+        >
+          crate <b>{crateCount}</b>
+        </button>
         <div class="seg" role="group" aria-label="Speed">
           {SPEEDS.map((v) => (
             <button key={v} class={speed.value === v ? 'on' : ''} aria-pressed={speed.value === v} title={speedTitle(v)} onClick={() => setSpeed(v)}>
@@ -120,10 +164,7 @@ export function Hud() {
             </button>
           ))}
         </div>
-        <div class="seg" role="group" aria-label="Panels">
-          <button class={p === 'shop' ? 'on' : ''} aria-pressed={p === 'shop'} title="Shop" onClick={() => togglePanel('shop')}>Shop</button>
-          <button class={p === 'stats' ? 'on' : ''} aria-pressed={p === 'stats'} title="Nerd stats" onClick={() => togglePanel('stats')}>Stats</button>
-        </div>
+        <button class={statsOpen.value ? 'on' : ''} aria-pressed={statsOpen.value} title="Nerd stats" onClick={toggleStats}>Stats</button>
         <div class="seg" role="group" aria-label="Save">
           <button title="Download your game as a file" onClick={exportSave}>Export</button>
           <label class="btn" title="Load a game file">
@@ -141,15 +182,17 @@ export function Hud() {
         <button class="icon" title={theme.value === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>
           {theme.value === 'dark' ? '☼' : '☾'}
         </button>
+        <Menu s={s} />
       </header>
-      {err && <div class="card err-bar" role="alert">{err}</div>}
-      {p && (
-        <aside class="dock" aria-label={p === 'shop' ? 'Shop' : 'Stats'}>
-          <button class="close" aria-label="Close panel" onClick={() => { panel.value = null; }}>x</button>
-          {p === 'shop' ? <Shop /> : <Stats />}
+      <Notice />
+      <PickerCard />
+      <TutorialCard />
+      {statsOpen.value && (
+        <aside class="dock" aria-label="Stats">
+          <button class="close" aria-label="Close stats" onClick={toggleStats}>x</button>
+          <Stats />
         </aside>
       )}
-      <DevicePanel />
       <Tooltip />
       <Toasts />
     </>

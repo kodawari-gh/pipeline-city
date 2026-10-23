@@ -1,60 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import {
-  cacheHitRate, clockWarning, cpiIpc, describeId, fmtMoney, fmtTicks, groupPurchases, newHints, stallsByCause,
-  fillToasts, tempLevel, triggeredHints,
+  cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, newHints,
+  queueReadout, statusChip, stallsByCause, tempLevel, triggeredHints,
 } from './logic';
+import { REGIONS } from './regions';
 import { getSpec } from '../sim/board/specs';
-
-const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
-  id: 'dev1', spec: 'cpu0', kind: 'cpu', name: 'cpu', burnt: false, requestedClock: 1, effectiveClock: 1,
-  tempC: 30, powerW: 5, throttle: 1, unstable: false, slot: 'cpu0', ...o,
-});
-const snap = (o: Partial<Snapshot> = {}): Snapshot => ({
-  money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, display: '', counters: {},
-  completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0, reputation: 1, demandRate: 0.1,
-  devices: [dev()], power: { totalW: 10, budgetW: 40, psuFactor: 1, off: false, tripped: false },
-  cpuClock: null, purchases: [], pendingPurchases: [], boardTier: 0, pipe: null,
-  phase: 'waiting-for-key', phaseReason: null, powered: true, bootProgress: 0.4, monitorLive: true, noPowerReason: null,
-  postBlocker: null, inventory: [], slots: [], cables: [], tray: [], plugged: null, log: [],
-  progress: {
-    cpuInstalled: true, psuInstalled: true, ramInstalled: true, monitorInstalled: true, atxConnected: true,
-    cpuPowerConnected: true, videoConnected: true, poweredOn: true, firstKeyPlugged: false, firstJobDone: false,
-    firstKeyEjected: false, firstPurchase: false,
-  },
-  ...o,
-});
+import type { Phase } from '../sim/game/game';
+import { dev, key, snap } from './testdata';
 
 describe('format', () => {
   it('money and ticks', () => {
     expect(fmtMoney(1234.9)).toBe('$1,234');
     expect(fmtTicks(45)).toBe('45s');
     expect(fmtTicks(125)).toBe('2m 05s');
-  });
-});
-
-describe('shop grouping', () => {
-  const ps = [
-    { id: 'cpu2', name: 'C2', kind: 'cpu' as const, price: 800, affordable: false },
-    { id: 'cpu1', name: 'C1', kind: 'cpu' as const, price: 200, affordable: true },
-    { id: 'psu2', name: 'P2', kind: 'psu' as const, price: 250, affordable: true, blocked: 'needs ATX+' },
-    { id: 'ram1', name: 'R1', kind: 'ram' as const, price: 100, affordable: true },
-  ];
-  it('orders kinds, sorts by price, assigns state and reason', () => {
-    const g = groupPurchases(ps, ['ram1'], 500);
-    expect(g.map((x) => x.kind)).toEqual(['cpu', 'ram', 'psu']);
-    expect(g[0]!.items.map((i) => i.id)).toEqual(['cpu1', 'cpu2']);
-    expect(g[0]!.items[0]!.state).toBe('ready');
-    expect(g[0]!.items[1]).toMatchObject({ state: 'poor', reason: 'Need $300 more' });
-    expect(g[2]!.items[0]).toMatchObject({ state: 'blocked', reason: 'needs ATX+' });
-    expect(g[1]!.items[0]!.pending).toBe(true);
-  });
-
-  it('lists the board upgrade as its own group and describes it', () => {
-    const g = groupPurchases([{ id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: true }], [], 500);
-    expect(g.map((x) => x.kind)).toEqual(['board']);
-    expect(g[0]!.items[0]!.state).toBe('ready');
-    expect(describeId('board1')!.nerd).toMatch(/atx-plus/);
   });
 });
 
@@ -81,9 +39,49 @@ describe('stats', () => {
   });
 });
 
+describe('HUD status text', () => {
+  const phaseText: Array<[Phase, string]> = [
+    ['off', 'Off'], ['posting', 'POST'], ['waiting-for-key', 'Waiting for key'], ['loading', 'Loading'],
+    ['running', 'Running'], ['writing', 'Writing'], ['done-remove-key', 'Remove key'],
+  ];
+  it.each(phaseText)('phase %s reads "%s"', (phase, text) => {
+    expect(statusChip(snap({ phase, powered: phase !== 'off' })).text).toBe(text);
+  });
+  it('error shows the reason', () => {
+    const c = statusChip(snap({ phase: 'error', phaseReason: 'CPU burnt out' }));
+    expect(c.text).toBe('Error: CPU burnt out');
+    expect(c.level).toBe('bad');
+  });
+  it('a tripped supply overrides the phase', () => {
+    expect(statusChip(snap({ phase: 'running', power: { totalW: 90, budgetW: 40, psuFactor: 0, off: false, tripped: true } })).text).toBe('Tripped');
+  });
+  it('off says why the power button would do nothing', () => {
+    expect(statusChip(snap()).title).toMatch(/power supply/);
+  });
+  it('queue: count, cap and the oldest key age', () => {
+    expect(queueReadout(snap())).toMatchObject({ count: 0, oldest: null, text: 'no keys waiting' });
+    const q = queueReadout(snap({ tray: [key({ id: 1, age: 20 }), key({ id: 2, age: 95 }), key({ id: 3, age: 5 })] }));
+    expect(q).toMatchObject({ count: 3, cap: 8, oldest: 95 });
+    expect(q.text).toBe('3 keys waiting, oldest 1m 35s');
+  });
+  it('queue: a late key is flagged', () => {
+    expect(queueReadout(snap({ tray: [key({ late: true })] })).late).toBe(true);
+  });
+});
+
+describe('refusal text', () => {
+  it('strips the call name and sentence-cases the reason', () => {
+    expect(friendlyError('install: power the machine off first')).toBe('Not now: Power the machine off first.');
+    expect(friendlyError('powerButton: nothing to power')).toBe('Not now: Nothing to power.');
+  });
+  it('keeps a reason that already ends with punctuation', () => {
+    expect(friendlyError('plugKey: a key is already plugged in!')).toBe('Not now: A key is already plugged in!');
+  });
+});
+
 describe('hints', () => {
   it('nothing on a calm snapshot', () => {
-    expect(triggeredHints(snap())).toEqual([]);
+    expect(triggeredHints(snap({ devices: [dev()] }))).toEqual([]);
   });
   it('triggers each condition', () => {
     expect(triggeredHints(snap({ counters: { stallCache: 2 } }))).toContain('stall');
@@ -121,10 +119,42 @@ describe('toast queue', () => {
 });
 
 describe('descriptions', () => {
-  it('spec and region ids', () => {
+  it('spec and board ids', () => {
     expect(describeId('cpu2')?.nerd).toContain('forwarding');
     expect(describeId('ram1')?.nerd).toContain('32K');
     expect(describeId('board')?.title).toBe('Motherboard');
+    expect(describeId('board1')?.nerd).toMatch(/atx-plus/);
     expect(describeId('nope')).toBeNull();
+  });
+
+  it('an empty slot names the socket, an occupied slot describes the part in it', () => {
+    const s = snap({
+      slots: [{ id: 'cpu0', type: 'cpu', deviceId: null }, { id: 'dimm0', type: 'dimm', deviceId: 'dev7' }],
+      devices: [dev({ id: 'dev7', spec: 'ram0', kind: 'ram', slot: 'dimm0' })],
+    });
+    expect(describeId('cpu0', s)).toMatchObject({ title: 'Empty socket' });
+    expect(describeId('dimm0', s)?.title).toBe(getSpec('ram0')!.name);
+    expect(describeId('dev7', s)?.title).toBe(getSpec('ram0')!.name);
+  });
+
+  it('crate items and keys', () => {
+    const s = snap({ tray: [key({ id: 4, label: '#90 log' })] });
+    expect(describeId('inv:inv1', s)?.plain).toMatch(/In the crate/);
+    expect(describeId('key:4', s)?.title).toBe('Client key #90 log');
+  });
+
+  it('every id the renderer writes has a description', () => {
+    const s = snap({ tray: [key({ id: 4 })] });
+    const ids = [
+      'crate', 'tray', 'usb', 'power', 'monitor', 'psu', 'cable.atx', 'cable.cpu', 'cable.video', 'key:4', 'inv:inv1',
+      'vrm', 'vrm2', 'pcie', 'chipset', 'io', 'atx', 'cpw', 'm2', 'sata', 'bat', 'audio', 'psu.readout',
+      'cpu.IF', 'cpu.ID', 'cpu.EX', 'cpu.MEM', 'cpu.WB', 'cpu.IC', 'cpu.BP', 'cpu.CLK', 'cpu.DC', 'cpu.RF',
+      'cpu.UNCORE', 'cpu.MC', 'cpu.IO', 'cpu.L2', 'board',
+    ];
+    for (const id of ids) expect(describeId(id, s), id).not.toBeNull();
+    for (const [id, d] of Object.entries(REGIONS)) {
+      expect(d.plain.length, `${id} plain`).toBeGreaterThan(10);
+      expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+    }
   });
 });

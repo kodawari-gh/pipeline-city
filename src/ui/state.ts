@@ -1,21 +1,27 @@
-// UI-only signals: theme, open panel, toasts. Everything persisted is per-viewer and wrapped in try/catch.
+// UI-only signals: theme, the stats panel, hint toasts, the guided tutorial's per-viewer state.
+// Everything persisted is per-viewer (localStorage) and wrapped in try/catch. The tutorial's progress itself comes
+// from the snapshot's `progress` flags, so it survives a save/load; localStorage only remembers skip/finish/replay.
 
 import { effect, signal } from '@preact/signals';
 import { snapshot } from '../game/store';
+import type { Snapshot } from '../sim/protocol';
 import { fillToasts, newHints, totalStalls, type Hint } from './logic';
+import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from './tutorial';
 
 const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';
-
-export type Theme = 'dark' | 'light';
-export type Panel = 'shop' | 'stats' | null;
+const TUTORIAL_KEY = 'pipeline-city.tutorial';
 
 function readStore(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 function writeStore(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* storage blocked: ignore */ }
+  try { localStorage.setItem(key, value); } catch { /* storage blocked or full: ignore */ }
 }
+
+// ---- theme ----
+
+export type Theme = 'dark' | 'light';
 
 function initialTheme(): Theme {
   const saved = readStore(THEME_KEY);
@@ -24,15 +30,40 @@ function initialTheme(): Theme {
 }
 
 export const theme = signal<Theme>(initialTheme());
-/** The renderer reads `data-theme` on the root element. */
+/** The renderer and the CSS read `data-theme` on the root element. */
 effect(() => { document.documentElement.setAttribute('data-theme', theme.value); });
 export function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark';
   writeStore(THEME_KEY, theme.value);
 }
 
-export const panel = signal<Panel>('shop');
-export const togglePanel = (p: Exclude<Panel, null>) => { panel.value = panel.value === p ? null : p; };
+// ---- stats drawer (the only drawer; part upgrades live in the contextual picker) ----
+
+export const statsOpen = signal(false);
+export const toggleStats = () => { statsOpen.value = !statsOpen.value; };
+
+// ---- guided tutorial (per viewer) ----
+
+function loadTutorial(): TutorialState {
+  try { return resumeState(JSON.parse(readStore(TUTORIAL_KEY) ?? 'null')); } catch { return INITIAL_TUTORIAL; }
+}
+export const tutorial = signal<TutorialState>(loadTutorial());
+
+function setTutorial(next: TutorialState) {
+  tutorial.value = next;
+  writeStore(TUTORIAL_KEY, JSON.stringify(next));
+}
+/** The welcome card's Start button. */
+export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
+export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
+export const finishTutorial = () => setTutorial({ ...tutorial.value, finished: true });
+/** Start again from the welcome card. Flags are judged from live state against a baseline taken now. */
+export function replayTutorial(s: Snapshot | null) {
+  setTutorial({
+    welcomed: false, skipped: false, finished: false,
+    replay: s ? { completed: s.completed, owned: s.devices.length + s.inventory.length } : null,
+  });
+}
 
 // ---- hints / toasts ----
 
@@ -65,9 +96,17 @@ function showHint(h: Hint) {
   pump(toasts.value, [...queued.value, h]);
 }
 
+/** Forget which hints were shown (the menu's "Show hints again"). */
+export function resetHints() {
+  seen.clear();
+  writeStore(HINTS_KEY, '[]');
+}
+
 effect(() => {
   const s = snapshot.value;
   if (!s) return;
+  // Hints wait while a tutorial step is active: the card is the one thing to read then.
+  if (currentStep(s, tutorial.value)) return;
   for (const h of newHints(s, seen)) showHint(h);
 });
 
