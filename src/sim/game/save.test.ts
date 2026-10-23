@@ -33,7 +33,7 @@ describe("save/load v2", () => {
     run(g, 10);
     const save = g.toSave();
     expect(save.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(3);
+    expect(SAVE_VERSION).toBe(4);
     const text = JSON.stringify(save);
     expect(JSON.parse(text)).toEqual(save);
     expect(text).not.toMatch(/"(regs|ram|pipeline|program|registers)"/i);
@@ -156,6 +156,7 @@ describe("save/load v2", () => {
   it("keeps a bought-but-uninstalled board and the installed one", () => {
     const a = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0.2 } });
     a.money = 500;
+    a.powerButton(); // boards are bought while powered off
     expect(a.purchase("board1").ok).toBe(true);
     const b = Game.fromSave(json(a.toSave()), { baseDemandPerTick: 0.2 });
     expect(b.snapshot().inventory.map((i) => i.spec)).toEqual(["board1"]);
@@ -163,7 +164,7 @@ describe("save/load v2", () => {
     expect(b.install(b.snapshot().inventory[0]!.id).ok).toBe(true);
     const c = Game.fromSave(json(b.toSave()), { baseDemandPerTick: 0.2 });
     expect(c.snapshot().boardTier).toBe(1);
-    expect(c.snapshot().devices.some((d) => d.spec === "psu0" && d.slot === "atx-plus0")).toBe(true);
+    expect(c.snapshot().devices.some((d) => d.spec === "psu0" && d.slot === "atx0")).toBe(true);
     expect(c.snapshot().inventory).toEqual([]);
   });
 });
@@ -250,7 +251,7 @@ describe("migration v1 -> v2", () => {
 
   it("produces a valid current save that round-trips, and the migrated game plays", () => {
     const m = migrate(json(V1)) as { version: number };
-    expect(m.version).toBe(3);
+    expect(m.version).toBe(4);
     const l = Game.fromSave(json(V1));
     expect(Game.fromSave(json(l.toSave())).toSave()).toEqual(l.toSave());
     const op = new Operator(l, 1);
@@ -288,7 +289,7 @@ describe("migration v2 -> v3", () => {
     const v2 = v2Save();
     expect(v2.version).toBe(2);
     const m = migrate(json(v2)) as { version: number; os: unknown; progress: Record<string, boolean> };
-    expect(m.version).toBe(3);
+    expect(m.version).toBe(4);
     expect(m.os).toBeNull();
     expect(m.progress).toMatchObject({ storageInstalled: false, osInstalled: false, firstOsJob: false, poweredOn: true });
     const l = Game.fromSave(json(v2));
@@ -296,7 +297,7 @@ describe("migration v2 -> v3", () => {
     expect(s).toMatchObject({ powered: false, phase: "off", os: null, storage: [], held: [] });
     expect(s.money).toBe(v2.money);
     expect(s.devices.map((d) => d.spec).sort()).toEqual(g2specs(v2));
-    expect(l.toSave().version).toBe(3);
+    expect(l.toSave().version).toBe(4);
   });
 
   it("loads, boots and earns money exactly as a fresh v3 save of the same game would", () => {
@@ -317,3 +318,32 @@ describe("migration v2 -> v3", () => {
 function g2specs(v2: Record<string, unknown>): string[] {
   return ((v2.board as { devices: { spec: string }[] }).devices).map((d) => d.spec).sort();
 }
+
+/** A version 3 save as the previous build wrote it: the old tier numbering (0 = 2 DIMM board, 1 = ATX+ board). */
+function v3Save(oldTier: number, inventory: { id: string; spec: string }[] = []): Record<string, unknown> {
+  const g = new Game({ seed: 31, preassembled: true });
+  play(g, 100, 1);
+  const s = json(g.toSave()) as unknown as Record<string, unknown>;
+  return { ...s, version: 3, board: { ...(s.board as object), tier: oldTier }, inventory };
+}
+
+describe("migration v3 -> v4", () => {
+  it("maps old tier 0 to Basic, old tier 1 to Mainstream, and shifts board ids in the inventory", () => {
+    const a = migrate(json(v3Save(0, [{ id: "inv1", spec: "board1" }]))) as { version: number; board: { tier: number }; inventory: { spec: string }[] };
+    expect(a.version).toBe(4);
+    expect(a.board.tier).toBe(1);
+    expect(a.inventory.map((i) => i.spec)).toEqual(["board2"]);
+    const b = migrate(json(v3Save(1))) as { board: { tier: number } };
+    expect(b.board.tier).toBe(2);
+  });
+
+  it("loads with the installed parts valid, powered off, on the new tier", () => {
+    const l = Game.fromSave(json(v3Save(0, [{ id: "inv1", spec: "board1" }])));
+    const s = l.snapshot();
+    expect(s).toMatchObject({ boardTier: 1, powered: false });
+    expect(s.board.name).toBe("Basic");
+    expect(s.board.burnt).toBe(false);
+    expect(s.inventory.map((i) => i.spec)).toEqual(["board2"]);
+    expect(l.toSave().version).toBe(4);
+  });
+});

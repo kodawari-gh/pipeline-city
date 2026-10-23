@@ -23,7 +23,9 @@ export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os
     const r = g.install(b.invId);
     if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
   };
-  if (storage === "nvme2") put("board1");
+  // The Starter board has one DIMM and a 24 A VRM: the OS rigs run on the Mainstream board (M.2 slot, 60 A VRM) so cpu1/cpu2 are fine.
+  put("board1");
+  put("board2");
   put("psu1");
   put(opts.cpu ?? "cpu1");
   g.uninstall(g.board.devices.find((d) => d.spec === "ram0")!.id);
@@ -97,7 +99,7 @@ describe("buying and installing storage and the OS", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: econ() });
     g.money = 100000;
     g.powerButton();
-    for (const id of ["board1"]) g.install((g.purchase(id) as { invId: string }).invId);
+    for (const id of ["board1", "board2"]) g.install((g.purchase(id) as { invId: string }).invId);
     expect(g.snapshot().slots.filter((s) => s.type === "m2")).toHaveLength(1);
     const nv = g.purchase("nvme2") as { invId: string };
     const ssd = g.purchase("ssd1") as { invId: string };
@@ -381,7 +383,7 @@ describe("save v3 with an OS", () => {
   it("round-trips the installed OS; the loaded machine boots it again", () => {
     const g = rig("ssd1");
     const save = JSON.parse(JSON.stringify(g.toSave()));
-    expect(save).toMatchObject({ version: 3, os: { spec: "os1" } });
+    expect(save).toMatchObject({ version: 4, os: { spec: "os1" } });
     const l = Game.fromSave(save, econ());
     expect(l.snapshot().os).toMatchObject({ spec: "os1", slot: "sata0" });
     expect(l.snapshot().storage[0]).toMatchObject({ hasOs: true, usedBytes: 12 * 1024 });
