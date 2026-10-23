@@ -81,4 +81,23 @@ describe('host message handling', () => {
     expect(types(handleMessage(h, { type: 'ejectKey' }))).toEqual(['snapshot']); // aborts the job
     expect(types(handleMessage(h, { type: 'uninstall', deviceId: 'dev1' }))).toEqual(['error', 'snapshot']); // still powered
   });
+
+  it('buys and installs a drive and an OS, and uninstalls the OS, through the same messages', () => {
+    const snap = (r: FromSim[]): Snapshot => (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
+    const h = newHost();
+    handleMessage(h, { type: 'init', seed: 1 });
+    h.game!.money = 100_000;
+    for (const id of ['inv1', 'inv2', 'inv3', 'inv4']) handleMessage(h, { type: 'install', invId: id });
+    const bought = (id: string) => snap(handleMessage(h, { type: 'purchase', id })).inventory.find((i) => i.spec === id)!;
+    expect(types(handleMessage(h, { type: 'install', invId: bought('hdd0').id }))).toEqual(['snapshot']);
+    expect(types(handleMessage(h, { type: 'purchase', id: 'os1' }))).toEqual(['error', 'snapshot']); // 16K RAM is too little
+    handleMessage(h, { type: 'uninstall', deviceId: h.game!.board.devices.find((d) => d.spec === 'ram0')!.id });
+    handleMessage(h, { type: 'install', invId: bought('ram1').id });
+    const os = bought('os1');
+    expect(os.kind).toBe('os');
+    expect(snap(handleMessage(h, { type: 'install', invId: os.id, slotId: 'sata0' })).os?.name).toMatch(/Resident/);
+    expect(types(handleMessage(h, { type: 'uninstallOs' }))).toEqual(['snapshot']);
+    expect(snap(handleMessage(h, { type: 'requestSave' }).length ? [{ type: 'snapshot', snapshot: h.game!.snapshot() }] : []).os).toBeNull();
+    expect(types(handleMessage(h, { type: 'uninstallOs' }))).toEqual(['error', 'snapshot']); // none left
+  });
 });

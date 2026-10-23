@@ -271,3 +271,49 @@ describe("migrate", () => {
     expect(migrate(s)).toBe(s);
   });
 });
+
+/** A version 2 save as the previous build wrote it: an assembled machine mid-game, no storage, no OS, 12 milestones. */
+function v2Save(): Record<string, unknown> {
+  const g = new Game({ seed: 21, preassembled: true });
+  play(g, 300, 1);
+  const s = json(g.toSave()) as unknown as Record<string, unknown>;
+  const { storageInstalled, osInstalled, firstOsJob, ...old } = s.progress as Record<string, boolean>;
+  void storageInstalled; void osInstalled; void firstOsJob;
+  delete s.os;
+  return { ...s, version: 2, progress: old };
+}
+
+describe("migration v2 -> v3", () => {
+  it("adds no OS and three false milestones; the machine keeps the reboot-per-job flow", () => {
+    const v2 = v2Save();
+    expect(v2.version).toBe(2);
+    const m = migrate(json(v2)) as { version: number; os: unknown; progress: Record<string, boolean> };
+    expect(m.version).toBe(3);
+    expect(m.os).toBeNull();
+    expect(m.progress).toMatchObject({ storageInstalled: false, osInstalled: false, firstOsJob: false, poweredOn: true });
+    const l = Game.fromSave(json(v2));
+    const s = l.snapshot();
+    expect(s).toMatchObject({ powered: false, phase: "off", os: null, storage: [], held: [] });
+    expect(s.money).toBe(v2.money);
+    expect(s.devices.map((d) => d.spec).sort()).toEqual(g2specs(v2));
+    expect(l.toSave().version).toBe(3);
+  });
+
+  it("loads, boots and earns money exactly as a fresh v3 save of the same game would", () => {
+    const v2 = v2Save();
+    const a = Game.fromSave(json(v2));
+    const b = Game.fromSave(json(migrate(json(v2))));
+    for (const g of [a, b]) { g.powerButton(); play(g, 400, 1); }
+    expect(a.money).toBe(b.money);
+    expect(a.completed).toBeGreaterThan((v2.completed as number));
+    expect(JSON.stringify(a.toSave())).toBe(JSON.stringify(b.toSave()));
+  });
+
+  it("rejects a damaged v2 save", () => {
+    expect(() => Game.fromSave({ ...json(v2Save()), progress: undefined })).toThrow(/version 2/);
+  });
+});
+
+function g2specs(v2: Record<string, unknown>): string[] {
+  return ((v2.board as { devices: { spec: string }[] }).devices).map((d) => d.spec).sort();
+}
