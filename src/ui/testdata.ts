@@ -13,22 +13,23 @@ export const key = (o: Partial<KeySnap> = {}): KeySnap => ({
   late: false, payoutEstimate: 50, attempts: 1, done: false, result: '', stage: 'tray', ...o,
 });
 
-/** The bare board: every socket empty except the stock heatsink. */
+/** The bare board: every socket empty (the cooler mounts on the CPU, so it starts in the crate). */
 export const EMPTY_SLOTS: SlotSnap[] = [
   { id: 'cpu0', type: 'cpu', deviceId: null },
   { id: 'dimm0', type: 'dimm', deviceId: null },
   { id: 'dimm1', type: 'dimm', deviceId: null },
   { id: 'atx0', type: 'atx', deviceId: null },
-  { id: 'cooler0', type: 'cooler', deviceId: 'dev-cooler' },
+  { id: 'cooler0', type: 'cooler', deviceId: null },
   { id: 'display0', type: 'display', deviceId: null },
 ];
 
-/** The starter crate: CPU, PSU, RAM and monitor. */
+/** The starter crate: CPU, PSU, RAM, monitor and the stock cooler. */
 export const STARTER_CRATE: InventorySnap[] = [
   { id: 'inv1', spec: 'cpu0', kind: 'cpu', name: 'Tiny-1 (unpipelined)', freeSlots: ['cpu0'], swapSlots: [], installable: true },
   { id: 'inv2', spec: 'psu0', kind: 'psu', name: 'PSU 40 W', freeSlots: ['atx0'], swapSlots: [], installable: true },
   { id: 'inv3', spec: 'ram0', kind: 'ram', name: 'DRAM 16K', freeSlots: ['dimm0', 'dimm1'], swapSlots: [], installable: true },
   { id: 'inv4', spec: 'display0', kind: 'display', name: 'CLI monitor', freeSlots: ['display0'], swapSlots: [], installable: true },
+  { id: 'inv5', spec: 'cooler0', kind: 'cooler', name: 'Stock heatsink', freeSlots: [], swapSlots: [], installable: false, reason: 'install the CPU first: the cooler mounts on it' },
 ];
 
 export const PURCHASES: PurchaseSnap[] = [
@@ -41,14 +42,14 @@ export const PURCHASES: PurchaseSnap[] = [
 export const NO_PROGRESS = newProgress(false);
 export const ALL_PROGRESS = newProgress(true);
 
-const STOCK_COOLER: DeviceSnap = { id: 'dev-cooler', spec: 'cooler0', kind: 'cooler', name: 'Stock heatsink', burnt: false, requestedClock: null, effectiveClock: 1, tempC: 25, powerW: 0, throttle: 1, unstable: false, slot: 'cooler0' };
+export const STOCK_COOLER: DeviceSnap = { id: 'dev-cooler', spec: 'cooler0', kind: 'cooler', name: 'Stock heatsink', burnt: false, requestedClock: null, effectiveClock: 1, tempC: 25, powerW: 0, throttle: 1, unstable: false, slot: 'cooler0' };
 
 /** A fresh game: nothing installed, nothing connected, no keys yet. */
 export function snap(o: Partial<Snapshot> = {}): Snapshot {
   return {
     money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, boardTier: 0, pipe: null,
     display: '', counters: {}, completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0,
-    reputation: 1, demandRate: 0.1, devices: [STOCK_COOLER], power: { vrmLossW: 0, totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
+    reputation: 1, demandRate: 0.1, devices: [], power: { vrmLossW: 0, totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
     cpuClock: null, purchases: PURCHASES, pendingPurchases: [],
     phase: 'off', phaseReason: null, powered: false, bootProgress: 0, monitorLive: false,
     noPowerReason: 'Install a power supply and connect the ATX cable first.', postBlocker: null,

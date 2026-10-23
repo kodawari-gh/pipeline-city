@@ -9,9 +9,9 @@ import {
 import { dev, key, snap, STARTER_CRATE } from './testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
-/** The first twelve flags, in the order the player meets them (the original tutorial). */
+/** The first thirteen flags, in the order the player meets them (the pre-OS tutorial, with the cooler after the CPU). */
 const OLD_IN_ORDER: Array<keyof Progress> = [
-  'cpuInstalled', 'ramInstalled', 'psuInstalled', 'monitorInstalled', 'atxConnected', 'cpuPowerConnected',
+  'cpuInstalled', 'coolerInstalled', 'ramInstalled', 'psuInstalled', 'monitorInstalled', 'atxConnected', 'cpuPowerConnected',
   'videoConnected', 'poweredOn', 'firstKeyPlugged', 'firstJobDone', 'firstKeyEjected', 'firstPurchase',
 ];
 const oldUpTo = (n: number): Progress => {
@@ -20,7 +20,7 @@ const oldUpTo = (n: number): Progress => {
   return p;
 };
 const idOf = (s: ReturnType<typeof currentStep>) => s?.id ?? null;
-const oldDone = () => oldUpTo(12);
+const oldDone = () => oldUpTo(13);
 
 const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
   deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
@@ -47,7 +47,7 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
-    const order = ['cpu', 'ram', 'psu', 'monitor', 'atx', 'cpuPower', 'video', 'power', 'plugKey', 'watch', 'removeKey', 'spend'];
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'atx', 'cpuPower', 'video', 'power', 'plugKey', 'watch', 'removeKey', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
@@ -71,11 +71,11 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('resumes mid-way from a loaded save, without the welcome card again', () => {
-    // A save where the CPU, RAM, PSU, monitor and ATX cable are already in: resume at the CPU power cable.
-    const s = snap({ progress: oldUpTo(5) });
+    // A save where the CPU, cooler, RAM, PSU, monitor and ATX cable are already in: resume at the CPU power cable.
+    const s = snap({ progress: oldUpTo(6) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cpuPower');
-    expect(stepCount(step!)).toEqual({ n: 6, total: 12 + 11 });
+    expect(stepCount(step!)).toEqual({ n: 7, total: 13 + 11 });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
@@ -105,8 +105,30 @@ describe('tutorial step from snapshot flags', () => {
     expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cpu');
     // Then the CPU and RAM: the next open step is the ATX cable, not the PSU again.
     p.cpuInstalled = true;
+    p.coolerInstalled = true;
     p.ramInstalled = true;
     expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('atx');
+  });
+
+  it('out of order: the cooler needs the CPU, and the power step waits for the cooler', () => {
+    // CPU in, cooler not yet: the cooler step comes before RAM, and power is not offered.
+    const p = newProgress(false);
+    p.cpuInstalled = true;
+    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cooler');
+    // Everything but the cooler is done: still the cooler, not the power button.
+    const q = { ...oldUpTo(13), coolerInstalled: false, poweredOn: false, firstKeyPlugged: false, firstJobDone: false, firstKeyEjected: false, firstPurchase: false };
+    expect(idOf(currentStep(snap({ progress: q }), welcomed))).toBe('cooler');
+    // A legacy save (cooler pre-mounted, flag derived true) skips the step.
+    expect(idOf(currentStep(snap({ progress: oldUpTo(2) }), welcomed))).toBe('ram');
+  });
+
+  it('the cooler step shows the sim reason when it is dragged too early or power is pressed without it', () => {
+    const step = STEPS.find((x) => x.id === 'cooler')!;
+    const cooler = { id: 'inv5', spec: 'cooler0', kind: 'cooler' as const, name: 'Stock heatsink', freeSlots: [], swapSlots: [], installable: false, reason: 'install the CPU first: the cooler mounts on it' };
+    expect(stepProblem(snap({ inventory: [cooler] }), step)).toMatch(/install the CPU first/);
+    expect(stepProblem(snap({ phase: 'error', powered: true, postBlocker: 'no CPU cooler installed: it mounts on the CPU' }), step)).toMatch(/machine is on/);
+    expect(stepProblem(snap({ phase: 'error', powered: false, postBlocker: 'no CPU cooler installed: it mounts on the CPU' }), step)).toMatch(/no CPU cooler/);
+    expect(step.targets(snap({ inventory: [{ ...cooler, freeSlots: ['cooler0'], installable: true }] }))).toEqual(['inventory', 'inv:inv5', 'cooler0']);
   });
 
   it('out of order: a job served before the power was ever pressed still points at the power button', () => {
@@ -258,7 +280,9 @@ describe('replay', () => {
 
   it('a part that is installed right now is skipped', () => {
     const s = snap({ progress: newProgress(true), devices: [dev({ kind: 'cpu' })] });
-    expect(idOf(currentStep(s, replay))).toBe('ram');
+    expect(idOf(currentStep(s, replay))).toBe('cooler'); // the cooler is not mounted yet
+    const s2 = snap({ progress: newProgress(true), devices: [dev({ kind: 'cpu' }), dev({ id: 'dc', kind: 'cooler', slot: 'cooler0' })] });
+    expect(idOf(currentStep(s2, replay))).toBe('ram');
   });
 
   it('a new key ejected since the replay started finishes the removal step', () => {

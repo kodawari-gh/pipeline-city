@@ -43,6 +43,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
   switch (id) {
     case 'cpu': installPart(['cpu']); break;
     case 'ram': installPart(['ram']); break;
+    case 'cooler': installPart(['cooler']); break;
     case 'psu': installPart(['psu']); break;
     case 'monitor': installPart(['display']); break;
     case 'atx': case 'cpuPower': case 'video': {

@@ -27,7 +27,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'power' | 'plugKey' | 'watch'
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'power' | 'plugKey' | 'watch'
   | 'removeKey' | 'spend' | 'fit' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
   | 'osCollect' | 'osPaid' | 'done';
 
@@ -89,6 +89,12 @@ export const STEPS: StepDef[] = [
   { id: 'cpu', title: 'Install the processor', flag: 'cpuInstalled',
     text: 'Open the inventory and drag the processor (CPU) onto the big square socket in the middle of the board.',
     targets: installTargets('cpu') },
+  { id: 'cooler', title: 'Install the cooler', flag: 'coolerInstalled',
+    text: 'Drag the cooler (heatsink and fan) from the inventory onto the processor. The fan sits on the CPU to carry its heat away, and it spins only while the machine is powered.',
+    targets: (s) => {
+      const items = invOf(s, 'cooler');
+      return [INVENTORY_ID, ...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
+    } },
   { id: 'ram', title: 'Install the memory', flag: 'ramInstalled',
     text: 'Drag a memory stick (RAM) from the inventory into a long memory slot next to the processor.',
     targets: installTargets('ram') },
@@ -194,7 +200,7 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
   const owned = s.devices.length + s.inventory.length;
   const done = ejected || !!s.plugged?.done;
   return {
-    cpuInstalled: has('cpu'), psuInstalled: has('psu'), ramInstalled: has('ram'), monitorInstalled: has('display'),
+    cpuInstalled: has('cpu'), coolerInstalled: has('cooler'), psuInstalled: has('psu'), ramInstalled: has('ram'), monitorInstalled: has('display'),
     atxConnected: cable('atx'), cpuPowerConnected: cable('cpu'), videoConnected: cable('video'),
     poweredOn: s.powered && s.phase !== 'off',
     storageInstalled: s.storage.length > 0, osInstalled: !!s.os, firstOsJob: s.progress.firstOsJob,
@@ -270,6 +276,13 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       const items = invOf(s, kind);
       if (!items.length) return `No ${kind} in the inventory. Buy one from a part on the board.`;
       return itemReason(s, kind);
+    }
+    case 'cooler': {
+      if (s.powered) return 'The machine is on. Press the power button to switch it off, then install parts.';
+      if (s.phase === 'error' && s.postBlocker) return s.postBlocker;
+      const items = invOf(s, 'cooler');
+      if (!items.length) return 'No cooler in the inventory. Buy one from the cooler slot on the processor.';
+      return itemReason(s, 'cooler');
     }
     case 'atx': case 'cpuPower': case 'video': {
       const id = step.id === 'atx' ? 'atx' : step.id === 'cpuPower' ? 'cpu' : 'video';

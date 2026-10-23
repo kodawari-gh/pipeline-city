@@ -135,7 +135,7 @@ export type { Description };
 const PLAIN_KIND: Record<DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
-  cooler: 'Pulls heat off the processor so it can run fast without slowing down or breaking.',
+  cooler: 'Mounts on the CPU and pulls heat off it so it can run fast without slowing down or breaking. The fan spins only while the machine is powered.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
@@ -169,7 +169,7 @@ const SLOT_PLAIN: Record<string, string> = {
   dimm: 'memory slot: drag a RAM stick here',
   atx: 'power supply bay: drag a power supply here',
   'atx-plus': 'power supply bay (ATX+): drag a big power supply here',
-  cooler: 'cooler mount: sits on the processor',
+  cooler: 'cooler mount: mounts on the CPU',
   display: 'monitor port: drag a monitor here',
   pcie: 'expansion slot (nothing fits yet)',
   sata: 'drive bay (SATA): drag a drive here',
