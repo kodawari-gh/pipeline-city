@@ -8,7 +8,8 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 - **Glass**: every panel (HUD bar, picker, inventory tray, tutorial card, stats drawer, menu, tooltip, toasts) is a low-opacity background (`--panel`) with `backdrop-filter: blur(10px)`, a 1 px hairline (`--glass-line`), a 10 px radius and no shadow. Tokens are on `:root` (light) and `:root[data-theme="dark"]` (plus the `prefers-color-scheme` fallback). Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in light and dark.
 - **Small type**: 11 to 12 px body, 9.5 px uppercase labels, 13.5 px picker titles. Padding is 5 to 10 px.
-- **Fewer always-visible things**: the HUD shows money, time, reputation, keys, the machine chip, the inventory button (count badge), speed and theme. Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
+- **Pause**: at speed 0 the root gets `class="paused"` (`state.ts`, from the speed signal). `ui.css` stops every animation that shows sim activity: the OS chip pulse (`.chip.live`) and anything marked `.sim-anim`. Hover transitions, panels, toasts and notices keep running. The tutorial's target pulse is guidance, not sim activity, so it keeps running. New sim-activity animations must use one of those hooks.
+- **Fewer always-visible things**: the HUD shows money, time, reputation, keys (with `+N held` for held keys), the machine chip, the inventory button (count badge), speed and theme. Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
 - **Part illustrations** (`PartArt.tsx`): inline SVG drawn from the spec, classes only (`.art .ink`, `.art .plate`...), so both themes read the tokens. CPU die with the pipeline per tier (one block for unpipelined, five stages for in-order, forwarding arcs and a cache row for tier 2); RAM sticks (count from the size) with a latency gauge; cooler (fins for the stock heatsink, fan for the tower, tubes and radiator for the liquid loop); PSU with a wattage dial; board with its slot counts; monitor.
 - **Icons** (`Icons.tsx`): bolt for power, flame for heat, clock for speed and latency, dollar for price, lock for blocked or later, check for fitted, box for the inventory. Each is a 16 px stroke icon in `currentColor`.
 
@@ -71,6 +72,7 @@ Opens only when `selected` is set. Escape or the x closes it. For a part it show
 - **CPU clock dial** (installed, working CPU): a track with three zones, **safe**, **throttle** and **unstable**, from the sim's own steady-state heat model (`clockZones`, the same numbers as `thermal.ts`: the clock at which a full-load CPU with the installed cooler reaches its throttle and unstable temperatures). A knob shows the clock in its zone colour, a chip says the zone word, and the estimated temperature (`estTempC`) sits beside it. The slider is a transparent range input over the track.
 - **Actions**: Power on/off, Power cycle after a trip, Plug into USB, Remove key (get paid). Disabled actions carry the sim's reason as their tooltip.
 - **Details**: the nerd text, collapsed.
+- **Storage and OS**: a drive shows its used and total capacity (its `sata`/`m2` socket is "drag a drive here"); a drive's stats are capacity, latency, throughput (`drivePerSecond`, bytes/s) and power. The OS shows programs, queue slots, memory and disk needed, with the later tiers locked and their description on hover. An installed OS has **Uninstall OS**, which takes two presses (the first asks, the second wipes the drive via `store.uninstallOs`). A spare that the sim will not fit shows its reason (memory, free space, no slot) in its rung.
 
 Buttons that the sim would refuse are disabled, with the reason in their tooltip. A press the sim still refuses shows the **Notice**.
 
@@ -93,7 +95,22 @@ The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/s
 | 10 | Watch it work | `firstJobDone` | `monitor` |
 | 11 | Remove the key (paid on removal) | `firstKeyEjected` | `usb` |
 | 12 | Spend your first money | `firstPurchase` | the CPU's slot, or `inventory` |
-| - | Workshop open (Got it): drag the new part from the inventory | none (button) | the first inventory item (`inv:`) |
+| 13 | Fit your new part | no bought upgrade still in the inventory (`pendingUpgrade`: a higher tier than the best installed of its kind; a swap counts) | `inv:` item and its socket (free or swap) |
+| 14 | Buy a drive | live: a storage item owned or installed | `bay` |
+| 15 | Install the drive | `storageInstalled` | `inv:` storage item and its `sata`/`m2` slot |
+| 16 | Buy an operating system | live: an OS owned or installed | `os` |
+| 17 | Install the OS on the drive | `osInstalled` | `inv:` OS item and the drive's slot |
+| 18 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `os`, `bay` |
+| 19 | Plug in a key: the OS takes it | live: `held` non-empty, or the plugged key is `queued`, `running`, `result`, `flashing` or `done` | `usb`, `key:` |
+| 20 | Unplug it: the OS keeps the job | live: `held` non-empty, or the plugged key is `result`, `flashing` or `done` | `usb`, `key:` |
+| 21 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `monitor`, `os`, `held` |
+| 22 | Plug the key back in to collect | live: the plugged key is `flashing` or `done` | `usb`, `key:` |
+| 23 | Remove the key to get paid | `firstOsJob` | `usb`, `key:` |
+| - | Workshop open (Got it): the OS runs jobs; a network card and a router will replace the USB keys | none (button) | none |
+
+Steps 13 to 23 are the storage and OS lesson. A player who finished the first twelve steps (or a migrated save with those flags) is **not** forced through them: the card becomes one offer, **Next lesson: the OS** (Start the lesson, or Not now, which never comes back). Taking it sets `osLesson` and starts at the drive. `osLesson` and `offered` are persisted next to the old flags.
+
+**Live steps** have no flag: `isDone(step, snapshot, progress)` reads the sim's own state (owned items, the phase, `KeySnap.stage`, `held[]`). Nothing completes a step with a Next button. The bot test (`tutorial.bot.test.ts`) plays the whole lesson through public Game actions, in order, with each step under 600 s of game time, and checks that no action is refused. It serves the queue (plug, eject, power on) until the OS is installed, because the first purchase needs money.
 
 An install step **opens the inventory tray** by itself (any `inv:` target), so the part to drag is on screen. Each card shows a **problem line** when the step is stuck, taken from the sim's own reasons: `noPowerReason`, the cable's `blocked`, `postBlocker`, `phaseReason`, "No key yet", "The machine is off", "No cpu in the inventory".
 
@@ -131,7 +148,7 @@ Shown once each as a small dismissible toast, remembered in `localStorage['pipel
 
 ## Tests
 
-`npm test` runs the pure logic: `logic.test.ts` (formatting, stats, hints and toasts, HUD status text, queue readout, refusal wording, descriptions for every id the renderer writes), `picker.test.ts` (contents per id: empty socket, installed CPU, spare and upgrade ladder rungs, inventory items, keys, power after a trip, PSU, USB, cables, regions, board; stat values, bar goodness, before/after deltas, clock zones and the estimated temperature), `tutorial.test.ts` (steps from flags, resume mid-way, out-of-order actions, replay, migrated saves, step problems and targets, no step points at the crate, persisted state). Fixtures are in `testdata.ts`.
+`npm test` runs the pure logic: `logic.test.ts` (formatting, stats, hints and toasts, HUD status text, queue readout, refusal wording, descriptions for every id the renderer writes), `picker.test.ts` (contents per id: empty socket, installed CPU, spare and upgrade ladder rungs, inventory items, keys, power after a trip, PSU, USB, cables, regions, board; stat values, bar goodness, before/after deltas, clock zones and the estimated temperature), `tutorial.test.ts` (steps from flags, resume mid-way, out-of-order actions, replay, migrated saves, step problems and targets, no step points at the crate, persisted state). Fixtures are in `testdata.ts`. `tutorial.bot.test.ts` is the headless completability test: a bot plays the whole tutorial, storage and OS included, through public Game actions (run with `npm test`, about 1 s).
 
 ## Verification
 
