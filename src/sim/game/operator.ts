@@ -31,7 +31,8 @@ export class Operator {
     const g = this.g;
     if (!g.powered) return this.act(() => { g.powerButton(); });
     if (plugged) {
-      if (g.pluggedIngested()) return this.act(() => { g.ejectKey(); });
+      // Queued: pull it (the OS holds it) only if something else waits for the port; otherwise leave it for the result.
+      if (g.pluggedIngested() && (g.trayKeyIds().length > 0 || g.osHeld().ready.length > 0)) return this.act(() => { g.ejectKey(); });
       return void (this.wait = 0);
     }
     const held = g.osHeld();

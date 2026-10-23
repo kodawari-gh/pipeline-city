@@ -87,6 +87,12 @@ export interface EconomyConfig {
   usbEnumTicks: number;
   usbFlashTicks: number;
   /**
+   * Cold-boot hardware delay (base ticks): after every power-on or crash reboot the PSU power-good, fans and BIOS init take
+   * this long before the CPU runs the first ROM instruction (the monitor stays black). A faster CPU does not shorten it,
+   * so the no-OS loop (one cold boot per job) has a fixed cost per job that an OS (one cold boot, ever) does not pay.
+   */
+  coldBootTicks: number;
+  /**
    * Patience schedule (docs/GAME.md). The manual no-OS loop (plug, power on, POST + boot, run, write, remove, power off) is
    * slow by design, so clients are forgiving at first and tighten with game time (driver: base ticks since the first boot):
    * the reputation target (`targetTurnaround`), the key deadline (`deadlineTicks`) and the tray-overflow penalty
@@ -119,7 +125,8 @@ export const ECONOMY: EconomyConfig = {
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
-  patience: { startMul: 3, floorMul: 0.5, holdTicks: 600, floorTicks: 3000 },
+  coldBootTicks: 30,
+  patience: { startMul: 4, floorMul: 0.6, holdTicks: 900, floorTicks: 3000 },
 };
 
 /** Client patience multiplier `elapsed` base ticks after the first boot: startMul, then linear down to floorMul. */

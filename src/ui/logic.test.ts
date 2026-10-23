@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, newHints,
+  cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
   queueReadout, statusChip, stallsByCause, tempLevel, triggeredHints,
 } from './logic';
 import { REGIONS } from './regions';
@@ -44,6 +44,22 @@ describe('HUD status text', () => {
     ['off', 'Off'], ['posting', 'POST'], ['waiting-for-key', 'Waiting for key'], ['loading', 'Loading'],
     ['running', 'Running'], ['writing', 'Writing'], ['done-remove-key', 'Remove key'],
   ];
+  it('halted: job done asks for the key to be removed, no boot media asks for a key and a restart', () => {
+    const done = statusChip(snap({ phase: 'halted', powered: true, haltReason: 'job-done' }));
+    expect(done.text).toBe('Job done: remove key');
+    expect(done.title).toMatch(/power off and on/);
+    expect(statusChip(snap({ phase: 'halted', powered: true, haltReason: 'no-boot-media' })).text).toBe('No boot media');
+  });
+  it('a POST error is presented as one, not as a refusal', () => {
+    const c = statusChip(snap({ phase: 'error', powered: true, phaseReason: 'no CPU installed', postFailed: true }));
+    expect(c.text).toBe('POST error: no CPU installed');
+    expect(c.level).toBe('bad');
+  });
+  it('a key plugged into a running no-OS machine raises the hint', () => {
+    expect(triggeredHints(snap({ phase: 'halted', powered: true, keyIgnored: true }))).toContain('keyIgnored');
+    expect(triggeredHints(snap({ phase: 'halted', powered: true }))).not.toContain('keyIgnored');
+    expect(HINTS.keyIgnored!.text).toMatch(/only looks for a program at boot/);
+  });
   it.each(phaseText)('phase %s reads "%s"', (phase, text) => {
     expect(statusChip(snap({ phase, powered: phase !== 'off' })).text).toBe(text);
   });

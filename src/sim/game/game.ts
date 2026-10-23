@@ -438,13 +438,15 @@ export class Game {
   private log: GameEvent[] = [];
   /** Base tick of the first real power-on (the client patience schedule runs from here), or null before it. */
   private firstBootTick: number | null = null;
+  /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
+  private bootDelay = 0;
 
   private readonly seed: number;
 
   constructor(opts: GameOptions) {
     this.seed = opts.seed >>> 0;
     this.cfg = { ...ECONOMY, ...opts.economy };
-    this.avgTurnaround = this.cfg.targetTurnaround;
+    this.avgTurnaround = this.cfg.targetTurnaround * this.cfg.patience.startMul; // the clients start out content: reputation 1
     this.money = this.cfg.startMoney;
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
@@ -752,7 +754,8 @@ export class Game {
     this.baseTick++;
     this.arrivals();
     const running = this.powered && !this.postError && !this.fault();
-    if (running) {
+    if (running && this.bootDelay > 0) this.bootDelay--;
+    else if (running) {
       this.pch.usbTick();
       this.machine.advanceBaseTick();
       this.afterMachine();
@@ -1363,6 +1366,7 @@ export class Game {
     this.machine.display.clear();
     this.machine.display.connected = this.monitorLive();
     this.machine.engine = null;
+    this.bootDelay = this.cfg.coldBootTicks;
     this.postError = bootCheck(this.board, this.cables).post;
     if (this.postError) {
       this.pch.powerOff();

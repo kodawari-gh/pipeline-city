@@ -4,36 +4,7 @@ import { BOOT_BLOCKS, KERNEL_IMAGE } from "../os";
 import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
 
-type Keys = { template: string; scale?: number }[];
-
-/** No random arrivals; the tray starts with `keys` (default: the one starter key). */
-const econ = (keys: Keys = [{ template: "cli.log" }]) => ({ baseDemandPerTick: 0, startQueue: keys });
-
-/**
- * A machine ready for an OS: CPU `cpu`, 32K RAM, a PSU big enough, one storage drive and (unless `os: false`) the OS
- * installed, powered off. Built from preassembled by buying with free money and installing by hand.
- */
-export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os?: boolean; keys?: Keys; seed?: number } = {}): Game {
-  const g = new Game({ seed: opts.seed ?? 7, preassembled: true, economy: econ(opts.keys) });
-  g.money = 1_000_000;
-  g.powerButton();
-  const put = (id: string): void => {
-    const b = g.purchase(id);
-    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
-    const r = g.install(b.invId);
-    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
-  };
-  // The Starter board has one DIMM and a 24 A VRM: the OS rigs run on the Mainstream board (M.2 slot, 60 A VRM) so cpu1/cpu2 are fine.
-  put("board1");
-  put("board2");
-  put("psu1");
-  put(opts.cpu ?? "cpu1");
-  g.uninstall(g.board.devices.find((d) => d.spec === "ram0")!.id);
-  put("ram1");
-  put(storage);
-  if (opts.os !== false) put("os1");
-  return g;
-}
+import { econ, rig, type Keys } from "./testkit";
 
 const ticks = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 

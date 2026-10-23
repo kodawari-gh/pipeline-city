@@ -12,14 +12,16 @@ const MAX_STEP_TICKS = 600;
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
 
 /**
- * Keep serving the queue while a step waits (money for the next purchase): before an OS is installed the player plugs
- * each key in turn and removes it when done, exactly as the first job went. With an OS the steps drive the keys.
+ * Keep serving the queue while a step waits (money for the next purchase): before an OS is installed the player runs the
+ * manual loop, exactly as the first jobs went: remove the finished key, power off, plug the next key while the machine is
+ * off, power on. With an OS the steps drive the keys.
  */
 function serve(g: Game, s: Snapshot): void {
   if (s.os) return;
   if (s.plugged?.done) { g.ejectKey(); return; }
-  if (!g.powered && (s.tray.length > 0 || s.plugged)) g.powerButton();
-  if (!s.plugged && s.tray[0] && g.powered) g.plugKey(s.tray[0].id);
+  if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) { g.powerButton(); return; }
+  if (!g.powered && !s.plugged && s.tray[0]) { g.plugKey(s.tray[0].id); return; }
+  if (!g.powered && s.plugged) g.powerButton();
 }
 
 /** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
@@ -56,8 +58,15 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       if (!g.powered) g.powerButton();
       break;
     case 'plugKey':
-      if (!g.powered) g.powerButton();
-      if (!s.plugged && s.tray[0]) g.plugKey(s.tray[0].id);
+      // The key goes in first, while the machine is off.
+      if (g.powered) g.powerButton();
+      else if (!s.plugged && s.tray[0]) g.plugKey(s.tray[0].id);
+      break;
+    case 'cycle':
+      // Power off, plug the next key, power on: one action per tick.
+      if (g.powered) g.powerButton();
+      else if (!s.plugged) { if (s.tray[0]) g.plugKey(s.tray[0].id); }
+      else g.powerButton();
       break;
     case 'watch': break;
     case 'removeKey': case 'osPaid':
@@ -153,10 +162,7 @@ describe('the tutorial is completable with public actions', () => {
       if (step.id === 'done') break;
       act(g, s, step.id);
     }
-    // Some refusals are expected from the bot's own timing (a key pulled before it is queued, the power button pressed
-    // twice in a tick); none may come from a step's own action. The cases the bot relies on must all be accepted.
-    expect(refused.filter((r) => r.startsWith('purchase'))).toEqual([]);
-    expect(refused.filter((r) => r.startsWith('install'))).toEqual([]);
-    expect(refused.filter((r) => r.startsWith('connectCable'))).toEqual([]);
+    // Nothing the tutorial asks for is ever refused: not a purchase, install, cable, key plug/removal or power press.
+    expect(refused).toEqual([]);
   });
 });

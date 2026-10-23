@@ -9,10 +9,10 @@ import {
 import { dev, key, snap, STARTER_CRATE } from './testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
-/** The first thirteen flags, in the order the player meets them (the pre-OS tutorial, with the cooler after the CPU). */
+/** The first fourteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
 const OLD_IN_ORDER: Array<keyof Progress> = [
   'cpuInstalled', 'coolerInstalled', 'ramInstalled', 'psuInstalled', 'monitorInstalled', 'atxConnected', 'cpuPowerConnected',
-  'videoConnected', 'poweredOn', 'firstKeyPlugged', 'firstJobDone', 'firstKeyEjected', 'firstPurchase',
+  'videoConnected', 'firstKeyPlugged', 'poweredOn', 'firstJobDone', 'firstKeyEjected', 'firstManualCycle', 'firstPurchase',
 ];
 const oldUpTo = (n: number): Progress => {
   const p = newProgress(false);
@@ -20,7 +20,7 @@ const oldUpTo = (n: number): Progress => {
   return p;
 };
 const idOf = (s: ReturnType<typeof currentStep>) => s?.id ?? null;
-const oldDone = () => oldUpTo(13);
+const oldDone = () => oldUpTo(14);
 
 const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
   deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
@@ -47,7 +47,7 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
-    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'atx', 'cpuPower', 'video', 'power', 'plugKey', 'watch', 'removeKey', 'spend'];
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'atx', 'cpuPower', 'video', 'plugKey', 'power', 'watch', 'removeKey', 'cycle', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
@@ -75,7 +75,7 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(6) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cpuPower');
-    expect(stepCount(step!)).toEqual({ n: 7, total: 13 + 11 });
+    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 11 });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
@@ -116,7 +116,7 @@ describe('tutorial step from snapshot flags', () => {
     p.cpuInstalled = true;
     expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cooler');
     // Everything but the cooler is done: still the cooler, not the power button.
-    const q = { ...oldUpTo(13), coolerInstalled: false, poweredOn: false, firstKeyPlugged: false, firstJobDone: false, firstKeyEjected: false, firstPurchase: false };
+    const q = { ...oldUpTo(14), coolerInstalled: false, poweredOn: false, firstKeyPlugged: false, firstJobDone: false, firstKeyEjected: false, firstManualCycle: false, firstPurchase: false };
     expect(idOf(currentStep(snap({ progress: q }), welcomed))).toBe('cooler');
     // A legacy save (cooler pre-mounted, flag derived true) skips the step.
     expect(idOf(currentStep(snap({ progress: oldUpTo(2) }), welcomed))).toBe('ram');
@@ -321,7 +321,7 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
   const step = (id: string) => STEPS.find((x) => x.id === id)!;
 
   it('the CPU step explains a refusal when the machine is on', () => {
-    const s = snap({ powered: true, phase: 'waiting-for-key' });
+    const s = snap({ powered: true, phase: 'halted', haltReason: 'no-boot-media' });
     expect(stepProblem(s, step('cpu'))).toMatch(/Press the power button to switch it off/);
   });
 
@@ -333,11 +333,26 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
     expect(stepProblem(snap(), step('power'))).toMatch(/Install a power supply/);
   });
 
-  it('the key step waits for a key, then asks for power', () => {
+  it('the key step waits for a key; a running machine would ignore it, an off machine is the right moment', () => {
     const plug = step('plugKey');
     expect(stepProblem(snap(), plug)).toMatch(/No key yet/);
-    expect(stepProblem(snap({ tray: [key()] }), plug)).toMatch(/machine is off/);
-    expect(stepProblem(snap({ tray: [key()], powered: true }), plug)).toBeNull();
+    expect(stepProblem(snap({ tray: [key()] }), plug)).toBeNull();
+    expect(stepProblem(snap({ tray: [key()], powered: true }), plug)).toMatch(/already on.*Power it off/);
+  });
+
+  it('the power step warns about a missing key (NO BOOT MEDIA) and shows POST errors as such', () => {
+    const power = step('power');
+    expect(stepProblem(snap({ noPowerReason: null }), power)).toMatch(/NO BOOT MEDIA/);
+    expect(stepProblem(snap({ noPowerReason: null, plugged: key() }), power)).toBeNull();
+    expect(stepProblem(snap({ noPowerReason: null, powered: true, phase: 'error', phaseReason: 'no CPU installed', postFailed: true }), power)).toMatch(/POST error: no CPU installed/);
+  });
+
+  it('the watch step explains an ignored key, and the cycle step walks through the manual loop', () => {
+    expect(stepProblem(snap({ powered: true, phase: 'halted', haltReason: 'no-boot-media', plugged: key(), keyIgnored: true }), step('watch'))).toMatch(/only looks at boot/);
+    const cycle = step('cycle');
+    expect(stepProblem(snap({ tray: [key()] }), cycle)).toMatch(/Plug the next key/);
+    expect(stepProblem(snap({ plugged: key(), powered: true, phase: 'halted' }), cycle)).toMatch(/Press the power button/);
+    expect(stepProblem(snap({ plugged: key() }), cycle)).toBeNull();
   });
 
   it('no problem on the welcome card', () => {
