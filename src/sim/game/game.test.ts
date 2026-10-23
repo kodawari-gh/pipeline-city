@@ -199,20 +199,25 @@ describe("board upgrade purchase", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [] } });
     g.money = 1e6;
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id);
-    expect(by("board1")).toMatchObject({ kind: "board", price: 300, affordable: true });
+    g.powerButton(); // a board can only be bought while powered off
+    expect(by("board1")).toMatchObject({ kind: "board", price: 150, affordable: true });
+    expect(by("board2")).toBeUndefined(); // only the next tier is offered
     expect(by("psu2")!.blocked).toMatch(/atx-plus/);
-    const b = g.purchase("board1") as { ok: true; invId: string };
+    const b1 = g.purchase("board1") as { ok: true; invId: string };
+    expect(b1.ok).toBe(true);
+    expect(by("board2")).toMatchObject({ kind: "board", price: 300, affordable: true });
+    const b = g.purchase("board2") as { ok: true; invId: string };
     expect(b.ok).toBe(true);
-    expect(g.money).toBe(1e6 - 300);
+    expect(g.money).toBe(1e6 - 450);
     expect(g.snapshot().boardTier).toBe(0); // owned, not installed
-    expect(by("board1")).toBeUndefined(); // not offered twice
+    expect(by("board2")).toBeUndefined(); // not offered twice
     expect(by("psu2")!.blocked).toBeUndefined();
     const p = g.purchase("psu2") as { ok: true; invId: string };
     expect(p.ok).toBe(true);
-    g.powerButton();
     expect(g.snapshot().inventory.find((i) => i.id === b.invId)).toMatchObject({ kind: "board", freeSlots: ["board"], installable: true });
+    expect(g.install(b1.invId).ok).toBe(true);
     expect(g.install(b.invId).ok).toBe(true);
-    expect(g.snapshot().boardTier).toBe(1);
+    expect(g.snapshot().boardTier).toBe(2);
     expect(g.snapshot().cables.every((c) => c.connected)).toBe(true); // parts and cables carried over
     expect(g.install(p.invId).ok).toBe(true); // swaps over the 40 W PSU, which goes back to the inventory
     expect(g.snapshot().cables.find((c) => c.id === "atx")!.connected).toBe(true); // swapping keeps the cables on the board
@@ -227,13 +232,14 @@ describe("board upgrade purchase", () => {
   it("is refused without the money", () => {
     const g = new Game({ seed: 1 });
     const r = g.purchase("board1");
-    expect(!r.ok && r.reason).toMatch(/needs [$]300/);
+    expect(!r.ok && r.reason).toMatch(/needs [$]150/);
   });
 
   it("keeps earning after the upgrade", () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 400;
-    g.purchase("board1");
+    g.powerButton(); // board purchases need the machine off
+    expect(g.purchase("board1").ok).toBe(true);
     play(g, 300, 1);
     expect(g.snapshot().boardTier).toBe(1);
     expect(g.completed).toBeGreaterThan(2);
@@ -319,6 +325,9 @@ describe("overclock, heat and errors", () => {
   function cpu2Game(clock: number): { g: Game; op: Operator } {
     const g = new Game({ seed: 5, preassembled: true, economy: busy });
     g.money = 1e6;
+    // cpu2 would crash the Starter board's VRM at once; these tests are about the CPU's own heat, so give it the strongest board.
+    g.powerButton();
+    for (const b of ["board1", "board2", "board3"]) g.purchase(b);
     g.purchase("psu1");
     g.purchase("cpu2");
     const op = new Operator(g, 0);

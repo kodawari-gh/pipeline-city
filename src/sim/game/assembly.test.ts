@@ -39,14 +39,14 @@ describe("the bare start", () => {
     expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false]]);
     expect(s.cables.every((c) => c.blocked)).toBe(true); // no PSU / monitor yet
     expect(s.noPowerReason).toMatch(/PSU/);
-    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cpu0", "dimm0", "dimm1", "display0", "sata0", "usb0"]);
+    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cpu0", "dimm0", "display0", "sata0", "usb0", "vrm-sink0"]);
   });
 
   it("lists the free compatible slots of each inventory part (drop targets)", () => {
     const inv = bare().snapshot().inventory;
     const by = (spec: string) => inv.find((i) => i.spec === spec)!;
     expect(by("cpu0")).toMatchObject({ freeSlots: ["cpu0"], swapSlots: [], installable: true });
-    expect(by("ram0").freeSlots).toEqual(["dimm0", "dimm1"]);
+    expect(by("ram0").freeSlots).toEqual(["dimm0"]); // the Starter board has one DIMM slot
     expect(by("psu0").freeSlots).toEqual(["atx0"]);
     expect(by("display0").freeSlots).toEqual(["display0"]);
   });
@@ -75,13 +75,12 @@ describe("install, uninstall and cables", () => {
   it("installs into a chosen slot, then a second part of the same kind swaps over it and the old one comes back", () => {
     const g = bare();
     g.money = 1e6;
-    expect(g.install("inv3", "dimm1")).toMatchObject({ ok: true, slot: "dimm1" });
+    expect(g.install("inv3", "dimm0")).toMatchObject({ ok: true, slot: "dimm0" });
     const r = g.purchase("ram1") as { ok: true; invId: string };
-    expect(g.install(r.invId, "dimm1")).toMatchObject({ ok: true, slot: "dimm1" }); // swap
+    expect(g.install(r.invId, "dimm0")).toMatchObject({ ok: true, slot: "dimm0" }); // swap
     const s = g.snapshot();
-    expect(s.devices.filter((d) => d.kind === "ram").map((d) => [d.spec, d.slot])).toEqual([["ram1", "dimm1"]]);
+    expect(s.devices.filter((d) => d.kind === "ram").map((d) => [d.spec, d.slot])).toEqual([["ram1", "dimm0"]]);
     expect(s.inventory.map((i) => i.spec)).toContain("ram0");
-    expect(s.slots.find((x) => x.id === "dimm0")!.deviceId).toBeNull();
   });
 
   it("only works while the machine is off, for install, uninstall and cables", () => {
