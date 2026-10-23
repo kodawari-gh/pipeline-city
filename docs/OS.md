@@ -58,7 +58,7 @@ The kernel writes the PCH `PHASE` register (`OsBoot 7, OsIdle 8, OsIngest 9, OsR
 
 ## Phases (OS mode)
 
-`booting-os` (ROM loading the kernel; `bootProgress` 0.4..1 by blocks read), `idle-os` (kernel polling), `ingesting`, `running-os`, `flashing`. Plus `off`, `posting`, `error`. The legacy phases (`waiting-for-key`, `loading`, `running`, `writing`, `done-remove-key`) only occur without an OS. The machine boots once; there is no reboot per job.
+`booting-os` (ROM loading the kernel; `bootProgress` 0.4..1 by blocks read), `idle-os` (kernel polling), `ingesting`, `running-os`, `flashing`. Plus `off`, `posting`, `error`. The no-OS phases (`loading`, `running`, `writing`, `halted`) only occur without an OS; there the ROM looks at the USB port once at boot and halts after the job (see [`ASSEMBLY.md`](ASSEMBLY.md)). With an OS the machine boots once; there is no reboot per job. A key already plugged when an OS machine is powered on is enumerated and ingested at idle like a hot-plugged one (`os.test.ts`). **Why buy the OS**: it removes the per-job cold boot (`ECONOMY.coldBootTicks`), the manual power cycle and the one-key-at-boot rule; the patience schedule (GAME.md) makes the manual loop unsustainable later.
 
 ## Snapshot and API additions
 

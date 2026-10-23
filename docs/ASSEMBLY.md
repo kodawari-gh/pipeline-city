@@ -4,7 +4,7 @@ Code: `src/sim/game/game.ts` (the API below), `src/sim/board/cables.ts` (cables,
 
 ## The loop in one paragraph
 
-The game starts with a bare board and a free **starter crate** (an inventory). The player installs each part into a typed slot, plugs cables, and presses power. The machine runs its **boot ROM** on the simulated CPU (POST, then wait for a key). Clients leave **USB keys** in a tray; the player plugs one into the USB port. The ROM copies the key's program into RAM, runs it, writes the result back to the key and shows REMOVE KEY. The player removes the key, the client collects the result, and the player is paid. The machine then **reboots by itself** (POST runs again, visibly) and waits for the next key. The machine waits forever for the player at every step: idle time is lost income.
+The game starts with a bare board and a free **starter crate** (an inventory). The player installs each part into a typed slot, plugs cables, plugs a **USB key** from the tray into the USB port, and presses power (**the machine only looks for a program at boot**). After a cold-boot wait and POST the **boot ROM** (run on the simulated CPU) looks at the USB port **once**: no key means `NO BOOT MEDIA: INSERT A KEY AND RESTART` and the machine halts; a key means the ROM copies its program into RAM, runs it, writes the result back to the key, shows `JOB DONE: REMOVE KEY, THEN POWER OFF/ON` and **halts**. The player removes the key (the client collects the result, the player is paid), then powers off and on again, with the next key plugged, for the next job. That manual loop is slow by design; an OS (see [`OS.md`](OS.md)) reads keys while running. A key plugged into a running no-OS machine after the ROM's look is simply ignored. The machine waits forever for the player at every step: idle time is lost income.
 
 ## Start state (`new Game({seed})`)
 
@@ -24,17 +24,17 @@ All actions return `{ok: true, ...}` or `{ok: false, reason}` with a human-reada
 | `install(invId, slotId?)` | Put an inventory item into the machine. With `slotId`: a free compatible slot, or an occupied slot of the **same kind** (swap: the old part returns to the inventory, a burnt one is scrapped). Without: the first free compatible slot, else swap with the installed part of that kind. A board item (`board1`...) upgrades the board (or replaces a burnt one of the same tier) and carries every part and cable over (slot id `"board"`, the old board is not kept). Validates slot type and the PSU rules (connector, watts vs rated load); on a refusal nothing changes. Returns `{deviceId, slot}`. |
 | `uninstall(deviceId)` | Remove an installed part; it goes to the inventory (a burnt part is scrapped). Returns `{invId}`. Unplugs the cables that ran from it. |
 | `connectCable(cable)` / `disconnectCable(cable)` | `cable` is `"atx"` (24-pin, PSU to board), `"cpu"` (8-pin, PSU to the CPU socket) or `"video"` (board display output to the monitor). Connecting needs the source part installed (PSU for atx/cpu, monitor for video). A `"pcie"` cable arrives with GPUs. |
-| `powerButton()` | Off to on or on to off, see "Power and POST". Returns `{powered}`. |
+| `powerButton()` | Off to on (refused only without a PSU and the ATX cable); powered in any phase (posting, running, halted, error) it is an immediate hard power-off. See "Power and POST". Returns `{powered}`. |
 | `plugKey(keyId)` / `ejectKey()` | See "Keys". `ejectKey` returns `{payout, done}`. |
 | `purchase(specId)` | Buy a catalog item (`cpu1`, `ram1`, `cooler1`, `psu1`, `board1`, ...). Money is spent now and the item goes to the **inventory**; nothing is installed. Returns `{invId}`. A board (`board<tier>`, only the next tier, or the same tier while the board is burnt) can be bought **only while powered off** (reason "powered off required"); `vsink0..2` are the VRM heatsinks. Only upgrades over what you own (installed or in the inventory) are offered; the plan must pass the board's rules (cpu2 needs a 100 W PSU somewhere in the plan). |
 | `setCpuClock(clock)` | Overclock/underclock the installed CPU (allowed while on). |
-| `powerCycle()` | Clear a PSU trip and reboot. |
+| `powerCycle()` | Clear a PSU trip and cold-reboot (the key stays plugged, the job restarts). |
 | `advanceBaseTick()` | One second of game time. |
 | `snapshot()` | Plain JSON, see below. `toSave()` / `Game.fromSave()` see [`SAVE.md`](SAVE.md). |
 
 **Parts and cables only change while the machine is off** (`reason: "power the machine off first"` otherwise). This replaces the old deferred-purchase mechanism: a purchase never touches the running machine. Purchases themselves are allowed any time.
 
-Test helpers on `Game`: `currentPhase()`, `trayKeyIds()`, `pluggedKey()`, `inventoryItems()`, `canInstall(invId)` (ignores power), `missingCables()`.
+Test and bot helpers on `Game`: `currentPhase()`, `trayKeyIds()`, `pluggedKey()`, `inventoryItems()`, `canInstall(invId)` (ignores power), `missingCables()`, `hasOs()`, `osHeld()`, `pluggedIngested()`.
 
 ## Phases
 
@@ -43,26 +43,27 @@ Test helpers on `Game`: `currentPhase()`, `trayKeyIds()`, `pluggedKey()`, `inven
 | Phase | Meaning |
 |---|---|
 | `off` | Not powered. The monitor is dark (`display` is empty). |
-| `posting` | The ROM is running its power-on self-test and printing lines. Also shown during the reboot after every job. |
-| `waiting-for-key` | POST done, the monitor says INSERT KEY, the ROM polls the USB status register. |
-| `loading` | A key is plugged: the ROM copies its program into RAM. `bootProgress` moves from 0.4 to 1. |
+| `posting` | Powered on and booting: first the cold-boot wait (`ECONOMY.coldBootTicks`, the monitor stays black and the CPU idles), then the ROM's power-on self-test printing lines. |
+| `loading` | POST passed and a key was in the port at the ROM's one look: it copies the program into RAM. `bootProgress` moves from 0.4 to 1. |
 | `running` | The job runs. |
 | `writing` | The job finished; the ROM copies the result line to the key. |
-| `done-remove-key` | The key holds its result, the monitor says REMOVE KEY, the ROM polls for removal. |
-| `error` | Powered but stopped; `phaseReason` says why (below). |
+| `halted` | The ROM stopped for good until the player power-cycles. `haltReason` says why: `"job-done"` (the key holds its result, the monitor says `JOB DONE` / `REMOVE KEY, THEN POWER OFF/ON`) or `"no-boot-media"` (no key at the look; `NO BOOT MEDIA` / `INSERT A KEY AND RESTART`). `bootProgress` is 1 for job-done and 0.4 for no media. |
+| `error` | Powered but stopped; `phaseReason` says why (below). A POST error has `postFailed: true`. |
+| `waiting-for-key`, `done-remove-key` | The old per-job-reboot phases. Kept in the type for old consumers, **never produced any more**. |
 | `booting-os`, `idle-os`, `ingesting`, `running-os`, `flashing` | Only with an OS installed, see [`OS.md`](OS.md). |
 
-Order for one job: `posting`, `waiting-for-key`, `loading`, `running`, `writing`, `done-remove-key`, then (key removed) `posting` again. The phase is the ROM's own `PHASE` register (its stores), except `off` and `error`, which the game decides.
+Order for one job (no OS): `posting`, `loading`, `running`, `writing`, `halted` (job-done); with no key: `posting`, `halted` (no-boot-media). Then nothing happens until the player powers off and on. The phase is the ROM's own `PHASE` register (its stores: `Halted` 12 and `NoMedia` 13 are new), except `off` and `error`, which the game decides.
 
 ## Power and POST
 
-- **Power button, off to on**: refused (`ok: false`, nothing happens, `noPowerReason` in the snapshot) unless a PSU is installed (not burnt) and the 24-pin ATX cable is connected. This is "no power at all".
-- **POST** (the PCH's own self-test, before the CPU is released): needs a working CPU, the 8-pin CPU power cable, and at least one working RAM stick. If one is missing the machine is powered but halted in phase `error`, no CPU activity (`pipe` is null), and the PCH prints `POST FAILED: NO CPU` / `NO CPU POWER` / `NO RAM` on the monitor if the video cable is connected. The player powers off, fixes it and powers on. `postBlocker` in the snapshot says what would fail, live.
+- **Power button, off to on**: refused (`ok: false`, nothing happens, `noPowerReason` in the snapshot) **only** when a PSU is missing or burnt, the board is dead, or the 24-pin ATX cable is not connected. This is "no power at all": nothing lights. Everything else is a POST error, reported after the press.
+- **POST errors are reported by the firmware** (the PCH's own self-test, before the CPU is released; there is no CPU to run asm when the CPU is the missing part, so this check is the PCH hardware, `bootCheck` in `board/cables.ts` and `Game.coldBoot`). Checked in this order, each with a distinct reason: no CPU (`NO CPU`), burnt CPU (`CPU FAILED`), no cooler (`NO CPU COOLER`), no 8-pin CPU power (`NO CPU POWER`), no working RAM (`NO RAM`). The machine is powered but stopped in phase `error` (`postFailed: true`, `phaseReason` = the readable reason, no CPU activity so `pipe` is null) and the PCH prints `POST FAILED: <SHORT>` and `POWER OFF TO FIX` on the monitor **when a video path exists** (monitor installed and cable connected; without it the screen is dark and the status chip is the only message). The player powers off, fixes it and powers on. `postBlocker` in the snapshot says what would fail, live. The UI shows these as `POST error: <reason>`, never as a refusal.
+- **Cold boot wait**: after every power-on (and crash reboot) the machine waits `ECONOMY.coldBootTicks` (30 s, placeholder: PSU power-good, fans, BIOS init) before the CPU runs the ROM. The monitor is black, the thermal load is idle, and a faster CPU does not shorten it. It is the fixed price of every boot, which is why a no-OS machine (one boot per job) is slow and an OS machine (one boot) is not.
 - **Monitor**: decision: a missing monitor or video cable does **not** stop the boot. The machine powers on and runs headless; `monitorLive` is false and `display` is empty. (The PCH error text is also invisible then.) The tutorial gates on `videoConnected`.
 - **Other `error` causes at run time**: PSU overload trip (`phaseReason` mentions power cycle; `powerButton()` off or `powerCycle()` clears it), burnt CPU or PSU. All need a power-off to repair.
-- **Power button, on to off**: always works, in any phase. A plugged key stays plugged; its job restarts from boot at the next power-on (a finished key stays finished and shows REMOVE KEY).
+- **Power button, on to off**: always works, in any phase, **immediately** (hard power-off): a job in progress is lost, but its key keeps its data, **stays plugged** (`attempts++` if it was loading, running or writing) and the job restarts at the next boot while the key is still in the port. A finished key stays finished and shows `JOB DONE` again at the next boot.
 - A **thermal error** (CPU in its unstable range) crashes the machine: it cold-reboots, the plugged key's job restarts, `errors` and the key's `attempts` count up, no payout for the attempt.
-- Boot time and heat: while posting/loading/running/writing the CPU is at full load; while waiting for a key, showing REMOVE KEY, or in error, the thermal model gets `idleLoad`. Powered off, nothing draws and the parts cool.
+- Boot time and heat: while POST runs, loading, running or writing the CPU is at full load; during the cold-boot wait, when halted, or in error the thermal model gets `idleLoad`. Powered off, nothing draws and the parts cool.
 
 ## The PCH and the boot ROM
 
@@ -99,11 +100,11 @@ The display rows during a job: 0-3 POST lines, 5 status line, 8 the job's own ou
 - **Arrivals** (existing generator/economy, rates and mix in `ECONOMY`): a key arrives with probability `demandRate` per tick. It carries its job (`template`, `seed`, `scale`), a number the program prints on the monitor (`jobNo`, `#NN`), a type (`log`, `calc`, `checksum`, `scan`) and arrival/deadline ticks. Label: `#72 scan`. The program is generated when the key is plugged in.
 - **The tray** is the queue, capped at `queueCap` (10). **Overflow**: an arrival into a full tray is dropped (`dropped++`); the client takes the key back, and that counts as a `giveUpTurnaround` (180 s) in the turnaround average, so reputation drops.
 - **No clients before the first boot**: random arrivals start when `progress.poweredOn` first becomes true, and the keys waiting from the start get `arrival` = that tick. So assembling the PC does not cost reputation or lateness. After that the market does not wait for the player.
-- `plugKey(keyId)`: moves the key from the tray into the USB port. **One program at a time**: refused while a key is plugged. Allowed in any phase including `off` (the ROM finds it at boot).
+- `plugKey(keyId)`: moves the key from the tray into the USB port. **One program at a time**: refused while a key is plugged. Allowed in any phase, but without an OS **it only counts if it is in the port when the ROM takes its one look** (machine off, or still in POST). Plugged into a running machine after that, the key is ignored: no LED activity (`keyActivity` stays `"none"`), nothing is read, and `keyIgnored` is true while the machine is halted. The UI shows a hint; power off and on to load it.
 - A running job writes its result into the key. When the ROM signals done the key holds `result` (the exact output line, e.g. `#72 mul=31 OK`).
-- `ejectKey()`: if the key holds a result, **the client collects it: payout and reputation are applied now**. `turnaround = removal tick - arrival`, `payout = round((payBase + payPerInstr * work * payMul) * speed * (late ? lateFactor : 1))`, `speed = clamp(targetTurnaround / turnaround, 0.5, 2)`. The reputation EMA takes this turnaround. If the job is **not finished**, the key goes back to the tray unserved (no payout, `attempts++`) and a machine that was loading, running or writing crashes and reboots.
+- `ejectKey()`: if the key holds a result, **the client collects it: payout and reputation are applied now**. `turnaround = removal tick - arrival`, `payout = round((payBase + payPerInstr * work * payMul) * speed * (late ? lateFactor : 1))`, `speed = clamp(targetTurnaround / turnaround, 0.5, 2)`. The reputation EMA takes this turnaround. If the job is **not finished**, the key goes back to the tray unserved (no payout, `attempts++`) and a machine that was loading, running or writing crashes and cold-reboots (finding no key, it halts with `NO BOOT MEDIA`).
 - **Waits forever**: the machine never times out waiting for a key or for the removal. Reputation and demand decay while keys sit unserved: `reputation = clamp(target / max(avgTurnaround, age of the oldest waiting key))`, so an old key drags reputation down before it is even served. Idle time is lost income.
-- **After removal** the ROM reboots the machine (POST visibly runs again) and waits for the next key. Decision: no power press between jobs (the loop stays short), but the reboot is per job, and **this is the seam for an OS later**: an OS removes the reboot (`done` would return to the OS instead of `j reset`) and allows concurrency (several programs/keys). The reboot lives only in the ROM's last instruction and in `Game.ejectKey`.
+- **After the result is written the machine stays halted** (`halted` / `job-done`): no auto-reboot, no waiting for a key. Payout comes when the player removes the key; the next job needs a manual cycle (remove key, power off, plug the next key, power on; `progress.firstManualCycle` is set the first time a key is plugged at a power-on after a hand-back). **The OS is the way out**: it boots once, reads keys while running (hot-plug ingest), and an OS machine powered on with a key already in the port notices it at idle and ingests it. The seam is the ROM's key check (`keyloader` in `pch/rom.ts`, which runs only without an OS) and `Game.plugKey`/`ejectKey`.
 - **Offline catch-up does not apply**: without automation nothing runs while the player is away (the host already drops time beyond one frame). A later router/ethernet downloads workloads directly and uploads results. That seam is `WorkSource` in `src/sim/game/work.ts` (`offer`, `waiting`, `take`, `giveBack`); the USB tray (`UsbTray`) is the first implementation. The Game only uses the interface for arrivals and the waiting list.
 
 ## Storage and the OS (summary; the full description is [`OS.md`](OS.md))
@@ -113,10 +114,14 @@ Storage drives (`hdd0`, `ssd1`, `nvme2`) are bought into the inventory and insta
 ## Snapshot (new fields; the rest is in [`GAME.md`](GAME.md))
 
 ```ts
-phase: "off" | "posting" | "waiting-for-key" | "loading" | "running" | "writing" | "done-remove-key" | "error"
+phase: "off" | "posting" | "loading" | "running" | "writing" | "halted" | "error"  // plus the OS phases; "waiting-for-key"/"done-remove-key" are never produced
 phaseReason: string | null          // for "error"
+haltReason: "job-done" | "no-boot-media" | null   // for "halted"
+postFailed: boolean                 // the "error" is a POST error (a missing part)
+keyIgnored: boolean                 // a key sits in the port of a halted no-OS machine: it is never read until a power cycle
+patience: { mul, targetTurnaround, deadlineTicks, sinceFirstBoot }   // the client patience schedule now (GAME.md)
 powered: boolean
-bootProgress: number                // 0..1: POST 0..0.4, waiting 0.4, loading 0.4..1, 1 once the program runs
+bootProgress: number                // 0..1: POST 0..0.4, no media 0.4, loading 0.4..1, 1 once the program runs and when job-done
 display: string                     // the monitor text; "" when off or the monitor is not live
 monitorLive: boolean                // monitor installed + video cable + not burnt
 noPowerReason: string | null        // why the power button would do nothing
@@ -140,11 +145,11 @@ KeySnap = { id, template, type, jobNo, label, arrivalTick, deadlineTick, age, la
 
 `snapshot.progress`, persistent (saved), sticky once true, set only by real successful events:
 
-`cpuInstalled`, `coolerInstalled` (a cooler was mounted; derived from the board when loading a save that lacks it), `psuInstalled`, `ramInstalled`, `monitorInstalled`, `storageInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstPurchase` (a purchase succeeded), `osInstalled` (an OS was installed on a drive), `firstOsJob` (a job ingested by the OS was delivered). The last three were added in save v3 and stay false for migrated and preassembled games. The guided tutorial gates on these; `completed` is the job count.
+`cpuInstalled`, `coolerInstalled` (a cooler was mounted; derived from the board when loading a save that lacks it), `psuInstalled`, `ramInstalled`, `monitorInstalled`, `storageInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstManualCycle` (a power-on with an unfinished key plugged, after the first hand-back: the manual loop was done once; derived from `firstKeyEjected` when loading a save that lacks it), `firstPurchase` (a purchase succeeded), `osInstalled` (an OS was installed on a drive), `firstOsJob` (a job ingested by the OS was delivered). The last three were added in save v3 and stay false for migrated and preassembled games. The guided tutorial gates on these; `completed` is the job count.
 
 ## Pacing (starting machine, 1x)
 
-Measured over 30 seeds with a bot that needs 2 s per manual step (`game.test.ts`): from power-on to the first payout **45-48 s** (POST ~10 s, then plugging the key to its result ~35 s: load ~19 s, run ~6 s, write ~9 s; plus the plug and unplug), first payout **$49-50** on every seed, the first $100 at **105-323 s** (median ~165 s). Because every job pays a flat `payBase` and boots first, the CPU is the big upgrade for log/calc/checksum jobs and RAM for scan jobs; see [`GAME.md`](GAME.md).
+Measured over 30 seeds with a bot that runs the manual loop with 2 s per step (`game.test.ts`): from power-on to the first payout **about 70-80 s** (cold boot 30 s, POST ~10 s, then load ~19 s, run ~6 s, write ~9 s; plus the remove), first payout about **$37-50**, the first $100 within about 560 s. Before the cold-boot wait (owner decision C, see [`GAME.md`](GAME.md) "Patience") the first job was 45-48 s. The `Operator` bot (`operator.ts`) now follows the manual cycle (or the OS routine). Because every job pays a flat `payBase` and boots first, the CPU is the big upgrade for log/calc/checksum jobs and RAM for scan jobs; see [`GAME.md`](GAME.md).
 
 ## Worker protocol and store
 

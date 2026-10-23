@@ -18,10 +18,11 @@ Powered state and phase (the game always loads **powered off**), disk contents a
 
 The machine loads powered off with the phase `off`, wherever it was. A **plugged key stays plugged**:
 
-- a job in progress (the key does not hold a result) **restarts from boot** at the next power-on: the ROM runs POST, loads the key and runs it from the first instruction; `attempts`, `arrival` and `pluggedAt` are kept, so turnaround still counts from arrival;
-- a finished key (`done`, with its `result`) stays finished: at power-on the ROM goes straight to REMOVE KEY and removing it pays out.
+- a job in progress (the key does not hold a result) **restarts from boot** at the next power-on: the ROM runs POST, finds the key in its one look at the port, loads it and runs it from the first instruction (the same as a hard power-off); `attempts`, `arrival` and `pluggedAt` are kept, so turnaround still counts from arrival;
+- a finished key (`done`, with its `result`) stays finished: at power-on the ROM goes straight to `JOB DONE` (halted) and removing the key pays out;
+- the machine is always off after a load: a plugged key plus a power press is the whole no-OS flow.
 
-Saved while **waiting for a key** (no key plugged): load, press power once on both sides, and the games match exactly on money, tick, counters, reputation, tray, inventory, cables, progress, PRNG state and board over 500 ticks (tested). Saved with a job in flight: money, tray, counters, PRNG state and board match at the load instant; the job then finishes later than it would have (it restarts), so later values diverge. Loading the same save twice gives identical runs. Saved while hot (near `throttleC`): the machine restarts cool.
+Saved while **halted with no key plugged**: load, press power once on both sides, and the games match exactly on money, tick, counters, reputation, tray, inventory, cables, progress, PRNG state and board over 500 ticks (tested). Saved with a job in flight: money, tray, counters, PRNG state and board match at the load instant; the job then finishes later than it would have (it restarts), so later values diverge. Loading the same save twice gives identical runs. Saved while hot (near `throttleC`): the machine restarts cool.
 
 There is no offline progress: while the game is closed nothing runs, because without automation nothing happens unless the player plugs and removes keys.
 
@@ -30,6 +31,8 @@ There is no offline progress: while the game is closed nothing runs, because wit
 `parseSave(unknown)` runs `migrate` (chain `MIGRATIONS[n]`: v_n to v_n+1), then validates (types, ranges, known specs and templates, board via `boardFromJson`, cables, progress) and throws `Error("save: ...")` with a specific message. Newer-than-supported and unknown versions are rejected. When the shape changes: bump `SAVE_VERSION`, add the migration, keep an old fixture in the tests (`save.test.ts` has a v1 fixture).
 
 **`progress.coolerInstalled` (no version bump)**: the cooler used to be pre-mounted, so saves of every version up to now have no such flag. `parseSave` derives it when it is missing: true if the saved board has a cooler device (all older saves), else false. The shape otherwise did not change, so `SAVE_VERSION` stays 4; a v4 save that lacks the key is accepted, one that has it is read as is. Tested in `save.test.ts` (`coolerInstalled in older saves`). v1 saves get it from the all-true migration.
+
+**`firstBootTick` and `progress.firstManualCycle` (no version bump)**: the client patience schedule (GAME.md) runs from the first boot, so `toSave` writes an optional `firstBootTick` (base tick of the first power-on, or `null` before it). A v4 save without it is accepted: the schedule then restarts at the load tick (`sinceFirstBoot` 0), never harsher than before. `progress.firstManualCycle` (new tutorial flag) is derived on load when missing: true iff `firstKeyEjected`. Both are optional/derived additions, so `SAVE_VERSION` stays 4; tested in `patience.test.ts`. A plugged key stays plugged and the machine restarts powered off, as before.
 
 **Migration 3 to 4** (board tier ladder and VRM): the old tier numbering shifts. **Old tier 0 (2 DIMMs, ATX) becomes Basic (tier 1); old tier 1 (the ATX+ board) becomes Mainstream (tier 2)**, so every installed part stays valid (all old slot ids exist on the new tier). Inventory ids shift the same way (`board1` becomes `board2`). Nothing else changes; the board is not burnt. A fresh v4 game starts on the new Starter board (tier 0). Tested in `save.test.ts` (`migration v3 -> v4`).
 
