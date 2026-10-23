@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from 'pixi.js';
+import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
 import { hover, selected } from '../game/hover';
 import { snapshot, speed } from '../game/store';
@@ -9,7 +9,7 @@ import { Camera, type View } from './camera';
 import { coolerArt, cpuArt, monitorArt, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
 import { box, clear, dashed, label } from './ink';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, MONITOR, PKG, PSU, REGIONS, SCREEN, STAGES, WORLD, type Rect,
+  BD, BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, MONITOR, PKG, PSU, REGIONS, SCREEN, STAGES, WORLD, type Rect,
 } from './layout';
 import { Live, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -20,6 +20,9 @@ interface Hit { id: string; rect: Rect; /** Only hit when the zoom is within [mi
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
 const Z_DIE = 0.45;
+/** Below this zoom the baked board texture replaces the vector board. */
+const Z_BAKE = 0.2;
+const BAKE_RES = 0.4;
 
 /** View used by the camera keys and exported helpers. */
 let cameraRef: Camera | null = null;
@@ -48,6 +51,8 @@ export async function mountBoard(host: HTMLElement) {
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
   let boardArt: BoardArt | null = null;
+  /** Far-out LOD: the whole static board baked once into a texture (rebuilt only with the scene). */
+  let boardBake: Sprite | null = null;
   const parts: Part[] = [];
   let hits: Hit[] = [];
   let sceneKey = '';
@@ -59,6 +64,9 @@ export async function mountBoard(host: HTMLElement) {
     const z = camera.z;
     const labelsOn = z > 0.12, partLabels = z > 0.22;
     if (boardArt) boardArt.labels.visible = labelsOn;
+    const baked = !!boardBake && z < Z_BAKE;
+    if (boardBake) boardBake.visible = baked;
+    if (boardArt) boardArt.root.visible = !baked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(0.3, 0.5, z);
     coolerLayer.visible = coolerLayer.alpha > 0.01;
@@ -78,6 +86,12 @@ export async function mountBoard(host: HTMLElement) {
     const tier = s?.boardTier ?? 0;
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
+    boardArt.labels.visible = false;
+    const frame = new Rectangle(BD.x - 40, BD.y - 40, BD.w + 80, BD.h + 80);
+    const tex = app.renderer.generateTexture({ target: boardArt.root, frame, resolution: BAKE_RES, antialias: true });
+    boardBake = new Sprite(tex);
+    boardBake.position.set(frame.x, frame.y);
+    boardLayer.addChild(boardBake);
 
     const newHits: Hit[] = [];
     const targets: GlowTarget[] = [];
