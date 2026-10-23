@@ -23,4 +23,4 @@ Code: `src/sim/machine` (import from `src/sim/machine`). No DOM imports.
 
 `reset(machine, program)`, `step()` (one CPU cycle), read-only `halted`, `pc`, `cycle`. Engines own their pipeline state; RAM, registers and devices belong to the Machine and are accessed through `machine.bus` / `machine.regs`.
 
-`RefEngine` (`refEngine.ts`) is a placeholder: the reference interpreter at one instruction per CPU tick through the bus. Step 4 replaces it with real pipelines.
+`RefEngine` (`refEngine.ts`) is a placeholder: the reference interpreter at one instruction per CPU tick through the bus. The timed engines are in `src/sim/engines` (see [`ENGINES.md`](ENGINES.md)); build one with `createEngine(config)`.
