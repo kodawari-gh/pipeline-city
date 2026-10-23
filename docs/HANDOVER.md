@@ -12,7 +12,7 @@ It is a **POC**. Keep things simple, iterate bit by bit, and do not build for sc
 
 Milestone 1 is built end to end and playable in the browser: `npm run dev`. Steps 2 to 10 of the order below are DONE and committed. Check `git log` and `git status` to see what has been pushed; the owner pushes (or asks for it).
 
-- `src/sim/`: isa, asm, ref (reference interpreter), machine (bus, clocks, PRNG), engines (unpipelined, 5-stage in-order), board (specs, slots, power/thermal, cables), gen (program generator), pch (platform controller hub: boot ROM, USB host, display control), game (Game, economy, save, key tray, bot operator), worker + host + protocol. Docs for each: `docs/ISA.md`, `MACHINE.md`, `ENGINES.md`, `BOARD.md`, `GEN.md`, `GAME.md`, `SAVE.md`, and **`docs/ASSEMBLY.md` (the Game API for installing parts, cables, power, boot phases, USB keys, progress flags)**.
+- `src/sim/`: isa, asm, ref (reference interpreter), machine (bus, clocks, PRNG), engines (unpipelined, 5-stage in-order), board (specs, slots, power/thermal, cables), gen (program generator), pch (platform controller hub: boot ROM, USB host, display control), game (Game, economy, save, key tray, bot operator), worker + host + protocol. Docs for each: `docs/OS.md`, `docs/TECHTREE.md`, `docs/ISA.md`, `MACHINE.md`, `ENGINES.md`, `BOARD.md`, `GEN.md`, `GAME.md`, `SAVE.md`, and **`docs/ASSEMBLY.md` (the Game API for installing parts, cables, power, boot phases, USB keys, progress flags)**.
 - `src/game/`: store (snapshot signal, actions, export/import, autosave), hover signals.
 - `src/render/`: Pixi board, camera, zoomed-in CPU pipeline view (`docs/RENDER.md`).
 - `src/ui/`: HUD, shop, stats drawer, tooltips, hints (`docs/UI.md`).
@@ -26,6 +26,10 @@ Milestone 1 is built end to end and playable in the browser: `npm run dev`. Step
 - **Client requests are USB keys in a tray** (the queue, cap 10). The player plugs one (`plugKey`), removes it when done (`ejectKey`); payout and reputation are applied on removal. `WorkSource` (`src/sim/game/work.ts`) is the seam for a router/ethernet later.
 - Save is **v2** (with a v1 migration), and a `progress` object of tutorial milestones is part of the Game/snapshot/save. See `docs/ASSEMBLY.md` for the whole API; `src/sim/game/operator.ts` is a bot player used by the tests.
 - The old UI keeps working through a minimal "Machine" section in `src/ui/Shop.tsx`; the real UI (drag and drop, hover, key tray, contextual shop, tutorial) and the renderer still show the old model and are the next phase.
+
+### Storage and OS v1 phase (done)
+
+Drives (HDD, SATA SSD, NVMe) are real typed `sata` / `m2` slot devices and memory-mapped block devices with simulated latency per tier; **OS v1** (resident, single-task) is a purchasable item installed onto a drive, with a kernel in toy-ISA asm that the PCH ROM loads from storage after POST. With an OS the machine boots once, ingests USB keys into a disk-backed job queue, runs one program at a time and returns results through a second plug of the key (payout then). Save is **v3** (migration from v2; v2 games keep the reboot-per-job flow). Docs: [`OS.md`](OS.md) (everything), [`TECHTREE.md`](TECHTREE.md) (the unlock principle: money + real hardware requirements, no research points, with the planned ladders). The renderer and UI still show the old model for the new devices (see the list in OS.md / the phase report): drawing the drives in the sata/m2 slots, the OS queue and the new phases is the next visual phase. The network `WorkSource` is not built.
 
 ### Known gaps and decisions waiting on the owner
 

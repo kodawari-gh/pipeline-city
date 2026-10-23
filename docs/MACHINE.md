@@ -26,3 +26,5 @@ Code: `src/sim/machine` (import from `src/sim/machine`). No DOM imports.
 `RefEngine` (`refEngine.ts`) is a placeholder: the reference interpreter at one instruction per CPU tick through the bus. The timed engines are in `src/sim/engines` (see [`ENGINES.md`](ENGINES.md)); build one with `createEngine(config)`.
 
 `machine.addDevice` also takes the PCH (`src/sim/pch`, see [`ASSEMBLY.md`](ASSEMBLY.md)): boot ROM, USB host controller and display control on the bus at 0x4002_0000. `Display.connected` (false: writes are dropped) and `Display.setText` were added for the monitor cable and the PCH's POST error text.
+
+`StoragePort` / `Disk` (`storage.ts`): memory-mapped block device with its own clock domain, see [`OS.md`](OS.md). The Game attaches one port per storage slot (`sata0`, `sata1`, `m20`) at `STORAGE_BASE`.

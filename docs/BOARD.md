@@ -13,8 +13,9 @@ Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` 
 | psu | `watts` | 40 W and 100 W (`atx`), 250 W (`atx-plus`) |
 | cooler | `coolingPerC` (W per degree C, CPU only) | stock 0.35, tower 0.8, liquid 1.8 |
 | display | `writeLatency` | CLI monitor |
+| storage | `capacityBytes, latencyTicks, blockTicks` | hdd0 HDD 96K (SATA, clock 1), ssd1 SATA SSD 64K (SATA, clock 2), nvme2 NVMe SSD 128K (M.2, clock 4). A block device on the bus, see [`OS.md`](OS.md) |
 
-Slot types: `cpu dimm pcie sata usb cooler display atx atx-plus`. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, `atx-plus` instead of `atx`. An `atx-plus` slot also accepts plain `atx` PSUs (`slotAccepts`). `upgradeBoard(board, tier)` moves to a bigger tier carrying devices over (see GAME.md purchases).
+Slot types: `cpu dimm pcie sata m2 usb cooler display atx atx-plus`. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, a second sata, **1 m2**, `atx-plus` instead of `atx`. **`sata` and `m2` are real, typed and installable** (storage drives; slot ids `sata0`, `sata1`, `m20`; a drive's clock domain is named after its slot). SATA power rule: a SATA drive needs a free sata slot and its `loadW` inside the PSU rated load (no connector count); NVMe needs the m2 slot. Tier ladder and the unlock principle: [`TECHTREE.md`](TECHTREE.md). An `atx-plus` slot also accepts plain `atx` PSUs (`slotAccepts`). `upgradeBoard(board, tier)` moves to a bigger tier carrying devices over (see GAME.md purchases).
 
 ## Board (`board.ts`)
 

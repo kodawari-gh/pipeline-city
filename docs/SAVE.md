@@ -2,17 +2,17 @@
 
 Code: `src/sim/game/save.ts` (format, `parseSave`, `migrate`), `Game.toSave()` / `Game.fromSave(save, economy?)` in `game.ts`, `src/sim/protocol.ts` (messages), `src/sim/host.ts` (pure worker logic), `src/sim/worker.ts` (thin wiring), `src/game/store.ts` (main thread).
 
-## Shape (`SaveV2`, `SAVE_VERSION` = 2)
+## Shape (`SaveV3`, `SAVE_VERSION` = 3)
 
 Plain JSON, config only:
 
-`version` (2), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextKeyId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it and the tray), `lastCompleted`, `board` (`boardToJson`: tier, **installed** devices with spec, slot, clock setting, `burnt`), `inventory` (`[{id, spec}]`: owned, not installed; `spec` is a device id or a board tier id like `board1`), `nextInvId`, `cables` (`{atx, cpu, video}` booleans), `tray` (keys lying in the tray as `{id, template, seed, scale, arrival, deadline}`, oldest first), `plugged` (the key in the USB port, or null: same fields plus `attempts`, `pluggedAt`, `done`, `doneAt`, `result`), `tripped` (PSU hard trip), `progress` (the tutorial milestones, 12 booleans, see ASSEMBLY.md).
+`version` (3), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextKeyId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it and the tray), `lastCompleted`, `board` (`boardToJson`: tier, **installed** devices with spec, slot, clock setting, `burnt`), `inventory` (`[{id, spec}]`: owned, not installed; `spec` is a device id or a board tier id like `board1`), `nextInvId`, `cables` (`{atx, cpu, video}` booleans), `tray` (keys lying in the tray as `{id, template, seed, scale, arrival, deadline}`, oldest first), `plugged` (the key in the USB port, or null: same fields plus `attempts`, `pluggedAt`, `done`, `doneAt`, `result`), `tripped` (PSU hard trip), `progress` (the tutorial milestones, 15 booleans, see ASSEMBLY.md), `os` (v3: `{spec, deviceId}` of the installed OS, or `null`; the drive is the installed storage device with that id). Storage drives are plain `board.devices` entries and `inventory` may hold storage and OS item ids. Keys the OS has ingested and the player unplugged are saved as plain `tray` keys (the kernel's queue is RAM and does not survive).
 
 Programs are regenerated from `template + seed + scale` on load. About 1.5 KB.
 
 ## Not preserved
 
-Powered state and phase (the game always loads **powered off**), pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures and burn-damage accumulators (temperatures restart at ambient), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). Fast-model calibration cache does not exist yet.
+Powered state and phase (the game always loads **powered off**), disk contents and statistics (the boot image is rebuilt from `os` on load; `bytesRead/Written` restart), the kernel's job table, pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures and burn-damage accumulators (temperatures restart at ambient), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). Fast-model calibration cache does not exist yet.
 
 ## Load semantics
 
@@ -29,11 +29,13 @@ There is no offline progress: while the game is closed nothing runs, because wit
 
 `parseSave(unknown)` runs `migrate` (chain `MIGRATIONS[n]`: v_n to v_n+1), then validates (types, ranges, known specs and templates, board via `boardFromJson`, cables, progress) and throws `Error("save: ...")` with a specific message. Newer-than-supported and unknown versions are rejected. When the shape changes: bump `SAVE_VERSION`, add the migration, keep an old fixture in the tests (`save.test.ts` has a v1 fixture).
 
+**Migration 2 to 3**: adds `os: null` and the three new milestones (`storageInstalled`, `osInstalled`, `firstOsJob`) as false. A v2 save has no storage or OS, so it loads powered off and keeps the reboot-per-job flow exactly as before (tested: the migrated game plays identically to the same game re-saved as v3).
+
 **Migration 1 to 2**: a v1 save becomes a fully assembled, powered-off machine. The installed board is kept as is and **all three cables are connected**; the v1 queue becomes keys in the tray (same ids, seeds, arrivals), and the v1 in-flight request becomes a key at the **front** of the tray (it restarts as a normal job); each v1 `pending` purchase (money already spent) becomes an inventory item (`inv1`...); `nextReqId` becomes `nextKeyId`; all progress milestones are set to true (an existing player skips the tutorial); money, reputation (`avgTurnaround`), PRNG state, counters, `lastCompleted` and `tripped` are kept. Note that the retuned economy applies after loading (pacing, prices, RAM latency), since the loader uses the build's constants.
 
 ## Protocol
 
-`ToSim`: `init {save?, seed?}` (restarts the sim; speed resets to 1x), `setSpeed {speed: 0|1|4|16}` (multiplier of base ticks per second), `purchase {id}` (to the inventory), `setCpuClock {clock}`, `powerCycle`, `requestSave`, and the assembly calls `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey` (ASSEMBLY.md).
+`ToSim` (also `uninstallOs`, see OS.md): `init {save?, seed?}` (restarts the sim; speed resets to 1x), `setSpeed {speed: 0|1|4|16}` (multiplier of base ticks per second), `purchase {id}` (to the inventory), `setCpuClock {clock}`, `powerCycle`, `requestSave`, and the assembly calls `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey` (ASSEMBLY.md).
 
 `FromSim`: `ready`, `snapshot {snapshot}` (the `Game` snapshot), `saved {save}`, `error {message}` (bad save, a refused action with its reason, message before init).
 

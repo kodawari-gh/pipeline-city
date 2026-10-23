@@ -49,6 +49,7 @@ Test helpers on `Game`: `currentPhase()`, `trayKeyIds()`, `pluggedKey()`, `inven
 | `writing` | The job finished; the ROM copies the result line to the key. |
 | `done-remove-key` | The key holds its result, the monitor says REMOVE KEY, the ROM polls for removal. |
 | `error` | Powered but stopped; `phaseReason` says why (below). |
+| `booting-os`, `idle-os`, `ingesting`, `running-os`, `flashing` | Only with an OS installed, see [`OS.md`](OS.md). |
 
 Order for one job: `posting`, `waiting-for-key`, `loading`, `running`, `writing`, `done-remove-key`, then (key removed) `posting` again. The phase is the ROM's own `PHASE` register (its stores), except `off` and `error`, which the game decides.
 
@@ -104,6 +105,10 @@ The display rows during a job: 0-3 POST lines, 5 status line, 8 the job's own ou
 - **After removal** the ROM reboots the machine (POST visibly runs again) and waits for the next key. Decision: no power press between jobs (the loop stays short), but the reboot is per job, and **this is the seam for an OS later**: an OS removes the reboot (`done` would return to the OS instead of `j reset`) and allows concurrency (several programs/keys). The reboot lives only in the ROM's last instruction and in `Game.ejectKey`.
 - **Offline catch-up does not apply**: without automation nothing runs while the player is away (the host already drops time beyond one frame). A later router/ethernet downloads workloads directly and uploads results. That seam is `WorkSource` in `src/sim/game/work.ts` (`offer`, `waiting`, `take`, `giveBack`); the USB tray (`UsbTray`) is the first implementation. The Game only uses the interface for arrivals and the waiting list.
 
+## Storage and the OS (summary; the full description is [`OS.md`](OS.md))
+
+Storage drives (`hdd0`, `ssd1`, `nvme2`) are bought into the inventory and installed into `sata` / `m2` slots (machine off). An OS (`os1`) is bought, then installed **onto a storage drive** (`install(invId, storageSlotId)`). Without an OS everything above (reboot per job, one key at a time) is unchanged. With an OS the ROM loads the kernel from the drive after POST and the machine boots **once**: phases `booting-os` -> `idle-os`, then `ingesting` (kernel copies a plugged key's job to disk; the player may unplug it), `running-os` (one program at a time), `flashing` (the finished key is plugged again and gets its result). Payout and reputation happen when the flashed key is removed. `Snapshot` additions: `storage[]`, `os` (tier, `programSlots`, `queueSlots`, queue), `held[]` (ingested keys the player holds), `keyActivity` (USB LED), `KeySnap.stage`, phases above, `inventory[].kind` / `purchases[].kind` may be `storage` or `os` (OS rows also carry `later`, `description`), progress flags `storageInstalled`, `osInstalled`, `firstOsJob`. New call `uninstallOs()` (message `uninstallOs`); new PCH registers `BOOT_DEV`, `OS_MODE`, `KEY_ID` and STATUS bits 3 (key enumerated) and 4 (flashing), only meaningful once the ROM handed over to a kernel.
+
 ## Snapshot (new fields; the rest is in [`GAME.md`](GAME.md))
 
 ```ts
@@ -134,7 +139,7 @@ KeySnap = { id, template, type, jobNo, label, arrivalTick, deadlineTick, age, la
 
 `snapshot.progress`, persistent (saved), sticky once true, set only by real successful events:
 
-`cpuInstalled`, `psuInstalled`, `ramInstalled`, `monitorInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstPurchase` (a purchase succeeded). The guided tutorial gates on these; `completed` is the job count.
+`cpuInstalled`, `psuInstalled`, `ramInstalled`, `monitorInstalled`, `storageInstalled` (an install of that kind succeeded), `atxConnected`, `cpuPowerConnected`, `videoConnected` (that cable connected), `poweredOn` (a real boot started: the power button was accepted and POST passed, not a refused press or a POST error), `firstKeyPlugged`, `firstJobDone` (the ROM wrote DONE to the key), `firstKeyEjected` (a finished key removed, paid), `firstPurchase` (a purchase succeeded), `osInstalled` (an OS was installed on a drive), `firstOsJob` (a job ingested by the OS was delivered). The last three were added in save v3 and stay false for migrated and preassembled games. The guided tutorial gates on these; `completed` is the job count.
 
 ## Pacing (starting machine, 1x)
 
@@ -142,6 +147,6 @@ Measured over 30 seeds with a bot that needs 2 s per manual step (`game.test.ts`
 
 ## Worker protocol and store
 
-`ToSim` additions: `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey`. Each replies with a `snapshot`, preceded by an `error {message}` if it was refused (`"<call>: <reason>"`). `purchase` now means "buy to the inventory". Store functions (`src/game/store.ts`): `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey` (plus the existing `purchase`, `setCpuClock`, `powerCycle`, `setSpeed`, `exportSave`, `importSave`); a refusal lands in the `lastError` signal.
+`ToSim` additions (`uninstallOs` came with the OS, see OS.md): `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey`. Each replies with a `snapshot`, preceded by an `error {message}` if it was refused (`"<call>: <reason>"`). `purchase` now means "buy to the inventory". Store functions (`src/game/store.ts`): `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey` (plus the existing `purchase`, `setCpuClock`, `powerCycle`, `setSpeed`, `exportSave`, `importSave`); a refusal lands in the `lastError` signal.
 
 `src/ui/Shop.tsx` has a minimal "Machine" section (power, cables, install and remove buttons, plug/remove key) so the old UI stays playable until the drag-and-drop UI exists.
