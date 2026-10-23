@@ -2,7 +2,7 @@ import { Application, Graphics } from 'pixi.js';
 import { snapshot } from '../game/store';
 import { effect } from '@preact/signals';
 
-// Placeholder board: a square that pulses with the cycle count.
+// Placeholder board: a square that pulses with the CPU cycle count from the snapshot.
 export async function mountBoard(host: HTMLElement) {
   const app = new Application();
   await app.init({ resizeTo: window, background: '#0b0f14', antialias: true });
@@ -13,5 +13,5 @@ export async function mountBoard(host: HTMLElement) {
   app.renderer.on('resize', () => chip.position.set(app.screen.width / 2, app.screen.height / 2));
   chip.position.set(app.screen.width / 2, app.screen.height / 2);
 
-  effect(() => { chip.alpha = 0.5 + 0.5 * Math.abs(Math.sin(snapshot.value.cycle / 20)); });
+  effect(() => { chip.alpha = 0.5 + 0.5 * Math.abs(Math.sin((snapshot.value?.cycle ?? 0) / 20)); });
 }
