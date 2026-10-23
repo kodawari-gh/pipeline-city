@@ -1,9 +1,12 @@
-// Guided tutorial, pure logic. The current step is derived from the snapshot's `progress` flags (so loading a save
-// mid-way resumes correctly and out-of-order actions are simply skipped) plus a tiny persisted state
-// (welcome acknowledged / skipped / finished / replay baseline). No DOM, no signals.
+// Guided tutorial, pure logic. The current step is the first step not yet done, judged from the snapshot: the sticky
+// `progress` flags where there is one, else live state (an item in the inventory, the phase, a key's stage). Loading a
+// save mid-way resumes at the right step, and out-of-order actions are simply skipped past. Only the welcome card
+// (Start) and the last card (Got it) have buttons, plus the one-time "Next lesson: the OS" offer. No DOM, no signals.
 
+import { getOsSpec } from '../sim/os';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
+import { fmtMoney } from './logic';
 
 export interface ReplayBase { completed: number; owned: number }
 export interface TutorialState {
@@ -12,33 +15,58 @@ export interface TutorialState {
   finished: boolean;
   /** Set when replaying: flags are sticky, so steps are judged from live state and deltas against this baseline. */
   replay: ReplayBase | null;
+  /** The OS lesson is part of this viewer's tutorial (set when a new-style tutorial finishes, replays, or the offer is taken). */
+  osLesson: boolean;
+  /** The "Next lesson: the OS" offer was answered (taken or dismissed). */
+  offered: boolean;
 }
 
-export const INITIAL_TUTORIAL: TutorialState = { welcomed: false, skipped: false, finished: false, replay: null };
+export const INITIAL_TUTORIAL: TutorialState = {
+  welcomed: false, skipped: false, finished: false, replay: null, osLesson: false, offered: false,
+};
 
 export type StepId =
   | 'welcome' | 'cpu' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'power' | 'plugKey' | 'watch'
-  | 'removeKey' | 'spend' | 'done';
+  | 'removeKey' | 'spend' | 'fit' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
+  | 'osCollect' | 'osPaid' | 'done';
 
 export interface StepDef {
   id: StepId;
   title: string;
   text: string;
-  /** Progress flag that completes the step (null: needs the player to press the card button). */
+  /** Progress flag that completes the step, if it has one. */
   flag: keyof Progress | null;
+  /** Live completion test for steps without a flag (see `isDone`). */
+  done?: (s: Snapshot, p: Progress) => boolean;
   /** World ids to pulse (renderer highlight). */
   targets: (s: Snapshot) => string[];
 }
 
+/** The twelve steps before storage and the OS existed. A player who finished them is not forced through the rest. */
+const OLD_FLAGS: Array<keyof Progress> = [
+  'cpuInstalled', 'ramInstalled', 'psuInstalled', 'monitorInstalled', 'atxConnected', 'cpuPowerConnected',
+  'videoConnected', 'poweredOn', 'firstKeyPlugged', 'firstJobDone', 'firstKeyEjected', 'firstPurchase',
+];
+
+const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board'];
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
-/** Crate item ids of a kind plus the free slots they fit. */
+/** Inventory items of a kind plus the free slots they fit. */
 const installTargets = (kind: string) => (s: Snapshot): string[] => {
   const items = invOf(s, kind);
   return [...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
 };
+const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
+const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
+const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
+const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
+const heldWith = (s: Snapshot, stage: string) => s.held.find((k) => k.stage === stage);
+/** The OS has copied a key into its queue (plugged, or already held). */
+const ingested = (s: Snapshot) => s.held.length > 0 || pluggedAt(s, ['queued', 'running', 'result', 'flashing', 'done']);
 
 /** The HUD's inventory button. A UI-only id: the renderer ignores it, the HUD pulses the button. */
 export const INVENTORY_ID = 'inventory';
+
+const OS_RAM_KB = (getOsSpec('os1')?.minRamBytes ?? 32 * 1024) / 1024;
 
 export const STEPS: StepDef[] = [
   {
@@ -85,9 +113,56 @@ export const STEPS: StepDef[] = [
       const cpu = s.devices.find((d) => d.kind === 'cpu');
       return cpu ? [cpu.slot] : [INVENTORY_ID];
     } },
+  // ---- storage and the OS ----
+  { id: 'fit', title: 'Fit your new part', flag: null,
+    done: (s) => !s.inventory.some((i) => PART_KINDS.includes(i.kind) && i.freeSlots.length > 0),
+    text: `Power the machine off, then drag the part you bought from the inventory onto its socket. The operating system needs ${OS_RAM_KB}K of memory fitted.`,
+    targets: (s) => s.inventory
+      .filter((i) => PART_KINDS.includes(i.kind) && i.freeSlots.length > 0)
+      .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots]) },
+  { id: 'buyDrive', title: 'Buy a drive', flag: null,
+    done: (s) => ownsStorage(s),
+    text: 'The machine needs somewhere to keep an operating system. Click the drive bay to see the drives: an HDD is slow and cheap, an SSD is faster.',
+    targets: () => ['bay'] },
+  { id: 'drive', title: 'Install the drive', flag: 'storageInstalled',
+    text: 'Power off, then drag the drive from the inventory onto a free drive bay (a SATA port) on the board. The drive speed decides how fast the OS loads.',
+    targets: installTargets('storage') },
+  { id: 'buyOs', title: 'Buy an operating system', flag: null,
+    done: (s) => ownsOs(s),
+    text: 'An operating system keeps the machine running, so it does not reboot for every job. Click the OS area on the monitor to see the systems on offer.',
+    targets: () => ['os'] },
+  { id: 'os', title: 'Install the OS on the drive', flag: 'osInstalled',
+    text: 'Power off, then drag the operating system from the inventory onto the drive. It is written onto the drive, which is where it boots from.',
+    targets: installTargets('os') },
+  { id: 'bootOs', title: 'Boot the OS from the drive', flag: null,
+    done: (s) => OS_PHASES.includes(s.phase) || s.progress.firstOsJob,
+    text: 'Press the power button. The machine loads the OS from the drive. Watch the monitor: a faster drive boots sooner.',
+    targets: () => ['power', 'os', 'bay'] },
+  { id: 'osIngest', title: 'Plug in a key: the OS takes it', flag: null,
+    done: (s, p) => ingested(s) || p.firstOsJob,
+    text: 'Drag a client key into the USB port. The OS copies the job onto the drive and queues it. Keep the key in until it is queued.',
+    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
+  { id: 'osHold', title: 'Unplug it: the OS keeps the job', flag: null,
+    done: (s, p) => s.held.length > 0 || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
+    text: 'Pull the key out. The OS now holds it: the job runs while you are away and the key waits in your hands until the result is ready.',
+    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
+  { id: 'osWait', title: 'Wait for the job', flag: null,
+    done: (s, p) => !!heldWith(s, 'result') || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
+    text: 'The OS runs its queued jobs one at a time. The monitor shows the work. When a held key has its result, it is ready to collect.',
+    targets: () => ['monitor', 'os', 'held'] },
+  { id: 'osCollect', title: 'Plug the key back in to collect', flag: null,
+    done: (s, p) => pluggedAt(s, ['flashing', 'done']) || p.firstOsJob,
+    text: 'Plug the same key back into the USB port. The OS writes the result onto it. Wait for it to land.',
+    targets: (s) => {
+      const k = s.plugged ?? heldWith(s, 'result') ?? s.held[0];
+      return ['usb', ...(k ? [`key:${k.id}`] : ['held'])];
+    } },
+  { id: 'osPaid', title: 'Remove the key to get paid', flag: 'firstOsJob',
+    text: 'Pull the finished key out of the USB port. You are paid on removal, and the OS is free for the next job.',
+    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
   { id: 'done', title: 'Workshop open', flag: null,
-    text: 'Your new part is in the inventory. Power the machine off, then drag it onto its socket. Keep the keys moving: one day a router will plug them in for you.',
-    targets: (s) => (s.inventory[0] ? [`inv:${s.inventory[0].id}`] : []) },
+    text: 'Your OS now runs jobs from the USB keys. Next: a network card and a router will fetch jobs and send results for you, so the USB keys will fade away.',
+    targets: () => [] },
 ];
 
 export const stepIndex = (id: StepId) => STEPS.findIndex((x) => x.id === id);
@@ -118,19 +193,39 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
   };
 }
 
+/** Whether a step is complete: its flag, else its live test. */
+export function isDone(step: StepDef, s: Snapshot, p: Progress): boolean {
+  if (step.done) return step.done(s, p);
+  return step.flag ? p[step.flag] : false;
+}
+
 export function tutorialActive(st: TutorialState): boolean {
   return !st.skipped && !st.finished;
 }
 
-/** The step to show now, or null when the tutorial is skipped/finished. */
+/**
+ * A player who finished the first tutorial before the OS lesson existed (or a migrated save with all of its flags). They
+ * are not forced through the new steps: they get one offer card instead. Never true for a replay or for anyone with the lesson.
+ */
+export function legacyFinished(s: Snapshot, st: TutorialState): boolean {
+  if (st.osLesson || st.replay) return false;
+  return st.finished || (!st.welcomed && OLD_FLAGS.every((f) => s.progress[f]));
+}
+
+/** Show the "Next lesson: the OS" card once: a legacy player who has not answered it and did not skip the tutorial. */
+export function offerNextLesson(s: Snapshot, st: TutorialState): boolean {
+  return !st.skipped && !st.offered && legacyFinished(s, st);
+}
+
+/** The step to show now, or null when the tutorial is skipped, finished, or a legacy player is not taking the lesson. */
 export function currentStep(s: Snapshot, st: TutorialState): StepDef | null {
-  if (!tutorialActive(st)) return null;
+  if (!tutorialActive(st) || legacyFinished(s, st)) return null;
   const p = effectiveProgress(s, st);
   const welcomed = st.welcomed || (!st.replay && anyFlag(p));
   if (!welcomed) return STEPS[0]!;
   for (const step of STEPS) {
     if (step.id === 'welcome' || step.id === 'done') continue;
-    if (!p[step.flag as keyof Progress]) return step;
+    if (!isDone(step, s, p)) return step;
   }
   return STEPS[STEPS.length - 1]!;
 }
@@ -141,6 +236,15 @@ export function stepCount(step: StepDef): { n: number; total: number } {
   const i = mid.findIndex((x) => x.id === step.id);
   return { n: i < 0 ? (step.id === 'welcome' ? 0 : mid.length) : i + 1, total: mid.length };
 }
+
+const unpowered = (s: Snapshot) => (s.powered ? 'The machine is on. Power it off first.' : null);
+
+/** The first reason an inventory item of this kind cannot be fitted, or null. */
+const itemReason = (s: Snapshot, kind: string): string | null => {
+  const items = invOf(s, kind);
+  if (!items.length) return null;
+  return items.every((i) => !i.freeSlots.length) ? items[0]!.reason ?? null : null;
+};
 
 /**
  * A live "why is this not working" line for the current step (null when nothing is wrong). Uses the sim's own
@@ -153,7 +257,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       const kind = step.id === 'monitor' ? 'display' : step.id;
       const items = invOf(s, kind);
       if (!items.length) return `No ${kind} in the inventory. Buy one from a part on the board.`;
-      return items.every((i) => !i.freeSlots.length && !i.swapSlots.length) ? items[0]!.reason ?? null : null;
+      return itemReason(s, kind);
     }
     case 'atx': case 'cpuPower': case 'video': {
       const id = step.id === 'atx' ? 'atx' : step.id === 'cpuPower' ? 'cpu' : 'video';
@@ -168,6 +272,27 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.powered ? null : 'The machine is off. Press the power button first.';
     case 'watch':
       return s.phase === 'error' ? s.phaseReason : null;
+    case 'fit':
+      return unpowered(s);
+    case 'buyDrive': case 'buyOs': {
+      const id = step.id === 'buyDrive' ? 'hdd0' : 'os1';
+      const p = s.purchases.find((x) => x.id === id);
+      if (!p) return null;
+      if (p.blocked) return p.blocked;
+      return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
+    }
+    case 'drive':
+      return unpowered(s) ?? (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
+    case 'os':
+      return unpowered(s) ?? (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
+    case 'bootOs':
+      if (!s.powered) return 'The machine is off. Press the power button to boot from the drive.';
+      return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;
+    case 'osIngest':
+      if (!s.powered) return 'The machine is off. Press the power button first.';
+      return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
+    case 'osWait':
+      return s.phase === 'error' ? s.phaseReason : null;
     default:
       return null;
   }
@@ -181,5 +306,7 @@ export function resumeState(raw: unknown): TutorialState {
     skipped: o.skipped === true,
     finished: o.finished === true,
     replay: r && typeof r.completed === 'number' && typeof r.owned === 'number' ? { completed: r.completed, owned: r.owned } : null,
+    osLesson: o.osLesson === true,
+    offered: o.offered === true,
   };
 }

@@ -3,7 +3,7 @@
 // from the snapshot's `progress` flags, so it survives a save/load; localStorage only remembers skip/finish/replay.
 
 import { effect, signal } from '@preact/signals';
-import { snapshot } from '../game/store';
+import { snapshot, speed } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
 import { fillToasts, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from './tutorial';
@@ -39,6 +39,10 @@ export function toggleTheme() {
 
 // ---- stats drawer (part upgrades live in the contextual picker) ----
 
+// Paused (speed 0): UI animations that show sim activity stop too. CSS keys on `.paused` at the root (see `.sim-anim`).
+// Purely interactive feedback (hover, panels, toasts) is not frozen.
+effect(() => { document.documentElement.classList.toggle('paused', speed.value === 0); });
+
 export const statsOpen = signal(false);
 export const toggleStats = () => { statsOpen.value = !statsOpen.value; };
 
@@ -61,14 +65,19 @@ function setTutorial(next: TutorialState) {
 /** The welcome card's Start button. */
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
 export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
-export const finishTutorial = () => setTutorial({ ...tutorial.value, finished: true });
+/** The last card's Got it: the OS lesson is part of this viewer's tutorial from now on. */
+export const finishTutorial = () => setTutorial({ ...tutorial.value, finished: true, osLesson: true });
 /** Start again from the welcome card. Flags are judged from live state against a baseline taken now. */
 export function replayTutorial(s: Snapshot | null) {
   setTutorial({
-    welcomed: false, skipped: false, finished: false,
+    welcomed: false, skipped: false, finished: false, osLesson: true, offered: true,
     replay: s ? { completed: s.completed, owned: s.devices.length + s.inventory.length } : null,
   });
 }
+/** "Next lesson: the OS" card: take the lesson. The finished steps are already done, so it starts at the drive. */
+export const takeOsLesson = () => setTutorial({ ...tutorial.value, welcomed: true, finished: false, osLesson: true, offered: true });
+/** The same card, dismissed: it does not come back. */
+export const declineOsLesson = () => setTutorial({ ...tutorial.value, finished: true, osLesson: false, offered: true });
 
 // ---- hints / toasts ----
 
