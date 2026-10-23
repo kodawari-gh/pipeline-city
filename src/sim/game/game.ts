@@ -9,6 +9,7 @@ import {
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { generate, runReference } from "../gen";
 import { Machine } from "../machine";
+import { parseSave, SAVE_VERSION, type SavedRequest, type SaveV1 } from "./save";
 import {
   demandRate, ECONOMY, payout, pickTemplate, reputation, swapPart, upgradeCandidates, type EconomyConfig,
 } from "./economy";
@@ -23,6 +24,7 @@ interface Req {
   id: number;
   template: string;
   seed: number;
+  scale: number;
   arrival: number;
   deadline: number;
   work: number;
@@ -132,7 +134,10 @@ export class Game {
   private avgTurnaround: number;
   private lastDisplay = "";
 
+  private readonly seed: number;
+
   constructor(opts: GameOptions) {
+    this.seed = opts.seed >>> 0;
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.avgTurnaround = this.cfg.targetTurnaround;
     this.board = createBoard(0);
@@ -270,6 +275,65 @@ export class Game {
     };
   }
 
+  /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
+  toSave(): SaveV1 {
+    const sr = (r: Req): SavedRequest => ({ id: r.id, template: r.template, seed: r.seed, scale: r.scale, arrival: r.arrival, deadline: r.deadline });
+    const cur = this.current;
+    return {
+      version: SAVE_VERSION,
+      seed: this.seed,
+      prngState: this.machine.prng.getState(),
+      money: this.money,
+      baseTick: this.baseTick,
+      nextReqId: this.nextReqId,
+      completed: this.completed,
+      errors: this.errors,
+      dropped: this.dropped,
+      avgTurnaround: this.avgTurnaround,
+      lastCompleted: this.lastCompleted && { ...this.lastCompleted },
+      board: boardToJson(this.board),
+      pending: [...this.pending],
+      queue: this.queue.map(sr),
+      current: cur && { ...sr(cur.req), startTick: cur.startTick, attempts: cur.attempts },
+      tripped: this.thermal.power.tripped,
+    };
+  }
+
+  /**
+   * Rebuild a game from a save (validated; throws Error with a clear message). The in-flight request restarts
+   * from its first instruction with a cold engine and a blank display. `economy` must match the saving game's.
+   */
+  static fromSave(input: unknown, economy?: Partial<EconomyConfig>): Game {
+    const s = parseSave(input);
+    const g = new Game({ seed: s.seed, economy });
+    g.queue = [];
+    g.board = boardFromJson(s.board);
+    g.machine.prng.setState(s.prngState);
+    g.money = s.money;
+    g.baseTick = s.baseTick;
+    g.nextReqId = s.nextReqId;
+    g.completed = s.completed;
+    g.errors = s.errors;
+    g.dropped = s.dropped;
+    g.avgTurnaround = s.avgTurnaround;
+    g.lastCompleted = s.lastCompleted && { ...s.lastCompleted };
+    g.pending = [...s.pending];
+    const rebuild = (r: SavedRequest): Req => {
+      const gen = generate(r.template, r.seed, { row: 0, scale: r.scale });
+      return { ...r, work: runReference(gen).steps, program: gen.program };
+    };
+    try {
+      g.queue = s.queue.map(rebuild);
+      if (s.current) g.current = { req: rebuild(s.current), startTick: s.current.startTick, attempts: s.current.attempts };
+    } catch (e) {
+      throw new Error(`save: cannot regenerate a request (${(e as Error).message})`);
+    }
+    if (s.tripped) g.thermal.power = { ...g.thermal.power, tripped: true };
+    g.syncRates(false);
+    if (g.current && engineConfigFor(g.board)) g.restart();
+    return g;
+  }
+
   // ---------- internals ----------
 
   /** Board with pending (deferred) purchases applied, for validation and listing. */
@@ -292,7 +356,7 @@ export class Game {
     }
     const g = generate(template, seed, { row: 0, scale });
     this.queue.push({
-      id: this.nextReqId++, template, seed, arrival: this.baseTick,
+      id: this.nextReqId++, template, seed, scale, arrival: this.baseTick,
       deadline: this.baseTick + this.cfg.deadlineTicks,
       work: runReference(g).steps, program: g.program,
     });
