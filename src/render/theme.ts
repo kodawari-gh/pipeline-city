@@ -49,3 +49,43 @@ export function onThemeChange(cb: () => void): () => void {
   mq?.addEventListener('change', cb);
   return () => { mo.disconnect(); mq?.removeEventListener('change', cb); };
 }
+
+/**
+ * Derived palette for the board art. The theme tokens stay the single source of colour, but the board is mixed toward
+ * the background so it recedes: decoration < passive parts < working parts (which use the full tokens).
+ */
+export interface Palette {
+  board: string; edge: string; trace: string; copper: string; via: string; sub: string; dark: string; silk: string; silkHi: string; panel: string;
+}
+
+export function makePalette(T: Theme): Palette {
+  const mix = (a: string, b: string, t: number) => mixHex(a, b, t);
+  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(T.board, '#ffffff', 0.45);
+  return {
+    board,
+    edge: mix(board, T.line, T.dark ? 0.9 : 0.8),
+    trace: mix(board, T.trace, T.dark ? 0.5 : 0.45),
+    copper: mix(board, T.pin, T.dark ? 0.32 : 0.45),
+    via: mix(board, T.pin, 0.5),
+    sub: mix(board, T.sub, T.dark ? 0.75 : 0.7),
+    dark: mix(board, T.bg, T.dark ? 0.55 : 0.18),
+    silk: mix(board, T.ink, T.dark ? 0.3 : 0.32),
+    silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.55),
+    panel: mix(board, T.tile, T.dark ? 0.55 : 0.5),
+  };
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const pa = rgb(a), pb = rgb(b);
+  if (!pa || !pb) return a;
+  const k = Math.max(0, Math.min(1, t));
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i]! - v) * k).toString(16).padStart(2, '0')).join('');
+}
+function rgb(s: string): number[] | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim());
+  if (!m) return null;
+  let h = m[1]!;
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  return [n >> 16, (n >> 8) & 255, n & 255];
+}

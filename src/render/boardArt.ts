@@ -1,18 +1,19 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
 import {
-  BD, BOARD_SEED, BR, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, buildLanes, inNoGo, rng, type Lane,
+  BD, BOARD_SEED, BR, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, rng,
 } from './layout';
-import { box, dashed, disc, label } from './ink';
-import type { Theme } from './theme';
+import { box, disc, label } from './ink';
+import { buildBuses, type Bus, type Lane } from './routes';
+import { makePalette, type Palette, type Theme } from './theme';
 
 export interface BoardArt {
   root: Container;
   /** Text labels, hidden when zoomed far out. */
   labels: Container;
-  lanes: Lane[];
-  /** Short flowing-dot paths on the decorative traces. */
-  flows: Lane[];
+  /** Routed buses (dim base is drawn here; the live layer lights them). */
+  buses: Bus[];
+  pal: Palette;
 }
 
 const hexPoly = (cx: number, cy: number, r: number): number[] => {
@@ -21,12 +22,19 @@ const hexPoly = (cx: number, cy: number, r: number): number[] => {
   return p;
 };
 
+export function strokeLane(g: Graphics, l: Lane) {
+  g.moveTo(l.pts[0]![0], l.pts[0]![1]);
+  for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+}
+
 /**
- * The static motherboard: plate, seeded traces, SMD parts, hex field, QR sticker, VRMs, connectors, bus lanes,
- * empty sockets for the slots of this board tier. Built once per (theme, tier) and never touched per frame.
+ * The static motherboard, built once per (theme, tier) and never touched per frame. Visual hierarchy: the working parts
+ * (CPU, DIMMs, cooler, PSU, monitor) are drawn by devices.ts at full contrast; everything here is mixed toward the
+ * board colour. Routing is deliberate (routes.ts); there is no random scatter.
  */
 export function buildBoard(T: Theme, tier: number): BoardArt {
   const rand = rng(BOARD_SEED);
+  const P = makePalette(T);
   const root = new Container();
   const labels = new Container();
   const slots = BOARD_TIERS[tier]?.slots ?? {};
@@ -34,258 +42,213 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
 
   const g = new Graphics();
   root.addChild(g);
-  const lbl = (t: string, x: number, y: number, s = 44, a = 0.5) => labels.addChild(label(t, x, y, s, T.ink, { a }));
+  const lbl = (t: string, x: number, y: number, s = 38, a = 1) => labels.addChild(label(t, x, y, s, P.silk, { a }));
 
-  // plate, ground-plane hatch, neon border
-  box(g, BD.x, BD.y, BD.w, BD.h, 150, { fill: T.board, stroke: T.line, lw: 14 });
-  for (let x = BD.x - BD.h; x < BD.x + BD.w; x += 140) {
-    // clip the diagonal to the plate by hand
-    const x0 = Math.max(x, BD.x), x1 = Math.min(x + BD.h, BD.x + BD.w);
-    if (x1 > x0) g.moveTo(x0, BD.y + BD.h - (x0 - x)).lineTo(x1, BD.y + BD.h - (x1 - x));
-  }
-  g.stroke({ width: 2, color: T.trace, alpha: 0.1 });
-  {
-    const bx = BD.x + 70, by = BD.y + 70, bw = BD.w - 140, bh = BD.h - 140, c = 130;
-    const oct: [number, number][] = [[bx + c, by], [bx + bw - c, by], [bx + bw, by + c], [bx + bw, by + bh - c], [bx + bw - c, by + bh], [bx + c, by + bh], [bx, by + bh - c], [bx, by + c], [bx + c, by]];
-    dashed(g, oct, 260, 50);
-    g.stroke({ width: 6, color: T.alu, alpha: 0.6 });
+  // ---- plate ----
+  box(g, BD.x, BD.y, BD.w, BD.h, 150, { fill: P.board, stroke: P.edge, lw: 12 });
+  box(g, BD.x + 70, BD.y + 70, BD.w - 140, BD.h - 140, 110, { stroke: P.edge, lw: 4, sa: 0.5 });
+  for (const [x, y] of [[-3250, -2350], [3250, -2380], [-3250, 2350], [3250, 2350], [0, -2350], [0, 2350]] as const) {
+    disc(g, x, y, 90, { fill: P.panel, stroke: P.edge, lw: 8 }); disc(g, x, y, 42, { fill: P.dark });
   }
 
-  // seeded random traces
-  const base: [number, number][][] = [], hi: [number, number][][] = [], hi2: [number, number][][] = [];
-  const vias: [number, number][] = [], flows: Lane[] = [];
-  const D = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const;
-  let made = 0, tries = 0;
-  while (made < 300 && tries++ < 6000) {
-    let x = BD.x + 130 + rand() * (BD.w - 260), y = BD.y + 130 + rand() * (BD.h - 260);
-    if (inNoGo(x, y)) continue;
-    const pts: [number, number][] = [[x, y]], steps = 3 + Math.floor(rand() * 6);
-    let d = Math.floor(rand() * 8), ok = true;
-    for (let s = 0; s < steps; s++) {
-      d = rand() < 0.25 ? (d + (rand() < 0.5 ? 1 : 7)) % 8 : d;
-      const len = 70 + rand() * 280, v = D[d]!, k = v[0] && v[1] ? 0.7071 : 1;
-      const nx = x + v[0] * len * k, ny = y + v[1] * len * k;
-      if (inNoGo(nx, ny) || inNoGo((x + nx) / 2, (y + ny) / 2)) { if (s < 2) ok = false; break; }
-      x = nx; y = ny; pts.push([x, y]);
+  // ---- buses: base strokes, all dim and the same colour (the live layer lights the active ones) ----
+  const buses = buildBuses();
+  const dimm = (b: Bus) => (b.taps ? b.taps.filter((_, i) => i < nDimm) : []);
+  for (const b of buses) {
+    const power = b.id === 'pwr12' || b.id === 'pwrcpu' || b.id === 'pwr5' || b.id === 'vcore';
+    for (const l of b.lanes) strokeLane(g, l);
+    g.stroke({ width: b.w, color: power ? P.copper : P.trace, alpha: power ? 0.75 : 0.9, cap: 'round', join: 'round' });
+    for (const t of dimm(b)) for (const l of t.lanes) strokeLane(g, l);
+    g.stroke({ width: b.w * 0.55, color: P.trace, alpha: 0.7, cap: 'round' });
+    if (!power) {
+      // via pads where the lanes end
+      for (const l of b.lanes) { const a = l.pts[0]!, z = l.pts[l.pts.length - 1]!; g.circle(a[0], a[1], b.w * 0.9).circle(z[0], z[1], b.w * 0.9); }
+      g.fill({ color: P.via, alpha: 0.6 });
     }
-    if (!ok || pts.length < 3) continue;
-    made++;
-    const r = rand(), list = r < 0.09 ? hi : r < 0.17 ? hi2 : base;
-    list.push(pts);
-    vias.push(pts[0]!, pts[pts.length - 1]!);
-    if (list !== base && flows.length < 36) flows.push(mkFlow(pts, list === hi ? 0 : 1, rand() * 1000));
   }
-  const bund = (x0: number, y0: number, x1: number, y1: number, n: number, sp: number, list: [number, number][][]) => {
-    for (let i = 0; i < n; i++) list.push([[x0, y0 + i * sp], [x1 - i * sp - 30, y0 + i * sp], [x1 - i * sp, y0 + i * sp + 30], [x1 - i * sp, y1]]);
-  };
-  bund(-1300, -2050, 1500, -1750, 10, 22, base); bund(900, -2300, 2850, -1650, 8, 22, hi);
-  bund(-2800, 2230, -1000, 2560, 8, 22, base); bund(950, 2350, 2400, 2560, 6, 22, hi2);
-  const strokeList = (list: [number, number][][], color: string, alpha: number, w = 10) => {
-    for (const p of list) { g.moveTo(p[0]![0], p[0]![1]); for (let i = 1; i < p.length; i++) g.lineTo(p[i]![0], p[i]![1]); }
-    g.stroke({ width: w, color, alpha });
-  };
-  strokeList(base, T.trace, 0.9); strokeList(hi, T.alu, 0.75); strokeList(hi2, T.br, 0.65);
-  for (const [x, y] of vias) g.circle(x, y, 16);
-  g.fill({ color: T.pin, alpha: 0.8 });
 
-  // small SMD parts in free space
+  // ---- VRM row (core power) ----
   {
-    const smd: [number, number, number, number, number][] = [];
-    tries = 0;
-    while (smd.length < 700 && tries++ < 9000) {
-      const x = BD.x + 130 + rand() * (BD.w - 260), y = BD.y + 130 + rand() * (BD.h - 260);
-      if (inNoGo(x, y) || inNoGo(x + 60, y + 40)) continue;
-      smd.push([x, y, rand() < 0.5 ? 36 : 24, rand() < 0.5 ? 20 : 34, rand() < 0.12 ? 1 : 0]);
+    const v = BR.vrm;
+    box(g, v.x, v.y, v.w, v.h, 28, { fill: P.sub, stroke: P.edge, lw: 6 });
+    for (let i = 0; i < 9; i++) {
+      const x = v.x + 60 + i * 282, y = v.y + 50;
+      box(g, x, y, 200, 210, 18, { fill: P.panel, stroke: P.edge, lw: 5 });
+      disc(g, x + 100, y + 105, 62, { stroke: P.via, lw: 7, sa: 0.7 }); disc(g, x + 100, y + 105, 26, { stroke: P.via, lw: 6, sa: 0.7 });
+      disc(g, x + 100, y + 340, 42, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 });
     }
-    for (const s of smd) g.rect(s[0], s[1], s[2], s[3]);
-    g.fill({ color: T.tile });
-    for (const s of smd) if (s[4]) g.rect(s[0], s[1], s[2], s[3]);
-    g.fill({ color: T.alu });
-    for (const s of smd) { g.rect(s[0], s[1], 7, s[3]); g.rect(s[0] + s[2] - 7, s[1], 7, s[3]); }
-    g.fill({ color: T.pin });
+    lbl('VRM · CPU CORE', v.x + 10, v.y - 36);
   }
-
-  // hex field (cyber pattern)
+  // ---- DRAM VRM ----
   {
-    const hr = 55, hx = BR.hex, cells: [number, number, number][] = [];
-    for (let q = 0; q < 20; q++) for (let r = 0; r < 6; r++) {
-      const cx = hx.x + 60 + q * hr * 1.73 + (r % 2) * hr * 0.865, cy = hx.y + 50 + r * hr * 1.5;
-      if (cx < hx.x + hx.w - 40) cells.push([cx, cy, rand()]);
+    const v = BR.dvrm;
+    box(g, v.x, v.y, v.w, v.h, 22, { fill: P.sub, stroke: P.edge, lw: 6 });
+    for (let i = 0; i < 5; i++) {
+      const x = v.x + 50 + i * 225;
+      box(g, x, v.y + 50, 160, 140, 14, { fill: P.panel, stroke: P.edge, lw: 5 });
+      disc(g, x + 80, v.y + 120, 44, { stroke: P.via, lw: 6, sa: 0.7 });
+      disc(g, x + 80, v.y + 300, 38, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 });
     }
-    for (const c of cells) if (c[2] < 0.13) g.poly(hexPoly(c[0], c[1], 48));
-    g.fill({ color: T.br, alpha: 0.4 });
-    for (const c of cells) if (c[2] > 0.9) g.poly(hexPoly(c[0], c[1], 48));
-    g.fill({ color: T.alu, alpha: 0.35 });
-    for (const c of cells) g.poly(hexPoly(c[0], c[1], 48));
-    g.stroke({ width: 5, color: T.trace, alpha: 0.8 });
-  }
-  // QR-like sticker
-  {
-    const q = BR.qr;
-    box(g, q.x + 10, q.y + 10, 400, 400, 14, { fill: T.die });
-    for (let i = 0; i < 20; i++) for (let j = 0; j < 20; j++) {
-      const corner = (i < 6 && j < 6) || (i > 13 && j < 6) || (i < 6 && j > 13);
-      const on = corner ? i % 5 === 0 || j % 5 === 0 || (i % 5 > 1 && j % 5 > 1 && i % 5 < 4 && j % 5 < 4) : rand() < 0.45;
-      if (on) g.rect(q.x + 30 + i * 17, q.y + 30 + j * 17, 15, 15);
-    }
-    g.fill({ color: T.ink, alpha: 0.75 });
-  }
-  // mounting holes
-  for (const [x, y] of [[-3250, -2350], [3250, -2350], [-3250, 2550], [3250, 2550], [3250, 150], [-3250, 150], [-100, 2550], [1000, -2350], [-1000, -2350]] as const) {
-    disc(g, x, y, 110, { fill: T.pin, fa: 0.8 }); disc(g, x, y, 60, { fill: T.bg });
+    lbl('VRM · DRAM', v.x + 10, v.y - 36);
   }
 
-  // ---- VRMs ----
-  const ind = (x: number, y: number, s: number) => {
-    box(g, x - s / 2, y - s / 2, s, s, 18, { fill: T.tile, stroke: T.line, lw: 6 });
-    disc(g, x, y, s * 0.32, { stroke: T.pin, lw: 6 }); disc(g, x, y, s * 0.15, { stroke: T.pin, lw: 6 });
-    g.moveTo(x - s * 0.4, y - s / 2 + 8).lineTo(x + s * 0.4, y - s / 2 + 8).stroke({ width: 7, color: T.alu });
-  };
-  const cap = (x: number, y: number, r: number) => {
-    disc(g, x, y, r, { fill: T.dot, stroke: T.pin, lw: 7 });
-    g.moveTo(x, y).arc(x, y, r - 8, -1.2, 1.2).lineTo(x, y).fill({ color: T.line });
-  };
-  box(g, -2250, -760, 110, 1520, 16, { fill: T.tile, stroke: T.line, lw: 6 });
-  for (let y = -730; y < 750; y += 28) g.moveTo(-2230, y).lineTo(-2160, y);
-  g.stroke({ width: 6, color: T.line, alpha: 0.6 });
-  for (let i = 0; i < 8; i++) { cap(-2000, -680 + i * 190, 62); ind(-1720, -690 + i * 200, 170); ind(-1490, -690 + i * 200, 170); }
-  for (let i = 0; i < 10; i++) { ind(-990 + i * 220, -1480, 170); cap(-880 + i * 220, -1290, 52); }
-  box(g, -1100, -1620, 2200, 70, 16, { fill: T.tile, stroke: T.line, lw: 6 });
-  lbl('VRM_CORE', -2250, -800, 50); lbl('VRM_AUX', 800, -1640, 50);
-  // copper pours + CPU power traces
-  for (let y = -450; y <= 450; y += 150) g.moveTo(-1400, y).lineTo(PKG.x - 190, y);
-  for (let x = -450; x <= 450; x += 150) g.moveTo(x, -1180).lineTo(x, PKG.y - 20);
-  g.stroke({ width: 34, color: T.pin, alpha: 0.5 });
-  g.moveTo(-1620, -2220).lineTo(-1620, -1700).lineTo(-1400, -1480).lineTo(-1100, -1480).stroke({ width: 30, color: T.pin, alpha: 0.5 });
-
-  // ---- DIMM sockets (all positions; ones beyond this tier are faint) ----
+  // ---- DIMM sockets (positions beyond this tier are faint) ----
   for (let d = 0; d < 4; d++) {
     const sx = DIMM_X(d), live = d < nDimm, a = live ? 1 : 0.28;
-    box(g, sx, DIMM_Y, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6, fa: a, sa: a });
-    box(g, sx + 14, DIMM_Y + 50, 142, DIMM_H - 100, 6, { fill: T.die, stroke: live ? T.alu : T.line, lw: 4, fa: a, sa: live ? 0.5 : 0.3 });
-    g.rect(sx + 20, DIMM_Y - 20, 130, 22).rect(sx + 20, DIMM_Y + DIMM_H - 2, 130, 22).fill({ color: T.line, alpha: a });
-    for (let k = 0; k < 24; k++) g.rect(sx + 22 + k * 5.4, DIMM_Y + DIMM_H - 58, 3.4, 50);
-    g.fill({ color: T.pin, alpha: 0.5 * a });
-    if (live) lbl('DIMM_' + (d + 1), sx + 8, DIMM_Y + DIMM_H + 60, 32, 0.45);
-  }
-  // memory taps under the DIMMs
-  for (let d = 0; d < 4; d++) for (let i = 0; i < 14; i++) { const x = DIMM_X(d) + 22 + i * 8; g.moveTo(x, 835).lineTo(x, 890 + i * 12); }
-  g.stroke({ width: 4, color: T.alu, alpha: 0.45 });
-
-  // ---- buses (base strokes) ----
-  const lanes = buildLanes(rand);
-  for (const [kind, col, a] of [['mem', T.alu, 0.55], ['pcie', T.br, 0.55], ['dmi', T.mul, 0.55]] as const) {
-    for (const l of lanes) if (l.kind === kind) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
-    g.stroke({ width: 7, color: col, alpha: a });
+    box(g, sx, DIMM_Y, DIMM_W, DIMM_H, 10, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
+    box(g, sx + 20, DIMM_Y + 60, DIMM_W - 40, DIMM_H - 120, 6, { fill: P.dark, fa: a * 0.8 });
+    g.rect(sx + 20, DIMM_Y - 20, 130, 22).rect(sx + 20, DIMM_Y + DIMM_H - 2, 130, 22).fill({ color: P.edge, alpha: a });
+    if (live) lbl('DIMM_' + (d + 1), sx + 6, DIMM_Y - 62, 34);
   }
 
-  // ---- PCIe rails (empty slots; first nPcie are real for this tier) ----
+  // ---- PCIe rails (first nPcie are real for this tier) ----
   PCIE_RAILS.forEach((r, i) => {
     const live = i < nPcie, a = live ? 1 : 0.3;
-    box(g, r.x, r.y, r.w, r.h, 10, { fill: T.sub, stroke: live ? T.br : T.line, lw: 6, fa: a, sa: a });
-    g.rect(r.x + 40, r.y + 18, r.w - 80, 24).fill({ color: T.die, alpha: a });
-    for (let k = 0; k < Math.floor(r.w / 40); k++) g.rect(r.x + 50 + k * 40, r.y + 22, 14, 16);
-    g.fill({ color: T.pin, alpha: 0.5 * a });
+    box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
+    g.rect(r.x + 40, r.y + 18, r.w - 80, 24).fill({ color: P.dark, alpha: a });
+    for (let k = 0; k < Math.floor(r.w / 60); k++) g.rect(r.x + 56 + k * 60, r.y + 22, 14, 16);
+    g.fill({ color: P.via, alpha: 0.55 * a });
   });
-  lbl('PCIEX16_1', -2850, 1000, 50); lbl('PCIEX4_2', -2850, 2090, 44, 0.35); lbl('PCIEX1_3', -2850, 2230, 44, 0.35);
+  lbl('PCIe x16 · GPU', -2850, 990);
+  lbl('PCIe x4', -2850, 2110, 34, 0.7); lbl('PCIe x1', -2850, 2250, 34, 0.7);
 
-  // ---- M.2 SSD (decor) ----
+  // ---- M.2 SSD ----
   {
     const m = BR.m2;
-    box(g, m.x, m.y, m.w, m.h, 12, { fill: T.sub, stroke: T.line, lw: 6 });
-    box(g, m.x + 20, m.y + 20, m.w - 40, m.h - 120, 8, { fill: T.die, stroke: T.mul, lw: 6 });
-    for (let i = 0; i < 3; i++) box(g, m.x + 45, m.y + 50 + i * 270, 110, 230, 8, { fill: T.tile, stroke: T.line, lw: 6 });
-    box(g, m.x + 55, m.y + 880, 90, 90, 8, { fill: T.mul }); disc(g, m.x + 100, m.y + 1230, 30, { fill: T.pin });
-    lbl('M.2_1 NVME', m.x - 10, m.y - 30);
+    box(g, m.x, m.y, m.w, m.h, 12, { fill: P.sub, stroke: P.edge, lw: 6 });
+    box(g, m.x + 22, m.y + 24, m.w - 44, m.h - 150, 8, { fill: P.dark, stroke: T.mul, lw: 4, sa: 0.4 });
+    for (let i = 0; i < 3; i++) box(g, m.x + 45, m.y + 60 + i * 260, 110, 210, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
+    disc(g, m.x + 100, m.y + m.h - 60, 28, { fill: P.via, fa: 0.6 });
+    lbl('M.2 NVMe', m.x - 20, m.y - 36);
   }
-  // ---- chipset ----
+
+  // ---- chipset (west of the CPU) ----
   {
     const q = BR.chip;
-    box(g, q.x, q.y, q.w, q.h, 28, { fill: T.tile, stroke: T.mul, lw: 8 });
-    for (let x = q.x + 50; x < q.x + q.w - 40; x += 34) g.moveTo(x, q.y + 40).lineTo(x, q.y + q.h - 40);
-    g.stroke({ width: 8, color: T.line, alpha: 0.8 });
-    labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, 120, T.mul, { head: true, anchor: [0.5, 0.5] }));
+    box(g, q.x, q.y, q.w, q.h, 26, { fill: P.panel, stroke: T.mul, lw: 6, sa: 0.5 });
+    for (let x = q.x + 60; x < q.x + q.w - 40; x += 40) g.moveTo(x, q.y + 44).lineTo(x, q.y + q.h - 44);
+    g.stroke({ width: 7, color: P.edge, alpha: 0.9 });
+    labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
   }
-  // ---- SATA, ATX, CPU power, battery ----
+  // ---- SATA ----
   for (let i = 0; i < 5; i++) {
-    const x = 2420 + i * 170, live = i < nSata, a = live ? 1 : 0.3;
-    box(g, x, 2290, 140, 100, 10, { fill: T.sub, stroke: T.line, lw: 6, fa: a, sa: a });
-    g.rect(x + 20, 2310, 100, 28).fill({ color: T.tile, alpha: a });
-    g.rect(x + 20, 2352, 70, 12).fill({ color: T.pin, alpha: a });
+    const x = BR.sata.x + i * 170, live = i < nSata, a = live ? 1 : 0.35;
+    box(g, x, BR.sata.y, 140, BR.sata.h, 10, { fill: P.sub, stroke: P.edge, lw: 5, fa: a, sa: a });
+    g.rect(x + 20, BR.sata.y + 20, 100, 30).fill({ color: P.dark, alpha: a });
+    g.rect(x + 20, BR.sata.y + 66, 70, 14).fill({ color: P.via, alpha: 0.5 * a });
   }
-  lbl('SATA_1-5', 2420, 2260);
+  lbl('SATA 1-5', BR.sata.x, BR.sata.y + BR.sata.h + 40);
+
+  // ---- power connectors on the east edge (plugs from the PSU sit on these) ----
+  const conn = (r: { x: number; y: number; w: number; h: number }, rows: number, cols: number, name: string, a = 1) => {
+    box(g, r.x, r.y, r.w, r.h, 14, { fill: P.sub, stroke: P.via, lw: 6, fa: a, sa: a * 0.8 });
+    const pw = 70, ph = Math.min(60, (r.h - 60) / rows - 18);
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) g.rect(r.x + 40 + j * 110, r.y + 30 + i * ((r.h - 60) / rows) + 6, pw, ph);
+    g.fill({ color: P.via, alpha: 0.8 * a });
+    labels.addChild(label(name, r.x + r.w, r.y - 34, 32, P.silk, { a, anchor: [1, 0.5] }));
+  };
+  conn(BR.atx, 12, 2, 'ATX 24-PIN');
+  conn(BR.cpw, 4, 2, 'CPU 8-PIN');
+  conn(BR.pciew, 3, 2, 'PCIe 6-PIN', 0.55);
+
+  // ---- battery ----
   {
-    const a = BR.atx;
-    box(g, a.x, a.y, a.w, a.h, 14, { fill: T.sub, stroke: T.pin, lw: 7 });
-    for (let r = 0; r < 12; r++) for (let c = 0; c < 2; c++) g.rect(a.x + 70 + c * 120, a.y + 50 + r * 76, 70, 44);
-    g.fill({ color: T.pin, alpha: 0.9 });
-    lbl('ATX_24PIN', a.x - 30, a.y - 30);
+    const b = BR.bat, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    disc(g, cx, cy, 145, { fill: P.panel, stroke: P.edge, lw: 8 }); disc(g, cx, cy, 90, { stroke: P.edge, lw: 6 });
+    labels.addChild(label('CR2032', cx, cy, 44, P.silk, { anchor: [0.5, 0.5], weight: '700' }));
   }
-  {
-    const a = BR.cpw;
-    box(g, a.x, a.y, a.w, a.h, 14, { fill: T.sub, stroke: T.pin, lw: 7 });
-    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) g.rect(a.x + 50 + c * 120, a.y + 40 + r * 70, 70, 44);
-    g.fill({ color: T.pin });
-    lbl('CPU_PWR_8PIN', a.x, a.y - 22);
-  }
-  {
-    const b = BR.bat;
-    disc(g, b.x + 170, b.y + 170, 165, { fill: T.pin, fa: 0.85, stroke: T.line, lw: 8 }); disc(g, b.x + 170, b.y + 170, 110, { stroke: T.line, lw: 8 });
-    labels.addChild(label('CR2032', b.x + 170, b.y + 170, 50, T.line, { anchor: [0.5, 0.5], weight: '700' }));
-  }
-  // ---- rear I/O + audio ----
+
+  // ---- rear I/O (west edge): ports face left ----
   {
     const q = BR.io;
-    box(g, q.x - 40, q.y, q.w + 40, q.h, 30, { fill: T.sub, stroke: T.line, lw: 14 });
-    for (let r = 0; r < 5; r++) {
-      const y = q.y + 60 + r * 380;
-      if (r < 3) {
-        for (const [dx, dy, col] of [[0, 0, T.alu], [260, 0, T.alu], [0, 160, T.mul], [260, 160, T.mul]] as const) {
-          box(g, q.x - 10 + dx, y + dy - 20, 230, 130, 10, { fill: col, fa: 0.75 });
-          g.rect(q.x + 10 + dx, y + dy + 20, 190, 40).fill({ color: T.die });
-        }
-      } else if (r === 3) {
-        box(g, q.x - 10, y - 20, 250, 250, 12, { fill: T.tile, stroke: T.pin, lw: 7 });
-        g.rect(q.x + 20, y + 190, 40, 24).fill({ color: T.st }); g.rect(q.x + 170, y + 190, 40, 24).fill({ color: T.ld });
-        box(g, q.x + 280, y, 300, 130, 10, { fill: T.line });
-      } else {
-        [T.st, T.br, T.ld].forEach((c, k) => { disc(g, q.x + 70 + k * 190, y + 80, 62, { fill: c }); disc(g, q.x + 70 + k * 190, y + 80, 26, { fill: T.bg }); });
-      }
-    }
-    lbl('REAR_IO', q.x, q.y - 28);
-    const a = BR.audio;
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) cap(a.x + 100 + i * 160, a.y + 90 + j * 190, 66);
-    box(g, a.x + 120, a.y + 520, 220, 220, 14, { fill: T.tile, stroke: T.line, lw: 6 });
-    labels.addChild(label('CODEC', a.x + 230, a.y + 630, 40, T.mute, { anchor: [0.5, 0.5] }));
-    lbl('AUDIO', a.x, a.y - 22);
+    box(g, q.x, q.y, q.w, q.h, 30, { fill: P.panel, stroke: P.edge, lw: 10 });
+    const port = (x: number, y: number, w: number, h: number, tongue: string | null, ta = 0.5) => {
+      box(g, x, y - h / 2, w, h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
+      if (tongue) g.rect(x + 18, y - h * 0.14, w - 36, h * 0.28).fill({ color: tongue, alpha: ta });
+    };
+    // audio jacks
+    ([[T.st], [T.br], [T.ld]] as const).forEach(([c], k) => { port(q.x + 30 + k * 215, -1870, 180, 90, c, 0.55); });
+    // ethernet
+    port(q.x + 30, -1560, 330, 260, null);
+    for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
+    g.fill({ color: P.via, alpha: 0.5 });
+    g.rect(q.x + 50, -1405, 40, 22).fill({ color: T.st, alpha: 0.55 }); g.rect(q.x + 130, -1405, 40, 22).fill({ color: T.ld, alpha: 0.55 });
+    // video outputs (HDMI working, DisplayPort spare)
+    const hdmi = (x: number, y: number, w: number, h: number, active: boolean) => {
+      const c = 26;
+      g.poly([x, y - h / 2 + c, x + c, y - h / 2, x + w, y - h / 2, x + w, y + h / 2, x + c, y + h / 2, x, y + h / 2 - c]);
+      g.fill({ color: P.dark }).stroke({ width: 6, color: active ? T.st : P.edge, alpha: active ? 0.85 : 1 });
+      g.rect(x + 40, y - h * 0.12, w - 70, h * 0.24).fill({ color: P.via, alpha: 0.7 });
+    };
+    hdmi(q.x, VIDEO_Y, 240, 120, true);
+    hdmi(q.x, VIDEO_Y + 220, 240, 120, false);
+    labels.addChild(label('HDMI', q.x + 270, VIDEO_Y, 34, P.silkHi, { anchor: [0, 0.5] }));
+    labels.addChild(label('DP', q.x + 270, VIDEO_Y + 220, 34, P.silk, { anchor: [0, 0.5] }));
+    // USB-A, two columns
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) port(q.x + 18 + c * 320, (r - 1) * 150, 290, 108, c === 0 ? T.alu : T.alu, 0.5);
+    labels.addChild(label('USB', q.x + q.w - 20, 235, 34, P.silk, { anchor: [1, 0.5] }));
+    lbl('REAR I/O', q.x + 6, q.y - 36);
   }
-  // CPU socket frame (empty socket look; the package covers it when a CPU is installed)
+  // ---- audio codec (low-key) ----
   {
-    const k = PKG, e = 46;
-    box(g, k.x - e, k.y - e, k.w + 2 * e, k.h + 2 * e, 90, { fill: T.bg, stroke: T.pin, lw: 12, fa: 0.55, sa: 0.75 });
-    for (const [x, y] of [[k.x - e + 30, k.y - e + 30], [k.x + k.w + e - 30, k.y - e + 30], [k.x - e + 30, k.y + k.h + e - 30], [k.x + k.w + e - 30, k.y + k.h + e - 30]] as const) {
-      disc(g, x, y, 30, { fill: T.line });
-      g.moveTo(x - 16, y).lineTo(x + 16, y).moveTo(x, y - 16).lineTo(x, y + 16).stroke({ width: 5, color: T.pin });
-    }
-    // land grid (visible only while the socket is empty)
-    for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) g.rect(x, y, 14, 14);
-    g.fill({ color: T.pin, alpha: 0.35 });
-    g.moveTo(k.x - e, k.y + 160).lineTo(k.x - 190, k.y + 160).lineTo(k.x - 190, k.y + k.h - 220).stroke({ width: 18, color: T.pin, alpha: 0.85, cap: 'round', join: 'round' });
-    disc(g, k.x - 190, k.y + k.h - 220, 24, { fill: T.pin });
-    lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 40, 46, 0.7);
+    const a = BR.audio;
+    for (let i = 0; i < 4; i++) disc(g, a.x + 60 + i * 120, a.y + 70, 40, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 });
+    box(g, a.x + 160, a.y + 160, 200, 140, 12, { fill: P.panel, stroke: P.edge, lw: 5 });
+    labels.addChild(label('CODEC', a.x + 260, a.y + 230, 32, P.silk, { anchor: [0.5, 0.5] }));
   }
-  // ---- silkscreen ----
-  labels.addChild(label('PIPELINE CITY', -1200, -1900, 150, T.ink, { head: true, a: 0.26 }));
-  lbl('MB-9000 · REV A · MADE IN CYBERSPACE', 300, 2640, 60, 0.26);
-  labels.addChild(label('»»»»»»»»', 1250, -2330, 90, T.br, { a: 0.85, weight: '700' }));
+
+  // ---- CPU socket frame (empty-socket look; the package covers it when a CPU is installed) ----
+  {
+    const k = PKG, e = SOCKET_E;
+    box(g, k.x - e, k.y - e, k.w + 2 * e, k.h + 2 * e, 90, { fill: P.dark, stroke: T.pin, lw: 10, fa: 0.8, sa: 0.55 });
+    for (const [x, y] of [[k.x - e + 30, k.y - e + 30], [k.x + k.w + e - 30, k.y - e + 30], [k.x - e + 30, k.y + k.h + e - 30], [k.x + k.w + e - 30, k.y + k.h + e - 30]] as const) {
+      disc(g, x, y, 28, { fill: P.panel });
+      g.moveTo(x - 15, y).lineTo(x + 15, y).moveTo(x, y - 15).lineTo(x, y + 15).stroke({ width: 5, color: T.pin, alpha: 0.7 });
+    }
+    for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) g.rect(x, y, 14, 14);
+    g.fill({ color: T.pin, alpha: 0.25 });
+    lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 36, 38);
+  }
+
+  // ---- quiet decoration: a few tidy SMD rows, a tiny QR and hex patch, silkscreen ----
+  {
+    const row = (x: number, y: number, n: number, dx: number, vertical = false) => {
+      for (let i = 0; i < n; i++) {
+        const px = vertical ? x : x + i * dx, py = vertical ? y + i * dx : y;
+        const w = vertical ? 22 : 34, h = vertical ? 34 : 22;
+        g.rect(px, py, w, h);
+      }
+    };
+    row(-1250, -1060, 14, 60); row(-2300, 420, 10, 60); row(-2300, 360, 10, 60); row(1100, 1720, 12, 62); row(1100, 1780, 12, 62);
+    row(2700, 900, 8, 60, true); row(-1250, 820, 10, 60);
+    g.fill({ color: P.panel });
+    row(-1250, -1060, 14, 60); row(-2300, 420, 10, 60); row(1100, 1720, 12, 62);
+    g.fill({ color: P.via, alpha: 0.25 });
+  }
+  {
+    const hx = BR.hex, hr = 46, cells: [number, number, number][] = [];
+    for (let q = 0; q < 8; q++) for (let r = 0; r < 3; r++) {
+      const cx = hx.x + 60 + q * hr * 1.73 + (r % 2) * hr * 0.865, cy = hx.y + 50 + r * hr * 1.5;
+      cells.push([cx, cy, rand()]);
+    }
+    for (const c of cells) g.poly(hexPoly(c[0], c[1], hr - 4));
+    g.stroke({ width: 4, color: P.edge, alpha: 0.7 });
+    for (const c of cells) if (c[2] < 0.2) g.poly(hexPoly(c[0], c[1], hr - 4));
+    g.fill({ color: T.br, alpha: 0.14 });
+  }
+  {
+    const q = BR.qr, n = 14, s = (q.w - 40) / n;
+    box(g, q.x, q.y, q.w, q.h, 10, { fill: P.dark, stroke: P.edge, lw: 4 });
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const corner = (i < 4 && j < 4) || (i > n - 5 && j < 4) || (i < 4 && j > n - 5);
+      const on = corner ? i % 3 !== 1 || j % 3 !== 1 : rand() < 0.45;
+      if (on) g.rect(q.x + 20 + i * s, q.y + 20 + j * s, s - 1, s - 1);
+    }
+    g.fill({ color: P.silkHi, alpha: 0.5 });
+  }
+  labels.addChild(label('PIPELINE CITY', -800, 2330, 90, P.silk, { head: true, a: 0.5 }));
+  lbl('MB-9000 · REV A', 1500, 2390, 40, 0.8);
 
   root.addChild(labels);
-  return { root, labels, lanes, flows };
-}
-
-function mkFlow(pts: [number, number][], hue: number, ph: number): Lane {
-  let len = 0;
-  const seg: number[] = [];
-  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); seg.push(d); len += d; }
-  return { kind: hue === 0 ? 'mem' : 'pcie', pts, seg, len, ph };
+  return { root, labels, buses, pal: P };
 }
