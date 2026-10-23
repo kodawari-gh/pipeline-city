@@ -9,7 +9,7 @@ Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` 
 | Kind | Extra fields | Catalog (tier: clock base) |
 |---|---|---|
 | cpu | `engine: EngineConfig` | cpu0 unpipelined (1), cpu1 in-order no forwarding (2), cpu2 in-order + forwarding, 16-line cache (3) |
-| ram | `sizeBytes, latency` (RAM ticks per access) | 16K lat 100, 32K lat 12 (2x clock), 64K lat 4 (3x clock) |
+| ram | `sizeBytes, latency` (RAM ticks per access) | 16K lat 200, 32K lat 12 (2x clock), 64K lat 4 (3x clock) |
 | psu | `watts` | 40 W and 100 W (`atx`), 250 W (`atx-plus`) |
 | cooler | `coolingPerC` (W per degree C, CPU only) | stock 0.35, tower 0.8, liquid 1.8 |
 | display | `writeLatency` | CLI monitor |
@@ -43,6 +43,12 @@ Serialization shape (this is the board part of the save; temperatures are not sa
 
 - `machineConfigFor(board, seed?)`: `MachineConfig` with total DIMM bytes, initial cpu/display rates, display latency (RAM size is fixed at Machine construction).
 - `applyRates(board, machine, thermal?)`: `clock.setRate` for the `cpu` and `display` domains (and `ram` if such a domain exists), using throttled effective clocks; rate 0 for missing or burnt parts. Call after each `th.step`. Clock to rate: `{mul: round(clock*100), div: 100}`.
-- `engineConfigFor(board)` / `applyEngine(board, machine, program)`: engine from the CPU spec, `missPenalty = ceil(ram.latency * cpuClock / ramClock)`. Only call between requests (caches go cold).
+- `engineConfigFor(board)` / `applyEngine(board, machine, program)`: engine from the CPU spec, `missPenalty = ceil(ram.latency * cpuClock / ramClock)`; with several working RAM sticks the **slowest** one (highest penalty) counts. The game calls `applyEngine` at every power-on with the boot ROM as the program (caches go cold).
 
-No existing files were changed.
+## Cables and the boot check (`cables.ts`)
+
+Cables are board connectors that are either plugged or not: `CableId` = `atx` (24-pin, from the PSU), `cpu` (8-pin, from the PSU), `video` (from the monitor's display output). `Cables` is `Record<CableId, boolean>`, owned by the Game (not part of `Board`/`BoardJson`; saved next to it). `connectCable(board, cables, id)` needs the source part installed (a PSU, or the monitor) and says why otherwise; `disconnectCable(cables, id)`; `pruneCables(board, cables)` unplugs cables whose source part is gone (after an uninstall; a swap keeps them). `bootCheck(board, cables)` returns `{noPower, post}`: `noPower` (no PSU, burnt PSU, ATX cable off: the power button does nothing) and `post` (`{reason, short}` for a missing/burnt CPU, 8-pin cable off, or no working RAM: the machine powers on but POST fails). See [`ASSEMBLY.md`](ASSEMBLY.md).
+
+The thermal model's `step(board, loads, powered = true)` takes a `powered` flag: false means switched off (nothing draws, parts cool, the trip latch is untouched).
+
+Other changes for the assembly phase: `ram0` latency 100 to 200 (RAM stays a real choice now that jobs boot first), `Display` has `connected` (no monitor: writes go nowhere) and `setText` (the PCH's own POST error text).

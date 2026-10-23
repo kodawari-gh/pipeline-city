@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getSpec } from "../board";
 import { ECONOMY, type EconomyConfig } from "./economy";
 import { Game } from "./game";
+import { Operator } from "./operator";
 
 const HORIZON = 800;
 const SEEDS = [1, 2, 3, 4, 5, 6];
@@ -12,17 +13,20 @@ const SEEDS = [1, 2, 3, 4, 5, 6];
 const LOG_ONLY: EconomyConfig["mix"] = [{ template: "cli", weight: 1, minRamBytes: 0 }];
 const SCAN_HEAVY: EconomyConfig["mix"] = [
   ...LOG_ONLY,
-  { template: "cli.scan", scale: 1, weight: 4, minRamBytes: 0, payMul: 3 }, // ~80% scan jobs
+  { template: "cli.scan", scale: 4, weight: 4, minRamBytes: 0, payMul: 2 }, // ~80% scan jobs
 ];
 
 interface Outcome { income: number; completed: number }
 
 function play(mix: EconomyConfig["mix"], order: string[], seed: number): Outcome {
-  const g = new Game({ seed, economy: { mix } });
+  // A bot player with a couple of seconds of reaction per manual step; it installs what is bought (power off, swap, power on).
+  const g = new Game({ seed, preassembled: true, economy: { mix } });
+  const op = new Operator(g, 2);
   let spent = 0;
   let next = 0;
   for (let t = 0; t < HORIZON; t++) {
     g.advanceBaseTick();
+    op.step();
     while (next < order.length && g.money >= getSpec(order[next]!)!.price && g.purchase(order[next]!).ok) {
       spent += getSpec(order[next]!)!.price;
       next++;

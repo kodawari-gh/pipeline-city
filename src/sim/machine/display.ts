@@ -14,6 +14,8 @@ export class Display implements Device {
   readonly cells = new Uint8Array(DISPLAY_SIZE);
   private readonly queue: { addr: number; val: number }[] = [];
   private countdown = 0;
+  /** False while no monitor is wired up: writes go nowhere (the game sets this; default true). */
+  connected = true;
 
   constructor(
     readonly clock: Rate = { mul: 1, div: 1 },
@@ -27,6 +29,7 @@ export class Display implements Device {
   }
 
   write(addr: number, val: number): void {
+    if (!this.connected) return;
     if (this.writeLatency <= 0) this.cells[addr] = val & 0xff;
     else this.queue.push({ addr, val: val & 0xff });
   }
@@ -50,6 +53,14 @@ export class Display implements Device {
       const w = this.queue.shift()!;
       this.cells[w.addr] = w.val;
     }
+  }
+
+  /** Put text on the screen at once (the PCH's own POST error messages, no CPU involved). Replaces the contents. */
+  setText(lines: string[]): void {
+    this.clear();
+    lines.slice(0, this.rows).forEach((line, y) => {
+      for (let x = 0; x < Math.min(line.length, this.cols); x++) this.cells[y * this.cols + x] = line.charCodeAt(x) & 0xff;
+    });
   }
 
   /** Rows of text (NUL shown as space, trailing spaces trimmed, trailing empty rows dropped). */

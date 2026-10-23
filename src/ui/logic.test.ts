@@ -14,7 +14,15 @@ const snap = (o: Partial<Snapshot> = {}): Snapshot => ({
   money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, display: '', counters: {},
   completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0, reputation: 1, demandRate: 0.1,
   devices: [dev()], power: { totalW: 10, budgetW: 40, psuFactor: 1, off: false, tripped: false },
-  cpuClock: null, purchases: [], pendingPurchases: [], boardTier: 0, pipe: null, ...o,
+  cpuClock: null, purchases: [], pendingPurchases: [], boardTier: 0, pipe: null,
+  phase: 'waiting-for-key', phaseReason: null, powered: true, bootProgress: 0.4, monitorLive: true, noPowerReason: null,
+  postBlocker: null, inventory: [], slots: [], cables: [], tray: [], plugged: null, log: [],
+  progress: {
+    cpuInstalled: true, psuInstalled: true, ramInstalled: true, monitorInstalled: true, atxConnected: true,
+    cpuPowerConnected: true, videoConnected: true, poweredOn: true, firstKeyPlugged: false, firstJobDone: false,
+    firstKeyEjected: false, firstPurchase: false,
+  },
+  ...o,
 });
 
 describe('format', () => {

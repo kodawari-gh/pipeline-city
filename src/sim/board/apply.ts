@@ -56,19 +56,20 @@ export function applyRates(board: Board, machine: Machine, thermal?: ThermalMode
 
 /**
  * Engine config for the installed CPU, with the cache miss penalty taken from the RAM: the RAM's access
- * latency (RAM ticks) converted to CPU cycles by the requested clock ratio. Null if there is no working CPU.
+ * latency (RAM ticks) converted to CPU cycles by the requested clock ratio (the slowest stick counts). Null if there is no working CPU.
  */
 export function engineConfigFor(board: Board): EngineConfig | null {
   const cpuDev = working(board, "cpu")[0];
   if (!cpuDev) return null;
   const cpu = deviceSpec(cpuDev) as CpuSpec;
   const cfg: EngineConfig = { ...cpu.engine };
-  const ramDev = working(board, "ram")[0];
-  if (ramDev && cfg.kind !== "ref") {
-    const ram = deviceSpec(ramDev) as RamSpec;
-    const ratio = (cpuDev.clock ?? cpu.clock.base) / (ramDev.clock ?? ram.clock.base);
-    cfg.missPenalty = Math.max(1, Math.ceil(ram.latency * ratio));
-  }
+  // Several sticks run at the speed of the slowest one: the miss penalty comes from the stick that costs most cycles.
+  const cpuClock = cpuDev.clock ?? cpu.clock.base;
+  const penalties = working(board, "ram").map((d) => {
+    const ram = deviceSpec(d) as RamSpec;
+    return Math.ceil(ram.latency * (cpuClock / (d.clock ?? ram.clock.base)));
+  });
+  if (penalties.length > 0 && cfg.kind !== "ref") cfg.missPenalty = Math.max(1, ...penalties);
   return cfg;
 }
 

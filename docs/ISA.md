@@ -32,7 +32,7 @@ Opcode is always bits [6:0]; every mnemonic has its own opcode (no funct fields)
 | B | beq 30, bne 31, blt 32, bge 33, bltu 34, bgeu 35 |
 | U | lui 38 (`rd = imm << 11`), auipc 39 (`rd = pc + (imm << 11)`) |
 | J | jal 40 (`rd = pc+4; pc += imm`) |
-| - | ecall 70: end of request, halts the core |
+| - | ecall 70: end of a standalone program, halts the core. A program run from a USB key ("hosted") ends by jumping to the boot ROM's done vector instead, see [`ASSEMBLY.md`](ASSEMBLY.md) |
 
 `jalr rd, rs1, imm`: `rd = pc+4; pc = (rs1+imm) & ~3`. Word loads/stores must be 4-aligned. Opcode 0 is illegal on purpose. Shifts use the low 5 bits of the amount.
 
@@ -43,6 +43,7 @@ Opcode is always bits [6:0]; every mnemonic has its own opcode (no funct fields)
 | `0x0000_0000` + RAM size (64 KiB default) | RAM, program loaded at 0, PC starts at 0 |
 | `0x4000_0000`, 4 KiB window | Text display: 64x16 ASCII bytes, row-major |
 | `0x4001_0000`, 4 KiB window | Device status/command registers |
+| `0x4002_0000`, 20 KiB window | PCH: USB host registers, key program window, result window (see [`ASSEMBLY.md`](ASSEMBLY.md)) |
 
 Constants live in `src/sim/isa/memmap.ts`. Display and status are plain memory in the reference interpreter for now.
 

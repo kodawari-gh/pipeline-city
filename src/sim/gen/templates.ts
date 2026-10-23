@@ -16,6 +16,12 @@ export interface GenParams {
   row?: number;
   /** Job id shown on the display, 0..99 (default: from the seed). */
   jobId?: number;
+  /**
+   * Hosted program (a USB key's job): instead of `ecall` it ends by jumping to the boot ROM's done vector, so the
+   * ROM epilogue writes the result back to the key. Default false (standalone: ends with ecall, runs on the
+   * reference interpreter). The two differ only in that last instruction.
+   */
+  hosted?: boolean;
 }
 
 export interface ResolvedParams {
@@ -38,7 +44,8 @@ export type TemplateFn = (rng: Prng, p: ResolvedParams) => Built;
 
 /** Scratch RAM for templates that need a data buffer (well above any generated code, well below the stack). */
 export const BUF_BASE = 0x4000;
-export const MAX_CODE_BYTES = BUF_BASE;
+/** Hosted programs load at USER_BASE (0x1000), so code must end before the scan buffer at BUF_BASE. */
+export const MAX_CODE_BYTES = BUF_BASE - 0x1000;
 const BUF_LIMIT = 0xc000;
 
 // ---------- program builder ----------

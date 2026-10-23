@@ -25,8 +25,9 @@ export interface EconomyConfig {
   /**
    * CPU cycles per CPU "clock unit" per base tick. A CPU spec clock of 1 means 1 tick per base tick in the board
    * model; the game runs `cpuCyclesPerClock` real engine cycles per such tick (display clock is scaled the same
-   * way). 1 tick = 1 s still holds for the world clock; this just says the toy CPU does 4 cycles per second.
-   * Chosen so that the first request (about 22 instructions at 5 cycles each, about 110 cycles) takes ~30 s.
+   * way). 1 tick = 1 s still holds for the world clock; this just says the starting toy CPU does 36 cycles per
+   * second. Chosen so that the first job (boot ROM ~320 instructions at 5 cycles each, about 1600 cycles) takes
+   * about 45 s from power-on to the result on the key.
    */
   cpuCyclesPerClock: number;
   /** Request arrivals per base tick at reputation 1. */
@@ -56,13 +57,22 @@ export interface EconomyConfig {
   startQueue: { template: string; scale?: number }[];
   /** Mix of templates for generated arrivals. */
   mix: MixEntry[];
-  /** Device utilisation fed to the thermal model while no request is running. */
+  /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
+  /** Dollars the player starts with (small: the first payout is the first real money). */
+  startMoney: number;
+  /**
+   * What a key the client had to take back (tray full) counts as in the turnaround average, so overflow costs
+   * reputation. Should be well past `targetTurnaround`.
+   */
+  giveUpTurnaround: number;
+  /** Flat dollars per job, on top of `payPerInstr * work`: covers the boot and the manual plug/unplug. */
+  payBase: number;
 }
 
 export const ECONOMY: EconomyConfig = {
-  cpuCyclesPerClock: 4,
-  baseDemandPerTick: 0.04,
+  cpuCyclesPerClock: 36,
+  baseDemandPerTick: 0.02,
   targetTurnaround: 60,
   emaAlpha: 0.3,
   repMin: 0.4,
@@ -71,14 +81,17 @@ export const ECONOMY: EconomyConfig = {
   payPerInstr: 1.2,
   speedMin: 0.5,
   speedMax: 2,
-  deadlineTicks: 120,
+  deadlineTicks: 180,
   lateFactor: 0.5,
   startQueue: [{ template: "cli.log" }],
   mix: [
     { template: "cli", weight: 1, minRamBytes: 0 },
-    { template: "cli.scan", scale: 1, weight: 0.5, minRamBytes: 0, payMul: 3, rampTicks: 300 },
+    { template: "cli.scan", scale: 4, weight: 0.5, minRamBytes: 0, payMul: 2, rampTicks: 300 },
   ],
   idleLoad: 0.1,
+  startMoney: 0,
+  giveUpTurnaround: 180,
+  payBase: 20,
 };
 
 export function reputation(cfg: EconomyConfig, avgTurnaround: number): number {
@@ -96,7 +109,7 @@ export function payMulFor(cfg: EconomyConfig, template: string, scale: number): 
 
 export function payout(cfg: EconomyConfig, work: number, turnaround: number, late: boolean): number {
   const speed = Math.min(cfg.speedMax, Math.max(cfg.speedMin, cfg.targetTurnaround / Math.max(1, turnaround)));
-  return Math.round(cfg.payPerInstr * work * speed * (late ? cfg.lateFactor : 1));
+  return Math.round((cfg.payBase + cfg.payPerInstr * work) * speed * (late ? cfg.lateFactor : 1));
 }
 
 /** Pick a template from the mix that the installed RAM allows. */

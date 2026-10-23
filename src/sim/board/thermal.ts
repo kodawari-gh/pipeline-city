@@ -80,11 +80,14 @@ export class ThermalModel {
     return this.prng.next() < s.errProb;
   }
 
-  /** Advance one base tick. `loads` is the utilisation (0..1) per device kind; default 1. */
-  step(board: Board, loads: Loads = {}): void {
+  /**
+   * Advance one base tick. `loads` is the utilisation (0..1) per device kind; default 1. With `powered` false the
+   * machine is switched off (nothing draws, parts cool down); the trip latch is left alone.
+   */
+  step(board: Board, loads: Loads = {}, powered = true): void {
     const psu = installedPsu(board);
     const tripped = this.power.tripped;
-    const live = !!psu && !psu.dev.burnt && !tripped;
+    const live = powered && !!psu && !psu.dev.burnt && !tripped;
     const load = (d: InstalledDevice): number => loads[deviceSpec(d).kind] ?? 1;
     const cpuLoad = Math.max(0, ...findDevices(board, "cpu").map(load));
 

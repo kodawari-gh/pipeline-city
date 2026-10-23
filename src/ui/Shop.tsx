@@ -1,4 +1,7 @@
-import { powerCycle, purchase, setCpuClock, snapshot } from '../game/store';
+import {
+  connectCable, disconnectCable, ejectKey, install, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot,
+  uninstall,
+} from '../game/store';
 import { getSpec } from '../sim/board/specs';
 import { clockWarning, describeId, fmtClock, fmtMoney, groupPurchases } from './logic';
 
@@ -27,6 +30,57 @@ function ClockControl() {
   );
 }
 
+/** Minimal controls for the assembly API (power, cables, inventory, keys) until the drag-and-drop UI exists. */
+function Machine() {
+  const s = snapshot.value!;
+  return (
+    <section>
+      <h3>Machine</h3>
+      <button class="item ready" onClick={powerButton}>
+        <span class="name">{s.powered ? 'Power off' : 'Power on'}</span>
+        <span class="price">{s.phase}</span>
+        {s.phaseReason && <span class="why">{s.phaseReason}</span>}
+        {!s.powered && s.noPowerReason && <span class="why">{s.noPowerReason}</span>}
+      </button>
+      {s.cables.map((c) => (
+        <button
+          key={c.id} class={`item ${s.powered || (!c.connected && c.blocked) ? 'blocked' : 'ready'}`}
+          onClick={() => (c.connected ? disconnectCable(c.id) : connectCable(c.id))}
+        >
+          <span class="name">{c.name}</span>
+          <span class="price">{c.connected ? 'connected' : 'unplugged'}</span>
+        </button>
+      ))}
+      {s.inventory.map((it) => (
+        <button key={it.id} class={`item ${it.installable ? 'ready' : 'blocked'}`} title={it.reason} onClick={() => install(it.id)}>
+          <span class="name">Install {it.name}</span>
+          <span class="price">{[...it.freeSlots, ...it.swapSlots][0] ?? ''}</span>
+          {!it.installable && it.reason && <span class="why">{it.reason}</span>}
+        </button>
+      ))}
+      {s.devices.filter((d) => d.kind !== 'cooler').map((d) => (
+        <button key={d.id} class="item" disabled={s.powered} onClick={() => uninstall(d.id)}>
+          <span class="name">Remove {d.name}</span>
+          <span class="price">{d.slot}</span>
+        </button>
+      ))}
+      {s.plugged ? (
+        <button class="item ready" onClick={ejectKey}>
+          <span class="name">Remove key {s.plugged.label}</span>
+          <span class="price">{s.plugged.done ? 'done' : 'in use'}</span>
+        </button>
+      ) : (
+        s.tray.map((k) => (
+          <button key={k.id} class="item ready" onClick={() => plugKey(k.id)}>
+            <span class="name">Plug key {k.label}</span>
+            <span class="price">{k.age}s{k.late ? ' late' : ''}</span>
+          </button>
+        ))
+      )}
+    </section>
+  );
+}
+
 export function Shop() {
   const s = snapshot.value!;
   const groups = groupPurchases(s.purchases, s.pendingPurchases, s.money);
@@ -39,6 +93,7 @@ export function Shop() {
           <button class="primary" onClick={powerCycle}>Power cycle</button>
         </div>
       )}
+      <Machine />
       <ClockControl />
       {groups.map((g) => (
         <section key={g.kind}>
@@ -56,7 +111,6 @@ export function Shop() {
                 <span class="price">{fmtMoney(it.price)}</span>
                 {it.state === 'blocked' && <span class="why">{it.reason}</span>}
                 {it.state === 'poor' && <span class="why">{it.reason}</span>}
-                {it.pending && <span class="why">bought, installs after the current request</span>}
               </button>
             );
           })}

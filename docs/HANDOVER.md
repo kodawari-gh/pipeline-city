@@ -8,26 +8,34 @@ Pipeline City is an incremental game (Universal Paperclips / SimCity vibe) about
 
 It is a **POC**. Keep things simple, iterate bit by bit, and do not build for scale you have not needed yet. Scale is "unbounded" in the long run, so leave seams for it (interfaces, fidelity tiers) but do not build the machinery early.
 
-## State of the repo (updated after steps 1 to 10 plus the follow-up pass)
+## State of the repo (updated after steps 1 to 10, the follow-up pass, and the assembly/boot/USB-keys phase)
 
 Milestone 1 is built end to end and playable in the browser: `npm run dev`. Steps 2 to 10 of the order below are DONE and committed. Check `git log` and `git status` to see what has been pushed; the owner pushes (or asks for it).
 
-- `src/sim/`: isa, asm, ref (reference interpreter), machine (bus, clocks, PRNG), engines (unpipelined, 5-stage in-order), board (specs, slots, power/thermal), gen (program generator), game (Game, economy, save), worker + host + protocol. Docs for each: `docs/ISA.md`, `MACHINE.md`, `ENGINES.md`, `BOARD.md`, `GEN.md`, `GAME.md`, `SAVE.md`.
+- `src/sim/`: isa, asm, ref (reference interpreter), machine (bus, clocks, PRNG), engines (unpipelined, 5-stage in-order), board (specs, slots, power/thermal, cables), gen (program generator), pch (platform controller hub: boot ROM, USB host, display control), game (Game, economy, save, key tray, bot operator), worker + host + protocol. Docs for each: `docs/ISA.md`, `MACHINE.md`, `ENGINES.md`, `BOARD.md`, `GEN.md`, `GAME.md`, `SAVE.md`, and **`docs/ASSEMBLY.md` (the Game API for installing parts, cables, power, boot phases, USB keys, progress flags)**.
 - `src/game/`: store (snapshot signal, actions, export/import, autosave), hover signals.
 - `src/render/`: Pixi board, camera, zoomed-in CPU pipeline view (`docs/RENDER.md`).
 - `src/ui/`: HUD, shop, stats drawer, tooltips, hints (`docs/UI.md`).
 - `legacy/`: the old prototype, read-only reference.
 - CI (`.github/workflows/ci.yml`) runs test + build and deploys to Pages from `main`.
 
+### Assembly phase (done): what changed
+
+- The game starts with a **bare board and a starter crate** (inventory: CPU, PSU, RAM, monitor; the stock heatsink is pre-mounted). Purchases go to the **inventory**; parts and cables are installed/connected only while the machine is **off**. The old "deferred purchase" mechanism is gone.
+- A **PCH** device holds the **boot ROM** (a loader in the toy ISA, run on the real CPU engine, so boot time depends on CPU speed), the USB host registers and the display control. Each job: power-on/reboot -> POST -> wait for key -> copy the key's program through MMIO -> run -> write result -> REMOVE KEY -> reboot. One reboot per job; an OS later removes it (seam: the ROM's last `j reset` and `Game.ejectKey`).
+- **Client requests are USB keys in a tray** (the queue, cap 10). The player plugs one (`plugKey`), removes it when done (`ejectKey`); payout and reputation are applied on removal. `WorkSource` (`src/sim/game/work.ts`) is the seam for a router/ethernet later.
+- Save is **v2** (with a v1 migration), and a `progress` object of tutorial milestones is part of the Game/snapshot/save. See `docs/ASSEMBLY.md` for the whole API; `src/sim/game/operator.ts` is a bot player used by the tests.
+- The old UI keeps working through a minimal "Machine" section in `src/ui/Shop.tsx`; the real UI (drag and drop, hover, key tray, contextual shop, tutorial) and the renderer still show the old model and are the next phase.
+
 ### Known gaps and decisions waiting on the owner
 
-- **Pacing (settled by the owner):** base tick 1 s, and the CPU runs 4 engine cycles per tick (`cpuCyclesPerClock`) so the first request takes about 28 s. Do not change it without asking.
-- **CPU vs RAM (done):** the starting traffic is one third cache-hostile scan jobs, so RAM pays off for scan and the CPU for log; the best first purchase depends on the mix (see `docs/GAME.md` "CPU vs RAM" and `src/sim/game/tradeoff.test.ts`). Numbers are placeholders.
+- **Pacing (retuned for the boot, owner decision 6):** base tick 1 s, and the CPU runs 36 engine cycles per tick (`cpuCyclesPerClock`) so the first complete job (power-on, POST, plug, load, run, write, remove) takes 45-48 s with a payout of about $50. It was 4 before the boot ROM existed. Do not change it without asking.
+- **CPU vs RAM (done, retuned):** the starting traffic is one third cache-hostile scan jobs (scale 4), so RAM pays off for scan and the CPU for log and for every boot; the best first purchase depends on the mix (see `docs/GAME.md` "CPU vs RAM" and `src/sim/game/tradeoff.test.ts`). `ram0` latency is now 200. Numbers are placeholders.
 - All balance numbers are placeholders in `src/sim/game/economy.ts`.
 - Machine RAM is fixed at 64K; the RAM tier only changes the cache miss penalty (and, via `minRamBytes`, optionally the job mix). The board upgrade (`board1`, $300) exists and unlocks the 250 W PSU; there is only one board upgrade so far.
 - Engines: only unpipelined and in-order exist. Superscalar and out-of-order, the fast model, offline catch-up, GPU, multicore, security workloads and multi-machine are all still to do (see `docs/ARCHITECTURE.md`). Decode no longer allocates per fetched instruction.
 - Visual gaps: text softens above 2x zoom, GPU/M.2/SATA are decor only, only single-width pipelines are drawn, touch hit-testing was not exercised (mouse and wheel only), no real-GPU frame times (software GL: about 17 fps with the die view at 16x). The UI drawer no longer hides the PSU (the camera frames the free area, see `docs/RENDER.md`).
-- Early game: scan jobs ramp in over the first 300 ticks (`rampTicks`), so the first $100 takes 57 to 258 s over 30 seeds (tested). Hint toasts are capped at 2 visible with a queue (see `docs/UI.md`).
+- Early game: scan jobs ramp in over the first 300 ticks (`rampTicks`), so the first $100 takes about 105 to 323 s over 30 seeds (tested). Hint toasts are capped at 2 visible with a queue (see `docs/UI.md`).
 - Verified in headless Chrome (software GL) after the follow-up pass: power-cycle button after a PSU trip, clock warnings (near-throttle, unstable, burnt), the Continue / New game prompt, speeds 1x/4x/16x/pause (tick rates match), and the hints stall, throttle, overheat, queue, burnt, trip, brownout. Underclock only changes the label (there is no underclock warning by design). Not verified: touch, real GPU.
 - Browser checks were done with playwright-core and headless Chrome; it is not in package.json.
 

@@ -290,9 +290,17 @@ describe("apply", () => {
   });
 
   it("selects the engine from the CPU tier and miss penalty from RAM", () => {
-    expect(engineConfigFor(basicBoard())).toEqual({ kind: "unpipelined", missPenalty: 100 });
+    expect(engineConfigFor(basicBoard())).toEqual({ kind: "unpipelined", missPenalty: 200 });
     expect(engineConfigFor(basicBoard({ cpu: "cpu2", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: true, cacheLines: 16 });
-    expect(engineConfigFor(basicBoard({ cpu: "cpu1", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: false, missPenalty: 200 });
+    expect(engineConfigFor(basicBoard({ cpu: "cpu1", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: false, missPenalty: 400 });
+  });
+
+  it("with several RAM sticks the slowest one sets the miss penalty", () => {
+    const b = basicBoard();
+    ok(install(b, "ram1")); // a fast stick next to the starter stick
+    expect(engineConfigFor(b)).toEqual({ kind: "unpipelined", missPenalty: 200 });
+    b.devices.find((d) => d.spec === "ram0")!.burnt = true; // a burnt stick does not count
+    expect(engineConfigFor(b)).toEqual({ kind: "unpipelined", missPenalty: 6 });
   });
 
   it("applyEngine attaches a runnable engine", () => {

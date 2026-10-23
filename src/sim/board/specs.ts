@@ -104,7 +104,7 @@ const specList: DeviceSpec[] = [
 
   { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
-    sizeBytes: 16 * 1024, latency: 100 },
+    sizeBytes: 16 * 1024, latency: 200 },
   { id: "ram1", kind: "ram", tier: 1, name: "DRAM 32K fast", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: ramThermal, visual: "dimm-fast",
     sizeBytes: 32 * 1024, latency: 12 },

@@ -24,3 +24,5 @@ Code: `src/sim/machine` (import from `src/sim/machine`). No DOM imports.
 `reset(machine, program)`, `step()` (one CPU cycle), read-only `halted`, `pc`, `cycle`. Engines own their pipeline state; RAM, registers and devices belong to the Machine and are accessed through `machine.bus` / `machine.regs`.
 
 `RefEngine` (`refEngine.ts`) is a placeholder: the reference interpreter at one instruction per CPU tick through the bus. The timed engines are in `src/sim/engines` (see [`ENGINES.md`](ENGINES.md)); build one with `createEngine(config)`.
+
+`machine.addDevice` also takes the PCH (`src/sim/pch`, see [`ASSEMBLY.md`](ASSEMBLY.md)): boot ROM, USB host controller and display control on the bus at 0x4002_0000. `Display.connected` (false: writes are dropped) and `Display.setText` were added for the monitor cable and the PCH's POST error text.

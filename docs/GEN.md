@@ -35,7 +35,7 @@ Small leaf subroutines, args in `a0..a3`, result in `a0`, return with `ret`. The
 | `cli.scan` | fill then sum a RAM table at 0x4000 with a seeded stride (64 or 128 B, both cache-hostile: every load misses), prints `#72 scan 4x128B 0123 OK` | ~96 (heavy, one third of the starting economy mix) |
 | `cli` | picks log / calc / checksum from the seed | 20-40 |
 
-Measured on the reference interpreter (ecall included). The unpipelined engine takes 5 cycles per instruction plus cache-miss stalls, so the first request is 100-200 CPU cycles; the pacing target (20-40 s at 1 tick/s) therefore needs the CPU base rate set accordingly, or the count lowered. Static text is emitted as packed `li`+`sw` word stores (about 3 instructions per 4 characters); only computed numbers go through `printDec`.
+Measured on the reference interpreter (ecall included). The unpipelined engine takes 5 cycles per instruction plus cache-miss stalls, so a program alone is 100-200 CPU cycles; the pacing target is for a whole job including the boot ROM, see [`GAME.md`](GAME.md) "Pacing". Static text is emitted as packed `li`+`sw` word stores (about 3 instructions per 4 characters); only computed numbers go through `printDec`.
 
 ## Params, seeds, meta
 
@@ -43,7 +43,9 @@ Measured on the reference interpreter (ecall included). The unpipelined engine t
 
 `meta`: `template`, `seed`, resolved `params`, `kernels` (`{kernel, ns, mix, footprintBytes}`), union `mix`, `expectedText` (display contents computed in TypeScript independently of the interpreter), `footprintBytes`, `codeWords`. `runReference(g)` runs the reference interpreter and returns `{steps, text, cpu}`; tests assert `text === meta.expectedText` and that the timed engines match.
 
-Memory use: code at 0, scan table at `BUF_BASE` 0x4000..0xC000, display and status windows only. Program size is capped at 0x4000 bytes.
+Hosted programs: `generate(template, seed, {hosted: true})` replaces the final `ecall` with `li t0, ROM_DONE_VECTOR` + `jalr zero, t0, 0` so a program loaded from a USB key hands control back to the boot ROM (and normally gets `row: JOB_ROW` so its output sits below the POST lines). Everything else is identical, so the standalone tests and the reference interpreter are unchanged. Hosted code is loaded at `USER_BASE` 0x1000, so the code cap is `MAX_CODE_BYTES` 0x3000. See [`ASSEMBLY.md`](ASSEMBLY.md).
+
+Memory use (standalone): code at 0, scan table at `BUF_BASE` 0x4000..0xC000, display and status windows only. Program size is capped at 0x3000 bytes (`MAX_CODE_BYTES`; hosted code starts at 0x1000 and must end below the scan buffer).
 
 ## Adding a template
 

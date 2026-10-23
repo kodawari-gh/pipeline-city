@@ -3,6 +3,7 @@
 
 import { assemble } from "../asm";
 import { Prng } from "../machine/prng";
+import { ROM_DONE_VECTOR } from "../isa/memmap";
 import { RefCpu } from "../ref";
 import type { Kernel, Mix } from "./kernels";
 import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from "./templates";
@@ -51,12 +52,14 @@ export function generate(template: string, seed: number, params: GenParams = {})
   if (!Number.isInteger(jobId) || jobId < 0 || jobId > 99) throw new RangeError(`jobId ${jobId}`);
   const resolved: ResolvedParams = { scale, row: params.row ?? 0, jobId };
   const built = fn(rng, resolved);
-  const { program, symbols } = assemble(built.asm);
+  // Builder.finish ends main with a lone `ecall` line; a hosted program returns to the ROM instead.
+  const asm = params.hosted ? built.asm.replace("\n  ecall\n", `\n  li t0, ${ROM_DONE_VECTOR}\n  jalr zero, t0, 0\n`) : built.asm;
+  const { program, symbols } = assemble(asm);
   if (program.length * 4 > MAX_CODE_BYTES) throw new RangeError("generated program too large");
   const kernels: KernelInfo[] = built.kernels.map((k: Kernel) => ({ kernel: k.name, ns: k.ns, mix: k.mix, footprintBytes: k.footprintBytes }));
   const mix = [...new Set<Mix>(["alu", "branch", ...kernels.flatMap((k) => k.mix)])];
   return {
-    asm: built.asm,
+    asm,
     program,
     symbols,
     meta: {

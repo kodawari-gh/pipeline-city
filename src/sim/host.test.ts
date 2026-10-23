@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { advance, handleMessage, newHost } from './host';
-import type { FromSim } from './protocol';
+import type { FromSim, Snapshot } from './protocol';
 
 const types = (r: FromSim[]) => r.map((m) => m.type);
 
@@ -59,5 +59,26 @@ describe('host message handling', () => {
     expect(types(handleMessage(h2, { type: 'init', save }))).toEqual(['ready', 'snapshot']);
     expect(h2.game!.baseTick).toBe(5);
     expect(h2.game!.money).toBe(h.game!.money);
+  });
+
+  it('assembly and key messages reach the game, refusals come back as errors plus a snapshot', () => {
+    const h = newHost();
+    handleMessage(h, { type: 'init', seed: 1 });
+    const snap = (r: FromSim[]): Snapshot => (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
+    expect(types(handleMessage(h, { type: 'powerButton' }))).toEqual(['error', 'snapshot']); // no PSU yet
+    expect(types(handleMessage(h, { type: 'install', invId: 'nope' }))).toEqual(['error', 'snapshot']);
+    for (const id of ['inv1', 'inv2', 'inv3', 'inv4']) expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
+    expect(snap(handleMessage(h, { type: 'connectCable', cable: 'atx' })).progress.atxConnected).toBe(true);
+    handleMessage(h, { type: 'connectCable', cable: 'cpu' });
+    handleMessage(h, { type: 'connectCable', cable: 'video' });
+    expect(snap(handleMessage(h, { type: 'powerButton' })).phase).toBe('posting');
+    expect(types(handleMessage(h, { type: 'disconnectCable', cable: 'video' }))).toEqual(['error', 'snapshot']); // powered on
+    advance(h, 12_000);
+    expect(h.game!.currentPhase()).toBe('waiting-for-key');
+    const key = snap(handleMessage(h, { type: 'plugKey', keyId: 1 }));
+    expect(key.tray.map((k) => k.id)).not.toContain(1);
+    expect(types(handleMessage(h, { type: 'plugKey', keyId: 3 }))).toEqual(['error', 'snapshot']);
+    expect(types(handleMessage(h, { type: 'ejectKey' }))).toEqual(['snapshot']); // aborts the job
+    expect(types(handleMessage(h, { type: 'uninstall', deviceId: 'dev1' }))).toEqual(['error', 'snapshot']); // still powered
   });
 });

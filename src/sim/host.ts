@@ -32,20 +32,15 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'setSpeed':
         state.speed = msg.speed;
         return [];
-      case 'purchase': {
-        const r = g.purchase(msg.id);
-        const out: FromSim[] = [];
-        if (!r.ok) out.push({ type: 'error', message: `purchase ${msg.id}: ${r.reason}` });
-        out.push({ type: 'snapshot', snapshot: g.snapshot() });
-        return out;
-      }
-      case 'setCpuClock': {
-        const r = g.setCpuClock(msg.clock);
-        const out: FromSim[] = [];
-        if (!r.ok) out.push({ type: 'error', message: `setCpuClock: ${r.reason}` });
-        out.push({ type: 'snapshot', snapshot: g.snapshot() });
-        return out;
-      }
+      case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
+      case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
+      case 'install': return refusable(g, 'install', g.install(msg.invId, msg.slotId));
+      case 'uninstall': return refusable(g, 'uninstall', g.uninstall(msg.deviceId));
+      case 'connectCable': return refusable(g, 'connectCable', g.connectCable(msg.cable));
+      case 'disconnectCable': return refusable(g, 'disconnectCable', g.disconnectCable(msg.cable));
+      case 'powerButton': return refusable(g, 'powerButton', g.powerButton());
+      case 'plugKey': return refusable(g, 'plugKey', g.plugKey(msg.keyId));
+      case 'ejectKey': return refusable(g, 'ejectKey', g.ejectKey());
       case 'powerCycle':
         g.powerCycle();
         return [{ type: 'snapshot', snapshot: g.snapshot() }];
@@ -55,6 +50,14 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   } catch (e) {
     return [{ type: 'error', message: (e as Error).message }];
   }
+}
+
+/** Reply to a game action: an error message if it was refused, then the new snapshot. */
+function refusable(g: Game, what: string, r: { ok: boolean; reason?: string }): FromSim[] {
+  const out: FromSim[] = [];
+  if (!r.ok) out.push({ type: 'error', message: `${what}: ${r.reason}` });
+  out.push({ type: 'snapshot', snapshot: g.snapshot() });
+  return out;
 }
 
 /**

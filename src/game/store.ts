@@ -73,6 +73,14 @@ export function loadAutosaveOffer(): boolean {
 export const purchase = (id: string) => send({ type: 'purchase', id });
 export const setCpuClock = (clock: number) => send({ type: 'setCpuClock', clock });
 export const powerCycle = () => send({ type: 'powerCycle' });
+// Assembly and keys (docs/ASSEMBLY.md): each refused action sets `lastError` and always refreshes the snapshot.
+export const install = (invId: string, slotId?: string) => send({ type: 'install', invId, slotId });
+export const uninstall = (deviceId: string) => send({ type: 'uninstall', deviceId });
+export const connectCable = (cable: string) => send({ type: 'connectCable', cable });
+export const disconnectCable = (cable: string) => send({ type: 'disconnectCable', cable });
+export const powerButton = () => send({ type: 'powerButton' });
+export const plugKey = (keyId: number) => send({ type: 'plugKey', keyId });
+export const ejectKey = () => send({ type: 'ejectKey' });
 export function setSpeed(s: Speed) {
   speed.value = s;
   send({ type: 'setSpeed', speed: s });
