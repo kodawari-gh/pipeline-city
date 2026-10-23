@@ -67,7 +67,7 @@ describe('host message handling', () => {
     const snap = (r: FromSim[]): Snapshot => (r.find((m) => m.type === 'snapshot') as Extract<FromSim, { type: 'snapshot' }>).snapshot;
     expect(types(handleMessage(h, { type: 'powerButton' }))).toEqual(['error', 'snapshot']); // no PSU yet
     expect(types(handleMessage(h, { type: 'install', invId: 'nope' }))).toEqual(['error', 'snapshot']);
-    for (const id of ['inv1', 'inv2', 'inv3', 'inv4']) expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
+    for (const id of ['inv1', 'inv5', 'inv2', 'inv3', 'inv4']) expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
     expect(snap(handleMessage(h, { type: 'connectCable', cable: 'atx' })).progress.atxConnected).toBe(true);
     handleMessage(h, { type: 'connectCable', cable: 'cpu' });
     handleMessage(h, { type: 'connectCable', cable: 'video' });

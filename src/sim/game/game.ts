@@ -432,8 +432,6 @@ export class Game {
     this.money = this.cfg.startMoney;
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
-    // The board ships with its stock heatsink mounted (the crate is exactly CPU, PSU, RAM, monitor).
-    this.mustInstall("cooler0");
     // RAM is fixed at construction, so the machine always has the largest RAM (64K); the installed RAM tier
     // changes the PCH-reported size, the cache miss penalty and which jobs arrive (EconomyConfig.mix).
     this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: 64 * 1024 });
@@ -441,7 +439,8 @@ export class Game {
     this.machine.addDevice(this.pch);
     for (const p of this.ports) this.machine.addDevice(p);
     this.thermal = new ThermalModel(this.machine.prng);
-    for (const spec of ["cpu0", "psu0", "ram0", "display0"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
+    // The crate: CPU, PSU, RAM, monitor, stock cooler (last, so the older item ids stay inv1..inv4). Nothing is mounted at the start.
+    for (const spec of ["cpu0", "psu0", "ram0", "display0", "cooler0"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
     for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
     if (opts.preassembled) {
       for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
@@ -503,6 +502,14 @@ export class Game {
     if (!dev.burnt) {
       invId = `inv${this.nextInvId++}`;
       this.inventory.push({ id: invId, spec: dev.spec });
+    }
+    // The cooler mounts on the CPU: taking the CPU out takes the cooler with it, back into the inventory.
+    if (deviceSpec(dev).kind === "cpu" && !findDevices(this.board, "cpu").length) {
+      for (const c of findDevices(this.board, "cooler")) {
+        uninstall(this.board, c.id);
+        if (!c.burnt) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: c.spec });
+        this.note("install", `${deviceSpec(c).name} removed with the CPU`);
+      }
     }
     this.afterBoardChange();
     this.note("install", `${deviceSpec(dev).name} removed`);
@@ -937,7 +944,7 @@ export class Game {
   }
 
   private flagInstalled(kind: DeviceKind): void {
-    const flag: Partial<Record<DeviceKind, keyof Progress>> = { cpu: "cpuInstalled", psu: "psuInstalled", ram: "ramInstalled", display: "monitorInstalled", storage: "storageInstalled" };
+    const flag: Partial<Record<DeviceKind, keyof Progress>> = { cpu: "cpuInstalled", psu: "psuInstalled", ram: "ramInstalled", display: "monitorInstalled", storage: "storageInstalled", cooler: "coolerInstalled" };
     const f = flag[kind];
     if (f) this.progress[f] = true;
   }
@@ -972,6 +979,7 @@ export class Game {
       }
     }
     if (occupant && occupant.id === this.os?.deviceId) return { ok: false, reason: `the OS is installed on ${deviceSpec(occupant).name}: uninstall the OS first` };
+    if (spec.kind === "cooler" && !findDevices(board, "cpu").length) return { ok: false, reason: "install the CPU first: the cooler mounts on it" };
     const backup = boardToJson(board);
     if (occupant) uninstall(board, occupant.id);
     const r = install(board, specId, slot);

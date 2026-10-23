@@ -89,6 +89,7 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   const ram = findDevices(board, "ram").filter((d) => !d.burnt);
   if (!cpu) post = { reason: "no CPU installed", short: "NO CPU" };
   else if (cpu.burnt) post = { reason: "the CPU is burnt out", short: "CPU FAILED" };
+  else if (!findDevices(board, "cooler").some((d) => !d.burnt)) post = { reason: "no CPU cooler installed: it mounts on the CPU", short: "NO CPU COOLER" };
   else if (!cables.cpu) post = { reason: "the 8-pin CPU power cable is not connected", short: "NO CPU POWER" };
   else if (ram.length === 0) post = { reason: "no working RAM installed", short: "NO RAM" };
   return { noPower, post };

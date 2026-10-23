@@ -139,7 +139,7 @@ describe("queue, reputation and demand", () => {
     let s = g.snapshot();
     expect(s.tray).toHaveLength(1); // only the starter key
     expect(s.tray[0]!.age).toBe(0);
-    g.install("inv1"); g.install("inv2"); g.install("inv3"); g.install("inv4");
+    g.install("inv1"); g.install("inv5"); g.install("inv2"); g.install("inv3"); g.install("inv4");
     for (const c of ["atx", "cpu", "video"]) g.connectCable(c);
     expect(g.powerButton()).toEqual({ ok: true, powered: true });
     for (let t = 0; t < 10; t++) g.advanceBaseTick();

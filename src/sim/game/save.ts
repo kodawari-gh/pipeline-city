@@ -54,6 +54,8 @@ export interface Progress {
   firstJobDone: boolean;
   firstKeyEjected: boolean;
   firstPurchase: boolean;
+  /** A CPU cooler was mounted on the CPU (sticky; derived from the board when loading an older save). */
+  coolerInstalled: boolean;
   /** A storage device was installed (v3). */
   storageInstalled: boolean;
   /** An OS was installed on a storage device (v3). */
@@ -65,7 +67,7 @@ export interface Progress {
 export const PROGRESS_KEYS: readonly (keyof Progress)[] = [
   "cpuInstalled", "psuInstalled", "ramInstalled", "monitorInstalled", "atxConnected", "cpuPowerConnected",
   "videoConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
-  "storageInstalled", "osInstalled", "firstOsJob",
+  "storageInstalled", "osInstalled", "firstOsJob", "coolerInstalled",
 ];
 
 /** Milestones added after the tutorial existed (v3): "all" (an existing or preassembled player) leaves them false. */
@@ -219,6 +221,10 @@ export function migrate(save: unknown): unknown {
 /** Migrate and validate untrusted input (parsed JSON). Throws Error with a clear message. */
 export function parseSave(input: unknown): SaveV4 {
   const s = migrate(input) as Record<string, unknown>;
+  // Saves from before the cooler became an install step have no `coolerInstalled`: it was pre-mounted, so derive it.
+  if (isObj(s.progress) && typeof s.progress.coolerInstalled !== "boolean" && isObj(s.board) && Array.isArray(s.board.devices)) {
+    s.progress = { ...s.progress, coolerInstalled: (s.board.devices as Array<{ spec?: unknown }>).some((d) => typeof d.spec === "string" && getSpec(d.spec)?.kind === "cooler") };
+  }
   const num = (k: string, min = 0): number => {
     const x = s[k];
     if (typeof x !== "number" || !Number.isFinite(x) || x < min) throw new Error(`save: "${k}" must be a number >= ${min}`);

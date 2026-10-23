@@ -5,14 +5,14 @@ import { Operator } from "./operator";
 
 const NO_ARRIVALS = { baseDemandPerTick: 0 };
 
-/** Bare game with the starter crate, ids inv1..inv4 = cpu0 psu0 ram0 display0. */
+/** Bare game with the starter crate, ids inv1..inv5 = cpu0 psu0 ram0 display0 cooler0. */
 function bare(economy = NO_ARRIVALS): Game {
   return new Game({ seed: 1, economy });
 }
 
 function assembled(economy = NO_ARRIVALS): Game {
   const g = bare(economy);
-  for (const id of ["inv1", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
+  for (const id of ["inv1", "inv5", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
   for (const c of ["atx", "cpu", "video"]) expect(g.connectCable(c).ok).toBe(true);
   return g;
 }
@@ -31,15 +31,15 @@ describe("the bare start", () => {
     const g = bare();
     const s = g.snapshot();
     expect(s).toMatchObject({ phase: "off", powered: false, money: 0, boardTier: 0, display: "", monitorLive: false });
-    expect(s.devices.map((d) => d.spec)).toEqual(["cooler0"]); // the stock heatsink ships mounted on the board
-    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0"]);
+    expect(s.devices).toEqual([]); // nothing is mounted: the cooler is in the crate and mounts on the CPU
+    expect(s.inventory.map((i) => i.spec)).toEqual(["cpu0", "psu0", "ram0", "display0", "cooler0"]);
     expect(s.tray).toHaveLength(1);
     expect(s.plugged).toBeNull();
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
     expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false]]);
     expect(s.cables.every((c) => c.blocked)).toBe(true); // no PSU / monitor yet
     expect(s.noPowerReason).toMatch(/PSU/);
-    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cpu0", "dimm0", "display0", "sata0", "usb0", "vrm-sink0"]);
+    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "sata0", "usb0", "vrm-sink0"]);
   });
 
   it("lists the free compatible slots of each inventory part (drop targets)", () => {
@@ -68,8 +68,8 @@ describe("install, uninstall and cables", () => {
     expect(g.install("inv1", "nope9")).toMatchObject({ ok: false, reason: expect.stringMatching(/no slot/) });
     expect(g.install("inv99")).toMatchObject({ ok: false, reason: expect.stringMatching(/no inventory item/) });
     expect(g.install("inv2", "cooler0")).toMatchObject({ ok: false, reason: expect.stringMatching(/needs a atx slot/) });
-    expect(g.snapshot().inventory).toHaveLength(4); // nothing was consumed
-    expect(g.snapshot().devices).toHaveLength(1);
+    expect(g.snapshot().inventory).toHaveLength(5); // nothing was consumed
+    expect(g.snapshot().devices).toHaveLength(0);
   });
 
   it("installs into a chosen slot, then a second part of the same kind swaps over it and the old one comes back", () => {
@@ -414,7 +414,8 @@ describe("tutorial progress flags are set by real events", () => {
     const g = bare();
     const p = () => g.snapshot().progress;
     expect(p().cpuInstalled).toBe(false);
-    g.install("inv1"); expect(p()).toMatchObject({ cpuInstalled: true, psuInstalled: false });
+    g.install("inv1"); expect(p()).toMatchObject({ cpuInstalled: true, psuInstalled: false, coolerInstalled: false });
+    g.install("inv5"); expect(p().coolerInstalled).toBe(true);
     g.install("inv2"); expect(p().psuInstalled).toBe(true);
     g.install("inv3"); expect(p().ramInstalled).toBe(true);
     g.install("inv4"); expect(p().monitorInstalled).toBe(true);
@@ -450,5 +451,60 @@ describe("tutorial progress flags are set by real events", () => {
     const log = g.snapshot().log;
     expect(log.map((e) => e.kind)).toContain("power");
     expect(log.length).toBeLessThanOrEqual(16);
+  });
+});
+
+describe("the CPU cooler mounts on the CPU", () => {
+  it("is in the crate, not mounted, and cannot be installed before the CPU", () => {
+    const g = bare();
+    expect(g.snapshot().inventory.find((i) => i.id === "inv5")).toMatchObject({ spec: "cooler0", installable: false, reason: expect.stringMatching(/install the CPU first/) });
+    expect(g.install("inv5")).toMatchObject({ ok: false, reason: "install the CPU first: the cooler mounts on it" });
+    expect(g.install("inv5", "cooler0")).toMatchObject({ ok: false });
+    expect(g.snapshot().progress.coolerInstalled).toBe(false);
+    g.install("inv1");
+    expect(g.snapshot().inventory.find((i) => i.id === "inv5")).toMatchObject({ installable: true, freeSlots: ["cooler0"] });
+    expect(g.install("inv5")).toMatchObject({ ok: true, slot: "cooler0" });
+    expect(g.snapshot().progress.coolerInstalled).toBe(true);
+  });
+
+  it("powering on without a cooler halts in phase error: NO CPU COOLER on the monitor, fixed by mounting it", () => {
+    const g = assembled();
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "cooler")!.id);
+    expect(g.snapshot().postBlocker).toMatch(/cooler/);
+    expect(g.powerButton()).toMatchObject({ ok: true });
+    const s = g.snapshot();
+    expect(s.phase).toBe("error");
+    expect(s.phaseReason).toMatch(/cooler/);
+    expect(s.display).toContain("NO CPU COOLER");
+    g.powerButton();
+    expect(g.install(g.snapshot().inventory.find((i) => i.spec === "cooler0")!.id).ok).toBe(true);
+    g.powerButton();
+    expect(g.snapshot().phase).toBe("posting");
+  });
+
+  it("uninstalling the CPU takes the cooler back to the inventory; swapping the CPU keeps it mounted", () => {
+    const g = assembled();
+    g.money = 1e6;
+    const cpu1 = (g.purchase("cpu1") as { invId: string }).invId;
+    expect(g.install(cpu1).ok).toBe(true); // swap
+    expect(g.snapshot().devices.filter((d) => d.kind === "cooler")).toHaveLength(1);
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "cpu")!.id);
+    const s = g.snapshot();
+    expect(s.devices.some((d) => d.kind === "cooler")).toBe(false);
+    expect(s.inventory.map((i) => i.spec).sort()).toEqual(["cooler0", "cpu0", "cpu1"]);
+    expect(s.progress).toMatchObject({ cpuInstalled: true, coolerInstalled: true }); // sticky
+  });
+
+  it("a better cooler swaps over the stock one, and preassembled games keep theirs", () => {
+    const g = assembled();
+    g.money = 1e6;
+    const c = (g.purchase("cooler1") as { invId: string }).invId;
+    expect(g.install(c)).toMatchObject({ ok: true, slot: "cooler0" });
+    expect(g.snapshot().devices.find((d) => d.kind === "cooler")!.spec).toBe("cooler1");
+    expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cooler0"]);
+    const p = new Game({ seed: 1, preassembled: true }).snapshot();
+    expect(p.devices.find((d) => d.kind === "cooler")!.spec).toBe("cooler0");
+    expect(p.progress.coolerInstalled).toBe(true);
+    expect(p.phase).not.toBe("error");
   });
 });

@@ -48,7 +48,7 @@ describe("save/load v2", () => {
     const l = Game.fromSave(json(g.toSave()));
     expect(l.toSave()).toEqual(g.toSave());
     const s = l.snapshot();
-    expect(s.inventory.map((i) => i.spec)).toEqual(["ram0", "display0"]);
+    expect(s.inventory.map((i) => i.spec)).toEqual(["ram0", "display0", "cooler0"]);
     expect(s.cables.find((c) => c.id === "atx")!.connected).toBe(true);
     expect(s.progress).toMatchObject({ cpuInstalled: true, psuInstalled: true, atxConnected: true, poweredOn: false });
     expect(s.tray).toHaveLength(1);
@@ -345,5 +345,24 @@ describe("migration v3 -> v4", () => {
     expect(s.board.burnt).toBe(false);
     expect(s.inventory.map((i) => i.spec)).toEqual(["board2"]);
     expect(l.toSave().version).toBe(4);
+  });
+});
+
+describe("coolerInstalled in older saves", () => {
+  it("is derived from the board: a current-shape save without the flag loads with it true when a cooler is mounted", () => {
+    const save = json(new Game({ seed: 2, preassembled: true }).toSave()) as unknown as { progress: Record<string, unknown> };
+    delete save.progress.coolerInstalled;
+    const l = Game.fromSave(save);
+    expect(l.snapshot().progress.coolerInstalled).toBe(true);
+    expect(l.snapshot().devices.some((d) => d.kind === "cooler")).toBe(true);
+  });
+
+  it("is false when the loaded board has no cooler, and v1 saves have it", () => {
+    const g = new Game({ seed: 2 });
+    g.install("inv1");
+    const save = json(g.toSave()) as unknown as { progress: Record<string, unknown> };
+    delete save.progress.coolerInstalled;
+    expect(Game.fromSave(save).snapshot().progress.coolerInstalled).toBe(false);
+    expect(Game.fromSave(json(V1)).snapshot().progress.coolerInstalled).toBe(true);
   });
 });
