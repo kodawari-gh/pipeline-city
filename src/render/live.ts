@@ -1,10 +1,12 @@
 import { Container, Graphics, Sprite, Text, Texture, type Renderer } from 'pixi.js';
 import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
+import type { KeyActivity } from '../sim/game/game';
 import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
+import { drawDriveLive, type DriveKind } from './drives';
 import { BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, type Rect } from './layout';
-import { pointAt, type Bus, type BusKind, type Cable, type CableKind } from './routes';
+import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -12,11 +14,19 @@ export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect
 
 interface Glow { t: GlowTarget; g: Graphics; dim: Graphics; base: number; level: number }
 interface Lit { bus: Bus; g: Graphics; level: number; hold: number; dir: number; color: string; alwaysOn: boolean; pulses: number }
+/** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
+export interface DriveHook { slot: string; kind: DriveKind; g: Graphics; lane: Lane | null }
+interface DriveLive extends DriveHook {
+  glow: Graphics; busyUntil: number; flowUntil: number; speed: number; spin: number; head: number; led: number; level: number; dir: number; sig: string; burnt: boolean;
+}
 interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 /** The PSU panel is a dark LCD in both themes, so its text uses fixed light inks. */
 const LCD_INK = '#dbe5ff', LCD_MUTE = '#8d9bc4';
+/** OS status screen: row count, font size and line height in world units (readable at overview zoom). */
+const OS_INK = '#7dffb0', OS_DIM = '#52a981', OS_RULE = '#2f5a46', OS_AMBER = '#ffc247', OS_CYAN = '#4fe3ff';
+const OS_ROWS = 10, OS_FONT = 118, OS_LINE = 150, OS_COLS = 42;
 const LOADS = new Set(['lw', 'lb', 'lbu']);
 const STORES = new Set(['sw', 'sb']);
 
@@ -74,6 +84,18 @@ export class Live {
   private pchLevel = 0;
   private lastBootDraw = '';
   private T!: Theme;
+  /** Drives (activity, platter, LEDs) and their SATA cable pulses, keyed by slot id. */
+  private drives = new Map<string, DriveLive>();
+  /** 0..1: how lit the case's disk activity LED is (read by board.ts every frame). */
+  diskLevel = 0;
+  private keyActivity: KeyActivity = 'none';
+  private osRows: Text[] = [];
+  private osG = new Graphics();
+  private osSig = '';
+  private osOn = false;
+  private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
+  private osUpTick: number | null = null;
+  private bootLike = false;
 
   constructor(renderer: Renderer, private additive: boolean) {
     const dg = new Graphics().circle(0, 0, 16).fill({ color: '#ffffff' });
@@ -110,10 +132,10 @@ export class Live {
   /** (Re)build live objects for a scene. Called when the theme or the installed set changes. */
   setScene(
     T: Theme, targets: GlowTarget[], buses: Bus[], cables: Cable[], fans: { c: Container; kind: string }[], dramChips: Rect[], dimms: number[],
-    flags: { psu: boolean; display: boolean },
+    flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
   ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badge, this.screenText, this.noSignal, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
@@ -168,6 +190,20 @@ export class Live {
       nDots += 3;
       this.cables.push({ cable, g, level: 0, target: 0, color });
     }
+    this.drives.clear();
+    for (const d of drives) {
+      const glow = new Graphics();
+      if (this.additive) glow.blendMode = 'add';
+      if (d.lane) {
+        glow.moveTo(d.lane.pts[0]![0], d.lane.pts[0]![1]);
+        for (let i = 1; i < d.lane.pts.length; i++) glow.lineTo(d.lane.pts[i]![0], d.lane.pts[i]![1]);
+        glow.stroke({ width: 12, color: T.mul, alpha: 1, cap: 'round', join: 'round' });
+        nDots += 4;
+      }
+      glow.alpha = 0;
+      this.root.addChild(glow);
+      this.drives.set(d.slot, { ...d, glow, busyUntil: -1e9, flowUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, level: 0, dir: 1, sig: '', burnt: false });
+    }
     this.root.addChild(this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
@@ -176,11 +212,13 @@ export class Live {
       this.dots.push(s);
       this.root.addChild(s);
     }
-    this.root.addChild(this.bootG, this.gauge, this.badge, this.screenText, this.noSignal, this.panelFan, ...Object.values(this.psuTexts));
+    this.root.addChild(this.bootG, this.gauge, this.badge, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal, this.panelFan, ...Object.values(this.psuTexts));
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
     this.panelFan.visible = showPsu;
     this.screenText.visible = flags.display;
+    this.osSig = '\u0000'; this.osOn = false; this.osG.visible = false;
+    for (const t of this.osRows) t.visible = false;
     this.hasDisplay = flags.display;
     this.noSignal.visible = false;
     this.screenText.style.fill = T.st;
@@ -189,6 +227,19 @@ export class Live {
     this.panelFan.children.forEach((c) => { (c as Graphics).tint = LCD_MUTE; });
     this.psuTexts.of.style.fill = LCD_MUTE;
     this.psuTexts.rpm.style.fill = LCD_INK;
+  }
+
+  /** The pooled rows of the OS screen (created on first use). */
+  private osRowsFor(): Text[] {
+    if (!this.osRows.length) {
+      for (let i = 0; i < OS_ROWS; i++) {
+        const t = new Text({ text: '', style: { fontFamily: MONO, fontSize: OS_FONT, fontWeight: '600', fill: '#ffffff' }, resolution: 2 });
+        t.position.set(SCREEN.x + 90, SCREEN.y + 56 + i * OS_LINE);
+        t.visible = false;
+        this.osRows.push(t);
+      }
+    }
+    return this.osRows;
   }
 
   setZoom(z: number) { this.zoom = z; }
@@ -202,6 +253,17 @@ export class Live {
     if (!l) return;
     l.hold = Math.max(l.hold, now + 1700);
     l.dir = dir;
+  }
+
+  /** Light the bus (and SATA cable) that serves a drive slot. `busy` also keeps the platter / LEDs going. */
+  private driveFlow(slot: string, now: number, toDrive: boolean, busy = false) {
+    const m2 = slot.startsWith('m2');
+    this.trigger(m2 ? 'nvme' : 'sata', now, toDrive ? 1 : -1);
+    const dr = this.drives.get(slot);
+    if (!dr) return;
+    dr.flowUntil = Math.max(dr.flowUntil, now + 1500);
+    if (busy) dr.busyUntil = Math.max(dr.busyUntil, now + 900);
+    dr.dir = toDrive ? -1 : 1; // the cable lane runs drive -> board
   }
 
   private trigger(id: BusKind, now: number, dir = 1) {
@@ -234,7 +296,7 @@ export class Live {
     }
     const reqId = s.request?.id ?? -1;
     if (reqId !== this.lastReq) {
-      if (reqId >= 0) { this.trigger('nvme', now, -1); this.trigger('dmi', now, -1); } // program load from storage
+      if (reqId >= 0) this.trigger('dmi', now, -1); // program handed to the CPU
       else if (this.lastReq >= 0) this.trigger('dmi', now, 1); // request finished
       this.lastReq = reqId;
     }
@@ -249,7 +311,24 @@ export class Live {
       if (s.phase === 'posting') this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1);
       else if (s.phase === 'loading') { this.flow('usb', now, -1); this.flow('dmi', now, -1); this.flow('mem', now, 1); }
       else if (s.phase === 'writing') { this.flow('mem', now, -1); this.flow('dmi', now, 1); this.flow('usb', now, 1); }
+      else if (s.phase === 'booting-os' || s.phase === 'ingesting' || s.phase === 'flashing') {
+        // OS flows on the real routes. Drive side: booting reads the kernel (drive -> RAM/CPU), ingesting writes the key's job to the
+        // spool (key -> drive), flashing reads the result back (drive -> key).
+        const toDrive = s.phase === 'ingesting';
+        const bootSlot = s.os?.slot ?? s.storage.find((d) => d.hasOs)?.slot ?? null;
+            if (bootSlot) this.driveFlow(bootSlot, now, toDrive);
+        if (s.phase === 'booting-os') { this.flow('dmi', now, -1); this.flow('mem', now, 1); }
+        else if (s.phase === 'ingesting') { this.flow('usb', now, -1); this.flow('dmi', now, -1); }
+        else { this.flow('dmi', now, 1); this.flow('usb', now, 1); }
+      }
     }
+    // storage activity: the platter / LEDs / bus light only while the drive reports busy (held a moment so snapshots do not flicker)
+    for (const st of s.storage ?? []) {
+      const dr = this.drives.get(st.slot);
+      if (dr) { dr.burnt = st.burnt; if (st.busy && s.powered) this.driveFlow(st.slot, now, s.phase === 'ingesting', true); }
+    }
+    this.keyActivity = s.keyActivity ?? 'none';
+    this.updateOsScreen(s, now);
 
     // ---- power ----
     const psuDev = s.devices.find((d) => d.kind === 'psu');
@@ -350,7 +429,7 @@ export class Live {
     const T = this.T, g = this.bootG, ph = this.bootPhase;
     const busy = this.powered && (ph === 'posting' || ph === 'loading' || ph === 'writing');
     this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
-    const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading');
+    const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
     const sig = `${this.pchLevel < 0.01 ? 0 : 1}|${showBar}|${this.plugged}|${this.powered}|${this.monitorLive}|${ph}`;
     if (sig.startsWith('0|false|') && this.lastBootDraw === sig && !this.hasDisplay && !this.plugged) return;
     this.lastBootDraw = sig;
@@ -365,14 +444,21 @@ export class Live {
         g.rect(c.x + 50 + i * bw + 6, c.y + c.h - 120 - 110 * k, bw - 12, 30 + 110 * k).fill({ color: T.mul, alpha: (0.25 + 0.55 * k) * lv });
       }
     }
-    // USB port LED: dark with no key, steady green when a key sits there, blinking amber while the machine moves data
-    const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52;
-    if (this.plugged) {
+    // USB port LED: dark with no key; steady green with a key in; with an OS it follows keyActivity (enumerating: slow amber blink,
+    // ingesting / flashing: fast blink, done: steady green that breathes = collect the key); without an OS it blinks while loading or writing
+    const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52, act = this.keyActivity;
+    let col: string | null = null, on = true, la = 1;
+    if (act === 'enumerating') { col = T.ld; on = Math.floor(now / 450) % 2 === 0; }
+    else if (act === 'ingesting') { col = T.ld; on = Math.floor(now / 130) % 2 === 0; }
+    else if (act === 'flashing') { col = T.alu; on = Math.floor(now / 130) % 2 === 0; }
+    else if (act === 'done') { col = T.st; la = 0.75 + 0.25 * Math.sin(now * 0.005); }
+    else if (this.plugged) {
       const active = this.powered && (ph === 'loading' || ph === 'writing');
-      const on = active ? Math.floor(now / 140) % 2 === 0 : true;
-      const col = active ? T.ld : T.st;
-      if (on) g.circle(lx, ly, 30).fill({ color: col, alpha: 0.3 });
-      g.circle(lx, ly, 15).fill({ color: on ? col : '#2a3150', alpha: on ? 1 : 0.7 });
+      col = active ? T.ld : T.st; on = active ? Math.floor(now / 140) % 2 === 0 : true;
+    }
+    if (col) {
+      if (on) g.circle(lx, ly, 30).fill({ color: col, alpha: 0.3 * la });
+      g.circle(lx, ly, 15).fill({ color: on ? col : '#2a3150', alpha: on ? la : 0.7 });
     } else g.circle(lx, ly, 15).fill({ color: '#2a3150', alpha: 0.6 });
     // monitor power LED (green live, amber standby) and the boot bar under the picture
     if (this.hasDisplay) {
@@ -386,6 +472,80 @@ export class Live {
         g.roundRect(bx, by, Math.max(14, bw * clamp(this.bootProgress)), 14, 7).fill({ color: T.st, alpha: 0.9 });
       }
     }
+  }
+
+  /**
+   * The OS status screen on the monitor: composed from `snapshot.os`, `storage`, `held`, `display` (every field optional-safe).
+   * Rows are pooled Texts; the progress cue is drawn per frame by `drawOsBar`.
+   */
+  private updateOsScreen(s: Snapshot, _now: number) {
+    const ph = s.phase;
+    const on = !!s.os && s.powered && s.monitorLive && this.hasDisplay && (ph === 'booting-os' || ph === 'idle-os' || ph === 'running-os' || ph === 'ingesting' || ph === 'flashing');
+    if (s.os?.up) { if (this.osUpTick === null) this.osUpTick = s.baseTick; } else this.osUpTick = null;
+    this.osOn = on;
+    this.screenText.visible = this.hasDisplay && !on;
+    this.osG.visible = on;
+    this.osJob = 'none';
+    if (!on || !s.os) { for (const t of this.osRows) t.visible = false; this.osSig = ''; return; }
+    const os = s.os, q = os.queue ?? [];
+    const pad = (a: string, b: string) => a + ' '.repeat(Math.max(1, OS_COLS - a.length - b.length)) + b;
+    const rows: { t: string; c: string }[] = [];
+    const status = ph === 'booting-os' ? 'BOOTING' : ph === 'idle-os' ? 'READY' : ph === 'ingesting' ? 'INGEST' : ph === 'running-os' ? 'RUNNING' : 'FLASHING';
+    rows.push({ t: pad(`${(os.name ?? 'OS').toUpperCase().slice(0, 28)} T${os.tier ?? 1}`, status), c: OS_INK });
+    const up = this.osUpTick === null ? null : Math.max(0, s.baseTick - this.osUpTick);
+    const upTxt = up === null ? 'UP --:--' : `UP ${String(Math.floor(up / 60)).padStart(2, '0')}:${String(up % 60).padStart(2, '0')}`;
+    rows.push({ t: `${upTxt}  PROG ${os.programSlots ?? 1}  QUEUE ${q.length}/${os.queueSlots ?? '?'}`, c: OS_DIM });
+    rows.push({ t: '-'.repeat(OS_COLS), c: OS_RULE });
+    if (ph === 'booting-os') {
+      const lines: string[] = [];
+      for (const ln of (s.display || '').split('\n')) { if (!ln.length) lines.push(''); for (let i = 0; i < ln.length; i += OS_COLS) lines.push(ln.slice(i, i + OS_COLS)); }
+      for (const ln of lines.slice(-6)) rows.push({ t: ln, c: OS_DIM });
+    } else {
+      const running = q.find((j) => j.state === 'running');
+      if (ph === 'ingesting') { rows.push({ t: `INGESTING KEY ${s.plugged?.label ?? ''}`, c: OS_CYAN }); this.osJob = 'ingest'; }
+      else if (ph === 'flashing') { rows.push({ t: `WRITING RESULT ${s.plugged?.label ?? ''}`, c: OS_AMBER }); this.osJob = 'flash'; }
+      else if (running) { rows.push({ t: `RUN  ${running.label}`, c: OS_INK }); this.osJob = 'run'; }
+      else rows.push({ t: 'IDLE  insert a key', c: OS_DIM });
+      const rest = q.filter((j) => j !== running);
+      for (const j of rest.slice(0, 4)) {
+        const st = j.state === 'result' ? 'DONE' : j.state === 'queued' ? (j.ahead <= 0 ? 'NEXT' : `+${j.ahead} AHEAD`) : 'RUN';
+        rows.push({ t: pad(`  ${j.label}`.slice(0, 28), st), c: j.state === 'result' ? OS_AMBER : OS_INK });
+      }
+      if (rest.length > 4) rows.push({ t: `  +${rest.length - 4} MORE`, c: OS_DIM });
+      while (rows.length < 8) rows.push({ t: '', c: OS_DIM });
+      const ready = q.filter((j) => j.state === 'result');
+      if (s.keyActivity === 'done' && s.plugged) rows.push({ t: `REMOVE KEY ${s.plugged.label}`, c: OS_INK });
+      else if (ready.length) rows.push({ t: `PLUG KEY ${ready[0]!.label} TO COLLECT${ready.length > 1 ? ` (+${ready.length - 1})` : ''}`, c: OS_AMBER });
+      else if ((s.held?.length ?? 0) > 0) rows.push({ t: `${s.held.length} KEY${s.held.length > 1 ? 'S' : ''} HELD, JOBS PENDING`, c: OS_DIM });
+      else rows.push({ t: '', c: OS_DIM });
+      const d = s.storage?.find((x) => x.hasOs) ?? s.storage?.find((x) => x.slot === os.slot);
+      if (d && d.capacityBytes > 0) {
+        const f = Math.max(0, Math.min(1, d.usedBytes / d.capacityBytes)), n = Math.round(f * 10);
+        rows.push({ t: `DISK ${d.slot} [${'#'.repeat(n)}${'-'.repeat(10 - n)}] ${Math.round(d.usedBytes / 1024)}K/${Math.round(d.capacityBytes / 1024)}K`, c: OS_DIM });
+      }
+    }
+    const sig = rows.map((r) => r.c + r.t).join('\n');
+    if (sig === this.osSig) return;
+    this.osSig = sig;
+    this.osRowsFor().forEach((t, i) => {
+      const r = rows[i];
+      t.visible = !!r;
+      if (!r) return;
+      if (t.text !== r.t) t.text = r.t;
+      if (t.style.fill !== r.c) t.style.fill = r.c;
+    });
+  }
+
+  /** Per-frame progress cue under the current job row: an indeterminate block sliding on a track (game time). */
+  private drawOsBar(now: number) {
+    const g = this.osG;
+    g.clear();
+    if (!this.osOn || this.osJob === 'none') return;
+    const x0 = SCREEN.x + 90 + 27 * 71, w = SCREEN.x + SCREEN.w - 120 - x0, y = SCREEN.y + 56 + 3 * OS_LINE + 42, bw = 300;
+    const col = this.osJob === 'run' ? OS_INK : this.osJob === 'ingest' ? OS_CYAN : OS_AMBER;
+    g.roundRect(x0, y, w, 34, 17).fill({ color: '#16241e' });
+    const u = (now / 1500) % 1, left = x0 + (w + bw) * u - bw, a = Math.max(x0, left), b = Math.min(x0 + w, left + bw);
+    if (b > a) g.roundRect(a, y, b - a, 34, 17).fill({ color: col, alpha: 0.9 });
   }
 
   private setBadge(text: string, color: string) {
@@ -434,6 +594,7 @@ export class Live {
     }
 
     // ---- buses and cables ----
+    const T = this.T;
     const r = Math.max(9, 2.4 / this.zoom) / 16;
     let k = 0;
     const put = (p: [number, number], col: string, a: number, scale = 1) => {
@@ -463,7 +624,28 @@ export class Live {
       const lane = lc.cable.path, dir = lc.cable.kind === 'video' ? 1 : -1;
       for (let j = 0; j < 3; j++) put(pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3), lc.color, 0.85 * lc.level, 1.4);
     }
+    // drives: platter / head / LED only while busy; SATA cable pulses while data moves
+    this.diskLevel = 0;
+    for (const dr of this.drives.values()) {
+      const lit = dr.busyUntil > now, flow = dr.flowUntil > now || lit;
+      dr.speed += ((lit ? 16 : 0) - dr.speed) * Math.min(1, dt * (lit ? 4 : 2.5));
+      if (!lit && dr.speed < 0.05) dr.speed = 0;
+      dr.spin += dr.speed * dt;
+      dr.head += ((lit ? 0.5 + 0.5 * Math.sin(now * 0.009 + 1) : 0) - dr.head) * Math.min(1, dt * 6);
+      const lt = lit ? (dr.kind === 'hdd' ? 0.65 + 0.35 * Math.sin(now * 0.03) : Math.floor(now / 80) % 2 ? 1 : 0.15) : 0;
+      dr.led += (lt - dr.led) * Math.min(1, dt * 14);
+      if (!lit && dr.led < 0.03) dr.led = 0;
+      const sig = `${Math.round(dr.spin * 20)}|${Math.round(dr.head * 40)}|${Math.round(dr.led * 10)}|${dr.burnt}`;
+      if (sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
+      this.diskLevel = Math.max(this.diskLevel, dr.led);
+      if (dr.lane) {
+        dr.level += ((flow ? 1 : 0) - dr.level) * Math.min(1, dt * (flow ? 9 : 2.2));
+        dr.glow.alpha = dr.level * 0.5;
+        if (dr.level > 0.03) for (let j = 0; j < 4; j++) put(pointAt(dr.lane, this.phase * 1.4 * dr.dir + (j * dr.lane.len) / 4), T.mul, 0.95 * dr.level);
+      }
+    }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
+    this.drawOsBar(now);
 
     this.drawBoot(now, dt);
 

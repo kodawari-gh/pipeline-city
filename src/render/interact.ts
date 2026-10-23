@@ -280,7 +280,7 @@ export class Interact {
     const s = this.snap();
     if (!s) return false;
     const fromPlugged = s.plugged?.id === keyId;
-    const k = fromPlugged ? s.plugged : s.tray.find((x) => x.id === keyId);
+    const k = fromPlugged ? s.plugged : (s.tray.find((x) => x.id === keyId) ?? s.held?.find((x) => x.id === keyId));
     if (!k) return false;
     if (fromPlugged) {
       const why = this.ejectBlocked(s);
@@ -389,6 +389,7 @@ export class Interact {
         if (!cancelled && s && it) {
           const slot = this.anySlotAt(d.wx, d.wy);
           if (d.why) { if (slot || inside(BD, d.wx, d.wy)) this.toast(d.why, cx, cy); }
+          else if (slot && it.kind === 'os') this.toast('An OS goes onto an installed drive. Install a drive first, then drop the OS on it.', cx, cy);
           else if (slot) this.toast(`${it.name} does not fit the ${slot.replace(/\d+$/, '')} socket.`, cx, cy);
         }
         flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy);
@@ -438,7 +439,8 @@ export class Interact {
 
   // ------------------------------------------------------------------ per frame
 
-  frame(now: number, dt: number) {
+  /** `now` is wall time (hover, drag, toasts); `gt` is game time (rings showing machine state, frozen when paused). */
+  frame(now: number, dt: number, gt = now) {
     const T = this.T, cam = this.camera, z = cam.z;
     const g = this.g;
     g.clear();
@@ -484,10 +486,15 @@ export class Interact {
     }
 
     // ---- the machine is waiting for the player to pull the key ----
-    if (s?.phase === 'done-remove-key' && s.plugged && !d) {
-      const o = this.scene.props.get('key:' + s.plugged.id);
-      if (o) {
-        const beat = 0.5 + 0.5 * Math.sin(now * 0.006), r = o.rect, e = 16 + 14 * beat;
+    if (s && !d) {
+      const ringKeys: Snapshot['tray'] = [];
+      if (s.phase === 'done-remove-key' && s.plugged) ringKeys.push(s.plugged);
+      if (s.plugged && s.keyActivity === 'done') ringKeys.push(s.plugged);
+      for (const k of s.held ?? []) if (k.stage === 'result') ringKeys.push(k);
+      for (const k of ringKeys) {
+        const o = this.scene.props.get('key:' + k.id);
+        if (!o) continue;
+        const beat = 0.5 + 0.5 * Math.sin(gt * 0.006), r = o.rect, e = 16 + 14 * beat;
         box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 50, { stroke: T.st, lw: lw * 1.8, sa: 0.5 + 0.5 * beat });
         box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 50, { fill: T.st, fa: 0.08 * beat });
       }

@@ -3,23 +3,26 @@ import { effect } from '@preact/signals';
 import { hover, viewInset } from '../game/hover';
 import { snapshot, speed } from '../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
+import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type View } from './camera';
+import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt } from './case';
+import { driveArt, driveBody, driveKindOf, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { box, clear, dashed, label } from './ink';
 import {
-  BD, BLOCKS, BR, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PKG, PSU, PSU_PANEL, REGIONS, SCREEN, STAGES, TRAY,
-  USB_PORT, WORLD, type Rect,
+  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PKG, PSU, PSU_PANEL,
+  REGIONS, SCREEN, STAGES, TRAY, USB_PORT, WORLD, type Rect,
 } from './layout';
-import { drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
+import { drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
-import { Live, type GlowTarget } from './live';
+import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { onThemeChange, readTheme, type Theme } from './theme';
 
-interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number }
+interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean }
 
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -32,7 +35,7 @@ const Z_BAKE_DEV = 0.14;
 const DEV_BAKE_RES = 0.25;
 /** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
 const Z_BAKE_PROPS = 0.2;
-const PROPS_FRAME = new Rectangle(-7560, 280, 4130, 2150);
+const PROPS_FRAME = new Rectangle(-7560, 280, 3500, 2950);
 
 /** The routed cables never change (geometry only); built once. */
 const ALL_CABLES = buildCables();
@@ -76,6 +79,10 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene graph ----
   const world = new Container();
+  const caseLayer = new Container();
+  const sataLayer = new Container();
+  const driveLayer = new Container();
+  const glassLayer = new Container();
   const boardLayer = new Container();
   const deviceLayer = new Container();
   const coolerLayer = new Container();
@@ -100,13 +107,19 @@ export async function mountBoard(host: HTMLElement) {
   });
   interactRef = interact;
   interact.setTheme(T);
-  world.addChild(boardLayer, deviceLayer, deviceBakeLayer, fanLayer, cableLayer, coolerLayer, pipeline.root, chromeBakeLayer, chromeLayer, propsLayer, live.root, interact.fx);
+  world.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, chromeBakeLayer, chromeLayer, propsLayer, live.root, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
   /** Far-out LOD: the whole static board baked once into a texture (rebuilt only with the scene). */
   let boardBake: Sprite | null = null;
   let deviceBake: Sprite | null = null;
+  /** The case chassis (vector close up, one baked texture far out) and drive slide-in animations. */
+  let caseVec: Container | null = null;
+  let caseBake: Sprite | null = null;
+  let builtOnce = false;
+  const driveSlotsSeen = new Set<string>();
+  const slides: { node: Container; t0: number }[] = [];
   const parts: Part[] = [];
   let mainHits: Hit[] = [];
   let cableHits: Hit[] = [];
@@ -119,6 +132,9 @@ export async function mountBoard(host: HTMLElement) {
   let cableKey = '';
   let propsKey = '';
   let lastSnap: Snapshot | null = null;
+  /** Game clock (ms): drives fans, bus pulses, LED blinks, chip tweens and every other sim-driven animation. */
+  let gt = 0;
+  const timeScale = () => { const sp = speed.peek(); return sp <= 0 ? 0 : sp >= 16 ? 3 : sp >= 4 ? 2 : 1; };
   let fits: View = { x: 0, y: 0, z: 0.15 };
   let held: CableKind | null = null;
   let propsArt: PropsArt[] = [];
@@ -135,6 +151,8 @@ export async function mountBoard(host: HTMLElement) {
     if (boardBake) boardBake.visible = baked;
     if (boardArt) boardArt.root.visible = !baked;
     const dbaked = !!deviceBake && z < Z_BAKE_DEV;
+    if (caseBake) caseBake.visible = dbaked;
+    if (caseVec) caseVec.visible = !dbaked;
     if (deviceBake) deviceBake.visible = dbaked;
     deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
@@ -170,8 +188,9 @@ export async function mountBoard(host: HTMLElement) {
     `${T.dark}|${s?.boardTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
 
   function build(s: Snapshot | null) {
-    boardBake?.texture.destroy(true); deviceBake?.texture.destroy(true);
-    boardBake = null; deviceBake = null;
+    boardBake?.texture.destroy(true); deviceBake?.texture.destroy(true); caseBake?.texture.destroy(true);
+    boardBake = null; deviceBake = null; caseBake = null; caseVec = null;
+    clear(caseLayer); clear(sataLayer); clear(driveLayer); clear(glassLayer); slides.length = 0;
     clear(boardLayer); clear(deviceLayer); clear(coolerLayer); clear(deviceBakeLayer); clear(fanLayer);
     parts.length = 0;
     const tier = s?.boardTier ?? 0;
@@ -184,7 +203,17 @@ export async function mountBoard(host: HTMLElement) {
     boardBake.position.set(frame.x, frame.y);
     boardLayer.addChild(boardBake);
 
+    // the case: chassis behind the board (baked far out), glass over it
+    caseVec = caseBack(T);
+    caseLayer.addChild(caseVec);
+    const cf = new Rectangle(CASE.x - 80, CASE.y - 60, CASE.w + 160, CASE.h + 220);
+    caseBake = new Sprite(app.renderer.generateTexture({ target: caseVec, frame: cf, resolution: 0.2, antialias: true }));
+    caseBake.position.set(cf.x, cf.y);
+    caseLayer.addChild(caseBake);
+    glassLayer.addChild(caseGlass(T));
+
     const targets: GlowTarget[] = [];
+    const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
@@ -234,6 +263,8 @@ export async function mountBoard(host: HTMLElement) {
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
         coolerHit = { id: d.id, rect: COOLER, max: Z_DIE };
         scene.rects.set(d.id, COOLER);
+      } else if (spec.kind === 'storage') {
+        storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
         const p = monitorArt(T, true);
         deviceLayer.addChild(p.root); parts.push(p);
@@ -262,11 +293,46 @@ export async function mountBoard(host: HTMLElement) {
     empty('atx', slots.atx ?? 0, () => PSU);
     empty('atx-plus', slots['atx-plus'] ?? 0, () => PSU);
     empty('pcie', slots.pcie ?? 0, (i) => slotRectOf('pcie' + i)!);
+    // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
+    const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
+    const driveSlots = [...['sata0', 'sata1'].slice(0, nSata), ...(nM2 ? ['m20'] : [])];
+    for (const id of driveSlots) {
+      const r = slotRect(id);
+      scene.slots.set(id, r); scene.rects.set(id, r);
+      if (!filled.has(id)) { emptyHits.push({ id, rect: r }); scene.interactive.add(id); }
+    }
+    const bay = bayArt(T, nSata);
+    deviceLayer.addChild(bay);
+    const hooks: DriveHook[] = [];
+    const now0 = performance.now();
+    for (const sd of storageDevs) {
+      const spec = getSpec(sd.spec) as { visual: string; name: string; capacityBytes?: number } | undefined;
+      if (!spec) continue;
+      const kind: DriveKind = driveKindOf(spec.visual), body = driveBody(kind, sd.slot);
+      const node = new Container(), lg = new Graphics();
+      node.addChild(driveArt(T, kind, sd.slot, spec.name, `${Math.round((spec.capacityBytes ?? 0) / 1024)}K`), lg);
+      driveLayer.addChild(node);
+      if (builtOnce && !driveSlotsSeen.has(sd.slot)) slides.push({ node, t0: now0 });
+      const idx = sd.slot === 'sata1' ? 1 : 0;
+      if (kind !== 'ssd-nvme') sataLayer.addChild(sataLinkArt(T, idx as 0 | 1, hasPsu));
+      hooks.push({ slot: sd.slot, kind, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx as 0 | 1) });
+      scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
+      deviceHits.push({ id: sd.id, rect: body });
+    }
+    driveSlotsSeen.clear();
+    for (const sd of storageDevs) driveSlotsSeen.add(sd.slot);
+    builtOnce = true;
     const emptyG = new Graphics();
     deviceLayer.addChildAt(emptyG, 0);
     for (const h of emptyHits) {
-      if (h.id.startsWith('cpu') || h.id.startsWith('pcie') || h.id.startsWith('dimm')) continue; // already drawn by the board
+      if (h.id.startsWith('cpu') || h.id.startsWith('pcie') || h.id.startsWith('dimm') || h.id.startsWith('sata')) continue; // already drawn by the board / the bay
       const r = h.rect;
+      if (h.id === 'm20') {
+        const pts: [number, number][] = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]];
+        dashed(emptyG, pts, 40, 30);
+        emptyG.stroke({ width: 10, color: T.mul, alpha: 0.7 });
+        continue;
+      }
       const pts: [number, number][] = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]];
       dashed(emptyG, pts, 40, 30);
       emptyG.stroke({ width: 10, color: T.mute, alpha: 0.7 });
@@ -279,11 +345,21 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
     scene.rects.set('usb', USB_PORT); scene.interactive.add('usb'); scene.usb = USB_PORT;
     scene.rects.set('tray', TRAY); scene.interactive.add('tray');
+    scene.rects.set('bay', BAY); scene.interactive.add('bay');
+    scene.rects.set('case', CASE); scene.interactive.add('case');
+    scene.rects.set('held', HELD); scene.interactive.add('held');
+    scene.rects.set('os', SCREEN); scene.interactive.add('os');
 
-    mainHits = [...dieHits];
+    mainHits = [{ id: 'os', rect: SCREEN, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
     if (coolerHit) mainHits.push(coolerHit);
-    mainHits.push(...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })));
+    mainHits.push(...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
+      { id: 'bay', rect: BAY },
+      // the chassis frame (panel, side walls, floor) is the case; the glass area stays free so the board is not outlined by accident
+      { id: 'case', rect: CASE_PANEL, more: [
+        { x: CASE.x, y: CASE.y, w: CASE_IN.x - CASE.x, h: CASE.h }, { x: CASE_IN.x + CASE_IN.w, y: CASE.y, w: CASE.x + CASE.w - CASE_IN.x - CASE_IN.w, h: CASE.h },
+        { x: CASE.x, y: CASE_IN.y + CASE_IN.h, w: CASE.w, h: CASE.y + CASE.h - CASE_IN.y - CASE_IN.h },
+      ] });
     if (hasPsu) scene.interactive.add('psu.readout');
     scene.rects.set('psu.readout', PSU);
     mergeHits();
@@ -298,7 +374,7 @@ export async function mountBoard(host: HTMLElement) {
 
     const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
-    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay });
+    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks);
     pipeline.setTheme(T);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
@@ -356,8 +432,9 @@ export async function mountBoard(host: HTMLElement) {
     const powered = !!s?.powered, error = s?.phase === 'error' || !!s?.power.tripped;
     powerState = { powered, error, blocked: !!s?.noPowerReason };
     const key = [
-      T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}`).join(',') : '',
-      s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}` : '-', powered, error,
+      T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
+      s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}` : '-', powered, error,
+      s ? (s.held ?? []).map((k) => `${k.id}${k.stage}`).join(',') : '',
     ].join('|');
     if (!force && key === propsKey) return;
     propsKey = key;
@@ -382,11 +459,13 @@ export async function mountBoard(host: HTMLElement) {
     add(powerArtRef);
     if (s?.plugged) add(pluggedKeyArt(T, s.plugged));
     add(trayArt(T, s?.tray ?? []));
+    add(heldArt(T, s?.held ?? []));
     for (const a of propsArt) order.push(...a.objs);
     // hit order: power, plugged key, tray keys, then the port and tray bodies
     propHits = [
       ...order.map((o) => ({ id: o.id, rect: o.rect })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
+      { id: 'held', rect: HELD },
       { id: 'tray', rect: TRAY },
     ];
     chromeLayer.visible = true;
@@ -424,7 +503,7 @@ export async function mountBoard(host: HTMLElement) {
   const hitAt = (cx: number, cy: number): string | null => {
     const w = camera.toWorld(cx, cy), z = camera.z;
     for (const h of allHits) {
-      if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max)) continue;
+      if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max) || (h.cond && !h.cond())) continue;
       for (const r of h.more ? [h.rect, ...h.more] : [h.rect]) if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
     }
     return null;
@@ -447,15 +526,15 @@ export async function mountBoard(host: HTMLElement) {
     app.renderer.background.color = T.bg;
     interact.setTheme(T);
     build(lastSnap);
-    live.update(lastSnap, performance.now());
-    pipeline.update(lastSnap, true, performance.now());
+    live.update(lastSnap, gt);
+    pipeline.update(lastSnap, true, gt);
   });
 
   // ---- snapshots ----
   effect(() => {
     const s = snapshot.value;
     const fast = speed.peek() >= 4;
-    const now = performance.now();
+    const now = gt;
     lastSnap = s;
     if (keyOf(s) !== sceneKey) build(s);
     else { syncCables(s); syncProps(s); }
@@ -464,19 +543,24 @@ export async function mountBoard(host: HTMLElement) {
   });
 
   // ---- frame loop ----
-  let lastFrame = performance.now();
   app.ticker.add((tk) => {
     const now = performance.now();
     const dt = tk.deltaMS / 1000;
+    // game time: advances only while the sim runs (pause = speed 0 stops it), so every world animation freezes with it
+    const gdt = dt * timeScale();
+    gt += gdt * 1000;
     camera.update(now);
-    live.frame(dt, now);
-    pipeline.frame(now);
+    live.frame(gdt, gt);
+    pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
-    interact.frame(now, dt);
-    if (powerArtRef) drawPowerLeds(T, powerArtRef.led, powerState, now);
-    lastFrame = now;
+    interact.frame(now, dt, gt);
+    if (powerArtRef) drawPowerLeds(T, powerArtRef.led, powerState, gt, live.diskLevel);
+    for (let i = slides.length - 1; i >= 0; i--) {
+      const sl = slides[i]!, u = Math.min(1, (now - sl.t0) / 650), e = 1 - Math.pow(1 - u, 3);
+      sl.node.position.x = 300 * (1 - e); sl.node.alpha = Math.min(1, u * 3);
+      if (u >= 1) slides.splice(i, 1);
+    }
   });
-  void lastFrame;
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene, beginPartDrag };
   return app;
