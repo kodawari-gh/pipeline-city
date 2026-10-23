@@ -3,7 +3,7 @@ import { assemble } from "../asm";
 import { Machine, Prng } from "../machine";
 import {
   applyEngine, applyRates, boardFromJson, boardToJson, createBoard, engineConfigFor, install, installedPsu,
-  machineConfigFor, setClock, ThermalModel, uninstall, type Board,
+  machineConfigFor, setClock, ThermalModel, uninstall, upgradeBoard, type Board,
 } from "./index";
 
 function ok<T extends { ok: boolean }>(r: T): T {
@@ -54,7 +54,7 @@ describe("slots and PSU validation", () => {
     const r = install(createBoard(0), "psu2");
     expect(!r.ok && r.reason).toMatch(/no atx-plus slot/);
     expect(install(createBoard(1), "psu2").ok).toBe(true);
-    expect(install(createBoard(1), "psu0").ok).toBe(false);
+    expect(install(createBoard(1), "psu0").ok).toBe(true); // a plain ATX PSU fits the ATX+ connector
   });
 
   it("PSU watts are checked both ways", () => {
@@ -93,6 +93,36 @@ describe("slots and PSU validation", () => {
     expect(install(b, "cpu1").ok).toBe(true);
     expect(uninstall(b, "zzz").ok).toBe(false);
   });
+});
+
+describe("board upgrade", () => {
+  it("carries every device over, moving the ATX PSU to the ATX+ connector", () => {
+    const b = basicBoard({ psu: "psu1", cpu: "cpu1" });
+    const before = boardToJson(b);
+    ok(setClock(b, cpuId(b), 2.5));
+    ok(upgradeBoard(b, 1));
+    expect(b.tier).toBe(1);
+    expect(b.devices.map((d) => d.id)).toEqual(before.devices.map((d) => d.id));
+    expect(b.devices.find((d) => d.spec === "psu1")!.slot).toBe("atx-plus0");
+    expect(b.devices.find((d) => d.spec === "cpu1")!.clock).toBe(2.5);
+    expect(b.devices.find((d) => d.spec === "ram0")!.slot).toBe("dimm0");
+    expect(boardFromJson(boardToJson(b)).tier).toBe(1); // still a valid save
+    expect(installedPsu(b)!.spec.id).toBe("psu1");
+  });
+
+  it("unlocks the ATX+ PSU and extra DIMMs, and refuses smaller or unknown tiers", () => {
+    const small = basicBoard({ psu: "psu1" });
+    expect(install(small, "psu2").ok).toBe(false);
+    ok(upgradeBoard(small, 1));
+    ok(uninstall(small, installedPsu(small)!.dev.id));
+    ok(install(small, "psu2"));
+    ok(install(small, "ram0"));
+    ok(install(small, "ram0"));
+    expect(upgradeBoard(small, 1).ok).toBe(false);
+    expect(upgradeBoard(small, 0).ok).toBe(false);
+    expect(upgradeBoard(small, 9).ok).toBe(false);
+  });
+
 });
 
 describe("serialization", () => {

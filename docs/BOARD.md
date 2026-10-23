@@ -14,7 +14,7 @@ Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` 
 | cooler | `coolingPerC` (W per degree C, CPU only) | stock 0.35, tower 0.8, liquid 1.8 |
 | display | `writeLatency` | CLI monitor |
 
-Slot types: `cpu dimm pcie sata usb cooler display atx atx-plus`. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, `atx-plus` instead of `atx`.
+Slot types: `cpu dimm pcie sata usb cooler display atx atx-plus`. Board tiers (`BOARD_TIERS`): tier 0 = 1 cpu, 2 dimm, 1 sata, 1 usb, 1 atx, 1 cooler, 1 display; tier 1 adds dimms, pcie, `atx-plus` instead of `atx`. An `atx-plus` slot also accepts plain `atx` PSUs (`slotAccepts`). `upgradeBoard(board, tier)` moves to a bigger tier carrying devices over (see GAME.md purchases).
 
 ## Board (`board.ts`)
 

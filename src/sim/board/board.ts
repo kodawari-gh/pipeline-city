@@ -25,6 +25,11 @@ export interface SlotInfo { id: string; type: SlotType }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };
 
+/** A slot of type `have` takes a device that needs `need`: same type, or an ATX+ connector taking a plain ATX PSU. */
+export function slotAccepts(have: SlotType, need: SlotType): boolean {
+  return have === need || (have === "atx-plus" && need === "atx");
+}
+
 export function createBoard(tier = 0): Board {
   if (!BOARD_TIERS[tier]) throw new RangeError(`unknown board tier ${tier}`);
   return { tier, nextId: 1, devices: [] };
@@ -53,7 +58,7 @@ export function findDevices(board: Board, kind: DeviceSpec["kind"]): InstalledDe
 
 export function freeSlots(board: Board, type: SlotType): SlotInfo[] {
   const used = new Set(board.devices.map((d) => d.slot));
-  return boardSlots(board).filter((s) => s.type === type && !used.has(s.id));
+  return boardSlots(board).filter((s) => slotAccepts(s.type, type) && !used.has(s.id));
 }
 
 /** Rated load (W, at base clocks) of everything except the PSU. */
@@ -87,12 +92,12 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
   if (slotId !== undefined) {
     slot = boardSlots(board).find((s) => s.id === slotId);
     if (!slot) return { ok: false, reason: `board has no slot "${slotId}"` };
-    if (slot.type !== spec.slot) return { ok: false, reason: `${spec.name} needs a ${spec.slot} slot, "${slotId}" is ${slot.type}` };
+    if (!slotAccepts(slot.type, spec.slot)) return { ok: false, reason: `${spec.name} needs a ${spec.slot} slot, "${slotId}" is ${slot.type}` };
     if (board.devices.some((d) => d.slot === slotId)) return { ok: false, reason: `slot "${slotId}" is already used` };
   } else {
     slot = freeSlots(board, spec.slot)[0];
     if (!slot) {
-      const total = boardSlots(board).filter((s) => s.type === spec.slot).length;
+      const total = boardSlots(board).filter((s) => slotAccepts(s.type, spec.slot)).length;
       return {
         ok: false,
         reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}` : `no free ${spec.slot} slot for ${spec.name} (${total} of ${total} used)`,
@@ -114,6 +119,33 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
   if (spec.clock) dev.clock = spec.clock.base;
   board.devices.push(dev);
   return { ok: true, id, slot: slot.id };
+}
+
+/**
+ * Move to the next board tier, carrying every installed device over (same instance ids, clocks and burnt flags).
+ * A device keeps its slot id if the new board has an accepting slot with that id, otherwise it takes the first free
+ * accepting slot (e.g. the plain ATX PSU moves to the ATX+ connector). On failure the board is left untouched.
+ */
+export function upgradeBoard(board: Board, tier: number): Result<object> {
+  if (!BOARD_TIERS[tier]) return { ok: false, reason: `unknown board tier ${tier}` };
+  if (tier <= board.tier) return { ok: false, reason: "not a bigger board" };
+  const next: Board = { tier, nextId: board.nextId, devices: [] };
+  const slots = boardSlots(next);
+  const used = new Set<string>();
+  const place = (d: InstalledDevice): string | undefined => {
+    const need = deviceSpec(d).slot;
+    const same = slots.find((s) => s.id === d.slot && slotAccepts(s.type, need) && !used.has(s.id));
+    return (same ?? slots.find((s) => slotAccepts(s.type, need) && !used.has(s.id)))?.id;
+  };
+  for (const d of board.devices) {
+    const slot = place(d);
+    if (!slot) return { ok: false, reason: `the bigger board has no slot for ${deviceSpec(d).name}` };
+    used.add(slot);
+    next.devices.push({ ...d, slot });
+  }
+  board.tier = next.tier;
+  board.devices = next.devices;
+  return { ok: true };
 }
 
 export function uninstall(board: Board, id: string): Result<object> {
@@ -150,7 +182,7 @@ export function boardFromJson(json: BoardJson): Board {
     const spec = getSpec(d.spec);
     if (!spec) throw new Error(`save: unknown device spec "${d.spec}"`);
     const slot = slots.find((s) => s.id === d.slot);
-    if (!slot || slot.type !== spec.slot) throw new Error(`save: bad slot "${d.slot}" for ${d.spec}`);
+    if (!slot || !slotAccepts(slot.type, spec.slot)) throw new Error(`save: bad slot "${d.slot}" for ${d.spec}`);
     if (seen.has(d.slot) || board.devices.some((x) => x.id === d.id)) throw new Error(`save: duplicate slot or id "${d.id}"`);
     seen.add(d.slot);
     const dev: InstalledDevice = { id: d.id, spec: d.spec, slot: d.slot };

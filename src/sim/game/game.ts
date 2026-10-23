@@ -12,7 +12,7 @@ import { generate, runReference } from "../gen";
 import { Machine } from "../machine";
 import { parseSave, SAVE_VERSION, type SavedRequest, type SaveV1 } from "./save";
 import {
-  demandRate, ECONOMY, payMulFor, payout, pickTemplate, reputation, swapPart, upgradeCandidates, type EconomyConfig,
+  applyOffer, demandRate, ECONOMY, offerPrice, offers, payMulFor, payout, pickTemplate, reputation, type EconomyConfig,
 } from "./economy";
 
 export interface GameOptions {
@@ -86,7 +86,7 @@ export interface StageSnap {
 export interface PurchaseSnap {
   id: string;
   name: string;
-  kind: DeviceKind;
+  kind: DeviceKind | "board";
   price: number;
   affordable: boolean;
   /** Set if the board would refuse it right now (e.g. PSU too small, no slot). */
@@ -206,11 +206,11 @@ export class Game {
    * with earlier pending purchases applied, so the whole thing goes through board install/validation.
    */
   purchase(itemId: string): PurchaseResult {
-    const cand = upgradeCandidates(this.plannedBoard()).find((s) => s.id === itemId);
+    const cand = offers(this.plannedBoard()).find((s) => s.id === itemId);
     if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
     if (this.money < cand.price) return { ok: false, reason: `needs $${cand.price}, have $${this.money}` };
     const trial = this.plannedBoard();
-    const r = swapPart(trial, itemId);
+    const r = applyOffer(trial, itemId);
     if (!r.ok) return r;
     this.money -= cand.price;
     this.pending.push(itemId);
@@ -247,10 +247,10 @@ export class Game {
     const cpu = findDevices(this.board, "cpu")[0];
     const cpuSpec = cpu ? deviceSpec(cpu) : undefined;
     const planned = this.plannedBoard();
-    const purchases: PurchaseSnap[] = upgradeCandidates(planned).map((s) => {
+    const purchases: PurchaseSnap[] = offers(planned).map((s) => {
       const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: s.price, affordable: this.money >= s.price };
       const t = boardFromJson(boardToJson(planned));
-      const r = swapPart(t, s.id);
+      const r = applyOffer(t, s.id);
       if (!r.ok) p.blocked = r.reason;
       return p;
     });
@@ -383,7 +383,7 @@ export class Game {
   /** Board with pending (deferred) purchases applied, for validation and listing. */
   private plannedBoard(): Board {
     const b = boardFromJson(boardToJson(this.board));
-    for (const id of this.pending) swapPart(b, id);
+    for (const id of this.pending) applyOffer(b, id);
     return b;
   }
 
@@ -423,8 +423,8 @@ export class Game {
   private applyPending(): void {
     if (this.pending.length === 0) return;
     for (const id of this.pending) {
-      const r = swapPart(this.board, id);
-      if (!r.ok) this.money += deviceSpecPrice(id); // cannot happen after validation; refund defensively
+      const r = applyOffer(this.board, id);
+      if (!r.ok) this.money += offerPrice(id) ?? 0; // cannot happen after validation; refund defensively
     }
     this.pending = [];
     this.syncRates(false);
@@ -474,8 +474,4 @@ export class Game {
       this.machine.clock.setRate(name, { mul: r.mul * this.cfg.cpuCyclesPerClock, div: r.div });
     }
   }
-}
-
-function deviceSpecPrice(id: string): number {
-  return deviceSpec({ id: "", spec: id, slot: "" }).price;
 }

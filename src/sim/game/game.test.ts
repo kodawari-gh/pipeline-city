@@ -127,6 +127,51 @@ describe("purchases", () => {
   });
 });
 
+describe("board upgrade purchase", () => {
+  it("psu2 is blocked until the bigger board is bought, then everything works on it", () => {
+    const g = new Game({ seed: 1, economy: { baseDemandPerTick: 0, startQueue: [] } });
+    g.money = 1e6;
+    const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id);
+    expect(by("board1")).toMatchObject({ kind: "board", price: 300, affordable: true });
+    expect(by("psu2")!.blocked).toMatch(/atx-plus/);
+    expect(g.purchase("board1")).toEqual({ ok: true, pending: false }); // idle: applies at once
+    expect(g.snapshot().boardTier).toBe(1);
+    expect(g.money).toBe(1e6 - 300);
+    expect(by("board1")).toBeUndefined(); // no further tier
+    expect(by("psu2")!.blocked).toBeUndefined();
+    expect(g.purchase("psu2").ok).toBe(true);
+    g.advanceBaseTick();
+    const s = g.snapshot();
+    expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler0", "cpu0", "display0", "psu2", "ram0"]);
+    expect(s.power.budgetW).toBe(250);
+    expect(g.purchase("cpu2").ok).toBe(true); // the big PSU carries the hot CPU
+  });
+
+  it("waits for the running request, costs money, and keeps earning afterwards", () => {
+    const g = new Game({ seed: 1 });
+    run(g, 5);
+    g.money = 400;
+    expect(g.purchase("board1")).toEqual({ ok: true, pending: true });
+    expect(g.money).toBe(100);
+    expect(g.snapshot().boardTier).toBe(0);
+    expect(g.purchase("board1").ok).toBe(false); // not offered twice
+    while (g.completed === 0) g.advanceBaseTick();
+    run(g, 2);
+    expect(g.snapshot().boardTier).toBe(1);
+    expect(g.snapshot().pendingPurchases).toEqual([]);
+    const before = g.completed;
+    run(g, 300);
+    expect(g.completed).toBeGreaterThan(before);
+    expect(g.purchase("board1").ok).toBe(false);
+  });
+
+  it("is refused without the money", () => {
+    const g = new Game({ seed: 1 });
+    const r = g.purchase("board1");
+    expect(!r.ok && r.reason).toMatch(/needs [$]300/);
+  });
+});
+
 describe("CPU tier vs RAM tier depends on the request profile", () => {
   it("log: CPU pays off, RAM does nothing", () => {
     const base = oneRequest([], "cli.log").execTicks;

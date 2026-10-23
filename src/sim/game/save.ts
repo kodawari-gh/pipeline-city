@@ -1,7 +1,8 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import { boardFromJson, getSpec, type BoardJson } from "../board";
+import { boardFromJson, type BoardJson } from "../board";
+import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
 
 export const SAVE_VERSION = 1;
@@ -98,7 +99,7 @@ export function parseSave(input: unknown): SaveV1 {
   } catch (e) {
     throw new Error(`save: invalid board (${(e as Error).message})`);
   }
-  if (!Array.isArray(s.pending) || s.pending.some((p) => typeof p !== "string" || !getSpec(p))) {
+  if (!Array.isArray(s.pending) || s.pending.some((p) => typeof p !== "string" || offerPrice(p) === undefined)) {
     throw new Error('save: "pending" must be a list of known item ids');
   }
   if (!Array.isArray(s.queue)) throw new Error('save: "queue" must be an array');

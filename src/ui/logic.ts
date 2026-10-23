@@ -1,6 +1,6 @@
 // Pure UI logic: formatting, shop grouping, hint triggers, device descriptions. No DOM, no signals.
 
-import { getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { BOARD_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, PurchaseSnap, Snapshot } from '../sim/game/game';
 
 export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
@@ -18,14 +18,15 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export const KIND_ORDER: DeviceKind[] = ['cpu', 'ram', 'cooler', 'psu', 'display'];
-export const KIND_LABEL: Record<DeviceKind, string> = {
-  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Display',
+export type ShopKind = DeviceKind | 'board';
+export const KIND_ORDER: ShopKind[] = ['cpu', 'ram', 'cooler', 'psu', 'board', 'display'];
+export const KIND_LABEL: Record<ShopKind, string> = {
+  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', board: 'Motherboard', display: 'Display',
 };
 
 export type ShopState = 'ready' | 'poor' | 'blocked';
 export interface ShopItem extends PurchaseSnap { state: ShopState; reason: string; pending: boolean }
-export interface ShopGroup { kind: DeviceKind; label: string; items: ShopItem[] }
+export interface ShopGroup { kind: ShopKind; label: string; items: ShopItem[] }
 
 /** Group purchases by device kind (stable kind order, cheapest first) with a state and hover reason. */
 export function groupPurchases(purchases: PurchaseSnap[], pending: string[] = [], money = 0): ShopGroup[] {
@@ -181,6 +182,16 @@ export function describeSpec(spec: DeviceSpec): Description {
 export function describeId(id: string): Description | null {
   const spec = getSpec(id);
   if (spec) return describeSpec(spec);
+  const tier = /^board([0-9]+)$/.exec(id);
+  const bt = tier ? BOARD_TIERS[Number(tier[1])] : undefined;
+  if (bt) {
+    const slots = Object.entries(bt.slots).map(([k, n]) => `${n} ${k}`).join(', ');
+    return {
+      title: bt.name,
+      plain: 'A bigger motherboard: more sockets, and room for a bigger power supply. Everything you own moves over.',
+      nerd: `tier ${bt.tier} | slots: ${slots}`,
+    };
+  }
   return REGIONS[id] ?? null;
 }
 

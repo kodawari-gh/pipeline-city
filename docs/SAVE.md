@@ -6,7 +6,7 @@ Code: `src/sim/game/save.ts` (format, `parseSave`, `migrate`), `Game.toSave()` /
 
 Plain JSON, config only:
 
-`version` (1), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextReqId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it), `lastCompleted`, `board` (`boardToJson`: tier, devices with spec, slot, clock setting, `burnt`), `pending` (purchases waiting for the current request), `queue` (waiting requests as `{id, template, seed, scale, arrival, deadline}`), `current` (the in-flight request, same fields plus `startTick`, `attempts`), `tripped` (PSU hard trip).
+`version` (1), `seed`, `prngState` (machine PRNG, one uint32), `money`, `baseTick`, `nextReqId`, `completed`, `errors`, `dropped`, `avgTurnaround` (reputation is derived from it), `lastCompleted`, `board` (`boardToJson`: tier, devices with spec, slot, clock setting, `burnt`), `pending` (purchases waiting for the current request: device spec ids or a board tier id like `board1`), `queue` (waiting requests as `{id, template, seed, scale, arrival, deadline}`), `current` (the in-flight request, same fields plus `startTick`, `attempts`), `tripped` (PSU hard trip).
 
 Programs are regenerated from `template + seed + scale` on load. About 1 KB.
 

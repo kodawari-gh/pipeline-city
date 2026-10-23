@@ -2,7 +2,7 @@
 // No DOM. Every number that affects balance is in ECONOMY; see docs/GAME.md for how pacing was set.
 
 import {
-  boardFromJson, boardToJson, findDevices, getSpec, install, specsOfKind, uninstall,
+  BOARD_TIERS, boardFromJson, boardToJson, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
   type Board, type DeviceKind, type DeviceSpec, type Result,
 } from "../board";
 
@@ -133,8 +133,39 @@ export function swapPart(board: Board, specId: string): Result<object> {
   return { ok: true };
 }
 
+/** Something the player can buy: a device spec id, or a board tier (`board1`). */
+export interface Offer { id: string; name: string; kind: DeviceKind | "board"; price: number }
+
+const BOARD_ID = /^board([0-9]+)$/;
+
+/** Board tier of an offer id like "board1", or undefined for a device id. */
+export function boardTierOf(id: string): number | undefined {
+  const m = BOARD_ID.exec(id);
+  return m ? Number(m[1]) : undefined;
+}
+
+export function offerPrice(id: string): number | undefined {
+  const t = boardTierOf(id);
+  return t !== undefined ? BOARD_TIERS[t]?.price : getSpec(id)?.price;
+}
+
+/** Buy an offer on a board: swap a part, or move to the bigger board (every device is carried over). */
+export function applyOffer(board: Board, id: string): Result<object> {
+  const t = boardTierOf(id);
+  return t !== undefined ? upgradeBoard(board, t) : swapPart(board, id);
+}
+
+/** Offers that are an upgrade (higher tier than the installed part, next board tier) or a replacement of a burnt part. */
+export function offers(board: Board): Offer[] {
+  const out: Offer[] = [];
+  const nextBoard = BOARD_TIERS[board.tier + 1];
+  if (nextBoard) out.push({ id: `board${nextBoard.tier}`, name: nextBoard.name, kind: "board", price: nextBoard.price });
+  for (const s of upgradeCandidates(board)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
+  return out;
+}
+
 /** Specs that would be an upgrade (higher tier than the installed part) or a replacement of a burnt part. */
-export function upgradeCandidates(board: Board): DeviceSpec[] {
+function upgradeCandidates(board: Board): DeviceSpec[] {
   const out: DeviceSpec[] = [];
   for (const kind of BUYABLE) {
     const cur = findDevices(board, kind)[0];

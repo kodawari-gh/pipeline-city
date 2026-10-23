@@ -99,6 +99,21 @@ describe("save/load", () => {
     expect(b.completed).toBeGreaterThan(a.completed);
   });
 
+  it("keeps a pending board upgrade and a bought board", () => {
+    const a = new Game({ seed: 2, economy: { baseDemandPerTick: 0.2 } });
+    a.money = 500;
+    run(a, 5);
+    expect(a.purchase("board1")).toEqual({ ok: true, pending: true });
+    const b = Game.fromSave(JSON.parse(JSON.stringify(a.toSave())), { baseDemandPerTick: 0.2 });
+    expect(b.snapshot().pendingPurchases).toEqual(["board1"]);
+    run(b, 80);
+    expect(b.snapshot().boardTier).toBe(1);
+    const c = Game.fromSave(JSON.parse(JSON.stringify(b.toSave())), { baseDemandPerTick: 0.2 });
+    expect(c.snapshot().boardTier).toBe(1);
+    expect(c.snapshot().devices.some((d) => d.spec === "psu0" && d.slot === "atx-plus0")).toBe(true);
+    expect(() => parseSave({ ...a.toSave(), pending: ["board9"] })).toThrow(/pending/);
+  });
+
   it("keeps pending purchases and the queue", () => {
     const a = new Game({ seed: 2, economy: { baseDemandPerTick: 0.2 } });
     a.money = 500;
