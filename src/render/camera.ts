@@ -2,6 +2,13 @@ import type { Container } from 'pixi.js';
 
 export interface View { x: number; y: number; z: number }
 
+/** A gesture that takes over from panning (dragging a part, a plug or a key). */
+export interface Grab {
+  move(cx: number, cy: number, e: PointerEvent): void;
+  /** `cancelled` is true for pointercancel or when a second finger lands (pinch). */
+  up(cx: number, cy: number, e: PointerEvent, cancelled: boolean): void;
+}
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /**
@@ -20,6 +27,9 @@ export class Camera {
   /** Hover move (client coords), or null when the pointer leaves or starts dragging. */
   onHover: (p: { x: number; y: number } | null) => void = () => {};
   onKey: ((k: 'cpu' | 'board') => void) | null = null;
+  /** Pointer down (client coords): return a Grab to own the gesture (no panning, no click), or null to pan as usual. */
+  onGrab: (cx: number, cy: number, e: PointerEvent) => Grab | null = () => null;
+  private grab: { id: number; g: Grab } | null = null;
   private flight: null | { from: View; to: View; t0: number; dur: number } = null;
   private pointers = new Map<number, { x: number; y: number }>();
   private down = { x: 0, y: 0, moved: false };
@@ -93,6 +103,16 @@ export class Camera {
   private pdown = (e: PointerEvent) => {
     this.flight = null;
     this.el.setPointerCapture?.(e.pointerId);
+    if (this.grab) { // a second finger: the grab is over, the pinch begins
+      this.grab.g.up(e.clientX, e.clientY, e, true); this.grab = null;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.down.moved = true;
+      return;
+    }
+    if (this.pointers.size === 0 && (e.pointerType !== 'mouse' || e.button === 0)) {
+      const g = this.onGrab(e.clientX, e.clientY, e);
+      if (g) { this.grab = { id: e.pointerId, g }; this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; }
+    }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.pointers.size === 1) this.down = { x: e.clientX, y: e.clientY, moved: false };
     if (this.pointers.size === 2) { this.pinch = this.pinchDist(); this.down.moved = true; }
@@ -104,6 +124,7 @@ export class Camera {
   }
 
   private pmove = (e: PointerEvent) => {
+    if (this.grab) { if (e.pointerId === this.grab.id) this.grab.g.move(e.clientX, e.clientY, e); return; }
     const p = this.pointers.get(e.pointerId);
     if (!p) { if (e.pointerType === 'mouse') this.onHover({ x: e.clientX, y: e.clientY }); return; }
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -123,6 +144,12 @@ export class Camera {
   };
 
   private pup = (e: PointerEvent) => {
+    if (this.grab && e.pointerId === this.grab.id) {
+      const g = this.grab.g;
+      this.grab = null; this.pointers.delete(e.pointerId);
+      g.up(e.clientX, e.clientY, e, e.type === 'pointercancel');
+      return;
+    }
     const had = this.pointers.delete(e.pointerId);
     if (had && e.type === 'pointerup' && this.pointers.size === 0 && !this.down.moved) this.onClick(e.clientX, e.clientY);
     this.pinch = 0;
