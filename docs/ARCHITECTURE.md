@@ -50,11 +50,31 @@ Scale is unbounded (one chip, then rack, datacenter, beyond), so tiers must be d
 
 ## Saves
 
-Config only, never micro-state: `{ version, seed, money, unlocked upgrades, board layout, ... }`. Pipeline contents are rebuilt by replay on load. Every save has a `version`; add a migration when the shape changes.
+Config only, never micro-state: `{ version, per-machine seed + PRNG state, money, board tier, installed devices and their tier / clock settings, queued requests (as program seeds), ... }`. Every save has a `version`; add a migration when the shape changes. Saves are exported and imported as local files.
+
+On load, **in-flight requests restart from their first instruction** with cold caches and pipelines. There is no action log and no micro-state snapshot.
+
+## Time and clocks
+
+The detail view is slowed so it can be appreciated: the default is **1 tick per second**, and the player can pause or speed up (1x, 4x, 16x, ...) like a city-builder. Money per tick is scaled so income feels right at 1x.
+
+Each device has its own clock (CPU, RAM, GPU, ...), set by a divider/multiplier off the base tick. The scheduler advances in fine sub-ticks and a device steps when its accumulated phase crosses a tick, which is deterministic and lets rates change at runtime. Transfers across clock domains have explicit latency.
+
+Players can overclock or underclock each supported device. The ladder is: more clock means more power and heat, then throttling, then instability (errors, retries, crashes), then sustained excess can burn out a part that must be replaced. Instability draws from a **seeded PRNG per machine, with its state in the save**, so behaviour is reproducible in tests and across load.
+
+## Devices and the board
+
+- **Devices are declarative specs** (data, not classes): slot and bus type, power draw, heat, clock range, per-tier stats, and visual hooks. The sim and the renderer read the same record, so adding a device is mostly adding data.
+- **The board is fixed with typed slots and ports that fill up** (DIMM, PCIe, SATA, USB, power connectors). A device only fits a matching free slot, and the PSU needs a matching connector and enough watts. Board and PSU tiers are part of the tree.
+- **Each device has a stylised-but-recognisable internal view** showing its real structure in simplified form (pipeline, DRAM banks and rows, GPU SMs, disk platter or flash channels), animated from sim state.
+- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template.
+- **Security:** secure workloads need a TPM or secure enclave device to be accepted, and run in a protected mode with real, visible cycle costs (attestation steps, encrypted memory traffic, extra latency).
 
 ## Progression
 
 A tech tree **per device**, not one global tree. Start with CPU and RAM, then buy other devices (IO, screens, GPU, ...) when demand requires them. Each device needs good visuals and must connect to the motherboard realistically (slots, buses, traces). A machine must be fully decked out before the player may buy another one.
+
+The game is an open-ended sandbox in the spirit of SimCity, not a Paperclips-style ending. At the far end, many datacenters appear on a world map.
 
 Early game is a guided tour (unpipelined CPU running a CLI program, then pipeline, cache, superscalar, OoO), with branching opening up as devices unlock.
 
@@ -76,12 +96,20 @@ Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (
 - The renderer tells the worker which machine is focused. That machine streams detailed state, and others send a few summary numbers per tick, so cost stays bounded as the fleet grows.
 - No SharedArrayBuffer for now (needs cross-origin isolation headers, awkward on static hosting).
 
+## Milestone 1
+
+One PC: CPU + RAM + PSU + cooling, one generated CLI workload, the money loop (spend on a CPU or RAM tier), clock domains with heat and throttling, board with typed slots, and export/import of a save. Thin but complete, to prove the architecture end to end before adding devices. The old prototype's engines get ported as the CPU needs them.
+
+## Platforms and delivery
+
+Desktop first. Pointer events stay generic so touch pan/pinch works on the board, but panels are not optimised for phones. CI (GitHub Actions) runs typecheck, tests and build on every push, and deploys to GitHub Pages from `main`.
+
 ## Open questions
 
 - Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
 - Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
 - Calibration cache: keying (program seed + hardware config) and invalidation.
-- Save file: how generated program seeds and per-machine device layouts are stored.
+- Exact shape of the world-map / datacenter layer (far future, not designed).
 
 ## Commands
 
