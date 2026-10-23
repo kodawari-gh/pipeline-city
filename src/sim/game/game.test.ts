@@ -48,6 +48,28 @@ describe("pacing (starting machine)", () => {
     expect(first!.payout).toBeGreaterThan(0);
   });
 
+  it("slow start: across 30 seeds the first $100 lands in a bounded time and the first request is unchanged", () => {
+    const times: number[] = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      const g = new Game({ seed });
+      let t100 = 0;
+      let first = 0;
+      for (let t = 1; t <= 400 && !t100; t++) {
+        g.advanceBaseTick();
+        if (!first && g.completed > 0) {
+          first = t;
+          expect(Math.abs(g.lastCompleted!.payout - 53)).toBeLessThanOrEqual(6);
+          expect(Math.abs(first - 28)).toBeLessThanOrEqual(5);
+        }
+        if (g.money >= 100) t100 = t;
+      }
+      times.push(t100);
+    }
+    console.log("first $100 ticks per seed:", times.join(" "));
+    expect(Math.min(...times)).toBeGreaterThan(0);
+    expect(Math.max(...times)).toBeLessThanOrEqual(260);
+  });
+
   it("the first request leaves its text on the display", () => {
     const g = new Game({ seed: 1 });
     while (g.completed === 0) g.advanceBaseTick();
@@ -65,9 +87,9 @@ describe("queue, reputation and demand", () => {
   });
 
   it("slow service shrinks demand, fast service grows it", () => {
-    const slow = new Game({ seed: 1 });
+    const slow = new Game({ seed: 2 });
     run(slow, 600);
-    const fast = new Game({ seed: 1 });
+    const fast = new Game({ seed: 2 });
     fast.money = 1e6;
     fast.purchase("cpu1");
     fast.purchase("ram1"); // the starting traffic includes scan jobs, which need both

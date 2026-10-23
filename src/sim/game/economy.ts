@@ -16,6 +16,8 @@ export interface MixEntry {
   minRamBytes: number;
   /** Payout multiplier for this kind of job (heavy memory-bound jobs pay more per instruction). Default 1. */
   payMul?: number;
+  /** Onboarding ramp: the weight rises linearly from 0 to `weight` over this many base ticks. Default: no ramp. */
+  rampTicks?: number;
 }
 
 /** PLACEHOLDER BALANCE. Tune by playing. */
@@ -74,7 +76,7 @@ export const ECONOMY: EconomyConfig = {
   startQueue: [{ template: "cli.log" }],
   mix: [
     { template: "cli", weight: 1, minRamBytes: 0 },
-    { template: "cli.scan", scale: 1, weight: 0.5, minRamBytes: 0, payMul: 3 },
+    { template: "cli.scan", scale: 1, weight: 0.5, minRamBytes: 0, payMul: 3, rampTicks: 300 },
   ],
   idleLoad: 0.1,
 };
@@ -98,13 +100,14 @@ export function payout(cfg: EconomyConfig, work: number, turnaround: number, lat
 }
 
 /** Pick a template from the mix that the installed RAM allows. */
-export function pickTemplate(cfg: EconomyConfig, ramBytes: number, r: number): MixEntry {
+export function pickTemplate(cfg: EconomyConfig, ramBytes: number, r: number, tick = Infinity): MixEntry {
   const ok = cfg.mix.filter((m) => m.minRamBytes <= ramBytes);
-  const total = ok.reduce((s, m) => s + m.weight, 0);
+  const w = (m: MixEntry) => (m.rampTicks ? m.weight * Math.min(1, tick / m.rampTicks) : m.weight);
+  const total = ok.reduce((s, m) => s + w(m), 0);
   let x = r * total;
   for (const m of ok) {
-    if (x < m.weight) return m;
-    x -= m.weight;
+    if (x < w(m)) return m;
+    x -= w(m);
   }
   return ok[ok.length - 1]!;
 }

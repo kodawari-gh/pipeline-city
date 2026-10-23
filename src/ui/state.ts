@@ -2,7 +2,7 @@
 
 import { effect, signal } from '@preact/signals';
 import { snapshot } from '../game/store';
-import { newHints, totalStalls, type Hint } from './logic';
+import { fillToasts, newHints, totalStalls, type Hint } from './logic';
 
 const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';
@@ -43,16 +43,26 @@ function loadSeen(): Set<string> {
   } catch { return new Set(); }
 }
 const seen = loadSeen();
+/** At most MAX_TOASTS are visible; the rest wait in `queued` and appear as the visible ones go away. */
 export const toasts = signal<Hint[]>([]);
+const queued = signal<Hint[]>([]);
+const TOAST_MS = 8000;
+
+function pump(visible: Hint[], queue: Hint[]) {
+  const r = fillToasts(visible, queue);
+  for (const t of r.visible) if (!visible.includes(t)) setTimeout(() => dismissToast(t.id), TOAST_MS);
+  toasts.value = r.visible;
+  queued.value = r.queue;
+}
 
 export function dismissToast(id: string) {
-  toasts.value = toasts.value.filter((t) => t.id !== id);
+  pump(toasts.value.filter((t) => t.id !== id), queued.value);
 }
 
 function showHint(h: Hint) {
   seen.add(h.id);
   writeStore(HINTS_KEY, JSON.stringify([...seen]));
-  toasts.value = [...toasts.value, h];
+  pump(toasts.value, [...queued.value, h]);
 }
 
 effect(() => {

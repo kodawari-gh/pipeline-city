@@ -77,8 +77,9 @@ describe("CPU-first vs RAM-first depends on the traffic mix", () => {
     const c = compare(ECONOMY.mix);
     report("starting mix", c);
     for (const [a, b] of [[c.cpuOnly, c.ramOnly], [c.cpuFirst, c.ramFirst]] as const) {
-      expect(a.income / b.income).toBeGreaterThan(0.8);
-      expect(a.income / b.income).toBeLessThan(1.25);
+      // Band, not a tie: the scan ramp makes the first minutes log-only, which favours buying the CPU late-ish.
+      expect(a.income / b.income).toBeGreaterThan(0.65);
+      expect(a.income / b.income).toBeLessThan(1.5);
     }
     // And the share of scan jobs in the starting mix is a quarter to a third.
     const total = ECONOMY.mix.reduce((n, m) => n + m.weight, 0);

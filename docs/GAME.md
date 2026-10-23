@@ -47,7 +47,7 @@ Measured at 1x on the starting machine (see `game.test.ts`): first request (`cli
 
 ## CPU vs RAM
 
-The starting traffic is a mix (`ECONOMY.mix`): `cli` (log/calc/checksum, weight 1) and `cli.scan` scale 1 (weight 0.5, so one request in three, `payMul` 3 because it is heavier work per request). Scan walks a RAM table with a 64 or 128 byte stride, so **every load misses** the data cache: its time is mostly RAM latency. Log/calc/checksum have no cacheable loads, so RAM does nothing for them.
+The starting traffic is a mix (`ECONOMY.mix`): `cli` (log/calc/checksum, weight 1) and `cli.scan` scale 1 (weight 0.5, so one request in three once fully ramped in, `payMul` 3 because it is heavier work per request). **Onboarding ramp:** scan has `rampTicks: 300`, its weight rises linearly from 0 to 0.5 over the first 300 ticks (`pickTemplate` takes the tick), so the early game is mostly quick `cli` jobs; the first request is unchanged (tick 28, about $53). Over 30 seeds the first $100 lands between tick 57 and 258 (was up to 400); `game.test.ts` asserts it. Scan walks a RAM table with a 64 or 128 byte stride, so **every load misses** the data cache: its time is mostly RAM latency. Log/calc/checksum have no cacheable loads, so RAM does nothing for them.
 
 RAM specs: `ram0` latency 100 (RAM ticks), `ram1` 12 at twice the RAM clock, `ram2` 4. The miss penalty is `ceil(latency * cpuClock / ramClock)`: a fast CPU on slow RAM waits twice as many cycles per miss (`cpu1` on `ram0`: 200 cycles), so a faster CPU alone barely helps scan.
 
@@ -63,10 +63,10 @@ So CPU is the big win for log, RAM is the big win for scan, and scan needs both 
 | mix | nothing | cpu1 only | ram1 only | cpu1 then ram1 | ram1 then cpu1 |
 |---|---|---|---|---|---|
 | log only | $301 | $836 | $388 | $1407 | $709 |
-| starting (33% scan) | $312 | $450 | $422 | $1112 | $1222 |
-| scan heavy (80% scan) | $321 | $415 | $429 | $789 | $985 |
+| starting (33% scan, ramped in) | $306 | $405 | $390 | $653 | $857 |
+| scan heavy (80% scan, no ramp) | $321 | $415 | $429 | $789 | $985 |
 
-Log-heavy traffic: CPU first by a wide margin. Starting mix: nearly a tie (CPU slightly ahead alone, RAM first slightly ahead in the sequence, since it is cheaper and gets bought earlier). Scan-heavy: RAM first. Balance numbers (`payMul`, scan scale, RAM latencies and prices) are placeholders.
+Log-heavy traffic: CPU first by a wide margin. Starting mix: no dominant choice (CPU slightly ahead alone, RAM first ahead in the sequence by about 30%, since it is cheaper and gets bought earlier; the test asserts a 0.65 to 1.5 band, wider than before because the ramp makes the first minutes log-heavy). Scan-heavy: RAM first. Balance numbers (`payMul`, scan scale, RAM latencies and prices) are placeholders.
 
 ## Overclock and heat
 

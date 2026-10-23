@@ -102,8 +102,8 @@ button.icon { font-size: 16px; padding: 4px 10px; }
 .devpanel { position: fixed; left: 16px; bottom: 16px; width: 300px; max-width: calc(100vw - 32px); box-sizing: border-box; }
 .devpanel .live { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font: 600 12px var(--mono); }
 .devpanel .live .note { margin: 0; padding: 0 6px; }
-.toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; width: min(460px, calc(100vw - 32px)); z-index: 40; }
-.toast { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--accent); }
+.toasts { position: fixed; bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 6px; width: min(300px, calc(100vw - 32px)); z-index: 40; }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-color: var(--accent); padding: 8px 10px; font-size: 12px; }
 
 /* Narrow: the dock becomes a bottom drawer */
 @media (max-width: 760px) {

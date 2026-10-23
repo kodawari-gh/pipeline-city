@@ -27,7 +27,7 @@ UI: `--accent --ok --warn --bad`, fonts `--ui --mono`.
 
 ## Hints
 
-Shown once each as a dismissible toast, remembered in `localStorage['pipeline-city.hints']`:
+Shown once each as a small dismissible toast, remembered in `localStorage['pipeline-city.hints']`. At most 2 are visible (bottom-left corner, away from the board centre); the rest wait in a queue (`fillToasts` in `logic.ts`) and appear when one is dismissed or auto-expires after 8 s:
 
 | id | fires when |
 |---|---|

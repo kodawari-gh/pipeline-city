@@ -133,6 +133,14 @@ export function triggeredHints(s: Snapshot): string[] {
 }
 
 /** Hints to show now: triggered and not yet seen. */
+export const MAX_TOASTS = 2;
+
+/** Move queued hints into the visible list until `max` are visible. Pure. */
+export function fillToasts(visible: Hint[], queue: Hint[], max = MAX_TOASTS): { visible: Hint[]; queue: Hint[] } {
+  const room = Math.max(0, max - visible.length);
+  return { visible: [...visible, ...queue.slice(0, room)], queue: queue.slice(room) };
+}
+
 export function newHints(s: Snapshot, seen: ReadonlySet<string>): Hint[] {
   return triggeredHints(s).filter((id) => !seen.has(id)).map((id) => HINTS[id]!);
 }

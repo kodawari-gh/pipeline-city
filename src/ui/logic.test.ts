@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import {
   cacheHitRate, clockWarning, cpiIpc, describeId, fmtMoney, fmtTicks, groupPurchases, newHints, stallsByCause,
-  tempLevel, triggeredHints,
+  fillToasts, tempLevel, triggeredHints,
 } from './logic';
 import { getSpec } from '../sim/board/specs';
 
@@ -90,6 +90,25 @@ describe('hints', () => {
     const s = snap({ queueLength: 5 });
     expect(newHints(s, new Set()).map((h) => h.id)).toEqual(['queue']);
     expect(newHints(s, new Set(['queue']))).toEqual([]);
+  });
+});
+
+describe('toast queue', () => {
+  const h = (id: string) => ({ id, text: id });
+  it('shows at most two and queues the rest in order', () => {
+    const r = fillToasts([], [h('a'), h('b'), h('c'), h('d')]);
+    expect(r.visible.map((t) => t.id)).toEqual(['a', 'b']);
+    expect(r.queue.map((t) => t.id)).toEqual(['c', 'd']);
+  });
+  it('shows the next one when a slot frees up', () => {
+    const r = fillToasts([h('b')], [h('c'), h('d')]);
+    expect(r.visible.map((t) => t.id)).toEqual(['b', 'c']);
+    expect(r.queue.map((t) => t.id)).toEqual(['d']);
+  });
+  it('does nothing when full', () => {
+    const r = fillToasts([h('a'), h('b')], [h('c')]);
+    expect(r.visible).toHaveLength(2);
+    expect(r.queue).toHaveLength(1);
   });
 });
 

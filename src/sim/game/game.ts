@@ -414,7 +414,7 @@ export class Game {
     const hit = prng.next() < rate;
     const pick = prng.next();
     if (hit) {
-      const m = pickTemplate(this.cfg, this.installedRamBytes(), pick);
+      const m = pickTemplate(this.cfg, this.installedRamBytes(), pick, this.baseTick);
       this.enqueue(m.template, m.scale);
     }
   }
