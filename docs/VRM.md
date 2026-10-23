@@ -49,8 +49,12 @@ Behaviours:
 
 - **Thermal throttle** (`THROTTLE_MIN` style, same shape as the CPU's): factor 1 up to `throttleC`, falling linearly to 0.8 at `unstableC`. Computed from last tick's temperature and **multiplied into the CPU's effective clock**, on top of the CPU's own throttle and the PSU factor. So a hot VRM slows the CPU by up to 20%, which also lowers its demand.
 - **Instability**: `unstable` when `loadRatio > 1` (past the phases' rating) or `T > unstableC`. Then `errProb = min(0.5, (0.01 + 0.2 * max(0, loadRatio - 1) + 0.02 * max(0, T - unstableC)) * (0.5 + 1.5 * ripple))`, so more overload, more heat and sloppier components all raise it. `ThermalModel.vrmErrorRoll()` draws from the machine PRNG **only while unstable** (like `errorRoll`), so a healthy VRM never touches the PRNG stream. In the game it is rolled while the machine is busy, next to the CPU's own roll. A hit crashes the machine exactly like a thermal CPU error (the machine cold-reboots, the plugged key's job restarts from the ROM, `errors` and the key's `attempts` go up) and writes `VRM voltage droop: the machine crashed and rebooted` to the event log.
-- **Burn-out**: a stress counter goes up by 1 each tick when `T > damageC` or `loadRatio > 1.6`, and down by 1 otherwise. At `DAMAGE_TICKS` (10) the VRM is burnt: `Board.burnt = true`. A burnt board: nothing draws (every clock is 0), the machine cannot be powered on (`noPowerReason` and, if it happens while running, `phaseReason`: **"board dead: replace the board"**), installed parts stay in their slots as dead weight, and the flag is saved. It is fixed only by **buying a board of the same or a higher tier**: the dead board is thrown away and every installed device is carried over (same as any board upgrade).
+- **Burn-out**: a stress counter goes up by 1 each tick when `T > damageC` or `loadRatio > 1.6` (far over), by 0.25 each tick while the VRM is overloaded or hot past `unstableC` **and** hotter than `throttleC` (sustained overload while hot; a heatsink that keeps it under `throttleC` saves it), and goes down by 1 otherwise. At `DAMAGE_TICKS` (10) the VRM is burnt: `Board.burnt = true`. A burnt board: nothing draws (every clock is 0), the machine cannot be powered on (`noPowerReason` and, if it happens while running, `phaseReason`: **"board dead: replace the board"**), installed parts stay in their slots as dead weight, and the flag is saved. It is fixed only by **buying a board of the same or a higher tier**: the dead board is thrown away and every installed device is carried over (same as any board upgrade).
 - **Idle stays cool**: at idle `P` is a couple of watts, `loadRatio` is tiny and the loss is under 1 W.
+
+### Worked numbers (placeholders, see vrm.test.ts)
+
+Stock `cpu1` on Starter: 20 A of 24 A, 0.78 efficiency, VRM about 40 C. `cpu2` (35 W) on Starter: 1.46 of rating, unstable at once (about 14% crash chance per busy tick), heats to throttle after about 100 ticks, equilibrium near 98 C at throttle 0.9, then burns after about 40 more ticks; with a fan heatsink it stays cool and is merely unstable (crashing). The same `cpu2` on Mainstream: 58% of rating, 34 C. Liquid cooling `cpu1` overclocked to 2.1 on Starter: VRM 71 C versus about 45 C with a tower cooler.
 
 ### What must not happen
 
@@ -62,7 +66,7 @@ Four tiers, `BOARD_TIERS[tier]`, purchase ids `board1` ... `board3` (the number 
 
 | Tier | Name | Price | cpu | dimm | pcie | sata | m2 | usb | display | vrm-sink | power | Ethernet | VRM (phases x A, peak eff, ripple) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | Starter | $0 (replacement $40) | 1 | 1 | 0 | 1 | 0 | 1 | 1 (HDMI) | 1 | atx | none | 2 x 12 A = 24 A, 0.80, 0.60 |
+| 0 | Starter | start board, free (a replacement costs $40) | 1 | 1 | 0 | 1 | 0 | 1 | 1 (HDMI) | 1 | atx | none | 2 x 12 A = 24 A, 0.80, 0.60 |
 | 1 | Basic | $150 | 1 | 2 | 1 | 2 | 0 | 2 | 1 | 1 | atx | 100 Mbit | 3 x 12 A = 36 A, 0.84, 0.45 |
 | 2 | Mainstream | $300 | 1 | 4 | 2 | 2 | 1 | 3 | 1 | 1 | atx-plus | 100 Mbit | 4 x 15 A = 60 A, 0.88, 0.25 |
 | 3 | Enthusiast | $700 | 1 | 8 | 4 | 2 | 1 | 4 | 1 | 1 | atx-plus | 1 Gbit | 6 x 20 A = 120 A, 0.92, 0.10 |
