@@ -8,7 +8,7 @@ Pipeline City is an incremental game (Universal Paperclips / SimCity vibe) about
 
 It is a **POC**. Keep things simple, iterate bit by bit, and do not build for scale you have not needed yet. Scale is "unbounded" in the long run, so leave seams for it (interfaces, fidelity tiers) but do not build the machinery early.
 
-## State of the repo (updated after steps 1 to 10)
+## State of the repo (updated after steps 1 to 10 plus the follow-up pass)
 
 Milestone 1 is built end to end and playable in the browser: `npm run dev`. Steps 2 to 10 of the order below are DONE and committed. Check `git log` and `git status` to see what has been pushed; the owner pushes (or asks for it).
 
@@ -24,10 +24,11 @@ Milestone 1 is built end to end and playable in the browser: `npm run dev`. Step
 - **Pacing (settled by the owner):** base tick 1 s, and the CPU runs 4 engine cycles per tick (`cpuCyclesPerClock`) so the first request takes about 28 s. Do not change it without asking.
 - **CPU vs RAM (done):** the starting traffic is one third cache-hostile scan jobs, so RAM pays off for scan and the CPU for log; the best first purchase depends on the mix (see `docs/GAME.md` "CPU vs RAM" and `src/sim/game/tradeoff.test.ts`). Numbers are placeholders.
 - All balance numbers are placeholders in `src/sim/game/economy.ts`.
-- Machine RAM is fixed at 64K; the RAM tier only changes the cache miss penalty and job mix. PSU tier 2 needs a bigger board, and there is no board purchase yet.
-- Engines: only unpipelined and in-order exist. Superscalar and out-of-order, the fast model, offline catch-up, GPU, multicore, security workloads and multi-machine are all still to do (see `docs/ARCHITECTURE.md`). Decode still allocates one small object per fetched instruction.
-- Visual gaps: text softens above 2x zoom, UI drawer covers the PSU in the overview, GPU/M.2/SATA are decor only, only single-width pipelines are drawn, touch hit-testing and speeds above 1x were not exercised, no real-GPU frame times (software GL gave 34 ms overview, 68 ms on the die).
-- Not verified in a browser: the power-cycle button, over/underclock warning, Continue prompt, most hints.
+- Machine RAM is fixed at 64K; the RAM tier only changes the cache miss penalty (and, via `minRamBytes`, optionally the job mix). The board upgrade (`board1`, $300) exists and unlocks the 250 W PSU; there is only one board upgrade so far.
+- Engines: only unpipelined and in-order exist. Superscalar and out-of-order, the fast model, offline catch-up, GPU, multicore, security workloads and multi-machine are all still to do (see `docs/ARCHITECTURE.md`). Decode no longer allocates per fetched instruction.
+- Visual gaps: text softens above 2x zoom, GPU/M.2/SATA are decor only, only single-width pipelines are drawn, touch hit-testing was not exercised (mouse and wheel only), no real-GPU frame times (software GL: about 17 fps with the die view at 16x). The UI drawer no longer hides the PSU (the camera frames the free area, see `docs/RENDER.md`). Hint toasts stack up to several cards high when many fire at once.
+- Early game: a scan job (about 220 s on the starting machine) can arrive as the second request, so the first $100 can take 250+ s on unlucky seeds. Part of the CPU-vs-RAM design; tune `mix` weights and `payMul` if it feels bad.
+- Verified in headless Chrome (software GL) after the follow-up pass: power-cycle button after a PSU trip, clock warnings (near-throttle, unstable, burnt), the Continue / New game prompt, speeds 1x/4x/16x/pause (tick rates match), and the hints stall, throttle, overheat, queue, burnt, trip, brownout. Underclock only changes the label (there is no underclock warning by design). Not verified: touch, real GPU.
 - Browser checks were done with playwright-core and headless Chrome; it is not in package.json.
 
 ## Decisions already made (do not relitigate without asking)
