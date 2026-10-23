@@ -70,9 +70,9 @@ export const REGIONS: Record<string, Description> = {
     nerd: 'Ingested keys waiting for their flash. Powering off returns them to the tray unserved (their jobs restart).',
   },
   os: {
-    title: 'Operating system',
-    plain: 'The software that keeps the machine running and takes jobs from the USB keys, one at a time. Click to see the systems on offer.',
-    nerd: 'The OS shelf and, when installed, the OS screen on the monitor: the boot image sits on the drive, the job queue in kernel RAM.',
+    title: 'Operating system (on this drive)',
+    plain: 'The OS installed on this drive. Click the badge for its status, queue and uninstall. The monitor only shows its text.',
+    nerd: 'Badge for the OS on its storage device: the boot image sits on the drive, the job queue in kernel RAM. Systems on offer: click a drive bay.',
   },
   bat: {
     title: 'Clock battery',

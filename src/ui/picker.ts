@@ -6,7 +6,7 @@ import { AMBIENT_C, BOARD_TIERS, getSpec, specsOfKind, type CoolerSpec, type Cpu
 import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
-import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level } from './logic';
+import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
 import { JOB_TYPES } from './regions';
 
 /** The storage block size (bytes), as in the sim's storage device. */
@@ -73,6 +73,68 @@ export interface PickerModel {
   clock: boolean;
   /** Installed device, for live readings and the clock. */
   device?: DeviceSnap;
+  /** The installed OS, on the card for the OS itself and for the drive that hosts it. */
+  osSection?: OsSection | null;
+  /** The bay's shelf: operating systems on offer (only while no OS is installed). */
+  shelf?: LadderStep[];
+}
+
+export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string }
+export interface OsHeldRow { keyId: number; label: string; hint: string }
+/** The OS block of a card: what the OS is doing, its queue, held keys, the host drive and the later tiers. */
+export interface OsSection {
+  name: string;
+  tier: number;
+  status: string;
+  level: Level | 'info';
+  programSlots: number;
+  queueSlots: number;
+  running: string | null;
+  queue: OsQueueRow[];
+  held: OsHeldRow[];
+  host: { slot: string; usedK: number; capK: number } | null;
+  ladder: LadderStep[];
+}
+
+/** Plain job type for a key id from anywhere the machine holds it (tray, held, plugged). */
+const keyType = (s: Snapshot, id: number): string =>
+  [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((k) => k.id === id)?.type ?? '';
+
+/**
+ * The OS section for a snapshot with an OS installed, or null. Pure: every number comes from the snapshot. Queue rows say
+ * how many jobs are ahead; held keys say which key to plug in again to collect.
+ */
+export function osSection(s: Snapshot): OsSection | null {
+  const os = s.os;
+  if (!os) return null;
+  const st = statusChip(s);
+  const queue: OsQueueRow[] = os.queue.map((j) => ({
+    keyId: j.keyId,
+    label: j.label,
+    type: keyType(s, j.keyId),
+    state: j.state,
+    text: j.state === 'running' ? 'running now'
+      : j.state === 'result' ? 'done, waiting for you'
+      : j.ahead === 0 ? 'next' : `${j.ahead} ahead`,
+  }));
+  const host = s.storage.find((x) => x.hasOs);
+  return {
+    name: os.name,
+    tier: os.tier,
+    status: st.text,
+    level: st.level === 'idle' ? 'info' : st.level,
+    programSlots: os.programSlots,
+    queueSlots: os.queueSlots,
+    running: os.queue.find((j) => j.state === 'running')?.label ?? null,
+    queue,
+    held: s.held.map((k) => ({
+      keyId: k.id,
+      label: k.label,
+      hint: k.stage === 'result' ? `plug key ${k.id} again to collect` : 'waiting in the OS queue',
+    })),
+    host: host ? { slot: host.slot, usedK: Math.round(host.usedBytes / 1024), capK: Math.round(host.capacityBytes / 1024) } : null,
+    ladder: ladderFor(s, 'os'),
+  };
 }
 
 /** Relative throughput per base clock tick, by engine. A placeholder guess like the other balance numbers. */
@@ -445,16 +507,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
         });
       }
     }
-    if (kind === 'os') {
-      if (s.os) {
-        lines.push({
-          level: s.os.up ? 'info' : 'warn',
-          text: `Installed on the drive in ${s.os.slot}. ${s.os.queue.length} of ${s.os.queueSlots} queue slots used.`,
-        });
-        actions.push({ id: 'uninstallOs', label: 'Uninstall OS', why: s.powered ? 'Power the machine off first' : undefined });
-      } else {
-        lines.push({ level: 'info', text: 'No operating system installed. It installs onto a drive, and the machine boots from the drive.' });
-      }
+    // The OS: its section shows on the OS badge and on the drive that hosts it; uninstall lives there too.
+    const hostsOs = !!dev && s.os?.deviceId === dev.id;
+    const sec = kind === 'os' || hostsOs ? osSection(s) : null;
+    if (sec) {
+      actions.push({ id: 'uninstallOs', label: 'Uninstall OS', why: s.powered ? 'Power the machine off first' : undefined });
+    } else if (kind === 'os') {
+      lines.push({ level: 'info', text: 'No operating system installed. Buy one from a drive bay, then install it onto a drive.' });
     }
     const cpu = kind === 'cpu' ? dev : undefined;
     if (cpu) {
@@ -466,7 +525,11 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       : dev ? dev.name : d.title;
     return {
       ...emptyCard(id, kind, title, d.plain, d.nerd),
-      ladder, current, lines, actions,
+      // With an OS installed, its ladder is in the OS section; the bay offers the systems while none is installed.
+      ladder: sec && kind === 'os' ? [] : ladder,
+      osSection: sec,
+      shelf: id === 'bay' && !s.os ? ladderFor(s, 'os') : undefined,
+      current, lines, actions,
       // A spec id that is neither a slot nor a fitted part (a shop or ladder item) is the comparison to show.
       focus: invItem ? invItem.spec : !slot && !dev && (getSpec(id) || getOsSpec(id)) ? id : null,
       device: emptySocket ? undefined : dev,

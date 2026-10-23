@@ -3,10 +3,11 @@ import { selected } from '../game/hover';
 import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot, uninstallOs } from '../game/store';
 import { getSpec, type CpuSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
+import { getOsSpec } from '../sim/os';
 import { fmtClock, fmtMoney } from './logic';
 import {
-  boardId, clockZones, compareRows, estTempC, installedCooler, pickerFor, zoneOf,
-  type CompareRow, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
+  boardId, clockZones, compareRows, estTempC, installedCooler, osSection, pickerFor, zoneOf,
+  type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
@@ -161,12 +162,48 @@ function Action({ a }: { a: PickerAction }) {
   );
 }
 
+/** The installed OS: status, slots, the queue, the running job, held keys to collect, the host drive and the later tiers. */
+function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | null; onPick: (id: string) => void }) {
+  return (
+    <section class="pblock os-sec" aria-label={sec.name}>
+      <h3><Icon name="cpu" size={11} /> {sec.name} <span class={`chip ${sec.level}`}>{sec.status}</span></h3>
+      <div class="chips">
+        <span class="chip" title="Operating system tier"><Icon name="gauge" size={12} /> tier {sec.tier}</span>
+        <span class="chip" title="Programs it runs at once"><Icon name="cpu" size={12} /> {sec.programSlots} at once</span>
+        <span class="chip" title="Jobs in the queue, out of its slots"><Icon name="slot" size={12} /> {sec.queue.length}/{sec.queueSlots}</span>
+        {sec.host && (
+          <span class="chip" title={`Space used on the drive in ${sec.host.slot}`}><Icon name="memory" size={12} /> {sec.host.usedK}/{sec.host.capK}K</span>
+        )}
+      </div>
+      {sec.running && <div class="pline info"><Icon name="clock" size={12} /> Running {sec.running}</div>}
+      {sec.queue.map((q) => (
+        <div class="osrow" key={`q${q.keyId}`}>
+          <span class="oname">{q.label}</span>
+          <span class="mute">{q.type}</span>
+          <span class={q.state === 'result' ? 'ok' : 'mute'}>{q.text}</span>
+        </div>
+      ))}
+      {sec.held.map((h) => (
+        <div class="pline warn" key={`h${h.keyId}`}><Icon name="box" size={12} /> {h.label}: {h.hint}</div>
+      ))}
+      {sec.ladder.length > 0 && (
+        <div class="rungs">
+          {sec.ladder.map((r) => (
+            <Rung key={r.specId} step={r} picked={r.specId === picked} onPick={onPick} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Body({ m, s }: { m: PickerModel; s: Snapshot }) {
   // The option the bars compare against: the picked rung, else the selected part, else the first upgrade on offer.
   const [picked, setPicked] = useState<string | null>(null);
   const firstOffer = m.ladder.find((r) => r.state === 'crate' || r.state === 'ready' || r.state === 'poor' || r.state === 'blocked')?.specId ?? null;
   const option = picked ?? m.focus ?? firstOffer;
-  const rows = option && m.kind !== 'key' && m.kind !== 'info' ? compareRows(m.kind, m.current, option) : [];
+  // Operating systems have their own stats (programs, queue), so they are not compared with hardware bars.
+  const rows = option && m.kind !== 'key' && m.kind !== 'info' && !getOsSpec(option) ? compareRows(m.kind, m.current, option) : [];
   const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.focus);
   // With a clock dial the overclock warnings are shown by the dial's zone, not as text.
   const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
@@ -197,6 +234,18 @@ function Body({ m, s }: { m: PickerModel; s: Snapshot }) {
         <div key={i} class={`pline ${l.level === 'info' ? '' : l.level}`}>{l.text}</div>
       ))}
       {m.clock && m.device && s.cpuClock && <ClockDial s={s} cpu={m.device} />}
+      {m.osSection && <OsBlock sec={m.osSection} picked={option} onPick={setPicked} />}
+      {m.shelf && m.shelf.length > 0 && (
+        <section class="pblock" aria-label="Operating systems">
+          <h3><Icon name="cpu" size={11} /> Operating systems</h3>
+          <div class="rungs">
+            {m.shelf.map((r) => (
+              <Rung key={r.specId} step={r} picked={r.specId === option} onPick={(id) => setPicked(id)} />
+            ))}
+          </div>
+          <div class="sub">Installs onto a drive. The machine boots from it, so it does not reboot for every job.</div>
+        </section>
+      )}
       {m.ladder.length > 0 && (
         <section class="pblock">
           <h3>Upgrades</h3>

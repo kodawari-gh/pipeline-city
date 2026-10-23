@@ -195,6 +195,14 @@ function describeOs(id: string): Description | null {
  */
 export function describeId(id: string, s?: Snapshot | null): Description | null {
   if (s) {
+    if (id === 'os' && s.os) {
+      const host = s.storage.find((x) => x.hasOs);
+      return {
+        title: s.os.name,
+        plain: `The operating system installed on the drive in ${host?.slot ?? s.os.slot}. Click it for the queue, status and uninstall. The monitor only shows its text.`,
+        nerd: `tier ${s.os.tier} | ${s.os.programSlots} program slot(s), ${s.os.queueSlots} queue slots | queue ${s.os.queue.length}`,
+      };
+    }
     const slot = s.slots.find((x) => x.id === id);
     if (slot) {
       if (!slot.deviceId) {

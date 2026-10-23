@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { clockZones, compareRows, estTempC, goodness, ladderFor, pickerFor, specBrief, statsOf, zoneOf } from './picker';
+import { clockZones, compareRows, estTempC, goodness, ladderFor, osSection, pickerFor, specBrief, statsOf, zoneOf } from './picker';
 import { getSpec } from '../sim/board/specs';
 import { dev, key, PURCHASES, snap, STARTER_CRATE } from './testdata';
+import type { KeySnap, OsJobSnap, OsSnap, StorageSnap } from '../sim/game/game';
 
 const cpuSpec = getSpec('cpu0') as Extract<ReturnType<typeof getSpec>, { kind: 'cpu' }>;
 const stockCooler = getSpec('cooler0') as Extract<ReturnType<typeof getSpec>, { kind: 'cooler' }>;
@@ -236,5 +237,118 @@ describe('overclock zones (the same steady-state heat model as thermal.ts)', () 
   it('a bigger cooler moves the zones up', () => {
     const big = getSpec('cooler2') as Extract<ReturnType<typeof getSpec>, { kind: 'cooler' }>;
     expect(clockZones(cpuSpec, big).unstableAt).toBeGreaterThan(clockZones(cpuSpec, stockCooler).unstableAt);
+  });
+});
+
+describe('the OS section (the OS badge and the drive that hosts it)', () => {
+  const hdd: StorageSnap = {
+    deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
+    usedBytes: 12 * 1024, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 720, blockTicks: 72, bytesPerSecond: 3600, hasOs: true,
+  };
+  const job = (o: Partial<OsJobSnap>): OsJobSnap => ({ slot: 0, keyId: 1, label: '#1 log', state: 'queued', ahead: 0, ...o });
+  const osOn = (queue: OsJobSnap[] = [], o: Partial<OsSnap> = {}): OsSnap => ({
+    spec: 'os1', tier: 1, name: 'Resident OS 1.0', deviceId: 'dev-hdd', slot: 'sata0', programSlots: 1, queueSlots: 4,
+    up: true, queue, runningKeyId: null, ...o,
+  });
+  const withOs = (queue: OsJobSnap[] = [], extra: Parameters<typeof snap>[0] = {}) =>
+    snap({
+      storage: [hdd], devices: [dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0', name: 'HDD 96K' })],
+      os: osOn(queue), powered: true, phase: 'running-os',
+      purchases: [...PURCHASES, {
+        id: 'os2', name: 'Cooperative OS', kind: 'os', price: 600, affordable: false, later: true,
+        blocked: 'planned: not available yet', description: 'Cooperative multitasking: several programs resident at once. Planned.',
+      }],
+      ...extra,
+    });
+
+  it('is null without an OS', () => {
+    expect(osSection(snap())).toBeNull();
+  });
+
+  it('gives the OS name, tier, status, slot counts and host drive space', () => {
+    const sec = osSection(withOs())!;
+    expect(sec.name).toBe('Resident OS 1.0');
+    expect(sec.tier).toBe(1);
+    expect(sec.status).toBe('Running job');
+    expect(sec.programSlots).toBe(1);
+    expect(sec.queueSlots).toBe(4);
+    expect(sec.host).toEqual({ slot: 'sata0', usedK: 12, capK: 96 });
+  });
+
+  it('lists queue rows with the job type and how many are ahead; the running job is named', () => {
+    const keys: KeySnap[] = [key({ id: 7, label: '#7 scan', type: 'scan', stage: 'queued' })];
+    const s = withOs([
+      job({ keyId: 5, label: '#5 log', state: 'running', ahead: 0 }),
+      job({ keyId: 7, label: '#7 scan', state: 'queued', ahead: 1, slot: 1 }),
+      job({ keyId: 9, label: '#9 calc', state: 'queued', ahead: 2, slot: 2 }),
+    ], { held: keys, tray: [] });
+    const sec = osSection(s)!;
+    expect(sec.running).toBe('#5 log');
+    expect(sec.queue.map((q) => [q.label, q.text])).toEqual([['#5 log', 'running now'], ['#7 scan', '1 ahead'], ['#9 calc', '2 ahead']]);
+    expect(sec.queue[1]!.type).toBe('scan');
+    expect(sec.queue.length).toBe(3);
+  });
+
+  it('a finished result waits in the queue as done, and a held key says to plug it in again', () => {
+    const s = withOs([job({ keyId: 3, label: '#3 log', state: 'result', ahead: -1 })], {
+      held: [key({ id: 3, label: '#3 log', stage: 'result' })], tray: [],
+    });
+    const sec = osSection(s)!;
+    expect(sec.queue[0]!.text).toBe('done, waiting for you');
+    expect(sec.held).toEqual([{ keyId: 3, label: '#3 log', hint: 'plug key 3 again to collect' }]);
+  });
+
+  it('a held key still in the queue says it is waiting', () => {
+    const sec = osSection(withOs([], { held: [key({ id: 4, label: '#4 log', stage: 'queued' })], tray: [] }))!;
+    expect(sec.held[0]!.hint).toBe('waiting in the OS queue');
+  });
+
+  it('the ladder offers the later tiers locked, with their description', () => {
+    const sec = osSection(withOs())!;
+    const later = sec.ladder.filter((r) => r.state === 'locked');
+    expect(later.map((r) => r.specId)).toEqual(['os2', 'os3']);
+    expect(later[0]!.reason).toMatch(/Cooperative/);
+  });
+
+  it('the drive that hosts the OS shows the section; another drive does not', () => {
+    const host = pickerFor('dev-hdd', withOs())!;
+    expect(host.osSection?.name).toBe('Resident OS 1.0');
+    expect(host.actions.map((a) => a.id)).toContain('uninstallOs');
+
+    const other: StorageSnap = { ...hdd, deviceId: 'dev-ssd', slot: 'sata1', spec: 'ssd1', hasOs: false };
+    const s2 = snap({
+      storage: [hdd, other],
+      devices: [dev({ id: 'dev-hdd', spec: 'hdd0', kind: 'storage', slot: 'sata0' }), dev({ id: 'dev-ssd', spec: 'ssd1', kind: 'storage', slot: 'sata1' })],
+      os: osOn(), powered: false, phase: 'off',
+    });
+    expect(pickerFor('dev-ssd', s2)!.osSection).toBeFalsy();
+    expect(pickerFor('dev-ssd', s2)!.actions.map((a) => a.id)).not.toContain('uninstallOs');
+  });
+
+  it('the os badge opens the OS section with uninstall, and the ladder sits inside the section', () => {
+    const on = pickerFor('os', withOs())!;
+    expect(on.kind).toBe('os');
+    expect(on.osSection?.name).toBe('Resident OS 1.0');
+    expect(on.actions.map((a) => a.id)).toEqual(['uninstallOs']);
+    expect(on.ladder).toEqual([]);
+    expect(on.title).toBe('Resident OS 1.0');
+  });
+
+  it('uninstall is refused while the machine is on (the reason is the disabled tooltip)', () => {
+    const a = pickerFor('os', withOs())!.actions[0]!;
+    expect(a.why).toMatch(/Power the machine off/);
+  });
+
+  it('the bay offers the operating systems while none is installed, and not once one is', () => {
+    const none = pickerFor('bay', snap({ storage: [], devices: [] }))!;
+    expect(none.shelf?.map((r) => r.specId)).toEqual(['os1', 'os2', 'os3']);
+    expect(pickerFor('bay', withOs())!.shelf).toBeUndefined();
+  });
+
+  it('the badge describes the OS on this drive, not the monitor screen', () => {
+    const desc = pickerFor('os', withOs())!;
+    expect(desc.nerd).toMatch(/tier 1/);
+    expect(desc.plain).toMatch(/installed on the drive/);
+    expect(desc.plain).toMatch(/monitor only shows its text/);
   });
 });

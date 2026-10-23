@@ -175,6 +175,11 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .rtier { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .rname { font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rfoot { min-height: 20px; display: flex; align-items: center; justify-content: center; }
+/* OS section on the picker (the OS badge and its host drive) */
+.os-sec .osrow { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr); gap: 6px; align-items: baseline; font-size: 11px; padding: 2px 0; }
+.os-sec .osrow .oname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.os-sec .osrow .ok { color: var(--ok); }
+
 .need { display: inline-flex; align-items: center; gap: 3px; font: 600 10.5px var(--mono); }
 .need.ok { color: var(--ok); }
 .need.warn { color: var(--warn); }

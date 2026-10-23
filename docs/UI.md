@@ -72,6 +72,7 @@ Opens only when `selected` is set. Escape or the x closes it. For a part it show
 - **CPU clock dial** (installed, working CPU): a track with three zones, **safe**, **throttle** and **unstable**, from the sim's own steady-state heat model (`clockZones`, the same numbers as `thermal.ts`: the clock at which a full-load CPU with the installed cooler reaches its throttle and unstable temperatures). A knob shows the clock in its zone colour, a chip says the zone word, and the estimated temperature (`estTempC`) sits beside it. The slider is a transparent range input over the track.
 - **Actions**: Power on/off, Power cycle after a trip, Plug into USB, Remove key (get paid). Disabled actions carry the sim's reason as their tooltip.
 - **Details**: the nerd text, collapsed.
+- **The OS is on its drive, not the monitor.** The monitor is one object and only shows the OS text. The installed OS has an **OS badge** on the drive that hosts it (id `os`, present only while an OS is installed). Clicking the badge (`os`) or the host drive (its device id) opens the same card: the **OS section** (`osSection(s)` in `picker.ts`, rendered by `OsBlock`). It shows the name and tier, the status chip (the phase), programs at once and queue slots, the host drive's used and total space, the running job, each queue row with job type, state and how many jobs are ahead (next, 2 ahead, done waiting for you), held keys with plug key X again to collect, the ladder with later tiers locked and their description, and **Uninstall OS** (two presses). Other drives show no OS section. With no OS installed, the drive bay (`bay`) shows the **Operating systems** shelf to buy from.
 - **Storage and OS**: a drive shows its used and total capacity (its `sata`/`m2` socket is "drag a drive here"); a drive's stats are capacity, latency, throughput (`drivePerSecond`, bytes/s) and power. The OS shows programs, queue slots, memory and disk needed, with the later tiers locked and their description on hover. An installed OS has **Uninstall OS**, which takes two presses (the first asks, the second wipes the drive via `store.uninstallOs`). A spare that the sim will not fit shows its reason (memory, free space, no slot) in its rung.
 
 Buttons that the sim would refuse are disabled, with the reason in their tooltip. A press the sim still refuses shows the **Notice**.
@@ -98,12 +99,12 @@ The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/s
 | 13 | Fit your new part | no bought upgrade still in the inventory (`pendingUpgrade`: a higher tier than the best installed of its kind; a swap counts) | `inv:` item and its socket (free or swap) |
 | 14 | Buy a drive | live: a storage item owned or installed | `bay` |
 | 15 | Install the drive | `storageInstalled` | `inv:` storage item and its `sata`/`m2` slot |
-| 16 | Buy an operating system | live: an OS owned or installed | `os` |
+| 16 | Buy an operating system | live: an OS owned or installed | `bay` (the systems are listed on the bay's shelf) |
 | 17 | Install the OS on the drive | `osInstalled` | `inv:` OS item and the drive's slot |
-| 18 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `os`, `bay` |
+| 18 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `monitor` (boot text), `os` (the badge) |
 | 19 | Plug in a key: the OS takes it | live: `held` non-empty, or the plugged key is `queued`, `running`, `result`, `flashing` or `done` | `usb`, `key:` |
 | 20 | Unplug it: the OS keeps the job | live: `held` non-empty, or the plugged key is `result`, `flashing` or `done` | `usb`, `key:` |
-| 21 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `monitor`, `os`, `held` |
+| 21 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `os` (the badge), `held` |
 | 22 | Plug the key back in to collect | live: the plugged key is `flashing` or `done` | `usb`, `key:` |
 | 23 | Remove the key to get paid | `firstOsJob` | `usb`, `key:` |
 | - | Workshop open (Got it): the OS runs jobs; a network card and a router will replace the USB keys | none (button) | none |

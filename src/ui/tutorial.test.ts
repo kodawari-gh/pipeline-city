@@ -200,10 +200,10 @@ describe('the OS steps (live state and phases)', () => {
     expect(STEPS.find((x) => x.id === 'os')!.targets(s)).toEqual(['inv:inv6', 'sata0']);
   });
 
-  it('the boot step is done in any running OS phase, and points at the monitor and the drive bay', () => {
+  it('the boot step is done in any running OS phase, and points at the monitor and the OS badge', () => {
     const s = afterSpend({ progress: { ...oldDone(), storageInstalled: true, osInstalled: true }, storage: [drive({ hasOs: true })], os: osOn(), phase: 'idle-os', powered: true });
     expect(idOf(currentStep(s, welcomed))).toBe('osIngest');
-    expect(STEPS.find((x) => x.id === 'bootOs')!.targets(s)).toEqual(['power', 'os', 'bay']);
+    expect(STEPS.find((x) => x.id === 'bootOs')!.targets(s)).toEqual(['power', 'monitor', 'os']);
   });
 
   const osFlow = (extra: Partial<Parameters<typeof snap>[0]>) =>
@@ -213,7 +213,7 @@ describe('the OS steps (live state and phases)', () => {
     const held = key({ id: 7, stage: 'queued' });
     const s = osFlow({ held: [held] });
     expect(idOf(currentStep(s, welcomed))).toBe('osWait');
-    expect(STEPS.find((x) => x.id === 'osWait')!.targets(s)).toEqual(['monitor', 'os', 'held']);
+    expect(STEPS.find((x) => x.id === 'osWait')!.targets(s)).toEqual(['os', 'held']);
   });
 
   it('a key plugged and queued: the next step is to unplug it', () => {
@@ -368,9 +368,9 @@ describe('step targets (what the renderer pulses)', () => {
     expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap({ tray: [key({ id: 9 })] }))).toEqual(['usb', 'key:9']);
   });
 
-  it('the drive bay and the OS area on the monitor are the targets of their buy steps', () => {
+  it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {
     expect(STEPS.find((x) => x.id === 'buyDrive')!.targets(snap())).toEqual(['bay']);
-    expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['os']);
+    expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['bay']);
   });
 });
 
