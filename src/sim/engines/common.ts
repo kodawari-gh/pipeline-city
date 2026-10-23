@@ -1,7 +1,7 @@
 // Shared pieces of the timed engines: op tables, execute semantics, data cache, instruction pool, engine base class.
 // Everything dynamic lives in typed arrays (structure-of-arrays); there are no per-instruction objects.
 
-import { decode, OPS, SPEC_BY_NAME } from "../isa/isa";
+import { OPS, SPEC_BY_NAME } from "../isa/isa";
 import type { Bus } from "../machine/bus";
 import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
@@ -36,6 +36,11 @@ for (const s of OPS) {
   if (s.name === "jalr") f |= F.Jalr;
   OPF[s.op] = f;
 }
+
+/** Per-opcode format code for decoding straight into the pool arrays (0 = illegal opcode). */
+const FMT_R = 1, FMT_I = 2, FMT_SB = 3, FMT_U = 4, FMT_J = 5, FMT_N = 6;
+const OP_FMT = new Uint8Array(128);
+for (const s of OPS) OP_FMT[s.op] = { R: FMT_R, I: FMT_I, S: FMT_SB, B: FMT_SB, U: FMT_U, J: FMT_J, N: FMT_N }[s.fmt];
 
 /** ALU / address-generation result for non-branch ops (semantics identical to src/sim/ref). */
 function alu(op: number, a: number, b: number, imm: number, pc: number): number {
@@ -137,16 +142,23 @@ export class InstrPool {
     this.op[slot] = 0;
   }
 
-  /** Decode the fetched word into the slot (uses isa decode). Illegal words leave op = 0. */
+  /**
+   * Decode the fetched word into the slot's fields without allocating (same bit layout and the same zeros for
+   * unused fields as `decode` in isa.ts, which the tests compare against). Illegal words leave op = 0.
+   */
   decodeSlot(slot: number): void {
-    const w = this.word[slot]!;
-    const d = decode(w);
-    if (!d) {
-      this.op[slot] = 0; this.rd[slot] = 0; this.rs1[slot] = 0; this.rs2[slot] = 0; this.imm[slot] = 0;
-      return;
+    const w = this.word[slot]! | 0;
+    const fmt = OP_FMT[w & 0x7f]!;
+    let rd = 0, rs1 = 0, rs2 = 0, imm = 0;
+    switch (fmt) {
+      case FMT_R: rd = (w >>> 7) & 0xf; rs1 = (w >>> 11) & 0xf; rs2 = (w >>> 15) & 0xf; break;
+      case FMT_I: rd = (w >>> 7) & 0xf; rs1 = (w >>> 11) & 0xf; imm = w >> 15; break;
+      case FMT_SB: rs1 = (w >>> 11) & 0xf; rs2 = (w >>> 15) & 0xf; imm = ((w >> 19) << 4) | ((w >>> 7) & 0xf); break;
+      case FMT_U: rd = (w >>> 7) & 0xf; imm = w >>> 11; break;
+      case FMT_J: rd = (w >>> 7) & 0xf; imm = w >> 11; break;
     }
-    this.op[slot] = w & 0x7f;
-    this.rd[slot] = d.rd; this.rs1[slot] = d.rs1; this.rs2[slot] = d.rs2; this.imm[slot] = d.imm;
+    this.op[slot] = fmt === 0 ? 0 : w & 0x7f;
+    this.rd[slot] = rd; this.rs1[slot] = rs1; this.rs2[slot] = rs2; this.imm[slot] = imm;
   }
 }
 
