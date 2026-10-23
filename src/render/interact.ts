@@ -7,7 +7,7 @@ import type { Camera, Grab } from './camera';
 import { drawPlug, ACCENT } from './devices';
 import { box, MONO, mix } from './ink';
 import { BD, type Rect } from './layout';
-import { keyStick, partIcon, ICON, type PropObj } from './props';
+import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
 
@@ -33,7 +33,7 @@ export interface SceneInfo {
   rects: Map<string, Rect>;
   /** Ids that animate on hover. */
   interactive: Set<string>;
-  /** Props whose node lifts on hover (crate parts, tray keys, power button, plugged key). */
+  /** Props whose node lifts on hover (tray keys, power button, plugged key). */
   props: Map<string, PropObj>;
   cables: Map<CableKind, CableInfo>;
   /** Slot id to its world rect (empty or occupied). */
@@ -73,6 +73,7 @@ export class Interact {
     id: string;
     /** Current pointer (client) and world position. */
     cx: number; cy: number; wx: number; wy: number;
+    /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
     /** cable */ cable?: CableInfo; snapped?: boolean;
     /** key */ fromPlugged?: boolean; keyId?: number;
@@ -100,6 +101,40 @@ export class Interact {
   }
 
   setTheme(T: Theme) { this.T = T; }
+
+  /** A drag is in progress (board.ts uses it to stop hover updates). */
+  get busy() { return !!this.drag; }
+
+  /**
+   * Start dragging an inventory part from a DOM pointerdown outside the canvas (the inventory menu). Tracks the pointer on
+   * window until release: drop on a valid socket installs, anything else (other socket, off canvas, Escape) snaps back.
+   */
+  beginPartDrag(invId: string, e: PointerEvent) {
+    if (this.drag) return;
+    const id = e.pointerId;
+    if (!this.beginPart(invId, e.clientX, e.clientY)) return;
+    try { (e.target as Element | null)?.setPointerCapture?.(id); } catch { /* not capturable (synthetic event) */ }
+    const over = (cx: number, cy: number) => { const r = this.canvas.getBoundingClientRect(); return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; };
+    const end = (cx: number, cy: number, cancelled: boolean) => {
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', onBlur);
+      this.dragEnd(cx, cy, cancelled || !over(cx, cy));
+    };
+    let last: [number, number] = [e.clientX, e.clientY];
+    const onMove = (m: PointerEvent) => { if (m.pointerId !== id) return; last = [m.clientX, m.clientY]; this.dragMove(m.clientX, m.clientY); };
+    const onUp = (m: PointerEvent) => { if (m.pointerId === id) end(m.clientX, m.clientY, false); };
+    const onCancel = (m: PointerEvent) => { if (m.pointerId === id) end(m.clientX, m.clientY, true); };
+    const onKey = (k: KeyboardEvent) => { if (k.key === 'Escape') { k.stopPropagation(); end(last[0], last[1], true); } };
+    const onBlur = () => end(last[0], last[1], true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onCancel, true);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', onBlur);
+  }
 
   // ------------------------------------------------------------------ helpers
 
@@ -134,7 +169,7 @@ export class Interact {
   }
 
   private isDraggable(id: string | null) {
-    return !!id && (id.startsWith('inv:') || id.startsWith('key:') || (id.startsWith('cable.') && this.plugHit(id)));
+    return !!id && (id.startsWith('key:') || (id.startsWith('cable.') && this.plugHit(id)));
   }
   private plugHit(id: string) { return this.scene.cables.has(id.slice(6) as CableKind); }
 
@@ -198,7 +233,6 @@ export class Interact {
       if (!ci || ci.state === 'held' || !inside(ci.plug, wx, wy, 30)) return null;
       return this.pending(cx, cy, id, () => this.beginCable(ci, cx, cy));
     }
-    if (id.startsWith('inv:')) return this.pending(cx, cy, id, () => this.beginPart(id.slice(4), cx, cy));
     if (id.startsWith('key:')) return this.pending(cx, cy, id, () => this.beginKey(Number(id.slice(4)), cx, cy));
     return null;
   }
@@ -238,7 +272,7 @@ export class Interact {
     d.validFree = new Set(it.freeSlots); d.validSwap = new Set(it.swapSlots);
     d.why = s.powered ? 'Power the machine off first' : it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
     this.setGhost(partIcon(this.T, it.kind, it.spec), 1);
-    this.setDim('inv:' + invId, true);
+    d.home = [d.wx, d.wy];
     return true;
   }
 
@@ -255,7 +289,7 @@ export class Interact {
     const d = this.start('key', 'key:' + keyId, cx, cy);
     d.fromPlugged = fromPlugged; d.keyId = keyId;
     d.why = !fromPlugged && s.plugged ? 'A key is already in the USB port' : null;
-    this.setGhost(keyStick(this.T, k), 2);
+    this.setGhost(keyStick(this.T, k, fromPlugged), 2);
     this.setDim('key:' + keyId, true);
     return true;
   }
@@ -345,9 +379,7 @@ export class Interact {
       this.back.push({ c, fx: gx, fy: gy, tx, ty, t0: performance.now(), to });
     };
     if (d.kind === 'part') {
-      this.setDim(d.id, false);
       const it = s?.inventory.find((x) => x.id === d.id);
-      const o = this.scene.props.get('inv:' + d.id);
       if (!cancelled && s && it && d.over && !d.why) {
         const r = d.over === 'board' ? BD : this.scene.slots.get(d.over)!;
         this.act(cx, cy);
@@ -359,7 +391,7 @@ export class Interact {
           if (d.why) { if (slot || inside(BD, d.wx, d.wy)) this.toast(d.why, cx, cy); }
           else if (slot) this.toast(`${it.name} does not fit the ${slot.replace(/\d+$/, '')} socket.`, cx, cy);
         }
-        flash('return', o ? o.base.x : gx, o ? o.base.y : gy);
+        flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy);
       }
     } else if (d.kind === 'key') {
       this.setDim(d.id, false);
@@ -503,7 +535,7 @@ export class Interact {
       this.ghost.alpha = ok ? 0.92 : 0.5;
       if (d.why) this.note(d.why, d.cx, d.cy, T.bad);
     } else if (d.kind === 'key') {
-      const sc = clamp(170 / (600 * z), 1, 3);
+      const sc = clamp(300 / (KEY_LEN * z), 1, 3), half = d.fromPlugged ? KEY_LEN_PLUGGED / 2 : KEY_LEN / 2;
       const over = inside(this.scene.usb, d.wx, d.wy, 170);
       if (!d.fromPlugged) {
         const r = this.scene.usb;
@@ -517,12 +549,12 @@ export class Interact {
       }
       // the stick follows the pointer, centred a little ahead of it; seats into the port when over it
       if (!d.fromPlugged && over && !d.why) {
-        const p = this.scene.props.get('usb-seat');
-        void p;
-        this.ghost.position.set(this.scene.usb.x + 190 - 300, this.scene.usb.y + this.scene.usb.h / 2);
-        this.ghost.scale.set(1);
+        // seats compactly, like the plugged key
+        this.ghost.position.set(this.scene.usb.x + 190 - KEY_LEN * 0.5 * 0.51, this.scene.usb.y + this.scene.usb.h / 2);
+        this.ghost.scale.set(0.51);
       } else {
-        this.ghost.position.set(d.wx - 150 * sc, d.wy);
+        // the pointer holds the plug end
+        this.ghost.position.set(d.wx - (half - 40) * sc, d.wy);
         this.ghost.scale.set(sc);
       }
       this.ghost.rotation = 0;

@@ -10,10 +10,10 @@ import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuAr
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { box, clear, dashed, label } from './ink';
 import {
-  BD, BLOCKS, BR, COOLER, CRATE, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PKG, PSU, PSU_PANEL, REGIONS, SCREEN, STAGES, TRAY,
+  BD, BLOCKS, BR, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PKG, PSU, PSU_PANEL, REGIONS, SCREEN, STAGES, TRAY,
   USB_PORT, WORLD, type Rect,
 } from './layout';
-import { crateArt, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
+import { drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -30,9 +30,9 @@ const BAKE_RES = 0.4;
 /** Below this zoom the static devices, PSU, monitor and cables are one baked texture too. */
 const Z_BAKE_DEV = 0.14;
 const DEV_BAKE_RES = 0.25;
-/** Below this zoom the crate, tray and power plate chrome (boxes, labels) is one baked texture. */
+/** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
 const Z_BAKE_PROPS = 0.2;
-const PROPS_FRAME = new Rectangle(-7560, 280, 4130, 3320);
+const PROPS_FRAME = new Rectangle(-7560, 280, 4130, 2150);
 
 /** The routed cables never change (geometry only); built once. */
 const ALL_CABLES = buildCables();
@@ -46,8 +46,13 @@ let interactRef: Interact | null = null;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 export function flyToBoard() { cameraRef?.flyTo(cameraRef.fit(WORLD)); }
 /**
- * Fly the camera to a world object by id (any id listed in docs/RENDER.md: slot ids, device ids, 'inv:<id>', 'key:<id>',
- * 'crate', 'tray', 'usb', 'power', 'monitor', 'psu', 'chipset', 'board', 'cable.atx|cpu|video'). Unknown ids do nothing.
+ * Start dragging an inventory part from a DOM pointerdown that happened outside the canvas (the inventory menu).
+ * Ghost, pulsing targets, install on drop, snap back with a message on failure. Escape or a release outside the canvas cancels.
+ */
+export function beginPartDrag(inventoryId: string, event: PointerEvent): void { interactRef?.beginPartDrag(inventoryId, event); }
+/**
+ * Fly the camera to a world object by id (any id listed in docs/RENDER.md: slot ids, device ids, 'key:<id>',
+ * 'tray', 'usb', 'power', 'monitor', 'psu', 'chipset', 'board', 'cable.atx|cpu|video'). Unknown ids do nothing.
  * Returns whether the id was found.
  */
 export function flyTo(id: string): boolean {
@@ -273,7 +278,6 @@ export async function mountBoard(host: HTMLElement) {
     }
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
     scene.rects.set('usb', USB_PORT); scene.interactive.add('usb'); scene.usb = USB_PORT;
-    scene.rects.set('crate', CRATE); scene.interactive.add('crate');
     scene.rects.set('tray', TRAY); scene.interactive.add('tray');
 
     mainHits = [...dieHits];
@@ -347,12 +351,12 @@ export async function mountBoard(host: HTMLElement) {
     mergeHits();
   }
 
-  // ---- props: crate, tray, power button, the key in the USB port ----
+  // ---- props: tray, power button, the key in the USB port ----
   function syncProps(s: Snapshot | null, force = false) {
     const powered = !!s?.powered, error = s?.phase === 'error' || !!s?.power.tripped;
     powerState = { powered, error, blocked: !!s?.noPowerReason };
     const key = [
-      T.dark, s ? s.inventory.map((i) => i.id).join(',') : '', s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}`).join(',') : '',
+      T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}` : '-', powered, error,
     ].join('|');
     if (!force && key === propsKey) return;
@@ -378,13 +382,12 @@ export async function mountBoard(host: HTMLElement) {
     add(powerArtRef);
     if (s?.plugged) add(pluggedKeyArt(T, s.plugged));
     add(trayArt(T, s?.tray ?? []));
-    add(crateArt(T, s?.inventory ?? []));
     for (const a of propsArt) order.push(...a.objs);
-    // hit order: power, plugged key, tray keys, crate parts, then the port, crate and tray bodies
+    // hit order: power, plugged key, tray keys, then the port and tray bodies
     propHits = [
       ...order.map((o) => ({ id: o.id, rect: o.rect })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
-      { id: 'crate', rect: CRATE }, { id: 'tray', rect: TRAY },
+      { id: 'tray', rect: TRAY },
     ];
     chromeLayer.visible = true;
     chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: PROPS_FRAME, resolution: 0.3, antialias: true }));
@@ -429,6 +432,7 @@ export async function mountBoard(host: HTMLElement) {
   interact.hitAt = hitAt;
   interact.onHeld = (k) => { held = k; if (lastSnap || k === null) syncCables(lastSnap, true); };
   camera.onHover = (p) => {
+    if (interact.busy) { if (hover.peek()) hover.value = null; return; }
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
     const id = hitAt(p.x, p.y);
     interact.setHover(id);
