@@ -85,9 +85,10 @@ describe("PCH device", () => {
 describe("the loader on the real engine", () => {
   it("copies the key's program into RAM at USER_BASE with load/store instructions, then runs it", () => {
     const g = new Game({ seed: 3, preassembled: true, economy: { baseDemandPerTick: 0 } });
-    while (g.currentPhase() !== "waiting-for-key") g.advanceBaseTick();
+    g.powerButton();
     const key = g.toSave().tray[0]!;
     g.plugKey(key.id);
+    g.powerButton(); // the key goes in while the machine is off; the loader reads it at boot
     while (g.currentPhase() !== "running") g.advanceBaseTick();
     const want = generate(key.template, key.seed, { scale: key.scale, row: JOB_ROW, hosted: true }).program;
     const ram = new Uint32Array(g.machine.ram.buffer, USER_BASE, want.length);

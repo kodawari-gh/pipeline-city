@@ -5,7 +5,7 @@ import type { KeyActivity } from '../sim/game/game';
 import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
-import { BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, type Rect } from './layout';
+import { BD, BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
@@ -47,6 +47,14 @@ export class Live {
   private extDots: Sprite[] = [];
   private interior = true;
   private pchDrawn = false;
+  /** The VRM: per-phase glow, power-good light, crash flash (vrmG); the dead-board dimming and scorch (deadG). */
+  private vrmG = new Graphics();
+  private deadG = new Graphics();
+  private vrm: Snapshot['board']['vrm'] | null = null;
+  private dead = false;
+  private deadDrawn = false;
+  private vrmFlashUntil = -1e9;
+  private lastFault: string | null = null;
   private glows = new Map<string, Glow>();
   private fans: { c: Container; kind: string; speed: number; target: number }[] = [];
   private dots: Sprite[] = [];
@@ -148,10 +156,12 @@ export class Live {
     flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
   ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.extDots = [];
+    this.root.addChild(this.deadG);
+    this.deadDrawn = false;
     this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
     this.hasPsu = flags.psu;
@@ -229,7 +239,7 @@ export class Live {
     }
     if (!this.badgeText) this.badgeText = new Text({ text: 'OS', style: { fontFamily: HEAD, fontSize: 44, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
     this.badgeText.anchor.set(0, 0.5);
-    this.root.addChild(this.badgeG, this.badgeText);
+    this.root.addChild(this.vrmG, this.badgeG, this.badgeText);
     this.root.addChild(this.bootG, this.gauge, this.badge, this.panelFan, ...Object.values(this.psuTexts));
     if (cables.some((c) => c.kind === 'video')) for (let i = 0; i < 3; i++) {
       const sp = new Sprite(this.dotTex);
@@ -358,6 +368,13 @@ export class Live {
     }
     this.keyActivity = s.keyActivity ?? 'none';
     this.updateOsScreen(s, now);
+    // the board: VRM state for the glow, a dead board for the dimming; a new 'fault' in the log flashes the VRM once
+    this.vrm = s.board?.vrm ?? null;
+    this.dead = !!s.board?.burnt;
+    const fault = [...(s.log ?? [])].reverse().find((e) => e.kind === 'fault');
+    const fkey = fault ? `${fault.tick}|${fault.text}` : '';
+    if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
+    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashUntil = now + 900; }
     // no power, no motion: a switched off, tripped or dead machine has no pulses, flashes or spinning drives
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
     if (!this.liveOn) {
@@ -391,6 +408,12 @@ export class Live {
         const f = this.fans.find((x) => x.kind === 'cooler');
         if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
       }
+      if (d.kind === 'vrm-sink') {
+        // the heatsink fan follows the CPU load (its draw is 0.3 W idle to 1.5 W under load) and stops with the power
+        const f = this.fans.find((x) => x.kind === 'vrm');
+        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
+        continue;
+      }
       if (d.kind === 'psu') {
         const f = this.fans.find((x) => x.kind === 'psu');
         if (f) f.target = !this.liveOn ? 0 : 1 + 8 * clamp(ratio);
@@ -405,9 +428,11 @@ export class Live {
       this.drawGlow(gl, col, d.burnt);
     }
     this.drawPsu(s);
+    this.drawDead();
 
     // badge over the CPU
-    if (cpu?.burnt) this.setBadge('CPU BURNT OUT', T.bad);
+    if (this.dead) this.setBadge('BOARD DEAD', T.bad);
+    else if (cpu?.burnt) this.setBadge('CPU BURNT OUT', T.bad);
     else if (s.power.tripped) this.setBadge('PSU TRIPPED', T.bad);
     else if (s.power.off) this.setBadge('NO POWER', T.bad);
     else if (cpu?.unstable) this.setBadge('UNSTABLE', T.bad);
@@ -424,6 +449,65 @@ export class Live {
       this.screenText.text = lines.slice(-rows).join('\n');
     }
     this.screenText.alpha = 1;
+  }
+
+  /** A dead board: the whole board dimmed, the VRM scorched and cracked. Static; redrawn only when the state flips. */
+  private drawDead() {
+    if (this.dead === this.deadDrawn) return;
+    this.deadDrawn = this.dead;
+    const g = this.deadG, T = this.T;
+    g.clear();
+    if (!this.dead) return;
+    box(g, BD.x, BD.y, BD.w, BD.h, 150, { fill: T.dark ? T.bg : '#1b2236', fa: T.dark ? 0.5 : 0.4 });
+    const v = BR.vrm;
+    // soot: dark, uneven blots over the phase blocks and the heatsink pad
+    for (let i = 0; i < 6; i++) {
+      const r = vrmPhase(i), k = (i * 37) % 5;
+      g.ellipse(r.x + r.w / 2 + (k - 2) * 14, r.y + 120 + (k % 3) * 40, 150 - k * 8, 170 - k * 12).fill({ color: '#000000', alpha: 0.4 });
+    }
+    g.ellipse(v.x + v.w / 2, v.y + 150, v.w * 0.42, 150).fill({ color: '#000000', alpha: 0.28 });
+    const s = VRM_SINK;
+    g.rect(s.x, s.y, s.w, s.h).fill({ color: '#000000', alpha: 0.2 });
+    // cracks
+    g.moveTo(v.x + 520, v.y + 40).lineTo(v.x + 560, v.y + 150).lineTo(v.x + 520, v.y + 250).lineTo(v.x + 590, v.y + 380);
+    g.moveTo(v.x + 1500, v.y + 60).lineTo(v.x + 1460, v.y + 190).lineTo(v.x + 1530, v.y + 300);
+    g.stroke({ width: 8, color: '#000000', alpha: 0.7, cap: 'round', join: 'round' });
+    g.moveTo(v.x + 520, v.y + 40).lineTo(v.x + 560, v.y + 150).lineTo(v.x + 520, v.y + 250).lineTo(v.x + 590, v.y + 380);
+    g.stroke({ width: 2.5, color: T.bad, alpha: 0.5, cap: 'round', join: 'round' });
+  }
+
+  /** The VRM glow (phases light in turn, calm when cool, amber when hot, red when unstable), the power-good light and the crash flash. */
+  private drawVrm(now: number) {
+    const g = this.vrmG, T = this.T, v = this.vrm;
+    g.clear();
+    if (!v) return;
+    // power-good light: green when healthy, amber blink when unstable, red blink when the board is dead, dark with no power
+    let col: string | null = null, on = true;
+    if (this.dead) { col = T.bad; on = Math.floor(now / 450) % 2 === 0; }
+    else if (this.liveOn) { col = v.unstable ? T.ld : T.st; on = v.unstable ? Math.floor(now / 220) % 2 === 0 : true; }
+    if (col) {
+      if (on) g.circle(VRM_LED.x, VRM_LED.y, 38).fill({ color: col, alpha: 0.28 });
+      g.circle(VRM_LED.x, VRM_LED.y, 14).fill({ color: on ? col : '#2a3150', alpha: on ? 1 : 0.7 });
+    }
+    if (this.liveOn && !this.dead) {
+      const load = clamp(v.loadRatio), heat = clamp((v.tempC - 45) / Math.max(10, v.throttleC - 45));
+      const color = v.unstable ? T.bad : heat < 0.5 ? mix(T.alu, T.ld, heat * 2) : mix(T.ld, T.bad, (heat - 0.5) * 2);
+      const level = clamp(0.1 + 0.5 * load + 0.45 * heat);
+      const flick = v.unstable ? 0.65 + 0.35 * (Math.floor(now / 90) % 2) : 1;
+      for (let i = 0; i < v.phases; i++) {
+        // the phases fire one after another (interleaved), faster the harder the CPU pulls
+        const a = level * flick * (0.78 + 0.22 * Math.sin(now * (0.004 + 0.012 * load) - (i * Math.PI * 2) / v.phases));
+        const r = vrmPhase(i);
+        for (let k = 0; k < 3; k++) { const e = 6 + k * 14; box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 24 + e, { stroke: color, lw: 12, sa: a * 0.55 * (1 - k / 3) }); }
+        box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
+      }
+    }
+    const fl = clamp((this.vrmFlashUntil - now) / 900);
+    if (fl > 0) {
+      const b = BR.vrm, e = 30 * (1 - fl);
+      box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { fill: T.bad, fa: 0.55 * fl });
+      box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { stroke: '#ffffff', lw: 14, sa: 0.8 * fl });
+    }
   }
 
   /** PSU readout: draw versus budget gauge, temperature, fan. */
@@ -717,7 +801,7 @@ export class Live {
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
     this.drawOsBar(now);
-    if (inner) this.drawBadge(now);
+    if (inner) { this.drawBadge(now); this.drawVrm(now); }
 
     this.drawBoot(now, dt);
 

@@ -1,10 +1,11 @@
 // The PCH boot ROM: a small loader written in the toy ISA, assembled from the asm below. The PCH shadows the image
 // into RAM at address 0 at power-on and the CPU runs it on the real engine, so boot time depends on CPU speed.
 //
-//   boot: blank screen -> POST lines (CPU tier and RAM size are read from PCH registers) -> wait for a USB key
-//         -> copy the key's program into RAM at USER_BASE through the PCH key window (lw/sw) -> jump to it.
+//   boot: blank screen -> POST lines (CPU tier and RAM size are read from PCH registers) -> check the USB port ONCE:
+//         no key -> "NO BOOT MEDIA: INSERT A KEY AND RESTART" and halt; key -> copy its program into RAM at USER_BASE
+//         through the PCH key window (lw/sw) -> jump to it. A key plugged after this check is never looked at.
 //   done (ROM_DONE_VECTOR): a finished job jumps here -> copy the result line into the PCH result window,
-//         write DONE -> show REMOVE KEY -> poll until the key is gone -> `j reset` (reboot, next job).
+//         write DONE -> show "JOB DONE: REMOVE KEY, THEN POWER OFF/ON" -> halt (spin) until the player power-cycles.
 //
 // See docs/ASSEMBLY.md for the sequence and the register map (src/sim/isa/memmap.ts).
 
@@ -82,20 +83,23 @@ export const ROM_SOURCE = [
   `  li t0, ${KERNEL_BASE}`,
   "  jalr ra, t0, 0",
   "keyloader:",
-  // --- wait for a key ---
-  ...setPhase(PchPhase.Waiting),
-  ...status("INSERT KEY"),
-  "wait:",
+  // --- the one and only key check (no OS): a key in the port now is the job; no key means halt. A key plugged later is ignored. ---
   `  lw t0, ${PCH_REG.STATUS}(s3)`,
   "  andi t1, t0, 1",
-  "  beq t1, zero, wait",
+  "  bne t1, zero, havekey",
+  "nomedia:",
+  ...setPhase(PchPhase.NoMedia),
+  ...status("NO BOOT MEDIA"),
+  ...textStores((STATUS_ROW + 1) * ROW, "INSERT A KEY AND RESTART"),
+  "  j halt",
+  "havekey:",
   "  andi t1, t0, 2", // the key already holds a result (power was cycled before it was removed)
   "  bne t1, zero, finished",
   // --- load the key's program ---
   ...setPhase(PchPhase.Loading),
   ...status("LOADING JOB"),
   `  lw t2, ${PCH_REG.KEY_LEN}(s3)`,
-  "  beq t2, zero, wait",
+  "  beq t2, zero, nomedia",
   "  slli t2, t2, 2",
   `  li t0, ${PCH_BASE + PCH_KEY_WINDOW}`,
   `  li t1, ${USER_BASE}`,
@@ -137,18 +141,13 @@ export const ROM_SOURCE = [
   "finished:",
   `  li s3, ${PCH_BASE}`,
   `  li s0, ${DISPLAY_BASE}`,
-  ...setPhase(PchPhase.Done),
-  ...status("REMOVE KEY"),
-  "remove:", // wait for the key to leave; the removed latch catches a pull and replug between two polls
-  `  lw t0, ${PCH_REG.STATUS}(s3)`,
-  "  andi t1, t0, 1",
-  "  beq t1, zero, gone",
-  "  andi t1, t0, 4",
-  "  beq t1, zero, remove",
-  "gone:",
-  "  j reset",
+  ...setPhase(PchPhase.Halted),
+  ...status("JOB DONE"),
+  ...textStores((STATUS_ROW + 1) * ROW, "REMOVE KEY, THEN POWER OFF/ON"),
+  "halt:", // nothing wakes the machine: the player power-cycles it by hand
+  "  j halt",
   "",
-  printDec("print_dec", 2).asm,
+    printDec("print_dec", 2).asm,
   "",
   BLK_READ,
   "",

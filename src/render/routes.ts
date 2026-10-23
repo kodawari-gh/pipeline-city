@@ -1,5 +1,5 @@
 import {
-  BR, DIMM_H, DIMM_X, DIMM_Y, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
+  BR, DIMM_GAP, DIMM_X, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 
 // Orderly routing. A route is a centre line made of horizontal, vertical and 45 degree segments; a bundle is that
@@ -96,13 +96,13 @@ export function buildBuses(): Bus[] {
   const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
   const buses: Bus[] = [];
 
-  // memory bus: CPU east edge -> down the channel west of the DIMMs -> under the DIMM bank; a comb of equal-length taps per DIMM
-  const mem = mk('mem', [[qx, 0], [1250, 0], [1250, 1000], [2300, 1000]], 10, 22, 11, 130);
-  mem.taps = [0, 1, 2, 3].map((d) => ({
+  // memory bus: CPU east edge straight between the two DIMM rows; a comb of equal-length taps per DIMM (row 0 taps go down, row 1 taps up)
+  const mem = mk('mem', [[qx, 0], [2300, 0]], 10, 22, 11, 130);
+  mem.taps = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => ({
     key: 'dimm' + d,
     lanes: Array.from({ length: 10 }, (_, k): Lane => {
-      const x = DIMM_X(d) + 24 + k * 14, ylane = 880, yb = DIMM_Y + DIMM_H;
-      return mkLane([[x, yb], [x, ylane]], k * 13);
+      const x = DIMM_X(d) + 24 + k * 14, up = d >= 4;
+      return mkLane([[x, up ? DIMM_GAP.y1 : DIMM_GAP.y0], [x, up ? 122 : -122]], k * 13);
     }),
   }));
   buses.push(mem);

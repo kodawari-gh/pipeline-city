@@ -80,14 +80,14 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
   it("the first job leaves its text on the monitor and on the key", () => {
     const g = new Game({ seed: 1 });
     const op = new Operator(g, 6); // the human is slow to pull the key
-    while (g.currentPhase() !== "done-remove-key") {
+    while (!(g.currentPhase() === "halted" && g.pluggedKey()?.done)) {
       g.advanceBaseTick();
       op.step();
     }
     for (let i = 0; i < 10; i++) g.advanceBaseTick(); // let the display drain
     const s = g.snapshot();
     expect(s.display).toMatch(/#\d\d .+ OK/);
-    expect(s.display).toContain("REMOVE KEY");
+    expect(s.display).toContain("JOB DONE");
     expect(s.plugged!.result).toMatch(/^#\d\d .+ OK$/);
   });
 });
@@ -268,14 +268,14 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
     expect(Math.abs(logCpu - logBoth)).toBeLessThanOrEqual(2); // while log is untouched by RAM
   });
 
-  it("boot time depends on the CPU: each tier reaches the key prompt sooner", () => {
+  it("boot time depends on the CPU: each tier gets through POST and the key check sooner", () => {
     const bootTicks = (items: string[]): number => {
       const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0 } });
       g.money = 1e6;
       for (const i of items) g.purchase(i);
       new Operator(g).assemble();
       let t = 0;
-      while (g.currentPhase() !== "waiting-for-key" && t < 500) { g.advanceBaseTick(); t++; }
+      while (g.currentPhase() !== "halted" && t < 500) { g.advanceBaseTick(); t++; } // no key: NO BOOT MEDIA
       return t;
     };
     const t0 = bootTicks([]);

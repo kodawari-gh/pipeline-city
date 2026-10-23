@@ -69,6 +69,8 @@ export const PchPhase = {
   Off: 0, Posting: 1, Waiting: 2, Loading: 3, Running: 4, Writing: 5, Done: 6,
   /** OS mode (the kernel writes these): booting the kernel from disk, idle, ingesting a key, running a job, flashing a result. */
   OsBoot: 7, OsIdle: 8, OsIngest: 9, OsRun: 10, OsFlash: 11,
+  /** No-OS flow: the ROM looks for a key once, after POST. Halted = the job is done (result written), NoMedia = no key at boot. Both spin until power-off. */
+  Halted: 12, NoMedia: 13,
 } as const;
 
 // ---- Storage ports (block devices) and the OS. See docs/BOARD.md (storage) and docs/OS.md.

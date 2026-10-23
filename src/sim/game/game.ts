@@ -1,9 +1,10 @@
 // Headless game loop: one Machine + Board + ThermalModel + PCH + USB key tray + economy.
 // Deterministic: all randomness comes from the machine PRNG. No DOM. See docs/GAME.md and docs/ASSEMBLY.md.
 //
-// The player builds the machine (install parts from the inventory, connect cables), presses power, and then serves
-// clients one USB key at a time: plug a key, the machine boots the ROM, which loads the key's program, runs it and
-// writes the result back; remove the key to get paid. Parts and cables can only change while the machine is off.
+// The player builds the machine (install parts from the inventory, connect cables) and serves clients one USB key at a
+// time. Without an OS: plug a key while the machine is off, press power; after POST the ROM looks at the USB port once,
+// loads the key's program, runs it, writes the result back and halts; remove the key to get paid, power off and on for
+// the next job. Parts and cables can only change while the machine is off.
 
 import {
   applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, bootCheck, BOARD_TIERS, CABLES, cableBlocked,
@@ -21,7 +22,7 @@ import { Disk, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
-  applyOffer, boardTierOf, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, reputation,
+  applyOffer, boardTierOf, demandRate, ECONOMY, offers, patienceMul, payMulFor, payout, pickTemplate, reputation,
   type EconomyConfig,
 } from "./economy";
 import {
@@ -157,11 +158,14 @@ export interface PurchaseSnap {
 }
 
 /**
- * Machine phase (see docs/ASSEMBLY.md and docs/OS.md). The first group is the boot-per-key flow; the second is what a
+ * Machine phase (see docs/ASSEMBLY.md and docs/OS.md). The first group is the no-OS flow (POST, one look at the USB
+ * port, load, run, write, then "halted" until the player power-cycles; `haltReason` says why); the second is what a
  * machine with an OS goes through: it boots the kernel once, then idles, ingests keys, runs jobs and flashes results.
+ * "waiting-for-key" and "done-remove-key" are the old per-job-reboot phases: kept in the type, never produced any more.
  */
 export type Phase =
-  | "off" | "posting" | "waiting-for-key" | "loading" | "running" | "writing" | "done-remove-key" | "error"
+  | "waiting-for-key" | "done-remove-key"
+  | "off" | "posting" | "loading" | "running" | "writing" | "halted" | "error"
   | "booting-os" | "idle-os" | "ingesting" | "running-os" | "flashing";
 
 /** Where a key's job stands. Legacy (no OS) keys are "tray", then "done" once the ROM wrote the result. */
@@ -365,8 +369,18 @@ export interface Snapshot {
   os: OsSnap | null;
   /** Keys the OS has ingested that the player unplugged: they wait for their result (plug them again to collect it). */
   held: KeySnap[];
-  /** USB port LED: enumerating, ingesting, flashing, done (collect the key). */
+  /** USB port LED: enumerating, ingesting, flashing, done (collect the key). Stays "none" for a key the ROM ignores. */
   keyActivity: KeyActivity;
+
+  // ---- no-OS boot flow and client patience (added with the manual boot loop; all additive) ----
+  /** For phase "halted": "job-done" (result written, remove the key) or "no-boot-media" (no key at boot). Otherwise null. */
+  haltReason: "job-done" | "no-boot-media" | null;
+  /** A key sits in the port of a running no-OS machine that already did its one look at the port: it is ignored until a power cycle. */
+  keyIgnored: boolean;
+  /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
+  postFailed: boolean;
+  /** The client patience schedule right now (docs/GAME.md). */
+  patience: { mul: number; targetTurnaround: number; deadlineTicks: number; sinceFirstBoot: number };
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };
@@ -422,6 +436,8 @@ export class Game {
   /** Bytes the OS drive had read when the machine booted (for the boot progress bar). */
   private bootRead0 = 0;
   private log: GameEvent[] = [];
+  /** Base tick of the first real power-on (the client patience schedule runs from here), or null before it. */
+  private firstBootTick: number | null = null;
 
   private readonly seed: number;
 
@@ -446,6 +462,7 @@ export class Game {
       for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
       this.cables = allCables();
       this.progress = newProgress(true);
+      this.firstBootTick = 0;
       this.syncRates(false);
       this.powerButton();
     } else {
@@ -578,11 +595,18 @@ export class Game {
 
   /**
    * The power button. Off to on: needs a PSU with the 24-pin ATX cable connected, otherwise nothing happens (refused
-   * with a reason). Then the PCH runs its self-test: without a CPU, CPU power (8-pin) and RAM the machine stays
-   * halted in phase "error" with the message on the monitor. On to off: always works, clears a PSU trip.
+   * with a reason). Then the PCH runs its self-test (POST): without a CPU, cooler, CPU power (8-pin) or RAM the machine
+   * stops in phase "error" with the message on the monitor (a POST error, not a refusal). Powered in any phase (posting,
+   * running, halted, error) it is a hard power-off at once: a job in progress is lost, its key stays plugged and the job
+   * restarts at the next boot. Clears a PSU trip.
    */
   powerButton(): Result<{ powered: boolean }> {
     if (this.powered) {
+      const phase = this.currentPhase();
+      if (this.plugged && !this.plugged.done && !this.os && (phase === "loading" || phase === "running" || phase === "writing")) {
+        this.plugged.attempts++;
+        this.note("fault", `hard power-off: the job on key ${this.plugged.id} is lost (it restarts at the next boot)`);
+      }
       this.powered = false;
       this.postError = null;
       this.machine.engine = null;
@@ -687,6 +711,28 @@ export class Game {
   canInstall(invId: string): boolean {
     const it = this.inventorySnap(true).find((i) => i.id === invId);
     return !!it && it.installable;
+  }
+
+  /** Whether an OS is installed. */
+  hasOs(): boolean {
+    return this.os !== null;
+  }
+
+  /** Under an OS: held keys (ingested and unplugged) and whether each has its result ready; plus the queue bound. For bots. */
+  osHeld(): { ids: number[]; ready: number[]; queueSlots: number; jobs: number } {
+    const jobs = this.kernelJobs();
+    return {
+      ids: this.held.map((k) => k.id),
+      ready: this.held.filter((k) => jobs.some((j) => j.key === k.id && j.state === JobState.Result)).map((k) => k.id),
+      queueSlots: this.os?.queueSlots ?? 0,
+      jobs: jobs.length,
+    };
+  }
+
+  /** Under an OS: the plugged key is in the kernel's queue (queued or running), so it can be unplugged and held. For bots. */
+  pluggedIngested(): boolean {
+    const k = this.plugged;
+    return !!k && !k.done && this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Queued || j.state === JobState.Running));
   }
 
   /** Cables that could be plugged in (source part installed) but are not. */
@@ -815,6 +861,13 @@ export class Game {
       os: this.osSnap(jobs),
       held: this.held.map((k) => this.keySnap(k, jobs)),
       keyActivity: this.keyActivity(),
+      haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
+      keyIgnored: this.keyIgnored(),
+      postFailed: !!this.postError,
+      patience: {
+        mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
+        sinceFirstBoot: this.sinceFirstBoot(),
+      },
     };
   }
 
@@ -879,6 +932,7 @@ export class Game {
       tripped: this.thermal.power.tripped,
       progress: { ...this.progress },
       os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
+      firstBootTick: this.firstBootTick,
     };
   }
 
@@ -904,6 +958,8 @@ export class Game {
     g.nextInvId = s.nextInvId;
     g.cables = { ...s.cables };
     g.progress = { ...s.progress };
+    // The patience schedule runs from the first boot; a save without the field (older v4) restarts it at the load tick.
+    g.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
     g.log = [];
     if (s.os) g.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
     try {
@@ -1266,6 +1322,12 @@ export class Game {
     return j ? byState(j.state) : this.held.includes(k) ? "queued" : "tray";
   }
 
+  /** Without an OS the ROM looks at the port once at boot: a key that is in the port after that is never read. */
+  private keyIgnored(): boolean {
+    const k = this.plugged;
+    return !!k && !k.done && this.powered && !this.os && !this.postError && this.currentPhase() === "halted";
+  }
+
   private keyActivity(): KeyActivity {
     const k = this.plugged;
     if (!k) return "none";
@@ -1323,14 +1385,16 @@ export class Game {
     this.bootRead0 = boot?.media?.bytesRead ?? 0;
     this.syncRates(false);
     applyEngine(this.board, this.machine, ROM_IMAGE);
+    if (this.progress.firstKeyEjected && this.plugged && !this.plugged.done) this.progress.firstManualCycle = true;
     if (!this.progress.poweredOn) {
       // The first real boot starts the clock: keys waiting from the beginning arrive now, not while the player built the PC.
       this.progress.poweredOn = true;
-      for (const k of this.tray.waiting()) {
+      for (const k of [...this.tray.waiting(), ...(this.plugged ? [this.plugged] : [])]) {
         k.arrival = this.baseTick;
-        k.deadline = this.baseTick + this.cfg.deadlineTicks;
+        k.deadline = this.baseTick + this.deadlineTicks();
       }
     }
+    this.firstBootTick ??= this.baseTick;
   }
 
   /** Current machine phase. */
@@ -1343,6 +1407,7 @@ export class Game {
       case PchPhase.Running: return "running";
       case PchPhase.Writing: return "writing";
       case PchPhase.Done: return "done-remove-key";
+      case PchPhase.Halted: case PchPhase.NoMedia: return "halted";
       case PchPhase.OsBoot: return "booting-os";
       case PchPhase.OsIdle: return "idle-os";
       case PchPhase.OsIngest: return "ingesting";
@@ -1356,6 +1421,7 @@ export class Game {
     switch (phase) {
       case "posting": return (this.pch.progress / 4) * 0.4;
       case "waiting-for-key": return 0.4;
+      case "halted": return this.pch.phase === PchPhase.Halted ? 1 : 0.4;
       case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
       case "booting-os": {
         const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
@@ -1427,11 +1493,11 @@ export class Game {
     if (this.tray.waiting().length >= this.cfg.queueCap) {
       this.dropped++;
       // The client takes the key back: that counts against the turnaround average, so it costs reputation.
-      this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround - this.avgTurnaround);
+      this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
       this.note("drop", "tray full: a client gave up");
       return false;
     }
-    const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.cfg.deadlineTicks });
+    const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks() });
     this.tray.offer(key);
     return true;
   }
@@ -1458,7 +1524,27 @@ export class Game {
   }
 
   private reputation(): number {
-    return reputation(this.cfg, this.serviceTurnaround());
+    return reputation(this.cfg, this.serviceTurnaround(), this.targetTurnaround());
+  }
+
+  /** Base ticks since the first boot (0 before it). */
+  private sinceFirstBoot(): number {
+    return this.firstBootTick === null ? 0 : Math.max(0, this.baseTick - this.firstBootTick);
+  }
+
+  /** Client patience multiplier now (docs/GAME.md, patience schedule). */
+  private patience(): number {
+    return patienceMul(this.cfg, this.sinceFirstBoot());
+  }
+
+  /** The turnaround that counts as fine for reputation right now. */
+  private targetTurnaround(): number {
+    return this.cfg.targetTurnaround * this.patience();
+  }
+
+  /** Ticks a key arriving now may take before it is late. */
+  private deadlineTicks(): number {
+    return Math.round(this.cfg.deadlineTicks * this.patience());
   }
 
   private estimate(k: Key): number {

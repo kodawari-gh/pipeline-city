@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 import { generate } from "../gen";
 import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
+import type { EconomyConfig } from "./economy";
 
-const NO_ARRIVALS = { baseDemandPerTick: 0 };
+const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0 };
 
 /** Bare game with the starter crate, ids inv1..inv5 = cpu0 psu0 ram0 display0 cooler0. */
-function bare(economy = NO_ARRIVALS): Game {
+function bare(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   return new Game({ seed: 1, economy });
 }
 
-function assembled(economy = NO_ARRIVALS): Game {
+function assembled(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   const g = bare(economy);
   for (const id of ["inv1", "inv5", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
   for (const c of ["atx", "cpu", "video"]) expect(g.connectCable(c).ok).toBe(true);
@@ -22,6 +23,13 @@ function runUntil(g: Game, phase: Phase, max = 600): number {
   while (g.currentPhase() !== phase && t < max) { g.advanceBaseTick(); t++; }
   expect(g.currentPhase()).toBe(phase);
   return t;
+}
+
+/** The no-OS flow: machine off, plug a key, press power. */
+function bootWithKey(g: Game, id = g.trayKeyIds()[0]!): void {
+  if (g.powered) g.powerButton();
+  expect(g.plugKey(id).ok).toBe(true);
+  expect(g.powerButton().ok).toBe(true);
 }
 
 const ticks = (g: Game, n: number) => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
@@ -151,7 +159,9 @@ describe("power button and POST errors", () => {
       ["no CPU", (g) => g.uninstall(g.snapshot().devices.find((d) => d.kind === "cpu")!.id), /no CPU/, "NO CPU"],
       ["no CPU power", (g) => g.disconnectCable("cpu"), /8-pin/, "NO CPU POWER"],
       ["no RAM", (g) => g.uninstall(g.snapshot().devices.find((d) => d.kind === "ram")!.id), /RAM/, "NO RAM"],
+      ["no cooler", (g) => g.uninstall(g.snapshot().devices.find((d) => d.kind === "cooler")!.id), /cooler/, "NO CPU COOLER"],
     ];
+    const reasons = new Set<string>();
     for (const [name, breakIt, reason, short] of cases) {
       const g = assembled();
       breakIt(g);
@@ -160,10 +170,19 @@ describe("power button and POST errors", () => {
       expect(s.phase, name).toBe("error");
       expect(s.phaseReason, name).toMatch(reason);
       expect(s.display, name).toContain(`POST FAILED: ${short}`);
+      expect(s.postFailed, name).toBe(true);
+      reasons.add(s.phaseReason!);
       expect(s.pipe, name).toBeNull(); // no CPU activity
       ticks(g, 50);
       expect(g.currentPhase(), name).toBe("error"); // stays halted
     }
+    expect(reasons.size).toBe(cases.length); // every part has its own readable reason
+    // A POST error is not a refusal: a missing key is not one either, and a missing monitor path just means no message.
+    const g = assembled();
+    g.disconnectCable("video");
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "cpu")!.id);
+    expect(g.powerButton().ok).toBe(true);
+    expect(g.snapshot()).toMatchObject({ phase: "error", display: "", postFailed: true });
   });
 
   it("an error is cleared by powering off, fixing and powering on", () => {
@@ -183,7 +202,7 @@ describe("power button and POST errors", () => {
     const g = assembled();
     g.disconnectCable("video");
     g.powerButton();
-    runUntil(g, "waiting-for-key");
+    runUntil(g, "halted");
     const s = g.snapshot();
     expect(s).toMatchObject({ monitorLive: false, display: "" });
     expect(s.progress.videoConnected).toBe(true); // it was connected once (sticky milestone)
@@ -191,40 +210,40 @@ describe("power button and POST errors", () => {
 });
 
 describe("boot sequence (the ROM runs on the real engine)", () => {
-  it("POST text appears on the monitor and the machine waits for a key", () => {
+  it("POST text appears on the monitor; with no key at boot the BIOS says NO BOOT MEDIA and halts", () => {
     const g = assembled();
     g.powerButton();
     expect(g.snapshot()).toMatchObject({ phase: "posting", powered: true, display: "" });
-    runUntil(g, "waiting-for-key");
+    runUntil(g, "halted");
     ticks(g, 15); // let the display writes land
     const s = g.snapshot();
-    expect(s.display).toBe("PCH BIOS 1.0\nCPU T0 OK\nRAM 16K OK\nUSB OK\n\nINSERT KEY");
+    expect(s.display).toBe("PCH BIOS 1.0\nCPU T0 OK\nRAM 16K OK\nUSB OK\n\nNO BOOT MEDIA\nINSERT A KEY AND RESTART");
+    expect(s.haltReason).toBe("no-boot-media");
     expect(s.bootProgress).toBeCloseTo(0.4);
     expect(s.pipe).not.toBeNull();
     ticks(g, 400);
-    expect(g.currentPhase()).toBe("waiting-for-key"); // waits indefinitely
+    expect(g.currentPhase()).toBe("halted"); // halted until the player power-cycles
   });
 
-  it("walks the phases in order for one key and shows the job output and REMOVE KEY", () => {
+  it("walks the phases in order for one key and shows the job output and JOB DONE, then halts", () => {
     const g = assembled();
-    g.powerButton();
+    bootWithKey(g);
     const seen: Phase[] = [];
     const watch = () => { const p = g.currentPhase(); if (seen[seen.length - 1] !== p) seen.push(p); };
     watch();
-    runUntil(g, "waiting-for-key");
-    watch();
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    for (let i = 0; i < 400 && g.currentPhase() !== "done-remove-key"; i++) { g.advanceBaseTick(); watch(); }
-    expect(seen).toEqual(["posting", "waiting-for-key", "loading", "running", "writing", "done-remove-key"]);
+    for (let i = 0; i < 400 && g.currentPhase() !== "halted"; i++) { g.advanceBaseTick(); watch(); }
+    expect(seen).toEqual(["posting", "loading", "running", "writing", "halted"]);
     ticks(g, 10);
     const s = g.snapshot();
     expect(s.display.split("\n")[8]).toMatch(/^#\d\d .+ OK$/); // the job's output sits on its row
-    expect(s.display).toContain("REMOVE KEY");
+    expect(s.display).toContain("JOB DONE");
+    expect(s.display).toContain("REMOVE KEY, THEN POWER OFF/ON");
+    expect(s.haltReason).toBe("job-done");
     expect(s.plugged!.done).toBe(true);
     expect(s.plugged!.result).toBe(s.display.split("\n")[8]);
     expect(s.bootProgress).toBe(1);
     ticks(g, 500);
-    expect(g.currentPhase()).toBe("done-remove-key"); // waits indefinitely for the player
+    expect(g.currentPhase()).toBe("halted"); // waits indefinitely for the player
     expect(g.money).toBe(0); // and nothing is paid until the key is removed
   });
 
@@ -234,12 +253,10 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
         const g = new Game({ seed: 7, preassembled: true, economy: { ...NO_ARRIVALS, startQueue: [{ template, scale }] } });
         g.money = 1e6;
         for (const p of [...extra, ...(cpu === "cpu0" ? [] : [cpu])]) g.purchase(p);
-        new Operator(g).assemble();
-        runUntil(g, "waiting-for-key");
-        const keyId = g.trayKeyIds()[0]!;
+        new Operator(g).assemble(false);
         const snap = g.snapshot().tray[0]!;
-        g.plugKey(keyId);
-        runUntil(g, "done-remove-key", 3000);
+        bootWithKey(g);
+        runUntil(g, "halted", 3000);
         const key = g.snapshot().plugged!;
         // regenerate the job exactly as the key carries it, on the job's display row
         const saved = g.toSave().plugged!;
@@ -250,53 +267,64 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
     }
   });
 
-  it("the machine reboots after every job: POST runs again, then it waits for the next key without pressing power", () => {
-    const g = assembled();
-    g.powerButton();
-    runUntil(g, "waiting-for-key");
-    g.plugKey(g.trayKeyIds()[0]!);
-    runUntil(g, "done-remove-key");
+  it("after a job the machine stays halted: no reboot, no new key is read until the player power-cycles it by hand", () => {
+    const g = assembled({ baseDemandPerTick: 0.3 });
+    bootWithKey(g);
+    runUntil(g, "halted");
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
-    const seen: Phase[] = [];
-    for (let i = 0; i < 100 && g.currentPhase() !== "waiting-for-key"; i++) {
-      g.advanceBaseTick();
-      const p = g.currentPhase();
-      if (seen[seen.length - 1] !== p) seen.push(p);
-    }
-    expect(seen).toContain("posting");
-    expect(g.currentPhase()).toBe("waiting-for-key");
+    const seen = new Set<Phase>();
+    for (let i = 0; i < 200; i++) { g.advanceBaseTick(); seen.add(g.currentPhase()); }
+    expect([...seen]).toEqual(["halted"]); // no auto-reboot
     expect(g.powered).toBe(true);
+    // The next key plugged into the halted machine is ignored (no LED activity)...
+    const next = g.trayKeyIds()[0]!;
+    expect(g.plugKey(next).ok).toBe(true);
+    ticks(g, 100);
+    expect(g.snapshot()).toMatchObject({ phase: "halted", keyActivity: "none", keyIgnored: true });
+    // ...until the manual cycle: power off, power on.
+    g.powerButton();
+    expect(g.currentPhase()).toBe("off");
+    expect(g.pluggedKey()!.id).toBe(next);
+    g.powerButton();
+    runUntil(g, "halted");
+    expect(g.snapshot()).toMatchObject({ haltReason: "job-done", keyIgnored: false });
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
+    expect(g.completed).toBe(2);
   });
 
-  it("a key pulled and replaced faster than the ROM polls is still noticed (the machine reboots for the new key)", () => {
-    const g = assembled({ baseDemandPerTick: 0.3 });
+  it("a key plugged into a running no-OS machine after the boot check is ignored; one plugged during POST is read", () => {
+    const g = assembled();
     g.powerButton();
-    runUntil(g, "waiting-for-key");
+    runUntil(g, "halted"); // no key at boot
     ticks(g, 30);
-    g.plugKey(g.trayKeyIds()[0]!);
-    runUntil(g, "done-remove-key");
-    g.ejectKey();
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true); // the very same instant
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
     const seen = new Set<Phase>();
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 300; i++) {
       g.advanceBaseTick();
       seen.add(g.currentPhase());
-      if (seen.has("posting") && g.currentPhase() === "done-remove-key") break;
+      expect(g.snapshot().keyActivity).toBe("none"); // the USB LED stays dark
     }
-    expect(seen.has("posting")).toBe(true);
-    expect(g.currentPhase()).toBe("done-remove-key");
-    expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
+    expect([...seen]).toEqual(["halted"]);
+    expect(g.snapshot().keyIgnored).toBe(true);
+    expect(g.pluggedKey()!.done).toBe(false);
+    // POST has not reached the loader yet: the key plugged now is the job.
+    const h = assembled();
+    h.powerButton();
+    ticks(h, 2);
+    expect(h.currentPhase()).toBe("posting");
+    h.plugKey(h.trayKeyIds()[0]!);
+    runUntil(h, "halted");
+    expect(h.snapshot()).toMatchObject({ haltReason: "job-done", keyIgnored: false });
   });
 
-  it("a stuck-in-the-port finished key is shown as REMOVE KEY again after a power cycle", () => {
+  it("a finished key left in the port is shown as JOB DONE again after a power cycle", () => {
     const g = assembled();
-    g.powerButton();
-    runUntil(g, "waiting-for-key");
-    g.plugKey(g.trayKeyIds()[0]!);
-    runUntil(g, "done-remove-key");
+    bootWithKey(g);
+    runUntil(g, "halted");
     g.powerButton();
     g.powerButton();
-    runUntil(g, "done-remove-key");
+    runUntil(g, "halted");
+    expect(g.snapshot().haltReason).toBe("job-done");
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
   });
 });
@@ -321,11 +349,9 @@ describe("keys and the queue", () => {
 
   it("removing the key pays the client: payout, reputation and counters change then, not before", () => {
     const g = assembled();
-    g.powerButton();
-    runUntil(g, "waiting-for-key");
-    const arrival = g.snapshot().tray[0]!.arrivalTick;
-    g.plugKey(g.trayKeyIds()[0]!);
-    runUntil(g, "done-remove-key");
+    bootWithKey(g);
+    const arrival = g.snapshot().plugged!.arrivalTick;
+    runUntil(g, "halted");
     const before = g.snapshot();
     ticks(g, 20); // the player dawdles
     expect(g.snapshot()).toMatchObject({ money: 0, completed: 0, avgTurnaround: before.avgTurnaround });
@@ -342,57 +368,66 @@ describe("keys and the queue", () => {
     expect(g.ejectKey()).toMatchObject({ ok: false, reason: expect.stringMatching(/no key/) });
   });
 
-  it("pulling the key mid-job aborts it: no payout, the machine crashes and reboots, the key is back in the tray", () => {
+  it("pulling the key mid-job aborts it: no payout, the machine crashes and reboots (and finds no key), the key is back in the tray", () => {
     const g = assembled();
-    g.powerButton();
-    runUntil(g, "waiting-for-key");
     const id = g.trayKeyIds()[0]!;
-    g.plugKey(id);
+    bootWithKey(g, id);
     runUntil(g, "running");
     expect(g.ejectKey()).toMatchObject({ ok: true, done: false, payout: 0 });
     expect(g.snapshot()).toMatchObject({ money: 0, completed: 0, phase: "posting" });
     expect(g.trayKeyIds()).toContain(id);
-    // and it can be tried again
-    runUntil(g, "waiting-for-key");
-    g.plugKey(id);
-    runUntil(g, "done-remove-key");
+    runUntil(g, "halted");
+    expect(g.snapshot().haltReason).toBe("no-boot-media");
+    // and it can be tried again by hand
+    bootWithKey(g, id);
+    runUntil(g, "halted");
+    expect(g.snapshot().haltReason).toBe("job-done");
     expect(g.snapshot().plugged!.attempts).toBe(2);
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
   });
 
-  it("powering off mid-job keeps the key plugged and the job restarts from boot", () => {
+  it("the power button is a hard power-off in any powered phase: the job is lost, the key keeps its data and the job restarts at the next boot", () => {
     const g = assembled();
-    g.powerButton();
-    runUntil(g, "waiting-for-key");
-    g.plugKey(g.trayKeyIds()[0]!);
+    bootWithKey(g);
     runUntil(g, "running");
-    g.powerButton();
+    expect(g.powerButton()).toMatchObject({ ok: true, powered: false });
     expect(g.snapshot()).toMatchObject({ phase: "off", display: "" });
-    expect(g.snapshot().plugged).not.toBeNull();
+    expect(g.snapshot().plugged).toMatchObject({ done: false, attempts: 2 });
     g.powerButton();
     const seen = new Set<Phase>();
-    for (let i = 0; i < 600 && g.currentPhase() !== "done-remove-key"; i++) { g.advanceBaseTick(); seen.add(g.currentPhase()); }
-    expect([...seen]).toEqual(expect.arrayContaining(["posting", "loading", "running", "writing", "done-remove-key"]));
+    for (let i = 0; i < 600 && g.currentPhase() !== "halted"; i++) { g.advanceBaseTick(); seen.add(g.currentPhase()); }
+    expect([...seen]).toEqual(expect.arrayContaining(["posting", "loading", "running", "writing", "halted"]));
+    expect(g.snapshot().plugged!.done).toBe(true);
+    // also while posting and while halted
+    for (const when of ["posting", "halted"] as const) {
+      const h = assembled();
+      bootWithKey(h);
+      if (when === "halted") runUntil(h, "halted");
+      expect(h.currentPhase()).toBe(when);
+      expect(h.powerButton()).toMatchObject({ ok: true, powered: false });
+      expect(h.pluggedKey()).not.toBeNull();
+    }
   });
 
   it("a key can be plugged in while the machine is off, and is picked up at boot", () => {
     const g = assembled();
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
     g.powerButton();
-    runUntil(g, "done-remove-key");
+    runUntil(g, "halted");
     expect(g.snapshot().plugged!.done).toBe(true);
   });
 
   it("idle time is lost: keys age while the machine waits, and late ones pay less", () => {
-    const g = assembled();
+    // A flat patience schedule so the deadline is the plain 180 ticks (the schedule itself is tested in patience.test.ts).
+    const g = assembled({ ...NO_ARRIVALS, patience: { startMul: 1, floorMul: 1, holdTicks: 0, floorTicks: 1 } });
     g.powerButton();
-    runUntil(g, "waiting-for-key");
+    runUntil(g, "halted");
     ticks(g, 250);
     const k = g.snapshot().tray[0]!;
     expect(k.age).toBeGreaterThan(g.cfg.deadlineTicks);
     expect(k.late).toBe(true);
-    g.plugKey(k.id);
-    runUntil(g, "done-remove-key");
+    bootWithKey(g, k.id);
+    runUntil(g, "halted");
     const r = g.ejectKey();
     expect(g.snapshot().lastCompleted!.late).toBe(true);
     expect(r.ok && r.payout).toBeLessThan(k.payoutEstimate);
@@ -405,7 +440,7 @@ describe("keys and the queue", () => {
     const k = g.snapshot().tray[0]!;
     expect(k.label).toMatch(/^#\d\d (log|calc|checksum|scan)$/);
     expect(k).toMatchObject({ id: 1, age: 7, done: false, result: "" });
-    expect(k.deadlineTick - k.arrivalTick).toBe(g.cfg.deadlineTicks);
+    expect(k.deadlineTick - k.arrivalTick).toBe(g.snapshot().patience.deadlineTicks);
   });
 });
 
@@ -423,12 +458,11 @@ describe("tutorial progress flags are set by real events", () => {
     g.connectCable("cpu"); expect(p().cpuPowerConnected).toBe(true);
     g.connectCable("video"); expect(p().videoConnected).toBe(true);
     expect(p().poweredOn).toBe(false);
-    g.powerButton(); expect(p().poweredOn).toBe(true);
     expect(p().firstKeyPlugged).toBe(false);
-    runUntil(g, "waiting-for-key");
-    g.plugKey(1); expect(p().firstKeyPlugged).toBe(true);
+    g.plugKey(1); expect(p().firstKeyPlugged).toBe(true); // the key goes in first, then power
+    g.powerButton(); expect(p().poweredOn).toBe(true);
     expect(p().firstJobDone).toBe(false);
-    runUntil(g, "done-remove-key"); expect(p().firstJobDone).toBe(true);
+    runUntil(g, "halted"); expect(p().firstJobDone).toBe(true);
     expect(p().firstKeyEjected).toBe(false);
     g.ejectKey(); expect(p().firstKeyEjected).toBe(true);
     expect(p().firstPurchase).toBe(false);

@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN, STAGES, VENTS, VIDEO_Y,
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN, STAGES, VENTS, VIDEO_Y, VRM_SINK,
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
@@ -136,33 +136,85 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
 }
 
 // ---------------------------------------------------------------- RAM
-/** A DIMM stick in local coordinates; caller positions it at (DIMM_X(i), DIMM_Y). */
-export function ramArt(T: Theme, spec: RamSpec): Part {
+/**
+ * A DIMM stick in local coordinates; caller positions it at (DIMM_X(i), DIMM_Y(i)). Row 0 sticks (dimm0..3) have their pins at the
+ * bottom, row 1 sticks (dimm4..7) are drawn upside down (pins at the top) so the pins face the memory bus between the rows.
+ */
+export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
   const accent = spec.visual === 'dimm-lowlat' ? T.ld : spec.visual === 'dimm-fast' ? T.br : T.alu;
+  const fy = (y: number, h = 0) => (flip ? DIMM_H - y - h : y);
   box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
   box(g, 14, 50, 142, DIMM_H - 100, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
   const chips: Rect[] = [];
-  for (let j = 0; j < 8; j++) {
-    const cy = 100 + j * 182;
-    box(g, 27, cy, 116, 150, 8, { fill: T.tile, stroke: T.line, lw: 5 });
-    chips.push({ x: 27, y: cy, w: 116, h: 150 });
-    labels.addChild(label('DRAM', 85, cy + 75, 26, T.mute, { anchor: [0.5, 0.5] }));
+  for (let j = 0; j < 4; j++) {
+    const cy = fy(84 + j * 128, 112);
+    box(g, 27, cy, 116, 112, 8, { fill: T.tile, stroke: T.line, lw: 5 });
+    chips.push({ x: 27, y: cy, w: 116, h: 112 });
+    labels.addChild(label('DRAM', 85, cy + 56, 26, T.mute, { anchor: [0.5, 0.5] }));
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks
     g.rect(14, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
     g.rect(144, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
   }
-  for (let k = 0; k < 24; k++) g.rect(22 + k * 5.4, DIMM_H - 58, 3.4, 50);
+  for (let k = 0; k < 24; k++) g.rect(22 + k * 5.4, fy(DIMM_H - 58, 50), 3.4, 50);
   g.fill({ color: T.pin });
-  for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, 24, 8, 14);
+  for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, fy(24, 14), 8, 14);
   g.fill({ color: accent, alpha: 0.9 });
-  labels.addChild(label(`${spec.sizeBytes / 1024}K`, DIMM_W / 2, 56, 40, accent, { anchor: [0.5, 0.5], head: true }));
+  labels.addChild(label(`${spec.sizeBytes / 1024}K`, DIMM_W / 2, fy(56), 40, accent, { anchor: [0.5, 0.5], head: true }));
   root.addChild(labels);
   return { root, labels, chips };
+}
+
+// ---------------------------------------------------------------- VRM heatsink (bolts onto the board's MOSFET strip)
+/**
+ * The three heatsinks over the VRM MOSFETs (visuals `vrm-sink-fins`, `vrm-sink-big`, `vrm-sink-fan`): thin passive fins, tall fins with a
+ * heat pipe, and fins with a small fan at the east end. The fan (a spinning child returned as `fan`, kept above the bake) obeys the
+ * power rules of the other fans.
+ */
+export function vrmSinkArt(T: Theme, visual: string): Part {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const r = VRM_SINK, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
+  const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
+  const fanR = 70, fanCx = r.x + r.w - fanR - 34, fanCy = r.y + r.h / 2;
+  const finW = withFan ? fanCx - fanR - 40 - r.x : r.w;
+  // base plate and drop shadow
+  box(g, r.x + 8, r.y + 12, r.w, r.h, 18, { fill: '#000000', fa: 0.3 });
+  box(g, r.x, r.y, r.w, r.h, 18, { fill: metalLo, stroke: mix(T.line, metal, 0.5), lw: 6 });
+  // fins: thin and many (passive), fewer and taller with a lit top edge (big), a shorter block when a fan sits beside it
+  const pitch = big ? 34 : 20, finH = r.h - (big ? 26 : 40);
+  for (let x = r.x + 20; x < r.x + finW - 14; x += pitch) {
+    g.rect(x, r.y + (r.h - finH) / 2, big ? 20 : 11, finH);
+  }
+  g.fill({ color: metal });
+  for (let x = r.x + 20; x < r.x + finW - 14; x += pitch) g.rect(x, r.y + (r.h - finH) / 2, big ? 6 : 3, finH);
+  g.fill({ color: metalHi, alpha: 0.7 });
+  g.rect(r.x + 14, r.y + 8, finW - 28, 6).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.45 });
+  if (big) {
+    // a heat pipe running along the sink
+    g.moveTo(r.x + 10, r.y + r.h * 0.5).lineTo(r.x + finW - 10, r.y + r.h * 0.5).stroke({ width: 22, color: T.pin, alpha: 0.85, cap: 'round' });
+    g.moveTo(r.x + 10, r.y + r.h * 0.5 - 5).lineTo(r.x + finW - 10, r.y + r.h * 0.5 - 5).stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
+  }
+  let fan: Container | undefined;
+  if (withFan) {
+    // a small fan beside the fins: housing, blades that spin, hub
+    disc(g, fanCx, fanCy, fanR + 18, { fill: T.sub, stroke: T.line, lw: 7 });
+    fan = new Container();
+    fan.position.set(fanCx, fanCy);
+    const fg = new Graphics();
+    disc(fg, 0, 0, fanR + 4, { fill: T.dot });
+    blades(fg, 5, 12, fanR, T.tile, T.alu, 3);
+    fan.addChild(fg);
+    const hub = new Graphics();
+    disc(hub, fanCx, fanCy, 14, { fill: T.tile, stroke: T.alu, lw: 4 });
+    return { root, fan, over: hub };
+  }
+  return { root };
 }
 
 // ---------------------------------------------------------------- cooler (sits on the CPU)

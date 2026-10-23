@@ -17,12 +17,12 @@ const core = (g: Game) => {
   };
 };
 
-/** Play with a bot until the machine is waiting for a key with none plugged in, after at least `min` ticks. */
+/** Play with a bot until the machine is halted (job done or no boot media) with no key plugged in, after at least `min` ticks. */
 function idleGame(seed: number, min: number): Game {
   const g = new Game({ seed });
   const op = new Operator(g, 1);
   for (let t = 0; t < min; t++) { g.advanceBaseTick(); op.step(); }
-  for (let i = 0; i < 2000 && !(g.currentPhase() === "waiting-for-key" && g.pluggedKey() === null); i++) { g.advanceBaseTick(); op.step(); }
+  for (let i = 0; i < 2000 && !(g.currentPhase() === "halted" && g.pluggedKey() === null); i++) { g.advanceBaseTick(); op.step(); }
   expect(g.pluggedKey()).toBeNull();
   return g;
 }
@@ -93,16 +93,17 @@ describe("save/load v2", () => {
     // The job restarts from boot: power on and it completes, the key still plugged.
     l.powerButton();
     const seen = new Set<string>();
-    for (let i = 0; i < 400 && l.currentPhase() !== "done-remove-key"; i++) { l.advanceBaseTick(); seen.add(l.currentPhase()); }
+    for (let i = 0; i < 400 && l.currentPhase() !== "halted"; i++) { l.advanceBaseTick(); seen.add(l.currentPhase()); }
     expect([...seen]).toEqual(expect.arrayContaining(["posting", "loading", "running"]));
     expect(l.ejectKey()).toMatchObject({ ok: true, done: true });
   });
 
   it("a finished key waiting to be removed stays finished across a save", () => {
     const g = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0 } });
-    while (g.currentPhase() !== "waiting-for-key") g.advanceBaseTick();
+    g.powerButton();
     g.plugKey(g.trayKeyIds()[0]!);
-    while (g.currentPhase() !== "done-remove-key") g.advanceBaseTick();
+    g.powerButton();
+    while (g.currentPhase() !== "halted") g.advanceBaseTick();
     const l = Game.fromSave(json(g.toSave()), { baseDemandPerTick: 0 });
     expect(l.snapshot().plugged).toMatchObject({ done: true, result: g.snapshot().plugged!.result });
     expect(l.ejectKey()).toMatchObject({ ok: true, done: true });

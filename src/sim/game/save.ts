@@ -58,6 +58,8 @@ export interface Progress {
   coolerInstalled: boolean;
   /** A storage device was installed (v3). */
   storageInstalled: boolean;
+  /** A power-on with a key plugged happened after the first key was handed back: the manual boot loop was done once. */
+  firstManualCycle: boolean;
   /** An OS was installed on a storage device (v3). */
   osInstalled: boolean;
   /** A job ingested and run by the OS was delivered to its client (v3). */
@@ -67,7 +69,7 @@ export interface Progress {
 export const PROGRESS_KEYS: readonly (keyof Progress)[] = [
   "cpuInstalled", "psuInstalled", "ramInstalled", "monitorInstalled", "atxConnected", "cpuPowerConnected",
   "videoConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
-  "storageInstalled", "osInstalled", "firstOsJob", "coolerInstalled",
+  "storageInstalled", "osInstalled", "firstOsJob", "coolerInstalled", "firstManualCycle",
 ];
 
 /** Milestones added after the tutorial existed (v3): "all" (an existing or preassembled player) leaves them false. */
@@ -127,6 +129,8 @@ export interface SaveV4 {
   progress: Progress;
   /** The installed OS, or null (the machine then boots one job per key). Disk contents are rebuilt on load. */
   os: SavedOs | null;
+  /** Base tick of the first boot (the client patience schedule runs from it). Optional: older v4 saves lack it. */
+  firstBootTick?: number | null;
 }
 
 export type Save = SaveV4;
@@ -225,6 +229,11 @@ export function parseSave(input: unknown): SaveV4 {
   if (isObj(s.progress) && typeof s.progress.coolerInstalled !== "boolean" && isObj(s.board) && Array.isArray(s.board.devices)) {
     s.progress = { ...s.progress, coolerInstalled: (s.board.devices as Array<{ spec?: unknown }>).some((d) => typeof d.spec === "string" && getSpec(d.spec)?.kind === "cooler") };
   }
+  // Saves from before the manual boot loop have no `firstManualCycle`: whoever handed back a key had cycled the machine.
+  if (isObj(s.progress) && typeof s.progress.firstManualCycle !== "boolean") {
+    s.progress = { ...s.progress, firstManualCycle: s.progress.firstKeyEjected === true };
+  }
+  if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick)) throw new Error('save: "firstBootTick" must be a non-negative integer or null');
   const num = (k: string, min = 0): number => {
     const x = s[k];
     if (typeof x !== "number" || !Number.isFinite(x) || x < min) throw new Error(`save: "${k}" must be a number >= ${min}`);

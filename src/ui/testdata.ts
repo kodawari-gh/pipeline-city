@@ -61,6 +61,8 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     ] as Snapshot['cables'],
     tray: [], plugged: null, progress: NO_PROGRESS, log: [],
     storage: [], os: null, held: [], keyActivity: 'none',
+    haltReason: null, keyIgnored: false, postFailed: false,
+    patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
     ...o,
   } as Snapshot;
 }

@@ -198,17 +198,28 @@ describe("booting the OS from storage", () => {
     expect(boot("cpu2")).toBeLessThan(boot("cpu1"));
   });
 
-  it("an installed drive without an OS changes nothing: the per-key reboot flow still runs", () => {
+  it("an installed drive without an OS changes nothing: the manual boot-per-key flow still runs", () => {
     const g = rig("hdd0", { os: false });
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
     g.powerButton();
     expect(g.pch.bootDev).toBe(0);
-    runUntil(g, "waiting-for-key");
-    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
-    runUntil(g, "done-remove-key", 4000);
+    runUntil(g, "halted", 4000);
+    expect(g.snapshot().haltReason).toBe("job-done");
     expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
-    runUntil(g, "posting", 50);
-    runUntil(g, "waiting-for-key");
+    expect(g.currentPhase()).toBe("halted"); // no auto-reboot
     expect(g.progress.firstOsJob).toBe(false);
+  });
+
+  it("an OS machine powered on with a key already plugged notices it at idle and ingests it", () => {
+    const g = rig("ssd1");
+    const id = g.trayKeyIds()[0]!;
+    expect(g.plugKey(id).ok).toBe(true); // machine is off
+    g.powerButton();
+    runUntil(g, "idle-os");
+    until(g, () => ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""), 4000);
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
+    expect(collect(g, id)).toBeGreaterThan(0);
+    expect(g.snapshot().progress.firstOsJob).toBe(true);
   });
 });
 

@@ -10,13 +10,13 @@ import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type View } from './camera';
 import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
-import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
+import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
-  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PKG, PSU, PSU_PANEL,
-  REGIONS, SCREEN, STAGES, TRAY, USB_PORT, WORLD, type Rect,
+  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, type Rect,
 } from './layout';
 import { drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -227,11 +227,12 @@ export async function mountBoard(host: HTMLElement) {
     const type = id.replace(/\d+$/, ''), idx = Number(/\d+$/.exec(id)?.[0] ?? 0);
     switch (type) {
       case 'cpu': return PKG;
-      case 'dimm': return { x: DIMM_X(idx), y: DIMM_Y, w: DIMM_W, h: DIMM_H };
+      case 'dimm': return { x: DIMM_X(idx), y: DIMM_Y(idx), w: DIMM_W, h: DIMM_H };
       case 'cooler': return COOLER;
       case 'display': return MONITOR;
       case 'atx': case 'atx-plus': return PSU;
-      case 'pcie': return { x: -2850, y: idx === 0 ? 1030 : 2110, w: idx === 0 ? 3800 : 1800, h: 60 };
+      case 'pcie': { const r = PCIE_RAILS[idx]; return r ? { x: r.x, y: r.y - 20, w: r.w, h: r.h + 40 } : null; }
+      case 'vrm-sink': return VRM_SINK;
       default: return null;
     }
   };
@@ -294,10 +295,10 @@ export async function mountBoard(host: HTMLElement) {
         scene.rects.set(d.id, PKG);
       } else if (spec.kind === 'ram') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
-        const p = ramArt(T, spec as RamSpec);
-        p.root.position.set(DIMM_X(idx), DIMM_Y);
+        const p = ramArt(T, spec as RamSpec, idx >= 4);
+        p.root.position.set(DIMM_X(idx), DIMM_Y(idx));
         deviceLayer.addChild(p.root); parts.push(p);
-        const r = { x: DIMM_X(idx), y: DIMM_Y, w: DIMM_W, h: DIMM_H };
+        const r = { x: DIMM_X(idx), y: DIMM_Y(idx), w: DIMM_W, h: DIMM_H };
         dimms.push(idx);
         targets.push({ id: d.id, kind: 'ram', spec: d.spec, rect: r });
         deviceHits.push({ id: d.id, rect: r });
@@ -318,6 +319,13 @@ export async function mountBoard(host: HTMLElement) {
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
         coolerHit = { id: d.id, rect: COOLER, max: Z_DIE };
         scene.rects.set(d.id, COOLER);
+      } else if (spec.kind === 'vrm-sink') {
+        const p = vrmSinkArt(T, spec.visual);
+        deviceLayer.addChild(p.root); parts.push(p);
+        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
+        if (p.over) fanLayer.addChild(p.over);
+        deviceHits.push({ id: d.id, rect: VRM_SINK });
+        scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'storage') {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
@@ -341,13 +349,14 @@ export async function mountBoard(host: HTMLElement) {
         if (!filled.has(id)) { emptyHits.push({ id, rect: rectOf(i) }); scene.interactive.add(id); }
       }
     };
-    empty('dimm', slots.dimm ?? 0, (i) => ({ x: DIMM_X(i), y: DIMM_Y, w: DIMM_W, h: DIMM_H }));
+    empty('dimm', slots.dimm ?? 0, (i) => ({ x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }));
     empty('cpu', slots.cpu ?? 0, () => PKG);
     empty('cooler', slots.cooler ?? 0, () => COOLER);
     empty('display', slots.display ?? 0, () => MONITOR);
     empty('atx', slots.atx ?? 0, () => PSU);
     empty('atx-plus', slots['atx-plus'] ?? 0, () => PSU);
     empty('pcie', slots.pcie ?? 0, (i) => slotRectOf('pcie' + i)!);
+    empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
     const driveSlots = [...['sata0', 'sata1'].slice(0, nSata), ...(nM2 ? ['m20'] : [])];
@@ -404,6 +413,7 @@ export async function mountBoard(host: HTMLElement) {
       if (h.id.startsWith('atx')) deviceLayer.addChild(label('PSU BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
     }
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
+    scene.rects.set('vrm', BR.vrm); scene.interactive.add('vrm');
     scene.rects.set('usb', USB_PORT); scene.interactive.add('usb'); scene.usb = USB_PORT;
     scene.rects.set('tray', TRAY); scene.interactive.add('tray');
     scene.rects.set('bay', BAY); scene.interactive.add('bay');

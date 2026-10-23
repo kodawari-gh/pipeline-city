@@ -1,9 +1,10 @@
 // A bot player: does what a patient human would, after `reaction` ticks of delay for each manual step. Used by the
 // tests and by dev tools to drive the economy without a UI. Call `step()` once after every `advanceBaseTick()`.
 //
-// Each step it (in order): removes a finished key, installs everything installable and reconnects cables when no key
-// is in the port (powering the machine off and on around it), plugs the oldest key, and presses power if the machine
-// is off and ready. The sim itself never needs it.
+// Without an OS it runs the manual loop: hand back a finished key (payout), power off a halted machine, plug the
+// oldest key while the machine is off, power on, wait. Parts and cables are installed (machine off) whenever the port
+// holds no key. With an OS it keeps the machine on: plug a tray key to ingest it, unplug it once queued (the OS holds it),
+// plug a held key whose result is ready, remove it when the flash landed. The sim itself never needs it.
 
 import { CABLE_IDS, deviceSpec, getSpec } from "../board";
 import type { Game } from "./game";
@@ -15,10 +16,29 @@ export class Operator {
   step(): void {
     const g = this.g;
     const plugged = g.pluggedKey();
-    if (plugged?.done && g.currentPhase() !== "writing") return this.act(() => { g.ejectKey(); });
+    if (plugged?.done && g.currentPhase() !== "writing" && g.currentPhase() !== "flashing") return this.act(() => { g.ejectKey(); });
     if ((!plugged || g.currentPhase() === "error") && this.hasMaintenance()) return this.act(() => this.assemble(false));
-    if (!plugged && g.trayKeyIds().length > 0) return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
-    if (!g.powered && !this.hasMaintenance()) return this.act(() => { g.powerButton(); });
+    if (g.hasOs()) return this.stepOs(plugged);
+    const phase = g.currentPhase();
+    // A halted machine (job done, or no key at boot) stays halted until it is power-cycled by hand.
+    if (g.powered && !plugged && (phase === "halted" || phase === "error")) return this.act(() => { g.powerButton(); });
+    if (!g.powered && !plugged && g.trayKeyIds().length > 0) return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
+    if (!g.powered && plugged) return this.act(() => { g.powerButton(); });
+    this.wait = 0;
+  }
+
+  private stepOs(plugged: { id: number; done: boolean } | null): void {
+    const g = this.g;
+    if (!g.powered) return this.act(() => { g.powerButton(); });
+    if (plugged) {
+      if (g.pluggedIngested()) return this.act(() => { g.ejectKey(); });
+      return void (this.wait = 0);
+    }
+    const held = g.osHeld();
+    if (held.ready[0] !== undefined) return this.act(() => { g.plugKey(held.ready[0]!); });
+    if (held.jobs < held.queueSlots && g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting") {
+      return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
+    }
     this.wait = 0;
   }
 

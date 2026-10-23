@@ -22,6 +22,17 @@ export interface MixEntry {
 }
 
 /** PLACEHOLDER BALANCE. Tune by playing. */
+export interface PatienceConfig {
+  /** Multiplier on the client's patience (target turnaround for reputation, key deadlines, give-up turnaround) at first boot. */
+  startMul: number;
+  /** The multiplier it falls to, and stays at, once `floorTicks` have passed. */
+  floorMul: number;
+  /** Base ticks since the first boot during which the patience stays at `startMul`. */
+  holdTicks: number;
+  /** Base ticks since the first boot at which the patience reaches `floorMul` (linear in between). */
+  floorTicks: number;
+}
+
 export interface EconomyConfig {
   /**
    * CPU cycles per CPU "clock unit" per base tick. A CPU spec clock of 1 means 1 tick per base tick in the board
@@ -75,6 +86,13 @@ export interface EconomyConfig {
    */
   usbEnumTicks: number;
   usbFlashTicks: number;
+  /**
+   * Patience schedule (docs/GAME.md). The manual no-OS loop (plug, power on, POST + boot, run, write, remove, power off) is
+   * slow by design, so clients are forgiving at first and tighten with game time (driver: base ticks since the first boot):
+   * the reputation target (`targetTurnaround`), the key deadline (`deadlineTicks`) and the tray-overflow penalty
+   * (`giveUpTurnaround`) are all multiplied by the schedule. The payout's speed bonus keeps the plain `targetTurnaround`.
+   */
+  patience: PatienceConfig;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -101,10 +119,19 @@ export const ECONOMY: EconomyConfig = {
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
+  patience: { startMul: 3, floorMul: 0.5, holdTicks: 600, floorTicks: 3000 },
 };
 
-export function reputation(cfg: EconomyConfig, avgTurnaround: number): number {
-  return Math.min(cfg.repMax, Math.max(cfg.repMin, cfg.targetTurnaround / Math.max(1, avgTurnaround)));
+/** Client patience multiplier `elapsed` base ticks after the first boot: startMul, then linear down to floorMul. */
+export function patienceMul(cfg: EconomyConfig, elapsed: number): number {
+  const p = cfg.patience;
+  if (elapsed <= p.holdTicks) return p.startMul;
+  if (elapsed >= p.floorTicks) return p.floorMul;
+  return p.startMul + ((p.floorMul - p.startMul) * (elapsed - p.holdTicks)) / (p.floorTicks - p.holdTicks);
+}
+
+export function reputation(cfg: EconomyConfig, avgTurnaround: number, target = cfg.targetTurnaround): number {
+  return Math.min(cfg.repMax, Math.max(cfg.repMin, target / Math.max(1, avgTurnaround)));
 }
 
 export function demandRate(cfg: EconomyConfig, rep: number): number {

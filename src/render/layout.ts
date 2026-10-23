@@ -14,7 +14,7 @@ export const BR = {
   vrm: { x: -1300, y: -1650, w: 2600, h: 550 },
   /** DRAM VRM block south-east of the DIMMs. */
   dvrm: { x: 1100, y: 1250, w: 1200, h: 420 },
-  pcie: { x: -2950, y: 1120, w: 4150, h: 880 },
+  pcie: { x: -2950, y: 960, w: 4150, h: 1300 },
   /** Chipset sits west of the CPU, between it and the rear I/O. */
   chip: { x: -2250, y: -300, w: 600, h: 600 },
   io: { x: -3440, y: -2000, w: 690, h: 2450 },
@@ -74,11 +74,29 @@ export const CHIP_H = 78;
 export const stageCentre = (s: number) => ({ x: STAGES[s]!.x + 100, y: STAGES[s]!.y + 105 });
 
 // ---- DIMM, PCIe ----
-export const DIMM_X = (i: number) => 1400 + i * 220;
-export const DIMM_Y = -840, DIMM_W = 170, DIMM_H = 1680;
+/**
+ * The DIMM block holds up to 8 sockets, one shared layout for every board tier: two rows of four with the memory bus running
+ * between them (row 0 = dimm0..3 on top, pins down; row 1 = dimm4..7 below, pins up). A tier fills as many as it has.
+ */
+export const DIMM_X = (i: number) => 1400 + (i % 4) * 220;
+export const DIMM_Y = (i: number) => (i < 4 ? -840 : 150);
+export const DIMM_W = 170, DIMM_H = 690;
+/** The gap between the two rows, where the memory bus lanes run (y from -150 to 150). */
+export const DIMM_GAP = { y0: -150, y1: 150 };
+/** Up to four PCIe slots (x16, x8, x4, x1 looks); a tier fills the first ones. */
 export const PCIE_RAILS: Rect[] = [
-  { x: -2850, y: 1030, w: 3800, h: 60 }, { x: -2850, y: 2150, w: 1800, h: 60 }, { x: -2850, y: 2290, w: 600, h: 60 },
+  { x: -2850, y: 1030, w: 3800, h: 60 }, { x: -2850, y: 1460, w: 2600, h: 60 }, { x: -2850, y: 1810, w: 1800, h: 60 }, { x: -2850, y: 2130, w: 1000, h: 60 },
 ];
+
+// ---- VRM: one block north of the CPU with up to six phases (a tier fills the first ones), a PWM controller and the heatsink pad ----
+export const VRM_MAX = 6;
+/** One phase block (MOSFETs, choke, capacitors), left to right. */
+export const vrmPhase = (i: number): Rect => ({ x: BR.vrm.x + 300 + i * 380, y: BR.vrm.y + 40, w: 340, h: 470 });
+export const VRM_PWM: Rect = { x: BR.vrm.x + 40, y: BR.vrm.y + 150, w: 210, h: 210 };
+/** Where a VRM heatsink bolts on: over the MOSFET strip of all phases (slot `vrm-sink0`). */
+export const VRM_SINK: Rect = { x: BR.vrm.x + 290, y: BR.vrm.y + 18, w: 6 * 380 - 30, h: 170 };
+/** The power-good light of the VRM. */
+export const VRM_LED = { x: BR.vrm.x + 145, y: BR.vrm.y + 92 };
 
 // ---- PSU (below the board, full width plus the cable gutter) ----
 export const GUTTER_X = 3400;

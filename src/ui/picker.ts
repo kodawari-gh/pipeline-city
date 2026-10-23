@@ -426,13 +426,14 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const d = describeId('power')!;
     const lines: PickerLine[] = [{ level: 'info', text: powerStatus(s) }];
     if (!s.powered && s.noPowerReason) lines.push({ level: 'warn', text: s.noPowerReason });
-    if (s.powered && s.postBlocker) lines.push({ level: 'bad', text: `Self-test fails: ${s.postBlocker}` });
+    if (s.powered && s.postBlocker) lines.push({ level: 'bad', text: `POST error: ${s.postBlocker}` });
     if (s.phase === 'error' && s.phaseReason) lines.push({ level: 'bad', text: s.phaseReason });
     const actions: PickerAction[] = [];
     if (s.power.tripped) {
       lines.unshift({ level: 'bad', text: 'The power supply tripped: too much draw. Power cycle it, then lighten the load or buy a bigger supply.' });
       actions.push({ id: 'powerCycle', label: 'Power cycle', primary: true });
     }
+    if (s.powered && s.phase !== 'halted') lines.push({ level: 'info', text: 'Power off is immediate: a job in progress is lost, but its key keeps its data and the job restarts at the next boot.' });
     actions.push({
       id: 'power', label: s.powered ? 'Power off' : 'Power on', primary: !s.powered && !s.power.tripped,
       why: !s.powered ? s.noPowerReason ?? undefined : undefined,
@@ -444,7 +445,11 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const d = describeId('usb')!;
     const k = s.plugged;
     const lines: PickerLine[] = k
-      ? [{ level: 'info', text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.phase.replace(/-/g, ' ')}` }, ...keyLines(k, s.baseTick).slice(1)]
+      ? [
+        { level: 'info', text: `${k.label}: ${k.done ? 'finished, ready to hand back' : s.keyIgnored ? 'ignored until the next boot' : s.phase.replace(/-/g, ' ')}` },
+        ...keyLines(k, s.baseTick).slice(1),
+        ...(s.keyIgnored ? [{ level: 'warn' as const, text: 'Without an OS the machine only reads a key at boot. Power off and on again.' }] : []),
+      ]
       : [{ level: 'info', text: s.tray.length ? 'Port is free. Drag a key from the tray into it.' : 'Port is free. No keys waiting right now.' }];
     return {
       ...emptyCard(id, 'usb', d.title, d.plain, d.nerd), lines,

@@ -97,6 +97,7 @@ export const HINTS: Record<string, Hint> = {
   burnt: { id: 'burnt', text: 'A part burnt out and does nothing now. Buy a replacement of the same kind.' },
   trip: { id: 'trip', text: 'The power supply tripped: too much draw. Power cycle it, then reduce load or buy a bigger supply.' },
   brownout: { id: 'brownout', text: 'The power supply is overloaded, so everything is slowed down. Upgrade it or lower the clock.' },
+  keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot. Power it off and on again to load this key (an OS reads keys while running).' },
   osFull: { id: 'osFull', text: 'The OS queue is full: a plugged key stays in the tray until a job finishes and frees a slot.' },
 };
 
@@ -110,6 +111,7 @@ export function triggeredHints(s: Snapshot): string[] {
   if (s.devices.some((d) => d.burnt)) out.push('burnt');
   if (s.power.tripped) out.push('trip');
   else if (s.power.psuFactor < 1 && !s.power.off) out.push('brownout');
+  if (s.keyIgnored) out.push('keyIgnored');
   // The OS has no free queue slot and keys are waiting (a plugged key stays stage "tray" then).
   if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) out.push('osFull');
   return out;
@@ -262,11 +264,18 @@ export function statusChip(s: Snapshot): { text: string; title: string; level: C
     case 'off': return { text: 'Off', title: s.noPowerReason ?? 'The machine is off.', level: 'idle' };
     case 'posting': return { text: 'POST', title: 'Power-on self-test: the chipset checks the parts.', level: 'ok' };
     case 'waiting-for-key': return { text: 'Waiting for key', title: 'Plug a client key into the USB port.', level: 'warn' };
+    case 'halted':
+      return s.haltReason === 'no-boot-media'
+        ? { text: 'No boot media', title: 'The machine looked for a key at boot and found none. Plug a key in, then power off and on again.', level: 'warn' }
+        : { text: 'Job done: remove key', title: 'The job is done and the machine has halted. Remove the key to get paid, then power off and on for the next job.', level: 'warn' };
     case 'loading': return { text: 'Loading', title: 'Copying the job from the key into memory.', level: 'ok' };
     case 'running': return { text: 'Running', title: 'The processor is running the job.', level: 'ok' };
     case 'writing': return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };
     case 'done-remove-key': return { text: 'Remove key', title: 'The job is done. Pull the key to get paid.', level: 'warn' };
-    case 'error': return { text: `Error: ${s.phaseReason ?? 'stopped'}`, title: s.phaseReason ?? 'The machine stopped.', level: 'bad' };
+    case 'error':
+      return s.postFailed
+        ? { text: `POST error: ${s.phaseReason ?? 'stopped'}`, title: `The self-test found a problem and the machine stopped: ${s.phaseReason ?? ''}. Power off, fix it, power on again.`, level: 'bad' }
+        : { text: `Error: ${s.phaseReason ?? 'stopped'}`, title: s.phaseReason ?? 'The machine stopped.', level: 'bad' };
     case 'booting-os': {
       const pct = Math.round(Math.min(1, Math.max(0, s.bootProgress)) * 100);
       return { text: `Booting OS ${pct}%`, title: 'Loading the OS from the drive. Boot time depends on the processor and the drive.', level: 'ok' };

@@ -27,8 +27,8 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'power' | 'plugKey' | 'watch'
-  | 'removeKey' | 'spend' | 'fit' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'plugKey' | 'power' | 'watch'
+  | 'removeKey' | 'cycle' | 'spend' | 'fit' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
   | 'osCollect' | 'osPaid' | 'done';
 
 export interface StepDef {
@@ -113,18 +113,21 @@ export const STEPS: StepDef[] = [
   { id: 'video', title: 'Connect the video cable', flag: 'videoConnected',
     text: 'Plug the video cable between the board and the monitor so you can see the screen.',
     targets: () => ['cable.video', 'monitor'] },
-  { id: 'power', title: 'Press the power button', flag: 'poweredOn',
-    text: 'Press the power button. The machine tests itself (POST) and the monitor shows the results.',
-    targets: () => ['power'] },
   { id: 'plugKey', title: 'Plug in a client key', flag: 'firstKeyPlugged',
-    text: 'A client left a key in the tray. This is where work comes from: drag it into the USB port. The machine runs one job at a time.',
+    text: 'A client left a key in the tray. This is where work comes from: drag it into the USB port now, while the machine is still off. The machine only looks for a program at boot.',
     targets: (s) => ['usb', ...(s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
+  { id: 'power', title: 'Press the power button', flag: 'poweredOn',
+    text: 'Press the power button. The machine tests itself (POST), looks at the USB port once, then copies the job from the key into memory. The monitor shows the results.',
+    targets: () => ['power'] },
   { id: 'watch', title: 'Watch it work', flag: 'firstJobDone',
-    text: 'The machine copies the job into memory, runs it, and writes the answer back to the key. Watch the monitor.',
+    text: 'The machine runs the job and writes the answer back to the key, then it halts. Watch the monitor.',
     targets: () => ['monitor'] },
   { id: 'removeKey', title: 'Remove the key', flag: 'firstKeyEjected',
     text: 'Done! Pull the key out of the USB port to hand it back. You are paid when it is removed, and idle time is lost income.',
     targets: () => ['usb'] },
+  { id: 'cycle', title: 'Power off and on for the next job', flag: 'firstManualCycle',
+    text: 'The machine stays halted until you restart it. Plug the next key in, then power off and on again: it only reads a key at boot. This manual loop is why an OS is worth buying; it reads keys while running.',
+    targets: (s) => ['power', 'usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
   { id: 'spend', title: 'Spend your first money', flag: 'firstPurchase',
     text: 'Click the processor on the board to see its upgrades. Buy one. It goes into the inventory.',
     targets: (s) => {
@@ -205,6 +208,7 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
     poweredOn: s.powered && s.phase !== 'off',
     storageInstalled: s.storage.length > 0, osInstalled: !!s.os, firstOsJob: s.progress.firstOsJob,
     firstKeyPlugged: !!s.plugged || done,
+    firstManualCycle: s.completed >= b.completed + 2 || (ejected && !!s.plugged && s.powered && s.phase !== 'halted' && s.phase !== 'off'),
     firstJobDone: done,
     firstKeyEjected: ejected,
     firstPurchase: owned > b.owned,
@@ -291,12 +295,17 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.powered ? 'The machine is on. Power it off before plugging cables.' : null;
     }
     case 'power':
-      return s.noPowerReason ?? (s.phase === 'error' ? s.phaseReason : null) ?? s.postBlocker;
+      if (s.phase === 'error' && s.phaseReason) return `POST error: ${s.phaseReason}. Power off, fix it, power on again.`;
+      return s.noPowerReason ?? (s.postBlocker && `POST would fail: ${s.postBlocker}`) ?? (s.plugged ? null : 'No key in the USB port yet: the machine would halt with NO BOOT MEDIA.');
     case 'plugKey':
-      if (!s.tray.length) return 'No key yet. A client key will arrive in the tray soon.';
-      return s.powered ? null : 'The machine is off. Press the power button first.';
+      if (!s.tray.length && !s.plugged) return 'No key yet. A client key will arrive in the tray soon.';
+      return s.powered ? 'The machine is already on, so it will not look at a new key. Power it off, plug the key in, then power on.' : null;
     case 'watch':
+      if (s.keyIgnored || s.haltReason === 'no-boot-media') return 'The machine did not see the key: it only looks at boot. Power off, plug the key in, and power on again.';
       return s.phase === 'error' ? s.phaseReason : null;
+    case 'cycle':
+      if (!s.plugged) return s.tray.length ? 'Plug the next key into the USB port first.' : 'No key yet. A client key will arrive in the tray soon.';
+      return s.powered ? 'Press the power button to switch off, then again to switch on: the machine reads the key at boot.' : null;
     case 'fit':
       return unpowered(s);
     case 'buyDrive': case 'buyOs': {
@@ -315,6 +324,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;
     case 'osIngest':
       if (!s.powered) return 'The machine is off. Press the power button first.';
+      if (s.phase === 'booting-os' || s.phase === 'posting') return 'The OS is still starting. A key plugged in meanwhile is picked up when it is idle.';
       return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
     case 'osWait':
       return s.phase === 'error' ? s.phaseReason : null;

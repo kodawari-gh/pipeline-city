@@ -1,9 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
 import {
-  BD, BOARD_SEED, BR, sataPort, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, rng,
+  BD, BOARD_SEED, BR, sataPort, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, VRM_LED, VRM_MAX, VRM_PWM, vrmPhase, rng,
 } from './layout';
-import { box, disc, label } from './ink';
+import { box, disc, label, mix } from './ink';
+import { USB_POS } from './exterior';
 import { buildBuses, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 
@@ -35,10 +36,16 @@ export function strokeLane(g: Graphics, l: Lane) {
 export function buildBoard(T: Theme, tier: number): BoardArt {
   const rand = rng(BOARD_SEED);
   const P = makePalette(T);
+  // the tier is hinted in the board colour: Starter is a plain grey-green, Basic the base blue, Mainstream a deeper teal, Enthusiast a dark violet
+  const tint = [T.dark ? '#46524c' : '#b5c4b8', null, T.dark ? '#0e4750' : '#9ed3d0', T.dark ? '#2a1a52' : '#c0b4e6'][tier] ?? null;
+  if (tint) { P.board = mix(P.board, tint, [0.22, 0, 0.2, 0.26][tier] ?? 0); P.edge = mix(P.edge, tint, 0.25); P.sub = mix(P.sub, tint, 0.18); P.panel = mix(P.panel, tint, 0.15); }
+  const tierSpec = BOARD_TIERS[tier];
+  const feat = tierSpec?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 };
+  const phases = tierSpec?.vrm.phases ?? 2;
   const root = new Container();
   const labels = new Container();
   const slots = BOARD_TIERS[tier]?.slots ?? {};
-  const nDimm = slots.dimm ?? 0, nPcie = slots.pcie ?? 0, nSata = slots.sata ?? 0;
+  const nDimm = slots.dimm ?? 0, nPcie = slots.pcie ?? 0, nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
 
   const g = new Graphics();
   root.addChild(g);
@@ -67,17 +74,46 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     }
   }
 
-  // ---- VRM row (core power) ----
+  // ---- VRM (core power): a PWM controller and one block per phase; a tier fills the first `phases` blocks, the rest are empty pads ----
   {
     const v = BR.vrm;
     box(g, v.x, v.y, v.w, v.h, 28, { fill: P.sub, stroke: P.edge, lw: 6 });
-    for (let i = 0; i < 9; i++) {
-      const x = v.x + 60 + i * 282, y = v.y + 50;
-      box(g, x, y, 200, 210, 18, { fill: P.panel, stroke: P.edge, lw: 5 });
-      disc(g, x + 100, y + 105, 62, { stroke: P.via, lw: 7, sa: 0.7 }); disc(g, x + 100, y + 105, 26, { stroke: P.via, lw: 6, sa: 0.7 });
-      disc(g, x + 100, y + 340, 42, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 });
+    const q = VRM_PWM;
+    box(g, q.x, q.y, q.w, q.h, 16, { fill: P.panel, stroke: T.mul, lw: 5, sa: 0.5 });
+    for (let k = 0; k < 6; k++) g.rect(q.x - 22, q.y + 28 + k * 28, 22, 12).rect(q.x + q.w, q.y + 28 + k * 28, 22, 12);
+    g.fill({ color: P.via, alpha: 0.6 });
+    disc(g, q.x + 32, q.y + 32, 9, { fill: P.silk, fa: 0.55 });
+    labels.addChild(label('PWM', q.x + q.w / 2, q.y + q.h / 2, 46, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.55 }));
+    disc(g, VRM_LED.x, VRM_LED.y, 20, { fill: P.dark, stroke: P.edge, lw: 5 }); // power-good light (lit by live.ts)
+    for (let i = 0; i < VRM_MAX; i++) {
+      const r = vrmPhase(i);
+      if (i >= phases) {
+        // no phase here on this board: bare pads where the parts would be soldered
+        const pad = (x: number, y: number, w: number, h: number) => { box(g, r.x + x, r.y + y, w, h, 10, { stroke: P.edge, lw: 4, sa: 0.5 }); };
+        pad(24, 24, 292, 120); pad(24, 190, 150, 150);
+        disc(g, r.x + 255, r.y + 230, 40, { stroke: P.edge, lw: 4, sa: 0.5 }); disc(g, r.x + 255, r.y + 320, 40, { stroke: P.edge, lw: 4, sa: 0.5 });
+        continue;
+      }
+      box(g, r.x, r.y, r.w, r.h, 18, { fill: P.dark, fa: 0.35, stroke: P.edge, lw: 4, sa: 0.5 });
+      // MOSFET pair (high side and low side) under the heatsink pad
+      box(g, r.x + 24, r.y + 24, 292, 120, 10, { fill: P.panel, stroke: P.edge, lw: 5 });
+      box(g, r.x + 44, r.y + 44, 110, 80, 6, { fill: P.dark }); box(g, r.x + 186, r.y + 44, 110, 80, 6, { fill: P.dark });
+      for (let k = 0; k < 4; k++) g.rect(r.x + 40 + k * 70, r.y + 144, 28, 18);
+      g.fill({ color: P.via, alpha: 0.55 });
+      // choke: a ferrite block with a copper winding
+      const cx = r.x + 24, cy = r.y + 190;
+      box(g, cx, cy, 150, 150, 14, { fill: P.dark, stroke: P.edge, lw: 5 });
+      box(g, cx + 22, cy + 22, 106, 106, 10, { stroke: P.copper, lw: 9, sa: 0.9 });
+      box(g, cx + 48, cy + 48, 54, 54, 6, { fill: P.panel });
+      // output capacitors
+      for (const y of [r.y + 230, r.y + 320]) {
+        disc(g, r.x + 255, y, 40, { fill: P.panel, stroke: P.via, lw: 6, sa: 0.7 }); disc(g, r.x + 255, y, 14, { fill: P.dark });
+        g.moveTo(r.x + 255 - 22, y).lineTo(r.x + 255 + 22, y).stroke({ width: 4, color: P.via, alpha: 0.5 });
+      }
+      for (let k = 0; k < 5; k++) g.rect(r.x + 24 + k * 34, r.y + 380, 22, 34);
+      g.fill({ color: P.via, alpha: 0.25 });
     }
-    lbl('VRM · CPU CORE', v.x + 10, v.y - 36);
+    lbl(`VRM · CPU CORE · ${phases} PHASE`, v.x + 10, v.y - 36);
   }
   // ---- DRAM VRM ----
   {
@@ -92,34 +128,39 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     lbl('VRM · DRAM', v.x + 10, v.y - 36);
   }
 
-  // ---- DIMM sockets (positions beyond this tier are faint) ----
-  for (let d = 0; d < 4; d++) {
-    const sx = DIMM_X(d), live = d < nDimm, a = live ? 1 : 0.28;
-    box(g, sx, DIMM_Y, DIMM_W, DIMM_H, 10, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
-    box(g, sx + 20, DIMM_Y + 60, DIMM_W - 40, DIMM_H - 120, 6, { fill: P.dark, fa: a * 0.8 });
-    g.rect(sx + 20, DIMM_Y - 20, 130, 22).rect(sx + 20, DIMM_Y + DIMM_H - 2, 130, 22).fill({ color: P.edge, alpha: a });
-    if (live) lbl('DIMM_' + (d + 1), sx + 6, DIMM_Y - 62, 34);
+  // ---- DIMM sockets: eight positions in two rows around the memory bus; the ones this tier lacks are bare, faint sockets ----
+  for (let d = 0; d < 8; d++) {
+    const sx = DIMM_X(d), sy = DIMM_Y(d), live = d < nDimm, a = live ? 1 : 0.3, up = d >= 4;
+    box(g, sx, sy, DIMM_W, DIMM_H, 10, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
+    box(g, sx + 20, sy + 40, DIMM_W - 40, DIMM_H - 80, 6, { fill: P.dark, fa: a * 0.8 });
+    g.rect(sx + 20, sy - 20, 130, 22).rect(sx + 20, sy + DIMM_H - 2, 130, 22).fill({ color: P.edge, alpha: a });
+    if (!live) g.moveTo(sx + 22, sy + 22).lineTo(sx + DIMM_W - 22, sy + DIMM_H - 22).moveTo(sx + DIMM_W - 22, sy + 22).lineTo(sx + 22, sy + DIMM_H - 22).stroke({ width: 4, color: P.edge, alpha: 0.18 });
+    if (live) lbl('DIMM_' + (d + 1), sx + 6, up ? sy + DIMM_H + 40 : sy - 62, 34);
   }
 
-  // ---- PCIe rails (first nPcie are real for this tier) ----
+  // ---- PCIe slots: four positions (x16, x8, x4, x1 lengths); the tier fills the first ones, the rest are bare pads ----
   PCIE_RAILS.forEach((r, i) => {
     const live = i < nPcie, a = live ? 1 : 0.3;
     box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
     g.rect(r.x + 40, r.y + 18, r.w - 80, 24).fill({ color: P.dark, alpha: a });
     for (let k = 0; k < Math.floor(r.w / 60); k++) g.rect(r.x + 56 + k * 60, r.y + 22, 14, 16);
     g.fill({ color: P.via, alpha: 0.55 * a });
+    lbl(['PCIe x16 · GPU', 'PCIe x8', 'PCIe x4', 'PCIe x1'][i]!, r.x, r.y - 36, i === 0 ? 38 : 34, live ? 1 : 0.5);
   });
-  lbl('PCIe x16 · GPU', -2850, 990);
-  lbl('PCIe x4', -2850, 2110, 34, 0.7); lbl('PCIe x1', -2850, 2250, 34, 0.7);
 
   // ---- M.2 SSD ----
   {
-    const m = BR.m2;
-    box(g, m.x, m.y, m.w, m.h, 12, { fill: P.sub, stroke: P.edge, lw: 6 });
-    box(g, m.x + 22, m.y + 24, m.w - 44, m.h - 150, 8, { fill: P.dark, stroke: T.mul, lw: 4, sa: 0.4 });
-    for (let i = 0; i < 3; i++) box(g, m.x + 45, m.y + 60 + i * 260, 110, 210, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
-    disc(g, m.x + 100, m.y + m.h - 60, 28, { fill: P.via, fa: 0.6 });
-    lbl('M.2 NVMe', m.x - 20, m.y - 36);
+    const m = BR.m2, a = nM2 > 0 ? 1 : 0.28;
+    box(g, m.x, m.y, m.w, m.h, 12, { fill: P.sub, stroke: P.edge, lw: 6, fa: a, sa: a });
+    if (nM2 > 0) {
+      box(g, m.x + 22, m.y + 24, m.w - 44, m.h - 150, 8, { fill: P.dark, stroke: T.mul, lw: 4, sa: 0.4 });
+      for (let i = 0; i < 3; i++) box(g, m.x + 45, m.y + 60 + i * 260, 110, 210, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
+      disc(g, m.x + 100, m.y + m.h - 60, 28, { fill: P.via, fa: 0.6 });
+    } else {
+      for (let i = 0; i < 5; i++) g.rect(m.x + 60, m.y + 80 + i * 90, 80, 14);
+      g.fill({ color: P.edge, alpha: 0.35 });
+    }
+    lbl(nM2 > 0 ? 'M.2 NVMe' : 'M.2 · not fitted', m.x - 20, m.y - 36, 38, nM2 > 0 ? 1 : 0.5);
   }
 
   // ---- chipset (west of the CPU) ----
@@ -166,14 +207,22 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       box(g, x, y - h / 2, w, h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
       if (tongue) g.rect(x + 18, y - h * 0.14, w - 36, h * 0.28).fill({ color: tongue, alpha: ta });
     };
+    // an unfitted connector is a bare outline on the plate
+    const bare = (x: number, y: number, w: number, h: number) => { box(g, x, y - h / 2, w, h, 10, { stroke: P.edge, lw: 3, sa: 0.3 }); };
     // audio jacks
     ([[T.st], [T.br], [T.ld]] as const).forEach(([c], k) => { port(q.x + 30 + k * 215, -1870, 180, 90, c, 0.55); });
-    // ethernet
-    port(q.x + 30, -1560, 330, 260, null);
-    for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
-    g.fill({ color: P.via, alpha: 0.5 });
-    g.rect(q.x + 50, -1405, 40, 22).fill({ color: T.st, alpha: 0.55 }); g.rect(q.x + 130, -1405, 40, 22).fill({ color: T.ld, alpha: 0.55 });
-    // video outputs (HDMI working, DisplayPort spare)
+    // ethernet: only the boards that have a network chip get a jack (ethernetMbps 0 = bare plate)
+    if (feat.ethernetMbps > 0) {
+      port(q.x + 30, -1560, 330, 260, null);
+      for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
+      g.fill({ color: P.via, alpha: 0.5 });
+      g.rect(q.x + 50, -1405, 40, 22).fill({ color: T.st, alpha: 0.55 }); g.rect(q.x + 130, -1405, 40, 22).fill({ color: T.ld, alpha: 0.55 });
+      labels.addChild(label(feat.ethernetMbps >= 1000 ? 'ETH 1G' : `ETH ${feat.ethernetMbps}M`, q.x + 200, -1405, 30, P.silkHi, { anchor: [0, 0.5] }));
+    } else {
+      bare(q.x + 30, -1560, 330, 260);
+      labels.addChild(label('ETH · none', q.x + 40, -1560, 30, P.silk, { anchor: [0, 0.5], a: 0.6 }));
+    }
+    // video outputs (HDMI working, a second port only on the boards with two outputs)
     const hdmi = (x: number, y: number, w: number, h: number, active: boolean) => {
       const c = 26;
       g.poly([x, y - h / 2 + c, x + c, y - h / 2, x + w, y - h / 2, x + w, y + h / 2, x + c, y + h / 2, x, y + h / 2 - c]);
@@ -181,12 +230,15 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       g.rect(x + 40, y - h * 0.12, w - 70, h * 0.24).fill({ color: P.via, alpha: 0.7 });
     };
     hdmi(q.x, VIDEO_Y, 240, 120, true);
-    hdmi(q.x, VIDEO_Y + 220, 240, 120, false);
     labels.addChild(label('HDMI', q.x + 270, VIDEO_Y, 34, P.silkHi, { anchor: [0, 0.5] }));
-    labels.addChild(label('DP', q.x + 270, VIDEO_Y + 220, 34, P.silk, { anchor: [0, 0.5] }));
-    // USB-A, two columns
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) port(q.x + 18 + c * 320, (r - 1) * 150, 290, 108, c === 0 ? T.alu : T.alu, 0.5);
-    labels.addChild(label('USB', q.x + q.w - 20, 235, 34, P.silk, { anchor: [1, 0.5] }));
+    if (feat.displayPorts >= 2) { hdmi(q.x, VIDEO_Y + 220, 240, 120, false); labels.addChild(label('DP', q.x + 270, VIDEO_Y + 220, 34, P.silk, { anchor: [0, 0.5] })); }
+    else bare(q.x, VIDEO_Y + 220, 240, 120);
+    // USB-A: four positions, a tier fills the first `usbPorts` (the first is the one keys plug into)
+    USB_POS.forEach(([col, y], i) => {
+      if (i < feat.usbPorts) port(q.x + 18 + col * 320, y, 290, 108, T.alu, 0.5);
+      else bare(q.x + 18 + col * 320, y, 290, 108);
+    });
+    labels.addChild(label('USB', q.x + q.w - 20, 330, 34, P.silk, { anchor: [1, 0.5] }));
     lbl('REAR I/O', q.x + 6, q.y - 36);
   }
   // ---- audio codec (low-key) ----
@@ -247,7 +299,10 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.fill({ color: P.silkHi, alpha: 0.5 });
   }
   labels.addChild(label('PIPELINE CITY', -800, 2330, 90, P.silk, { head: true, a: 0.5 }));
-  lbl('MB-9000 · REV A', 1500, 2390, 40, 0.8);
+  lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · REV A`, 1300, 2390, 40, 0.8);
+  // the better boards carry a little more: a trim line round the plate (Mainstream, Enthusiast) and a second line for the top tier
+  if (tier >= 2) box(g, BD.x + 120, BD.y + 120, BD.w - 240, BD.h - 240, 90, { stroke: T.alu, lw: 5, sa: tier >= 3 ? 0.3 : 0.16 });
+  if (tier >= 3) { box(g, BD.x + 150, BD.y + 150, BD.w - 300, BD.h - 300, 80, { stroke: T.mul, lw: 3, sa: 0.22 }); lbl('OVERCLOCK READY', -800, 2250, 36, 0.6); }
 
   root.addChild(labels);
   return { root, labels, buses, pal: P };
