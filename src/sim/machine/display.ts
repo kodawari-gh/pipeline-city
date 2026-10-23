@@ -36,6 +36,13 @@ export class Display implements Device {
     return this.queue.length;
   }
 
+  /** Blank the screen and drop queued writes (the game does this when a request starts or restarts). */
+  clear(): void {
+    this.cells.fill(0);
+    this.queue.length = 0;
+    this.countdown = 0;
+  }
+
   tick(): void {
     if (this.queue.length === 0) return;
     if (++this.countdown >= this.writeLatency) {
