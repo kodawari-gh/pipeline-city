@@ -32,6 +32,8 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Toy ISA, toy hardware that "kinda makes sense".** No real ISA or emulator. The ISA grows as programs need it.
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
+- **32-bit words, 16 general registers.**
+- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. Interrupts and DMA are not in scope for now.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
 - **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
@@ -95,6 +97,14 @@ Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (
 
 State lives in **typed arrays (structure-of-arrays) from the start**, not per-instruction objects. This is a deliberate choice for the unbounded-scale goal and cheap worker transfer. The legacy prototype used plain objects and ran 6 to 10 microseconds per cycle, so the cost is development friction (harder to write and debug while the design moves), not a need for speed at the default 1 Hz. Keep engine code behind interfaces so layouts can change per engine.
 
+A CPU "engine" is the pipeline logic (unpipelined, in-order, 2-wide, out-of-order). **CPU upgrades only take effect between requests**, when no instructions are in flight and caches are cold, so there is no state to migrate: each engine owns its own pipeline arrays, and the machine owns RAM and device registers.
+
+## Accelerators
+
+The **GPU runs its own simplified ISA**, using the same assembler framework as the CPU with a second instruction set, and kernels come from the same template system. A "render frame" scenario emits CPU code that prepares and launches a GPU kernel, plus the kernel itself. The CPU hands work over through MMIO (a command descriptor) and polls for completion.
+
+GPU model for milestone 2: a handful of lanes (8 to 32) in lockstep with a tiny memory of its own. Enough to show SIMD, divergence and memory-bound behaviour. NPU/TPU are not designed yet. Note this roughly doubles the emulation scope, which was a deliberate choice.
+
 ## Snapshots and threading
 
 - One sim worker. Machines share nothing except a message bus, so sharding to a worker pool later is a scheduling change.
@@ -131,7 +141,8 @@ Desktop first. Pointer events stay generic so touch pan/pinch works on the board
 
 ## Open questions
 
-- Typed-array layout per engine (see Sim internals) and the shared conventions for it.
+- Typed-array layout conventions per engine (see Sim internals).
+- Instruction encoding format and the GPU instruction set.
 - Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
 - Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
 - Exact shape of the world-map / datacenter layer (far future, not designed).
