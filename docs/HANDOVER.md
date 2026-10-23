@@ -8,14 +8,27 @@ Pipeline City is an incremental game (Universal Paperclips / SimCity vibe) about
 
 It is a **POC**. Keep things simple, iterate bit by bit, and do not build for scale you have not needed yet. Scale is "unbounded" in the long run, so leave seams for it (interfaces, fidelity tiers) but do not build the machinery early.
 
-## State of the repo (as of handover)
+## State of the repo (updated after steps 1 to 10)
 
-- `main` on https://github.com/kodawari-gh/pipeline-city. Public, source-available, all rights reserved (`LICENSE`).
-- Stack scaffolded and building: TypeScript, Vite, PixiJS, Preact + signals, Vitest. `npm run build` and `npm test` pass.
-- `src/` holds only a **placeholder demo**: a worker that counts cycles and money, a Pixi square that pulses, and a Preact HUD. It exists to prove the wiring. Replace it freely.
-- `legacy/` holds the old single-file prototype (4 CPU engines, motherboard art, test harness). It is not part of the build. Do not edit it except to read it.
-- `.github/workflows/ci.yml` runs test + build and deploys to Pages on `main`. Not yet run on GitHub: Pages must be set to "GitHub Actions" in the repo settings first.
-- Check `git log` and `git status` before assuming the last commits were pushed.
+Milestone 1 is built end to end and playable in the browser: `npm run dev`. Steps 2 to 10 of the order below are DONE and committed. Check `git log` and `git status` to see what has been pushed; the owner pushes (or asks for it).
+
+- `src/sim/`: isa, asm, ref (reference interpreter), machine (bus, clocks, PRNG), engines (unpipelined, 5-stage in-order), board (specs, slots, power/thermal), gen (program generator), game (Game, economy, save), worker + host + protocol. Docs for each: `docs/ISA.md`, `MACHINE.md`, `ENGINES.md`, `BOARD.md`, `GEN.md`, `GAME.md`, `SAVE.md`.
+- `src/game/`: store (snapshot signal, actions, export/import, autosave), hover signals.
+- `src/render/`: Pixi board, camera, zoomed-in CPU pipeline view (`docs/RENDER.md`).
+- `src/ui/`: HUD, shop, stats drawer, tooltips, hints (`docs/UI.md`).
+- `legacy/`: the old prototype, read-only reference.
+- CI (`.github/workflows/ci.yml`) runs test + build and deploys to Pages from `main`.
+
+### Known gaps and decisions waiting on the owner
+
+- **Pacing:** the CPU runs 4 engine cycles per base tick (`cpuCyclesPerClock`) so the first request takes about 28 s. This bends "1 tick = 1 second". Confirm or change.
+- **CPU vs RAM is not yet a real trade-off:** the CPU tier wins on every profile and RAM tier 1 is a trap for the starting traffic. Needs a design pass (RAM matters earlier, or scan jobs in the starting mix).
+- All balance numbers are placeholders in `src/sim/game/economy.ts`.
+- Machine RAM is fixed at 64K; the RAM tier only changes the cache miss penalty and job mix. PSU tier 2 needs a bigger board, and there is no board purchase yet.
+- Engines: only unpipelined and in-order exist. Superscalar and out-of-order, the fast model, offline catch-up, GPU, multicore, security workloads and multi-machine are all still to do (see `docs/ARCHITECTURE.md`). Decode still allocates one small object per fetched instruction.
+- Visual gaps: text softens above 2x zoom, UI drawer covers the PSU in the overview, GPU/M.2/SATA are decor only, only single-width pipelines are drawn, touch hit-testing and speeds above 1x were not exercised, no real-GPU frame times (software GL gave 34 ms overview, 68 ms on the die).
+- Not verified in a browser: the power-cycle button, over/underclock warning, Continue prompt, most hints.
+- Browser checks were done with playwright-core and headless Chrome; it is not in package.json.
 
 ## Decisions already made (do not relitigate without asking)
 
@@ -49,7 +62,7 @@ The full list with reasoning is in `docs/ARCHITECTURE.md`. The headline ones:
 
 One PC: CPU + RAM + PSU + cooling on a board with typed slots. One generated CLI workload that writes real text to a memory-mapped framebuffer. Money loop with latency-driven demand. Clock domains with heat and throttling. A CPU-vs-RAM purchase decision. Export/import of a save file. First request takes about 20 to 40 seconds at 1 Hz on the starting unpipelined CPU.
 
-## Suggested order of work
+## Original order of work (steps 1 to 10 done; kept for reference)
 
 Do these as small commits. Each step should leave `npm test` and `npm run build` green.
 
