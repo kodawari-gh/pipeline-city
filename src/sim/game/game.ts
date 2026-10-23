@@ -7,6 +7,7 @@ import {
   type Board, type DeviceKind, type RamSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
+import { disassemble } from "../isa";
 import { generate, runReference } from "../gen";
 import { Machine } from "../machine";
 import { parseSave, SAVE_VERSION, type SavedRequest, type SaveV1 } from "./save";
@@ -55,6 +56,8 @@ export interface DeviceSnap {
   spec: string;
   kind: DeviceKind;
   name: string;
+  /** Board slot id it sits in (e.g. "dimm1"); the renderer places it by this. */
+  slot: string;
   burnt: boolean;
   requestedClock: number | null;
   effectiveClock: number;
@@ -62,6 +65,22 @@ export interface DeviceSnap {
   powerW: number;
   throttle: number;
   unstable: boolean;
+}
+
+/** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */
+export interface StageSnap {
+  /** 0 empty, 1 instruction, 2 bubble (SlotKind). */
+  kind: number;
+  /** Dynamic instruction id (-1 if empty or bubble). */
+  id: number;
+  /** Mnemonic ("lw"), "" unless kind is 1. */
+  op: string;
+  /** Full disassembly ("lw a0, 4(sp)"), "" unless kind is 1. */
+  text: string;
+  /** Bubble cause (Cause: 0 none, 1 load, 2 data, 3 flush, 4 struct). */
+  cause: number;
+  /** Held this cycle (hazard stall or cache freeze). */
+  stalled: boolean;
 }
 
 export interface PurchaseSnap {
@@ -91,6 +110,10 @@ export interface Snapshot {
     engineCycle: number;
     attempts: number;
   };
+  /** Board tier (slot counts), for drawing empty sockets. */
+  boardTier: number;
+  /** Pipeline stage occupants of the running attempt, or null when no request is running on a pipeline engine. */
+  pipe: null | { stages: StageSnap[] };
   /** Display contents (the current or most recent request's output). */
   display: string;
   /** Engine counters of the current attempt, by name (all zero when no engine). */
@@ -246,6 +269,8 @@ export class Game {
         engineCycle: eng ? eng.cycle : 0,
         attempts: cur.attempts,
       },
+      boardTier: this.board.tier,
+      pipe: cur && eng?.view ? this.pipeSnap(eng) : null,
       display: this.machine.display.text(),
       counters,
       completed: this.completed,
@@ -259,7 +284,7 @@ export class Game {
         const s = deviceSpec(d);
         const t = this.thermal.state(d.id);
         return {
-          id: d.id, spec: d.spec, kind: s.kind, name: s.name, burnt: !!d.burnt,
+          id: d.id, spec: d.spec, kind: s.kind, name: s.name, slot: d.slot, burnt: !!d.burnt,
           requestedClock: d.clock ?? null,
           effectiveClock: t?.effClock ?? 0,
           tempC: t?.tempC ?? 25,
@@ -273,6 +298,25 @@ export class Game {
       purchases,
       pendingPurchases: [...this.pending],
     };
+  }
+
+  private pipeSnap(eng: PipelineEngine): { stages: StageSnap[] } {
+    const v = eng.view;
+    const t = v.timeline;
+    const stages: StageSnap[] = [];
+    for (let i = 0; i < 5; i++) {
+      const kind = v.stageKind[i]!;
+      const id = v.stageId[i]!;
+      let text = "";
+      if (kind === 1 && id >= 0) {
+        const row = id % t.rows;
+        if (t.id[row] === id) text = disassemble(t.word[row]!);
+      }
+      stages.push({
+        kind, id, op: text.split(" ")[0] ?? "", text, cause: v.stageCause[i]!, stalled: v.stageStalled[i]! !== 0,
+      });
+    }
+    return { stages };
   }
 
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
