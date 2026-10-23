@@ -1,17 +1,232 @@
-import { Application, Graphics } from 'pixi.js';
-import { snapshot } from '../game/store';
+import { Application, Container, Graphics } from 'pixi.js';
 import { effect } from '@preact/signals';
+import { hover, selected } from '../game/hover';
+import { snapshot, speed } from '../game/store';
+import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
+import type { Snapshot } from '../sim/protocol';
+import { buildBoard, type BoardArt } from './boardArt';
+import { Camera, type View } from './camera';
+import { coolerArt, cpuArt, monitorArt, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
+import { box, clear, dashed, label } from './ink';
+import {
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, MONITOR, PKG, PSU, REGIONS, SCREEN, STAGES, WORLD, type Rect,
+} from './layout';
+import { Live, type GlowTarget } from './live';
+import { PipelineView } from './pipeline';
+import { onThemeChange, readTheme, type Theme } from './theme';
 
-// Placeholder board: a square that pulses with the CPU cycle count from the snapshot.
+interface Hit { id: string; rect: Rect; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number }
+
+const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
+const Z_DIE = 0.45;
+
+/** View used by the camera keys and exported helpers. */
+let cameraRef: Camera | null = null;
+export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
+export function flyToBoard() { cameraRef?.flyTo(cameraRef.fit(WORLD)); }
+
 export async function mountBoard(host: HTMLElement) {
+  let T: Theme = readTheme();
   const app = new Application();
-  await app.init({ resizeTo: window, background: '#0b0f14', antialias: true });
+  await app.init({
+    resizeTo: host, background: T.bg, antialias: true, autoDensity: true,
+    resolution: Math.min(window.devicePixelRatio || 1, 2),
+  });
   host.appendChild(app.canvas);
 
-  const chip = new Graphics().roundRect(-40, -40, 80, 80, 8).fill('#3fd0ff');
-  app.stage.addChild(chip);
-  app.renderer.on('resize', () => chip.position.set(app.screen.width / 2, app.screen.height / 2));
-  chip.position.set(app.screen.width / 2, app.screen.height / 2);
+  // ---- scene graph ----
+  const world = new Container();
+  const boardLayer = new Container();
+  const deviceLayer = new Container();
+  const coolerLayer = new Container();
+  const pipeline = new PipelineView();
+  const live = new Live(app.renderer, T.dark);
+  world.addChild(boardLayer, deviceLayer, coolerLayer, pipeline.root, live.root);
+  app.stage.addChild(world);
 
-  effect(() => { chip.alpha = 0.5 + 0.5 * Math.abs(Math.sin((snapshot.value?.cycle ?? 0) / 20)); });
+  const camera = new Camera(world, app.canvas);
+  cameraRef = camera;
+  let boardArt: BoardArt | null = null;
+  const parts: Part[] = [];
+  let hits: Hit[] = [];
+  let sceneKey = '';
+  let lastSnap: Snapshot | null = null;
+  let fits: View = { x: 0, y: 0, z: 0.15 };
+
+  // ---- LOD driven by zoom ----
+  const onZoom = () => {
+    const z = camera.z;
+    const labelsOn = z > 0.12, partLabels = z > 0.22;
+    if (boardArt) boardArt.labels.visible = labelsOn;
+    for (const p of parts) if (p.labels) p.labels.visible = partLabels;
+    coolerLayer.alpha = 1 - smooth(0.3, 0.5, z);
+    coolerLayer.visible = coolerLayer.alpha > 0.01;
+    pipeline.root.alpha = smooth(0.42, 0.58, z);
+    pipeline.root.visible = pipeline.root.alpha > 0.01;
+    live.setZoom(z);
+  };
+  camera.onChange = onZoom;
+
+  // ---- scene build: runs on theme change, board tier change, or an install/uninstall ----
+  const keyOf = (s: Snapshot | null) =>
+    `${T.dark}|${s?.boardTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
+
+  function build(s: Snapshot | null) {
+    clear(boardLayer); clear(deviceLayer); clear(coolerLayer);
+    parts.length = 0;
+    const tier = s?.boardTier ?? 0;
+    boardArt = buildBoard(T, tier);
+    boardLayer.addChild(boardArt.root);
+
+    const newHits: Hit[] = [];
+    const targets: GlowTarget[] = [];
+    const fans: { c: Container; kind: string }[] = [];
+    let dram: Rect[] = [];
+    const slots = BOARD_TIERS[tier]?.slots ?? {};
+    const filled = new Set<string>();
+    const dieHits: Hit[] = [...STAGES, ...BLOCKS].map((t) => ({ id: 'cpu.' + t.id, rect: t, min: Z_DIE }));
+    let coolerHit: Hit | null = null;
+    const deviceHits: Hit[] = [];
+    let screenOn = false;
+
+    for (const d of s?.devices ?? []) {
+      const spec = getSpec(d.spec);
+      if (!spec) continue;
+      filled.add(d.slot);
+      if (spec.kind === 'cpu') {
+        const p = cpuArt(T, spec as CpuSpec);
+        deviceLayer.addChild(p.root); parts.push(p);
+        targets.push({ id: d.id, kind: 'cpu', spec: d.spec, rect: { x: PKG.x - 46, y: PKG.y - 46, w: PKG.w + 92, h: PKG.h + 92 } });
+        deviceHits.push({ id: d.spec, rect: PKG, max: Z_DIE });
+      } else if (spec.kind === 'ram') {
+        const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
+        const p = ramArt(T, spec as RamSpec);
+        p.root.position.set(DIMM_X(idx), DIMM_Y);
+        deviceLayer.addChild(p.root); parts.push(p);
+        const r = { x: DIMM_X(idx), y: DIMM_Y, w: DIMM_W, h: DIMM_H };
+        targets.push({ id: d.id, kind: 'ram', spec: d.spec, rect: r });
+        deviceHits.push({ id: d.spec, rect: r });
+        dram = dram.concat((p.chips ?? []).map((c) => ({ x: c.x + r.x, y: c.y + r.y, w: c.w, h: c.h })));
+      } else if (spec.kind === 'psu') {
+        const p = psuArt(T, spec as PsuSpec);
+        deviceLayer.addChild(p.root); parts.push(p);
+        if (p.fan) fans.push({ c: p.fan, kind: 'psu' });
+        targets.push({ id: d.id, kind: 'psu', spec: d.spec, rect: PSU });
+        deviceHits.push({ id: d.spec, rect: PSU });
+      } else if (spec.kind === 'cooler') {
+        const p = coolerArt(T, spec as CoolerSpec);
+        coolerLayer.addChild(p.root); parts.push(p);
+        if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
+        coolerHit = { id: d.spec, rect: COOLER, max: Z_DIE };
+      } else if (spec.kind === 'display') {
+        const p = monitorArt(T, true);
+        deviceLayer.addChild(p.root); parts.push(p);
+        targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
+        deviceHits.push({ id: d.spec, rect: MONITOR });
+        screenOn = true;
+      }
+    }
+    // empty slots: visible sockets / bays, hit by slot id
+    const emptyHits: Hit[] = [];
+    const empty = (type: string, n: number, rectOf: (i: number) => Rect) => {
+      for (let i = 0; i < n; i++) if (!filled.has(`${type}${i}`)) emptyHits.push({ id: `${type}${i}`, rect: rectOf(i) });
+    };
+    empty('dimm', slots.dimm ?? 0, (i) => ({ x: DIMM_X(i), y: DIMM_Y, w: DIMM_W, h: DIMM_H }));
+    empty('cpu', slots.cpu ?? 0, () => PKG);
+    empty('cooler', slots.cooler ?? 0, () => COOLER);
+    empty('display', slots.display ?? 0, () => MONITOR);
+    empty('atx', slots.atx ?? 0, () => PSU);
+    empty('atx-plus', slots['atx-plus'] ?? 0, () => PSU);
+    empty('pcie', slots.pcie ?? 0, (i) => ({ x: -2850, y: i === 0 ? 1030 : 2110, w: i === 0 ? 3800 : 1800, h: 60 }));
+    const emptyG = new Graphics();
+    deviceLayer.addChildAt(emptyG, 0);
+    for (const h of emptyHits) {
+      if (h.id.startsWith('cpu') || h.id.startsWith('pcie') || h.id.startsWith('dimm')) continue; // already drawn by the board
+      const r = h.rect;
+      const pts: [number, number][] = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]];
+      dashed(emptyG, pts, 40, 30);
+      emptyG.stroke({ width: 10, color: T.mute, alpha: 0.7 });
+      if (h.id.startsWith('display')) {
+        box(emptyG, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
+        deviceLayer.addChild(label('NO SIGNAL', r.x + r.w / 2, r.y + r.h / 2, 90, T.mute, { anchor: [0.5, 0.5], head: true }));
+      }
+      if (h.id.startsWith('atx')) deviceLayer.addChild(label('PSU BAY', r.x + r.w / 2, r.y + r.h / 2, 90, T.mute, { anchor: [0.5, 0.5], head: true }));
+    }
+    void screenOn;
+
+    newHits.push(...dieHits);
+    if (coolerHit) newHits.push(coolerHit);
+    newHits.push(...deviceHits, ...emptyHits, ...REGIONS.map((r) => ({ id: r.id, rect: r.rect })));
+    hits = newHits;
+
+    live.setScene(T, targets, boardArt.lanes, boardArt.flows, fans, dram);
+    pipeline.setTheme(T);
+    sceneKey = keyOf(s);
+    onZoom();
+  }
+  build(null);
+
+  // ---- camera setup ----
+  const resize = () => {
+    camera.resize(app.screen.width, app.screen.height);
+  };
+  resize();
+  fits = camera.fit(WORLD);
+  camera.minZ = fits.z * 0.7;
+  camera.set(fits);
+  app.renderer.on('resize', () => {
+    resize();
+    camera.minZ = camera.fit(WORLD).z * 0.7;
+  });
+  camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
+
+  // ---- hit testing: hover and click write the shared signals ----
+  const hitAt = (cx: number, cy: number): string | null => {
+    const w = camera.toWorld(cx, cy), z = camera.z;
+    for (const h of hits) {
+      if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max)) continue;
+      const r = h.rect;
+      if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
+    }
+    return null;
+  };
+  camera.onHover = (p) => {
+    if (!p) { if (hover.peek()) hover.value = null; return; }
+    const id = hitAt(p.x, p.y);
+    if (id) hover.value = { id, x: p.x, y: p.y };
+    else if (hover.peek()) hover.value = null;
+  };
+  camera.onClick = (cx, cy) => { selected.value = hitAt(cx, cy); };
+
+  // ---- theme: react to data-theme / OS scheme changes ----
+  onThemeChange(() => {
+    T = readTheme();
+    app.renderer.background.color = T.bg;
+    build(lastSnap);
+    live.update(lastSnap, performance.now());
+    pipeline.update(lastSnap, true, performance.now());
+  });
+
+  // ---- snapshots ----
+  effect(() => {
+    const s = snapshot.value;
+    const fast = speed.peek() >= 4;
+    const now = performance.now();
+    lastSnap = s;
+    if (keyOf(s) !== sceneKey) build(s);
+    live.update(s, now);
+    pipeline.update(s, fast, now);
+  });
+
+  // ---- frame loop ----
+  app.ticker.add((tk) => {
+    const now = performance.now();
+    camera.update(now);
+    live.frame(tk.deltaMS / 1000, now);
+    pipeline.frame(now);
+  });
+
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard };
+  return app;
 }
