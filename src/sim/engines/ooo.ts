@@ -29,8 +29,10 @@ export interface OooSettings extends EngineSettings {
   schedSize?: number;
   /** Fetch queue entries. Default 4. */
   fetchQueue?: number;
-  /** Fetch / dispatch / commit width. Default 2. */
+  /** Fetch / dispatch width. Default 2. */
   width?: number;
+  /** Instructions that can commit per cycle. Default = width. Wider than `width` lets the ROB drain a backlog quickly. */
+  commitWidth?: number;
 }
 
 /** Per-slot lifecycle. */
@@ -41,6 +43,7 @@ const HIT_LAT = 2;
 
 export class OooEngine extends EngineBase {
   readonly width: number;
+  readonly commitWidth: number;
   readonly robSize: number;
   readonly schedSize: number;
   readonly fetchQueueSize: number;
@@ -81,7 +84,9 @@ export class OooEngine extends EngineBase {
     const robSize = settings.robSize ?? 8;
     const schedSize = settings.schedSize ?? 6;
     const fq = settings.fetchQueue ?? 4;
+    const commitWidth = settings.commitWidth ?? width;
     if (!Number.isInteger(width) || width < 1 || width > 4) throw new RangeError("width must be 1..4");
+    if (!Number.isInteger(commitWidth) || commitWidth < 1 || commitWidth > 8) throw new RangeError("commitWidth must be 1..8");
     if (!Number.isInteger(robSize) || robSize < 2 || robSize > 256) throw new RangeError("robSize must be 2..256");
     if (!Number.isInteger(schedSize) || schedSize < 1 || schedSize > 128) throw new RangeError("schedSize must be 1..128");
     if (!Number.isInteger(fq) || fq < width || fq > 64) throw new RangeError("fetchQueue must be width..64");
@@ -89,7 +94,7 @@ export class OooEngine extends EngineBase {
     const view = new OooViewState(settings.timelineRows ?? Math.max(32, 2 * size), settings.timelineCols ?? 64, width, robSize, schedSize, fq);
     super(settings, size, view);
     this.ov = view;
-    this.width = width; this.robSize = robSize; this.schedSize = schedSize; this.fetchQueueSize = fq;
+    this.width = width; this.commitWidth = commitWidth; this.robSize = robSize; this.schedSize = schedSize; this.fetchQueueSize = fq;
     this.slotId = new Int32Array(size); this.ost = new Uint8Array(size);
     this.prodSA = new Int32Array(size); this.prodIA = new Int32Array(size);
     this.prodSB = new Int32Array(size); this.prodIB = new Int32Array(size);
@@ -131,7 +136,7 @@ export class OooEngine extends EngineBase {
     v.stall.fill(0);
 
     // COMMIT: up to `width` finished instructions retire in program order.
-    for (let n = 0; n < W; n++) {
+    for (let n = 0; n < this.commitWidth; n++) {
       if (this.robN === 0) { if (n === 0) v.stall[OooPart.Commit] = CommitStall.Empty; break; }
       const s = this.robS[this.robHead]!;
       if (ost[s] !== Os.Done) { if (n === 0) v.stall[OooPart.Commit] = CommitStall.HeadPending; break; }

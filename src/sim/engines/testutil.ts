@@ -75,7 +75,7 @@ export function firstMemDiff(a: Uint8Array, b: Uint8Array): number {
 }
 
 /** Run to halt and render the per-cycle stage chart read back from the timeline ring buffer. */
-export function chart(engine: PipelineEngine, src: string): string {
+export function chart(engine: PipelineEngine, src: string, summary?: (counters: Float64Array) => string): string {
   const machine = new Machine();
   machine.attach(engine, assemble(src).program);
   const v: EngineView = engine.view;
@@ -106,7 +106,8 @@ export function chart(engine: PipelineEngine, src: string): string {
     lines.push(`${info.get(id)!.padEnd(w)} |${s}`);
   }
   const c = v.counters;
-  lines.push(`cycles=${c[0]} retired=${c[1]} load=${c[2]} data=${c[3]} flush=${c[4]} struct=${c[5]} cache=${c[6]} flushes=${c[7]} hits=${c[11]} misses=${c[12]}`);
+  if (summary) lines.push(summary(c));
+  else lines.push(`cycles=${c[0]} retired=${c[1]} load=${c[2]} data=${c[3]} flush=${c[4]} struct=${c[5]} cache=${c[6]} flushes=${c[7]} hits=${c[11]} misses=${c[12]}`);
   return "\n" + lines.join("\n") + "\n";
 }
 
@@ -126,7 +127,8 @@ export const OOO_SIZES: Record<string, OooSettings> = {
   small: { robSize: 4, schedSize: 3, fetchQueue: 2 },
   mid: { robSize: 16, schedSize: 8, fetchQueue: 6 },
   big: { robSize: 32, schedSize: 16, fetchQueue: 8 },
-  wide4: { robSize: 16, schedSize: 8, fetchQueue: 8, width: 4 },
+  wide4: { robSize: 16, schedSize: 8, fetchQueue: 8, width: 4, commitWidth: 6 },
+  commit4: { robSize: 32, schedSize: 16, fetchQueue: 8, commitWidth: 4 },
   scalar: { robSize: 8, schedSize: 4, fetchQueue: 2, width: 1 },
 };
 
