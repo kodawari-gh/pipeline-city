@@ -28,7 +28,7 @@ Rebuild happens only when the theme, `boardTier` or the set of `spec@slot` pairs
 
 ## Camera
 
-World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. Drag pans, wheel and two-finger pinch zoom about the cursor, any input cancels a flight. `F` flies to the die, `B` to the whole scene (board, PSU, monitor). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
+World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. The camera frames the board in the area not covered by UI: `camera.inset` (CSS px) comes from the `viewInset` signal in `src/game/hover.ts`, which the HUD writes from the measured bar and dock/drawer rects (`InsetReporter` in `Hud.tsx`). The view centre and `fit()` use the free area, so the overview shows the whole board (PSU included) beside the shop; if the camera is at the overview when the free area changes (window resize, panel opened/closed) it re-fits, otherwise the view is left alone. Drag pans, wheel and two-finger pinch zoom about the cursor, any input cancels a flight. `F` flies to the die, `B` to the whole scene (board, PSU, monitor). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
 
 ## Theme tokens
 

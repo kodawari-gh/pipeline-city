@@ -1,4 +1,6 @@
 import './ui.css';
+import { useEffect } from 'preact/hooks';
+import { viewInset } from '../game/hover';
 import {
   autosaveOffer, exportSave, importSave, lastError, setSpeed, snapshot, speed, startSim,
 } from '../game/store';
@@ -31,6 +33,37 @@ function StartPrompt() {
     );
   }
   return <div class="card prompt mute">starting...{err && <div class="err">{err}</div>}</div>;
+}
+
+/**
+ * Tells the board camera how much of the screen the HUD bar and the dock (a side panel, or a bottom drawer on
+ * narrow screens) cover, so the overview frames the whole board in the free area.
+ */
+function InsetReporter() {
+  const p = panel.value;
+  const started = !!snapshot.value;
+  useEffect(() => {
+    const measure = () => {
+      const W = window.innerWidth, H = window.innerHeight;
+      const next = { top: 0, right: 0, bottom: 0, left: 0 };
+      const bar = document.querySelector('.hud');
+      const dock = document.querySelector('.dock');
+      if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom) + 8;
+      if (dock) {
+        const r = dock.getBoundingClientRect();
+        if (r.width < W * 0.8) next.right = Math.ceil(W - r.left) + 8;
+        else next.bottom = Math.ceil(H - r.top) + 8;
+      }
+      const cur = viewInset.peek();
+      if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    for (const el of [document.querySelector('.hud'), document.querySelector('.dock')]) if (el) ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [p, started]);
+  return null;
 }
 
 function Queue() {
@@ -70,6 +103,7 @@ export function Hud() {
   const p = panel.value;
   return (
     <>
+      <InsetReporter />
       <header class="hud">
         <div class="money" title="Money. Finish requests to earn more.">{fmtMoney(s.money)}</div>
         <div class="stat" title="Seconds of game time at 1x">

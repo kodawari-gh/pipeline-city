@@ -41,6 +41,13 @@ describe('shop grouping', () => {
     expect(g[2]!.items[0]).toMatchObject({ state: 'blocked', reason: 'needs ATX+' });
     expect(g[1]!.items[0]!.pending).toBe(true);
   });
+
+  it('lists the board upgrade as its own group and describes it', () => {
+    const g = groupPurchases([{ id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: true }], [], 500);
+    expect(g.map((x) => x.kind)).toEqual(['board']);
+    expect(g[0]!.items[0]!.state).toBe('ready');
+    expect(describeId('board1')!.nerd).toMatch(/atx-plus/);
+  });
 });
 
 describe('stats', () => {

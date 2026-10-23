@@ -6,8 +6,8 @@ Preact + signals, in `src/ui`. Reads the sim only through `src/game/store.ts` (`
 
 - `logic.ts` (+ `logic.test.ts`): pure functions: formatting, `groupPurchases` (by kind, ready/poor/blocked + hover reason), stall/CPI/cache helpers, temperature and power levels, `clockWarning`, `HINTS` + `triggeredHints` / `newHints`, `describeId` (plain line + nerd line from `specs.ts`).
 - `state.ts`: UI-only signals: `theme`, `panel` (shop/stats/none), `toasts`, `history` (per-tick retired/stall deltas for the sparkline). Theme and seen-hints are stored in localStorage inside try/catch.
-- `Hud.tsx`: top bar (money, tick, reputation + demand/min, queue with current request and a time-vs-deadline bar, speed, panel toggles, export/import, theme), the Continue/New game prompt, the dock that hosts Shop or Stats, and mounts the rest.
-- `Shop.tsx`: CPU clock slider with a live thermal warning, power-cycle button when tripped, purchases by kind.
+- `Hud.tsx`: `InsetReporter` (publishes the area covered by the bar and the dock/drawer to the camera, see RENDER.md), top bar (money, tick, reputation + demand/min, queue with current request and a time-vs-deadline bar, speed, panel toggles, export/import, theme), the Continue/New game prompt, the dock that hosts Shop or Stats, and mounts the rest.
+- `Shop.tsx`: CPU clock slider with a live thermal warning, power-cycle button when tripped, purchases by kind (including the motherboard upgrade).
 - `Stats.tsx`: CPI/IPC, stalls by cause, cache, PSU load vs budget, per-device temperature bars (tick mark = throttle point) and clock/power, a sparkline of the last minute.
 - `Hover.tsx`: `Tooltip` (follows `hover`) and `DevicePanel` (pinned for `selected`, with live temp/power/clock when installed).
 - `Toasts.tsx`, `Meter.tsx`: dismissible hint toasts; the small bar (`role="meter"`, level shown by colour and by text).

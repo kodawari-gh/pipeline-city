@@ -12,6 +12,8 @@ export class Camera {
   x = 0; y = 0; z = 0.15;
   minZ = 0.08; maxZ = 3;
   w = 800; h = 600;
+  /** Screen space covered by UI (CSS px): the camera centres and fits in the rest. */
+  inset = { top: 0, right: 0, bottom: 0, left: 0 };
   onChange: () => void = () => {};
   /** A pointer release that was a click, not a drag (client coords). */
   onClick: (cx: number, cy: number) => void = () => {};
@@ -36,14 +38,18 @@ export class Camera {
 
   resize(w: number, h: number) { this.w = w; this.h = h; this.apply(); }
 
+  /** Screen point (canvas px) that the view centre sits on: the middle of the area not covered by UI. */
+  get cx() { return this.inset.left + (this.w - this.inset.left - this.inset.right) / 2; }
+  get cy() { return this.inset.top + (this.h - this.inset.top - this.inset.bottom) / 2; }
+
   toWorld(cx: number, cy: number) {
     const r = this.el.getBoundingClientRect();
-    return { x: (cx - r.left - this.w / 2) / this.z + this.x, y: (cy - r.top - this.h / 2) / this.z + this.y };
+    return { x: (cx - r.left - this.cx) / this.z + this.x, y: (cy - r.top - this.cy) / this.z + this.y };
   }
 
   apply() {
     this.world.scale.set(this.z);
-    this.world.position.set(this.w / 2 - this.x * this.z, this.h / 2 - this.y * this.z);
+    this.world.position.set(this.cx - this.x * this.z, this.cy - this.y * this.z);
     this.onChange();
   }
 
@@ -53,7 +59,8 @@ export class Camera {
 
   /** View that fits a world rectangle with some margin. */
   fit(r: { x: number; y: number; w: number; h: number }, margin = 0.92): View {
-    return { x: r.x + r.w / 2, y: r.y + r.h / 2, z: Math.min(this.w / r.w, this.h / r.h) * margin };
+    const aw = Math.max(50, this.w - this.inset.left - this.inset.right), ah = Math.max(50, this.h - this.inset.top - this.inset.bottom);
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2, z: Math.min(aw / r.w, ah / r.h) * margin };
   }
 
   flyTo(to: View, dur = 1400) {
@@ -78,8 +85,8 @@ export class Camera {
     this.z = this.clampZ(this.z * factor);
     const r = this.el.getBoundingClientRect();
     // keep the world point under the cursor fixed
-    this.x = before.x - (cx - r.left - this.w / 2) / this.z;
-    this.y = before.y - (cy - r.top - this.h / 2) / this.z;
+    this.x = before.x - (cx - r.left - this.cx) / this.z;
+    this.y = before.y - (cy - r.top - this.cy) / this.z;
     this.apply();
   }
 

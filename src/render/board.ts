@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
-import { hover, selected } from '../game/hover';
+import { hover, selected, viewInset } from '../game/hover';
 import { snapshot, speed } from '../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
@@ -182,17 +182,23 @@ export async function mountBoard(host: HTMLElement) {
   build(null);
 
   // ---- camera setup ----
-  const resize = () => {
-    camera.resize(app.screen.width, app.screen.height);
+  // Anything that changes the free screen area (window size, UI panels) re-frames the board if the player is
+  // looking at the whole of it; a view they have panned or zoomed is left alone.
+  const atOverview = () => {
+    const f = camera.fit(WORLD);
+    return Math.abs(camera.z / f.z - 1) < 0.02 && Math.abs(camera.x - f.x) < 20 && Math.abs(camera.y - f.y) < 20;
   };
-  resize();
-  fits = camera.fit(WORLD);
-  camera.minZ = fits.z * 0.7;
+  const reframe = (change: () => void) => {
+    const was = atOverview();
+    change();
+    fits = camera.fit(WORLD);
+    camera.minZ = fits.z * 0.7;
+    if (was) camera.set(fits); else camera.apply();
+  };
+  reframe(() => { camera.resize(app.screen.width, app.screen.height); camera.inset = { ...viewInset.peek() }; });
   camera.set(fits);
-  app.renderer.on('resize', () => {
-    resize();
-    camera.minZ = camera.fit(WORLD).z * 0.7;
-  });
+  app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));
+  effect(() => { const i = viewInset.value; reframe(() => { camera.inset = { ...i }; }); });
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
 
   // ---- hit testing: hover and click write the shared signals ----
