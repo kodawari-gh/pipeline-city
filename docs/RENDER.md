@@ -7,7 +7,7 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | File | Role |
 |---|---|
 | `board.ts` | scene graph, scene rebuild, LOD by zoom, hit-testing, snapshot effect, frame loop |
-| `camera.ts` | pan / zoom / pinch (pointer events), tweened flights, `F` and `B` keys, the `onGrab` hook that lets a drag take over from panning |
+| `camera.ts` | pan / zoom / pinch (pointer events), tweened flights with `onDone`, the eased UI inset, `F` and `B` keys, the `onGrab` hook that lets a drag take over from panning, the pure `screenRect` transform (`camera.test.ts`) |
 | `theme.ts` | theme tokens (below) |
 | `layout.ts` | world coordinates (board, DIMMs, PSU, monitor, die floorplan), seeded PRNG, hover regions |
 | `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees), every board bus, power conductors, the PSU and video cables with their plugs |
@@ -124,7 +124,9 @@ Label plate (model, rated watts), vent slots, fan grill, output sockets, and a r
 
 ## Camera
 
-World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. The camera frames the board in the area not covered by UI: `camera.inset` (CSS px) comes from the `viewInset` signal in `src/game/hover.ts`, which the HUD writes from the measured bar and dock/drawer rects (`InsetReporter` in `Hud.tsx`). The view centre and `fit()` use the free area, so the overview shows the whole scene (board, PSU, monitor) beside the shop; if the camera is at the overview when the free area changes (window resize, panel opened/closed) it re-fits, otherwise the view is left alone. Drag pans, wheel and two-finger pinch zoom about the cursor (down to 0.2x of the fit zoom, see the LOD section), any input cancels a flight. `F` flies to the die, `B` to the whole scene (board, PSU, monitor, cables). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
+World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` is the world point at screen centre plus zoom. The camera frames the board in the area not covered by UI. **Reserved space (`viewInset`)**: the UI reserves space with the `viewInset` signal in `src/game/hover.ts`, an `Inset {top, right, bottom, left}` in CSS px per side (the HUD writes it from the measured bar and dock/drawer rects, `InsetReporter` in `Hud.tsx`). The renderer keeps it as the camera target `camera.inset` and draws the **eased** value (`camera.shown`, about 0.3 s to settle), so a panel opening or closing glides. The new value is taken only when no pointer gesture (pan, pinch, grab) and no part drag is running, so **nothing re-frames under the pointer**; a change made mid-drag applies on release. The view centre (`cx`, `cy`) and `fit()` use the free area, so the overview shows the whole scene (board, PSU, monitor) beside the shop: if the camera is at the overview when the free area changes it glides to the new overview fit (450 ms); otherwise the world point at the view centre stays put and the content moves by half the change. Window resize re-frames the same way (instant). Drag pans, wheel and two-finger pinch zoom about the cursor (down to 0.2x of the fit zoom, see the LOD section). A press, wheel, pinch, `F` / `B`, or another flight cancels a flight (see **Flights** below).
+
+**Flights** (`flyTo(id, opts?)` in `board.ts`, `Camera.flyTo(view, dur, onDone, hold)`): defaults are `smooth: true` (1400 ms, eased pan, exponential zoom), no `zoom` (the target's rect plus about 900 world px of context is framed with margin 0.9, the zoom is then capped at 0.3 and kept at least at the overview fit zoom), `hold: false`, no `onDone`. `zoom` lands at that zoom (clamped to the camera range), `smooth: false` jumps at once, `hold: true` keeps the target: its world point stays at the centre of the free area through UI inset changes and the overview re-fit is off, until the player pans or zooms (wheel, pinch, drag) or another flight starts. `onDone(arrived)` is called exactly once: `true` when the flight lands, `false` when it is cancelled (a press on the canvas, wheel, pinch, `F`/`B`, another flight, `Camera.set`) or the id is unknown. `flyTo` returns `false` synchronously for an unknown id (and calls `onDone(false)`), otherwise `true`. Chain a tutorial step with `onDone`: `flyTo('psu', { onDone: (ok) => ok && next() })`. `F` flies to the die, `B` to the whole scene (board, PSU, monitor, cables). Also exported from `board.ts`: `flyToCpu()`, `flyToBoard()` for UI buttons. In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard}` is exposed for screenshot scripts.
 
 ## Theme tokens
 
@@ -204,11 +206,23 @@ The UI writes `highlight` (`src/game/interaction.ts`, an array of ids from the t
 
 Exports of `board.ts`:
 
-- `flyTo(id): boolean` flies the camera to any id in the table (some context around it, zoom capped at 0.3); returns false for an unknown id. Also `window.__board.flyTo` in dev.
+- `flyTo(id, opts?): boolean` flies the camera to any id in the table with the options and defaults in **Flights** above (`smooth`, `zoom`, `hold`, `onDone`); returns false for an unknown id.
+- `anchorOf(id)` and `cameraRev`: live screen positions for popups and pointers, see **Anchors** below.
 - `hasTarget(id): boolean`: whether the id exists in the world right now.
 - `flyToCpu()`, `flyToBoard()` as before.
 
-In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard, flyTo, interact, scene}` is exposed; `scene.rects` maps every id to its world rect and `interact.rectsFor(id)` returns the rects a highlight would ring (the screenshot scripts use it to drive real mouse events).
+In dev builds `window.__board = {camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene}` is exposed; `scene.rects` maps every id to its world rect and `interact.rectsFor(id)` returns the rects a highlight would ring (the screenshot scripts use it to drive real mouse events).
+
+## Anchors (popups and pointers for the UI)
+
+`anchorOf(id): { x, y, w, h, visible } | null` (exported from `board.ts`) is the **screen rectangle** of a world id, in client px (relative to the viewport; the canvas offset is included). It uses the same rects as hit testing (`scene.rects`, and `rectsFor` for cables: the plug rect, the seated or resting one). The stage is in CSS px (`autoDensity`), so no device-pixel-ratio factor applies. Returns `null` for an unknown id and for inventory ids (`inv:*`), which are not world objects.
+
+- `visible` is true when the rect meets the **free area** (the canvas minus `viewInset`, as drawn) and the exterior case does not hide it. Interior ids (slots, devices, `psu`, `bay`, `os`, `vrm`, interior cables, ...) are hidden at far zoom (exterior cover above 0.5, the same rule as hit testing); external ids (`power`, `usb`, `monitor`, `tray`, `held`, `case`, `cable.video`, `key:*`, `display*`) are always visible when on screen. The rect is still returned when `visible` is false, so a pointer can point at it while the UI decides what to show.
+- Empty sockets answer to their slot id (`cpu0`, `dimm2`, `atx0`, `display0`), installed parts to the device id, so `anchorOf('psu')` and `anchorOf('monitor')` are the PSU and monitor rects whether or not they are installed (hover writes `atx0` / `display0` over an empty one; see the table above).
+- **`cameraRev`** (`src/game/interaction.ts`, a signal): the renderer bumps it **at most once per frame, and only when something changed**: the camera moved (pan, zoom, flight, eased inset), the canvas resized or moved, the exterior cover changed, or the layout changed (board tier, a device installed or removed, cables connected or loose, tray and held keys, the OS badge). Read it in an effect and recompute `anchorOf` there. It stays still when the machine idles (checked: no bumps in a second with nothing moving).
+- Popups next to a part should be placed from the rect with the free area in mind; `flyTo(id, { hold: true })` keeps the part centred in the free area while the UI opens panels.
+
+Verified in headless Chrome (software GL): `anchorOf('cpu0')`, `psu`, `monitor` and `power` against the hit position at each rect centre (`hover` as the hit result; `cpu0` hovers `cpu0`, `power` hovers `power`, the PSU and monitor hover their empty slots `atx0` / `display0`); after a zoom and after a pan the anchors moved by the camera transform and `cameraRev` bumped; at far zoom `cpu0` is `visible: false` with its rect and hover on it is not `cpu0`, while `monitor` and `power` are visible; an off-screen monitor is `visible: false`. The pure transform (`screenRect`) and the flight and inset rules are unit tested in `src/render/camera.test.ts`.
 
 ## Boot visuals
 
