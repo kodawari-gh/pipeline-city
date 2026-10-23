@@ -38,6 +38,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Device specs, board slots, power and thermal: [`docs/BOARD.md`](BOARD.md).**
 - **Program generator (kernels, templates, seeds): [`docs/GEN.md`](GEN.md).**
 - **Game loop, economy, snapshot shape, pacing: [`docs/GAME.md`](GAME.md).**
+- **Save format, versioning, worker protocol: [`docs/SAVE.md`](SAVE.md).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
