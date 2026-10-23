@@ -5,7 +5,7 @@ import {
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
-import { offsetLine, type Cable, type Plug } from './routes';
+import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -324,7 +324,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
 }
 
 // ---------------------------------------------------------------- cables (PSU to board, board to monitor)
-const ACCENT = (T: Theme, k: Cable['kind']) => (k === 'atx' ? T.ld : k === 'cpu' ? T.alu : k === 'pcie' ? T.br : T.st);
+export const ACCENT = (T: Theme, k: Cable['kind']) => (k === 'atx' ? T.ld : k === 'cpu' ? T.alu : k === 'pcie' ? T.br : T.st);
 
 export function plugRect(p: Plug): Rect {
   return p.dx !== 0
@@ -332,7 +332,7 @@ export function plugRect(p: Plug): Rect {
     : { x: p.x - p.w / 2, y: p.dy > 0 ? p.y : p.y - p.l, w: p.w, h: p.l };
 }
 
-function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: boolean) {
+export function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: boolean) {
   const r = plugRect(p);
   const body = T.dark ? '#1b2230' : '#2c3442';
   box(g, r.x + 6, r.y + 10, r.w, r.h, 16, { fill: '#000000', fa: 0.25 });
@@ -391,5 +391,23 @@ export function cableArt(T: Theme, c: Cable): Part {
   line(offsetLine(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' });
   drawPlug(g, T, c.a, accent, c.kind === 'video');
   drawPlug(g, T, c.b, accent, true);
+  return { root };
+}
+
+/** An unplugged cable: a short stub from the PSU socket / monitor port ending in a loose plug lying at rest. */
+export function looseCableArt(T: Theme, c: Cable): Part {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const lo = looseCable(c), pts = lo.path.pts, w = c.w * (c.kind === 'video' ? 1 : 0.62), accent = ACCENT(T, c.kind);
+  const sleeve = T.dark ? '#171d29' : '#2a313d';
+  const line = (list: [number, number][]) => { g.moveTo(list[0]![0], list[0]![1]); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0], list[i]![1]); };
+  line(pts.map(([x, y]) => [x + 8, y + 12] as [number, number]));
+  g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
+  line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
+  line(pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
+  drawPlug(g, T, c.kind === 'video' ? c.b : c.a, accent, c.kind === 'video');
+  drawPlug(g, T, lo.plug, accent, true);
+  void movablePlug;
   return { root };
 }
