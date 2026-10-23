@@ -3,8 +3,8 @@ import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
 import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
-import { PKG, PSU_PANEL, SCREEN, type Rect } from './layout';
-import { pointAt, type Bus, type BusKind, type Cable } from './routes';
+import { BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, type Rect } from './layout';
+import { pointAt, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -61,6 +61,18 @@ export class Live {
   private psuW = 0;
   private psuBudget = 0;
   private memAt = -1e9;
+  private connected = new Set<CableKind>();
+  private plugged = false;
+  private bootPhase: Snapshot['phase'] = 'off';
+  private bootProgress = 0;
+  private monitorLive = false;
+  private powered = false;
+  private hasDisplay = false;
+  /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
+  private bootG = new Graphics();
+  private noSignal: Text;
+  private pchLevel = 0;
+  private lastBootDraw = '';
   private T!: Theme;
 
   constructor(renderer: Renderer, private additive: boolean) {
@@ -73,6 +85,9 @@ export class Live {
       text: '', style: { fontFamily: MONO, fontSize: 150, lineHeight: 190, fill: '#ffffff', fontWeight: '500' }, resolution: 2,
     });
     this.screenText.position.set(SCREEN.x + 90, SCREEN.y + 70);
+    this.noSignal = new Text({ text: 'NO SIGNAL', style: { fontFamily: HEAD, fontSize: 220, fontWeight: '700', fill: '#5d6a8f' }, resolution: 2 });
+    this.noSignal.anchor.set(0.5, 0.5);
+    this.noSignal.position.set(SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2);
     const mkText = (size: number, head = false, right = false) => {
       const t = new Text({ text: '', style: { fontFamily: head ? HEAD : MONO, fontSize: size, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
       t.anchor.set(right ? 1 : 0, 0.5);
@@ -98,7 +113,7 @@ export class Live {
     flags: { psu: boolean; display: boolean },
   ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badge, this.screenText, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.badge, this.screenText, this.noSignal, this.bootG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
@@ -161,11 +176,13 @@ export class Live {
       this.dots.push(s);
       this.root.addChild(s);
     }
-    this.root.addChild(this.gauge, this.badge, this.screenText, this.panelFan, ...Object.values(this.psuTexts));
+    this.root.addChild(this.bootG, this.gauge, this.badge, this.screenText, this.noSignal, this.panelFan, ...Object.values(this.psuTexts));
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
     this.panelFan.visible = showPsu;
     this.screenText.visible = flags.display;
+    this.hasDisplay = flags.display;
+    this.noSignal.visible = false;
     this.screenText.style.fill = T.st;
     this.badge.position.set(0, PKG.y - 160);
     this.shownText = '\u0000';
@@ -175,6 +192,17 @@ export class Live {
   }
 
   setZoom(z: number) { this.zoom = z; }
+  /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
+  setConnected(c: Set<CableKind>) { this.connected = c; }
+  setPlugged(p: boolean) { this.plugged = p; }
+
+  /** Keep a bus lit for a boot phase (re-armed on every snapshot, so it fades about 1.6 s after the phase ends). */
+  private flow(id: BusKind, now: number, dir: number) {
+    const l = this.lit.get(id);
+    if (!l) return;
+    l.hold = Math.max(l.hold, now + 1700);
+    l.dir = dir;
+  }
 
   private trigger(id: BusKind, now: number, dir = 1) {
     const l = this.lit.get(id);
@@ -212,8 +240,15 @@ export class Live {
     }
     const shown = s.display || '';
     if (shown !== this.lastText) {
-      if (shown) { this.trigger('video', now, 1); this.trigger('dmi', now, 1); }
+      if (shown && s.monitorLive) { this.trigger('video', now, 1); this.trigger('dmi', now, 1); }
       this.lastText = shown;
+    }
+    // boot: data moves USB port <-> PCH <-> CPU <-> RAM along the real buses (only in the phases that move data)
+    this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.powered = s.powered;
+    if (s.powered) {
+      if (s.phase === 'posting') this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1);
+      else if (s.phase === 'loading') { this.flow('usb', now, -1); this.flow('dmi', now, -1); this.flow('mem', now, 1); }
+      else if (s.phase === 'writing') { this.flow('mem', now, -1); this.flow('dmi', now, 1); this.flow('usb', now, 1); }
     }
 
     // ---- power ----
@@ -232,6 +267,7 @@ export class Live {
     for (const lc of this.cables) {
       lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : lc.cable.kind === 'pcie' ? 0
         : (this.lit.get('video')?.hold ?? 0) > now ? 1 : 0;
+      if (!this.connected.has(lc.cable.kind)) lc.target = 0;
     }
 
     for (const d of s.devices) {
@@ -264,14 +300,15 @@ export class Live {
     else this.badge.visible = false;
 
     // CLI monitor: last lines that fit, wrapped to the screen width
-    const txt = s.display || (s.request ? '' : 'READY.');
+    const txt = s.monitorLive ? s.display : '';
+    this.noSignal.visible = this.hasDisplay && !s.monitorLive;
     if (txt !== this.shownText) {
       this.shownText = txt;
       const cols = 32, rows = 8, lines: string[] = [];
       for (const ln of txt.split('\n')) { if (ln.length === 0) lines.push(''); for (let i = 0; i < ln.length; i += cols) lines.push(ln.slice(i, i + cols)); }
       this.screenText.text = lines.slice(-rows).join('\n');
     }
-    this.screenText.alpha = s.request || s.display ? 1 : 0.6;
+    this.screenText.alpha = 1;
   }
 
   /** PSU readout: draw versus budget gauge, temperature, fan. */
@@ -306,6 +343,49 @@ export class Live {
     box(g, p.x + 1190 - 8, by - 8, tw + 16, bh + 16, 12, { fill: '#000000', fa: 0.5, stroke: T.line, lw: 4 });
     box(g, p.x + 1190, by, Math.max(10, tw * tt), bh, 8, { fill: tcol, fa: 0.9 });
     void s;
+  }
+
+  /** PCH glow and scan bars, USB activity LED, monitor power LED, thin boot progress bar. */
+  private drawBoot(now: number, dt: number) {
+    const T = this.T, g = this.bootG, ph = this.bootPhase;
+    const busy = this.powered && (ph === 'posting' || ph === 'loading' || ph === 'writing');
+    this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
+    const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading');
+    const sig = `${this.pchLevel < 0.01 ? 0 : 1}|${showBar}|${this.plugged}|${this.powered}|${this.monitorLive}|${ph}`;
+    if (sig.startsWith('0|false|') && this.lastBootDraw === sig && !this.hasDisplay && !this.plugged) return;
+    this.lastBootDraw = sig;
+    g.clear();
+    // PCH: outline glow plus a row of activity bars that scan while it works
+    const c = BR.chip, lv = this.pchLevel;
+    if (lv > 0.01) {
+      for (let i = 0; i < 3; i++) { const e = 8 + i * 16; box(g, c.x - e, c.y - e, c.w + 2 * e, c.h + 2 * e, 26 + e, { stroke: T.mul, lw: 14, sa: 0.55 * lv * (1 - i / 3) }); }
+      const n = 9, bw = (c.w - 100) / n;
+      for (let i = 0; i < n; i++) {
+        const k = (Math.sin(now * 0.012 + i * 0.9) + 1) / 2;
+        g.rect(c.x + 50 + i * bw + 6, c.y + c.h - 120 - 110 * k, bw - 12, 30 + 110 * k).fill({ color: T.mul, alpha: (0.25 + 0.55 * k) * lv });
+      }
+    }
+    // USB port LED: dark with no key, steady green when a key sits there, blinking amber while the machine moves data
+    const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52;
+    if (this.plugged) {
+      const active = this.powered && (ph === 'loading' || ph === 'writing');
+      const on = active ? Math.floor(now / 140) % 2 === 0 : true;
+      const col = active ? T.ld : T.st;
+      if (on) g.circle(lx, ly, 30).fill({ color: col, alpha: 0.3 });
+      g.circle(lx, ly, 15).fill({ color: on ? col : '#2a3150', alpha: on ? 1 : 0.7 });
+    } else g.circle(lx, ly, 15).fill({ color: '#2a3150', alpha: 0.6 });
+    // monitor power LED (green live, amber standby) and the boot bar under the picture
+    if (this.hasDisplay) {
+      const m = MONITOR, s = SCREEN, cy = s.y + s.h + 14 + (m.y + m.h - (s.y + s.h + 14)) / 2;
+      g.circle(m.x + m.w - 150, cy, 19).fill({ color: '#0a0f1a' });
+      const col = this.monitorLive ? (this.powered ? T.st : T.ld) : T.mute;
+      g.circle(m.x + m.w - 150, cy, 15).fill({ color: col, alpha: this.monitorLive ? 1 : 0.4 });
+      if (showBar) {
+        const bx = s.x + 60, by = s.y + s.h - 36, bw = s.w - 120;
+        g.roundRect(bx, by, bw, 14, 7).fill({ color: '#0e1830' });
+        g.roundRect(bx, by, Math.max(14, bw * clamp(this.bootProgress)), 14, 7).fill({ color: T.st, alpha: 0.9 });
+      }
+    }
   }
 
   private setBadge(text: string, color: string) {
@@ -384,6 +464,8 @@ export class Live {
       for (let j = 0; j < 3; j++) put(pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3), lc.color, 0.85 * lc.level, 1.4);
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
+
+    this.drawBoot(now, dt);
 
     // DRAM chips flash while the memory bus is busy
     const mf = clamp(1 - (now - this.memAt) / 900);
