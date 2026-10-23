@@ -6,7 +6,7 @@ import { getOsSpec } from "../os";
 import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** A key (job) as seeds/params only; the program is regenerated on load. */
 export interface SavedKey {
@@ -91,8 +91,13 @@ export interface SaveV2 extends Omit<SaveV3, "version" | "os"> {
   version: 2;
 }
 
-export interface SaveV3 {
+/** The shape before the board tier ladder and the VRM (v3). Only the migration reads it. */
+export interface SaveV3 extends Omit<SaveV4, "version"> {
   version: 3;
+}
+
+export interface SaveV4 {
+  version: 4;
   /** Seed the machine was created with (kept for reference; the live stream is `prngState`). */
   seed: number;
   /** Machine PRNG state (one uint32). */
@@ -122,7 +127,7 @@ export interface SaveV3 {
   os: SavedOs | null;
 }
 
-export type Save = SaveV3;
+export type Save = SaveV4;
 
 /** The shape before the USB keys (v1). Only the migration reads it. */
 export interface SaveV1 {
@@ -170,6 +175,22 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       progress: newProgress(true),
     };
   },
+  /**
+   * v3 -> v4: the board tier ladder was renumbered. Old tier 0 (2 DIMMs) becomes Basic (1), old tier 1 becomes Mainstream (2);
+   * inventory board ids shift the same way. Every old slot id exists on the new tier, so installed parts stay valid.
+   */
+  3: (s: SaveV3): SaveV4 => {
+    if (!isObj(s.board) || !Array.isArray(s.inventory)) throw new Error("save: not a valid version 3 save");
+    const tier = (t: number): number => (t === 0 ? 1 : t === 1 ? 2 : t);
+    return {
+      ...s, version: 4,
+      board: { ...s.board, tier: tier(s.board.tier) },
+      inventory: s.inventory.map((i) => {
+        const m = /^board([0-9]+)$/.exec(i.spec);
+        return m ? { ...i, spec: `board${tier(Number(m[1]))}` } : i;
+      }),
+    };
+  },
   /** v2 -> v3: no storage or OS yet, so the machine keeps the reboot-per-job flow; the three new milestones start false. */
   2: (s: SaveV2): SaveV3 => {
     if (!isObj(s.progress) || !isObj(s.board)) throw new Error("save: not a valid version 2 save");
@@ -196,7 +217,7 @@ export function migrate(save: unknown): unknown {
 }
 
 /** Migrate and validate untrusted input (parsed JSON). Throws Error with a clear message. */
-export function parseSave(input: unknown): SaveV3 {
+export function parseSave(input: unknown): SaveV4 {
   const s = migrate(input) as Record<string, unknown>;
   const num = (k: string, min = 0): number => {
     const x = s[k];
@@ -246,7 +267,7 @@ export function parseSave(input: unknown): SaveV3 {
     if (!dev || getSpec(dev.spec)?.kind !== "storage") throw new Error('save: "os" must name an installed storage device');
   }
   if (s.lastCompleted !== null && !isObj(s.lastCompleted)) throw new Error('save: "lastCompleted" must be an object or null');
-  return s as unknown as SaveV3;
+  return s as unknown as SaveV4;
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);

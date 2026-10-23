@@ -10,7 +10,7 @@ import {
   connectCable as boardConnect, createBoard, deviceSpec, disconnectCable as boardDisconnect, engineConfigFor,
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard,
-  type Board, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
+  type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
   specsOfKind, type StorageSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
@@ -25,7 +25,7 @@ import {
   type EconomyConfig,
 } from "./economy";
 import {
-  newProgress, parseSave, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV3,
+  newProgress, parseSave, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV4,
 } from "./save";
 import { UsbTray, type Job } from "./work";
 
@@ -87,6 +87,44 @@ export interface DeviceSnap {
   powerW: number;
   throttle: number;
   unstable: boolean;
+}
+
+/** The board VRM's live state (docs/VRM.md). */
+export interface VrmSnap {
+  phases: number;
+  ampsPerPhase: number;
+  /** Component quality as ripple 0..1 (lower is better). */
+  ripple: number;
+  tempC: number;
+  /** CPU current demand over the phases' rating; above 1 the VRM is overloaded. */
+  loadRatio: number;
+  efficiency: number;
+  /** VRM thermal factor in [0.8, 1] applied to the CPU clock. */
+  throttle: number;
+  unstable: boolean;
+  /** The VRM burnt out: the board is dead. */
+  burnt: boolean;
+  /** Chance per busy tick of a voltage-droop crash. */
+  errProb: number;
+  /** Heat the VRM makes right now (its conversion loss), W. */
+  heatW: number;
+  throttleC: number;
+  unstableC: number;
+  damageC: number;
+  /** Installed VRM heatsink device id, or null. */
+  sinkDeviceId: string | null;
+}
+
+/** The motherboard: tier, features, only the slots it has, the VRM and its heatsink. */
+export interface BoardSnap {
+  tier: number;
+  name: string;
+  /** Dead board: replace it by buying a board of the same or a higher tier. */
+  burnt: boolean;
+  features: BoardFeatures;
+  slots: SlotSnap[];
+  vrm: VrmSnap;
+  vrmSink: DeviceSnap | null;
 }
 
 /** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */
@@ -269,6 +307,8 @@ export interface Snapshot {
   };
   /** Board tier (slot counts), for drawing empty sockets. */
   boardTier: number;
+  /** The motherboard in detail (features, VRM, heatsink). Absent slots are not listed. */
+  board: BoardSnap;
   /** Pipeline stage occupants while the machine is powered with a working CPU, else null. */
   pipe: null | { stages: StageSnap[] };
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */
@@ -286,7 +326,7 @@ export interface Snapshot {
   demandRate: number;
   /** Installed parts. */
   devices: DeviceSnap[];
-  power: { totalW: number; budgetW: number; psuFactor: number; off: boolean; tripped: boolean };
+  power: { totalW: number; vrmLossW?: number; budgetW: number; psuFactor: number; off: boolean; tripped: boolean };
   cpuClock: { value: number; min: number; max: number } | null;
   /** What could be bought (an upgrade over what you own or installed). */
   purchases: PurchaseSnap[];
@@ -347,6 +387,7 @@ interface InstalledOs {
 interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }
 
 const LOG_CAP = 16;
+const BOARD_OFF_REASON = "powered off required: power the machine off to swap the board";
 
 export class Game {
   readonly cfg: EconomyConfig;
@@ -505,6 +546,7 @@ export class Game {
     }
     const cand = offers(this.plannedBoard()).find((s) => s.id === itemId);
     if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
+    if (cand.kind === "board" && this.powered) return { ok: false, reason: BOARD_OFF_REASON };
     if (this.money < cand.price) return { ok: false, reason: `needs $${cand.price}, have $${this.money}` };
     const r = applyOffer(this.plannedBoard(), itemId);
     if (!r.ok) return r;
@@ -667,15 +709,18 @@ export class Game {
       || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
     const load = busy ? 1 : this.cfg.idleLoad;
     const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
+    const boardWasOk = !this.board.burnt;
     this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad }, this.powered);
     this.syncStorage(); // a drive that burnt out drops off the bus
-    if (this.powered && busy) {
-      // A thermal error crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
+    if (boardWasOk && this.board.burnt) this.note("fault", "the VRM burnt out: board dead: replace the board");
+    if (this.powered && busy && !this.board.burnt) {
+      // A thermal error or a VRM voltage droop crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
       const cpu = findDevices(this.board, "cpu")[0];
-      if (cpu && this.thermal.errorRoll(cpu.id)) {
+      const why = cpu && this.thermal.errorRoll(cpu.id) ? "thermal error" : this.thermal.vrmErrorRoll() ? "VRM voltage droop" : null;
+      if (why) {
         this.errors++;
         if (this.plugged && !this.plugged.done) this.plugged.attempts++;
-        this.note("fault", "thermal error: the machine crashed and rebooted");
+        this.note("fault", `${why}: the machine crashed and rebooted`);
         this.coldBoot();
       }
     }
@@ -695,7 +740,8 @@ export class Game {
     const purchases: PurchaseSnap[] = offers(planned).map((s) => {
       const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: s.price, affordable: this.money >= s.price };
       const r = applyOffer(boardFromJson(boardToJson(planned)), s.id);
-      if (!r.ok) p.blocked = r.reason;
+      if (s.kind === "board" && this.powered) p.blocked = BOARD_OFF_REASON;
+      else if (!r.ok) p.blocked = r.reason;
       return p;
     });
     for (const o of this.extraOffers()) {
@@ -735,19 +781,8 @@ export class Game {
       avgTurnaround: this.avgTurnaround,
       reputation: rep,
       demandRate: demandRate(this.cfg, rep),
-      devices: this.board.devices.map((d) => {
-        const s = deviceSpec(d);
-        const t = this.thermal.state(d.id);
-        return {
-          id: d.id, spec: d.spec, kind: s.kind, name: s.name, slot: d.slot, burnt: !!d.burnt,
-          requestedClock: d.clock ?? null,
-          effectiveClock: t?.effClock ?? 0,
-          tempC: t?.tempC ?? 25,
-          powerW: t?.powerW ?? 0,
-          throttle: t?.throttle ?? 1,
-          unstable: t?.unstable ?? false,
-        };
-      }),
+      devices: this.board.devices.map((d) => this.deviceSnap(d)),
+      board: this.boardSnap(),
       power: { ...this.thermal.power },
       cpuClock: cpu && cpuSpec?.clock ? { value: cpu.clock ?? cpuSpec.clock.base, min: cpuSpec.clock.min, max: cpuSpec.clock.max } : null,
       purchases,
@@ -760,7 +795,7 @@ export class Game {
       noPowerReason: chk.noPower,
       postBlocker: chk.post?.reason ?? null,
       inventory: this.inventorySnap(),
-      slots: boardSlots(this.board).map((s) => ({ id: s.id, type: s.type, deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null })),
+      slots: this.slotSnaps(),
       cables: CABLES.map((c) => {
         const blocked = cableBlocked(this.board, c.id);
         return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
@@ -776,8 +811,42 @@ export class Game {
     };
   }
 
+  private deviceSnap(d: InstalledDevice): DeviceSnap {
+    const s = deviceSpec(d);
+    const t = this.thermal.state(d.id);
+    return {
+      id: d.id, spec: d.spec, kind: s.kind, name: s.name, slot: d.slot, burnt: !!d.burnt,
+      requestedClock: d.clock ?? null,
+      effectiveClock: t?.effClock ?? 0,
+      tempC: t?.tempC ?? 25,
+      powerW: t?.powerW ?? 0,
+      throttle: t?.throttle ?? 1,
+      unstable: t?.unstable ?? false,
+    };
+  }
+
+  private slotSnaps(): SlotSnap[] {
+    return boardSlots(this.board).map((s) => ({ id: s.id, type: s.type, deviceId: this.board.devices.find((d) => d.slot === s.id)?.id ?? null }));
+  }
+
+  private boardSnap(): BoardSnap {
+    const t = BOARD_TIERS[this.board.tier]!;
+    const v = this.thermal.vrm;
+    const sink = findDevices(this.board, "vrm-sink")[0];
+    return {
+      tier: t.tier, name: t.name, burnt: !!this.board.burnt, features: { ...t.features }, slots: this.slotSnaps(),
+      vrm: {
+        phases: t.vrm.phases, ampsPerPhase: t.vrm.ampsPerPhase, ripple: t.vrm.ripple,
+        tempC: v.tempC, loadRatio: v.loadRatio, efficiency: v.efficiency, throttle: v.throttle, unstable: v.unstable,
+        burnt: !!this.board.burnt, errProb: v.errProb, heatW: v.heatW,
+        throttleC: t.vrm.throttleC, unstableC: t.vrm.unstableC, damageC: t.vrm.damageC, sinkDeviceId: sink?.id ?? null,
+      },
+      vrmSink: sink ? this.deviceSnap(sink) : null,
+    };
+  }
+
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
-  toSave(): SaveV3 {
+  toSave(): SaveV4 {
     const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline });
     const p = this.plugged;
     const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
@@ -1208,6 +1277,7 @@ export class Game {
   /** Why a powered machine is stopped (PSU trip, burnt CPU), or null. */
   private fault(): string | null {
     if (!this.powered) return null;
+    if (this.board.burnt) return "board dead: replace the board";
     if (this.thermal.power.tripped) return "the PSU overloaded and tripped (power cycle to reset)";
     const cpu = findDevices(this.board, "cpu")[0];
     if (cpu?.burnt) return "the CPU burnt out";

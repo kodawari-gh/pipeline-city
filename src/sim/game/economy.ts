@@ -136,7 +136,7 @@ export function pickTemplate(cfg: EconomyConfig, ramBytes: number, r: number, ti
 
 // ---------- purchases ----------
 
-const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu"];
+const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink"];
 
 /**
  * Replace the installed part of the spec's kind with `specId`, going through board install/validation.
@@ -183,6 +183,9 @@ export function applyOffer(board: Board, id: string): Result<object> {
 /** Offers that are an upgrade (higher tier than the installed part, next board tier) or a replacement of a burnt part. */
 export function offers(board: Board): Offer[] {
   const out: Offer[] = [];
+  // A burnt board can be replaced by one of its own tier (or any higher one).
+  const here = BOARD_TIERS[board.tier];
+  if (board.burnt && here) out.push({ id: `board${here.tier}`, name: `${here.name} (replacement)`, kind: "board", price: here.price });
   const nextBoard = BOARD_TIERS[board.tier + 1];
   if (nextBoard) out.push({ id: `board${nextBoard.tier}`, name: nextBoard.name, kind: "board", price: nextBoard.price });
   for (const s of upgradeCandidates(board)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });

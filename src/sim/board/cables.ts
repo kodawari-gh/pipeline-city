@@ -80,7 +80,8 @@ export interface BootCheck {
 export function bootCheck(board: Board, cables: Cables): BootCheck {
   const psu = installedPsu(board);
   let noPower: string | null = null;
-  if (!psu) noPower = "no PSU installed";
+  if (board.burnt) noPower = "board dead: replace the board";
+  else if (!psu) noPower = "no PSU installed";
   else if (psu.dev.burnt) noPower = "the PSU is burnt out";
   else if (!cables.atx) noPower = "the 24-pin ATX cable is not connected";
   let post: BootCheck["post"] = null;
