@@ -1,22 +1,32 @@
 import { Container, Graphics, Sprite, Text, Texture, type Renderer } from 'pixi.js';
 import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
-import { PKG, SCREEN, pointAt, type Lane, type Rect } from './layout';
-import { box, MONO, mix } from './ink';
-import { drawPsuMeter } from './devices';
+import { blades } from './devices';
+import { HEAD, box, mix, MONO } from './ink';
+import { PKG, PSU_PANEL, SCREEN, type Rect } from './layout';
+import { pointAt, type Bus, type BusKind, type Cable } from './routes';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }
 
 interface Glow { t: GlowTarget; g: Graphics; dim: Graphics; base: number; level: number }
+interface Lit { bus: Bus; g: Graphics; level: number; hold: number; dir: number; color: string; alwaysOn: boolean; pulses: number }
+interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+/** The PSU panel is a dark LCD in both themes, so its text uses fixed light inks. */
+const LCD_INK = '#dbe5ff', LCD_MUTE = '#8d9bc4';
+const LOADS = new Set(['lw', 'lb', 'lbu']);
+const STORES = new Set(['sw', 'sb']);
+
+/** Time a bus stays lit after an event (ms). */
+const HOLD: Partial<Record<BusKind, number>> = { mem: 900, nvme: 1600, dmi: 1300, video: 1100, usb: 1000, sata: 1000, pcie: 1000 };
 
 /**
- * Everything that changes with the sim: glow per device (power, heat), burnt dimming, throttle badge, fan spin,
- * bus activity dots, DRAM chip flashes, the CLI monitor text. Cheap by design: per-snapshot work redraws a few
- * small Graphics, per-frame work moves sprites and rotates fans.
+ * Everything that changes with the sim. The board is dim by default; a bus only lights when the snapshot shows real
+ * traffic on it (see `docs/RENDER.md`, "Activity"). Power conductors glow in proportion to current. Per-snapshot work
+ * redraws a few small Graphics and Texts, per-frame work moves pooled sprites and rotates fans.
  */
 export class Live {
   readonly root = new Container();
@@ -24,23 +34,33 @@ export class Live {
   private fans: { c: Container; kind: string; speed: number; target: number }[] = [];
   private dots: Sprite[] = [];
   private dotTex: Texture;
-  private lanes: Lane[] = [];
-  private flows: Lane[] = [];
+  private lit = new Map<BusKind, Lit>();
+  private cables: LitCable[] = [];
   private badge: Text;
   private screenText: Text;
-  private meter = new Graphics();
+  private gauge = new Graphics();
+  private psuTexts: Record<'load' | 'of' | 'pct' | 'temp' | 'state' | 'rpm', Text>;
+  private panelFan = new Container();
   private dramFlash = new Graphics();
   private dramChips: Rect[] = [];
-  private act = 0.12;
-  private actTarget = 0.12;
   private phase = 0;
-  private missAt = -1e9;
   private lastMisses = 0;
   private lastCycles = 0;
+  private lastStall = 0;
+  private lastText = '';
+  private lastReq = -1;
   private cpuHeat = 0;
   private clockRatio = 1;
   private shownText = '\u0000';
-  private zoom = 0.15;
+  private zoom = 0.1;
+  private hasPsu = false;
+  private psuTemp = 25;
+  private psuRatio = 0;
+  private psuOff = true;
+  private psuTripped = false;
+  private psuW = 0;
+  private psuBudget = 0;
+  private memAt = -1e9;
   private T!: Theme;
 
   constructor(renderer: Renderer, private additive: boolean) {
@@ -49,19 +69,40 @@ export class Live {
     dg.destroy();
     this.badge = new Text({ text: '', style: { fontFamily: MONO, fontSize: 70, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
     this.badge.anchor.set(0.5, 0.5);
-    this.screenText = new Text({ text: '', style: { fontFamily: MONO, fontSize: 34, lineHeight: 44, fill: '#ffffff' }, resolution: 2 });
-    this.screenText.position.set(SCREEN.x + 44, SCREEN.y + 36);
+    this.screenText = new Text({
+      text: '', style: { fontFamily: MONO, fontSize: 150, lineHeight: 190, fill: '#ffffff', fontWeight: '500' }, resolution: 2,
+    });
+    this.screenText.position.set(SCREEN.x + 90, SCREEN.y + 70);
+    const mkText = (size: number, head = false, right = false) => {
+      const t = new Text({ text: '', style: { fontFamily: head ? HEAD : MONO, fontSize: size, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
+      t.anchor.set(right ? 1 : 0, 0.5);
+      return t;
+    };
+    const p = PSU_PANEL;
+    this.psuTexts = { load: mkText(250, true), of: mkText(80), pct: mkText(80, true, true), temp: mkText(170, true), state: mkText(64, true), rpm: mkText(76, true) };
+    this.psuTexts.load.position.set(p.x + 50, p.y + 290);
+    this.psuTexts.of.position.set(p.x + 50, p.y + 475);
+    this.psuTexts.pct.position.set(p.x + 1100, p.y + 475);
+    this.psuTexts.temp.position.set(p.x + 1190, p.y + 290);
+    this.psuTexts.state.position.set(p.x + 1190, p.y + 475);
+    this.psuTexts.rpm.position.set(p.x + 1660, p.y + 475);
+    const pf = new Graphics();
+    blades(pf, 5, 22, 120, '#ffffff', '#ffffff', 4);
+    this.panelFan.addChild(pf);
+    this.panelFan.position.set(p.x + 1890, p.y + 285);
   }
 
   /** (Re)build live objects for a scene. Called when the theme or the installed set changes. */
-  setScene(T: Theme, targets: GlowTarget[], lanes: Lane[], flows: Lane[], fans: { c: Container; kind: string }[], dramChips: Rect[]) {
+  setScene(
+    T: Theme, targets: GlowTarget[], buses: Bus[], cables: Cable[], fans: { c: Container; kind: string }[], dramChips: Rect[], dimms: number[],
+    flags: { psu: boolean; display: boolean },
+  ) {
     this.T = T;
-    const keep = new Set<unknown>([this.badge, this.screenText, this.meter, this.dramFlash]);
+    const keep = new Set<unknown>([this.badge, this.screenText, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
-    this.glows.clear();
+    this.glows.clear(); this.lit.clear(); this.cables = [];
     this.dots = [];
-    this.lanes = lanes;
-    this.flows = flows;
+    this.hasPsu = flags.psu;
     this.fans = fans.map((f) => ({ ...f, speed: 0, target: 0 }));
     this.dramChips = dramChips;
     for (const t of targets) {
@@ -70,23 +111,77 @@ export class Live {
       this.root.addChild(g, dim);
       this.glows.set(t.id, { t, g, dim, base: 0, level: 0 });
     }
+    const colorOf = (id: BusKind): string => {
+      switch (id) {
+        case 'mem': return T.alu;
+        case 'nvme': case 'dmi': case 'sata': case 'usb': return T.mul;
+        case 'video': return T.st;
+        case 'pcie': return T.br;
+        default: return T.ld;
+      }
+    };
+    let nDots = 0;
+    for (const bus of buses) {
+      if ((bus.id === 'video') && !flags.display) continue;
+      const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'pwr5' || bus.id === 'vcore';
+      const g = new Graphics();
+      if (this.additive) g.blendMode = 'add';
+      const lanes = bus.lanes.concat(bus.taps ? bus.taps.filter((t) => dimms.includes(Number(t.key.slice(4)))).flatMap((t) => t.lanes) : []);
+      for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
+      g.stroke({ width: bus.w * (power ? 0.7 : 1.15), color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
+      g.alpha = 0;
+      this.root.addChild(g);
+      const pulses = power ? 0 : bus.lanes.reduce((a, l) => a + Math.max(1, Math.min(4, Math.round(l.len / 700))), 0);
+      nDots += pulses;
+      this.lit.set(bus.id, { bus, g, level: 0, hold: 0, dir: 1, color: colorOf(bus.id), alwaysOn: false, pulses });
+    }
+    for (const cable of cables) {
+      const g = new Graphics();
+      if (this.additive) g.blendMode = 'add';
+      // the glow stops where the plugs begin (plugs are drawn under the live layer)
+      const pts = cable.path.pts.filter((_, i, a) => {
+        let d = 0;
+        for (let j = 1; j <= i; j++) d += Math.hypot(a[j]![0] - a[j - 1]![0], a[j]![1] - a[j - 1]![1]);
+        return d >= 50 && cable.path.len - d >= 50;
+      });
+      g.moveTo(pts[0]![0], pts[0]![1]);
+      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+      const color = cable.kind === 'video' ? T.st : cable.kind === 'atx' ? T.ld : cable.kind === 'cpu' ? T.alu : T.br;
+      g.stroke({ width: cable.w * 0.34, color, alpha: 1, cap: 'butt', join: 'round' });
+      g.alpha = 0;
+      this.root.addChild(g);
+      nDots += 3;
+      this.cables.push({ cable, g, level: 0, target: 0, color });
+    }
     this.root.addChild(this.dramFlash);
-    // dots: every other lane carries data, a few more light up on a RAM access
-    const n = lanes.length + flows.length + lanes.filter((l) => l.kind === 'mem').length;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
       s.visible = false;
       this.dots.push(s);
       this.root.addChild(s);
     }
-    this.root.addChild(this.meter, this.badge, this.screenText);
-    this.badge.position.set(0, PKG.y - 120);
-    this.shownText = '\u0000';
+    this.root.addChild(this.gauge, this.badge, this.screenText, this.panelFan, ...Object.values(this.psuTexts));
+    const showPsu = flags.psu;
+    for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
+    this.panelFan.visible = showPsu;
+    this.screenText.visible = flags.display;
     this.screenText.style.fill = T.st;
+    this.badge.position.set(0, PKG.y - 160);
+    this.shownText = '\u0000';
+    this.panelFan.children.forEach((c) => { (c as Graphics).tint = LCD_MUTE; });
+    this.psuTexts.of.style.fill = LCD_MUTE;
+    this.psuTexts.rpm.style.fill = LCD_INK;
   }
 
   setZoom(z: number) { this.zoom = z; }
+
+  private trigger(id: BusKind, now: number, dir = 1) {
+    const l = this.lit.get(id);
+    if (!l) return;
+    l.hold = now + (HOLD[id] ?? 1000);
+    l.dir = dir;
+  }
 
   /** Per-snapshot update. `s` may be null before the sim has started. */
   update(s: Snapshot | null, now: number) {
@@ -94,40 +189,71 @@ export class Live {
     if (!s) return;
     const cpu = s.devices.find((d) => d.kind === 'cpu');
     const running = !!s.request && !!cpu && !cpu.burnt && !s.power.off && !s.power.tripped && cpu.effectiveClock > 0;
-    this.actTarget = running ? 1 : 0.1;
     const spec = cpu && getSpec(cpu.spec);
     this.clockRatio = cpu && spec?.clock ? clamp(cpu.effectiveClock / spec.clock.base, 0.25, 3) : 1;
-    // RAM traffic: a cache miss or a cache-stalled cycle since the last snapshot
-    const misses = (s.counters.cacheMisses ?? 0), cycles = s.counters.cycles ?? 0;
-    if (cycles < this.lastCycles) this.lastMisses = 0; // new attempt
-    if (misses > this.lastMisses) this.missAt = now;
-    this.lastMisses = misses; this.lastCycles = cycles;
     this.cpuHeat = cpu ? clamp((cpu.tempC - 35) / 55) : 0;
+
+    // ---- activity: only real traffic lights a bus ----
+    const c = s.counters, misses = c.cacheMisses ?? 0, stall = c.stallCache ?? 0, cycles = c.cycles ?? 0;
+    if (cycles < this.lastCycles) { this.lastMisses = 0; this.lastStall = 0; } // a new attempt
+    const missed = misses > this.lastMisses || stall > this.lastStall;
+    this.lastMisses = misses; this.lastStall = stall; this.lastCycles = cycles;
+    const mem = s.pipe?.stages[3];
+    const op = mem && mem.kind === 1 ? mem.op : '';
+    if (running) {
+      if (missed || LOADS.has(op) && !!mem && mem.stalled) { this.memAt = now; this.trigger('mem', now, -1); } // miss: RAM answers the CPU
+      else if (STORES.has(op)) { this.memAt = now; this.trigger('mem', now, 1); } // stores always go out to RAM
+    }
+    const reqId = s.request?.id ?? -1;
+    if (reqId !== this.lastReq) {
+      if (reqId >= 0) { this.trigger('nvme', now, -1); this.trigger('dmi', now, -1); } // program load from storage
+      else if (this.lastReq >= 0) this.trigger('dmi', now, 1); // request finished
+      this.lastReq = reqId;
+    }
+    const shown = s.display || '';
+    if (shown !== this.lastText) {
+      if (shown) { this.trigger('video', now, 1); this.trigger('dmi', now, 1); }
+      this.lastText = shown;
+    }
+
+    // ---- power ----
+    const psuDev = s.devices.find((d) => d.kind === 'psu');
+    const ratio = s.power.budgetW > 0 ? s.power.totalW / s.power.budgetW : 0;
+    this.psuRatio = ratio; this.psuOff = s.power.off; this.psuTripped = s.power.tripped;
+    this.psuW = s.power.totalW; this.psuBudget = psuDev ? s.power.budgetW : 0;
+    const flow = !s.power.off && !s.power.tripped;
+    const level = (w: number) => (flow && s.power.budgetW > 0 ? clamp(Math.sqrt(w / s.power.budgetW) * 1.15) : 0);
+    const cpuW = cpu?.powerW ?? 0;
+    const ramW = s.devices.filter((d) => d.kind === 'ram').reduce((a, d) => a + d.powerW, 0);
+    const lv: Partial<Record<BusKind, number>> = {
+      pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), pwr5: level(ramW + 0.5),
+    };
+    for (const [id, v] of Object.entries(lv) as [BusKind, number][]) { const l = this.lit.get(id); if (l) l.hold = v; }
+    for (const lc of this.cables) {
+      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : lc.cable.kind === 'pcie' ? 0
+        : (this.lit.get('video')?.hold ?? 0) > now ? 1 : 0;
+    }
 
     for (const d of s.devices) {
       const gl = this.glows.get(d.id);
-      const sp = getSpec(d.spec);
       if (d.kind === 'cooler') {
         const f = this.fans.find((x) => x.kind === 'cooler');
         if (f) f.target = d.burnt ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
       }
       if (d.kind === 'psu') {
         const f = this.fans.find((x) => x.kind === 'psu');
-        const ratio = s.power.budgetW > 0 ? s.power.totalW / s.power.budgetW : 0;
         if (f) f.target = s.power.tripped || s.power.off ? 0 : 1 + 8 * clamp(ratio);
-        drawPsuMeter(this.meter, T, ratio, s.power.tripped);
-        if (gl) { gl.base = s.power.tripped ? 1 : clamp(ratio) * 0.8; this.drawGlow(gl, s.power.tripped ? T.bad : ratio > 0.85 ? T.ld : T.st, false); }
         continue;
       }
       if (!gl) continue;
-      const load = sp && sp.loadW > 0 ? clamp(d.powerW / sp.loadW) : 0;
-      const heat = clamp((d.tempC - 35) / 55);
+      // glow is heat, not load: a cool part at idle stays unlit
+      const heat = clamp((d.tempC - 42) / 48);
       let col = heat < 0.5 ? mix(T.alu, T.ld, heat * 2) : mix(T.ld, T.bad, (heat - 0.5) * 2);
       if (d.unstable) col = T.bad;
-      gl.base = d.burnt ? 0 : 0.25 + 0.6 * Math.max(load, heat);
+      gl.base = d.burnt ? 0 : d.kind === 'display' ? 0 : heat * 0.85;
       this.drawGlow(gl, col, d.burnt);
     }
-    // PSU hard trip with no PSU glow target still dims everything else via effective clocks (0)
+    this.drawPsu(s);
 
     // badge over the CPU
     if (cpu?.burnt) this.setBadge('CPU BURNT OUT', T.bad);
@@ -137,10 +263,49 @@ export class Live {
     else if (cpu && cpu.throttle < 0.985) this.setBadge(`THROTTLED ${Math.round(cpu.throttle * 100)}%`, T.ld);
     else this.badge.visible = false;
 
-    // CLI monitor
+    // CLI monitor: last lines that fit, wrapped to the screen width
     const txt = s.display || (s.request ? '' : 'READY.');
-    if (txt !== this.shownText) { this.shownText = txt; this.screenText.text = txt; }
-    this.screenText.alpha = s.request ? 1 : 0.55;
+    if (txt !== this.shownText) {
+      this.shownText = txt;
+      const cols = 32, rows = 8, lines: string[] = [];
+      for (const ln of txt.split('\n')) { if (ln.length === 0) lines.push(''); for (let i = 0; i < ln.length; i += cols) lines.push(ln.slice(i, i + cols)); }
+      this.screenText.text = lines.slice(-rows).join('\n');
+    }
+    this.screenText.alpha = s.request || s.display ? 1 : 0.6;
+  }
+
+  /** PSU readout: draw versus budget gauge, temperature, fan. */
+  private drawPsu(s: Snapshot) {
+    const T = this.T, p = PSU_PANEL, g = this.gauge, tx = this.psuTexts;
+    g.clear();
+    if (!this.hasPsu) return;
+    const ratio = this.psuRatio, off = this.psuOff, trip = this.psuTripped;
+    const col = trip || ratio > 1 ? T.bad : ratio > 0.8 ? T.ld : T.st;
+    const set = (t: Text, v: string, fill: string) => { if (t.text !== v) t.text = v; if (t.style.fill !== fill) t.style.fill = fill; };
+    set(tx.load, off ? '0' : String(Math.round(this.psuW)), off ? T.mute : col);
+    set(tx.of, `W  /  ${Math.round(this.psuBudget)} W`, LCD_MUTE);
+    set(tx.pct, trip ? 'TRIPPED' : off ? 'OFF' : `${Math.round(ratio * 100)}%`, off ? T.bad : col);
+    // gauge bar with 20 segments
+    const bx = p.x + 50, by = p.y + 560, bw = 1050, bh = 90, n = 20, seg = bw / n;
+    box(g, bx - 8, by - 8, bw + 16, bh + 16, 12, { fill: '#000000', fa: 0.5, stroke: T.line, lw: 4 });
+    const lit = Math.round(clamp(ratio, 0, 1.2) / 1.2 * n);
+    for (let i = 0; i < n; i++) {
+      const on = i < lit && !off, f = i / n * 1.2;
+      const c = f > 1 ? T.bad : f > 0.8 ? T.ld : T.st;
+      g.rect(bx + i * seg + 4, by, seg - 8, bh).fill({ color: on ? c : '#6c7aa8', alpha: on ? 0.95 : 0.3 });
+    }
+    // 100 % mark
+    g.rect(bx + bw / 1.2 - 3, by - 14, 6, bh + 28).fill({ color: LCD_INK, alpha: 0.6 });
+    // temperature (estimated from load: the sim has no PSU heat), thermal state
+    const tc = Math.round(this.psuTemp);
+    const hot = tc >= 70, warm = tc >= 55;
+    const tcol = hot ? T.bad : warm ? T.ld : T.st;
+    set(tx.temp, `${tc}°C`, tcol);
+    set(tx.state, off ? 'COLD' : hot ? 'HOT' : warm ? 'WARM' : 'COOL', off ? LCD_MUTE : tcol);
+    const tw = 420, tt = clamp((this.psuTemp - 25) / 55);
+    box(g, p.x + 1190 - 8, by - 8, tw + 16, bh + 16, 12, { fill: '#000000', fa: 0.5, stroke: T.line, lw: 4 });
+    box(g, p.x + 1190, by, Math.max(10, tw * tt), bh, 8, { fill: tcol, fa: 0.9 });
+    void s;
   }
 
   private setBadge(text: string, color: string) {
@@ -166,43 +331,69 @@ export class Live {
 
   /** Per-frame animation. dt in seconds. */
   frame(dt: number, now: number) {
-    this.act += (this.actTarget - this.act) * Math.min(1, dt * 3);
-    this.phase += dt * 280 * (0.3 + this.act) * this.clockRatio;
+    this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * 2);
       f.c.rotation += f.speed * dt;
     }
+    const psuFan = this.fans.find((f) => f.kind === 'psu');
+    if (this.hasPsu) {
+      this.panelFan.rotation += (psuFan?.speed ?? 0) * dt;
+      // fan rpm readout, and a first-order PSU temperature that follows load (estimated; the sim does not model PSU heat)
+      const target = this.psuOff ? 25 : 25 + 34 * Math.pow(clamp(this.psuRatio, 0, 1.4), 1.5);
+      this.psuTemp += (target - this.psuTemp) * Math.min(1, dt * 0.25);
+      const rpm = psuFan && psuFan.speed > 0.05 ? Math.round((500 + (psuFan.speed / 9) * 2300) / 10) * 10 : 0;
+      const txt = rpm === 0 ? 'STOPPED' : `${rpm} rpm`;
+      if (this.psuTexts.rpm.text !== txt) this.psuTexts.rpm.text = txt;
+      const tc = Math.round(this.psuTemp), tt = `${tc}°C`;
+      if (this.psuTexts.temp.text !== tt) { const T = this.T; const c = tc >= 70 ? T.bad : tc >= 55 ? T.ld : T.st; this.psuTexts.temp.text = tt; this.psuTexts.temp.style.fill = c; }
+    }
     for (const gl of this.glows.values()) {
       const pulse = 0.85 + 0.15 * Math.sin(now * 0.004 + gl.t.rect.x);
-      gl.g.alpha = clamp(gl.base * pulse * 1.2, 0, 1);
+      gl.g.alpha = clamp(gl.base * pulse, 0, 1);
     }
-    // bus dots
-    const T = this.T;
-    const r = Math.max(10, 2.4 / this.zoom) / 16;
-    const mf = Math.max(0, 1 - (now - this.missAt) / 1100);
+
+    // ---- buses and cables ----
+    const r = Math.max(9, 2.4 / this.zoom) / 16;
     let k = 0;
     const put = (p: [number, number], col: string, a: number, scale = 1) => {
-      const s = this.dots[k++];
-      if (!s) return;
-      s.visible = a > 0.02;
-      s.position.set(p[0], p[1]);
-      s.tint = col; s.alpha = a; s.scale.set(r * scale);
+      const sp = this.dots[k++];
+      if (!sp) return;
+      sp.visible = a > 0.02;
+      sp.position.set(p[0], p[1]);
+      sp.tint = col; sp.alpha = a; sp.scale.set(r * scale);
     };
-    const lanes = this.lanes;
-    for (let i = 0; i < lanes.length; i++) {
-      const l = lanes[i]!, col = l.kind === 'mem' ? T.alu : l.kind === 'pcie' ? T.br : T.mul;
-      put(pointAt(l, this.phase + l.ph), col, i % 2 === 0 ? 0.35 + 0.6 * this.act : 0);
+    for (const l of this.lit.values()) {
+      const power = l.pulses === 0;
+      if (power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g.alpha = l.level * 0.55; continue; }
+      const on = l.hold > now;
+      l.level += ((on ? 1 : 0) - l.level) * Math.min(1, dt * (on ? 9 : 2.2));
+      l.g.alpha = l.level * 0.5;
+      if (l.level < 0.03) continue;
+      const speed = (l.bus.id === 'mem' ? 2.4 : 1.4) * l.dir;
+      for (const lane of l.bus.lanes) {
+        const n = Math.max(1, Math.min(4, Math.round(lane.len / 700)));
+        for (let j = 0; j < n; j++) put(pointAt(lane, this.phase * speed + lane.ph + (j * lane.len) / n), l.color, 0.95 * l.level);
+      }
     }
-    for (const f of this.flows) put(pointAt(f, this.phase * 0.8 + f.ph), f.kind === 'mem' ? T.alu : T.br, 0.9 * this.act);
-    for (const l of lanes) if (l.kind === 'mem') put(pointAt(l, this.phase * 3 + l.ph), T.ld, mf * 0.9, 1.3);
+    for (const lc of this.cables) {
+      lc.level += (lc.target - lc.level) * Math.min(1, dt * 2.5);
+      lc.g.alpha = lc.level * 0.55;
+      if (lc.level < 0.03) continue;
+      const lane = lc.cable.path, dir = lc.cable.kind === 'video' ? 1 : -1;
+      for (let j = 0; j < 3; j++) put(pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3), lc.color, 0.85 * lc.level, 1.4);
+    }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
-    // DRAM chip flash on a miss
+
+    // DRAM chips flash while the memory bus is busy
+    const mf = clamp(1 - (now - this.memAt) / 900);
     this.dramFlash.clear();
     if (mf > 0) {
       let n = 0;
       for (const c of this.dramChips) {
-        if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { fill: T.ld, fa: mf * 0.7, stroke: T.ld, lw: 5 });
+        if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { fill: this.T.alu, fa: mf * 0.55, stroke: this.T.alu, lw: 5 });
       }
     }
   }
 }
+

@@ -6,16 +6,17 @@ import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type View } from './camera';
-import { coolerArt, cpuArt, monitorArt, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
+import { cableArt, coolerArt, cpuArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, type Part } from './devices';
 import { box, clear, dashed, label } from './ink';
 import {
-  BD, BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, MONITOR, PKG, PSU, REGIONS, SCREEN, STAGES, WORLD, type Rect,
+  BD, BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, MONITOR, PKG, PSU, PSU_PANEL, REGIONS, SCREEN, STAGES, WORLD, type Rect,
 } from './layout';
+import { buildCables, laneRects } from './routes';
 import { Live, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { onThemeChange, readTheme, type Theme } from './theme';
 
-interface Hit { id: string; rect: Rect; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number }
+interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number }
 
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -23,6 +24,9 @@ const Z_DIE = 0.45;
 /** Below this zoom the baked board texture replaces the vector board. */
 const Z_BAKE = 0.2;
 const BAKE_RES = 0.4;
+/** Below this zoom the static devices, PSU, monitor and cables are one baked texture too. */
+const Z_BAKE_DEV = 0.14;
+const DEV_BAKE_RES = 0.25;
 
 /** View used by the camera keys and exported helpers. */
 let cameraRef: Camera | null = null;
@@ -43,9 +47,11 @@ export async function mountBoard(host: HTMLElement) {
   const boardLayer = new Container();
   const deviceLayer = new Container();
   const coolerLayer = new Container();
+  const deviceBakeLayer = new Container();
+  const fanLayer = new Container();
   const pipeline = new PipelineView();
   const live = new Live(app.renderer, T.dark);
-  world.addChild(boardLayer, deviceLayer, coolerLayer, pipeline.root, live.root);
+  world.addChild(boardLayer, deviceLayer, deviceBakeLayer, fanLayer, coolerLayer, pipeline.root, live.root);
   app.stage.addChild(world);
 
   const camera = new Camera(world, app.canvas);
@@ -53,6 +59,7 @@ export async function mountBoard(host: HTMLElement) {
   let boardArt: BoardArt | null = null;
   /** Far-out LOD: the whole static board baked once into a texture (rebuilt only with the scene). */
   let boardBake: Sprite | null = null;
+  let deviceBake: Sprite | null = null;
   const parts: Part[] = [];
   let hits: Hit[] = [];
   let sceneKey = '';
@@ -67,6 +74,9 @@ export async function mountBoard(host: HTMLElement) {
     const baked = !!boardBake && z < Z_BAKE;
     if (boardBake) boardBake.visible = baked;
     if (boardArt) boardArt.root.visible = !baked;
+    const dbaked = !!deviceBake && z < Z_BAKE_DEV;
+    if (deviceBake) deviceBake.visible = dbaked;
+    deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(0.3, 0.5, z);
     coolerLayer.visible = coolerLayer.alpha > 0.01;
@@ -81,7 +91,9 @@ export async function mountBoard(host: HTMLElement) {
     `${T.dark}|${s?.boardTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
 
   function build(s: Snapshot | null) {
-    clear(boardLayer); clear(deviceLayer); clear(coolerLayer);
+    boardBake?.texture.destroy(true); deviceBake?.texture.destroy(true);
+    boardBake = null; deviceBake = null;
+    clear(boardLayer); clear(deviceLayer); clear(coolerLayer); clear(deviceBakeLayer); clear(fanLayer);
     parts.length = 0;
     const tier = s?.boardTier ?? 0;
     boardArt = buildBoard(T, tier);
@@ -102,7 +114,8 @@ export async function mountBoard(host: HTMLElement) {
     const dieHits: Hit[] = [...STAGES, ...BLOCKS].map((t) => ({ id: 'cpu.' + t.id, rect: t, min: Z_DIE }));
     let coolerHit: Hit | null = null;
     const deviceHits: Hit[] = [];
-    let screenOn = false;
+    let hasPsu = false, hasDisplay = false;
+    const dimms: number[] = [];
 
     for (const d of s?.devices ?? []) {
       const spec = getSpec(d.spec);
@@ -119,15 +132,17 @@ export async function mountBoard(host: HTMLElement) {
         p.root.position.set(DIMM_X(idx), DIMM_Y);
         deviceLayer.addChild(p.root); parts.push(p);
         const r = { x: DIMM_X(idx), y: DIMM_Y, w: DIMM_W, h: DIMM_H };
+        dimms.push(idx);
         targets.push({ id: d.id, kind: 'ram', spec: d.spec, rect: r });
         deviceHits.push({ id: d.spec, rect: r });
         dram = dram.concat((p.chips ?? []).map((c) => ({ x: c.x + r.x, y: c.y + r.y, w: c.w, h: c.h })));
       } else if (spec.kind === 'psu') {
         const p = psuArt(T, spec as PsuSpec);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) fans.push({ c: p.fan, kind: 'psu' });
-        targets.push({ id: d.id, kind: 'psu', spec: d.spec, rect: PSU });
+        if (p.fan) { fans.push({ c: p.fan, kind: 'psu' }); fanLayer.addChild(p.fan); }
+        if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: d.spec, rect: PSU });
+        hasPsu = true;
       } else if (spec.kind === 'cooler') {
         const p = coolerArt(T, spec as CoolerSpec);
         coolerLayer.addChild(p.root); parts.push(p);
@@ -138,7 +153,7 @@ export async function mountBoard(host: HTMLElement) {
         deviceLayer.addChild(p.root); parts.push(p);
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
         deviceHits.push({ id: d.spec, rect: MONITOR });
-        screenOn = true;
+        hasDisplay = true;
       }
     }
     // empty slots: visible sockets / bays, hit by slot id
@@ -163,18 +178,37 @@ export async function mountBoard(host: HTMLElement) {
       emptyG.stroke({ width: 10, color: T.mute, alpha: 0.7 });
       if (h.id.startsWith('display')) {
         box(emptyG, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
-        deviceLayer.addChild(label('NO SIGNAL', r.x + r.w / 2, r.y + r.h / 2, 90, T.mute, { anchor: [0.5, 0.5], head: true }));
+        deviceLayer.addChild(label('NO SIGNAL', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
       }
-      if (h.id.startsWith('atx')) deviceLayer.addChild(label('PSU BAY', r.x + r.w / 2, r.y + r.h / 2, 90, T.mute, { anchor: [0.5, 0.5], head: true }));
+      if (h.id.startsWith('atx')) deviceLayer.addChild(label('PSU BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
     }
-    void screenOn;
 
-    newHits.push(...dieHits);
+    // cables: PSU to the board connectors, board to the monitor. A cable exists only if both of its ends do.
+    const cableHits: Hit[] = [];
+    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
+    const cables = buildCables().filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
+    for (const c of cables) {
+      const p = cableArt(T, c);
+      deviceLayer.addChild(p.root); parts.push(p);
+      const rs = laneRects(c.path, c.w / 2 + 10);
+      cableHits.push({ id: 'cable.' + c.kind, rect: rs[0]!, more: [...rs.slice(1), plugRect(c.a), plugRect(c.b)] });
+    }
+    if (hasPsu) cableHits.push({ id: 'psu.readout', rect: PSU_PANEL });
+
+    newHits.push(...cableHits, ...dieHits);
     if (coolerHit) newHits.push(coolerHit);
     newHits.push(...deviceHits, ...emptyHits, ...REGIONS.map((r) => ({ id: r.id, rect: r.rect })));
     hits = newHits;
 
-    live.setScene(T, targets, boardArt.lanes, boardArt.flows, fans, dram);
+    // far-out LOD for everything static in the device layer (labels of the CPU and DIMMs stay out of the bake)
+    for (const p of parts) if (p.labels) p.labels.visible = false;
+    deviceLayer.visible = true;
+    const wf = new Rectangle(WORLD.x, WORLD.y, WORLD.w, WORLD.h);
+    deviceBake = new Sprite(app.renderer.generateTexture({ target: deviceLayer, frame: wf, resolution: DEV_BAKE_RES, antialias: true }));
+    deviceBake.position.set(wf.x, wf.y);
+    deviceBakeLayer.addChild(deviceBake);
+
+    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay });
     pipeline.setTheme(T);
     sceneKey = keyOf(s);
     onZoom();
@@ -206,8 +240,7 @@ export async function mountBoard(host: HTMLElement) {
     const w = camera.toWorld(cx, cy), z = camera.z;
     for (const h of hits) {
       if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max)) continue;
-      const r = h.rect;
-      if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
+      for (const r of h.more ? [h.rect, ...h.more] : [h.rect]) if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
     }
     return null;
   };

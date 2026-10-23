@@ -1,7 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
-import { BLOCKS, BR, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, PKG, PSU, SCREEN, STAGES, type Rect, type Tile } from './layout';
-import { box, dashed, disc, label } from './ink';
+import {
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN, STAGES, VENTS, VIDEO_Y,
+  type Rect, type Tile,
+} from './layout';
+import { box, dashed, disc, label, mix } from './ink';
+import { offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -13,14 +17,16 @@ export interface Part {
   root: Container;
   /** Text labels, hidden when far out. */
   labels?: Container;
-  /** A child that board.ts rotates for fans. */
+  /** A child that board.ts rotates for fans (kept above the baked far-LOD texture). */
   fan?: Container;
+  /** Static art that must stay above `fan` (e.g. the PSU grill). */
+  over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */
   chips?: Rect[];
 }
 
 /** Draw `n` fan blades around the origin of `g` (blade length r1, root radius r0). */
-function blades(g: Graphics, n: number, r0: number, r1: number, fill: string, edge: string, edgeW: number) {
+export function blades(g: Graphics, n: number, r0: number, r1: number, fill: string, edge: string, edgeW: number) {
   for (let b = 0; b < n; b++) {
     const a = (b / n) * Math.PI * 2;
     const c = Math.cos(a), s = Math.sin(a);
@@ -47,7 +53,7 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   root.addChild(g);
   const k = PKG, d = DIE;
   const accent = spec.visual === 'cpu-inorder-fwd' ? T.st : spec.visual === 'cpu-inorder' ? T.alu : T.mute;
-  box(g, k.x, k.y, k.w, k.h, 70, { fill: T.sub, stroke: T.line, lw: 5 });
+  box(g, k.x, k.y, k.w, k.h, 70, { fill: T.sub, stroke: mix(T.line, accent, 0.5), lw: 7 });
   // pins: three rows around the edge
   for (let r = 0; r < 3; r++) {
     const o = 24 + r * 20;
@@ -69,14 +75,15 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   for (let y = d.y + 40; y < d.y + d.h - 36; y += 18) { g.rect(d.x + 12, y, 7, 7); g.rect(d.x + d.w - 19, y, 7, 7); }
   g.fill({ color: T.line });
 
+  const edge = mix(T.line, accent, 0.55), tileFill = T.dark ? mix(T.tile, '#ffffff', 0.05) : T.tile;
   const drawTile = (t: Tile, big: boolean) => {
-    box(g, t.x, t.y, t.w, t.h, 12, { fill: T.tile, stroke: T.line, lw: 3, fa: big ? 1 : 0.7 });
-    if (t.label) labels.addChild(label(t.label, t.x + 12, t.y + 18, big ? 22 : 17, T.mute, { weight: '700' }));
-    if (t.sub) labels.addChild(label(t.sub, t.x + 12, t.y + 42, 15, T.mute, { a: 0.8 }));
+    box(g, t.x, t.y, t.w, t.h, 12, { fill: tileFill, stroke: edge, lw: 3, fa: big ? 1 : 0.85 });
+    if (t.label) labels.addChild(label(t.label, t.x + 12, t.y + 18, big ? 22 : 17, T.ink, { weight: '700', a: 0.85 }));
+    if (t.sub) labels.addChild(label(t.sub, t.x + 12, t.y + 42, 15, T.mute, { a: 0.9 }));
   };
   for (const t of BLOCKS) drawTile(t, false);
   for (const t of STAGES) {
-    box(g, t.x, t.y, t.w, t.h, 12, { fill: T.tile, stroke: T.line, lw: 3 });
+    box(g, t.x, t.y, t.w, t.h, 12, { fill: tileFill, stroke: accent, lw: 3, sa: 0.7 });
     labels.addChild(label(t.label, t.x + 14, t.y + 20, 24, T.ink, { weight: '700' }));
     labels.addChild(label(t.sub, t.x + 14, t.y + 46, 15, T.mute, { a: 0.8 }));
   }
@@ -189,74 +196,200 @@ export function coolerArt(T: Theme, spec: CoolerSpec): Part {
     g.stroke({ width: 16, color: T.pin, alpha: 0.9 });
   }
   if (liquid) {
-    // tubes up to the top edge with glowing coolant
-    g.moveTo(cx - 90, c.y).lineTo(cx - 90, c.y - 140).lineTo(cx - 520, c.y - 140);
-    g.moveTo(cx + 90, c.y).lineTo(cx + 90, c.y - 110).lineTo(cx + 520, c.y - 110);
-    g.stroke({ width: 40, color: T.line });
-    g.moveTo(cx - 90, c.y).lineTo(cx - 90, c.y - 140).lineTo(cx - 520, c.y - 140);
-    g.moveTo(cx + 90, c.y).lineTo(cx + 90, c.y - 110).lineTo(cx + 520, c.y - 110);
-    g.stroke({ width: 20, color: T.mul, alpha: 0.8 });
+    // tubes up from the water block, each ending in a fitting (the radiator is off the board)
+    const tubes: [number, number][][] = [
+      [[cx - 90, c.y], [cx - 90, c.y - 140], [cx - 520, c.y - 140]],
+      [[cx + 90, c.y], [cx + 90, c.y - 110], [cx + 520, c.y - 110]],
+    ];
+    for (const t of tubes) { g.moveTo(t[0]![0], t[0]![1]); for (const q of t.slice(1)) g.lineTo(q[0], q[1]); }
+    g.stroke({ width: 40, color: T.line, join: 'round' });
+    for (const t of tubes) { g.moveTo(t[0]![0], t[0]![1]); for (const q of t.slice(1)) g.lineTo(q[0], q[1]); }
+    g.stroke({ width: 20, color: T.mul, alpha: 0.8, join: 'round' });
+    for (const t of tubes) { const e = t[t.length - 1]!; disc(g, e[0], e[1], 34, { fill: T.tile, stroke: T.mul, lw: 8 }); }
   }
   return { root, fan };
 }
 
-// ---------------------------------------------------------------- PSU (off the board, right side)
+// ---------------------------------------------------------------- PSU (below the board, full width)
 export function psuArt(T: Theme, spec: PsuSpec): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
   const r = PSU;
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
-  box(g, r.x, r.y, r.w, r.h, 40, { fill: T.sub, stroke: accent, lw: 10 });
-  // vent slots
-  for (let y = r.y + 70; y < r.y + r.h - 70; y += 44) g.moveTo(r.x + r.w - 260, y).lineTo(r.x + r.w - 50, y);
-  g.stroke({ width: 10, color: T.line });
-  // wires to the board's 24-pin connector, bundled
-  const colours = [T.ld, T.st, T.bad, T.alu, T.mul, T.pin];
-  const y0 = BR.atx.y + 110;
-  for (let i = 0; i < 6; i++) {
-    g.moveTo(r.x, y0 + i * 80).lineTo(BR.atx.x + BR.atx.w + 30 + i * 6, y0 + i * 80).stroke({ width: 22, color: colours[i]!, alpha: 0.9, cap: 'round' });
-  }
+  const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
+  // shroud: body, lit top edge, shadowed bottom edge, accent trim
+  box(g, r.x + 8, r.y + 16, r.w, r.h, 56, { fill: '#000000', fa: 0.22 });
+  box(g, r.x, r.y, r.w, r.h, 56, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
+  g.rect(r.x + 30, r.y + 18, r.w - 60, 16).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.3 });
+  g.rect(r.x + 30, r.y + r.h - 34, r.w - 60, 16).fill({ color: '#000000', alpha: 0.18 });
+  for (const sx of [r.x + 70, r.x + r.w - 70]) for (const sy of [r.y + 70, r.y + r.h - 70]) disc(g, sx, sy, 22, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.4 });
+
+  // fan grill (blades spin underneath the static grill)
+  const fc = PSU_FAN;
+  disc(g, fc.x, fc.y, fc.r + 70, { fill: T.die, stroke: T.line, lw: 9 });
   const fan = new Container();
-  fan.position.set(r.x + 460, r.y + r.h / 2);
+  fan.position.set(fc.x, fc.y);
   const fg = new Graphics();
-  disc(fg, 0, 0, 440, { fill: T.die, stroke: T.line, lw: 9 });
-  blades(fg, 7, 50, 400, T.dot, accent, 4);
+  disc(fg, 0, 0, fc.r + 20, { fill: T.dot });
+  blades(fg, 7, 60, fc.r, T.tile, accent, 5);
   fan.addChild(fg);
   root.addChild(fan);
-  const hub = new Graphics();
-  hub.position.set(r.x + 460, r.y + r.h / 2);
-  disc(hub, 0, 0, 56, { fill: T.tile, stroke: accent, lw: 7 });
-  root.addChild(hub);
-  labels.addChild(label(`${spec.watts} W`, r.x + r.w - 150, r.y + r.h - 120, 100, accent, { head: true, anchor: [0.5, 0.5] }));
-  labels.addChild(label('PSU', r.x + 30, r.y - 40, 60, T.ink, { a: 0.5 }));
+  const grill = new Graphics();
+  grill.position.set(fc.x, fc.y);
+  for (const rr of [120, 220, 320, 420]) grill.circle(0, 0, rr);
+  grill.stroke({ width: 7, color: T.mute, alpha: 0.5 });
+  for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; grill.moveTo(Math.cos(a) * 70, Math.sin(a) * 70).lineTo(Math.cos(a) * 440, Math.sin(a) * 440); }
+  grill.stroke({ width: 5, color: T.mute, alpha: 0.35 });
+  disc(grill, 0, 0, 70, { fill: T.tile, stroke: accent, lw: 7 });
+  disc(grill, 0, 0, 22, { fill: accent });
+  const over = new Container();
+  over.addChild(grill);
+
+  // vent slots
+  {
+    const v = VENTS;
+    for (let y = v.y + 20; y < v.y + v.h - 10; y += 56) g.moveTo(v.x, y).lineTo(v.x + v.w, y);
+    g.stroke({ width: 16, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
+  }
+  // label plate: model and rated capacity
+  {
+    const l = PSU_LABEL;
+    box(g, l.x, l.y, l.w, l.h, 22, { fill: T.die, stroke: T.line, lw: 5 });
+    g.rect(l.x + 40, l.y + 150, l.w - 80, 6).fill({ color: accent, alpha: 0.8 });
+    labels.addChild(label('PIPELINE CITY', l.x + 44, l.y + 70, 54, T.ink, { head: true, a: 0.85 }));
+    labels.addChild(label(spec.name.replace(/ \(.*$/, ''), l.x + 44, l.y + 205, 40, T.mute));
+    labels.addChild(label(`${spec.watts}`, l.x + 44, l.y + 410, 270, accent, { head: true, anchor: [0, 0.5] }));
+    labels.addChild(label('WATTS', l.x + l.w - 50, l.y + 520, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
+    labels.addChild(label('RATED OUTPUT', l.x + 44, l.y + 650, 40, T.mute, { a: 0.9 }));
+    labels.addChild(label('12V', l.x + 44, l.y + 730, 40, T.mute, { a: 0.7 }));
+  }
+  // readout panel frame (live content is drawn by Live)
+  {
+    const p = PSU_PANEL;
+    box(g, p.x, p.y, p.w, p.h, 24, { fill: SCREEN_BG, stroke: accent, lw: 7, sa: 0.8 });
+    box(g, p.x + 10, p.y + 10, p.w - 20, p.h - 20, 16, { stroke: T.line, lw: 3, sa: 0.5 });
+    g.moveTo(p.x + 1150, p.y + 40).lineTo(p.x + 1150, p.y + p.h - 40).moveTo(p.x + 1620, p.y + 40).lineTo(p.x + 1620, p.y + p.h - 40);
+    g.stroke({ width: 3, color: T.line, alpha: 0.7 });
+    labels.addChild(label('LOAD', p.x + 50, p.y + 62, 46, '#8d9bc4', { head: true }));
+    labels.addChild(label('TEMP', p.x + 1190, p.y + 62, 46, '#8d9bc4', { head: true }));
+    labels.addChild(label('FAN', p.x + 1660, p.y + 62, 46, '#8d9bc4', { head: true }));
+  }
+  // output sockets on the top edge: where the cables plug in
+  for (const [x, w, name] of [[PSU_PORTS.pcie, 130, 'PCIe'], [PSU_PORTS.atx, 170, 'ATX 24'], [PSU_PORTS.cpu, 130, 'CPU 8']] as const) {
+    box(g, x - w / 2, PORT_Y - 4, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
+    for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x - w / 2 + 24 + k * 26, PORT_Y + 18, 14, 38);
+    g.fill({ color: T.pin, alpha: 0.7 });
+    labels.addChild(label(name, x, PORT_Y + 140, 38, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
+  }
+  // power switch
+  box(g, r.x + 120, r.y + r.h - 250, 120, 170, 18, { fill: '#05070b', stroke: T.line, lw: 5 });
+  g.rect(r.x + 140, r.y + r.h - 230, 80, 80).fill({ color: T.mute, alpha: 0.6 });
+  labels.addChild(label('I/O', r.x + 180, r.y + r.h - 60, 36, T.mute, { anchor: [0.5, 0.5] }));
   root.addChild(labels);
-  return { root, labels, fan };
+  return { root, fan, over };
 }
 
-/** Power load meter drawn on the PSU (live, redrawn per snapshot). */
-export function drawPsuMeter(g: Graphics, T: Theme, ratio: number, tripped: boolean) {
-  g.clear();
-  const r = PSU, x = r.x + 40, y = r.y + 70, w = r.w - 80, h = 54;
-  box(g, x, y, w, h, 10, { fill: T.die, stroke: T.line, lw: 4 });
-  const f = Math.min(1, ratio);
-  const col = tripped || ratio > 1 ? T.bad : ratio > 0.8 ? T.ld : T.st;
-  box(g, x + 6, y + 6, Math.max(0, (w - 12) * f), h - 12, 6, { fill: col });
-}
-
-// ---------------------------------------------------------------- monitor (off the board, left side)
+// ---------------------------------------------------------------- monitor (west of the board, 16:9)
 export function monitorArt(T: Theme, on: boolean): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
   const m = MONITOR, s = SCREEN;
-  box(g, m.x, m.y, m.w, m.h, 70, { fill: T.sub, stroke: T.line, lw: 12 });
-  box(g, s.x, s.y, s.w, s.h, 30, { fill: SCREEN_BG, stroke: on ? T.st : T.line, lw: 8, sa: on ? 0.8 : 1 });
-  // stand + cable to the rear I/O
-  g.rect(m.x + m.w / 2 - 120, m.y + m.h, 240, 70).fill({ color: T.line });
-  g.moveTo(m.x + m.w, m.y + m.h * 0.55).lineTo(-3400 + 200, m.y + m.h * 0.55).lineTo(-3400 + 200, -1500).stroke({ width: 22, color: T.mul, alpha: 0.8, cap: 'round', join: 'round' });
-  labels.addChild(label('CLI MONITOR', m.x + 30, m.y - 40, 60, T.ink, { a: 0.5 }));
+  const shell = T.dark ? '#141a26' : '#262d3a';
+  const cx = m.x + m.w / 2, by = m.y + m.h;
+  // stand: base, neck
+  box(g, cx - 780, by + 330, 1560, 100, 50, { fill: '#000000', fa: 0.2 });
+  box(g, cx - 800, by + 300, 1600, 100, 50, { fill: shell, stroke: T.line, lw: 6 });
+  g.poly([cx - 150, by - 10, cx + 150, by - 10, cx + 210, by + 320, cx - 210, by + 320]).fill({ color: mix(shell, '#ffffff', 0.08) });
+  g.rect(cx - 150, by - 10, 36, 330).fill({ color: '#ffffff', alpha: 0.05 });
+  // bezel
+  box(g, m.x + 10, m.y + 18, m.w, m.h, 70, { fill: '#000000', fa: 0.22 });
+  box(g, m.x, m.y, m.w, m.h, 70, { fill: shell, stroke: on ? T.st : T.line, lw: 9, sa: on ? 0.55 : 1 });
+  box(g, s.x - 14, s.y - 14, s.w + 28, s.h + 28, 26, { fill: '#05070a' });
+  box(g, s.x, s.y, s.w, s.h, 14, { fill: SCREEN_BG });
+  // scanlines and glass sheen
+  for (let y = s.y + 8; y < s.y + s.h; y += 10) g.moveTo(s.x, y).lineTo(s.x + s.w, y);
+  g.stroke({ width: 3, color: on ? T.st : '#ffffff', alpha: on ? 0.035 : 0.02 });
+  g.poly([s.x + 20, s.y + s.h - 20, s.x + 700, s.y + 20, s.x + 1120, s.y + 20, s.x + 440, s.y + s.h - 20]).fill({ color: '#ffffff', alpha: 0.025 });
+  // chin: brand and power LED
+  const cy = s.y + s.h + 14 + (m.y + m.h - (s.y + s.h + 14)) / 2;
+  labels.addChild(label('PIPELINE CITY', cx, cy, 44, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
+  disc(g, m.x + m.w - 150, cy, 16, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
+  // side port (the HDMI cable plugs in here)
+  box(g, m.x + m.w - 20, VIDEO_Y - 55, 40, 110, 10, { fill: '#05070b', stroke: T.line, lw: 4 });
+  labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
   root.addChild(labels);
-  return { root, labels };
+  return { root };
 }
 
+// ---------------------------------------------------------------- cables (PSU to board, board to monitor)
+const ACCENT = (T: Theme, k: Cable['kind']) => (k === 'atx' ? T.ld : k === 'cpu' ? T.alu : k === 'pcie' ? T.br : T.st);
+
+export function plugRect(p: Plug): Rect {
+  return p.dx !== 0
+    ? { x: p.dx > 0 ? p.x : p.x - p.l, y: p.y - p.w / 2, w: p.l, h: p.w }
+    : { x: p.x - p.w / 2, y: p.dy > 0 ? p.y : p.y - p.l, w: p.w, h: p.l };
+}
+
+function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: boolean) {
+  const r = plugRect(p);
+  const body = T.dark ? '#1b2230' : '#2c3442';
+  box(g, r.x + 6, r.y + 10, r.w, r.h, 16, { fill: '#000000', fa: 0.25 });
+  box(g, r.x, r.y, r.w, r.h, 16, { fill: body, stroke: accent, lw: 6, sa: 0.9 });
+  const horiz = p.dx !== 0;
+  // grip ridges toward the cable end
+  for (let i = 0; i < 5; i++) {
+    const t = 0.52 + i * 0.09;
+    if (horiz) { const x = p.dx > 0 ? r.x + r.w * t : r.x + r.w * (1 - t); g.moveTo(x, r.y + 12).lineTo(x, r.y + r.h - 12); }
+    else { const y = p.dy > 0 ? r.y + r.h * t : r.y + r.h * (1 - t); g.moveTo(r.x + 12, y).lineTo(r.x + r.w - 12, y); }
+  }
+  g.stroke({ width: 5, color: '#ffffff', alpha: 0.16 });
+  const [cols, rows] = p.pins;
+  if (host && cols * rows > 1) {
+    // pin holes on the socket-side part, laid out along the long axis
+    const long = horiz ? r.h : r.w, step = long / (cols + 0.6);
+    for (let c = 0; c < cols; c++) for (let k = 0; k < rows; k++) {
+      const along = (c + 0.8) * step, across = (k + 0.5) / rows;
+      const x = horiz ? (p.dx > 0 ? r.x + r.w * (0.1 + across * 0.3) : r.x + r.w * (0.9 - across * 0.3)) - 9 : r.x + along - 9;
+      const y = horiz ? r.y + along - 9 : (p.dy > 0 ? r.y + r.h * (0.1 + across * 0.3) : r.y + r.h * (0.9 - across * 0.3)) - 9;
+      g.rect(x, y, 18, 18);
+    }
+    g.fill({ color: '#000000', alpha: 0.55 });
+  }
+  if (host && cols * rows <= 1) {
+    // HDMI shell: metal face
+    const sx = horiz ? (p.dx > 0 ? r.x + 6 : r.x + r.w * 0.55) : r.x + 6, sw = horiz ? r.w * 0.45 : r.w - 12;
+    g.rect(sx, r.y + 10, sw, r.h - 20).fill({ color: '#aeb8c8', alpha: 0.5 });
+  }
+  // coloured sleeve band where the cable leaves the plug
+  const bx = horiz ? (p.dx > 0 ? r.x + r.w - 26 : r.x) : r.x, by = horiz ? r.y : (p.dy > 0 ? r.y + r.h - 26 : r.y);
+  g.rect(bx, by, horiz ? 26 : r.w, horiz ? r.h : 26).fill({ color: accent, alpha: 0.85 });
+}
+
+/** A fat sleeved cable with plugs at both ends. Static; the glow lives in Live. */
+export function cableArt(T: Theme, c: Cable): Part {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const pts = c.path.pts, w = c.w, accent = ACCENT(T, c.kind);
+  const sleeve = T.dark ? '#171d29' : '#2a313d';
+  const line = (list: [number, number][]) => { g.moveTo(list[0]![0], list[0]![1]); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0], list[i]![1]); };
+  // drop shadow, sleeve, braid, highlight
+  line(pts.map(([x, y]) => [x + 10, y + 14] as [number, number]));
+  g.stroke({ width: w + 8, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
+  line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
+  line(pts); g.stroke({ width: w, color: accent, alpha: 0.12, cap: 'round', join: 'round' });
+  // braid: short diagonal ticks across the sleeve
+  for (let i = 2; i < pts.length - 2; i += 2) {
+    const a = pts[i - 1]!, b = pts[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+    const nx = -dy / l, ny = dx / l, tx = dx / l, ty = dy / l, h = w * 0.46;
+    g.moveTo(pts[i]![0] + nx * h - tx * w * 0.16, pts[i]![1] + ny * h - ty * w * 0.16).lineTo(pts[i]![0] - nx * h + tx * w * 0.16, pts[i]![1] - ny * h + ty * w * 0.16);
+  }
+  g.stroke({ width: Math.max(3, w * 0.05), color: '#ffffff', alpha: T.dark ? 0.1 : 0.14 });
+  line(offsetLine(pts, -w * 0.24)); g.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.1 : 0.16, cap: 'round', join: 'round' });
+  line(offsetLine(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' });
+  drawPlug(g, T, c.a, accent, c.kind === 'video');
+  drawPlug(g, T, c.b, accent, true);
+  return { root };
+}
