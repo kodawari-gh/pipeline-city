@@ -109,3 +109,48 @@ export function chart(engine: PipelineEngine, src: string): string {
   lines.push(`cycles=${c[0]} retired=${c[1]} load=${c[2]} data=${c[3]} flush=${c[4]} struct=${c[5]} cache=${c[6]} flushes=${c[7]} hits=${c[11]} misses=${c[12]}`);
   return "\n" + lines.join("\n") + "\n";
 }
+
+// ---- Wide engines (inorder2, ooo) ----
+
+import { OooEngine, type OooSettings } from "./ooo";
+import type { EngineSettings } from "./common";
+
+export interface WideConfig {
+  name: string;
+  make: (extra?: EngineSettings) => PipelineEngine;
+}
+
+export const OOO_SIZES: Record<string, OooSettings> = {
+  default: {},
+  tiny: { robSize: 2, schedSize: 1, fetchQueue: 2 },
+  small: { robSize: 4, schedSize: 3, fetchQueue: 2 },
+  mid: { robSize: 16, schedSize: 8, fetchQueue: 6 },
+  big: { robSize: 32, schedSize: 16, fetchQueue: 8 },
+  wide4: { robSize: 16, schedSize: 8, fetchQueue: 8, width: 4 },
+  scalar: { robSize: 8, schedSize: 4, fetchQueue: 2, width: 1 },
+};
+
+export const WIDE_CONFIGS: WideConfig[] = [
+  { name: "inorder2 fwd shared=off", make: (x) => new InOrderEngine({ width: 2, forwarding: true, sharedPort: false, ...x }) },
+  { name: "inorder2 fwd shared=on", make: (x) => new InOrderEngine({ width: 2, forwarding: true, sharedPort: true, ...x }) },
+  { name: "inorder2 nofwd shared=off", make: (x) => new InOrderEngine({ width: 2, forwarding: false, sharedPort: false, ...x }) },
+  { name: "inorder2 nofwd shared=on", make: (x) => new InOrderEngine({ width: 2, forwarding: false, sharedPort: true, ...x }) },
+  { name: "inorder4", make: (x) => new InOrderEngine({ width: 4, ...x }) },
+  ...Object.entries(OOO_SIZES).map(([name, o]) => ({ name: `ooo ${name}`, make: (x?: EngineSettings) => new OooEngine({ ...o, ...x }) })),
+];
+
+/** Run a program on the engine to halt; returns the machine (regs, ram, display) and the engine. */
+export function runProgram(engine: PipelineEngine, program: Uint32Array, chaos?: Chaos, maxCycles = 200_000): Machine {
+  const m = new Machine();
+  m.attach(engine, program);
+  const r = chaos ? new Prng(chaos.seed) : null;
+  while (!engine.halted) {
+    if (engine.cycle >= maxCycles) throw new Error("did not halt");
+    if (r && chaos) {
+      if (r.next() < chaos.p) engine.invalidateCache();
+      if (r.next() < chaos.p) engine.flipPredictor(r.next() < 0.5 ? undefined : 4 * r.nextInt(64));
+    }
+    engine.step();
+  }
+  return m;
+}

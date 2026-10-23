@@ -19,6 +19,7 @@ export const OP_ECALL = opc("ecall");
 export const OP_MUL = MUL;
 export const OP_SW = SW;
 export const OP_LW = LW;
+export const OP_LB = LB;
 
 /** Per-opcode class flags (indexed by the 7-bit opcode). */
 export const F = { Writes: 1, Rs1: 2, Rs2: 4, Load: 8, Store: 16, Branch: 32, Jal: 64, Jalr: 128 } as const;
