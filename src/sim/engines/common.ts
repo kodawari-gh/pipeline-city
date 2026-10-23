@@ -16,6 +16,9 @@ const LW = opc("lw"), LB = opc("lb"), SW = opc("sw");
 const BEQ = opc("beq"), BNE = opc("bne"), BLT = opc("blt"), BGE = opc("bge"), BLTU = opc("bltu");
 const LUI = opc("lui"), AUIPC = opc("auipc");
 export const OP_ECALL = opc("ecall");
+export const OP_MUL = MUL;
+export const OP_SW = SW;
+export const OP_LW = LW;
 
 /** Per-opcode class flags (indexed by the 7-bit opcode). */
 export const F = { Writes: 1, Rs1: 2, Rs2: 4, Load: 8, Store: 16, Branch: 32, Jal: 64, Jalr: 128 } as const;
@@ -118,20 +121,32 @@ export const POOL_MASK = POOL - 1;
 export const St = { ExDone: 1, Started: 2, Missing: 4 } as const;
 
 export class InstrPool {
-  readonly word = new Uint32Array(POOL);
-  readonly pc = new Uint32Array(POOL);
-  readonly op = new Uint8Array(POOL); // 0 = illegal / unfetchable
-  readonly rd = new Uint8Array(POOL);
-  readonly rs1 = new Uint8Array(POOL);
-  readonly rs2 = new Uint8Array(POOL);
-  readonly imm = new Int32Array(POOL);
-  readonly a = new Int32Array(POOL);
-  readonly b = new Int32Array(POOL);
-  readonly res = new Int32Array(POOL);
-  readonly addr = new Uint32Array(POOL);
-  readonly predNext = new Uint32Array(POOL);
-  readonly wait = new Int32Array(POOL);
-  readonly state = new Uint8Array(POOL);
+  readonly word: Uint32Array;
+  readonly pc: Uint32Array;
+  readonly op: Uint8Array; // 0 = illegal / unfetchable
+  readonly rd: Uint8Array;
+  readonly rs1: Uint8Array;
+  readonly rs2: Uint8Array;
+  readonly imm: Int32Array;
+  readonly a: Int32Array;
+  readonly b: Int32Array;
+  readonly res: Int32Array;
+  readonly addr: Uint32Array;
+  readonly predNext: Uint32Array;
+  readonly wait: Int32Array;
+  readonly state: Uint8Array;
+  /** Slot = id & mask. */
+  readonly mask: number;
+
+  /** `size` must be a power of two (default 8: enough for the width-1 pipeline). */
+  constructor(readonly size = POOL) {
+    this.mask = size - 1;
+    this.word = new Uint32Array(size); this.pc = new Uint32Array(size); this.op = new Uint8Array(size);
+    this.rd = new Uint8Array(size); this.rs1 = new Uint8Array(size); this.rs2 = new Uint8Array(size);
+    this.imm = new Int32Array(size); this.a = new Int32Array(size); this.b = new Int32Array(size);
+    this.res = new Int32Array(size); this.addr = new Uint32Array(size); this.predNext = new Uint32Array(size);
+    this.wait = new Int32Array(size); this.state = new Uint8Array(size);
+  }
 
   /** Instruction fetch: a real read through the bus. Unaligned or non-RAM pcs yield an illegal (op 0) instruction. */
   fetch(bus: Bus, ramSize: number, slot: number, pc: number): void {
@@ -185,7 +200,7 @@ export interface EngineSettings {
 /** State and helpers shared by both engines. */
 export abstract class EngineBase implements PipelineEngine {
   protected readonly v: ViewState;
-  protected readonly pool = new InstrPool();
+  protected readonly pool: InstrPool;
   protected readonly cache: DataCache;
   protected machine!: Machine;
   protected bus!: Bus;
@@ -197,8 +212,9 @@ export abstract class EngineBase implements PipelineEngine {
   /** Set by execute(): whether the last conditional branch was taken. */
   protected taken = false;
 
-  constructor(s: EngineSettings = {}) {
-    this.v = new ViewState(s.timelineRows ?? 32, s.timelineCols ?? 64);
+  constructor(s: EngineSettings = {}, poolSize = POOL, view?: ViewState) {
+    this.pool = new InstrPool(poolSize);
+    this.v = view ?? new ViewState(s.timelineRows ?? 32, s.timelineCols ?? 64);
     this.cache = new DataCache(s.cacheLines ?? 8, s.cacheLineBytes ?? 16, s.missPenalty ?? 4);
   }
 
@@ -300,7 +316,7 @@ export abstract class EngineBase implements PipelineEngine {
     return true;
   }
 
-  private load(op: number, addr: number): number {
+  protected load(op: number, addr: number): number {
     if (op === LW) return this.bus.load32(addr) | 0;
     if (op === LB) return (this.bus.load8(addr) << 24) >> 24;
     return this.bus.load8(addr); // lbu
