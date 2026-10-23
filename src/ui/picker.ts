@@ -381,7 +381,6 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       ? boardId(s.boardTier)
       : dev?.spec ?? (slot ? null : s.devices.find((x) => x.kind === kind)?.spec ?? null);
     const lines: PickerLine[] = [];
-    if (emptySocket) lines.push({ level: 'info', text: 'Empty socket. Drag a matching part from the inventory onto it.' });
     if (invItem) lines.push({ level: 'info', text: s.powered ? 'Power the machine off to install it.' : 'Drag it onto its socket.' });
     const actions: PickerAction[] = [];
     if (kind === 'psu') {
@@ -403,7 +402,8 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     return {
       ...emptyCard(id, kind, title, d.plain, d.nerd),
       ladder, current, lines, actions,
-      focus: invItem ? invItem.spec : getSpec(id) ? id : null,
+      // A spec id that is neither a slot nor a fitted part (a shop or ladder item) is the comparison to show.
+      focus: invItem ? invItem.spec : !slot && !dev && getSpec(id) ? id : null,
       device: emptySocket ? undefined : dev,
       clock: kind === 'cpu' && !!s.cpuClock && !!dev && !dev.burnt,
       emptyText: ladder.some((r) => r.state === 'ready' || r.state === 'poor' || r.state === 'blocked') ? undefined : 'Nothing better to buy right now.',

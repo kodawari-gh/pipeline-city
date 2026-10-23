@@ -45,21 +45,27 @@ function StartPrompt() {
 function InsetReporter() {
   useEffect(() => {
     const hud = document.getElementById('hud');
+    // The tray's reserved strip is remembered while it is slid away during a drag: the camera must not re-frame
+    // under the pointer mid-drag. The part is hidden, the space is kept.
+    let invInset = 0;
     const measure = () => {
       const W = window.innerWidth, H = window.innerHeight;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       const bar = document.querySelector('.hud');
       if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom) + 8;
+      let invSeen = false;
       for (const el of document.querySelectorAll('.dock, .picker, .tut, .inv')) {
         const r = el.getBoundingClientRect();
         if (r.width === 0) continue;
-        // The inventory tray runs along the bottom edge; it is hidden while a part is dragged, so it frees the board.
         if (el.classList.contains('inv')) {
-          if (!el.classList.contains('away')) next.bottom = Math.max(next.bottom, Math.ceil(H - r.top) + 8);
+          invSeen = true;
+          if (!el.classList.contains('away')) invInset = Math.ceil(H - r.top) + 8;
+          next.bottom = Math.max(next.bottom, invInset);
         } else if (r.width >= W * 0.8) next.bottom = Math.max(next.bottom, Math.ceil(H - r.top) + 8);
         else if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right) + 8);
         else next.right = Math.max(next.right, Math.ceil(W - r.left) + 8);
       }
+      if (!invSeen) invInset = 0;
       const cur = viewInset.peek();
       if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
     };

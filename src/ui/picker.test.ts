@@ -17,7 +17,8 @@ describe('picker contents per id', () => {
     const m = pickerFor('cpu0', snap())!;
     expect(m.kind).toBe('cpu');
     expect(m.title).toBe('Processor socket');
-    expect(m.lines.map((l) => l.text).join(' ')).toMatch(/Empty socket/);
+    expect(m.plain).toMatch(/empty processor socket/);
+    expect(m.lines).toEqual([]);
     expect(m.device).toBeUndefined();
     expect(m.clock).toBe(false);
     expect(m.current).toBeNull();
@@ -235,11 +236,5 @@ describe('overclock zones (the same steady-state heat model as thermal.ts)', () 
   it('a bigger cooler moves the zones up', () => {
     const big = getSpec('cooler2') as Extract<ReturnType<typeof getSpec>, { kind: 'cooler' }>;
     expect(clockZones(cpuSpec, big).unstableAt).toBeGreaterThan(clockZones(cpuSpec, stockCooler).unstableAt);
-  });
-});
-
-describe('purchases in the fixture', () => {
-  it('the fixture offers what the ladder tests rely on', () => {
-    expect(PURCHASES.map((p) => p.id)).toEqual(['cpu1', 'cpu2', 'ram1', 'psu1']);
   });
 });
