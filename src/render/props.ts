@@ -14,6 +14,8 @@ export interface PropObj {
   rect: Rect;
   /** The container that animates on hover (position = its centre in world units). */
   node: Container;
+  /** Everything drawn inside `node` (board.ts caches it as a texture when far out). */
+  vec: Container;
   base: { x: number; y: number; s: number };
 }
 
@@ -135,16 +137,17 @@ export function crateArt(T: Theme, items: InventorySnap[]): PropsArt {
     const rowsN = Math.ceil(items.length / cols);
     const cx = inner.x + (inner.w - Math.min(items.length, cols) * cell) / 2 + cell * (col + 0.5);
     const cy = inner.y + (inner.h - rowsN * rowH) / 2 + rowH * (row + 0.5);
-    const node = new Container();
+    const node = new Container(), vec = new Container();
+    node.addChild(vec);
     const icon = partIcon(T, it.kind, it.spec);
     icon.position.set(0, -30);
-    node.addChild(icon);
-    node.addChild(label(shortName(it.name), 0, 250, 62, T.ink, { head: true, anchor: [0.5, 0.5] }));
+    vec.addChild(icon);
+    vec.addChild(label(shortName(it.name), 0, 250, 62, T.ink, { head: true, anchor: [0.5, 0.5] }));
     node.position.set(cx, cy);
     node.scale.set(sc);
     root.addChild(node);
     const hw = 280 * sc, hh = 310 * sc;
-    objs.push({ id: 'inv:' + it.id, rect: { x: cx - hw, y: cy - hh, w: hw * 2, h: hh * 2 }, node, base: { x: cx, y: cy, s: sc } });
+    objs.push({ id: 'inv:' + it.id, rect: { x: cx - hw, y: cy - hh, w: hw * 2, h: hh * 2 }, node, vec, base: { x: cx, y: cy, s: sc } });
   });
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
@@ -217,10 +220,11 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
   const objs: PropObj[] = [];
   keys.forEach((k, i) => {
     const p = trayKeyCentre(i);
-    const node = keyStick(T, k);
+    const vec = keyStick(T, k), node = new Container();
+    node.addChild(vec);
     node.position.set(p.x, p.y);
     root.addChild(node);
-    objs.push({ id: 'key:' + k.id, rect: { x: p.x - 300, y: p.y - 100, w: 600, h: 200 }, node, base: { x: p.x, y: p.y, s: 1 } });
+    objs.push({ id: 'key:' + k.id, rect: { x: p.x - 300, y: p.y - 100, w: 600, h: 200 }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
   });
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
@@ -229,10 +233,11 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
 export function pluggedKeyArt(T: Theme, k: KeySnap): PropsArt {
   const root = new Container();
   const p = pluggedKeyCentre();
-  const node = keyStick(T, k);
+  const vec = keyStick(T, k), node = new Container();
+  node.addChild(vec);
   node.position.set(p.x, p.y);
   root.addChild(node);
-  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - 300, y: p.y - 100, w: 400, h: 200 }, node, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null };
+  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - 300, y: p.y - 100, w: 400, h: 200 }, node, vec, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null };
 }
 
 // ---------------------------------------------------------------- power button
@@ -250,9 +255,10 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   box(g, p.x, p.y, p.w, p.h, 40, { fill: shell, stroke: T.line, lw: 8 });
   chrome.addChild(label('POWER', p.x + p.w / 2, p.y + 80, 78, T.ink, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
   // the button (lifts and scales as one object)
-  const node = new Container();
+  const node = new Container(), vec = new Container();
   const bg = new Graphics();
-  node.addChild(bg);
+  node.addChild(vec);
+  vec.addChild(bg);
   const ring = st.error ? T.bad : st.powered ? T.st : T.mute;
   disc(bg, 0, 14, b.r + 18, { fill: '#000000', fa: 0.3 });
   disc(bg, 0, 0, b.r + 18, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 12, sa: st.powered || st.error ? 1 : 0.7 });
@@ -270,7 +276,7 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   for (const [t, dx] of items) chrome.addChild(label(t, p.x + p.w / 2 + dx, ly + 70, 40, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
   return {
     root, chrome,
-    objs: [{ id: 'power', rect: { x: b.x - b.r - 24, y: b.y - b.r - 24, w: (b.r + 24) * 2, h: (b.r + 24) * 2 }, node, base: { x: b.x, y: b.y, s: 1 } }],
+    objs: [{ id: 'power', rect: { x: b.x - b.r - 24, y: b.y - b.r - 24, w: (b.r + 24) * 2, h: (b.r + 24) * 2 }, node, vec, base: { x: b.x, y: b.y, s: 1 } }],
     led,
     ledText: null,
   };

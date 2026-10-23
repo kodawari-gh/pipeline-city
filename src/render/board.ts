@@ -82,7 +82,7 @@ export async function mountBoard(host: HTMLElement) {
   const chromeBakeLayer = new Container();
   let chromeBake: Sprite | null = null;
   /** Hover-animated props: vector art close up, one small baked sprite far out. */
-  let propBakes: { vec: Container; bake: Sprite }[] = [];
+  let propBakes: { vec: Container; cached: boolean }[] = [];
   const pipeline = new PipelineView();
   const live = new Live(app.renderer, T.dark);
   const camera = new Camera(world, app.canvas);
@@ -137,7 +137,10 @@ export async function mountBoard(host: HTMLElement) {
     coolerLayer.visible = coolerLayer.alpha > 0.01;
     pipeline.root.alpha = smooth(0.42, 0.58, z);
     pipeline.root.visible = pipeline.root.alpha > 0.01;
-    for (const pb of propBakes) { pb.vec.visible = z >= Z_BAKE_PROPS; pb.bake.visible = z < Z_BAKE_PROPS; }
+    for (const pb of propBakes) {
+      const want = z < Z_BAKE_PROPS;
+      if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
+    }
     chromeLayer.visible = !chromeBake || z >= Z_BAKE_PROPS;
     chromeBakeLayer.visible = !!chromeBake && z < Z_BAKE_PROPS;
     live.setZoom(z);
@@ -355,7 +358,6 @@ export async function mountBoard(host: HTMLElement) {
     if (!force && key === propsKey) return;
     propsKey = key;
     chromeBake?.texture.destroy(true); chromeBake = null;
-    for (const pb of propBakes) pb.bake.texture.destroy(true);
     propBakes = [];
     clear(propsLayer); clear(chromeLayer); clear(chromeBakeLayer);
     propsArt = [];
@@ -366,13 +368,8 @@ export async function mountBoard(host: HTMLElement) {
       propsLayer.addChild(a.root); propsArt.push(a);
       if (a.chrome) chromeLayer.addChild(a.chrome);
       for (const o of a.objs) {
-        const vec = new Container();
-        for (const ch of o.node.removeChildren()) vec.addChild(ch);
-        const bake = new Sprite(app.renderer.generateTexture({ target: vec, resolution: 0.5, antialias: true }));
-        const b = vec.getLocalBounds();
-        bake.position.set(b.x, b.y);
-        o.node.addChild(vec, bake);
-        propBakes.push({ vec, bake });
+        const vec = o.vec;
+        propBakes.push({ vec, cached: false });
       }
       for (const o of a.objs) { scene.props.set(o.id, o); scene.rects.set(o.id, o.rect); scene.interactive.add(o.id); }
     };
