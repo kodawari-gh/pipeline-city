@@ -145,7 +145,7 @@ Desktop first. Pointer events stay generic so touch pan/pinch works on the board
 ## Open questions
 
 - Typed-array layout conventions per engine (see Sim internals).
-- Exact opcodes, field widths per format and register roles (link, stack pointer, zero), plus the GPU instruction set.
+- Exact opcodes, field widths and register roles are **left to the implementer**: the owner does not care about the details, only that it looks like it kinda makes sense. Artistic freedom applies. The GPU instruction set is the same.
 - Numbers: demand curve, reputation function, prices, upgrade costs (needs a balance pass).
 - Toy ISA extensions needed for device I/O, GPU/NPU offload and secure execution.
 - Exact shape of the world-map / datacenter layer (far future, not designed).
