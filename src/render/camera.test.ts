@@ -1,0 +1,87 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { Container } from 'pixi.js';
+import { Camera, screenRect } from './camera';
+
+// The camera only needs an element (style, listeners, a rect) and a container (scale, position); no DOM is required.
+const fakeEl = () => ({
+  style: {} as Record<string, string>,
+  addEventListener() {},
+  getBoundingClientRect: () => ({ left: 10, top: 20, width: 800, height: 600 }),
+}) as unknown as HTMLElement;
+const fakeWorld = () => ({ scale: { set() {} }, position: { set() {} } }) as unknown as Container;
+const makeCamera = () => { const c = new Camera(fakeWorld(), fakeEl()); c.resize(800, 600); return c; };
+
+beforeAll(() => {
+  (globalThis as unknown as { window: unknown }).window = { addEventListener() {} };
+});
+
+describe('screenRect (world rect to client px)', () => {
+  it('adds the canvas origin, the view centre and the zoom', () => {
+    const r = screenRect({ x: 100, y: 50, w: 40, h: 20 }, { x: 0, y: 0, z: 2 }, { x: 400, y: 300 }, { left: 10, top: 20 });
+    expect(r).toEqual({ x: 10 + 400 + 200, y: 20 + 300 + 100, w: 80, h: 40 });
+  });
+
+  it('a point at the view centre lands on the centre of the free area', () => {
+    const r = screenRect({ x: 500, y: -200, w: 0, h: 0 }, { x: 500, y: -200, z: 0.5 }, { x: 400, y: 300 }, { left: 0, top: 0 });
+    expect([r.x, r.y]).toEqual([400, 300]);
+  });
+});
+
+describe('Camera flights', () => {
+  it('lands at the target and reports arrival', () => {
+    const cam = makeCamera();
+    const got: boolean[] = [];
+    cam.flyTo({ x: 500, y: 0, z: 1 }, 100, (a) => got.push(a));
+    cam.update(performance.now() + 1000);
+    expect(got).toEqual([true]);
+    expect(cam.x).toBe(500);
+    expect(cam.z).toBe(1);
+  });
+
+  it('cancelling reports false and leaves the view where it was', () => {
+    const cam = makeCamera();
+    const got: boolean[] = [];
+    cam.flyTo({ x: 500, y: 0, z: 1 }, 1000, (a) => got.push(a));
+    cam.cancelFlight();
+    cam.update(performance.now() + 5000);
+    expect(got).toEqual([false]);
+    expect(cam.x).toBe(0);
+  });
+
+  it('a new flight cancels the one in progress', () => {
+    const cam = makeCamera();
+    const got: string[] = [];
+    cam.flyTo({ x: 500, y: 0, z: 1 }, 1000, (a) => got.push('first ' + a));
+    cam.flyTo({ x: -500, y: 0, z: 1 }, 100, (a) => got.push('second ' + a));
+    cam.update(performance.now() + 2000);
+    expect(got).toEqual(['first false', 'second true']);
+    expect(cam.x).toBe(-500);
+  });
+
+  it('duration 0 jumps and reports arrival at once', () => {
+    const cam = makeCamera();
+    const got: boolean[] = [];
+    cam.flyTo({ x: 300, y: 40, z: 0.4 }, 0, (a) => got.push(a));
+    expect(got).toEqual([true]);
+    expect([cam.x, cam.y, cam.z]).toEqual([300, 40, 0.4]);
+  });
+
+  it('hold is kept by a held flight and dropped by a plain one', () => {
+    const cam = makeCamera();
+    cam.flyTo({ x: 10, y: 20, z: 1 }, 0, undefined, true);
+    expect(cam.holdAt).toEqual({ x: 10, y: 20 });
+    cam.flyTo({ x: 10, y: 20, z: 1 }, 0);
+    expect(cam.holdAt).toBeNull();
+  });
+});
+
+describe('Camera inset easing', () => {
+  it('the drawn inset eases to the target, so the view centre glides', () => {
+    const cam = makeCamera();
+    cam.inset = { top: 0, right: 0, bottom: 0, left: 200, };
+    expect(cam.cx).toBe(400);
+    let t = performance.now();
+    for (let i = 0; i < 40; i++) { t += 50; cam.update(t); }
+    expect(Math.abs(cam.cx - 500)).toBeLessThan(0.6);
+  });
+});

@@ -12,3 +12,11 @@ export const highlight = signal<string[]>([]);
 /** What the player is dragging right now. Render WRITES, UI may read (e.g. to hide the shop). */
 export interface Dragging { kind: 'part' | 'cable' | 'key'; id: string }
 export const dragging = signal<Dragging | null>(null);
+
+/**
+ * Bumped by the renderer (at most once per frame, only when something changed): the camera panned, zoomed, flew or was
+ * reframed, the canvas resized, or the world layout changed (board tier, device install/uninstall, cables, tray and held
+ * keys, OS badge). Read it in an effect and call `anchorOf(id)` (src/render/board.ts) to recompute screen positions.
+ * Render WRITES, UI reads.
+ */
+export const cameraRev = signal(0);

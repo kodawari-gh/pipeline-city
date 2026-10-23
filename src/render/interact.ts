@@ -3,7 +3,7 @@ import { hover, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
 import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
-import type { Camera, Grab } from './camera';
+import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from './devices';
 import { box, MONO, mix } from './ink';
 import { BD, type Rect } from './layout';
@@ -85,7 +85,7 @@ export class Interact {
   private noteBg = new Graphics();
   private noteSet = false;
 
-  constructor(private camera: Camera, private canvas: HTMLCanvasElement, private flyToRects: (rs: Rect[]) => void) {
+  constructor(private camera: Camera, private canvas: HTMLCanvasElement, private flyToRects: (rs: Rect[], opts: FlyOpts) => void) {
     this.fx.addChild(this.g, this.ghost);
     this.hud.addChild(this.hg, this.notes, this.noteBg);
     this.noteText = new Text({ text: '', style: { fontFamily: MONO, fontSize: 13, fontWeight: '700', fill: '#ffffff', wordWrap: true, wordWrapWidth: 260 }, resolution: 2 });
@@ -432,9 +432,10 @@ export class Interact {
     return r ? [r] : [];
   }
 
-  flyToId(id: string) {
+  flyToId(id: string, opts: FlyOpts = {}) {
     const rs = this.rectsFor(id);
-    if (rs.length) this.flyToRects(rs);
+    if (rs.length) this.flyToRects(rs, opts);
+    else opts.onDone?.(false);
   }
 
   // ------------------------------------------------------------------ per frame

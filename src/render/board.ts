@@ -1,13 +1,13 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
-import { hover, viewInset } from '../game/hover';
-import { dragging, highlight } from '../game/interaction';
+import { hover, viewInset, type Inset } from '../game/hover';
+import { cameraRev, dragging, highlight } from '../game/interaction';
 import { snapshot, speed } from '../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
 import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
-import { Camera, type View } from './camera';
+import { Camera, type FlyOpts, type View } from './camera';
 import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
@@ -59,8 +59,29 @@ const CONNECTOR: Record<CableKind, Rect> = { atx: BR.atx, cpu: BR.cpw, pcie: BR.
 /** View used by the camera keys and exported helpers. */
 let cameraRef: Camera | null = null;
 let interactRef: Interact | null = null;
+/** 0..1 how much the exterior case covers the interior (set by applyLod). Interior ids are hidden above 0.5, as in hit testing. */
+let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 export function flyToBoard() { cameraRef?.flyTo(cameraRef.fit(WORLD)); }
+/** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
+export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
+/**
+ * Live screen rectangle of a world id (any id in the RENDER.md table: slot ids, device ids, `psu`, `monitor`, `case`,
+ * `bay`, `power`, `usb`, `tray`, `held`, `os`, `vrm`, `key:<id>`, `cable.*`, `chipset`, `board`). Client px (relative to
+ * the viewport, canvas offset included). The stage is in CSS px (autoDensity), so no device-pixel-ratio factor is needed.
+ * Same rects as hit testing. `visible` is false when the rect does not meet the free area (the canvas minus `viewInset`),
+ * or when the far-zoom exterior hides it (an interior id at far zoom). Returns null for unknown ids and inventory ids.
+ * Recompute when `cameraRev` (src/game/interaction.ts) changes.
+ */
+export function anchorOf(id: string): Anchor | null {
+  if (!interactRef || !cameraRef) return null;
+  const r = interactRef.rectsFor(id)[0];
+  if (!r) return null;
+  const s = cameraRef.screenRect(r), f = cameraRef.freeRect();
+  const hidden = exteriorCover > 0.5 && !isExternalId(id);
+  const onScreen = s.x < f.x + f.w && s.x + s.w > f.x && s.y < f.y + f.h && s.y + s.h > f.y;
+  return { x: s.x, y: s.y, w: s.w, h: s.h, visible: !hidden && onScreen };
+}
 /**
  * Start dragging an inventory part from a DOM pointerdown that happened outside the canvas (the inventory menu).
  * Ghost, pulsing targets, install on drop, snap back with a message on failure. Escape or a release outside the canvas cancels.
@@ -69,13 +90,12 @@ export function beginPartDrag(inventoryId: string, event: PointerEvent): void { 
 /**
  * Fly the camera to a world object by id (any id listed in docs/RENDER.md: slot ids, device ids, 'key:<id>',
  * 'tray', 'usb', 'power', 'monitor', 'psu', 'chipset', 'board', 'cable.atx|cpu|video'). Unknown ids do nothing.
- * Returns whether the id was found.
+ * Returns whether the id was found (synchronously; `opts.onDone(false)` is then called too). Defaults and the
+ * `onDone` contract are in docs/RENDER.md ("Flights"). A press, wheel, pinch or another flight cancels it.
  */
-export function flyTo(id: string): boolean {
-  if (!interactRef) return false;
-  const rs = interactRef.rectsFor(id);
-  if (!rs.length) return false;
-  interactRef.flyToId(id);
+export function flyTo(id: string, opts: FlyOpts = {}): boolean {
+  if (!interactRef || !interactRef.rectsFor(id).length) { opts.onDone?.(false); return false; }
+  interactRef.flyToId(id, opts);
   return true;
 }
 /** Does the world currently have an object with this id (so `flyTo` / `highlight` can find it)? */
@@ -122,11 +142,12 @@ export async function mountBoard(host: HTMLElement) {
   const live = new Live(app.renderer, T.dark);
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
-  const interact = new Interact(camera, app.canvas, (rs) => {
+  const interact = new Interact(camera, app.canvas, (rs, opts) => {
     const x0 = Math.min(...rs.map((r) => r.x)) - 900, y0 = Math.min(...rs.map((r) => r.y)) - 900;
     const x1 = Math.max(...rs.map((r) => r.x + r.w)) + 900, y1 = Math.max(...rs.map((r) => r.y + r.h)) + 900;
     const v = camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.9);
-    camera.flyTo({ ...v, z: Math.min(Math.max(v.z, camera.fit(WORLD).z), 0.3) });
+    const z = opts.zoom ?? Math.min(Math.max(v.z, camera.fit(WORLD).z), 0.3);
+    camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;
   interact.setTheme(T);
@@ -150,11 +171,14 @@ export async function mountBoard(host: HTMLElement) {
   const applyBadge = (s: Snapshot | null) => {
     const slot = s?.os?.slot, kind = slot ? slotKind.get(slot) : undefined;
     if (!s?.os || !slot || !kind || !s.storage.some((d) => d.slot === slot)) {
-      scene.rects.delete('os'); scene.interactive.delete('os'); live.setOsBadge(null, 'off'); return;
+      scene.rects.delete('os'); scene.interactive.delete('os'); live.setOsBadge(null, 'off');
+    } else {
+      osRect = osBadgeRect(kind, slot);
+      scene.rects.set('os', osRect); scene.interactive.add('os');
+      live.setOsBadge(osRect, s.phase);
     }
-    osRect = osBadgeRect(kind, slot);
-    scene.rects.set('os', osRect); scene.interactive.add('os');
-    live.setOsBadge(osRect, s.phase);
+    const bk = JSON.stringify(scene.rects.get('os') ?? null);
+    if (bk !== badgeKey) { badgeKey = bk; sceneDirty = true; }
   };
   const slides: { node: Container; t0: number }[] = [];
   const parts: Part[] = [];
@@ -168,6 +192,10 @@ export async function mountBoard(host: HTMLElement) {
   let sceneKey = '';
   let cableKey = '';
   let propsKey = '';
+  /** Anchors: set when the layout changed (build, cables, props, OS badge); the frame loop turns it into one cameraRev bump. */
+  let sceneDirty = true;
+  let badgeKey = '';
+  let lastViewKey = '';
   let lastSnap: Snapshot | null = null;
   /** Game clock (ms): drives fans, bus pulses, LED blinks, chip tweens and every other sim-driven animation. */
   let gt = 0;
@@ -187,6 +215,7 @@ export async function mountBoard(host: HTMLElement) {
   const applyLod = () => {
     const f = fits.z > 0 ? fits.z : 0.1;
     extA = smooth(LOD.fadeFrom, LOD.fadeTo, camera.z / f) * (1 - reveal);
+    exteriorCover = extA;
     exteriorLayer.alpha = extA;
     exteriorLayer.visible = extA > 0.004;
     interior.visible = extA < 0.996;
@@ -468,6 +497,7 @@ export async function mountBoard(host: HTMLElement) {
     syncProps(s, true);
     applyBadge(s);
     onZoom();
+    sceneDirty = true;
   }
 
   // ---- cables: connected (routed), loose (plug resting by the PSU / monitor), held (in the player's hand) ----
@@ -484,6 +514,7 @@ export async function mountBoard(host: HTMLElement) {
     const key = `${T.dark}|` + states.map((x) => x.c.kind + ':' + x.state).join(',');
     if (!force && key === cableKey) return;
     cableKey = key;
+    sceneDirty = true;
     clear(cableLayer); clear(cableExtLayer);
     cableHits = [];
     scene.cables.clear();
@@ -525,6 +556,7 @@ export async function mountBoard(host: HTMLElement) {
     ].join('|');
     if (!force && key === propsKey) return;
     propsKey = key;
+    sceneDirty = true;
     chromeBake?.texture.destroy(true); chromeBake = null;
     propBakes = [];
     clear(propsLayer); clear(chromeLayer); clear(chromeBakeLayer);
@@ -580,10 +612,24 @@ export async function mountBoard(host: HTMLElement) {
     camera.minZ = fits.z * LOD.minZoom;
     if (was) camera.set(fits); else camera.apply();
   };
-  reframe(() => { camera.resize(app.screen.width, app.screen.height); camera.inset = { ...viewInset.peek() }; });
+  camera.resize(app.screen.width, app.screen.height);
+  camera.snapInset({ ...viewInset.peek() });
+  fits = camera.fit(WORLD); camera.minZ = fits.z * LOD.minZoom;
   camera.set(fits);
   app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));
-  effect(() => { const i = viewInset.value; reframe(() => { camera.inset = { ...i }; }); });
+  // UI inset (viewInset): the new value is taken in the frame loop, and only when no gesture or part drag is running, so the
+  // view never re-frames under the pointer. At the overview the board glides to its new fit; elsewhere the view centre
+  // glides with the camera's eased inset (Camera.update).
+  let pendingInset: Inset | null = null;
+  effect(() => { pendingInset = { ...viewInset.value }; });
+  const applyInset = (i: Inset) => {
+    const c = camera.inset;
+    if (c.top === i.top && c.right === i.right && c.bottom === i.bottom && c.left === i.left) return;
+    const was = atOverview() && !camera.holdAt;
+    camera.inset = { ...i };
+    fits = camera.fit(WORLD); camera.minZ = fits.z * LOD.minZoom;
+    if (was) camera.flyTo(fits, 450); else camera.apply();
+  };
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
 
   // ---- hit testing: hover and click write the shared signals ----
@@ -657,6 +703,7 @@ export async function mountBoard(host: HTMLElement) {
     // game time: advances only while the sim runs (pause = speed 0 stops it), so every world animation freezes with it
     const gdt = dt * timeScale();
     gt += gdt * 1000;
+    if (pendingInset && !camera.gesturing && !interact.busy) { const i = pendingInset; pendingInset = null; applyInset(i); }
     camera.update(now);
     lodFrame(dt);
     live.frame(gdt, gt);
@@ -669,8 +716,12 @@ export async function mountBoard(host: HTMLElement) {
       sl.node.position.x = 300 * (1 - e); sl.node.alpha = Math.min(1, u * 3);
       if (u >= 1) slides.splice(i, 1);
     }
+    // anchors: one cameraRev bump per frame, and only when the view (incl. canvas offset and inset as drawn) or the layout changed
+    const fr = camera.freeRect();
+    const vk = [camera.x, camera.y, camera.z, camera.cx, camera.cy, camera.w, camera.h, fr.x, fr.y, fr.w, fr.h, exteriorCover > 0.5].join('|');
+    if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }
