@@ -25,7 +25,7 @@ export function Notice() {
   );
 }
 
-/** Hint toasts: at most two visible, the rest queued. Hidden while a tutorial card is up (see state.ts). */
+/** Hint toasts: at most two visible, the rest queued. No new hints are raised while a tutorial card is up (see state.ts). */
 export function Toasts() {
   const list = toasts.value;
   if (!list.length) return null;
