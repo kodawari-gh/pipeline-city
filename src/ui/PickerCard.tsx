@@ -97,7 +97,7 @@ export function PickerCard() {
       <div class="ptitle">{m.title}</div>
       {m.plain && <div class="pplain">{m.plain}</div>}
       {m.nerd && <div class="nerd">{m.nerd}</div>}
-      {dev && !dev.burnt && (
+      {dev && !dev.burnt && dev.kind !== 'psu' && dev.kind !== 'cooler' && (
         <div class="live">
           <span>{dev.tempC.toFixed(0)} C</span>
           <span>{dev.powerW.toFixed(1)} W</span>
