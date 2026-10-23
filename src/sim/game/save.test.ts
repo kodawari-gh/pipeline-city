@@ -94,7 +94,7 @@ describe("save/load", () => {
     run(a, 100);
     const b = Game.fromSave(JSON.parse(JSON.stringify(a.toSave())));
     const before = b.money;
-    run(b, 200);
+    run(b, 400); // the starting traffic includes slow scan jobs
     expect(b.money).toBeGreaterThan(before);
     expect(b.completed).toBeGreaterThan(a.completed);
   });

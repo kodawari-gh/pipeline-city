@@ -203,12 +203,13 @@ const cliChecksum: TemplateFn = (rng, p) => {
 };
 
 /**
- * Scan job (heavier than the others, not part of the default "cli" mix): fill a RAM table then sum it.
- * The stride is seeded: 4 B (cache-friendly), 64 B or 128 B (cache-hostile on the default 128 B direct-mapped cache).
+ * Scan job (heavier than the others, not part of the "cli" family; the economy mixes it in): fill a RAM table then sum it.
+ * The stride is seeded, 64 B or 128 B: both are cache-hostile (every load of the sum loop misses the default 128 B
+ * direct-mapped cache), so scan time is dominated by RAM latency, which is what makes RAM worth buying.
  */
 const cliScan: TemplateFn = (rng, p) => {
   const b = new Builder();
-  const stride = [4, 64, 128][rng.nextInt(3)]!;
+  const stride = [64, 128][rng.nextInt(2)]!;
   const count = 4 * p.scale;
   const start = 1 + rng.nextInt(9);
   if (BUF_BASE + count * stride > BUF_LIMIT) throw new RangeError("scale too large for scan");

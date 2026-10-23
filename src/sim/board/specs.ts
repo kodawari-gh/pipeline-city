@@ -104,13 +104,13 @@ const specList: DeviceSpec[] = [
 
   { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
-    sizeBytes: 16 * 1024, latency: 4 },
+    sizeBytes: 16 * 1024, latency: 100 },
   { id: "ram1", kind: "ram", tier: 1, name: "DRAM 32K fast", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: ramThermal, visual: "dimm-fast",
-    sizeBytes: 32 * 1024, latency: 3 },
+    sizeBytes: 32 * 1024, latency: 12 },
   { id: "ram2", kind: "ram", tier: 2, name: "DRAM 64K low-latency", slot: "dimm", price: 400, idleW: 2, loadW: 5, heatFactor: 1,
     clock: { min: 2, base: 3, max: 5 }, thermal: ramThermal, visual: "dimm-lowlat",
-    sizeBytes: 64 * 1024, latency: 2 },
+    sizeBytes: 64 * 1024, latency: 4 },
 
   { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-basic", watts: 40 },

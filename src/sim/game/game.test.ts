@@ -70,6 +70,7 @@ describe("queue, reputation and demand", () => {
     const fast = new Game({ seed: 1 });
     fast.money = 1e6;
     fast.purchase("cpu1");
+    fast.purchase("ram1"); // the starting traffic includes scan jobs, which need both
     run(fast, 600);
     const s = slow.snapshot();
     const f = fast.snapshot();
@@ -135,16 +136,16 @@ describe("CPU tier vs RAM tier depends on the request profile", () => {
     expect(base / ram).toBeLessThan(1.02);
   });
 
-  it("scan (cache-hostile): CPU helps a lot, and then RAM becomes the next bottleneck", () => {
-    const base = oneRequest([], "cli.scan", 8).execTicks;
-    const cpu = oneRequest(["cpu1"], "cli.scan", 8).execTicks;
-    const ramOnly = oneRequest(["ram1"], "cli.scan", 8).execTicks;
-    const both = oneRequest(["cpu1", "ram1"], "cli.scan", 8).execTicks;
+  it("scan (cache-hostile): CPU helps, RAM helps, and the two together help far more", () => {
+    const base = oneRequest([], "cli.scan", 2).execTicks;
+    const cpu = oneRequest(["cpu1"], "cli.scan", 2).execTicks;
+    const ramOnly = oneRequest(["ram1"], "cli.scan", 2).execTicks;
+    const both = oneRequest(["cpu1", "ram1"], "cli.scan", 2).execTicks;
     const logCpu = oneRequest(["cpu1"], "cli.log").execTicks;
     const logBoth = oneRequest(["cpu1", "ram1"], "cli.log").execTicks;
-    expect(base / cpu).toBeGreaterThan(3);
-    expect(base / ramOnly).toBeLessThan(1.1); // RAM alone on the slow CPU barely matters
-    expect(cpu / both).toBeGreaterThan(1.1); // but on the faster CPU the miss penalty hurts and RAM fixes ~15%
+    expect(base / cpu).toBeGreaterThan(1.4); // a faster CPU still waits on slow RAM (misses cost 2x as many cycles)
+    expect(base / ramOnly).toBeGreaterThan(1.3); // RAM alone helps even on the slow CPU
+    expect(cpu / both).toBeGreaterThan(2); // and the faster CPU needs the faster RAM
     expect(logCpu / logBoth).toBeLessThan(1.02); // while log is untouched by RAM
   });
 });
@@ -177,7 +178,10 @@ describe("determinism", () => {
 
 describe("overclock, heat and errors", () => {
   /** Keep the machine saturated with work. */
-  const busy: GameOptions["economy"] = { baseDemandPerTick: 1, repMin: 1, queueCap: 20 };
+  const busy: GameOptions["economy"] = {
+    baseDemandPerTick: 1, repMin: 1, queueCap: 20,
+    mix: [{ template: "cli", weight: 1, minRamBytes: 0 }], // thermal tests use plain CLI jobs only
+  };
 
   /** cpu2 (35 W at base) needs the 100 W PSU, and runs hot on the stock cooler. */
   function cpu2Game(clock: number): Game {

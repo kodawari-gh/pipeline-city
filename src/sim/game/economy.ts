@@ -14,6 +14,8 @@ export interface MixEntry {
   scale?: number;
   /** Only offered while the installed RAM is at least this big (a bigger-RAM unlock). */
   minRamBytes: number;
+  /** Payout multiplier for this kind of job (heavy memory-bound jobs pay more per instruction). Default 1. */
+  payMul?: number;
 }
 
 /** PLACEHOLDER BALANCE. Tune by playing. */
@@ -72,7 +74,7 @@ export const ECONOMY: EconomyConfig = {
   startQueue: [{ template: "cli.log" }],
   mix: [
     { template: "cli", weight: 1, minRamBytes: 0 },
-    { template: "cli.scan", scale: 4, weight: 0.3, minRamBytes: 64 * 1024 },
+    { template: "cli.scan", scale: 1, weight: 0.5, minRamBytes: 0, payMul: 3 },
   ],
   idleLoad: 0.1,
 };
@@ -83,6 +85,11 @@ export function reputation(cfg: EconomyConfig, avgTurnaround: number): number {
 
 export function demandRate(cfg: EconomyConfig, rep: number): number {
   return cfg.baseDemandPerTick * rep;
+}
+
+/** Payout multiplier of a job kind: looked up from the mix by template and scale (1 if it is not in the mix). */
+export function payMulFor(cfg: EconomyConfig, template: string, scale: number): number {
+  return cfg.mix.find((m) => m.template === template && (m.scale ?? 1) === scale)?.payMul ?? 1;
 }
 
 export function payout(cfg: EconomyConfig, work: number, turnaround: number, late: boolean): number {

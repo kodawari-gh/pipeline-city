@@ -12,7 +12,7 @@ import { generate, runReference } from "../gen";
 import { Machine } from "../machine";
 import { parseSave, SAVE_VERSION, type SavedRequest, type SaveV1 } from "./save";
 import {
-  demandRate, ECONOMY, payout, pickTemplate, reputation, swapPart, upgradeCandidates, type EconomyConfig,
+  demandRate, ECONOMY, payMulFor, payout, pickTemplate, reputation, swapPart, upgradeCandidates, type EconomyConfig,
 } from "./economy";
 
 export interface GameOptions {
@@ -265,7 +265,7 @@ export class Game {
         template: cur.req.template,
         arrivalTick: cur.req.arrival,
         deadlineTick: cur.req.deadline,
-        payoutEstimate: payout(this.cfg, cur.req.work, this.cfg.targetTurnaround, false),
+        payoutEstimate: payout(this.cfg, cur.req.work * payMulFor(this.cfg, cur.req.template, cur.req.scale), this.cfg.targetTurnaround, false),
         engineCycle: eng ? eng.cycle : 0,
         attempts: cur.attempts,
       },
@@ -452,7 +452,7 @@ export class Game {
     if (!cur || !eng || !eng.halted || this.machine.display.pending > 0) return;
     const turnaround = this.baseTick - cur.req.arrival;
     const late = this.baseTick > cur.req.deadline;
-    const pay = payout(this.cfg, cur.req.work, turnaround, late);
+    const pay = payout(this.cfg, cur.req.work * payMulFor(this.cfg, cur.req.template, cur.req.scale), turnaround, late);
     this.money += pay;
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);

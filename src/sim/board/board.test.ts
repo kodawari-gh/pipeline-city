@@ -260,9 +260,9 @@ describe("apply", () => {
   });
 
   it("selects the engine from the CPU tier and miss penalty from RAM", () => {
-    expect(engineConfigFor(basicBoard())).toEqual({ kind: "unpipelined", missPenalty: 4 });
+    expect(engineConfigFor(basicBoard())).toEqual({ kind: "unpipelined", missPenalty: 100 });
     expect(engineConfigFor(basicBoard({ cpu: "cpu2", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: true, cacheLines: 16 });
-    expect(engineConfigFor(basicBoard({ cpu: "cpu1", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: false, missPenalty: 8 });
+    expect(engineConfigFor(basicBoard({ cpu: "cpu1", psu: "psu1" }))).toMatchObject({ kind: "inorder", forwarding: false, missPenalty: 200 });
   });
 
   it("applyEngine attaches a runnable engine", () => {

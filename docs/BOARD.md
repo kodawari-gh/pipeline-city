@@ -9,7 +9,7 @@ Devices are plain records in `DEVICE_SPECS` (`getSpec(id)`, `specsOfKind(kind)` 
 | Kind | Extra fields | Catalog (tier: clock base) |
 |---|---|---|
 | cpu | `engine: EngineConfig` | cpu0 unpipelined (1), cpu1 in-order no forwarding (2), cpu2 in-order + forwarding, 16-line cache (3) |
-| ram | `sizeBytes, latency` (RAM ticks per access) | 16K lat 4, 32K lat 3, 64K lat 2 |
+| ram | `sizeBytes, latency` (RAM ticks per access) | 16K lat 100, 32K lat 12 (2x clock), 64K lat 4 (3x clock) |
 | psu | `watts` | 40 W and 100 W (`atx`), 250 W (`atx-plus`) |
 | cooler | `coolingPerC` (W per degree C, CPU only) | stock 0.35, tower 0.8, liquid 1.8 |
 | display | `writeLatency` | CLI monitor |

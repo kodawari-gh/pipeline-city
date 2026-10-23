@@ -21,8 +21,8 @@ Milestone 1 is built end to end and playable in the browser: `npm run dev`. Step
 
 ### Known gaps and decisions waiting on the owner
 
-- **Pacing:** the CPU runs 4 engine cycles per base tick (`cpuCyclesPerClock`) so the first request takes about 28 s. This bends "1 tick = 1 second". Confirm or change.
-- **CPU vs RAM is not yet a real trade-off:** the CPU tier wins on every profile and RAM tier 1 is a trap for the starting traffic. Needs a design pass (RAM matters earlier, or scan jobs in the starting mix).
+- **Pacing (settled by the owner):** base tick 1 s, and the CPU runs 4 engine cycles per tick (`cpuCyclesPerClock`) so the first request takes about 28 s. Do not change it without asking.
+- **CPU vs RAM (done):** the starting traffic is one third cache-hostile scan jobs, so RAM pays off for scan and the CPU for log; the best first purchase depends on the mix (see `docs/GAME.md` "CPU vs RAM" and `src/sim/game/tradeoff.test.ts`). Numbers are placeholders.
 - All balance numbers are placeholders in `src/sim/game/economy.ts`.
 - Machine RAM is fixed at 64K; the RAM tier only changes the cache miss penalty and job mix. PSU tier 2 needs a bigger board, and there is no board purchase yet.
 - Engines: only unpipelined and in-order exist. Superscalar and out-of-order, the fast model, offline catch-up, GPU, multicore, security workloads and multi-machine are all still to do (see `docs/ARCHITECTURE.md`). Decode still allocates one small object per fetched instruction.

@@ -18,7 +18,7 @@ Small leaf subroutines, args in `a0..a3`, result in `a0`, return with `ret`. The
 | `printStr(ns)` | a0 dst, a1 NUL string -> a0 end | byte copy loop, used for display text |
 | `memcpy(ns)` | a0 dst, a1 src, a2 bytes (>=1) | byte loop |
 | `checksum(ns)` | a1 ptr, a2 words (>=1) -> a0 | `h = h*33 ^ w` from 5381 |
-| `arraySum(ns, strideBytes)` | a0 ptr, a1 count -> a0 | stride 4 is cache-friendly, 128 (a multiple of the 128 B cache) is hostile |
+| `arraySum(ns, strideBytes)` | a0 ptr, a1 count -> a0 | stride 4 is cache-friendly, 64 and 128 (multiples of the cache line count x line size) are hostile |
 | `fillStride(ns, strideBytes)` | a0 ptr, a1 count, a2 start | stores `start, start+3, ...` |
 | `mulLoop(ns, mul, add)` | a0 x, a1 rounds (>=1) -> a0 | `x = x*mul + add`, multiplier heavy |
 | `pollIdle(ns, offset, mask)` | none | spins while a status-word bit is set; status is plain storage today so it falls through after one poll |
@@ -32,7 +32,7 @@ Small leaf subroutines, args in `a0..a3`, result in `a0`, return with `ret`. The
 | `cli.log` | poll display idle, write a status line `#72 user login OK` as packed word stores | 20-22 |
 | `cli.calc` | 1-2 rounds of `x*m+a`, prints `#72 mul=31 OK` (result & 63) | 36 or 40 |
 | `cli.checksum` | hashes one embedded data word, prints `#72 sum=31 OK` | 40 |
-| `cli.scan` | fill then sum a RAM table at 0x4000 with a seeded stride (4/64/128 B), prints `#72 scan 4x128B 0123 OK` | ~96 (heavy, not in the default mix) |
+| `cli.scan` | fill then sum a RAM table at 0x4000 with a seeded stride (64 or 128 B, both cache-hostile: every load misses), prints `#72 scan 4x128B 0123 OK` | ~96 (heavy, one third of the starting economy mix) |
 | `cli` | picks log / calc / checksum from the seed | 20-40 |
 
 Measured on the reference interpreter (ecall included). The unpipelined engine takes 5 cycles per instruction plus cache-miss stalls, so the first request is 100-200 CPU cycles; the pacing target (20-40 s at 1 tick/s) therefore needs the CPU base rate set accordingly, or the count lowered. Static text is emitted as packed `li`+`sw` word stores (about 3 instructions per 4 characters); only computed numbers go through `printDec`.
