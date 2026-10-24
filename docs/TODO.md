@@ -56,7 +56,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T37 [human] Unverified UI paths: decline on an OS queue row, the OS-flow remove cue, the VRM crash flash, locked-tile and needs-chip screenshots on the shelf and OS rows, the HDD power lead crossing the SSD data run on two-SATA boards.
 - [ ] T38 [owner] Owner picked (2026-10-24): fix NO SIGNAL on trip/burnt (T39), overview framing sides (T40), text softness above 2x (T41). Leave the 0.5x monitor-text gap. Original note: visual gaps (text softens above 2x zoom, monitor text readable only down to about 0.5x of fit zoom, a tripped or burnt part shows a blank monitor instead of NO SIGNAL, empty sides on the SATA/overview framing): decide which are worth fixing.
 
-- [ ] T39 [auto] Show NO SIGNAL (not a blank monitor) when a PSU trip or a burnt part blanks the display. Files: monitor rendering in `src/render`. Docs: `docs/RENDER.md`. Done when: a render/logic test covers trip and burnt.
+- [x] T39 [auto] Show NO SIGNAL (not a blank monitor) when a PSU trip or a burnt part blanks the display. Files: monitor rendering in `src/render`. Docs: `docs/RENDER.md`. Done when: a render/logic test covers trip and burnt.
 - [ ] T40 [auto] Re-frame the SATA/overview camera so the height-limited scene does not leave empty sides. Files: camera framing in `src/render`. Done when: a framing test asserts the fit for the overview and SATA views.
 - [ ] T41 [auto] Reduce text softening above 2x zoom (render text at a resolution that follows zoom). Files: text rendering in `src/render`. Done when: a test or documented check shows the resolution scales with zoom, with no frame-time regression noted in `docs/RENDER.md`.
 

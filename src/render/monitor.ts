@@ -1,0 +1,29 @@
+/** What the monitor screen shows, as a pure function of the snapshot (kept apart from pixi so a test can cover it). */
+export interface MonitorInput {
+  hasDisplay: boolean;
+  powered: boolean;
+  monitorLive: boolean;
+  phase: string;
+  postFailed: boolean;
+  display: string;
+}
+
+export interface MonitorView {
+  /** CLI text to draw ('' = black screen) */
+  text: string;
+  /** the NO SIGNAL card */
+  noSignal: boolean;
+}
+
+/**
+ * Text shows when the monitor is live, except in phase `error` unless the POST failed (that shows its own text).
+ * NO SIGNAL shows when a powered machine has a monitor that is not live (no cable, burnt monitor) or is in a non-POST
+ * error (a PSU trip, a burnt part): the screen lost its picture. A cold-boot wait or a power-off stays black.
+ */
+export function monitorView(m: MonitorInput): MonitorView {
+  const blanked = m.phase === 'error' && !m.postFailed;
+  return {
+    text: m.monitorLive && !blanked ? m.display : '',
+    noSignal: m.hasDisplay && m.powered && (!m.monitorLive || blanked),
+  };
+}

@@ -6,6 +6,7 @@ import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
 import { BD, BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
+import { monitorView } from './monitor';
 import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
@@ -453,9 +454,10 @@ export class Live {
 
     // CLI monitor: last lines that fit, wrapped to the screen width
     // black while the cold-boot wait runs (the sim has no text yet) and after a power-off; a POST error shows its text; any other
-    // error (a trip, a burnt part) shows nothing rather than a stale line; NO SIGNAL is the no-cable case only
-    const txt = s.monitorLive && (s.phase !== 'error' || s.postFailed) ? s.display : '';
-    this.noSignal.visible = this.hasDisplay && s.powered && !s.monitorLive;
+    // error (a trip, a burnt part) shows NO SIGNAL rather than a stale line (see monitorView)
+    const mv = monitorView({ hasDisplay: this.hasDisplay, powered: s.powered, monitorLive: s.monitorLive, phase: s.phase, postFailed: s.postFailed, display: s.display });
+    const txt = mv.text;
+    this.noSignal.visible = mv.noSignal;
     if (txt !== this.shownText) {
       this.shownText = txt;
       const cols = 32, rows = 8, lines: string[] = [];
