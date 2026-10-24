@@ -70,7 +70,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .time { font-weight: 500; color: var(--mute); font-size: 0.733rem; }
 
 .card { padding: 0.533rem 0.667rem; }
-.prompt { position: fixed; top: 0.8rem; left: 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; max-width: calc(100vw - 1.6rem); }
+.prompt { position: fixed; top: 0.8rem; left: 0.8rem; padding: 0.4rem 0.7rem; display: flex; flex-direction: column; gap: 0.4rem; max-width: calc(100vw - 1.6rem); }
 .big { font-size: 1rem; font-weight: 700; }
 
 /* HUD bar: one row of the few numbers that matter, the rest sits in the menu. */
@@ -260,12 +260,30 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .nerd { margin-top: 0.267rem; font: 0.7rem/1.4 var(--mono); color: var(--mute); }
 .picker input[type=range] { accent-color: var(--accent); }
 
-/* Tutorial card (bottom left), short */
-.tut { position: relative; width: min(100%, 34rem); padding: 0.7rem 0.95rem 0.8rem; z-index: 25; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
-.tut .ptitle { font-size: 0.833rem; margin-top: 0.2rem; }
-.tut .pplain { font-size: 0.767rem; color: var(--ink); opacity: .92; }
-.thead { display: flex; justify-content: space-between; align-items: center; font-size: 0.633rem; text-transform: uppercase; letter-spacing: .08em; }
-.thead .link { font-size: 0.7rem; padding: 0; }
+/* Tutorial card: bottom centre, above the inventory shelf. Text cross-fades between steps, height glides, it lifts when it
+   would cover the target. The pointer is a glowing connector from the card to the target (TutorialCard.tsx). */
+.tut {
+  position: relative; width: min(100%, 34rem); padding: 0; overflow: hidden; z-index: 25;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: height .3s ease, transform .35s cubic-bezier(.2, .8, .2, 1);
+}
+.tut-in, .tut-out { padding: 0.7rem 0.95rem 0.8rem; }
+.tut-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: tut-out .3s ease both; background: transparent; }
+.tut-text { animation: tut-in .35s ease both; }
+.tut .ptitle { font-size: 0.95rem; margin-top: 0.25rem; }
+.tut .pplain { font-size: 0.85rem; color: var(--ink); opacity: .92; }
+.thead { display: flex; justify-content: space-between; align-items: center; font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; }
+.thead .link { font-size: 0.75rem; padding: 0; }
+.tbtns { display: inline-flex; gap: 0.7rem; }
+.eyebrow { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .1em; }
+@keyframes tut-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes tut-out { from { opacity: 1; } to { opacity: 0; transform: translateY(-0.4rem); } }
+.pointer { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 24; opacity: 0; transition: opacity .25s ease; pointer-events: none !important; overflow: visible; }
+.pointer.on { opacity: 1; }
+.ptr-line { stroke: var(--accent); stroke-width: 0.15rem; stroke-linecap: round; stroke-dasharray: 0.5rem 0.4rem; animation: march 1s linear infinite; filter: drop-shadow(0 0 0.3rem var(--accent)); opacity: .85; }
+.ptr-dot { r: 0.45rem; fill: var(--accent); filter: drop-shadow(0 0 0.45rem var(--accent)); transform-box: fill-box; transform-origin: center; animation: dotpulse 1.2s ease-in-out infinite; }
+@keyframes march { to { stroke-dashoffset: -0.9rem; } }
+@keyframes dotpulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: .7; } }
 
 /* Bottom stack: notices, hint toasts, the tutorial card and the inventory shelf, centred, in that order (top to bottom). */
 .stack {
@@ -384,3 +402,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 #hud:has(.inv) .dock { bottom: 15rem; }
 @media (max-aspect-ratio: 1/1) and (min-width: 40em) { #hud:has(.inv) .dock { bottom: 0.533rem; } }
 @media (max-width: 48em) { #hud:has(.inv) .dock { bottom: 0; } }
+
+/* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
+@media (prefers-reduced-motion: reduce) {
+  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer { transition: none !important; animation: none !important; }
+  .ptr-line, .ptr-dot { animation: none !important; }
+}

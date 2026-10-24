@@ -27,12 +27,14 @@ function StartPrompt() {
   const offer = autosaveOffer.value;
   if (offer) {
     return (
-      <div class="card prompt">
-        <div class="big">Welcome back</div>
-        <div class="mute">Autosave: tick {offer.baseTick}, {fmtMoney(offer.money)}</div>
-        <div class="row">
-          <button class="primary" onClick={() => startSim(offer)}>Continue</button>
-          <button onClick={openNewGame}>New game</button>
+      <div class="modal-back">
+        <div class="card modal" role="dialog" aria-modal="true" aria-label="Welcome back">
+          <div class="big">Welcome back</div>
+          <div class="mute">Autosave: tick {offer.baseTick}, {fmtMoney(offer.money)}</div>
+          <div class="pactions">
+            <button onClick={openNewGame}>New game</button>
+            <button class="primary" onClick={() => startSim(offer)}>Continue</button>
+          </div>
         </div>
       </div>
     );
