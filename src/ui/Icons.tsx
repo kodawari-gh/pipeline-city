@@ -1,4 +1,5 @@
 import type { IconName } from './picker';
+import { rem } from './units';
 
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
@@ -28,7 +29,7 @@ const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'ex
 export function Icon({ name, size = 14, class: cls }: { name: keyof typeof PATHS; size?: number; class?: string }) {
   const filled = name === 'bolt' || name === 'menu';
   return (
-    <svg class={`ico ${cls ?? ''}`} width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"
+    <svg class={`ico ${cls ?? ''}`} style={{ width: rem(size), height: rem(size) }} viewBox="0 0 16 16" aria-hidden="true"
       fill={filled ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       {PATHS[name].map((d, i) => <path key={i} d={d} />)}
     </svg>

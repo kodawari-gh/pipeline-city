@@ -11,6 +11,7 @@ import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from '
 const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';
 const TUTORIAL_KEY = 'pipeline-city.tutorial';
+const SCALE_KEY = 'pipeline-city.uiScale';
 
 function readStore(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -35,6 +36,18 @@ effect(() => { document.documentElement.setAttribute('data-theme', theme.value);
 export function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark';
   writeStore(THEME_KEY, theme.value);
+}
+
+// ---- UI size (multiplies the root font size, see docs/UI.md "Scaling") ----
+
+export const UI_SCALE_MIN = 0.8;
+export const UI_SCALE_MAX = 1.5;
+export const clampScale = (v: number) => (Number.isFinite(v) ? Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(v * 20) / 20)) : 1);
+export const uiScale = signal<number>(clampScale(Number(readStore(SCALE_KEY) ?? 1)));
+effect(() => { document.documentElement.style.setProperty('--ui-scale', String(uiScale.value)); });
+export function setUiScale(v: number) {
+  uiScale.value = clampScale(v);
+  writeStore(SCALE_KEY, String(uiScale.value));
 }
 
 // ---- stats drawer (part upgrades live in the contextual picker) ----

@@ -2,6 +2,7 @@ import type { JSX } from 'preact';
 import { BOARD_TIERS, getSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
 import { goodness } from './picker';
+import { rem } from './units';
 
 // Inline SVG illustrations of each part, drawn from its spec: a CPU die with its pipeline per tier, RAM sticks (count
 // and size) with a latency gauge, a cooler with fins/fan/tubes, a PSU wattage dial, a board with its slot counts.
@@ -64,8 +65,8 @@ function Ram({ spec }: { spec: RamSpec }) {
       <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={5} stroke-linecap="round" />
       <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={5} stroke-linecap="round"
         stroke-dasharray={`${Math.max(2, g * 100)} 100`} />
-      <text x={98} y={70} class="gauge-txt">{spec.latency}</text>
-      <text x={98} y={52} class="gauge-lab">lat</text>
+      <text x={98} y={70} class="gauge-txt" font-size={12}>{spec.latency}</text>
+      <text x={98} y={52} class="gauge-lab" font-size={7}>lat</text>
     </>
   );
 }
@@ -112,8 +113,8 @@ function Psu({ spec }: { spec: PsuSpec }) {
       <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={7} stroke-linecap="round" />
       <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={7} stroke-linecap="round"
         stroke-dasharray={`${Math.max(3, frac * 100)} 100`} />
-      <text x={60} y={60} class="dial-txt">{spec.watts}</text>
-      <text x={60} y={70} class="dial-lab">watts</text>
+      <text x={60} y={60} class="dial-txt" font-size={15}>{spec.watts}</text>
+      <text x={60} y={70} class="dial-lab" font-size={8}>watts</text>
     </>
   );
 }
@@ -234,7 +235,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
   }
   if (!body) return null;
   return (
-    <svg class="art" width={size} height={Math.round((size * VB.h) / VB.w)} viewBox={`0 0 ${VB.w} ${VB.h}`}
+    <svg class="art" style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} viewBox={`0 0 ${VB.w} ${VB.h}`}
       role="img" aria-label={label ?? id}>
       {body}
     </svg>

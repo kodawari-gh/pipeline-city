@@ -14,7 +14,7 @@ import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
 import { TutorialCard } from './TutorialCard';
 import {
-  replayTutorial, resetHints, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial,
+  replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from './tutorial';
 
@@ -133,6 +133,12 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
                 close();
               }}
             />
+          </label>
+          <label class="scale-row" title="Make the whole interface smaller or larger">
+            <span>UI size</span>
+            <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
+              onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
+            <b class="value">{Math.round(uiScale.value * 100)}%</b>
           </label>
           <hr />
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }}>Replay tutorial</button>
