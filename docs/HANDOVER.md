@@ -77,6 +77,8 @@ NIC cards (`nic1..3`, PCIe), routers (`router1..4`, installed into the external 
 
 ### Prioritized to-do list
 
+**Superseded by `docs/TODO.md` (2026-10-24).** The work list now lives there as bite-size, tagged tasks (`[auto]`, `[human]`, `[owner]`) that `scripts/todo-runner/run-todos.sh T11 T12 ...` runs as one fresh `claude -p` session each (see the header of that script for env vars and the model tags). Items 1, 3, 4, 7, 11 below are done; the list below is kept for context only.
+
 Ordered by priority. Each item is a small, separate change; keep `npm test` and `npm run build` green and commit after each. The owner said the **network is the top priority**, so P1 comes first once the build is green.
 
 **P0: get to a clean, safe state (do these first, minutes each)**

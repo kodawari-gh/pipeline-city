@@ -75,3 +75,4 @@ for id in "$@"; do
   esac
   [ "$COMMITTED" = no ] && { echo "$id: no commit made (blocked?), stopping"; break; }
 done
+exit 0
