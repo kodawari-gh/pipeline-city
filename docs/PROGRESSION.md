@@ -402,3 +402,8 @@ Owner decisions are at the top. Every other proposal is accepted as written: **d
 - Prices and final names of the planned items (`cpu3` to `cpu5`, `gpu1` to `gpu3`, `npu1` and `npu2`, `tpm1` and `tpm2`, `psu3` and `psu4`, `fan1`, `cooler3`, `board4`, `nvme3`, `ram3`): orders of magnitude only until the engines and GPU work set them.
 - Level 18 is the cap. Extending the ladder past it is not designed.
 - Every time and income estimate here (the table's times, the price check) is a placeholder until the Operator bot measures it.
+
+
+## Pacing update (2026-10-24)
+
+Client-base thresholds for the early levels were lowered so the network is reached much sooner: level 2 at 3, level 3 at 6, level 4 at 9, level 5 at 40 (it was 4, 12, 14, 70). Level 6 and above are unchanged and need a balance pass. With the quick boots a job takes about 15 s, so level 4 is a matter of minutes.

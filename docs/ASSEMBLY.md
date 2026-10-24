@@ -166,3 +166,12 @@ Measured over 30 seeds with a bot that runs the manual loop with 2 s per step (`
 ## Board ladder and the VRM (see [`VRM.md`](VRM.md))
 
 The board has four tiers (Starter, Basic, Mainstream, Enthusiast); `Snapshot.board` holds the tier name, `features`, the slots it has, the `vrm` state and the installed heatsink. The VRM can crash the machine ("VRM voltage droop", same path as a thermal error, logged) and burn out: a burnt board gives phase `error` with reason **"board dead: replace the board"**, the power button refuses, the installed parts stay in their slots, and the fix is buying a board of the same or a higher tier (powered off) and installing it. The tutorial installs one RAM stick, which fits the Starter board's single DIMM slot (tested by the tutorial bot).
+
+
+## Pacing since the quick boots (2026-10-24)
+
+- **POST** (`postTicks`): Starter 3 ticks, a mid machine about 5, capped at 8 (`ECONOMY.coldBoot`).
+- **Firmware boost**: while the boot ROM posts, loads a key or writes a result, and while the OS kernel idles, ingests and flashes, the CPU and storage clocks run `ECONOMY.firmwareBoost` (12) times faster; loading the OS kernel from the drive uses `ECONOMY.osBootBoost` (48). The job itself and the OS's running jobs keep their speed. The switch happens the moment the ROM or kernel writes the PCH phase register (`Pch.onPhase`), so a job starts at its normal speed. Tests of raw CPU or drive speed set both to 1.
+- **First job**: about 15 s from the power button to the payout (it was 64 s). The OS is up in about 5 to 10 s depending on the drive.
+- **Auto-eject and power-off** (`ECONOMY.autoEjectTicks`, 3): with no OS, a finished key ejects itself 3 ticks after JOB DONE, pays, and the machine switches itself off. The player only plugs a key and presses power. `snapshot.autoEject` tells the UI; with an OS the collect flow is unchanged.
+- **Default speed** in the UI is 4x.

@@ -103,52 +103,31 @@ Buttons that the sim would refuse are disabled, with the reason in their tooltip
 
 ## Tutorial (`tutorial.ts`, `TutorialCard.tsx`)
 
-**Presentation.** The welcome and the "Next lesson: the OS" offer are **centred modals** over a dimmed backdrop (`.modal-back`, also used by the Welcome back prompt and the New game dialog). Every other step is a **card at the bottom centre** (34rem wide, above the shelf, below notices and toasts in the `.stack`). Between steps the old text fades out while the new one slides in, and the card height glides. **Camera**: when a step starts and its first world target is not comfortably in view (centre inside the inner 80 percent of the free area), the camera flies there (`flyTo`, smooth); a press, wheel or pinch by the player cancels the flight and nothing re-flies, and a **Show me** link (shown whenever the target is not comfortably visible) flies again. **Pointer**: a thin glowing dashed connector with a pulsing dot runs from the card's nearest edge to the target's on-screen anchor (`anchorOf`, falling back to the inventory tile, then the HUD button); it glides from the previous target to the next, follows the object every frame while the camera moves, and hides when no target is visible. **Card lift**: if the card would cover any visible target it lifts above it (`liftAbove`). The existing `highlight` rings stay. The pointer and the glides are interactive guidance, so they keep running while the game is paused. `prefers-reduced-motion` turns the glides, the cross-fade and the pointer animation into jumps (the camera flight becomes `smooth: false`); checked in Chrome with the media emulated: the pointer line and dot, the card and its text, the picker shell and its content have `animation: none` and `transition: none` (computed style), and the picker moves at once.
-**Camera reserve**: while a step is active the card is part of the camera inset. `InsetReporter` reserves the card's layout box (its `offsetTop` in the fixed stack, so its lift never moves the camera) down to its top edge, which also covers the shelf below it. At 1360x800 and 1920x1080 the board's rect (`anchorOf('board')`) stays above the card's top edge in the overview (board bottom 421 px vs card top 494 px at 1360x800). The chassis (`anchorOf('case')`) can still reach under the card, and the overview's fit is the renderer's (see Known gaps).
+The tutorial covers the game **up to the network**: building the machine, the first jobs, storage and the OS. The last card says the next goal is Level 4, which opens the network (a Basic board for the jack, a router and a plan; no extra memory). The old network lesson is gone from the guided flow.
 
-The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/save.ts`), so a loaded save resumes at the right step, and an action done out of order is simply skipped past when its flag is already set. Nothing advances on a Next button: only **Start** (welcome) and **Got it** (last card) have buttons. Skip is always available; **Replay tutorial** is in the menu. The cooler step refuses clearly: dragging it before the CPU shows the sim's reason (`install the CPU first: the cooler mounts on it`), and pressing power without it leaves the cooler step active with the PCH reason (`no CPU cooler installed`). The picker and tooltip call the slot a `cooler mount: mounts on the CPU`. Test fixtures (`testdata.ts`): the bare board has no cooler device and the crate has `inv5` the stock cooler (not installable until a CPU is in).
+**Presentation.** The welcome and the "Next lesson: the OS" offer are **centred modals** over a dimmed backdrop. Every other step is the **mission card**: a compact card pinned top left under the bar (`.tut`, 19.5rem, no camera inset, it does not move). It shows the chapter and position (`Build 3/6`), the title, **one short instruction**, a **Why?** link that opens the reason (`StepDef.why`, closed on every new step), a calm grey line when the step only waits ("No key yet") and a warning line when something is wrong (the sim's own reason), and, on waiting steps, a **progress meter** (`StepDef.meter`, the client base towards the next level). **Camera**: when a step starts and its first world target is not comfortably in view the camera flies there (`flyTo`); a press, wheel or pinch cancels the flight, and **Show me** flies again. **Guidance**: a thin dashed connector with a small dot runs from the card to the target and follows it; on the board the target gets one **yellow** breathing ring (the renderer's `highlight`, colour `T.ld`; yellow stands out from the cyan UI so nobody gets lost). No arrow, no second ring. `prefers-reduced-motion` turns the glides into jumps.
 
-| # | Step | Flag that completes it | Highlight |
+The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/save.ts`), so a loaded save resumes at the right step, and an action done out of order is skipped past. Only **Start** (welcome) and **Got it** (last card) have buttons. Skip is always available; **Replay tutorial** is in the menu.
+
+| Chapter | Step | Completes on | Highlight |
 |---|---|---|---|
-| - | Welcome (Start): open the inventory | none (button) | `inventory` (the HUD button) |
-| 1 | Install the processor | `cpuInstalled` | `inv:<cpu>`, `cpu0` |
-| 2 | Install the cooler: the fan sits on the CPU to carry heat away and spins only while powered | `coolerInstalled` | `inventory`, `inv:<cooler>`, `cooler0` |
-| 3 | Install the memory | `ramInstalled` | `inv:<ram>`, `dimm0`, `dimm1` |
-| 4 | Install the power supply | `psuInstalled` | `inv:<psu>`, `atx0` |
-| 5 | Install the monitor | `monitorInstalled` | `inv:<display>`, `display0` |
-| 6 | Connect the main power cable | `atxConnected` | `cable.atx`, `psu` |
-| 7 | Connect the processor power cable | `cpuPowerConnected` | `cable.cpu`, `psu` |
-| 8 | Connect the video cable | `videoConnected` | `cable.video`, `monitor` |
-| 9 | Plug in a client key **first, while the machine is off**: "the machine only looks for a program at boot" | `firstKeyPlugged` | `usb`, `key:<first in tray>` |
-| 10 | Press the power button (POST, one look at the USB port, load) | `poweredOn` (a real boot started) | `power` |
-| 11 | Watch it work (it halts when the job is done) | `firstJobDone` | `monitor` |
-| 12 | Remove the key (paid on removal) | `firstKeyEjected` | `usb` |
-| 13 | Power off and on for the next job: plug the next key, then power off and on; "this manual loop is why an OS is worth buying" | `firstManualCycle` | `power`, `usb`, `key:` |
-| 14 | Spend your first money | `firstPurchase` | the CPU's slot, or `inventory` |
-| 15 | Fit your new part | no bought upgrade still in the inventory (`pendingUpgrade`: a higher tier than the best installed of its kind; a swap counts) | `inv:` item and its socket (free or swap) |
-| 16 | Buy a drive | live: a storage item owned or installed | `bay` |
-| 17 | Install the drive | `storageInstalled` | `inv:` storage item and its `sata`/`m2` slot |
-| 18 | Buy an operating system | live: an OS owned or installed | `bay` (the systems are listed on the bay's shelf) |
-| 19 | Install the OS on the drive | `osInstalled` | `inv:` OS item and the drive's slot |
-| 20 | Boot the OS from the drive | live: phase `booting-os`, `idle-os`, `ingesting`, `running-os` or `flashing`, or `firstOsJob` | `power`, `monitor` (boot text), `os` (the badge) |
-| 21 | Plug in a key: the OS takes it | live: `held` non-empty, or the plugged key is `queued`, `running`, `result`, `flashing` or `done` | `usb`, `key:` |
-| 22 | Unplug it: the OS keeps the job | live: `held` non-empty, or the plugged key is `result`, `flashing` or `done` | `usb`, `key:` |
-| 23 | Wait for the job | live: a held key is `result`, or the plugged key is `result`, `flashing` or `done` | `os` (the badge), `held` |
-| 24 | Plug the key back in to collect | live: the plugged key is `flashing` or `done` | `usb`, `key:` |
-| 25 | Remove the key to get paid | `firstOsJob` | `usb`, `key:` |
-| - | Workshop open (Got it): the OS runs jobs; a network card and a router will replace the USB keys | none (button) | none |
+| - | Welcome (Start): open the inventory (the box at the bottom) | button | `inventory` |
+| Build | `cpu`, `cooler`, `ram`, `psu`, `monitor` | `cpuInstalled`, `coolerInstalled`, `ramInstalled`, `psuInstalled`, `monitorInstalled` | `inv:<part>` and its socket |
+| Build | `cables`: the three plugs (main power, processor power, video) in one step | all of `atxConnected`, `cpuPowerConnected`, `videoConnected` | the cables still loose and where they come from |
+| First jobs | `plugKey` | `firstKeyPlugged` | `usb`, the first key |
+| First jobs | `power` | `poweredOn` | `power` |
+| First jobs | `watch`: the key pops out by itself, pays, and the machine switches itself off | `firstKeyEjected` | `monitor` |
+| First jobs | `cycle`: plug the next key, press power | `firstManualCycle` | `power`, `usb`, key |
+| First jobs | `spend`, `fit` | `firstPurchase`; no bought upgrade left in the inventory | the CPU socket; the part and its socket |
+| The OS | `reachLevel3` (meter), `buyDrive`, `drive`, `buyOs`, `os`, `bootOs` | level 3 or a drive; drive owned; `storageInstalled`; OS owned; `osInstalled`; OS phase | the bay, parts and sockets, `power`, `os` |
+| The OS | `osIngest`, `osHold`, `osWait`, `osCollect`, `osPaid` | live key stages, `firstOsJob` | `usb`, key, `os`, `held` |
+| - | Workshop open (Got it) | button | none |
 
-Steps 15 to 25 are the storage and OS lesson. A player who finished the first twelve (`OLD_FLAGS` deliberately excludes `coolerInstalled`, which loading derives, and `firstManualCycle`, which loading derives too) (or a migrated save with those flags) is **not** forced through them: the card becomes one offer, **Next lesson: the OS** (Start the lesson, or Not now, which never comes back). Taking it sets `osLesson` and starts at the drive. `osLesson` and `offered` are persisted next to the old flags.
+A player who finished the first twelve flags before the OS lesson existed is not forced through the rest: they get one **Next lesson: the OS** offer. `osLesson` and `offered` are persisted next to the old flags. The bot test (`tutorial.bot.test.ts`) plays the whole tutorial through public Game actions and checks that every step shows up in order, no step waits more than 10 minutes and no action is refused. With the fast OS a job can finish on the plugged key before the bot unplugs it; the "unplug" steps are skipped past when that happens.
 
-**Order and resume.** The key goes in first (the machine is off), then power. If the player presses power first, the plug step stays current but its problem line says the running machine will not look at the key (power off, plug, power on); if the key was plugged into a running machine, the watch step's problem line explains why nothing happens (`keyIgnored` or `haltReason: "no-boot-media"`). The power step also warns when the port is empty ("the machine would halt with NO BOOT MEDIA"). `firstManualCycle` is the one flag added for this lesson.
+**Resume and replay.** Persisted in `localStorage['pipeline-city.tutorial']`; the progress itself comes from the save. Replay judges steps from live state and deltas against a baseline.
 
-**Live steps** have no flag: `isDone(step, snapshot, progress)` reads the sim's own state (owned items, the phase, `KeySnap.stage`, `held[]`). Nothing completes a step with a Next button. The bot test (`tutorial.bot.test.ts`) plays the whole lesson through public Game actions, in order, with each step under 600 s of game time, and checks that no action is refused. It serves the queue with the manual loop (remove the key, power off, plug the next key while off, power on) until the OS is installed, because the first purchase needs money. **Every step is reached within 10 minutes of game time, and no action is ever refused** (the test asserts the refusal list is empty).
-
-An install step **opens the inventory shelf** by itself (any `inv:` target), so the part to drag is on screen. Each card shows a **problem line** when the step is stuck, taken from the sim's own reasons: `noPowerReason`, the cable's `blocked`, `postBlocker`, `phaseReason`, "No key yet", "The machine is off", "No cpu in the inventory".
-
-**Resume and replay.** Persisted in `localStorage['pipeline-city.tutorial']` (try/catch): `welcomed`, `skipped`, `finished`, and a `replay` baseline. The progress itself is never stored here: it comes from the save. Replay sets a baseline (completed count, owned count) and judges steps from live state, because the flags are already true in an old save. A save where every flag is already set (a migrated v1 save) shows only the last card.
-
-**Hints wait.** Hint toasts do not appear while a tutorial step is active. The cap of two visible toasts is unchanged. A sandbox game has no tutorial and no "Next lesson" offer (`currentStep` and `offerNextLesson` return nothing for it; see `docs/SANDBOX.md`).
+**Hints wait.** Hint toasts do not appear while a tutorial step is active. A sandbox game has no tutorial.
 
 ## HUD (`Hud.tsx`)
 
@@ -242,3 +221,14 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - On phones the picker docks above the shelf and the tutorial card hides while it is open.
 - The CPU speed bar uses a throughput guess per engine (placeholder, like the other balance numbers).
 - The `highlight` pulse on world ids only does something where the renderer reads it (it does, for the slots and parts it knows).
+
+## One bubble at a time (2026-10-24 polish)
+
+- **Click behaviour.** The power button and a key do their thing at once and open no card (a tripped or failed machine still opens the power card, which holds the power cycle). Other objects open the compact picker card.
+- **Picker card.** Header art and name (the plain sentence is the name's tooltip), live readings as icon chips, warnings in words, the upgrade rungs with before/after bars (the numbers are in each bar's tooltip), actions, collapsed details. No "next tier" sentence, no explanatory notes under the sections (tooltips on the headings).
+- **Tooltip.** The name and the first sentence only, and none while a card is open or something is being dragged.
+- **Hints.** One toast at a time, short, an icon to dismiss. `MAX_TOASTS = 1`.
+- **Level-up** (`LevelUpModal` in `Levels.tsx`): a modal over everything (z-index above the other modals) that waits for **Next** (or "All levels"). The new level swells in with rings, then each unlock pops in one after the other. It shows whatever else is on screen, the tutorial included.
+- **Bar.** Money, time, the level bar, reputation (star icon) and keys in the tray (stick icon), the machine chip, speed, theme, menu. The inventory button moved to the bottom bar (`.invbar`), next to the shelf it opens. A new game starts at **4x** (`DEFAULT_SPEED` in `store.ts`).
+- **Inventory shelf.** Identical spares are one tile with a count (`stackItems`); kind chips filter the shelf; selecting a socket, an installed part, the PSU, the monitor or the drive bay on the PC opens the shelf with only the parts that fit there (`fitFilterFor`, `fitsFilter`, the `fitTarget` signal) and a **Show all** link.
+- **Glow.** Hover is one thin outline; a selection adds none; the tutorial ring is the single yellow ring above.

@@ -397,3 +397,8 @@ Owner decisions 1 to 4 are at the top. Every other proposal is accepted as writt
 
 - Nothing blocks the build. Not designed yet, so not decided: a second machine or Wi-Fi, a UPS item for the router, and the spool size of a planned drive tier (RAID, `nvme3`).
 - Prices and disk rates of the planned items are placeholders until the engines and GPU work set them, and the time and income estimates are re-measured by the bots.
+
+
+## No memory requirement (2026-10-24)
+
+The network stack needs no memory beyond the OS's own (`NET.minRamBytes` is 0): the board's jack does the work and the OS fetches packets when it wants. What the network still needs: a Basic or better board (the jack) or a network card, a router and a plan (Level 4), the cable, and a running OS.
