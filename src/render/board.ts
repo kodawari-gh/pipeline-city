@@ -319,7 +319,9 @@ export async function mountBoard(host: HTMLElement) {
         const p = cpuArt(T, spec as CpuSpec);
         deviceLayer.addChild(p.root); parts.push(p);
         targets.push({ id: d.id, kind: 'cpu', spec: d.spec, rect: { x: PKG.x - 46, y: PKG.y - 46, w: PKG.w + 92, h: PKG.h + 92 } });
-        deviceHits.push({ id: d.id, rect: PKG, max: Z_DIE });
+        // the package (the CPU) is hit everywhere; the cooler sits over it and is hit first below the die zoom (coolerHit), so
+        // the exposed package ring picks the CPU and the cooler body picks the cooler
+        deviceHits.push({ id: d.id, rect: PKG });
         scene.rects.set(d.id, PKG);
       } else if (spec.kind === 'ram') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
@@ -467,6 +469,9 @@ export async function mountBoard(host: HTMLElement) {
         { x: CASE.x, y: CASE.y, w: CASE_IN.x - CASE.x, h: CASE.h }, { x: CASE_IN.x + CASE_IN.w, y: CASE.y, w: CASE.x + CASE.w - CASE_IN.x - CASE_IN.w, h: CASE.h },
         { x: CASE.x, y: CASE_IN.y + CASE_IN.h, w: CASE.w, h: CASE.y + CASE.h - CASE_IN.y - CASE_IN.h },
       ] });
+    // the motherboard itself: the last hit, so devices, slots, regions and cables always win over it; an empty area of the board
+    // selects `board` (the board picker)
+    mainHits.push({ id: 'board', rect: BD });
     if (hasPsu) scene.interactive.add('psu.readout');
     scene.rects.set('psu.readout', PSU);
     mergeHits();
@@ -635,10 +640,13 @@ export async function mountBoard(host: HTMLElement) {
   const applyInset = (i: Inset) => {
     const c = camera.inset;
     if (c.top === i.top && c.right === i.right && c.bottom === i.bottom && c.left === i.left) return;
-    const was = atOverview() && !camera.holdAt;
+    // "at the overview" is judged on where the camera is heading (a flight in progress counts), not where it is this frame:
+    // a change that lands during an overview flight used to be missed and left the board under the UI
+    const t = camera.targetView, o = fits;
+    const toOverview = !camera.holdAt && Math.abs(t.z / o.z - 1) < 0.02 && Math.abs(t.x - o.x) < 20 && Math.abs(t.y - o.y) < 20;
     camera.inset = { ...i };
     fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
-    if (was) camera.flyTo(fits, 450); else camera.apply();
+    if (toOverview) camera.flyTo(fits, 450); else camera.apply();
   };
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
 

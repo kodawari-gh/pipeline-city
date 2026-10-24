@@ -142,6 +142,11 @@ export class Camera {
     this.flight = { from: { x: this.x, y: this.y, z: this.z }, to: target, t0: performance.now(), dur, done: onDone };
   }
 
+  /** Where the camera is heading: the flight's target, or the current view when nothing is flying. */
+  get targetView(): View {
+    return this.flight ? { ...this.flight.to } : { x: this.x, y: this.y, z: this.z };
+  }
+
   /** Stop the flight in progress, if any, where it is. Its `onDone` gets false. */
   cancelFlight() {
     const f = this.flight;
