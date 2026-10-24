@@ -186,20 +186,25 @@ let seenLevel: number | null = loadSeen_();
 export const levelUp = signal<Celebration | null>(null);
 /** The level-up popup pauses the game while it is read (fair play); Next resumes at the speed it was running. */
 let pausedByLevelUp = false;
+let pausedByTutorial = false;
+/** True while a popup (level-up, tutorial) holds the game: the player cannot resume it, so no "Space to resume" hint. */
+export const popupPause = signal(false);
+const syncPopupPause = () => { popupPause.value = pausedByLevelUp || pausedByTutorial; };
 export function dismissLevelUp() {
   levelUp.value = null;
   if (pausedByLevelUp && speed.peek() === 0) togglePause();
   pausedByLevelUp = false;
+  syncPopupPause();
 }
 
 /** A tutorial popup (the welcome, the next-lesson offer) pauses the game while it is open, like the level-up. */
-let pausedByTutorial = false;
 export function pauseForTutorialPopup(open: boolean) {
   if (open && !pausedByTutorial && speed.peek() !== 0) { togglePause(); pausedByTutorial = true; }
   else if (!open && pausedByTutorial) {
     if (speed.peek() === 0 && !levelUp.peek()) togglePause();
     pausedByTutorial = false;
   }
+  syncPopupPause();
 }
 
 effect(() => {
@@ -208,7 +213,7 @@ effect(() => {
   const owed = celebrationFor(s, seenLevel);
   if (owed && !levelUp.peek()) {
     levelUp.value = owed;
-    if (speed.peek() !== 0) { togglePause(); pausedByLevelUp = true; }
+    if (speed.peek() !== 0) { togglePause(); pausedByLevelUp = true; syncPopupPause(); }
     seenLevel = owed.level;
     writeStore(SEEN_KEY, String(seenLevel));
     return;

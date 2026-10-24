@@ -20,7 +20,7 @@ import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
 import { Shop } from './Shop';
 import { TutorialCard } from './TutorialCard';
 import {
-  netOpen, openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from './tutorial';
 
@@ -67,7 +67,7 @@ function PauseKey() {
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
-  return speed.value === 0 ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
+  return speed.value === 0 && !popupPause.value ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
 }
 
 /**
