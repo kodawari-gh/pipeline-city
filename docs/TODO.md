@@ -47,7 +47,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## P2: finish what exists
 
 - [x] T30 [auto] Add CPU spec entries for `inorder2` (engine config only). Files: CPU specs in `src/sim/game`, spec test. Docs: `docs/ARCHITECTURE.md`. Done when: a spec test builds a machine with it and runs a job.
-- [ ] T31 [auto] Owner decision 2026-10-24: ship ONE ooo CPU only, `cpu4` = ooo ROB 8, 4-wide commit, at its existing level-11 unlock slot (remove it from PLANNED_ITEMS). ROB 16 and 32 are deferred (no unlock slots). Same files as T30. Done when: spec tests pass for all three.
+- [x] T31 [auto] Owner decision 2026-10-24: ship ONE ooo CPU only, `cpu4` = ooo ROB 8, 4-wide commit, at its existing level-11 unlock slot (remove it from PLANNED_ITEMS). ROB 16 and 32 are deferred (no unlock slots). Same files as T30. Done when: spec tests pass for all three.
 - [ ] T32 [auto] Board and VRM demand data for the new CPUs, and save handling (additive, no version bump unless the format breaks). Files: board/VRM specs, save code and test.
 - [ ] T33 [auto] Picker art and shelf row for the new CPU tiers. Files: `src/ui/PartArt.tsx`, picker logic. Done when: logic test lists them in tier order.
 - [ ] T34 [auto] Pacing re-check: CPI drops from about 1.3 to 0.9, so jobs finish about 1.4x faster at the same clock. Re-run the level bots and report the new level 1 to 3 times in `docs/PROGRESSION.md`. Do not change any balance number.

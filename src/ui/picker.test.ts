@@ -184,7 +184,7 @@ describe('upgrade ladder', () => {
   it('leaves out tiers older than the best part you own', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })], inventory: [] });
     const ids = ladderFor(s, 'cpu').map((r) => r.specId);
-    expect(ids).toEqual(['cpu1', 'cpu2', 'cpu3']);
+    expect(ids).toEqual(['cpu1', 'cpu2', 'cpu3', 'cpu4']);
     expect(ladderFor(s, 'cpu')[0]!.state).toBe('installed');
   });
 

@@ -153,7 +153,7 @@ export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string
   tpm1: { name: "Secure module", kind: "tpm" },
   ram3: { name: "ECC RAM", kind: "ram" },
   gpu1: { name: "GPU", kind: "gpu" }, psu3: { name: "PSU 500 W", kind: "psu" }, display1: { name: "Graphics display", kind: "display" },
-  cpu4: { name: "Out-of-order CPU", kind: "cpu" }, cooler3: { name: "Big radiator", kind: "cooler" },
+  cooler3: { name: "Big radiator", kind: "cooler" },
   npu1: { name: "NPU", kind: "npu" }, tpm2: { name: "Secure module 2", kind: "tpm" },
   cpu5: { name: "Multicore CPU", kind: "cpu" }, gpu2: { name: "GPU 2", kind: "gpu" },
   psu4: { name: "PSU 1 kW", kind: "psu" }, board4: { name: "Server board", kind: "board" },

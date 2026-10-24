@@ -51,7 +51,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Calls:** a link register and a stack pointer register with a minimal convention, so stack traffic is real and visible in the memory view and kernels compose as functions.
 - **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. Interrupts and DMA are not in scope for now.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
-- **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/sim/board/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2` (placeholder price/power; `ooo` is still unwired).
+- **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/sim/board/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2`, `cpu4` `ooo` (ROB 8, 4-wide commit; ROB 16/32 deferred). cpu3/cpu4 price/power are placeholders.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
 
 ### Fidelity tiers

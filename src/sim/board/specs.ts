@@ -135,6 +135,10 @@ const specList: DeviceSpec[] = [
   { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16 } },
+  // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
+  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "ooo", robSize: 8, commitWidth: 4, cacheLines: 16 } },
 
   { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
