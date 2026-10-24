@@ -595,9 +595,12 @@ export async function mountBoard(host: HTMLElement) {
   function syncProps(s: Snapshot | null, force = false) {
     const powered = !!s?.powered, down = !!s?.power.tripped || !!s?.board?.burnt, error = s?.phase === 'error' || down;
     const notRead = !!s?.keyIgnored;
+    // No key tray while the machine is being built: it appears once the PC can be powered on (and stays once it ever was).
+    const trayShown = !!s && (s.sandbox || s.progress.poweredOn || s.noPowerReason === null);
+    if (trayShown) { scene.rects.set('tray', TRAY); scene.interactive.add('tray'); } else { scene.rects.delete('tray'); scene.interactive.delete('tray'); }
     powerState = { powered, down, error, blocked: !!s?.noPowerReason };
     const key = [
-      T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
+      T.dark, trayShown, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,
       s?.net?.usbFallback.state ?? 'off',
     ].join('|');
@@ -644,13 +647,13 @@ export async function mountBoard(host: HTMLElement) {
       if (!s.plugged) keyInId = -1;
       keySeen = true;
     }
-    add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
+    if (trayShown) add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
     for (const a of propsArt) order.push(...a.objs);
     // hit order: power, plugged key, tray keys, then the port and tray bodies
     propHits = [
       ...order.map((o) => ({ id: o.id, rect: o.rect })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
-      { id: 'tray', rect: TRAY },
+      ...(trayShown ? [{ id: 'tray', rect: TRAY }] : []),
     ];
     chromeLayer.visible = true;
     chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: PROPS_FRAME, resolution: 0.3, antialias: true }));

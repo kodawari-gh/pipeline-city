@@ -1,4 +1,5 @@
 import { effect } from '@preact/signals';
+import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { viewInset } from '../game/hover';
 import { cameraRev, dragging, highlight } from '../game/interaction';
@@ -28,7 +29,7 @@ function Why({ text }: { text: string | undefined }) {
  * finished page; on a page with more after it, the click turns the page. The unwritten rest stays in the layout, invisible,
  * so the box never jumps while it types. Reduced motion shows the whole page at once.
  */
-function Dialogue({ text }: { text: string }) {
+function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => void }) {
   const pages = pagesOf(text);
   const [page, setPage] = useState(0);
   const [n, setN] = useState(0);
@@ -42,6 +43,7 @@ function Dialogue({ text }: { text: string }) {
   }, [cur]);
   const done = n >= cur.length;
   const more = page < pages.length - 1;
+  useEffect(() => { onEnd?.(done && !more); }, [done, more, text]);
   const advance = () => { if (!done) setN(cur.length); else if (more) setPage(page + 1); };
   return (
     <button type="button" class="dlg" onClick={advance} aria-label={more || !done ? 'Next' : 'Dialogue'}>
@@ -50,6 +52,23 @@ function Dialogue({ text }: { text: string }) {
       </span>
       <span class={`dlg-arrow ${done ? (more ? 'more' : 'end') : ''}`} aria-hidden="true" />
     </button>
+  );
+}
+
+/** The welcome and the next-lesson offer: the same dialogue box, centred low over a dimmed board; the buttons appear when the last page is written. */
+function PopupDialogue({ label, title, text, name, children }: { label: string; title: string; text: string; name: string; children: ComponentChildren }) {
+  const [atEnd, setAtEnd] = useState(false);
+  return (
+    <div class="modal-back dlg-back">
+      <div class="tut dlg-popup" role="dialog" aria-modal="true" aria-label={name} data-step={name}>
+        <div class="tut-in">
+          <div class="thead"><span class="mute">{label}</span></div>
+          <div class="ptitle">{title}</div>
+          <Dialogue text={text} onEnd={setAtEnd} />
+          <div class={`pactions dlg-actions ${atEnd ? 'on' : ''}`}>{children}</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -223,31 +242,18 @@ export function TutorialCard() {
   if (modal && s) {
     if (offer) {
       return (
-        <div class="modal-back">
-          <div class="card modal" role="dialog" aria-modal="true" aria-label="Next lesson" data-step="offer">
-            <div class="mute eyebrow">Next lesson</div>
-            <div class="ptitle">The operating system</div>
-            <div class="pplain">With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.</div>
-            <div class="pactions">
-              <button onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
-              <button class="primary" onClick={takeOsLesson}>Start the lesson</button>
-            </div>
-          </div>
-        </div>
+        <PopupDialogue label="Next lesson" title="The operating system" name="offer"
+          text="With an operating system the machine stays on and runs jobs from the drive, instead of rebooting for every job. Drives, an OS and the new steps are in the shop.">
+          <button onClick={declineOsLesson} title="Not now. This card will not come back.">Not now</button>
+          <button class="primary" onClick={takeOsLesson}>Start the lesson</button>
+        </PopupDialogue>
       );
     }
     return (
-      <div class="modal-back">
-        <div class="card modal" role="dialog" aria-modal="true" aria-label="Welcome" data-step={step!.id}>
-          <div class="mute eyebrow">Tutorial</div>
-          <div class="ptitle">{step!.title}</div>
-          <div class="pplain">{step!.text}</div>
-          <div class="pactions">
-            <button onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
-            <button class="primary" onClick={startTutorial}>Start</button>
-          </div>
-        </div>
-      </div>
+      <PopupDialogue label="Tutorial" title={step!.title} text={step!.text} name={step!.id}>
+        <button onClick={skipTutorial} title="Hide the tutorial. Replay it from the menu.">Skip</button>
+        <button class="primary" onClick={startTutorial}>Start</button>
+      </PopupDialogue>
     );
   }
   if (!s || !step) return null;
