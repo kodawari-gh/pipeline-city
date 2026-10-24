@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
-  fitFilterFor, fitsFilter, queueReadout, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
+  fitFilterFor, fitsFilter, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
 } from './logic';
 import { inventoryGroups } from './logic';
 import { REGIONS } from './regions';
@@ -74,15 +74,6 @@ describe('HUD status text', () => {
   });
   it('off says why the power button would do nothing', () => {
     expect(statusChip(snap()).title).toMatch(/power supply/);
-  });
-  it('queue: count, cap and the oldest key age', () => {
-    expect(queueReadout(snap())).toMatchObject({ count: 0, oldest: null, text: 'no keys waiting' });
-    const q = queueReadout(snap({ tray: [key({ id: 1, age: 20 }), key({ id: 2, age: 95 }), key({ id: 3, age: 5 })] }));
-    expect(q).toMatchObject({ count: 3, cap: 8, oldest: 95 });
-    expect(q.text).toBe('3 keys waiting, oldest 1m 35s');
-  });
-  it('queue: a late key is flagged', () => {
-    expect(queueReadout(snap({ tray: [key({ late: true })] })).late).toBe(true);
   });
 });
 

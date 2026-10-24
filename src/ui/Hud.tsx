@@ -5,7 +5,7 @@ import {
   autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim, togglePause,
 } from '../game/store';
 import { SPEEDS } from '../sim/protocol';
-import { fmtMoney, fmtNum, fmtTicks, isOsActivity, queueReadout, statusChip } from './logic';
+import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
 import { Icon } from './Icons';
 import { hudNetChip } from './netui';
 import { InventoryBar, InventoryPanel } from './Inventory';
@@ -116,16 +116,6 @@ function InsetReporter() {
   return null;
 }
 
-/** Keys waiting in the tray. The age of the oldest and the demand sit in the tooltip, not on the bar. */
-function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
-  const q = queueReadout(s);
-  return (
-    <div class={`stat ${q.late ? 'bad' : ''}`} title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
-      <Icon name="stick" size={14} />
-      <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
-    </div>
-  );
-}
 
 function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const perMin = s.demandRate * 60;
@@ -211,13 +201,12 @@ export function Hud() {
         <div class="hud-side hud-left">
         <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>
-        <LevelBar s={s} />
         <Reputation s={s} />
-        <Queue s={s} />
         <PhaseChip s={s} />
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
         </div>
+        <div class="hud-side hud-center"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">
         <div class="seg" role="group" aria-label="Speed">
           {SPEEDS.map((v) => (

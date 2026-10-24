@@ -385,7 +385,8 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered ? 1 : 0.7 });
   disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 5 });
   const k = b.r / 175;
-  bg.arc(0, 8 * k, 78 * k, -Math.PI * 0.32, Math.PI * 1.32, true).stroke({ width: 15, color: ring, cap: 'round' });
+  // the power symbol: a ring open at the top (clockwise from just right of the top, the long way round), the bar in the gap
+  bg.arc(0, 8 * k, 78 * k, -Math.PI * 0.32, Math.PI * 1.32, false).stroke({ width: 15, color: ring, cap: 'round' });
   bg.moveTo(0, -78 * k).lineTo(0, -4 * k).stroke({ width: 15, color: ring, cap: 'round' });
   node.position.set(b.x, b.y);
   root.addChild(node);

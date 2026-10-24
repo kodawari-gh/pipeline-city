@@ -419,19 +419,6 @@ export const isOsActivity = (phase: Snapshot['phase']) =>
   phase === 'booting-os' || phase === 'ingesting' || phase === 'running-os' || phase === 'flashing';
 
 /**
- * Keys waiting in the tray (not the plugged one): count and the age of the oldest.
- */
-export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; text: string } {
-  const count = s.tray.length;
-  const oldest = count ? Math.max(...s.tray.map((k) => k.age)) : null;
-  const late = s.tray.some((k) => k.late);
-  const waiting = count === 0
-    ? 'no keys waiting'
-    : `${count} key${count === 1 ? '' : 's'} waiting, oldest ${fmtTicks(oldest ?? 0)}`;
-  return { count, cap: s.queueCap, oldest, late, text: waiting };
-}
-
-/**
  * The sim refuses out-of-order actions with "<call>: <reason>". Show just the reason, as a plain sentence.
  */
 export function friendlyError(message: string): string {
