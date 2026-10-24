@@ -39,7 +39,8 @@ html { font-size: calc(var(--ui-scale, 1) * clamp(15px, min(0.85vw, 1.5vmin), 64
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font: 0.8rem/1.35 var(--ui); -webkit-font-smoothing: antialiased; }
 #board { position: fixed; inset: 0; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
-#hud > *, #hud .hud, #hud .dock, #hud .picker, #hud .tut, #hud .inv, #hud .toasts, #hud .notice { pointer-events: auto; }
+#hud > *, #hud .hud, #hud .dock, #hud .picker { pointer-events: auto; }
+#hud > .stack, #hud > .pointer-layer { pointer-events: none; }
 
 /* Glass: every panel and bar. Translucent, blurred, hairline border, no shadow. */
 .card, .hud, .dock, .picker, .tut, .inv, .menu-pop, .notice, .toast {
@@ -249,42 +250,60 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .picker input[type=range] { accent-color: var(--accent); }
 
 /* Tutorial card (bottom left), short */
-.tut { position: fixed; left: 0.533rem; bottom: 0.533rem; width: 18.8rem; max-width: calc(100vw - 1.067rem); z-index: 25; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.tut { position: relative; width: min(100%, 34rem); padding: 0.7rem 0.95rem 0.8rem; z-index: 25; border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .tut .ptitle { font-size: 0.833rem; margin-top: 0.2rem; }
 .tut .pplain { font-size: 0.767rem; color: var(--ink); opacity: .92; }
 .thead { display: flex; justify-content: space-between; align-items: center; font-size: 0.633rem; text-transform: uppercase; letter-spacing: .08em; }
 .thead .link { font-size: 0.7rem; padding: 0; }
 
-/* Inventory tray (bottom right): glass, steps aside while a part is dragged */
+/* Bottom stack: notices, hint toasts, the tutorial card and the inventory shelf, centred, in that order (top to bottom). */
+.stack {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; flex-direction: column; align-items: center;
+  gap: 0.5rem; padding: 0 0.6rem 0.6rem; pointer-events: none;
+}
+.stack > * { pointer-events: auto; }
+
+/* Inventory shelf: a wide glass panel along the bottom. Collapses (slides down, keeps its space) while a part is dragged. */
 .inv {
-  position: fixed; right: 0.533rem; bottom: 0.533rem; z-index: 22; max-width: min(36rem, calc(100vw - 1.067rem)); padding: 0.467rem 0.6rem 0.533rem;
-  transition: transform .2s ease, opacity .2s ease;
+  position: relative; width: min(100%, 72rem); padding: 0.6rem 0.8rem 0.7rem; z-index: 22;
+  transition: transform .25s ease, opacity .25s ease;
 }
-.inv.away { transform: translateY(calc(100% + 1.067rem)); opacity: 0; pointer-events: none; }
-.inv-head { position: relative; display: flex; align-items: baseline; gap: 0.533rem; padding-right: 1.467rem; margin-bottom: 0.4rem; }
-.inv-title { display: inline-flex; align-items: center; gap: 0.333rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
+.inv.away { transform: translateY(calc(100% + 1.5rem)); opacity: 0; pointer-events: none; }
+.inv-head { position: relative; display: flex; align-items: baseline; gap: 0.7rem; padding-right: 2rem; margin-bottom: 0.45rem; }
+.inv-title { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
 .inv-title b { font-family: var(--mono); color: var(--accent); }
-.inv-hint { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inv-tiles { display: flex; gap: 0.4rem; overflow-x: auto; padding: 1px 1px 0.267rem; scrollbar-width: thin; }
-.inv-empty { font-size: 0.767rem; padding: 0.4rem 0.133rem; }
+.inv-hint { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inv-groups { display: flex; gap: 1rem; overflow-x: auto; padding: 0.15rem 0.1rem 0.4rem; scrollbar-width: thin; align-items: flex-start; }
+.inv-group { flex: none; }
+.inv-gname { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); font-weight: 600; margin: 0 0 0.3rem 0.15rem; }
+.inv-tiles { display: flex; gap: 0.5rem; }
+.inv-empty { font-size: 0.85rem; padding: 0.8rem 0.3rem; }
 .tile {
-  position: relative; flex: 0 0 auto; width: 5.6rem; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0.333rem 0.267rem 0.4rem;
-  border-radius: 0.6rem; border: 1px solid var(--glass-line); background: var(--glass-hi); cursor: grab; user-select: none; touch-action: none;
+  position: relative; flex: none; width: 8rem; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.5rem 0.4rem 0.55rem;
+  border-radius: 0.8rem; border: 1px solid var(--glass-line); background: var(--glass-hi); cursor: grab; user-select: none; touch-action: none;
+  transition: transform .15s ease, border-color .15s ease;
 }
-.tile:hover { border-color: var(--accent); }
-.tile:active { cursor: grabbing; }
+.tile:hover { border-color: var(--accent); transform: translateY(-0.25rem); }
+.tile:active { cursor: grabbing; transform: translateY(-0.1rem) scale(.98); }
 .tile.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.tile.dim { opacity: .65; }
-.tile .tname { font-size: 0.7rem; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile .tkind { font-size: 0.567rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
-.tile .tlock { position: absolute; top: 0.267rem; right: 0.267rem; color: var(--warn); line-height: 0; }
-.invbtn.pulse { outline-offset: 0.133rem; }
+.tile.dim { opacity: .6; cursor: default; }
+.tile.dim:hover { transform: none; }
+.tile .tname { font-size: 0.8rem; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.15rem; }
+.tile .tmeta { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); min-height: 0.9rem; }
+.tile .ttier { color: var(--accent); font-weight: 700; }
+.tile .tlock { position: absolute; top: 0.4rem; right: 0.4rem; color: var(--warn); line-height: 0; }
+.tile .tgrab {
+  position: absolute; top: 0.4rem; right: 0.4rem; font-size: 0.6rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
+  opacity: 0; transition: opacity .15s ease;
+}
+.tile:hover .tgrab { opacity: 1; }
+.tile.dim:hover .tgrab { opacity: 0; }
+.invbtn.pulse { outline-offset: 2px; }
 
 /* Stats drawer (right side), kept as before but quieter */
 .dock {
   position: fixed; top: 4rem; right: 0.533rem; bottom: 0.533rem; width: 18rem; overflow-y: auto; z-index: 20; padding: 0.667rem 0.733rem; scrollbar-width: thin;
 }
-#hud:has(.inv:not(.away)) .dock { bottom: 10rem; }
 .dock h2 { margin: 0 0 0.4rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .12em; }
 .dock h3 { margin: 0.667rem 0 0.267rem; font-size: 0.633rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); font-weight: 600; }
 .kv { display: flex; justify-content: space-between; gap: 0.533rem; font-size: 0.733rem; }
@@ -301,30 +320,56 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* Tooltip, refusal notice, hint toasts */
 .tooltip {
-  position: fixed; left: 0; top: 0; z-index: 30; max-width: 17.333rem; pointer-events: none; padding: 0.4rem 0.533rem; border-radius: 0.533rem;
-  background: var(--panel); border: 1px solid var(--glass-line); font-size: 0.767rem;
-  backdrop-filter: blur(0.667rem); -webkit-backdrop-filter: blur(0.667rem);
+  position: fixed; left: 0; top: 0; z-index: 50; max-width: 17rem; pointer-events: none; padding: 0.4rem 0.55rem; border-radius: 0.55rem;
+  background: var(--panel); border: 1px solid var(--glass-line); font-size: 0.77rem;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .tooltip b { font-size: 0.8rem; }
 .notice {
-  position: fixed; top: 3.867rem; left: 50%; transform: translateX(-50%); z-index: 45; display: flex; align-items: center; gap: 0.533rem;
-  border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font-weight: 600; font-size: 0.767rem;
-  max-width: min(28rem, calc(100vw - 1.067rem)); padding: 0.4rem 0.667rem;
+  display: flex; align-items: center; gap: 0.5rem; width: min(100%, 28rem); box-sizing: border-box;
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font-weight: 600; font-size: 0.8rem; padding: 0.4rem 0.7rem;
 }
-.toasts { position: fixed; bottom: 0.533rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.333rem; width: min(20rem, calc(100vw - 1.067rem)); z-index: 40; }
-.toast { display: flex; align-items: center; justify-content: space-between; gap: 0.533rem; padding: 0.4rem 0.533rem; font-size: 0.733rem; }
-.toast button { font-size: 0.7rem; padding: 0.133rem 0.4rem; }
+.notice > span { flex: 1; }
+.toasts { display: flex; flex-direction: column; gap: 0.35rem; width: min(100%, 24rem); }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.55rem; font-size: 0.75rem; }
+.toast button { font-size: 0.7rem; padding: 0.15rem 0.4rem; }
+
+/* Modals: centred, dimmed backdrop (welcome, next lesson, confirms, new game, welcome back). */
+.modal-back {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 1rem; box-sizing: border-box;
+  background: rgba(2, 6, 18, .5); pointer-events: auto; animation: fade-in .25s ease both;
+}
+:root[data-theme="light"] .modal-back { background: rgba(30, 44, 80, .28); }
+.modal { width: min(100%, 26rem); padding: 1.1rem 1.25rem 1.2rem; animation: pop-in .3s ease both; display: flex; flex-direction: column; gap: 0.5rem; }
+.modal .big { font-size: 1.2rem; }
+.modal .ptitle { font-size: 1.05rem; }
+.modal .pplain { font-size: 0.85rem; color: var(--ink); opacity: .92; }
+.modal .pactions { margin-top: 0.6rem; justify-content: flex-end; }
+.modal button { font-size: 0.8rem; padding: 0.35rem 0.8rem; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(0.6rem) scale(.97); } to { opacity: 1; transform: none; } }
 
 .hide-narrow { }
 
-/* Narrow: picker, stats and tutorial become sheets; the inventory becomes a full-width strip. */
-@media (max-width: 48em) {
-  .money { font-size: 1rem; }
-  .hide-narrow { display: none; }
-  .picker, .dock { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
-  #hud:has(.inv:not(.away)) .dock { bottom: 0; }
-  .tut { left: 0.4rem; right: 0.4rem; bottom: auto; top: 6.933rem; width: auto; }
-  .inv { left: 0.4rem; right: 0.4rem; bottom: 0.4rem; max-width: none; }
-  .tooltip { max-width: calc(100vw - 1.067rem); }
-  .toasts { bottom: 0.4rem; }
+/* Tall screens (portrait tablets and up): the inventory docks at the right edge, tiles in a grid. */
+@media (max-aspect-ratio: 1/1) and (min-width: 40em) {
+  .inv { position: fixed; right: 0.6rem; top: 4.6rem; bottom: 0.6rem; width: 19rem; display: flex; flex-direction: column; }
+  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.7rem; flex: 1; }
+  .inv-tiles { flex-wrap: wrap; }
+  .inv.away { transform: translateX(calc(100% + 1.5rem)); }
 }
+
+@media (max-aspect-ratio: 1/1) and (min-width: 40em) { #hud:has(.inv) .dock { right: 20.2rem; } }
+
+/* Narrow (phones): picker, stats and the tutorial become sheets; the shelf is a short strip. */
+@media (max-width: 48em) {
+  .money { font-size: 1.1rem; }
+  .hide-narrow { display: none; }
+  .dock { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
+  .tooltip { max-width: calc(100vw - 1.1rem); }
+  .tile { width: 6rem; }
+  .inv-hint { display: none; }
+}
+#hud:has(.inv) .dock { bottom: 15rem; }
+@media (max-aspect-ratio: 1/1) and (min-width: 40em) { #hud:has(.inv) .dock { bottom: 0.533rem; } }
+@media (max-width: 48em) { #hud:has(.inv) .dock { bottom: 0; } }

@@ -45,27 +45,30 @@ function StartPrompt() {
 function InsetReporter() {
   useEffect(() => {
     const hud = document.getElementById('hud');
-    // The tray's reserved strip is remembered while it is slid away during a drag: the camera must not re-frame
+    // The shelf's reserved space is remembered while it is slid away during a drag: the camera must not re-frame
     // under the pointer mid-drag. The part is hidden, the space is kept.
-    let invInset = 0;
+    let invKept: { side: 'bottom' | 'right'; v: number } | null = null;
     const measure = () => {
       const W = window.innerWidth, H = window.innerHeight;
+      const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       const bar = document.querySelector('.hud');
-      if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom) + 8;
+      if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom + gap);
       let invSeen = false;
-      for (const el of document.querySelectorAll('.dock, .picker, .tut, .inv')) {
+      for (const el of document.querySelectorAll('.dock, .inv')) {
         const r = el.getBoundingClientRect();
         if (r.width === 0) continue;
+        const side = r.height > H * 0.5 && r.width < W * 0.5;
         if (el.classList.contains('inv')) {
           invSeen = true;
-          if (!el.classList.contains('away')) invInset = Math.ceil(H - r.top) + 8;
-          next.bottom = Math.max(next.bottom, invInset);
-        } else if (r.width >= W * 0.8) next.bottom = Math.max(next.bottom, Math.ceil(H - r.top) + 8);
-        else if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right) + 8);
-        else next.right = Math.max(next.right, Math.ceil(W - r.left) + 8);
+          if (!el.classList.contains('away')) invKept = side ? { side: 'right', v: Math.ceil(W - r.left + gap) } : { side: 'bottom', v: Math.ceil(H - r.top + gap) };
+          if (invKept) next[invKept.side] = Math.max(next[invKept.side], invKept.v);
+        } else if (side) {
+          if (r.left + r.width / 2 < W / 2) next.left = Math.max(next.left, Math.ceil(r.right + gap));
+          else next.right = Math.max(next.right, Math.ceil(W - r.left + gap));
+        } else next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
       }
-      if (!invSeen) invInset = 0;
+      if (!invSeen) invKept = null;
       const cur = viewInset.peek();
       if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
     };
@@ -184,10 +187,7 @@ export function Hud() {
         </button>
         <Menu s={s} />
       </header>
-      <Notice />
       <PickerCard />
-      <TutorialCard />
-      <InventoryPanel s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
           <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>
@@ -195,7 +195,12 @@ export function Hud() {
         </aside>
       )}
       <Tooltip />
-      <Toasts />
+      <div class="stack">
+        <Notice />
+        <Toasts />
+        <TutorialCard />
+        <InventoryPanel s={s} />
+      </div>
     </>
   );
 }

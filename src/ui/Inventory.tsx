@@ -1,6 +1,8 @@
 import type { InventorySnap, Snapshot } from '../sim/game/game';
 import { selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
+import { getSpec } from '../sim/board/specs';
+import { getOsSpec } from '../sim/os';
 import { describeId, KIND_LABEL } from './logic';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
@@ -30,14 +32,25 @@ export function InventoryButton({ s }: { s: Snapshot }) {
   );
 }
 
-/** One spare part: illustration, short name, kind. Pressing it starts a drag; clicking it selects it for the picker. */
+const GROUP_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'os'];
+
+/** Tier of a spec id ("Tier 2"), or null when it has none. */
+function tierOf(specId: string): number | null {
+  const bm = /^board(\d+)$/.exec(specId);
+  if (bm) return Number(bm[1]);
+  return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
+}
+
+/** One spare part: big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
 function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active: boolean }) {
   const why = it.installable ? undefined : it.reason ?? 'Nothing to fit it to right now';
   const plain = describeId(it.spec)?.plain ?? '';
+  const tier = tierOf(it.spec);
   return (
     <div
       role="button"
       tabIndex={0}
+      data-inv={it.id}
       class={`tile ${pulse ? 'pulse' : ''} ${active ? 'sel' : ''} ${why ? 'dim' : ''}`}
       title={`${it.name}. ${plain}${why ? ` ${why}.` : ' Drag it onto a socket.'}`}
       onPointerDown={(e) => {
@@ -51,17 +64,18 @@ function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active
         }
       }}
     >
-      <PartArt id={it.spec} size={64} />
+      <div class="tart"><PartArt id={it.spec} size={96} /></div>
       <span class="tname">{shortName(it.name)}</span>
-      <span class="tkind">{it.kind === 'os' ? 'Software' : KIND_LABEL[it.kind]}</span>
-      {why && <span class="tlock" aria-label={why}><Icon name="lock" size={11} /></span>}
+      <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
+      {why ? <span class="tlock" aria-label={why}><Icon name="lock" size={12} /></span> : <span class="tgrab" aria-hidden="true">drag</span>}
     </div>
   );
 }
 
 /**
- * The inventory tray, anchored to the bottom edge. It steps aside while a part is being dragged (`dragging` is written
- * by the renderer), so the board is visible for the drop.
+ * The inventory shelf: a large glass panel docked at the bottom (or at the right on tall screens, see ui.css), parts
+ * grouped by kind. It collapses while a part is being dragged (`dragging` is written by the renderer), so the board is
+ * visible for the drop; it keeps its layout space so nothing re-flows under the pointer.
  */
 export function InventoryPanel({ s }: { s: Snapshot }) {
   if (!inventoryOpen.value) return null;
@@ -69,19 +83,25 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const hl = new Set(highlight.value);
   const sel = selected.value;
   const n = s.inventory.length;
+  const groups = GROUP_ORDER.map((k) => ({ k, items: s.inventory.filter((it) => it.kind === k) })).filter((g) => g.items.length);
   return (
     <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
       <header class="inv-head">
-        <span class="inv-title"><Icon name="box" size={13} /> Inventory <b>{n}</b></span>
-        <span class="inv-hint mute hide-narrow">Drag a part onto its socket. Power off first.</span>
-        <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={11} /></button>
+        <span class="inv-title"><Icon name="box" size={15} /> Inventory <b>{n}</b></span>
+        <span class="inv-hint mute">Drag a part onto the board. Power off first.</span>
+        <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
       </header>
       {n === 0 ? (
         <div class="inv-empty mute">No spare parts. Click a part on the board to buy an upgrade.</div>
       ) : (
-        <div class="inv-tiles">
-          {s.inventory.map((it) => (
-            <Tile key={it.id} it={it} pulse={hl.has(`inv:${it.id}`)} active={sel === `inv:${it.id}`} />
+        <div class="inv-groups">
+          {groups.map((g) => (
+            <div class="inv-group" key={g.k}>
+              <div class="inv-gname">{g.k === 'os' ? 'Software' : KIND_LABEL[g.k as keyof typeof KIND_LABEL]}</div>
+              <div class="inv-tiles">
+                {g.items.map((it) => <Tile key={it.id} it={it} pulse={hl.has(`inv:${it.id}`)} active={sel === `inv:${it.id}`} />)}
+              </div>
+            </div>
           ))}
         </div>
       )}
