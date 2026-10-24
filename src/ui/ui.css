@@ -192,6 +192,12 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .rung.installed .art, .rung.crate .art { opacity: 1; }
 .rung.blocked, .rung.locked { opacity: .7; }
 .rung.locked .art { filter: grayscale(.9); opacity: .6; }
+.rung.level { opacity: .8; background: transparent; border-style: dashed; }
+.rung.level .art { filter: grayscale(.85) saturate(.6); opacity: .5; }
+.rung.level .rname { color: var(--mute); }
+.rung.soon, .bcard.soon { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+button.lockbadge { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); color: var(--mute); border-radius: 99rem; background: var(--glass-hi); }
+button.lockbadge:hover { color: var(--accent); }
 .rtier { font-size: 0.6rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .rname { font-size: 0.7rem; font-weight: 600; text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rfoot { min-height: 1.333rem; display: flex; align-items: center; justify-content: center; }
@@ -250,6 +256,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .bcard.installed { border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
 .bcard.dead { border-color: color-mix(in srgb, var(--bad) 65%, transparent); }
 .bcard.blocked, .bcard.locked { opacity: .75; }
+.bcard.level { opacity: .8; border-style: dashed; background: transparent; }
+.bcard.level .bart { filter: grayscale(.85) saturate(.6); opacity: .5; }
 .bhead { display: flex; align-items: baseline; gap: 0.3rem; min-width: 0; }
 .bhead .rname { min-width: 0; font-size: 0.733rem; }
 .bart { display: flex; justify-content: center; }

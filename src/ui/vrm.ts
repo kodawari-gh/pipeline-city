@@ -4,6 +4,7 @@
 import { BOARD_TIERS, getSpec, type VrmSinkSpec } from '../sim/board/specs';
 import { currentDemand, loadRatio, VRM_OVERLOAD } from '../sim/board/vrm';
 import type { Snapshot } from '../sim/game/game';
+import { isNextLevelLock, lockTooltip, type LevelLock } from './levelui';
 import { fmtMoney, type Level } from './logic';
 
 /** Above this share of the phases' rating the VRM is "working hard" (the efficiency curve starts to fall here). */
@@ -102,7 +103,7 @@ export function vrmLines(v: VrmReadout): Array<{ level: Level | 'info'; text: st
 export type BoardSlotIcon = 'cpu' | 'memory' | 'slot' | 'disk' | 'fan' | 'bolt';
 export interface BoardSlotCount { key: string; label: string; count: number; icon: BoardSlotIcon }
 
-export type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked';
+export type BoardCardState = 'installed' | 'dead' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 
 /** One motherboard tier as a card: slots, features, VRM strength with before/after bars, price and the state. */
 export interface BoardCard {
@@ -115,6 +116,9 @@ export interface BoardCard {
   free: boolean;
   /** Why it cannot be taken now (blocked, poor, locked, crate), for the tooltip. */
   reason?: string;
+  /** State `level`: the player level that opens this tier, and whether it is the very next one. */
+  lock?: LevelLock;
+  soon?: boolean;
   /** The buy (or replace) button is live: the sim offers it, nothing blocks it and it is affordable. */
   canBuy: boolean;
   slots: BoardSlotCount[];
@@ -170,6 +174,9 @@ export function boardCards(s: Snapshot): BoardCard[] {
     } else if (crate) {
       state = 'crate';
       reason = 'In your inventory: power off, then drag it onto the board';
+    } else if (p?.locked) {
+      state = 'level';
+      reason = lockTooltip(p.locked, { blocked: p.blocked, priceShort: s.sandbox ? 0 : price - s.money });
     } else if (p?.later) {
       state = 'locked';
       reason = p.description ?? 'Not available yet';
@@ -192,6 +199,8 @@ export function boardCards(s: Snapshot): BoardCard[] {
       price,
       free,
       reason,
+      lock: p?.locked,
+      soon: isNextLevelLock(p?.locked, s.level.level),
       canBuy: (state === 'ready' || state === 'dead') && !!p && !p.blocked && canAfford,
       slots: SLOT_LABELS
         .map((x) => ({ key: x.key, label: x.label, icon: x.icon, count: t.slots[x.key as keyof typeof t.slots] ?? 0 }))

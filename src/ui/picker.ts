@@ -7,6 +7,7 @@ import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
+import { isNextLevelLock, lockTooltip, unlockedFirst, type LevelLock } from './levelui';
 import { JOB_TYPES } from './regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
@@ -40,7 +41,7 @@ export interface Stat {
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
-export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked';
+export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
 export interface LadderStep {
   /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
   specId: string;
@@ -52,6 +53,10 @@ export interface LadderStep {
   free?: boolean;
   /** Why it cannot be bought (poor, blocked) or a short note (crate, locked). */
   reason?: string;
+  /** State `level`: the player level that opens it (greyed tile, lock and "Level N"). */
+  lock?: LevelLock;
+  /** The gating level is the very next one: a subtle outline. */
+  soon?: boolean;
   /** Installed device instance id, for the installed rung. */
   devId?: string;
   /** Inventory item id, for the crate rung. */
@@ -368,6 +373,15 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
     }
     if (tier < ownedMax) continue;
     const p = s.purchases.find((x) => x.id === id);
+    // The player level comes first: before money, hardware and "later".
+    if (p?.locked) {
+      out.push({
+        specId: id, name, tier, state: 'level', price: p.price, free: s.sandbox || undefined, lock: p.locked,
+        soon: isNextLevelLock(p.locked, s.level.level),
+        reason: lockTooltip(p.locked, { blocked: p.blocked, priceShort: s.sandbox ? 0 : p.price - s.money }),
+      });
+      continue;
+    }
     if (p?.later) {
       out.push({ specId: id, name, tier, state: 'locked', reason: p.description ?? 'Not available yet' });
       continue;
@@ -591,7 +605,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       // With an OS installed, its ladder is in the OS section; the bay offers the systems while none is installed.
       ladder: sec && kind === 'os' ? [] : ladder,
       osSection: sec,
-      shelf: id === 'bay' && !s.os ? ladderFor(s, 'os') : undefined,
+      shelf: id === 'bay' && !s.os ? unlockedFirst(ladderFor(s, 'os'), (r) => r.lock) : undefined,
       // The VRM readout rides on the CPU card (what it draws from the regulator) and the motherboard card (the cards).
       vrm: kind === 'cpu' && dev && !dev.burnt ? vrmReadout(s) : undefined,
       boardCards: kind === 'board' ? boardCards(s) : undefined,

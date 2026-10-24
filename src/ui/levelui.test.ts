@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../sim/game/game';
 import { levelRows } from '../sim/game/levels';
-import { hasArt, levelBar, milestoneRows } from './levelui';
+import { hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, unlockedFirst } from './levelui';
+import { pickerFor } from './picker';
+import { boardCards } from './vrm';
 import { snap } from './testdata';
 
 const at = (o: Partial<Snapshot['level']>): Snapshot => {
@@ -80,5 +82,65 @@ describe('milestone list', () => {
     expect(rows[2]!.patience).toBe('stricter');
     expect(rows[2]!.pay).toBe('bigger');
     expect(rows[2]!.waitS).toBe(540);
+  });
+});
+
+describe('locked items', () => {
+  const lock = { level: 4, name: 'Small Office' };
+
+  it('the level reason comes first, then the hardware and money reasons', () => {
+    const t = lockTooltip(lock, { blocked: 'needs a 100 W power supply', priceShort: 50 });
+    expect(t.indexOf('Unlocks at Level 4, Small Office')).toBe(0);
+    expect(t.indexOf('needs a 100 W power supply')).toBeGreaterThan(t.indexOf('Level 4'));
+    expect(t).toContain('more money');
+    expect(lockTooltip(lock)).not.toContain('Then:');
+    expect(lockBadge(lock)).toBe('Level 4');
+  });
+
+  it('outlines only what the very next level opens', () => {
+    expect(isNextLevelLock(lock, 3)).toBe(true);
+    expect(isNextLevelLock(lock, 2)).toBe(false);
+    expect(isNextLevelLock(undefined, 3)).toBe(false);
+  });
+
+  it('shelf order: open items first, then the gated ones by level, stably', () => {
+    const items = [
+      { id: 'a', lock: { level: 8, name: 'x' } }, { id: 'b' }, { id: 'c', lock: { level: 3, name: 'x' } },
+      { id: 'd' }, { id: 'e', lock: { level: 3, name: 'x' } },
+    ];
+    expect(unlockedFirst(items, (i) => i.lock).map((i) => i.id)).toEqual(['b', 'd', 'c', 'e', 'a']);
+  });
+
+  it('a gated purchase is a visible "level" rung with the lock, before money and hardware reasons', () => {
+    const s = snap({
+      purchases: [
+        { id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: false, blocked: 'needs a 100 W power supply', locked: lock },
+        { id: 'cpu2', name: 'Tiny-5F', kind: 'cpu', price: 800, affordable: false, locked: { level: 6, name: 'Neighbourhood' } },
+      ],
+    });
+    const m = pickerFor('cpu1', s)!;
+    const r1 = m.ladder.find((r) => r.specId === 'cpu1')!;
+    expect(r1.state).toBe('level');
+    expect(r1.lock).toEqual(lock);
+    expect(r1.reason!.startsWith('Unlocks at Level 4')).toBe(true);
+    expect(r1.reason).toContain('needs a 100 W power supply');
+    expect(r1.soon).toBe(false);
+    expect(snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }).purchases[0]!.locked).toBeDefined();
+    const r3 = pickerFor('cpu1', snap({ level: { ...s.level, level: 3 }, purchases: s.purchases }))!.ladder.find((r) => r.specId === 'cpu1')!;
+    expect(r3.soon).toBe(true);
+  });
+
+  it('nothing is locked in the sandbox (the sim sends no lock): the rung is a normal buy', () => {
+    const s = snap({ sandbox: true, purchases: [{ id: 'cpu1', name: 'Tiny-5', kind: 'cpu', price: 200, affordable: true }] });
+    expect(pickerFor('cpu1', s)!.ladder.find((r) => r.specId === 'cpu1')!.state).toBe('ready');
+  });
+
+  it('a locked motherboard tier is a "level" card', () => {
+    const s = snap({ purchases: [{ id: 'board1', name: 'Board 1', kind: 'board', price: 100, affordable: true, locked: { level: 2, name: 'Hobby Shop' } }] });
+    const c = boardCards(s).find((x) => x.id === 'board1')!;
+    expect(c.state).toBe('level');
+    expect(c.canBuy).toBe(false);
+    expect(c.soon).toBe(true);
+    expect(c.reason).toContain('Level 2');
   });
 });

@@ -15,12 +15,24 @@ import {
   VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
 } from './vrm';
 import { Icon } from './Icons';
+import { lockBadge, type LevelLock } from './levelui';
+import { openMilestones } from './state';
 import { PartArt } from './PartArt';
 import { anchorOf } from './anchor';
 import { dockPlacement, placePopup, type Rect, type Side } from './place';
 
 const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/** The lock and "Level N" of an item the player level still gates. Pressing it opens the milestone screen at that level. */
+function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
+  return (
+    <button class="lockbadge" title={reason} aria-label={`Locked: unlocks at Level ${lock.level}, ${lock.name}. Show the levels`}
+      onClick={(e) => { e.stopPropagation(); openMilestones(lock.level); }}>
+      <Icon name="lock" size={11} /> {lockBadge(lock)}
+    </button>
+  );
+}
 
 /** One upgrade rung: owned, next (buy), blocked or later. Pressing the card compares it with the current part. */
 function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
@@ -38,6 +50,7 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
       case 'poor': return <span class="need warn" title={step.reason}><Icon name="dollar" size={11} /> {cost}</span>;
       case 'blocked': return <span class="need bad" title={step.reason}><Icon name="lock" size={11} /> Blocked</span>;
       case 'locked': return <span class="need mute" title={step.reason}><Icon name="lock" size={11} /> Later</span>;
+      case 'level': return <LockBadge lock={step.lock!} reason={step.reason} />;
     }
   })();
   // A spare the sim will not fit right now (e.g. the OS needs more memory fitted first): the reason is in the rung.
@@ -48,7 +61,7 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
   const title = step.reason ?? (step.state === 'installed' ? 'Fitted in the machine' : step.state === 'crate' ? step.reason : step.name);
   return (
     <div
-      role="button" tabIndex={0} class={`rung ${step.state} ${picked ? 'picked' : ''}`}
+      role="button" tabIndex={0} class={`rung ${step.state} ${step.soon ? 'soon' : ''} ${picked ? 'picked' : ''}`}
       title={step.warn ? `${title}. Warning: ${step.warn}` : title} aria-pressed={picked}
       onClick={() => onPick(step.specId)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(step.specId); } }}
@@ -96,6 +109,7 @@ function NextLine({ step }: { step: LadderStep }) {
       case 'poor': return `${cost}. ${step.reason ?? ''}`.trim();
       case 'blocked': return `${cost ? `${cost}, ` : ''}${step.reason ?? 'blocked for now'}`;
       case 'locked': return step.reason ?? 'not available yet';
+      case 'level': return step.lock ? `unlocks at Level ${step.lock.level} (${step.lock.name})` : 'locked by level';
       default: return '';
     }
   })();
@@ -213,10 +227,11 @@ function BoardCardView({ c }: { c: BoardCard }) {
       case 'poor': return <span class="need warn" title={c.reason}><Icon name="dollar" size={11} /> {cost}</span>;
       case 'blocked': return <span class="need bad" title={c.reason}><Icon name="lock" size={11} /> Blocked</span>;
       case 'locked': return <span class="need mute" title={c.reason}><Icon name="lock" size={11} /> Later</span>;
+      case 'level': return <LockBadge lock={c.lock!} reason={c.reason} />;
     }
   })();
   return (
-    <div class={`bcard ${c.state}`} role="group" aria-label={c.name} title={c.reason ?? c.name}>
+    <div class={`bcard ${c.state} ${c.soon ? 'soon' : ''}`} role="group" aria-label={c.name} title={c.reason ?? c.name}>
       <div class="bhead"><span class="rtier">Tier {c.tier}</span><span class="rname">{c.name}</span></div>
       <div class="bart"><PartArt id={c.id} size={54} /></div>
       <div class="bslots">

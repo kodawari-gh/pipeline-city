@@ -133,3 +133,35 @@ export function hasArt(id: string, kind: string, planned: boolean): boolean {
   if (planned) return false;
   return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'psu', 'display', 'vrm-sink', 'storage', 'os'].includes(kind);
 }
+
+// ---------- locked items (the player level gates purchases) ----------
+
+export interface LevelLock { level: number; name: string }
+
+/**
+ * The hover text of an item that the player level still gates. The level reason comes first; the money or hardware
+ * reasons that will apply once it is open follow, so the player sees the whole picture.
+ */
+export function lockTooltip(lock: LevelLock, also: { blocked?: string; priceShort?: number } = {}): string {
+  const parts = [`Unlocks at Level ${lock.level}, ${lock.name}. Keep serving clients to grow your client base.`];
+  if (also.blocked) parts.push(`Then: ${also.blocked}.`);
+  if (also.priceShort && also.priceShort > 0) parts.push('It will also need more money than you have now.');
+  return parts.join(' ');
+}
+
+/** The short badge text ("Level 4"). */
+export const lockBadge = (lock: LevelLock): string => `Level ${lock.level}`;
+
+/** The item is gated by exactly the next level: it carries a subtle outline so the player sees what is coming. */
+export const isNextLevelLock = (lock: LevelLock | undefined, current: number): boolean => !!lock && lock.level === current + 1;
+
+/**
+ * Shelf order: items open now first (their order kept), then the gated ones by the level that opens them (order kept
+ * within a level). A stable sort, so the tier order inside each group is the caller's.
+ */
+export function unlockedFirst<T>(items: readonly T[], lockOf: (t: T) => LevelLock | undefined): T[] {
+  return items
+    .map((t, i) => ({ t, i, lv: lockOf(t)?.level ?? 0 }))
+    .sort((a, b) => a.lv - b.lv || a.i - b.i)
+    .map((x) => x.t);
+}
