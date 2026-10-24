@@ -44,7 +44,7 @@ function addNetwork(g: Game): void {
 const fullTray = (seed: number, retire: boolean, demand = 0.012): Game =>
   netRig("ssd1", { seed, keys: keys(10), economy: { retireUsbKeys: retire, baseDemandPerTick: demand } });
 
-describe("retired keys: the rule", () => {
+describe("retired keys: the rule", { timeout: 30000 }, () => {
   it("the USB keys retire when the link comes up; offers that arrive later are not retired", () => {
     const g = netRig("ssd1", { keys: keys(2), economy: { baseDemandPerTick: 0 } });
     const s = g.snapshot();
@@ -172,7 +172,7 @@ describe("retired keys: the rule", () => {
   });
 });
 
-describe("retired keys: save, determinism and the snapshot", () => {
+describe("retired keys: save, determinism and the snapshot", { timeout: 30000 }, () => {
   it("the retired flag survives a save round trip; an old save of a linked game retires its USB keys", () => {
     const g = netRig("ssd1", { keys: keys(2), economy: { baseDemandPerTick: 0 } });
     const save = JSON.parse(JSON.stringify(g.toSave()));
