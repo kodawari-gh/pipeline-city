@@ -35,7 +35,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
     <div class="sbx">
       <button
         ref={chip} class={`sbx-chip ${open ? 'on' : ''}`} aria-expanded={open} aria-controls="sbx-tools"
-        aria-label="Sandbox tools" title="Sandbox game: infinite money, everything unlocked. Click for the sandbox tools."
+        title="Sandbox game: infinite money, everything unlocked. Click for the sandbox tools."
         onClick={() => setOpen(!open)}
       >
         SANDBOX
@@ -62,7 +62,9 @@ export function SandboxTools({ s }: { s: Snapshot }) {
               type="range" min="0.4" max="4" step="0.05" value={shownRep} aria-label="Reputation"
               aria-valuetext={shownRep.toFixed(2)}
               onInput={(e) => { const v = Number(e.currentTarget.value); setRep(v); setReputation(v); }}
-              onChange={() => setRep(null)}
+              // Keep the local value while the slider has focus: a keyboard step fires `change` on every press, and
+              // resetting there snapped the slider back to the last snapshot (the next press started from the old value).
+              onBlur={() => setRep(null)}
             />
             <span class="sbx-val" aria-hidden="true">{shownRep.toFixed(2)}</span>
           </div>
