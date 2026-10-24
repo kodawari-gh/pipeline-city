@@ -12,6 +12,8 @@ import { PickerCard } from './PickerCard';
 import { Stats } from './Stats';
 import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
+import { NewGameDialog, openNewGame } from './NewGame';
+import { SandboxTools } from './SandboxTools';
 import { TutorialCard } from './TutorialCard';
 import {
   replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
@@ -30,7 +32,7 @@ function StartPrompt() {
         <div class="mute">Autosave: tick {offer.baseTick}, {fmtMoney(offer.money)}</div>
         <div class="row">
           <button class="primary" onClick={() => startSim(offer)}>Continue</button>
-          <button onClick={() => startSim(null)}>New game</button>
+          <button onClick={openNewGame}>New game</button>
         </div>
       </div>
     );
@@ -113,12 +115,11 @@ function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
 /** Secondary actions: stats, save files, tutorial, hints and a new game. Kept out of the bar. */
 function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const [open, setOpen] = useState(false);
-  const [confirmNew, setConfirmNew] = useState(false);
   const active = currentStep(s, tutorial.value) !== null;
-  const close = () => { setOpen(false); setConfirmNew(false); };
+  const close = () => setOpen(false);
   return (
     <div class="menu">
-      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-label="Menu" title="Menu" onClick={() => { setOpen(!open); setConfirmNew(false); }}>
+      <button class={`icon ${open ? 'on' : ''}`} aria-expanded={open} aria-label="Menu" title="Menu" onClick={() => setOpen(!open)}>
         <Icon name="menu" size={14} />
       </button>
       {open && (
@@ -147,13 +148,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }}>Replay tutorial</button>
           {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }}>Skip tutorial</button>}
           <button role="menuitem" onClick={() => { resetHints(); close(); }}>Show hints again</button>
-          <button role="menuitem" class={confirmNew ? 'bad' : ''} onClick={() => {
-            if (!confirmNew) { setConfirmNew(true); return; }
-            close();
-            startSim(null);
-          }}>
-            {confirmNew ? 'Really start a new game?' : 'New game'}
-          </button>
+          <button role="menuitem" onClick={() => { close(); openNewGame(); }}>New game</button>
         </div>
       )}
     </div>
@@ -162,17 +157,18 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
 
 export function Hud() {
   const s = snapshot.value;
-  if (!s) return <StartPrompt />;
+  if (!s) return <><StartPrompt /><NewGameDialog /></>;
   const dark = theme.value === 'dark';
   return (
     <>
       <InsetReporter />
       <header class="hud">
-        <div class="money" title="Money. Finish client keys to earn more.">{fmtMoney(s.money)}</div>
+        <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>
         <Reputation s={s} />
         <Queue s={s} />
         <PhaseChip s={s} />
+        {s.sandbox && <SandboxTools s={s} />}
         <div class="grow" />
         <InventoryButton s={s} />
         <div class="seg" role="group" aria-label="Speed">
@@ -188,6 +184,7 @@ export function Hud() {
         <Menu s={s} />
       </header>
       <PickerCard />
+      <NewGameDialog />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
           <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>

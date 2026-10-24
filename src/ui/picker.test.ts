@@ -28,6 +28,14 @@ describe('picker contents per id', () => {
     expect(m.ladder[2]!.reason).toBe('needs a 100 W power supply');
   });
 
+  it('sandbox: nothing is unaffordable and prices read free', () => {
+    const m = pickerFor('cpu0', snap({ sandbox: true, money: 0 }))!;
+    expect(m.ladder.find((r) => r.specId === 'cpu1')).toMatchObject({ state: 'ready', free: true, reason: undefined });
+    const c = pickerFor('cpu0', snap({ money: 0 }))!;
+    expect(c.ladder.find((r) => r.specId === 'cpu1')).toMatchObject({ state: 'poor' });
+    expect(c.ladder.find((r) => r.specId === 'cpu1')!.free).toBeUndefined();
+  });
+
   it('installed CPU: live device, clock control, the ladder starts at the fitted part', () => {
     const s = snap({
       devices: [dev({ id: 'dev1', spec: 'cpu0', kind: 'cpu', slot: 'cpu0' })],

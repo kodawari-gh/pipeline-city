@@ -46,6 +46,8 @@ export interface LadderStep {
   tier: number;
   state: LadderState;
   price?: number;
+  /** Sandbox game: show "free" instead of the price. */
+  free?: boolean;
   /** Why it cannot be bought (poor, blocked) or a short note (crate, locked). */
   reason?: string;
   /** Installed device instance id, for the installed rung. */
@@ -359,10 +361,12 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
       continue;
     }
     if (p) {
-      const state: BuyState = p.blocked ? 'blocked' : p.affordable ? 'ready' : 'poor';
+      // Sandbox: nothing is unaffordable and prices read "free".
+      const can = s.sandbox || p.affordable;
+      const state: BuyState = p.blocked ? 'blocked' : can ? 'ready' : 'poor';
       out.push({
-        specId: id, name, tier, state, price: p.price,
-        reason: p.blocked ?? (p.affordable ? undefined : `Need ${fmtMoney(p.price - s.money)} more`),
+        specId: id, name, tier, state, price: p.price, free: s.sandbox || undefined,
+        reason: p.blocked ?? (can ? undefined : `Need ${fmtMoney(p.price - s.money)} more`),
       });
     } else {
       out.push({ specId: id, name, tier, state: 'locked', reason: 'Not available yet' });
