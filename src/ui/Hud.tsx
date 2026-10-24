@@ -237,7 +237,7 @@ export function Hud() {
         <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">
         <SpeedControl />
-        <button class="icon" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>
+        <button class="icon" title={dark ? 'Switch to the light theme (experimental)' : 'Switch to the dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>
           <Icon name={dark ? 'sun' : 'moon'} size={14} />
         </button>
         <Menu s={s} />

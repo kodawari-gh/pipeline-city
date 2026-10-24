@@ -12,9 +12,11 @@ let ST: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 const resetTutorialState = () => { ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] }; };
 /** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
-/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial is over in eight. */
+/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial, network included, is over in eight. */
 const SMOOTH_STEP_TICKS = 120;
 const SMOOTH_TOTAL_TICKS = 480;
+/** Steps a player may already be past when they come up (the level is reached while the OS lesson runs). */
+const OPTIONAL: StepId[] = ['reachLevel4'];
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
 
 /**
@@ -89,10 +91,18 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'fitRam': installPart(['ram']); break;
     case 'buyOs': buy('os1', 150); break;
     case 'os': installPart(['os']); break;
-    case 'osIngest':
+    case 'osIngest': case 'reachLevel4':
       if (!g.powered) g.powerButton();
       if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
       break;
+    case 'buyIsp': buy('isp1', 150); break;
+    case 'buyRouter': buy('router1', 60); break;
+    case 'placeRouter': installPart(['router']); break;
+    case 'buyBoard': if (g.powered) g.powerButton(); else buy('board1', 150); break; // a board can only be bought with the machine off
+    case 'fitBoard': installPart(['board']); break;
+    case 'plugLan': g.connectCable('lan'); break;
+    case 'linkUp': if (!g.powered) g.powerButton(); break; // the OS brings the link up by itself
+    case 'firstNetJob': break; // the jobs arrive and run on their own
     case 'welcome': case 'done': break;
   }
 }
@@ -119,8 +129,8 @@ describe('the tutorial is completable with public actions', () => {
 
 
     // Every step (but welcome, which the bot skips past with the Start button) became active, in STEPS order.
-    const expected = STEPS.filter((x) => x.id !== 'welcome').map((x) => x.id);
-    expect(seen.map((x) => x.id)).toEqual(expected);
+    const expected = STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id);
+    expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(expected);
     expect(finishedAt).toBeGreaterThan(0);
 
     // No step waited more than 10 minutes of game time (a money wait is the usual cause).
@@ -207,31 +217,11 @@ describe('the tutorial stays smooth across seeds and player speeds', () => {
     it(`seed ${seed}, one action every ${every} s: every step in order, nothing refused, no step waits long`, () => {
       const { seen, refused, finishedAt } = runTutorial(seed, every);
       expect(finishedAt, 'the tutorial reached its last card').toBeGreaterThan(0);
-      expect(seen.map((x) => x.id)).toEqual(STEPS.filter((x) => x.id !== 'welcome').map((x) => x.id));
+      expect(seen.map((x) => x.id).filter((x) => !OPTIONAL.includes(x))).toEqual(STEPS.filter((x) => x.id !== 'welcome' && !OPTIONAL.includes(x.id)).map((x) => x.id));
       expect(refused).toEqual([]);
       const long = seen.map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick })).filter((x) => x.dur > SMOOTH_STEP_TICKS);
       expect(long).toEqual([]);
       expect(finishedAt).toBeLessThanOrEqual(SMOOTH_TOTAL_TICKS);
     }, 60000);
   }
-});
-
-describe('after the tutorial: the network goal is within reach', () => {
-  it('serving keys with the OS, basic jobs alone reach Level 4 and can pay for the board, router and plan', () => {
-    const { g, finishedAt } = runTutorial(7, 1);
-    expect(finishedAt).toBeGreaterThan(0);
-    let level4At = -1, affordAt = -1;
-    for (let tick = 1; tick <= 6000; tick++) {
-      g.advanceBaseTick();
-      const s = g.snapshot();
-      act(g, s, 'osIngest'); // the OS flow: keep the machine on and plug the next key
-      if (level4At < 0 && s.level.level >= 4) level4At = tick;
-      const cost = (id: string) => s.purchases.find((p) => p.id === id)?.price ?? Infinity;
-      if (affordAt < 0 && s.money >= cost('board1') + cost('router1') + cost('isp1')) affordAt = tick;
-      if (level4At > 0 && affordAt > 0) break;
-    }
-    expect(level4At, 'Level 4 reached').toBeGreaterThan(0);
-    expect(affordAt, 'board + router + plan affordable').toBeGreaterThan(0);
-    expect(affordAt).toBeLessThanOrEqual(600); // ten minutes of basic jobs at most
-  }, 60000);
 });

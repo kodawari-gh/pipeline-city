@@ -85,14 +85,31 @@ describe('tutorial step from snapshot flags', () => {
     expect(idOf(currentStep(snap({ progress: oldDone() }), welcomed))).toBe('fit');
   });
 
-  it('after the OS job is paid out the tutorial ends on its last card, at any level: the network is the next goal, not a lesson', () => {
+  it('after the OS job is paid out the network chapter follows, step by step, to the last card', () => {
     const base = { ...oldDone(), storageInstalled: true, osInstalled: true, firstOsJob: true };
-    const s2 = (extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({
-      progress: base, storage: [drive({ hasOs: true })], os: osOn(), inventory: [], level: atLevel(3), ...extra,
+    const net = (progress: Record<string, boolean>, extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({
+      progress: { ...base, ...progress }, storage: [drive({ hasOs: true })], os: osOn(), inventory: [], level: atLevel(4), ...extra,
     });
-    expect(idOf(currentStep(s2(), welcomed))).toBe('done');
-    expect(idOf(currentStep(s2({ level: atLevel(4) }), welcomed))).toBe('done');
-    expect(STEPS.find((x) => x.id === 'done')!.text).toMatch(/Level 4/);
+    const jackBoard = { ...snap().board, features: { ...snap().board.features, ethernetMbps: 100 } };
+    const at = (s: ReturnType<typeof snap>) => idOf(currentStep(s, welcomed));
+    expect(at(net({}, { level: atLevel(3) }))).toBe('reachLevel4');
+    expect(at(net({}))).toBe('buyIsp');
+    expect(at(net({ ispBought: true }))).toBe('buyRouter');
+    expect(at(net({ ispBought: true }, { inventory: [invItem('router', 'router1', 'inv8', ['router'])] }))).toBe('placeRouter');
+    expect(at(net({ ispBought: true, routerInstalled: true }))).toBe('buyBoard');
+    expect(at(net({ ispBought: true, routerInstalled: true }, { inventory: [{ ...invItem('board', 'board1', 'inv9'), swapSlots: ['board'] }] }))).toBe('fitBoard');
+    expect(at(net({ ispBought: true, routerInstalled: true }, { board: jackBoard }))).toBe('plugLan');
+    expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true }, { board: jackBoard }))).toBe('linkUp');
+    expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }, { board: jackBoard }))).toBe('firstNetJob');
+    expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true, firstNetJob: true }, { board: jackBoard }))).toBe('done');
+  });
+
+  it('the board can only be bought with the machine off: the step lights the power button first, then the Shop', () => {
+    const step = STEPS.find((x) => x.id === 'buyBoard')!;
+    const purchases = [{ id: 'board1', name: 'Basic', kind: 'board' as const, price: 150, affordable: true }];
+    expect(step.targets(snap({ powered: true, purchases }))).toEqual(['power']);
+    expect(step.targets(snap({ powered: false, purchases }))).toEqual(['hud:shop', 'buy:board1']);
+    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/);
   });
 
   it('skipped and finished tutorials show nothing', () => {

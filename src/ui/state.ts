@@ -29,7 +29,8 @@ export type Theme = 'dark' | 'light';
 function initialTheme(): Theme {
   const saved = readStore(THEME_KEY);
   if (saved === 'dark' || saved === 'light') return saved;
-  try { return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch { return 'dark'; }
+  // Dark is the primary look; light is experimental and only on when the player chose it, whatever the system prefers.
+  return 'dark';
 }
 
 export const theme = signal<Theme>(initialTheme());

@@ -21,7 +21,10 @@ const SHOTS = new URL('./shots/', import.meta.url);
 mkdirSync(SHOTS, { recursive: true });
 
 const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
-  'fit', 'reachLevel3', 'buyDrive', 'drive', 'buyRam', 'fitRam', 'buyOs', 'os', 'bootOs', 'osIngest', 'osPaid', 'done'];
+  'fit', 'reachLevel3', 'buyDrive', 'drive', 'buyRam', 'fitRam', 'buyOs', 'os', 'bootOs', 'osIngest', 'osPaid',
+  'reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'buyBoard', 'fitBoard', 'plugLan', 'linkUp', 'firstNetJob', 'done'];
+// A player may already be past these when they come up (the level is reached while the OS lesson runs).
+const OPTIONAL = ['reachLevel4'];
 
 const log = (...a) => console.log(...a);
 
@@ -167,6 +170,13 @@ async function finishDialogue() {
   await p.click('.dlg-actions.on button.primary');
   await p.waitForTimeout(400);
 }
+/** Open the Shop and press the glowing Buy tile in it. */
+async function buyInShop() {
+  await p.click('[data-hud=shop]'); await p.waitForTimeout(700);
+  const btn = await p.$('.shop .rung.pulse button.buy');
+  if (btn) { await btn.click(); await p.waitForTimeout(500); } else log('  no glowing buy tile in the shop');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+}
 /** Open a picker and press the glowing Buy tile in it. */
 async function buyGlowing(openId) {
   if (!(await clickAnchor(openId))) return false;
@@ -232,12 +242,7 @@ for (let i = 0; i < 1500; i++) {
       else await p.waitForTimeout(800);
       break; }
     case 'money': case 'reputation': case 'level': await finishDialogue(); break;
-    case 'spend': { // the Shop, then the glowing tile in it
-      await p.click('[data-hud=shop]'); await p.waitForTimeout(700);
-      const btn = await p.$('.shop .rung.pulse button.buy');
-      if (btn) { await btn.click(); await p.waitForTimeout(500); } else log('  no glowing buy tile in the shop');
-      await p.keyboard.press('Escape'); await p.waitForTimeout(400);
-      break; }
+    case 'spend': case 'buyIsp': case 'buyRouter': await buyInShop(); break; // the Shop, then the glowing tile in it
     case 'fit': {
       const it = s.inventory.find((x) => x.freeSlots.length + x.swapSlots.length > 0 && ['cpu', 'ram', 'psu', 'cooler', 'display'].includes(x.kind));
       if (it) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800);
@@ -248,7 +253,14 @@ for (let i = 0; i < 1500; i++) {
       const it = inv(id === 'drive' ? 'storage' : id === 'os' ? 'os' : 'ram');
       if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800);
       break; }
-    case 'bootOs': if (!s.powered) await clickAnchor('power'); else await p.waitForTimeout(800); break;
+    case 'bootOs': case 'linkUp': if (!s.powered) await clickAnchor('power'); else await p.waitForTimeout(800); break;
+    case 'placeRouter': { const it = inv('router'); if (it) await dragPart(it.id, it.freeSlots[0] ?? 'router'); break; }
+    case 'buyBoard': if (s.powered) { await clickAnchor('power'); await p.waitForTimeout(1500); } else await buyInShop(); break; // a board can only be bought with the machine off
+    case 'fitBoard': { const it = inv('board'); if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800); break; }
+    case 'plugLan': await dragCable('lan'); break;
+    case 'reachLevel4': // the client base grows by delivering, with the OS the keys stay in: plug the next one
+      if (!s.powered) await clickAnchor('power'); else if (!(await serve(s))) await p.waitForTimeout(800);
+      break;
     case 'reachLevel3': // the client base grows by delivering: a player keeps the keys coming
       if (!(await serve(s))) await p.waitForTimeout(800);
       break;
@@ -264,7 +276,7 @@ for (let i = 0; i < 1500; i++) {
 await shot('end');
 await setSpeed(4);
 
-const missing = EXPECTED.filter((x) => !seen.includes(x));
+const missing = EXPECTED.filter((x) => !OPTIONAL.includes(x) && !seen.includes(x));
 const outOfOrder = seen.filter((x, i) => i > 0 && EXPECTED.indexOf(x) < EXPECTED.indexOf(seen[i - 1]));
 log('seen   ', seen.join(' > '));
 log('missing', JSON.stringify(missing), ' out of order', JSON.stringify(outOfOrder), ' page errors', JSON.stringify(errors));

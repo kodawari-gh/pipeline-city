@@ -9,7 +9,7 @@
 // Each step is one short instruction (`text`); the explanation is part of the text, in plain words, written for someone who has never opened a computer. A step belongs
 // to a chapter (`Build`, `First jobs`, `The OS`), which the card shows instead of "step 17 of 33".
 
-import { getSpec } from '../sim/board/specs';
+import { BOARD_TIERS, getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
 import type { Dragging } from '../game/interaction';
 import type { Snapshot } from '../sim/game/game';
@@ -38,10 +38,11 @@ export const INITIAL_TUTORIAL: TutorialState = {
 
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
-  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
+  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid'
+  | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'buyBoard' | 'fitBoard' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
 
-export type Chapter = 'Build' | 'First jobs' | 'The OS';
-export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS'];
+export type Chapter = 'Build' | 'First jobs' | 'The OS' | 'The network';
+export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS', 'The network'];
 
 export interface StepDef {
   id: StepId;
@@ -117,6 +118,10 @@ const fitsGeneralStep = (s: Snapshot, i: Snapshot['inventory'][number]) => pendi
 const hasBigRam = (s: Snapshot) => invOf(s, 'ram').some((i) => { const sp = getSpec(i.spec); return !!sp && 'sizeBytes' in sp && sp.sizeBytes >= OS_RAM_BYTES; });
 const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
+const ownsRouter = (s: Snapshot) => !!s.net.router || invOf(s, 'router').length > 0;
+/** The machine has a network port: the board's own jack, or a network card. */
+const hasJack = (s: Snapshot) => s.board.features.ethernetMbps > 0 || s.devices.some((d) => d.kind === 'nic' && !d.burnt);
+const ownsJackBoard = (s: Snapshot) => hasJack(s) || invOf(s, 'board').some((i) => (BOARD_TIERS[Number(/^board(\d+)$/.exec(i.spec)?.[1])]?.features.ethernetMbps ?? 0) > 0);
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
 /** The OS has copied a key into its queue (plugged). */
@@ -239,8 +244,41 @@ export const STEPS: StepDef[] = [
   { id: 'osPaid', chapter: 'The OS', title: 'Wait for the result', flag: 'firstOsJob',
     text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you get paid. The machine stays on and takes the next key as soon as you plug it in. Watch the monitor to see what the OS is doing.',
     targets: () => ['monitor'] },
+  // ---- the network (docs/NETWORK.md): an internet plan, a router, a port, a cable ----
+  { id: 'reachLevel4', chapter: 'The network', title: 'Time to go online', flag: null,
+    done: (s) => s.level.level >= 4 || s.progress.ispBought || ownsRouter(s),
+    text: 'Clients are tired of carrying USB sticks around! From Level 4 they can send you jobs over the internet instead. Keep delivering jobs until your level reaches 4.',
+    targets: (s, drag) => (s.plugged || !s.tray[0] ? [] : plugTarget(s, drag, s.tray[0])), meter: levelMeter },
+  { id: 'buyIsp', chapter: 'The network', title: 'Buy an internet plan', flag: 'ispBought',
+    text: 'Going online takes three things: an internet plan, a router, and a network port on your board. First the plan. It decides how fast jobs travel and how many clients can send you work at once. Open the Shop and buy the Basic DSL plan.' + BROKE,
+    targets: whenAffordable('isp1', () => ['hud:shop', 'buy:isp1']) },
+  { id: 'buyRouter', chapter: 'The network', title: 'Buy a router', flag: null,
+    done: (s, p) => p.routerInstalled || ownsRouter(s),
+    text: 'Now the router: the little box that connects your workshop to the internet. It has its own power, so it stays on even when your computer is off. Open the Shop and buy one.' + BROKE,
+    targets: whenAffordable('router1', () => ['hud:shop', 'buy:router1']) },
+  { id: 'placeRouter', chapter: 'The network', title: 'Place the router', flag: 'routerInstalled',
+    text: 'Put the router in its spot next to the monitor. You can do this while the machine is running. Drag it from the inventory to the lit spot.',
+    targets: (s) => [...invOf(s, 'router').map((i) => `inv:${i.id}`), ...invOf(s, 'router').flatMap((i) => i.freeSlots)] },
+  { id: 'buyBoard', chapter: 'The network', title: 'A board with a network port', flag: null,
+    done: (s) => ownsJackBoard(s),
+    text: 'Your starter board has no network port, like a laptop with no socket for the cable. The Basic board has one, and all your parts carry over to it. A board can only be bought while the machine is switched off, so press the power button first, then open the Shop and buy it.' + BROKE,
+    // The machine is still running from the OS lesson: the power button first, then the Shop.
+    targets: (s) => (s.powered ? ['power'] : whenAffordable('board1', () => ['hud:shop', 'buy:board1'])(s)) },
+  { id: 'fitBoard', chapter: 'The network', title: 'Fit the new board', flag: null,
+    done: (s) => hasJack(s),
+    text: 'Drag the new board onto the old one. The machine switches off for a moment to swap it, moves your parts over, and starts again by itself. If a job is running it waits for the job to finish first.',
+    targets: whileSwapQueued((s) => invOf(s, 'board').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
+  { id: 'plugLan', chapter: 'The network', title: 'Plug in the network cable', flag: 'lanConnected',
+    text: 'The ethernet cable joins the router to your machine. Drag its loose end from the router to the network port on the board. Unlike the other cables, this one can be plugged in while the machine is running.',
+    targets: () => ['cable.lan'] },
+  { id: 'linkUp', chapter: 'The network', title: 'Bring the link up', flag: 'linkUp',
+    text: 'The operating system brings the connection up by itself once everything is in place. Give it a moment: the router lights up when the link is ready.',
+    targets: (s) => (s.powered ? ['router'] : ['power']) },
+  { id: 'firstNetJob', chapter: 'The network', title: 'Your first online job', flag: 'firstNetJob',
+    text: 'Jobs now download in the background, the OS runs them one at a time, and the answers are sent back by themselves. You get paid on delivery. No more plugging in keys: just watch the monitor and wait for the first one.',
+    targets: () => ['monitor'] },
   { id: 'done', chapter: null, title: 'Workshop open', flag: null,
-    text: 'The machine now runs jobs on its own. Next goal: the network, which opens at Level 4, so jobs arrive without keys. It needs a Basic board for the jack, a router and a plan, and no more memory.',
+    text: 'The workshop runs itself now. Clients send jobs over the internet and the results go back by themselves, so USB keys have stopped arriving. If the power drops, waiting jobs are kept safe on the drive. From here on it is up to you: faster plans, routers and network cards make the workshop quicker, and heavier jobs pay better.',
     targets: () => [] },
 ];
 
@@ -374,8 +412,14 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.pendingSwap ? SWAP_WAIT : null;
     case 'fitRam':
       return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'ram');
-    case 'buyDrive': case 'buyRam': case 'buyOs': {
-      const id = step.id === 'buyDrive' ? 'hdd0' : step.id === 'buyRam' ? 'ram1' : 'os1';
+    case 'fitBoard': return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'board');
+    case 'placeRouter': return itemReason(s, 'router');
+    case 'plugLan': return s.cables.find((c) => c.id === 'lan')?.blocked ?? null;
+    case 'linkUp': if (!s.powered) return 'The machine is off: press the power button, the OS brings the link up once it is running.'; return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : `Waiting for the link: ${s.net.reason}`;
+    case 'firstNetJob': return s.net.offers.length || s.net.spooled.length ? null : 'Waiting for a client to send a job. It can take a minute or two.';
+    case 'buyDrive': case 'buyRam': case 'buyOs': case 'buyIsp': case 'buyRouter': case 'buyBoard': {
+      if (step.id === 'buyBoard' && s.powered && !s.purchases.find((x) => x.id === 'board1')?.locked) return 'The machine is on: press the power button to switch it off, then buy the board.';
+      const id = ({ buyDrive: 'hdd0', buyRam: 'ram1', buyOs: 'os1', buyIsp: 'isp1', buyRouter: 'router1', buyBoard: 'board1' } as Record<string, string>)[step.id]!;
       const p = s.purchases.find((x) => x.id === id);
       if (!p) return null;
       if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
