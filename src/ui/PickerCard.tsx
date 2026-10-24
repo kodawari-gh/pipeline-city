@@ -36,7 +36,7 @@ function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
 }
 
 /** One upgrade rung: owned, next (buy), blocked or later. Pressing the card compares it with the current part. */
-function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
+export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
   const cost = step.free ? 'free' : fmtMoney(step.price ?? 0);
   const foot = (() => {
     switch (step.state) {
@@ -52,6 +52,7 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
       case 'blocked': return <span class="need bad" title={step.reason}><Icon name="lock" size={11} /> Blocked</span>;
       case 'locked': return <span class="need mute" title={step.reason}><Icon name="lock" size={11} /> Later</span>;
       case 'level': return <LockBadge lock={step.lock!} reason={step.reason} />;
+      case 'outclassed': return <span class="need mute" title={step.reason}><Icon name="check" size={11} /> Outgrown</span>;
     }
   })();
   // A spare the sim will not fit right now (e.g. the OS needs more memory fitted first): the reason is in the rung.
@@ -77,7 +78,7 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
 }
 
 /** Before/after bars: grey is the current part, coloured is the option; the delta is coloured by whether it is better. */
-function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
+export function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
   if (!rows.length) return null;
   return (
     <div class="compare" aria-label={`Compared with ${shortName(getSpec(option)?.name ?? option)}`}>
@@ -445,7 +446,8 @@ export function PickerCard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [id]);
 
-  const m = id && s ? pickerFor(id, s) : null;
+  // A spare part in the inventory shows its stats in the shelf's own side card, not here.
+  const m = id && s && !id.startsWith('inv:') ? pickerFor(id, s) : null;
   const open = !!m;
 
   useEffect(() => {

@@ -20,7 +20,8 @@ const BLOCK_BYTES = 256;
 export type PickerKind = DeviceKind | 'board' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
-  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick';
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick'
+  | 'board' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -50,7 +51,7 @@ export interface Stat {
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
-export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level' | 'outclassed';
 export interface LadderStep {
   /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
   specId: string;
@@ -387,9 +388,9 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | '
 
 /**
  * The upgrade ladder for a kind: installed and inventory rungs, then each tier the sim offers (ready, poor, blocked).
- * Tiers older than the best part you own are left out; tiers the sim does not offer and you do not own are `locked`.
+ * Tiers older than the best part you own are left out (kept as `outclassed` with `all`, for the shop); tiers the sim does not offer and you do not own are `locked`.
  */
-export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
+export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderStep[] {
   const installed: Array<{ spec: string; devId: string }> = kind === 'board'
     ? [{ spec: boardId(s.boardTier), devId: '' }]
     : kind === 'os'
@@ -414,7 +415,11 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
       out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason });
       continue;
     }
-    if (tier < ownedMax) continue;
+    if (tier < ownedMax) {
+      // The shop lists every tier; the upgrade ladder leaves the ones you have outgrown out.
+      if (all) out.push({ specId: id, name, tier, state: 'outclassed', reason: 'You already own a better one' });
+      continue;
+    }
     const p = s.purchases.find((x) => x.id === id);
     // The player level comes first: before money, hardware and "later".
     const lock = lockOf(s, id, p);

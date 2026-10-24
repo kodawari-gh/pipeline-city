@@ -68,6 +68,12 @@ export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.val
 // ---- milestone screen (the ladder of levels; opened from the HUD level bar, the menu and a locked tile) ----
 
 /** Open flag and the level to scroll to (null: the current level). */
+/** The shop: every item in the game, with its price and state. */
+export const shopOpen = signal(false);
+export const openShop = () => { shopOpen.value = true; };
+export const closeShop = () => { shopOpen.value = false; };
+export const toggleShop = () => { shopOpen.value = !shopOpen.value; };
+
 export const milestones = signal<{ focus: number | null } | null>(null);
 export const openMilestones = (focus: number | null = null) => { milestones.value = { focus }; };
 export const closeMilestones = () => { milestones.value = null; };

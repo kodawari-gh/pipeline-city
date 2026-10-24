@@ -4,6 +4,12 @@ import { rem } from './units';
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
 const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'export' | 'import', string[]> = {
+  board: ['M2 2.5h12v11H2z', 'M4.5 5h3v3h-3z', 'M9.5 5h2M9.5 7.5h2M4.5 10.5h7'],
+  heatsink: ['M2 13.2h12', 'M3.8 13.2V7.5M6.6 13.2V3.2M9.4 13.2V3.2M12.2 13.2V7.5'],
+  layers: ['M8 2 14 5.2 8 8.4 2 5.2z', 'M2 8.2l6 3.2 6-3.2', 'M2 11l6 3.2 6-3.2'],
+  router: ['M2 9h12v4H2z', 'M4.6 11h.01M7 11h.01', 'M5 9 4 4.2M11 9l1-4.8'],
+  globe: ['M8 14.4a6.4 6.4 0 1 0 0-12.8 6.4 6.4 0 0 0 0 12.8z', 'M1.8 8h12.4', 'M8 1.6c-2.6 2.2-2.6 10.6 0 12.8M8 1.6c2.6 2.2 2.6 10.6 0 12.8'],
+  shop: ['M3 5.2h10l-.8 8.6H3.8z', 'M5.6 5.2V4a2.4 2.4 0 0 1 4.8 0v1.2'],
   star: ['M8 1.8l1.9 4 4.3.5-3.2 2.9.9 4.3L8 11.3l-3.9 2.2.9-4.3-3.2-2.9 4.3-.5z'],
   stick: ['M1.8 5.4h7.6v5.2H1.8z', 'M9.4 6.6h4.8v2.8H9.4z', 'M4 8h.01'],
   bolt: ['M9.2 1.5 3.6 9h3.7l-.9 5.5L12.4 7H8.7z'],

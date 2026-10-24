@@ -17,6 +17,7 @@ import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
 import { SandboxTools } from './SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
+import { Shop } from './Shop';
 import { TutorialCard } from './TutorialCard';
 import {
   netOpen, openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
@@ -232,6 +233,7 @@ export function Hud() {
       <PickerCard />
       <NewGameDialog />
       <MilestoneScreen s={s} />
+      <Shop s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
           <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>

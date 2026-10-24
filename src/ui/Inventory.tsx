@@ -1,13 +1,14 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '../sim/game/game';
 import { selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
-import { getSpec } from '../sim/board/specs';
-import { getOsSpec } from '../sim/os';
-import { describeId, fitFilterFor, fitsFilter, inventoryGroups, KIND_LABEL, stackItems, type Stack } from './logic';
+import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from './logic';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
 import { INVENTORY_ID } from './tutorial';
-import { fitTarget, inventoryKind, inventoryOpen, toggleInventory } from './state';
+import { StatCard } from './StatCard';
+import { kindIcon, kindLabel, tierOfSpec } from './shopdata';
+import { fitTarget, inventoryKind, inventoryOpen, shopOpen, toggleInventory, toggleShop } from './state';
 import { beginPartDrag } from './worldDrag';
 
 const shortName = (name: string) => name.split(' (')[0]!;
@@ -32,25 +33,29 @@ function InventoryButton({ s }: { s: Snapshot }) {
   );
 }
 
-/** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
-export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /></div>;
+/** The shop button: every item in the game, with prices. */
+function ShopButton() {
+  const open = shopOpen.value;
+  return (
+    <button class={`invbtn ${open ? 'on' : ''}`} aria-pressed={open} aria-label="Shop" title="Shop: everything you can buy" onClick={toggleShop}>
+      <Icon name="shop" size={14} />
+      <span class="hide-narrow">Shop</span>
+    </button>
+  );
 }
 
-/** Tier of a spec id ("Tier 2"), or null when it has none. */
-function tierOf(specId: string): number | null {
-  const bm = /^board(\d+)$/.exec(specId);
-  if (bm) return Number(bm[1]);
-  return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
+/** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
+export function InventoryBar({ s }: { s: Snapshot }) {
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
-function Tile({ st, pulse, active }: { st: Stack<InventorySnap>; pulse: boolean; active: boolean }) {
+function Tile({ st, pulse, active, onHover }: { st: Stack<InventorySnap>; pulse: boolean; active: boolean; onHover: (id: string | null) => void }) {
   const it = st.rep;
   const n = st.items.length;
   const why = it.installable ? undefined : it.reason ?? 'Nothing to fit it to right now';
   const plain = describeId(it.spec)?.plain ?? '';
-  const tier = tierOf(it.spec);
+  const tier = tierOfSpec(it.spec);
   return (
     <div
       role="button"
@@ -61,11 +66,15 @@ function Tile({ st, pulse, active }: { st: Stack<InventorySnap>; pulse: boolean;
       onPointerDown={(e) => {
         if (e.button === 0) beginPartDrag(it.id, e);
       }}
-      onClick={() => { selected.value = `inv:${it.id}`; }}
+      onPointerEnter={() => onHover(it.id)}
+      onPointerLeave={() => onHover(null)}
+      onFocus={() => onHover(it.id)}
+      onBlur={() => onHover(null)}
+      onClick={() => { selected.value = selected.value === `inv:${it.id}` ? null : `inv:${it.id}`; }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          selected.value = `inv:${it.id}`;
+          selected.value = selected.value === `inv:${it.id}` ? null : `inv:${it.id}`;
         }
       }}
     >
@@ -83,7 +92,19 @@ function Tile({ st, pulse, active }: { st: Stack<InventorySnap>; pulse: boolean;
  * grouped by kind. It collapses while a part is being dragged (`dragging` is written by the renderer), so the board is
  * visible for the drop; it keeps its layout space so nothing re-flows under the pointer.
  */
+/** How long the pointer rests on a tile before its stats open (a tiny delay: passing over tiles does not flash cards). */
+const HOVER_MS = 380;
+
 export function InventoryPanel({ s }: { s: Snapshot }) {
+  // The part whose stats show in the side card: the one the pointer rested on, else the selected one.
+  const [hover, setHover] = useState<string | null>(null);
+  const timer = useRef(0);
+  const onHover = (id: string | null) => {
+    window.clearTimeout(timer.current);
+    if (id === null) setHover(null);
+    else timer.current = window.setTimeout(() => setHover(id), HOVER_MS);
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   if (!inventoryOpen.value) return null;
   const away = dragging.value?.kind === 'part';
   const hl = new Set(highlight.value);
@@ -96,9 +117,15 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const shown = fit && fitting.length ? fitting : kind ? s.inventory.filter((it) => it.kind === kind) : s.inventory;
   const kinds = inventoryGroups(s.inventory).map((g) => g.k);
   const groups = inventoryGroups(shown);
-  const label = (k: string) => (k === 'os' ? 'Software' : KIND_LABEL[k as keyof typeof KIND_LABEL] ?? k);
+  const infoId = hover ?? (sel?.startsWith('inv:') ? sel.slice(4) : null);
+  const info = infoId ? s.inventory.find((x) => x.id === infoId) : undefined;
   return (
     <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
+      {info && !away && (
+        <aside class="card inv-info" aria-label={`${info.name} stats`}>
+          <StatCard s={s} specId={info.spec} fit={{ ok: info.installable, text: info.installable ? 'Fits: drag it onto a socket' : info.reason ?? 'Nothing to fit it to right now' }} />
+        </aside>
+      )}
       <header class="inv-head">
         <span class="inv-title"><Icon name="box" size={15} /> Inventory <b>{n}</b></span>
         {fit && fitting.length > 0 ? (
@@ -110,7 +137,10 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
           <span class="inv-chips" role="group" aria-label="Filter by kind">
             <button class={!kind ? 'on' : ''} aria-pressed={!kind} onClick={() => { inventoryKind.value = null; }}>All</button>
             {kinds.map((k) => (
-              <button key={k} class={kind === k ? 'on' : ''} aria-pressed={kind === k} onClick={() => { inventoryKind.value = kind === k ? null : k; }}>{label(k)}</button>
+              <button key={k} class={`ic ${kind === k ? 'on' : ''}`} aria-pressed={kind === k} aria-label={kindLabel(k)} title={kindLabel(k)}
+                onClick={() => { inventoryKind.value = kind === k ? null : k; }}>
+                <Icon name={kindIcon(k)} size={14} />
+              </button>
             ))}
           </span>
         )}
@@ -122,10 +152,10 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
         <div class="inv-groups">
           {groups.map((g) => (
             <div class="inv-group" key={g.k}>
-              <div class="inv-gname">{label(g.k)}</div>
+              <div class="inv-gname" title={kindLabel(g.k)}><Icon name={kindIcon(g.k)} size={12} /> {kindLabel(g.k)}</div>
               <div class="inv-tiles">
                 {stackItems(g.items).map((st) => (
-                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`) || x.id === s.pendingSwap?.invId)} active={st.items.some((x) => sel === `inv:${x.id}`)} />
+                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`) || x.id === s.pendingSwap?.invId)} active={st.items.some((x) => sel === `inv:${x.id}`)} onHover={onHover} />
                 ))}
               </div>
             </div>
