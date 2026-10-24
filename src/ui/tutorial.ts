@@ -128,11 +128,11 @@ const levelMeter = (s: Snapshot) => { const m = levelBar(s); return { pct: m.pct
 export const STEPS: StepDef[] = [
   {
     id: 'welcome', chapter: null, title: 'Welcome', flag: null,
-    text: 'Every computer has a brain. This one is called the processor, or CPU, and it does all the thinking, one tiny step at a time. Drag it onto the big square socket on the board.',
+    text: 'Welcome to Pipeline City! This tiny workshop is yours now. Clients will bring you jobs on little USB sticks called keys. Your machine does each job and you get paid. First things first: you need a machine! Open the inventory (the box at the bottom) and drag the parts onto the board.',
     targets: () => [INVENTORY_ID],
   },
   { id: 'cpu', chapter: 'Build', title: 'Install the processor', flag: 'cpuInstalled',
-    text: 'Drag the processor (CPU) onto the big square socket.',
+    text: 'Every computer has a brain. This one is called the processor, or CPU, and it does all the thinking, one tiny step at a time. Drag it onto the big square socket on the board.',
     targets: installTargets('cpu') },
   { id: 'cooler', chapter: 'Build', title: 'Install the cooler', flag: 'coolerInstalled',
     text: 'Thinking is hot work! The CPU gets toasty while it runs, so it needs a fan to blow the heat away. Drag the cooler onto the processor.',

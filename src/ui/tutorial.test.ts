@@ -473,6 +473,15 @@ describe('step targets (what the renderer pulses)', () => {
   });
 });
 
+describe('step texts', () => {
+  it('every step has its own text, and the welcome opens the game', () => {
+    const texts = STEPS.map((x) => x.text);
+    expect(new Set(texts).size).toBe(texts.length);
+    expect(STEPS[0]!.text).toMatch(/^Welcome to Pipeline City!/);
+    expect(STEPS.find((x) => x.id === 'cpu')!.text).toMatch(/processor/);
+  });
+});
+
 describe('every step target names a real id', () => {
   /** Ids the renderer registers that are not described slots: buttons, the monitor, and the per-item `inv:`/`key:` ids. */
   const FIXED = new Set(['inventory', 'power', 'monitor']);
