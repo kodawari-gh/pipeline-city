@@ -446,7 +446,11 @@ describe('step targets (what the renderer pulses)', () => {
 
   it('install steps point at their inventory items (inv:) and the socket, and the last card points nowhere', () => {
     expect(STEPS.find((x) => x.id === 'ram')!.targets(snap())).toEqual(['inv:inv3', 'dimm0', 'dimm1']);
-    expect(STEPS.find((x) => x.id === 'spend')!.targets(snap())).toEqual(['inventory', 'buy:cpu1']);
+    const rich = snap({ purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: true }] });
+    expect(STEPS.find((x) => x.id === 'spend')!.targets(rich)).toEqual(['inventory', 'buy:cpu1']);
+    // Nothing is lit while the player cannot pay: the step's grey line says how much is missing.
+    const poor = snap({ purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: false }] });
+    expect(STEPS.find((x) => x.id === 'spend')!.targets(poor)).toEqual([]);
     expect(STEPS.find((x) => x.id === 'done')!.targets(snap())).toEqual([]);
   });
 

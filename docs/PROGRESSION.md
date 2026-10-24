@@ -185,8 +185,8 @@ A **job class** groups templates and carries `needs`. The four existing classes 
 | Class (template) | State | Needs to run | First level | Notes |
 |---|---|---|---|---|
 | `cli` (log, calc, checksum) | built | nothing | 1 | the bulk early |
-| `scan` | built | nothing (RAM speeds it) | 1 | ramp over 300 ticks as today |
-| `db` | planned | an OS and a drive of tier SATA SSD or better | 3 | many block reads; slow on HDD is not allowed, so it needs `ssd1`+ |
+| `scan` | built | nothing (RAM speeds it) | 5 | ramp over 300 ticks as today |
+| `db` | planned | an OS and a drive of tier SATA SSD or better | 5 | many block reads; slow on HDD is not allowed, so it needs `ssd1`+ |
 | `web` | planned | a plan bought and a live link (any OS with the net stack) | 4 | small request, big response; upload-bound. No share until a plan is bought, none during the USB fallback (`NETWORK.md`) |
 | `secure` | planned | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
 | `gpu` | planned | a GPU of at least the job's tier (scale 1 to 2 needs `gpu1`, scale 3 and up `gpu2`) | 10 | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators" |
@@ -201,10 +201,10 @@ Shares per level; a class's share ramps linearly from 0 to its value over **600 
 
 | Lvl | cli | scan | db | web | secure | gpu | npu | hpc |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 67 | 33 | | | | | | |
-| 2 | 67 | 33 | | | | | | |
-| 3 | 60 | 30 | 10 | | | | | |
-| 4 | 45 | 25 | 15 | 15 | | | | |
+| 1 | 100 | | | | | | | |
+| 2 | 100 | | | | | | | |
+| 3 | 100 | | | | | | | |
+| 4 | 85 | | | 15 | | | | |
 | 5 | 40 | 25 | 20 | 15 | | | | |
 | 6 | 37 | 23 | 22 | 18 | | | | |
 | 7 | 33 | 22 | 24 | 21 | | | | |
@@ -220,7 +220,7 @@ Shares per level; a class's share ramps linearly from 0 to its value over **600 
 | 17 | 5 | 4 | 8 | 15 | 10 | 18 | 18 | 22 |
 | 18 | 4 | 3 | 7 | 14 | 10 | 18 | 18 | 26 |
 
-Level 1 and 2 match today's `ECONOMY.mix` (cli weight 1, scan weight 0.5 = one in three), so the existing onboarding tests keep their meaning.
+**Plain work first (2026-10-24, owner):** levels 1 to 4 send only `cli` jobs (log, calc, checksum), because scans take far longer and swamp the first hours. Scans and `db` arrive from level 5, once the network has opened; a later lesson is meant to explain the different workloads and how to handle them (not built yet).
 
 **Shift with reputation (owner: the mix shifts with reputation and level).** After the level row, every class from `db` on (the "heavy" classes) is multiplied by `clamp(reputation, 0.5, 1.5)` and the shares are renormalised. A reputation of 1.5 or more sends 50% more heavy work than the table; 0.5 or less sends half as much. Good service attracts bigger clients; bad service leaves you with the easy ones.
 
@@ -373,7 +373,7 @@ level: {
 2. Score: `pointsFor` clamps at 0.5 and 2; `clientBase` increases by exactly that at each delivery and not at an expiry, drop or abort; the level never decreases over a random play with crashes, burns and reputation at the floor (property test over seeds).
 3. Gating: `purchase` refuses a locked item with the level reason first, then hardware reasons; accepts at the exact threshold; sandbox ignores it; an installed part from a save above the player's level keeps working; `PurchaseSnap.locked` lists every locked item with the right level.
 4. Patience and payout by level: `patienceMul(level)` drives the key deadline, the reputation target and the give-up turnaround at arrival; payout equals the old formula times `payMul`; the old tick-schedule tests (`patience.test.ts`) are rewritten against levels (the bot at level 1, 5, 9 with and without an OS).
-5. Mix: counts over many seeds match the row within a tolerance; a class ramps from 0 over 600 ticks after its level; high reputation raises heavy-class share, low lowers it; levels 1 and 2 keep the old one-in-three scan mix (existing onboarding tests stay green).
+5. Mix: counts over many seeds match the row within a tolerance; a class ramps from 0 over 600 ticks after its level; high reputation raises heavy-class share, low lowers it; levels 1 to 4 are plain `cli` work, scan and db start at level 5.
 6. Expiry: an unrunnable job arrives, sits, shows `missing`, expires at exactly `arrival + deadline`, feeds `giveUpTurnaround x mul`, increments `expired`, gives no points, and is excluded from the oldest-age term; buying the device before the deadline makes it runnable; the worked example above is a test with its numbers.
 7. Cold boot: `coldBootTicks` function equals 30 for the Starter machine and the examples above for the other builds; the override wins; the cap holds.
 8. Save: round trip of `clientBase` and `levelTicks`; a v4 save without them loads, derives a level from `completed`, and does not hide installed parts; determinism with the same seed and level start.

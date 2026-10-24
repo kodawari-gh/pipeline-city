@@ -75,7 +75,8 @@ describe('milestone list', () => {
   });
 
   it('names the job classes that arrive at a level and compares with the level before', () => {
-    expect(rows[2]!.newJobs.map((j) => j.id)).toEqual(['db']);
+    expect(rows[2]!.newJobs).toEqual([]); // plain work until the network opens
+    expect(rows[4]!.newJobs.map((j) => j.id)).toEqual(['scan', 'db']);
     expect(rows[3]!.newJobs.map((j) => j.label)).toEqual(['Web']);
     expect(rows[0]!.patience).toBeNull();
     expect(rows[1]!.patience).toBe('same');

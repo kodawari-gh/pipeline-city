@@ -239,19 +239,20 @@ describe("patience, payout and demand by level", () => {
 });
 
 describe("the arrival mix", () => {
-  it("levels 1 and 2 keep one scan job in three; a class ramps in over 600 ticks after its level; reputation shifts the heavy classes", () => {
+  it("levels 1 to 4 are plain cli work, scans and db arrive at level 5; a class ramps in over its ticks after its level; reputation shifts the heavy classes", () => {
     const share = (level: number, rep: number, lt: Record<number, number>, tick: number) => {
       const m = jobMix(level, rep, lt, tick);
       const total = m.reduce((s, [, w]) => s + w, 0);
       return Object.fromEntries(m.map(([c, w]) => [c.id, w / total]));
     };
-    const s1 = share(1, 1, { 1: 1e9 }, 1e9 + 10000); // fully ramped
-    expect(s1.scan).toBeCloseTo(0.33, 2);
-    expect(s1.cli).toBeCloseTo(0.67, 2);
-    expect(share(2, 1, {}, 0).scan).toBeCloseTo(0.33, 2);
-    // Scan ramps in over 300 ticks from the start; from tick 0 there is no scan at all.
-    expect(share(1, 1, { 1: 0 }, 0).scan ?? 0).toBe(0);
-    expect(share(1, 1, { 1: 0 }, 150).scan).toBeLessThan(0.2);
+    for (const level of [1, 2, 3]) expect(share(level, 1, {}, 0)).toEqual({ cli: 1 });
+    expect(share(4, 1, {}, 0).scan).toBeUndefined();
+    const s5 = share(5, 1, { 5: 1e9 }, 1e9 + 10000); // fully ramped
+    expect(s5.scan).toBeCloseTo(0.25, 2);
+    expect(s5.cli).toBeCloseTo(0.4, 2);
+    // Scan ramps in over 300 ticks from its level; the moment the level is reached there is no scan at all.
+    expect(share(5, 1, { 5: 0 }, 0).scan ?? 0).toBe(0);
+    expect(share(5, 1, { 5: 0 }, 150).scan).toBeLessThan(0.2);
     // web arrives at level 4: nothing at the moment the level is reached, half its share after 300 ticks, all after 600.
     expect(share(4, 1, { 4: 1000 }, 1000).web ?? 0).toBe(0);
     const half = jobMix(4, 1, { 4: 1000 }, 1300).find(([c]) => c.id === "web")![1];
@@ -322,7 +323,7 @@ describe("jobs the machine cannot run", () => {
   });
 
   it("an expired job gives no client-base points", () => {
-    const g = new Game({ seed: 5, preassembled: true, startLevel: 3, economy: { baseDemandPerTick: 1, queueCap: 400 } });
+    const g = new Game({ seed: 5, preassembled: true, startLevel: 5, economy: { baseDemandPerTick: 1, queueCap: 400 } });
     const base = g.clientBase;
     ticks(g, 700); // nobody serves: db jobs need an OS, they expire at 540 ticks
     expect(g.expired).toBeGreaterThan(0);

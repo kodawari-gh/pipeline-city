@@ -89,15 +89,10 @@ describe("CPU-first vs RAM-first depends on the traffic mix", () => {
     expect(scanRatio).toBeGreaterThan(logRatio * 1.05);
   });
 
-  it("the starting traffic mix is a close call: neither choice dominates", { timeout: 120000 }, () => {
-    const c = compare(undefined); // the level-driven mix of levels 1 and 2
+  it("the starting traffic is plain cli work (no scans until level 5), so the CPU is the clear first purchase", { timeout: 120000 }, () => {
+    const c = compare(undefined); // the level-driven mix of the first levels
     report("starting mix", c);
-    // Band, not a tie: a quarter to a third of the jobs are scans, which favours RAM; log and every boot favour the CPU.
-    expect(c.cpuOnly.income / c.ramOnly.income).toBeGreaterThan(0.5);
-    expect(c.cpuOnly.income / c.ramOnly.income).toBeLessThan(1.6);
-    // And the share of scan jobs in the starting mix is a quarter to a third.
-    const row = LEVELS[0]!.mix;
-    expect(row.scan! / (row.cli! + row.scan!)).toBeGreaterThan(0.25);
-    expect(row.scan! / (row.cli! + row.scan!)).toBeLessThan(0.34);
+    expect(c.cpuOnly.income / c.ramOnly.income).toBeGreaterThan(1.2);
+    expect(Object.keys(LEVELS[0]!.mix)).toEqual(["cli"]);
   });
 });

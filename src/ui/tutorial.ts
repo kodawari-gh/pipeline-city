@@ -81,6 +81,13 @@ const cheapestCpu = (s: Snapshot): string | null => {
   const c = s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked).sort((a, b) => a.price - b.price)[0];
   return c ? c.id : null;
 };
+/** Nothing is lit while the player cannot pay for the thing the step asks them to buy: the grey line says how much is missing. */
+const whenAffordable = (id: string | ((s: Snapshot) => string | null), targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => {
+  const sid = typeof id === 'string' ? id : id(s);
+  const p = sid ? s.purchases.find((x) => x.id === sid) : undefined;
+  return p && !p.affordable ? [] : targets(s);
+};
+const BROKE = ' Short on cash? Keep delivering jobs: the tile glows once you can afford it.';
 const SWAP_WAIT = 'Waiting for the running job to finish: your part swaps in by itself.';
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
 /** Inventory items of a kind plus the free slots they fit. */
@@ -160,12 +167,12 @@ export const STEPS: StepDef[] = [
     text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
     targets: (s) => ['usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.',
-    targets: (s) => {
+    text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.' + BROKE,
+    targets: whenAffordable(cheapestCpu, (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
       const buy = cheapestCpu(s);
       return [...(cpu ? [cpu.slot] : [INVENTORY_ID]), ...(buy ? [`buy:${buy}`] : [])];
-    } },
+    }) },
   // ---- storage and the OS ----
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
     done: (s) => !s.inventory.some((i) => fitsGeneralStep(s, i)),
@@ -179,23 +186,23 @@ export const STEPS: StepDef[] = [
     targets: () => [], meter: levelMeter },
   { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
-    text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay, then buy the glowing HDD.',
-    targets: () => ['bay', 'buy:hdd0'] },
+    text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy the HDD.' + BROKE,
+    targets: whenAffordable('hdd0', () => ['bay', 'buy:hdd0']) },
   { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
     text: 'The drive\'s speed decides how quickly the machine wakes up later. Drag the drive onto a free drive bay.',
     targets: whileSwapQueued(installTargets('storage')) },
   { id: 'buyRam', chapter: 'The OS', title: 'More memory first', flag: null,
     done: (s) => !ramShort(s) || hasBigRam(s) || ownsOs(s),
-    text: `The operating system does not run from the drive alone: while it works it lives in memory, like a manager who needs a big desk. Your starter stick is too small: the OS wants ${OS_RAM_BYTES / 1024}K. Click the memory stick on the board, then buy the glowing bigger one.`,
-    targets: (s) => [...s.devices.filter((d) => d.kind === 'ram').map((d) => d.slot).slice(0, 1), 'buy:ram1'] },
+    text: `The operating system does not run from the drive alone: while it works it lives in memory, like a manager who needs a big desk. Your starter stick is too small: the OS wants ${OS_RAM_BYTES / 1024}K. Click the memory stick on the board and buy the bigger one.${BROKE}`,
+    targets: whenAffordable('ram1', (s) => [...s.devices.filter((d) => d.kind === 'ram').map((d) => d.slot).slice(0, 1), 'buy:ram1']) },
   { id: 'fitRam', chapter: 'The OS', title: 'Fit the bigger memory', flag: null,
     done: (s) => !ramShort(s) || ownsOs(s),
     text: 'Drag the new memory stick onto the old one. The machine swaps it in for you, waiting for a running job to finish first.',
     targets: whileSwapQueued((s) => invOf(s, 'ram').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
-    text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again, then buy the glowing OS.',
-    targets: () => ['bay', 'buy:os1'] },
+    text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy the OS.' + BROKE,
+    targets: whenAffordable('os1', () => ['bay', 'buy:os1']) },
   { id: 'os', chapter: 'The OS', title: 'Install the OS on the drive', flag: 'osInstalled',
     text: 'The OS gets written onto the drive, which is where the machine wakes up from. Drag the OS onto the drive.',
     targets: whileSwapQueued(installTargets('os')) },
