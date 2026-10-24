@@ -3,6 +3,7 @@
 // It never buys what it cannot afford, and no single step may take more than 10 minutes of game time.
 
 import { describe, expect, it } from 'vitest';
+import { CAMPAIGN_START_MONEY } from '../sim/game/economy';
 import { Game } from '../sim/game/game';
 import type { Snapshot } from '../sim/game/game';
 import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId, type TutorialState } from './tutorial';
@@ -26,6 +27,8 @@ const nextKey = (s: Snapshot) => s.tray.find((k) => k.runnable);
 
 function serve(g: Game, s: Snapshot): void {
   if (s.os) return;
+  // A finished key left in the port of a machine that is off (the manual loop) is handed back before an OS can claim it.
+  if (!g.powered && s.plugged?.done) { g.ejectKey(); return; }
   if (s.plugged?.done && !s.autoEject) { g.ejectKey(); return; }
   if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) { g.powerButton(); return; }
   if (!g.powered && !s.plugged && nextKey(s)) { g.plugKey(nextKey(s)!.id); return; }
@@ -97,7 +100,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
 describe('the tutorial is completable with public actions', () => {
   it('a bot follows every step from a fresh game to the last card, in order, within 10 minutes per step', () => {
     resetTutorialState();
-    const g = new Game({ seed: 7 });
+    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
     const seen: Array<{ id: StepId; tick: number }> = [];
     let last: StepId | null = null;
     let finishedAt = -1;
@@ -137,7 +140,7 @@ describe('the tutorial is completable with public actions', () => {
   it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
     // Re-run the same route, collecting every refusal the public actions give back.
     resetTutorialState();
-    const g = new Game({ seed: 7 });
+    const g = new Game({ seed: 7, economy: { startMoney: CAMPAIGN_START_MONEY } });
     let refused: string[] = [];
     const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
       if (!r.ok) refused.push(`${name}: ${r.reason}`);
@@ -171,7 +174,7 @@ describe('the tutorial is completable with public actions', () => {
 /** Run the whole tutorial: the bot acts once every `every` ticks (1 = instant, 6 = a slow, distracted player). */
 function runTutorial(seed: number, every: number) {
   resetTutorialState();
-  const g = new Game({ seed });
+  const g = new Game({ seed, economy: { startMoney: CAMPAIGN_START_MONEY } });
   const seen: Array<{ id: StepId; tick: number }> = [];
   const refused: string[] = [];
   const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {

@@ -2,6 +2,7 @@
 // time-to-ticks accumulator. src/sim/worker.ts wires it to postMessage and setInterval.
 
 import { Game } from './game/game';
+import { CAMPAIGN_START_MONEY } from './game/economy';
 import type { FromSim, Speed, ToSim } from './protocol';
 
 export interface HostState {
@@ -22,7 +23,7 @@ export function newHost(): HostState {
 export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   try {
     if (msg.type === 'init') {
-      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled });
+      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled, ...(msg.sandbox ? {} : { economy: { startMoney: CAMPAIGN_START_MONEY } }) });
       state.owed = 0;
       state.speed = 1;
       return [{ type: 'ready' }, { type: 'snapshot', snapshot: state.game.snapshot() }];

@@ -188,7 +188,7 @@ export const STEPS: StepDef[] = [
     text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
     targets: (s, drag) => (!s.plugged && s.tray[0] ? plugTarget(s, drag, s.tray[0]) : []) },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.' + BROKE,
+    text: 'You have coins to spend! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.' + BROKE,
     targets: whenAffordable(cheapestCpu, (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
       const buy = cheapestCpu(s);

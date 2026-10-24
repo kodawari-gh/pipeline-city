@@ -76,7 +76,7 @@ export interface EconomyConfig {
   mix?: MixEntry[];
   /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
-  /** Dollars the player starts with (small: the first payout is the first real money). */
+  /** Dollars a game starts with in the sim itself (0: the tests and bots depend on it; a new campaign is given `CAMPAIGN_START_MONEY`). */
   startMoney: number;
   /**
    * What a key the client had to take back (tray full) counts as in the turnaround average, so overflow costs
@@ -301,3 +301,9 @@ function upgradeCandidates(board: Board): DeviceSpec[] {
   }
   return out;
 }
+
+/**
+ * What a new campaign starts with: enough to buy nearly everything the tutorial asks for (about $490), so a new player is
+ * never held up by money while learning. Someone who does not understand a part does not spend on it anyway.
+ */
+export const CAMPAIGN_START_MONEY = 600;
