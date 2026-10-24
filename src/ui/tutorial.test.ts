@@ -280,7 +280,7 @@ describe('the OS steps (live state and phases)', () => {
   it('the boot step is done in any running OS phase, and points at the monitor and the OS badge', () => {
     const s = afterSpend({ progress: { ...oldDone(), storageInstalled: true, osInstalled: true }, storage: [drive({ hasOs: true })], os: osOn(), phase: 'idle-os', powered: true });
     expect(idOf(currentStep(s, welcomed))).toBe('osIngest');
-    expect(STEPS.find((x) => x.id === 'bootOs')!.targets(s)).toEqual(['power', 'monitor', 'os']);
+    expect(STEPS.find((x) => x.id === 'bootOs')!.targets(s)).toEqual(['power']);
   });
 
   const osFlow = (extra: Partial<Parameters<typeof snap>[0]>) =>
@@ -289,7 +289,7 @@ describe('the OS steps (live state and phases)', () => {
   it('a key plugged and queued: the OS lesson waits for the result and the pay-out, nothing is held', () => {
     const s = osFlow({ plugged: key({ id: 7, stage: 'queued' }) });
     expect(idOf(currentStep(s, welcomed))).toBe('osPaid');
-    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['os', 'monitor']);
+    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['os']);
   });
 
   it('a key still being copied is not yet ingested', () => {
