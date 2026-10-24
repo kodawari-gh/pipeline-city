@@ -21,7 +21,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## P0: clean state
 
-- [ ] T01 [auto] Delete the stray `.tmp-vite-noreload.mjs` after `grep -r "tmp-vite-noreload"` shows no use (package.json, scripts, configs). Files: `.tmp-vite-noreload.mjs`. Done when: file gone, nothing referenced it, build green.
+- [x] T01 [auto] Delete the stray `.tmp-vite-noreload.mjs` after `grep -r "tmp-vite-noreload"` shows no use (package.json, scripts, configs). Files: `.tmp-vite-noreload.mjs`. Done when: file gone, nothing referenced it, build green.
 - [ ] T02 [owner] Push the local commits (126 ahead of origin/main at last count) so GitHub Pages is current. Done when: the owner says yes and `git push` succeeds.
 
 ## P1: finish the network UI (item 4 split; an earlier run may already have done some of it, so check the code first and tick what is already there)
