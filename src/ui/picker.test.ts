@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clockZones, compareRows, estTempC, goodness, ladderFor, osSection, pickerFor, specBrief, statsOf, zoneOf } from './picker';
 import { getSpec } from '../sim/board/specs';
 import { dev, key, PURCHASES, snap, STARTER_CRATE } from './testdata';
-import type { KeySnap, OsJobSnap, OsSnap, StorageSnap } from '../sim/game/game';
+import type { KeySnap, OsJobSnap, OsSnap, Snapshot, StorageSnap } from '../sim/game/game';
 
 const cpuSpec = getSpec('cpu0') as Extract<ReturnType<typeof getSpec>, { kind: 'cpu' }>;
 const stockCooler = getSpec('cooler0') as Extract<ReturnType<typeof getSpec>, { kind: 'cooler' }>;
@@ -358,5 +358,43 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
     expect(desc.nerd).toMatch(/tier 1/);
     expect(desc.plain).toMatch(/installed on the drive/);
     expect(desc.plain).toMatch(/monitor only shows its text/);
+  });
+});
+
+describe('network parts on the shelf (nic, router, isp rows)', () => {
+  const buy = (id: string, kind: 'nic' | 'router' | 'isp', price: number) => ({ id, name: id, kind, price, affordable: true });
+  const withLevel = (level: number) => ({ ...snap().level, level });
+
+  it('a part above the player level is a level row with its lock, before money and hardware', () => {
+    const s = snap({ money: 99999 });
+    for (const [kind, id] of [['nic', 'nic1'], ['router', 'router1'], ['isp', 'isp1']] as const) {
+      const row = ladderFor(s, kind).find((r) => r.specId === id)!;
+      expect(row, id).toMatchObject({ state: 'level' });
+      expect(row.lock!.level, id).toBeGreaterThan(1);
+      expect(row.reason, id).toBeTruthy();
+    }
+  });
+
+  it('an unlocked part is a ready row; plans apply at once, and a missing OS, RAM or jack shows as the row warning', () => {
+    const s = snap({ money: 1000, level: withLevel(20), purchases: [buy('nic1', 'nic', 120), buy('router1', 'router', 60), buy('isp1', 'isp', 150)] });
+    const nic = ladderFor(s, 'nic').find((r) => r.specId === 'nic1')!;
+    const isp = ladderFor(s, 'isp').find((r) => r.specId === 'isp1')!;
+    const router = ladderFor(s, 'router').find((r) => r.specId === 'router1')!;
+    expect(nic).toMatchObject({ state: 'ready', price: 120 });
+    expect(isp).toMatchObject({ state: 'ready', price: 150, applied: true });
+    expect(router).toMatchObject({ state: 'ready', price: 60 });
+    for (const r of [isp, router, nic]) expect(r.warn, r.specId).toMatch(/^To use it you still need .*an OS/);
+    // The card brings its own jack, the others do not.
+    expect(nic.warn).not.toMatch(/jack/);
+    expect(router.warn).toMatch(/a network jack/);
+  });
+
+  it('an owned router reads Placed, an active plan reads Active, and a short purse is a poor row', () => {
+    const purchases = [{ ...buy('router2', 'router', 400), affordable: false }, buy('isp2', 'isp', 300)];
+    const net = { ...snap().net, router: { id: 'router1', name: 'Router 1' }, isp: { id: 'isp1', name: 'Dial' } } as unknown as Snapshot['net'];
+    const s = snap({ level: withLevel(20), purchases, net });
+    expect(ladderFor(s, 'router')[0]).toMatchObject({ specId: 'router1', state: 'installed', fittedLabel: 'Placed' });
+    expect(ladderFor(s, 'isp')[0]).toMatchObject({ specId: 'isp1', state: 'installed', fittedLabel: 'Active' });
+    expect(ladderFor(s, 'router').find((r) => r.specId === 'router2')).toMatchObject({ state: 'poor' });
   });
 });
