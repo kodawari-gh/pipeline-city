@@ -170,6 +170,11 @@ Shown once each as a small dismissible toast, remembered in `localStorage['pipel
 | `burnt` | a device is burnt |
 | `trip` | the PSU has hard-tripped |
 | `brownout` | PSU overloaded (`psuFactor < 1`) but not tripped |
+| `retiredKeys` | `net.usbRetired` and `net.retiredKeys > 0`: the link is up and USB keys are left in the tray |
+| `portBusyKey` | `net.portBusyKey != null`: "a key is parked in the USB port" and blocks network jobs from the drive |
+| `spoolFull` | the OS spool is full while the link is `link-up` or `saturated` |
+| `linkDown` | `net.state === 'down'` after the link was up once (`usbFallback.state` is not `off`), not the boot-time "the OS is starting" |
+| `saturated` | `net.state === 'saturated'`: every client or spool slot is busy |
 
 ## Camera inset
 

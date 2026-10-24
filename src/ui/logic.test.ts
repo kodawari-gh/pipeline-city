@@ -108,6 +108,43 @@ describe('hints', () => {
     expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }))).toEqual(['trip']);
     expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }))).toEqual(['brownout']);
   });
+  describe('network hints', () => {
+    const base = snap().net;
+    const withNet = (o: Partial<typeof base>) => snap({ net: { ...base, ...o } });
+    const osWith = (spoolFull: boolean) => ({ queue: [], queueSlots: 4, spool: { full: spoolFull }, spoolFull } as unknown as NonNullable<ReturnType<typeof snap>['os']>);
+
+    it('nothing on a quiet network', () => {
+      expect(triggeredHints(snap())).toEqual([]);
+    });
+    it('retiredKeys: link-up retires the USB path and keys are left', () => {
+      expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 2 }))).toContain('retiredKeys');
+      expect(triggeredHints(withNet({ state: 'link-up', usbRetired: true, retiredKeys: 0 }))).not.toContain('retiredKeys');
+      expect(triggeredHints(withNet({ usbRetired: false, retiredKeys: 2 }))).not.toContain('retiredKeys');
+    });
+    it('portBusyKey: a key is parked in the port', () => {
+      expect(triggeredHints(withNet({ portBusyKey: 7 }))).toContain('portBusyKey');
+      expect(triggeredHints(withNet({ portBusyKey: null }))).not.toContain('portBusyKey');
+    });
+    it('spoolFull: only while the link is up or saturated', () => {
+      expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'link-up' } }))).toContain('spoolFull');
+      expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'saturated' } }))).toContain('spoolFull');
+      expect(triggeredHints(snap({ os: osWith(true), net: { ...base, state: 'down' } }))).not.toContain('spoolFull');
+      expect(triggeredHints(snap({ os: osWith(false), net: { ...base, state: 'link-up' } }))).not.toContain('spoolFull');
+    });
+    it('linkDown: the link was up once (fallback armed) and is down now', () => {
+      const fb = (state: 'off' | 'retired' | 'waiting' | 'fallback') => ({ ...base.usbFallback, state });
+      expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('waiting') }))).toContain('linkDown');
+      expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('off') }))).not.toContain('linkDown');
+      expect(triggeredHints(withNet({ state: 'down', usbFallback: fb('waiting'), reason: 'the OS is starting' }))).not.toContain('linkDown');
+    });
+    it('saturated: the link is saturated', () => {
+      expect(triggeredHints(withNet({ state: 'saturated' }))).toContain('saturated');
+      expect(triggeredHints(withNet({ state: 'link-up' }))).not.toContain('saturated');
+    });
+    it('every network hint has a definition', () => {
+      for (const id of ['retiredKeys', 'portBusyKey', 'spoolFull', 'linkDown', 'saturated']) expect(HINTS[id]?.text.length, id).toBeGreaterThan(20);
+    });
+  });
   it('shows each only once', () => {
     const s = snap({ queueLength: 5 });
     expect(newHints(s, new Set()).map((h) => h.id)).toEqual(['queue']);
