@@ -202,3 +202,5 @@ Listed at the bottom of `docs/ARCHITECTURE.md`. The ones you will hit first: typ
 Summarise what you read, say which step of the order above you are starting, and ask only what blocks you. Do not re-ask settled decisions.
 
 The tutorial is a JRPG dialogue box at the bottom centre (`TutorialCard.tsx` `Dialogue`, `dialogue.ts`): the step text types out, a click completes or turns the page, a bobbing triangle marks a finished page. The welcome and next-lesson popups pause the game while open (`pauseForTutorialPopup` in `state.ts`), like the level-up.
+
+After the first delivered key the game adds two keys to the tray (`Game.ejectKey`, campaign only) and the tutorial explains money, reputation and level in three explain-only steps (`StepDef.ack`, ended by Got it, the game held while they are read). The power button symbol is a ring open at the top (it was drawn inverted). Speeds are shown divided by 4 (1x is the designed pace).

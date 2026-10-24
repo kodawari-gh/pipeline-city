@@ -5,14 +5,15 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../sim/game/game';
 import type { Snapshot } from '../sim/game/game';
-import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId } from './tutorial';
+import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId, type TutorialState } from './tutorial';
 
-const ST = { ...INITIAL_TUTORIAL, welcomed: true };
+let ST: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
+const resetTutorialState = () => { ST = { ...INITIAL_TUTORIAL, welcomed: true, acks: [] }; };
 /** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
-/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial is over in seven. */
+/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial is over in eight. */
 const SMOOTH_STEP_TICKS = 120;
-const SMOOTH_TOTAL_TICKS = 420;
+const SMOOTH_TOTAL_TICKS = 480;
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
 
 /**
@@ -74,6 +75,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
       break;
     case 'watch': break;
+    case 'money': case 'reputation': case 'level': ST = { ...ST, acks: [...ST.acks, id] }; break; // the player reads and presses Got it
     case 'osPaid': break; // the key pops out by itself
     case 'spend': buy('cpu1', 200); break;
     case 'reachLevel3': break; // the background serve loop delivers the jobs
@@ -94,6 +96,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
 
 describe('the tutorial is completable with public actions', () => {
   it('a bot follows every step from a fresh game to the last card, in order, within 10 minutes per step', () => {
+    resetTutorialState();
     const g = new Game({ seed: 7 });
     const seen: Array<{ id: StepId; tick: number }> = [];
     let last: StepId | null = null;
@@ -133,6 +136,7 @@ describe('the tutorial is completable with public actions', () => {
 
   it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
     // Re-run the same route, collecting every refusal the public actions give back.
+    resetTutorialState();
     const g = new Game({ seed: 7 });
     let refused: string[] = [];
     const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
@@ -166,6 +170,7 @@ describe('the tutorial is completable with public actions', () => {
 
 /** Run the whole tutorial: the bot acts once every `every` ticks (1 = instant, 6 = a slow, distracted player). */
 function runTutorial(seed: number, every: number) {
+  resetTutorialState();
   const g = new Game({ seed });
   const seen: Array<{ id: StepId; tick: number }> = [];
   const refused: string[] = [];

@@ -28,14 +28,16 @@ export interface TutorialState {
   osLesson: boolean;
   /** The "Next lesson: the OS" offer was answered (taken or dismissed). */
   offered: boolean;
+  /** Explain-only steps the player has read and answered with Got it. */
+  acks: string[];
 }
 
 export const INITIAL_TUTORIAL: TutorialState = {
-  welcomed: false, skipped: false, finished: false, replay: null, osLesson: false, offered: false,
+  welcomed: false, skipped: false, finished: false, replay: null, osLesson: false, offered: false, acks: [],
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch'
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
   | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS';
@@ -47,6 +49,8 @@ export interface StepDef {
   title: string;
   /** What the step is about, in plain words, ending with what to do. Typed out by the dialogue box in pages. */
   text: string;
+  /** An explain-only step: it ends when the player presses Got it (`TutorialState.acks`), or when the player is already past it. */
+  ack?: boolean;
   /** Progress flag that completes the step, if it has one. */
   flag: keyof Progress | null;
   /** Live completion test for steps without a flag (see `isDone`). */
@@ -170,6 +174,16 @@ export const STEPS: StepDef[] = [
   { id: 'watch', chapter: 'First jobs', title: 'Watch it work', flag: 'firstKeyEjected',
     text: 'The machine does the job and writes the answer back onto the key. Every second it sits idle is money lost! Watch the monitor. When the job is done the key pops out, you get paid and the machine goes back to sleep.',
     targets: () => ['monitor'] },
+  // ---- the three numbers at the top: explained once, with the game held, right after the first pay ----
+  { id: 'money', chapter: 'First jobs', title: 'Your first pay', flag: null, ack: true,
+    text: 'You just got paid! Look at the top left: that number is your money. Every delivered key adds to it. Money buys better parts, and better parts earn even more money.',
+    targets: () => ['hud:money'] },
+  { id: 'reputation', chapter: 'First jobs', title: 'Your reputation', flag: null, ack: true,
+    text: 'The star next to it is your reputation. Clients love quick answers: serve them fast and it climbs, keep them waiting and it drops. A good reputation brings more clients, and better paid jobs.',
+    targets: () => ['hud:reputation'] },
+  { id: 'level', chapter: 'First jobs', title: 'Your level', flag: null, ack: true,
+    text: 'At the top centre is your level. Each delivered job adds to your client base, and when the bar fills you level up: new parts and new kinds of jobs unlock. Click it any time to peek at what is coming.',
+    targets: () => ['hud:level'] },
   { id: 'cycle', chapter: 'First jobs', title: 'Next job: plug the next key', flag: 'firstManualCycle',
     text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
     targets: (s, drag) => (!s.plugged && s.tray[0] ? plugTarget(s, drag, s.tray[0]) : []) },
@@ -261,7 +275,8 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
 }
 
 /** Whether a step is complete: its flag, else its live test. */
-export function isDone(step: StepDef, s: Snapshot, p: Progress): boolean {
+export function isDone(step: StepDef, s: Snapshot, p: Progress, st?: TutorialState): boolean {
+  if (step.ack) return !!st?.acks.includes(step.id) || p.firstManualCycle || p.firstPurchase;
   if (step.done) return step.done(s, p);
   return step.flag ? p[step.flag] : false;
 }
@@ -293,7 +308,7 @@ export function currentStep(s: Snapshot, st: TutorialState): StepDef | null {
   if (!welcomed) return STEPS[0]!;
   for (const step of STEPS) {
     if (step.id === 'welcome' || step.id === 'done') continue;
-    if (!isDone(step, s, p)) return step;
+    if (!isDone(step, s, p, st)) return step;
   }
   return STEPS[STEPS.length - 1]!;
 }
@@ -394,5 +409,6 @@ export function resumeState(raw: unknown): TutorialState {
     replay: r && typeof r.completed === 'number' && typeof r.owned === 'number' ? { completed: r.completed, owned: r.owned } : null,
     osLesson: o.osLesson === true,
     offered: o.offered === true,
+    acks: Array.isArray(o.acks) ? o.acks.filter((x): x is string => typeof x === 'string') : [],
   };
 }

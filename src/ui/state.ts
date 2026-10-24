@@ -116,12 +116,14 @@ function setTutorial(next: TutorialState) {
 export const resetTutorial = (wanted: boolean) => setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
 export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
+/** Got it on an explain-only step. */
+export const ackStep = (id: string) => setTutorial({ ...tutorial.value, acks: [...tutorial.value.acks, id] });
 /** The last card's Got it: the OS lesson is part of this viewer's tutorial from now on. */
 export const finishTutorial = () => setTutorial({ ...tutorial.value, finished: true, osLesson: true });
 /** Start again from the welcome card. Flags are judged from live state against a baseline taken now. */
 export function replayTutorial(s: Snapshot | null) {
   setTutorial({
-    welcomed: false, skipped: false, finished: false, osLesson: true, offered: true,
+    welcomed: false, skipped: false, finished: false, osLesson: true, offered: true, acks: [],
     replay: s ? { completed: s.completed, owned: s.devices.length + s.inventory.length } : null,
   });
 }

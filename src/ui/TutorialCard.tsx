@@ -5,7 +5,7 @@ import { viewInset } from '../game/hover';
 import { cameraRev, dragging, highlight } from '../game/interaction';
 import { snapshot } from '../game/store';
 import {
-  declineOsLesson, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
+  ackStep, declineOsLesson, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
 } from './state';
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { CHAR_MS, pagesOf } from './dialogue';
@@ -43,6 +43,19 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
   );
 }
 
+/** An explain-only step: the dialogue, then a Got it that appears once the last page is written. */
+function AckDialogue({ id, text }: { id: string; text: string }) {
+  const [atEnd, setAtEnd] = useState(false);
+  return (
+    <>
+      <Dialogue text={text} onEnd={setAtEnd} />
+      <div class={`pactions dlg-actions ${atEnd ? 'on' : ''}`}>
+        <button class="primary" onClick={() => ackStep(id)}>Got it</button>
+      </div>
+    </>
+  );
+}
+
 /** The welcome and the next-lesson offer: the same dialogue box, centred low over a dimmed board; the buttons appear when the last page is written. */
 function PopupDialogue({ label, title, text, name, children }: { label: string; title: string; text: string; name: string; children: ComponentChildren }) {
   const [atEnd, setAtEnd] = useState(false);
@@ -75,7 +88,7 @@ const domRect = (el: Element | null): Rect | null => {
 };
 
 /** Is `id` something the camera can fly to (a world id, not an inventory tile or the HUD button)? */
-const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:') && !id.startsWith('buy:');
+const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:') && !id.startsWith('buy:') && !id.startsWith('hud:');
 
 /**
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else
@@ -86,6 +99,11 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null } 
     if (!isWorldId(t)) continue;
     const a = anchorOf(t);
     if (a && a.visible) return { rect: { x: a.x, y: a.y, w: a.w, h: a.h }, world: t };
+  }
+  for (const t of targets) {
+    if (!t.startsWith('hud:')) continue;
+    const r = domRect(document.querySelector(`[data-hud="${t.slice(4)}"]`));
+    if (r) return { rect: r, world: null };
   }
   for (const t of targets) {
     if (!t.startsWith('inv:')) continue;
@@ -225,7 +243,9 @@ export function TutorialCard() {
   const { offscreen, showMe } = useGuidance(cardActive, targets, cardRef, svgRef);
 
   // A tutorial popup holds the game, like the level-up.
-  useEffect(() => { pauseForTutorialPopup(modal && !!s); }, [modal, !!s]);
+  // The explain-only steps hold the game as well: the player reads at their own pace.
+  const hold = (modal || !!step?.ack) && !!s;
+  useEffect(() => { pauseForTutorialPopup(hold); }, [hold]);
   useEffect(() => () => pauseForTutorialPopup(false), []);
 
   if (modal && s) {
@@ -269,7 +289,7 @@ export function TutorialCard() {
           </div>
           <div class="tut-text" key={step.id}>
             <div class="ptitle">{step.title}</div>
-            <Dialogue text={step.text} />
+            {step.ack ? <AckDialogue id={step.id} text={step.text} /> : <Dialogue text={step.text} />}
             {meter && (
               <div class="tmeter" role="progressbar" aria-valuenow={Math.round(meter.pct)} aria-valuemin={0} aria-valuemax={100} title={`Client base ${meter.label}`}>
                 <span class="tbar"><i style={{ width: `${meter.pct}%` }} /></span>

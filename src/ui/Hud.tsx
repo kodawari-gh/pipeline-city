@@ -1,6 +1,7 @@
 import './ui.css';
 import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../game/hover';
+import { highlight } from '../game/interaction';
 import {
   autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, togglePause,
 } from '../game/store';
@@ -23,6 +24,9 @@ import {
   netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from './tutorial';
+
+/** The tutorial points at a number in the bar: `hud:<name>` in the highlight list pulses it. */
+const lit = (name: string) => (highlight.value.includes(`hud:${name}`) ? 'pulse' : '');
 
 /** What the player reads: the sim's ticks per second over 4 (4 ticks a second is the designed pace, "1x"). */
 export const speedLabel = (s: number) => `${s / 4}x`;
@@ -144,7 +148,7 @@ function InsetReporter() {
 function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const perMin = s.demandRate * 60;
   return (
-    <div class="stat" title={`Reputation ${fmtNum(s.reputation, 2)}: from how fast you answer. Demand ${fmtNum(perMin, 1)} keys a minute.`}>
+    <div class={`stat ${lit('reputation')}`} data-hud="reputation" title={`Reputation ${fmtNum(s.reputation, 2)}: from how fast you answer. Demand ${fmtNum(perMin, 1)} keys a minute.`}>
       <Icon name="star" size={14} />
       <span class="value">{fmtNum(s.reputation, 2)}</span>
     </div>
@@ -223,14 +227,14 @@ export function Hud() {
       <PauseKey />
       <header class="hud">
         <div class="hud-side hud-left">
-        <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
+        <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
         <Reputation s={s} />
         <PhaseChip s={s} />
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
         </div>
-        <div class="hud-side hud-center"><LevelBar s={s} /></div>
+        <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">
         <SpeedControl />
         <button class="icon" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>

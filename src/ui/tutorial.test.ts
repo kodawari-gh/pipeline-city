@@ -63,10 +63,22 @@ describe('tutorial step from snapshot flags', () => {
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
     // the three cables are one step; the key leaves by itself, so the watch step ends on its removal
-    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'watch', 'watch', 'watch', 'cycle', 'spend'];
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'watch', 'watch', 'watch', 'money', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
+  });
+
+  it('after the first pay the three numbers are explained one by one, each ended by Got it, before the next key', () => {
+    const paid = { progress: oldUpTo(12) }; // firstKeyEjected is the 12th flag
+    const at = (acks: string[]) => idOf(currentStep(snap(paid), { ...welcomed, acks }));
+    expect(at([])).toBe('money');
+    expect(at(['money'])).toBe('reputation');
+    expect(at(['money', 'reputation'])).toBe('level');
+    expect(at(['money', 'reputation', 'level'])).toBe('cycle');
+    // A player already past them (an older save) is not sent back.
+    expect(idOf(currentStep(snap({ progress: oldUpTo(13) }), welcomed))).toBe('spend');
+    expect(STEPS.filter((x) => x.ack).map((x) => x.targets(snap()))).toEqual([['hud:money'], ['hud:reputation'], ['hud:level']]);
   });
 
   it('the old flags alone are not the end: the next step is fitting the bought part', () => {
@@ -494,7 +506,7 @@ describe('every step target names a real id', () => {
   /** Ids the renderer registers that are not described slots: buttons, the monitor, and the per-item `inv:`/`key:` ids. */
   const FIXED = new Set(['inventory', 'power', 'monitor']);
   const known = (id: string, s: ReturnType<typeof snap>) =>
-    FIXED.has(id) || /^(inv|key):\S+$/.test(id) || (id.startsWith('buy:') && describeId(id.slice(4), s) !== null) || describeId(id, s) !== null;
+    FIXED.has(id) || /^(inv|key|hud):\S+$/.test(id) || (id.startsWith('buy:') && describeId(id.slice(4), s) !== null) || describeId(id, s) !== null;
 
   it('the checker rejects an id that does not exist', () => {
     expect(known('routr', snap())).toBe(false);
@@ -515,7 +527,7 @@ describe('every step target names a real id', () => {
 describe('persisted tutorial state', () => {
   it('reads a stored object and ignores junk', () => {
     expect(resumeState({ welcomed: true, skipped: true, finished: false, replay: { completed: 1, owned: 4 }, osLesson: true, offered: true })).toEqual({
-      welcomed: true, skipped: true, finished: false, replay: { completed: 1, owned: 4 }, osLesson: true, offered: true,
+      welcomed: true, skipped: true, finished: false, replay: { completed: 1, owned: 4 }, osLesson: true, offered: true, acks: [],
     });
     expect(resumeState('nonsense')).toEqual(INITIAL_TUTORIAL);
     expect(resumeState({ replay: { completed: 'x' } })).toEqual({ ...INITIAL_TUTORIAL, replay: null });
