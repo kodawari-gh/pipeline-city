@@ -43,6 +43,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
 - **Assembly, inventory, boot loop, USB-key queue, progress flags: [`docs/ASSEMBLY.md`](ASSEMBLY.md).**
 - **Storage, OS v1 (resident kernel, key ingest and output step): [`docs/OS.md`](OS.md). Planned tech ladders for every device: [`docs/TECHTREE.md`](TECHTREE.md).**
+- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`docs/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`docs/NETWORK.md`](NETWORK.md).**
 - **Hover/selected ids, drag and drop, camera helpers: see [`docs/RENDER.md`](RENDER.md) (interaction section).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.

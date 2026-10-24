@@ -39,6 +39,10 @@ The motherboard is a four-tier ladder (Starter with 1 DIMM, 1 SATA, 1 USB, 1 HDM
 
 A **New game** dialog offers Campaign or Sandbox (assembled or bare). The sandbox has free purchases, a constant money balance shown as infinity, every part and board tier, and four tools (spawn a key, clear the tray, repair everything, set reputation), plus 64x speed. The physics still applies. Everything is in [`SANDBOX.md`](SANDBOX.md); save format is unchanged (optional `sandbox: true` field, still v4).
 
+### Designed, not built: levels and the network
+
+Two design docs are written and wait for the owner's answers to their open questions: [`PROGRESSION.md`](PROGRESSION.md) (client-base score, 18 levels, unlock table, level-driven patience and payout that replace the tick schedule, job-type mix with expiring unrunnable jobs, POST time as a function) is built first, then [`NETWORK.md`](NETWORK.md) (NIC, router, cable, ISP plan, network work source, USB keys retire). Neither changes code yet.
+
 ### Next steps
 
 In rough order. Each is a small, separate change; keep `npm test` and `npm run build` green.

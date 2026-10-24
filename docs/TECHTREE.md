@@ -1,6 +1,6 @@
 # Tech tree: the principle and the planned ladders
 
-**Principle (owner decision):** there are no research points. A tier unlocks by **money plus real hardware requirements**: the board has to have the slot and the tier, the PSU the watts (and connectors), the cooler the capacity, the RAM the size, the storage the space, the OS the support. If the machine cannot carry a part, the shop shows it blocked with the first reason (`PurchaseSnap.blocked`), and install refuses it with the same reason. The tree is per device (a ladder per kind), not one global tree.
+**Principle (owner decision, revised):** there are no research points. A tier unlocks by **player level plus money plus real hardware requirements**. The level comes from the client-base score (lifetime jobs served, weighted by reputation) and gates what the shop offers: locked items stay visible with `Level N`, and the full ladder (level to unlock) is in [`PROGRESSION.md`](PROGRESSION.md), which supersedes the earlier "only money and hardware" rule. On top of the level, the hardware rules are unchanged: the board has to have the slot and the tier, the PSU the watts (and connectors), the cooler the capacity, the RAM the size, the storage the space, the OS the support. The sandbox ignores the level (everything unlocked). If the machine cannot carry a part, the shop shows it blocked with the first reason (`PurchaseSnap.blocked`), and install refuses it with the same reason. The tree is per device (a ladder per kind), not one global tree.
 
 How it is enforced today: each device is a declarative spec (`src/sim/board/specs.ts`: `slot`, `price`, `idleW/loadW`, thermal) and `install` checks slot type and PSU watts; purchases are validated against the "plan" (installed board plus everything in the inventory); OS items are data in `src/sim/os/specs.ts` with `minRamBytes` and `diskBytes`. Adding a rung is adding a record, plus a new requirement field only when it needs a new rule.
 
@@ -55,7 +55,7 @@ A `vrm-sink` slot on every board. Matters with a liquid CPU cooler (no airflow o
 ## Display (built: 1)
 CLI monitor (text). Planned: a framebuffer/graphics display (needs a GPU on PCIe), bigger resolutions for render jobs.
 
-## NIC (planned)
+## NIC (planned; full design in [`NETWORK.md`](NETWORK.md): cards, router, cable, ISP plans, levels)
 Ethernet card in a PCIe slot (or on-board on the ATX+ board). Requires: PCIe slot, OS installed (the OS owns the network stack), enough RAM. Unlocks the network `WorkSource`: jobs arrive and results leave without USB keys (removes the USB enumerate/flash latency). Tiers: 100 Mbit, 1 Gbit, 10 Gbit (throughput bounds how many jobs can be ingested per second).
 
 ## Router (planned)
