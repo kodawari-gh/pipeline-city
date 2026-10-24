@@ -437,3 +437,11 @@ export function friendlyError(message: string): string {
   const reason = (m ? m[1]! : message).trim();
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
+
+const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'nic', 'router', 'os'];
+
+/** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
+export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {
+  const kinds = [...INVENTORY_ORDER, ...new Set(items.map((it) => it.kind).filter((k) => !INVENTORY_ORDER.includes(k)))];
+  return kinds.map((k) => ({ k, items: items.filter((it) => it.kind === k) })).filter((g) => g.items.length);
+}

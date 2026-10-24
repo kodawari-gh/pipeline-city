@@ -3,7 +3,7 @@ import { selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
 import { getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
-import { describeId, KIND_LABEL } from './logic';
+import { describeId, inventoryGroups, KIND_LABEL } from './logic';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
 import { INVENTORY_ID } from './tutorial';
@@ -31,8 +31,6 @@ export function InventoryButton({ s }: { s: Snapshot }) {
     </button>
   );
 }
-
-const GROUP_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'os'];
 
 /** Tier of a spec id ("Tier 2"), or null when it has none. */
 function tierOf(specId: string): number | null {
@@ -83,7 +81,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const hl = new Set(highlight.value);
   const sel = selected.value;
   const n = s.inventory.length;
-  const groups = GROUP_ORDER.map((k) => ({ k, items: s.inventory.filter((it) => it.kind === k) })).filter((g) => g.items.length);
+  const groups = inventoryGroups(s.inventory);
   return (
     <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
       <header class="inv-head">

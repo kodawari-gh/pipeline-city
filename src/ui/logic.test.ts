@@ -3,6 +3,7 @@ import {
   cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
   queueReadout, statusChip, stallsByCause, tempLevel, triggeredHints,
 } from './logic';
+import { inventoryGroups } from './logic';
 import { REGIONS } from './regions';
 import { getSpec } from '../sim/board/specs';
 import type { Phase } from '../sim/game/game';
@@ -220,5 +221,16 @@ describe('descriptions', () => {
         expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
       }
     }
+  });
+});
+
+describe('inventoryGroups', () => {
+  it('lists a router and a network card on the shelf, in shelf order', () => {
+    const items = [{ kind: 'os' }, { kind: 'router' }, { kind: 'cpu' }, { kind: 'nic' }];
+    expect(inventoryGroups(items).map((g) => g.k)).toEqual(['cpu', 'nic', 'router', 'os']);
+  });
+  it('never drops an item of an unknown kind', () => {
+    const items = [{ kind: 'cpu' }, { kind: 'mystery' }];
+    expect(inventoryGroups(items).flatMap((g) => g.items)).toHaveLength(2);
   });
 });
