@@ -238,12 +238,12 @@ An unrunnable job can also be **declined** by the player at once, for a smaller 
 
 ### Declining (owner decision 2)
 
-The player may **decline** any job that is still waiting: an unrunnable job, or any other waiting job (a tray key not yet plugged, an ingested job not yet running, a network offer not yet downloading). A running job, a plugged or held key, a result waiting for collection, a download and an upload cannot be declined; the refusal names the reason.
+The player may **decline** any job that is still waiting: an unrunnable job, or any other waiting job (a tray key not yet plugged, an ingested job not yet running, a network offer not yet downloading). A running job, a plugged key, a result waiting for collection, a download and an upload cannot be declined; the refusal names the reason.
 
 - **Penalty (proposed number):** the decline feeds `targetTurnaround x patienceMul(level)` into the turnaround average, once, the way an expiry feeds `giveUpTurnaround x patienceMul`. That is exactly **one third** of an expiry's feed at every level (60 x mul against 180 x mul). It is not an expiry: the job leaves at once, `expired` does not count it, it pays nothing and gives no client-base points, and the slot frees immediately.
 - Worked, level 10 (patienceMul 0.90, target 54): average 50, reputation 54 / 50 = 1.08. A decline feeds 54: average 0.3 x 54 + 0.7 x 50 = 51.2, reputation **1.05**. An expiry at the same moment drops it to 0.65 (the worked example above). Recovery is one normal job.
 - Worked, level 4 (patienceMul 2.4, target 144), the case where it hurts most: a fast machine with average 60 has reputation 2.4 (not clamped). A decline feeds 144: average 85, reputation **1.7**. Five normal jobs of about 60 s bring it back to about 2.3. This is the honest cost of declining a waiting job for a fast machine.
-- **Control:** a **Decline** button on each waiting tile (the key tile in the tray, the queue row of a spooled job, a network offer), shown on every unrunnable job with its needs chip and dimmer on a runnable waiting one. The first click arms `Decline -rep?` for 3 seconds; the second click declines. Tooltip: `Client leaves. Small reputation cost, no payout.` A running, held or downloading job shows no button.
+- **Control:** a **Decline** button on each waiting tile (the key tile in the tray, the queue row of a spooled job, a network offer), shown on every unrunnable job with its needs chip and dimmer on a runnable waiting one. The first click arms `Decline -rep?` for 3 seconds; the second click declines. Tooltip: `Client leaves. Small reputation cost, no payout.` A running or downloading job shows no button.
 - **Protocol:** `declineKey { id }` for a USB key (tray, or ingested and not yet running) and `declineJob { id }` for a network offer or spooled network job; the same shape as `ejectKey`. Store actions `declineKey(id)` and `declineJob(id)`. Refusals: `running`, `plugged`, `result waiting`, `downloading`, `uploading`.
 - **Sim rule:** `Game.declineKey` / `declineJob` remove the job from the tray, the queue or the offer list at once; feed the average as above; add 1 to the lifetime counter `declined` (snapshot `declined`, save optional); pay nothing. A declined job never comes back, and the arrival that would have filled its slot is generated as usual.
 - **Tutorial hint** (once, flag `declineHintSeen`, optional and additive): the first time an unrunnable job is on screen, `This client needs a GPU. Buy one before it expires, or decline it: a small reputation cost, and the slot is free now.` (The text names the missing device.)
@@ -265,11 +265,11 @@ One expiry costs about four normal jobs of recovery and about 40% of demand whil
 
 ### Retired keys (the network switch)
 
-A player who switches to the network with USB keys still in the tray (or held by the OS) should not be punished for the keys they never served: their clients went online. So the USB keys present when the link comes up are **retired** (`NETWORK.md` "Retired keys", `Key.retired`, `KeySnap.retired`):
+A player who switches to the network with USB keys still in the tray should not be punished for the keys they never served: their clients went online. So the USB keys present when the link comes up are **retired** (`NETWORK.md` "Retired keys", `Key.retired`, `KeySnap.retired`):
 
-- **Which keys:** every key in the tray, every key the OS holds and the key in the port, at the moment the link comes up. Keys whose result is already waiting are not retired (their client is waiting for it). The rule runs at each arrival of the link (the first link-up, and each return after a dead spell).
+- **Which keys:** every key in the tray, and the key in the port, at the moment the link comes up. Keys whose result is already waiting are not retired (their client is waiting for it). The rule runs at each arrival of the link (the first link-up, and each return after a dead spell).
 - **Reputation:** a retired key is left out of the "age of the oldest waiting key" term (rule 4 above applies to it too), so it holds reputation at nothing. The turnaround average is untouched.
-- **Expiry:** at its deadline a retired key leaves **silently**: no penalty, no `expired` count, no log line. It leaves whether or not the machine could run it. A held key the kernel is still running, or whose result is waiting, is kept.
+- **Expiry:** at its deadline a retired key leaves **silently**: no penalty, no `expired` count, no log line. It leaves whether or not the machine could run it.
 - **Still served:** a retired key can be plugged, ingested, collected and paid (payout and client-base points as for any key) until its deadline.
 - **Decline:** free for a retired key (the average is not fed; `declined` still counts it).
 - **Keys that arrive during a USB fallback** (after 300 dead ticks, `NETWORK.md`) are normal, not retired: they age and expire as usual, and they are retired when the link returns.
