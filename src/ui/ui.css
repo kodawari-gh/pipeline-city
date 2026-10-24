@@ -298,7 +298,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 }
 .tile:hover .tgrab { opacity: 1; }
 .tile.dim:hover .tgrab { opacity: 0; }
-.invbtn.pulse { outline-offset: 2px; }
+.invbtn.pulse { outline-offset: 0.15rem; }
 
 /* Stats drawer (right side), kept as before but quieter */
 .dock {
@@ -322,7 +322,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tooltip {
   position: fixed; left: 0; top: 0; z-index: 50; max-width: 17rem; pointer-events: none; padding: 0.4rem 0.55rem; border-radius: 0.55rem;
   background: var(--panel); border: 1px solid var(--glass-line); font-size: 0.77rem;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(0.67rem); -webkit-backdrop-filter: blur(0.67rem);
 }
 .tooltip b { font-size: 0.8rem; }
 .notice {
