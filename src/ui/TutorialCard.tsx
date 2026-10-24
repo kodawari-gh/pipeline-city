@@ -1,12 +1,13 @@
 import { effect } from '@preact/signals';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { viewInset } from '../game/hover';
 import { cameraRev, dragging, highlight } from '../game/interaction';
 import { snapshot } from '../game/store';
 import {
-  declineOsLesson, finishTutorial, inventoryOpen, skipTutorial, startTutorial, takeOsLesson, tutorial,
+  declineOsLesson, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
 } from './state';
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
+import { CHAR_MS, pagesOf } from './dialogue';
 import { anchorOf, flyTo, hasTarget } from './anchor';
 import { comfortablyVisible, type Rect } from './place';
 
@@ -19,6 +20,36 @@ function Why({ text }: { text: string | undefined }) {
       <button class="link why" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Why?'}</button>
       {open && <div class="pplain mute why-text">{text}</div>}
     </>
+  );
+}
+
+/**
+ * JRPG-style dialogue: the text types out, a click (or Enter) completes the page, and the bobbing triangle shows a
+ * finished page; on a page with more after it, the click turns the page. The unwritten rest stays in the layout, invisible,
+ * so the box never jumps while it types. Reduced motion shows the whole page at once.
+ */
+function Dialogue({ text }: { text: string }) {
+  const pages = pagesOf(text);
+  const [page, setPage] = useState(0);
+  const [n, setN] = useState(0);
+  const cur = pages[Math.min(page, pages.length - 1)]!;
+  useEffect(() => { setPage(0); setN(0); }, [text]);
+  useEffect(() => {
+    if (reducedMotion()) { setN(cur.length); return; }
+    setN(0);
+    const id = setInterval(() => setN((k) => { if (k >= cur.length) { clearInterval(id); return k; } return k + 1; }), CHAR_MS);
+    return () => clearInterval(id);
+  }, [cur]);
+  const done = n >= cur.length;
+  const more = page < pages.length - 1;
+  const advance = () => { if (!done) setN(cur.length); else if (more) setPage(page + 1); };
+  return (
+    <button type="button" class="dlg" onClick={advance} aria-label={more || !done ? 'Next' : 'Dialogue'}>
+      <span class="dlg-text" aria-live="polite">
+        <span>{cur.slice(0, n)}</span><span class="dlg-rest">{cur.slice(n)}</span>
+      </span>
+      <span class={`dlg-arrow ${done ? (more ? 'more' : 'end') : ''}`} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -172,10 +203,7 @@ export function TutorialCard() {
   const cardActive = !!s && !!step && !modal;
 
   const cardRef = useRef<HTMLElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const lastHtml = useRef<{ id: string; html: string } | null>(null);
-  const [leaving, setLeaving] = useState<string | null>(null);
 
   useEffect(() => {
     highlight.value = modal ? [] : targets;
@@ -188,29 +216,9 @@ export function TutorialCard() {
 
   const { offscreen, showMe } = useGuidance(cardActive, targets, cardRef, svgRef);
 
-  const stepId = step?.id ?? (offer ? 'offer' : '');
-  // Cross-fade: keep the previous step's content for a moment, fading out over the new one. Card height follows the content.
-  useLayoutEffect(() => {
-    const el = cardRef.current, inner = innerRef.current;
-    if (!el || !inner) { lastHtml.current = null; return; }
-    const prev = lastHtml.current;
-    if (prev && prev.id !== stepId && !reducedMotion()) {
-      setLeaving(prev.html);
-      const t = setTimeout(() => setLeaving(null), 320);
-      lastHtml.current = { id: stepId, html: inner.innerHTML };
-      return () => clearTimeout(t);
-    }
-    lastHtml.current = { id: stepId, html: inner.innerHTML };
-  }, [stepId]);
-  useLayoutEffect(() => {
-    const el = cardRef.current, inner = innerRef.current;
-    if (!el || !inner) return;
-    const fit = () => { el.style.height = `${inner.offsetHeight + 2}px`; };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(inner);
-    return () => ro.disconnect();
-  }, [cardActive]);
+  // A tutorial popup holds the game, like the level-up.
+  useEffect(() => { pauseForTutorialPopup(modal && !!s); }, [modal, !!s]);
+  useEffect(() => () => pauseForTutorialPopup(false), []);
 
   if (modal && s) {
     if (offer) {
@@ -256,7 +264,7 @@ export function TutorialCard() {
         <circle class="ptr-dot" cx="0" cy="0" />
       </svg>
       <aside class="card tut" ref={cardRef} aria-label="Tutorial" data-step={step.id}>
-        <div class="tut-in" ref={innerRef}>
+        <div class="tut-in">
           <div class="thead">
             <span class="mute">{label}</span>
             <span class="tbtns">
@@ -266,7 +274,7 @@ export function TutorialCard() {
           </div>
           <div class="tut-text" key={step.id}>
             <div class="ptitle">{step.title}</div>
-            <div class="pplain">{step.text}</div>
+            <Dialogue text={step.text} />
             {meter && (
               <div class="tmeter" role="progressbar" aria-valuenow={Math.round(meter.pct)} aria-valuemin={0} aria-valuemax={100} title={`Client base ${meter.label}`}>
                 <span class="tbar"><i style={{ width: `${meter.pct}%` }} /></span>
@@ -280,7 +288,6 @@ export function TutorialCard() {
             )}
           </div>
         </div>
-        {leaving !== null && <div class="tut-out" aria-hidden="true" dangerouslySetInnerHTML={{ __html: leaving }} />}
       </aside>
     </>
   );

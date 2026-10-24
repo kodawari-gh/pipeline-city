@@ -87,7 +87,7 @@ function InsetReporter() {
       const bar = document.querySelector('.hud');
       if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom + gap);
       let invSeen = false;
-      for (const el of document.querySelectorAll('.dock, .inv, .invbar')) {
+      for (const el of document.querySelectorAll('.dock, .inv, .invbar, .tut')) {
         const r = el.getBoundingClientRect();
         if (r.width === 0) continue;
         const side = r.height > H * 0.5 && r.width < W * 0.5;

@@ -333,30 +333,34 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .nerd { margin-top: 0.267rem; font: 0.7rem/1.4 var(--mono); color: var(--mute); }
 .picker input[type=range] { accent-color: var(--accent); }
 
-/* Tutorial card: bottom centre, above the inventory shelf. Text cross-fades between steps, height glides, it lifts when it
-   would cover the target. The pointer is a glowing connector from the card to the target (TutorialCard.tsx). */
+/* Tutorial: a JRPG dialogue box at the bottom centre, above the inventory shelf. The text types out (TutorialCard.tsx,
+   Dialogue) and a bobbing triangle marks a finished page. The pointer is a glowing connector from the box to the target. */
 .tut {
-  position: relative; width: min(100%, 34rem); padding: 0; overflow: hidden; z-index: 25;
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  transition: height .3s ease, transform .35s cubic-bezier(.2, .8, .2, 1);
+  position: relative; width: min(100%, 40rem); padding: 0; z-index: 25; box-sizing: border-box;
+  border: 0.15rem solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 0.7rem;
+  box-shadow: 0 0 0 0.15rem var(--bg), 0 0.5rem 1.5rem rgba(0, 0, 0, .35);
+  transition: opacity .2s ease;
 }
-/* While the picker popup is open it is the thing to read: the tutorial card and pointer step aside. */
+/* While the picker popup is open it is the thing to read: the tutorial box and pointer step aside. */
 #hud:has(.picker) .tut { opacity: 0; pointer-events: none; }
 #hud:has(.picker) .pointer { opacity: 0 !important; }
-.tut { transition: height .3s ease, opacity .2s ease; }
-/* The current mission: a compact card pinned top left under the bar, not a banner over the board. */
-.tut { position: fixed; left: 0.533rem; top: 3.7rem; width: 19.5rem; z-index: 26; box-sizing: border-box; }
-.tut-in, .tut-out { padding: 0.7rem 0.95rem 0.8rem; }
-.tut-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: tut-out .3s ease both; background: transparent; }
+.tut-in { padding: 0.55rem 1rem 0.7rem; }
 .tut-text { animation: tut-in .35s ease both; }
-.tut .ptitle { font-size: 0.95rem; margin-top: 0.25rem; }
-.tut .pplain { font-size: 0.85rem; color: var(--ink); opacity: .92; }
+.tut .ptitle { font-size: 0.8rem; margin: 0.15rem 0 0.2rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.dlg {
+  position: relative; display: block; width: 100%; min-height: 2.9rem; padding: 0 1.4rem 0 0; border: 0; background: transparent;
+  text-align: left; cursor: pointer; font: inherit; font-size: 1rem; line-height: 1.45; color: var(--ink);
+}
+.dlg-rest { opacity: 0; }
+.dlg-arrow { position: absolute; right: 0.2rem; bottom: 0.35rem; width: 0; height: 0; border-left: 0.45rem solid transparent; border-right: 0.45rem solid transparent; border-top: 0.65rem solid var(--accent); opacity: 0; }
+.dlg-arrow.more { opacity: 1; animation: dlg-bob .8s ease-in-out infinite; }
+.dlg-arrow.end { opacity: .45; animation: dlg-bob 1.4s ease-in-out infinite; }
+@keyframes dlg-bob { 0%, 100% { transform: translateY(-0.15rem); } 50% { transform: translateY(0.2rem); } }
 .thead { display: flex; justify-content: space-between; align-items: center; font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; }
 .thead .link { font-size: 0.75rem; padding: 0; }
 .tbtns { display: inline-flex; gap: 0.7rem; }
 .eyebrow { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .1em; }
 @keyframes tut-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
-@keyframes tut-out { from { opacity: 1; } to { opacity: 0; transform: translateY(-0.4rem); } }
 .pointer { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 24; opacity: 0; transition: opacity .25s ease; pointer-events: none !important; overflow: visible; }
 .pointer.on { opacity: 1; }
 .ptr-line { stroke: var(--accent); stroke-width: 1px; stroke-linecap: round; stroke-dasharray: 0.3rem 0.35rem; animation: march 1.4s linear infinite; opacity: .6; }
@@ -579,7 +583,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
-  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i { transition: none !important; animation: none !important; }
+  .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }

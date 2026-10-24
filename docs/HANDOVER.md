@@ -200,3 +200,5 @@ Listed at the bottom of `docs/ARCHITECTURE.md`. The ones you will hit first: typ
 ## First message to send the owner
 
 Summarise what you read, say which step of the order above you are starting, and ask only what blocks you. Do not re-ask settled decisions.
+
+The tutorial is a JRPG dialogue box at the bottom centre (`TutorialCard.tsx` `Dialogue`, `dialogue.ts`): the step text types out, a click completes or turns the page, a bobbing triangle marks a finished page. The welcome and next-lesson popups pause the game while open (`pauseForTutorialPopup` in `state.ts`), like the level-up.

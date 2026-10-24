@@ -192,6 +192,16 @@ export function dismissLevelUp() {
   pausedByLevelUp = false;
 }
 
+/** A tutorial popup (the welcome, the next-lesson offer) pauses the game while it is open, like the level-up. */
+let pausedByTutorial = false;
+export function pauseForTutorialPopup(open: boolean) {
+  if (open && !pausedByTutorial && speed.peek() !== 0) { togglePause(); pausedByTutorial = true; }
+  else if (!open && pausedByTutorial) {
+    if (speed.peek() === 0 && !levelUp.peek()) togglePause();
+    pausedByTutorial = false;
+  }
+}
+
 effect(() => {
   const s = snapshot.value;
   if (!s) { dismissLevelUp(); return; }
