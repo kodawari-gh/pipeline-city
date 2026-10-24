@@ -73,12 +73,21 @@ function InsetReporter() {
         } else next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
       }
       if (!invSeen) invKept = null;
+      // The tutorial card reserves its place above the shelf while a step is active, so the overview frames the board
+      // above it. Its layout box is used (offsetTop, not the drawn rect), so its lift never moves the camera.
+      const tut = document.querySelector<HTMLElement>('.tut');
+      const stack = tut?.offsetParent as HTMLElement | null | undefined;
+      if (tut && stack && tut.offsetHeight > 0) {
+        const cardTop = stack.getBoundingClientRect().top + tut.offsetTop;
+        next.bottom = Math.max(next.bottom, Math.ceil(H - cardTop + gap));
+      }
       const cur = viewInset.peek();
       if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
     };
     measure();
     const mo = hud ? new MutationObserver(measure) : null;
-    if (hud) mo!.observe(hud, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    // `style` too: the tutorial card's height is set in its style (its fit), and the picker moves by its style.
+    if (hud) mo!.observe(hud, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
     window.addEventListener('resize', measure);
     return () => { mo?.disconnect(); window.removeEventListener('resize', measure); };
   }, []);
