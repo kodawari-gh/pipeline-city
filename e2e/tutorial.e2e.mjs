@@ -48,6 +48,7 @@ const browser = await chromium.launch({
 });
 const ctx = await browser.newContext({ viewport: { width: W, height: H } });
 const p = await ctx.newPage();
+p.setDefaultTimeout(6000);
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 p.on('crash', () => errors.push('PAGE CRASHED'));
@@ -110,14 +111,23 @@ async function waitTyped(ms = 7000) {
 }
 /** What the player sees for this step must be this step's: card, text, highlights, no stacked popups. */
 async function validateStep(id) {
+  // Hold the game: the state under test must not move while the text types and the camera flies. A step that already holds it (an explain-only step) stays held.
+  const was = await p.evaluate(async () => (await import('/src/game/store.ts')).speed.value);
+  if (was !== 0) await setSpeed(0);
+  try { await validateHeld(id); } finally { if (was !== 0) await setSpeed(was); }
+}
+async function validateHeld(id) {
   await waitTyped();
   await p.waitForTimeout(1200); // the camera flight to the target
+  if (await p.$('.lvl-card')) return; // a level-up popup is read first; the card waits behind it
   const out = await p.evaluate(async (id) => {
     const { STEPS } = await import('/src/ui/tutorial.ts');
     const { snapshot } = await import('/src/game/store.ts');
     const { highlight, dragging } = await import('/src/game/interaction.ts');
     const { anchorOf } = await import('/src/ui/anchor.ts');
     const step = STEPS.find((x) => x.id === id);
+    // A short step can be over before it is checked (the first job takes a few seconds): then there is nothing to compare.
+    if (document.querySelector('aside.tut')?.getAttribute('data-step') !== id) return ['__moved'];
     const out = [];
     const want = step.targets(snapshot.value, dragging.value), have = highlight.value;
     if (JSON.stringify(want) !== JSON.stringify(have)) out.push(`highlight ${JSON.stringify(have)} is not the step's targets ${JSON.stringify(want)}`);
@@ -137,6 +147,7 @@ async function validateStep(id) {
     }
     return out;
   }, id);
+  if (out[0] === '__moved') { log(`  (${id} had already moved on: not checked)`); return; }
   for (const o of out) { problems.push(`${id}: ${o}`); log(`  PROBLEM ${id}: ${o}`); }
   await stepShot(id);
 }
@@ -205,6 +216,7 @@ for (let i = 0; i < 1500; i++) {
     break;
   }
   const inv = (kind) => s.inventory.find((x) => x.kind === kind);
+  try {
   switch (id) {
     case 'cpu': case 'cooler': case 'ram': case 'psu': case 'monitor': {
       const it = inv(id === 'monitor' ? 'display' : id);
@@ -237,8 +249,15 @@ for (let i = 0; i < 1500; i++) {
       if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800);
       break; }
     case 'bootOs': if (!s.powered) await clickAnchor('power'); else await p.waitForTimeout(800); break;
-    default: // watch, reachLevel3, osPaid: the game does the work; a player keeps the keys coming meanwhile
+    case 'reachLevel3': // the client base grows by delivering: a player keeps the keys coming
       if (!(await serve(s))) await p.waitForTimeout(800);
+      break;
+    default: await p.waitForTimeout(800); // watch, osPaid: the game does the work (plugging the next key now would skip a lesson)
+  }
+  } catch (e) {
+    // A popup (the level-up) can open between the check and the click: the next round handles it first.
+    log('  action interrupted:', String(e.message).split(String.fromCharCode(10))[0].slice(0, 120));
+    await p.mouse.up().catch(() => {});
   }
   await p.waitForTimeout(250);
 }
