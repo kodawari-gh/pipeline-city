@@ -234,7 +234,7 @@ describe("board upgrade purchase", () => {
     expect(g.install(b1.invId).ok).toBe(true);
     expect(g.install(b.invId).ok).toBe(true);
     expect(g.snapshot().boardTier).toBe(2);
-    expect(g.snapshot().cables.every((c) => c.connected)).toBe(true); // parts and cables carried over
+    expect(g.snapshot().cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true); // parts and cables carried over
     expect(g.install(p.invId).ok).toBe(true); // swaps over the 40 W PSU, which goes back to the inventory
     expect(g.snapshot().cables.find((c) => c.id === "atx")!.connected).toBe(true); // swapping keeps the cables on the board
     g.powerButton();

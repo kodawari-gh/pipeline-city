@@ -48,7 +48,7 @@ describe("the bare start", () => {
     expect(s.tray).toHaveLength(1);
     expect(s.plugged).toBeNull();
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
-    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false]]);
+    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["lan", false]]); // the ethernet cable joined with the network
     expect(s.cables.every((c) => c.blocked)).toBe(true); // no PSU / monitor yet
     expect(s.noPowerReason).toMatch(/PSU/);
     expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "sata0", "usb0", "vrm-sink0"]);
@@ -68,7 +68,7 @@ describe("the bare start", () => {
     expect(s.powered).toBe(true);
     expect(s.inventory).toEqual([]);
     expect(s.devices.map((d) => d.kind).sort()).toEqual(["cooler", "cpu", "display", "psu", "ram"]);
-    expect(s.cables.every((c) => c.connected)).toBe(true);
+    expect(s.cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true); // the ethernet cable is the player's
     expect(s.progress.poweredOn).toBe(true);
   });
 });

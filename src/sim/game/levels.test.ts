@@ -270,11 +270,13 @@ describe("the arrival mix", () => {
     const g = sandbox({ level: 10 });
     const big = new Game({ seed: 11, sandbox: true, preassembled: true, economy: { baseDemandPerTick: 1, queueCap: 100000 } });
     big.setLevel(10);
+    big.purchase("isp1"); // the web class has no share before a plan exists; with one its jobs arrive as network offers
     const seen = new Map<number, string>();
     for (let t = 0; t < 1500; t++) {
       big.setReputation(1); // held at 1 so the heavy-class shift stays neutral
       big.advanceBaseTick();
-      for (const k of big.snapshot().tray) seen.set(k.id, k.cls);
+      const s = big.snapshot();
+      for (const k of [...s.tray, ...s.net.offers]) seen.set(k.id, k.cls);
     }
     const counts: Record<string, number> = {};
     for (const c of seen.values()) counts[c] = (counts[c] ?? 0) + 1;

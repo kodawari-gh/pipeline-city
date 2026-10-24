@@ -6,7 +6,7 @@ import {
   currentStep, effectiveProgress, INITIAL_TUTORIAL, legacyFinished, offerNextLesson, resumeState, STEPS, stepCount,
   stepProblem, type TutorialState,
 } from './tutorial';
-import { dev, key, snap, STARTER_CRATE } from './testdata';
+import { boardSnap, dev, key, snap, STARTER_CRATE } from './testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
 /** The first fourteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
@@ -71,12 +71,28 @@ describe('tutorial step from snapshot flags', () => {
     expect(idOf(currentStep(snap({ progress: oldDone() }), welcomed))).toBe('fit');
   });
 
-  it('the final card shows once the OS job is paid out', () => {
-    const s = snap({
-      progress: { ...oldDone(), storageInstalled: true, osInstalled: true, firstOsJob: true },
-      storage: [drive({ hasOs: true })], os: osOn(), inventory: [],
+  it('after the OS job is paid out the automation lesson waits for Level 4, then walks the network steps', () => {
+    const base = { ...oldDone(), storageInstalled: true, osInstalled: true, firstOsJob: true };
+    const s = (progress: Partial<Progress>, extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({
+      progress: { ...base, ...progress }, storage: [drive({ hasOs: true })], os: osOn(), inventory: [], level: atLevel(4), ...extra,
     });
-    expect(idOf(currentStep(s, welcomed))).toBe('done');
+    expect(idOf(currentStep(s({}, { level: atLevel(3) }), welcomed))).toBe('reachLevel4');
+    expect(idOf(currentStep(s({}), welcomed))).toBe('buyIsp');
+    expect(idOf(currentStep(s({ ispBought: true }), welcomed))).toBe('buyRouter');
+    expect(idOf(currentStep(s({ ispBought: true }, { inventory: [invItem('router', 'router1', 'inv9', ['router'])] }), welcomed))).toBe('placeRouter');
+    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true }), welcomed))).toBe('netHardware');
+    const ready = { board: boardSnap({ tier: 1 }), devices: [dev({ id: 'r1', spec: 'ram2', kind: 'ram', slot: 'dimm0' })] };
+    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true }, ready), welcomed))).toBe('plugLan');
+    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true }), welcomed))).toBe('linkUp');
+    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }), welcomed))).toBe('firstNetJob');
+    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true, firstNetJob: true }), welcomed))).toBe('done');
+  });
+
+  it('the network steps explain what is missing', () => {
+    const step = (id: string) => STEPS.find((x) => x.id === id)!;
+    const on = snap({ powered: true, net: { ...snap().net, state: 'no-os', reason: 'needs 64K of RAM, only 32K installed' } });
+    expect(stepProblem(on, step('linkUp'))).toMatch(/64K/);
+    expect(stepProblem(snap(), step('plugLan'))).toMatch(/router/i);
   });
 
   it('skipped and finished tutorials show nothing', () => {
@@ -89,7 +105,7 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(6) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cpuPower');
-    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 12 });
+    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 12 + 8 });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {

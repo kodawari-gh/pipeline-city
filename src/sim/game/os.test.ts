@@ -334,7 +334,7 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     expect(g.snapshot().os!.queue).toHaveLength(4);
   });
 
-  it("power loss empties the kernel queue: ingested keys go back to the tray unserved", () => {
+  it("power loss keeps ingested keys: they are spooled on the drive and the kernel re-ingests them at the next boot", () => {
     const g = rig("ssd1");
     g.powerButton();
     runUntil(g, "idle-os");
@@ -343,11 +343,11 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     expect(g.snapshot().held).toHaveLength(1);
     g.powerButton();
     const s = g.snapshot();
-    expect(s.held).toEqual([]);
-    expect(s.tray.map((k) => k.id)).toEqual([id]);
+    expect(s.held.map((k) => k.id)).toEqual([id]); // changed with the network phase: no longer returned to the tray
+    expect(s.tray.map((k) => k.id)).not.toContain(id);
     g.powerButton();
     runUntil(g, "idle-os");
-    ingest(g, id);
+    until(g, () => g.snapshot().os!.queue.some((j) => j.keyId === id)); // rebuilt from the spool, no second ingest by the player
     expect(collect(g, id)).toBeGreaterThan(0);
   });
 

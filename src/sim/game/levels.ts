@@ -126,7 +126,7 @@ export const LEVELS: readonly LevelDef[] = [
   row(1, "Garage Bench", 0, 4.0, 1.0, 1.0, { cli: 67, scan: 33 }, ["cpu1", "ram1", "cooler1", "psu1", "vsink0"]),
   row(2, "Hobby Shop", 4, 4.0, 1.11, 1.12, { cli: 67, scan: 33 }, ["vsink1", "hdd0", "board1"]),
   row(3, "Local Gigs", 12, 3.0, 1.23, 1.24, { cli: 60, scan: 30, db: 10 }, ["ssd1", "os1"]),
-  row(4, "Small Office", 38, 2.4, 1.37, 1.36, { cli: 45, scan: 25, db: 15, web: 15 }, ["router1", "isp1"]),
+  row(4, "Small Office", 14, 2.4, 1.37, 1.36, { cli: 45, scan: 25, db: 15, web: 15 }, ["router1", "isp1"]),
   row(5, "Storefront", 70, 2.0, 1.52, 1.48, { cli: 40, scan: 25, db: 20, web: 15 }, ["psu2", "ram2", "board2"]),
   row(6, "Neighbourhood", 110, 1.7, 1.69, 1.6, { cli: 37, scan: 23, db: 22, web: 18 }, ["cpu2", "cooler2", "isp2"]),
   row(7, "District", 155, 1.45, 1.87, 1.72, { cli: 33, scan: 22, db: 24, web: 21 }, ["nvme2", "vsink2", "fan1", "router2", "nic1"]),

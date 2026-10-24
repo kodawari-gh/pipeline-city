@@ -236,13 +236,13 @@ describe("migration v1 -> v2", () => {
     const s = l.snapshot();
     expect(s).toMatchObject({ powered: false, phase: "off", money: 321, baseTick: 500, completed: 7, dropped: 2, errors: 1, avgTurnaround: 80 });
     expect(s.devices.map((d) => d.spec).sort()).toEqual(["cooler1", "cpu1", "display0", "psu1", "ram0"]);
-    expect(s.cables.every((c) => c.connected)).toBe(true);
+    expect(s.cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true);
     expect(s.tray.map((k) => k.id)).toEqual([7, 8, 9]); // the in-flight request first, then the queue
     expect(s.plugged).toBeNull();
     expect(s.inventory.map((i) => i.spec)).toEqual(["ram1"]); // the purchase that was waiting for the next request
     expect(s.progress.poweredOn).toBe(true);
     // An existing player skips the tutorial: every milestone that existed in v1 is reached (the v3 storage/OS ones are not).
-    const { storageInstalled, osInstalled, firstOsJob, ...legacy } = s.progress;
+    const { storageInstalled, osInstalled, firstOsJob, ispBought, routerInstalled, lanConnected, linkUp, firstNetJob, ...legacy } = s.progress;
     expect([storageInstalled, osInstalled, firstOsJob]).toEqual([false, false, false]);
     expect(Object.values(legacy).every((v) => v)).toBe(true);
     expect(s.lastCompleted).toMatchObject({ id: 6, payout: 61 });

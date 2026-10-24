@@ -230,8 +230,7 @@ export interface InventorySnap {
 
 export interface SlotSnap {
   id: string;
-  /** "router" is the single external spot next to the monitor (only in `Snapshot.slots`). */
-  type: SlotType | "router";
+  type: SlotType;
   /** Installed device instance id, or null if empty. */
   deviceId: string | null;
 }
@@ -1133,7 +1132,8 @@ export class Game {
 
   /** Cables that could be plugged in (source part installed) but are not. */
   missingCables(): CableId[] {
-    return CABLES.filter((c) => !this.cables[c.id] && !cableBlocked(this.board, c.id)).map((c) => c.id);
+    // The ethernet cable is the player's choice (a port, a router): never part of the bot's assembly.
+    return CABLES.filter((c) => c.id !== "lan" && !this.cables[c.id] && !cableBlocked(this.board, c.id)).map((c) => c.id);
   }
 
   /** Items in the inventory (ids and spec ids). */
@@ -1257,7 +1257,7 @@ export class Game {
       noPowerReason: chk.noPower,
       postBlocker: chk.post?.reason ?? null,
       inventory: this.inventorySnap(),
-      slots: [...this.slotSnaps(), { id: "router", type: "router", deviceId: this.routerTier ? (routerByTier(this.routerTier)?.id ?? null) : null }],
+      slots: this.slotSnaps(),
       cables: CABLES.map((c) => {
         const blocked = c.id === "lan" ? (this.routerTier ? null : "needs a router next to the monitor") : cableBlocked(this.board, c.id);
         return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
@@ -1783,6 +1783,17 @@ export class Game {
       else if (!haveDrive) o.blocked = "needs a storage drive to install on";
       else if (planRam < os.minRamBytes) o.blocked = `needs ${os.minRamBytes / 1024}K of RAM`;
       out.push(o);
+    }
+    // Another memory stick of the best tier you run, while a DIMM slot is free (the network wants 64K: two `ram1` on a Basic board).
+    const ramOwned = this.board.devices.filter((d) => deviceSpec(d).kind === "ram" && !d.burnt);
+    if (ramOwned.length > 0) {
+      const best = findDevices(plan, "ram").map((d) => deviceSpec(d)).reduce((a, b) => (b.tier > a.tier ? b : a));
+      const dimms = planSlots.filter((x) => x.type === "dimm").length;
+      const have = ramOwned.length + this.inventory.filter((i) => getSpec(i.spec)?.kind === "ram" && getSpec(i.spec)!.tier >= best.tier).length;
+      if (have < dimms && !out.some((o) => o.id === best.id)) {
+        out.push({ id: best.id, name: `${best.name} (another stick)`, kind: "ram", price: this.cost(best.price), affordable: this.money >= this.cost(best.price),
+          description: "A second memory stick of the same kind." });
+      }
     }
     // Routers (installed from the inventory into the router spot) and ISP plans (applied at purchase).
     const ownedRouter = Math.max(this.routerTier, ...this.inventory.map((i) => getRouterSpec(i.spec)?.tier ?? 0));

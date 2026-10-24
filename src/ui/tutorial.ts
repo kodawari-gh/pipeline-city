@@ -3,7 +3,7 @@
 // save mid-way resumes at the right step, and out-of-order actions are simply skipped past. Only the welcome card
 // (Start) and the last card (Got it) have buttons, plus the one-time "Next lesson: the OS" offer. No DOM, no signals.
 
-import { getSpec } from '../sim/board/specs';
+import { getSpec, type RamSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
@@ -29,7 +29,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'plugKey' | 'power' | 'watch'
   | 'removeKey' | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
-  | 'osCollect' | 'osPaid' | 'done';
+  | 'osCollect' | 'osPaid' | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'netHardware' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
 
 export interface StepDef {
   id: StepId;
@@ -69,6 +69,10 @@ const installTargets = (kind: string) => (s: Snapshot): string[] => {
 };
 const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
+const ownsRouter = (s: Snapshot) => invOf(s, 'router').length > 0;
+const ramKb = (s: Snapshot) => s.devices.filter((d) => d.kind === 'ram' && !d.burnt).reduce((n, d) => n + ((getSpec(d.spec) as RamSpec | undefined)?.sizeBytes ?? 0) / 1024, 0);
+/** The machine has an ethernet jack (a Basic or better board) and the 64K the network stack needs. */
+const netReady = (s: Snapshot) => s.board.features.ethernetMbps > 0 && ramKb(s) >= 64;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
 const heldWith = (s: Snapshot, stage: string) => s.held.find((k) => k.stage === stage);
@@ -185,8 +189,36 @@ export const STEPS: StepDef[] = [
   { id: 'osPaid', title: 'Remove the key to get paid', flag: 'firstOsJob',
     text: 'Pull the finished key out of the USB port. You are paid on removal, and the OS is free for the next job.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
+  // ---- the automation lesson: the network (docs/NETWORK.md) ----
+  { id: 'reachLevel4', title: 'Grow your client base', flag: null,
+    done: (s) => s.level.level >= 4 || s.progress.ispBought || ownsRouter(s),
+    text: 'Clients are tired of sticks. The network opens at Level 4: keep delivering jobs (use the level bar to watch your progress). It needs an OS and 64K of memory, which you have or can buy.',
+    targets: () => [] },
+  { id: 'buyIsp', title: 'Buy an internet plan', flag: 'ispBought',
+    text: 'Open the shop and buy an ISP plan. It is a one-off purchase that sets how fast jobs and results travel, and how many clients can send you work at once.',
+    targets: () => [INVENTORY_ID, 'router'] },
+  { id: 'buyRouter', title: 'Buy a router', flag: null,
+    done: (s, p) => p.routerInstalled || ownsRouter(s),
+    text: 'Buy a router too. It stands next to the monitor with its own power, so it stays on when your computer is off.',
+    targets: () => [INVENTORY_ID, 'router'] },
+  { id: 'placeRouter', title: 'Place the router', flag: 'routerInstalled',
+    text: 'Open the inventory and drag the router to its spot next to the monitor. You can do this with the machine on.',
+    targets: (s) => [INVENTORY_ID, 'router', ...invOf(s, 'router').map((i) => `inv:${i.id}`)] },
+  { id: 'netHardware', title: 'Get a network port and memory', flag: null,
+    done: (s, p) => p.lanConnected || netReady(s),
+    text: 'The network lives inside the OS and needs 64K of memory, and the Starter board has no ethernet jack. Power off, buy the Basic board (your parts carry over) and a second memory stick, and fit them.',
+    targets: (s) => [INVENTORY_ID, ...s.inventory.filter((i) => i.kind === 'board' || i.kind === 'ram').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots])] },
+  { id: 'plugLan', title: 'Plug in the ethernet cable', flag: 'lanConnected',
+    text: 'Drag the ethernet cable from the network jack on the board to the router. Cables like this one can be plugged with the machine running.',
+    targets: () => ['cable.lan', 'router'] },
+  { id: 'linkUp', title: 'Bring the link up', flag: 'linkUp',
+    text: 'The OS brings the link up once it is running with 64K of memory. Power the machine on and wait for the green link light. If something is missing, the card tells you what.',
+    targets: () => ['power', 'router', 'monitor'] },
+  { id: 'firstNetJob', title: 'Watch a job arrive on its own', flag: 'firstNetJob',
+    text: 'Jobs now download in the background, the OS runs them one at a time, and the results upload when done. You are paid on delivery. No plugging needed: wait for the first one.',
+    targets: () => ['router', 'monitor'] },
   { id: 'done', title: 'Workshop open', flag: null,
-    text: 'Your OS now runs jobs from the USB keys. Next: a network card and a router will fetch jobs and send results for you, so the USB keys will fade away.',
+    text: 'The network now brings the jobs and takes the results, and USB keys have stopped arriving. Jobs wait on the drive if the power drops. If the link stays down for five minutes, keys come back at a third of the rate. Next: faster plans, routers and cards.',
     targets: () => [] },
 ];
 
@@ -336,6 +368,21 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
     case 'osWait':
       return s.phase === 'error' ? s.phaseReason : null;
+    case 'buyIsp': case 'buyRouter': {
+      const id = step.id === 'buyIsp' ? 'isp1' : 'router1';
+      const p = s.purchases.find((x) => x.id === id);
+      if (!p) return null;
+      if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
+      if (p.blocked) return p.blocked;
+      return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
+    }
+    case 'netHardware':
+      return s.powered ? 'The machine is on. Power it off to swap the board or add memory.' : null;
+    case 'plugLan':
+      return s.cables.find((c) => c.id === 'lan')?.blocked ?? (s.net.router ? null : 'Place the router first.');
+    case 'linkUp':
+      if (!s.powered) return 'The machine is off. Press the power button: the OS runs the link.';
+      return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : s.net.reason;
     default:
       return null;
   }

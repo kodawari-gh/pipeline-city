@@ -75,7 +75,7 @@ describe("buying and installing the network parts", () => {
     expect(g.powered).toBe(true);
     expect(g.install(inv.id).ok).toBe(true); // external: allowed while powered
     expect(g.snapshot().progress.routerInstalled).toBe(true);
-    expect(g.snapshot().slots.find((s) => s.id === "router")).toMatchObject({ deviceId: "router1" });
+    expect(g.snapshot().net.router).toMatchObject({ id: "router1" });
     expect(g.purchase("isp1").ok).toBe(true);
     expect(g.snapshot().progress.ispBought).toBe(true);
     expect(g.snapshot().net.isp).toMatchObject({ id: "isp1", downMbps: 50 });

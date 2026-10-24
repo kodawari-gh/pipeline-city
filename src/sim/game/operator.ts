@@ -7,6 +7,7 @@
 // plug a held key whose result is ready, remove it when the flash landed. The sim itself never needs it.
 
 import { CABLE_IDS, deviceSpec, getSpec } from "../board";
+import { getRouterSpec } from "../net";
 import type { Game } from "./game";
 
 export class Operator {
@@ -64,7 +65,7 @@ export class Operator {
     return g.inventoryItems().filter((it) => {
       if (!g.canInstall(it.id)) return false;
       const spec = getSpec(it.spec);
-      if (!spec) return true; // a board
+      if (!spec) return !getRouterSpec(it.spec); // a board (a router is placed by hand)
       const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind && !d.burnt);
       return have.length === 0 || spec.tier > Math.max(...have.map((d) => deviceSpec(d).tier));
     }).map((it) => it.id).sort((a, b) => tier(b) - tier(a));
@@ -92,7 +93,7 @@ export class Operator {
         }
       }
     }
-    for (const c of CABLE_IDS) g.connectCable(c);
+    for (const c of CABLE_IDS) if (c !== "lan") g.connectCable(c);
     if (powerOn) g.powerButton();
   }
 }

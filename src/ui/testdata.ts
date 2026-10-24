@@ -87,6 +87,11 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
     level: { level: 1, name: 'Garage Bench', clientBase: 0, floor: 0, next: 4, progress: 0, patienceMul: 4, payMul: 1, demandMul: 1, leveledUpAt: null, recentlyUnlocked: [], upcoming: levelRows(), sandbox: false },
     expired: 0, declined: 0, postTicks: 30,
+    net: {
+      state: 'no-device', reason: 'no ISP plan: buy one', port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null,
+      bandwidth: { downMbps: 0, upMbps: 0, clients: 0, binding: null }, transfers: [], offers: [], spooled: [], usbRetired: false,
+      usbFallback: { state: 'off', deadTicks: 0, startsIn: null, keyRateMul: 1 }, counters: { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 },
+    },
     board: boardSnap(),
     ...o,
   } as Snapshot;
