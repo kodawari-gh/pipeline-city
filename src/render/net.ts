@@ -85,7 +85,7 @@ function routerArt(T: Theme, visual: string, name: string): Container {
   };
   sock(wanX(visual));
   for (let k = 0; k < geo.nLan; k++) sock(lanX(visual, k), k === 0);
-  if (visual === 'router-10g' || visual === 'router-core') {
+  if (visual === 'router-10g') {
     // SFP cage next to the WAN port
     const x = wanX(visual) + 150;
     box(g, x - 52, SHELF_Y - 76, 104, 76, 6, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.7 });
@@ -109,9 +109,9 @@ function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } |
   g.roundRect(p.x, p.y, p.w, p.h, 36).fill(vgrad(hi, lo)).stroke({ width: 6, color: T.line, alpha: 0.9 });
   for (const sx of [p.x + 48, p.x + p.w - 48]) { disc(g, sx, p.y + 46, 14, { fill: mix(lo, '#000000', 0.25) }); g.moveTo(sx - 8, p.y + 46).lineTo(sx + 8, p.y + 46).stroke({ width: 3, color: '#000000', alpha: 0.4 }); }
   const tier = isp ? Number(/\d+$/.exec(isp.id)?.[0] ?? 0) : 0;
-  root.addChild(label(isp ? fmtMbps(isp.downMbps) : 'NO LINE', cx, p.y + 150, isp ? 116 : 76, isp ? ink : T.mute, { anchor: [0.5, 0.5], head: true, a: isp ? 1 : 0.8 }));
-  if (isp) root.addChild(label(isp.name.toUpperCase(), cx, p.y + 232, 38, ink, { anchor: [0.5, 0.5], a: 0.65 }));
-  for (let i = 0; i < 5; i++) disc(g, cx - 96 + i * 48, p.y + 290, 12, i < tier ? { fill: T.alu } : { stroke: T.mute, lw: 3, sa: 0.6 });
+  root.addChild(label(isp ? fmtMbps(isp.downMbps) : 'NO LINE', cx, p.y + 130, isp ? 116 : 76, isp ? ink : T.mute, { anchor: [0.5, 0.5], head: true, a: isp ? 1 : 0.8 }));
+  if (isp) root.addChild(label(isp.name.toUpperCase(), cx, p.y + 206, 38, ink, { anchor: [0.5, 0.5], a: 0.65 }));
+  for (let i = 0; i < 5; i++) disc(g, cx - 96 + i * 48, p.y + 258, 12, i < tier ? { fill: T.alu } : { stroke: T.mute, lw: 3, sa: 0.6 });
   // the jack opens at the bottom edge; the ISP line plugs in from below
   const jx = WALL_JACK.x;
   box(g, jx - 55, SHELF_Y - SOCK_H, 110, SOCK_H + 2, 8, { fill: '#05070c', stroke: isp ? T.alu : T.line, lw: 3, sa: isp ? 0.8 : 0.6 });
@@ -218,12 +218,13 @@ export class NetView {
     const vis = !!s && !!(net?.router || net?.isp || routerInv || lanSnap || lanState === 'connected');
     const jacks: LanJack[] = [];
     if (vis && s) {
-      if ((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0) jacks.push({ id: 'eth0', port: 'board', rect: ETH0_RECT, mouth: [ETH0_MOUTH.x, ETH0_MOUTH.y], valid: !s.board?.burnt });
-      for (const d of s.devices) {
-        if (d.kind !== 'nic') continue;
-        const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0), j = nicJack(idx);
-        jacks.push({ id: `eth${idx + 1}`, port: d.id, rect: j, mouth: [j.x, nicY(idx)], valid: !d.burnt });
-      }
+      if ((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0) jacks.push({ id: 'eth0', port: 'board', rect: ETH0_RECT, mouth: [ETH0_MOUTH.x, ETH0_MOUTH.y], valid: !s.board?.burnt, slot: -1 });
+      // NIC jacks are eth1, eth2, ... in PCIe slot order (the first card is eth1)
+      const nics = s.devices.filter((d) => d.kind === 'nic').map((d) => ({ d, idx: Number(/\d+$/.exec(d.slot)?.[0] ?? 0) })).sort((a, b) => a.idx - b.idx);
+      nics.forEach(({ d, idx }, k) => {
+        const j = nicJack(idx);
+        jacks.push({ id: `eth${k + 1}`, port: d.id, rect: j, mouth: [j.x, nicY(idx)], valid: !d.burnt, slot: idx });
+      });
     }
     let portId: string | null = null;
     if (lanState === 'connected' && net) {
@@ -351,7 +352,7 @@ export class NetView {
     // jack LEDs: the board jack or the card the cable is in; every other jack stays dark
     const jack = this.jacks.find((j) => j.id === this.lanPortId);
     if (jack) {
-      const pts = jack.id === 'eth0' ? eth0Leds() : nicLeds(Number(jack.id.slice(3)) - 1);
+      const pts = jack.slot < 0 ? eth0Leds() : nicLeds(jack.slot);
       led(pts[0]!, link, 13); led(pts[1]!, busy ? [T.ld, flick(2)] : [null, 0], 13);
     }
     // router: own power, always lit; the WAN light follows the plan; LAN follows the link; activity follows the traffic

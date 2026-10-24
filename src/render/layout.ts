@@ -168,8 +168,8 @@ export const CABLE_ROW_Y = -2430;
 /** The wall plate (ISP line enters here) and its jack position (bottom edge). */
 export const WALL_PLATE: Rect = { x: -7400, y: -3050, w: 460, h: 420 };
 export const WALL_JACK = { x: -7170, y: SHELF_Y };
-/** Vertical run of the ethernet cable between the monitor and the case (clear of the plugged key at x > -3980). */
-export const LAN_TRUNK_X = -4040;
+/** Vertical run of the ethernet cable between the monitor and the case (between the video plug and the case wall; a plugged key is drawn over it). */
+export const LAN_TRUNK_X = -3940;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
 export const ETH0_MOUTH = { x: BR.io.x + 30, y: -1560 };
 export const ETH0_RECT: Rect = { x: BR.io.x + 30, y: -1690, w: 330, h: 260 };

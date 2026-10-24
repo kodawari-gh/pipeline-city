@@ -29,7 +29,7 @@ export interface CableInfo {
 }
 
 /** A network port the ethernet plug can go into: the board's own jack (`eth0`, port `board`) or a NIC's jack (`eth1`.., port = the card's device id). */
-export interface LanJack { id: string; port: string; rect: Rect; mouth: Pt; valid: boolean }
+export interface LanJack { id: string; port: string; rect: Rect; mouth: Pt; valid: boolean; /** PCIe slot index of the card, -1 for the board jack */ slot: number }
 /** The ethernet cable as the pointer sees it (filled by `NetView.sync`). */
 export interface LanScene {
   connected: boolean;
