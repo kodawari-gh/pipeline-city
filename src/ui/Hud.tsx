@@ -2,7 +2,7 @@ import './ui.css';
 import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../game/hover';
 import {
-  autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim,
+  autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim, togglePause,
 } from '../game/store';
 import { SPEEDS } from '../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, queueReadout, statusChip } from './logic';
@@ -43,6 +43,30 @@ function StartPrompt() {
     );
   }
   return <div class="card prompt mute">starting...</div>;
+}
+
+/** Space pauses and resumes. It leaves text fields and sliders alone, and an open dialog keeps Space for its own buttons. */
+function PauseKey() {
+  useEffect(() => {
+    const mine = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.ctrlKey || e.metaKey || e.altKey) return false;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
+      return !document.querySelector('.modal-back, .ng-back');
+    };
+    const down = (e: KeyboardEvent) => {
+      if (!mine(e)) return;
+      e.preventDefault();
+      if (e.repeat) return;
+      (document.activeElement as HTMLElement | null)?.blur?.(); // a focused button would also take the Space as a press
+      togglePause();
+    };
+    const up = (e: KeyboardEvent) => { if (mine(e)) e.preventDefault(); };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+  }, []);
+  return speed.value === 0 ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
 }
 
 /**
@@ -182,6 +206,7 @@ export function Hud() {
   return (
     <>
       <InsetReporter />
+      <PauseKey />
       <header class="hud">
         <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>

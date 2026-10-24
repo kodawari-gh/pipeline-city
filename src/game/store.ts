@@ -100,6 +100,13 @@ export function setSpeed(s: Speed) {
   send({ type: 'setSpeed', speed: s });
 }
 
+/** Space: pause, and resume at the speed the game was running at (4x for a new game). */
+let resumeSpeed: Speed = DEFAULT_SPEED;
+export function togglePause() {
+  if (speed.value === 0) setSpeed(resumeSpeed);
+  else { resumeSpeed = speed.value; setSpeed(0); }
+}
+
 /** Download the current game as pipeline-city-<tick>.json. */
 export function exportSave() {
   requestSave((save) => {

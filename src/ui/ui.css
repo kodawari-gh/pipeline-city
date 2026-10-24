@@ -624,3 +624,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .inv-chips, .inv-fit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-width: 0; }
 .inv-chips button { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 99rem; }
 .inv-fit .link { font-size: 0.75rem; }
+
+/* Paused pill (Space), and the tutorial question in the New game dialog */
+.pausepill { position: fixed; top: 3.7rem; left: 50%; transform: translateX(-50%); z-index: 29; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.8rem; border-radius: 99rem; background: var(--panel); border: 1px solid var(--glass-line); backdrop-filter: blur(0.667rem); font-weight: 700; font-size: 0.8rem; pointer-events: none; }
+.ng-q { margin-right: 0.3rem; }

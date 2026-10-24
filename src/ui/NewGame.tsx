@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { autosaveOffer, snapshot, startSim } from '../game/store';
+import { resetTutorial } from './state';
 
 // The NEW GAME dialog: Campaign or Sandbox (docs/SANDBOX.md). Sizes are rem and CSS variables only; the styles are
 // in ui.css (the New game section). Keyboard: Tab stays inside the dialog, Enter or Space picks a choice, Escape closes
@@ -15,6 +16,7 @@ export function NewGameDialog() {
   const [mode, setMode] = useState<Mode>('campaign');
   const [assembled, setAssembled] = useState(true);
   const [confirm, setConfirm] = useState(false);
+  const [tutorialOn, setTutorialOn] = useState(true);
   const dialog = useRef<HTMLDivElement>(null);
   const open = newGameOpen.value;
   // A game or a saved game to fall back on: only then may the dialog be dismissed.
@@ -49,6 +51,7 @@ export function NewGameDialog() {
     if (running && !confirm) { setConfirm(true); return; }
     newGameOpen.value = false;
     setConfirm(false);
+    if (mode === 'campaign') resetTutorial(tutorialOn); // every new campaign asks, so a replayed or declined tutorial never carries over
     startSim(null, mode === 'sandbox' ? { sandbox: true, preassembled: assembled } : {});
   };
   const pick = (m: Mode) => { setMode(m); setConfirm(false); };
@@ -78,6 +81,13 @@ export function NewGameDialog() {
           {choice('campaign', 'Campaign', 'Guided. Start with a bare board and the starter crate, learn to build the machine, earn money for every upgrade. Includes the tutorial.')}
           {choice('sandbox', 'Sandbox', 'Infinite money and everything unlocked, to try ideas fast. Slots, watts, heat and power-off rules still apply.')}
         </div>
+        {mode === 'campaign' && (
+          <div class="ng-sub" role="group" aria-label="Tutorial">
+            <span class="mute ng-q">Guided tutorial?</span>
+            <button class={tutorialOn ? 'on' : ''} aria-pressed={tutorialOn} onClick={() => setTutorialOn(true)}>Yes, show me</button>
+            <button class={!tutorialOn ? 'on' : ''} aria-pressed={!tutorialOn} onClick={() => setTutorialOn(false)}>No, I know the game</button>
+          </div>
+        )}
         {mode === 'sandbox' && (
           <div class="ng-sub" role="group" aria-label="Sandbox start">
             <button class={assembled ? 'on' : ''} aria-pressed={assembled} onClick={() => setAssembled(true)}>Assembled machine</button>

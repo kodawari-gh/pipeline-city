@@ -106,6 +106,8 @@ function setTutorial(next: TutorialState) {
   writeStore(TUTORIAL_KEY, JSON.stringify(next));
 }
 /** The welcome card's Start button. */
+/** A new campaign asks whether the player wants the tutorial: yes starts it from the welcome card, no hides it (the menu replays it). */
+export const resetTutorial = (wanted: boolean) => setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });
 export const skipTutorial = () => setTutorial({ ...tutorial.value, skipped: true });
 /** The last card's Got it: the OS lesson is part of this viewer's tutorial from now on. */
