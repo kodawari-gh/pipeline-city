@@ -6,6 +6,7 @@ import {
   currentStep, effectiveProgress, INITIAL_TUTORIAL, legacyFinished, offerNextLesson, resumeState, STEPS, stepCount,
   stepProblem, type TutorialState,
 } from './tutorial';
+import { describeId } from './logic';
 import { boardSnap, dev, key, snap, STARTER_CRATE } from './testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
@@ -448,6 +449,39 @@ describe('step targets (what the renderer pulses)', () => {
   it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {
     expect(STEPS.find((x) => x.id === 'buyDrive')!.targets(snap())).toEqual(['bay']);
     expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['bay']);
+  });
+});
+
+describe('network step targets name real ids', () => {
+  /** Ids the renderer registers that are not described slots: buttons, the monitor, and the per-item `inv:`/`key:` ids. */
+  const FIXED = new Set(['inventory', 'power', 'monitor']);
+  const NET_STEPS = ['reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'netHardware', 'plugLan', 'linkUp', 'firstNetJob'];
+  const known = (id: string, s: ReturnType<typeof snap>) =>
+    FIXED.has(id) || /^(inv|key):\S+$/.test(id) || describeId(id, s) !== null;
+
+  it('the checker rejects an id that does not exist', () => {
+    expect(known('routr', snap())).toBe(false);
+    expect(known('router', snap())).toBe(true);
+  });
+
+  it('every target of the network steps is a real id', () => {
+    const states = [
+      snap(),
+      snap({ inventory: [invItem('router', 'router0', 'inv1', ['router']), invItem('board', 'board1', 'inv2', ['cpu0']), invItem('ram', 'ram1', 'inv3', ['dimm1'])] }),
+    ];
+    for (const s of states) {
+      for (const id of NET_STEPS) {
+        const step = STEPS.find((x) => x.id === id);
+        expect(step, `step ${id} exists`).toBeDefined();
+        for (const t of step!.targets(s)) expect(known(t, s), `${id} targets ${t}`).toBe(true);
+      }
+    }
+  });
+
+  it('plugLan names the cable, the router and the board jack', () => {
+    const t = STEPS.find((x) => x.id === 'plugLan')!.targets(snap());
+    expect(t).toContain('cable.lan');
+    expect(t).toContain('router');
   });
 });
 
