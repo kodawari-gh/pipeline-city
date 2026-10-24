@@ -46,7 +46,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## P2: finish what exists
 
-- [ ] T30 [auto] Add CPU spec entries for `inorder2` (engine config only). Files: CPU specs in `src/sim/game`, spec test. Docs: `docs/ARCHITECTURE.md`. Done when: a spec test builds a machine with it and runs a job.
+- [x] T30 [auto] Add CPU spec entries for `inorder2` (engine config only). Files: CPU specs in `src/sim/game`, spec test. Docs: `docs/ARCHITECTURE.md`. Done when: a spec test builds a machine with it and runs a job.
 - [ ] T31 [auto] Add CPU spec entries for `ooo` at ROB 8, 16, 32 with 4-wide commit. Same files as T30. Done when: spec tests pass for all three.
 - [ ] T32 [auto] Board and VRM demand data for the new CPUs, and save handling (additive, no version bump unless the format breaks). Files: board/VRM specs, save code and test.
 - [ ] T33 [auto] Picker art and shelf row for the new CPU tiers. Files: `src/ui/PartArt.tsx`, picker logic. Done when: logic test lists them in tier order.

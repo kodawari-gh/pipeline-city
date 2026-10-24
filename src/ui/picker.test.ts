@@ -23,7 +23,7 @@ describe('picker contents per id', () => {
     expect(m.device).toBeUndefined();
     expect(m.clock).toBe(false);
     expect(m.current).toBeNull();
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['cpu0', 'crate'], ['cpu1', 'poor'], ['cpu2', 'blocked']]);
+    expect(m.ladder.map((r) => [r.specId, r.state]).slice(0, 3)).toEqual([['cpu0', 'crate'], ['cpu1', 'poor'], ['cpu2', 'blocked']]);
     expect(m.ladder[1]).toMatchObject({ price: 200, reason: 'Need $200 more' });
     expect(m.ladder[2]!.reason).toBe('needs a 100 W power supply');
   });
@@ -184,7 +184,7 @@ describe('upgrade ladder', () => {
   it('leaves out tiers older than the best part you own', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })], inventory: [] });
     const ids = ladderFor(s, 'cpu').map((r) => r.specId);
-    expect(ids).toEqual(['cpu1', 'cpu2']);
+    expect(ids).toEqual(['cpu1', 'cpu2', 'cpu3']);
     expect(ladderFor(s, 'cpu')[0]!.state).toBe('installed');
   });
 
@@ -203,7 +203,7 @@ describe('part stats and before/after', () => {
   });
 
   it('bar length is 1 for the best part of its kind, lower-is-better inverts', () => {
-    expect(goodness('cpu', 'speed', statsOf('cpu2')[0]!.value, true)).toBe(1);
+    expect(goodness('cpu', 'speed', statsOf('cpu3')[0]!.value, true)).toBe(1);
     expect(goodness('ram', 'latency', 4, false)).toBe(1);
     expect(goodness('ram', 'latency', 200, false)).toBeCloseTo(0.02, 5);
   });

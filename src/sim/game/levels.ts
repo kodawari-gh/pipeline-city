@@ -150,7 +150,7 @@ export const START_CRATE: readonly string[] = ["cpu0", "ram0", "psu0", "cooler0"
 
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
 export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = { fan1: { name: "Case fans", kind: "fan" },
-  cpu3: { name: "2-wide in-order CPU", kind: "cpu" }, tpm1: { name: "Secure module", kind: "tpm" },
+  tpm1: { name: "Secure module", kind: "tpm" },
   ram3: { name: "ECC RAM", kind: "ram" },
   gpu1: { name: "GPU", kind: "gpu" }, psu3: { name: "PSU 500 W", kind: "psu" }, display1: { name: "Graphics display", kind: "display" },
   cpu4: { name: "Out-of-order CPU", kind: "cpu" }, cooler3: { name: "Big radiator", kind: "cooler" },

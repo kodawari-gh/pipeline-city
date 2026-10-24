@@ -131,6 +131,10 @@ const specList: DeviceSpec[] = [
   { id: "cpu2", kind: "cpu", tier: 2, name: "Tiny-5F (5-stage, forwarding)", slot: "cpu", price: 800, idleW: 4, loadW: 35, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16 } },
+  // Placeholder price, power and art: the owner sets the price (docs/PROGRESSION.md), T32 the board/VRM demand, T33 the art.
+  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "inorder2", forwarding: true, cacheLines: 16 } },
 
   { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
