@@ -8,13 +8,15 @@ import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
 import { JOB_TYPES } from './regions';
+import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
 /** The storage block size (bytes), as in the sim's storage device. */
 const BLOCK_BYTES = 256;
 
 export type PickerKind = DeviceKind | 'board' | 'os' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
-export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge';
+export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -54,6 +56,8 @@ export interface LadderStep {
   devId?: string;
   /** Inventory item id, for the crate rung. */
   invId?: string;
+  /** A warning on the rung (a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink). */
+  warn?: string;
 }
 
 export interface PickerModel {
@@ -64,6 +68,10 @@ export interface PickerModel {
   nerd: string;
   /** Upgrade ladder for part kinds: owned, next and blocked rungs (older tiers are left out). */
   ladder: LadderStep[];
+  /** The VRM readout (the `vrm` id, and the CPU card when a CPU is fitted). */
+  vrm?: VrmReadout | null;
+  /** The motherboard tier cards (the `board` picker). Replaces the rung list for boards. */
+  boardCards?: BoardCard[];
   /** Spec id of the part in this socket (or the first of its kind), for the before/after bars. */
   current: string | null;
   /** The spec the player selected (an inventory part, or a spec id): the default option for the bars. */
@@ -152,7 +160,7 @@ export const boardId = (tier: number) => `board${tier}`;
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
@@ -200,7 +208,10 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
-    case 'vrm-sink': return [{ key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true }];
+    case 'vrm-sink': return [
+      { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
     case 'storage': return [
       { key: 'size', label: 'Capacity', icon: 'memory', value: spec.capacityBytes / 1024, unit: 'K', higherIsBetter: true },
       { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latencyTicks, unit: 'ticks', higherIsBetter: false },
@@ -306,6 +317,7 @@ export function specBrief(spec: DeviceSpec): string {
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
+  'vrm-sink': 'vrm-sink',
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os'> = { psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os' };
 
@@ -372,6 +384,13 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
       out.push({ specId: id, name, tier, state: 'locked', reason: 'Not available yet' });
     }
   }
+  // Warnings on the rungs (not on a part already fitted): a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink.
+  if (kind === 'cpu' || kind === 'cooler') {
+    for (const r of out) {
+      if (r.state === 'installed') continue;
+      r.warn = kind === 'cpu' ? cpuVrmWarning(s, r.specId) ?? undefined : liquidVrmNote(s, r.specId) ?? undefined;
+    }
+  }
   return out;
 }
 
@@ -416,6 +435,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
         ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done }]
         : [{ id: 'plug', label: 'Plug into USB', keyId: k.id, primary: true, why: s.plugged ? 'A key is already plugged in' : undefined }],
     };
+  }
+
+  if (id === 'vrm') {
+    // The board's voltage regulator: live readout, status in plain words (docs/VRM.md).
+    const d = describeId('vrm', s)!;
+    const v = vrmReadout(s);
+    return { ...emptyCard(id, 'info', d.title, d.plain, d.nerd), vrm: v, lines: v ? vrmLines(v) : [] };
   }
 
   if (id === 'tray') {
@@ -529,6 +555,21 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       const w = clockWarning(cpu);
       if (w) lines.push({ level: w.level, text: w.text });
     }
+    if (kind === 'board' && s.board?.burnt) {
+      const same = s.purchases.find((p) => p.id === boardId(s.boardTier));
+      const price = same ? `, ${s.sandbox ? 'free' : fmtMoney(same.price)}` : '';
+      lines.push({ level: 'bad', text: `The board is dead: its VRM burnt out. Power off and replace it with a ${BOARD_TIERS[s.boardTier]?.name ?? 'board'}${price}.` });
+    }
+    // A VRM heatsink slot that is empty is the drop target for the heatsink rows.
+    if (kind === 'vrm-sink' && emptySocket) {
+      lines.push({ level: 'info', text: 'Drop a VRM heatsink here: it bolts onto the voltage regulators next to the processor.' });
+    }
+    // A liquid cooler (fitted, or the one in the inventory) gives the VRM no airflow.
+    if (kind === 'cooler') {
+      const coolerId = dev?.spec ?? invItem?.spec;
+      const note = coolerId ? liquidVrmNote(s, coolerId) : null;
+      if (note) lines.push({ level: 'warn', text: `${note.charAt(0).toUpperCase()}${note.slice(1)}.` });
+    }
     const title = emptySocket
       ? `${KIND_LABEL[kind]} socket`
       : dev ? dev.name : d.title;
@@ -538,6 +579,9 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       ladder: sec && kind === 'os' ? [] : ladder,
       osSection: sec,
       shelf: id === 'bay' && !s.os ? ladderFor(s, 'os') : undefined,
+      // The VRM readout rides on the CPU card (what it draws from the regulator) and the motherboard card (the cards).
+      vrm: kind === 'cpu' && dev && !dev.burnt ? vrmReadout(s) : undefined,
+      boardCards: kind === 'board' ? boardCards(s) : undefined,
       current, lines, actions,
       // A spec id that is neither a slot nor a fitted part (a shop or ladder item) is the comparison to show.
       focus: invItem ? invItem.spec : !slot && !dev && (getSpec(id) || getOsSpec(id)) ? id : null,

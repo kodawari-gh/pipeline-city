@@ -236,12 +236,13 @@ export function legacyFinished(s: Snapshot, st: TutorialState): boolean {
 
 /** Show the "Next lesson: the OS" card once: a legacy player who has not answered it and did not skip the tutorial. */
 export function offerNextLesson(s: Snapshot, st: TutorialState): boolean {
-  return !st.skipped && !st.offered && legacyFinished(s, st);
+  return !s.sandbox && !st.skipped && !st.offered && legacyFinished(s, st);
 }
 
 /** The step to show now, or null when the tutorial is skipped, finished, or a legacy player is not taking the lesson. */
 export function currentStep(s: Snapshot, st: TutorialState): StepDef | null {
-  if (!tutorialActive(st) || legacyFinished(s, st)) return null;
+  // The sandbox has no tutorial: its progress flags are all set, which would otherwise look like a finished campaign.
+  if (s.sandbox || !tutorialActive(st) || legacyFinished(s, st)) return null;
   const p = effectiveProgress(s, st);
   const welcomed = st.welcomed || (!st.replay && anyFlag(p));
   if (!welcomed) return STEPS[0]!;

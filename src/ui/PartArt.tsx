@@ -199,6 +199,42 @@ function OsDisc({ tier }: { tier: number }) {
   );
 }
 
+/**
+ * A VRM heatsink, bolted over the board's regulator: fins (tier 0), big fins (tier 1), fins and a small fan (tier 2).
+ * The base sits on a row of MOSFET blocks so it reads as "on the board's voltage regulators".
+ */
+function VrmSink({ tier }: { tier: number }) {
+  const mosfets = [0, 1, 2, 3, 4].map((i) => <rect key={i} x={26 + i * 15} y={66} width={10} height={8} rx={1.5} class="chipd" />);
+  if (tier === 0) {
+    return (
+      <>
+        {mosfets}
+        <rect x={22} y={56} width={76} height={8} rx={2} class="ink2" />
+        {Array.from({ length: 6 }, (_, i) => <rect key={i} x={26 + i * 12} y={28} width={4} height={28} rx={1} class="fin" />)}
+      </>
+    );
+  }
+  if (tier === 1) {
+    return (
+      <>
+        {mosfets}
+        <rect x={18} y={52} width={84} height={12} rx={2} class="ink2" />
+        {Array.from({ length: 7 }, (_, i) => <rect key={i} x={22 + i * 11} y={14} width={6} height={38} rx={1.5} class="fin" />)}
+      </>
+    );
+  }
+  return (
+    <>
+      {mosfets}
+      <rect x={14} y={54} width={62} height={10} rx={2} class="ink2" />
+      {Array.from({ length: 4 }, (_, i) => <rect key={i} x={18 + i * 13} y={26} width={5} height={28} rx={1} class="fin" />)}
+      <circle cx={92} cy={38} r={20} class="fanring" />
+      <circle cx={92} cy={38} r={5} class="ink" />
+      <path d="M92 33a5 5 0 0 1 5 5M97 38a5 5 0 0 1-5 5M92 43a5 5 0 0 1-5-5M87 38a5 5 0 0 1 5-5" class="blade" />
+    </>
+  );
+}
+
 function Display() {
   return (
     <>
@@ -227,6 +263,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'cooler': body = <Cooler tier={spec.tier} />; break;
         case 'psu': body = <Psu spec={spec} />; break;
         case 'display': body = <Display />; break;
+        case 'vrm-sink': body = <VrmSink tier={spec.tier} />; break;
         case 'storage':
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
           break;

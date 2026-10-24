@@ -37,6 +37,18 @@ const invItem = (kind: string, spec: string, id: string, freeSlots: string[] = [
   id, spec, kind: kind as 'ram', name: spec, freeSlots, swapSlots: [], installable: freeSlots.length > 0,
 });
 
+describe('the sandbox has no tutorial', () => {
+  it('a sandbox game (all flags set) shows no step and no OS lesson offer', () => {
+    const s = snap({ sandbox: true, progress: newProgress(true) });
+    expect(currentStep(s, INITIAL_TUTORIAL)).toBeNull();
+    expect(offerNextLesson(s, INITIAL_TUTORIAL)).toBe(false);
+  });
+
+  it('a campaign game with the same flags still gets the offer', () => {
+    expect(offerNextLesson(snap({ progress: newProgress(true) }), INITIAL_TUTORIAL)).toBe(true);
+  });
+});
+
 describe('tutorial step from snapshot flags', () => {
   it('a new game opens on the welcome card', () => {
     expect(idOf(currentStep(snap(), INITIAL_TUTORIAL))).toBe('welcome');

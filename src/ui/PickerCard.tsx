@@ -6,11 +6,14 @@ import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snap
 import { getSpec, type CpuSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
-import { fmtClock, fmtMoney } from './logic';
+import { describeId, fmtClock, fmtMoney } from './logic';
 import {
   boardId, clockZones, compareRows, estTempC, installedCooler, osSection, pickerFor, zoneOf,
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
+import {
+  VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
+} from './vrm';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
 import { anchorOf } from './anchor';
@@ -46,10 +49,11 @@ function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onP
   return (
     <div
       role="button" tabIndex={0} class={`rung ${step.state} ${picked ? 'picked' : ''}`}
-      title={title} aria-pressed={picked}
+      title={step.warn ? `${title}. Warning: ${step.warn}` : title} aria-pressed={picked}
       onClick={() => onPick(step.specId)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(step.specId); } }}
     >
+      {step.warn && <span class="rwarn" aria-label={`Warning: ${step.warn}`}><Icon name="warn" size={11} /></span>}
       <span class="rtier">Tier {step.tier}</span>
       <PartArt id={step.specId} size={64} />
       <span class="rname">{shortName(step.name)}</span>
@@ -120,6 +124,104 @@ function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['devi
         <span class="readout" title="Estimated steady temperature"><Icon name="flame" size={12} /> ~{est.toFixed(0)} C</span>
         <span class="value">{fmtClock(c.value)}</span>
       </div>
+    </div>
+  );
+}
+
+const VRM_CLASS: Record<VrmZone, string> = { safe: 'safe', busy: 'throttle', overload: 'unstable' };
+
+/**
+ * The VRM readout: a load bar with the safe, busy and overload zones (demand over the phases' rating), then the live
+ * numbers as icon chips. Each chip explains itself on hover (describeId's plain line for its id).
+ */
+function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
+  const zone = v.burnt ? 'overload' : vrmZone(v.loadRatio);
+  const busyPct = (VRM_BUSY_RATIO / v.barMax) * 100;
+  const overPct = (1 / v.barMax) * 100;
+  const fillPct = clamp01(v.loadRatio / v.barMax) * 100;
+  const tip = (id: string) => describeId(id, s)?.plain ?? '';
+  return (
+    <section class="pblock vrm-sec" aria-label="VRM">
+      <h3><Icon name="bolt" size={11} /> VRM <span class={`zchip ${VRM_CLASS[zone]}`}>{v.burnt ? 'Burnt' : VRM_ZONE_WORD[zone]}</span></h3>
+      <div class="vtrack" title={`${VRM_ZONE_HELP[zone]} Demand ${v.demandA.toFixed(1)} A of ${v.capacityA} A.`}>
+        <i class="vz safe" style={{ left: '0%', width: `${busyPct}%` }} />
+        <i class="vz busy" style={{ left: `${busyPct}%`, width: `${Math.max(0, overPct - busyPct)}%` }} />
+        <i class="vz overload" style={{ left: `${overPct}%`, width: `${Math.max(0, 100 - overPct)}%` }} />
+        <i class="vfill" style={{ width: `${fillPct}%` }} />
+      </div>
+      <div class="vrow mute">
+        <span title={tip('vrm.load')}><Icon name="gauge" size={11} /> {v.demandA.toFixed(1)} of {v.capacityA} A</span>
+        <span title={tip('vrm.phases')}><Icon name="slot" size={11} /> {v.phases} x {v.ampsPerPhase} A</span>
+      </div>
+      <div class="chips">
+        <span class={`chip ${v.tempLevel}`} title={`Temperature. Throttles at ${v.throttleC} C, unstable at ${v.unstableC} C, burns at ${v.damageC} C.`}>
+          <Icon name="flame" size={12} /> {v.tempC.toFixed(0)} C
+        </span>
+        <span class="chip" title={tip('vrm.efficiency')}><Icon name="eff" size={12} /> {Math.round(v.efficiency * 100)}%</span>
+        <span class={`chip ${v.throttle < 1 ? 'warn' : ''}`} title="Throttle: the regulator's heat holds the processor back by this much (100% is none).">
+          <Icon name="clock" size={12} /> {Math.round(v.throttle * 100)}%
+        </span>
+        <span class={`chip ${v.errProb > 0.02 ? 'bad' : ''}`} title="Chance per busy tick that voltage droop crashes the machine. Zero while the regulator is safe.">
+          <Icon name="warn" size={12} /> {(v.errProb * 100).toFixed(1)}%
+        </span>
+        <span class="chip" title={tip('vrm.heat')}><Icon name="bolt" size={12} /> {v.lossW.toFixed(1)} W</span>
+        <span class="chip" title={tip('vrm.ripple')}><Icon name="wave" size={12} /> {v.ripple.toFixed(2)}</span>
+        <span class="chip" title={v.sink ? `${v.sink.name}: cools the regulator. Coolers with a fan blow over it too; liquid ones do not.` : 'No VRM heatsink: drag one onto the board\'s heatsink slot.'}>
+          <Icon name="fan" size={12} /> {v.sink ? v.sink.name : 'no heatsink'}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/** One motherboard tier: slot counts and features as small icons, VRM strength against the strongest tier, and the state. */
+function BoardCardView({ c }: { c: BoardCard }) {
+  const cost = c.free ? 'free' : fmtMoney(c.price);
+  const net = c.ethernetMbps ? (c.ethernetMbps >= 1000 ? '1 Gbit' : `${c.ethernetMbps} Mbit`) : 'none';
+  const foot = (() => {
+    switch (c.state) {
+      case 'installed': return <span class="need ok"><Icon name="check" size={11} /> Fitted</span>;
+      case 'dead': return (
+        <button class="primary buy" disabled={!c.canBuy}
+          title={c.canBuy ? `Replace the dead board with a ${c.name} for ${cost}. Power off first; your parts move over.` : c.reason}
+          onClick={(e) => { e.stopPropagation(); purchase(c.id); }}>
+          Replace {cost}
+        </button>
+      );
+      case 'crate': return <span class="need ok" title={c.reason}><Icon name="box" size={11} /> Spare</span>;
+      case 'ready': return (
+        <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(c.id); }} title={`Buy for ${cost}. It goes into your inventory.`}>
+          Buy {cost}
+        </button>
+      );
+      case 'poor': return <span class="need warn" title={c.reason}><Icon name="dollar" size={11} /> {cost}</span>;
+      case 'blocked': return <span class="need bad" title={c.reason}><Icon name="lock" size={11} /> Blocked</span>;
+      case 'locked': return <span class="need mute" title={c.reason}><Icon name="lock" size={11} /> Later</span>;
+    }
+  })();
+  return (
+    <div class={`bcard ${c.state}`} role="group" aria-label={c.name} title={c.reason ?? c.name}>
+      <div class="bhead"><span class="rtier">Tier {c.tier}</span><span class="rname">{c.name}</span></div>
+      <div class="bart"><PartArt id={c.id} size={72} /></div>
+      <div class="bslots">
+        {c.slots.map((sl) => (
+          <span class="bi" key={sl.key} title={`${sl.count} ${sl.label}`}><Icon name={sl.icon} size={11} /> {sl.count}</span>
+        ))}
+      </div>
+      <div class="bslots">
+        <span class="bi" title={c.ethernetMbps ? `Onboard ethernet, ${net}. Nothing uses it yet.` : 'No onboard ethernet on this board.'}><Icon name="net" size={11} /> {net}</span>
+        <span class="bi" title={`${c.usbPorts} USB port${c.usbPorts === 1 ? '' : 's'}`}><Icon name="usb" size={11} /> {c.usbPorts}</span>
+        <span class="bi" title={`${c.displayPorts} monitor port${c.displayPorts === 1 ? '' : 's'}`}><Icon name="screen" size={11} /> {c.displayPorts}</span>
+      </div>
+      <div class="vbars" title={`VRM strength: ${c.phases} phases x ${c.ampsPerPhase} A = ${c.totalA} A. Grey is your board now, coloured is this tier.`}>
+        <div class="bar cur"><i style={{ width: `${c.curBar * 100}%` }} /></div>
+        <div class={`bar opt ${c.trend}`}><i style={{ width: `${c.optBar * 100}%` }} /></div>
+        <div class="ctext mute">
+          <span><Icon name="bolt" size={10} /> {c.totalA} A</span>
+          <b class={`delta ${c.trend}`}>{c.deltaText}</b>
+        </div>
+      </div>
+      <div class="bfoot">{foot}</div>
     </div>
   );
 }
@@ -214,6 +316,9 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
   const psu = m.kind === 'psu' ? s.power : null;
   const loadFrac = psu && psu.budgetW > 0 ? psu.totalW / psu.budgetW : 0;
+  // A CPU row the board's VRM cannot feed says so in words, once, under the bars.
+  const optWarn = m.kind === 'cpu' && option ? m.ladder.find((r) => r.specId === option)?.warn : undefined;
+  const optName = option ? shortName(getSpec(option)?.name ?? option) : '';
 
   return (
     <div class="pk-content" ref={content} data-kind={m.kind} aria-label={m.title}>
@@ -221,7 +326,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         <Icon name="close" size={11} />
       </button>
       <header class="phead">
-        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board') && (
+        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink') && (
           <div class="part"><PartArt id={artId} size={80} /></div>
         )}
         <div class="ptext">
@@ -238,7 +343,10 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       {lines.map((l, i) => (
         <div key={i} class={`pline ${l.level === 'info' ? '' : l.level}`}>{l.text}</div>
       ))}
+      {m.vrm && m.kind === 'info' && <VrmBlock v={m.vrm} s={s} />}
       {m.clock && m.device && s.cpuClock && <ClockDial s={s} cpu={m.device} />}
+      {m.vrm && m.kind === 'cpu' && <VrmBlock v={m.vrm} s={s} />}
+      {optWarn && <div class="pline warn">{optName}: {optWarn}</div>}
       {m.osSection && <OsBlock sec={m.osSection} picked={option} onPick={setPicked} />}
       {m.shelf && m.shelf.length > 0 && (
         <section class="pblock" aria-label="Operating systems">
@@ -251,7 +359,16 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           <div class="sub">Installs onto a drive. The machine boots from it, so it does not reboot for every job.</div>
         </section>
       )}
-      {m.ladder.length > 0 && (
+      {m.boardCards && (
+        <section class="pblock" aria-label="Motherboards">
+          <h3>Motherboards</h3>
+          <div class="bcards">
+            {m.boardCards.map((c) => <BoardCardView key={c.id} c={c} />)}
+          </div>
+          <div class="sub">A bigger board needs the machine off. Everything you own moves over, and the VRM is the strength bar.</div>
+        </section>
+      )}
+      {m.ladder.length > 0 && !m.boardCards && (
         <section class="pblock">
           <h3>Upgrades</h3>
           <div class="rungs">
@@ -320,7 +437,8 @@ export function PickerCard() {
       if (tile) {
         const r = tile.getBoundingClientRect();
         anchor = { x: r.left, y: r.top, w: r.width, h: r.height };
-        free = { x: 0, y: inset.top, w: vw, h: vh - inset.top };
+        // The popup stays above the shelf it is anchored to (the shelf's reserved space is the bottom inset).
+        free = { x: 0, y: inset.top, w: vw, h: vh - inset.top - inset.bottom };
         order = ['above', 'right', 'left'];
       } else {
         const a = anchorOf(id);

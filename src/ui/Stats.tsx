@@ -1,8 +1,9 @@
 import { snapshot } from '../game/store';
 import { getSpec } from '../sim/board/specs';
-import { cacheHitRate, cpiIpc, fmtNum, powerLevel, stallsByCause, tempLevel, totalStalls } from './logic';
+import { cacheHitRate, cpiIpc, describeId, fmtNum, powerLevel, stallsByCause, tempLevel, totalStalls } from './logic';
 import { history } from './state';
 import { Meter } from './Meter';
+import { VRM_ZONE_HELP, vrmReadout, vrmZone } from './vrm';
 
 function Sparkline() {
   const h = history.value;
@@ -28,6 +29,7 @@ export function Stats() {
   const stalls = stallsByCause(c);
   const stallMax = Math.max(1, ...stalls.map((x) => x.value));
   const power = s.power;
+  const vrm = vrmReadout(s);
   return (
     <div class="stats">
       <h2>Stats</h2>
@@ -64,6 +66,28 @@ export function Stats() {
           <b>{power.totalW.toFixed(0)}/{power.budgetW} W</b>
         </div>
       </section>
+      {vrm && (
+        <section>
+          <h3 title={VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}>VRM {vrm.sink ? <span class="mute">(heatsink)</span> : null}</h3>
+          <div class="bar-row" title={`Demand ${vrm.demandA.toFixed(1)} A of ${vrm.capacityA} A. ${VRM_ZONE_HELP[vrmZone(vrm.loadRatio)]}`}>
+            <span>load</span>
+            <Meter value={vrm.loadRatio} max={vrm.barMax} mark={1} level={vrm.zone === 'overload' ? 'bad' : vrm.zone === 'busy' ? 'warn' : 'ok'}
+              label="VRM load against its rating" text={`${Math.round(vrm.loadRatio * 100)} percent of rating`} />
+            <b>{Math.round(vrm.loadRatio * 100)}%</b>
+          </div>
+          <div class="bar-row" title={`Temperature. Throttles at ${vrm.throttleC} C, unstable at ${vrm.unstableC} C, burns at ${vrm.damageC} C.`}>
+            <span>temp</span>
+            <Meter value={vrm.tempC} max={vrm.damageC} mark={vrm.throttleC} level={vrm.tempLevel} label="VRM temperature" text={`${vrm.tempC.toFixed(0)} C`} />
+            <b>{vrm.tempC.toFixed(0)} C</b>
+          </div>
+          <div class="kv" title={describeId('vrm.efficiency', s)?.plain}><span>efficiency</span><b>{Math.round(vrm.efficiency * 100)}%</b></div>
+          <div class="kv" title="Throttle: the regulator's heat holds the processor back by this much (100% is none)."><span>throttle</span><b>{Math.round(vrm.throttle * 100)}%</b></div>
+          <div class="kv" title="Chance per busy tick that voltage droop crashes the machine."><span>crash chance</span><b>{(vrm.errProb * 100).toFixed(1)}%</b></div>
+          <div class="kv" title={describeId('vrm.heat', s)?.plain}><span>heat</span><b>{vrm.lossW.toFixed(1)} W</b></div>
+          <div class="kv" title={describeId('vrm.ripple', s)?.plain}><span>ripple</span><b>{vrm.ripple.toFixed(2)}</b></div>
+          {vrm.burnt && <div class="kv bad"><span>state</span><b>burnt out</b></div>}
+        </section>
+      )}
       <section>
         <h3>Devices</h3>
         {s.devices.filter((d) => d.kind !== 'cooler' && d.kind !== 'psu').map((d) => {

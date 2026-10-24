@@ -1,7 +1,8 @@
 // Snapshot fixtures for the UI tests. A fresh game by default: bare board, starter crate, nothing progressed.
 
-import type { DeviceSnap, InventorySnap, KeySnap, PurchaseSnap, Snapshot, SlotSnap } from '../sim/game/game';
+import type { BoardSnap, DeviceSnap, InventorySnap, KeySnap, PurchaseSnap, Snapshot, SlotSnap, VrmSnap } from '../sim/game/game';
 import { newProgress } from '../sim/game/save';
+import { BOARD_TIERS } from '../sim/board/specs';
 
 export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
   id: 'dev1', spec: 'cpu0', kind: 'cpu', name: 'Tiny-1 (unpipelined)', burnt: false, requestedClock: 1, effectiveClock: 1,
@@ -39,6 +40,25 @@ export const PURCHASES: PurchaseSnap[] = [
   { id: 'psu1', name: 'PSU 100 W', kind: 'psu', price: 60, affordable: true },
 ];
 
+/** The motherboard snapshot for a tier (Starter by default), a cool VRM, nothing burnt, no heatsink. */
+export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<VrmSnap> } = {}): BoardSnap {
+  const tier = o.tier ?? 0;
+  const t = BOARD_TIERS[tier]!;
+  const { vrm, ...rest } = o;
+  return {
+    tier, name: t.name, burnt: false,
+    features: { ...t.features },
+    slots: EMPTY_SLOTS,
+    vrm: {
+      phases: t.vrm.phases, ampsPerPhase: t.vrm.ampsPerPhase, ripple: t.vrm.ripple, tempC: 30, loadRatio: 0, efficiency: t.vrm.peakEfficiency,
+      throttle: 1, unstable: false, burnt: false, errProb: 0, heatW: 0, throttleC: t.vrm.throttleC, unstableC: t.vrm.unstableC,
+      damageC: t.vrm.damageC, sinkDeviceId: null, ...vrm,
+    },
+    vrmSink: null,
+    ...rest,
+  };
+}
+
 export const NO_PROGRESS = newProgress(false);
 export const ALL_PROGRESS = newProgress(true);
 
@@ -63,6 +83,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     storage: [], os: null, held: [], keyActivity: 'none',
     haltReason: null, keyIgnored: false, postFailed: false, sandbox: false,
     patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
+    board: boardSnap(),
     ...o,
   } as Snapshot;
 }

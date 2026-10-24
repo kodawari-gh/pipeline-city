@@ -230,6 +230,34 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .bar.load.warn i { background: var(--warn); }
 .bar.load.bad i { background: var(--bad); }
 
+/* VRM readout (picker, stats drawer): load bar with the safe, busy and overload zones, then icon chips. */
+.vtrack { position: relative; height: 0.533rem; border-radius: 0.267rem; background: var(--dot); overflow: hidden; margin: 0.4rem 0 0.267rem; }
+.vtrack .vz { position: absolute; top: 0; bottom: 0; }
+.vtrack .vz.safe { background: var(--ok); opacity: .5; }
+.vtrack .vz.busy { background: var(--warn); opacity: .6; }
+.vtrack .vz.overload { background: var(--bad); opacity: .6; }
+.vtrack .vfill { position: absolute; left: 0; top: 0.15rem; bottom: 0.15rem; border-radius: 0.2rem; background: var(--ink); opacity: .85; transition: width .3s ease; }
+.vrow { display: flex; justify-content: space-between; gap: 0.5rem; font: 500 0.667rem var(--mono); }
+.vrow > span { display: inline-flex; align-items: center; gap: 0.2rem; }
+.vrm-sec .chips { margin-top: 0.4rem; }
+.kv.bad b { color: var(--bad); }
+.rwarn { position: absolute; top: 0.25rem; right: 0.25rem; color: var(--warn); line-height: 0; }
+
+/* Motherboard tier cards (picker, `board`): two per row in the 22rem card */
+.bcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.bcard { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; padding: 0.4rem 0.4rem 0.45rem; border-radius: 0.6rem; border: 1px solid var(--glass-line); background: var(--glass-hi); }
+.bcard.installed { border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.bcard.dead { border-color: color-mix(in srgb, var(--bad) 65%, transparent); }
+.bcard.blocked, .bcard.locked { opacity: .75; }
+.bhead { display: flex; align-items: baseline; gap: 0.3rem; min-width: 0; }
+.bhead .rname { min-width: 0; font-size: 0.733rem; }
+.bart { display: flex; justify-content: center; }
+.bslots { display: flex; flex-wrap: wrap; gap: 0.2rem 0.4rem; font: 600 0.667rem var(--mono); }
+.bi { display: inline-flex; align-items: center; gap: 0.15rem; white-space: nowrap; }
+.vbars { display: grid; gap: 0.12rem; }
+.bfoot { min-height: 1.333rem; display: flex; align-items: center; justify-content: center; }
+.bcard button.buy { width: 100%; justify-content: center; }
+
 /* Overclock dial: zones from the sim's heat model */
 .dial { position: relative; margin-top: 0.667rem; }
 .dtrack { position: relative; height: 0.533rem; border-radius: 0.267rem; background: var(--dot); margin: 0.4rem 0 0.267rem; }

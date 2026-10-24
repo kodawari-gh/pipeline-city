@@ -177,7 +177,77 @@ const SLOT_PLAIN: Record<string, string> = {
   sata: 'drive bay (SATA): drag a drive here',
   m2: 'M.2 slot (fast NVMe drives): drag a drive here',
   usb: 'USB port',
+  'vrm-sink': 'VRM heatsink slot: bolts onto the voltage regulators (drag a heatsink here)',
 };
+
+/** One plain line per motherboard tier (the tier's slot counts and features are in the nerd line). */
+const BOARD_PLAIN: Record<number, string> = {
+  0: 'The starter board: one memory slot, one USB port, one monitor port and no ethernet. Enough to boot and learn.',
+  1: 'A step up: two memory slots, an expansion slot, two drive bays and 100 Mbit ethernet, with a stronger voltage regulator.',
+  2: 'Mainstream: four memory slots, an M.2 slot for fast drives, the big ATX+ power connector and a stronger voltage regulator.',
+  3: 'Enthusiast: eight memory slots, four USB ports, gigabit ethernet and the strongest voltage regulator on offer.',
+};
+
+/** Descriptions of the VRM, its phases and ripple, and the board features (docs/VRM.md). */
+function describeVrmId(id: string, s?: Snapshot | null): Description | null {
+  const b = s?.board;
+  const v = b?.vrm;
+  const tier = BOARD_TIERS[b?.tier ?? s?.boardTier ?? 0]!;
+  const phases = v?.phases ?? tier.vrm.phases;
+  const amps = v?.ampsPerPhase ?? tier.vrm.ampsPerPhase;
+  const rating = `${phases} phases x ${amps} A = ${phases * amps} A`;
+  const live = v ? `, now ${Math.round(v.loadRatio * 100)}% of rating` : '';
+  switch (id) {
+    case 'vrm': return {
+      title: 'Voltage regulator (VRM)',
+      plain: 'Turns the 12 V from the power supply into the roughly 1 V the processor needs, at a large current. It gets hot. Too hot or overloaded, and the machine slows down or crashes.',
+      nerd: `${rating}${live}`,
+    };
+    case 'vrm.phases': return {
+      title: 'VRM phases',
+      plain: 'Each phase is one switching circuit: two power switches, a coil and capacitors. They share the current, so more phases run cooler and steadier.',
+      nerd: `${phases} phases x ${amps} A`,
+    };
+    case 'vrm.ripple': return {
+      title: 'VRM ripple',
+      plain: 'How much the voltage wobbles around its target. Cheaper parts wobble more, which makes a voltage-droop crash likelier when the regulator is stressed.',
+      nerd: `ripple ${(v?.ripple ?? tier.vrm.ripple).toFixed(2)} (lower is better)`,
+    };
+    case 'vrm.load': return {
+      title: 'VRM load',
+      plain: "The processor's current demand over the phases' rating. Under 60 percent is comfortable; past 100 percent the regulator is overloaded and errors start.",
+      nerd: `${rating}${live}`,
+    };
+    case 'vrm.heat': return {
+      title: 'VRM heat',
+      plain: 'The energy the regulator wastes as heat. It is drawn from the power supply like any other part, and it heats the board.',
+      nerd: v ? `${s?.power.vrmLossW?.toFixed(1) ?? v.heatW.toFixed(1)} W now` : 'loss rises with load',
+    };
+    case 'vrm.efficiency': return {
+      title: 'VRM efficiency',
+      plain: 'How much of the power gets through the regulator. The rest becomes heat in the board. Efficiency falls when the regulator is very lightly or very heavily loaded.',
+      nerd: v ? `${Math.round(v.efficiency * 100)}% now, peak ${Math.round(tier.vrm.peakEfficiency * 100)}%` : `peak ${Math.round(tier.vrm.peakEfficiency * 100)}%`,
+    };
+    case 'feature.ethernet': return {
+      title: 'Ethernet port',
+      plain: 'The onboard network port. The speed is what a network card or router could use later; nothing uses it yet.',
+      nerd: `${tier.features.ethernetMbps ? `${tier.features.ethernetMbps} Mbit/s` : 'none on this board'}`,
+    };
+    case 'feature.usb': return {
+      title: 'USB ports',
+      plain: 'Extra USB ports on the board. Client keys go into the USB port; more ports are a feature count for now, and the machine still reads one key at a time.',
+      nerd: `${tier.features.usbPorts} USB port${tier.features.usbPorts === 1 ? '' : 's'} on this board`,
+    };
+    case 'feature.display': return {
+      title: 'Monitor ports',
+      plain: 'Ports for a monitor. The sim drives one monitor for now; a second port is a feature count.',
+      nerd: `${tier.features.displayPorts} display port${tier.features.displayPorts === 1 ? '' : 's'} on this board`,
+    };
+    default: return null;
+  }
+}
+
+export const VRM_IDS = ['vrm', 'vrm.phases', 'vrm.ripple', 'vrm.load', 'vrm.heat', 'vrm.efficiency', 'feature.ethernet', 'feature.usb', 'feature.display'];
 
 /** Plain words and the nerd line for an operating system item or installed OS. */
 function describeOs(id: string): Description | null {
@@ -220,7 +290,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      const where = it?.kind === 'os' ? 'drag it onto a drive' : 'drag it into a socket';
+      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'board' ? 'drag it onto the board (power off first)' : 'drag it into a socket';
       return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
@@ -240,14 +310,18 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   if (spec) return describeSpec(spec);
   const osDesc = describeOs(id);
   if (osDesc) return osDesc;
+  const vrmDesc = describeVrmId(id, s);
+  if (vrmDesc) return vrmDesc;
   const tier = /^board([0-9]+)$/.exec(id);
   const bt = tier ? BOARD_TIERS[Number(tier[1])] : undefined;
   if (bt) {
     const slots = Object.entries(bt.slots).map(([k, n]) => `${n} ${k}`).join(', ');
+    const f = bt.features;
+    const net = f.ethernetMbps ? `${f.ethernetMbps} Mbit ethernet` : 'no ethernet';
     return {
       title: bt.name,
-      plain: 'A bigger motherboard: more sockets, and room for a bigger power supply. Everything you own moves over.',
-      nerd: `tier ${bt.tier} | slots: ${slots}`,
+      plain: `${BOARD_PLAIN[bt.tier] ?? 'A motherboard.'} Everything you own moves over.`,
+      nerd: `tier ${bt.tier} | slots: ${slots} | ${net}, ${f.usbPorts} USB, ${f.displayPorts} display | VRM ${bt.vrm.phases} x ${bt.vrm.ampsPerPhase} A`,
     };
   }
   return REGIONS[id] ?? null;
@@ -259,6 +333,17 @@ export type ChipLevel = 'idle' | 'ok' | 'warn' | 'bad';
 
 /** Short machine status for the HUD chip. */
 export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
+  if (s.board?.burnt) {
+    // A dead board: the VRM burnt out. The chip names the fix (same-tier replacement, powered off), priced when the sim offers it.
+    const same = s.purchases.find((p) => p.id === `board${s.boardTier}`);
+    const name = BOARD_TIERS[s.boardTier]?.name ?? 'board';
+    const price = same ? (s.sandbox ? ' (free)' : ` (${fmtMoney(same.price)})`) : '';
+    return {
+      text: 'Board dead: replace it',
+      title: `The VRM burnt out, so the motherboard is dead. Power off and buy a ${name}${price} to replace it; your parts move over.`,
+      level: 'bad',
+    };
+  }
   if (s.power.tripped) return { text: 'Tripped', title: 'The power supply tripped. Power cycle it from the power button.', level: 'bad' };
   switch (s.phase) {
     case 'off': return { text: 'Off', title: s.noPowerReason ?? 'The machine is off.', level: 'idle' };
