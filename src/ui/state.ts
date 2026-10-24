@@ -59,6 +59,13 @@ effect(() => { document.documentElement.classList.toggle('paused', speed.value =
 export const statsOpen = signal(false);
 export const toggleStats = () => { statsOpen.value = !statsOpen.value; };
 
+// ---- milestone screen (the ladder of levels; opened from the HUD level bar, the menu and a locked tile) ----
+
+/** Open flag and the level to scroll to (null: the current level). */
+export const milestones = signal<{ focus: number | null } | null>(null);
+export const openMilestones = (focus: number | null = null) => { milestones.value = { focus }; };
+export const closeMilestones = () => { milestones.value = null; };
+
 // ---- inventory tray (spare parts; drag them from here onto the board) ----
 
 export const inventoryOpen = signal(false);

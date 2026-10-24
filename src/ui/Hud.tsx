@@ -14,6 +14,7 @@ import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
 import { SandboxTools } from './SandboxTools';
+import { LevelBar } from './Levels';
 import { TutorialCard } from './TutorialCard';
 import {
   replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
@@ -176,6 +177,7 @@ export function Hud() {
       <header class="hud">
         <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>
+        <LevelBar s={s} />
         <Reputation s={s} />
         <Queue s={s} />
         <PhaseChip s={s} />

@@ -428,6 +428,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 @media (max-width: 48em) {
   .money { font-size: 1.1rem; }
   .hide-narrow { display: none; }
+  .lvl-name, .lvl-num { display: none; }
+  .lvl-bar { width: 2.667rem; }
   .dock { top: auto; left: 0.4rem; right: 0.4rem; bottom: 0; width: auto; max-height: 46vh; border-radius: 0.8rem 0.8rem 0 0; }
   .tooltip { max-width: calc(100vw - 1.1rem); }
   .tile { width: 6rem; }
@@ -454,6 +456,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .ng-sub button.on { background: var(--accent); color: var(--on); }
 .ng-actions { display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .ng-warn { color: var(--bad); margin-right: auto; }
+
+/* HUD level bar (Levels.tsx): level badge, name, thin progress to the next threshold, the client base as a fraction. */
+.lvl { gap: 0.4rem; padding: 0.2rem 0.5rem 0.2rem 0.25rem; border-radius: 99rem; background: var(--glass-hi); }
+.lvl-n { display: inline-grid; place-items: center; min-width: 1.333rem; height: 1.333rem; padding: 0 0.2rem; box-sizing: border-box; border-radius: 99rem; background: var(--accent); color: var(--on); font: 700 0.733rem var(--mono); }
+.lvl-name { font-weight: 600; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+.lvl-bar { position: relative; width: 4.4rem; height: 0.333rem; border-radius: 0.2rem; background: var(--dot); overflow: hidden; }
+.lvl-bar i { display: block; height: 100%; border-radius: 0.2rem; background: var(--accent); transition: width .5s ease; }
+.lvl-num { font: 600 0.667rem var(--mono); color: var(--mute); }
+.lvl.max .lvl-bar i { background: var(--ok); }
+.lvl-chip { font: 700 0.667rem var(--mono); letter-spacing: .04em; padding: 0.2rem 0.55rem; border-radius: 99rem; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--glass-hi); }
 
 /* Sandbox chip and its tools popover (SandboxTools.tsx, docs/SANDBOX.md). */
 .sbx { position: relative; display: inline-flex; }
