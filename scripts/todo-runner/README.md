@@ -32,7 +32,9 @@ Runs `docs/TODO.md` tasks as one fresh `claude -p` session each, so context neve
 
 ## Env
 
-`CLAUDE_BIN`, `ALLOW_DIRTY=1`, `MAX_TURNS=60`.
+`CLAUDE_BIN`, `ALLOW_DIRTY=1`, `MAX_TURNS=60`, `MAX_BUDGET_USD=1.50` (hard dollar cap per run), `AUTOCOMPACT=150000` (context size that triggers compaction; 100k to 1M), `VISUAL_FLOOR=0` (let haiku take visual tasks).
+
+Visual/UI tasks (paths with `src/render`, `.tsx`, `.css`, `PartArt`, `Hud.`, `NetPanel`, or the words screenshot or visual) are raised from haiku to sonnet by the script. There is no hard context-size cap; a bare call already starts at about 64k tokens, so keep `AUTOCOMPACT` well above that. Cost is bounded by `MAX_TURNS` and `MAX_BUDGET_USD`.
 
 ## Traps
 

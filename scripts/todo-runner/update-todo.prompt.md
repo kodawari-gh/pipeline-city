@@ -9,7 +9,7 @@ Do this:
    `- [ ] T<nn> [auto|human|owner] {haiku|sonnet|opus} <imperative title>. Files: <exact paths, with line numbers where useful>. Docs: <doc path#section>. Test pattern: <nearest existing test file>. Done when: <one checkable condition>.`
    - Ids are never reused or renumbered. Take the next free number in its priority block.
    - `[auto]` only if tests and the build can verify it with no browser, device or judgment. Otherwise `[human]` (needs eyes on a real browser or device) or `[owner]` (needs a decision; put the question in the line).
-   - Model tag: haiku for mechanical work (tests, docs, deletions, timeouts); sonnet for sim, render or multi-file changes; opus only for design work, with the reason in the line. Untagged means haiku. `{...}` tags go on [auto] tasks only.
+   - Model tag: haiku for mechanical work (tests, docs, deletions, timeouts); sonnet for sim or multi-file changes, and ALWAYS for anything visual or UI/UX (render, .tsx, .css, layout, art, screenshots): never haiku for those; opus only for design work, with the reason in the line. Untagged means haiku. `{...}` tags go on [auto] tasks only.
    - Paths must be exact. If you cannot name the start files, open the code and find them. A vague Files field makes the agent search, which is where the cost goes.
    - Use `[~]` for deferred or blocked tasks and say why and who decided, with the date.
 4. Keep the Rules and Tags sections at the top unchanged unless I ask. Keep priority blocks (P0, P1, ...) and put new tasks in the right one.
