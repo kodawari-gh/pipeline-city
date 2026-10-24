@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../sim/game/game';
 import { levelRows } from '../sim/game/levels';
-import { canShowBanner, celebrationFor, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, reconcileSeen, toastRoom, unlockedFirst } from './levelui';
-import { pickerFor } from './picker';
+import { canShowBanner, cannotRunText, celebrationFor, DECLINE_ARM_MS, deadlineInfo, declineStep, declineWords, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, needChips, postBreakdown, reconcileSeen, toastRoom, unlockedFirst } from './levelui';
+import { osSection, pickerFor } from './picker';
 import { boardCards } from './vrm';
-import { snap } from './testdata';
+import { dev, key, snap } from './testdata';
 
 const at = (o: Partial<Snapshot['level']>): Snapshot => {
   const base = snap();
@@ -181,5 +181,92 @@ describe('level-up celebration', () => {
     expect(canShowBanner(0, true)).toBe(false);
     expect(toastRoom(true)).toBe(1);
     expect(toastRoom(false)).toBe(2);
+  });
+});
+
+describe('job needs, deadlines and declining', () => {
+  const job = (o: Partial<Parameters<typeof needChips>[0] & Parameters<typeof deadlineInfo>[0]> = {}) => ({
+    needs: ['OS', 'SSD'], missing: ['a SATA SSD or better'], runnable: false, arrivalTick: 100, expiresTick: 300, ...o,
+  });
+
+  it('shows one chip per need with a device icon; the unmet ones are marked missing', () => {
+    const chips = needChips(job());
+    expect(chips.map((c) => [c.short, c.icon, c.missing])).toEqual([['OS', 'cpu', false], ['SSD', 'disk', true]]);
+    expect(needChips({ needs: [], missing: [] })).toEqual([]);
+    expect(needChips({ needs: ['GPU'], missing: ['a GPU'] })[0]!.icon).toBe('screen');
+  });
+
+  it('says plainly what a job cannot run on, and nothing for a runnable one', () => {
+    expect(cannotRunText(job({ missing: ['a GPU', 'an OS'] }))).toBe('Cannot run yet: it needs a GPU and an OS.');
+    expect(cannotRunText(job({ runnable: true, missing: [] }))).toBeNull();
+  });
+
+  it('the deadline turns red in the last quarter and is absent for a runnable job', () => {
+    expect(deadlineInfo(job({ runnable: true }), 150)).toBeNull();
+    expect(deadlineInfo(job(), 120)).toMatchObject({ left: 180, urgency: 'ok' });
+    expect(deadlineInfo(job(), 210)).toMatchObject({ left: 90, urgency: 'warn' });
+    expect(deadlineInfo(job(), 260)).toMatchObject({ left: 40, urgency: 'bad' });
+    expect(deadlineInfo(job(), 999)).toMatchObject({ left: 0, frac: 0, urgency: 'bad' });
+  });
+
+  it('decline arms on the first press and confirms on a second within 3 seconds', () => {
+    expect(declineStep(null, 1000)).toBe('arm');
+    expect(declineStep(1000, 2500)).toBe('confirm');
+    expect(declineStep(1000, 3999)).toBe('confirm');
+    expect(declineStep(1000, 4000)).toBe('arm');
+    expect(declineStep(1000, 900)).toBe('arm');
+    expect(DECLINE_ARM_MS).toBe(3000);
+  });
+
+  it('the words name the reputation cost, and say it is free in the sandbox', () => {
+    expect(declineWords(false, false).title).toContain('reputation');
+    expect(declineWords(false, true).label).toContain('reputation');
+    expect(declineWords(true, false).title).toContain('Free in the sandbox');
+    expect(declineWords(true, true).label).not.toContain('reputation');
+  });
+
+  it('the key card carries the job, blocks plugging an unrunnable key and shows the expiry', () => {
+    const k = key({ id: 7, cls: 'gpu', needs: ['GPU'], missing: ['a GPU'], runnable: false, arrivalTick: 0, expiresTick: 400 });
+    const m = pickerFor('key:7', snap({ tray: [k], baseTick: 100 }))!;
+    expect(m.job).toMatchObject({ id: 7, declinable: true, runnable: false });
+    const plug = m.actions.find((a) => a.id === 'plug')!;
+    expect(plug.why).toContain('a GPU');
+    expect(m.lines[0]!.text).toContain('Cannot run yet');
+    expect(m.lines.some((l) => l.text.includes('takes it back in'))).toBe(true);
+    const ok = pickerFor('key:1', snap({ tray: [key()] }))!;
+    expect(ok.actions.find((a) => a.id === 'plug')!.why).toBeUndefined();
+  });
+
+  it('OS queue rows carry the job of their key, for the needs chips and the decline button', () => {
+    const k = key({ id: 3, stage: 'queued', needs: ['OS'], missing: [], declinable: true });
+    const s = snap({
+      held: [k],
+      os: { spec: 'os1', tier: 1, name: 'Mini OS', deviceId: 'd', slot: 'sata0', programSlots: 1, queueSlots: 2, up: true, runningKeyId: null,
+        queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0 }] } as unknown as Snapshot['os'],
+    });
+    const row = osSection(s)!.queue[0]!;
+    expect(row.job).toMatchObject({ id: 3, declinable: true, needs: ['OS'] });
+  });
+});
+
+describe('POST readout', () => {
+  it('adds up to the snapshot total and names RAM, sticks and devices', () => {
+    const s = snap({
+      postTicks: 30,
+      devices: [
+        dev({ id: 'c', spec: 'cpu0', kind: 'cpu' }),
+        dev({ id: 'r1', spec: 'ram0', kind: 'ram', slot: 'dimm0' }),
+        dev({ id: 'r2', spec: 'ram0', kind: 'ram', slot: 'dimm1' }),
+      ],
+    });
+    const p = postBreakdown(s);
+    expect(p.total).toBe(30);
+    expect(p.parts.map((x) => x.label)).toEqual(expect.arrayContaining(['Firmware', 'Memory check', '2 RAM sticks']));
+    expect(Math.abs(p.parts.reduce((a, x) => a + x.ticks, 0) - 30)).toBeLessThanOrEqual(2);
+  });
+
+  it('a bare board is just the firmware', () => {
+    const p = postBreakdown(snap({ postTicks: 22 }));
+    expect(p.parts).toEqual([expect.objectContaining({ label: 'Firmware', ticks: 22 })]);
   });
 });

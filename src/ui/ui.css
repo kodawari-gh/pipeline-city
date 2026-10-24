@@ -205,6 +205,23 @@ button.lockbadge:hover { color: var(--accent); }
 .os-sec .osrow { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr); gap: 0.4rem; align-items: baseline; font-size: 0.733rem; padding: 0.133rem 0; }
 .os-sec .osrow .oname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .os-sec .osrow .ok { color: var(--ok); }
+/* Jobs (Jobs.tsx): needs chips, the deadline of an unrunnable job, the Decline button. */
+.os-sec .osrow { padding: 0.2rem 0; }
+.osrow-sub { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.jobrow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.needs { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; }
+.need-chip { font-family: var(--mono); }
+.need-chip .miss { font-weight: 700; text-transform: uppercase; font-size: 0.6rem; letter-spacing: .05em; }
+.deadline { display: inline-flex; align-items: center; gap: 0.35rem; font: 600 0.667rem var(--mono); color: var(--mute); }
+.deadline .dl-bar { width: 3.2rem; height: 0.267rem; border-radius: 0.2rem; background: var(--dot); overflow: hidden; }
+.deadline .dl-bar i { display: block; height: 100%; background: var(--ok); border-radius: 0.2rem; }
+.deadline .dl-t { display: inline-flex; align-items: center; gap: 0.15rem; }
+.deadline.warn { color: var(--warn); } .deadline.warn .dl-bar i { background: var(--warn); }
+.deadline.bad { color: var(--bad); } .deadline.bad .dl-bar i { background: var(--bad); }
+button.decline { color: var(--mute); font-weight: 600; }
+button.decline:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
+button.decline.armed { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+button.decline.compact { padding: 0.067rem 0.4rem; font-size: 0.667rem; }
 
 .need { display: inline-flex; align-items: center; gap: 0.2rem; font: 600 0.7rem var(--mono); }
 .need.ok { color: var(--ok); }
@@ -540,3 +557,4 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
   .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-bar i { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
+.kv b.warn { color: var(--warn); }

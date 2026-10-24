@@ -15,6 +15,7 @@ import {
   VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
 } from './vrm';
 import { Icon } from './Icons';
+import { DeclineButton, Deadline, NeedChips } from './Jobs';
 import { lockBadge, type LevelLock } from './levelui';
 import { openMilestones } from './state';
 import { PartArt } from './PartArt';
@@ -315,10 +316,18 @@ function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | nul
       </div>
       {sec.running && <div class="pline info"><Icon name="clock" size={12} /> Running {sec.running}</div>}
       {sec.queue.map((q) => (
-        <div class="osrow" key={`q${q.keyId}`}>
+        <div class={`osrow ${q.job && !q.job.runnable ? 'stuck' : ''}`} key={`q${q.keyId}`}>
           <span class="oname">{q.label}</span>
           <span class="mute">{q.type}</span>
           <span class={q.state === 'result' ? 'ok' : 'mute'}>{q.text}</span>
+          {q.job && (q.job.needs.length > 0 || !q.job.runnable || q.job.declinable) && (
+            <div class="osrow-sub">
+              <NeedChips job={q.job} />
+              <Deadline job={q.job} />
+              <span class="grow" />
+              <DeclineButton job={q.job} via="job" compact />
+            </div>
+          )}
         </div>
       ))}
       {sec.held.map((h) => (
@@ -367,6 +376,9 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           {m.plain && <div class="pplain">{m.plain}</div>}
         </div>
       </header>
+      {m.job && (m.job.needs.length > 0 || !m.job.runnable) && (
+        <div class="jobrow"><NeedChips job={m.job} /><Deadline job={m.job} /></div>
+      )}
       {m.device && !m.device.burnt && m.kind !== 'psu' && m.kind !== 'cooler' && <Readings dev={m.device} />}
       {psu && (
         <div class={`bar load ${psu.tripped ? 'bad' : loadFrac > 0.85 ? 'warn' : ''}`} title={`${psu.totalW.toFixed(0)} W of ${psu.budgetW} W`}>
@@ -417,6 +429,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       {m.actions.length > 0 && (
         <div class="pactions">
           {m.actions.map((a) => <Action key={a.id + (a.keyId ?? '')} a={a} />)}
+          {m.job && <DeclineButton job={m.job} via="key" />}
         </div>
       )}
       {m.nerd && (

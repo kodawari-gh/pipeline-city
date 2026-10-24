@@ -7,7 +7,7 @@ import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
-import { isNextLevelLock, lockTooltip, unlockedFirst, type LevelLock } from './levelui';
+import { cannotRunText, deadlineInfo, isNextLevelLock, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
 import { JOB_TYPES } from './regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
@@ -92,9 +92,11 @@ export interface PickerModel {
   osSection?: OsSection | null;
   /** The bay's shelf: operating systems on offer (only while no OS is installed). */
   shelf?: LadderStep[];
+  /** A key card: its needs, deadline and decline (levelui.ts). */
+  job?: JobView;
 }
 
-export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string }
+export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string; job: JobView | null }
 export interface OsHeldRow { keyId: number; label: string; hint: string }
 /** The OS block of a card: what the OS is doing, its queue, held keys, the host drive and the later tiers. */
 export interface OsSection {
@@ -111,9 +113,17 @@ export interface OsSection {
   ladder: LadderStep[];
 }
 
-/** Plain job type for a key id from anywhere the machine holds it (tray, held, plugged). */
-const keyType = (s: Snapshot, id: number): string =>
-  [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((k) => k.id === id)?.type ?? '';
+/** A key from anywhere the machine holds it (tray, held, plugged). */
+const findKey = (s: Snapshot, id: number): KeySnap | undefined =>
+  [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((k) => k.id === id);
+/** Plain job type for a key id. */
+const keyType = (s: Snapshot, id: number): string => findKey(s, id)?.type ?? '';
+
+/** What the needs chips, the deadline and the decline button read from a key. */
+export const jobView = (k: KeySnap): JobView => ({
+  id: k.id, label: k.label, needs: k.needs, missing: k.missing, runnable: k.runnable, declinable: k.declinable,
+  arrivalTick: k.arrivalTick, expiresTick: k.expiresTick,
+});
 
 /**
  * The OS section for a snapshot with an OS installed, or null. Pure: every number comes from the snapshot. Queue rows say
@@ -128,6 +138,7 @@ export function osSection(s: Snapshot): OsSection | null {
     label: j.label,
     type: keyType(s, j.keyId),
     state: j.state,
+    job: (() => { const k = findKey(s, j.keyId); return k ? jobView(k) : null; })(),
     text: j.state === 'running' ? 'running now'
       : j.state === 'result' ? 'done, waiting for you'
       : j.ahead === 0 ? 'next' : `${j.ahead} ahead`,
@@ -221,6 +232,10 @@ export function statsOf(specId: string): Stat[] {
       { key: 'size', label: 'Capacity', icon: 'memory', value: spec.capacityBytes / 1024, unit: 'K', higherIsBetter: true },
       { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latencyTicks, unit: 'ticks', higherIsBetter: false },
       { key: 'throughput', label: 'Throughput', icon: 'clock', value: drivePerSecond(spec), unit: 'B/s', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'nic': return [
+      { key: 'speed', label: 'Speed', icon: 'clock', value: spec.mbps, unit: 'Mbit', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
   }
@@ -317,6 +332,7 @@ export function specBrief(spec: DeviceSpec): string {
     case 'display': return 'text monitor';
     case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
+    case 'nic': return `${spec.mbps} Mbit network card`;
   }
 }
 
@@ -334,7 +350,7 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | n
   if (dev) return dev.kind;
   if (id.startsWith('inv:')) {
     const it = s.inventory.find((x) => x.id === id.slice(4));
-    return it ? it.kind : null;
+    return it && it.kind !== 'router' ? it.kind : null;
   }
   if (WORLD_KIND[id]) return WORLD_KIND[id]!;
   const spec = getSpec(id);
@@ -455,12 +471,17 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const d = describeId(id, s)!;
     const plugged = s.plugged?.id === k.id;
     const lines = keyLines(k, s.baseTick);
+    // A job the machine cannot run has a hard deadline (the client takes it back) instead of the soft one.
+    const dl = deadlineInfo(k, s.baseTick);
+    if (dl) lines.splice(1, 1, { level: dl.urgency === 'ok' ? 'info' : dl.urgency, text: `The client takes it back in ${fmtTicks(dl.left)}${dl.urgency === 'ok' ? '' : ': a missed job costs reputation'}.` });
+    const cannot = cannotRunText(k);
+    if (cannot) lines.unshift({ level: 'bad', text: cannot });
     if (k.done) lines.push({ level: 'ok', text: `Result: ${k.result}` });
     return {
-      ...emptyCard(id, 'key', `Client key ${k.label}`, d.plain, d.nerd), lines,
+      ...emptyCard(id, 'key', `Client key ${k.label}`, d.plain, d.nerd), lines, job: jobView(k),
       actions: plugged
         ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done }]
-        : [{ id: 'plug', label: 'Plug into USB', keyId: k.id, primary: true, why: s.plugged ? 'A key is already plugged in' : undefined }],
+        : [{ id: 'plug', label: 'Plug into USB', keyId: k.id, primary: k.runnable, why: s.plugged ? 'A key is already plugged in' : k.runnable ? undefined : `Cannot run yet: it needs ${k.missing.join(' and ')}` }],
     };
   }
 

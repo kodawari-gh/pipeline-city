@@ -1,6 +1,7 @@
 // Player level UI, pure logic (no DOM, no signals): the HUD level bar, the milestone list, locked items, the level-up
 // celebration, declining a job, job needs and the POST readout. See docs/PROGRESSION.md "UI the level system needs".
 
+import { getSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { Snapshot } from '../sim/game/game';
 import { fmtNum } from './logic';
@@ -199,3 +200,112 @@ export const canShowBanner = (visibleToasts: number, tutorialActive: boolean): b
 
 /** How many hint toasts may show while the banner is up (the two-toast cap includes the banner). */
 export const toastRoom = (bannerUp: boolean): number => (bannerUp ? 1 : 2);
+
+// ---------- job needs, deadlines and declining ----------
+
+/** The minimum a job needs from the snapshot to show chips, a deadline and a decline button. */
+export interface JobView {
+  id: number;
+  label: string;
+  /** `KeySnap.needs`: short chips of every need. */
+  needs: string[];
+  /** `KeySnap.missing`: long phrases of the needs the machine does not meet. */
+  missing: string[];
+  runnable: boolean;
+  declinable: boolean;
+  arrivalTick: number;
+  expiresTick: number;
+}
+
+const NEED_LONG: Record<string, string> = {
+  OS: 'an OS', SSD: 'a SATA SSD or better', DRIVE: 'a storage drive', NET: 'a network link', TPM: 'a TPM', GPU: 'a GPU', NPU: 'an NPU', CORES: 'a multicore CPU',
+};
+const NEED_ICON: Record<string, IconKey> = {
+  OS: 'cpu', SSD: 'disk', DRIVE: 'disk', NET: 'net', TPM: 'lock', GPU: 'screen', NPU: 'cpu', CORES: 'fan',
+};
+
+export interface NeedChip { short: string; long: string; icon: IconKey; missing: boolean }
+
+/** One chip per need (a device icon and its short name); `missing` ones are shown red. */
+export function needChips(j: Pick<JobView, 'needs' | 'missing'>): NeedChip[] {
+  return j.needs.map((short) => {
+    const long = NEED_LONG[short] ?? short.toLowerCase();
+    return { short, long, icon: NEED_ICON[short] ?? 'box', missing: j.missing.includes(long) };
+  });
+}
+
+export type Urgency = 'ok' | 'warn' | 'bad';
+
+export interface DeadlineInfo {
+  /** Ticks (seconds at 1x) until the client takes the job back. */
+  left: number;
+  /** 0..1 of the waiting window still to go. */
+  frac: number;
+  urgency: Urgency;
+}
+
+/** Deadline of a job the machine cannot run (null for a runnable one: it has the normal soft deadline). Red in the last quarter. */
+export function deadlineInfo(j: Pick<JobView, 'runnable' | 'arrivalTick' | 'expiresTick'>, now: number): DeadlineInfo | null {
+  if (j.runnable) return null;
+  const left = Math.max(0, j.expiresTick - now);
+  const window = Math.max(1, j.expiresTick - j.arrivalTick);
+  const frac = Math.min(1, left / window);
+  return { left, frac, urgency: frac <= 0.25 ? 'bad' : frac <= 0.5 ? 'warn' : 'ok' };
+}
+
+/** The plain line under an unrunnable job: what is missing and when the client leaves. */
+export function cannotRunText(j: Pick<JobView, 'missing' | 'runnable'>): string | null {
+  if (j.runnable || !j.missing.length) return null;
+  return `Cannot run yet: it needs ${j.missing.join(' and ')}.`;
+}
+
+/** Declining needs two presses within this window. */
+export const DECLINE_ARM_MS = 3000;
+
+/** The press that follows: the first (or one after the window) arms, a second within the window confirms. */
+export function declineStep(armedAt: number | null, now: number): 'arm' | 'confirm' {
+  return armedAt !== null && now - armedAt >= 0 && now - armedAt < DECLINE_ARM_MS ? 'confirm' : 'arm';
+}
+
+/** Words for the decline button and its tooltip. Free in the sandbox (no reputation cost, the sim feeds nothing). */
+export function declineWords(sandbox: boolean, armed: boolean): { label: string; title: string } {
+  if (sandbox) {
+    return armed
+      ? { label: 'Sure? Free here', title: 'Press again to send the client away. It is free in the sandbox.' }
+      : { label: 'Decline', title: 'The client leaves and the job is gone. Free in the sandbox: no reputation cost.' };
+  }
+  return armed
+    ? { label: 'Sure? Costs reputation', title: 'Press again within 3 seconds to decline. A small reputation cost, and no payout.' }
+    : { label: 'Decline', title: 'The client leaves. A small reputation cost, no payout. Press twice to confirm.' };
+}
+
+// ---------- POST time ----------
+
+export interface PostPart { label: string; ticks: number; hint: string }
+
+/**
+ * What the boot wait (POST) is made of, in plain words. Mirrors the sim's `postTicks` (a base, the memory check by size and
+ * by stick, and each device's own start-up), capped; the last line is scaled so the parts add up to the snapshot's total.
+ */
+export function postBreakdown(s: Snapshot): { total: number; parts: PostPart[] } {
+  const c = ECONOMY.coldBoot;
+  let kib = 0, sticks = 0, init = 0, devs = 0;
+  for (const d of s.devices) {
+    if (d.burnt) continue;
+    const spec = getSpec(d.spec);
+    if (!spec) continue;
+    if (spec.kind === 'ram') { kib += spec.sizeBytes / 1024; sticks++; }
+    const i = c.init[spec.id] ?? c.init[spec.kind] ?? 0;
+    init += i;
+    if (i > 0) devs++;
+  }
+  const raw: PostPart[] = [
+    { label: 'Firmware', ticks: c.base, hint: 'The fixed cost of starting the board.' },
+    { label: 'Memory check', ticks: Math.min(c.kiBCap, c.perKiB * kib), hint: `The firmware counts the ${Math.round(kib)}K of RAM; more memory takes longer (up to a limit).` },
+    { label: `${sticks} RAM stick${sticks === 1 ? '' : 's'}`, ticks: c.perStick * sticks, hint: 'Each memory stick is detected and trained.' },
+    { label: `${devs} device${devs === 1 ? '' : 's'}`, ticks: init, hint: 'Processor, display and drives each take a moment to start.' },
+  ].filter((p) => p.ticks > 0);
+  const sum = raw.reduce((a, p) => a + p.ticks, 0);
+  const scale = sum > 0 ? s.postTicks / sum : 1;
+  return { total: s.postTicks, parts: raw.map((p) => ({ ...p, ticks: Math.round(p.ticks * scale) })) };
+}

@@ -89,6 +89,12 @@ export function Stats() {
         </section>
       )}
       <section>
+        <h3>Clients</h3>
+        <div class="kv" title="Jobs finished and paid"><span>served</span><b>{s.completed}</b></div>
+        <div class="kv" title="Jobs the machine could not run, taken back by the client at their deadline. Each one costs reputation."><span>expired</span><b class={s.expired > 0 ? 'warn' : ''}>{s.expired}</b></div>
+        <div class="kv" title="Jobs you sent away yourself. Each costs a little reputation (free in the sandbox)."><span>declined</span><b>{s.declined}</b></div>
+      </section>
+      <section>
         <h3>Devices</h3>
         {s.devices.filter((d) => d.kind !== 'cooler' && d.kind !== 'psu').map((d) => {
           const spec = getSpec(d.spec);
