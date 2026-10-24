@@ -64,10 +64,10 @@ describe('motherboard tier cards', () => {
   it('one card per tier from the installed one up, with the state and the purchase reason', () => {
     const cards = boardCards(snap({ purchases: [...PURCHASES, ...BOARDS] }));
     expect(cards.map((c) => c.tier)).toEqual([0, 1, 2, 3]);
-    expect(cards.map((c) => c.state)).toEqual(['installed', 'poor', 'blocked', 'locked']);
+    expect(cards.map((c) => c.state)).toEqual(['installed', 'poor', 'blocked', 'level']);
     expect(cards[1]).toMatchObject({ canBuy: false, reason: 'Need $150 more' });
     expect(cards[2]!.reason).toMatch(/powered off required/);
-    expect(cards[3]!.reason).toBe('Not available yet');
+    expect(cards[3]!.reason).toMatch(/^Unlocks at Level 9/);
   });
 
   it('a bought board in your inventory is a spare, and a richer one is ready when affordable', () => {

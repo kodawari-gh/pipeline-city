@@ -139,7 +139,7 @@ describe('picker contents per id', () => {
     const m = pickerFor('psu', s)!;
     expect(m.kind).toBe('psu');
     expect(m.lines.some((l) => l.level === 'bad' && /95 W of 40 W/.test(l.text))).toBe(true);
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['psu0', 'installed'], ['psu1', 'ready'], ['psu2', 'locked']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['psu0', 'installed'], ['psu1', 'ready'], ['psu2', 'level']]);
     expect(m.actions[0]!.id).toBe('powerCycle');
   });
 
@@ -176,7 +176,7 @@ describe('picker contents per id', () => {
     const s = snap({ purchases: [...PURCHASES, { id: 'board1', name: 'ATX+ board', kind: 'board', price: 300, affordable: false }] });
     const m = pickerFor('board', s)!;
     expect(m.kind).toBe('board');
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['board0', 'installed'], ['board1', 'poor'], ['board2', 'locked'], ['board3', 'locked']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['board0', 'installed'], ['board1', 'poor'], ['board2', 'level'], ['board3', 'level']]);
   });
 });
 
@@ -313,9 +313,9 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
 
   it('the ladder offers the later tiers locked, with their description', () => {
     const sec = osSection(withOs())!;
-    const later = sec.ladder.filter((r) => r.state === 'locked');
+    const later = sec.ladder.filter((r) => r.state === 'level');
     expect(later.map((r) => r.specId)).toEqual(['os2', 'os3']);
-    expect(later[0]!.reason).toMatch(/Cooperative/);
+    expect(later[0]!.reason).toMatch(/Level 8/);
   });
 
   it('the drive that hosts the OS shows the section; another drive does not', () => {

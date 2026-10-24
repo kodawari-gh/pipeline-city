@@ -24,7 +24,7 @@ describe('next tier on the heatsink rows', () => {
     const m = pickerFor('vrm-sink0', s)!;
     expect(m.emptyText).toBeUndefined();
     expect(nextUpgrade(m.ladder)?.specId).toBe('vsink1');
-    expect(m.ladder.find((r) => r.specId === 'vsink1')!.state).toBe('locked');
+    expect(m.ladder.find((r) => r.specId === 'vsink1')!.state).toBe('level');
   });
 
   it('a higher tier in the inventory (a spare) is the next tier, not "nothing better"', () => {

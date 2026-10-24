@@ -164,4 +164,10 @@ export const JOB_TYPES: Record<string, string> = {
   calc: 'A calculation job: crunch some numbers, then print the answer.',
   checksum: 'A checksum job: add up a block of data to prove it is intact.',
   scan: 'A scan job: sweep through lots of memory. Memory-hungry, so faster RAM helps.',
+  db: 'A database job: lots of reads from a fast drive. Needs an operating system and a SATA SSD or better.',
+  web: 'A web job: serve a page over the network. Needs a network link.',
+  secure: 'A secure job: signs and checks data. Needs a secure module (TPM).',
+  gpu: 'A graphics job: heavy parallel work. Needs a graphics card.',
+  npu: 'An AI job: neural network work. Needs a neural accelerator.',
+  hpc: 'A heavy compute job: big work that wants several cores. Needs a multicore processor.',
 };

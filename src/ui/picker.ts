@@ -7,7 +7,7 @@ import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
-import { cannotRunText, deadlineInfo, isNextLevelLock, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
+import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
 import { JOB_TYPES } from './regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
@@ -390,11 +390,12 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
     if (tier < ownedMax) continue;
     const p = s.purchases.find((x) => x.id === id);
     // The player level comes first: before money, hardware and "later".
-    if (p?.locked) {
+    const lock = lockOf(s, id, p);
+    if (lock) {
       out.push({
-        specId: id, name, tier, state: 'level', price: p.price, free: s.sandbox || undefined, lock: p.locked,
-        soon: isNextLevelLock(p.locked, s.level.level),
-        reason: lockTooltip(p.locked, { blocked: p.blocked, priceShort: s.sandbox ? 0 : p.price - s.money }),
+        specId: id, name, tier, state: 'level', price: p?.price, free: s.sandbox || undefined, lock,
+        soon: isNextLevelLock(lock, s.level.level),
+        reason: lockTooltip(lock, { blocked: p?.blocked, priceShort: p && !s.sandbox ? p.price - s.money : 0 }),
       });
       continue;
     }
@@ -474,6 +475,8 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     // A job the machine cannot run has a hard deadline (the client takes it back) instead of the soft one.
     const dl = deadlineInfo(k, s.baseTick);
     if (dl) lines.splice(1, 1, { level: dl.urgency === 'ok' ? 'info' : dl.urgency, text: `The client takes it back in ${fmtTicks(dl.left)}${dl.urgency === 'ok' ? '' : ': a missed job costs reputation'}.` });
+    // The generic fallback ("A client job.") says nothing the title does not.
+    if (JOB_TYPES[k.type] === undefined) lines.shift();
     const cannot = cannotRunText(k);
     if (cannot) lines.unshift({ level: 'bad', text: cannot });
     if (k.done) lines.push({ level: 'ok', text: `Result: ${k.result}` });

@@ -55,11 +55,11 @@ function Row({ r }: { r: MilestoneRow }) {
         </div>
         {r.status === 'current' && <div class="ms-prog" aria-hidden="true"><i style={{ width: `${r.progress * 100}%` }} /></div>}
         <div class="ms-chips">
-          <span class={`chip ${strict ? 'warn' : ''}`} title={`Clients wait about ${r.waitS} s${strict ? ': less patient than the level before' : ''}.`}>
-            <Icon name="clock" size={11} /> {r.waitS} s{strict && <span class="ms-arrow" aria-label="stricter"> &#9660;</span>}
+          <span class="chip" title={`Clients wait about ${r.waitS} s${strict ? ': less patient than the level before' : ''}.`}>
+            <Icon name="clock" size={11} /> {r.waitS} s{strict && <span class="ms-arrow down" aria-label="stricter">&#9660;</span>}
           </span>
-          <span class={`chip ${pay ? 'ok' : ''}`} title={`Payouts x${fmtNum(r.payMul, 2)}${pay ? ': bigger than the level before' : ''}.`}>
-            <Icon name="dollar" size={11} /> x{fmtNum(r.payMul, 2)}{pay && <span class="ms-arrow" aria-label="bigger"> &#9650;</span>}
+          <span class="chip" title={`Payouts x${fmtNum(r.payMul, 2)}${pay ? ': bigger than the level before' : ''}.`}>
+            <Icon name="dollar" size={11} /> x{fmtNum(r.payMul, 2)}{pay && <span class="ms-arrow up" aria-label="bigger">&#9650;</span>}
           </span>
           {r.newJobs.map((j) => (
             <span class="chip" key={j.id} title={`New clients: ${j.hint}`}><Icon name={j.icon} size={11} /> {j.label}</span>
@@ -107,7 +107,7 @@ function MilestoneModal({ s, focus }: { s: Snapshot; focus: number | null }) {
     };
   }, [target]);
   return (
-    <div class="modal-back" onClick={(e) => { if (e.target === e.currentTarget) closeMilestones(); }}>
+    <div class="modal-back ms-back" onClick={(e) => { if (e.target === e.currentTarget) closeMilestones(); }}>
       <div ref={box} class="card ms" role="dialog" aria-modal="true" aria-labelledby="ms-title">
         <header class="ms-top">
           <div>

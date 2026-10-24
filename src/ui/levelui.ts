@@ -4,6 +4,7 @@
 import { getSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { Snapshot } from '../sim/game/game';
+import { levelDef, unlockLevelOf } from '../sim/game/levels';
 import { fmtNum } from './logic';
 
 // ---------- HUD level bar ----------
@@ -308,4 +309,15 @@ export function postBreakdown(s: Snapshot): { total: number; parts: PostPart[] }
   const sum = raw.reduce((a, p) => a + p.ticks, 0);
   const scale = sum > 0 ? s.postTicks / sum : 1;
   return { total: s.postTicks, parts: raw.map((p) => ({ ...p, ticks: Math.round(p.ticks * scale) })) };
+}
+
+/**
+ * The level lock of an item. The sim's `purchases[].locked` is the truth for an item on offer; an item the sim does not
+ * list yet (the next board tier only, a planned OS) is placed by the unlock table, so it reads "Level 5" instead of "Later".
+ */
+export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?: boolean }): LevelLock | undefined {
+  if (p?.locked) return p.locked;
+  if (s.sandbox || s.level.sandbox || (p && !p.later)) return undefined;
+  const need = unlockLevelOf(id);
+  return need > s.level.level ? { level: need, name: levelDef(need).name } : undefined;
 }

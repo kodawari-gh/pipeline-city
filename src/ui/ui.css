@@ -503,7 +503,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .lvl-chip { font: 700 0.667rem var(--mono); letter-spacing: .04em; padding: 0.2rem 0.55rem; border-radius: 99rem; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--glass-hi); }
 
 /* Milestone screen (Levels.tsx): a centred modal, the ladder of levels as cards. */
-.ms { position: relative; width: min(100%, 40rem); max-height: min(100%, 46rem); display: flex; flex-direction: column; gap: 0.5rem; padding: 0.9rem 1rem 0.8rem; animation: pop-in .3s ease both; }
+/* A flex backdrop (not the grid of .modal-back): the card is clamped by max-height, so a grid row sized from its tall content pushed it off screen. */
+.ms-back { display: flex; align-items: center; justify-content: center; }
+.ms { background: color-mix(in srgb, var(--bg) 86%, transparent); position: relative; width: min(100%, 40rem); max-height: min(100%, 46rem); display: flex; flex-direction: column; gap: 0.5rem; padding: 0.9rem 1rem 0.8rem; animation: pop-in .3s ease both; }
 .ms-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; }
 .ms h2 { margin: 0; font-size: 1.1rem; }
 .ms-sub { font-size: 0.75rem; margin-top: 0.133rem; }
@@ -526,7 +528,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .ms-prog i { display: block; height: 100%; background: var(--accent); border-radius: 0.2rem; }
 .ms-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .ms-chips .chip { font-family: var(--mono); }
-.ms-arrow { font-size: 0.55rem; }
+.ms-arrow { font-size: 0.5rem; margin-left: 0.15rem; }
+.ms-arrow.up { color: var(--ok); }
+.ms-arrow.down { color: var(--warn); }
 .ms-unl { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 /* An unlock tile: the part's illustration (or a kind icon when it has none yet) over its name. */
 .ut { display: inline-flex; flex-direction: column; align-items: center; gap: 0.1rem; width: 4.9rem; padding: 0.3rem 0.2rem 0.3rem; border-radius: 0.55rem; border: 1px solid var(--glass-line); background: var(--glass-hi); box-sizing: border-box; }

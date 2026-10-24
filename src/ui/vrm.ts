@@ -4,7 +4,7 @@
 import { BOARD_TIERS, getSpec, type VrmSinkSpec } from '../sim/board/specs';
 import { currentDemand, loadRatio, VRM_OVERLOAD } from '../sim/board/vrm';
 import type { Snapshot } from '../sim/game/game';
-import { isNextLevelLock, lockTooltip, type LevelLock } from './levelui';
+import { isNextLevelLock, lockOf, lockTooltip, type LevelLock } from './levelui';
 import { fmtMoney, type Level } from './logic';
 
 /** Above this share of the phases' rating the VRM is "working hard" (the efficiency curve starts to fall here). */
@@ -165,6 +165,7 @@ export function boardCards(s: Snapshot): BoardCard[] {
     const price = p?.price ?? t.price;
     const free = s.sandbox;
     const canAfford = free || (p ? p.affordable : false);
+    const lock = lockOf(s, id, p);
     let state: BoardCardState;
     let reason: string | undefined;
     if (t.tier === cur) {
@@ -174,9 +175,9 @@ export function boardCards(s: Snapshot): BoardCard[] {
     } else if (crate) {
       state = 'crate';
       reason = 'In your inventory: power off, then drag it onto the board';
-    } else if (p?.locked) {
+    } else if (lock) {
       state = 'level';
-      reason = lockTooltip(p.locked, { blocked: p.blocked, priceShort: s.sandbox ? 0 : price - s.money });
+      reason = lockTooltip(lock, { blocked: p?.blocked, priceShort: p && !s.sandbox ? price - s.money : 0 });
     } else if (p?.later) {
       state = 'locked';
       reason = p.description ?? 'Not available yet';
@@ -199,8 +200,8 @@ export function boardCards(s: Snapshot): BoardCard[] {
       price,
       free,
       reason,
-      lock: p?.locked,
-      soon: isNextLevelLock(p?.locked, s.level.level),
+      lock,
+      soon: isNextLevelLock(lock, s.level.level),
       canBuy: (state === 'ready' || state === 'dead') && !!p && !p.blocked && canAfford,
       slots: SLOT_LABELS
         .map((x) => ({ key: x.key, label: x.label, icon: x.icon, count: t.slots[x.key as keyof typeof t.slots] ?? 0 }))
