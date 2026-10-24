@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
-import { selected } from '../game/hover';
+import { effect } from '@preact/signals';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { selected, viewInset } from '../game/hover';
+import { cameraRev } from '../game/interaction';
 import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot, uninstallOs } from '../game/store';
 import { getSpec, type CpuSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
@@ -11,23 +13,26 @@ import {
 } from './picker';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
+import { anchorOf } from './anchor';
+import { dockPlacement, placePopup, type Rect, type Side } from './place';
 
 const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** One upgrade rung: owned, next (buy), blocked or later. Pressing the card compares it with the current part. */
 function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
+  const cost = step.free ? 'free' : fmtMoney(step.price ?? 0);
   const foot = (() => {
     switch (step.state) {
       case 'installed': return <span class="need ok"><Icon name="check" size={11} /> Fitted</span>;
       case 'crate': return <span class="need ok"><Icon name="box" size={11} /> Spare</span>;
       case 'ready': return (
         <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(step.specId); }}
-          title={`Buy for ${fmtMoney(step.price ?? 0)}. It goes into your inventory.`}>
-          Buy {fmtMoney(step.price ?? 0)}
+          title={`Buy for ${cost}. It goes into your inventory.`}>
+          Buy {cost}
         </button>
       );
-      case 'poor': return <span class="need warn" title={step.reason}><Icon name="dollar" size={11} /> {fmtMoney(step.price ?? 0)}</span>;
+      case 'poor': return <span class="need warn" title={step.reason}><Icon name="dollar" size={11} /> {cost}</span>;
       case 'blocked': return <span class="need bad" title={step.reason}><Icon name="lock" size={11} /> Blocked</span>;
       case 'locked': return <span class="need mute" title={step.reason}><Icon name="lock" size={11} /> Later</span>;
     }
@@ -197,7 +202,7 @@ function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | nul
   );
 }
 
-function Body({ m, s }: { m: PickerModel; s: Snapshot }) {
+function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { current: HTMLDivElement | null } }) {
   // The option the bars compare against: the picked rung, else the selected part, else the first upgrade on offer.
   const [picked, setPicked] = useState<string | null>(null);
   const firstOffer = m.ladder.find((r) => r.state === 'crate' || r.state === 'ready' || r.state === 'poor' || r.state === 'blocked')?.specId ?? null;
@@ -211,7 +216,7 @@ function Body({ m, s }: { m: PickerModel; s: Snapshot }) {
   const loadFrac = psu && psu.budgetW > 0 ? psu.totalW / psu.budgetW : 0;
 
   return (
-    <aside class="card picker" aria-label={m.title} data-kind={m.kind}>
+    <div class="pk-content" ref={content} data-kind={m.kind} aria-label={m.title}>
       <button class="close" aria-label="Close" title="Close (Esc)" onClick={() => { selected.value = null; }}>
         <Icon name="close" size={11} />
       </button>
@@ -269,14 +274,27 @@ function Body({ m, s }: { m: PickerModel; s: Snapshot }) {
           <div class="nerd">{m.nerd}</div>
         </details>
       )}
-    </aside>
+    </div>
   );
 }
 
-/** The contextual card for the selected id: a part (with upgrades), a key, the power button or the USB port. */
+const GAP_REM = 0.9;
+
+/**
+ * The contextual card for the selected id: a part (with upgrades), a key, the power button or the USB port. It is a popup
+ * next to the object (`anchorOf`, recomputed on `cameraRev`): right, then left, below, above; flipped and clamped inside
+ * the free area, with a tail pointing at the object. The shell persists across selections, so position and height glide.
+ * Ids without a world rect (hidden at far zoom, off screen) dock at the bottom right of the free area, next to the
+ * inventory shelf; `inv:<id>` tiles anchor to their DOM tile, above it.
+ */
 export function PickerCard() {
   const id = selected.value;
   const s = snapshot.value;
+  const shell = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const glideTimer = useRef<number>(0);
+  const lastId = useRef<string | null>(null);
+
   // Escape closes the card. Registered while a card is open only.
   useEffect(() => {
     if (!id) return;
@@ -284,9 +302,63 @@ export function PickerCard() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [id]);
-  if (!id || !s) return null;
-  const m = pickerFor(id, s);
-  if (!m) return null;
-  // Keyed by id: a different selection starts with the default comparison.
-  return <Body key={id} m={m} s={s} />;
+
+  const m = id && s ? pickerFor(id, s) : null;
+  const open = !!m;
+
+  useEffect(() => {
+    const el = shell.current, inner = content.current;
+    if (!open || !el || !inner || !id) { lastId.current = null; return; }
+    const reposition = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const inset = viewInset.peek();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const tile = id.startsWith('inv:') ? document.querySelector(`[data-inv="${CSS.escape(id.slice(4))}"]`) : null;
+      let free: Rect = { x: inset.left, y: inset.top, w: vw - inset.left - inset.right, h: vh - inset.top - inset.bottom };
+      let anchor: Rect | null = null;
+      let order: Side[] | undefined;
+      if (tile) {
+        const r = tile.getBoundingClientRect();
+        anchor = { x: r.left, y: r.top, w: r.width, h: r.height };
+        free = { x: 0, y: inset.top, w: vw, h: vh - inset.top };
+        order = ['above', 'right', 'left'];
+      } else {
+        const a = anchorOf(id);
+        if (a && a.visible) anchor = { x: a.x, y: a.y, w: a.w, h: a.h };
+      }
+      const margin = rem * 0.5;
+      free = { x: free.x + margin, y: free.y, w: Math.max(1, free.w - 2 * margin), h: Math.max(1, free.h - margin) };
+      const width = el.offsetWidth;
+      const maxH = Math.max(rem * 8, free.h);
+      const natural = inner.offsetHeight + 2;
+      const h = Math.min(natural, maxH);
+      el.style.height = `${h}px`;
+      const pl = anchor ? placePopup(anchor, { w: width, h }, free, rem * GAP_REM, order) : dockPlacement({ w: width, h }, free);
+      el.dataset.side = pl.side;
+      el.style.setProperty('--tail', `${pl.tail}px`);
+      el.style.transform = `translate(${Math.round(pl.x)}px, ${Math.round(pl.y)}px)`;
+    };
+    // A different object: glide (slow transition) instead of following (short one).
+    if (lastId.current !== null && lastId.current !== id) {
+      el.classList.add('glide');
+      window.clearTimeout(glideTimer.current);
+      glideTimer.current = window.setTimeout(() => el.classList.remove('glide'), 520);
+    }
+    lastId.current = id;
+    reposition();
+    const ro = new ResizeObserver(reposition);
+    ro.observe(inner);
+    const stop = effect(() => { cameraRev.value; viewInset.value; reposition(); });
+    window.addEventListener('resize', reposition);
+    return () => { ro.disconnect(); stop(); window.removeEventListener('resize', reposition); };
+  }, [open, id]);
+
+  if (!id || !s || !m) return null;
+  // The shell is not keyed (position and height glide); the content is (a different selection starts with the default comparison).
+  return (
+    <aside class="card picker" ref={shell} data-side="dock" aria-label={m.title}>
+      <i class="tail" aria-hidden="true" />
+      <div class="pk-body"><Body key={id} m={m} s={s} content={content} /></div>
+    </aside>
+  );
 }

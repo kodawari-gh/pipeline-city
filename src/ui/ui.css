@@ -36,7 +36,8 @@
    15 px (small laptops and phones) and never above 64 px, times the player's UI size (--ui-scale, 0.8 to 1.5, set by
    the menu). These px bounds are the only pixel lengths allowed in the UI besides 1px hairlines. */
 html { font-size: calc(var(--ui-scale, 1) * clamp(15px, min(0.85vw, 1.5vmin), 64px)); }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font: 0.8rem/1.35 var(--ui); -webkit-font-smoothing: antialiased; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { font: 0.8rem/1.35 var(--ui); }
 #board { position: fixed; inset: 0; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > *, #hud .hud, #hud .dock, #hud .picker { pointer-events: auto; }
@@ -150,12 +151,22 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .art .dial-txt { fill: var(--ink); font-family: var(--mono); font-weight: 700; }
 .art .dial-lab { fill: var(--mute); font-family: var(--ui); }
 
-/* Contextual picker (left side glass card, opens on selection) */
+/* Contextual picker: a popup next to the selected object (placement in PickerCard.tsx / place.ts). The shell is moved with
+   transform and its height is set from its content; both glide. `.glide` (a different object was picked) is the slow one. */
 .picker {
-  position: fixed; top: 4rem; left: 0.533rem; width: 19.467rem; max-height: calc(100vh - 10rem); overflow-y: auto; z-index: 20;
-  padding: 0.667rem 0.733rem 0.733rem; scrollbar-width: thin;
+  position: fixed; left: 0; top: 0; width: 22rem; max-width: calc(100vw - 1rem); z-index: 20; display: flex; flex-direction: column; padding: 0;
+  transition: transform .14s linear, height .3s ease; will-change: transform;
 }
-.picker .close, .dock .close, .inv .close { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.2rem 0.333rem; line-height: 0; border: 0; background: transparent; }
+.picker.glide { transition: transform .5s cubic-bezier(.2, .8, .2, 1), height .35s ease; }
+.pk-body { flex: 1; min-height: 0; overflow-y: auto; border-radius: inherit; scrollbar-width: thin; }
+.pk-content { position: relative; padding: 0.7rem 0.75rem 0.75rem; animation: fade-in .25s ease both; }
+.picker .tail { position: absolute; width: 0.8rem; height: 1.3rem; background: color-mix(in srgb, var(--accent) 70%, var(--bg)); pointer-events: none; }
+.picker[data-side="dock"] .tail { display: none; }
+.picker[data-side="right"] .tail { left: -0.78rem; top: calc(var(--tail) - 0.65rem); clip-path: polygon(0 50%, 100% 0, 100% 100%); }
+.picker[data-side="left"] .tail { right: -0.78rem; top: calc(var(--tail) - 0.65rem); clip-path: polygon(100% 50%, 0 0, 0 100%); }
+.picker[data-side="below"] .tail { top: -0.78rem; left: calc(var(--tail) - 0.65rem); width: 1.3rem; height: 0.8rem; clip-path: polygon(50% 0, 0 100%, 100% 100%); }
+.picker[data-side="above"] .tail { bottom: -0.78rem; left: calc(var(--tail) - 0.65rem); width: 1.3rem; height: 0.8rem; clip-path: polygon(50% 100%, 0 0, 100% 0); }
+.picker .close, .dock .close, .inv .close { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.2rem 0.33rem; line-height: 0; border: 0; background: transparent; }
 .phead { display: flex; align-items: center; gap: 0.667rem; padding-right: 1.333rem; }
 .phead .part { flex: none; width: 5.333rem; }
 .phead .ptext { min-width: 0; }
