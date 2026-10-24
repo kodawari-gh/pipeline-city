@@ -137,10 +137,16 @@ export const CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 
 /** The 2-position SATA drive bay (a cage right of the PSU). Cell 0 = slot sata0 (top), cell 1 = sata1. */
 export const BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
 export const BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
-/** Where a drive's SATA data cable runs: column x in the cage gap, lane y under the board, port x on the board edge. */
+/**
+ * Where a drive's SATA data cable runs (`sataCablePath` in case.ts). It leaves the drive's data plug (cell y + `plug`), drops
+ * through the gap between the PSU and the bay, runs UNDER the PSU (`lane`, below its bottom edge), up the west side of the PSU
+ * (`west`, outside the PSU and the cavity wall), along a run above the PSU (`top`, between the board and the PSU ports) and
+ * into the board port (`port`). It never crosses the PSU port row or the PSU cables. Cell 1's runs sit outside cell 0's so
+ * the two never cross each other (the lower cell is the outer loop).
+ */
 export const SATA_LINK = [
-  { col: 4160, lane: 2590, port: -1910 },
-  { col: 4100, lane: 2650, port: -2080 },
+  { plug: 400, col: 4060, lane: 3928, west: -3500, top: 2600, port: -1910 },
+  { plug: 400, col: 4120, lane: 3968, west: -3580, top: 2540, port: -2080 },
 ] as const;
 /** Board port rect for SATA index i. */
 export const sataPort = (i: number): Rect => ({ x: BR.sata.x + (1 - i) * 170, y: BR.sata.y, w: 140, h: BR.sata.h });

@@ -98,11 +98,15 @@ export function emptyCellHint(T: Theme, cell: Rect): Container {
 
 // ---------------------------------------------------------------- SATA cables and power leads
 
-/** Dense centre line of the SATA data cable from bay cell i to port i on the board edge (a Lane, for pulses). */
+/**
+ * Dense centre line of the SATA data cable from bay cell i to port i on the board edge (a Lane, for pulses). It drops out of
+ * the cell's west side, goes down the gap, under the PSU, up its west side and along the top of the PSU to the port: no part of
+ * it crosses the PSU port row or the PSU cables (see `SATA_LINK`).
+ */
 export function sataCablePath(i: 0 | 1): Lane {
   const c = BAY_CELLS[i]!, L = SATA_LINK[i];
-  const y0 = c.y + 135, yPort = BR.sata.y + BR.sata.h + 58;
-  const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, L.lane], [L.port, L.lane], [L.port, yPort]];
+  const y0 = c.y + L.plug, yPort = BR.sata.y + BR.sata.h + 58;
+  const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, L.lane], [L.west, L.lane], [L.west, L.top], [L.port, L.top], [L.port, yPort]];
   return mkLane(roundedPath(route, 70, 30));
 }
 
@@ -118,18 +122,19 @@ export function sataLinkArt(T: Theme, i: 0 | 1, withPower: boolean): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W;
+  const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W, L = SATA_LINK[i];
   const sleeve = T.dark ? '#171d29' : '#2a313d';
   const line = (list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
   line(pts.map(([x, y]) => [x + 7, y + 10] as Pt)); g.stroke({ width: w + 6, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w * 0.2, color: '#ffffff', alpha: T.dark ? 0.08 : 0.14, cap: 'round', join: 'round' });
-  plugBox(g, T, c.x - 82, c.y + 135 - 34, 76, 68, T.mul); // drive end
+  plugBox(g, T, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
   const e = pts[pts.length - 1]!;
   plugBox(g, T, e[0] - 36, e[1] - 6, 72, 78, T.mul); // board end (plugs up into the port)
   if (withPower) {
-    const py = c.y + 360, x0 = PSU.x + PSU.w;
+    // the drive's power lead sits above its data plug, so the data run never passes it in the gap
+    const py = c.y + 110, x0 = PSU.x + PSU.w;
     const sl = [[x0, py], [c.x - 78, py]] as Pt[];
     line(sl.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 44, color: '#000000', alpha: 0.26, cap: 'round' });
     line(sl); g.stroke({ width: 38, color: sleeve, cap: 'round' });
