@@ -26,7 +26,12 @@ export interface PropsArt {
   /** Static art (boxes, labels): board.ts bakes it into a texture at far zoom. Lives inside `root` until moved. */
   chrome?: Container;
   objs: PropObj[]; led: Graphics; ledText: Text | null;
+  /** The remove cue on a finished key (plugged, `stage` done): animated per frame by `drawKeyCue`. */
+  cue?: KeyCue;
 }
+
+/** The remove cue: a glow around the stick and a `TAKE ME` / `REMOVE` tag under it. Lives in the key's node, outside its baked `vec`. */
+export interface KeyCue { glow: Graphics; tag: Container; pill: Graphics }
 
 const centre = (r: Rect) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -280,19 +285,51 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
+/** The compact stick's outline (centred on the key) and the tag under its body (the body spans x -375..185). */
+const CUE_STICK = { x: -KEY_LEN_PLUGGED / 2, y: -KEY_H / 2, w: KEY_LEN_PLUGGED, h: KEY_H };
+const CUE_TAG = { x: -95, y: 265, w: 800, h: 230 };
+
 /**
  * The key sitting in the USB port (drawn above the board art). `notRead`: the machine halted before this key was in the port, so it is
- * never read: the key is dimmed and says NOT READ (static, no blink).
+ * never read: the key is dimmed and says NOT READ (static, no blink). `cueLabel` (e.g. `TAKE ME`) adds the remove cue to a finished key.
  */
-export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false): PropsArt {
+export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: string | null = null): PropsArt {
   const root = new Container();
   const p = pluggedKeyCentre();
   const vec = keyStick(T, k, true, notRead), node = new Container();
   if (notRead) vec.alpha = 0.6;
+  let cue: KeyCue | undefined;
+  if (cueLabel && k.stage === 'done' && !notRead) {
+    // a finished key waits for its removal: a glow on the stick and a tag, on the game clock (drawKeyCue); none of it is baked
+    const glow = new Graphics(), pill = new Graphics(), tag = new Container();
+    const text = new Text({ text: cueLabel, style: { fontFamily: HEAD, fontSize: 160, fontWeight: '700', fill: T.st }, resolution: 2 });
+    text.anchor.set(0.5, 0.5);
+    tag.addChild(pill, text);
+    tag.position.set(CUE_TAG.x, CUE_TAG.y);
+    node.addChild(glow);
+    cue = { glow, tag, pill };
+  }
   node.addChild(vec);
+  if (cue) node.addChild(cue.tag);
   node.position.set(p.x, p.y);
   root.addChild(node);
-  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null };
+  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null, cue };
+}
+
+/**
+ * Per-frame remove cue. `now` is game time (a pause freezes the breath). `k` scales the tag and the glow width so both stay readable
+ * at the exterior (far) view: 1 at the overview, up to 2.6 further out. Calm: one slow sine, no flashing.
+ */
+export function drawKeyCue(c: KeyCue, T: Theme, now: number, k: number) {
+  const beat = 0.5 + 0.5 * Math.sin(now * 0.0035); // about a 1.8 s breath
+  const s = CUE_STICK, e = (12 + 10 * beat) * k;
+  c.glow.clear();
+  box(c.glow, s.x - e, s.y - e, s.w + 2 * e, s.h + 2 * e, 50 * k, { fill: T.st, fa: 0.05 + 0.08 * beat });
+  box(c.glow, s.x - e, s.y - e, s.w + 2 * e, s.h + 2 * e, 50 * k, { stroke: T.st, lw: 12 * k, sa: 0.35 + 0.45 * beat });
+  c.tag.scale.set(k);
+  const t = CUE_TAG;
+  c.pill.clear();
+  box(c.pill, -t.w / 2, -t.h / 2, t.w, t.h, t.h / 2, { fill: T.dark ? '#0b1226' : '#ffffff', fa: 0.94, stroke: T.st, lw: 9, sa: 0.85 + 0.15 * beat });
 }
 
 // ---------------------------------------------------------------- power button

@@ -18,7 +18,7 @@ import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, type Rect,
 } from './layout';
-import { drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
+import { drawKeyCue, drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -585,7 +585,8 @@ export async function mountBoard(host: HTMLElement) {
     const order: PropObj[] = [];
     powerArtRef = powerArt(T, powerState);
     add(powerArtRef);
-    if (s?.plugged) add(pluggedKeyArt(T, s.plugged, notRead));
+    // a finished key (stage done) gets the remove cue: TAKE ME on a no-OS machine, REMOVE once the OS has flashed it
+    if (s?.plugged) add(pluggedKeyArt(T, s.plugged, notRead, s.os ? 'REMOVE' : 'TAKE ME'));
     add(trayArt(T, s?.tray ?? []));
     add(heldArt(T, s?.held ?? []));
     for (const a of propsArt) order.push(...a.objs);
@@ -718,6 +719,9 @@ export async function mountBoard(host: HTMLElement) {
     live.frame(gdt, gt);
     pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
+    // the remove cue on a finished key: game clock, scaled up as the camera moves out so it stays readable
+    const cueK = Math.min(2.6, Math.max(1, fits.z / Math.max(1e-6, camera.z)));
+    for (const a of propsArt) if (a.cue) drawKeyCue(a.cue, T, gt, cueK);
     interact.frame(now, dt, gt);
     if (powerArtRef) drawPowerLeds(T, powerArtRef.led, powerState, gt, live.diskLevel);
     for (let i = slides.length - 1; i >= 0; i--) {

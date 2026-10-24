@@ -490,7 +490,8 @@ export class Interact {
     if (s && !d) {
       const ringKeys: Snapshot['tray'] = [];
       if (s.phase === 'done-remove-key' && s.plugged) ringKeys.push(s.plugged);
-      if (s.plugged && s.keyActivity === 'done') ringKeys.push(s.plugged);
+      // a finished plugged key carries its own remove cue (props.ts drawKeyCue), so it gets no ring here
+      if (s.plugged && s.keyActivity === 'done' && s.plugged.stage !== 'done') ringKeys.push(s.plugged);
       for (const k of s.held ?? []) if (k.stage === 'result') ringKeys.push(k);
       for (const k of ringKeys) {
         const o = this.scene.props.get('key:' + k.id);
