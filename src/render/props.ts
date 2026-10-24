@@ -386,8 +386,12 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 5 });
   const k = b.r / 175;
   // the power symbol: a ring open at the top (clockwise from just right of the top, the long way round), the bar in the gap
-  bg.arc(0, 8 * k, 78 * k, -Math.PI * 0.32, Math.PI * 1.32, false).stroke({ width: 15, color: ring, cap: 'round' });
-  bg.moveTo(0, -78 * k).lineTo(0, -4 * k).stroke({ width: 15, color: ring, cap: 'round' });
+  // The arc gets its own moveTo so no stray segment joins it to the previous shape, and the gap is wide enough for the
+  // bar plus both round caps (stroke widths scale with the button).
+  const gap = Math.PI * 0.2, R = 78 * k, w = 15 * k;
+  bg.moveTo(R * Math.cos(-Math.PI / 2 + gap), 8 * k + R * Math.sin(-Math.PI / 2 + gap));
+  bg.arc(0, 8 * k, R, -Math.PI / 2 + gap, Math.PI * 1.5 - gap, false).stroke({ width: w, color: ring, cap: 'round' });
+  bg.moveTo(0, -62 * k).lineTo(0, -4 * k).stroke({ width: w, color: ring, cap: 'round' });
   node.position.set(b.x, b.y);
   root.addChild(node);
   const led = new Graphics();
