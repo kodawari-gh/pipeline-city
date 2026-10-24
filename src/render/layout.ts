@@ -158,8 +158,14 @@ export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: BR.io.x, y: VIDEO_Y - 60, w: 240, h: 120 };
 
-/** Everything the camera should see at once (board, PSU, monitor, cables, tray). */
-export const WORLD: Rect = { x: -7650, y: -3250, w: 13150, h: 7600 };
+/**
+ * Everything the camera should see at once (board, PSU, monitor, cables, tray, held rack): the content box, tightly. Its
+ * extent is the monitor / tray column on the west (x -7500) and the case's east wall (x 5260), and the case top (y -3100) to
+ * the feet (y 4360). Nothing else in the scene reaches outside it (the device bake uses it as its frame).
+ */
+export const WORLD: Rect = { x: -7540, y: -3140, w: 12840, h: 7540 };
+/** Fit margin for the overview (`fit(WORLD, OVERVIEW_MARGIN)`): the content fills the free area, with a small border. */
+export const OVERVIEW_MARGIN = 0.96;
 
 // ---- hover region list (ids are the contract with the UI) ----
 export const REGIONS: { id: string; rect: Rect }[] = [

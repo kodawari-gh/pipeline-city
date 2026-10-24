@@ -16,7 +16,7 @@ import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior'
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, type Rect,
+  OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, type Rect,
 } from './layout';
 import { drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -62,7 +62,9 @@ let interactRef: Interact | null = null;
 /** 0..1 how much the exterior case covers the interior (set by applyLod). Interior ids are hidden above 0.5, as in hit testing. */
 let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
-export function flyToBoard() { cameraRef?.flyTo(cameraRef.fit(WORLD)); }
+/** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
+const overviewFit = (c: Camera): View => c.fit(WORLD, OVERVIEW_MARGIN);
+export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(cameraRef)); }
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
 export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
 /**
@@ -146,7 +148,7 @@ export async function mountBoard(host: HTMLElement) {
     const x0 = Math.min(...rs.map((r) => r.x)) - 900, y0 = Math.min(...rs.map((r) => r.y)) - 900;
     const x1 = Math.max(...rs.map((r) => r.x + r.w)) + 900, y1 = Math.max(...rs.map((r) => r.y + r.h)) + 900;
     const v = camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.9);
-    const z = opts.zoom ?? Math.min(Math.max(v.z, camera.fit(WORLD).z), 0.3);
+    const z = opts.zoom ?? Math.min(Math.max(v.z, overviewFit(camera).z), 0.3);
     camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;
@@ -187,8 +189,6 @@ export async function mountBoard(host: HTMLElement) {
   let propHits: Hit[] = [];
   let allHits: Hit[] = [];
   const scene: SceneInfo = interact.scene;
-  /** Hover/selected alias: the installed PSU and monitor are written as 'psu' / 'monitor' on click, but hover keeps the device id. */
-  const hoverAlias = new Map<string, string>();
   let sceneKey = '';
   let cableKey = '';
   let propsKey = '';
@@ -308,7 +308,6 @@ export async function mountBoard(host: HTMLElement) {
     const deviceHits: Hit[] = [];
     let hasPsu = false, hasDisplay = false;
     const dimms: number[] = [];
-    hoverAlias.clear();
     scene.rects.clear(); scene.interactive.clear(); scene.slots.clear();
 
     for (const d of s?.devices ?? []) {
@@ -340,7 +339,7 @@ export async function mountBoard(host: HTMLElement) {
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: 'psu', rect: PSU });
         scene.rects.set(d.id, PSU); scene.rects.set('psu', PSU);
-        scene.interactive.add('psu'); hoverAlias.set('psu', d.id);
+        scene.interactive.add('psu');
         hasPsu = true;
       } else if (spec.kind === 'cooler') {
         const p = coolerArt(T, spec as CoolerSpec);
@@ -363,7 +362,7 @@ export async function mountBoard(host: HTMLElement) {
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
         deviceHits.push({ id: 'monitor', rect: MONITOR });
         scene.rects.set(d.id, MONITOR); scene.rects.set('monitor', MONITOR);
-        scene.interactive.add('monitor'); hoverAlias.set('monitor', d.id);
+        scene.interactive.add('monitor');
         hasDisplay = true;
       }
     }
@@ -612,19 +611,19 @@ export async function mountBoard(host: HTMLElement) {
   // Anything that changes the free screen area (window size, UI panels) re-frames the board if the player is
   // looking at the whole of it; a view they have panned or zoomed is left alone.
   const atOverview = () => {
-    const f = camera.fit(WORLD);
+    const f = overviewFit(camera);
     return Math.abs(camera.z / f.z - 1) < 0.02 && Math.abs(camera.x - f.x) < 20 && Math.abs(camera.y - f.y) < 20;
   };
   const reframe = (change: () => void) => {
     const was = atOverview();
     change();
-    fits = camera.fit(WORLD);
+    fits = overviewFit(camera);
     camera.minZ = fits.z * LOD.minZoom;
     if (was) camera.set(fits); else camera.apply();
   };
   camera.resize(app.screen.width, app.screen.height);
   camera.snapInset({ ...viewInset.peek() });
-  fits = camera.fit(WORLD); camera.minZ = fits.z * LOD.minZoom;
+  fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
   camera.set(fits);
   app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));
   // UI inset (viewInset): the new value is taken in the frame loop, and only when no gesture or part drag is running, so the
@@ -637,7 +636,7 @@ export async function mountBoard(host: HTMLElement) {
     if (c.top === i.top && c.right === i.right && c.bottom === i.bottom && c.left === i.left) return;
     const was = atOverview() && !camera.holdAt;
     camera.inset = { ...i };
-    fits = camera.fit(WORLD); camera.minZ = fits.z * LOD.minZoom;
+    fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
     if (was) camera.flyTo(fits, 450); else camera.apply();
   };
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
@@ -660,7 +659,7 @@ export async function mountBoard(host: HTMLElement) {
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
     const id = hitAt(p.x, p.y);
     interact.setHover(id);
-    if (id) hover.value = { id: hoverAlias.get(id) ?? id, x: p.x, y: p.y };
+    if (id) hover.value = { id, x: p.x, y: p.y };
     else if (hover.peek()) hover.value = null;
   };
   camera.onClick = (cx, cy) => interact.click(hitAt(cx, cy), cx, cy);
