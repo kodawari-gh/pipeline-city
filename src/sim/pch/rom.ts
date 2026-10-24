@@ -142,7 +142,7 @@ export const ROM_SOURCE = [
   `  li s3, ${PCH_BASE}`,
   `  li s0, ${DISPLAY_BASE}`,
   ...status("JOB DONE"),
-  ...textStores((STATUS_ROW + 1) * ROW, "REMOVE KEY, THEN POWER OFF/ON"),
+  ...textStores((STATUS_ROW + 1) * ROW, "POWER OFF/ON FOR THE NEXT JOB"),
   ...setPhase(PchPhase.Halted), // last: the halt phase comes after the whole message
   "halt:", // nothing wakes the machine: the player power-cycles it by hand
   "  j halt",

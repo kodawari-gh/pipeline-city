@@ -12,8 +12,8 @@ import { beginPartDrag } from './worldDrag';
 
 const shortName = (name: string) => name.split(' (')[0]!;
 
-/** HUD button with the count badge. Pulses while a tutorial step asks for the inventory or one of its parts. */
-export function InventoryButton({ s }: { s: Snapshot }) {
+/** Button with the count badge, in the bottom bar next to the shelf it opens. Pulses while a tutorial step asks for the inventory or one of its parts. */
+function InventoryButton({ s }: { s: Snapshot }) {
   const open = inventoryOpen.value;
   const pulse = highlight.value.some((t) => t === INVENTORY_ID || t.startsWith('inv:'));
   const n = s.inventory.length;
@@ -30,6 +30,11 @@ export function InventoryButton({ s }: { s: Snapshot }) {
       <b class="count">{n}</b>
     </button>
   );
+}
+
+/** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
+export function InventoryBar({ s }: { s: Snapshot }) {
+  return <div class="invbar"><InventoryButton s={s} /></div>;
 }
 
 /** Tier of a spec id ("Tier 2"), or null when it has none. */
@@ -86,7 +91,6 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
     <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
       <header class="inv-head">
         <span class="inv-title"><Icon name="box" size={15} /> Inventory <b>{n}</b></span>
-        <span class="inv-hint mute">Drag a part onto the board. Power off first.</span>
         <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
       </header>
       {n === 0 ? (

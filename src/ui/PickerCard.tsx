@@ -100,23 +100,6 @@ function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
   );
 }
 
-/** The next tier up under the bars: its name and what it costs (or where it is), so a higher tier is never "nothing". */
-function NextLine({ step }: { step: LadderStep }) {
-  const cost = step.free ? 'free' : step.price !== undefined ? fmtMoney(step.price) : null;
-  const detail = (() => {
-    switch (step.state) {
-      case 'crate': return 'a spare in your inventory: drag it onto its socket';
-      case 'ready': return `${cost}, buy it above`;
-      case 'poor': return `${cost}. ${step.reason ?? ''}`.trim();
-      case 'blocked': return `${cost ? `${cost}, ` : ''}${step.reason ?? 'blocked for now'}`;
-      case 'locked': return step.reason ?? 'not available yet';
-      case 'level': return step.lock ? `unlocks at Level ${step.lock.level} (${step.lock.name})` : 'locked by level';
-      default: return '';
-    }
-  })();
-  return <div class="sub next-line">Next tier: {shortName(step.name)}, {detail}</div>;
-}
-
 const ZONE_WORD: Record<ZoneName, string> = { safe: 'Safe', throttle: 'Throttle', unstable: 'Unstable' };
 const ZONE_HELP: Record<ZoneName, string> = {
   safe: 'Runs at full speed with this cooler.',
@@ -356,6 +339,9 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.focus);
   // With a clock dial the overclock warnings are shown by the dial's zone, not as text.
   const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
+  // Words only where something is wrong or the object has nothing else to show: warnings always, one plain line for a bare socket.
+  const calm = (l: PickerLine) => l.level === 'info' || l.level === 'ok';
+  const shownLines = [...lines.filter((l) => !calm(l)), ...(m.device || m.ladder.length ? [] : lines.filter(calm).slice(0, 1))];
   const psu = m.kind === 'psu' ? s.power : null;
   const loadFrac = psu && psu.budgetW > 0 ? psu.totalW / psu.budgetW : 0;
   // A CPU row the board's VRM cannot feed says so in words, once, under the bars.
@@ -372,8 +358,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           <div class="part"><PartArt id={artId} size={80} /></div>
         )}
         <div class="ptext">
-          <div class="ptitle">{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
-          {m.plain && <div class="pplain">{m.plain}</div>}
+          <div class="ptitle" title={m.plain}>{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
         </div>
       </header>
       {m.job && (m.job.needs.length > 0 || !m.job.runnable) && (
@@ -385,7 +370,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           <i style={{ width: `${Math.min(100, loadFrac * 100)}%` }} />
         </div>
       )}
-      {lines.map((l, i) => (
+      {shownLines.map((l, i) => (
         <div key={i} class={`pline ${l.level === 'info' ? '' : l.level}`}>{l.text}</div>
       ))}
       {m.vrm && m.kind === 'info' && <VrmBlock v={m.vrm} s={s} />}
@@ -395,22 +380,20 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       {m.osSection && <OsBlock sec={m.osSection} picked={option} onPick={setPicked} />}
       {m.shelf && m.shelf.length > 0 && (
         <section class="pblock" aria-label="Operating systems">
-          <h3><Icon name="cpu" size={11} /> Operating systems</h3>
+          <h3 title="Installs onto a drive. The machine boots from it, so it does not reboot for every job."><Icon name="cpu" size={11} /> Operating systems</h3>
           <div class="rungs">
             {m.shelf.map((r) => (
               <Rung key={r.specId} step={r} picked={r.specId === option} onPick={(id) => setPicked(id)} />
             ))}
           </div>
-          <div class="sub">Installs onto a drive. The machine boots from it, so it does not reboot for every job.</div>
         </section>
       )}
       {m.boardCards && (
         <section class="pblock" aria-label="Motherboards">
-          <h3>Motherboards</h3>
+          <h3 title="A bigger board needs the machine off. Everything you own moves over, and the VRM is the strength bar.">Motherboards</h3>
           <div class="bcards">
             {m.boardCards.map((c) => <BoardCardView key={c.id} c={c} />)}
           </div>
-          <div class="sub">A bigger board needs the machine off. Everything you own moves over, and the VRM is the strength bar.</div>
         </section>
       )}
       {m.ladder.length > 0 && !m.boardCards && (
@@ -422,7 +405,6 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
             ))}
           </div>
           {option && m.current !== option && <Compare rows={rows} option={option} />}
-          {next && <NextLine step={next} />}
         </section>
       )}
       {m.emptyText && <div class="sub">{m.emptyText}</div>}

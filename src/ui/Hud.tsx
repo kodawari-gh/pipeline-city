@@ -8,7 +8,7 @@ import { SPEEDS } from '../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, queueReadout, statusChip } from './logic';
 import { Icon } from './Icons';
 import { hudNetChip } from './netui';
-import { InventoryButton, InventoryPanel } from './Inventory';
+import { InventoryBar, InventoryPanel } from './Inventory';
 import { PickerCard } from './PickerCard';
 import { Stats } from './Stats';
 import { NetDock } from './NetPanel';
@@ -62,11 +62,13 @@ function InsetReporter() {
       const bar = document.querySelector('.hud');
       if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom + gap);
       let invSeen = false;
-      for (const el of document.querySelectorAll('.dock, .inv')) {
+      for (const el of document.querySelectorAll('.dock, .inv, .invbar')) {
         const r = el.getBoundingClientRect();
         if (r.width === 0) continue;
         const side = r.height > H * 0.5 && r.width < W * 0.5;
-        if (el.classList.contains('inv')) {
+        if (el.classList.contains('invbar')) {
+          next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
+        } else if (el.classList.contains('inv')) {
           invSeen = true;
           if (!el.classList.contains('away')) invKept = side ? { side: 'right', v: Math.ceil(W - r.left + gap) } : { side: 'bottom', v: Math.ceil(H - r.top + gap) };
           if (invKept) next[invKept.side] = Math.max(next[invKept.side], invKept.v);
@@ -102,7 +104,7 @@ function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const q = queueReadout(s);
   return (
     <div class={`stat ${q.late ? 'bad' : ''}`} title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
-      <span class="label">keys</span>
+      <Icon name="stick" size={14} />
       <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
       {q.held > 0 && <span class="value held" title="Held keys: the OS has their jobs, plug them back in to collect">+{q.held}<span class="mute"> held</span></span>}
     </div>
@@ -113,7 +115,7 @@ function Reputation({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const perMin = s.demandRate * 60;
   return (
     <div class="stat" title={`Reputation ${fmtNum(s.reputation, 2)}: from how fast you answer. Demand ${fmtNum(perMin, 1)} keys a minute.`}>
-      <span class="label">rep</span>
+      <Icon name="star" size={14} />
       <span class="value">{fmtNum(s.reputation, 2)}</span>
     </div>
   );
@@ -198,7 +200,6 @@ export function Hud() {
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
         <div class="grow" />
-        <InventoryButton s={s} />
         <div class="seg" role="group" aria-label="Speed">
           {SPEEDS.map((v) => (
             <button key={v} class={speed.value === v ? 'on' : ''} aria-pressed={speed.value === v} title={speedTitle(v)} onClick={() => setSpeed(v)}>
@@ -227,6 +228,7 @@ export function Hud() {
         <Toasts />
         <TutorialCard />
         <InventoryPanel s={s} />
+        <InventoryBar s={s} />
       </div>
     </>
   );

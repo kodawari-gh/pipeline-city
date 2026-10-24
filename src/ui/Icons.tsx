@@ -4,6 +4,8 @@ import { rem } from './units';
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
 const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'export' | 'import', string[]> = {
+  star: ['M8 1.8l1.9 4 4.3.5-3.2 2.9.9 4.3L8 11.3l-3.9 2.2.9-4.3-3.2-2.9 4.3-.5z'],
+  stick: ['M1.8 5.4h7.6v5.2H1.8z', 'M9.4 6.6h4.8v2.8H9.4z', 'M4 8h.01'],
   bolt: ['M9.2 1.5 3.6 9h3.7l-.9 5.5L12.4 7H8.7z'],
   flame: ['M8 1.6c.6 2.3 3.4 3.4 3.4 6.8a3.4 3.4 0 0 1-6.8 0c0-1.8.9-3 1.7-3.8.2 1.2.7 2 1.5 2.3C7.4 5.2 7.5 3.4 8 1.6z'],
   clock: ['M8 14.4a6.4 6.4 0 1 0 0-12.8 6.4 6.4 0 0 0 0 12.8z', 'M8 4.6V8l2.3 1.6'],

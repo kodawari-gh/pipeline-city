@@ -152,8 +152,8 @@ export function partIcon(T: Theme, kind: string, _spec = ''): Container {
 
 // ---------------------------------------------------------------- USB keys and the tray
 
-/** Full-size key in the tray: plug end 330 + body 1140, 230 tall. */
-export const KEY_LEN = 1470;
+/** Full-size key in the tray: plug end 220 + body 740, 230 tall (a stubby stick, about 3:1 like a real one). */
+export const KEY_LEN = 960;
 export const KEY_H = 230;
 /** Compact key drawn in the USB port: 190 of plug + 560 of body. */
 export const KEY_LEN_PLUGGED = 750;
@@ -196,16 +196,25 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
   c.addChild(g);
   const u = urgencyOf(k), col = urgencyColor(T, u);
   const body = T.dark ? mix(T.sub, T.tile, 0.6) : mix('#ffffff', T.tile, 0.5);
-  const half = (compact ? KEY_LEN_PLUGGED : KEY_LEN) / 2, plugL = compact ? 190 : 330, h = KEY_H;
+  const half = (compact ? KEY_LEN_PLUGGED : KEY_LEN) / 2, plugL = compact ? 190 : 220, h = KEY_H;
   const bx = -half, bw = 2 * half - plugL; // body rect x..x+bw, plug beyond it
-  box(g, bx + 4, -h / 2 + 12, bw, h, 34, { fill: '#000000', fa: 0.25 });
-  box(g, bx, -h / 2, bw, h, 34, { fill: body, stroke: col, lw: 9 });
-  g.rect(bx + 26, -h / 2, 22, h).fill({ color: col, alpha: 0.9 }); // urgency band
-  const ph = 96;
-  g.roundRect(bx + bw - 6, -ph / 2, plugL + 6, ph, 8).fill({ color: '#c8d0dc' }).stroke({ width: 5, color: '#7d8798' });
-  g.rect(bx + bw + 40, -24, 36, 48).fill({ color: '#3a4254' });
-  g.rect(bx + bw + 40 + Math.min(110, plugL - 100), -24, 36, 48).fill({ color: '#3a4254' });
-  const tx = bx + 84, tw = bw - 84 - 36;
+  const px = bx + bw - 6; // the plug starts a little inside the body
+  // ---- the plug: a metal shell with its latch holes and the dark mouth with two contacts ----
+  const ph = 112;
+  g.roundRect(px, -ph / 2, plugL + 6, ph, 12).fill(vgradFill('#eef2f8', '#9aa4b6')).stroke({ width: 5, color: '#6f7a8e' });
+  g.roundRect(px + 30, -ph / 2 + 16, plugL - 50, ph - 32, 6).fill({ color: '#232a3a' });
+  const cw = Math.max(40, plugL - 110);
+  g.rect(px + 60, -ph / 2 + 26, cw, 13).fill({ color: '#d3a64a' });
+  g.rect(px + 60, ph / 2 - 39, cw, 13).fill({ color: '#d3a64a' });
+  g.roundRect(px + 8, -ph / 2 + 6, plugL - 18, 6, 3).fill({ color: '#ffffff', alpha: 0.7 }); // sheen on the shell
+  // ---- the body: a soft shadow, a gradient shell with a gloss, a keyring cap at the back and a collar by the plug ----
+  box(g, bx + 5, -h / 2 + 14, bw, h, 46, { fill: '#000000', fa: T.dark ? 0.35 : 0.22 });
+  g.roundRect(bx, -h / 2, bw, h, 46).fill(vgradFill(T.dark ? mix(T.sub, T.tile, 0.75) : '#ffffff', T.dark ? mix(T.sub, T.bg, 0.2) : mix('#c9d2e2', T.tile, 0.4))).stroke({ width: 9, color: col });
+  g.roundRect(bx + 8, -h / 2 + 8, bw - 16, 34, 17).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.7 }); // gloss
+  g.roundRect(bx + 4, -h / 2 + 4, 74, h - 8, 42).fill({ color: mix(T.line, T.bg, 0.3), alpha: 0.5 }); // rubber cap
+  g.circle(bx + 40, 0, 17).fill({ color: T.dark ? '#05080f' : '#8a95aa' }).stroke({ width: 5, color: T.line, alpha: 0.9 }); // keyring hole
+  g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: col, alpha: 0.95 }); // urgency band at the collar (the stage colour overrides it below)
+  const tx = bx + 102, tw = bw - 102 - 66;
   const span = Math.max(1, k.deadlineTick - k.arrivalTick), frac = clamp01(k.age / span);
   const bar = (y: number, w: number) => {
     const b = new Graphics();
@@ -214,7 +223,7 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
     c.addChild(b);
   };
   const stg = stageInfo(T, k);
-  if (stg) g.rect(bx + 26, -h / 2, 22, h).fill({ color: stg.color, alpha: 1 });
+  if (stg) g.rect(bx + bw - 54, -h / 2 + 4, 22, h - 8).fill({ color: stg.color, alpha: 1 });
   if (compact) {
     c.addChild(label(fit(k.label, 96, tw, 0.6), tx, k.done || stg ? -48 : -34, 96, T.ink, { head: true }));
     if (stg) c.addChild(label(fit(stg.text, 50, tw, 0.62), tx, 44, 50, stg.color, { weight: '700' }));
@@ -249,7 +258,7 @@ export const trayKeyCentre = (i: number) => {
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
 export const pluggedKeyCentre = () => ({ x: USB_PORT.x + 190 - KEY_LEN_PLUGGED / 2, y: USB_PORT.y + USB_PORT.h / 2 });
 
-const vgradFill = (top: string, bot: string) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' });
+function vgradFill(top: string, bot: string) { return new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' }); }
 
 /**
  * A glass-like panel (the key tray and the held rack): a shadow, a vertical gradient body with a top sheen and a coloured edge,
@@ -286,7 +295,7 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : empty ? T.mute : T.ink;
   chrome.addChild(label(note, r.x + r.w - 90, r.y + 76, mode === 'fallback' ? 40 : 46, noteCol, { anchor: [1, 0.5], a: mode === 'off' && empty ? 0.8 : 1 }));
   // empty key bays (dashed outlines) so the tray reads as a tray even when empty
-  const bays = TRAY_COLS * 5;
+  const bays = TRAY_COLS * 4;
   for (let i = keys.length; i < bays; i++) {
     const p = trayKeyCentre(i);
     const pts: [number, number][] = [[p.x - KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y - KEY_H / 2]];

@@ -62,7 +62,8 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
-    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'atx', 'cpuPower', 'video', 'plugKey', 'power', 'watch', 'removeKey', 'cycle', 'spend'];
+    // the three cables are one step; the key leaves by itself, so the watch step ends on its removal
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'power', 'watch', 'watch', 'cycle', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
@@ -72,28 +73,14 @@ describe('tutorial step from snapshot flags', () => {
     expect(idOf(currentStep(snap({ progress: oldDone() }), welcomed))).toBe('fit');
   });
 
-  it('after the OS job is paid out the automation lesson waits for Level 4, then walks the network steps', () => {
+  it('after the OS job is paid out the tutorial ends on its last card, at any level: the network is the next goal, not a lesson', () => {
     const base = { ...oldDone(), storageInstalled: true, osInstalled: true, firstOsJob: true };
-    const s = (progress: Partial<Progress>, extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({
-      progress: { ...base, ...progress }, storage: [drive({ hasOs: true })], os: osOn(), inventory: [], level: atLevel(4), ...extra,
+    const s2 = (extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({
+      progress: base, storage: [drive({ hasOs: true })], os: osOn(), inventory: [], level: atLevel(3), ...extra,
     });
-    expect(idOf(currentStep(s({}, { level: atLevel(3) }), welcomed))).toBe('reachLevel4');
-    expect(idOf(currentStep(s({}), welcomed))).toBe('buyIsp');
-    expect(idOf(currentStep(s({ ispBought: true }), welcomed))).toBe('buyRouter');
-    expect(idOf(currentStep(s({ ispBought: true }, { inventory: [invItem('router', 'router1', 'inv9', ['router'])] }), welcomed))).toBe('placeRouter');
-    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true }), welcomed))).toBe('netHardware');
-    const ready = { board: boardSnap({ tier: 1 }), devices: [dev({ id: 'r1', spec: 'ram2', kind: 'ram', slot: 'dimm0' })] };
-    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true }, ready), welcomed))).toBe('plugLan');
-    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true }), welcomed))).toBe('linkUp');
-    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }), welcomed))).toBe('firstNetJob');
-    expect(idOf(currentStep(s({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true, firstNetJob: true }), welcomed))).toBe('done');
-  });
-
-  it('the network steps explain what is missing', () => {
-    const step = (id: string) => STEPS.find((x) => x.id === id)!;
-    const on = snap({ powered: true, net: { ...snap().net, state: 'no-os', reason: 'needs 64K of RAM, only 32K installed' } });
-    expect(stepProblem(on, step('linkUp'))).toMatch(/64K/);
-    expect(stepProblem(snap(), step('plugLan'))).toMatch(/router/i);
+    expect(idOf(currentStep(s2(), welcomed))).toBe('done');
+    expect(idOf(currentStep(s2({ level: atLevel(4) }), welcomed))).toBe('done');
+    expect(STEPS.find((x) => x.id === 'done')!.text).toMatch(/Level 4/);
   });
 
   it('skipped and finished tutorials show nothing', () => {
@@ -102,11 +89,11 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('resumes mid-way from a loaded save, without the welcome card again', () => {
-    // A save where the CPU, cooler, RAM, PSU, monitor and ATX cable are already in: resume at the CPU power cable.
-    const s = snap({ progress: oldUpTo(6) });
+    // A save where the CPU, cooler, RAM, PSU, monitor and two cables are already in: resume at the cables step (the third cable).
+    const s = snap({ progress: oldUpTo(7) });
     const step = currentStep(s, INITIAL_TUTORIAL);
-    expect(step?.id).toBe('cpuPower');
-    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 12 + 8 });
+    expect(step?.id).toBe('cables');
+    expect(stepCount(step!)).toEqual({ n: 6, total: 6, chapter: 'Build' });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
@@ -142,11 +129,11 @@ describe('tutorial step from snapshot flags', () => {
     p.psuInstalled = true;
     p.monitorInstalled = true;
     expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cpu');
-    // Then the CPU and RAM: the next open step is the ATX cable, not the PSU again.
+    // Then the CPU and RAM: the next open step is the cables, not the PSU again.
     p.cpuInstalled = true;
     p.coolerInstalled = true;
     p.ramInstalled = true;
-    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('atx');
+    expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cables');
   });
 
   it('out of order: the cooler needs the CPU, and the power step waits for the cooler', () => {
@@ -365,7 +352,7 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
   });
 
   it('the cable step shows the cable\'s blocked reason', () => {
-    expect(stepProblem(snap(), step('atx'))).toMatch(/power supply is not installed/);
+    expect(stepProblem(snap(), step('cables'))).toMatch(/power supply is not installed/);
   });
 
   it('the power step shows the power button refusal', () => {
@@ -452,10 +439,9 @@ describe('step targets (what the renderer pulses)', () => {
   });
 });
 
-describe('network step targets name real ids', () => {
+describe('every step target names a real id', () => {
   /** Ids the renderer registers that are not described slots: buttons, the monitor, and the per-item `inv:`/`key:` ids. */
   const FIXED = new Set(['inventory', 'power', 'monitor']);
-  const NET_STEPS = ['reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'netHardware', 'plugLan', 'linkUp', 'firstNetJob'];
   const known = (id: string, s: ReturnType<typeof snap>) =>
     FIXED.has(id) || /^(inv|key):\S+$/.test(id) || describeId(id, s) !== null;
 
@@ -464,24 +450,14 @@ describe('network step targets name real ids', () => {
     expect(known('router', snap())).toBe(true);
   });
 
-  it('every target of the network steps is a real id', () => {
+  it('every target of every step is a real id', () => {
     const states = [
       snap(),
-      snap({ inventory: [invItem('router', 'router0', 'inv1', ['router']), invItem('board', 'board1', 'inv2', ['cpu0']), invItem('ram', 'ram1', 'inv3', ['dimm1'])] }),
+      snap({ inventory: [invItem('board', 'board1', 'inv2', ['cpu0']), invItem('ram', 'ram1', 'inv3', ['dimm1'])] }),
     ];
     for (const s of states) {
-      for (const id of NET_STEPS) {
-        const step = STEPS.find((x) => x.id === id);
-        expect(step, `step ${id} exists`).toBeDefined();
-        for (const t of step!.targets(s)) expect(known(t, s), `${id} targets ${t}`).toBe(true);
-      }
+      for (const step of STEPS) for (const t of step.targets(s)) expect(known(t, s), `${step.id} targets ${t}`).toBe(true);
     }
-  });
-
-  it('plugLan names the cable, the router and the board jack', () => {
-    const t = STEPS.find((x) => x.id === 'plugLan')!.targets(snap());
-    expect(t).toContain('cable.lan');
-    expect(t).toContain('router');
   });
 });
 

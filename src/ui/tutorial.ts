@@ -2,13 +2,19 @@
 // `progress` flags where there is one, else live state (an item in the inventory, the phase, a key's stage). Loading a
 // save mid-way resumes at the right step, and out-of-order actions are simply skipped past. Only the welcome card
 // (Start) and the last card (Got it) have buttons, plus the one-time "Next lesson: the OS" offer. No DOM, no signals.
+//
+// The tutorial covers the game up to the network: building the machine, the first jobs, storage and the OS. The network
+// itself (level 4) is the next goal the last card points at, not a lesson.
+//
+// Each step is one short instruction (`text`); the reason for it is `why`, shown only when the player asks. A step belongs
+// to a chapter (`Build`, `First jobs`, `The OS`), which the card shows instead of "step 17 of 33".
 
-import { getSpec, type RamSpec } from '../sim/board/specs';
+import { getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
 import { fmtMoney } from './logic';
-import { jackIds } from './netdesc';
+import { levelBar } from './levelui';
 
 export interface ReplayBase { completed: number; owned: number }
 export interface TutorialState {
@@ -28,20 +34,29 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'plugKey' | 'power' | 'watch'
-  | 'removeKey' | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
-  | 'osCollect' | 'osPaid' | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'netHardware' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'power' | 'watch'
+  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
+  | 'osCollect' | 'osPaid' | 'done';
+
+export type Chapter = 'Build' | 'First jobs' | 'The OS';
+export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS'];
 
 export interface StepDef {
   id: StepId;
+  chapter: Chapter | null;
   title: string;
+  /** One short instruction. */
   text: string;
+  /** The reason, shown behind "Why?" only. */
+  why?: string;
   /** Progress flag that completes the step, if it has one. */
   flag: keyof Progress | null;
   /** Live completion test for steps without a flag (see `isDone`). */
   done?: (s: Snapshot, p: Progress) => boolean;
   /** World ids to pulse (renderer highlight). */
   targets: (s: Snapshot) => string[];
+  /** A waiting step shows a meter (the level bar's progress) instead of leaving the player wondering how long it takes. */
+  meter?: (s: Snapshot) => { pct: number; label: string };
 }
 
 /** The twelve steps before storage and the OS existed. A player who finished them is not forced through the rest. */
@@ -70,156 +85,147 @@ const installTargets = (kind: string) => (s: Snapshot): string[] => {
 };
 const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
-const ownsRouter = (s: Snapshot) => invOf(s, 'router').length > 0;
-const ramKb = (s: Snapshot) => s.devices.filter((d) => d.kind === 'ram' && !d.burnt).reduce((n, d) => n + ((getSpec(d.spec) as RamSpec | undefined)?.sizeBytes ?? 0) / 1024, 0);
-/** The machine has an ethernet jack (a Basic or better board) and the 64K the network stack needs. */
-const netReady = (s: Snapshot) => s.board.features.ethernetMbps > 0 && ramKb(s) >= 64;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
 const heldWith = (s: Snapshot, stage: string) => s.held.find((k) => k.stage === stage);
 /** The OS has copied a key into its queue (plugged, or already held). */
 const ingested = (s: Snapshot) => s.held.length > 0 || pluggedAt(s, ['queued', 'running', 'result', 'flashing', 'done']);
 
-/** The HUD's inventory button. A UI-only id: the renderer ignores it, the HUD pulses the button. */
+/** The inventory button (bottom bar). A UI-only id: the renderer ignores it, the bar pulses the button. */
 export const INVENTORY_ID = 'inventory';
 
 const OS_RAM_KB = (getOsSpec('os1')?.minRamBytes ?? 32 * 1024) / 1024;
 
+/** The three cables of the first build, by cable id and the progress flag that says each is in. */
+const CABLES: Array<{ id: 'atx' | 'cpu' | 'video'; flag: keyof Progress; end: string }> = [
+  { id: 'atx', flag: 'atxConnected', end: 'psu' },
+  { id: 'cpu', flag: 'cpuPowerConnected', end: 'psu' },
+  { id: 'video', flag: 'videoConnected', end: 'monitor' },
+];
+
+const levelMeter = (s: Snapshot) => { const m = levelBar(s); return { pct: m.pct, label: m.label }; };
+
 export const STEPS: StepDef[] = [
   {
-    id: 'welcome', title: 'Welcome', flag: null,
-    text: 'You run a one-person computer workshop. Clients send small jobs on USB keys; your machine does them and you get paid. First, open the inventory (top right) and build the machine from the parts in it.',
+    id: 'welcome', chapter: null, title: 'Welcome', flag: null,
+    text: 'You run a one-person computer workshop. Clients bring jobs on USB keys, your machine does them, you get paid. First, build the machine: open the inventory (the box at the bottom) and drag the parts onto the board.',
     targets: () => [INVENTORY_ID],
   },
-  { id: 'cpu', title: 'Install the processor', flag: 'cpuInstalled',
-    text: 'Open the inventory and drag the processor (CPU) onto the big square socket in the middle of the board.',
+  { id: 'cpu', chapter: 'Build', title: 'Install the processor', flag: 'cpuInstalled',
+    text: 'Drag the processor (CPU) onto the big square socket.',
+    why: 'The CPU is the machine\'s brain: it runs every instruction of every job.',
     targets: installTargets('cpu') },
-  { id: 'cooler', title: 'Install the cooler', flag: 'coolerInstalled',
-    text: 'Drag the cooler (heatsink and fan) from the inventory onto the processor. The fan sits on the CPU to carry its heat away, and it spins only while the machine is powered.',
+  { id: 'cooler', chapter: 'Build', title: 'Install the cooler', flag: 'coolerInstalled',
+    text: 'Drag the cooler onto the processor.',
+    why: 'A running CPU makes heat. The fan sits on it to carry the heat away, and spins only while the machine is on.',
     targets: (s) => {
       const items = invOf(s, 'cooler');
       return [INVENTORY_ID, ...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
     } },
-  { id: 'ram', title: 'Install the memory', flag: 'ramInstalled',
-    text: 'Drag a memory stick (RAM) from the inventory into a long memory slot next to the processor.',
+  { id: 'ram', chapter: 'Build', title: 'Install the memory', flag: 'ramInstalled',
+    text: 'Drag the memory stick (RAM) into a long slot next to the processor.',
+    why: 'Memory holds the job while it runs. Slow or small memory makes the CPU wait.',
     targets: installTargets('ram') },
-  { id: 'psu', title: 'Install the power supply', flag: 'psuInstalled',
-    text: 'Drag the power supply (PSU) from the inventory into the bay below the board.',
+  { id: 'psu', chapter: 'Build', title: 'Install the power supply', flag: 'psuInstalled',
+    text: 'Drag the power supply (PSU) into the bay below the board.',
+    why: 'Everything draws power from it. A small one trips when you add hungry parts.',
     targets: installTargets('psu') },
-  { id: 'monitor', title: 'Install the monitor', flag: 'monitorInstalled',
-    text: 'Drag the monitor from the inventory onto the display port. It will show what the machine is doing.',
+  { id: 'monitor', chapter: 'Build', title: 'Install the monitor', flag: 'monitorInstalled',
+    text: 'Drag the monitor onto the display bay.',
+    why: 'It shows what the machine is doing, from the first test to the job\'s answer.',
     targets: installTargets('display') },
-  { id: 'atx', title: 'Connect the main power cable', flag: 'atxConnected',
-    text: 'Plug in the big ATX cable: drag its end from the power supply to the matching socket on the board.',
-    targets: () => ['cable.atx', 'psu'] },
-  { id: 'cpuPower', title: 'Connect the processor power cable', flag: 'cpuPowerConnected',
-    text: 'The processor gets its own cable. Plug the CPU power cable from the power supply into the board.',
-    targets: () => ['cable.cpu', 'psu'] },
-  { id: 'video', title: 'Connect the video cable', flag: 'videoConnected',
-    text: 'Plug the video cable between the board and the monitor so you can see the screen.',
-    targets: () => ['cable.video', 'monitor'] },
-  { id: 'plugKey', title: 'Plug in a client key', flag: 'firstKeyPlugged',
-    text: 'A client left a key in the tray. This is where work comes from: drag it into the USB port now, while the machine is still off. The machine only looks for a program at boot.',
+  { id: 'cables', chapter: 'Build', title: 'Plug in the three cables', flag: null,
+    done: (_s, p) => CABLES.every((c) => p[c.flag]),
+    text: 'Drag each cable\'s plug to its socket: main power, processor power, video.',
+    why: 'Main power and processor power run from the supply to the board. Video runs from the board to the monitor.',
+    targets: (s) => CABLES.flatMap((c) => (s.cables.find((x) => x.id === c.id)?.connected ? [] : [`cable.${c.id}`, c.end])) },
+  { id: 'plugKey', chapter: 'First jobs', title: 'Plug in a client key', flag: 'firstKeyPlugged',
+    text: 'Drag the key from the tray into the USB port.',
+    why: 'Work comes on keys. The machine only looks for a key when it starts, so plug it in while the machine is still off.',
     targets: (s) => ['usb', ...(s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
-  { id: 'power', title: 'Press the power button', flag: 'poweredOn',
-    text: 'Press the power button. The machine tests itself (POST), looks at the USB port once, then copies the job from the key into memory. The monitor shows the results.',
+  { id: 'power', chapter: 'First jobs', title: 'Press the power button', flag: 'poweredOn',
+    text: 'Press the power button on the case.',
+    why: 'The machine tests itself, looks at the USB port once, then copies the job from the key into memory.',
     targets: () => ['power'] },
-  { id: 'watch', title: 'Watch it work', flag: 'firstJobDone',
-    text: 'The machine runs the job and writes the answer back to the key, then it halts. Watch the monitor.',
+  { id: 'watch', chapter: 'First jobs', title: 'Watch it work', flag: 'firstKeyEjected',
+    text: 'Watch the monitor. When the job is done the key pops out and you are paid.',
+    why: 'The machine runs the job and writes the answer back to the key. Idle time is lost income.',
     targets: () => ['monitor'] },
-  { id: 'removeKey', title: 'Remove the key', flag: 'firstKeyEjected',
-    text: 'Done! Pull the key out of the USB port to hand it back. You are paid when it is removed, and idle time is lost income.',
-    targets: () => ['usb'] },
-  { id: 'cycle', title: 'Power off and on for the next job', flag: 'firstManualCycle',
-    text: 'The machine stays halted until you restart it. Plug the next key in, then power off and on again: it only reads a key at boot. This manual loop is why an OS is worth buying; it reads keys while running.',
+  { id: 'cycle', chapter: 'First jobs', title: 'Next job: restart the machine', flag: 'firstManualCycle',
+    text: 'Plug in the next key, then switch off and on again.',
+    why: 'Without an operating system the machine only reads a key at start-up, so every job needs a restart. An OS removes that chore.',
     targets: (s) => ['power', 'usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
-  { id: 'spend', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'Click the processor on the board to see its upgrades. Buy one. It goes into the inventory.',
+  { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
+    text: 'Click the processor and buy an upgrade.',
+    why: 'Better parts finish jobs sooner, which earns more. The part goes into your inventory.',
     targets: (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
       return cpu ? [cpu.slot] : [INVENTORY_ID];
     } },
   // ---- storage and the OS ----
-  { id: 'fit', title: 'Fit your new part', flag: null,
+  { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
     done: (s) => !s.inventory.some((i) => pendingUpgrade(s, i)),
-    text: `Power the machine off, then drag the part you bought from the inventory onto its socket. The operating system needs ${OS_RAM_KB}K of memory fitted.`,
+    text: 'Switch the machine off, then drag the new part from the inventory onto its socket.',
+    why: `Parts only change while the machine is off. The operating system needs ${OS_RAM_KB}K of memory fitted.`,
     targets: (s) => s.inventory
       .filter((i) => pendingUpgrade(s, i))
       .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots]) },
-  { id: 'reachLevel3', title: 'Grow your client base', flag: null,
+  { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
-    text: 'The operating system opens at Level 3. Every job you deliver adds to your client base, and the level grows with it: later levels bring more clients, bigger jobs and better pay, but clients wait less. Keep serving them (and buy upgrades to serve faster); open the level bar to watch the progress.',
-    targets: () => [] },
-  { id: 'buyDrive', title: 'Buy a drive', flag: null,
+    text: 'Keep delivering jobs. The OS opens at Level 3.',
+    why: 'Every job adds to your client base and the level grows with it. Later levels bring more clients and better pay, but clients wait less. The 4x button speeds the waiting up.',
+    targets: () => [], meter: levelMeter },
+  { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
-    text: 'The machine needs somewhere to keep an operating system. Click the drive bay to see the drives: an HDD is slow and cheap, an SSD is faster.',
+    text: 'Click the drive bay and buy a drive.',
+    why: 'The machine needs somewhere to keep an operating system. An HDD is slow and cheap, an SSD is faster.',
     targets: () => ['bay'] },
-  { id: 'drive', title: 'Install the drive', flag: 'storageInstalled',
-    text: 'Power off, then drag the drive from the inventory onto a free drive bay (a SATA port) on the board. The drive speed decides how fast the OS loads.',
+  { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
+    text: 'Switch off, then drag the drive onto a free drive bay.',
+    why: 'The drive\'s speed decides how fast the OS loads.',
     targets: installTargets('storage') },
-  { id: 'buyOs', title: 'Buy an operating system', flag: null,
+  { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
-    text: 'An operating system keeps the machine running, so it does not reboot for every job. Click a drive bay: the systems on offer are listed there.',
+    text: 'Click the drive bay again and buy the operating system.',
+    why: 'An OS keeps the machine running, so it does not restart for every job.',
     targets: () => ['bay'] },
-  { id: 'os', title: 'Install the OS on the drive', flag: 'osInstalled',
-    text: 'Power off, then drag the operating system from the inventory onto the drive. It is written onto the drive, which is where it boots from.',
+  { id: 'os', chapter: 'The OS', title: 'Install the OS on the drive', flag: 'osInstalled',
+    text: 'Switch off, then drag the OS onto the drive.',
+    why: 'It is written onto the drive, which is where the machine boots from.',
     targets: installTargets('os') },
-  { id: 'bootOs', title: 'Boot the OS from the drive', flag: null,
+  { id: 'bootOs', chapter: 'The OS', title: 'Boot from the drive', flag: null,
     done: (s) => OS_PHASES.includes(s.phase) || s.progress.firstOsJob,
-    text: 'Press the power button. The machine loads the OS from the drive: the monitor shows the boot text, and the OS badge on the drive shows its status. A faster drive boots sooner.',
+    text: 'Press the power button and wait for the OS.',
+    why: 'The monitor shows the boot text and the badge on the drive shows its status. A faster drive boots sooner.',
     targets: () => ['power', 'monitor', 'os'] },
-  { id: 'osIngest', title: 'Plug in a key: the OS takes it', flag: null,
+  { id: 'osIngest', chapter: 'The OS', title: 'Plug in a key: the OS takes it', flag: null,
     done: (s, p) => ingested(s) || p.firstOsJob,
-    text: 'Drag a client key into the USB port. The OS copies the job onto the drive and queues it. Keep the key in until it is queued.',
+    text: 'Drag a key into the USB port and keep it there until it is queued.',
+    why: 'The OS copies the job onto the drive and queues it.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
-  { id: 'osHold', title: 'Unplug it: the OS keeps the job', flag: null,
+  { id: 'osHold', chapter: 'The OS', title: 'Unplug it: the OS keeps the job', flag: null,
     done: (s, p) => s.held.length > 0 || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
-    text: 'Pull the key out. The OS now holds it: the job runs while you are away and the key waits in your hands until the result is ready.',
+    text: 'Pull the key out.',
+    why: 'The job runs while you are away. The key waits in your hands until the result is ready.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
-  { id: 'osWait', title: 'Wait for the job', flag: null,
+  { id: 'osWait', chapter: 'The OS', title: 'Wait for the job', flag: null,
     done: (s, p) => !!heldWith(s, 'result') || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
-    text: 'The OS runs its queued jobs one at a time. Its badge on the drive shows the queue. When a held key has its result, it is ready to collect.',
+    text: 'The OS runs its queue. A held key with its result is ready to collect.',
+    why: 'It runs jobs one at a time. The badge on the drive shows the queue.',
     targets: () => ['os', 'held'] },
-  { id: 'osCollect', title: 'Plug the key back in to collect', flag: null,
+  { id: 'osCollect', chapter: 'The OS', title: 'Plug the key back in', flag: null,
     done: (s, p) => pluggedAt(s, ['flashing', 'done']) || p.firstOsJob,
-    text: 'Plug the same key back into the USB port. The OS writes the result onto it. Wait for it to land.',
+    text: 'Plug the same key back in and wait for the result to land on it.',
     targets: (s) => {
       const k = s.plugged ?? heldWith(s, 'result') ?? s.held[0];
       return ['usb', ...(k ? [`key:${k.id}`] : ['held'])];
     } },
-  { id: 'osPaid', title: 'Remove the key to get paid', flag: 'firstOsJob',
-    text: 'Pull the finished key out of the USB port. You are paid on removal, and the OS is free for the next job.',
+  { id: 'osPaid', chapter: 'The OS', title: 'Remove the key to get paid', flag: 'firstOsJob',
+    text: 'Pull the finished key out of the port.',
+    why: 'You are paid on removal, and the OS is free for the next job.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
-  // ---- the automation lesson: the network (docs/NETWORK.md) ----
-  { id: 'reachLevel4', title: 'Grow your client base', flag: null,
-    done: (s) => s.level.level >= 4 || s.progress.ispBought || ownsRouter(s),
-    text: 'Clients are tired of sticks. The network opens at Level 4: keep delivering jobs (use the level bar to watch your progress). It needs an OS and 64K of memory, which you have or can buy.',
-    targets: () => [] },
-  { id: 'buyIsp', title: 'Buy an internet plan', flag: 'ispBought',
-    text: 'Click the internet socket on the wall and buy an ISP plan. It is a one-off purchase that sets how fast jobs and results travel, and how many clients can send you work at once.',
-    targets: () => ['wall'] },
-  { id: 'buyRouter', title: 'Buy a router', flag: null,
-    done: (s, p) => p.routerInstalled || ownsRouter(s),
-    text: 'Click the empty router spot next to the monitor and buy a router. It has its own power, so it stays on when your computer is off.',
-    targets: () => ['router'] },
-  { id: 'placeRouter', title: 'Place the router', flag: 'routerInstalled',
-    text: 'Open the inventory and drag the router to its spot next to the monitor. You can do this with the machine on.',
-    targets: (s) => [INVENTORY_ID, 'router', ...invOf(s, 'router').map((i) => `inv:${i.id}`)] },
-  { id: 'netHardware', title: 'Get a network port and memory', flag: null,
-    done: (s, p) => p.lanConnected || netReady(s),
-    text: 'The network lives inside the OS and needs 64K of memory, and the Starter board has no ethernet jack. Power off, buy the Basic board (your parts carry over) and a second memory stick, and fit them.',
-    targets: (s) => [INVENTORY_ID, ...s.inventory.filter((i) => i.kind === 'board' || i.kind === 'ram').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots])] },
-  { id: 'plugLan', title: 'Plug in the ethernet cable', flag: 'lanConnected',
-    text: 'Drag the ethernet cable from the network jack on the board to the router. Cables like this one can be plugged with the machine running.',
-    targets: (s) => ['cable.lan', ...jackIds(s), 'router'] },
-  { id: 'linkUp', title: 'Bring the link up', flag: 'linkUp',
-    text: 'The OS brings the link up once it is running with 64K of memory. Power the machine on and wait for the green link light. If something is missing, the card tells you what.',
-    targets: () => ['power', 'router', 'monitor'] },
-  { id: 'firstNetJob', title: 'Watch a job arrive on its own', flag: 'firstNetJob',
-    text: 'Jobs now download in the background, the OS runs them one at a time, and the results upload when done. You are paid on delivery. No plugging needed: wait for the first one.',
-    targets: () => ['router', 'monitor'] },
-  { id: 'done', title: 'Workshop open', flag: null,
-    text: 'The network now brings the jobs and takes the results, and USB keys have stopped arriving. Jobs wait on the drive if the power drops. If the link stays down for five minutes, keys come back at a third of the rate. Next: faster plans, routers and cards.',
+  { id: 'done', chapter: null, title: 'Workshop open', flag: null,
+    text: 'The machine now runs jobs on its own. Next goal: Level 4 opens the network, so jobs arrive without keys. Watch the level bar at the top.',
     targets: () => [] },
 ];
 
@@ -292,11 +298,11 @@ export function currentStep(s: Snapshot, st: TutorialState): StepDef | null {
   return STEPS[STEPS.length - 1]!;
 }
 
-/** "3 / 12" style position, skipping the welcome and final cards. */
-export function stepCount(step: StepDef): { n: number; total: number } {
-  const mid = STEPS.filter((x) => x.id !== 'welcome' && x.id !== 'done');
-  const i = mid.findIndex((x) => x.id === step.id);
-  return { n: i < 0 ? (step.id === 'welcome' ? 0 : mid.length) : i + 1, total: mid.length };
+/** Position of a step inside its chapter ("Build 3 of 7"), skipping the welcome and final cards. */
+export function stepCount(step: StepDef): { n: number; total: number; chapter: Chapter | null } {
+  if (!step.chapter) return { n: step.id === 'welcome' ? 0 : 0, total: 0, chapter: null };
+  const mine = STEPS.filter((x) => x.chapter === step.chapter);
+  return { n: mine.findIndex((x) => x.id === step.id) + 1, total: mine.length, chapter: step.chapter };
 }
 
 const unpowered = (s: Snapshot) => (s.powered ? 'The machine is on. Power it off first.' : null);
@@ -328,10 +334,10 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (!items.length) return 'No cooler in the inventory. Buy one from the cooler slot on the processor.';
       return itemReason(s, 'cooler');
     }
-    case 'atx': case 'cpuPower': case 'video': {
-      const id = step.id === 'atx' ? 'atx' : step.id === 'cpuPower' ? 'cpu' : 'video';
-      const c = s.cables.find((x) => x.id === id);
-      if (c?.blocked) return c.blocked;
+    case 'cables': {
+      const open = s.cables.filter((c) => CABLES.some((x) => x.id === c.id) && !c.connected);
+      const blocked = open.find((c) => c.blocked)?.blocked;
+      if (blocked) return blocked;
       return s.powered ? 'The machine is on. Power it off before plugging cables.' : null;
     }
     case 'power':
@@ -369,21 +375,6 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
     case 'osWait':
       return s.phase === 'error' ? s.phaseReason : null;
-    case 'buyIsp': case 'buyRouter': {
-      const id = step.id === 'buyIsp' ? 'isp1' : 'router1';
-      const p = s.purchases.find((x) => x.id === id);
-      if (!p) return null;
-      if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
-      if (p.blocked) return p.blocked;
-      return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
-    }
-    case 'netHardware':
-      return s.powered ? 'The machine is on. Power it off to swap the board or add memory.' : null;
-    case 'plugLan':
-      return s.cables.find((c) => c.id === 'lan')?.blocked ?? (s.net.router ? null : 'Place the router first.');
-    case 'linkUp':
-      if (!s.powered) return 'The machine is off. Press the power button: the OS runs the link.';
-      return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : s.net.reason;
     default:
       return null;
   }

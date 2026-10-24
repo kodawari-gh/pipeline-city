@@ -200,9 +200,12 @@ export class Interact {
 
   /** A click (no drag) on `id`, or on nothing. Writes `selected` and triggers the quick actions. */
   click(id: string | null, cx = 0, cy = 0) {
-    selected.value = id;
-    if (!id) return;
+    if (!id) { selected.value = null; return; }
     const s = this.snap();
+    // The power button and a key do their thing at once: no card pops up over the action. A tripped or failed machine still
+    // opens the power card, because that is where its way out (power cycle) and its reason are.
+    const direct = id === 'power' ? !(s?.power.tripped || s?.phase === 'error') : id.startsWith('key:');
+    selected.value = direct ? null : id;
     if (!s) return;
     this.act(cx, cy);
     if (id === 'power') {
@@ -529,13 +532,13 @@ export class Interact {
       if (Math.abs(target - a) < 0.01) a = target;
       if (a === 0) this.amt.delete(id); else this.amt.set(id, a);
       const o = this.scene.props.get(id);
-      if (o) { o.node.position.set(o.base.x, o.base.y - 22 * a); o.node.scale.set(o.base.s * (1 + 0.07 * a)); }
+      if (o) { o.node.position.set(o.base.x, o.base.y - 10 * a); o.node.scale.set(o.base.s * (1 + 0.03 * a)); }
       if (a > 0) {
         const r = this.scene.rects.get(id) ?? o?.rect;
         if (r) {
-          const e = 8 + 16 * a, rr = Math.min(60, 20 + e);
-          box(g, r.x - e, r.y - e - (o ? 22 * a : 0), r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw: lw * 2.6, sa: 0.16 * a });
-          box(g, r.x - e, r.y - e - (o ? 22 * a : 0), r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.9 * a });
+          // one thin outline, no halo: hovering only hints, it must not shout
+          const e = 5 + 7 * a, rr = Math.min(60, 20 + e);
+          box(g, r.x - e, r.y - e - (o ? 10 * a : 0), r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.55 * a });
         }
       }
     }
@@ -728,14 +731,10 @@ export class Interact {
       if (!rs.length) continue;
       let anyVisible = false;
       for (const r of rs) {
-        const e = 14 + 10 * beat;
-        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 36 + e, { stroke: col, lw: lw * 1.7, sa: 0.55 + 0.45 * beat });
-        const e2 = 14 + ph * 90;
-        box(g, r.x - e2, r.y - e2, r.w + 2 * e2, r.h + 2 * e2, 36 + e2, { stroke: col, lw: lw, sa: 0.55 * (1 - ph) });
-        // arrow above the target, steady size on screen, bobbing
-        const as = clamp(26 / z, 40, 400), bob = 8 * beat * as / 40;
-        const cx = r.x + r.w / 2, ty = r.y - e - as * 0.4 - bob;
-        g.poly([cx - as * 0.62, ty - as * 1.2, cx + as * 0.62, ty - as * 1.2, cx, ty]).fill({ color: col, alpha: 0.95 }).stroke({ width: lw * 0.6, color: T.dark ? '#000000' : '#ffffff', alpha: 0.6 });
+        // one soft ring that breathes; the DOM pointer line and the card do the pointing, so there is no arrow and no second ring
+        const e = 10 + 5 * beat;
+        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30 + e, { stroke: col, lw: lw * 1.1, sa: 0.35 + 0.4 * beat });
+        const cx = r.x + r.w / 2;
         const sx = cam.cx + (cx - cam.x) * z, sy = cam.cy + (r.y + r.h / 2 - cam.y) * z;
         if (sx > cam.inset.left && sx < cam.w - cam.inset.right && sy > cam.inset.top && sy < cam.h - cam.inset.bottom) anyVisible = true;
       }

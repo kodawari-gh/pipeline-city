@@ -469,6 +469,8 @@ export interface Snapshot {
   haltReason: "job-done" | "no-boot-media" | null;
   /** A key sits in the port of a running no-OS machine that already did its one look at the port: it is ignored until a power cycle. */
   keyIgnored: boolean;
+  /** True while a finished key ejects and pays by itself (no OS installed): the UI says so instead of "remove the key". */
+  autoEject: boolean;
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
   /** Client patience right now: the level's multiplier (docs/PROGRESSION.md). `sinceFirstBoot` is informational. */
@@ -591,6 +593,8 @@ export class Game {
   private log: GameEvent[] = [];
   /** Base tick of the first real power-on (the client patience schedule runs from here), or null before it. */
   private firstBootTick: number | null = null;
+  /** Ticks the finished key has sat in the port since the halt (auto-eject, see `autoEject`). */
+  private autoEjectWait = 0;
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
   private bootDelay = 0;
 
@@ -648,6 +652,7 @@ export class Game {
     // changes the PCH-reported size, the cache miss penalty and which jobs arrive (EconomyConfig.mix).
     this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: 64 * 1024 });
     this.pch = new Pch(this.machine.display);
+    this.pch.onPhase = () => this.applyBoost();
     this.machine.addDevice(this.pch);
     for (const p of this.ports) this.machine.addDevice(p);
     this.thermal = new ThermalModel(this.machine.prng);
@@ -1181,6 +1186,7 @@ export class Game {
       this.pch.usbTick();
       this.machine.advanceBaseTick();
       this.afterMachine();
+      this.autoEject();
     }
     const phase = this.currentPhase();
     const busy = !delayed && (phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
@@ -1295,6 +1301,7 @@ export class Game {
       keyActivity: this.keyActivity(),
       haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
       keyIgnored: this.keyIgnored(),
+      autoEject: this.cfg.autoEjectTicks > 0 && !this.os,
       postFailed: !!this.postError,
       patience: {
         mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
@@ -2069,6 +2076,16 @@ export class Game {
     }
   }
 
+  /** No OS: the finished key ejects itself `autoEjectTicks` after the machine halts on JOB DONE, and pays. */
+  private autoEject(): void {
+    const k = this.plugged;
+    if (!this.cfg.autoEjectTicks || this.os || !k || !k.done || this.pch.phase !== PchPhase.Halted) { this.autoEjectWait = 0; return; }
+    if (++this.autoEjectWait >= this.cfg.autoEjectTicks) {
+      this.autoEjectWait = 0;
+      this.ejectKey();
+    }
+  }
+
   private afterMachine(): void {
     const k = this.plugged;
     const pk = this.pchKey;
@@ -2081,12 +2098,32 @@ export class Game {
     }
   }
 
-  /** Set the CPU and display domain rates from the board, then scale by cpuCyclesPerClock. */
+  /** Set the CPU and display domain rates from the board, then scale by cpuCyclesPerClock and the firmware boost. */
   private syncRates(useThermal: boolean): void {
     applyRates(this.board, this.machine, useThermal ? this.thermal : undefined);
-    for (const name of ["cpu", "display", ...STORAGE_PORTS]) {
+    for (const name of this.rateDomains) {
       const r = this.machine.clock.getRate(name);
-      this.machine.clock.setRate(name, { mul: r.mul * this.cfg.cpuCyclesPerClock, div: r.div });
+      this.baseRates.set(name, r);
+    }
+    this.applyBoost();
+  }
+
+  private readonly rateDomains: readonly string[] = ["cpu", "display", ...STORAGE_PORTS];
+  /** Each domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
+  private readonly baseRates = new Map<string, { mul: number; div: number }>();
+
+  /**
+   * Scale the domain rates: cpuCyclesPerClock always, and the firmware boost while the boot ROM runs its own phases (POST,
+   * loading the key, writing the result, loading the OS kernel, and the kernel's own idle, ingest and flash work). Also called the moment the phase register is written, so a
+   * job runs unboosted from its first instruction.
+   */
+  private applyBoost(): void {
+    const ph = this.pch.phase;
+    const firmware = ph === PchPhase.Posting || ph === PchPhase.Loading || ph === PchPhase.Writing || ph === PchPhase.OsBoot
+      || ph === PchPhase.OsIdle || ph === PchPhase.OsIngest || ph === PchPhase.OsFlash;
+    const boost = firmware ? this.cfg.firmwareBoost : 1;
+    for (const [name, r] of this.baseRates) {
+      this.machine.clock.setRate(name, { mul: r.mul * this.cfg.cpuCyclesPerClock * boost, div: r.div });
     }
   }
 

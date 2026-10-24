@@ -160,7 +160,8 @@ export async function mountBoard(host: HTMLElement) {
   interact.setTheme(T);
   interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
   exteriorLayer.addChild(stripG);
-  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, live.ext, interact.fx);
+  const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
+  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -188,6 +189,10 @@ export async function mountBoard(host: HTMLElement) {
     if (bk !== badgeKey) { badgeKey = bk; sceneDirty = true; }
   };
   const slides: { node: Container; t0: number }[] = [];
+  // A key slides into the USB port when it is plugged and out of it (fading) when it is removed, slowly enough to be seen.
+  const KEY_MS = 1500, KEY_TRAVEL = 560;
+  const keyAnims: { node: Container; baseX: number; t0: number; dir: 1 | -1 }[] = [];
+  let keyPlugged: Snapshot['plugged'] = null, keyInId = -1, keyInAt = 0, keySeen = false;
   const parts: Part[] = [];
   let mainHits: Hit[] = [];
   let cableHits: Hit[] = [];
@@ -621,7 +626,26 @@ export async function mountBoard(host: HTMLElement) {
     powerArtRef = powerArt(T, powerState);
     add(powerArtRef);
     // a finished key (stage done) gets the remove cue: TAKE ME on a no-OS machine, REMOVE once the OS has flashed it
-    if (s?.plugged) add(pluggedKeyArt(T, s.plugged, notRead, s.os ? 'REMOVE' : 'TAKE ME'));
+    if (s?.plugged) {
+      const art = pluggedKeyArt(T, s.plugged, notRead, s.os ? 'REMOVE' : s.autoEject ? null : 'TAKE ME');
+      add(art);
+      const o = art.objs[0]!;
+      const now = performance.now();
+      if (keySeen && s.plugged.id !== keyInId) { keyInId = s.plugged.id; keyInAt = now; }
+      if (now - keyInAt < KEY_MS) keyAnims.push({ node: o.node, baseX: o.base.x, t0: keyInAt, dir: 1 });
+    }
+    if (s) {
+      // the key that was in the port and is not any more leaves slowly (a ghost on its own layer: the props are rebuilt around it)
+      if (keySeen && keyPlugged && s.plugged?.id !== keyPlugged.id) {
+        const ghost = pluggedKeyArt(T, { ...keyPlugged, stage: keyPlugged.stage === 'done' ? 'done' : keyPlugged.stage }, false, null);
+        const o = ghost.objs[0]!;
+        keyFx.addChild(ghost.root);
+        keyAnims.push({ node: o.node, baseX: o.base.x, t0: performance.now(), dir: -1 });
+      }
+      keyPlugged = s.plugged ?? null;
+      if (!s.plugged) keyInId = -1;
+      keySeen = true;
+    }
     add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
     add(heldArt(T, s?.held ?? []));
     for (const a of propsArt) order.push(...a.objs);
@@ -765,6 +789,17 @@ export async function mountBoard(host: HTMLElement) {
     for (const a of propsArt) if (a.cue) drawKeyCue(a.cue, T, gt, cueK);
     interact.frame(now, dt, gt);
     if (powerArtRef) drawPowerLeds(T, powerArtRef.led, powerState, gt, live.diskLevel);
+    for (let i = keyAnims.length - 1; i >= 0; i--) {
+      const ka = keyAnims[i]!, u = Math.min(1, (now - ka.t0) / KEY_MS), e = u * u * (3 - 2 * u);
+      if (ka.node.destroyed) { keyAnims.splice(i, 1); continue; }
+      if (ka.dir === 1) { ka.node.position.x = ka.baseX - KEY_TRAVEL * (1 - e); ka.node.alpha = Math.min(1, 0.25 + u * 2); }
+      else { ka.node.position.x = ka.baseX - KEY_TRAVEL * e; ka.node.alpha = 1 - e; }
+      if (u >= 1) {
+        keyAnims.splice(i, 1);
+        if (ka.dir === -1) { keyFx.removeChildren().forEach((c) => c.destroy({ children: true })); }
+        else ka.node.position.x = ka.baseX;
+      }
+    }
     for (let i = slides.length - 1; i >= 0; i--) {
       const sl = slides[i]!, u = Math.min(1, (now - sl.t0) / 650), e = 1 - Math.pow(1 - u, 3);
       sl.node.position.x = 300 * (1 - e); sl.node.alpha = Math.min(1, u * 3);

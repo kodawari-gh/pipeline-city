@@ -9,7 +9,8 @@ ECONOMY.levelGating = false;
 
 /** One isolated job (no arrivals) on a machine with `items` bought and installed; returns the completion record. */
 function oneJob(items: string[], template: string, scale = 1, seed = 1) {
-  const g = new Game({ seed, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [{ template, scale }] } });
+  const g = new Game({ seed, preassembled: true, // raw hardware speed: the firmware boost and the auto-eject are off so cycle counts and manual steps stay comparable
+    economy: { baseDemandPerTick: 0, startQueue: [{ template, scale }], firmwareBoost: 1, autoEjectTicks: 0 } });
   g.money = 1e6;
   for (const i of items) {
     const r = g.purchase(i);
@@ -27,7 +28,7 @@ function oneJob(items: string[], template: string, scale = 1, seed = 1) {
 const cpuOf = (g: Game) => g.snapshot().devices.find((d) => d.kind === "cpu")!;
 
 describe("pacing (real start: bare board, then the bot assembles the crate)", () => {
-  it("first job (power on to payout) is about 65-95 s (cold boot included), the first payout buys a part soon after", () => {
+  it("first job (power on to payout) is about 15-30 s (POST 3 s, auto-eject), the first payout buys a part soon after", () => {
     const g = new Game({ seed: 1 });
     const op = new Operator(g, 2); // a human needs a couple of seconds per manual step
     let powerOnAt = 0;
@@ -48,8 +49,8 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
     }
     expect(powerOnAt).toBeLessThanOrEqual(12); // a few manual steps: install, plug a key, press power
     const firstJob = payAt - powerOnAt;
-    expect(firstJob).toBeGreaterThanOrEqual(65); // was 40-60 before the 30 s cold boot (ECONOMY.coldBootTicks)
-    expect(firstJob).toBeLessThanOrEqual(95);
+    expect(firstJob).toBeGreaterThanOrEqual(10); // was 65-95 before the short POST, the firmware boost and the auto-eject
+    expect(firstJob).toBeLessThanOrEqual(35);
     expect(firstPay).toBeGreaterThan(30);
     expect(firstId).toBe(1);
     expect(firstAffordable).toBeLessThanOrEqual(payAt + 60); // the cheapest part ($50 cooler) soon after
@@ -69,21 +70,21 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
         op.step();
         if (!first && g.completed > 0) {
           first = t;
-          expect(first).toBeGreaterThanOrEqual(65);
-          expect(first).toBeLessThanOrEqual(100);
-          expect(g.lastCompleted!.payout).toBeGreaterThanOrEqual(30); // the longer first cycle earns a smaller speed bonus
-          expect(g.lastCompleted!.payout).toBeLessThanOrEqual(75);
+          expect(first).toBeGreaterThanOrEqual(15);
+          expect(first).toBeLessThanOrEqual(45);
+          expect(g.lastCompleted!.payout).toBeGreaterThanOrEqual(30);
+          expect(g.lastCompleted!.payout).toBeLessThanOrEqual(150); // the quick first cycle earns the full speed bonus
         }
         if (g.money >= 100) t100 = t;
       }
       times.push(t100);
     }
     expect(Math.min(...times)).toBeGreaterThan(0);
-    expect(Math.max(...times)).toBeLessThanOrEqual(560); // was 360 before the 30 s cold boot per job
+    expect(Math.max(...times)).toBeLessThanOrEqual(300); // was 560 with the 30 s cold boot per job
   });
 
   it("the first job leaves its text on the monitor and on the key", () => {
-    const g = new Game({ seed: 1 });
+    const g = new Game({ seed: 1, economy: { autoEjectTicks: 0 } }); // the key stays so the result can be read off it
     const op = new Operator(g, 6); // the human is slow to pull the key
     while (!(g.currentPhase() === "halted" && g.pluggedKey()?.done)) {
       g.advanceBaseTick();
@@ -264,7 +265,7 @@ describe("board upgrade purchase", () => {
 
 describe("CPU tier vs RAM tier depends on the job profile", () => {
   it("log: CPU pays off, RAM does nothing", () => {
-    const cold = 30; // the Starter machine's POST time (fixed hardware delay, not shortened by a faster CPU)
+    const cold = 3; // the Starter machine's POST time (fixed hardware delay, not shortened by a faster CPU)
     const base = oneJob([], "cli.log").execTicks;
     const cpu = oneJob(["cpu1"], "cli.log").execTicks;
     const ram = oneJob(["ram1"], "cli.log").execTicks;
@@ -295,7 +296,7 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
       return t - g.snapshot().postTicks; // the CPU-dependent part: the cold-boot wait depends on the machine's RAM and drives
     };
     const starter = (items: string[]): number => {
-      const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0 } });
+      const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, firmwareBoost: 1 } });
       g.money = 1e6;
       for (const i of items) g.purchase(i);
       new Operator(g).assemble();
@@ -304,7 +305,7 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
     const t0 = starter([]);
     const t1 = starter(["cpu1"]);
     // cpu2 on the Starter board droops under its load and reboots (a real crash, not a boot-time question), so it gets board2.
-    const g2 = rig("hdd0", { os: false, cpu: "cpu2", keys: [] });
+    const g2 = rig("hdd0", { os: false, cpu: "cpu2", keys: [], economy: { firmwareBoost: 1 } });
     g2.powerButton();
     const t2 = postTicks(g2);
     expect(t0).toBeGreaterThan(t1);

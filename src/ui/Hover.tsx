@@ -1,11 +1,16 @@
 import { useLayoutEffect, useRef } from 'preact/hooks';
-import { hover } from '../game/hover';
+import { hover, selected } from '../game/hover';
+import { dragging } from '../game/interaction';
 import { snapshot } from '../game/store';
 import { describeId } from './logic';
 
-/** Tooltip near the pointer: plain line for everyone, nerd line below. Uses the snapshot to name slots and parts. */
+/** The first sentence only: a tooltip is a label, the card holds the rest. */
+const firstSentence = (t: string) => { const i = t.search(/[.!?](\s|$)/); return i > 0 && i < t.length - 1 ? t.slice(0, i + 1) : t; };
+
+/** Tooltip near the pointer: the name and one short line. Uses the snapshot to name slots and parts. */
 export function Tooltip() {
-  const h = hover.value;
+  // One bubble at a time: while a card is open or something is being dragged the tooltip stays out of the way.
+  const h = selected.value || dragging.value ? null : hover.value;
   const ref = useRef<HTMLDivElement>(null);
   const d = h ? describeId(h.id, snapshot.value) : null;
   useLayoutEffect(() => {
@@ -22,8 +27,7 @@ export function Tooltip() {
   return (
     <div class="tooltip" ref={ref} role="tooltip">
       <b>{d.title}</b>
-      <div>{d.plain}</div>
-      <div class="nerd">{d.nerd}</div>
+      <div>{firstSentence(d.plain)}</div>
     </div>
   );
 }

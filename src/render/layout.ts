@@ -119,9 +119,9 @@ export const MONITOR: Rect = { x: -7500, y: -2250, w: 3300, h: 1995 };
 export const VIDEO_Y = -1150;
 
 // ---- assembly props: the USB key tray, the power button, the USB port ----
-/** USB key tray, just under the monitor stand: 2 columns by 5 rows of wide keys (queue cap 10). */
+/** USB key tray, just under the monitor stand: 3 columns by 4 rows of keys (queue cap 10). */
 export const TRAY: Rect = { x: -7500, y: 330, w: 3300, h: 1620 };
-export const TRAY_COLS = 2;
+export const TRAY_COLS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
 export const CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };

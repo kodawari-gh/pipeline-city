@@ -413,7 +413,7 @@ describe("declining", () => {
     expect(g.snapshot().declined).toBe(1);
 
     // With an OS: a queued held job can be declined, the running one and a ready result cannot.
-    const os = rig("nvme2", { keys: [{ template: "cli.log" }, { template: "cli.log" }, { template: "cli.log" }] });
+    const os = rig("nvme2", { keys: [{ template: "cli.scan", scale: 16 }, { template: "cli.log" }, { template: "cli.log" }] }); // a long first job: the kernel is single-task, so the second key is only ingested after it
     os.powerButton();
     const untilOs = (cond: () => boolean) => { for (let i = 0; i < 4000 && !cond(); i++) os.advanceBaseTick(); expect(cond()).toBe(true); };
     untilOs(() => os.currentPhase() === "idle-os");
@@ -424,12 +424,11 @@ describe("declining", () => {
     };
     const [k1, k2, k3] = os.trayKeyIds();
     ingest(k1!);
-    ingest(k2!);
     untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k1 && j.state === "running"));
-    const held = os.snapshot().held;
-    expect(held.find((k) => k.id === k1)!.declinable).toBe(false);
-    expect(held.find((k) => k.id === k2)!.declinable).toBe(true);
+    expect(os.snapshot().held.find((k) => k.id === k1)!.declinable).toBe(false);
     expect(os.declineKey(k1!)).toMatchObject({ ok: false, reason: expect.stringMatching(/^running/) });
+    ingest(k2!); // the kernel is single-task: this key is taken in once the first job has finished
+    expect(os.snapshot().held.find((k) => k.id === k2)!.declinable).toBe(true);
     expect(os.declineJob(k2!)).toMatchObject({ ok: true });
     expect(os.snapshot().held.map((k) => k.id)).toEqual([k1]);
     expect(os.snapshot().os!.queue.map((j) => j.keyId)).toEqual([k1]);
@@ -457,11 +456,11 @@ describe("declining", () => {
 });
 
 describe("POST time", () => {
-  it("is 30 for the Starter machine and follows the formula for other builds", () => {
+  it("is 3 for the Starter machine and follows the formula for other builds", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: econ() });
-    expect(g.snapshot().postTicks).toBe(30);
-    expect(postTicks(ECONOMY, g.board)).toBe(30);
-    // cpu2, one ram2 (64K), NVMe and the monitor: 22 + 16 + 2 + 1 + 1 + 1 = 43; with an HDD instead: 46.
+    expect(g.snapshot().postTicks).toBe(3);
+    expect(postTicks(ECONOMY, g.board)).toBe(3);
+    // cpu2, one ram2 (64K), NVMe and the monitor: 1 + 3 + 0.5 + 0.5 + 0.5 + 0.25 = 5.75, rounds to 6; with an HDD instead: 6.5, rounds to 7.
     const build = (storage: string): number => {
       const r = rig(storage as "hdd0", { os: false, cpu: "cpu2" });
       r.uninstall(r.board.devices.find((d) => d.spec === "ram1")!.id);
@@ -469,17 +468,17 @@ describe("POST time", () => {
       r.install(b.invId);
       return r.snapshot().postTicks;
     };
-    expect(build("nvme2")).toBe(43);
-    expect(build("hdd0")).toBe(46);
+    expect(build("nvme2")).toBe(6);
+    expect(build("hdd0")).toBe(7);
   });
 
   it("caps at the configured maximum and can be overridden (the override wins, including 0)", () => {
     const g = new Game({ seed: 1, preassembled: true });
-    expect(postTicks({ ...ECONOMY, coldBoot: { ...ECONOMY.coldBoot, max: 20 } }, g.board)).toBe(20);
+    expect(postTicks({ ...ECONOMY, coldBoot: { ...ECONOMY.coldBoot, max: 2 } }, g.board)).toBe(2);
     expect(postTicks({ ...ECONOMY, coldBootTicks: 7 }, g.board)).toBe(7);
     expect(postTicks({ ...ECONOMY, coldBootTicks: 0 }, g.board)).toBe(0);
     const big = rig("nvme2", { cpu: "cpu2", os: false });
-    expect(postTicks(ECONOMY, big.board)).toBeLessThanOrEqual(90);
+    expect(postTicks(ECONOMY, big.board)).toBeLessThanOrEqual(8);
   });
 
   it("the machine waits exactly its POST time before the first ROM line", () => {

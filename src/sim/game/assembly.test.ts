@@ -8,7 +8,8 @@ import { ECONOMY } from "./economy";
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
 
-const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0 };
+// The manual removal of a finished key is what most of these tests are about: auto-eject has its own tests at the end.
+const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0, autoEjectTicks: 0 };
 
 /** Bare game with the starter crate, ids inv1..inv5 = cpu0 psu0 ram0 display0 cooler0. */
 function bare(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
@@ -246,7 +247,7 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
     const s = g.snapshot();
     expect(s.display.split("\n")[8]).toMatch(/^#\d\d .+ OK$/); // the job's output sits on its row
     expect(s.display).toContain("JOB DONE");
-    expect(s.display).toContain("REMOVE KEY, THEN POWER OFF/ON");
+    expect(s.display).toContain("POWER OFF/ON FOR THE NEXT JOB");
     expect(s.haltReason).toBe("job-done");
     expect(s.plugged!.done).toBe(true);
     expect(s.plugged!.result).toBe(s.display.split("\n")[8]);
@@ -265,7 +266,7 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
     const first = done.snapshot();
     expect(first.haltReason).toBe("job-done");
     expect(first.display).toContain("JOB DONE");
-    expect(first.display).toContain("REMOVE KEY, THEN POWER OFF/ON");
+    expect(first.display).toContain("POWER OFF/ON FOR THE NEXT JOB");
     // No boot media: the ROM writes the whole message before it halts.
     const none = assembled();
     none.powerButton();
@@ -574,5 +575,40 @@ describe("the CPU cooler mounts on the CPU", () => {
     expect(p.devices.find((d) => d.kind === "cooler")!.spec).toBe("cooler0");
     expect(p.progress.coolerInstalled).toBe(true);
     expect(p.phase).not.toBe("error");
+  });
+});
+
+describe("auto-eject and quick boots (no OS)", () => {
+  it("a finished key ejects itself a few ticks after the halt and pays, with no action from the player", () => {
+    const g = assembled({ baseDemandPerTick: 0 }); // default config: auto-eject on
+    expect(g.snapshot().autoEject).toBe(true);
+    bootWithKey(g);
+    runUntil(g, "halted");
+    expect(g.snapshot().plugged?.done).toBe(true);
+    expect(g.money).toBe(0); // the key sits in the port for a beat first (the monitor shows JOB DONE)
+    ticks(g, g.cfg.autoEjectTicks);
+    const s = g.snapshot();
+    expect(s.plugged).toBeNull();
+    expect(s.completed).toBe(1);
+    expect(s.money).toBeGreaterThan(0);
+    expect(s.progress).toMatchObject({ firstJobDone: true, firstKeyEjected: true });
+    expect(s.phase).toBe("halted"); // the machine still waits for a power cycle
+  });
+
+  it("auto-eject is off with the config at 0, and an installed OS never uses it", () => {
+    const off = assembled({ baseDemandPerTick: 0, autoEjectTicks: 0 });
+    expect(off.snapshot().autoEject).toBe(false);
+    bootWithKey(off);
+    runUntil(off, "halted");
+    ticks(off, 50);
+    expect(off.snapshot().plugged?.done).toBe(true);
+  });
+
+  it("the first job takes about 20 s from the power button, and POST about 3 s on the Starter machine", () => {
+    const g = assembled({ baseDemandPerTick: 0 });
+    bootWithKey(g);
+    expect(g.snapshot().postTicks).toBeLessThanOrEqual(5);
+    const t = runUntil(g, "halted");
+    expect(t).toBeLessThanOrEqual(30);
   });
 });

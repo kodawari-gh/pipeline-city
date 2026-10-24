@@ -10,6 +10,21 @@ import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial
 import { anchorOf, flyTo, hasTarget } from './anchor';
 import { comfortablyVisible, liftAbove, type Rect } from './place';
 
+/** The reason behind a step, shown only when asked for. Keyed by step, so it closes itself on the next one. */
+function Why({ text }: { text: string | undefined }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  return (
+    <>
+      <button class="link why" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Why?'}</button>
+      {open && <div class="pplain mute why-text">{text}</div>}
+    </>
+  );
+}
+
+/** A line that is only "nothing yet, hold on" and not a mistake: shown calmly, without the warning colour. */
+const isWaiting = (t: string) => /^No key yet|still starting/i.test(t);
+
 const reducedMotion = () => {
   try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
 };
@@ -241,9 +256,10 @@ export function TutorialCard() {
   }
   if (!s || !step) return null;
 
-  const { n, total } = stepCount(step);
+  const { n, total, chapter } = stepCount(step);
   const problem = step.id === 'done' ? null : stepProblem(s, step);
-  const label = step.id === 'done' ? 'Last step' : `Step ${n} of ${total}`;
+  const label = !chapter ? 'Workshop open' : `${chapter} ${n}/${total}`;
+  const meter = step.meter?.(s);
 
   return (
     <>
@@ -263,7 +279,14 @@ export function TutorialCard() {
           <div class="tut-text" key={step.id}>
             <div class="ptitle">{step.title}</div>
             <div class="pplain">{step.text}</div>
-            {problem && <div class="pline warn" role="status">{problem}</div>}
+            {meter && (
+              <div class="tmeter" role="progressbar" aria-valuenow={Math.round(meter.pct)} aria-valuemin={0} aria-valuemax={100} title={`Client base ${meter.label}`}>
+                <span class="tbar"><i style={{ width: `${meter.pct}%` }} /></span>
+                <span class="mute">{meter.label}</span>
+              </div>
+            )}
+            {problem && <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">{problem}</div>}
+            <Why text={step.why} />
             {step.id === 'done' && (
               <div class="pactions"><button class="primary" onClick={finishTutorial}>Got it</button></div>
             )}

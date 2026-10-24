@@ -114,9 +114,12 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .paused .chip.live::before, .paused .sim-anim { animation-play-state: paused; }
 .stat.held .value, .value.held { color: var(--accent); }
 @keyframes pulse {
-  0%, 100% { outline: 0.133rem solid var(--warn); outline-offset: 1px; }
-  50% { outline: 0.133rem solid transparent; outline-offset: 0.267rem; }
+  0%, 100% { outline: 1px solid color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: 0.133rem; }
+  50% { outline: 1px solid transparent; outline-offset: 0.2rem; }
 }
+.invbar { display: flex; justify-content: center; pointer-events: none; }
+.invbar > * { pointer-events: auto; }
+.invbar .invbtn { padding: 0.3rem 0.7rem; background: var(--panel); backdrop-filter: blur(0.667rem); }
 
 /* Meters (the small bar, the stats drawer, the reputation) */
 .meter { position: relative; height: 0.333rem; background: var(--dot); border-radius: 0.2rem; overflow: hidden; min-width: 2.667rem; }
@@ -349,10 +352,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 @keyframes tut-out { from { opacity: 1; } to { opacity: 0; transform: translateY(-0.4rem); } }
 .pointer { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 24; opacity: 0; transition: opacity .25s ease; pointer-events: none !important; overflow: visible; }
 .pointer.on { opacity: 1; }
-.ptr-line { stroke: var(--accent); stroke-width: 0.15rem; stroke-linecap: round; stroke-dasharray: 0.5rem 0.4rem; animation: march 1s linear infinite; filter: drop-shadow(0 0 0.3rem var(--accent)); opacity: .85; }
-.ptr-dot { r: 0.45rem; fill: var(--accent); filter: drop-shadow(0 0 0.45rem var(--accent)); transform-box: fill-box; transform-origin: center; animation: dotpulse 1.2s ease-in-out infinite; }
+.ptr-line { stroke: var(--accent); stroke-width: 1px; stroke-linecap: round; stroke-dasharray: 0.3rem 0.35rem; animation: march 1.4s linear infinite; opacity: .6; }
+.ptr-dot { r: 0.28rem; fill: var(--accent); transform-box: fill-box; transform-origin: center; animation: dotpulse 1.6s ease-in-out infinite; }
 @keyframes march { to { stroke-dashoffset: -0.9rem; } }
-@keyframes dotpulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: .7; } }
+@keyframes dotpulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.3); opacity: .6; } }
 
 /* Bottom stack: notices, hint toasts, the tutorial card and the inventory shelf, centred, in that order (top to bottom). */
 .stack {
@@ -584,3 +587,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .netpanel .chip b { font-family: var(--mono); }
 .netpanel .kv.warn, .netpanel b.warn { color: var(--warn); }
 .netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }
+
+/* Tutorial extras: the chapter label, the Why? toggle, the waiting-step meter and the calm "nothing yet" line */
+.tut .why { font-size: 0.7rem; margin-top: 0.15rem; }
+.why-text { font-size: 0.75rem; }
+.tmeter { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; font-size: 0.7rem; }
+.tbar { flex: 1; height: 0.35rem; border-radius: 99rem; background: var(--dot); overflow: hidden; }
+.tbar i { display: block; height: 100%; background: var(--accent); border-radius: 99rem; transition: width .4s; }
+.pline.wait { color: var(--mute); }

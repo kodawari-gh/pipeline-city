@@ -100,6 +100,18 @@ export interface EconomyConfig {
   /** Override: when defined it replaces the `coldBoot` function with this fixed number of ticks (tests use 0). */
   coldBootTicks?: number;
   /**
+   * Firmware clock boost: while the boot ROM runs its own phases (POST, loading a key, writing the result, loading the OS
+   * kernel) the CPU and storage run this many times faster than the job does. Real firmware is not the workload; without
+   * this a first boot takes most of a minute. 1 turns it off (tests that measure raw cycles use that).
+   */
+  firmwareBoost: number;
+  /**
+   * Without an OS the player no longer pulls the finished key out by hand: this many base ticks after the job's JOB DONE
+   * message the key ejects itself and pays (the manual loop keeps its other chores: plugging in, power cycling). With an OS
+   * the collect-and-remove flow is unchanged. 0 turns it off (tests of the manual removal use that).
+   */
+  autoEjectTicks: number;
+  /**
    * Gate purchases by player level (docs/PROGRESSION.md "Unlock table"). Default true; tests that buy everything switch it
    * off. The sandbox never gates.
    */
@@ -135,7 +147,9 @@ export const ECONOMY: EconomyConfig = {
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
-  coldBoot: { base: 22, perKiB: 0.25, kiBCap: 40, perStick: 2, max: 90, init: { cpu: 1, display: 1, hdd0: 4, ssd1: 2, nvme2: 1 } },
+  coldBoot: { base: 1, perKiB: 0.05, kiBCap: 3, perStick: 0.5, max: 8, init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25 } },
+  firmwareBoost: 12,
+  autoEjectTicks: 3,
   levelGating: true,
   usbFallbackTicks: NET.usbFallbackTicks,
   usbFallbackMul: NET.usbFallbackMul,
@@ -144,7 +158,7 @@ export const ECONOMY: EconomyConfig = {
 
 /**
  * POST time of the machine as built: `base + min(kiBCap, perKiB * RAM KiB) + perStick * sticks + init of every working
- * device`, capped at `max` (the Starter machine comes to 30). The override `coldBootTicks` wins when defined.
+ * device`, capped at `max` (the Starter machine comes to 3). The override `coldBootTicks` wins when defined.
  */
 export function postTicks(cfg: EconomyConfig, board: Board): number {
   if (cfg.coldBootTicks !== undefined) return cfg.coldBootTicks;

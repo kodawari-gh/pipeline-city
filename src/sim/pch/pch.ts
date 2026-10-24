@@ -29,6 +29,8 @@ export class Pch implements Device {
   key: PchKey | null = null;
   /** Value of the PHASE register (the ROM writes it). */
   phase: number = PchPhase.Off;
+  /** Called right after the ROM or kernel writes the phase register (the game switches the firmware clock boost on it). */
+  onPhase: (() => void) | null = null;
   /** POST progress mark written by the ROM (0..4). */
   progress = 0;
   /** Words of the key program the CPU has read so far (loading progress). */
@@ -143,7 +145,7 @@ export class Pch implements Device {
     if (addr < PCH_KEY_WINDOW) {
       if ((addr & 3) !== 0) return;
       switch (addr) {
-        case PCH_REG.PHASE: this.phase = val; break;
+        case PCH_REG.PHASE: this.phase = val; this.onPhase?.(); break;
         case PCH_REG.PROGRESS: this.progress = val; break;
         case PCH_REG.CTRL:
           if (val & 1) this.display.clear();

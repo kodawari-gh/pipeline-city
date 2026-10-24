@@ -20,7 +20,7 @@ const BLOCK_BYTES = 256;
 export type PickerKind = DeviceKind | 'board' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
-  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up';
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 

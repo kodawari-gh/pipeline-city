@@ -8,40 +8,24 @@ import type { Snapshot } from '../sim/game/game';
 import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId } from './tutorial';
 
 const ST = { ...INITIAL_TUTORIAL, welcomed: true };
-/** About 10 minutes of game time (the network wait is client arrivals at a floor reputation: it lands near the limit). */
+/** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
 
 /**
  * Keep serving the queue while a step waits (money for the next purchase): before an OS is installed the player runs the
- * manual loop, exactly as the first jobs went: remove the finished key, power off, plug the next key while the machine is
- * off, power on. With an OS the steps drive the keys.
+ * manual loop, exactly as the first jobs went: the finished key ejects itself, then power off, plug the next key while the
+ * machine is off, power on. With an OS the steps drive the keys.
  */
 /** The oldest key the machine can run (an unrunnable job waits in the tray until it expires; the sim refuses to plug it). */
 const nextKey = (s: Snapshot) => s.tray.find((k) => k.runnable);
 
 function serve(g: Game, s: Snapshot): void {
   if (s.os) return;
-  if (s.plugged?.done) { g.ejectKey(); return; }
+  if (s.plugged?.done && !s.autoEject) { g.ejectKey(); return; }
   if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) { g.powerButton(); return; }
   if (!g.powered && !s.plugged && nextKey(s)) { g.plugKey(nextKey(s)!.id); return; }
   if (!g.powered && s.plugged) g.powerButton();
-}
-
-/**
- * With an OS and the machine on: what a patient player does with keys (the OS lesson loop). Once the link is up no key arrives;
- * leftover keys are still served. Never touches power: the lesson steps decide that.
- */
-function serveOs(g: Game, s: Snapshot): void {
-  if (!s.os || !g.powered || s.phase === 'booting-os' || s.phase === 'posting') return;
-  if (s.plugged?.done) { g.ejectKey(); return; }
-  const held = g.osHeld();
-  if (s.plugged) {
-    if (g.pluggedIngested() && (nextKey(s) || held.ready.length > 0)) g.ejectKey();
-    return;
-  }
-  if (held.ready[0] !== undefined) { g.plugKey(held.ready[0]); return; }
-  if (held.jobs < held.queueSlots && nextKey(s)) g.plugKey(nextKey(s)!.id);
 }
 
 /** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
@@ -57,8 +41,6 @@ function act(g: Game, s: Snapshot, id: StepId): void {
   }
   if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
   const powerOff = () => { if (g.powered) g.powerButton(); };
-  const LESSON = ['reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'netHardware', 'plugLan']; // from linkUp on the bot leaves the leftover keys alone: the network works
-  if (LESSON.includes(id)) serveOs(g, s);
   // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
   const installPart = (kinds: string[], pick: (i: Snapshot['inventory'][number]) => boolean = () => true) => {
     powerOff();
@@ -78,10 +60,9 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'cooler': installPart(['cooler']); break;
     case 'psu': installPart(['psu']); break;
     case 'monitor': installPart(['display']); break;
-    case 'atx': case 'cpuPower': case 'video': {
+    case 'cables': {
       powerOff();
-      const cable = id === 'atx' ? 'atx' : id === 'cpuPower' ? 'cpu' : 'video';
-      if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
+      for (const cable of ['atx', 'cpu', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     }
     case 'power': case 'bootOs':
@@ -99,7 +80,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       else g.powerButton();
       break;
     case 'watch': break;
-    case 'removeKey': case 'osPaid':
+    case 'osPaid':
       if (s.plugged?.done) g.ejectKey();
       break;
     case 'spend': buy('cpu1', 200); break;
@@ -115,7 +96,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       break;
     case 'osHold':
       // Unplug once the OS has the key (queued): it is held until its result is ready.
-      if (s.plugged && s.plugged.stage === 'queued') g.ejectKey();
+      if (s.plugged && g.pluggedIngested() && s.plugged.stage !== 'ingesting') g.ejectKey();
       break;
     case 'osWait': break;
     case 'osCollect': {
@@ -123,34 +104,6 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       if (!s.plugged && k) g.plugKey(k.id);
       break;
     }
-    // ---- the automation lesson ----
-    case 'reachLevel4': break; // serveOs delivers the jobs
-    case 'buyIsp': buy('isp1', 150); break;
-    case 'buyRouter': buy('router1', 60); break;
-    case 'placeRouter': {
-      const r = s.inventory.find((i) => i.kind === 'router');
-      if (r) g.install(r.id, 'router');
-      break;
-    }
-    case 'netHardware': {
-      const wantedHere = (i: Snapshot['inventory'][number]) => i.kind === 'board' || (i.spec === 'ram1' && i.freeSlots.length > 0);
-      // The Basic board has the ethernet jack; a second stick makes 64K. Held jobs wait on the drive while it is off.
-      // (the old 16K stick the first memory upgrade left in the inventory is not what is wanted)
-      if (s.inventory.some(wantedHere)) installPart(['board', 'ram'], wantedHere);
-      else if (s.boardTier < 1) { powerOff(); buy('board1', 150); }
-      else buy('ram1', 100);
-      break;
-    }
-    case 'plugLan':
-      if (!s.cables.find((c) => c.id === 'lan')?.connected) g.connectCable('lan');
-      break;
-    case 'linkUp':
-      if (!g.powered) g.powerButton();
-      else if (s.plugged?.done || g.pluggedIngested()) g.ejectKey(); // a key parked in the port would keep the network feed out
-      break;
-    case 'firstNetJob':
-      if (s.plugged?.done || g.pluggedIngested()) g.ejectKey();
-      break;
     case 'welcome': case 'done': break;
   }
 }
@@ -192,10 +145,6 @@ describe('the tutorial is completable with public actions', () => {
     expect(end.progress.storageInstalled && end.progress.osInstalled && end.progress.firstOsJob).toBe(true);
     expect(end.os?.spec).toBe('os1');
     expect(end.completed).toBeGreaterThanOrEqual(4);
-    // The automation lesson: the router and plan are bought, the cable is plugged, the link came up and a job was delivered over it.
-    expect(end.progress.ispBought && end.progress.routerInstalled && end.progress.lanConnected && end.progress.linkUp && end.progress.firstNetJob).toBe(true);
-    expect(end.net.usbRetired).toBe(true);
-    expect(end.net.counters.delivered).toBeGreaterThanOrEqual(1);
   }, 60000);
 
   it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
