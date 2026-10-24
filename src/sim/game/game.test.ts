@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ECONOMY } from "./economy";
 import { Game, type GameOptions } from "./game";
 import { Operator, play } from "./operator";
+import { rig } from "./testkit";
 
 /** One isolated job (no arrivals) on a machine with `items` bought and installed; returns the completion record. */
 function oneJob(items: string[], template: string, scale = 1, seed = 1) {
@@ -279,19 +280,27 @@ describe("CPU tier vs RAM tier depends on the job profile", () => {
     expect(Math.abs(logCpu - logBoth)).toBeLessThanOrEqual(2); // while log is untouched by RAM
   });
 
-  it("boot time depends on the CPU: each tier gets through POST and the key check sooner", () => {
-    const bootTicks = (items: string[]): number => {
+  it("boot time depends on the CPU: POST finishes, and the key check follows, sooner on a faster CPU", () => {
+    // Measured to the POST's last line (USB OK): the key check comes right after it. The halt message is not counted,
+    // it is CPU work too (and it runs under load now), so the halt tick would also measure the message.
+    const postTicks = (g: Game): number => {
+      let t = 0;
+      while (!g.snapshot().display.includes("USB OK") && t < 500) { g.advanceBaseTick(); t++; }
+      return t;
+    };
+    const starter = (items: string[]): number => {
       const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0 } });
       g.money = 1e6;
       for (const i of items) g.purchase(i);
       new Operator(g).assemble();
-      let t = 0;
-      while (g.currentPhase() !== "halted" && t < 500) { g.advanceBaseTick(); t++; } // no key: NO BOOT MEDIA
-      return t;
+      return postTicks(g);
     };
-    const t0 = bootTicks([]);
-    const t1 = bootTicks(["cpu1"]);
-    const t2 = bootTicks(["psu1", "cpu2"]);
+    const t0 = starter([]);
+    const t1 = starter(["cpu1"]);
+    // cpu2 on the Starter board droops under its load and reboots (a real crash, not a boot-time question), so it gets board2.
+    const g2 = rig("hdd0", { os: false, cpu: "cpu2", keys: [] });
+    g2.powerButton();
+    const t2 = postTicks(g2);
     expect(t0).toBeGreaterThan(t1);
     expect(t1).toBeGreaterThan(t2);
   });

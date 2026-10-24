@@ -247,6 +247,27 @@ describe("boot sequence (the ROM runs on the real engine)", () => {
     expect(g.money).toBe(0); // and nothing is paid until the key is removed
   });
 
+  it("the halt text is complete on the first snapshot in phase halted (no partial message)", () => {
+    // Job done: the ROM writes JOB DONE and REMOVE KEY before it halts, so a snapshot that says halted shows all of it.
+    const done = assembled();
+    bootWithKey(done);
+    for (let i = 0; i < 600 && done.currentPhase() !== "halted"; i++) done.advanceBaseTick();
+    expect(done.currentPhase()).toBe("halted");
+    const first = done.snapshot();
+    expect(first.haltReason).toBe("job-done");
+    expect(first.display).toContain("JOB DONE");
+    expect(first.display).toContain("REMOVE KEY, THEN POWER OFF/ON");
+    // No boot media: the ROM writes the whole message before it halts.
+    const none = assembled();
+    none.powerButton();
+    for (let i = 0; i < 600 && none.currentPhase() !== "halted"; i++) none.advanceBaseTick();
+    expect(none.currentPhase()).toBe("halted");
+    expect(none.snapshot()).toMatchObject({
+      haltReason: "no-boot-media",
+      display: "PCH BIOS 1.0\nCPU T0 OK\nRAM 16K OK\nUSB OK\n\nNO BOOT MEDIA\nINSERT A KEY AND RESTART",
+    });
+  });
+
   it("leaves the exact text the generator promised on the key, for every template and CPU tier", () => {
     // cpu2 gets the strongest board: on the Starter VRM it droops and crashes, which is a different test.
     for (const [cpu, extra] of [["cpu0", []], ["cpu1", []], ["cpu2", ["board1", "board2", "board3", "psu1"]]] as const) {

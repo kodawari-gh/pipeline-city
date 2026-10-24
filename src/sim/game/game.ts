@@ -1496,7 +1496,8 @@ export class Game {
       case PchPhase.Running: return "running";
       case PchPhase.Writing: return "writing";
       case PchPhase.Done: return "done-remove-key";
-      case PchPhase.Halted: case PchPhase.NoMedia: return "halted";
+      // The ROM's last message can still sit in the monitor's write queue: the halt shows only once it has all landed.
+      case PchPhase.Halted: case PchPhase.NoMedia: return this.machine.display.pending > 0 ? "writing" : "halted";
       case PchPhase.OsBoot: return "booting-os";
       case PchPhase.OsIdle: return "idle-os";
       case PchPhase.OsIngest: return "ingesting";

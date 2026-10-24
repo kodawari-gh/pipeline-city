@@ -87,10 +87,10 @@ export const ROM_SOURCE = [
   `  lw t0, ${PCH_REG.STATUS}(s3)`,
   "  andi t1, t0, 1",
   "  bne t1, zero, havekey",
-  "nomedia:",
-  ...setPhase(PchPhase.NoMedia),
+  "nomedia:", // the message is written first, then the phase: a halt phase never shows a half-written message
   ...status("NO BOOT MEDIA"),
   ...textStores((STATUS_ROW + 1) * ROW, "INSERT A KEY AND RESTART"),
+  ...setPhase(PchPhase.NoMedia),
   "  j halt",
   "havekey:",
   "  andi t1, t0, 2", // the key already holds a result (power was cycled before it was removed)
@@ -141,9 +141,9 @@ export const ROM_SOURCE = [
   "finished:",
   `  li s3, ${PCH_BASE}`,
   `  li s0, ${DISPLAY_BASE}`,
-  ...setPhase(PchPhase.Halted),
   ...status("JOB DONE"),
   ...textStores((STATUS_ROW + 1) * ROW, "REMOVE KEY, THEN POWER OFF/ON"),
+  ...setPhase(PchPhase.Halted), // last: the halt phase comes after the whole message
   "halt:", // nothing wakes the machine: the player power-cycles it by hand
   "  j halt",
   "",
