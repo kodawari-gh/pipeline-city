@@ -171,7 +171,7 @@ function fit(str: string, size: number, w: number, em = 0.62): string {
  * A USB stick centred on (0,0), the connector pointing east (towards the port). Full size (KEY_LEN x KEY_H): job id and
  * type, template, and an age bar against the deadline. Compact (KEY_LEN_PLUGGED): job id and the bar, or DONE.
  */
-export function keyStick(T: Theme, k: KeySnap, compact = false): Container {
+export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false): Container {
   const c = new Container();
   const g = new Graphics();
   c.addChild(g);
@@ -200,6 +200,7 @@ export function keyStick(T: Theme, k: KeySnap, compact = false): Container {
     c.addChild(label(fit(k.label, 96, tw, 0.6), tx, k.done || stg ? -48 : -34, 96, T.ink, { head: true }));
     if (stg) c.addChild(label(fit(stg.text, 50, tw, 0.62), tx, 44, 50, stg.color, { weight: '700' }));
     else if (k.done) c.addChild(label('DONE', tx, 40, 56, col, { weight: '700' }));
+    else if (notRead) c.addChild(label('NOT READ', tx, 40, 56, T.mute, { weight: '700' })); // in the port of a halted machine: never read
     else bar(34, tw);
     return c;
   }
@@ -262,11 +263,15 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
-/** The key sitting in the USB port (drawn above the board art). */
-export function pluggedKeyArt(T: Theme, k: KeySnap): PropsArt {
+/**
+ * The key sitting in the USB port (drawn above the board art). `notRead`: the machine halted before this key was in the port, so it is
+ * never read: the key is dimmed and says NOT READ (static, no blink).
+ */
+export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false): PropsArt {
   const root = new Container();
   const p = pluggedKeyCentre();
-  const vec = keyStick(T, k, true), node = new Container();
+  const vec = keyStick(T, k, true, notRead), node = new Container();
+  if (notRead) vec.alpha = 0.6;
   node.addChild(vec);
   node.position.set(p.x, p.y);
   root.addChild(node);
@@ -275,7 +280,12 @@ export function pluggedKeyArt(T: Theme, k: KeySnap): PropsArt {
 
 // ---------------------------------------------------------------- power button
 
-export interface PowerState { powered: boolean; error: boolean; blocked: boolean }
+/**
+ * powered: the machine is switched on (any phase, including halted and error). down: the power path is gone (PSU tripped or
+ * board dead): the ON light goes dark. error: the phase is `error` or the machine is down (the red ERR light blinks).
+ * blocked: there is no power at all (no PSU, burnt PSU, ATX unplugged, dead board): the OFF standby light is dark.
+ */
+export interface PowerState { powered: boolean; down: boolean; error: boolean; blocked: boolean }
 
 /** The power button on the case's top panel (the status lights are drawn per frame by `drawPowerLeds`). */
 export function powerArt(T: Theme, st: PowerState): PropsArt {
@@ -286,9 +296,10 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   const bg = new Graphics();
   node.addChild(vec);
   vec.addChild(bg);
-  const ring = st.error ? T.bad : st.powered ? T.st : T.mute;
+  // the button reads 'on' whenever the machine is powered (any phase); off is the muted ring
+  const ring = st.powered ? T.st : T.mute;
   disc(bg, 0, 12, b.r + 14, { fill: '#000000', fa: 0.3 });
-  disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered || st.error ? 1 : 0.7 });
+  disc(bg, 0, 0, b.r + 14, { fill: mix(shell, '#000000', 0.3), stroke: ring, lw: 10, sa: st.powered ? 1 : 0.7 });
   disc(bg, 0, 0, b.r - 12, { fill: mix(shell, '#ffffff', T.dark ? 0.1 : 0.4), stroke: T.line, lw: 5 });
   const k = b.r / 175;
   bg.arc(0, 8 * k, 78 * k, -Math.PI * 0.32, Math.PI * 1.32, true).stroke({ width: 15, color: ring, cap: 'round' });
@@ -310,7 +321,8 @@ export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: numb
   led.clear();
   const ly = CASE_LEDS.y;
   const blink = 0.55 + 0.45 * Math.sin(now * 0.008);
-  const on = st.powered && !st.error;
+  // ON: powered in any phase (halted and POST error included) unless the power path is down; ERR: red, blinking
+  const on = st.powered && !st.down;
   const lights: [number, string, boolean, number][] = [
     // OFF is the standby light: it needs a working PSU on the wall (blocked = no PSU / burnt PSU / ATX unplugged / dead board)
     [CASE_LEDS.on, T.st, on, 1], [CASE_LEDS.off, T.ld, !st.powered && !st.error && !st.blocked, 1], [CASE_LEDS.err, T.bad, st.error, st.error ? blink : 1],

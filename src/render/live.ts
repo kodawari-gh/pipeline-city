@@ -117,6 +117,8 @@ export class Live {
   private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
   private osUpTick: number | null = null;
   private bootLike = false;
+  /** Cold-boot wait: posting with no POST line yet (the CPU idles, the monitor is black). */
+  private coldWait = false;
 
   constructor(renderer: Renderer, private additive: boolean) {
     const dg = new Graphics().circle(0, 0, 16).fill({ color: '#ffffff' });
@@ -346,8 +348,11 @@ export class Live {
     }
     // boot: data moves USB port <-> PCH <-> CPU <-> RAM along the real buses (only in the phases that move data)
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.powered = s.powered;
+    // the cold-boot wait (posting, before the first POST line: no progress yet) is the CPU idling: nothing is read yet
+    const coldWait = s.phase === 'posting' && !(s.bootProgress > 0);
+    this.coldWait = coldWait;
     if (s.powered) {
-      if (s.phase === 'posting') this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1);
+      if (s.phase === 'posting') { if (!coldWait) this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1); }
       else if (s.phase === 'loading') { this.flow('usb', now, -1); this.flow('dmi', now, -1); this.flow('mem', now, 1); }
       else if (s.phase === 'writing') { this.flow('mem', now, -1); this.flow('dmi', now, 1); this.flow('usb', now, 1); }
       else if (s.phase === 'booting-os' || s.phase === 'ingesting' || s.phase === 'flashing') {
@@ -375,9 +380,11 @@ export class Live {
     const fkey = fault ? `${fault.tick}|${fault.text}` : '';
     if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
     else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashUntil = now + 900; }
-    // no power, no motion: a switched off, tripped or dead machine has no pulses, flashes or spinning drives
+    // power: a switched off, tripped or dead machine is dead (no fans, lights or current). A halted or error machine is still ON:
+    // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so those go quiet here.
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
-    if (!this.liveOn) {
+    const quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
+    if (quiet) {
       for (const l of this.lit.values()) if (l.pulses > 0) l.hold = 0;
       for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.flowUntil = -1e9; }
       this.memAt = -1e9;
@@ -440,7 +447,9 @@ export class Live {
     else this.badge.visible = false;
 
     // CLI monitor: last lines that fit, wrapped to the screen width
-    const txt = s.monitorLive ? s.display : '';
+    // black while the cold-boot wait runs (the sim has no text yet) and after a power-off; a POST error shows its text; any other
+    // error (a trip, a burnt part) shows nothing rather than a stale line; NO SIGNAL is the no-cable case only
+    const txt = s.monitorLive && (s.phase !== 'error' || s.postFailed) ? s.display : '';
     this.noSignal.visible = this.hasDisplay && s.powered && !s.monitorLive;
     if (txt !== this.shownText) {
       this.shownText = txt;
@@ -547,8 +556,9 @@ export class Live {
   /** PCH glow and scan bars (interior), USB activity LED, monitor power LED, thin boot progress bar (external). */
   private drawBoot(now: number, dt: number) {
     const T = this.T, g = this.bootG, ph = this.bootPhase;
-    const busy = this.powered && (ph === 'posting' || ph === 'loading' || ph === 'writing');
-    this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
+    const busy = this.powered && !this.coldWait && (ph === 'posting' || ph === 'loading' || ph === 'writing');
+    if (!this.powered) this.pchLevel = 0; // a hard power-off is dark on the next frame
+    else this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
     const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
     // PCH: outline glow plus a row of activity bars that scan while it works
     const c = BR.chip, lv = this.pchLevel;
@@ -566,11 +576,12 @@ export class Live {
     }
     const e = this.extG;
     e.clear();
-    // USB port LED: dark with no power or no key; steady green with a key in; with an OS it follows keyActivity (enumerating: slow amber
-    // blink, ingesting / flashing: fast blink, done: steady green that breathes = collect the key); without an OS it blinks while loading or writing
+    // USB port LED: dark with no power, and dark while halted or in error (no data moves: a key in the port is not read); steady green with
+    // a key in; with an OS it follows keyActivity (enumerating: slow amber blink, ingesting / flashing: fast blink, done: steady green that
+    // breathes = collect the key); without an OS it blinks while loading or writing
     const lx = USB_PORT.x + 46, ly = USB_PORT.y - 52, act = this.keyActivity;
     let col: string | null = null, on = true, la = 1;
-    if (!this.powered) { /* the USB port is dead without power */ }
+    if (!this.powered || ph === 'halted' || ph === 'error') { /* the USB port is dead, or nothing reads it */ }
     else if (act === 'enumerating') { col = T.ld; on = Math.floor(now / 450) % 2 === 0; }
     else if (act === 'ingesting') { col = T.ld; on = Math.floor(now / 130) % 2 === 0; }
     else if (act === 'flashing') { col = T.alu; on = Math.floor(now / 130) % 2 === 0; }
@@ -720,7 +731,7 @@ export class Live {
     this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));
-      if (f.target === 0 && f.speed < 0.08) f.speed = 0; // a fan without power comes to rest (no endless creep)
+      if (f.target === 0) f.speed = 0; // off, tripped or dead: the fan is still on the next frame (no coasting, no creep)
       f.c.rotation += f.speed * dt;
     }
     const psuFan = this.fans.find((f) => f.kind === 'psu');
@@ -753,6 +764,7 @@ export class Live {
     };
     for (const l of inner ? this.lit.values() : []) {
       const power = l.pulses === 0;
+      if (!this.liveOn) { l.level = 0; l.g.alpha = 0; continue; } // off, tripped or dead: no glow or pulses on the next frame
       if (power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g.alpha = l.level * 0.55; continue; }
       const on = l.hold > now;
       l.level += ((on ? 1 : 0) - l.level) * Math.min(1, dt * (on ? 9 : 2.2));
@@ -767,6 +779,7 @@ export class Live {
     for (const lc of this.cables) {
       const video = lc.cable.kind === 'video';
       if (!video && !inner) continue;
+      if (!this.liveOn) { lc.level = 0; lc.g.alpha = 0; if (video) for (const sp of this.extDots) sp.visible = false; continue; }
       lc.level += (lc.target - lc.level) * Math.min(1, dt * 2.5);
       lc.g.alpha = lc.level * 0.55;
       if (video) for (const sp of this.extDots) sp.visible = false;
@@ -782,6 +795,7 @@ export class Live {
     // drives: platter / head / LED only while busy; SATA cable pulses while data moves
     this.diskLevel = 0;
     for (const dr of this.drives.values()) {
+      if (!this.liveOn) { dr.speed = 0; dr.head = 0; dr.led = 0; dr.level = 0; } // off, tripped or dead: platter, arm, LED and cable are still at once
       const lit = dr.busyUntil > now, flow = dr.flowUntil > now || lit;
       dr.speed += ((lit ? 16 : 0) - dr.speed) * Math.min(1, dt * (lit ? 4 : 2.5));
       if (!lit && dr.speed < 0.05) dr.speed = 0;

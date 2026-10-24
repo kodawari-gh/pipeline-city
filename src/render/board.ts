@@ -204,7 +204,7 @@ export async function mountBoard(host: HTMLElement) {
   let held: CableKind | null = null;
   let propsArt: PropsArt[] = [];
   let powerArtRef: PropsArt | null = null;
-  let powerState: PowerState = { powered: false, error: false, blocked: false };
+  let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
   const mergeHits = () => { allHits = [...propHits, ...cableHits, ...mainHits]; };
 
   // ---- LOD driven by zoom ----
@@ -419,6 +419,10 @@ export async function mountBoard(host: HTMLElement) {
     builtOnce = true;
     const emptyG = new Graphics();
     deviceLayer.addChildAt(emptyG, 0);
+    // the empty cooler slot sits over the package: its outline goes in the cooler layer (above the CPU), so it stays visible
+    // and reads as the drop target; that layer fades out with the cooler when the die is in view
+    const coolerG = new Graphics();
+    coolerLayer.addChild(coolerG);
     for (const h of emptyHits) {
       if (h.id.startsWith('cpu') || h.id.startsWith('pcie') || h.id.startsWith('dimm') || h.id.startsWith('sata')) continue; // already drawn by the board / the bay
       const r = h.rect;
@@ -435,6 +439,11 @@ export async function mountBoard(host: HTMLElement) {
         dashed(mg, pts, 40, 30); mg.stroke({ width: 10, color: T.mute, alpha: 0.7 });
         box(mg, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
         monitorLayer.addChild(mg, label('MONITOR BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
+        continue;
+      }
+      if (h.id.startsWith('cooler')) {
+        dashed(coolerG, pts, 40, 30);
+        coolerG.stroke({ width: 12, color: T.mute, alpha: 0.85 });
         continue;
       }
       dashed(emptyG, pts, 40, 30);
@@ -547,11 +556,12 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- props: tray, power button, the key in the USB port ----
   function syncProps(s: Snapshot | null, force = false) {
-    const powered = !!s?.powered, error = s?.phase === 'error' || !!s?.power.tripped || !!s?.board?.burnt;
-    powerState = { powered, error, blocked: !!s?.noPowerReason };
+    const powered = !!s?.powered, down = !!s?.power.tripped || !!s?.board?.burnt, error = s?.phase === 'error' || down;
+    const notRead = !!s?.keyIgnored;
+    powerState = { powered, down, error, blocked: !!s?.noPowerReason };
     const key = [
       T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
-      s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}` : '-', powered, error,
+      s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,
       s ? (s.held ?? []).map((k) => `${k.id}${k.stage}`).join(',') : '',
     ].join('|');
     if (!force && key === propsKey) return;
@@ -576,7 +586,7 @@ export async function mountBoard(host: HTMLElement) {
     const order: PropObj[] = [];
     powerArtRef = powerArt(T, powerState);
     add(powerArtRef);
-    if (s?.plugged) add(pluggedKeyArt(T, s.plugged));
+    if (s?.plugged) add(pluggedKeyArt(T, s.plugged, notRead));
     add(trayArt(T, s?.tray ?? []));
     add(heldArt(T, s?.held ?? []));
     for (const a of propsArt) order.push(...a.objs);
