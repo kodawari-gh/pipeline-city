@@ -42,11 +42,11 @@ A **New game** dialog offers Campaign or Sandbox (assembled or bare). The sandbo
 
 ### Designed, not built: levels and the network
 
-Two design docs are written and wait for the owner's answers to their open questions: [`PROGRESSION.md`](PROGRESSION.md) (client-base score, 18 levels, unlock table, level-driven patience and payout that replace the tick schedule, job-type mix with expiring unrunnable jobs, POST time as a function) is built first, then [`NETWORK.md`](NETWORK.md) (NIC, router, cable, ISP plan, network work source, USB keys retire). Neither changes code yet.
+Status (2026-10-24): the owner decided the open questions; the decisions are at the top of [`PROGRESSION.md`](PROGRESSION.md) (levels, unlocks, job mix, declining, POST time) and [`NETWORK.md`](NETWORK.md) (the network from level 4, USB fallback, spool and power loss). Neither changes code yet. **Build order:** (a) level system and job needs, expiry and decline in the sim; (b) UI for levels (milestone screen, locked tiles, HUD bar, level-up); (c) POST-time function; (d) network sim; (e) network render and UI; (f) CPU tier wiring (inorder2, ooo).
 
 ### Next steps
 
-In rough order. Each is a small, separate change; keep `npm test` and `npm run build` green.
+In rough order. Each is a small, separate change; keep `npm test` and `npm run build` green. For levels and the network the build order in the note above replaces items 1 and 2 (item 1 becomes step f).
 
 1. **inorder2 and ooo CPU tiers.** `inorder2` (2-wide) and `ooo` exist in `src/sim/engines` (`engines/index.ts`), but no CPU spec uses them. Needed: a spec entry with the engine config per tier, the board and VRM demand data per CPU (its `loadW` against the planned board's rating, so the CPU warning in the picker stays right), picker art, and a pacing re-check, since CPI changes the first-job timing and the `cpuCyclesPerClock` tuning.
 2. **Network phase.** A NIC (PCIe, or onboard ethernet on the boards that have it), a router and an ethernet cable, then a `WorkSource` over the network. Once the link is up, clients stop sending USB keys: new arrivals stop, keys already waiting can still be served (see `docs/TECHTREE.md`). Ethernet speed is already a board feature.
