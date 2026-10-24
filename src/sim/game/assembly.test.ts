@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generate } from "../gen";
 import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
-import type { EconomyConfig } from "./economy";
+import { ECONOMY, type EconomyConfig } from "./economy";
 
 const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0 };
 
@@ -166,13 +166,18 @@ describe("power button and POST errors", () => {
       const g = assembled();
       breakIt(g);
       expect(g.powerButton().ok, name).toBe(true);
+      // The phase and its reason are there at once (the UI chip reads them); the monitor is black through the cold-boot wait.
       const s = g.snapshot();
       expect(s.phase, name).toBe("error");
       expect(s.phaseReason, name).toMatch(reason);
-      expect(s.display, name).toContain(`POST FAILED: ${short}`);
+      expect(s.display, name).toBe("");
       expect(s.postFailed, name).toBe(true);
       reasons.add(s.phaseReason!);
       expect(s.pipe, name).toBeNull(); // no CPU activity
+      ticks(g, ECONOMY.coldBootTicks - 1);
+      expect(g.snapshot().display, name).toBe("");
+      ticks(g, 1); // the wait is over: the POST error text appears, all at once
+      expect(g.snapshot().display, name).toContain(`POST FAILED: ${short}`);
       ticks(g, 50);
       expect(g.currentPhase(), name).toBe("error"); // stays halted
     }
@@ -532,7 +537,9 @@ describe("the CPU cooler mounts on the CPU", () => {
     const s = g.snapshot();
     expect(s.phase).toBe("error");
     expect(s.phaseReason).toMatch(/cooler/);
-    expect(s.display).toContain("NO CPU COOLER");
+    expect(s.display).toBe(""); // the cold-boot wait first (monitor black), then the message
+    ticks(g, ECONOMY.coldBootTicks);
+    expect(g.snapshot().display).toContain("NO CPU COOLER");
     g.powerButton();
     expect(g.install(g.snapshot().inventory.find((i) => i.spec === "cooler0")!.id).ok).toBe(true);
     g.powerButton();

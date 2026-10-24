@@ -835,6 +835,9 @@ export class Game {
   advanceBaseTick(): void {
     this.baseTick++;
     this.arrivals();
+    // A failed POST: the cold-boot wait runs first (the monitor is black), then the error text appears. The phase is
+    // "error" from the press on, so the UI chip does not wait.
+    if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) this.showPostError();
     const running = this.powered && !this.postError && !this.fault();
     const delayed = running && this.bootDelay > 0; // PSU power-good, fans, BIOS init: the CPU is not executing yet
     if (delayed) this.bootDelay--;
@@ -1455,7 +1458,7 @@ export class Game {
     this.postError = bootCheck(this.board, this.cables).post;
     if (this.postError) {
       this.pch.powerOff();
-      this.machine.display.setText(["PCH BIOS 1.0", "", `POST FAILED: ${this.postError.short}`, "", "POWER OFF TO FIX"]);
+      if (this.bootDelay === 0) this.showPostError(); // no wait configured: the text is there at once
       this.note("fault", `POST failed: ${this.postError.reason}`);
       return;
     }
@@ -1484,6 +1487,12 @@ export class Game {
       }
     }
     this.firstBootTick ??= this.baseTick;
+  }
+
+  /** The POST error text on the monitor (the PCH's own message, no CPU involved). */
+  private showPostError(): void {
+    if (!this.postError) return;
+    this.machine.display.setText(["PCH BIOS 1.0", "", `POST FAILED: ${this.postError.short}`, "", "POWER OFF TO FIX"]);
   }
 
   /** Current machine phase. */
