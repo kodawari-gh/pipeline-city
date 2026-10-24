@@ -511,6 +511,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       lines.unshift({ level: 'bad', text: 'The power supply tripped: too much draw. Power cycle it, then lighten the load or buy a bigger supply.' });
       actions.push({ id: 'powerCycle', label: 'Power cycle', primary: true });
     }
+    lines.push({ level: 'info', text: `Boot (POST) takes about ${s.postTicks} s: memory, devices and firmware are checked each time it starts. More RAM and more devices make it longer.` });
     if (s.powered && s.phase !== 'halted') lines.push({ level: 'info', text: 'Power off is immediate: a job in progress is lost, but its key keeps its data and the job restarts at the next boot.' });
     actions.push({
       id: 'power', label: s.powered ? 'Power off' : 'Power on', primary: !s.powered && !s.power.tripped,

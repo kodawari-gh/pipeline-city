@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { clearQueue, repairAll, setReputation, setSpeed, spawnKey, speed } from '../game/store';
+import { clearQueue, repairAll, setLevel, setReputation, setSpeed, spawnKey, speed } from '../game/store';
 import type { Snapshot } from '../sim/game/game';
+import { LEVELS } from '../sim/game/levels';
 import { TEMPLATE_NAMES } from '../sim/gen';
 
 // The sandbox chip in the HUD bar and its tools popover (docs/SANDBOX.md). Styles are in ui.css (the sandbox section).
@@ -67,6 +68,13 @@ export function SandboxTools({ s }: { s: Snapshot }) {
               onBlur={() => setRep(null)}
             />
             <span class="sbx-val" aria-hidden="true">{shownRep.toFixed(2)}</span>
+          </div>
+          <h4>Rules level</h4>
+          <div class="sbx-row">
+            <select aria-label="Rules level" value={s.level.level} title="Patience, payouts, demand and the job mix follow this level. Nothing is locked in the sandbox."
+              onChange={(e) => setLevel(Number(e.currentTarget.value))}>
+              {LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}: {l.name}</option>)}
+            </select>
           </div>
           <h4>Speed</h4>
           <div class="sbx-row">

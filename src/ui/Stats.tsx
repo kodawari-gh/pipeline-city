@@ -1,6 +1,7 @@
 import { snapshot } from '../game/store';
 import { getSpec } from '../sim/board/specs';
 import { cacheHitRate, cpiIpc, describeId, fmtNum, powerLevel, stallsByCause, tempLevel, totalStalls } from './logic';
+import { postBreakdown } from './levelui';
 import { history } from './state';
 import { Meter } from './Meter';
 import { VRM_ZONE_HELP, vrmReadout, vrmZone } from './vrm';
@@ -30,6 +31,7 @@ export function Stats() {
   const stallMax = Math.max(1, ...stalls.map((x) => x.value));
   const power = s.power;
   const vrm = vrmReadout(s);
+  const post = postBreakdown(s);
   return (
     <div class="stats">
       <h2>Stats</h2>
@@ -88,6 +90,10 @@ export function Stats() {
           {vrm.burnt && <div class="kv bad"><span>state</span><b>burnt out</b></div>}
         </section>
       )}
+      <section>
+        <h3 title="POST: what the machine does at every cold boot before it looks for a program. A no-OS machine pays it for every job.">Boot (POST) <span class="mute">{post.total} s</span></h3>
+        {post.parts.map((p) => <div class="kv" key={p.label} title={p.hint}><span>{p.label}</span><b>{p.ticks} s</b></div>)}
+      </section>
       <section>
         <h3>Clients</h3>
         <div class="kv" title="Jobs finished and paid"><span>served</span><b>{s.completed}</b></div>
