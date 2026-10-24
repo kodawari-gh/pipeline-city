@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text } from 'pixi.js';
 import type { KeySnap } from '../sim/game/game';
 import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
@@ -230,16 +230,33 @@ export const trayKeyCentre = (i: number) => {
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
 export const pluggedKeyCentre = () => ({ x: USB_PORT.x + 190 - KEY_LEN_PLUGGED / 2, y: USB_PORT.y + USB_PORT.h / 2 });
 
+const vgradFill = (top: string, bot: string) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' });
+
+/**
+ * A glass-like panel (the key tray and the held rack): a shadow, a vertical gradient body with a top sheen and a coloured edge,
+ * and a sunken well for its content. Dark and light share this structure; only the tones differ (a flat grey box in light was the
+ * old black overlay on a light shell).
+ */
+function glassPanel(g: Graphics, r: Rect, T: Theme, edge: string, lw: number, sa: number, rad: number, well: Rect) {
+  box(g, r.x + 12, r.y + 20, r.w, r.h, rad, { fill: '#000000', fa: T.dark ? 0.24 : 0.16 });
+  const top = T.dark ? mix(T.sub, T.tile, 0.5) : '#f7f9fd', bot = T.dark ? mix(T.sub, T.bg, 0.25) : '#d2dbe9';
+  g.roundRect(r.x, r.y, r.w, r.h, rad).fill(vgradFill(top, bot)).stroke({ width: lw, color: edge, alpha: sa });
+  g.roundRect(r.x + 16, r.y + 10, r.w - 32, 26, 13).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.75 });
+  // the well: its top lip is shaded (darker), its floor lighter, with a glint on the bottom lip
+  const wTop = T.dark ? '#060a16' : '#a9b4c8', wBot = T.dark ? '#0e1528' : '#c8d1e1';
+  g.roundRect(well.x, well.y, well.w, well.h, 20).fill(vgradFill(wTop, wBot));
+  g.roundRect(well.x, well.y, well.w, well.h, 20).stroke({ width: 4, color: T.dark ? '#000000' : '#6f7d98', alpha: T.dark ? 0.5 : 0.5 });
+  g.roundRect(well.x + 14, well.y + 12, well.w - 28, 18, 9).fill({ color: '#ffffff', alpha: T.dark ? 0.03 : 0.35 }); // glass sheen in the well
+  g.roundRect(well.x + 12, well.y + well.h - 14, well.w - 24, 6, 3).fill({ color: '#ffffff', alpha: T.dark ? 0.05 : 0.7 });
+}
+
 export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
   const root = new Container(), chrome = new Container();
   const g = new Graphics();
   root.addChild(chrome);
   chrome.addChild(g);
   const r = TRAY;
-  const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
-  box(g, r.x + 12, r.y + 20, r.w, r.h, 36, { fill: '#000000', fa: 0.22 });
-  box(g, r.x, r.y, r.w, r.h, 36, { fill: shell, stroke: T.mul, lw: 10, sa: 0.8 });
-  box(g, r.x + 40, r.y + 150, r.w - 80, r.h - 190, 20, { fill: '#000000', fa: 0.28 });
+  glassPanel(g, r, T, T.mul, 10, 0.8, 36, { x: r.x + 40, y: r.y + 150, w: r.w - 80, h: r.h - 190 });
   chrome.addChild(label('USB KEY TRAY', r.x + 90, r.y + 76, 72, T.mul, { head: true }));
   const empty = keys.length === 0;
   chrome.addChild(label(empty ? 'NO WORK WAITING' : `${keys.length} waiting`, r.x + r.w - 90, r.y + 76, 46, empty ? T.mute : T.ink, { anchor: [1, 0.5], a: empty ? 0.8 : 1 }));
@@ -348,11 +365,8 @@ export function heldArt(T: Theme, keys: KeySnap[]): PropsArt {
   root.addChild(chrome);
   chrome.addChild(g);
   const r = HELD;
-  const shell = T.dark ? mix(T.sub, T.tile, 0.4) : mix(T.sub, T.tile, 0.3);
   const ready = keys.filter((k) => k.stage === 'result').length;
-  box(g, r.x + 10, r.y + 16, r.w, r.h, 36, { fill: '#000000', fa: 0.2 });
-  box(g, r.x, r.y, r.w, r.h, 36, { fill: shell, stroke: ready ? T.st : T.line, lw: 8, sa: ready ? 0.9 : 0.8 });
-  box(g, r.x + 30, r.y + 110, r.w - 60, r.h - 140, 20, { fill: '#000000', fa: 0.25 });
+  glassPanel(g, r, T, ready ? T.st : T.line, 8, ready ? 0.9 : 0.8, 36, { x: r.x + 30, y: r.y + 110, w: r.w - 60, h: r.h - 140 });
   chrome.addChild(label('HELD KEYS', r.x + 70, r.y + 62, 62, ready ? T.st : T.mute, { head: true }));
   const note = keys.length === 0 ? 'NONE HELD' : ready ? `${ready} READY - PLUG TO COLLECT` : `${keys.length} WAITING FOR THE OS`;
   chrome.addChild(label(note, r.x + r.w - 70, r.y + 62, 40, ready ? T.st : T.mute, { anchor: [1, 0.5], a: keys.length ? 1 : 0.8 }));
