@@ -25,6 +25,7 @@ Milestone 1 is built end to end and playable in the browser: `npm run dev`. Step
 - A **PCH** device holds the **boot ROM** (a loader in the toy ISA, run on the real CPU engine, so boot time depends on CPU speed), the USB host registers and the display control. **Updated (manual boot loop):** without an OS the player plugs a key while the machine is off, presses power, and after a cold-boot wait and POST the ROM looks at the USB port **once** (no key: `NO BOOT MEDIA`, halt; key: load through MMIO, run, write result, `JOB DONE`, halt). A key plugged into a running no-OS machine is ignored. After the job the machine stays halted until the player removes the key (paid) and powers off and on by hand; the power button is a hard power-off in any powered phase. The OS (hot-plug ingest, boots once) is what removes the loop. Missing CPU, cooler, CPU cable or RAM are POST errors shown after the press (phase `error`, `postFailed`), not refusals; only a missing PSU or ATX cable means no power. Client patience (reputation target, key deadlines, overflow penalty) follows a schedule from the first boot (generous early, tight late; GAME.md "Patience").
 - **Client requests are USB keys in a tray** (the queue, cap 10). The player plugs one (`plugKey`), removes it when done (`ejectKey`); payout and reputation are applied on removal. `WorkSource` (`src/sim/game/work.ts`) is the seam for a router/ethernet later.
 - Save is **v2** (with a v1 migration), and a `progress` object of tutorial milestones is part of the Game/snapshot/save. See `docs/ASSEMBLY.md` for the whole API; `src/sim/game/operator.ts` is a bot player used by the tests.
+- **Halt text and POST timing (fixed).** The halted phase is reported only once the whole `JOB DONE` / `NO BOOT MEDIA` message is on the monitor (it used to show a partial message). A failed POST shows its text after the cold-boot wait; its phase and reason still show at once for the UI chip. See `docs/ASSEMBLY.md`.
 - The old UI keeps working through a minimal "Machine" section in `src/ui/Shop.tsx`; the real UI (drag and drop, hover, key tray, contextual shop, tutorial) and the renderer still show the old model and are the next phase.
 
 ### Storage and OS v1 phase (done)
@@ -37,7 +38,7 @@ The motherboard is a four-tier ladder (Starter with 1 DIMM, 1 SATA, 1 USB, 1 HDM
 
 ### Sandbox (done)
 
-A **New game** dialog offers Campaign or Sandbox (assembled or bare). The sandbox has free purchases, a constant money balance shown as infinity, every part and board tier, and four tools (spawn a key, clear the tray, repair everything, set reputation), plus 64x speed. The physics still applies. Everything is in [`SANDBOX.md`](SANDBOX.md); save format is unchanged (optional `sandbox: true` field, still v4).
+A **New game** dialog offers Campaign or Sandbox (assembled or bare). The sandbox has free purchases, a constant money balance shown as infinity, every part and board tier, and four tools (spawn a key, clear the tray, repair everything, set reputation), plus 64x speed. The physics still applies. Everything is in [`SANDBOX.md`](SANDBOX.md); save format is unchanged (optional `sandbox: true` field, still v4). The 64x speed has numbers now: `npm run bench:speed` (not part of `npm test`).
 
 ### Designed, not built: levels and the network
 
@@ -56,11 +57,11 @@ In rough order. Each is a small, separate change; keep `npm test` and `npm run b
 
 Known gaps from the last reports (do not treat them as settled):
 
-- **Cold-boot delay.** A 30-tick (`coldBootTicks`) wait is added before the ROM runs, so the OS beats the manual loop. The pacing tests were loosened for it.
+- **Cold-boot delay.** A 30-tick (`coldBootTicks`) wait is added before the ROM runs, so the OS beats the manual loop. The pacing tests were loosened for it. A failed POST waits it out too (the monitor is black, then the error text).
 - **First job takes 70-80 s** at 1x on the starting machine (about 45-48 s before the cold-boot wait).
 - **Patience schedule** (`ECONOMY.patience`) numbers are placeholders.
 - **Touch and a real GPU are unverified.** Browser checks used software GL and mouse input only.
-- **64x in the sandbox is not benchmarked** (see `docs/SANDBOX.md`).
+- **64x in the sandbox is benchmarked, not the limit** (`npm run bench:speed`, numbers in `docs/SANDBOX.md`): the sim holds 64x with about 1% of one core on the dev machine, its flat-out ceiling is about 12,000x. The client side at high speed (main thread, render) is not measured.
 
 ### Known gaps and decisions waiting on the owner
 

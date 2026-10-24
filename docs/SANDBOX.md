@@ -2,7 +2,7 @@
 
 A sandbox game is a campaign game with the money and the tutorial taken out, and a few tools added for trying ideas fast. **The physics stays.** Slots, watts, cooling, the VRM and the power-off rule all still apply; the sandbox only removes what costs time and money.
 
-Code: `src/sim/game/game.ts` (the `sandbox` option, the sandbox tools, the purchase rules), `src/sim/game/economy.ts` (`SANDBOX_MONEY`, `sandboxOffers`), `src/sim/protocol.ts` (`SANDBOX_SPEEDS`), `src/sim/host.ts` (the 64x refusal and the catch-up cap), `src/sim/game/save.ts` (the optional `sandbox` field), `src/game/store.ts` (`startSim` options and the tool actions), `src/ui/NewGame.tsx` (the dialog), `src/ui/SandboxTools.tsx` (the chip and its tools), `src/ui/Hud.tsx` (the infinity sign), `src/ui/tutorial.ts` (no tutorial). Tests: `src/sim/game/sandbox.test.ts`, `src/ui/tutorial.test.ts` (the sandbox cases).
+Code: `src/sim/game/game.ts` (the `sandbox` option, the sandbox tools, the purchase rules), `src/sim/game/economy.ts` (`SANDBOX_MONEY`, `sandboxOffers`), `src/sim/protocol.ts` (`SANDBOX_SPEEDS`), `src/sim/host.ts` (the 64x refusal and the catch-up cap), `src/sim/game/save.ts` (the optional `sandbox` field), `src/game/store.ts` (`startSim` options and the tool actions), `src/ui/NewGame.tsx` (the dialog), `src/ui/SandboxTools.tsx` (the chip and its tools), `src/ui/Hud.tsx` (the infinity sign), `src/ui/tutorial.ts` (no tutorial), `src/sim/bench/speed.ts` and `tools/bench-speed.mjs` (the 64x benchmark, see Speed). Tests: `src/sim/game/sandbox.test.ts`, `src/ui/tutorial.test.ts` (the sandbox cases).
 
 ## Starting one
 
@@ -54,7 +54,26 @@ The store actions are `spawnKey`, `clearQueue`, `repairAll` and `setReputation` 
 
 The speed segment in the HUD offers the campaign speeds (II, 1x, 4x, 16x). A sandbox also has **64x**, toggled from the SANDBOX chip (`SANDBOX_SPEEDS`). `setSpeed(64)` is refused in a campaign game (`64x is for the sandbox only`).
 
-The catch-up cap is `MAX_TICKS_PER_FRAME` = **128** base ticks per call, in every game (`host.ts`). The worker calls every 100 ms, so 64x needs about 6.4 ticks per call; the cap only matters after a throttled tab. **64x has not been benchmarked**: the cost of a 64x tick on a fully built machine is unmeasured.
+The catch-up cap is `MAX_TICKS_PER_FRAME` = **128** base ticks per call, in every game (`host.ts`). The worker calls every 100 ms, so 64x needs about 6.4 ticks per call; the cap only matters after a throttled tab (128 ticks is 2 s of game time at 64x, about 10 ms of work).
+
+### Measured: is 64x sustainable?
+
+`npm run bench:speed` (not part of `npm test`, about 25 s) runs `src/sim/bench/speed.ts` through `tools/bench-speed.mjs`. It drives the worker's host loop (`advance` with the wall time since the last call, then a snapshot when something advanced) on a busy high-end sandbox build: the Enthusiast board, cpu2, ram2, the 250 W PSU, the liquid cooler, VRM fins with a fan, NVMe with `os1`, and a scale-16 scan job kept in the tray. The machine is powered and the OS is up. The OS runs a job about half the time; the rest is the bot's key waiting on the USB latency (enumerate, ingest, flash), which is real sim behaviour. Machine: AMD Ryzen 9 7900X (12 cores, 24 threads), Windows 11, Node 24 (V8), one thread. Other work was running on the same machine during the runs.
+
+Two modes per speed. **Flat out**: back-to-back calls of 100 ms game time, which gives the cost of a tick and the ceiling. **Paced**: 8 s of real time with the worker's 100 ms timer, which gives the ticks delivered against the ticks owed.
+
+| Speed | Flat out: ms per tick | Flat-out ceiling | Paced: ticks/s delivered (share of owed) | Worst paced call (ticks + snapshot) |
+|---|---|---|---|---|
+| 1x | 0.09 | about 12,000x | 0.99 (99.5%) | 1 ms |
+| 4x | 0.07 | about 13,800x | 3.96 (99.1%) | 2 ms |
+| 16x | 0.08 | about 13,000x | 15.94 (99.7%) | 16 ms |
+| 64x | 0.09 | about 12,000x | 63.88 (99.8%) | 13 ms |
+
+Over three runs the cost stayed at 0.06 to 0.09 ms per tick (the job-running and idle phases cost the same), the ceiling was 12,000 to 16,500x, and a snapshot cost about 0.4 ms and 13 KB.
+
+**64x is sustainable on this machine, and the sim is not the limit.** At 64x the sim uses about 1% of one core (64 ticks at 0.085 ms, plus 10 snapshots at 0.46 ms, each second). The flat-out ceiling is about 190 times 64x, so a machine would have to be about 190 times slower to fall below it. Every paced run kept up, and the catch-up cap was never reached.
+
+The practical limit at high speed is on the client, not in the sim: the main thread receives a 13 KB snapshot up to 10 times a second, then applies it and redraws the board, the pipeline and the monitor. That side is not measured by the bench (the browser checks in `HANDOVER.md` are at 1x to 16x).
 
 ## Saves
 
@@ -62,4 +81,4 @@ A sandbox game writes an optional top-level field `sandbox: true` (`Game.toSave`
 
 ## Tests
 
-`src/sim/game/sandbox.test.ts` covers the free and constant-money rules, the offers (any tier, replacement of a burnt board), the physics that still applies, the tools and their refusals outside a sandbox, the 64x refusal, the sandbox save field and the assembled and bare starts. `src/ui/tutorial.test.ts` covers "a sandbox game has no tutorial and no offer".
+`src/sim/game/sandbox.test.ts` covers the free and constant-money rules, the offers (any tier, replacement of a burnt board), the physics that still applies, the tools and their refusals outside a sandbox, the 64x refusal, the sandbox save field and the assembled and bare starts. `src/ui/tutorial.test.ts` covers "a sandbox game has no tutorial and no offer". The speed benchmark is not a test and is not run by `npm test`: `npm run bench:speed`.
