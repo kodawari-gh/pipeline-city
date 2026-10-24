@@ -1074,7 +1074,7 @@ export class Game {
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
       avgTurnaround: this.avgTurnaround,
       reputation: rep,
-      demandRate: demandRate(this.cfg, rep),
+      demandRate: this.demand(),
       devices: this.board.devices.map((d) => this.deviceSnap(d)),
       board: this.boardSnap(),
       power: { ...this.thermal.power },
