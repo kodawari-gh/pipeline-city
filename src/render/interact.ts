@@ -724,7 +724,7 @@ export class Interact {
     const ids = highlight.peek();
     if (!ids.length) return;
     const ph = (now % 1400) / 1400, beat = 0.5 + 0.5 * Math.sin(ph * Math.PI * 2);
-    const col = T.alu; // the same accent as the card's pointer: guidance is one colour, orange stays for warnings
+    const col = T.ld; // yellow: it stands out from the cyan UI, so nobody gets lost
     const left = cam.inset.left + 36, right = cam.w - cam.inset.right - 36, top = cam.inset.top + 36, bottom = cam.h - cam.inset.bottom - 36;
     for (const id of ids) {
       const rs = this.rectsFor(id);
@@ -733,7 +733,7 @@ export class Interact {
       for (const r of rs) {
         // one soft ring that breathes; the DOM pointer line and the card do the pointing, so there is no arrow and no second ring
         const e = 10 + 5 * beat;
-        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30 + e, { stroke: col, lw: lw * 0.8, sa: 0.3 + 0.4 * beat });
+        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30 + e, { stroke: col, lw: lw * 1.2, sa: 0.5 + 0.45 * beat });
         const cx = r.x + r.w / 2;
         const sx = cam.cx + (cx - cam.x) * z, sy = cam.cy + (r.y + r.h / 2 - cam.y) * z;
         if (sx > cam.inset.left && sx < cam.w - cam.inset.right && sy > cam.inset.top && sy < cam.h - cam.inset.bottom) anyVisible = true;

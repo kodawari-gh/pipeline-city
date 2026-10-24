@@ -445,3 +445,40 @@ export function inventoryGroups<T extends { kind: string }>(items: readonly T[])
   const kinds = [...INVENTORY_ORDER, ...new Set(items.map((it) => it.kind).filter((k) => !INVENTORY_ORDER.includes(k)))];
   return kinds.map((k) => ({ k, items: items.filter((it) => it.kind === k) })).filter((g) => g.items.length);
 }
+
+/** Identical spare parts shown as one tile with a count: the first one that can be fitted stands for the stack. */
+export interface Stack<T> { spec: string; items: T[]; rep: T }
+export function stackItems<T extends { spec: string; installable: boolean }>(items: readonly T[]): Stack<T>[] {
+  const out: Stack<T>[] = [];
+  for (const it of items) {
+    const st = out.find((x) => x.spec === it.spec);
+    if (!st) out.push({ spec: it.spec, items: [it], rep: it });
+    else {
+      st.items.push(it);
+      if (!st.rep.installable && it.installable) st.rep = it;
+    }
+  }
+  return out;
+}
+
+/** What selecting something on the PC asks the shelf for: parts for these sockets, or of these kinds. */
+export interface FitFilter { label: string; slots: string[]; kinds: string[] }
+
+const FIT_KINDS: Record<string, string[]> = { psu: ['psu'], monitor: ['display'], bay: ['storage', 'os'], os: ['os'], vrm: ['board'], board: ['board'] };
+
+/** The shelf filter for a selected world id (an empty socket, an installed device, the PSU, the monitor, the drive bay), or null. */
+export function fitFilterFor(sel: string | null, s: Snapshot | null): FitFilter | null {
+  if (!sel || !s || sel.startsWith('inv:') || sel.startsWith('key:')) return null;
+  const name = describeId(sel, s)?.title ?? sel;
+  const kinds = FIT_KINDS[sel];
+  if (kinds) return { label: name, slots: [], kinds };
+  const dev = s.devices.find((d) => d.id === sel || d.slot === sel);
+  if (dev) return { label: name, slots: [dev.slot], kinds: [] };
+  if (s.slots.some((x) => x.id === sel)) return { label: name, slots: [sel], kinds: [] };
+  return null;
+}
+
+/** Does this spare part fit what the filter asks for? */
+export function fitsFilter(f: FitFilter, it: { kind: string; freeSlots: readonly string[]; swapSlots: readonly string[] }): boolean {
+  return f.slots.some((sl) => it.freeSlots.includes(sl) || it.swapSlots.includes(sl)) || f.kinds.includes(it.kind);
+}

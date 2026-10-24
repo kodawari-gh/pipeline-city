@@ -3,11 +3,11 @@ import { selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
 import { getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
-import { describeId, inventoryGroups, KIND_LABEL } from './logic';
+import { describeId, fitFilterFor, fitsFilter, inventoryGroups, KIND_LABEL, stackItems, type Stack } from './logic';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
 import { INVENTORY_ID } from './tutorial';
-import { inventoryOpen, toggleInventory } from './state';
+import { fitTarget, inventoryKind, inventoryOpen, toggleInventory } from './state';
 import { beginPartDrag } from './worldDrag';
 
 const shortName = (name: string) => name.split(' (')[0]!;
@@ -44,8 +44,10 @@ function tierOf(specId: string): number | null {
   return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
 }
 
-/** One spare part: big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
-function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active: boolean }) {
+/** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
+function Tile({ st, pulse, active }: { st: Stack<InventorySnap>; pulse: boolean; active: boolean }) {
+  const it = st.rep;
+  const n = st.items.length;
   const why = it.installable ? undefined : it.reason ?? 'Nothing to fit it to right now';
   const plain = describeId(it.spec)?.plain ?? '';
   const tier = tierOf(it.spec);
@@ -53,9 +55,9 @@ function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active
     <div
       role="button"
       tabIndex={0}
-      data-inv={it.id}
+      data-inv={st.items.map((x) => x.id).join(' ')}
       class={`tile ${pulse ? 'pulse' : ''} ${active ? 'sel' : ''} ${why ? 'dim' : ''}`}
-      title={`${it.name}. ${plain}${why ? ` ${why}.` : ' Drag it onto a socket.'}`}
+      title={`${it.name}${n > 1 ? ` x${n}` : ''}. ${plain}${why ? ` ${why}.` : ' Drag it onto a socket.'}`}
       onPointerDown={(e) => {
         if (e.button === 0) beginPartDrag(it.id, e);
       }}
@@ -70,6 +72,7 @@ function Tile({ it, pulse, active }: { it: InventorySnap; pulse: boolean; active
       <div class="tart"><PartArt id={it.spec} size={96} /></div>
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
+      {n > 1 && <b class="tcount" aria-label={`${n} of them`}>x{n}</b>}
       {why ? <span class="tlock" aria-label={why}><Icon name="lock" size={12} /></span> : <span class="tgrab" aria-hidden="true">drag</span>}
     </div>
   );
@@ -86,11 +89,31 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const hl = new Set(highlight.value);
   const sel = selected.value;
   const n = s.inventory.length;
-  const groups = inventoryGroups(s.inventory);
+  // Selecting something on the PC narrows the shelf to what fits there; a kind chip narrows it by hand.
+  const fit = fitTarget.value ? fitFilterFor(fitTarget.value, s) : null;
+  const fitting = fit ? s.inventory.filter((it) => fitsFilter(fit, it)) : [];
+  const kind = inventoryKind.value;
+  const shown = fit && fitting.length ? fitting : kind ? s.inventory.filter((it) => it.kind === kind) : s.inventory;
+  const kinds = inventoryGroups(s.inventory).map((g) => g.k);
+  const groups = inventoryGroups(shown);
+  const label = (k: string) => (k === 'os' ? 'Software' : KIND_LABEL[k as keyof typeof KIND_LABEL] ?? k);
   return (
     <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
       <header class="inv-head">
         <span class="inv-title"><Icon name="box" size={15} /> Inventory <b>{n}</b></span>
+        {fit && fitting.length > 0 ? (
+          <span class="inv-fit">
+            <span class="chip ok" title={`Only the parts that fit ${fit.label}`}><Icon name="check" size={11} /> Fits {fit.label}</span>
+            <button class="link" onClick={() => { fitTarget.value = null; }}>Show all</button>
+          </span>
+        ) : kinds.length > 1 && (
+          <span class="inv-chips" role="group" aria-label="Filter by kind">
+            <button class={!kind ? 'on' : ''} aria-pressed={!kind} onClick={() => { inventoryKind.value = null; }}>All</button>
+            {kinds.map((k) => (
+              <button key={k} class={kind === k ? 'on' : ''} aria-pressed={kind === k} onClick={() => { inventoryKind.value = kind === k ? null : k; }}>{label(k)}</button>
+            ))}
+          </span>
+        )}
         <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
       </header>
       {n === 0 ? (
@@ -99,9 +122,11 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
         <div class="inv-groups">
           {groups.map((g) => (
             <div class="inv-group" key={g.k}>
-              <div class="inv-gname">{g.k === 'os' ? 'Software' : KIND_LABEL[g.k as keyof typeof KIND_LABEL]}</div>
+              <div class="inv-gname">{label(g.k)}</div>
               <div class="inv-tiles">
-                {g.items.map((it) => <Tile key={it.id} it={it} pulse={hl.has(`inv:${it.id}`)} active={sel === `inv:${it.id}`} />)}
+                {stackItems(g.items).map((st) => (
+                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`))} active={st.items.some((x) => sel === `inv:${x.id}`)} />
+                ))}
               </div>
             </div>
           ))}

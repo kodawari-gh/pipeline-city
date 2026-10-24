@@ -4,7 +4,7 @@ import { Icon } from './Icons';
 import { hasArt, levelBar, milestoneRows, type MilestoneRow, type MilestoneUnlock } from './levelui';
 import { fmtNum } from './logic';
 import { PartArt } from './PartArt';
-import { closeMilestones, milestones, openMilestones } from './state';
+import { closeMilestones, dismissLevelUp, levelUp, milestones, openMilestones } from './state';
 
 /**
  * The HUD level bar: level number and name, a thin progress bar to the next threshold and the client base as a fraction.
@@ -133,4 +133,41 @@ export function MilestoneScreen({ s }: { s: Snapshot }) {
   const m = milestones.value;
   if (!m) return null;
   return <MilestoneModal s={s} focus={m.focus} />;
+}
+
+/**
+ * The level-up: a modal over everything (it waits for Next, whatever else is on screen). The new level swells in with rings
+ * going out from it, then what the level unlocks pops in one item after the other. Enter or Space also presses Next.
+ */
+export function LevelUpModal() {
+  const up = levelUp.value;
+  const next = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (up) next.current?.focus(); }, [up?.level]);
+  if (!up) return null;
+  return (
+    <div class="modal-back lvlmodal">
+      <div class="card modal lvl-card" role="dialog" aria-modal="true" aria-label={`Level ${up.level}: ${up.name}`}>
+        <div class="lvl-hero" aria-hidden="true">
+          <i class="ring r1" /><i class="ring r2" /><i class="ring r3" />
+          <span class="lvl-big">{up.level}</span>
+        </div>
+        <div class="eyebrow mute lvl-eyebrow">Level up</div>
+        <div class="lvl-name-big">{up.name}</div>
+        {up.unlocked.length > 0 && (
+          <>
+            <div class="eyebrow mute lvl-unl">Now unlocked</div>
+            <div class="lvl-unlocks">
+              {up.unlocked.map((u, i) => (
+                <span class="lvl-pop" key={u.id} style={{ animationDelay: `${0.7 + i * 0.12}s` }}><UnlockChip u={u} /></span>
+              ))}
+            </div>
+          </>
+        )}
+        <div class="pactions lvl-actions">
+          <button class="link" onClick={() => { openMilestones(up.level); dismissLevelUp(); }}>All levels</button>
+          <button class="primary" ref={next} onClick={dismissLevelUp}>Next</button>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -339,7 +339,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 /* While the picker popup is open it is the thing to read: the tutorial card and pointer step aside. */
 #hud:has(.picker) .tut { opacity: 0; pointer-events: none; }
 #hud:has(.picker) .pointer { opacity: 0 !important; }
-.tut { transition: height .3s ease, transform .35s cubic-bezier(.2, .8, .2, 1), opacity .2s ease; }
+.tut { transition: height .3s ease, opacity .2s ease; }
+/* The current mission: a compact card pinned top left under the bar, not a banner over the board. */
+.tut { position: fixed; left: 0.533rem; top: 3.7rem; width: 19.5rem; z-index: 26; box-sizing: border-box; }
 .tut-in, .tut-out { padding: 0.7rem 0.95rem 0.8rem; }
 .tut-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: tut-out .3s ease both; background: transparent; }
 .tut-text { animation: tut-in .35s ease both; }
@@ -573,7 +575,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
-  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-bar i { transition: none !important; animation: none !important; }
+  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }
@@ -596,3 +598,29 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tbar { flex: 1; height: 0.35rem; border-radius: 99rem; background: var(--dot); overflow: hidden; }
 .tbar i { display: block; height: 100%; background: var(--accent); border-radius: 99rem; transition: width .4s; }
 .pline.wait { color: var(--mute); }
+
+/* Level-up modal: above every other panel, the level swells in with rings, the unlocks pop in one by one. */
+.lvlmodal { z-index: 80; background: rgba(2, 6, 18, .62); }
+.lvl-card { width: min(100%, 30rem); align-items: center; text-align: center; padding: 1.4rem 1.5rem 1.2rem; animation: lvl-card-in .55s cubic-bezier(.2, 1.2, .3, 1) both; border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.lvl-hero { position: relative; display: grid; place-items: center; width: 7rem; height: 7rem; }
+.lvl-big { display: grid; place-items: center; width: 4.6rem; height: 4.6rem; border-radius: 50%; background: var(--accent); color: var(--on); font: 800 2.4rem var(--mono); animation: lvl-big-in .7s cubic-bezier(.2, 1.4, .3, 1) .15s both; }
+.lvl-hero .ring { position: absolute; inset: 1.2rem; border-radius: 50%; border: 1px solid var(--accent); opacity: 0; animation: lvl-ring 1.6s ease-out infinite; }
+.lvl-hero .r2 { animation-delay: .5s; }
+.lvl-hero .r3 { animation-delay: 1s; }
+.lvl-eyebrow { margin-top: 0.3rem; }
+.lvl-name-big { font-size: 1.5rem; font-weight: 700; animation: fade-in .5s ease .45s both; }
+.lvl-unl { margin-top: 0.8rem; animation: fade-in .4s ease .65s both; }
+.lvl-unlocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; max-width: 100%; }
+.lvl-pop { animation: lvl-pop .45s cubic-bezier(.2, 1.3, .3, 1) both; }
+.lvl-actions { width: 100%; justify-content: space-between !important; align-items: center; margin-top: 1rem !important; }
+.lvl-actions .primary { min-width: 6rem; font-size: 0.95rem !important; }
+@keyframes lvl-card-in { from { opacity: 0; transform: translateY(1.5rem) scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes lvl-big-in { from { opacity: 0; transform: scale(.2) rotate(-25deg); } to { opacity: 1; transform: none; } }
+@keyframes lvl-ring { 0% { opacity: .8; transform: scale(.8); } 100% { opacity: 0; transform: scale(2.1); } }
+@keyframes lvl-pop { from { opacity: 0; transform: translateY(0.8rem) scale(.6); } to { opacity: 1; transform: none; } }
+
+/* Inventory: stack count, kind filter chips, the "fits" chip */
+.tile .tcount { position: absolute; top: 0.4rem; left: 0.4rem; font: 700 0.7rem var(--mono); padding: 0 0.35rem; border-radius: 99rem; background: var(--accent); color: var(--on); line-height: 1.05rem; }
+.inv-chips, .inv-fit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-width: 0; }
+.inv-chips button { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 99rem; }
+.inv-fit .link { font-size: 0.75rem; }

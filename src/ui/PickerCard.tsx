@@ -455,7 +455,7 @@ export function PickerCard() {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const inset = viewInset.peek();
       const vw = window.innerWidth, vh = window.innerHeight;
-      const tile = id.startsWith('inv:') ? document.querySelector(`[data-inv="${CSS.escape(id.slice(4))}"]`) : null;
+      const tile = id.startsWith('inv:') ? document.querySelector(`[data-inv~="${CSS.escape(id.slice(4))}"]`) : null;
       let free: Rect = { x: inset.left, y: inset.top, w: vw - inset.left - inset.right, h: vh - inset.top - inset.bottom };
       let anchor: Rect | null = null;
       let order: Side[] | undefined;

@@ -16,7 +16,7 @@ import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
 import { SandboxTools } from './SandboxTools';
-import { LevelBar, MilestoneScreen } from './Levels';
+import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
 import { TutorialCard } from './TutorialCard';
 import {
   netOpen, openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
@@ -78,14 +78,6 @@ function InsetReporter() {
         } else next.bottom = Math.max(next.bottom, Math.ceil(H - r.top + gap));
       }
       if (!invSeen) invKept = null;
-      // The tutorial card reserves its place above the shelf while a step is active, so the overview frames the board
-      // above it. Its layout box is used (offsetTop, not the drawn rect), so its lift never moves the camera.
-      const tut = document.querySelector<HTMLElement>('.tut');
-      const stack = tut?.offsetParent as HTMLElement | null | undefined;
-      if (tut && stack && tut.offsetHeight > 0) {
-        const cardTop = stack.getBoundingClientRect().top + tut.offsetTop;
-        next.bottom = Math.max(next.bottom, Math.ceil(H - cardTop + gap));
-      }
       const cur = viewInset.peek();
       if (cur.top !== next.top || cur.right !== next.right || cur.bottom !== next.bottom || cur.left !== next.left) viewInset.value = next;
     };
@@ -223,6 +215,7 @@ export function Hud() {
       )}
       <NetDock />
       <Tooltip />
+      <LevelUpModal />
       <div class="stack">
         <Notice />
         <Toasts />

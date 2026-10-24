@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
-  queueReadout, statusChip, stallsByCause, tempLevel, triggeredHints,
+  fitFilterFor, fitsFilter, queueReadout, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
 } from './logic';
 import { inventoryGroups } from './logic';
 import { REGIONS } from './regions';
@@ -232,5 +232,40 @@ describe('inventoryGroups', () => {
   it('never drops an item of an unknown kind', () => {
     const items = [{ kind: 'cpu' }, { kind: 'mystery' }];
     expect(inventoryGroups(items).flatMap((g) => g.items)).toHaveLength(2);
+  });
+});
+
+describe('inventory stacks and the fit filter', () => {
+  const item = (id: string, spec: string, kind: string, free: string[] = [], swap: string[] = []) =>
+    ({ id, spec, kind, name: spec, freeSlots: free, swapSlots: swap, installable: free.length + swap.length > 0 });
+
+  it('identical spares become one stack; the fittable one stands for it, the order is kept', () => {
+    const items = [item('a', 'ram0', 'ram'), item('b', 'cpu1', 'cpu', ['cpu0']), item('c', 'ram0', 'ram', ['dimm0']), item('d', 'ram0', 'ram')];
+    const st = stackItems(items);
+    expect(st.map((x) => [x.spec, x.items.length])).toEqual([['ram0', 3], ['cpu1', 1]]);
+    expect(st[0]!.rep.id).toBe('c');
+    expect(st[1]!.rep.id).toBe('b');
+  });
+
+  it('selecting a socket, a device, the PSU, the monitor or the drive bay asks for what fits there', () => {
+    const s = snap({ devices: [dev({ id: 'dev1', kind: 'cpu', spec: 'cpu0', slot: 'cpu0' })] });
+    expect(fitFilterFor('cpu0', s)).toMatchObject({ slots: ['cpu0'] });
+    expect(fitFilterFor('dev1', s)).toMatchObject({ slots: ['cpu0'] });
+    expect(fitFilterFor('psu', s)).toMatchObject({ kinds: ['psu'] });
+    expect(fitFilterFor('monitor', s)).toMatchObject({ kinds: ['display'] });
+    expect(fitFilterFor('bay', s)).toMatchObject({ kinds: ['storage', 'os'] });
+    expect(fitFilterFor('inv:inv1', s)).toBeNull();
+    expect(fitFilterFor('key:3', s)).toBeNull();
+    expect(fitFilterFor('nonsense', s)).toBeNull();
+    expect(fitFilterFor(null, s)).toBeNull();
+  });
+
+  it('a part fits when its free or swap sockets include the filter socket, or its kind is asked for', () => {
+    const f = { label: 'x', slots: ['cpu0'], kinds: [] as string[] };
+    expect(fitsFilter(f, item('a', 'cpu1', 'cpu', ['cpu0']))).toBe(true);
+    expect(fitsFilter(f, item('b', 'cpu1', 'cpu', [], ['cpu0']))).toBe(true);
+    expect(fitsFilter(f, item('c', 'ram1', 'ram', ['dimm0']))).toBe(false);
+    expect(fitsFilter({ label: 'bay', slots: [], kinds: ['storage', 'os'] }, item('d', 'hdd0', 'storage'))).toBe(true);
+    expect(fitsFilter({ label: 'bay', slots: [], kinds: ['storage', 'os'] }, item('e', 'cpu1', 'cpu'))).toBe(false);
   });
 });

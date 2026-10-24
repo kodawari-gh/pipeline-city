@@ -3,10 +3,11 @@
 // from the snapshot's `progress` flags, so it survives a save/load; localStorage only remembers skip/finish/replay.
 
 import { effect, signal } from '@preact/signals';
+import { selected } from '../game/hover';
 import { snapshot, speed } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
-import { canShowBanner, celebrationFor, reconcileSeen, type Celebration } from './levelui';
-import { fillToasts, newHints, totalStalls, type Hint } from './logic';
+import { celebrationFor, reconcileSeen, type Celebration } from './levelui';
+import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from './tutorial';
 
 const THEME_KEY = 'pipeline-city.theme';
@@ -75,6 +76,23 @@ export const closeMilestones = () => { milestones.value = null; };
 
 export const inventoryOpen = signal(false);
 export const toggleInventory = () => { inventoryOpen.value = !inventoryOpen.value; };
+/** Shelf filter by kind (null = all). */
+export const inventoryKind = signal<string | null>(null);
+/**
+ * The world id whose fitting parts the shelf is showing (set by selecting something on the PC, kept while a tile is picked,
+ * cleared by "Show all" or by selecting something that has no fitting parts to offer).
+ */
+export const fitTarget = signal<string | null>(null);
+
+effect(() => {
+  const sel = selected.value;
+  if (!sel || sel.startsWith('inv:')) { if (!sel) fitTarget.value = null; return; }
+  const s = snapshot.peek();
+  const f = fitFilterFor(sel, s);
+  const any = !!f && !!s && s.inventory.some((it) => fitsFilter(f, it));
+  fitTarget.value = any ? sel : null;
+  if (any) { inventoryOpen.value = true; inventoryKind.value = null; }
+});
 
 // ---- guided tutorial (per viewer) ----
 
@@ -149,7 +167,7 @@ effect(() => {
   for (const h of newHints(s, seen)) showHint(h);
 });
 
-// ---- level-up banner (per viewer; a short non-blocking toast, see levelui.ts) ----
+// ---- level-up (per viewer; a modal over everything that waits for the player to press Next, see Levels.tsx) ----
 
 const SEEN_KEY = 'pipeline-city.seenLevel';
 function loadSeen_(): number | null {
@@ -158,28 +176,21 @@ function loadSeen_(): number | null {
 }
 let seenLevel: number | null = loadSeen_();
 export const levelUp = signal<Celebration | null>(null);
-let levelUpTimer: ReturnType<typeof setTimeout> | undefined;
-const BANNER_MS = 9000;
-
 export function dismissLevelUp() {
-  clearTimeout(levelUpTimer);
   levelUp.value = null;
 }
 
 effect(() => {
   const s = snapshot.value;
-  const visible = toasts.value.length;
-  const step = s ? currentStep(s, tutorial.value) : null;
   if (!s) { dismissLevelUp(); return; }
   const owed = celebrationFor(s, seenLevel);
-  if (owed && !levelUp.peek() && canShowBanner(visible, !!step)) {
+  if (owed && !levelUp.peek()) {
     levelUp.value = owed;
-    levelUpTimer = setTimeout(dismissLevelUp, BANNER_MS);
     seenLevel = owed.level;
     writeStore(SEEN_KEY, String(seenLevel));
     return;
   }
-  // Waiting behind a tutorial step or two toasts: keep what is owed. Otherwise follow the level (a load, a new game).
+  // Otherwise follow the level (a load, a new game).
   if (!owed) {
     const next = reconcileSeen(s, seenLevel);
     if (next !== seenLevel) { seenLevel = next; writeStore(SEEN_KEY, String(next)); }

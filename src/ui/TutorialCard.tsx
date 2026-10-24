@@ -8,7 +8,7 @@ import {
 } from './state';
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { anchorOf, flyTo, hasTarget } from './anchor';
-import { comfortablyVisible, liftAbove, type Rect } from './place';
+import { comfortablyVisible, type Rect } from './place';
 
 /** The reason behind a step, shown only when asked for. Keyed by step, so it closes itself on the next one. */
 function Why({ text }: { text: string | undefined }) {
@@ -51,7 +51,7 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null } 
   }
   for (const t of targets) {
     if (!t.startsWith('inv:')) continue;
-    const r = domRect(document.querySelector(`[data-inv="${CSS.escape(t.slice(4))}"]`));
+    const r = domRect(document.querySelector(`[data-inv~="${CSS.escape(t.slice(4))}"]`));
     if (r) return { rect: r, world: null };
   }
   if (targets.includes('inventory') || targets.some((t) => t.startsWith('inv:'))) {
@@ -92,7 +92,7 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
     return () => clearTimeout(t);
   }, [active, key]);
 
-  // The pointer, the card lift and the "Show me" flag follow the camera every frame while a step is active.
+  // The pointer and the "Show me" flag follow the camera every frame while a step is active.
   useEffect(() => {
     if (!active) return;
     let raf = 0, last = performance.now();
@@ -104,19 +104,6 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
       const card = cardRef.current, svg = svgRef.current;
       const tg = resolveTarget(targetsRef.current);
       const cardRect = domRect(card);
-      // Card lift: out of the way of the target (it is in the bottom stack, so a lift is a negative shift).
-      if (card && cardRect) {
-        // The rect includes the running transform transition: subtract the transform as drawn, not the target one.
-        const drawn = new DOMMatrix(getComputedStyle(card).transform).m42;
-        const natural: Rect = { ...cardRect, y: cardRect.y - drawn };
-        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-        // Every visible target counts (the card must not cover the cable end or the supply it comes from).
-        const rects = targetsRef.current.filter(isWorldId).map((t) => anchorOf(t)).filter((a) => a && a.visible) as Rect[];
-        if (tg && !rects.length) rects.push(tg.rect);
-        const lifts = rects.map((r) => liftAbove(natural, r, rem * 0.8, viewInset.peek().top + rem * 0.5));
-        const want = Math.min(0, ...lifts) || Math.max(0, ...lifts);
-        if (Math.abs(want - st.lift) > 0.5) { st.lift = want; card.style.transform = `translateY(${want}px)`; }
-      }
       if (svg) {
         const line = svg.querySelector('.ptr-line') as SVGLineElement;
         const dot = svg.querySelector('.ptr-dot') as SVGCircleElement;

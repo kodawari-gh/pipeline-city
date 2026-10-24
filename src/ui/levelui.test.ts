@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../sim/game/game';
 import { levelRows } from '../sim/game/levels';
-import { canShowBanner, cannotRunText, celebrationFor, DECLINE_ARM_MS, deadlineInfo, declineStep, declineWords, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, needChips, postBreakdown, reconcileSeen, toastRoom, unlockedFirst } from './levelui';
+import { cannotRunText, celebrationFor, DECLINE_ARM_MS, deadlineInfo, declineStep, declineWords, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, needChips, postBreakdown, reconcileSeen, unlockedFirst } from './levelui';
 import { osSection, pickerFor } from './picker';
 import { boardCards } from './vrm';
 import { dev, key, snap } from './testdata';
@@ -172,14 +172,6 @@ describe('level-up celebration', () => {
 
   it('never in the sandbox', () => {
     expect(celebrationFor(at({ sandbox: true, level: 6, leveledUpAt: 10 }), 1)).toBeNull();
-  });
-
-  it('waits behind a tutorial step and a hint toast (one bubble at a time), and hints wait behind it', () => {
-    expect(canShowBanner(0, false)).toBe(true);
-    expect(canShowBanner(1, false)).toBe(false);
-    expect(canShowBanner(0, true)).toBe(false);
-    expect(toastRoom(true)).toBe(0);
-    expect(toastRoom(false)).toBe(1);
   });
 });
 
