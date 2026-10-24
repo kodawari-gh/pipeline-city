@@ -37,6 +37,21 @@ Measured with the bots (placeholders, plus or minus 40 percent):
 | Level 3 to 4 (38 points) | cpu2 + NVMe + OS: 810 to 1,010 s; cpu1 + SATA SSD + OS: 2,440 to 2,870 s; cpu1 + HDD + OS: not reached in 4,000 s (the `db` jobs are unrunnable on an HDD and their expiries hold the reputation at the floor, about 0.35 points per job) |
 | OS versus manual (rig, 3,000 s, reputation after tick 600) | level 3: 0.92 vs 0.67; level 5: 0.89 vs 0.66; level 7: 0.80 vs 0.59; the OS side also serves 40 to 60 percent more jobs |
 
+### Re-check after the CPI drop (T34, 2026-10-24)
+
+CPI fell from about 1.3 to 0.9, so jobs finish about 1.4x faster at the same clock. Re-run with the bots, seed 7, no balance number changed (times in seconds of game time; plus or minus 40 percent):
+
+| What | Before | Now |
+|---|---|---|
+| Level 2, tutorial bot | about 430 | 354 |
+| Level 3, tutorial bot (`cpu1`, `ram1`, then serves) | 1,140 | 1,141 |
+| Level 4, tutorial bot (OS, HDD; the lesson's `reachLevel4` wait) | not reached in 4,000 s on cpu1 + HDD in the older measurement | 1,807 |
+| Level 2 / 3 / 4, Operator bot (reaction 0, buys `cpu1` and `ram1`, no OS) | level 3 about 1,540 (reaction 2) | 362 / 1,267 / 1,481 |
+| Level 2 / 3 / 4, Operator bot (reaction 2, same buys) | | 394 / 1,470 / 1,702 |
+| First job, Operator bot (reaction 0 / 2) | 132 (reaction 2) | 81 / 89 |
+
+Reading: only level 2 and the first job speed up. Level 3 on the tutorial bot is unchanged (1,141 vs 1,140): from level 2 on, client base is limited by job arrivals (`0.02 x demandMul x reputation` per second) and the manual loop's plug and power steps, not by run time, so a faster CPU barely moves it. The Operator bot with reaction 2 improves about 5 percent at level 3. Level 4 is now reached by every bot within 1,500 to 1,800 s (about 25 to 30 minutes, near the table's 35); the ladder's level 3 time (about 19 minutes) still matches. No threshold needs changing for this; level 4 to 5 stays with T35 (balance pass).
+
 Readings for the balance pass: the early game is throttled by the manual loop and the demand (`0.02 x demandMul` jobs per second), not by money (the tutorial bot ends with more than $2,000 unspent); a weak OS machine at level 3 and 4 is far slower than the table, so the table's 35 minutes to level 4 needs a strong machine or lower thresholds from level 4 on.
 
 ## Why this exists
