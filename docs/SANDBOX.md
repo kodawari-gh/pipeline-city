@@ -19,7 +19,8 @@ In code: `startSim(null, { sandbox: true, preassembled: assembled })`, which bec
 - **Prices are free.** `cost()` returns 0 in a sandbox, the picker reads "free" instead of a price, and nothing is unaffordable.
 - **Every implemented part can be bought**, at any tier, not only the next one. `sandboxOffers` lists every spec of the buyable kinds (CPU, RAM, cooler, PSU, VRM heatsink), including the ones you already have (a swap). Storage drives (`hdd0`, `ssd1`, `nvme2`) and the OS tiers that are not "later" (`os1`) are listed as well, and can be bought more than once; the slots still limit them.
 - **Any motherboard tier directly**: every tier above the installed one, and the same tier as a replacement when the board is burnt (`sandboxOffers`). A board purchase still needs the machine powered off.
-- **Nothing else changes in the game rules**: the reputation, demand, keys and patience schedule run as in a campaign.
+- **Levels are ignored for unlocks** (docs/PROGRESSION.md): nothing is locked, there is no client base (`clientBase` stays 0) and no level-up. The rules (patience, payout, demand and the arrival mix) use a **pinned rules level**, 8 by default, set with the `setLevel` tool (1 to 18). `snapshot.level.sandbox` is true and `level.level` is the pinned level.
+- **Nothing else changes in the game rules**: the reputation, demand, keys and expiry run as in a campaign. Jobs the machine cannot run (`web`, `gpu`, ... have no device yet) still arrive and expire; declining is free (the job leaves and `declined` counts, no reputation cost).
 
 ## What the physics still enforces
 
@@ -43,12 +44,13 @@ Shown as the **SANDBOX** chip in the HUD bar. Each is a `ToSim` message and a `G
 
 | Tool | What it does |
 |---|---|
-| `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray. Refused when the tray is full. |
+| `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray, or a job class id (`db`, `web`, `secure`, `gpu`, `npu`, `hpc`: the class sets template and scale and carries its needs, so it may be unrunnable). Refused when the tray is full. |
+| `setLevel(level)` | Pins the rules level (patience, payout, demand, arrival mix) at 1 to 18; refused in a campaign (`sandbox mode only`). |
 | `clearQueue()` | Throws away every key in the tray. The plugged key and the keys the OS holds stay. |
 | `repairAll()` | Un-burns every part and the board, cools everything to ambient, clears a PSU trip. Works powered or not. |
 | `setReputation(value)` | Sets reputation within the economy's range (0.4 to 4). The turnaround average is set to match, and it moves as usual afterwards. |
 
-The store actions are `spawnKey`, `clearQueue`, `repairAll` and `setReputation` in `src/game/store.ts`.
+The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation` and `setLevel` in `src/game/store.ts`.
 
 ## Speed
 

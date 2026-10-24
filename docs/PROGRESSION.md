@@ -1,6 +1,6 @@
 # Progression: client base, levels, unlocks, patience
 
-Status: **design, not built.** Built after this, before the network phase ([`NETWORK.md`](NETWORK.md)). All numbers are placeholders to be tuned by playing, but every one below is derived from the real numbers in `src/sim/game/economy.ts` and `src/sim/board/specs.ts` as of this writing (quoted where used). Owner decisions are marked **(owner)**.
+Status: **built in the sim** (build step a and c of the order below; the UI, step b, is not). The network phase ([`NETWORK.md`](NETWORK.md)) comes after. See "Built" right below for what differs from this design. All numbers are placeholders to be tuned by playing, but every one below is derived from the real numbers in `src/sim/game/economy.ts` and `src/sim/board/specs.ts` as of this writing (quoted where used). Owner decisions are marked **(owner)**.
 
 ## Decisions (2026-10-24)
 
@@ -12,6 +12,31 @@ Owner decisions. They override the drafts below where they conflict.
 4. **Power loss:** everything in RAM is lost; jobs written to the drive survive, so the OS spools each job to disk when its transfer completes ([`NETWORK.md`](NETWORK.md) "Power loss" and "Spool").
 5. Every other open question is decided as proposed (marked "decided: default accepted" at the end). Only the genuinely open items remain, listed last.
 6. **Build order:** (a) level system, job needs, expiry and decline in the sim; (b) UI for levels (milestone screen, locked tiles, HUD bar, level-up); (c) POST-time function; (d) network sim; (e) network render and UI; (f) CPU tier wiring (inorder2, ooo).
+
+## Built (sim, 2026-10-24): deviations and measurements
+
+Code: `src/sim/game/levels.ts` (all level, class, mix and unlock data), `economy.ts` (`postTicks`, `payout`, `demandRate`), `game.ts` (score, gating, expiry, decline), `save.ts`. Behaviour is in [`GAME.md`](GAME.md) "Levels". Differences from the design above:
+
+- **Level 3 threshold is 12, not 17.** The bot measured about 0.0106 client-base points per second early (the model assumed 0.014): a manual-loop machine serves one job per 50 to 100 s at a reputation of 0.5 to 1, so a point is about 0.6 to 1 per job. At 17 the tutorial bot (which buys `cpu1` and `ram1` and serves) needed 1,440 s of waiting after its first purchase; at 12 it needs 592 s, inside the tutorial's 10 minute limit, and level 3 lands at about 19 minutes, which is what the table's "20 min" estimate says. Every other threshold is as designed and still unmeasured.
+- **Install is not gated.** An inventory item was bought, so it passed the gate; `install` only enforces hardware. The refusal text is `needs Level 5 (Storefront)` (as the design), checked before money and hardware in `purchase`.
+- **Points use the reputation after the delivery is counted** (the EMA includes the job just delivered).
+- **`db` is a placeholder template** (a scale-3 checksum with payMul 2); needs an OS and a SATA SSD or better. `web`, `secure`, `gpu`, `npu` and `hpc` borrow `cli.calc` / `cli.checksum` / `cli.scan` and can never run until their devices exist. They arrive per the mix table from their first level (`web` at 4 even though no plan can be bought yet: when the network ships, its share must also wait for a bought plan, as written under "Job types"). On a machine without those devices, a quarter to a third of arrivals at levels 5 to 9 are therefore unrunnable and expire: reputation sits lower than the design's estimates assumed.
+- **`trayKeyIds()` lists only runnable keys** (bots must not stall on a job they cannot plug). `plugKey` refuses an unrunnable key; the refusal is the "refused at ingest" with an OS.
+- **`declineJob(id)` takes a key id** (an OS queue row is a key) until the network offers exist.
+- **`EconomyConfig.patience` and the tick schedule are gone**, `patienceMul(level)` is in `levels.ts`; `EconomyConfig.mix` survives only as a test override; `levelGating` (default true) lets hardware tests buy everything; `coldBootTicks` is an optional override of the new `coldBoot` function. `Snapshot.level.recentlyUnlocked` lists what the latest level-up opened; `Snapshot.level.sandbox` marks the pinned sandbox level.
+- Sandbox `spawnKey` also takes a job class id; `setLevel` is the new tool (see [`SANDBOX.md`](SANDBOX.md)).
+
+Measured with the bots (placeholders, plus or minus 40 percent):
+
+| What | Result |
+|---|---|
+| First job, tutorial bot (build to first payout) | 83 s; Operator bot with 2 s reaction: 132 s |
+| Level 2 | about 430 s |
+| Level 3 | tutorial bot (`cpu1` first, then `ram1`) 1,140 s (19 min); Operator bot buying `cpu1`, `ram1`: 1,540 s |
+| Level 3 to 4 (38 points) | cpu2 + NVMe + OS: 810 to 1,010 s; cpu1 + SATA SSD + OS: 2,440 to 2,870 s; cpu1 + HDD + OS: not reached in 4,000 s (the `db` jobs are unrunnable on an HDD and their expiries hold the reputation at the floor, about 0.35 points per job) |
+| OS versus manual (rig, 3,000 s, reputation after tick 600) | level 3: 0.92 vs 0.67; level 5: 0.89 vs 0.66; level 7: 0.80 vs 0.59; the OS side also serves 40 to 60 percent more jobs |
+
+Readings for the balance pass: the early game is throttled by the manual loop and the demand (`0.02 x demandMul` jobs per second), not by money (the tutorial bot ends with more than $2,000 unspent); a weak OS machine at level 3 and 4 is far slower than the table, so the table's 35 minutes to level 4 needs a strong machine or lower thresholds from level 4 on.
 
 ## Why this exists
 
@@ -48,8 +73,8 @@ Time estimate: for a competent player at 1x (the bots in `patience.test.ts` and 
 |---|---|---|---|---|
 | 1 | Garage Bench | 0 | | 0 |
 | 2 | Hobby Shop | 4 | 4 | 5 min |
-| 3 | Local Gigs | 17 | 13 | 20 min |
-| 4 | Small Office | 38 | 21 | 35 min |
+| 3 | Local Gigs | 12 (was 17, see Built) | 8 | 20 min |
+| 4 | Small Office | 38 | 26 | 35 min |
 | 5 | Storefront | 70 | 32 | 55 min |
 | 6 | Neighbourhood | 110 | 40 | 80 min |
 | 7 | District | 155 | 45 | 100 min |
