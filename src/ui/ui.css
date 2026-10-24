@@ -267,6 +267,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   transition: height .3s ease, transform .35s cubic-bezier(.2, .8, .2, 1);
 }
+/* While the picker popup is open it is the thing to read: the tutorial card and pointer step aside. */
+#hud:has(.picker) .tut { opacity: 0; pointer-events: none; }
+#hud:has(.picker) .pointer { opacity: 0 !important; }
+.tut { transition: height .3s ease, transform .35s cubic-bezier(.2, .8, .2, 1), opacity .2s ease; }
 .tut-in, .tut-out { padding: 0.7rem 0.95rem 0.8rem; }
 .tut-out { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; animation: tut-out .3s ease both; background: transparent; }
 .tut-text { animation: tut-in .35s ease both; }
