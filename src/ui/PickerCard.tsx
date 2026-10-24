@@ -8,7 +8,7 @@ import type { Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { describeId, fmtClock, fmtMoney } from './logic';
 import {
-  boardId, clockZones, compareRows, estTempC, installedCooler, osSection, pickerFor, zoneOf,
+  boardId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, osSection, pickerFor, zoneOf,
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import {
@@ -84,6 +84,22 @@ function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
       ))}
     </div>
   );
+}
+
+/** The next tier up under the bars: its name and what it costs (or where it is), so a higher tier is never "nothing". */
+function NextLine({ step }: { step: LadderStep }) {
+  const cost = step.free ? 'free' : step.price !== undefined ? fmtMoney(step.price) : null;
+  const detail = (() => {
+    switch (step.state) {
+      case 'crate': return 'a spare in your inventory: drag it onto its socket';
+      case 'ready': return `${cost}, buy it above`;
+      case 'poor': return `${cost}. ${step.reason ?? ''}`.trim();
+      case 'blocked': return `${cost ? `${cost}, ` : ''}${step.reason ?? 'blocked for now'}`;
+      case 'locked': return step.reason ?? 'not available yet';
+      default: return '';
+    }
+  })();
+  return <div class="sub next-line">Next tier: {shortName(step.name)}, {detail}</div>;
 }
 
 const ZONE_WORD: Record<ZoneName, string> = { safe: 'Safe', throttle: 'Throttle', unstable: 'Unstable' };
@@ -308,7 +324,9 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   // The option the bars compare against: the picked rung, else the selected part, else the first upgrade on offer.
   const [picked, setPicked] = useState<string | null>(null);
   const firstOffer = m.ladder.find((r) => r.state === 'crate' || r.state === 'ready' || r.state === 'poor' || r.state === 'blocked')?.specId ?? null;
-  const option = picked ?? m.focus ?? firstOffer;
+  // With nothing on offer the bars still compare with the next tier up (locked or not), so its cost and delta show.
+  const next = nextUpgrade(m.ladder);
+  const option = picked ?? m.focus ?? firstOffer ?? next?.specId ?? null;
   // Operating systems have their own stats (programs, queue), so they are not compared with hardware bars.
   const rows = option && m.kind !== 'key' && m.kind !== 'info' && !getOsSpec(option) ? compareRows(m.kind, m.current, option) : [];
   const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.focus);
@@ -377,6 +395,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
             ))}
           </div>
           {option && m.current !== option && <Compare rows={rows} option={option} />}
+          {next && <NextLine step={next} />}
         </section>
       )}
       {m.emptyText && <div class="sub">{m.emptyText}</div>}

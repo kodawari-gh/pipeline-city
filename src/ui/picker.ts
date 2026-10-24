@@ -394,6 +394,19 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
   return out;
 }
 
+/**
+ * The next tier up from the fitted part: the lowest-tier rung above the installed tier that is not the installed one
+ * (a spare, a buy, a poor or blocked rung, or a later tier). Undefined when the fitted part is the top tier.
+ * With nothing fitted (an empty socket) every rung is "up".
+ */
+export function nextUpgrade(ladder: LadderStep[]): LadderStep | undefined {
+  const fitted = ladder.find((r) => r.state === 'installed');
+  const fittedTier = fitted ? fitted.tier : -1;
+  return ladder
+    .filter((r) => r.state !== 'installed' && r.tier > fittedTier)
+    .sort((a, b) => a.tier - b.tier)[0];
+}
+
 /** Plain lines about a key: what it is, how late, what it pays. */
 export function keyLines(k: KeySnap, now: number): PickerLine[] {
   const left = k.deadlineTick - now;
@@ -587,7 +600,8 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       focus: invItem ? invItem.spec : !slot && !dev && (getSpec(id) || getOsSpec(id)) ? id : null,
       device: emptySocket ? undefined : dev,
       clock: kind === 'cpu' && !!s.cpuClock && !!dev && !dev.burnt,
-      emptyText: ladder.some((r) => r.state === 'ready' || r.state === 'poor' || r.state === 'blocked') ? undefined : 'Nothing better to buy right now.',
+      // Only when the fitted part is the top tier: any higher tier (spare, buyable, blocked or later) gets its own line.
+      emptyText: nextUpgrade(ladder) ? undefined : 'Nothing better to buy right now.',
     };
   }
 
