@@ -463,8 +463,16 @@ describe('step targets (what the renderer pulses)', () => {
     expect(targets([])).toEqual([]);
   });
 
-  it('the key step pulses the USB port and the key', () => {
-    expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap({ tray: [key({ id: 9 })] }))).toEqual(['usb', 'key:9']);
+  it('the key steps light the key until it is picked up, then only the port it goes into', () => {
+    const grab = { kind: 'key' as const, id: 'key:9' };
+    const withKey = snap({ tray: [key({ id: 9 })] });
+    for (const id of ['plugKey', 'cycle', 'osIngest'] as const) {
+      const step = STEPS.find((x) => x.id === id)!;
+      expect(step.targets(withKey), `${id} before the grab`).toEqual(['key:9']);
+      expect(step.targets(withKey, grab), `${id} while dragging`).toEqual(['usb']);
+    }
+    // No key yet: the tray is what to watch; nothing else is lit.
+    expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap())).toEqual(['tray']);
   });
 
   it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {

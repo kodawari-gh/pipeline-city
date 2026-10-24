@@ -203,7 +203,8 @@ export function TutorialCard() {
   const s = snapshot.value;
   const st = tutorial.value;
   const step = s ? currentStep(s, st) : null;
-  const targets = step && s ? step.targets(s) : [];
+  const drag = dragging.value;
+  const targets = step && s ? step.targets(s, drag) : [];
   const key = targets.join('|');
   const offer = !!s && !step && offerNextLesson(s, st);
   const modal = offer || step?.id === 'welcome';

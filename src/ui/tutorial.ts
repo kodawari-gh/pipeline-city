@@ -11,6 +11,7 @@
 
 import { getSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
+import type { Dragging } from '../game/interaction';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
 import { fmtMoney } from './logic';
@@ -50,8 +51,8 @@ export interface StepDef {
   flag: keyof Progress | null;
   /** Live completion test for steps without a flag (see `isDone`). */
   done?: (s: Snapshot, p: Progress) => boolean;
-  /** World ids to pulse (renderer highlight). */
-  targets: (s: Snapshot) => string[];
+  /** World ids to pulse (renderer highlight). `drag` is what the player is dragging right now (a key: light the port instead). */
+  targets: (s: Snapshot, drag?: Dragging | null) => string[];
   /** A waiting step shows a meter (the level bar's progress) instead of leaving the player wondering how long it takes. */
   meter?: (s: Snapshot) => { pct: number; label: string };
 }
@@ -88,6 +89,12 @@ const whenAffordable = (id: string | ((s: Snapshot) => string | null), targets: 
   return p && !p.affordable ? [] : targets(s);
 };
 const BROKE = ' Short on cash? Keep delivering jobs: the tile glows once you can afford it.';
+/**
+ * Plugging a key: light the key until the player takes hold of it (a click plugs it by itself), then only the port it goes
+ * into. Never both at once: that reads as two things to do.
+ */
+const plugTarget = (s: Snapshot, drag: Dragging | null | undefined, key: Snapshot['tray'][number] | undefined): string[] =>
+  drag?.kind === 'key' ? ['usb'] : key ? [`key:${key.id}`] : s.plugged ? [] : ['tray'];
 const SWAP_WAIT = 'Waiting for the running job to finish: your part swaps in by itself.';
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
 /** Inventory items of a kind plus the free slots they fit. */
@@ -159,13 +166,13 @@ export const STEPS: StepDef[] = [
     } },
   { id: 'plugKey', chapter: 'First jobs', title: 'Plug in a client key', flag: 'firstKeyPlugged',
     text: 'Your first client has arrived! Jobs come on USB keys, a bit like a letter in an envelope. Plugging one in wakes the machine up: it checks itself, then reads the job off the key. Drag the key from the tray into the USB port.',
-    targets: (s) => ['usb', ...(s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
+    targets: (s, drag) => plugTarget(s, drag, s.tray[0]) },
   { id: 'watch', chapter: 'First jobs', title: 'Watch it work', flag: 'firstKeyEjected',
     text: 'The machine does the job and writes the answer back onto the key. Every second it sits idle is money lost! Watch the monitor. When the job is done the key pops out, you get paid and the machine goes back to sleep.',
     targets: () => ['monitor'] },
   { id: 'cycle', chapter: 'First jobs', title: 'Next job: plug the next key', flag: 'firstManualCycle',
     text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
-    targets: (s) => ['usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
+    targets: (s, drag) => (!s.plugged && s.tray[0] ? plugTarget(s, drag, s.tray[0]) : []) },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
     text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.' + BROKE,
     targets: whenAffordable(cheapestCpu, (s) => {
@@ -213,7 +220,7 @@ export const STEPS: StepDef[] = [
   { id: 'osIngest', chapter: 'The OS', title: 'Plug in a key', flag: null,
     done: (s, p) => ingested(s) || p.firstOsJob,
     text: 'The OS reads the job onto the drive and works on it with no restart. The key just has to stay in the port while it does. Drag a client key into the USB port and leave it there.',
-    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
+    targets: (s, drag) => (s.plugged ? [`key:${s.plugged.id}`] : plugTarget(s, drag, s.tray[0])) },
   { id: 'osPaid', chapter: 'The OS', title: 'Wait for the result', flag: 'firstOsJob',
     text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you get paid. The machine stays on and takes the next key as soon as you plug it in. Watch the drive badge to see what the OS is doing.',
     targets: () => ['os'] },
