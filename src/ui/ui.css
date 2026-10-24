@@ -573,3 +573,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }
+
+/* Network panel: the limiter ladder; the piece that sets the effective speed is highlighted. */
+.net-seg { border: 1px solid var(--glass-line); border-radius: 0.267rem; padding: 0.3rem 0.4rem; opacity: 0.8; }
+.net-seg.binding { border-color: var(--warn); color: var(--warn); opacity: 1; box-shadow: 0 0 0 0.067rem var(--warn); }
+.net-seg i { display: block; height: 0.267rem; border-radius: 0.133rem; background: var(--accent); }
+.net-seg.binding i { background: var(--warn); }
