@@ -301,7 +301,7 @@ describe('the OS steps (live state and phases)', () => {
   it('a key plugged and queued: the OS lesson waits for the result and the pay-out, nothing is held', () => {
     const s = osFlow({ plugged: key({ id: 7, stage: 'queued' }) });
     expect(idOf(currentStep(s, welcomed))).toBe('osPaid');
-    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['os']);
+    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['monitor']);
   });
 
   it('a key still being copied is not yet ingested', () => {
