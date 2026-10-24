@@ -248,6 +248,18 @@ Worked example. Level 10 (the first level with `gpu` jobs): patienceMul 0.90, so
 
 One expiry costs about four normal jobs of recovery and about 40% of demand while it lasts; those jobs also earn only about 0.5 to 0.8 points each instead of about 1.1, so a repeatedly unserved type visibly slows the level climb. With the 20% share and the 600-tick ramp, the player who buys the GPU within the level keeps losing only a few jobs. A player who never buys it loses about a fifth of all arrivals and sits near reputation 0.8: the pressure is real but not fatal.
 
+### Retired keys (the network switch)
+
+A player who switches to the network with USB keys still in the tray (or held by the OS) should not be punished for the keys they never served: their clients went online. So the USB keys present when the link comes up are **retired** (`NETWORK.md` "Retired keys", `Key.retired`, `KeySnap.retired`):
+
+- **Which keys:** every key in the tray, every key the OS holds and the key in the port, at the moment the link comes up. Keys whose result is already waiting are not retired (their client is waiting for it). The rule runs at each arrival of the link (the first link-up, and each return after a dead spell).
+- **Reputation:** a retired key is left out of the "age of the oldest waiting key" term (rule 4 above applies to it too), so it holds reputation at nothing. The turnaround average is untouched.
+- **Expiry:** at its deadline a retired key leaves **silently**: no penalty, no `expired` count, no log line. It leaves whether or not the machine could run it. A held key the kernel is still running, or whose result is waiting, is kept.
+- **Still served:** a retired key can be plugged, ingested, collected and paid (payout and client-base points as for any key) until its deadline.
+- **Decline:** free for a retired key (the average is not fed; `declined` still counts it).
+- **Keys that arrive during a USB fallback** (after 300 dead ticks, `NETWORK.md`) are normal, not retired: they age and expire as usual, and they are retired when the link returns.
+- **Numbers:** no new constant; the only number is the deadline the key already has. Measured (ten keys in a full tray at the switch, the tray never served, the network serving, base demand 0.012 per tick, reputation 600 ticks after the link, seeds 7, 11, 23): with the rule 1.26, 0.84 and 1.99 (mean 1.36); without it 0.40 on every seed. A full tray no longer pins reputation to the floor; after that the network's own capacity sets it.
+
 ## Sandbox (owner: everything unlocked, levels irrelevant)
 
 - `sandbox: true` games ignore the level for **unlocks**: every item of every kind and tier is offered (the existing `sandboxOffers` extends to NIC, router, ISP and the planned kinds). No locked tiles, no milestone screen, no celebration, no client base accumulation (`clientBase` stays 0 and is hidden).

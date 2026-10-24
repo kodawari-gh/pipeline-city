@@ -41,6 +41,8 @@ Code: `src/sim/net/` (`specs.ts`: routers, ISP plans, job sizes, disk sink rates
 
 **Pacing (rig: Mainstream board, cpu1, SATA SSD, OS, level 4 demand 0.03/s, one hour, three seeds, leftover keys cleared):** USB keys with the OS bot 71 to 72 jobs per hour; the network 89 to 93 on `isp1` (50 Mbit), 91 to 102 on `isp2` with `router2`, 95 to 101 with `isp3`, `router2` and `nic1`: the line is not the limit on this machine, the CPU is. **Link-up after the cable** (OS already installed, 96K RAM): about 100 ticks of boot. **Leftover USB keys keep aging** after the link (nobody serves them), which holds the reputation at the floor (0.4); the player should serve or decline them (UI hint).
 
+**Retired keys and the port (built after the network build, see "Retired keys").** The USB keys left behind at the link-up retire (no reputation hold, silent expiry, free decline; still servable). `NetSnap.retiredKeys`, `NetSnap.portBusyKey` (a plugged key blocks the NIC feed when the feed has work: the UI hint) and `OsSnap.spoolFull` are added. Save: the flag per key, additive, no bump. Tests: `src/sim/game/retire.test.ts`. The tutorial bot (`src/ui/tutorial.bot.test.ts`) is unchanged: its tightest step is `reachLevel3` at 592 ticks of the 660 limit, before and after; the first network job step is 505 ticks (507 without the rule), so the bot's margin does not move.
+
 **Measured (bot, `tutorial.bot.test.ts`, seed 7: Starter machine, cpu1, HDD, OS, 32K RAM, then Basic board and a second ram1):** each lesson step stays under about 11 minutes; the first network job lands about 10 minutes after the link is up (client arrivals are slow at the floor reputation 0.4). Throughput after the link on that weak machine is the same as before (CPU-bound, one job per 70 to 100 s): a faster line only matters once the machine is faster, as the design intends.
 
 **What the UI and renderer need** (not built): the lists "Visuals the renderer needs" and "UI the picker needs" below, plus these facts: read `Snapshot.net` (state, reason, port, router, isp, bandwidth, transfers with `percent` and `etaTicks`, offers and spooled as `KeySnap` with stages `offer | downloading | spooled | uploading`, `usbRetired`, `usbFallback`, counters); an inventory router has `freeSlots: ["router"]` (the board has no such slot); inventory and purchase kinds `router`, `isp`, `nic`; `Progress` has `ispBought routerInstalled lanConnected linkUp firstNetJob`; the store has `connectCable(cable, port?)`.
@@ -151,6 +153,20 @@ Keys retire once the link has been up. The fallback covers a link that dies late
   - `waiting`: linked and down for under 300 ticks. Label `NET DOWN`, countdown `sticks in M:SS` from `startsIn` (300 minus `deadTicks`).
   - `fallback`: linked and down for 300 ticks or more. Amber banner `NET DOWN: CLIENTS SEND STICKS (1/3 RATE)`; the net panel says `offers paused`.
 - **Snapshot:** `net.usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number }`, where `keyRateMul` is 1 when off or retired (no change, the tray is handled by the state), 1/3 in fallback and 0 while waiting. `deadTicks` is saved (optional, `net.deadTicks`) so a save does not restart the wait.
+
+## Retired keys
+
+The USB keys left behind when the link comes up must not punish the switch (the report of the network build: a full tray held reputation at the floor, 0.4, for good). The rule (`Game.retireUsbKeys`, flag `ECONOMY.retireUsbKeys`, default on):
+
+- **When:** each arrival of the link (the first `link-up`, and every return to `link-up` after a dead spell). Nothing else retires a key.
+- **Which:** every key in the USB tray, every key the OS holds (`held`) and the key in the port, that has **no result waiting** (a key whose result is ready, in the kernel or on the key, is the client's to collect and is not retired).
+- **Effect:** a retired key is left out of the "oldest waiting key" term of reputation (the average turnaround is untouched). At its deadline it expires **silently**: no penalty, no `expired` count, no log line, whether the machine could run it or not. A held key the kernel is running, or holds a result for, is kept until it is collected or ends. While the machine is off, a held retired key that passes its deadline is dropped the same way (the drive keeps no client waiting).
+- **Still served:** a retired key can be plugged, ingested, collected and paid as any key, until its deadline.
+- **Decline:** free for a retired key (`declineKey` does not feed the average; `declined` still counts it).
+- **Keys after a fallback:** keys that arrive in the USB fallback (after `usbFallbackTicks`, see "USB fallback") are normal. They are not retired until the link returns, and then they are.
+- **Snapshot:** `KeySnap.retired` (optional, absent means false), `NetSnap.retiredKeys` (retired keys in the tray or held by the OS) and `NetSnap.portBusyKey`, the key id of the USB key parked in the port while the NIC feed has work it cannot take (a finished download or a spooled job to ingest), or null. `OsSnap.spoolFull` (optional) is the chip field of `os.spool.full`.
+- **Save:** `retired` on each saved key (optional, additive, no version bump). A save from before the field, whose `net.networkLinked` is set, retires its USB keys on load (the rule of the link's return); a save without a linked game keeps them normal.
+- **Numbers and measurement:** the rule adds no delay. On a rig with ten keys in a full tray at the switch, the tray never served, the network serving, base demand 0.012 per tick (level 1), reputation 600 ticks after the link is 1.26, 0.84 and 1.99 on seeds 7, 11 and 23 with the rule, against 0.40 on every seed without it. Later the network's own capacity sets the reputation (see PROGRESSION.md "Retired keys").
 
 ## Jobs over the network
 
