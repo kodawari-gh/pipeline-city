@@ -29,7 +29,7 @@ If the code already does what the task asks, change nothing except ticking the b
 When done: tick this task's box in docs/TODO.md, add a line to docs/HANDOVER.md 'Traps' only if you hit a real trap, and make one commit with a clear message. If blocked or it needs an owner decision, change nothing and say why in one line." \
     --model sonnet \
     --permission-mode acceptEdits \
-    --allowedTools "Read" "Edit" "Write" "Glob" "Grep" "Bash(npm run *)" "Bash(npm test)" "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status)" "Bash(git diff:*)" \
+    --allowedTools "Read" "Edit" "Write" "Glob" "Grep" "Bash(npm run *)" "Bash(npm test)" "Bash(npx vitest:*)" "Bash(npx tsc:*)" "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status)" "Bash(git diff:*)" \
     --max-turns "${MAX_TURNS:-60}" \
     --output-format json > "$LOGS/$id.json" 2> "$LOGS/$id.err"
 
