@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec } from '../sim/net/specs';
 import type { Snapshot, StorageSnap } from '../sim/game/game';
-import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netStateChip, usbModel } from './netui';
+import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netPanelShown, netStateChip, usbModel } from './netui';
 import { key, snap } from './testdata';
 
 /** A linked rig: board jack `portMbps`, router and plan by id, OS drive by spec id. The bandwidth comes from the sim's own rule. */
@@ -125,5 +125,24 @@ describe('network panel: offers, transfers, spool, USB fallback', () => {
     expect(usbModel(net(3))!.detail).toMatch(/^3 leftover keys expire/);
     expect(usbModel(net(0))!.detail).toMatch(/over the wire/);
     expect(netPanel(net(3))!.retiredKeys).toBe(3);
+  });
+});
+
+describe('network panel: open and close with netOpen', () => {
+  it('shows only while netOpen is set and a network exists', async () => {
+    // state.ts sets data-theme on import; there is no DOM here, so give it a stub document first.
+    vi.stubGlobal('document', { documentElement: { setAttribute: () => {}, style: { setProperty: () => {} }, classList: { toggle: () => {} } } });
+    const { netOpen, toggleNet, toggleStats } = await import('./state');
+    const linked = rig(1000, 'router3', 'isp3', 'nvme2');
+    netOpen.value = false;
+    expect(netPanelShown(netOpen.value, linked)).toBe(false);
+    toggleNet();
+    expect(netOpen.value).toBe(true);
+    expect(netPanelShown(netOpen.value, linked)).toBe(true);
+    expect(netPanelShown(netOpen.value, snap())).toBe(false);
+    toggleStats();
+    expect(netOpen.value).toBe(false);
+    expect(netPanelShown(netOpen.value, linked)).toBe(false);
+    toggleStats();
   });
 });

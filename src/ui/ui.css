@@ -579,3 +579,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .net-seg.binding { border-color: var(--warn); color: var(--warn); opacity: 1; box-shadow: 0 0 0 0.067rem var(--warn); }
 .net-seg i { display: block; height: 0.267rem; border-radius: 0.133rem; background: var(--accent); }
 .net-seg.binding i { background: var(--warn); }
+.net-ladder { display: grid; gap: 0.267rem; margin: 0.333rem 0; }
+.net-stages { display: flex; flex-wrap: wrap; gap: 0.267rem; }
+.netpanel .chip b { font-family: var(--mono); }
+.netpanel .kv.warn, .netpanel b.warn { color: var(--warn); }
+.netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }

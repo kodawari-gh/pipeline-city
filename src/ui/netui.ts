@@ -406,6 +406,9 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
   };
 }
 
+/** Whether the panel is on screen: the player opened it (`netOpen`) and a network exists. */
+export const netPanelShown = (open: boolean, s: Snapshot): boolean => open && netPanel(s) !== null;
+
 /** Plain money line for an offer. */
 export const offerPay = (o: OfferRow): string => fmtMoney(o.payout);
 

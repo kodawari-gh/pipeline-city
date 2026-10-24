@@ -11,6 +11,7 @@ import { hudNetChip } from './netui';
 import { InventoryButton, InventoryPanel } from './Inventory';
 import { PickerCard } from './PickerCard';
 import { Stats } from './Stats';
+import { NetDock } from './NetPanel';
 import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
@@ -219,6 +220,7 @@ export function Hud() {
           <Stats />
         </aside>
       )}
+      <NetDock />
       <Tooltip />
       <div class="stack">
         <Notice />

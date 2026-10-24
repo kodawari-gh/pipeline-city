@@ -190,7 +190,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 - **Tooltips** (`describeNet`, called from `describeId`): `router`, `wall`, `cable.lan`, `eth0` (board jack, speed by tier), `eth1`... (card jacks in PCIe slot order, `jackIds`), and the router and plan spec ids, each with a plain line and a nerd line ending in `BANDWIDTH_NERD`. `jackPort` maps a jack id to the `connectCable("lan", port)` argument (`board` or the card's device id). The test in `logic.test.ts` checks every network render id has a description.
 - **Hints**: the five network hints are in the Hints table above (`retiredKeys`, `portBusyKey`, `spoolFull`, `linkDown`, `saturated`).
 - **Tutorial**: the network steps' targets are checked against real ids (`tutorial.test.ts`).
-- **Not built yet**: the panel itself. `netPanel` and the `.net-seg` styles exist and are tested, and the HUD chip toggles `netOpen`, but no component renders the panel yet.
+- **Network panel** (`NetPanel.tsx`): `NetDock` is mounted in `Hud.tsx` and draws a `.dock` aside while `netPanelShown(netOpen, snapshot)` (the HUD chip toggles `netOpen`; a network must exist). `NetPanel` renders the `netPanel` model: link state chip and clients, the bandwidth ladder (`.net-seg`, the limiting one `.binding`) with advice, flow stage counts, offers (with a `retired` chip), transfers with progress meters, the spool (used/slots, "Spool full"), the USB fallback state, the parked-key warning and the retired-key count. The open/close logic is tested in `netui.test.ts` (no DOM test setup exists); sizes are all relative.
 
 ## Camera inset
 
