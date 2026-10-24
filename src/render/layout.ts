@@ -158,6 +158,29 @@ export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: BR.io.x, y: VIDEO_Y - 60, w: 240, h: 120 };
 
+// ---- network props (docs/RENDER.md "Network"): all of them sit above the monitor, inside WORLD, so the overview does not change ----
+/** The router spot: a shelf above the monitor. A router stands on it, right-aligned to `ROUTER_EAST` (its footprint depends on the tier). */
+export const ROUTER_SPOT: Rect = { x: -6100, y: -3050, w: 1600, h: 420 };
+export const ROUTER_EAST = -4500;
+/** The shelf line the router stands on, and the y where the cables turn after leaving their sockets. */
+export const SHELF_Y = -2630;
+export const CABLE_ROW_Y = -2430;
+/** The wall plate (ISP line enters here) and its jack position (bottom edge). */
+export const WALL_PLATE: Rect = { x: -7400, y: -3050, w: 460, h: 420 };
+export const WALL_JACK = { x: -7170, y: SHELF_Y };
+/** Vertical run of the ethernet cable between the monitor and the case (clear of the plugged key at x > -3980). */
+export const LAN_TRUNK_X = -4040;
+/** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
+export const ETH0_MOUTH = { x: BR.io.x + 30, y: -1560 };
+export const ETH0_RECT: Rect = { x: BR.io.x + 30, y: -1690, w: 330, h: 260 };
+export const PLUG_L = 200, PLUG_W = 100;
+/** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
+export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
+export const NIC_BRACKET_X = BD.x - 30;
+export const nicJack = (i: number): Rect => ({ x: BD.x - 200, y: nicY(i) - 62, w: 170, h: 124 });
+export const NIC_LEN: Record<string, number> = { 'nic-gbe': 1500, 'nic-10g': 1950, 'nic-40g': 2400 };
+export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: BD.x - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
+
 /**
  * Everything the camera should see at once (board, PSU, monitor, cables, tray, held rack): the content box, tightly. Its
  * extent is the monitor / tray column on the west (x -7500) and the case's east wall (x 5260), and the case top (y -3100) to

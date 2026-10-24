@@ -6,7 +6,7 @@ import type { Snapshot } from '../sim/protocol';
 import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from './devices';
 import { box, MONO, mix } from './ink';
-import { BD, type Rect } from './layout';
+import { BD, PLUG_L, PLUG_W, type Rect } from './layout';
 import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -28,6 +28,22 @@ export interface CableInfo {
   state: CableState;
 }
 
+/** A network port the ethernet plug can go into: the board's own jack (`eth0`, port `board`) or a NIC's jack (`eth1`.., port = the card's device id). */
+export interface LanJack { id: string; port: string; rect: Rect; mouth: Pt; valid: boolean }
+/** The ethernet cable as the pointer sees it (filled by `NetView.sync`). */
+export interface LanScene {
+  connected: boolean;
+  held: boolean;
+  /** Rect of the plug the player grabs (seated in a jack, or at rest near the router). */
+  plug: Rect;
+  /** Where the cable leaves the router's plug, and the direction it leaves in. */
+  anchor: Pt;
+  anchorDir: Pt;
+  seated: Pt | null;
+  jacks: LanJack[];
+  port: string | null;
+}
+
 export interface SceneInfo {
   /** Id to world rect, for outlines, highlight rings and flyTo. */
   rects: Map<string, Rect>;
@@ -39,9 +55,11 @@ export interface SceneInfo {
   /** Slot id to its world rect (empty or occupied). */
   slots: Map<string, Rect>;
   usb: Rect;
+  /** The ethernet cable (null while there is no router). */
+  lan: LanScene | null;
 }
 
-export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 } });
+export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 }, lan: null });
 
 const DRAG_PX = 6;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -57,7 +75,9 @@ export class Interact {
   scene: SceneInfo = emptyScene();
   /** board.ts hooks: which cable is in the player's hand (its static art is hidden), and the optimistic cable state. */
   onHeld: (k: CableKind | null) => void = () => {};
-  forced = new Map<CableKind, { connected: boolean; until: number }>();
+  /** The ethernet plug is in the hand (its cable art is hidden while it is). */
+  onLanHeld: (held: boolean) => void = () => {};
+  forced = new Map<string, { connected: boolean; until: number; port?: string }>();
   hitAt: (cx: number, cy: number) => string | null = () => null;
 
   private T!: Theme;
@@ -75,7 +95,7 @@ export class Interact {
     cx: number; cy: number; wx: number; wy: number;
     /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
-    /** cable */ cable?: CableInfo; snapped?: boolean;
+    /** cable */ cable?: CableInfo; snapped?: boolean; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
     /** key */ fromPlugged?: boolean; keyId?: number;
   } = null;
   private back: { c: Container; fx: number; fy: number; tx: number; ty: number; t0: number; to: 'fade' | 'return' }[] = [];
@@ -96,6 +116,7 @@ export class Interact {
     let first = true;
     lastError.subscribe((m) => {
       if (first) { first = false; return; }
+      if (m) this.forced.clear();
       if (m && performance.now() - this.actionAt.t < 2500) this.toast(m.replace(/^[a-zA-Z]+: /, ''), this.actionAt.x, this.actionAt.y, 'bad');
     });
   }
@@ -169,7 +190,7 @@ export class Interact {
   }
 
   private isDraggable(id: string | null) {
-    return !!id && (id.startsWith('key:') || (id.startsWith('cable.') && this.plugHit(id)));
+    return !!id && (id.startsWith('key:') || (id === 'cable.lan' && !!this.scene.lan) || (id.startsWith('cable.') && this.plugHit(id)));
   }
   private plugHit(id: string) { return this.scene.cables.has(id.slice(6) as CableKind); }
 
@@ -228,6 +249,11 @@ export class Interact {
     const id = this.hitAt(cx, cy);
     if (!id) return null;
     // a plug (not the sleeve) of a cable
+    if (id === 'cable.lan') {
+      const lan = this.scene.lan;
+      if (!lan || lan.held || !inside(lan.plug, wx, wy, 30)) return null;
+      return this.pending(cx, cy, id, () => this.beginLan(cx, cy));
+    }
     if (id.startsWith('cable.')) {
       const ci = this.scene.cables.get(id.slice(6) as CableKind);
       if (!ci || ci.state === 'held' || !inside(ci.plug, wx, wy, 30)) return null;
@@ -270,7 +296,8 @@ export class Interact {
     if (!s || !it) return false;
     const d = this.start('part', invId, cx, cy);
     d.validFree = new Set(it.freeSlots); d.validSwap = new Set(it.swapSlots);
-    d.why = s.powered ? 'Power the machine off first' : it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
+    // a router is an external box with its own power: it goes in while the PC runs
+    d.why = s.powered && it.kind !== 'router' ? 'Power the machine off first' : it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
     this.setGhost(partIcon(this.T, it.kind, it.spec), 1);
     d.home = [d.wx, d.wy];
     return true;
@@ -310,6 +337,28 @@ export class Interact {
     return true;
   }
 
+  /** Pick up the ethernet plug (from its rest spot, or out of a jack: that unplugs it, which works while the PC runs). */
+  private beginLan(cx: number, cy: number): boolean {
+    const lan = this.scene.lan;
+    if (!lan) return false;
+    if (!lan.jacks.length) { this.toast('No network port: this board has no ethernet jack and no network card is installed.', cx, cy); return false; }
+    const d = this.start('cable', 'cable.lan', cx, cy);
+    d.lan = true; d.jack = null;
+    if (lan.connected) {
+      this.act(cx, cy);
+      disconnectCable('lan');
+      this.forced.set('lan', { connected: false, until: performance.now() + 1500 });
+    }
+    this.onLanHeld(true);
+    const g = new Graphics();
+    drawPlug(g, this.T, { x: 0, y: 0, dx: 1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, this.T.alu, false);
+    this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
+    this.ghost.addChild(g);
+    this.ghost.alpha = 1;
+    this.ghost.visible = true;
+    return true;
+  }
+
   private setGhost(c: Container, _kind: number) {
     this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
     this.ghost.addChild(c);
@@ -344,6 +393,10 @@ export class Interact {
     if (d.kind === 'part') d.over = this.slotAt(d.wx, d.wy, d);
     if (d.kind === 'cable' && d.cable) {
       d.snapped = inside(d.cable.connector, d.wx, d.wy, d.cable.kind === 'video' ? 160 : 260);
+    }
+    if (d.lan) {
+      d.jack = this.scene.lan?.jacks.find((j) => j.valid && inside(j.rect, d.wx, d.wy, 130)) ?? null;
+      d.snapped = !!d.jack;
     }
   }
 
@@ -404,6 +457,18 @@ export class Interact {
         if (!cancelled && !d.fromPlugged && overPort && d.why) this.toast(d.why, cx, cy);
         flash('return', o ? o.base.x : gx, o ? o.base.y : gy);
       }
+    } else if (d.kind === 'cable' && d.lan) {
+      this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
+      if (!cancelled && d.jack) {
+        this.act(cx, cy);
+        connectCable('lan', d.jack.port);
+        this.forced.set('lan', { connected: true, until: performance.now() + 1500, port: d.jack.id });
+      } else if (!cancelled) {
+        const bad = this.scene.lan?.jacks.find((j) => !j.valid && inside(j.rect, d.wx, d.wy, 130));
+        if (bad) this.toast('That network card is burnt out. Replace it first.', cx, cy);
+        else if (inside(BD, d.wx, d.wy)) this.toast('Drop the plug on an ethernet jack.', cx, cy);
+      }
+      this.onLanHeld(false);
     } else if (d.kind === 'cable' && d.cable) {
       const ci = d.cable;
       this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
@@ -423,6 +488,11 @@ export class Interact {
   // ------------------------------------------------------------------ highlight geometry
 
   rectsFor(id: string): Rect[] {
+    if (id === 'cable.lan') {
+      const lan = this.scene.lan;
+      if (!lan) return [];
+      return lan.connected ? [lan.plug] : [lan.plug, ...lan.jacks.filter((j) => j.valid).map((j) => j.rect)];
+    }
     if (id.startsWith('cable.')) {
       const ci = this.scene.cables.get(id.slice(6) as CableKind);
       if (!ci) return [];
@@ -567,6 +637,33 @@ export class Interact {
         this.ghost.scale.set(sc);
       }
       this.ghost.rotation = 0;
+    } else if (d.kind === 'cable' && d.lan && this.scene.lan) {
+      const lan = this.scene.lan, accent = T.alu;
+      // every port: a valid one pulses, an invalid one (a burnt card) is dimmed
+      for (const j of lan.jacks) {
+        const r = j.rect;
+        if (!j.valid) { box(g, r.x, r.y, r.w, r.h, 14, { fill: T.bg, fa: 0.6 }); continue; }
+        const on = d.jack === j, e = 14 + 12 * pulse + (on ? 14 : 0);
+        box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30, { fill: accent, fa: on ? 0.3 : 0.08 + 0.08 * pulse, stroke: accent, lw: lw * (on ? 2.2 : 1.6), sa: on ? 1 : 0.55 + 0.4 * pulse });
+      }
+      let tip: Pt = [d.wx, d.wy], ang: number;
+      if (d.jack) { tip = [d.jack.mouth[0], d.jack.mouth[1]]; ang = Math.PI; }
+      else {
+        const pre = rubberBand(lan.anchor, lan.anchorDir, tip);
+        const a = pre[pre.length - 3]!, b = pre[pre.length - 1]!;
+        ang = Math.atan2(a[1] - b[1], a[0] - b[0]);
+      }
+      const end: Pt = [tip[0] + Math.cos(ang) * PLUG_L, tip[1] + Math.sin(ang) * PLUG_L];
+      const pts = rubberBand(lan.anchor, lan.anchorDir, end);
+      const sleeve = T.dark ? '#171d29' : '#2a313d';
+      const line = (list: Pt[], dx = 0, dy = 0) => { g.moveTo(list[0]![0] + dx, list[0]![1] + dy); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0] + dx, list[i]![1] + dy); };
+      line(pts, 8, 12); g.stroke({ width: 44, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
+      line(pts); g.stroke({ width: 38, color: sleeve, cap: 'round', join: 'round' });
+      line(pts); g.stroke({ width: 11, color: accent, alpha: 0.5, cap: 'round', join: 'round' });
+      this.ghost.position.set(tip[0], tip[1]);
+      this.ghost.rotation = ang;
+      this.ghost.scale.set(1);
+      if (!d.jack) this.note('Drag the plug to a glowing ethernet jack', d.cx, d.cy, T.mute);
     } else if (d.kind === 'cable' && d.cable) {
       const ci = d.cable, cab = ci.cable, accent = ACCENT(T, ci.kind);
       // matching connector pulses
@@ -661,7 +758,7 @@ export class Interact {
   }
 
   /** Style a key for an optimistic or settled cable state. */
-  cableStateOf(kind: CableKind, snapConnected: boolean, now: number): boolean {
+  cableStateOf(kind: string, snapConnected: boolean, now: number): boolean {
     const f = this.forced.get(kind);
     if (f) {
       if (now > f.until || f.connected === snapConnected) this.forced.delete(kind);

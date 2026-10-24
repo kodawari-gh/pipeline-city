@@ -1,7 +1,7 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
 import { box, disc, label, mix } from './ink';
-import { BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, PSU, VIDEO_Y, type Rect } from './layout';
+import { BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
 import type { DriveKind } from './drives';
 import type { Theme } from './theme';
 
@@ -22,6 +22,8 @@ export interface ExteriorOpts {
   drives: { slot: string; kind: DriveKind }[];
   /** External connectors this board offers (ethernetMbps 0 = no jack). */
   features: { ethernetMbps: number; usbPorts: number; displayPorts: number };
+  /** PCIe slot indices that hold a NIC card: each has its jack on the rear plate. */
+  nics?: number[];
 }
 
 /** Where a bay-front drive's activity LED sits (world), by cell. */
@@ -128,8 +130,13 @@ function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
     cut(q.x + 30, -1560, 330, 260, null);
     for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
     g.fill({ color: T.pin, alpha: 0.55 });
-    g.rect(q.x + 50, -1405, 40, 22).fill({ color: T.st, alpha: 0.7 });
-    g.rect(q.x + 130, -1405, 40, 22).fill({ color: T.ld, alpha: 0.7 });
+    for (const lx of [q.x + 100, q.x + 180]) { g.circle(lx, -1394, 13).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 }); }
+  }
+  // NIC cards: their jack comes out of the rear plate at the height of the card's slot
+  for (const i of o.nics ?? []) {
+    const j = nicJack(i);
+    cut(j.x, nicY(i), j.w, j.h, null);
+    for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + 17, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
   const hdmi = (y: number, active: boolean) => {
     box(g, q.x - 12, y - 72, 264, 144, 16, { fill: c.lo, stroke: c.edge, lw: 4, sa: 0.5 });

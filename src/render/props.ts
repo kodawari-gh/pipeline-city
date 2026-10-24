@@ -50,6 +50,7 @@ function accentOf(T: Theme, kind: string): string {
     case 'board': return T.br;
     case 'storage': return T.mul;
     case 'os': return T.st;
+    case 'nic': case 'router': return T.alu;
     default: return T.mute;
   }
 }
@@ -125,6 +126,19 @@ export function partIcon(T: Theme, kind: string, _spec = ''): Container {
       g.moveTo(40, 100).lineTo(110, -70).stroke({ width: 14, color: a, alpha: 0.8, cap: 'round' });
       box(g, 100, -110, 70, 220, 8, { fill: T.tile, stroke: T.line, lw: 4 });
     }
+  } else if (kind === 'nic') {
+    box(g, -190, -110, 380, 220, 14, { fill: mix(body, '#0e6a7a', 0.25), ...edge() });
+    box(g, -120, -56, 110, 90, 8, { fill: T.die, stroke: T.line, lw: 4 });
+    box(g, -20, -60, 130, 100, 6, { fill: mix(body, '#ffffff', 0.3), stroke: T.line, lw: 4 });
+    for (let x = 0; x < 120; x += 22) g.moveTo(-10 + x, -50).lineTo(-10 + x, 30);
+    g.stroke({ width: 5, color: T.line, alpha: 0.8 });
+    box(g, -230, -90, 70, 150, 8, { fill: mix(body, '#ffffff', 0.4), stroke: a, lw: 5 });
+    for (let i = 0; i < 12; i++) g.rect(-120 + i * 24, 96, 12, 24);
+    g.fill({ color: T.pin });
+  } else if (kind === 'router') {
+    box(g, -220, -90, 440, 190, 24, { fill: mix(body, '#ffffff', 0.15), ...edge() });
+    for (let i = 0; i < 4; i++) disc(g, -170 + i * 38, -50, 9, { fill: i === 0 ? T.st : a, fa: 0.9 });
+    for (let i = 0; i < 4; i++) box(g, -170 + i * 90, 36, 64, 60, 6, { fill: '#05070c', stroke: a, lw: 3 });
   } else if (kind === 'os') {
     box(g, -190, -150, 380, 300, 22, { fill: '#050a0c', ...edge() });
     c.addChild(label('>_', -140, -20, 150, a, { head: true }));
@@ -255,7 +269,9 @@ function glassPanel(g: Graphics, r: Rect, T: Theme, edge: string, lw: number, sa
   g.roundRect(well.x + 12, well.y + well.h - 14, well.w - 24, 6, 3).fill({ color: '#ffffff', alpha: T.dark ? 0.05 : 0.7 });
 }
 
-export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
+export type TrayMode = 'off' | 'retired' | 'waiting' | 'fallback';
+
+export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): PropsArt {
   const root = new Container(), chrome = new Container();
   const g = new Graphics();
   root.addChild(chrome);
@@ -264,7 +280,11 @@ export function trayArt(T: Theme, keys: KeySnap[]): PropsArt {
   glassPanel(g, r, T, T.mul, 10, 0.8, 36, { x: r.x + 40, y: r.y + 150, w: r.w - 80, h: r.h - 190 });
   chrome.addChild(label('USB KEY TRAY', r.x + 90, r.y + 76, 72, T.mul, { head: true }));
   const empty = keys.length === 0;
-  chrome.addChild(label(empty ? 'NO WORK WAITING' : `${keys.length} waiting`, r.x + r.w - 90, r.y + 76, 46, empty ? T.mute : T.ink, { anchor: [1, 0.5], a: empty ? 0.8 : 1 }));
+  // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
+  if (mode === 'retired') g.alpha = 0.55;
+  const note = mode === 'retired' ? (empty ? 'LINK UP: KEYS RETIRED' : `LINK UP: ${keys.length} LEFTOVER`) : mode === 'waiting' ? 'NET DOWN' : mode === 'fallback' ? 'NET DOWN: STICKS BACK AT 1/3 RATE' : empty ? 'NO WORK WAITING' : `${keys.length} waiting`;
+  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : empty ? T.mute : T.ink;
+  chrome.addChild(label(note, r.x + r.w - 90, r.y + 76, mode === 'fallback' ? 40 : 46, noteCol, { anchor: [1, 0.5], a: mode === 'off' && empty ? 0.8 : 1 }));
   // empty key bays (dashed outlines) so the tray reads as a tray even when empty
   const bays = TRAY_COLS * 5;
   for (let i = keys.length; i < bays; i++) {

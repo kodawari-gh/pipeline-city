@@ -12,13 +12,14 @@ import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt 
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
+import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, type Rect,
+  OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, nicJack, nicRect, type Rect,
 } from './layout';
-import { drawKeyCue, drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt } from './props';
+import { drawKeyCue, drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -48,7 +49,9 @@ const PROPS_FRAME = new Rectangle(-7560, 280, 3500, 2950);
 export const LOD = { fadeFrom: 0.7, fadeTo: 0.5, minZoom: 0.2 };
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
 const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'held' || id === 'case'
-  || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display');
+  || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display')
+  // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
+  || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id);
 
 /** The routed cables never change (geometry only); built once. */
 const ALL_CABLES = buildCables();
@@ -126,6 +129,8 @@ export async function mountBoard(host: HTMLElement) {
   /** Internal cables (ATX, CPU, ...), inside the interior group; the video cable runs outside the case and has its own layer. */
   const cableLayer = new Container();
   const cableExtLayer = new Container();
+  /** Router, wall plate, ethernet cable, jack LEDs and traffic pulses: external, drawn at every zoom. */
+  const net = new NetView();
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();
@@ -155,7 +160,7 @@ export async function mountBoard(host: HTMLElement) {
   interact.setTheme(T);
   interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
   exteriorLayer.addChild(stripG);
-  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, chromeBakeLayer, chromeLayer, propsLayer, live.ext, interact.fx);
+  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -205,7 +210,8 @@ export async function mountBoard(host: HTMLElement) {
   let propsArt: PropsArt[] = [];
   let powerArtRef: PropsArt | null = null;
   let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
-  const mergeHits = () => { allHits = [...propHits, ...cableHits, ...mainHits]; };
+  let netHits: Hit[] = [];
+  const mergeHits = () => { allHits = [...propHits, ...netHits, ...cableHits, ...mainHits]; };
 
   // ---- LOD driven by zoom ----
   /** 0..1: how much the exterior case covers the interior (zoom crossfade, pulled back to 0 while a drag or a highlight needs the inside). */
@@ -356,6 +362,14 @@ export async function mountBoard(host: HTMLElement) {
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: d.id, rect: VRM_SINK });
         scene.rects.set(d.id, VRM_SINK);
+      } else if (spec.kind === 'nic') {
+        const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
+        const p = nicArt(T, spec.visual, idx);
+        deviceLayer.addChild(p);
+        const r = nicRect(idx, spec.visual);
+        targets.push({ id: d.id, kind: 'nic', spec: d.spec, rect: r });
+        deviceHits.push({ id: d.id, rect: r });
+        scene.rects.set(d.id, r);
       } else if (spec.kind === 'storage') {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
@@ -491,6 +505,7 @@ export async function mountBoard(host: HTMLElement) {
         nSata: slots.sata ?? 0,
         drives: storageDevs.map((d) => ({ slot: d.slot, kind: slotKind.get(d.slot) ?? 'hdd' })).filter((d) => d.kind !== 'ssd-nvme'),
         features: bt?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
+        nics: (s?.devices ?? []).filter((d) => d.kind === 'nic').map((d) => Number(/\d+$/.exec(d.slot)?.[0] ?? 0)),
       });
       const tx = app.renderer.generateTexture({ target: ext, frame: new Rectangle(EXTERIOR_FRAME.x, EXTERIOR_FRAME.y, EXTERIOR_FRAME.w, EXTERIOR_FRAME.h), resolution: 0.35, antialias: true });
       ext.destroy({ children: true });
@@ -500,13 +515,14 @@ export async function mountBoard(host: HTMLElement) {
       extDrives = storageDevs.filter((d) => slotKind.get(d.slot) !== 'ssd-nvme').map((d) => ({ slot: d.slot }));
     }
 
-    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
+    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie') && d.kind !== 'nic');
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks);
     pipeline.setTheme(T);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
     syncCables(s, true);
+    syncNet(s, true);
     syncProps(s, true);
     applyBadge(s);
     onZoom();
@@ -517,7 +533,7 @@ export async function mountBoard(host: HTMLElement) {
   function syncCables(s: Snapshot | null, force = false) {
     const now = performance.now();
     const hasPsu = !!s?.devices.some((d) => d.kind === 'psu'), hasDisplay = !!s?.devices.some((d) => d.kind === 'display');
-    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie'));
+    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie') && d.kind !== 'nic');
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     const states = cables.map((c) => {
       const snapC = s?.cables.find((x) => x.id === c.kind);
@@ -558,6 +574,19 @@ export async function mountBoard(host: HTMLElement) {
     mergeHits();
   }
 
+  // ---- network: router, wall plate, ethernet cable, jack LEDs (net.ts); the plug state is the same optimistic scheme as the other cables ----
+  let lanHeld = false;
+  function syncNet(s: Snapshot | null, force = false) {
+    const snapConn = !!s?.cables.find((c) => c.id === 'lan')?.connected;
+    const conn = interact.cableStateOf('lan', snapConn, performance.now());
+    const state = lanHeld ? 'held' as const : conn ? 'connected' as const : 'loose' as const;
+    if (net.sync(s, T, scene, state, interact.forced.get('lan')?.port ?? null, force)) {
+      netHits = net.hits.map((h) => ({ id: h.id, rect: h.rect, more: h.more }));
+      sceneDirty = true;
+      mergeHits();
+    }
+  }
+
   // ---- props: tray, power button, the key in the USB port ----
   function syncProps(s: Snapshot | null, force = false) {
     const powered = !!s?.powered, down = !!s?.power.tripped || !!s?.board?.burnt, error = s?.phase === 'error' || down;
@@ -567,6 +596,7 @@ export async function mountBoard(host: HTMLElement) {
       T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,
       s ? (s.held ?? []).map((k) => `${k.id}${k.stage}`).join(',') : '',
+      s?.net?.usbFallback.state ?? 'off',
     ].join('|');
     if (!force && key === propsKey) return;
     propsKey = key;
@@ -592,7 +622,7 @@ export async function mountBoard(host: HTMLElement) {
     add(powerArtRef);
     // a finished key (stage done) gets the remove cue: TAKE ME on a no-OS machine, REMOVE once the OS has flashed it
     if (s?.plugged) add(pluggedKeyArt(T, s.plugged, notRead, s.os ? 'REMOVE' : 'TAKE ME'));
-    add(trayArt(T, s?.tray ?? []));
+    add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
     add(heldArt(T, s?.held ?? []));
     for (const a of propsArt) order.push(...a.objs);
     // hit order: power, plugged key, tray keys, then the port and tray bodies
@@ -663,6 +693,7 @@ export async function mountBoard(host: HTMLElement) {
   };
   interact.hitAt = hitAt;
   interact.onHeld = (k) => { held = k; if (lastSnap || k === null) syncCables(lastSnap, true); };
+  interact.onLanHeld = (h) => { lanHeld = h; syncNet(lastSnap, true); };
   camera.onHover = (p) => {
     if (interact.busy) { if (hover.peek()) hover.value = null; return; }
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
@@ -690,7 +721,7 @@ export async function mountBoard(host: HTMLElement) {
     const now = gt;
     lastSnap = s;
     if (keyOf(s) !== sceneKey) build(s);
-    else { syncCables(s); syncProps(s); }
+    else { syncCables(s); syncNet(s); syncProps(s); }
     applyBadge(s);
     live.update(s, now);
     pipeline.update(s, fast, now);
@@ -700,7 +731,7 @@ export async function mountBoard(host: HTMLElement) {
   /** True while something the player is doing needs the inside: a part or an internal cable is dragged, or an internal id is highlighted. */
   const needsInterior = () => {
     const d = dragging.peek();
-    if (d && (d.kind === 'part' || (d.kind === 'cable' && d.id !== 'cable.video'))) return true;
+    if (d && (d.kind === 'part' || (d.kind === 'cable' && d.id !== 'cable.video' && d.id !== 'cable.lan'))) return true;
     for (const id of highlight.peek()) if (!isExternalId(id) && interact.rectsFor(id).length > 0) return true;
     return false;
   };
@@ -727,6 +758,8 @@ export async function mountBoard(host: HTMLElement) {
     live.frame(gdt, gt);
     pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
+    syncNet(lastSnap);
+    net.frame(gt, gdt);
     // the remove cue on a finished key: game clock, scaled up as the camera moves out so it stays readable
     const cueK = Math.min(2.6, Math.max(1, fits.z / Math.max(1e-6, camera.z)));
     for (const a of propsArt) if (a.cue) drawKeyCue(a.cue, T, gt, cueK);
@@ -743,6 +776,6 @@ export async function mountBoard(host: HTMLElement) {
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { net, camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }
