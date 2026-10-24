@@ -35,8 +35,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'power' | 'watch'
-  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
-  | 'osCollect' | 'osPaid' | 'done';
+  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS';
 export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS'];
@@ -87,7 +86,6 @@ const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage')
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
-const heldWith = (s: Snapshot, stage: string) => s.held.find((k) => k.stage === stage);
 /** The OS has copied a key into its queue (plugged, or already held). */
 const ingested = (s: Snapshot) => s.held.length > 0 || pluggedAt(s, ['queued', 'running', 'result', 'flashing', 'done']);
 
@@ -198,32 +196,15 @@ export const STEPS: StepDef[] = [
     text: 'Press the power button and wait for the OS.',
     why: 'The monitor shows the boot text and the badge on the drive shows its status. A faster drive boots sooner.',
     targets: () => ['power', 'monitor', 'os'] },
-  { id: 'osIngest', chapter: 'The OS', title: 'Plug in a key: the OS takes it', flag: null,
+  { id: 'osIngest', chapter: 'The OS', title: 'Plug in a key', flag: null,
     done: (s, p) => ingested(s) || p.firstOsJob,
-    text: 'Drag a key into the USB port and keep it there until it is queued.',
-    why: 'The OS copies the job onto the drive and queues it.',
+    text: 'Drag a client key into the USB port and leave it there.',
+    why: 'The OS reads the job onto the drive and runs it, with no restart. The key stays in the port while the OS works.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
-  { id: 'osHold', chapter: 'The OS', title: 'Unplug it: the OS keeps the job', flag: null,
-    done: (s, p) => s.held.length > 0 || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
-    text: 'Pull the key out.',
-    why: 'The job runs while you are away. The key waits in your hands until the result is ready.',
-    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
-  { id: 'osWait', chapter: 'The OS', title: 'Wait for the job', flag: null,
-    done: (s, p) => !!heldWith(s, 'result') || pluggedAt(s, ['result', 'flashing', 'done']) || p.firstOsJob,
-    text: 'The OS runs its queue. A held key with its result is ready to collect.',
-    why: 'It runs jobs one at a time. The badge on the drive shows the queue.',
-    targets: () => ['os', 'held'] },
-  { id: 'osCollect', chapter: 'The OS', title: 'Plug the key back in', flag: null,
-    done: (s, p) => pluggedAt(s, ['flashing', 'done']) || p.firstOsJob,
-    text: 'Plug the same key back in and wait for the result to land on it.',
-    targets: (s) => {
-      const k = s.plugged ?? heldWith(s, 'result') ?? s.held[0];
-      return ['usb', ...(k ? [`key:${k.id}`] : ['held'])];
-    } },
-  { id: 'osPaid', chapter: 'The OS', title: 'Remove the key to get paid', flag: 'firstOsJob',
-    text: 'Pull the finished key out of the port.',
-    why: 'You are paid on removal, and the OS is free for the next job.',
-    targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : [])] },
+  { id: 'osPaid', chapter: 'The OS', title: 'Wait for the result', flag: 'firstOsJob',
+    text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you are paid.',
+    why: 'The machine stays on and takes the next key as soon as you plug it. Watch the badge on the drive for what the OS is doing.',
+    targets: () => ['os', 'monitor'] },
   { id: 'done', chapter: null, title: 'Workshop open', flag: null,
     text: 'The machine now runs jobs on its own. Next goal: Level 4 opens the network, so jobs arrive without keys. It needs a Basic board for the jack, a router and a plan, and no more memory.',
     targets: () => [] },
@@ -373,7 +354,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (!s.powered) return 'The machine is off. Press the power button first.';
       if (s.phase === 'booting-os' || s.phase === 'posting') return 'The OS is still starting. A key plugged in meanwhile is picked up when it is idle.';
       return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
-    case 'osWait':
+    case 'osPaid':
       return s.phase === 'error' ? s.phaseReason : null;
     default:
       return null;

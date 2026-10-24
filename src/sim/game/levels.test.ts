@@ -412,35 +412,19 @@ describe("declining", () => {
     expect(g.snapshot().queueLength).toBe(0);
     expect(g.snapshot().declined).toBe(1);
 
-    // With an OS: a queued held job can be declined, the running one and a ready result cannot.
-    const os = rig("nvme2", { keys: [{ template: "cli.scan", scale: 16 }, { template: "cli.log" }, { template: "cli.log" }] }); // a long first job: the kernel is single-task, so the second key is only ingested after it
+    // With an OS: the key it is working on stays plugged (so it cannot be declined); a key waiting in the tray still can.
+    const os = rig("nvme2", { keys: [{ template: "cli.scan", scale: 16 }, { template: "cli.log" }] });
     os.powerButton();
     const untilOs = (cond: () => boolean) => { for (let i = 0; i < 4000 && !cond(); i++) os.advanceBaseTick(); expect(cond()).toBe(true); };
     untilOs(() => os.currentPhase() === "idle-os");
-    const ingest = (id: number) => {
-      expect(os.plugKey(id).ok).toBe(true);
-      untilOs(() => ["queued", "running", "result"].includes(os.snapshot().plugged?.stage ?? ""));
-      expect(os.ejectKey()).toMatchObject({ ok: true, done: false });
-    };
-    const [k1, k2, k3] = os.trayKeyIds();
-    ingest(k1!);
-    untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k1 && j.state === "running"));
-    expect(os.snapshot().held.find((k) => k.id === k1)!.declinable).toBe(false);
-    expect(os.declineKey(k1!)).toMatchObject({ ok: false, reason: expect.stringMatching(/^running/) });
-    ingest(k2!); // the kernel is single-task: this key is taken in once the first job has finished
-    expect(os.snapshot().held.find((k) => k.id === k2)!.declinable).toBe(true);
-    expect(os.declineJob(k2!)).toMatchObject({ ok: true });
-    expect(os.snapshot().held.map((k) => k.id)).toEqual([k1]);
-    expect(os.snapshot().os!.queue.map((j) => j.keyId)).toEqual([k1]);
-    untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k1 && j.state === "result"));
-    expect(os.declineKey(k1!)).toMatchObject({ ok: false, reason: expect.stringMatching(/^result waiting/) });
-    // The OS goes on: collect the first job and run the third.
+    const [k1, k2] = os.trayKeyIds();
     expect(os.plugKey(k1!).ok).toBe(true);
-    untilOs(() => os.pluggedKey()?.done === true);
-    expect(os.ejectKey()).toMatchObject({ ok: true, done: true });
-    ingest(k3!);
-    untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k3 && j.state === "result"));
-    expect(os.snapshot().completed).toBe(1);
+    untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k1 && j.state === "running"));
+    expect(os.declineKey(k1!)).toMatchObject({ ok: false, reason: expect.stringMatching(/^plugged/) });
+    expect(os.declineJob(k2!)).toMatchObject({ ok: true });
+    expect(os.snapshot().held).toEqual([]);
+    untilOs(() => os.completed === 1 && os.pluggedKey() === null);
+    expect(os.snapshot().declined).toBe(1);
   });
 
   it("is free in the sandbox: the job leaves and counts, but nothing is fed into the average", () => {

@@ -101,7 +101,7 @@ export const HINTS: Record<string, Hint> = {
   keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot: power off and on to load this key.' },
   osFull: { id: 'osFull', text: 'The OS queue is full. A plugged key waits until a job finishes.' },
   retiredKeys: { id: 'retiredKeys', text: 'The link is up: jobs come over the network now. Keys left in the tray expire without penalty.' },
-  portBusyKey: { id: 'portBusyKey', text: 'A key parked in the USB port blocks network jobs. Remove it.' },
+  portBusyKey: { id: 'portBusyKey', text: 'A key in the USB port holds up network jobs until it pops out.' },
   spoolFull: { id: 'spoolFull', text: 'The spool is full: new jobs wait and may expire. A bigger drive or OS holds more.' },
   linkDown: { id: 'linkDown', text: 'The link is down. Jobs on the drive are safe. After five minutes, keys come back at a third of the rate.' },
   saturated: { id: 'saturated', text: 'The link is saturated. More bandwidth will not help: a faster CPU, bigger OS or bigger router will.' },
@@ -318,7 +318,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
         return {
           title: `Client key ${k.label}`,
           plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`
-            + (held ? ' The OS is holding this job: plug the key in again once it has a result.' : ''),
+            + (held ? ' The OS still has this job from an older game: plug the key in to collect it.' : ''),
           nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts} | stage ${k.stage}`,
         };
       }

@@ -627,7 +627,7 @@ export async function mountBoard(host: HTMLElement) {
     add(powerArtRef);
     // a finished key (stage done) gets the remove cue: TAKE ME on a no-OS machine, REMOVE once the OS has flashed it
     if (s?.plugged) {
-      const art = pluggedKeyArt(T, s.plugged, notRead, s.os ? 'REMOVE' : s.autoEject ? null : 'TAKE ME');
+      const art = pluggedKeyArt(T, s.plugged, notRead, s.autoEject ? null : s.os ? 'REMOVE' : 'TAKE ME');
       add(art);
       const o = art.objs[0]!;
       const now = performance.now();
@@ -647,7 +647,7 @@ export async function mountBoard(host: HTMLElement) {
       keySeen = true;
     }
     add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
-    add(heldArt(T, s?.held ?? []));
+    if ((s?.held ?? []).length > 0) add(heldArt(T, s?.held ?? [])); // the rack only exists for keys an old save still holds
     for (const a of propsArt) order.push(...a.objs);
     // hit order: power, plugged key, tray keys, then the port and tray bodies
     propHits = [

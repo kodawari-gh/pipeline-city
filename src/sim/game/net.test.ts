@@ -349,21 +349,6 @@ describe("spool and power loss", () => {
     expect(g.money).toBe(m);
   });
 
-  it("USB keys the OS holds also survive a power-off now (spooled)", () => {
-    const g = rig("ssd1", { keys: [{ template: "cli.log" }, { template: "cli.log" }] });
-    g.powerButton();
-    until(g, () => g.currentPhase() === "idle-os", 800);
-    const id = g.trayKeyIds()[0]!;
-    expect(g.plugKey(id).ok).toBe(true);
-    until(g, () => g.snapshot().plugged?.stage === "queued" || g.snapshot().plugged?.stage === "running", 800);
-    g.ejectKey();
-    expect(g.snapshot().held.map((k) => k.id)).toEqual([id]);
-    g.powerButton();
-    expect(g.snapshot().held.map((k) => k.id)).toEqual([id]); // not returned to the tray
-    g.powerButton();
-    until(g, () => g.snapshot().os!.queue.some((j) => j.keyId === id), 1500);
-  });
-
   it("disk full: a full spool keeps offers waiting (not refused) and never exceeds the slots", () => {
     const g = netRig("hdd0", { isp: "isp1" });
     const slots = g.snapshot().os!.queueSlots;

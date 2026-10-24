@@ -31,14 +31,9 @@ export class Operator {
   private stepOs(plugged: { id: number; done: boolean } | null): void {
     const g = this.g;
     if (!g.powered) return this.act(() => { g.powerButton(); });
-    if (plugged) {
-      // Queued: pull it (the OS holds it) only if something else waits for the port; otherwise leave it for the result.
-      if (g.pluggedIngested() && (g.trayKeyIds().length > 0 || g.osHeld().ready.length > 0)) return this.act(() => { g.ejectKey(); });
-      return void (this.wait = 0);
-    }
-    const held = g.osHeld();
-    if (held.ready[0] !== undefined) return this.act(() => { g.plugKey(held.ready[0]!); });
-    if (held.jobs < held.queueSlots && g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting") {
+    // The OS keeps the key until the result is written, then it pops out by itself: the bot only plugs the next one.
+    if (plugged) return void (this.wait = 0);
+    if (g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting") {
       return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
     }
     this.wait = 0;

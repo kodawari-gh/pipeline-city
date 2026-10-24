@@ -29,22 +29,18 @@ function until(g: Game, done: () => boolean, max = 3000): number {
 
 const stageOfPlugged = (g: Game) => g.snapshot().plugged?.stage;
 
-/** Plug `keyId` and wait until the OS has ingested it (queued or beyond), then unplug it. */
+/** Plug `keyId` and wait until the OS has ingested it (queued or beyond). The key stays in: the OS works on it. */
 function ingest(g: Game, keyId: number): number {
   expect(g.plugKey(keyId).ok).toBe(true);
-  const t = until(g, () => ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""));
-  expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
-  return t;
+  return until(g, () => ["queued", "running", "result", "flashing", "done"].includes(stageOfPlugged(g) ?? ""));
 }
 
-/** Wait for the result of a held key, plug it, wait for the flash and unplug it: the delivery. Returns the payout. */
-function collect(g: Game, keyId: number): number {
-  until(g, () => g.snapshot().os!.queue.some((j) => j.keyId === keyId && j.state === "result"), 4000);
+/** Plug `keyId` and wait until the key has popped out by itself and paid. Returns the payout. */
+function serve(g: Game, keyId: number): number {
+  const before = g.completed;
   expect(g.plugKey(keyId).ok).toBe(true);
-  until(g, () => g.pluggedKey()?.done === true);
-  const r = g.ejectKey();
-  expect(r.ok && r.done).toBe(true);
-  return r.ok ? r.payout : 0;
+  until(g, () => g.completed === before + 1 && g.pluggedKey() === null, 4000);
+  return g.lastCompleted!.payout;
 }
 
 describe("buying and installing storage and the OS", () => {
@@ -186,21 +182,19 @@ describe("booting the OS from storage", () => {
     expect(g.progress.firstOsJob).toBe(false);
   });
 
-  it("an OS machine powered on with a key already plugged notices it at idle and ingests it", () => {
+  it("an OS machine powered on with a key already plugged notices it at idle and serves it", () => {
     const g = rig("ssd1");
     const id = g.trayKeyIds()[0]!;
     expect(g.plugKey(id).ok).toBe(true); // machine is off
     g.powerButton();
     runUntil(g, "idle-os");
-    until(g, () => ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""), 4000);
-    expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
-    expect(collect(g, id)).toBeGreaterThan(0);
+    until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
     expect(g.snapshot().progress.firstOsJob).toBe(true);
   });
 });
 
 describe("the OS takes keys, queues, runs and delivers", () => {
-  it("ingest, run, flash, deliver: payout and reputation come with the delivery", () => {
+  it("ingest, run, flash, deliver: the key stays in, then pops out by itself and pays", () => {
     const g = rig("ssd1");
     g.powerButton();
     runUntil(g, "idle-os");
@@ -213,22 +207,23 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     until(g, () => { seen.add(g.snapshot().keyActivity); return stageOfPlugged(g) === "queued" || stageOfPlugged(g) === "running" || stageOfPlugged(g) === "result"; });
     expect(seen).toContain("enumerating");
     expect(seen).toContain("ingesting");
-    // unplug: the key is held by the player, in the OS queue, not in the tray
-    expect(g.ejectKey()).toMatchObject({ ok: true, payout: 0, done: false });
+    // the OS has the job: the key cannot be pulled and is not held; it is still the plugged key
+    expect(g.ejectKey()).toMatchObject({ ok: false, reason: expect.stringMatching(/OS is working/) });
     let s = g.snapshot();
     expect(s.tray).toHaveLength(0);
-    expect(s.held.map((k) => k.id)).toEqual([id]);
+    expect(s.held).toEqual([]);
+    expect(s.plugged?.id).toBe(id);
     expect(s.os!.queue).toHaveLength(1);
-    const payout = collect(g, id);
+    until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
+    s = g.snapshot();
+    const payout = s.lastCompleted!.payout;
     expect(payout).toBeGreaterThan(0);
     expect(g.money).toBe(money0 + payout);
-    s = g.snapshot();
     expect(s).toMatchObject({ completed: 1, held: [], plugged: null });
     expect(s.os!.queue).toEqual([]); // the slot was freed by the delivery
     expect(s.lastCompleted).toMatchObject({ id, payout });
     expect(s.progress.firstOsJob).toBe(true);
-    // the key's result is the job's real output line
-    expect(g.lastCompleted).not.toBeNull();
+    expect(g.powered).toBe(true); // an OS machine stays on
   });
 
   it("the machine boots once: no POST between jobs", () => {
@@ -239,8 +234,7 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     runUntil(h, "idle-os");
     const phases = new Set<Phase>();
     for (const id of [...h.trayKeyIds()]) {
-      ingest(h, id);
-      collect(h, id);
+      serve(h, id);
       for (let i = 0; i < 20; i++) { h.advanceBaseTick(); phases.add(h.currentPhase()); }
     }
     expect(h.completed).toBe(3);
@@ -267,89 +261,62 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     expect(hdd.written).toBeGreaterThan(12 * 1024); // the OS install plus the spooled job
   });
 
-  it("pulling a key before the ingest finishes leaves nothing queued", () => {
+  it("a key pulled while the machine is off goes back to the tray; nothing is queued or held, and it can be served later", () => {
     const g = rig("hdd0");
     g.powerButton();
     runUntil(g, "idle-os");
     const id = g.trayKeyIds()[0]!;
     g.plugKey(id);
     until(g, () => g.snapshot().phase === "ingesting");
+    g.powerButton(); // the plug is pulled with the power: the OS and its table are gone
     expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
     expect(g.snapshot().tray.map((k) => k.id)).toEqual([id]); // back in the tray, not held
-    ticks(g, 120);
-    expect(g.snapshot().os!.queue).toEqual([]);
-    expect(g.snapshot().held).toEqual([]);
-    // and it can still be served afterwards
-    ingest(g, id);
-    expect(collect(g, id)).toBeGreaterThan(0);
-  });
-
-  it("a result pulled mid-flash is not lost: plug the key again and it is flashed again", () => {
-    const g = rig("ssd1");
     g.powerButton();
     runUntil(g, "idle-os");
-    const id = g.trayKeyIds()[0]!;
-    ingest(g, id);
-    until(g, () => g.snapshot().os!.queue.some((j) => j.state === "result"));
-    g.plugKey(id);
-    until(g, () => g.snapshot().keyActivity === "flashing");
-    expect(g.ejectKey()).toMatchObject({ ok: true, done: false }); // too early
-    expect(g.snapshot().held.map((k) => k.id)).toEqual([id]);
-    expect(collect(g, id)).toBeGreaterThan(0);
+    ticks(g, 60);
+    expect(g.snapshot().os!.queue).toEqual([]);
+    expect(g.snapshot().held).toEqual([]);
+    expect(serve(g, id)).toBeGreaterThan(0);
   });
 
-  it("runs one program at a time, oldest ingested first, and bounds the queue", () => {
-    const keys: Keys = Array.from({ length: 6 }, () => ({ template: "cli.log" }));
+  it("runs one program at a time, in the order the keys are plugged", () => {
+    const keys: Keys = Array.from({ length: 4 }, () => ({ template: "cli.log" }));
     const g = rig("hdd0", { cpu: "cpu2", keys });
     g.powerButton();
     runUntil(g, "idle-os");
     const ids = g.trayKeyIds();
-    expect(g.snapshot().os!.queueSlots).toBe(4);
     expect(g.snapshot().os!.programSlots).toBe(1);
     let maxRunning = 0;
     const order: number[] = [];
-    const watch = (): void => {
-      const q = g.snapshot().os!.queue;
-      maxRunning = Math.max(maxRunning, q.filter((j) => j.state === "running").length);
-      const r = q.find((j) => j.state === "running");
-      if (r && order[order.length - 1] !== r.keyId) order.push(r.keyId);
-    };
-    // ingest four keys (their results stay in the queue until delivered)
-    for (const id of ids.slice(0, 4)) {
+    for (const id of ids) {
       g.plugKey(id);
-      until(g, () => { watch(); return ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""); }, 4000);
-      g.ejectKey();
+      until(g, () => {
+        const q = g.snapshot().os!.queue;
+        maxRunning = Math.max(maxRunning, q.filter((j) => j.state === "running").length);
+        const r = q.find((j) => j.state === "running");
+        if (r && order[order.length - 1] !== r.keyId) order.push(r.keyId);
+        return g.pluggedKey() === null;
+      }, 4000);
     }
-    // the fifth does not fit: the queue is full, the key stays un-ingested in the port
-    g.plugKey(ids[4]!);
-    for (let i = 0; i < 300; i++) { g.advanceBaseTick(); watch(); }
-    expect(g.snapshot().plugged!.stage).toBe("tray");
-    expect(g.snapshot().os!.queue).toHaveLength(4);
-    expect(g.snapshot().os!.queue.every((j) => j.state === "result")).toBe(true);
+    expect(g.completed).toBe(4);
     expect(maxRunning).toBe(1);
-    expect(order).toEqual(ids.slice(0, 4)); // run in ingest order, one at a time
-    g.ejectKey();
-    // delivering one frees a slot, then the fifth key goes in
-    expect(collect(g, ids[0]!)).toBeGreaterThan(0);
-    ingest(g, ids[4]!);
-    expect(g.snapshot().os!.queue).toHaveLength(4);
+    expect(order).toEqual(ids);
   });
 
-  it("power loss keeps ingested keys: they are spooled on the drive and the kernel re-ingests them at the next boot", () => {
+  it("power loss while the OS has the key: the key is pulled with the plug, goes back to the tray and the job runs again later", () => {
     const g = rig("ssd1");
     g.powerButton();
     runUntil(g, "idle-os");
     const id = g.trayKeyIds()[0]!;
     ingest(g, id);
-    expect(g.snapshot().held).toHaveLength(1);
     g.powerButton();
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
     const s = g.snapshot();
-    expect(s.held.map((k) => k.id)).toEqual([id]); // changed with the network phase: no longer returned to the tray
-    expect(s.tray.map((k) => k.id)).not.toContain(id);
+    expect(s.held).toEqual([]);
+    expect(s.tray.map((k) => k.id)).toContain(id);
     g.powerButton();
     runUntil(g, "idle-os");
-    until(g, () => g.snapshot().os!.queue.some((j) => j.keyId === id)); // rebuilt from the spool, no second ingest by the player
-    expect(collect(g, id)).toBeGreaterThan(0);
+    expect(serve(g, id)).toBeGreaterThan(0);
   });
 
   it("is deterministic: the same seed and the same script give the same game", () => {
@@ -357,8 +324,7 @@ describe("the OS takes keys, queues, runs and delivers", () => {
       const g = rig("ssd1", { seed: 11, keys: [{ template: "cli.log" }, { template: "cli.checksum" }] });
       g.powerButton();
       runUntil(g, "idle-os");
-      for (const id of [...g.trayKeyIds()]) ingest(g, id);
-      for (const id of g.snapshot().held.map((k) => k.id)) collect(g, id);
+      for (const id of [...g.trayKeyIds()]) serve(g, id);
       ticks(g, 30);
       return JSON.stringify([g.snapshot(), g.toSave()]);
     };
@@ -377,7 +343,7 @@ describe("save v3 with an OS", () => {
     expect(JSON.parse(JSON.stringify(l.toSave()))).toEqual(save);
     l.powerButton();
     runUntil(l, "idle-os");
-    ingest(l, l.trayKeyIds()[0]!);
+    expect(serve(l, l.trayKeyIds()[0]!)).toBeGreaterThan(0);
   });
 
   it("rejects a save whose OS names a missing drive or an unknown OS", () => {
@@ -387,14 +353,15 @@ describe("save v3 with an OS", () => {
     expect(() => Game.fromSave({ ...save, os: { spec: "os2", deviceId: save.os.deviceId } })).toThrow(/unknown OS/); // locked tier
   });
 
-  it("keys held by the OS are saved as tray keys", () => {
+  it("a key the OS is working on is saved as the plugged key", () => {
     const g = rig("ssd1");
     g.powerButton();
     runUntil(g, "idle-os");
     const id = g.trayKeyIds()[0]!;
     ingest(g, id);
     const save = g.toSave();
-    expect(save.tray.map((k) => k.id)).toEqual([id]);
+    expect(save.plugged?.id).toBe(id);
+    expect(save.tray.map((k) => k.id)).not.toContain(id);
   });
 });
 

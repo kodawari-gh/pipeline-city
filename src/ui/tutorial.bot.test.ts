@@ -80,9 +80,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       else g.powerButton();
       break;
     case 'watch': break;
-    case 'osPaid':
-      if (s.plugged?.done) g.ejectKey();
-      break;
+    case 'osPaid': break; // the key pops out by itself
     case 'spend': buy('cpu1', 200); break;
     case 'reachLevel3': break; // the background serve loop delivers the jobs
     case 'fit': installPart(PART_KINDS, (i) => pendingUpgrade(s, i)); break;
@@ -94,16 +92,6 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       if (!g.powered) g.powerButton();
       if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
       break;
-    case 'osHold':
-      // Unplug once the OS has the key (queued): it is held until its result is ready.
-      if (s.plugged && g.pluggedIngested() && s.plugged.stage !== 'ingesting') g.ejectKey();
-      break;
-    case 'osWait': break;
-    case 'osCollect': {
-      const k = s.held.find((x) => x.stage === 'result');
-      if (!s.plugged && k) g.plugKey(k.id);
-      break;
-    }
     case 'welcome': case 'done': break;
   }
 }

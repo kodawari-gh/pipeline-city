@@ -469,7 +469,7 @@ export interface Snapshot {
   haltReason: "job-done" | "no-boot-media" | null;
   /** A key sits in the port of a running no-OS machine that already did its one look at the port: it is ignored until a power cycle. */
   keyIgnored: boolean;
-  /** True while a finished key ejects and pays by itself (no OS installed): the UI says so instead of "remove the key". */
+  /** True when a finished key ejects and pays by itself (always, unless a test turns it off): the UI says so instead of "remove the key". */
   autoEject: boolean;
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
@@ -1030,17 +1030,15 @@ export class Game {
   ejectKey(): Result<{ payout: number; done: boolean }> {
     const key = this.plugged;
     if (!key) return { ok: false, reason: "no key is plugged in" };
+    // Under an OS the key stays in while the OS has its job: the result is written onto it and it pops out and pays by itself.
+    if (this.os && this.powered && !key.done && this.kernelJobs().some((j) => j.key === key.id)) {
+      return { ok: false, reason: "the OS is working on this job: the key pops out by itself when the result is written" };
+    }
     const phase = this.currentPhase();
     this.plugged = null;
     this.pchKey = null;
     this.pch.unplug();
     if (!key.done) {
-      if (this.kernelJobs().some((j) => j.key === key.id)) {
-        // Ingested by the OS: the client lets the player keep the key until the result is ready; plug it again to collect.
-        this.held.push(key);
-        this.note("key", `key ${key.id} ingested: plug it again for the result`);
-        return { ok: true, payout: 0, done: false };
-      }
       if (!this.os) key.attempts++;
       this.tray.giveBack(key);
       this.note("key", `key ${key.id} pulled before the job finished`);
@@ -1301,7 +1299,7 @@ export class Game {
       keyActivity: this.keyActivity(),
       haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
       keyIgnored: this.keyIgnored(),
-      autoEject: this.cfg.autoEjectTicks > 0 && !this.os,
+      autoEject: this.cfg.autoEjectTicks > 0,
       postFailed: !!this.postError,
       patience: {
         mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
@@ -2076,14 +2074,16 @@ export class Game {
     }
   }
 
-  /** No OS: the finished key ejects itself `autoEjectTicks` after the machine halts on JOB DONE, pays, and the machine powers off. */
+  /** A finished key ejects itself `autoEjectTicks` after its result is in, and pays. No OS: after the machine halts on JOB DONE, and the machine powers off. With an OS: after the flash, and the machine stays on. */
   private autoEject(): void {
     const k = this.plugged;
-    if (!this.cfg.autoEjectTicks || this.os || !k || !k.done || this.pch.phase !== PchPhase.Halted) { this.autoEjectWait = 0; return; }
+    // No OS: after JOB DONE (halted). With an OS: once the result has landed on the key (the flash is over).
+    const ready = !!k && k.done && (this.os ? this.pch.phase !== PchPhase.OsFlash : this.pch.phase === PchPhase.Halted);
+    if (!this.cfg.autoEjectTicks || !ready) { this.autoEjectWait = 0; return; }
     if (++this.autoEjectWait >= this.cfg.autoEjectTicks) {
       this.autoEjectWait = 0;
       this.ejectKey();
-      this.powerButton(); // and the machine switches itself off: one less thing to click between jobs
+      if (!this.os) this.powerButton(); // no OS: the machine switches itself off too. With an OS it just goes on.
     }
   }
 

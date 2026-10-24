@@ -120,10 +120,10 @@ The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/s
 | First jobs | `cycle`: plug the next key, press power | `firstManualCycle` | `power`, `usb`, key |
 | First jobs | `spend`, `fit` | `firstPurchase`; no bought upgrade left in the inventory | the CPU socket; the part and its socket |
 | The OS | `reachLevel3` (meter), `buyDrive`, `drive`, `buyOs`, `os`, `bootOs` | level 3 or a drive; drive owned; `storageInstalled`; OS owned; `osInstalled`; OS phase | the bay, parts and sockets, `power`, `os` |
-| The OS | `osIngest`, `osHold`, `osWait`, `osCollect`, `osPaid` | live key stages, `firstOsJob` | `usb`, key, `os`, `held` |
+| The OS | `osIngest` (plug a key and leave it), `osPaid` (wait: the key pops out by itself and pays) | the key is ingested; `firstOsJob` | `usb`, key; `os`, `monitor` |
 | - | Workshop open (Got it) | button | none |
 
-A player who finished the first twelve flags before the OS lesson existed is not forced through the rest: they get one **Next lesson: the OS** offer. `osLesson` and `offered` are persisted next to the old flags. The bot test (`tutorial.bot.test.ts`) plays the whole tutorial through public Game actions and checks that every step shows up in order, no step waits more than 10 minutes and no action is refused. With the fast OS a job can finish on the plugged key before the bot unplugs it; the "unplug" steps are skipped past when that happens.
+A player who finished the first twelve flags before the OS lesson existed is not forced through the rest: they get one **Next lesson: the OS** offer. `osLesson` and `offered` are persisted next to the old flags. The bot test (`tutorial.bot.test.ts`) plays the whole tutorial through public Game actions and checks that every step shows up in order, no step waits more than 10 minutes and no action is refused. 
 
 **Resume and replay.** Persisted in `localStorage['pipeline-city.tutorial']`; the progress itself comes from the save. Replay judges steps from live state and deltas against a baseline.
 
@@ -234,3 +234,4 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - **Glow.** Hover is one thin outline; a selection adds none; the tutorial ring is the single yellow ring above.
 - **Space** pauses and resumes at the speed the game ran at (`togglePause` in `store.ts`, `PauseKey` in `Hud.tsx`); a "Paused" pill shows. Text fields, sliders and open dialogs keep their own Space.
 - **New game asks about the tutorial** (campaign only): "Guided tutorial? Yes, show me / No, I know the game" (`resetTutorial` in `state.ts`). Yes resets the tutorial to its welcome card, no hides it (the menu replays it). Continuing a saved game does not ask.
+- **No held keys.** With an OS the key stays plugged while the OS works and pops out by itself when paid (`docs/OS.md`). The held-keys rack is only drawn if an old save still holds keys; the key card's Remove button is disabled with the reason while the OS has the job.

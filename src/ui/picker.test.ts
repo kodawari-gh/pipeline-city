@@ -302,7 +302,7 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
       held: [key({ id: 3, label: '#3 log', stage: 'result' })], tray: [],
     });
     const sec = osSection(s)!;
-    expect(sec.queue[0]!.text).toBe('done, waiting for you');
+    expect(sec.queue[0]!.text).toBe('done');
     expect(sec.held).toEqual([{ keyId: 3, label: '#3 log', retired: false, hint: 'plug key 3 again to collect' }]);
   });
 

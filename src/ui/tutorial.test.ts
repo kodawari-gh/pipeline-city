@@ -257,16 +257,10 @@ describe('the OS steps (live state and phases)', () => {
   const osFlow = (extra: Partial<Parameters<typeof snap>[0]>) =>
     afterSpend({ progress: { ...oldDone(), storageInstalled: true, osInstalled: true }, storage: [drive({ hasOs: true })], os: osOn(), powered: true, phase: 'ingesting', ...extra });
 
-  it('a key ingested by the OS and unplugged is held; the step after is waiting for its result', () => {
-    const held = key({ id: 7, stage: 'queued' });
-    const s = osFlow({ held: [held] });
-    expect(idOf(currentStep(s, welcomed))).toBe('osWait');
-    expect(STEPS.find((x) => x.id === 'osWait')!.targets(s)).toEqual(['os', 'held']);
-  });
-
-  it('a key plugged and queued: the next step is to unplug it', () => {
+  it('a key plugged and queued: the OS lesson waits for the result and the pay-out, nothing is held', () => {
     const s = osFlow({ plugged: key({ id: 7, stage: 'queued' }) });
-    expect(idOf(currentStep(s, welcomed))).toBe('osHold');
+    expect(idOf(currentStep(s, welcomed))).toBe('osPaid');
+    expect(STEPS.find((x) => x.id === 'osPaid')!.targets(s)).toEqual(['os', 'monitor']);
   });
 
   it('a key still being copied is not yet ingested', () => {
@@ -274,17 +268,11 @@ describe('the OS steps (live state and phases)', () => {
     expect(idOf(currentStep(s, welcomed))).toBe('osIngest');
   });
 
-  it('a held key with its result: collect it by plugging it back in', () => {
-    const s = osFlow({ held: [key({ id: 7, stage: 'result' })] });
-    expect(idOf(currentStep(s, welcomed))).toBe('osCollect');
-    expect(STEPS.find((x) => x.id === 'osCollect')!.targets(s)).toEqual(['usb', 'key:7']);
-  });
-
-  it('a result being flashed onto the plugged key, then removed to get paid', () => {
+  it('a result being flashed onto the plugged key: still waiting for the pay-out', () => {
     expect(idOf(currentStep(osFlow({ plugged: key({ id: 7, stage: 'flashing' }) }), welcomed))).toBe('osPaid');
   });
 
-  it('keys held when the machine powers off go back to the tray: the job is lost and the step shows again', () => {
+  it('a key back in the tray after the machine powers off: the job is lost and the boot step shows again', () => {
     const s = afterSpend({ progress: { ...oldDone(), storageInstalled: true, osInstalled: true }, storage: [drive({ hasOs: true })], os: osOn(), powered: false, phase: 'off', tray: [key({ id: 7 })] });
     expect(idOf(currentStep(s, welcomed))).toBe('bootOs');
   });

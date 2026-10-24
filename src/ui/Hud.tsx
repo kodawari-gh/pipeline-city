@@ -122,7 +122,7 @@ function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
     <div class={`stat ${q.late ? 'bad' : ''}`} title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
       <Icon name="stick" size={14} />
       <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
-      {q.held > 0 && <span class="value held" title="Held keys: the OS has their jobs, plug them back in to collect">+{q.held}<span class="mute"> held</span></span>}
+      {q.held > 0 && <span class="value held" title="Keys an older game left with the OS: plug them in to collect">+{q.held}<span class="mute"> held</span></span>}
     </div>
   );
 }

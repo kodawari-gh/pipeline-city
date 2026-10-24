@@ -81,20 +81,13 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     expect(off.snapshot().tray).toHaveLength(1); // the old rule: a runnable key is not taken back
   });
 
-  it("a retired key is still served: plugged, ingested and paid when collected", () => {
+  it("a retired key is still served: plugged, ingested by the OS, and it pops out and pays by itself", () => {
     const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
     const id = g.snapshot().tray[0]!.id;
     until(g, () => g.plugKey(id).ok, 600); // a refusal while the feed holds the port is a moment, not a failure
-    until(g, () => g.pluggedIngested(), 800);
-    expect(g.ejectKey().ok).toBe(true); // held by the OS, not collected yet
-    const held = g.snapshot().held.find((k) => k.id === id);
-    expect(held?.retired).toBe(true);
-    until(g, () => g.osHeld().ready.includes(id), 2000);
-    until(g, () => g.plugKey(id).ok, 600);
-    until(g, () => g.pluggedKey()?.done === true, 600); // the port flashes the result onto the key first
-    const r = g.ejectKey();
-    expect(r.ok && r.done && r.payout).toBeGreaterThan(0);
-    expect(g.snapshot().completed).toBeGreaterThanOrEqual(1);
+    expect(g.snapshot().plugged?.retired).toBe(true);
+    until(g, () => g.snapshot().completed >= 1 && g.pluggedKey() === null, 3000);
+    expect(g.lastCompleted!.payout).toBeGreaterThan(0);
   });
 
   it("declining a retired key costs nothing; declining a normal one still does", () => {
@@ -113,7 +106,7 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     expect(off.snapshot().avgTurnaround).not.toBe(avgOff);
   });
 
-  it("held keys: a result waiting is not retired; a key still queued at the return is; fallback keys are normal until the link returns", () => {
+  it("fallback keys are normal until the link returns, then they are retired again", () => {
     // Build the rig with no keys and no cable, then bring the link up and let it go down: keys that arrive in the USB
     // fallback are normal (not retired) and are retired again when the link returns.
     const g = rig("ssd1", { keys: [] });
@@ -129,46 +122,13 @@ describe("retired keys: the rule", { timeout: 30000 }, () => {
     const tray = g.snapshot().tray;
     expect(tray.length).toBeGreaterThanOrEqual(2);
     expect(tray.every((k) => k.retired === false)).toBe(true); // normal keys during the fallback
-    const [x, y] = [tray[0]!.id, tray[1]!.id];
 
-    // X: ingested, then its result is ready in the kernel (held with a result). Y: ingested, still queued.
-    until(g, () => g.plugKey(x).ok, 600);
-    until(g, () => g.pluggedIngested(), 800);
-    g.ejectKey();
-    until(g, () => g.osHeld().ready.includes(x), 2000);
-    until(g, () => g.plugKey(y).ok, 600);
-    until(g, () => g.pluggedIngested(), 800);
-    g.ejectKey();
-    expect(g.snapshot().held.map((k) => k.id).sort()).toEqual([x, y].sort());
-
-    // The link returns in the same tick as the reading: X (result waiting) stays normal, Y is retired, the tray too.
+    // The link returns: the keys in the tray are retired.
     expect(g.connectCable("lan").ok).toBe(true);
     tick(g, 1);
     const after = g.snapshot();
-    expect(after.held.find((k) => k.id === x)?.retired).toBe(false);
-    expect(after.held.find((k) => k.id === y)?.retired).toBe(true);
     expect(after.tray.every((k) => k.retired)).toBe(true);
-    expect(after.net.retiredKeys).toBe(after.tray.length + 1);
-
-    // X is still collected for its payout.
-    until(g, () => g.plugKey(x).ok, 600);
-    until(g, () => g.pluggedKey()?.done === true, 600);
-    const r = g.ejectKey();
-    expect(r.ok && r.done && r.payout).toBeGreaterThan(0);
-  });
-
-  it("a held key that is still queued expires silently when its deadline passes with the machine off", () => {
-    const g = netRig("ssd1", { keys: keys(1), economy: { baseDemandPerTick: 0 } });
-    const id = g.snapshot().tray[0]!.id;
-    const dl = g.snapshot().tray[0]!.deadlineTick;
-    until(g, () => g.plugKey(id).ok, 600);
-    until(g, () => g.pluggedIngested(), 800);
-    g.ejectKey();
-    expect(g.snapshot().held.map((k) => k.id)).toEqual([id]);
-    g.powerButton(); // off: the kernel is gone, the held key waits on the drive
-    until(g, () => g.baseTick > dl, 2000);
-    expect(g.snapshot().held).toHaveLength(0);
-    expect(g.snapshot().expired).toBe(0);
+    expect(after.net.retiredKeys).toBe(after.tray.length);
   });
 });
 
@@ -228,7 +188,8 @@ describe("retired keys: save, determinism and the snapshot", { timeout: 30000 },
     until(g, () => g.plugKey(id).ok, 600);
     for (let i = 0; i < 8; i++) offer(g);
     until(g, () => net(g).portBusyKey === id, 1500);
-    expect(g.ejectKey().ok).toBe(true);
+    // the OS finishes the key (it pops out by itself), and the port is free for the network again
+    until(g, () => g.pluggedKey() === null, 3000);
     expect(net(g).portBusyKey).toBeNull();
   });
 

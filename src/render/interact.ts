@@ -227,7 +227,8 @@ export class Interact {
   }
 
   private ejectBlocked(s: Snapshot): string | null {
-    return NO_EJECT.has(s.phase) ? 'The job is still running. Wait for REMOVE KEY on the monitor.' : null;
+    if (s.os && s.plugged && !s.plugged.done && s.plugged.stage !== 'tray') return 'The OS is working on it. The key pops out by itself.';
+    return NO_EJECT.has(s.phase) ? 'The job is still running. The key pops out by itself when it is done.' : null;
   }
 
   private tryEject(cx: number, cy: number): boolean {

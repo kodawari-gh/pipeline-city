@@ -33,6 +33,10 @@ export interface PickerAction {
   why?: string;
 }
 
+/** Under an OS the key stays in while the OS has its job; it pops out by itself. */
+const osBusy = (s: Snapshot, k: { done: boolean; stage: string }): string | undefined =>
+  s.os && !k.done && k.stage !== 'tray' ? 'The OS is working on this job: the key pops out by itself when the result is written' : undefined;
+
 /** One numeric property of a part, for the bars. `value` is in `unit`; bars use `goodness` (0..1). */
 export interface Stat {
   key: string;
@@ -152,7 +156,7 @@ export function osSection(s: Snapshot): OsSection | null {
     retired: !!findKey(s, j.keyId)?.retired,
     job: (() => { const k = findKey(s, j.keyId); return k ? jobView(k) : null; })(),
     text: j.state === 'running' ? 'running now'
-      : j.state === 'result' ? 'done, waiting for you'
+      : j.state === 'result' ? 'done'
       : j.ahead === 0 ? 'next' : `${j.ahead} ahead`,
   }));
   const host = s.storage.find((x) => x.hasOs);
@@ -545,7 +549,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     return {
       ...emptyCard(id, 'key', `Client key ${k.label}`, d.plain, d.nerd), lines, job: jobView(k), tag: k.retired ? 'retired' : undefined,
       actions: plugged
-        ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done }]
+        ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done, why: osBusy(s, k) }]
         : [{ id: 'plug', label: 'Plug into USB', keyId: k.id, primary: k.runnable, why: s.plugged ? 'A key is already plugged in' : k.runnable ? undefined : `Cannot run yet: it needs ${k.missing.join(' and ')}` }],
     };
   }
@@ -597,7 +601,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       : [{ level: 'info', text: s.tray.length ? 'Port is free. Drag a key from the tray into it.' : 'Port is free. No keys waiting right now.' }];
     return {
       ...emptyCard(id, 'usb', d.title, d.plain, d.nerd), lines,
-      actions: k ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done }] : [],
+      actions: k ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done, why: osBusy(s, k) }] : [],
     };
   }
 
