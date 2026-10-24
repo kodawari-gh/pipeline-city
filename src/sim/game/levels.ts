@@ -3,6 +3,7 @@
 // kept in this one file (the LEVELS rows and the JOB_CLASSES) so the balance pass touches one place.
 
 import { BOARD_TIERS, getSpec } from "../board";
+import { getIspSpec, getRouterSpec } from "../net";
 import { getOsSpec } from "../os";
 
 // ---------- job classes and needs ----------
@@ -148,21 +149,15 @@ export const MAX_LEVEL = LEVELS.length;
 export const START_CRATE: readonly string[] = ["cpu0", "ram0", "psu0", "cooler0", "display0", "board0"];
 
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
-export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = {
-  router1: { name: "Router 100 Mbit", kind: "router" }, isp1: { name: "Plan 50/10 Mbit", kind: "isp" },
-  isp2: { name: "Plan 200/50 Mbit", kind: "isp" }, fan1: { name: "Case fans", kind: "fan" },
-  router2: { name: "Router 1 Gbit", kind: "router" }, nic1: { name: "1 Gbit network card", kind: "nic" },
+export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = { fan1: { name: "Case fans", kind: "fan" },
   cpu3: { name: "2-wide in-order CPU", kind: "cpu" }, tpm1: { name: "Secure module", kind: "tpm" },
-  ram3: { name: "ECC RAM", kind: "ram" }, isp3: { name: "Plan 1000/300 Mbit", kind: "isp" },
+  ram3: { name: "ECC RAM", kind: "ram" },
   gpu1: { name: "GPU", kind: "gpu" }, psu3: { name: "PSU 500 W", kind: "psu" }, display1: { name: "Graphics display", kind: "display" },
   cpu4: { name: "Out-of-order CPU", kind: "cpu" }, cooler3: { name: "Big radiator", kind: "cooler" },
-  router3: { name: "Router 10G", kind: "router" }, nic2: { name: "10G network card", kind: "nic" },
   npu1: { name: "NPU", kind: "npu" }, tpm2: { name: "Secure module 2", kind: "tpm" },
-  cpu5: { name: "Multicore CPU", kind: "cpu" }, gpu2: { name: "GPU 2", kind: "gpu" }, isp4: { name: "Plan 5000/1500 Mbit", kind: "isp" },
+  cpu5: { name: "Multicore CPU", kind: "cpu" }, gpu2: { name: "GPU 2", kind: "gpu" },
   psu4: { name: "PSU 1 kW", kind: "psu" }, board4: { name: "Server board", kind: "board" },
   gpu3: { name: "GPU 3", kind: "gpu" }, npu2: { name: "NPU 2", kind: "npu" }, raid2: { name: "RAID of two NVMe", kind: "raid" },
-  nic3: { name: "40 Gbit network card", kind: "nic" }, router4: { name: "Router 40G", kind: "router" },
-  isp5: { name: "Plan 20000/10000 Mbit", kind: "isp" },
 };
 
 export const isPlannedItem = (id: string): boolean => id in PLANNED_ITEMS;
@@ -181,6 +176,10 @@ export function itemInfo(id: string): ItemInfo {
   if (planned) return { id, ...planned, planned: true };
   const board = /^board([0-9]+)$/.exec(id);
   if (board) return { id, name: BOARD_TIERS[Number(board[1])]?.name ?? id, kind: "board", planned: false };
+  const router = getRouterSpec(id);
+  if (router) return { id, name: router.name, kind: "router", planned: false };
+  const isp = getIspSpec(id);
+  if (isp) return { id, name: `${isp.name} plan`, kind: "isp", planned: false };
   const os = getOsSpec(id);
   if (os) return { id, name: os.name, kind: "os", planned: !!os.later };
   const spec = getSpec(id);

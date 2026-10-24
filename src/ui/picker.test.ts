@@ -253,10 +253,10 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
     deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
     usedBytes: 12 * 1024, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 720, blockTicks: 72, bytesPerSecond: 3600, hasOs: true,
   };
-  const job = (o: Partial<OsJobSnap>): OsJobSnap => ({ slot: 0, keyId: 1, label: '#1 log', state: 'queued', ahead: 0, ...o });
+  const job = (o: Partial<OsJobSnap>): OsJobSnap => ({ slot: 0, keyId: 1, label: '#1 log', state: 'queued', persisted: true, ahead: 0, ...o });
   const osOn = (queue: OsJobSnap[] = [], o: Partial<OsSnap> = {}): OsSnap => ({
     spec: 'os1', tier: 1, name: 'Resident OS 1.0', deviceId: 'dev-hdd', slot: 'sata0', programSlots: 1, queueSlots: 4,
-    up: true, queue, runningKeyId: null, ...o,
+    up: true, queue, runningKeyId: null, spool: { slotBytes: 4096, slots: 4, used: 0, freeBytes: 0, full: false }, ...o,
   });
   const withOs = (queue: OsJobSnap[] = [], extra: Parameters<typeof snap>[0] = {}) =>
     snap({

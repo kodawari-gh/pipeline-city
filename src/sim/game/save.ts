@@ -67,16 +67,23 @@ export interface Progress {
   osInstalled: boolean;
   /** A job ingested and run by the OS was delivered to its client (v3). */
   firstOsJob: boolean;
+  /** Network milestones (docs/NETWORK.md "Tutorial"): an ISP plan bought, a router installed, the ethernet cable plugged, the link up, a job delivered over the network. */
+  ispBought: boolean;
+  routerInstalled: boolean;
+  lanConnected: boolean;
+  linkUp: boolean;
+  firstNetJob: boolean;
 }
 
 export const PROGRESS_KEYS: readonly (keyof Progress)[] = [
   "cpuInstalled", "psuInstalled", "ramInstalled", "monitorInstalled", "atxConnected", "cpuPowerConnected",
   "videoConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
   "storageInstalled", "osInstalled", "firstOsJob", "coolerInstalled", "firstManualCycle",
+  "ispBought", "routerInstalled", "lanConnected", "linkUp", "firstNetJob",
 ];
 
 /** Milestones added after the tutorial existed (v3): "all" (an existing or preassembled player) leaves them false. */
-const NEW_FLAGS: readonly (keyof Progress)[] = ["storageInstalled", "osInstalled", "firstOsJob"];
+const NEW_FLAGS: readonly (keyof Progress)[] = ["storageInstalled", "osInstalled", "firstOsJob", "ispBought", "routerInstalled", "lanConnected", "linkUp", "firstNetJob"];
 
 export const newProgress = (all = false): Progress =>
   Object.fromEntries(PROGRESS_KEYS.map((k) => [k, all && !NEW_FLAGS.includes(k)])) as unknown as Progress;
@@ -147,6 +154,23 @@ export interface SaveV4 {
   /** Jobs the player declined (lifetime) and clients that took an unrunnable job back at its deadline. */
   declined?: number;
   expired?: number;
+  /** Network state (docs/NETWORK.md "Save"). Optional and additive, no version bump: absent means no plan, no router, no cable. */
+  net?: SavedNet;
+}
+
+/** Network state. Transfers are not saved: downloads and finished-but-unspooled jobs come back as offers. */
+export interface SavedNet {
+  /** Tier of the ISP plan bought (0 none) and of the router installed (0 none). */
+  ispTier: number;
+  routerTier: number;
+  /** Where the ethernet cable is plugged: "board", an installed NIC's device id, or null. */
+  lan: string | null;
+  networkLinked: boolean;
+  deadTicks: number;
+  /** Jobs waiting at the ISP side (offers and interrupted downloads). */
+  offers: SavedKey[];
+  /** Spooled jobs (on the OS drive): they survive power loss and are re-ingested at the next boot. */
+  spool: SavedKey[];
 }
 
 export type Save = SaveV4;
@@ -190,7 +214,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       board: s.board,
       inventory: s.pending.map((spec, i) => ({ id: `inv${i + 1}`, spec })),
       nextInvId: s.pending.length + 1,
-      cables: { atx: true, cpu: true, video: true },
+      cables: { atx: true, cpu: true, video: true, lan: false },
       tray: keys,
       plugged: null,
       tripped: s.tripped,
@@ -248,6 +272,22 @@ export function parseSave(input: unknown): SaveV4 {
   // Saves from before the manual boot loop have no `firstManualCycle`: whoever handed back a key had cycled the machine.
   if (isObj(s.progress) && typeof s.progress.firstManualCycle !== "boolean") {
     s.progress = { ...s.progress, firstManualCycle: s.progress.firstKeyEjected === true };
+  }
+  // Saves from before the network: the ethernet cable is unplugged and the network milestones are not reached.
+  if (isObj(s.cables) && typeof (s.cables as Record<string, unknown>).lan !== "boolean") s.cables = { ...s.cables, lan: false };
+  if (isObj(s.progress)) {
+    const p = { ...s.progress } as Record<string, unknown>;
+    for (const k of PROGRESS_KEYS) if (typeof p[k] !== "boolean" && NEW_FLAGS.includes(k)) p[k] = false;
+    s.progress = p;
+  }
+  if (s.net !== undefined) {
+    const n = s.net;
+    if (!isObj(n) || !isNat(n.ispTier) || !isNat(n.routerTier) || !isNat(n.deadTicks) || typeof n.networkLinked !== "boolean"
+      || !(n.lan === null || typeof n.lan === "string") || !Array.isArray(n.offers) || !Array.isArray(n.spool)) {
+      throw new Error('save: "net" is not a valid network block');
+    }
+    (n.offers as unknown[]).forEach((r, i) => checkKey(r, `net.offers[${i}]`));
+    (n.spool as unknown[]).forEach((r, i) => checkKey(r, `net.spool[${i}]`));
   }
   if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick)) throw new Error('save: "firstBootTick" must be a non-negative integer or null');
   if (s.sandbox !== undefined && typeof s.sandbox !== "boolean") throw new Error('save: "sandbox" must be a boolean');

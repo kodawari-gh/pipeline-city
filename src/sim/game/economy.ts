@@ -1,6 +1,7 @@
 // Economy: placeholder balance config plus pure helpers (demand, reputation, payout, purchase catalog).
 // No DOM. Every number that affects balance is in ECONOMY; see docs/GAME.md for how pacing was set.
 
+import { getIspSpec, getRouterSpec, NET } from "../net";
 import { getOsSpec } from "../os";
 import {
   BOARD_TIERS, boardFromJson, boardToJson, deviceSpec, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
@@ -103,6 +104,9 @@ export interface EconomyConfig {
    * off. The sandbox never gates.
    */
   levelGating: boolean;
+  /** Network (docs/NETWORK.md "USB fallback"): dead-link ticks before keys come back, and their rate share then. */
+  usbFallbackTicks: number;
+  usbFallbackMul: number;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -127,6 +131,8 @@ export const ECONOMY: EconomyConfig = {
   usbFlashTicks: 2,
   coldBoot: { base: 22, perKiB: 0.25, kiBCap: 40, perStick: 2, max: 90, init: { cpu: 1, display: 1, hdd0: 4, ssd1: 2, nvme2: 1 } },
   levelGating: true,
+  usbFallbackTicks: NET.usbFallbackTicks,
+  usbFallbackMul: NET.usbFallbackMul,
 };
 
 /**
@@ -186,7 +192,7 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
 
 // ---------- purchases ----------
 
-const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink"];
+const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink", "nic"];
 
 /**
  * Replace the installed part of the spec's kind with `specId`, going through board install/validation.
@@ -221,7 +227,7 @@ export function boardTierOf(id: string): number | undefined {
 
 export function offerPrice(id: string): number | undefined {
   const t = boardTierOf(id);
-  return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price);
+  return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
 /** Buy an offer on a board: swap a part, or move to the bigger board (every device is carried over). */

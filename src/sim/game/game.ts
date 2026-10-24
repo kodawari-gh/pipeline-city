@@ -12,7 +12,7 @@ import {
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard,
   type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
-  specsOfKind, type StorageSpec,
+  specsOfKind, type NicSpec, type StorageSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
@@ -20,6 +20,10 @@ import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_B
 import { generate, runReference, TEMPLATES } from "../gen";
 import { Disk, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import {
+  bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
+  type Binding, type IspSpec, type RouterSpec,
+} from "../net";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
   applyOffer, boardTierOf, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, postTicks, reputation,
@@ -31,7 +35,7 @@ import {
   type LevelRowSnap, type Need,
 } from "./levels";
 import {
-  newProgress, parseSave, PROGRESS_KEYS, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV4,
+  newProgress, parseSave, PROGRESS_KEYS, SAVE_VERSION, type Progress, type SavedKey, type SavedNet, type SavedPlugged, type SaveV4,
 } from "./save";
 import { UsbTray, type Job } from "./work";
 
@@ -76,6 +80,22 @@ interface Key extends Job {
   doneAt: number;
   result: string;
 }
+
+/** A download or upload in progress (RAM, lost on power loss). */
+interface Transfer { key: Key; totalMB: number; doneMB: number }
+
+/** The link as evaluated each tick. */
+interface Link {
+  state: LinkState;
+  reason: string | null;
+  port: { kind: "board" | "nic" | null; deviceId: string | null; mbps: number };
+  router: RouterSpec | null;
+  isp: IspSpec | null;
+  bw: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
+}
+
+/** The job the virtual USB key (the NIC feed) currently carries into or out of the kernel. */
+interface NetKey { key: Key; kind: "ingest" | "flash"; pch: PchKey; since: number; fromRx: boolean }
 
 export interface CompletedInfo {
   id: number;
@@ -164,7 +184,7 @@ export interface StageSnap {
 export interface PurchaseSnap {
   id: string;
   name: string;
-  kind: DeviceKind | "board" | "os";
+  kind: DeviceKind | "board" | "os" | "router" | "isp";
   price: number;
   affordable: boolean;
   /** Set if the board would refuse it right now (e.g. PSU too small, no slot). */
@@ -188,14 +208,15 @@ export type Phase =
   | "booting-os" | "idle-os" | "ingesting" | "running-os" | "flashing";
 
 /** Where a key's job stands. Legacy (no OS) keys are "tray", then "done" once the ROM wrote the result. */
-export type KeyStage = "tray" | "ingesting" | "queued" | "running" | "result" | "flashing" | "done";
+export type KeyStage = "tray" | "ingesting" | "queued" | "running" | "result" | "flashing" | "done"
+  | "offer" | "downloading" | "spooled" | "uploading";
 
 /** A part you own but have not installed. */
 export interface InventorySnap {
   /** Inventory item id (what `install` takes). */
   id: string;
   spec: string;
-  kind: DeviceKind | "board" | "os";
+  kind: DeviceKind | "board" | "os" | "router";
   name: string;
   /** Free slot ids it fits right now (drop targets). For a board item: ["board"]; for an OS: the storage slots it can go on. */
   freeSlots: string[];
@@ -209,7 +230,8 @@ export interface InventorySnap {
 
 export interface SlotSnap {
   id: string;
-  type: SlotType;
+  /** "router" is the single external spot next to the monitor (only in `Snapshot.slots`). */
+  type: SlotType | "router";
   /** Installed device instance id, or null if empty. */
   deviceId: string | null;
 }
@@ -312,6 +334,8 @@ export interface OsJobSnap {
   keyId: number;
   label: string;
   state: "queued" | "running" | "result";
+  /** The job sits in the spool on the drive (always true: every kernel queue row is spooled). */
+  persisted: boolean;
   /** 0 = running now or next to run; counts queued jobs ahead of it. Results awaiting delivery use -1. */
   ahead: number;
 }
@@ -331,6 +355,8 @@ export interface OsSnap {
   up: boolean;
   queue: OsJobSnap[];
   runningKeyId: number | null;
+  /** The job spool on the drive (docs/NETWORK.md "Spool"). `used` counts spooled jobs and the slots reserved for downloads. */
+  spool: { slotBytes: number; slots: number; used: number; freeBytes: number; full: boolean };
 }
 
 /** What the USB port's LED would be doing. */
@@ -445,6 +471,42 @@ export interface Snapshot {
   declined: number;
   /** POST (cold boot) time of the machine as built, in ticks. */
   postTicks: number;
+
+  // ---- network (docs/NETWORK.md; additive) ----
+  net: NetSnap;
+}
+
+export type LinkState = "no-device" | "no-cable" | "no-os" | "link-up" | "saturated" | "down";
+
+export interface TransferSnap {
+  jobId: number;
+  label: string;
+  dir: "down" | "up";
+  totalMB: number;
+  doneMB: number;
+  percent: number;
+  etaTicks: number;
+  /** Transfers are RAM: lost on power loss (the spooled job is not). */
+  persisted: false;
+}
+
+/** The network block (docs/NETWORK.md "Snapshot"). */
+export interface NetSnap {
+  state: LinkState;
+  reason: string | null;
+  port: { kind: "board" | "nic" | null; deviceId: string | null; mbps: number };
+  router: { id: string; name: string; mbps: number; clients: number; visual: string } | null;
+  isp: { id: string; name: string; downMbps: number; upMbps: number; clients: number } | null;
+  bandwidth: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
+  transfers: TransferSnap[];
+  /** Jobs waiting at the ISP side, oldest first. */
+  offers: KeySnap[];
+  /** Jobs on the drive spool (queued, running, result or uploading), also while the OS is down. */
+  spooled: KeySnap[];
+  /** USB keys retired because the link has been up (sticky). */
+  usbRetired: boolean;
+  usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };
+  counters: { delivered: number; downloaded: number; uploaded: number; lost: number };
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };
@@ -526,6 +588,27 @@ export class Game {
   /** Sandbox: the rules level (patience, payout, demand, mix) is pinned here instead of following the score. */
   private sandboxLevel = SANDBOX_LEVEL;
 
+  // ---- network state (docs/NETWORK.md) ----
+  /** Tier of the router standing in its spot (0 none) and of the ISP plan bought (0 none). */
+  private routerTier = 0;
+  private ispTier = 0;
+  /** Where the ethernet cable is plugged: "board", a NIC device id, or null. */
+  private lan: string | null = null;
+  /** The link has been up once: USB keys retired (sticky, saved). */
+  private networkLinked = false;
+  private deadTicks = 0;
+  private readonly offersQ: NetworkSource<Key>;
+  private downloads: Transfer[] = [];
+  /** Finished downloads in the NIC rx window (RAM) waiting to be written to the spool. */
+  private rx: Key[] = [];
+  /** Jobs written to the spool on the drive, in ingest order (survive power loss). */
+  private spool: Key[] = [];
+  private uploads: Transfer[] = [];
+  private netKey: NetKey | null = null;
+  private netCooldown = 0;
+  private link: Link = { state: "no-device", reason: "no ISP plan", port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null, bw: { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
+  private netCount = { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 };
+
   private readonly seed: number;
 
   constructor(opts: GameOptions) {
@@ -539,6 +622,7 @@ export class Game {
     this.avgTurnaround = this.cfg.targetTurnaround * this.patience(); // the clients start out content: reputation 1
     this.money = this.sandbox ? SANDBOX_MONEY : this.cfg.startMoney;
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
+    this.offersQ = new NetworkSource<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
     // RAM is fixed at construction, so the machine always has the largest RAM (64K); the installed RAM tier
     // changes the PCH-reported size, the cache miss penalty and which jobs arrive (EconomyConfig.mix).
@@ -573,9 +657,11 @@ export class Game {
    * carries every part over. Only while the machine is off. Unplugs cables whose source part left.
    */
   install(invId: string, slotId?: string): Result<{ deviceId: string | null; slot: string }> {
-    if (this.powered) return { ok: false, reason: "power the machine off first" };
     const item = this.inventory.find((i) => i.id === invId);
     if (!item) return { ok: false, reason: `no inventory item "${invId}"` };
+    const routerSpec = getRouterSpec(item.spec);
+    if (routerSpec) return this.installRouter(item, routerSpec, slotId);
+    if (this.powered) return { ok: false, reason: "power the machine off first" };
     const osSpec = getOsSpec(item.spec);
     if (osSpec) return this.installOs(item, osSpec, slotId);
     const tier = boardTierOf(item.spec);
@@ -600,8 +686,32 @@ export class Game {
     return { ok: true, deviceId: r.id, slot: r.slot };
   }
 
-  /** Take an installed part out; it goes to the inventory (a burnt part is scrapped). Only while off. */
+  /** The router is external (own power): it goes into its spot, or comes out, whether the PC is on or off. */
+  private installRouter(item: InvItem, r: RouterSpec, slotId?: string): Result<{ deviceId: string | null; slot: string }> {
+    if (slotId !== undefined && slotId !== "router") return { ok: false, reason: `${r.name} goes into the router spot next to the monitor, not "${slotId}"` };
+    if (this.routerTier >= r.tier) return { ok: false, reason: `a ${routerByTier(this.routerTier)!.name} is already in the router spot` };
+    const old = routerByTier(this.routerTier);
+    if (old) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.id });
+    this.removeItem(item.id);
+    this.routerTier = r.tier;
+    this.progress.routerInstalled = true;
+    this.note("install", `${r.name} placed next to the monitor`);
+    return { ok: true, deviceId: null, slot: "router" };
+  }
+
+  /** Take an installed part out; it goes to the inventory (a burnt part is scrapped). Only while off ("router" comes out any time). */
   uninstall(deviceId: string): Result<{ invId: string | null }> {
+    if (deviceId === "router") {
+      const old = routerByTier(this.routerTier);
+      if (!old) return { ok: false, reason: "no router is installed" };
+      this.routerTier = 0;
+      this.cables.lan = false;
+      this.lan = null;
+      const invId = `inv${this.nextInvId++}`;
+      this.inventory.push({ id: invId, spec: old.id });
+      this.note("install", `${old.name} removed`);
+      return { ok: true, invId };
+    }
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const dev = this.board.devices.find((d) => d.id === deviceId);
     if (!dev) return { ok: false, reason: `no installed device "${deviceId}"` };
@@ -628,17 +738,45 @@ export class Game {
   }
 
   /** Plug a cable in (needs its source part installed). Only while off. */
-  connectCable(cable: string): Result<{ cable: CableId }> {
+  connectCable(cable: string, port?: string): Result<{ cable: CableId }> {
+    if (cable === "lan") return this.connectLan(port);
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const r = boardConnect(this.board, this.cables, cable);
     if (!r.ok) return r;
-    const flag = { atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" }[r.cable] as keyof Progress;
+    const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress;
     this.progress[flag] = true;
     this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} connected`);
     return r;
   }
 
+  /** The ethernet cable runs from a port (the board jack, or a NIC card jack) to the router. Allowed while the machine is on. */
+  private connectLan(port?: string): Result<{ cable: CableId }> {
+    if (this.cables.lan) return { ok: false, reason: "Ethernet cable is already connected" };
+    if (!this.routerTier) return { ok: false, reason: "needs a router: install one next to the monitor first" };
+    const nics = this.board.devices.filter((d) => deviceSpec(d).kind === "nic" && !d.burnt);
+    const onboard = BOARD_TIERS[this.board.tier]!.features.ethernetMbps > 0;
+    const pick = port ?? (onboard ? "board" : nics[0]?.id);
+    if (!pick) return { ok: false, reason: "no network port: this board has no ethernet jack and no network card is installed" };
+    if (pick === "board") {
+      if (!onboard) return { ok: false, reason: `the ${BOARD_TIERS[this.board.tier]!.name} board has no ethernet jack` };
+    } else if (!nics.some((d) => d.id === pick)) {
+      return { ok: false, reason: `no working network card "${pick}"` };
+    }
+    this.cables.lan = true;
+    this.lan = pick;
+    this.progress.lanConnected = true;
+    this.note("cable", `Ethernet cable connected to ${pick === "board" ? "the board jack" : pick}`);
+    return { ok: true, cable: "lan" };
+  }
+
   disconnectCable(cable: string): Result<{ cable: CableId }> {
+    if (cable === "lan") {
+      if (!this.cables.lan) return { ok: false, reason: "Ethernet cable is not connected" };
+      this.cables.lan = false;
+      this.lan = null;
+      this.note("cable", "Ethernet cable disconnected");
+      return { ok: true, cable: "lan" };
+    }
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const r = boardDisconnect(this.cables, cable);
     if (r.ok) this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} disconnected`);
@@ -658,9 +796,17 @@ export class Game {
       if (extra.blocked) return { ok: false, reason: extra.blocked };
       if (this.money < extra.price) return { ok: false, reason: `needs $${extra.price}, have $${this.money}` };
       this.money -= extra.price;
+      this.progress.firstPurchase = true;
+      const isp = getIspSpec(itemId);
+      if (isp) {
+        // An ISP plan is an account purchase: it applies at once (no inventory item) and a higher plan replaces it.
+        this.ispTier = isp.tier;
+        this.progress.ispBought = true;
+        this.note("purchase", `bought ${extra.name} ${this.priceText(extra.price)}`);
+        return { ok: true, invId: "" };
+      }
       const invId = `inv${this.nextInvId++}`;
       this.inventory.push({ id: invId, spec: itemId });
-      this.progress.firstPurchase = true;
       this.note("purchase", `bought ${extra.name} ${this.priceText(extra.price)}`);
       return { ok: true, invId };
     }
@@ -801,7 +947,7 @@ export class Game {
       this.pch.powerOff();
       this.machine.display.clear();
       this.thermal.powerCycle();
-      this.returnHeld();
+      this.loseRam();
       this.note("power", "powered off");
       return { ok: true, powered: false };
     }
@@ -822,6 +968,7 @@ export class Game {
   /** Plug a key from the tray into the USB port. One program at a time: a key already in the port must come out first. */
   plugKey(keyId: number): Result<{ key: number }> {
     if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
+    if (this.netKey) return { ok: false, reason: "the port is busy with a network job for a moment" };
     const heldAt = this.held.findIndex((k) => k.id === keyId);
     const peek = heldAt >= 0 ? this.held[heldAt] : this.tray.waiting().find((k) => k.id === keyId);
     if (peek && heldAt < 0) {
@@ -875,6 +1022,17 @@ export class Game {
       if (this.powered && !this.postError && (phase === "loading" || phase === "running" || phase === "writing")) this.coldBoot();
       return { ok: true, payout: 0, done: false };
     }
+    this.progress.firstKeyEjected = true;
+    if (this.os) {
+      this.progress.firstOsJob = true;
+      this.freeKernelSlot(key.id); // delivery is the receipt: the kernel's slot for this job is free again
+    }
+    const pay = this.deliver(key, "collected");
+    return { ok: true, payout: pay, done: true };
+  }
+
+  /** The client has its result: payout, turnaround average, client base, `lastCompleted`. Returns the payout. */
+  private deliver(key: Key, how: string): number {
     const turnaround = this.baseTick - key.arrival;
     const late = this.baseTick > key.deadline;
     const pay = payout(this.cfg, key.work * key.payMul, turnaround, late, levelPayMul(this.level));
@@ -882,17 +1040,12 @@ export class Game {
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
     this.addClientBase(this.reputation());
-    this.progress.firstKeyEjected = true;
-    if (this.os) {
-      this.progress.firstOsJob = true;
-      this.freeKernelSlot(key.id); // delivery is the receipt: the kernel's slot for this job is free again
-    }
     this.lastCompleted = {
       id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - key.pluggedAt, late,
       attempts: key.attempts, completedAt: this.baseTick,
     };
-    this.note("payout", `key ${key.id} collected: $${pay}${late ? " (late)" : ""}`);
-    return { ok: true, payout: pay, done: true };
+    this.note("payout", `key ${key.id} ${how}: $${pay}${late ? " (late)" : ""}`);
+    return pay;
   }
 
   /** Ids of the keys in the tray that the machine can run, oldest first (what a bot should plug). */
@@ -910,7 +1063,20 @@ export class Game {
   declineKey(keyId: number): Result<{ keyId: number }> {
     if (this.plugged?.id === keyId) return { ok: false, reason: "plugged: the key is in the USB port, remove it first" };
     const inTray = this.tray.waiting().some((k) => k.id === keyId);
-    if (!inTray) {
+    const inOffers = this.offersQ.waiting().some((k) => k.id === keyId);
+    const spooled = this.spool.find((k) => k.id === keyId);
+    if (inOffers) {
+      this.offersQ.take(keyId);
+    } else if (this.downloads.some((t) => t.key.id === keyId) || this.rx.some((k) => k.id === keyId)) {
+      return { ok: false, reason: "downloading: the job is on the wire" };
+    } else if (spooled) {
+      if (this.uploads.some((t) => t.key.id === keyId)) return { ok: false, reason: "uploading: the result is being sent" };
+      const job = this.kernelJobs().find((j) => j.key === keyId);
+      if (job?.state === JobState.Running) return { ok: false, reason: "running: the job is being run" };
+      if (job?.state === JobState.Result) return { ok: false, reason: "result ready: it is being delivered" };
+      if (job) this.freeKernelSlot(keyId);
+      this.spool = this.spool.filter((k) => k.id !== keyId);
+    } else if (!inTray) {
       const held = this.held.find((k) => k.id === keyId);
       if (!held) return { ok: false, reason: `no waiting job ${keyId}` };
       const job = this.kernelJobs().find((j) => j.key === keyId);
@@ -999,7 +1165,8 @@ export class Game {
     const load = busy ? 1 : this.cfg.idleLoad;
     const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
     const boardWasOk = !this.board.burnt;
-    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad }, this.powered);
+    const netLoad = this.downloads.length + this.uploads.length > 0 ? 1 : this.cfg.idleLoad;
+    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad }, this.powered);
     this.syncStorage(); // a drive that burnt out drops off the bus
     if (boardWasOk && this.board.burnt) this.note("fault", "the VRM burnt out: board dead: replace the board");
     if (this.powered && busy && !this.board.burnt) {
@@ -1013,6 +1180,7 @@ export class Game {
         this.coldBoot();
       }
     }
+    this.netTick();
     this.syncRates(true);
   }
 
@@ -1089,9 +1257,9 @@ export class Game {
       noPowerReason: chk.noPower,
       postBlocker: chk.post?.reason ?? null,
       inventory: this.inventorySnap(),
-      slots: this.slotSnaps(),
+      slots: [...this.slotSnaps(), { id: "router", type: "router", deviceId: this.routerTier ? (routerByTier(this.routerTier)?.id ?? null) : null }],
       cables: CABLES.map((c) => {
-        const blocked = cableBlocked(this.board, c.id);
+        const blocked = c.id === "lan" ? (this.routerTier ? null : "needs a router next to the monitor") : cableBlocked(this.board, c.id);
         return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
       }),
       tray: this.tray.waiting().map((k) => this.keySnap(k, jobs)),
@@ -1113,6 +1281,7 @@ export class Game {
       expired: this.expired,
       declined: this.declined,
       postTicks: postTicks(this.cfg, this.board),
+      net: this.netSnap(jobs),
     };
   }
 
@@ -1198,6 +1367,16 @@ export class Game {
       levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
       declined: this.declined,
       expired: this.expired,
+      net: this.savedNet(sk),
+    };
+  }
+
+  /** The network block of the save: plan, router, cable, offers (downloads in flight restart as offers) and the spool. */
+  private savedNet(sk: (k: Key) => SavedKey): SavedNet {
+    const offers = [...this.offersQ.waiting(), ...this.downloads.map((t) => t.key), ...this.rx].sort((a, b) => a.id - b.id);
+    return {
+      ispTier: this.ispTier, routerTier: this.routerTier, lan: this.lan, networkLinked: this.networkLinked, deadTicks: this.deadTicks,
+      offers: offers.map(sk), spool: this.spool.map(sk),
     };
   }
 
@@ -1240,10 +1419,24 @@ export class Game {
         g.levelTicks = { [g.lvl]: s.baseTick };
       }
     }
+    if (s.net) {
+      g.ispTier = s.net.ispTier;
+      g.routerTier = s.net.routerTier;
+      g.lan = s.net.lan;
+      g.networkLinked = s.net.networkLinked;
+      g.deadTicks = s.net.deadTicks;
+    }
+    if (g.lan && g.lan !== "board" && !g.board.devices.some((d) => d.id === g.lan)) g.lan = null;
+    if (!g.routerTier) g.lan = null;
+    g.cables.lan = g.lan !== null;
     g.log = [];
     if (s.os) g.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
     try {
       g.tray.set(s.tray.map((k) => g.rebuild(k)));
+      if (s.net) {
+        g.offersQ.set(s.net.offers.map((k) => g.rebuild(k)));
+        g.spool = s.net.spool.map((k) => g.rebuild(k));
+      }
       if (s.plugged) {
         const p = s.plugged;
         const key = g.rebuild(p);
@@ -1263,6 +1456,7 @@ export class Game {
     g.powered = false;
     g.syncStorage();
     g.syncRates(false);
+    g.link = g.computeLink();
     return g;
   }
 
@@ -1287,6 +1481,12 @@ export class Game {
 
   /** Unplug cables whose source part is gone. */
   private afterBoardChange(): void {
+    // A cable plugged into a network card that left the board comes out with it.
+    if (this.lan && this.lan !== "board" && !this.board.devices.some((d) => d.id === this.lan)) {
+      this.lan = null;
+      this.cables.lan = false;
+      this.note("cable", "Ethernet cable came unplugged");
+    }
     for (const c of pruneCables(this.board, this.cables)) this.note("cable", `${CABLES.find((x) => x.id === c)!.name} came unplugged`);
   }
 
@@ -1336,7 +1536,7 @@ export class Game {
     const b = boardFromJson(boardToJson(this.board));
     const tierOf = (id: string): number => (boardTierOf(id) !== undefined ? -1 : getSpec(id)!.tier);
     // Storage drives and OSes are not one-per-machine upgrades: they never replace a part in the plan.
-    const planned = this.inventory.filter((it) => !getOsSpec(it.spec) && getSpec(it.spec)?.kind !== "storage");
+    const planned = this.inventory.filter((it) => !getOsSpec(it.spec) && !getRouterSpec(it.spec) && getSpec(it.spec)?.kind !== "storage");
     for (const it of planned.sort((a, c) => tierOf(a.spec) - tierOf(c.spec))) {
       const spec = getSpec(it.spec);
       const have = spec ? findDevices(b, spec.kind)[0] : undefined;
@@ -1349,6 +1549,17 @@ export class Game {
   private inventorySnap(ignorePower = false): InventorySnap[] {
     const off = ignorePower || !this.powered;
     return this.inventory.map((it) => {
+      const router = getRouterSpec(it.spec);
+      if (router) {
+        // External and self-powered: it installs whether the PC is on or off, into the single router spot.
+        const free = this.routerTier === 0 ? ["router"] : [];
+        const swap = this.routerTier > 0 && router.tier > this.routerTier ? ["router"] : [];
+        const ok = free.length + swap.length > 0;
+        return {
+          id: it.id, spec: it.spec, kind: "router" as const, name: router.name, freeSlots: free, swapSlots: swap, installable: ok,
+          ...(ok ? {} : { reason: `a ${routerByTier(this.routerTier)!.name} is already installed (an equal or better router)` }),
+        };
+      }
       const os = getOsSpec(it.spec);
       if (os) {
         const free: string[] = [];
@@ -1448,10 +1659,36 @@ export class Game {
     for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(KDATA_BASE + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
   }
 
-  /** Power off or reboot loses the kernel's queue (it is RAM): the client takes back every ingested key unserved. */
+  /** The OS is gone: held keys go back to the tray unserved (their spool went with the OS). */
   private returnHeld(): void {
     for (const k of this.held) this.tray.giveBack(k);
     this.held = [];
+    for (const k of this.spool) this.offersQ.giveBack(k);
+    this.spool = [];
+  }
+
+  /**
+   * Power loss or reboot (docs/NETWORK.md "Power loss"): everything in RAM is gone, the spool on the drive survives.
+   * Downloads in progress and finished downloads still in the rx window go back to the offers (attempts + 1), uploads
+   * are lost (the spooled job runs again), the virtual USB key of the NIC feed is dropped. Held USB keys and spooled
+   * jobs stay: the kernel re-ingests them after the next boot.
+   */
+  private loseRam(): void {
+    this.dropNetKey();
+    this.loseTransfers();
+  }
+
+  /** Downloads, finished downloads in the rx window and uploads are RAM: lost when the link or the machine goes. */
+  private loseTransfers(): void {
+    const lost = [...this.downloads.map((t) => t.key), ...this.rx];
+    for (const k of lost) {
+      k.attempts++;
+      this.offersQ.giveBack(k);
+    }
+    this.netCount.lost += lost.length + this.uploads.length;
+    this.downloads = [];
+    this.rx = [];
+    this.uploads = [];
   }
 
   /** Why the OS cannot go on this drive, or null. */
@@ -1547,6 +1784,18 @@ export class Game {
       else if (planRam < os.minRamBytes) o.blocked = `needs ${os.minRamBytes / 1024}K of RAM`;
       out.push(o);
     }
+    // Routers (installed from the inventory into the router spot) and ISP plans (applied at purchase).
+    const ownedRouter = Math.max(this.routerTier, ...this.inventory.map((i) => getRouterSpec(i.spec)?.tier ?? 0));
+    for (const r of ROUTER_SPECS) {
+      if (!this.sandbox && r.tier <= ownedRouter) continue;
+      out.push({ id: r.id, name: r.name, kind: "router", price: this.cost(r.price), affordable: this.money >= this.cost(r.price),
+        description: `External router: ${r.mbps} Mbit/s, ${r.clients} clients at once. Own power; goes next to the monitor.` });
+    }
+    for (const p of ISP_SPECS) {
+      if (!this.sandbox && p.tier <= this.ispTier) continue;
+      out.push({ id: p.id, name: `${p.name} plan`, kind: "isp", price: this.cost(p.price), affordable: this.money >= this.cost(p.price),
+        description: `ISP plan: ${p.downMbps} down / ${p.upMbps} up Mbit/s, ${p.clients} clients at once. One-off purchase.` });
+    }
     return out;
   }
 
@@ -1574,10 +1823,10 @@ export class Game {
     const queued = jobs.filter((j) => j.state === JobState.Queued).sort((a, b) => a.seq - b.seq);
     const results = jobs.filter((j) => j.state === JobState.Result).sort((a, b) => a.seq - b.seq);
     const label = (id: number): string => {
-      const k = this.plugged?.id === id ? this.plugged : this.held.find((x) => x.id === id);
+      const k = this.plugged?.id === id ? this.plugged : (this.held.find((x) => x.id === id) ?? this.spool.find((x) => x.id === id));
       return k ? this.keySnap(k, jobs).label : `key ${id}`;
     };
-    const row = (j: KernelJob, state: OsJobSnap["state"], ahead: number): OsJobSnap => ({ slot: j.slot, keyId: j.key, label: label(j.key), state, ahead });
+    const row = (j: KernelJob, state: OsJobSnap["state"], ahead: number): OsJobSnap => ({ slot: j.slot, keyId: j.key, label: label(j.key), state, persisted: true, ahead });
     return {
       spec: os.spec.id, tier: os.spec.tier, name: os.spec.name, deviceId: os.deviceId, slot: dev.slot,
       programSlots: os.spec.programSlots, queueSlots: os.queueSlots, up: this.powered && this.pch.osMode && !this.postError,
@@ -1587,6 +1836,49 @@ export class Game {
         ...results.map((j) => row(j, "result", -1)),
       ],
       runningKeyId: running?.key ?? null,
+      spool: this.spoolSnap(),
+    };
+  }
+
+  private spoolSnap(): OsSnap["spool"] {
+    const slotBytes = SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES;
+    const slots = this.os?.queueSlots ?? 0;
+    const used = Math.min(slots, this.reserved());
+    const dev = this.os && this.board.devices.find((d) => d.id === this.os!.deviceId);
+    const free = dev ? this.diskFor(dev).capacityBytes - this.diskFor(dev).usedBytes : 0;
+    return { slotBytes, slots, used, freeBytes: free, full: slots > 0 && used >= slots };
+  }
+
+  private transferSnaps(): TransferSnap[] {
+    const out: TransferSnap[] = [];
+    const add = (t: Transfer, dir: "down" | "up"): void => {
+      const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.length) : this.link.bw.upMbps / Math.max(1, this.uploads.length)) / 8;
+      out.push({
+        jobId: t.key.id, label: `#${String(t.key.jobNo).padStart(2, "0")} ${t.key.type}`, dir, totalMB: t.totalMB, doneMB: t.doneMB,
+        percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)), etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1, persisted: false,
+      });
+    };
+    for (const t of this.downloads) add(t, "down");
+    for (const t of this.uploads) add(t, "up");
+    return out;
+  }
+
+  private netSnap(jobs: KernelJob[]): NetSnap {
+    const l = this.computeLink();
+    const fb = this.networkLinked ? (this.usbFallback() ? "fallback" : this.linkUsable ? "retired" : "waiting") : "off";
+    return {
+      state: l.state, reason: l.reason, port: { ...l.port },
+      router: l.router && { id: l.router.id, name: l.router.name, mbps: l.router.mbps, clients: l.router.clients, visual: l.router.visual },
+      isp: l.isp && { id: l.isp.id, name: l.isp.name, downMbps: l.isp.downMbps, upMbps: l.isp.upMbps, clients: l.isp.clients },
+      bandwidth: { ...l.bw }, transfers: this.transferSnaps(),
+      offers: this.offersQ.waiting().map((k) => this.keySnap(k, jobs)),
+      spooled: this.spool.map((k) => this.keySnap(k, jobs)),
+      usbRetired: this.networkLinked,
+      usbFallback: {
+        state: fb, deadTicks: this.deadTicks, startsIn: fb === "waiting" ? Math.max(0, this.cfg.usbFallbackTicks - this.deadTicks) : null,
+        keyRateMul: fb === "fallback" ? this.cfg.usbFallbackMul : fb === "waiting" ? 0 : 1,
+      },
+      counters: { ...this.netCount },
     };
   }
 
@@ -1594,6 +1886,10 @@ export class Game {
     if (k.done) return "done";
     const j = jobs.find((x) => x.key === k.id);
     const byState = (s: number): KeyStage => (s === JobState.Result ? "result" : s === JobState.Running ? "running" : "queued");
+    if (this.offersQ.waiting().includes(k)) return "offer";
+    if (this.downloads.some((t) => t.key === k)) return "downloading";
+    if (this.rx.includes(k)) return "ingesting";
+    if (this.spool.includes(k)) return this.uploads.some((t) => t.key === k) ? "uploading" : j ? byState(j.state) : "spooled";
     if (k === this.plugged) {
       if (this.pch.flashing) return "flashing";
       if (j) return byState(j.state);
@@ -1639,6 +1935,7 @@ export class Game {
 
   /** Power-on reset: blank RAM, run the PCH self-test, shadow the ROM into RAM and start the CPU on it. */
   private coldBoot(): void {
+    this.loseRam();
     this.machine.ram.fill(0);
     this.machine.display.clear();
     this.machine.display.connected = this.monitorLive();
@@ -1656,7 +1953,6 @@ export class Game {
     this.pch.powerOn(ram >> 10, deviceSpec(cpu).tier);
     // A bootable OS drive: the ROM loads the kernel from it. USB then has latency (enumerating, flashing).
     this.syncStorage();
-    this.returnHeld();
     for (const p of this.ports) p.reset();
     const boot = this.osPort();
     this.pch.bootDev = boot ? boot.base : 0;
@@ -1760,6 +2056,186 @@ export class Game {
     return { stages };
   }
 
+  // ---------- internals: the network (docs/NETWORK.md) ----------
+
+  /** The uplink port the cable is in: its speed (a hot NIC runs at half), or none. */
+  private portInfo(): Link["port"] {
+    if (!this.lan) return { kind: null, deviceId: null, mbps: 0 };
+    if (this.lan === "board") return { kind: "board", deviceId: null, mbps: this.board.burnt ? 0 : BOARD_TIERS[this.board.tier]!.features.ethernetMbps };
+    const d = this.board.devices.find((x) => x.id === this.lan);
+    if (!d || d.burnt) return { kind: "nic", deviceId: this.lan, mbps: 0 };
+    const half = (this.thermal.state(d.id)?.throttle ?? 1) < 1;
+    return { kind: "nic", deviceId: d.id, mbps: (deviceSpec(d) as NicSpec).mbps * (half ? 0.5 : 1) };
+  }
+
+  /** Evaluate the link state table (docs/NETWORK.md "Link states") and the effective bandwidth. */
+  private computeLink(): Link {
+    const router = routerByTier(this.routerTier) ?? null;
+    const isp = ispByTier(this.ispTier) ?? null;
+    const port = this.portInfo();
+    const mk = (state: LinkState, reason: string | null, bwOn = false): Link => {
+      const osDev = this.os && this.board.devices.find((d) => d.id === this.os!.deviceId);
+      const disk = osDev ? (DISK_NET_MBPS[osDev.spec] ?? 80) : 0;
+      return { state, reason, port, router, isp, bw: bwOn ? bandwidth(port.mbps, router, isp, disk) : { downMbps: 0, upMbps: 0, clients: 0, binding: null } };
+    };
+    if (!router || !isp) return mk("no-device", !isp ? "no ISP plan: buy one" : "no router: install one next to the monitor");
+    if (!this.lan) return mk("no-cable", "plug the ethernet cable from the board jack into the router");
+    if (!this.os) return mk("no-os", "needs an OS: the network runs inside it");
+    const ram = this.installedRamBytes();
+    if (ram < NET.minRamBytes) return mk("no-os", `needs ${NET.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`);
+    if (this.os.queueSlots < 1) return mk("no-os", "no free space on the OS drive for a spool slot");
+    if (port.mbps <= 0) return mk("down", this.lan === "board" ? "the board is dead" : "the network card is burnt out", true);
+    if (!this.powered) return mk("down", "the machine is off", true);
+    const fault = this.fault();
+    if (fault || this.postError) return mk("down", fault ?? "the machine failed POST", true);
+    const phase = this.currentPhase();
+    if (phase !== "idle-os" && phase !== "ingesting" && phase !== "running-os" && phase !== "flashing") return mk("down", "the OS is starting", true);
+    const up = mk("link-up", null, true);
+    const waiting = this.offersQ.waiting().some((k) => this.runnable(k, this.capsWith(true)));
+    if (this.downloads.length >= up.bw.clients || (waiting && this.reserved() >= this.os.queueSlots)) {
+      return { ...up, state: "saturated", reason: this.downloads.length >= up.bw.clients ? "every client slot is busy" : "the spool is full" };
+    }
+    return up;
+  }
+
+  private get linkUsable(): boolean {
+    return this.link.state === "link-up" || this.link.state === "saturated";
+  }
+
+  /** Spool slots in use: spooled jobs, USB keys the OS holds, the key in the port if ingested, and downloads (reserved at start). */
+  private reserved(): number {
+    return this.spool.length + this.rx.length + this.downloads.length + this.held.length + (this.pluggedIngested() ? 1 : 0);
+  }
+
+  private usbFallback(): boolean {
+    return this.networkLinked && this.deadTicks >= this.cfg.usbFallbackTicks;
+  }
+
+  /** One base tick of the network after the machine ran: link state, retirement, transfers, and the feed into the kernel. */
+  private netTick(): void {
+    this.link = this.computeLink();
+    const usable = this.linkUsable;
+    if (usable) {
+      if (!this.progress.linkUp) this.note("net", `link up: ${this.link.bw.downMbps} Mbit down, ${this.link.bw.upMbps} up (limited by ${this.link.bw.binding})`);
+      this.progress.linkUp = true;
+      this.networkLinked = true;
+      this.deadTicks = 0;
+    } else if (this.networkLinked) {
+      this.deadTicks++;
+    }
+    if (!usable) this.loseTransfers();
+    else this.runTransfers();
+    this.feedKernel();
+  }
+
+  /** Start downloads for waiting offers and move the bytes of every transfer. */
+  private runTransfers(): void {
+    const bw = this.link.bw;
+    const slots = this.os?.queueSlots ?? 0;
+    const caps = this.capsWith(true);
+    while (this.downloads.length < bw.clients && this.reserved() < slots) {
+      const next = this.offersQ.waiting().find((k) => needsMet(k.needs, caps).ok);
+      if (!next) break;
+      this.offersQ.take(next.id);
+      next.pluggedAt = this.baseTick;
+      const z = jobSizes(next.cls, next.type, next.scale);
+      this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0 });
+    }
+    if (this.downloads.length > 0) {
+      const each = bw.downMbps / 8 / this.downloads.length;
+      for (const t of this.downloads) t.doneMB += each;
+      for (const t of this.downloads.filter((x) => x.doneMB >= x.totalMB)) {
+        this.downloads = this.downloads.filter((x) => x !== t);
+        this.rx.push(t.key);
+        this.netCount.downloaded++;
+      }
+    }
+    if (this.uploads.length > 0) {
+      const each = bw.upMbps / 8 / this.uploads.length;
+      for (const t of this.uploads) t.doneMB += each;
+      for (const t of this.uploads.filter((x) => x.doneMB >= x.totalMB)) {
+        this.uploads = this.uploads.filter((x) => x !== t);
+        this.spool = this.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
+        this.netCount.uploaded++;
+        this.netCount.delivered++;
+        t.key.done = true;
+        this.progress.firstNetJob = true;
+        this.progress.firstOsJob = true;
+        this.deliver(t.key, "delivered over the network");
+      }
+    }
+  }
+
+  private dropNetKey(): void {
+    if (!this.netKey) return;
+    this.netKey = null;
+    this.pch.unplug();
+    this.restoreUsbTimings();
+  }
+
+  private restoreUsbTimings(): void {
+    const boot = this.osPort();
+    this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
+    this.pch.flashTicks = boot ? this.cfg.usbFlashTicks : 0;
+  }
+
+  /** Put a job on the virtual USB key (the NIC feed): the kernel ingests it, or flashes its result, with no waits. */
+  private netPlug(key: Key, kind: "ingest" | "flash", fromRx: boolean): void {
+    const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program;
+    const pk: PchKey = { id: key.id, program, done: false, result: "" };
+    this.pch.enumTicks = 0;
+    this.pch.flashTicks = 0;
+    this.pch.plug(pk);
+    this.netKey = { key, kind, pch: pk, since: this.baseTick, fromRx };
+  }
+
+  /**
+   * The OS side of the NIC (needs the kernel up): finished downloads are written to the spool (the kernel ingests them from
+   * the virtual key), spooled jobs and held USB keys that the kernel does not know (after a boot) are re-ingested in order,
+   * and a finished result is read out and uploaded. Everything is real kernel work (CPU and drive), no USB waits.
+   */
+  private feedKernel(): void {
+    const phase = this.currentPhase();
+    const up = phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
+    if (!up) {
+      this.dropNetKey();
+      return;
+    }
+    const jobs = this.kernelJobs();
+    const known = (id: number): KernelJob | undefined => jobs.find((j) => j.key === id);
+    const nk = this.netKey;
+    if (nk) {
+      if (nk.kind === "ingest" && known(nk.key.id)) {
+        if (nk.fromRx) {
+          this.rx = this.rx.filter((k) => k.id !== nk.key.id);
+          this.spool.push(nk.key);
+        }
+        this.dropNetKey();
+      } else if (nk.kind === "flash" && nk.pch.done) {
+        const key = nk.key;
+        key.result = nk.pch.result;
+        key.doneAt = this.baseTick;
+        this.dropNetKey();
+        this.freeKernelSlot(key.id);
+        this.uploads.push({ key, totalMB: jobSizes(key.cls, key.type, key.scale).upMB, doneMB: 0 });
+      } else if (this.baseTick - nk.since > 300) {
+        this.dropNetKey(); // the kernel did not take it (no slot): try again later
+        this.netCooldown = 30;
+      }
+      return;
+    }
+    if (this.plugged || this.netCooldown-- > 0) return;
+    const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
+    if (this.linkUsable) {
+      const res = this.spool.find((k) => !uploading(k) && known(k.id)?.state === JobState.Result);
+      if (res) return this.netPlug(res, "flash", false);
+    }
+    const rx = this.rx[0];
+    if (rx && !known(rx.id)) return this.netPlug(rx, "ingest", true);
+    const again = this.spool.find((k) => !uploading(k) && !known(k.id)) ?? this.held.find((k) => !known(k.id));
+    if (again) this.netPlug(again, "ingest", false);
+  }
+
   // ---------- internals: keys and economy ----------
 
   private installedRamBytes(): number {
@@ -1782,17 +2258,18 @@ export class Game {
   }
 
   /** A key arrives from a client: it goes in the tray, or the client gives up if the tray is full. */
-  private enqueue(template: string, scale = 1, cls?: string): boolean {
+  private enqueue(template: string, scale = 1, cls?: string, net = false): boolean {
     const seed = this.machine.prng.nextU32();
-    if (this.tray.waiting().length >= this.cfg.queueCap) {
+    const src = net ? this.offersQ : this.tray;
+    if (src.waiting().length >= this.cfg.queueCap) {
       this.dropped++;
       // The client takes the key back: that counts against the turnaround average, so it costs reputation.
       this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
-      this.note("drop", "tray full: a client gave up");
+      this.note("drop", net ? "offer list full: a client gave up" : "tray full: a client gave up");
       return false;
     }
     const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks(), ...(cls ? { cls } : {}) });
-    this.tray.offer(key);
+    src.offer(key);
     return true;
   }
 
@@ -1804,12 +2281,23 @@ export class Game {
     const pick = prng.next();
     // No clients before the first boot: the market opens when the player's PC first comes up.
     if (hit && this.progress.poweredOn) {
+      // Channel (docs/NETWORK.md "Arrival channels"): once the link has been up, work comes as offers and USB keys retire;
+      // after a long dead link keys come back at a fraction of the rate (thinned from the same draw: no extra PRNG use).
+      const fallback = this.usbFallback();
+      let r = pick;
+      if (fallback) {
+        if (pick >= this.cfg.usbFallbackMul) return;
+        r = pick / this.cfg.usbFallbackMul;
+      }
+      const toNet = this.networkLinked && !fallback;
       if (this.cfg.mix) {
-        const m = pickTemplate(this.cfg.mix, this.installedRamBytes(), pick, this.baseTick);
-        this.enqueue(m.template, m.scale);
+        const m = pickTemplate(this.cfg.mix, this.installedRamBytes(), r, this.baseTick);
+        this.enqueue(m.template, m.scale, undefined, toNet);
       } else {
-        const c: JobClassDef = pickClass(jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick), pick);
-        this.enqueue(c.template, c.scale, c.id);
+        // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
+        const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => c.id !== "web" || (this.ispTier > 0 && !fallback));
+        const c: JobClassDef = pickClass(mix, r);
+        this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web");
       }
     }
   }
@@ -1821,8 +2309,13 @@ export class Game {
 
   /** What the machine can offer a job right now. Network, TPM, GPU, NPU and multicore do not exist yet. */
   private caps(): Caps {
+    return this.capsWith(this.linkUsable);
+  }
+
+  /** Caps with the network need decided by the caller (`netOk`): admission asks about the link as it is right now. */
+  private capsWith(netOk: boolean): Caps {
     const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
-    return { ...NO_CAPS, osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+    return { ...NO_CAPS, net: netOk, osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
   }
 
   private runnable(k: Key, caps = this.caps()): boolean {
@@ -1833,9 +2326,10 @@ export class Game {
   private expireKeys(): void {
     if (!this.progress.poweredOn) return;
     const caps = this.caps();
-    for (const k of [...this.tray.waiting()]) {
+    for (const k of [...this.tray.waiting(), ...this.offersQ.waiting()]) {
       if (this.baseTick < k.deadline || this.runnable(k, caps)) continue;
       this.tray.take(k.id);
+      this.offersQ.take(k.id);
       this.expired++;
       this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
       this.note("expire", `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
@@ -1867,7 +2361,10 @@ export class Game {
   private serviceTurnaround(): number {
     // Jobs the machine cannot run are left out: they cost reputation once, when they expire, not also while they wait.
     const caps = this.caps();
-    const waiting = [...this.tray.waiting().filter((k) => this.runnable(k, caps)), ...this.held];
+    const waiting = [
+      ...this.tray.waiting().filter((k) => this.runnable(k, caps)), ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
+      ...this.held, ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
+    ];
     const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
     const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;
     return Math.max(this.avgTurnaround, age);
@@ -1906,7 +2403,7 @@ export class Game {
     const stage = this.stageOf(k, jobs);
     return {
       stage, cls: k.cls, needs: k.needs.map((n) => describeNeed(n).short), runnable: need.ok, missing: need.missing, expiresTick: k.deadline,
-      declinable: k !== this.plugged && (stage === "tray" || (this.held.includes(k) && stage === "queued")),
+      declinable: k !== this.plugged && (stage === "tray" || stage === "offer" || stage === "spooled" || (this.held.includes(k) && stage === "queued") || (this.spool.includes(k) && stage === "queued")),
       id: k.id, template: k.template, type: k.type, jobNo: k.jobNo, label: `#${String(k.jobNo).padStart(2, "0")} ${k.type}`,
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,

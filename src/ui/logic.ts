@@ -22,7 +22,7 @@ export function fmtClock(c: number): string {
 
 export const KIND_LABEL: Record<DeviceKind | 'board' | 'os', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard',
-  os: 'Operating system', 'vrm-sink': 'VRM cooling',
+  os: 'Operating system', 'vrm-sink': 'VRM cooling', nic: 'Network card',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -142,6 +142,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
+  nic: 'A network card. Plug the ethernet cable into it to reach the router; its speed caps how fast jobs come and go.',
 };
 
 export function describeSpec(spec: DeviceSpec): Description {

@@ -6,7 +6,7 @@ import type { EngineConfig } from "../engines";
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
 export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "nic";
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
 export interface ClockRange { min: number; base: number; max: number }
@@ -102,7 +102,14 @@ export interface StorageSpec extends SpecBase {
   blockTicks: number;
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec;
+/** A PCIe network card (docs/NETWORK.md). Its jack replaces the onboard one for the cable plugged into it; load watts follow the traffic. */
+export interface NicSpec extends SpecBase {
+  kind: "nic";
+  /** Link speed in Mbit/s (halved above the throttle temperature). */
+  mbps: number;
+}
+
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -166,6 +173,13 @@ const specList: DeviceSpec[] = [
     clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
     capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14 },
 
+  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "nic-gbe", mbps: 1000 },
+  { id: "nic2", kind: "nic", tier: 2, name: "10GbE card", slot: "pcie", price: 500, idleW: 5, loadW: 11, heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 }, visual: "nic-10g", mbps: 10000 },
+  { id: "nic3", kind: "nic", tier: 3, name: "40GbE card", slot: "pcie", price: 1800, idleW: 9, loadW: 22, heatFactor: 1,
+    thermal: { passive: 0.3, mass: 20, throttleC: 60, unstableC: 75, damageC: 90 }, visual: "nic-40g", mbps: 40000 },
+
   { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
 ];
@@ -198,7 +212,7 @@ export interface VrmSpec {
   damageC: number;
 }
 
-/** Board features beyond slots. Ethernet is a feature field only until the network phase. */
+/** Board features beyond slots. `ethernetMbps` is the onboard port ("board" uplink of the network). */
 export interface BoardFeatures {
   /** Onboard ethernet speed in Mbit/s, 0 = none. */
   ethernetMbps: number;

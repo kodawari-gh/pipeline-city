@@ -29,7 +29,7 @@ const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
 });
 const osOn = (o: Partial<OsSnap> = {}): OsSnap => ({
   spec: 'os1', tier: 1, name: 'Resident OS 1.0', deviceId: 'dev-hdd', slot: 'sata0', programSlots: 1, queueSlots: 4,
-  up: true, queue: [], runningKeyId: null, ...o,
+  up: true, queue: [], runningKeyId: null, spool: { slotBytes: 4096, slots: 4, used: 0, freeBytes: 0, full: false }, ...o,
 });
 /** The old tutorial done, a CPU and RAM bought, with `extra` on top. */
 /** The level block at level `n` (the OS lesson needs Level 3: the 'Grow your client base' step waits for it). */

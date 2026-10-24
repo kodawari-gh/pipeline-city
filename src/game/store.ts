@@ -76,7 +76,7 @@ export const powerCycle = () => send({ type: 'powerCycle' });
 // Assembly and keys (docs/ASSEMBLY.md): each refused action sets `lastError` and always refreshes the snapshot.
 export const install = (invId: string, slotId?: string) => send({ type: 'install', invId, slotId });
 export const uninstall = (deviceId: string) => send({ type: 'uninstall', deviceId });
-export const connectCable = (cable: string) => send({ type: 'connectCable', cable });
+export const connectCable = (cable: string, port?: string) => send({ type: 'connectCable', cable, port });
 export const disconnectCable = (cable: string) => send({ type: 'disconnectCable', cable });
 export const powerButton = () => send({ type: 'powerButton' });
 export const plugKey = (keyId: number) => send({ type: 'plugKey', keyId });

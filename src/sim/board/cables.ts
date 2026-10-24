@@ -5,13 +5,13 @@
 import { findDevices, installedPsu, type Board, type Result } from "./board";
 import type { DeviceKind } from "./specs";
 
-export type CableId = "atx" | "cpu" | "video";
+export type CableId = "atx" | "cpu" | "video" | "lan";
 
 export interface CableSpec {
   id: CableId;
   name: string;
   /** Kind of part the cable runs from. It must be installed to plug the cable in. */
-  from: DeviceKind;
+  from: DeviceKind | "router";
   /** One-line explanation for tooltips. */
   plain: string;
 }
@@ -20,14 +20,15 @@ export const CABLES: readonly CableSpec[] = [
   { id: "atx", name: "24-pin ATX power", from: "psu", plain: "Main power from the PSU to the board." },
   { id: "cpu", name: "8-pin CPU power", from: "psu", plain: "Extra power from the PSU to the CPU socket." },
   { id: "video", name: "Video cable", from: "display", plain: "Board display output to the monitor." },
+  { id: "lan", name: "Ethernet cable", from: "router", plain: "A board or network card port to the router. Can be plugged while the machine is on." },
 ];
 
 export const CABLE_IDS: readonly CableId[] = CABLES.map((c) => c.id);
 
 export type Cables = Record<CableId, boolean>;
 
-export const noCables = (): Cables => ({ atx: false, cpu: false, video: false });
-export const allCables = (): Cables => ({ atx: true, cpu: true, video: true });
+export const noCables = (): Cables => ({ atx: false, cpu: false, video: false, lan: false });
+export const allCables = (): Cables => ({ atx: true, cpu: true, video: true, lan: false });
 
 function spec(id: string): CableSpec | undefined {
   return CABLES.find((c) => c.id === id);
@@ -36,6 +37,7 @@ function spec(id: string): CableSpec | undefined {
 /** Why a cable cannot be plugged in right now (its source part is missing), or null if it can. */
 export function cableBlocked(board: Board, id: CableId): string | null {
   const c = spec(id)!;
+  if (c.from === "router") return null; // the Game owns the router and the port choice
   return findDevices(board, c.from).length > 0 ? null : `no ${c.from === "display" ? "monitor" : c.from.toUpperCase()} installed for the ${c.name} cable`;
 }
 
@@ -43,6 +45,7 @@ export function connectCable(board: Board, cables: Cables, id: string): Result<{
   const c = spec(id);
   if (!c) return { ok: false, reason: `unknown cable "${id}"` };
   if (cables[c.id]) return { ok: false, reason: `${c.name} is already connected` };
+  if (c.from === "router") return { ok: false, reason: "the ethernet cable is plugged in through the network (Game.connectCable)" };
   const why = cableBlocked(board, c.id);
   if (why) return { ok: false, reason: why };
   cables[c.id] = true;
@@ -61,6 +64,7 @@ export function disconnectCable(cables: Cables, id: string): Result<{ cable: Cab
 export function pruneCables(board: Board, cables: Cables): CableId[] {
   const off: CableId[] = [];
   for (const c of CABLES) {
+    if (c.from === "router") continue;
     if (cables[c.id] && cableBlocked(board, c.id)) {
       cables[c.id] = false;
       off.push(c.id);

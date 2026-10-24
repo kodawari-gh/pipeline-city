@@ -216,6 +216,8 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
     firstJobDone: done,
     firstKeyEjected: ejected,
     firstPurchase: owned > b.owned,
+    ispBought: s.progress.ispBought, routerInstalled: s.progress.routerInstalled, lanConnected: s.progress.lanConnected,
+    linkUp: s.progress.linkUp, firstNetJob: s.progress.firstNetJob,
   };
 }
 

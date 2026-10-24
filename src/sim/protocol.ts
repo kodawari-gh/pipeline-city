@@ -25,7 +25,8 @@ export type ToSim =
   // Assembly and keys (docs/ASSEMBLY.md). Each replies with a snapshot, plus an error message if it was refused.
   | { type: 'install'; invId: string; slotId?: string }
   | { type: 'uninstall'; deviceId: string }
-  | { type: 'connectCable'; cable: string }
+  /** `port` is for the ethernet cable ("lan"): "board" or a network card's device id (default: the board jack). The lan cable can be plugged while the machine is on. */
+  | { type: 'connectCable'; cable: string; port?: string }
   | { type: 'disconnectCable'; cable: string }
   | { type: 'powerButton' }
   | { type: 'plugKey'; keyId: number }
