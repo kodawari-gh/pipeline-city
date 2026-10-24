@@ -22,7 +22,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## P0: clean state
 
 - [x] T01 [auto] Delete the stray `.tmp-vite-noreload.mjs` after `grep -r "tmp-vite-noreload"` shows no use (package.json, scripts, configs). Files: `.tmp-vite-noreload.mjs`. Done when: file gone, nothing referenced it, build green.
-- [ ] T02 [owner] Push the local commits (126 ahead of origin/main at last count) so GitHub Pages is current. Done when: the owner says yes and `git push` succeeds.
+- [~] T02 [owner] Owner said NOT YET (2026-10-24): wait until T23 is played by hand. Push the local commits (126 ahead of origin/main at last count) so GitHub Pages is current. Done when: the owner says yes and `git push` succeeds.
 
 ## P1: finish the network UI (item 4 split; an earlier run may already have done some of it, so check the code first and tick what is already there)
 
@@ -47,18 +47,22 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## P2: finish what exists
 
 - [x] T30 [auto] Add CPU spec entries for `inorder2` (engine config only). Files: CPU specs in `src/sim/game`, spec test. Docs: `docs/ARCHITECTURE.md`. Done when: a spec test builds a machine with it and runs a job.
-- [ ] T31 [auto] Add CPU spec entries for `ooo` at ROB 8, 16, 32 with 4-wide commit. Same files as T30. Done when: spec tests pass for all three.
+- [ ] T31 [auto] Owner decision 2026-10-24: ship ONE ooo CPU only, `cpu4` = ooo ROB 8, 4-wide commit, at its existing level-11 unlock slot (remove it from PLANNED_ITEMS). ROB 16 and 32 are deferred (no unlock slots). Same files as T30. Done when: spec tests pass for all three.
 - [ ] T32 [auto] Board and VRM demand data for the new CPUs, and save handling (additive, no version bump unless the format breaks). Files: board/VRM specs, save code and test.
 - [ ] T33 [auto] Picker art and shelf row for the new CPU tiers. Files: `src/ui/PartArt.tsx`, picker logic. Done when: logic test lists them in tier order.
 - [ ] T34 [auto] Pacing re-check: CPI drops from about 1.3 to 0.9, so jobs finish about 1.4x faster at the same clock. Re-run the level bots and report the new level 1 to 3 times in `docs/PROGRESSION.md`. Do not change any balance number.
-- [ ] T35 [owner] Level-4 pacing: the bot never reached level 4 in 4,000 s on cpu1 + HDD, and level 5 (70) is now a big step after thresholds were lowered to 14 and 12. Decide: rebalance or add an easier route.
+- [~] T35 [owner] DEFERRED to the balance pass (owner 2026-10-24). Level-4 pacing: the bot never reached level 4 in 4,000 s on cpu1 + HDD, and level 5 (70) is now a big step after thresholds were lowered to 14 and 12. Decide: rebalance or add an easier route.
 - [x] T36 [auto] Give the heavy tests (`levels.test`, the tutorial bot) explicit timeouts so full-suite load does not flake them. Files: those test files only.
 - [ ] T37 [human] Unverified UI paths: decline on an OS queue row, the OS-flow remove cue, the VRM crash flash, locked-tile and needs-chip screenshots on the shelf and OS rows, the HDD power lead crossing the SSD data run on two-SATA boards.
-- [ ] T38 [owner] Visual gaps (text softens above 2x zoom, monitor text readable only down to about 0.5x of fit zoom, a tripped or burnt part shows a blank monitor instead of NO SIGNAL, empty sides on the SATA/overview framing): decide which are worth fixing.
+- [ ] T38 [owner] Owner picked (2026-10-24): fix NO SIGNAL on trip/burnt (T39), overview framing sides (T40), text softness above 2x (T41). Leave the 0.5x monitor-text gap. Original note: visual gaps (text softens above 2x zoom, monitor text readable only down to about 0.5x of fit zoom, a tripped or burnt part shows a blank monitor instead of NO SIGNAL, empty sides on the SATA/overview framing): decide which are worth fixing.
+
+- [ ] T39 [auto] Show NO SIGNAL (not a blank monitor) when a PSU trip or a burnt part blanks the display. Files: monitor rendering in `src/render`. Docs: `docs/RENDER.md`. Done when: a render/logic test covers trip and burnt.
+- [ ] T40 [auto] Re-frame the SATA/overview camera so the height-limited scene does not leave empty sides. Files: camera framing in `src/render`. Done when: a framing test asserts the fit for the overview and SATA views.
+- [ ] T41 [auto] Reduce text softening above 2x zoom (render text at a resolution that follows zoom). Files: text rendering in `src/render`. Done when: a test or documented check shows the resolution scales with zoom, with no frame-time regression noted in `docs/RENDER.md`.
 
 ## P3: later features (do not start without the owner)
 
-- [ ] T50 [owner] Job classes that never run yet: `web` (needs the network), `secure`/TPM, `gpu`, `npu`, `hpc`. Build the devices, then make the classes runnable.
+- [ ] T50 [owner] Owner priority (2026-10-24): `web` jobs first; needs a design note in `docs/NETWORK.md` before automation. Job classes that never run yet: `web` (needs the network), `secure`/TPM, `gpu`, `npu`, `hpc`. Build the devices, then make the classes runnable.
 - [ ] T51 [owner] GPU with its own ISA (the `pcie` cable type is reserved), NPU, TPM as a header slot on Mainstream and up.
 - [ ] T52 [owner] OS tiers 2 and 3 (cooperative multitasking, preemptive concurrency) as locked "later" entries; the program-slot count is a data field the kernel respects.
 - [ ] T53 [owner] Multicore (shared caches, coherence rule, scheduling).
