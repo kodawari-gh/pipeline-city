@@ -21,7 +21,7 @@ export type PickerKind = DeviceKind | 'board' | 'os' | 'router' | 'isp' | 'key' 
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
   | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick'
-  | 'board' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop';
+  | 'board' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop' | 'play' | 'pause';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 

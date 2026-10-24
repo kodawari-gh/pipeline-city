@@ -79,7 +79,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
           <h4>Speed</h4>
           <div class="sbx-row">
             <button class={speed.value === 64 ? 'on' : ''} aria-pressed={speed.value === 64} onClick={() => setSpeed(speed.value === 64 ? 1 : 64)}>
-              {speed.value === 64 ? '64x on (back to 1x)' : 'Run at 64x'}
+              {speed.value === 64 ? '16x on (back to 1x)' : 'Run at 16x'}
             </button>
           </div>
           <div class="sbx-msg">Physics still applies: slots, watts, heat, RAM for the OS, power off to swap parts.</div>

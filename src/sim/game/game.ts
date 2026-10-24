@@ -1108,6 +1108,11 @@ export class Game {
       if (this.powered && !this.postError && (phase === "loading" || phase === "running" || phase === "writing")) this.coldBoot();
       return { ok: true, payout: 0, done: false };
     }
+    if (!this.progress.firstKeyEjected && !this.sandbox) {
+      // Scripted for the guided start: the first happy client tells two friends, so the tutorial's next lesson never finds an empty tray.
+      for (let i = 0; i < 2; i++) this.enqueue("cli", 1, "cli");
+      this.note("key", "your first client told two friends: new keys are in the tray");
+    }
     this.progress.firstKeyEjected = true;
     if (this.os) {
       this.progress.firstOsJob = true;

@@ -4,9 +4,11 @@ import type { FromSim, SaveV1, Snapshot, Speed, ToSim } from '../sim/protocol';
 
 /** Latest sim snapshot (null until the sim has started). */
 export const snapshot = signal<Snapshot | null>(null);
-/** A new game runs at 4x: the pace the game is designed around (the 1x button is for watching closely). */
+/** A new game runs at 4 ticks a second, shown as 1x: the pace the game is designed around. */
 export const DEFAULT_SPEED: Speed = 4;
 export const speed = signal<Speed>(DEFAULT_SPEED);
+/** The last running speed: what a resume goes back to, and what the speed control shows while paused. */
+export const lastRunSpeed = signal<Speed>(DEFAULT_SPEED);
 export const lastError = signal<string | null>(null);
 /** An autosave found on startup; the HUD offers it before the sim starts. */
 export const autosaveOffer = signal<SaveV1 | null>(null);
@@ -97,14 +99,14 @@ export const setReputation = (value: number) => send({ type: 'setReputation', va
 export const setLevel = (level: number) => send({ type: 'setLevel', level });
 export function setSpeed(s: Speed) {
   speed.value = s;
+  if (s !== 0) lastRunSpeed.value = s;
   send({ type: 'setSpeed', speed: s });
 }
 
-/** Space: pause, and resume at the speed the game was running at (4x for a new game). */
-let resumeSpeed: Speed = DEFAULT_SPEED;
+/** Space: pause, and resume at the speed the game was running at (the default for a new game). */
 export function togglePause() {
-  if (speed.value === 0) setSpeed(resumeSpeed);
-  else { resumeSpeed = speed.value; setSpeed(0); }
+  if (speed.value === 0) setSpeed(lastRunSpeed.value);
+  else setSpeed(0);
 }
 
 /** Download the current game as pipeline-city-<tick>.json. */

@@ -189,7 +189,7 @@ export const STEPS: StepDef[] = [
       .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
-    text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and use the 4x button to speed up the waiting.',
+    text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and hover the speed button at the top right to speed up the waiting.',
     targets: () => [], meter: levelMeter },
   { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),

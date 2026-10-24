@@ -8,11 +8,14 @@ export type { Snapshot, SaveV4 };
 /** The current save shape (older versions are migrated on load). The old name is kept for the main thread. */
 export type SaveV1 = SaveV4;
 
-/** Speed as a multiplier of base ticks per second (0 = paused). */
-export type Speed = 0 | 1 | 4 | 16 | 64;
-export const SPEEDS: Speed[] = [0, 1, 4, 16];
-/** The sandbox also offers 64x (the host refuses it in a campaign game). */
-export const SANDBOX_SPEEDS: Speed[] = [0, 1, 4, 16, 64];
+/**
+ * Speed as a multiplier of base ticks per second (0 = paused). The player sees it divided by 4: the pace the game is
+ * designed around (4 ticks a second) is "1x", so 1, 2, 4, 8, 12 read as 0.25x, 0.5x, 1x, 2x, 3x.
+ */
+export type Speed = 0 | 1 | 2 | 4 | 8 | 12 | 16 | 64;
+export const SPEEDS: Speed[] = [0, 1, 2, 4, 8, 12];
+/** The sandbox also offers 4x and 16x on screen (the host refuses 64 in a campaign game). */
+export const SANDBOX_SPEEDS: Speed[] = [0, 1, 2, 4, 8, 12, 16, 64];
 
 export type ToSim =
   /** Start (or restart) the sim, from a save if given, else a new game with `seed`. */

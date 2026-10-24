@@ -2,7 +2,7 @@ import './ui.css';
 import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../game/hover';
 import {
-  autosaveOffer, exportSave, importSave, setSpeed, snapshot, speed, startSim, togglePause,
+  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, togglePause,
 } from '../game/store';
 import { SPEEDS } from '../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from './logic';
@@ -24,8 +24,32 @@ import {
 } from './state';
 import { currentStep } from './tutorial';
 
-const speedLabel = (s: number) => (s === 0 ? 'II' : `${s}x`);
-const speedTitle = (s: number) => (s === 0 ? 'Pause' : `Run at ${s}x`);
+/** What the player reads: the sim's ticks per second over 4 (4 ticks a second is the designed pace, "1x"). */
+export const speedLabel = (s: number) => `${s / 4}x`;
+const speedTitle = (s: number) => `Run at ${speedLabel(s)}`;
+
+/**
+ * Pause/play plus the speed. Collapsed it is two small buttons (the play state and the current speed); hovering or
+ * focusing it, or tapping the speed, opens the other speeds in place.
+ */
+function SpeedControl() {
+  const [open, setOpen] = useState(false);
+  const v = speed.value, shown = v === 0 ? lastRunSpeed.value : v;
+  return (
+    <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
+      <button class="icon pp" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
+        <Icon name={v === 0 ? 'play' : 'pause'} size={14} />
+      </button>
+      <div class="seg speeds" role="group" aria-label="Speed" onClick={() => setOpen(true)}>
+        {SPEEDS.filter((x) => x !== 0).map((x) => (
+          <button key={x} class={shown === x ? 'on' : ''} aria-pressed={shown === x && v !== 0} title={speedTitle(x)} onClick={() => { setSpeed(x); setOpen(false); }}>
+            {speedLabel(x)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function StartPrompt() {
   const offer = autosaveOffer.value;
@@ -200,7 +224,7 @@ export function Hud() {
       <header class="hud">
         <div class="hud-side hud-left">
         <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
-        <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>
+        <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
         <Reputation s={s} />
         <PhaseChip s={s} />
         <NetChipButton s={s} />
@@ -208,13 +232,7 @@ export function Hud() {
         </div>
         <div class="hud-side hud-center"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">
-        <div class="seg" role="group" aria-label="Speed">
-          {SPEEDS.map((v) => (
-            <button key={v} class={speed.value === v ? 'on' : ''} aria-pressed={speed.value === v} title={speedTitle(v)} onClick={() => setSpeed(v)}>
-              {speedLabel(v)}
-            </button>
-          ))}
-        </div>
+        <SpeedControl />
         <button class="icon" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme" onClick={toggleTheme}>
           <Icon name={dark ? 'sun' : 'moon'} size={14} />
         </button>
