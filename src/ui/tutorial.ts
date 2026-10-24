@@ -218,7 +218,7 @@ export const STEPS: StepDef[] = [
     text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you get paid. The machine stays on and takes the next key as soon as you plug it in. Watch the drive badge to see what the OS is doing.',
     targets: () => ['os'] },
   { id: 'done', chapter: null, title: 'Workshop open', flag: null,
-    text: 'The machine now runs jobs on its own. Next goal: Level 4 opens the network, so jobs arrive without keys. It needs a Basic board for the jack, a router and a plan, and no more memory.',
+    text: 'The machine now runs jobs on its own. Next goal: the network, which opens at Level 4, so jobs arrive without keys. It needs a Basic board for the jack, a router and a plan, and no more memory.',
     targets: () => [] },
 ];
 

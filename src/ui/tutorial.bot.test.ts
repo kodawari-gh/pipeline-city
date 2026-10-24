@@ -10,6 +10,9 @@ import { currentStep, INITIAL_TUTORIAL, pendingUpgrade, STEPS, type StepId } fro
 const ST = { ...INITIAL_TUTORIAL, welcomed: true };
 /** About 10 minutes of game time (the waits are client arrivals at a floor reputation). */
 const MAX_STEP_TICKS = 660;
+/** Smooth: no step keeps the player waiting two minutes of game time, and the whole tutorial is over in seven. */
+const SMOOTH_STEP_TICKS = 120;
+const SMOOTH_TOTAL_TICKS = 420;
 const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
 
 /**
@@ -158,5 +161,69 @@ describe('the tutorial is completable with public actions', () => {
     }
     // Nothing the tutorial asks for is ever refused: not a purchase, install, cable, key plug/removal or power press.
     expect(refused).toEqual([]);
+  }, 60000);
+});
+
+/** Run the whole tutorial: the bot acts once every `every` ticks (1 = instant, 6 = a slow, distracted player). */
+function runTutorial(seed: number, every: number) {
+  const g = new Game({ seed });
+  const seen: Array<{ id: StepId; tick: number }> = [];
+  const refused: string[] = [];
+  const wrap = <T extends { ok: boolean; reason?: string }>(name: string, r: T): T => {
+    if (!r.ok) refused.push(`${name}: ${r.reason}`);
+    return r;
+  };
+  const install = g.install.bind(g), connect = g.connectCable.bind(g), plug = g.plugKey.bind(g), eject = g.ejectKey.bind(g), power = g.powerButton.bind(g), buy = g.purchase.bind(g);
+  g.install = (inv: string, slot?: string) => wrap('install', install(inv, slot));
+  g.connectCable = (c: string) => wrap('connectCable', connect(c));
+  g.plugKey = (k: number) => wrap('plugKey', plug(k));
+  g.ejectKey = () => wrap('ejectKey', eject());
+  g.powerButton = () => wrap('powerButton', power());
+  g.purchase = (id: string) => wrap('purchase', buy(id));
+  let last: StepId | null = null;
+  let finishedAt = -1;
+  for (let tick = 1; tick <= 30000; tick++) {
+    g.advanceBaseTick();
+    const s = g.snapshot();
+    const step = currentStep(s, ST)!;
+    if (step.id !== last) { seen.push({ id: step.id, tick: s.baseTick }); last = step.id; }
+    if (step.id === 'done') { finishedAt = tick; break; }
+    if (tick % every === 0) act(g, s, step.id);
+  }
+  return { g, seen, refused, finishedAt };
+}
+
+describe('the tutorial stays smooth across seeds and player speeds', () => {
+  const cases = [[1, 1], [2, 1], [3, 4], [5, 6], [11, 6], [23, 10]] as const;
+  for (const [seed, every] of cases) {
+    it(`seed ${seed}, one action every ${every} s: every step in order, nothing refused, no step waits long`, () => {
+      const { seen, refused, finishedAt } = runTutorial(seed, every);
+      expect(finishedAt, 'the tutorial reached its last card').toBeGreaterThan(0);
+      expect(seen.map((x) => x.id)).toEqual(STEPS.filter((x) => x.id !== 'welcome').map((x) => x.id));
+      expect(refused).toEqual([]);
+      const long = seen.map((x, i) => ({ id: x.id, dur: (seen[i + 1]?.tick ?? x.tick) - x.tick })).filter((x) => x.dur > SMOOTH_STEP_TICKS);
+      expect(long).toEqual([]);
+      expect(finishedAt).toBeLessThanOrEqual(SMOOTH_TOTAL_TICKS);
+    }, 60000);
+  }
+});
+
+describe('after the tutorial: the network goal is within reach', () => {
+  it('serving keys with the OS, basic jobs alone reach Level 4 and can pay for the board, router and plan', () => {
+    const { g, finishedAt } = runTutorial(7, 1);
+    expect(finishedAt).toBeGreaterThan(0);
+    let level4At = -1, affordAt = -1;
+    for (let tick = 1; tick <= 6000; tick++) {
+      g.advanceBaseTick();
+      const s = g.snapshot();
+      act(g, s, 'osIngest'); // the OS flow: keep the machine on and plug the next key
+      if (level4At < 0 && s.level.level >= 4) level4At = tick;
+      const cost = (id: string) => s.purchases.find((p) => p.id === id)?.price ?? Infinity;
+      if (affordAt < 0 && s.money >= cost('board1') + cost('router1') + cost('isp1')) affordAt = tick;
+      if (level4At > 0 && affordAt > 0) break;
+    }
+    expect(level4At, 'Level 4 reached').toBeGreaterThan(0);
+    expect(affordAt, 'board + router + plan affordable').toBeGreaterThan(0);
+    expect(affordAt).toBeLessThanOrEqual(600); // ten minutes of basic jobs at most
   }, 60000);
 });
