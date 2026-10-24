@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "bench:speed": "node tools/bench-speed.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
