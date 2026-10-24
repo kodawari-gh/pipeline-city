@@ -91,20 +91,20 @@ export function clockWarning(cpu: DeviceSnap | undefined): { level: Level; text:
 export interface Hint { id: string; text: string }
 
 export const HINTS: Record<string, Hint> = {
-  stall: { id: 'stall', text: 'A stall: part of the CPU is waiting instead of working. Faster or smarter processors waste fewer cycles.' },
-  throttle: { id: 'throttle', text: 'Throttling: the processor is too hot, so it slows itself down. Better cooling or a lower clock helps.' },
-  overheat: { id: 'overheat', text: 'Overheating: the processor is making errors and restarting requests. Cool it down before it burns.' },
-  queue: { id: 'queue', text: 'Keys are piling up in the tray. Slow answers hurt your reputation, and reputation brings demand.' },
-  burnt: { id: 'burnt', text: 'A part burnt out and does nothing now. Buy a replacement of the same kind.' },
-  trip: { id: 'trip', text: 'The power supply tripped: too much draw. Power cycle it, then reduce load or buy a bigger supply.' },
-  brownout: { id: 'brownout', text: 'The power supply is overloaded, so everything is slowed down. Upgrade it or lower the clock.' },
-  keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot. Power it off and on again to load this key (an OS reads keys while running).' },
-  osFull: { id: 'osFull', text: 'The OS queue is full: a plugged key stays in the tray until a job finishes and frees a slot.' },
-  retiredKeys: { id: 'retiredKeys', text: 'The link is up, so clients now send jobs over the network. The USB keys left in the tray are retired: they expire without a penalty, and you can still serve them.' },
-  portBusyKey: { id: 'portBusyKey', text: 'A key is parked in the USB port, and it blocks the network jobs from reaching the drive. Remove it (or let the OS finish with it).' },
-  spoolFull: { id: 'spoolFull', text: 'The spool is full: new jobs wait at the door and may expire. A bigger drive or a bigger OS holds more jobs.' },
-  linkDown: { id: 'linkDown', text: 'The link is down. Jobs already on the drive are safe and run again when it is back. If it stays down for five minutes, clients send USB keys again at a third of the rate.' },
-  saturated: { id: 'saturated', text: 'The link is saturated: every client slot or spool slot is busy. More bandwidth will not help; a faster processor, a bigger OS or a bigger router and plan will.' },
+  stall: { id: 'stall', text: 'The CPU is waiting instead of working. A faster CPU or faster memory wastes less.' },
+  throttle: { id: 'throttle', text: 'Too hot: the processor slows itself down. Better cooling or a lower clock helps.' },
+  overheat: { id: 'overheat', text: 'Overheating: errors are restarting jobs. Cool it down before it burns.' },
+  queue: { id: 'queue', text: 'Keys are piling up. Slow answers cost reputation, and reputation brings demand.' },
+  burnt: { id: 'burnt', text: 'A part burnt out. Buy a replacement of the same kind.' },
+  trip: { id: 'trip', text: 'The power supply tripped. Power cycle it, then cut the load or buy a bigger one.' },
+  brownout: { id: 'brownout', text: 'The power supply is overloaded and everything slows down. Upgrade it or lower the clock.' },
+  keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot: power off and on to load this key.' },
+  osFull: { id: 'osFull', text: 'The OS queue is full. A plugged key waits until a job finishes.' },
+  retiredKeys: { id: 'retiredKeys', text: 'The link is up: jobs come over the network now. Keys left in the tray expire without penalty.' },
+  portBusyKey: { id: 'portBusyKey', text: 'A key parked in the USB port blocks network jobs. Remove it.' },
+  spoolFull: { id: 'spoolFull', text: 'The spool is full: new jobs wait and may expire. A bigger drive or OS holds more.' },
+  linkDown: { id: 'linkDown', text: 'The link is down. Jobs on the drive are safe. After five minutes, keys come back at a third of the rate.' },
+  saturated: { id: 'saturated', text: 'The link is saturated. More bandwidth will not help: a faster CPU, bigger OS or bigger router will.' },
 };
 
 /** Hint ids triggered by this snapshot (ignores whether they were already shown). */
@@ -132,7 +132,7 @@ export function triggeredHints(s: Snapshot): string[] {
 }
 
 /** Hints shown at once. */
-export const MAX_TOASTS = 2;
+export const MAX_TOASTS = 1;
 
 /** Move queued hints into the visible list until `max` are visible. Pure. */
 export function fillToasts(visible: Hint[], queue: Hint[], max = MAX_TOASTS): { visible: Hint[]; queue: Hint[] } {
@@ -370,7 +370,7 @@ export function statusChip(s: Snapshot): { text: string; title: string; level: C
     case 'halted':
       return s.haltReason === 'no-boot-media'
         ? { text: 'No boot media', title: 'The machine looked for a key at boot and found none. Plug a key in, then power off and on again.', level: 'warn' }
-        : { text: 'Job done: remove key', title: 'The job is done and the machine has halted. Remove the key to get paid, then power off and on for the next job.', level: 'warn' };
+        : { text: (s.autoEject ? 'Job done' : 'Job done: remove key'), title: s.autoEject ? 'The job is done and the machine has halted. The key pops out and pays by itself. Power off and on for the next job.' : 'The job is done and the machine has halted. Remove the key to get paid, then power off and on for the next job.', level: 'warn' };
     case 'loading': return { text: 'Loading', title: 'Copying the job from the key into memory.', level: 'ok' };
     case 'running': return { text: 'Running', title: 'The processor is running the job.', level: 'ok' };
     case 'writing': return { text: 'Writing', title: 'Writing the answer back onto the key.', level: 'ok' };

@@ -196,11 +196,11 @@ export function reconcileSeen(s: Snapshot, seen: number | null): number {
   return seen;
 }
 
-/** Banner room: it may appear only while fewer than two hint toasts are up and no tutorial step is showing. */
-export const canShowBanner = (visibleToasts: number, tutorialActive: boolean): boolean => !tutorialActive && visibleToasts < 2;
+/** Banner room: it may appear only while no hint toast is up and no tutorial step is showing (one bubble at a time). */
+export const canShowBanner = (visibleToasts: number, tutorialActive: boolean): boolean => !tutorialActive && visibleToasts < 1;
 
-/** How many hint toasts may show while the banner is up (the two-toast cap includes the banner). */
-export const toastRoom = (bannerUp: boolean): number => (bannerUp ? 1 : 2);
+/** How many hint toasts may show while the banner is up (the one-bubble cap includes the banner). */
+export const toastRoom = (bannerUp: boolean): number => (bannerUp ? 0 : 1);
 
 // ---------- job needs, deadlines and declining ----------
 

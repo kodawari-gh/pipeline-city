@@ -28,7 +28,7 @@ export function Notice() {
   );
 }
 
-/** Hint toasts: at most two visible, the rest queued. No new hints are raised while a tutorial card is up (see state.ts). */
+/** Hint toasts: one at a time, the rest queued. No new hints are raised while a tutorial card is up (see state.ts). */
 export function Toasts() {
   const up = levelUp.value;
   const list = toasts.value.slice(0, toastRoom(!!up));
@@ -53,8 +53,9 @@ export function Toasts() {
       )}
       {list.map((t) => (
         <div class="card toast" key={t.id} role="status">
+          <Icon name="warn" size={13} />
           <span>{t.text}</span>
-          <button onClick={() => dismissToast(t.id)} aria-label="Dismiss hint">Got it</button>
+          <button class="icon" onClick={() => dismissToast(t.id)} aria-label="Dismiss hint" title="Dismiss"><Icon name="close" size={11} /></button>
         </div>
       ))}
     </div>

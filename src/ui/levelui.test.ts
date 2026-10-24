@@ -174,13 +174,12 @@ describe('level-up celebration', () => {
     expect(celebrationFor(at({ sandbox: true, level: 6, leveledUpAt: 10 }), 1)).toBeNull();
   });
 
-  it('waits behind a tutorial step and the two-toast cap, and takes one toast of room', () => {
+  it('waits behind a tutorial step and a hint toast (one bubble at a time), and hints wait behind it', () => {
     expect(canShowBanner(0, false)).toBe(true);
-    expect(canShowBanner(1, false)).toBe(true);
-    expect(canShowBanner(2, false)).toBe(false);
+    expect(canShowBanner(1, false)).toBe(false);
     expect(canShowBanner(0, true)).toBe(false);
-    expect(toastRoom(true)).toBe(1);
-    expect(toastRoom(false)).toBe(2);
+    expect(toastRoom(true)).toBe(0);
+    expect(toastRoom(false)).toBe(1);
   });
 });
 

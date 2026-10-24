@@ -82,7 +82,7 @@ function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
   return (
     <div class="compare" aria-label={`Compared with ${shortName(getSpec(option)?.name ?? option)}`}>
       {rows.map((r) => (
-        <div class="crow" key={r.key}>
+        <div class="crow" key={r.key} title={r.curText ? `${r.label}: ${r.curText} now, ${r.optText} with this` : `${r.label}: ${r.optText}`}>
           <div class="ctop">
             <Icon name={r.icon} size={12} />
             <span class="clabel">{r.label}</span>
@@ -90,10 +90,6 @@ function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
           </div>
           {r.cur !== null && <div class="bar cur"><i style={{ width: `${r.cur * 100}%` }} /></div>}
           <div class={`bar opt ${r.trend ?? ''}`}><i style={{ width: `${r.opt * 100}%` }} /></div>
-          <div class="ctext mute">
-            <span>{r.curText ?? ''}</span>
-            <span>{r.optText}</span>
-          </div>
         </div>
       ))}
     </div>
@@ -288,7 +284,7 @@ function Action({ a }: { a: PickerAction }) {
 function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | null; onPick: (id: string) => void }) {
   return (
     <section class="pblock os-sec" aria-label={sec.name}>
-      <h3><Icon name="cpu" size={11} /> {sec.name} <span class={`chip ${sec.level}`}>{sec.status}</span></h3>
+      <h3 title={sec.name}><Icon name="cpu" size={11} /> OS <span class={`chip ${sec.level}`}>{sec.status}</span></h3>
       <div class="chips">
         <span class="chip" title="Operating system tier"><Icon name="gauge" size={12} /> tier {sec.tier}</span>
         <span class="chip" title="Programs it runs at once"><Icon name="cpu" size={12} /> {sec.programSlots} at once</span>

@@ -120,6 +120,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .invbar { display: flex; justify-content: center; pointer-events: none; }
 .invbar > * { pointer-events: auto; }
 .invbar .invbtn { padding: 0.3rem 0.7rem; background: var(--panel); backdrop-filter: blur(0.667rem); }
+.invbar .invbtn.on { background: var(--accent); color: var(--on); }
 
 /* Meters (the small bar, the stats drawer, the reputation) */
 .meter { position: relative; height: 0.333rem; background: var(--dot); border-radius: 0.2rem; overflow: hidden; min-width: 2.667rem; }

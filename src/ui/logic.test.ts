@@ -155,19 +155,19 @@ describe('hints', () => {
 
 describe('toast queue', () => {
   const h = (id: string) => ({ id, text: id });
-  it('shows at most two and queues the rest in order', () => {
+  it('shows one at a time and queues the rest in order', () => {
     const r = fillToasts([], [h('a'), h('b'), h('c'), h('d')]);
-    expect(r.visible.map((t) => t.id)).toEqual(['a', 'b']);
-    expect(r.queue.map((t) => t.id)).toEqual(['c', 'd']);
+    expect(r.visible.map((t) => t.id)).toEqual(['a']);
+    expect(r.queue.map((t) => t.id)).toEqual(['b', 'c', 'd']);
   });
   it('shows the next one when a slot frees up', () => {
-    const r = fillToasts([h('b')], [h('c'), h('d')]);
-    expect(r.visible.map((t) => t.id)).toEqual(['b', 'c']);
+    const r = fillToasts([], [h('c'), h('d')]);
+    expect(r.visible.map((t) => t.id)).toEqual(['c']);
     expect(r.queue.map((t) => t.id)).toEqual(['d']);
   });
   it('does nothing when full', () => {
-    const r = fillToasts([h('a'), h('b')], [h('c')]);
-    expect(r.visible).toHaveLength(2);
+    const r = fillToasts([h('a')], [h('c')]);
+    expect(r.visible).toHaveLength(1);
     expect(r.queue).toHaveLength(1);
   });
 });

@@ -2119,9 +2119,9 @@ export class Game {
    */
   private applyBoost(): void {
     const ph = this.pch.phase;
-    const firmware = ph === PchPhase.Posting || ph === PchPhase.Loading || ph === PchPhase.Writing || ph === PchPhase.OsBoot
+    const firmware = ph === PchPhase.Posting || ph === PchPhase.Loading || ph === PchPhase.Writing
       || ph === PchPhase.OsIdle || ph === PchPhase.OsIngest || ph === PchPhase.OsFlash;
-    const boost = firmware ? this.cfg.firmwareBoost : 1;
+    const boost = ph === PchPhase.OsBoot ? this.cfg.osBootBoost : firmware ? this.cfg.firmwareBoost : 1;
     for (const [name, r] of this.baseRates) {
       this.machine.clock.setRate(name, { mul: r.mul * this.cfg.cpuCyclesPerClock * boost, div: r.div });
     }

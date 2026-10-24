@@ -105,6 +105,8 @@ export interface EconomyConfig {
    * this a first boot takes most of a minute. 1 turns it off (tests that measure raw cycles use that).
    */
   firmwareBoost: number;
+  /** The same for loading the OS kernel from the drive (the player waits for this one on every cold start). */
+  osBootBoost: number;
   /**
    * Without an OS the player no longer pulls the finished key out by hand: this many base ticks after the job's JOB DONE
    * message the key ejects itself and pays (the manual loop keeps its other chores: plugging in, power cycling). With an OS
@@ -149,6 +151,7 @@ export const ECONOMY: EconomyConfig = {
   usbFlashTicks: 2,
   coldBoot: { base: 1, perKiB: 0.05, kiBCap: 3, perStick: 0.5, max: 8, init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25 } },
   firmwareBoost: 12,
+  osBootBoost: 48,
   autoEjectTicks: 3,
   levelGating: true,
   usbFallbackTicks: NET.usbFallbackTicks,

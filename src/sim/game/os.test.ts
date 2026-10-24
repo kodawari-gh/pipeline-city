@@ -153,15 +153,16 @@ describe("booting the OS from storage", () => {
   });
 
   it("boot time depends on the storage tier: NVMe < SATA SSD < HDD (same CPU, same RAM)", () => {
+    // raw drive speed: the firmware boost would squeeze all three into a few seconds, so it is off for this comparison
     const boot = (s: "hdd0" | "ssd1" | "nvme2") => {
-      const g = rig(s);
+      const g = rig(s, { economy: { osBootBoost: 1, firmwareBoost: 1 } });
       g.powerButton();
       return runUntil(g, "idle-os");
     };
     const [hdd, ssd, nvme] = [boot("hdd0"), boot("ssd1"), boot("nvme2")];
     expect(nvme).toBeLessThan(ssd);
     expect(ssd).toBeLessThan(hdd);
-    expect(hdd - nvme).toBeGreaterThanOrEqual(2); // the HDD's seek and slow blocks are still visible, in a few seconds
+    expect(hdd - nvme).toBeGreaterThanOrEqual(10); // the HDD's seek and slow blocks are visible in seconds
   });
 
   it("boot time also depends on the CPU", () => {
@@ -404,5 +405,20 @@ describe("the bot still plays the legacy flow with a drive installed", () => {
     const op = new Operator(g, 1);
     for (let t = 0; t < 200; t++) { g.advanceBaseTick(); op.step(); }
     expect(g.completed).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("quick OS boot", () => {
+  it("the OS is up within about 10 s of the power button on every drive tier, and a faster drive is never slower", () => {
+    const boot = (s: "hdd0" | "ssd1" | "nvme2") => {
+      const g = rig(s);
+      g.powerButton();
+      return runUntil(g, "idle-os");
+    };
+    const [hdd, ssd, nvme] = [boot("hdd0"), boot("ssd1"), boot("nvme2")];
+    expect(hdd).toBeLessThanOrEqual(10);
+    expect(nvme).toBeLessThanOrEqual(hdd);
+    expect(nvme).toBeLessThanOrEqual(ssd);
+    expect(ssd).toBeLessThanOrEqual(hdd);
   });
 });
