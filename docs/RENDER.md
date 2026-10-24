@@ -20,6 +20,7 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `pipeline.ts` | zoomed-in CPU chips and stage highlights |
 | `case.ts` | the PC case: chassis, glass, drive bay cage, SATA data cables and power leads |
 | `drives.ts` | drive art (`hdd`, `ssd-sata`, `ssd-nvme`) and their live parts (platter, head arm, activity LED) |
+| `net.ts` | the network props: router, wall plate, ISP line, ethernet cable, NIC card art, link LEDs and traffic pulses (see Network) |
 | `ink.ts` | small Graphics / Text helpers |
 
 ## World layout
@@ -253,6 +254,43 @@ One shared board layout; a tier **fills** it, slots it lacks stay bare (empty pa
 ## Performance
 
 Static layers are cached (the tray / power plate chrome is one texture below zoom 0.2, each prop node is cached as a texture below zoom 0.2, the cables are their own small layer): retained geometry, the board texture below zoom 0.2 and the device layer texture (devices, PSU, monitor, cables) below zoom 0.14. Textures are destroyed on rebuild. Per frame JS is the fan rotation, the pooled dot sprites (only lit buses and cables show pulses) and one DRAM flash Graphics only while the memory bus is lit. Per snapshot: a few Graphics (heat glow, PSU gauge) and a handful of Text updates (only when the string changed). Measured in headless Chrome with software GL (SwiftShader, 1360x800, GPU-bound and pessimistic), full machine installed: page baseline about 16 ms/frame, overview 19-23 ms (44 ms before the device bake: the device layer alone cost 28 ms), PSU mid-zoom 33 ms, DIMM mid-zoom (zoom 0.35) 62 ms, CPU die 56 ms. Real GPU numbers were not measured. With the assembly props (same setup): bare or assembled overview about 20 ms/frame (mostly 16.7 ms with an occasional 33 ms), dragging a key about 20-33 ms, boot with the PCH and buses lit about 21 ms at overview and about 56 ms at zoom 0.22 (GPU-bound, like the DIMM mid-zoom number above). Before baking the props the overview was 32 ms.
+
+## Network (router, wall plate, ethernet cable, NIC cards)
+
+Code: `src/render/net.ts` (`NetView`, `routerArt`, `nicArt`), geometry in `layout.ts` (`ROUTER_SPOT`, `WALL_PLATE`, `LAN_TRUNK_X`, `nicJack`, `nicRect`), the plug drag in `interact.ts` (`beginLan`, `scene.lan`), wiring in `board.ts` (`syncNet`). Data: `snapshot.net`, `cables[id=lan]`, `devices[kind=nic]`, inventory kinds `router` and `nic`. Nothing here changes the overview fit: the router shelf and the wall plate sit above the monitor, inside the existing `WORLD` box (the case did not shrink).
+
+**Ids** (hover, `selected`, `highlight`, `flyTo`, `anchorOf`, `hasTarget`; all of them are external: hit and visible at far zoom, they never open the interior):
+
+| id | what |
+|---|---|
+| `router` | the installed router, or the empty marked spot (dashed `ROUTER`) when none is; it is also the drop slot `router` (`scene.slots`) of an inventory router (`freeSlots ["router"]`; a better router is a `swapSlots` target and is amber) |
+| `wall` | the wall plate: plan speed (`50 Mb` .. `20 Gb`), plan name, five tier pips, the jack and its light |
+| `cable.lan` | the ethernet plug (rest spot near the router, or seated in a jack); the cable body also hits. As a highlight it rings the plug and, while loose, every valid jack |
+| `eth0` | the board's own jack (only boards with `ethernetMbps > 0`; port `"board"` in `connectCable`) |
+| `eth1`, `eth2`, ... | NIC jacks in PCIe slot order (the lowest slot is `eth1`); the port to pass to `connectCable("lan", port)` is the card's device id (`LanJack.port`, equal to the snapshot's `net.port.deviceId` once plugged) |
+| device id (`dev9`...), `pcie0`..`pcie3` | the NIC card (hit rect = card plus bracket and jack) and its slot; the slot is the drop target of a `nic` item (free and swap slots from the inventory) |
+
+The group is drawn only when it matters: a router or a plan exists, a router is in the inventory, or the cable is plugged. Before that the world is unchanged (calm early game).
+
+**Looks** (`net.router.visual`, one per tier): `router-home` (small light plastic box, WAN and two LAN sockets), `router-gbe` (dark glossy box, cyan edge, WAN and four LAN), `router-10g` (brushed aluminium, SFP cage, eight LAN), `router-core` (1U rack unit with ears, vent slots, twelve LAN). All stand right-aligned on the shelf; sockets open at the bottom edge (cables leave downward), WAN left, the used LAN socket rightmost. NIC cards (`nic-gbe`, `nic-10g`, `nic-40g`): PCB with a controller chip, gold fingers on the slot, a bracket and an ethernet jack with two LED wells on the board's west edge, a finned heatsink on 10G and a bigger one with a heat pipe and a second sink on 40G. NICs get the generic heat glow. A NIC does not draw the PCIe 6-pin cable (the slot feeds it).
+
+**Cable flow.** The plug of the `lan` cable rests near the router (a short stub from the router's LAN socket). Drag it (a press that moves more than 6 px): a rubber-band cable follows the pointer, every jack pulses (valid) or is dimmed (a burnt card), the hovered valid jack glows and the plug snaps into it. A drop on a jack calls `connectCable("lan", "board" | cardId)`; this works while the PC is on (no "power off first" message, unlike the other cables). Dragging the seated plug out calls `disconnectCable("lan")` at once and puts the plug in the hand; dropping it anywhere but on a jack leaves it at rest. A drop elsewhere on the board says `Drop the plug on an ethernet jack`; a refusal from the sim (`lastError`) shows as the usual inline message and clears the optimistic plug state (about 1.5 s, as for the other cables). The router drag uses the normal part drag with one change: a router installs while the PC is on (it has its own power), so the "Power the machine off first" refusal does not apply to it. Routed cable: down from the router's plug, east along the row above the monitor, down the trunk `LAN_TRUNK_X` (between the video plug and the case wall), west into the jack across the case wall, with rounded bends. It never meets the PSU cables or the ISP line. **Known crossing:** the trunk to a NIC jack (below the HDMI height) crosses the video cable's sleeve once at a right angle (drawn in front of it), and a key plugged into the USB port is drawn over it; the onboard jack's run is above the video cable and crosses nothing. The cable is external, so it stays visible in the far-zoom exterior view; the jack LEDs are on the exterior rear plate too (`exterior.ts` draws the NIC jack cut-outs).
+
+**LED meanings** (game clock, from `net.state`; the router has its own power, the jack LEDs need the PC powered):
+
+| light | meaning |
+|---|---|
+| router power (top left) | steady green whenever a router is installed, also with the PC off |
+| router activity (next to it) | cyan flicker while transfers run |
+| WAN (over the left socket) and the wall jack light | steady green once there is a plan (a little flicker with traffic), dark without a plan |
+| LAN (over the used socket) and the jack link LED (left) | no cable or PC off: dark; `link-up` steady green; `saturated` pulsing green; `down` / `no-os` / `no-device` with the PC on: amber |
+| jack activity LED (right) | amber flicker while transfers run |
+
+**Traffic pulses.** Only while transfers exist and the link is up: dots travel the lan cable and the ISP line, downloads towards the PC (cyan), uploads towards the router (violet), at a speed and density that follow `net.bandwidth` of that direction (log scale, 10 Mbit to 40 Gbit); the amount eases in and out on the game clock (`gdt`), so a pause freezes them. No transfers or no power: nothing moves.
+
+**Tray and USB fallback** (`trayArt(T, keys, mode)`, mode from `net.usbFallback.state`): `off` as before; `retired` dims the tray panel and says `LINK UP: KEYS RETIRED` (or `LINK UP: n LEFTOVER`; leftover keys stay fully visible and usable); `waiting` says `NET DOWN` in amber; `fallback` says `NET DOWN: STICKS BACK AT 1/3 RATE` and the panel is normal again. The countdown text is the UI's job (the tray is rebuilt only when the state changes, not every second).
+
+**LOD.** The router, wall plate, cable and jack LEDs live in the always-external layer (`NetView.root`, above the exterior case), so the far-zoom view keeps them; at the overview they are small but read as a lit box with a cable. Far-zoom hit tests accept `router`, `wall`, `cable.lan` and `eth*` (`isExternalId`); NIC device ids and `pcie*` are interior ids as before.
 
 ## Known gaps
 

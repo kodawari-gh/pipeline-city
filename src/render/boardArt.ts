@@ -216,7 +216,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       port(q.x + 30, -1560, 330, 260, null);
       for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
       g.fill({ color: P.via, alpha: 0.5 });
-      for (const lx of [q.x + 100, q.x + 180]) disc(g, lx, -1394, 13, { fill: '#05070c', stroke: P.edge, lw: 3 }); // link / activity wells, lit live (net.ts)
+      for (const lx of [q.x + 100, q.x + 180]) disc(g, lx, -1394, 13, { fill: P.dark, stroke: P.edge, lw: 3 }); // link / activity wells, lit live (net.ts)
       labels.addChild(label(feat.ethernetMbps >= 1000 ? 'ETH 1G' : `ETH ${feat.ethernetMbps}M`, q.x + 200, -1405, 30, P.silkHi, { anchor: [0, 0.5] }));
     } else {
       bare(q.x + 30, -1560, 330, 260);
