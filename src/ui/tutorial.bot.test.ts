@@ -31,14 +31,6 @@ function serve(g: Game, s: Snapshot): void {
 /** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
 function act(g: Game, s: Snapshot, id: StepId): void {
   // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
-  // While it waits for the client base, a player also spends on the memory the OS will need: bought and fitted in one go
-  // between two jobs (machine off, nothing plugged), so the fit step does not come back.
-  if (id === 'reachLevel3' && !g.powered && !s.plugged && s.money >= 100 && !s.devices.some((d) => d.spec === 'ram1')) {
-    const b = g.purchase('ram1');
-    if (!b.ok) throw new Error(`purchase ram1: ${b.reason}`);
-    g.install(b.invId);
-    return;
-  }
   if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
   const powerOff = () => { if (g.powered) g.powerButton(); };
   // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
@@ -85,6 +77,8 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'fit': installPart(PART_KINDS, (i) => pendingUpgrade(s, i)); break;
     case 'buyDrive': buy('hdd0', 40); break;
     case 'drive': installPart(['storage']); break;
+    case 'buyRam': buy('ram1', 100); break;
+    case 'fitRam': installPart(['ram']); break;
     case 'buyOs': buy('os1', 150); break;
     case 'os': installPart(['os']); break;
     case 'osIngest':

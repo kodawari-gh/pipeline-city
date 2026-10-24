@@ -119,7 +119,7 @@ The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/s
 | First jobs | `watch`: the key pops out by itself, pays, and the machine switches itself off | `firstKeyEjected` | `monitor` |
 | First jobs | `cycle`: plug the next key, press power | `firstManualCycle` | `power`, `usb`, key |
 | First jobs | `spend`, `fit` | `firstPurchase`; no bought upgrade left in the inventory | the CPU socket; the part and its socket |
-| The OS | `reachLevel3` (meter), `buyDrive`, `drive`, `buyOs`, `os`, `bootOs` | level 3 or a drive; drive owned; `storageInstalled`; OS owned; `osInstalled`; OS phase | the bay, parts and sockets, `power`, `os` |
+| The OS | `reachLevel3` (meter), `buyDrive`, `drive`, `buyRam`, `fitRam` (only while the fitted memory is below the OS minimum), `buyOs`, `os`, `bootOs` | level 3 or a drive; drive owned; `storageInstalled`; enough memory bought, then fitted; OS owned; `osInstalled`; OS phase | the bay, parts and sockets, `power`, `os` |
 | The OS | `osIngest` (plug a key and leave it), `osPaid` (wait: the key pops out by itself and pays) | the key is ingested; `firstOsJob` | `usb`, key; `os`, `monitor` |
 | - | Workshop open (Got it) | button | none |
 

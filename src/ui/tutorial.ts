@@ -35,7 +35,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch'
-  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
+  | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS';
 export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS'];
@@ -88,6 +88,15 @@ const installTargets = (kind: string) => (s: Snapshot): string[] => {
   const items = invOf(s, kind);
   return [...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
 };
+/** Memory fitted now, in bytes (the OS lives in RAM while it runs, so the machine needs a minimum before it can have one). */
+const ramBytes = (s: Snapshot): number =>
+  s.devices.filter((d) => d.kind === 'ram' && !d.burnt).reduce((n, d) => { const sp = getSpec(d.spec); return n + (sp && 'sizeBytes' in sp ? sp.sizeBytes : 0); }, 0);
+const OS_RAM_BYTES = getOsSpec('os1')?.minRamBytes ?? 32 * 1024;
+const ramShort = (s: Snapshot) => !s.os && ramBytes(s) < OS_RAM_BYTES;
+/** Memory is its own lesson while the OS is waiting for it, so the general "fit your new part" step leaves it alone. */
+const fitsGeneralStep = (s: Snapshot, i: Snapshot['inventory'][number]) => pendingUpgrade(s, i) && !(i.kind === 'ram' && ramShort(s) && !ownsOs(s));
+/** A spare memory stick big enough on its own (it replaces the small one, or fills a free slot). */
+const hasBigRam = (s: Snapshot) => invOf(s, 'ram').some((i) => { const sp = getSpec(i.spec); return !!sp && 'sizeBytes' in sp && sp.sizeBytes >= OS_RAM_BYTES; });
 const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage').length > 0;
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
@@ -159,10 +168,10 @@ export const STEPS: StepDef[] = [
     } },
   // ---- storage and the OS ----
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
-    done: (s) => !s.inventory.some((i) => pendingUpgrade(s, i)),
+    done: (s) => !s.inventory.some((i) => fitsGeneralStep(s, i)),
     text: `Your new part is waiting in the inventory. Drag it onto its socket and the machine swaps it in for you, waiting for a running job to finish first. Heads up: the operating system will need ${OS_RAM_KB}K of memory.`,
     targets: whileSwapQueued((s) => s.inventory
-      .filter((i) => pendingUpgrade(s, i))
+      .filter((i) => fitsGeneralStep(s, i))
       .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
@@ -175,6 +184,14 @@ export const STEPS: StepDef[] = [
   { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
     text: 'The drive\'s speed decides how quickly the machine wakes up later. Drag the drive onto a free drive bay.',
     targets: whileSwapQueued(installTargets('storage')) },
+  { id: 'buyRam', chapter: 'The OS', title: 'More memory first', flag: null,
+    done: (s) => !ramShort(s) || hasBigRam(s) || ownsOs(s),
+    text: `The operating system does not run from the drive alone: while it works it lives in memory, like a manager who needs a big desk. Your starter stick is too small: the OS wants ${OS_RAM_BYTES / 1024}K. Click the memory stick on the board, then buy the glowing bigger one.`,
+    targets: (s) => [...s.devices.filter((d) => d.kind === 'ram').map((d) => d.slot).slice(0, 1), 'buy:ram1'] },
+  { id: 'fitRam', chapter: 'The OS', title: 'Fit the bigger memory', flag: null,
+    done: (s) => !ramShort(s) || ownsOs(s),
+    text: 'Drag the new memory stick onto the old one. The machine swaps it in for you, waiting for a running job to finish first.',
+    targets: whileSwapQueued((s) => invOf(s, 'ram').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
     text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again, then buy the glowing OS.',
@@ -325,8 +342,10 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     }
     case 'fit':
       return s.pendingSwap ? SWAP_WAIT : null;
-    case 'buyDrive': case 'buyOs': {
-      const id = step.id === 'buyDrive' ? 'hdd0' : 'os1';
+    case 'fitRam':
+      return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'ram');
+    case 'buyDrive': case 'buyRam': case 'buyOs': {
+      const id = step.id === 'buyDrive' ? 'hdd0' : step.id === 'buyRam' ? 'ram1' : 'os1';
       const p = s.purchases.find((x) => x.id === id);
       if (!p) return null;
       if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;

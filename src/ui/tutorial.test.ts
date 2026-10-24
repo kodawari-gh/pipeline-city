@@ -242,6 +242,35 @@ describe('the OS steps (live state and phases)', () => {
     expect(STEPS.find((x) => x.id === 'drive')!.targets(s)).toEqual(['inv:inv5', 'sata0']);
   });
 
+  describe('the memory lesson before the OS', () => {
+    const ramDev = (spec: string, slot = 'dimm1') => ({ id: 'dev3', spec, kind: 'ram', name: 'RAM', slot, burnt: false, requestedClock: null, effectiveClock: 1, tempC: 25, powerW: 1, throttle: 1, unstable: false });
+    const base = { progress: { ...oldDone(), storageInstalled: true }, storage: [drive()] };
+    const bigRam = (swap = ['dimm1']) => ({ ...invItem('ram', 'ram1', 'inv7'), swapSlots: swap });
+
+    it('a machine with too little memory buys, then fits, a bigger stick before it buys the OS', () => {
+      const short = afterSpend({ ...base, devices: [ramDev('ram0')] as never });
+      expect(idOf(currentStep(short, welcomed))).toBe('buyRam');
+      expect(STEPS.find((x) => x.id === 'buyRam')!.targets(short)).toEqual(['dimm1', 'buy:ram1']);
+      const owned = afterSpend({ ...base, devices: [ramDev('ram0')] as never, inventory: [bigRam()] });
+      expect(idOf(currentStep(owned, welcomed))).toBe('fitRam');
+      expect(STEPS.find((x) => x.id === 'fitRam')!.targets(owned)).toEqual(['inv:inv7', 'dimm1']);
+      const fitted = afterSpend({ ...base, devices: [ramDev('ram1')] as never });
+      expect(idOf(currentStep(fitted, welcomed))).toBe('buyOs');
+    });
+
+    it('the general fit step leaves the memory to its own lesson', () => {
+      const s = afterSpend({ ...base, devices: [ramDev('ram0')] as never, inventory: [bigRam()] });
+      expect(STEPS.find((x) => x.id === 'fit')!.targets(s)).toEqual([]);
+    });
+
+    it('is skipped once the OS is bought, and says why the buy tile is stuck when money or the board is the problem', () => {
+      const withOs = afterSpend({ ...base, devices: [ramDev('ram0')] as never, inventory: [invItem('os', 'os1', 'inv9')] });
+      expect(idOf(currentStep(withOs, welcomed))).toBe('os');
+      const ram = { id: 'ram1', name: 'DRAM 32K fast', kind: 'ram' as const, price: 100, affordable: false };
+      expect(stepProblem(afterSpend({ ...base, money: 40, devices: [ramDev('ram0')] as never, purchases: [ram] }), STEPS.find((x) => x.id === 'buyRam')!)).toBe('Need $60 more.');
+    });
+  });
+
   it('the OS is owned once bought: the next step installs it on the drive', () => {
     const s = afterSpend({ progress: { ...oldDone(), storageInstalled: true }, storage: [drive()], inventory: [invItem('os', 'os1', 'inv6', ['sata0'])] });
     expect(idOf(currentStep(s, welcomed))).toBe('os');
