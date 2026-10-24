@@ -218,7 +218,7 @@ function BoardCardView({ c }: { c: BoardCard }) {
   return (
     <div class={`bcard ${c.state}`} role="group" aria-label={c.name} title={c.reason ?? c.name}>
       <div class="bhead"><span class="rtier">Tier {c.tier}</span><span class="rname">{c.name}</span></div>
-      <div class="bart"><PartArt id={c.id} size={72} /></div>
+      <div class="bart"><PartArt id={c.id} size={54} /></div>
       <div class="bslots">
         {c.slots.map((sl) => (
           <span class="bi" key={sl.key} title={`${sl.count} ${sl.label}`}><Icon name={sl.icon} size={11} /> {sl.count}</span>
