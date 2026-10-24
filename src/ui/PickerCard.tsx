@@ -372,7 +372,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           <div class="part"><PartArt id={artId} size={80} /></div>
         )}
         <div class="ptext">
-          <div class="ptitle">{m.title}</div>
+          <div class="ptitle">{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
           {m.plain && <div class="pplain">{m.plain}</div>}
         </div>
       </header>

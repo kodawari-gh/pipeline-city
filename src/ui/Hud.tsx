@@ -7,6 +7,7 @@ import {
 import { SPEEDS } from '../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, queueReadout, statusChip } from './logic';
 import { Icon } from './Icons';
+import { hudNetChip } from './netui';
 import { InventoryButton, InventoryPanel } from './Inventory';
 import { PickerCard } from './PickerCard';
 import { Stats } from './Stats';
@@ -17,7 +18,7 @@ import { SandboxTools } from './SandboxTools';
 import { LevelBar, MilestoneScreen } from './Levels';
 import { TutorialCard } from './TutorialCard';
 import {
-  openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  netOpen, openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from './tutorial';
 
@@ -124,6 +125,17 @@ function PhaseChip({ s }: { s: NonNullable<typeof snapshot.value> }) {
   return <span class={`chip ${c.level} ${isOsActivity(s.phase) ? 'live' : ''}`} role="status" title={c.title}>{c.text}</span>;
 }
 
+/** Network chip: appears once a router exists, shows the link speed or why there is none. Opens the network panel. */
+function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
+  const c = hudNetChip(s);
+  if (!c) return null;
+  return (
+    <button class={`chip ${c.level}`} title={c.title} aria-pressed={netOpen.value} onClick={toggleNet}>
+      <Icon name={c.icon} size={12} /> {c.text}
+    </button>
+  );
+}
+
 /** Secondary actions: stats, save files, tutorial, hints and a new game. Kept out of the bar. */
 function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const [open, setOpen] = useState(false);
@@ -182,6 +194,7 @@ export function Hud() {
         <Reputation s={s} />
         <Queue s={s} />
         <PhaseChip s={s} />
+        <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
         <div class="grow" />
         <InventoryButton s={s} />

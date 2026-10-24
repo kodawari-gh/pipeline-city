@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec } from '../sim/net/specs';
 import type { Snapshot, StorageSnap } from '../sim/game/game';
-import { limiterAdvice, limiterLadder, netPanel, netStateChip, usbModel } from './netui';
+import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netStateChip, usbModel } from './netui';
 import { key, snap } from './testdata';
 
 /** A linked rig: board jack `portMbps`, router and plan by id, OS drive by spec id. The bandwidth comes from the sim's own rule. */
@@ -56,6 +56,20 @@ function withNet(net: Partial<Snapshot['net']>, o: Partial<Snapshot> = {}): Snap
   const r = rig(1000, 'router3', 'isp4', 'nvme2');
   return { ...r, ...o, net: { ...r.net, ...net } };
 }
+
+describe('HUD network chip', () => {
+  it('is hidden until a router exists, even with a plan', () => {
+    expect(hudNetChip(snap())).toBeNull();
+    expect(hudNetChip(withNet({ router: null }))).toBeNull();
+  });
+  it('shows the speed when up and the reason word otherwise', () => {
+    expect(hudNetChip(withNet({}))).toMatchObject({ icon: 'net', level: 'ok' });
+    expect(hudNetChip(withNet({ state: 'no-cable' }))!.text).toBe('no cable');
+    expect(hudNetChip(withNet({ state: 'down' }))!.text).toBe('down');
+    expect(hudNetChip(withNet({ state: 'no-os' }))!.text).toBe('setup');
+    expect(hudNetChip(withNet({ state: 'no-device', isp: null }))!.text).toBe('no plan');
+  });
+});
 
 const spool = (used: number, slots: number, full: boolean) => ({ slotBytes: 1, slots, used, freeBytes: 0, full });
 
