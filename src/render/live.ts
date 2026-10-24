@@ -53,7 +53,8 @@ export class Live {
   private vrm: Snapshot['board']['vrm'] | null = null;
   private dead = false;
   private deadDrawn = false;
-  private vrmFlashUntil = -1e9;
+  /** Wall time (ms) the crash flash started. Flashes fade by wall time so a paused frame never shows one stuck on screen. */
+  private vrmFlashAt = -1e9;
   private lastFault: string | null = null;
   private glows = new Map<string, Glow>();
   private fans: { c: Container; kind: string; speed: number; target: number }[] = [];
@@ -68,6 +69,8 @@ export class Live {
   private panelFan = new Container();
   private dramFlash = new Graphics();
   private dramChips: Rect[] = [];
+  /** Wall time (ms) of the last memory-bus event: the DRAM flash fades by wall time (see `memAt` for the game-time trigger). */
+  private memWall = -1e9;
   private phase = 0;
   private lastMisses = 0;
   private lastCycles = 0;
@@ -332,8 +335,8 @@ export class Live {
     const mem = s.pipe?.stages[3];
     const op = mem && mem.kind === 1 ? mem.op : '';
     if (running) {
-      if (missed || LOADS.has(op) && !!mem && mem.stalled) { this.memAt = now; this.trigger('mem', now, -1); } // miss: RAM answers the CPU
-      else if (STORES.has(op)) { this.memAt = now; this.trigger('mem', now, 1); } // stores always go out to RAM
+      if (missed || LOADS.has(op) && !!mem && mem.stalled) { this.memAt = now; this.memWall = performance.now(); this.trigger('mem', now, -1); } // miss: RAM answers the CPU
+      else if (STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); this.trigger('mem', now, 1); } // stores always go out to RAM
     }
     const reqId = s.request?.id ?? -1;
     if (reqId !== this.lastReq) {
@@ -379,7 +382,7 @@ export class Live {
     const fault = [...(s.log ?? [])].reverse().find((e) => e.kind === 'fault');
     const fkey = fault ? `${fault.tick}|${fault.text}` : '';
     if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
-    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashUntil = now + 900; }
+    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); }
     // power: a switched off, tripped or dead machine is dead (no fans, lights or current). A halted or error machine is still ON:
     // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so those go quiet here.
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
@@ -387,13 +390,15 @@ export class Live {
     if (quiet) {
       for (const l of this.lit.values()) if (l.pulses > 0) l.hold = 0;
       for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.flowUntil = -1e9; }
-      this.memAt = -1e9;
+      this.memAt = -1e9; this.memWall = -1e9;
     }
 
     // ---- power ----
     const psuDev = s.devices.find((d) => d.kind === 'psu');
     const ratio = s.power.budgetW > 0 ? s.power.totalW / s.power.budgetW : 0;
     this.psuRatio = ratio; this.psuOff = s.power.off; this.psuTripped = s.power.tripped;
+    // a hard power-off reads the ambient value at once: no cooling tail on a dead PSU (the low-pass only runs while it is on)
+    if (s.power.off || !s.powered) this.psuTemp = 25;
     this.psuW = s.power.totalW; this.psuBudget = psuDev ? s.power.budgetW : 0;
     const flow = !s.power.off && !s.power.tripped && !s.board?.burnt;
     const level = (w: number) => (flow && s.power.budgetW > 0 ? clamp(Math.sqrt(w / s.power.budgetW) * 1.15) : 0);
@@ -488,6 +493,8 @@ export class Live {
   /** The VRM glow (phases light in turn, calm when cool, amber when hot, red when unstable), the power-good light and the crash flash. */
   private drawVrm(now: number) {
     const g = this.vrmG, T = this.T, v = this.vrm;
+    // the crash flash runs on wall time (it is an alarm, not machine state): a pause cannot hold it on screen
+    const flashWall = clamp(1 - (performance.now() - this.vrmFlashAt) / 900);
     g.clear();
     if (!v) return;
     // power-good light: green when healthy, amber blink when unstable, red blink when the board is dead, dark with no power
@@ -511,7 +518,7 @@ export class Live {
         box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
       }
     }
-    const fl = clamp((this.vrmFlashUntil - now) / 900);
+    const fl = flashWall;
     if (fl > 0) {
       const b = BR.vrm, e = 30 * (1 - fl);
       box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { fill: T.bad, fa: 0.55 * fl });
@@ -820,7 +827,7 @@ export class Live {
     this.drawBoot(now, dt);
 
     // DRAM chips flash while the memory bus is busy
-    const mf = clamp(1 - (now - this.memAt) / 900);
+    const mf = clamp(1 - (performance.now() - this.memWall) / 900); // wall time: a pause does not hold a flash on screen
     this.dramFlash.clear();
     if (mf > 0 && inner) {
       let n = 0;

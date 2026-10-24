@@ -182,18 +182,18 @@ export function stripModeOf(s: Snapshot | null): StripMode {
 }
 
 /**
- * The accent strip and the drive-front LEDs. `t` is game time in ms (frozen while paused). Off: unlit; idle: a dim steady glow;
- * halted: a steady amber glow (on, but finished or waiting for a boot key); working: a bright pulse that travels down the strip;
- * error blinks red; dead is a steady dim red.
+ * The accent strip and the drive-front LEDs. `t` is game time in ms (frozen while paused); `wall` is wall time in ms. Off: unlit;
+ * idle: a dim steady glow; halted: a steady amber glow (on, but finished or waiting for a boot key); working: a bright pulse that
+ * travels down the strip; error blinks red on wall time (an alarm: a pause must not leave it stuck bright); dead is a steady dim red.
  */
-export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, disk: number, drives: { slot: string }[]) {
+export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, disk: number, drives: { slot: string }[], wall = t) {
   g.clear();
   const { x, y0, y1, w } = STRIP, len = y1 - y0, c = tones(T);
   const col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
   if (mode === 'off') {
     box(g, x, y0, w, len, 10, { fill: mix(c.shade, T.bg, 0.3), fa: 0.9 });
   } else {
-    const base = mode === 'idle' ? 0.34 : mode === 'halt' ? 0.5 : mode === 'work' ? 0.5 : mode === 'dead' ? 0.4 : 0.35 + 0.65 * (Math.floor(t / 420) % 2);
+    const base = mode === 'idle' ? 0.34 : mode === 'halt' ? 0.5 : mode === 'work' ? 0.5 : mode === 'dead' ? 0.4 : 0.35 + 0.65 * (Math.floor(wall / 420) % 2);
     box(g, x - 22, y0 - 10, w + 44, len + 20, 22, { fill: col, fa: 0.05 * (base + 0.3) });
     box(g, x, y0, w, len, 10, { fill: col, fa: base });
     if (mode === 'work') {

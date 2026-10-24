@@ -703,7 +703,7 @@ export async function mountBoard(host: HTMLElement) {
       if (Math.abs(target - reveal) < 0.004) reveal = target;
       applyLod();
     }
-    if (exteriorLayer.visible) drawStrip(stripG, T, stripModeOf(lastSnap), gt, live.diskLevel, extDrives);
+    if (exteriorLayer.visible) drawStrip(stripG, T, stripModeOf(lastSnap), gt, live.diskLevel, extDrives, performance.now());
   };
 
   // ---- frame loop ----
