@@ -14,10 +14,10 @@ import { Tooltip } from './Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
 import { SandboxTools } from './SandboxTools';
-import { LevelBar } from './Levels';
+import { LevelBar, MilestoneScreen } from './Levels';
 import { TutorialCard } from './TutorialCard';
 import {
-  replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  openMilestones, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from './tutorial';
 
@@ -137,6 +137,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
       {open && (
         <div class="card menu-pop" role="menu">
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
+          <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
           <label class="menuitem" title="Load a game file">
             <Icon name="import" size={13} /> Import game
@@ -198,6 +199,7 @@ export function Hud() {
       </header>
       <PickerCard />
       <NewGameDialog />
+      <MilestoneScreen s={s} />
       {statsOpen.value && (
         <aside class="dock" aria-label="Stats">
           <button class="close" aria-label="Close stats" onClick={toggleStats}><Icon name="close" size={11} /></button>

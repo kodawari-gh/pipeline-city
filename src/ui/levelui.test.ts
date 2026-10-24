@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../sim/game/game';
 import { levelRows } from '../sim/game/levels';
-import { levelBar } from './levelui';
+import { hasArt, levelBar, milestoneRows } from './levelui';
 import { snap } from './testdata';
 
 const at = (o: Partial<Snapshot['level']>): Snapshot => {
@@ -41,5 +41,44 @@ describe('level bar', () => {
     expect(m.sandbox).toBe(true);
     expect(m.label).toBe('rules level 7');
     expect(m.pct).toBe(0);
+  });
+});
+
+describe('milestone list', () => {
+  const s = at({ level: 3, name: 'Local Gigs', progress: 0.5 });
+  const rows = milestoneRows(s);
+
+  it('has all 18 levels in order with passed, current and upcoming', () => {
+    expect(rows.map((r) => r.level)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(rows.filter((r) => r.status === 'passed').map((r) => r.level)).toEqual([1, 2]);
+    expect(rows.filter((r) => r.status === 'current').map((r) => r.level)).toEqual([3]);
+    expect(rows[3]!.status).toBe('upcoming');
+  });
+
+  it('only the current row carries progress', () => {
+    expect(rows[2]!.progress).toBe(0.5);
+    expect(rows[3]!.progress).toBe(0);
+  });
+
+  it('lists what each level unlocks, with art only for real parts', () => {
+    const l10 = rows[9]!;
+    expect(l10.unlocks.map((u) => u.id)).toContain('gpu1');
+    const router = l10.unlocks.find((u) => u.id === 'gpu1')!;
+    expect(router.planned).toBe(true);
+    expect(hasArt(router.id, router.kind, router.planned)).toBe(false);
+    expect(router.icon).toBe('screen');
+    const cpu = rows[0]!.unlocks.find((u) => u.id === 'cpu1')!;
+    expect(hasArt(cpu.id, cpu.kind, cpu.planned)).toBe(true);
+    expect(hasArt('board1', 'board', false)).toBe(true);
+  });
+
+  it('names the job classes that arrive at a level and compares with the level before', () => {
+    expect(rows[2]!.newJobs.map((j) => j.id)).toEqual(['db']);
+    expect(rows[3]!.newJobs.map((j) => j.label)).toEqual(['Web']);
+    expect(rows[0]!.patience).toBeNull();
+    expect(rows[1]!.patience).toBe('same');
+    expect(rows[2]!.patience).toBe('stricter');
+    expect(rows[2]!.pay).toBe('bigger');
+    expect(rows[2]!.waitS).toBe(540);
   });
 });

@@ -1,6 +1,7 @@
 // Player level UI, pure logic (no DOM, no signals): the HUD level bar, the milestone list, locked items, the level-up
 // celebration, declining a job, job needs and the POST readout. See docs/PROGRESSION.md "UI the level system needs".
 
+import { ECONOMY } from '../sim/game/economy';
 import type { Snapshot } from '../sim/game/game';
 import { fmtNum } from './logic';
 
@@ -49,4 +50,86 @@ export function levelBar(s: Snapshot): LevelBarModel {
   if (nextRow) lines.push(`Next level unlocks: ${nextNames.join(', ')}${more}.`);
   lines.push('Click for all the levels.');
   return { level: l.level, name: l.name, sandbox: false, atMax, pct, label, tooltip: lines.join(' ') };
+}
+
+// ---------- milestone screen ----------
+
+export type IconKey = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave';
+
+/** Icon for an unlock-table kind, for items that have no illustration yet (planned devices). */
+export function kindIcon(kind: string): IconKey {
+  switch (kind) {
+    case 'cpu': case 'npu': case 'os': return 'cpu';
+    case 'ram': return 'memory';
+    case 'cooler': case 'fan': case 'vrm-sink': return 'fan';
+    case 'psu': return 'bolt';
+    case 'display': case 'gpu': return 'screen';
+    case 'storage': case 'raid': return 'disk';
+    case 'board': return 'slot';
+    case 'router': case 'isp': case 'nic': return 'net';
+    case 'tpm': return 'lock';
+    default: return 'box';
+  }
+}
+
+/** Plain name and icon of a job class, for "new jobs at this level". */
+export const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hint: string }> = {
+  cli: { label: 'Plain jobs', icon: 'clock', hint: 'Small jobs any machine can run.' },
+  scan: { label: 'Scans', icon: 'memory', hint: 'Memory-heavy scans: more work, better pay.' },
+  db: { label: 'Database', icon: 'disk', hint: 'Needs an operating system and a SATA SSD or better.' },
+  web: { label: 'Web', icon: 'net', hint: 'Needs a network link.' },
+  secure: { label: 'Secure', icon: 'lock', hint: 'Needs a secure module (TPM).' },
+  gpu: { label: 'GPU', icon: 'screen', hint: 'Needs a graphics card.' },
+  npu: { label: 'AI', icon: 'cpu', hint: 'Needs a neural accelerator.' },
+  hpc: { label: 'Heavy compute', icon: 'fan', hint: 'Needs a multicore processor.' },
+};
+
+export type MilestoneStatus = 'passed' | 'current' | 'upcoming';
+
+export interface MilestoneUnlock { id: string; name: string; kind: string; planned: boolean; icon: IconKey }
+
+export interface MilestoneRow {
+  level: number;
+  name: string;
+  threshold: number;
+  status: MilestoneStatus;
+  unlocks: MilestoneUnlock[];
+  newJobs: { id: string; label: string; icon: IconKey; hint: string }[];
+  /** Seconds a client waits at this level. */
+  waitS: number;
+  payMul: number;
+  /** Against the level before: the clients' patience, and the pay. Level 1 has nothing to compare with. */
+  patience: 'stricter' | 'same' | null;
+  pay: 'bigger' | 'same' | null;
+  /** Progress inside the level (the current row only), 0 to 1. */
+  progress: number;
+}
+
+/** The ladder for the milestone screen. In the sandbox the pinned rules level is "current" and nothing is "passed" by score. */
+export function milestoneRows(s: Snapshot): MilestoneRow[] {
+  const cur = s.level.level;
+  const rows = s.level.upcoming;
+  return rows.map((r, i) => {
+    const prev = i > 0 ? rows[i - 1]! : null;
+    return {
+      level: r.level,
+      name: r.name,
+      threshold: r.threshold,
+      status: r.level < cur ? 'passed' : r.level === cur ? 'current' : 'upcoming',
+      unlocks: r.unlocks.map((u) => ({ ...u, icon: kindIcon(u.kind) })),
+      newJobs: r.newJobs.map((id) => ({ id, ...(JOB_CLASS_LABEL[id] ?? { label: id, icon: 'box' as const, hint: '' }) })),
+      waitS: Math.round(ECONOMY.deadlineTicks * r.patienceMul),
+      payMul: r.payMul,
+      patience: prev ? (r.patienceMul < prev.patienceMul ? 'stricter' : 'same') : null,
+      pay: prev ? (r.payMul > prev.payMul ? 'bigger' : 'same') : null,
+      progress: r.level === cur ? Math.min(1, Math.max(0, s.level.progress)) : 0,
+    };
+  });
+}
+
+/** Whether `PartArt` can draw this unlock-table id (a real part, a board tier or an OS). */
+export function hasArt(id: string, kind: string, planned: boolean): boolean {
+  if (planned) return false;
+  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'psu', 'display', 'vrm-sink', 'storage', 'os'].includes(kind);
 }
