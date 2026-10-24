@@ -16,7 +16,7 @@ import {
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PchPhase, STORAGE_PORTS } from "../isa/memmap";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES } from "../gen";
 import { Disk, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
@@ -1655,6 +1655,18 @@ export class Game {
     return out;
   }
 
+  /** The result text the kernel kept in job slot `slot` (up to the first NUL). */
+  private kernelResult(slot: number): string {
+    const bus = this.machine.bus;
+    let s = "";
+    for (let i = 0; i < PCH_RESULT_WORDS * 4; i++) {
+      const b = bus.load8(KDATA_BASE + slot * KSLOT_BYTES + KSLOT.RESULT + i);
+      if (b === 0) break;
+      s += String.fromCharCode(b);
+    }
+    return s.trimEnd();
+  }
+
   private freeKernelSlot(keyId: number): void {
     for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(KDATA_BASE + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
   }
@@ -2214,6 +2226,18 @@ export class Game {
     }
     const jobs = this.kernelJobs();
     const known = (id: number): KernelJob | undefined => jobs.find((j) => j.key === id);
+    // A finished result is read straight out of the kernel's table into the NIC tx window (the card does the DMA: no USB
+    // port, no kernel loop pass), then the slot is free and the upload starts.
+    if (this.linkUsable) {
+      for (const k of this.spool) {
+        const j = known(k.id);
+        if (!j || j.state !== JobState.Result || this.uploads.some((t) => t.key.id === k.id)) continue;
+        k.result = this.kernelResult(j.slot);
+        k.doneAt = this.baseTick;
+        this.freeKernelSlot(k.id);
+        this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0 });
+      }
+    }
     const nk = this.netKey;
     if (nk) {
       if (nk.kind === "ingest" && known(nk.key.id)) {
@@ -2237,10 +2261,6 @@ export class Game {
     }
     if (this.plugged || this.netCooldown-- > 0) return;
     const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
-    if (this.linkUsable) {
-      const res = this.spool.find((k) => !uploading(k) && known(k.id)?.state === JobState.Result);
-      if (res) return this.netPlug(res, "flash", false);
-    }
     const rx = this.rx[0];
     if (rx && !known(rx.id)) return this.netPlug(rx, "ingest", true);
     const again = this.spool.find((k) => !uploading(k) && !known(k.id)) ?? this.held.find((k) => !known(k.id));
