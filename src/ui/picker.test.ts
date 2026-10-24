@@ -303,7 +303,7 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
     });
     const sec = osSection(s)!;
     expect(sec.queue[0]!.text).toBe('done, waiting for you');
-    expect(sec.held).toEqual([{ keyId: 3, label: '#3 log', hint: 'plug key 3 again to collect' }]);
+    expect(sec.held).toEqual([{ keyId: 3, label: '#3 log', retired: false, hint: 'plug key 3 again to collect' }]);
   });
 
   it('a held key still in the queue says it is waiting', () => {

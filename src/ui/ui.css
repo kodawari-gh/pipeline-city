@@ -150,6 +150,17 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .art .gauge-lab { fill: var(--mute); font-family: var(--ui); }
 .art .dial-txt { fill: var(--ink); font-family: var(--mono); font-weight: 700; }
 .art .dial-lab { fill: var(--mute); font-family: var(--ui); }
+/* Network art: jacks, LEDs, antennas, vents, the accent edge of the gigabit router and the plan pips. */
+.art .jack { fill: var(--board); stroke: var(--trace); stroke-width: .8; }
+.art .led-on { fill: var(--st); }
+.art .led-on.dim { fill: var(--dot); stroke: var(--trace); stroke-width: .5; }
+.art .antenna { stroke: var(--mute); stroke-width: 2.4; stroke-linecap: round; fill: none; }
+.art .vent { fill: var(--dot); stroke: var(--trace); stroke-width: .5; }
+.art .accent-edge { fill: var(--art-plate); stroke: var(--alu); stroke-width: 1.2; }
+.art .accent-bar { fill: var(--alu); opacity: .8; }
+.art .screw { fill: var(--mute); opacity: .7; }
+.art .pip { fill: var(--dot); stroke: var(--trace); stroke-width: .6; }
+.art .pip-on { fill: var(--accent); }
 
 /* Contextual picker: a popup next to the selected object (placement in PickerCard.tsx / place.ts). The shell is moved with
    transform and its height is set from its content; both glide. `.glide` (a different object was picked) is the slow one. */

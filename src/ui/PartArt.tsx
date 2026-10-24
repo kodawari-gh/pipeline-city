@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { BOARD_TIERS, getSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
 import { getOsSpec } from '../sim/os';
+import { getIspSpec, getRouterSpec } from '../sim/net/specs';
 import { goodness } from './picker';
 import { rem } from './units';
 
@@ -247,13 +248,137 @@ function Display() {
   );
 }
 
+/**
+ * A network card: PCB with its controller chip, gold fingers along the slot edge, a bracket with the ethernet jack and its two
+ * LED wells. Tier 1 is bare, tier 2 has a finned heatsink, tier 3 a big heatsink with a heat pipe and a small fan.
+ */
+function NicCard({ tier }: { tier: number }) {
+  return (
+    <>
+      {Array.from({ length: 12 }, (_, i) => <rect key={i} x={14 + i * 6.4} y={64} width={3.6} height={7} rx={0.6} class="pin" />)}
+      <rect x={8} y={18} width={92} height={46} rx={3} class="plate edge" />
+      <rect x={100} y={12} width={6} height={58} rx={1} class="ink2" />
+      <rect x={90} y={26} width={10} height={14} rx={1.2} class="jack" />
+      <rect x={92} y={29} width={6} height={8} rx={0.8} class="screen" />
+      <circle cx={92.6} cy={45} r={1.3} class="led-on" />
+      <circle cx={97} cy={45} r={1.3} class="led-on dim" />
+      {tier === 1 && (
+        <>
+          <rect x={28} y={30} width={22} height={20} rx={2} class="ink" />
+          <rect x={56} y={34} width={9} height={9} rx={1} class="chipd" />
+          <rect x={56} y={46} width={9} height={5} rx={1} class="chipd" />
+        </>
+      )}
+      {tier === 2 && (
+        <>
+          <rect x={22} y={26} width={36} height={28} rx={2} class="ink2" />
+          {Array.from({ length: 7 }, (_, i) => <rect key={i} x={25 + i * 4.8} y={22} width={2.6} height={32} rx={0.8} class="fin" />)}
+          <rect x={64} y={32} width={9} height={9} rx={1} class="chipd" />
+          <rect x={64} y={44} width={9} height={5} rx={1} class="chipd" />
+        </>
+      )}
+      {tier >= 3 && (
+        <>
+          <rect x={14} y={24} width={44} height={32} rx={2} class="ink2" />
+          {Array.from({ length: 9 }, (_, i) => <rect key={i} x={17 + i * 4.7} y={18} width={2.6} height={38} rx={0.8} class="fin" />)}
+          <path d="M58 34 C68 34 68 44 78 44" class="tube" fill="none" stroke-width={2.6} />
+          <rect x={66} y={34} width={18} height={20} rx={2} class="ink2" />
+          {Array.from({ length: 4 }, (_, i) => <rect key={i} x={68 + i * 4} y={30} width={2} height={24} rx={0.7} class="fin" />)}
+          <circle cx={40} cy={40} r={9} class="fanring" />
+          <circle cx={40} cy={40} r={2.4} class="ink" />
+        </>
+      )}
+    </>
+  );
+}
+
+const led = (x: number, y: number, on = true) => <circle key={`l${x}`} cx={x} cy={y} r={1.5} class={on ? 'led-on' : 'led-on dim'} />;
+
+/** The four routers: a small home box with antennas, a dark gigabit box, a brushed 10G box with an SFP cage, a 1U rack unit. */
+function RouterArt({ tier }: { tier: number }) {
+  if (tier <= 1) {
+    return (
+      <>
+        <path d="M34 42 28 14M86 42 92 14" class="antenna" />
+        <rect x={20} y={40} width={80} height={26} rx={6} class="plate edge" />
+        {[0, 1, 2].map((i) => led(32 + i * 8, 49, i < 2))}
+        <rect x={34} y={58} width={8} height={5} rx={1} class="jack" />
+        {[0, 1].map((i) => <rect key={i} x={70 + i * 12} y={58} width={8} height={5} rx={1} class="jack" />)}
+        <rect x={52} y={46} width={30} height={4} rx={2} class="vent" />
+      </>
+    );
+  }
+  if (tier === 2) {
+    return (
+      <>
+        <path d="M32 40 26 22M88 40 94 22" class="antenna" />
+        <rect x={12} y={38} width={96} height={30} rx={5} class="plate accent-edge" />
+        <rect x={12} y={38} width={96} height={4} rx={2} class="accent-bar" />
+        {[0, 1, 2, 3].map((i) => led(24 + i * 8, 50, i !== 3))}
+        <rect x={22} y={58} width={9} height={6} rx={1} class="jack" />
+        {[0, 1, 2, 3].map((i) => <rect key={i} x={50 + i * 12} y={58} width={9} height={6} rx={1} class="jack" />)}
+        <rect x={72} y={46} width={28} height={4} rx={2} class="vent" />
+      </>
+    );
+  }
+  if (tier === 3) {
+    return (
+      <>
+        <rect x={8} y={32} width={104} height={38} rx={4} class="plate edge" />
+        {Array.from({ length: 6 }, (_, i) => <rect key={i} x={14 + i * 9} y={37} width={6} height={2} rx={1} class="vent" />)}
+        <rect x={72} y={36} width={32} height={12} rx={1.5} class="ink2" />
+        <rect x={76} y={40} width={24} height={4} class="screen" />
+        {[0, 1, 2, 3].map((i) => led(16 + i * 7, 48, i < 3))}
+        {Array.from({ length: 8 }, (_, i) => <rect key={i} x={14 + i * 11} y={56} width={8} height={7} rx={1} class="jack" />)}
+      </>
+    );
+  }
+  return (
+    <>
+      <rect x={4} y={34} width={112} height={34} rx={2} class="plate edge" />
+      <rect x={4} y={34} width={9} height={34} class="ink2" />
+      <rect x={107} y={34} width={9} height={34} class="ink2" />
+      {[40, 60].map((y) => <circle key={`a${y}`} cx={8.5} cy={y} r={1.6} class="screw" />)}
+      {[40, 60].map((y) => <circle key={`b${y}`} cx={111.5} cy={y} r={1.6} class="screw" />)}
+      {Array.from({ length: 10 }, (_, i) => <rect key={i} x={18 + i * 5} y={38} width={2.4} height={10} rx={1} class="vent" />)}
+      {[0, 1, 2, 3, 4].map((i) => led(76 + i * 6, 42, i !== 4))}
+      <rect x={18} y={54} width={80} height={9} rx={1} class="ink2" />
+      {Array.from({ length: 12 }, (_, i) => <rect key={i} x={20 + i * 6.5} y={56} width={4.6} height={5} rx={0.8} class="jack" />)}
+    </>
+  );
+}
+
+/** Short speed for a plate: 50 Mb, 1 Gb, 20 Gb. */
+const plateSpeed = (mbps: number) => (mbps >= 1000 ? `${mbps / 1000} Gb` : `${mbps} Mb`);
+
+/** An internet plan as a wall plate: a speed dial (log scale), the speed, five tier pips and the jack. */
+function PlanPlate({ tier, down }: { tier: number; down: number }) {
+  const arc = 'M34 60 A26 26 0 0 1 86 60';
+  const frac = Math.min(1, Math.max(0.06, Math.log10(down / 25) / Math.log10(20000 / 25)));
+  return (
+    <>
+      <rect x={14} y={6} width={92} height={72} rx={9} class="plate edge" />
+      {Array.from({ length: 5 }, (_, i) => <circle key={i} cx={36 + i * 12} cy={16} r={2.4} class={i < tier ? 'pip-on' : 'pip'} />)}
+      <path d={arc} pathLength={100} class="gauge-track" fill="none" stroke-width={6} stroke-linecap="round" />
+      <path d={arc} pathLength={100} class="gauge-fill" fill="none" stroke-width={6} stroke-linecap="round" stroke-dasharray={`${frac * 100} 100`} />
+      <text x={60} y={55} class="dial-txt" font-size={13}>{plateSpeed(down)}</text>
+      <rect x={50} y={64} width={20} height={9} rx={2} class="jack" />
+      <rect x={54} y={66} width={12} height={5} rx={1} class="screen" />
+    </>
+  );
+}
+
 /** Illustration for a spec id or a board tier id (`board1`). Unknown ids draw nothing. */
 export function PartArt({ id, size = 64, label }: { id: string; size?: number; label?: string }) {
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
   const os = getOsSpec(id);
+  const router = getRouterSpec(id);
+  const isp = getIspSpec(id);
   if (bm) body = <Board tier={Number(bm[1])} />;
   else if (os) body = <OsDisc tier={os.tier} />;
+  else if (router) body = <RouterArt tier={router.tier} />;
+  else if (isp) body = <PlanPlate tier={isp.tier} down={isp.downMbps} />;
   else {
     const spec = getSpec(id);
     if (spec) {
@@ -264,6 +389,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'psu': body = <Psu spec={spec} />; break;
         case 'display': body = <Display />; break;
         case 'vrm-sink': body = <VrmSink tier={spec.tier} />; break;
+        case 'nic': body = <NicCard tier={spec.tier} />; break;
         case 'storage':
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
           break;

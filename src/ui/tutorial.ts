@@ -8,6 +8,7 @@ import { getOsSpec } from '../sim/os';
 import type { Snapshot } from '../sim/game/game';
 import type { Progress } from '../sim/game/save';
 import { fmtMoney } from './logic';
+import { jackIds } from './netdesc';
 
 export interface ReplayBase { completed: number; owned: number }
 export interface TutorialState {
@@ -195,12 +196,12 @@ export const STEPS: StepDef[] = [
     text: 'Clients are tired of sticks. The network opens at Level 4: keep delivering jobs (use the level bar to watch your progress). It needs an OS and 64K of memory, which you have or can buy.',
     targets: () => [] },
   { id: 'buyIsp', title: 'Buy an internet plan', flag: 'ispBought',
-    text: 'Open the shop and buy an ISP plan. It is a one-off purchase that sets how fast jobs and results travel, and how many clients can send you work at once.',
-    targets: () => [INVENTORY_ID, 'router'] },
+    text: 'Click the internet socket on the wall and buy an ISP plan. It is a one-off purchase that sets how fast jobs and results travel, and how many clients can send you work at once.',
+    targets: () => ['wall'] },
   { id: 'buyRouter', title: 'Buy a router', flag: null,
     done: (s, p) => p.routerInstalled || ownsRouter(s),
-    text: 'Buy a router too. It stands next to the monitor with its own power, so it stays on when your computer is off.',
-    targets: () => [INVENTORY_ID, 'router'] },
+    text: 'Click the empty router spot next to the monitor and buy a router. It has its own power, so it stays on when your computer is off.',
+    targets: () => ['router'] },
   { id: 'placeRouter', title: 'Place the router', flag: 'routerInstalled',
     text: 'Open the inventory and drag the router to its spot next to the monitor. You can do this with the machine on.',
     targets: (s) => [INVENTORY_ID, 'router', ...invOf(s, 'router').map((i) => `inv:${i.id}`)] },
@@ -210,7 +211,7 @@ export const STEPS: StepDef[] = [
     targets: (s) => [INVENTORY_ID, ...s.inventory.filter((i) => i.kind === 'board' || i.kind === 'ram').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots])] },
   { id: 'plugLan', title: 'Plug in the ethernet cable', flag: 'lanConnected',
     text: 'Drag the ethernet cable from the network jack on the board to the router. Cables like this one can be plugged with the machine running.',
-    targets: () => ['cable.lan', 'router'] },
+    targets: (s) => ['cable.lan', ...jackIds(s), 'router'] },
   { id: 'linkUp', title: 'Bring the link up', flag: 'linkUp',
     text: 'The OS brings the link up once it is running with 64K of memory. Power the machine on and wait for the green link light. If something is missing, the card tells you what.',
     targets: () => ['power', 'router', 'monitor'] },

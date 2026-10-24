@@ -58,7 +58,11 @@ export function setUiScale(v: number) {
 effect(() => { document.documentElement.classList.toggle('paused', speed.value === 0); });
 
 export const statsOpen = signal(false);
-export const toggleStats = () => { statsOpen.value = !statsOpen.value; };
+export const netOpen = signal(false);
+// The two drawers dock on the same side: opening one closes the other.
+export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) netOpen.value = false; };
+/** The network panel (opened from the HUD chip once a router exists). */
+export const toggleNet = () => { netOpen.value = !netOpen.value; if (netOpen.value) statsOpen.value = false; };
 
 // ---- milestone screen (the ladder of levels; opened from the HUD level bar, the menu and a locked tile) ----
 

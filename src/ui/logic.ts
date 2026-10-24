@@ -3,6 +3,7 @@
 import { BOARD_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
+import { BANDWIDTH_NERD, describeNet } from './netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
@@ -20,9 +21,9 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export const KIND_LABEL: Record<DeviceKind | 'board' | 'os', string> = {
+export const KIND_LABEL: Record<DeviceKind | 'board' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard',
-  os: 'Operating system', 'vrm-sink': 'VRM cooling', nic: 'Network card',
+  os: 'Operating system', 'vrm-sink': 'VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -99,6 +100,11 @@ export const HINTS: Record<string, Hint> = {
   brownout: { id: 'brownout', text: 'The power supply is overloaded, so everything is slowed down. Upgrade it or lower the clock.' },
   keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot. Power it off and on again to load this key (an OS reads keys while running).' },
   osFull: { id: 'osFull', text: 'The OS queue is full: a plugged key stays in the tray until a job finishes and frees a slot.' },
+  retiredKeys: { id: 'retiredKeys', text: 'The link is up, so clients now send jobs over the network. The USB keys left in the tray are retired: they expire without a penalty, and you can still serve them.' },
+  portBusyKey: { id: 'portBusyKey', text: 'A key is parked in the USB port, and it blocks the network jobs from reaching the drive. Remove it (or let the OS finish with it).' },
+  spoolFull: { id: 'spoolFull', text: 'The spool is full: new jobs wait at the door and may expire. A bigger drive or a bigger OS holds more jobs.' },
+  linkDown: { id: 'linkDown', text: 'The link is down. Jobs already on the drive are safe and run again when it is back. If it stays down for five minutes, clients send USB keys again at a third of the rate.' },
+  saturated: { id: 'saturated', text: 'The link is saturated: every client slot or spool slot is busy. More bandwidth will not help; a faster processor, a bigger OS or a bigger router and plan will.' },
 };
 
 /** Hint ids triggered by this snapshot (ignores whether they were already shown). */
@@ -114,6 +120,14 @@ export function triggeredHints(s: Snapshot): string[] {
   if (s.keyIgnored) out.push('keyIgnored');
   // The OS has no free queue slot and keys are waiting (a plugged key stays stage "tray" then).
   if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) out.push('osFull');
+  // The network (docs/NETWORK.md): what the link does to the keys, the port, the spool and the line itself.
+  const n = s.net;
+  if (n.usbRetired && n.retiredKeys > 0) out.push('retiredKeys');
+  if (n.portBusyKey != null) out.push('portBusyKey');
+  if (s.os && (s.os.spoolFull ?? s.os.spool?.full) && (n.state === 'link-up' || n.state === 'saturated')) out.push('spoolFull');
+  // The link was up once and is down now (not just the boot that every power-on goes through).
+  if (n.state === 'down' && n.usbFallback.state !== 'off' && n.reason !== 'the OS is starting') out.push('linkDown');
+  if (n.state === 'saturated') out.push('saturated');
   return out;
 }
 
@@ -142,7 +156,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
-  nic: 'A network card. Plug the ethernet cable into it to reach the router; its speed caps how fast jobs come and go.',
+  nic: 'A network card for an expansion slot. Plug the ethernet cable into its jack to reach the router: its speed replaces the speed of the board jack. Fast cards run hot.',
 };
 
 export function describeSpec(spec: DeviceSpec): Description {
@@ -159,12 +173,13 @@ export function describeSpec(spec: DeviceSpec): Description {
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`);
   if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
+  if (spec.kind === 'nic') bits.push(`${spec.mbps} Mbit/s`, `throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
   if (spec.clock) bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);
   if (spec.kind !== 'psu') bits.push(`${spec.idleW}-${spec.loadW} W`);
   if (spec.kind === 'cpu' || spec.kind === 'ram' || spec.kind === 'display') {
     bits.push(`throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
   }
-  return { title: spec.name, plain: PLAIN_KIND[spec.kind], nerd: bits.join(' | ') };
+  return { title: spec.name, plain: PLAIN_KIND[spec.kind], nerd: bits.join(' | ') + (spec.kind === 'nic' ? ` | ${BANDWIDTH_NERD}` : '') };
 }
 
 const SLOT_PLAIN: Record<string, string> = {
@@ -174,7 +189,7 @@ const SLOT_PLAIN: Record<string, string> = {
   'atx-plus': 'power supply bay (ATX+): drag a big power supply here',
   cooler: 'cooler mount: mounts on the CPU',
   display: 'monitor port: drag a monitor here',
-  pcie: 'expansion slot (nothing fits yet)',
+  pcie: 'expansion slot (PCIe): drag a network card here',
   sata: 'drive bay (SATA): drag a drive here',
   m2: 'M.2 slot (fast NVMe drives): drag a drive here',
   usb: 'USB port',
@@ -267,6 +282,8 @@ function describeOs(id: string): Description | null {
  * occupied), an installed device instance, a crate item or a client key. Unknown ids give null.
  */
 export function describeId(id: string, s?: Snapshot | null): Description | null {
+  const net = describeNet(id, s);
+  if (net) return net;
   if (s) {
     if (id === 'os' && s.os) {
       const host = s.storage.find((x) => x.hasOs);
@@ -291,7 +308,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'board' ? 'drag it onto the board (power off first)' : 'drag it into a socket';
+      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'router' ? 'drag it onto the router spot (works with the PC on)' : it?.kind === 'board' ? 'drag it onto the board (power off first)' : 'drag it into a socket';
       return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {

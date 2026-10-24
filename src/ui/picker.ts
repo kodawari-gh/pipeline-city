@@ -6,7 +6,10 @@ import { AMBIENT_C, BOARD_TIERS, getSpec, specsOfKind, type CoolerSpec, type Cpu
 import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
+import { getIspSpec, getRouterSpec, ISP_SPECS, ROUTER_SPECS } from '../sim/net/specs';
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
+import { fmtMbit, isJackId } from './netdesc';
+import { hardwareWarn, jackPort, netStateLines, netStats, nicLines, nicStats } from './netui';
 import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
 import { JOB_TYPES } from './regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
@@ -14,10 +17,10 @@ import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type Bo
 /** The storage block size (bytes), as in the sim's storage device. */
 const BLOCK_BYTES = 256;
 
-export type PickerKind = DeviceKind | 'board' | 'os' | 'key' | 'tray' | 'power' | 'usb' | 'info';
+export type PickerKind = DeviceKind | 'board' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
-  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave';
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -38,6 +41,8 @@ export interface Stat {
   value: number;
   unit: string;
   higherIsBetter: boolean;
+  /** The values span orders of magnitude (network speeds): bar lengths use a log scale. */
+  log?: boolean;
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
@@ -61,8 +66,12 @@ export interface LadderStep {
   devId?: string;
   /** Inventory item id, for the crate rung. */
   invId?: string;
-  /** A warning on the rung (a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink). */
+  /** A warning on the rung (a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink, a router with no OS yet). */
   warn?: string;
+  /** The word for the installed rung when "Fitted" is wrong: "Active" for a plan, "Placed" for a router. */
+  fittedLabel?: string;
+  /** Buying applies it at once (an internet plan) instead of adding it to the inventory. */
+  applied?: boolean;
 }
 
 export interface PickerModel {
@@ -94,10 +103,12 @@ export interface PickerModel {
   shelf?: LadderStep[];
   /** A key card: its needs, deadline and decline (levelui.ts). */
   job?: JobView;
+  /** A small tag next to the title: `retired` on a USB key whose client went online. */
+  tag?: string;
 }
 
-export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string; job: JobView | null }
-export interface OsHeldRow { keyId: number; label: string; hint: string }
+export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string; job: JobView | null; retired: boolean }
+export interface OsHeldRow { keyId: number; label: string; hint: string; retired: boolean }
 /** The OS block of a card: what the OS is doing, its queue, held keys, the host drive and the later tiers. */
 export interface OsSection {
   name: string;
@@ -138,6 +149,7 @@ export function osSection(s: Snapshot): OsSection | null {
     label: j.label,
     type: keyType(s, j.keyId),
     state: j.state,
+    retired: !!findKey(s, j.keyId)?.retired,
     job: (() => { const k = findKey(s, j.keyId); return k ? jobView(k) : null; })(),
     text: j.state === 'running' ? 'running now'
       : j.state === 'result' ? 'done, waiting for you'
@@ -156,6 +168,7 @@ export function osSection(s: Snapshot): OsSection | null {
     held: s.held.map((k) => ({
       keyId: k.id,
       label: k.label,
+      retired: !!k.retired,
       hint: k.stage === 'result' ? `plug key ${k.id} again to collect` : 'waiting in the OS queue',
     })),
     host: host ? { slot: host.slot, usedK: Math.round(host.usedBytes / 1024), capK: Math.round(host.capacityBytes / 1024) } : null,
@@ -176,10 +189,12 @@ export const boardId = (tier: number) => `board${tier}`;
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'nic') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
+  if (kind === 'router') return ROUTER_SPECS.map((r) => r.id);
+  if (kind === 'isp') return ISP_SPECS.map((p) => p.id);
   return [];
 }
 
@@ -206,6 +221,8 @@ export function statsOf(specId: string): Stat[] {
     { key: 'memory', label: 'Memory needed', icon: 'memory', value: os.minRamBytes / 1024, unit: 'K', higherIsBetter: false },
     { key: 'disk', label: 'Disk needed', icon: 'memory', value: os.diskBytes / 1024, unit: 'K', higherIsBetter: false },
   ];
+  const net = netStats(specId);
+  if (net) return net;
   const spec = getSpec(specId);
   if (!spec) return [];
   switch (spec.kind) {
@@ -234,19 +251,19 @@ export function statsOf(specId: string): Stat[] {
       { key: 'throughput', label: 'Throughput', icon: 'clock', value: drivePerSecond(spec), unit: 'B/s', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
-    case 'nic': return [
-      { key: 'speed', label: 'Speed', icon: 'clock', value: spec.mbps, unit: 'Mbit', higherIsBetter: true },
-      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
-    ];
+    case 'nic': return nicStats(spec);
   }
 }
 
 /** Bar length for one stat: 1 for the best part of its kind, less for the rest (0..1). */
 export function goodness(kind: PickerKind, key: string, value: number, higherIsBetter: boolean): number {
-  const vals = catalogOf(kind).flatMap((id) => statsOf(id).filter((x) => x.key === key).map((x) => x.value)).filter((v) => v > 0);
+  const stats = catalogOf(kind).flatMap((id) => statsOf(id).filter((x) => x.key === key));
+  const vals = stats.map((x) => x.value).filter((v) => v > 0);
   if (!vals.length || value <= 0) return 0;
+  // Speeds that span orders of magnitude (the network) are measured on a log scale, or the low tiers would be invisible slivers.
+  const t = stats.some((x) => x.log) ? (v: number) => Math.log10(1 + v) : (v: number) => v;
   const best = higherIsBetter ? Math.max(...vals) : Math.min(...vals);
-  const g = higherIsBetter ? value / best : best / value;
+  const g = higherIsBetter ? t(value) / t(best) : t(best) / t(value);
   return Math.min(1, Math.max(0, g));
 }
 
@@ -338,21 +355,25 @@ export function specBrief(spec: DeviceSpec): string {
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
-  'vrm-sink': 'vrm-sink',
+  'vrm-sink': 'vrm-sink', pcie: 'nic',
 };
-const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os'> = { psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os' };
+const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os' | 'router' | 'isp'> = {
+  psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os', router: 'router', wall: 'isp',
+};
 
 /** The kind a selected id stands for, if any (slot, device, inventory item, spec id, world object or board tier). */
-export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | null {
+export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | 'router' | 'isp' | null {
   const slot = s.slots.find((x) => x.id === id);
   if (slot) return SLOT_KIND[slot.type] ?? null;
   const dev = s.devices.find((d) => d.id === id);
   if (dev) return dev.kind;
   if (id.startsWith('inv:')) {
     const it = s.inventory.find((x) => x.id === id.slice(4));
-    return it && it.kind !== 'router' ? it.kind : null;
+    return it ? it.kind : null;
   }
   if (WORLD_KIND[id]) return WORLD_KIND[id]!;
+  if (getRouterSpec(id)) return 'router';
+  if (getIspSpec(id)) return 'isp';
   const spec = getSpec(id);
   if (spec) return spec.kind;
   if (getOsSpec(id)) return 'os';
@@ -369,11 +390,13 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
     ? [{ spec: boardId(s.boardTier), devId: '' }]
     : kind === 'os'
       ? (s.os ? [{ spec: s.os.spec, devId: '' }] : [])
+      : kind === 'router' ? (s.net.router ? [{ spec: s.net.router.id, devId: '' }] : [])
+      : kind === 'isp' ? (s.net.isp ? [{ spec: s.net.isp.id, devId: '' }] : [])
       : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
-  const crate = kind === 'board' ? [] : s.inventory.filter((i) => i.kind === kind);
-  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? -1);
+  const crate = kind === 'board' || kind === 'isp' ? [] : s.inventory.filter((i) => i.kind === kind);
+  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? getRouterSpec(id)?.tier ?? getIspSpec(id)?.tier ?? -1);
   const ownedMax = Math.max(-1, ...installed.map((x) => tierOf(x.spec)), ...crate.map((x) => tierOf(x.spec)));
-  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name) ?? id;
+  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name ?? getRouterSpec(id)?.name ?? (getIspSpec(id) && `${getIspSpec(id)!.name} plan`)) ?? id;
   const out: LadderStep[] = [];
   for (const id of catalogOf(kind)) {
     const tier = tierOf(id);
@@ -422,6 +445,15 @@ export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
       r.warn = kind === 'cpu' ? cpuVrmWarning(s, r.specId) ?? undefined : liquidVrmNote(s, r.specId) ?? undefined;
     }
   }
+  // The network parts: what the rest of the chain still lacks (an OS, 64K of RAM, a jack), and the words for owned and applied rungs.
+  if (kind === 'router' || kind === 'isp' || kind === 'nic') {
+    const note = hardwareWarn(s, kind) ?? undefined;
+    for (const r of out) {
+      if (kind === 'isp') r.applied = true;
+      if (r.state === 'installed') { if (kind !== 'nic') r.fittedLabel = kind === 'isp' ? 'Active' : 'Placed'; continue; }
+      r.warn = note;
+    }
+  }
   return out;
 }
 
@@ -448,8 +480,12 @@ export function keyLines(k: KeySnap, now: number): PickerLine[] {
       : { level: left < 30 ? 'warn' : 'info', text: `Due in ${fmtTicks(left)} (waiting ${fmtTicks(k.age)})` },
     { level: 'info', text: `Pays about ${fmtMoney(k.payoutEstimate)} if served on time; faster pays more.` },
     ...(k.attempts > 1 ? [{ level: 'warn' as const, text: `Tried ${k.attempts} times already.` }] : []),
+    ...(k.retired ? [{ level: 'info' as const, text: RETIRED_LINE }] : []),
   ];
 }
+
+/** The line on a retired USB key (its client went online): no penalty if it expires or is declined, serving it still pays. */
+export const RETIRED_LINE = 'Retired: this client now sends jobs over the network. If the key expires or you decline it, nothing is lost; serving it still pays.';
 
 /** Every key the machine knows about: tray plus the plugged one. */
 export function allKeys(s: Snapshot): KeySnap[] {
@@ -460,6 +496,32 @@ const powerStatus = (s: Snapshot) => (s.powered ? `Status: ${s.phase.replace(/-/
 
 function emptyCard(id: string, kind: PickerKind, title: string, plain: string, nerd: string): PickerModel {
   return { id, kind, title, plain, nerd, ladder: [], current: null, focus: null, lines: [], actions: [], clock: false };
+}
+
+/**
+ * The card of the router spot, the wall socket or a router in the inventory: the ladder of routers or plans, the link in
+ * plain lines, and (for a spare router) where it goes. Both are applied with the machine on.
+ */
+function netCard(id: string, kind: 'router' | 'isp', s: Snapshot): PickerModel {
+  const inv = id.startsWith('inv:') ? s.inventory.find((x) => x.id === id.slice(4)) : undefined;
+  const specId = inv?.spec ?? (id === 'router' || id === 'wall' ? null : id);
+  const cur = kind === 'router' ? s.net.router : s.net.isp;
+  const d = describeId(id, s) ?? { title: KIND_LABEL[kind], plain: '', nerd: '' };
+  const ladder = ladderFor(s, kind);
+  const lines: PickerLine[] = [];
+  if (inv) {
+    lines.push(inv.installable
+      ? { level: 'info', text: 'Drag it onto the router spot next to the monitor. The machine can stay on.' }
+      : { level: 'warn', text: `${(inv.reason ?? 'Nothing to place it on right now').replace(/^./, (c) => c.toUpperCase())}.` });
+  }
+  if (kind === 'isp' && !cur) lines.push({ level: 'warn', text: 'No internet plan yet. Buy one below: it sets how fast jobs and results travel.' });
+  if (kind === 'router' && !cur && !inv) lines.push({ level: 'warn', text: 'No router yet. Buy one below, then drag it from the inventory to this spot.' });
+  lines.push(...netStateLines(s));
+  return {
+    ...emptyCard(id, kind, d.title, d.plain, d.nerd),
+    ladder, current: cur?.id ?? null, focus: specId, lines,
+    emptyText: nextUpgrade(ladder) ? undefined : 'Nothing better to buy right now.',
+  };
 }
 
 /** The picker card for a selected id, or null when there is nothing to show. */
@@ -481,7 +543,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     if (cannot) lines.unshift({ level: 'bad', text: cannot });
     if (k.done) lines.push({ level: 'ok', text: `Result: ${k.result}` });
     return {
-      ...emptyCard(id, 'key', `Client key ${k.label}`, d.plain, d.nerd), lines, job: jobView(k),
+      ...emptyCard(id, 'key', `Client key ${k.label}`, d.plain, d.nerd), lines, job: jobView(k), tag: k.retired ? 'retired' : undefined,
       actions: plugged
         ? [{ id: 'eject', label: k.done ? 'Remove key (get paid)' : 'Remove key', keyId: k.id, primary: k.done }]
         : [{ id: 'plug', label: 'Plug into USB', keyId: k.id, primary: k.runnable, why: s.plugged ? 'A key is already plugged in' : k.runnable ? undefined : `Cannot run yet: it needs ${k.missing.join(' and ')}` }],
@@ -539,6 +601,37 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     };
   }
 
+  if (id === 'cable.lan') {
+    // The ethernet cable is the one cable that moves with the machine on.
+    const c = s.cables.find((x) => x.id === 'lan');
+    const d = describeId(id, s)!;
+    const port = s.net.port;
+    const where = port.kind === 'board' ? 'the board jack' : port.kind === 'nic' ? (s.devices.find((x) => x.id === port.deviceId)?.name ?? 'a network card') : null;
+    return {
+      ...emptyCard(id, 'info', d.title, d.plain, d.nerd),
+      lines: [
+        c?.connected
+          ? { level: 'ok', text: `Plugged into ${where ?? 'a jack'}. Drag the plug to another jack to move it; the machine can stay on.` }
+          : { level: 'warn', text: c?.blocked ?? 'Not plugged in. Drag the plug onto a network jack.' },
+        ...netStateLines(s),
+      ],
+    };
+  }
+
+  if (isJackId(id)) {
+    // A network jack on the board (eth0) or a card (eth1..): its speed and whether the cable is in it.
+    const d = describeId(id, s)!;
+    const j = jackPort(s, id);
+    const plugged = !!j && s.net.port.kind !== null && (s.net.port.kind === 'board' ? j.port === 'board' : j.port === s.net.port.deviceId);
+    const lines: PickerLine[] = j
+      ? [
+        j.burnt ? { level: 'bad', text: 'This jack is dead: the part is burnt out.' }
+          : { level: plugged ? 'ok' : 'info', text: plugged ? `The ethernet cable is plugged in here (${fmtMbit(j.mbps)}).` : `${fmtMbit(j.mbps)}. Drag the ethernet plug onto it to use it.` },
+      ]
+      : [{ level: 'warn', text: 'There is no jack here.' }];
+    return { ...emptyCard(id, 'info', d.title, d.plain, d.nerd), lines };
+  }
+
   if (id.startsWith('cable.') && id !== 'cable.pcie') {
     const cid = id.slice(6);
     const c = s.cables.find((x) => x.id === cid);
@@ -550,6 +643,11 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
         : [],
     };
   }
+
+  // The router spot, the wall socket (the plan) and a router in the inventory: their own ladders, applied without a power-off.
+  const netKind = id === 'router' || id === 'wall' || getRouterSpec(id) || getIspSpec(id) ? kindOf(id, s)
+    : id.startsWith('inv:') && s.inventory.find((x) => x.id === id.slice(4))?.kind === 'router' ? 'router' : null;
+  if (netKind === 'router' || netKind === 'isp') return netCard(id, netKind, s);
 
   const kind = kindOf(id, s);
   if (kind) {
@@ -615,6 +713,11 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     // A VRM heatsink slot that is empty is the drop target for the heatsink rows.
     if (kind === 'vrm-sink' && emptySocket) {
       lines.push({ level: 'info', text: 'Drop a VRM heatsink here: it bolts onto the voltage regulators next to the processor.' });
+    }
+    // A network card: which jack it is, whether the cable is in it, and its heat (a hot card runs at half speed).
+    if (kind === 'nic') {
+      if (emptySocket) lines.push({ level: 'info', text: 'Drop a network card here: its jack then appears on the back of the machine.' });
+      if (dev) lines.push(...nicLines(s, dev));
     }
     // A liquid cooler (fitted, or the one in the inventory) gives the VRM no airflow.
     if (kind === 'cooler') {

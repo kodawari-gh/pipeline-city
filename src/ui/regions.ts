@@ -21,7 +21,7 @@ export const REGIONS: Record<string, Description> = {
   },
   pcie: {
     title: 'Expansion slots (PCIe)',
-    plain: 'Long slots for graphics cards and other add-ons. Nothing to put in them yet.',
+    plain: 'Long slots for add-in cards. A network card goes here; graphics cards come later.',
     nerd: 'PCIe x16 lanes straight from the CPU. No GPU exists in the sim yet, so the bus stays dark.',
   },
   chipset: {
