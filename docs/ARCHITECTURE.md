@@ -38,6 +38,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Device specs, board slots, power and thermal: [`docs/BOARD.md`](BOARD.md).**
 - **Program generator (kernels, templates, seeds): [`docs/GEN.md`](GEN.md).**
 - **Game loop, economy, snapshot shape, pacing: [`docs/GAME.md`](GAME.md).**
+- **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`docs/SANDBOX.md`](SANDBOX.md).**
 - **Save format, versioning, worker protocol: [`docs/SAVE.md`](SAVE.md).**
 - **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
 - **Assembly, inventory, boot loop, USB-key queue, progress flags: [`docs/ASSEMBLY.md`](ASSEMBLY.md).**

@@ -33,7 +33,30 @@ Drives (HDD, SATA SSD, NVMe) are real typed `sata` / `m2` slot devices and memor
 
 ### Board ladder and VRM phase (done in the sim)
 
-The motherboard is a four-tier ladder (Starter with 1 DIMM, 1 SATA, 1 USB, 1 HDMI, no PCIe/M.2/ethernet; Basic; Mainstream; Enthusiast) and each tier has a simulated **VRM** (phases, amps, efficiency curve, ripple) with its own temperature in the thermal model: its loss counts against the PSU, a hot VRM trims the CPU clock, overload or heat causes "VRM voltage droop" crashes, and sustained trouble burns the board (dead until you buy a board of the same or higher tier, powered off, parts carry over). A purchasable VRM heatsink (`vrm-sink`, 3 tiers) cools it; air CPU coolers also help the VRM, liquid ones do not. Save is **v4** (old tier 0 -> Basic, old tier 1 -> Mainstream). Everything is in [`VRM.md`](VRM.md) (design, numbers, snapshot); the renderer and UI still need to draw the new parts (list in the phase report: unpopulated slots on one shared layout, VRM phase blocks, heatsink, VRM temperature and load readout, board-dead state, tooltips). Ethernet is a `features.ethernetMbps` field only; the network phase is next.
+The motherboard is a four-tier ladder (Starter with 1 DIMM, 1 SATA, 1 USB, 1 HDMI, no PCIe/M.2/ethernet; Basic; Mainstream; Enthusiast) and each tier has a simulated **VRM** (phases, amps, efficiency curve, ripple) with its own temperature in the thermal model: its loss counts against the PSU, a hot VRM trims the CPU clock, overload or heat causes "VRM voltage droop" crashes, and sustained trouble burns the board (dead until you buy a board of the same or higher tier, powered off, parts carry over). A purchasable VRM heatsink (`vrm-sink`, 3 tiers) cools it; air CPU coolers also help the VRM, liquid ones do not. Save is **v4** (old tier 0 -> Basic, old tier 1 -> Mainstream). Everything is in [`VRM.md`](VRM.md) (design, numbers, snapshot); the UI side is done (picker: VRM readout, motherboard cards, heatsink rows, CPU and liquid-cooler warnings, the dead-board chip; see `docs/UI.md`). The board renderer's side (unpopulated slots on one shared layout, VRM phase blocks, heatsink art on the board) is tracked in `docs/RENDER.md`. Ethernet is a `features.ethernetMbps` field only; the network phase is next.
+
+### Sandbox (done)
+
+A **New game** dialog offers Campaign or Sandbox (assembled or bare). The sandbox has free purchases, a constant money balance shown as infinity, every part and board tier, and four tools (spawn a key, clear the tray, repair everything, set reputation), plus 64x speed. The physics still applies. Everything is in [`SANDBOX.md`](SANDBOX.md); save format is unchanged (optional `sandbox: true` field, still v4).
+
+### Next steps
+
+In rough order. Each is a small, separate change; keep `npm test` and `npm run build` green.
+
+1. **inorder2 and ooo CPU tiers.** `inorder2` (2-wide) and `ooo` exist in `src/sim/engines` (`engines/index.ts`), but no CPU spec uses them. Needed: a spec entry with the engine config per tier, the board and VRM demand data per CPU (its `loadW` against the planned board's rating, so the CPU warning in the picker stays right), picker art, and a pacing re-check, since CPI changes the first-job timing and the `cpuCyclesPerClock` tuning.
+2. **Network phase.** A NIC (PCIe, or onboard ethernet on the boards that have it), a router and an ethernet cable, then a `WorkSource` over the network. Once the link is up, clients stop sending USB keys: new arrivals stop, keys already waiting can still be served (see `docs/TECHTREE.md`). Ethernet speed is already a board feature.
+3. **GPU with its own ISA.** A device with its own instruction set and the `pcie` cable (the cable type is reserved).
+4. **Multicore.** More than one engine on the bus, with the scheduler and the cache-coherence rules.
+5. **Fast model and offline catch-up.** A calibrated model for the machine nobody is watching and a catch-up on load. Nothing runs while the game is closed today (`docs/SAVE.md`).
+6. **Balance pass.** Every number in `src/sim/game/economy.ts`, the device specs and the VRM is a placeholder; tune by playing, with the bots in the tests as the measuring tools.
+
+Known gaps from the last reports (do not treat them as settled):
+
+- **Cold-boot delay.** A 30-tick (`coldBootTicks`) wait is added before the ROM runs, so the OS beats the manual loop. The pacing tests were loosened for it.
+- **First job takes 70-80 s** at 1x on the starting machine (about 45-48 s before the cold-boot wait).
+- **Patience schedule** (`ECONOMY.patience`) numbers are placeholders.
+- **Touch and a real GPU are unverified.** Browser checks used software GL and mouse input only.
+- **64x in the sandbox is not benchmarked** (see `docs/SANDBOX.md`).
 
 ### Known gaps and decisions waiting on the owner
 
