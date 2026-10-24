@@ -435,6 +435,39 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 @media (max-aspect-ratio: 1/1) and (min-width: 40em) { #hud:has(.inv) .dock { bottom: 0.533rem; } }
 @media (max-width: 48em) { #hud:has(.inv) .dock { bottom: 0; } }
 
+/* New game dialog (NewGame.tsx): a modal with two choices. */
+.ng-back { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 8, 24, 0.55); padding: 1rem; }
+:root[data-theme="light"] .ng-back { background: rgba(30, 44, 80, .28); }
+.ng { display: flex; flex-direction: column; gap: 0.8rem; width: 44rem; max-width: 100%; max-height: 100%; overflow: auto; padding: 1.2rem; }
+.ng h2 { margin: 0; font-size: 1.3rem; }
+.ng-choices { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.ng-choice { flex: 1 1 16rem; display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; text-align: left; padding: 0.9rem;
+  border: 1px solid var(--glass-line); border-radius: 0.6rem; background: var(--glass-hi); color: var(--ink); cursor: pointer; }
+.ng-choice:focus-visible { outline: 0.133rem solid var(--accent); outline-offset: 0.133rem; }
+.ng-choice.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ng-choice .t { font-size: 1.15rem; font-weight: 700; }
+.ng-choice .d { color: var(--mute); }
+.ng-sub { display: flex; gap: 0.4rem; margin-top: 0.3rem; flex-wrap: wrap; }
+.ng-sub button { padding: 0.2rem 0.6rem; }
+.ng-sub button.on { background: var(--accent); color: var(--on); }
+.ng-actions { display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.ng-warn { color: var(--bad); margin-right: auto; }
+
+/* Sandbox chip and its tools popover (SandboxTools.tsx, docs/SANDBOX.md). */
+.sbx { position: relative; display: inline-flex; }
+.sbx-chip { font-weight: 700; letter-spacing: 0.08em; font-size: 0.733rem; padding: 0.2rem 0.6rem; border-radius: 99rem;
+  border: 1px solid var(--accent); color: var(--accent); background: var(--glass-hi); cursor: pointer; }
+.sbx-chip.on { background: var(--accent); color: var(--on); }
+.sbx-pop { position: absolute; top: calc(100% + 0.4rem); left: 0; z-index: 40; display: flex; flex-direction: column; gap: 0.5rem;
+  width: 17rem; max-width: calc(100vw - 1.6rem); padding: 0.667rem; }
+.sbx-pop h4 { margin: 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mute); }
+.sbx-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.sbx-row select, .sbx-row input[type=number] { font: inherit; color: var(--ink); background: var(--tile); border: 1px solid var(--glass-line); border-radius: 0.267rem; padding: 0.2rem 0.3rem; }
+.sbx-row input[type=range] { flex: 1; min-width: 6rem; accent-color: var(--accent); }
+.sbx-row button { flex: 0 0 auto; }
+.sbx-val { font-family: var(--mono); min-width: 2.6rem; text-align: right; }
+.sbx-msg { color: var(--mute); font-size: 0.733rem; }
+
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
   .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer { transition: none !important; animation: none !important; }
