@@ -422,7 +422,6 @@ describe("declining", () => {
     untilOs(() => os.snapshot().os!.queue.some((j) => j.keyId === k1 && j.state === "running"));
     expect(os.declineKey(k1!)).toMatchObject({ ok: false, reason: expect.stringMatching(/^plugged/) });
     expect(os.declineJob(k2!)).toMatchObject({ ok: true });
-    expect(os.snapshot().held).toEqual([]);
     untilOs(() => os.completed === 1 && os.pluggedKey() === null);
     expect(os.snapshot().declined).toBe(1);
   });

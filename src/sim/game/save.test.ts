@@ -295,7 +295,7 @@ describe("migration v2 -> v3", () => {
     expect(m.progress).toMatchObject({ storageInstalled: false, osInstalled: false, firstOsJob: false, poweredOn: true });
     const l = Game.fromSave(json(v2));
     const s = l.snapshot();
-    expect(s).toMatchObject({ powered: false, phase: "off", os: null, storage: [], held: [] });
+    expect(s).toMatchObject({ powered: false, phase: "off", os: null, storage: [] });
     expect(s.money).toBe(v2.money);
     expect(s.devices.map((d) => d.spec).sort()).toEqual(g2specs(v2));
     expect(l.toSave().version).toBe(4);

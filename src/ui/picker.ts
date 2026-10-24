@@ -113,8 +113,7 @@ export interface PickerModel {
 }
 
 export interface OsQueueRow { keyId: number; label: string; type: string; state: string; text: string; job: JobView | null; retired: boolean }
-export interface OsHeldRow { keyId: number; label: string; hint: string; retired: boolean }
-/** The OS block of a card: what the OS is doing, its queue, held keys, the host drive and the later tiers. */
+/** The OS block of a card: what the OS is doing, its queue, the host drive and the later tiers. */
 export interface OsSection {
   name: string;
   tier: number;
@@ -124,14 +123,13 @@ export interface OsSection {
   queueSlots: number;
   running: string | null;
   queue: OsQueueRow[];
-  held: OsHeldRow[];
   host: { slot: string; usedK: number; capK: number } | null;
   ladder: LadderStep[];
 }
 
-/** A key from anywhere the machine holds it (tray, held, plugged). */
+/** A key from anywhere the machine holds it (tray, plugged). */
 const findKey = (s: Snapshot, id: number): KeySnap | undefined =>
-  [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((k) => k.id === id);
+  [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((k) => k.id === id);
 /** Plain job type for a key id. */
 const keyType = (s: Snapshot, id: number): string => findKey(s, id)?.type ?? '';
 
@@ -170,12 +168,6 @@ export function osSection(s: Snapshot): OsSection | null {
     queueSlots: os.queueSlots,
     running: os.queue.find((j) => j.state === 'running')?.label ?? null,
     queue,
-    held: s.held.map((k) => ({
-      keyId: k.id,
-      label: k.label,
-      retired: !!k.retired,
-      hint: k.stage === 'result' ? `plug key ${k.id} again to collect` : 'waiting in the OS queue',
-    })),
     host: host ? { slot: host.slot, usedK: Math.round(host.usedBytes / 1024), capK: Math.round(host.capacityBytes / 1024) } : null,
     ladder: ladderFor(s, 'os'),
   };

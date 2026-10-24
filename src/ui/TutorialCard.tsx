@@ -115,7 +115,8 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
           const sy = above ? cardRect.y : cardRect.y + cardRect.h;
           if (!st.shown || reducedMotion()) { st.x = cx; st.y = cy; st.sx = sx; st.sy = sy; }
           else {
-            const k = 1 - Math.exp(-dt / 0.12);
+            // Short time constant: the pointer glides between steps but stays glued to the target while the camera moves.
+            const k = 1 - Math.exp(-dt / 0.03);
             st.x += (cx - st.x) * k; st.y += (cy - st.y) * k;
             st.sx += (sx - st.sx) * k; st.sy += (sy - st.sy) * k;
           }

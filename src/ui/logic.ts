@@ -312,13 +312,11 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
       return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
-      const k = [...s.tray, ...s.held, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
+      const k = [...s.tray, ...(s.plugged ? [s.plugged] : [])].find((x) => x.id === Number(id.slice(4)));
       if (k) {
-        const held = s.held.some((x) => x.id === k.id);
         return {
           title: `Client key ${k.label}`,
-          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`
-            + (held ? ' The OS still has this job from an older game: plug the key in to collect it.' : ''),
+          plain: (JOB_TYPES[k.type] ?? 'A client job.') + ` Pays about ${fmtMoney(k.payoutEstimate)}.`,
           nerd: `template ${k.template} | arrived t=${k.arrivalTick}, due t=${k.deadlineTick} | tries ${k.attempts} | stage ${k.stage}`,
         };
       }
@@ -421,19 +419,16 @@ export const isOsActivity = (phase: Snapshot['phase']) =>
   phase === 'booting-os' || phase === 'ingesting' || phase === 'running-os' || phase === 'flashing';
 
 /**
- * Keys waiting in the tray (not the plugged one): count and the age of the oldest. Held keys (ingested by the OS and
- * unplugged, waiting for their result) are counted separately.
+ * Keys waiting in the tray (not the plugged one): count and the age of the oldest.
  */
-export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; held: number; text: string } {
+export function queueReadout(s: Snapshot): { count: number; cap: number; oldest: number | null; late: boolean; text: string } {
   const count = s.tray.length;
-  const held = s.held.length;
   const oldest = count ? Math.max(...s.tray.map((k) => k.age)) : null;
   const late = s.tray.some((k) => k.late);
   const waiting = count === 0
     ? 'no keys waiting'
     : `${count} key${count === 1 ? '' : 's'} waiting, oldest ${fmtTicks(oldest ?? 0)}`;
-  const text = held ? `${waiting}, ${held} held for collection` : waiting;
-  return { count, cap: s.queueCap, oldest, late, held, text };
+  return { count, cap: s.queueCap, oldest, late, text: waiting };
 }
 
 /**

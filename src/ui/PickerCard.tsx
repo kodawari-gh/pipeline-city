@@ -310,9 +310,6 @@ function OsBlock({ sec, picked, onPick }: { sec: OsSection; picked: string | nul
           )}
         </div>
       ))}
-      {sec.held.map((h) => (
-        <div class="pline warn" key={`h${h.keyId}`}><Icon name="box" size={12} /> {h.label}: {h.hint}</div>
-      ))}
       {sec.ladder.length > 0 && (
         <div class="rungs">
           {sec.ladder.map((r) => (

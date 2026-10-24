@@ -64,11 +64,6 @@ export const REGIONS: Record<string, Description> = {
     plain: 'The box everything sits in: the board, the power supply and the drive bays.',
     nerd: 'Chassis. Decor only: the parts inside are what matter.',
   },
-  held: {
-    title: 'Held keys',
-    plain: 'Keys the OS has taken and you have unplugged. The OS keeps their jobs. Plug one back in when it has a result to collect it.',
-    nerd: 'Ingested keys waiting for their flash. Powering off returns them to the tray unserved (their jobs restart).',
-  },
   os: {
     title: 'Operating system (on this drive)',
     plain: 'The OS installed on this drive. Click the badge for its status, queue and uninstall. The monitor only shows its text.',

@@ -211,7 +211,6 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     expect(g.ejectKey()).toMatchObject({ ok: false, reason: expect.stringMatching(/OS is working/) });
     let s = g.snapshot();
     expect(s.tray).toHaveLength(0);
-    expect(s.held).toEqual([]);
     expect(s.plugged?.id).toBe(id);
     expect(s.os!.queue).toHaveLength(1);
     until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
@@ -219,7 +218,7 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     const payout = s.lastCompleted!.payout;
     expect(payout).toBeGreaterThan(0);
     expect(g.money).toBe(money0 + payout);
-    expect(s).toMatchObject({ completed: 1, held: [], plugged: null });
+    expect(s).toMatchObject({ completed: 1, plugged: null });
     expect(s.os!.queue).toEqual([]); // the slot was freed by the delivery
     expect(s.lastCompleted).toMatchObject({ id, payout });
     expect(s.progress.firstOsJob).toBe(true);
@@ -275,7 +274,6 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     runUntil(g, "idle-os");
     ticks(g, 60);
     expect(g.snapshot().os!.queue).toEqual([]);
-    expect(g.snapshot().held).toEqual([]);
     expect(serve(g, id)).toBeGreaterThan(0);
   });
 
@@ -312,7 +310,6 @@ describe("the OS takes keys, queues, runs and delivers", () => {
     g.powerButton();
     expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
     const s = g.snapshot();
-    expect(s.held).toEqual([]);
     expect(s.tray.map((k) => k.id)).toContain(id);
     g.powerButton();
     runUntil(g, "idle-os");

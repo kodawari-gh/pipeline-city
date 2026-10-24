@@ -123,7 +123,6 @@ function Queue({ s }: { s: NonNullable<typeof snapshot.value> }) {
     <div class={`stat ${q.late ? 'bad' : ''}`} title={`${q.text}. The tray holds ${q.cap}; a full tray turns clients away.`}>
       <Icon name="stick" size={14} />
       <span class="value">{q.count}<span class="mute">/{q.cap}</span></span>
-      {q.held > 0 && <span class="value held" title="Keys an older game left with the OS: plug them in to collect">+{q.held}<span class="mute"> held</span></span>}
     </div>
   );
 }
@@ -209,6 +208,7 @@ export function Hud() {
       <InsetReporter />
       <PauseKey />
       <header class="hud">
+        <div class="hud-side hud-left">
         <div class="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time at 1x">{fmtTicks(s.baseTick)}</span>
         <LevelBar s={s} />
@@ -217,7 +217,8 @@ export function Hud() {
         <PhaseChip s={s} />
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
-        <div class="grow" />
+        </div>
+        <div class="hud-side hud-right">
         <div class="seg" role="group" aria-label="Speed">
           {SPEEDS.map((v) => (
             <button key={v} class={speed.value === v ? 'on' : ''} aria-pressed={speed.value === v} title={speedTitle(v)} onClick={() => setSpeed(v)}>
@@ -229,6 +230,7 @@ export function Hud() {
           <Icon name={dark ? 'sun' : 'moon'} size={14} />
         </button>
         <Menu s={s} />
+        </div>
       </header>
       <PickerCard />
       <NewGameDialog />

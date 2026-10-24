@@ -618,7 +618,7 @@ export class Live {
   }
 
   /**
-   * The OS status screen on the monitor: composed from `snapshot.os`, `storage`, `held`, `display` (every field optional-safe).
+   * The OS status screen on the monitor: composed from `snapshot.os`, `storage`, `display` (every field optional-safe).
    * Rows are pooled Texts; the progress cue is drawn per frame by `drawOsBar`.
    */
   private updateOsScreen(s: Snapshot, _now: number) {
@@ -659,7 +659,6 @@ export class Live {
       const ready = q.filter((j) => j.state === 'result');
       if (s.keyActivity === 'done' && s.plugged) rows.push({ t: `REMOVE KEY ${s.plugged.label}`, c: OS_INK });
       else if (ready.length) rows.push({ t: `PLUG KEY ${ready[0]!.label} TO COLLECT${ready.length > 1 ? ` (+${ready.length - 1})` : ''}`, c: OS_AMBER });
-      else if ((s.held?.length ?? 0) > 0) rows.push({ t: `${s.held.length} KEY${s.held.length > 1 ? 'S' : ''} HELD, JOBS PENDING`, c: OS_DIM });
       else rows.push({ t: '', c: OS_DIM });
       const d = s.storage?.find((x) => x.hasOs) ?? s.storage?.find((x) => x.slot === os.slot);
       if (d && d.capacityBytes > 0) {

@@ -289,7 +289,7 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
       job({ keyId: 5, label: '#5 log', state: 'running', ahead: 0 }),
       job({ keyId: 7, label: '#7 scan', state: 'queued', ahead: 1, slot: 1 }),
       job({ keyId: 9, label: '#9 calc', state: 'queued', ahead: 2, slot: 2 }),
-    ], { held: keys, tray: [] });
+    ], { tray: keys });
     const sec = osSection(s)!;
     expect(sec.running).toBe('#5 log');
     expect(sec.queue.map((q) => [q.label, q.text])).toEqual([['#5 log', 'running now'], ['#7 scan', '1 ahead'], ['#9 calc', '2 ahead']]);
@@ -297,18 +297,9 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
     expect(sec.queue.length).toBe(3);
   });
 
-  it('a finished result waits in the queue as done, and a held key says to plug it in again', () => {
-    const s = withOs([job({ keyId: 3, label: '#3 log', state: 'result', ahead: -1 })], {
-      held: [key({ id: 3, label: '#3 log', stage: 'result' })], tray: [],
-    });
-    const sec = osSection(s)!;
-    expect(sec.queue[0]!.text).toBe('done');
-    expect(sec.held).toEqual([{ keyId: 3, label: '#3 log', retired: false, hint: 'plug key 3 again to collect' }]);
-  });
-
-  it('a held key still in the queue says it is waiting', () => {
-    const sec = osSection(withOs([], { held: [key({ id: 4, label: '#4 log', stage: 'queued' })], tray: [] }))!;
-    expect(sec.held[0]!.hint).toBe('waiting in the OS queue');
+  it('a finished result waits in the queue as done', () => {
+    const s = withOs([job({ keyId: 3, label: '#3 log', state: 'result', ahead: -1 })], { tray: [key({ id: 3, label: '#3 log', stage: 'result' })] });
+    expect(osSection(s)!.queue[0]!.text).toBe('done');
   });
 
   it('the ladder offers the later tiers locked, with their description', () => {

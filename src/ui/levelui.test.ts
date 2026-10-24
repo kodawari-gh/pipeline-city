@@ -231,7 +231,7 @@ describe('job needs, deadlines and declining', () => {
   it('OS queue rows carry the job of their key, for the needs chips and the decline button', () => {
     const k = key({ id: 3, stage: 'queued', needs: ['OS'], missing: [], declinable: true });
     const s = snap({
-      held: [k],
+      tray: [k],
       os: { spec: 'os1', tier: 1, name: 'Mini OS', deviceId: 'd', slot: 'sata0', programSlots: 1, queueSlots: 2, up: true, runningKeyId: null,
         queue: [{ slot: 0, keyId: 3, label: '#3 log', state: 'queued', ahead: 0 }] } as unknown as Snapshot['os'],
     });

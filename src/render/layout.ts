@@ -150,8 +150,6 @@ export const SATA_LINK = [
 ] as const;
 /** Board port rect for SATA index i. */
 export const sataPort = (i: number): Rect => ({ x: BR.sata.x + (1 - i) * 170, y: BR.sata.y, w: 140, h: BR.sata.h });
-/** Key rack ("held" keys the OS has ingested, waiting for their result), under the tray. */
-export const HELD: Rect = { x: -5900, y: 2150, w: 1670, h: 1000 };
 
 /** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
 export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
@@ -182,7 +180,7 @@ export const NIC_LEN: Record<string, number> = { 'nic-gbe': 1500, 'nic-10g': 195
 export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: BD.x - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
 
 /**
- * Everything the camera should see at once (board, PSU, monitor, cables, tray, held rack): the content box, tightly. Its
+ * Everything the camera should see at once (board, PSU, monitor, cables, tray): the content box, tightly. Its
  * extent is the monitor / tray column on the west (x -7500) and the case's east wall (x 5260), and the case top (y -3100) to
  * the feet (y 4360). Nothing else in the scene reaches outside it (the device bake uses it as its frame).
  */

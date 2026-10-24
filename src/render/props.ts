@@ -3,7 +3,7 @@ import type { KeySnap } from '../sim/game/game';
 import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
 import { wallTone } from './case';
-import { CASE_LEDS, HELD, POWER_BTN, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
+import { CASE_LEDS, POWER_BTN, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.
@@ -415,44 +415,6 @@ export function drawPowerLeds(T: Theme, led: Graphics, st: PowerState, now: numb
     if (lit) led.circle(x, ly, 40).fill({ color: c, alpha: 0.22 * a });
     led.circle(x, ly, 22).fill({ color: lit ? c : mix(c, T.bg, 0.8), alpha: lit ? 0.4 + 0.6 * a : 0.55 }).stroke({ width: 4, color: T.line, alpha: 0.8 });
   }
-}
-
-// ---------------------------------------------------------------- held keys (the OS ingested them; they wait for their result)
-
-export const HELD_COLS = 2, HELD_ROWS = 3;
-export const heldKeyCentre = (i: number) => {
-  const col = i % HELD_COLS, row = Math.floor(i / HELD_COLS);
-  return { x: HELD.x + 50 + KEY_LEN_PLUGGED / 2 + col * (KEY_LEN_PLUGGED + 50), y: HELD.y + 235 + row * 262 };
-};
-
-export function heldArt(T: Theme, keys: KeySnap[]): PropsArt {
-  const root = new Container(), chrome = new Container();
-  const g = new Graphics();
-  root.addChild(chrome);
-  chrome.addChild(g);
-  const r = HELD;
-  const ready = keys.filter((k) => k.stage === 'result').length;
-  glassPanel(g, r, T, ready ? T.st : T.line, 8, ready ? 0.9 : 0.8, 36, { x: r.x + 30, y: r.y + 110, w: r.w - 60, h: r.h - 140 });
-  chrome.addChild(label('HELD KEYS', r.x + 70, r.y + 62, 62, ready ? T.st : T.mute, { head: true }));
-  const note = keys.length === 0 ? 'NONE HELD' : ready ? `${ready} READY - PLUG TO COLLECT` : `${keys.length} WAITING FOR THE OS`;
-  chrome.addChild(label(note, r.x + r.w - 70, r.y + 62, 40, ready ? T.st : T.mute, { anchor: [1, 0.5], a: keys.length ? 1 : 0.8 }));
-  for (let i = keys.length; i < HELD_COLS * HELD_ROWS; i++) {
-    const p = heldKeyCentre(i), w = KEY_LEN_PLUGGED, h = KEY_H;
-    const pts: [number, number][] = [[p.x - w / 2, p.y - h / 2], [p.x + w / 2, p.y - h / 2], [p.x + w / 2, p.y + h / 2], [p.x - w / 2, p.y + h / 2], [p.x - w / 2, p.y - h / 2]];
-    dashed(g, pts, 24, 20);
-  }
-  g.stroke({ width: 5, color: T.mute, alpha: 0.25 });
-  const objs: PropObj[] = [];
-  keys.slice(0, HELD_COLS * HELD_ROWS).forEach((k, i) => {
-    const p = heldKeyCentre(i);
-    const vec = keyStick(T, k, true), node = new Container();
-    node.addChild(vec);
-    node.position.set(p.x, p.y);
-    root.addChild(node);
-    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
-  });
-  if (keys.length > HELD_COLS * HELD_ROWS) chrome.addChild(label(`+${keys.length - HELD_COLS * HELD_ROWS} more`, r.x + r.w - 70, r.y + r.h - 24, 36, T.mute, { anchor: [1, 0.5] }));
-  return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
 
 export { clamp01, centre, MONO, HEAD };

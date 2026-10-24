@@ -86,8 +86,8 @@ const ownsStorage = (s: Snapshot) => s.storage.length > 0 || invOf(s, 'storage')
 const ownsOs = (s: Snapshot) => !!s.os || invOf(s, 'os').length > 0;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
-/** The OS has copied a key into its queue (plugged, or already held). */
-const ingested = (s: Snapshot) => s.held.length > 0 || pluggedAt(s, ['queued', 'running', 'result', 'flashing', 'done']);
+/** The OS has copied a key into its queue (plugged). */
+const ingested = (s: Snapshot) => pluggedAt(s, ['queued', 'running', 'result', 'flashing', 'done']);
 
 /** The inventory button (bottom bar). A UI-only id: the renderer ignores it, the bar pulses the button. */
 export const INVENTORY_ID = 'inventory';

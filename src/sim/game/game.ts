@@ -459,8 +459,6 @@ export interface Snapshot {
   storage: StorageSnap[];
   /** The installed OS, its queue and slot counts, or null (boot-per-key flow). */
   os: OsSnap | null;
-  /** Keys the OS has ingested that the player unplugged: they wait for their result (plug them again to collect it). */
-  held: KeySnap[];
   /** USB port LED: enumerating, ingesting, flashing, done (collect the key). Stays "none" for a key the ROM ignores. */
   keyActivity: KeyActivity;
 
@@ -521,7 +519,7 @@ export interface NetSnap {
   /** USB keys retired because the link has been up (sticky). */
   usbRetired: boolean;
   usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };
-  /** Retired keys lying in the USB tray or held by the OS (docs/NETWORK.md "Retired keys"). */
+  /** Retired keys lying in the USB tray (docs/NETWORK.md "Retired keys"). */
   retiredKeys: number;
   /**
    * The key id of the USB key parked in the port while the kernel has feed work (finished downloads or spooled jobs to
@@ -580,8 +578,6 @@ export class Game {
   private inventory: InvItem[] = [];
   private nextInvId = 1;
   private readonly tray: UsbTray<Key>;
-  /** Keys the OS ingested and the player unplugged, waiting for their result. */
-  private held: Key[] = [];
   private plugged: Key | null = null;
   private readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
   private readonly disks = new Map<string, Disk>();
@@ -991,7 +987,7 @@ export class Game {
     if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false, reason: "reputation must be a number" };
     const rep = Math.min(this.cfg.repMax, Math.max(this.cfg.repMin, value));
     this.avgTurnaround = Math.max(1, this.targetTurnaround() / rep);
-    for (const k of [...this.tray.waiting(), ...this.held]) {
+    for (const k of this.tray.waiting()) {
       if (this.baseTick - k.arrival > this.avgTurnaround) {
         k.arrival = this.baseTick;
         k.deadline = this.baseTick + this.deadlineTicks();
@@ -1062,9 +1058,8 @@ export class Game {
   plugKey(keyId: number): Result<{ key: number }> {
     if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
     if (this.netKey) return { ok: false, reason: "the port is busy with a network job for a moment" };
-    const heldAt = this.held.findIndex((k) => k.id === keyId);
-    const peek = heldAt >= 0 ? this.held[heldAt] : this.tray.waiting().find((k) => k.id === keyId);
-    if (peek && heldAt < 0) {
+    const peek = this.tray.waiting().find((k) => k.id === keyId);
+    if (peek) {
       // A job the machine cannot run is refused at the port (with an OS, at ingest): it waits in the tray until it expires or is declined.
       const need = needsMet(peek.needs, this.caps());
       if (!need.ok) {
@@ -1072,7 +1067,7 @@ export class Game {
         return { ok: false, reason: `cannot run this job: it needs ${need.missing.join(" and ")}` };
       }
     }
-    const key = heldAt >= 0 ? this.held.splice(heldAt, 1)[0] : this.tray.take(keyId);
+    const key = this.tray.take(keyId);
     if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
     let program: Uint32Array;
     try {
@@ -1081,7 +1076,7 @@ export class Game {
       this.tray.giveBack(key);
       return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
     }
-    if (heldAt < 0) key.pluggedAt = this.baseTick;
+    key.pluggedAt = this.baseTick;
     this.plugged = key;
     this.pchKey = { id: key.id, program, done: key.done, result: key.result };
     this.pch.plug(this.pchKey);
@@ -1153,7 +1148,7 @@ export class Game {
    */
   declineKey(keyId: number): Result<{ keyId: number }> {
     if (this.plugged?.id === keyId) return { ok: false, reason: "plugged: the key is in the USB port, remove it first" };
-    const retired = [...this.tray.waiting(), ...this.held].some((k) => k.id === keyId && k.retired);
+    const retired = this.tray.waiting().some((k) => k.id === keyId && k.retired);
     const inTray = this.tray.waiting().some((k) => k.id === keyId);
     const inOffers = this.offersQ.waiting().some((k) => k.id === keyId);
     const spooled = this.spool.find((k) => k.id === keyId);
@@ -1169,13 +1164,7 @@ export class Game {
       if (job) this.freeKernelSlot(keyId);
       this.spool = this.spool.filter((k) => k.id !== keyId);
     } else if (!inTray) {
-      const held = this.held.find((k) => k.id === keyId);
-      if (!held) return { ok: false, reason: `no waiting job ${keyId}` };
-      const job = this.kernelJobs().find((j) => j.key === keyId);
-      if (job?.state === JobState.Running) return { ok: false, reason: "running: the job is being run" };
-      if (job?.state === JobState.Result) return { ok: false, reason: "result waiting: plug the key in to collect it" };
-      if (job) this.freeKernelSlot(keyId);
-      this.held = this.held.filter((k) => k.id !== keyId);
+      return { ok: false, reason: `no waiting job ${keyId}` };
     } else {
       this.tray.take(keyId);
     }
@@ -1207,18 +1196,7 @@ export class Game {
     return this.os !== null;
   }
 
-  /** Under an OS: held keys (ingested and unplugged) and whether each has its result ready; plus the queue bound. For bots. */
-  osHeld(): { ids: number[]; ready: number[]; queueSlots: number; jobs: number } {
-    const jobs = this.kernelJobs();
-    return {
-      ids: this.held.map((k) => k.id),
-      ready: this.held.filter((k) => jobs.some((j) => j.key === k.id && j.state === JobState.Result)).map((k) => k.id),
-      queueSlots: this.os?.queueSlots ?? 0,
-      jobs: jobs.length,
-    };
-  }
-
-  /** Under an OS: the plugged key is in the kernel's queue (queued or running), so it can be unplugged and held. For bots. */
+  /** Under an OS: the plugged key is in the kernel's queue (queued or running), so it can be unplugged. For bots. */
   pluggedIngested(): boolean {
     const k = this.plugged;
     return !!k && !k.done && this.kernelJobs().some((j) => j.key === k.id && (j.state === JobState.Queued || j.state === JobState.Running));
@@ -1364,7 +1342,6 @@ export class Game {
       log: this.log.map((e) => ({ ...e })),
       storage: this.storageSnaps(),
       os: this.osSnap(jobs),
-      held: this.held.map((k) => this.keySnap(k, jobs)),
       keyActivity: this.keyActivity(),
       haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
       keyIgnored: this.keyIgnored(),
@@ -1452,8 +1429,7 @@ export class Game {
       inventory: this.inventory.map((i) => ({ ...i })),
       nextInvId: this.nextInvId,
       cables: { ...this.cables },
-      // Keys held by the OS come back as plain tray keys: the kernel's queue is RAM and does not survive a load.
-      tray: [...this.tray.waiting(), ...this.held].sort((a, b) => a.id - b.id).map(sk),
+      tray: [...this.tray.waiting()].sort((a, b) => a.id - b.id).map(sk),
       plugged,
       tripped: this.thermal.power.tripped,
       progress: { ...this.progress },
@@ -1773,10 +1749,8 @@ export class Game {
     for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(KDATA_BASE + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
   }
 
-  /** The OS is gone: held keys go back to the tray unserved (their spool went with the OS). */
-  private returnHeld(): void {
-    for (const k of this.held) this.tray.giveBack(k);
-    this.held = [];
+  /** The OS is gone: its spooled jobs go back to the offers unserved. */
+  private returnSpool(): void {
     for (const k of this.spool) this.offersQ.giveBack(k);
     this.spool = [];
   }
@@ -1784,7 +1758,7 @@ export class Game {
   /**
    * Power loss or reboot (docs/NETWORK.md "Power loss"): everything in RAM is gone, the spool on the drive survives.
    * Downloads in progress and finished downloads still in the rx window go back to the offers (attempts + 1), uploads
-   * are lost (the spooled job runs again), the virtual USB key of the NIC feed is dropped. Held USB keys and spooled
+   * are lost (the spooled job runs again), the virtual USB key of the NIC feed is dropped. Spooled
    * jobs stay: the kernel re-ingests them after the next boot.
    */
   private loseRam(): void {
@@ -1861,7 +1835,7 @@ export class Game {
     if (!os) return { ok: false, reason: "no OS is installed" };
     this.disks.get(os.deviceId)?.format();
     this.os = null;
-    this.returnHeld();
+    this.returnSpool();
     const invId = `inv${this.nextInvId++}`;
     this.inventory.push({ id: invId, spec: os.spec.id });
     this.note("install", `${os.spec.name} removed`);
@@ -1948,7 +1922,7 @@ export class Game {
     const queued = jobs.filter((j) => j.state === JobState.Queued).sort((a, b) => a.seq - b.seq);
     const results = jobs.filter((j) => j.state === JobState.Result).sort((a, b) => a.seq - b.seq);
     const label = (id: number): string => {
-      const k = this.plugged?.id === id ? this.plugged : (this.held.find((x) => x.id === id) ?? this.spool.find((x) => x.id === id));
+      const k = this.plugged?.id === id ? this.plugged : this.spool.find((x) => x.id === id);
       return k ? this.keySnap(k, jobs).label : `key ${id}`;
     };
     const row = (j: KernelJob, state: OsJobSnap["state"], ahead: number): OsJobSnap => ({ slot: j.slot, keyId: j.key, label: label(j.key), state, persisted: true, ahead });
@@ -2005,7 +1979,7 @@ export class Game {
         state: fb, deadTicks: this.deadTicks, startsIn: fb === "waiting" ? Math.max(0, this.cfg.usbFallbackTicks - this.deadTicks) : null,
         keyRateMul: fb === "fallback" ? this.cfg.usbFallbackMul : fb === "waiting" ? 0 : 1,
       },
-      retiredKeys: this.tray.waiting().filter((k) => k.retired).length + this.held.filter((k) => k.retired).length,
+      retiredKeys: this.tray.waiting().filter((k) => k.retired).length,
       portBusyKey: this.portBusy(),
       counters: { ...this.netCount },
     };
@@ -2024,7 +1998,7 @@ export class Game {
       if (j) return byState(j.state);
       return this.pch.phase === PchPhase.OsIngest ? "ingesting" : "tray";
     }
-    return j ? byState(j.state) : this.held.includes(k) ? "queued" : "tray";
+    return j ? byState(j.state) : "tray";
   }
 
   /** Without an OS the ROM looks at the port once at boot: a key that is in the port after that is never read. */
@@ -2264,9 +2238,9 @@ export class Game {
     return this.link.state === "link-up" || this.link.state === "saturated";
   }
 
-  /** Spool slots in use: spooled jobs, USB keys the OS holds, the key in the port if ingested, and downloads (reserved at start). */
+  /** Spool slots in use: spooled jobs, the key in the port if ingested, and downloads (reserved at start). */
   private reserved(): number {
-    return this.spool.length + this.rx.length + this.downloads.length + this.held.length + (this.pluggedIngested() ? 1 : 0);
+    return this.spool.length + this.rx.length + this.downloads.length + (this.pluggedIngested() ? 1 : 0);
   }
 
   private usbFallback(): boolean {
@@ -2285,7 +2259,7 @@ export class Game {
    */
   private retireUsbKeys(): void {
     if (!this.cfg.retireUsbKeys) return;
-    for (const k of [...this.tray.waiting(), ...this.held, ...(this.plugged ? [this.plugged] : [])]) {
+    for (const k of [...this.tray.waiting(), ...(this.plugged ? [this.plugged] : [])]) {
       if (!this.resultWaiting(k)) k.retired = true;
     }
     this.note("net", "the USB keys left behind are retired: they no longer hold reputation");
@@ -2297,12 +2271,12 @@ export class Game {
     return phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
   }
 
-  /** Whether the feed has work for the port: a finished download or a spooled/held job the kernel does not know yet. */
+  /** Whether the feed has work for the port: a finished download or a spooled job the kernel does not know yet. */
   private feedWaiting(): boolean {
     const jobs = this.kernelJobs();
     const unknown = (k: Key): boolean => !jobs.some((j) => j.key === k.id);
     const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
-    return this.rx.some(unknown) || this.spool.some((k) => unknown(k) && !uploading(k)) || this.held.some(unknown);
+    return this.rx.some(unknown) || this.spool.some((k) => unknown(k) && !uploading(k));
   }
 
   /** The USB key that blocks the virtual NIC key, or null (docs/NETWORK.md "Snapshot": `portBusyKey`). */
@@ -2393,7 +2367,7 @@ export class Game {
 
   /**
    * The OS side of the NIC (needs the kernel up): finished downloads are written to the spool (the kernel ingests them from
-   * the virtual key), spooled jobs and held USB keys that the kernel does not know (after a boot) are re-ingested in order,
+   * the virtual key), spooled jobs that the kernel does not know (after a boot) are re-ingested in order,
    * and a finished result is read out and uploaded. Everything is real kernel work (CPU and drive), no USB waits.
    */
   private feedKernel(): void {
@@ -2440,7 +2414,7 @@ export class Game {
     const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
     const rx = this.rx[0];
     if (rx && !known(rx.id)) return this.netPlug(rx, "ingest", true);
-    const again = this.spool.find((k) => !uploading(k) && !known(k.id)) ?? this.held.find((k) => !known(k.id));
+    const again = this.spool.find((k) => !uploading(k) && !known(k.id));
     if (again) this.netPlug(again, "ingest", false);
   }
 
@@ -2535,15 +2509,7 @@ export class Game {
     if (!this.progress.poweredOn) return;
     const caps = this.caps();
     // Retired keys (docs/NETWORK.md "Retired keys") leave silently at their deadline, runnable or not: no penalty, no count.
-    // A held one is left alone while the kernel runs it or holds its result (the client is still on the line).
     for (const k of this.tray.waiting().filter((x) => x.retired && this.baseTick >= x.deadline)) this.tray.take(k.id);
-    for (const k of this.held.filter((x) => x.retired && this.baseTick >= x.deadline)) {
-      if (this.netKey?.key === k) continue; // being written back to the kernel right now
-      const job = this.kernelJobs().find((j) => j.key === k.id);
-      if (job && (job.state === JobState.Running || job.state === JobState.Result)) continue;
-      if (job) this.freeKernelSlot(k.id);
-      this.held = this.held.filter((x) => x !== k);
-    }
     for (const k of [...this.tray.waiting(), ...this.offersQ.waiting()]) {
       if (this.baseTick < k.deadline || this.runnable(k, caps)) continue;
       this.tray.take(k.id);
@@ -2582,7 +2548,7 @@ export class Game {
     // Retired USB keys (docs/NETWORK.md "Retired keys") are left out too: the client went online.
     const waiting = [
       ...this.tray.waiting().filter((k) => !k.retired && this.runnable(k, caps)), ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
-      ...this.held.filter((k) => !k.retired), ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
+      ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
     ];
     const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
     const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;
@@ -2622,7 +2588,7 @@ export class Game {
     const stage = this.stageOf(k, jobs);
     return {
       stage, cls: k.cls, needs: k.needs.map((n) => describeNeed(n).short), runnable: need.ok, missing: need.missing, expiresTick: k.deadline,
-      declinable: k !== this.plugged && (stage === "tray" || stage === "offer" || stage === "spooled" || (this.held.includes(k) && stage === "queued") || (this.spool.includes(k) && stage === "queued")),
+      declinable: k !== this.plugged && (stage === "tray" || stage === "offer" || stage === "spooled" || (this.spool.includes(k) && stage === "queued")),
       retired: k.retired,
       id: k.id, template: k.template, type: k.type, jobNo: k.jobNo, label: `#${String(k.jobNo).padStart(2, "0")} ${k.type}`,
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,

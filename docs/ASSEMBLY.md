@@ -36,7 +36,7 @@ All actions return `{ok: true, ...}` or `{ok: false, reason}` with a human-reada
 
 **Parts and cables only change while the machine is off** (`reason: "power the machine off first"` otherwise). This replaces the old deferred-purchase mechanism: a purchase never touches the running machine. Purchases themselves are allowed any time.
 
-Test and bot helpers on `Game`: `currentPhase()`, `trayKeyIds()` (only keys the machine can run), `pluggedKey()`, `inventoryItems()`, `canInstall(invId)` (ignores power), `missingCables()`, `hasOs()`, `osHeld()`, `pluggedIngested()`.
+Test and bot helpers on `Game`: `currentPhase()`, `trayKeyIds()` (only keys the machine can run), `pluggedKey()`, `inventoryItems()`, `canInstall(invId)` (ignores power), `missingCables()`, `hasOs()`, `pluggedIngested()`.
 
 ## Phases
 
@@ -111,7 +111,7 @@ The display rows during a job: 0-3 POST lines, 5 status line, 8 the job's own ou
 
 ## Storage and the OS (summary; the full description is [`OS.md`](OS.md))
 
-Storage drives (`hdd0`, `ssd1`, `nvme2`) are bought into the inventory and installed into `sata` / `m2` slots (machine off). An OS (`os1`) is bought, then installed **onto a storage drive** (`install(invId, storageSlotId)`). Without an OS everything above (reboot per job, one key at a time) is unchanged. With an OS the ROM loads the kernel from the drive after POST and the machine boots **once**: phases `booting-os` -> `idle-os`, then `ingesting` (kernel copies a plugged key's job to disk; the player may unplug it), `running-os` (one program at a time), `flashing` (the finished key is plugged again and gets its result). Payout and reputation happen when the flashed key is removed. `Snapshot` additions: `storage[]`, `os` (tier, `programSlots`, `queueSlots`, queue), `held[]` (ingested keys the player holds), `keyActivity` (USB LED), `KeySnap.stage`, phases above, `inventory[].kind` / `purchases[].kind` may be `storage` or `os` (OS rows also carry `later`, `description`), progress flags `storageInstalled`, `osInstalled`, `firstOsJob`. New call `uninstallOs()` (message `uninstallOs`); new PCH registers `BOOT_DEV`, `OS_MODE`, `KEY_ID` and STATUS bits 3 (key enumerated) and 4 (flashing), only meaningful once the ROM handed over to a kernel.
+Storage drives (`hdd0`, `ssd1`, `nvme2`) are bought into the inventory and installed into `sata` / `m2` slots (machine off). An OS (`os1`) is bought, then installed **onto a storage drive** (`install(invId, storageSlotId)`). Without an OS everything above (reboot per job, one key at a time) is unchanged. With an OS the ROM loads the kernel from the drive after POST and the machine boots **once**: phases `booting-os` -> `idle-os`, then `ingesting` (kernel copies a plugged key's job to disk; the player may unplug it), `running-os` (one program at a time), `flashing` (the finished key is plugged again and gets its result). Payout and reputation happen when the flashed key is removed. `Snapshot` additions: `storage[]`, `os` (tier, `programSlots`, `queueSlots`, queue), `keyActivity` (USB LED), `KeySnap.stage`, phases above, `inventory[].kind` / `purchases[].kind` may be `storage` or `os` (OS rows also carry `later`, `description`), progress flags `storageInstalled`, `osInstalled`, `firstOsJob`. New call `uninstallOs()` (message `uninstallOs`); new PCH registers `BOOT_DEV`, `OS_MODE`, `KEY_ID` and STATUS bits 3 (key enumerated) and 4 (flashing), only meaningful once the ROM handed over to a kernel.
 
 ## Snapshot (new fields; the rest is in [`GAME.md`](GAME.md))
 

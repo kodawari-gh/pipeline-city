@@ -16,10 +16,10 @@ import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
-  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, HELD, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, nicJack, nicRect, type Rect,
 } from './layout';
-import { drawKeyCue, drawPowerLeds, heldArt, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
+import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -48,7 +48,7 @@ const PROPS_FRAME = new Rectangle(-7560, 280, 3500, 2950);
  */
 export const LOD = { fadeFrom: 0.7, fadeTo: 0.5, minZoom: 0.2 };
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
-const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'held' || id === 'case'
+const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'case'
   || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display')
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
   || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id);
@@ -476,7 +476,6 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('tray', TRAY); scene.interactive.add('tray');
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
     scene.rects.set('case', CASE); scene.interactive.add('case');
-    scene.rects.set('held', HELD); scene.interactive.add('held');
 
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
@@ -600,7 +599,6 @@ export async function mountBoard(host: HTMLElement) {
     const key = [
       T.dark, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,
-      s ? (s.held ?? []).map((k) => `${k.id}${k.stage}`).join(',') : '',
       s?.net?.usbFallback.state ?? 'off',
     ].join('|');
     if (!force && key === propsKey) return;
@@ -647,13 +645,11 @@ export async function mountBoard(host: HTMLElement) {
       keySeen = true;
     }
     add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
-    if ((s?.held ?? []).length > 0) add(heldArt(T, s?.held ?? [])); // the rack only exists for keys an old save still holds
     for (const a of propsArt) order.push(...a.objs);
     // hit order: power, plugged key, tray keys, then the port and tray bodies
     propHits = [
       ...order.map((o) => ({ id: o.id, rect: o.rect })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
-      { id: 'held', rect: HELD },
       { id: 'tray', rect: TRAY },
     ];
     chromeLayer.visible = true;

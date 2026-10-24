@@ -82,7 +82,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
       { id: 'video', name: 'Video cable', connected: false, blocked: 'the monitor is not installed' },
     ] as Snapshot['cables'],
     tray: [], plugged: null, progress: NO_PROGRESS, log: [],
-    storage: [], os: null, held: [], keyActivity: 'none',
+    storage: [], os: null, keyActivity: 'none',
     haltReason: null, keyIgnored: false, postFailed: false, sandbox: false,
     patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
     level: { level: 1, name: 'Garage Bench', clientBase: 0, floor: 0, next: 4, progress: 0, patienceMul: 4, payMul: 1, demandMul: 1, leveledUpAt: null, recentlyUnlocked: [], upcoming: levelRows(), sandbox: false },
