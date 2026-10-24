@@ -1,5 +1,7 @@
 import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 
+import { currentTextResolution } from './camera';
+
 // Small drawing helpers shared by the art builders.
 
 export const MONO = '"JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace';
@@ -47,7 +49,7 @@ export function label(
     fontFamily: o.head ? HEAD : MONO, fontSize: size, fill: color, fontWeight: (o.weight ?? (o.head ? '700' : '500')) as TextStyleOptions['fontWeight'],
     align: o.align ?? 'left',
   };
-  const t = new Text({ text: str, style, resolution: 2 });
+  const t = new Text({ text: str, style, resolution: currentTextResolution() });
   t.anchor.set(...(o.anchor ?? [0, 0.5]));
   t.position.set(x, y);
   t.alpha = o.a ?? 1;

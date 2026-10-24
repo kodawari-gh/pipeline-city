@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
-import { Camera, screenRect } from './camera';
+import { Camera, currentTextResolution, screenRect, textResolutionFor } from './camera';
 
 // The camera only needs an element (style, listeners, a rect) and a container (scale, position); no DOM is required.
 const fakeEl = () => ({
@@ -72,6 +72,29 @@ describe('Camera flights', () => {
     expect(cam.holdAt).toEqual({ x: 10, y: 20 });
     cam.flyTo({ x: 10, y: 20, z: 1 }, 0);
     expect(cam.holdAt).toBeNull();
+  });
+});
+
+describe('text resolution follows zoom', () => {
+  it('steps from 2 to 4 with zoom and device pixel ratio', () => {
+    expect(textResolutionFor(0.15)).toBe(2);
+    expect(textResolutionFor(2)).toBe(2);
+    expect(textResolutionFor(2.5)).toBe(3);
+    expect(textResolutionFor(3)).toBe(3);
+    expect(textResolutionFor(1.5, 2)).toBe(3);
+    expect(textResolutionFor(3, 2)).toBe(4);
+  });
+
+  it('the camera retextures Text nodes when the step changes, and not otherwise', () => {
+    const text = { text: 'x', resolution: 2, children: [] as unknown[] };
+    const world = { scale: { set() {} }, position: { set() {} }, children: [{ children: [text] }] } as unknown as Container;
+    const cam = new Camera(world, fakeEl());
+    cam.resize(800, 600);
+    cam.set({ x: 0, y: 0, z: 3 });
+    expect(text.resolution).toBe(3);
+    expect(currentTextResolution()).toBe(3);
+    cam.set({ x: 0, y: 0, z: 0.5 });
+    expect(text.resolution).toBe(2);
   });
 });
 

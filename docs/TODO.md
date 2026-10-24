@@ -58,7 +58,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 - [x] T39 [auto] Show NO SIGNAL (not a blank monitor) when a PSU trip or a burnt part blanks the display. Files: monitor rendering in `src/render`. Docs: `docs/RENDER.md`. Done when: a render/logic test covers trip and burnt.
 - [~] T40 [owner] BLOCKED (T40 run, 2026-10-24): the overview scene is a fixed 1.7:1 box (`WORLD` in `src/render/layout.ts`); on a wider canvas the sides can only be filled by cropping the router shelf or the monitor column. Owner picks what to crop, or accepts the empty sides. Original: re-frame the SATA/overview camera so the height-limited scene does not leave empty sides. Files: camera framing in `src/render`. Done when: a framing test asserts the fit for the overview and SATA views.
-- [ ] T41 [auto] Reduce text softening above 2x zoom (render text at a resolution that follows zoom). Files: start at `src/render/ink.ts` (line 50: `new Text({... resolution: 2})` is fixed), `src/render/camera.ts` for the zoom value, test pattern `src/render/camera.test.ts`. {sonnet} Done when: a test or documented check shows the resolution scales with zoom, with no frame-time regression noted in `docs/RENDER.md`.
+- [x] T41 [auto] Reduce text softening above 2x zoom (render text at a resolution that follows zoom). Files: start at `src/render/ink.ts` (line 50: `new Text({... resolution: 2})` is fixed), `src/render/camera.ts` for the zoom value, test pattern `src/render/camera.test.ts`. {sonnet} Done when: a test or documented check shows the resolution scales with zoom, with no frame-time regression noted in `docs/RENDER.md`.
 
 ## P3: later features (do not start without the owner)
 

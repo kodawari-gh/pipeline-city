@@ -26,6 +26,22 @@ export interface Grab {
   up(cx: number, cy: number, e: PointerEvent, cancelled: boolean): void;
 }
 
+/** Text raster resolution for a zoom: whole steps from 2 up to 4, so labels stay sharp when zoomed in past 2x. */
+export function textResolutionFor(z: number, dpr = 1): number {
+  return Math.min(4, Math.max(2, Math.ceil(z * dpr)));
+}
+
+let textRes = 2;
+/** The text resolution the camera last set; new labels (ink.ts `label`) start at this. */
+export const currentTextResolution = () => textRes;
+
+/** Set the resolution on every Text under `node` (found by shape, so no Pixi runtime import is needed here). */
+function retexture(node: Container, res: number): void {
+  const n = node as unknown as { text?: unknown; resolution?: number; children?: Container[] };
+  if (typeof n.text === 'string' && n.resolution !== undefined && n.resolution !== res) n.resolution = res;
+  for (const ch of n.children ?? []) retexture(ch, res);
+}
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /**
@@ -117,6 +133,8 @@ export class Camera {
   apply() {
     this.world.scale.set(this.z);
     this.world.position.set(this.cx - this.x * this.z, this.cy - this.y * this.z);
+    const res = textResolutionFor(this.z, (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1);
+    if (res !== textRes) { textRes = res; retexture(this.world, res); }
     this.onChange();
   }
 
