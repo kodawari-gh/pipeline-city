@@ -605,8 +605,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }
 
 /* Tutorial extras: the chapter label, the Why? toggle, the waiting-step meter and the calm "nothing yet" line */
-.tut .why { font-size: 0.7rem; margin-top: 0.15rem; }
-.why-text { font-size: 0.75rem; }
 .tmeter { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; font-size: 0.7rem; }
 .tbar { flex: 1; height: 0.35rem; border-radius: 99rem; background: var(--dot); overflow: hidden; }
 .tbar i { display: block; height: 100%; background: var(--accent); border-radius: 99rem; transition: width .4s; }

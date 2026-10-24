@@ -381,9 +381,9 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
       .toBe('the OS drive burnt out');
   });
 
-  it('the drive and OS install steps refuse while the machine is on', () => {
+  it('the drive and OS install steps do not ask for the machine to be off: the swap does that itself', () => {
     const s = afterSpend({ powered: true, phase: 'idle-os', inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
-    expect(stepProblem(s, step('drive'))).toMatch(/Power it off first/);
+    expect(stepProblem(s, step('drive'))).toBeNull();
   });
 });
 

@@ -6,7 +6,7 @@
 // The tutorial covers the game up to the network: building the machine, the first jobs, storage and the OS. The network
 // itself (level 4) is the next goal the last card points at, not a lesson.
 //
-// Each step is one short instruction (`text`); the reason for it is `why`, shown only when the player asks. A step belongs
+// Each step is one short instruction (`text`); the explanation is part of the text, in plain words, written for someone who has never opened a computer. A step belongs
 // to a chapter (`Build`, `First jobs`, `The OS`), which the card shows instead of "step 17 of 33".
 
 import { getSpec } from '../sim/board/specs';
@@ -44,10 +44,8 @@ export interface StepDef {
   id: StepId;
   chapter: Chapter | null;
   title: string;
-  /** One short instruction. */
+  /** What the step is about, in plain words, ending with what to do. Typed out by the dialogue box in pages. */
   text: string;
-  /** The reason, shown behind "Why?" only. */
-  why?: string;
   /** Progress flag that completes the step, if it has one. */
   flag: keyof Progress | null;
   /** Live completion test for steps without a flag (see `isDone`). */
@@ -106,56 +104,46 @@ const levelMeter = (s: Snapshot) => { const m = levelBar(s); return { pct: m.pct
 export const STEPS: StepDef[] = [
   {
     id: 'welcome', chapter: null, title: 'Welcome', flag: null,
-    text: 'You run a one-person computer workshop. Clients bring jobs on USB keys, your machine does them, you get paid. First, build the machine: open the inventory (the box at the bottom) and drag the parts onto the board.',
+    text: 'Every computer has a brain. This one is called the processor, or CPU, and it does all the thinking, one tiny step at a time. Drag it onto the big square socket on the board.',
     targets: () => [INVENTORY_ID],
   },
   { id: 'cpu', chapter: 'Build', title: 'Install the processor', flag: 'cpuInstalled',
     text: 'Drag the processor (CPU) onto the big square socket.',
-    why: 'The CPU is the machine\'s brain: it runs every instruction of every job.',
     targets: installTargets('cpu') },
   { id: 'cooler', chapter: 'Build', title: 'Install the cooler', flag: 'coolerInstalled',
-    text: 'Drag the cooler onto the processor.',
-    why: 'A running CPU makes heat. The fan sits on it to carry the heat away, and spins only while the machine is on.',
+    text: 'Thinking is hot work! The CPU gets toasty while it runs, so it needs a fan to blow the heat away. Drag the cooler onto the processor.',
     targets: (s) => {
       const items = invOf(s, 'cooler');
       return [INVENTORY_ID, ...items.map((i) => `inv:${i.id}`), ...items.flatMap((i) => i.freeSlots)];
     } },
   { id: 'ram', chapter: 'Build', title: 'Install the memory', flag: 'ramInstalled',
-    text: 'Drag the memory stick (RAM) into a long slot next to the processor.',
-    why: 'Memory holds the job while it runs. Slow or small memory makes the CPU wait.',
+    text: 'Now a desk to work on. Memory (RAM) is where the machine keeps a job while it works on it. Small or slow memory makes the brain sit around waiting. Drag the memory stick into a long slot next to the processor.',
     targets: installTargets('ram') },
   { id: 'psu', chapter: 'Build', title: 'Install the power supply', flag: 'psuInstalled',
-    text: 'Drag the power supply (PSU) into the bay below the board.',
-    why: 'Everything draws power from it. A small one trips when you add hungry parts.',
+    text: 'Time for some energy! The power supply is the machine\'s battery pack: it feeds electricity to every other part. Drag it into the bay below the board.',
     targets: installTargets('psu') },
   { id: 'monitor', chapter: 'Build', title: 'Install the monitor', flag: 'monitorInstalled',
-    text: 'Drag the monitor onto the display bay.',
-    why: 'It shows what the machine is doing, from the first test to the job\'s answer.',
+    text: 'A screen lets you see what your machine is up to, from its first wake-up to the finished answer. Drag the monitor onto the display bay.',
     targets: installTargets('display') },
   { id: 'cables', chapter: 'Build', title: 'Plug in the three cables', flag: null,
     done: (_s, p) => CABLES.every((c) => p[c.flag]),
-    text: 'Drag the lit cable plug to its socket. Three in all: main power, processor power, video.',
-    why: 'Main power and processor power run from the supply to the board. Video runs from the board to the monitor.',
+    text: 'Parts need wires to talk to each other. Main power and processor power carry energy from the power supply to the board. The video cable carries pictures from the board to the monitor. Drag the lit cable plug to its socket, three cables in all.',
     // One cable at a time, and only its two ends (plug and socket), not the whole device around it.
     targets: (s) => {
       const c = CABLES.find((x) => !s.cables.find((y) => y.id === x.id)?.connected);
       return c ? [`cable.${c.id}`] : [];
     } },
   { id: 'plugKey', chapter: 'First jobs', title: 'Plug in a client key', flag: 'firstKeyPlugged',
-    text: 'Drag the key from the tray into the USB port. The machine starts by itself.',
-    why: 'Work comes on keys. Plugging one in switches the machine on; it tests itself, then copies the job from the key into memory.',
+    text: 'Your first client has arrived! Jobs come on USB keys, a bit like a letter in an envelope. Plugging one in wakes the machine up: it checks itself, then reads the job off the key. Drag the key from the tray into the USB port.',
     targets: (s) => ['usb', ...(s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
   { id: 'watch', chapter: 'First jobs', title: 'Watch it work', flag: 'firstKeyEjected',
-    text: 'Watch the monitor. When the job is done the key pops out, you are paid and the machine switches itself off.',
-    why: 'The machine runs the job and writes the answer back to the key. Idle time is lost income.',
+    text: 'The machine does the job and writes the answer back onto the key. Every second it sits idle is money lost! Watch the monitor. When the job is done the key pops out, you get paid and the machine goes back to sleep.',
     targets: () => ['monitor'] },
   { id: 'cycle', chapter: 'First jobs', title: 'Next job: plug the next key', flag: 'firstManualCycle',
-    text: 'Plug in the next key. The machine starts again by itself.',
-    why: 'Without an operating system the machine only reads a key at start-up, so every job needs a fresh start. An OS removes that chore.',
+    text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
     targets: (s) => ['usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'Click the processor and buy an upgrade.',
-    why: 'Better parts finish jobs sooner, which earns more. The part goes into your inventory.',
+    text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.',
     targets: (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
       return cpu ? [cpu.slot] : [INVENTORY_ID];
@@ -163,47 +151,38 @@ export const STEPS: StepDef[] = [
   // ---- storage and the OS ----
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
     done: (s) => !s.inventory.some((i) => pendingUpgrade(s, i)),
-    text: 'Switch the machine off, then drag the new part from the inventory onto its socket.',
-    why: `Parts only change while the machine is off. The operating system needs ${OS_RAM_KB}K of memory fitted.`,
+    text: `Your new part is waiting in the inventory. Drag it onto its socket and the machine swaps it in for you, waiting for a running job to finish first. Heads up: the operating system will need ${OS_RAM_KB}K of memory.`,
     targets: (s) => s.inventory
       .filter((i) => pendingUpgrade(s, i))
       .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots]) },
   { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
-    text: 'Keep delivering jobs. The OS opens at Level 3, the network at Level 4.',
-    why: 'Every job adds to your client base and the level grows with it. Later levels bring more clients and better pay, but clients wait less. The 4x button speeds the waiting up.',
+    text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and use the 4x button to speed up the waiting.',
     targets: () => [], meter: levelMeter },
   { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
-    text: 'Click the drive bay and buy a drive.',
-    why: 'The machine needs somewhere to keep an operating system. An HDD is slow and cheap, an SSD is faster.',
+    text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy one.',
     targets: () => ['bay'] },
   { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
-    text: 'Switch off, then drag the drive onto a free drive bay.',
-    why: 'The drive\'s speed decides how fast the OS loads.',
+    text: 'The drive\'s speed decides how quickly the machine wakes up later. Drag the drive onto a free drive bay.',
     targets: installTargets('storage') },
   { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
-    text: 'Click the drive bay again and buy the operating system.',
-    why: 'An OS keeps the machine running, so it does not restart for every job.',
+    text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy one.',
     targets: () => ['bay'] },
   { id: 'os', chapter: 'The OS', title: 'Install the OS on the drive', flag: 'osInstalled',
-    text: 'Switch off, then drag the OS onto the drive.',
-    why: 'It is written onto the drive, which is where the machine boots from.',
+    text: 'The OS gets written onto the drive, which is where the machine wakes up from. Drag the OS onto the drive.',
     targets: installTargets('os') },
   { id: 'bootOs', chapter: 'The OS', title: 'Boot from the drive', flag: null,
     done: (s) => OS_PHASES.includes(s.phase) || s.progress.firstOsJob,
-    text: 'Press the power button and wait for the OS.',
-    why: 'The monitor shows the boot text and the badge on the drive shows its status. A faster drive boots sooner.',
+    text: 'Now wake the machine from its drive! The monitor shows the start-up text, and the little badge on the drive shows what the OS is doing. A faster drive wakes up sooner. Press the power button and wait for the OS.',
     targets: () => ['power', 'monitor', 'os'] },
   { id: 'osIngest', chapter: 'The OS', title: 'Plug in a key', flag: null,
     done: (s, p) => ingested(s) || p.firstOsJob,
-    text: 'Drag a client key into the USB port and leave it there.',
-    why: 'The OS reads the job onto the drive and runs it, with no restart. The key stays in the port while the OS works.',
+    text: 'The OS reads the job onto the drive and works on it with no restart. The key just has to stay in the port while it does. Drag a client key into the USB port and leave it there.',
     targets: (s) => ['usb', ...(s.plugged ? [`key:${s.plugged.id}`] : s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
   { id: 'osPaid', chapter: 'The OS', title: 'Wait for the result', flag: 'firstOsJob',
-    text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you are paid.',
-    why: 'The machine stays on and takes the next key as soon as you plug it. Watch the badge on the drive for what the OS is doing.',
+    text: 'The OS runs the job and writes the answer onto the key. It pops out by itself and you get paid. The machine stays on and takes the next key as soon as you plug it in. Watch the drive badge to see what the OS is doing.',
     targets: () => ['os', 'monitor'] },
   { id: 'done', chapter: null, title: 'Workshop open', flag: null,
     text: 'The machine now runs jobs on its own. Next goal: Level 4 opens the network, so jobs arrive without keys. It needs a Basic board for the jack, a router and a plan, and no more memory.',
@@ -286,8 +265,6 @@ export function stepCount(step: StepDef): { n: number; total: number; chapter: C
   return { n: mine.findIndex((x) => x.id === step.id) + 1, total: mine.length, chapter: step.chapter };
 }
 
-const unpowered = (s: Snapshot) => (s.powered ? 'The machine is on. Power it off first.' : null);
-
 /** The first reason an inventory item of this kind cannot be fitted, or null. */
 const itemReason = (s: Snapshot, kind: string): string | null => {
   const items = invOf(s, kind);
@@ -332,7 +309,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (!s.plugged) return s.tray.length ? 'Plug the next key into the USB port first.' : 'No key yet. A client key will arrive in the tray soon.';
       return s.powered ? 'Press the power button to switch off, then again to switch on: the machine reads the key at boot.' : null;
     case 'fit':
-      return unpowered(s);
+      return null;
     case 'buyDrive': case 'buyOs': {
       const id = step.id === 'buyDrive' ? 'hdd0' : 'os1';
       const p = s.purchases.find((x) => x.id === id);
@@ -342,9 +319,9 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
     }
     case 'drive':
-      return unpowered(s) ?? (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
+      return (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
     case 'os':
-      return unpowered(s) ?? (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
+      return (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
     case 'bootOs':
       if (!s.powered) return 'The machine is off. Press the power button to boot from the drive.';
       return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;

@@ -12,18 +12,6 @@ import { CHAR_MS, pagesOf } from './dialogue';
 import { anchorOf, flyTo, hasTarget } from './anchor';
 import { comfortablyVisible, type Rect } from './place';
 
-/** The reason behind a step, shown only when asked for. Keyed by step, so it closes itself on the next one. */
-function Why({ text }: { text: string | undefined }) {
-  const [open, setOpen] = useState(false);
-  if (!text) return null;
-  return (
-    <>
-      <button class="link why" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Why?'}</button>
-      {open && <div class="pplain mute why-text">{text}</div>}
-    </>
-  );
-}
-
 /**
  * JRPG-style dialogue: the text types out, a click (or Enter) completes the page, and the bobbing triangle shows a
  * finished page; on a page with more after it, the click turns the page. The unwritten rest stays in the layout, invisible,
@@ -288,7 +276,6 @@ export function TutorialCard() {
               </div>
             )}
             {problem && <div class={`pline ${isWaiting(problem) ? 'wait' : 'warn'}`} role="status">{problem}</div>}
-            <Why text={step.why} />
             {step.id === 'done' && (
               <div class="pactions"><button class="primary" onClick={finishTutorial}>Got it</button></div>
             )}
