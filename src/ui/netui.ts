@@ -149,7 +149,7 @@ export function linkChecklist(s: Snapshot): CheckItem[] {
   const jack = s.board.features.ethernetMbps > 0 || nicsInOrder(s).some((d) => !d.burnt);
   const lan = s.cables.find((c) => c.id === 'lan');
   const need = NET.minRamBytes / 1024;
-  return [
+  const items: CheckItem[] = [
     { id: 'plan', label: 'Plan', ok: !!s.net.isp, why: s.net.isp ? s.net.isp.name : 'needs an internet plan: click the wall socket' },
     { id: 'router', label: 'Router', ok: !!s.net.router, why: s.net.router ? s.net.router.name : 'needs a router next to the monitor' },
     { id: 'jack', label: 'Jack', ok: jack, why: jack ? 'a network jack is there' : 'needs a network jack: a Basic or better board, or a network card (needs a PCIe slot)' },
@@ -157,6 +157,8 @@ export function linkChecklist(s: Snapshot): CheckItem[] {
     { id: 'os', label: 'OS', ok: !!s.os, why: s.os ? s.os.name : 'needs an OS: it runs the link' },
     { id: 'ram', label: `${need}K RAM`, ok: ramK(s) >= need, why: ramK(s) >= need ? `${Math.round(ramK(s))}K installed` : `needs ${need}K of RAM (you have ${Math.round(ramK(s))}K)` },
   ];
+  // The network asks for no memory beyond the OS's own (NET.minRamBytes is 0): the row only exists if that is ever raised.
+  return need > 0 ? items : items.filter((c) => c.id !== 'ram');
 }
 
 /** The unmet requirements, as one sentence ("To use it you still need an OS and a router."), or the all-clear. */

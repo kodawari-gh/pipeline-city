@@ -65,8 +65,8 @@ export function bandwidth(portMbps: number, router: RouterSpec | null, isp: IspS
 
 /** Link tuning (placeholders). */
 export const NET = {
-  /** RAM the network stack needs (the NIC windows live in RAM). */
-  minRamBytes: 64 * 1024,
+  /** RAM the network stack needs on top of the OS's own: none. The board's jack does the work and the OS fetches packets when it wants. */
+  minRamBytes: 0,
   /** Dead-link ticks before USB keys come back, and their rate while they do. */
   usbFallbackTicks: 300,
   usbFallbackMul: 1 / 3,

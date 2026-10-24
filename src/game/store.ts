@@ -4,7 +4,9 @@ import type { FromSim, SaveV1, Snapshot, Speed, ToSim } from '../sim/protocol';
 
 /** Latest sim snapshot (null until the sim has started). */
 export const snapshot = signal<Snapshot | null>(null);
-export const speed = signal<Speed>(1);
+/** A new game runs at 4x: the pace the game is designed around (the 1x button is for watching closely). */
+export const DEFAULT_SPEED: Speed = 4;
+export const speed = signal<Speed>(DEFAULT_SPEED);
 export const lastError = signal<string | null>(null);
 /** An autosave found on startup; the HUD offers it before the sim starts. */
 export const autosaveOffer = signal<SaveV1 | null>(null);
@@ -26,7 +28,7 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
   snapshot.value = null;
   lastError.value = null;
   autosaveOffer.value = null;
-  speed.value = 1;
+  speed.value = DEFAULT_SPEED;
   const w = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
   worker = w;
   w.onmessage = (e: MessageEvent<FromSim>) => {
@@ -41,6 +43,7 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
     }
   };
   send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled });
+  send({ type: 'setSpeed', speed: DEFAULT_SPEED });
   autosaveTimer = setInterval(() => requestSave(autosave), AUTOSAVE_EVERY_MS);
 }
 

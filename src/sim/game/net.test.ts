@@ -150,13 +150,15 @@ describe("link states and transitions", () => {
     expect(net(g).usbRetired).toBe(true);
   });
 
-  it("an OS with only 32K of RAM is no-os with the RAM reason", () => {
+  it("the network needs no memory beyond the OS's own: an OS machine with 32K of RAM links up", () => {
     const g = rig("ssd1", { keys: [] });
     g.install((g.purchase("router1") as { invId: string }).invId);
     g.purchase("isp1");
     g.connectCable("lan");
-    tick(g, 1);
-    expect(net(g)).toMatchObject({ state: "no-os", reason: expect.stringMatching(/64K/) });
+    g.powerButton();
+    const seen = new Set<string>();
+    for (let i = 0; i < 80; i++) { g.advanceBaseTick(); seen.add(net(g).state); }
+    expect(seen.has("link-up") || seen.has("saturated")).toBe(true);
   });
 
   it("power-off, PSU trip, cable pull and a removed router all take the link down", () => {

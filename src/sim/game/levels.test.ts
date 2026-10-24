@@ -100,7 +100,7 @@ describe("the client base score and the level", () => {
 
   it("levels up at the threshold with a log event, a celebration tick and the unlocks, and never goes down", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: econ(Array.from({ length: 12 }, () => ({ template: "cli.log" }))) });
-    expect(g.snapshot().level).toMatchObject({ level: 1, name: "Garage Bench", floor: 0, next: 4, progress: 0, leveledUpAt: null, recentlyUnlocked: [] });
+    expect(g.snapshot().level).toMatchObject({ level: 1, name: "Garage Bench", floor: 0, next: 3, progress: 0, leveledUpAt: null, recentlyUnlocked: [] });
     const op = new Operator(g, 0);
     let last = 1;
     let up = -1;

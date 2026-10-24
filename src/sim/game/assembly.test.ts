@@ -592,7 +592,7 @@ describe("auto-eject and quick boots (no OS)", () => {
     expect(s.completed).toBe(1);
     expect(s.money).toBeGreaterThan(0);
     expect(s.progress).toMatchObject({ firstJobDone: true, firstKeyEjected: true });
-    expect(s.phase).toBe("halted"); // the machine still waits for a power cycle
+    expect(s.phase).toBe("off"); // and the machine has switched itself off: the next job is plug, power on
   });
 
   it("auto-eject is off with the config at 0, and an installed OS never uses it", () => {

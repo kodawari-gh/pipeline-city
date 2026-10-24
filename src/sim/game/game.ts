@@ -2076,13 +2076,14 @@ export class Game {
     }
   }
 
-  /** No OS: the finished key ejects itself `autoEjectTicks` after the machine halts on JOB DONE, and pays. */
+  /** No OS: the finished key ejects itself `autoEjectTicks` after the machine halts on JOB DONE, pays, and the machine powers off. */
   private autoEject(): void {
     const k = this.plugged;
     if (!this.cfg.autoEjectTicks || this.os || !k || !k.done || this.pch.phase !== PchPhase.Halted) { this.autoEjectWait = 0; return; }
     if (++this.autoEjectWait >= this.cfg.autoEjectTicks) {
       this.autoEjectWait = 0;
       this.ejectKey();
+      this.powerButton(); // and the machine switches itself off: one less thing to click between jobs
     }
   }
 
