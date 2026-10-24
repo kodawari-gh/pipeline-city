@@ -32,7 +32,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T13 [auto] Network panel, part 2: offers, transfers with progress, spooled jobs, `os.spoolFull`, USB fallback state, retired-key count. Files: same as T12. Done when: logic tests for each state.
 - [ ] T14 [auto] Hints: retired keys at link-up, `net.portBusyKey` ("a key is parked in the USB port"), spool full, link down, saturated. Files: hint definitions in `src/ui`. Docs: `docs/UI.md` hints section (toasts capped at 2 visible). Done when: each hint has a trigger test.
 - [ ] T15 [auto] HUD network chip once a router exists, and a "retired" tag on keys. Files: `src/ui/Hud.tsx` (edit, do not rewrite), key tag component. Done when: logic test for chip visibility.
-- [ ] T16 [auto] Tooltips for ids `router`, `wall`, `cable.lan`, `eth0`, `eth1`, ... Files: tooltip table in `src/ui`. Docs: `docs/RENDER.md` ids. Done when: test that every network render id has a tooltip.
+- [x] T16 [auto] Tooltips for ids `router`, `wall`, `cable.lan`, `eth0`, `eth1`, ... Files: tooltip table in `src/ui`. Docs: `docs/RENDER.md` ids. Done when: test that every network render id has a tooltip.
 - [ ] T17 [auto] Tutorial target check: steps `reachLevel4`, `netHardware`, router and plan purchase and install, plug `lan`, `firstNetJob` highlight real ids. Files: tutorial step definitions and their test. Done when: a test fails if a step targets an id that does not exist.
 - [ ] T18 [auto] Add a "Network UI" section to `docs/UI.md` describing what T11 to T16 built. Files: `docs/UI.md`. Done when: section exists and matches the code.
 

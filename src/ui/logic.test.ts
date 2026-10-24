@@ -173,4 +173,15 @@ describe('descriptions', () => {
       expect(d.nerd.length, `${id} nerd`).toBeGreaterThan(10);
     }
   });
+
+  it('every network render id has a description (docs/RENDER.md "Network")', () => {
+    const s = snap();
+    for (const id of ['router', 'wall', 'cable.lan', 'eth0', 'eth1', 'eth2', 'eth3']) {
+      for (const d of [describeId(id, s), describeId(id)]) {
+        expect(d, id).not.toBeNull();
+        expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
+        expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+      }
+    }
+  });
 });
