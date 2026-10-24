@@ -181,7 +181,7 @@ describe("purchases go to the inventory", () => {
     expect(g.purchase("nonsense").ok).toBe(false);
   });
 
-  it("a purchase is owned but not installed; installing needs the machine off", () => {
+  it("a purchase is owned but not installed; the strict install needs the machine off", () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;
     const r = g.purchase("cpu1");
@@ -190,13 +190,40 @@ describe("purchases go to the inventory", () => {
     expect(cpuOf(g).spec).toBe("cpu0");
     const inv = g.snapshot().inventory;
     expect(inv.map((i) => i.spec)).toEqual(["cpu1"]);
-    expect(inv[0]).toMatchObject({ installable: false, reason: "power the machine off first", swapSlots: ["cpu0"], freeSlots: [] });
+    expect(inv[0]).toMatchObject({ installable: true, swapSlots: ["cpu0"], freeSlots: [] });
     const id = (r as { invId: string }).invId;
     expect(g.install(id)).toMatchObject({ ok: false, reason: "power the machine off first" });
     g.powerButton();
     expect(g.install(id).ok).toBe(true);
     expect(cpuOf(g).spec).toBe("cpu1");
     expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cpu0"]); // the old CPU came back
+  });
+
+  it("swapInstall on an idle machine powers off, installs and powers back on", () => {
+    const g = new Game({ seed: 1, preassembled: true });
+    g.money = 1e6;
+    const id = (g.purchase("cpu1") as { invId: string }).invId;
+    expect(g.powered).toBe(true);
+    expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: false });
+    expect(cpuOf(g).spec).toBe("cpu1");
+    expect(g.powered).toBe(true);
+    expect(g.snapshot().pendingSwap).toBeNull();
+  });
+
+  it("swapInstall during a job waits for the job, then swaps and restarts", () => {
+    const g = new Game({ seed: 1, preassembled: true });
+    g.money = 1e6;
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    const id = (g.purchase("cpu1") as { invId: string }).invId;
+    expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: true });
+    expect(g.snapshot().pendingSwap).toMatchObject({ invId: id });
+    expect(cpuOf(g).spec).toBe("cpu0"); // not yet: the job is still on
+    for (let i = 0; i < 4000 && cpuOf(g).spec === "cpu0"; i++) g.advanceBaseTick();
+    expect(g.completed).toBe(1); // the job finished and paid first
+    expect(cpuOf(g).spec).toBe("cpu1");
+    expect(g.powered).toBe(true);
+    expect(g.snapshot().pendingSwap).toBeNull();
   });
 
   it("the snapshot lists purchases with price, affordability and board refusals", () => {

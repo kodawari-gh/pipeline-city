@@ -174,7 +174,7 @@ export function boardCards(s: Snapshot): BoardCard[] {
       else reason = 'Fitted in the machine';
     } else if (crate) {
       state = 'crate';
-      reason = 'In your inventory: power off, then drag it onto the board';
+      reason = 'In your inventory: drag it onto the board';
     } else if (lock) {
       state = 'level';
       reason = lockTooltip(lock, { blocked: p?.blocked, priceShort: p && !s.sandbox ? price - s.money : 0 });

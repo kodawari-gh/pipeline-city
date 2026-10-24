@@ -308,7 +308,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'router' ? 'drag it onto the router spot (works with the PC on)' : it?.kind === 'board' ? 'drag it onto the board (power off first)' : 'drag it into a socket';
+      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'router' ? 'drag it onto the router spot' : it?.kind === 'board' ? 'drag it onto the board' : 'drag it into a socket';
       return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
@@ -351,6 +351,13 @@ export type ChipLevel = 'idle' | 'ok' | 'warn' | 'bad';
 
 /** Short machine status for the HUD chip. */
 export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
+  const c = baseChip(s);
+  if (!s.pendingSwap) return c;
+  const name = s.inventory.find((i) => i.id === s.pendingSwap!.invId)?.name ?? 'the new part';
+  return { text: `${c.text} · swap next`, title: `${c.title} ${name} is queued: the machine powers off, swaps it in and starts again the moment this job is done.`, level: 'warn' };
+}
+
+function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
   if (s.board?.burnt) {
     // A dead board: the VRM burnt out. The chip names the fix (same-tier replacement, powered off), priced when the sim offers it.
     const same = s.purchases.find((p) => p.id === `board${s.boardTier}`);

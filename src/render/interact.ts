@@ -301,7 +301,7 @@ export class Interact {
     const d = this.start('part', invId, cx, cy);
     d.validFree = new Set(it.freeSlots); d.validSwap = new Set(it.swapSlots);
     // a router is an external box with its own power: it goes in while the PC runs
-    d.why = s.powered && it.kind !== 'router' ? 'Power the machine off first' : it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
+    d.why = it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
     this.setGhost(partIcon(this.T, it.kind, it.spec), 1);
     d.home = [d.wx, d.wy];
     return true;

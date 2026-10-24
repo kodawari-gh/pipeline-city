@@ -56,7 +56,7 @@ describe("buying and installing storage and the OS", () => {
     expect(b.ok).toBe(true);
     expect(g.snapshot().purchases.find((p) => p.id === "hdd0")).toBeUndefined(); // owned
     const inv = g.snapshot().inventory.find((i) => i.spec === "hdd0")!;
-    expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0"], installable: false }); // the machine is on
+    expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0"], installable: true }); // the machine is on: swapInstall cycles the power
     g.powerButton();
     expect(g.install(inv.id)).toMatchObject({ ok: true, slot: "sata0" });
     expect(g.progress.storageInstalled).toBe(true);

@@ -471,6 +471,8 @@ export interface Snapshot {
   keyIgnored: boolean;
   /** True when a finished key ejects and pays by itself (always, unless a test turns it off): the UI says so instead of "remove the key". */
   autoEject: boolean;
+  /** An install queued behind the running job: it happens (power off, install, power on) as soon as the job is done. */
+  pendingSwap: { invId: string; slotId: string | null } | null;
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
   /** Client patience right now: the level's multiplier (docs/PROGRESSION.md). `sinceFirstBoot` is informational. */
@@ -593,6 +595,8 @@ export class Game {
   private log: GameEvent[] = [];
   /** Base tick of the first real power-on (the client patience schedule runs from here), or null before it. */
   private firstBootTick: number | null = null;
+  /** An install waiting for the running job to finish (not saved). */
+  private pendingSwap: { invId: string; slotId?: string } | null = null;
   /** Ticks the finished key has sat in the port since the halt (auto-eject, see `autoEject`). */
   private autoEjectWait = 0;
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
@@ -709,6 +713,62 @@ export class Game {
     this.flagInstalled(getSpec(item.spec)!.kind);
     this.note("install", `${getSpec(item.spec)!.name} installed in ${r.slot}`);
     return { ok: true, deviceId: r.id, slot: r.slot };
+  }
+
+  /**
+   * The player's install: no manual power cycling. Off: install. On and idle: power off, install, power back on (a
+   * refusal to boot is reported). On and working a job: queue the swap, it happens the moment the job is done
+   * (`pendingSwap` in the snapshot). `install` stays the strict, powered-off primitive.
+   */
+  swapInstall(invId: string, slotId?: string): Result<{ pending: boolean }> {
+    const item = this.inventory.find((i) => i.id === invId);
+    if (!item) return { ok: false, reason: `no inventory item "${invId}"` };
+    if (getRouterSpec(item.spec) || !this.powered) {
+      const r = this.install(invId, slotId);
+      return r.ok ? { ok: true, pending: false } : r;
+    }
+    const snap = this.inventorySnap().find((i) => i.id === invId)!;
+    if (!snap.installable) return { ok: false, reason: snap.reason ?? "nowhere to put this" };
+    if (this.jobInFlight()) {
+      this.pendingSwap = { invId, slotId };
+      this.note("install", `${snap.name} will be swapped in as soon as the job is done`);
+      return { ok: true, pending: true };
+    }
+    return this.swapNow(invId, slotId, snap.name);
+  }
+
+  /** A job the machine would lose (or hold up) if it powered off now. */
+  private jobInFlight(): boolean {
+    if (this.netKey) return true;
+    if (this.os && this.kernelJobs().length > 0) return true;
+    return !!this.plugged && !this.plugged.done;
+  }
+
+  /** Power off (paying a finished key first), install, and power back on when it was on. */
+  private swapNow(invId: string, slotId: string | undefined, name: string): Result<{ pending: boolean }> {
+    if (this.plugged?.done) this.ejectKey();
+    const wasOn = this.powered;
+    if (wasOn) this.powerButton();
+    const r = this.install(invId, slotId);
+    if (!r.ok) {
+      if (wasOn) this.powerButton();
+      return r;
+    }
+    if (wasOn) {
+      const on = this.powerButton();
+      if (!on.ok) return { ok: false, reason: `${name} installed, but the machine cannot start: ${on.reason}` };
+    }
+    return { ok: true, pending: false };
+  }
+
+  private applyPendingSwap(): void {
+    const p = this.pendingSwap;
+    if (!p || this.jobInFlight()) return;
+    this.pendingSwap = null;
+    const snap = this.inventorySnap().find((i) => i.id === p.invId);
+    if (!snap || !snap.installable) { this.note("install", "the queued swap was dropped: it no longer fits"); return; }
+    const r = this.swapNow(p.invId, p.slotId, snap.name);
+    if (!r.ok) this.note("fault", r.reason);
   }
 
   /** The router is external (own power): it goes into its spot, or comes out, whether the PC is on or off. */
@@ -1130,7 +1190,7 @@ export class Game {
 
   /** Whether `install(invId)` would succeed now (the machine must be off, so a powered one says no). */
   canInstall(invId: string): boolean {
-    const it = this.inventorySnap(true).find((i) => i.id === invId);
+    const it = this.inventorySnap().find((i) => i.id === invId);
     return !!it && it.installable;
   }
 
@@ -1172,6 +1232,7 @@ export class Game {
   /** Advance one base tick: key arrivals, run the machine if it is on, thermal step, clock rates. */
   advanceBaseTick(): void {
     this.baseTick++;
+    this.applyPendingSwap();
     this.arrivals();
     this.expireKeys();
     // A failed POST: the cold-boot wait runs first (the monitor is black), then the error text appears. The phase is
@@ -1300,6 +1361,7 @@ export class Game {
       haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
       keyIgnored: this.keyIgnored(),
       autoEject: this.cfg.autoEjectTicks > 0,
+      pendingSwap: this.pendingSwap && { invId: this.pendingSwap.invId, slotId: this.pendingSwap.slotId ?? null },
       postFailed: !!this.postError,
       patience: {
         mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
@@ -1577,8 +1639,9 @@ export class Game {
     return b;
   }
 
-  private inventorySnap(ignorePower = false): InventorySnap[] {
-    const off = ignorePower || !this.powered;
+  private inventorySnap(): InventorySnap[] {
+    // Power does not matter to the player: `swapInstall` cycles it (or waits for the job).
+    const off = true;
     return this.inventory.map((it) => {
       const router = getRouterSpec(it.spec);
       if (router) {

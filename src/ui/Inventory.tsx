@@ -125,7 +125,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
               <div class="inv-gname">{label(g.k)}</div>
               <div class="inv-tiles">
                 {stackItems(g.items).map((st) => (
-                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`))} active={st.items.some((x) => sel === `inv:${x.id}`)} />
+                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`) || x.id === s.pendingSwap?.invId)} active={st.items.some((x) => sel === `inv:${x.id}`)} />
                 ))}
               </div>
             </div>
