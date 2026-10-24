@@ -107,6 +107,12 @@ export interface EconomyConfig {
   /** Network (docs/NETWORK.md "USB fallback"): dead-link ticks before keys come back, and their rate share then. */
   usbFallbackTicks: number;
   usbFallbackMul: number;
+  /**
+   * Retired keys (docs/NETWORK.md "Retired keys"): the USB keys the client left behind when the link comes up do not hold
+   * reputation, expire silently and cost nothing to decline. Default true. `false` reproduces the old behaviour (tests use
+   * it for the before and after comparison only).
+   */
+  retireUsbKeys: boolean;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -133,6 +139,7 @@ export const ECONOMY: EconomyConfig = {
   levelGating: true,
   usbFallbackTicks: NET.usbFallbackTicks,
   usbFallbackMul: NET.usbFallbackMul,
+  retireUsbKeys: true,
 };
 
 /**

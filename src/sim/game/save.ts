@@ -19,6 +19,11 @@ export interface SavedKey {
   deadline: number;
   /** Job class id (`cli`, `scan`, `db`, `web`, ...). Optional and additive: absent means derived from the template. */
   cls?: string;
+  /**
+   * A retired USB key (docs/NETWORK.md "Retired keys"). Optional and additive, no version bump: absent in an old save means
+   * not retired, except that the USB keys of a save whose link had been up are retired on load (see `fromSave`).
+   */
+  retired?: boolean;
 }
 
 export interface SavedPlugged extends SavedKey {

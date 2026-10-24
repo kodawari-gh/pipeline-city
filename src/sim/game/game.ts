@@ -79,6 +79,11 @@ interface Key extends Job {
   done: boolean;
   doneAt: number;
   result: string;
+  /**
+   * A USB key the client left behind when the link came up (docs/NETWORK.md "Retired keys"): it no longer holds
+   * reputation, expires silently at its deadline and declining it is free. Still servable until then.
+   */
+  retired: boolean;
 }
 
 /** A download or upload in progress (RAM, lost on power loss). */
@@ -279,6 +284,11 @@ export interface KeySnap {
   expiresTick: number;
   /** The job can be declined now (waiting: a tray key, or an ingested job that is not running yet). */
   declinable: boolean;
+  /**
+   * A retired USB key (docs/NETWORK.md "Retired keys"): no reputation hold, silent expiry, free decline. Optional and
+   * additive: the sim always sets it; absent means false (old fixtures).
+   */
+  retired?: boolean;
 }
 
 /** The player level block (docs/PROGRESSION.md). In a sandbox `level` is the pinned rules level and `sandbox` is true. */
@@ -356,6 +366,8 @@ export interface OsSnap {
   runningKeyId: number | null;
   /** The job spool on the drive (docs/NETWORK.md "Spool"). `used` counts spooled jobs and the slots reserved for downloads. */
   spool: { slotBytes: number; slots: number; used: number; freeBytes: number; full: boolean };
+  /** The spool is full (same as `spool.full`, as a chip field). Optional and additive: absent means false. */
+  spoolFull?: boolean;
 }
 
 /** What the USB port's LED would be doing. */
@@ -505,6 +517,13 @@ export interface NetSnap {
   /** USB keys retired because the link has been up (sticky). */
   usbRetired: boolean;
   usbFallback: { state: "off" | "retired" | "waiting" | "fallback"; deadTicks: number; startsIn: number | null; keyRateMul: number };
+  /** Retired keys lying in the USB tray or held by the OS (docs/NETWORK.md "Retired keys"). */
+  retiredKeys: number;
+  /**
+   * The key id of the USB key parked in the port while the kernel has feed work (finished downloads or spooled jobs to
+   * ingest) that the virtual NIC key cannot use. Null when nothing blocks the feed. The UI shows a hint.
+   */
+  portBusyKey: number | null;
   counters: { delivered: number; downloaded: number; uploaded: number; lost: number };
 }
 
@@ -596,6 +615,8 @@ export class Game {
   /** The link has been up once: USB keys retired (sticky, saved). */
   private networkLinked = false;
   private deadTicks = 0;
+  /** The link was usable at the end of the last tick (a transition into it retires the USB keys). Not saved. */
+  private linkWasUsable = false;
   private readonly offersQ: NetworkSource<Key>;
   private downloads: Transfer[] = [];
   /** Finished downloads in the NIC rx window (RAM) waiting to be written to the spool. */
@@ -1061,6 +1082,7 @@ export class Game {
    */
   declineKey(keyId: number): Result<{ keyId: number }> {
     if (this.plugged?.id === keyId) return { ok: false, reason: "plugged: the key is in the USB port, remove it first" };
+    const retired = [...this.tray.waiting(), ...this.held].some((k) => k.id === keyId && k.retired);
     const inTray = this.tray.waiting().some((k) => k.id === keyId);
     const inOffers = this.offersQ.waiting().some((k) => k.id === keyId);
     const spooled = this.spool.find((k) => k.id === keyId);
@@ -1087,8 +1109,9 @@ export class Game {
       this.tray.take(keyId);
     }
     this.declined++;
-    if (!this.sandbox) this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
-    this.note("decline", `declined job ${keyId}${this.sandbox ? " (free in the sandbox)" : ""}`);
+    // A retired key costs nothing to decline (docs/NETWORK.md "Retired keys"): its client already went online.
+    if (!this.sandbox && !retired) this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
+    this.note("decline", `declined job ${keyId}${this.sandbox ? " (free in the sandbox)" : retired ? " (free: retired)" : ""}`);
     return { ok: true, keyId };
   }
 
@@ -1335,7 +1358,7 @@ export class Game {
 
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
   toSave(): SaveV4 {
-    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls });
+    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired });
     const p = this.plugged;
     const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
     return {
@@ -1431,8 +1454,10 @@ export class Game {
     g.cables.lan = g.lan !== null;
     g.log = [];
     if (s.os) g.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
+    // A save from before the retired flag, whose link had been up: its USB keys are retired (the rule of the link's return).
+    const legacyRetired = s.net?.networkLinked === true;
     try {
-      g.tray.set(s.tray.map((k) => g.rebuild(k)));
+      g.tray.set(s.tray.map((k) => g.rebuild({ ...k, retired: k.retired ?? legacyRetired })));
       if (s.net) {
         g.offersQ.set(s.net.offers.map((k) => g.rebuild(k)));
         g.spool = s.net.spool.map((k) => g.rebuild(k));
@@ -1445,6 +1470,7 @@ export class Game {
         key.done = p.done;
         key.doneAt = p.doneAt;
         key.result = p.result;
+        key.retired = p.retired ?? (legacyRetired && !p.done);
         g.plugged = key;
         g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program, done: key.done, result: key.result };
         g.pch.plug(g.pchKey);
@@ -1850,6 +1876,7 @@ export class Game {
       return k ? this.keySnap(k, jobs).label : `key ${id}`;
     };
     const row = (j: KernelJob, state: OsJobSnap["state"], ahead: number): OsJobSnap => ({ slot: j.slot, keyId: j.key, label: label(j.key), state, persisted: true, ahead });
+    const spool = this.spoolSnap();
     return {
       spec: os.spec.id, tier: os.spec.tier, name: os.spec.name, deviceId: os.deviceId, slot: dev.slot,
       programSlots: os.spec.programSlots, queueSlots: os.queueSlots, up: this.powered && this.pch.osMode && !this.postError,
@@ -1859,7 +1886,8 @@ export class Game {
         ...results.map((j) => row(j, "result", -1)),
       ],
       runningKeyId: running?.key ?? null,
-      spool: this.spoolSnap(),
+      spool,
+      spoolFull: spool.full,
     };
   }
 
@@ -1901,6 +1929,8 @@ export class Game {
         state: fb, deadTicks: this.deadTicks, startsIn: fb === "waiting" ? Math.max(0, this.cfg.usbFallbackTicks - this.deadTicks) : null,
         keyRateMul: fb === "fallback" ? this.cfg.usbFallbackMul : fb === "waiting" ? 0 : 1,
       },
+      retiredKeys: this.tray.waiting().filter((k) => k.retired).length + this.held.filter((k) => k.retired).length,
+      portBusyKey: this.portBusy(),
       counters: { ...this.netCount },
     };
   }
@@ -2134,10 +2164,50 @@ export class Game {
     return this.networkLinked && this.deadTicks >= this.cfg.usbFallbackTicks;
   }
 
+  /** A job whose result is ready (the key holds it, or the kernel has it in its result state). */
+  private resultWaiting(k: Key): boolean {
+    return k.done || this.kernelJobs().some((j) => j.key === k.id && j.state === JobState.Result);
+  }
+
+  /**
+   * Retire the USB keys the client left behind (docs/NETWORK.md "Retired keys"): every tray key and every key the OS
+   * holds, plus the key in the port, that has no result waiting. Their client went online, so they stop counting for
+   * reputation and expire without a penalty; they can still be served until their deadline.
+   */
+  private retireUsbKeys(): void {
+    if (!this.cfg.retireUsbKeys) return;
+    for (const k of [...this.tray.waiting(), ...this.held, ...(this.plugged ? [this.plugged] : [])]) {
+      if (!this.resultWaiting(k)) k.retired = true;
+    }
+    this.note("net", "the USB keys left behind are retired: they no longer hold reputation");
+  }
+
+  /** The kernel can take the NIC feed now (booted, not in a POST error). */
+  private kernelUp(): boolean {
+    const phase = this.currentPhase();
+    return phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
+  }
+
+  /** Whether the feed has work for the port: a finished download or a spooled/held job the kernel does not know yet. */
+  private feedWaiting(): boolean {
+    const jobs = this.kernelJobs();
+    const unknown = (k: Key): boolean => !jobs.some((j) => j.key === k.id);
+    const uploading = (k: Key): boolean => this.uploads.some((t) => t.key.id === k.id);
+    return this.rx.some(unknown) || this.spool.some((k) => unknown(k) && !uploading(k)) || this.held.some(unknown);
+  }
+
+  /** The USB key that blocks the virtual NIC key, or null (docs/NETWORK.md "Snapshot": `portBusyKey`). */
+  private portBusy(): number | null {
+    return this.plugged && this.kernelUp() && this.feedWaiting() ? this.plugged.id : null;
+  }
+
   /** One base tick of the network after the machine ran: link state, retirement, transfers, and the feed into the kernel. */
   private netTick(): void {
     this.link = this.computeLink();
     const usable = this.linkUsable;
+    // The link arrives (first time, or back after a dead spell): the USB keys the client left behind retire.
+    if (usable && !this.linkWasUsable) this.retireUsbKeys();
+    this.linkWasUsable = usable;
     if (usable) {
       if (!this.progress.linkUp) this.note("net", `link up: ${this.link.bw.downMbps} Mbit down, ${this.link.bw.upMbps} up (limited by ${this.link.bw.binding})`);
       this.progress.linkUp = true;
@@ -2218,9 +2288,7 @@ export class Game {
    * and a finished result is read out and uploaded. Everything is real kernel work (CPU and drive), no USB waits.
    */
   private feedKernel(): void {
-    const phase = this.currentPhase();
-    const up = phase === "idle-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing";
-    if (!up) {
+    if (!this.kernelUp()) {
       this.dropNetKey();
       return;
     }
@@ -2284,7 +2352,7 @@ export class Game {
       id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
       work: runReference(g).steps, type: clsId === "cli" || clsId === "scan" ? parsed : clsId, jobNo: g.meta.params.jobId,
       cls: clsId, needs: cls?.needs ?? [], payMul,
-      attempts: 1, pluggedAt: 0, done: false, doneAt: 0, result: "",
+      attempts: 1, pluggedAt: 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
     };
   }
 
@@ -2357,6 +2425,16 @@ export class Game {
   private expireKeys(): void {
     if (!this.progress.poweredOn) return;
     const caps = this.caps();
+    // Retired keys (docs/NETWORK.md "Retired keys") leave silently at their deadline, runnable or not: no penalty, no count.
+    // A held one is left alone while the kernel runs it or holds its result (the client is still on the line).
+    for (const k of this.tray.waiting().filter((x) => x.retired && this.baseTick >= x.deadline)) this.tray.take(k.id);
+    for (const k of this.held.filter((x) => x.retired && this.baseTick >= x.deadline)) {
+      if (this.netKey?.key === k) continue; // being written back to the kernel right now
+      const job = this.kernelJobs().find((j) => j.key === k.id);
+      if (job && (job.state === JobState.Running || job.state === JobState.Result)) continue;
+      if (job) this.freeKernelSlot(k.id);
+      this.held = this.held.filter((x) => x !== k);
+    }
     for (const k of [...this.tray.waiting(), ...this.offersQ.waiting()]) {
       if (this.baseTick < k.deadline || this.runnable(k, caps)) continue;
       this.tray.take(k.id);
@@ -2392,9 +2470,10 @@ export class Game {
   private serviceTurnaround(): number {
     // Jobs the machine cannot run are left out: they cost reputation once, when they expire, not also while they wait.
     const caps = this.caps();
+    // Retired USB keys (docs/NETWORK.md "Retired keys") are left out too: the client went online.
     const waiting = [
-      ...this.tray.waiting().filter((k) => this.runnable(k, caps)), ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
-      ...this.held, ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
+      ...this.tray.waiting().filter((k) => !k.retired && this.runnable(k, caps)), ...this.offersQ.waiting().filter((k) => this.runnable(k, caps)),
+      ...this.held.filter((k) => !k.retired), ...this.downloads.map((t) => t.key), ...this.rx, ...this.spool.filter((k) => !this.uploads.some((t) => t.key.id === k.id)),
     ];
     const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
     const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;
@@ -2435,6 +2514,7 @@ export class Game {
     return {
       stage, cls: k.cls, needs: k.needs.map((n) => describeNeed(n).short), runnable: need.ok, missing: need.missing, expiresTick: k.deadline,
       declinable: k !== this.plugged && (stage === "tray" || stage === "offer" || stage === "spooled" || (this.held.includes(k) && stage === "queued") || (this.spool.includes(k) && stage === "queued")),
+      retired: k.retired,
       id: k.id, template: k.template, type: k.type, jobNo: k.jobNo, label: `#${String(k.jobNo).padStart(2, "0")} ${k.type}`,
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,
