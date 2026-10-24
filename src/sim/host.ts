@@ -46,7 +46,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'connectCable': return refusable(g, 'connectCable', g.connectCable(msg.cable, msg.port));
       case 'disconnectCable': return refusable(g, 'disconnectCable', g.disconnectCable(msg.cable));
       case 'powerButton': return refusable(g, 'powerButton', g.powerButton());
-      case 'plugKey': return refusable(g, 'plugKey', g.plugKey(msg.keyId));
+      case 'plugKey': return refusable(g, 'plugKey', g.plugAndBoot(msg.keyId));
       case 'ejectKey': return refusable(g, 'ejectKey', g.ejectKey());
       case 'declineKey': return refusable(g, 'declineKey', g.declineKey(msg.keyId));
       case 'declineJob': return refusable(g, 'declineJob', g.declineJob(msg.id));

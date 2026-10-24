@@ -199,6 +199,15 @@ describe("purchases go to the inventory", () => {
     expect(g.snapshot().inventory.map((i) => i.spec)).toEqual(["cpu0"]); // the old CPU came back
   });
 
+  it("plugAndBoot switches an off machine on", () => {
+    const g = new Game({ seed: 1, preassembled: true });
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
+    g.powerButton();
+    expect(g.powered).toBe(false);
+    expect(g.plugAndBoot(g.trayKeyIds()[0]!).ok).toBe(true);
+    expect(g.powered).toBe(true);
+  });
+
   it("swapInstall on an idle machine powers off, installs and powers back on", () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1e6;

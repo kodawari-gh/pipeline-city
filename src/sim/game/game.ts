@@ -1050,6 +1050,14 @@ export class Game {
     if (this.powered) this.coldBoot();
   }
 
+  /** The player's plug: as `plugKey`, and a machine that is off switches on (a refusal to start is reported). */
+  plugAndBoot(keyId: number): Result<{ key: number }> {
+    const r = this.plugKey(keyId);
+    if (!r.ok || this.powered) return r;
+    const on = this.powerButton();
+    return on.ok ? r : { ok: false, reason: `the key is in, but the machine cannot start: ${on.reason}` };
+  }
+
   /** Plug a key from the tray into the USB port. One program at a time: a key already in the port must come out first. */
   plugKey(keyId: number): Result<{ key: number }> {
     if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
