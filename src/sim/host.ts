@@ -11,7 +11,8 @@ export interface HostState {
   owed: number;
 }
 
-export const MAX_TICKS_PER_FRAME = 64;
+/** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
+export const MAX_TICKS_PER_FRAME = 128;
 
 export function newHost(): HostState {
   return { game: null, speed: 1, owed: 0 };
@@ -21,7 +22,7 @@ export function newHost(): HostState {
 export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   try {
     if (msg.type === 'init') {
-      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1 });
+      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled });
       state.owed = 0;
       state.speed = 1;
       return [{ type: 'ready' }, { type: 'snapshot', snapshot: state.game.snapshot() }];
@@ -30,8 +31,13 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
     if (!g) return [{ type: 'error', message: `${msg.type}: sim not started` }];
     switch (msg.type) {
       case 'setSpeed':
+        if (msg.speed === 64 && !g.sandbox) return [{ type: 'error', message: 'setSpeed: 64x is for the sandbox only' }];
         state.speed = msg.speed;
         return [];
+      case 'spawnKey': return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
+      case 'clearQueue': return refusable(g, 'clearQueue', g.clearQueue());
+      case 'repairAll': return refusable(g, 'repairAll', g.repairAll());
+      case 'setReputation': return refusable(g, 'setReputation', g.setReputation(msg.value));
       case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
       case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
       case 'install': return refusable(g, 'install', g.install(msg.invId, msg.slotId));

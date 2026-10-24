@@ -19,7 +19,7 @@ let saveWaiters: Array<(s: SaveV1) => void> = [];
 const send = (m: ToSim) => worker?.postMessage(m);
 
 /** (Re)start the worker with a save, or a new random game. */
-export function startSim(save: SaveV1 | null) {
+export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean } = {}) {
   worker?.terminate();
   clearInterval(autosaveTimer);
   saveWaiters = [];
@@ -40,7 +40,7 @@ export function startSim(save: SaveV1 | null) {
       waiters.forEach((f) => f(m.save));
     }
   };
-  send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0 });
+  send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled });
   autosaveTimer = setInterval(() => requestSave(autosave), AUTOSAVE_EVERY_MS);
 }
 
@@ -83,6 +83,11 @@ export const plugKey = (keyId: number) => send({ type: 'plugKey', keyId });
 export const ejectKey = () => send({ type: 'ejectKey' });
 /** Take the OS off its drive (back to the inventory). Only while the machine is off. */
 export const uninstallOs = () => send({ type: 'uninstallOs' });
+// Sandbox tools (docs/SANDBOX.md): the sim refuses them outside a sandbox game.
+export const spawnKey = (template: string, scale?: number) => send({ type: 'spawnKey', template, scale });
+export const clearQueue = () => send({ type: 'clearQueue' });
+export const repairAll = () => send({ type: 'repairAll' });
+export const setReputation = (value: number) => send({ type: 'setReputation', value });
 export function setSpeed(s: Speed) {
   speed.value = s;
   send({ type: 'setSpeed', speed: s });

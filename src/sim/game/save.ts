@@ -131,6 +131,8 @@ export interface SaveV4 {
   os: SavedOs | null;
   /** Base tick of the first boot (the client patience schedule runs from it). Optional: older v4 saves lack it. */
   firstBootTick?: number | null;
+  /** Sandbox game (docs/SANDBOX.md). Optional and additive: absent means a campaign game; written only when true. */
+  sandbox?: boolean;
 }
 
 export type Save = SaveV4;
@@ -234,6 +236,7 @@ export function parseSave(input: unknown): SaveV4 {
     s.progress = { ...s.progress, firstManualCycle: s.progress.firstKeyEjected === true };
   }
   if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick)) throw new Error('save: "firstBootTick" must be a non-negative integer or null');
+  if (s.sandbox !== undefined && typeof s.sandbox !== "boolean") throw new Error('save: "sandbox" must be a boolean');
   const num = (k: string, min = 0): number => {
     const x = s[k];
     if (typeof x !== "number" || !Number.isFinite(x) || x < min) throw new Error(`save: "${k}" must be a number >= ${min}`);

@@ -9,12 +9,14 @@ export type { Snapshot, SaveV4 };
 export type SaveV1 = SaveV4;
 
 /** Speed as a multiplier of base ticks per second (0 = paused). */
-export type Speed = 0 | 1 | 4 | 16;
+export type Speed = 0 | 1 | 4 | 16 | 64;
 export const SPEEDS: Speed[] = [0, 1, 4, 16];
+/** The sandbox also offers 64x (the host refuses it in a campaign game). */
+export const SANDBOX_SPEEDS: Speed[] = [0, 1, 4, 16, 64];
 
 export type ToSim =
   /** Start (or restart) the sim, from a save if given, else a new game with `seed`. */
-  | { type: 'init'; save?: SaveV1 | null; seed?: number }
+  | { type: 'init'; save?: SaveV1 | null; seed?: number; sandbox?: boolean; preassembled?: boolean }
   | { type: 'setSpeed'; speed: Speed }
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
@@ -30,7 +32,12 @@ export type ToSim =
   | { type: 'ejectKey' }
   // Storage and the OS (docs/OS.md). Installing a drive or an OS uses `install` (an OS takes the storage slot id as slotId).
   | { type: 'uninstallOs' }
-  | { type: 'requestSave' };
+  | { type: 'requestSave' }
+  // Sandbox tools (docs/SANDBOX.md): refused with a reason outside a sandbox game. Each replies with a snapshot.
+  | { type: 'spawnKey'; template: string; scale?: number }
+  | { type: 'clearQueue' }
+  | { type: 'repairAll' }
+  | { type: 'setReputation'; value: number };
 
 export type FromSim =
   | { type: 'ready' }

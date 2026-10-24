@@ -17,16 +17,16 @@ import {
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PchPhase, STORAGE_PORTS } from "../isa/memmap";
-import { generate, runReference } from "../gen";
+import { generate, runReference, TEMPLATES } from "../gen";
 import { Disk, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
   applyOffer, boardTierOf, demandRate, ECONOMY, offers, patienceMul, payMulFor, payout, pickTemplate, reputation,
-  type EconomyConfig,
+  SANDBOX_MONEY, sandboxOffers, type EconomyConfig, type Offer,
 } from "./economy";
 import {
-  newProgress, parseSave, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV4,
+  newProgress, parseSave, PROGRESS_KEYS, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV4,
 } from "./save";
 import { UsbTray, type Job } from "./work";
 
@@ -39,6 +39,11 @@ export interface GameOptions {
    * (dev and tests). The real app starts bare: an empty board and the starter crate in the inventory.
    */
   preassembled?: boolean;
+  /**
+   * Sandbox mode (docs/SANDBOX.md): infinite money, everything purchasable, no tutorial, plus the sandbox tools. The
+   * physics still applies. With `preassembled` the machine is assembled but left powered off, ready for the power button.
+   */
+  sandbox?: boolean;
 }
 
 /** A client job on a USB key. The program is generated when the key is plugged in. */
@@ -292,6 +297,8 @@ export interface GameEvent {
 
 export interface Snapshot {
   money: number;
+  /** Sandbox game: money is a constant stand-in for infinity (show a symbol), purchases are free (price 0), the sandbox tools work. */
+  sandbox: boolean;
   /** Total CPU cycles clocked since the start. */
   cycle: number;
   baseTick: number;
@@ -401,6 +408,7 @@ interface InstalledOs {
 interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }
 
 const LOG_CAP = 16;
+const NOT_SANDBOX = { ok: false, reason: "sandbox mode only" } as const;
 const BOARD_OFF_REASON = "powered off required: power the machine off to swap the board";
 
 export class Game {
@@ -419,6 +427,8 @@ export class Game {
   dropped = 0;
   lastCompleted: CompletedInfo | null = null;
   powered = false;
+  /** Sandbox game: free purchases, the sandbox tools work. */
+  readonly sandbox: boolean;
 
   private inventory: InvItem[] = [];
   private nextInvId = 1;
@@ -447,7 +457,8 @@ export class Game {
     this.seed = opts.seed >>> 0;
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.avgTurnaround = this.cfg.targetTurnaround * this.cfg.patience.startMul; // the clients start out content: reputation 1
-    this.money = this.cfg.startMoney;
+    this.sandbox = !!opts.sandbox;
+    this.money = this.sandbox ? SANDBOX_MONEY : this.cfg.startMoney;
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
     // RAM is fixed at construction, so the machine always has the largest RAM (64K); the installed RAM tier
@@ -466,10 +477,12 @@ export class Game {
       this.progress = newProgress(true);
       this.firstBootTick = 0;
       this.syncRates(false);
-      this.powerButton();
+      if (!this.sandbox) this.powerButton(); // a sandbox machine is assembled but waits for the player's power press
     } else {
       this.syncRates(false);
     }
+    // No tutorial in the sandbox: every milestone is reached from the start.
+    if (this.sandbox) this.progress = Object.fromEntries(PROGRESS_KEYS.map((k) => [k, true])) as unknown as Progress;
   }
 
   // ---------- public API: building the machine ----------
@@ -567,21 +580,90 @@ export class Game {
       const invId = `inv${this.nextInvId++}`;
       this.inventory.push({ id: invId, spec: itemId });
       this.progress.firstPurchase = true;
-      this.note("purchase", `bought ${extra.name} for $${extra.price}`);
+      this.note("purchase", `bought ${extra.name} ${this.priceText(extra.price)}`);
       return { ok: true, invId };
     }
-    const cand = offers(this.plannedBoard()).find((s) => s.id === itemId);
+    const cand = this.deviceOffers(this.plannedBoard()).find((s) => s.id === itemId);
     if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
     if (cand.kind === "board" && this.powered) return { ok: false, reason: BOARD_OFF_REASON };
-    if (this.money < cand.price) return { ok: false, reason: `needs $${cand.price}, have $${this.money}` };
+    const price = this.cost(cand.price);
+    if (this.money < price) return { ok: false, reason: `needs $${price}, have $${this.money}` };
     const r = applyOffer(this.plannedBoard(), itemId);
     if (!r.ok) return r;
-    this.money -= cand.price;
+    this.money -= price;
     const invId = `inv${this.nextInvId++}`;
     this.inventory.push({ id: invId, spec: itemId });
     this.progress.firstPurchase = true;
-    this.note("purchase", `bought ${cand.name} for $${cand.price}`);
+    this.note("purchase", `bought ${cand.name} ${this.priceText(price)}`);
     return { ok: true, invId };
+  }
+
+  /** What a list price costs the player: nothing in the sandbox. */
+  private cost(listPrice: number): number {
+    return this.sandbox ? 0 : listPrice;
+  }
+
+  private priceText(price: number): string {
+    return this.sandbox ? "(sandbox: free)" : `for $${price}`;
+  }
+
+  /** Board and device offers on `plan`: the campaign upgrade ladder, or everything in the sandbox. */
+  private deviceOffers(plan: Board): Offer[] {
+    return this.sandbox ? sandboxOffers(plan) : offers(plan);
+  }
+
+  // ---------- public API: sandbox tools (refused outside the sandbox) ----------
+
+  /** Sandbox: add a key with job `template` (any `cli*` template) at `scale` 1..16 to the tray. */
+  spawnKey(template: string, scale = 1): Result<{ keyId: number }> {
+    if (!this.sandbox) return NOT_SANDBOX;
+    if (typeof template !== "string" || !Object.prototype.hasOwnProperty.call(TEMPLATES, template)) return { ok: false, reason: `unknown job template "${String(template)}"` };
+    if (!Number.isInteger(scale) || scale < 1 || scale > 16) return { ok: false, reason: "scale must be a whole number from 1 to 16" };
+    if (this.tray.waiting().length >= this.cfg.queueCap) return { ok: false, reason: `the tray is full (${this.cfg.queueCap} keys)` };
+    const keyId = this.nextKeyId;
+    this.enqueue(template, scale);
+    this.note("sandbox", `spawned key ${keyId} (${template} x${scale})`);
+    return { ok: true, keyId };
+  }
+
+  /** Sandbox: throw away every key in the tray (the plugged key and keys the OS holds stay). */
+  clearQueue(): Result<{ removed: number }> {
+    if (!this.sandbox) return NOT_SANDBOX;
+    const removed = this.tray.waiting().length;
+    this.tray.set([]);
+    this.note("sandbox", `tray cleared (${removed} keys)`);
+    return { ok: true, removed };
+  }
+
+  /** Sandbox: un-burn every part and the board, cool everything to ambient, clear the PSU trip. Works powered or not. */
+  repairAll(): Result<{ repaired: number; tripCleared: boolean }> {
+    if (!this.sandbox) return NOT_SANDBOX;
+    let repaired = 0;
+    for (const d of this.board.devices) if (d.burnt) { delete d.burnt; repaired++; }
+    if (this.board.burnt) { delete this.board.burnt; repaired++; }
+    const tripCleared = this.thermal.power.tripped;
+    this.thermal.coolAll();
+    this.note("sandbox", `repaired everything (${repaired} burnt parts${tripCleared ? ", PSU trip cleared" : ""})`);
+    return { ok: true, repaired, tripCleared };
+  }
+
+  /**
+   * Sandbox: set the reputation (clamped to the economy's range). The turnaround average is set to match and waiting
+   * keys that are older than it are re-dated to now, so the next snapshot shows exactly this value; it then moves as usual.
+   */
+  setReputation(value: number): Result<{ reputation: number }> {
+    if (!this.sandbox) return NOT_SANDBOX;
+    if (typeof value !== "number" || !Number.isFinite(value)) return { ok: false, reason: "reputation must be a number" };
+    const rep = Math.min(this.cfg.repMax, Math.max(this.cfg.repMin, value));
+    this.avgTurnaround = Math.max(1, this.targetTurnaround() / rep);
+    for (const k of [...this.tray.waiting(), ...this.held]) {
+      if (this.baseTick - k.arrival > this.avgTurnaround) {
+        k.arrival = this.baseTick;
+        k.deadline = this.baseTick + this.deadlineTicks();
+      }
+    }
+    this.note("sandbox", `reputation set to ${rep.toFixed(2)}`);
+    return { ok: true, reputation: this.reputation() };
   }
 
   /** Set the requested CPU clock (overclock/underclock), in the spec's range. Takes effect on the next tick. */
@@ -683,7 +765,7 @@ export class Game {
     const turnaround = this.baseTick - key.arrival;
     const late = this.baseTick > key.deadline;
     const pay = payout(this.cfg, key.work * payMulFor(this.cfg, key.template, key.scale), turnaround, late);
-    this.money += pay;
+    if (!this.sandbox) this.money += pay; // the sandbox balance is a constant
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
     this.progress.firstKeyEjected = true;
@@ -794,8 +876,8 @@ export class Game {
     const cpu = findDevices(this.board, "cpu")[0];
     const cpuSpec = cpu ? deviceSpec(cpu) : undefined;
     const planned = this.plannedBoard();
-    const purchases: PurchaseSnap[] = offers(planned).map((s) => {
-      const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: s.price, affordable: this.money >= s.price };
+    const purchases: PurchaseSnap[] = this.deviceOffers(planned).map((s) => {
+      const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
       const r = applyOffer(boardFromJson(boardToJson(planned)), s.id);
       if (s.kind === "board" && this.powered) p.blocked = BOARD_OFF_REASON;
       else if (!r.ok) p.blocked = r.reason;
@@ -814,6 +896,7 @@ export class Game {
     const jobs = this.kernelJobs();
     return {
       money: this.money,
+      sandbox: this.sandbox,
       cycle: this.machine.clock.ticks("cpu"),
       baseTick: this.baseTick,
       queueLength: this.tray.waiting().length,
@@ -937,6 +1020,7 @@ export class Game {
       progress: { ...this.progress },
       os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
       firstBootTick: this.firstBootTick,
+      ...(this.sandbox ? { sandbox: true } : {}),
     };
   }
 
@@ -947,10 +1031,10 @@ export class Game {
    */
   static fromSave(input: unknown, economy?: Partial<EconomyConfig>): Game {
     const s = parseSave(input);
-    const g = new Game({ seed: s.seed, economy });
+    const g = new Game({ seed: s.seed, economy, sandbox: s.sandbox === true });
     g.board = boardFromJson(s.board);
     g.machine.prng.setState(s.prngState);
-    g.money = s.money;
+    g.money = g.sandbox ? SANDBOX_MONEY : s.money;
     g.baseTick = s.baseTick;
     g.nextKeyId = s.nextKeyId;
     g.completed = s.completed;
@@ -1248,11 +1332,11 @@ export class Game {
     const ownedSpecs = new Set([...this.board.devices.map((d) => d.spec), ...this.inventory.map((i) => i.spec)]);
     const planSlots = boardSlots(plan);
     for (const s of specsOfKind("storage")) {
-      if (ownedSpecs.has(s.id)) continue;
+      if (!this.sandbox && ownedSpecs.has(s.id)) continue;
       const total = planSlots.filter((x) => slotAccepts(x.type, s.slot)).length;
       const used = this.board.devices.filter((d) => deviceSpec(d).kind === "storage" && deviceSpec(d).slot === s.slot).length
         + this.inventory.filter((i) => getSpec(i.spec)?.kind === "storage" && getSpec(i.spec)!.slot === s.slot).length;
-      const o: PurchaseSnap = { id: s.id, name: s.name, kind: "storage", price: s.price, affordable: this.money >= s.price };
+      const o: PurchaseSnap = { id: s.id, name: s.name, kind: "storage", price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
       if (total === 0) o.blocked = s.slot === "m2" ? "needs an M.2 slot (bigger board)" : "the board has no SATA slot";
       else if (used >= total) o.blocked = `no free ${s.slot === "m2" ? "M.2" : "SATA"} slot (${total} of ${total} used or owned)`;
       out.push(o);
@@ -1262,7 +1346,7 @@ export class Game {
     const haveOs = !!this.os || this.inventory.some((i) => getOsSpec(i.spec));
     for (const os of OS_SPECS) {
       const o: PurchaseSnap = {
-        id: os.id, name: os.name, kind: "os", price: os.price, affordable: this.money >= os.price, description: os.description,
+        id: os.id, name: os.name, kind: "os", price: this.cost(os.price), affordable: this.money >= this.cost(os.price), description: os.description,
         ...(os.later ? { later: true } : {}),
       };
       if (os.later) o.blocked = "planned: not available yet";

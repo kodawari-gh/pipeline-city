@@ -87,6 +87,19 @@ export class ThermalModel {
     this.power = { ...this.power, tripped: false };
   }
 
+  /** Sandbox tool: every part and the VRM back to ambient with no accumulated damage, and the PSU trip cleared. */
+  coolAll(): void {
+    for (const st of this.devices.values()) {
+      st.tempC = AMBIENT_C;
+      st.stress = 0;
+      st.unstable = false;
+      st.errProb = 0;
+      st.throttle = 1;
+    }
+    this.vrm = freshVrm();
+    this.power = { ...this.power, tripped: false };
+  }
+
   state(id: string): DeviceThermal | undefined {
     return this.devices.get(id);
   }

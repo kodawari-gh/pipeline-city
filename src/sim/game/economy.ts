@@ -226,6 +226,23 @@ export function offers(board: Board): Offer[] {
   return out;
 }
 
+/** The constant the sandbox shows as "money": the player never spends or earns (the UI shows an infinity symbol). */
+export const SANDBOX_MONEY = 1_000_000_000;
+
+/**
+ * Sandbox offers: every board tier above the planned one (any jump; the same tier replaces a burnt board) and every
+ * device spec of the buyable kinds, whatever the installed tier. The board still validates each one (`applyOffer`).
+ */
+export function sandboxOffers(board: Board): Offer[] {
+  const out: Offer[] = [];
+  for (const t of BOARD_TIERS) {
+    if (t.tier > board.tier) out.push({ id: `board${t.tier}`, name: t.name, kind: "board", price: t.price });
+    else if (t.tier === board.tier && board.burnt) out.push({ id: `board${t.tier}`, name: `${t.name} (replacement)`, kind: "board", price: t.price });
+  }
+  for (const kind of BUYABLE) for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
+  return out;
+}
+
 /** Specs that would be an upgrade (higher tier than the installed part) or a replacement of a burnt part. */
 function upgradeCandidates(board: Board): DeviceSpec[] {
   const out: DeviceSpec[] = [];
