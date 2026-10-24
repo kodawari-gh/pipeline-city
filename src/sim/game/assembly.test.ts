@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { generate } from "../gen";
 import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
-import { ECONOMY, type EconomyConfig } from "./economy";
+import { type EconomyConfig } from "./economy";
+import { ECONOMY } from "./economy";
+
+// These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
+ECONOMY.levelGating = false;
 
 const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0 };
 
@@ -174,7 +178,7 @@ describe("power button and POST errors", () => {
       expect(s.postFailed, name).toBe(true);
       reasons.add(s.phaseReason!);
       expect(s.pipe, name).toBeNull(); // no CPU activity
-      ticks(g, ECONOMY.coldBootTicks - 1);
+      ticks(g, s.postTicks - 1);
       expect(g.snapshot().display, name).toBe("");
       ticks(g, 1); // the wait is over: the POST error text appears, all at once
       expect(g.snapshot().display, name).toContain(`POST FAILED: ${short}`);
@@ -446,8 +450,8 @@ describe("keys and the queue", () => {
   });
 
   it("idle time is lost: keys age while the machine waits, and late ones pay less", () => {
-    // A flat patience schedule so the deadline is the plain 180 ticks (the schedule itself is tested in patience.test.ts).
-    const g = assembled({ ...NO_ARRIVALS, patience: { startMul: 1, floorMul: 1, holdTicks: 0, floorTicks: 1 } });
+    // A short base deadline (x4 patience at level 1 = 160 ticks) so the key is late within the test.
+    const g = assembled({ ...NO_ARRIVALS, deadlineTicks: 40 });
     g.powerButton();
     runUntil(g, "halted");
     ticks(g, 250);
@@ -538,7 +542,7 @@ describe("the CPU cooler mounts on the CPU", () => {
     expect(s.phase).toBe("error");
     expect(s.phaseReason).toMatch(/cooler/);
     expect(s.display).toBe(""); // the cold-boot wait first (monitor black), then the message
-    ticks(g, ECONOMY.coldBootTicks);
+    ticks(g, s.postTicks);
     expect(g.snapshot().display).toContain("NO CPU COOLER");
     g.powerButton();
     expect(g.install(g.snapshot().inventory.find((i) => i.spec === "cooler0")!.id).ok).toBe(true);

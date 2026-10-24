@@ -155,7 +155,7 @@ describe("save/load v2", () => {
   });
 
   it("keeps a bought-but-uninstalled board and the installed one", () => {
-    const a = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0.2 } });
+    const a = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0.2, levelGating: false } });
     a.money = 500;
     a.powerButton(); // boards are bought while powered off
     expect(a.purchase("board1").ok).toBe(true);

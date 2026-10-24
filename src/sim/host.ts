@@ -38,6 +38,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'clearQueue': return refusable(g, 'clearQueue', g.clearQueue());
       case 'repairAll': return refusable(g, 'repairAll', g.repairAll());
       case 'setReputation': return refusable(g, 'setReputation', g.setReputation(msg.value));
+      case 'setLevel': return refusable(g, 'setLevel', g.setLevel(msg.level));
       case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
       case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
       case 'install': return refusable(g, 'install', g.install(msg.invId, msg.slotId));
@@ -47,6 +48,8 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'powerButton': return refusable(g, 'powerButton', g.powerButton());
       case 'plugKey': return refusable(g, 'plugKey', g.plugKey(msg.keyId));
       case 'ejectKey': return refusable(g, 'ejectKey', g.ejectKey());
+      case 'declineKey': return refusable(g, 'declineKey', g.declineKey(msg.keyId));
+      case 'declineJob': return refusable(g, 'declineJob', g.declineJob(msg.id));
       case 'uninstallOs': return refusable(g, 'uninstallOs', g.uninstallOs());
       case 'powerCycle':
         g.powerCycle();

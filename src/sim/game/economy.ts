@@ -3,8 +3,8 @@
 
 import { getOsSpec } from "../os";
 import {
-  BOARD_TIERS, boardFromJson, boardToJson, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
-  type Board, type DeviceKind, type DeviceSpec, type Result,
+  BOARD_TIERS, boardFromJson, boardToJson, deviceSpec, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
+  type Board, type DeviceKind, type DeviceSpec, type RamSpec, type Result,
 } from "../board";
 
 export interface MixEntry {
@@ -21,16 +21,17 @@ export interface MixEntry {
   rampTicks?: number;
 }
 
-/** PLACEHOLDER BALANCE. Tune by playing. */
-export interface PatienceConfig {
-  /** Multiplier on the client's patience (target turnaround for reputation, key deadlines, give-up turnaround) at first boot. */
-  startMul: number;
-  /** The multiplier it falls to, and stays at, once `floorTicks` have passed. */
-  floorMul: number;
-  /** Base ticks since the first boot during which the patience stays at `startMul`. */
-  holdTicks: number;
-  /** Base ticks since the first boot at which the patience reaches `floorMul` (linear in between). */
-  floorTicks: number;
+/** POST (cold boot) time as a function of the machine (docs/PROGRESSION.md "POST time"). PLACEHOLDER BALANCE. */
+export interface ColdBootConfig {
+  base: number;
+  /** Ticks per KiB of installed RAM, capped at `kiBCap` ticks in total. */
+  perKiB: number;
+  kiBCap: number;
+  perStick: number;
+  /** Hard cap of the whole formula. */
+  max: number;
+  /** Init ticks per installed device, by spec id (wins) or by kind. */
+  init: Record<string, number>;
 }
 
 export interface EconomyConfig {
@@ -67,8 +68,11 @@ export interface EconomyConfig {
   lateFactor: number;
   /** Requests already waiting at tick 0 (the guided first request). */
   startQueue: { template: string; scale?: number }[];
-  /** Mix of templates for generated arrivals. */
-  mix: MixEntry[];
+  /**
+   * TEST OVERRIDE: a fixed template mix for generated arrivals. Undefined (the default) means the level-driven job
+   * classes of levels.ts (docs/PROGRESSION.md "arrival mix").
+   */
+  mix?: MixEntry[];
   /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
   /** Dollars the player starts with (small: the first payout is the first real money). */
@@ -87,18 +91,18 @@ export interface EconomyConfig {
   usbEnumTicks: number;
   usbFlashTicks: number;
   /**
-   * Cold-boot hardware delay (base ticks): after every power-on or crash reboot the PSU power-good, fans and BIOS init take
-   * this long before the CPU runs the first ROM instruction (the monitor stays black). A faster CPU does not shorten it,
-   * so the no-OS loop (one cold boot per job) has a fixed cost per job that an OS (one cold boot, ever) does not pay.
+   * Cold-boot hardware delay (base ticks) as a function of the machine: PSU power-good, fans, BIOS init and counting the
+   * RAM take this long before the CPU runs the first ROM instruction (the monitor stays black). A faster CPU does not
+   * shorten it, so the no-OS loop (one cold boot per job) has a fixed cost per job that an OS (one cold boot) does not pay.
    */
-  coldBootTicks: number;
+  coldBoot: ColdBootConfig;
+  /** Override: when defined it replaces the `coldBoot` function with this fixed number of ticks (tests use 0). */
+  coldBootTicks?: number;
   /**
-   * Patience schedule (docs/GAME.md). The manual no-OS loop (plug, power on, POST + boot, run, write, remove, power off) is
-   * slow by design, so clients are forgiving at first and tighten with game time (driver: base ticks since the first boot):
-   * the reputation target (`targetTurnaround`), the key deadline (`deadlineTicks`) and the tray-overflow penalty
-   * (`giveUpTurnaround`) are all multiplied by the schedule. The payout's speed bonus keeps the plain `targetTurnaround`.
+   * Gate purchases by player level (docs/PROGRESSION.md "Unlock table"). Default true; tests that buy everything switch it
+   * off. The sandbox never gates.
    */
-  patience: PatienceConfig;
+  levelGating: boolean;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -115,49 +119,61 @@ export const ECONOMY: EconomyConfig = {
   deadlineTicks: 180,
   lateFactor: 0.5,
   startQueue: [{ template: "cli.log" }],
-  mix: [
-    { template: "cli", weight: 1, minRamBytes: 0 },
-    { template: "cli.scan", scale: 4, weight: 0.5, minRamBytes: 0, payMul: 2, rampTicks: 300 },
-  ],
   idleLoad: 0.1,
   startMoney: 0,
   giveUpTurnaround: 180,
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
-  coldBootTicks: 30,
-  patience: { startMul: 4, floorMul: 0.6, holdTicks: 900, floorTicks: 3000 },
+  coldBoot: { base: 22, perKiB: 0.25, kiBCap: 40, perStick: 2, max: 90, init: { cpu: 1, display: 1, hdd0: 4, ssd1: 2, nvme2: 1 } },
+  levelGating: true,
 };
 
-/** Client patience multiplier `elapsed` base ticks after the first boot: startMul, then linear down to floorMul. */
-export function patienceMul(cfg: EconomyConfig, elapsed: number): number {
-  const p = cfg.patience;
-  if (elapsed <= p.holdTicks) return p.startMul;
-  if (elapsed >= p.floorTicks) return p.floorMul;
-  return p.startMul + ((p.floorMul - p.startMul) * (elapsed - p.holdTicks)) / (p.floorTicks - p.holdTicks);
+/**
+ * POST time of the machine as built: `base + min(kiBCap, perKiB * RAM KiB) + perStick * sticks + init of every working
+ * device`, capped at `max` (the Starter machine comes to 30). The override `coldBootTicks` wins when defined.
+ */
+export function postTicks(cfg: EconomyConfig, board: Board): number {
+  if (cfg.coldBootTicks !== undefined) return cfg.coldBootTicks;
+  const c = cfg.coldBoot;
+  let kib = 0;
+  let sticks = 0;
+  let init = 0;
+  for (const d of board.devices) {
+    if (d.burnt) continue;
+    const s = deviceSpec(d);
+    if (s.kind === "ram") {
+      kib += (s as RamSpec).sizeBytes / 1024;
+      sticks++;
+    }
+    init += c.init[s.id] ?? c.init[s.kind] ?? 0;
+  }
+  return Math.min(c.max, Math.round(c.base + Math.min(c.kiBCap, c.perKiB * kib) + c.perStick * sticks + init));
 }
 
 export function reputation(cfg: EconomyConfig, avgTurnaround: number, target = cfg.targetTurnaround): number {
   return Math.min(cfg.repMax, Math.max(cfg.repMin, target / Math.max(1, avgTurnaround)));
 }
 
-export function demandRate(cfg: EconomyConfig, rep: number): number {
-  return cfg.baseDemandPerTick * rep;
+/** Arrivals per tick: the base rate times the level's demand multiplier times the reputation. */
+export function demandRate(cfg: EconomyConfig, rep: number, demandMul = 1): number {
+  return cfg.baseDemandPerTick * demandMul * rep;
 }
 
-/** Payout multiplier of a job kind: looked up from the mix by template and scale (1 if it is not in the mix). */
+/** Payout multiplier of a job kind in a test-override mix (1 if it is not in it). */
 export function payMulFor(cfg: EconomyConfig, template: string, scale: number): number {
-  return cfg.mix.find((m) => m.template === template && (m.scale ?? 1) === scale)?.payMul ?? 1;
+  return cfg.mix?.find((m) => m.template === template && (m.scale ?? 1) === scale)?.payMul ?? 1;
 }
 
-export function payout(cfg: EconomyConfig, work: number, turnaround: number, late: boolean): number {
+/** Payout after speed and lateness, times the level's pay multiplier (`levelPay`, 1 = level 1). */
+export function payout(cfg: EconomyConfig, work: number, turnaround: number, late: boolean, levelPay = 1): number {
   const speed = Math.min(cfg.speedMax, Math.max(cfg.speedMin, cfg.targetTurnaround / Math.max(1, turnaround)));
-  return Math.round((cfg.payBase + cfg.payPerInstr * work) * speed * (late ? cfg.lateFactor : 1));
+  return Math.round((cfg.payBase + cfg.payPerInstr * work) * speed * (late ? cfg.lateFactor : 1) * levelPay);
 }
 
-/** Pick a template from the mix that the installed RAM allows. */
-export function pickTemplate(cfg: EconomyConfig, ramBytes: number, r: number, tick = Infinity): MixEntry {
-  const ok = cfg.mix.filter((m) => m.minRamBytes <= ramBytes);
+/** Pick a template from the test-override mix that the installed RAM allows. */
+export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick = Infinity): MixEntry {
+  const ok = mix.filter((m) => m.minRamBytes <= ramBytes);
   const w = (m: MixEntry) => (m.rampTicks ? m.weight * Math.min(1, tick / m.rampTicks) : m.weight);
   const total = ok.reduce((s, m) => s + w(m), 0);
   let x = r * total;

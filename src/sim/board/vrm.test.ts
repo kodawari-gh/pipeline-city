@@ -6,6 +6,10 @@ import { parseSave } from "../game/save";
 import {
   BOARD_TIERS, boardSlots, createBoard, findDevices, install, setClock, ThermalModel, upgradeBoard, type Board,
 } from "./index";
+import { ECONOMY } from "../game/economy";
+
+// These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
+ECONOMY.levelGating = false;
 
 function ok<T extends { ok: boolean }>(r: T): T {
   expect(r.ok).toBe(true);

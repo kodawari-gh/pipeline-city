@@ -22,9 +22,14 @@ import { Disk, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
-  applyOffer, boardTierOf, demandRate, ECONOMY, offers, patienceMul, payMulFor, payout, pickTemplate, reputation,
+  applyOffer, boardTierOf, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, postTicks, reputation,
   SANDBOX_MONEY, sandboxOffers, type EconomyConfig, type Offer,
 } from "./economy";
+import {
+  classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, levelRows, LEVELS, MAX_LEVEL,
+  needsMet, NO_CAPS, patienceMul, pickClass, pointsFor, unlockLevelOf, describeNeed, type Caps, type ItemInfo, type JobClassDef,
+  type LevelRowSnap, type Need,
+} from "./levels";
 import {
   newProgress, parseSave, PROGRESS_KEYS, SAVE_VERSION, type Progress, type SavedKey, type SavedPlugged, type SaveV4,
 } from "./save";
@@ -44,6 +49,8 @@ export interface GameOptions {
    * physics still applies. With `preassembled` the machine is assembled but left powered off, ready for the power button.
    */
   sandbox?: boolean;
+  /** Start at this player level with the client base at its threshold (tests and bots; campaign only, 1 to 18). */
+  startLevel?: number;
 }
 
 /** A client job on a USB key. The program is generated when the key is plugged in. */
@@ -54,8 +61,13 @@ interface Key extends Job {
   deadline: number;
   /** Reference instruction count of the program (the payout base). */
   work: number;
-  /** Short job type for the label: log, calc, checksum, scan. */
+  /** Short job type for the label: log, calc, checksum, scan, or the class id (db, web, gpu...). */
   type: string;
+  /** Job class id (levels.ts) and what it needs from the machine. */
+  cls: string;
+  needs: Need[];
+  /** Payout multiplier of the class. */
+  payMul: number;
   /** The job number the program prints on the monitor (#NN). */
   jobNo: number;
   attempts: number;
@@ -159,6 +171,8 @@ export interface PurchaseSnap {
   blocked?: string;
   /** A planned tier that cannot be bought yet (locked in the shop). */
   later?: boolean;
+  /** Set while the player level is below the item's unlock level (campaign only): show a greyed tile "Level N". */
+  locked?: { level: number; name: string };
   description?: string;
 }
 
@@ -232,6 +246,40 @@ export interface KeySnap {
   result: string;
   /** With an OS: tray (not ingested), ingesting, queued/running/result (ingested: in the OS queue), flashing, done. */
   stage: KeyStage;
+  /** Job class id: cli, scan, db, web, secure, gpu, npu, hpc. */
+  cls: string;
+  /** Short chips of what the job needs (`["OS", "SSD"]`), empty for a plain job. */
+  needs: string[];
+  /** The machine can run it now. An unrunnable job can be seen and declined but not plugged; it expires at `expiresTick`. */
+  runnable: boolean;
+  /** Long phrases of the unmet needs (`["a GPU"]`). */
+  missing: string[];
+  /** Tick the client takes an unrunnable job back (its deadline). */
+  expiresTick: number;
+  /** The job can be declined now (waiting: a tray key, or an ingested job that is not running yet). */
+  declinable: boolean;
+}
+
+/** The player level block (docs/PROGRESSION.md). In a sandbox `level` is the pinned rules level and `sandbox` is true. */
+export interface LevelSnap {
+  level: number;
+  name: string;
+  clientBase: number;
+  /** Threshold of this level and of the next (null at the last level). */
+  floor: number;
+  next: number | null;
+  /** 0..1 within the level. */
+  progress: number;
+  patienceMul: number;
+  payMul: number;
+  demandMul: number;
+  /** Base tick of the latest level-up (for the celebration), null if none since the game started or loaded. */
+  leveledUpAt: number | null;
+  /** What the latest level-up unlocked (empty until one happens). */
+  recentlyUnlocked: ItemInfo[];
+  /** Every level, for the milestone screen. */
+  upcoming: LevelRowSnap[];
+  sandbox: boolean;
 }
 
 /** A storage device and its live statistics. */
@@ -386,8 +434,17 @@ export interface Snapshot {
   keyIgnored: boolean;
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
-  /** The client patience schedule right now (docs/GAME.md). */
+  /** Client patience right now: the level's multiplier (docs/PROGRESSION.md). `sinceFirstBoot` is informational. */
   patience: { mul: number; targetTurnaround: number; deadlineTicks: number; sinceFirstBoot: number };
+
+  // ---- levels, job needs and POST time (docs/PROGRESSION.md; all additive) ----
+  level: LevelSnap;
+  /** Unrunnable jobs the client took back at their deadline (lifetime). */
+  expired: number;
+  /** Jobs the player declined (lifetime). */
+  declined: number;
+  /** POST (cold boot) time of the machine as built, in ticks. */
+  postTicks: number;
 }
 
 export type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };
@@ -407,9 +464,15 @@ interface InstalledOs {
 /** A row of the kernel's job table (read from RAM). */
 interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }
 
+const lockText = (l: { level: number; name: string }): string => `needs Level ${l.level} (${l.name})`;
 const LOG_CAP = 16;
+/** The level the sandbox rules are pinned at until `setLevel`. */
+const SANDBOX_LEVEL = 8;
 const NOT_SANDBOX = { ok: false, reason: "sandbox mode only" } as const;
 const BOARD_OFF_REASON = "powered off required: power the machine off to swap the board";
+
+/** The static milestone rows of the level snapshot (built once). */
+const LEVEL_ROWS: LevelRowSnap[] = levelRows();
 
 export class Game {
   readonly cfg: EconomyConfig;
@@ -451,13 +514,29 @@ export class Game {
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
   private bootDelay = 0;
 
+  /** Client base score (campaign only; the sandbox leaves it at 0) and the level derived from it (never decreases). */
+  clientBase = 0;
+  private lvl = 1;
+  /** Base tick each level was first reached (drives the job-class ramp); a level not listed counts as long reached. */
+  private levelTicks: Record<number, number> = {};
+  declined = 0;
+  expired = 0;
+  private leveledUpAt: number | null = null;
+  private recentUnlocks: ItemInfo[] = [];
+  /** Sandbox: the rules level (patience, payout, demand, mix) is pinned here instead of following the score. */
+  private sandboxLevel = SANDBOX_LEVEL;
+
   private readonly seed: number;
 
   constructor(opts: GameOptions) {
     this.seed = opts.seed >>> 0;
     this.cfg = { ...ECONOMY, ...opts.economy };
-    this.avgTurnaround = this.cfg.targetTurnaround * this.cfg.patience.startMul; // the clients start out content: reputation 1
     this.sandbox = !!opts.sandbox;
+    const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
+    this.lvl = this.sandbox ? 1 : start;
+    this.clientBase = this.sandbox ? 0 : LEVELS[start - 1]!.threshold;
+    this.levelTicks = this.sandbox || start > 1 ? {} : { 1: 0 };
+    this.avgTurnaround = this.cfg.targetTurnaround * this.patience(); // the clients start out content: reputation 1
     this.money = this.sandbox ? SANDBOX_MONEY : this.cfg.startMoney;
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
@@ -574,6 +653,8 @@ export class Game {
   purchase(itemId: string): Result<{ invId: string }> {
     const extra = this.extraOffers().find((o) => o.id === itemId);
     if (extra) {
+      const lock = this.levelLock(itemId);
+      if (lock) return { ok: false, reason: lockText(lock) };
       if (extra.blocked) return { ok: false, reason: extra.blocked };
       if (this.money < extra.price) return { ok: false, reason: `needs $${extra.price}, have $${this.money}` };
       this.money -= extra.price;
@@ -585,6 +666,8 @@ export class Game {
     }
     const cand = this.deviceOffers(this.plannedBoard()).find((s) => s.id === itemId);
     if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
+    const lock = this.levelLock(itemId);
+    if (lock) return { ok: false, reason: lockText(lock) };
     if (cand.kind === "board" && this.powered) return { ok: false, reason: BOARD_OFF_REASON };
     const price = this.cost(cand.price);
     if (this.money < price) return { ok: false, reason: `needs $${price}, have $${this.money}` };
@@ -596,6 +679,13 @@ export class Game {
     this.progress.firstPurchase = true;
     this.note("purchase", `bought ${cand.name} ${this.priceText(price)}`);
     return { ok: true, invId };
+  }
+
+  /** Level gate (docs/PROGRESSION.md "Unlock table"): null when the item is open now, always in the sandbox. */
+  private levelLock(id: string): { level: number; name: string } | null {
+    if (this.sandbox || !this.cfg.levelGating) return null;
+    const need = unlockLevelOf(id);
+    return need > this.lvl ? { level: need, name: levelDef(need).name } : null;
   }
 
   /** What a list price costs the player: nothing in the sandbox. */
@@ -614,16 +704,30 @@ export class Game {
 
   // ---------- public API: sandbox tools (refused outside the sandbox) ----------
 
-  /** Sandbox: add a key with job `template` (any `cli*` template) at `scale` 1..16 to the tray. */
+  /**
+   * Sandbox: add a key to the tray: a generator template (any `cli*`) at `scale` 1..16, or a job class id (`db`, `web`,
+   * `gpu`, ...; the class sets template and scale, so it carries its needs and may be unrunnable).
+   */
   spawnKey(template: string, scale = 1): Result<{ keyId: number }> {
     if (!this.sandbox) return NOT_SANDBOX;
-    if (typeof template !== "string" || !Object.prototype.hasOwnProperty.call(TEMPLATES, template)) return { ok: false, reason: `unknown job template "${String(template)}"` };
+    const cls = typeof template === "string" ? jobClass(template) : undefined;
+    if (!cls && (typeof template !== "string" || !Object.prototype.hasOwnProperty.call(TEMPLATES, template))) return { ok: false, reason: `unknown job template "${String(template)}"` };
     if (!Number.isInteger(scale) || scale < 1 || scale > 16) return { ok: false, reason: "scale must be a whole number from 1 to 16" };
     if (this.tray.waiting().length >= this.cfg.queueCap) return { ok: false, reason: `the tray is full (${this.cfg.queueCap} keys)` };
     const keyId = this.nextKeyId;
-    this.enqueue(template, scale);
+    if (cls) this.enqueue(cls.template, cls.scale, cls.id);
+    else this.enqueue(template, scale);
     this.note("sandbox", `spawned key ${keyId} (${template} x${scale})`);
     return { ok: true, keyId };
+  }
+
+  /** Sandbox: pin the rules level (patience, payout, demand and the arrival mix) at `level` (1 to 18). Refused in a campaign. */
+  setLevel(level: number): Result<{ level: number }> {
+    if (!this.sandbox) return NOT_SANDBOX;
+    if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) return { ok: false, reason: `level must be a whole number from 1 to ${MAX_LEVEL}` };
+    this.sandboxLevel = level;
+    this.note("sandbox", `rules level set to ${level} (${levelDef(level).name})`);
+    return { ok: true, level };
   }
 
   /** Sandbox: throw away every key in the tray (the plugged key and keys the OS holds stay). */
@@ -719,6 +823,15 @@ export class Game {
   plugKey(keyId: number): Result<{ key: number }> {
     if (this.plugged) return { ok: false, reason: "a key is already plugged in: remove it first" };
     const heldAt = this.held.findIndex((k) => k.id === keyId);
+    const peek = heldAt >= 0 ? this.held[heldAt] : this.tray.waiting().find((k) => k.id === keyId);
+    if (peek && heldAt < 0) {
+      // A job the machine cannot run is refused at the port (with an OS, at ingest): it waits in the tray until it expires or is declined.
+      const need = needsMet(peek.needs, this.caps());
+      if (!need.ok) {
+        this.note("key", `key ${peek.id} refused: needs ${need.missing.join(", ")}`);
+        return { ok: false, reason: `cannot run this job: it needs ${need.missing.join(" and ")}` };
+      }
+    }
     const key = heldAt >= 0 ? this.held.splice(heldAt, 1)[0] : this.tray.take(keyId);
     if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
     let program: Uint32Array;
@@ -764,10 +877,11 @@ export class Game {
     }
     const turnaround = this.baseTick - key.arrival;
     const late = this.baseTick > key.deadline;
-    const pay = payout(this.cfg, key.work * payMulFor(this.cfg, key.template, key.scale), turnaround, late);
+    const pay = payout(this.cfg, key.work * key.payMul, turnaround, late, levelPayMul(this.level));
     if (!this.sandbox) this.money += pay; // the sandbox balance is a constant
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
+    this.addClientBase(this.reputation());
     this.progress.firstKeyEjected = true;
     if (this.os) {
       this.progress.firstOsJob = true;
@@ -781,9 +895,41 @@ export class Game {
     return { ok: true, payout: pay, done: true };
   }
 
-  /** Ids of the keys in the tray, oldest first. */
+  /** Ids of the keys in the tray that the machine can run, oldest first (what a bot should plug). */
   trayKeyIds(): number[] {
-    return this.tray.waiting().map((k) => k.id);
+    const caps = this.caps();
+    return this.tray.waiting().filter((k) => needsMet(k.needs, caps).ok).map((k) => k.id);
+  }
+
+  /**
+   * Decline a waiting job: a tray key, or a key the OS ingested that has not started (docs/PROGRESSION.md "Declining").
+   * The client leaves at once; the small reputation cost is `targetTurnaround x patienceMul` fed into the turnaround
+   * average (one third of an expiry), nothing in the sandbox. Pays nothing and gives no client-base points.
+   * Refused for the plugged key, a running job and a result waiting for collection.
+   */
+  declineKey(keyId: number): Result<{ keyId: number }> {
+    if (this.plugged?.id === keyId) return { ok: false, reason: "plugged: the key is in the USB port, remove it first" };
+    const inTray = this.tray.waiting().some((k) => k.id === keyId);
+    if (!inTray) {
+      const held = this.held.find((k) => k.id === keyId);
+      if (!held) return { ok: false, reason: `no waiting job ${keyId}` };
+      const job = this.kernelJobs().find((j) => j.key === keyId);
+      if (job?.state === JobState.Running) return { ok: false, reason: "running: the job is being run" };
+      if (job?.state === JobState.Result) return { ok: false, reason: "result waiting: plug the key in to collect it" };
+      if (job) this.freeKernelSlot(keyId);
+      this.held = this.held.filter((k) => k.id !== keyId);
+    } else {
+      this.tray.take(keyId);
+    }
+    this.declined++;
+    if (!this.sandbox) this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
+    this.note("decline", `declined job ${keyId}${this.sandbox ? " (free in the sandbox)" : ""}`);
+    return { ok: true, keyId };
+  }
+
+  /** Decline an OS queue row (by its key id). The network phase adds offers to the same call. */
+  declineJob(id: number): Result<{ keyId: number }> {
+    return this.declineKey(id);
   }
 
   /** The plugged key's id and whether it holds a result, or null. */
@@ -835,6 +981,7 @@ export class Game {
   advanceBaseTick(): void {
     this.baseTick++;
     this.arrivals();
+    this.expireKeys();
     // A failed POST: the cold-boot wait runs first (the monitor is black), then the error text appears. The phase is
     // "error" from the press on, so the UI chip does not wait.
     if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) this.showPostError();
@@ -891,6 +1038,10 @@ export class Game {
         id: o.id, name: o.name, kind: o.kind, price: o.price, affordable: this.money >= o.price,
         ...(o.blocked ? { blocked: o.blocked } : {}), ...(o.later ? { later: true } : {}), ...(o.description ? { description: o.description } : {}),
       });
+    }
+    for (const p of purchases) {
+      const lock = this.levelLock(p.id);
+      if (lock) p.locked = lock;
     }
     const phase = this.currentPhase();
     const live = this.monitorLive();
@@ -958,6 +1109,24 @@ export class Game {
         mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
         sinceFirstBoot: this.sinceFirstBoot(),
       },
+      level: this.levelSnap(),
+      expired: this.expired,
+      declined: this.declined,
+      postTicks: postTicks(this.cfg, this.board),
+    };
+  }
+
+  private levelSnap(): LevelSnap {
+    const lv = this.level;
+    const def = levelDef(lv);
+    const nextDef = lv < MAX_LEVEL ? levelDef(lv + 1) : null;
+    const span = nextDef ? nextDef.threshold - def.threshold : 1;
+    return {
+      level: lv, name: def.name, clientBase: this.clientBase, floor: def.threshold, next: nextDef ? nextDef.threshold : null,
+      progress: this.sandbox || !nextDef ? (this.sandbox ? 0 : 1) : Math.min(1, Math.max(0, (this.clientBase - def.threshold) / span)),
+      patienceMul: def.patienceMul, payMul: def.payMul, demandMul: def.demandMul,
+      leveledUpAt: this.leveledUpAt, recentlyUnlocked: this.recentUnlocks.map((i) => ({ ...i })),
+      upcoming: LEVEL_ROWS, sandbox: this.sandbox,
     };
   }
 
@@ -997,7 +1166,7 @@ export class Game {
 
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
   toSave(): SaveV4 {
-    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline });
+    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls });
     const p = this.plugged;
     const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
     return {
@@ -1024,6 +1193,11 @@ export class Game {
       os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
       firstBootTick: this.firstBootTick,
       ...(this.sandbox ? { sandbox: true } : {}),
+      clientBase: this.clientBase,
+      level: this.lvl,
+      levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
+      declined: this.declined,
+      expired: this.expired,
     };
   }
 
@@ -1049,8 +1223,23 @@ export class Game {
     g.nextInvId = s.nextInvId;
     g.cables = { ...s.cables };
     g.progress = { ...s.progress };
-    // The patience schedule runs from the first boot; a save without the field (older v4) restarts it at the load tick.
+    // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
     g.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
+    g.declined = s.declined ?? 0;
+    g.expired = s.expired ?? 0;
+    if (!g.sandbox) {
+      if (s.clientBase !== undefined) {
+        g.clientBase = s.clientBase;
+        g.lvl = levelFor(g.clientBase);
+        g.levelTicks = Object.fromEntries(Object.entries(s.levelTicks ?? {}).map(([k, v]) => [Number(k), v]));
+      } else {
+        // A save from before levels: an average point per job so far, the level derived from it, no celebration. Parts
+        // already installed stay (the level only gates what can be bought).
+        g.clientBase = s.completed * 1.1;
+        g.lvl = levelFor(g.clientBase);
+        g.levelTicks = { [g.lvl]: s.baseTick };
+      }
+    }
     g.log = [];
     if (s.os) g.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
     try {
@@ -1454,7 +1643,7 @@ export class Game {
     this.machine.display.clear();
     this.machine.display.connected = this.monitorLive();
     this.machine.engine = null;
-    this.bootDelay = this.cfg.coldBootTicks;
+    this.bootDelay = postTicks(this.cfg, this.board);
     this.postError = bootCheck(this.board, this.cables).post;
     if (this.postError) {
       this.pch.powerOff();
@@ -1579,15 +1768,21 @@ export class Game {
 
   private rebuild(r: SavedKey): Key {
     const g = generate(r.template, r.seed, { scale: r.scale });
+    const clsId = r.cls ?? classOfTemplate(r.template);
+    const cls = jobClass(clsId);
+    // A test-override mix carries its own payout multipliers; otherwise the class does (when the key is the class's own job).
+    const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : cls && cls.template === r.template && cls.scale === r.scale ? cls.payMul : 1;
+    const parsed = /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? "cli";
     return {
       id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
-      work: runReference(g).steps, type: /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? "cli", jobNo: g.meta.params.jobId,
+      work: runReference(g).steps, type: clsId === "cli" || clsId === "scan" ? parsed : clsId, jobNo: g.meta.params.jobId,
+      cls: clsId, needs: cls?.needs ?? [], payMul,
       attempts: 1, pluggedAt: 0, done: false, doneAt: 0, result: "",
     };
   }
 
   /** A key arrives from a client: it goes in the tray, or the client gives up if the tray is full. */
-  private enqueue(template: string, scale = 1): boolean {
+  private enqueue(template: string, scale = 1, cls?: string): boolean {
     const seed = this.machine.prng.nextU32();
     if (this.tray.waiting().length >= this.cfg.queueCap) {
       this.dropped++;
@@ -1596,27 +1791,83 @@ export class Game {
       this.note("drop", "tray full: a client gave up");
       return false;
     }
-    const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks() });
+    const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks(), ...(cls ? { cls } : {}) });
     this.tray.offer(key);
     return true;
   }
 
   private arrivals(): void {
-    const rate = demandRate(this.cfg, this.reputation());
+    const rate = this.demand();
     const prng = this.machine.prng;
     // Two draws per tick whatever happens, so the PRNG stream does not depend on state.
     const hit = prng.next() < rate;
     const pick = prng.next();
     // No clients before the first boot: the market opens when the player's PC first comes up.
     if (hit && this.progress.poweredOn) {
-      const m = pickTemplate(this.cfg, this.installedRamBytes(), pick, this.baseTick);
-      this.enqueue(m.template, m.scale);
+      if (this.cfg.mix) {
+        const m = pickTemplate(this.cfg.mix, this.installedRamBytes(), pick, this.baseTick);
+        this.enqueue(m.template, m.scale);
+      } else {
+        const c: JobClassDef = pickClass(jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick), pick);
+        this.enqueue(c.template, c.scale, c.id);
+      }
     }
+  }
+
+  /** Key arrivals per tick now: the base rate times the level's demand multiplier times the reputation. */
+  private demand(): number {
+    return demandRate(this.cfg, this.reputation(), levelDemandMul(this.level));
+  }
+
+  /** What the machine can offer a job right now. Network, TPM, GPU, NPU and multicore do not exist yet. */
+  private caps(): Caps {
+    const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
+    return { ...NO_CAPS, osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+  }
+
+  private runnable(k: Key, caps = this.caps()): boolean {
+    return needsMet(k.needs, caps).ok;
+  }
+
+  /** The client takes back a job the machine cannot run once its deadline passes: a give-up in the turnaround average. */
+  private expireKeys(): void {
+    if (!this.progress.poweredOn) return;
+    const caps = this.caps();
+    for (const k of [...this.tray.waiting()]) {
+      if (this.baseTick < k.deadline || this.runnable(k, caps)) continue;
+      this.tray.take(k.id);
+      this.expired++;
+      this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
+      this.note("expire", `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
+    }
+  }
+
+  /** A delivered job adds `clamp(reputation, 0.5, 2)` to the client base; reaching a threshold levels up (never down). */
+  private addClientBase(rep: number): void {
+    if (this.sandbox) return;
+    this.clientBase += pointsFor(rep);
+    const to = levelFor(this.clientBase);
+    if (to <= this.lvl) return;
+    this.recentUnlocks = [];
+    for (let l = this.lvl + 1; l <= to; l++) {
+      this.levelTicks[l] = this.baseTick;
+      this.recentUnlocks.push(...levelDef(l).unlocks.map(itemInfo));
+    }
+    this.lvl = to;
+    this.leveledUpAt = this.baseTick;
+    this.note("level", `Level ${to}: ${levelDef(to).name}`);
+  }
+
+  /** The player level (campaign) or the pinned rules level (sandbox). */
+  get level(): number {
+    return this.sandbox ? this.sandboxLevel : this.lvl;
   }
 
   /** Turnaround that drives reputation: the average, or the oldest waiting key's age if that is worse. */
   private serviceTurnaround(): number {
-    const waiting = [...this.tray.waiting(), ...this.held];
+    // Jobs the machine cannot run are left out: they cost reputation once, when they expire, not also while they wait.
+    const caps = this.caps();
+    const waiting = [...this.tray.waiting().filter((k) => this.runnable(k, caps)), ...this.held];
     const oldest = waiting.reduce<Key | undefined>((o, k) => (!o || k.arrival < o.arrival ? k : o), undefined);
     const age = oldest && this.progress.poweredOn ? this.baseTick - oldest.arrival : 0;
     return Math.max(this.avgTurnaround, age);
@@ -1631,9 +1882,9 @@ export class Game {
     return this.firstBootTick === null ? 0 : Math.max(0, this.baseTick - this.firstBootTick);
   }
 
-  /** Client patience multiplier now (docs/GAME.md, patience schedule). */
+  /** Client patience multiplier now: the level's (docs/PROGRESSION.md). */
   private patience(): number {
-    return patienceMul(this.cfg, this.sinceFirstBoot());
+    return patienceMul(this.level);
   }
 
   /** The turnaround that counts as fine for reputation right now. */
@@ -1647,12 +1898,15 @@ export class Game {
   }
 
   private estimate(k: Key): number {
-    return payout(this.cfg, k.work * payMulFor(this.cfg, k.template, k.scale), this.cfg.targetTurnaround, false);
+    return payout(this.cfg, k.work * k.payMul, this.cfg.targetTurnaround, false, levelPayMul(this.level));
   }
 
   private keySnap(k: Key, jobs: KernelJob[]): KeySnap {
+    const need = needsMet(k.needs, this.caps());
+    const stage = this.stageOf(k, jobs);
     return {
-      stage: this.stageOf(k, jobs),
+      stage, cls: k.cls, needs: k.needs.map((n) => describeNeed(n).short), runnable: need.ok, missing: need.missing, expiresTick: k.deadline,
+      declinable: k !== this.plugged && (stage === "tray" || (this.held.includes(k) && stage === "queued")),
       id: k.id, template: k.template, type: k.type, jobNo: k.jobNo, label: `#${String(k.jobNo).padStart(2, "0")} ${k.type}`,
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,

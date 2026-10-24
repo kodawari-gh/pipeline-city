@@ -3,6 +3,7 @@
 import type { BoardSnap, DeviceSnap, InventorySnap, KeySnap, PurchaseSnap, Snapshot, SlotSnap, VrmSnap } from '../sim/game/game';
 import { newProgress } from '../sim/game/save';
 import { BOARD_TIERS } from '../sim/board/specs';
+import { levelRows } from '../sim/game/levels';
 
 export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
   id: 'dev1', spec: 'cpu0', kind: 'cpu', name: 'Tiny-1 (unpipelined)', burnt: false, requestedClock: 1, effectiveClock: 1,
@@ -11,7 +12,8 @@ export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
 
 export const key = (o: Partial<KeySnap> = {}): KeySnap => ({
   id: 1, template: 'cli.log', type: 'log', jobNo: 72, label: '#72 log', arrivalTick: 0, deadlineTick: 120, age: 10,
-  late: false, payoutEstimate: 50, attempts: 1, done: false, result: '', stage: 'tray', ...o,
+  late: false, payoutEstimate: 50, attempts: 1, done: false, result: '', stage: 'tray',
+  cls: 'cli', needs: [], runnable: true, missing: [], expiresTick: 120, declinable: true, ...o,
 });
 
 /** The bare board: every socket empty (the cooler mounts on the CPU, so it starts in the crate). */
@@ -83,6 +85,8 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     storage: [], os: null, held: [], keyActivity: 'none',
     haltReason: null, keyIgnored: false, postFailed: false, sandbox: false,
     patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
+    level: { level: 1, name: 'Garage Bench', clientBase: 0, floor: 0, next: 4, progress: 0, patienceMul: 4, payMul: 1, demandMul: 1, leveledUpAt: null, recentlyUnlocked: [], upcoming: levelRows(), sandbox: false },
+    expired: 0, declined: 0, postTicks: 30,
     board: boardSnap(),
     ...o,
   } as Snapshot;

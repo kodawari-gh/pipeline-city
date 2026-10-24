@@ -5,6 +5,10 @@ import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
 
 import { econ, rig, type Keys } from "./testkit";
+import { ECONOMY } from "./economy";
+
+// These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
+ECONOMY.levelGating = false;
 
 const ticks = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 

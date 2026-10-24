@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { advance, handleMessage, newHost } from './host';
 import type { FromSim, Snapshot } from './protocol';
+import { ECONOMY } from "./game/economy";
+
+// These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
+ECONOMY.levelGating = false;
 
 const types = (r: FromSim[]) => r.map((m) => m.type);
 

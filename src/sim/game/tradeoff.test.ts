@@ -3,11 +3,12 @@
 // Income = money earned over the horizon (money in hand plus money spent on the two parts).
 import { describe, expect, it } from "vitest";
 import { getSpec } from "../board";
-import { ECONOMY, type EconomyConfig } from "./economy";
+import { type EconomyConfig } from "./economy";
+import { LEVELS } from "./levels";
 import { Game } from "./game";
 import { Operator } from "./operator";
 
-// The manual boot loop costs a fixed cold boot (ECONOMY.coldBootTicks) plus the player's steps on every job, so a faster
+// The manual boot loop costs a fixed cold boot (the POST time) plus the player's steps on every job, so a faster
 // CPU or RAM only shrinks part of each cycle and the first purchase ($100-$200) lands later: the horizon is twice the old
 // 800 ticks to keep the same ~8 jobs of lead time before the purchases pay off.
 const HORIZON = 1600;
@@ -93,7 +94,7 @@ describe("CPU-first vs RAM-first depends on the traffic mix", () => {
   });
 
   it("the starting traffic mix is a close call: neither choice dominates", { timeout: 120000 }, () => {
-    const c = compare(ECONOMY.mix);
+    const c = compare(undefined); // the level-driven mix of levels 1 and 2
     report("starting mix", c);
     for (const [a, b] of [[c.cpuOnly, c.ramOnly], [c.cpuFirst, c.ramFirst]] as const) {
       // Band, not a tie: the scan ramp makes the first minutes log-only, which favours buying the CPU late-ish.
@@ -101,9 +102,8 @@ describe("CPU-first vs RAM-first depends on the traffic mix", () => {
       expect(a.income / b.income).toBeLessThan(1.5);
     }
     // And the share of scan jobs in the starting mix is a quarter to a third.
-    const total = ECONOMY.mix.reduce((n, m) => n + m.weight, 0);
-    const scan = ECONOMY.mix.filter((m) => m.template === "cli.scan").reduce((n, m) => n + m.weight, 0);
-    expect(scan / total).toBeGreaterThan(0.25);
-    expect(scan / total).toBeLessThan(0.34);
+    const row = LEVELS[0]!.mix;
+    expect(row.scan! / (row.cli! + row.scan!)).toBeGreaterThan(0.25);
+    expect(row.scan! / (row.cli! + row.scan!)).toBeLessThan(0.34);
   });
 });

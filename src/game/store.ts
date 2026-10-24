@@ -81,6 +81,9 @@ export const disconnectCable = (cable: string) => send({ type: 'disconnectCable'
 export const powerButton = () => send({ type: 'powerButton' });
 export const plugKey = (keyId: number) => send({ type: 'plugKey', keyId });
 export const ejectKey = () => send({ type: 'ejectKey' });
+/** Decline a waiting job (small reputation cost, free in the sandbox); refusals set `lastError`. */
+export const declineKey = (keyId: number) => send({ type: 'declineKey', keyId });
+export const declineJob = (id: number) => send({ type: 'declineJob', id });
 /** Take the OS off its drive (back to the inventory). Only while the machine is off. */
 export const uninstallOs = () => send({ type: 'uninstallOs' });
 // Sandbox tools (docs/SANDBOX.md): the sim refuses them outside a sandbox game.
@@ -88,6 +91,7 @@ export const spawnKey = (template: string, scale?: number) => send({ type: 'spaw
 export const clearQueue = () => send({ type: 'clearQueue' });
 export const repairAll = () => send({ type: 'repairAll' });
 export const setReputation = (value: number) => send({ type: 'setReputation', value });
+export const setLevel = (level: number) => send({ type: 'setLevel', level });
 export function setSpeed(s: Speed) {
   speed.value = s;
   send({ type: 'setSpeed', speed: s });

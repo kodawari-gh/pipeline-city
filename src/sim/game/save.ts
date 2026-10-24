@@ -5,6 +5,7 @@ import { boardFromJson, CABLE_IDS, getSpec, type BoardJson, type Cables } from "
 import { getOsSpec } from "../os";
 import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
+import { jobClass, MAX_LEVEL } from "./levels";
 
 export const SAVE_VERSION = 4;
 
@@ -16,6 +17,8 @@ export interface SavedKey {
   scale: number;
   arrival: number;
   deadline: number;
+  /** Job class id (`cli`, `scan`, `db`, `web`, ...). Optional and additive: absent means derived from the template. */
+  cls?: string;
 }
 
 export interface SavedPlugged extends SavedKey {
@@ -133,6 +136,17 @@ export interface SaveV4 {
   firstBootTick?: number | null;
   /** Sandbox game (docs/SANDBOX.md). Optional and additive: absent means a campaign game; written only when true. */
   sandbox?: boolean;
+  /**
+   * Client base score and the derived level (docs/PROGRESSION.md). Optional and additive, no version bump: a save without
+   * `clientBase` gets `completed * 1.1` on load (the level is derived from the score, `level` is informational).
+   */
+  clientBase?: number;
+  level?: number;
+  /** Base tick at which each level was first reached (drives the job-class ramp). Keys are level numbers. */
+  levelTicks?: Record<string, number>;
+  /** Jobs the player declined (lifetime) and clients that took an unrunnable job back at its deadline. */
+  declined?: number;
+  expired?: number;
 }
 
 export type Save = SaveV4;
@@ -237,6 +251,17 @@ export function parseSave(input: unknown): SaveV4 {
   }
   if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick)) throw new Error('save: "firstBootTick" must be a non-negative integer or null');
   if (s.sandbox !== undefined && typeof s.sandbox !== "boolean") throw new Error('save: "sandbox" must be a boolean');
+  for (const k of ["clientBase"] as const) {
+    if (s[k] !== undefined && (typeof s[k] !== "number" || !Number.isFinite(s[k]) || (s[k] as number) < 0)) throw new Error(`save: "${k}" must be a finite number >= 0`);
+  }
+  for (const k of ["level", "declined", "expired"] as const) {
+    if (s[k] !== undefined && !isNat(s[k])) throw new Error(`save: "${k}" must be a non-negative integer`);
+  }
+  if (s.level !== undefined && (s.level as number) > MAX_LEVEL) throw new Error(`save: "level" must be at most ${MAX_LEVEL}`);
+  if (s.levelTicks !== undefined) {
+    const lt = s.levelTicks;
+    if (!isObj(lt) || Object.entries(lt).some(([k, v]) => !/^[0-9]+$/.test(k) || !isNat(v))) throw new Error('save: "levelTicks" must map level numbers to ticks');
+  }
   const num = (k: string, min = 0): number => {
     const x = s[k];
     if (typeof x !== "number" || !Number.isFinite(x) || x < min) throw new Error(`save: "${k}" must be a number >= ${min}`);
@@ -298,4 +323,5 @@ function checkKey(r: unknown, where: string): void {
     if (!isNat(r[k])) throw new Error(`save: ${where}.${k} must be a non-negative integer`);
   }
   if ((r.scale as number) < 1 || (r.scale as number) > 16) throw new Error(`save: ${where}.scale out of range`);
+  if (r.cls !== undefined && (typeof r.cls !== "string" || !jobClass(r.cls))) throw new Error(`save: ${where}.cls is not a known job class`);
 }

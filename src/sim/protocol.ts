@@ -30,6 +30,10 @@ export type ToSim =
   | { type: 'powerButton' }
   | { type: 'plugKey'; keyId: number }
   | { type: 'ejectKey' }
+  /** Decline a waiting job (a tray key, or an ingested key that has not started): small reputation cost, free in the sandbox. */
+  | { type: 'declineKey'; keyId: number }
+  /** Decline an OS queue row (by key id); the network phase adds offers. */
+  | { type: 'declineJob'; id: number }
   // Storage and the OS (docs/OS.md). Installing a drive or an OS uses `install` (an OS takes the storage slot id as slotId).
   | { type: 'uninstallOs' }
   | { type: 'requestSave' }
@@ -37,7 +41,9 @@ export type ToSim =
   | { type: 'spawnKey'; template: string; scale?: number }
   | { type: 'clearQueue' }
   | { type: 'repairAll' }
-  | { type: 'setReputation'; value: number };
+  | { type: 'setReputation'; value: number }
+  /** Pin the sandbox rules level (patience, payout, demand, job mix), 1 to 18. */
+  | { type: 'setLevel'; level: number };
 
 export type FromSim =
   | { type: 'ready' }
