@@ -75,7 +75,7 @@ const domRect = (el: Element | null): Rect | null => {
 };
 
 /** Is `id` something the camera can fly to (a world id, not an inventory tile or the HUD button)? */
-const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:');
+const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:') && !id.startsWith('buy:');
 
 /**
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else

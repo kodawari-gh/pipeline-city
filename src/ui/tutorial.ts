@@ -76,6 +76,11 @@ export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): b
 };
 /** A part swap is queued behind a running job: the player has done their bit, so point at the work instead of the shelf. */
 const whileSwapQueued = (targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => (s.pendingSwap ? ['monitor'] : targets(s));
+/** The shop tile to buy, pulsed inside the picker (`buy:<spec id>`): the cheapest processor on offer for the spend step. */
+const cheapestCpu = (s: Snapshot): string | null => {
+  const c = s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked).sort((a, b) => a.price - b.price)[0];
+  return c ? c.id : null;
+};
 const SWAP_WAIT = 'Waiting for the running job to finish: your part swaps in by itself.';
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
 /** Inventory items of a kind plus the free slots they fit. */
@@ -149,7 +154,8 @@ export const STEPS: StepDef[] = [
     text: 'You earned your first coins! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.',
     targets: (s) => {
       const cpu = s.devices.find((d) => d.kind === 'cpu');
-      return cpu ? [cpu.slot] : [INVENTORY_ID];
+      const buy = cheapestCpu(s);
+      return [...(cpu ? [cpu.slot] : [INVENTORY_ID]), ...(buy ? [`buy:${buy}`] : [])];
     } },
   // ---- storage and the OS ----
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
@@ -164,15 +170,15 @@ export const STEPS: StepDef[] = [
     targets: () => [], meter: levelMeter },
   { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
-    text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy one.',
-    targets: () => ['bay'] },
+    text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay, then buy the glowing HDD.',
+    targets: () => ['bay', 'buy:hdd0'] },
   { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
     text: 'The drive\'s speed decides how quickly the machine wakes up later. Drag the drive onto a free drive bay.',
     targets: whileSwapQueued(installTargets('storage')) },
   { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
-    text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy one.',
-    targets: () => ['bay'] },
+    text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again, then buy the glowing OS.',
+    targets: () => ['bay', 'buy:os1'] },
   { id: 'os', chapter: 'The OS', title: 'Install the OS on the drive', flag: 'osInstalled',
     text: 'The OS gets written onto the drive, which is where the machine wakes up from. Drag the OS onto the drive.',
     targets: whileSwapQueued(installTargets('os')) },

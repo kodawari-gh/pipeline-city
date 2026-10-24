@@ -1,7 +1,7 @@
 import { effect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { selected, viewInset } from '../game/hover';
-import { cameraRev } from '../game/interaction';
+import { cameraRev, highlight } from '../game/interaction';
 import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot, uninstallOs } from '../game/store';
 import { getSpec, type CpuSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
@@ -63,7 +63,8 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
   const title = step.reason ?? (step.state === 'installed' ? 'Fitted in the machine' : step.state === 'crate' ? step.reason : step.name);
   return (
     <div
-      role="button" tabIndex={0} class={`rung ${step.state} ${step.soon ? 'soon' : ''} ${picked ? 'picked' : ''}`}
+      role="button" tabIndex={0} data-buy={step.specId}
+      class={`rung ${step.state} ${step.soon ? 'soon' : ''} ${picked ? 'picked' : ''} ${highlight.value.includes(`buy:${step.specId}`) ? 'pulse' : ''}`}
       title={step.warn ? `${title}. Warning: ${step.warn}` : title} aria-pressed={picked}
       onClick={() => onPick(step.specId)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(step.specId); } }}

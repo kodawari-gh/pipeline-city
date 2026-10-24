@@ -417,7 +417,7 @@ describe('step targets (what the renderer pulses)', () => {
 
   it('install steps point at their inventory items (inv:) and the socket, and the last card points nowhere', () => {
     expect(STEPS.find((x) => x.id === 'ram')!.targets(snap())).toEqual(['inv:inv3', 'dimm0', 'dimm1']);
-    expect(STEPS.find((x) => x.id === 'spend')!.targets(snap())).toEqual(['inventory']);
+    expect(STEPS.find((x) => x.id === 'spend')!.targets(snap())).toEqual(['inventory', 'buy:cpu1']);
     expect(STEPS.find((x) => x.id === 'done')!.targets(snap())).toEqual([]);
   });
 
@@ -435,8 +435,8 @@ describe('step targets (what the renderer pulses)', () => {
   });
 
   it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {
-    expect(STEPS.find((x) => x.id === 'buyDrive')!.targets(snap())).toEqual(['bay']);
-    expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['bay']);
+    expect(STEPS.find((x) => x.id === 'buyDrive')!.targets(snap())).toEqual(['bay', 'buy:hdd0']);
+    expect(STEPS.find((x) => x.id === 'buyOs')!.targets(snap())).toEqual(['bay', 'buy:os1']);
   });
 });
 
@@ -444,7 +444,7 @@ describe('every step target names a real id', () => {
   /** Ids the renderer registers that are not described slots: buttons, the monitor, and the per-item `inv:`/`key:` ids. */
   const FIXED = new Set(['inventory', 'power', 'monitor']);
   const known = (id: string, s: ReturnType<typeof snap>) =>
-    FIXED.has(id) || /^(inv|key):\S+$/.test(id) || describeId(id, s) !== null;
+    FIXED.has(id) || /^(inv|key):\S+$/.test(id) || (id.startsWith('buy:') && describeId(id.slice(4), s) !== null) || describeId(id, s) !== null;
 
   it('the checker rejects an id that does not exist', () => {
     expect(known('routr', snap())).toBe(false);
