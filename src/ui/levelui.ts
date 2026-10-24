@@ -165,3 +165,37 @@ export function unlockedFirst<T>(items: readonly T[], lockOf: (t: T) => LevelLoc
     .sort((a, b) => a.lv - b.lv || a.i - b.i)
     .map((x) => x.t);
 }
+
+// ---------- level-up celebration ----------
+
+export interface Celebration { level: number; name: string; unlocked: MilestoneUnlock[]; at: number }
+
+/**
+ * The banner to show for this snapshot, or null. `seen` is the highest level this viewer has already been told about
+ * (null if unknown). A level-up shows when the sim stamped `leveledUpAt` (it is null after a load or a start, so a reload
+ * and a legacy save never replay) and the level is above `seen`. Not in the sandbox.
+ */
+export function celebrationFor(s: Snapshot, seen: number | null): Celebration | null {
+  const l = s.level;
+  if (l.sandbox || s.sandbox || l.leveledUpAt === null || seen === null || l.level <= seen) return null;
+  return {
+    level: l.level, name: l.name, at: l.leveledUpAt,
+    unlocked: l.recentlyUnlocked.map((u) => ({ ...u, icon: kindIcon(u.kind) })),
+  };
+}
+
+/**
+ * The seen level to keep after looking at `s`. Unknown becomes the current level; no stamp (a load, a start, a new game)
+ * rebases to the current level; a level above `seen` with a stamp is kept (the banner is still owed).
+ */
+export function reconcileSeen(s: Snapshot, seen: number | null): number {
+  const l = s.level;
+  if (seen === null || l.sandbox || s.sandbox || l.leveledUpAt === null || l.level < seen) return l.level;
+  return seen;
+}
+
+/** Banner room: it may appear only while fewer than two hint toasts are up and no tutorial step is showing. */
+export const canShowBanner = (visibleToasts: number, tutorialActive: boolean): boolean => !tutorialActive && visibleToasts < 2;
+
+/** How many hint toasts may show while the banner is up (the two-toast cap includes the banner). */
+export const toastRoom = (bannerUp: boolean): number => (bannerUp ? 1 : 2);

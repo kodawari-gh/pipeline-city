@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../sim/game/game';
 import { levelRows } from '../sim/game/levels';
-import { hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, unlockedFirst } from './levelui';
+import { canShowBanner, celebrationFor, hasArt, isNextLevelLock, levelBar, lockBadge, lockTooltip, milestoneRows, reconcileSeen, toastRoom, unlockedFirst } from './levelui';
 import { pickerFor } from './picker';
 import { boardCards } from './vrm';
 import { snap } from './testdata';
@@ -142,5 +142,44 @@ describe('locked items', () => {
     expect(c.canBuy).toBe(false);
     expect(c.soon).toBe(true);
     expect(c.reason).toContain('Level 2');
+  });
+});
+
+describe('level-up celebration', () => {
+  const up = (o: Partial<Snapshot['level']> = {}) => at({ level: 4, name: 'Small Office', leveledUpAt: 900, recentlyUnlocked: levelRows()[3]!.unlocks, ...o });
+
+  it('shows once for a level above the seen one, with what it unlocked', () => {
+    const c = celebrationFor(up(), 3)!;
+    expect(c.level).toBe(4);
+    expect(c.name).toBe('Small Office');
+    expect(c.unlocked.map((u) => u.id)).toEqual(levelRows()[3]!.unlocks.map((u) => u.id));
+    expect(celebrationFor(up(), 4)).toBeNull();
+    expect(celebrationFor(up(), 5)).toBeNull();
+  });
+
+  it('a reload or a legacy save never replays: no stamp, no banner, and the seen level follows', () => {
+    const loaded = up({ leveledUpAt: null, recentlyUnlocked: [] });
+    expect(celebrationFor(loaded, 1)).toBeNull();
+    expect(reconcileSeen(loaded, 1)).toBe(4);
+    expect(celebrationFor(up(), null)).toBeNull();
+    expect(reconcileSeen(up(), null)).toBe(4);
+  });
+
+  it('keeps the seen level while a banner is owed, and drops to a lower level on a new game', () => {
+    expect(reconcileSeen(up(), 3)).toBe(3);
+    expect(reconcileSeen(at({ level: 1, leveledUpAt: null }), 7)).toBe(1);
+  });
+
+  it('never in the sandbox', () => {
+    expect(celebrationFor(at({ sandbox: true, level: 6, leveledUpAt: 10 }), 1)).toBeNull();
+  });
+
+  it('waits behind a tutorial step and the two-toast cap, and takes one toast of room', () => {
+    expect(canShowBanner(0, false)).toBe(true);
+    expect(canShowBanner(1, false)).toBe(true);
+    expect(canShowBanner(2, false)).toBe(false);
+    expect(canShowBanner(0, true)).toBe(false);
+    expect(toastRoom(true)).toBe(1);
+    expect(toastRoom(false)).toBe(2);
   });
 });

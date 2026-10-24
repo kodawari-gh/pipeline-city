@@ -5,6 +5,7 @@
 import { effect, signal } from '@preact/signals';
 import { snapshot, speed } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
+import { canShowBanner, celebrationFor, reconcileSeen, type Celebration } from './levelui';
 import { fillToasts, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from './tutorial';
 
@@ -142,6 +143,43 @@ effect(() => {
   // Hints wait while a tutorial step is active: the card is the one thing to read then.
   if (currentStep(s, tutorial.value)) return;
   for (const h of newHints(s, seen)) showHint(h);
+});
+
+// ---- level-up banner (per viewer; a short non-blocking toast, see levelui.ts) ----
+
+const SEEN_KEY = 'pipeline-city.seenLevel';
+function loadSeen_(): number | null {
+  const v = Number(readStore(SEEN_KEY));
+  return Number.isInteger(v) && v >= 1 ? v : null;
+}
+let seenLevel: number | null = loadSeen_();
+export const levelUp = signal<Celebration | null>(null);
+let levelUpTimer: ReturnType<typeof setTimeout> | undefined;
+const BANNER_MS = 9000;
+
+export function dismissLevelUp() {
+  clearTimeout(levelUpTimer);
+  levelUp.value = null;
+}
+
+effect(() => {
+  const s = snapshot.value;
+  const visible = toasts.value.length;
+  const step = s ? currentStep(s, tutorial.value) : null;
+  if (!s) { dismissLevelUp(); return; }
+  const owed = celebrationFor(s, seenLevel);
+  if (owed && !levelUp.peek() && canShowBanner(visible, !!step)) {
+    levelUp.value = owed;
+    levelUpTimer = setTimeout(dismissLevelUp, BANNER_MS);
+    seenLevel = owed.level;
+    writeStore(SEEN_KEY, String(seenLevel));
+    return;
+  }
+  // Waiting behind a tutorial step or two toasts: keep what is owed. Otherwise follow the level (a load, a new game).
+  if (!owed) {
+    const next = reconcileSeen(s, seenLevel);
+    if (next !== seenLevel) { seenLevel = next; writeStore(SEEN_KEY, String(next)); }
+  }
 });
 
 // ---- recent activity (for the stats sparkline) ----

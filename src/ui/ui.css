@@ -404,6 +404,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .toasts { display: flex; flex-direction: column; gap: 0.35rem; width: min(100%, 24rem); }
 .toast { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.55rem; font-size: 0.75rem; }
 .toast button { font-size: 0.7rem; padding: 0.15rem 0.4rem; }
+/* Level-up banner: a short, non-blocking card with the new unlocks as small chips (Toasts.tsx). */
+.lvlup { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem 0.65rem; border-color: color-mix(in srgb, var(--accent) 65%, transparent); animation: lvlup-in .4s cubic-bezier(.2, .8, .2, 1) both; }
+.lvlup-head { display: flex; align-items: center; gap: 0.6rem; }
+.lvlup-n { display: grid; place-items: center; min-width: 1.6rem; height: 1.6rem; padding: 0 0.2rem; box-sizing: border-box; border-radius: 99rem; background: var(--accent); color: var(--on); font: 700 0.85rem var(--mono); }
+.lvlup-t { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.15; }
+.lvlup-t b { font-size: 0.9rem; }
+.lvlup .close { position: static; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
+.lvlup-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.lvlup-more { font: 600 0.7rem var(--mono); }
+@keyframes lvlup-in { from { opacity: 0; transform: translateY(0.8rem) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* Modals: centred, dimmed backdrop (welcome, next lesson, confirms, new game, welcome back). */
 .modal-back {
@@ -527,6 +537,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
-  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer { transition: none !important; animation: none !important; }
+  .picker, .tut, .tut-text, .tut-out, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-bar i { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
