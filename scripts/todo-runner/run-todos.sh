@@ -5,41 +5,73 @@
 #        ALLOW_DIRTY=1 to start with uncommitted changes (otherwise refuses)
 #        MAX_TURNS=60  per-task turn cap
 # Only open `[auto]` tasks run; `[human]` and `[owner]` tasks are refused.
+# Model: a task line may carry {haiku}, {sonnet} or {opus}; untagged tasks use the cheapest (haiku).
+# A haiku run that fails (turn cap, no commit, red build) is retried once on sonnet.
+# Every run is appended to logs/costs.tsv.
 set -u
 cd "$(dirname "$0")/../.."
 LOGS=scripts/todo-runner/logs
 mkdir -p "$LOGS"
 CLAUDE="${CLAUDE_BIN:-claude}"
+[ -f "$LOGS/costs.tsv" ] || printf 'task\tmodel\toutcome\tusd\tturns\tcommitted\n' > "$LOGS/costs.tsv"
 
 if [ -n "$(git status --porcelain)" ] && [ "${ALLOW_DIRTY:-0}" != "1" ]; then
   echo "working tree is dirty; commit/stash first or set ALLOW_DIRTY=1"; exit 1
 fi
 
-total=0
-for id in "$@"; do
-  task=$(grep -E "^- \[ \] $id " docs/TODO.md | head -1)
-  [ -z "$task" ] && { echo "$id: not found or already done, skipping"; continue; }
-  case "$task" in *"[auto]"*) ;; *) echo "$id: not tagged [auto], refusing"; continue ;; esac
-  echo "== $id =="
-  before=$(git rev-parse HEAD)
+# The rules block of TODO.md goes into the prompt, so the agent need not open the whole file.
+rules=$(awk '/^## Rules for every task/{f=1;next} /^## /{f=0} f' docs/TODO.md)
 
-  "$CLAUDE" -p "Read docs/TODO.md (the rules at the top apply), then do ONLY this task:
+# run_one <id> <task line> <model> [retry]  -> sets OUTCOME and COMMITTED
+run_one() {
+  local id="$1" task="$2" model="$3" retry="${4:-}" before out
+  before=$(git rev-parse HEAD)
+  local note=""
+  [ -n "$retry" ] && note="A cheaper model already tried this and failed. Run git status and git diff first: uncommitted work may exist; finish or redo it."
+
+  "$CLAUDE" -p "Rules:
+$rules
+
+Your task (from docs/TODO.md):
 $task
-If the code already does what the task asks, change nothing except ticking the box.
-When done: tick this task's box in docs/TODO.md, add a line to docs/HANDOVER.md 'Traps' only if you hit a real trap, and make one commit with a clear message. If blocked or it needs an owner decision, change nothing and say why in one line." \
-    --model sonnet \
+
+Start from the files named in the task and its Docs. Do not explore the repo, do not search legacy/ or node_modules, and do not read docs/HANDOVER.md or the whole of docs/TODO.md. If the code already does what the task asks, change nothing except ticking the box.
+Run the one relevant test file first (npx vitest run <file>); run npm test and npm run build once, just before committing.
+When done: tick this task's box in docs/TODO.md (edit that one line only), then make one commit. Add a line to docs/HANDOVER.md Traps only if you hit a real trap. If blocked or it needs an owner decision, change nothing and say why in one line. $note" \
+    --model "$model" \
     --permission-mode acceptEdits \
     --allowedTools "Read" "Edit" "Write" "Glob" "Grep" "Bash(npm run *)" "Bash(npm test)" "Bash(npx vitest:*)" "Bash(npx tsc:*)" "Bash(git add:*)" "Bash(git commit:*)" "Bash(git status)" "Bash(git diff:*)" \
     --max-turns "${MAX_TURNS:-60}" \
     --output-format json > "$LOGS/$id.json" 2> "$LOGS/$id.err"
 
-  cost=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));total=j.total_cost_usd;console.log(j.subtype+" $"+total.toFixed(2)+" "+j.num_turns+" turns | "+String(j.result||"").slice(0,400))}catch(e){console.log("NO OUTPUT (see "+process.argv[1].replace(".json",".err")+")")}' "$LOGS/$id.json")
-  echo "$cost"
+  out=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log([j.subtype,(j.total_cost_usd||0).toFixed(2),j.num_turns].join("\t")+"\t"+String(j.result||"").replace(/\s+/g," ").slice(0,400))}catch(e){console.log("no_output\t0.00\t0\t")}' "$LOGS/$id.json")
+  OUTCOME=$(echo "$out" | cut -f1)
+  COMMITTED=no; [ "$(git rev-parse HEAD)" != "$before" ] && COMMITTED=yes
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$model" "$OUTCOME" "$(echo "$out" | cut -f2)" "$(echo "$out" | cut -f3)" "$COMMITTED" >> "$LOGS/costs.tsv"
+  echo "$id [$model] $OUTCOME \$$(echo "$out" | cut -f2) $(echo "$out" | cut -f3) turns, committed=$COMMITTED | $(echo "$out" | cut -f4)"
+  # a commit must leave the build green
+  if [ "$COMMITTED" = yes ] && ! npm run build >/dev/null 2>&1; then OUTCOME=build_red; fi
+}
 
-  case "$cost" in
-    NO\ OUTPUT*) echo "$id: claude did not run, stopping"; break ;;
-    error_max_turns*) echo "$id: hit the turn cap; uncommitted changes may remain, review with git status"; break ;;
+for id in "$@"; do
+  task=$(grep -E "^- \[ \] $id " docs/TODO.md | head -1)
+  [ -z "$task" ] && { echo "$id: not found or already done, skipping"; continue; }
+  case "$task" in *"[auto]"*) ;; *) echo "$id: not tagged [auto], refusing"; continue ;; esac
+  model=$(echo "$task" | grep -oE '\{(haiku|sonnet|opus)\}' | head -1 | tr -d '{}')
+  model="${model:-haiku}"
+  task=$(echo "$task" | sed -E 's/ *\{(haiku|sonnet|opus)\}//')
+  echo "== $id =="
+
+  run_one "$id" "$task" "$model"
+  if [ "$model" = haiku ] && { [ "$COMMITTED" = no ] || [ "$OUTCOME" != success ]; } && [ "$OUTCOME" != no_output ]; then
+    echo "$id: haiku failed, retrying once on sonnet"
+    run_one "$id" "$task" sonnet retry
+  fi
+
+  case "$OUTCOME" in
+    no_output) echo "$id: claude did not run, stopping"; break ;;
+    error_max_turns) echo "$id: hit the turn cap, stopping; review git status"; break ;;
+    build_red) echo "$id: build failing after commit, stopping"; break ;;
   esac
-  if [ "$(git rev-parse HEAD)" = "$before" ]; then echo "$id: no commit made, stopping"; break; fi
-  if ! npm run build >/dev/null 2>&1; then echo "$id: build failing after commit, stopping"; break; fi
+  [ "$COMMITTED" = no ] && { echo "$id: no commit made (blocked?), stopping"; break; }
 done
