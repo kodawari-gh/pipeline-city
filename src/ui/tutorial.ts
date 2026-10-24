@@ -34,7 +34,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'power' | 'watch'
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch'
   | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid' | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS';
@@ -134,25 +134,25 @@ export const STEPS: StepDef[] = [
     targets: installTargets('display') },
   { id: 'cables', chapter: 'Build', title: 'Plug in the three cables', flag: null,
     done: (_s, p) => CABLES.every((c) => p[c.flag]),
-    text: 'Drag each cable\'s plug to its socket: main power, processor power, video.',
+    text: 'Drag the lit cable plug to its socket. Three in all: main power, processor power, video.',
     why: 'Main power and processor power run from the supply to the board. Video runs from the board to the monitor.',
-    targets: (s) => CABLES.flatMap((c) => (s.cables.find((x) => x.id === c.id)?.connected ? [] : [`cable.${c.id}`, c.end])) },
+    // One cable at a time, and only its two ends (plug and socket), not the whole device around it.
+    targets: (s) => {
+      const c = CABLES.find((x) => !s.cables.find((y) => y.id === x.id)?.connected);
+      return c ? [`cable.${c.id}`] : [];
+    } },
   { id: 'plugKey', chapter: 'First jobs', title: 'Plug in a client key', flag: 'firstKeyPlugged',
-    text: 'Drag the key from the tray into the USB port.',
-    why: 'Work comes on keys. The machine only looks for a key when it starts, so plug it in while the machine is still off.',
+    text: 'Drag the key from the tray into the USB port. The machine starts by itself.',
+    why: 'Work comes on keys. Plugging one in switches the machine on; it tests itself, then copies the job from the key into memory.',
     targets: (s) => ['usb', ...(s.tray[0] ? [`key:${s.tray[0].id}`] : ['tray'])] },
-  { id: 'power', chapter: 'First jobs', title: 'Press the power button', flag: 'poweredOn',
-    text: 'Press the power button on the case.',
-    why: 'The machine tests itself, looks at the USB port once, then copies the job from the key into memory.',
-    targets: () => ['power'] },
   { id: 'watch', chapter: 'First jobs', title: 'Watch it work', flag: 'firstKeyEjected',
     text: 'Watch the monitor. When the job is done the key pops out, you are paid and the machine switches itself off.',
     why: 'The machine runs the job and writes the answer back to the key. Idle time is lost income.',
     targets: () => ['monitor'] },
-  { id: 'cycle', chapter: 'First jobs', title: 'Next job: plug a key, power on', flag: 'firstManualCycle',
-    text: 'Plug in the next key, then press power.',
+  { id: 'cycle', chapter: 'First jobs', title: 'Next job: plug the next key', flag: 'firstManualCycle',
+    text: 'Plug in the next key. The machine starts again by itself.',
     why: 'Without an operating system the machine only reads a key at start-up, so every job needs a fresh start. An OS removes that chore.',
-    targets: (s) => ['power', 'usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
+    targets: (s) => ['usb', ...(!s.plugged && s.tray[0] ? [`key:${s.tray[0].id}`] : [])] },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
     text: 'Click the processor and buy an upgrade.',
     why: 'Better parts finish jobs sooner, which earns more. The part goes into your inventory.',
@@ -321,13 +321,11 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (blocked) return blocked;
       return s.powered ? 'The machine is on. Power it off before plugging cables.' : null;
     }
-    case 'power':
-      if (s.phase === 'error' && s.phaseReason) return `POST error: ${s.phaseReason}. Power off, fix it, power on again.`;
-      return s.noPowerReason ?? (s.postBlocker && `POST would fail: ${s.postBlocker}`) ?? (s.plugged ? null : 'No key in the USB port yet: the machine would halt with NO BOOT MEDIA.');
     case 'plugKey':
       if (!s.tray.length && !s.plugged) return 'No key yet. A client key will arrive in the tray soon.';
-      return s.powered ? 'The machine is already on, so it will not look at a new key. Power it off, plug the key in, then power on.' : null;
+      return s.noPowerReason ?? (s.postBlocker && `The machine would not start: ${s.postBlocker}`) ?? (s.powered ? 'The machine is already on, so it will not look at a new key. Power it off first, then plug the key in.' : null);
     case 'watch':
+      if (s.phase === 'error' && s.phaseReason) return `POST error: ${s.phaseReason}. Power off, fix it, power on again.`;
       if (s.keyIgnored || s.haltReason === 'no-boot-media') return 'The machine did not see the key: it only looks at boot. Power off, plug the key in, and power on again.';
       return s.phase === 'error' ? s.phaseReason : null;
     case 'cycle':

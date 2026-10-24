@@ -4,7 +4,7 @@
 
 import { effect, signal } from '@preact/signals';
 import { selected } from '../game/hover';
-import { snapshot, speed } from '../game/store';
+import { snapshot, speed, togglePause } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
 import { celebrationFor, reconcileSeen, type Celebration } from './levelui';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
@@ -178,8 +178,12 @@ function loadSeen_(): number | null {
 }
 let seenLevel: number | null = loadSeen_();
 export const levelUp = signal<Celebration | null>(null);
+/** The level-up popup pauses the game while it is read (fair play); Next resumes at the speed it was running. */
+let pausedByLevelUp = false;
 export function dismissLevelUp() {
   levelUp.value = null;
+  if (pausedByLevelUp && speed.peek() === 0) togglePause();
+  pausedByLevelUp = false;
 }
 
 effect(() => {
@@ -188,6 +192,7 @@ effect(() => {
   const owed = celebrationFor(s, seenLevel);
   if (owed && !levelUp.peek()) {
     levelUp.value = owed;
+    if (speed.peek() !== 0) { togglePause(); pausedByLevelUp = true; }
     seenLevel = owed.level;
     writeStore(SEEN_KEY, String(seenLevel));
     return;

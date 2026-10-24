@@ -63,7 +63,7 @@ describe('tutorial step from snapshot flags', () => {
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
     // the three cables are one step; the key leaves by itself, so the watch step ends on its removal
-    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'power', 'watch', 'watch', 'cycle', 'spend'];
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'watch', 'watch', 'watch', 'cycle', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
@@ -343,22 +343,12 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
     expect(stepProblem(snap(), step('cables'))).toMatch(/power supply is not installed/);
   });
 
-  it('the power step shows the power button refusal', () => {
-    expect(stepProblem(snap(), step('power'))).toMatch(/Install a power supply/);
-  });
-
   it('the key step waits for a key; a running machine would ignore it, an off machine is the right moment', () => {
     const plug = step('plugKey');
-    expect(stepProblem(snap(), plug)).toMatch(/No key yet/);
-    expect(stepProblem(snap({ tray: [key()] }), plug)).toBeNull();
-    expect(stepProblem(snap({ tray: [key()], powered: true }), plug)).toMatch(/already on.*Power it off/);
-  });
-
-  it('the power step warns about a missing key (NO BOOT MEDIA) and shows POST errors as such', () => {
-    const power = step('power');
-    expect(stepProblem(snap({ noPowerReason: null }), power)).toMatch(/NO BOOT MEDIA/);
-    expect(stepProblem(snap({ noPowerReason: null, plugged: key() }), power)).toBeNull();
-    expect(stepProblem(snap({ noPowerReason: null, powered: true, phase: 'error', phaseReason: 'no CPU installed', postFailed: true }), power)).toMatch(/POST error: no CPU installed/);
+    expect(stepProblem(snap({ noPowerReason: null }), plug)).toMatch(/No key yet/);
+    expect(stepProblem(snap({ noPowerReason: null, tray: [key()] }), plug)).toBeNull();
+    expect(stepProblem(snap({ noPowerReason: null, tray: [key()], powered: true }), plug)).toMatch(/already on.*Power it off/);
+    expect(stepProblem(snap({ tray: [key()] }), plug)).toMatch(/Install a power supply/); // plugging would start the machine: say why it cannot
   });
 
   it('the watch step explains an ignored key, and the cycle step walks through the manual loop', () => {
@@ -416,8 +406,16 @@ describe('step targets (what the renderer pulses)', () => {
     expect(STEPS.find((x) => x.id === 'done')!.targets(snap())).toEqual([]);
   });
 
-  it('the power step pulses the button; the key step pulses the USB port and the key', () => {
-    expect(STEPS.find((x) => x.id === 'power')!.targets(snap())).toEqual(['power']);
+  it('the cable step lights one cable at a time: its plug and socket, not the devices', () => {
+    const cables = (open: string[]) => ['atx', 'cpu', 'video'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
+    const targets = (open: string[]) => STEPS.find((x) => x.id === 'cables')!.targets(snap({ cables: cables(open) as never }));
+    expect(targets(['atx', 'cpu', 'video'])).toEqual(['cable.atx']);
+    expect(targets(['cpu', 'video'])).toEqual(['cable.cpu']);
+    expect(targets(['video'])).toEqual(['cable.video']);
+    expect(targets([])).toEqual([]);
+  });
+
+  it('the key step pulses the USB port and the key', () => {
     expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap({ tray: [key({ id: 9 })] }))).toEqual(['usb', 'key:9']);
   });
 

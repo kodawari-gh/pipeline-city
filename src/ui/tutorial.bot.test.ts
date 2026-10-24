@@ -65,19 +65,18 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       for (const cable of ['atx', 'cpu', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     }
-    case 'power': case 'bootOs':
+    case 'bootOs':
       if (!g.powered) g.powerButton();
       break;
     case 'plugKey':
-      // The key goes in first, while the machine is off.
+      // The key goes in while the machine is off; plugging it switches the machine on.
       if (g.powered) g.powerButton();
-      else if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
+      else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
       break;
     case 'cycle':
-      // Power off, plug the next key, power on: one action per tick.
+      // Power off, plug the next key (it starts the machine): one action per tick.
       if (g.powered) g.powerButton();
-      else if (!s.plugged) { if (nextKey(s)) g.plugKey(nextKey(s)!.id); }
-      else g.powerButton();
+      else if (!s.plugged && nextKey(s)) g.plugAndBoot(nextKey(s)!.id);
       break;
     case 'watch': break;
     case 'osPaid': break; // the key pops out by itself
