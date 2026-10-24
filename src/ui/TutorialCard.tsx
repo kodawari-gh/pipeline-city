@@ -61,7 +61,7 @@ function PopupDialogue({ label, title, text, name, children }: { label: string; 
 }
 
 /** A line that is only "nothing yet, hold on" and not a mistake: shown calmly, without the warning colour. */
-const isWaiting = (t: string) => /^No key yet|still starting/i.test(t);
+const isWaiting = (t: string) => /^(No key yet|Waiting for|Need \S+ more)|still starting/i.test(t);
 
 const reducedMotion = () => {
   try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }

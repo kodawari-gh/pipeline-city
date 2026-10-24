@@ -381,6 +381,21 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
       .toBe('the OS drive burnt out');
   });
 
+  it('a part swap queued behind a running job is explained as waiting, and the pointer moves to the work', () => {
+    const queued = { invId: 'inv5', slotId: null };
+    const s = afterSpend({ powered: true, pendingSwap: queued, inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
+    for (const id of ['fit', 'drive', 'os'] as const) {
+      expect(stepProblem(s, step(id))).toMatch(/^Waiting for the running job/);
+      expect(step(id).targets(s)).toEqual(['monitor']);
+    }
+  });
+
+  it('the spend step says how much is missing when nothing can be afforded yet', () => {
+    const p = (price: number, affordable: boolean) => ({ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price, affordable });
+    expect(stepProblem(snap({ money: 50, purchases: [p(200, false)] }), step('spend'))).toMatch(/^Need \$150/);
+    expect(stepProblem(snap({ money: 300, purchases: [p(200, true)] }), step('spend'))).toBeNull();
+  });
+
   it('the drive and OS install steps do not ask for the machine to be off: the swap does that itself', () => {
     const s = afterSpend({ powered: true, phase: 'idle-os', inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
     expect(stepProblem(s, step('drive'))).toBeNull();

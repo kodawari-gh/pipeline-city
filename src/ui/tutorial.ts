@@ -74,6 +74,9 @@ export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): b
   const have = s.devices.filter((d) => d.kind === spec.kind && !d.burnt);
   return have.length === 0 || Math.max(...have.map((d) => getSpec(d.spec)?.tier ?? -1)) < spec.tier;
 };
+/** A part swap is queued behind a running job: the player has done their bit, so point at the work instead of the shelf. */
+const whileSwapQueued = (targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => (s.pendingSwap ? ['monitor'] : targets(s));
+const SWAP_WAIT = 'Waiting for the running job to finish: your part swaps in by itself.';
 const invOf = (s: Snapshot, kind: string) => s.inventory.filter((i) => i.kind === kind);
 /** Inventory items of a kind plus the free slots they fit. */
 const installTargets = (kind: string) => (s: Snapshot): string[] => {
@@ -152,9 +155,9 @@ export const STEPS: StepDef[] = [
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
     done: (s) => !s.inventory.some((i) => pendingUpgrade(s, i)),
     text: `Your new part is waiting in the inventory. Drag it onto its socket and the machine swaps it in for you, waiting for a running job to finish first. Heads up: the operating system will need ${OS_RAM_KB}K of memory.`,
-    targets: (s) => s.inventory
+    targets: whileSwapQueued((s) => s.inventory
       .filter((i) => pendingUpgrade(s, i))
-      .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots]) },
+      .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
     text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and use the 4x button to speed up the waiting.',
@@ -165,14 +168,14 @@ export const STEPS: StepDef[] = [
     targets: () => ['bay'] },
   { id: 'drive', chapter: 'The OS', title: 'Install the drive', flag: 'storageInstalled',
     text: 'The drive\'s speed decides how quickly the machine wakes up later. Drag the drive onto a free drive bay.',
-    targets: installTargets('storage') },
+    targets: whileSwapQueued(installTargets('storage')) },
   { id: 'buyOs', chapter: 'The OS', title: 'Buy an operating system', flag: null,
     done: (s) => ownsOs(s),
     text: 'An operating system (OS) is the machine\'s manager. It keeps the computer awake and busy, so it does not need a fresh start for every job. Click the drive bay again and buy one.',
     targets: () => ['bay'] },
   { id: 'os', chapter: 'The OS', title: 'Install the OS on the drive', flag: 'osInstalled',
     text: 'The OS gets written onto the drive, which is where the machine wakes up from. Drag the OS onto the drive.',
-    targets: installTargets('os') },
+    targets: whileSwapQueued(installTargets('os')) },
   { id: 'bootOs', chapter: 'The OS', title: 'Boot from the drive', flag: null,
     done: (s) => OS_PHASES.includes(s.phase) || s.progress.firstOsJob,
     text: 'Now wake the machine from its drive! The monitor shows the start-up text, and the little badge on the drive shows what the OS is doing. A faster drive wakes up sooner. Press the power button and wait for the OS.',
@@ -308,8 +311,14 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     case 'cycle':
       if (!s.plugged) return s.tray.length ? 'Plug the next key into the USB port first.' : 'No key yet. A client key will arrive in the tray soon.';
       return s.powered ? 'Press the power button to switch off, then again to switch on: the machine reads the key at boot.' : null;
+    case 'spend': {
+      const cpus = s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked);
+      if (!cpus.length || cpus.some((p) => p.affordable)) return null;
+      const cheapest = Math.min(...cpus.map((p) => p.price));
+      return `Need ${fmtMoney(cheapest - s.money)} more. Finish another job to earn it.`;
+    }
     case 'fit':
-      return null;
+      return s.pendingSwap ? SWAP_WAIT : null;
     case 'buyDrive': case 'buyOs': {
       const id = step.id === 'buyDrive' ? 'hdd0' : 'os1';
       const p = s.purchases.find((x) => x.id === id);
@@ -319,9 +328,9 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
     }
     case 'drive':
-      return (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
+      return s.pendingSwap ? SWAP_WAIT : (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
     case 'os':
-      return (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
+      return s.pendingSwap ? SWAP_WAIT : (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
     case 'bootOs':
       if (!s.powered) return 'The machine is off. Press the power button to boot from the drive.';
       return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;
