@@ -5,7 +5,7 @@ import { viewInset } from '../game/hover';
 import { cameraRev, dragging, highlight } from '../game/interaction';
 import { snapshot } from '../game/store';
 import {
-  ackStep, declineOsLesson, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
+  ackStep, declineOsLesson, levelUp, finishTutorial, inventoryOpen, pauseForTutorialPopup, skipTutorial, startTutorial, takeOsLesson, tutorial,
 } from './state';
 import { currentStep, offerNextLesson, stepCount, stepProblem } from './tutorial';
 import { CHAR_MS, pagesOf } from './dialogue';
@@ -222,7 +222,9 @@ export function TutorialCard() {
   const st = tutorial.value;
   const step = s ? currentStep(s, st) : null;
   const drag = dragging.value;
-  const targets = step && s ? step.targets(s, drag) : [];
+  // A level-up popup is read first: the tutorial waits behind it (and types its text afresh afterwards).
+  const holdForLevelUp = !!levelUp.value;
+  const targets = step && s && !holdForLevelUp ? step.targets(s, drag) : [];
   const key = targets.join('|');
   const offer = !!s && !step && offerNextLesson(s, st);
   const modal = offer || step?.id === 'welcome';
@@ -248,6 +250,7 @@ export function TutorialCard() {
   useEffect(() => { pauseForTutorialPopup(hold); }, [hold]);
   useEffect(() => () => pauseForTutorialPopup(false), []);
 
+  if (holdForLevelUp) return null;
   if (modal && s) {
     if (offer) {
       return (

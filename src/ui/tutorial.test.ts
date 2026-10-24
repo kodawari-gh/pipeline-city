@@ -459,7 +459,7 @@ describe('step targets (what the renderer pulses)', () => {
   it('install steps point at their inventory items (inv:) and the socket, and the last card points nowhere', () => {
     expect(STEPS.find((x) => x.id === 'ram')!.targets(snap())).toEqual(['inv:inv3', 'dimm0', 'dimm1']);
     const rich = snap({ purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: true }] });
-    expect(STEPS.find((x) => x.id === 'spend')!.targets(rich)).toEqual(['inventory', 'buy:cpu1']);
+    expect(STEPS.find((x) => x.id === 'spend')!.targets(rich)).toEqual(['hud:shop', 'buy:cpu1']);
     // Nothing is lit while the player cannot pay: the step's grey line says how much is missing.
     const poor = snap({ purchases: [{ id: 'cpu1', name: 'CPU', kind: 'cpu' as const, price: 200, affordable: false }] });
     expect(STEPS.find((x) => x.id === 'spend')!.targets(poor)).toEqual([]);
@@ -485,6 +485,14 @@ describe('step targets (what the renderer pulses)', () => {
     }
     // No key yet: the tray is what to watch; nothing else is lit.
     expect(STEPS.find((x) => x.id === 'plugKey')!.targets(snap())).toEqual(['tray']);
+  });
+
+  it('while the client base grows, the next key is lit, then only the port during a drag; nothing when a key is already in', () => {
+    const step = STEPS.find((x) => x.id === 'reachLevel3')!;
+    expect(step.targets(snap({ tray: [key({ id: 4 })] }))).toEqual(['key:4']);
+    expect(step.targets(snap({ tray: [key({ id: 4 })] }), { kind: 'key', id: 'key:4' })).toEqual(['usb']);
+    expect(step.targets(snap({ plugged: key({ id: 4 }), tray: [key({ id: 5 })] }))).toEqual([]);
+    expect(step.targets(snap())).toEqual([]);
   });
 
   it('the drive bay is the target of the buy-a-drive and buy-an-OS steps (the OS is offered there)', () => {

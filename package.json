@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "bench:speed": "node tools/bench-speed.mjs",
+    "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
+    "playwright-core": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"

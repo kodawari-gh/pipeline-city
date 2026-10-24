@@ -37,7 +37,7 @@ function InventoryButton({ s }: { s: Snapshot }) {
 function ShopButton() {
   const open = shopOpen.value;
   return (
-    <button class={`invbtn ${open ? 'on' : ''}`} aria-pressed={open} aria-label="Shop" title="Shop: everything you can buy" onClick={toggleShop}>
+    <button class={`invbtn ${open ? 'on' : ''} ${!open && highlight.value.includes('hud:shop') ? 'pulse' : ''}`} data-hud="shop" aria-pressed={open} aria-label="Shop" title="Shop: everything you can buy" onClick={toggleShop}>
       <Icon name="shop" size={14} />
       <span class="hide-narrow">Shop</span>
     </button>

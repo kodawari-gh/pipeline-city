@@ -3,3 +3,4 @@ node_modules/
 .claude/settings.local.json
 __pycache__/
 dist/
+e2e/shots/

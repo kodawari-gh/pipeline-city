@@ -188,11 +188,11 @@ export const STEPS: StepDef[] = [
     text: 'With no operating system, the machine only looks at the USB port when it wakes up, so every job needs a fresh start. Plug in the next key and it starts again by itself.',
     targets: (s, drag) => (!s.plugged && s.tray[0] ? plugTarget(s, drag, s.tray[0]) : []) },
   { id: 'spend', chapter: 'First jobs', title: 'Spend your first money', flag: 'firstPurchase',
-    text: 'You have coins to spend! Better parts finish jobs sooner, and sooner means more money. Click the processor and buy an upgrade. It lands in your inventory.' + BROKE,
+    text: 'You have coins to spend! Better parts finish jobs sooner, and sooner means more money. Open the Shop and buy a processor upgrade. It lands in your inventory.' + BROKE,
+    // The Shop, not the processor on the board: the cooler sits on top of it and takes the click.
     targets: whenAffordable(cheapestCpu, (s) => {
-      const cpu = s.devices.find((d) => d.kind === 'cpu');
       const buy = cheapestCpu(s);
-      return [...(cpu ? [cpu.slot] : [INVENTORY_ID]), ...(buy ? [`buy:${buy}`] : [])];
+      return ['hud:shop', ...(buy ? [`buy:${buy}`] : [])];
     }) },
   // ---- storage and the OS ----
   { id: 'fit', chapter: 'First jobs', title: 'Fit your new part', flag: null,
@@ -204,7 +204,8 @@ export const STEPS: StepDef[] = [
   { id: 'reachLevel3', chapter: 'The OS', title: 'Grow your client base', flag: null,
     done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
     text: 'Every job you deliver adds to your client base, and your level grows with it. Higher levels bring more clients and better pay, though clients wait less. The OS opens at Level 3 and the network at Level 4. Keep delivering jobs, and hover the speed button at the top right to speed up the waiting.',
-    targets: () => [], meter: levelMeter },
+    // Waiting means serving: the next key is lit (then the port while it is dragged), so the player is never left wondering what to do.
+    targets: (s, drag) => (s.plugged || !s.tray[0] ? [] : plugTarget(s, drag, s.tray[0])), meter: levelMeter },
   { id: 'buyDrive', chapter: 'The OS', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
     text: 'A computer needs somewhere to keep its software, like a bookshelf for its brain. That is a drive. An HDD is slow and cheap, an SSD is faster. Click the drive bay and buy the HDD.' + BROKE,
