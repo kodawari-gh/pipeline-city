@@ -1,6 +1,6 @@
 # TODO (bite-size, one commit each)
 
-Source of truth for the automation script (`scripts/todo-runner/`). `docs/HANDOVER.md` keeps the narrative and the traps; this file keeps the work list.
+Source of truth for the task runner in the separate `prompt-system` repo. `docs/HANDOVER.md` keeps the narrative and the traps; this file keeps the work list.
 
 ## Rules for every task
 
