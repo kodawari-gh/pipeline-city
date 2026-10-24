@@ -8,6 +8,7 @@ import {
   BD, CABLE_ROW_Y, ETH0_MOUTH, ETH0_RECT, LAN_TRUNK_X, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
   WALL_JACK, WALL_PLATE, type Rect,
 } from './layout';
+import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
 
@@ -215,7 +216,7 @@ export class NetView {
     const net = s?.net ?? null;
     const routerInv = !!s?.inventory.some((i) => i.kind === 'router');
     const lanSnap = !!s?.cables.find((c) => c.id === 'lan')?.connected;
-    const vis = !!s && !!(net?.router || net?.isp || routerInv || lanSnap || lanState === 'connected');
+    const vis = !!s && netPropsVisible({ level: s.level.level, hasRouter: !!net?.router, hasIsp: !!net?.isp, routerInInventory: routerInv, lanConnected: lanSnap || lanState === 'connected' });
     const jacks: LanJack[] = [];
     if (vis && s) {
       if ((BOARD_TIERS[s.boardTier]?.features.ethernetMbps ?? 0) > 0) jacks.push({ id: 'eth0', port: 'board', rect: ETH0_RECT, mouth: [ETH0_MOUTH.x, ETH0_MOUTH.y], valid: !s.board?.burnt, slot: -1 });
