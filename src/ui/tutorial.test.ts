@@ -32,7 +32,9 @@ const osOn = (o: Partial<OsSnap> = {}): OsSnap => ({
   up: true, queue: [], runningKeyId: null, ...o,
 });
 /** The old tutorial done, a CPU and RAM bought, with `extra` on top. */
-const afterSpend = (extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({ progress: oldDone(), money: 500, inventory: [], ...extra });
+/** The level block at level `n` (the OS lesson needs Level 3: the 'Grow your client base' step waits for it). */
+const atLevel = (n: number) => ({ ...snap().level, level: n });
+const afterSpend = (extra: Partial<Parameters<typeof snap>[0]> = {}) => snap({ progress: oldDone(), money: 500, inventory: [], level: atLevel(3), ...extra });
 const invItem = (kind: string, spec: string, id: string, freeSlots: string[] = []) => ({
   id, spec, kind: kind as 'ram', name: spec, freeSlots, swapSlots: [], installable: freeSlots.length > 0,
 });
@@ -87,12 +89,20 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(6) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cpuPower');
-    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 11 });
+    expect(stepCount(step!)).toEqual({ n: 7, total: 14 + 12 });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
     const s = afterSpend({ inventory: [], storage: [], os: null });
     expect(idOf(currentStep(s, welcomed))).toBe('buyDrive');
+  });
+
+  it('waits at the client-base step below Level 3, and the step is done at Level 3 or once a drive is owned', () => {
+    const low = afterSpend({ level: atLevel(2) });
+    expect(idOf(currentStep(low, welcomed))).toBe('reachLevel3');
+    expect(idOf(currentStep(afterSpend({ level: atLevel(3) }), welcomed))).toBe('buyDrive');
+    // A player who already owns a drive (an older save) is not sent back to wait.
+    expect(idOf(currentStep(afterSpend({ level: atLevel(1), storage: [drive()] }), welcomed))).not.toBe('reachLevel3');
   });
 
   it('resumes at the OS install from a save with a drive installed and the OS bought', () => {

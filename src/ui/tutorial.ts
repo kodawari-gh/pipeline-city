@@ -28,7 +28,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'atx' | 'cpuPower' | 'video' | 'plugKey' | 'power' | 'watch'
-  | 'removeKey' | 'cycle' | 'spend' | 'fit' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
+  | 'removeKey' | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osHold' | 'osWait'
   | 'osCollect' | 'osPaid' | 'done';
 
 export interface StepDef {
@@ -141,6 +141,10 @@ export const STEPS: StepDef[] = [
     targets: (s) => s.inventory
       .filter((i) => pendingUpgrade(s, i))
       .flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots]) },
+  { id: 'reachLevel3', title: 'Grow your client base', flag: null,
+    done: (s) => s.level.level >= 3 || ownsStorage(s) || !!s.os,
+    text: 'The operating system opens at Level 3. Every job you deliver adds to your client base, and the level grows with it: later levels bring more clients, bigger jobs and better pay, but clients wait less. Keep serving them (and buy upgrades to serve faster); open the level bar to watch the progress.',
+    targets: () => [] },
   { id: 'buyDrive', title: 'Buy a drive', flag: null,
     done: (s) => ownsStorage(s),
     text: 'The machine needs somewhere to keep an operating system. Click the drive bay to see the drives: an HDD is slow and cheap, an SSD is faster.',
@@ -313,6 +317,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       const id = step.id === 'buyDrive' ? 'hdd0' : 'os1';
       const p = s.purchases.find((x) => x.id === id);
       if (!p) return null;
+      if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;
       if (p.blocked) return p.blocked;
       return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
     }

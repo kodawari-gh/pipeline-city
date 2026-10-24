@@ -132,8 +132,10 @@ describe("queue, reputation and demand", () => {
     let doneSlow = 0;
     let doneFast = 0;
     for (const seed of [2, 3, 4]) {
-      const slow = new Game({ seed });
-      const fast = new Game({ seed });
+      // Both start at level 5 (patience 2): the level drives the clients' patience now, and a machine that serves faster would
+      // climb to a stricter level during the run, which would blur the comparison of the service speed itself.
+      const slow = new Game({ seed, startLevel: 5 });
+      const fast = new Game({ seed, startLevel: 5 });
       fast.money = 1e6;
       fast.purchase("cpu1");
       fast.purchase("ram1");
@@ -143,10 +145,7 @@ describe("queue, reputation and demand", () => {
       doneFast += fast.completed;
     }
     expect(rs).toBeLessThan(0.6);
-    // Loosened from 1.25 (measured 1.24 now): the fast machine climbs to level 3 within this run (patience 4 -> 3), so its
-    // reputation target is stricter than the slow machine's, which stays at levels 1-2. The claim is kept: the faster machine
-    // keeps clients clearly happier (here +15% or more) and finishes far more jobs (next line, unchanged).
-    expect(rf).toBeGreaterThan(rs * 1.15);
+    expect(rf).toBeGreaterThan(rs * 1.25);
     expect(doneFast).toBeGreaterThan(doneSlow * 1.5);
   });
 

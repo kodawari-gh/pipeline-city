@@ -16,17 +16,28 @@ const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage'
  * manual loop, exactly as the first jobs went: remove the finished key, power off, plug the next key while the machine is
  * off, power on. With an OS the steps drive the keys.
  */
+/** The oldest key the machine can run (an unrunnable job waits in the tray until it expires; the sim refuses to plug it). */
+const nextKey = (s: Snapshot) => s.tray.find((k) => k.runnable);
+
 function serve(g: Game, s: Snapshot): void {
   if (s.os) return;
   if (s.plugged?.done) { g.ejectKey(); return; }
   if (g.powered && !s.plugged && (s.phase === 'halted' || s.phase === 'error')) { g.powerButton(); return; }
-  if (!g.powered && !s.plugged && s.tray[0]) { g.plugKey(s.tray[0].id); return; }
+  if (!g.powered && !s.plugged && nextKey(s)) { g.plugKey(nextKey(s)!.id); return; }
   if (!g.powered && s.plugged) g.powerButton();
 }
 
 /** One public action per tick at most, as a patient player would. Returns nothing: the Game is the record. */
 function act(g: Game, s: Snapshot, id: StepId): void {
   // The steps before the first purchase are the player's own actions; the background serve starts once they are done.
+  // While it waits for the client base, a player also spends on the memory the OS will need: bought and fitted in one go
+  // between two jobs (machine off, nothing plugged), so the fit step does not come back.
+  if (id === 'reachLevel3' && !g.powered && !s.plugged && s.money >= 100 && !s.devices.some((d) => d.spec === 'ram1')) {
+    const b = g.purchase('ram1');
+    if (!b.ok) throw new Error(`purchase ram1: ${b.reason}`);
+    g.install(b.invId);
+    return;
+  }
   if (STEPS.findIndex((x) => x.id === id) >= STEPS.findIndex((x) => x.id === 'spend')) serve(g, s);
   const powerOff = () => { if (g.powered) g.powerButton(); };
   // A free socket if there is one, else the occupied socket of the same kind (a swap: the old part returns to the inventory).
@@ -60,19 +71,20 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'plugKey':
       // The key goes in first, while the machine is off.
       if (g.powered) g.powerButton();
-      else if (!s.plugged && s.tray[0]) g.plugKey(s.tray[0].id);
+      else if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
       break;
     case 'cycle':
       // Power off, plug the next key, power on: one action per tick.
       if (g.powered) g.powerButton();
-      else if (!s.plugged) { if (s.tray[0]) g.plugKey(s.tray[0].id); }
+      else if (!s.plugged) { if (nextKey(s)) g.plugKey(nextKey(s)!.id); }
       else g.powerButton();
       break;
     case 'watch': break;
     case 'removeKey': case 'osPaid':
       if (s.plugged?.done) g.ejectKey();
       break;
-    case 'spend': buy('ram1', 100); break;
+    case 'spend': buy('cpu1', 200); break;
+    case 'reachLevel3': break; // the background serve loop delivers the jobs
     case 'fit': installPart(PART_KINDS, (i) => pendingUpgrade(s, i)); break;
     case 'buyDrive': buy('hdd0', 40); break;
     case 'drive': installPart(['storage']); break;
@@ -80,7 +92,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'os': installPart(['os']); break;
     case 'osIngest':
       if (!g.powered) g.powerButton();
-      if (!s.plugged && s.tray[0]) g.plugKey(s.tray[0].id);
+      if (!s.plugged && nextKey(s)) g.plugKey(nextKey(s)!.id);
       break;
     case 'osHold':
       // Unplug once the OS has the key (queued): it is held until its result is ready.
