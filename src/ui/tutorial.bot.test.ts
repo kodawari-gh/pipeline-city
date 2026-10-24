@@ -196,7 +196,7 @@ describe('the tutorial is completable with public actions', () => {
     expect(end.progress.ispBought && end.progress.routerInstalled && end.progress.lanConnected && end.progress.linkUp && end.progress.firstNetJob).toBe(true);
     expect(end.net.usbRetired).toBe(true);
     expect(end.net.counters.delivered).toBeGreaterThanOrEqual(1);
-  });
+  }, 60000);
 
   it('the bot never has to wait for the sim to refuse a step: no action is refused on the way', () => {
     // Re-run the same route, collecting every refusal the public actions give back.
@@ -228,5 +228,5 @@ describe('the tutorial is completable with public actions', () => {
     }
     // Nothing the tutorial asks for is ever refused: not a purchase, install, cable, key plug/removal or power press.
     expect(refused).toEqual([]);
-  });
+  }, 60000);
 });

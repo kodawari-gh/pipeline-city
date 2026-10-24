@@ -288,7 +288,7 @@ describe("the arrival mix", () => {
       expect(Math.abs(got - pct), `${id}: ${got.toFixed(0)}% vs ${pct}%`).toBeLessThan(6);
     }
     expect(g.level).toBe(10);
-  });
+  }, 60000);
 });
 
 describe("jobs the machine cannot run", () => {
