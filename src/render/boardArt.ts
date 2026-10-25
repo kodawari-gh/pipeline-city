@@ -244,6 +244,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   }
   // ---- audio codec (seven legs: the jacks' lanes leave from the 1st, 4th and 7th), the USB hub and the PHY, all with their legs on the lanes ----
   chip(c, geo.codec, { legs: 7, pitch: 26, text: 'CODEC', size: 36, accent: T.mul });
+  for (let k = 0; k < 3; k++) cap(c, geo.codec.x + 50 + k * 66, geo.codec.y - 90, 26, T.ld); // the audio capacitors above the codec
   chip(c, geo.hub, { legs: 8, pitch: 26, text: 'USB', size: 48, accent: T.mul });
   if (geo.phy) chip(c, geo.phy, { legs: 8, pitch: 26, text: 'PHY', size: 40, accent: T.mul });
 

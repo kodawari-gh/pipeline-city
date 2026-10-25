@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
-  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
   sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
@@ -202,7 +202,8 @@ export function caseGlass(T: Theme): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const r = CASE_GLASS, a = T.dark ? 0.024 : 0.14;
+  // the glass starts east of the rear I/O plate (the plate sits in the rear wall's opening, not behind the glass)
+  const gx = BR.io.x + BR.io.w + 60, r = { ...CASE_GLASS, x: gx, w: CASE_GLASS.w - (gx - CASE_GLASS.x) }, a = T.dark ? 0.024 : 0.14;
   const band = (x0: number, x1: number) => g.poly([r.x + x0, r.y + 6, r.x + x1, r.y + 6, r.x + x1 - 1500, r.y + r.h - 6, r.x + x0 - 1500, r.y + r.h - 6]).fill({ color: '#ffffff', alpha: a });
   for (const [a, b] of [[2600, 3300], [3700, 3860], [6900, 7500]] as const) if (b - 1500 < r.w - 200) band(a, Math.min(b, r.w + 1500 - 200));
   box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
