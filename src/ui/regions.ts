@@ -52,12 +52,12 @@ export const REGIONS: Record<string, Description> = {
   sata: {
     title: 'SATA ports',
     plain: 'The drive cables plug in here, one per drive bay. A bigger board has more of them (two, three, four, six).',
-    nerd: 'SATA ports (sata0 .. sata5, by board tier: 2, 3, 4, 6), served by the chipset. Each runs a cable to its cell in the drive cage; a drive draws PSU watts.',
+    nerd: 'SATA ports (sata0 .. sata7, by board tier: 2, 3, 4, 8), served by the chipset. Each runs a cable to its cell in the drive cage; a drive draws PSU watts.',
   },
   bay: {
     title: 'Drive cage (SATA)',
     plain: 'Where the storage drives go, along the front of the case. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
-    nerd: 'SATA drive cage (cells sata0 .. sata5, as many as the biggest board the case holds has SATA ports). One cable per drive to its port, one power lead for all.',
+    nerd: 'SATA drive cage (cells sata0 .. sata7, as many as the biggest board the case holds has SATA ports). One cable per drive to its port, one power lead for all.',
   },
   case: {
     title: 'Computer case',

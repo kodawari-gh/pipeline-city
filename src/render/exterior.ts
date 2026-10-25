@@ -1,7 +1,8 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
+import { IO_PORTS } from './boardlayout';
 import { box, disc, label, mix } from './ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, REAR_FAN, nicJack, nicY, type Rect } from './layout';
 import { CASE_LOOK } from './case';
 import type { DriveKind } from './drives';
 import type { Theme } from './theme';
@@ -14,7 +15,7 @@ import type { Theme } from './theme';
 // Static art is built once per (theme, tier, drives) and baked to one texture by board.ts; the accent strip is the only live part.
 
 /** The thin accent light strip on the front rim of the case (a vertical bar east of the glass). */
-export const stripRect = () => ({ x: CASE.x + CASE.w - 82, y0: -2560, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
+export const stripRect = () => ({ x: CASE.x + CASE.w - 82, y0: CASE_GLASS.y + 140, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
 
 export interface ExteriorOpts {
   /** SATA ports this tier has. */
@@ -29,9 +30,6 @@ export interface ExteriorOpts {
 
 /** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
 export const frontLed = (cell: number) => ({ x: stripRect().x + 10, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h / 2 });
-
-/** USB-A positions on the rear panel in fill order (usb0 is the one keys plug into: `USB_PORT`). */
-export const USB_POS: [number, number][] = [[0, 0], [0, 150], [1, 0], [1, 150]];
 
 const vgrad = (top: string, bot: string) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' });
 
@@ -76,11 +74,13 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.dark ? '#8d9bc4' : '#2a3550', { anchor: [0.5, 0.5], a: 0.9 }));
 
   // rear I/O plate (west): a panel with the external connectors cut into it
-  const io = { x: ci.x, y: ci.y, w: BR.io.x + BR.io.w + 60 - ci.x, h: gl.h };
+  const io = { x: c0.x + 30, y: ci.y, w: BR.io.x + BR.io.w + 60 - (c0.x + 30), h: gl.h };
   g.roundRect(io.x, io.y, io.w, io.h, 30).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
   brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, T, 40);
   rearIo(g, T, o);
   root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, T.dark ? '#8d9bc4' : '#2a3550', { head: true, a: 0.6 }));
+  // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
+  for (let k = 0; k < 5; k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
   // tempered glass side: smoked, opaque, a faint diagonal reflection and a hairline edge. Nothing of the inside shows.
   const win = { x: BR.io.x + BR.io.w + 110, y: gl.y + 56, w: gl.x + gl.w - 56 - (BR.io.x + BR.io.w + 110), h: gl.h - 112 };
@@ -112,7 +112,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
 
   // front rim: a slim vertical vent column east of the glass
   const STRIP = stripRect();
-  for (let k = 0; k < Math.floor((STRIP.y1 + 2300) / 215) + 1; k++) box(g, STRIP.x + 62, -2300 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
+  for (let k = 0; k < Math.floor((STRIP.y1 - STRIP.y0 - 260) / 215) + 1; k++) box(g, STRIP.x + 62, STRIP.y0 + 260 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
   box(g, STRIP.x - 6, STRIP.y0 - 6, STRIP.w + 12, STRIP.y1 - STRIP.y0 + 12, 12, { fill: c.cut, stroke: c.edge, lw: 3, sa: 0.5 });
   return root;
 }
@@ -127,12 +127,21 @@ function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
     box(g, x, y - h / 2, w, h, 8, { fill: c.cut });
     if (tongue) g.rect(x + 18, y - h * 0.12, w - 36, h * 0.24).fill({ color: tongue, alpha: ta });
   };
-  ([[T.st], [T.br], [T.ld]] as const).forEach(([col], k) => cut(q.x + 30 + k * 215, -1870, 180, 90, col, 0.65));
-  if (f.ethernetMbps > 0) {
-    cut(q.x + 30, -1560, 330, 260, null);
-    for (let k = 0; k < 8; k++) g.rect(q.x + 70 + k * 30, -1640, 14, 70);
-    g.fill({ color: T.pin, alpha: 0.55 });
-    for (const lx of [q.x + 100, q.x + 180]) { g.circle(lx, -1394, 13).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 }); }
+  const tone = (t?: string) => (t === 'st' ? T.st : t === 'br' ? T.br : t === 'ld' ? T.ld : t === 'alu' ? T.alu : null);
+  const fitted = (id: string) => (id === 'eth' ? f.ethernetMbps > 0 : id === 'dp' ? f.displayPorts >= 2 : id.startsWith('usb') ? Number(id.slice(3)) < f.usbPorts : true);
+  for (const p of IO_PORTS) {
+    if (p.kind === 'hdmi' || p.kind === 'dp') {
+      const y = p.y, active = p.kind === 'hdmi';
+      if (!fitted(p.id)) { box(g, p.x, y - 60, p.w, 120, 10, { stroke: c.edge, lw: 3, sa: 0.25 }); continue; }
+      box(g, p.x - 12, y - 72, 264, 144, 16, { fill: c.lo, stroke: c.edge, lw: 4, sa: 0.5 });
+      g.poly([p.x, y - 34, p.x + 26, y - 60, p.x + 240, y - 60, p.x + 240, y + 60, p.x + 26, y + 60, p.x, y + 34]).fill({ color: c.cut }).stroke({ width: 6, color: active ? T.st : c.edge, alpha: active ? 0.7 : 0.6 });
+    } else if (!fitted(p.id)) box(g, p.x, p.y - p.h / 2, p.w, p.h, 10, { stroke: c.edge, lw: 3, sa: 0.25 });
+    else if (p.kind === 'rj45') {
+      cut(p.x, p.y, p.w, p.h, null);
+      for (let k = 0; k < 8; k++) g.rect(p.x + 40 + k * 30, p.y - p.h / 2 + 50, 14, 70);
+      g.fill({ color: T.pin, alpha: 0.55 });
+      for (const lx of [p.x + 70, p.x + 150]) g.circle(lx, p.y + p.h / 2 + 36, 13).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
+    } else cut(p.x, p.y, p.w, p.h, tone(p.tone), p.kind === 'jack' ? 0.65 : 0.5);
   }
   // NIC cards: their jack comes out of the rear plate at the height of the card's slot
   for (const i of o.nics ?? []) {
@@ -140,16 +149,6 @@ function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
     cut(j.x, nicY(i), j.w, j.h, null);
     for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + 17, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
-  const hdmi = (y: number, active: boolean) => {
-    box(g, q.x - 12, y - 72, 264, 144, 16, { fill: c.lo, stroke: c.edge, lw: 4, sa: 0.5 });
-    g.poly([q.x, y - 34, q.x + 26, y - 60, q.x + 240, y - 60, q.x + 240, y + 60, q.x + 26, y + 60, q.x, y + 34]).fill({ color: c.cut }).stroke({ width: 6, color: active ? T.st : c.edge, alpha: active ? 0.7 : 0.6 });
-  };
-  hdmi(VIDEO_Y, true);
-  if (f.displayPorts >= 2) hdmi(VIDEO_Y + 220, false);
-  USB_POS.forEach(([col, y], i) => {
-    if (i < f.usbPorts) cut(q.x + 18 + col * 320, y, 290, 108, T.alu, 0.5);
-    else box(g, q.x + 18 + col * 320, y - 54, 290, 108, 10, { stroke: c.edge, lw: 3, sa: 0.25 });
-  });
 }
 
 export type StripMode = 'off' | 'idle' | 'halt' | 'work' | 'error' | 'dead';

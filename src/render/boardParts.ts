@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from './ink';
 import type { Rect } from './layout';
+import { HDR_PITCH, LEG_PITCH, legsOf, m2Contacts, pciePadMax, pciePadX, type IoPort } from './pins';
 import type { Palette, Theme } from './theme';
 
 // Drawers for the static components of a motherboard. Everything draws in world coordinates onto one Graphics (`Ctx.g`), the text goes
@@ -25,30 +26,39 @@ export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: num
   for (let i = 0; i < n; i++) c.g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h);
 }
 
-/** A plated screw hole: copper ring, dark bore. */
+/** A mounting hole with its screw: a copper-ringed pad, the washer, a pan head with a cross slot (it threads into the case's standoff below). */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
-  disc(c.g, x, y, r + 34, { fill: c.P.board }); // the keepout: bare board round the screw, whatever was drawn under it
-  disc(c.g, x, y, r, { fill: c.P.panel, stroke: c.P.edge, lw: 8 });
-  disc(c.g, x, y, r * 0.5, { fill: c.P.dark });
-  disc(c.g, x, y, r + 26, { stroke: c.P.silk, lw: 4, sa: 0.35 });
+  const { g, P, T } = c;
+  disc(g, x, y, r + 34, { fill: P.board }); // the keepout: bare board round the screw, whatever was drawn under it
+  disc(g, x, y, r, { fill: P.panel, stroke: P.edge, lw: 8 });
+  disc(g, x, y, r + 26, { stroke: P.silk, lw: 4, sa: 0.35 });
+  const head = mix(P.panel, '#ffffff', T.dark ? 0.3 : 0.55), rim = mix(P.edge, '#ffffff', 0.25);
+  disc(g, x + 4, y + 7, r * 0.78, { fill: '#000000', fa: T.dark ? 0.35 : 0.18 });                 // its shadow
+  disc(g, x, y, r * 0.78, { fill: mix(P.panel, '#ffffff', T.dark ? 0.16 : 0.35), stroke: rim, lw: 3, sa: 0.8 }); // the washer
+  disc(g, x, y, r * 0.58, { fill: head, stroke: rim, lw: 3, sa: 0.9 });                           // the head
+  const k = r * 0.36;
+  g.moveTo(x - k, y).lineTo(x + k, y).moveTo(x, y - k).lineTo(x, y + k).stroke({ width: 8, color: P.dark, alpha: 0.85, cap: 'round' }); // the cross slot
+  g.moveTo(x + Math.cos(3.6) * r * 0.46, y + Math.sin(3.6) * r * 0.46).arc(x, y, r * 0.46, 3.6, 5.0).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.35 : 0.7 }); // a highlight
 }
 
-/** A square-ish IC with legs on the given sides, a pin-1 dot and an optional label. */
+/** A square-ish IC with `legs` legs on every side (centred, `pitch` apart: the same positions `legAt` gives the router), a pin-1 dot and an optional label. */
 export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?: string; size?: number; tone?: string; accent?: string; round?: number } = {}) {
   const { g, P, T } = c;
   const legs = o.legs ?? 6, pitch = o.pitch ?? Math.min(r.w, r.h) / (legs + 1);
   const tone = o.tone ?? P.dark;
   shadow(c, r.x, r.y, r.w, r.h, 8, 8, 0.3);
-  for (let i = 0; i < legs; i++) {
-    const t = (i + 1) * pitch;
-    g.rect(r.x - 18, r.y + t - 5, 20, 10).rect(r.x + r.w - 2, r.y + t - 5, 20, 10);
-    g.rect(r.x + t - 5, r.y - 18, 10, 20).rect(r.x + t - 5, r.y + r.h - 2, 10, 20);
-  }
+  legRects(c, r, legs, pitch);
   g.fill({ color: P.silkHi, alpha: 0.55 });
   box(g, r.x, r.y, r.w, r.h, o.round ?? 8, { fill: tone, stroke: o.accent ?? P.edge, lw: 4, sa: o.accent ? 0.55 : 0.9 });
   g.rect(r.x + 6, r.y + 6, r.w - 12, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.22 });
   disc(g, r.x + 22, r.y + 22, 8, { fill: P.silk, fa: 0.5 });
   if (o.text) c.labels.addChild(label(o.text, r.x + r.w / 2, r.y + r.h / 2, o.size ?? 44, o.accent ?? T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
+}
+
+/** Queue the legs of a chip on all four sides (n each, or as many as fit when 0), at the pin-map positions; the caller fills. */
+export function legRects(c: Ctx, r: Rect, n: number, pitch = LEG_PITCH) {
+  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) c.g.rect(x - 5, y - 10, 10, 20);
+  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) c.g.rect(x - 10, y - 5, 20, 10);
 }
 
 /** An electrolytic or polymer capacitor seen from above: a can with a polarity band and a vent cross. */
@@ -135,24 +145,31 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
   g.moveTo(r.x + 124, r.y + 196).lineTo(r.x + 124, r.y + r.h - 4).stroke({ width: 22, color: P.copper, alpha: 0.9 });
 }
 
-/** A DIMM socket: housing, centre slot with pins and a key, latches at both ends. The pad row is drawn from the bus lanes. */
+/**
+ * A DIMM socket: housing, centre slot with pins and a key. The data end (row 0: south, row 1: north) carries the pad bar the memory
+ * lanes land on (`dimmPads`), with no latch; the latch is at the far end, beside the memory-voltage pad.
+ */
 export function dimmSocket(c: Ctx, r: Rect, flip: boolean, n: number) {
   const { g, P } = c;
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
   box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: P.edge, lw: 6 });
   const cx = r.x + r.w / 2;
+  const dataY = flip ? r.y : r.y + r.h, dir = flip ? 1 : -1; // from the data end into the housing
   box(g, cx - 24, r.y + 40, 48, r.h - 80, 6, { fill: P.dark });
   for (let k = 0; k < Math.floor((r.h - 100) / 22); k++) g.rect(cx - 40, r.y + 50 + k * 22, 9, 12).rect(cx + 31, r.y + 50 + k * 22, 9, 12);
   g.fill({ color: P.via, alpha: 0.55 });
   const ky = flip ? r.y + r.h * 0.6 : r.y + r.h * 0.4; // the key: a bar across the slot, off centre
   g.rect(cx - 26, ky - 6, 52, 12).fill({ color: P.sub });
-  // ejector latches at both ends, outside the housing
-  for (const y of [r.y - 24, r.y + r.h - 2]) box(g, r.x + 16, y, r.w - 32, 26, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
-  g.rect(r.x + 36, r.y - 16, r.w - 72, 6).rect(r.x + 36, r.y + r.h + 6, r.w - 72, 6).fill({ color: P.silk, alpha: 0.4 });
-  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 60 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+  // the pad bar: a dark strip across the data end the lanes enter (the pads themselves are drawn over the lane ends)
+  box(g, r.x + 14, Math.min(dataY, dataY + dir * 62), r.w - 28, 62, 6, { fill: P.dark, stroke: P.edge, lw: 3, sa: 0.8 });
+  // the latch at the far end, outside the housing, clear of the memory-voltage pad (r.x + 36)
+  const fy = flip ? r.y + r.h - 2 : r.y - 24;
+  box(g, r.x + 70, fy, r.w - 86, 26, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
+  g.rect(r.x + 90, flip ? fy + 8 : fy + 10, r.w - 126, 6).fill({ color: P.silk, alpha: 0.4 });
+  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
 }
 
-/** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end. */
+/** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */
 export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boolean) {
   const { g, P } = c;
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
@@ -160,8 +177,14 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
   g.rect(r.x + 40, r.y + 16, r.w - 90, 26).fill({ color: P.dark });
   const keyX = r.x + Math.min(r.w * 0.2, 700);
   g.rect(keyX, r.y + 12, 18, 34).fill({ color: P.sub });
-  for (let k = 0; k < Math.floor((r.w - 110) / 58); k++) g.rect(r.x + 52 + k * 58, r.y + 20, 13, 18);
-  g.fill({ color: P.via, alpha: 0.6 });
+  for (let k = 0; k < Math.floor((r.w - 110) / 20); k++) g.rect(r.x + 52 + k * 20 - 4, r.y + 20, 8, 18);
+  g.fill({ color: P.via, alpha: 0.5 });
+  // the pads: top row every 40 from x + 20, bottom row offset by 20 (the pins alternate sides); lanes land on the top ones
+  for (let k = 0; k <= pciePadMax(r); k++) {
+    const x = pciePadX(r, k);
+    g.rect(x - 7, r.y - 11, 14, 24).rect(x + 13, r.y + r.h - 13, 14, 24);
+  }
+  g.fill({ color: P.via, alpha: 0.5 });
   box(g, r.x + r.w - 6, r.y + 6, 50, r.h - 12, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
   if (armor) g.rect(r.x + 14, r.y + 4, r.w - 28, 4).fill({ color: '#ffffff', alpha: c.T.dark ? 0.12 : 0.35 });
   c.labels.addChild(label(name, r.x, r.y - 36, big ? 38 : 34, P.silk));
@@ -191,7 +214,7 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
 
 /** A pin header (cols x rows, 0.1 inch pitch): body, gold pins, a pin-1 mark, its name above. */
 export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string) {
-  const { g, P } = c, pitch = 52, w = cols * pitch + 24, h = rows * pitch + 24;
+  const { g, P } = c, pitch = HDR_PITCH, w = cols * pitch + 24, h = rows * pitch + 24;
   box(g, x, y, w, h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
   for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28);
   g.fill({ color: c.T.pin, alpha: 0.75 });
@@ -210,5 +233,62 @@ export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
   for (let k = 0; k < 7; k++) g.rect(p.x + 56 + k * 12, p.y + 20, 6, 20);
   g.fill({ color: P.via, alpha: 0.55 * a });
   g.rect(p.x + p.w - 8, p.y + 14, 10, p.h - 28).fill({ color: P.silk, alpha: 0.35 * a });
+  // the solder tails on the west edge (the three signal lanes land on them; the housing's own pins sit behind)
+  for (const dy of [-26, 0, 26]) g.rect(p.x - 12, p.y + p.h / 2 + dy - 8, 30, 16);
+  g.fill({ color: P.via, alpha: 0.7 * a });
   c.labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
+}
+
+/**
+ * A rear I/O connector seen from above, mouth facing west: 3.5 mm audio jack (coloured collar and nut), RJ45 (shielded shell, the
+ * latch window and the contact row), HDMI / DisplayPort (the D-shaped shell with its tongue), USB-A (shell and coloured tongue). A
+ * connector the board does not carry is a bare outline on the plate.
+ */
+export function ioConnector(c: Ctx, p: IoPort, fitted: boolean) {
+  const { g, P, T } = c, y0 = p.y - p.h / 2;
+  const tone = p.tone === 'st' ? T.st : p.tone === 'br' ? T.br : p.tone === 'ld' ? T.ld : p.tone === 'alu' ? T.alu : null;
+  if (!fitted) { box(g, p.x, y0, p.w, p.h, 10, { stroke: P.edge, lw: 3, sa: 0.3 }); return; }
+  shadow(c, p.x, y0, p.w, p.h, 10, 6, 0.3);
+  const shine = (x: number, w: number) => g.rect(x, y0 + 5, w, 4).fill({ color: '#ffffff', alpha: T.dark ? 0.08 : 0.28 });
+  switch (p.kind) {
+    case 'jack': {
+      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
+      g.rect(p.x, y0 + 4, 30, p.h - 8).fill({ color: tone ?? P.edge, alpha: 0.8 });                  // the coloured collar at the mouth
+      box(g, p.x + 54, y0 - 6, 18, p.h + 12, 5, { fill: P.panel, stroke: P.edge, lw: 4 });           // the nut
+      g.rect(p.x + 84, p.y - 9, p.w - 130, 18).fill({ color: P.sub, alpha: 0.7 });                     // the bore
+      for (const dy of [-18, 0, 18]) g.rect(p.x + p.w - 6, p.y + dy - 5, 14, 10);                    // solder lugs
+      g.fill({ color: P.via, alpha: 0.7 });
+      shine(p.x + 36, p.w - 80);
+      break;
+    }
+    case 'rj45': {
+      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
+      box(g, p.x + 10, y0 + 28, p.w - 90, p.h - 56, 8, { fill: mix(P.dark, '#000000', 0.5), stroke: P.edge, lw: 3 }); // the cavity
+      for (let k = 0; k < 8; k++) g.rect(p.x + 36 + k * 28, y0 + 40, 12, 56);                         // the eight contacts
+      g.fill({ color: P.via, alpha: 0.55 });
+      box(g, p.x + p.w - 62, p.y - 40, 38, 80, 6, { stroke: P.edge, lw: 3, sa: 0.8 });                // the latch window in the shell
+      shine(p.x + 12, p.w - 24);
+      break;
+    }
+    case 'hdmi': case 'dp': {
+      const x = p.x, w = p.w, h = p.h, cc = 26, up = p.kind === 'hdmi';
+      const pts = up
+        ? [x, y0 + cc, x + cc, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc]
+        : [x, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc];
+      g.poly(pts).fill({ color: P.dark }).stroke({ width: 6, color: P.edge });
+      g.rect(x + 40, p.y - h * 0.12, w - 90, h * 0.24).fill({ color: P.via, alpha: 0.7 });            // the tongue's contacts
+      for (let k = 0; k < 9; k++) g.rect(x + 46 + k * 16, p.y - h * 0.3, 7, h * 0.18).rect(x + 46 + k * 16, p.y + h * 0.12, 7, h * 0.18);
+      g.fill({ color: P.via, alpha: 0.5 });
+      shine(x + cc, w - cc - 10);
+      break;
+    }
+    default: { // USB-A
+      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
+      box(g, p.x + 8, y0 + 8, p.w - 16, p.h - 16, 6, { stroke: P.silkHi, lw: 3, sa: 0.4 });          // the metal shell's inner lip
+      g.rect(p.x + 18, p.y - p.h * 0.14, p.w - 36, p.h * 0.28).fill({ color: tone ?? P.edge, alpha: 0.55 }); // the tongue
+      for (let k = 0; k < 4; k++) g.rect(p.x + p.w - 78 + k * 14, p.y - 6, 7, 12);                    // its four contacts
+      g.fill({ color: P.via, alpha: 0.8 });
+      shine(p.x + 14, p.w - 28);
+    }
+  }
 }

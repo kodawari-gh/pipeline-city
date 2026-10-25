@@ -1,7 +1,14 @@
-import { DIMM_H0 } from './boardlayout';
+import { DIMM_H0, ioPort, type TierGeo } from './boardlayout';
 import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
+import {
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+} from './pins';
+
+export { MEM_LANES, MEM_SPACING, SATA_LANES };
+/** x (from a phase block's left edge) of its output stub, where the core-voltage run starts (CPU VRM, see `vrmPhaseArt`), and the memory regulator's output and input stubs (`dramPhaseArt`). */
+export const VRM_OUT_X = 265, DRAM_OUT_X = 124, DRAM_IN_X = 52;
 
 // Orderly routing. A route is a centre line made of horizontal, vertical and 45 degree segments; a bundle is that
 // centre line copied n times at a fixed spacing (miter joins keep the spacing constant through bends). Corners that
@@ -36,6 +43,7 @@ export function pointAt(l: Lane, s: number): Pt {
 
 /** Replace every interior corner of a rectilinear polyline with a 45 degree chamfer of leg length c. */
 export function chamfer(pts: Pt[], c: number): Pt[] {
+  if (c <= 0) return pts.slice();
   const out: Pt[] = [pts[0]!];
   for (let i = 1; i < pts.length - 1; i++) {
     const a = pts[i - 1]!, p = pts[i]!, b = pts[i + 1]!;
@@ -76,7 +84,7 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
 
 export interface Bus {
   id: BusKind;
@@ -84,106 +92,180 @@ export interface Bus {
   lanes: Lane[];
   /** Lane stroke width in world units. */
   w: number;
+  /** Width of the pad a lane ends on (default: twice the stroke). */
+  pad?: number;
   /** Branches (one per DIMM) that light together with the main run when `tap(i)` is installed. */
   taps?: { key: string; lanes: Lane[] }[];
 }
 
-const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c = 120): Bus => ({
-  id, w, lanes: bundle(centre, n, spacing, c).map((p, i) => mkLane(p, i * 37)),
+/** How far a lane runs straight into its pad after the last bend of a fan-out. */
+const LEAD = 36;
+
+/**
+ * Re-end every lane of a bundle on its pad: the lanes keep their parallel run and, near the end, step sideways on a 45 degree leg that
+ * starts where the sideways shift needs it (the farthest lane first), then run straight into the pad. Pads and lanes are matched by
+ * their order across the lanes' direction of travel, so nothing crosses. `atEnd` false does the same for the first end.
+ */
+function land(lines: Pt[][], pads: Pt[], atEnd: boolean, lead = LEAD): Pt[][] {
+  const ls = atEnd ? lines : lines.map((l) => l.slice().reverse());
+  const info = ls.map((pts) => {
+    const n = pts.length, a = pts[n - 2]!, p = pts[n - 1]!, l = Math.hypot(p[0] - a[0], p[1] - a[1]) || 1;
+    const ux = (p[0] - a[0]) / l, uy = (p[1] - a[1]) / l;
+    return { ux, uy, lat: p[0] * -uy + p[1] * ux };
+  });
+  const ref = info[0]!;
+  const nx = -ref.uy, ny = ref.ux;
+  const padOrder = pads.map((q, i) => ({ i, lat: q[0] * nx + q[1] * ny })).sort((a, b) => a.lat - b.lat);
+  const laneOrder = info.map((f, i) => ({ i, lat: f.lat })).sort((a, b) => a.lat - b.lat);
+  const out: Pt[][] = ls.map((pts) => pts);
+  laneOrder.forEach((lo, rank) => {
+    const pts = ls[lo.i]!, pad = pads[padOrder[rank]!.i]!, n = pts.length, p = pts[n - 1]!, { ux, uy } = info[lo.i]!;
+    const d = (pad[0] - p[0]) * -uy + (pad[1] - p[1]) * ux;
+    const res = pts.slice(0, n - 1);
+    if (Math.abs(d) < 0.5) res.push(pad);
+    else {
+      const q2: Pt = [pad[0] - ux * lead, pad[1] - uy * lead];
+      res.push([q2[0] + uy * d - ux * Math.abs(d), q2[1] - ux * d - uy * Math.abs(d)], q2, pad);
+    }
+    out[lo.i] = res;
+  });
+  return atEnd ? out : out.map((l) => l.reverse());
+}
+
+/** A bundle of n lanes along a centre line whose ends land on pads (`from` at the first end, `to` at the last; none = free end). */
+function bundleOn(centre: Pt[], n: number, spacing: number, c: number, ends: { from?: Pt[]; to?: Pt[]; lead?: number } = {}): Pt[][] {
+  let lines = bundle(centre, n, spacing, c);
+  if (ends.to) lines = land(lines, ends.to, true, ends.lead);
+  if (ends.from) lines = land(lines, ends.from, false, ends.lead);
+  return lines;
+}
+const lanesOf = (lines: Pt[][], ph = 0): Lane[] => lines.map((p, i) => mkLane(p, ph + i * 37));
+const mean = (pts: Pt[], k: 0 | 1) => pts.reduce((a, p) => a + p[k], 0) / pts.length;
+
+const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c = 120, ends: { from?: Pt[]; to?: Pt[]; lead?: number } = {}): Bus => ({
+  id, w, lanes: lanesOf(bundleOn(centre, n, spacing, c, ends)),
 });
 
-/** Lanes in one memory bundle (one per DIMM) and their spacing: they land on the pad row of the socket. */
-export const MEM_LANES = 6, MEM_SPACING = 18;
 /**
- * x of the DMI column and of the first NVMe column that leave the south edge of the package (see `buildBuses`): all of them lie east
- * of the end of the x16 slot, DMI first, then one NVMe column per M.2 below the CPU, the lowest M.2 in the westmost column.
+ * The columns that leave the south edge of the package, west to east: PCIe x16 (lands on the first slot), DMI (the chipset's north legs),
+ * then one NVMe column per M.2 below the CPU (the lowest M.2 in the westmost column, so none crosses another). An M.2 level with the
+ * CPU is fed from its east edge. The x16 slot ends before the DMI column.
  */
-export const DMI_X = 600, NVME_X0 = 720, NVME_DX = 80;
-/** Lanes in an NVMe bundle and in a SATA bundle (and their spacing). */
-export const NVME_LANES = 4, SATA_LANES = 3;
+export const PCIE_X = 150, NVME_DX = 70;
+/** x of the first NVMe column of a tier: right of the DMI lanes. */
+export const nvmeX0 = (g: TierGeo) => g.dmiX + 117;
+/** Lanes in an NVMe bundle (and their spacing) and in the DMI link. */
+export const NVME_LANES = 3, NVME_SPACING = 22, DMI_LANES = 6;
 
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
- * Every run ends on a footprint: the CPU socket's escape pads at one end, a pad row on the socket / connector / chip at the other.
- * Memory is point-to-point: one bundle per DIMM, stacked in a staircase (the nearest DIMM takes the lane band closest to its
- * pads), so no two bundles cross.
+ * Every lane ends on a pin that the part's art draws (`pins.ts`): the CPU socket's escape pads at one end, a pad bar on a socket, a leg
+ * of a chip, a contact of a connector at the other. Memory is point-to-point: one bundle per DIMM, stacked in a staircase (the nearest
+ * DIMM takes the lane band closest to its pads), so no two bundles cross. A run changes lane pitch only on a 45 degree leg right
+ * before its pins.
  */
 export function buildBuses(): Bus[] {
   const g = GEO;
   const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E, py = PKG.y - SOCKET_E;
   const buses: Bus[] = [];
 
-  // memory: a bundle per DIMM from the CPU east edge to its pad row (row 0 pads face down, row 1 pads face up)
-  const mem: Bus = { id: 'mem', w: 9, lanes: [], taps: [] };
+  // memory: a bundle per DIMM from the CPU east edge to the pad bar of its socket (row 0's bar is its south end, row 1's its north end)
+  const mem: Bus = { id: 'mem', w: 9, pad: 13, lanes: [], taps: [] };
   g.dimm.forEach((d, i) => {
-    const cx = d.rect.x + d.rect.w / 2, y = g.memY[i]!, pad = d.flip ? g.padY[1] : g.padY[0];
-    mem.taps!.push({ key: 'dimm' + i, lanes: bundle([[qx, y], [cx, y], [cx, pad]], MEM_LANES, MEM_SPACING, 70).map((p, k) => mkLane(p, k * 37 + i * 11)) });
+    const pads = dimmPads(d.rect, d.flip), cx = d.rect.x + d.rect.w / 2, y = g.memY[i]!;
+    mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [cx, y], [cx, pads[0]![1]]], MEM_LANES, MEM_SPACING, 70, { to: pads }), i * 11) });
   });
   buses.push(mem);
 
-  // The south edge of the package feeds the columns, west to east: PCIe x16 (ends on the first slot), DMI (the chipset below), then
-  // NVMe (one per M.2 that lies below the CPU: the lowest one in the westmost column, so none crosses another); each column's x clears
-  // the next, and the slots end before the DMI column. An M.2 level with the CPU is fed straight from its east edge.
+  // NVMe: one bundle per M.2 to the middle contacts of its socket
   {
     const lanes: Lane[] = [];
     const below = g.m2.filter((m) => m.y + m.h / 2 > qy);
     g.m2.forEach((m) => {
-      const y = m.y + m.h / 2, k = below.indexOf(m);
-      const route: Pt[] = k < 0 ? [[qx, y], [m.x - 10, y]] : [[NVME_X0 + NVME_DX * (below.length - 1 - k), qy], [NVME_X0 + NVME_DX * (below.length - 1 - k), y], [m.x - 10, y]];
-      for (const pts of bundle(route, NVME_LANES, 20, 100)) lanes.push(mkLane(pts, lanes.length * 37));
+      const y = m.y + m.h / 2, k = below.indexOf(m), pads = m2Pads(m), xe = pads[0]![0];
+      const x = nvmeX0(g) + NVME_DX * (below.length - 1 - k);
+      const route: Pt[] = k < 0 ? [[qx, y], [xe, y]] : [[x, qy], [x, y], [xe, y]];
+      for (const pts of bundleOn(route, NVME_LANES, NVME_SPACING, 100, { to: pads })) lanes.push(mkLane(pts, lanes.length * 37));
     });
     if (lanes.length) buses.push({ id: 'nvme', w: 10, lanes });
   }
 
-  // DMI: CPU south edge straight down onto the chipset's top pads
-  buses.push(mk('dmi', [[DMI_X, qy], [DMI_X, g.chip.y]], 8, 20, 9));
+  // DMI: CPU south edge straight down onto the chipset's north legs
+  {
+    const legs = legRun(g.chip, 'n', DMI_LANES), cx = mean(legs, 0);
+    buses.push(mk('dmi', [[cx, qy], [cx, legs[0]![1]]], DMI_LANES, LEG_PITCH, 9, 120, { to: legs }));
+  }
 
-  // PCIe x16: CPU south edge straight down onto the first slot
-  if (g.pcie[0]) buses.push(mk('pcie', [[250, qy], [250, g.pcie[0].y]], 12, 18, 9));
+  // PCIe x16: CPU south edge down onto the pads on the first slot's north edge (the lanes open from 20 to 40 apart on 45 degree legs)
+  if (g.pcie[0]) {
+    const r = g.pcie[0], pads = pciePads(r, 12, 'n');
+    buses.push(mk('pcie', [[PCIE_X, qy], [PCIE_X, r.y]], 12, 20, 9, 120, { to: pads, lead: 40 }));
+  }
 
-  // USB: the CPU's west edge straight to the rear I/O, through the hub controller that sits on the way
-  buses.push(mk('usb', [[px, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
+  // USB: four lanes from the CPU's west edge to the hub's east legs; from its west legs two lanes per port fan out (all the same way)
+  // to the pads on the shield plate, level with each port
+  {
+    const hub = g.hub, up = legRun(hub, 'e', 4), lanes: Lane[] = [];
+    for (const pts of bundleOn([[px, 0], [up[0]![0], 0]], 4, LEG_PITCH, 0, { to: up })) lanes.push(mkLane(pts, lanes.length * 37));
+    const legs = legRun(hub, 'w', 2 * g.usb);
+    for (let p = 0; p < g.usb; p++) {
+      const own = legs.slice(2 * p, 2 * p + 2), yc = mean(own, 1), port = ioPort('usb' + p), pads = ioPads(port, 2);
+      for (const pts of bundleOn([[own[0]![0], yc], [pads[0]![0], yc]], 2, LEG_PITCH, 0, { from: own, to: pads, lead: 60 })) lanes.push(mkLane(pts, lanes.length * 37));
+    }
+    buses.push({ id: 'usb', w: 9, lanes });
+  }
 
-  // SATA: a bundle per port from the chipset's east edge (packed 84 apart, centred on the chipset) to the pads on the port's west side,
-  // fanning out on 45 degree legs that all end at the same x (the outer ports start theirs first), so nothing crosses and the run
+  // SATA: a bundle per port from the chipset's east legs (one run of contiguous legs, three per port) to the pads on the port's west
+  // side, fanning out on 45 degree legs that all end at the same x (the outer ports start theirs first), so nothing crosses and the run
   // across the board is straight, along the port's row (the drive cables continue from there)
   if (g.sata.length) {
-    const lanes: Lane[] = [], n = g.sata.length, cy = g.chip.y + g.chip.h / 2, x0 = g.chip.x + g.chip.w;
-    const yc = (i: number) => cy + (i - (n - 1) / 2) * 84;
+    const lanes: Lane[] = [], n = g.sata.length, legs = legRun(g.chip, 'e', n * SATA_LANES), x0 = legs[0]![0];
+    const yc = (i: number) => legs[i * SATA_LANES + 1]![1];
     const dmax = Math.max(0, ...g.sata.map((p, i) => Math.abs(p.y + p.h / 2 - yc(i))));
     const xe = x0 + 60 + dmax;
     g.sata.forEach((p, i) => {
-      const y = p.y + p.h / 2, d = y - yc(i);
-      const route: Pt[] = Math.abs(d) < 1 ? [[x0, y], [p.x - 6, y]] : [[x0, yc(i)], [xe - Math.abs(d), yc(i)], [xe, y], [p.x - 6, y]];
-      for (const pts of bundle(route, SATA_LANES, 20, 40)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
+      const y = p.y + p.h / 2, d = y - yc(i), pads = sataPads(p), own = legs.slice(i * SATA_LANES, (i + 1) * SATA_LANES);
+      const route: Pt[] = Math.abs(d) < 1 ? [[x0, y], [pads[0]![0], y]] : [[x0, yc(i)], [xe - Math.abs(d), yc(i)], [xe, y], [pads[0]![0], y]];
+      for (const pts of bundleOn(route, SATA_LANES, LEG_PITCH, 0, { from: own, to: pads })) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
     });
     buses.push({ id: 'sata', w: 9, lanes });
   }
 
-  // display: CPU west edge, west (above the USB lanes), up to the HDMI row, into the port
-  buses.push(mk('video', [[px, -640], [-2300, -640], [-2300, VIDEO_Y], [g.io.x + g.io.w, VIDEO_Y]], 4, 28, 11, 200));
+  // display: CPU west edge, west (above the USB lanes), up to the HDMI row, into the pads behind the port (the second output, when the
+  // board has one, runs the same way below it and nests inside: it never lights)
+  {
+    const hdmi = ioPort('hdmi'), hp = ioPads(hdmi, 4);
+    // a ramp: west along the row, one 45 degree climb to the connector's row, west again (no sideways steps)
+    const xa = -2000, ramp = (y0: number, y1: number, x0: number, pad: Pt): Pt[] => [[px, y0], [x0, y0], [x0 - (y0 - y1), y1], [pad[0], y1]];
+    buses.push(mk('video', ramp(-640, hdmi.y, xa, hp[0]!), 4, LEG_PITCH, 11, 0, { to: hp }));
+    if (g.dp) {
+      const dp = ioPort('dp'), dpp = ioPads(dp, 4);
+      buses.push(mk('dp', ramp(-520, dp.y, xa - 80, dpp[0]!), 4, LEG_PITCH, 11, 0, { to: dpp }));
+    }
+  }
 
   // ---- power ----
-  // 8-pin CPU 12 V: down from the connector, east along the input rail over every phase
+  // 8-pin CPU 12 V: a comb: the four pins' runs drop onto the input rail, which runs east over every phase
   {
-    const cx = g.cpw.x + g.cpw.w / 2, last = g.vrmPhases[g.vrmPhases.length - 1]!;
-    buses.push(mk('pwrcpu', [[cx, g.cpw.y + g.cpw.h - 30], [cx, g.vrmRailY], [last.x + last.w - 30, g.vrmRailY]], 2, 40, 30, 90));
+    const pins = cpuPowerPins(g.cpw), last = g.vrmPhases[g.vrmPhases.length - 1]!, ye = g.vrmRailY, y0 = pins[0]![1];
+    const lanes: Lane[] = [mkLane(chamfer([[pins[0]![0], y0], [pins[0]![0], ye], [last.x + last.w - 30, ye]], 60), 0)];
+    for (let i = 1; i < pins.length; i++) lanes.push(mkLane([[pins[i]![0], y0], [pins[i]![0], ye]], i * 31));
+    buses.push({ id: 'pwrcpu', w: 30, lanes });
   }
-  // core voltage: one run per phase from its output down into the package edge
+  // core voltage: one run per phase from its output stub down into the package edge
   {
     const lanes: Lane[] = [];
     g.vrmPhases.forEach((r, i) => {
-      const x = r.x + 110, lx = Math.max(-820, Math.min(820, x));
-      lanes.push(mkLane(chamfer([[x, r.y + r.h - 4], [x, -1080], [lx, py + 8]], 90), i * 20));
+      const x = r.x + VRM_OUT_X, lx = Math.max(-820, Math.min(820, x));
+      const dx = Math.abs(x - lx), route: Pt[] = dx < 1 ? [[x, r.y + r.h - 4], [x, py + 8]] : [[x, r.y + r.h - 4], [x, -1080], [lx, -1080 + dx], [lx, py + 8]];
+      lanes.push(mkLane(route, i * 20));
     });
     buses.push({ id: 'vcore', lanes, w: 46 });
   }
-  // 24-pin 12 V / 5 V: west from the connector to the memory regulator's input rail
+  // 24-pin 12 V: straight west from the connector's top pin to the memory regulator's input rail (the connector sits level with it)
   {
-    const last = g.dPhases[g.dPhases.length - 1]!, xe = last.x + last.w + 30, yA = -1500, xm = xe + 380;
-    const xw = g.dPhases[0]!.x + 60;
-    const route: Pt[] = Math.abs(yA - g.dRailY) < 20 ? [[g.atx.x + 20, yA], [xw, yA]] : [[g.atx.x + 20, yA], [xm, yA], [xm, g.dRailY], [xw, g.dRailY]];
-    buses.push(mk('pwr12', route, 2, 40, 30, 120));
+    const pin = atx12v(g.atx), xw = g.dPhases[0]!.x + DRAM_IN_X;
+    buses.push(mk('pwr12', [pin, [xw, pin[1]]], 1, 0, 36, 0));
   }
   // memory voltage: the regulator's output rail along the pins of the sockets, a drop into every DIMM (and, on the two-row boards,
   // round the east end to a second rail under the lower row)
@@ -198,17 +280,25 @@ export function buildBuses(): Bus[] {
       for (const pts of bundle([[xEnd - 10, y], [xs, y], [xs, yb], [row1[0]!.rect.x + 20, yb]], 2, 34, 120)) lanes.push(mkLane(pts, lanes.length * 31));
     }
     // outputs of the phases down to the rail
-    g.dPhases.forEach((r, i) => lanes.push(mkLane([[r.x + r.w / 2, r.y + r.h - 4], [r.x + r.w / 2, y - 17]], 90 + i * 20)));
+    g.dPhases.forEach((r, i) => lanes.push(mkLane([[r.x + DRAM_OUT_X, r.y + r.h - 4], [r.x + DRAM_OUT_X, y - 17]], 90 + i * 20)));
     const bus: Bus = { id: 'vdimm', w: 26, lanes, taps: [] };
     g.dimm.forEach((d, i) => {
-      const cx = d.rect.x + 30;
-      bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane(d.flip ? [[cx, g.padY[1] + DIMM_H0 + 130], [cx, g.padY[1] + DIMM_H0 - 6]] : [[cx, y], [cx, d.rect.y + 6]], i * 13)] });
+      const [cx, ey] = dimmPowerPad(d.rect, d.flip);
+      bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane(d.flip ? [[cx, g.padY[1] + DIMM_H0 + 130], [cx, ey]] : [[cx, y], [cx, ey]], i * 13)] });
     });
     buses.push(bus);
   }
-  // audio: the codec to the jacks' shield; ethernet: the PHY to the jack's shield (they never light)
-  buses.push(mk('audio', [[g.codec.x, g.codec.y + 90], [g.io.x + g.io.w, g.codec.y + 90]], 3, 24, 8));
-  if (g.phy) buses.push(mk('lan', [[g.phy.x, g.phy.y + 130], [g.io.x + g.io.w, g.phy.y + 130]], 4, 24, 8));
+  // audio: the codec's west legs (the 1st, 4th and 7th) straight to the pads behind the three jacks; ethernet: the PHY's four middle
+  // legs straight to the pads behind the RJ45 (decoration: they never light)
+  {
+    const cw = legsOf(g.codec, 'w', 7), lanes: Lane[] = [];
+    ['line-out', 'line-in', 'mic'].forEach((id, k) => lanes.push(mkLane([cw[k * 3]!, ioPads(ioPort(id), 1)[0]!], k * 17)));
+    buses.push({ id: 'audio', w: 8, lanes });
+  }
+  if (g.phy) {
+    const legs = legRun(g.phy, 'w', 4), pads = ioPads(ioPort('eth'), 4);
+    buses.push(mk('lan', [[legs[0]![0], mean(legs, 1)], [pads[0]![0], mean(legs, 1)]], 4, LEG_PITCH, 8, 0, { from: legs, to: pads }));
+  }
   return buses;
 }
 

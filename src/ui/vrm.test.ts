@@ -101,7 +101,7 @@ describe('motherboard tier cards', () => {
     expect(slotsOf(cards[0]!, 'dimm')).toBe(1);
     expect(slotsOf(cards[0]!, 'pcie')).toBe(1);
     expect(slotsOf(cards[2]!, 'm2')).toBe(2);
-    expect(cards.map((c) => slotsOf(c, 'sata'))).toEqual([2, 3, 4, 6]);
+    expect(cards.map((c) => slotsOf(c, 'sata'))).toEqual([2, 3, 4, 8]);
     expect(slotsOf(cards[3]!, 'dimm')).toBe(8);
   });
 

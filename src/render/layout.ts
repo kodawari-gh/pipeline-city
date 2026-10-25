@@ -9,7 +9,7 @@
 // that `setLayoutTier(tier)` reassigns. The renderer calls it first thing when it builds a scene, so every importer sees the current
 // tier's rectangles; never copy one of these into a module-level constant.
 
-import { DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, geoOf, type TierGeo } from './boardlayout';
+import { DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -142,17 +142,25 @@ export const VIDEO_Y = -1150;
 export const TRAY: Rect = { x: MONITOR.x + (MONITOR.w - 3300) / 2, y: MONITOR.y + MONITOR.h + 820, w: 3300, h: 1620 };
 export const TRAY_COLS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
+/** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
+export const WALL_T = 170, CASE_TOP = -3400;
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
-export let CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };
+export let CASE: Rect = { x: IO_X, y: CASE_TOP, w: 9060, h: 7350 };
 /** Inside of the chassis (glass area plus the PSU compartment). */
-export let CASE_IN: Rect = { x: -3640, y: -2700, w: 8740, h: 6690 };
+export let CASE_IN: Rect = { x: IO_X + WALL_T, y: CASE_TOP + 400, w: 8740, h: 6690 };
 /** Top panel strip: brand, vents, disk LED, status lights, power button. */
-export let CASE_PANEL: Rect = { x: -3800, y: -3100, w: 9060, h: 400 };
+export let CASE_PANEL: Rect = { x: IO_X, y: CASE_TOP, w: 9060, h: 400 };
 /** The glass side window: motherboard area. */
-export let CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
+export let CASE_GLASS: Rect = { x: IO_X + WALL_T, y: CASE_TOP + 400, w: 8740, h: 5250 };
 /** Power button on the top panel and the status lights beside it. */
-export let POWER_BTN = { x: 4660, y: -2900, r: 130 };
-export let CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
+export let POWER_BTN = { x: 4660, y: CASE_TOP + 200, r: 130 };
+export let CASE_LEDS = { y: CASE_TOP + 200, on: 4180, off: 4300, err: 4420, disk: 3900 };
+/** The fans the case carries, seen edge-on (case.ts): the rear exhaust in the rear wall above the I/O opening, the top fans under the top panel. */
+export let REAR_FAN: Rect = { x: IO_X + 14, y: CASE_TOP + 470, w: WALL_T - 28, h: 790 };
+export let TOP_FANS: Rect[] = [];
+/** Top fans the cases carry (mini, micro, mid, full tower). */
+export const TOP_FAN_COUNT = [0, 1, 2, 3];
+export const TOP_FAN_T = 230, TOP_FAN_LEN = 1700, TOP_FAN_PITCH = 1800;
 /**
  * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
  * slot sata<i>, top to bottom; the cage has as many cells as the biggest board the case holds has SATA ports, the rest of the
@@ -176,9 +184,9 @@ export let SATA_LINK: { plug: number; col: number }[] = [];
 export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 
 /** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
-export const USB_PORT: Rect = { x: -3440 + 18, y: -54, w: 290, h: 108 };
+export const USB_PORT: Rect = { x: IO_X + 18, y: -54, w: 290, h: 108 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
-export const HDMI_PORT: Rect = { x: -3440, y: VIDEO_Y - 60, w: 240, h: 120 };
+export const HDMI_PORT: Rect = { x: IO_X, y: VIDEO_Y - 60, w: 240, h: 120 };
 
 // ---- network props (docs/RENDER.md "Network"): all of them sit above the monitor, inside WORLD, so the overview does not change ----
 /** The router spot: a shelf above the monitor. A router stands on it, right-aligned to `ROUTER_EAST` (its footprint depends on the tier). */
@@ -195,8 +203,8 @@ export const WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: SHELF_Y };
 /** Vertical run of the ethernet cable between the monitor and the case (between the video plug and the case wall; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = -3940;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
-export const ETH0_MOUTH = { x: -3440 + 30, y: -1560 };
-export const ETH0_RECT: Rect = { x: -3440 + 30, y: -1690, w: 330, h: 260 };
+export const ETH0_MOUTH = { x: IO_X + 30, y: -1560 };
+export const ETH0_RECT: Rect = { x: IO_X + 30, y: -1690, w: 330, h: 260 };
 export const PLUG_L = 200, PLUG_W = 100;
 /** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
 export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
@@ -247,15 +255,16 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + i * 22 }));
   // the front fans stand in front of the cage, the perforated front panel closes the glass
   const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
-  const caseW = glassEast + 160 + 3800;
-  CASE = { x: -3800, y: -3100, w: caseW, h: south + 4850 };
-  CASE_IN = { x: -3640, y: -2700, w: caseW - 320, h: CASE.h - 660 };
-  CASE_GLASS = { x: -3640, y: -2700, w: caseW - 320, h: south + 50 + 2700 };
-  CASE_PANEL = { x: -3800, y: -3100, w: caseW, h: 400 };
-  const ce = CASE.x + CASE.w;
-  POWER_BTN = { x: ce - 600, y: -2900, r: 130 };
-  CASE_LEDS = { y: -2900, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
-  WORLD = { x: MONITOR.x - 80, y: -3140, w: ce + 40 - (MONITOR.x - 80), h: CASE.y + CASE.h + 150 + 3140 };
+  const ce = glassEast + 160, caseW = ce - IO_X, top = CASE_TOP, bottom = south + 1750;
+  CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
+  CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 - (top + 400) };
+  CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
+  CASE_PANEL = { x: IO_X, y: top, w: caseW, h: 400 };
+  POWER_BTN = { x: ce - 600, y: top + 200, r: 130 };
+  CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
+  REAR_FAN = { x: IO_X + 14, y: CASE_IN.y + 70, w: WALL_T - 28, h: -2140 - (CASE_IN.y + 70) };
+  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: -2500 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));
+  WORLD = { x: MONITOR.x - 80, y: top - 40, w: ce + 40 - (MONITOR.x - 80), h: bottom + 150 - (top - 40) };
   REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
 setLayoutTier(2);

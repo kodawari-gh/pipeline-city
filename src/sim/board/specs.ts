@@ -294,7 +294,7 @@ export const BOARD_TIERS: readonly BoardTierSpec[] = [
     vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps },
     ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps } },
   { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
-    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 6, m2: 3, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 8, m2: 3, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
     vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps },
     ramVrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.9, ripple: 0.1, mass: 45, passive: 0.4, ...vrmTemps } },

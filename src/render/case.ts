@@ -1,7 +1,9 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
+import { TIER_GEO, geoOf } from './boardlayout';
 import {
-  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, SATA_LINK, sataPort, type Rect,
+  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
+  nicY, sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
@@ -46,9 +48,10 @@ export function caseBack(T: Theme): Container {
   g.moveTo(i.x + 8, psuTop).lineTo(i.x + i.w - 8, psuTop).stroke({ width: 5, color: edge, alpha: 0.55 });
   // intake slots in the floor
   for (let k = 0; k < 14 && -2400 + k * 190 < i.x + i.w - 400; k++) box(g, -2400 + k * 190, i.y + i.h + 30, 110, 22, 11, { fill: cav, fa: 0.85 });
-  // the motherboard tray: a plate a little bigger than the board it carries, perforated, with the board's standoffs and a cable cut-out
+  // the motherboard tray: a plate a little bigger than the board it carries, perforated, with a brass standoff at every mounting hole of
+  // every form factor the case takes (the installed board's holes sit over its own: they line up by construction) and a cable cut-out
   {
-    const BD = CASE_BD, tr = { x: BD.x - 110, y: BD.y - 110, w: BD.w + 220, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
+    const BD = CASE_BD, x0 = Math.max(BD.x - 110, i.x + 12), tr = { x: x0, y: BD.y - 110, w: BD.x + BD.w + 110 - x0, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
     box(g, tr.x, tr.y, tr.w, tr.h, 120, { fill: tone, stroke: edge, lw: 6, sa: 0.55 });
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + 60; y < tr.y + 190; y += 80) g.circle(x, y, 14);
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) g.circle(x, y, 14);
@@ -56,11 +59,11 @@ export function caseBack(T: Theme): Container {
     // cable cut-outs beside the 24-pin and over the 8-pin (the cables come through them)
     const gx = BD.x + BD.w;
     box(g, gx + 20, -1750, 70, 1500, 35, { fill: cav, stroke: edge, lw: 4, sa: 0.6 });
-    for (const [x, y] of [[BD.x + 150, BD.y + 150], [gx - 150, BD.y + 150], [BD.x + 150, BD.y + BD.h - 150], [gx - 150, BD.y + BD.h - 150]] as const) disc(g, x, y, 24, { fill: mix(wall, T.bg, 0.3), stroke: edge, lw: 4, sa: 0.7 });
+    for (const [x, y] of standoffs()) standoff(g, T, x, y, wall, edge);
   }
   frontFans(g, T, cav, wall, edge);
-  // I/O shield opening in the west wall (keys and the video cable pass through it)
-  box(g, c.x + 26, -2080, 108, 2600, 30, { fill: cav, fa: 0.85, stroke: edge, lw: 4, sa: 0.5 });
+  rearWall(g, T, cav, wall, edge);
+  topFans(g, T, cav, wall, edge);
   // labels
   root.addChild(label(`PIPELINE CITY · ${look.tag}`, -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
@@ -83,18 +86,80 @@ function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
   box(g, fp.x, fp.y, fp.w, fp.h, 50, { fill: mix(cav, wall, 0.15), stroke: edge, lw: 5, sa: 0.5 });
   for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
   g.fill({ color: cav, alpha: 0.95 });
-  for (let k = 0; k < n; k++) {
-    const y = y0 + k * (h + gap);
-    box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
-    box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
-    // blade tips: short slanted strokes down the middle, the way a fan looks from the side
-    for (let yy = y + 90; yy < y + h - 70; yy += 56) g.moveTo(x + 70, yy + 22).lineTo(x + w - 70, yy - 22);
-    g.stroke({ width: 10, color: T.mute, alpha: 0.22, cap: 'round' });
-    g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60).stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
-    // light strips along both long edges (they glow with the machine: see Live)
-    g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140).fill({ color: T.alu, alpha: 0.25 });
-    for (const sy of [y + 40, y + h - 40]) for (const sx of [x + 36, x + w - 36]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+  for (let k = 0; k < n; k++) edgeFan(g, T, { x, y: y0 + k * (h + gap), w, h }, true, wall, edge);
+}
+
+/** The standoff positions of the case: every mounting hole of every board tier it takes (no duplicates). */
+export function standoffs(): [number, number][] {
+  const seen = new Set<string>(), out: [number, number][] = [];
+  for (let t = 0; t <= LAYOUT_CASE; t++) for (const [x, y] of TIER_GEO[t]!.holes) if (!seen.has(`${x},${y}`)) { seen.add(`${x},${y}`); out.push([x, y]); }
+  return out;
+}
+
+/** A brass standoff on the tray: a hex collar with a threaded bore (the board's screw goes into it). */
+function standoff(g: Graphics, T: Theme, x: number, y: number, wall: string, edge: string) {
+  disc(g, x, y, 44, { fill: '#000000', fa: T.dark ? 0.3 : 0.14 });
+  const brass = mix(T.pin, wall, 0.25);
+  disc(g, x, y, 36, { fill: brass, stroke: edge, lw: 4, sa: 0.8 });
+  const hex: number[] = [];
+  for (let k = 0; k < 6; k++) hex.push(x + Math.cos(k * 1.047) * 22, y + Math.sin(k * 1.047) * 22);
+  g.poly(hex).stroke({ width: 3, color: edge, alpha: 0.7 });
+  disc(g, x, y, 9, { fill: mix(wall, '#000000', 0.6) });
+}
+
+/**
+ * A case fan seen edge-on (the glass looks along the board): the frame, the blade tips down the middle, the hub, a light strip along
+ * both long edges and four corner screws. `vertical`: the long side runs along y (front and rear fans); else along x (top fans).
+ */
+function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall: string, edge: string) {
+  const { x, y, w, h } = r, L = vertical ? h : w, S = vertical ? w : h, m = Math.min(70, S * 0.26);
+  box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
+  box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
+  for (let t = 90; t < L - 70; t += 56) {
+    if (vertical) g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
+    else g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
   }
+  g.stroke({ width: 10, color: T.mute, alpha: 0.22, cap: 'round' });
+  if (vertical) g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60); else g.moveTo(x + 60, y + h / 2).lineTo(x + w - 60, y + h / 2);
+  g.stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
+  // light strips along both long edges
+  if (vertical) g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140); else g.rect(x + 70, y + 20, w - 140, 8).rect(x + 70, y + h - 28, w - 140, 8);
+  g.fill({ color: T.alu, alpha: 0.25 });
+  const cx = [x + 36, x + w - 36], cy = [y + 40, y + h - 40];
+  for (const sy of vertical ? cy : [y + 36, y + h - 36]) for (const sx of vertical ? cx : [x + 40, x + w - 40]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+}
+
+/** The top fans (as many as the case takes), under the top panel and clear of the 8-pin cable's run above the board. */
+function topFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  if (!TOP_FANS.length) return;
+  const f0 = TOP_FANS[0]!, f1 = TOP_FANS[TOP_FANS.length - 1]!;
+  // the mounting rail the fans hang from
+  g.rect(f0.x - 80, f0.y - 22, f1.x + f1.w - f0.x + 160, 14).fill({ color: edge, alpha: 0.55 });
+  for (const f of TOP_FANS) edgeFan(g, T, f, false, wall, edge);
+  void cav;
+}
+
+/**
+ * The rear wall (the slab at the west edge, seen edge-on): the opening the board's I/O plate sits in, an opening with a slot cover
+ * for every expansion slot the case has, and the rear exhaust fan above them.
+ */
+function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  const c = CASE, i = CASE_IN, x = c.x + 14, w = WALL_T - 28, io = geoOf(LAYOUT_CASE).io;
+  // the I/O opening: the plate (drawn with the board) fills it
+  box(g, x, io.y - 80, w, io.h + 150, 22, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
+  // the expansion slots: an opening each, closed by a slot cover with vents and a screw (a card's bracket replaces it)
+  for (const r of geoOf(LAYOUT_CASE).pcie) {
+    const y = nicY(geoOf(LAYOUT_CASE).pcie.indexOf(r)) - 82;
+    box(g, x, y, w, 164, 14, { fill: cav, stroke: edge, lw: 3, sa: 0.5 });
+    box(g, x + 16, y + 14, w - 32, 136, 8, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 3, sa: 0.7 });
+    for (let k = 0; k < 4; k++) g.rect(x + 40, y + 34 + k * 26, w - 80, 8);
+    g.fill({ color: cav, alpha: 0.9 });
+    disc(g, x + w / 2, y + 134, 9, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
+  }
+  // the rear exhaust fan, above the I/O opening
+  box(g, x - 4, REAR_FAN.y - 24, w + 8, REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
+  edgeFan(g, T, REAR_FAN, true, wall, edge);
+  void i;
 }
 
 /** Glass side: a barely there sheen and a hairline edge, drawn over the board. */
