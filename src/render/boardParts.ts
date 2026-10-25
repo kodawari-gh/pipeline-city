@@ -188,6 +188,17 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
   c.labels.addChild(label(name, at[0], at[1], 32, P.silk, { a, anchor: [at[2], 0.5] }));
 }
 
+/** A pin header (cols x rows, 0.1 inch pitch): body, gold pins, a pin-1 mark, its name above. */
+export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string) {
+  const { g, P } = c, pitch = 52, w = cols * pitch + 24, h = rows * pitch + 24;
+  box(g, x, y, w, h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28);
+  g.fill({ color: c.T.pin, alpha: 0.75 });
+  g.poly([x + 4, y - 12, x + 22, y - 12, x + 4, y - 30]).fill({ color: P.silkHi, alpha: 0.6 });
+  c.labels.addChild(label(name, x, y - 46, 28, P.silk, { anchor: [0, 0.5] }));
+  return { x, y, w, h };
+}
+
 /** A SATA port (mouth east): housing, the L-shaped opening with its key, the pin row, a latch lip. */
 export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
   const { g, P } = c, a = live ? 1 : 0.35;

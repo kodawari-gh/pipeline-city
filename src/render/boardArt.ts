@@ -3,10 +3,10 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { USB_POS } from './exterior';
-import { buildBuses, type Bus, type Lane } from './routes';
+import { buildBuses, bundle, mkLane, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
-  chip, dimmSocket, dramPhaseArt, hole, pcieSlot, powerConn, sataPortArt, shadow, stitch, vrmPhaseArt, type Ctx,
+  chip, dimmSocket, dramPhaseArt, header, hole, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
 } from './boardParts';
 
 export interface BoardArt {
@@ -261,6 +261,50 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) g.rect(x, y, 14, 14);
     g.fill({ color: T.pin, alpha: 0.25 });
     lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 36, 38);
+  }
+
+  // ---- the small stuff that makes it a real board: decoupling beside the socket, the BIOS chip, the header corner with its controller ----
+  {
+    const sx = PKG.x - SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
+    smd(c, -800, qy + 44, 16, 56, 0, 30, 18, 0.85);       // under the package's south edge, clear of the PCIe and NVMe lanes
+    smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the DMI lanes
+    const bx = tier === 0 ? -1430 : -1480;
+    chip(c, { x: bx, y: 790, w: 170, h: 110 }, { legs: 4, pitch: 34, text: 'BIOS', size: 30, accent: T.mul });
+    const p0 = geo.sata[0] ? geo.sata[0].y + geo.sata[0].h / 2 : south - 465, hy = p0 - 380;
+    const hdr = (x: number, cols: number, rows: number, name: string) => header(c, x, hy, cols, rows, name);
+    const fp = hdr(-800, 5, 2, 'F_PANEL');
+    hdr(300, 4, 1, 'SYS_FAN');
+    if (tier >= 1) {
+      const io = hdr(-150, 5, 2, 'USB_2');
+      // a small I/O controller between the two headers, wired to both (the lanes land on pads on the header side)
+      const sio = { x: -440, y: hy - 10, w: 190, h: 150 };
+      chip(c, sio, { legs: 4, pitch: 36, text: 'SIO', size: 36, accent: T.mul });
+      const links: Lane[] = [];
+      for (const pts of bundle([[sio.x, hy + 40], [fp.x + fp.w + 6, hy + 40]], 3, 24, 40)) links.push(mkLane(pts));
+      for (const pts of bundle([[sio.x + sio.w, hy + 40], [io.x - 6, hy + 40]], 3, 24, 40)) links.push(mkLane(pts));
+      for (const l of links) strokeLane(g, l);
+      g.stroke({ width: 8, color: P.trace, alpha: 0.9, cap: 'round' });
+      for (const l of links) for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!]) g.rect(p[0] - 14, p[1] - 9, 28, 18);
+      g.fill({ color: P.via, alpha: 0.85 });
+    }
+    if (tier >= 2) hdr(620, 6, 2, 'TPM');
+    if (tier >= 3) { hdr(1100, 5, 2, 'USB_3'); hdr(1500, 4, 1, 'SYS_FAN2'); }
+    // the top board: an RGB strip along the bottom edge and a two-digit debug display by the 24-pin
+    if (tier >= 3) {
+      for (let k = 0; k < 44; k++) {
+        const x = BD.x + 700 + k * ((BD.w - 1400) / 43), col = mix(T.alu, T.br, k / 43);
+        g.circle(x, south - 60, 22).fill({ color: col, alpha: 0.12 });
+        g.circle(x, south - 60, 9).fill({ color: col, alpha: 0.85 });
+      }
+      const d = { x: BD.x + BD.w - 720, y: -420, w: 300, h: 170 };
+      box(g, d.x, d.y, d.w, d.h, 10, { fill: '#05070b', stroke: P.edge, lw: 5 });
+      for (let k = 0; k < 2; k++) {
+        const ox = d.x + 24 + k * 134;
+        for (const [a, b2, w, h] of [[10, 10, 70, 10], [10, 70, 70, 10], [10, 130, 70, 10], [4, 18, 10, 50], [74, 18, 10, 50], [4, 78, 10, 50], [74, 78, 10, 50]] as const) g.rect(ox + a, d.y + 14 + b2 * 0.82, w, h);
+      }
+      g.fill({ color: T.ld, alpha: 0.4 });
+      labels.addChild(label('DEBUG', d.x + d.w / 2, d.y - 36, 28, P.silk, { anchor: [0.5, 0.5] }));
+    }
   }
 
   // ---- quiet decoration: a tiny QR and hex patch, silkscreen ----
