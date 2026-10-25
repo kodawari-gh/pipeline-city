@@ -4,8 +4,8 @@ import { Container } from 'pixi.js';
 // The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
-import { CASE, MONITOR, ROUTER_SPOT, SHELF_Y, TRAY, setLayoutTier } from './layout';
-import { DAY_S, DESK, FOOT, ROOM, RoomView, START_HOUR, deskY, duskAt, hourAt, isRoomId, nightAt, roomClick, roomDebug, roomGeo, roomState, skyAt } from './room';
+import { CASE, MONITOR, MONITOR_K, ROUTER_SPOT, SHELF_Y, TRAY, setLayoutTier } from './layout';
+import { DAY_S, DESK, FOOT, ROOM, RoomView, START_HOUR, deskY, duskAt, hourAt, isRoomId, nightAt, roomClick, roomDebug, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -33,6 +33,21 @@ describe('the desk follows the case', () => {
     expect(ys).toEqual([...ys].sort((a, b) => a - b));
   });
 
+  it.each([0, 1, 2, 3])('tier %i: the monitor stands on the plank, flush with it, and the desk is narrow and holds the machine, the keyboard and the mug', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo();
+    // the stand's foot ends 400 design units under the bezel (monitorArt), and the plank is the monitor's width
+    expect(g.unit.y).toBeCloseTo(MONITOR.y + MONITOR.h + 400 * MONITOR_K, 6);
+    expect(g.unit.x - 70).toBe(MONITOR.x);
+    expect(g.unit.x + g.unit.w + 70).toBe(MONITOR.x + MONITOR.w);
+    expect(g.desk.x0).toBeLessThan(MONITOR.x - 3000); // room for a keyboard west of the unit
+    expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);
+    expect(g.desk.x1 - (CASE.x + CASE.w)).toBeLessThan(2500); // and no more than that east of the case
+    expect(g.mug).toBeGreaterThan(CASE.x + CASE.w);
+    expect(g.mug + 760).toBeLessThan(g.desk.x1); // the handle too
+    expect(g.desk.x1 - g.desk.x0).toBeLessThan(ROOM.w * 0.75);
+  });
+
   it.each([0, 1, 2, 3])('tier %i: the shelf unit holds the tray and reaches the desk, the monitor stands on it', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo();
@@ -40,7 +55,7 @@ describe('the desk follows the case', () => {
     expect(g.unit.y + g.unit.h).toBe(g.ys);
     expect(g.unit.x).toBeLessThan(TRAY.x);
     expect(g.unit.x + g.unit.w).toBeGreaterThan(TRAY.x + TRAY.w);
-    expect(g.unit.y + 400).toBeLessThan(TRAY.y);
+    expect(g.unit.y + 170).toBeLessThanOrEqual(TRAY.y); // the plank is above the tray
     expect(g.unit.y + g.unit.h).toBeGreaterThan(TRAY.y + TRAY.h);
   });
 });
@@ -54,8 +69,10 @@ describe('the room layout', () => {
     // the window and the clock stay clear of the router shelf and the machine
     expect(g.window.x + g.window.w).toBeLessThan(ROUTER_SPOT.x);
     expect(g.clock.y + g.clock.r).toBeLessThan(SHELF_Y - 400);
-    expect(DESK.x0).toBeLessThanOrEqual(ROOM.x);
-    expect(DESK.x1).toBeGreaterThan(CASE.x + CASE.w);
+    expect(g.desk.x0).toBeGreaterThanOrEqual(ROOM.x);
+    expect(g.desk.x1).toBeLessThanOrEqual(ROOM.x + ROOM.w);
+    expect(inside(g.cork, ROOM)).toBe(true);
+    expect(g.cork.x + g.cork.w).toBeLessThan(g.window.x - 200); // the corkboard is west of the window
   });
 
   it('the hood mouth and the lamp rectangle are consistent', () => {
@@ -91,6 +108,22 @@ describe('time of day', () => {
     expect(skyAt(0)).toEqual(skyAt(24 - 1e-9));
     for (let h = 0; h < 24; h += 0.5) { const s = skyAt(h); expect(s.top).toMatch(/^#[0-9a-f]{6}$/); expect(s.hor).toMatch(/^#[0-9a-f]{6}$/); }
     expect(skyAt(12).top).not.toBe(skyAt(0).top);
+  });
+});
+
+describe('the window light', () => {
+  it('leaves the glass and runs down and to the west, between two parallel rays', () => {
+    setLayoutTier(0, 0);
+    const g = roomGeo(), w = g.window;
+    const below = shaftSpan(w, w.y + w.h), far = shaftSpan(w, g.ys);
+    expect(below.xr).toBe(w.x + w.w); // at the glass's lower edge the shaft is as wide as the glass
+    expect(far.xl).toBeLessThan(w.x); // it has drifted west
+    expect(far.xr).toBeLessThan(w.x + w.w);
+    expect(far.xr - far.xl).toBeGreaterThan(0);
+    // the two rays are parallel: the shaft keeps its width below the glass
+    const a = shaftSpan(w, w.y + w.h + 1000), b = shaftSpan(w, w.y + w.h + 3000);
+    expect(a.xr - a.xl).toBeCloseTo(b.xr - b.xl, 6);
+    expect(a.xr - b.xr).toBeCloseTo(a.xl - b.xl, 6);
   });
 });
 

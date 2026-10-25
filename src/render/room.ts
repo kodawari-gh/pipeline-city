@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle, Sprite, type Renderer, type Texture } from 'pixi.js';
 import { disc, label, mix } from './ink';
-import { CASE, MONITOR, ROUTER_SPOT, SHELF_Y, TRAY, type Rect } from './layout';
+import { CASE, MONITOR, MONITOR_K, ROUTER_SPOT, SHELF_Y, TRAY, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // The room the machine lives in (docs/RENDER.md "The room"): a bedroom wall, a long desk and what stands on it, seen from the front
@@ -9,20 +9,26 @@ import type { Theme } from './theme';
 // window blind are the only things that answer a click.
 
 /** The camera cap: the zoom-out stops where this box fills the screen, and panning stays inside it (the wall itself reaches much further). */
-export const ROOM: Rect = { x: -21500, y: -13400, w: 36000, h: 21500 };
-/** Desk geometry that does not depend on the case: its west and east ends (well past the room box, so a wide screen never sees them), the slab's thickness and the floor under it. */
-export const DESK = { x0: -34000, x1: 26000, slab: 340, floor: 7800 };
+export const ROOM: Rect = { x: -20000, y: -9300, w: 31500, h: 17600 };
+/** Desk geometry that does not depend on the case: the slab's thickness and the floor under it (its two ends are in `RoomGeo.desk`: the east one follows the case). */
+export const DESK = { slab: 340, floor: 7800 };
+/** How far the desk reaches west (an absolute x) and east of the case. */
+const DESK_WEST = -14000, DESK_EAST = 1800;
+/** The window light runs down and to the west: this many units west per unit down. */
+const LIGHT_SLANT = 0.5;
 /** Height of the case feet below `CASE`: the desk top is where they stand. */
 export const FOOT = 110;
-/** The mug's centre x (the steam rises from it). */
-const MUG_X = -15300;
 
 /** Y of the desk's top surface: the case stands on it, so it follows the case (a taller case sits lower on the desk). */
 export const deskY = () => CASE.y + CASE.h + FOOT;
 
 export interface RoomGeo {
-  /** The desk's top surface. */
+  /** The desk's top surface, and its west and east ends (the east end follows the case's width). */
   ys: number;
+  desk: { x0: number; x1: number };
+  /** The mug's centre x (east of the case; the steam rises from it) and the corkboard on the wall. */
+  mug: number;
+  cork: Rect;
   /** The window (its glass) and the blind that covers it. */
   window: Rect;
   /** The clock face. */
@@ -33,18 +39,30 @@ export interface RoomGeo {
   unit: Rect;
 }
 
+/** The window's light at height `y` below the glass: the x span of the shaft (its edges are the rays from the window's top-left and bottom-right corners, running down and west). */
+export function shaftSpan(w: Rect, y: number): { xl: number; xr: number } {
+  return { xl: w.x - LIGHT_SLANT * (y - w.y), xr: y < w.y + w.h ? w.x : w.x + w.w - LIGHT_SLANT * (y - w.y - w.h) };
+}
+
+/** The depth of the monitor's stand below its bezel (`monitorArt`: the foot ends 400 design units down, the design is scaled by `MONITOR_K`). */
+const STAND = 400 * MONITOR_K;
+
 /** The lamp hood points down and east at this angle; `LAMP_REACH` is the hood's length from the arm to its mouth. */
 const LAMP_D = { x: 0.766, y: 0.643 }, LAMP_REACH = 840;
 
 export function roomGeo(): RoomGeo {
   const ys = deskY();
-  const lx = -17600;
+  const lx = -13200, east = CASE.x + CASE.w;
   return {
     ys,
-    window: { x: -20300, y: -6600, w: 6200, h: 5300 },
+    desk: { x0: DESK_WEST, x1: east + DESK_EAST },
+    mug: east + 800,
+    cork: { x: -19100, y: -4700, w: 2450, h: 2800 },
+    window: { x: -14500, y: -6000, w: 4200, h: 4700 },
     clock: { x: -7900, y: -6300, r: 640 },
     lamp: { x: lx, head: { x: lx + 600, y: ys - 3150 }, mouth: { x: lx + 600 + LAMP_D.x * LAMP_REACH, y: ys - 3150 + LAMP_D.y * LAMP_REACH }, rect: { x: lx - 600, y: ys - 3500, w: 2350, h: 3500 } },
-    unit: { x: -8900, y: MONITOR.y + MONITOR.h + 8, w: 4120, h: ys - (MONITOR.y + MONITOR.h + 8) },
+    // the unit's top plank is as wide as the monitor and starts where the stand's foot ends
+    unit: { x: MONITOR.x + 70, y: MONITOR.y + MONITOR.h + STAND, w: MONITOR.w - 140, h: ys - (MONITOR.y + MONITOR.h + STAND) },
   };
 }
 
@@ -112,7 +130,7 @@ const look = (T: Theme): Look => T.dark
 /** A flat ellipse of shadow on the desk top (the desk's far strip, seen edge-on). */
 const shadow = (g: Graphics, x: number, y: number, w: number, a = 0.3) => { g.ellipse(x, y, w / 2, Math.max(24, w * 0.035)).fill({ color: '#000000', alpha: a }); };
 
-/** The scenery: wall, window frame, shelf, clock face, corkboard, poster, desk, shelf unit and what stands on the desk. */
+/** The scenery: wall, window frame, shelf, clock face, corkboard, desk, shelf unit and what stands on the desk. */
 function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container } {
   const L = look(T), ys = geo.ys;
   const back = new Container(), front = new Container();
@@ -168,8 +186,8 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
     g.moveTo(c.x + Math.sin(a) * r0, c.y - Math.cos(a) * r0).lineTo(c.x + Math.sin(a) * c.r * 0.94, c.y - Math.cos(a) * c.r * 0.94).stroke({ width: k % 3 === 0 ? 30 : 16, color: '#2b3560', cap: 'round' });
   }
 
-  // the corkboard with its notes, to the right of the window
-  const cb: Rect = { x: -13700, y: -4600, w: 2450, h: 2800 };
+  // the corkboard with its notes, west of the window
+  const cb = geo.cork;
   g.rect(cb.x - 110, cb.y - 110, cb.w + 220, cb.h + 220).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
   g.rect(cb.x, cb.y, cb.w, cb.h).fill({ color: L.cork });
   for (let k = 0; k < 70; k++) { const a = ((k * 7919) % 1000) / 1000, b = ((k * 104729) % 1000) / 1000; g.circle(cb.x + a * cb.w, cb.y + b * cb.h, 12 + (k % 3) * 8).fill({ color: mix(L.cork, '#000000', 0.25), alpha: 0.35 }); }
@@ -194,61 +212,39 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
     back.addChild(ng);
   }
 
-  // a poster over the desk's east half: the city at night, as a framed print
-  const po: Rect = { x: 7400, y: -5200, w: 2600, h: 3500 };
-  g.rect(po.x + 30, po.y + 40, po.w, po.h).fill({ color: '#000000', alpha: 0.2 });
-  g.rect(po.x - 90, po.y - 90, po.w + 180, po.h + 180).fill({ color: T.dark ? '#1b2342' : '#fbfcff' }).stroke({ width: 10, color: L.line });
-  g.rect(po.x, po.y, po.w, po.h).fill({ color: '#101a45' });
-  for (let k = 0; k < 8; k++) g.rect(po.x, po.y + k * 160, po.w, 160).fill({ color: mix('#101a45', '#ff7a8a', k / 11), alpha: 0.55 });
-  disc(g, po.x + po.w * 0.7, po.y + 760, 280, { fill: '#ffe9b8', fa: 0.95 });
-  const bl = [[0.0, 0.36, 0.14], [0.14, 0.52, 0.12], [0.26, 0.3, 0.1], [0.36, 0.62, 0.13], [0.49, 0.42, 0.1], [0.59, 0.7, 0.14], [0.73, 0.4, 0.11], [0.84, 0.55, 0.16]] as const;
-  for (const [bx, bh, bw] of bl) {
-    const x = po.x + bx * po.w, h = bh * po.h * 0.8, y = po.y + po.h - h;
-    g.rect(x, y, bw * po.w, h).fill({ color: '#070b22' });
-    for (let r = 0; r < Math.floor(h / 260); r++) for (let q = 0; q < Math.floor((bw * po.w) / 190); q++) if ((r * 7 + q * 3 + Math.floor(bx * 20)) % 3 !== 0) g.rect(x + 50 + q * 190, y + 90 + r * 260, 90, 120).fill({ color: '#ffd77a', alpha: 0.85 });
-  }
-  back.addChild(label('PIPELINE CITY', po.x + po.w / 2, po.y + 330, 210, '#cfd9ff', { head: true, anchor: [0.5, 0.5], a: 0.9 }));
-
-  // a coat on a hook, east of the poster
-  const hx = 11400, hy = -4300;
-  g.rect(hx - 380, hy - 120, 760, 100).fill({ color: L.wood }).stroke({ width: 6, color: L.edge, alpha: 0.7 });
-  for (const dx of [-220, 220]) g.circle(hx + dx, hy - 70, 52).fill({ color: L.metal });
-  g.poly([hx - 90, hy, hx + 90, hy, hx + 150, hy + 140, hx + 750, hy + 360, hx + 640, hy + 1900, hx + 360, hy + 1860, hx + 330, hy + 1120, hx + 300, hy + 3000, hx - 300, hy + 3000, hx - 330, hy + 1120, hx - 360, hy + 1860, hx - 640, hy + 1900, hx - 750, hy + 360, hx - 150, hy + 140]).fill({ color: L.cloth }).stroke({ width: 10, color: mix(L.cloth, '#000000', 0.3), alpha: 0.8 });
-  g.poly([hx - 150, hy + 140, hx, hy + 520, hx + 150, hy + 140, hx + 90, hy, hx - 90, hy]).fill({ color: mix(L.cloth, '#000000', 0.25) });
-  g.moveTo(hx, hy + 520).lineTo(hx, hy + 3000).stroke({ width: 10, color: mix(L.cloth, '#000000', 0.35), alpha: 0.7 });
-
-  // ---- the desk ----
-  const d = DESK, ye = d.floor;
+  // ---- the desk: a west leg, a drawer pedestal at the east end, and the slab on top; it spans from west of the keyboard to just past the case ----
+  const d = DESK, ye = d.floor, { x0, x1 } = geo.desk;
   // the floor and the dark under the desk
   f.rect(-90000, ye, 180000, 90000).fill({ color: mix(L.wallLo, '#000000', T.dark ? 0.35 : 0.12) });
   for (let x = -90000 + 600; x < 90000; x += 1400) f.rect(x, ye, 18, 90000).fill({ color: '#000000', alpha: 0.18 });
   f.rect(-90000, ye - 90, 180000, 110).fill({ color: mix(L.wallLo, '#000000', 0.25) }); // the skirting board
-  f.rect(d.x0 + 700, ys + d.slab, d.x1 - d.x0 - 1400, ye - 90 - ys - d.slab).fill({ color: '#000000', alpha: T.dark ? 0.55 : 0.28 });
-  // the end panels, a drawer block and the back rail
-  for (const x of [-20900, 9300]) { f.rect(x, ys + d.slab, 600, ye - 90 - ys - d.slab).fill({ color: L.woodLo }).stroke({ width: 8, color: L.edge, alpha: 0.6 }); f.rect(x + 30, ys + d.slab, 40, ye - 90 - ys - d.slab).fill({ color: L.woodHi, alpha: 0.35 }); }
-  const dbH = Math.min(2300, ye - 90 - ys - d.slab - 200);
-  const db = { x: -12400, y: ys + d.slab, w: 4300, h: dbH };
-  f.rect(db.x, db.y, db.w, db.h).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
-  const dh = db.h / 2;
-  for (let k = 0; k < 2; k++) {
-    const dy = db.y + 90 + k * dh;
-    f.rect(db.x + 110, dy, db.w - 220, dh - 130).fill({ color: L.woodHi, alpha: 0.5 }).stroke({ width: 7, color: L.edge, alpha: 0.6 });
-    f.rect(db.x + db.w / 2 - 380, dy + (dh - 130) / 2 - 24, 760, 48).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo });
+  const under = ye - 90 - ys - d.slab, ped = { x: x1 - 4500, y: ys + d.slab, w: 4400, h: under };
+  f.rect(x0 + 60, ys + d.slab, ped.x - x0 - 60, under).fill({ color: '#000000', alpha: T.dark ? 0.55 : 0.28 });
+  // the west leg
+  f.rect(x0 + 60, ys + d.slab, 600, under).fill({ color: L.woodLo }).stroke({ width: 8, color: L.edge, alpha: 0.6 });
+  f.rect(x0 + 90, ys + d.slab, 40, under).fill({ color: L.woodHi, alpha: 0.35 });
+  // the drawer pedestal, down to the floor, at the east end: two or three drawers by its height
+  f.rect(ped.x, ped.y, ped.w, ped.h).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
+  const nd = under > 3000 ? 3 : 2, dh = ped.h / nd;
+  for (let k = 0; k < nd; k++) {
+    const dy = ped.y + 90 + k * dh;
+    f.rect(ped.x + 110, dy, ped.w - 220, dh - 130).fill({ color: L.woodHi, alpha: 0.5 }).stroke({ width: 7, color: L.edge, alpha: 0.6 });
+    f.rect(ped.x + ped.w / 2 - 380, dy + (dh - 130) / 2 - 24, 760, 48).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo });
   }
   // the slab: a lit top, a front edge, a grain
-  f.rect(d.x0, ys, d.x1 - d.x0, d.slab).fill({ color: L.wood }).stroke({ width: 10, color: L.edge, alpha: 0.8 });
-  f.rect(d.x0 + 8, ys + 6, d.x1 - d.x0 - 16, 70).fill({ color: L.woodHi }); // the far strip of the top, seen at a slant
-  f.rect(d.x0 + 8, ys + d.slab - 50, d.x1 - d.x0 - 16, 44).fill({ color: L.woodLo, alpha: 0.7 });
-  for (let k = 0; k < 90; k++) {
-    const x = d.x0 + ((k * 2654435761) % 1000) / 1000 * (d.x1 - d.x0), y = ys + 100 + (k % 4) * 52;
+  f.rect(x0, ys, x1 - x0, d.slab).fill({ color: L.wood }).stroke({ width: 10, color: L.edge, alpha: 0.8 });
+  f.rect(x0 + 8, ys + 6, x1 - x0 - 16, 70).fill({ color: L.woodHi }); // the far strip of the top, seen at a slant
+  f.rect(x0 + 8, ys + d.slab - 50, x1 - x0 - 16, 44).fill({ color: L.woodLo, alpha: 0.7 });
+  for (let k = 0; k < 40; k++) {
+    const x = x0 + ((k * 2654435761) % 1000) / 1000 * (x1 - x0 - 1800), y = ys + 100 + (k % 4) * 52;
     f.rect(x, y, 600 + (k % 5) * 420, 8).fill({ color: L.woodLo, alpha: 0.22 });
   }
-  f.rect(d.x0, ys + d.slab, d.x1 - d.x0, 150).fill({ color: '#000000', alpha: 0.24 });
+  f.rect(x0, ys + d.slab, x1 - x0, 150).fill({ color: '#000000', alpha: 0.24 });
 
   // ---- the shelf unit under the monitor: top plank, two boards, a cubby for the tray, more cubbies when the case is taller ----
   const u = geo.unit, bw = 190;
   f.rect(u.x, u.y, u.w, u.h).fill({ color: mix(L.woodLo, '#000000', 0.3) });
-  const t0 = u.y + 200, shelves: number[] = [];
+  const t0 = u.y + 170, shelves: number[] = [];
   // the first board is just under the tray, then one every ~1,150 down to the desk
   const trayBottom = TRAY.y + TRAY.h + 18;
   shelves.push(trayBottom);
@@ -283,40 +279,30 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
       f.rect(r.x + r.w - 1900, r.y + r.h - 520, 1200, 90).fill({ color: L.metal });
     }
   }
-  // the monitor's feet cast a little shadow on the top plank
-  f.rect(MONITOR.x + MONITOR.w / 2 - 1500, u.y - 4, 3000, 28).fill({ color: '#000000', alpha: 0.28 });
+  // the monitor's foot casts a little shadow on the top plank
+  f.rect(MONITOR.x + MONITOR.w / 2 - 1400, u.y - 4, 2800, 26).fill({ color: '#000000', alpha: 0.28 });
   shadow(f, u.x + u.w / 2, ys + 44, u.w + 300, 0.32);
 
-  // ---- on the desk: the case's own shadow, a duck, the keyboard, the lamp, the mug, a book stack; and east of the case, the plant, a jar, headphones ----
+  // ---- on the desk: the case's own shadow, the keyboard and mouse west of the unit, the lamp, and the mug east of the case ----
   shadow(f, CASE.x + CASE.w / 2, ys + 44, CASE.w + 400, 0.34);
-  const kx = -14800, kw = 4200;
+  const kx = -12400, kw = 2400;
   // a desk mat under the keyboard and the mouse
-  f.rect(kx - 400, ys - 36, kw + 1350, 40).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
+  f.rect(kx - 250, ys - 36, kw + 250 + 690, 40).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
   // the keyboard: a low wedge with a row of caps along its top
   f.poly([kx, ys - 36, kx + kw, ys - 36, kx + kw, ys - 186, kx + 80, ys - 270]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  for (let k = 0; k < 24; k++) f.rect(kx + 200 + k * 160, ys - 242 + (k * 3.3 / 24) * 24 - (k * 0.7), 120, 28).fill({ color: T.dark ? '#aab6dc' : L.paper, alpha: T.dark ? 0.7 : 0.95 });
+  for (let k = 0; k < 13; k++) f.rect(kx + 200 + k * 160, ys - 256 + ((200 + k * 160) / (kw - 80)) * 84, 120, 28).fill({ color: T.dark ? '#aab6dc' : L.paper, alpha: T.dark ? 0.7 : 0.95 });
   shadow(f, kx + kw / 2, ys + 30, kw, 0.28);
   // the mouse
-  f.ellipse(kx + kw + 700, ys - 100, 240, 100).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  f.rect(kx + kw + 700 - 12, ys - 180, 24, 80).fill({ color: L.line, alpha: 0.7 });
-  // the mug (steam is live)
-  const mx = MUG_X;
+  f.ellipse(kx + kw + 380, ys - 100, 220, 100).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
+  f.rect(kx + kw + 380 - 12, ys - 180, 24, 80).fill({ color: L.line, alpha: 0.7 });
+  // the mug east of the case (steam is live)
+  const mx = geo.mug;
   f.rect(mx - 420, ys - 1040, 840, 1040).fill({ color: '#e8edf8' }).stroke({ width: 8, color: L.line });
   f.rect(mx - 420, ys - 1040, 840, 140).fill({ color: '#3a2418' });
   f.circle(mx + 470, ys - 560, 230).stroke({ width: 70, color: '#e8edf8' });
   f.rect(mx - 380, ys - 700, 160, 600).fill({ color: '#000000', alpha: 0.07 });
   f.rect(mx - 120, ys - 760, 520, 90).fill({ color: '#d03a4a', alpha: 0.9 });
   shadow(f, mx, ys + 30, 1200, 0.3);
-  // a book stack and a pen cup at the west end
-  const bsx = -20400;
-  [['#3f6a9a', 1500, 230], ['#a35a45', 1300, 200], ['#c9a24a', 1580, 180]].forEach(([c, w, h], i) => {
-    const y = ys - [0, 230, 430][i]! - (h as number);
-    f.rect(bsx + (i === 1 ? 70 : i === 2 ? -40 : 0), y, w as number, h as number).fill({ color: c as string }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
-    f.rect(bsx + (i === 1 ? 70 : i === 2 ? -40 : 0) + 40, y + 50, (w as number) - 80, 22).fill({ color: L.paper, alpha: 0.5 });
-  });
-  shadow(f, bsx + 700, ys + 30, 1900, 0.26);
-  f.rect(-18900, ys - 800, 520, 800).fill({ color: L.metalLo }).stroke({ width: 6, color: L.metal });
-  for (const [dx, a] of [[-120, -0.2], [20, 0.05], [150, 0.3]] as const) f.moveTo(-18640 + dx, ys - 790).lineTo(-18640 + dx + Math.sin(a) * 700, ys - 790 - Math.cos(a) * 700).stroke({ width: 40, color: dx === 20 ? '#ffd75e' : '#d03a4a', cap: 'round' });
   // the lamp: base, two arms, a hood (the glow is live)
   const lx = geo.lamp.x, hd = geo.lamp.head, ex = lx + 1000, ey = ys - 1850;
   f.rect(lx - 520, ys - 150, 1040, 150).fill({ color: L.metalLo }).stroke({ width: 6, color: L.metal });
@@ -331,26 +317,6 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   f.poly([hd.x - nx * 110, hd.y - ny * 110, mo.x - nx * 440, mo.y - ny * 440, mo.x - nx * 380 - LAMP_D.x * 70, mo.y - ny * 380 - LAMP_D.y * 70, hd.x - nx * 90, hd.y - ny * 90]).fill({ color: '#ffffff', alpha: 0.2 });
   f.poly([mo.x + nx * 440, mo.y + ny * 440, mo.x - nx * 440, mo.y - ny * 440, mo.x - nx * 440 - LAMP_D.x * 60, mo.y - ny * 440 - LAMP_D.y * 60, mo.x + nx * 440 - LAMP_D.x * 60, mo.y + ny * 440 - LAMP_D.y * 60]).fill({ color: '#27486b' });
   shadow(f, lx, ys + 30, 1500, 0.3);
-  // a rubber duck by the riser, to listen to the bugs
-  const dkx = -4310;
-  f.ellipse(dkx, ys - 230, 330, 210).fill({ color: '#ffd23a' }).stroke({ width: 6, color: '#b8901a' });
-  f.circle(dkx + 220, ys - 520, 190).fill({ color: '#ffd23a' }).stroke({ width: 6, color: '#b8901a' });
-  f.poly([dkx + 360, ys - 520, dkx + 640, ys - 480, dkx + 360, ys - 430]).fill({ color: '#ff8a1a' });
-  f.circle(dkx + 270, ys - 570, 28).fill({ color: '#1b2140' });
-  shadow(f, dkx, ys + 30, 800, 0.28);
-  // east of the case: a plant, a jar of pens, headphones on a stand
-  const east = CASE.x + CASE.w + 1500;
-  f.poly([east - 520, ys - 880, east + 520, ys - 880, east + 400, ys, east - 400, ys]).fill({ color: L.pot }).stroke({ width: 8, color: L.edge, alpha: 0.6 });
-  f.rect(east - 570, ys - 1000, 1140, 150).fill({ color: mix(L.pot, '#000000', 0.18) });
-  for (const [dx, h] of [[-300, 1500], [-100, 2200], [150, 1900], [330, 1200]] as const) { f.moveTo(east + dx, ys - 980).lineTo(east + dx * 1.4, ys - 980 - h).stroke({ width: 120, color: L.leaf, cap: 'round' }); f.moveTo(east + dx * 1.4, ys - 980 - h).lineTo(east + dx * 1.4, ys - 980 - h + 90).stroke({ width: 150, color: L.leafLo, cap: 'round' }); }
-  shadow(f, east, ys + 30, 1300, 0.3);
-  const hpx = east + 2900;
-  f.rect(hpx - 70, ys - 1900, 140, 1900).fill({ color: L.metalLo });
-  f.rect(hpx - 560, ys - 130, 1120, 130).fill({ color: L.metalLo }).stroke({ width: 6, color: L.metal });
-  f.moveTo(hpx - 700, ys - 1250).quadraticCurveTo(hpx, ys - 3000, hpx + 700, ys - 1250).stroke({ width: 90, color: L.plasticLo, cap: 'round' });
-  f.moveTo(hpx - 700, ys - 1250).quadraticCurveTo(hpx, ys - 3000, hpx + 700, ys - 1250).stroke({ width: 30, color: L.plastic, cap: 'round' });
-  for (const sg of [-1, 1]) f.ellipse(hpx + sg * 700, ys - 1130, 210, 330).fill({ color: L.plastic }).stroke({ width: 8, color: L.line });
-  shadow(f, hpx, ys + 30, 1300, 0.28);
   return { back, front };
 }
 
@@ -489,13 +455,19 @@ export class RoomView {
     if (lift > 0.002) wash = over({ c: '#bcd4ff', a: lift }, wash);
     if (dusk > 0.02) wash = over({ c: '#ff9a5a', a: 0.08 * dusk * (d ? 1 : 1.3) }, wash);
     if (wash.a > 0.002) g.rect(R.x - big, R.y - big, R.w + 2 * big, R.h + 2 * big).fill({ color: wash.c, alpha: wash.a });
-    // the window's light on the wall and the desk: a slanted pool going down and east, stronger by day, a cold wash by moonlight
+    // the window's light: a shaft that leaves the glass and runs down and to the west (its edges are the rays from the window's top-left and bottom-right
+    // corners), strongest at the glass and fading out by the desk; stronger by day, a cold wash by moonlight
     const w = this.geo.window, ys = this.geo.ys, day = 1 - night;
-    const reach = ys - w.y;
-    const a = (day * 0.08 + dusk * 0.05 + night * 0.025) * (1 - this.blind);
+    const a = (day * 0.1 + dusk * 0.06 + night * 0.03) * (1 - this.blind);
     if (a > 0.003) {
       const col = day > 0.35 ? '#fff0c8' : night > 0.5 ? '#aebfff' : '#ffb070';
-      g.poly([w.x, w.y + w.h, w.x + w.w, w.y + w.h, w.x + w.w + reach * 0.55 + 3300, ys, w.x + reach * 0.55 + 700, ys]).fill({ color: col, alpha: a });
+      // slices from the glass's top to the desk, one boundary exactly at the glass's lower edge (above it the shaft is only the strip west of the glass)
+      const yb = w.y + w.h, ya0 = [w.y, yb, ...Array.from({ length: 12 }, (_, k) => yb + ((ys - yb) * (k + 1)) / 12)];
+      for (let k = 0; k + 1 < ya0.length; k++) {
+        const ya = ya0[k]!, ye = ya0[k + 1]!, top = shaftSpan(w, ya), bot = shaftSpan(w, ye - 0.01);
+        const fade = Math.pow(1 - Math.max(0, ya - yb) / (ys - yb), 1.4);
+        g.poly([top.xl, ya, top.xr, ya, bot.xr, ye + 3, bot.xl, ye + 3]).fill({ color: col, alpha: a * fade });
+      }
     }
   }
 
@@ -525,7 +497,7 @@ export class RoomView {
   }
 
   private drawSteam(gt: number) {
-    const g = this.steam, ys = this.geo.ys, mx = MUG_X;
+    const g = this.steam, ys = this.geo.ys, mx = this.geo.mug;
     g.clear();
     for (let k = 0; k < 3; k++) {
       const t = (gt / 3200 + k / 3) % 1, x0 = mx - 240 + k * 240, top = ys - 1100;
