@@ -191,7 +191,7 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
 }
 
 /**
- * The x16 slot's release button: a raised thumb tab on the latch (it rocks the hook out of the card's notch), with grip ridges and a shadow on the
+ * A slot's release button: a raised thumb tab on the latch (it rocks the hook out of the card's notch), with grip ridges and a shadow on the
  * board. Drawn after the slot's power tab, over it: the tab is a pad on the board, the button stands above.
  */
 export function pcieRelease(c: Ctx, r: Rect) {

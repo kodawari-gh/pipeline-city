@@ -151,7 +151,7 @@ function build(s: Spec): TierGeo {
   const dpwm = dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210);
   const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 150);
   // ---- connectors ----
-    const cpw = R(vrm.x - 150, bd.y + 90, 660, 260);
+    const cpw = R(vrm.x - 10, bd.y + 90, 520, 234); // the 24-pin's cavity pitch: 110 across, 87 down
   // the 24-pin's top row of pins is level with the memory regulator's input rail, so the 12 V run to it is straight
   const atx = R(east - 300, dy - 70 - 66, 300, 1100);
   // SATA ports on the east edge, on the chipset's row, mouths facing east: the lanes run straight east from the chipset and the
