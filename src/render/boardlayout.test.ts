@@ -165,6 +165,10 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     if (g.dp) for (const l of by('dp')!.lanes) hit(end(l), ioPads(ioPort('dp'), 4), 'dp lane ends on the DP pads');
     ['line-out', 'line-in', 'mic'].forEach((id, k) => { const l = by('audio')!.lanes[k]!; hit(end(l), ioPads(ioPort(id), 1), id); hit(l.pts[0]!, legsOf(g.codec, 'w', 7), 'audio lane starts on a codec leg'); });
     if (g.phy) for (const l of by('lan')!.lanes) { hit(end(l), ioPads(ioPort('eth'), 4), 'lan lane ends on the RJ45 pads'); hit(l.pts[0]!, legsOf(g.phy, 'w', 8), 'lan lane starts on a PHY leg'); }
+    for (const l of by('svid')!.lanes) {
+      hit(l.pts[0]!, legsOf(g.pwm, 's', 6, 26), 'svid lane starts on a controller leg');
+      expect(near(end(l), { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E }, 6), 'svid lane ends on the socket').toBe(true);
+    }
     // power: the comb starts on the 8-pin's four pins, the 12 V run on the 24-pin's top pin
     by('pwrcpu')!.lanes.forEach((l, k) => hit(l.pts[0]!, [cpuPowerPins(g.cpw)[k]!], 'pwrcpu lane starts on its pin'));
     hit(by('pwr12')!.lanes[0]!.pts[0]!, [atx12v(g.atx)], 'pwr12 starts on the 24-pin');

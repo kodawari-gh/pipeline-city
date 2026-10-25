@@ -7,6 +7,7 @@ import { HEAD, box, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
 import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { monitorView } from './monitor';
+import { EdgeFan } from './case';
 import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
@@ -202,7 +203,7 @@ export class Live {
     let nDots = 0;
     for (const bus of buses) {
       if ((bus.id === 'video') && !flags.display) continue;
-      if (bus.id === 'audio' || bus.id === 'lan') continue; // decoration: never lit
+      if (bus.id === 'audio' || bus.id === 'lan' || bus.id === 'dp' || bus.id === 'svid') continue; // decoration: never lit
       const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
       const g = new Graphics();
       if (this.additive) g.blendMode = 'add';
@@ -432,6 +433,8 @@ export class Live {
       if (!this.connected.has(lc.cable.kind)) lc.target = 0;
     }
 
+    // the case fans run with the machine and speed up with the CPU's heat
+    for (const f of this.fans) if (f.kind === 'case') f.target = !this.liveOn ? 0 : 1.6 + 6 * this.cpuHeat;
     for (const d of s.devices) {
       const gl = this.glows.get(d.id);
       if (d.kind === 'cooler') {
@@ -779,7 +782,8 @@ export class Live {
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));
       if (f.target === 0) f.speed = 0; // off, tripped or dead: the fan is still on the next frame (no coasting, no creep)
-      f.c.rotation += f.speed * dt;
+      if (f.c instanceof EdgeFan) f.c.spin(f.speed * dt * 0.8, Math.min(1, f.speed / 5)); // a case fan seen edge-on: the blades slide along it
+      else f.c.rotation += f.speed * dt;
     }
     const psuFan = this.fans.find((f) => f.kind === 'psu');
     if (this.hasPsu && inner) {

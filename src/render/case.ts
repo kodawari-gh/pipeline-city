@@ -77,16 +77,21 @@ export function caseBack(T: Theme): Container {
  * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. One module per ~1600
  * units of height.
  */
-function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+export function frontFanRects(): Rect[] {
   const BD = CASE_BD, gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
   const n = Math.max(1, Math.round((y1 - y0 + 100) / 1700)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
   const w = FAN_W, x = east - 170 - 20 - w;
+  return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (h + gap), w, h }));
+}
+
+function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  const gl = CASE_GLASS, east = gl.x + gl.w;
   // front panel: a perforated wall along the east side of the glass
   const fp = { x: east - 170, y: gl.y + 60, w: 130, h: gl.h - 120 };
   box(g, fp.x, fp.y, fp.w, fp.h, 50, { fill: mix(cav, wall, 0.15), stroke: edge, lw: 5, sa: 0.5 });
   for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
   g.fill({ color: cav, alpha: 0.95 });
-  for (let k = 0; k < n; k++) edgeFan(g, T, { x, y: y0 + k * (h + gap), w, h }, true, wall, edge);
+  for (const r of frontFanRects()) edgeFan(g, T, r, true, wall, edge);
 }
 
 /** The standoff positions of the case: every mounting hole of every board tier it takes (no duplicates). */
@@ -108,25 +113,55 @@ function standoff(g: Graphics, T: Theme, x: number, y: number, wall: string, edg
 }
 
 /**
- * A case fan seen edge-on (the glass looks along the board): the frame, the blade tips down the middle, the hub, a light strip along
- * both long edges and four corner screws. `vertical`: the long side runs along y (front and rear fans); else along x (top fans).
+ * A case fan seen edge-on (the glass looks along the board), the static part: the frame, the hub line and four corner screws.
+ * The blades and the light strips are the live `EdgeFan` on top. `vertical`: the long side runs along y (front and rear fans); else along x.
  */
 function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall: string, edge: string) {
-  const { x, y, w, h } = r, L = vertical ? h : w, S = vertical ? w : h, m = Math.min(70, S * 0.26);
+  const { x, y, w, h } = r;
   box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
   box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
-  for (let t = 90; t < L - 70; t += 56) {
-    if (vertical) g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
-    else g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
-  }
-  g.stroke({ width: 10, color: T.mute, alpha: 0.22, cap: 'round' });
   if (vertical) g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60); else g.moveTo(x + 60, y + h / 2).lineTo(x + w - 60, y + h / 2);
   g.stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
-  // light strips along both long edges
-  if (vertical) g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140); else g.rect(x + 70, y + 20, w - 140, 8).rect(x + 70, y + h - 28, w - 140, 8);
-  g.fill({ color: T.alu, alpha: 0.25 });
   const cx = [x + 36, x + w - 36], cy = [y + 40, y + h - 40];
   for (const sy of vertical ? cy : [y + 36, y + h - 36]) for (const sx of vertical ? cx : [x + 40, x + w - 40]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+}
+
+/** Blade spacing of an edge-on fan (the pattern repeats this far along its long side). */
+const BLADE = 56;
+
+/**
+ * The live part of a case fan seen edge-on: the blade tips slide along its long side while it spins (a still fan shows them at rest),
+ * and the light strips along both long edges brighten with its speed. Redrawn only while something changes.
+ */
+export class EdgeFan extends Container {
+  private g = new Graphics();
+  private phase = 0;
+  private key = '';
+  constructor(private r: Rect, private T: Theme) {
+    super();
+    this.addChild(this.g);
+    this.draw(0);
+  }
+  private get vertical() { return this.r.h > this.r.w; }
+  /** Advance by `d` blade-lengths per frame's worth of spin and set the light level (0 = off, 1 = full). */
+  spin(d: number, level: number) {
+    this.phase = (this.phase + d * BLADE) % BLADE;
+    if (d === 0 && `${level.toFixed(2)}` === this.key) return;
+    this.draw(level);
+  }
+  private draw(level: number) {
+    const { x, y, w, h } = this.r, g = this.g, T = this.T, vertical = this.vertical, L = vertical ? h : w, S = vertical ? w : h, m = Math.min(70, S * 0.26);
+    this.key = `${level.toFixed(2)}`;
+    g.clear();
+    for (let t = 90 - BLADE + this.phase; t < L - 70; t += BLADE) {
+      if (t < 60) continue;
+      if (vertical) g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
+      else g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
+    }
+    g.stroke({ width: 10, color: T.mute, alpha: 0.22 + 0.18 * level, cap: 'round' });
+    if (vertical) g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140); else g.rect(x + 70, y + 20, w - 140, 8).rect(x + 70, y + h - 28, w - 140, 8);
+    g.fill({ color: T.alu, alpha: 0.16 + 0.6 * level });
+  }
 }
 
 /** The top fans (as many as the case takes), under the top panel and clear of the 8-pin cable's run above the board. */

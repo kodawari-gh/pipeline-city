@@ -8,7 +8,7 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { EdgeFan, bayArt, caseBack, caseGlass, emptyCellHint, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
@@ -17,7 +17,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -330,6 +330,8 @@ export async function mountBoard(host: HTMLElement) {
     const targets: GlowTarget[] = [];
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
+    // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
+    for (const r of [...frontFanRects(), REAR_FAN, ...TOP_FANS]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();

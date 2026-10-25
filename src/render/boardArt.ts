@@ -143,7 +143,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   // ---- CPU VRM: PWM controller, the phases (a tier fills its own), power-good light ----
   {
     const v = geo.vrm;
-    chip(c, geo.pwm, { legs: 6, text: 'PWM', size: 46, accent: T.mul });
+    chip(c, geo.pwm, { legs: 6, pitch: 26, text: 'PWM', size: 46, accent: T.mul });
     disc(g, geo.vrmLed.x, geo.vrmLed.y, 20, { fill: P.dark, stroke: P.edge, lw: 5 }); // power-good light (lit by live.ts)
     geo.vrmPhases.forEach((r) => vrmPhaseArt(c, r, false, geo.vrmRailY));
     lbl(`VRM · CPU CORE · ${phases} PHASE`, v.x + 440, v.y - 36); // east of the 8-pin's four runs
@@ -334,7 +334,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.fill({ color: P.silkHi, alpha: 0.5 });
   }
   // the bottom silkscreen sits above the trim lines (south - 150 and below), clear of the header row and the holes
-  labels.addChild(label('PIPELINE CITY', -800, south - 270, 90, P.silk, { head: true, a: 0.5 }));
+  labels.addChild(label('PIPELINE CITY', -800, south - 250, 90, P.silk, { head: true, a: 0.5 }));
   if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 195, 36, 0.6);
   lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, Math.min(1300, BD.x + BD.w - 1150), south - 215, 40, 0.8);
 

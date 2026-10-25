@@ -84,7 +84,7 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
 
 export interface Bus {
   id: BusKind;
@@ -246,10 +246,21 @@ export function buildBuses(): Bus[] {
     const hdmi = ioPort('hdmi'), hp = ioPads(hdmi, 4);
     // a ramp: west along the row, one 45 degree climb to the connector's row, west again (no sideways steps)
     const xa = -2000, ramp = (y0: number, y1: number, x0: number, pad: Pt): Pt[] => [[px, y0], [x0, y0], [x0 - (y0 - y1), y1], [pad[0], y1]];
-    buses.push(mk('video', ramp(-640, hdmi.y, xa, hp[0]!), 4, LEG_PITCH, 11, 0, { to: hp }));
+    buses.push(mk('video', ramp(-540, hdmi.y, xa, hp[0]!), 4, LEG_PITCH, 11, 0, { to: hp }));
     if (g.dp) {
       const dp = ioPort('dp'), dpp = ioPads(dp, 4);
-      buses.push(mk('dp', ramp(-520, dp.y, xa - 80, dpp[0]!), 4, LEG_PITCH, 11, 0, { to: dpp }));
+      buses.push(mk('dp', ramp(-420, dp.y, xa - 80, dpp[0]!), 4, LEG_PITCH, 11, 0, { to: dpp }));
+    }
+  }
+
+  // SVID: the CPU's voltage request to the regulator's controller: three lanes from the controller's south legs, down and east onto the
+  // socket's west edge (a controller beside or above the socket lands on its north edge instead). Decoration: it never lights.
+  {
+    const legs = legRun(g.pwm, 's', 3, 0, LEG_PITCH), cx = mean(legs, 0), ys = legs[0]![1];
+    if (cx < px - 100) buses.push(mk('svid', [[cx, ys], [cx, -664], [px, -664]], 3, LEG_PITCH, 8, 100, { from: legs }));
+    else {
+      const xe = Math.max(cx, px + 130), pads: Pt[] = [-1, 0, 1].map((k) => [xe + k * LEG_PITCH, py] as Pt);
+      buses.push(mk('svid', [[cx, ys], [cx, py]], 3, LEG_PITCH, 8, 0, { from: legs, to: pads }));
     }
   }
 
