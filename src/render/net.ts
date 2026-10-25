@@ -310,7 +310,7 @@ export class NetView {
     if (this.router) {
       const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y + PLUG_L - 10];
       drawPlug(g, T, { x: lx, y: SHELF_Y, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false, 'rj45');
-      const restPlug: Plug = { x: -4180, y: CABLE_ROW_Y + 60, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
+      const restPlug: Plug = { x: ROUTER_EAST + 320, y: CABLE_ROW_Y + 60, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
       let plug: Rect = plugRect(restPlug), seated: Pt | null = null;
       const jack = lanState === 'connected' ? jacks.find((j) => j.id === portId) : undefined;
       if (lanState === 'connected' && jack) {

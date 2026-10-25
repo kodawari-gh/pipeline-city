@@ -130,18 +130,20 @@ export let PSU_PORTS: { pcie: number; atx: number; cpu: number } = { pcie: 3520,
 export let PORT_Y = PSU.y;
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
-/** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: a 27 inch monitor (about 1.2 times the case's depth) next to the case. */
-export const MONITOR_K = 3.4;
+/** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: a 24 inch monitor (about as wide as the case is deep) next to the case. */
+export const MONITOR_K = 3.0;
+/** The monitor's east edge: the gap between it and the case holds the mug, then the cables' trunks by the case's rear wall. */
+export const MONITOR_EAST = IO_X - 2300;
 /** The screen's design size: the text and the OS screen are laid out in it, inside a container scaled by `MONITOR_K`. */
 export const SCREEN_D = { w: 3120, h: 1755 };
 /** Furniture that follows the case tier (the desk top is where the case's feet stand): the feet, the desk slab's thickness and the height of the space under it. */
 export const FOOT = 110, DESK_SLAB = 340, DESK_UNDER = 2800;
 /** The monitor's foot ends this far under its bezel (`monitorArt`: the foot ends 400 design units down), and the riser under it (a plank, the key tray, a little air) this far above the desk. */
-export const MON_STAND = 400 * MONITOR_K, RISER_PLANK = 170, RISER_H = RISER_PLANK + 10 + 1620 + 110;
+export const MON_STAND = 400 * MONITOR_K, RISER_PLANK = 140, RISER_H = RISER_PLANK + 10 + 1060 + 120;
 /** The desk top, and the y where the dark under the desk is complete (no floor is drawn): both follow the case. */
 export let DESK_Y = 3610, FLOOR_Y = 3610 + DESK_SLAB + DESK_UNDER;
 /** The monitor stands on its foot on a short riser on the desk, so it follows the desk (the case tier). */
-export let MONITOR: Rect = { x: -4200 - 3300 * MONITOR_K, y: -6450, w: 3300 * MONITOR_K, h: 1995 * MONITOR_K };
+export let MONITOR: Rect = { x: MONITOR_EAST - 3300 * MONITOR_K, y: -6450, w: 3300 * MONITOR_K, h: 1995 * MONITOR_K };
 export let SCREEN: Rect = { x: MONITOR.x + 90 * MONITOR_K, y: MONITOR.y + 80 * MONITOR_K, w: 3120 * MONITOR_K, h: 1755 * MONITOR_K };
 /** Y of the HDMI port on the rear I/O (the video cable leaves it west, runs down the gap and enters the monitor from below). */
 export const VIDEO_Y = -1150;
@@ -150,13 +152,14 @@ export let VIDEO_SOCKET = { x: 0, y: 0 };
 /** The video cable's run under the monitor (y, above the riser) and its vertical run in the gap between the monitor and the case (x). */
 export let VIDEO_RUN_Y = 0;
 export const VIDEO_TRUNK_X = -4130;
-/** The monitor's mains inlet, also in its underside, west of the video socket (the mouth). */
+/** The monitor's mains inlet, also in its underside, west of the video socket and over the foot's east end (the mouth). */
 export let MONITOR_POWER = { x: 0, y: 0 };
 
 // ---- assembly props: the USB key tray, the power button, the USB port ----
-/** USB key tray, in the cubby under the monitor's foot: 3 columns by 4 rows of keys (queue cap 10). */
-export let TRAY: Rect = { x: 0, y: 0, w: 3300, h: 1620 };
-export const TRAY_COLS = 3;
+/** USB key tray: the front of the dock the monitor stands on: 4 columns by 3 rows of keys (queue cap 10). */
+export const TRAY_W = 4320, TRAY_H = 1060;
+export let TRAY: Rect = { x: 0, y: 0, w: TRAY_W, h: TRAY_H };
+export const TRAY_COLS = 4, TRAY_ROWS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
 export const WALL_T = 170, CASE_TOP = -3400;
@@ -221,7 +224,7 @@ export const HDMI_PORT: Rect = { x: IO_X, y: VIDEO_Y - 60, w: 240, h: 120 };
 /** Scale of the network props (router, wall plate) against their design size. */
 export const NET_K = 1.45;
 /** The router is right-aligned to this x on its shelf (its footprint depends on the tier). */
-export const ROUTER_EAST = -4500;
+export const ROUTER_EAST = MONITOR_EAST - 300;
 /** The shelf line the router stands on (above the monitor, so it follows the desk), and the y where the cables turn after leaving their sockets. */
 export let SHELF_Y = -2480;
 export let CABLE_ROW_Y = SHELF_Y + 200;
@@ -233,8 +236,8 @@ export let WALL_PLATE: Rect = { x: -6300, y: 0, w: 460 * NET_K, h: 420 * NET_K }
 export let WALL_Y = 0;
 export let WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: 0 };
 export let ISP_ROW_Y = 0;
-/** The riser under the monitor's foot (a short shelf unit holding the key tray): its outline. */
-export const RISER_W = 6100;
+/** The dock under the monitor's foot (the key tray is its front; `RISER` for short): its outline. */
+export const RISER_W = 5000;
 export let RISER: Rect = { x: 0, y: 0, w: RISER_W, h: RISER_H };
 /** Vertical run of the ethernet cable in the gap between the monitor and the case (west of the PC's power plug and cord; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = -3990;
@@ -310,13 +313,13 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
   DESK_Y = bottom + FOOT; FLOOR_Y = DESK_Y + DESK_SLAB + DESK_UNDER;
   const MW = 3300 * MONITOR_K, MH = 1995 * MONITOR_K;
-  MONITOR = { x: -4200 - MW, y: DESK_Y - RISER_H - MON_STAND - MH, w: MW, h: MH };
+  MONITOR = { x: MONITOR_EAST - MW, y: DESK_Y - RISER_H - MON_STAND - MH, w: MW, h: MH };
   SCREEN = { x: MONITOR.x + 90 * MONITOR_K, y: MONITOR.y + 80 * MONITOR_K, w: 3120 * MONITOR_K, h: 1755 * MONITOR_K };
   const by = MONITOR.y + MONITOR.h;
-  TRAY = { x: MONITOR.x + (MW - 3300) / 2, y: by + MON_STAND + RISER_PLANK + 10, w: 3300, h: 1620 };
+  TRAY = { x: MONITOR.x + (MW - TRAY_W) / 2, y: by + MON_STAND + RISER_PLANK + 10, w: TRAY_W, h: TRAY_H };
   VIDEO_SOCKET = { x: MONITOR.x + MW - 388 * MONITOR_K, y: by + 40 * MONITOR_K };
   VIDEO_RUN_Y = by + 700;
-  MONITOR_POWER = { x: MONITOR.x + MW - 781 * MONITOR_K, y: by + 36 * MONITOR_K };
+  MONITOR_POWER = { x: MONITOR.x + MW - 900 * MONITOR_K, y: by + 36 * MONITOR_K };
   RISER = { x: MONITOR.x + (MW - RISER_W) / 2, y: DESK_Y - RISER_H, w: RISER_W, h: RISER_H };
   SHELF_Y = MONITOR.y - 700; CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };

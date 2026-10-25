@@ -4,7 +4,7 @@ import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
 import { wallTone } from './case';
 import { usbPlug } from './ports';
-import { CASE_LEDS, POWER_BTN, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
+import { CASE_LEDS, POWER_BTN, TRAY, TRAY_COLS, TRAY_ROWS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.
@@ -286,8 +286,9 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   root.addChild(chrome);
   chrome.addChild(g);
   const r = TRAY;
-  glassPanel(g, r, T, T.mul, 10, 0.8, 36, { x: r.x + 40, y: r.y + 150, w: r.w - 80, h: r.h - 190 });
-  chrome.addChild(label('USB KEY TRAY', r.x + 90, r.y + 76, 72, T.mul, { head: true }));
+  // the dock's front (room.ts draws its body round it): a flush panel in the monitor's own dark shell, with a hairline edge, not a glowing glass box
+  glassPanel(g, r, T, T.line, 6, 0.9, 30, { x: r.x + 40, y: r.y + 140, w: r.w - 80, h: r.h - 180 });
+  chrome.addChild(label('USB KEY DOCK', r.x + 90, r.y + 72, 64, T.mute, { head: true }));
   const empty = keys.length === 0;
   // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
   if (mode === 'retired') g.alpha = 0.55;
@@ -295,7 +296,7 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : empty ? T.mute : T.ink;
   chrome.addChild(label(note, r.x + r.w - 90, r.y + 76, mode === 'fallback' ? 40 : 46, noteCol, { anchor: [1, 0.5], a: mode === 'off' && empty ? 0.8 : 1 }));
   // empty key bays (dashed outlines) so the tray reads as a tray even when empty
-  const bays = TRAY_COLS * 4;
+  const bays = TRAY_COLS * TRAY_ROWS;
   for (let i = keys.length; i < bays; i++) {
     const p = trayKeyCentre(i);
     const pts: [number, number][] = [[p.x - KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y - KEY_H / 2]];

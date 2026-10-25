@@ -15,12 +15,12 @@ import type { Theme } from './theme';
 /** The desk's slab and the height of the space under it, and the feet the case stands on (all in `layout.ts`: the monitor, the riser, the router and the plates follow the same desk top). */
 export const DESK = { slab: DESK_SLAB, under: DESK_UNDER };
 export { FOOT };
-/** How far the desk reaches west (an absolute x, west of the keyboard under the monitor) and east of the case (the lamp and the mug stand there). */
-const DESK_WEST = -17400, DESK_EAST = 3600;
+/** How far the desk reaches west of the lamp (which stands at its very west end) and east of the case (which is the last thing on it). */
+const DESK_WEST = 1100, DESK_EAST = 500;
 /** How much wall the camera may show beyond the desk's and the window's ends, and below the wall socket (no floor); the top is the router or the window, whichever is higher. */
 const BOX_SIDE = 900, BOX_BELOW = 700, BOX_TOP_ABOVE = 500;
-/** The lamp stands at the desk's east end, its hood pointing down and west (SIDE -1) at this angle; `LAMP_REACH` is the hood's length from the arm to its mouth. */
-const SIDE = -1, LAMP_D = { x: 0.766 * SIDE, y: 0.643 }, LAMP_REACH = 840;
+/** The lamp stands at the desk's west end, its hood pointing down and east (SIDE 1; -1 would mirror it) at this angle; `LAMP_REACH` is the hood's length from the arm to its mouth. */
+const SIDE = 1, LAMP_D = { x: 0.766 * SIDE, y: 0.643 }, LAMP_REACH = 840;
 
 /** Y of the desk's top surface: the case stands on it, so it follows the case (a taller case sits lower on the desk). */
 export const deskY = () => DESK_Y;
@@ -63,20 +63,19 @@ export function shaftSpan(w: Rect, y: number, slant: number): { xl: number; xr: 
 }
 
 export function roomGeo(): RoomGeo {
-  const ys = deskY(), east = CASE.x + CASE.w, lx = east + 2500, plate = POWER_PLATE;
-  const window: Rect = { x: -19600, y: -5300, w: 3900, h: 5700 };
+  const ys = deskY(), east = CASE.x + CASE.w, lx = MONITOR.x - 1800, plate = POWER_PLATE;
+  const window: Rect = { x: lx - 290 - 3900, y: -5600, w: 3900, h: 5700 };
   const clock: Rect = { x: CASE.x + CASE.w / 2 - 1500, y: -5500, w: 3000, h: 1100 };
   const head = { x: lx + 600 * SIDE, y: ys - 3150 };
   return {
     ys,
     floor: FLOOR_Y,
-    desk: { x0: DESK_WEST, x1: east + DESK_EAST },
-    mug: east + 800,
+    desk: { x0: lx - DESK_WEST, x1: east + DESK_EAST },
+    mug: MONITOR.x + MONITOR.w + 550,
     socket: { plate, mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 }, pc: { x: plate.x + plate.w * 0.72, y: plate.y + plate.h / 2 } },
     window,
     clock,
-    lamp: { x: lx, head, mouth: { x: head.x + LAMP_D.x * LAMP_REACH, y: head.y + LAMP_D.y * LAMP_REACH }, rect: { x: lx - 1750, y: ys - 3500, w: 2350, h: 3500 } },
-    // the riser's top plank is a little wider than the monitor's foot and starts where the foot ends
+    lamp: { x: lx, head, mouth: { x: head.x + LAMP_D.x * LAMP_REACH, y: head.y + LAMP_D.y * LAMP_REACH }, rect: { x: lx - (SIDE > 0 ? 600 : 1750), y: ys - 3500, w: 2350, h: 3500 } },
     unit: RISER,
     top: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y),
   };
@@ -282,8 +281,8 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   }
   // the bottom goes dark in 16 bands (no gradient: it is also built in tests, which have no canvas), then stays dark
   const dark = mix(L.wallLo, '#000000', T.dark ? 0.6 : 0.5);
-  for (let k = 0; k < 16; k++) f.rect(-90000, ye - 900 + (k * 1300) / 16, 180000, 1300 / 16 + 2).fill({ color: dark, alpha: 0.97 * ((k + 1) / 16) });
-  f.rect(-90000, ye + 400, 180000, 90000).fill({ color: dark, alpha: 0.97 });
+  for (let k = 0; k < 16; k++) f.rect(-90000, ye - 400 + (k * 900) / 16, 180000, 900 / 16 + 2).fill({ color: dark, alpha: 0.97 * ((k + 1) / 16) });
+  f.rect(-90000, ye + 500, 180000, 90000).fill({ color: dark, alpha: 0.97 });
   powerArt(T, geo, g, f);
   // the slab: a lit top, a front edge, a grain
   f.rect(x0, ys, x1 - x0, d.slab).fill({ color: L.wood }).stroke({ width: 10, color: L.edge, alpha: 0.8 });
@@ -295,20 +294,18 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   }
   f.rect(x0, ys + d.slab, x1 - x0, 150).fill({ color: '#000000', alpha: 0.24 });
 
-  // ---- the riser under the monitor's foot: a top plank for the foot, two sides and a bottom board round the one cubby the key tray stands in ----
-  const u = geo.unit, bw = 190;
-  f.rect(u.x, u.y, u.w, u.h).fill({ color: mix(L.woodLo, '#000000', 0.3) });
-  f.rect(u.x, u.y, bw, u.h).fill({ color: L.wood }).stroke({ width: 6, color: L.edge, alpha: 0.6 });
-  f.rect(u.x + u.w - bw, u.y, bw, u.h).fill({ color: L.wood }).stroke({ width: 6, color: L.edge, alpha: 0.6 });
-  f.rect(u.x + 20, u.y, 30, u.h).fill({ color: L.woodHi, alpha: 0.4 });
-  f.rect(u.x, ys - 110, u.w, 110).fill({ color: L.wood }).stroke({ width: 6, color: L.edge, alpha: 0.6 });
-  f.rect(u.x - 70, u.y, u.w + 140, RISER_PLANK).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
-  f.rect(u.x - 50, u.y + 14, u.w + 100, 20).fill({ color: L.woodHi, alpha: 0.8 });
-  // the monitor's foot casts a little shadow on the top plank
-  f.rect(MONITOR.x + MONITOR.w / 2 - 2500, u.y - 4, 5000, 26).fill({ color: '#000000', alpha: 0.28 });
+  // ---- the dock under the monitor's foot: the key tray is its front (props.ts draws it over this body), in the monitor's own dark shell, with rubber feet ----
+  const u = geo.unit, shell = T.dark ? '#141a26' : '#262d3a', rimC = T.dark ? '#3a4560' : '#4a5470';
+  f.roundRect(u.x + 16, u.y + 22, u.w, u.h, 44).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.18 });
+  f.roundRect(u.x, u.y, u.w, u.h, 44).fill({ color: shell }).stroke({ width: 7, color: rimC, alpha: 0.9 });
+  f.roundRect(u.x + 30, u.y + 12, u.w - 60, 22, 11).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.14 }); // the lit top edge the foot stands on
+  for (const sx of [u.x + 150, u.x + u.w - 150]) for (let k = 0; k < 5; k++) f.rect(sx - 8, u.y + 330 + k * 120, 16, 70).fill({ color: '#000000', alpha: 0.5 }); // vent slits either side of the key panel
+  for (const sx of [u.x + 260, u.x + u.w - 260 - 380]) f.roundRect(sx, ys - 18, 380, 18, 6).fill({ color: '#05070c' }); // rubber feet
+  // the monitor's foot casts a little shadow on the dock's top
+  f.rect(MONITOR.x + MONITOR.w / 2 - 2300, u.y - 4, 4600, 26).fill({ color: '#000000', alpha: 0.28 });
   shadow(f, u.x + u.w / 2, ys + 44, u.w + 300, 0.32);
 
-  // ---- on the desk: the case's own shadow, the keyboard and the mouse under the monitor (either side of the riser), the mug and the lamp east of the case ----
+  // ---- on the desk: the case's own shadow, the lamp at the very west, the keyboard and the mouse under the monitor (either side of the dock), the mug between the monitor and the case ----
   shadow(f, CASE.x + CASE.w / 2, ys + 44, CASE.w + 400, 0.34);
   // the keyboard: a low wedge with a row of caps along its top, on a thin mat
   const kx = MONITOR.x + 150, kw = 2400;
@@ -316,12 +313,12 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   f.poly([kx, ys - 36, kx + kw, ys - 36, kx + kw, ys - 186, kx + 80, ys - 270]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
   for (let k = 0; k < 13; k++) f.rect(kx + 200 + k * 160, ys - 256 + ((200 + k * 160) / (kw - 80)) * 84, 120, 28).fill({ color: T.dark ? '#aab6dc' : L.paper, alpha: T.dark ? 0.7 : 0.95 });
   shadow(f, kx + kw / 2, ys + 30, kw, 0.28);
-  // the mouse, on the other side of the riser
+  // the mouse, on the other side of the dock
   const mox = u.x + u.w + 650;
   f.rect(mox - 520, ys - 36, 1040, 40).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
   f.ellipse(mox, ys - 100, 220, 100).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
   f.rect(mox - 12, ys - 180, 24, 80).fill({ color: L.line, alpha: 0.7 });
-  // the mug east of the case (steam is live)
+  // the mug in the gap between the monitor and the case (steam is live)
   const mx = geo.mug;
   f.rect(mx - 420, ys - 1040, 840, 1040).fill({ color: '#e8edf8' }).stroke({ width: 8, color: L.line });
   f.rect(mx - 420, ys - 1040, 840, 140).fill({ color: '#3a2418' });
@@ -329,7 +326,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   f.rect(mx - 380, ys - 700, 160, 600).fill({ color: '#000000', alpha: 0.07 });
   f.rect(mx - 120, ys - 760, 520, 90).fill({ color: '#d03a4a', alpha: 0.9 });
   shadow(f, mx, ys + 30, 1200, 0.3);
-  // the lamp at the desk's east end: base, two arms, a hood pointing west over the mug (the glow is live)
+  // the lamp at the desk's very west end: base, two arms, a hood pointing east over the keyboard (the glow is live)
   const lx = geo.lamp.x, hd = geo.lamp.head, ex = lx + 1000 * SIDE, ey = ys - 1850;
   f.rect(lx - 520, ys - 150, 1040, 150).fill({ color: L.metalLo }).stroke({ width: 6, color: L.metal });
   f.rect(lx - 420, ys - 220, 840, 80).fill({ color: L.metal });

@@ -37,7 +37,7 @@ describe('the desk follows the case', () => {
     expect(ys).toEqual([...ys].sort((a, b) => a - b));
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the monitor stands on its foot on the riser, the riser on the desk, the tray in the riser', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the monitor stands on its foot on the dock, the dock on the desk, the key tray is the dock\'s front', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), by = MONITOR.y + MONITOR.h;
     // the foot ends 400 design units under the bezel (monitorArt): that is where the riser's top plank starts, and the riser reaches the desk
@@ -48,24 +48,26 @@ describe('the desk follows the case', () => {
     // centred under the monitor, wider than the foot (2,560 design wide)
     expect(g.unit.x + g.unit.w / 2).toBeCloseTo(MONITOR.x + MONITOR.w / 2, 6);
     expect(g.unit.w).toBeGreaterThan(1600 * MONITOR_K);
-    // one cubby the tray stands in: under the plank, above the bottom board
-    expect(TRAY.y).toBeGreaterThanOrEqual(g.unit.y + 170);
+    // the tray is the dock's front: under its top edge, above its bottom, inside its sides with a margin, a flat 4 by 3 panel
+    expect(TRAY.y).toBeGreaterThanOrEqual(g.unit.y + 140);
     expect(TRAY.y + TRAY.h).toBeLessThanOrEqual(g.ys - 100);
-    expect(TRAY.x).toBeGreaterThan(g.unit.x + 190); expect(TRAY.x + TRAY.w).toBeLessThan(g.unit.x + g.unit.w - 190);
-    // a 27 inch monitor: bigger than the case is deep, and not taller than it plus its foot
-    expect(MONITOR.w).toBeGreaterThan(CASE.w);
-    expect(MONITOR.w / CASE.w).toBeLessThan(1.45);
+    expect(TRAY.x).toBeGreaterThanOrEqual(g.unit.x + 250); expect(TRAY.x + TRAY.w).toBeLessThanOrEqual(g.unit.x + g.unit.w - 250);
+    expect(TRAY.w / TRAY.h).toBeGreaterThan(3.5);
+    // a 24 inch monitor: about as wide as the case is deep, wider than the key dock, and clear of the lamp
+    expect(MONITOR.w / CASE.w).toBeGreaterThan(1.0);
+    expect(MONITOR.w / CASE.w).toBeLessThan(1.2);
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the desk holds the keyboard under the monitor, the case, the mug and the lamp at its east end', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: from the west: the lamp, the monitor over the keyboard, the mug, the PC (the last thing on the desk)', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo();
-    expect(g.desk.x0).toBeLessThan(MONITOR.x); // the keyboard stands under the monitor's west part
-    expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);
-    expect(g.mug).toBeGreaterThan(CASE.x + CASE.w);
-    expect(g.mug + 760).toBeLessThan(g.desk.x1); // the handle too
-    expect(g.lamp.x + 520).toBeLessThan(g.desk.x1); // the lamp's base is on the desk
-    expect(g.lamp.x).toBeGreaterThan(g.mug + 800);  // east of the mug
+    expect(g.desk.x0).toBeLessThan(g.lamp.x - 520);          // the lamp is the first thing on the desk
+    expect(g.lamp.x + 1700).toBeLessThan(MONITOR.x);          // and its hood clears the monitor
+    expect(g.lamp.x + 520).toBeLessThan(MONITOR.x);
+    expect(g.mug - 420).toBeGreaterThan(MONITOR.x + MONITOR.w); // the mug is east of the monitor
+    expect(g.mug + 770).toBeLessThan(CASE.x - 800);            // and west of the cables' trunks by the case wall
+    expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);        // the PC is on the desk,
+    expect(g.desk.x1 - (CASE.x + CASE.w)).toBeLessThan(700);   // and the last thing on it
   });
 });
 
@@ -90,12 +92,12 @@ describe('the room layout', () => {
     expect(inside(MONITOR, WORLD) && inside(CASE, WORLD) && inside(ROUTER_SPOT, WORLD)).toBe(true);
   });
 
-  it('the hood mouth and the lamp rectangle are consistent (the lamp points down and west)', () => {
+  it('the hood mouth and the lamp rectangle are consistent (the lamp points down and east)', () => {
     setLayoutTier(0, 0);
     const g = roomGeo();
-    expect(g.lamp.mouth.x).toBeLessThan(g.lamp.head.x);
+    expect(g.lamp.mouth.x).toBeGreaterThan(g.lamp.head.x);
     expect(g.lamp.mouth.y).toBeGreaterThan(g.lamp.head.y);
-    expect(g.lamp.mouth.x).toBeGreaterThan(g.lamp.rect.x);
+    expect(g.lamp.mouth.x).toBeLessThan(g.lamp.rect.x + g.lamp.rect.w);
     expect(g.lamp.mouth.y + 600).toBeLessThan(g.ys);
   });
 });
@@ -141,7 +143,7 @@ describe('the mains, the ISP line and the video cable', () => {
     expect(PC_POWER.y).toBeLessThan(CASE.y + CASE.h);
     expect(MONITOR_POWER.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
     expect(MONITOR_POWER.x).toBeLessThan(VIDEO_SOCKET.x - 200);
-    expect(MONITOR_POWER.x).toBeGreaterThan(MONITOR.x + MONITOR.w / 2 + 800 * MONITOR_K + 85); // the plug (170 wide) clears the foot (1,600 design wide)
+    expect(Math.abs(MONITOR_POWER.x - (MONITOR.x + MONITOR.w / 2))).toBeLessThan(800 * MONITOR_K + 85); // the plug hangs over the foot's east end (the foot is 1,600 design wide)
   });
 
   it.each([0, 1, 2, 3])('tier %i: the ISP wall plate is under the desk, next to the power socket and level with it, its lead runs up behind the desk to the router shelf', (t) => {
