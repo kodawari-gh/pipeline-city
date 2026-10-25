@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import {
-  BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, POWER_BTN, PSU, SATA_LINK, type Rect,
+  BAY, BAY_CELLS, BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_TIER, POWER_BTN, PSU, SATA_LINK, sataPort, type Rect,
 } from './layout';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -37,15 +37,55 @@ export function caseBack(T: Theme): Container {
   g.rect(i.x + 8, psuTop, i.w - 16, i.y + i.h - psuTop - 8).fill({ color: mix(cav, T.bg, 0.3), alpha: 0.5 });
   g.moveTo(i.x + 8, psuTop).lineTo(i.x + i.w - 8, psuTop).stroke({ width: 5, color: edge, alpha: 0.55 });
   // intake slots in the floor
-  for (let k = 0; k < 14; k++) box(g, -2400 + k * 190, i.y + i.h + 30, 110, 22, 11, { fill: cav, fa: 0.85 });
+  for (let k = 0; k < 14 && -2400 + k * 190 < i.x + i.w - 400; k++) box(g, -2400 + k * 190, i.y + i.h + 30, 110, 22, 11, { fill: cav, fa: 0.85 });
+  // the motherboard tray: a plate a little bigger than the board it carries, perforated, with the board's standoffs and a cable cut-out
+  {
+    const tr = { x: BD.x - 110, y: BD.y - 110, w: BD.w + 220, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
+    box(g, tr.x, tr.y, tr.w, tr.h, 120, { fill: tone, stroke: edge, lw: 6, sa: 0.55 });
+    for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + 60; y < tr.y + 190; y += 80) g.circle(x, y, 14);
+    for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) g.circle(x, y, 14);
+    g.fill({ color: cav, alpha: 0.9 });
+    // cable cut-outs beside the 24-pin and over the 8-pin (the cables come through them)
+    const gx = BD.x + BD.w;
+    box(g, gx + 20, -1750, 70, 1500, 35, { fill: cav, stroke: edge, lw: 4, sa: 0.6 });
+    for (const [x, y] of [[BD.x + 150, BD.y + 150], [gx - 150, BD.y + 150], [BD.x + 150, BD.y + BD.h - 150], [gx - 150, BD.y + BD.h - 150]] as const) disc(g, x, y, 24, { fill: mix(wall, T.bg, 0.3), stroke: edge, lw: 4, sa: 0.7 });
+  }
+  frontFans(g, T, cav, wall, edge);
   // I/O shield opening in the west wall (keys and the video cable pass through it)
   box(g, c.x + 26, -2080, 108, 2600, 30, { fill: cav, fa: 0.85, stroke: edge, lw: 4, sa: 0.5 });
   // labels
   root.addChild(label('PIPELINE CITY', -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
-  void POWER_BTN;
+  void POWER_BTN; void LAYOUT_TIER;
   return root;
+}
+
+/**
+ * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
+ * ring of blade tips and a light strip), and the perforated front panel beyond them. One module per ~1600 units of height.
+ */
+function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  const gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
+  const n = Math.max(1, Math.round((y1 - y0 + 100) / 1700)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
+  const x = BD.x + BD.w + 550, w = 480;
+  // front panel: a perforated wall along the east side of the glass
+  const fp = { x: east - 520, y: gl.y + 60, w: 420, h: gl.h - 120 };
+  box(g, fp.x, fp.y, fp.w, fp.h, 50, { fill: mix(cav, wall, 0.15), stroke: edge, lw: 5, sa: 0.5 });
+  for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
+  g.fill({ color: cav, alpha: 0.95 });
+  for (let k = 0; k < n; k++) {
+    const y = y0 + k * (h + gap);
+    box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
+    box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
+    // blade tips: short slanted strokes down the middle, the way a fan looks from the side
+    for (let yy = y + 90; yy < y + h - 70; yy += 56) g.moveTo(x + 120, yy + 22).lineTo(x + w - 120, yy - 22);
+    g.stroke({ width: 10, color: T.mute, alpha: 0.22, cap: 'round' });
+    g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60).stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
+    // light strips along both long edges (they glow with the machine: see Live)
+    g.rect(x + 28, y + 70, 10, h - 140).rect(x + w - 38, y + 70, 10, h - 140).fill({ color: T.alu, alpha: 0.25 });
+    for (const sy of [y + 40, y + h - 40]) for (const sx of [x + 40, x + w - 40]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+  }
 }
 
 /** Glass side: a barely there sheen and a hairline edge, drawn over the board. */
@@ -55,7 +95,7 @@ export function caseGlass(T: Theme): Container {
   root.addChild(g);
   const r = CASE_GLASS, a = T.dark ? 0.024 : 0.14;
   const band = (x0: number, x1: number) => g.poly([r.x + x0, r.y + 6, r.x + x1, r.y + 6, r.x + x1 - 1500, r.y + r.h - 6, r.x + x0 - 1500, r.y + r.h - 6]).fill({ color: '#ffffff', alpha: a });
-  band(2600, 3300); band(3700, 3860); band(6900, 7500);
+  for (const [a, b] of [[2600, 3300], [3700, 3860], [6900, 7500]] as const) if (b - 1500 < r.w - 200) band(a, Math.min(b, r.w + 1500 - 200));
   box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
   // corner screws
   for (const [x, y] of [[r.x - 80, r.y + 60], [r.x + r.w + 80, r.y + 60], [r.x - 80, r.y + r.h - 60], [r.x + r.w + 80, r.y + r.h - 60]] as const) {
@@ -104,9 +144,9 @@ export function emptyCellHint(T: Theme, cell: Rect): Container {
  * it crosses the PSU port row or the PSU cables (see `SATA_LINK`).
  */
 export function sataCablePath(i: 0 | 1): Lane {
-  const c = BAY_CELLS[i]!, L = SATA_LINK[i]!;
-  const y0 = c.y + L.plug, yPort = BR.sata.y + BR.sata.h + 58;
-  const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, L.lane], [L.west, L.lane], [L.west, L.top], [L.port, L.top], [L.port, yPort]];
+  const c = BAY_CELLS[i]!, L = SATA_LINK[i]!, p = sataPort(i);
+  const y0 = c.y + L.plug, yPort = p.y + p.h / 2;
+  const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, yPort], [p.x + p.w + 40, yPort]];
   return mkLane(roundedPath(route, 70, 30));
 }
 
@@ -131,7 +171,7 @@ export function sataLinkArt(T: Theme, i: 0 | 1, withPower: boolean): Container {
   line(pts); g.stroke({ width: w * 0.2, color: '#ffffff', alpha: T.dark ? 0.08 : 0.14, cap: 'round', join: 'round' });
   plugBox(g, T, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
   const e = pts[pts.length - 1]!;
-  plugBox(g, T, e[0] - 36, e[1] - 6, 72, 78, T.mul); // board end (plugs up into the port)
+  plugBox(g, T, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
   if (withPower) {
     // the drive's power lead sits above its data plug, so the data run never passes it in the gap
     const py = c.y + 110, x0 = PSU.x + PSU.w;

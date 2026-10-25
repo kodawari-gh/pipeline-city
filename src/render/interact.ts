@@ -676,7 +676,7 @@ export class Interact {
       const lo = ci.loose, l = lo.plug.l;
       const seated = movablePlug(cab);
       let tip: Pt = [d.wx, d.wy], ang: number;
-      if (d.snapped) { tip = [seated.x, seated.y]; ang = seated.dx > 0 ? 0 : Math.PI; }
+      if (d.snapped) { tip = [seated.x, seated.y]; ang = Math.atan2(seated.dy, seated.dx); }
       else {
         const pre = rubberBand(lo.anchor, lo.anchorDir, tip);
         const a = pre[pre.length - 3]!, b = pre[pre.length - 1]!;

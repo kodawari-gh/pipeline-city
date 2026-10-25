@@ -188,13 +188,15 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
   c.labels.addChild(label(name, at[0], at[1], 32, P.silk, { a, anchor: [at[2], 0.5] }));
 }
 
-/** A SATA port (mouth down): L-shaped housing with a key and a pin row. */
+/** A SATA port (mouth east): housing, the L-shaped opening with its key, the pin row, a latch lip. */
 export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
   const { g, P } = c, a = live ? 1 : 0.35;
   shadow(c, p.x, p.y, p.w, p.h, 10, 8, 0.25 * a);
   box(g, p.x, p.y, p.w, p.h, 10, { fill: P.sub, stroke: P.edge, lw: 5, fa: a, sa: a });
-  g.rect(p.x + 20, p.y + 16, 100, 30).fill({ color: P.dark, alpha: a });
-  g.rect(p.x + 20, p.y + 62, 70, 14).fill({ color: P.via, alpha: 0.5 * a });
-  g.rect(p.x + p.w - 36, p.y + 56, 22, 34).fill({ color: P.sub, alpha: a }); // the L key
-  c.labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 26, 30, P.silk, { anchor: [0.5, 0.5], a }));
+  g.poly([p.x + 150, p.y + 20, p.x + p.w - 20, p.y + 20, p.x + p.w - 20, p.y + p.h - 20, p.x + 150, p.y + p.h - 20, p.x + 150, p.y + p.h - 52, p.x + 210, p.y + p.h - 52, p.x + 210, p.y + 52, p.x + 150, p.y + 52])
+    .fill({ color: P.dark, alpha: a });
+  for (let k = 0; k < 7; k++) g.rect(p.x + 56 + k * 12, p.y + 20, 6, 20);
+  g.fill({ color: P.via, alpha: 0.55 * a });
+  g.rect(p.x + p.w - 8, p.y + 14, 10, p.h - 28).fill({ color: P.silk, alpha: 0.35 * a });
+  c.labels.addChild(label('SATA' + i, p.x + p.w / 2, p.y - 24, 30, P.silk, { anchor: [0.5, 0.5], a }));
 }

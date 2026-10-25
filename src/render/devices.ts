@@ -301,7 +301,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   // vent slots
   {
     const v = VENTS;
-    for (let y = v.y + 20; y < v.y + v.h - 10; y += 56) g.moveTo(v.x, y).lineTo(v.x + v.w, y);
+    if (v.w >= 400) for (let y = v.y + 20; y < v.y + v.h - 10; y += 56) g.moveTo(v.x, y).lineTo(v.x + v.w, y);
     g.stroke({ width: 16, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
   }
   // label plate: model and rated capacity

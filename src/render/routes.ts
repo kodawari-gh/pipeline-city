@@ -129,12 +129,13 @@ export function buildBuses(): Bus[] {
   // USB: chipset west edge to the rear I/O
   buses.push(mk('usb', [[g.chip.x, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
 
-  // SATA: chipset south edge down to the ports on the bottom edge (the drive cables continue from there); one bundle per port
+  // SATA: chipset south edge down, then east along the port's row to the pads on its west side (the drive cables continue from there);
+  // one bundle per port, the lower port's drop is the westmost, so the two never cross
   if (g.sata.length) {
     const lanes: Lane[] = [];
     g.sata.forEach((p, i) => {
-      const x = p.x + p.w / 2;
-      for (const pts of bundle([[x, g.chip.y + g.chip.h], [x, p.y]], 3, 24, 60)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
+      const x = g.chip.x + g.chip.w * (i === 0 ? 0.57 : 0.28), y = p.y + p.h / 2;
+      for (const pts of bundle([[x, g.chip.y + g.chip.h], [x, y], [p.x - 6, y]], 3, 24, 120)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
     });
     buses.push({ id: 'sata', w: 9, lanes });
   }

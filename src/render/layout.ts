@@ -107,7 +107,7 @@ export let VRM_LED = GEO.vrmLed;
 export { DRAM_BH, DRAM_BW };
 
 // ---- PSU (below the board, full width plus the cable gutter) ----
-export const GUTTER_X = 3400;
+export let GUTTER_X = 3400;
 /** The lower compartment (PSU, drive bay, cables) moves with the board's height: this is the shift from the ATX board's. */
 export let SHIFT_Y = 0;
 export let PSU: Rect = { x: -3400, y: 2750, w: 7400, h: 1100 };
@@ -119,7 +119,7 @@ export let PSU_LABEL: Rect = { x: -80, y: 2900, w: 1050, h: 800 };
 export let PSU_PANEL: Rect = { x: 1120, y: 2890, w: 2200, h: 820 };
 export let VENTS: Rect = { x: -1750, y: 2880, w: 1500, h: 840 };
 /** Output sockets along the PSU's top edge, by cable (x of the socket centre). Inner-to-outer order avoids cable crossings. */
-export const PSU_PORTS = { pcie: 3520, atx: 3680, cpu: 3830 } as const;
+export let PSU_PORTS: { pcie: number; atx: number; cpu: number } = { pcie: 3520, atx: 3680, cpu: 3830 };
 export let PORT_Y = PSU.y;
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
@@ -138,12 +138,12 @@ export let CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };
 /** Inside of the chassis (glass area plus the PSU compartment). */
 export let CASE_IN: Rect = { x: -3640, y: -2700, w: 8740, h: 6690 };
 /** Top panel strip: brand, vents, disk LED, status lights, power button. */
-export const CASE_PANEL: Rect = { x: -3800, y: -3100, w: 9060, h: 400 };
+export let CASE_PANEL: Rect = { x: -3800, y: -3100, w: 9060, h: 400 };
 /** The glass side window: motherboard area. */
 export let CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
 /** Power button on the top panel and the status lights beside it. */
-export const POWER_BTN = { x: 4660, y: -2900, r: 130 };
-export const CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
+export let POWER_BTN = { x: 4660, y: -2900, r: 130 };
+export let CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
 /** The 2-position SATA drive bay (a cage right of the PSU). Cell 0 = slot sata0 (top), cell 1 = sata1. */
 export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
 export let BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
@@ -154,10 +154,7 @@ export let BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300,
  * into the board port (`port`). It never crosses the PSU port row or the PSU cables. Cell 1's runs sit outside cell 0's so
  * the two never cross each other (the lower cell is the outer loop).
  */
-export let SATA_LINK: { plug: number; col: number; lane: number; west: number; top: number; port: number }[] = [
-  { plug: 400, col: 4060, lane: 3928, west: -3500, top: 2600, port: -1910 },
-  { plug: 400, col: 4120, lane: 3968, west: -3580, top: 2540, port: -2080 },
-];
+export let SATA_LINK: { plug: number; col: number }[] = [{ plug: 400, col: 4140 }, { plug: 400, col: 4070 }];
 /** Board port rect for SATA index i. */
 export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 
@@ -210,25 +207,31 @@ export function setLayoutTier(tier: number): void {
   const g = geoOf(tier);
   GEO = g; LAYOUT_TIER = g.tier; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
   VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
-  // the lower compartment follows the board's south edge
-  const dy = g.bd.y + g.bd.h - 2500;
+  // the lower compartment and the case follow the board: the PSU shroud runs under the board and the cable gutter, the drive bay
+  // sits at its east end, the case closes round them
+  const east = g.bd.x + g.bd.w, south = g.bd.y + g.bd.h, dy = south - 2500;
   SHIFT_Y = dy;
-  PSU = { x: -3400, y: 2750 + dy, w: 7400, h: 1100 };
+  GUTTER_X = east;
+  PSU_PORTS = { pcie: east + 120, atx: east + 280, cpu: east + 430 };
+  const psuEast = east + 600, psuW = psuEast + 3400;
+  PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
-  PSU_FAN = { x: -2450, y: 3300 + dy, r: 430 };
-  PSU_LABEL = { x: -80, y: 2900 + dy, w: 1050, h: 800 };
-  PSU_PANEL = { x: 1120, y: 2890 + dy, w: 2200, h: 820 };
-  VENTS = { x: -1750, y: 2880 + dy, w: 1500, h: 840 };
-  BAY = { x: 4180, y: 2700 + dy, w: 880, h: 1230 };
-  BAY_CELLS = [{ x: 4300, y: 2790 + dy, w: 700, h: 500 }, { x: 4300, y: 3360 + dy, w: 700, h: 500 }];
-  SATA_LINK = [
-    { plug: 400, col: 4060, lane: 3928 + dy, west: -3500, top: 2600 + dy, port: g.sata[0] ? g.sata[0].x + 70 : -1910 },
-    { plug: 400, col: 4120, lane: 3968 + dy, west: -3580, top: 2540 + dy, port: g.sata[1] ? g.sata[1].x + 70 : -2080 },
-  ];
-  CASE = { x: -3800, y: -3100, w: 9060, h: 7350 + dy };
-  CASE_IN = { x: -3640, y: -2700, w: 8740, h: 6690 + dy };
-  CASE_GLASS = { x: -3640, y: -2700, w: 8740, h: 5250 + dy };
-  WORLD = { x: -7540, y: -3140, w: 12840, h: 7540 + dy };
+  PSU_FAN = { x: -2450, y: PSU.y + 550, r: 430 };
+  PSU_PANEL = { x: psuEast - 680 - 2200, y: PSU.y + 140, w: 2200, h: 820 };
+  PSU_LABEL = { x: PSU_PANEL.x - 1200, y: PSU.y + 150, w: 1050, h: 800 };
+  VENTS = { x: -1750, y: PSU.y + 130, w: Math.max(0, PSU_LABEL.x - 170 + 1750), h: 840 };
+  BAY = { x: psuEast + 180, y: PSU.y - 50, w: 880, h: 1230 };
+  BAY_CELLS = [{ x: BAY.x + 120, y: BAY.y + 90, w: 700, h: 500 }, { x: BAY.x + 120, y: BAY.y + 660, w: 700, h: 500 }];
+  SATA_LINK = [{ plug: 400, col: BAY.x - 40 }, { plug: 400, col: BAY.x - 110 }];
+  const caseW = BAY.x + BAY.w + 200 + 3800;
+  CASE = { x: -3800, y: -3100, w: caseW, h: south + 4850 };
+  CASE_IN = { x: -3640, y: -2700, w: caseW - 320, h: CASE.h - 660 };
+  CASE_GLASS = { x: -3640, y: -2700, w: caseW - 320, h: south + 50 + 2700 };
+  CASE_PANEL = { x: -3800, y: -3100, w: caseW, h: 400 };
+  const ce = CASE.x + CASE.w;
+  POWER_BTN = { x: ce - 600, y: -2900, r: 130 };
+  CASE_LEDS = { y: -2900, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
+  WORLD = { x: -7540, y: -3140, w: ce + 40 + 7540, h: CASE.y + CASE.h + 150 + 3140 };
   REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
 setLayoutTier(2);

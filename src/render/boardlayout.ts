@@ -101,8 +101,8 @@ function build(s: Spec): TierGeo {
   // ---- connectors ----
     const cpw = R(vrm.x - 150, bd.y + 90, 660, 260);
   const atx = R(east - 300, -1600, 300, 1100);
-  const sataY = south - 210;
-  const sataRects = [R(-2150 + 170, sataY, 140, 110), R(-2150, sataY, 140, 110)];
+  // SATA ports on the east edge near the bottom, mouths facing east (the drive cables run straight to the bay)
+  const sataRects = [R(east - 390, south - 520, 300, 110), R(east - 390, south - 350, 300, 110)];
   const holes: [number, number][] = [
     [bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150],
     [0, bd.y + 150], [0, south - 150],
@@ -126,8 +126,8 @@ function build(s: Spec): TierGeo {
     pcie: PCIE_ALL.slice(0, s.pcie),
     m2: s.m2 ? R(1150, two ? 1420 : 1100, 1760, 400) : null,
     sata: sataRects.slice(0, s.sata),
-    hex: R(300, south - 270, 760, 200),
-    qr: s.tier >= 1 ? R(1500, south - 440, 240, 240) : null,
+    hex: R(-3250, south - 330, 760, 200),
+    qr: s.tier >= 1 ? R(-3250, south - 620, 240, 240) : null,
     holes,
   };
 }

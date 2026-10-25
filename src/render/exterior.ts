@@ -13,7 +13,7 @@ import type { Theme } from './theme';
 // Static art is built once per (theme, tier, drives) and baked to one texture by board.ts; the accent strip is the only live part.
 
 /** The thin accent light strip on the front rim of the case (a vertical bar east of the glass). */
-export const stripRect = () => ({ x: 5178, y0: -2560, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
+export const stripRect = () => ({ x: CASE.x + CASE.w - 82, y0: -2560, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
 
 export interface ExteriorOpts {
   /** SATA cells this tier has (1 or 2). */
@@ -102,7 +102,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   g.fill({ color: c.glassTop, alpha: 1 });
   g.rect(mesh.x + 20, mesh.y + 20, mesh.w - 40, 4).fill({ color: '#ffffff', alpha: 0.04 });
   // nameplate between the intake and the bay
-  const np = { x: mesh.x + mesh.w + 260, y: PSU.y + 250, w: 2600, h: 620 };
+  const npx = mesh.x + mesh.w + 260, np = { x: npx, y: PSU.y + 250, w: Math.min(2600, PSU.x + PSU.w - 200 - npx), h: 620 };
   box(g, np.x, np.y, np.w, np.h, 36, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
   g.rect(np.x + 60, np.y + np.h - 130, np.w - 120, 8).fill({ color: T.alu, alpha: 0.55 });
   root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, T.dark ? '#dfe7ff' : '#e9eefb', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
