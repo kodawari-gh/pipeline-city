@@ -1,34 +1,17 @@
-// World layout (arbitrary pixel units at zoom 1). The CPU socket sits at the origin.
+// World layout (arbitrary pixel units at zoom 1). The CPU socket sits at the origin on every board.
 //
-//   monitor | motherboard (IO on its west edge, power connectors on its east edge) | cable gutter
+//   monitor | motherboard (IO on its west edge, power connectors on its east / top edges) | cable gutter
 //           |            PSU shroud below, full width of the board plus the gutter           |
 //
 // Everything on the board is placed here on purpose (no random scatter); buses are routed in routes.ts.
+//
+// Boards are different form factors (`boardlayout.ts`): the geometry that depends on the board tier is a **live binding** (`export let`)
+// that `setLayoutTier(tier)` reassigns. The renderer calls it first thing when it builds a scene, so every importer sees the current
+// tier's rectangles; never copy one of these into a module-level constant.
+
+import { DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, geoOf, type TierGeo } from './boardlayout';
 
 export interface Rect { x: number; y: number; w: number; h: number }
-
-export const BD: Rect = { x: -3400, y: -2500, w: 6800, h: 5000 };
-
-export const BR = {
-  /** Core VRM row north of the CPU. */
-  vrm: { x: -1300, y: -1650, w: 2600, h: 550 },
-  /** DRAM VRM block south-east of the DIMMs. */
-  dvrm: { x: 1100, y: 1250, w: 1200, h: 420 },
-  pcie: { x: -2950, y: 960, w: 4150, h: 1300 },
-  /** Chipset sits west of the CPU, between it and the rear I/O. */
-  chip: { x: -2250, y: -300, w: 600, h: 600 },
-  io: { x: -3440, y: -2000, w: 690, h: 2450 },
-  atx: { x: 3100, y: -1600, w: 300, h: 1100 },
-  cpw: { x: 3100, y: -2200, w: 300, h: 420 },
-  pciew: { x: 3100, y: 1000, w: 300, h: 330 },
-  m2: { x: 2420, y: -800, w: 200, h: 1300 },
-  /** Two SATA ports on the bottom edge (port 0 east, port 1 west, mouths facing down). */
-  sata: { x: -2150, y: 2290, w: 310, h: 110 },
-  hex: { x: 300, y: 2230, w: 760, h: 200 },
-  qr: { x: 1500, y: 2060, w: 240, h: 240 },
-  audio: { x: -3380, y: 640, w: 560, h: 330 },
-  bat: { x: -1500, y: 400, w: 300, h: 300 },
-} satisfies Record<string, Rect>;
 
 /** Deterministic PRNG (mulberry32). The board art is the same on every load. */
 export function rng(seed: number): () => number {
@@ -73,49 +56,71 @@ export const CHIP_H = 78;
 /** Centre of the chip slot inside a stage tile. */
 export const stageCentre = (s: number) => ({ x: STAGES[s]!.x + 100, y: STAGES[s]!.y + 105 });
 
-// ---- DIMM, PCIe ----
-/**
- * The DIMM block holds up to 8 sockets, one shared layout for every board tier: two rows of four with the memory bus running
- * between them (row 0 = dimm0..3 on top, pins down; row 1 = dimm4..7 below, pins up). A tier fills as many as it has.
- */
-export const DIMM_X = (i: number) => 1400 + (i % 4) * 220;
-export const DIMM_Y = (i: number) => (i < 4 ? -840 : 150);
-export const DIMM_W = 170, DIMM_H = 690;
-/** The gap between the two rows, where the memory bus lanes run (y from -150 to 150). */
-export const DIMM_GAP = { y0: -150, y1: 150 };
-/** Up to four PCIe slots (x16, x8, x4, x1 looks); a tier fills the first ones. */
-export const PCIE_RAILS: Rect[] = [
-  { x: -2850, y: 1030, w: 3800, h: 60 }, { x: -2850, y: 1460, w: 2600, h: 60 }, { x: -2850, y: 1810, w: 1800, h: 60 }, { x: -2850, y: 2130, w: 1000, h: 60 },
-];
+// ---- the board of the current tier (live bindings: reassigned by setLayoutTier) ----
+const EMPTY: Rect = { x: 0, y: 0, w: 0, h: 0 };
+const bound = (rs: Rect[]): Rect => {
+  if (!rs.length) return EMPTY;
+  const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y));
+  return { x: x0, y: y0, w: Math.max(...rs.map((r) => r.x + r.w)) - x0, h: Math.max(...rs.map((r) => r.y + r.h)) - y0 };
+};
 
-// ---- VRM: one block north of the CPU with up to six phases (a tier fills the first ones), a PWM controller and the heatsink pad ----
+export type RegionId = 'vrm' | 'dvrm' | 'pcie' | 'chip' | 'io' | 'atx' | 'cpw' | 'pciew' | 'm2' | 'sata' | 'hex' | 'qr' | 'audio' | 'bat';
+
+/** The tier's geometry (every rect of the board). */
+export let GEO: TierGeo = geoOf(2);
+export let BD: Rect = GEO.bd;
+/** Named board regions, for hover and for the art. A region the tier lacks is an empty rect (see `REGIONS`, which skips it). */
+export let BR: Record<RegionId, Rect> = regionsOf(GEO);
+/** The tier index the layout is set to. */
+export let LAYOUT_TIER = 2;
+
+function regionsOf(g: TierGeo): Record<RegionId, Rect> {
+  return {
+    vrm: g.vrm, dvrm: g.dvrm, pcie: bound(g.pcie), chip: g.chip, io: g.io, atx: g.atx, cpw: g.cpw, pciew: g.pciew ?? EMPTY,
+    m2: g.m2 ?? EMPTY, sata: bound(g.sata), hex: g.hex ?? EMPTY, qr: g.qr ?? EMPTY, audio: g.codec, bat: g.bat,
+  };
+}
+
+// ---- DIMM, PCIe ----
+/** One DIMM socket (up to 8: two rows of four, a tier fills as many as it has). Row 1 sticks are drawn upside down (pins up). */
+export const DIMM_X = (i: number) => GEO.dimm[i]?.rect.x ?? 0;
+export const DIMM_Y = (i: number) => GEO.dimm[i]?.rect.y ?? 0;
+export const DIMM_W = DIMM_W0, DIMM_H = DIMM_H0;
+export const dimmFlip = (i: number) => !!GEO.dimm[i]?.flip;
+/** PCIe slots (x16, x8, x4, x1 looks); a tier has the first ones. */
+export let PCIE_RAILS: Rect[] = GEO.pcie;
+
+// ---- VRM: one block north of the CPU with up to six phases, a PWM controller and the heatsink pad ----
 export const VRM_MAX = 6;
 /** One phase block (MOSFETs, choke, capacitors), left to right. */
-export const vrmPhase = (i: number): Rect => ({ x: BR.vrm.x + 300 + i * 380, y: BR.vrm.y + 40, w: 340, h: 470 });
-export const VRM_PWM: Rect = { x: BR.vrm.x + 40, y: BR.vrm.y + 150, w: 210, h: 210 };
+export const vrmPhase = (i: number): Rect => GEO.vrmPhases[i] ?? EMPTY;
+export let VRM_PWM: Rect = GEO.pwm;
 /** Where a VRM heatsink bolts on: over the MOSFET strip of all phases (slot `vrm-sink0`). */
-export const VRM_SINK: Rect = { x: BR.vrm.x + 290, y: BR.vrm.y + 18, w: 6 * 380 - 30, h: 170 };
+export let VRM_SINK: Rect = GEO.vrmSink;
 /** One phase block of the memory (DRAM) VRM, left to right (up to five; a tier fills the first ones). */
 export const DRAM_VRM_MAX = 5;
-export const dramPhase = (i: number): Rect => ({ x: BR.dvrm.x + 50 + i * 225, y: BR.dvrm.y + 50, w: 160, h: 300 });
+export const dramPhase = (i: number): Rect => GEO.dPhases[i] ?? EMPTY;
 /** Where a memory VRM heatsink bolts on: over the MOSFET row of the DRAM phases (slot `ram-sink0`). */
-export const RAM_SINK: Rect = { x: BR.dvrm.x + 30, y: BR.dvrm.y + 30, w: 1140, h: 180 };
+export let RAM_SINK: Rect = GEO.dSink;
 /** The power-good light of the VRM. */
-export const VRM_LED = { x: BR.vrm.x + 145, y: BR.vrm.y + 92 };
+export let VRM_LED = GEO.vrmLed;
+export { DRAM_BH, DRAM_BW };
 
 // ---- PSU (below the board, full width plus the cable gutter) ----
 export const GUTTER_X = 3400;
-export const PSU: Rect = { x: -3400, y: 2750, w: 7400, h: 1100 };
+/** The lower compartment (PSU, drive bay, cables) moves with the board's height: this is the shift from the ATX board's. */
+export let SHIFT_Y = 0;
+export let PSU: Rect = { x: -3400, y: 2750, w: 7400, h: 1100 };
 /** Fan grill centre and radius on the PSU face. */
-export const PSU_FAN = { x: -2450, y: 3300, r: 430 };
+export let PSU_FAN = { x: -2450, y: 3300, r: 430 };
 /** Label plate (model, capacity). */
-export const PSU_LABEL: Rect = { x: -80, y: 2900, w: 1050, h: 800 };
+export let PSU_LABEL: Rect = { x: -80, y: 2900, w: 1050, h: 800 };
 /** Live readout panel: load gauge, temperature, fan. */
-export const PSU_PANEL: Rect = { x: 1120, y: 2890, w: 2200, h: 820 };
-export const VENTS: Rect = { x: -1750, y: 2880, w: 1500, h: 840 };
+export let PSU_PANEL: Rect = { x: 1120, y: 2890, w: 2200, h: 820 };
+export let VENTS: Rect = { x: -1750, y: 2880, w: 1500, h: 840 };
 /** Output sockets along the PSU's top edge, by cable (x of the socket centre). Inner-to-outer order avoids cable crossings. */
 export const PSU_PORTS = { pcie: 3520, atx: 3680, cpu: 3830 } as const;
-export const PORT_Y = PSU.y;
+export let PORT_Y = PSU.y;
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
 export const SCREEN: Rect = { x: -7410, y: -2170, w: 3120, h: 1755 };
@@ -129,19 +134,19 @@ export const TRAY: Rect = { x: -7500, y: 330, w: 3300, h: 1620 };
 export const TRAY_COLS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
-export const CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };
+export let CASE: Rect = { x: -3800, y: -3100, w: 9060, h: 7350 };
 /** Inside of the chassis (glass area plus the PSU compartment). */
-export const CASE_IN: Rect = { x: -3640, y: -2700, w: 8740, h: 6690 };
+export let CASE_IN: Rect = { x: -3640, y: -2700, w: 8740, h: 6690 };
 /** Top panel strip: brand, vents, disk LED, status lights, power button. */
 export const CASE_PANEL: Rect = { x: -3800, y: -3100, w: 9060, h: 400 };
 /** The glass side window: motherboard area. */
-export const CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
+export let CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
 /** Power button on the top panel and the status lights beside it. */
 export const POWER_BTN = { x: 4660, y: -2900, r: 130 };
 export const CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
 /** The 2-position SATA drive bay (a cage right of the PSU). Cell 0 = slot sata0 (top), cell 1 = sata1. */
-export const BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
-export const BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
+export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
+export let BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
 /**
  * Where a drive's SATA data cable runs (`sataCablePath` in case.ts). It leaves the drive's data plug (cell y + `plug`), drops
  * through the gap between the PSU and the bay, runs UNDER the PSU (`lane`, below its bottom edge), up the west side of the PSU
@@ -149,17 +154,17 @@ export const BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 430
  * into the board port (`port`). It never crosses the PSU port row or the PSU cables. Cell 1's runs sit outside cell 0's so
  * the two never cross each other (the lower cell is the outer loop).
  */
-export const SATA_LINK = [
+export let SATA_LINK: { plug: number; col: number; lane: number; west: number; top: number; port: number }[] = [
   { plug: 400, col: 4060, lane: 3928, west: -3500, top: 2600, port: -1910 },
   { plug: 400, col: 4120, lane: 3968, west: -3580, top: 2540, port: -2080 },
-] as const;
+];
 /** Board port rect for SATA index i. */
-export const sataPort = (i: number): Rect => ({ x: BR.sata.x + (1 - i) * 170, y: BR.sata.y, w: 140, h: BR.sata.h });
+export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 
 /** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
-export const USB_PORT: Rect = { x: BR.io.x + 18, y: -54, w: 290, h: 108 };
+export const USB_PORT: Rect = { x: -3440 + 18, y: -54, w: 290, h: 108 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
-export const HDMI_PORT: Rect = { x: BR.io.x, y: VIDEO_Y - 60, w: 240, h: 120 };
+export const HDMI_PORT: Rect = { x: -3440, y: VIDEO_Y - 60, w: 240, h: 120 };
 
 // ---- network props (docs/RENDER.md "Network"): all of them sit above the monitor, inside WORLD, so the overview does not change ----
 /** The router spot: a shelf above the monitor. A router stands on it, right-aligned to `ROUTER_EAST` (its footprint depends on the tier). */
@@ -174,29 +179,56 @@ export const WALL_JACK = { x: -7170, y: SHELF_Y };
 /** Vertical run of the ethernet cable between the monitor and the case (between the video plug and the case wall; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = -3940;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
-export const ETH0_MOUTH = { x: BR.io.x + 30, y: -1560 };
-export const ETH0_RECT: Rect = { x: BR.io.x + 30, y: -1690, w: 330, h: 260 };
+export const ETH0_MOUTH = { x: -3440 + 30, y: -1560 };
+export const ETH0_RECT: Rect = { x: -3440 + 30, y: -1690, w: 330, h: 260 };
 export const PLUG_L = 200, PLUG_W = 100;
 /** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
 export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
-export const NIC_BRACKET_X = BD.x - 30;
-export const nicJack = (i: number): Rect => ({ x: BD.x - 200, y: nicY(i) - 62, w: 170, h: 124 });
+export const NIC_BRACKET_X = -3400 - 30;
+export const nicJack = (i: number): Rect => ({ x: -3400 - 200, y: nicY(i) - 62, w: 170, h: 124 });
 export const NIC_LEN: Record<string, number> = { 'nic-gbe': 1500, 'nic-10g': 1950, 'nic-40g': 2400 };
-export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: BD.x - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
+export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: -3400 - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
 
 /**
  * Everything the camera should see at once (board, PSU, monitor, cables, tray): the content box, tightly. Its
  * extent is the monitor / tray column on the west (x -7500) and the case's east wall (x 5260), and the case top (y -3100) to
  * the feet (y 4360). Nothing else in the scene reaches outside it (the device bake uses it as its frame).
  */
-export const WORLD: Rect = { x: -7540, y: -3140, w: 12840, h: 7540 };
+export let WORLD: Rect = { x: -7540, y: -3140, w: 12840, h: 7540 };
 /** Fit margin for the overview (`fit(WORLD, OVERVIEW_MARGIN)`): the content fills the free area, with a small border. */
 export const OVERVIEW_MARGIN = 0.96;
 
-// ---- hover region list (ids are the contract with the UI) ----
-export const REGIONS: { id: string; rect: Rect }[] = [
-  { id: 'vrm', rect: BR.vrm }, { id: 'vrm2', rect: BR.dvrm }, { id: 'pcie', rect: BR.pcie }, { id: 'chipset', rect: BR.chip },
-  { id: 'io', rect: BR.io }, { id: 'atx', rect: BR.atx }, { id: 'cpw', rect: BR.cpw }, { id: 'm2', rect: BR.m2 },
-  { id: 'sata', rect: BR.sata }, { id: 'bat', rect: BR.bat }, { id: 'audio', rect: BR.audio }, { id: 'hex', rect: BR.hex },
-  { id: 'qr', rect: BR.qr },
+// ---- hover region list (ids are the contract with the UI); only the regions the tier has ----
+const REGION_IDS: [string, RegionId][] = [
+  ['vrm', 'vrm'], ['vrm2', 'dvrm'], ['pcie', 'pcie'], ['chipset', 'chip'], ['io', 'io'], ['atx', 'atx'], ['cpw', 'cpw'], ['m2', 'm2'],
+  ['sata', 'sata'], ['bat', 'bat'], ['audio', 'audio'], ['hex', 'hex'], ['qr', 'qr'],
 ];
+export let REGIONS: { id: string; rect: Rect }[] = [];
+
+/** Point every tier-dependent binding at this tier's board (call before building anything). */
+export function setLayoutTier(tier: number): void {
+  const g = geoOf(tier);
+  GEO = g; LAYOUT_TIER = g.tier; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
+  VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
+  // the lower compartment follows the board's south edge
+  const dy = g.bd.y + g.bd.h - 2500;
+  SHIFT_Y = dy;
+  PSU = { x: -3400, y: 2750 + dy, w: 7400, h: 1100 };
+  PORT_Y = PSU.y;
+  PSU_FAN = { x: -2450, y: 3300 + dy, r: 430 };
+  PSU_LABEL = { x: -80, y: 2900 + dy, w: 1050, h: 800 };
+  PSU_PANEL = { x: 1120, y: 2890 + dy, w: 2200, h: 820 };
+  VENTS = { x: -1750, y: 2880 + dy, w: 1500, h: 840 };
+  BAY = { x: 4180, y: 2700 + dy, w: 880, h: 1230 };
+  BAY_CELLS = [{ x: 4300, y: 2790 + dy, w: 700, h: 500 }, { x: 4300, y: 3360 + dy, w: 700, h: 500 }];
+  SATA_LINK = [
+    { plug: 400, col: 4060, lane: 3928 + dy, west: -3500, top: 2600 + dy, port: g.sata[0] ? g.sata[0].x + 70 : -1910 },
+    { plug: 400, col: 4120, lane: 3968 + dy, west: -3580, top: 2540 + dy, port: g.sata[1] ? g.sata[1].x + 70 : -2080 },
+  ];
+  CASE = { x: -3800, y: -3100, w: 9060, h: 7350 + dy };
+  CASE_IN = { x: -3640, y: -2700, w: 8740, h: 6690 + dy };
+  CASE_GLASS = { x: -3640, y: -2700, w: 8740, h: 5250 + dy };
+  WORLD = { x: -7540, y: -3140, w: 12840, h: 7540 + dy };
+  REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
+}
+setLayoutTier(2);

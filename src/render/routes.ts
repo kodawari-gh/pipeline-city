@@ -1,5 +1,6 @@
+import { DIMM_H0 } from './boardlayout';
 import {
-  BR, DIMM_GAP, DIMM_X, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
+  BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 
 // Orderly routing. A route is a centre line made of horizontal, vertical and 45 degree segments; a bundle is that
@@ -75,7 +76,7 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'pwr12' | 'pwrcpu' | 'pwr5' | 'vcore';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
 
 export interface Bus {
   id: BusKind;
@@ -83,7 +84,7 @@ export interface Bus {
   lanes: Lane[];
   /** Lane stroke width in world units. */
   w: number;
-  /** Branches (e.g. one per DIMM) that light together with the main run when `tap(i)` is installed. */
+  /** Branches (one per DIMM) that light together with the main run when `tap(i)` is installed. */
   taps?: { key: string; lanes: Lane[] }[];
 }
 
@@ -91,51 +92,102 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
   id, w, lanes: bundle(centre, n, spacing, c).map((p, i) => mkLane(p, i * 37)),
 });
 
-/** Every board bus, routed once. Lane order inside a bundle is stable; direction runs CPU outward. */
+/** Lanes in one memory bundle (one per DIMM) and their spacing: they land on the pad row of the socket. */
+export const MEM_LANES = 6, MEM_SPACING = 18;
+
+/**
+ * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
+ * Every run ends on a footprint: the CPU socket's escape pads at one end, a pad row on the socket / connector / chip at the other.
+ * Memory is point-to-point: one bundle per DIMM, stacked in a staircase (the nearest DIMM takes the lane band closest to its
+ * pads), so no two bundles cross.
+ */
 export function buildBuses(): Bus[] {
-  const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
+  const g = GEO;
+  const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E, py = PKG.y - SOCKET_E;
   const buses: Bus[] = [];
 
-  // memory bus: CPU east edge straight between the two DIMM rows; a comb of equal-length taps per DIMM (row 0 taps go down, row 1 taps up)
-  const mem = mk('mem', [[qx, 0], [2300, 0]], 10, 22, 11, 130);
-  mem.taps = [0, 1, 2, 3, 4, 5, 6, 7].map((d) => ({
-    key: 'dimm' + d,
-    lanes: Array.from({ length: 10 }, (_, k): Lane => {
-      const x = DIMM_X(d) + 24 + k * 14, up = d >= 4;
-      return mkLane([[x, up ? DIMM_GAP.y1 : DIMM_GAP.y0], [x, up ? 122 : -122]], k * 13);
-    }),
-  }));
+  // memory: a bundle per DIMM from the CPU east edge to its pad row (row 0 pads face down, row 1 pads face up)
+  const mem: Bus = { id: 'mem', w: 9, lanes: [], taps: [] };
+  g.dimm.forEach((d, i) => {
+    const cx = d.rect.x + d.rect.w / 2, y = g.memY[i]!, pad = d.flip ? g.padY[1] : g.padY[0];
+    mem.taps!.push({ key: 'dimm' + i, lanes: bundle([[qx, y], [cx, y], [cx, pad]], MEM_LANES, MEM_SPACING, 70).map((p, k) => mkLane(p, k * 37 + i * 11)) });
+  });
   buses.push(mem);
 
-  // NVMe: CPU east edge, up and over the DIMM tops, down into the M.2 slot
-  buses.push(mk('nvme', [[qx, -640], [1200, -640], [1200, -1000], [BR.m2.x + 100, -1000], [BR.m2.x + 100, BR.m2.y]], 6, 22, 10, 110));
+  // NVMe: CPU south-east corner down and east into the M.2 connector
+  if (g.m2) {
+    const y = g.m2.y + g.m2.h / 2;
+    buses.push(mk('nvme', [[700, qy], [700, y], [g.m2.x - 10, y]], 6, 22, 10, 110));
+  }
 
-  // DMI: CPU west edge straight to the chipset
-  buses.push(mk('dmi', [[px, 0], [BR.chip.x + BR.chip.w, 0]], 8, 22, 9));
+  // DMI: CPU west edge straight to the chipset's east pads
+  buses.push(mk('dmi', [[px, 0], [g.chip.x + g.chip.w, 0]], 8, 22, 9));
 
-  // PCIe x16: CPU south edge straight down into the slot
-  buses.push(mk('pcie', [[450, qy], [450, 1030]], 12, 18, 9));
+  // PCIe x16: CPU south edge straight down onto the first slot
+  if (g.pcie[0]) buses.push(mk('pcie', [[250, qy], [250, g.pcie[0].y]], 12, 18, 9));
 
   // USB: chipset west edge to the rear I/O
-  buses.push(mk('usb', [[BR.chip.x, 0], [BR.io.x + BR.io.w, 0]], 4, 26, 9));
+  buses.push(mk('usb', [[g.chip.x, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
 
-  // SATA: chipset south edge straight down to the two ports on the bottom edge (the drive cables continue from there)
-  buses.push(mk('sata', [[BR.sata.x + BR.sata.w / 2, BR.chip.y + BR.chip.h], [BR.sata.x + BR.sata.w / 2, BR.sata.y]], 4, 24, 9));
+  // SATA: chipset south edge down to the ports on the bottom edge (the drive cables continue from there); one bundle per port
+  if (g.sata.length) {
+    const lanes: Lane[] = [];
+    g.sata.forEach((p, i) => {
+      const x = p.x + p.w / 2;
+      for (const pts of bundle([[x, g.chip.y + g.chip.h], [x, p.y]], 3, 24, 60)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
+    });
+    buses.push({ id: 'sata', w: 9, lanes });
+  }
 
-  // display: CPU west edge, jog up, to the HDMI port on the rear I/O
-  buses.push(mk('video', [[px, -640], [-1560, -640], [-1560, VIDEO_Y], [BR.io.x + BR.io.w, VIDEO_Y]], 4, 28, 11, 200));
+  // display: CPU west edge, west above the chipset, up to the HDMI row, into the port
+  buses.push(mk('video', [[px, -640], [-2300, -640], [-2300, VIDEO_Y], [g.io.x + g.io.w, VIDEO_Y]], 4, 28, 11, 200));
 
-  // power on the board
-  // 24-pin 12 V: west along the north-east to the right end of the VRM row
-  buses.push(mk('pwr12', [[BR.atx.x, -1250], [BR.vrm.x + BR.vrm.w, -1250]], 3, 56, 30));
-  // 8-pin CPU 12 V: west along the top, down into the VRM row
-  buses.push(mk('pwrcpu', [[BR.cpw.x, BR.cpw.y + BR.cpw.h / 2], [900, BR.cpw.y + BR.cpw.h / 2], [900, BR.vrm.y]], 4, 52, 28, 160));
-  // 5 V rail: down the east side to the DRAM VRM
-  buses.push(mk('pwr5', [[BR.atx.x, -620], [2950, -620], [2950, BR.dvrm.y + BR.dvrm.h / 2], [BR.dvrm.x + BR.dvrm.w, BR.dvrm.y + BR.dvrm.h / 2]], 3, 40, 22, 140));
-  // core voltage: VRM row straight down to the package
-  const vc: Lane[] = [];
-  for (let i = 0; i < 9; i++) { const x = -480 + i * 120; vc.push(mkLane([[x, BR.vrm.y + BR.vrm.h], [x, PKG.y - SOCKET_E + 10]], i * 20)); }
-  buses.push({ id: 'vcore', lanes: vc, w: 30 });
+  // ---- power ----
+  // 8-pin CPU 12 V: down from the connector, east along the input rail over every phase
+  {
+    const cx = g.cpw.x + g.cpw.w / 2, last = g.vrmPhases[g.vrmPhases.length - 1]!;
+    buses.push(mk('pwrcpu', [[cx, g.cpw.y + g.cpw.h - 30], [cx, g.vrmRailY], [last.x + last.w - 30, g.vrmRailY]], 2, 40, 30, 90));
+  }
+  // core voltage: one run per phase from its output down into the package edge
+  {
+    const lanes: Lane[] = [];
+    g.vrmPhases.forEach((r, i) => {
+      const x = r.x + 110, lx = Math.max(-820, Math.min(820, x));
+      lanes.push(mkLane(chamfer([[x, r.y + r.h - 4], [x, -1080], [lx, py + 8]], 90), i * 20));
+    });
+    buses.push({ id: 'vcore', lanes, w: 46 });
+  }
+  // 24-pin 12 V / 5 V: west from the connector to the memory regulator's input rail
+  {
+    const last = g.dPhases[g.dPhases.length - 1]!, xe = last.x + last.w + 30, yA = -1500, xm = xe + 380;
+    const xw = g.dPhases[0]!.x + 60;
+    const route: Pt[] = Math.abs(yA - g.dRailY) < 20 ? [[g.atx.x + 20, yA], [xw, yA]] : [[g.atx.x + 20, yA], [xm, yA], [xm, g.dRailY], [xw, g.dRailY]];
+    buses.push(mk('pwr12', route, 2, 40, 30, 120));
+  }
+  // memory voltage: the regulator's output rail along the pins of the sockets, a drop into every DIMM (and, on the two-row boards,
+  // round the east end to a second rail under the lower row)
+  {
+    const first = g.dPhases[0]!, y = g.vdimmY, lastRow0 = g.dimm.filter((d) => !d.flip).pop()!;
+    const xEnd = lastRow0.rect.x + lastRow0.rect.w - 20;
+    const lanes: Lane[] = [];
+    for (const pts of bundle([[first.x + 40, y], [xEnd, y]], 2, 34, 60)) lanes.push(mkLane(pts, lanes.length * 31));
+    const two = g.dimm.some((d) => d.flip);
+    if (two) {
+      const row1 = g.dimm.filter((d) => d.flip), yb = g.padY[1] + DIMM_H0 + 130, xs = xEnd + 140;
+      for (const pts of bundle([[xEnd - 10, y], [xs, y], [xs, yb], [row1[0]!.rect.x + 20, yb]], 2, 34, 120)) lanes.push(mkLane(pts, lanes.length * 31));
+    }
+    // outputs of the phases down to the rail
+    g.dPhases.forEach((r, i) => lanes.push(mkLane([[r.x + r.w / 2, r.y + r.h - 4], [r.x + r.w / 2, y - 17]], 90 + i * 20)));
+    const bus: Bus = { id: 'vdimm', w: 26, lanes, taps: [] };
+    g.dimm.forEach((d, i) => {
+      const cx = d.rect.x + 30;
+      bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane(d.flip ? [[cx, g.padY[1] + DIMM_H0 + 130], [cx, g.padY[1] + DIMM_H0 - 6]] : [[cx, y], [cx, d.rect.y + 6]], i * 13)] });
+    });
+    buses.push(bus);
+  }
+  // audio: the codec to the jacks' shield; ethernet: the PHY to the jack's shield (they never light)
+  buses.push(mk('audio', [[g.codec.x, g.codec.y + 90], [g.io.x + g.io.w, g.codec.y + 90]], 3, 24, 8));
+  if (g.phy) buses.push(mk('lan', [[g.phy.x, g.phy.y + 130], [g.io.x + g.io.w, g.phy.y + 130]], 4, 24, 8));
   return buses;
 }
 
@@ -181,29 +233,34 @@ export function roundedPath(pts: Pt[], r: number, step = 24): Pt[] {
   return dense;
 }
 
-/** The three PSU cables and the video cable. `pcie` is only drawn when a PCIe device needs it. */
+/**
+ * The three PSU cables and the video cable. `pcie` is only drawn when a PCIe device needs it (and only on boards with the connector).
+ * The 24-pin and the PCIe cable rise through the cable gutter and turn west into the east-edge connectors; the 8-pin cable keeps
+ * rising to the top of the case, runs west over the board (the way a real build routes it) and drops onto the connector at the top edge.
+ */
 export function buildCables(): Cable[] {
   const psuPlugH = 150;
   const mkc = (kind: CableKind, route: Pt[], w: number, a: Plug, b: Plug, r: number): Cable => ({ kind, path: mkLane(roundedPath(route, r)), w, a, b });
   const plugV = (x: number, y: number, w: number, pins: [number, number]): Plug => ({ x, y, dx: 0, dy: -1, w, l: psuPlugH, pins });
+  const g = GEO;
   const out: Cable[] = [];
   // ATX 24-pin: up the gutter, left into the plug that sits on the board connector
   {
-    const x = PSU_PORTS.atx, y = BR.atx.y + BR.atx.h / 2, plugX = BR.atx.x + 100;
+    const x = PSU_PORTS.atx, y = g.atx.y + g.atx.h / 2, plugX = g.atx.x + 100;
     out.push(mkc('atx', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 120, plugV(x, PORT_Y, 150, [12, 2]),
-      { x: plugX, y, dx: 1, dy: 0, w: BR.atx.h - 60, l: 270, pins: [12, 2] }, 190));
+      { x: plugX, y, dx: 1, dy: 0, w: g.atx.h - 60, l: 270, pins: [12, 2] }, 190));
   }
-  // CPU 8-pin
+  // CPU 8-pin: up the gutter, west along the top of the case, down onto the connector (the plug's cable leaves upward)
   {
-    const x = PSU_PORTS.cpu, y = BR.cpw.y + BR.cpw.h / 2, plugX = BR.cpw.x + 100;
-    out.push(mkc('cpu', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 84, plugV(x, PORT_Y, 110, [4, 2]),
-      { x: plugX, y, dx: 1, dy: 0, w: BR.cpw.h - 40, l: 270, pins: [4, 2] }, 190));
+    const x = PSU_PORTS.cpu, cx = g.cpw.x + g.cpw.w / 2, plugBottom = g.cpw.y + g.cpw.h - 30, plugL = 300, yTop = g.bd.y - 120;
+    out.push(mkc('cpu', [[x, PORT_Y - psuPlugH + 20], [x, yTop], [cx, yTop], [cx, plugBottom - plugL + 24]], 84, plugV(x, PORT_Y, 110, [4, 2]),
+      { x: cx, y: plugBottom, dx: 0, dy: -1, w: g.cpw.w - 60, l: plugL, pins: [4, 2] }, 150));
   }
   // PCIe 6-pin (only when something in a PCIe slot wants it)
-  {
-    const x = PSU_PORTS.pcie, y = BR.pciew.y + BR.pciew.h / 2, plugX = BR.pciew.x + 100;
+  if (g.pciew) {
+    const x = PSU_PORTS.pcie, y = g.pciew.y + g.pciew.h / 2, plugX = g.pciew.x + 100;
     out.push(mkc('pcie', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 84, plugV(x, PORT_Y, 110, [3, 2]),
-      { x: plugX, y, dx: 1, dy: 0, w: BR.pciew.h - 40, l: 270, pins: [3, 2] }, 190));
+      { x: plugX, y, dx: 1, dy: 0, w: g.pciew.h - 40, l: 270, pins: [3, 2] }, 190));
   }
   // video: HDMI port on the rear I/O (west edge of the board) straight to the monitor's side port
   {

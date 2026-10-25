@@ -13,11 +13,11 @@ import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { NetView, nicArt } from './net';
-import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior';
+import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, nicJack, nicRect, type Rect,
+  LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -53,11 +53,11 @@ const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'm
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
   || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id);
 
-/** The routed cables never change (geometry only); built once. */
-const ALL_CABLES = buildCables();
+/** The routed cables of the current board tier (geometry only): rebuilt with the scene. */
+let ALL_CABLES = buildCables();
 
-/** The matching board connector for each cable (drop target). */
-const CONNECTOR: Record<CableKind, Rect> = { atx: BR.atx, cpu: BR.cpw, pcie: BR.pciew, video: HDMI_PORT };
+/** The matching board connector for each cable (drop target); follows the tier. */
+const connectorOf = (k: CableKind): Rect => (k === 'atx' ? BR.atx : k === 'cpu' ? BR.cpw : k === 'pcie' ? BR.pciew : HDMI_PORT);
 
 /** View used by the camera keys and exported helpers. */
 let cameraRef: Camera | null = null;
@@ -180,6 +180,9 @@ export async function mountBoard(host: HTMLElement) {
   let caseVec: Container | null = null;
   let caseBake: Sprite | null = null;
   let builtOnce = false;
+  /** True once the first scene exists (the camera is framed then). */
+  let sceneReady = false;
+  let atOverviewNow = () => false;
   const driveSlotsSeen = new Set<string>();
   const slotKind = new Map<string, DriveKind>();
   /** The OS badge on the host drive (id 'os'); its rect follows the snapshot, so the hit entry reads it live. */
@@ -299,6 +302,10 @@ export async function mountBoard(host: HTMLElement) {
     exteriorSprite?.texture.destroy(true); exteriorSprite?.destroy(); exteriorSprite = null;
     parts.length = 0;
     const tier = s?.boardTier ?? 0;
+    // a new board tier is a new case, a new world: remember whether the player was looking at the whole scene, to follow it
+    const tierChanged = sceneReady && tier !== LAYOUT_TIER, wasOverview = tierChanged && atOverviewNow();
+    setLayoutTier(tier);
+    ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
     boardArt.labels.visible = false;
@@ -345,7 +352,7 @@ export async function mountBoard(host: HTMLElement) {
         scene.rects.set(d.id, PKG);
       } else if (spec.kind === 'ram') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
-        const p = ramArt(T, spec as RamSpec, idx >= 4);
+        const p = ramArt(T, spec as RamSpec, dimmFlip(idx));
         p.root.position.set(DIMM_X(idx), DIMM_Y(idx));
         deviceLayer.addChild(p.root); parts.push(p);
         const r = { x: DIMM_X(idx), y: DIMM_Y(idx), w: DIMM_W, h: DIMM_H };
@@ -528,10 +535,11 @@ export async function mountBoard(host: HTMLElement) {
         features: bt?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
         nics: (s?.devices ?? []).filter((d) => d.kind === 'nic').map((d) => Number(/\d+$/.exec(d.slot)?.[0] ?? 0)),
       });
-      const tx = app.renderer.generateTexture({ target: ext, frame: new Rectangle(EXTERIOR_FRAME.x, EXTERIOR_FRAME.y, EXTERIOR_FRAME.w, EXTERIOR_FRAME.h), resolution: 0.35, antialias: true });
+      const EF = exteriorFrame();
+      const tx = app.renderer.generateTexture({ target: ext, frame: new Rectangle(EF.x, EF.y, EF.w, EF.h), resolution: 0.35, antialias: true });
       ext.destroy({ children: true });
       exteriorSprite = new Sprite(tx);
-      exteriorSprite.position.set(EXTERIOR_FRAME.x, EXTERIOR_FRAME.y);
+      exteriorSprite.position.set(EF.x, EF.y);
       exteriorLayer.addChildAt(exteriorSprite, 0);
       extDrives = storageDevs.filter((d) => slotKind.get(d.slot) !== 'ssd-nvme').map((d) => ({ slot: d.slot }));
     }
@@ -548,6 +556,11 @@ export async function mountBoard(host: HTMLElement) {
     applyBadge(s);
     onZoom();
     sceneDirty = true;
+    if (tierChanged) {
+      fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
+      if (wasOverview) camera.flyTo(fits, 900); else camera.apply();
+    }
+    sceneReady = true;
   }
 
   // ---- cables: connected (routed), loose (plug resting by the PSU / monitor), held (in the player's hand) ----
@@ -573,7 +586,7 @@ export async function mountBoard(host: HTMLElement) {
     for (const { c, state } of states) {
       const lo = looseCable(c);
       const seated = plugRect(movablePlug(c)), rest = plugRect(lo.plug);
-      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: CONNECTOR[c.kind], state };
+      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: connectorOf(c.kind), state };
       scene.cables.set(c.kind, info);
       scene.interactive.add('cable.' + c.kind);
       scene.rects.set('cable.' + c.kind, info.plug);
@@ -690,6 +703,7 @@ export async function mountBoard(host: HTMLElement) {
     const f = overviewFit(camera);
     return Math.abs(camera.z / f.z - 1) < 0.02 && Math.abs(camera.x - f.x) < 20 && Math.abs(camera.y - f.y) < 20;
   };
+  atOverviewNow = atOverview;
   const reframe = (change: () => void) => {
     const was = atOverview();
     change();

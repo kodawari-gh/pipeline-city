@@ -14,7 +14,7 @@ import type { Theme } from './theme';
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }
 
 interface Glow { t: GlowTarget; g: Graphics; dim: Graphics; base: number; level: number }
-interface Lit { bus: Bus; g: Graphics; level: number; hold: number; dir: number; color: string; alwaysOn: boolean; pulses: number }
+interface Lit { bus: Bus; /** The lanes that light (the main run plus the branches of the installed DIMMs). */ lanes: Lane[]; g: Graphics; level: number; hold: number; dir: number; color: string; alwaysOn: boolean; pulses: number }
 /** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
 export interface DriveHook { slot: string; kind: DriveKind; g: Graphics; lane: Lane | null }
 interface DriveLive extends DriveHook {
@@ -145,17 +145,22 @@ export class Live {
       t.anchor.set(right ? 1 : 0, 0.5);
       return t;
     };
-    const p = PSU_PANEL;
     this.psuTexts = { load: mkText(250, true), of: mkText(80), pct: mkText(80, true, true), temp: mkText(170, true), state: mkText(64, true), rpm: mkText(76, true) };
+    const pf = new Graphics();
+    blades(pf, 5, 22, 120, '#ffffff', '#ffffff', 4);
+    this.panelFan.addChild(pf);
+    this.placePsuTexts();
+  }
+
+  /** Put the PSU readout texts on the panel of the current tier (the panel moves with the board's height). */
+  private placePsuTexts() {
+    const p = PSU_PANEL;
     this.psuTexts.load.position.set(p.x + 50, p.y + 290);
     this.psuTexts.of.position.set(p.x + 50, p.y + 475);
     this.psuTexts.pct.position.set(p.x + 1100, p.y + 475);
     this.psuTexts.temp.position.set(p.x + 1190, p.y + 290);
     this.psuTexts.state.position.set(p.x + 1190, p.y + 475);
     this.psuTexts.rpm.position.set(p.x + 1660, p.y + 475);
-    const pf = new Graphics();
-    blades(pf, 5, 22, 120, '#ffffff', '#ffffff', 4);
-    this.panelFan.addChild(pf);
     this.panelFan.position.set(p.x + 1890, p.y + 285);
   }
 
@@ -165,6 +170,7 @@ export class Live {
     flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
   ) {
     this.T = T;
+    this.placePsuTexts();
     const keep = new Set<unknown>([this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
@@ -194,7 +200,8 @@ export class Live {
     let nDots = 0;
     for (const bus of buses) {
       if ((bus.id === 'video') && !flags.display) continue;
-      const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'pwr5' || bus.id === 'vcore';
+      if (bus.id === 'audio' || bus.id === 'lan') continue; // decoration: never lit
+      const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
       const g = new Graphics();
       if (this.additive) g.blendMode = 'add';
       const lanes = bus.lanes.concat(bus.taps ? bus.taps.filter((t) => dimms.includes(Number(t.key.slice(4)))).flatMap((t) => t.lanes) : []);
@@ -202,9 +209,9 @@ export class Live {
       g.stroke({ width: bus.w * (power ? 0.7 : 1.15), color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
       g.alpha = 0;
       this.root.addChild(g);
-      const pulses = power ? 0 : bus.lanes.reduce((a, l) => a + Math.max(1, Math.min(4, Math.round(l.len / 700))), 0);
+      const pulses = power ? 0 : lanes.reduce((a, l) => a + Math.max(1, Math.min(3, Math.round(l.len / 900))), 0);
       nDots += pulses;
-      this.lit.set(bus.id, { bus, g, level: 0, hold: 0, dir: 1, color: colorOf(bus.id), alwaysOn: false, pulses });
+      this.lit.set(bus.id, { bus, lanes, g, level: 0, hold: 0, dir: 1, color: colorOf(bus.id), alwaysOn: false, pulses });
     }
     for (const cable of cables) {
       const g = new Graphics();
@@ -410,7 +417,7 @@ export class Live {
     const cpuW = cpu?.powerW ?? 0;
     const ramW = s.devices.filter((d) => d.kind === 'ram').reduce((a, d) => a + d.powerW, 0);
     const lv: Partial<Record<BusKind, number>> = {
-      pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), pwr5: level(ramW + 0.5),
+      pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), vdimm: level(ramW + 0.5),
     };
     for (const [id, v] of Object.entries(lv) as [BusKind, number][]) { const l = this.lit.get(id); if (l) l.hold = v; }
     for (const lc of this.cables) {
@@ -805,8 +812,8 @@ export class Live {
       l.g.alpha = l.level * 0.5;
       if (l.level < 0.03) continue;
       const speed = (l.bus.id === 'mem' ? 2.4 : 1.4) * l.dir;
-      for (const lane of l.bus.lanes) {
-        const n = Math.max(1, Math.min(4, Math.round(lane.len / 700)));
+      for (const lane of l.lanes) {
+        const n = Math.max(1, Math.min(3, Math.round(lane.len / 900)));
         for (let j = 0; j < n; j++) put(pointAt(lane, this.phase * speed + lane.ph + (j * lane.len) / n), l.color, 0.95 * l.level);
       }
     }

@@ -13,7 +13,7 @@ import type { Theme } from './theme';
 // Static art is built once per (theme, tier, drives) and baked to one texture by board.ts; the accent strip is the only live part.
 
 /** The thin accent light strip on the front rim of the case (a vertical bar east of the glass). */
-export const STRIP = { x: 5178, y0: -2560, y1: 2440, w: 20 };
+export const stripRect = () => ({ x: 5178, y0: -2560, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
 
 export interface ExteriorOpts {
   /** SATA cells this tier has (1 or 2). */
@@ -110,7 +110,8 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   bayFront(g, root, T, o);
 
   // front rim: a slim vertical vent column east of the glass
-  for (let k = 0; k < 22; k++) box(g, STRIP.x + 62, -2300 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
+  const STRIP = stripRect();
+  for (let k = 0; k < Math.floor((STRIP.y1 + 2300) / 215) + 1; k++) box(g, STRIP.x + 62, -2300 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
   box(g, STRIP.x - 6, STRIP.y0 - 6, STRIP.w + 12, STRIP.y1 - STRIP.y0 + 12, 12, { fill: c.cut, stroke: c.edge, lw: 3, sa: 0.5 });
   return root;
 }
@@ -195,7 +196,7 @@ export function stripModeOf(s: Snapshot | null): StripMode {
  */
 export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, disk: number, drives: { slot: string }[], wall = t) {
   g.clear();
-  const { x, y0, y1, w } = STRIP, len = y1 - y0, c = tones(T);
+  const { x, y0, y1, w } = stripRect(), len = y1 - y0, c = tones(T);
   const col = mode === 'error' || mode === 'dead' ? T.bad : mode === 'halt' ? T.ld : T.alu;
   if (mode === 'off') {
     box(g, x, y0, w, len, 10, { fill: mix(c.shade, T.bg, 0.3), fa: 0.9 });
@@ -220,4 +221,4 @@ export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, dis
 }
 
 /** Rect the exterior covers (for the bake frame), a little beyond `CASE` for the feet and the shadow. */
-export const EXTERIOR_FRAME: Rect = { x: CASE.x - 60, y: CASE.y - 40, w: CASE.w + 140, h: CASE.h + 240 };
+export const exteriorFrame = (): Rect => ({ x: CASE.x - 60, y: CASE.y - 40, w: CASE.w + 140, h: CASE.h + 240 });

@@ -104,7 +104,7 @@ export function emptyCellHint(T: Theme, cell: Rect): Container {
  * it crosses the PSU port row or the PSU cables (see `SATA_LINK`).
  */
 export function sataCablePath(i: 0 | 1): Lane {
-  const c = BAY_CELLS[i]!, L = SATA_LINK[i];
+  const c = BAY_CELLS[i]!, L = SATA_LINK[i]!;
   const y0 = c.y + L.plug, yPort = BR.sata.y + BR.sata.h + 58;
   const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, L.lane], [L.west, L.lane], [L.west, L.top], [L.port, L.top], [L.port, yPort]];
   return mkLane(roundedPath(route, 70, 30));
@@ -122,7 +122,7 @@ export function sataLinkArt(T: Theme, i: 0 | 1, withPower: boolean): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W, L = SATA_LINK[i];
+  const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W, L = SATA_LINK[i]!;
   const sleeve = T.dark ? '#171d29' : '#2a313d';
   const line = (list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
   line(pts.map(([x, y]) => [x + 7, y + 10] as Pt)); g.stroke({ width: w + 6, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });

@@ -12,7 +12,7 @@ export const driveKindOf = (visual: string): DriveKind => (visual === 'ssd-nvme'
 
 /** Body rect of a drive of this kind sitting in a bay cell (SATA) or on the M.2 slot. */
 export function driveBody(kind: DriveKind, slot: string): Rect {
-  if (kind === 'ssd-nvme') { const m = BR.m2; return { x: m.x + 25, y: m.y + 30, w: m.w - 50, h: m.h - 190 }; }
+  if (kind === 'ssd-nvme') { const m = BR.m2; return { x: m.x + 112, y: m.y + 52, w: m.w - 112 - 96, h: m.h - 104 }; }
   const c = BAY_CELLS[slot === 'sata1' ? 1 : 0]!;
   return kind === 'hdd' ? { x: c.x + 46, y: c.y + 28, w: 640, h: 444 } : { x: c.x + 46, y: c.y + 78, w: 520, h: 344 };
 }
@@ -20,7 +20,7 @@ export function driveBody(kind: DriveKind, slot: string): Rect {
 /** The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`). */
 export function osBadgeRect(kind: DriveKind, slot: string): Rect {
   const b = driveBody(kind, slot);
-  return kind === 'ssd-nvme' ? { x: b.x + 10, y: b.y + 250, w: b.w - 20, h: 62 } : { x: b.x + 14, y: b.y + 12, w: 140, h: 62 };
+  return kind === 'ssd-nvme' ? { x: b.x + b.w / 2 - 70, y: b.y - 74, w: 140, h: 62 } : { x: b.x + 14, y: b.y + 12, w: 140, h: 62 };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
@@ -38,21 +38,20 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, name: string, 
   const cell = slotRect(slot);
   const ink = T.dark ? '#e2eaff' : '#18203a';
   if (kind === 'ssd-nvme') {
-    // M.2 stick: green-black PCB with gold fingers at the bottom, controller, NAND, a heat spreader over the upper part
-    box(g, b.x + 4, b.y + 8, b.w, b.h, 10, { fill: '#000000', fa: 0.25 });
-    box(g, b.x, b.y, b.w, b.h, 10, { fill: T.dark ? '#142330' : '#2f4a55', stroke: T.mul, lw: 5, sa: 0.8 });
-    const fy = b.y + b.h - 150;
-    for (let i = 0; i < 12; i++) g.rect(b.x + 12 + i * ((b.w - 24) / 12), fy + 40, (b.w - 24) / 12 - 4, 100);
+    // M.2 2280 stick lying along the slot: gold fingers inside the connector (west), controller and NAND on the board, a slim finned
+    // heat spreader over the NAND, a notch at the east end where the standoff screw holds it down
+    box(g, b.x + 8, b.y + 12, b.w, b.h, 12, { fill: '#000000', fa: 0.28 });
+    g.roundRect(b.x, b.y, b.w, b.h, 12).fill({ color: T.dark ? '#142330' : '#2f4a55' }).stroke({ width: 5, color: T.mul, alpha: 0.8 });
+    g.circle(b.x + b.w, b.y + b.h / 2, 40).fill({ color: T.dark ? '#05070c' : '#c9d2df' }); // the notch (the screw sits in it)
+    for (let i = 0; i < 12; i++) g.rect(b.x - 46, b.y + 22 + i * ((b.h - 44) / 12), 62, (b.h - 44) / 12 - 6);
     g.fill({ color: T.pin, alpha: 0.9 });
-    box(g, b.x + 20, b.y + 260, b.w - 40, 190, 8, { fill: '#10151e', stroke: T.line, lw: 3 }); // NAND (shown through the gap)
-    box(g, b.x + 20, b.y + 500, b.w - 40, 170, 8, { fill: '#10151e', stroke: T.line, lw: 3 });
-    // heat spreader: slim plate with fins covering the controller end
-    const sp = { x: b.x - 6, y: b.y + 20, w: b.w + 12, h: 220 };
+    box(g, b.x + 80, b.y + 50, 170, b.h - 100, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
+    box(g, b.x + 290, b.y + 48, 330, b.h - 96, 8, { fill: '#10151e', stroke: T.line, lw: 3 }); // NAND
+    box(g, b.x + 650, b.y + 48, 330, b.h - 96, 8, { fill: '#10151e', stroke: T.line, lw: 3 });
+    const sp = { x: b.x + 270, y: b.y + 20, w: 740, h: b.h - 40 };
     box(g, sp.x, sp.y, sp.w, sp.h, 10, { fill: metalHi(T), stroke: T.alu, lw: 4, sa: 0.6 });
-    for (let k = 0; k < 4; k++) g.moveTo(sp.x + 14, sp.y + 36 + k * 44).lineTo(sp.x + sp.w - 14, sp.y + 36 + k * 44);
+    for (let k = 0; k < 14; k++) g.moveTo(sp.x + 40 + k * 50, sp.y + 14).lineTo(sp.x + 40 + k * 50, sp.y + sp.h - 14);
     g.stroke({ width: 6, color: T.alu, alpha: 0.35 });
-    box(g, b.x + 20, b.y + 700, b.w - 40, 260, 8, { fill: mix('#10151e', T.alu, 0.12), stroke: T.alu, lw: 3, sa: 0.5 }); // controller
-    disc(g, b.x + b.w / 2, b.y + b.h - 8, 20, { fill: metal(T), stroke: T.line, lw: 4 });
     return root;
   }
   // SATA data and power connectors on the west edge of the casing
@@ -132,7 +131,7 @@ export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: stri
   } else if (kind === 'ssd-sata') {
     led(g, T, b.x + b.w - 44, b.y + b.h - 44, st);
   } else {
-    led(g, T, b.x + b.w / 2, b.y + b.h - 70, st);
+    led(g, T, b.x + b.w - 130, b.y + b.h / 2, st);
   }
   if (st.burnt) {
     box(g, b.x, b.y, b.w, b.h, 18, { fill: T.bg, fa: 0.6 });
