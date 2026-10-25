@@ -22,7 +22,7 @@ mkdirSync(SHOTS, { recursive: true });
 
 const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
   'fit', 'reachLevel3', 'buyDrive', 'drive', 'buyRam', 'fitRam', 'buyOs', 'os', 'bootOs', 'osIngest', 'osPaid',
-  'reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'buyBoard', 'fitBoard', 'plugLan', 'linkUp', 'firstNetJob', 'done'];
+  'reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'buyCase', 'fitCase', 'buyBoard', 'fitBoard', 'plugLan', 'linkUp', 'firstNetJob', 'done'];
 // A player may already be past these when they come up (the level is reached while the OS lesson runs).
 const OPTIONAL = ['reachLevel4'];
 
@@ -262,6 +262,8 @@ for (let i = 0; i < 1500; i++) {
       break; }
     case 'bootOs': case 'linkUp': if (!s.powered) await clickAnchor('power'); else await p.waitForTimeout(800); break;
     case 'placeRouter': { const it = inv('router'); if (it) await dragPart(it.id, it.freeSlots[0] ?? 'router'); break; }
+    case 'buyCase': if (s.powered) { await clickAnchor('power'); await p.waitForTimeout(1500); } else await buyInShop(); break; // a case, like a board, can only be bought with the machine off
+    case 'fitCase': { const it = inv('case'); if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800); break; }
     case 'buyBoard': if (s.powered) { await clickAnchor('power'); await p.waitForTimeout(1500); } else await buyInShop(); break; // a board can only be bought with the machine off
     case 'fitBoard': { const it = inv('board'); if (it && it.freeSlots.length + it.swapSlots.length > 0) await dragPart(it.id, it.freeSlots[0] ?? it.swapSlots[0]); else await p.waitForTimeout(800); break; }
     case 'plugLan': await dragCable('lan'); break;

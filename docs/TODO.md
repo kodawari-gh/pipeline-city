@@ -70,7 +70,17 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T95 [human] Look at the light theme and the new RAM VRM art (rsink fins/fan on the DRAM block, glow, dead-board soot) in a real browser; fine-tune colours.
 - [ ] T96 [auto] Portrait phone: the scene is small because the world is wide (monitor bay plus case). Frame the case first and let the player pan to the monitor, or stack the monitor above the case on portrait. Files: `src/render/camera.ts`, `layout.ts`. Done when: a framing test covers a 9:19 viewport.
 - [x] T97 [auto] Reran `npm run e2e:tutorial` after the 2026-10-25 changes: PASS, 35 steps in order, no page errors. Its holds now use `pauseForTutorialPopup`, so screenshots show no "Paused" pill. Looking at the 37 screenshots found three look issues for the UI review (T98): the dashed tutorial connector can cross the whole scene (money step: top-left HUD to the card, over the key tray); the inventory shelf stays open with leftover spares (a CPU, a RAM stick) and covers the bottom of the board in later chapters; the camera zoom on the bay and power-button steps is very tight.
-- [ ] T98 [owner] UI review of the whole game, dark theme first (owner plans it after the docs cleanup). Output: a list of tasks here.
+- [~] T98 [owner] UI review of the whole game, dark theme first (owner plans it after the docs cleanup). Output: a list of tasks here. Started as the graphics upgrade below (T101 to T110).
+- [x] T101 [auto] Four boards, four form factors (mini-ITX, micro-ATX, ATX, E-ATX) with their own geometry (`boardlayout.ts`), only the sockets a tier has, tests pinning it to the sim's slot counts. `docs/RENDER.md` "Board tiers, cases and the VRM".
+- [x] T102 [auto] Traces that end on footprints: a memory bundle per DIMM in a staircase, the 8-pin over the top into a VRM input rail, VRM phases into a copper pour, the memory regulator's rail along the sockets, SATA to the east edge, pads at every lane end.
+- [x] T103 [auto] Cases are a thing the player buys: `CASE_TIERS`, `Board.caseTier`, `case1..3` offers, a board needs a case that holds it (`ECONOMY.caseGating`), save carries it, tutorial steps `buyCase` / `fitCase`, the case in the shop, picker and inventory, drop target on the case. Docs: BOARD.md "Cases".
+- [x] T104 [auto] World scale: the monitor (1.6x), router and wall plate (1.45x) next to a case that fits its board; motherboard tray, edge-on front fans, a case look per tier.
+- [x] T105 [auto] Shop, inventory and picker show the real art (`thumbs.ts`), not drawn icons.
+- [ ] T106 [human] Look at the four boards, the cases and the tiles in a real browser (dark and light) and say what feels off.
+- [ ] T107 [auto] More board detail without stealing the show: headers, BIOS chip, decoupling arrays, silkscreen outlines, tier extras (RGB strip, debug LED on the Enthusiast board), the audio and PHY chips wired to their jacks.
+- [ ] T108 [auto] The PSU shroud is still a long bar with the readout on it. Make it a real PSU unit under a shroud (the readout on the shroud), the bay beside it, per case tier.
+- [ ] T109 [auto] Run `npm run e2e:tutorial` for the new case steps (the script knows them; not run yet, the owner asked to pause e2e) and look at the screenshots.
+- [ ] T110 [auto] Camera: the guided "medium" window and the tutorial rings were tuned for one big world; recheck them in the small cases (Mini tower) and with the bigger monitor.
 - [ ] T99 [owner] Tutorial lessons still missing: workloads (scan and db arrive at level 5), memory overclocking. Cancel for a queued part swap.
 - [ ] T100 [owner] Balance pass (see T56): last, after the UI review.
 

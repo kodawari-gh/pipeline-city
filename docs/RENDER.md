@@ -9,8 +9,11 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `board.ts` | scene graph, scene rebuild, LOD by zoom, hit-testing, snapshot effect, frame loop |
 | `camera.ts` | pan / zoom / pinch (pointer events), tweened flights with `onDone`, the eased UI inset, `F` and `B` keys, the `onGrab` hook that lets a drag take over from panning, the pure `screenRect` transform (`camera.test.ts`) |
 | `theme.ts` | theme tokens (below) |
-| `layout.ts` | world coordinates (board, DIMMs, PSU, monitor, die floorplan), seeded PRNG, hover regions |
-| `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees), every board bus, power conductors, the PSU and video cables with their plugs |
+| `layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
+| `boardlayout.ts` | the geometry of each board tier (pure data): a form factor each (mini-ITX, micro-ATX, ATX, E-ATX), only the sockets the tier has |
+| `boardParts.ts` | drawers for the board's components (VRM phases, DIMM socket, PCIe slot, connectors, chips, capacitors, chokes) |
+| `thumbs.ts` | pictures of parts for the shop, inventory and picker: the real art rendered to cached data URLs |
+| `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees), every board bus of the current tier (one memory bundle per DIMM in a staircase, the VRM rails, the 8-pin feed), the PSU and video cables with their plugs |
 | `boardArt.ts` | static motherboard (plate, dim bus traces, VRMs, connectors, rear I/O, sockets, a little quiet decoration) |
 | `devices.ts` | static art of installed devices: CPU package + die floorplan, DIMM, cooler, PSU shroud, monitor, sleeved cables and plugs |
 | `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text and NO SIGNAL, heat glow, fans, DRAM flashes, boot visuals (PCH glow, USB LED, boot bar), the VRM glow, power-good light, crash flash and the dead-board look. Two roots: `root` (interior) and `ext` (monitor screen, USB / monitor LEDs, video cable glow) |
@@ -32,12 +35,12 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
                               [ PSU shroud, full width, readout panel, output sockets ]
 ```
 
-The CPU socket is the origin. West of the board: the **key tray** (under the monitor stand, 2 columns of wide keys) and the **power plate** (between the tray and the board's rear I/O). There is no crate in the world: the inventory is an HTML menu (`src/ui`) that starts part drags with `beginPartDrag`. Board `x -3400..3400, y -2500..2500`; PSU below it (`y 2750..3850`, wider than the board by the cable gutter); monitor to the west (`x -7500..-4200`, screen 3120x1755 world units, readable at overview zoom). `WORLD` in `layout.ts` is the content box the overview fits: tight, from the monitor and tray column on the west to the case's east wall, from the case top to the feet. The overview uses `OVERVIEW_MARGIN` (0.96); the device bake uses `WORLD` as its frame. On the board: rear I/O on the west edge (HDMI at the height of the video cable), chipset between I/O and CPU, VRM row north of the CPU, DIMMs and M.2 east, PCIe slots south, power connectors on the east edge.
+The CPU socket is the origin. West of the board: the **monitor** (scaled 1.6x, right edge at x -4200, so it stands next to the case at a believable size), under it the **key tray**, above it the router shelf and the wall plate (scaled 1.45x). There is no crate in the world: the inventory is an HTML menu (`src/ui`) that starts part drags with `beginPartDrag`. The board's size and everything under and around it depends on the tier (see "Board tiers, cases and the VRM"): the board's west edge is always x -3400 and its top is tier-dependent; the PSU shroud sits `250` below its south edge, the drive bay east of the shroud. `WORLD` in `layout.ts` is the content box the overview fits: tight, from the wall plate on the west to the case's east wall, from the case top to the feet; it changes with the case, and the camera glides to the new overview when the case (or board tier) changes. The overview uses `OVERVIEW_MARGIN` (0.96); the device bake uses `WORLD` as its frame. On a board: rear I/O on the west edge (HDMI at the height of the video cable), chipset between I/O and CPU, the VRM row north of the CPU, the DIMMs east, the memory VRM above them, PCIe slots south, M.2 south-east, the 24-pin and SATA ports on the east edge, the 8-pin on the top edge.
 
 ## The case, the bay and the OS screen (storage and OS phase)
 
 - **Case** (`CASE`, `case.ts`): a thin, low-contrast chassis around the motherboard and the PSU. West wall by the rear I/O (keys and the HDMI cable pass through), top panel with brand, vents, status lights, **the power button** (`power`) and a **disk activity LED** (lit only while a drive is busy), a quiet glass side over the board, a PSU compartment and feet. The monitor, the key tray sits outside it. The chassis is static (a vector layer close up, one baked texture below zoom 0.14). The camera fit (`WORLD`) covers the case, the monitor and the tray.
-- **Drive bay** (`BAY`, `BAY_CELLS`): a 2-cell cage east of the PSU. Cell 0 is slot `sata0`, cell 1 is `sata1`. An installed drive slides in (650 ms) and its **SATA data cable** (`sataCablePath`) runs to the board's SATA port (two ports on the bottom edge, `sataPort(i)`), plus a power lead from the PSU's east face. The data cable leaves the drive's plug low in its cell, drops through the gap, runs **under the PSU**, up the PSU's west side and along the top of the PSU to the port (`SATA_LINK` in `layout.ts`, `sataCablePath`), so it never crosses the PSU port row or the PSU cables. The power lead sits above the data plug, so it is not crossed either (one drive). On a two-SATA board with both bays populated the lower drive's power lead does cross the upper drive's data run in the gap (see Known gaps). Slots come from `snapshot.slots` / `BOARD_TIERS` (only existing slots are drawn live; absent ones are faint).
+- **Drive bay** (`BAY`, `BAY_CELLS`): a 2-cell cage east of the PSU. Cell 0 is slot `sata0`, cell 1 is `sata1`. An installed drive slides in (650 ms) and its **SATA data cable** (`sataCablePath`) runs to the board's SATA port (two ports on the east edge, mouth east, `sataPort(i)`), plus a power lead from the PSU's east face. The cable leaves the drive's plug, runs west to its lane between the PSU and the bay (`SATA_LINK`), up the lane and west along the port's row, under the three PSU cables in the gutter, into the port. The two data cables never cross each other; they cross the short power leads in the lane. Slots come from `snapshot.slots` / `BOARD_TIERS` (only existing slots are drawn live; absent ones are faint).
 - **Drives**: `hdd` (3.5in, label, platter and head arm), `ssd-sata` (slim 2.5in with a window onto controller and NAND), `ssd-nvme` (M.2 stick on the board's M.2 slot with a heat spreader). They animate only while `storage[].busy` (platter spin, head swing, LED blink); a bus (SATA or NVMe trace plus the cable) lights only then or in an OS flow.
 - **Drop targets**: `sata0`, `sata1`, `m20` are drop targets when empty (storage) and when occupied (an OS item is dropped on an installed drive; `inventory[].freeSlots` decides). A refused OS drop on a bare socket explains it.
 - **Bus flows (OS)**: `booting-os` lights the boot drive's bus and cable, DMI and memory (drive to RAM/CPU); `ingesting` runs key to drive (USB, DMI, drive bus); `flashing` runs drive to key. Idle stays dark.
@@ -88,24 +91,25 @@ Working parts (CPU, DIMMs, cooler, PSU, monitor, the cables) use the full theme 
 
 ## Routing
 
-`routes.ts`: a route is a centre line of horizontal, vertical and 45 degree segments; `bundle(centre, n, spacing)` copies it n times at a fixed spacing (miter offset, 90 degree corners chamfered to 45). Nothing is random, nothing is routed through a component, and no two buses cross (the DIMM taps are a comb of equal-length stubs ending above the bus):
+`routes.ts`: a route is a centre line of horizontal, vertical and 45 degree segments; `bundle(centre, n, spacing)` copies it n times at a fixed spacing (miter offset, 90 degree corners chamfered to 45). Nothing is random, nothing is routed through a component, and no two buses cross (a bus may pass under a slot body, as traces do on a real board). `buildBuses()` builds the buses of the current tier from `GEO`:
 
 | Bus | From to | Lit by |
 |---|---|---|
-| `mem` (10 lanes + a comb per installed DIMM) | CPU east edge, down the channel west of the DIMMs, under the DIMM bank | RAM traffic |
-| `nvme` | CPU east edge, over the DIMM tops, into the M.2 slot | program load |
-| `dmi` | CPU west edge straight to the chipset | request start/finish, display writes |
-| `usb`, `sata` | chipset to the rear I/O / SATA port 1 | never (no such devices yet) |
-| `pcie` | CPU south edge straight into the x16 slot | never (GPU is decor) |
-| `video` | CPU west edge, jog up, to the HDMI port | display text changing |
-| `pwr12` | ATX 24-pin to the VRM row | current (see below) |
-| `pwrcpu` | CPU 8-pin along the top into the VRM row | CPU current |
-| `pwr5` | ATX 24-pin down the east side to the DRAM VRM | RAM current |
-| `vcore` | VRM row straight down to the package | CPU current |
+| `mem` (a 6-lane bundle per DIMM, staircase) | CPU east edge to the pad row of each socket | RAM traffic (installed DIMMs only) |
+| `nvme` | CPU south-east to the M.2 connector | program load |
+| `dmi` | CPU west edge to the chipset | request start/finish, display writes |
+| `usb`, `sata` | chipset to the rear I/O shield / to the SATA ports on the east edge | drive traffic (`sata`), never (`usb`) |
+| `pcie` | CPU south edge into the x16 slot | never (GPU is decor) |
+| `video` | CPU west edge, over the chipset, up to the HDMI port | display text changing |
+| `pwrcpu` | the 8-pin down and along the VRM input rail | CPU current |
+| `vcore` | each VRM phase down into the package edge | CPU current |
+| `pwr12` | the 24-pin to the memory regulator's input rail | 55% of the total draw |
+| `vdimm` | the memory regulator along the DIMM sockets (a drop into each) | RAM current |
+| `audio`, `lan` | codec and PHY to the I/O shield | never (decoration) |
 
 Cables have three states (`syncCables` in `board.ts`, a layer of its own so plugging never rebuilds the baked scene): **connected** (routed, as below), **loose** (`looseCable` in `routes.ts`: a short stub from the PSU socket / monitor port ending in a plug that lies at rest, the PSU plugs in the gutter east of the board, the HDMI plug just outside the rear I/O; no routed cable, no glow) and **held** (in the player's hand: `interact.ts` draws a rubber-band cable from the fixed end to the pointer). The source part must be installed for the cable to exist at all.
 
-PSU cables (`buildCables`): sleeved, braided look, rounded corners, plug at both ends. They leave the PSU's top-edge sockets, rise through the cable gutter east of the board and turn west into plugs that sit on the board connectors. The cable that turns lowest is innermost, so no cable crosses another. ATX 24-pin and CPU 8-pin exist whenever a PSU is installed; the PCIe 6-pin only when a device occupies a `pcie*` slot (none exists today). The HDMI cable (straight, thick, plugs on both ends) goes from the rear I/O HDMI port to the monitor's side port and exists only with a display installed.
+PSU cables (`buildCables`): sleeved, braided look, rounded corners, plug at both ends. They leave the PSU's top-edge sockets and rise through the cable gutter east of the case's board area. The 24-pin and the PCIe cable turn west into plugs on the east-edge connectors; the 8-pin keeps rising to the top of the case, runs west over the board and drops onto the connector on the top edge (its plug points up, the cable leaves upward). ATX 24-pin and CPU 8-pin exist whenever a PSU is installed; the PCIe 6-pin only when a device occupies a `pcie*` slot (none exists today). The HDMI cable (straight, thick, plugs on both ends) goes from the rear I/O HDMI port to the monitor's side port and exists only with a display installed.
 
 ## Activity (what lights up)
 
@@ -237,17 +241,34 @@ Verified in headless Chrome (software GL): `anchorOf('cpu0')`, `psu`, `monitor` 
 
 With the machine off, tripped or dead (`board.burnt`): every fan stops on the next frame (cooler fan or pump, PSU fan and its readout fan, the VRM sink fan), no bus or cable carries pulses or glow, no DRAM flash, drives are still (platter, head, LED), the USB LED is dark, the case lights show only what is true (the green ON light needs power and a working power path; the amber OFF standby light needs a working PSU path, so it is dark when `noPowerReason` is set (no PSU, burnt PSU, ATX unplugged, dead board); ERR is red when the phase is `error`, the PSU tripped or the board is dead), the VRM glow is off and its power-good light is dark (red blinking when dead), the monitor is blank. A powered **halted** machine is the opposite on the fans and lights: fans spin, ON is lit, the case strip is steady amber; only the data paths are quiet. A powered **error** machine (POST failed) has fans spinning, ON lit, ERR red and the strip red. Heat glow stays while parts cool (it is temperature). All animation is on the game clock, so a pause freezes it. The PSU readout snaps to the ambient value (25 C, COLD) on a hard power-off, so there is no cooling tail; while the PSU is on it follows the low-pass of the estimate.
 
-## Board tiers and the VRM
+## Board tiers, cases and the VRM
 
-One shared board layout; a tier **fills** it, slots it lacks stay bare (empty pads, missing socket or jack, no connector), so a board upgrade visibly fills the board in. `buildBoard(T, tier)` reads `BOARD_TIERS[tier]` (`slots`, `features`, `vrm.phases`):
+**Four boards, four form factors** (`boardlayout.ts`, `TIER_GEO`; the CPU socket is the origin on every one and the rear I/O is on the west edge):
 
-- **DIMMs: up to 8**, two rows of four with the memory bus between them (`DIMM_X(i) = 1400 + (i % 4) * 220`, `DIMM_Y(i)` is -840 for `dimm0..3` and 150 for `dimm4..7`, `DIMM_H` 690, `DIMM_GAP`). Row 0 pins face down, row 1 sticks are drawn upside down so the pins face the bus; each stick shows 4 DRAM chips. Unfitted sockets are faint with a cross.
-- **PCIe: up to 4** (`PCIE_RAILS`, x16 / x8 / x4 / x1 lengths), **SATA 2**, **M.2** (bare with `M.2 · not fitted` when `slots.m2` is 0), **USB up to 4** (2x2 on the rear plate, `USB_POS`; the first is the key port), **ethernet** jack only if `features.ethernetMbps > 0` (with a speed label), a **second display port** only if `displayPorts >= 2`, the **vrm-sink** slot (a dashed pad over the MOSFET strip).
-- **Tier hint**: the board colour (Starter a plain grey-green, Basic the base blue, Mainstream a deeper teal, Enthusiast a dark violet), the silkscreen `MB-<n>000 · <NAME> · REV A`, a thin trim line round the plate on Mainstream and Enthusiast (a second line and `OVERCLOCK READY` on the top tier).
-- **VRM** (`BR.vrm`, hover id `vrm`): a PWM controller with a power-good light, then up to 6 phase blocks (`vrmPhase(i)`; a tier draws `phases` of them, the rest are bare pads). Each block: a MOSFET pair, a choke (ferrite with copper winding) and two capacitors. **Glow** (`Live.drawVrm`, per frame): per phase, brightness `0.1 + 0.5 * loadRatio + 0.45 * heat` with `heat = (tempC - 45) / (throttleC - 45)`, colour cool cyan, amber near the throttle point, red when hot or `unstable` (which also flickers); the phases pulse one after another (interleaved), faster the harder the CPU pulls. Off with no power. The power-good light is green, an amber blink when unstable, a red blink when dead, dark when off.
-- **Heatsinks** (`vrmSinkArt`, kind `vrm-sink`, slot `vrm-sink0`, covers the MOSFET strip `VRM_SINK`): `vrm-sink-fins` (thin dense fins), `vrm-sink-big` (tall fins with a copper heat pipe), `vrm-sink-fan` (fins plus a small spinning fan at the east end; speed follows the sink's own draw, 0.3 W idle to 1.5 W under load, stills with the power rules).
-- **Crash flash**: a new `fault` entry in `snapshot.log` (the first snapshot only records the existing log) flashes the VRM block red and white for about 0.9 s of wall time (it does not hold while paused).
-- **Dead board** (`board.burnt`): the whole board is dimmed, the VRM is scorched (soot blots, cracks), the power-good light blinks red, the badge over the CPU says `BOARD DEAD`, everything is dark and still (see the power-off rules), the case ERR light is red and the exterior strip is a steady dim red.
+| Tier | Form | Board (w x h) | Sockets drawn |
+|---|---|---|---|
+| 0 Starter | mini-ITX | 5450 x 3900 | 1 DIMM, 1 SATA, no PCIe, no M.2, no ethernet jack |
+| 1 Basic | micro-ATX | 5800 x 4700 | 2 DIMM, 1 PCIe, 2 SATA, ethernet |
+| 2 Mainstream | ATX | 6800 x 5000 | 4 DIMM, 2 PCIe, M.2, 2 SATA |
+| 3 Enthusiast | E-ATX | 6800 x 6000 | 8 DIMM (two rows), 4 PCIe, M.2, 2 SATA |
+
+A socket a tier lacks is **not drawn** (no ghost sockets). `src/render/boardlayout.test.ts` pins the geometry to the sim's slot and phase counts, keeps parts on the board and off each other, checks the memory bundles never cross, that every bus ends on a footprint and every plug sits on its connector. **The layout is global state**: `setLayoutTier(tier, caseTier)` (called first in `build()` and, saved and restored, by `thumbs.ts`) reassigns the live bindings (`BD`, `BR`, `PSU`, `CASE`, `WORLD`, ...). Never copy one into a module-level constant.
+
+**How the copper is laid** (every run ends on a footprint, with pads drawn at the lane ends):
+- **Memory** is point-to-point: one 6-lane bundle per DIMM from the CPU's east edge to the pad row of its socket, stacked in a staircase (the nearest DIMM takes the band nearest its pads) so nothing crosses. Row 0 pads face down, row 1 (tier 3) pads face up. Lit per installed DIMM by RAM traffic.
+- **CPU power**: the 8-pin sits on the top edge (mouth up, the cable comes over the top of the board from the gutter), feeds an input rail (`pwrcpu`) along the top of the phases; each phase runs power stage, choke and output capacitors into a copper pour under the CPU's north edge (`vcore` rays, lit by CPU current).
+- **Memory power**: the 24-pin feeds the memory regulator's rail (`pwr12`), whose outputs run along the pins of the DIMM sockets (`vdimm`, a drop into every socket, round the east end to a second rail under row 1), lit by RAM current.
+- DMI (CPU west to the chipset), PCIe x16 (CPU south into the first slot), NVMe (CPU south-east into the M.2 connector), USB and video (to the I/O shield), SATA (chipset south, then east along the port's row to the ports on the east edge). Audio and ethernet PHY traces are decoration (`audio`, `lan`: never lit).
+- **VRM**: a PWM controller, then the tier's phases (`vrmPhase(i)`, centred over the CPU; 2, 3, 4 and 6), each a power stage, a choke, two capacitors and decoupling. **Memory VRM** (2, 2, 3, 4 phases) above the DIMM bank. Glow, power-good light and crash flash are as before (`Live.drawVrm`).
+- **Heatsinks** (`vrmSinkArt`) cover the power-stage strip (`VRM_SINK`, `RAM_SINK`).
+- **Tier skin** (`SKINS` in `boardArt.ts`): PCB colour (Starter grey-green, Basic blue, Mainstream teal, Enthusiast violet), trim lines, PCH heat sink style, PCIe armour from tier 2.
+
+**Cases** are purchasable (docs/BOARD.md "Cases"): `snapshot.caseTier` picks the case, `snapshot.boardTier` the board in it. The case is as big as the biggest board it holds (`CASE_BD`): the motherboard tray (perforated, cable cut-outs), the cable gutter and the edge-on **front fans** follow the case; a smaller board sits in the top-left of a bigger case. The PSU shroud, the drive bay, the case walls, the power button and `WORLD` move with it, and the camera glides to the new overview when it changes. Looks per case (`CASE_LOOK`): name on the top panel, vent count, an accent line on the big ones. A case item is dropped on the case itself (`freeSlots ["case"]`, like `["board"]` for a board); the case is the world id `case`.
+- SATA ports are on the board's east edge (mouth east); each drive cable runs east, under the PSU cables, then down the lane between the PSU and the bay (`SATA_LINK.col`) into its cell. The two cables never cross each other; both pass under the three PSU cables in the gutter (drawn beneath them).
+
+**Scale.** The monitor is drawn at its design size (3300 x 1995) and scaled by `MONITOR_K` (1.6) around `MONITOR`; its screen text and OS screen live in a container in design units (`SCREEN_D`) scaled the same way (`Live.scr`). The router and the wall plate are drawn at design size around the shelf corner and scaled by `NET_K` (1.45); the helpers in `net.ts` (`routerRect`, `lanX`, `wanX`, `sockLed`) give the scaled world positions.
+
+**Pictures of parts** (`thumbs.ts`): `thumbOf(id)` returns a cached data URL or null while it is being made (one part per idle slice); `thumbsVersion` is a signal that bumps when one arrives or the theme changes. The art is the real thing: `cpuArt`, `ramArt` (on its side), `coolerArt`, `psuBoxArt`, `monitorArt`, `driveArt` plus its live parts, `vrmSinkArt`, `nicArt`, `routerArt`, `wallArt` (the plan plate), the whole board (`buildBoard`) and the case (`exteriorArt`), on a soft backdrop. `PartArt` shows the picture and falls back to its drawn icon (an OS, tests without a renderer).
 
 ## Performance
 
@@ -302,7 +323,7 @@ The group is drawn only when it matters: a router or a plan exists, a router is 
 - PSU temperature and fan rpm are renderer estimates from load (see above).
 - Touch was verified with synthesized touch events (CDP), not on a device: tap to select, one-finger pan, two-finger pinch, and dragging a drive from the shelf onto `sata0` (see Verification). There is no hover on touch. Installed parts cannot be dragged back out (the UI picker uninstalls). Loose cable plugs and tray keys are small at overview zoom (use the tutorial rings, `flyTo` or zoom).
 - Bus lanes are 9-11 world units wide, about a pixel at overview zoom; the pulses carry the activity there.
-- Two drives (boards with two SATA ports, Basic and up; the starter board has one): **still crossing, seen in headless Chrome** (Mainstream, HDD in `sata0` and SSD in `sata1`, close-up of the gap). The HDD's violet power lead rises in the gap at the PSU's west side and crosses the SSD's SATA data run (the horizontal dark run at the SSD's plug height). One crossing, only with both bays populated; the fix means changing the lead or the data run geometry in `case.ts` (`SATA_LINK`, `sataLinkArt`).
+- Two drives: the SATA data cables cross the drives' short power leads in the lane between the PSU and the bay, and all three PSU cables in the gutter (drawn beneath them).
 - The OS-flow cue (`REMOVE` on an OS-flashed key) is **not verified end to end**. An OS is reachable now (the sandbox buys it and installs it on a drive), but the browser run with real clicks did not reach the state: the power button did not leave `OFF` and a click on a tray key opens the client card rather than plugging it (the card's "Plug into USB" button is the plug). It uses the same `stage` `done` path as the no-OS cue.
 - The VRM crash flash and the error blink were not provoked in the browser (no fault was run); their wall-time fade is by code.
 - Overview on a wide canvas: the scene is about 1.7:1 and the free height is the limit, so the sides stay empty. Tightening the bounds gained about 5%.

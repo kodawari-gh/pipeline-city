@@ -60,3 +60,12 @@ Other changes for the assembly phase: `ram0` latency 100 to 200 (RAM stays a rea
 The VRM is a per-tier component, simulated inside `ThermalModel.step` (state in `th.vrm`, maths in `vrm.ts`): its conversion loss is added to the PSU draw (`th.power.vrmLossW` is included in `totalW`), a hot VRM multiplies the CPU clock by a factor in [0.8, 1], overload or heat makes `th.vrmErrorRoll()` fire (PRNG only while unstable), and sustained trouble sets `board.burnt` (a dead board: `bootCheck.noPower = "board dead: replace the board"`, nothing draws). Full model, numbers and the plain-words explanation: [`VRM.md`](VRM.md). Snapshot: `snapshot.board` (tier, name, burnt, features, slots, vrm, vrmSink) and `snapshot.power.vrmLossW`.
 
 Heatsink slot `vrm-sink`: one per board on every tier (the Starter board too). Cooler coupling: an air cooler adds `vrmAirPerC` of cooling to the VRM, a liquid cooler adds none. Board tiers carry the VRM's strength (phases x amps: 24, 36, 60, 120 A). Tests: `src/sim/board/vrm.test.ts`.
+
+## Cases
+
+The PC case is part of the machine (`CASE_TIERS` in `specs.ts`, `Board.caseTier`, `snapshot.caseTier` and `snapshot.board.caseName / caseForm`). A case of tier `t` holds boards up to `maxBoard` = `t`: **Mini tower** (mini-ITX, the Starter board; the campaign starts in it), **Micro tower** (micro-ATX), **Mid tower** (ATX) and **Full tower** (E-ATX). Prices are placeholders ($25, 70, 160, 320).
+
+- **A bigger board needs a bigger case first.** `applyOffer`, `Game.install` and the shop's `blocked` text refuse a board the case cannot hold ("the Mini tower is too small for a Basic board: buy a Micro tower first"). Owning the bigger case in the inventory is enough to buy the board; fitting the board needs the case fitted. A dead board of the same tier needs no bigger case.
+- **Offers**: the next case tier (`case1`...), also in the shop with its level lock (a case unlocks with its board: levels 2, 5 and 9). A case item installs onto the case (`freeSlots ["case"]`) only with the machine off (`purchase` and `install` say so); every part stays where it is.
+- **Not gated**: the sandbox, and a game whose `economy.caseGating` is false (the sim tests): there the case follows the board (`caseFor(tier)`).
+- The primitive `upgradeBoard` does not look at the case (the game does); `upgradeCase` only goes up. `createBoard(tier, caseTier?)` puts a board in the smallest case that holds it. `src/sim/game/case.test.ts`.
