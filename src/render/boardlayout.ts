@@ -1,5 +1,5 @@
 import type { Rect } from './layout';
-import { MEM_LANES, MEM_SPACING, legRun, legsFrom, type IoPort } from './pins';
+import { MEM_LANES, MEM_SPACING, legRun, legsFrom, legsOf, type IoPort } from './pins';
 
 // Per-tier motherboard geometry (pure data, no Pixi). The CPU socket is the origin on every board, the rear I/O sits on the west
 // edge and the power connectors on the east / top edges, as on a real board seen through the side glass of a case. Each tier is
@@ -67,6 +67,8 @@ export interface TierGeo {
   dpwm: Rect; dpwmWest: boolean;
   /** The I/O controller west of the chipset (its link is four lanes to the chipset's west legs, its header trunk runs west under the row) and every pin header of the board (name, position, size in pins). */
   sio: Rect; hdrs: HeaderGeo[];
+  /** The reference crystals: the CPU's, south of its socket (pads on its top edge), and the chipset's, north of its legs (pads on its bottom edge). */
+  xtalCpu: Rect; xtalPch: Rect;
   /** The top board's two-digit debug display under the chipset and its RGB strip along the bottom edge. */
   dbg: Rect | null; rgb: Rect | null;
   /** Mounting holes. */
@@ -146,6 +148,7 @@ function build(s: Spec): TierGeo {
   const dPhases = Array.from({ length: s.dphases }, (_, i) => R(X0 + 40 + i * DRAM_PITCH, dy, DRAM_BW, DRAM_BH));
   const dvrm = R(X0, dy - 120, s.dphases * DRAM_PITCH + 80, 440);
   const dpwmWest = s.tier < 3; // the top board's regulator has the CPU's regulator close on its west side: the controller stands east of it
+  const dpwm = dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210);
   const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 150);
   // ---- connectors ----
     const cpw = R(vrm.x - 150, bd.y + 90, 660, 260);
@@ -173,6 +176,10 @@ function build(s: Spec): TierGeo {
   hdrs.push({ name: 'CLR_CMOS', x: s.tier >= 3 ? bcx + br + 74 : bcx - br - 150, y: bcy - 62, cols: 1, rows: 3 });
   // the CPU fan's header south of the I/O hub (four lanes from the hub's south legs; the cooler's cable comes to it)
   hdrs.push({ name: 'CPU_FAN', x: -1960, y: 320, cols: 4, rows: 1 });
+  // the heatsink fans' headers: the CPU regulator's, west of its controller (a vertical row, four lanes from the controller's west legs), the memory
+  // regulator's, above its controller (four lanes from its north legs); the sinks' fan cables come to them
+  hdrs.push({ name: 'VRM_FAN', x: pwm.x - 250, y: pwm.y + 105 - (4 * 52 + 24) / 2, cols: 1, rows: 4 });
+  hdrs.push({ name: 'RAM_FAN', x: dpwm.x + 105 - (4 * 52 + 24) / 2, y: dpwm.y - 250, cols: 4, rows: 1 });
   const holes: [number, number][] = [
     [s.tier === 0 ? -2150 : bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150], // (the small board's top-west one sits beside the I/O plate)
     [0, bd.y + 150], [0, south - 150],
@@ -203,8 +210,11 @@ function build(s: Spec): TierGeo {
     hex: s.tier >= 3 ? R(-2800, bd.y + 170, 700, 200) : R(-3000, south - 400, 760, 200),
     qr: s.tier >= 3 ? R(-3100, bd.y + 170, 220, 220) : s.tier >= 1 ? R(-2150, south - 390, 220, 220) : null,
     hdrY,
-    dpwm: dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210), dpwmWest,
+    dpwm, dpwmWest,
     sio, hdrs,
+    // the crystals: the CPU's under its socket (clear of the x16 lanes), the chipset's above its north legs
+    xtalCpu: R(-430, 891, 100, 56),
+    xtalPch: R(legsOf(s.chip, 'n')[0]![0] + 13 - 50, s.chip.y - 150, 100, 56),
     // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
     dbg: s.tier >= 3 ? R(legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
     rgb: s.tier >= 3 ? R(bd.x + 700, south - 82, bd.w - 1400, 44) : null,

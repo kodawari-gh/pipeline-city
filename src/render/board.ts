@@ -8,7 +8,7 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, cpuFanCableArt, emptyCellHint, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { EdgeFan, bayArt, caseBack, caseGlass, cpuFanCableArt, emptyCellHint, sinkFanCableArt, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
@@ -385,14 +385,14 @@ export async function mountBoard(host: HTMLElement) {
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
+        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'vrm')); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: d.id, rect: VRM_SINK });
         scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'ram-sink') {
         const p = vrmSinkArt(T, spec.visual, RAM_SINK);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
+        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'ram')); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: d.id, rect: RAM_SINK });
         scene.rects.set(d.id, RAM_SINK);

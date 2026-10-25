@@ -6,6 +6,7 @@ import {
   sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
+import { sinkFanAt } from './pins';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
 import type { Theme } from './theme';
 
@@ -190,6 +191,29 @@ export function cpuFanCableArt(T: Theme): Container {
   g.moveTo(x0, y).lineTo(x1, y).stroke({ width: 24, color: T.mul, alpha: 0.2, cap: 'round' });
   plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
   plugBox(g, T, x1 - 30, y - 28, 64, 56, T.mul); // on the cooler
+  return root;
+}
+
+/**
+ * The fan cable of a heatsink with a fan (drawn while it is installed): a plug on the regulator's fan header, a sleeve up above the regulator,
+ * east along a run of its own and down onto the fan's housing.
+ */
+export function sinkFanCableArt(T: Theme, which: 'vrm' | 'ram'): Container {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const h = GEO.hdrs.find((q) => q.name === (which === 'vrm' ? 'VRM_FAN' : 'RAM_FAN'));
+  if (!h) return root;
+  const sink = which === 'vrm' ? GEO.vrmSink : GEO.dSink, f = sinkFanAt(sink), sleeve = sleeveOf(T);
+  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24;
+  const start: Pt = which === 'vrm' ? [h.x + w / 2, h.y - 6] : [h.x + w - 26, h.y - 6];
+  const yRun = which === 'vrm' ? GEO.vrm.y - 80 : GEO.dvrm.y - 70;
+  const path = roundedPath([start, [start[0], yRun], [f.x, yRun], [f.x, f.y - f.r + 6]], 70, 30);
+  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 28, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 22, color: sleeve, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 22, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
+  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
+  plugBox(g, T, f.x - 26, f.y - f.r - 10, 52, 40, T.mul); // on the fan
   return root;
 }
 

@@ -3,8 +3,9 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
 import { CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from './case';
+import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane } from './routes';
-import { atx12v, cellTop, cpuPowerPins, cpuStageCtl, pcieAux, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
+import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, pcieAux, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { ioPort } from './boardlayout';
 import { plugRect } from './devices';
 
@@ -41,7 +42,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('keeps every part on the board and nothing on top of anything else', () => {
     const g = sockets();
     const parts: [string, Rect][] = [
-      ['io', g.io], ['chip', g.chip], ['hub', g.hub], ['bios', g.bios], ['sio', g.sio], ['dpwm', g.dpwm], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
+      ['io', g.io], ['xtalCpu', g.xtalCpu], ['xtalPch', g.xtalPch], ['chip', g.chip], ['hub', g.hub], ['bios', g.bios], ['sio', g.sio], ['dpwm', g.dpwm], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
       ['socket', { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E }],
     ];
     g.dimm.forEach((d, i) => parts.push([`dimm${i}`, { x: d.rect.x - 10, y: d.rect.y - 40, w: d.rect.w + 20, h: d.rect.h + 80 }]));
@@ -210,7 +211,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     else expect(ids('phyl').length).toBe(0);
     // the I/O controller: its link to the chipset, its header trunk
     for (const l of ids('lpc')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.sio, 'e'), 'lpc starts on a SIO leg'); hit(end(l), legsOf(g.chip, 'w'), 'lpc ends on a chipset leg'); }
-    const hdr = ids('hdr')[0]!, row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS' && h.name !== 'CPU_FAN');
+    const hdr = ids('hdr')[0]!, row = g.hdrs.filter((h) => !['CLR_CMOS', 'CPU_FAN', 'VRM_FAN', 'RAM_FAN'].includes(h.name));
     expect(hdr.lanes.length).toBe(1 + row.length);
     hit(hdr.lanes[0]!.pts[0]!, legsOf(g.sio, 's'), 'the trunk starts on a SIO leg');
     row.forEach((h, i) => hit(end(hdr.lanes[1 + i]!), [headerPin(h.x, h.y, 0, h.rows - 1)], `${h.name} has its tap`));
@@ -222,6 +223,14 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(inside(g.bat, g.bd) && !overlap(g.bat, g.chip), 'the cell is on the board, clear of the chipset').toBe(true);
     for (const l of ids('fanc')[0]!.lanes) hit(end(l), [0, 1, 2, 3].map((i) => headerPin(fan.x, fan.y, i, 0)), 'cpu fan lane ends on a header pin');
     hit(ids('fanc')[0]!.lanes[0]!.pts[0]!, legsOf(g.hub, 's'), 'cpu fan lane starts on a hub leg');
+    // the heatsink fans' headers, the crystals
+    const [, vf, rf] = ids('fanc'), vh = g.hdrs.find((h) => h.name === 'VRM_FAN')!, rh = g.hdrs.find((h) => h.name === 'RAM_FAN')!;
+    for (const l of vf!.lanes) { hit(l.pts[0]!, legsOf(g.pwm, 'w'), 'vrm fan lane starts on a controller leg'); hit(end(l), [0, 1, 2, 3].map((j) => headerPin(vh.x, vh.y, 0, j)), 'vrm fan lane ends on a pin'); }
+    for (const l of rf!.lanes) { hit(l.pts[0]!, legsOf(g.dpwm, 'n'), 'ram fan lane starts on a controller leg'); hit(end(l), [0, 1, 2, 3].map((i) => headerPin(rh.x, rh.y, i, 0)), 'ram fan lane ends on a pin'); }
+    const clk = ids('clk')[0]!;
+    expect(clk.lanes.length).toBe(4);
+    clk.lanes.slice(0, 2).forEach((l, k) => { hit(l.pts[0]!, xtalPads(g.xtalCpu, 'n'), 'cpu clock starts on a crystal pad'); hit(end(l), pkgPads(PKG, 's', xtalPads(g.xtalCpu, 'n')[0]![0] + 10, 2), `cpu clock ${k} ends on a package pin`); });
+    clk.lanes.slice(2).forEach((l) => { hit(l.pts[0]!, xtalPads(g.xtalPch, 's', 13), 'chipset clock starts on a crystal pad'); hit(end(l), legsOf(g.chip, 'n'), 'chipset clock ends on a north leg'); });
     if (g.pciew && g.pcie[0]) { const l = ids('pwrpcie')[0]!.lanes[0]!; hit(l.pts[0]!, [pcieAux(g.pciew)], 'the rail leaves the 6-pin'); hit(end(l), [pcieFeed(g.pcie[0])], 'the rail ends on the x16 slot tab'); }
     else expect(ids('pwrpcie').length).toBe(0);
     // the top board's debug display and RGB strip
@@ -407,6 +416,21 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const f of stubs) expect(f.x + f.dx * 90 < CASE_IN.x + CASE_IN.w && f.y + f.dy * 90 < CASE_IN.y + CASE_IN.h, 'stub inside the case').toBe(true);
     const sysFan = GEO.hdrs.find((h) => h.name === 'SYS_FAN')!;
     expect(sysFan.y + 100 < BD.y + BD.h, 'the board has the header the hub is cabled to').toBe(true);
+  });
+
+  it('ties every slot and M.2 into the plane clear of everything: the patch is on the board and no lane comes near it', () => {
+    const g = sockets();
+    const patches: [string, Rect][] = [...g.pcie.map((r, i) => [`slot ${i}`, slotTie(r, i)] as [string, Rect]), ...g.m2.map((m, i) => [`m2 ${i}`, m2Tie(m)] as [string, Rect])];
+    const lanes = buildBuses().filter((b) => !['pwrpcie', 'vdimm', 'pwr12', 'pwrcpu', 'vcore'].includes(b.id)).flatMap((b) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []));
+    for (const [n, r] of patches) {
+      expect(inside(r, g.bd), `${n} tie on the board`).toBe(true);
+      const grown = { x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 28 };
+      for (const l of lanes) for (let i = 1; i < l.pts.length; i++) {
+        const a = l.pts[i - 1]!, b = l.pts[i]!, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+        if (n.startsWith('slot')) expect(x1 > grown.x && x0 < grown.x + grown.w && y1 > grown.y && y0 < grown.y + grown.h, `${n}'s tie meets a lane`).toBe(false);
+      }
+    }
+    for (const [n, r] of patches) if (n.startsWith('slot')) for (const o of [...g.pcie.map((q) => q), ...g.m2, g.chip, g.hub, ...g.dimm.map((d) => d.rect)]) expect(overlap(r, o), `${n}'s tie sits on a part`).toBe(false);
   });
 
   it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {

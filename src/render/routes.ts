@@ -4,7 +4,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, cellSide, cellTop, pcieAux, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, pcieAux, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from './pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -128,10 +128,10 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb' | 'fanc' | 'pwrpcie';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb' | 'fanc' | 'pwrpcie' | 'clk';
 
 /** Buses that are only there to be seen: they never light. */
-export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb', 'fanc', 'pwrpcie'];
+export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb', 'fanc', 'pwrpcie', 'clk'];
 /** Buses that may dive under what they cross (a via at each end of the hop), in rank order: a lane of a later bus hops over a lane of an earlier one. */
 export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb', 'fanc', 'pwrpcie'];
 
@@ -388,7 +388,7 @@ export function buildBuses(): Bus[] {
   {
     const sio = g.sio, a = legsOf(sio, 'e'), b = legsFrom(g.chip, 'w', g.west.sio, 4), ym = mean(a, 1);
     buses.push(mk('lpc', [[a[0]![0], ym], [b[0]![0], ym]], 4, LEG_PITCH, 8, 0, { from: a, to: b }));
-    const leg = legAt(sio, 's', 1, 4, LEG_PITCH), row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS' && h.name !== 'CPU_FAN');
+    const leg = legAt(sio, 's', 1, 4, LEG_PITCH), row = g.hdrs.filter((h) => !['CLR_CMOS', 'CPU_FAN', 'VRM_FAN', 'RAM_FAN'].includes(h.name));
     const yb = Math.max(g.hdrY + 128 + 36, leg[1] + 30), pins = row.map((h) => headerPin(h.x, h.y, 0, h.rows - 1));
     const lanes: Lane[] = [mkLane(chamfer([leg, [leg[0], yb], [Math.min(...pins.map((q) => q[0])), yb]], 24), 31)];
     pins.forEach((q, i) => lanes.push(mkLane([[q[0], yb], q], i * 13 + 5)));
@@ -435,6 +435,21 @@ export function buildBuses(): Bus[] {
   {
     const h = g.hdrs.find((q) => q.name === 'CPU_FAN')!, legs = legsOf(g.hub, 's').slice(4), pins = [0, 1, 2, 3].map((i) => headerPin(h.x, h.y, i, 0)), xc = mean(legs, 0);
     buses.push(mk('fanc', [[xc, legs[0]![1]], [xc, pins[0]![1]]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
+  }
+
+  // the heatsink fans' headers: the CPU regulator's (a vertical row west of its controller: four lanes from the controller's west legs) and the memory
+  // regulator's (above its controller: four lanes from its north legs)
+  {
+    const v = g.hdrs.find((q) => q.name === 'VRM_FAN')!, legs = legRun(g.pwm, 'w', 4), pins = [0, 1, 2, 3].map((j) => headerPin(v.x, v.y, 0, j)), yc = mean(legs, 1);
+    buses.push(mk('fanc', [[legs[0]![0], yc], [pins[0]![0], yc]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
+    const r = g.hdrs.find((q) => q.name === 'RAM_FAN')!, ll = legRun(g.dpwm, 'n', 4), pp = [0, 1, 2, 3].map((i) => headerPin(r.x, r.y, i, 0)), xc = mean(ll, 0);
+    buses.push(mk('fanc', [[xc, ll[0]![1]], [xc, pp[0]![1]]], 4, LEG_PITCH, 8, 0, { from: ll, to: pp, lead: 40 }));
+  }
+
+  // the reference crystals: the CPU's (two lanes up onto pins of its south row) and the chipset's (two lanes down onto its first north legs)
+  {
+    const cp = xtalPads(g.xtalCpu, 'n'), cpins = pkgPads(PKG, 's', mean(cp, 0), 2), pp = xtalPads(g.xtalPch, 's', 13), pl = legsOf(g.chip, 'n').slice(0, 2);
+    buses.push({ id: 'clk', w: 8, lanes: [...cp.map((p, k) => mkLane([p, cpins[k]!], k * 17)), ...pp.map((p, k) => mkLane([p, pl[k]!], k * 17 + 9))] });
   }
 
   // ---- power ----

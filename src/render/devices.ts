@@ -5,6 +5,7 @@ import {
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
+import { SINK_FAN_R, sinkFanAt } from './pins';
 import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
@@ -181,7 +182,7 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Par
   root.addChild(g);
   const r = rect, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
   const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
-  const fanR = 70, fanCx = r.x + r.w - fanR - 34, fanCy = r.y + r.h / 2;
+  const fanR = SINK_FAN_R, { x: fanCx, y: fanCy } = sinkFanAt(r);
   const finW = withFan ? fanCx - fanR - 40 - r.x : r.w;
   // base plate and drop shadow
   box(g, r.x + 8, r.y + 12, r.w, r.h, 18, { fill: '#000000', fa: 0.3 });

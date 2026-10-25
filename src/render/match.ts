@@ -124,3 +124,20 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
     return out.filter((q, j) => j === 0 || Math.hypot(q[0] - out[j - 1]![0], q[1] - out[j - 1]![1]) > 1e-6);
   });
 }
+
+/**
+ * A skew-tuning bump in one strand of a differential pair: where the strand runs straight at arc length `s` it steps `h` out (away from its partner, to
+ * the `side` of its travel) on 45 degree legs, runs `2 * (half - h)` and steps back. Returns the strand unchanged when no straight stretch is long enough.
+ */
+export function tuneBump(pts: Pt[], s: number, side: 1 | -1, h = 6, half = 18): Pt[] {
+  let c = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!, b = pts[i]!, l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (s - half >= c + 4 && s + half <= c + l - 4) {
+      const ux = (b[0] - a[0]) / l, uy = (b[1] - a[1]) / l, nx = -uy * side, ny = ux * side, at = (t: number, o: number): Pt => [a[0] + ux * (t - c) + nx * o, a[1] + uy * (t - c) + ny * o];
+      return [...pts.slice(0, i), at(s - half, 0), at(s - half + h, h), at(s + half - h, h), at(s + half, 0), ...pts.slice(i)];
+    }
+    c += l;
+  }
+  return pts;
+}
