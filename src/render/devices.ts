@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN, STAGES, VENTS, VIDEO_Y, VRM_SINK,
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN_D, STAGES, VENTS, VIDEO_Y, VRM_SINK,
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
@@ -347,7 +347,10 @@ export function monitorArt(T: Theme, on: boolean): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const m = MONITOR, s = SCREEN;
+  // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
+  root.position.set(MONITOR.x, MONITOR.y); root.scale.set(MONITOR_K);
+  const m = { x: 0, y: 0, w: 3300, h: 1995 }, s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
+  const portY = (VIDEO_Y - MONITOR.y) / MONITOR_K;
   const shell = T.dark ? '#141a26' : '#262d3a';
   const cx = m.x + m.w / 2, by = m.y + m.h;
   // stand: base, neck
@@ -369,7 +372,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
   labels.addChild(label('PIPELINE CITY', cx, cy, 44, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
   disc(g, m.x + m.w - 150, cy, 16, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
   // side port (the HDMI cable plugs in here)
-  box(g, m.x + m.w - 20, VIDEO_Y - 55, 40, 110, 10, { fill: '#05070b', stroke: T.line, lw: 4 });
+  box(g, m.x + m.w - 20, portY - 55, 40, 110, 10, { fill: '#05070b', stroke: T.line, lw: 4 });
   labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
   root.addChild(labels);
   return { root };

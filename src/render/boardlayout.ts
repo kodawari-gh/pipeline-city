@@ -114,7 +114,7 @@ function build(s: Spec): TierGeo {
     tier: s.tier, form: s.form, bd,
     io: R(-3440, -2000, 690, 2450),
     chip: s.chip,
-    codec: R(-2690, -1930, 250, 250),
+    codec: R(-2690, -1960, 230, 220),
     phy: s.tier >= 1 ? R(-2640, -1700, 220, 260) : null,
     bat: s.tier === 0 ? R(-1450, 450, 300, 300) : R(-1500, 400, 300, 300),
     cpw, atx,

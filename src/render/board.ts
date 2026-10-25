@@ -38,7 +38,7 @@ const Z_BAKE_DEV = 0.14;
 const DEV_BAKE_RES = 0.25;
 /** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
 const Z_BAKE_PROPS = 0.2;
-const PROPS_FRAME = new Rectangle(-7560, 280, 3500, 2950);
+const PROPS_FRAME = new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY.h + 200);
 
 /**
  * Level of detail on the camera scale, as multiples of the fit zoom (the zoom of the default overview, `fits.z`).
@@ -482,7 +482,7 @@ export async function mountBoard(host: HTMLElement) {
         const mg = new Graphics();
         dashed(mg, pts, 40, 30); mg.stroke({ width: 10, color: T.mute, alpha: 0.7 });
         box(mg, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, T.dark ? { fill: SCREEN_BG, fa: 0.4 } : { fill: T.sub, fa: 0.55 });
-        monitorLayer.addChild(mg, label('MONITOR BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
+        monitorLayer.addChild(mg, label('MONITOR BAY', r.x + r.w / 2, r.y + r.h / 2, 300, T.mute, { anchor: [0.5, 0.5], head: true }));
         continue;
       }
       if (h.id.startsWith('cooler')) {

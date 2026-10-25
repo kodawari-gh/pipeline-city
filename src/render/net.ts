@@ -6,7 +6,7 @@ import { box, dashed, disc, label, mix, clear } from './ink';
 import type { LanJack, LanScene, SceneInfo } from './interact';
 import {
   BD, CABLE_ROW_Y, ETH0_MOUTH, ETH0_RECT, LAN_TRUNK_X, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
-  WALL_JACK, WALL_PLATE, type Rect,
+  NET_K, WALL_JACK, WALL_PLATE, type Rect,
 } from './layout';
 import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from './routes';
@@ -32,15 +32,26 @@ const GEOM: Record<string, Geom> = {
   'router-core': { w: 1600, h: 300, nLan: 12 },
 };
 const geom = (visual: string): Geom => GEOM[visual] ?? GEOM['router-home']!;
-/** The box a router occupies (right-aligned to the shelf end, standing on the shelf line). */
-export const routerRect = (visual: string): Rect => { const g = geom(visual); return { x: ROUTER_EAST - g.w, y: SHELF_Y - g.h, w: g.w, h: g.h }; };
+// The router is drawn at its design size around its shelf corner (ROUTER_EAST, SHELF_Y) in a container scaled by NET_K, so the box and
+// everything on it grow together; the `world` helpers below give the scaled positions the cable, the LEDs and the hit boxes use.
+const tx = (x: number) => ROUTER_EAST + (x - ROUTER_EAST) * NET_K;
+const ty = (y: number) => SHELF_Y + (y - SHELF_Y) * NET_K;
+/** The box a router occupies in design units (right-aligned to the shelf end, standing on the shelf line). */
+const designRect = (visual: string): Rect => { const g = geom(visual); return { x: ROUTER_EAST - g.w, y: SHELF_Y - g.h, w: g.w, h: g.h }; };
+/** The box a router occupies in the world (right-aligned to the shelf end, standing on the shelf line). */
+export const routerRect = (visual: string): Rect => { const d = designRect(visual); return { x: tx(d.x), y: ty(d.y), w: d.w * NET_K, h: d.h * NET_K }; };
 const pitch = (visual: string) => Math.min(150, (geom(visual).w - 420) / geom(visual).nLan);
 const SOCK_H = 84;
-/** Centre x of LAN socket k (0 is the rightmost, the one the cable uses). */
-const lanX = (visual: string, k = 0) => ROUTER_EAST - 150 - k * pitch(visual);
-const wanX = (visual: string) => routerRect(visual).x + 150;
-const hdrLed = (r: Rect, k: number) => ({ x: r.x + 78 + k * 62, y: r.y + 62 });
-const sockLed = (x: number) => ({ x, y: SHELF_Y - SOCK_H - 40 });
+/** Design x of LAN socket k (0 is the rightmost, the one the cable uses) and of the WAN socket. */
+const dLanX = (visual: string, k = 0) => ROUTER_EAST - 150 - k * pitch(visual);
+const dWanX = (visual: string) => designRect(visual).x + 150;
+const dHdrLed = (r: Rect, k: number) => ({ x: r.x + 78 + k * 62, y: r.y + 62 });
+const dSockLed = (x: number) => ({ x, y: SHELF_Y - SOCK_H - 40 });
+/** World x of LAN socket k and of the WAN socket, and the LEDs, after the scale. */
+const lanX = (visual: string, k = 0) => tx(dLanX(visual, k));
+const wanX = (visual: string) => tx(dWanX(visual));
+const hdrLed = (r: Rect, k: number) => ({ x: r.x + (78 + k * 62) * NET_K, y: r.y + 62 * NET_K });
+const sockLed = (x: number) => ({ x, y: ty(SHELF_Y - SOCK_H - 40) });
 
 const BODY: Record<string, { dark: [string, string]; light: [string, string]; rad: number }> = {
   'router-home': { dark: ['#c9d1e0', '#98a4bb'], light: ['#f6f8fb', '#cbd3e2'], rad: 46 },
@@ -53,7 +64,8 @@ const BODY: Record<string, { dark: [string, string]; light: [string, string]; ra
 function routerArt(T: Theme, visual: string, name: string): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
-  const r = routerRect(visual), geo = geom(visual), tone = BODY[visual] ?? BODY['router-home']!;
+  root.pivot.set(ROUTER_EAST, SHELF_Y); root.position.set(ROUTER_EAST, SHELF_Y); root.scale.set(NET_K);
+  const r = designRect(visual), geo = geom(visual), tone = BODY[visual] ?? BODY['router-home']!;
   const [hi, lo] = T.dark ? tone.dark : tone.light;
   const brightBody = visual === 'router-home' || (visual === 'router-10g');
   const ink = brightBody ? (T.dark && visual === 'router-10g' ? '#1a2238' : '#3a4560') : '#9eacd2';
@@ -75,7 +87,7 @@ function routerArt(T: Theme, visual: string, name: string): Container {
     g.fill({ color: '#000000', alpha: 0.45 });
   }
   // LED wells: power, activity, and one over each of the WAN and used LAN sockets (lit by NetView.frame)
-  const wells = [hdrLed(r, 0), hdrLed(r, 1), sockLed(wanX(visual)), sockLed(lanX(visual))];
+  const wells = [dHdrLed(r, 0), dHdrLed(r, 1), dSockLed(dWanX(visual)), dSockLed(dLanX(visual))];
   for (const w of wells) disc(g, w.x, w.y, 15, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
   // sockets open at the bottom edge: WAN on the left, LAN ports from the right
   const sw = Math.min(110, pitch(visual) - 22);
@@ -84,16 +96,16 @@ function routerArt(T: Theme, visual: string, name: string): Container {
     for (let k = 0; k < 4; k++) g.rect(x - sw / 2 + 14 + k * ((sw - 36) / 3), SHELF_Y - SOCK_H + 8, 6, 20);
     g.fill({ color: T.pin, alpha: 0.55 });
   };
-  sock(wanX(visual));
-  for (let k = 0; k < geo.nLan; k++) sock(lanX(visual, k), k === 0);
+  sock(dWanX(visual));
+  for (let k = 0; k < geo.nLan; k++) sock(dLanX(visual, k), k === 0);
   if (visual === 'router-10g') {
     // SFP cage next to the WAN port
-    const x = wanX(visual) + 150;
+    const x = dWanX(visual) + 150;
     box(g, x - 52, SHELF_Y - 76, 104, 76, 6, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.7 });
     g.rect(x - 38, SHELF_Y - 56, 76, 14).fill({ color: T.alu, alpha: 0.35 });
   }
-  root.addChild(label('WAN', wanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
-  root.addChild(label('LAN', lanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
+  root.addChild(label('WAN', dWanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
+  root.addChild(label('LAN', dLanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
   root.addChild(label(name.toUpperCase(), r.x + r.w - 70, r.y + 62, 42, ink, { anchor: [1, 0.5], a: 0.7, head: true }));
   return root;
 }
@@ -103,7 +115,9 @@ function routerArt(T: Theme, visual: string, name: string): Container {
 function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } | null): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
-  const p = WALL_PLATE, cx = p.x + p.w / 2;
+  // drawn at design size (460 x 420) with its bottom-left corner on the shelf line, then scaled about that corner
+  root.position.set(WALL_PLATE.x, SHELF_Y); root.scale.set(NET_K);
+  const p = { x: 0, y: -420, w: 460, h: 420 }, cx = p.x + p.w / 2;
   const [hi, lo] = T.dark ? ['#3a4560', '#252d44'] : ['#f1f4f9', '#cbd4e4'];
   const ink = T.dark ? '#dfe7ff' : '#26324f';
   box(g, p.x + 10, p.y + 16, p.w, p.h, 36, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
@@ -114,9 +128,9 @@ function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } |
   if (isp) root.addChild(label(isp.name.toUpperCase(), cx, p.y + 206, 38, ink, { anchor: [0.5, 0.5], a: 0.65 }));
   for (let i = 0; i < 5; i++) disc(g, cx - 96 + i * 48, p.y + 258, 12, i < tier ? { fill: T.alu } : { stroke: T.mute, lw: 3, sa: 0.6 });
   // the jack opens at the bottom edge; the ISP line plugs in from below
-  const jx = WALL_JACK.x;
-  box(g, jx - 55, SHELF_Y - SOCK_H, 110, SOCK_H + 2, 8, { fill: '#05070c', stroke: isp ? T.alu : T.line, lw: 3, sa: isp ? 0.8 : 0.6 });
-  disc(g, jx, SHELF_Y - SOCK_H - 38, 15, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
+  const jx = cx;
+  box(g, jx - 55, -SOCK_H, 110, SOCK_H + 2, 8, { fill: '#05070c', stroke: isp ? T.alu : T.line, lw: 3, sa: isp ? 0.8 : 0.6 });
+  disc(g, jx, -SOCK_H - 38, 15, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
   return root;
 }
 
@@ -263,7 +277,7 @@ export class NetView {
       const r = ROUTER_SPOT;
       dashed(g, [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]], 40, 30);
       g.stroke({ width: 10, color: T.mute, alpha: 0.7 });
-      this.art.addChild(label('ROUTER', r.x + r.w / 2, r.y + r.h / 2, 120, T.mute, { anchor: [0.5, 0.5], head: true, a: 0.75 }));
+      this.art.addChild(label('ROUTER', r.x + r.w / 2, r.y + r.h / 2, 170, T.mute, { anchor: [0.5, 0.5], head: true, a: 0.75 }));
     }
     reg('router', rr);
     this.hits.push({ id: 'router', rect: rr });
@@ -365,7 +379,7 @@ export class NetView {
       led(sockLed(lanX(v)), link);
     }
     // wall jack light: lit once there is a plan
-    if (this.hasIsp) led({ x: WALL_JACK.x, y: SHELF_Y - SOCK_H - 38 }, [T.st, 0.85]);
+    if (this.hasIsp) led({ x: WALL_JACK.x, y: SHELF_Y - (SOCK_H + 38) * NET_K }, [T.st, 0.85]);
 
     // traffic pulses: downloads run router -> PC, uploads PC -> router; speed and density follow the direction's bandwidth
     const bw = net.bandwidth;

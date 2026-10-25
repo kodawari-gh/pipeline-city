@@ -5,7 +5,7 @@ import type { KeyActivity } from '../sim/game/game';
 import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
-import { BD, BR, dramPhase, MONITOR, PKG, PSU_PANEL, RAM_SINK, SCREEN, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
+import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { monitorView } from './monitor';
 import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
@@ -114,6 +114,8 @@ export class Live {
   diskLevel = 0;
   private keyActivity: KeyActivity = 'none';
   private osRows: Text[] = [];
+  /** The monitor screen's contents (text, OS screen), in design units; scaled and placed in `setScene`. */
+  private scr = new Container();
   private badgeG = new Graphics();
   private badgeText: Text | null = null;
   private badgeRect: Rect | null = null;
@@ -136,10 +138,10 @@ export class Live {
     this.screenText = new Text({
       text: '', style: { fontFamily: MONO, fontSize: 150, lineHeight: 190, fill: '#ffffff', fontWeight: '500' }, resolution: 2,
     });
-    this.screenText.position.set(SCREEN.x + 90, SCREEN.y + 70);
+    this.screenText.position.set(90, 70);
     this.noSignal = new Text({ text: 'NO SIGNAL', style: { fontFamily: HEAD, fontSize: 220, fontWeight: '700', fill: '#5d6a8f' }, resolution: 2 });
     this.noSignal.anchor.set(0.5, 0.5);
-    this.noSignal.position.set(SCREEN.x + SCREEN.w / 2, SCREEN.y + SCREEN.h / 2);
+    this.noSignal.position.set(SCREEN_D.w / 2, SCREEN_D.h / 2);
     const mkText = (size: number, head = false, right = false) => {
       const t = new Text({ text: '', style: { fontFamily: head ? HEAD : MONO, fontSize: size, fontWeight: '700', fill: '#ffffff' }, resolution: 2 });
       t.anchor.set(right ? 1 : 0, 0.5);
@@ -171,7 +173,7 @@ export class Live {
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.extDots = [];
@@ -262,7 +264,11 @@ export class Live {
       sp.anchor.set(0.5); sp.visible = false;
       this.extDots.push(sp); this.ext.addChild(sp);
     }
-    this.ext.addChild(this.extG, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
+    // the screen's contents are laid out at the design size inside a container scaled onto the (bigger) monitor
+    this.scr.removeChildren();
+    this.scr.addChild(this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
+    this.scr.position.set(SCREEN.x, SCREEN.y); this.scr.scale.set(MONITOR_K);
+    this.ext.addChild(this.extG, this.scr);
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
     this.panelFan.visible = showPsu;
@@ -284,7 +290,7 @@ export class Live {
     if (!this.osRows.length) {
       for (let i = 0; i < OS_ROWS; i++) {
         const t = new Text({ text: '', style: { fontFamily: MONO, fontSize: OS_FONT, fontWeight: '600', fill: '#ffffff' }, resolution: 2 });
-        t.position.set(SCREEN.x + 90, SCREEN.y + 56 + i * OS_LINE);
+        t.position.set(90, 56 + i * OS_LINE);
         t.visible = false;
         this.osRows.push(t);
       }
@@ -638,14 +644,14 @@ export class Live {
     } else e.circle(lx, ly, 15).fill({ color: '#2a3150', alpha: 0.6 });
     // monitor power LED (green live, amber standby) and the boot bar under the picture
     if (this.hasDisplay) {
-      const m = MONITOR, s = SCREEN, cy = s.y + s.h + 14 + (m.y + m.h - (s.y + s.h + 14)) / 2;
-      e.circle(m.x + m.w - 150, cy, 19).fill({ color: '#0a0f1a' });
+      const m = MONITOR, s = SCREEN, K = MONITOR_K, cy = s.y + s.h + 14 * K + (m.y + m.h - (s.y + s.h + 14 * K)) / 2;
+      e.circle(m.x + m.w - 150 * K, cy, 19 * K).fill({ color: '#0a0f1a' });
       const col2 = this.monitorLive ? (this.powered ? T.st : T.ld) : T.mute;
-      e.circle(m.x + m.w - 150, cy, 15).fill({ color: col2, alpha: this.monitorLive ? 1 : 0.4 });
+      e.circle(m.x + m.w - 150 * K, cy, 15 * K).fill({ color: col2, alpha: this.monitorLive ? 1 : 0.4 });
       if (showBar) {
-        const bx = s.x + 60, by = s.y + s.h - 36, bw = s.w - 120;
-        e.roundRect(bx, by, bw, 14, 7).fill({ color: '#0e1830' });
-        e.roundRect(bx, by, Math.max(14, bw * clamp(this.bootProgress)), 14, 7).fill({ color: T.st, alpha: 0.9 });
+        const bx = s.x + 60 * K, by = s.y + s.h - 36 * K, bw = s.w - 120 * K, th = 14 * K;
+        e.roundRect(bx, by, bw, th, th / 2).fill({ color: '#0e1830' });
+        e.roundRect(bx, by, Math.max(th, bw * clamp(this.bootProgress)), th, th / 2).fill({ color: T.st, alpha: 0.9 });
       }
     }
   }
@@ -738,7 +744,7 @@ export class Live {
     const g = this.osG;
     g.clear();
     if (!this.osOn || this.osJob === 'none') return;
-    const x0 = SCREEN.x + 90 + 27 * 71, w = SCREEN.x + SCREEN.w - 120 - x0, y = SCREEN.y + 56 + 3 * OS_LINE + 42, bw = 300;
+    const x0 = 90 + 27 * 71, w = SCREEN_D.w - 120 - x0, y = 56 + 3 * OS_LINE + 42, bw = 300;
     const col = this.osJob === 'run' ? OS_INK : this.osJob === 'ingest' ? OS_CYAN : OS_AMBER;
     g.roundRect(x0, y, w, 34, 17).fill({ color: '#16241e' });
     const u = (now / 1500) % 1, left = x0 + (w + bw) * u - bw, a = Math.max(x0, left), b = Math.min(x0 + w, left + bw);

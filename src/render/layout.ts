@@ -123,14 +123,18 @@ export let PSU_PORTS: { pcie: number; atx: number; cpu: number } = { pcie: 3520,
 export let PORT_Y = PSU.y;
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
-export const SCREEN: Rect = { x: -7410, y: -2170, w: 3120, h: 1755 };
-export const MONITOR: Rect = { x: -7500, y: -2250, w: 3300, h: 1995 };
+/** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor, so it stands next to the case at a believable size. */
+export const MONITOR_K = 1.6;
+/** The screen's design size: the text and the OS screen are laid out in it, inside a container scaled by `MONITOR_K`. */
+export const SCREEN_D = { w: 3120, h: 1755 };
+export const MONITOR: Rect = { x: -4200 - 3300 * MONITOR_K, y: -2150, w: 3300 * MONITOR_K, h: 1995 * MONITOR_K };
+export const SCREEN: Rect = { x: MONITOR.x + 90 * MONITOR_K, y: MONITOR.y + 80 * MONITOR_K, w: 3120 * MONITOR_K, h: 1755 * MONITOR_K };
 /** Y of the video cable and of the HDMI port on the rear I/O. */
 export const VIDEO_Y = -1150;
 
 // ---- assembly props: the USB key tray, the power button, the USB port ----
 /** USB key tray, just under the monitor stand: 3 columns by 4 rows of keys (queue cap 10). */
-export const TRAY: Rect = { x: -7500, y: 330, w: 3300, h: 1620 };
+export const TRAY: Rect = { x: MONITOR.x + (MONITOR.w - 3300) / 2, y: MONITOR.y + MONITOR.h + 820, w: 3300, h: 1620 };
 export const TRAY_COLS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
@@ -165,14 +169,16 @@ export const HDMI_PORT: Rect = { x: -3440, y: VIDEO_Y - 60, w: 240, h: 120 };
 
 // ---- network props (docs/RENDER.md "Network"): all of them sit above the monitor, inside WORLD, so the overview does not change ----
 /** The router spot: a shelf above the monitor. A router stands on it, right-aligned to `ROUTER_EAST` (its footprint depends on the tier). */
-export const ROUTER_SPOT: Rect = { x: -6100, y: -3050, w: 1600, h: 420 };
+/** Scale of the network props (router, wall plate) against their design size. */
+export const NET_K = 1.45;
 export const ROUTER_EAST = -4500;
 /** The shelf line the router stands on, and the y where the cables turn after leaving their sockets. */
-export const SHELF_Y = -2630;
-export const CABLE_ROW_Y = -2430;
+export const SHELF_Y = -2480;
+export const CABLE_ROW_Y = SHELF_Y + 200;
+export const ROUTER_SPOT: Rect = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
 /** The wall plate (ISP line enters here) and its jack position (bottom edge). */
-export const WALL_PLATE: Rect = { x: -7400, y: -3050, w: 460, h: 420 };
-export const WALL_JACK = { x: -7170, y: SHELF_Y };
+export const WALL_PLATE: Rect = { x: MONITOR.x + 40, y: SHELF_Y - 420 * NET_K, w: 460 * NET_K, h: 420 * NET_K };
+export const WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: SHELF_Y };
 /** Vertical run of the ethernet cable between the monitor and the case (between the video plug and the case wall; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = -3940;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
@@ -191,7 +197,7 @@ export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, 
  * extent is the monitor / tray column on the west (x -7500) and the case's east wall (x 5260), and the case top (y -3100) to
  * the feet (y 4360). Nothing else in the scene reaches outside it (the device bake uses it as its frame).
  */
-export let WORLD: Rect = { x: -7540, y: -3140, w: 12840, h: 7540 };
+export let WORLD: Rect = { x: MONITOR.x - 80, y: -3140, w: 5300 - (MONITOR.x - 80), h: 7540 };
 /** Fit margin for the overview (`fit(WORLD, OVERVIEW_MARGIN)`): the content fills the free area, with a small border. */
 export const OVERVIEW_MARGIN = 0.96;
 
@@ -231,7 +237,7 @@ export function setLayoutTier(tier: number): void {
   const ce = CASE.x + CASE.w;
   POWER_BTN = { x: ce - 600, y: -2900, r: 130 };
   CASE_LEDS = { y: -2900, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
-  WORLD = { x: -7540, y: -3140, w: ce + 40 + 7540, h: CASE.y + CASE.h + 150 + 3140 };
+  WORLD = { x: MONITOR.x - 80, y: -3140, w: ce + 40 - (MONITOR.x - 80), h: CASE.y + CASE.h + 150 + 3140 };
   REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
 setLayoutTier(2);
