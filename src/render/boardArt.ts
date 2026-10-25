@@ -4,7 +4,7 @@ import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
 import { m2Contacts } from './pins';
-import { buildBuses, mkLane, vdimmEnd, vdimmStart, type Bus, type Lane } from './routes';
+import { buildBuses, mkLane, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
   cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
@@ -26,8 +26,10 @@ const hexPoly = (cx: number, cy: number, r: number): number[] => {
 };
 
 export function strokeLane(g: Graphics, l: Lane) {
-  g.moveTo(l.pts[0]![0], l.pts[0]![1]);
-  for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+  for (const pts of visibleParts(l)) {
+    g.moveTo(pts[0]![0], pts[0]![1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+  }
 }
 
 /** A plated pad across each end of every signal lane (`w` wide, 34 long, along the lane's last stretch). */
@@ -137,6 +139,12 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       for (const l of all) padLanes.push({ l, w: b.pad ?? Math.min(b.w * 1.9, 20) });
     }
   }
+  // a via ring at each end of every hop (the lane dives under what it crosses)
+  for (const b of buses) for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) for (const [a, z] of l.hops ?? []) for (const s of [a, z]) {
+    const [x, y] = pointAt(l, s);
+    g.circle(x, y, 11).fill({ color: P.via, alpha: 0.95 });
+    g.circle(x, y, 4.5).fill({ color: P.board });
+  }
   // (the pads these lanes end on are drawn last, over the parts: see `drawPads`)
 
   // ---- CPU VRM: PWM controller, the phases (a tier fills its own), power-good light ----
@@ -200,7 +208,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       }
     }
     // decoupling under the chipset (the DMI lanes are above it, the SATA lanes east of it)
-    smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85);
+    if (!geo.dbg) smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85); // (the top board's debug display hangs there)
     labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, tier === 0 ? 70 : 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
   }
   // ---- SATA: ports on the east edge, mouths facing east (the drive cables come from the bay) ----
@@ -244,7 +252,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   // ---- audio codec (seven legs: the jacks' lanes leave from the 1st, 4th and 7th), the USB hub and the PHY, all with their legs on the lanes ----
   chip(c, geo.codec, { legs: 7, pitch: 26, text: 'CODEC', size: 36, accent: T.mul });
   for (let k = 0; k < 3; k++) cap(c, geo.codec.x + 50 + k * 66, geo.codec.y - 90, 26, T.ld); // the audio capacitors above the codec
-  chip(c, geo.hub, { legs: 8, pitch: 26, text: 'USB', size: 48, accent: T.mul });
+  chip(c, geo.hub, { legs: 8, pitch: 26, text: 'I/O HUB', size: 34, accent: T.mul });
   if (geo.phy) chip(c, geo.phy, { legs: 8, pitch: 26, text: 'PHY', size: 40, accent: T.mul });
 
   // ---- CPU socket frame (empty-socket look; the package covers it when a CPU is installed) ----
@@ -267,24 +275,27 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the USB lanes
     // the BIOS flash west of the chipset (its SPI lanes are the `spi` bus), the I/O controller and every header (the `hdr` bus), the regulators' controllers
     chip(c, geo.bios, { legs: 4, pitch: 26, text: 'BIOS', size: 30, accent: T.mul });
-    chip(c, geo.sio, { legs: 3, pitch: 52, text: 'SIO', size: 36, accent: T.mul });
+    chip(c, geo.sio, { legs: 4, pitch: 26, text: 'SIO', size: 40, accent: T.mul });
     chip(c, geo.dpwm, { legs: 6, pitch: 26, text: 'PWM', size: 46, accent: T.mul });
     for (const h of geo.hdrs) header(c, h.x, h.y, h.cols, h.rows, h.name);
-    // the top board: an RGB strip along the bottom edge and a two-digit debug display by the 24-pin
-    if (tier >= 3) {
-      for (let k = 0; k < 44; k++) {
-        const x = BD.x + 700 + k * ((BD.w - 1400) / 43), col = mix(T.alu, T.br, k / 43);
-        g.circle(x, south - 60, 22).fill({ color: col, alpha: 0.12 });
-        g.circle(x, south - 60, 9).fill({ color: col, alpha: 0.85 });
+    // the top board: a two-digit debug display under the chipset (its four lanes come from the chipset's south legs) and an RGB strip along the bottom edge
+    if (geo.rgb) {
+      const r = geo.rgb, n = 44;
+      for (let k = 0; k < n; k++) {
+        const x = r.x + (k * r.w) / (n - 1), col = mix(T.alu, T.br, k / (n - 1)), y = r.y + r.h / 2;
+        g.circle(x, y, 22).fill({ color: col, alpha: 0.12 });
+        g.circle(x, y, 9).fill({ color: col, alpha: 0.85 });
       }
-      const d = { x: BD.x + BD.w - 720, y: -420, w: 300, h: 170 };
+    }
+    if (geo.dbg) {
+      const d = geo.dbg;
       box(g, d.x, d.y, d.w, d.h, 10, { fill: '#05070b', stroke: P.edge, lw: 5 });
       for (let k = 0; k < 2; k++) {
         const ox = d.x + 24 + k * 134;
         for (const [a, b2, w, h] of [[10, 10, 70, 10], [10, 70, 70, 10], [10, 130, 70, 10], [4, 18, 10, 50], [74, 18, 10, 50], [4, 78, 10, 50], [74, 78, 10, 50]] as const) g.rect(ox + a, d.y + 14 + b2 * 0.82, w, h);
       }
       g.fill({ color: T.ld, alpha: 0.4 });
-      labels.addChild(label('DEBUG', d.x + d.w / 2, d.y - 36, 28, P.silk, { anchor: [0.5, 0.5] }));
+      labels.addChild(label('DEBUG', d.x + d.w / 2, d.y + d.h + 30, 28, P.silk, { anchor: [0.5, 0.5] }));
     }
   }
 

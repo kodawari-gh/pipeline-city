@@ -33,8 +33,8 @@ export interface TierGeo {
   usb: number; dp: boolean;
   /** The BIOS flash, west of the chipset on a straight SPI link (four lanes from its east legs to the chipset's west legs). */
   bios: Rect;
-  /** First leg (index on the chipset's west side) of the four lanes to each PCIe slot after the first (slots 1, 2, ...), and of the BIOS. */
-  west: { slots: number[]; bios: number };
+  /** First leg (index on the chipset's west side) of the four lanes to each PCIe slot after the first (slots 1, 2, ...), of the BIOS and of the I/O controller's link. */
+  west: { slots: number[]; bios: number; sio: number };
   /** x of the DMI column that leaves the CPU's south edge: the middle of the chipset's north side. */
   dmiX: number;
   codec: Rect;
@@ -65,8 +65,10 @@ export interface TierGeo {
   hdrY: number;
   /** The memory regulator's controller and the side of the phases it stands on (west of them, or east on the top board). */
   dpwm: Rect; dpwmWest: boolean;
-  /** The I/O controller between F_PANEL and USB_2, and every pin header of the board (name, position, size in pins). */
+  /** The I/O controller west of the chipset (its link is four lanes to the chipset's west legs, its header trunk runs west under the row) and every pin header of the board (name, position, size in pins). */
   sio: Rect; hdrs: HeaderGeo[];
+  /** The top board's two-digit debug display under the chipset and its RGB strip along the bottom edge. */
+  dbg: Rect | null; rgb: Rect | null;
   /** Mounting holes. */
   holes: [number, number][];
 }
@@ -99,16 +101,16 @@ export const ioPort = (id: string): IoPort => IO_PORTS.find((p) => p.id === id)!
 
 interface Spec {
   tier: number; form: string; bd: Rect; x0: number; phases: number; dphases: number; dimms: number; pcie: number; m2Y: number[]; sata: number;
-  usb: number; dp: boolean; west: { slots: number[]; bios: number }; chip: Rect; pciewY: number | null; /** vertical pitch of the SATA ports (the top board packs eight) */ satap?: number;
+  usb: number; dp: boolean; west: { slots: number[]; bios: number; sio: number }; chip: Rect; pciewY: number | null; /** vertical pitch of the SATA ports (the top board packs eight) */ satap?: number;
 }
 
 const SPECS: Spec[] = [
-  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5800, 3900), x0: 1480, phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6 }, chip: R(540, 1000, 460, 460), pciewY: null },
-  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4700), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11 }, chip: R(430, 1500, 540, 540), pciewY: 1000 },
+  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5800, 3900), x0: 1480, phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(540, 1000, 460, 460), pciewY: null },
+  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4700), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(430, 1500, 540, 540), pciewY: 1000 },
   // the first M.2 sits east of the CPU (a straight run from its east edge), the second below it
-  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 5400), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 9], bios: 13 }, chip: R(400, 1775, 600, 600), pciewY: 1000 },
+  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 5400), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 1775, 600, 600), pciewY: 1000 },
   // the second DIMM row takes the space east of the CPU, so the M.2 stack starts below it
-  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
+  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
 ];
 
 /** The four PCIe slot rails (x16, x8, x4, x1): the tier uses the first ones. Lengths stop before the M.2 area. */
@@ -135,7 +137,7 @@ function build(s: Spec): TierGeo {
   // ---- CPU VRM: phases centred over the CPU, the PWM controller at the west end ----
   const vx0 = -(s.phases * VRM_PITCH) / 2 + 20;
   const vrmPhases = Array.from({ length: s.phases }, (_, i) => R(vx0 + i * VRM_PITCH, -1700, VRM_BW, VRM_BH));
-  const pwm = R(vx0 - 330, -1590, 210, 210);
+  const pwm = R(vx0 - 390, -1590, 210, 210); // (the 120 between it and the first phase and the 60 more carry the controller's lanes to the phases)
   const vrm = R(pwm.x - 90, -1800, vx0 + s.phases * VRM_PITCH - (pwm.x - 90) + 20, 650);
   const vrmSink = R(vx0 - 10, -1682, s.phases * VRM_PITCH - 20, 170);
   // ---- memory VRM above row 0, its rail y just above the sockets ----
@@ -153,6 +155,19 @@ function build(s: Spec): TierGeo {
   // drive cables come from the bay
   const pcy = s.chip.y + s.chip.h / 2, sp = s.satap ?? SATA_PITCH, sy0 = pcy - ((s.sata - 1) * sp + 110) / 2;
   const sataRects = Array.from({ length: s.sata }, (_, i) => R(east - 390, sy0 + i * sp, 300, 110));
+  // the I/O controller sits west of the chipset, level with the last four of its west legs (a straight link of four lanes); the pin headers
+  // stand in a row to its west, the last of them 50 from it, and a trunk below the row serves them all
+  const sioLegs = legsFrom(s.chip, 'w', s.west.sio, 4), sio = R(s.chip.x - 520, sioLegs.reduce((a, p) => a + p[1], 0) / 4 - 75, 150, 150);
+  const hdrY = south - 520, hw = (cols: number) => cols * 52 + 24;
+  const eastToWest: Omit<HeaderGeo, 'x' | 'y'>[] = [
+    { name: 'SYS_FAN', cols: 4, rows: 1 }, { name: 'USB_2', cols: 5, rows: 2 }, { name: 'F_PANEL', cols: 5, rows: 2 },
+    ...(s.tier >= 3 ? [{ name: 'SYS_FAN2', cols: 4, rows: 1 }, { name: 'USB_3', cols: 5, rows: 2 }] : []),
+    ...(s.tier >= 2 ? [{ name: 'TPM', cols: 6, rows: 2 }] : []),
+    ...(s.tier >= 3 ? [{ name: 'ARGB', cols: 3, rows: 1 }] : []),
+  ];
+  let hx = sio.x - 50;
+  const hdrs: HeaderGeo[] = eastToWest.map((h) => { hx -= hw(h.cols); const g = { ...h, x: hx, y: hdrY }; hx -= 50; return g; });
+  hdrs.push({ name: 'CLR_CMOS', x: s.tier === 0 ? -1390 : -1440, y: 830, cols: 3, rows: 1 });
   const holes: [number, number][] = [
     [s.tier === 0 ? -2150 : bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150], // (the small board's top-west one sits beside the I/O plate)
     [0, bd.y + 150], [0, south - 150],
@@ -166,7 +181,7 @@ function build(s: Spec): TierGeo {
     chip: s.chip, dmiX: legRun(s.chip, 'n', 6).reduce((a, p) => a + p[0], 0) / 6,
     hub: R(-2050, -130, 260, 260), // 8 legs a side, 26 apart, centred on y 0: the CPU's four lanes on the east side, two per port on the west
     usb: s.usb, dp: s.dp,
-    bios: R(s.chip.x - 250, legsFrom(s.chip, 'w', s.west.bios, 4)[0]![1] + 39 - 55, 170, 110), west: s.west,
+    bios: R(s.chip.x - 250, legsFrom(s.chip, 'w', s.west.bios, 4)[0]![1] + 39 - 45, 170, 90), west: s.west,
     codec: R(-2540, -1967, 230, 234), // seven legs on its west side: the three jacks sit on the 1st, 4th and 7th
     phy: s.tier >= 1 ? R(-2300, -1690, 220, 260) : null, // eight legs: the jack's four pads sit on the middle ones
     bat: s.tier === 0 ? R(-1450, 450, 300, 300) : R(-1500, 400, 300, 300),
@@ -180,17 +195,14 @@ function build(s: Spec): TierGeo {
     m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
     sata: sataRects.slice(0, s.sata),
     // the sticker patch: along the bottom edge, or (on the top board, whose header bus runs there) in the free corner by the rear I/O
-    hex: s.tier >= 3 ? R(-2800, bd.y + 170, 760, 200) : R(-3000, south - 400, 760, 200),
+    hex: s.tier >= 3 ? R(-2800, bd.y + 170, 700, 200) : R(-3000, south - 400, 760, 200),
     qr: s.tier >= 3 ? R(-3100, bd.y + 170, 220, 220) : s.tier >= 1 ? R(-2150, south - 390, 220, 220) : null,
-    hdrY: south - 520,
-    dpwm: dpwmWest ? R(X0 - 290, dy + 230, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 230, 210, 210), dpwmWest,
-    sio: R(-740, south - 520 - 16, 190, 208),
-    hdrs: [
-      { name: 'F_PANEL', x: -1100, y: south - 520, cols: 5, rows: 2 }, { name: 'USB_2', x: -450, y: south - 520, cols: 5, rows: 2 },
-      { name: 'SYS_FAN', x: -80, y: south - 520, cols: 4, rows: 1 }, { name: 'CLR_CMOS', x: s.tier === 0 ? -1390 : -1440, y: 830, cols: 3, rows: 1 },
-      ...(s.tier >= 2 ? [{ name: 'TPM', x: -1550, y: south - 520, cols: 6, rows: 2 }] : []),
-      ...(s.tier >= 3 ? [{ name: 'USB_3', x: -2200, y: south - 520, cols: 5, rows: 2 }, { name: 'SYS_FAN2', x: -1860, y: south - 520, cols: 4, rows: 1 }] : []),
-    ],
+    hdrY,
+    dpwm: dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210), dpwmWest,
+    sio, hdrs,
+    // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
+    dbg: s.tier >= 3 ? R(s.chip.x + s.chip.w / 2 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
+    rgb: s.tier >= 3 ? R(bd.x + 700, south - 82, bd.w - 1400, 44) : null,
     holes,
   };
 }

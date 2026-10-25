@@ -15,6 +15,8 @@ export interface SerpOpts {
   bevel?: number; flat?: number; space?: number; margin?: number;
   /** Lanes within this much of the longest are left alone. */
   tol?: number;
+  /** Use only a stretch along this axis ('h' runs along x). */
+  axis?: 'h' | 'v';
 }
 
 export const lengthOf = (pts: Pt[]): number => pts.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
@@ -57,6 +59,7 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
   const segs = lines.map(segsOf);
   let best: { picks: Seg[]; lo: number; hi: number; axis: 'h' | 'v'; dir: 1 | -1 } | null = null;
   for (const s0 of segs[0]!) {
+    if (o.axis && s0.axis !== o.axis) continue;
     const picks: Seg[] = [s0];
     let [lo, hi] = span(s0);
     for (let i = 1; i < n && picks.length === i; i++) {

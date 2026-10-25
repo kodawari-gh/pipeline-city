@@ -17,7 +17,11 @@ export const VRM_OUT_X = 265, DRAM_OUT_X = 124, DRAM_IN_X = 52;
 
 export type Pt = [number, number];
 
-export interface Lane { pts: Pt[]; seg: number[]; len: number; ph: number }
+export interface Lane {
+  pts: Pt[]; seg: number[]; len: number; ph: number;
+  /** Stretches (arc length from, to) where the lane dives under what it crosses (a via at each end, nothing drawn between): only the buses of `HOP_BUSES` do. */
+  hops?: [number, number][];
+}
 
 export function mkLane(pts: Pt[], ph = 0): Lane {
   let len = 0;
@@ -40,6 +44,45 @@ export function pointAt(l: Lane, s: number): Pt {
     s -= l.seg[i]!;
   }
   return l.pts[0]!;
+}
+
+/** Where two lanes cross: the arc length along `a` and along `b` of every proper crossing. */
+export function crossings(a: Lane, b: Lane): { s: number; t: number }[] {
+  const out: { s: number; t: number }[] = [];
+  let sa = 0;
+  for (let i = 1; i < a.pts.length; i++) {
+    const p = a.pts[i - 1]!, q = a.pts[i]!, rx = q[0] - p[0], ry = q[1] - p[1];
+    let sb = 0;
+    for (let j = 1; j < b.pts.length; j++) {
+      const u = b.pts[j - 1]!, v = b.pts[j]!, tx = v[0] - u[0], ty = v[1] - u[1], den = rx * ty - ry * tx;
+      if (Math.abs(den) > 1e-9) {
+        const k = ((u[0] - p[0]) * ty - (u[1] - p[1]) * tx) / den, m = ((u[0] - p[0]) * ry - (u[1] - p[1]) * rx) / den;
+        if (k > 1e-6 && k < 1 - 1e-6 && m > 1e-6 && m < 1 - 1e-6) out.push({ s: sa + k * a.seg[i - 1]!, t: sb + m * b.seg[j - 1]! });
+      }
+      sb += b.seg[j - 1]!;
+    }
+    sa += a.seg[i - 1]!;
+  }
+  return out;
+}
+
+/** The points of the lane between arc lengths s0 and s1. */
+export function sliceLane(l: Lane, s0: number, s1: number): Pt[] {
+  const out: Pt[] = [pointAt(l, Math.min(l.len - 1e-9, s0))];
+  let c = 0;
+  for (let i = 1; i < l.pts.length - 1; i++) { c += l.seg[i - 1]!; if (c > s0 + 1e-6 && c < s1 - 1e-6) out.push(l.pts[i]!); }
+  out.push(s1 >= l.len ? l.pts[l.pts.length - 1]! : pointAt(l, s1));
+  return out;
+}
+
+/** The drawn pieces of a lane: the whole polyline, or what is left of it outside its hops. */
+export function visibleParts(l: Lane): Pt[][] {
+  if (!l.hops?.length) return [l.pts];
+  const parts: Pt[][] = [];
+  let at = 0;
+  for (const [a, b] of l.hops) { if (a > at) parts.push(sliceLane(l, at, a)); at = b; }
+  if (at < l.len) parts.push(sliceLane(l, at, l.len));
+  return parts;
 }
 
 /** Replace every interior corner of a rectilinear polyline with a 45 degree chamfer of leg length c. */
@@ -85,10 +128,12 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb';
 
 /** Buses that are only there to be seen: they never light. */
-export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc'];
+export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb'];
+/** Buses that may dive under what they cross (a via at each end of the hop), in rank order: a lane of a later bus hops over a lane of an earlier one. */
+export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb'];
 
 export interface Bus {
   id: BusKind;
@@ -175,6 +220,29 @@ export const vdimmStart = (g: TierGeo) => {
 export const nvmeX0 = (g: TierGeo) => g.dmiX + 107;
 /** Lanes in an NVMe bundle (and their spacing) and in the DMI link. */
 export const NVME_LANES = 3, NVME_SPACING = 22, DMI_LANES = 6;
+
+/** Mark the stretches where a lane of a `HOP_BUSES` bus crosses another lane: it dives under (a via at each end, `hop` clear of the crossed trace). */
+function addHops(buses: Bus[]) {
+  const all = buses.flatMap((b) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []).map((l) => ({ b, l })));
+  const rank = (id: BusKind) => HOP_BUSES.indexOf(id);
+  for (const { b, l } of all) {
+    if (rank(b.id) < 0) continue;
+    const cuts: [number, number][] = [];
+    for (const o of all) {
+      if (o.l === l || o.b === b || (rank(o.b.id) >= 0 && rank(o.b.id) > rank(b.id))) continue;
+      const r = o.b.w / 2 + 20;
+      for (const c of crossings(l, o.l)) cuts.push([c.s - r, c.s + r]);
+    }
+    cuts.sort((x, y) => x[0] - y[0]);
+    const hops: [number, number][] = [];
+    for (const c of cuts) {
+      const last = hops[hops.length - 1];
+      if (last && c[0] - last[1] < 36) last[1] = Math.max(last[1], c[1]);
+      else hops.push([Math.max(18, c[0]), Math.min(l.len - 18, c[1])]);
+    }
+    if (hops.length) l.hops = hops;
+  }
+}
 
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
@@ -284,20 +352,26 @@ export function buildBuses(): Bus[] {
     }
   }
 
-  // the regulators' controllers: one line from each controller along the phases, with a tap up into every phase's control leg (the taps
-  // rise in the gaps between the phase blocks; the line crosses the phases' power stubs, as a signal under a plane does)
+  // the regulators' controllers: a lane from each controller leg to the control leg of its phase. The nearest phase's lane runs straight in
+  // (when the controller stands beside the phases); every other leaves from the next leg, drops to a level of its own under the phases, and rises
+  // in the gap before its phase, the lane of the farthest phase on the lowest level, so none crosses another (they dive under the phases'
+  // power stubs: `HOP_BUSES`)
   {
-    const ph = g.vrmPhases, ctl = cpuStageCtl, cpuLeg = legAt(g.pwm, 's', 4, 6, LEG_PITCH), yb = ph[0]!.y + ph[0]!.h + 40;
-    const gx = (r: Rect, w: number) => r.x - w;
-    const lanes: Lane[] = [mkLane(chamfer([cpuLeg, [cpuLeg[0], yb], [gx(ph[ph.length - 1]!, 20), yb]], 60), 0)];
-    ph.forEach((r, i) => lanes.push(mkLane(chamfer([[gx(r, 20), yb], [gx(r, 20), ctl(r)[1]], ctl(r)], 14), i * 19 + 7)));
+    const ph = g.vrmPhases, legs = legsOf(g.pwm, 'e'), yb = ph[0]!.y + ph[0]!.h + 40, lanes: Lane[] = [];
+    ph.forEach((r, k) => {
+      const leg = legs[k]!, c = cpuStageCtl(r), gx = r.x - 20, xk = ph[0]!.x - 40 - 16 * (k - 1), yk = yb + 18 * (k - 1);
+      lanes.push(mkLane(chamfer(k === 0 ? [leg, [gx, leg[1]], [gx, c[1]], c] : [leg, [xk, leg[1]], [xk, yk], [gx, yk], [gx, c[1]], c], 14), k * 19 + 7));
+    });
     buses.push({ id: 'pwmc', w: 8, lanes });
-    // the memory regulator's: its controller is level with the line under the phases
-    const dp = g.dPhases, d = g.dpwm, dl = g.dpwmWest ? legAt(d, 'e', 3, 6, LEG_PITCH) : legAt(d, 'w', 3, 6, LEG_PITCH), y = dl[1];
-    const far = g.dpwmWest ? gx(dp[dp.length - 1]!, 32) : gx(dp[0]!, 32);
-    const dlanes: Lane[] = [mkLane([dl, [far, y]], 3)];
-    dp.forEach((r, i) => dlanes.push(mkLane(chamfer([[gx(r, 32), y], [gx(r, 32), dramStageCtl(r)[1]], dramStageCtl(r)], 12), i * 19 + 11)));
-    buses.push({ id: 'pwmc', w: 8, lanes: dlanes });
+    const dp = g.dPhases, west = g.dpwmWest, dl = legsOf(g.dpwm, west ? 'e' : 'w'), seq = west ? dp : dp.slice().reverse(), yb2 = dp[0]!.y + dp[0]!.h + 18, lanes2: Lane[] = [];
+    seq.forEach((r, k) => {
+      const leg = dl[k]!, c = dramStageCtl(r), gx = r.x - 28, yk = yb2 + 10 * (west ? k - 1 : k);
+      let route: Pt[];
+      if (west) route = k === 0 ? [leg, [gx, leg[1]], [gx, c[1]], c] : [leg, [dp[0]!.x - 40 - 14 * (k - 1), leg[1]], [dp[0]!.x - 40 - 14 * (k - 1), yk], [gx, yk], [gx, c[1]], c];
+      else { const xk = leg[0] - 22 - 14 * (seq.length - 1 - k); route = [leg, [xk, leg[1]], [xk, yk], [gx, yk], [gx, c[1]], c]; }
+      lanes2.push(mkLane(chamfer(route, 12), k * 19 + 11));
+    });
+    buses.push({ id: 'pwmc', w: 8, lanes: lanes2 });
   }
 
   // the BIOS flash on its SPI lanes: its east legs straight across to the chipset's west legs
@@ -306,22 +380,37 @@ export function buildBuses(): Bus[] {
     buses.push({ id: 'spi', w: 8, lanes: a.map((p, k) => mkLane([p, b[k]!], k * 17)) });
   }
 
-  // the I/O controller and the headers: F_PANEL and USB_2 on its side legs (the pin rows are the legs' rows), every other header on a
-  // trunk below the row (from its south leg, west and east) with a tap up to each header's first pin of the bottom row
+  // the I/O controller: four lanes straight east to the chipset's west legs, and the header trunk: from its south leg west under the row of
+  // pin headers, with a tap up to each header's first pin of the bottom row
   {
-    const sio = g.sio, byName = (n: string) => g.hdrs.find((h) => h.name === n)!, lanes: Lane[] = [];
-    const fp = byName('F_PANEL'), u2 = byName('USB_2');
-    for (let j = 0; j < 2; j++) {
-      lanes.push(mkLane([headerPin(fp.x, fp.y, fp.cols - 1, j), legsOf(sio, 'w', 3, 52)[j]!], j * 17));
-      lanes.push(mkLane([legsOf(sio, 'e', 3, 52)[j]!, headerPin(u2.x, u2.y, 0, j)], j * 17 + 5));
-    }
-    const leg = legAt(sio, 's', 1, 3, 52), yb = leg[1] + 36;
-    const rest = g.hdrs.filter((h) => !['F_PANEL', 'USB_2', 'CLR_CMOS'].includes(h.name)).map((h) => ({ h, pin: headerPin(h.x, h.y, 0, h.rows - 1) }));
-    const west = rest.filter((r) => r.pin[0] < leg[0]), east = rest.filter((r) => r.pin[0] > leg[0]);
-    if (west.length) lanes.push(mkLane(chamfer([leg, [leg[0], yb], [Math.min(...west.map((r) => r.pin[0])), yb]], 24), 31));
-    if (east.length) lanes.push(mkLane(chamfer([leg, [leg[0], yb], [Math.max(...east.map((r) => r.pin[0])), yb]], 24), 43));
-    rest.forEach((r, i) => lanes.push(mkLane([[r.pin[0], yb], r.pin], i * 13 + 5)));
+    const sio = g.sio, a = legsOf(sio, 'e'), b = legsFrom(g.chip, 'w', g.west.sio, 4), ym = mean(a, 1);
+    buses.push(mk('lpc', [[a[0]![0], ym], [b[0]![0], ym]], 4, LEG_PITCH, 8, 0, { from: a, to: b }));
+    const leg = legAt(sio, 's', 1, 4, LEG_PITCH), row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS');
+    const yb = Math.max(g.hdrY + 128 + 36, leg[1] + 30), pins = row.map((h) => headerPin(h.x, h.y, 0, h.rows - 1));
+    const lanes: Lane[] = [mkLane(chamfer([leg, [leg[0], yb], [Math.min(...pins.map((q) => q[0])), yb]], 24), 31)];
+    pins.forEach((q, i) => lanes.push(mkLane([[q[0], yb], q], i * 13 + 5)));
     buses.push({ id: 'hdr', w: 8, lanes });
+  }
+
+  // the I/O hub's links: the Ethernet PHY's four middle east legs and the audio codec's go down to the hub's north legs, the PHY's to the
+  // left four, the codec's to the right four (they dive under the display lanes they cross)
+  {
+    const hubN = legsOf(g.hub, 'n'), top = hubN[0]![1], cl = legRun(g.codec, 'e', 4), cy = mean(cl, 1), xc = mean(hubN.slice(4), 0);
+    buses.push(mk('hda', [[cl[0]![0], cy], [xc, cy], [xc, top]], 4, LEG_PITCH, 8, 80, { from: cl, to: hubN.slice(4), match: { w: 8, flare: 40, axis: 'h' } }));
+    if (g.phy) {
+      const pl = legRun(g.phy, 'e', 4), py = mean(pl, 1), xp = mean(hubN.slice(0, 4), 0);
+      buses.push(mk('phyl', [[pl[0]![0], py], [xp, py], [xp, top]], 4, LEG_PITCH, 8, 60, { from: pl, to: hubN.slice(0, 4), match: { w: 8, flare: 40 } }));
+    }
+  }
+
+  // the top board: four lanes from the chipset's south legs down onto the debug display, and the RGB strip's data lane from the ARGB header
+  if (g.dbg) {
+    const legs = legRun(g.chip, 's', 4);
+    buses.push({ id: 'dbg', w: 8, lanes: legs.map((q, k) => mkLane([q, [q[0], g.dbg!.y]], k * 17)) });
+  }
+  if (g.rgb) {
+    const h = g.hdrs.find((q) => q.name === 'ARGB')!, pin = headerPin(h.x, h.y, 1, 0), r = g.rgb;
+    buses.push({ id: 'rgb', w: 8, lanes: [mkLane(chamfer([pin, [pin[0], r.y - 36], [r.x, r.y - 36], [r.x, r.y + r.h / 2]], 24), 0)] });
   }
 
   // the battery to the clear-CMOS jumper below it
@@ -386,6 +475,7 @@ export function buildBuses(): Bus[] {
     const legs = legRun(g.phy, 'w', 4), pads = ioPads(ioPort('eth'), 4);
     buses.push(mk('lan', [[legs[0]![0], mean(legs, 1)], [pads[0]![0], mean(legs, 1)]], 4, LEG_PITCH, 8, 0, { from: legs, to: pads }));
   }
+  addHops(buses);
   // the groups whose lanes must arrive together
   const cut = (b: Bus, sizes: number[]) => { let k = 0; return sizes.map((n) => b.lanes.slice(k, (k += n))); };
   for (const b of buses) {

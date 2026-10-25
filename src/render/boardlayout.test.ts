@@ -3,8 +3,8 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
 import { CASE_BD, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { sataCablePath } from './case';
-import { DRAM_IN_X, DRAM_OUT_X, VRM_OUT_X, buildBuses, buildCables, movablePlug, NVME_LANES, vdimmEnd, type Bus, type Lane } from './routes';
-import { atx12v, cpuPowerPins, dimmPads, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
+import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane } from './routes';
+import { atx12v, cpuPowerPins, cpuStageCtl, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { ioPort } from './boardlayout';
 import { plugRect } from './devices';
 
@@ -175,6 +175,34 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     hit(by('pwr12')!.lanes[0]!.pts[0]!, [atx12v(g.atx)], 'pwr12 starts on the 24-pin');
   });
 
+  it('wires every controller, bridge and header to a pin the art draws', () => {
+    const g = sockets();
+    const buses = buildBuses();
+    const hit = (p: [number, number], pins: [number, number][], what: string) => expect(pins.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.6), `${what} ${p}`).toBe(true);
+    const end = (l: Lane) => l.pts[l.pts.length - 1]!, ids = (id: Bus['id']) => buses.filter((b) => b.id === id);
+    // the regulators' controllers: every phase has a lane from a leg of its controller to its control leg
+    const [cpuC, dramC] = ids('pwmc');
+    expect(cpuC!.lanes.length).toBe(g.vrmPhases.length);
+    cpuC!.lanes.forEach((l, k) => { hit(l.pts[0]!, legsOf(g.pwm, 'e'), 'cpu phase lane starts on a controller leg'); hit(end(l), [cpuStageCtl(g.vrmPhases[k]!)], `cpu phase ${k} lane ends on its control leg`); });
+    expect(dramC!.lanes.length).toBe(g.dPhases.length);
+    const dseq = g.dpwmWest ? g.dPhases : g.dPhases.slice().reverse();
+    dramC!.lanes.forEach((l, k) => { hit(l.pts[0]!, legsOf(g.dpwm, g.dpwmWest ? 'e' : 'w'), 'dram phase lane starts on a controller leg'); hit(end(l), [dramStageCtl(dseq[k]!)], `dram phase ${k} lane ends on its control leg`); });
+    // the I/O hub's links
+    for (const l of ids('hda')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.codec, 'e'), 'hda starts on a codec leg'); hit(end(l), legsOf(g.hub, 'n').slice(4), 'hda ends on a hub leg'); }
+    if (g.phy) for (const l of ids('phyl')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.phy, 'e'), 'phy link starts on a PHY leg'); hit(end(l), legsOf(g.hub, 'n').slice(0, 4), 'phy link ends on a hub leg'); }
+    else expect(ids('phyl').length).toBe(0);
+    // the I/O controller: its link to the chipset, its header trunk
+    for (const l of ids('lpc')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.sio, 'e'), 'lpc starts on a SIO leg'); hit(end(l), legsOf(g.chip, 'w'), 'lpc ends on a chipset leg'); }
+    const hdr = ids('hdr')[0]!, row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS');
+    expect(hdr.lanes.length).toBe(1 + row.length);
+    hit(hdr.lanes[0]!.pts[0]!, legsOf(g.sio, 's'), 'the trunk starts on a SIO leg');
+    row.forEach((h, i) => hit(end(hdr.lanes[1 + i]!), [headerPin(h.x, h.y, 0, h.rows - 1)], `${h.name} has its tap`));
+    // the top board's debug display and RGB strip
+    if (g.dbg) for (const l of ids('dbg')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.chip, 's'), 'dbg starts on a chipset leg'); expect(end(l)[1]).toBeCloseTo(g.dbg.y, 5); expect(end(l)[0] > g.dbg.x && end(l)[0] < g.dbg.x + g.dbg.w).toBe(true); }
+    else expect(ids('dbg').length).toBe(0);
+    if (g.rgb) { const l = ids('rgb')[0]!.lanes[0]!; expect(end(l)[0]).toBeCloseTo(g.rgb.x, 5); hit(l.pts[0]!, [headerPin(g.hdrs.find((h) => h.name === 'ARGB')!.x, g.hdrs.find((h) => h.name === 'ARGB')!.y, 1, 0)], 'rgb starts on the ARGB data pin'); }
+  });
+
   it('never doubles a lane back on itself, and keeps every bend at 45 or 90 degrees', () => {
     sockets();
     for (const b of buildBuses()) for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) {
@@ -191,16 +219,18 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     }
   });
 
-  it('crosses no two signal lanes of different buses', () => {
+  it('crosses no two signal lanes of different buses, except where one dives under the other', () => {
     sockets();
     const groups: { id: string; l: Lane }[] = [];
     for (const b of buildBuses()) {
-      if (['pwr12', 'pwrcpu', 'vcore', 'vdimm'].includes(b.id)) continue;
+      if (['pwr12', 'pwrcpu', 'vcore', 'vdimm'].includes(b.id) && !HOP_BUSES.includes(b.id)) continue;
       for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) groups.push({ id: b.id, l });
     }
+    const covered = (l: Lane, s: number) => (l.hops ?? []).some(([a, z]) => s > a && s < z);
     for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) {
-      if (groups[i]!.id === groups[j]!.id) continue;
-      expect(lanesCross(groups[i]!.l, groups[j]!.l), `${groups[i]!.id} crosses ${groups[j]!.id}`).toBe(false);
+      const A = groups[i]!, B = groups[j]!;
+      if (A.id === B.id) continue;
+      for (const c of crossings(A.l, B.l)) expect(covered(A.l, c.s) || covered(B.l, c.t), `${A.id} crosses ${B.id} without diving under it`).toBe(true);
     }
   });
 
@@ -220,8 +250,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     };
     const dist = (x: Lane, y: Lane) => {
       let m = 1e9;
-      for (let i = 1; i < x.pts.length; i++) for (let j = 1; j < y.pts.length; j++) {
-        const a = x.pts[i - 1]!, b = x.pts[i]!, c = y.pts[j - 1]!, d = y.pts[j]!;
+      for (const px of visibleParts(x)) for (const py of visibleParts(y)) for (let i = 1; i < px.length; i++) for (let j = 1; j < py.length; j++) {
+        const a = px[i - 1]!, b = px[i]!, c = py[j - 1]!, d = py[j]!;
         m = Math.min(m, sd(a, c, d), sd(b, c, d), sd(c, a, b), sd(d, a, b));
       }
       return m;
