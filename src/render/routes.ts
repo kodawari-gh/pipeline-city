@@ -144,7 +144,7 @@ export function buildBuses(): Bus[] {
     buses.push({ id: 'sata', w: 9, lanes });
   }
 
-  // display: CPU west edge, west above the chipset, up to the HDMI row, into the port
+  // display: CPU west edge, west (above the USB lanes), up to the HDMI row, into the port
   buses.push(mk('video', [[px, -640], [-2300, -640], [-2300, VIDEO_Y], [g.io.x + g.io.w, VIDEO_Y]], 4, 28, 11, 200));
 
   // ---- power ----
