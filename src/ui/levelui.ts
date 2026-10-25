@@ -68,7 +68,7 @@ export function kindIcon(kind: string): IconKey {
     case 'psu': return 'bolt';
     case 'display': case 'gpu': return 'screen';
     case 'storage': case 'raid': return 'disk';
-    case 'board': return 'slot';
+    case 'board': case 'case': return 'slot';
     case 'router': case 'isp': case 'nic': return 'net';
     case 'tpm': return 'lock';
     default: return 'box';

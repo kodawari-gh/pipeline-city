@@ -71,8 +71,11 @@ export let GEO: TierGeo = geoOf(2);
 export let BD: Rect = GEO.bd;
 /** Named board regions, for hover and for the art. A region the tier lacks is an empty rect (see `REGIONS`, which skips it). */
 export let BR: Record<RegionId, Rect> = regionsOf(GEO);
-/** The tier index the layout is set to. */
+/** The board tier and the case tier the layout is set to. The case holds boards up to its tier: it is as big as the biggest board it holds. */
 export let LAYOUT_TIER = 2;
+export let LAYOUT_CASE = 2;
+/** The board area of the case (the outline of the biggest board it holds): the motherboard tray, the cable gutter and the front fans follow it. */
+export let CASE_BD: Rect = GEO.bd;
 
 function regionsOf(g: TierGeo): Record<RegionId, Rect> {
   return {
@@ -209,13 +212,13 @@ const REGION_IDS: [string, RegionId][] = [
 export let REGIONS: { id: string; rect: Rect }[] = [];
 
 /** Point every tier-dependent binding at this tier's board (call before building anything). */
-export function setLayoutTier(tier: number): void {
-  const g = geoOf(tier);
-  GEO = g; LAYOUT_TIER = g.tier; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
+export function setLayoutTier(tier: number, caseTier = tier): void {
+  const g = geoOf(tier), cg = geoOf(Math.max(tier, caseTier));
+  GEO = g; LAYOUT_TIER = g.tier; LAYOUT_CASE = cg.tier; CASE_BD = cg.bd; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
   VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
   // the lower compartment and the case follow the board: the PSU shroud runs under the board and the cable gutter, the drive bay
   // sits at its east end, the case closes round them
-  const east = g.bd.x + g.bd.w, south = g.bd.y + g.bd.h, dy = south - 2500;
+  const east = cg.bd.x + cg.bd.w, south = cg.bd.y + cg.bd.h, dy = south - 2500;
   SHIFT_Y = dy;
   GUTTER_X = east;
   PSU_PORTS = { pcie: east + 120, atx: east + 280, cpu: east + 430 };

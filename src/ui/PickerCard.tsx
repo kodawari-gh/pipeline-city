@@ -8,7 +8,7 @@ import type { Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { describeId, fmtClock, fmtMoney } from './logic';
 import {
-  boardId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, osSection, pickerFor, zoneOf,
+  boardId, caseId, clockZones, compareRows, estTempC, installedCooler, nextUpgrade, osSection, pickerFor, zoneOf,
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import {
@@ -367,7 +367,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   const option = picked ?? m.focus ?? firstOffer ?? next?.specId ?? null;
   // Operating systems have their own stats (programs, queue), so they are not compared with hardware bars.
   const rows = option && m.kind !== 'key' && m.kind !== 'info' && !getOsSpec(option) ? compareRows(m.kind, m.current, option) : [];
-  const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.focus);
+  const artId = m.device?.spec ?? (m.kind === 'board' ? boardId(s.boardTier) : m.kind === 'case' ? caseId(s.caseTier) : m.focus);
   // With a clock dial the overclock warnings are shown by the dial's zone, not as text.
   const lines: PickerLine[] = m.clock ? m.lines.filter((l) => l.level === 'info' || l.level === 'ok') : m.lines;
   // Words only where something is wrong or the object has nothing else to show: warnings always, one plain line for a bare socket.

@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng, setLayoutTier } from './layout';
+import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { USB_POS } from './exterior';
 import { buildBuses, type Bus, type Lane } from './routes';
@@ -44,8 +44,7 @@ const SKINS: Skin[] = [
  * board colour. Routing is deliberate (routes.ts); there is no random scatter. Every run of copper ends on a footprint.
  */
 export function buildBoard(T: Theme, tier: number): BoardArt {
-  setLayoutTier(tier);
-  const geo = GEO;
+  const geo = GEO; // the layout is set by the caller (`setLayoutTier`) before the scene is built
   const rand = rng(BOARD_SEED);
   const P = makePalette(T);
   const skin = SKINS[tier] ?? SKINS[1]!;

@@ -17,7 +17,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -291,7 +291,7 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene build: runs on theme change, board tier change, or an install/uninstall ----
   const keyOf = (s: Snapshot | null) =>
-    `${T.dark}|${s?.boardTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
+    `${T.dark}|${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
 
   function build(s: Snapshot | null) {
     boardBake?.texture.destroy(true); deviceBake?.texture.destroy(true); caseBake?.texture.destroy(true);
@@ -303,8 +303,9 @@ export async function mountBoard(host: HTMLElement) {
     parts.length = 0;
     const tier = s?.boardTier ?? 0;
     // a new board tier is a new case, a new world: remember whether the player was looking at the whole scene, to follow it
-    const tierChanged = sceneReady && tier !== LAYOUT_TIER, wasOverview = tierChanged && atOverviewNow();
-    setLayoutTier(tier);
+    const caseTier = Math.max(tier, s?.caseTier ?? tier);
+    const tierChanged = sceneReady && (tier !== LAYOUT_TIER || caseTier !== LAYOUT_CASE), wasOverview = tierChanged && atOverviewNow();
+    setLayoutTier(tier, caseTier);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);

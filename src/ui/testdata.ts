@@ -2,7 +2,7 @@
 
 import type { BoardSnap, DeviceSnap, InventorySnap, KeySnap, PurchaseSnap, Snapshot, SlotSnap, VrmSnap } from '../sim/game/game';
 import { newProgress } from '../sim/game/save';
-import { BOARD_TIERS } from '../sim/board/specs';
+import { BOARD_TIERS, CASE_TIERS } from '../sim/board/specs';
 import { levelRows } from '../sim/game/levels';
 
 export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
@@ -49,6 +49,7 @@ export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<V
   const { vrm, ...rest } = o;
   return {
     tier, name: t.name, burnt: false,
+    caseTier: tier, caseName: CASE_TIERS[tier]!.name, caseForm: CASE_TIERS[tier]!.form,
     features: { ...t.features },
     slots: EMPTY_SLOTS,
     vrm: {
@@ -75,7 +76,7 @@ export const STOCK_COOLER: DeviceSnap = { id: 'dev-cooler', spec: 'cooler0', kin
 /** A fresh game: nothing installed, nothing connected, no keys yet. */
 export function snap(o: Partial<Snapshot> = {}): Snapshot {
   return {
-    money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, boardTier: 0, pipe: null,
+    money: 0, cycle: 0, baseTick: 0, queueLength: 0, queueCap: 8, request: null, boardTier: 0, caseTier: 0, pipe: null,
     display: '', counters: {}, completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0,
     reputation: 1, demandRate: 0.1, devices: [], power: { vrmLossW: 0, totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
     cpuClock: null, purchases: PURCHASES, pendingPurchases: [],

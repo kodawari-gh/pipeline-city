@@ -39,7 +39,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 export type StepId =
   | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
   | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid'
-  | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'buyBoard' | 'fitBoard' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
+  | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'buyCase' | 'fitCase' | 'buyBoard' | 'fitBoard' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
 
 export type Chapter = 'Build' | 'First jobs' | 'The OS' | 'The network';
 export const CHAPTERS: Chapter[] = ['Build', 'First jobs', 'The OS', 'The network'];
@@ -122,6 +122,8 @@ const ownsRouter = (s: Snapshot) => !!s.net.router || invOf(s, 'router').length 
 /** The machine has a network port: the board's own jack, or a network card. */
 const hasJack = (s: Snapshot) => s.board.features.ethernetMbps > 0 || s.devices.some((d) => d.kind === 'nic' && !d.burnt);
 const ownsJackBoard = (s: Snapshot) => hasJack(s) || invOf(s, 'board').some((i) => (BOARD_TIERS[Number(/^board(\d+)$/.exec(i.spec)?.[1])]?.features.ethernetMbps ?? 0) > 0);
+/** A case big enough for the Basic board (the first one with a network port) is fitted or waiting in the inventory. */
+const ownsBiggerCase = (s: Snapshot) => s.caseTier >= 1 || invOf(s, 'case').length > 0;
 const OS_PHASES = ['idle-os', 'ingesting', 'running-os', 'flashing'];
 const pluggedAt = (s: Snapshot, stages: string[]) => s.plugged !== null && stages.includes(s.plugged.stage);
 /** The OS has copied a key into its queue (plugged). */
@@ -259,10 +261,19 @@ export const STEPS: StepDef[] = [
   { id: 'placeRouter', chapter: 'The network', title: 'Place the router', flag: 'routerInstalled',
     text: 'Put the router in its spot next to the monitor. You can do this while the machine is running. Drag it from the inventory to the lit spot.',
     targets: (s) => [...invOf(s, 'router').map((i) => `inv:${i.id}`), ...invOf(s, 'router').flatMap((i) => i.freeSlots)] },
+  { id: 'buyCase', chapter: 'The network', title: 'A bigger case', flag: null,
+    done: (s) => ownsBiggerCase(s) || ownsJackBoard(s),
+    text: 'Your starter board has no network port, like a laptop with no socket for the cable. The Basic board has one, but it is bigger than your little Mini tower, and a board has to fit its case. First a roomier case. A case can only be changed while the machine is switched off, so press the power button first, then open the Shop and buy the Micro tower.' + BROKE,
+    // The machine is still running from the OS lesson: the power button first, then the Shop.
+    targets: (s) => (s.powered ? ['power'] : whenAffordable('case1', () => ['hud:shop', 'buy:case1'])(s)) },
+  { id: 'fitCase', chapter: 'The network', title: 'Fit the new case', flag: null,
+    done: (s) => s.caseTier >= 1 || ownsJackBoard(s),
+    text: 'Drag the new case onto your old one. Your board and all your parts move into it by themselves.',
+    targets: whileSwapQueued((s) => invOf(s, 'case').flatMap((i) => [`inv:${i.id}`, ...i.freeSlots, ...i.swapSlots])) },
   { id: 'buyBoard', chapter: 'The network', title: 'A board with a network port', flag: null,
     done: (s) => ownsJackBoard(s),
-    text: 'Your starter board has no network port, like a laptop with no socket for the cable. The Basic board has one, and all your parts carry over to it. A board can only be bought while the machine is switched off, so press the power button first, then open the Shop and buy it.' + BROKE,
-    // The machine is still running from the OS lesson: the power button first, then the Shop.
+    text: 'Now the board itself. The Basic board has a network port, and all your parts carry over to it. A board can only be bought while the machine is switched off, so keep it off, then open the Shop and buy it.' + BROKE,
+    // The machine may still be running (an old save): the power button first, then the Shop.
     targets: (s) => (s.powered ? ['power'] : whenAffordable('board1', () => ['hud:shop', 'buy:board1'])(s)) },
   { id: 'fitBoard', chapter: 'The network', title: 'Fit the new board', flag: null,
     done: (s) => hasJack(s),
@@ -413,13 +424,15 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
     case 'fitRam':
       return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'ram');
     case 'fitBoard': return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'board');
+    case 'fitCase': return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'case');
     case 'placeRouter': return itemReason(s, 'router');
     case 'plugLan': return s.cables.find((c) => c.id === 'lan')?.blocked ?? null;
     case 'linkUp': if (!s.powered) return 'The machine is off: press the power button, the OS brings the link up once it is running.'; return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : `Waiting for the link: ${s.net.reason}`;
     case 'firstNetJob': return s.net.offers.length || s.net.spooled.length ? null : 'Waiting for a client to send a job. It can take a minute or two.';
-    case 'buyDrive': case 'buyRam': case 'buyOs': case 'buyIsp': case 'buyRouter': case 'buyBoard': {
+    case 'buyDrive': case 'buyRam': case 'buyOs': case 'buyIsp': case 'buyRouter': case 'buyCase': case 'buyBoard': {
       if (step.id === 'buyBoard' && s.powered && !s.purchases.find((x) => x.id === 'board1')?.locked) return 'The machine is on: press the power button to switch it off, then buy the board.';
-      const id = ({ buyDrive: 'hdd0', buyRam: 'ram1', buyOs: 'os1', buyIsp: 'isp1', buyRouter: 'router1', buyBoard: 'board1' } as Record<string, string>)[step.id]!;
+      if (step.id === 'buyCase' && s.powered && !s.purchases.find((x) => x.id === 'case1')?.locked) return 'The machine is on: press the power button to switch it off, then buy the case.';
+      const id = ({ buyDrive: 'hdd0', buyRam: 'ram1', buyOs: 'os1', buyIsp: 'isp1', buyRouter: 'router1', buyCase: 'case1', buyBoard: 'board1' } as Record<string, string>)[step.id]!;
       const p = s.purchases.find((x) => x.id === id);
       if (!p) return null;
       if (p.locked) return `Needs Level ${p.locked.level} (${p.locked.name}). Keep serving clients.`;

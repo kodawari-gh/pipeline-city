@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import {
-  BAY, BAY_CELLS, BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_TIER, POWER_BTN, PSU, SATA_LINK, sataPort, type Rect,
+  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, PSU, SATA_LINK, sataPort, type Rect,
 } from './layout';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -11,6 +11,10 @@ import type { Theme } from './theme';
 // (baked with the device layer); the lights and the drives are live (Live, props.ts).
 
 export const wallTone = (T: Theme) => mix(T.bg, T.dark ? T.line : '#ffffff', T.dark ? 0.3 : 0.6);
+/** What the player's case is called on its top panel, and how many vents it has: the cases differ at a glance (docs/RENDER.md "Cases"). */
+export const CASE_LOOK = [
+  { tag: 'MINI', vents: 7, trim: 0 }, { tag: 'MICRO', vents: 11, trim: 0 }, { tag: 'MID', vents: 16, trim: 1 }, { tag: 'FULL', vents: 22, trim: 2 },
+] as const;
 export const cavityTone = (T: Theme) => (T.dark ? mix(T.bg, '#000000', 0.45) : mix(T.bg, T.mute, 0.1));
 const edgeTone = (T: Theme) => mix(T.line, T.mute, T.dark ? 0.15 : 0.55);
 
@@ -19,7 +23,9 @@ export function caseBack(T: Theme): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const wall = wallTone(T), cav = cavityTone(T), edge = edgeTone(T);
+  const look = CASE_LOOK[LAYOUT_CASE] ?? CASE_LOOK[2];
+  // the bigger cases are a little darker and carry an accent line along the top; the small ones are paler
+  const wall = mix(wallTone(T), T.dark ? '#000000' : '#8fa0bb', [-0.08, 0, 0.1, 0.2][LAYOUT_CASE] ?? 0), cav = cavityTone(T), edge = edgeTone(T);
   const c = CASE, i = CASE_IN, p = CASE_PANEL;
   // feet
   for (const fx of [c.x + 300, c.x + c.w - 700]) box(g, fx, c.y + c.h - 30, 400, 130, 30, { fill: mix(wall, T.bg, 0.4), stroke: edge, lw: 6, sa: 0.7 });
@@ -30,7 +36,8 @@ export function caseBack(T: Theme): Container {
   g.rect(p.x + 40, p.y + p.h - 4, p.w - 80, 8).fill({ color: edge, alpha: 0.7 });
   g.rect(p.x + 40, p.y + 8, p.w - 80, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.5 });
   // vents on the panel: a quiet row of slots
-  for (let k = 0; k < 16; k++) box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
+  for (let k = 0; k < look.vents; k++) box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
+  if (look.trim >= 1) g.rect(p.x + 40, p.y + p.h - 12, p.w - 80, 5).fill({ color: T.alu, alpha: look.trim >= 2 ? 0.5 : 0.28 });
   // cavity (behind the glass) and the PSU compartment
   box(g, i.x, i.y, i.w, i.h, 36, { fill: cav, stroke: edge, lw: 6, sa: 0.8 });
   const psuTop = PSU.y - 200;
@@ -40,7 +47,7 @@ export function caseBack(T: Theme): Container {
   for (let k = 0; k < 14 && -2400 + k * 190 < i.x + i.w - 400; k++) box(g, -2400 + k * 190, i.y + i.h + 30, 110, 22, 11, { fill: cav, fa: 0.85 });
   // the motherboard tray: a plate a little bigger than the board it carries, perforated, with the board's standoffs and a cable cut-out
   {
-    const tr = { x: BD.x - 110, y: BD.y - 110, w: BD.w + 220, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
+    const BD = CASE_BD, tr = { x: BD.x - 110, y: BD.y - 110, w: BD.w + 220, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
     box(g, tr.x, tr.y, tr.w, tr.h, 120, { fill: tone, stroke: edge, lw: 6, sa: 0.55 });
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + 60; y < tr.y + 190; y += 80) g.circle(x, y, 14);
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) g.circle(x, y, 14);
@@ -54,7 +61,7 @@ export function caseBack(T: Theme): Container {
   // I/O shield opening in the west wall (keys and the video cable pass through it)
   box(g, c.x + 26, -2080, 108, 2600, 30, { fill: cav, fa: 0.85, stroke: edge, lw: 4, sa: 0.5 });
   // labels
-  root.addChild(label('PIPELINE CITY', -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
+  root.addChild(label(`PIPELINE CITY · ${look.tag}`, -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   void POWER_BTN; void LAYOUT_TIER;
@@ -66,7 +73,7 @@ export function caseBack(T: Theme): Container {
  * ring of blade tips and a light strip), and the perforated front panel beyond them. One module per ~1600 units of height.
  */
 function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
+  const BD = CASE_BD, gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
   const n = Math.max(1, Math.round((y1 - y0 + 100) / 1700)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
   const x = BD.x + BD.w + 550, w = 480;
   // front panel: a perforated wall along the east side of the glass

@@ -2,7 +2,7 @@
 // The card opens only when the renderer selects something (`selected`). Parts are placed by dragging from the
 // inventory tray (or the world); the card offers purchases (into the inventory), the clock, power and job actions.
 
-import { AMBIENT_C, BOARD_TIERS, getSpec, specsOfKind, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
@@ -17,11 +17,11 @@ import { boardCards, cpuVrmWarning, liquidVrmNote, ramVrmWarning, vrmLines, vrmR
 /** The storage block size (bytes), as in the sim's storage device. */
 const BLOCK_BYTES = 256;
 
-export type PickerKind = DeviceKind | 'board' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
+export type PickerKind = DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp' | 'key' | 'tray' | 'power' | 'usb' | 'info';
 export type BuyState = 'ready' | 'poor' | 'blocked';
 export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
   | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'down' | 'up' | 'star' | 'stick'
-  | 'board' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop' | 'play' | 'pause';
+  | 'board' | 'case' | 'heatsink' | 'layers' | 'router' | 'globe' | 'shop' | 'play' | 'pause';
 
 export interface PickerLine { level: Level | 'info'; text: string }
 
@@ -182,10 +182,13 @@ export function ipcGuess(e: CpuSpec['engine']): number {
 
 /** Board ids in the board ladder, one per tier. */
 export const boardId = (tier: number) => `board${tier}`;
+/** Case ids in the case ladder, one per tier. */
+export const caseId = (tier: number) => `case${tier}`;
 
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
+  if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
   if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic') {
     return specsOfKind(kind).map((x) => x.id);
   }
@@ -202,6 +205,15 @@ export function drivePerSecond(spec: { clock: { base: number }; blockTicks: numb
 
 /** Numeric stats of a spec (or a board tier). Empty for an unknown id. */
 export function statsOf(specId: string): Stat[] {
+  if (/^case\d+$/.test(specId)) {
+    const ct = CASE_TIERS[Number(specId.slice(4))];
+    if (!ct) return [];
+    const bt = BOARD_TIERS[ct.maxBoard]!;
+    return [
+      { key: 'board', label: 'Biggest board', icon: 'board', value: ct.maxBoard + 1, unit: '', higherIsBetter: true },
+      { key: 'dimm', label: 'Memory slots it can hold', icon: 'memory', value: bt.slots.dimm ?? 0, unit: '', higherIsBetter: true },
+    ];
+  }
   if (/^board\d+$/.test(specId)) {
     const bt = BOARD_TIERS[Number(specId.slice(5))];
     if (!bt) return [];
@@ -355,12 +367,12 @@ const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
   'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic',
 };
-const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os' | 'router' | 'isp'> = {
-  psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os', router: 'router', wall: 'isp',
+const WORLD_KIND: Record<string, DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp'> = {
+  psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', case: 'case', bay: 'storage', os: 'os', router: 'router', wall: 'isp',
 };
 
 /** The kind a selected id stands for, if any (slot, device, inventory item, spec id, world object or board tier). */
-export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | 'router' | 'isp' | null {
+export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp' | null {
   const slot = s.slots.find((x) => x.id === id);
   if (slot) return SLOT_KIND[slot.type] ?? null;
   const dev = s.devices.find((d) => d.id === id);
@@ -376,6 +388,7 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | '
   if (spec) return spec.kind;
   if (getOsSpec(id)) return 'os';
   if (/^board[0-9]+$/.test(id)) return 'board';
+  if (/^case[0-9]+$/.test(id)) return 'case';
   return null;
 }
 
@@ -386,15 +399,16 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'os' | '
 export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderStep[] {
   const installed: Array<{ spec: string; devId: string }> = kind === 'board'
     ? [{ spec: boardId(s.boardTier), devId: '' }]
+    : kind === 'case' ? [{ spec: caseId(s.caseTier), devId: '' }]
     : kind === 'os'
       ? (s.os ? [{ spec: s.os.spec, devId: '' }] : [])
       : kind === 'router' ? (s.net.router ? [{ spec: s.net.router.id, devId: '' }] : [])
       : kind === 'isp' ? (s.net.isp ? [{ spec: s.net.isp.id, devId: '' }] : [])
       : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
   const crate = kind === 'board' || kind === 'isp' ? [] : s.inventory.filter((i) => i.kind === kind);
-  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? getRouterSpec(id)?.tier ?? getIspSpec(id)?.tier ?? -1);
+  const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : kind === 'case' ? Number(id.slice(4)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? getRouterSpec(id)?.tier ?? getIspSpec(id)?.tier ?? -1);
   const ownedMax = Math.max(-1, ...installed.map((x) => tierOf(x.spec)), ...crate.map((x) => tierOf(x.spec)));
-  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name ?? getRouterSpec(id)?.name ?? (getIspSpec(id) && `${getIspSpec(id)!.name} plan`)) ?? id;
+  const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : kind === 'case' ? CASE_TIERS[Number(id.slice(4))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name ?? getRouterSpec(id)?.name ?? (getIspSpec(id) && `${getIspSpec(id)!.name} plan`)) ?? id;
   const out: LadderStep[] = [];
   for (const id of catalogOf(kind)) {
     const tier = tierOf(id);
@@ -694,6 +708,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     const ladder = ladderFor(s, kind);
     const current = kind === 'board'
       ? boardId(s.boardTier)
+      : kind === 'case' ? caseId(s.caseTier)
       : kind === 'os' ? s.os?.spec ?? null
       : dev?.spec ?? (slot ? null : s.devices.find((x) => x.kind === kind)?.spec ?? null);
     const lines: PickerLine[] = [];
@@ -738,6 +753,14 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       const same = s.purchases.find((p) => p.id === boardId(s.boardTier));
       const price = same ? `, ${s.sandbox ? 'free' : fmtMoney(same.price)}` : '';
       lines.push({ level: 'bad', text: `The board is dead: its VRM burnt out. Power off and replace it with a ${BOARD_TIERS[s.boardTier]?.name ?? 'board'}${price}.` });
+    }
+    // The case: what it holds, and why a bigger board needs a bigger one.
+    if (kind === 'case') {
+      const cur = CASE_TIERS[s.caseTier]!, board = BOARD_TIERS[s.boardTier]!;
+      lines.push({ level: 'info', text: `${cur.name}: holds boards up to ${cur.form}. Your ${board.name} board is fitted.` });
+      const next = CASE_TIERS[s.caseTier + 1];
+      if (next) lines.push({ level: 'info', text: `A bigger board needs a bigger case first: the ${next.name} holds up to ${next.form}.` });
+      if (s.powered) lines.push({ level: 'warn', text: 'Power the machine off to change the case.' });
     }
     // A VRM heatsink slot that is empty is the drop target for the heatsink rows.
     if (kind === 'vrm-sink' && emptySocket) {

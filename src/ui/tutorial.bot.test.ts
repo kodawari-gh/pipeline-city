@@ -17,7 +17,7 @@ const SMOOTH_STEP_TICKS = 120;
 const SMOOTH_TOTAL_TICKS = 480;
 /** Steps a player may already be past when they come up (the level is reached while the OS lesson runs). */
 const OPTIONAL: StepId[] = ['reachLevel4'];
-const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'board', 'storage', 'os'];
+const PART_KINDS = ['cpu', 'ram', 'psu', 'cooler', 'display', 'case', 'board', 'storage', 'os'];
 
 /**
  * Keep serving the queue while a step waits (money for the next purchase): before an OS is installed the player runs the
@@ -98,6 +98,8 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'buyIsp': buy('isp1', 150); break;
     case 'buyRouter': buy('router1', 60); break;
     case 'placeRouter': installPart(['router']); break;
+    case 'buyCase': if (g.powered) g.powerButton(); else buy('case1', 70); break; // a case (like a board) can only be bought with the machine off
+    case 'fitCase': installPart(['case']); break;
     case 'buyBoard': if (g.powered) g.powerButton(); else buy('board1', 150); break; // a board can only be bought with the machine off
     case 'fitBoard': installPart(['board']); break;
     case 'plugLan': g.connectCable('lan'); break;

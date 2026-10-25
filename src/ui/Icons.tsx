@@ -5,6 +5,7 @@ import { rem } from './units';
 // speed and latency, dollar for price, lock for blocked, check for installed, box for the inventory.
 const PATHS: Record<IconName | 'sun' | 'moon' | 'menu' | 'close' | 'stats' | 'export' | 'import', string[]> = {
   board: ['M2 2.5h12v11H2z', 'M4.5 5h3v3h-3z', 'M9.5 5h2M9.5 7.5h2M4.5 10.5h7'],
+  case: ['M4.4 1.8h7.2v12.4H4.4z', 'M6.4 4.4h3.2M6.4 6.4h3.2', 'M8 12h.01'],
   heatsink: ['M2 13.2h12', 'M3.8 13.2V7.5M6.6 13.2V3.2M9.4 13.2V3.2M12.2 13.2V7.5'],
   layers: ['M8 2 14 5.2 8 8.4 2 5.2z', 'M2 8.2l6 3.2 6-3.2', 'M2 11l6 3.2 6-3.2'],
   router: ['M2 9h12v4H2z', 'M4.6 11h.01M7 11h.01', 'M5 9 4 4.2M11 9l1-4.8'],

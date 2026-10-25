@@ -96,12 +96,22 @@ describe('tutorial step from snapshot flags', () => {
     expect(at(net({}))).toBe('buyIsp');
     expect(at(net({ ispBought: true }))).toBe('buyRouter');
     expect(at(net({ ispBought: true }, { inventory: [invItem('router', 'router1', 'inv8', ['router'])] }))).toBe('placeRouter');
-    expect(at(net({ ispBought: true, routerInstalled: true }))).toBe('buyBoard');
-    expect(at(net({ ispBought: true, routerInstalled: true }, { inventory: [{ ...invItem('board', 'board1', 'inv9'), swapSlots: ['board'] }] }))).toBe('fitBoard');
+    expect(at(net({ ispBought: true, routerInstalled: true }))).toBe('buyCase');
+    expect(at(net({ ispBought: true, routerInstalled: true }, { inventory: [{ ...invItem('case', 'case1', 'inv8'), freeSlots: ['case'] }] }))).toBe('fitCase');
+    expect(at(net({ ispBought: true, routerInstalled: true }, { caseTier: 1 }))).toBe('buyBoard');
+    expect(at(net({ ispBought: true, routerInstalled: true }, { caseTier: 1, inventory: [{ ...invItem('board', 'board1', 'inv9'), swapSlots: ['board'] }] }))).toBe('fitBoard');
     expect(at(net({ ispBought: true, routerInstalled: true }, { board: jackBoard }))).toBe('plugLan');
     expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true }, { board: jackBoard }))).toBe('linkUp');
     expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true }, { board: jackBoard }))).toBe('firstNetJob');
     expect(at(net({ ispBought: true, routerInstalled: true, lanConnected: true, linkUp: true, firstNetJob: true }, { board: jackBoard }))).toBe('done');
+  });
+
+  it('the case can only be bought with the machine off, like the board: the power button first, then the Shop', () => {
+    const step = STEPS.find((x) => x.id === 'buyCase')!;
+    const purchases = [{ id: 'case1', name: 'Micro tower', kind: 'case' as const, price: 70, affordable: true }];
+    expect(step.targets(snap({ powered: true, purchases }))).toEqual(['power']);
+    expect(step.targets(snap({ powered: false, purchases }))).toEqual(['hud:shop', 'buy:case1']);
+    expect(stepProblem(snap({ powered: true, purchases }), step)).toMatch(/power button/);
   });
 
   it('the board can only be bought with the machine off: the step lights the power button first, then the Shop', () => {

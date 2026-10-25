@@ -6,7 +6,7 @@ import type { Snapshot } from '../sim/protocol';
 import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from './devices';
 import { box, MONO, mix } from './ink';
-import { BD, PLUG_L, PLUG_W, type Rect } from './layout';
+import { BD, CASE, PLUG_L, PLUG_W, type Rect } from './layout';
 import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -407,7 +407,7 @@ export class Interact {
   /** The valid slot under the world point, or null. */
   private slotAt(wx: number, wy: number, d: NonNullable<Interact['drag']>): string | null {
     for (const id of [...(d.validFree ?? []), ...(d.validSwap ?? [])]) {
-      const r = id === 'board' ? BD : this.scene.slots.get(id);
+      const r = id === 'board' ? BD : id === 'case' ? CASE : this.scene.slots.get(id);
       if (r && inside(r, wx, wy, 40)) return id;
     }
     return null;
@@ -438,9 +438,10 @@ export class Interact {
     if (d.kind === 'part') {
       const it = s?.inventory.find((x) => x.id === d.id);
       if (!cancelled && s && it && d.over && !d.why) {
-        const r = d.over === 'board' ? BD : this.scene.slots.get(d.over)!;
+        const whole = d.over === 'board' || d.over === 'case'; // a board or a case goes onto the whole thing, not a socket
+        const r = d.over === 'board' ? BD : d.over === 'case' ? CASE : this.scene.slots.get(d.over)!;
         this.act(cx, cy);
-        install(it.id, d.over === 'board' ? undefined : d.over);
+        install(it.id, whole ? undefined : d.over);
         flash('fade', r.x + r.w / 2, r.y + r.h / 2);
       } else {
         if (!cancelled && s && it) {
@@ -595,8 +596,8 @@ export class Interact {
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.008);
     if (d.kind === 'part') {
       const ok = !d.why;
-      for (const [id, r] of [...this.scene.slots, ['board', BD] as [string, Rect]]) {
-        if (id === 'board' && !d.validFree?.has('board')) continue;
+      for (const [id, r] of [...this.scene.slots, ['board', BD] as [string, Rect], ['case', CASE] as [string, Rect]]) {
+        if ((id === 'board' || id === 'case') && !d.validFree?.has(id)) continue;
         const free = d.validFree?.has(id), swap = d.validSwap?.has(id);
         const valid = ok && (free || swap);
         const col = free ? T.st : T.ld;
@@ -604,13 +605,13 @@ export class Interact {
           const over = d.over === id;
           const e = 12 + 12 * pulse + (over ? 14 : 0);
           box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 40, { fill: col, fa: over ? 0.28 : 0.07 + 0.08 * pulse, stroke: col, lw: lw * (over ? 2.2 : 1.6), sa: over ? 1 : 0.55 + 0.4 * pulse });
-        } else if (id !== 'board') {
+        } else if (id !== 'board' && id !== 'case') {
           box(g, r.x, r.y, r.w, r.h, 30, { fill: T.bg, fa: ok ? 0.55 : 0.28 });
         }
       }
       // ghost follows the pointer at a steady on-screen size; over a target it settles on the socket
       const sc = clamp(120 / (ICON * z), 0.35, 4);
-      const tgt = d.over && d.over !== 'board' ? this.scene.slots.get(d.over) : null;
+      const tgt = d.over && d.over !== 'board' && d.over !== 'case' ? this.scene.slots.get(d.over) : null;
       this.ghost.position.set(tgt ? tgt.x + tgt.w / 2 : d.wx, tgt ? tgt.y + tgt.h / 2 : d.wy);
       this.ghost.scale.set(tgt ? Math.min(sc, Math.min(tgt.w, tgt.h) / ICON * 0.9 + 0.2) : sc);
       this.ghost.rotation = 0;

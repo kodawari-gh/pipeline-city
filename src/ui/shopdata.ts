@@ -5,17 +5,17 @@ import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { KIND_LABEL } from './logic';
-import { boardId, ladderFor, type IconName, type LadderStep } from './picker';
+import { boardId, caseId, ladderFor, type IconName, type LadderStep } from './picker';
 
-export type ShopKind = DeviceKind | 'board' | 'os' | 'router' | 'isp';
+export type ShopKind = DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp';
 
 /** One picture per category, so the inventory and the shop read without words. */
 export const KIND_ICON: Record<ShopKind, IconName> = {
-  cpu: 'cpu', ram: 'memory', cooler: 'fan', psu: 'bolt', display: 'screen', storage: 'disk', board: 'board',
+  cpu: 'cpu', ram: 'memory', cooler: 'fan', psu: 'bolt', display: 'screen', storage: 'disk', board: 'board', case: 'case',
   'vrm-sink': 'heatsink', 'ram-sink': 'wave', nic: 'net', os: 'layers', router: 'router', isp: 'globe',
 };
 
-export const SHOP_ORDER: ShopKind[] = ['board', 'cpu', 'cooler', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'os', 'router', 'isp'];
+export const SHOP_ORDER: ShopKind[] = ['case', 'board', 'cpu', 'cooler', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'os', 'router', 'isp'];
 
 /** Category name as the shelf and the shop say it ("Software" for the OS group). */
 export const kindLabel = (k: string): string => (k === 'os' ? 'Software' : KIND_LABEL[k as ShopKind] ?? k);
@@ -35,6 +35,7 @@ export function shopFor(s: Snapshot): ShopSection[] {
 export function currentSpecFor(s: Snapshot, kind: string): string | null {
   switch (kind) {
     case 'board': return boardId(s.boardTier);
+    case 'case': return caseId(s.caseTier);
     case 'os': return s.os?.spec ?? null;
     case 'router': return s.net.router?.id ?? null;
     case 'isp': return s.net.isp?.id ?? null;
@@ -46,5 +47,7 @@ export function currentSpecFor(s: Snapshot, kind: string): string | null {
 export function tierOfSpec(specId: string): number | null {
   const bm = /^board(\d+)$/.exec(specId);
   if (bm) return Number(bm[1]);
+  const cm = /^case(\d+)$/.exec(specId);
+  if (cm) return Number(cm[1]);
   return getOsSpec(specId)?.tier ?? getSpec(specId)?.tier ?? null;
 }

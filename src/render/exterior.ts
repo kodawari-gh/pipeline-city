@@ -1,7 +1,8 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
 import { box, disc, label, mix } from './ink';
-import { BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
+import { BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
+import { CASE_LOOK } from './case';
 import type { DriveKind } from './drives';
 import type { Theme } from './theme';
 
@@ -67,9 +68,10 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
 
   // top panel: a darker strip with a vent row and the light window for the status LEDs
   g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-  for (let k = 0; k < 26; k++) box(g, -2500 + k * 78, p.y + 130, 34, 190, 17, { fill: c.cut });
+  const nv = [10, 16, 22, 28][LAYOUT_CASE] ?? 22;
+  for (let k = 0; k < nv; k++) box(g, -2500 + k * 78, p.y + 130, 34, 190, 17, { fill: c.cut });
   box(g, CASE_LEDS.disk - 120, p.y + 70, CASE_LEDS.err - CASE_LEDS.disk + 240, 250, 40, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.5 });
-  root.addChild(label('PIPELINE CITY', -3560, p.y + 200, 130, T.dark ? '#dfe7ff' : '#1a2338', { head: true, a: 0.5 }));
+  root.addChild(label(`PIPELINE CITY · ${CASE_LOOK[LAYOUT_CASE]?.tag ?? ''}`, -3560, p.y + 200, 130, T.dark ? '#dfe7ff' : '#1a2338', { head: true, a: 0.5 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.dark ? '#8d9bc4' : '#2a3550', { anchor: [0.5, 0.5], a: 0.9 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.dark ? '#8d9bc4' : '#2a3550', { anchor: [0.5, 0.5], a: 0.9 }));
 
@@ -106,7 +108,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   box(g, np.x, np.y, np.w, np.h, 36, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
   g.rect(np.x + 60, np.y + np.h - 130, np.w - 120, 8).fill({ color: T.alu, alpha: 0.55 });
   root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, T.dark ? '#dfe7ff' : '#e9eefb', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
-  root.addChild(label('MODEL PC-1 · TEMPERED GLASS EDITION', np.x + np.w / 2, np.y + np.h - 70, 50, T.dark ? '#8d9bc4' : '#aeb8d0', { anchor: [0.5, 0.5], a: 0.8 }));
+  root.addChild(label(`MODEL PC-${LAYOUT_CASE + 1} · TEMPERED GLASS EDITION`, np.x + np.w / 2, np.y + np.h - 70, 50, T.dark ? '#8d9bc4' : '#aeb8d0', { anchor: [0.5, 0.5], a: 0.8 }));
   bayFront(g, root, T, o);
 
   // front rim: a slim vertical vent column east of the glass

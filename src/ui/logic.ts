@@ -1,6 +1,6 @@
 // Pure UI logic: formatting, stats helpers, hint triggers, device descriptions, HUD status text. No DOM, no signals.
 
-import { BOARD_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { BOARD_TIERS, CASE_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { BANDWIDTH_NERD, describeNet } from './netdesc';
@@ -21,8 +21,8 @@ export function fmtClock(c: number): string {
   return `${Math.round(c * 100) / 100}x`;
 }
 
-export const KIND_LABEL: Record<DeviceKind | 'board' | 'os' | 'router' | 'isp', string> = {
-  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard',
+export const KIND_LABEL: Record<DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
+  cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard', case: 'Case',
   os: 'Operating system', 'vrm-sink': 'VRM cooling', 'ram-sink': 'Memory VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
 };
 
@@ -206,6 +206,14 @@ const BOARD_PLAIN: Record<number, string> = {
   3: 'Enthusiast: eight memory slots, four USB ports, gigabit ethernet and the strongest voltage regulator on offer.',
 };
 
+/** One plain line per case. A case holds boards up to its size: a bigger board needs a bigger case first. */
+const CASE_PLAIN: Record<number, string> = {
+  0: 'The starter case: small, just roomy enough for the Starter board.',
+  1: 'A bit more room: it holds the Starter and Basic boards.',
+  2: 'A roomy mid tower: it holds boards up to full ATX, with room for a big power supply and two drives.',
+  3: 'A full tower: it holds any board, including the huge Enthusiast board with its eight memory slots.',
+};
+
 /** Descriptions of the VRM, its phases and ripple, and the board features (docs/VRM.md). */
 function describeVrmId(id: string, s?: Snapshot | null): Description | null {
   const b = s?.board;
@@ -295,6 +303,14 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
         nerd: `tier ${s.os.tier} | ${s.os.programSlots} program slot(s), ${s.os.queueSlots} queue slots | queue ${s.os.queue.length}`,
       };
     }
+    if (id === 'case') {
+      const c = CASE_TIERS[s.caseTier] ?? CASE_TIERS[0]!;
+      return {
+        title: c.name,
+        plain: `${CASE_PLAIN[c.tier] ?? 'A computer case.'} Click it to see bigger cases.`,
+        nerd: `tier ${c.tier} | holds boards up to ${c.form} | the ${BOARD_TIERS[s.boardTier]?.name ?? 'board'} board is fitted`,
+      };
+    }
     const slot = s.slots.find((x) => x.id === id);
     if (slot) {
       if (!slot.deviceId) {
@@ -310,7 +326,7 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
     if (id.startsWith('inv:')) {
       const it = s.inventory.find((x) => x.id === id.slice(4));
       const d = it ? describeId(it.spec) : null;
-      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'router' ? 'drag it onto the router spot' : it?.kind === 'board' ? 'drag it onto the board' : 'drag it into a socket';
+      const where = it?.kind === 'os' ? 'drag it onto a drive' : it?.kind === 'router' ? 'drag it onto the router spot' : it?.kind === 'board' ? 'drag it onto the board' : it?.kind === 'case' ? 'drag it onto the case' : 'drag it into a socket';
       return d && { ...d, plain: d.plain + ` In your inventory: ${where}.` };
     }
     if (id.startsWith('key:')) {
@@ -330,6 +346,15 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   if (osDesc) return osDesc;
   const vrmDesc = describeVrmId(id, s);
   if (vrmDesc) return vrmDesc;
+  const caseId = /^case([0-9]+)$/.exec(id);
+  const ct = caseId ? CASE_TIERS[Number(caseId[1])] : undefined;
+  if (ct) {
+    return {
+      title: ct.name,
+      plain: `${CASE_PLAIN[ct.tier] ?? 'A computer case.'} Your board and every part move into it.`,
+      nerd: `tier ${ct.tier} | holds boards up to ${ct.form} (${BOARD_TIERS[ct.maxBoard]?.name ?? 'board'} board)`,
+    };
+  }
   const tier = /^board([0-9]+)$/.exec(id);
   const bt = tier ? BOARD_TIERS[Number(tier[1])] : undefined;
   if (bt) {
@@ -429,7 +454,7 @@ export function friendlyError(message: string): string {
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
 
-const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'router', 'os'];
+const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'router', 'os'];
 
 /** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
 export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {
@@ -455,7 +480,7 @@ export function stackItems<T extends { spec: string; installable: boolean }>(ite
 /** What selecting something on the PC asks the shelf for: parts for these sockets, or of these kinds. */
 export interface FitFilter { label: string; slots: string[]; kinds: string[] }
 
-const FIT_KINDS: Record<string, string[]> = { psu: ['psu'], monitor: ['display'], bay: ['storage', 'os'], os: ['os'], vrm: ['board'], board: ['board'] };
+const FIT_KINDS: Record<string, string[]> = { psu: ['psu'], monitor: ['display'], bay: ['storage', 'os'], os: ['os'], vrm: ['board'], board: ['board'], case: ['case'] };
 
 /** The shelf filter for a selected world id (an empty socket, an installed device, the PSU, the monitor, the drive bay), or null. */
 export function fitFilterFor(sel: string | null, s: Snapshot | null): FitFilter | null {
