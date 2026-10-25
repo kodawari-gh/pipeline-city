@@ -1,9 +1,10 @@
 import { Container, Graphics, Rectangle, Sprite, type Renderer, type Texture } from 'pixi.js';
 import { disc, label, mix } from './ink';
 import { acPlug, metalOf } from './ports';
+import { trayHook } from './props';
 import { roundedPath } from './routes';
 import {
-  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, POWER_PLATE, ROUTER_SPOT, SHELF_Y, TRAY, TRAY_ROWS, type Rect,
+  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
 import type { Theme } from './theme';
 
@@ -40,7 +41,7 @@ export interface RoomGeo {
   clock: Rect;
   /** The desk lamp: its base x, and the box that answers a click. */
   lamp: { x: number; head: { x: number; y: number }; mouth: { x: number; y: number }; rect: Rect };
-  /** The key rack on the wall between the monitor and the case: a board with a hook per stick. */
+  /** The key rack on the wall above the monitor: two rails with five hooks each, the sticks hang from them on lanyards. */
   keyRack: Rect;
   /** The corner of the router shelf (the room draws the plank under the router). */
   top: number;
@@ -77,7 +78,7 @@ export function roomGeo(): RoomGeo {
     clock,
     lamp: { x: lx, head, mouth: { x: head.x + LAMP_D.x * LAMP_REACH, y: head.y + LAMP_D.y * LAMP_REACH }, rect: { x: lx - (SIDE > 0 ? 600 : 1750), y: ys - 3500, w: 2350, h: 3500 } },
     keyRack: TRAY,
-    top: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y),
+    top: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y),
   };
 }
 
@@ -295,21 +296,20 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   }
   f.rect(x0, ys + d.slab, x1 - x0, 150).fill({ color: '#000000', alpha: 0.24 });
 
-  // ---- the key rack on the wall (props.ts draws the lettering and the sticks over it): a wooden board, a hook per row, a rail under each stick ----
+  // ---- the key rack on the wall above the monitor (props.ts draws the lettering and the sticks on their lanyards): two wooden rails, five brass hooks on each ----
   const kr = geo.keyRack;
-  g.roundRect(kr.x + 22, kr.y + 34, kr.w, kr.h, 34).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.16 });
-  g.roundRect(kr.x, kr.y, kr.w, kr.h, 34).fill({ color: L.wood }).stroke({ width: 9, color: L.edge, alpha: 0.85 });
-  g.roundRect(kr.x + 16, kr.y + 14, kr.w - 32, 22, 11).fill({ color: L.woodHi, alpha: 0.8 });
-  for (let k = 0; k < 14; k++) g.rect(kr.x + 40, kr.y + 90 + ((k * 2654435761) % 1000) / 1000 * (kr.h - 180), kr.w - 80, 7).fill({ color: L.woodLo, alpha: 0.22 });
-  g.rect(kr.x + 60, kr.y + 305, kr.w - 120, 8).fill({ color: L.woodLo, alpha: 0.7 }); // the groove under the heading
-  for (const [sx, sy] of [[kr.x + 70, kr.y + 70], [kr.x + kr.w - 70, kr.y + 70], [kr.x + 70, kr.y + kr.h - 70], [kr.x + kr.w - 70, kr.y + kr.h - 70]] as const) {
-    g.circle(sx, sy, 24).fill({ color: L.metal }).stroke({ width: 4, color: L.metalLo }); g.moveTo(sx - 12, sy).lineTo(sx + 12, sy).stroke({ width: 4, color: L.metalLo });
+  for (let row = 0; row < TRAY_ROWS; row++) {
+    const ry = kr.y + row * ROW_DROP, rw = kr.w - (row ? 0 : 0);
+    g.roundRect(kr.x + 16, ry + 26, rw, 360, 30).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.16 });
+    g.roundRect(kr.x, ry, rw, 360, 30).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.85 });
+    g.roundRect(kr.x + 14, ry + 12, rw - 28, 20, 10).fill({ color: L.woodHi, alpha: 0.8 });
+    for (let k = 0; k < 4; k++) g.rect(kr.x + 40, ry + 70 + ((k * 2654435761 + row * 977) % 1000) / 1000 * 230, rw - 80, 6).fill({ color: L.woodLo, alpha: 0.22 });
+    for (const sx of [kr.x + 40, kr.x + rw - 40]) { g.circle(sx, ry + 330, 20).fill({ color: L.metal }).stroke({ width: 4, color: L.metalLo }); g.moveTo(sx - 10, ry + 330).lineTo(sx + 10, ry + 330).stroke({ width: 4, color: L.metalLo }); }
   }
-  for (let k = 0; k < TRAY_ROWS; k++) {
-    const y = TRAY.y + 410 + k * 290, hx = TRAY.x + TRAY.w / 2 - 40 - 480 - 70;
-    g.rect(TRAY.x + 90, y + 138, TRAY.w - 180, 9).fill({ color: L.woodLo, alpha: 0.5 }); // a rail the stick rests on
-    g.circle(hx, y, 26).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo });  // the hook: a brass peg with a lanyard loop to the stick
-    g.circle(hx, y, 10).fill({ color: L.metalLo });
+  for (let i = 0; i < TRAY_COLS * TRAY_ROWS; i++) {
+    const h = trayHook(i);
+    g.circle(h.x, h.y, 34).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo }); // a brass cup hook: its base on the rail,
+    g.moveTo(h.x, h.y).quadraticCurveTo(h.x + 54, h.y + 40, h.x + 12, h.y + 96).stroke({ width: 16, color: L.metal, cap: 'round' }); // and the bend the lanyard hangs from
   }
   // the monitor's foot casts a little shadow on the desk
   shadow(f, MONITOR.x + MONITOR.w / 2, ys + 44, 5600, 0.32);

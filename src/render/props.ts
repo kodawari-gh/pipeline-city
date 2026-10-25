@@ -4,7 +4,7 @@ import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
 import { wallTone } from './case';
 import { usbPlug } from './ports';
-import { CASE_LEDS, POWER_BTN, TRAY, TRAY_COLS, TRAY_ROWS, USB_PORT, type Rect } from './layout';
+import { CASE_LEDS, HOOK_PITCH, HOOK_Y, LANYARD, POWER_BTN, ROW_DROP, TRAY, TRAY_COLS, TRAY_ROWS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // World props for the assembly game: part icons (ghost while dragging), the USB key tray, a key stick, the power button.
@@ -249,11 +249,13 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
   return c;
 }
 
-export const trayKeyCentre = (i: number) => {
-  const pitch = KEY_LEN + 60;
+/** Where the rack's hook for stick `i` is (rows of `TRAY_COLS`: the first row on the upper rail, the next on the lower one, staggered half a pitch). */
+export const trayHook = (i: number) => {
   const col = i % TRAY_COLS, row = Math.floor(i / TRAY_COLS);
-  return { x: TRAY.x + TRAY.w / 2 - 40 + col * pitch, y: TRAY.y + 410 + row * 290 };
+  return { x: TRAY.x + 300 + col * HOOK_PITCH + row * (HOOK_PITCH / 2), y: TRAY.y + HOOK_Y + row * ROW_DROP };
 };
+/** The centre of the stick hanging from hook `i`: straight under it, a lanyard's length down, upright (the plug at the bottom). */
+export const trayKeyCentre = (i: number) => { const h = trayHook(i); return { x: h.x, y: h.y + LANYARD + KEY_LEN / 2 }; };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
 export const pluggedKeyCentre = () => ({ x: USB_PORT.x + KEY_INSERT - KEY_LEN_PLUGGED / 2, y: USB_PORT.y + USB_PORT.h / 2 });
@@ -286,30 +288,30 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   root.addChild(chrome);
   chrome.addChild(g);
   const r = TRAY;
-  // the rack's own look is the board on the wall (room.ts draws it, with a hook per row): here only its lettering, the empty hooks' outlines and the keys
-  chrome.addChild(label('KEYS', r.x + 100, r.y + 120, 76, T.dark ? '#e6d5c4' : '#4a3426', { head: true, a: 0.85 }));
+  // the rack's own look is the two rails on the wall (room.ts draws them, with a hook each): here the lettering on the upper rail, and the sticks on their lanyards
+  const ink = T.dark ? '#e6d5c4' : '#4a3426';
+  chrome.addChild(label('KEYS', r.x + 70, r.y + 100, 70, ink, { head: true, a: 0.85 }));
   const empty = keys.length === 0;
   // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
   if (mode === 'retired') g.alpha = 0.55;
   const note = mode === 'retired' ? (empty ? 'LINK UP: KEYS RETIRED' : `LINK UP: ${keys.length} LEFTOVER`) : mode === 'waiting' ? 'NET DOWN' : mode === 'fallback' ? 'NET DOWN: STICKS BACK AT 1/3 RATE' : empty ? 'NO WORK WAITING' : `${keys.length} waiting`;
-  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : T.dark ? '#d8c8b6' : '#4a3426';
-  chrome.addChild(label(note, r.x + 100, r.y + 230, mode === 'fallback' ? 34 : 40, noteCol, { a: mode === 'off' && empty ? 0.8 : 1 }));
-  // empty key bays (dashed outlines) so the tray reads as a tray even when empty
-  const bays = TRAY_COLS * TRAY_ROWS;
-  for (let i = keys.length; i < bays; i++) {
-    const p = trayKeyCentre(i);
-    const pts: [number, number][] = [[p.x - KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y - KEY_H / 2], [p.x + KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y + KEY_H / 2], [p.x - KEY_LEN / 2, p.y - KEY_H / 2]];
-    dashed(g, pts, 26, 22);
-  }
-  g.stroke({ width: 5, color: T.mute, alpha: 0.28 });
+  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : ink;
+  chrome.addChild(label(note, r.x + 470, r.y + 104, mode === 'fallback' ? 34 : 40, noteCol, { a: mode === 'off' && empty ? 0.8 : 1 }));
   const objs: PropObj[] = [];
+  const cords = ['#d03a4a', '#2f8fd8', '#e0a82e', '#3f9a6a', '#a068d8'];
   keys.forEach((k, i) => {
-    const p = trayKeyCentre(i);
+    const p = trayKeyCentre(i), col = cords[k.id % cords.length]!;
     const vec = keyStick(T, k), node = new Container();
-    node.addChild(vec);
+    vec.rotation = Math.PI / 2; // hanging: the plug (the stick's east end) points at the ground and the lettering reads down the stick
+    // the lanyard goes with the stick: a flat cord from the hook, two strands through a small ring on the stick's end
+    const lan = new Graphics(), top = -(LANYARD + KEY_LEN / 2), end = -KEY_LEN / 2;
+    for (const dx of [-14, 14]) lan.moveTo(dx * 0.4, top + 20).quadraticCurveTo(dx * 1.6, (top + end) / 2, dx * 0.5, end + 6);
+    lan.stroke({ width: 16, color: col, cap: 'round' });
+    lan.circle(0, end + 4, 30).stroke({ width: 9, color: T.dark ? '#aab6dc' : '#6b7794' });
+    node.addChild(lan, vec);
     node.position.set(p.x, p.y);
     root.addChild(node);
-    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
+    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
   });
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }

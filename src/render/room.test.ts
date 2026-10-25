@@ -5,9 +5,10 @@ import { Container } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import {
-  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, ROUTER_SPOT, SHELF_Y, TRAY, TRAY_ROWS, USB_PORT, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
+  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, HOOK_PITCH, LANYARD, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
 } from './layout';
 import { buildCables } from './routes';
+import { trayHook, trayKeyCentre } from './props';
 import { DAY_S, DESK, FOOT, RoomView, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
@@ -47,18 +48,28 @@ describe('the desk follows the case', () => {
     expect(MONITOR.w / CASE.w).toBeLessThan(1.2);
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the key rack is a wall board between the monitor and the case, level with the USB port, one hook per stick, clear of the cables', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the key rack is two rails of hooks on the wall above the monitor, left of the router, with the 10 sticks hanging clear of the monitor and of each other', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), r = g.keyRack;
     expect(r).toEqual(TRAY);
-    expect(r.x).toBeGreaterThan(MONITOR_EAST);                     // east of the monitor,
-    expect(r.x + r.w).toBeLessThan(VIDEO_TRUNK_X - 80);             // west of the video cable's trunk (and so of the ethernet's),
-    expect(r.y).toBeLessThan(USB_PORT.y); expect(r.y + r.h).toBeGreaterThan(USB_PORT.y + USB_PORT.h); // beside the USB port's height
-    expect(r.y + r.h + 300).toBeLessThan(VIDEO_RUN_Y);              // above the video cable's run under the monitor
-    expect(r.y + r.h).toBeLessThan(g.ys - 1500);                    // and well above the desk (the mug)
-    expect(r.h).toBeGreaterThanOrEqual(300 + TRAY_ROWS * 290);      // a row of 290 for each of the 10 sticks under the heading
-    expect(TRAY_ROWS).toBe(10);
-    expect(g.mug - 420).toBeGreaterThan(MONITOR_EAST);               // the mug stands on the desk below it
+    expect(TRAY_COLS * TRAY_ROWS).toBe(10);                                // the queue cap, two rows of 5
+    expect(r.x).toBeGreaterThanOrEqual(MONITOR.x);                         // above the monitor,
+    expect(r.x + r.w).toBeLessThan(ROUTER_SPOT.x - 300);                    // west of the router's shelf,
+    expect(r.y + r.h).toBeLessThan(MONITOR.y);                              // and the sticks' lower ends clear of the monitor's top
+    // every stick: under its hook by a lanyard's length, upright, inside the rack's area, and clear of every other
+    const rects = Array.from({ length: 10 }, (_, i) => { const c = trayKeyCentre(i), h = trayHook(i); return { c, h, rect: { x: c.x - 115, y: c.y - 480, w: 230, h: 960 } }; });
+    for (const { c, h, rect } of rects) {
+      expect(c.x).toBe(h.x);                                               // straight down from the hook,
+      expect(c.y - 480 - h.y).toBe(LANYARD);                               // the lanyard's length between the hook and the stick's top,
+      expect(inside(rect, r)).toBe(true);
+    }
+    for (let a = 0; a < 10; a++) for (let b = a + 1; b < 10; b++) {
+      const p = rects[a]!.rect, q = rects[b]!.rect;
+      expect(p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h, `sticks ${a} and ${b} overlap`).toBe(false);
+    }
+    expect(trayHook(5).y - trayHook(0).y).toBe(ROW_DROP);                   // the lower rail is a drop under the upper,
+    expect(trayHook(5).x - trayHook(0).x).toBe(HOOK_PITCH / 2);             // staggered half a pitch
+    expect(g.mug - 420).toBeGreaterThan(MONITOR_EAST);                       // the mug stands in the gap on the desk
   });
 
   it.each([0, 1, 2, 3])('tier %i: from the west: the lamp, the monitor over the keyboard, the mug, the PC (the last thing on the desk)', (t) => {

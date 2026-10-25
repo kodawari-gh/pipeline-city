@@ -157,12 +157,16 @@ export let MONITOR_POWER = { x: 0, y: 0 };
 
 // ---- assembly props: the USB key tray, the power button, the USB port ----
 /**
- * The USB key rack: a board on the wall in the gap between the monitor and the case, level with the USB port, one hook per stick (10: the queue cap),
- * the sticks hanging face-on in one column. A wall thing, so it does not follow the desk.
+ * The USB key rack: two rails of hooks on the wall above the monitor, five hooks a rail (10: the queue cap), a lanyard from each hook to its stick,
+ * which hangs straight down (its connector pointing at the ground). The lower rail is staggered half a pitch, so its sticks hang between the upper
+ * rail's. It is a wall thing with the monitor (the monitor moves with the desk, so does the rack), above the router's reach and clear of the
+ * monitor's top. `TRAY` is the whole area (the rails and where the sticks hang).
  */
-export const TRAY_W = 1400, TRAY_H = 3300;
-export const TRAY: Rect = { x: MONITOR_EAST + 250, y: -1900, w: TRAY_W, h: TRAY_H };
-export const TRAY_COLS = 1, TRAY_ROWS = 10;
+export const TRAY_W = 3700, TRAY_H = 2460;
+export const TRAY_COLS = 5, TRAY_ROWS = 2;
+/** The rack's geometry: the hooks' pitch along a rail, how far the lower rail is under the upper, the lanyard's length, and the hooks' height under the rack's top. */
+export const HOOK_PITCH = 660, ROW_DROP = 700, LANYARD = 380, HOOK_Y = 260;
+export let TRAY: Rect = { x: 0, y: 0, w: TRAY_W, h: TRAY_H };
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
 export const WALL_T = 170, CASE_TOP = -3400;
@@ -319,6 +323,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   VIDEO_SOCKET = { x: MONITOR.x + MW - 388 * MONITOR_K, y: by + 40 * MONITOR_K };
   VIDEO_RUN_Y = by + 700;
   MONITOR_POWER = { x: MONITOR.x + MW - 900 * MONITOR_K, y: by + 36 * MONITOR_K };
+  TRAY = { x: MONITOR.x + 1700, y: MONITOR.y - 2800, w: TRAY_W, h: TRAY_H };
   SHELF_Y = MONITOR.y - 700; CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
   POWER_PLATE = { x: -4870, y: FLOOR_Y - 1750, w: 1500, h: 800 };
@@ -326,7 +331,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   WALL_Y = WALL_PLATE.y + WALL_PLATE.h;
   WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: WALL_Y };
   ISP_ROW_Y = WALL_Y + 360;
-  const wx = MONITOR.x - 120, wy = Math.min(top - 40, ROUTER_SPOT.y - 60);
+  const wx = MONITOR.x - 120, wy = Math.min(top - 40, ROUTER_SPOT.y - 60, TRAY.y - 80);
   WORLD = { x: wx, y: wy, w: ce + 40 - wx, h: bottom + 150 - wy };
   REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
