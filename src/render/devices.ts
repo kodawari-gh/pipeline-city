@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, SCREEN_D, STAGES, VENTS, VIDEO_Y, VRM_SINK,
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, STAGES, VENTS, VIDEO_Y, VRM_SINK,
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
@@ -262,21 +262,54 @@ export function coolerArt(T: Theme, spec: CoolerSpec): Part {
   return { root, fan };
 }
 
-// ---------------------------------------------------------------- PSU (below the board, full width)
+// ---------------------------------------------------------------- PSU (below the board)
+/**
+ * The power supply as the case holds it: the PSU unit at the east end (fan grill, label with the rated watts, the output sockets on its
+ * top edge, the power switch), and beside it, along the rest of the bottom, the shroud that hides the cables: vents, a brand stripe
+ * and the live readout panel. `PSU` is the whole strip (the drop target), `PSU_UNIT` the unit.
+ */
 export function psuArt(T: Theme, spec: PsuSpec): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const r = PSU;
+  const r = PSU, u = PSU_UNIT;
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
   const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
-  // shroud: body, lit top edge, shadowed bottom edge, accent trim
-  box(g, r.x + 8, r.y + 16, r.w, r.h, 56, { fill: '#000000', fa: 0.22 });
-  box(g, r.x, r.y, r.w, r.h, 56, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
-  g.rect(r.x + 30, r.y + 18, r.w - 60, 16).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.3 });
-  g.rect(r.x + 30, r.y + r.h - 34, r.w - 60, 16).fill({ color: '#000000', alpha: 0.18 });
-  for (const sx of [r.x + 70, r.x + r.w - 70]) for (const sy of [r.y + 70, r.y + r.h - 70]) disc(g, sx, sy, 22, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.4 });
+  const shroud = T.dark ? mix(T.sub, T.bg, 0.35) : mix(T.sub, T.tile, 0.15);
+  const sh = { x: r.x, y: r.y + 24, w: u.x - 70 - r.x, h: r.h - 48 };
 
+  // the shroud: a long plate over the cables, a lit top edge, a perforated vent field, a brand stripe, the readout panel on it
+  box(g, sh.x + 8, sh.y + 14, sh.w, sh.h, 50, { fill: '#000000', fa: 0.22 });
+  box(g, sh.x, sh.y, sh.w, sh.h, 50, { fill: shroud, stroke: T.line, lw: 8, sa: 0.9 });
+  g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.28 });
+  g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
+  for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.4 });
+  {
+    const v = VENTS;
+    if (v.w >= 300) {
+      box(g, v.x, v.y, v.w, v.h, 24, { fill: T.dark ? '#02040a' : mix(shroud, '#000000', 0.4), fa: 0.55, stroke: T.line, lw: 4, sa: 0.5 });
+      for (let y = v.y + 50; y < v.y + v.h - 30; y += 56) for (let x = v.x + 50 + (Math.round((y - v.y) / 56) % 2) * 28; x < v.x + v.w - 30; x += 56) g.circle(x, y, 13);
+      g.fill({ color: T.dark ? '#000000' : mix(shroud, '#000000', 0.55), alpha: 0.8 });
+    }
+  }
+  labels.addChild(label('PIPELINE CITY', sh.x + sh.w - 70, sh.y + 58, 40, T.mute, { head: true, anchor: [1, 0.5], a: 0.75 }));
+  // readout panel frame (live content is drawn by Live)
+  {
+    const p = PSU_PANEL;
+    box(g, p.x, p.y, p.w, p.h, 24, { fill: SCREEN_BG, stroke: accent, lw: 7, sa: 0.8 });
+    box(g, p.x + 10, p.y + 10, p.w - 20, p.h - 20, 16, { stroke: T.line, lw: 3, sa: 0.5 });
+    g.moveTo(p.x + 1150, p.y + 40).lineTo(p.x + 1150, p.y + p.h - 40).moveTo(p.x + 1620, p.y + 40).lineTo(p.x + 1620, p.y + p.h - 40);
+    g.stroke({ width: 3, color: T.line, alpha: 0.7 });
+    labels.addChild(label('LOAD', p.x + 50, p.y + 62, 46, '#8d9bc4', { head: true }));
+    labels.addChild(label('TEMP', p.x + 1190, p.y + 62, 46, '#8d9bc4', { head: true }));
+    labels.addChild(label('FAN', p.x + 1660, p.y + 62, 46, '#8d9bc4', { head: true }));
+  }
+
+  // the PSU unit: its own box, bolted to the case, with a seam between it and the shroud
+  box(g, u.x + 10, u.y + 18, u.w, u.h, 40, { fill: '#000000', fa: 0.25 });
+  box(g, u.x, u.y, u.w, u.h, 40, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
+  g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
+  for (const sx of [u.x + 56, u.x + u.w - 56]) for (const sy of [u.y + 56, u.y + u.h - 56]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.5 });
   // fan grill (blades spin underneath the static grill)
   const fc = PSU_FAN;
   disc(g, fc.x, fc.y, fc.r + 70, { fill: T.die, stroke: T.line, lw: 9 });
@@ -297,36 +330,22 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   disc(grill, 0, 0, 22, { fill: accent });
   const over = new Container();
   over.addChild(grill);
-
-  // vent slots
-  {
-    const v = VENTS;
-    if (v.w >= 400) for (let y = v.y + 20; y < v.y + v.h - 10; y += 56) g.moveTo(v.x, y).lineTo(v.x + v.w, y);
-    g.stroke({ width: 16, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
-  }
-  // label plate: model and rated capacity
+  // label plate: model and rated capacity, and the efficiency badge
   {
     const l = PSU_LABEL;
     box(g, l.x, l.y, l.w, l.h, 22, { fill: T.die, stroke: T.line, lw: 5 });
-    g.rect(l.x + 40, l.y + 150, l.w - 80, 6).fill({ color: accent, alpha: 0.8 });
-    labels.addChild(label('PIPELINE CITY', l.x + 44, l.y + 70, 54, T.ink, { head: true, a: 0.85 }));
-    labels.addChild(label(spec.name.replace(/ \(.*$/, ''), l.x + 44, l.y + 205, 40, T.mute));
-    labels.addChild(label(`${spec.watts}`, l.x + 44, l.y + 410, 270, accent, { head: true, anchor: [0, 0.5] }));
-    labels.addChild(label('WATTS', l.x + l.w - 50, l.y + 520, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
-    labels.addChild(label('RATED OUTPUT', l.x + 44, l.y + 650, 40, T.mute, { a: 0.9 }));
-    labels.addChild(label('12V', l.x + 44, l.y + 730, 40, T.mute, { a: 0.7 }));
+    g.rect(l.x + 36, l.y + 128, l.w - 72, 6).fill({ color: accent, alpha: 0.8 });
+    labels.addChild(label('PIPELINE CITY', l.x + 40, l.y + 62, 48, T.ink, { head: true, a: 0.85 }));
+    labels.addChild(label(spec.name.replace(/ \(.*$/, ''), l.x + 40, l.y + 176, 36, T.mute));
+    labels.addChild(label(`${spec.watts}`, l.x + 40, l.y + 380, 240, accent, { head: true, anchor: [0, 0.5] }));
+    labels.addChild(label('WATTS', l.x + l.w - 44, l.y + 470, 62, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
+    labels.addChild(label('12V', l.x + 40, l.y + 620, 38, T.mute, { a: 0.7 }));
+    disc(g, l.x + l.w - 110, l.y + 640, 62, { stroke: accent, lw: 6, sa: 0.8 });
+    labels.addChild(label('80+', l.x + l.w - 110, l.y + 640, 40, accent, { head: true, anchor: [0.5, 0.5] }));
   }
-  // readout panel frame (live content is drawn by Live)
-  {
-    const p = PSU_PANEL;
-    box(g, p.x, p.y, p.w, p.h, 24, { fill: SCREEN_BG, stroke: accent, lw: 7, sa: 0.8 });
-    box(g, p.x + 10, p.y + 10, p.w - 20, p.h - 20, 16, { stroke: T.line, lw: 3, sa: 0.5 });
-    g.moveTo(p.x + 1150, p.y + 40).lineTo(p.x + 1150, p.y + p.h - 40).moveTo(p.x + 1620, p.y + 40).lineTo(p.x + 1620, p.y + p.h - 40);
-    g.stroke({ width: 3, color: T.line, alpha: 0.7 });
-    labels.addChild(label('LOAD', p.x + 50, p.y + 62, 46, '#8d9bc4', { head: true }));
-    labels.addChild(label('TEMP', p.x + 1190, p.y + 62, 46, '#8d9bc4', { head: true }));
-    labels.addChild(label('FAN', p.x + 1660, p.y + 62, 46, '#8d9bc4', { head: true }));
-  }
+  // vent slots along the unit's bottom edge
+  for (let k = 0; k < 6; k++) g.moveTo(u.x + 140 + k * 40, u.y + u.h - 150).lineTo(u.x + 140 + k * 40, u.y + u.h - 70);
+  g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
   // output sockets on the top edge: where the cables plug in
   for (const [x, w, name] of [[PSU_PORTS.pcie, 130, 'PCIe'], [PSU_PORTS.atx, 170, 'ATX 24'], [PSU_PORTS.cpu, 130, 'CPU 8']] as const) {
     box(g, x - w / 2, PORT_Y - 4, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
@@ -335,9 +354,9 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
     labels.addChild(label(name, x, PORT_Y + 140, 38, T.mute, { anchor: [0.5, 0.5], a: 0.9 }));
   }
   // power switch
-  box(g, r.x + 120, r.y + r.h - 250, 120, 170, 18, { fill: '#05070b', stroke: T.line, lw: 5 });
-  g.rect(r.x + 140, r.y + r.h - 230, 80, 80).fill({ color: T.mute, alpha: 0.6 });
-  labels.addChild(label('I/O', r.x + 180, r.y + r.h - 60, 36, T.mute, { anchor: [0.5, 0.5] }));
+  box(g, u.x + 130, u.y + u.h - 240, 110, 150, 16, { fill: '#05070b', stroke: T.line, lw: 5 });
+  g.rect(u.x + 148, u.y + u.h - 222, 74, 74).fill({ color: T.mute, alpha: 0.6 });
+  labels.addChild(label('I/O', u.x + 185, u.y + u.h - 66, 32, T.mute, { anchor: [0.5, 0.5] }));
   root.addChild(labels);
   return { root, fan, over };
 }

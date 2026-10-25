@@ -122,6 +122,8 @@ export let PSU_FAN = { x: -2450, y: 3300, r: 430 };
 export let PSU_LABEL: Rect = { x: -80, y: 2900, w: 1050, h: 800 };
 /** Live readout panel: load gauge, temperature, fan. */
 export let PSU_PANEL: Rect = { x: 1120, y: 2890, w: 2200, h: 820 };
+/** The PSU unit itself (fan, label, output sockets) at the east end of the strip; the shroud with the readout fills the rest. */
+export let PSU_UNIT: Rect = { x: 1500, y: 2750, w: 2500, h: 1100 };
 export let VENTS: Rect = { x: -1750, y: 2880, w: 1500, h: 840 };
 /** Output sockets along the PSU's top edge, by cable (x of the socket centre). Inner-to-outer order avoids cable crossings. */
 export let PSU_PORTS: { pcie: number; atx: number; cpu: number } = { pcie: 3520, atx: 3680, cpu: 3830 };
@@ -144,6 +146,8 @@ export const TRAY_COLS = 3;
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
 export const WALL_T = 170, CASE_TOP = -3400;
+/** Drive bays each case has (the Mini has room for four drives, the Full tower eight): a bay beyond the board's SATA ports is locked. */
+export const CASE_BAYS = [4, 6, 6, 8];
 /** Outer chassis. West wall at the rear I/O (keys and the HDMI cable pass through it), the front (panel, bay, power) is east. */
 export let CASE: Rect = { x: IO_X, y: CASE_TOP, w: 9060, h: 7350 };
 /** Inside of the chassis (glass area plus the PSU compartment). */
@@ -163,8 +167,7 @@ export const TOP_FAN_COUNT = [0, 1, 2, 3];
 export const TOP_FAN_T = 230, TOP_FAN_LEN = 1700, TOP_FAN_PITCH = 1800;
 /**
  * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
- * slot sata<i>, top to bottom; the cage has as many cells as the biggest board the case holds has SATA ports, the rest of the
- * cells are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
+ * slot sata<i>, top to bottom; the cage has the case's bays (`CASE_BAYS`), those beyond the board's SATA ports are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
  */
 export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
 export let BAY_CELLS: Rect[] = [];
@@ -243,19 +246,21 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const psuEast = east + 600, psuW = psuEast + 3400;
   PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
-  PSU_FAN = { x: -2450, y: PSU.y + 550, r: 430 };
-  PSU_PANEL = { x: psuEast - 680 - 2200, y: PSU.y + 140, w: 2200, h: 820 };
-  PSU_LABEL = { x: PSU_PANEL.x - 1200, y: PSU.y + 150, w: 1050, h: 800 };
-  VENTS = { x: -1750, y: PSU.y + 130, w: Math.max(0, PSU_LABEL.x - 170 + 1750), h: 840 };
+  // the unit sits at the east end under the cable sockets; the shroud (readout panel at its west end, then the vents) fills the rest
+  PSU_UNIT = { x: psuEast - 2500, y: PSU.y, w: 2500, h: PSU.h };
+  PSU_FAN = { x: PSU_UNIT.x + 640, y: PSU.y + 550, r: 430 };
+  PSU_LABEL = { x: PSU_UNIT.x + 1330, y: PSU.y + 190, w: 1000, h: 790 };
+  PSU_PANEL = { x: PSU.x + 170, y: PSU.y + 140, w: 2200, h: 820 };
+  VENTS = { x: PSU_PANEL.x + PSU_PANEL.w + 150, y: PSU.y + 130, w: Math.max(0, PSU_UNIT.x - 70 - 150 - (PSU_PANEL.x + PSU_PANEL.w + 150)), h: 840 };
   // the cage: as many cells as the biggest board the case holds has SATA ports, bottom-aligned with that board
-  const cells = cg.sata.length, cageX = east + 800, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
+  const cells = CASE_BAYS[cg.tier] ?? cg.sata.length, cageX = east + 800, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
   BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: y0 + i * CELL_PITCH, w: CELL_W, h: CELL_H }));
   BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
   POWER_LEAD_X = cageX - 130;
   SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + i * 22 }));
   // the front fans stand in front of the cage, the perforated front panel closes the glass
   const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
-  const ce = glassEast + 160, caseW = ce - IO_X, top = CASE_TOP, bottom = south + 1750;
+  const ce = glassEast + 160, caseW = ce - IO_X, top = cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, bottom = south + 1750; // the head room above the board: the top fans' and the 8-pin cable's
   CASE = { x: IO_X, y: top, w: caseW, h: bottom - top };
   CASE_IN = { x: IO_X + WALL_T, y: top + 400, w: glassEast - (IO_X + WALL_T), h: south + 1490 - (top + 400) };
   CASE_GLASS = { x: CASE_IN.x, y: top + 400, w: CASE_IN.w, h: south + 50 - (top + 400) };
@@ -264,7 +269,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
   REAR_FAN = { x: IO_X + 14, y: CASE_IN.y + 70, w: WALL_T - 28, h: -2140 - (CASE_IN.y + 70) };
   TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: -2500 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));
-  WORLD = { x: MONITOR.x - 80, y: top - 40, w: ce + 40 - (MONITOR.x - 80), h: bottom + 150 - (top - 40) };
+  const wy = Math.min(top - 40, -3140); // (the router shelf stands up there too)
+  WORLD = { x: MONITOR.x - 80, y: wy, w: ce + 40 - (MONITOR.x - 80), h: bottom + 150 - wy };
   REGIONS = REGION_IDS.filter(([, k]) => BR[k].w > 0).map(([id, k]) => ({ id, rect: BR[k] }));
 }
 setLayoutTier(2);

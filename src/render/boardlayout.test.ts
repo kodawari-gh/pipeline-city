@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
-import { BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { CASE_BD, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { sataCablePath } from './case';
 import { buildBuses, buildCables, movablePlug, NVME_LANES, type Bus, type Lane } from './routes';
 import { atx12v, cpuPowerPins, dimmPads, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
@@ -41,13 +41,14 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('keeps every part on the board and nothing on top of anything else', () => {
     const g = sockets();
     const parts: [string, Rect][] = [
-      ['io', g.io], ['chip', g.chip], ['hub', g.hub], ['bios', g.bios], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
+      ['io', g.io], ['chip', g.chip], ['hub', g.hub], ['bios', g.bios], ['sio', g.sio], ['dpwm', g.dpwm], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
       ['socket', { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E }],
     ];
     g.dimm.forEach((d, i) => parts.push([`dimm${i}`, { x: d.rect.x - 10, y: d.rect.y - 40, w: d.rect.w + 20, h: d.rect.h + 80 }]));
     g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
     g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
+    for (const h of g.hdrs) parts.push([`hdr_${h.name}`, { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 }]);
     if (g.pciew) parts.push(['pciew', g.pciew]);
     if (g.phy) parts.push(['phy', g.phy]);
     if (g.hex) parts.push(['hex', g.hex]);
@@ -247,7 +248,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
 
   it('puts a drive-cage cell, with a short cable that crosses no other, for every SATA port', () => {
     const g = sockets();
-    expect(BAY_CELLS.length).toBe(g.sata.length);
+    expect(BAY_CELLS.length).toBeGreaterThanOrEqual(g.sata.length);
+    expect(BAY_CELLS.length * 785 / CASE_BD.h, 'the cage fills the case').toBeGreaterThan(0.6);
     const cables = g.sata.map((_, i) => sataCablePath(i));
     g.sata.forEach((p, i) => {
       const c = BAY_CELLS[i]!;
@@ -258,6 +260,18 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       if (i) expect(overlap(c, BAY_CELLS[i - 1]!)).toBe(false);
     });
     for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) expect(lanesCross(cables[i]!, cables[j]!), `cables ${i} and ${j} cross`).toBe(false);
+  });
+
+  it('lays the PSU out: the unit under the cable sockets, the shroud with the readout and the vents beside it, nothing overlapping', () => {
+    sockets();
+    expect(inside(PSU_UNIT, PSU)).toBe(true);
+    for (const x of [PSU_PORTS.pcie, PSU_PORTS.atx, PSU_PORTS.cpu]) expect(x > PSU_UNIT.x && x < PSU_UNIT.x + PSU_UNIT.w, 'socket on the unit').toBe(true);
+    const fan = { x: PSU_FAN.x - PSU_FAN.r - 70, y: PSU_FAN.y - PSU_FAN.r - 70, w: 2 * PSU_FAN.r + 140, h: 2 * PSU_FAN.r + 140 };
+    for (const [n, r] of [['fan', fan], ['label', PSU_LABEL]] as const) expect(inside(r, PSU_UNIT), `${n} on the unit`).toBe(true);
+    expect(overlap(fan, PSU_LABEL), 'fan and label').toBe(false);
+    for (const [n, r] of [['panel', PSU_PANEL], ['vents', VENTS]] as const) { expect(inside(r, PSU), `${n} in the strip`).toBe(true); expect(overlap(r, PSU_UNIT), `${n} off the unit`).toBe(false); }
+    expect(overlap(PSU_PANEL, VENTS)).toBe(false);
+    expect(VENTS.w, 'the shroud has room for vents').toBeGreaterThan(300);
   });
 
   it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {

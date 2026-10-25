@@ -8,7 +8,7 @@ import { drawDriveLive, type DriveKind } from './drives';
 import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { monitorView } from './monitor';
 import { EdgeFan } from './case';
-import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
+import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -203,7 +203,7 @@ export class Live {
     let nDots = 0;
     for (const bus of buses) {
       if ((bus.id === 'video') && !flags.display) continue;
-      if (bus.id === 'audio' || bus.id === 'lan' || bus.id === 'dp' || bus.id === 'svid') continue; // decoration: never lit
+      if (DECOR_BUSES.includes(bus.id)) continue; // decoration: never lit
       const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
       const g = new Graphics();
       if (this.additive) g.blendMode = 'add';

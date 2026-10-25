@@ -89,3 +89,10 @@ export const atx12v = (r: Rect): Pt => [r.x + 75, r.y + 66];
 export interface IoPort { id: string; kind: 'jack' | 'rj45' | 'hdmi' | 'dp' | 'usb'; x: number; y: number; w: number; h: number; tone?: string }
 /** n pads, 26 apart, centred on a connector's row, just behind its rear (east) end, where its traces arrive. */
 export const ioPads = (p: IoPort, n: number): Pt[] => Array.from({ length: n }, (_, k) => [p.x + p.w + 2, p.y + (k - (n - 1) / 2) * 26] as Pt);
+
+// ---- VRM power stages: seven legs down the west side (see `powerStage` in boardParts.ts) ----
+/** The tip of west leg i of a power stage at (x, y), size s. */
+export const stageLeg = (x: number, y: number, s: number, i: number): Pt => [x - 8, y + (i + 0.7) * (s / 7.4) + 5.5];
+/** The control leg of a CPU VRM phase block / a memory VRM phase block (the controller's lane lands here). */
+export const cpuStageCtl = (r: Rect): Pt => stageLeg(r.x + 24, r.y + 40, 130, 3);
+export const dramStageCtl = (r: Rect): Pt => stageLeg(r.x + 14, r.y + 30, 90, 3);

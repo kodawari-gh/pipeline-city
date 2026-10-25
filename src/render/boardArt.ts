@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
-import { headerPin, legsFrom, legsOf, m2Contacts } from './pins';
+import { m2Contacts } from './pins';
 import { buildBuses, mkLane, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
@@ -266,34 +266,11 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     const sx = PKG.x - SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
     smd(c, -1000, qy + 44, 14, 56, 0, 30, 18, 0.85);      // under the package's south edge, west of the PCIe lanes
     smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the USB lanes
-    header(c, -1180, 790, 3, 1, 'CLR_CMOS');              // the CMOS-clear jumper, below the battery
-    // the BIOS flash west of the chipset, on its SPI lanes (straight: the flash's east legs sit level with the chipset's west ones)
+    // the BIOS flash west of the chipset (its SPI lanes are the `spi` bus), the I/O controller and every header (the `hdr` bus), the regulators' controllers
     chip(c, geo.bios, { legs: 4, pitch: 26, text: 'BIOS', size: 30, accent: T.mul });
-    const spi: Lane[] = legsOf(geo.bios, 'e', 4, 26).map((l, k) => mkLane([l, legsFrom(geo.chip, 'w', geo.west.bios, 4)[k]!], k * 17));
-    for (const l of spi) strokeLane(g, l);
-    g.stroke({ width: 8, color: P.trace, alpha: 0.9, cap: 'round' });
-    for (const l of spi) padLanes.push({ l, w: 16 });
-    // the header corner: a row along the bottom, west of the chipset (the top board's second group sits east of it, under the SATA rows)
-    const hy = geo.hdrY;
-    const hdr = (x: number, cols: number, rows: number, name: string, y = hy) => header(c, x, y, cols, rows, name);
-    const fp = hdr(-1100, 5, 2, 'F_PANEL');
-    hdr(-80, 4, 1, 'SYS_FAN');
-    if (tier >= 1) {
-      const io = hdr(-450, 5, 2, 'USB_2');
-      // a small I/O controller between the two headers, wired to both: its legs sit on the headers' pin rows, so the lanes run straight
-      const sio = { x: -740, y: hy - 16, w: 190, h: 208 };
-      chip(c, sio, { legs: 3, pitch: 52, text: 'SIO', size: 36, accent: T.mul });
-      const links: Lane[] = [];
-      for (let j = 0; j < 2; j++) {
-        links.push(mkLane([headerPin(fp.x, fp.y, 4, j), legsOf(sio, 'w', 3, 52)[j]!], j * 17));
-        links.push(mkLane([legsOf(sio, 'e', 3, 52)[j]!, headerPin(io.x, io.y, 0, j)], j * 17 + 5));
-      }
-      for (const l of links) strokeLane(g, l);
-      g.stroke({ width: 8, color: P.trace, alpha: 0.9, cap: 'round' });
-      for (const l of links) padLanes.push({ l, w: 16 });
-    }
-    if (tier >= 2) hdr(-1550, 6, 2, 'TPM');
-    if (tier >= 3) { hdr(-2200, 5, 2, 'USB_3'); hdr(-1860, 4, 1, 'SYS_FAN2'); }
+    chip(c, geo.sio, { legs: 3, pitch: 52, text: 'SIO', size: 36, accent: T.mul });
+    chip(c, geo.dpwm, { legs: 6, pitch: 26, text: 'PWM', size: 46, accent: T.mul });
+    for (const h of geo.hdrs) header(c, h.x, h.y, h.cols, h.rows, h.name);
     // the top board: an RGB strip along the bottom edge and a two-digit debug display by the 24-pin
     if (tier >= 3) {
       for (let k = 0; k < 44; k++) {

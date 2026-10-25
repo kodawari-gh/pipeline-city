@@ -17,6 +17,7 @@ import { legRun, legsFrom, type IoPort } from './pins';
 // (see `routes.ts`); `memY` is the y of each bundle's horizontal run and `padY` the y of the pad rows the bundles land on.
 
 export interface Pt { x: number; y: number }
+export interface HeaderGeo { name: string; x: number; y: number; cols: number; rows: number }
 export interface DimmGeo { rect: Rect; /** Pins at the top (row 1) instead of the bottom (row 0). */ flip: boolean }
 
 export interface TierGeo {
@@ -62,6 +63,10 @@ export interface TierGeo {
   hex: Rect | null; qr: Rect | null;
   /** y of the row of pin headers along the bottom. */
   hdrY: number;
+  /** The memory regulator's controller and the side of the phases it stands on (west of them, or east on the top board). */
+  dpwm: Rect; dpwmWest: boolean;
+  /** The I/O controller between F_PANEL and USB_2, and every pin header of the board (name, position, size in pins). */
+  sio: Rect; hdrs: HeaderGeo[];
   /** Mounting holes. */
   holes: [number, number][];
 }
@@ -135,6 +140,7 @@ function build(s: Spec): TierGeo {
   const dy = vdimmY - 90 - DRAM_BH;
   const dPhases = Array.from({ length: s.dphases }, (_, i) => R(X0 + 40 + i * DRAM_PITCH, dy, DRAM_BW, DRAM_BH));
   const dvrm = R(X0, dy - 120, s.dphases * DRAM_PITCH + 80, 440);
+  const dpwmWest = s.tier < 3; // the top board's regulator has the CPU's regulator close on its west side: the controller stands east of it
   const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 150);
   // ---- connectors ----
     const cpw = R(vrm.x - 150, bd.y + 90, 660, 260);
@@ -170,9 +176,18 @@ function build(s: Spec): TierGeo {
     pcie: PCIE_ALL.slice(0, s.pcie),
     m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
     sata: sataRects.slice(0, s.sata),
-    hex: R(-3000, south - 400, 760, 200),
-    qr: s.tier >= 1 ? R(-2150, south - 390, 220, 220) : null,
+    // the sticker patch: along the bottom edge, or (on the top board, whose header bus runs there) in the free corner by the rear I/O
+    hex: s.tier >= 3 ? R(-2800, bd.y + 170, 760, 200) : R(-3000, south - 400, 760, 200),
+    qr: s.tier >= 3 ? R(-3100, bd.y + 170, 220, 220) : s.tier >= 1 ? R(-2150, south - 390, 220, 220) : null,
     hdrY: south - 520,
+    dpwm: dpwmWest ? R(X0 - 290, dy + 230, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 230, 210, 210), dpwmWest,
+    sio: R(-740, south - 520 - 16, 190, 208),
+    hdrs: [
+      { name: 'F_PANEL', x: -1100, y: south - 520, cols: 5, rows: 2 }, { name: 'USB_2', x: -450, y: south - 520, cols: 5, rows: 2 },
+      { name: 'SYS_FAN', x: -80, y: south - 520, cols: 4, rows: 1 }, { name: 'CLR_CMOS', x: s.tier === 0 ? -1390 : -1440, y: 830, cols: 3, rows: 1 },
+      ...(s.tier >= 2 ? [{ name: 'TPM', x: -1550, y: south - 520, cols: 6, rows: 2 }] : []),
+      ...(s.tier >= 3 ? [{ name: 'USB_3', x: -2200, y: south - 520, cols: 5, rows: 2 }, { name: 'SYS_FAN2', x: -1860, y: south - 520, cols: 4, rows: 1 }] : []),
+    ],
     holes,
   };
 }

@@ -3,7 +3,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from './pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -84,7 +84,10 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan';
+
+/** Buses that are only there to be seen: they never light. */
+export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc'];
 
 export interface Bus {
   id: BusKind;
@@ -262,6 +265,53 @@ export function buildBuses(): Bus[] {
       const xe = Math.max(cx, px + 130), pads: Pt[] = [-1, 0, 1].map((k) => [xe + k * LEG_PITCH, py] as Pt);
       buses.push(mk('svid', [[cx, ys], [cx, py]], 3, LEG_PITCH, 8, 0, { from: legs, to: pads }));
     }
+  }
+
+  // the regulators' controllers: one line from each controller along the phases, with a tap up into every phase's control leg (the taps
+  // rise in the gaps between the phase blocks; the line crosses the phases' power stubs, as a signal under a plane does)
+  {
+    const ph = g.vrmPhases, ctl = cpuStageCtl, cpuLeg = legAt(g.pwm, 's', 4, 6, LEG_PITCH), yb = ph[0]!.y + ph[0]!.h + 40;
+    const gx = (r: Rect, w: number) => r.x - w;
+    const lanes: Lane[] = [mkLane(chamfer([cpuLeg, [cpuLeg[0], yb], [gx(ph[ph.length - 1]!, 20), yb]], 60), 0)];
+    ph.forEach((r, i) => lanes.push(mkLane(chamfer([[gx(r, 20), yb], [gx(r, 20), ctl(r)[1]], ctl(r)], 14), i * 19 + 7)));
+    buses.push({ id: 'pwmc', w: 8, lanes });
+    // the memory regulator's: its controller is level with the line under the phases
+    const dp = g.dPhases, d = g.dpwm, dl = g.dpwmWest ? legAt(d, 'e', 3, 6, LEG_PITCH) : legAt(d, 'w', 3, 6, LEG_PITCH), y = dl[1];
+    const far = g.dpwmWest ? gx(dp[dp.length - 1]!, 32) : gx(dp[0]!, 32);
+    const dlanes: Lane[] = [mkLane([dl, [far, y]], 3)];
+    dp.forEach((r, i) => dlanes.push(mkLane(chamfer([[gx(r, 32), y], [gx(r, 32), dramStageCtl(r)[1]], dramStageCtl(r)], 12), i * 19 + 11)));
+    buses.push({ id: 'pwmc', w: 8, lanes: dlanes });
+  }
+
+  // the BIOS flash on its SPI lanes: its east legs straight across to the chipset's west legs
+  {
+    const a = legsOf(g.bios, 'e', 4, 26), b = legsFrom(g.chip, 'w', g.west.bios, 4);
+    buses.push({ id: 'spi', w: 8, lanes: a.map((p, k) => mkLane([p, b[k]!], k * 17)) });
+  }
+
+  // the I/O controller and the headers: F_PANEL and USB_2 on its side legs (the pin rows are the legs' rows), every other header on a
+  // trunk below the row (from its south leg, west and east) with a tap up to each header's first pin of the bottom row
+  {
+    const sio = g.sio, byName = (n: string) => g.hdrs.find((h) => h.name === n)!, lanes: Lane[] = [];
+    const fp = byName('F_PANEL'), u2 = byName('USB_2');
+    for (let j = 0; j < 2; j++) {
+      lanes.push(mkLane([headerPin(fp.x, fp.y, fp.cols - 1, j), legsOf(sio, 'w', 3, 52)[j]!], j * 17));
+      lanes.push(mkLane([legsOf(sio, 'e', 3, 52)[j]!, headerPin(u2.x, u2.y, 0, j)], j * 17 + 5));
+    }
+    const leg = legAt(sio, 's', 1, 3, 52), yb = leg[1] + 36;
+    const rest = g.hdrs.filter((h) => !['F_PANEL', 'USB_2', 'CLR_CMOS'].includes(h.name)).map((h) => ({ h, pin: headerPin(h.x, h.y, 0, h.rows - 1) }));
+    const west = rest.filter((r) => r.pin[0] < leg[0]), east = rest.filter((r) => r.pin[0] > leg[0]);
+    if (west.length) lanes.push(mkLane(chamfer([leg, [leg[0], yb], [Math.min(...west.map((r) => r.pin[0])), yb]], 24), 31));
+    if (east.length) lanes.push(mkLane(chamfer([leg, [leg[0], yb], [Math.max(...east.map((r) => r.pin[0])), yb]], 24), 43));
+    rest.forEach((r, i) => lanes.push(mkLane([[r.pin[0], yb], r.pin], i * 13 + 5)));
+    buses.push({ id: 'hdr', w: 8, lanes });
+  }
+
+  // the battery to the clear-CMOS jumper below it
+  {
+    const b = g.bat, cx = b.x + b.w / 2, cy = b.y + b.h / 2, j = g.hdrs.find((h) => h.name === 'CLR_CMOS')!;
+    const lanes = [0, 1].map((i) => { const p = headerPin(j.x, j.y, i, 0); return mkLane([[p[0], cy + Math.sqrt(145 * 145 - (p[0] - cx) ** 2) - 6], p], i * 17); });
+    buses.push({ id: 'rtc', w: 8, lanes });
   }
 
   // ---- power ----
