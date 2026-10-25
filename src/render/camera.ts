@@ -64,6 +64,11 @@ export function screenRect(r: Rect, v: View, centre: { x: number; y: number }, o
 export class Camera {
   x = 0; y = 0; z = 0.15;
   minZ = 0.08; maxZ = 3;
+  /**
+   * The world box the view must stay inside (the room): panning and zooming never show beyond it. Where the free area is wider
+   * or taller than the box, the box is centred in that direction. `null` leaves the view free.
+   */
+  bounds: Rect | null = null;
   w = 800; h = 600;
   /**
    * Screen space covered by UI (CSS px), the TARGET value. The drawn inset eases toward it in `update` (never while a
@@ -130,7 +135,23 @@ export class Camera {
     return { x, y, w: Math.max(0, this.w - this.shown.left - this.shown.right), h: Math.max(0, this.h - this.shown.top - this.shown.bottom) };
   }
 
+  /** A view pulled back inside `bounds` (see there), for the free area `inset` leaves. */
+  private clamped(v: View, inset: Inset): View {
+    const b = this.bounds;
+    if (!b) return v;
+    const hw = (this.w - inset.left - inset.right) / 2 / v.z, hh = (this.h - inset.top - inset.bottom) / 2 / v.z;
+    return {
+      x: b.w <= 2 * hw ? b.x + b.w / 2 : Math.min(b.x + b.w - hw, Math.max(b.x + hw, v.x)),
+      y: b.h <= 2 * hh ? b.y + b.h / 2 : Math.min(b.y + b.h - hh, Math.max(b.y + hh, v.y)),
+      z: v.z,
+    };
+  }
+  /** `v` as the camera would settle on it once the UI inset is where it is going (the overview fit uses this). */
+  clampView(v: View): View { return this.clamped(v, this.inset); }
+
   apply() {
+    const c = this.clamped(this, this.shown);
+    this.x = c.x; this.y = c.y;
     this.world.scale.set(this.z);
     this.world.position.set(this.cx - this.x * this.z, this.cy - this.y * this.z);
     const res = textResolutionFor(this.z, (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1);

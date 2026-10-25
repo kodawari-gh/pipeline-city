@@ -8,6 +8,7 @@ import { drawPlug, ACCENT } from './devices';
 import { box, MONO, mix } from './ink';
 import { BD, CASE, PLUG_L, PLUG_W, type Rect } from './layout';
 import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
+import { roomClick } from './room';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
 
@@ -201,6 +202,8 @@ export class Interact {
   /** A click (no drag) on `id`, or on nothing. Writes `selected` and triggers the quick actions. */
   click(id: string | null, cx = 0, cy = 0) {
     if (!id) { selected.value = null; return; }
+    // the room's props (lamp, blind) do their thing at once, with no card
+    if (roomClick(id)) { selected.value = null; return; }
     const s = this.snap();
     // The power button and a key do their thing at once: no card pops up over the action. A tripped or failed machine still
     // opens the power card, because that is where its way out (power cycle) and its reason are.

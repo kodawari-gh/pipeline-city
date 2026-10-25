@@ -108,3 +108,52 @@ describe('Camera inset easing', () => {
     expect(Math.abs(cam.cx - 500)).toBeLessThan(0.6);
   });
 });
+
+describe('Camera bounds (the room caps the view)', () => {
+  const room = { x: -1000, y: -500, w: 2000, h: 1000 };
+
+  it('pulls a view that would show beyond the box back inside it', () => {
+    const cam = makeCamera();
+    cam.bounds = room;
+    cam.set({ x: 5000, y: -9000, z: 1 }); // the 800x600 canvas shows 800x600 world units at zoom 1
+    expect(cam.x).toBe(room.x + room.w - 400);
+    expect(cam.y).toBe(room.y + 300);
+    cam.set({ x: -5000, y: 9000, z: 1 });
+    expect(cam.x).toBe(room.x + 400);
+    expect(cam.y).toBe(room.y + room.h - 300);
+  });
+
+  it('centres the box where the view is bigger than it', () => {
+    const cam = makeCamera();
+    cam.bounds = room;
+    cam.set({ x: 0, y: 400, z: 0.2 }); // 4000x3000 world units visible: more than the room both ways
+    expect([cam.x, cam.y]).toEqual([0, 0]);
+  });
+
+  it('keeps the view inside while panning and zooming out (apply clamps every time)', () => {
+    const cam = makeCamera();
+    cam.bounds = room;
+    cam.set({ x: 0, y: 0, z: 1 });
+    cam.x = 3000; cam.apply();
+    expect(cam.x).toBe(600);
+    cam.minZ = 0.4; // the cap: 2000 / 800 = 2.5 units per px, so z 0.4 shows exactly the room's width
+    cam.set({ x: 0, y: 0, z: 0.01 });
+    expect(cam.z).toBe(0.4);
+  });
+
+  it('the UI inset shrinks the free area, so the view may go closer to the edge', () => {
+    const cam = makeCamera();
+    cam.bounds = room;
+    cam.snapInset({ top: 0, right: 400, bottom: 0, left: 0 }); // free width 400 -> half 200 at zoom 1
+    cam.set({ x: 5000, y: 0, z: 1 });
+    expect(cam.x).toBe(room.x + room.w - 200);
+  });
+
+  it('clampView gives the settled view for a target (the overview fit uses it)', () => {
+    const cam = makeCamera();
+    cam.bounds = room;
+    expect(cam.clampView({ x: 9999, y: 0, z: 1 }).x).toBe(room.x + room.w - 400);
+    cam.bounds = null;
+    expect(cam.clampView({ x: 9999, y: 0, z: 1 }).x).toBe(9999);
+  });
+});

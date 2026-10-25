@@ -287,11 +287,19 @@ function describeOs(id: string): Description | null {
   };
 }
 
+/** Words for the room's clickable props (the lamp and the window blind: scenery, `src/render/room.ts`). */
+const ROOM_TIPS: Record<'lamp' | 'blind', { title: string; plain: string }> = {
+  lamp: { title: 'Desk lamp', plain: 'Click to switch it on or off. It does nothing for the machine, but the room is cosier with it.' },
+  blind: { title: 'Window blind', plain: 'Click to pull the blind down or up. Outside, the day goes round while the machine runs.' },
+};
+
 /**
  * Description for a hovered/selected id: a spec id, a region id, a world id, or (with the snapshot) a slot (empty or
  * occupied), an installed device instance, a crate item or a client key. Unknown ids give null.
  */
 export function describeId(id: string, s?: Snapshot | null): Description | null {
+  // the room's props (the lamp and the window blind) are scenery that answers a click
+  if (id === 'lamp' || id === 'blind') return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
   const net = describeNet(id, s);
   if (net) return net;
   if (s) {

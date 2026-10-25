@@ -23,6 +23,7 @@ import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf,
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
+import { ROOM, RoomView, roomDebug, roomState, type RoomHit } from './room';
 import { onThemeChange, readTheme, type Theme } from './theme';
 import { initThumbs } from './thumbs';
 
@@ -44,15 +45,19 @@ const PROPS_FRAME = new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY
 /**
  * Level of detail on the camera scale, as multiples of the fit zoom (the zoom of the default overview, `fits.z`).
  * At or above `LOD.fadeFrom` the interior shows as always; between `fadeFrom` and `fadeTo` the exterior case crossfades in over it;
- * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. `minZoom` is how far the camera may
- * zoom out (it used to be 0.7). Tune these four numbers, nothing else depends on them.
+ * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. The zoom-out is capped by the room
+ * (`capZoom`), never short of `fadeTo`. Tune `fadeFrom` and `fadeTo`.
  */
-export const LOD = { fadeFrom: 0.7, fadeTo: 0.5, minZoom: 0.2 };
+export const LOD = { fadeFrom: 0.7, fadeTo: 0.5 };
+/** The overview shows the machine with some of the room around it: the fit margin (the machine alone would fill the screen at 0.96). */
+const ROOM_MARGIN = 0.84;
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
 const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'case'
   || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display')
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
-  || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id);
+  || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id)
+  // the room's props (the lamp and the blind) answer a click at any zoom
+  || id === 'lamp' || id === 'blind';
 
 /** The routed cables of the current board tier (geometry only): rebuilt with the scene. */
 let ALL_CABLES = buildCables();
@@ -67,7 +72,12 @@ let interactRef: Interact | null = null;
 let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 /** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
-const overviewFit = (c: Camera): View => c.fit(WORLD, OVERVIEW_MARGIN);
+const overviewFit = (c: Camera): View => c.clampView(c.fit(WORLD, Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
+/** How far the camera may zoom out: where the room fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the room box). */
+const capZoom = (c: Camera, overview: View): number => {
+  const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom);
+  return Math.min(overview.z * LOD.fadeTo, Math.max(aw / ROOM.w, ah / ROOM.h));
+};
 export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(cameraRef)); }
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
 export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
@@ -119,6 +129,10 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene graph ----
   const world = new Container();
+  /** The bedroom behind everything: wall, window, desk and what is on it (docs/RENDER.md "The room"). */
+  const roomLayer = new Container();
+  let roomView: RoomView | null = null;
+  let roomHits: Hit[] = [];
   const caseLayer = new Container();
   const sataLayer = new Container();
   const driveLayer = new Container();
@@ -171,7 +185,7 @@ export async function mountBoard(host: HTMLElement) {
   interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
-  world.addChild(interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -229,7 +243,7 @@ export async function mountBoard(host: HTMLElement) {
   let powerArtRef: PropsArt | null = null;
   let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
   let netHits: Hit[] = [];
-  const mergeHits = () => { allHits = [...propHits, ...netHits, ...cableHits, ...mainHits]; };
+  const mergeHits = () => { allHits = [...propHits, ...netHits, ...cableHits, ...mainHits, ...roomHits]; };
 
   // ---- LOD driven by zoom ----
   /** 0..1: how much the exterior case covers the interior (zoom crossfade, pulled back to 0 while a drag or a highlight needs the inside). */
@@ -308,6 +322,10 @@ export async function mountBoard(host: HTMLElement) {
     const caseTier = Math.max(tier, s?.caseTier ?? tier);
     const tierChanged = sceneReady && (tier !== LAYOUT_TIER || caseTier !== LAYOUT_CASE), wasOverview = tierChanged && atOverviewNow();
     setLayoutTier(tier, caseTier);
+    // the room follows the case (the desk top is where its feet stand) and the theme
+    clear(roomLayer);
+    roomView = new RoomView(T, undefined, app.renderer);
+    roomLayer.addChild(roomView.root);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
@@ -341,6 +359,8 @@ export async function mountBoard(host: HTMLElement) {
     let hasPsu = false, hasDisplay = false;
     const dimms: number[] = [];
     scene.rects.clear(); scene.interactive.clear(); scene.slots.clear();
+    roomHits = roomView.hits.map((h: RoomHit) => ({ id: h.id, rect: h.rect }));
+    for (const h of roomView.hits) { scene.rects.set(h.id, h.rect); scene.interactive.add(h.id); }
 
     for (const d of s?.devices ?? []) {
       const spec = getSpec(d.spec);
@@ -566,7 +586,7 @@ export async function mountBoard(host: HTMLElement) {
     onZoom();
     sceneDirty = true;
     if (tierChanged) {
-      fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
+      fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
       if (wasOverview) camera.flyTo(fits, 900); else camera.apply();
     }
     sceneReady = true;
@@ -717,12 +737,13 @@ export async function mountBoard(host: HTMLElement) {
     const was = atOverview();
     change();
     fits = overviewFit(camera);
-    camera.minZ = fits.z * LOD.minZoom;
+    camera.minZ = capZoom(camera, fits);
     if (was) camera.set(fits); else camera.apply();
   };
   camera.resize(app.screen.width, app.screen.height);
   camera.snapInset({ ...viewInset.peek() });
-  fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
+  camera.bounds = ROOM;
+  fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
   camera.set(fits);
   app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));
   // UI inset (viewInset): the new value is taken in the frame loop, and only when no gesture or part drag is running, so the
@@ -738,7 +759,7 @@ export async function mountBoard(host: HTMLElement) {
     const t = camera.targetView, o = fits;
     const toOverview = !camera.holdAt && Math.abs(t.z / o.z - 1) < 0.02 && Math.abs(t.x - o.x) < 20 && Math.abs(t.y - o.y) < 20;
     camera.inset = { ...i };
-    fits = overviewFit(camera); camera.minZ = fits.z * LOD.minZoom;
+    fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
     if (toOverview) camera.flyTo(fits, 450); else camera.apply();
   };
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
@@ -819,6 +840,7 @@ export async function mountBoard(host: HTMLElement) {
     camera.update(now);
     lodFrame(dt);
     live.frame(gdt, gt);
+    roomView?.frame(gt, tk.deltaMS);
     pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
@@ -850,6 +872,6 @@ export async function mountBoard(host: HTMLElement) {
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { net, camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { net, camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }
