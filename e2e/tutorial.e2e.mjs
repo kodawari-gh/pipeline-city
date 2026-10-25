@@ -106,10 +106,14 @@ async function dragCable(kind) {
   return false;
 }
 const clickAnchor = async (id) => { const a = await anchor(id); if (!a) return false; await p.mouse.click(center(a).x, center(a).y); await p.waitForTimeout(500); return true; };
-/** Wait until the dialogue has typed out its current page (the triangle shows), up to `ms`. */
+/** Click through the dialogue like an impatient player (a click finishes typing, the next turns the page) until its last page is complete. */
 async function waitTyped(ms = 7000) {
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) { if (await p.$('.dlg-arrow.more, .dlg-arrow.end')) return true; await p.waitForTimeout(150); }
+  while (Date.now() - t0 < ms) {
+    if (await p.$('.dlg-arrow.end')) return true;
+    await p.click('.dlg', { timeout: 1500 }).catch(() => {});
+    await p.waitForTimeout(90);
+  }
   return false;
 }
 /** What the player sees for this step must be this step's: card, text, highlights, no stacked popups. */
@@ -146,7 +150,7 @@ async function validateHeld(id) {
     else {
       if (card.querySelector('.ptitle')?.textContent !== step.title) out.push(`card title "${card.querySelector('.ptitle')?.textContent}" is not "${step.title}"`);
       const typed = (document.querySelector('.dlg-text')?.textContent ?? '').trim();
-      if (!typed || !step.text.startsWith(typed.slice(0, 40))) out.push(`dialogue "${typed.slice(0, 40)}" is not the step's text`);
+      if (!typed || !step.text.includes(typed.slice(0, 40))) out.push(`dialogue "${typed.slice(0, 40)}" is not the step's text`);
       const r = card.getBoundingClientRect();
       if (r.top < 0 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) out.push('the card is partly off screen');
     }

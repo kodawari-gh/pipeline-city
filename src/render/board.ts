@@ -150,10 +150,12 @@ export async function mountBoard(host: HTMLElement) {
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
   const interact = new Interact(camera, app.canvas, (rs, opts) => {
-    const x0 = Math.min(...rs.map((r) => r.x)) - 900, y0 = Math.min(...rs.map((r) => r.y)) - 900;
-    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + 900, y1 = Math.max(...rs.map((r) => r.y + r.h)) + 900;
+    // Room around the target so a small part (the power button, a bay) is shown in its surroundings, not filling the screen.
+    const pad = 1500;
+    const x0 = Math.min(...rs.map((r) => r.x)) - pad, y0 = Math.min(...rs.map((r) => r.y)) - pad;
+    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad, y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad;
     const v = camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.9);
-    const z = opts.zoom ?? Math.min(Math.max(v.z, overviewFit(camera).z), 0.3);
+    const z = opts.zoom ?? Math.min(Math.max(v.z, overviewFit(camera).z), 0.2);
     camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;

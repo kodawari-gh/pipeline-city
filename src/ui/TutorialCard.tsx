@@ -94,7 +94,7 @@ const isWorldId = (id: string) => id !== 'inventory' && !id.startsWith('inv:') &
  * What the tutorial points at right now: the first world target that is on screen, else the first inventory tile, else
  * the HUD's inventory button. `world` is set when the pointer is aimed at a world object (the camera can show it).
  */
-function resolveTarget(targets: string[]): { rect: Rect; world: string | null } | null {
+function resolveTarget(targets: string[]): { rect: Rect; world: string | null; hud?: boolean } | null {
   for (const t of targets) {
     if (!isWorldId(t)) continue;
     const a = anchorOf(t);
@@ -103,7 +103,7 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null } 
   for (const t of targets) {
     if (!t.startsWith('hud:')) continue;
     const r = domRect(document.querySelector(`[data-hud="${t.slice(4)}"]`));
-    if (r) return { rect: r, world: null };
+    if (r) return { rect: r, world: null, hud: true };
   }
   for (const t of targets) {
     if (!t.startsWith('inv:')) continue;
@@ -165,6 +165,10 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
         const dot = svg.querySelector('.ptr-dot') as SVGCircleElement;
         if (tg && cardRect) {
           const cx = tg.rect.x + tg.rect.w / 2, cy = tg.rect.y + tg.rect.h / 2;
+          // A HUD readout far from the card (the money at the top left) pulses by itself: a connector across the whole scene would only clutter it.
+          if (tg.hud && Math.hypot(cx - (cardRect.x + cardRect.w / 2), cy - (cardRect.y + cardRect.h / 2)) > window.innerHeight * 0.45) {
+            svg.classList.remove('on'); st.shown = false; return;
+          }
           // Start on the card edge nearest the target.
           const above = cy < cardRect.y + cardRect.h / 2;
           const sx = Math.min(cardRect.x + cardRect.w - 24, Math.max(cardRect.x + 24, cx));
@@ -236,8 +240,8 @@ export function TutorialCard() {
   useEffect(() => {
     highlight.value = modal ? [] : targets;
     if (!modal && targets.some((t) => t.startsWith('inv:'))) inventoryOpen.value = true;
-    // An empty shelf only takes room: tuck it away when a step moves on and nothing is left in it.
-    else if (!modal && s && s.inventory.length === 0) inventoryOpen.value = false;
+    // The shelf only takes room when the step does not use it (a dragged part keeps it mounted): tuck it away, the player can reopen it.
+    else if (!modal && !drag) inventoryOpen.value = false;
     // `targets` is derived from `key`; re-run only when the ids change.
   }, [key, modal]);
   useEffect(() => () => { highlight.value = []; }, []);
