@@ -184,7 +184,7 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 | `vrm-sink0` | the VRM heatsink pad (slot id), empty or filled; an installed heatsink is also hoverable by its device id |
 | `dimm0`..`dimm7`, `pcie0`..`pcie3` | up to eight DIMM and four PCIe slots, a tier has the first ones |
 | `bay` | the drive cage (cells are `sata0` .. `sata7`) |
-| `sata0` .. `sata5`, `m20` .. `m22` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
+| `sata0` .. `sata7`, `m20` .. `m22` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
 | `os` | the OS badge on the drive that hosts the OS (exists only while an OS is installed); the monitor screen is display only |
 | `psu.readout` | the PSU's live panel |
 | `tray` | the key tray |
