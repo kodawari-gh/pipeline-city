@@ -71,7 +71,7 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
     >
       {step.warn && <span class="rwarn" aria-label={`Warning: ${step.warn}`}><Icon name="warn" size={11} /></span>}
       <span class="rtier">Tier {step.tier}</span>
-      <PartArt id={step.specId} size={64} />
+      <PartArt id={step.specId} size={76} />
       <span class="rname">{shortName(step.name)}</span>
       <span class="rfoot">{footText}</span>
     </div>
@@ -386,7 +386,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       </button>
       <header class="phead">
         {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
-          <div class="part"><PartArt id={artId} size={80} /></div>
+          <div class="part"><PartArt id={artId} size={104} /></div>
         )}
         <div class="ptext">
           <div class="ptitle" title={m.plain}>{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>

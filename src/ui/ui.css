@@ -143,6 +143,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 
 /* Part art (inline SVG). Classes, so both themes read the tokens. */
 .art { display: block; overflow: visible; }
+.art-img { object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .art .plate { fill: var(--art-plate); }
 .art .edge { stroke: var(--line); stroke-width: 1; }
 .art .die { fill: var(--die); stroke: var(--trace); stroke-width: .8; }
@@ -195,7 +196,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .picker[data-side="above"] .tail { bottom: -0.78rem; left: calc(var(--tail) - 0.65rem); width: 1.3rem; height: 0.8rem; clip-path: polygon(50% 100%, 0 0, 100% 0); }
 .picker .close, .dock .close, .inv .close { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.2rem 0.33rem; line-height: 0; border: 0; background: transparent; }
 .phead { display: flex; align-items: center; gap: 0.667rem; padding-right: 1.333rem; }
-.phead .part { flex: none; width: 5.333rem; }
+.phead .part { flex: none; width: 6.667rem; }
 .phead .ptext { min-width: 0; }
 .ptitle { font-size: 0.9rem; font-weight: 700; line-height: 1.2; }
 .pplain { margin-top: 0.133rem; font-size: 0.767rem; color: var(--mute); line-height: 1.35; }

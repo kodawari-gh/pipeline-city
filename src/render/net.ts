@@ -61,7 +61,7 @@ const BODY: Record<string, { dark: [string, string]; light: [string, string]; ra
 };
 
 /** Static router art for one look; the LEDs are live (`NetView.frame`). */
-function routerArt(T: Theme, visual: string, name: string): Container {
+export function routerArt(T: Theme, visual: string, name: string): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   root.pivot.set(ROUTER_EAST, SHELF_Y); root.position.set(ROUTER_EAST, SHELF_Y); root.scale.set(NET_K);
@@ -112,7 +112,7 @@ function routerArt(T: Theme, visual: string, name: string): Container {
 
 // ---------------------------------------------------------------- wall plate
 
-function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } | null): Container {
+export function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } | null): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   // drawn at design size (460 x 420) with its bottom-left corner on the shelf line, then scaled about that corner

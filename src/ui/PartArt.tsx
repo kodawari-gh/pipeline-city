@@ -4,6 +4,7 @@ import { getOsSpec } from '../sim/os';
 import { getIspSpec, getRouterSpec } from '../sim/net/specs';
 import { goodness } from './picker';
 import { rem } from './units';
+import { thumbOf, thumbsVersion } from '../render/thumbs';
 
 // Inline SVG illustrations of each part, drawn from its spec: a CPU die with its pipeline per tier, RAM sticks (count
 // and size) with a latency gauge, a cooler with fins/fan/tubes, a PSU wattage dial, a board with its slot counts.
@@ -370,6 +371,12 @@ function PlanPlate({ tier, down }: { tier: number; down: number }) {
 
 /** Illustration for a spec id or a board tier id (`board1`). Unknown ids draw nothing. */
 export function PartArt({ id, size = 64, label }: { id: string; size?: number; label?: string }) {
+  // the real thing first: the picture the board's own art renders (reading the version re-renders this when it arrives)
+  void thumbsVersion.value;
+  const url = thumbOf(id);
+  if (url) {
+    return <img class="art art-img" src={url} alt={label ?? id} draggable={false} style={{ width: rem(size), aspectRatio: `${VB.w} / ${VB.h}` }} />;
+  }
   let body: JSX.Element | null = null;
   const bm = /^board(\d+)$/.exec(id);
   const os = getOsSpec(id);

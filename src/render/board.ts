@@ -24,6 +24,7 @@ import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from 
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { onThemeChange, readTheme, type Theme } from './theme';
+import { initThumbs } from './thumbs';
 
 interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean }
 
@@ -114,6 +115,7 @@ export async function mountBoard(host: HTMLElement) {
     resolution: Math.min(window.devicePixelRatio || 1, 2),
   });
   host.appendChild(app.canvas);
+  initThumbs(app.renderer);
 
   // ---- scene graph ----
   const world = new Container();

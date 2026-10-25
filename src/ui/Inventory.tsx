@@ -78,7 +78,7 @@ function Tile({ st, pulse, active, onHover }: { st: Stack<InventorySnap>; pulse:
         }
       }}
     >
-      <div class="tart"><PartArt id={it.spec} size={96} /></div>
+      <div class="tart"><PartArt id={it.spec} size={112} /></div>
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
       {n > 1 && <b class="tcount" aria-label={`${n} of them`}>x{n}</b>}

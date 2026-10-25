@@ -342,6 +342,49 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   return { root, fan, over };
 }
 
+/**
+ * A power supply as a box on its own (for the shop and the inventory): the fan grill, the label with the rated watts, the vents and the
+ * output sockets. The one in the machine is the long shroud with the readout (`psuArt`); this is the same unit, small.
+ */
+export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
+  const root = new Container(), g = new Graphics();
+  root.addChild(g);
+  const W = 2100, H = 1500;
+  const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
+  const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
+  box(g, 18, 26, W, H, 80, { fill: '#000000', fa: 0.28 });
+  box(g, 0, 0, W, H, 80, { fill: body, stroke: accent, lw: 12, sa: 0.9 });
+  g.rect(40, 24, W - 80, 16).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
+  // fan grill
+  const fx = 640, fy = H / 2, fr = 470;
+  disc(g, fx, fy, fr + 70, { fill: T.die, stroke: T.line, lw: 10 });
+  const bl = new Graphics();
+  bl.position.set(fx, fy);
+  blades(bl, 7, 60, fr - 20, T.tile, accent, 5);
+  root.addChild(bl);
+  for (const rr of [140, 240, 340, 440]) g.circle(fx, fy, rr);
+  g.stroke({ width: 7, color: T.mute, alpha: 0.5 });
+  for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; g.moveTo(fx + Math.cos(a) * 80, fy + Math.sin(a) * 80).lineTo(fx + Math.cos(a) * (fr + 20), fy + Math.sin(a) * (fr + 20)); }
+  g.stroke({ width: 5, color: T.mute, alpha: 0.35 });
+  disc(g, fx, fy, 74, { fill: T.tile, stroke: accent, lw: 8 }); disc(g, fx, fy, 24, { fill: accent });
+  // label plate: the rated watts, big
+  const l = { x: 1250, y: 150, w: 740, h: 640 };
+  box(g, l.x, l.y, l.w, l.h, 30, { fill: T.die, stroke: T.line, lw: 6 });
+  g.rect(l.x + 40, l.y + 120, l.w - 80, 7).fill({ color: accent, alpha: 0.85 });
+  root.addChild(label('PIPELINE CITY', l.x + 40, l.y + 66, 54, T.ink, { head: true, a: 0.85 }));
+  root.addChild(label(`${spec.watts}`, l.x + 40, l.y + 330, 250, accent, { head: true, anchor: [0, 0.5] }));
+  root.addChild(label('WATTS', l.x + l.w - 40, l.y + 560, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
+  // vents and the output sockets along the bottom edge
+  for (let y = 880; y < 1180; y += 56) g.moveTo(1250, y).lineTo(1990, y);
+  g.stroke({ width: 16, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
+  for (const [x, w] of [[1260, 200], [1500, 230], [1780, 200]] as const) {
+    box(g, x, H - 170, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
+    for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x + 24 + k * 26, H - 150, 14, 38);
+    g.fill({ color: T.pin, alpha: 0.7 });
+  }
+  return root;
+}
+
 // ---------------------------------------------------------------- monitor (west of the board, 16:9)
 export function monitorArt(T: Theme, on: boolean): Part {
   const root = new Container(), labels = new Container();
