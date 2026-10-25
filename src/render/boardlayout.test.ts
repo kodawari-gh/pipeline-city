@@ -204,6 +204,38 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     }
   });
 
+  it('matches the length of every group of lanes that must arrive together', () => {
+    sockets();
+    for (const b of buildBuses()) for (const grp of b.groups ?? []) {
+      const lens = grp.map((l) => l.len), skew = Math.max(...lens) - Math.min(...lens);
+      expect(skew, `${b.id} group of ${grp.length} (${Math.round(Math.max(...lens))} long) differs by ${skew.toFixed(1)}`).toBeLessThan(1.5);
+    }
+  });
+
+  it('keeps the traces of different buses apart (the junctions of the controller lines and the header trunk aside)', () => {
+    sockets();
+    const sd = (p: [number, number], a: [number, number], b: [number, number]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    };
+    const dist = (x: Lane, y: Lane) => {
+      let m = 1e9;
+      for (let i = 1; i < x.pts.length; i++) for (let j = 1; j < y.pts.length; j++) {
+        const a = x.pts[i - 1]!, b = x.pts[i]!, c = y.pts[j - 1]!, d = y.pts[j]!;
+        m = Math.min(m, sd(a, c, d), sd(b, c, d), sd(c, a, b), sd(d, a, b));
+      }
+      return m;
+    };
+    const lanes: { id: string; l: Lane }[] = [];
+    for (const b of buildBuses()) {
+      if (['pwr12', 'pwrcpu', 'vcore', 'vdimm', 'pwmc', 'hdr', 'svid'].includes(b.id)) continue;
+      for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) lanes.push({ id: b.id, l });
+    }
+    for (let i = 0; i < lanes.length; i++) for (let j = i + 1; j < lanes.length; j++) {
+      expect(dist(lanes[i]!.l, lanes[j]!.l), `${lanes[i]!.id} lane ${i} and ${lanes[j]!.id} lane ${j} too close`).toBeGreaterThan(12.5);
+    }
+  });
+
   it('keeps every mounting hole clear: no part, lane or other hole within its keepout', () => {
     const g = sockets();
     const R = 66 + 34 + 8; // the hole, its clear ring and a margin
