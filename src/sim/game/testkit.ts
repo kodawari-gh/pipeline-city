@@ -12,7 +12,7 @@ export const econ = (keys: Keys = [{ template: "cli.log" }]) => ({ baseDemandPer
  * installed, powered off. Built from preassembled by buying with free money and installing by hand.
  */
 export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os?: boolean; keys?: Keys; seed?: number; economy?: Partial<EconomyConfig>; startLevel?: number } = {}): Game {
-  const g = new Game({ seed: opts.seed ?? 7, preassembled: true, startLevel: opts.startLevel, economy: { ...econ(opts.keys), levelGating: false, ...opts.economy } });
+  const g = new Game({ seed: opts.seed ?? 7, preassembled: true, startLevel: opts.startLevel, economy: { ...econ(opts.keys), levelGating: false, caseGating: false, ...opts.economy } });
   g.money = 1_000_000;
   g.powerButton();
   const put = (id: string): void => {

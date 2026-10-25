@@ -249,6 +249,32 @@ export interface BoardTierSpec {
   visual: string;
 }
 
+/**
+ * PC cases: the chassis the board lives in (docs/BOARD.md "Cases"). A case of tier `t` holds boards up to tier `maxBoard` (a form
+ * factor: mini-ITX, micro-ATX, ATX, E-ATX), so a bigger board needs a bigger case first. The campaign starts in the Mini tower.
+ */
+export interface CaseTierSpec {
+  tier: number;
+  name: string;
+  /** Price of the case (placeholder). */
+  price: number;
+  /** The biggest board tier it holds. */
+  maxBoard: number;
+  /** The form factor of the biggest board it holds, for the player's eyes. */
+  form: string;
+  visual: string;
+}
+
+export const CASE_TIERS: readonly CaseTierSpec[] = [
+  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini" },
+  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro" },
+  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid" },
+  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full" },
+];
+
+/** The smallest case tier that holds a board tier. */
+export const caseFor = (boardTier: number): number => CASE_TIERS.findIndex((c) => c.maxBoard >= boardTier);
+
 const vrmTemps = { throttleC: 90, unstableC: 105, damageC: 120 };
 
 export const BOARD_TIERS: readonly BoardTierSpec[] = [

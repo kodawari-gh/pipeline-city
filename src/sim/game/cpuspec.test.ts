@@ -7,6 +7,7 @@ import { rig } from "./testkit";
 
 // Hardware tests: every item is buyable.
 ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
 
 describe("cpu3 (inorder2)", () => {
   it("is a CPU spec whose engine config is the 2-wide in-order engine", () => {

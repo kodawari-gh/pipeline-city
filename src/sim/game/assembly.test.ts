@@ -7,6 +7,7 @@ import { ECONOMY } from "./economy";
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
 
 // The manual removal of a finished key is what most of these tests are about: auto-eject has its own tests at the end.
 const NO_ARRIVALS: Partial<EconomyConfig> = { baseDemandPerTick: 0, autoEjectTicks: 0 };

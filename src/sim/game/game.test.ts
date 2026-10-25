@@ -6,6 +6,7 @@ import { rig } from "./testkit";
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
 
 /** One isolated job (no arrivals) on a machine with `items` bought and installed; returns the completion record. */
 function oneJob(items: string[], template: string, scale = 1, seed = 1) {

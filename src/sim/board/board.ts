@@ -1,6 +1,6 @@
 // Board model: pure data plus validation. A Board is plain JSON-serialisable data.
 
-import { BOARD_TIERS, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
+import { BOARD_TIERS, CASE_TIERS, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -17,6 +17,8 @@ export interface InstalledDevice {
 
 export interface Board {
   tier: number;
+  /** The PC case it sits in (`CASE_TIERS`); it holds boards up to its `maxBoard`. The game refuses a board the case cannot hold. */
+  caseTier: number;
   nextId: number;
   devices: InstalledDevice[];
   /** The board's VRM burnt out: the board is dead (nothing powers on) until replaced by the same or a higher tier. */
@@ -32,9 +34,23 @@ export function slotAccepts(have: SlotType, need: SlotType): boolean {
   return have === need || (have === "atx-plus" && need === "atx");
 }
 
-export function createBoard(tier = 0): Board {
+/** A fresh board in the smallest case that holds it (or in `caseTier`, which must hold it). */
+export function createBoard(tier = 0, caseTier?: number): Board {
   if (!BOARD_TIERS[tier]) throw new RangeError(`unknown board tier ${tier}`);
-  return { tier, nextId: 1, devices: [] };
+  const c = caseTier ?? CASE_TIERS.findIndex((x) => x.maxBoard >= tier);
+  if (!CASE_TIERS[c] || CASE_TIERS[c]!.maxBoard < tier) throw new RangeError(`case ${c} cannot hold board tier ${tier}`);
+  return { tier, caseTier: c, nextId: 1, devices: [] };
+}
+
+/** Does the board's case hold a board of this tier? */
+export const caseHolds = (board: Board, boardTier: number): boolean => (CASE_TIERS[board.caseTier]?.maxBoard ?? -1) >= boardTier;
+
+/** Move to a bigger case (the board and every part stay as they are). */
+export function upgradeCase(board: Board, tier: number): Result<object> {
+  if (!CASE_TIERS[tier]) return { ok: false, reason: `unknown case tier ${tier}` };
+  if (tier <= board.caseTier) return { ok: false, reason: "not a bigger case" };
+  board.caseTier = tier;
+  return { ok: true };
 }
 
 /** Slot instances of a board tier, ids like "dimm0", "dimm1". */
@@ -132,7 +148,7 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   if (!BOARD_TIERS[tier]) return { ok: false, reason: `unknown board tier ${tier}` };
   // A dead board may be replaced by one of the same tier.
   if (tier < board.tier || (tier === board.tier && !board.burnt)) return { ok: false, reason: "not a bigger board" };
-  const next: Board = { tier, nextId: board.nextId, devices: [] };
+  const next: Board = { tier, caseTier: board.caseTier, nextId: board.nextId, devices: [] };
   const slots = boardSlots(next);
   const used = new Set<string>();
   const place = (d: InstalledDevice): string | undefined => {
@@ -179,7 +195,12 @@ export function boardToJson(board: Board): BoardJson {
 
 /** Rebuild and validate a board from JSON (unknown specs, bad slots, duplicates throw). */
 export function boardFromJson(json: BoardJson): Board {
+  // an older save has no case: it sits in the smallest one that holds its board
   const board = createBoard(json.tier);
+  if (json.caseTier !== undefined) {
+    if (!CASE_TIERS[json.caseTier]) throw new Error(`save: unknown case tier ${json.caseTier}`);
+    board.caseTier = Math.max(json.caseTier, board.caseTier);
+  }
   const slots = boardSlots(board);
   const seen = new Set<string>();
   for (const d of json.devices) {

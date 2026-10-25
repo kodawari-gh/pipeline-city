@@ -7,10 +7,10 @@
 // the next job. Parts and cables can only change while the machine is off.
 
 import {
-  applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, bootCheck, BOARD_TIERS, CABLES, cableBlocked,
+  applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, bootCheck, BOARD_TIERS, CABLES, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, createBoard, deviceSpec, disconnectCable as boardDisconnect, engineConfigFor,
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
-  ThermalModel, uninstall, upgradeBoard,
+  ThermalModel, uninstall, upgradeBoard, upgradeCase,
   type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
   specsOfKind, type NicSpec, type StorageSpec,
 } from "../board";
@@ -26,7 +26,7 @@ import {
 } from "../net";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
-  applyOffer, boardTierOf, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, postTicks, reputation,
+  applyOffer, boardTierOf, caseTierOf, caseTooSmall, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, postTicks, reputation,
   SANDBOX_MONEY, sandboxOffers, type EconomyConfig, type Offer,
 } from "./economy";
 import {
@@ -164,6 +164,10 @@ export interface VrmSnap {
 export interface BoardSnap {
   tier: number;
   name: string;
+  /** The PC case it sits in (docs/BOARD.md "Cases"): tier, name, the form factor of the biggest board it holds. */
+  caseTier: number;
+  caseName: string;
+  caseForm: string;
   /** Dead board: replace it by buying a board of the same or a higher tier. */
   burnt: boolean;
   features: BoardFeatures;
@@ -194,7 +198,7 @@ export interface StageSnap {
 export interface PurchaseSnap {
   id: string;
   name: string;
-  kind: DeviceKind | "board" | "os" | "router" | "isp";
+  kind: DeviceKind | "board" | "case" | "os" | "router" | "isp";
   price: number;
   affordable: boolean;
   /** Set if the board would refuse it right now (e.g. PSU too small, no slot). */
@@ -226,9 +230,9 @@ export interface InventorySnap {
   /** Inventory item id (what `install` takes). */
   id: string;
   spec: string;
-  kind: DeviceKind | "board" | "os" | "router";
+  kind: DeviceKind | "board" | "case" | "os" | "router";
   name: string;
-  /** Free slot ids it fits right now (drop targets). For a board item: ["board"]; for an OS: the storage slots it can go on. */
+  /** Free slot ids it fits right now (drop targets). For a board item: ["board"], for a case item ["case"]; for an OS: the storage slots it can go on. */
   freeSlots: string[];
   /** Occupied slot ids it could be swapped into (the old part returns to the inventory). */
   swapSlots: string[];
@@ -408,6 +412,8 @@ export interface Snapshot {
   };
   /** Board tier (slot counts), for drawing empty sockets. */
   boardTier: number;
+  /** The PC case the board sits in (`CASE_TIERS`). */
+  caseTier: number;
   /** The motherboard in detail (features, VRM, heatsink). Absent slots are not listed. */
   board: BoardSnap;
   /** Pipeline stage occupants while the machine is powered with a working CPU, else null. */
@@ -557,6 +563,7 @@ const LOG_CAP = 16;
 const SANDBOX_LEVEL = 8;
 const NOT_SANDBOX = { ok: false, reason: "sandbox mode only" } as const;
 const BOARD_OFF_REASON = "powered off required: power the machine off to swap the board";
+const CASE_OFF_REASON = "powered off required: power the machine off to swap the case";
 
 /** The static milestone rows of the level snapshot (built once). */
 const LEVEL_ROWS: LevelRowSnap[] = levelRows();
@@ -694,10 +701,20 @@ export class Game {
     if (this.powered) return { ok: false, reason: "power the machine off first" };
     const osSpec = getOsSpec(item.spec);
     if (osSpec) return this.installOs(item, osSpec, slotId);
+    const caseTier = caseTierOf(item.spec);
+    if (caseTier !== undefined) {
+      const r = upgradeCase(this.board, caseTier);
+      if (!r.ok) return r;
+      this.removeItem(item.id);
+      this.note("install", `${CASE_TIERS[caseTier]!.name} installed: the board and every part moved in`);
+      return { ok: true, deviceId: null, slot: "case" };
+    }
     const tier = boardTierOf(item.spec);
     if (tier !== undefined) {
+      if (this.caseGated() && !caseHolds(this.board, tier) && !(this.board.burnt && tier === this.board.tier)) return { ok: false, reason: caseTooSmall(this.board, tier) };
       const r = upgradeBoard(this.board, tier);
       if (!r.ok) return r;
+      if (!caseHolds(this.board, tier)) this.board.caseTier = caseFor(tier); // ungated: the case follows the board
       this.removeItem(item.id);
       this.note("install", `${BOARD_TIERS[tier]!.name} installed`);
       return { ok: true, deviceId: null, slot: "board" };
@@ -901,9 +918,10 @@ export class Game {
     const lock = this.levelLock(itemId);
     if (lock) return { ok: false, reason: lockText(lock) };
     if (cand.kind === "board" && this.powered) return { ok: false, reason: BOARD_OFF_REASON };
+    if (cand.kind === "case" && this.powered) return { ok: false, reason: CASE_OFF_REASON };
     const price = this.cost(cand.price);
     if (this.money < price) return { ok: false, reason: `needs $${price}, have $${this.money}` };
-    const r = applyOffer(this.plannedBoard(), itemId);
+    const r = applyOffer(this.plannedBoard(), itemId, this.caseGated());
     if (!r.ok) return r;
     this.money -= price;
     const invId = `inv${this.nextInvId++}`;
@@ -1291,8 +1309,9 @@ export class Game {
     const planned = this.plannedBoard();
     const purchases: PurchaseSnap[] = this.deviceOffers(planned).map((s) => {
       const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
-      const r = applyOffer(boardFromJson(boardToJson(planned)), s.id);
+      const r = applyOffer(boardFromJson(boardToJson(planned)), s.id, this.caseGated());
       if (s.kind === "board" && this.powered) p.blocked = BOARD_OFF_REASON;
+      else if (s.kind === "case" && this.powered) p.blocked = CASE_OFF_REASON;
       else if (!r.ok) p.blocked = r.reason;
       return p;
     });
@@ -1328,6 +1347,7 @@ export class Game {
         attempts: plugged.attempts,
       },
       boardTier: this.board.tier,
+      caseTier: this.board.caseTier,
       pipe: this.powered && eng?.view ? this.pipeSnap(eng) : null,
       display: this.powered && live ? this.machine.display.text() : "",
       counters,
@@ -1424,7 +1444,8 @@ export class Game {
       throttleC: spec.throttleC, unstableC: spec.unstableC, damageC: spec.damageC, sinkDeviceId: sinkDev?.id ?? null,
     });
     return {
-      tier: t.tier, name: t.name, burnt: !!this.board.burnt, features: { ...t.features }, slots: this.slotSnaps(),
+      tier: t.tier, name: t.name, caseTier: this.board.caseTier, caseName: CASE_TIERS[this.board.caseTier]!.name, caseForm: CASE_TIERS[this.board.caseTier]!.form,
+      burnt: !!this.board.burnt, features: { ...t.features }, slots: this.slotSnaps(),
       vrm: rail(t.vrm, v, sink),
       vrmSink: sink ? this.deviceSnap(sink) : null,
       ramVrm: rail(t.ramVrm, rv, ramSink),
@@ -1633,16 +1654,19 @@ export class Game {
    * The best machine you could build from what you own: the installed board with every inventory item that is an
    * upgrade applied (lowest tier first, a part never replaces a better one). For validating and listing purchases.
    */
+  /** Does a board need a case that holds it? Not in the sandbox (there the case follows the board) nor when the config says so. */
+  private caseGated(): boolean { return !this.sandbox && this.cfg.caseGating; }
+
   private plannedBoard(): Board {
     const b = boardFromJson(boardToJson(this.board));
-    const tierOf = (id: string): number => (boardTierOf(id) !== undefined ? -1 : getSpec(id)!.tier);
+    const tierOf = (id: string): number => (caseTierOf(id) !== undefined ? -2 : boardTierOf(id) !== undefined ? -1 : getSpec(id)!.tier);
     // Storage drives and OSes are not one-per-machine upgrades: they never replace a part in the plan.
     const planned = this.inventory.filter((it) => !getOsSpec(it.spec) && !getRouterSpec(it.spec) && getSpec(it.spec)?.kind !== "storage");
     for (const it of planned.sort((a, c) => tierOf(a.spec) - tierOf(c.spec))) {
       const spec = getSpec(it.spec);
       const have = spec ? findDevices(b, spec.kind)[0] : undefined;
       if (have && deviceSpec(have).tier >= spec!.tier && !have.burnt) continue;
-      applyOffer(b, it.spec);
+      applyOffer(b, it.spec, this.caseGated());
     }
     return b;
   }
@@ -1681,10 +1705,20 @@ export class Game {
           ...(ok ? {} : { reason: !off && free.length > 0 ? "power the machine off first" : why }),
         };
       }
+      const caseTier = caseTierOf(it.spec);
+      if (caseTier !== undefined) {
+        const r = upgradeCase(boardFromJson(boardToJson(this.board)), caseTier);
+        const ok = r.ok && off;
+        return {
+          id: it.id, spec: it.spec, kind: "case" as const, name: CASE_TIERS[caseTier]!.name,
+          freeSlots: r.ok ? ["case"] : [], swapSlots: [], installable: ok,
+          ...(ok ? {} : { reason: !off ? "power the machine off first" : (r as { reason: string }).reason }),
+        };
+      }
       const tier = boardTierOf(it.spec);
       if (tier !== undefined) {
         const t = boardFromJson(boardToJson(this.board));
-        const r = upgradeBoard(t, tier);
+        const r = this.caseGated() && !caseHolds(t, tier) && !(t.burnt && tier === t.tier) ? { ok: false as const, reason: caseTooSmall(t, tier) } : upgradeBoard(t, tier);
         const ok = r.ok && off;
         return {
           id: it.id, spec: it.spec, kind: "board" as const, name: BOARD_TIERS[tier]!.name,

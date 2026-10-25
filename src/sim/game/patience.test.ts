@@ -9,6 +9,8 @@ import { Operator } from "./operator";
 import { migrate, parseSave } from "./save";
 import { rig } from "./testkit";
 
+ECONOMY.caseGating = false;
+
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
 describe("patience by level", () => {

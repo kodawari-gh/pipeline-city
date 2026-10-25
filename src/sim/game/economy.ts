@@ -4,7 +4,7 @@
 import { getIspSpec, getRouterSpec, NET } from "../net";
 import { getOsSpec } from "../os";
 import {
-  BOARD_TIERS, boardFromJson, boardToJson, deviceSpec, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard,
+  BOARD_TIERS, CASE_TIERS, boardFromJson, boardToJson, caseHolds, caseFor, deviceSpec, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard, upgradeCase,
   type Board, type DeviceKind, type DeviceSpec, type RamSpec, type Result,
 } from "../board";
 
@@ -118,6 +118,11 @@ export interface EconomyConfig {
    * off. The sandbox never gates.
    */
   levelGating: boolean;
+  /**
+   * A board needs a case that holds it (docs/BOARD.md "Cases"): a bigger board is refused until the player owns a bigger case.
+   * Default true; tests of the sim that do not care switch it off (the case then follows the board). The sandbox never gates.
+   */
+  caseGating: boolean;
   /** Network (docs/NETWORK.md "USB fallback"): dead-link ticks before keys come back, and their rate share then. */
   usbFallbackTicks: number;
   usbFallbackMul: number;
@@ -154,6 +159,7 @@ export const ECONOMY: EconomyConfig = {
   osBootBoost: 48,
   autoEjectTicks: 3,
   levelGating: true,
+  caseGating: true,
   usbFallbackTicks: NET.usbFallbackTicks,
   usbFallbackMul: NET.usbFallbackMul,
   retireUsbKeys: true,
@@ -239,9 +245,16 @@ export function swapPart(board: Board, specId: string): Result<object> {
 }
 
 /** Something the player can buy: a device spec id, or a board tier (`board1`). */
-export interface Offer { id: string; name: string; kind: DeviceKind | "board"; price: number }
+export interface Offer { id: string; name: string; kind: DeviceKind | "board" | "case"; price: number }
 
 const BOARD_ID = /^board([0-9]+)$/;
+const CASE_ID = /^case([0-9]+)$/;
+
+/** Case tier of an offer id like "case1", or undefined. */
+export function caseTierOf(id: string): number | undefined {
+  const m = CASE_ID.exec(id);
+  return m ? Number(m[1]) : undefined;
+}
 
 /** Board tier of an offer id like "board1", or undefined for a device id. */
 export function boardTierOf(id: string): number | undefined {
@@ -250,15 +263,27 @@ export function boardTierOf(id: string): number | undefined {
 }
 
 export function offerPrice(id: string): number | undefined {
-  const t = boardTierOf(id);
+  const t = boardTierOf(id), c = caseTierOf(id);
+  if (c !== undefined) return CASE_TIERS[c]?.price;
   return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
 /** Buy an offer on a board: swap a part, or move to the bigger board (every device is carried over). */
-export function applyOffer(board: Board, id: string): Result<object> {
-  const t = boardTierOf(id);
-  return t !== undefined ? upgradeBoard(board, t) : swapPart(board, id);
+export function applyOffer(board: Board, id: string, gated = ECONOMY.caseGating): Result<object> {
+  const t = boardTierOf(id), c = caseTierOf(id);
+  if (c !== undefined) return upgradeCase(board, c);
+  if (t !== undefined) {
+    if (gated && !caseHolds(board, t) && !(board.burnt && t === board.tier)) return { ok: false, reason: caseTooSmall(board, t) };
+    const r = upgradeBoard(board, t);
+    if (r.ok && !gated && !caseHolds(board, t)) board.caseTier = caseFor(t); // ungated (tests, sandbox): the case follows the board
+    return r;
+  }
+  return swapPart(board, id);
 }
+
+/** Why a board of this tier cannot go into the board's case. */
+export const caseTooSmall = (board: Board, boardTier: number): string =>
+  `the ${CASE_TIERS[board.caseTier]?.name ?? "case"} is too small for a ${BOARD_TIERS[boardTier]?.name ?? "bigger"} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? "bigger case"} first`;
 
 /** Offers that are an upgrade (higher tier than the installed part, next board tier) or a replacement of a burnt part. */
 export function offers(board: Board): Offer[] {
@@ -268,6 +293,8 @@ export function offers(board: Board): Offer[] {
   if (board.burnt && here) out.push({ id: `board${here.tier}`, name: `${here.name} (replacement)`, kind: "board", price: here.price });
   const nextBoard = BOARD_TIERS[board.tier + 1];
   if (nextBoard) out.push({ id: `board${nextBoard.tier}`, name: nextBoard.name, kind: "board", price: nextBoard.price });
+  const nextCase = CASE_TIERS[board.caseTier + 1];
+  if (nextCase) out.push({ id: `case${nextCase.tier}`, name: nextCase.name, kind: "case", price: nextCase.price });
   for (const s of upgradeCandidates(board)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
   return out;
 }
@@ -285,6 +312,7 @@ export function sandboxOffers(board: Board): Offer[] {
     if (t.tier > board.tier) out.push({ id: `board${t.tier}`, name: t.name, kind: "board", price: t.price });
     else if (t.tier === board.tier && board.burnt) out.push({ id: `board${t.tier}`, name: `${t.name} (replacement)`, kind: "board", price: t.price });
   }
+  for (const c of CASE_TIERS) if (c.tier > board.caseTier) out.push({ id: `case${c.tier}`, name: c.name, kind: "case", price: c.price });
   for (const kind of BUYABLE) for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
   return out;
 }

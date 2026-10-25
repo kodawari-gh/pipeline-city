@@ -8,6 +8,7 @@ import { econ, netRig, rig } from "./testkit";
 
 // Hardware tests: every item is buyable (levels have their own tests).
 ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
 
 const tick = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 function until(g: Game, done: () => boolean, max = 3000): number {

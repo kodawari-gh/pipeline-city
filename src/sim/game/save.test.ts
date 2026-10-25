@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { Game } from "./game";
 import { Operator, play } from "./operator";
 import { migrate, parseSave, SAVE_VERSION } from "./save";
+import { ECONOMY } from "./economy";
+
+ECONOMY.caseGating = false;
 
 const run = (g: Game, n: number) => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;

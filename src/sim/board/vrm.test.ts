@@ -10,6 +10,7 @@ import { ECONOMY } from "../game/economy";
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
 
 function ok<T extends { ok: boolean }>(r: T): T {
   expect(r.ok).toBe(true);

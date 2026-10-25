@@ -13,6 +13,8 @@ import { Operator, play } from "./operator";
 import { parseSave } from "./save";
 import { econ, rig } from "./testkit";
 
+ECONOMY.caseGating = false; // the level and price tests buy boards without a bigger case
+
 const json = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const ticks = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
 const NO_ARRIVALS = { baseDemandPerTick: 0 };
