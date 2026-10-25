@@ -16,8 +16,8 @@ export const DESK = { slab: 340, under: 2800 };
 const DESK_WEST = -14000, DESK_EAST = 1800;
 /** The window light runs down and to the west: this many units west per unit down. */
 const LIGHT_SLANT = 0.5;
-/** How much wall the camera may show beyond the desk's ends, and floor below the desk, and wall above the clock. */
-const BOX_SIDE = 1400, BOX_FLOOR = 500, BOX_TOP = -7700;
+/** How much wall the camera may show beyond the desk's ends, below the wall socket (no floor) and above the window and the clock (no ceiling). */
+const BOX_SIDE = 1400, BOX_BELOW = 700, BOX_TOP = -6200;
 /** Height of the case feet below `CASE`: the desk top is where they stand. */
 export const FOOT = 110;
 
@@ -43,9 +43,10 @@ export interface RoomGeo {
   unit: Rect;
 }
 
-/** The camera cap: the zoom-out stops where this box fills the screen, and panning stays inside it: the desk with a little wall beyond its ends, from just above the clock to just under the desk (the wall itself reaches much further). Follows the case. */
+/** The camera cap: the zoom-out stops where this box fills the screen, and panning stays inside it: the desk with a little wall beyond its ends, from just above the window and the clock to just under the wall socket (no floor, no ceiling; the wall itself reaches much further). Follows the case. */
 export function roomBox(geo: RoomGeo = roomGeo()): Rect {
-  return { x: geo.desk.x0 - BOX_SIDE, y: BOX_TOP, w: geo.desk.x1 - geo.desk.x0 + 2 * BOX_SIDE, h: geo.floor + BOX_FLOOR - BOX_TOP };
+  const bottom = geo.socket.plate.y + geo.socket.plate.h + BOX_BELOW;
+  return { x: geo.desk.x0 - BOX_SIDE, y: BOX_TOP, w: geo.desk.x1 - geo.desk.x0 + 2 * BOX_SIDE, h: bottom - BOX_TOP };
 }
 
 /** The window's light at height `y` below the glass: the x span of the shaft (its edges are the rays from the window's top-left and bottom-right corners, running down and west). */
@@ -69,8 +70,8 @@ export function roomGeo(): RoomGeo {
     desk: { x0: DESK_WEST, x1: east + DESK_EAST },
     mug: east + 800,
     socket: { plate, mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 }, pc: { x: plate.x + plate.w * 0.72, y: plate.y + plate.h / 2 } },
-    window: { x: -14500, y: -6000, w: 4200, h: 4700 },
-    clock: { x: -7900, y: -6300, r: 640 },
+    window: { x: -14500, y: -5400, w: 4200, h: 4100 },
+    clock: { x: -7900, y: -4900, r: 640 },
     lamp: { x: lx, head: { x: lx + 600, y: ys - 3150 }, mouth: { x: lx + 600 + LAMP_D.x * LAMP_REACH, y: ys - 3150 + LAMP_D.y * LAMP_REACH }, rect: { x: lx - 600, y: ys - 3500, w: 2350, h: 3500 } },
     // the unit's top plank is as wide as the monitor and starts where the stand's foot ends
     unit: { x: MONITOR.x + 70, y: MONITOR.y + MONITOR.h + STAND, w: MONITOR.w - 140, h: ys - (MONITOR.y + MONITOR.h + STAND) },
@@ -201,7 +202,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
   // the skirting board and the floor are in `deskArt`; a picture rail along the top keeps a tall wall from being plain
-  g.rect(-90000, BOX_TOP - 300, 180000, 90).fill({ color: L.wallLo, alpha: 0.7 });
+  g.rect(-90000, BOX_TOP - 1500, 180000, 90).fill({ color: L.wallLo, alpha: 0.7 });
 
   // the router shelf: a plank on two brackets, the wall plate above it on the left (both drawn by the network layer)
   const sx0 = ROUTER_SPOT.x - 300, sx1 = ROUTER_SPOT.x + ROUTER_SPOT.w + 120, sy = SHELF_Y;

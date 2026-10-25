@@ -73,10 +73,11 @@ describe('the room layout', () => {
     const box = roomBox(g);
     expect(box.x).toBeLessThan(g.desk.x0);
     expect(box.x + box.w).toBeGreaterThan(g.desk.x1);
-    expect(box.y + box.h).toBeGreaterThan(g.floor); // the floor is in the box, and not much more than that
-    expect(box.y + box.h - g.floor).toBeLessThan(800);
-    expect(box.y).toBeLessThan(g.clock.y - g.clock.r); // the clock is in it, with a little wall above
-    expect(g.clock.y - g.clock.r - box.y).toBeLessThan(1200);
+    expect(box.y + box.h).toBeLessThan(g.floor - 150); // no floor (or skirting board) in the box,
+    expect(box.y + box.h).toBeGreaterThan(g.socket.plate.y + g.socket.plate.h); // but the wall socket is
+    const top = Math.min(g.clock.y - g.clock.r, g.window.y);
+    expect(box.y).toBeLessThan(top); // the clock and the window are in it, with a little wall above and no more
+    expect(top - box.y).toBeLessThan(800);
   });
 
   it('the hood mouth and the lamp rectangle are consistent', () => {
