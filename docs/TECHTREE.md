@@ -73,6 +73,6 @@ A PCIe card running its own ISA (see ARCHITECTURE.md "Accelerators"). Tiers by l
 
 ## Network phase design notes (decided, not built)
 
-- **USB keys die out once the network works.** When the NIC, router and ethernet cable are set up and the link is up, clients stop sending USB sticks: new key arrivals stop (keys already waiting in the tray or held can still be served). The earlier idea of a slow fade is superseded: the owner said to assume users stop sending sticks once the network exists. This is the reason to unlock the network: it removes the manual plugging, and the plug/unplug latency of the USB path.
+- **USB keys die out once the network works.** When the NIC, router and ethernet cable are set up and the link is up, clients stop sending USB sticks: new key arrivals stop (keys already waiting in the tray can still be served). The earlier idea of a slow fade is superseded: the owner said to assume users stop sending sticks once the network exists. This is the reason to unlock the network: it removes the manual plugging, and the plug/unplug latency of the USB path.
 - Network jobs are downloaded in full by the OS (time depends on NIC, router tier and job size) and results uploaded; no manual step per job.
 - Onboard ethernet starts at board tier 1 (100 Mbit), and the Enthusiast board has 1 Gbit. PCIe NIC cards are the upgrade path. See `docs/VRM.md` and `docs/BOARD.md` for the board ladder.

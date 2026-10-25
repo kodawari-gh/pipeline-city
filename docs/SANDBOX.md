@@ -54,7 +54,7 @@ The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation` and
 
 ## Speed
 
-The speed segment in the HUD offers the campaign speeds (II, 1x, 4x, 16x). A sandbox also has **64x**, toggled from the SANDBOX chip (`SANDBOX_SPEEDS`). `setSpeed(64)` is refused in a campaign game (`64x is for the sandbox only`).
+The speed segment in the HUD offers the campaign speeds (pause, then 0.25x, 0.5x, 1x, 2x, 3x; the sim's `Speed` values 1, 2, 4, 8, 12). A sandbox also has **64x**, toggled from the SANDBOX chip (`SANDBOX_SPEEDS`). `setSpeed(64)` is refused in a campaign game (`64x is for the sandbox only`).
 
 The catch-up cap is `MAX_TICKS_PER_FRAME` = **128** base ticks per call, in every game (`host.ts`). The worker calls every 100 ms, so 64x needs about 6.4 ticks per call; the cap only matters after a throttled tab (128 ticks is 2 s of game time at 64x, about 10 ms of work).
 

@@ -22,7 +22,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## P0: clean state
 
 - [x] T01 [auto] Delete the stray `.tmp-vite-noreload.mjs` after `grep -r "tmp-vite-noreload"` shows no use (package.json, scripts, configs). Files: `.tmp-vite-noreload.mjs`. Done when: file gone, nothing referenced it, build green.
-- [~] T02 [owner] Owner said NOT YET (2026-10-24): wait until T23 is played by hand. Push the local commits (126 ahead of origin/main at last count) so GitHub Pages is current. Done when: the owner says yes and `git push` succeeds.
+- [~] T02 [owner] Owner said NOT YET (2026-10-24): wait until T23 is played by hand. Push the local commits (75 ahead of origin/main on 2026-10-25) so GitHub Pages is current. Done when: the owner says yes and `git push` succeeds.
 
 ## P1: finish the network UI (item 4 split; an earlier run may already have done some of it, so check the code first and tick what is already there)
 
@@ -42,7 +42,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T20 [human] Check upload pulses and the amber link-down LED against a real upload (a 120 s run never reached one).
 - [ ] T21 [human] The ethernet cable to a NIC jack crosses the video cable sleeve once; decide whether to reroute.
 - [ ] T22 [human] Burnt NIC dimming and touch on the network parts.
-- [ ] T23 [human] Play the whole campaign by hand from a clean save. Watch for the tutorial card covering the board, step pacing (`reachLevel3` uses 592 of 660 ticks), wording that no longer matches the UI.
+- [ ] T23 [human] Play the whole campaign by hand from a clean save (the scripted `npm run e2e:tutorial` passed on 2026-10-25 through the network chapter, so this is now about feel, not flow). Watch for the tutorial card covering the board, step pacing (`reachLevel3` uses 592 of 660 ticks), wording that no longer matches the UI.
 
 ## P2: finish what exists
 
@@ -60,6 +60,20 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [x] T40 [owner] Owner accepted the empty sides, no change (2026-10-24). Was blocked: the overview scene is a fixed 1.7:1 box (`WORLD` in `src/render/layout.ts`); on a wider canvas the sides can only be filled by cropping the router shelf or the monitor column. Owner picks what to crop, or accepts the empty sides. Original: re-frame the SATA/overview camera so the height-limited scene does not leave empty sides. Files: camera framing in `src/render`. Done when: a framing test asserts the fit for the overview and SATA views.
 - [x] T41 [auto] Reduce text softening above 2x zoom (render text at a resolution that follows zoom). Files: start at `src/render/ink.ts` (line 50: `new Text({... resolution: 2})` is fixed), `src/render/camera.ts` for the zoom value, test pattern `src/render/camera.test.ts`. {sonnet} Done when: a test or documented check shows the resolution scales with zoom, with no frame-time regression noted in `docs/RENDER.md`.
 
+## P2b: polish before balance (owner order 2026-10-25: smooth and good-looking first, balance last)
+
+- [x] T90 [auto] Memory VRM: a second regulator per board tier, per-stick RAM clock sliders, RAM VRM heatsinks (`rsink0..2`, slot `ram-sink`), live glow, cards, tests, `docs/VRM.md`.
+- [x] T91 [auto] "Needs more memory" warning on OS tiles (`ladderFor`, `installedRamBytes`).
+- [x] T92 [auto] Sim quirk: a key that finished before any OS existed no longer counts as the first OS job when pulled later (`Key.doneBeforeOs`).
+- [x] T93 [auto] Phone: the level pill counts in the top inset (cards no longer sit under it); landscape-phone layout (shelf as a right column, small tutorial box). Checked in an emulated phone.
+- [x] T94 [auto] Light theme reworked (PCB-green board, darker ink and lines, lighter page, a visible monitor bay). Dark stays the primary theme.
+- [ ] T95 [human] Look at the light theme and the new RAM VRM art (rsink fins/fan on the DRAM block, glow, dead-board soot) in a real browser; fine-tune colours.
+- [ ] T96 [auto] Portrait phone: the scene is small because the world is wide (monitor bay plus case). Frame the case first and let the player pan to the monitor, or stack the monitor above the case on portrait. Files: `src/render/camera.ts`, `layout.ts`. Done when: a framing test covers a 9:19 viewport.
+- [ ] T97 [auto] Rerun `npm run e2e:tutorial` after the 2026-10-25 changes (memory VRM, OS tile cue, theme) and fix what it finds.
+- [ ] T98 [owner] UI review of the whole game, dark theme first (owner plans it after the docs cleanup). Output: a list of tasks here.
+- [ ] T99 [owner] Tutorial lessons still missing: workloads (scan and db arrive at level 5), memory overclocking. Cancel for a queued part swap.
+- [ ] T100 [owner] Balance pass (see T56): last, after the UI review.
+
 ## P3: later features (do not start without the owner)
 
 - [ ] T50 [owner] Owner priority (2026-10-24): `web` jobs first; needs a design note in `docs/NETWORK.md` before automation. Job classes that never run yet: `web` (needs the network), `secure`/TPM, `gpu`, `npu`, `hpc`. Build the devices, then make the classes runnable. Design note done (T58); build tasks T60 to T66 (W3 and W4 accepted 2026-10-24). Left open for `hpc` only.
@@ -69,7 +83,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T54 [owner] (design note: T87) Fast model and offline catch-up (`docs/SAVE.md`).
 - [ ] T55 [owner] World map, many datacenters, a second machine, Wi-Fi, a router UPS. Not designed.
 - [ ] T56 [owner] Balance pass on the whole game (`economy.ts`, `levels.ts`, device specs, VRM). The owner said much later.
-- [ ] T57 [human] Real-device checks: touch on a phone or tablet, frame times on a real GPU, the client side at 64x.
+- [ ] T57 [human] Real-device checks: touch on a phone or tablet (emulated phone portrait and landscape were checked on 2026-10-25, see `docs/UI.md`), frame times on a real GPU, the client side at 64x.
 - [x] T58 [auto] {opus} Owner decision 2026-10-24: `web` jobs first, then build. Write the `web` job design note (opus: design work) covering what a web job needs from the network (link, bandwidth, router, plan), how it runs and pays, how it fails, and the sim hooks. No code. Build tasks come after the owner reads the note; T50 stays open for them. Files: `docs/NETWORK.md`. Docs: `docs/NETWORK.md`, `docs/ARCHITECTURE.md`. Done when: a "Web jobs" section exists with those four parts and a proposed task split.
 - [x] T59 [auto] {opus} Owner decision 2026-10-24: start on T51. Write a design note for the GPU (own ISA over the reserved `pcie` cable), NPU and TPM (header slot on Mainstream and up): unlock levels, job classes `gpu`/`npu`/`secure`, board and VRM demand, picker art needs, and a proposed task split. No code. Files: new `docs/ACCEL.md`. Docs: `docs/ARCHITECTURE.md`. Done when: the note exists, covers all three devices, and ends with a proposed task split for the owner to approve.
 - [ ] T60 [auto] {sonnet} Web 1 of 6: add generator template `web.serve` (parse request line, route-table lookup in RAM, fill response, print `GET /shop 200` to the monitor; about half the instructions of `cli.calc` at the same scale). No game change. Files: `src/sim/gen/templates.ts`, `src/sim/gen/gen.test.ts`. Docs: `docs/GEN.md#Adding a template`, `docs/NETWORK.md#Web jobs (design note, 2026-10-24)`. Test pattern: `src/sim/gen/gen.test.ts`. Done when: tests show determinism per seed, a run on the reference interpreter, the monitor text, and fewer instructions than `cli.calc` at scale 2.

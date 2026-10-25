@@ -6,10 +6,10 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 
 ## Look
 
-- **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(0.67rem)`, a 1px hairline (`--glass-line`), a 0.67rem radius and no shadow. Tokens are on `:root` (light) and `:root[data-theme="dark"]` (plus the `prefers-color-scheme` fallback). Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in light and dark.
+- **Glass**: every panel (HUD bar, picker, inventory shelf, tutorial card, stats drawer, menu, tooltip, toasts, modals) is a low-opacity background (`--panel`) with `backdrop-filter: blur(0.67rem)`, a 1px hairline (`--glass-line`), a 0.67rem radius and no shadow. Tokens are on `:root` (the light theme) and `:root[data-theme="dark"]`; dark is the primary theme and the page starts with `data-theme="dark"`. Text is `--ink`, secondary text `--mute`; both were checked on the glass over the board in light and dark.
 - **Small type** (all rem): 0.8rem body, 0.65rem uppercase labels, 0.95rem titles.
 - **Pause**: at speed 0 the root gets `class="paused"` (`state.ts`, from the speed signal). `ui.css` stops every animation that shows sim activity: the OS chip pulse (`.chip.live`) and anything marked `.sim-anim`. Hover transitions, panels, toasts and notices keep running. The tutorial's target pulse is guidance, not sim activity, so it keeps running. New sim-activity animations must use one of those hooks.
-- **Fewer always-visible things**: the HUD shows money, time, reputation, keys (with `+N held` for held keys), the machine chip, the inventory button (count badge), speed and theme. Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
+- **Fewer always-visible things**: the HUD shows money, time, reputation, the machine chip, speed and theme (the level pill sits at the top centre, the inventory and shop buttons at the bottom). Stats, export and import, the tutorial options, hints and new game are in the **menu** (`...`). Secondary numbers (demand, oldest key age) are in tooltips.
 - **Part illustrations** (`PartArt.tsx`): inline SVG drawn from the spec, classes only (`.art .ink`, `.art .plate`...), so both themes read the tokens. CPU die with the pipeline per tier (one block for unpipelined, five stages for in-order, forwarding arcs and a cache row for tier 2); RAM sticks (count from the size) with a latency gauge; cooler (fins for the stock heatsink, fan for the tower, tubes and radiator for the liquid loop); PSU with a wattage dial; board with its slot counts; monitor.
 - **Icons** (`Icons.tsx`): bolt for power, flame for heat, clock for speed and latency, dollar for price, lock for blocked or later, check for fitted, box for the inventory. Each is a stroke icon in `currentColor`, sized in rem.
 
@@ -177,7 +177,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 
 ## Theme
 
-`data-theme="dark" | "light"` on `<html>`, from `state.ts` (saved choice, else `prefers-color-scheme`, else dark). Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
+`data-theme="dark" | "light"` on `<html>`, from `state.ts` (saved choice, else dark). Dark is the primary, polished theme; light was reworked on 2026-10-25 (a saturated PCB-green board, darker ink and lines, a lighter page) and is still secondary. Scene tokens (`--bg --board --trace --sub --die --pin --tile --ink --mute --line --dot --on --alu --mul --ld --st --br --bad`) are read by the renderer. UI tokens (`--accent --ok --warn --bad`, `--panel --glass-line --glass-hi --art-plate`, `--ui --mono`) are for the UI.
 
 ## Tests
 
@@ -235,3 +235,9 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - **Space** pauses and resumes at the speed the game ran at (`togglePause` in `store.ts`, `PauseKey` in `Hud.tsx`); a "Paused" pill shows. Text fields, sliders and open dialogs keep their own Space.
 - **New game asks about the tutorial** (campaign only): "Guided tutorial? Yes, show me / No, I know the game" (`resetTutorial` in `state.ts`). Yes resets the tutorial to its welcome card, no hides it (the menu replays it). Continuing a saved game does not ask.
 - **No held keys.** With an OS the key stays plugged while the OS works and pops out by itself when paid (`docs/OS.md`). There is no held-keys rack; the key card's Remove button is disabled with the reason while the OS has the job.
+
+## Phones and short screens (checked 2026-10-25 in an emulated phone, 390x844 and 844x390, touch events)
+
+- **Portrait phone** (`max-width: 48em`): the picker and stats become sheets, the shelf is a strip at the bottom, the tutorial box sits above it. The level pill drops below the bar; `InsetReporter` (`Hud.tsx`) counts it in the top inset, so cards and the camera start under it. A touch drag from a shelf tile onto a socket works (`touch-action: none` on tiles).
+- **Landscape phone** (`max-height: 32em` and landscape): the shelf moves to a column on the right edge (like the tall-tablet layout), its category chips wrap into rows, the tutorial box gets smaller type and padding and stops at the shelf, so the board keeps the left of the screen. The CSS is the last block of `ui.css`.
+- Not checked on a real device: pinch zoom, frame times, the shop and big cards on small screens beyond the two sizes above.
