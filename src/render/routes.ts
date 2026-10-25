@@ -3,7 +3,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from './pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -201,6 +201,15 @@ export function buildBuses(): Bus[] {
     const r = g.pcie[0], pads = pciePads(r, 12, 'n');
     buses.push(mk('pcie', [[PCIE_X, qy], [PCIE_X, r.y]], 12, 20, 9, 120, { to: pads, lead: 40 }));
   }
+
+  // the chipset's own PCIe lanes: four to each slot after the first, from a run of the chipset's west legs, west under the slots, then up
+  // (or, for a slot level with the legs, down) onto the pads on the slot's south edge near its latch end. The slots end one after the
+  // other going down the board, so each group's rise clears the shorter slots below it; the group that rises first runs highest.
+  g.pcie.slice(1).forEach((r, k) => {
+    const legs = legsFrom(g.chip, 'w', g.west.slots[k]!, 4), pads = pciePads(r, 4, 's'), yc = mean(legs, 1), xl = mean(pads, 0);
+    const bus = buses.find((b) => b.id === 'pcie')!;
+    for (const pts of bundleOn([[legs[0]![0], yc], [xl, yc], [xl, pads[0]![1]]], 4, LEG_PITCH, 100, { from: legs, to: pads })) bus.lanes.push(mkLane(pts, bus.lanes.length * 37));
+  });
 
   // USB: four lanes from the CPU's west edge to the hub's east legs; from its west legs two lanes per port fan out (all the same way)
   // to the pads on the shield plate, level with each port

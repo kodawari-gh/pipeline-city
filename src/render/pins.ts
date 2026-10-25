@@ -25,6 +25,11 @@ export function legAt(r: Rect, side: Side, i: number, n: number, pitch = LEG_PIT
 /** Every leg of a side. */
 export const legsOf = (r: Rect, side: Side, n = legCount(side === 'n' || side === 's' ? r.w : r.h), pitch = LEG_PITCH): Pt[] =>
   Array.from({ length: n }, (_, i) => legAt(r, side, i, n, pitch));
+/** `k` consecutive legs of a side from leg index `first`. */
+export const legsFrom = (r: Rect, side: Side, first: number, k: number, pitch = LEG_PITCH): Pt[] => {
+  const n = legCount(side === 'n' || side === 's' ? r.w : r.h, pitch);
+  return Array.from({ length: k }, (_, i) => legAt(r, side, first + i, n, pitch));
+};
 /** `k` consecutive legs of a side, centred on the side's middle leg (the middle of the side, or `shift` legs off it). */
 export function legRun(r: Rect, side: Side, k: number, shift = 0, pitch = LEG_PITCH): Pt[] {
   const n = legCount(side === 'n' || side === 's' ? r.w : r.h, pitch);
@@ -51,7 +56,7 @@ export const pciePadMax = (r: Rect) => Math.floor((r.w - 120) / PCIE_PAD);
 /** `n` pads on the top (`side` 'n') or bottom ('s') edge, ending at the slot's latch end (or `back` pads before it). */
 export function pciePads(r: Rect, n: number, side: 'n' | 's', back = 0): Pt[] {
   const last = pciePadMax(r) - back;
-  return Array.from({ length: n }, (_, j) => [pciePadX(r, last - (n - 1) + j), side === 'n' ? r.y : r.y + r.h] as Pt);
+  return Array.from({ length: n }, (_, j) => [pciePadX(r, last - (n - 1) + j) + (side === 's' ? 20 : 0), side === 'n' ? r.y : r.y + r.h] as Pt);
 }
 
 // ---- M.2 sockets: nine contacts at the west end, 22 apart, centred; the three signal lanes use the middle ones ----

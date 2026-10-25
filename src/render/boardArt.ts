@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
-import { HDR_PITCH, headerPin, legsOf, m2Contacts, legRun } from './pins';
+import { headerPin, legsFrom, legsOf, m2Contacts } from './pins';
 import { buildBuses, mkLane, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
@@ -268,7 +268,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     header(c, -1180, 790, 3, 1, 'CLR_CMOS');              // the CMOS-clear jumper, below the battery
     // the BIOS flash west of the chipset, on its SPI lanes (straight: the flash's east legs sit level with the chipset's west ones)
     chip(c, geo.bios, { legs: 4, pitch: 26, text: 'BIOS', size: 30, accent: T.mul });
-    const spi: Lane[] = legsOf(geo.bios, 'e', 4, 26).map((l, k) => mkLane([l, legRun(geo.chip, 'w', 4, tier === 2 ? -2 : 0)[k]!], k * 17));
+    const spi: Lane[] = legsOf(geo.bios, 'e', 4, 26).map((l, k) => mkLane([l, legsFrom(geo.chip, 'w', geo.west.bios, 4)[k]!], k * 17));
     for (const l of spi) strokeLane(g, l);
     g.stroke({ width: 8, color: P.trace, alpha: 0.9, cap: 'round' });
     for (const l of spi) padLanes.push({ l, w: 16 });

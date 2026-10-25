@@ -104,7 +104,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect((near(p0, socket, 6) && near(p1, g.hub, 14)) || (near(p0, g.hub, 14) && near(p1, g.io, 14)), 'usb lane ends on its footprints').toBe(true);
     }
     expect(by('usb')!.lanes.length).toBe(4 + 2 * g.usb);
-    if (g.pcie[0]) lands('pcie', socket, g.pcie[0]);
+    if (g.pcie[0]) { const b = by('pcie')!; expect(b.lanes.length).toBe(12 + 4 * (g.pcie.length - 1)); for (const l of b.lanes.slice(0, 12)) expect(near(l.pts[0]!, socket, 14) && near(l.pts[l.pts.length - 1]!, g.pcie[0], 14), 'x16 lane ends on its footprints').toBe(true); b.lanes.slice(12).forEach((l, i) => expect(near(l.pts[0]!, g.chip, 14) && near(l.pts[l.pts.length - 1]!, g.pcie[1 + Math.floor(i / 4)]!, 14), 'chipset slot lane ends on its footprints').toBe(true)); }
     const nv = by('nvme');
     expect(nv?.lanes.length ?? 0).toBe(g.m2.length * NVME_LANES);
     for (const l of nv?.lanes ?? []) expect(near(l.pts[0]!, socket, 6) && g.m2.some((m) => near(l.pts[l.pts.length - 1]!, m, 14)), 'nvme lane ends on a connector').toBe(true);
@@ -155,7 +155,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const legsN = legsOf(g.chip, 'n');
     for (const l of by('dmi')!.lanes) hit(end(l), legsN, 'dmi lane ends on a leg');
     for (const l of by('sata')!.lanes) { hit(end(l), g.sata.flatMap((p) => sataPads(p)), 'sata lane ends on a port pad'); hit(l.pts[0]!, legsOf(g.chip, 'e'), 'sata lane starts on a leg'); }
-    if (g.pcie[0]) for (const l of by('pcie')!.lanes) hit(end(l), pciePads(g.pcie[0], 12, 'n'), 'pcie lane ends on a slot pad');
+    if (g.pcie[0]) by('pcie')!.lanes.forEach((l, i) => hit(end(l), i < 12 ? pciePads(g.pcie[0]!, 12, 'n') : pciePads(g.pcie[1 + Math.floor((i - 12) / 4)]!, 4, 's'), 'pcie lane ends on a slot pad'));
     const hubW = legsOf(g.hub, 'w'), hubE = legsOf(g.hub, 'e');
     for (const l of by('usb')!.lanes) {
       const a = l.pts[0]!, b = end(l);
