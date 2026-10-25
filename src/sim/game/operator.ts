@@ -8,6 +8,7 @@
 
 import { CABLE_IDS, deviceSpec, getSpec } from "../board";
 import { getRouterSpec } from "../net";
+import { boardTierOf, caseTierOf } from "./economy";
 import type { Game } from "./game";
 
 export class Operator {
@@ -53,14 +54,20 @@ export class Operator {
     return this.wanted().length > 0 || g.missingCables().length > 0;
   }
 
-  /** Inventory items worth installing: they fit, and they fill an empty kind or beat the installed part (no downgrades). */
+  /** Inventory items worth installing: they fit, and they fill an empty kind or beat the installed part (no downgrades, no spares). */
   private wanted(): string[] {
     const g = this.g;
     const tier = (id: string): number => getSpec(g.inventoryItems().find((i) => i.id === id)!.spec)?.tier ?? 99;
     return g.inventoryItems().filter((it) => {
       if (!g.canInstall(it.id)) return false;
       const spec = getSpec(it.spec);
-      if (!spec) return !getRouterSpec(it.spec); // a board (a router is placed by hand)
+      if (!spec) {
+        if (getRouterSpec(it.spec)) return false; // a router is placed by hand
+        const bt = boardTierOf(it.spec), ct = caseTierOf(it.spec);
+        if (bt !== undefined) return bt > g.board.tier; // a board or a case only when it is bigger: the ones it replaced come back as spares
+        if (ct !== undefined) return ct > g.board.caseTier;
+        return true; // an OS
+      }
       const have = g.board.devices.filter((d) => deviceSpec(d).kind === spec.kind && !d.burnt);
       return have.length === 0 || spec.tier > Math.max(...have.map((d) => deviceSpec(d).tier));
     }).map((it) => it.id).sort((a, b) => tier(b) - tier(a));

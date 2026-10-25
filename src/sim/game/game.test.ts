@@ -169,17 +169,17 @@ describe("queue, reputation and demand", () => {
 });
 
 describe("purchases go to the inventory", () => {
-  it("rejects what you cannot afford and what the plan refuses", () => {
+  it("rejects what you cannot afford and what is not for sale; the rest is sold, and the inventory says whether it fits", () => {
     const g = new Game({ seed: 1, preassembled: true });
     const poor = g.purchase("cpu1");
     expect(!poor.ok && poor.reason).toMatch(/needs/);
     g.money = 1e6;
-    const noPsu = g.purchase("cpu2"); // 41 W of rated load > the 40 W PSU
-    expect(!noPsu.ok && noPsu.reason).toMatch(/PSU/);
-    expect(g.money).toBe(1e6);
+    const big = g.purchase("cpu2") as { invId: string }; // 41 W of rated load > the 40 W PSU: sold anyway, it just will not go in yet
+    expect(big.invId).toBeTruthy();
+    expect(g.snapshot().inventory.find((i) => i.id === big.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/PSU/) });
     expect(g.purchase("psu1").ok).toBe(true);
-    expect(g.purchase("cpu2").ok).toBe(true); // the plan now has the big PSU
-    expect(g.purchase("cpu1").ok).toBe(false); // not an upgrade over what you own
+    expect(g.purchase("cpu1").ok).toBe(true); // any tier, and as many as you like
+    expect(g.purchase("cpu1").ok).toBe(true);
     expect(g.purchase("nonsense").ok).toBe(false);
   });
 
@@ -244,20 +244,21 @@ describe("purchases go to the inventory", () => {
     const by = (id: string) => p.find((x) => x.id === id)!;
     expect(by("ram1")).toMatchObject({ price: 100, affordable: true });
     expect(by("cpu1")).toMatchObject({ price: 200, affordable: false });
-    expect(by("cpu2").blocked).toMatch(/PSU/);
-    expect(by("psu2").blocked).toBeDefined();
+    expect(by("cpu2").blocked).toBeUndefined(); // whether a part fits is the inventory's business
+    expect(by("psu2").blocked).toBeUndefined();
+    expect(by("cpu0")).toMatchObject({ price: 10 }); // the starter parts stay on sale, at the floor price
   });
 });
 
 describe("board upgrade purchase", () => {
-  it("psu2 is blocked until the bigger board is owned, then everything works on it", () => {
+  it("psu2 only installs once the bigger board is fitted, then everything works on it", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [] } });
     g.money = 1e6;
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id);
     g.powerButton(); // a board can only be bought while powered off
     expect(by("board1")).toMatchObject({ kind: "board", price: 150, affordable: true });
-    expect(by("board2")).toBeUndefined(); // only the next tier is offered
-    expect(by("psu2")!.blocked).toMatch(/atx-plus/);
+    expect(by("board2")).toMatchObject({ kind: "board", price: 300 }); // every tier is on sale
+    expect(by("psu2")!.blocked).toBeUndefined();
     const b1 = g.purchase("board1") as { ok: true; invId: string };
     expect(b1.ok).toBe(true);
     expect(by("board2")).toMatchObject({ kind: "board", price: 300, affordable: true });
@@ -265,7 +266,7 @@ describe("board upgrade purchase", () => {
     expect(b.ok).toBe(true);
     expect(g.money).toBe(1e6 - 450);
     expect(g.snapshot().boardTier).toBe(0); // owned, not installed
-    expect(by("board2")).toBeUndefined(); // not offered twice
+    expect(by("board2")).toBeDefined(); // still on sale: another is a spare
     expect(by("psu2")!.blocked).toBeUndefined();
     const p = g.purchase("psu2") as { ok: true; invId: string };
     expect(p.ok).toBe(true);
