@@ -241,3 +241,11 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - **Portrait phone** (`max-width: 48em`): the picker and stats become sheets, the shelf is a strip at the bottom, the tutorial box sits above it. The level pill drops below the bar; `InsetReporter` (`Hud.tsx`) counts it in the top inset, so cards and the camera start under it. A touch drag from a shelf tile onto a socket works (`touch-action: none` on tiles).
 - **Landscape phone** (`max-height: 32em` and landscape): the shelf moves to a column on the right edge (like the tall-tablet layout), its category chips wrap into rows, the tutorial box gets smaller type and padding and stops at the shelf, so the board keeps the left of the screen. The CSS is the last block of `ui.css`.
 - Not checked on a real device: pinch zoom, frame times, the shop and big cards on small screens beyond the two sizes above.
+
+## Tutorial help for someone who is lost (2026-10-25)
+
+- **Done pill.** When a step finishes, a green pill "Install the processor: done" sits above the card for about 2.5 s (`.tut-praise`), so progress is felt.
+- **Ghost hand.** After 8 s without a drag on a drag step (a shelf tile to its socket, or a key to the USB port), a ring presses on the tile, glides to the target and lets go, over and over (`ghostPath`, `.ptr-ghost`, drawn in the pointer layer). Any drag by the player hides it; reduced motion turns it off.
+- **Tip.** After 22 s on a drag step a plain-words tip bubble appears above the card ("press and hold the glowing part, move it to the glowing spot, then let go"). It floats, so the card does not grow and the camera does not re-frame.
+- **Quiet shelf.** The shelf opens for steps that use it and tucks away on the others (never during a drag).
+- **One steady camera.** Guided flights frame a fixed-size window (about 9500 world units wide, more for big targets) around the target, moved back inside the world, so a small part is always shown in its surroundings at the same zoom. A HUD target far from the card (the money) gets no connector line; it pulses by itself.

@@ -117,6 +117,26 @@ function resolveTarget(targets: string[]): { rect: Rect; world: string | null; h
   return null;
 }
 
+/**
+ * Where a drag step goes from and to, for the idle demonstration: a shelf tile to its world target, or a key to the USB port.
+ * Null for steps that are not drags (clicks, waits, cables).
+ */
+function ghostPath(targets: string[]): { from: Rect; to: Rect } | null {
+  const world = targets.find((t) => isWorldId(t) && !t.startsWith('key:') && !t.startsWith('cable.'));
+  const tile = targets.find((t) => t.startsWith('inv:'));
+  if (tile && world) {
+    const from = domRect(document.querySelector(`[data-inv~="${CSS.escape(tile.slice(4))}"]`));
+    const a = anchorOf(world);
+    if (from && a && a.visible) return { from, to: { x: a.x, y: a.y, w: a.w, h: a.h } };
+  }
+  const key = targets.find((t) => t.startsWith('key:'));
+  if (key) {
+    const k = anchorOf(key), u = anchorOf('usb');
+    if (k && k.visible && u && u.visible) return { from: { x: k.x, y: k.y, w: k.w, h: k.h }, to: { x: u.x, y: u.y, w: u.w, h: u.h } };
+  }
+  return null;
+}
+
 /** The free area of the screen (the canvas minus the UI inset), client px. */
 const freeRect = (): Rect => {
   const i = viewInset.peek();
@@ -133,9 +153,10 @@ const freeRect = (): Rect => {
 function useGuidance(active: boolean, targets: string[], cardRef: { current: HTMLElement | null }, svgRef: { current: SVGSVGElement | null }) {
   const key = targets.join('|');
   const [offscreen, setOffscreen] = useState(false);
-  const state = useRef({ x: 0, y: 0, sx: 0, sy: 0, shown: false, lift: 0, key: '' });
+  const state = useRef({ x: 0, y: 0, sx: 0, sy: 0, shown: false, lift: 0, key: '', idleAt: performance.now() });
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
+  useEffect(() => { state.current.idleAt = performance.now(); }, [key]);
 
   // Fly to the new step's target when it is not already comfortably visible.
   useEffect(() => {
@@ -160,6 +181,21 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
       const card = cardRef.current, svg = svgRef.current;
       const tg = resolveTarget(targetsRef.current);
       const cardRect = domRect(card);
+      // After a few idle seconds a ghost hand shows the drag: press on the tile, glide to the target, let go. Any drag by the player hides it.
+      const ghost = svg?.querySelector('.ptr-ghost') as SVGGElement | null;
+      if (dragging.peek()) st.idleAt = now;
+      if (ghost) {
+        const path = !reducedMotion() && now - st.idleAt > GHOST_AFTER_MS && !dragging.peek() ? ghostPath(targetsRef.current) : null;
+        if (path) {
+          const T = 2400, u = ((now - st.idleAt - GHOST_AFTER_MS) % T) / T;
+          const ease = (x: number) => x * x * (3 - 2 * x);
+          const k = u < 0.15 ? 0 : u < 0.7 ? ease((u - 0.15) / 0.55) : 1;
+          const fx = path.from.x + path.from.w / 2, fy = path.from.y + path.from.h / 2, tx = path.to.x + path.to.w / 2, ty = path.to.y + path.to.h / 2;
+          const alpha = u < 0.08 ? u / 0.08 : u > 0.88 ? (1 - u) / 0.12 : 1;
+          ghost.setAttribute('transform', `translate(${fx + (tx - fx) * k} ${fy + (ty - fy) * k}) scale(${u > 0.1 && u < 0.7 ? 1 : 0.8})`);
+          ghost.style.opacity = String(Math.max(0, Math.min(1, alpha)));
+        } else ghost.style.opacity = '0';
+      }
       if (svg) {
         const line = svg.querySelector('.ptr-line') as SVGLineElement;
         const dot = svg.querySelector('.ptr-dot') as SVGCircleElement;
@@ -221,6 +257,9 @@ function useGuidance(active: boolean, targets: string[], cardRef: { current: HTM
  * to the target, and the camera gliding there. While a step is active its target ids are written to `highlight`, which
  * the renderer rings (and the HUD pulses the inventory button). Install steps open the inventory.
  */
+const GHOST_AFTER_MS = 8000;
+const TIP_AFTER_MS = 22000;
+
 export function TutorialCard() {
   const s = snapshot.value;
   const st = tutorial.value;
@@ -236,6 +275,29 @@ export function TutorialCard() {
 
   const cardRef = useRef<HTMLElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // A quiet "done" pill when a step is finished, so progress is felt; and a plain tip when someone has been stuck a while.
+  const [praise, setPraise] = useState<string | null>(null);
+  const prevStep = useRef<{ id: string; title: string } | null>(null);
+  const stepId = step?.id ?? null;
+  useEffect(() => {
+    const prev = prevStep.current;
+    prevStep.current = step && !modal ? { id: step.id, title: step.title } : null;
+    if (prev && stepId && prev.id !== stepId && !holdForLevelUp && !step?.ack) {
+      setPraise(prev.title);
+      const t = setTimeout(() => setPraise(null), 2600);
+      return () => clearTimeout(t);
+    }
+    setPraise(null);
+  }, [stepId, modal]);
+  const [tip, setTip] = useState(false);
+  const isDragStep = targets.some((t) => t.startsWith('inv:') || t.startsWith('key:'));
+  useEffect(() => {
+    setTip(false);
+    if (!isDragStep || !cardActive) return;
+    const t = setTimeout(() => setTip(true), TIP_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [stepId, isDragStep, cardActive, drag]);
 
   useEffect(() => {
     highlight.value = modal ? [] : targets;
@@ -284,8 +346,11 @@ export function TutorialCard() {
       <svg ref={svgRef} class="pointer" aria-hidden="true">
         <line class="ptr-line" x1="0" y1="0" x2="0" y2="0" />
         <circle class="ptr-dot" cx="0" cy="0" />
+        <g class="ptr-ghost" style="opacity:0"><circle class="gh-ring" r="14" /><circle class="gh-core" r="6" /></g>
       </svg>
       <aside class="card tut" ref={cardRef} aria-label="Tutorial" data-step={step.id}>
+        {tip && !problem && <div class="tut-tip" role="note">Tip: press and hold the glowing part, move it to the glowing spot, then let go. On a touch screen, drag with your finger.</div>}
+        {praise && <div class="tut-praise" role="status" key={praise}>✓ {praise}: done</div>}
         <div class="tut-in">
           <div class="thead">
             <span class="mute">{label}</span>

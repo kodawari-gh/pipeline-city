@@ -695,3 +695,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
   .tut .ptitle { font-size: 0.7rem; margin: 0.05rem 0 0.1rem; }
   .modal-back.dlg-back { padding-bottom: 1rem; }
 }
+
+/* Tutorial polish: the "done" pill above the card, and the ghost hand that shows a drag after a few idle seconds. */
+.tut-praise {
+  position: absolute; left: 1rem; top: -1.7rem; padding: 0.15rem 0.7rem; border-radius: 99rem; font-size: 0.75rem; font-weight: 700;
+  color: var(--ok); background: var(--panel); border: 1px solid var(--ok); pointer-events: none; animation: praise 2.6s ease both;
+}
+@keyframes praise { 0% { opacity: 0; transform: translateY(0.4rem); } 12% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-0.3rem); } }
+.tut-tip { position: absolute; left: 0; right: 0; bottom: calc(100% + 0.45rem); padding: 0.35rem 0.7rem; border-radius: 0.6rem; font-size: 0.78rem; color: var(--ink); background: var(--bg); border: 1px solid var(--glass-line); pointer-events: none; animation: tut-in .35s ease both; }
+.ptr-ghost { transition: opacity .25s ease; }
+.gh-ring { r: 1.1rem; fill: none; stroke: var(--accent); stroke-width: 0.13rem; opacity: .8; }
+.gh-core { r: 0.45rem; fill: var(--accent); opacity: .85; }

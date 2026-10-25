@@ -150,12 +150,18 @@ export async function mountBoard(host: HTMLElement) {
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
   const interact = new Interact(camera, app.canvas, (rs, opts) => {
-    // Room around the target so a small part (the power button, a bay) is shown in its surroundings, not filling the screen.
-    const pad = 1500;
-    const x0 = Math.min(...rs.map((r) => r.x)) - pad, y0 = Math.min(...rs.map((r) => r.y)) - pad;
-    const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad, y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad;
-    const v = camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.9);
-    const z = opts.zoom ?? Math.min(Math.max(v.z, overviewFit(camera).z), 0.2);
+    // A steady "medium" view: a window of fixed size around the target (bigger when the target itself is bigger), moved back
+    // inside the world, so every guided flight shows a part in its surroundings at about the same zoom and never a half-empty screen.
+    const bx0 = Math.min(...rs.map((r) => r.x)), by0 = Math.min(...rs.map((r) => r.y));
+    const bx1 = Math.max(...rs.map((r) => r.x + r.w)), by1 = Math.max(...rs.map((r) => r.y + r.h));
+    const aw = Math.max(50, camera.w - camera.inset.left - camera.inset.right), ah = Math.max(50, camera.h - camera.inset.top - camera.inset.bottom);
+    let cw = Math.max(9500, bx1 - bx0 + 2200), ch = cw * ah / aw;
+    if (ch < by1 - by0 + 1800) { ch = by1 - by0 + 1800; cw = ch * aw / ah; }
+    cw = Math.min(cw, WORLD.w); ch = Math.min(ch, WORLD.h);
+    const cx = Math.min(Math.max((bx0 + bx1) / 2, WORLD.x + cw / 2), WORLD.x + WORLD.w - cw / 2);
+    const cy = Math.min(Math.max((by0 + by1) / 2, WORLD.y + ch / 2), WORLD.y + WORLD.h - ch / 2);
+    const v = camera.fit({ x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch }, 1);
+    const z = opts.zoom ?? Math.max(v.z, overviewFit(camera).z);
     camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;

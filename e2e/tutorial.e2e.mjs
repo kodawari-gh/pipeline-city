@@ -54,7 +54,7 @@ const p = await ctx.newPage();
 p.setDefaultTimeout(6000);
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
-p.on('crash', () => errors.push('PAGE CRASHED'));
+p.on('crash', () => { errors.push('PAGE CRASHED'); console.log('!!! PAGE CRASHED: the browser tab died (a headless-GL flake seen about one run in three; rerun). Stopping.'); process.exit(2); });
 p.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`); });
 await p.goto(`http://localhost:${PORT}/`);
 await p.waitForTimeout(2500);
@@ -222,7 +222,8 @@ for (let i = 0; i < 1500; i++) {
   const s = await snap();
   if (id !== last) {
     seen.push(id); last = id; stuck = 0;
-    log(`step ${id.padEnd(11)} game ${String(s.baseTick).padStart(4)}s  money $${Math.round(s.money)}  wall ${Math.round((Date.now() - T0) / 1000)}s`);
+    const heap = await p.evaluate(() => Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1048576)).catch(() => -1);
+    log(`step ${id.padEnd(11)} game ${String(s.baseTick).padStart(4)}s  money $${Math.round(s.money)}  wall ${Math.round((Date.now() - T0) / 1000)}s  heap ${heap}MB`);
     await validateStep(id);
   } else if (++stuck > 150) { log('STUCK on', id); await shot(`stuck-${id}`); break; }
   if (id === 'done') {
@@ -274,7 +275,7 @@ for (let i = 0; i < 1500; i++) {
   }
   } catch (e) {
     // A popup (the level-up) can open between the check and the click: the next round handles it first.
-    log('  action interrupted:', String(e.message).split(String.fromCharCode(10))[0].slice(0, 120));
+    log('  action interrupted:', String(e.message).replace(/\s+/g, ' ').slice(0, 700));
     await p.mouse.up().catch(() => {});
   }
   await p.waitForTimeout(250);
