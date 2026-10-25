@@ -94,6 +94,8 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
 
 /** Lanes in one memory bundle (one per DIMM) and their spacing: they land on the pad row of the socket. */
 export const MEM_LANES = 6, MEM_SPACING = 18;
+/** x of the DMI and NVMe columns that leave the south edge of the package (see `buildBuses`). */
+export const DMI_X = 700, NVME_X = 870;
 
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
@@ -114,28 +116,30 @@ export function buildBuses(): Bus[] {
   });
   buses.push(mem);
 
-  // NVMe: CPU south-east corner down and east into the M.2 connector
+  // The south edge of the package feeds three columns, west to east: PCIe x16 (ends on the first slot), DMI (the chipset below)
+  // and NVMe (the M.2 connector); each column's x clears the next, and the slots end before the DMI column.
+  // NVMe: CPU south edge down and east into the M.2 connector
   if (g.m2) {
     const y = g.m2.y + g.m2.h / 2;
-    buses.push(mk('nvme', [[700, qy], [700, y], [g.m2.x - 10, y]], 6, 22, 10, 110));
+    buses.push(mk('nvme', [[NVME_X, qy], [NVME_X, y], [g.m2.x - 10, y]], 6, 22, 10, 110));
   }
 
-  // DMI: CPU west edge straight to the chipset's east pads
-  buses.push(mk('dmi', [[px, 0], [g.chip.x + g.chip.w, 0]], 8, 22, 9));
+  // DMI: CPU south edge straight down onto the chipset's top pads
+  buses.push(mk('dmi', [[DMI_X, qy], [DMI_X, g.chip.y]], 8, 20, 9));
 
   // PCIe x16: CPU south edge straight down onto the first slot
   if (g.pcie[0]) buses.push(mk('pcie', [[250, qy], [250, g.pcie[0].y]], 12, 18, 9));
 
-  // USB: chipset west edge to the rear I/O
-  buses.push(mk('usb', [[g.chip.x, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
+  // USB: the CPU's west edge straight to the rear I/O, through the hub controller that sits on the way
+  buses.push(mk('usb', [[px, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
 
-  // SATA: chipset south edge down, then east along the port's row to the pads on its west side (the drive cables continue from there);
-  // one bundle per port, the lower port's drop is the westmost, so the two never cross
+  // SATA: the chipset's east edge straight east along each port's row, onto the pads on its west side (the drive cables continue
+  // from there); the ports sit on the chipset's rows, so nothing bends and nothing crosses
   if (g.sata.length) {
     const lanes: Lane[] = [];
     g.sata.forEach((p, i) => {
-      const x = g.chip.x + g.chip.w * (i === 0 ? 0.57 : 0.28), y = p.y + p.h / 2;
-      for (const pts of bundle([[x, g.chip.y + g.chip.h], [x, y], [p.x - 6, y]], 3, 24, 120)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
+      const y = p.y + p.h / 2;
+      for (const pts of bundle([[g.chip.x + g.chip.w, y], [p.x - 6, y]], 3, 24, 120)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
     });
     buses.push({ id: 'sata', w: 9, lanes });
   }

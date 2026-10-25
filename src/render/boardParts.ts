@@ -27,6 +27,7 @@ export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: num
 
 /** A plated screw hole: copper ring, dark bore. */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
+  disc(c.g, x, y, r + 34, { fill: c.P.board }); // the keepout: bare board round the screw, whatever was drawn under it
   disc(c.g, x, y, r, { fill: c.P.panel, stroke: c.P.edge, lw: 8 });
   disc(c.g, x, y, r * 0.5, { fill: c.P.dark });
   disc(c.g, x, y, r + 26, { stroke: c.P.silk, lw: 4, sa: 0.35 });

@@ -65,12 +65,15 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   const lbl = (t: string, x: number, y: number, s = 38, a = 1) => labels.addChild(label(t, x, y, s, P.silk, { a }));
   const south = BD.y + BD.h;
 
-  // ---- plate: a soft shadow on the tray, the substrate, an edge bevel, the mounting holes ----
+  // ---- plate: a soft shadow on the tray, the substrate, an edge bevel (the mounting holes go on last, over any trim) ----
   box(g, BD.x + 22, BD.y + 34, BD.w, BD.h, 120, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
   box(g, BD.x, BD.y, BD.w, BD.h, 120, { fill: P.board, stroke: P.edge, lw: 12 });
   box(g, BD.x + 70, BD.y + 70, BD.w - 140, BD.h - 140, 90, { stroke: P.edge, lw: 4, sa: 0.5 });
   g.rect(BD.x + 130, BD.y + 14, BD.w - 260, 6).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.3 });
-  for (const [x, y] of geo.holes) hole(c, x, y, 66);
+  // the better boards carry a little more: a trim line round the plate (Mainstream, Enthusiast) and a second line for the top tier;
+  // drawn first, so every part sits over it (the holes clear it with their own ring)
+  if (skin.trim >= 1) box(g, BD.x + 120, BD.y + 120, BD.w - 240, BD.h - 240, 70, { stroke: T.alu, lw: 5, sa: skin.trim >= 2 ? 0.3 : 0.16 });
+  if (skin.trim >= 2) box(g, BD.x + 150, BD.y + 150, BD.w - 300, BD.h - 300, 60, { stroke: T.mul, lw: 3, sa: 0.22 });
 
   // ---- copper pours: the core voltage plane under the package edge, the memory rail ----
   {
@@ -163,7 +166,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     lbl('M.2 NVMe · 2280', m.x, m.y - 36, 38);
   }
 
-  // ---- chipset (west of the CPU): QFP legs, a heat sink on the better boards ----
+  // ---- chipset (south-east of the CPU, on its SATA ports' rows): QFP legs, a heat sink on the better boards ----
   {
     const q = geo.chip;
     shadow(c, q.x, q.y, q.w, q.h, 26, 12, 0.3);
@@ -188,7 +191,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     }
     labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, tier === 0 ? 70 : 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
   }
-  // ---- SATA: ports on the bottom edge, mouths facing down (the drive cables rise into them) ----
+  // ---- SATA: ports on the east edge, mouths facing east (the drive cables come from the bay) ----
   geo.sata.forEach((p, i) => sataPortArt(c, p, i, i < nSata));
 
   // ---- power connectors ----
@@ -248,6 +251,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   }
   // ---- audio codec, next to the jacks it serves ----
   chip(c, geo.codec, { legs: 6, text: 'CODEC', size: 36, accent: T.mul });
+  // the USB hub controller on the way from the CPU to the rear I/O (the lanes run under it)
+  chip(c, geo.hub, { legs: 6, pitch: 52, text: 'USB', size: 52, accent: T.mul });
   if (geo.phy) chip(c, geo.phy, { legs: 6, text: 'PHY', size: 40, accent: T.mul });
 
   // ---- CPU socket frame (empty-socket look; the package covers it when a CPU is installed) ----
@@ -270,14 +275,15 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the DMI lanes
     const bx = tier === 0 ? -1430 : -1480;
     chip(c, { x: bx, y: 790, w: 170, h: 110 }, { legs: 4, pitch: 34, text: 'BIOS', size: 30, accent: T.mul });
-    const p0 = geo.sata[0] ? geo.sata[0].y + geo.sata[0].h / 2 : south - 465, hy = p0 - 380;
-    const hdr = (x: number, cols: number, rows: number, name: string) => header(c, x, hy, cols, rows, name);
-    const fp = hdr(-800, 5, 2, 'F_PANEL');
-    hdr(300, 4, 1, 'SYS_FAN');
+    // the header corner: a row along the bottom, west of the chipset (the top board's second group sits east of it, under the SATA rows)
+    const hy = geo.hdrY;
+    const hdr = (x: number, cols: number, rows: number, name: string, y = hy) => header(c, x, y, cols, rows, name);
+    const fp = hdr(-1100, 5, 2, 'F_PANEL');
+    hdr(-80, 4, 1, 'SYS_FAN');
     if (tier >= 1) {
-      const io = hdr(-150, 5, 2, 'USB_2');
+      const io = hdr(-450, 5, 2, 'USB_2');
       // a small I/O controller between the two headers, wired to both (the lanes land on pads on the header side)
-      const sio = { x: -440, y: hy - 10, w: 190, h: 150 };
+      const sio = { x: -740, y: hy - 10, w: 190, h: 150 };
       chip(c, sio, { legs: 4, pitch: 36, text: 'SIO', size: 36, accent: T.mul });
       const links: Lane[] = [];
       for (const pts of bundle([[sio.x, hy + 40], [fp.x + fp.w + 6, hy + 40]], 3, 24, 40)) links.push(mkLane(pts));
@@ -287,7 +293,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       for (const l of links) for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!]) g.rect(p[0] - 14, p[1] - 9, 28, 18);
       g.fill({ color: P.via, alpha: 0.85 });
     }
-    if (tier >= 2) hdr(620, 6, 2, 'TPM');
+    if (tier >= 2) hdr(-1550, 6, 2, 'TPM');
     if (tier >= 3) { hdr(1100, 5, 2, 'USB_3'); hdr(1500, 4, 1, 'SYS_FAN2'); }
     // the top board: an RGB strip along the bottom edge and a two-digit debug display by the 24-pin
     if (tier >= 3) {
@@ -329,11 +335,13 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     }
     g.fill({ color: P.silkHi, alpha: 0.5 });
   }
-  labels.addChild(label('PIPELINE CITY', -800, south - 170, 90, P.silk, { head: true, a: 0.5 }));
-  lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, 1300, south - 110, 40, 0.8);
-  // the better boards carry a little more: a trim line round the plate (Mainstream, Enthusiast) and a second line for the top tier
-  if (skin.trim >= 1) box(g, BD.x + 120, BD.y + 120, BD.w - 240, BD.h - 240, 70, { stroke: T.alu, lw: 5, sa: skin.trim >= 2 ? 0.3 : 0.16 });
-  if (skin.trim >= 2) { box(g, BD.x + 150, BD.y + 150, BD.w - 300, BD.h - 300, 60, { stroke: T.mul, lw: 3, sa: 0.22 }); lbl('OVERCLOCK READY', -800, south - 250, 36, 0.6); }
+  // the bottom silkscreen sits above the trim lines (south - 150 and below), clear of the header row and the holes
+  labels.addChild(label('PIPELINE CITY', -800, south - 290, 90, P.silk, { head: true, a: 0.5 }));
+  if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 215, 36, 0.6);
+  lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, Math.min(1300, BD.x + BD.w - 1150), south - 215, 40, 0.8);
+
+  // ---- the mounting holes, last: each has a clear ring, so no trim or silkscreen line runs through a screw ----
+  for (const [x, y] of geo.holes) hole(c, x, y, 66);
 
   root.addChild(labels);
   return { root, labels, buses, pal: P };

@@ -38,7 +38,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('keeps every part on the board and nothing on top of anything else', () => {
     const g = sockets();
     const parts: [string, Rect][] = [
-      ['io', g.io], ['chip', g.chip], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
+      ['io', g.io], ['chip', g.chip], ['hub', g.hub], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm],
       ['socket', { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E }],
     ];
     g.dimm.forEach((d, i) => parts.push([`dimm${i}`, { x: d.rect.x - 10, y: d.rect.y - 40, w: d.rect.w + 20, h: d.rect.h + 80 }]));
@@ -95,12 +95,67 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       }
     };
     lands('dmi', socket, g.chip);
+    lands('usb', socket, g.io);
     if (g.pcie[0]) lands('pcie', socket, g.pcie[0]);
     if (g.m2) lands('nvme', socket, g.m2);
-    lands('usb', g.chip, g.io);
     lands('video', socket, g.io);
     for (const l of by('sata')!.lanes) expect(g.sata.some((p) => near(l.pts[l.pts.length - 1]!, p, 14)) && near(l.pts[0]!, g.chip, 14)).toBe(true);
     void ends;
+  });
+
+  it('never runs a signal trace across a PCIe slot, a DIMM, the M.2 or another chip it does not end on', () => {
+    const g = sockets();
+    const shrink = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d });
+    const hits = (l: Lane, r: Rect) => {
+      for (let i = 1; i < l.pts.length; i++) {
+        const a = l.pts[i - 1]!, b = l.pts[i]!;
+        const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+        if (x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h) return true;
+      }
+      return false;
+    };
+    const lanes = buildBuses().filter((b) => !['pwr12', 'pwrcpu', 'vcore', 'vdimm', 'mem'].includes(b.id)).flatMap((b) => b.lanes.map((l) => ({ id: b.id, l })));
+    const solid: [string, Rect][] = [['chip', g.chip], ['hub', g.hub], ['bat', g.bat], ['codec', g.codec]];
+    if (g.phy) solid.push(['phy', g.phy]);
+    if (g.m2) solid.push(['m2', g.m2]);
+    g.pcie.forEach((r, i) => solid.push([`pcie${i}`, { x: r.x, y: r.y - 20, w: r.w, h: r.h + 40 }]));
+    g.dimm.forEach((d, i) => solid.push([`dimm${i}`, d.rect]));
+    g.sata.forEach((r, i) => solid.push([`sata${i}`, r]));
+    for (const { id, l } of lanes) for (const [name, r] of solid) {
+      // a lane may end on its own footprint (its first or last point is on the rect); anything else through it is a crossing
+      const ends = near(l.pts[0]!, r, 16) || near(l.pts[l.pts.length - 1]!, r, 16);
+      if (id === 'usb' && name === 'hub') continue; // the USB lanes run under their hub controller
+      expect(ends || !hits(l, shrink(r, 4)), `${id} crosses ${name}`).toBe(true);
+    }
+  });
+
+  it('keeps every mounting hole clear: no part, lane or other hole within its keepout', () => {
+    const g = sockets();
+    const R = 66 + 34 + 8; // the hole, its clear ring and a margin
+    const segDist = (p: [number, number], a: [number, number], b: [number, number]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+      return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+    };
+    const rectDist = (p: [number, number], r: Rect) => Math.hypot(Math.max(r.x - p[0], 0, p[0] - (r.x + r.w)), Math.max(r.y - p[1], 0, p[1] - (r.y + r.h)));
+    const buses = buildBuses();
+    const lanes = buses.flatMap((b) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []));
+    const parts: [string, Rect][] = [
+      ['chip', g.chip], ['hub', g.hub], ['codec', g.codec], ['bat', g.bat], ['cpw', g.cpw], ['atx', g.atx], ['vrm', g.vrm], ['dvrm', g.dvrm], ['io', g.io],
+      ['socket', { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E }],
+    ];
+    g.dimm.forEach((d, i) => parts.push([`dimm${i}`, d.rect]));
+    g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
+    g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
+    for (const [n, r] of [['m2', g.m2], ['pciew', g.pciew], ['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
+    g.holes.forEach(([hx, hy], i) => {
+      const p: [number, number] = [hx, hy];
+      for (const [name, r] of parts) expect(rectDist(p, r), `hole ${i} vs ${name}`).toBeGreaterThan(R);
+      for (const l of lanes) for (let k = 1; k < l.pts.length; k++) expect(segDist(p, l.pts[k - 1]!, l.pts[k]!), `hole ${i} vs a lane`).toBeGreaterThan(R);
+      g.holes.forEach(([ox, oy], j) => { if (j > i) expect(Math.hypot(ox - hx, oy - hy), `holes ${i} and ${j}`).toBeGreaterThan(2 * R); });
+      // the screw stays on the board
+      expect(inside({ x: hx - 66, y: hy - 66, w: 132, h: 132 }, g.bd)).toBe(true);
+    });
   });
 
   it('seats every cable plug on its connector', () => {

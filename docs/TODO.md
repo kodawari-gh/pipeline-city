@@ -81,6 +81,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T108 [auto] The PSU shroud is still a long bar with the readout on it. Make it a real PSU unit under a shroud (the readout on the shroud), the bay beside it, per case tier.
 - [ ] T109 [auto] Run `npm run e2e:tutorial` for the new case steps (the script knows them; not run yet, the owner asked to pause e2e) and look at the screenshots.
 - [ ] T110 [auto] Camera: the guided "medium" window and the tutorial rings were tuned for one big world; recheck them in the small cases (Mini tower) and with the bigger monitor.
+- [x] T111 [auto] Owner's board nitpicks: no line runs through a mounting hole (trim drawn first, holes last with a clear ring, a test keeps parts and lanes out of the keepout); the PCH moved south-east under the CPU with the SATA ports on its rows, so no trace crosses a PCIe slot (a test checks it); USB runs CPU to I/O under a hub chip; bottom silkscreen lifted off the trim lines.
 - [ ] T99 [owner] Tutorial lessons still missing: workloads (scan and db arrive at level 5), memory overclocking. Cancel for a queued part swap.
 - [ ] T100 [owner] Balance pass (see T56): last, after the UI review.
 

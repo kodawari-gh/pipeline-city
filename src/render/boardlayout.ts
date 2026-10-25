@@ -9,6 +9,9 @@ import type { Rect } from './layout';
 //   tier 2 Mainstream  ATX             4 DIMM, 2 PCIe, M.2, 2 SATA
 //   tier 3 Enthusiast  E-ATX           8 DIMM (two rows), 4 PCIe, M.2, 2 SATA, more of everything
 //
+// The chipset sits south-east of the CPU, below the memory and east of the PCIe slots' ends: the DMI lanes drop straight onto it and
+// the SATA lanes run east along the ports' rows, so no trace crosses a slot. USB comes from the CPU straight to the rear I/O.
+//
 // Memory is point-to-point: every DIMM gets its own bundle from the CPU's east edge, stacked in a staircase so nothing crosses
 // (see `routes.ts`); `memY` is the y of each bundle's horizontal run and `padY` the y of the pad rows the bundles land on.
 
@@ -20,7 +23,10 @@ export interface TierGeo {
   form: string;
   bd: Rect;
   io: Rect;
+  /** The chipset (PCH): south-east of the CPU, under it, on the row of the SATA ports. */
   chip: Rect;
+  /** The USB hub controller between the CPU's west edge and the rear I/O (the USB lanes run through it). */
+  hub: Rect;
   codec: Rect;
   /** Ethernet PHY next to the jack (boards with ethernet only). */
   phy: Rect | null;
@@ -44,6 +50,8 @@ export interface TierGeo {
   m2: Rect | null;
   sata: Rect[];
   hex: Rect | null; qr: Rect | null;
+  /** y of the row of pin headers along the bottom. */
+  hdrY: number;
   /** Mounting holes. */
   holes: [number, number][];
 }
@@ -61,10 +69,10 @@ interface Spec {
 }
 
 const SPECS: Spec[] = [
-  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5450, 3900), x0: 1200, phases: 2, dphases: 2, dimms: 1, pcie: 0, m2: false, sata: 1, chip: R(-2200, -230, 460, 460), pciewY: null },
-  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4700), x0: 1300, phases: 3, dphases: 2, dimms: 2, pcie: 1, m2: false, sata: 2, chip: R(-2250, -270, 540, 540), pciewY: 1000 },
-  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 5000), x0: 1300, phases: 4, dphases: 3, dimms: 4, pcie: 2, m2: true, sata: 2, chip: R(-2250, -300, 600, 600), pciewY: 1000 },
-  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6000), x0: 1300, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2: true, sata: 2, chip: R(-2250, -300, 600, 600), pciewY: 1000 },
+  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5450, 3900), x0: 1200, phases: 2, dphases: 2, dimms: 1, pcie: 0, m2: false, sata: 1, chip: R(470, 1000, 460, 460), pciewY: null },
+  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4700), x0: 1300, phases: 3, dphases: 2, dimms: 2, pcie: 1, m2: false, sata: 2, chip: R(430, 1500, 540, 540), pciewY: 1000 },
+  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 5000), x0: 1300, phases: 4, dphases: 3, dimms: 4, pcie: 2, m2: true, sata: 2, chip: R(400, 1650, 600, 600), pciewY: 1000 },
+  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6000), x0: 1300, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2: true, sata: 2, chip: R(400, 2300, 600, 600), pciewY: 1000 },
 ];
 
 /** The four PCIe slot rails (x16, x8, x4, x1): the tier uses the first ones. Lengths stop before the M.2 area. */
@@ -101,19 +109,22 @@ function build(s: Spec): TierGeo {
   // ---- connectors ----
     const cpw = R(vrm.x - 150, bd.y + 90, 660, 260);
   const atx = R(east - 300, -1600, 300, 1100);
-  // SATA ports on the east edge near the bottom, mouths facing east (the drive cables run straight to the bay)
-  const sataRects = [R(east - 390, south - 520, 300, 110), R(east - 390, south - 350, 300, 110)];
+  // SATA ports on the east edge, on the chipset's row, mouths facing east: the lanes run straight east from the chipset and the
+  // drive cables come from the bay
+  const pcy = s.chip.y + s.chip.h / 2;
+  const sataRects = [R(east - 390, pcy - 140, 300, 110), R(east - 390, pcy + 30, 300, 110)];
   const holes: [number, number][] = [
-    [bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150],
+    [s.tier === 0 ? -2330 : bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150], // (the small board's top-west one sits beside the I/O plate)
     [0, bd.y + 150], [0, south - 150],
   ];
-  if (s.tier >= 1) holes.push([bd.x + 150 + Math.round((east - bd.x - 300) * 0.28), south - 150], [bd.x + 150 + Math.round((east - bd.x - 300) * 0.28), bd.y + 150]);
-  if (s.tier >= 2) holes.push([east - 150, 1400]);
-  if (s.tier >= 3) holes.push([bd.x + 150, 1200], [east - 150, 2500], [0, 1700]);
+  if (s.tier >= 1) holes.push([bd.x + 150 + Math.round((east - bd.x - 300) * 0.28), south - 150], [cpw.x - 220, bd.y + 150]); // the top one stays west of the 8-pin
+  if (s.tier >= 2) holes.push([east - 150, 1520]);
+  if (s.tier >= 3) holes.push([bd.x + 150, 1200], [east - 150, 2100], [0, 1700]);
   return {
     tier: s.tier, form: s.form, bd,
     io: R(-3440, -2000, 690, 2450),
     chip: s.chip,
+    hub: R(-2050, -190, 340, 380),
     codec: R(-2690, -1960, 230, 220),
     phy: s.tier >= 1 ? R(-2640, -1700, 220, 260) : null,
     bat: s.tier === 0 ? R(-1450, 450, 300, 300) : R(-1500, 400, 300, 300),
@@ -126,8 +137,9 @@ function build(s: Spec): TierGeo {
     pcie: PCIE_ALL.slice(0, s.pcie),
     m2: s.m2 ? R(1150, two ? 1420 : 1100, 1760, 400) : null,
     sata: sataRects.slice(0, s.sata),
-    hex: R(-3250, south - 330, 760, 200),
-    qr: s.tier >= 1 ? R(-3250, south - 620, 240, 240) : null,
+    hex: R(-3000, south - 400, 760, 200),
+    qr: s.tier >= 1 ? R(-3000, south - 690, 240, 240) : null,
+    hdrY: south - 560,
     holes,
   };
 }
