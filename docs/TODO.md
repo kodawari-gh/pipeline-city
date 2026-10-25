@@ -69,7 +69,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [x] T94 [auto] Light theme reworked (PCB-green board, darker ink and lines, lighter page, a visible monitor bay). Dark stays the primary theme.
 - [ ] T95 [human] Look at the light theme and the new RAM VRM art (rsink fins/fan on the DRAM block, glow, dead-board soot) in a real browser; fine-tune colours.
 - [ ] T96 [auto] Portrait phone: the scene is small because the world is wide (monitor bay plus case). Frame the case first and let the player pan to the monitor, or stack the monitor above the case on portrait. Files: `src/render/camera.ts`, `layout.ts`. Done when: a framing test covers a 9:19 viewport.
-- [ ] T97 [auto] Rerun `npm run e2e:tutorial` after the 2026-10-25 changes (memory VRM, OS tile cue, theme) and fix what it finds.
+- [x] T97 [auto] Reran `npm run e2e:tutorial` after the 2026-10-25 changes: PASS, 35 steps in order, no page errors. Its holds now use `pauseForTutorialPopup`, so screenshots show no "Paused" pill. Looking at the 37 screenshots found three look issues for the UI review (T98): the dashed tutorial connector can cross the whole scene (money step: top-left HUD to the card, over the key tray); the inventory shelf stays open with leftover spares (a CPU, a RAM stick) and covers the bottom of the board in later chapters; the camera zoom on the bay and power-button steps is very tight.
 - [ ] T98 [owner] UI review of the whole game, dark theme first (owner plans it after the docs cleanup). Output: a list of tasks here.
 - [ ] T99 [owner] Tutorial lessons still missing: workloads (scan and db arrive at level 5), memory overclocking. Cancel for a queued part swap.
 - [ ] T100 [owner] Balance pass (see T56): last, after the UI review.

@@ -116,8 +116,10 @@ async function waitTyped(ms = 7000) {
 async function validateStep(id) {
   // Hold the game: the state under test must not move while the text types and the camera flies. A step that already holds it (an explain-only step) stays held.
   const was = await p.evaluate(async () => (await import('/src/game/store.ts')).speed.value);
-  if (was !== 0) await setSpeed(0);
-  try { await validateHeld(id); } finally { if (was !== 0) await setSpeed(was); }
+  // Held the way the game holds itself for a popup (not a player pause), so the screenshots show what a player sees: no "Paused" pill.
+  const hold = (open) => p.evaluate(async (o) => (await import('/src/ui/state.ts')).pauseForTutorialPopup(o), open);
+  if (was !== 0) await hold(true);
+  try { await validateHeld(id); } finally { if (was !== 0) await hold(false); }
 }
 async function validateHeld(id) {
   await waitTyped();
