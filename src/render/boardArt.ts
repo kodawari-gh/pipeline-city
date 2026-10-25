@@ -8,7 +8,7 @@ import { tuneBump } from './match';
 import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
-  cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
+  cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieRelease, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
 } from './boardParts';
 
 export interface BoardArt {
@@ -188,6 +188,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   });
   // the x16 slot's 12 V tab at its latch end, where the 6-pin's rail arrives
   if (geo.pciew && geo.pcie[0]) { const f = pcieFeed(geo.pcie[0]); box(g, f[0] - 22, f[1] - 18, 44, 36, 8, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 4, sa: 0.8 }); }
+  if (geo.pcie[0]) pcieRelease(c, geo.pcie[0]);
 
   // ---- M.2: the connector at the west end, a standoff for the stick's far end ----
   geo.m2.forEach((m, mi) => {

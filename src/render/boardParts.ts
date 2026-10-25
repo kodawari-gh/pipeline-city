@@ -190,17 +190,30 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
   c.labels.addChild(label(name, r.x, r.y - 36, big ? 38 : 34, P.silk));
 }
 
+/**
+ * The x16 slot's release button: a raised thumb tab on the latch (it rocks the hook out of the card's notch), with grip ridges and a shadow on the
+ * board. Drawn after the slot's power tab, over it: the tab is a pad on the board, the button stands above.
+ */
+export function pcieRelease(c: Ctx, r: Rect) {
+  const { g, P } = c, bx = r.x + r.w + 2, by = r.y + r.h / 2 - 12, w = 40, h = 52;
+  shadow(c, bx, by, w, h, 10, 9, 0.4);
+  box(g, bx, by, w, h, 10, { fill: P.panel, stroke: P.edge, lw: 4 });
+  g.rect(bx + 5, by + 4, w - 10, 5).fill({ color: P.silkHi, alpha: 0.35 }); // the lit top edge
+  for (let k = 0; k < 3; k++) g.rect(bx + 9, by + 21 + k * 9, w - 18, 4);
+  g.fill({ color: P.silk, alpha: 0.4 });
+}
+
 /** A power connector: housing with a grid of cavities, a latch ridge on the open side. */
 export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: string, mouth: 'e' | 'n', a = 1, nameAt?: [number, number, number]) {
   const { g, P } = c;
   shadow(c, r.x, r.y, r.w, r.h, 14, 10, 0.28);
   box(g, r.x, r.y, r.w, r.h, 14, { fill: P.sub, stroke: P.via, lw: 6, fa: a, sa: a * 0.8 });
   const horizontal = mouth === 'n'; // 8-pin: cavities in `cols` along x and `rows` along y
-  const pw = horizontal ? (r.w - 80) / cols - 16 : 70, ph = horizontal ? (r.h - 60) / rows - 14 : Math.min(60, (r.h - 60) / cols - 18);
-  const n1 = horizontal ? cols : cols, n2 = horizontal ? rows : rows;
-  void n1; void n2;
+  // every cavity is the same size on both connectors (a real EPS plug has the 24-pin's pitch and cavities), centred in its cell
+  const pw = 70, ph = horizontal ? Math.min(60, (r.h - 60) / rows - 14) : Math.min(60, (r.h - 60) / cols - 18);
   if (horizontal) {
-    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(r.x + 40 + i * ((r.w - 80) / cols) + 8, r.y + 38 + j * ((r.h - 60) / rows), pw, ph);
+    const cw = (r.w - 80) / cols, ch = (r.h - 60) / rows;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(r.x + 40 + (i + 0.5) * cw - pw / 2, r.y + 38 + (j + 0.5) * ch - ph / 2, pw, ph);
   } else {
     for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) g.rect(r.x + 40 + j * 110, r.y + 30 + i * ((r.h - 60) / rows) + 6, pw, ph);
   }
