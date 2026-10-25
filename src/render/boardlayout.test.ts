@@ -175,6 +175,23 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     hit(by('pwr12')!.lanes[0]!.pts[0]!, [atx12v(g.atx)], 'pwr12 starts on the 24-pin');
   });
 
+  it('starts every lane that leaves the CPU on a pin of its package (the outer row, on the 20 grid), each pin used once', () => {
+    sockets();
+    const onPin = (p: [number, number]) => {
+      const gx = (p[0] - (PKG.x + 70)) / 20, gy = (p[1] - (PKG.y + 70)) / 20, whole = (v: number) => Math.abs(v - Math.round(v)) < 0.03;
+      return (Math.abs(p[0] - (PKG.x + PKG.w - 24)) < 0.6 && whole(gy)) || (Math.abs(p[0] - (PKG.x + 24)) < 0.6 && whole(gy))
+        || (Math.abs(p[1] - (PKG.y + PKG.h - 24)) < 0.6 && whole(gx)) || (Math.abs(p[1] - (PKG.y + 24)) < 0.6 && whole(gx));
+    };
+    const starts: string[] = [];
+    for (const b of buildBuses()) {
+      if (b.id === 'mem') for (const t of b.taps!) for (const l of t.lanes) { expect(onPin(l.pts[0]!), 'mem lane on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
+      else if (b.id === 'nvme' || b.id === 'dmi' || b.id === 'video' || b.id === 'dp' || b.id === 'svid') for (const l of b.lanes) { expect(onPin(b.id === 'svid' ? l.pts[l.pts.length - 1]! : l.pts[0]!), `${b.id} lane on a pin`).toBe(true); starts.push(l.pts[b.id === 'svid' ? l.pts.length - 1 : 0]!.join()); }
+      else if (b.id === 'pcie') for (const l of b.lanes.slice(0, 12)) { expect(onPin(l.pts[0]!), 'x16 lane on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
+      else if (b.id === 'usb') for (const l of b.lanes.slice(0, 4)) { expect(onPin(l.pts[0]!), 'usb uplink on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
+    }
+    expect(new Set(starts).size, 'no two lanes on one pin').toBe(starts.length);
+  });
+
   it('wires every controller, bridge and header to a pin the art draws', () => {
     const g = sockets();
     const buses = buildBuses();

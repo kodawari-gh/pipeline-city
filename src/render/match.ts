@@ -17,6 +17,8 @@ export interface SerpOpts {
   tol?: number;
   /** Use only a stretch along this axis ('h' runs along x). */
   axis?: 'h' | 'v';
+  /** Open out toward the low or the high side (smaller or larger y for a run along x, x for a run along y); by default toward the shortest lane. */
+  side?: 'low' | 'high';
 }
 
 export const lengthOf = (pts: Pt[]): number => pts.reduce((a, p, i) => (i ? a + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
@@ -38,11 +40,13 @@ const span = (s: Seg): [number, number] => (s.a < s.b ? [s.a, s.b] : [s.b, s.a])
 const BEV = 8 - 4 * Math.SQRT2;
 
 /** The tooth that adds exactly `e` to a lane: its height and bevel. */
-function toothFor(e: number, b0: number): { A: number; b: number } {
-  if (e >= 2 * (2 * b0 + 2) - b0 * BEV) return { A: (e + b0 * BEV) / 2, b: b0 };
+function toothFor(e: number, b0: number, Amax: number): { A: number; b: number } {
+  let b = b0, A = (e + b * BEV) / 2;
+  if (A > Amax) { A = Amax; b = (2 * A - e) / BEV; } // (a taller tooth than the room allows: the corners shrink instead)
+  if (A >= 2 * b + 2 && b >= 1.5) return { A, b };
   // a notch: A = 2b, extra = 2A - b * BEV = A * (2 - BEV / 2)
-  const A = e / (2 - BEV / 2);
-  return { A, b: A / 2 };
+  const An = e / (2 - BEV / 2);
+  return { A: An, b: An / 2 };
 }
 
 /**
@@ -50,7 +54,7 @@ function toothFor(e: number, b0: number): { A: number; b: number } {
  * Returns the lanes unchanged when they already match, or when no stretch is long enough (a test then flags the skew).
  */
 export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
-  const n = lines.length, tol = o.tol ?? 1.5, gap = o.gap ?? 8, b0 = o.bevel ?? 5, margin = o.margin ?? 40, clear = o.w + gap;
+  const n = lines.length, tol = o.tol ?? 0.4, gap = o.gap ?? 8, b0 = o.bevel ?? 5, margin = o.margin ?? 40, clear = o.w + gap;
   const flat = o.flat ?? 6, space = o.space ?? 6, Pf = o.flare ?? o.pitch + 12, Amax = Pf - clear;
   const lens = lines.map(lengthOf), tgt = Math.max(...lens);
   if (n < 2 || tgt - Math.min(...lens) < tol) return lines;
@@ -78,7 +82,7 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
 
   // the bundle opens out toward the side of its shortest lane; the lane on the far side keeps its place
   const order = picks.map((s, i) => ({ i, c: s.c })).sort((a, b) => a.c - b.c);
-  const toLow = lens[order[0]!.i]! <= lens[order[n - 1]!.i]!;
+  const toLow = o.side ? o.side === 'low' : lens[order[0]!.i]! <= lens[order[n - 1]!.i]!;
   const far = toLow ? order[n - 1]!.c : order[0]!.c;
   const sgn = toLow ? -1 : 1;
   const k = Pf / o.pitch - 1;
@@ -88,12 +92,12 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
   // each lane's shortfall once the flare has given some length back, the teeth that make it up
   const flared = lens.map((l, i) => l + 2 * delta[i]! * (Math.SQRT2 - 1));
   const top = Math.max(...flared);
-  const maxExtra = 2 * Amax - b0 * BEV;
+  const maxExtra = 2 * Amax - 1.5 * BEV;
   const plan = lines.map((_, i) => {
     const E = top - flared[i]!;
     if (E < tol) return null;
     const m = Math.max(1, Math.ceil(E / maxExtra - 1e-9));
-    return { m, ...toothFor(E / m, b0) };
+    return { m, ...toothFor(E / m, b0, Amax) };
   });
   const pitchOf = (b: number) => 4 * b + flat + space;
   const need = Math.max(0, ...plan.map((p) => (p ? p.m * pitchOf(p.b) - space : 0)));

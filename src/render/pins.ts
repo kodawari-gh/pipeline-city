@@ -6,6 +6,23 @@ import type { Rect } from './layout';
 export type Pt = [number, number];
 export type Side = 'n' | 's' | 'e' | 'w';
 
+// ---- the CPU package's pins: three rows round its edge (see `cpuArt` in devices.ts), 20 apart, the outer row 24 inside the edge ----
+export const PKG_PIN = 20, PKG_ROW = 24;
+/** `n` pads of the package's outer pin row on one side, `step` pins apart, centred on `at` (a y for the east and west sides, an x for north and south). */
+export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1): Pt[] {
+  const across = side === 'n' || side === 's', base = (across ? pkg.x : pkg.y) + 70, last = Math.floor(((across ? pkg.w : pkg.h) - 140) / PKG_PIN);
+  const first = Math.max(0, Math.min(last - (n - 1) * step, Math.round((at - ((n - 1) * step * PKG_PIN) / 2 - base) / PKG_PIN)));
+  return Array.from({ length: n }, (_, i) => {
+    const c = base + PKG_PIN * (first + i * step);
+    switch (side) {
+      case 'e': return [pkg.x + pkg.w - PKG_ROW, c] as Pt;
+      case 'w': return [pkg.x + PKG_ROW, c] as Pt;
+      case 'n': return [c, pkg.y + PKG_ROW] as Pt;
+      default: return [c, pkg.y + pkg.h - PKG_ROW] as Pt;
+    }
+  });
+}
+
 // ---- QFP-style chips: legs along the sides, centred, 26 apart ----
 export const LEG_PITCH = 26;
 /** How far a leg's tip lies outside the chip body (the lane ends on the middle of the leg). */

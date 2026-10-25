@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
-import { m2Contacts } from './pins';
+import { PKG_PIN, PKG_ROW, m2Contacts } from './pins';
 import { buildBuses, mkLane, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
@@ -265,6 +265,13 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     }
     for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) g.rect(x, y, 14, 14);
     g.fill({ color: T.pin, alpha: 0.25 });
+    // the socket's contact rows round the edge, where the package's pins land (and the lanes leave from: `pkgPads`)
+    for (let r = 0; r < 3; r++) {
+      const o = PKG_ROW + r * PKG_PIN;
+      for (let x = k.x + 70; x <= k.x + k.w - 70; x += PKG_PIN) { g.rect(x - 5, k.y + o - 5, 10, 10); g.rect(x - 5, k.y + k.h - o - 5, 10, 10); }
+      for (let y = k.y + 70; y <= k.y + k.h - 70; y += PKG_PIN) { g.rect(k.x + o - 5, y - 5, 10, 10); g.rect(k.x + k.w - o - 5, y - 5, 10, 10); }
+    }
+    g.fill({ color: T.pin, alpha: 0.4 });
     lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 36, 38);
   }
 
