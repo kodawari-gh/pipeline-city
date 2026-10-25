@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
-import { CASE_BD, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
-import { sataCablePath } from './case';
+import { CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from './case';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane } from './routes';
 import { atx12v, cpuPowerPins, cpuStageCtl, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { ioPort } from './boardlayout';
@@ -361,6 +361,25 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const [n, r] of [['panel', PSU_PANEL], ['vents', VENTS]] as const) { expect(inside(r, PSU), `${n} in the strip`).toBe(true); expect(overlap(r, PSU_UNIT), `${n} off the unit`).toBe(false); }
     expect(overlap(PSU_PANEL, VENTS)).toBe(false);
     expect(VENTS.w, 'the shroud has room for vents').toBeGreaterThan(300);
+  });
+
+  it('fills the case floor corner with the fan hub: inside the case, clear of the PSU, the cage and the fans, a header and a stub for every fan', () => {
+    sockets();
+    expect(inside(FAN_HUB, CASE_IN), 'hub in the case').toBe(true);
+    for (const [n, r] of [['PSU', PSU], ['cage', BAY], ['slot', FAN_SLOT]] as const) expect(overlap(FAN_HUB, r), `hub and ${n}`).toBe(false);
+    for (const r of frontFanRects()) expect(overlap(FAN_HUB, r), 'hub and a front fan').toBe(false);
+    expect(FAN_HUB.x, 'east of the PSU').toBeGreaterThan(PSU.x + PSU.w);
+    expect(HUB_POWER_Y > PSU.y && HUB_POWER_Y < PSU.y + PSU.h, 'its power socket is on the PSU face').toBe(true);
+    expect(HUB_POWER_Y > FAN_HUB.y && HUB_POWER_Y < FAN_HUB.y + FAN_HUB.h, 'its power cable runs straight in').toBe(true);
+    expect(inside(FAN_SLOT, CASE_IN) && FAN_SLOT.y > BAY.y + BAY.h, 'the slot is under the cage').toBe(true);
+    const stubs = fanStubs(), hdrs = hubHeaders();
+    expect(stubs.length).toBe(frontFanRects().length + TOP_FANS.length + 1);
+    expect(hdrs.length).toBe(stubs.length);
+    for (const h of hdrs) expect(h.x - 40 > FAN_HUB.x + 150 && h.x + 40 < FAN_HUB.x + FAN_HUB.w, 'header on the hub').toBe(true);
+    for (let i = 1; i < hdrs.length; i++) expect(hdrs[i]!.x - hdrs[i - 1]!.x, 'headers do not touch').toBeGreaterThan(90);
+    for (const f of stubs) expect(f.x + f.dx * 90 < CASE_IN.x + CASE_IN.w && f.y + f.dy * 90 < CASE_IN.y + CASE_IN.h, 'stub inside the case').toBe(true);
+    const sysFan = GEO.hdrs.find((h) => h.name === 'SYS_FAN')!;
+    expect(sysFan.y + 100 < BD.y + BD.h, 'the board has the header the hub is cabled to').toBe(true);
   });
 
   it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {

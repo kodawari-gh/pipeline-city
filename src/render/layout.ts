@@ -178,6 +178,14 @@ export const FAN_W = 260;
 /** x of the SATA power lead that runs up the cage's west side (from the PSU), and the cage's west edge. */
 export let POWER_LEAD_X = 4070;
 /**
+ * The fan hub in the case's floor corner (east of the PSU, under the drive cage): a small board that feeds every case fan. It takes power from
+ * a socket on the PSU's east face (`HUB_POWER_Y` is the socket's y), its control from the board's SYS_FAN header over a cable that runs under
+ * the board (see `fanTrunkArt` in case.ts), and sends a cable to each fan, which goes behind the tray through `FAN_SLOT`.
+ */
+export let FAN_HUB: Rect = { x: 4180, y: 3000, w: 1100, h: 520 };
+export let FAN_SLOT: Rect = { x: 4240, y: 2800, w: 980, h: 70 };
+export let HUB_POWER_Y = 3200;
+/**
  * Where a drive's SATA data cable runs (`sataCablePath` in case.ts): out of the board port east, along the port's row to its own
  * column (`col`, west to east in port order, so no two cables cross), up the column to the drive's data plug (cell y + `plug`) and
  * east into it. The columns sit between the PSU cables' gutter and the cage.
@@ -257,6 +265,9 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: y0 + i * CELL_PITCH, w: CELL_W, h: CELL_H }));
   BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
   POWER_LEAD_X = cageX - 130;
+  FAN_HUB = { x: east + 780, y: south + 470, w: 1400, h: 780 };
+  FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 230, w: FAN_HUB.w - 120, h: 70 };
+  HUB_POWER_Y = south + 760;
   SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + i * 22 }));
   // the front fans stand in front of the cage, the perforated front panel closes the glass
   const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;

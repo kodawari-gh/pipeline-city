@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
   sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
@@ -64,6 +64,7 @@ export function caseBack(T: Theme): Container {
   frontFans(g, T, cav, wall, edge);
   rearWall(g, T, cav, wall, edge);
   topFans(g, T, cav, wall, edge);
+  fanHub(root, g, T, cav, wall, edge);
   // labels
   root.addChild(label(`PIPELINE CITY · ${look.tag}`, -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
@@ -92,6 +93,106 @@ function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
   for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
   g.fill({ color: cav, alpha: 0.95 });
   for (const r of frontFanRects()) edgeFan(g, T, r, true, wall, edge);
+}
+
+/** Where each case fan's cable leaves it: a short stub into the gap beside the fan (front fans below, top fans east, the rear fan below), that goes behind the tray. */
+export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
+  return [
+    ...frontFanRects().map((r) => ({ x: r.x + r.w / 2, y: r.y + r.h, dx: 0, dy: 1 })),
+    ...TOP_FANS.map((r) => ({ x: r.x + r.w, y: r.y + r.h / 2, dx: 1, dy: 0 })),
+    { x: REAR_FAN.x + REAR_FAN.w / 2, y: REAR_FAN.y + REAR_FAN.h, dx: 0, dy: 1 },
+  ];
+}
+
+/** The hub's fan headers, left to right along its top edge (one per case fan). */
+export function hubHeaders(): { x: number; y: number }[] {
+  const n = fanStubs().length, h = FAN_HUB, pitch = Math.min(130, (h.w - 400) / Math.max(1, n - 1));
+  return Array.from({ length: n }, (_, i) => ({ x: h.x + h.w - 100 - (n - 1 - i) * pitch, y: h.y }));
+}
+
+const plugTone = (T: Theme) => (T.dark ? '#1b2230' : '#2c3442');
+
+/** The fan hub on the case floor, the stubs of the fans' cables and the hub's cables up into the slot in the tray. */
+function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  const h = FAN_HUB, sl = FAN_SLOT, sleeve = sleeveOf(T), pcb = mix(cav, wall, 0.25);
+  // the fans' cable stubs: a plug on the fan, a short sleeve into the gap, where it goes behind the tray
+  for (const f of fanStubs()) {
+    const x1 = f.x + f.dx * 74, y1 = f.y + f.dy * 74;
+    g.moveTo(f.x, f.y).lineTo(x1, y1).stroke({ width: 22, color: sleeve, cap: 'round' });
+    const pw = f.dx ? 40 : 48, ph = f.dx ? 48 : 40;
+    box(g, f.x - (f.dx ? 6 : pw / 2), f.y - (f.dy ? 6 : ph / 2), pw, ph, 6, { fill: plugTone(T), stroke: T.mul, lw: 3, sa: 0.8 });
+    disc(g, x1 + f.dx * 8, y1 + f.dy * 8, 12, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.7 });
+  }
+  // the slot in the tray the hub's cables go through
+  box(g, sl.x, sl.y, sl.w, sl.h, 30, { fill: '#05070b', stroke: edge, lw: 5, sa: 0.7 });
+  // the board: a substrate with its mounting screws, the controller, the fan headers, the power plug and the input header
+  box(g, h.x + 14, h.y + 20, h.w, h.h, 22, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
+  box(g, h.x, h.y, h.w, h.h, 22, { fill: pcb, stroke: edge, lw: 6, sa: 0.85 });
+  box(g, h.x + 14, h.y + 14, h.w - 28, h.h - 28, 16, { stroke: edge, lw: 3, sa: 0.4 });
+  for (const [x, y] of [[h.x + 36, h.y + 36], [h.x + h.w - 36, h.y + 36], [h.x + 36, h.y + h.h - 36], [h.x + h.w - 36, h.y + h.h - 36]] as const) disc(g, x, y, 14, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+  const mcu = { x: h.x + h.w / 2 - 80, y: h.y + 190, w: 160, h: 160 };
+  for (let k = 0; k < 6; k++) { const o = mcu.x + 22 + k * 24; g.rect(o - 4, mcu.y - 12, 8, 14).rect(o - 4, mcu.y + mcu.h - 2, 8, 14); }
+  for (let k = 0; k < 6; k++) { const o = mcu.y + 22 + k * 24; g.rect(mcu.x - 12, o - 4, 14, 8).rect(mcu.x + mcu.w - 2, o - 4, 14, 8); }
+  g.fill({ color: T.pin, alpha: 0.55 });
+  box(g, mcu.x, mcu.y, mcu.w, mcu.h, 8, { fill: '#05070b', stroke: T.mul, lw: 4, sa: 0.6 });
+  root.addChild(label('MCU', mcu.x + mcu.w / 2, mcu.y + mcu.h / 2, 40, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
+  hubHeaders().forEach((p, i) => {
+    const accent = i % 2 ? T.ld : T.mul;
+    box(g, p.x - 40, p.y + 8, 80, 44, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
+    for (let k = 0; k < 4; k++) g.rect(p.x - 31 + k * 20, p.y + 22, 10, 16);
+    g.fill({ color: T.pin, alpha: 0.7 });
+    // its cable: a plug on the header, a sleeve straight up into the slot
+    g.moveTo(p.x, p.y - 30).lineTo(p.x, sl.y + sl.h * 0.5).stroke({ width: 20, color: sleeve, cap: 'round' });
+    g.moveTo(p.x, p.y - 30).lineTo(p.x, sl.y + sl.h * 0.5).stroke({ width: 20, color: accent, alpha: 0.16, cap: 'round' });
+    box(g, p.x - 36, p.y - 30, 72, 48, 6, { fill: plugTone(T), stroke: accent, lw: 3, sa: 0.85 });
+  });
+  // the input header (the cable from the board's SYS_FAN header) and the power plug on the west edge (from the PSU's east face)
+  box(g, h.x + 40, h.y + 8, 100, 44, 6, { fill: '#05070b', stroke: T.mul, lw: 3, sa: 0.7 });
+  for (let k = 0; k < 4; k++) g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
+  g.fill({ color: T.pin, alpha: 0.7 });
+  const py = HUB_POWER_Y, x0 = PSU.x + PSU.w;
+  g.moveTo(x0 + 6, py).lineTo(h.x - 20, py).stroke({ width: 30, color: sleeve, cap: 'round' });
+  g.moveTo(x0 + 6, py).lineTo(h.x - 20, py).stroke({ width: 30, color: T.ld, alpha: 0.16, cap: 'round' });
+  box(g, x0 - 14, py - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // the PSU's second socket
+  box(g, h.x - 56, py - 50, 64, 100, 8, { fill: plugTone(T), stroke: T.ld, lw: 4, sa: 0.85 });
+  // the lighting side: three addressable-LED outputs along the bottom edge and a USB header, a few passives round the controller
+  for (let k = 0; k < 3; k++) {
+    const ax = h.x + 200 + k * 230, ay = h.y + h.h - 130;
+    box(g, ax, ay, 150, 56, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
+    for (let q = 0; q < 3; q++) g.rect(ax + 22 + q * 44, ay + 20, 12, 18);
+    g.fill({ color: T.pin, alpha: 0.7 });
+    root.addChild(label(`ARGB${k + 1}`, ax + 75, ay + 84, 24, T.mute, { anchor: [0.5, 0.5], a: 0.7 }));
+  }
+  const ux = h.x + h.w - 380, uy = h.y + h.h - 150;
+  box(g, ux, uy, 280, 84, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
+  for (let q = 0; q < 5; q++) { g.rect(ux + 22 + q * 48, uy + 18, 14, 18); g.rect(ux + 22 + q * 48, uy + 48, 14, 18); }
+  g.fill({ color: T.pin, alpha: 0.7 });
+  root.addChild(label('USB 2.0', ux + 140, uy - 24, 24, T.mute, { anchor: [0.5, 0.5], a: 0.7 }));
+  for (let k = 0; k < 5; k++) { g.rect(mcu.x - 260 + k * 50, mcu.y + 40, 30, 18); g.rect(mcu.x + mcu.w + 120 + k * 50, mcu.y + 100, 30, 18); }
+  g.fill({ color: plugTone(T), alpha: 0.9 });
+  for (let k = 0; k < 5; k++) { g.rect(mcu.x - 260 + k * 50, mcu.y + 40, 8, 18).rect(mcu.x - 238 + k * 50, mcu.y + 40, 8, 18); g.rect(mcu.x + mcu.w + 120 + k * 50, mcu.y + 100, 8, 18).rect(mcu.x + mcu.w + 142 + k * 50, mcu.y + 100, 8, 18); }
+  g.fill({ color: T.pin, alpha: 0.6 });
+  root.addChild(label('FAN HUB', h.x + 170, h.y + 110, 38, T.mute, { head: true, a: 0.9 }));
+  root.addChild(label('FAN + LIGHTING CONTROLLER', h.x + 170, h.y + 330, 26, T.mute, { a: 0.6 }));
+  root.addChild(label(`${hubHeaders().length} CH`, h.x + h.w - 60, h.y + h.h - 40, 28, T.mute, { anchor: [1, 0.5], a: 0.7 }));
+}
+
+/** The control cable of the fan hub: a plug on the board's SYS_FAN header and a sleeve that runs down over the board's south edge, east under the PSU cables and up into the hub. */
+export function fanTrunkArt(T: Theme): Container {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const h = GEO.hdrs.find((q) => q.name === 'SYS_FAN');
+  if (!h) return root;
+  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24, cx = h.x + w / 2, south = CASE_BD.y + CASE_BD.h, sleeve = sleeveOf(T);
+  const route: Pt[] = [[cx, h.y + hh + 6], [cx, south + 130], [FAN_HUB.x + 90, south + 130], [FAN_HUB.x + 90, FAN_HUB.y + 4]];
+  const path = roundedPath(route, 70, 30);
+  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 30, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 24, color: sleeve, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 24, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
+  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
+  plugBox(g, T, FAN_HUB.x + 90 - 36, FAN_HUB.y - 24, 72, 44, T.mul); // on the hub's input header
+  return root;
 }
 
 /** The standoff positions of the case: every mounting hole of every board tier it takes (no duplicates). */

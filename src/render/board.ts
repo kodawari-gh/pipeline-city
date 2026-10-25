@@ -8,7 +8,7 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, emptyCellHint, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { EdgeFan, bayArt, caseBack, caseGlass, emptyCellHint, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
@@ -462,6 +462,7 @@ export async function mountBoard(host: HTMLElement) {
       scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
       deviceHits.push({ id: sd.id, rect: body });
     }
+    sataLayer.addChild(fanTrunkArt(T)); // the fan hub's control cable (the hub is part of the case)
     // one power lead for the cage, with a plug on every installed SATA drive
     if (hasPsu) sataLayer.addChild(sataPowerArt(T, storageDevs.filter((d) => d.slot.startsWith('sata')).map((d) => slotIndex(d.slot))));
     driveSlotsSeen.clear();
