@@ -252,7 +252,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   // ---- audio codec, next to the jacks it serves ----
   chip(c, geo.codec, { legs: 6, text: 'CODEC', size: 36, accent: T.mul });
   // the USB hub controller on the way from the CPU to the rear I/O (the lanes run under it)
-  chip(c, geo.hub, { legs: 6, pitch: 52, text: 'USB', size: 52, accent: T.mul });
+  chip(c, geo.hub, { legs: 8, pitch: 26, text: 'USB', size: 48, accent: T.mul });
   if (geo.phy) chip(c, geo.phy, { legs: 6, text: 'PHY', size: 40, accent: T.mul });
 
   // ---- CPU socket frame (empty-socket look; the package covers it when a CPU is installed) ----
