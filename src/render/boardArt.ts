@@ -6,7 +6,7 @@ import { USB_POS } from './exterior';
 import { buildBuses, bundle, mkLane, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
-  chip, dimmSocket, dramPhaseArt, header, hole, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
+  cap, chip, dimmSocket, dramPhaseArt, header, hole, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
 } from './boardParts';
 
 export interface BoardArt {
@@ -181,20 +181,35 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       for (let x = q.x + 70; x < q.x + q.w - 50; x += 36) g.moveTo(x, q.y + 50).lineTo(x, q.y + q.h - 50);
       g.stroke({ width: 8, color: P.edge, alpha: 0.9 });
     } else {
-      for (let x = q.x + 60; x < q.x + q.w - 40; x += 40) g.moveTo(x, q.y + 44).lineTo(x, q.y + q.h - 44);
-      g.stroke({ width: 7, color: P.edge, alpha: 0.9 });
+      // a finned heat sink: a base plate with a row of fins (alternating tone), a screw in each corner; the top board adds a lit edge
+      box(g, q.x + 14, q.y + 14, q.w - 28, q.h - 28, 16, { fill: mix(P.panel, T.alu, 0.14), stroke: T.mul, lw: 4, sa: 0.5 });
+      for (let x = q.x + 60, k = 0; x < q.x + q.w - 40; x += 40, k++) g.rect(x - 7, q.y + 44, 14, q.h - 88).fill({ color: k % 2 ? P.edge : P.silkHi, alpha: k % 2 ? 0.9 : 0.3 });
+      for (const [sx, sy] of [[q.x + 40, q.y + 40], [q.x + q.w - 40, q.y + 40], [q.x + 40, q.y + q.h - 40], [q.x + q.w - 40, q.y + q.h - 40]] as const) {
+        disc(g, sx, sy, 13, { fill: P.dark, stroke: P.edge, lw: 3 });
+        g.moveTo(sx - 7, sy).lineTo(sx + 7, sy).stroke({ width: 3, color: P.edge, alpha: 0.9 });
+      }
       if (tier === 3) {
         g.poly([q.x + 20, q.y + 90, q.x + 90, q.y + 20, q.x + q.w - 20, q.y + 20, q.x + q.w - 20, q.y + q.h - 90, q.x + q.w - 90, q.y + q.h - 20, q.x + 20, q.y + q.h - 20])
           .stroke({ width: 5, color: T.mul, alpha: 0.45, join: 'round' });
+        g.rect(q.x + 70, q.y + q.h - 38, q.w - 140, 8).fill({ color: T.br, alpha: 0.55 });
       }
     }
+    // decoupling under the chipset (the DMI lanes are above it, the SATA lanes east of it)
+    smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85);
     labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, tier === 0 ? 70 : 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
   }
   // ---- SATA: ports on the east edge, mouths facing east (the drive cables come from the bay) ----
+  // stacked ports share a housing (pairs), the way the real connectors come
+  for (let i = 0; i + 1 < geo.sata.length; i += 2) {
+    const a = geo.sata[i]!, b = geo.sata[i + 1]!;
+    box(g, a.x - 12, a.y - 12, a.w + 24, b.y + b.h - a.y + 24, 14, { fill: P.sub, fa: 0.5, stroke: P.edge, lw: 4, sa: 0.5 });
+  }
   geo.sata.forEach((p, i) => sataPortArt(c, p, i, i < nSata));
 
   // ---- power connectors ----
   powerConn(c, geo.atx, 2, 12, 'ATX 24-PIN', 'e');
+  // filter capacitors beside the 24-pin
+  for (let k = 0; k < (tier === 0 ? 2 : 3); k++) cap(c, geo.atx.x - 140, geo.atx.y + 330 + k * 190, 62);
   powerConn(c, geo.cpw, 4, 2, 'CPU 8-PIN', 'n', 1, [geo.cpw.x, geo.cpw.y + geo.cpw.h + 44, 0]);
   if (geo.pciew) powerConn(c, geo.pciew, 2, 3, 'PCIe 6-PIN', 'e', 0.55);
 
@@ -271,7 +286,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   {
     const sx = PKG.x - SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E;
     smd(c, -800, qy + 44, 16, 56, 0, 30, 18, 0.85);       // under the package's south edge, clear of the PCIe and NVMe lanes
-    smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the DMI lanes
+    smd(c, sx - 70, 170, 9, 0, 56, 18, 30, 0.85);         // beside its west edge, clear of the USB lanes
+    header(c, -1180, 790, 3, 1, 'CLR_CMOS');              // the CMOS-clear jumper, below the battery
     const bx = tier === 0 ? -1430 : -1480;
     chip(c, { x: bx, y: 790, w: 170, h: 110 }, { legs: 4, pitch: 34, text: 'BIOS', size: 30, accent: T.mul });
     // the header corner: a row along the bottom, west of the chipset (the top board's second group sits east of it, under the SATA rows)

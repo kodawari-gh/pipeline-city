@@ -36,10 +36,10 @@ Stock heatsink (starter), tower fan, liquid loop: cooler slot and watts. Planned
 ## Board (built: 4)
 | Tier | Board | Slots | Features | VRM | Price |
 |---|---|---|---|---|---|
-| 0 | Starter | 1 DIMM, 1 SATA, 1 USB, 0 PCIe, 0 M.2, ATX | HDMI x1, no ethernet | 2 x 12 A | start board (replacement $40) |
-| 1 | Basic | 2 DIMM, 2 SATA, 2 USB, 1 PCIe, ATX | 100 Mbit ethernet | 3 x 12 A | $150 |
-| 2 | Mainstream | 4 DIMM, 2 SATA, 1 M.2, 3 USB, 2 PCIe, ATX+ | 100 Mbit, 2 display ports | 4 x 15 A | $300 |
-| 3 | Enthusiast | 8 DIMM, 2 SATA, 1 M.2, 4 USB, 4 PCIe, ATX+ | 1 Gbit, 2 display ports | 6 x 20 A | $700 |
+| 0 | Starter | 1 DIMM, 2 SATA, 1 USB, 1 PCIe, 0 M.2, ATX | HDMI x1, no ethernet | 2 x 12 A | start board (replacement $40) |
+| 1 | Basic | 2 DIMM, 3 SATA, 2 USB, 2 PCIe, ATX | 100 Mbit ethernet | 3 x 12 A | $150 |
+| 2 | Mainstream | 4 DIMM, 4 SATA, 2 M.2, 3 USB, 3 PCIe, ATX+ | 100 Mbit, 2 display ports | 4 x 15 A | $300 |
+| 3 | Enthusiast | 8 DIMM, 6 SATA, 3 M.2, 4 USB, 4 PCIe, ATX+ | 1 Gbit, 2 display ports | 6 x 20 A | $700 |
 
 You buy the **next tier** (`board1`, `board2`, `board3`), only while the machine is off; installed parts carry over. The requirement that matters: a CPU needs a VRM that can feed it (cpu2 wants Mainstream, a smaller board crashes and eventually burns). Planned: a second CPU socket and a server board. See [`VRM.md`](VRM.md).
 

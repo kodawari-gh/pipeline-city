@@ -103,8 +103,8 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   for (let y = mesh.y + 60; y < mesh.y + mesh.h - 40; y += 64) for (let x = mesh.x + 60 + (Math.round((y - mesh.y) / 64) % 2) * 32; x < mesh.x + mesh.w - 40; x += 64) g.circle(x, y, 13);
   g.fill({ color: c.glassTop, alpha: 1 });
   g.rect(mesh.x + 20, mesh.y + 20, mesh.w - 40, 4).fill({ color: '#ffffff', alpha: 0.04 });
-  // nameplate between the intake and the bay
-  const npx = mesh.x + mesh.w + 260, np = { x: npx, y: PSU.y + 250, w: Math.min(2600, PSU.x + PSU.w - 200 - npx), h: 620 };
+  // nameplate beside the intake, along the lower front
+  const npx = mesh.x + mesh.w + 260, np = { x: npx, y: PSU.y + 250, w: Math.min(4200, ci.x + ci.w - 300 - npx), h: 620 };
   box(g, np.x, np.y, np.w, np.h, 36, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
   g.rect(np.x + 60, np.y + np.h - 130, np.w - 120, 8).fill({ color: T.alu, alpha: 0.55 });
   root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, T.dark ? '#dfe7ff' : '#e9eefb', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
