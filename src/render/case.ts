@@ -3,7 +3,7 @@ import { box, dashed, disc, label, mix } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
   BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
-  nicY, sataPort, type Rect,
+  sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
@@ -184,7 +184,7 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
   box(g, x, io.y - 80, w, io.h + 150, 22, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
   // the expansion slots: an opening each, closed by a slot cover with vents and a screw (a card's bracket replaces it)
   for (const r of geoOf(LAYOUT_CASE).pcie) {
-    const y = nicY(geoOf(LAYOUT_CASE).pcie.indexOf(r)) - 82;
+    const y = r.y + 30 - 82; // centred on the slot, as a card's bracket is (`nicY`)
     box(g, x, y, w, 164, 14, { fill: cav, stroke: edge, lw: 3, sa: 0.5 });
     box(g, x + 16, y + 14, w - 32, 136, 8, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 3, sa: 0.7 });
     for (let k = 0; k < 4; k++) g.rect(x + 40, y + 34 + k * 26, w - 80, 8);
