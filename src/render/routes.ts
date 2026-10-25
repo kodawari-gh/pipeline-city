@@ -94,8 +94,13 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
 
 /** Lanes in one memory bundle (one per DIMM) and their spacing: they land on the pad row of the socket. */
 export const MEM_LANES = 6, MEM_SPACING = 18;
-/** x of the DMI and NVMe columns that leave the south edge of the package (see `buildBuses`). */
-export const DMI_X = 700, NVME_X = 870;
+/**
+ * x of the DMI column and of the first NVMe column that leave the south edge of the package (see `buildBuses`): all of them lie east
+ * of the end of the x16 slot, DMI first, then one NVMe column per M.2 below the CPU, the lowest M.2 in the westmost column.
+ */
+export const DMI_X = 600, NVME_X0 = 720, NVME_DX = 80;
+/** Lanes in an NVMe bundle and in a SATA bundle (and their spacing). */
+export const NVME_LANES = 4, SATA_LANES = 3;
 
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
@@ -116,12 +121,18 @@ export function buildBuses(): Bus[] {
   });
   buses.push(mem);
 
-  // The south edge of the package feeds three columns, west to east: PCIe x16 (ends on the first slot), DMI (the chipset below)
-  // and NVMe (the M.2 connector); each column's x clears the next, and the slots end before the DMI column.
-  // NVMe: CPU south edge down and east into the M.2 connector
-  if (g.m2) {
-    const y = g.m2.y + g.m2.h / 2;
-    buses.push(mk('nvme', [[NVME_X, qy], [NVME_X, y], [g.m2.x - 10, y]], 6, 22, 10, 110));
+  // The south edge of the package feeds the columns, west to east: PCIe x16 (ends on the first slot), DMI (the chipset below), then
+  // NVMe (one per M.2 that lies below the CPU: the lowest one in the westmost column, so none crosses another); each column's x clears
+  // the next, and the slots end before the DMI column. An M.2 level with the CPU is fed straight from its east edge.
+  {
+    const lanes: Lane[] = [];
+    const below = g.m2.filter((m) => m.y + m.h / 2 > qy);
+    g.m2.forEach((m) => {
+      const y = m.y + m.h / 2, k = below.indexOf(m);
+      const route: Pt[] = k < 0 ? [[qx, y], [m.x - 10, y]] : [[NVME_X0 + NVME_DX * (below.length - 1 - k), qy], [NVME_X0 + NVME_DX * (below.length - 1 - k), y], [m.x - 10, y]];
+      for (const pts of bundle(route, NVME_LANES, 20, 100)) lanes.push(mkLane(pts, lanes.length * 37));
+    });
+    if (lanes.length) buses.push({ id: 'nvme', w: 10, lanes });
   }
 
   // DMI: CPU south edge straight down onto the chipset's top pads
@@ -133,13 +144,18 @@ export function buildBuses(): Bus[] {
   // USB: the CPU's west edge straight to the rear I/O, through the hub controller that sits on the way
   buses.push(mk('usb', [[px, 0], [g.io.x + g.io.w, 0]], 4, 26, 9));
 
-  // SATA: the chipset's east edge straight east along each port's row, onto the pads on its west side (the drive cables continue
-  // from there); the ports sit on the chipset's rows, so nothing bends and nothing crosses
+  // SATA: a bundle per port from the chipset's east edge (packed 84 apart, centred on the chipset) to the pads on the port's west side,
+  // fanning out on 45 degree legs that all end at the same x (the outer ports start theirs first), so nothing crosses and the run
+  // across the board is straight, along the port's row (the drive cables continue from there)
   if (g.sata.length) {
-    const lanes: Lane[] = [];
+    const lanes: Lane[] = [], n = g.sata.length, cy = g.chip.y + g.chip.h / 2, x0 = g.chip.x + g.chip.w;
+    const yc = (i: number) => cy + (i - (n - 1) / 2) * 84;
+    const dmax = Math.max(0, ...g.sata.map((p, i) => Math.abs(p.y + p.h / 2 - yc(i))));
+    const xe = x0 + 60 + dmax;
     g.sata.forEach((p, i) => {
-      const y = p.y + p.h / 2;
-      for (const pts of bundle([[g.chip.x + g.chip.w, y], [p.x - 6, y]], 3, 24, 120)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
+      const y = p.y + p.h / 2, d = y - yc(i);
+      const route: Pt[] = Math.abs(d) < 1 ? [[x0, y], [p.x - 6, y]] : [[x0, yc(i)], [xe - Math.abs(d), yc(i)], [xe, y], [p.x - 6, y]];
+      for (const pts of bundle(route, SATA_LANES, 20, 40)) lanes.push(mkLane(pts, i * 29 + lanes.length * 37));
     });
     buses.push({ id: 'sata', w: 9, lanes });
   }

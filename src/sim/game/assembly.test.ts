@@ -53,7 +53,7 @@ describe("the bare start", () => {
     expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["lan", false]]); // the ethernet cable joined with the network
     expect(s.cables.every((c) => c.blocked)).toBe(true); // no PSU / monitor yet
     expect(s.noPowerReason).toMatch(/PSU/);
-    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "ram-sink0", "sata0", "usb0", "vrm-sink0"]);
+    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
   });
 
   it("lists the free compatible slots of each inventory part (drop targets)", () => {

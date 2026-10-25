@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
-import { BAY, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
-import { buildBuses, buildCables, movablePlug, type Bus, type Lane } from './routes';
+import { BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { sataCablePath } from './case';
+import { buildBuses, buildCables, movablePlug, NVME_LANES, type Bus, type Lane } from './routes';
 import { plugRect } from './devices';
 
 const inside = (r: Rect, o: Rect, pad = 0) => r.x >= o.x - pad && r.y >= o.y - pad && r.x + r.w <= o.x + o.w + pad && r.y + r.h <= o.y + o.h + pad;
@@ -29,7 +30,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(g.dimm.length).toBe(spec.slots.dimm ?? 0);
     expect(g.pcie.length).toBe(spec.slots.pcie ?? 0);
     expect(g.sata.length).toBe(spec.slots.sata ?? 0);
-    expect(!!g.m2).toBe((spec.slots.m2 ?? 0) > 0);
+    expect(g.m2.length).toBe(spec.slots.m2 ?? 0);
     expect(g.vrmPhases.length).toBe(spec.vrm.phases);
     expect(g.dPhases.length).toBe(spec.ramVrm.phases);
     expect(g.memY.length).toBe(g.dimm.length);
@@ -44,7 +45,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.dimm.forEach((d, i) => parts.push([`dimm${i}`, { x: d.rect.x - 10, y: d.rect.y - 40, w: d.rect.w + 20, h: d.rect.h + 80 }]));
     g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
-    if (g.m2) parts.push(['m2', g.m2]);
+    g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
     if (g.pciew) parts.push(['pciew', g.pciew]);
     if (g.phy) parts.push(['phy', g.phy]);
     if (g.hex) parts.push(['hex', g.hex]);
@@ -97,7 +98,12 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     lands('dmi', socket, g.chip);
     lands('usb', socket, g.io);
     if (g.pcie[0]) lands('pcie', socket, g.pcie[0]);
-    if (g.m2) lands('nvme', socket, g.m2);
+    const nv = by('nvme');
+    expect(nv?.lanes.length ?? 0).toBe(g.m2.length * NVME_LANES);
+    for (const l of nv?.lanes ?? []) expect(near(l.pts[0]!, socket, 6) && g.m2.some((m) => near(l.pts[l.pts.length - 1]!, m, 14)), 'nvme lane ends on a connector').toBe(true);
+    // no two M.2 bundles cross
+    const nl = nv?.lanes ?? [];
+    for (let i = 0; i < nl.length; i++) for (let j = i + 1; j < nl.length; j++) if (Math.floor(i / NVME_LANES) !== Math.floor(j / NVME_LANES)) expect(lanesCross(nl[i]!, nl[j]!), 'nvme bundles cross').toBe(false);
     lands('video', socket, g.io);
     for (const l of by('sata')!.lanes) expect(g.sata.some((p) => near(l.pts[l.pts.length - 1]!, p, 14)) && near(l.pts[0]!, g.chip, 14)).toBe(true);
     void ends;
@@ -117,7 +123,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const lanes = buildBuses().filter((b) => !['pwr12', 'pwrcpu', 'vcore', 'vdimm', 'mem'].includes(b.id)).flatMap((b) => b.lanes.map((l) => ({ id: b.id, l })));
     const solid: [string, Rect][] = [['chip', g.chip], ['hub', g.hub], ['bat', g.bat], ['codec', g.codec]];
     if (g.phy) solid.push(['phy', g.phy]);
-    if (g.m2) solid.push(['m2', g.m2]);
+    g.m2.forEach((r, i) => solid.push([`m2_${i}`, r]));
     g.pcie.forEach((r, i) => solid.push([`pcie${i}`, { x: r.x, y: r.y - 20, w: r.w, h: r.h + 40 }]));
     g.dimm.forEach((d, i) => solid.push([`dimm${i}`, d.rect]));
     g.sata.forEach((r, i) => solid.push([`sata${i}`, r]));
@@ -147,7 +153,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.dimm.forEach((d, i) => parts.push([`dimm${i}`, d.rect]));
     g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
-    for (const [n, r] of [['m2', g.m2], ['pciew', g.pciew], ['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
+    g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
+    for (const [n, r] of [['pciew', g.pciew], ['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
     g.holes.forEach(([hx, hy], i) => {
       const p: [number, number] = [hx, hy];
       for (const [name, r] of parts) expect(rectDist(p, r), `hole ${i} vs ${name}`).toBeGreaterThan(R);
@@ -168,6 +175,21 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect(overlap(plugRect(movablePlug(c)), want!), `${c.kind} plug sits on its connector`).toBe(true);
     }
     expect(cables.some((c) => c.kind === 'pcie')).toBe(!!g.pciew);
+  });
+
+  it('puts a drive-cage cell, with a short cable that crosses no other, for every SATA port', () => {
+    const g = sockets();
+    expect(BAY_CELLS.length).toBe(g.sata.length);
+    const cables = g.sata.map((_, i) => sataCablePath(i));
+    g.sata.forEach((p, i) => {
+      const c = BAY_CELLS[i]!;
+      expect(inside(c, CASE_GLASS), `cell ${i} in the glass`).toBe(true);
+      expect(inside(c, BAY), `cell ${i} in the cage`).toBe(true);
+      expect(c.y + SATA_LINK[i]!.plug, `cell ${i} is above its port`).toBeLessThan(p.y + p.h / 2);
+      expect(c.x, 'the cage is east of the board').toBeGreaterThan(BD.x + BD.w);
+      if (i) expect(overlap(c, BAY_CELLS[i - 1]!)).toBe(false);
+    });
+    for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) expect(lanesCross(cables[i]!, cables[j]!), `cables ${i} and ${j} cross`).toBe(false);
   });
 
   it('puts the board inside the case, the PSU under it, the bay in the case, and everything in the world', () => {

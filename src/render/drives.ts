@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from './ink';
-import { BAY_CELLS, BR, type Rect } from './layout';
+import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from './layout';
 import type { Theme } from './theme';
 
 // Drive art. Static casing (`driveArt`) plus the parts that move while the drive is busy (`drawDriveLive`: HDD platter and
@@ -10,21 +10,31 @@ export type DriveKind = 'hdd' | 'ssd-sata' | 'ssd-nvme';
 
 export const driveKindOf = (visual: string): DriveKind => (visual === 'ssd-nvme' ? 'ssd-nvme' : visual === 'ssd-sata' ? 'ssd-sata' : 'hdd');
 
-/** Body rect of a drive of this kind sitting in a bay cell (SATA) or on the M.2 slot. */
+/** Index of a slot id: sata3 -> 3, m21 -> 1 (the number after the type). */
+export const slotIndex = (slot: string): number => Number(slot.replace(/^(sata|m2)/, '')) || 0;
+
+/** The SATA drives are drawn at this design size (a cell of 700 x 500) and scaled to the cell of the cage. */
+const DESIGN = { w: 700, h: 500 };
+export const driveScale = () => CELL_W / DESIGN.w;
+/** Body of a SATA drive in design coordinates (relative to its cell). */
+const bodyLocal = (kind: DriveKind): Rect => (kind === 'hdd' ? { x: 46, y: 28, w: 640, h: 444 } : { x: 46, y: 78, w: 520, h: 344 });
+
+/** Body rect of a drive of this kind sitting in a cage cell (SATA) or on an M.2 slot, in world coordinates. */
 export function driveBody(kind: DriveKind, slot: string): Rect {
-  if (kind === 'ssd-nvme') { const m = BR.m2; return { x: m.x + 112, y: m.y + 52, w: m.w - 112 - 96, h: m.h - 104 }; }
-  const c = BAY_CELLS[slot === 'sata1' ? 1 : 0]!;
-  return kind === 'hdd' ? { x: c.x + 46, y: c.y + 28, w: 640, h: 444 } : { x: c.x + 46, y: c.y + 78, w: 520, h: 344 };
+  if (kind === 'ssd-nvme') { const m = M2_SLOTS[slotIndex(slot)] ?? M2_SLOTS[0]!; return { x: m.x + 112, y: m.y + 52, w: m.w - 112 - 96, h: m.h - 104 }; }
+  const c = BAY_CELLS[slotIndex(slot)]!, k = driveScale(), b = bodyLocal(kind);
+  return { x: c.x + b.x * k, y: c.y + b.y * k, w: b.w * k, h: b.h * k };
 }
 
 /** The small OS chip on the drive that hosts the OS (hover / select / highlight / flyTo id `os`). */
 export function osBadgeRect(kind: DriveKind, slot: string): Rect {
   const b = driveBody(kind, slot);
-  return kind === 'ssd-nvme' ? { x: b.x + b.w / 2 - 70, y: b.y - 74, w: 140, h: 62 } : { x: b.x + 14, y: b.y + 12, w: 140, h: 62 };
+  const k = kind === 'ssd-nvme' ? 1 : driveScale();
+  return kind === 'ssd-nvme' ? { x: b.x + b.w / 2 - 70, y: b.y - 74, w: 140, h: 62 } : { x: b.x + 14 * k, y: b.y + 12 * k, w: 140 * k, h: 62 * k };
 }
 
 /** Cell/slot rect that a drive of this slot occupies (drop target). */
-export const slotRect = (slot: string): Rect => (slot === 'm20' ? BR.m2 : BAY_CELLS[slot === 'sata1' ? 1 : 0]!);
+export const slotRect = (slot: string): Rect => (slot.startsWith('m2') ? M2_SLOTS[slotIndex(slot)]! : BAY_CELLS[slotIndex(slot)]!);
 
 const metal = (T: Theme) => (T.dark ? '#2c3548' : '#b4bdcc');
 const metalHi = (T: Theme) => (T.dark ? '#3a4660' : '#cdd5e2');
@@ -34,10 +44,9 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, name: string, 
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const b = driveBody(kind, slot);
-  const cell = slotRect(slot);
   const ink = T.dark ? '#e2eaff' : '#18203a';
   if (kind === 'ssd-nvme') {
+    const b = driveBody(kind, slot);
     // M.2 2280 stick lying along the slot: gold fingers inside the connector (west), controller and NAND on the board, a slim finned
     // heat spreader over the NAND, a notch at the east end where the standoff screw holds it down
     box(g, b.x + 8, b.y + 12, b.w, b.h, 12, { fill: '#000000', fa: 0.28 });
@@ -54,8 +63,12 @@ export function driveArt(T: Theme, kind: DriveKind, slot: string, name: string, 
     g.stroke({ width: 6, color: T.alu, alpha: 0.35 });
     return root;
   }
+  // a SATA drive is drawn at its design size from the cell's corner and scaled to the cell of the cage
+  const cell0 = { x: 0, y: 0, w: DESIGN.w, h: DESIGN.h }, cell = slotRect(slot), b = { ...bodyLocal(kind) };
+  root.position.set(cell.x, cell.y); root.scale.set(driveScale());
   // SATA data and power connectors on the west edge of the casing
   const connectors = () => {
+    const cell = cell0;
     box(g, cell.x - 4, cell.y + 112, 52, 46, 6, { fill: '#0b0f18', stroke: T.line, lw: 3 });
     g.rect(cell.x + 8, cell.y + 124, 28, 8).rect(cell.x + 8, cell.y + 140, 28, 8).fill({ color: T.pin, alpha: 0.8 });
     box(g, cell.x - 4, cell.y + 300, 52, 118, 6, { fill: '#0b0f18', stroke: T.line, lw: 3 });
@@ -106,7 +119,10 @@ export interface DriveLiveState {
 /** The moving parts and LEDs, drawn on a cleared Graphics (world coordinates). */
 export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: string, st: DriveLiveState) {
   g.clear();
-  const b = driveBody(kind, slot);
+  // a SATA drive is drawn in design coordinates from its cell's corner, scaled to the cell; the M.2 stick in world coordinates
+  const sata = kind !== 'ssd-nvme', cell = sata ? slotRect(slot) : null;
+  g.position.set(cell?.x ?? 0, cell?.y ?? 0); g.scale.set(sata ? driveScale() : 1);
+  const b = sata ? bodyLocal(kind) : driveBody(kind, slot);
   if (kind === 'hdd') {
     const cx = b.x + 235, cy = b.y + 222, R = 190;
     // platter disc with a few rings and two spokes so the rotation reads

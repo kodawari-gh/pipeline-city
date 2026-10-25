@@ -153,8 +153,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   geo.pcie.forEach((r, i) => pcieSlot(c, r, ['PCIe x16 · GPU', 'PCIe x8', 'PCIe x4', 'PCIe x1'][i]!, skin.armor > 0, i === 0));
 
   // ---- M.2: the connector at the west end, a standoff for the stick's far end ----
-  if (geo.m2) {
-    const m = geo.m2;
+  geo.m2.forEach((m, mi) => {
     shadow(c, m.x, m.y, m.w, m.h, 12, 8, 0.2);
     box(g, m.x, m.y, m.w, m.h, 12, { fill: P.sub, stroke: P.edge, lw: 5 });
     box(g, m.x + 8, m.y + 70, 120, m.h - 140, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
@@ -163,8 +162,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     box(g, m.x + 160, m.y + 40, m.w - 320, m.h - 80, 10, { stroke: P.silk, lw: 4, sa: 0.3 });
     disc(g, m.x + m.w - 70, m.y + m.h / 2, 36, { fill: P.panel, stroke: P.edge, lw: 6 });
     disc(g, m.x + m.w - 70, m.y + m.h / 2, 14, { fill: P.dark });
-    lbl('M.2 NVMe · 2280', m.x, m.y - 36, 38);
-  }
+    lbl(geo.m2.length > 1 ? `M.2 NVMe · 2280 · M2_${mi}` : 'M.2 NVMe · 2280', m.x, m.y - 36, 38);
+  });
 
   // ---- chipset (south-east of the CPU, on its SATA ports' rows): QFP legs, a heat sink on the better boards ----
   {
@@ -294,7 +293,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       g.fill({ color: P.via, alpha: 0.85 });
     }
     if (tier >= 2) hdr(-1550, 6, 2, 'TPM');
-    if (tier >= 3) { hdr(1100, 5, 2, 'USB_3'); hdr(1500, 4, 1, 'SYS_FAN2'); }
+    if (tier >= 3) { hdr(-2200, 5, 2, 'USB_3'); hdr(-1860, 4, 1, 'SYS_FAN2'); }
     // the top board: an RGB strip along the bottom edge and a two-digit debug display by the 24-pin
     if (tier >= 3) {
       for (let k = 0; k < 44; k++) {
@@ -336,8 +335,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.fill({ color: P.silkHi, alpha: 0.5 });
   }
   // the bottom silkscreen sits above the trim lines (south - 150 and below), clear of the header row and the holes
-  labels.addChild(label('PIPELINE CITY', -800, south - 290, 90, P.silk, { head: true, a: 0.5 }));
-  if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 215, 36, 0.6);
+  labels.addChild(label('PIPELINE CITY', -800, south - 270, 90, P.silk, { head: true, a: 0.5 }));
+  if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 195, 36, 0.6);
   lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, Math.min(1300, BD.x + BD.w - 1150), south - 215, 40, 0.8);
 
   // ---- the mounting holes, last: each has a clear ring, so no trim or silkscreen line runs through a screw ----

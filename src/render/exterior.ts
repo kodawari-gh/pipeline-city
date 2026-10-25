@@ -1,7 +1,7 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
 import { box, disc, label, mix } from './ink';
-import { BAY, BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, VIDEO_Y, nicJack, nicY, type Rect } from './layout';
 import { CASE_LOOK } from './case';
 import type { DriveKind } from './drives';
 import type { Theme } from './theme';
@@ -17,7 +17,7 @@ import type { Theme } from './theme';
 export const stripRect = () => ({ x: CASE.x + CASE.w - 82, y0: -2560, y1: CASE_GLASS.y + CASE_GLASS.h - 110, w: 20 });
 
 export interface ExteriorOpts {
-  /** SATA cells this tier has (1 or 2). */
+  /** SATA ports this tier has. */
   nSata: number;
   /** Drives mounted in the bay (NVMe lives on the board, not in the bay, and is not visible from outside). */
   drives: { slot: string; kind: DriveKind }[];
@@ -27,8 +27,8 @@ export interface ExteriorOpts {
   nics?: number[];
 }
 
-/** Where a bay-front drive's activity LED sits (world), by cell. */
-export const frontLed = (cell: number) => ({ x: BAY_CELLS[cell]!.x + BAY_CELLS[cell]!.w - 60, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h - 70 });
+/** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
+export const frontLed = (cell: number) => ({ x: stripRect().x + 10, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h / 2 });
 
 /** USB-A positions on the rear panel in fill order (usb0 is the one keys plug into: `USB_PORT`). */
 export const USB_POS: [number, number][] = [[0, 0], [0, 150], [1, 0], [1, 150]];
@@ -94,7 +94,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     disc(g, x, y, 26, { fill: mix(c.hi, c.lo, 0.3), stroke: c.edge, lw: 4, sa: 0.8 }); g.moveTo(x - 13, y).lineTo(x + 13, y).stroke({ width: 4, color: c.shade, alpha: 0.7 });
   }
 
-  // PSU compartment: brushed panel with a perforated intake and the drive bay front
+  // PSU compartment: brushed panel with a perforated intake (the drive cage is inside, behind the glass)
   const lowY = gl.y + gl.h, lowH = ci.y + ci.h - lowY;
   g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.5 });
   brush(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, T, 40);
@@ -109,7 +109,6 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   g.rect(np.x + 60, np.y + np.h - 130, np.w - 120, 8).fill({ color: T.alu, alpha: 0.55 });
   root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, T.dark ? '#dfe7ff' : '#e9eefb', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
   root.addChild(label(`MODEL PC-${LAYOUT_CASE + 1} · TEMPERED GLASS EDITION`, np.x + np.w / 2, np.y + np.h - 70, 50, T.dark ? '#8d9bc4' : '#aeb8d0', { anchor: [0.5, 0.5], a: 0.8 }));
-  bayFront(g, root, T, o);
 
   // front rim: a slim vertical vent column east of the glass
   const STRIP = stripRect();
@@ -153,31 +152,6 @@ function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
   });
 }
 
-/** The 2-position drive bay front: a recessed housing, a faceplate per mounted drive, a blanking plate per empty or absent cell. */
-function bayFront(g: Graphics, root: Container, T: Theme, o: ExteriorOpts) {
-  const c = tones(T), b = BAY;
-  box(g, b.x, b.y, b.w, b.h, 24, { fill: c.cut, stroke: c.edge, lw: 6, sa: 0.7 });
-  BAY_CELLS.forEach((cell, i) => {
-    const drive = o.drives.find((d) => d.slot === `sata${i}`), real = i < o.nSata;
-    if (drive) {
-      const hdd = drive.kind === 'hdd';
-      const f = hdd ? { x: cell.x + 36, y: cell.y + 30, w: cell.w - 36, h: cell.h - 60 } : { x: cell.x + 36, y: cell.y + 90, w: cell.w - 36, h: cell.h - 180 };
-      box(g, f.x + 6, f.y + 10, f.w, f.h, 16, { fill: '#000000', fa: 0.3 });
-      g.roundRect(f.x, f.y, f.w, f.h, 16).fill(hdd ? vgrad(T.dark ? '#59627a' : '#dfe5ef', T.dark ? '#323a4e' : '#aeb8c9') : vgrad(T.dark ? '#262d3f' : '#4a556c', T.dark ? '#141925' : '#323c52')).stroke({ width: 5, color: c.edge, alpha: 0.8 });
-      brush(g, f.x + 8, f.y + 8, f.w - 16, f.h - 16, T, 22);
-      for (let k = 0; k < 6; k++) g.rect(f.x + 40, f.y + f.h * 0.22 + k * 20, f.w * 0.5, 7);
-      g.fill({ color: '#000000', alpha: hdd ? 0.2 : 0.4 });
-      box(g, f.x + f.w * 0.62, f.y + f.h * 0.18, f.w * 0.3, f.h * 0.3, 8, { fill: hdd ? '#e8edf6' : T.mul, fa: hdd ? 0.85 : 0.35 });
-      root.addChild(label(hdd ? 'HDD' : 'SSD', f.x + f.w * 0.77, f.y + f.h * 0.33, hdd ? 54 : 50, hdd ? '#2a3350' : '#dfe7ff', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
-    } else if (real) {
-      box(g, cell.x + 36, cell.y + 24, cell.w - 36, cell.h - 48, 16, { fill: c.mid, stroke: c.edge, lw: 4, sa: 0.5 });
-      for (let k = 0; k < 9; k++) box(g, cell.x + 90, cell.y + 70 + k * 42, cell.w - 150, 10, 5, { fill: c.cut });
-    } else {
-      box(g, cell.x + 36, cell.y + 24, cell.w - 36, cell.h - 48, 16, { fill: c.lo, stroke: c.edge, lw: 3, sa: 0.3 });
-    }
-  });
-}
-
 export type StripMode = 'off' | 'idle' | 'halt' | 'work' | 'error' | 'dead';
 
 /** What the accent strip should say right now (from the snapshot only). */
@@ -216,7 +190,10 @@ export function drawStrip(g: Graphics, T: Theme, mode: StripMode, t: number, dis
   }
   // drive-front activity LEDs (lit only while a drive is busy)
   for (const d of drives) {
-    const i = d.slot === 'sata1' ? 1 : 0, l = frontLed(i), a = disk;
+    if (!d.slot.startsWith('sata')) continue; // an M.2 stick has no front LED
+    const cell = Number(d.slot.slice(4));
+    if (!BAY_CELLS[cell]) continue;
+    const l = frontLed(cell), a = disk;
     if (a > 0.02) g.circle(l.x, l.y, 30).fill({ color: T.ld, alpha: 0.3 * a });
     g.circle(l.x, l.y, 14).fill({ color: a > 0.02 ? T.ld : mix(T.ld, T.bg, 0.8), alpha: a > 0.02 ? 0.4 + 0.6 * a : 0.7 }).stroke({ width: 3, color: c.edge, alpha: 0.8 });
   }

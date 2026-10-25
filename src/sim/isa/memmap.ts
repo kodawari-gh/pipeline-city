@@ -78,8 +78,9 @@ export const PchPhase = {
 /** Storage port k (slot ids in STORAGE_PORTS order) sits at STORAGE_BASE + k * STORAGE_STRIDE. */
 export const STORAGE_BASE = 0x4003_0000;
 export const STORAGE_STRIDE = 0x1000;
-/** Slot ids that carry a block device, in port order (the board slot id doubles as the port / clock domain name). */
-export const STORAGE_PORTS: readonly string[] = ["sata0", "sata1", "m20"];
+/** Slot ids that carry a block device, in port order (the board slot id doubles as the port / clock domain name). The first three keep
+ * their addresses from when a board had two SATA ports and one M.2; the bigger boards' extra ports are appended. */
+export const STORAGE_PORTS: readonly string[] = ["sata0", "sata1", "m20", "sata2", "sata3", "sata4", "sata5", "m21", "m22"];
 /** A block is 64 words. */
 export const BLOCK_BYTES = 256;
 export const BLOCK_WORDS = 64;

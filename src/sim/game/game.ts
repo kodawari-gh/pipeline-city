@@ -1907,11 +1907,12 @@ export class Game {
     const ownedSpecs = new Set([...this.board.devices.map((d) => d.spec), ...this.inventory.map((i) => i.spec)]);
     const planSlots = boardSlots(plan);
     for (const s of specsOfKind("storage")) {
-      if (!this.sandbox && ownedSpecs.has(s.id)) continue;
       const total = planSlots.filter((x) => slotAccepts(x.type, s.slot)).length;
       const used = this.board.devices.filter((d) => deviceSpec(d).kind === "storage" && deviceSpec(d).slot === s.slot).length
         + this.inventory.filter((i) => getSpec(i.spec)?.kind === "storage" && getSpec(i.spec)!.slot === s.slot).length;
-      const o: PurchaseSnap = { id: s.id, name: s.name, kind: "storage", price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
+      // a drive you own is offered again only while a slot is free (the bigger boards have several), like another memory stick
+      if (!this.sandbox && ownedSpecs.has(s.id) && (total === 0 || used >= total)) continue;
+      const o: PurchaseSnap = { id: s.id, name: ownedSpecs.has(s.id) ? `${s.name} (another drive)` : s.name, kind: "storage", price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
       if (total === 0) o.blocked = s.slot === "m2" ? "needs an M.2 slot (bigger board)" : "the board has no SATA slot";
       else if (used >= total) o.blocked = `no free ${s.slot === "m2" ? "M.2" : "SATA"} slot (${total} of ${total} used or owned)`;
       out.push(o);

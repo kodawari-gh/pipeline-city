@@ -80,7 +80,7 @@ export let CASE_BD: Rect = GEO.bd;
 function regionsOf(g: TierGeo): Record<RegionId, Rect> {
   return {
     vrm: g.vrm, dvrm: g.dvrm, pcie: bound(g.pcie), chip: g.chip, io: g.io, atx: g.atx, cpw: g.cpw, pciew: g.pciew ?? EMPTY,
-    m2: g.m2 ?? EMPTY, sata: bound(g.sata), hex: g.hex ?? EMPTY, qr: g.qr ?? EMPTY, audio: g.codec, bat: g.bat,
+    m2: bound(g.m2), sata: bound(g.sata), hex: g.hex ?? EMPTY, qr: g.qr ?? EMPTY, audio: g.codec, bat: g.bat,
   };
 }
 
@@ -90,6 +90,8 @@ export const DIMM_X = (i: number) => GEO.dimm[i]?.rect.x ?? 0;
 export const DIMM_Y = (i: number) => GEO.dimm[i]?.rect.y ?? 0;
 export const DIMM_W = DIMM_W0, DIMM_H = DIMM_H0;
 export const dimmFlip = (i: number) => !!GEO.dimm[i]?.flip;
+/** M.2 connectors (slots m20, m21, ...), top to bottom. */
+export let M2_SLOTS: Rect[] = GEO.m2;
 /** PCIe slots (x16, x8, x4, x1 looks); a tier has the first ones. */
 export let PCIE_RAILS: Rect[] = GEO.pcie;
 
@@ -151,17 +153,25 @@ export let CASE_GLASS: Rect = { x: -3640, y: -2700, w: 8740, h: 5250 };
 /** Power button on the top panel and the status lights beside it. */
 export let POWER_BTN = { x: 4660, y: -2900, r: 130 };
 export let CASE_LEDS = { y: -2900, on: 4180, off: 4300, err: 4420, disk: 3900 };
-/** The 2-position SATA drive bay (a cage right of the PSU). Cell 0 = slot sata0 (top), cell 1 = sata1. */
-export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
-export let BAY_CELLS: Rect[] = [{ x: 4300, y: 2790, w: 700, h: 500 }, { x: 4300, y: 3360, w: 700, h: 500 }];
 /**
- * Where a drive's SATA data cable runs (`sataCablePath` in case.ts). It leaves the drive's data plug (cell y + `plug`), drops
- * through the gap between the PSU and the bay, runs UNDER the PSU (`lane`, below its bottom edge), up the west side of the PSU
- * (`west`, outside the PSU and the cavity wall), along a run above the PSU (`top`, between the board and the PSU ports) and
- * into the board port (`port`). It never crosses the PSU port row or the PSU cables. Cell 1's runs sit outside cell 0's so
- * the two never cross each other (the lower cell is the outer loop).
+ * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
+ * slot sata<i>, top to bottom; the cage has as many cells as the biggest board the case holds has SATA ports, the rest of the
+ * cells are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
  */
-export let SATA_LINK: { plug: number; col: number }[] = [{ plug: 400, col: 4140 }, { plug: 400, col: 4070 }];
+export let BAY: Rect = { x: 4180, y: 2700, w: 880, h: 1230 };
+export let BAY_CELLS: Rect[] = [];
+/** Cell size and pitch in the cage (the drive art is drawn at its design size, 700 x 500, and scaled to the cell). */
+export const CELL_W = 1050, CELL_H = 725, CELL_PITCH = 785;
+/** Width of a front fan module (seen edge-on) east of the cage. */
+export const FAN_W = 260;
+/** x of the SATA power lead that runs up the cage's west side (from the PSU), and the cage's west edge. */
+export let POWER_LEAD_X = 4070;
+/**
+ * Where a drive's SATA data cable runs (`sataCablePath` in case.ts): out of the board port east, along the port's row to its own
+ * column (`col`, west to east in port order, so no two cables cross), up the column to the drive's data plug (cell y + `plug`) and
+ * east into it. The columns sit between the PSU cables' gutter and the cage.
+ */
+export let SATA_LINK: { plug: number; col: number }[] = [];
 /** Board port rect for SATA index i. */
 export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 
@@ -215,7 +225,7 @@ export let REGIONS: { id: string; rect: Rect }[] = [];
 export function setLayoutTier(tier: number, caseTier = tier): void {
   const g = geoOf(tier), cg = geoOf(Math.max(tier, caseTier));
   GEO = g; LAYOUT_TIER = g.tier; LAYOUT_CASE = cg.tier; CASE_BD = cg.bd; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
-  VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
+  M2_SLOTS = g.m2; VRM_PWM = g.pwm; VRM_SINK = g.vrmSink; RAM_SINK = g.dSink; VRM_LED = g.vrmLed;
   // the lower compartment and the case follow the board: the PSU shroud runs under the board and the cable gutter, the drive bay
   // sits at its east end, the case closes round them
   const east = cg.bd.x + cg.bd.w, south = cg.bd.y + cg.bd.h, dy = south - 2500;
@@ -229,10 +239,15 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   PSU_PANEL = { x: psuEast - 680 - 2200, y: PSU.y + 140, w: 2200, h: 820 };
   PSU_LABEL = { x: PSU_PANEL.x - 1200, y: PSU.y + 150, w: 1050, h: 800 };
   VENTS = { x: -1750, y: PSU.y + 130, w: Math.max(0, PSU_LABEL.x - 170 + 1750), h: 840 };
-  BAY = { x: psuEast + 180, y: PSU.y - 50, w: 880, h: 1230 };
-  BAY_CELLS = [{ x: BAY.x + 120, y: BAY.y + 90, w: 700, h: 500 }, { x: BAY.x + 120, y: BAY.y + 660, w: 700, h: 500 }];
-  SATA_LINK = [{ plug: 400, col: BAY.x - 40 }, { plug: 400, col: BAY.x - 110 }];
-  const caseW = BAY.x + BAY.w + 200 + 3800;
+  // the cage: as many cells as the biggest board the case holds has SATA ports, bottom-aligned with that board
+  const cells = cg.sata.length, cageX = east + 800, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
+  BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: y0 + i * CELL_PITCH, w: CELL_W, h: CELL_H }));
+  BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
+  POWER_LEAD_X = cageX - 130;
+  SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + i * 22 }));
+  // the front fans stand in front of the cage, the perforated front panel closes the glass
+  const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
+  const caseW = glassEast + 160 + 3800;
   CASE = { x: -3800, y: -3100, w: caseW, h: south + 4850 };
   CASE_IN = { x: -3640, y: -2700, w: caseW - 320, h: CASE.h - 660 };
   CASE_GLASS = { x: -3640, y: -2700, w: caseW - 320, h: south + 50 + 2700 };

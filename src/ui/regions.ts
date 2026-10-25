@@ -46,18 +46,18 @@ export const REGIONS: Record<string, Description> = {
   },
   m2: {
     title: 'M.2 storage slot',
-    plain: 'A slot for fast NVMe drives. Needs the bigger board. Drag a drive here.',
-    nerd: 'M.2 NVMe, PCIe x4: the m2 slot. Accepts the NVMe drive; a missing slot is shown as a shop reason.',
+    plain: 'A slot for fast NVMe drives. The Mainstream board has two, the Enthusiast board three. Drag a drive here.',
+    nerd: 'M.2 NVMe, PCIe x4: the m2 slots (m20, m21, m22). Each accepts one NVMe drive; a missing slot is shown as a shop reason.',
   },
   sata: {
-    title: 'Drive bay (SATA)',
-    plain: 'Where the storage drives go. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
-    nerd: 'SATA drive bays (sata0, sata1 on bigger boards). A drive draws PSU watts; there is no separate connector in the sim.',
+    title: 'SATA ports',
+    plain: 'The drive cables plug in here, one per drive bay. A bigger board has more of them (two, three, four, six).',
+    nerd: 'SATA ports (sata0 .. sata5, by board tier: 2, 3, 4, 6), served by the chipset. Each runs a cable to its cell in the drive cage; a drive draws PSU watts.',
   },
   bay: {
-    title: 'Drive bay (SATA)',
-    plain: 'Where the storage drives go. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
-    nerd: 'SATA drive bays (sata0, sata1 on bigger boards). A drive draws PSU watts; there is no separate connector in the sim.',
+    title: 'Drive cage (SATA)',
+    plain: 'Where the storage drives go, along the front of the case. Click it to buy a drive: an HDD is slow and cheap, an SSD is faster. The OS lives on a drive.',
+    nerd: 'SATA drive cage (cells sata0 .. sata5, as many as the biggest board the case holds has SATA ports). One cable per drive to its port, one power lead for all.',
   },
   case: {
     title: 'Computer case',

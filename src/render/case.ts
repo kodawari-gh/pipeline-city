@@ -1,13 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import {
-  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, PSU, SATA_LINK, sataPort, type Rect,
+  BAY, BAY_CELLS, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_W, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, SATA_LINK, sataPort, type Rect,
 } from './layout';
+import { driveScale } from './drives';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
 import type { Theme } from './theme';
 
 // The PC case: a thin low-contrast chassis around the board and the PSU, a quiet glass side, the top panel (brand, vents,
-// status lights, the power button sits on it) and the SATA drive bay with the cables that serve it. Everything here is static
+// status lights, the power button sits on it) and the SATA drive cage with the cables that serve it. Everything here is static
 // (baked with the device layer); the lights and the drives are live (Live, props.ts).
 
 export const wallTone = (T: Theme) => mix(T.bg, T.dark ? T.line : '#ffffff', T.dark ? 0.3 : 0.6);
@@ -70,14 +71,15 @@ export function caseBack(T: Theme): Container {
 
 /**
  * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
- * ring of blade tips and a light strip), and the perforated front panel beyond them. One module per ~1600 units of height.
+ * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. One module per ~1600
+ * units of height.
  */
 function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
   const BD = CASE_BD, gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
   const n = Math.max(1, Math.round((y1 - y0 + 100) / 1700)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
-  const x = BD.x + BD.w + 550, w = 480;
+  const w = FAN_W, x = east - 170 - 20 - w;
   // front panel: a perforated wall along the east side of the glass
-  const fp = { x: east - 520, y: gl.y + 60, w: 420, h: gl.h - 120 };
+  const fp = { x: east - 170, y: gl.y + 60, w: 130, h: gl.h - 120 };
   box(g, fp.x, fp.y, fp.w, fp.h, 50, { fill: mix(cav, wall, 0.15), stroke: edge, lw: 5, sa: 0.5 });
   for (let yy = fp.y + 60; yy < fp.y + fp.h - 40; yy += 70) for (let xx = fp.x + 60; xx < fp.x + fp.w - 40; xx += 70) g.circle(xx, yy, 14);
   g.fill({ color: cav, alpha: 0.95 });
@@ -86,12 +88,12 @@ function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
     box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
     box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
     // blade tips: short slanted strokes down the middle, the way a fan looks from the side
-    for (let yy = y + 90; yy < y + h - 70; yy += 56) g.moveTo(x + 120, yy + 22).lineTo(x + w - 120, yy - 22);
+    for (let yy = y + 90; yy < y + h - 70; yy += 56) g.moveTo(x + 70, yy + 22).lineTo(x + w - 70, yy - 22);
     g.stroke({ width: 10, color: T.mute, alpha: 0.22, cap: 'round' });
     g.moveTo(x + w / 2, y + 60).lineTo(x + w / 2, y + h - 60).stroke({ width: 18, color: T.line, alpha: 0.6, cap: 'round' });
     // light strips along both long edges (they glow with the machine: see Live)
-    g.rect(x + 28, y + 70, 10, h - 140).rect(x + w - 38, y + 70, 10, h - 140).fill({ color: T.alu, alpha: 0.25 });
-    for (const sy of [y + 40, y + h - 40]) for (const sx of [x + 40, x + w - 40]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+    g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140).fill({ color: T.alu, alpha: 0.25 });
+    for (const sy of [y + 40, y + h - 40]) for (const sx of [x + 36, x + w - 36]) disc(g, sx, sy, 12, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
   }
 }
 
@@ -112,26 +114,27 @@ export function caseGlass(T: Theme): Container {
   return root;
 }
 
-/** The drive cage: rails, cell outlines and the labels. `nSata` cells exist on this board tier. */
+/** The drive cage: a rack along the front, a rail and a dashed cell per slot, the connector hints and the labels. Cells beyond the board's SATA ports are locked. */
 export function bayArt(T: Theme, nSata: number): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const edge = edgeTone(T), b = BAY;
+  const edge = edgeTone(T), b = BAY, k = driveScale();
   box(g, b.x, b.y, b.w, b.h, 24, { fill: mix(cavityTone(T), T.bg, 0.2), fa: 0.55, stroke: edge, lw: 6, sa: 0.65 });
-  g.rect(b.x - 10, b.y + 60, 30, 12).rect(b.x - 10, b.y + b.h - 72, 30, 12).fill({ color: edge, alpha: 0.5 });
-  root.addChild(label('DRIVE BAY', b.x + 24, b.y + 38, 38, T.mute, { head: true, a: 0.9 }));
+  // the rack's uprights, and its screws
+  g.rect(b.x + 14, b.y + 24, 14, b.h - 48).rect(b.x + b.w - 28, b.y + 24, 14, b.h - 48).fill({ color: edge, alpha: 0.4 });
+  root.addChild(label('DRIVE CAGE', b.x + 52, b.y + 44, 38, T.mute, { head: true, a: 0.9 }));
   BAY_CELLS.forEach((c, i) => {
     const live = i < nSata;
     const pts: [number, number][] = [[c.x, c.y], [c.x + c.w, c.y], [c.x + c.w, c.y + c.h], [c.x, c.y + c.h], [c.x, c.y]];
     dashed(g, pts, 34, 26);
     g.stroke({ width: 6, color: live ? T.mul : T.mute, alpha: live ? 0.55 : 0.25 });
     // guide rails the drive slides along
-    g.rect(c.x + 40, c.y + 10, c.w - 60, 8).rect(c.x + 40, c.y + c.h - 18, c.w - 60, 8).fill({ color: edge, alpha: live ? 0.55 : 0.25 });
+    g.rect(c.x + 40 * k, c.y + 10, c.w - 60 * k, 8).rect(c.x + 40 * k, c.y + c.h - 18, c.w - 60 * k, 8).fill({ color: edge, alpha: live ? 0.55 : 0.25 });
     // empty-connector hint (the drive's connectors mate here)
-    box(g, c.x - 4, c.y + 112, 52, 46, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
-    box(g, c.x - 4, c.y + 300, 52, 118, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
-    root.addChild(label(live ? `SATA${i}` : `SATA${i} · ATX+ BOARD`, c.x + 70, c.y + 56, 34, live ? T.mul : T.mute, { a: live ? 0.9 : 0.5 }));
+    box(g, c.x - 4 * k, c.y + 112 * k, 52 * k, 46 * k, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
+    box(g, c.x - 4 * k, c.y + 300 * k, 52 * k, 118 * k, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
+    root.addChild(label(live ? `SATA${i}` : `SATA${i} · BIGGER BOARD`, c.x + 70 * k, c.y + 56 * k, 34, live ? T.mul : T.mute, { a: live ? 0.9 : 0.5 }));
   });
   return root;
 }
@@ -146,11 +149,11 @@ export function emptyCellHint(T: Theme, cell: Rect): Container {
 // ---------------------------------------------------------------- SATA cables and power leads
 
 /**
- * Dense centre line of the SATA data cable from bay cell i to port i on the board edge (a Lane, for pulses). It drops out of
- * the cell's west side, goes down the gap, under the PSU, up its west side and along the top of the PSU to the port: no part of
- * it crosses the PSU port row or the PSU cables (see `SATA_LINK`).
+ * Dense centre line of the SATA data cable from cage cell i to port i on the board edge (a Lane, for pulses): out of the drive's data
+ * plug west to its own column (`SATA_LINK`), down to the port's row and west into the port. Columns run west to east in port order,
+ * so no two cables cross; they cross the PSU cables in the gutter (under them).
  */
-export function sataCablePath(i: 0 | 1): Lane {
+export function sataCablePath(i: number): Lane {
   const c = BAY_CELLS[i]!, L = SATA_LINK[i]!, p = sataPort(i);
   const y0 = c.y + L.plug, yPort = p.y + p.h / 2;
   const route: Pt[] = [[c.x - 76, y0], [L.col, y0], [L.col, yPort], [p.x + p.w + 40, yPort]];
@@ -164,30 +167,49 @@ function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: numb
   box(g, x, y, w, h, 8, { fill: T.dark ? '#1b2230' : '#2c3442', stroke: accent, lw: 4, sa: 0.85 });
 }
 
-/** Data cable (and, with a PSU, the power lead) for the drive in SATA cell i. Sits under the PSU cables. */
-export function sataLinkArt(T: Theme, i: 0 | 1, withPower: boolean): Container {
+const sleeveOf = (T: Theme) => (T.dark ? '#171d29' : '#2a313d');
+const lineOf = (g: Graphics, list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
+
+/** The data cable for the drive in cage cell i: the sleeve, the plug on the drive and the plug in the board's port. Sits under the PSU cables. */
+export function sataLinkArt(T: Theme, i: number): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
   const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W, L = SATA_LINK[i]!;
-  const sleeve = T.dark ? '#171d29' : '#2a313d';
-  const line = (list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
-  line(pts.map(([x, y]) => [x + 7, y + 10] as Pt)); g.stroke({ width: w + 6, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w * 0.2, color: '#ffffff', alpha: T.dark ? 0.08 : 0.14, cap: 'round', join: 'round' });
+  const sleeve = sleeveOf(T);
+  lineOf(g, pts.map(([x, y]) => [x + 7, y + 10] as Pt)); g.stroke({ width: w + 6, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
+  lineOf(g, pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
+  lineOf(g, pts); g.stroke({ width: w, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
+  lineOf(g, pts); g.stroke({ width: w * 0.2, color: '#ffffff', alpha: T.dark ? 0.08 : 0.14, cap: 'round', join: 'round' });
   plugBox(g, T, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
   const e = pts[pts.length - 1]!;
   plugBox(g, T, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
-  if (withPower) {
-    // the drive's power lead sits above its data plug, so the data run never passes it in the gap
-    const py = c.y + 110, x0 = PSU.x + PSU.w;
-    const sl = [[x0, py], [c.x - 78, py]] as Pt[];
-    line(sl.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 44, color: '#000000', alpha: 0.26, cap: 'round' });
-    line(sl); g.stroke({ width: 38, color: sleeve, cap: 'round' });
-    line(sl); g.stroke({ width: 38, color: T.ld, alpha: 0.16, cap: 'round' });
-    plugBox(g, T, c.x - 86, py - 56, 80, 112, T.ld);
-    box(g, x0 - 14, py - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // socket on the PSU's east face
+  return root;
+}
+
+/**
+ * The SATA power lead: one cable from a socket on the PSU's east face, east to the cage's west side and up it, with a plug on the
+ * power connector of every installed drive (a daisy chain, the way a real build does it). `cells` are the occupied cage cells.
+ */
+export function sataPowerArt(T: Theme, cells: number[]): Container {
+  const root = new Container();
+  if (!cells.length) return root;
+  const g = new Graphics();
+  root.addChild(g);
+  const sleeve = sleeveOf(T), k = driveScale(), x0 = PSU.x + PSU.w, ys = PSU.y + PSU.h / 2, X = POWER_LEAD_X;
+  const py = (i: number) => BAY_CELLS[i]!.y + 359 * k;
+  const top = Math.min(...cells.map(py));
+  const trunk: Pt[] = [[x0, ys], [X, ys], [X, top]];
+  const path = roundedPath(trunk, 60, 30);
+  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 44, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 38, color: sleeve, cap: 'round', join: 'round' });
+  lineOf(g, path); g.stroke({ width: 38, color: T.ld, alpha: 0.16, cap: 'round', join: 'round' });
+  for (const i of cells) {
+    const c = BAY_CELLS[i]!, y = py(i);
+    lineOf(g, [[X, y], [c.x - 78, y]]); g.stroke({ width: 30, color: sleeve, cap: 'round' });
+    lineOf(g, [[X, y], [c.x - 78, y]]); g.stroke({ width: 30, color: T.ld, alpha: 0.16, cap: 'round' });
+    plugBox(g, T, c.x - 86, y - 56, 80, 112, T.ld);
   }
+  box(g, x0 - 14, ys - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // socket on the PSU's east face
   return root;
 }

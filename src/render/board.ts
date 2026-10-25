@@ -8,8 +8,8 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt } from './case';
-import { driveArt, driveBody, driveKindOf, osBadgeRect, slotRect, type DriveKind } from './drives';
+import { bayArt, caseBack, caseGlass, emptyCellHint, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { NetView, nicArt } from './net';
@@ -435,7 +435,7 @@ export async function mountBoard(host: HTMLElement) {
     empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
-    const driveSlots = [...['sata0', 'sata1'].slice(0, nSata), ...(nM2 ? ['m20'] : [])];
+    const driveSlots = [...Array.from({ length: nSata }, (_, i) => `sata${i}`), ...Array.from({ length: nM2 }, (_, i) => `m2${i}`)];
     for (const id of driveSlots) {
       const r = slotRect(id);
       scene.slots.set(id, r); scene.rects.set(id, r);
@@ -454,12 +454,14 @@ export async function mountBoard(host: HTMLElement) {
       node.addChild(driveArt(T, kind, sd.slot, spec.name, `${Math.round((spec.capacityBytes ?? 0) / 1024)}K`), lg);
       driveLayer.addChild(node);
       if (builtOnce && !driveSlotsSeen.has(sd.slot)) slides.push({ node, t0: now0 });
-      const idx = sd.slot === 'sata1' ? 1 : 0;
-      if (kind !== 'ssd-nvme') sataLayer.addChild(sataLinkArt(T, idx as 0 | 1, hasPsu));
-      hooks.push({ slot: sd.slot, kind, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx as 0 | 1) });
+      const idx = slotIndex(sd.slot);
+      if (kind !== 'ssd-nvme') sataLayer.addChild(sataLinkArt(T, idx));
+      hooks.push({ slot: sd.slot, kind, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx) });
       scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
       deviceHits.push({ id: sd.id, rect: body });
     }
+    // one power lead for the cage, with a plug on every installed SATA drive
+    if (hasPsu) sataLayer.addChild(sataPowerArt(T, storageDevs.filter((d) => d.slot.startsWith('sata')).map((d) => slotIndex(d.slot))));
     driveSlotsSeen.clear();
     for (const k of [...slotKind.keys()]) if (!storageDevs.some((d) => d.slot === k)) slotKind.delete(k);
     for (const sd of storageDevs) driveSlotsSeen.add(sd.slot);
@@ -473,7 +475,7 @@ export async function mountBoard(host: HTMLElement) {
     for (const h of emptyHits) {
       if (h.id.startsWith('cpu') || h.id.startsWith('pcie') || h.id.startsWith('dimm') || h.id.startsWith('sata')) continue; // already drawn by the board / the bay
       const r = h.rect;
-      if (h.id === 'm20') {
+      if (h.id.startsWith('m2')) {
         const pts: [number, number][] = [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]];
         dashed(emptyG, pts, 40, 30);
         emptyG.stroke({ width: 10, color: T.mul, alpha: 0.7 });

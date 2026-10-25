@@ -55,9 +55,10 @@ describe("buying and installing storage and the OS", () => {
     expect(g.purchase("nvme2").ok).toBe(false);
     const b = g.purchase("hdd0");
     expect(b.ok).toBe(true);
-    expect(g.snapshot().purchases.find((p) => p.id === "hdd0")).toBeUndefined(); // owned
+    // a drive you own is offered again while a slot is free (the Starter board has two SATA slots), and gone when they are taken
+    expect(g.snapshot().purchases.find((p) => p.id === "hdd0")).toMatchObject({ name: expect.stringMatching(/another drive/) });
     const inv = g.snapshot().inventory.find((i) => i.spec === "hdd0")!;
-    expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0"], installable: true }); // the machine is on: swapInstall cycles the power
+    expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0", "sata1"], installable: true }); // the machine is on: swapInstall cycles the power
     g.powerButton();
     expect(g.install(inv.id)).toMatchObject({ ok: true, slot: "sata0" });
     expect(g.progress.storageInstalled).toBe(true);
@@ -72,12 +73,12 @@ describe("buying and installing storage and the OS", () => {
     g.money = 100000;
     g.powerButton();
     for (const id of ["board1", "board2"]) g.install((g.purchase(id) as { invId: string }).invId);
-    expect(g.snapshot().slots.filter((s) => s.type === "m2")).toHaveLength(1);
+    expect(g.snapshot().slots.filter((s) => s.type === "m2")).toHaveLength(2);
     const nv = g.purchase("nvme2") as { invId: string };
     const ssd = g.purchase("ssd1") as { invId: string };
     const snap = g.snapshot().inventory;
-    expect(snap.find((i) => i.id === nv.invId)!.freeSlots).toEqual(["m20"]);
-    expect(snap.find((i) => i.id === ssd.invId)!.freeSlots).toEqual(["sata0", "sata1"]);
+    expect(snap.find((i) => i.id === nv.invId)!.freeSlots).toEqual(["m20", "m21"]);
+    expect(snap.find((i) => i.id === ssd.invId)!.freeSlots).toEqual(["sata0", "sata1", "sata2", "sata3"]);
     expect(g.install(nv.invId, "sata0")).toMatchObject({ ok: false });
     expect(g.install(nv.invId)).toMatchObject({ ok: true, slot: "m20" });
   });

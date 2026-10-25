@@ -117,8 +117,8 @@ describe("buying and installing the network parts", () => {
     expect(g.snapshot().cables.find((c) => c.id === "lan")!.connected).toBe(false);
     const s = new Game({ seed: 1, preassembled: true, economy: econ() });
     s.money = 9999;
-    expect(s.purchase("nic1")).toMatchObject({ ok: false, reason: expect.stringMatching(/pcie/) }); // the Starter board has none
-    expect(s.snapshot().purchases.find((p) => p.id === "nic1")!.blocked).toMatch(/pcie/);
+    expect(s.purchase("nic1").ok).toBe(true); // the Starter board has one PCIe slot, for a network card
+    expect(s.snapshot().purchases.find((p) => p.id === "nic1")?.blocked).toBeUndefined();
   });
 
   it("the cable needs a router and a port; the Starter board has no jack", () => {

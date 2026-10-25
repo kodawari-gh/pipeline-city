@@ -200,10 +200,10 @@ const SLOT_PLAIN: Record<string, string> = {
 
 /** One plain line per motherboard tier (the tier's slot counts and features are in the nerd line). */
 const BOARD_PLAIN: Record<number, string> = {
-  0: 'The starter board: one memory slot, one USB port, one monitor port and no ethernet. Enough to boot and learn.',
-  1: 'A step up: two memory slots, an expansion slot, two drive bays and 100 Mbit ethernet, with a stronger voltage regulator.',
-  2: 'Mainstream: four memory slots, an M.2 slot for fast drives, the big ATX+ power connector and a stronger voltage regulator.',
-  3: 'Enthusiast: eight memory slots, four USB ports, gigabit ethernet and the strongest voltage regulator on offer.',
+  0: 'The starter board: one memory slot, one expansion slot, two drive bays, one USB port, one monitor port and no ethernet. Enough to boot and learn; a network card goes in the expansion slot.',
+  1: 'A step up: two memory slots, two expansion slots, three drive bays and 100 Mbit ethernet, with a stronger voltage regulator.',
+  2: 'Mainstream: four memory slots, three expansion slots, four drive bays, two M.2 slots for fast drives, the big ATX+ power connector and a stronger voltage regulator.',
+  3: 'Enthusiast: eight memory slots, four expansion slots, six drive bays, three M.2 slots, four USB ports, gigabit ethernet and the strongest voltage regulator on offer.',
 };
 
 /** One plain line per case. A case holds boards up to its size: a bigger board needs a bigger case first. */

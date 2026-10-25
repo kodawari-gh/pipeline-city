@@ -99,8 +99,9 @@ describe('motherboard tier cards', () => {
     expect(cards.map((c) => c.displayPorts)).toEqual([1, 1, 2, 2]);
     const slotsOf = (c: { slots: Array<{ key: string; count: number }> }, key: string) => c.slots.find((x) => x.key === key)?.count ?? 0;
     expect(slotsOf(cards[0]!, 'dimm')).toBe(1);
-    expect(slotsOf(cards[0]!, 'pcie')).toBe(0);
-    expect(slotsOf(cards[2]!, 'm2')).toBe(1);
+    expect(slotsOf(cards[0]!, 'pcie')).toBe(1);
+    expect(slotsOf(cards[2]!, 'm2')).toBe(2);
+    expect(cards.map((c) => slotsOf(c, 'sata'))).toEqual([2, 3, 4, 6]);
     expect(slotsOf(cards[3]!, 'dimm')).toBe(8);
   });
 
