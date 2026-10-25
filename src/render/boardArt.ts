@@ -4,7 +4,7 @@ import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts } from './pins';
-import { buildBuses, mkLane, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
+import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
   cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
@@ -25,8 +25,9 @@ const hexPoly = (cx: number, cy: number, r: number): number[] => {
   return p;
 };
 
-export function strokeLane(g: Graphics, l: Lane) {
-  for (const pts of visibleParts(l)) {
+export function strokeLane(g: Graphics, l: Lane, pair = 0) {
+  for (const part of visibleParts(l)) for (const off of pair ? [-pair, pair] : [0]) {
+    const pts = off ? offsetLine(part, off) : part;
     g.moveTo(pts[0]![0], pts[0]![1]);
     for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
   }
@@ -132,10 +133,11 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       for (const l of all) strokeLane(g, l);
       g.stroke({ width: b.w * 0.26, color: '#ffffff', alpha: T.dark ? 0.1 : 0.28, cap: 'round', join: 'round' });
     } else {
-      for (const l of all) strokeLane(g, l);
-      g.stroke({ width: b.w, color: P.trace, alpha: 0.9, cap: 'round', join: 'round' });
-      for (const l of all) strokeLane(g, l);
-      g.stroke({ width: b.w * 0.34, color: mix(P.trace, '#ffffff', 0.35), alpha: T.dark ? 0.28 : 0.4, cap: 'round', join: 'round' });
+      const pr = b.pair ? b.w * 0.36 : 0, sw = b.pair ? b.w * 0.52 : b.w; // a pair: two strands, tight
+      for (const l of all) strokeLane(g, l, pr);
+      g.stroke({ width: sw, color: P.trace, alpha: 0.9, cap: 'round', join: 'round' });
+      for (const l of all) strokeLane(g, l, pr);
+      g.stroke({ width: sw * 0.34, color: mix(P.trace, '#ffffff', 0.35), alpha: T.dark ? 0.28 : 0.4, cap: 'round', join: 'round' });
       for (const l of all) padLanes.push({ l, w: b.pad ?? Math.min(b.w * 1.9, 20) });
     }
   }

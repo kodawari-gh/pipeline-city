@@ -147,6 +147,8 @@ export interface Bus {
   taps?: { key: string; lanes: Lane[] }[];
   /** The lanes that must arrive together (one memory channel, one M.2, one slot's lanes...): their lengths match. */
   groups?: Lane[][];
+  /** Differential pairs: each lane is drawn as two tight strands (the fast serial buses). */
+  pair?: boolean;
 }
 
 /** How far a lane runs straight into its pad after the last bend of a fan-out. */
@@ -477,6 +479,7 @@ export function buildBuses(): Bus[] {
     buses.push(mk('lan', [[legs[0]![0], mean(legs, 1)], [pads[0]![0], mean(legs, 1)]], 4, LEG_PITCH, 8, 0, { from: legs, to: pads }));
   }
   addHops(buses);
+  for (const b of buses) if (['pcie', 'nvme', 'dmi', 'video', 'dp'].includes(b.id)) b.pair = true;
   // the groups whose lanes must arrive together
   const cut = (b: Bus, sizes: number[]) => { let k = 0; return sizes.map((n) => b.lanes.slice(k, (k += n))); };
   for (const b of buses) {
