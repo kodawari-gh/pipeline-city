@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PurchaseSnap, SlotSnap } from '../sim/game/game';
-import { nextUpgrade, pickerFor } from './picker';
+import { ladderFor, nextUpgrade, pickerFor } from './picker';
 import { dev, EMPTY_SLOTS, snap } from './testdata';
 
 // Heatsink rows (docs/UI.md, "Heatsink rows"): "Nothing better to buy right now" only when the fitted part is the top
@@ -55,5 +55,21 @@ describe('next tier on the heatsink rows', () => {
     const m = pickerFor('vrm-sink0', s)!;
     expect(m.emptyText).toBeUndefined();
     expect(nextUpgrade(m.ladder)?.specId).toBe('vsink0');
+  });
+});
+
+describe('the operating system tiles and the installed memory', () => {
+  const osBuy = (id: string): PurchaseSnap => ({ id, name: id, kind: 'os' as PurchaseSnap['kind'], price: 100, affordable: true });
+  const ram = (spec: string) => dev({ id: 'm1', spec, kind: 'ram', name: spec, slot: 'dimm0' });
+
+  it('an OS that needs more memory than is fitted carries a warning with the numbers', () => {
+    const s = snap({ devices: [ram('ram0')], purchases: [osBuy('os1')] });
+    const warn = ladderFor(s, 'os').find((r) => r.specId === 'os1')?.warn;
+    expect(warn).toMatch(/needs 32K of memory, you have 16K/);
+  });
+
+  it('no warning once enough memory is fitted', () => {
+    const s = snap({ devices: [ram('ram1')], purchases: [osBuy('os1')] });
+    expect(ladderFor(s, 'os').find((r) => r.specId === 'os1')?.warn).toBeUndefined();
   });
 });

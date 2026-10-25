@@ -78,6 +78,8 @@ interface Key extends Job {
   pluggedAt: number;
   done: boolean;
   doneAt: number;
+  /** The result landed while no OS was installed (not saved): ejecting it under an OS later is not an OS job. */
+  doneBeforeOs?: boolean;
   result: string;
   /**
    * A USB key the client left behind when the link came up (docs/NETWORK.md "Retired keys"): it no longer holds
@@ -1127,7 +1129,8 @@ export class Game {
     }
     this.progress.firstKeyEjected = true;
     if (this.os) {
-      this.progress.firstOsJob = true;
+      // A key that finished before any OS existed and is merely pulled out now was not an OS job.
+      if (!key.doneBeforeOs) this.progress.firstOsJob = true;
       this.freeKernelSlot(key.id); // delivery is the receipt: the kernel's slot for this job is free again
     }
     const pay = this.deliver(key, "collected");
@@ -2159,6 +2162,7 @@ export class Game {
     if (k && pk && pk.done && !k.done) {
       k.done = true;
       k.doneAt = this.baseTick;
+      if (!this.os) k.doneBeforeOs = true;
       k.result = pk.result;
       this.progress.firstJobDone = true;
       this.note("job", `key ${k.id} holds its result: ${k.result}`);

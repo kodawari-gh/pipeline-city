@@ -376,7 +376,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
   const psu = m.kind === 'psu' ? s.power : null;
   const loadFrac = psu && psu.budgetW > 0 ? psu.totalW / psu.budgetW : 0;
   // A CPU row the board's VRM cannot feed says so in words, once, under the bars.
-  const optWarn = m.kind === 'cpu' && option ? m.ladder.find((r) => r.specId === option)?.warn : undefined;
+  const optWarn = (m.kind === 'cpu' || m.kind === 'os') && option ? m.ladder.find((r) => r.specId === option)?.warn : undefined;
   const optName = option ? shortName(getSpec(option)?.name ?? option) : '';
 
   return (

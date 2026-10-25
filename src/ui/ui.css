@@ -1,12 +1,12 @@
 /* Theme tokens (also read by the board renderer) and UI styles. See docs/UI.md.
    The UI is glass: low-opacity panels with a blur, 1 px low-contrast borders, no fills or shadows. The board shows through. */
 :root {
-  --bg: #cfd9e6; --board: #d4e6e0; --trace: #7fa9a3; --sub: #d3dcec; --die: #eef2f9; --pin: #c89b3c;
-  --tile: #fbfcff; --ink: #18203a; --mute: #5b6788; --line: #c3cde0; --dot: #d3dbea;
-  --alu: #0a9fc4; --mul: #7b5cf0; --ld: #d98a00; --st: #16a860; --br: #d62fb0; --on: #ffffff;
-  --accent: #0a7fa0; --ok: #138a4f; --warn: #b36b00; --bad: #d12342;
-  --panel: rgba(255, 255, 255, .66); --glass-line: rgba(30, 44, 90, .14); --glass-hi: rgba(255, 255, 255, .45);
-  --art-plate: #e9eff9;
+  --bg: #eaeff6; --board: #9ccdbd; --trace: #2c7a72; --sub: #c4d0e4; --die: #dde6f4; --pin: #b3801c;
+  --tile: #ffffff; --ink: #0f1830; --mute: #475372; --line: #9aabc8; --dot: #c3cfe3;
+  --alu: #0786ab; --mul: #6a49e0; --ld: #c47600; --st: #0f9a53; --br: #c4259f; --on: #ffffff;
+  --accent: #0a6f8f; --ok: #0e7a45; --warn: #9a5a00; --bad: #c81e3e;
+  --panel: rgba(255, 255, 255, .82); --glass-line: rgba(30, 44, 90, .24); --glass-hi: rgba(255, 255, 255, .6);
+  --art-plate: #e1e9f5;
   --ui: system-ui, 'Segoe UI', sans-serif; --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   color-scheme: light;
 }
@@ -675,3 +675,23 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .shop-detail { width: 15.5rem; flex: none; overflow-y: auto; }
 .rung.outclassed { opacity: .55; }
 @media (max-width: 52em) { .shop-body { flex-direction: column; } .shop-detail { width: auto; } }
+
+/* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays
+   small, so the board keeps the rest of the screen (the camera frames it in the free area). */
+@media (max-height: 32em) and (min-aspect-ratio: 1/1) {
+  .inv { position: fixed; right: 0.5rem; top: 3.6rem; bottom: 0.5rem; width: 15rem; display: flex; flex-direction: column; padding: 0.4rem 0.5rem; }
+  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.5rem; flex: 1; }
+  .inv-tiles { flex-wrap: wrap; }
+  .tile { width: 6.2rem; }
+  .inv.away { transform: translateX(calc(100% + 1.5rem)); }
+  .inv-hint { display: none; }
+  .inv-head { flex-wrap: wrap; gap: 0.3rem 0.5rem; margin-bottom: 0.2rem; }
+  .inv-head .inv-chips { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  #hud:has(.inv) .stack { right: 15.6rem; padding-bottom: 0.4rem; }
+  #hud:has(.inv) .dock { right: 15.6rem; }
+  .tut { width: min(100%, 30rem); }
+  .tut-in { padding: 0.3rem 0.7rem 0.4rem; }
+  .dlg { font-size: 0.85rem; min-height: 2.2rem; line-height: 1.35; }
+  .tut .ptitle { font-size: 0.7rem; margin: 0.05rem 0 0.1rem; }
+  .modal-back.dlg-back { padding-bottom: 1rem; }
+}

@@ -466,7 +466,7 @@ export async function mountBoard(host: HTMLElement) {
         // no monitor installed: a dashed bay outside the case (not a NO SIGNAL screen; that needs a monitor and power)
         const mg = new Graphics();
         dashed(mg, pts, 40, 30); mg.stroke({ width: 10, color: T.mute, alpha: 0.7 });
-        box(mg, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, { fill: SCREEN_BG, fa: 0.4 });
+        box(mg, SCREEN.x, SCREEN.y, SCREEN.w, SCREEN.h, 30, T.dark ? { fill: SCREEN_BG, fa: 0.4 } : { fill: T.sub, fa: 0.55 });
         monitorLayer.addChild(mg, label('MONITOR BAY', r.x + r.w / 2, r.y + r.h / 2, 200, T.mute, { anchor: [0.5, 0.5], head: true }));
         continue;
       }

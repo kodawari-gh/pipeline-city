@@ -113,7 +113,9 @@ function InsetReporter() {
       const gap = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.5;
       const next = { top: 0, right: 0, bottom: 0, left: 0 };
       const bar = document.querySelector('.hud');
-      if (bar) next.top = Math.ceil(bar.getBoundingClientRect().bottom + gap);
+      // On a narrow screen the level pill drops below the bar: it counts as covered too, so cards and the camera start under it.
+      const pill = document.querySelector('.hud-center');
+      if (bar) next.top = Math.ceil(Math.max(bar.getBoundingClientRect().bottom, pill?.getBoundingClientRect().bottom ?? 0) + gap);
       let invSeen = false;
       for (const el of document.querySelectorAll('.dock, .inv, .invbar, .tut')) {
         const r = el.getBoundingClientRect();

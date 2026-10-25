@@ -17,9 +17,9 @@ const DARK: Omit<Theme, 'dark'> = {
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
 const LIGHT: Omit<Theme, 'dark'> = {
-  bg: '#cfd9e6', board: '#d4e6e0', trace: '#7fa9a3', sub: '#d3dcec', die: '#eef2f9', pin: '#c89b3c', tile: '#fbfcff',
-  ink: '#18203a', mute: '#5b6788', line: '#c3cde0', dot: '#d3dbea', on: '#ffffff',
-  alu: '#0a9fc4', mul: '#7b5cf0', ld: '#d98a00', st: '#16a860', br: '#d62fb0', bad: '#e0284a',
+  bg: '#eaeff6', board: '#9ccdbd', trace: '#2c7a72', sub: '#c4d0e4', die: '#dde6f4', pin: '#b3801c', tile: '#ffffff',
+  ink: '#0f1830', mute: '#475372', line: '#9aabc8', dot: '#c3cfe3', on: '#ffffff',
+  alu: '#0786ab', mul: '#6a49e0', ld: '#c47600', st: '#0f9a53', br: '#c4259f', bad: '#c81e3e',
 };
 
 export function isDark(): boolean {
@@ -60,17 +60,17 @@ export interface Palette {
 
 export function makePalette(T: Theme): Palette {
   const mix = (a: string, b: string, t: number) => mixHex(a, b, t);
-  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(T.board, '#ffffff', 0.45);
+  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(T.board, '#ffffff', 0.12);
   return {
     board,
-    edge: mix(board, T.line, T.dark ? 0.9 : 0.8),
-    trace: mix(board, T.trace, T.dark ? 0.5 : 0.45),
+    edge: mix(board, T.line, T.dark ? 0.9 : 0.55),
+    trace: mix(board, T.trace, T.dark ? 0.5 : 0.62),
     copper: mix(board, T.pin, T.dark ? 0.32 : 0.45),
     via: mix(board, T.pin, 0.5),
     sub: mix(board, T.sub, T.dark ? 0.75 : 0.7),
-    dark: mix(board, T.bg, T.dark ? 0.55 : 0.18),
-    silk: mix(board, T.ink, T.dark ? 0.3 : 0.32),
-    silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.55),
+    dark: T.dark ? mix(board, T.bg, 0.55) : mix(board, T.ink, 0.3),
+    silk: mix(board, T.ink, T.dark ? 0.3 : 0.55),
+    silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.75),
     panel: mix(board, T.tile, T.dark ? 0.55 : 0.5),
   };
 }

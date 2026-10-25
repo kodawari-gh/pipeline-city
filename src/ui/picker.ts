@@ -447,6 +447,15 @@ export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderSte
       r.warn = kind === 'cpu' ? cpuVrmWarning(s, r.specId) ?? undefined : kind === 'ram' ? ramVrmWarning(s, r.specId) ?? undefined : liquidVrmNote(s, r.specId) ?? undefined;
     }
   }
+  // An operating system the installed memory cannot hold: say so on the tile (the OS will not boot).
+  if (kind === 'os') {
+    const have = installedRamBytes(s);
+    for (const r of out) {
+      const spec = getOsSpec(r.specId);
+      if (r.state === 'installed' || !spec || have >= spec.minRamBytes) continue;
+      r.warn = `needs ${spec.minRamBytes / 1024}K of memory, you have ${have / 1024}K. Buy more memory first.`;
+    }
+  }
   // The network parts: what the rest of the chain still lacks (an OS, 64K of RAM, a jack), and the words for owned and applied rungs.
   if (kind === 'router' || kind === 'isp' || kind === 'nic') {
     const note = hardwareWarn(s, kind) ?? undefined;
@@ -457,6 +466,17 @@ export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderSte
     }
   }
   return out;
+}
+
+/** Total memory of the working sticks in the machine, bytes. */
+export function installedRamBytes(s: Snapshot): number {
+  let n = 0;
+  for (const d of s.devices) {
+    if (d.kind !== 'ram' || d.burnt) continue;
+    const spec = getSpec(d.spec);
+    if (spec?.kind === 'ram') n += spec.sizeBytes;
+  }
+  return n;
 }
 
 /**
