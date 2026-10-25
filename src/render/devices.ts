@@ -1,12 +1,12 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, STAGES, VENTS, VIDEO_Y, VRM_SINK,
+  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, STAGES, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
   type Rect, type Tile,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
 import { SINK_FAN_R, sinkFanAt } from './pins';
-import { hdmiPlug, monitorSocket, rj45Plug } from './ports';
+import { hdmiPlug, monitorInlet, monitorSocketDown, rj45Plug } from './ports';
 import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
@@ -414,7 +414,6 @@ export function monitorArt(T: Theme, on: boolean): Part {
   // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
   root.position.set(MONITOR.x, MONITOR.y); root.scale.set(MONITOR_K);
   const m = { x: 0, y: 0, w: 3300, h: 1995 }, s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
-  const portY = (VIDEO_Y - MONITOR.y) / MONITOR_K;
   const shell = T.dark ? '#141a26' : '#262d3a';
   const cx = m.x + m.w / 2, by = m.y + m.h;
   // stand: base, neck
@@ -436,7 +435,9 @@ export function monitorArt(T: Theme, on: boolean): Part {
   labels.addChild(label('PIPELINE CITY', cx, cy, 44, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
   disc(g, m.x + m.w - 150, cy, 16, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
   // side port (the HDMI cable plugs in here)
-  monitorSocket(g, T, m.x + m.w - 12, portY, 34, 110);
+  // the video socket and the mains inlet are in the underside, where a real monitor's are (the plug and the cord hang below them)
+  monitorSocketDown(g, T, (VIDEO_SOCKET.x - MONITOR.x) / MONITOR_K, by - 4, 110, 44);
+  monitorInlet(g, T, (MONITOR_POWER.x - MONITOR.x) / MONITOR_K, by - 4, 120, 36);
   labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
   root.addChild(labels);
   return { root };

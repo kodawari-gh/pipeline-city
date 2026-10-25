@@ -136,8 +136,14 @@ export const MONITOR_K = 1.6;
 export const SCREEN_D = { w: 3120, h: 1755 };
 export const MONITOR: Rect = { x: -4200 - 3300 * MONITOR_K, y: -2150, w: 3300 * MONITOR_K, h: 1995 * MONITOR_K };
 export const SCREEN: Rect = { x: MONITOR.x + 90 * MONITOR_K, y: MONITOR.y + 80 * MONITOR_K, w: 3120 * MONITOR_K, h: 1755 * MONITOR_K };
-/** Y of the video cable and of the HDMI port on the rear I/O. */
+/** Y of the HDMI port on the rear I/O (the video cable leaves it west, runs down the gap and enters the monitor from below). */
 export const VIDEO_Y = -1150;
+/** The monitor's video socket is in its underside, mouth facing down: `y` is the mouth (the plug's nose), `x` its centre. */
+export const VIDEO_SOCKET = { x: MONITOR.x + MONITOR.w - 620, y: MONITOR.y + MONITOR.h + 64 };
+/** The video cable's run under the monitor (y, above the shelf's plank) and its vertical run in the gap between the monitor and the case (x). */
+export const VIDEO_RUN_Y = MONITOR.y + MONITOR.h + 560, VIDEO_TRUNK_X = -4090;
+/** The monitor's mains inlet, also in its underside, west of the video socket: the mouth of the socket. */
+export const MONITOR_POWER = { x: MONITOR.x + MONITOR.w - 1250, y: MONITOR.y + MONITOR.h + 56 };
 
 // ---- assembly props: the USB key tray, the power button, the USB port ----
 /** USB key tray, just under the monitor stand: 3 columns by 4 rows of keys (queue cap 10). */
@@ -198,6 +204,8 @@ export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 
 /** The USB-A port on the rear I/O panel that keys plug into (its mouth faces west). */
 export const USB_PORT: Rect = { x: IO_X + 18, y: -54, w: 290, h: 108 };
+/** The PC's mains inlet on the rear wall, at the PSU's end (mouth facing west; `y` follows the PSU, so the case tier). */
+export let PC_POWER = { x: IO_X, y: 2550 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: IO_X, y: VIDEO_Y - 60, w: 240, h: 120 };
 
@@ -256,6 +264,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const psuEast = east + 600, psuW = psuEast + 3400;
   PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
+  PC_POWER = { x: IO_X, y: PSU.y + 560 };
   // the unit sits at the east end under the cable sockets; the shroud (readout panel at its west end, then the vents) fills the rest
   PSU_UNIT = { x: psuEast - 2500, y: PSU.y, w: 2500, h: PSU.h };
   PSU_FAN = { x: PSU_UNIT.x + 640, y: PSU.y + 550, r: 430 };

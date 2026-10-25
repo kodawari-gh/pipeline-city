@@ -181,6 +181,50 @@ export function monitorSocket(g: Graphics, T: Theme, x: number, y: number, w: nu
   g.rect(x + 6, y + h / 2 - Math.max(4, h * 0.18) - 4, w - cc - 6, Math.max(4, h * 0.18)).fill({ color: m.lo, alpha: 0.5 });
 }
 
+/** The socket in the monitor's underside that the HDMI plug enters from below: a metal stub standing out of the bezel, its opening facing down (x is its centre, y the bezel's lower edge). */
+export function monitorSocketDown(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
+  const m = metalOf(T), cc = 14, x0 = x - w / 2, band = Math.max(4, w * 0.16);
+  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+  g.poly([x0, y, x0 + w, y, x0 + w, y + h - cc, x0 + w - cc, y + h, x0 + cc, y + h, x0, y + h - cc]).fill({ color: m.mid }).stroke({ width: 4, color: m.rim, alpha: 0.85 });
+  g.rect(x0 + 4, y + 6, band, h - cc - 6).fill({ color: m.hi, alpha: T.dark ? 0.5 : 0.8 });
+  g.rect(x0 + w - band - 4, y + 6, band, h - cc - 6).fill({ color: m.lo, alpha: 0.5 });
+}
+
+/** The monitor's mains inlet in its underside (a black plastic block with a metal lip, opening down): the same placement as `monitorSocketDown`. */
+export function monitorInlet(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
+  const m = metalOf(T), x0 = x - w / 2;
+  box(g, x0 + 9, y + 4, w, h, 8, { fill: '#000000', fa: shadowA(T) });
+  box(g, x0, y - 2, w, h + 2, 8, { fill: m.rubber, stroke: m.rim, lw: 4, sa: 0.8 });
+  g.rect(x0 + 8, y + 3, w - 16, Math.max(4, h * 0.2)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  metalBlock(g, T, x0 - 5, y + h - 8, w + 10, 14, 5);
+}
+
+/** The PC's mains inlet (an IEC C14) in the rear wall, side profile, mouth facing west at p.x: the wall's opening, a black body through it and a metal lip. */
+export function acInlet(g: Graphics, T: Theme, p: { x: number; y: number }, o: { wallX: number; wallW: number }) {
+  const m = metalOf(T), h = 250, y0 = p.y - h / 2, w = o.wallW - 24;
+  wallHole(g, T, o.wallX, o.wallW, y0, h);
+  box(g, p.x + 4, y0 + 8, w, h - 16, 10, { fill: m.rubber, stroke: m.rim, lw: 4, sa: 0.8 });
+  g.rect(p.x + 18, y0 + 14, w - 30, Math.max(4, h * 0.12)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  metalBlock(g, T, p.x - 6, y0 - 5, 22, h + 10, 6);                                                              // the lip
+  for (const dy of [-60, 0, 60]) g.rect(p.x + 24, p.y + dy - 7, w - 60, 14).fill({ color: m.hole, alpha: 0.7 }); // the pin slots, seen through the cut-away
+}
+
+/** An IEC C13 power plug in side profile, like the signal plugs (nose at (x, y), the body running away along (dx, dy)): a black overmould with grip ridges and a tapered boot. */
+export function acPlug(g: Graphics, T: Theme, p: PlugPose) {
+  const m = metalOf(T), L = local(p), body = T.dark ? '#141a26' : '#262d3a';
+  const [sx, sy, sw, sh] = L.rect(0, -p.w / 2, p.l, p.w / 2);
+  box(g, sx + 6, sy + 10, sw, sh, 14, { fill: '#000000', fa: shadowA(T) * 0.7 });
+  lit(g, T, L, 0, -p.w * 0.42, p.l * 0.22, p.w * 0.42, 8, mix(body, m.mid, 0.25), m.rim);                      // the nose, a shade lighter
+  lit(g, T, L, p.l * 0.2, -p.w / 2, p.l * 0.8, p.w / 2, 14, body, m.rim, 0.8);                                  // the body
+  for (let k = 0; k < 4; k++) {
+    const u = p.l * (0.3 + k * 0.08), a = L.at(u, -p.w / 2 + 12), b = L.at(u, p.w / 2 - 12);
+    g.moveTo(a[0], a[1]).lineTo(b[0], b[1]);
+  }
+  g.stroke({ width: 4, color: '#ffffff', alpha: 0.14 });
+  const cable = p.w * 0.3;
+  g.poly(L.poly([[p.l * 0.78, -p.w * 0.36], [p.l, -cable / 2], [p.l, cable / 2], [p.l * 0.78, p.w * 0.36]])).fill({ color: body }).stroke({ width: 4, color: m.rim, alpha: 0.5 });
+}
+
 /**
  * A USB-A plug in side profile, nose at the east end (x + w, y centre): a metal sleeve with its seam, the two retention dimples and a
  * dark plastic collar where it meets the stick's body. The same size as the port's opening (`KEY_PLUG_H` in props.ts).

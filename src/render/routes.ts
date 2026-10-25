@@ -1,7 +1,7 @@
 import { DIMM_H0, ioPort, type TierGeo } from './boardlayout';
 import { serpentine, type SerpOpts } from './match';
 import {
-  BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
+  BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from './layout';
 import {
   LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, pcieAux, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
@@ -599,11 +599,12 @@ export function buildCables(): Cable[] {
     out.push(mkc('pcie', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 84, plugV(x, PORT_Y, 110, [3, 2]),
       { x: plugX, y, dx: 1, dy: 0, w: g.pciew.h - 40, l: 270, pins: [3, 2] }, 190));
   }
-  // video: HDMI port on the rear I/O (west edge of the board) straight to the monitor's side port
+  // video: from the HDMI port on the rear I/O (west edge of the board) west into the gap, down it, under the monitor and up into its video socket,
+  // which is in the monitor's underside (where an HDMI socket is on a real one): the plug hangs below it and the cable turns east
   {
-    const x0 = BR.io.x, x1 = -4200;
-    out.push(mkc('video', [[x0 - 200, VIDEO_Y], [x1 + 200, VIDEO_Y]], 76,
-      { x: x0, y: VIDEO_Y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] }, { x: x1, y: VIDEO_Y, dx: 1, dy: 0, w: 130, l: 220, pins: [1, 1] }, 1));
+    const x0 = BR.io.x, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y, l = 220;
+    out.push(mkc('video', [[x0 - 200, VIDEO_Y], [VIDEO_TRUNK_X, VIDEO_Y], [VIDEO_TRUNK_X, VIDEO_RUN_Y], [sx, VIDEO_RUN_Y], [sx, sy + l - 20]], 76,
+      { x: x0, y: VIDEO_Y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] }, { x: sx, y: sy, dx: 0, dy: 1, w: 130, l, pins: [1, 1] }, 150));
   }
   return out;
 }
@@ -641,10 +642,11 @@ export const LOOSE_SCALE = 0.54;
 /** Where an unplugged cable's loose plug rests: the PSU cables in the gutter by the PSU, the HDMI cable near the monitor. */
 export function looseCable(c: Cable): Loose {
   if (c.kind === 'video') {
-    const y = VIDEO_Y + 420;
+    const y = VIDEO_Y + 420, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y;
     const plug: Plug = { x: -3580, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] };
-    const route: Pt[] = [[-3990, VIDEO_Y], [-3880, VIDEO_Y], [-3880, y], [-3580 - 220 + 8, y]];
-    return { path: mkLane(roundedPath(route, 90)), plug, anchor: [-4000, VIDEO_Y], anchorDir: [1, 0] };
+    // the cable still hangs from the monitor's socket (the plug stays in it); the loose end lies in the gap by the rear wall
+    const route: Pt[] = [[sx, sy + 200], [sx, VIDEO_RUN_Y], [-3880, VIDEO_RUN_Y], [-3880, y], [-3580 - 220 + 8, y]];
+    return { path: mkLane(roundedPath(route, 90)), plug, anchor: [sx, sy + 200], anchorDir: [0, 1] };
   }
   const x = c.a.x;
   const w = Math.round(movablePlug(c).w * LOOSE_SCALE), l = 150;

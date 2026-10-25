@@ -4,8 +4,9 @@ import { Container } from 'pixi.js';
 // The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
-import { CASE, MONITOR, MONITOR_K, ROUTER_SPOT, SHELF_Y, TRAY, setLayoutTier } from './layout';
-import { DAY_S, DESK, FOOT, ROOM, RoomView, START_HOUR, deskY, duskAt, hourAt, isRoomId, nightAt, roomClick, roomDebug, roomGeo, roomState, shaftSpan, skyAt } from './room';
+import { CASE, MONITOR, MONITOR_K, MONITOR_POWER, PC_POWER, ROUTER_SPOT, SHELF_Y, TRAY, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, setLayoutTier } from './layout';
+import { buildCables } from './routes';
+import { DAY_S, DESK, FOOT, RoomView, START_HOUR, deskY, duskAt, hourAt, isRoomId, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -23,8 +24,9 @@ describe('the desk follows the case', () => {
     const g = roomGeo();
     expect(g.ys).toBe(CASE.y + CASE.h + FOOT);
     expect(g.ys).toBe(deskY());
-    expect(g.ys + DESK.slab).toBeLessThan(DESK.floor - 200);
-    expect(g.ys).toBeLessThan(ROOM.y + ROOM.h);
+    expect(g.floor).toBe(g.ys + DESK.slab + DESK.under);
+    expect(g.ys + DESK.slab).toBeLessThan(g.floor - 200);
+    expect(g.ys).toBeLessThan(roomBox(g).y + roomBox(g).h);
   });
 
   it('a taller case sits lower on the desk (the desk top never rises)', () => {
@@ -45,7 +47,6 @@ describe('the desk follows the case', () => {
     expect(g.desk.x1 - (CASE.x + CASE.w)).toBeLessThan(2500); // and no more than that east of the case
     expect(g.mug).toBeGreaterThan(CASE.x + CASE.w);
     expect(g.mug + 760).toBeLessThan(g.desk.x1); // the handle too
-    expect(g.desk.x1 - g.desk.x0).toBeLessThan(ROOM.w * 0.75);
   });
 
   it.each([0, 1, 2, 3])('tier %i: the shelf unit holds the tray and reaches the desk, the monitor stands on it', (t) => {
@@ -64,15 +65,18 @@ describe('the room layout', () => {
   it.each([0, 1, 2, 3])('tier %i: every prop is inside the room box and the clickable ones are on the wall or the desk', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo();
-    for (const r of [g.window, g.lamp.rect, g.unit, { x: g.clock.x - g.clock.r, y: g.clock.y - g.clock.r, w: 2 * g.clock.r, h: 2 * g.clock.r }]) expect(inside(r, ROOM)).toBe(true);
+    for (const r of [g.window, g.lamp.rect, g.unit, { x: g.clock.x - g.clock.r, y: g.clock.y - g.clock.r, w: 2 * g.clock.r, h: 2 * g.clock.r }]) expect(inside(r, roomBox(g))).toBe(true);
     expect(g.lamp.rect.y + g.lamp.rect.h).toBeLessThanOrEqual(g.ys);
     // the window and the clock stay clear of the router shelf and the machine
     expect(g.window.x + g.window.w).toBeLessThan(ROUTER_SPOT.x);
     expect(g.clock.y + g.clock.r).toBeLessThan(SHELF_Y - 400);
-    expect(g.desk.x0).toBeGreaterThanOrEqual(ROOM.x);
-    expect(g.desk.x1).toBeLessThanOrEqual(ROOM.x + ROOM.w);
-    expect(inside(g.cork, ROOM)).toBe(true);
-    expect(g.cork.x + g.cork.w).toBeLessThan(g.window.x - 200); // the corkboard is west of the window
+    const box = roomBox(g);
+    expect(box.x).toBeLessThan(g.desk.x0);
+    expect(box.x + box.w).toBeGreaterThan(g.desk.x1);
+    expect(box.y + box.h).toBeGreaterThan(g.floor); // the floor is in the box, and not much more than that
+    expect(box.y + box.h - g.floor).toBeLessThan(800);
+    expect(box.y).toBeLessThan(g.clock.y - g.clock.r); // the clock is in it, with a little wall above
+    expect(g.clock.y - g.clock.r - box.y).toBeLessThan(1200);
   });
 
   it('the hood mouth and the lamp rectangle are consistent', () => {
@@ -108,6 +112,43 @@ describe('time of day', () => {
     expect(skyAt(0)).toEqual(skyAt(24 - 1e-9));
     for (let h = 0; h < 24; h += 0.5) { const s = skyAt(h); expect(s.top).toMatch(/^#[0-9a-f]{6}$/); expect(s.hor).toMatch(/^#[0-9a-f]{6}$/); }
     expect(skyAt(12).top).not.toBe(skyAt(0).top);
+  });
+});
+
+describe('the mains and the video cable', () => {
+  it.each([0, 1, 2, 3])('tier %i: the socket is on the wall under the desk, both outlets inside the plate, the inlets are where the cords start', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo(), s = g.socket, box = roomBox(g);
+    expect(s.plate.y).toBeGreaterThan(g.ys + DESK.slab + 900); // well under the slab
+    expect(s.plate.y + s.plate.h).toBeLessThan(g.floor - 90);  // above the skirting board
+    expect(inside(s.plate, box)).toBe(true);
+    for (const o of [s.mon, s.pc]) expect(inside({ x: o.x - 300, y: o.y - 300, w: 600, h: 600 }, s.plate)).toBe(true);
+    expect(s.mon.x + 300).toBeLessThan(s.pc.x - 300); // two plugs side by side
+    // the PC's inlet is on the rear wall at the PSU; the monitor's is under its bezel
+    expect(PC_POWER.y).toBeGreaterThan(CASE.y + CASE.h / 2);
+    expect(PC_POWER.y).toBeLessThan(CASE.y + CASE.h);
+    expect(MONITOR_POWER.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
+    expect(MONITOR_POWER.x).toBeLessThan(VIDEO_SOCKET.x - 200);
+    expect(MONITOR_POWER.x).toBeGreaterThan(MONITOR.x + MONITOR.w / 2 + 1280 + 85); // the plug (170 wide) clears the stand foot (2,560 wide)
+  });
+
+  it('the video cable leaves the HDMI port west, runs down the gap, under the monitor and enters its underside from below', () => {
+    const c = buildCables().find((x) => x.kind === 'video')!;
+    expect(c).toBeTruthy();
+    const pts = c.path.pts, first = pts[0]!, last = pts[pts.length - 1]!;
+    expect(first[1]).toBe(VIDEO_Y);
+    expect(last[0]).toBeCloseTo(VIDEO_SOCKET.x, 6);
+    expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is below the socket: the cable hangs from it
+    expect(c.b).toMatchObject({ x: VIDEO_SOCKET.x, y: VIDEO_SOCKET.y, dx: 0, dy: 1 }); // the monitor's plug points up into it, its body below
+    expect(VIDEO_SOCKET.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
+    // the run under the monitor is above the shelf unit's plank, and the trunk is in the gap between the monitor and the case
+    setLayoutTier(0, 0);
+    const u = roomGeo().unit;
+    expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(u.y);
+    expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
+    expect(VIDEO_TRUNK_X).toBeLessThan(CASE.x);
+    // it never goes through the monitor
+    for (const [x, y] of pts) expect(x > MONITOR.x && x < MONITOR.x + MONITOR.w && y > MONITOR.y && y < MONITOR.y + MONITOR.h, `point ${x},${y} is inside the monitor`).toBe(false);
   });
 });
 
@@ -148,7 +189,7 @@ describe.each([0, 1, 2, 3])('RoomView at case tier %i', (t) => {
     const v = new RoomView(T);
     expect(v.root.children.length).toBeGreaterThan(3);
     expect(v.hits.map((h) => h.id).sort()).toEqual(['blind', 'lamp']);
-    for (const h of v.hits) expect(inside(h.rect, ROOM)).toBe(true);
+    for (const h of v.hits) expect(inside(h.rect, roomBox(v.geo))).toBe(true);
     for (let k = 0; k < 24; k++) v.frame(k * (DAY_S * 1000) / 24, 16);
     roomState.blind = true; roomState.lamp = false;
     v.frame(1000, 600); v.frame(2000, 600);

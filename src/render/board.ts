@@ -23,7 +23,7 @@ import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf,
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
-import { ROOM, RoomView, roomDebug, roomState, type RoomHit } from './room';
+import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from './room';
 import { onThemeChange, readTheme, type Theme } from './theme';
 import { initThumbs } from './thumbs';
 
@@ -48,7 +48,7 @@ const PROPS_FRAME = new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY
  * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. The zoom-out is capped by the room
  * (`capZoom`), never short of `fadeTo`. Tune `fadeFrom` and `fadeTo`.
  */
-export const LOD = { fadeFrom: 0.7, fadeTo: 0.5 };
+export const LOD = { fadeFrom: 0.92, fadeTo: 0.8 };
 /** The overview shows the machine with some of the room around it: the fit margin (the machine alone would fill the screen at 0.96). */
 const ROOM_MARGIN = 0.84;
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
@@ -73,10 +73,10 @@ let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 /** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
 const overviewFit = (c: Camera): View => c.clampView(c.fit(WORLD, Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
-/** How far the camera may zoom out: where the room fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the room box). */
+/** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the box). */
 const capZoom = (c: Camera, overview: View): number => {
-  const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom);
-  return Math.min(overview.z * LOD.fadeTo, Math.max(aw / ROOM.w, ah / ROOM.h));
+  const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom), box = c.bounds ?? roomBox();
+  return Math.min(overview.z * LOD.fadeTo, Math.max(aw / box.w, ah / box.h));
 };
 export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(cameraRef)); }
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
@@ -326,6 +326,7 @@ export async function mountBoard(host: HTMLElement) {
     clear(roomLayer);
     roomView = new RoomView(T, undefined, app.renderer);
     roomLayer.addChild(roomView.root);
+    camera.bounds = roomBox(roomView.geo);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
@@ -742,7 +743,7 @@ export async function mountBoard(host: HTMLElement) {
   };
   camera.resize(app.screen.width, app.screen.height);
   camera.snapInset({ ...viewInset.peek() });
-  camera.bounds = ROOM;
+  camera.bounds = roomBox();
   fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
   camera.set(fits);
   app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));

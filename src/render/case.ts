@@ -2,10 +2,11 @@ import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
   sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
+import { acInlet } from './ports';
 import { sinkFanAt } from './pins';
 import { mkLane, roundedPath, type Lane, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -332,6 +333,8 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
     g.fill({ color: cav, alpha: 0.9 });
     disc(g, x + w / 2, y + 134, 9, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
   }
+  // the PSU's mains inlet, at the PSU's end of the wall
+  acInlet(g, T, PC_POWER, { wallX: CASE.x, wallW: WALL_T });
   // the rear exhaust above the I/O opening: a fan, or on the Mini (no room for one) a perforated grille
   box(g, x - 4, REAR_FAN.y - 24, w + 8, REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
   if (REAR_FAN_FITTED) edgeFan(g, T, REAR_FAN, true, wall, edge);
