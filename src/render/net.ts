@@ -5,7 +5,7 @@ import { drawPlug, plugRect } from './devices';
 import { box, dashed, disc, label, mix, clear } from './ink';
 import type { LanJack, LanScene, SceneInfo } from './interact';
 import {
-  BD, CABLE_ROW_Y, ETH0_MOUTH, ETH0_RECT, LAN_TRUNK_X, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
+  BD, CABLE_ROW_Y, DESK_SLAB, DESK_Y, ETH0_MOUTH, ETH0_RECT, ISP_ROW_Y, LAN_TRUNK_X, MONITOR, RISER, WALL_Y, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
   NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,
 } from './layout';
 import { IO_X } from './boardlayout';
@@ -117,8 +117,8 @@ export function routerArt(T: Theme, visual: string, name: string): Container {
 export function wallArt(T: Theme, isp: { id: string; name: string; downMbps: number } | null): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
-  // drawn at design size (460 x 420) with its bottom-left corner on the shelf line, then scaled about that corner
-  root.position.set(WALL_PLATE.x, SHELF_Y); root.scale.set(NET_K);
+  // drawn at design size (460 x 420) with its bottom-left corner on the plate's baseline (`WALL_Y`, under the desk), then scaled about that corner
+  root.position.set(WALL_PLATE.x, WALL_Y); root.scale.set(NET_K);
   const p = { x: 0, y: -420, w: 460, h: 420 }, cx = p.x + p.w / 2;
   const [hi, lo] = T.dark ? ['#3a4560', '#252d44'] : ['#f1f4f9', '#cbd4e4'];
   const ink = T.dark ? '#dfe7ff' : '#26324f';
@@ -197,6 +197,8 @@ export interface NetHit { id: string; rect: Rect; more?: Rect[] }
 export class NetView {
   /** External layer (router, wall plate, ISP line, ethernet cable, jack LEDs, traffic pulses): drawn at every zoom. */
   readonly root = new Container();
+  /** The ISP cable's body: it runs behind the desk, the riser and the monitor, so board.ts puts this container in the room's back layer (the desk and the monitor are drawn over it). */
+  readonly behind = new Container();
   private art = new Container();
   private g = new Graphics();
   hits: NetHit[] = [];
@@ -255,6 +257,7 @@ export class NetView {
     scene.slots.delete('router');
     this.own = [];
     clear(this.art);
+    clear(this.behind);
     this.hits = [];
     this.lan = null; this.isp = null; this.jacks = jacks; this.lanPortId = portId; this.lanState = lanState;
     this.router = rv ? { visual: rv, name: net!.router!.name } : null;
@@ -283,20 +286,24 @@ export class NetView {
     this.art.addChild(wallArt(T, net?.isp ?? null));
     reg('wall', WALL_PLATE);
 
-    const cable = (pts: Pt[], w: number, col: string, a = 1) => {
-      const line = (dx = 0, dy = 0) => { g.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
-      line(8, 12); g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-      line(); g.stroke({ width: w, color: T.dark ? '#171d29' : '#2a313d', cap: 'round', join: 'round', alpha: a });
-      line(); g.stroke({ width: w * 0.28, color: col, alpha: 0.5 * a, cap: 'round', join: 'round' });
+    const cable = (pts: Pt[], w: number, col: string, a = 1, gg: Graphics = g) => {
+      const line = (dx = 0, dy = 0) => { gg.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) gg.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
+      line(8, 12); gg.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
+      line(); gg.stroke({ width: w, color: T.dark ? '#171d29' : '#2a313d', cap: 'round', join: 'round', alpha: a });
+      line(); gg.stroke({ width: w * 0.28, color: col, alpha: 0.5 * a, cap: 'round', join: 'round' });
     };
 
-    // the ISP line: wall jack to the router's WAN socket (a thin lead with a gentle hang)
+    // the ISP line: from the wall jack under the desk down a little, along, and up behind the desk, the riser and the monitor to the router's WAN socket
+    // (a thin lead; the body is in `behind`, under the desk and the monitor, the plugs here)
     if (this.router && net?.isp) {
-      const wx = WALL_JACK.x, rx = wanX(this.router.visual), y1 = SHELF_Y + PLUG_L - 10;
-      const route: Pt[] = [[wx, y1], [wx, CABLE_ROW_Y + 60], [rx, CABLE_ROW_Y + 60], [rx, y1]];
-      this.isp = mkLane(roundedPath(route, 70));
-      cable(this.isp.pts, 26, T.mute);
-      for (const x of [wx, rx]) drawPlug(g, T, { x, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
+      const wx = WALL_JACK.x, rx = wanX(this.router.visual), y1w = WALL_Y + PLUG_L - 10, y1r = SHELF_Y + PLUG_L - 10;
+      const route: Pt[] = [[wx, y1w], [wx, ISP_ROW_Y], [rx, ISP_ROW_Y], [rx, y1r]];
+      this.isp = mkLane(roundedPath(route, 120));
+      const gb = new Graphics();
+      this.behind.addChild(gb);
+      cable(this.isp.pts, 26, T.mute, 1, gb);
+      drawPlug(g, T, { x: wx, y: WALL_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
+      drawPlug(g, T, { x: rx, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
     }
 
     // the ethernet cable: its router end is always seated; the PC end is on a jack (connected), at rest (loose) or in the hand (held)
@@ -378,7 +385,7 @@ export class NetView {
       led(sockLed(lanX(v)), link);
     }
     // wall jack light: lit once there is a plan
-    if (this.hasIsp) led({ x: WALL_JACK.x, y: SHELF_Y - (SOCK_H + 38) * NET_K }, [T.st, 0.85]);
+    if (this.hasIsp) led({ x: WALL_JACK.x, y: WALL_Y - (SOCK_H + 38) * NET_K }, [T.st, 0.85]);
 
     // traffic pulses: downloads run router -> PC, uploads PC -> router; speed and density follow the direction's bandwidth
     const bw = net.bandwidth;
@@ -387,12 +394,13 @@ export class NetView {
       if (this.ampUp > 0) this.pulses(this.lan, -1, bw.upMbps, this.ampUp, T.mul, gt, 0.5);
     }
     if (this.isp) {
-      if (this.ampDown > 0) this.pulses(this.isp, 1, bw.downMbps, this.ampDown, T.alu, gt, 0);
-      if (this.ampUp > 0) this.pulses(this.isp, -1, bw.upMbps, this.ampUp, T.mul, gt, 0.5);
+      // the lead runs behind the desk, the riser and the monitor: a pulse there is not drawn
+      if (this.ampDown > 0) this.pulses(this.isp, 1, bw.downMbps, this.ampDown, T.alu, gt, 0, hiddenBehind);
+      if (this.ampUp > 0) this.pulses(this.isp, -1, bw.upMbps, this.ampUp, T.mul, gt, 0.5, hiddenBehind);
     }
   }
 
-  private pulses(lane: Lane, dir: 1 | -1, mbps: number, amp: number, col: string, gt: number, phase: number) {
+  private pulses(lane: Lane, dir: 1 | -1, mbps: number, amp: number, col: string, gt: number, phase: number, hidden?: (x: number, y: number) => boolean) {
     const g = this.g;
     const lvl = clamp((Math.log10(Math.max(mbps, 10)) - 1) / 3.6);
     const v = 450 + 2300 * lvl, spacing = 640 - 400 * lvl;
@@ -400,11 +408,18 @@ export class NetView {
     for (let s = off; s < lane.len; s += spacing) {
       const e = clamp(Math.min(s, lane.len - s) / 260);
       const [x, y] = pointAt(lane, dir > 0 ? s : lane.len - s);
+      if (hidden?.(x, y)) continue;
       const a = amp * e;
       g.circle(x, y, 44).fill({ color: col, alpha: 0.16 * a });
       g.circle(x, y, 20).fill({ color: col, alpha: 0.9 * a });
     }
   }
 }
+
+/** Whether a point is behind the monitor, the riser or the desk slab (where the ISP lead is out of sight). */
+const hiddenBehind = (x: number, y: number) => {
+  const inR = (r: Rect) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
+  return inR(MONITOR) || inR(RISER) || (y > DESK_Y - 20 && y < DESK_Y + DESK_SLAB + 20);
+};
 
 const pad = (r: Rect, e: number): Rect => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });

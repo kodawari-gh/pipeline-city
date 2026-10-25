@@ -4,9 +4,11 @@ import { Container } from 'pixi.js';
 // The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
-import { CASE, MONITOR, MONITOR_K, MONITOR_POWER, PC_POWER, ROUTER_SPOT, SHELF_Y, TRAY, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, setLayoutTier } from './layout';
+import {
+  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, RISER, RISER_H, ROUTER_SPOT, SHELF_Y, TRAY, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
+} from './layout';
 import { buildCables } from './routes';
-import { DAY_S, DESK, FOOT, RoomView, START_HOUR, deskY, duskAt, hourAt, isRoomId, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
+import { DAY_S, DESK, FOOT, RoomView, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -24,9 +26,9 @@ describe('the desk follows the case', () => {
     const g = roomGeo();
     expect(g.ys).toBe(CASE.y + CASE.h + FOOT);
     expect(g.ys).toBe(deskY());
+    expect(g.floor).toBe(FLOOR_Y);
     expect(g.floor).toBe(g.ys + DESK.slab + DESK.under);
     expect(g.ys + DESK.slab).toBeLessThan(g.floor - 200);
-    expect(g.ys).toBeLessThan(roomBox(g).y + roomBox(g).h);
   });
 
   it('a taller case sits lower on the desk (the desk top never rises)', () => {
@@ -35,57 +37,65 @@ describe('the desk follows the case', () => {
     expect(ys).toEqual([...ys].sort((a, b) => a - b));
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the monitor stands on the plank, flush with it, and the desk is narrow and holds the machine, the keyboard and the mug', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the monitor stands on its foot on the riser, the riser on the desk, the tray in the riser', (t) => {
     setLayoutTier(t, t);
-    const g = roomGeo();
-    // the stand's foot ends 400 design units under the bezel (monitorArt), and the plank is the monitor's width
-    expect(g.unit.y).toBeCloseTo(MONITOR.y + MONITOR.h + 400 * MONITOR_K, 6);
-    expect(g.unit.x - 70).toBe(MONITOR.x);
-    expect(g.unit.x + g.unit.w + 70).toBe(MONITOR.x + MONITOR.w);
-    expect(g.desk.x0).toBeLessThan(MONITOR.x - 3000); // room for a keyboard west of the unit
-    expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);
-    expect(g.desk.x1 - (CASE.x + CASE.w)).toBeLessThan(2500); // and no more than that east of the case
-    expect(g.mug).toBeGreaterThan(CASE.x + CASE.w);
-    expect(g.mug + 760).toBeLessThan(g.desk.x1); // the handle too
+    const g = roomGeo(), by = MONITOR.y + MONITOR.h;
+    // the foot ends 400 design units under the bezel (monitorArt): that is where the riser's top plank starts, and the riser reaches the desk
+    expect(g.unit).toEqual(RISER);
+    expect(g.unit.y).toBeCloseTo(by + MON_STAND, 6);
+    expect(g.unit.y + g.unit.h).toBeCloseTo(g.ys, 6);
+    expect(g.unit.h).toBe(RISER_H);
+    // centred under the monitor, wider than the foot (2,560 design wide)
+    expect(g.unit.x + g.unit.w / 2).toBeCloseTo(MONITOR.x + MONITOR.w / 2, 6);
+    expect(g.unit.w).toBeGreaterThan(1600 * MONITOR_K);
+    // one cubby the tray stands in: under the plank, above the bottom board
+    expect(TRAY.y).toBeGreaterThanOrEqual(g.unit.y + 170);
+    expect(TRAY.y + TRAY.h).toBeLessThanOrEqual(g.ys - 100);
+    expect(TRAY.x).toBeGreaterThan(g.unit.x + 190); expect(TRAY.x + TRAY.w).toBeLessThan(g.unit.x + g.unit.w - 190);
+    // a 27 inch monitor: bigger than the case is deep, and not taller than it plus its foot
+    expect(MONITOR.w).toBeGreaterThan(CASE.w);
+    expect(MONITOR.w / CASE.w).toBeLessThan(1.45);
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the shelf unit holds the tray and reaches the desk, the monitor stands on it', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the desk holds the keyboard under the monitor, the case, the mug and the lamp at its east end', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo();
-    expect(g.unit.y).toBeGreaterThanOrEqual(MONITOR.y + MONITOR.h);
-    expect(g.unit.y + g.unit.h).toBe(g.ys);
-    expect(g.unit.x).toBeLessThan(TRAY.x);
-    expect(g.unit.x + g.unit.w).toBeGreaterThan(TRAY.x + TRAY.w);
-    expect(g.unit.y + 170).toBeLessThanOrEqual(TRAY.y); // the plank is above the tray
-    expect(g.unit.y + g.unit.h).toBeGreaterThan(TRAY.y + TRAY.h);
+    expect(g.desk.x0).toBeLessThan(MONITOR.x); // the keyboard stands under the monitor's west part
+    expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);
+    expect(g.mug).toBeGreaterThan(CASE.x + CASE.w);
+    expect(g.mug + 760).toBeLessThan(g.desk.x1); // the handle too
+    expect(g.lamp.x + 520).toBeLessThan(g.desk.x1); // the lamp's base is on the desk
+    expect(g.lamp.x).toBeGreaterThan(g.mug + 800);  // east of the mug
   });
 });
 
 describe('the room layout', () => {
-  it.each([0, 1, 2, 3])('tier %i: every prop is inside the room box and the clickable ones are on the wall or the desk', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: every prop is inside the room box, the box has no floor and no ceiling', (t) => {
     setLayoutTier(t, t);
-    const g = roomGeo();
-    for (const r of [g.window, g.lamp.rect, g.unit, { x: g.clock.x - g.clock.r, y: g.clock.y - g.clock.r, w: 2 * g.clock.r, h: 2 * g.clock.r }]) expect(inside(r, roomBox(g))).toBe(true);
+    const g = roomGeo(), box = roomBox(g);
+    for (const r of [g.window, g.lamp.rect, g.unit, g.clock, g.socket.plate, ROUTER_SPOT, WALL_PLATE]) expect(inside(r, box)).toBe(true);
     expect(g.lamp.rect.y + g.lamp.rect.h).toBeLessThanOrEqual(g.ys);
-    // the window and the clock stay clear of the router shelf and the machine
-    expect(g.window.x + g.window.w).toBeLessThan(ROUTER_SPOT.x);
-    expect(g.clock.y + g.clock.r).toBeLessThan(SHELF_Y - 400);
-    const box = roomBox(g);
+    // the window is west of the monitor, the clock above the case, the router shelf above the monitor
+    expect(g.window.x + g.window.w).toBeLessThan(MONITOR.x);
+    expect(g.clock.y + g.clock.h).toBeLessThan(CASE.y - 300);
+    expect(g.clock.x).toBeGreaterThan(CASE.x - 2000);
+    expect(ROUTER_SPOT.y + ROUTER_SPOT.h).toBeLessThan(MONITOR.y);
     expect(box.x).toBeLessThan(g.desk.x0);
     expect(box.x + box.w).toBeGreaterThan(g.desk.x1);
     expect(box.y + box.h).toBeLessThan(g.floor - 150); // no floor (or skirting board) in the box,
     expect(box.y + box.h).toBeGreaterThan(g.socket.plate.y + g.socket.plate.h); // but the wall socket is
-    const top = Math.min(g.clock.y - g.clock.r, g.window.y);
-    expect(box.y).toBeLessThan(top); // the clock and the window are in it, with a little wall above and no more
-    expect(top - box.y).toBeLessThan(800);
+    expect(box.y).toBeLessThan(g.top); // nothing above the highest thing (the router, the window) but a little wall
+    expect(g.top - box.y).toBeLessThan(700);
+    // the overview (WORLD) has the machine, the monitor and the router on their shelf
+    expect(inside(MONITOR, WORLD) && inside(CASE, WORLD) && inside(ROUTER_SPOT, WORLD)).toBe(true);
   });
 
-  it('the hood mouth and the lamp rectangle are consistent', () => {
+  it('the hood mouth and the lamp rectangle are consistent (the lamp points down and west)', () => {
     setLayoutTier(0, 0);
     const g = roomGeo();
-    expect(g.lamp.mouth.x).toBeGreaterThan(g.lamp.head.x);
+    expect(g.lamp.mouth.x).toBeLessThan(g.lamp.head.x);
     expect(g.lamp.mouth.y).toBeGreaterThan(g.lamp.head.y);
-    expect(g.lamp.mouth.x).toBeLessThan(g.lamp.rect.x + g.lamp.rect.w);
+    expect(g.lamp.mouth.x).toBeGreaterThan(g.lamp.rect.x);
     expect(g.lamp.mouth.y + 600).toBeLessThan(g.ys);
   });
 });
@@ -116,56 +126,95 @@ describe('time of day', () => {
   });
 });
 
-describe('the mains and the video cable', () => {
-  it.each([0, 1, 2, 3])('tier %i: the socket is on the wall under the desk, both outlets inside the plate, the inlets are where the cords start', (t) => {
+describe('the mains, the ISP line and the video cable', () => {
+  it.each([0, 1, 2, 3])('tier %i: the sockets are on the wall under the desk, both outlets inside the plate, the inlets are where the cords start', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), s = g.socket, box = roomBox(g);
-    expect(s.plate.y).toBeGreaterThan(g.ys + DESK.slab + 900); // well under the slab
+    expect(s.plate).toEqual(POWER_PLATE);
+    expect(s.plate.y).toBeGreaterThan(g.ys + DESK_SLAB + 900); // well under the slab
     expect(s.plate.y + s.plate.h).toBeLessThan(g.floor - 90);  // above the skirting board
     expect(inside(s.plate, box)).toBe(true);
     for (const o of [s.mon, s.pc]) expect(inside({ x: o.x - 300, y: o.y - 300, w: 600, h: 600 }, s.plate)).toBe(true);
     expect(s.mon.x + 300).toBeLessThan(s.pc.x - 300); // two plugs side by side
-    // the PC's inlet is on the rear wall at the PSU; the monitor's is under its bezel
+    // the PC's inlet is on the rear wall at the PSU; the monitor's is under its bezel, west of the video socket and east of the riser's foot
     expect(PC_POWER.y).toBeGreaterThan(CASE.y + CASE.h / 2);
     expect(PC_POWER.y).toBeLessThan(CASE.y + CASE.h);
     expect(MONITOR_POWER.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
     expect(MONITOR_POWER.x).toBeLessThan(VIDEO_SOCKET.x - 200);
-    expect(MONITOR_POWER.x).toBeGreaterThan(MONITOR.x + MONITOR.w / 2 + 1280 + 85); // the plug (170 wide) clears the stand foot (2,560 wide)
+    expect(MONITOR_POWER.x).toBeGreaterThan(MONITOR.x + MONITOR.w / 2 + 800 * MONITOR_K + 85); // the plug (170 wide) clears the foot (1,600 design wide)
+  });
+
+  it.each([0, 1, 2, 3])('tier %i: the ISP wall plate is under the desk, next to the power socket and level with it, its lead runs up behind the desk to the router shelf', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo();
+    expect(WALL_PLATE.y).toBe(POWER_PLATE.y); // level, tops aligned
+    expect(WALL_PLATE.x + WALL_PLATE.w).toBeLessThan(POWER_PLATE.x); // next to it, west
+    expect(POWER_PLATE.x - (WALL_PLATE.x + WALL_PLATE.w)).toBeLessThan(900);
+    expect(WALL_Y).toBe(WALL_PLATE.y + WALL_PLATE.h);
+    expect(WALL_JACK.y).toBe(WALL_Y);
+    expect(ISP_ROW_Y).toBeGreaterThan(WALL_Y + 200); // below the plug that hangs from the jack
+    expect(WALL_PLATE.y).toBeGreaterThan(g.ys + DESK_SLAB); // under the desk
+    expect(SHELF_Y).toBeLessThan(MONITOR.y); // the router's shelf is above the monitor
+    expect(MONITOR.y - SHELF_Y).toBeGreaterThan(500); // with the lead showing above the monitor
   });
 
   it('the video cable leaves the HDMI port west, runs down the gap, under the monitor and enters its underside from below', () => {
-    const c = buildCables().find((x) => x.kind === 'video')!;
-    expect(c).toBeTruthy();
-    const pts = c.path.pts, first = pts[0]!, last = pts[pts.length - 1]!;
-    expect(first[1]).toBe(VIDEO_Y);
-    expect(last[0]).toBeCloseTo(VIDEO_SOCKET.x, 6);
-    expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is below the socket: the cable hangs from it
-    expect(c.b).toMatchObject({ x: VIDEO_SOCKET.x, y: VIDEO_SOCKET.y, dx: 0, dy: 1 }); // the monitor's plug points up into it, its body below
-    expect(VIDEO_SOCKET.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
-    // the run under the monitor is above the shelf unit's plank, and the trunk is in the gap between the monitor and the case
-    setLayoutTier(0, 0);
-    const u = roomGeo().unit;
-    expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(u.y);
-    expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
-    expect(VIDEO_TRUNK_X).toBeLessThan(CASE.x);
-    // it never goes through the monitor
-    for (const [x, y] of pts) expect(x > MONITOR.x && x < MONITOR.x + MONITOR.w && y > MONITOR.y && y < MONITOR.y + MONITOR.h, `point ${x},${y} is inside the monitor`).toBe(false);
+    for (const t of [0, 3]) {
+      setLayoutTier(t, t);
+      const c = buildCables().find((x) => x.kind === 'video')!;
+      expect(c).toBeTruthy();
+      const pts = c.path.pts, first = pts[0]!, last = pts[pts.length - 1]!;
+      expect(first[1]).toBe(VIDEO_Y);
+      expect(last[0]).toBeCloseTo(VIDEO_SOCKET.x, 6);
+      expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is below the socket: the cable hangs from it
+      expect(c.b).toMatchObject({ x: VIDEO_SOCKET.x, y: VIDEO_SOCKET.y, dx: 0, dy: 1 }); // the monitor's plug points up into it, its body below
+      expect(VIDEO_SOCKET.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
+      // the run under the monitor is above the riser, and the trunk is in the gap between the monitor and the case
+      expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(RISER.y);
+      expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
+      expect(VIDEO_TRUNK_X).toBeLessThan(CASE.x);
+      // it never goes through the monitor
+      for (const [x, y] of pts) expect(x > MONITOR.x && x < MONITOR.x + MONITOR.w && y > MONITOR.y && y < MONITOR.y + MONITOR.h, `point ${x},${y} is inside the monitor`).toBe(false);
+    }
   });
 });
 
-describe('the window light', () => {
-  it('leaves the glass and runs down and to the west, between two parallel rays', () => {
+describe('the window light follows the sun and the moon', () => {
+  it('a shaft leaves the glass, between two parallel rays, running west or east by the slant', () => {
     setLayoutTier(0, 0);
     const g = roomGeo(), w = g.window;
-    const below = shaftSpan(w, w.y + w.h), far = shaftSpan(w, g.ys);
-    expect(below.xr).toBe(w.x + w.w); // at the glass's lower edge the shaft is as wide as the glass
-    expect(far.xl).toBeLessThan(w.x); // it has drifted west
-    expect(far.xr).toBeLessThan(w.x + w.w);
-    expect(far.xr - far.xl).toBeGreaterThan(0);
-    // the two rays are parallel: the shaft keeps its width below the glass
-    const a = shaftSpan(w, w.y + w.h + 1000), b = shaftSpan(w, w.y + w.h + 3000);
-    expect(a.xr - a.xl).toBeCloseTo(b.xr - b.xl, 6);
-    expect(a.xr - b.xr).toBeCloseTo(a.xl - b.xl, 6);
+    for (const slant of [0.8, 0, -0.8]) {
+      const below = shaftSpan(w, w.y + w.h, slant), far = shaftSpan(w, g.ys, slant);
+      expect(below.xr - below.xl).toBeCloseTo(w.w + Math.abs(slant) * w.h, 6); // at the glass's lower edge it is as wide as the glass plus its sweep
+      expect(far.xr - far.xl).toBeCloseTo(w.w + Math.abs(slant) * w.h, 6);       // and keeps that width
+      const drift = (far.xl + far.xr) / 2 - (below.xl + below.xr) / 2;
+      if (slant) expect(Math.sign(drift)).toBe(-Math.sign(slant)); else expect(drift).toBeCloseTo(0, 6); // west for a positive slant, east for a negative one
+    }
+    const a = shaftSpan(w, w.y + w.h + 1000, 0.5), b = shaftSpan(w, w.y + w.h + 3000, 0.5);
+    expect(a.xr - b.xr).toBeCloseTo(a.xl - b.xl, 6); // the rays are parallel
+  });
+
+  it('the sun rises in the east (left) and sets in the west: the light runs east in the morning, straight down at noon, west in the evening', () => {
+    const morning = lightsAt(8).find((l) => l.body === 'sun')!, noon = lightsAt(11.9).find((l) => l.body === 'sun')!, evening = lightsAt(16.5).find((l) => l.body === 'sun')!;
+    expect(morning.slant).toBeLessThan(-0.1);
+    expect(Math.abs(noon.slant)).toBeLessThan(0.1);
+    expect(evening.slant).toBeGreaterThan(0.1);
+    // low sun: longer and flatter than a high one, and weaker
+    expect(Math.abs(lightsAt(6.2).find((l) => l.body === 'sun')!.slant)).toBeGreaterThan(Math.abs(morning.slant));
+    expect(noon.strength).toBeGreaterThan(morning.strength);
+    expect(noon.strength).toBeGreaterThan(evening.strength);
+    expect(morning.color).not.toBe(noon.color); // warm in the morning
+  });
+
+  it('the moon throws a cold, weaker light at night, and the two bodies take turns', () => {
+    const moon = lightsAt(0).find((l) => l.body === 'moon')!;
+    expect(lightsAt(0).some((l) => l.body === 'sun')).toBe(false);
+    expect(moon.color).toBe('#aebfff');
+    expect(moon.strength).toBeLessThan(lightsAt(12).find((l) => l.body === 'sun')!.strength);
+    expect(lightsAt(12).some((l) => l.body === 'moon')).toBe(false);
+    for (let h = 0; h < 24; h += 0.25) for (const l of lightsAt(h)) { expect(l.strength).toBeGreaterThanOrEqual(0); expect(l.strength).toBeLessThanOrEqual(0.2); }
+    expect(bodiesAt(0).sun).toBeNull();
+    expect(bodiesAt(12).moon).toBeNull();
   });
 });
 

@@ -40,7 +40,7 @@ const Z_BAKE_DEV = 0.14;
 const DEV_BAKE_RES = 0.25;
 /** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
 const Z_BAKE_PROPS = 0.2;
-const PROPS_FRAME = new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY.h + 200);
+const propsFrame = () => new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY.h + 200);
 
 /**
  * Level of detail on the camera scale, as multiples of the fit zoom (the zoom of the default overview, `fits.z`).
@@ -323,9 +323,11 @@ export async function mountBoard(host: HTMLElement) {
     const tierChanged = sceneReady && (tier !== LAYOUT_TIER || caseTier !== LAYOUT_CASE), wasOverview = tierChanged && atOverviewNow();
     setLayoutTier(tier, caseTier);
     // the room follows the case (the desk top is where its feet stand) and the theme
+    net.behind.parent?.removeChild(net.behind); // (it survives the room it was in: the ISP lead runs behind the desk, so it lives in the room's back layer)
     clear(roomLayer);
     roomView = new RoomView(T, undefined, app.renderer);
     roomLayer.addChild(roomView.root);
+    roomView.behind.addChild(net.behind);
     camera.bounds = roomBox(roomView.geo);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
@@ -716,8 +718,8 @@ export async function mountBoard(host: HTMLElement) {
       ...(trayShown ? [{ id: 'tray', rect: TRAY }] : []),
     ];
     chromeLayer.visible = true;
-    chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: PROPS_FRAME, resolution: 0.3, antialias: true }));
-    chromeBake.position.set(PROPS_FRAME.x, PROPS_FRAME.y);
+    chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: propsFrame(), resolution: 0.3, antialias: true }));
+    chromeBake.position.set(TRAY.x - 100, TRAY.y - 100);
     chromeBakeLayer.addChild(chromeBake);
     onZoom();
     mergeHits();
