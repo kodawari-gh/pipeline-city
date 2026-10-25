@@ -5,7 +5,7 @@ import { drawPlug, plugRect } from './devices';
 import { box, dashed, disc, label, mix, clear } from './ink';
 import type { LanJack, LanScene, SceneInfo } from './interact';
 import {
-  BD, CABLE_ROW_Y, DESK_SLAB, DESK_Y, ETH0_MOUTH, ETH0_RECT, ISP_ROW_Y, LAN_TRUNK_X, MONITOR, RISER, WALL_Y, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
+  BD, CABLE_ROW_Y, DESK_SLAB, DESK_Y, ETH0_MOUTH, ETH0_RECT, ISP_ROW_Y, LAN_TRUNK_X, MONITOR, WALL_Y, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
   NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,
 } from './layout';
 import { IO_X } from './boardlayout';
@@ -416,10 +416,10 @@ export class NetView {
   }
 }
 
-/** Whether a point is behind the monitor, the riser or the desk slab (where the ISP lead is out of sight). */
+/** Whether a point is behind the monitor or the desk slab (where the ISP lead is out of sight). */
 const hiddenBehind = (x: number, y: number) => {
   const inR = (r: Rect) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
-  return inR(MONITOR) || inR(RISER) || (y > DESK_Y - 20 && y < DESK_Y + DESK_SLAB + 20);
+  return inR(MONITOR) || (y > DESK_Y - 20 && y < DESK_Y + DESK_SLAB + 20);
 };
 
 const pad = (r: Rect, e: number): Rect => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });

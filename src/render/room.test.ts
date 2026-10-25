@@ -5,7 +5,7 @@ import { Container } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import {
-  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, RISER, RISER_H, ROUTER_SPOT, SHELF_Y, TRAY, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
+  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, ROUTER_SPOT, SHELF_Y, TRAY, TRAY_ROWS, USB_PORT, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
 } from './layout';
 import { buildCables } from './routes';
 import { DAY_S, DESK, FOOT, RoomView, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
@@ -37,25 +37,28 @@ describe('the desk follows the case', () => {
     expect(ys).toEqual([...ys].sort((a, b) => a - b));
   });
 
-  it.each([0, 1, 2, 3])('tier %i: the monitor stands on its foot on the dock, the dock on the desk, the key tray is the dock\'s front', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: the monitor stands on its foot on the desk, a 24 inch about as wide as the case is deep', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), by = MONITOR.y + MONITOR.h;
-    // the foot ends 400 design units under the bezel (monitorArt): that is where the riser's top plank starts, and the riser reaches the desk
-    expect(g.unit).toEqual(RISER);
-    expect(g.unit.y).toBeCloseTo(by + MON_STAND, 6);
-    expect(g.unit.y + g.unit.h).toBeCloseTo(g.ys, 6);
-    expect(g.unit.h).toBe(RISER_H);
-    // centred under the monitor, wider than the foot (2,560 design wide)
-    expect(g.unit.x + g.unit.w / 2).toBeCloseTo(MONITOR.x + MONITOR.w / 2, 6);
-    expect(g.unit.w).toBeGreaterThan(1600 * MONITOR_K);
-    // the tray is the dock's front: under its top edge, above its bottom, inside its sides with a margin, a flat 4 by 3 panel
-    expect(TRAY.y).toBeGreaterThanOrEqual(g.unit.y + 140);
-    expect(TRAY.y + TRAY.h).toBeLessThanOrEqual(g.ys - 100);
-    expect(TRAY.x).toBeGreaterThanOrEqual(g.unit.x + 250); expect(TRAY.x + TRAY.w).toBeLessThanOrEqual(g.unit.x + g.unit.w - 250);
-    expect(TRAY.w / TRAY.h).toBeGreaterThan(3.5);
-    // a 24 inch monitor: about as wide as the case is deep, wider than the key dock, and clear of the lamp
+    expect(by + MON_STAND).toBeCloseTo(g.ys, 6); // the foot ends on the desk top (monitorArt: 400 design units under the bezel)
+    expect(MONITOR.x + MONITOR.w).toBe(MONITOR_EAST);
+    expect(CASE.x - MONITOR_EAST).toBeGreaterThan(2000); // room between them for the mug and the cables
     expect(MONITOR.w / CASE.w).toBeGreaterThan(1.0);
     expect(MONITOR.w / CASE.w).toBeLessThan(1.2);
+  });
+
+  it.each([0, 1, 2, 3])('tier %i: the key rack is a wall board between the monitor and the case, level with the USB port, one hook per stick, clear of the cables', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo(), r = g.keyRack;
+    expect(r).toEqual(TRAY);
+    expect(r.x).toBeGreaterThan(MONITOR_EAST);                     // east of the monitor,
+    expect(r.x + r.w).toBeLessThan(VIDEO_TRUNK_X - 80);             // west of the video cable's trunk (and so of the ethernet's),
+    expect(r.y).toBeLessThan(USB_PORT.y); expect(r.y + r.h).toBeGreaterThan(USB_PORT.y + USB_PORT.h); // beside the USB port's height
+    expect(r.y + r.h + 300).toBeLessThan(VIDEO_RUN_Y);              // above the video cable's run under the monitor
+    expect(r.y + r.h).toBeLessThan(g.ys - 1500);                    // and well above the desk (the mug)
+    expect(r.h).toBeGreaterThanOrEqual(300 + TRAY_ROWS * 290);      // a row of 290 for each of the 10 sticks under the heading
+    expect(TRAY_ROWS).toBe(10);
+    expect(g.mug - 420).toBeGreaterThan(MONITOR_EAST);               // the mug stands on the desk below it
   });
 
   it.each([0, 1, 2, 3])('tier %i: from the west: the lamp, the monitor over the keyboard, the mug, the PC (the last thing on the desk)', (t) => {
@@ -75,7 +78,7 @@ describe('the room layout', () => {
   it.each([0, 1, 2, 3])('tier %i: every prop is inside the room box, the box has no floor and no ceiling', (t) => {
     setLayoutTier(t, t);
     const g = roomGeo(), box = roomBox(g);
-    for (const r of [g.window, g.lamp.rect, g.unit, g.clock, g.socket.plate, ROUTER_SPOT, WALL_PLATE]) expect(inside(r, box)).toBe(true);
+    for (const r of [g.window, g.lamp.rect, g.keyRack, g.clock, g.socket.plate, ROUTER_SPOT, WALL_PLATE]) expect(inside(r, box)).toBe(true);
     expect(g.lamp.rect.y + g.lamp.rect.h).toBeLessThanOrEqual(g.ys);
     // the window is west of the monitor, the clock above the case, the router shelf above the monitor
     expect(g.window.x + g.window.w).toBeLessThan(MONITOR.x);
@@ -172,7 +175,7 @@ describe('the mains, the ISP line and the video cable', () => {
       expect(c.b).toMatchObject({ x: VIDEO_SOCKET.x, y: VIDEO_SOCKET.y, dx: 0, dy: 1 }); // the monitor's plug points up into it, its body below
       expect(VIDEO_SOCKET.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
       // the run under the monitor is above the riser, and the trunk is in the gap between the monitor and the case
-      expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(RISER.y);
+      expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(MONITOR.y + MONITOR.h + MON_STAND - 100); // above the foot
       expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
       expect(VIDEO_TRUNK_X).toBeLessThan(CASE.x);
       // it never goes through the monitor

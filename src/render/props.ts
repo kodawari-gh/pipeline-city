@@ -252,7 +252,7 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
 export const trayKeyCentre = (i: number) => {
   const pitch = KEY_LEN + 60;
   const col = i % TRAY_COLS, row = Math.floor(i / TRAY_COLS);
-  return { x: TRAY.x + 150 + KEY_LEN / 2 + col * pitch, y: TRAY.y + 255 + row * 290 };
+  return { x: TRAY.x + TRAY.w / 2 - 40 + col * pitch, y: TRAY.y + 410 + row * 290 };
 };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
@@ -286,15 +286,14 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   root.addChild(chrome);
   chrome.addChild(g);
   const r = TRAY;
-  // the dock's front (room.ts draws its body round it): a flush panel in the monitor's own dark shell, with a hairline edge, not a glowing glass box
-  glassPanel(g, r, T, T.line, 6, 0.9, 30, { x: r.x + 40, y: r.y + 140, w: r.w - 80, h: r.h - 180 });
-  chrome.addChild(label('USB KEY DOCK', r.x + 90, r.y + 72, 64, T.mute, { head: true }));
+  // the rack's own look is the board on the wall (room.ts draws it, with a hook per row): here only its lettering, the empty hooks' outlines and the keys
+  chrome.addChild(label('KEYS', r.x + 100, r.y + 120, 76, T.dark ? '#e6d5c4' : '#4a3426', { head: true, a: 0.85 }));
   const empty = keys.length === 0;
   // the network owns the work now: with the link up the tray is a calm leftover shelf; when the link drops the sticks come back
   if (mode === 'retired') g.alpha = 0.55;
   const note = mode === 'retired' ? (empty ? 'LINK UP: KEYS RETIRED' : `LINK UP: ${keys.length} LEFTOVER`) : mode === 'waiting' ? 'NET DOWN' : mode === 'fallback' ? 'NET DOWN: STICKS BACK AT 1/3 RATE' : empty ? 'NO WORK WAITING' : `${keys.length} waiting`;
-  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : empty ? T.mute : T.ink;
-  chrome.addChild(label(note, r.x + r.w - 90, r.y + 76, mode === 'fallback' ? 40 : 46, noteCol, { anchor: [1, 0.5], a: mode === 'off' && empty ? 0.8 : 1 }));
+  const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : T.dark ? '#d8c8b6' : '#4a3426';
+  chrome.addChild(label(note, r.x + 100, r.y + 230, mode === 'fallback' ? 34 : 40, noteCol, { a: mode === 'off' && empty ? 0.8 : 1 }));
   // empty key bays (dashed outlines) so the tray reads as a tray even when empty
   const bays = TRAY_COLS * TRAY_ROWS;
   for (let i = keys.length; i < bays; i++) {

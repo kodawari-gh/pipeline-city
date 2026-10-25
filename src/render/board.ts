@@ -131,6 +131,8 @@ export async function mountBoard(host: HTMLElement) {
   const world = new Container();
   /** The bedroom behind everything: wall, window, desk and what is on it (docs/RENDER.md "The room"). */
   const roomLayer = new Container();
+  /** What stands in front of the video cable: the mug and its steam (the room's `over`). */
+  const roomOverLayer = new Container();
   let roomView: RoomView | null = null;
   let roomHits: Hit[] = [];
   const caseLayer = new Container();
@@ -185,7 +187,7 @@ export async function mountBoard(host: HTMLElement) {
   interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -327,6 +329,7 @@ export async function mountBoard(host: HTMLElement) {
     clear(roomLayer);
     roomView = new RoomView(T, undefined, app.renderer);
     roomLayer.addChild(roomView.root);
+    clear(roomOverLayer); roomOverLayer.addChild(roomView.over);
     roomView.behind.addChild(net.behind);
     camera.bounds = roomBox(roomView.geo);
     ALL_CABLES = buildCables();
