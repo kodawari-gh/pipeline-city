@@ -95,6 +95,11 @@ export const vrmPhase = (i: number): Rect => ({ x: BR.vrm.x + 300 + i * 380, y: 
 export const VRM_PWM: Rect = { x: BR.vrm.x + 40, y: BR.vrm.y + 150, w: 210, h: 210 };
 /** Where a VRM heatsink bolts on: over the MOSFET strip of all phases (slot `vrm-sink0`). */
 export const VRM_SINK: Rect = { x: BR.vrm.x + 290, y: BR.vrm.y + 18, w: 6 * 380 - 30, h: 170 };
+/** One phase block of the memory (DRAM) VRM, left to right (up to five; a tier fills the first ones). */
+export const DRAM_VRM_MAX = 5;
+export const dramPhase = (i: number): Rect => ({ x: BR.dvrm.x + 50 + i * 225, y: BR.dvrm.y + 50, w: 160, h: 300 });
+/** Where a memory VRM heatsink bolts on: over the MOSFET row of the DRAM phases (slot `ram-sink0`). */
+export const RAM_SINK: Rect = { x: BR.dvrm.x + 30, y: BR.dvrm.y + 30, w: 1140, h: 180 };
 /** The power-good light of the VRM. */
 export const VRM_LED = { x: BR.vrm.x + 145, y: BR.vrm.y + 92 };
 

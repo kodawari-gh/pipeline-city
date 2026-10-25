@@ -124,12 +124,12 @@ const row = (level: number, name: string, threshold: number, patienceMul: number
 
 export const LEVELS: readonly LevelDef[] = [
   row(1, "Garage Bench", 0, 4.0, 1.0, 1.0, { cli: 100 }, ["cpu1", "ram1", "cooler1", "psu1", "vsink0"]),
-  row(2, "Hobby Shop", 3, 4.0, 1.11, 1.12, { cli: 100 }, ["vsink1", "hdd0", "board1"]),
+  row(2, "Hobby Shop", 3, 4.0, 1.11, 1.12, { cli: 100 }, ["vsink1", "rsink0", "hdd0", "board1"]),
   row(3, "Local Gigs", 6, 3.0, 1.23, 1.24, { cli: 100 }, ["ssd1", "os1"]),
   row(4, "Small Office", 9, 2.4, 1.37, 1.36, { cli: 85, web: 15 }, ["router1", "isp1"]),
-  row(5, "Storefront", 40, 2.0, 1.52, 1.48, { cli: 40, scan: 25, db: 20, web: 15 }, ["psu2", "ram2", "board2"]),
+  row(5, "Storefront", 40, 2.0, 1.52, 1.48, { cli: 40, scan: 25, db: 20, web: 15 }, ["psu2", "ram2", "rsink1", "board2"]),
   row(6, "Neighbourhood", 110, 1.7, 1.69, 1.6, { cli: 37, scan: 23, db: 22, web: 18 }, ["cpu2", "cooler2", "isp2"]),
-  row(7, "District", 155, 1.45, 1.87, 1.72, { cli: 33, scan: 22, db: 24, web: 21 }, ["nvme2", "vsink2", "fan1", "router2", "nic1"]),
+  row(7, "District", 155, 1.45, 1.87, 1.72, { cli: 33, scan: 22, db: 24, web: 21 }, ["nvme2", "vsink2", "rsink2", "fan1", "router2", "nic1"]),
   row(8, "Town Hub", 215, 1.25, 2.08, 1.84, { cli: 28, scan: 22, db: 25, web: 25 }, ["cpu3", "os2"]),
   row(9, "Business Park", 285, 1.05, 2.3, 1.96, { cli: 25, scan: 18, db: 20, web: 22, secure: 15 }, ["tpm1", "ram3", "board3", "isp3"]),
   row(10, "Tech Quarter", 360, 0.9, 2.56, 2.08, { cli: 20, scan: 15, db: 15, web: 18, secure: 12, gpu: 20 }, ["gpu1", "psu3", "display1"]),

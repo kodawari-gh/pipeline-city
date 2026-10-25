@@ -5,7 +5,7 @@ import type { KeyActivity } from '../sim/game/game';
 import { blades } from './devices';
 import { HEAD, box, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
-import { BD, BR, MONITOR, PKG, PSU_PANEL, SCREEN, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
+import { BD, BR, dramPhase, MONITOR, PKG, PSU_PANEL, RAM_SINK, SCREEN, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { monitorView } from './monitor';
 import { pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
@@ -52,6 +52,9 @@ export class Live {
   private vrmG = new Graphics();
   private deadG = new Graphics();
   private vrm: Snapshot['board']['vrm'] | null = null;
+  /** The memory VRM, and whether the last fault flash was its crash. */
+  private ramVrm: Snapshot['board']['ramVrm'] | null = null;
+  private flashRam = false;
   private dead = false;
   private deadDrawn = false;
   /** Wall time (ms) the crash flash started. Flashes fade by wall time so a paused frame never shows one stuck on screen. */
@@ -379,11 +382,12 @@ export class Live {
     this.updateOsScreen(s, now);
     // the board: VRM state for the glow, a dead board for the dimming; a new 'fault' in the log flashes the VRM once
     this.vrm = s.board?.vrm ?? null;
+    this.ramVrm = s.board?.ramVrm ?? null;
     this.dead = !!s.board?.burnt;
     const fault = [...(s.log ?? [])].reverse().find((e) => e.kind === 'fault');
     const fkey = fault ? `${fault.tick}|${fault.text}` : '';
     if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
-    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); }
+    else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); this.flashRam = !!fault?.text.includes('memory VRM'); }
     // power: a switched off, tripped or dead machine is dead (no fans, lights or current). A halted or error machine is still ON:
     // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so those go quiet here.
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
@@ -424,6 +428,11 @@ export class Live {
       if (d.kind === 'vrm-sink') {
         // the heatsink fan follows the CPU load (its draw is 0.3 W idle to 1.5 W under load) and stops with the power
         const f = this.fans.find((x) => x.kind === 'vrm');
+        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
+        continue;
+      }
+      if (d.kind === 'ram-sink') {
+        const f = this.fans.find((x) => x.kind === 'ramvrm');
         if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
         continue;
       }
@@ -484,6 +493,9 @@ export class Live {
     g.ellipse(v.x + v.w / 2, v.y + 150, v.w * 0.42, 150).fill({ color: '#000000', alpha: 0.28 });
     const s = VRM_SINK;
     g.rect(s.x, s.y, s.w, s.h).fill({ color: '#000000', alpha: 0.2 });
+    const rs = RAM_SINK, dv = BR.dvrm;
+    g.ellipse(dv.x + dv.w / 2, dv.y + dv.h / 2, dv.w * 0.4, dv.h * 0.4).fill({ color: '#000000', alpha: 0.3 });
+    g.rect(rs.x, rs.y, rs.w, rs.h).fill({ color: '#000000', alpha: 0.2 });
     // cracks
     g.moveTo(v.x + 520, v.y + 40).lineTo(v.x + 560, v.y + 150).lineTo(v.x + 520, v.y + 250).lineTo(v.x + 590, v.y + 380);
     g.moveTo(v.x + 1500, v.y + 60).lineTo(v.x + 1460, v.y + 190).lineTo(v.x + 1530, v.y + 300);
@@ -520,9 +532,23 @@ export class Live {
         box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
       }
     }
+    // the memory regulator: its phases glow the same way, driven by RAM current
+    const rv = this.ramVrm;
+    if (rv && this.liveOn && !this.dead) {
+      const load = clamp(rv.loadRatio), heat = clamp((rv.tempC - 45) / Math.max(10, rv.throttleC - 45));
+      const color = rv.unstable ? T.bad : heat < 0.5 ? mix(T.alu, T.ld, heat * 2) : mix(T.ld, T.bad, (heat - 0.5) * 2);
+      const level = clamp(0.1 + 0.5 * load + 0.45 * heat);
+      const flick = rv.unstable ? 0.65 + 0.35 * (Math.floor(now / 90) % 2) : 1;
+      for (let i = 0; i < rv.phases; i++) {
+        const a = level * flick * (0.78 + 0.22 * Math.sin(now * (0.004 + 0.012 * load) - (i * Math.PI * 2) / rv.phases));
+        const r = dramPhase(i);
+        for (let k = 0; k < 3; k++) { const e = 6 + k * 14; box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 24 + e, { stroke: color, lw: 12, sa: a * 0.55 * (1 - k / 3) }); }
+        box(g, r.x, r.y, r.w, r.h, 18, { fill: color, fa: a * 0.1 });
+      }
+    }
     const fl = flashWall;
     if (fl > 0) {
-      const b = BR.vrm, e = 30 * (1 - fl);
+      const b = this.flashRam ? BR.dvrm : BR.vrm, e = 30 * (1 - fl);
       box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { fill: T.bad, fa: 0.55 * fl });
       box(g, b.x - e, b.y - e, b.w + 2 * e, b.h + 2 * e, 40, { stroke: '#ffffff', lw: 14, sa: 0.8 * fl });
     }

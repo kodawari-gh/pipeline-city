@@ -57,6 +57,12 @@ export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<V
       damageC: t.vrm.damageC, sinkDeviceId: null, ...vrm,
     },
     vrmSink: null,
+    ramVrm: {
+      phases: t.ramVrm.phases, ampsPerPhase: t.ramVrm.ampsPerPhase, ripple: t.ramVrm.ripple, tempC: 30, loadRatio: 0, efficiency: t.ramVrm.peakEfficiency,
+      throttle: 1, unstable: false, burnt: false, errProb: 0, heatW: 0, throttleC: t.ramVrm.throttleC, unstableC: t.ramVrm.unstableC,
+      damageC: t.ramVrm.damageC, sinkDeviceId: null,
+    },
+    ramSink: null,
     ...rest,
   };
 }

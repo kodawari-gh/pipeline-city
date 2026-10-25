@@ -216,7 +216,7 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
 
 // ---------- purchases ----------
 
-const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink", "nic"];
+const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink", "ram-sink", "nic"];
 
 /**
  * Replace the installed part of the spec's kind with `specId`, going through board install/validation.

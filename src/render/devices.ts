@@ -175,11 +175,11 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
  * heat pipe, and fins with a small fan at the east end. The fan (a spinning child returned as `fan`, kept above the bake) obeys the
  * power rules of the other fans.
  */
-export function vrmSinkArt(T: Theme, visual: string): Part {
+export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Part {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const r = VRM_SINK, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
+  const r = rect, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
   const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
   const fanR = 70, fanCx = r.x + r.w - fanR - 34, fanCy = r.y + r.h / 2;
   const finW = withFan ? fanCx - fanR - 40 - r.x : r.w;

@@ -4,9 +4,9 @@
 import type { EngineConfig } from "../engines";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "nic";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic";
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
 export interface ClockRange { min: number; base: number; max: number }
@@ -75,9 +75,9 @@ export interface CoolerSpec extends SpecBase {
   vrmAirPerC: number;
 }
 
-/** A heatsink bolted onto the board's VRM (see docs/VRM.md). A fan version draws idleW..loadW. */
+/** A heatsink bolted onto one of the board's VRMs: slot `vrm-sink` is the CPU's, slot `ram-sink` the memory's (see docs/VRM.md). A fan version draws idleW..loadW. */
 export interface VrmSinkSpec extends SpecBase {
-  kind: "vrm-sink";
+  kind: "vrm-sink" | "ram-sink";
   /** Heat removal from the VRM, W per degree C above ambient. */
   coolingPerC: number;
 }
@@ -170,6 +170,12 @@ const specList: DeviceSpec[] = [
     thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
   { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fins + fan", slot: "vrm-sink", price: 140, idleW: 0.3, loadW: 1.5, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1 },
+  { id: "rsink0", kind: "ram-sink", tier: 0, name: "RAM VRM fins", slot: "ram-sink", price: 25, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
+  { id: "rsink1", kind: "ram-sink", tier: 1, name: "RAM VRM big fins", slot: "ram-sink", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
+  { id: "rsink2", kind: "ram-sink", tier: 2, name: "RAM VRM fins + fan", slot: "ram-sink", price: 120, idleW: 0.3, loadW: 1.5, heatFactor: 0,
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1 },
 
   { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
@@ -203,7 +209,7 @@ export function specsOfKind<K extends DeviceKind>(kind: K): Extract<DeviceSpec, 
   return specList.filter((s) => s.kind === kind).sort((a, b) => a.tier - b.tier) as Extract<DeviceSpec, { kind: K }>[];
 }
 
-/** The board's voltage regulator (see docs/VRM.md): phases of buck converters feeding the CPU. */
+/** A voltage regulator on the board (see docs/VRM.md): phases of buck converters feeding the CPU or the memory. */
 export interface VrmSpec {
   phases: number;
   ampsPerPhase: number;
@@ -236,7 +242,10 @@ export interface BoardTierSpec {
   price: number;
   slots: Partial<Record<SlotType, number>>;
   features: BoardFeatures;
+  /** The CPU core regulator. */
   vrm: VrmSpec;
+  /** The memory regulator (feeds every DIMM). */
+  ramVrm: VrmSpec;
   visual: string;
 }
 
@@ -244,19 +253,23 @@ const vrmTemps = { throttleC: 90, unstableC: 105, damageC: 120 };
 
 export const BOARD_TIERS: readonly BoardTierSpec[] = [
   { tier: 0, name: "Starter", price: 40, visual: "board-starter",
-    slots: { cpu: 1, dimm: 1, sata: 1, usb: 1, atx: 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    slots: { cpu: 1, dimm: 1, sata: 1, usb: 1, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
-    vrm: { phases: 2, ampsPerPhase: 12, peakEfficiency: 0.8, ripple: 0.6, mass: 20, passive: 0.15, ...vrmTemps } },
+    vrm: { phases: 2, ampsPerPhase: 12, peakEfficiency: 0.8, ripple: 0.6, mass: 20, passive: 0.15, ...vrmTemps },
+    ramVrm: { phases: 2, ampsPerPhase: 6, peakEfficiency: 0.78, ripple: 0.6, mass: 15, passive: 0.15, ...vrmTemps } },
   { tier: 1, name: "Basic", price: 150, visual: "board-basic",
-    slots: { cpu: 1, dimm: 2, pcie: 1, sata: 2, usb: 2, atx: 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    slots: { cpu: 1, dimm: 2, pcie: 1, sata: 2, usb: 2, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 100, usbPorts: 2, displayPorts: 1 },
-    vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps } },
+    vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps },
+    ramVrm: { phases: 2, ampsPerPhase: 8, peakEfficiency: 0.82, ripple: 0.45, mass: 22, passive: 0.2, ...vrmTemps } },
   { tier: 2, name: "Mainstream", price: 300, visual: "board-mainstream",
-    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, m2: 1, usb: 3, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    slots: { cpu: 1, dimm: 4, pcie: 2, sata: 2, m2: 1, usb: 3, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 100, usbPorts: 3, displayPorts: 2 },
-    vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps } },
+    vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps },
+    ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps } },
   { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
-    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 2, m2: 1, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1 },
+    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 2, m2: 1, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
-    vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps } },
+    vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps },
+    ramVrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.9, ripple: 0.1, mass: 45, passive: 0.4, ...vrmTemps } },
 ];

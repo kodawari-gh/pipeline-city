@@ -12,7 +12,7 @@ import { fmtMbit, isJackId } from './netdesc';
 import { hardwareWarn, jackPort, netStateLines, netStats, nicLines, nicStats } from './netui';
 import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
 import { JOB_TYPES } from './regions';
-import { boardCards, cpuVrmWarning, liquidVrmNote, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
+import { boardCards, cpuVrmWarning, liquidVrmNote, ramVrmWarning, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
 /** The storage block size (bytes), as in the sim's storage device. */
 const BLOCK_BYTES = 256;
@@ -186,7 +186,7 @@ export const boardId = (tier: number) => `board${tier}`;
 /** Every spec id of a kind, ordered by tier (or the board tiers). */
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'nic') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
@@ -238,7 +238,7 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
-    case 'vrm-sink': return [
+    case 'vrm-sink': case 'ram-sink': return [
       { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
@@ -346,13 +346,14 @@ export function specBrief(spec: DeviceSpec): string {
     case 'display': return 'text monitor';
     case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
+    case 'ram-sink': return `${spec.coolingPerC} W/C cooling for the memory VRM`;
     case 'nic': return `${spec.mbps} Mbit network card`;
   }
 }
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
-  'vrm-sink': 'vrm-sink', pcie: 'nic',
+  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic',
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board' | 'os' | 'router' | 'isp'> = {
   psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', bay: 'storage', os: 'os', router: 'router', wall: 'isp',
@@ -440,10 +441,10 @@ export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderSte
     }
   }
   // Warnings on the rungs (not on a part already fitted): a CPU the board's VRM cannot feed, a liquid cooler with no VRM heatsink.
-  if (kind === 'cpu' || kind === 'cooler') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'cooler') {
     for (const r of out) {
       if (r.state === 'installed') continue;
-      r.warn = kind === 'cpu' ? cpuVrmWarning(s, r.specId) ?? undefined : liquidVrmNote(s, r.specId) ?? undefined;
+      r.warn = kind === 'cpu' ? cpuVrmWarning(s, r.specId) ?? undefined : kind === 'ram' ? ramVrmWarning(s, r.specId) ?? undefined : liquidVrmNote(s, r.specId) ?? undefined;
     }
   }
   // The network parts: what the rest of the chain still lacks (an OS, 64K of RAM, a jack), and the words for owned and applied rungs.
@@ -555,6 +556,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     // The board's voltage regulator: live readout, status in plain words (docs/VRM.md).
     const d = describeId('vrm', s)!;
     const v = vrmReadout(s);
+    return { ...emptyCard(id, 'info', d.title, d.plain, d.nerd), vrm: v, lines: v ? vrmLines(v) : [] };
+  }
+
+  if (id === 'vrm2') {
+    // The memory regulator: the same readout, fed by the DIMMs.
+    const d = describeId('vrm2', s)!;
+    const v = vrmReadout(s, 'ram');
     return { ...emptyCard(id, 'info', d.title, d.plain, d.nerd), vrm: v, lines: v ? vrmLines(v) : [] };
   }
 
@@ -715,6 +723,9 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     if (kind === 'vrm-sink' && emptySocket) {
       lines.push({ level: 'info', text: 'Drop a VRM heatsink here: it bolts onto the voltage regulators next to the processor.' });
     }
+    if (kind === 'ram-sink' && emptySocket) {
+      lines.push({ level: 'info', text: 'Drop a RAM VRM heatsink here: it bolts onto the memory regulator beside the RAM slots.' });
+    }
     // A network card: which jack it is, whether the cable is in it, and its heat (a hot card runs at half speed).
     if (kind === 'nic') {
       if (emptySocket) lines.push({ level: 'info', text: 'Drop a network card here: its jack then appears on the back of the machine.' });
@@ -736,13 +747,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       osSection: sec,
       shelf: id === 'bay' && !s.os ? unlockedFirst(ladderFor(s, 'os'), (r) => r.lock) : undefined,
       // The VRM readout rides on the CPU card (what it draws from the regulator) and the motherboard card (the cards).
-      vrm: kind === 'cpu' && dev && !dev.burnt ? vrmReadout(s) : undefined,
+      vrm: kind === 'cpu' && dev && !dev.burnt ? vrmReadout(s) : kind === 'ram' && dev && !dev.burnt ? vrmReadout(s, 'ram') : undefined,
       boardCards: kind === 'board' ? boardCards(s) : undefined,
       current, lines, actions,
       // A spec id that is neither a slot nor a fitted part (a shop or ladder item) is the comparison to show.
       focus: invItem ? invItem.spec : !slot && !dev && (getSpec(id) || getOsSpec(id)) ? id : null,
       device: emptySocket ? undefined : dev,
-      clock: kind === 'cpu' && !!s.cpuClock && !!dev && !dev.burnt,
+      clock: ((kind === 'cpu' && !!s.cpuClock) || kind === 'ram') && !!dev && !dev.burnt,
       // Only when the fitted part is the top tier: any higher tier (spare, buyable, blocked or later) gets its own line.
       emptyText: nextUpgrade(ladder) ? undefined : 'Nothing better to buy right now.',
     };

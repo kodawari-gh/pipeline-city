@@ -2,8 +2,8 @@ import { effect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { selected, viewInset } from '../game/hover';
 import { cameraRev, highlight } from '../game/interaction';
-import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, snapshot, uninstallOs } from '../game/store';
-import { getSpec, type CpuSpec } from '../sim/board/specs';
+import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstallOs } from '../game/store';
+import { getSpec, type CpuSpec, type RamSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { describeId, fmtClock, fmtMoney } from './logic';
@@ -12,7 +12,7 @@ import {
   type CompareRow, type OsSection, type LadderStep, type PickerAction, type PickerLine, type PickerModel, type ZoneName,
 } from './picker';
 import {
-  VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
+  ramZones, VRM_BUSY_RATIO, VRM_ZONE_HELP, VRM_ZONE_WORD, vrmZone, type BoardCard, type VrmReadout, type VrmZone,
 } from './vrm';
 import { Icon } from './Icons';
 import { DeclineButton, Deadline, NeedChips } from './Jobs';
@@ -140,6 +140,39 @@ function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['devi
   );
 }
 
+/** Memory overclock dial: like the processor's, with a second marker where the memory regulator runs out of rating. */
+function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<PickerModel['device']> }) {
+  const spec = getSpec(dev.spec) as RamSpec | undefined;
+  const z = ramZones(s, dev.id);
+  if (!spec || spec.kind !== 'ram' || !z) return null;
+  const value = dev.requestedClock ?? spec.clock.base;
+  const span = z.max - z.min || 1;
+  const pos = (x: number) => clamp01((x - z.min) / span) * 100;
+  const thrPct = pos(Math.min(z.throttleAt, z.overloadAt)), badPct = pos(Math.min(z.unstableAt, z.overloadAt));
+  const zone: ZoneName = value >= Math.min(z.unstableAt, z.overloadAt) ? 'unstable' : value >= z.throttleAt ? 'throttle' : 'safe';
+  const est = 25 + (spec.loadW * spec.heatFactor * (value / spec.clock.base) ** 3) / spec.thermal.passive;
+  return (
+    <div class="dial" title={`Memory clock. ${ZONE_HELP[zone]} The memory regulator ${Number.isFinite(z.overloadAt) ? `runs out of rating near ${z.overloadAt.toFixed(2)}x` : 'can feed any clock here'} with the other sticks as they are now.`}>
+      <div class="dtrack" aria-hidden="true">
+        <i class="z safe" style={{ left: '0%', width: `${thrPct}%` }} />
+        <i class="z throttle" style={{ left: `${thrPct}%`, width: `${Math.max(0, badPct - thrPct)}%` }} />
+        <i class="z unstable" style={{ left: `${badPct}%`, width: `${Math.max(0, 100 - badPct)}%` }} />
+        <i class="dbase" style={{ left: `${pos(z.base)}%` }} title="Stock clock" />
+        <i class={`knob ${zone}`} style={{ left: `${pos(value)}%` }} />
+      </div>
+      <input
+        type="range" class="dinput" min={z.min} max={z.max} step={0.05} value={value} aria-label="Memory clock"
+        onInput={(e) => setRamClock(dev.id, Number(e.currentTarget.value))}
+      />
+      <div class="drow">
+        <span class={`zchip ${zone}`}>{ZONE_WORD[zone]}</span>
+        <span class="readout" title="Estimated steady temperature of the stick"><Icon name="flame" size={12} /> ~{est.toFixed(0)} C</span>
+        <span class="value">{fmtClock(value)}</span>
+      </div>
+    </div>
+  );
+}
+
 const VRM_CLASS: Record<VrmZone, string> = { safe: 'safe', busy: 'throttle', overload: 'unstable' };
 
 /**
@@ -154,8 +187,8 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
   const tip = (id: string) => describeId(id, s)?.plain ?? '';
   return (
     <section class="pblock vrm-sec" aria-label="VRM">
-      <h3><Icon name="bolt" size={11} /> VRM <span class={`zchip ${VRM_CLASS[zone]}`}>{v.burnt ? 'Burnt' : VRM_ZONE_WORD[zone]}</span></h3>
-      <div class="vtrack" title={`${VRM_ZONE_HELP[zone]} Demand ${v.demandA.toFixed(1)} A of ${v.capacityA} A.`}>
+      <h3><Icon name="bolt" size={11} /> {v.rail === 'ram' ? 'Memory VRM' : 'VRM'} <span class={`zchip ${VRM_CLASS[zone]}`}>{v.burnt ? 'Burnt' : VRM_ZONE_WORD[zone]}</span></h3>
+      <div class="vtrack" title={`${v.rail === 'ram' ? 'The memory regulator. ' : ''}${VRM_ZONE_HELP[zone]} Demand ${v.demandA.toFixed(1)} A of ${v.capacityA} A.`}>
         <i class="vz safe" style={{ left: '0%', width: `${busyPct}%` }} />
         <i class="vz busy" style={{ left: `${busyPct}%`, width: `${Math.max(0, overPct - busyPct)}%` }} />
         <i class="vz overload" style={{ left: `${overPct}%`, width: `${Math.max(0, 100 - overPct)}%` }} />
@@ -170,7 +203,7 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
           <Icon name="flame" size={12} /> {v.tempC.toFixed(0)} C
         </span>
         <span class="chip" title={tip('vrm.efficiency')}><Icon name="eff" size={12} /> {Math.round(v.efficiency * 100)}%</span>
-        <span class={`chip ${v.throttle < 1 ? 'warn' : ''}`} title="Throttle: the regulator's heat holds the processor back by this much (100% is none).">
+        <span class={`chip ${v.throttle < 1 ? 'warn' : ''}`} title={`Throttle: the regulator's heat holds the ${v.rail === 'ram' ? 'memory' : 'processor'} back by this much (100% is none).`}>
           <Icon name="clock" size={12} /> {Math.round(v.throttle * 100)}%
         </span>
         <span class={`chip ${v.errProb > 0.02 ? 'bad' : ''}`} title="Chance per busy tick that voltage droop crashes the machine. Zero while the regulator is safe.">
@@ -178,7 +211,7 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
         </span>
         <span class="chip" title={tip('vrm.heat')}><Icon name="bolt" size={12} /> {v.lossW.toFixed(1)} W</span>
         <span class="chip" title={tip('vrm.ripple')}><Icon name="wave" size={12} /> {v.ripple.toFixed(2)}</span>
-        <span class="chip" title={v.sink ? `${v.sink.name}: cools the regulator. Coolers with a fan blow over it too; liquid ones do not.` : 'No VRM heatsink: drag one onto the board\'s heatsink slot.'}>
+        <span class="chip" title={v.sink ? `${v.sink.name}: cools the regulator. Coolers with a fan blow over it too; liquid ones do not.` : `No ${v.rail === 'ram' ? 'RAM ' : ''}VRM heatsink: drag one onto the board's ${v.rail === 'ram' ? 'memory ' : ''}heatsink slot.`}>
           <Icon name="fan" size={12} /> {v.sink ? v.sink.name : 'no heatsink'}
         </span>
       </div>
@@ -233,6 +266,9 @@ function BoardCardView({ c }: { c: BoardCard }) {
           <span><Icon name="bolt" size={10} /> {c.totalA} A</span>
           <b class={`delta ${c.trend}`}>{c.deltaText}</b>
         </div>
+      </div>
+      <div class="bslots" title={`Memory VRM: ${c.ramPhases} phases x ${c.ramAmpsPerPhase} A = ${c.ramTotalA} A. It feeds every RAM stick; memory overclocking loads it.`}>
+        <span class="bi"><Icon name="memory" size={11} /> {c.ramTotalA} A</span>
       </div>
       <div class="bfoot">{foot}</div>
     </div>
@@ -349,7 +385,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         <Icon name="close" size={11} />
       </button>
       <header class="phead">
-        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink') && (
+        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
           <div class="part"><PartArt id={artId} size={80} /></div>
         )}
         <div class="ptext">
@@ -369,8 +405,9 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         <div key={i} class={`pline ${l.level === 'info' ? '' : l.level}`}>{l.text}</div>
       ))}
       {m.vrm && m.kind === 'info' && <VrmBlock v={m.vrm} s={s} />}
-      {m.clock && m.device && s.cpuClock && <ClockDial s={s} cpu={m.device} />}
-      {m.vrm && m.kind === 'cpu' && <VrmBlock v={m.vrm} s={s} />}
+      {m.clock && m.device && m.kind === 'cpu' && s.cpuClock && <ClockDial s={s} cpu={m.device} />}
+      {m.clock && m.device && m.kind === 'ram' && <RamClockDial s={s} dev={m.device} />}
+      {m.vrm && (m.kind === 'cpu' || m.kind === 'ram') && <VrmBlock v={m.vrm} s={s} />}
       {optWarn && <div class="pline warn">{optName}: {optWarn}</div>}
       {m.osSection && <OsBlock sec={m.osSection} picked={option} onPick={setPicked} />}
       {m.shelf && m.shelf.length > 0 && (

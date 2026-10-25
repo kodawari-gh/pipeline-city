@@ -17,7 +17,7 @@ import { drawStrip, exteriorArt, EXTERIOR_FRAME, stripModeOf } from './exterior'
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  OVERVIEW_MARGIN, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, nicJack, nicRect, type Rect,
+  OVERVIEW_MARGIN, RAM_SINK, REGIONS, SCREEN, STAGES, TRAY, USB_PORT, VRM_SINK, WORLD, nicJack, nicRect, type Rect,
 } from './layout';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -273,6 +273,7 @@ export async function mountBoard(host: HTMLElement) {
       case 'atx': case 'atx-plus': return PSU;
       case 'pcie': { const r = PCIE_RAILS[idx]; return r ? { x: r.x, y: r.y - 20, w: r.w, h: r.h + 40 } : null; }
       case 'vrm-sink': return VRM_SINK;
+      case 'ram-sink': return RAM_SINK;
       default: return null;
     }
   };
@@ -367,6 +368,13 @@ export async function mountBoard(host: HTMLElement) {
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push({ id: d.id, rect: VRM_SINK });
         scene.rects.set(d.id, VRM_SINK);
+      } else if (spec.kind === 'ram-sink') {
+        const p = vrmSinkArt(T, spec.visual, RAM_SINK);
+        deviceLayer.addChild(p.root); parts.push(p);
+        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
+        if (p.over) fanLayer.addChild(p.over);
+        deviceHits.push({ id: d.id, rect: RAM_SINK });
+        scene.rects.set(d.id, RAM_SINK);
       } else if (spec.kind === 'nic') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
         const p = nicArt(T, spec.visual, idx);
@@ -406,6 +414,7 @@ export async function mountBoard(host: HTMLElement) {
     empty('atx-plus', slots['atx-plus'] ?? 0, () => PSU);
     empty('pcie', slots.pcie ?? 0, (i) => slotRectOf('pcie' + i)!);
     empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
+    empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
     const driveSlots = [...['sata0', 'sata1'].slice(0, nSata), ...(nM2 ? ['m20'] : [])];

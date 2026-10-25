@@ -15,6 +15,9 @@
 // The board's VRM (docs/VRM.md) is stepped here too: its loss (CPU power x (1/efficiency - 1)) is drawn from the PSU,
 //   its temperature lives in `vrm`, a hot VRM trims the CPU clock (same 0.8 floor), overload or heat makes
 //   vrmErrorRoll() fire, and sustained overload or heat burns the board (Board.burnt).
+// The memory has a second regulator of its own (BoardTierSpec.ramVrm, `ramVrm` here): same maths, fed by the DIMMs total power
+//   at 1.2 V (ramDemand), its throttle trims every DIMM clock, its instability crashes the machine (ramVrmErrorRoll) and sustained
+//   overload or heat burns the board too. Its heatsink sits in slot `ram-sink`.
 // Brownout rule: total draw > PSU watts -> every clock is scaled by watts/draw (forced throttle).
 //   Total draw > 1.5x PSU watts (or a burnt PSU) -> hard trip: everything off (clock 0) until powerCycle().
 //   No PSU installed -> machine is off (not latched).
@@ -22,7 +25,9 @@
 import type { Prng } from "../machine/prng";
 import { deviceSpec, findDevices, installedPsu, type Board, type InstalledDevice } from "./board";
 import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, type DeviceKind } from "./specs";
-import { currentDemand, efficiency, errorProb, lossW, loadRatio, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
+import { currentDemand, efficiency, errorProb, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
+
+type VrmSpecOf = (typeof BOARD_TIERS)[number]["vrm"];
 
 export const THROTTLE_MIN = 0.8;
 export const TRIP_RATIO = 1.5;
@@ -78,6 +83,8 @@ export type Loads = Partial<Record<DeviceKind, number>>;
 export class ThermalModel {
   readonly devices = new Map<string, DeviceThermal>();
   vrm: VrmThermal = freshVrm();
+  /** The memory regulator live state. */
+  ramVrm: VrmThermal = freshVrm();
   power: PowerReport = { totalW: 0, vrmLossW: 0, budgetW: 0, psuFactor: 1, off: true, tripped: false };
 
   constructor(private readonly prng: Prng) {}
@@ -97,6 +104,7 @@ export class ThermalModel {
       st.throttle = 1;
     }
     this.vrm = freshVrm();
+    this.ramVrm = freshVrm();
     this.power = { ...this.power, tripped: false };
   }
 
@@ -125,6 +133,12 @@ export class ThermalModel {
     return this.prng.next() < this.vrm.errProb;
   }
 
+  /** True if a memory-regulator droop crash should hit now. Consumes PRNG state only while that regulator is unstable. */
+  ramVrmErrorRoll(): boolean {
+    if (!this.ramVrm.unstable) return false;
+    return this.prng.next() < this.ramVrm.errProb;
+  }
+
   /**
    * Advance one base tick. `loads` is the utilisation (0..1) per device kind; default 1. With `powered` false the
    * machine is switched off (nothing draws, parts cool down); the trip latch is left alone.
@@ -133,7 +147,7 @@ export class ThermalModel {
     const psu = installedPsu(board);
     const tripped = this.power.tripped;
     const live = powered && !!psu && !psu.dev.burnt && !tripped && !board.burnt;
-    const vspec = BOARD_TIERS[board.tier]!.vrm;
+    const vspec = BOARD_TIERS[board.tier]!.vrm, rspec = BOARD_TIERS[board.tier]!.ramVrm;
     const load = (d: InstalledDevice): number => loads[deviceSpec(d).kind] ?? 1;
     const cpuLoad = Math.max(0, ...findDevices(board, "cpu").map(load));
 
@@ -145,7 +159,8 @@ export class ThermalModel {
       therm.set(d.id, st.tempC <= t.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (st.tempC - t.throttleC) / (t.unstableC - t.throttleC)));
     }
     // The VRM's thermal factor (last tick's temperature) trims the CPU on top of its own.
-    const vrmThrottle = this.vrm.tempC <= vspec.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (this.vrm.tempC - vspec.throttleC) / (vspec.unstableC - vspec.throttleC));
+    const throttleOf = (v: VrmThermal, s: VrmSpecOf) => (v.tempC <= s.throttleC ? 1 : Math.max(THROTTLE_MIN, 1 - (1 - THROTTLE_MIN) * (v.tempC - s.throttleC) / (s.unstableC - s.throttleC)));
+    const vrmThrottle = throttleOf(this.vrm, vspec), ramThrottle = throttleOf(this.ramVrm, rspec);
     // Forget removed devices.
     for (const id of [...this.devices.keys()]) if (!board.devices.some((d) => d.id === id)) this.devices.delete(id);
 
@@ -155,9 +170,9 @@ export class ThermalModel {
       if (spec.kind === "nic") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
       if (!spec.clock) {
         // Cooler fan follows CPU load; PSU draws nothing of its own in this model.
-        return { w: spec.kind === "cooler" || spec.kind === "vrm-sink" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
+        return { w: spec.kind === "cooler" || spec.kind === "vrm-sink" || spec.kind === "ram-sink" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
       }
-      const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * (spec.kind === "cpu" ? vrmThrottle : 1) * psuFactor;
+      const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * (spec.kind === "cpu" ? vrmThrottle : spec.kind === "ram" ? ramThrottle : 1) * psuFactor;
       const r = clk / spec.clock.base;
       return { w: spec.idleW * r + (spec.loadW - spec.idleW) * load(d) * r * r * r, clk };
     };
@@ -172,7 +187,17 @@ export class ThermalModel {
       const eff = efficiency(vspec, ratio);
       return { ratio, eff, loss: lossW(p.w, eff) };
     };
-    let total = vrmAt(1).loss;
+    // The memory regulator: every DIMM power at the mean clock ratio, over 1.2 V.
+    const ramDevs = findDevices(board, "ram").filter((d) => !d.burnt);
+    const ramAt = (psuFactor: number): { ratio: number; eff: number; loss: number } => {
+      if (!ramDevs.length || !live) return { ratio: 0, eff: rspec.peakEfficiency, loss: 0 };
+      let w = 0, r = 0;
+      for (const d of ramDevs) { const p = powerOf(d, psuFactor); w += p.w; r += p.clk / deviceSpec(d).clock!.base; }
+      const ratio = loadRatio(rspec, ramDemand(w, r / ramDevs.length));
+      const eff = efficiency(rspec, ratio);
+      return { ratio, eff, loss: lossW(w, eff) };
+    };
+    let total = vrmAt(1).loss + ramAt(1).loss;
     for (const d of board.devices) total += powerOf(d, 1).w;
     const budget = psu && !psu.dev.burnt ? psu.spec.watts : 0;
     let psuFactor = 1;
@@ -183,7 +208,8 @@ export class ThermalModel {
     }
     const effLive = live && !nowTripped;
     const vrmNow = vrmAt(effLive ? psuFactor : 1);
-    let drawn = effLive ? vrmNow.loss : 0;
+    const ramNow = ramAt(effLive ? psuFactor : 1);
+    let drawn = effLive ? vrmNow.loss + ramNow.loss : 0;
 
     const cooler = findDevices(board, "cooler").find((d) => !d.burnt);
     const coolerK = effLive && cooler ? (deviceSpec(cooler) as { coolingPerC: number }).coolingPerC : 0;
@@ -206,13 +232,13 @@ export class ThermalModel {
       else st.stress = Math.max(0, st.stress - 1);
       if (st.stress >= DAMAGE_TICKS && !d.burnt) d.burnt = true;
     }
-    this.stepVrm(board, vspec, vrmNow, vrmThrottle, effLive);
-    this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
+    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink");
+    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink");
+    this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss + ramNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
   }
 
-  private stepVrm(board: Board, vspec: (typeof BOARD_TIERS)[number]["vrm"], now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean): void {
-    const v = this.vrm;
-    const sink = live ? findDevices(board, "vrm-sink").find((d) => !d.burnt) : undefined;
+  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink"): void {
+    const sink = live ? findDevices(board, sinkKind).find((d) => !d.burnt) : undefined;
     const cooler = live ? findDevices(board, "cooler").find((d) => !d.burnt) : undefined;
     const sinkK = sink ? (deviceSpec(sink) as { coolingPerC: number }).coolingPerC : 0;
     const airK = cooler ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC : 0;

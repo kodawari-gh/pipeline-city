@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
 import {
-  BD, BOARD_SEED, BR, sataPort, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, VRM_LED, VRM_MAX, VRM_PWM, vrmPhase, rng,
+  BD, BOARD_SEED, BR, DRAM_VRM_MAX, dramPhase, sataPort, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, PCIE_RAILS, PKG, SOCKET_E, VIDEO_Y, VRM_LED, VRM_MAX, VRM_PWM, vrmPhase, rng,
 } from './layout';
 import { box, disc, label, mix } from './ink';
 import { USB_POS } from './exterior';
@@ -41,7 +41,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   if (tint) { P.board = mix(P.board, tint, [0.22, 0, 0.2, 0.26][tier] ?? 0); P.edge = mix(P.edge, tint, 0.25); P.sub = mix(P.sub, tint, 0.18); P.panel = mix(P.panel, tint, 0.15); }
   const tierSpec = BOARD_TIERS[tier];
   const feat = tierSpec?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 };
-  const phases = tierSpec?.vrm.phases ?? 2;
+  const phases = tierSpec?.vrm.phases ?? 2, ramPhases = tierSpec?.ramVrm.phases ?? 2;
   const root = new Container();
   const labels = new Container();
   const slots = BOARD_TIERS[tier]?.slots ?? {};
@@ -119,13 +119,13 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   {
     const v = BR.dvrm;
     box(g, v.x, v.y, v.w, v.h, 22, { fill: P.sub, stroke: P.edge, lw: 6 });
-    for (let i = 0; i < 5; i++) {
-      const x = v.x + 50 + i * 225;
-      box(g, x, v.y + 50, 160, 140, 14, { fill: P.panel, stroke: P.edge, lw: 5 });
-      disc(g, x + 80, v.y + 120, 44, { stroke: P.via, lw: 6, sa: 0.7 });
-      disc(g, x + 80, v.y + 300, 38, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 });
+    for (let i = 0; i < DRAM_VRM_MAX; i++) {
+      const x = dramPhase(i).x, a = i < ramPhases ? 1 : 0.28; // a tier fills the first `ramPhases` blocks, the rest are faint empty pads
+      box(g, x, v.y + 50, 160, 140, 14, { fill: P.panel, stroke: P.edge, lw: 5, fa: a, sa: a });
+      disc(g, x + 80, v.y + 120, 44, { stroke: P.via, lw: 6, sa: 0.7 * a });
+      disc(g, x + 80, v.y + 300, 38, { fill: P.dark, stroke: P.via, lw: 5, sa: 0.6 * a, fa: a });
     }
-    lbl('VRM · DRAM', v.x + 10, v.y - 36);
+    lbl(`VRM · DRAM · ${ramPhases} PHASE`, v.x + 10, v.y - 36);
   }
 
   // ---- DIMM sockets: eight positions in two rows around the memory bus; the ones this tier lacks are bare, faint sockets ----

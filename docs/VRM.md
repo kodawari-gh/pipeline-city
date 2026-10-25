@@ -103,3 +103,15 @@ board: {
 ## Save
 
 Version 4 (see [`SAVE.md`](SAVE.md)): `board.burnt` is saved; the VRM temperature is not. Migration 3 to 4 renumbers the board tier: **old tier 0 (2 DIMMs) becomes Basic (1), old tier 1 becomes Mainstream (2)**; inventory `board1` becomes `board2` (the old bigger board).
+
+## The memory VRM (second regulator)
+
+Every board tier also has a **memory VRM** (`BoardTierSpec.ramVrm`, same `VrmSpec` shape, drawn as the DRAM VRM block beside the DIMMs). It is a separate rail with its own temperature, throttle, instability and burn-out stress, stepped in `ThermalModel` next to the CPU one (`ThermalModel.ramVrm`, `ramVrmErrorRoll()`).
+
+- **Demand**: the sticks' total power over the memory voltage (`ramVoltage(r)`: 1.2 V at base clock, +0.3 V per unit of clock ratio, floor 0.9 V; `ramDemand`). Efficiency, loss, heat and errors use the same maths as the CPU rail.
+- **Effects**: a hot memory VRM trims every stick's clock (same 0.8 floor); overload or heat makes `ramVrmErrorRoll()` crash the machine ("memory VRM voltage droop" in the log); sustained overload or heat burns the board (`Board.burnt`, the same dead-board rule). Its conversion loss is drawn from the PSU.
+- **Cooling**: a memory VRM heatsink in slot `ram-sink0` (device kind `ram-sink`; `rsink0` fins $25 / `rsink1` big fins $60 / `rsink2` fins + fan $120, same cooling as the CPU ones). The CPU cooler's `vrmAirPerC` blows over this rail too. A CPU-side heatsink does not cool it.
+- **Overclocking memory**: each stick has a clock slider (`Game.setRamClock(deviceId, clock)`, message `setRamClock`), inside its spec range. Higher clock means more power (r^3) and a higher memory-regulator load; it also lowers the RAM latency seen by the CPU (apply.ts).
+- **Ladder** (phases x A, peak efficiency, ripple): Starter 2 x 6, 0.78, 0.60; Basic 2 x 8, 0.82, 0.45; Mainstream 3 x 10, 0.86, 0.25; Enthusiast 4 x 15, 0.90, 0.10. Stock memory on its own tier's board stays under 70% of rating.
+- **Snapshot**: `board.ramVrm` (a `VrmSnap`) and `board.ramSink`. The UI shows it on the memory stick card (Memory VRM block, clock dial with throttle/unstable zones including where the regulator runs out) and on the DRAM VRM region card; board cards show its total amps.
+- **Unlocks**: `rsink0` at level 2, `rsink1` at level 5, `rsink2` at level 7.

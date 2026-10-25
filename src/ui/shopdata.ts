@@ -12,10 +12,10 @@ export type ShopKind = DeviceKind | 'board' | 'os' | 'router' | 'isp';
 /** One picture per category, so the inventory and the shop read without words. */
 export const KIND_ICON: Record<ShopKind, IconName> = {
   cpu: 'cpu', ram: 'memory', cooler: 'fan', psu: 'bolt', display: 'screen', storage: 'disk', board: 'board',
-  'vrm-sink': 'heatsink', nic: 'net', os: 'layers', router: 'router', isp: 'globe',
+  'vrm-sink': 'heatsink', 'ram-sink': 'wave', nic: 'net', os: 'layers', router: 'router', isp: 'globe',
 };
 
-export const SHOP_ORDER: ShopKind[] = ['board', 'cpu', 'cooler', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'nic', 'os', 'router', 'isp'];
+export const SHOP_ORDER: ShopKind[] = ['board', 'cpu', 'cooler', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'os', 'router', 'isp'];
 
 /** Category name as the shelf and the shop say it ("Software" for the OS group). */
 export const kindLabel = (k: string): string => (k === 'os' ? 'Software' : KIND_LABEL[k as ShopKind] ?? k);

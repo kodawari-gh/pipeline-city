@@ -47,7 +47,7 @@ describe("board tier ladder", () => {
     expect(BOARD_TIERS.map((t) => t.name)).toEqual(["Starter", "Basic", "Mainstream", "Enthusiast"]);
     const count = (tier: number, type: string) => boardSlots(createBoard(tier)).filter((s) => s.type === type).length;
     // Starter: 1 CPU socket, ONE DIMM, 1 SATA, 1 USB, 1 display, no PCIe, no M.2, ATX power.
-    expect(["cpu", "dimm", "sata", "usb", "display", "pcie", "m2", "atx", "atx-plus", "vrm-sink"].map((s) => count(0, s))).toEqual([1, 1, 1, 1, 1, 0, 0, 1, 0, 1]);
+    expect(["cpu", "dimm", "sata", "usb", "display", "pcie", "m2", "atx", "atx-plus", "vrm-sink", "ram-sink"].map((s) => count(0, s))).toEqual([1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1]);
     expect([1, 2, 3].map((t) => count(t, "dimm"))).toEqual([2, 4, 8]);
     expect([0, 1, 2, 3].map((t) => count(t, "pcie"))).toEqual([0, 1, 2, 4]);
     expect([0, 1, 2, 3].map((t) => count(t, "m2"))).toEqual([0, 0, 1, 1]);
@@ -271,7 +271,7 @@ describe("the game around the VRM", () => {
     const g = new Game({ seed: 1 });
     const s = g.snapshot();
     expect(s.board).toMatchObject({ tier: 0, name: "Starter", burnt: false, features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 } });
-    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "sata", "usb", "vrm-sink"]);
+    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "ram-sink", "sata", "usb", "vrm-sink"]);
     expect(s.board.slots).toEqual(s.slots);
     expect(s.board.vrm).toMatchObject({ phases: 2, ampsPerPhase: 12, burnt: false, sinkDeviceId: null });
     expect(s.board.vrmSink).toBeNull();

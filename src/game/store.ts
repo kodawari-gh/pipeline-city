@@ -77,6 +77,7 @@ export function loadAutosaveOffer(): boolean {
 
 export const purchase = (id: string) => send({ type: 'purchase', id });
 export const setCpuClock = (clock: number) => send({ type: 'setCpuClock', clock });
+export const setRamClock = (deviceId: string, clock: number) => send({ type: 'setRamClock', deviceId, clock });
 export const powerCycle = () => send({ type: 'powerCycle' });
 // Assembly and keys (docs/ASSEMBLY.md): each refused action sets `lastError` and always refreshes the snapshot.
 export const install = (invId: string, slotId?: string) => send({ type: 'install', invId, slotId });

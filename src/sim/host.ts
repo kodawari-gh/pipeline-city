@@ -42,6 +42,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'setLevel': return refusable(g, 'setLevel', g.setLevel(msg.level));
       case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
       case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
+      case 'setRamClock': return refusable(g, 'setRamClock', g.setRamClock(msg.deviceId, msg.clock));
       case 'install': return refusable(g, 'install', g.swapInstall(msg.invId, msg.slotId));
       case 'uninstall': return refusable(g, 'uninstall', g.uninstall(msg.deviceId));
       case 'connectCable': return refusable(g, 'connectCable', g.connectCable(msg.cable, msg.port));

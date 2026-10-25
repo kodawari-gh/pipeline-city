@@ -24,6 +24,7 @@ export type ToSim =
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
   | { type: 'setCpuClock'; clock: number }
+  | { type: 'setRamClock'; deviceId: string; clock: number }
   | { type: 'powerCycle' }
   // Assembly and keys (docs/ASSEMBLY.md). Each replies with a snapshot, plus an error message if it was refused.
   | { type: 'install'; invId: string; slotId?: string }

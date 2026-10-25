@@ -16,6 +16,16 @@ export function coreVoltage(r: number): number {
   return Math.max(0.7, 1 + 0.3 * (r - 1));
 }
 
+/** Memory voltage: 1.2 V at base clock, rising 0.3 V per unit of clock ratio (floored at 0.9 V). */
+export function ramVoltage(r: number): number {
+  return Math.max(0.9, 1.2 + 0.3 * (r - 1));
+}
+
+/** Amps the memory asks for: its total power over its voltage. */
+export function ramDemand(ramW: number, r: number): number {
+  return ramW / ramVoltage(r);
+}
+
 /** Amps the CPU asks for: its power over its core voltage (grows about with r^2 as the clock rises). */
 export function currentDemand(cpuW: number, r: number): number {
   return cpuW / coreVoltage(r);

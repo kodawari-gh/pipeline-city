@@ -64,7 +64,7 @@ export function kindIcon(kind: string): IconKey {
   switch (kind) {
     case 'cpu': case 'npu': case 'os': return 'cpu';
     case 'ram': return 'memory';
-    case 'cooler': case 'fan': case 'vrm-sink': return 'fan';
+    case 'cooler': case 'fan': case 'vrm-sink': case 'ram-sink': return 'fan';
     case 'psu': return 'bolt';
     case 'display': case 'gpu': return 'screen';
     case 'storage': case 'raid': return 'disk';
@@ -133,7 +133,7 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
 /** Whether `PartArt` can draw this unlock-table id (a real part, a board tier or an OS). */
 export function hasArt(id: string, kind: string, planned: boolean): boolean {
   if (planned) return false;
-  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'psu', 'display', 'vrm-sink', 'storage', 'os'].includes(kind);
+  return /^board\d+$/.test(id) || ['cpu', 'ram', 'cooler', 'psu', 'display', 'vrm-sink', 'ram-sink', 'storage', 'os'].includes(kind);
 }
 
 // ---------- locked items (the player level gates purchases) ----------

@@ -168,6 +168,9 @@ export interface BoardSnap {
   slots: SlotSnap[];
   vrm: VrmSnap;
   vrmSink: DeviceSnap | null;
+  /** The memory regulator and its heatsink (same shape; its load is the DIMMs' current over 1.2 V). */
+  ramVrm: VrmSnap;
+  ramSink: DeviceSnap | null;
 }
 
 /** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */
@@ -1006,6 +1009,15 @@ export class Game {
     return r;
   }
 
+  /** Set the requested clock of one memory stick (RAM overclock/underclock), in its spec's range. */
+  setRamClock(deviceId: string, clock: number): { ok: true } | { ok: false; reason: string } {
+    const d = this.board.devices.find((x) => x.id === deviceId);
+    if (!d || getSpec(d.spec)?.kind !== "ram") return { ok: false, reason: "no such memory stick" };
+    const r = setClock(this.board, d.id, clock);
+    if (r.ok) this.syncRates(this.powered);
+    return r;
+  }
+
   // ---------- public API: power, keys ----------
 
   /**
@@ -1251,7 +1263,8 @@ export class Game {
     if (this.powered && busy && !this.board.burnt) {
       // A thermal error or a VRM voltage droop crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
       const cpu = findDevices(this.board, "cpu")[0];
-      const why = cpu && this.thermal.errorRoll(cpu.id) ? "thermal error" : this.thermal.vrmErrorRoll() ? "VRM voltage droop" : null;
+      const why = cpu && this.thermal.errorRoll(cpu.id) ? "thermal error" : this.thermal.vrmErrorRoll() ? "VRM voltage droop"
+        : this.thermal.ramVrmErrorRoll() ? "memory VRM voltage droop" : null;
       if (why) {
         this.errors++;
         if (this.plugged && !this.plugged.done) this.plugged.attempts++;
@@ -1399,17 +1412,20 @@ export class Game {
 
   private boardSnap(): BoardSnap {
     const t = BOARD_TIERS[this.board.tier]!;
-    const v = this.thermal.vrm;
-    const sink = findDevices(this.board, "vrm-sink")[0];
+    const v = this.thermal.vrm, rv = this.thermal.ramVrm;
+    const sink = findDevices(this.board, "vrm-sink")[0], ramSink = findDevices(this.board, "ram-sink")[0];
+    const rail = (spec: typeof t.vrm, st: typeof v, sinkDev: typeof sink): VrmSnap => ({
+      phases: spec.phases, ampsPerPhase: spec.ampsPerPhase, ripple: spec.ripple,
+      tempC: st.tempC, loadRatio: st.loadRatio, efficiency: st.efficiency, throttle: st.throttle, unstable: st.unstable,
+      burnt: !!this.board.burnt, errProb: st.errProb, heatW: st.heatW,
+      throttleC: spec.throttleC, unstableC: spec.unstableC, damageC: spec.damageC, sinkDeviceId: sinkDev?.id ?? null,
+    });
     return {
       tier: t.tier, name: t.name, burnt: !!this.board.burnt, features: { ...t.features }, slots: this.slotSnaps(),
-      vrm: {
-        phases: t.vrm.phases, ampsPerPhase: t.vrm.ampsPerPhase, ripple: t.vrm.ripple,
-        tempC: v.tempC, loadRatio: v.loadRatio, efficiency: v.efficiency, throttle: v.throttle, unstable: v.unstable,
-        burnt: !!this.board.burnt, errProb: v.errProb, heatW: v.heatW,
-        throttleC: t.vrm.throttleC, unstableC: t.vrm.unstableC, damageC: t.vrm.damageC, sinkDeviceId: sink?.id ?? null,
-      },
+      vrm: rail(t.vrm, v, sink),
       vrmSink: sink ? this.deviceSnap(sink) : null,
+      ramVrm: rail(t.ramVrm, rv, ramSink),
+      ramSink: ramSink ? this.deviceSnap(ramSink) : null,
     };
   }
 

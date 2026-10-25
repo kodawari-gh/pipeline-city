@@ -23,7 +23,7 @@ export function fmtClock(c: number): string {
 
 export const KIND_LABEL: Record<DeviceKind | 'board' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard',
-  os: 'Operating system', 'vrm-sink': 'VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
+  os: 'Operating system', 'vrm-sink': 'VRM cooling', 'ram-sink': 'Memory VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -155,6 +155,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
+  'ram-sink': 'Fins that cool the memory regulator beside the RAM slots, so memory can run faster without overheating the supply.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
   nic: 'A network card for an expansion slot. Plug the ethernet cable into its jack to reach the router: its speed replaces the speed of the board jack. Fast cards run hot.',
 };
@@ -194,6 +195,7 @@ const SLOT_PLAIN: Record<string, string> = {
   m2: 'M.2 slot (fast NVMe drives): drag a drive here',
   usb: 'USB port',
   'vrm-sink': 'VRM heatsink slot: bolts onto the voltage regulators (drag a heatsink here)',
+  'ram-sink': 'Memory VRM heatsink slot: bolts onto the memory regulator (drag a RAM heatsink here)',
 };
 
 /** One plain line per motherboard tier (the tier's slot counts and features are in the nerd line). */
@@ -427,7 +429,7 @@ export function friendlyError(message: string): string {
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
 
-const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'nic', 'router', 'os'];
+const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'router', 'os'];
 
 /** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
 export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {

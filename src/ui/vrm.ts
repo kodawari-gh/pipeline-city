@@ -1,8 +1,8 @@
 // Motherboard, VRM and heatsink readouts for the UI (docs/VRM.md, docs/UI.md). Pure: numbers come from the snapshot and
 // the spec data, no DOM, no signals. All sim numbers are placeholders, so these readouts are placeholders too.
 
-import { BOARD_TIERS, getSpec, type VrmSinkSpec } from '../sim/board/specs';
-import { currentDemand, loadRatio, VRM_OVERLOAD } from '../sim/board/vrm';
+import { BOARD_TIERS, getSpec, type RamSpec, type VrmSinkSpec } from '../sim/board/specs';
+import { currentDemand, loadRatio, ramDemand, VRM_OVERLOAD } from '../sim/board/vrm';
 import type { Snapshot } from '../sim/game/game';
 import { isNextLevelLock, lockOf, lockTooltip, type LevelLock } from './levelui';
 import { fmtMoney, type Level } from './logic';
@@ -25,8 +25,12 @@ export function vrmZone(ratio: number): VrmZone {
   return 'safe';
 }
 
+/** Which regulator a readout is about: the processor's or the memory's. */
+export type VrmRail = 'cpu' | 'ram';
+
 /** Everything the VRM readout shows, from `snapshot.board`. */
 export interface VrmReadout {
+  rail: VrmRail;
   burnt: boolean;
   tempC: number;
   throttleC: number;
@@ -54,14 +58,16 @@ export interface VrmReadout {
 }
 
 /** The VRM readout, or null for a snapshot without a board (never produced by the sim; kept for old fixtures). */
-export function vrmReadout(s: Snapshot): VrmReadout | null {
+export function vrmReadout(s: Snapshot, rail: VrmRail = 'cpu'): VrmReadout | null {
   const b = s.board;
   if (!b) return null;
-  const v = b.vrm;
+  const v = rail === 'ram' ? b.ramVrm : b.vrm;
+  const sinkDev = rail === 'ram' ? b.ramSink : b.vrmSink;
   const capacityA = v.phases * v.ampsPerPhase;
-  const sinkSpec = b.vrmSink ? getSpec(b.vrmSink.spec) as VrmSinkSpec | undefined : undefined;
+  const sinkSpec = sinkDev ? getSpec(sinkDev.spec) as VrmSinkSpec | undefined : undefined;
   const tempLevel: Level = v.burnt || v.tempC >= v.unstableC ? 'bad' : v.tempC >= v.throttleC - 5 ? 'warn' : 'ok';
   return {
+    rail,
     burnt: v.burnt,
     tempC: v.tempC,
     throttleC: v.throttleC,
@@ -78,10 +84,10 @@ export function vrmReadout(s: Snapshot): VrmReadout | null {
     throttle: v.throttle,
     unstable: v.unstable,
     errProb: v.errProb,
-    lossW: s.power.vrmLossW ?? v.heatW,
+    lossW: rail === 'ram' ? v.heatW : s.power.vrmLossW !== undefined ? s.power.vrmLossW - b.ramVrm.heatW : v.heatW,
     ripple: v.ripple,
     tempLevel,
-    sink: b.vrmSink && sinkSpec?.kind === 'vrm-sink' ? { name: sinkSpec.name.split(' (')[0]!, coolingPerC: sinkSpec.coolingPerC } : null,
+    sink: sinkDev && sinkSpec && (sinkSpec.kind === 'vrm-sink' || sinkSpec.kind === 'ram-sink') ? { name: sinkSpec.name.split(' (')[0]!, coolingPerC: sinkSpec.coolingPerC } : null,
   };
 }
 
@@ -92,10 +98,11 @@ export function vrmLines(v: VrmReadout): Array<{ level: Level | 'info'; text: st
     out.push({ level: 'bad', text: 'The VRM burnt out, so the board is dead. Power off and buy a board of the same tier to replace it.' });
     return out;
   }
-  if (v.unstable) out.push({ level: 'bad', text: 'Unstable: the regulator is overloaded or too hot, so the machine can crash. Slow the clock or add a VRM heatsink.' });
+  const mem = v.rail === 'ram';
+  if (v.unstable) out.push({ level: 'bad', text: `Unstable: the ${mem ? 'memory ' : ''}regulator is overloaded or too hot, so the machine can crash. Slow the ${mem ? 'memory ' : ''}clock or add a ${mem ? 'RAM ' : ''}VRM heatsink.` });
   else if (v.zone === 'busy') out.push({ level: 'warn', text: 'Working hard: most of its rating is in use. Keep the clock near stock.' });
-  if (v.throttle < 1) out.push({ level: 'warn', text: 'Throttling: the regulator is too hot, so the processor is held back.' });
-  if (!v.sink) out.push({ level: 'info', text: 'No VRM heatsink. A small one on the board cools the regulator.' });
+  if (v.throttle < 1) out.push({ level: 'warn', text: `Throttling: the regulator is too hot, so the ${mem ? 'memory' : 'processor'} is held back.` });
+  if (!v.sink) out.push({ level: 'info', text: mem ? 'No RAM VRM heatsink. A small one on the board cools the memory regulator.' : 'No VRM heatsink. A small one on the board cools the regulator.' });
   return out;
 }
 
@@ -131,6 +138,10 @@ export interface BoardCard {
   totalA: number;
   peakEfficiency: number;
   ripple: number;
+  /** The memory regulator of this tier. */
+  ramPhases: number;
+  ramAmpsPerPhase: number;
+  ramTotalA: number;
   /** Bar lengths 0..1 against the strongest tier: the installed board (grey) and this tier (coloured). */
   curBar: number;
   optBar: number;
@@ -145,6 +156,7 @@ const SLOT_LABELS: Array<{ key: string; label: string; icon: BoardSlotIcon }> = 
   { key: 'sata', label: 'drive bays (SATA)', icon: 'disk' },
   { key: 'm2', label: 'M.2 slots (fast drives)', icon: 'disk' },
   { key: 'vrm-sink', label: 'VRM heatsink slots', icon: 'fan' },
+  { key: 'ram-sink', label: 'memory VRM heatsink slots', icon: 'fan' },
   { key: 'atx-plus', label: 'big power connector (ATX+)', icon: 'bolt' },
 ];
 
@@ -214,6 +226,9 @@ export function boardCards(s: Snapshot): BoardCard[] {
       totalA: a,
       peakEfficiency: t.vrm.peakEfficiency,
       ripple: t.vrm.ripple,
+      ramPhases: t.ramVrm.phases,
+      ramAmpsPerPhase: t.ramVrm.ampsPerPhase,
+      ramTotalA: t.ramVrm.phases * t.ramVrm.ampsPerPhase,
       curBar: curA / maxA,
       optBar: a / maxA,
       trend,
@@ -254,4 +269,46 @@ export function liquidVrmNote(s: Snapshot, coolerId: string): string | null {
   const spec = getSpec(coolerId);
   if (!spec || spec.kind !== 'cooler' || spec.vrmAirPerC > 0) return null;
   return s.board?.vrmSink ? null : LIQUID_VRM_NOTE;
+}
+
+/** The clock axis of one memory stick: its range and where heat or its regulator's rating make it throttle or crash (raw, may lie outside the range). */
+export interface RamZones { min: number; max: number; base: number; throttleAt: number; unstableAt: number; overloadAt: number }
+
+/**
+ * Where on the clock axis a stick throttles (steady heat reaches its throttle temperature), goes unstable (heat) and overloads
+ * the board's memory regulator (every other stick held at its current clock), from the sim's own steady-state model.
+ */
+export function ramZones(s: Snapshot, devId: string): RamZones | null {
+  const dev = s.devices.find((d) => d.id === devId);
+  const spec = dev ? getSpec(dev.spec) as RamSpec | undefined : undefined;
+  const tier = BOARD_TIERS[s.boardTier];
+  if (!dev || !spec || spec.kind !== 'ram' || !tier) return null;
+  const heat = spec.loadW * spec.heatFactor;
+  const at = (t: number) => (heat > 0 ? spec.clock.base * Math.cbrt(((t - 25) * spec.thermal.passive) / heat) : spec.clock.max);
+  const others = s.devices.filter((d) => d.kind === 'ram' && d.id !== devId && !d.burnt).map((d) => {
+    const sp = getSpec(d.spec) as RamSpec;
+    const r = (d.requestedClock ?? sp.clock.base) / sp.clock.base;
+    return { w: sp.loadW * r ** 3, r };
+  });
+  const cap = tier.ramVrm.phases * tier.ramVrm.ampsPerPhase * VRM_OVERLOAD;
+  const demandAt = (clock: number) => {
+    const r = clock / spec.clock.base;
+    const all = [...others, { w: spec.loadW * r ** 3, r }];
+    return ramDemand(all.reduce((a, x) => a + x.w, 0), all.reduce((a, x) => a + x.r, 0) / all.length);
+  };
+  let lo = spec.clock.min, hi = spec.clock.max * 2;
+  for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (demandAt(mid) > cap) hi = mid; else lo = mid; }
+  const overloadAt = demandAt(spec.clock.max * 2) > cap ? hi : Infinity;
+  return { min: spec.clock.min, max: spec.clock.max, base: spec.clock.base, throttleAt: at(spec.thermal.throttleC), unstableAt: at(spec.thermal.unstableC), overloadAt };
+}
+
+/** Warning on a memory upgrade row: the stock load of every stick over the planned board's memory regulator. Null when it can feed them. */
+export function ramVrmWarning(s: Snapshot, ramId: string): string | null {
+  const spec = getSpec(ramId);
+  const tier = BOARD_TIERS[plannedBoardTier(s)];
+  if (!spec || spec.kind !== 'ram' || !tier) return null;
+  const sticks = s.devices.filter((d) => d.kind === 'ram' && !d.burnt).length;
+  const demand = ramDemand(spec.loadW * Math.max(1, sticks), 1);
+  if (loadRatio(tier.ramVrm, demand) <= VRM_OVERLOAD) return null;
+  return "this board's memory VRM can't feed it: expect crashes";
 }

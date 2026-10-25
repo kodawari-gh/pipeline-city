@@ -388,7 +388,7 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'cooler': body = <Cooler tier={spec.tier} />; break;
         case 'psu': body = <Psu spec={spec} />; break;
         case 'display': body = <Display />; break;
-        case 'vrm-sink': body = <VrmSink tier={spec.tier} />; break;
+        case 'vrm-sink': case 'ram-sink': body = <VrmSink tier={spec.tier} />; break;
         case 'nic': body = <NicCard tier={spec.tier} />; break;
         case 'storage':
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
