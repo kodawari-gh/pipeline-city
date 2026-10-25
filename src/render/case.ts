@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, dashed, disc, label, mix } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
-  BAY, BAY_CELLS, BR, CASE_BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, SATA_LINK, TOP_FANS, WALL_T,
+  BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
   sataPort, type Rect,
 } from './layout';
 import { driveScale } from './drives';
@@ -100,7 +100,7 @@ export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
   return [
     ...frontFanRects().map((r) => ({ x: r.x + r.w / 2, y: r.y + r.h, dx: 0, dy: 1 })),
     ...TOP_FANS.map((r) => ({ x: r.x + r.w, y: r.y + r.h / 2, dx: 1, dy: 0 })),
-    { x: REAR_FAN.x + REAR_FAN.w / 2, y: REAR_FAN.y + REAR_FAN.h, dx: 0, dy: 1 },
+    ...(REAR_FAN_FITTED ? [{ x: REAR_FAN.x + REAR_FAN.w / 2, y: REAR_FAN.y + REAR_FAN.h, dx: 0, dy: 1 }] : []),
   ];
 }
 
@@ -175,6 +175,22 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   root.addChild(label('FAN HUB', h.x + 170, h.y + 110, 38, T.mute, { head: true, a: 0.9 }));
   root.addChild(label('FAN + LIGHTING CONTROLLER', h.x + 170, h.y + 330, 26, T.mute, { a: 0.6 }));
   root.addChild(label(`${hubHeaders().length} CH`, h.x + h.w - 60, h.y + h.h - 40, 28, T.mute, { anchor: [1, 0.5], a: 0.7 }));
+}
+
+/** The cooler's fan cable: a plug on the CPU_FAN header and a sleeve east to the cooler's west edge (drawn only while a cooler is installed). */
+export function cpuFanCableArt(T: Theme): Container {
+  const root = new Container();
+  const g = new Graphics();
+  root.addChild(g);
+  const h = GEO.hdrs.find((q) => q.name === 'CPU_FAN');
+  if (!h) return root;
+  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24, y = h.y + hh / 2, x0 = h.x + w, x1 = COOLER.x + 70, sleeve = sleeveOf(T);
+  g.moveTo(x0 + 6, y + 9).lineTo(x1, y + 9).stroke({ width: 30, color: '#000000', alpha: 0.26, cap: 'round' });
+  g.moveTo(x0, y).lineTo(x1, y).stroke({ width: 24, color: sleeve, cap: 'round' });
+  g.moveTo(x0, y).lineTo(x1, y).stroke({ width: 24, color: T.mul, alpha: 0.2, cap: 'round' });
+  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
+  plugBox(g, T, x1 - 30, y - 28, 64, 56, T.mul); // on the cooler
+  return root;
 }
 
 /** The control cable of the fan hub: a plug on the board's SYS_FAN header and a sleeve that runs down over the board's south edge, east under the PSU cables and up into the hub. */
@@ -292,9 +308,16 @@ function rearWall(g: Graphics, T: Theme, cav: string, wall: string, edge: string
     g.fill({ color: cav, alpha: 0.9 });
     disc(g, x + w / 2, y + 134, 9, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
   }
-  // the rear exhaust fan, above the I/O opening
+  // the rear exhaust above the I/O opening: a fan, or on the Mini (no room for one) a perforated grille
   box(g, x - 4, REAR_FAN.y - 24, w + 8, REAR_FAN.h + 48, 20, { fill: cav, stroke: edge, lw: 4, sa: 0.5 });
-  edgeFan(g, T, REAR_FAN, true, wall, edge);
+  if (REAR_FAN_FITTED) edgeFan(g, T, REAR_FAN, true, wall, edge);
+  else {
+    const r = REAR_FAN;
+    box(g, r.x, r.y, r.w, r.h, 26, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 5, sa: 0.8 });
+    for (let row = 0, y = r.y + 44; y < r.y + r.h - 30; row++, y += 38) for (let col = 0; col < 3 - (row % 2); col++) g.circle(r.x + r.w / 2 + (col - (1 - (row % 2) * 0.5)) * 42, y, 13);
+    g.fill({ color: cav, alpha: 0.95 });
+    for (const sy of [r.y + 18, r.y + r.h - 18]) for (const sx of [r.x + 20, r.x + r.w - 20]) disc(g, sx, sy, 6, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 2, sa: 0.7 });
+  }
   void i;
 }
 

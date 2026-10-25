@@ -8,7 +8,7 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, emptyCellHint, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { EdgeFan, bayArt, caseBack, caseGlass, cpuFanCableArt, emptyCellHint, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
@@ -17,7 +17,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
@@ -331,7 +331,7 @@ export async function mountBoard(host: HTMLElement) {
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
-    for (const r of [...frontFanRects(), REAR_FAN, ...TOP_FANS]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
+    for (const r of [...frontFanRects(), ...(REAR_FAN_FITTED ? [REAR_FAN] : []), ...TOP_FANS]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
@@ -379,6 +379,7 @@ export async function mountBoard(host: HTMLElement) {
         const p = coolerArt(T, spec as CoolerSpec);
         coolerLayer.addChild(p.root); parts.push(p);
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
+        sataLayer.addChild(cpuFanCableArt(T)); // its fan cable to the CPU_FAN header
         coolerHit = { id: d.id, rect: COOLER, max: Z_DIE };
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'vrm-sink') {

@@ -4,7 +4,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, cellSide, cellTop, pcieAux, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from './pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -128,12 +128,12 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
   return out;
 }
 
-export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb';
+export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb' | 'fanc' | 'pwrpcie';
 
 /** Buses that are only there to be seen: they never light. */
-export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb'];
+export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb', 'fanc', 'pwrpcie'];
 /** Buses that may dive under what they cross (a via at each end of the hop), in rank order: a lane of a later bus hops over a lane of an earlier one. */
-export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb'];
+export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb', 'fanc', 'pwrpcie'];
 
 export interface Bus {
   id: BusKind;
@@ -388,7 +388,7 @@ export function buildBuses(): Bus[] {
   {
     const sio = g.sio, a = legsOf(sio, 'e'), b = legsFrom(g.chip, 'w', g.west.sio, 4), ym = mean(a, 1);
     buses.push(mk('lpc', [[a[0]![0], ym], [b[0]![0], ym]], 4, LEG_PITCH, 8, 0, { from: a, to: b }));
-    const leg = legAt(sio, 's', 1, 4, LEG_PITCH), row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS');
+    const leg = legAt(sio, 's', 1, 4, LEG_PITCH), row = g.hdrs.filter((h) => h.name !== 'CLR_CMOS' && h.name !== 'CPU_FAN');
     const yb = Math.max(g.hdrY + 128 + 36, leg[1] + 30), pins = row.map((h) => headerPin(h.x, h.y, 0, h.rows - 1));
     const lanes: Lane[] = [mkLane(chamfer([leg, [leg[0], yb], [Math.min(...pins.map((q) => q[0])), yb]], 24), 31)];
     pins.forEach((q, i) => lanes.push(mkLane([[q[0], yb], q], i * 13 + 5)));
@@ -408,7 +408,7 @@ export function buildBuses(): Bus[] {
 
   // the top board: four lanes from the chipset's south legs down onto the debug display, and the RGB strip's data lane from the ARGB header
   if (g.dbg) {
-    const legs = legRun(g.chip, 's', 4);
+    const legs = legRun(g.chip, 's', 4, -7);
     buses.push({ id: 'dbg', w: 8, lanes: legs.map((q, k) => mkLane([q, [q[0], g.dbg!.y]], k * 17)) });
   }
   if (g.rgb) {
@@ -416,11 +416,25 @@ export function buildBuses(): Bus[] {
     buses.push({ id: 'rgb', w: 8, lanes: [mkLane(chamfer([pin, [pin[0], r.y - 36], [r.x, r.y - 36], [r.x, r.y + r.h / 2]], 24), 0)] });
   }
 
-  // the battery to the clear-CMOS jumper below it
+  // the CR2032: two lanes from the chipset's south legs down onto its top rim (the RTC), two from its side to the clear-CMOS jumper beside it
   {
-    const b = g.bat, cx = b.x + b.w / 2, cy = b.y + b.h / 2, j = g.hdrs.find((h) => h.name === 'CLR_CMOS')!;
-    const lanes = [0, 1].map((i) => { const p = headerPin(j.x, j.y, i, 0); return mkLane([[p[0], cy + Math.sqrt(145 * 145 - (p[0] - cx) ** 2) - 6], p], i * 17); });
+    const bt = g.bat, cx = bt.x + bt.w / 2, j = g.hdrs.find((h) => h.name === 'CLR_CMOS')!, west = j.x < cx, legs = legsOf(g.chip, 's'), used = new Set<number>(), lanes: Lane[] = [];
+    [-34, 34].forEach((dx, i) => {
+      const e = cellTop(bt, dx);
+      let k = 0, best = 1e9;
+      legs.forEach((q, n) => { const d = Math.abs(q[0] - e[0]); if (!used.has(n) && d < best) { best = d; k = n; } });
+      used.add(k);
+      const leg = legs[k]!, d = e[0] - leg[0], y1 = leg[1] + 14;
+      lanes.push(mkLane(Math.abs(d) < 0.5 ? [leg, e] : chamfer([leg, [leg[0], y1], [e[0], y1 + Math.abs(d)], e], 0), i * 17));
+    });
+    [0, 1].forEach((i) => { const p = headerPin(j.x, j.y, 0, i); lanes.push(mkLane([cellSide(bt, p[1] - (bt.y + bt.h / 2), west), p], i * 17 + 9)); });
     buses.push({ id: 'rtc', w: 8, lanes });
+  }
+
+  // the CPU fan's header: four lanes from the I/O hub's south legs (the cooler's cable plugs into it)
+  {
+    const h = g.hdrs.find((q) => q.name === 'CPU_FAN')!, legs = legsOf(g.hub, 's').slice(4), pins = [0, 1, 2, 3].map((i) => headerPin(h.x, h.y, i, 0)), xc = mean(legs, 0);
+    buses.push(mk('fanc', [[xc, legs[0]![1]], [xc, pins[0]![1]]], 4, LEG_PITCH, 8, 0, { from: legs, to: pins, lead: 40 }));
   }
 
   // ---- power ----
@@ -466,6 +480,12 @@ export function buildBuses(): Bus[] {
       bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane(d.flip ? [[cx, g.padY[1] + DIMM_H0 + 130], [cx, ey]] : [[cx, y], [cx, ey]], i * 13)] });
     });
     buses.push(bus);
+  }
+  // the PCIe 6-pin's 12 V rail: west from the connector (under the sockets and lanes it meets: it dives under the lanes), up to the x16 slot's
+  // level and into the tab at the slot's latch end
+  if (g.pciew && g.pcie[0]) {
+    const a = pcieAux(g.pciew), f = pcieFeed(g.pcie[0]), xs = f[0] + 90;
+    buses.push({ id: 'pwrpcie', w: 22, lanes: [mkLane(chamfer([a, [xs, a[1]], [xs, f[1]], f], 70), 0)] });
   }
   // audio: the codec's west legs (the 1st, 4th and 7th) straight to the pads behind the three jacks; ethernet: the PHY's four middle
   // legs straight to the pads behind the RJ45 (decoration: they never light)

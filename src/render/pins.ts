@@ -93,7 +93,16 @@ export const HDR_PITCH = 52;
 /** Centre of the pin at column i, row j of a header at (x, y). */
 export const headerPin = (x: number, y: number, i: number, j: number): Pt => [x + 12 + i * HDR_PITCH + 24, y + 12 + j * HDR_PITCH + 24];
 
+// ---- the CR2032 cell: two pads on its top arc (the chipset's RTC lanes), two on its side (the clear-CMOS jumper's) ----
+/** The point of the cell's rim `dx` right of its centre, on its top (`top`) or, for a side lane, at height `dy` off its centre on the west (`west`) or east side. */
+export const cellTop = (b: Rect, dx: number): Pt => [b.x + b.w / 2 + dx, b.y + b.h / 2 - Math.sqrt((b.w / 2) ** 2 - dx * dx) + 6];
+export const cellSide = (b: Rect, dy: number, west: boolean): Pt => [b.x + b.w / 2 + (west ? -1 : 1) * (Math.sqrt((b.w / 2) ** 2 - dy * dy) - 6), b.y + b.h / 2 + dy];
+
 // ---- power connectors ----
+/** The PCIe slot's power tab at its latch end (the 12 V feed of a slot that takes the 6-pin). */
+export const pcieFeed = (r: Rect): Pt => [r.x + r.w + 10, r.y + r.h / 2];
+/** Where the 6-pin connector's 12 V rail leaves it: the middle of its west side. */
+export const pcieAux = (r: Rect): Pt => [r.x - 6, r.y + r.h / 2];
 /** The four 12 V pins of the CPU's 8-pin connector (the first row of cavities, mouth up): the traces start on the connector's south side. */
 export function cpuPowerPins(r: Rect): Pt[] {
   const pitch = (r.w - 80) / 4;

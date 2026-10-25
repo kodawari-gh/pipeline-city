@@ -167,7 +167,12 @@ function build(s: Spec): TierGeo {
   ];
   let hx = sio.x - 50;
   const hdrs: HeaderGeo[] = eastToWest.map((h) => { hx -= hw(h.cols); const g = { ...h, x: hx, y: hdrY }; hx -= 50; return g; });
-  hdrs.push({ name: 'CLR_CMOS', x: s.tier === 0 ? -1390 : -1440, y: 830, cols: 3, rows: 1 });
+  // the CR2032 under the chipset (two lanes from its south legs to the cell's top, two to the vertical clear-CMOS jumper beside it)
+  const br = [95, 105, 145, 120][s.tier]!, bcx = s.chip.x + s.chip.w * 0.75, bcy = s.chip.y + s.chip.h + 8 + 58 + br;
+  const bat = R(bcx - br, bcy - br, 2 * br, 2 * br);
+  hdrs.push({ name: 'CLR_CMOS', x: s.tier >= 3 ? bcx + br + 74 : bcx - br - 150, y: bcy - 62, cols: 1, rows: 3 });
+  // the CPU fan's header south of the I/O hub (four lanes from the hub's south legs; the cooler's cable comes to it)
+  hdrs.push({ name: 'CPU_FAN', x: -1960, y: 320, cols: 4, rows: 1 });
   const holes: [number, number][] = [
     [s.tier === 0 ? -2150 : bd.x + 150, bd.y + 150], [east - 150, bd.y + 150], [bd.x + 150, south - 150], [east - 150, south - 150], // (the small board's top-west one sits beside the I/O plate)
     [0, bd.y + 150], [0, south - 150],
@@ -184,7 +189,7 @@ function build(s: Spec): TierGeo {
     bios: R(s.chip.x - 250, legsFrom(s.chip, 'w', s.west.bios, 4)[0]![1] + 39 - 45, 170, 90), west: s.west,
     codec: R(-2540, -1967, 230, 234), // seven legs on its west side: the three jacks sit on the 1st, 4th and 7th
     phy: s.tier >= 1 ? R(-2300, -1690, 220, 260) : null, // eight legs: the jack's four pads sit on the middle ones
-    bat: s.tier === 0 ? R(-1450, 450, 300, 300) : R(-1500, 400, 300, 300),
+    bat,
     cpw, atx,
     pciew: s.pciewY === null ? null : R(east - 300, s.pciewY, 300, 330),
     vrm, pwm, vrmPhases, vrmSink, vrmLed: { x: pwm.x + 105, y: pwm.y - 62 },
@@ -201,7 +206,7 @@ function build(s: Spec): TierGeo {
     dpwm: dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210), dpwmWest,
     sio, hdrs,
     // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
-    dbg: s.tier >= 3 ? R(s.chip.x + s.chip.w / 2 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
+    dbg: s.tier >= 3 ? R(legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,
     rgb: s.tier >= 3 ? R(bd.x + 700, south - 82, bd.w - 1400, 44) : null,
     holes,
   };

@@ -161,6 +161,8 @@ export let POWER_BTN = { x: 4660, y: CASE_TOP + 200, r: 130 };
 export let CASE_LEDS = { y: CASE_TOP + 200, on: 4180, off: 4300, err: 4420, disk: 3900 };
 /** The fans the case carries, seen edge-on (case.ts): the rear exhaust in the rear wall above the I/O opening, the top fans under the top panel. */
 export let REAR_FAN: Rect = { x: IO_X + 14, y: CASE_TOP + 470, w: WALL_T - 28, h: 790 };
+/** Whether the case carries the rear fan: the Mini's rear wall has too little room above the I/O opening for one (a slab 290 tall looks like a stub), so it has a perforated exhaust grille there instead (same rect). */
+export let REAR_FAN_FITTED = true;
 export let TOP_FANS: Rect[] = [];
 /** Top fans the cases carry (mini, micro, mid, full tower). */
 export const TOP_FAN_COUNT = [0, 1, 2, 3];
@@ -279,6 +281,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   POWER_BTN = { x: ce - 600, y: top + 200, r: 130 };
   CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
   REAR_FAN = { x: IO_X + 14, y: CASE_IN.y + 70, w: WALL_T - 28, h: -2140 - (CASE_IN.y + 70) };
+  REAR_FAN_FITTED = REAR_FAN.h >= 500;
   TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: -2500 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));
   const wy = Math.min(top - 40, -3140); // (the router shelf stands up there too)
   WORLD = { x: MONITOR.x - 80, y: wy, w: ce + 40 - (MONITOR.x - 80), h: bottom + 150 - wy };

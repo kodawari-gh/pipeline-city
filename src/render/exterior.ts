@@ -80,7 +80,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   rearIo(g, T, o);
   root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, T.dark ? '#8d9bc4' : '#2a3550', { head: true, a: 0.6 }));
   // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
-  for (let k = 0; k < 5; k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
+  for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
   // tempered glass side: smoked, opaque, a faint diagonal reflection and a hairline edge. Nothing of the inside shows.
   const win = { x: BR.io.x + BR.io.w + 110, y: gl.y + 56, w: gl.x + gl.w - 56 - (BR.io.x + BR.io.w + 110), h: gl.h - 112 };

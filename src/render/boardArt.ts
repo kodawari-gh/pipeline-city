@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
-import { PKG_PIN, PKG_ROW, m2Contacts } from './pins';
+import { PKG_PIN, PKG_ROW, m2Contacts, pcieFeed } from './pins';
 import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
@@ -123,7 +123,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   const buses = buildBuses();
   const padLanes: { l: Lane; w: number }[] = [];
   for (const b of buses) {
-    const power = b.id === 'pwr12' || b.id === 'pwrcpu' || b.id === 'vdimm' || b.id === 'vcore';
+    const power = b.id === 'pwr12' || b.id === 'pwrcpu' || b.id === 'vdimm' || b.id === 'vcore' || b.id === 'pwrpcie';
     const all = b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []);
     if (power) {
       for (const l of all) strokeLane(g, l);
@@ -143,9 +143,9 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   }
   // a via ring at each end of every hop (the lane dives under what it crosses)
   for (const b of buses) for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) for (const [a, z] of l.hops ?? []) for (const s of [a, z]) {
-    const [x, y] = pointAt(l, s);
-    g.circle(x, y, 11).fill({ color: P.via, alpha: 0.95 });
-    g.circle(x, y, 4.5).fill({ color: P.board });
+    const [x, y] = pointAt(l, s), vr = Math.max(11, b.w * 0.6);
+    g.circle(x, y, vr).fill({ color: P.via, alpha: 0.95 });
+    g.circle(x, y, vr * 0.42).fill({ color: P.board });
   }
   // (the pads these lanes end on are drawn last, over the parts: see `drawPads`)
 
@@ -169,6 +169,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
 
   // ---- PCIe slots ----
   geo.pcie.forEach((r, i) => pcieSlot(c, r, ['PCIe x16 · GPU', 'PCIe x8', 'PCIe x4', 'PCIe x1'][i]!, skin.armor > 0, i === 0));
+  // the x16 slot's 12 V tab at its latch end, where the 6-pin's rail arrives
+  if (geo.pciew && geo.pcie[0]) { const f = pcieFeed(geo.pcie[0]); box(g, f[0] - 22, f[1] - 18, 44, 36, 8, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 4, sa: 0.8 }); }
 
   // ---- M.2: the connector at the west end, a standoff for the stick's far end ----
   geo.m2.forEach((m, mi) => {
@@ -230,10 +232,10 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
 
   // ---- battery ----
   {
-    const b = geo.bat, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    disc(g, cx + 8, cy + 12, 145, { fill: '#000000', fa: 0.25 });
-    disc(g, cx, cy, 145, { fill: P.panel, stroke: P.edge, lw: 8 }); disc(g, cx, cy, 90, { stroke: P.edge, lw: 6 });
-    labels.addChild(label('CR2032', cx, cy, 44, P.silk, { anchor: [0.5, 0.5], weight: '700' }));
+    const b = geo.bat, cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = b.w / 2;
+    disc(g, cx + 8, cy + 12, r, { fill: '#000000', fa: 0.25 });
+    disc(g, cx, cy, r, { fill: P.panel, stroke: P.edge, lw: 8 }); disc(g, cx, cy, r * 0.62, { stroke: P.edge, lw: 6 });
+    labels.addChild(label('CR2032', cx, cy, r < 130 ? 34 : 44, P.silk, { anchor: [0.5, 0.5], weight: '700' }));
   }
 
   // ---- rear I/O (west edge): the shield plate flush with the case's rear panel, the connectors on it with their mouths facing west ----
