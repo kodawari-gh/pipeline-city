@@ -1,18 +1,18 @@
 // Length matching: the lanes of a bus group must arrive together, so the shorter lanes of a bundle carry a serpentine, the way a real board does.
 // A bundle that turns is shorter on the inside of the turn by (n - 1) * pitch * 2 * tan(turn / 2) whatever the corner looks like, so no routing
-// avoids it. `nestMatch` adds the missing length with one or more nested "trombones": every lane steps out toward the side of the shortest
-// lane, runs along and steps back; the outermost lane (the shortest) steps out the farthest, the others nest inside it at the lane pitch, so the
-// lanes never touch and the bundle needs free room only on one side. Pure geometry: nothing here draws.
+// avoids it. `serpentine` adds the missing length: the bundle opens out toward the side of its shortest lane (a 45 degree flare, which already
+// gives that lane some length back), every lane then runs a row of small square-toothed bumps as long as it needs (the shortest lane the most),
+// and the bundle closes again. The teeth all lean the same way, into the room the flare opened, so no two lanes ever touch. Pure geometry.
 
 export type Pt = [number, number];
 
-export interface NestOpts {
-  /** Bundle pitch of the lanes (the nest keeps it), the stroke width and the gap kept between lanes. */
+export interface SerpOpts {
+  /** Bundle pitch of the lanes, the stroke width and the clear gap kept between lanes. */
   pitch: number; w: number; gap?: number;
-  /** The highest the outermost lane steps out (the room beside the bundle), the 45 degree bevel of every corner, the straight lead kept at both ends of the stretch used. */
-  hmax?: number; bevel?: number; margin?: number;
-  /** Where in the common straight run the nests sit: 'start', 'mid' (default) or 'end' (in the direction of travel). */
-  at?: 'start' | 'mid' | 'end';
+  /** Lane pitch in the flared stretch (default `pitch` + 12): a lane's teeth are as high as the room this leaves, `flare - w - gap`. */
+  flare?: number;
+  /** Bevel of a tooth's corners, the flat on top of a tooth and the flat between two teeth, the straight lead kept at both ends of the stretch used. */
+  bevel?: number; flat?: number; space?: number; margin?: number;
   /** Lanes within this much of the longest are left alone. */
   tol?: number;
 }
@@ -32,14 +32,26 @@ function segsOf(pts: Pt[]): Seg[] {
 }
 const span = (s: Seg): [number, number] => (s.a < s.b ? [s.a, s.b] : [s.b, s.a]);
 
+/** A tooth of height A and bevel b adds 2A - b(8 - 4 sqrt 2) to a lane's length (it is a tooth only for A >= 2b + 2; a smaller one is a plain 45 degree notch). */
+const BEV = 8 - 4 * Math.SQRT2;
+
+/** The tooth that adds exactly `e` to a lane: its height and bevel. */
+function toothFor(e: number, b0: number): { A: number; b: number } {
+  if (e >= 2 * (2 * b0 + 2) - b0 * BEV) return { A: (e + b0 * BEV) / 2, b: b0 };
+  // a notch: A = 2b, extra = 2A - b * BEV = A * (2 - BEV / 2)
+  const A = e / (2 - BEV / 2);
+  return { A, b: A / 2 };
+}
+
 /**
  * Make every lane of the bundle as long as the longest. `lines` are the lanes (first end to last), parallel over a straight stretch.
  * Returns the lanes unchanged when they already match, or when no stretch is long enough (a test then flags the skew).
  */
-export function nestMatch(lines: Pt[][], o: NestOpts): Pt[][] {
-  const n = lines.length, tol = o.tol ?? 1.5, gap = o.gap ?? 8, b0 = o.bevel ?? 5, margin = o.margin ?? 40, hmax = o.hmax ?? 90, clear = o.w + gap;
-  const lens = lines.map(lengthOf), tgt = Math.max(...lens), need = lens.map((l) => tgt - l);
-  if (n < 2 || Math.max(...need) < tol) return lines;
+export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
+  const n = lines.length, tol = o.tol ?? 1.5, gap = o.gap ?? 8, b0 = o.bevel ?? 5, margin = o.margin ?? 40, clear = o.w + gap;
+  const flat = o.flat ?? 6, space = o.space ?? 6, Pf = o.flare ?? o.pitch + 12, Amax = Pf - clear;
+  const lens = lines.map(lengthOf), tgt = Math.max(...lens);
+  if (n < 2 || tgt - Math.min(...lens) < tol) return lines;
 
   // the straight stretch every lane has in common (same axis, same direction, side by side): the longest one
   const segs = lines.map(segsOf);
@@ -61,49 +73,47 @@ export function nestMatch(lines: Pt[][], o: NestOpts): Pt[][] {
   if (!best) return lines;
   const { picks, lo, hi, axis, dir } = best;
 
-  // lanes ordered across the run; the nest steps out toward the side of the shortest lane
+  // the bundle opens out toward the side of its shortest lane; the lane on the far side keeps its place
   const order = picks.map((s, i) => ({ i, c: s.c })).sort((a, b) => a.c - b.c);
-  const toLow = need[order[0]!.i]! >= need[order[n - 1]!.i]!;
-  const outer = toLow ? order[0]!.c : order[n - 1]!.c;
-  const off = (i: number) => Math.abs(picks[i]!.c - outer);
-  const sgn = toLow ? -1 : 1; // lateral coordinate of the step-out direction
+  const toLow = lens[order[0]!.i]! <= lens[order[n - 1]!.i]!;
+  const far = toLow ? order[n - 1]!.c : order[0]!.c;
+  const sgn = toLow ? -1 : 1;
+  const k = Pf / o.pitch - 1;
+  const delta = lines.map((_, i) => Math.abs(picks[i]!.c - far) * k);
+  const dMax = Math.max(...delta);
 
-  // cycles: as many nests in a row as the highest lane's height allows
-  const needMax = Math.max(...need);
-  const hOf = (e: number, b: number) => (e + b * (8 - 4 * Math.SQRT2)) / 2;
-  let m = 1;
-  while (hOf(needMax / m, b0) > hmax && m < 8) m++;
-  // a lane's bump: the bevel shrinks for a small shortfall (the smallest bump is as high as two bevels and two units)
-  const lane = (i: number) => {
-    const e = need[i]! / m;
-    if (e < 6.5) return null;
-    return { b: Math.min(b0, (e - 4) / (4 * Math.SQRT2 - 4)), e };
-  };
-  const offMax = Math.max(...picks.map((_, i) => off(i)));
-  const F = 6 + 2 * offMax + 2 * b0; // the outer lane's width at the top: the inner lane keeps 6
-  const cycleW = F + 2 * b0, gc = Math.max(14, clear - 2 * b0 + 4);
-  const total = m * cycleW + (m - 1) * gc;
-  const room = hi - lo - 2 * margin;
-  if (total > room) return lines;
-  const t0 = at(o.at ?? 'mid', room, total) + margin + b0; // start of the first cycle's outer lane, measured along the direction of travel from the range's start
-  const base = dir > 0 ? lo : hi;
-  const A = (t: number) => base + dir * t;
+  // each lane's shortfall once the flare has given some length back, the teeth that make it up
+  const flared = lens.map((l, i) => l + 2 * delta[i]! * (Math.SQRT2 - 1));
+  const top = Math.max(...flared);
+  const maxExtra = 2 * Amax - b0 * BEV;
+  const plan = lines.map((_, i) => {
+    const E = top - flared[i]!;
+    if (E < tol) return null;
+    const m = Math.max(1, Math.ceil(E / maxExtra - 1e-9));
+    return { m, ...toothFor(E / m, b0) };
+  });
+  const pitchOf = (b: number) => 4 * b + flat + space;
+  const need = Math.max(0, ...plan.map((p) => (p ? p.m * pitchOf(p.b) - space : 0)));
+  const room = hi - lo - 2 * margin - 2 * dMax;
+  if (need > room) return lines;
+  const base = dir > 0 ? lo : hi, A = (t: number) => base + dir * t;
+  const t0 = margin, t1 = hi - lo - margin, mid = (t0 + t1) / 2;
 
   return lines.map((pts, i) => {
-    const l = lane(i);
-    if (!l) return pts;
-    const s = picks[i]!, h = hOf(l.e, l.b), b = l.b, c = s.c, ofs = off(i);
+    const s = picks[i]!, d = delta[i]!, c = s.c, p = plan[i];
     const P = (t: number, q: number): Pt => (axis === 'h' ? [A(t), c + sgn * q] : [c + sgn * q, A(t)]);
-    const mid: Pt[] = [];
-    for (let k = 0; k < m; k++) {
-      const x0 = t0 + k * (cycleW + gc) - b0; // the cycle's left edge
-      const xr = x0 + b0 + ofs, xd = x0 + b0 + F - ofs;
-      mid.push(P(xr - b, 0), P(xr, b), P(xr, h - b), P(xr + b, h), P(xd - b, h), P(xd, h - b), P(xd, b), P(xd + b, 0));
+    const mid2: Pt[] = [];
+    if (d > 1e-6) mid2.push(P(t0, 0), P(t0 + d, d));
+    if (p) {
+      const pt = pitchOf(p.b), total = p.m * pt - space;
+      for (let j = 0; j < p.m; j++) {
+        const a = mid - total / 2 + j * pt, b = p.b, h = p.A;
+        mid2.push(P(a, d), P(a + b, d + b), P(a + b, d + h - b), P(a + 2 * b, d + h), P(a + 2 * b + flat, d + h), P(a + 3 * b + flat, d + h - b), P(a + 3 * b + flat, d + b), P(a + 4 * b + flat, d));
+      }
     }
-    return [...pts.slice(0, s.j + 1), ...mid, ...pts.slice(s.j + 1)];
+    if (d > 1e-6) mid2.push(P(t1 - d, d), P(t1, 0));
+    if (!mid2.length) return pts;
+    const out = [...pts.slice(0, s.j + 1), ...mid2, ...pts.slice(s.j + 1)];
+    return out.filter((q, j) => j === 0 || Math.hypot(q[0] - out[j - 1]![0], q[1] - out[j - 1]![1]) > 1e-6);
   });
-}
-
-function at(where: 'start' | 'mid' | 'end', room: number, total: number): number {
-  return where === 'start' ? 0 : where === 'end' ? room - total : (room - total) / 2;
 }

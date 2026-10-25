@@ -1,5 +1,5 @@
-import { DIMM_H0, MEM_STEP, ioPort, type TierGeo } from './boardlayout';
-import { nestMatch, type NestOpts } from './match';
+import { DIMM_H0, ioPort, type TierGeo } from './boardlayout';
+import { serpentine, type SerpOpts } from './match';
 import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_Y, type Rect,
 } from './layout';
@@ -138,15 +138,15 @@ function land(lines: Pt[][], pads: Pt[], atEnd: boolean, lead = LEAD): Pt[][] {
   return atEnd ? out : out.map((l) => l.reverse());
 }
 
-/** Length matching of a bundle's lanes (`nestMatch`): the stroke width and the room beside the bundle. */
-type Match = Omit<NestOpts, 'pitch'>;
+/** Length matching of a bundle's lanes (`serpentine`): the stroke width and the room beside the bundle. */
+type Match = Omit<SerpOpts, 'pitch'>;
 type Ends = { from?: Pt[]; to?: Pt[]; lead?: number; match?: Match };
 /** A bundle of n lanes along a centre line whose ends land on pads (`from` at the first end, `to` at the last; none = free end); `match` adds the serpentines that make the lanes equally long. */
 function bundleOn(centre: Pt[], n: number, spacing: number, c: number, ends: Ends = {}): Pt[][] {
   let lines = bundle(centre, n, spacing, c);
   if (ends.to) lines = land(lines, ends.to, true, ends.lead);
   if (ends.from) lines = land(lines, ends.from, false, ends.lead);
-  return ends.match ? nestMatch(lines, { pitch: spacing, ...ends.match }) : lines;
+  return ends.match ? serpentine(lines, { pitch: spacing, ...ends.match }) : lines;
 }
 const lanesOf = (lines: Pt[][], ph = 0): Lane[] => lines.map((p, i) => mkLane(p, ph + i * 37));
 const mean = (pts: Pt[], k: 0 | 1) => pts.reduce((a, p) => a + p[k], 0) / pts.length;
@@ -162,6 +162,16 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
  */
 export const PCIE_X = 110, NVME_DX = 100;
 /** x of the first NVMe column of a tier: right of the DMI lanes. */
+/** x where the memory rail's upper run ends: past the last socket of the row and past the last phase's output, so every output lands on the rail. */
+export const vdimmEnd = (g: TierGeo) => {
+  const lastRow0 = g.dimm.filter((d) => !d.flip).pop()!;
+  return Math.max(lastRow0.rect.x + lastRow0.rect.w - 20, g.dPhases[g.dPhases.length - 1]!.x + DRAM_OUT_X + 24);
+};
+/** x where the memory rail's upper run starts: at the first socket's drop (and no later than the first phase's output). */
+export const vdimmStart = (g: TierGeo) => {
+  const d0 = g.dimm.find((d) => !d.flip)!;
+  return Math.min(dimmPowerPad(d0.rect, d0.flip)[0], g.dPhases[0]!.x + DRAM_OUT_X) - 8;
+};
 export const nvmeX0 = (g: TierGeo) => g.dmiX + 107;
 /** Lanes in an NVMe bundle (and their spacing) and in the DMI link. */
 export const NVME_LANES = 3, NVME_SPACING = 22, DMI_LANES = 6;
@@ -182,9 +192,8 @@ export function buildBuses(): Bus[] {
   const mem: Bus = { id: 'mem', w: 9, pad: 13, lanes: [], taps: [] };
   g.dimm.forEach((d, i) => {
     const pads = dimmPads(d.rect, d.flip), cx = d.rect.x + d.rect.w / 2, y = g.memY[i]!;
-    // the serpentine steps out into the free band above the run (below it on the lower row): the nearest bundle of a row has the whole corridor
-      const room = i % 4 === 0 ? 140 : MEM_STEP - (MEM_LANES - 1) * MEM_SPACING - 17 - 2;
-      mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [cx, y], [cx, pads[0]![1]]], MEM_LANES, MEM_SPACING, 70, { to: pads, match: { w: 9, hmax: room } }), i * 11) });
+    // the bundle opens out into the free band above its run (below it on the lower row) and its lanes run their serpentines there
+    mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [cx, y], [cx, pads[0]![1]]], MEM_LANES, MEM_SPACING, 70, { to: pads, match: { w: 9, flare: 30 } }), i * 11) });
   });
   buses.push(mem);
 
@@ -196,7 +205,7 @@ export function buildBuses(): Bus[] {
       const y = m.y + m.h / 2, k = below.indexOf(m), pads = m2Pads(m), xe = pads[0]![0];
       const x = nvmeX0(g) + NVME_DX * (below.length - 1 - k);
       const route: Pt[] = k < 0 ? [[qx, y], [xe, y]] : [[x, qy], [x, y], [xe, y]];
-      for (const pts of bundleOn(route, NVME_LANES, NVME_SPACING, 100, { to: pads, match: { w: 10, hmax: NVME_DX - (NVME_LANES - 1) * NVME_SPACING - 19 } })) lanes.push(mkLane(pts, lanes.length * 37));
+      for (const pts of bundleOn(route, NVME_LANES, NVME_SPACING, 100, { to: pads, match: { w: 10, flare: 36 } })) lanes.push(mkLane(pts, lanes.length * 37));
     });
     if (lanes.length) buses.push({ id: 'nvme', w: 10, lanes });
   }
@@ -219,7 +228,7 @@ export function buildBuses(): Bus[] {
   g.pcie.slice(1).forEach((r, k) => {
     const legs = legsFrom(g.chip, 'w', g.west.slots[k]!, 4), pads = pciePads(r, 4, 's'), yc = mean(legs, 1), xl = mean(pads, 0);
     const bus = buses.find((b) => b.id === 'pcie')!;
-    for (const pts of bundleOn([[legs[0]![0], yc], [xl, yc], [xl, pads[0]![1]]], 4, LEG_PITCH, 100, { from: legs, to: pads, match: { w: 9, hmax: 120 } })) bus.lanes.push(mkLane(pts, bus.lanes.length * 37));
+    for (const pts of bundleOn([[legs[0]![0], yc], [xl, yc], [xl, pads[0]![1]]], 4, LEG_PITCH, 100, { from: legs, to: pads, match: { w: 9, flare: 40 } })) bus.lanes.push(mkLane(pts, bus.lanes.length * 37));
   });
 
   // USB: four lanes from the CPU's west edge to the hub's east legs; from its west legs two lanes per port fan out (all the same way)
@@ -348,10 +357,10 @@ export function buildBuses(): Bus[] {
   // memory voltage: the regulator's output rail along the pins of the sockets, a drop into every DIMM (and, on the two-row boards,
   // round the east end to a second rail under the lower row)
   {
-    const first = g.dPhases[0]!, y = g.vdimmY, lastRow0 = g.dimm.filter((d) => !d.flip).pop()!;
-    const xEnd = lastRow0.rect.x + lastRow0.rect.w - 20;
+    const y = g.vdimmY;
+    const xEnd = vdimmEnd(g);
     const lanes: Lane[] = [];
-    for (const pts of bundle([[first.x + 40, y], [xEnd, y]], 2, 34, 60)) lanes.push(mkLane(pts, lanes.length * 31));
+    for (const pts of bundle([[vdimmStart(g), y], [xEnd, y]], 2, 34, 60)) lanes.push(mkLane(pts, lanes.length * 31));
     const two = g.dimm.some((d) => d.flip);
     if (two) {
       const row1 = g.dimm.filter((d) => d.flip), yb = g.padY[1] + DIMM_H0 + 130, xs = xEnd + 140;

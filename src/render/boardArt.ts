@@ -4,7 +4,7 @@ import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
 import { m2Contacts } from './pins';
-import { buildBuses, mkLane, type Bus, type Lane } from './routes';
+import { buildBuses, mkLane, vdimmEnd, vdimmStart, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from './theme';
 import {
   cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
@@ -107,8 +107,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     }
     g.fill({ color: P.via, alpha: 0.4 });
     const dp = geo.dPhases;
-    const lastRow0 = geo.dimm.filter((d) => !d.flip).pop()!;
-    const pr = { x: dp[0]!.x + 10, y: geo.vdimmY - 56, w: lastRow0.rect.x + lastRow0.rect.w - dp[0]!.x - 10, h: 112 };
+    const pr = { x: vdimmStart(geo) - 30, y: geo.vdimmY - 56, w: vdimmEnd(geo) + 30 - vdimmStart(geo) + 30, h: 112 };
     box(g, pr.x, pr.y, pr.w, pr.h, 20, { fill: P.copper, fa: 0.16, stroke: P.copper, lw: 5, sa: 0.4 });
     stitch(c, pr, 52, 5, 0.35);
   }

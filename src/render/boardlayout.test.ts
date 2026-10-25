@@ -3,7 +3,7 @@ import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
 import { CASE_BD, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { sataCablePath } from './case';
-import { buildBuses, buildCables, movablePlug, NVME_LANES, type Bus, type Lane } from './routes';
+import { DRAM_IN_X, DRAM_OUT_X, VRM_OUT_X, buildBuses, buildCables, movablePlug, NVME_LANES, vdimmEnd, type Bus, type Lane } from './routes';
 import { atx12v, cpuPowerPins, dimmPads, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { ioPort } from './boardlayout';
 import { plugRect } from './devices';
@@ -234,6 +234,33 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (let i = 0; i < lanes.length; i++) for (let j = i + 1; j < lanes.length; j++) {
       expect(dist(lanes[i]!.l, lanes[j]!.l), `${lanes[i]!.id} lane ${i} and ${lanes[j]!.id} lane ${j} too close`).toBeGreaterThan(12.5);
     }
+  });
+
+  it('lines the power rails up: every phase lands on its rail, every socket takes its voltage from the rail', () => {
+    const g = sockets();
+    const buses = buildBuses(), by = (id: Bus['id']) => buses.find((b) => b.id === id)!;
+    // the 12 V run from the 24-pin arrives level with the memory regulator's input rail and covers every phase's input stub
+    const p12 = by('pwr12').lanes[0]!, rail12 = p12.pts[0]![1];
+    expect(rail12).toBeCloseTo(g.dRailY, 5);
+    for (const r of g.dPhases) expect(p12.pts[p12.pts.length - 1]![0] <= r.x + DRAM_IN_X + 1 && p12.pts[0]![0] >= r.x + DRAM_IN_X, 'input stub on the 12 V run').toBe(true);
+    // the memory rail: the upper run starts before the first phase's output and ends after the last, every phase's output and every socket's drop lands on a run
+    const vd = by('vdimm'), runs = vd.lanes.slice(0, 2), x0 = Math.min(...runs.map((l) => l.pts[0]![0])), x1 = vdimmEnd(g);
+    expect(x0).toBeLessThanOrEqual(g.dimm[0]!.rect.x + 36);
+    for (const r of g.dPhases) { const x = r.x + DRAM_OUT_X; expect(x >= x0 && x <= x1, 'phase output on the rail').toBe(true); }
+    g.dimm.forEach((d, i) => {
+      const t = vd.taps![i]!.lanes[0]!, [cx] = t.pts[0]!, y0 = t.pts[0]![1];
+      expect(cx > d.rect.x && cx < d.rect.x + d.rect.w, `socket ${i}'s drop is on the socket`).toBe(true);
+      if (!d.flip) { expect(y0, `socket ${i} drops from the upper rail`).toBeCloseTo(g.vdimmY, 5); expect(cx >= x0 && cx <= x1, `socket ${i} is under the upper rail`).toBe(true); }
+    });
+    // the core-voltage supply: the 8-pin's comb rail covers every phase's input stubs; each phase's output stub is inside its block
+    const comb = by('pwrcpu').lanes[0]!, railEnd = comb.pts[comb.pts.length - 1]![0];
+    expect(comb.pts[comb.pts.length - 1]![1]).toBeCloseTo(g.vrmRailY, 5);
+    for (const r of g.vrmPhases) {
+      expect(railEnd >= r.x + 232 && Math.min(...comb.pts.map((q) => q[0])) <= r.x + 60, 'input stubs under the comb rail').toBe(true);
+      expect(VRM_OUT_X > 0 && VRM_OUT_X < r.w, 'output stub inside the block').toBe(true);
+    }
+    // the 24-pin's 12 V pin sits on the memory regulator's rail
+    expect(atx12v(g.atx)[1]).toBeCloseTo(g.dRailY, 5);
   });
 
   it('keeps every mounting hole clear: no part, lane or other hole within its keepout', () => {
