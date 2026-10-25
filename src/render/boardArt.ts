@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, rng } from './layout';
+import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng } from './layout';
+import { shieldSheet } from './ports';
 import { box, disc, label, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './pins';
@@ -100,6 +101,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   // ---- the rear I/O's shield plate (flush with the case's rear panel); the lanes to the connectors run over it, the connectors sit on it later ----
   box(g, geo.io.x, geo.io.y, geo.io.w, geo.io.h, 30, { fill: P.panel, stroke: P.edge, lw: 10 });
   box(g, geo.io.x + 14, geo.io.y + 14, geo.io.w - 28, geo.io.h - 28, 22, { stroke: P.edge, lw: 3, sa: 0.5 });
+  shieldSheet(g, T, geo.io.x + 14, geo.io.y + 20, WALL_T - 28, geo.io.h - 40); // the wall's own sheet, in its plane: the ports pass through it
 
   // ---- copper pours: the core voltage plane under the package edge, the memory rail ----
   {

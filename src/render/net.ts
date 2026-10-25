@@ -6,8 +6,10 @@ import { box, dashed, disc, label, mix, clear } from './ink';
 import type { LanJack, LanScene, SceneInfo } from './interact';
 import {
   BD, CABLE_ROW_Y, ETH0_MOUTH, ETH0_RECT, LAN_TRUNK_X, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
-  NET_K, WALL_JACK, WALL_PLATE, type Rect,
+  NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,
 } from './layout';
+import { IO_X } from './boardlayout';
+import { portProfile } from './ports';
 import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
@@ -170,10 +172,7 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
   }
   // bracket on the board edge and the jack that pokes out of it (mouth faces west)
   box(g, NIC_BRACKET_X, y - 120, 30, 240, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
-  box(g, jack.x, jack.y, jack.w, jack.h, 10, { fill: T.dark ? '#8a96ae' : '#c3ccdc', stroke: T.line, lw: 4 });
-  box(g, jack.x + 6, jack.y + 34, jack.w - 40, jack.h - 44, 6, { fill: '#05070c' });
-  for (let k = 0; k < 6; k++) g.rect(jack.x + 24 + k * 16, jack.y + 38, 7, 24);
-  g.fill({ color: T.pin, alpha: 0.6 });
+  portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: jack.x, y, w: jack.w, h: jack.h }, true, { wallX: IO_X, wallW: WALL_T }); // the jack, in the same side profile as the board's own
   for (const w of nicLeds(i)) disc(g, w.x, w.y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
   root.addChild(label(visual === 'nic-gbe' ? 'GbE' : visual === 'nic-10g' ? '10G' : '40G', x0 + 90, y - 50, 44, T.alu, { head: true, a: 0.85 }));
   void r;
@@ -181,7 +180,7 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
 }
 
 /** LED wells of a NIC jack (link, activity). */
-const nicLeds = (i: number): Pt2[] => { const j = nicJack(i); return [{ x: j.x + 50, y: j.y + 17 }, { x: j.x + 112, y: j.y + 17 }]; };
+const nicLeds = (i: number): Pt2[] => { const j = nicJack(i); return [{ x: j.x + 50, y: j.y + j.h + 30 }, { x: j.x + 112, y: j.y + j.h + 30 }]; };
 const eth0Leds = (): Pt2[] => [{ x: ETH0_MOUTH.x + 70, y: -1394 }, { x: ETH0_MOUTH.x + 150, y: -1394 }];
 interface Pt2 { x: number; y: number }
 
@@ -297,13 +296,13 @@ export class NetView {
       const route: Pt[] = [[wx, y1], [wx, CABLE_ROW_Y + 60], [rx, CABLE_ROW_Y + 60], [rx, y1]];
       this.isp = mkLane(roundedPath(route, 70));
       cable(this.isp.pts, 26, T.mute);
-      for (const x of [wx, rx]) drawPlug(g, T, { x, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false);
+      for (const x of [wx, rx]) drawPlug(g, T, { x, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
     }
 
     // the ethernet cable: its router end is always seated; the PC end is on a jack (connected), at rest (loose) or in the hand (held)
     if (this.router) {
       const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y + PLUG_L - 10];
-      drawPlug(g, T, { x: lx, y: SHELF_Y, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false);
+      drawPlug(g, T, { x: lx, y: SHELF_Y, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false, 'rj45');
       const restPlug: Plug = { x: -4180, y: CABLE_ROW_Y + 60, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
       let plug: Rect = plugRect(restPlug), seated: Pt | null = null;
       const jack = lanState === 'connected' ? jacks.find((j) => j.id === portId) : undefined;
@@ -313,7 +312,7 @@ export class NetView {
         this.lan = mkLane(roundedPath(route, 100));
         cable(this.lan.pts, 38, accent);
         const pl: Plug = { x: mx, y: my, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
-        drawPlug(g, T, pl, accent, false);
+        drawPlug(g, T, pl, accent, false, 'rj45');
         plug = plugRect(pl); seated = [mx, my];
         const more = laneRects(this.lan, 36);
         this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more });
@@ -321,7 +320,7 @@ export class NetView {
         const route: Pt[] = [tail, [lx, CABLE_ROW_Y + 60], [restPlug.x - restPlug.l + 8, CABLE_ROW_Y + 60]];
         const stub = mkLane(roundedPath(route, 70));
         cable(stub.pts, 38, accent);
-        drawPlug(g, T, restPlug, accent, false);
+        drawPlug(g, T, restPlug, accent, false, 'rj45');
         this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more: laneRects(stub, 36) });
       }
       reg('cable.lan', plug);

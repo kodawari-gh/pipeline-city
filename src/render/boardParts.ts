@@ -1,6 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from './ink';
-import type { Rect } from './layout';
+import { WALL_T, type Rect } from './layout';
+import { IO_X } from './boardlayout';
+import { portProfile } from './ports';
 import { HDR_PITCH, LEG_PITCH, legsOf, m2Contacts, pciePadMax, pciePadX, type IoPort } from './pins';
 import type { Palette, Theme } from './theme';
 
@@ -253,55 +255,9 @@ export function sataPortArt(c: Ctx, p: Rect, i: number, live: boolean) {
 }
 
 /**
- * A rear I/O connector seen from above, mouth facing west: 3.5 mm audio jack (coloured collar and nut), RJ45 (shielded shell, the
- * latch window and the contact row), HDMI / DisplayPort (the D-shaped shell with its tongue), USB-A (shell and coloured tongue). A
- * connector the board does not carry is a bare outline on the plate.
+ * A rear I/O connector in side profile (ports.ts): mouth facing west at the wall's outer face, the body running east through the
+ * wall's opening into the case. A connector the board does not carry is an empty, covered opening.
  */
 export function ioConnector(c: Ctx, p: IoPort, fitted: boolean) {
-  const { g, P, T } = c, y0 = p.y - p.h / 2;
-  const tone = p.tone === 'st' ? T.st : p.tone === 'br' ? T.br : p.tone === 'ld' ? T.ld : p.tone === 'alu' ? T.alu : null;
-  if (!fitted) { box(g, p.x, y0, p.w, p.h, 10, { stroke: P.edge, lw: 3, sa: 0.3 }); return; }
-  shadow(c, p.x, y0, p.w, p.h, 10, 6, 0.3);
-  const shine = (x: number, w: number) => g.rect(x, y0 + 5, w, 4).fill({ color: '#ffffff', alpha: T.dark ? 0.08 : 0.28 });
-  switch (p.kind) {
-    case 'jack': {
-      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
-      g.rect(p.x, y0 + 4, 30, p.h - 8).fill({ color: tone ?? P.edge, alpha: 0.8 });                  // the coloured collar at the mouth
-      box(g, p.x + 54, y0 - 6, 18, p.h + 12, 5, { fill: P.panel, stroke: P.edge, lw: 4 });           // the nut
-      g.rect(p.x + 84, p.y - 9, p.w - 130, 18).fill({ color: P.sub, alpha: 0.7 });                     // the bore
-      for (const dy of [-18, 0, 18]) g.rect(p.x + p.w - 6, p.y + dy - 5, 14, 10);                    // solder lugs
-      g.fill({ color: P.via, alpha: 0.7 });
-      shine(p.x + 36, p.w - 80);
-      break;
-    }
-    case 'rj45': {
-      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
-      box(g, p.x + 10, y0 + 28, p.w - 90, p.h - 56, 8, { fill: mix(P.dark, '#000000', 0.5), stroke: P.edge, lw: 3 }); // the cavity
-      for (let k = 0; k < 8; k++) g.rect(p.x + 36 + k * 28, y0 + 40, 12, 56);                         // the eight contacts
-      g.fill({ color: P.via, alpha: 0.55 });
-      box(g, p.x + p.w - 62, p.y - 40, 38, 80, 6, { stroke: P.edge, lw: 3, sa: 0.8 });                // the latch window in the shell
-      shine(p.x + 12, p.w - 24);
-      break;
-    }
-    case 'hdmi': case 'dp': {
-      const x = p.x, w = p.w, h = p.h, cc = 26, up = p.kind === 'hdmi';
-      const pts = up
-        ? [x, y0 + cc, x + cc, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc]
-        : [x, y0, x + w, y0, x + w, y0 + h, x + cc, y0 + h, x, y0 + h - cc];
-      g.poly(pts).fill({ color: P.dark }).stroke({ width: 6, color: P.edge });
-      g.rect(x + 40, p.y - h * 0.12, w - 90, h * 0.24).fill({ color: P.via, alpha: 0.7 });            // the tongue's contacts
-      for (let k = 0; k < 9; k++) g.rect(x + 46 + k * 16, p.y - h * 0.3, 7, h * 0.18).rect(x + 46 + k * 16, p.y + h * 0.12, 7, h * 0.18);
-      g.fill({ color: P.via, alpha: 0.5 });
-      shine(x + cc, w - cc - 10);
-      break;
-    }
-    default: { // USB-A
-      box(g, p.x, y0, p.w, p.h, 10, { fill: P.dark, stroke: P.edge, lw: 5 });
-      box(g, p.x + 8, y0 + 8, p.w - 16, p.h - 16, 6, { stroke: P.silkHi, lw: 3, sa: 0.4 });          // the metal shell's inner lip
-      g.rect(p.x + 18, p.y - p.h * 0.14, p.w - 36, p.h * 0.28).fill({ color: tone ?? P.edge, alpha: 0.55 }); // the tongue
-      for (let k = 0; k < 4; k++) g.rect(p.x + p.w - 78 + k * 14, p.y - 6, 7, 12);                    // its four contacts
-      g.fill({ color: P.via, alpha: 0.8 });
-      shine(p.x + 14, p.w - 28);
-    }
-  }
+  portProfile(c.g, c.T, p, fitted, { wallX: IO_X, wallW: WALL_T });
 }

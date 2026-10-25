@@ -3,6 +3,7 @@ import type { KeySnap } from '../sim/game/game';
 import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
 import { wallTone } from './case';
+import { usbPlug } from './ports';
 import { CASE_LEDS, POWER_BTN, TRAY, TRAY_COLS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -157,6 +158,10 @@ export const KEY_LEN = 960;
 export const KEY_H = 230;
 /** Compact key drawn in the USB port: 190 of plug + 560 of body. */
 export const KEY_LEN_PLUGGED = 750;
+/** The metal plug's height: it must slip into the USB port (108 tall, see `USB_PORT`). */
+export const KEY_PLUG_H = 88;
+/** How far a seated key's plug is inside the port (the rest of the plug shows between the stick and the port's mouth). */
+export const KEY_INSERT = 100;
 export type Urgency = 'ok' | 'soon' | 'late';
 
 export function urgencyOf(k: KeySnap): Urgency {
@@ -196,17 +201,12 @@ export function keyStick(T: Theme, k: KeySnap, compact = false, notRead = false)
   c.addChild(g);
   const u = urgencyOf(k), col = urgencyColor(T, u);
   const body = T.dark ? mix(T.sub, T.tile, 0.6) : mix('#ffffff', T.tile, 0.5);
-  const half = (compact ? KEY_LEN_PLUGGED : KEY_LEN) / 2, plugL = compact ? 190 : 220, h = KEY_H;
+  const half = (compact ? KEY_LEN_PLUGGED : KEY_LEN) / 2, plugL = compact ? 200 : 220, h = KEY_H;
   const bx = -half, bw = 2 * half - plugL; // body rect x..x+bw, plug beyond it
   const px = bx + bw - 6; // the plug starts a little inside the body
-  // ---- the plug: a metal shell with its latch holes and the dark mouth with two contacts ----
-  const ph = 112;
-  g.roundRect(px, -ph / 2, plugL + 6, ph, 12).fill(vgradFill('#eef2f8', '#9aa4b6')).stroke({ width: 5, color: '#6f7a8e' });
-  g.roundRect(px + 30, -ph / 2 + 16, plugL - 50, ph - 32, 6).fill({ color: '#232a3a' });
-  const cw = Math.max(40, plugL - 110);
-  g.rect(px + 60, -ph / 2 + 26, cw, 13).fill({ color: '#d3a64a' });
-  g.rect(px + 60, ph / 2 - 39, cw, 13).fill({ color: '#d3a64a' });
-  g.roundRect(px + 8, -ph / 2 + 6, plugL - 18, 6, 3).fill({ color: '#ffffff', alpha: 0.7 }); // sheen on the shell
+  // ---- the plug: a metal sleeve in side profile, the size of the port's opening ----
+  const ph = KEY_PLUG_H;
+  usbPlug(g, T, px, 0, plugL + 6, ph);
   // ---- the body: a soft shadow, a gradient shell with a gloss, a keyring cap at the back and a collar by the plug ----
   box(g, bx + 5, -h / 2 + 14, bw, h, 46, { fill: '#000000', fa: T.dark ? 0.35 : 0.22 });
   g.roundRect(bx, -h / 2, bw, h, 46).fill(vgradFill(T.dark ? mix(T.sub, T.tile, 0.75) : '#ffffff', T.dark ? mix(T.sub, T.bg, 0.2) : mix('#c9d2e2', T.tile, 0.4))).stroke({ width: 9, color: col });
@@ -256,7 +256,7 @@ export const trayKeyCentre = (i: number) => {
 };
 
 /** Where the plugged key's centre sits: the connector seated inside the USB port, the body sticking out west. */
-export const pluggedKeyCentre = () => ({ x: USB_PORT.x + 190 - KEY_LEN_PLUGGED / 2, y: USB_PORT.y + USB_PORT.h / 2 });
+export const pluggedKeyCentre = () => ({ x: USB_PORT.x + KEY_INSERT - KEY_LEN_PLUGGED / 2, y: USB_PORT.y + USB_PORT.h / 2 });
 
 function vgradFill(top: string, bot: string) { return new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' }); }
 
@@ -342,6 +342,10 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
   if (cue) node.addChild(cue.tag);
   node.position.set(p.x, p.y);
   root.addChild(node);
+  // the part of the plug inside the port is hidden by the port's shell: the stick is cut at the port's mouth
+  const cut = new Graphics().rect(USB_PORT.x - 6000, p.y - 600, 6000 + 6, 1200).fill({ color: '#ffffff' });
+  root.addChild(cut);
+  vec.mask = cut; // the stick only: the remove cue's glow and tag stay whole
   return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null, cue };
 }
 

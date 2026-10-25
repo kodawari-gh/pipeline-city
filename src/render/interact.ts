@@ -355,7 +355,7 @@ export class Interact {
     }
     this.onLanHeld(true);
     const g = new Graphics();
-    drawPlug(g, this.T, { x: 0, y: 0, dx: 1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, this.T.alu, false);
+    drawPlug(g, this.T, { x: 0, y: 0, dx: 1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, this.T.alu, false, 'rj45');
     this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
     this.ghost.addChild(g);
     this.ghost.alpha = 1;
@@ -375,7 +375,7 @@ export class Interact {
     const p = movablePlug(ci.cable);
     // a plug at the origin whose pin face is at x = 0 and whose body trails to +x (the cable leaves at +x)
     const plug: Plug = { x: 0, y: 0, dx: 1, dy: 0, w: ci.loose.plug.w, l: ci.loose.plug.l, pins: p.pins };
-    drawPlug(g, this.T, plug, ACCENT(this.T, ci.kind), true);
+    drawPlug(g, this.T, plug, ACCENT(this.T, ci.kind), true, ci.kind === 'video' ? 'hdmi' : 'power');
     this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
     this.ghost.addChild(g);
     this.ghost.alpha = 1;
@@ -693,7 +693,7 @@ export class Interact {
       line(pts); g.stroke({ width: w, color: accent, alpha: 0.16, cap: 'round', join: 'round' });
       // the fixed plug at the PSU socket / monitor port
       const fixed: Plug = ci.kind === 'video' ? cab.b : cab.a;
-      drawPlug(g, T, fixed, accent, ci.kind === 'video');
+      drawPlug(g, T, fixed, accent, ci.kind === 'video', ci.kind === 'video' ? 'hdmi' : 'power');
       this.ghost.position.set(tip[0], tip[1]);
       this.ghost.rotation = ang;
       this.ghost.scale.set(1);

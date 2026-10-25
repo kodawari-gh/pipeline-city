@@ -6,6 +6,7 @@ import {
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
 import { SINK_FAN_R, sinkFanAt } from './pins';
+import { hdmiPlug, monitorSocket, rj45Plug } from './ports';
 import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
@@ -435,7 +436,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
   labels.addChild(label('PIPELINE CITY', cx, cy, 44, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
   disc(g, m.x + m.w - 150, cy, 16, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
   // side port (the HDMI cable plugs in here)
-  box(g, m.x + m.w - 20, portY - 55, 40, 110, 10, { fill: '#05070b', stroke: T.line, lw: 4 });
+  monitorSocket(g, T, m.x + m.w - 12, portY, 34, 110);
   labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
   root.addChild(labels);
   return { root };
@@ -450,7 +451,10 @@ export function plugRect(p: Plug): Rect {
     : { x: p.x - p.w / 2, y: p.dy > 0 ? p.y : p.y - p.l, w: p.w, h: p.l };
 }
 
-export function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: boolean) {
+export function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: boolean, shape: 'power' | 'hdmi' | 'rj45' = 'power') {
+  // the signal plugs are drawn in side profile (ports.ts), the power plugs seen from above
+  if (shape === 'hdmi') return hdmiPlug(g, T, p, accent);
+  if (shape === 'rj45') return rj45Plug(g, T, p, accent);
   const r = plugRect(p);
   const body = T.dark ? '#1b2230' : '#2c3442';
   box(g, r.x + 6, r.y + 10, r.w, r.h, 16, { fill: '#000000', fa: 0.25 });
@@ -507,8 +511,9 @@ export function cableArt(T: Theme, c: Cable): Part {
   g.stroke({ width: Math.max(3, w * 0.05), color: '#ffffff', alpha: T.dark ? 0.1 : 0.14 });
   line(offsetLine(pts, -w * 0.24)); g.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.1 : 0.16, cap: 'round', join: 'round' });
   line(offsetLine(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' });
-  drawPlug(g, T, c.a, accent, c.kind === 'video');
-  drawPlug(g, T, c.b, accent, true);
+  const shape = c.kind === 'video' ? 'hdmi' : 'power';
+  drawPlug(g, T, c.a, accent, c.kind === 'video', shape);
+  drawPlug(g, T, c.b, accent, true, shape);
   return { root };
 }
 
@@ -524,8 +529,9 @@ export function looseCableArt(T: Theme, c: Cable): Part {
   g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
-  drawPlug(g, T, c.kind === 'video' ? c.b : c.a, accent, c.kind === 'video');
-  drawPlug(g, T, lo.plug, accent, true);
+  const shape = c.kind === 'video' ? 'hdmi' : 'power';
+  drawPlug(g, T, c.kind === 'video' ? c.b : c.a, accent, c.kind === 'video', shape);
+  drawPlug(g, T, lo.plug, accent, true, shape);
   void movablePlug;
   return { root };
 }

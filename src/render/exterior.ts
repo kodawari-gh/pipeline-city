@@ -1,8 +1,9 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
-import { IO_PORTS } from './boardlayout';
+import { IO_PORTS, IO_X } from './boardlayout';
+import { portProfile, shieldSheet } from './ports';
 import { box, disc, label, mix } from './ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, REAR_FAN, nicJack, nicY, type Rect } from './layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PSU, REAR_FAN, WALL_T, nicJack, nicY, type Rect } from './layout';
 import { CASE_LOOK } from './case';
 import type { DriveKind } from './drives';
 import type { Theme } from './theme';
@@ -119,35 +120,25 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
 
 const tones = exteriorTones;
 
-/** External connectors on the rear plate: audio, ethernet (if the board has it), HDMI, DisplayPort (if it has a second output), USB. */
+/**
+ * The rear panel from outside, in the same side profile as inside the case (ports.ts): the wall's sheet at the case's west edge and
+ * each connector passing through it (only the part that sits in the wall shows, the glass hides the rest). Audio, ethernet (if the
+ * board has it), HDMI, DisplayPort (if it has a second output), USB, and the jack of every NIC card.
+ */
 function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
-  const c = tones(T), q = BR.io, f = o.features;
-  const cut = (x: number, y: number, w: number, h: number, tongue: string | null, ta = 0.55) => {
-    box(g, x - 12, y - h / 2 - 12, w + 24, h + 24, 14, { fill: c.lo, stroke: c.edge, lw: 4, sa: 0.5 });
-    box(g, x, y - h / 2, w, h, 8, { fill: c.cut });
-    if (tongue) g.rect(x + 18, y - h * 0.12, w - 36, h * 0.24).fill({ color: tongue, alpha: ta });
-  };
-  const tone = (t?: string) => (t === 'st' ? T.st : t === 'br' ? T.br : t === 'ld' ? T.ld : t === 'alu' ? T.alu : null);
+  const c = tones(T), f = o.features, q = BR.io;
   const fitted = (id: string) => (id === 'eth' ? f.ethernetMbps > 0 : id === 'dp' ? f.displayPorts >= 2 : id.startsWith('usb') ? Number(id.slice(3)) < f.usbPorts : true);
-  for (const p of IO_PORTS) {
-    if (p.kind === 'hdmi' || p.kind === 'dp') {
-      const y = p.y, active = p.kind === 'hdmi';
-      if (!fitted(p.id)) { box(g, p.x, y - 60, p.w, 120, 10, { stroke: c.edge, lw: 3, sa: 0.25 }); continue; }
-      box(g, p.x - 12, y - 72, 264, 144, 16, { fill: c.lo, stroke: c.edge, lw: 4, sa: 0.5 });
-      g.poly([p.x, y - 34, p.x + 26, y - 60, p.x + 240, y - 60, p.x + 240, y + 60, p.x + 26, y + 60, p.x, y + 34]).fill({ color: c.cut }).stroke({ width: 6, color: active ? T.st : c.edge, alpha: active ? 0.7 : 0.6 });
-    } else if (!fitted(p.id)) box(g, p.x, p.y - p.h / 2, p.w, p.h, 10, { stroke: c.edge, lw: 3, sa: 0.25 });
-    else if (p.kind === 'rj45') {
-      cut(p.x, p.y, p.w, p.h, null);
-      for (let k = 0; k < 8; k++) g.rect(p.x + 40 + k * 30, p.y - p.h / 2 + 50, 14, 70);
-      g.fill({ color: T.pin, alpha: 0.55 });
-      for (const lx of [p.x + 70, p.x + 150]) g.circle(lx, p.y + p.h / 2 + 36, 13).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
-    } else cut(p.x, p.y, p.w, p.h, tone(p.tone), p.kind === 'jack' ? 0.65 : 0.5);
+  shieldSheet(g, T, IO_X + 14, q.y + 20, WALL_T - 28, q.h - 40);
+  for (const p of IO_PORTS) portProfile(g, T, p, fitted(p.id), { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
+  if (f.ethernetMbps > 0) {
+    const e = IO_PORTS.find((p) => p.id === 'eth')!;
+    for (const lx of [e.x + 50, e.x + 110]) g.circle(lx, e.y + e.h / 2 + 36, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
-  // NIC cards: their jack comes out of the rear plate at the height of the card's slot
+  // NIC cards: their jack comes out of the rear wall at the height of the card's slot
   for (const i of o.nics ?? []) {
     const j = nicJack(i);
-    cut(j.x, nicY(i), j.w, j.h, null);
-    for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + 17, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
+    portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: j.x, y: nicY(i), w: j.w, h: j.h }, true, { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
+    for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + j.h + 30, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
   }
 }
 
