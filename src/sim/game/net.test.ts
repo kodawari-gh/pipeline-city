@@ -81,7 +81,7 @@ describe("buying and installing the network parts", () => {
     expect(g.snapshot().progress.ispBought).toBe(true);
     expect(g.snapshot().net.isp).toMatchObject({ id: "isp1", downMbps: 50 });
     expect(g.purchase("isp1").ok).toBe(false); // owned
-    expect(g.purchase("router1").ok).toBe(false);
+    expect(g.purchase("router1").ok).toBe(true); // another of the same: a spare
     expect(g.purchase("router2").ok).toBe(true);
     const up = g.snapshot().inventory.find((i) => i.spec === "router2")!;
     expect(g.install(up.id).ok).toBe(true); // replaces: the old router returns to the inventory

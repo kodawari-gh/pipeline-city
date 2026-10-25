@@ -10,7 +10,7 @@ import { getIspSpec, getRouterSpec, ISP_SPECS, ROUTER_SPECS } from '../sim/net/s
 import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
 import { fmtMbit, isJackId } from './netdesc';
 import { hardwareWarn, jackPort, netStateLines, netStats, nicLines, nicStats } from './netui';
-import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, unlockedFirst, type JobView, type LevelLock } from './levelui';
+import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, moreOffer, unlockedFirst, type JobView, type LevelLock, type MoreOffer } from './levelui';
 import { JOB_TYPES } from './regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, ramVrmWarning, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
 
@@ -51,7 +51,8 @@ export interface Stat {
 }
 
 /** One rung of the upgrade ladder for a kind of part. */
-export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level' | 'outclassed';
+export type LadderState = 'installed' | 'crate' | 'ready' | 'poor' | 'blocked' | 'locked' | 'level';
+
 export interface LadderStep {
   /** Spec id (`cpu1`), or `board<tier>` for the board ladder. */
   specId: string;
@@ -77,6 +78,10 @@ export interface LadderStep {
   fittedLabel?: string;
   /** Buying applies it at once (an internet plan) instead of adding it to the inventory. */
   applied?: boolean;
+  /** Copies of it in the inventory (a spare), on a fitted or spare tile. */
+  spares?: number;
+  /** Buying another copy: set on a fitted or spare tile, where the tile itself has no buy button. */
+  more?: MoreOffer;
 }
 
 export interface PickerModel {
@@ -393,10 +398,10 @@ export function kindOf(id: string, s: Snapshot): DeviceKind | 'board' | 'case' |
 }
 
 /**
- * The upgrade ladder for a kind: installed and inventory rungs, then each tier the sim offers (ready, poor, blocked).
- * Tiers older than the best part you own are left out (kept as `outclassed` with `all`, for the shop); tiers the sim does not offer and you do not own are `locked`.
+ * The ladder for a kind: installed and inventory rungs, then each tier the shop sells (ready, poor, blocked, level). Every tier is
+ * for sale whatever you own, and a tile you own carries a `more` offer (buy another: a spare, a downgrade, a second machine).
  */
-export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderStep[] {
+export function ladderFor(s: Snapshot, kind: PickerKind): LadderStep[] {
   const installed: Array<{ spec: string; devId: string }> = kind === 'board'
     ? [{ spec: boardId(s.boardTier), devId: '' }]
     : kind === 'case' ? [{ spec: caseId(s.caseTier), devId: '' }]
@@ -405,31 +410,28 @@ export function ladderFor(s: Snapshot, kind: PickerKind, all = false): LadderSte
       : kind === 'router' ? (s.net.router ? [{ spec: s.net.router.id, devId: '' }] : [])
       : kind === 'isp' ? (s.net.isp ? [{ spec: s.net.isp.id, devId: '' }] : [])
       : s.devices.filter((d) => d.kind === kind).map((d) => ({ spec: d.spec, devId: d.id }));
-  const crate = kind === 'board' || kind === 'isp' ? [] : s.inventory.filter((i) => i.kind === kind);
+  const crate = kind === 'isp' ? [] : s.inventory.filter((i) => i.kind === kind);
   const tierOf = (id: string) => (kind === 'board' ? Number(id.slice(5)) : kind === 'case' ? Number(id.slice(4)) : getSpec(id)?.tier ?? getOsSpec(id)?.tier ?? getRouterSpec(id)?.tier ?? getIspSpec(id)?.tier ?? -1);
-  const ownedMax = Math.max(-1, ...installed.map((x) => tierOf(x.spec)), ...crate.map((x) => tierOf(x.spec)));
   const nameOf = (id: string) => (kind === 'board' ? BOARD_TIERS[Number(id.slice(5))]?.name : kind === 'case' ? CASE_TIERS[Number(id.slice(4))]?.name : getSpec(id)?.name ?? getOsSpec(id)?.name ?? getRouterSpec(id)?.name ?? (getIspSpec(id) && `${getIspSpec(id)!.name} plan`)) ?? id;
   const out: LadderStep[] = [];
   for (const id of catalogOf(kind)) {
     const tier = tierOf(id);
     const name = nameOf(id);
     const inst = installed.find((x) => x.spec === id);
-    if (inst) { out.push({ specId: id, name, tier, state: 'installed', devId: inst.devId || undefined }); continue; }
-    const inv = crate.find((x) => x.spec === id);
-    if (inv) {
-      // A spare that the sim will not fit right now says why (memory minimum, free capacity, no slot); otherwise it can go in.
-      const reason = inv.installable ? 'In your inventory: drag it onto its socket' : inv.reason ?? 'Nothing to fit it to right now';
-      out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason });
-      continue;
-    }
-    if (tier < ownedMax) {
-      // The shop lists every tier; the upgrade ladder leaves the ones you have outgrown out.
-      if (all) out.push({ specId: id, name, tier, state: 'outclassed', reason: 'You already own a better one' });
-      continue;
-    }
+    const copies = crate.filter((x) => x.spec === id);
     const p = s.purchases.find((x) => x.id === id);
     // The player level comes first: before money, hardware and "later".
     const lock = lockOf(s, id, p);
+    const spares = copies.length || undefined;
+    const more = p && !p.later ? moreOffer(s, p, lock) : undefined;
+    if (inst) { out.push({ specId: id, name, tier, state: 'installed', devId: inst.devId || undefined, spares, more }); continue; }
+    const inv = copies[0];
+    if (inv) {
+      // A spare that the sim will not fit right now says why (memory minimum, free capacity, no slot); otherwise it can go in.
+      const reason = inv.installable ? 'In your inventory: drag it onto its socket' : inv.reason ?? 'Nothing to fit it to right now';
+      out.push({ specId: id, name, tier, state: 'crate', invId: inv.id, reason, spares, more });
+      continue;
+    }
     if (lock) {
       out.push({
         specId: id, name, tier, state: 'level', price: p?.price, free: s.sandbox || undefined, lock,
@@ -494,16 +496,15 @@ export function installedRamBytes(s: Snapshot): number {
 }
 
 /**
- * The next tier up from the fitted part: the lowest-tier rung above the installed tier that is not the installed one
- * (a spare, a buy, a poor or blocked rung, or a later tier). Undefined when the fitted part is the top tier.
+ * The next tier up from the fitted part: a spare you own above it (the lowest), else the lowest-tier rung above the installed tier
+ * (a buy, a poor or blocked rung, or a later tier). Undefined when the fitted part is the top tier.
  * With nothing fitted (an empty socket) every rung is "up".
  */
 export function nextUpgrade(ladder: LadderStep[]): LadderStep | undefined {
   const fitted = ladder.find((r) => r.state === 'installed');
   const fittedTier = fitted ? fitted.tier : -1;
-  return ladder
-    .filter((r) => r.state !== 'installed' && r.tier > fittedTier)
-    .sort((a, b) => a.tier - b.tier)[0];
+  const above = ladder.filter((r) => r.state !== 'installed' && r.tier > fittedTier).sort((a, b) => a.tier - b.tier);
+  return above.find((r) => r.state === 'crate') ?? above[0];
 }
 
 /** Plain lines about a key: what it is, how late, what it pays. */

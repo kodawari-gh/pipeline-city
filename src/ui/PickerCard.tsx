@@ -16,7 +16,7 @@ import {
 } from './vrm';
 import { Icon } from './Icons';
 import { DeclineButton, Deadline, NeedChips } from './Jobs';
-import { lockBadge, type LevelLock } from './levelui';
+import { lockBadge, type LevelLock, type MoreOffer } from './levelui';
 import { openMilestones } from './state';
 import { PartArt } from './PartArt';
 import { anchorOf } from './anchor';
@@ -35,13 +35,26 @@ function LockBadge({ lock, reason }: { lock: LevelLock; reason?: string }) {
   );
 }
 
+/** The small "+ price" on a fitted or spare tile (or board card): buy another copy, which goes into the inventory. */
+export function MoreButton({ specId, more }: { specId: string; more: MoreOffer | undefined }) {
+  if (!more || (more.state !== 'ready' && more.state !== 'poor')) return null;
+  const cost = more.free ? 'free' : fmtMoney(more.price);
+  if (more.state === 'poor') return <span class="need warn more" title={`Buy another: ${more.reason}`}>+ {cost}</span>;
+  return (
+    <button class="primary buy more" aria-label={`Buy another for ${cost}`} title={`Buy another for ${cost}. It goes into your inventory.`}
+      onClick={(e) => { e.stopPropagation(); purchase(specId); }}>
+      + {cost}
+    </button>
+  );
+}
+
 /** One upgrade rung: owned, next (buy), blocked or later. Pressing the card compares it with the current part. */
 export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boolean; onPick: (id: string) => void }) {
   const cost = step.free ? 'free' : fmtMoney(step.price ?? 0);
   const foot = (() => {
     switch (step.state) {
-      case 'installed': return <span class="need ok"><Icon name="check" size={11} /> Fitted</span>;
-      case 'crate': return <span class="need ok"><Icon name="box" size={11} /> Spare</span>;
+      case 'installed': return <><span class="need ok" title={step.spares ? `${step.spares} more in your inventory` : undefined}><Icon name="check" size={11} /> Fitted{step.spares ? ` +${step.spares}` : ''}</span><MoreButton specId={step.specId} more={step.more} /></>;
+      case 'crate': return <><span class="need ok"><Icon name="box" size={11} /> Spare{(step.spares ?? 1) > 1 ? ` x${step.spares}` : ''}</span><MoreButton specId={step.specId} more={step.more} /></>;
       case 'ready': return (
         <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(step.specId); }}
           title={`Buy for ${cost}. It goes into your inventory.`}>
@@ -52,7 +65,6 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
       case 'blocked': return <span class="need bad" title={step.reason}><Icon name="lock" size={11} /> Blocked</span>;
       case 'locked': return <span class="need mute" title={step.reason}><Icon name="lock" size={11} /> Later</span>;
       case 'level': return <LockBadge lock={step.lock!} reason={step.reason} />;
-      case 'outclassed': return <span class="need mute" title={step.reason}><Icon name="check" size={11} /> Outgrown</span>;
     }
   })();
   // A spare the sim will not fit right now (e.g. the OS needs more memory fitted first): the reason is in the rung.
@@ -225,7 +237,7 @@ function BoardCardView({ c }: { c: BoardCard }) {
   const net = c.ethernetMbps ? (c.ethernetMbps >= 1000 ? '1 Gbit' : `${c.ethernetMbps} Mbit`) : 'none';
   const foot = (() => {
     switch (c.state) {
-      case 'installed': return <span class="need ok"><Icon name="check" size={11} /> Fitted</span>;
+      case 'installed': return <><span class="need ok"><Icon name="check" size={11} /> Fitted{c.spares ? ` +${c.spares}` : ''}</span><MoreButton specId={c.id} more={c.more} /></>;
       case 'dead': return (
         <button class="primary buy" disabled={!c.canBuy}
           title={c.canBuy ? `Replace the dead board with a ${c.name} for ${cost}. Power off first; your parts move over.` : c.reason}
@@ -233,7 +245,7 @@ function BoardCardView({ c }: { c: BoardCard }) {
           Replace {cost}
         </button>
       );
-      case 'crate': return <span class="need ok" title={c.reason}><Icon name="box" size={11} /> Spare</span>;
+      case 'crate': return <><span class="need ok" title={c.reason}><Icon name="box" size={11} /> Spare{(c.spares ?? 1) > 1 ? ` x${c.spares}` : ''}</span><MoreButton specId={c.id} more={c.more} /></>;
       case 'ready': return (
         <button class="primary buy" onClick={(e) => { e.stopPropagation(); purchase(c.id); }} title={`Buy for ${cost}. It goes into your inventory.`}>
           Buy {cost}

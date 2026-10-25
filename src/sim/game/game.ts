@@ -26,8 +26,8 @@ import {
 } from "../net";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
-  applyOffer, boardTierOf, caseTierOf, caseTooSmall, demandRate, ECONOMY, offers, payMulFor, payout, pickTemplate, postTicks, reputation,
-  SANDBOX_MONEY, sandboxOffers, type EconomyConfig, type Offer,
+  boardTierOf, caseTierOf, caseTooSmall, catalog, demandRate, ECONOMY, payMulFor, payout, pickTemplate, postTicks, reputation,
+  SANDBOX_MONEY, type EconomyConfig,
 } from "./economy";
 import {
   classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, levelRows, LEVELS, MAX_LEVEL,
@@ -562,8 +562,6 @@ const LOG_CAP = 16;
 /** The level the sandbox rules are pinned at until `setLevel`. */
 const SANDBOX_LEVEL = 8;
 const NOT_SANDBOX = { ok: false, reason: "sandbox mode only" } as const;
-const BOARD_OFF_REASON = "powered off required: power the machine off to swap the board";
-const CASE_OFF_REASON = "powered off required: power the machine off to swap the case";
 
 /** The static milestone rows of the level snapshot (built once). */
 const LEVEL_ROWS: LevelRowSnap[] = levelRows();
@@ -703,19 +701,23 @@ export class Game {
     if (osSpec) return this.installOs(item, osSpec, slotId);
     const caseTier = caseTierOf(item.spec);
     if (caseTier !== undefined) {
+      const was = this.board.caseTier;
       const r = upgradeCase(this.board, caseTier);
       if (!r.ok) return r;
       this.removeItem(item.id);
+      this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `case${was}` }); // the case it replaced is a spare now
       this.note("install", `${CASE_TIERS[caseTier]!.name} installed: the board and every part moved in`);
       return { ok: true, deviceId: null, slot: "case" };
     }
     const tier = boardTierOf(item.spec);
     if (tier !== undefined) {
-      if (this.caseGated() && !caseHolds(this.board, tier) && !(this.board.burnt && tier === this.board.tier)) return { ok: false, reason: caseTooSmall(this.board, tier) };
+      const was = this.board.tier, dead = !!this.board.burnt;
+      if (this.caseGated() && !caseHolds(this.board, tier)) return { ok: false, reason: caseTooSmall(this.board, tier) };
       const r = upgradeBoard(this.board, tier);
       if (!r.ok) return r;
       if (!caseHolds(this.board, tier)) this.board.caseTier = caseFor(tier); // ungated: the case follows the board
       this.removeItem(item.id);
+      if (!dead) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: `board${was}` }); // the board it replaced is a spare now (a dead one is scrapped)
       this.note("install", `${BOARD_TIERS[tier]!.name} installed`);
       return { ok: true, deviceId: null, slot: "board" };
     }
@@ -792,7 +794,7 @@ export class Game {
   /** The router is external (own power): it goes into its spot, or comes out, whether the PC is on or off. */
   private installRouter(item: InvItem, r: RouterSpec, slotId?: string): Result<{ deviceId: string | null; slot: string }> {
     if (slotId !== undefined && slotId !== "router") return { ok: false, reason: `${r.name} goes into the router spot next to the monitor, not "${slotId}"` };
-    if (this.routerTier >= r.tier) return { ok: false, reason: `a ${routerByTier(this.routerTier)!.name} is already in the router spot` };
+    if (this.routerTier === r.tier) return { ok: false, reason: `a ${routerByTier(this.routerTier)!.name} is already in the router spot` };
     const old = routerByTier(this.routerTier);
     if (old) this.inventory.push({ id: `inv${this.nextInvId++}`, spec: old.id });
     this.removeItem(item.id);
@@ -887,9 +889,9 @@ export class Game {
   }
 
   /**
-   * Buy an item (a device spec id or a board tier id): money is spent now and the part goes to the inventory, not into
-   * the machine. Only upgrades over what you own (installed or in the inventory) are offered, and the board must be
-   * able to take the whole plan (a bigger CPU needs a big enough PSU somewhere in the plan).
+   * Buy an item (a device spec id, a board or case tier id, an OS, a router or an internet plan): money is spent now and the part
+   * goes to the inventory, not into the machine. Everything is for sale, any tier and any number (spares, downgrades, a second
+   * machine); only the player level gates it. Whether a part fits is the inventory's business (`reason`), not the shop's.
    */
   purchase(itemId: string): Result<{ invId: string }> {
     const extra = this.extraOffers().find((o) => o.id === itemId);
@@ -913,16 +915,12 @@ export class Game {
       this.note("purchase", `bought ${extra.name} ${this.priceText(extra.price)}`);
       return { ok: true, invId };
     }
-    const cand = this.deviceOffers(this.plannedBoard()).find((s) => s.id === itemId);
-    if (!cand) return { ok: false, reason: `"${itemId}" is not an available upgrade` };
+    const cand = catalog().find((s) => s.id === itemId);
+    if (!cand) return { ok: false, reason: `"${itemId}" is not for sale` };
     const lock = this.levelLock(itemId);
     if (lock) return { ok: false, reason: lockText(lock) };
-    if (cand.kind === "board" && this.powered) return { ok: false, reason: BOARD_OFF_REASON };
-    if (cand.kind === "case" && this.powered) return { ok: false, reason: CASE_OFF_REASON };
     const price = this.cost(cand.price);
     if (this.money < price) return { ok: false, reason: `needs $${price}, have $${this.money}` };
-    const r = applyOffer(this.plannedBoard(), itemId, this.caseGated());
-    if (!r.ok) return r;
     this.money -= price;
     const invId = `inv${this.nextInvId++}`;
     this.inventory.push({ id: invId, spec: itemId });
@@ -945,11 +943,6 @@ export class Game {
 
   private priceText(price: number): string {
     return this.sandbox ? "(sandbox: free)" : `for $${price}`;
-  }
-
-  /** Board and device offers on `plan`: the campaign upgrade ladder, or everything in the sandbox. */
-  private deviceOffers(plan: Board): Offer[] {
-    return this.sandbox ? sandboxOffers(plan) : offers(plan);
   }
 
   // ---------- public API: sandbox tools (refused outside the sandbox) ----------
@@ -1306,13 +1299,8 @@ export class Game {
     const rep = this.reputation();
     const cpu = findDevices(this.board, "cpu")[0];
     const cpuSpec = cpu ? deviceSpec(cpu) : undefined;
-    const planned = this.plannedBoard();
-    const purchases: PurchaseSnap[] = this.deviceOffers(planned).map((s) => {
+    const purchases: PurchaseSnap[] = catalog().map((s) => {
       const p: PurchaseSnap = { id: s.id, name: s.name, kind: s.kind, price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
-      const r = applyOffer(boardFromJson(boardToJson(planned)), s.id, this.caseGated());
-      if (s.kind === "board" && this.powered) p.blocked = BOARD_OFF_REASON;
-      else if (s.kind === "case" && this.powered) p.blocked = CASE_OFF_REASON;
-      else if (!r.ok) p.blocked = r.reason;
       return p;
     });
     for (const o of this.extraOffers()) {
@@ -1650,26 +1638,8 @@ export class Game {
     return occupant ? { ...r, replaced: occupant } : r;
   }
 
-  /**
-   * The best machine you could build from what you own: the installed board with every inventory item that is an
-   * upgrade applied (lowest tier first, a part never replaces a better one). For validating and listing purchases.
-   */
   /** Does a board need a case that holds it? Not in the sandbox (there the case follows the board) nor when the config says so. */
   private caseGated(): boolean { return !this.sandbox && this.cfg.caseGating; }
-
-  private plannedBoard(): Board {
-    const b = boardFromJson(boardToJson(this.board));
-    const tierOf = (id: string): number => (caseTierOf(id) !== undefined ? -2 : boardTierOf(id) !== undefined ? -1 : getSpec(id)!.tier);
-    // Storage drives and OSes are not one-per-machine upgrades: they never replace a part in the plan.
-    const planned = this.inventory.filter((it) => !getOsSpec(it.spec) && !getRouterSpec(it.spec) && getSpec(it.spec)?.kind !== "storage");
-    for (const it of planned.sort((a, c) => tierOf(a.spec) - tierOf(c.spec))) {
-      const spec = getSpec(it.spec);
-      const have = spec ? findDevices(b, spec.kind)[0] : undefined;
-      if (have && deviceSpec(have).tier >= spec!.tier && !have.burnt) continue;
-      applyOffer(b, it.spec, this.caseGated());
-    }
-    return b;
-  }
 
   private inventorySnap(): InventorySnap[] {
     // Power does not matter to the player: `swapInstall` cycles it (or waits for the job).
@@ -1679,11 +1649,11 @@ export class Game {
       if (router) {
         // External and self-powered: it installs whether the PC is on or off, into the single router spot.
         const free = this.routerTier === 0 ? ["router"] : [];
-        const swap = this.routerTier > 0 && router.tier > this.routerTier ? ["router"] : [];
+        const swap = this.routerTier > 0 && router.tier !== this.routerTier ? ["router"] : [];
         const ok = free.length + swap.length > 0;
         return {
           id: it.id, spec: it.spec, kind: "router" as const, name: router.name, freeSlots: free, swapSlots: swap, installable: ok,
-          ...(ok ? {} : { reason: `a ${routerByTier(this.routerTier)!.name} is already installed (an equal or better router)` }),
+          ...(ok ? {} : { reason: `a ${routerByTier(this.routerTier)!.name} is already installed (this is a spare)` }),
         };
       }
       const os = getOsSpec(it.spec);
@@ -1718,7 +1688,7 @@ export class Game {
       const tier = boardTierOf(it.spec);
       if (tier !== undefined) {
         const t = boardFromJson(boardToJson(this.board));
-        const r = this.caseGated() && !caseHolds(t, tier) && !(t.burnt && tier === t.tier) ? { ok: false as const, reason: caseTooSmall(t, tier) } : upgradeBoard(t, tier);
+        const r = this.caseGated() && !caseHolds(t, tier) ? { ok: false as const, reason: caseTooSmall(t, tier) } : upgradeBoard(t, tier);
         const ok = r.ok && off;
         return {
           id: it.id, spec: it.spec, kind: "board" as const, name: BOARD_TIERS[tier]!.name,
@@ -1900,57 +1870,24 @@ export class Game {
     return { ok: true, invId };
   }
 
-  /** Storage drives and OS tiers for sale, with the first reason each cannot be bought now. */
+  /** Operating systems, routers and internet plans for sale: every tier, as many as you like (a plan applies at once, so the one you are on is not offered again). */
   private extraOffers(): PurchaseSnap[] {
     const out: PurchaseSnap[] = [];
-    const plan = this.plannedBoard();
-    const ownedSpecs = new Set([...this.board.devices.map((d) => d.spec), ...this.inventory.map((i) => i.spec)]);
-    const planSlots = boardSlots(plan);
-    for (const s of specsOfKind("storage")) {
-      const total = planSlots.filter((x) => slotAccepts(x.type, s.slot)).length;
-      const used = this.board.devices.filter((d) => deviceSpec(d).kind === "storage" && deviceSpec(d).slot === s.slot).length
-        + this.inventory.filter((i) => getSpec(i.spec)?.kind === "storage" && getSpec(i.spec)!.slot === s.slot).length;
-      // a drive you own is offered again only while a slot is free (the bigger boards have several), like another memory stick
-      if (!this.sandbox && ownedSpecs.has(s.id) && (total === 0 || used >= total)) continue;
-      const o: PurchaseSnap = { id: s.id, name: ownedSpecs.has(s.id) ? `${s.name} (another drive)` : s.name, kind: "storage", price: this.cost(s.price), affordable: this.money >= this.cost(s.price) };
-      if (total === 0) o.blocked = s.slot === "m2" ? "needs an M.2 slot (bigger board)" : "the board has no SATA slot";
-      else if (used >= total) o.blocked = `no free ${s.slot === "m2" ? "M.2" : "SATA"} slot (${total} of ${total} used or owned)`;
-      out.push(o);
-    }
-    const haveDrive = this.board.devices.some((d) => deviceSpec(d).kind === "storage") || this.inventory.some((i) => getSpec(i.spec)?.kind === "storage");
-    const planRam = findDevices(plan, "ram").reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
-    const haveOs = !!this.os || this.inventory.some((i) => getOsSpec(i.spec));
     for (const os of OS_SPECS) {
       const o: PurchaseSnap = {
         id: os.id, name: os.name, kind: "os", price: this.cost(os.price), affordable: this.money >= this.cost(os.price), description: os.description,
         ...(os.later ? { later: true } : {}),
       };
       if (os.later) o.blocked = "planned: not available yet";
-      else if (haveOs) o.blocked = "you already own an OS";
-      else if (!haveDrive) o.blocked = "needs a storage drive to install on";
-      else if (planRam < os.minRamBytes) o.blocked = `needs ${os.minRamBytes / 1024}K of RAM`;
       out.push(o);
     }
-    // Another memory stick of the best tier you run, while a DIMM slot is free (the network wants 64K: two `ram1` on a Basic board).
-    const ramOwned = this.board.devices.filter((d) => deviceSpec(d).kind === "ram" && !d.burnt);
-    if (ramOwned.length > 0) {
-      const best = findDevices(plan, "ram").map((d) => deviceSpec(d)).reduce((a, b) => (b.tier > a.tier ? b : a));
-      const dimms = planSlots.filter((x) => x.type === "dimm").length;
-      const have = ramOwned.length + this.inventory.filter((i) => getSpec(i.spec)?.kind === "ram" && getSpec(i.spec)!.tier >= best.tier).length;
-      if (have < dimms && !out.some((o) => o.id === best.id)) {
-        out.push({ id: best.id, name: `${best.name} (another stick)`, kind: "ram", price: this.cost(best.price), affordable: this.money >= this.cost(best.price),
-          description: "A second memory stick of the same kind." });
-      }
-    }
     // Routers (installed from the inventory into the router spot) and ISP plans (applied at purchase).
-    const ownedRouter = Math.max(this.routerTier, ...this.inventory.map((i) => getRouterSpec(i.spec)?.tier ?? 0));
     for (const r of ROUTER_SPECS) {
-      if (!this.sandbox && r.tier <= ownedRouter) continue;
       out.push({ id: r.id, name: r.name, kind: "router", price: this.cost(r.price), affordable: this.money >= this.cost(r.price),
         description: `External router: ${r.mbps} Mbit/s, ${r.clients} clients at once. Own power; goes next to the monitor.` });
     }
     for (const p of ISP_SPECS) {
-      if (!this.sandbox && p.tier <= this.ispTier) continue;
+      if (!this.sandbox && p.tier === this.ispTier) continue;
       out.push({ id: p.id, name: `${p.name} plan`, kind: "isp", price: this.cost(p.price), affordable: this.money >= this.cost(p.price),
         description: `ISP plan: ${p.downMbps} down / ${p.upMbps} up Mbit/s, ${p.clients} clients at once. One-off purchase.` });
     }

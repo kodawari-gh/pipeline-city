@@ -228,7 +228,8 @@ button.lockbadge { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); color
 button.lockbadge:hover { color: var(--accent); }
 .rtier { font-size: 0.6rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .rname { font-size: 0.7rem; font-weight: 600; text-align: center; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rfoot { min-height: 1.333rem; display: flex; align-items: center; justify-content: center; }
+.rfoot { min-height: 1.333rem; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.133rem 0.333rem; }
+button.buy.more { padding: 0.067rem 0.333rem; }
 /* OS section on the picker (the OS badge and its host drive) */
 .os-sec .osrow { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1fr); gap: 0.4rem; align-items: baseline; font-size: 0.733rem; padding: 0.133rem 0; }
 .os-sec .osrow .oname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -674,7 +675,6 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .shop-sec h3 { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.4rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
 .shop-sec .rungs { grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr)); }
 .shop-detail { width: 15.5rem; flex: none; overflow-y: auto; }
-.rung.outclassed { opacity: .55; }
 @media (max-width: 52em) { .shop-body { flex-direction: column; } .shop-detail { width: auto; } }
 
 /* Short landscape screens (a phone on its side): the shelf moves to the right edge as a column and the tutorial box stays

@@ -45,10 +45,12 @@ export function createBoard(tier = 0, caseTier?: number): Board {
 /** Does the board's case hold a board of this tier? */
 export const caseHolds = (board: Board, boardTier: number): boolean => (CASE_TIERS[board.caseTier]?.maxBoard ?? -1) >= boardTier;
 
-/** Move to a bigger case (the board and every part stay as they are). */
+/** Fit another case, bigger or smaller, as long as it holds the board (the board and every part stay as they are). */
 export function upgradeCase(board: Board, tier: number): Result<object> {
-  if (!CASE_TIERS[tier]) return { ok: false, reason: `unknown case tier ${tier}` };
-  if (tier <= board.caseTier) return { ok: false, reason: "not a bigger case" };
+  const c = CASE_TIERS[tier];
+  if (!c) return { ok: false, reason: `unknown case tier ${tier}` };
+  if (tier === board.caseTier) return { ok: false, reason: `the ${c.name} is already fitted` };
+  if (c.maxBoard < board.tier) return { ok: false, reason: `the ${c.name} is too small for the ${BOARD_TIERS[board.tier]!.name} board: fit a smaller board first` };
   board.caseTier = tier;
   return { ok: true };
 }
@@ -140,14 +142,15 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
 }
 
 /**
- * Move to the next board tier (or, when the board is burnt, the same tier again), carrying every installed device over (same instance ids, clocks and burnt flags).
+ * Move to another board tier, bigger or smaller (or, when the board is burnt, the same tier again), carrying every installed device over (same instance ids, clocks and burnt flags).
+ * A smaller board refuses while a device has no slot on it.
  * A device keeps its slot id if the new board has an accepting slot with that id, otherwise it takes the first free
  * accepting slot (e.g. the plain ATX PSU moves to the ATX+ connector). On failure the board is left untouched.
  */
 export function upgradeBoard(board: Board, tier: number): Result<object> {
   if (!BOARD_TIERS[tier]) return { ok: false, reason: `unknown board tier ${tier}` };
   // A dead board may be replaced by one of the same tier.
-  if (tier < board.tier || (tier === board.tier && !board.burnt)) return { ok: false, reason: "not a bigger board" };
+  if (tier === board.tier && !board.burnt) return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board is already fitted` };
   const next: Board = { tier, caseTier: board.caseTier, nextId: board.nextId, devices: [] };
   const slots = boardSlots(next);
   const used = new Set<string>();
@@ -158,7 +161,7 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   };
   for (const d of board.devices) {
     const slot = place(d);
-    if (!slot) return { ok: false, reason: `the bigger board has no slot for ${deviceSpec(d).name}` };
+    if (!slot) return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board has no slot for ${deviceSpec(d).name}: take it out first` };
     used.add(slot);
     next.devices.push({ ...d, slot });
   }

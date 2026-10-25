@@ -4,7 +4,7 @@
 import { BOARD_TIERS, getSpec, type RamSpec, type VrmSinkSpec } from '../sim/board/specs';
 import { currentDemand, loadRatio, ramDemand, VRM_OVERLOAD } from '../sim/board/vrm';
 import type { Snapshot } from '../sim/game/game';
-import { isNextLevelLock, lockOf, lockTooltip, type LevelLock } from './levelui';
+import { isNextLevelLock, lockOf, lockTooltip, moreOffer, type LevelLock, type MoreOffer } from './levelui';
 import { fmtMoney, type Level } from './logic';
 
 /** Above this share of the phases' rating the VRM is "working hard" (the efficiency curve starts to fall here). */
@@ -126,6 +126,10 @@ export interface BoardCard {
   /** State `level`: the player level that opens this tier, and whether it is the very next one. */
   lock?: LevelLock;
   soon?: boolean;
+  /** Copies of this board in the inventory. */
+  spares?: number;
+  /** Buying another: set on a fitted or spare card. */
+  more?: MoreOffer;
   /** The buy (or replace) button is live: the sim offers it, nothing blocks it and it is affordable. */
   canBuy: boolean;
   slots: BoardSlotCount[];
@@ -162,7 +166,7 @@ const SLOT_LABELS: Array<{ key: string; label: string; icon: BoardSlotIcon }> = 
 
 const phaseAmps = (t: { vrm: { phases: number; ampsPerPhase: number } }) => t.vrm.phases * t.vrm.ampsPerPhase;
 
-/** Cards for every board tier this machine can still use: the installed tier, then the bigger ones. Older tiers are left out. */
+/** Cards for every board tier: the installed one, the spares you own and each tier the shop sells (smaller ones too: a downgrade, a second machine). */
 export function boardCards(s: Snapshot): BoardCard[] {
   const cur = s.boardTier;
   const burnt = !!s.board?.burnt;
@@ -170,10 +174,10 @@ export function boardCards(s: Snapshot): BoardCard[] {
   const curA = phaseAmps(BOARD_TIERS[cur] ?? BOARD_TIERS[0]!);
   const out: BoardCard[] = [];
   for (const t of BOARD_TIERS) {
-    if (t.tier < cur) continue;
     const id = `board${t.tier}`;
     const p = s.purchases.find((x) => x.id === id);
-    const crate = s.inventory.find((i) => i.spec === id);
+    const copies = s.inventory.filter((i) => i.spec === id);
+    const crate = copies[0];
     const price = p?.price ?? t.price;
     const free = s.sandbox;
     const canAfford = free || (p ? p.affordable : false);
@@ -213,6 +217,8 @@ export function boardCards(s: Snapshot): BoardCard[] {
       free,
       reason,
       lock,
+      spares: copies.length || undefined,
+      more: p && !p.later && (state === 'installed' || state === 'crate') ? moreOffer(s, p, lock) : undefined,
       soon: isNextLevelLock(lock, s.level.level),
       canBuy: (state === 'ready' || state === 'dead') && !!p && !p.blocked && canAfford,
       slots: SLOT_LABELS

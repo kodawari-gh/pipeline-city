@@ -51,12 +51,15 @@ describe("buying and installing storage and the OS", () => {
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id)!;
     expect(by("hdd0")).toMatchObject({ kind: "storage", price: 40 });
     expect(by("hdd0").blocked).toBeUndefined();
-    expect(by("nvme2").blocked).toMatch(/M\.2/); // the mini board has no M.2 slot
-    expect(g.purchase("nvme2").ok).toBe(false);
+    // the shop sells an M.2 drive to a board without the slot; the spare says it has nowhere to go
+    expect(by("nvme2").blocked).toBeUndefined();
+    const nv = g.purchase("nvme2") as { invId: string };
+    expect(g.snapshot().inventory.find((i) => i.id === nv.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/m2/) });
     const b = g.purchase("hdd0");
     expect(b.ok).toBe(true);
-    // a drive you own is offered again while a slot is free (the Starter board has two SATA slots), and gone when they are taken
-    expect(g.snapshot().purchases.find((p) => p.id === "hdd0")).toMatchObject({ name: expect.stringMatching(/another drive/) });
+    // and a drive you own stays on sale: as many as you like, whatever the slots
+    expect(g.purchase("hdd0").ok).toBe(true);
+    expect(g.snapshot().inventory.filter((i) => i.spec === "hdd0")).toHaveLength(2);
     const inv = g.snapshot().inventory.find((i) => i.spec === "hdd0")!;
     expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0", "sata1"], installable: true }); // the machine is on: swapInstall cycles the power
     g.powerButton();
@@ -87,19 +90,20 @@ describe("buying and installing storage and the OS", () => {
     const g = new Game({ seed: 1, preassembled: true, economy: econ() });
     g.money = 100000;
     const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id)!;
-    expect(by("os1").blocked).toMatch(/storage/);
+    const spare = (id: string) => g.snapshot().inventory.find((i) => i.id === id)!;
+    expect(by("os1").blocked).toBeUndefined(); // for sale; the spare says what it still needs
+    const os = g.purchase("os1") as { invId: string };
+    expect(spare(os.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/storage/) });
     expect(by("os2")).toMatchObject({ later: true, blocked: expect.stringMatching(/not available/) });
     expect(by("os3")).toMatchObject({ later: true });
     expect(g.purchase("os2").ok).toBe(false);
     g.powerButton();
     g.install((g.purchase("hdd0") as { invId: string }).invId);
-    expect(by("os1").blocked).toMatch(/RAM/); // 16K installed, the OS wants 32K
-    expect(g.purchase("os1").ok).toBe(false);
+    expect(spare(os.invId).reason).toMatch(/RAM/); // 16K installed, the OS wants 32K
     g.uninstall(g.board.devices.find((d) => d.spec === "ram0")!.id);
     g.install((g.purchase("ram1") as { invId: string }).invId);
-    expect(by("os1").blocked).toBeUndefined();
-    const os = g.purchase("os1") as { invId: string };
-    const item = g.snapshot().inventory.find((i) => i.id === os.invId)!;
+    expect(spare(os.invId).reason).toBeUndefined();
+    const item = spare(os.invId);
     expect(item).toMatchObject({ kind: "os", freeSlots: ["sata0"], installable: true });
     expect(g.install(os.invId, "dimm0")).toMatchObject({ ok: false, reason: expect.stringMatching(/no storage drive/) });
     expect(g.install(os.invId, "sata0")).toMatchObject({ ok: true, slot: "sata0" });

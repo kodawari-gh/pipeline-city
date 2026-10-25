@@ -81,10 +81,10 @@ describe('motherboard tier cards', () => {
     expect(cards[2]).toMatchObject({ state: 'ready', canBuy: true, price: 300 });
   });
 
-  it('only tiers the machine can still use: a Mainstream machine sees two cards', () => {
+  it('every tier has a card, the smaller ones too: a Mainstream machine can still buy a Starter board', () => {
     const cards = boardCards(snap({ boardTier: 2, board: boardSnap({ tier: 2 }), purchases: [...PURCHASES, buy('board3', 700)] }));
-    expect(cards.map((c) => c.tier)).toEqual([2, 3]);
-    expect(cards[0]!.state).toBe('installed');
+    expect(cards.map((c) => c.tier)).toEqual([0, 1, 2, 3]);
+    expect(cards[2]!.state).toBe('installed');
   });
 
   it('slot counts, features and VRM strength with before and after bars', () => {

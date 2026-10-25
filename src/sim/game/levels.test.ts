@@ -162,13 +162,13 @@ describe("unlock gating", () => {
   it("opens an item at exactly its level; money and hardware still apply on top", () => {
     const g = buyer(2);
     g.money = 100;
-    g.powerButton(); // boards are bought while powered off
     expect(g.purchase("board1")).toMatchObject({ ok: false, reason: "needs $150, have $100" });
     g.money = 150;
     expect(g.purchase("board1").ok).toBe(true);
     const h = buyer(3);
     h.money = 1000;
-    expect(h.purchase("os1")).toMatchObject({ ok: false, reason: expect.stringMatching(/storage drive/) }); // level ok, hardware not
+    expect(h.purchase("os1").ok).toBe(true); // level and money are all the shop asks: the inventory says it needs a drive
+    expect(h.snapshot().inventory.find((i) => i.spec === "os1")).toMatchObject({ installable: false, reason: expect.stringMatching(/storage drive/) });
     expect(buyer(1).snapshot().level.level).toBe(1);
   });
 
@@ -193,7 +193,7 @@ describe("unlock gating", () => {
   it("the sandbox ignores levels; an installed part from a save keeps working whatever the level", () => {
     const sb = sandbox();
     expect(sb.purchase("cooler2").ok).toBe(true);
-    expect(sb.purchase("os1")).toMatchObject({ ok: false, reason: expect.not.stringMatching(/Level/) });
+    expect(sb.purchase("os1").ok).toBe(true);
     expect(sb.snapshot().purchases.every((x) => !x.locked)).toBe(true);
     // A big machine with the score of a beginner (a hand-edited or old save): it loads, it powers on, the parts stay.
     const big = rig("nvme2", { cpu: "cpu2" });

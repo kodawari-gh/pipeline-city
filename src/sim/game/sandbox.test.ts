@@ -61,21 +61,25 @@ describe("sandbox purchases", () => {
     expect(g.board.tier).toBe(3);
     expect(g.board.devices.map((d) => d.id)).toEqual(before);
   });
-  it("physics still refuses: PSU watts, missing slot, powered-on install", () => {
+  it("physics still refuses at the install, not at the till: PSU watts, missing slot, powered-on install", () => {
     const g = sb({ preassembled: true });
-    expect(g.purchase("cpu2").ok).toBe(false); // the 40 W PSU cannot feed it
-    expect(g.purchase("nvme2").ok).toBe(false); // the Starter board has no M.2
-    expect(g.purchase("psu2").ok).toBe(false); // needs the ATX+ connector
-    buy(g, "board3");
-    expect(g.purchase("psu2").ok).toBe(true); // the plan has the big board now
+    const spare = (id: string) => g.snapshot().inventory.find((i) => i.id === id)!;
+    const cpu = buy(g, "cpu2"), nvme = buy(g, "nvme2"), psu = buy(g, "psu2");
+    expect(spare(cpu).installable).toBe(false); // the 40 W PSU cannot feed it
+    expect(spare(nvme)).toMatchObject({ installable: false, reason: expect.stringMatching(/m2/) }); // the Starter board has no M.2
+    expect(spare(psu).installable).toBe(false); // needs the ATX+ connector
+    g.install(buy(g, "board3"));
+    expect(spare(psu).installable).toBe(true); // the big board has it
     const inv = buy(g, "cooler1");
     g.powerButton();
     expect(g.install(inv)).toMatchObject({ ok: false, reason: "power the machine off first" });
-    expect(g.purchase("board2").ok).toBe(false);
+    expect(g.purchase("board2").ok).toBe(true); // a smaller board is a spare, or a downgrade
   });
-  it("an OS still needs a drive", () => {
+  it("an OS still needs a drive to install on", () => {
     const g = sb({ preassembled: true });
-    expect(g.purchase("os1").ok).toBe(false);
+    const os = g.purchase("os1") as { invId: string };
+    expect(os.invId).toBeTruthy();
+    expect(g.snapshot().inventory.find((i) => i.id === os.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/storage drive/) });
   });
 });
 

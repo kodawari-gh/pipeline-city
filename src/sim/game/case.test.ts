@@ -21,60 +21,100 @@ describe("case tiers", () => {
     expect(CASE_TIERS.map((c) => c.price)).toEqual([...CASE_TIERS.map((c) => c.price)].sort((a, b) => a - b));
   });
 
-  it("a board starts in the smallest case that holds it, and a case only gets bigger", () => {
+  it("a board starts in the smallest case that holds it, and a case can change as long as it holds the board", () => {
     const b = createBoard(2);
     expect(b.caseTier).toBe(2);
     expect(caseHolds(b, 2)).toBe(true);
     expect(caseHolds(b, 3)).toBe(false);
-    expect(upgradeCase(b, 2).ok).toBe(false);
+    expect(upgradeCase(b, 2).ok).toBe(false); // already fitted
+    expect(upgradeCase(b, 1).ok).toBe(false); // too small for the board
     expect(upgradeCase(b, 3).ok).toBe(true);
     expect(caseHolds(b, 3)).toBe(true);
+    expect(upgradeCase(b, 2).ok).toBe(true); // and back to the one that holds it
     const small = createBoard(0);
     expect(upgradeBoard(small, 1).ok).toBe(true); // the primitive does not gate: the game does
     expect(() => createBoard(3, 1)).toThrow();
   });
 });
 
-describe("buying a board needs a case that holds it", () => {
-  it("refuses the board until the case is owned, then takes board and case in either order of purchase", () => {
+describe("a board needs a case that holds it", () => {
+  it("is bought freely, refuses to fit until the case is in, then takes case and board; the old ones come back as spares", () => {
     const g = campaign();
-    g.powerButton(); // a campaign machine starts powered: boards and cases are bought with it off
+    g.powerButton(); // a campaign machine starts powered: boards and cases are installed with it off
     const s0 = g.snapshot();
     expect(s0.caseTier).toBe(0);
     expect(s0.board.caseName).toBe("Mini tower");
-    expect(s0.purchases.find((p) => p.id === "board1")!.blocked).toMatch(/Mini tower is too small.*Micro tower/);
-    expect(g.purchase("board1")).toMatchObject({ ok: false, reason: expect.stringMatching(/too small/) });
-    // the case first
-    const c = g.purchase("case1");
-    expect(c.ok).toBe(true);
-    const inv = g.snapshot().inventory.find((i) => i.spec === "case1")!;
-    expect(inv).toMatchObject({ kind: "case", name: "Micro tower", freeSlots: ["case"], installable: true });
-    // owning the case (not yet fitted) is enough to buy the board; the board refuses to fit until the case is in
-    expect(g.snapshot().purchases.find((p) => p.id === "board1")!.blocked).toBeUndefined();
+    // the shop sells it whatever the case; the inventory says it does not fit yet
+    expect(s0.purchases.find((p) => p.id === "board1")!.blocked).toBeUndefined();
     const b = g.purchase("board1");
     expect(b.ok).toBe(true);
     const boardItem = g.snapshot().inventory.find((i) => i.spec === "board1")!;
-    expect(boardItem).toMatchObject({ installable: false, reason: expect.stringMatching(/too small/) });
-    expect(g.install((b as { invId: string }).invId)).toMatchObject({ ok: false });
+    expect(boardItem).toMatchObject({ installable: false, reason: expect.stringMatching(/Mini tower is too small.*Micro tower/) });
+    expect(g.install((b as { invId: string }).invId)).toMatchObject({ ok: false, reason: expect.stringMatching(/too small/) });
+    const c = g.purchase("case1");
+    expect(c.ok).toBe(true);
+    expect(g.snapshot().inventory.find((i) => i.spec === "case1")).toMatchObject({ kind: "case", name: "Micro tower", freeSlots: ["case"], installable: true });
     expect(g.install((c as { invId: string }).invId)).toMatchObject({ ok: true, slot: "case" });
     expect(g.snapshot().caseTier).toBe(1);
     expect(g.install((b as { invId: string }).invId)).toMatchObject({ ok: true, slot: "board" });
     const s = g.snapshot();
     expect(s.boardTier).toBe(1);
     expect(s.caseTier).toBe(1);
-    expect(s.purchases.find((p) => p.id === "board2")!.blocked).toMatch(/Micro tower is too small.*Mid tower/);
+    expect(s.inventory.map((i) => i.spec).sort()).toEqual(["board0", "case0"]);
+    // the Mini tower it replaced is too small for the Micro board now
+    expect(s.inventory.find((i) => i.spec === "case0")).toMatchObject({ installable: false, reason: expect.stringMatching(/Mini tower is too small for the .* board/) });
+    const b2 = g.purchase("board2");
+    expect(g.snapshot().inventory.find((i) => i.spec === "board2")).toMatchObject({ installable: false, reason: expect.stringMatching(/Micro tower is too small.*Mid tower/) });
+    expect(b2.ok).toBe(true);
   });
 
-  it("changes the case only with the machine off, keeps every part, and charges its price", () => {
+  it("goes back down: a smaller board and a smaller case install while the parts fit, and the bigger ones become spares", () => {
+    const sb = new Game({ seed: 3, sandbox: true, preassembled: true });
+    const up = sb.purchase("board2") as { invId: string }; // a sandbox machine waits for the power press: it is off
+    expect(sb.install(up.invId).ok).toBe(true);
+    expect(sb.snapshot()).toMatchObject({ boardTier: 2, caseTier: 2 });
+    // back to the Starter board: the Mainstream board is a spare, the case stays (it holds a smaller board)
+    const down = sb.purchase("board0") as { invId: string };
+    expect(sb.snapshot().inventory.find((i) => i.id === down.invId)).toMatchObject({ installable: true });
+    expect(sb.install(down.invId)).toMatchObject({ ok: true, slot: "board" });
+    expect(sb.snapshot()).toMatchObject({ boardTier: 0, caseTier: 2 });
+    expect(sb.snapshot().inventory.some((i) => i.spec === "board2")).toBe(true);
+    // the smaller case holds the Starter board
+    const small = sb.purchase("case0") as { invId: string };
+    expect(sb.install(small.invId)).toMatchObject({ ok: true, slot: "case" });
+    expect(sb.snapshot().caseTier).toBe(0);
+    // the sandbox is not gated: the Mainstream board goes in again and the case follows it
+    const mid = sb.snapshot().inventory.find((i) => i.spec === "board2")!;
+    expect(sb.install(mid.id).ok).toBe(true);
+    expect(sb.snapshot()).toMatchObject({ boardTier: 2, caseTier: 2 });
+    // a board with fewer slots than the parts it must carry refuses and keeps the machine as it is
+    const cheap = new Game({ seed: 3, sandbox: true, preassembled: true });
+    const big = cheap.purchase("board3") as { invId: string };
+    cheap.install(big.invId);
+    const ram = cheap.purchase("ram0") as { invId: string };
+    cheap.install(ram.invId);
+    const parts = cheap.snapshot().devices.length;
+    const back = cheap.purchase("board0") as { invId: string };
+    cheap.purchase("ram0"); cheap.purchase("ram0");
+    for (const it of cheap.snapshot().inventory.filter((i) => i.spec === "ram0")) cheap.install(it.id);
+    const tooMany = cheap.snapshot().devices.length;
+    expect(tooMany).toBeGreaterThan(parts);
+    expect(cheap.install(back.invId)).toMatchObject({ ok: false, reason: expect.stringMatching(/Starter board has no slot for/) });
+    expect(cheap.snapshot().boardTier).toBe(3);
+    expect(cheap.snapshot().devices).toHaveLength(tooMany);
+  });
+
+  it("can be bought with the machine on, installs only with it off, keeps every part, and charges its price", () => {
     const g = campaign();
     const money = g.money;
     const parts = g.snapshot().devices.map((d) => d.spec + "@" + d.slot);
     expect(g.snapshot().phase).not.toBe("off");
-    expect(g.purchase("case1")).toMatchObject({ ok: false, reason: expect.stringMatching(/power the machine off/) });
+    const c = g.purchase("case1") as { invId: string };
+    expect(c.invId).toBeTruthy();
+    expect(g.install(c.invId)).toMatchObject({ ok: false, reason: expect.stringMatching(/power the machine off/) });
     g.powerButton();
-    expect(g.purchase("case1").ok).toBe(true);
     expect(g.money).toBe(money - CASE_TIERS[1]!.price);
-    g.install(g.snapshot().inventory[0]!.id);
+    g.install(c.invId);
     expect(g.snapshot().devices.map((d) => d.spec + "@" + d.slot)).toEqual(parts);
   });
 

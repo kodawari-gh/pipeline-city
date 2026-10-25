@@ -83,8 +83,12 @@ export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): b
 /** A part swap is queued behind a running job: the player has done their bit, so point at the work instead of the shelf. */
 const whileSwapQueued = (targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => (s.pendingSwap ? ['monitor'] : targets(s));
 /** The shop tile to buy, pulsed inside the picker (`buy:<spec id>`): the cheapest processor on offer for the spend step. */
+const cpuUpgrades = (s: Snapshot) => {
+  const have = Math.max(-1, ...s.devices.filter((d) => d.kind === 'cpu' && !d.burnt).map((d) => getSpec(d.spec)?.tier ?? -1));
+  return s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked && (getSpec(p.id)?.tier ?? -1) > have);
+};
 const cheapestCpu = (s: Snapshot): string | null => {
-  const c = s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked).sort((a, b) => a.price - b.price)[0];
+  const c = cpuUpgrades(s).sort((a, b) => a.price - b.price)[0];
   return c ? c.id : null;
 };
 /** Nothing is lit while the player cannot pay for the thing the step asks them to buy: the grey line says how much is missing. */
@@ -414,7 +418,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       if (!s.plugged) return s.tray.length ? 'Plug the next key into the USB port first.' : 'No key yet. A client key will arrive in the tray soon.';
       return s.powered ? 'Press the power button to switch off, then again to switch on: the machine reads the key at boot.' : null;
     case 'spend': {
-      const cpus = s.purchases.filter((p) => p.kind === 'cpu' && !p.locked && !p.later && !p.blocked);
+      const cpus = cpuUpgrades(s);
       if (!cpus.length || cpus.some((p) => p.affordable)) return null;
       const cheapest = Math.min(...cpus.map((p) => p.price));
       return `Need ${fmtMoney(cheapest - s.money)} more. Finish another job to earn it.`;

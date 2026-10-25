@@ -119,7 +119,8 @@ describe("board upgrade", () => {
     ok(install(small, "ram0"));
     ok(install(small, "ram0"));
     expect(upgradeBoard(small, 2).ok).toBe(false);
-    expect(upgradeBoard(small, 1).ok).toBe(false);
+    expect(upgradeBoard(small, 1)).toMatchObject({ ok: false, reason: expect.stringMatching(/no slot for/) }); // a smaller board refuses while a part has no slot on it
+    expect(small.tier).toBe(2);
     expect(upgradeBoard(small, 9).ok).toBe(false);
   });
 

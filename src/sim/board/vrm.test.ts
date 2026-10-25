@@ -237,9 +237,8 @@ describe("the game around the VRM", () => {
     expect(s.board).toMatchObject({ burnt: true, name: "Starter" });
     expect(s.board.vrm.burnt).toBe(true);
     expect(s.log.some((e) => /board dead/.test(e.text))).toBe(true);
-    // Replacement: the same tier is offered while the board is burnt; purchase needs the power off.
-    expect(g.purchase("board0")).toMatchObject({ ok: false, reason: expect.stringMatching(/powered off required/) });
-    expect(s.purchases.find((p) => p.id === "board0")!.blocked).toMatch(/powered off required/);
+    // Replacement: the same tier is for sale like any board (bought with the machine on, installed with it off).
+    expect(s.purchases.find((p) => p.id === "board0")!.blocked).toBeUndefined();
     g.powerButton();
     expect(g.powerButton()).toMatchObject({ ok: false, reason: expect.stringMatching(/board dead/) });
     // The flag survives a save; temperatures do not.
@@ -259,14 +258,13 @@ describe("the game around the VRM", () => {
     expect(g.powerButton().ok).toBe(true);
   });
 
-  it("a board can be bought only while powered off", () => {
+  it("a board can be bought with the machine on, and installed only with it off", () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 1000;
-    expect(g.snapshot().purchases.find((p) => p.id === "board1")!.blocked).toMatch(/powered off required/);
-    expect(g.purchase("board1")).toMatchObject({ ok: false, reason: expect.stringMatching(/powered off required/) });
-    g.powerButton();
     expect(g.snapshot().purchases.find((p) => p.id === "board1")!.blocked).toBeUndefined();
-    expect(g.purchase("board1").ok).toBe(true);
+    const b = g.purchase("board1");
+    expect(b.ok).toBe(true);
+    expect(g.install((b as { invId: string }).invId)).toMatchObject({ ok: false, reason: expect.stringMatching(/power the machine off/) });
   });
 
   it("the snapshot describes the board, its features, only the slots it has, the VRM and the heatsink", () => {
@@ -290,7 +288,7 @@ describe("the game around the VRM", () => {
     const s = g.snapshot();
     expect(s.board.vrmSink).toMatchObject({ spec: "vsink1", slot: "vrm-sink0", kind: "vrm-sink" });
     expect(s.board.vrm.sinkDeviceId).toBe(s.board.vrmSink!.id);
-    expect(s.purchases.find((x) => x.id === "vsink0")).toBeUndefined(); // only better tiers are offered
+    expect(s.purchases.find((x) => x.id === "vsink0")).toBeDefined(); // every tier stays on sale
     expect(s.purchases.find((x) => x.id === "vsink2")).toBeDefined();
   });
 

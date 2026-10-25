@@ -27,7 +27,7 @@ export interface ShopSection { kind: ShopKind; label: string; icon: IconName; it
 /** Every item the game sells, by category, with its state for this player (buy, poor, blocked, level lock, later, owned, outgrown). */
 export function shopFor(s: Snapshot): ShopSection[] {
   return SHOP_ORDER
-    .map((kind) => ({ kind, label: kindLabel(kind), icon: KIND_ICON[kind], items: ladderFor(s, kind, true) }))
+    .map((kind) => ({ kind, label: kindLabel(kind), icon: KIND_ICON[kind], items: ladderFor(s, kind) }))
     .filter((x) => x.items.length > 0);
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getSpec } from "../board";
 import { ECONOMY } from "./economy";
 import { Game, type GameOptions } from "./game";
 import { Operator, play } from "./operator";
@@ -44,7 +45,7 @@ describe("pacing (real start: bare board, then the bot assembles the crate)", ()
       if (!powerOnAt && g.powered) powerOnAt = t;
       const s = g.snapshot();
       if (!payAt && s.completed > 0) { payAt = t; firstPay = s.lastCompleted!.payout; firstId = s.lastCompleted!.id; }
-      const ok = s.purchases.filter((p) => p.affordable && !p.blocked);
+      const ok = s.purchases.filter((p) => p.affordable && !p.blocked && !/^(board|case)0$/.test(p.id) && (getSpec(p.id)?.tier ?? 1) > 0); // upgrades: the starter parts stay on sale for the floor price
       if (!firstAffordable && ok.length) firstAffordable = t;
       if (!firstTier && ok.some((p) => p.kind === "cpu" || p.kind === "ram")) firstTier = t;
     }

@@ -5,7 +5,7 @@ import { getSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { Snapshot } from '../sim/game/game';
 import { levelDef, unlockLevelOf } from '../sim/game/levels';
-import { fmtNum } from './logic';
+import { fmtMoney, fmtNum } from './logic';
 
 // ---------- HUD level bar ----------
 
@@ -314,4 +314,16 @@ export function lockOf(s: Snapshot, id: string, p?: { locked?: LevelLock; later?
   if (s.sandbox || s.level.sandbox || (p && !p.later)) return undefined;
   const need = unlockLevelOf(id);
   return need > s.level.level ? { level: need, name: levelDef(need).name } : undefined;
+}
+
+/** What buying one more of a part you own would do: the small buy button on its tile or card. */
+export interface MoreOffer { state: 'ready' | 'poor' | 'blocked' | 'level'; price: number; free?: boolean; reason?: string; lock?: LevelLock }
+
+/** The `more` offer of a tile or card: buying another copy of a part you own, from its purchase row. */
+export function moreOffer(s: Snapshot, p: Snapshot['purchases'][number], lock: LevelLock | undefined): MoreOffer {
+  const free = s.sandbox || undefined;
+  if (lock) return { state: 'level', price: p.price, free, lock, reason: lockTooltip(lock, { blocked: p.blocked, priceShort: free ? 0 : p.price - s.money }) };
+  if (p.blocked) return { state: 'blocked', price: p.price, free, reason: p.blocked };
+  if (s.sandbox || p.affordable) return { state: 'ready', price: p.price, free };
+  return { state: 'poor', price: p.price, reason: `Need ${fmtMoney(p.price - s.money)} more` };
 }

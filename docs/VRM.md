@@ -73,7 +73,7 @@ Four tiers, `BOARD_TIERS[tier]`, purchase ids `board1` ... `board3` (the number 
 
 Notes: all tiers can take one VRM heatsink (the Starter board included: the part is cheap and teaches the idea). Storage ports per tier: SATA 2 / 3 / 4 / 8 and M.2 0 / 0 / 2 / 3, PCIe 1 / 2 / 3 / 4 (`STORAGE_PORTS` in `memmap.ts` has a bus window for each: `sata0 .. sata7`, `m20 .. m22`, the first three at their old addresses). A drive you own is offered again while a slot is free. `features` is `{ethernetMbps, usbPorts, displayPorts}`; `displayPorts` is 1, 1, 2, 2 as a visual/feature count (the sim supports one monitor so far; there is still one `display` slot). Ethernet is a feature field only: the network phase will read it, there is no network device or behaviour yet. VRM per tier (all tiers): `passive` 0.15 / 0.20 / 0.30 / 0.40 W per degree C, `mass` 20 / 30 / 45 / 60 J per degree C, `throttleC` 90, `unstableC` 105, `damageC` 120.
 
-Buying: `board<N>` is offered for the next tier, and for the same tier when the installed board is burnt (price of that tier). **A board can only be bought while the machine is powered off** (the shop says "powered off required"). It goes to the inventory like any part; installing it carries every device over. Installing a board while a burnt flag is set clears the flag.
+Buying: every `board<N>` is for sale at any time (any tier, any number, the machine on or off). It goes to the inventory like any part; **installing** it needs the machine off, carries every device over (a smaller board refuses while a part has no slot on it) and puts the board it replaced into the inventory (a burnt one is scrapped). Installing a board while a burnt flag is set clears the flag.
 
 ## VRM heatsinks (kind `vrm-sink`, slot type `vrm-sink`)
 

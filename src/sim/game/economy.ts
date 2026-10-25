@@ -4,8 +4,8 @@
 import { getIspSpec, getRouterSpec, NET } from "../net";
 import { getOsSpec } from "../os";
 import {
-  BOARD_TIERS, CASE_TIERS, boardFromJson, boardToJson, caseHolds, caseFor, deviceSpec, findDevices, getSpec, install, specsOfKind, uninstall, upgradeBoard, upgradeCase,
-  type Board, type DeviceKind, type DeviceSpec, type RamSpec, type Result,
+  BOARD_TIERS, CASE_TIERS, caseFor, deviceSpec, getSpec, specsOfKind,
+  type Board, type DeviceKind, type RamSpec,
 } from "../board";
 
 export interface MixEntry {
@@ -222,27 +222,8 @@ export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick 
 
 // ---------- purchases ----------
 
-const BUYABLE: DeviceKind[] = ["cpu", "ram", "cooler", "psu", "vrm-sink", "ram-sink", "nic"];
-
-/**
- * Replace the installed part of the spec's kind with `specId`, going through board install/validation.
- * On any failure the board is restored exactly.
- */
-export function swapPart(board: Board, specId: string): Result<object> {
-  const spec = getSpec(specId);
-  if (!spec) return { ok: false, reason: `unknown item "${specId}"` };
-  const backup = boardToJson(board);
-  const old = findDevices(board, spec.kind)[0];
-  if (old) uninstall(board, old.id);
-  const r = install(board, specId);
-  if (!r.ok) {
-    const b = boardFromJson(backup);
-    board.devices = b.devices;
-    board.nextId = b.nextId;
-    return r;
-  }
-  return { ok: true };
-}
+/** Every kind of device the shop sells. */
+const DEVICE_KINDS: DeviceKind[] = ["cpu", "ram", "psu", "cooler", "display", "storage", "vrm-sink", "ram-sink", "nic"];
 
 /** Something the player can buy: a device spec id, or a board tier (`board1`). */
 export interface Offer { id: string; name: string; kind: DeviceKind | "board" | "case"; price: number }
@@ -268,67 +249,29 @@ export function offerPrice(id: string): number | undefined {
   return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
-/** Buy an offer on a board: swap a part, or move to the bigger board (every device is carried over). */
-export function applyOffer(board: Board, id: string, gated = ECONOMY.caseGating): Result<object> {
-  const t = boardTierOf(id), c = caseTierOf(id);
-  if (c !== undefined) return upgradeCase(board, c);
-  if (t !== undefined) {
-    if (gated && !caseHolds(board, t) && !(board.burnt && t === board.tier)) return { ok: false, reason: caseTooSmall(board, t) };
-    const r = upgradeBoard(board, t);
-    if (r.ok && !gated && !caseHolds(board, t)) board.caseTier = caseFor(t); // ungated (tests, sandbox): the case follows the board
-    return r;
-  }
-  return swapPart(board, id);
-}
-
 /** Why a board of this tier cannot go into the board's case. */
 export const caseTooSmall = (board: Board, boardTier: number): string =>
   `the ${CASE_TIERS[board.caseTier]?.name ?? "case"} is too small for a ${BOARD_TIERS[boardTier]?.name ?? "bigger"} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? "bigger case"} first`;
 
-/** Offers that are an upgrade (higher tier than the installed part, next board tier) or a replacement of a burnt part. */
-export function offers(board: Board): Offer[] {
+/** The cheapest a spare costs: the starter crate's parts are free to receive but not to buy again. */
+export const SPARE_FLOOR = 10;
+
+/**
+ * Everything the shop sells, in a campaign and in the sandbox: every board tier, every case tier and every device spec, whatever is
+ * fitted and however many are owned (spares, downgrades, a second machine). Nothing here asks whether it fits: the inventory says
+ * what a part can go into (`reason`), and the level gate (`levelLock`) is the game's only restriction.
+ */
+export function catalog(): Offer[] {
   const out: Offer[] = [];
-  // A burnt board can be replaced by one of its own tier (or any higher one).
-  const here = BOARD_TIERS[board.tier];
-  if (board.burnt && here) out.push({ id: `board${here.tier}`, name: `${here.name} (replacement)`, kind: "board", price: here.price });
-  const nextBoard = BOARD_TIERS[board.tier + 1];
-  if (nextBoard) out.push({ id: `board${nextBoard.tier}`, name: nextBoard.name, kind: "board", price: nextBoard.price });
-  const nextCase = CASE_TIERS[board.caseTier + 1];
-  if (nextCase) out.push({ id: `case${nextCase.tier}`, name: nextCase.name, kind: "case", price: nextCase.price });
-  for (const s of upgradeCandidates(board)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
+  const at = (price: number) => Math.max(price, SPARE_FLOOR);
+  for (const t of BOARD_TIERS) out.push({ id: `board${t.tier}`, name: t.name, kind: "board", price: at(t.price) });
+  for (const c of CASE_TIERS) out.push({ id: `case${c.tier}`, name: c.name, kind: "case", price: at(c.price) });
+  for (const kind of DEVICE_KINDS) for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: at(s.price) });
   return out;
 }
 
 /** The constant the sandbox shows as "money": the player never spends or earns (the UI shows an infinity symbol). */
 export const SANDBOX_MONEY = 1_000_000_000;
-
-/**
- * Sandbox offers: every board tier above the planned one (any jump; the same tier replaces a burnt board) and every
- * device spec of the buyable kinds, whatever the installed tier. The board still validates each one (`applyOffer`).
- */
-export function sandboxOffers(board: Board): Offer[] {
-  const out: Offer[] = [];
-  for (const t of BOARD_TIERS) {
-    if (t.tier > board.tier) out.push({ id: `board${t.tier}`, name: t.name, kind: "board", price: t.price });
-    else if (t.tier === board.tier && board.burnt) out.push({ id: `board${t.tier}`, name: `${t.name} (replacement)`, kind: "board", price: t.price });
-  }
-  for (const c of CASE_TIERS) if (c.tier > board.caseTier) out.push({ id: `case${c.tier}`, name: c.name, kind: "case", price: c.price });
-  for (const kind of BUYABLE) for (const s of specsOfKind(kind)) out.push({ id: s.id, name: s.name, kind: s.kind, price: s.price });
-  return out;
-}
-
-/** Specs that would be an upgrade (higher tier than the installed part) or a replacement of a burnt part. */
-function upgradeCandidates(board: Board): DeviceSpec[] {
-  const out: DeviceSpec[] = [];
-  for (const kind of BUYABLE) {
-    const cur = findDevices(board, kind)[0];
-    const curSpec = cur ? getSpec(cur.spec)! : undefined;
-    for (const s of specsOfKind(kind)) {
-      if (!curSpec || s.tier > curSpec.tier || (cur?.burnt && s.id === cur.spec)) out.push(s);
-    }
-  }
-  return out;
-}
 
 /**
  * What a new campaign starts with: enough to buy nearly everything the tutorial asks for (about $490), so a new player is

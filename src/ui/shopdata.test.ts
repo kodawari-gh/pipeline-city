@@ -20,14 +20,11 @@ describe('the shop', () => {
     expect(kindIcon('something-new')).toBe('box');
   });
 
-  it('keeps the tiers below the best owned part as outgrown, where the upgrade ladder leaves them out', () => {
-    const s = snap();
-    const all = ladderFor(s, 'cpu', true);
-    const ladder = ladderFor(s, 'cpu');
-    expect(all.length).toBeGreaterThanOrEqual(ladder.length);
-    // the shop shows every tier of the kind once
+  it('shows every tier of a kind once, and none is outgrown', () => {
+    const all = ladderFor(snap(), 'cpu');
     expect(new Set(all.map((r) => r.specId)).size).toBe(all.length);
-    for (const r of all.filter((x) => x.state === 'outclassed')) expect(ladder.some((l) => l.specId === r.specId)).toBe(false);
+    expect(all.length).toBeGreaterThan(1);
+    expect(all.every((r) => r.state !== ('outclassed' as string))).toBe(true);
   });
 
   it('names the part fitted now, for the stat bars', () => {

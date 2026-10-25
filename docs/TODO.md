@@ -89,6 +89,8 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 - [ ] T117 [human] Real-browser look at the new board art (serpentines, pairs, vias, hub corner) in dark and light, on a GPU; tune tooth size and flare if they read too busy
 - [x] T118 [auto] Leftover wiring: the CR2032 under the chipset with its RTC lanes and a vertical clear-CMOS jumper, a CPU_FAN header with the cooler's cable, the PCIe 6-pin's 12 V rail to the x16 slot, no rear fan on the Mini (a perforated grille: a fan 290 tall was a stub)
 - [x] T119 [auto] The rest of the wiring: plane ties for every slot and M.2 (patch of copper with vias), heatsink-fan headers with their cables to the sinks' fans, 24/25 MHz crystals with clock lanes to the CPU and chipset, skew-tuning bumps in the pairs; tests
+- [x] T120 [auto] Spares of everything: every board, case, part, OS and router is for sale at every tier and in any number (no "outgrown", no one-per-kind, no fit check at the till), a tile you own keeps a `+ price` button and counts spares, installing a board or case swaps it either way and returns the old one to the inventory, a plan applies at once; the install refuses with a reason (no slot, case too small); tests
+- [x] T121 [auto] Board art: a release button on every PCIe slot (raised, with a shadow, over the power tab); the CPU 8-pin takes the 24-pin's cavity size and pitch
 - [ ] T113 [auto] The new slots are untested in the e2e and the tutorial text still says "the drive bay": run `npm run e2e:tutorial` and read the screenshots (owner paused e2e).
 - [ ] T99 [owner] Tutorial lessons still missing: workloads (scan and db arrive at level 5), memory overclocking. Cancel for a queued part swap.
 - [ ] T100 [owner] Balance pass (see T56): last, after the UI review.

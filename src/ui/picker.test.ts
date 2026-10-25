@@ -181,11 +181,23 @@ describe('picker contents per id', () => {
 });
 
 describe('upgrade ladder', () => {
-  it('leaves out tiers older than the best part you own', () => {
+  it('lists every tier, the lower ones too: nothing is outgrown', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })], inventory: [] });
-    const ids = ladderFor(s, 'cpu').map((r) => r.specId);
-    expect(ids).toEqual(['cpu1', 'cpu2', 'cpu3', 'cpu4']);
-    expect(ladderFor(s, 'cpu')[0]!.state).toBe('installed');
+    const lad = ladderFor(s, 'cpu');
+    expect(lad.map((r) => r.specId)).toEqual(['cpu0', 'cpu1', 'cpu2', 'cpu3', 'cpu4']);
+    expect(lad.find((r) => r.specId === 'cpu1')!.state).toBe('installed');
+  });
+
+  it('a part you own offers another copy: the tile keeps its buy-another price, and counts the spares', () => {
+    const s = snap({
+      devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })],
+      inventory: [{ ...STARTER_CRATE[0]!, id: 'inv8', spec: 'cpu1', kind: 'cpu', name: getSpec('cpu1')!.name }, { ...STARTER_CRATE[0]!, id: 'inv9', spec: 'cpu2', kind: 'cpu', name: getSpec('cpu2')!.name }],
+      purchases: [{ id: 'cpu1', name: 'x', kind: 'cpu', price: 60, affordable: true }, { id: 'cpu2', name: 'y', kind: 'cpu', price: 120, affordable: false }],
+      money: 10,
+    });
+    const lad = ladderFor(s, 'cpu');
+    expect(lad.find((r) => r.specId === 'cpu1')).toMatchObject({ state: 'installed', spares: 1, more: { state: 'ready', price: 60 } });
+    expect(lad.find((r) => r.specId === 'cpu2')).toMatchObject({ state: 'crate', spares: 1, more: { state: 'poor', price: 120 } });
   });
 
   it('a spare part of a newer tier is a crate rung', () => {

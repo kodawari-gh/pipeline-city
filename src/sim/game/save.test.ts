@@ -160,7 +160,7 @@ describe("save/load v2", () => {
   it("keeps a bought-but-uninstalled board and the installed one", () => {
     const a = new Game({ seed: 2, preassembled: true, economy: { baseDemandPerTick: 0.2, levelGating: false } });
     a.money = 500;
-    a.powerButton(); // boards are bought while powered off
+    a.powerButton(); // boards are installed while powered off
     expect(a.purchase("board1").ok).toBe(true);
     const b = Game.fromSave(json(a.toSave()), { baseDemandPerTick: 0.2 });
     expect(b.snapshot().inventory.map((i) => i.spec)).toEqual(["board1"]);
@@ -169,7 +169,7 @@ describe("save/load v2", () => {
     const c = Game.fromSave(json(b.toSave()), { baseDemandPerTick: 0.2 });
     expect(c.snapshot().boardTier).toBe(1);
     expect(c.snapshot().devices.some((d) => d.spec === "psu0" && d.slot === "atx0")).toBe(true);
-    expect(c.snapshot().inventory).toEqual([]);
+    expect(c.snapshot().inventory.map((i) => i.spec)).toEqual(["board0"]); // the Starter board it replaced is a spare
   });
 });
 

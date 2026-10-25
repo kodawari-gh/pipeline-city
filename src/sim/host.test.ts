@@ -94,7 +94,8 @@ describe('host message handling', () => {
     for (const id of ['inv1', 'inv2', 'inv3', 'inv4']) handleMessage(h, { type: 'install', invId: id });
     const bought = (id: string) => snap(handleMessage(h, { type: 'purchase', id })).inventory.find((i) => i.spec === id)!;
     expect(types(handleMessage(h, { type: 'install', invId: bought('hdd0').id }))).toEqual(['snapshot']);
-    expect(types(handleMessage(h, { type: 'purchase', id: 'os1' }))).toEqual(['error', 'snapshot']); // 16K RAM is too little
+    const early = bought('os1'); // sold whatever the memory
+    expect(types(handleMessage(h, { type: 'install', invId: early.id, slotId: 'sata0' }))).toEqual(['error', 'snapshot']); // 16K RAM is too little
     handleMessage(h, { type: 'uninstall', deviceId: h.game!.board.devices.find((d) => d.spec === 'ram0')!.id });
     handleMessage(h, { type: 'install', invId: bought('ram1').id });
     const os = bought('os1');
