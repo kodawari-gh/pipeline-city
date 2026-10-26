@@ -16,10 +16,11 @@ import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
-  BAY, BD, BLOCKS, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  BAY, BD, BLOCKS, boardBakeFrame, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
-import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
+import { buildLetter, carryAx, keyPose, letterPose, mailStage, MAIL_S, setLetter, swayAngle, swayStep, type Letter, type SwayState } from './mail';
+import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
@@ -187,7 +188,9 @@ export async function mountBoard(host: HTMLElement) {
   interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, propsLayer, keyFx, live.ext, interact.fx);
+  let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
+  const mailBack = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, its pocket and flap over them
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, propsLayer, mailFront, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -222,6 +225,35 @@ export async function mountBoard(host: HTMLElement) {
   const KEY_MS = 1500, KEY_TRAVEL = 560;
   const keyAnims: { node: Container; baseX: number; t0: number; dir: 1 | -1 }[] = [];
   let keyPlugged: Snapshot['plugged'] = null, keyInId = -1, keyInAt = 0, keySeen = false;
+  // ---- the rack: a new key arrives in a letter and is hung on its hook, a key that shifts to another hook glides there, and every hanging key sways ----
+  interface Mail { id: number; t: number; letter: Letter | null }
+  const mails: Mail[] = [];
+  const sway = new Map<number, SwayState>();
+  const glides = new Map<number, { fx: number; fy: number; t: number }>();
+  const knownKeys = new Set<number>();
+  let knownInit = false, lastBaseTick = -1, lastTray: number[] = [], lastRest = new Map<number, { x: number; y: number }>(), trayOn = false;
+  const swayOf = (id: number) => { let st = sway.get(id); if (!st) { st = { a: 0, w: 0, ph: (id * 2.399963) % (2 * Math.PI) }; sway.set(id, st); } return st; };
+  const propObjs = () => propsArt.flatMap((a) => a.objs);
+  /** Nudge the keys hanging near (x, y): away from it, harder the closer they are. */
+  const nudgeNear = (x: number, y: number, amp: number, skip = -1) => {
+    for (const o of propObjs()) {
+      if (!o.swing) continue;
+      const id = Number(o.id.slice(4));
+      if (id === skip) continue;
+      const dx = o.base.x - x, d = Math.hypot(dx, o.base.y - y);
+      if (d < 1300) swayOf(id).w += (dx >= 0 ? 1 : -1) * amp * (1 - d / 1300);
+    }
+  };
+  const dropMail = (m: Mail) => { m.letter?.back.destroy({ children: true }); m.letter?.front.destroy({ children: true }); const i = mails.indexOf(m); if (i >= 0) mails.splice(i, 1); };
+  const rebuildPropHits = () => {
+    const hide = new Set(mails.map((m) => 'key:' + m.id));
+    propHits = [
+      ...propObjs().filter((o) => !hide.has(o.id)).map((o) => ({ id: o.id, rect: o.rect })),
+      { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
+      ...(trayOn ? [{ id: 'tray', rect: TRAY }] : []),
+    ];
+    mergeHits();
+  };
   const parts: Part[] = [];
   let mainHits: Hit[] = [];
   let cableHits: Hit[] = [];
@@ -336,7 +368,7 @@ export async function mountBoard(host: HTMLElement) {
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
     boardArt.labels.visible = false;
-    const frame = new Rectangle(BD.x - 40, BD.y - 40, BD.w + 80, BD.h + 80);
+    const bf = boardBakeFrame(BD, BR.io), frame = new Rectangle(bf.x, bf.y, bf.w, bf.h); // the board and its rear I/O plate
     const tex = app.renderer.generateTexture({ target: boardArt.root, frame, resolution: BAKE_RES, antialias: true });
     boardBake = new Sprite(tex);
     boardBake.position.set(frame.x, frame.y);
@@ -712,20 +744,46 @@ export async function mountBoard(host: HTMLElement) {
       if (!s.plugged) keyInId = -1;
       keySeen = true;
     }
-    if (trayShown) add(trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode));
-    for (const a of propsArt) order.push(...a.objs);
-    // hit order: power, plugged key, tray keys, then the port and tray bodies
-    propHits = [
-      ...order.map((o) => ({ id: o.id, rect: o.rect })),
-      { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
-      ...(trayShown ? [{ id: 'tray', rect: TRAY }] : []),
-    ];
+    trayOn = trayShown;
+    if (s) {
+      // a key the rack has not seen comes in a letter (the keys of a loaded game, and a key put back, just hang there)
+      if (s.baseTick < lastBaseTick) { knownKeys.clear(); knownInit = false; for (const m of [...mails]) dropMail(m); }
+      lastBaseTick = s.baseTick;
+      const ids = s.tray.map((k) => k.id);
+      for (const k of s.tray) {
+        if (knownKeys.has(k.id)) continue;
+        knownKeys.add(k.id);
+        if (!knownInit || !trayShown) continue;
+        if (mails.length < 3 && s.net?.usbFallback.state !== 'retired') mails.push({ id: k.id, t: 0, letter: null });
+        else swayOf(k.id).w += 0.5; // too many letters at once (or the link is up): it just hangs there, swinging
+      }
+      if (s.plugged) knownKeys.add(s.plugged.id);
+      for (const m of [...mails]) if (!ids.includes(m.id)) dropMail(m);
+      // a key that left the tray rocks its neighbours; the ones after it shift down a hook (they glide, below)
+      lastTray.forEach((id, i) => { if (!ids.includes(id)) { const h = trayHook(i); nudgeNear(h.x, h.y, 0.3); } });
+      lastTray = ids;
+      for (const id of [...sway.keys()]) if (!ids.includes(id)) sway.delete(id);
+      knownInit = true;
+    }
+    if (trayShown) {
+      const tray = trayArt(T, s?.tray ?? [], (s?.net?.usbFallback.state ?? 'off') as TrayMode);
+      add(tray);
+      const rest = new Map<number, { x: number; y: number }>();
+      for (const o of tray.objs) {
+        const id = Number(o.id.slice(4)), was = lastRest.get(id);
+        rest.set(id, { x: o.base.x, y: o.base.y });
+        if (mails.some((m) => m.id === id)) o.node.visible = false; // still in its letter
+        else if (was && (Math.abs(was.x - o.base.x) > 1 || Math.abs(was.y - o.base.y) > 1) && !glides.has(id)) glides.set(id, { fx: was.x, fy: was.y, t: 0 });
+      }
+      lastRest = rest;
+    } else lastRest = new Map();
+    // hit order: power, plugged key, tray keys (but not one still in its letter), then the port and tray bodies
+    rebuildPropHits();
     chromeLayer.visible = true;
     chromeBake = new Sprite(app.renderer.generateTexture({ target: chromeLayer, frame: propsFrame(), resolution: 0.3, antialias: true }));
     chromeBake.position.set(TRAY.x - 100, TRAY.y - 100);
     chromeBakeLayer.addChild(chromeBake);
     onZoom();
-    mergeHits();
     if (s) live.setPlugged(!!s.plugged);
   }
 
@@ -835,6 +893,55 @@ export async function mountBoard(host: HTMLElement) {
     if (exteriorLayer.visible) drawStrip(stripG, T, stripModeOf(lastSnap), gt, live.diskLevel, extDrives, performance.now());
   };
 
+  // ---- the rack's keys, per frame: the letters, the glides to a new hook, the sway ----
+  const keysFrame = (gdt: number, gtMs: number) => {
+    const stage = mailStage(), flying = new Set<number>();
+    for (let i = 0; i < mails.length; i++) {
+      const m = mails[i]!, ahead = mails[i - 1];
+      if (!m.letter && ahead && ahead.t < MAIL_S * 0.8) continue; // one letter at a time on the stage: the next one comes when the one ahead is on its way
+      if (!m.letter) { m.letter = buildLetter(T); mailBack.addChild(m.letter.back); mailFront.addChild(m.letter.front); }
+      m.t += gdt * mailSlow;
+      const u = Math.min(1, m.t / MAIL_S);
+      setLetter(m.letter, letterPose(u, stage));
+      const o = scene.props.get('key:' + m.id);
+      if (!o?.swing || !o.lan) { if (u >= 1) { dropMail(m); i--; } continue; }
+      const kp = keyPose(u, stage, o.base), st = swayOf(m.id);
+      flying.add(m.id);
+      o.node.visible = kp.phase !== 'wait';
+      o.node.position.set(kp.x, kp.y);
+      o.lan.scale.y = Math.max(0.001, kp.cordK);
+      const par = o.node.parent;
+      if (par && par.children[par.children.length - 1] !== o.node) par.addChild(o.node); // in front of the keys it passes
+      if (kp.phase === 'carry') swayStep(st, gdt, carryAx(u, stage, o.base));
+      else if (kp.phase === 'settle') swayStep(st, gdt);
+      else { st.a = 0; st.w = 0; }
+      o.swing.rotation = swayAngle(st, gtMs);
+      if (u >= 1) {
+        // hung up: it takes the catch's jolt, and its neighbours feel it
+        o.node.position.set(o.base.x, o.base.y); o.lan.scale.y = 1;
+        st.w -= 0.35; nudgeNear(o.base.x, o.base.y - 860, 0.22, m.id);
+        dropMail(m); i--; flying.delete(m.id);
+        rebuildPropHits();
+      }
+    }
+    for (const [id, g] of glides) {
+      const o = scene.props.get('key:' + id);
+      if (!o) { glides.delete(id); continue; }
+      g.t += gdt;
+      const u = Math.min(1, g.t / 0.6), e = u * u * (3 - 2 * u);
+      o.node.position.set(o.base.x + (g.fx - o.base.x) * (1 - e), o.base.y + (g.fy - o.base.y) * (1 - e) - 140 * Math.sin(Math.PI * u));
+      if (u >= 1) { glides.delete(id); swayOf(id).w += (g.fx > o.base.x ? -1 : 1) * 0.3; }
+    }
+    for (const o of propObjs()) {
+      if (!o.swing) continue;
+      const id = Number(o.id.slice(4));
+      if (flying.has(id)) continue;
+      const st = swayOf(id);
+      swayStep(st, gdt);
+      o.swing.rotation = swayAngle(st, gtMs);
+    }
+  };
+
   // ---- frame loop ----
   app.ticker.add((tk) => {
     const now = performance.now();
@@ -856,6 +963,7 @@ export async function mountBoard(host: HTMLElement) {
     for (const a of propsArt) if (a.cue) drawKeyCue(a.cue, T, gt, cueK);
     interact.frame(now, dt, gt);
     if (powerArtRef) drawPowerLeds(T, powerArtRef.led, powerState, gt, live.diskLevel);
+    keysFrame(gdt, gt);
     for (let i = keyAnims.length - 1; i >= 0; i--) {
       const ka = keyAnims[i]!, u = Math.min(1, (now - ka.t0) / KEY_MS), e = u * u * (3 - 2 * u);
       if (ka.node.destroyed) { keyAnims.splice(i, 1); continue; }
@@ -878,6 +986,6 @@ export async function mountBoard(host: HTMLElement) {
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { net, camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { net, camera, app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }

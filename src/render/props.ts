@@ -20,6 +20,9 @@ export interface PropObj {
   /** Everything drawn inside `node` (board.ts caches it as a texture when far out). */
   vec: Container;
   base: { x: number; y: number; s: number };
+  /** A key hanging on its lanyard: the container that swings about the hook (its origin is the stick's centre; the hook is `HANG_Y` above it), and the lanyard inside it (scaled to uncoil it). */
+  swing?: Container;
+  lan?: Container;
 }
 
 export interface PropsArt {
@@ -282,6 +285,31 @@ function glassPanel(g: Graphics, r: Rect, T: Theme, edge: string, lw: number, sa
 
 export type TrayMode = 'off' | 'retired' | 'waiting' | 'fallback';
 
+/** How far the hook is above a hanging stick's centre: the lanyard's length and half the stick. */
+export const HANG_Y = LANYARD + KEY_LEN / 2;
+const CORDS = ['#d03a4a', '#2f8fd8', '#e0a82e', '#3f9a6a', '#a068d8'];
+export const lanyardColour = (id: number) => CORDS[id % CORDS.length]!;
+
+/**
+ * A key on its lanyard, centred on the stick: upright (the plug at the bottom, the lettering reading down it) with a flat two-strand cord
+ * going up to the hook, which is `HANG_Y` above the centre. Everything but the node's position lives in `swing`, which pivots at the hook
+ * (`swing.rotation` is the sway); `lan.scale.y` uncoils the cord (0 = no cord, 1 = hanging), about the stick's end.
+ */
+export function hangingKey(T: Theme, k: KeySnap) {
+  const vec = keyStick(T, k), node = new Container(), swing = new Container(), lan = new Graphics();
+  vec.rotation = Math.PI / 2; // hanging: the plug (the stick's east end) points at the ground and the lettering reads down the stick
+  // the lanyard goes with the stick: a flat cord from the hook, two strands through a small ring on the stick's end
+  const top = -HANG_Y, end = -KEY_LEN / 2;
+  for (const dx of [-14, 14]) lan.moveTo(dx * 0.4, top + 20).quadraticCurveTo(dx * 1.6, (top + end) / 2, dx * 0.5, end + 6);
+  lan.stroke({ width: 16, color: lanyardColour(k.id), cap: 'round' });
+  lan.circle(0, end + 4, 30).stroke({ width: 9, color: T.dark ? '#aab6dc' : '#6b7794' });
+  lan.pivot.set(0, end); lan.position.set(0, end);
+  swing.pivot.set(0, top); swing.position.set(0, top);
+  swing.addChild(lan, vec);
+  node.addChild(swing);
+  return { node, swing, lan, vec };
+}
+
 export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): PropsArt {
   const root = new Container(), chrome = new Container();
   const g = new Graphics();
@@ -298,20 +326,12 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
   const noteCol = mode === 'retired' ? T.st : mode === 'waiting' || mode === 'fallback' ? T.ld : ink;
   chrome.addChild(label(note, r.x + 470, r.y + 104, mode === 'fallback' ? 34 : 40, noteCol, { a: mode === 'off' && empty ? 0.8 : 1 }));
   const objs: PropObj[] = [];
-  const cords = ['#d03a4a', '#2f8fd8', '#e0a82e', '#3f9a6a', '#a068d8'];
   keys.forEach((k, i) => {
-    const p = trayKeyCentre(i), col = cords[k.id % cords.length]!;
-    const vec = keyStick(T, k), node = new Container();
-    vec.rotation = Math.PI / 2; // hanging: the plug (the stick's east end) points at the ground and the lettering reads down the stick
-    // the lanyard goes with the stick: a flat cord from the hook, two strands through a small ring on the stick's end
-    const lan = new Graphics(), top = -(LANYARD + KEY_LEN / 2), end = -KEY_LEN / 2;
-    for (const dx of [-14, 14]) lan.moveTo(dx * 0.4, top + 20).quadraticCurveTo(dx * 1.6, (top + end) / 2, dx * 0.5, end + 6);
-    lan.stroke({ width: 16, color: col, cap: 'round' });
-    lan.circle(0, end + 4, 30).stroke({ width: 9, color: T.dark ? '#aab6dc' : '#6b7794' });
-    node.addChild(lan, vec);
+    const p = trayKeyCentre(i);
+    const { node, swing, lan, vec } = hangingKey(T, k);
     node.position.set(p.x, p.y);
     root.addChild(node);
-    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN }, node, vec, base: { x: p.x, y: p.y, s: 1 } });
+    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN }, node, vec, swing, lan, base: { x: p.x, y: p.y, s: 1 } });
   });
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../sim/board/specs';
 import { TIER_GEO } from './boardlayout';
-import { CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from './case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane } from './routes';
 import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, pcieAux, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
-import { ioPort } from './boardlayout';
+import { IO_PORTS, ioPort } from './boardlayout';
 import { plugRect } from './devices';
 
 const inside = (r: Rect, o: Rect, pad = 0) => r.x >= o.x - pad && r.y >= o.y - pad && r.x + r.w <= o.x + o.w + pad && r.y + r.h <= o.y + o.h + pad;
@@ -450,5 +450,16 @@ describe('board ladder', () => {
       expect(TIER_GEO[t]!.bd.w * TIER_GEO[t]!.bd.h).toBeGreaterThan(TIER_GEO[t - 1]!.bd.w * TIER_GEO[t - 1]!.bd.h);
       expect(TIER_GEO[t]!.dimm.length).toBeGreaterThanOrEqual(TIER_GEO[t - 1]!.dimm.length);
     }
+  });
+});
+
+describe.each(TIER_GEO.map((g) => g.tier))('tier %i: the far board texture', (tier) => {
+  it('covers the board and the whole rear I/O plate with its ports, so the back panel shows at every zoom', () => {
+    setLayoutTier(tier);
+    const f = boardBakeFrame(GEO.bd, GEO.io);
+    expect(inside(GEO.bd, f)).toBe(true);
+    expect(inside(GEO.io, f)).toBe(true);
+    for (const p of IO_PORTS) expect(inside({ x: p.x, y: p.y - p.h / 2, w: p.w, h: p.h }, f), `port ${p.id}`).toBe(true);
+    expect(f.x).toBeLessThanOrEqual(CASE.x);                   // out to the case's west wall, where the plate stands
   });
 });

@@ -101,6 +101,7 @@ export function portProfile(g: Graphics, T: Theme, p: IoPort, fitted: boolean, o
       for (const dx of [96, 170]) if (dx < w - 90) { g.circle(p.x + dx, y0 + p.h * 0.27, 6).circle(p.x + dx, y0 + p.h * 0.73, 6); }
       g.fill({ color: m.lo, alpha: 0.8 });                                                                       // the retention dimples
       if (w > 200) box(g, p.x + p.w - 78, y0 + 9, 78, p.h - 18, 5, { fill: mix(tone ?? m.lo, '#000000', 0.3), stroke: m.rim, lw: 3, sa: 0.6 }); // the coloured insulator
+      else if (tone) g.roundRect(p.x + 26, p.y - 11, w - 52, 22, 5).fill({ color: tone, alpha: 0.85 });           // from outside (only the wall's depth shows): the coloured tongue in the mouth
       metalBlock(g, T, p.x - 8, y0 - 7, 30, p.h + 14, 7);                                                        // the rolled lip
     }
   }

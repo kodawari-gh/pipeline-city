@@ -273,6 +273,15 @@ const REGION_IDS: [string, RegionId][] = [
 export let REGIONS: { id: string; rect: Rect }[] = [];
 
 /** Point every tier-dependent binding at this tier's board (call before building anything). */
+/**
+ * What the far board texture covers: the board and its rear I/O plate (the plate stands in the case's west wall, outside the board's own
+ * rectangle), `pad` around both. Without the plate the far view lost the back panel and the ports the plugs go into.
+ */
+export function boardBakeFrame(bd: Rect, io: Rect, pad = 40): Rect {
+  const x0 = Math.min(bd.x, io.x) - pad, y0 = Math.min(bd.y, io.y) - pad, x1 = Math.max(bd.x + bd.w, io.x + io.w) + pad, y1 = Math.max(bd.y + bd.h, io.y + io.h) + pad;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 export function setLayoutTier(tier: number, caseTier = tier): void {
   const g = geoOf(tier), cg = geoOf(Math.max(tier, caseTier));
   GEO = g; LAYOUT_TIER = g.tier; LAYOUT_CASE = cg.tier; CASE_BD = cg.bd; BD = g.bd; BR = regionsOf(g); PCIE_RAILS = g.pcie;
