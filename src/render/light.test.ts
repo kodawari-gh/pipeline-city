@@ -4,7 +4,7 @@ import { Container } from 'pixi.js';
 // The labels go through Pixi's Text (a canvas): the room only needs its shapes here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
-import { BEAM, LIGHT_RES, ambientOf, focusAt, lightKey, type LightIn } from './light';
+import { BEAM, LIGHT_RES, ambientOf, emittersOf, focusAt, lightKey, shiftEmitter, type LightGeo, type LightIn } from './light';
 import { DAY_S, RoomView, beamsAt, roomBakeRect, roomGeo } from './room';
 import type { Theme } from './theme';
 
@@ -114,5 +114,47 @@ describe('the light layer of the room', () => {
     expect(v.light.visible).toBe(false);
     v.setView({ x: -20000, y: -9000, w: 40000, h: 20000 }, 0.04, 1, c);
     expect(v.light.visible).toBe(true);
+  });
+});
+
+describe('the lights as data', () => {
+  const geo = roomGeo();
+  const G: LightGeo = {
+    window: geo.window, region: roomBakeRect(geo), case: CASE, inner: { x: 100, y: 100, w: 5000, h: 4000 }, monitor: { x: -20000, y: 1000, w: 9000, h: 5000 }, screen: { x: -19500, y: 1400, w: 8000, h: 4000 },
+    router: { x: 0, y: 0, w: 10, h: 10 }, clock: geo.clock, mouth: geo.lamp.mouth, dir: { x: 0.8, y: 0.6 }, ys: geo.ys, keyboard: { x: -18000, y: 7500, w: 5000, h: 330 }, deskTop: 8500, deskBack: 6500,
+  };
+  const night: LightIn = { ...day, night: 1 };
+  const byId = (i: LightIn, g = G) => Object.fromEntries(emittersOf(i, g).map((e) => [e.id, e]));
+  it('has the window, the lamp, the screen and the clock', () => {
+    expect(emittersOf(night, G).map((e) => e.id)).toEqual(['window', 'lamp', 'screen', 'clock']);
+  });
+  it('gives a light nothing to draw while its source is off', () => {
+    const e = byId({ ...night, lamp: 0, screen: 0 });
+    expect(e.lamp!.lit.length + e.lamp!.tint.length).toBe(0);
+    expect(e.screen!.lit.length + e.screen!.tint.length).toBe(0);
+    expect(byId(night).screen!.lit.length).toBeGreaterThan(0);
+  });
+  it('keeps the screen light soft: the glass is the only rectangle, and it is feathered', () => {
+    const rects = byId(night).screen!.lit.filter((l) => l.shape.k === 'rect');
+    expect(rects.length).toBe(1);
+    expect((rects[0]!.shape as { soft?: number }).soft).toBeGreaterThan(0);
+    expect(byId(night).screen!.tint.some((l) => l.shape.k === 'poly')).toBe(false);
+  });
+  it('throws less light by day than by night', () => {
+    const tintOf = (i: LightIn) => byId(i).screen!.tint.reduce((a, l) => a + (l.erase ? 0 : l.alpha), 0);
+    expect(tintOf({ ...day, night: 0 })).toBeLessThan(tintOf(night));
+  });
+  it('follows the items: the screen light moves with the screen and the keyboard lift with the keyboard', () => {
+    const at = (g: LightGeo) => byId(night, g).screen!.lit.map((l) => (l.shape.k === 'blob' ? l.shape.x : l.shape.k === 'rect' ? l.shape.r.x : 0));
+    const a = at(G), b = at({ ...G, screen: { ...G.screen, x: G.screen.x + 700 }, monitor: { ...G.monitor, x: G.monitor.x + 700 }, keyboard: { ...G.keyboard, x: G.keyboard.x + 700 } });
+    expect(b.every((x, j) => Math.abs(x - a[j]! - 700) < 1e-6)).toBe(true);
+  });
+  it('moves every piece of a light by an offset, and by nothing as the same light', () => {
+    const e = byId(night).lamp!, m = shiftEmitter(e, 300, -200);
+    expect(shiftEmitter(e, 0, 0)).toBe(e);
+    expect(m.clip!.x).toBe(e.clip!.x + 300);
+    const c0 = e.lit[0]!.shape, c1 = m.lit[0]!.shape;
+    expect(c0.k).toBe('cone');
+    if (c0.k === 'cone' && c1.k === 'cone') expect([c1.x - c0.x, c1.y - c0.y]).toEqual([300, -200]);
   });
 });

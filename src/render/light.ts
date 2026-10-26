@@ -6,6 +6,10 @@ import type { Rect } from './layout';
 // the clock (they shine, so they are never dimmed), and the inside of the case (it has its own light). The *glow* is what the lights add on top: warm
 // in the lamp's cone, pale green round the screen and over the keyboard and the desk. The *focus* is a second dark that fades in while the case fills the
 // view, with the case, the monitor and the router cut out of it: the room recedes and the machine stays lit.
+//
+// Every light is an `Emitter`: plain data, a list of soft shapes it takes the dark away with (`lit`) and a list it tints with (`tint`). `emittersOf` builds them
+// from the room's items (`LightGeo`) and the moment (`LightIn`); `LightView` only draws what it is given. So moving an item (`setGeo`), nudging a light
+// (`place`) or adding a light for a new item (`addLight`) needs no change to the drawing.
 
 /** Texture pixels per world unit: the light is soft, so a few hundred pixels cover the whole room. */
 export const LIGHT_RES = 0.025;
@@ -36,6 +40,32 @@ export interface LightIn { dark: boolean; night: number; dusk: number; lamp: num
 /** The places the light is cut around (world units): the whole region it covers, the case and its inside, the monitor and its screen, the router, the clock, the lamp's mouth, the desk top. */
 export interface LightGeo { window: Rect; region: Rect; case: Rect; inner: Rect; monitor: Rect; screen: Rect; router: Rect; clock: Rect; mouth: { x: number; y: number }; dir: { x: number; y: number }; ys: number; keyboard: Rect; /** The desk top's front and back edges: the lamp's light reaches the top, not the slab under it. */ deskTop: number; deskBack: number }
 
+/** One soft shape of a light, in world units: a round spot, the lamp's cone (apex at x,y opening along `rot`, `len` long), a rectangle (feathered by `soft`), an ellipse or a polygon. */
+export type LightShape =
+  | { k: 'blob'; x: number; y: number; w: number; h: number }
+  | { k: 'cone'; x: number; y: number; len: number; rot: number }
+  | { k: 'rect'; r: Rect; soft?: number }
+  | { k: 'ellipse'; x: number; y: number; rx: number; ry: number }
+  | { k: 'poly'; pts: number[] };
+/** A shape and its strength (0 to 1). In a light's `lit` list it takes the dark away; in its `tint` list it paints `color`, or with `erase` takes tint away again. */
+export interface LightLayer { shape: LightShape; alpha: number; color?: string; erase?: boolean }
+/** One source of light (the window, the lamp, the screen, the clock, or a light a scene adds): what it lights and what it tints. `clip` keeps it inside a rectangle (the lamp does not light under the desk). */
+export interface Emitter { id: string; clip?: Rect; lit: LightLayer[]; tint: LightLayer[] }
+
+const shiftShape = (s: LightShape, dx: number, dy: number): LightShape => {
+  switch (s.k) {
+    case 'blob': case 'cone': case 'ellipse': return { ...s, x: s.x + dx, y: s.y + dy };
+    case 'rect': return { ...s, r: { ...s.r, x: s.r.x + dx, y: s.r.y + dy } };
+    case 'poly': return { ...s, pts: s.pts.map((v, j) => v + (j % 2 ? dy : dx)) };
+  }
+};
+/** A light moved by (dx, dy): every piece of it follows. */
+export function shiftEmitter(e: Emitter, dx: number, dy: number): Emitter {
+  if (!dx && !dy) return e;
+  const mv = (l: LightLayer): LightLayer => ({ ...l, shape: shiftShape(l.shape, dx, dy) });
+  return { ...e, clip: e.clip && { ...e.clip, x: e.clip.x + dx, y: e.clip.y + dy }, lit: e.lit.map(mv), tint: e.tint.map(mv) };
+}
+
 /** How much the window lights the room round it, 0 to 1, and in what colour: from the strongest shaft (the sun by day, the moon by night). */
 export function windowGlow(beams: Beam[]): { k: number; color: string } {
   let best: Beam | null = null, sum = 0;
@@ -53,8 +83,85 @@ export function ambientOf(i: LightIn): { color: string; alpha: number; lamp: num
   return { color: i.dark ? '#030717' : '#1b2a55', alpha: (i.dark ? 0.5 : 0.4) * i.night, lamp: i.lamp * (i.dark ? 0.4 + 0.6 * i.night : 0.25 + 0.6 * i.night) };
 }
 
+/** The width of the lamp's pool of light for a radius of `r`: no wider than the room above the hood, so the texture's edge never cuts it. */
+const poolW = (G: LightGeo, r: number) => { const room = G.mouth.y - 300 - G.region.y - 150; return 2 * Math.max(500, Math.min(r, room)); };
+
+const blob = (x: number, y: number, w: number, h: number, alpha: number, color?: string): LightLayer => ({ shape: { k: 'blob', x, y, w, h }, alpha, color });
+
+/** The window: a wide soft pool round the glass in the colour of the sun or the moon, and where a shaft falls the room is lit whatever stands there (the shaft itself is live, `LightView.setBeams`). */
+function windowLight(i: LightIn, G: LightGeo): Emitter {
+  const wg = windowGlow(i.beams), wr = G.window, d = i.dark, lit: LightLayer[] = [], tint: LightLayer[] = [];
+  if (wg.k > 0.01) {
+    const cx = wr.x + wr.w / 2 + 1500, cy = wr.y + wr.h / 2;
+    lit.push(blob(cx, cy, 26000, 19000, Math.min(0.7, wg.k * 1.5)));
+    tint.push(blob(cx, cy, 26000, 19000, 0.32 * wg.k * (d ? 1 : 0.7), wg.color));
+  }
+  for (const b of i.beams) {
+    for (const q of b.quads) lit.push({ shape: { k: 'poly', pts: q.pts }, alpha: Math.min(0.75, b.a * q.fade * 4) });
+    if (b.patch) lit.push({ shape: { k: 'ellipse', x: b.patch.x, y: b.patch.y, rx: b.patch.rx, ry: b.patch.ry }, alpha: Math.min(0.7, b.a * 4) });
+  }
+  return { id: 'window', lit, tint };
+}
+
+/** The desk lamp: the cone down and east from its mouth and the pool round the hood (warm), a warm smear along the desk top, its reflection on the monitor's glass; none of it below the desk's front. */
+function lampLight(i: LightIn, G: LightGeo): Emitter {
+  const A = ambientOf(i), mo = G.mouth, ang = Math.atan2(G.dir.y, G.dir.x), reg = G.region, lit: LightLayer[] = [], tint: LightLayer[] = [];
+  if (A.lamp > 0.01) {
+    const k = A.lamp * (i.dark ? 1 : 0.55);
+    lit.push({ shape: { k: 'cone', x: mo.x, y: mo.y, len: BEAM.reach, rot: ang }, alpha: Math.min(1, A.lamp * 1.15) });
+    lit.push(blob(mo.x - 400, mo.y - 300, poolW(G, 5500), poolW(G, 5500), Math.min(1, A.lamp)));
+    tint.push({ shape: { k: 'cone', x: mo.x, y: mo.y, len: BEAM.reach, rot: ang }, alpha: 0.34 * k, color: '#ffb35a' });
+    tint.push(blob(mo.x - 400, mo.y - 300, poolW(G, 9200), poolW(G, 9200), 0.3 * k, '#ffb35a'));
+    tint.push(blob(mo.x + 3600, (G.deskTop + G.deskBack) / 2, 11000, (G.deskTop - G.deskBack) * 1.2, 0.5 * k, '#ffd9a0'));
+    tint.push(blob(G.monitor.x + 1100, G.monitor.y + 900, 1700, 1000, 0.28 * k, '#ffe0a8'));
+    tint.push(blob(mo.x - 60, mo.y - 60, 1500, 1500, 0.5 * Math.min(1, k * 1.5), '#fff2c8'));
+  }
+  return { id: 'lamp', clip: { x: reg.x, y: reg.y, w: reg.w, h: G.deskTop - reg.y }, lit, tint };
+}
+
+/**
+ * The monitor. It shines on its own: the glass is never dimmed, and the lamp's warmth does not tint it. The light it gives is soft and flat to what it falls on: a
+ * halo on the wall round the bezel, a pool on the desk top in front (flat, because the desk is seen at a low angle), and a lift over the keyboard. No hard edge
+ * but the glass itself.
+ */
+function screenLight(i: LightIn, G: LightGeo): Emitter {
+  const lit: LightLayer[] = [], tint: LightLayer[] = [], A = ambientOf(i);
+  if (A.lamp > 0.01) tint.push({ shape: { k: 'rect', r: G.screen }, alpha: 0.7 * i.screen, erase: true });
+  if (i.screen > 0.01) {
+    const sc = G.screen, m = G.monitor, kb = G.keyboard, k = i.screen * (i.dark ? 1 : 0.7) * (0.3 + 0.7 * i.night), col = '#a6f5da'; // a screen throws little light by day
+    const mx = m.x + m.w / 2, deskMid = (G.deskTop + G.deskBack) / 2, deskH = G.deskTop - G.deskBack;
+    const halo = { x: mx, y: m.y + m.h * 0.45, w: m.w * 1.75, h: m.h * 1.8 }, glass = { x: sc.x + sc.w / 2, y: sc.y + sc.h / 2, w: sc.w * 1.05, h: sc.h * 1.05 };
+    const spill = { x: mx, y: deskMid, w: sc.w * 1.05, h: deskH * 1.1 };
+    const keys = { x: kb.x + kb.w / 2, y: kb.y - kb.h * 0.5, w: kb.w * 0.95, h: kb.h * 1.5 };
+    lit.push({ shape: { k: 'rect', r: sc, soft: 45 }, alpha: 0.96 * i.screen });
+    lit.push(blob(halo.x, halo.y, halo.w, halo.h, 0.55 * i.screen));
+    lit.push(blob(spill.x, spill.y, spill.w, spill.h, 0.65 * i.screen));
+    lit.push(blob(keys.x, keys.y, keys.w, keys.h, 0.45 * i.screen));
+    tint.push(blob(halo.x, halo.y, halo.w, halo.h, 0.17 * k, col));
+    tint.push(blob(glass.x, glass.y, glass.w, glass.h, 0.1 * k, col));
+    tint.push(blob(spill.x, spill.y, spill.w, spill.h, 0.36 * k, col));
+    tint.push(blob(keys.x, keys.y, keys.w, keys.h, 0.28 * k, col));
+  }
+  return { id: 'screen', lit, tint };
+}
+
+/** The clock: it shines, so it is not dimmed, and its LEDs light the wall round them. */
+function clockLight(i: LightIn, G: LightGeo): Emitter {
+  const ck = G.clock, cx = ck.x + ck.w / 2, cy = ck.y + ck.h / 2;
+  return {
+    id: 'clock',
+    lit: [{ shape: { k: 'rect', r: ck, soft: 260 }, alpha: 0.9 }, blob(cx, cy, 6200, 3400, 0.5)],
+    tint: [blob(cx, cy, 5600, 3000, i.dark ? 0.26 : 0.12, '#ff9a3a')],
+  };
+}
+
+/** Every light of the room at a moment, in the order they are drawn (a later tint can take an earlier one away: the screen over the lamp's warmth). */
+export function emittersOf(i: LightIn, G: LightGeo): Emitter[] {
+  return [windowLight(i, G), lampLight(i, G), screenLight(i, G), clockLight(i, G)];
+}
+
 // ---- the two soft shapes every light is made of ----
-let cone: Texture | null = null, blob: Texture | null = null;
+let cone: Texture | null = null, blobTex: Texture | null = null;
 const canvasTex = (w: number, h: number, fill: (d: Uint8ClampedArray) => void): Texture => {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const x = c.getContext('2d')!, img = x.createImageData(w, h);
@@ -75,7 +182,7 @@ function coneTexture(): Texture {
 }
 /** A round soft spot, opaque in the middle and clear at the edge. */
 function blobTexture(): Texture {
-  return (blob ??= canvasTex(128, 128, (d) => {
+  return (blobTex ??= canvasTex(128, 128, (d) => {
     for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
       const r = Math.hypot(x - 63.5, y - 63.5) / 64, a = r >= 1 ? 0 : (1 - r * r) ** 2;
       const i = (y * 128 + x) * 4;
@@ -84,7 +191,7 @@ function blobTexture(): Texture {
   }));
 }
 
-/** A rectangle with soft edges, as a stack of nested rectangles whose opacities add up to `a`: used to cut the case, the monitor and the router out of the focus dark. */
+/** A rectangle with soft edges, as a stack of nested rectangles whose opacities add up to one: used for the screen, the clock, and to cut the case, the monitor and the router out of the focus dark. */
 function softRect(g: Graphics, r: Rect, spread: number, color = '#ffffff') {
   for (let k = 0; k < 4; k++) g.roundRect(r.x - spread * (1 - k / 4), r.y - spread * (1 - k / 4), r.w + 2 * spread * (1 - k / 4), r.h + 2 * spread * (1 - k / 4), spread * 0.6).fill({ color, alpha: k === 3 ? 1 : 0.3 });
 }
@@ -105,12 +212,16 @@ export class LightView {
   private readonly focusBox = new Container();
   private readonly rts: RenderTexture[] = [];
   private key = '';
+  /** Bumped when a light is moved or added or an item of the room moved: part of the key the textures are drawn for. */
+  private rev = 0;
+  private readonly offs = new Map<string, { x: number; y: number }>();
+  private readonly extra = new Map<string, Emitter>();
   private fAmount = 0;
   /** Texture pixels per world unit, x and y: the region maps to the whole texture (the size is rounded up, so this is `LIGHT_RES` to within a pixel; a scene drawn at exactly `LIGHT_RES` would leave a blank edge column). */
   private readonly sx: number;
   private readonly sy: number;
 
-  constructor(private readonly r: Renderer, private readonly g: LightGeo) {
+  constructor(private readonly r: Renderer, private g: LightGeo) {
     const reg = g.region, w = Math.ceil(reg.w * LIGHT_RES), h = Math.ceil(reg.h * LIGHT_RES);
     this.sx = w / reg.w; this.sy = h / reg.h;
     for (const s of [this.shade, this.glow, this.focus]) {
@@ -147,12 +258,24 @@ export class LightView {
     }
   }
 
+  /** Move a light (by id: `window`, `lamp`, `screen`, `clock`, or one added with `addLight`) by (dx, dy) world units from where its item stands; (0, 0) puts it back. The next `set` redraws. */
+  place(id: string, dx: number, dy: number) {
+    if (dx || dy) this.offs.set(id, { x: dx, y: dy }); else this.offs.delete(id);
+    this.rev++;
+  }
+  /** Add (or replace) a light of a scene's own, for example one for a new item: it is drawn after the room's lights, in the order added. */
+  addLight(e: Emitter) { this.extra.set(e.id, e); this.rev++; }
+  removeLight(id: string) { if (this.extra.delete(id)) this.rev++; }
+  /** Items of the room moved (the keyboard, the screen, the lamp's mouth, ...): take the new places; the lights that follow them are redrawn on the next `set`. */
+  setGeo(patch: Partial<LightGeo>) { this.g = { ...this.g, ...patch }; this.rev++; }
+
   /** Redraw the shade and the glow if the quantised state changed. Returns whether it did. */
   set(i: LightIn, force = false): boolean {
-    const k = lightKey(i);
+    const k = lightKey(i) + '#' + this.rev;
     if (!force && k === this.key) return false;
     this.key = k;
-    this.drawShade(i); this.drawGlow(i);
+    const ems = this.emitters(i);
+    this.drawShade(i, ems); this.drawGlow(i, ems);
     return true;
   }
 
@@ -165,9 +288,6 @@ export class LightView {
     c.destroy({ children: true });
   }
 
-  /** The width of the lamp's pool of light for a radius of `r`: no wider than the room above the hood, so the texture's edge never cuts it. */
-  private pool(r: number) { const room = this.g.mouth.y - 300 - this.g.region.y - 150; return 2 * Math.max(500, Math.min(r, room)); }
-
   private spot(c: Container, tex: Texture, x: number, y: number, w: number, h: number, o: { color?: string; alpha?: number; erase?: boolean; rot?: number; anchor?: [number, number] } = {}) {
     const s = new Sprite(tex);
     s.anchor.set(...(o.anchor ?? [0.5, 0.5])); s.position.set(x, y); s.width = w; s.height = h; s.rotation = o.rot ?? 0;
@@ -177,10 +297,37 @@ export class LightView {
     c.addChild(s);
     return s;
   }
-  private cut(c: Container, f: (g: Graphics) => void, alpha = 1) { const g = new Graphics(); f(g); g.blendMode = 'erase'; g.alpha = alpha; c.addChild(g); }
 
-  private drawShade(i: LightIn) {
-    const A = ambientOf(i), G = this.g, reg = G.region, sc = G.screen, mo = G.mouth, ang = Math.atan2(G.dir.y, G.dir.x);
+  /** One layer drawn into a texture: `erase` cuts it out of what is there (the shade), otherwise it is painted in its colour. */
+  private put(c: Container, l: LightLayer, erase: boolean) {
+    const s = l.shape, cut = erase || !!l.erase, col = cut ? '#ffffff' : l.color ?? '#ffffff';
+    if (s.k === 'blob') { this.spot(c, blobTexture(), s.x, s.y, s.w, s.h, { color: cut ? undefined : l.color, alpha: l.alpha, erase: cut }); return; }
+    if (s.k === 'cone') { this.spot(c, coneTexture(), s.x, s.y, s.len, s.len, { color: cut ? undefined : l.color, alpha: l.alpha, erase: cut, rot: s.rot, anchor: [0, 0.5] }); return; }
+    const g = new Graphics();
+    if (s.k === 'rect') { if (s.soft) softRect(g, s.r, s.soft, col); else g.rect(s.r.x, s.r.y, s.r.w, s.r.h).fill({ color: col }); }
+    else if (s.k === 'ellipse') g.ellipse(s.x, s.y, s.rx, s.ry).fill({ color: col });
+    else g.poly(s.pts).fill({ color: col });
+    g.alpha = l.alpha;
+    if (cut) g.blendMode = 'erase';
+    c.addChild(g);
+  }
+
+  /** The room's lights as they stand now: each moved by its `place` offset, then the lights a scene added. */
+  private emitters(i: LightIn): Emitter[] {
+    const all = [...emittersOf(i, this.g), ...this.extra.values()];
+    return all.map((e) => { const o = this.offs.get(e.id); return o ? shiftEmitter(e, o.x, o.y) : e; });
+  }
+
+  /** The container a light's layers go in: the paint itself, or a clipped one. */
+  private hostOf(c: Container, e: Emitter): Container {
+    if (!e.clip) return c;
+    const host = new Container(), m = new Graphics().rect(e.clip.x, e.clip.y, e.clip.w, e.clip.h).fill({ color: '#ffffff' });
+    host.addChild(m); host.mask = m; c.addChild(host);
+    return host;
+  }
+
+  private drawShade(i: LightIn, ems: Emitter[]) {
+    const A = ambientOf(i), G = this.g, reg = G.region;
     // the dark is also painted round the region (a wide screen shows more than the region): the same colour and opacity as its edge
     this.shadeG.clear();
     const big = 90000;
@@ -190,75 +337,32 @@ export class LightView {
     this.paint(this.rts[0]!, (c) => {
       if (A.alpha > 0.002) {
         c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: A.color, alpha: A.alpha }));
-        // the lamp: the cone down and east from its mouth (not below the desk's front: the desk shades what is under it) and the pool round the hood
-        if (A.lamp > 0.01) {
-          const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.deskTop - reg.y).fill({ color: '#ffffff' });
-          lit.addChild(clip); lit.mask = clip;
-          this.spot(lit, coneTexture(), mo.x, mo.y, BEAM.reach, BEAM.reach, { erase: true, alpha: Math.min(1, A.lamp * 1.15), rot: ang, anchor: [0, 0.5] });
-          this.spot(lit, blobTexture(), mo.x - 400, mo.y - 300, this.pool(5500), this.pool(5500), { erase: true, alpha: Math.min(1, A.lamp) });
-          c.addChild(lit);
+        for (const e of ems) {
+          if (!e.lit.length) continue;
+          const host = this.hostOf(c, e);
+          for (const l of e.lit) this.put(host, l, true);
         }
-        // what shines is not dimmed: the screen (and the light it throws on the keyboard and the desk), the clock
-        if (i.screen > 0.01) {
-          this.cut(c, (g) => g.rect(sc.x, sc.y, sc.w, sc.h).fill({ color: '#ffffff' }), 0.96 * i.screen);
-          this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h + 700, sc.w * 1.25, 4200, { erase: true, alpha: 0.7 * i.screen });
-          this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h / 2, sc.w * 1.7, sc.h * 1.9, { erase: true, alpha: 0.35 * i.screen });
-        }
-        // the window's light: a wide soft pool round the glass (it lights the lamp and the west of the desk), and where a shaft falls the room is lit, whatever stands there
-        const wg = windowGlow(i.beams), wr = G.window;
-        if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { erase: true, alpha: Math.min(0.7, wg.k * 1.5) });
-        for (const b of i.beams) {
-          this.cut(c, (g) => { for (const q of b.quads) g.poly(q.pts).fill({ color: '#ffffff', alpha: Math.min(0.75, b.a * q.fade * 4) }); });
-          if (b.patch) this.cut(c, (g) => g.ellipse(b.patch!.x, b.patch!.y, b.patch!.rx, b.patch!.ry).fill({ color: '#ffffff' }), Math.min(0.7, b.a * 4));
-        }
-        const ck = G.clock;
-        this.cut(c, (g) => softRect(g, ck, 260), 0.9);
-        this.spot(c, blobTexture(), ck.x + ck.w / 2, ck.y + ck.h / 2, 6200, 3400, { erase: true, alpha: 0.5 });
       }
       // the inside of the case has its own light
-      this.cut(c, (g) => g.rect(G.inner.x, G.inner.y, G.inner.w, G.inner.h).fill({ color: '#ffffff' }));
+      this.put(c, { shape: { k: 'rect', r: G.inner }, alpha: 1 }, true);
     });
   }
 
-  private drawGlow(i: LightIn) {
-    const A = ambientOf(i), G = this.g, sc = G.screen, mo = G.mouth, ang = Math.atan2(G.dir.y, G.dir.x), reg = G.region, d = i.dark;
+  private drawGlow(i: LightIn, ems: Emitter[]) {
+    const G = this.g, d = i.dark;
     // the sky's lift by day (a pale wash in the dark theme) and the warm of the ends of the day: even, over the whole room
     const lift = d ? 0.1 * (1 - i.night) : 0, warm = 0.08 * i.dusk * (d ? 1 : 1.3), BIG = 90000;
     this.washG.clear();
     if (lift > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#bcd4ff', alpha: lift });
     if (warm > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#ff9a5a', alpha: warm });
     this.paint(this.rts[1]!, (c) => {
-      // the window's light: a wide soft pool round the glass in the colour of the sun or the moon (the shaft itself is live, `setBeams`)
-      const wg = windowGlow(i.beams), wr = G.window;
-      if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { color: wg.color, alpha: 0.32 * wg.k * (d ? 1 : 0.7) });
-      // the lamp: its cone is warm, its pool round the hood too, a warm smear along the desk top, its reflection on the monitor's glass
-      if (A.lamp > 0.01) {
-        const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.deskTop - reg.y).fill({ color: '#ffffff' });
-        lit.addChild(clip); lit.mask = clip;
-        const k = A.lamp * (d ? 1 : 0.55);
-        this.spot(lit, coneTexture(), mo.x, mo.y, BEAM.reach, BEAM.reach, { color: '#ffb35a', alpha: 0.34 * k, rot: ang, anchor: [0, 0.5] });
-        this.spot(lit, blobTexture(), mo.x - 400, mo.y - 300, this.pool(9200), this.pool(9200), { color: '#ffb35a', alpha: 0.3 * k });
-        this.spot(lit, blobTexture(), mo.x + 3600, (G.deskTop + G.deskBack) / 2, 11000, (G.deskTop - G.deskBack) * 1.2, { color: '#ffd9a0', alpha: 0.5 * k });
-        this.spot(lit, blobTexture(), G.monitor.x + 1100, G.monitor.y + 900, 1700, 1000, { color: '#ffe0a8', alpha: 0.28 * k });
-        this.spot(lit, blobTexture(), mo.x - 60, mo.y - 60, 1500, 1500, { color: '#fff2c8', alpha: 0.5 * Math.min(1, k * 1.5) });
-        c.addChild(lit);
-        // the screen shines on its own: the lamp's warmth does not tint it
-        if (i.screen > 0.01) this.cut(c, (g) => g.rect(sc.x, sc.y, sc.w, sc.h).fill({ color: '#ffffff' }), 0.7 * i.screen);
+      for (const e of ems) {
+        if (!e.tint.length) continue;
+        const host = this.hostOf(c, e);
+        for (const l of e.tint) this.put(host, l, false);
       }
-      // the screen: pale green on the keyboard and the desk below it, a halo on the wall round it, a smear along the desk top under it
-      if (i.screen > 0.01) {
-        const k = i.screen * (d ? 1 : 0.5), tint = '#8fffd6';
-        this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h + 600, sc.w * 1.15, 3800, { color: tint, alpha: 0.3 * k });
-        this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h / 2, sc.w * 1.7, sc.h * 1.9, { color: tint, alpha: 0.1 * k });
-        this.spot(c, blobTexture(), sc.x + sc.w / 2, (G.deskTop + G.deskBack) / 2, sc.w * 0.95, (G.deskTop - G.deskBack) * 1.1, { color: tint, alpha: 0.5 * k });
-        const kb = G.keyboard;
-        c.addChild(new Graphics().poly([kb.x + 70, kb.y, kb.x + kb.w - 70, kb.y, kb.x + kb.w - 260, kb.y - kb.h, kb.x + 260, kb.y - kb.h]).fill({ color: tint, alpha: 0.1 * k }));
-      }
-      // the clock's LEDs light the wall round them
-      const ck = G.clock;
-      this.spot(c, blobTexture(), ck.x + ck.w / 2, ck.y + ck.h / 2, 5600, 3000, { color: '#ff9a3a', alpha: d ? 0.26 : 0.12 });
       // the inside of the case has its own light: none of this reaches it
-      this.cut(c, (g) => g.rect(G.inner.x, G.inner.y, G.inner.w, G.inner.h).fill({ color: '#ffffff' }));
+      this.put(c, { shape: { k: 'rect', r: G.inner }, alpha: 1 }, true);
     });
   }
 
@@ -269,7 +373,7 @@ export class LightView {
     this.focusG.rect(-big, -big, 2 * big, reg.y + big).rect(-big, reg.y + reg.h, 2 * big, big).rect(-big, reg.y, reg.x + big, reg.h).rect(reg.x + reg.w, reg.y, big, reg.h).fill({ color: col });
     this.paint(this.rts[2]!, (c) => {
       c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: col }));
-      for (const r of [G.case, G.monitor, G.router]) this.cut(c, (g) => softRect(g, r, 500));
+      for (const r of [G.case, G.monitor, G.router]) this.put(c, { shape: { k: 'rect', r, soft: 500 }, alpha: 1 }, true);
     });
   }
 

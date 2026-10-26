@@ -248,7 +248,7 @@ export async function mountBoard(host: HTMLElement) {
   const sway = new Map<number, SwayState>();
   const glides = new Map<number, { fx: number; fy: number; t: number }>();
   const knownKeys = new Set<number>();
-  let knownInit = false, lastBaseTick = -1, lastTray: number[] = [], lastRest = new Map<number, { x: number; y: number }>(), trayOn = false;
+  let knownInit = false, lastBaseTick = -1, lastTray: number[] = [], lastRest = new Map<number, { x: number; y: number }>();
   const swayOf = (id: number) => { let st = sway.get(id); if (!st) { st = { a: 0, w: 0, ph: (id * 2.399963) % (2 * Math.PI) }; sway.set(id, st); } return st; };
   const propObjs = () => propsArt.flatMap((a) => a.objs);
   /** Nudge the keys hanging near (x, y): away from it, harder the closer they are. */
@@ -298,7 +298,6 @@ export async function mountBoard(host: HTMLElement) {
     propHits = [
       ...propObjs().filter((o) => !hide.has(o.id)).map((o) => ({ id: o.id, rect: o.rect, shape: propShape(o) })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
-      ...(trayOn ? [{ id: 'tray', rect: TRAY }] : []),
     ];
     mergeHits();
   };
@@ -646,7 +645,7 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
     scene.rects.set('vrm', BR.vrm); scene.interactive.add('vrm');
     scene.rects.set('usb', USB_PORT); scene.interactive.add('usb'); scene.usb = USB_PORT;
-    scene.rects.set('tray', TRAY); scene.interactive.add('tray');
+    scene.rects.set('tray', TRAY); // highlight only (the tutorial points at it): the tray is not clickable
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
     scene.rects.set('case', CASE); scene.interactive.add('case');
 
@@ -788,7 +787,7 @@ export async function mountBoard(host: HTMLElement) {
     const notRead = !!s?.keyIgnored;
     // No key tray while the machine is being built: it appears once the PC can be powered on (and stays once it ever was).
     const trayShown = !!s && (s.sandbox || s.progress.poweredOn || s.noPowerReason === null);
-    if (trayShown) { scene.rects.set('tray', TRAY); scene.interactive.add('tray'); } else { scene.rects.delete('tray'); scene.interactive.delete('tray'); }
+    if (trayShown) scene.rects.set('tray', TRAY); else scene.rects.delete('tray');
     powerState = { powered, down, error, blocked: !!s?.noPowerReason };
     screenOn = powered && !!s?.devices.some((d) => d.kind === 'display');
     roomView?.setScreen(screenOn);
@@ -848,7 +847,6 @@ export async function mountBoard(host: HTMLElement) {
       if (!s.plugged) keyInId = -1;
       keySeen = true;
     }
-    trayOn = trayShown;
     if (s) {
       // a key the rack has not seen comes in a letter (the keys of a loaded game, and a key put back, just hang there)
       if (s.baseTick < lastBaseTick) { knownKeys.clear(); knownInit = false; for (const m of [...mails]) dropMail(m); }

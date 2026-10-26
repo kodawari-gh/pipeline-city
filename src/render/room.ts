@@ -470,10 +470,10 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
 
 /** The places the room's light is cut around, from the layout of the moment (the case follows the tier). The keyboard is its sloped top: `y` its front edge, `h` how far it runs back. */
 export function lightGeo(geo: RoomGeo): LightGeo {
-  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300, dk = deskGeo(geo.persp, geo.ys, geo.floor);
+  const dk = deskGeo(geo.persp, geo.ys, geo.floor), kp = keyboardPlacer(dk, MONITOR.x + MONITOR.w / 2), kf = kp(-KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h), kg = kp(KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h);
   return {
     window: geo.window, region: roomBakeRect(geo), case: CASE, inner: CASE_IN, monitor: MONITOR, screen: SCREEN, router: ROUTER_SPOT, clock: geo.clock, mouth: geo.lamp.mouth, dir: LAMP_D, ys: geo.ys,
-    keyboard: { x: kx, y: geo.ys - 260, w: kw, h: 400 }, deskTop: dk.yFront, deskBack: dk.yBack,
+    keyboard: { x: Math.min(kf[0], kg[0]), y: Math.max(kf[1], kg[1]), w: Math.abs(kg[0] - kf[0]), h: 330 }, deskTop: dk.yFront, deskBack: dk.yBack,
   };
 }
 
@@ -617,6 +617,11 @@ export class RoomView {
 
   /** The monitor shines (the machine is on with a display): the light puts it, and what it throws on the keyboard and the desk, out of the dark. */
   setScreen(on: boolean) { this.screenOn = on; }
+
+  /** The room's items moved (the keyboard, the screen, the lamp's mouth, ...): the lights that follow them are redrawn (`LightView.setGeo`). */
+  setLightGeo(patch: Partial<LightGeo>) { this.lightView?.setGeo(patch); }
+  /** Nudge a light (`window`, `lamp`, `screen`, `clock`, or one added to the light view) by world units from where its item stands (`LightView.place`). */
+  placeLight(id: string, dx: number, dy: number) { this.lightView?.place(id, dx, dy); }
 
   /** How much the room is dimmed to put the case in the light (`focusAt`): 0 to 1. */
   setFocus(f: number) { this.lightView?.setFocus(f); }
