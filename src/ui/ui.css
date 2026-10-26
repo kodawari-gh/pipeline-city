@@ -402,7 +402,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .inv-title { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
 .inv-title b { font-family: var(--mono); color: var(--accent); }
 .inv-hint { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inv-groups { display: flex; gap: 1rem; overflow-x: auto; padding: 0.4rem 0.4rem 0.4rem; scrollbar-width: thin; align-items: flex-start; }
+.inv-groups { display: flex; gap: 1rem; overflow-x: auto; padding: 0.4rem 0.4rem 0.4rem; scrollbar-width: thin; align-items: flex-start; min-height: 12.5rem; }
 .inv-group { flex: none; }
 .inv-gname { display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); font-weight: 600; margin: 0 0 0.3rem 0.15rem; }
 .inv-tiles { display: flex; gap: 0.5rem; }
@@ -494,7 +494,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 /* Tall screens (portrait tablets and up): the inventory docks at the right edge, tiles in a grid. */
 @media (max-aspect-ratio: 1/1) and (min-width: 40em) {
   .inv { position: fixed; right: 0.6rem; top: 4.6rem; bottom: 0.6rem; width: 19rem; display: flex; flex-direction: column; }
-  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.7rem; flex: 1; }
+  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.7rem; flex: 1; min-height: 0; }
   .inv-tiles { flex-wrap: wrap; }
   .inv.away { transform: translateX(calc(100% + 1.5rem)); }
 }
@@ -685,7 +685,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
    small, so the board keeps the rest of the screen (the camera frames it in the free area). */
 @media (max-height: 32em) and (min-aspect-ratio: 1/1) {
   .inv { position: fixed; right: 0.5rem; top: 3.6rem; bottom: 0.5rem; width: 15rem; display: flex; flex-direction: column; padding: 0.4rem 0.5rem; }
-  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.5rem; flex: 1; }
+  .inv-groups { flex-direction: column; overflow-x: hidden; overflow-y: auto; gap: 0.5rem; flex: 1; min-height: 0; }
   .inv-tiles { flex-wrap: wrap; }
   .tile { width: 6.2rem; }
   .inv.away { transform: translateX(calc(100% + 1.5rem)); }
