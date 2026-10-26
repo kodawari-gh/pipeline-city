@@ -25,6 +25,7 @@ import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from 
 import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from './room';
+import { focusAt } from './light';
 import { onThemeChange, readTheme, type Theme } from './theme';
 import { initThumbs } from './thumbs';
 
@@ -134,6 +135,9 @@ export async function mountBoard(host: HTMLElement) {
   const roomLayer = new Container();
   /** What stands in front of the video cable: the mug and its steam (the room's `over`). */
   const roomOverLayer = new Container();
+  /** The room's light: above the monitor, the props and the case's shell, below the mail and the highlights. */
+  const lightLayer = new Container();
+  let screenOn = false;
   let roomView: RoomView | null = null;
   let roomHits: Hit[] = [];
   const caseLayer = new Container();
@@ -191,7 +195,7 @@ export async function mountBoard(host: HTMLElement) {
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
   const outLedG = new Graphics();
   const mailBack = new Container(), mailMid = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, a finished key on its way into one, its pocket and flap over them
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -304,7 +308,9 @@ export async function mountBoard(host: HTMLElement) {
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
   const syncRoom = () => {
     const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
-    roomView?.setView({ x: left, y: top, w: camera.w / z, h: camera.h / z }, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
+    const view = { x: left, y: top, w: camera.w / z, h: camera.h / z };
+    roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
+    roomView?.setFocus(focusAt(view, CASE));
   };
   const onZoom = () => {
     const z = camera.z;
@@ -370,8 +376,11 @@ export async function mountBoard(host: HTMLElement) {
     // the room follows the case (the desk top is where its feet stand) and the theme
     net.behind.parent?.removeChild(net.behind); // (it survives the room it was in: the ISP lead runs behind the desk, so it lives in the room's back layer)
     clear(roomLayer);
+    roomView?.dispose();
     roomView = new RoomView(T, undefined, app.renderer);
+    roomView.setScreen(screenOn);
     roomLayer.addChild(roomView.root);
+    clear(lightLayer); lightLayer.addChild(roomView.light);
     clear(roomOverLayer); roomOverLayer.addChild(roomView.over);
     roomView.behind.addChild(net.behind);
     camera.bounds = roomBox(roomView.geo);
@@ -717,6 +726,8 @@ export async function mountBoard(host: HTMLElement) {
     const trayShown = !!s && (s.sandbox || s.progress.poweredOn || s.noPowerReason === null);
     if (trayShown) { scene.rects.set('tray', TRAY); scene.interactive.add('tray'); } else { scene.rects.delete('tray'); scene.interactive.delete('tray'); }
     powerState = { powered, down, error, blocked: !!s?.noPowerReason };
+    screenOn = powered && !!s?.devices.some((d) => d.kind === 'display');
+    roomView?.setScreen(screenOn);
     const key = [
       T.dark, trayShown, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
       s?.plugged ? `${s.plugged.id}${urgencyOf(s.plugged)}${s.plugged.done}${s.plugged.stage}${notRead ? 'ign' : ''}` : '-', powered, error,

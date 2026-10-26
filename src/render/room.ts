@@ -1,11 +1,12 @@
-import { Container, Graphics, Rectangle, Sprite, type Renderer, type Texture } from 'pixi.js';
+import { Container, Graphics, Rectangle, type Renderer } from 'pixi.js';
 import { disc, label, mix } from './ink';
 import { drawAircraft, drawCityLive, drawClouds, drawSkyline, drawStars } from './skyline';
 import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
+import { LightView, type LightGeo } from './light';
 import { roundedPath } from './routes';
 import {
-  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
+  CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
 import type { Theme } from './theme';
 
@@ -157,11 +158,11 @@ interface Look {
 }
 const look = (T: Theme): Look => T.dark
   ? {
-    wall: '#0e1a33', wallLo: '#0a1327', stripe: '#16264a', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
+    wall: '#121a31', wallLo: '#0d1327', stripe: '#19244a', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
     paper: '#aeb8d4', ink: '#2b3560', cork: '#5a4634', metal: '#7d8bb0', metalLo: '#4a5679', plastic: '#2a3252', plasticLo: '#1b2140', cloth: '#5a4a86',
   }
   : {
-    wall: '#dbe3ee', wallLo: '#c9d4e3', stripe: '#e6ecf5', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
+    wall: '#d3e3ea', wallLo: '#c0d3de', stripe: '#e0edf1', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
     paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', cloth: '#7a63c4',
   };
 
@@ -246,6 +247,16 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (let x = -48000; x < 48000; x += 1200) g.rect(x, -90000, 420, 180000).fill({ color: L.stripe, alpha: T.dark ? 0.55 : 0.6 });
   for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
+  // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
+  const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60) => {
+    for (let k = 0; k < 6; k++) { const e = spread * (1 - k / 5); g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e).fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / 6 }); }
+  };
+  cast(MONITOR, 520, 420, 460, 0.42, 300);
+  cast(CASE, 560, 420, 500, 0.42, 120);
+  cast(geo.clock, 150, 230, 150, 0.5, 90);
+  cast(OUTBOX, 130, 200, 130, 0.45, 40);
+  for (let row = 0; row < TRAY_ROWS; row++) cast({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 140, 210, 140, 0.45, 30);
+  cast({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 200, 300, 160, 0.42, 20);
 
   // the router shelf: a plank on two brackets, the wall plate above it on the left (both drawn by the network layer)
   const sx0 = ROUTER_SPOT.x - 300, sx1 = ROUTER_SPOT.x + ROUTER_SPOT.w + 120, sy = SHELF_Y;
@@ -417,26 +428,44 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   return { back, front, over, bakes: [gWrap, fWrap] };
 }
 
-/** The soft pool of light round the lamp, drawn once into a small texture (30 nested discs): one sprite per frame instead of 30 big circles. */
-const glowTextures = new WeakMap<Renderer, Texture>();
-function glowTexture(r: Renderer): Texture {
-  let t = glowTextures.get(r);
-  if (!t) {
-    const g = new Graphics();
-    for (let k = 0; k < 30; k++) g.circle(0, 0, 256 - k * 8.3).fill({ color: '#ffb35a', alpha: 0.0062 * (1 + k * 0.05) });
-    t = r.generateTexture({ target: g, frame: new Rectangle(-256, -256, 512, 512), resolution: 0.5, antialias: true });
-    g.destroy();
-    glowTextures.set(r, t);
-  }
-  return t;
+/**
+ * The lit edges: a thin warm line along the top and the west side of what the lamp and the window light (the monitor, the case, the keyboard, the clock, the
+ * letterbox, the key rack, the shelf, the desk's top edge, the lamp's hood and arms, the mug's rim), like the hairlines of the board catching light. It is drawn
+ * above the things, under the light layer's dark, so the night dims it with them.
+ */
+function rimArt(T: Theme, geo: RoomGeo): Graphics {
+  const g = new Graphics(), ys = geo.ys, col = T.dark ? '#e0b060' : '#a8803a', hi = mix(col, '#ffffff', 0.35), w1 = 16, w2 = 11;
+  const edge = (r: Rect, rad: number, a = 0.8) => {
+    g.roundRect(r.x, r.y, r.w, r.h, rad).stroke({ width: w2 * 0.6, color: col, alpha: a * 0.35 });
+    g.moveTo(r.x + rad, r.y).lineTo(r.x + r.w - rad, r.y).stroke({ width: w1, color: hi, alpha: a });
+    g.moveTo(r.x, r.y + rad).lineTo(r.x, r.y + r.h - rad).stroke({ width: w2, color: col, alpha: a * 0.7 });
+  };
+  edge(MONITOR, 330, 0.85); edge(CASE, 120, 0.85); edge(geo.clock, 90, 0.7); edge(OUTBOX, 40, 0.6);
+  for (let row = 0; row < TRAY_ROWS; row++) edge({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 30, 0.6);
+  edge({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 0, 0.6);
+  edge({ x: geo.socket.plate.x, y: geo.socket.plate.y, w: geo.socket.plate.w, h: geo.socket.plate.h }, 50, 0.5);
+  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
+  edge({ x: kx, y: ys - 260, w: kw, h: 260 }, 44, 0.7);
+  g.moveTo(geo.desk.x0, ys).lineTo(geo.desk.x1, ys).stroke({ width: 20, color: hi, alpha: 0.8 }); // the desk's top edge
+  const mx = geo.mug, mt = ys - 1300;
+  g.ellipse(mx, mt, 560, 108).stroke({ width: w2, color: hi, alpha: 0.7 });
+  g.moveTo(mx - 560, mt).lineTo(mx - 500, ys - 64).stroke({ width: w1, color: hi, alpha: 0.6 });
+  // the lamp: the hood's rim and the lit side of the arms
+  const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth;
+  const nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
+  g.poly([hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk]).stroke({ width: w2, color: hi, alpha: 0.7 });
+  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), ax = -dy / l, ay = dx / l; g.moveTo(a.x - ax * 75, a.y - ay * 75).lineTo(b.x - ax * 75, b.y - ay * 75).stroke({ width: w2, color: hi, alpha: 0.6 }); };
+  arm(p0, el); arm(el, hd);
+  return g;
 }
-/** The glow's radius in world units. */
-const GLOW_R = 9200;
 
-/** `top` laid over `bottom` (each a colour and an opacity): the one colour and opacity that look the same, so a stack of full-screen washes is one fill. */
-function over(top: { c: string; a: number }, bottom: { c: string; a: number }): { c: string; a: number } {
-  const a = top.a + bottom.a * (1 - top.a);
-  return a <= 0 ? { c: bottom.c, a: 0 } : { c: mix(bottom.c, top.c, top.a / a), a };
+/** The places the room's light is cut around, from the layout of the moment (the case follows the tier). The keyboard is its sloped top: `y` its front edge, `h` how far it runs back. */
+export function lightGeo(geo: RoomGeo): LightGeo {
+  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
+  return {
+    region: roomBakeRect(geo), case: CASE, inner: CASE_IN, monitor: MONITOR, screen: SCREEN, router: ROUTER_SPOT, clock: geo.clock, mouth: geo.lamp.mouth, dir: LAMP_D, ys: geo.ys,
+    keyboard: { x: kx, y: geo.ys - 260, w: kw, h: 400 },
+  };
 }
 
 /** Where the sun and the moon are at an hour: how far through their arc across the sky (0 rising, 1 setting), or null while below the horizon. */
@@ -475,6 +504,8 @@ export class RoomView {
   readonly behind = new Container();
   /** What stands in front of the cables (the mug and its steam): board.ts puts this above the cable layer, not in the room's own layer. */
   readonly over = new Container();
+  /** The light: the dark of the room with the lit places cut out of it, and what the lights add. board.ts puts this above everything outside the case (the monitor, the props, the case's shell). Empty without a renderer (tests). */
+  readonly light = new Container();
   readonly geo: RoomGeo;
   readonly hits: RoomHit[];
   private readonly sky = new Container();
@@ -484,7 +515,7 @@ export class RoomView {
   private cityKey = '';
   private readonly amb = new Graphics();
   private readonly glow = new Graphics();
-  private readonly pool: Sprite | null;
+  private readonly lightView: LightView | null;
   private readonly clockG = new Graphics();
   private readonly steam = new Graphics();
   private readonly blindG = new Graphics();
@@ -493,13 +524,16 @@ export class RoomView {
   private baked = false;
   private lamp = roomState.lamp ? 1 : 0;
   private blind = roomState.blind ? 1 : 0;
+  private screenOn = false;
+  private screen = 0;
   private lastKey = '';
 
-  /** `renderer` lets the lamp's pool of light be a baked texture; without one (tests) it is drawn as discs. */
+  /** `renderer` lets the room's light be drawn into textures; without one (tests) there is no light layer. */
   constructor(private T: Theme, geo = roomGeo(), renderer?: Renderer) {
     this.geo = geo;
-    this.pool = renderer ? new Sprite(glowTexture(renderer)) : null;
-    this.pool?.anchor.set(0.5);
+    this.lightView = renderer ? new LightView(renderer, lightGeo(geo)) : null;
+    this.light.addChild(rimArt(T, geo));
+    if (this.lightView) this.light.addChild(this.lightView.root);
     const { back, front, over, bakes } = sceneryArt(T, geo);
     this.bakes = bakes;
     this.over.addChild(over);
@@ -515,7 +549,6 @@ export class RoomView {
     back.addChildAt(this.mask, 1);
     back.addChildAt(this.blindG, 3); // over the sky, under the frame and the sill
     this.root.addChild(front, this.amb);
-    if (this.pool) this.root.addChild(this.pool);
     this.root.addChild(this.glow, this.clockG);
     this.over.addChild(this.steam);
     this.hits = [{ id: 'lamp', rect: geo.lamp.rect }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
@@ -529,23 +562,36 @@ export class RoomView {
   setView(view: Rect, z: number, dpr: number, cover: Rect | null) {
     const hide = !!cover && roomHidden(view, cover), want = !hide && roomBakeFits(view, z, dpr, this.geo);
     this.root.visible = !hide;
+    this.light.visible = !hide;
     if (want === this.baked) return;
     this.baked = want;
     for (const c of this.bakes) c.cacheAsTexture(want ? { resolution: ROOM_BAKE_RES, antialias: true } : false);
   }
 
+  /** Free the light's textures (the room is built again with the scene). */
+  dispose() { this.light.removeFromParent(); this.lightView?.destroy(); }
+
+  /** The monitor shines (the machine is on with a display): the light puts it, and what it throws on the keyboard and the desk, out of the dark. */
+  setScreen(on: boolean) { this.screenOn = on; }
+
+  /** How much the room is dimmed to put the case in the light (`focusAt`): 0 to 1. */
+  setFocus(f: number) { this.lightView?.setFocus(f); }
+
   /** Advance the live parts. Cheap when nothing visible changed (the key rounds the clock to a few steps a second). */
   frame(gt: number, dtMs: number, force = false): boolean {
     const goalL = roomState.lamp ? 1 : 0, goalB = roomState.blind ? 1 : 0, k = 1 - Math.exp(-dtMs / 140);
     this.lamp += (goalL - this.lamp) * (dtMs > 0 ? k : 1); if (Math.abs(goalL - this.lamp) < 0.01) this.lamp = goalL;
+    const goalS = this.screenOn ? 1 : 0;
+    this.screen += (goalS - this.screen) * (dtMs > 0 ? 1 - Math.exp(-dtMs / 400) : 1); if (Math.abs(goalS - this.screen) < 0.01) this.screen = goalS;
     this.blind += (goalB - this.blind) * (dtMs > 0 ? 1 - Math.exp(-dtMs / 260) : 1); if (Math.abs(goalB - this.blind) < 0.004) this.blind = goalB;
-    const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 120)}|${this.lamp.toFixed(2)}|${this.blind.toFixed(3)}`;
+    const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 120)}|${this.lamp.toFixed(2)}|${this.screen.toFixed(2)}|${this.blind.toFixed(3)}`;
     if (!force && (key === this.lastKey || !this.root.visible)) return false;
     this.lastKey = key;
     const h = roomDebug.hour ?? hourAt(gt);
     this.drawSky(h, gt);
     this.drawAmbient(h);
     this.drawGlow(h);
+    this.lightView?.set({ dark: this.T.dark, night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen }, force);
     this.drawClock(h, gt);
     this.drawSteam(gt);
     return true;
@@ -581,15 +627,8 @@ export class RoomView {
   }
 
   private drawAmbient(h: number) {
-    const g = this.amb, night = nightAt(h), dusk = duskAt(h), d = this.T.dark;
+    const g = this.amb;
     g.clear();
-    // the whole room dims at night (the light theme more than the dark one, which is dim already), brightens a little by day in the dark
-    // theme and warms at the ends of the day: three washes, laid into one fill (over the whole wall: a tall phone view runs far past the camera box)
-    let wash = { c: d ? '#02040c' : '#1b2a55', a: d ? 0.3 * night : 0.34 * night };
-    const lift = d ? 0.1 * (1 - night) : 0;
-    if (lift > 0.002) wash = over({ c: '#bcd4ff', a: lift }, wash);
-    if (dusk > 0.02) wash = over({ c: '#ff9a5a', a: 0.08 * dusk * (d ? 1 : 1.3) }, wash);
-    if (wash.a > 0.002) g.rect(-90000, -90000, 180000, 180000).fill({ color: wash.c, alpha: wash.a });
     // the window's light: a shaft that leaves the glass in the direction the sun (or the moon) shines from, strongest at the glass and fading out by the
     // desk, and a flat patch where it reaches the desk top: it comes from where the body is in the sky (west of centre throws it east and the other way round),
     // the lower the body the longer and more slanted it is, and the sun is warm at the ends of the day
@@ -613,15 +652,9 @@ export class RoomView {
     const g = this.glow, geo = this.geo, night = nightAt(h), on = this.lamp, d = this.T.dark;
     g.clear();
     const I = on * (d ? 0.4 + 0.6 * night : 0.2 + 0.5 * night);
-    if (this.pool) this.pool.visible = false;
     if (I < 0.01) return;
-    const mo = geo.lamp.mouth, ys = geo.ys, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE;
-    // a warm pool on the wall around the hood, a cone down from its mouth onto the desk and the keyboard, a bright bulb in the mouth
-    if (this.pool) { this.pool.position.set(mo.x - 400 * SIDE, mo.y - 300); this.pool.scale.set((2 * GLOW_R) / 256); this.pool.alpha = I; this.pool.visible = true; }
-    else for (let k = 0; k < 8; k++) g.circle(mo.x - 400 * SIDE, mo.y - 300, GLOW_R - k * 850).fill({ color: '#ffb35a', alpha: 0.023 * I * (1 + k * 0.2) });
-    const hw = LAMP.hood;
-    g.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x + 8000 * SIDE, ys, mo.x - 2800 * SIDE, ys]).fill({ color: '#ffc27a', alpha: 0.1 * I });
-    g.ellipse(mo.x + 2600 * SIDE, ys + 30, 6400, 170).fill({ color: '#ffd9a0', alpha: 0.2 * I });
+    const mo = geo.lamp.mouth;
+    // the bulb in the hood's mouth (the light it gives, the pool and the cone, is the light layer's)
     g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 560).fill({ color: '#ffd68a', alpha: 0.22 * I });
     g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 300).fill({ color: '#fff2c8', alpha: 0.95 * Math.min(1, I * 1.5) });
   }
