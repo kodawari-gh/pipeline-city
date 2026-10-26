@@ -89,8 +89,8 @@ function hull(pts: Pt[]): Pt[] {
 /** The mouse: a dome turned a few degrees on the mat, built from rings of its outline at rising heights (each band lighter, so the top is round), two buttons with a seam, a wheel that stands proud of the top, and a lit patch. It has no cord. */
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx), { w, l, h } = MOUSE;
-  // a wedge: higher at the palm (toward the viewer) than at the buttons
-  const wedge = (z: number) => 0.4 + 0.6 * (z / l + 0.5);
+  // a teardrop in profile: higher at the palm (toward the viewer) than at the buttons
+  const wedge = (z: number) => { const u = z / l + 0.5; return u <= 0.72 ? 0.34 + 0.66 * Math.sin((u / 0.72) * (Math.PI / 2)) : 1 - 0.14 * ((u - 0.72) / 0.28) ** 2; }; // low at the buttons, the crest about three quarters of the way back, then the rear rounds down
   const ringP = (k: number, f: number) => mouseOutline(k).map(([x, z]) => ({ x, s: p(x, z, f * h * wedge(z)) }));
   const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff';
   // the height of the dome over a plan point (a half ellipsoid, a little flattened toward the edge)
@@ -114,10 +114,9 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
     const front = mouseOutline(0.9).filter(([, z]) => z <= cut);
     if (front.length > 2) {
       const lo = front[0]![0], hi = front[front.length - 1]![0], arc = Array.from({ length: 11 }, (_, i) => { const x = hi + ((lo - hi) * i) / 10; return [x, cutZ(x)] as [number, number]; });
-      o.poly(flat([...front, ...arc].map(([x, z]) => p(x, z, dome(x, z) + 8)))).fill({ color: crown, alpha: T.dark ? 0.2 : 0.5 });
+      o.poly(flat([...front, ...arc].map(([x, z]) => p(x, z, dome(x, z) + 8)))).fill({ color: '#05070d', alpha: T.dark ? 0.5 : 0.62 }); // the button plates: a dark panel, like the real thing
     }
   }
-  o.poly(flat(mouseOutline(0.34).map(([x, z]) => p(x - 260, z + 120, dome(x - 260, z + 120) + 30)))).fill({ color: '#ffffff', alpha: T.dark ? 0.16 : 0.55 });
   const line = (pts: [number, number][], wd: number, a: number) => {
     const q = pts.map(([x, z]) => p(x, z, dome(x, z) + 14));
     o.moveTo(q[0]![0], q[0]![1]); for (const u of q.slice(1)) o.lineTo(u[0], u[1]);
