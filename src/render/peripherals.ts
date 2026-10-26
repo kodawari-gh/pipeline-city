@@ -67,15 +67,20 @@ export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, m
   for (const [dx, col] of [[hw - 700, '#6dffa6'], [hw - 520, T.dark ? '#33406e' : '#aebbd6']] as const) { const q = p(dx, -hd + 150, h); o.circle(q[0], q[1], 14).fill({ color: col, alpha: 0.9 }); }
 }
 
-/** How wide the mouse is at plan depth `z`, as a part of its full width: slim at the front (the buttons), full and round at the palm. */
-const taperAt = (z: number) => 0.46 + 0.54 * Math.sin((Math.min(1, Math.max(0, z / MOUSE.l + 0.5)) * Math.PI) / 2);
+/** How wide the mouse is at `u` along its length (0 at the buttons, 1 at the palm), as a part of its full width, read off a top-down photo of a gaming mouse: a nearly square front with rounded corners, a slight waist, the widest a little behind the middle, and a round rear. */
+const widthAt = (u: number) => {
+  const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  if (u < 0.08) return 0.93 * (1 - (1 - u / 0.08) ** 2.4) ** (1 / 2.4);
+  if (u > 0.76) return Math.sqrt(1 - ((u - 0.76) / 0.24) ** 2);
+  return 0.93 - 0.015 * Math.sin(Math.PI * smooth(0.2, 0.62, u)) + 0.07 * smooth(0.45, 0.76, u);
+};
 
-/** The outline of the mouse's footprint at a scale: a rounded rectangle, narrower at the front (the buttons, toward the wall) than at the back (the palm). */
-const mouseOutline = (k: number, n = 36): Pt[] => Array.from({ length: n }, (_, i) => {
-  const a = (i / n) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), q = 2 / 2.3, sx = Math.sign(c) * Math.abs(c) ** q, sz = Math.sign(s) * Math.abs(s) ** q;
-  const z = (MOUSE.l / 2) * sz, taper = taperAt(z);
-  return [(MOUSE.w / 2) * sx * taper * k, z * k] as Pt;
-});
+/** The outline of the mouse's footprint at a scale (z toward the viewer, the palm): the front (the buttons) at the top of a plan, rounded at the corners, the rear round. */
+const mouseOutline = (k: number, n = 40): Pt[] => {
+  const us = Array.from({ length: n + 1 }, (_, i) => 0.5 - 0.5 * Math.cos((i / n) * Math.PI)); // closer together at the two ends, where the outline turns
+  const at = (u: number, side: number): Pt => [side * (MOUSE.w / 2) * widthAt(u) * k, (u - 0.5) * MOUSE.l * k];
+  return [...us.map((u) => at(u, 1)), ...[...us].reverse().slice(1, -1).map((u) => at(u, -1))];
+};
 
 /** The convex hull of some points (a mouse's silhouette is the hull of its rings). */
 function hull(pts: Pt[]): Pt[] {
@@ -100,6 +105,7 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
     const t = Math.max(0, (i - 1) / (prof.length - 3)), col = i === 0 ? skirt : t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
     o.poly(flat(hull([...rings[i]!, ...rings[i + 1]!].map((q) => q.s)))).fill({ color: col });
   }
-  o.poly(flat(rings[1]!.map((q) => q.s))).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' }); // the skirt's top edge
+  const edge = rings[1]!.map((q) => q.s), mid = edge.reduce((m, q) => m + q[1], 0) / edge.length, near = edge.filter((q) => q[1] >= mid); // the skirt's top edge, the half toward the viewer only (the far half is behind the body)
+  o.poly(flat(near), false).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' });
   o.poly(flat(hull(rings.flat().map((q) => q.s)))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
 }
