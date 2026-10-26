@@ -35,6 +35,14 @@ describe('rectangles and discs', () => {
     expect(s.dist(160, 100)).toBeCloseTo(20, 9);
     for (const [x, y] of s.outline(10)![0]!) expect(Math.hypot(x - 100, y - 100)).toBeCloseTo(50, 9);
   });
+  it('a shape drawn small and scaled into place answers at the scaled size (the monitor)', () => {
+    const s = movedShape(discShape(0, 0, 40), 500, 200, 3);
+    expect(s.dist(500, 200)).toBe(0);
+    expect(s.dist(500 + 120, 200)).toBe(0);
+    expect(s.dist(500 + 150, 200)).toBeCloseTo(30, 9);
+    expect(s.bounds).toEqual({ x: 380, y: 80, w: 240, h: 240 });
+    for (const [x, y] of s.outline(0)![0]!) expect(Math.hypot(x - 500, y - 200)).toBeCloseTo(120, 9);
+  });
   it('a moved shape answers at the new place', () => {
     const s = movedShape(discShape(0, 0, 40), 500, 200);
     expect(s.dist(500, 200)).toBe(0);

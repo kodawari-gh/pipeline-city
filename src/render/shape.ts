@@ -52,13 +52,14 @@ export function discShape(cx: number, cy: number, r: number): Shape {
   };
 }
 
-/** The same shape moved by (dx, dy): one silhouette read from one key serves every key. */
-export function movedShape(s: Shape, dx: number, dy: number): Shape {
+/** The same shape placed by x' = k x + dx, y' = k y + dy (`k` 1 is a plain move: one silhouette read from one key serves every key; art drawn small and scaled up into place has k above 1). */
+export function movedShape(s: Shape, dx: number, dy: number, k = 1): Shape {
   const b = s.bounds;
   return {
-    bounds: { x: b.x + dx, y: b.y + dy, w: b.w, h: b.h },
-    dist: (x, y) => s.dist(x - dx, y - dy),
-    outline: (e) => s.outline(e)?.map((poly) => poly.map(([x, y]): Pt => [x + dx, y + dy])) ?? null,
+    bounds: { x: b.x * k + dx, y: b.y * k + dy, w: b.w * k, h: b.h * k },
+    get thickness() { return s.thickness === undefined ? undefined : s.thickness * k; },
+    dist: (x, y) => k * s.dist((x - dx) / k, (y - dy) / k),
+    outline: (e) => s.outline(e / k)?.map((poly) => poly.map(([x, y]): Pt => [x * k + dx, y * k + dy])) ?? null,
   };
 }
 

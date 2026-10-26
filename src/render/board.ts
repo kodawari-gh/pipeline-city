@@ -286,9 +286,10 @@ export async function mountBoard(host: HTMLElement) {
    * counts (a cable's soft shadow is under it).
    */
   const liveShape = (art: Container, rect: Rect, threshold = 90): Shape => {
-    const ox = art.position.x, oy = art.position.y, m = 40;
-    const local: Rect = { x: rect.x - ox - m, y: rect.y - oy - m, w: rect.w + 2 * m, h: rect.h + 2 * m };
-    return lazyShape(rect, () => { const s = captureShape(app.renderer, art, local, { threshold }); return s ? (ox || oy ? movedShape(s, ox, oy) : s) : rectShape(rect); });
+    // the art's own placement (it may be drawn small and scaled up, like the monitor) is taken off the rect to read it and put back on the shape
+    const k = art.scale.x, ox = art.position.x - k * art.pivot.x, oy = art.position.y - k * art.pivot.y, m = 40 / k;
+    const local: Rect = { x: (rect.x - ox) / k - m, y: (rect.y - oy) / k - m, w: rect.w / k + 2 * m, h: rect.h / k + 2 * m };
+    return lazyShape(rect, () => { const s = captureShape(app.renderer, art, local, { threshold }); return s ? (ox || oy || k !== 1 ? movedShape(s, ox, oy, k) : s) : rectShape(rect); });
   };
   /** A hit for a piece of art: its rect, and its silhouette read from the art itself (`extra`: the zoom range, the ring, and so on). Every part, drive, monitor and cable registers through this. */
   const partHit = (id: string, art: Container, rect: Rect, extra: Partial<Hit> = {}): Hit => ({ id, rect, shape: liveShape(art, rect), ...extra });
