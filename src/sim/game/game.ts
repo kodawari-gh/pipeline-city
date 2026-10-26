@@ -15,7 +15,7 @@ import {
   specsOfKind, type CardSpec, type NicSpec, type StorageSpec, type TpmSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
-import { disassemble } from "../isa";
+import { pipeSnapOf, type PipeSnap } from "./pipesnap";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
@@ -424,7 +424,7 @@ export interface Snapshot {
   /** The motherboard in detail (features, VRM, heatsink). Absent slots are not listed. */
   board: BoardSnap;
   /** Pipeline stage occupants while the machine is powered with a working CPU, else null. */
-  pipe: null | { stages: StageSnap[] };
+  pipe: null | PipeSnap;
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */
   display: string;
   /** Engine counters since power-on, by name (all zero when no engine). */
@@ -2320,24 +2320,7 @@ export class Game {
     }
   }
 
-  private pipeSnap(eng: PipelineEngine): { stages: StageSnap[] } {
-    const v = eng.view;
-    const t = v.timeline;
-    const stages: StageSnap[] = [];
-    for (let i = 0; i < 5; i++) {
-      const kind = v.stageKind[i]!;
-      const id = v.stageId[i]!;
-      let text = "";
-      if (kind === 1 && id >= 0) {
-        const row = id % t.rows;
-        if (t.id[row] === id) text = disassemble(t.word[row]!);
-      }
-      stages.push({
-        kind, id, op: text.split(" ")[0] ?? "", text, cause: v.stageCause[i]!, stalled: v.stageStalled[i]! !== 0,
-      });
-    }
-    return { stages };
-  }
+  private pipeSnap(eng: PipelineEngine): PipeSnap { return pipeSnapOf(eng); }
 
   // ---------- internals: the network (docs/NETWORK.md) ----------
 

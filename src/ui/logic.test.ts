@@ -8,6 +8,14 @@ import { REGIONS } from './regions';
 import { getSpec } from '../sim/board/specs';
 import type { Phase } from '../sim/game/game';
 import { dev, key, snap } from './testdata';
+import { cpuPlan } from '../render/cpuplans';
+import type { PlanInput } from '../render/cpuplan';
+
+/** One floorplan per architecture and optional part: the ids the die writes. */
+const DIE_INPUTS: PlanInput[] = [
+  { arch: 'unpipelined', cacheLines: 8 }, { arch: 'inorder', forwarding: false, cacheLines: 8 }, { arch: 'inorder', forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32 },
+  { arch: 'inorder2', forwarding: true, cacheLines: 16 }, { arch: 'ooo', width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 16 }, { arch: 'inorder', forwarding: true, cacheLines: 8, cores: 4 },
+];
 
 describe('format', () => {
   it('money and ticks', () => {
@@ -193,8 +201,9 @@ describe('descriptions', () => {
     const ids = [
       'crate', 'tray', 'usb', 'power', 'monitor', 'psu', 'cable.atx', 'cable.cpu', 'cable.video', 'key:4', 'inv:inv1',
       'vrm', 'vrm2', 'pcie', 'chipset', 'io', 'atx', 'cpw', 'm2', 'sata', 'bat', 'audio', 'psu.readout',
-      'cpu.IF', 'cpu.ID', 'cpu.EX', 'cpu.MEM', 'cpu.WB', 'cpu.IC', 'cpu.BP', 'cpu.CLK', 'cpu.DC', 'cpu.RF',
-      'cpu.UNCORE', 'cpu.MC', 'cpu.IO', 'cpu.L2', 'board',
+      'board',
+      // the die: one id per kind of block, from every architecture's floorplan (the renderer's hit ids)
+      ...DIE_INPUTS.flatMap((i) => cpuPlan(i).blocks.filter((b) => b.kind !== 'stage').map((b) => 'cpu.' + b.kind)),
     ];
     for (const id of ids) expect(describeId(id, s), id).not.toBeNull();
     for (const [id, d] of Object.entries(REGIONS)) {

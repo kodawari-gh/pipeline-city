@@ -1,10 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../sim/board/specs';
 import {
-  BLOCKS, COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, STAGES, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
-  type Rect, type Tile,
+  COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
+  type Rect,
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
+import { dieFar, planOf } from './dieart';
 import { SINK_FAN_R, sinkFanAt } from './pins';
 import { hdmiPlug, rj45Plug } from './ports';
 import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
@@ -73,64 +74,8 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   g.fill({ color: T.pin });
   // die
   box(g, d.x, d.y, d.w, d.h, 14, { fill: T.die, stroke: accent, lw: 4 });
-  for (let x = d.x + 24; x < d.x + d.w - 20; x += 18) { g.rect(x, d.y + 12, 7, 7); g.rect(x, d.y + d.h - 19, 7, 7); }
-  for (let y = d.y + 40; y < d.y + d.h - 36; y += 18) { g.rect(d.x + 12, y, 7, 7); g.rect(d.x + d.w - 19, y, 7, 7); }
-  g.fill({ color: T.line });
-
-  const edge = mix(T.line, accent, 0.55), tileFill = T.dark ? mix(T.tile, '#ffffff', 0.05) : T.tile;
-  const drawTile = (t: Tile, big: boolean) => {
-    box(g, t.x, t.y, t.w, t.h, 12, { fill: tileFill, stroke: edge, lw: 3, fa: big ? 1 : 0.85 });
-    if (t.label) labels.addChild(label(t.label, t.x + 12, t.y + 18, big ? 22 : 17, T.ink, { weight: '700', a: 0.85 }));
-    if (t.sub) labels.addChild(label(t.sub, t.x + 12, t.y + 42, 15, T.mute, { a: 0.9 }));
-  };
-  for (const t of BLOCKS) drawTile(t, false);
-  for (const t of STAGES) {
-    box(g, t.x, t.y, t.w, t.h, 12, { fill: tileFill, stroke: accent, lw: 3, sa: 0.7 });
-    labels.addChild(label(t.label, t.x + 14, t.y + 20, 24, T.ink, { weight: '700' }));
-    labels.addChild(label(t.sub, t.x + 14, t.y + 46, 15, T.mute, { a: 0.8 }));
-  }
-  // decor texture inside blocks
-  const byId = Object.fromEntries(BLOCKS.map((b) => [b.id, b])) as Record<string, Tile>;
-  const l2 = byId.L2!;
-  for (let x = l2.x + 12; x < l2.x + l2.w; x += 14) g.moveTo(x, l2.y + 6).lineTo(x, l2.y + l2.h - 6);
-  for (let y = l2.y + 12; y < l2.y + l2.h; y += 14) g.moveTo(l2.x + 6, y).lineTo(l2.x + l2.w - 6, y);
-  g.stroke({ width: 1.2, color: T.line, alpha: 0.55 });
-  for (let s = 1; s < 4; s++) g.rect(l2.x + (l2.w * s) / 4 - 8, l2.y + 6, 16, l2.h - 12);
-  g.rect(l2.x + 6, l2.y + l2.h / 2 - 8, l2.w - 12, 16);
-  g.fill({ color: T.die });
-  const un = byId.UNCORE!;
-  for (let i = 0; i < 14; i++) for (let j = 0; j < 2; j++) g.rect(un.x + 20 + i * 34, un.y + 64 + j * 34, 22, 20);
-  g.fill({ color: T.line, alpha: 0.6 });
-  const io = byId.IO!;
-  for (let i = 0; i < 9; i++) g.rect(io.x + 14 + i * 20, io.y + 58, 10, 40);
-  g.fill({ color: T.pin, alpha: 0.6 });
-  const rf = byId.RF!;
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) g.rect(rf.x + 14 + i * 45, rf.y + 40 + j * 24, 38, 18);
-  g.fill({ color: T.line, alpha: 0.7 });
-  for (const id of ['IC', 'DC']) {
-    const b = byId[id]!;
-    for (let i = 0; i < 4; i++) g.rect(b.x + 12 + i * 46, b.y + 50, 40, 36);
-    g.fill({ color: T.line, alpha: 0.6 });
-  }
-  const mc = byId.MC!;
-  for (let i = 0; i < 6; i++) g.rect(mc.x + 14, mc.y + 52 + i * 15, 172, 8);
-  g.fill({ color: T.line, alpha: 0.6 });
-  const clk = byId.CLK!;
-  for (let i = 1; i < 4; i++) g.circle(clk.x + clk.w - 50, clk.y + clk.h / 2 + 10, i * 12);
-  g.stroke({ width: 3, color: accent, alpha: 0.7 });
-  // links between stages
-  for (let k2 = 0; k2 < 4; k2++) {
-    const a = STAGES[k2]!, b = STAGES[k2 + 1]!, y = a.y + a.h / 2 + 10;
-    g.moveTo(a.x + a.w, y).lineTo(b.x, y);
-  }
-  g.stroke({ width: 4, color: T.line });
-  // forwarding path on the forwarding CPU
-  if (spec.visual === 'cpu-inorder-fwd') {
-    const ex = STAGES[2]!, mem = STAGES[3]!, top = ex.y - 28;
-    const pts: [number, number][] = [[mem.x + 100, mem.y], [mem.x + 100, top], [ex.x + 100, top], [ex.x + 100, ex.y]];
-    dashed(g, pts, 14, 8);
-    g.stroke({ width: 4, color: T.st, alpha: 0.9 });
-  }
+  // the floorplan of this CPU's architecture (docs/DIE.md): blocks, stage frames and bond pads; the detail is the die view's (dieview.ts)
+  dieFar(g, T, planOf(spec));
   labels.addChild(label(spec.name, k.x + 170, k.y + k.h - 148, 34, T.mute, { a: 0.75, weight: '700' }));
   labels.addChild(label('PIPELINE CITY · REV A', k.x + k.w - 170, k.y + k.h - 148, 20, T.mute, { a: 0.75, anchor: [1, 0.5] }));
   root.addChild(labels);

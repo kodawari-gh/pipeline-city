@@ -33,8 +33,9 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `shape.ts` | **what the pointer picks** (see Interaction, Hit testing): `Shape` (a distance to the silhouette and its outline), `rectShape`, `rectsShape`, `discShape`, `lazyShape`, `movedShape`, `fieldShape` (a distance field from pixels), and `pick` (the rule that chooses among targets) |
 | `capture.ts` | `captureShape`: reads the alpha of an object's own art back from the GPU once and makes a `Shape` of it |
 | `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts (`beginPartDrag`) / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
-| `pipeline.ts` | zoomed-in CPU chips and stage highlights |
-| `cpuplan.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested): the new die view will be drawn from it, see [`DIE.md`](DIE.md) |
+| `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](DIE.md) |
+| `dieart.ts` | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names) |
+| `dieview.ts` | the die in motion (`DieView`): instruction chips in their blocks per lane and unit, the out-of-order structures as cells coloured by state, event flashes and link pulses, the levels of detail by zoom |
 | `case.ts` | the PC case: chassis and rear wall (the I/O opening, a slot cover per expansion slot, the rear fan), the tray with a brass standoff at every mounting hole of every form factor the case takes, the fan hub in the floor corner and the fans' cable stubs, top and front fans (`EdgeFan`: blades and light strips that spin with the machine), glass, the drive cage, SATA data cables and the power lead |
 | `drives.ts` | drive art (`hdd`, `ssd-sata`, `ssd-nvme`) and their live parts (platter, head arm, activity LED) |
 | `net.ts` | the network props: router, wall plate, ISP line, ethernet cable, NIC card art, link LEDs and traffic pulses (see Network) |
@@ -68,7 +69,7 @@ The CPU socket is the origin. West of the board: the **monitor** (a 24 inch: sca
 
 ## Game-time clock
 
-Every animation that belongs to the machine runs on one **game clock** (`gt` in `board.ts`, milliseconds) that advances by `frame time * timeScale` with `timeScale` = 0 when paused (`speed` 0), 1 at 1x, 2 at 4x, 3 at 16x. `Live.frame`, `PipelineView.frame` (chip tweens), the LEDs, fans, the VRM glow and the exterior accent strip, platter, head, bus and cable pulses, the PCH bars, the boot bar, the OS progress cue, the done ring and the power LED blink all take `gt` instead of wall time, and snapshot-time holds (bus fade timers) use `gt` too, so a pause freezes them exactly and a resume continues without a jump. Wall time still drives: camera pan/zoom/flights, hover lift and outline, drag ghost and drop-target pulses, tutorial highlight rings, toasts and the slide-in of a new drive. **Flashes** (the VRM crash flash, the DRAM flash on memory traffic, the error blink of the accent strip) fade on wall time, so a paused frame never holds one on screen (about 0.9 s, or the blink). Every other machine animation still freezes with the game clock.
+Every animation that belongs to the machine runs on one **game clock** (`gt` in `board.ts`, milliseconds) that advances by `frame time * timeScale` with `timeScale` = 0 when paused (`speed` 0), 1 at 1x, 2 at 4x, 3 at 16x. `Live.frame`, `DieView.frame` (chip tweens, pulses), the LEDs, fans, the VRM glow and the exterior accent strip, platter, head, bus and cable pulses, the PCH bars, the boot bar, the OS progress cue, the done ring and the power LED blink all take `gt` instead of wall time, and snapshot-time holds (bus fade timers) use `gt` too, so a pause freezes them exactly and a resume continues without a jump. Wall time still drives: camera pan/zoom/flights, hover lift and outline, drag ghost and drop-target pulses, tutorial highlight rings, toasts and the slide-in of a new drive. **Flashes** (the VRM crash flash, the DRAM flash on memory traffic, the error blink of the accent strip) fade on wall time, so a paused frame never holds one on screen (about 0.9 s, or the blink). Every other machine animation still freezes with the game clock.
 
 ## Level of detail: interior and exterior (far zoom)
 
@@ -180,7 +181,7 @@ New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouche
 
 - `boardTier: number`
 - `DeviceSnap.slot: string` (e.g. `dimm1`)
-- `pipe: null | { stages: StageSnap[5] }` with `StageSnap = { kind (0 empty, 1 instruction, 2 bubble), id (dynamic instruction id, -1 for none), op (mnemonic), text (full disassembly), cause (bubble cause: 0 none, 1 load, 2 data, 3 flush, 4 struct), stalled }`. Null when no request is running. Built from `engine.view` (stage arrays plus the timeline word for the mnemonic).
+- `pipe: null | PipeSnap` (`src/sim/game/pipesnap.ts`): `{ width, stages: StageSnap[width * 5] (index stage * width + lane; empty for the out-of-order engine), ooo?: OooSnap }`. `StageSnap = { kind (0 empty, 1 instruction, 2 bubble), id (dynamic instruction id, -1 for none), op (mnemonic), text (full disassembly), cause (bubble cause: 0 none, 1 load, 2 data, 3 flush, 4 struct), stalled }`. Null when no request is running. Built from `engine.view` (stage arrays plus the timeline word for the mnemonic). `OooSnap` = `{ fetchQ (mnemonics, oldest first), decode (per lane), rob (the physical ring: op + RobState), robHead, robCount, sched (op + SchedWhy per slot), units (ALU0 ALU1 MUL LSU: op, left, total), stall [fetch, dispatch, commit] }`; about 1 KB.
 
 ## Live state mapping
 
@@ -402,7 +403,7 @@ A switch (the bolt button in the bottom bar, or the **P** key; `powerLens` in `s
 - The OS-flow cue (`REMOVE` on an OS-flashed key) is **not verified end to end**. An OS is reachable now (the sandbox buys it and installs it on a drive), but the browser run with real clicks did not reach the state: the power button did not leave `OFF` and a click on a tray key opens the client card rather than plugging it (the card's "Plug into USB" button is the plug). It uses the same `stage` `done` path as the no-OS cue.
 - The VRM crash flash and the error blink were not provoked in the browser (no fault was run); their wall-time fade is by code.
 - Overview on a wide canvas: the scene is about 1.7:1 and the free height is the limit, so the sides stay empty. Tightening the bounds gained about 5%.
-- Chips are single-width; superscalar and out-of-order engines will need a wider stage layout and a bigger `pipe`.
+- The die view shows no cache lines, register writes or interrupt-controller activity yet (the snapshot does not carry them): the D-cache flashes on a miss, the register file on a retire.
 
 ## USB keys
 

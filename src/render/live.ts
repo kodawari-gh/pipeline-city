@@ -375,7 +375,7 @@ export class Live {
     if (cycles < this.lastCycles) { this.lastMisses = 0; this.lastStall = 0; } // a new attempt
     const missed = misses > this.lastMisses || stall > this.lastStall;
     this.lastMisses = misses; this.lastStall = stall; this.lastCycles = cycles;
-    const mem = s.pipe?.stages[3];
+    const mem = s.pipe?.stages[3 * (s.pipe.width || 1)];
     const op = mem && mem.kind === 1 ? mem.op : '';
     if (running) {
       if (missed || LOADS.has(op) && !!mem && mem.stalled) { this.memAt = now; this.memWall = performance.now(); this.trigger('mem', now, -1); } // miss: RAM answers the CPU

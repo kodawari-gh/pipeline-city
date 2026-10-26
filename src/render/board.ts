@@ -18,14 +18,15 @@ import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
-  BAY, BD, BLOCKS, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from './mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
-import { PipelineView } from './pipeline';
+import { DieView } from './dieview';
+import { planOf } from './dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from './room';
 import { focusAt } from './light';
 import { captureShape } from './capture';
@@ -182,7 +183,7 @@ export async function mountBoard(host: HTMLElement) {
   let chromeBake: Sprite | null = null;
   /** Hover-animated props: vector art close up, one small baked sprite far out. */
   let propBakes: { vec: Container; cached: boolean }[] = [];
-  const pipeline = new PipelineView();
+  const die = new DieView();
   const live = new Live(app.renderer, T.dark);
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;
@@ -214,7 +215,7 @@ export async function mountBoard(host: HTMLElement) {
   });
   interactRef = interact;
   interact.setTheme(T);
-  interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, pipeline.root, live.root);
+  interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, die.root, live.root);
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
@@ -412,8 +413,9 @@ export async function mountBoard(host: HTMLElement) {
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(0.3, 0.5, z);
     coolerLayer.visible = coolerLayer.alpha > 0.01;
-    pipeline.root.alpha = smooth(0.42, 0.58, z);
-    pipeline.root.visible = pipeline.root.alpha > 0.01;
+    die.root.alpha = smooth(0.42, 0.58, z);
+    die.root.visible = die.root.alpha > 0.01;
+    die.setZoom(z);
     for (const pb of propBakes) {
       const want = z < Z_BAKE_PROPS;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
@@ -498,7 +500,8 @@ export async function mountBoard(host: HTMLElement) {
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
-    const dieHits: Hit[] = [...STAGES, ...BLOCKS].map((t) => ({ id: 'cpu.' + t.id, rect: t, min: Z_DIE }));
+    let dieHits: Hit[] = [];
+    die.clear();
     let coolerHit: Hit | null = null;
     const deviceHits: Hit[] = [];
     let hasPsu = false, hasDisplay = false;
@@ -514,6 +517,10 @@ export async function mountBoard(host: HTMLElement) {
       scene.interactive.add(d.id);
       if (spec.kind === 'cpu') {
         const p = cpuArt(T, spec as CpuSpec);
+        const plan = planOf(spec as CpuSpec);
+        die.setPlan(T, plan);
+        // one hover id per kind of block (the lanes of a unit share one): the blocks, not the stage frames behind them
+        dieHits = plan.blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: Z_DIE }));
         deviceLayer.addChild(p.root); parts.push(p);
         targets.push({ id: d.id, kind: 'cpu', spec: d.spec, rect: { x: PKG.x - 46, y: PKG.y - 46, w: PKG.w + 92, h: PKG.h + 92 } });
         // the package (the CPU) is hit everywhere; the cooler sits over it and is hit first below the die zoom (coolerHit), so
@@ -721,7 +728,6 @@ export async function mountBoard(host: HTMLElement) {
     const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie') && d.kind !== 'nic');
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks);
-    pipeline.setTheme(T);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
     syncCables(s, true);
@@ -1013,7 +1019,7 @@ export async function mountBoard(host: HTMLElement) {
     interact.setTheme(T);
     build(lastSnap);
     live.update(lastSnap, gt);
-    pipeline.update(lastSnap, true, gt);
+    die.update(lastSnap, true, gt);
   });
 
   // ---- snapshots ----
@@ -1026,7 +1032,7 @@ export async function mountBoard(host: HTMLElement) {
     else { syncCables(s); syncNet(s); syncCords(s); syncProps(s); }
     applyBadge(s);
     live.update(s, now);
-    pipeline.update(s, fast, now);
+    die.update(s, fast, now);
   });
 
   // ---- far-zoom exterior: reveal on demand, accent strip ----
@@ -1140,7 +1146,7 @@ export async function mountBoard(host: HTMLElement) {
     lodFrame(dt);
     live.frame(gdt, gt);
     roomView?.frame(gt, tk.deltaMS);
-    pipeline.frame(gt);
+    die.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
     syncCords(lastSnap);

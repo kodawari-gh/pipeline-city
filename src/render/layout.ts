@@ -33,28 +33,7 @@ export const COOLER: Rect = { x: -790, y: -690, w: 1580, h: 1380 };
 /** Socket frame is PKG grown by this much; buses start at its edge. */
 export const SOCKET_E = 46;
 
-export interface Tile extends Rect { id: string; label: string; sub: string }
-const tile = (id: string, label: string, sub: string, x: number, y: number, w: number, h: number): Tile => ({ id, label, sub, x, y, w, h });
-const STEP = 260;
-const STAGE_LABELS: [string, string][] = [['IF', 'fetch'], ['ID', 'decode'], ['EX', 'execute'], ['MEM', 'memory'], ['WB', 'write back']];
-/** Pipeline stage tiles, in order IF ID EX MEM WB. */
-export const STAGES: Tile[] = STAGE_LABELS.map(([n, s], k) => tile(n, n, s, k * STEP - 620, -145, 200, 190));
-/** Other floorplan blocks (decor, except those that light up from counters). */
-export const BLOCKS: Tile[] = [
-  tile('IC', 'I-CACHE', '', -620, -295, 200, 100),
-  tile('BP', 'BRANCH PRED', '', -360, -295, 200, 100),
-  tile('CLK', 'CLOCK', '', -100, -295, 200, 100),
-  tile('DC', 'D-CACHE', '', 160, -295, 200, 100),
-  tile('RF', 'REGISTERS', '', 420, -335, 200, 140),
-  tile('UNCORE', 'UNCORE', '', -620, -475, 520, 150),
-  tile('MC', 'MEM CTRL', '', 160, -475, 200, 150),
-  tile('IO', 'I/O', '', 420, -475, 200, 120),
-  tile('L2', 'L2 CACHE', '', -620, 245, 1240, 230),
-];
-export const CHIP_W = 156;
-export const CHIP_H = 78;
-/** Centre of the chip slot inside a stage tile. */
-export const stageCentre = (s: number) => ({ x: STAGES[s]!.x + 100, y: STAGES[s]!.y + 105 });
+// The floorplan of the die (blocks, links) is per architecture: cpuplans.ts, drawn by dieart.ts / dieview.ts (docs/DIE.md).
 
 // ---- the board of the current tier (live bindings: reassigned by setLayoutTier) ----
 const EMPTY: Rect = { x: 0, y: 0, w: 0, h: 0 };

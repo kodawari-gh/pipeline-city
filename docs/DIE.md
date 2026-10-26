@@ -1,6 +1,6 @@
 # The CPU die: floorplans, links and levels of detail
 
-Code: `src/render/cpuplan.ts` (the data model), `src/render/cpufloor.ts` (the slicing layout and the channel router), `src/render/cpuplans.ts` (the floorplan of each architecture), `src/render/cpuplan.test.ts`. Status: **stage 1 built** (the layout data and its tests; the mock-ups were reviewed with the owner in two rounds). Not built yet: the renderer that draws it in the game (the game still draws the old fixed tiles in `layout.ts`/`devices.ts`/`pipeline.ts`), the snapshot data that lights it, the new CPU parts. Background: [`CPU.md`](CPU.md) (how the CPU runs, interrupts), [`ENGINES.md`](ENGINES.md) (the pipelines), [`RENDER.md`](RENDER.md) (the board and its buses).
+Code: `src/render/cpuplan.ts` (the data model), `src/render/cpufloor.ts` (the slicing layout and the channel router), `src/render/cpuplans.ts` (the floorplan of each architecture), `src/render/cpuplan.test.ts`. Status: **stages 1 and 2 built** (the layout data and its tests; the snapshot data and the die view that draw it in the game, `src/render/dieart.ts`, `src/render/dieview.ts`, `src/sim/game/pipesnap.ts`). Not built yet: the new CPU parts and their sim features (stage 3). Background: [`CPU.md`](CPU.md) (how the CPU runs, interrupts), [`ENGINES.md`](ENGINES.md) (the pipelines), [`RENDER.md`](RENDER.md) (the board and its buses).
 
 ## Why, and what the owner asked for
 
@@ -44,17 +44,25 @@ The die edge is a ring (`EDGE`): **north** the power block (vcore: one stub per 
 
 For fourteen configurations (every architecture, with and without the optional parts, wide and scalar OoO, 2, 4 and 8 cores): everything inside the die, no overlaps, unique ids, every grid an exact rectangle (power-of-two counts have power-of-two sides), **the blocks cover at least 78% of the die** (55% on a multicore die), the board-facing blocks on the right edge relative to the core, every link's ends on the block edges it names, every segment square and non-zero, **no link through a block it does not connect**, grid counts equal to the configuration, exactly the structures the architecture has, the catalog CPUs plan cleanly, five different floorplans; plus `gridExact`, the slicing layout and the router on small cases.
 
-## The look (not built yet)
+## The look (built)
 
-A die is drawn like the board's parts, not as a diagram: macro blocks with coloured rim lines and a faint tinted fill; cells as dense arrays; labels small in capitals; traces as bundles of thin parallel lines ending in solder pads, with pulses travelling along them for traffic (speed by clock, density by use); bond pads along the die border. The review mock-ups (the artifact of 2026-10-27) show this look.
+A die is drawn like the board's parts, not as a diagram: macro blocks with coloured rim lines and a faint tinted fill; cells as dense arrays; names small in capitals; traces as bundles of thin parallel lines (3.2 apart) ending in solder pads, dashed for the links that carry an event (flush, forward, wakeup, interrupt); bond pads along the die border. The accent of a block is by kind (`KIND_COLOR`: data cyan, memory amber, control magenta, registers green, multiply and reorder violet), of a link by kind (`LINK_COLOR`).
 
-## Levels of detail and live state (stage 2, planned)
+- `cpuArt` (devices.ts, baked with the device, also used by the shop thumbnails) draws the package, the die and `dieFar`: stage frames, blocks, bond pads. That is all the far view shows.
+- `DieView` (dieview.ts) draws `dieNear` on top, faded in by zoom: wires from about zoom 0.7, cell arrays from 0.8, the second line of a block from 1.2; names fade by their own size on screen (`label()`); the camera's maximum zoom is 6.
+- A **tall, narrow block** (a queue, a latch) carries its name rotated in a 22-wide strip on its left; its cells sit beside it (`isTall`, `cellRects`).
 
-Drawn in its own layer (not in the device bake): blocks and names from zoom 0.45; the cells inside them (registers, ROB entries, cache lines, predictor table, bit-slices) from about 0.9; labels on every cell, mnemonics and wire detail from about 1.8; the camera's maximum zoom rises from 3 to 6. Live: instruction chips in their block (per lane and per unit), ROB and scheduler cells coloured by state with head and tail, register cells flashing on write, cache lines valid/hit/miss, links pulsing by event counts, stall/flush/forward highlights, the interrupt controller lighting on an interrupt. The snapshot needs the engine view's lanes, the OoO structures and an event window (`protocol.ts`); a snapshot is a sampled instant (36 or more CPU cycles apart), so the animation is state-based.
+## Live state (built)
+
+Chips are the old pipeline chips (an instruction's mnemonic and operands, coloured by class), in the **host block** of their stage: IF the fetch block, ID the decoder of their lane, EX the ALU of their lane, MEM the load/store unit, WB the write-back block; on the out-of-order die, the decode lanes and the four execution units (a unit chip shows its progress, `2/3`). A stalled instruction rings its block, a flush bubble tints it red, a retiring chip slides out east, a squashed one drops. The out-of-order **structures** are cells: the reorder buffer (a ring: empty entries are the free space, live entries coloured waiting / executing / done, the head ringed, the tail marked), the scheduler (coloured by why an entry did not issue: operands, memory, unit, head), the fetch queue; each cell shows its mnemonic. **Event flashes** come from the counter changes since the last snapshot: a cache miss lights the D-cache, a retire the register file, an issue the result bus, a flush the fetch stage. **Pulses** run along the data, control and memory links while the machine runs, along the flush link on a flush. A snapshot is a sampled instant, so all of it is state or an event count, never a per-cycle stream.
+
+Hover ids are **one per kind of block** (`cpu.<kind>`, the lanes of a unit share one; the stage frames are not targets); the descriptions are in `src/ui/regions.ts`, and `logic.test.ts` checks that every kind every floorplan writes has one.
+
+Not live yet (the snapshot does not carry them): the cache lines (valid, hit, miss), the register writes, the interrupt controller's pending lines, the rename table.
 
 ## Stages
 
 1. **Layout data, router, tests, mock-ups** (built).
-2. **Snapshot data and the new renderer** for the five existing CPUs (replaces `pipeline.ts`, the `cpuArt` die, `BLOCKS`/`STAGES`; hover ids and `regions.ts` descriptions come from the plan).
+2. **Snapshot data and the new renderer** for the five existing CPUs (built: `pipeline.ts`, `BLOCKS`/`STAGES` and the fixed tiles are gone; hover ids and descriptions come from the plan; the thumbnails keep the far die).
 3. **Sim features** (I-cache, 2-bit and bigger predictor, set-associative D-cache, shared L2; default off so existing timings do not move), **new CPU parts** and the branching tree, the picker's branching ladder with measured speed numbers.
 4. Later: the multicore simulation (`cores > 1`) and the CPU gallery.
