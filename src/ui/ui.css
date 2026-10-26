@@ -84,7 +84,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .speedctl .speeds > button:not(.on) { display: none; }
 .speedctl:hover .speeds > button, .speedctl:focus-within .speeds > button, .speedctl.open .speeds > button { display: inline-block; animation: fade-in .15s ease both; }
 .hud-center { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
-@media (max-width: 62em) { .hud-center { top: 3.4rem; } }
+@media (max-width: 62em) { .hud-center { top: calc(var(--bar-h, 2.667rem) + 0.533rem); } }
 .money { font: 700 1.133rem var(--mono); color: var(--accent); letter-spacing: .01em; }
 .stat { display: inline-flex; align-items: center; gap: 0.267rem; white-space: nowrap; }
 .stat .label { font-size: 0.633rem; text-transform: uppercase; letter-spacing: .09em; color: var(--mute); }
