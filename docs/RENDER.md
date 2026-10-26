@@ -73,9 +73,9 @@ The camera scale drives one clean LOD, in multiples of the **fit zoom** (`fits.z
 
 | Zoom (x fit) | What shows |
 |---|---|
-| `>= 3.4` (`LOD.fadeFrom`) | the case is open: the interior shows clear (about when the case overflows the screen; the default overview is 1.0) |
-| 3.4 to 2.6 (`fadeFrom` to `fadeTo`) | the exterior case **crossfades in** over the interior (smoothstep; the exterior alpha is the fade, the interior stays opaque below it, so there are no see-through artefacts) |
-| `<= 2.6` (`LOD.fadeTo`) | the case is closed, exterior over the interior. The glass side is see-through, so the (baked) interior still shows through it at every zoom; below `LOD.liveFrom` (0.8) `Live.setInterior(false)` skips the interior's per-frame work |
+| `>= 2.6` (`LOD.fadeFrom`) | the case is open: the interior shows clear (about when the case overflows the screen; the default overview is 1.0) |
+| 2.6 to 2.0 (`fadeFrom` to `fadeTo`) | the exterior case **crossfades in** over the interior (smoothstep; the exterior alpha is the fade, the interior stays opaque below it, so there are no see-through artefacts) |
+| `<= 2.0` (`LOD.fadeTo`) | the case is closed, exterior over the interior. The glass side is see-through, so the (baked) interior still shows through it at every zoom; below `LOD.liveFrom` (0.8) `Live.setInterior(false)` skips the interior's per-frame work |
 | the room cap | how far the camera can zoom out: where the room fills the screen, never short of `LOD.capK` (0.8) of the overview (see "The room") |
 
 **The far board texture.** Below a zoom of 0.2 the board is one baked texture (`Z_BAKE`); its frame is `boardBakeFrame(BD, BR.io)`, the board **and its rear I/O plate** (the plate stands in the case's west wall, outside the board's own rectangle), so the back panel with its audio jacks, HDMI, ethernet and USB ports stays in the picture at every zoom and the plugs seat in their ports (it used to be the board's rectangle alone, which left the case's black wall and the plugs stopping short of it between zooms 0.1 and 0.2). The exterior's own rear plate shows the same ports (a fitted USB port has its coloured tongue in the mouth).
