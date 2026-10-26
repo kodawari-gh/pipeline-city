@@ -154,10 +154,9 @@ export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string
   ram3: { name: "ECC RAM", kind: "ram" },
   display1: { name: "Graphics display", kind: "display" },
   cooler3: { name: "Big radiator", kind: "cooler" },
-  tpm2: { name: "Secure module 2", kind: "tpm" },
-  cpu5: { name: "Multicore CPU", kind: "cpu" }, gpu2: { name: "GPU 2", kind: "gpu" },
-  psu4: { name: "PSU 1 kW", kind: "psu" }, board4: { name: "Server board", kind: "board" },
-  gpu3: { name: "GPU 3", kind: "gpu" }, npu2: { name: "NPU 2", kind: "npu" }, raid2: { name: "RAID of two NVMe", kind: "raid" },
+  cpu5: { name: "Multicore CPU", kind: "cpu" },
+  board4: { name: "Server board", kind: "board" },
+  raid2: { name: "RAID of two NVMe", kind: "raid" },
 };
 
 export const isPlannedItem = (id: string): boolean => id in PLANNED_ITEMS;

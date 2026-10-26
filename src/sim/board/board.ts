@@ -127,6 +127,10 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
   if ((spec.kind === "gpu" || spec.kind === "npu") && spec.loadW > PCIE_SLOT_W && !spec.needsPcieCable) {
     return { ok: false, reason: `${spec.name} draws ${spec.loadW} W, more than a PCIe slot gives (${PCIE_SLOT_W} W): it needs the PCIe power cable` };
   }
+  if ((spec.kind === "gpu" || spec.kind === "npu") && (spec.pcieLeads ?? 1) > 1 && spec.needsPcieCable) {
+    const have = installedPsu(board)?.spec.pcieLeads ?? 0;
+    if (installedPsu(board) && have < spec.pcieLeads!) return { ok: false, reason: `${spec.name} needs ${spec.pcieLeads} PCIe power leads but the PSU has ${have}` };
+  }
   if (spec.kind === "psu") {
     const need = ratedLoadW(board);
     if (spec.watts < need) return { ok: false, reason: `${spec.name} gives ${spec.watts} W but installed parts need ${need} W` };

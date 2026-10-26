@@ -5,6 +5,7 @@ import {
 } from "../isa/memmap";
 import { GpuRef } from "../ref/gpuref";
 import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, type GpuKernelName } from "../gen/gpukernels";
+import { getSpec } from "../board/specs";
 import { GpuPort } from "./gpu";
 import { Machine } from "./machine";
 
@@ -49,6 +50,30 @@ function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1) {
   ref.run();
   return { ...r, ticks, ref, out: r.get(KERNEL_LAYOUT.out, len), want: gpuKernelExpected(name, p, a, b) };
 }
+
+describe("GPU tiers", () => {
+  it("each tier beats the one below on blur3: fewer card cycles, and fewer base ticks at its faster clock", () => {
+    const spec = (id: string) => getSpec(id) as unknown as { clock: { base: number }; gpu: { lanes: number; memBytes: number; banks: number } };
+    const run = (id: string) => {
+      const s = spec(id);
+      const p = { lanes: s.gpu.lanes, len: 64 };
+      const { a, b } = kernelInputs(64, 3);
+      const r = rig(s.gpu.lanes, s.gpu.banks, s.gpu.memBytes);
+      r.m.clock.setRate("pcie0", { mul: s.clock.base, div: 1 });
+      r.put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource("blur3", p)).program);
+      r.put(KERNEL_LAYOUT.a, a);
+      r.put(KERNEL_LAYOUT.b, b);
+      const ticks = r.go();
+      expect(r.get(KERNEL_LAYOUT.out, 64)).toEqual(gpuKernelExpected("blur3", p, a, b));
+      return { cycles: r.m.bus.load32(R(GPU_REG.CYCLES)), baseTicks: ticks / s.clock.base };
+    };
+    const [g1, g2, g3] = [run("gpu1"), run("gpu2"), run("gpu3")];
+    expect(g2.cycles).toBeLessThan(g1.cycles);
+    expect(g3.cycles).toBeLessThan(g2.cycles);
+    expect(g2.baseTicks).toBeLessThan(g1.baseTicks);
+    expect(g3.baseTicks).toBeLessThan(g2.baseTicks);
+  });
+});
 
 describe("GPU card on the bus", () => {
   it("reports what it is and an idle status", () => {

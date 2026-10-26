@@ -139,7 +139,7 @@ describe('picker contents per id', () => {
     const m = pickerFor('psu', s)!;
     expect(m.kind).toBe('psu');
     expect(m.lines.some((l) => l.level === 'bad' && /95 W of 40 W/.test(l.text))).toBe(true);
-    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['psu0', 'installed'], ['psu1', 'ready'], ['psu2', 'level'], ['psu3', 'level']]);
+    expect(m.ladder.map((r) => [r.specId, r.state])).toEqual([['psu0', 'installed'], ['psu1', 'ready'], ['psu2', 'level'], ['psu3', 'level'], ['psu4', 'level']]);
     expect(m.actions[0]!.id).toBe('powerCycle');
   });
 

@@ -123,11 +123,15 @@ export interface CardSpec extends SpecBase {
   pcieLeads?: number;
   /** GPU only: the SIMD unit and its card memory. */
   gpu?: { lanes: number; memBytes: number; banks: number };
+  /** NPU only: the systolic grid (grid x grid multiply-accumulate cells) and its card memory. */
+  npu?: { grid: number; memBytes: number };
 }
 
 /** A TPM daughterboard on the board's header (slot `tpm`), no cable (docs/ACCEL.md). */
 export interface TpmSpec extends SpecBase {
   kind: "tpm";
+  /** Bus costs in the module's own ticks: per word measured, per attestation, and the extra RAM ticks a protected-mode access pays. */
+  tpm?: { measureTicks: number; attestTicks: number; surcharge: number };
 }
 
 export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec;
@@ -182,6 +186,10 @@ const specList: DeviceSpec[] = [
   { id: "psu3", kind: "psu", tier: 3, name: "PSU 500 W (ATX+)", slot: "atx-plus", price: 900, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-big", watts: 500, pcieLeads: 2 },
 
+  // 1 kW with four PCIe leads. Placeholder price.
+  { id: "psu4", kind: "psu", tier: 4, name: "PSU 1 kW (ATX+)", slot: "atx-plus", price: 2400, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "psu-big", watts: 1000, pcieLeads: 4 },
+
   { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },
   { id: "cooler1", kind: "cooler", tier: 1, name: "Tower fan", slot: "cooler", price: 50, idleW: 0.5, loadW: 3, heatFactor: 0,
@@ -221,12 +229,27 @@ const specList: DeviceSpec[] = [
 
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
   { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.7, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
+    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
     needsPcieCable: true, gpu: { lanes: 8, memBytes: 8 * 1024, banks: 1 } },
+  // Later tiers (docs/ACCEL.md tables): more lanes, memory and banks, a faster clock. gpu3 needs both PCIe leads of a big PSU.
+  { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
+    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
+    needsPcieCable: true, gpu: { lanes: 16, memBytes: 16 * 1024, banks: 2 } },
+  { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
+    needsPcieCable: true, pcieLeads: 2, gpu: { lanes: 32, memBytes: 32 * 1024, banks: 4 } },
   { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
-    thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false },
+    thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false,
+    npu: { grid: 4, memBytes: 8 * 1024 } },
+  { id: "npu2", kind: "npu", tier: 2, name: "NPU 8x8", slot: "pcie", price: 10000, idleW: 5, loadW: 45, heatFactor: 1,
+    thermal: { passive: 1.2, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-2", needsPcieCable: true,
+    npu: { grid: 8, memBytes: 32 * 1024 } },
   { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,
-    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-1" },
+    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-1",
+    tpm: { measureTicks: 4, attestTicks: 60, surcharge: 2 } },
+  { id: "tpm2", kind: "tpm", tier: 2, name: "Secure module 2", slot: "tpm", price: 1500, idleW: 0.3, loadW: 0.8, heatFactor: 1,
+    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-2",
+    tpm: { measureTicks: 1, attestTicks: 20, surcharge: 1 } },
 
   { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
