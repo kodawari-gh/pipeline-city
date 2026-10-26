@@ -16,7 +16,7 @@ function opClass(op: string): 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'sys' {
   if (op === 'lw' || op === 'lb' || op === 'lbu') return 'ld';
   if (op === 'sw' || op === 'sb') return 'st';
   if (op === 'jal' || op === 'jalr' || op[0] === 'b') return 'br';
-  if (op === 'ecall') return 'sys';
+  if (op === 'ecall' || op === 'iret') return 'sys';
   return 'alu';
 }
 

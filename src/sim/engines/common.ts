@@ -16,6 +16,7 @@ const LW = opc("lw"), LB = opc("lb"), SW = opc("sw");
 const BEQ = opc("beq"), BNE = opc("bne"), BLT = opc("blt"), BGE = opc("bge"), BLTU = opc("bltu");
 const LUI = opc("lui"), AUIPC = opc("auipc");
 export const OP_ECALL = opc("ecall");
+export const OP_IRET = opc("iret");
 export const OP_MUL = MUL;
 export const OP_SW = SW;
 export const OP_LW = LW;
@@ -37,7 +38,7 @@ for (const s of OPS) {
     case "N": break;
   }
   if (s.mem) f |= F.Load;
-  if (s.name === "jalr") f |= F.Jalr;
+  if (s.name === "jalr" || s.name === "iret") f |= F.Jalr; // iret is a register-less jump to the interrupt controller's EPC
   OPF[s.op] = f;
 }
 
@@ -210,6 +211,8 @@ export abstract class EngineBase implements PipelineEngine {
   protected fetchPc = 0;
   protected cycleNo = 0;
   protected isHalted = false;
+  /** Set while an interrupt waits for the pipeline to empty: nothing new is fetched. */
+  protected hold = false;
   /** Set by execute(): whether the last conditional branch was taken. */
   protected taken = false;
 
@@ -224,6 +227,10 @@ export abstract class EngineBase implements PipelineEngine {
   /** Address of the next instruction to fetch (after ecall: the address following it, like the reference). */
   get pc(): number { return this.fetchPc; }
   get cycle(): number { return this.cycleNo; }
+  /** No instruction in flight (see `Engine.drained`). */
+  abstract get drained(): boolean;
+  holdFetch(on: boolean): void { this.hold = on; }
+  redirect(pc: number): void { this.fetchPc = pc >>> 0; }
 
   abstract step(): void;
   flipPredictor(_pc?: number): void {}
@@ -238,13 +245,15 @@ export abstract class EngineBase implements PipelineEngine {
     this.fetchPc = 0;
     this.cycleNo = 0;
     this.isHalted = false;
+    this.hold = false;
     this.cache.invalidate();
     this.v.reset();
     this.onReset();
   }
   protected onReset(): void {}
 
-  protected retire(id: number): void {
+  protected retire(id: number, op: number): void {
+    if (op === OP_IRET) this.machine.intc.leave(); // interrupts are on again once the iret has retired
     this.v.counters[Counter.Retired]!++;
     this.v.setFate(id, Fate.Retired);
   }
@@ -268,6 +277,7 @@ export abstract class EngineBase implements PipelineEngine {
       this.taken = branchTaken(op, a, b);
       return (this.taken ? pc + imm : pc + 4) >>> 0;
     }
+    if (op === OP_IRET) return this.machine.intc.epc >>> 0;
     if (f & F.Jal) { p.res[s] = pc + 4; return (pc + imm) >>> 0; }
     if (f & F.Jalr) { p.res[s] = pc + 4; return ((a + imm) & ~3) >>> 0; }
     if (op !== OP_ECALL) p.res[s] = alu(op, a, b, imm, pc);

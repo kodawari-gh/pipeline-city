@@ -15,7 +15,7 @@
 import {
   CAUSE_COUNTER, Cause, Counter, Fate, SlotKind, Stage, StageCode, ViewState,
 } from "./view";
-import { EngineBase, F, F_MEM, OPF, OP_ECALL, St, type EngineSettings } from "./common";
+import { EngineBase, F, F_MEM, OPF, OP_ECALL, OP_IRET, St, type EngineSettings } from "./common";
 
 export interface InOrderSettings extends EngineSettings {
   /** Bypass EX operands from the MEM latch; only load-use stalls remain. Off: wait until the producer has written back. Default true. */
@@ -37,6 +37,13 @@ export class InOrderEngine extends EngineBase {
   private readonly pred = new Uint8Array(PRED_SIZE);
   private fetchStopped = false;
   private readonly mask: number;
+
+  /** Nothing in any stage (bubbles do not count), and none still waiting in WB to write back. */
+  get drained(): boolean {
+    const k = this.v.stageKind;
+    for (let i = 0; i < 5 * this.width; i++) if (k[i] === SlotKind.Instr) return false;
+    return true;
+  }
 
   constructor(settings: InOrderSettings = {}) {
     const w = settings.width ?? 1;
@@ -161,7 +168,7 @@ export class InOrderEngine extends EngineBase {
     for (let l = 0; l < W; l++) if (kind[iff + l] !== SlotKind.Empty) stalled[iff + l] = 1;
 
     // Fetch.
-    if (kind[iff] === SlotKind.Empty && !this.fetchStopped) {
+    if (kind[iff] === SlotKind.Empty && !this.fetchStopped && !this.hold) {
       let memOp = false;
       for (let l = 0; l < W; l++) {
         if (kind[mem + l] === SlotKind.Instr && OPF[p.op[sid[mem + l]! & mask]!]! & F_MEM) memOp = true;
@@ -193,7 +200,7 @@ export class InOrderEngine extends EngineBase {
       const id = v.stageId[wb + l]!;
       const s = id & this.mask;
       if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) this.regs[p.rd[s]!] = p.res[s]!;
-      this.retire(id);
+      this.retire(id, p.op[s]!);
     }
   }
 
@@ -291,6 +298,7 @@ export class InOrderEngine extends EngineBase {
   private canPair(s: number, lane: number): boolean {
     const v = this.v, p = this.pool, W = this.width;
     const f = OPF[p.op[s]!]!;
+    if (p.op[s] === OP_IRET) return false; // reads EPC in EX: an older store to it must have reached memory first
     for (let q = 0; q < lane; q++) {
       const e = v.stageId[Stage.ID * W + q]! & this.mask;
       const fe = OPF[p.op[e]!]!;

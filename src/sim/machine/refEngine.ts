@@ -24,11 +24,19 @@ export class RefEngine implements Engine {
     // Share the machine's register file (readonly is TS-only).
     (cpu as { regs: Int32Array }).regs = machine.regs;
     cpu.pc = 0;
+    cpu.intc = machine.intc;
     this.cpu = cpu;
   }
 
   step(): void {
     this.cpu?.step();
+  }
+
+  /** Between instructions all the time: an interrupt is taken at once. */
+  get drained(): boolean { return true; }
+  holdFetch(_on: boolean): void {}
+  redirect(pc: number): void {
+    if (this.cpu) this.cpu.pc = pc >>> 0;
   }
 
   get halted(): boolean { return this.cpu?.halted ?? true; }

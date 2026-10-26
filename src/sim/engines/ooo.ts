@@ -16,7 +16,7 @@
 // `slotId[slot]` is the dynamic instruction id shown in the view. The view's id arrays are derived from the slot
 // queues once per cycle (snapshot).
 
-import { F, F_MEM, OPF, OP_ECALL, OP_LB, OP_LW, OP_MUL, OP_SW, St, EngineBase, type EngineSettings } from "./common";
+import { F, F_MEM, OPF, OP_ECALL, OP_IRET, OP_LB, OP_LW, OP_MUL, OP_SW, St, EngineBase, type EngineSettings } from "./common";
 import {
   CommitStall, Counter, DispatchStall, FetchStall, Fate, OooPart, OooViewState, Occ, RobState, SchedWhy, StageCode, Unit,
   UNIT_COUNT, type OooView,
@@ -106,6 +106,11 @@ export class OooEngine extends EngineBase {
 
   override get view(): OooView { return this.ov; }
 
+  /** Nothing in the fetch queue, decode, or the ROB (units and the scheduler only hold ROB entries). */
+  get drained(): boolean {
+    return this.robN === 0 && this.fqN === 0 && this.dqN === 0;
+  }
+
   protected override onReset(): void {
     this.pred.fill(0);
     this.slotId.fill(-1); this.ost.fill(0); this.prodSA.fill(-1); this.prodSB.fill(-1); this.rsPos.fill(-1);
@@ -156,7 +161,7 @@ export class OooEngine extends EngineBase {
       }
       ost[s] = Os.Committed;
       this.freeSlots[this.freeN++] = s;
-      this.retire(id);
+      this.retire(id, op);
       v.mark(id, StageCode.C);
       if (op === OP_ECALL) {
         this.isHalted = true;
@@ -215,6 +220,8 @@ export class OooEngine extends EngineBase {
       const pos = this.rsPos[s]!;
       if (!this.ready(this.prodSA[s]!, this.prodIA[s]!) || !this.ready(this.prodSB[s]!, this.prodIB[s]!)) { v.schedWhy[pos] = SchedWhy.Operands; continue; }
       const op = p.op[s]!;
+      // iret reads the interrupt controller's EPC, which older stores may still be writing: it runs when it is the oldest.
+      if (op === OP_IRET && k !== 0) { v.schedWhy[pos] = SchedWhy.Head; continue; }
       const f = OPF[op]!;
       let u: number;
       if (f & F_MEM) u = this.unitS[Unit.LSU]! < 0 ? Unit.LSU : -1;
@@ -277,7 +284,7 @@ export class OooEngine extends EngineBase {
     }
 
     // FETCH: a group of up to `width`, ended by any control instruction.
-    if (this.fetchStopped) v.stall[OooPart.Fetch] = FetchStall.Stopped;
+    if (this.fetchStopped || this.hold) v.stall[OooPart.Fetch] = FetchStall.Stopped;
     else if (this.fqN + W > this.fetchQueueSize) v.stall[OooPart.Fetch] = FetchStall.QueueFull;
     else for (let l = 0; l < W; l++) if (this.fetchOne()) break;
 

@@ -98,6 +98,8 @@ export class RefCpu {
   halted = false;
   steps = 0;
   readonly mem: RefMemory;
+  /** Interrupt controller hook for `iret` (set by the machine's RefEngine; a bare RefCpu has none). */
+  intc: { epc: number; leave(): void } | null = null;
 
   constructor(mem: RefMemory = new RefMemory()) {
     this.mem = mem;
@@ -180,6 +182,11 @@ export class RefCpu {
       case "jal": res = pc + 4; next = (pc + i.imm) >>> 0; break;
       case "jalr": res = pc + 4; next = ((a + i.imm) & ~3) >>> 0; break;
       case "ecall": this.halted = true; break;
+      case "iret":
+        if (!this.intc) throw new RefFault(pc, "iret without an interrupt controller");
+        next = this.intc.epc >>> 0;
+        this.intc.leave();
+        break;
       default: throw new RefFault(pc, `unimplemented '${i.name}'`);
     }
     if (res !== null && i.rd !== 0) R[i.rd] = res; // Int32Array wraps to 32 bits

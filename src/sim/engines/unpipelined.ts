@@ -21,6 +21,11 @@ export class UnpipelinedEngine extends EngineBase {
     this.memDone = true;
   }
 
+  /** Between instructions: idle, or the last one has retired (it retires on entering WB). */
+  get drained(): boolean {
+    return !this.active || this.stage === Stage.WB;
+  }
+
   step(): void {
     if (this.isHalted) return;
     const v = this.v;
@@ -77,7 +82,7 @@ export class UnpipelinedEngine extends EngineBase {
       case Stage.WB: {
         const op = p.op[s]!;
         if (OPF[op]! & F.Writes && p.rd[s] !== 0) this.regs[p.rd[s]!] = p.res[s]!;
-        this.retire(this.curId);
+        this.retire(this.curId, op);
         if (op === OP_ECALL) this.isHalted = true;
         break;
       }

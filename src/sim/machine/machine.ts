@@ -86,9 +86,11 @@ export class Machine {
     program.forEach((w, k) => this.bus.store32(addr + 4 * k, w));
   }
 
-  /** Install an engine and reset it with a program. */
+  /** Install an engine and reset it with a program. A new engine is a power-on: the interrupt controller starts blank too. */
   attach(engine: Engine, program: Uint32Array): void {
     this.engine = engine;
+    this.intc.reset();
+    this.irqWait = 0;
     engine.reset(this, program);
   }
 
