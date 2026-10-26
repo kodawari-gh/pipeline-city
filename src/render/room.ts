@@ -11,6 +11,7 @@ import { drawSlats, drawWallShade } from './wall';
 import { drawCeiling, drawCrown, drawFloor, FADE } from './shell';
 import { captureShape } from './capture';
 import { drawPlant, drawRug } from './decor';
+import { drawKeyboard, drawMat, drawMouse, KEYBOARD, keyboardPlacer } from './peripherals';
 import { drawDesk, drawDeskShadow, drawUnderDesk } from './desk';
 import { deskGeo, roomPersp, S_FRONT, spreadX, spreadY, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from './shape';
@@ -256,9 +257,15 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
 export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   const ys = geo.ys;
   const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
-  f.roundRect(lx - LAMP.base, ys - 200, LAMP.base * 2, 200, 50).fill({ color: L.metalLo }).stroke({ width: 7, color: L.metal });
-  f.roundRect(lx - LAMP.base + 120, ys - 330, LAMP.base * 2 - 240, 150, 60).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo });
-  f.rect(lx - LAMP.base + 150, ys - 318, LAMP.base * 2 - 300, 18).fill({ color: '#ffffff', alpha: 0.2 });
+  // the base: a weighted disc seen from above (its rim and top are ellipses squashed like the mug's) with a hub the arm pivots on
+  const rx = LAMP.base, ry = rx * MUG.e, rx2 = rx - 200, ry2 = rx2 * MUG.e;
+  f.ellipse(lx, ys - 8, rx, ry).fill({ color: L.metalLo });
+  f.rect(lx - rx, ys - 208, rx * 2, 200).fill({ color: L.metalLo });
+  f.rect(lx - rx + 40, ys - 208, 70, 200).fill({ color: '#ffffff', alpha: 0.14 });
+  f.ellipse(lx, ys - 208, rx, ry).fill({ color: mix(L.metal, L.metalLo, 0.35) }).stroke({ width: 7, color: L.metal });
+  f.rect(lx - rx2, ys - 328, rx2 * 2, 130).fill({ color: L.metal });
+  f.ellipse(lx, ys - 328, rx2, ry2).fill({ color: mix(L.metal, '#ffffff', 0.15) }).stroke({ width: 6, color: L.metalLo });
+  f.rect(lx - rx2 + 40, ys - 322, 50, 120).fill({ color: '#ffffff', alpha: 0.2 });
   // an arm: a rod and, beside it, the thin rod of the parallel linkage (the spring)
   const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
     const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx2 = -dy / l, ny2 = dx / l;
@@ -310,7 +317,6 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (let row = 0; row < TRAY_ROWS; row++) cast({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 140, 210, 140, 0.45, 30);
   cast({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 200, 300, 160, 0.42, 20);
   // what stands on the desk throws its shadow on the wall behind it too: the plant, the mug and the lamp's arms and hood
-  cast({ x: geo.lamp.x + LAMP.base + 1250 - 380, y: ys - 1700, w: 760, h: 1700 }, 360, 280, 260, 0.3, 200);
   cast({ x: geo.mug - MUG.r, y: ys - MUG.h, w: MUG.r * 2, h: MUG.h }, 300, 220, 200, 0.3, 200);
   {
     const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth, dx = 520, dy = 380, k = T.dark ? 1 : 0.6;
@@ -323,7 +329,13 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const sx0 = ROUTER_SPOT.x - 300, sx1 = ROUTER_SPOT.x + ROUTER_SPOT.w + 120, sy = SHELF_Y;
   g.rect(sx0, sy, sx1 - sx0, 170).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
   g.rect(sx0 + 14, sy + 14, sx1 - sx0 - 28, 16).fill({ color: L.woodHi, alpha: 0.8 });
-  for (const bx of [sx0 + 380, sx1 - 560]) { g.poly([bx, sy + 170, bx + 120, sy + 170, bx + 120, sy + 560, bx, sy + 560]).fill({ color: L.metalLo }); g.poly([bx + 120, sy + 170, bx + 120, sy + 520, bx + 400, sy + 170]).fill({ color: L.metal, alpha: 0.9 }); }
+  // (two braces under the plank, seen from the front: a slim metal strip each with a lit edge and two screws, and the dark under the plank on the wall)
+  for (const bx of [sx0 + 360, sx1 - 440]) {
+    g.rect(bx + 22, sy + 170, 90, 320).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.14 });
+    g.rect(bx, sy + 170, 90, 300).fill({ color: L.metalLo }).stroke({ width: 5, color: L.edge, alpha: 0.5 });
+    g.rect(bx + 6, sy + 176, 26, 288).fill({ color: '#ffffff', alpha: 0.22 });
+    for (const dy of [70, 230]) g.circle(bx + 45, sy + 170 + dy, 15).fill({ color: L.metal }).stroke({ width: 3, color: L.metalLo });
+  }
   g.rect(sx0 + 20, sy + 170, sx1 - sx0 - 40, 70).fill({ color: '#000000', alpha: 0.16 });
 
   // the window: a recess in the wall, the glass (live sky goes here), a frame with a cross bar and a transom, a sill
@@ -356,6 +368,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
     sill.rect(fx0, sy1, fx1 - fx0, 210).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
     sill.rect(fx0 + 20, sy1 + 10, fx1 - fx0 - 40, 20).fill({ color: L.woodHi, alpha: 0.8 });
     sill.rect(fx0 + 60, sy1 + 210, fx1 - fx0 - 120, 120).fill({ color: '#000000', alpha: 0.16 });
+    drawPlant(sill, T, w.x + w.w - 1100, (sy0 + sy1) / 2 + 20); // a plant on the sill, in front of the glass
   }
   back.addChild(gf, sill);
 
@@ -389,8 +402,11 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   }
   for (let i = 0; i < TRAY_COLS * TRAY_ROWS; i++) {
     const h = trayHook(i);
-    g.circle(h.x, h.y, 34).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo }); // a brass cup hook: its base on the rail,
-    g.moveTo(h.x, h.y).quadraticCurveTo(h.x + 54, h.y + 40, h.x + 12, h.y + 96).stroke({ width: 16, color: L.metal, cap: 'round' }); // and the bend the lanyard hangs from
+    // a peg in the rail seen end-on: a grey dot (the lanyard hangs from it); a hook's bend would not read at this distance
+    const peg = T.dark ? '#8b93a6' : '#8a919f';
+    g.circle(h.x + 8, h.y + 10, 30).fill({ color: '#000000', alpha: 0.25 });
+    g.circle(h.x, h.y, 30).fill({ color: peg }).stroke({ width: 5, color: mix(peg, '#000000', 0.35) });
+    g.circle(h.x - 8, h.y - 9, 9).fill({ color: '#ffffff', alpha: 0.4 });
   }
   // ---- the letterbox: a red wall box with a slot in its top, between the router's shelf and the case ----
   const ob = OUTBOX, red = T.dark ? '#8e2f38' : '#c24c55', redHi = mix(red, '#ffffff', T.dark ? 0.22 : 0.3), redLo = mix(red, '#000000', 0.35);
@@ -408,47 +424,13 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
 
   // ---- on the desk: the case's own shadow, the lamp at the very west, the keyboard and the mouse under the monitor (either side of its foot), the mug between the monitor and the case ----
   shadow(f, CASE.x + CASE.w / 2, ys + 44, CASE.w + 400, 0.34);
-  // the desk mat, the keyboard and the mouse, in front of the monitor's foot (they are drawn on the over layer, above the monitor): real sizes against the 24 inch
-  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300, kb = ys, kf = 190, kd = 400; // keyboard: left, width, base line, front face height, depth of its top
-  const matX0 = kx - 500, matX1 = cx + kw / 2 + 2500;
-  // (the mat lies flat on the desk top: a trapezoid whose sides run to the vanishing point, like the top's own; the keyboard's sloped top and its sides do too)
-  const dg = deskGeo(geo.persp, ys, geo.floor), onTop = (x: number, y: number): [number, number] => [dg.xAt(x, (y - dg.P.yH) / (dg.yBack - dg.P.yH)), y];
-  const mat = [onTop(matX0, ys - 230), onTop(matX1, ys - 230), onTop(matX1, ys + 330), onTop(matX0, ys + 330)].flat();
-  o.poly(mat).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2, join: 'round' });
-  o.poly([...onTop(matX0, ys + 330), ...onTop(matX1, ys + 330), ...onTop(matX1, ys + 290), ...onTop(matX0, ys + 290)]).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
-  // the keyboard: a front face, a sloped top seen from a little above with five rows of caps (the space bar in the front row), a pair of lamps at the back
-  const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8';
-  o.ellipse(kx + kw / 2, kb + 40, kw / 2 + 200, 110).fill({ color: '#000000', alpha: 0.2 });
-  o.roundRect(kx, kb - kf - 70, kw, kf + 70, 44).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
-  // the sides of the sloped top lean toward the vanishing point by how far each is from it (the left one a lot, the right one, almost under it, hardly)
-  const leanL = ((geo.persp.vx - kx) / (ys - geo.persp.yH)) * kd, leanR = ((geo.persp.vx - (kx + kw)) / (ys - geo.persp.yH)) * kd;
-  const topL = (t: number) => kx + 70 + leanL * t, topR = (t: number) => kx + kw - 70 + leanR * t, topY = (t: number) => kb - kf - 70 - kd * t;
-  o.poly([topL(0), topY(0), topR(0), topY(0), topR(1), topY(1), topL(1), topY(1)]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  o.poly([topL(0), topY(0), topR(0), topY(0), topR(0.1), topY(0.1), topL(0.1), topY(0.1)]).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.35 });
-  for (let r = 0; r < 5; r++) {
-    const t0 = 0.06 + r * 0.17, t1 = t0 + 0.13, y0 = topY(t0), y1 = topY(t1), xl0 = topL(t0) + 40, xr0 = topR(t0) - 40, xl1 = topL(t1) + 40, xr1 = topR(t1) - 40;
-    const caps = r === 0 ? [[0, 0.1], [0.11, 0.2], [0.21, 0.3], [0.31, 0.69], [0.7, 0.79], [0.8, 0.89], [0.9, 1]] : Array.from({ length: r === 4 ? 14 : 15 }, (_, k) => { const n = r === 4 ? 14 : 15; return [k / n + 0.004, (k + 1) / n - 0.004]; });
-    for (const [a, b] of caps as number[][]) {
-      const lx0 = xl0 + (xr0 - xl0) * a!, rx0 = xl0 + (xr0 - xl0) * b!, lx1 = xl1 + (xr1 - xl1) * a!, rx1 = xl1 + (xr1 - xl1) * b!;
-      o.poly([lx0, y0, rx0, y0, rx1, y1, lx1, y1]).fill({ color: capCol, alpha: T.dark ? 0.78 : 0.97 }).stroke({ width: 3, color: capEdge, alpha: 0.7 });
-    }
-  }
-  for (const [dx, col] of [[kw - 520, '#6dffa6'], [kw - 380, T.dark ? '#33406e' : '#aebbd6']] as const) o.circle(kx + dx, topY(0.96), 14).fill({ color: col, alpha: 0.9 });
-  // the mouse: a domed body with the two buttons and the wheel, on the mat east of the keyboard, and its cord curling back behind the keyboard
-  const mox = kx + kw + 1050;
-  o.ellipse(mox, ys + 30, 520, 80).fill({ color: '#000000', alpha: 0.24 });
-  o.moveTo(mox - 20, ys - 330).bezierCurveTo(mox - 300, ys - 640, mox - 1700, ys - 560, mox - 2100, ys - 820).stroke({ width: 20, color: L.plasticLo, cap: 'round' });
-  o.roundRect(mox - 330, ys - 260, 660, 260, 120).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
-  o.moveTo(mox - 360, ys - 210).bezierCurveTo(mox - 360, ys - 520, mox - 150, ys - 560, mox, ys - 560).bezierCurveTo(mox + 150, ys - 560, mox + 360, ys - 520, mox + 360, ys - 210).closePath().fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  o.moveTo(mox, ys - 560).lineTo(mox, ys - 360).stroke({ width: 7, color: L.line });
-  o.moveTo(mox - 350, ys - 360).bezierCurveTo(mox - 200, ys - 380, mox - 60, ys - 380, mox + 350, ys - 360).stroke({ width: 6, color: L.line, alpha: 0.8 });
-  o.roundRect(mox - 22, ys - 520, 44, 110, 20).fill({ color: T.dark ? '#aab6dc' : L.paper }).stroke({ width: 4, color: capEdge });
-  o.ellipse(mox - 150, ys - 470, 110, 40).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.55 });
+  // the desk mat, the keyboard and the mouse, in front of the monitor's foot (`peripherals.ts`: turned a few degrees, on the desk top in perspective; drawn on the over layer, above the monitor)
+  const mcx = MONITOR.x + MONITOR.w / 2;
+  drawMat(o, T, D, mcx); drawKeyboard(o, T, L, D, mcx); drawMouse(o, T, L, D, mcx);
   // the mug in the gap between the monitor and the case (`mug.ts`: seen from a little above, a coaster, a tapered body with a band of little towers, a handle, the coffee; the steam is live)
   const mx = geo.mug;
   drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
-  drawPlant(f, T, geo.lamp.x + LAMP.base + 1250, ys); // a plant between the lamp and the monitor
   shadow(f, geo.lamp.x, ys, 2 * (LAMP.base + 400), 0.34);
   drawLamp(f, L, geo);
   return { back, front, over, bakes: [gWrap, fWrap] };
@@ -470,8 +452,8 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
   for (let row = 0; row < TRAY_ROWS; row++) edge({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 30, 0.6);
   edge({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 0, 0.6);
   edge({ x: geo.socket.plate.x, y: geo.socket.plate.y, w: geo.socket.plate.w, h: geo.socket.plate.h }, 50, 0.5);
-  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
-  edge({ x: kx, y: ys - 260, w: kw, h: 260 }, 44, 0.7);
+  const kp = keyboardPlacer(deskGeo(geo.persp, ys, geo.floor), MONITOR.x + MONITOR.w / 2), ka = kp(-KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h), kb2 = kp(KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h);
+  g.moveTo(ka[0], ka[1]).lineTo(kb2[0], kb2[1]).stroke({ width: w1, color: hi, alpha: 0.7 }); // the keyboard's top-front edge
   const D = deskGeo(geo.persp, ys, geo.floor);
   g.moveTo(D.xAt(geo.desk.x0, S_FRONT), D.yFront).lineTo(D.xAt(geo.desk.x1, S_FRONT), D.yFront).stroke({ width: 20, color: hi, alpha: 0.8 }); // the desk's front edge, where the top turns down
   const mx = geo.mug, mt = ys - MUG.h;
