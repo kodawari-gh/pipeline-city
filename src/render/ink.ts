@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 
-import { currentTextResolution } from './camera';
+import { currentTextResolution, registerLabel } from './camera';
 
 // Small drawing helpers shared by the art builders.
 
@@ -43,7 +43,7 @@ export function dashed(g: Graphics, pts: [number, number][], dash: number, gap: 
 }
 
 export function label(
-  str: string, x: number, y: number, size: number, color: string, o: { a?: number; head?: boolean; anchor?: [number, number]; weight?: string; align?: 'left' | 'center' | 'right' } = {},
+  str: string, x: number, y: number, size: number, color: string, o: { a?: number; head?: boolean; anchor?: [number, number]; weight?: string; align?: 'left' | 'center' | 'right'; /** The smallest size (px on screen) it is shown at; smaller fades out (6 by default). */ minPx?: number } = {},
 ): Text {
   const style: TextStyleOptions = {
     fontFamily: o.head ? HEAD : MONO, fontSize: size, fill: color, fontWeight: (o.weight ?? (o.head ? '700' : '500')) as TextStyleOptions['fontWeight'],
@@ -53,6 +53,7 @@ export function label(
   t.anchor.set(...(o.anchor ?? [0, 0.5]));
   t.position.set(x, y);
   t.alpha = o.a ?? 1;
+  registerLabel(t, o.a ?? 1, size, o.minPx);
   return t;
 }
 

@@ -42,6 +42,32 @@ function retexture(node: Container, res: number): void {
   for (const ch of n.children ?? []) retexture(ch, res);
 }
 
+/**
+ * Small text is noise: a label whose letters are under `min` px tall on screen fades out (fully gone at 70 percent of `min`), so the overview shows what can be
+ * read and nothing that is only a smudge. The fade is the label's own: `base` is the alpha it was made with.
+ */
+export const labelFade = (px: number, min: number) => Math.min(1, Math.max(0, (px - 0.7 * min) / (0.3 * min)));
+interface FadeNode { alpha: number; destroyed?: boolean; scale?: { x: number }; parent?: FadeNode | null }
+interface Faded { t: FadeNode; base: number; size: number; min: number }
+const faded: Faded[] = [];
+let fadeZ = 0, fadeDirty = false;
+/** Put a label under the size rule (ink.ts `label` does this for every label it makes). `size` is its font size in its own units; the camera finds the scale it is drawn at. */
+export function registerLabel(t: FadeNode, base: number, size: number, min = 6): void {
+  faded.push({ t, base, size, min });
+  fadeDirty = true; // the camera sizes it on the next frame, once it has a parent
+}
+/** Size every label by the zoom and by the scale of the containers it sits in (the router and the wall plate are drawn at a design size and scaled). */
+function fadeLabels(z: number, world: unknown): void {
+  fadeZ = z; fadeDirty = false;
+  for (let i = 0; i < faded.length; i++) {
+    const f = faded[i]!;
+    if (f.t.destroyed) { faded[i] = faded[faded.length - 1]!; faded.pop(); i--; continue; }
+    let k = z;
+    for (let n: FadeNode | null | undefined = f.t; n && (n as unknown) !== world; n = n.parent) k *= n.scale?.x ?? 1;
+    f.t.alpha = f.base * labelFade(f.size * k, f.min);
+  }
+}
+
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /**
@@ -156,6 +182,7 @@ export class Camera {
     this.world.position.set(this.cx - this.x * this.z, this.cy - this.y * this.z);
     const res = textResolutionFor(this.z, (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1);
     if (res !== textRes) { textRes = res; retexture(this.world, res); }
+    if (this.z !== fadeZ) fadeLabels(this.z, this.world);
     this.onChange();
   }
 
@@ -209,6 +236,7 @@ export class Camera {
     }
     if (this.easeInset(now)) moved = true;
     if (moved) this.apply();
+    else if (fadeDirty) fadeLabels(this.z, this.world); // labels made since the last frame
     landed?.();
   }
 

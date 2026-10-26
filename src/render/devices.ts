@@ -451,7 +451,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
   disc(g, m.x + m.w - 220, cy, 14, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
   if (on) disc(g, m.x + m.w - 220, cy, 34, { fill: T.st, fa: 0.12 });
   // no sockets: the monitor's video cable and its mains cord are built in and come out from behind it
-  labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
+  labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.8 }));
   root.addChild(labels);
   return { root };
 }
@@ -514,7 +514,9 @@ export function cableArt(T: Theme, c: Cable): Part {
   // drop shadow, sleeve, braid, highlight
   line(pts.map(([x, y]) => [x + 10, y + 14] as [number, number]));
   g.stroke({ width: w + 8, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
+  const outside = c.kind === 'video' && T.dark; // the video cable runs over the wall: a pale rim keeps it readable on the dark slats
+  if (outside) { line(pts); g.stroke({ width: w * 2, color: '#8fa3d6', alpha: 0.1, cap: 'round', join: 'round' }); line(pts); g.stroke({ width: w * 1.4, color: '#8fa3d6', alpha: 0.2, cap: 'round', join: 'round' }); }
+  line(pts); g.stroke({ width: w, color: outside ? '#2a3554' : sleeve, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: accent, alpha: 0.12, cap: 'round', join: 'round' });
   // braid: short diagonal ticks across the sleeve
   for (let i = 2; i < pts.length - 2; i += 2) {
@@ -541,7 +543,9 @@ export function looseCableArt(T: Theme, c: Cable): Part {
   const line = (list: [number, number][]) => { g.moveTo(list[0]![0], list[0]![1]); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0], list[i]![1]); };
   line(pts.map(([x, y]) => [x + 8, y + 12] as [number, number]));
   g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
+  const outside = c.kind === 'video' && T.dark;
+  if (outside) { line(pts); g.stroke({ width: w * 2, color: '#8fa3d6', alpha: 0.1, cap: 'round', join: 'round' }); line(pts); g.stroke({ width: w * 1.4, color: '#8fa3d6', alpha: 0.2, cap: 'round', join: 'round' }); }
+  line(pts); g.stroke({ width: w, color: outside ? '#2a3554' : sleeve, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
   const shape = c.kind === 'video' ? 'hdmi' : 'power';
   if (c.kind !== 'video') drawPlug(g, T, c.a, accent, false, shape); // (a video cable comes out of the monitor: no plug there)

@@ -297,7 +297,7 @@ export class Live {
     const g = new Graphics(), W = SCREEN_D.w, H = SCREEN_D.h, cx = W / 2, cy = H / 2;
     for (let k = 0; k < 7; k++) g.ellipse(cx, cy, W * 0.5 * (1 - k / 8), H * 0.5 * (1 - k / 8)).fill({ color: T.dark ? '#1a2a4a' : '#2a3d63', alpha: 0.05 });
     for (const [i, hh] of [80, 136, 104, 160, 88].entries()) g.rect(cx - 140 + i * 56, cy - 40 - hh, 38, hh).fill({ color: T.mute, alpha: 0.5 });
-    this.standbyCap = label('STANDBY', cx, cy + 330, 64, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.4 });
+    this.standbyCap = label('STANDBY', cx, cy + 330, 64, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.65 });
     this.standby.addChild(g, label('PIPELINE CITY', cx, cy + 100, 130, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.45 }), this.standbyCap);
     this.standby.visible = false;
   }

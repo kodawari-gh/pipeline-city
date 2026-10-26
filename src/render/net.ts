@@ -107,9 +107,9 @@ export function routerArt(T: Theme, visual: string, name: string): Container {
     box(g, x - 52, SHELF_Y - 76, 104, 76, 6, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.7 });
     g.rect(x - 38, SHELF_Y - 56, 76, 14).fill({ color: T.alu, alpha: 0.35 });
   }
-  root.addChild(label('WAN', dWanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
-  root.addChild(label('LAN', dLanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.75 }));
-  root.addChild(label(name.toUpperCase(), r.x + r.w - 70, r.y + 62, 42, ink, { anchor: [1, 0.5], a: 0.7, head: true }));
+  root.addChild(label('WAN', dWanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.95 }));
+  root.addChild(label('LAN', dLanX(visual), SHELF_Y - SOCK_H - 92, 34, ink, { anchor: [0.5, 0.5], a: 0.95 }));
+  root.addChild(label(name.toUpperCase(), r.x + r.w - 70, r.y + 62, 42, ink, { anchor: [1, 0.5], a: 0.95, head: true }));
   return root;
 }
 
@@ -128,7 +128,7 @@ export function wallArt(T: Theme, isp: { id: string; name: string; downMbps: num
   for (const sx of [p.x + 48, p.x + p.w - 48]) { disc(g, sx, p.y + 46, 14, { fill: mix(lo, '#000000', 0.25) }); g.moveTo(sx - 8, p.y + 46).lineTo(sx + 8, p.y + 46).stroke({ width: 3, color: '#000000', alpha: 0.4 }); }
   const tier = isp ? Number(/\d+$/.exec(isp.id)?.[0] ?? 0) : 0;
   root.addChild(label(isp ? fmtMbps(isp.downMbps) : 'NO LINE', cx, p.y + 130, isp ? 116 : 76, isp ? ink : T.mute, { anchor: [0.5, 0.5], head: true, a: isp ? 1 : 0.8 }));
-  if (isp) root.addChild(label(isp.name.toUpperCase(), cx, p.y + 206, 38, ink, { anchor: [0.5, 0.5], a: 0.65 }));
+  if (isp) root.addChild(label(isp.name.toUpperCase(), cx, p.y + 206, 38, ink, { anchor: [0.5, 0.5], a: 0.9 }));
   for (let i = 0; i < 5; i++) disc(g, cx - 96 + i * 48, p.y + 258, 12, i < tier ? { fill: T.alu } : { stroke: T.mute, lw: 3, sa: 0.6 });
   // the jack opens at the bottom edge; the ISP line plugs in from below
   const jx = cx;
@@ -191,6 +191,8 @@ export function nicPlateLeds(i: number): Pt2[] { return nicLeds(i); }
 // ---------------------------------------------------------------- the view
 
 type LanState = 'connected' | 'loose' | 'held';
+/** The sleeve of a cable that runs over the wall in the dark theme, and the pale rim round it. */
+const SLEEVE_DARK = '#2a3554', RIM_DARK = '#8fa3d6';
 type Light = [string | null, number];
 
 export interface NetHit { id: string; rect: Rect; more?: Rect[]; shape?: Shape }
@@ -294,7 +296,8 @@ export class NetView {
     const cable = (pts: Pt[], w: number, col: string, a = 1, gg: Graphics = g) => {
       const line = (dx = 0, dy = 0) => { gg.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) gg.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
       line(8, 12); gg.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-      line(); gg.stroke({ width: w, color: T.dark ? '#171d29' : '#2a313d', cap: 'round', join: 'round', alpha: a });
+      if (T.dark) { line(); gg.stroke({ width: w * 2, color: RIM_DARK, alpha: 0.1 * a, cap: 'round', join: 'round' }); line(); gg.stroke({ width: w * 1.4, color: RIM_DARK, alpha: 0.2 * a, cap: 'round', join: 'round' }); } // a cable over the dark wall: a pale halo keeps it readable
+      line(); gg.stroke({ width: w, color: T.dark ? SLEEVE_DARK : '#2a313d', cap: 'round', join: 'round', alpha: a });
       line(); gg.stroke({ width: w * 0.28, color: col, alpha: 0.5 * a, cap: 'round', join: 'round' });
     };
 

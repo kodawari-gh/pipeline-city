@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
-import { Camera, currentTextResolution, screenRect, textResolutionFor } from './camera';
+import { Camera, currentTextResolution, labelFade, registerLabel, screenRect, textResolutionFor } from './camera';
 
 // The camera only needs an element (style, listeners, a rect) and a container (scale, position); no DOM is required.
 const fakeEl = () => ({
@@ -155,5 +155,48 @@ describe('Camera bounds (the room caps the view)', () => {
     expect(cam.clampView({ x: 9999, y: 0, z: 1 }).x).toBe(room.x + room.w - 400);
     cam.bounds = null;
     expect(cam.clampView({ x: 9999, y: 0, z: 1 }).x).toBe(9999);
+  });
+});
+
+describe('the size rule for labels', () => {
+  it('shows a label that is tall enough, fades one that is small, and drops one that is a smudge', () => {
+    expect(labelFade(9, 6)).toBe(1);
+    expect(labelFade(6, 6)).toBe(1);
+    expect(labelFade(5.1, 6)).toBeCloseTo(0.5, 6);
+    expect(labelFade(4.2, 6)).toBeCloseTo(0, 9);
+    expect(labelFade(2, 6)).toBe(0);
+  });
+  it('follows the zoom: the same label is shown close in and gone far out, at the alpha it was made with', () => {
+    const t = { alpha: 0.9 };
+    const c = makeCamera();
+    const w = c as unknown as { world: unknown };
+    c.minZ = 0.001;
+    c.set({ x: 0, y: 0, z: 1 });
+    registerLabel(t, 0.9, 100, 6); // 100 units of letters
+    c.set({ x: 0, y: 0, z: 1 }); c.update(0); void w;
+    expect(t.alpha).toBeCloseTo(0.9, 9);
+    c.set({ x: 0, y: 0, z: 0.05 }); // 5 px: fading
+    expect(t.alpha).toBeGreaterThan(0);
+    expect(t.alpha).toBeLessThan(0.9);
+    c.set({ x: 0, y: 0, z: 0.03 }); // 3 px: gone
+    expect(t.alpha).toBe(0);
+    c.set({ x: 0, y: 0, z: 0.5 });
+    expect(t.alpha).toBeCloseTo(0.9, 9);
+  });
+});
+
+describe('the size rule counts the scale of the containers a label sits in', () => {
+  it('a label inside a container drawn at half size is half as tall on screen', () => {
+    const c = makeCamera();
+    c.minZ = 0.001;
+    const world = (c as unknown as { world: unknown }).world;
+    const outer = { alpha: 1, scale: { x: 0.5 }, parent: world as never };
+    const t = { alpha: 1, parent: outer };
+    registerLabel(t, 1, 100, 6);
+    c.set({ x: 0, y: 0, z: 0.1 }); // 100 units at 0.1 would be 10 px; at half size 5: fading
+    expect(t.alpha).toBeGreaterThan(0);
+    expect(t.alpha).toBeLessThan(1);
+    c.set({ x: 0, y: 0, z: 0.2 }); // 10 px
+    expect(t.alpha).toBe(1);
   });
 });
