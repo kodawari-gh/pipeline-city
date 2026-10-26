@@ -23,7 +23,7 @@ export function newHost(): HostState {
 export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   try {
     if (msg.type === 'init') {
-      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled, ...(msg.sandbox ? {} : { economy: { startMoney: CAMPAIGN_START_MONEY } }) });
+      state.game = msg.save ? Game.fromSave(msg.save) : new Game({ seed: msg.seed ?? 1, sandbox: !!msg.sandbox, preassembled: !!msg.preassembled, maxed: !!msg.maxed, ...(msg.sandbox ? {} : { economy: { startMoney: CAMPAIGN_START_MONEY } }) });
       state.owed = 0;
       state.speed = 1;
       return [{ type: 'ready' }, { type: 'snapshot', snapshot: state.game.snapshot() }];

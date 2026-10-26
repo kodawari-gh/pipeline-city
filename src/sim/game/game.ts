@@ -53,6 +53,11 @@ export interface GameOptions {
    * physics still applies. With `preassembled` the machine is assembled but left powered off, ready for the power button.
    */
   sandbox?: boolean;
+  /**
+   * With `sandbox` and `preassembled`: build the most powerful machine the game supports instead of the starter parts (see `buildMaxRig`). The New game dialog's
+   * "Assembled machine" asks for it; tests that rely on the starter machine do not.
+   */
+  maxed?: boolean;
   /** Start at this player level with the client base at its threshold (tests and bots; campaign only, 1 to 18). */
   startLevel?: number;
 }
@@ -681,6 +686,38 @@ export class Game {
     }
     // No tutorial in the sandbox: every milestone is reached from the start.
     if (this.sandbox) this.progress = Object.fromEntries(PROGRESS_KEYS.map((k) => [k, true])) as unknown as Progress;
+    if (this.sandbox && opts.preassembled && opts.maxed) this.buildMaxRig();
+  }
+
+  /**
+   * The most powerful machine the game supports, built from the starter one with the sandbox's free purchases: the biggest case and board, the best CPU, cooler,
+   * PSU and heatsinks, every DIMM slot filled with the best RAM, every M.2 slot with the fastest drive, the fastest network card, the best OS that is implemented, the
+   * best router and ISP plan, and the ethernet cable on the card. Left powered off, with the other cables connected. "Best" is the top of each part's ladder
+   * (`specsOfKind`, the tier tables), so a new tier is picked up without touching this.
+   */
+  private buildMaxRig(): void {
+    const ok = <T>(what: string, r: Result<T>): T => {
+      if (!r.ok) throw new Error(`maximum machine: ${what}: ${r.reason}`);
+      return r;
+    };
+    const put = (spec: string, slot?: string) => ok(`install ${spec}`, this.install(ok(`buy ${spec}`, this.purchase(spec)).invId, slot));
+    const top = (kind: DeviceKind): string => { const l = specsOfKind(kind as "cpu"); return l[l.length - 1]!.id; };
+    const boardTier = BOARD_TIERS.length - 1, slots = BOARD_TIERS[boardTier]!.slots;
+    put(`case${CASE_TIERS.length - 1}`);
+    put(`board${boardTier}`);
+    for (const kind of ["psu", "cpu", "cooler", "vrm-sink", "ram-sink"] as const) put(top(kind));
+    for (let i = 0; i < (slots.dimm ?? 0); i++) put(top("ram"), `dimm${i}`);
+    for (let i = 0; i < (slots.m2 ?? 0); i++) put(top("storage"), `m2${i}`);
+    put(top("nic"));
+    const os = [...OS_SPECS].reverse().find((o) => !o.later);
+    if (os) put(os.id);
+    put(ROUTER_SPECS[ROUTER_SPECS.length - 1]!.id);
+    ok("buy the ISP plan", this.purchase(ISP_SPECS[ISP_SPECS.length - 1]!.id));
+    const nic = this.board.devices.find((d) => deviceSpec(d).kind === "nic");
+    if (nic) ok("plug the ethernet cable", this.connectCable("lan", nic.id));
+    // swaps can unplug a cable whose source part changed: plug the others again
+    for (const c of CABLES) if (c.id !== "lan" && !this.cables[c.id]) ok(`plug ${c.id}`, this.connectCable(c.id));
+    this.log = [];
   }
 
   // ---------- public API: building the machine ----------

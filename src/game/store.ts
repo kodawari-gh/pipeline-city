@@ -23,7 +23,7 @@ let saveWaiters: Array<(s: SaveV1) => void> = [];
 const send = (m: ToSim) => worker?.postMessage(m);
 
 /** (Re)start the worker with a save, or a new random game. */
-export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean } = {}) {
+export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
   worker?.terminate();
   clearInterval(autosaveTimer);
   saveWaiters = [];
@@ -44,7 +44,7 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
       waiters.forEach((f) => f(m.save));
     }
   };
-  send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled });
+  send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled, maxed: !!opts.maxed });
   send({ type: 'setSpeed', speed: DEFAULT_SPEED });
   autosaveTimer = setInterval(() => requestSave(autosave), AUTOSAVE_EVERY_MS);
 }

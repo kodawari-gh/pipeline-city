@@ -193,3 +193,41 @@ describe("sandbox high-end build", () => {
     expect(g.snapshot().board.burnt).toBe(false);
   });
 });
+
+describe("sandbox maxed machine", () => {
+  const maxed = () => new Game({ seed: 3, sandbox: true, preassembled: true, maxed: true, economy: econ() });
+  it("is the biggest case and board with the best part of every kind, every DIMM and M.2 slot filled, a router, a plan and the ethernet cable", () => {
+    const g = maxed(), s = g.snapshot();
+    expect(g.board.tier).toBe(3);
+    expect(g.board.caseTier).toBe(3);
+    const specs = s.devices.map((d) => d.spec).sort();
+    expect(specs.filter((x) => x === "cpu4")).toHaveLength(1);
+    expect(specs.filter((x) => x === "ram2")).toHaveLength(8);
+    expect(specs.filter((x) => x === "nvme2")).toHaveLength(3);
+    for (const id of ["psu2", "cooler2", "vsink2", "rsink2", "nic3", "display0"]) expect(specs).toContain(id);
+    expect(specs).not.toContain("cpu0");
+    expect(specs).not.toContain("psu0");
+    expect(specs).not.toContain("cooler0");
+    expect(specs).not.toContain("ram0");
+    expect(s.os?.spec ?? s.os).toBeTruthy();
+    expect(s.net.router).toBeTruthy();
+    expect(s.cables.every((c) => c.connected)).toBe(true);
+    expect(s.powered).toBe(false);
+    expect(s.log.length).toBe(0); // the build is not in the log
+  });
+  it("powers on, boots, and the link comes up", () => {
+    const g = maxed();
+    expect(g.powerButton().ok).toBe(true);
+    for (let i = 0; i < 4000 && g.snapshot().net.state !== "link-up" && g.snapshot().net.state !== "saturated"; i++) g.advanceBaseTick();
+    const s = g.snapshot();
+    expect(["link-up", "saturated"]).toContain(s.net.state);
+    expect(s.power.tripped).toBeFalsy();
+    expect(s.phase).not.toBe("error");
+    for (let i = 0; i < 1500; i++) g.advanceBaseTick(); // and it stays up: the 250 W supply and the liquid loop carry it
+    expect(g.snapshot().power.tripped).toBeFalsy();
+    expect(g.snapshot().phase).not.toBe("error");
+  }, 30000);
+  it("does not change the plain assembled sandbox machine", () => {
+    expect(sb({ preassembled: true }).snapshot().devices.length).toBe(5);
+  });
+});

@@ -52,7 +52,7 @@ export function NewGameDialog() {
     newGameOpen.value = false;
     setConfirm(false);
     if (mode === 'campaign') resetTutorial(tutorialOn); // every new campaign asks, so a replayed or declined tutorial never carries over
-    startSim(null, mode === 'sandbox' ? { sandbox: true, preassembled: assembled } : {});
+    startSim(null, mode === 'sandbox' ? { sandbox: true, preassembled: assembled, maxed: assembled } : {});
   };
   const pick = (m: Mode) => { setMode(m); setConfirm(false); };
   // Arrow keys move between the two choices, as in any radio group.

@@ -19,7 +19,7 @@ export const SANDBOX_SPEEDS: Speed[] = [0, 1, 2, 4, 8, 12, 16, 64];
 
 export type ToSim =
   /** Start (or restart) the sim, from a save if given, else a new game with `seed`. */
-  | { type: 'init'; save?: SaveV1 | null; seed?: number; sandbox?: boolean; preassembled?: boolean }
+  | { type: 'init'; save?: SaveV1 | null; seed?: number; sandbox?: boolean; preassembled?: boolean; maxed?: boolean }
   | { type: 'setSpeed'; speed: Speed }
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
