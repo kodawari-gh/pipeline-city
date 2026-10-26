@@ -5,6 +5,7 @@ import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
 import { LightView, type Beam, type LightGeo } from './light';
 import { roundedPath } from './routes';
+import { drawSlats } from './wall';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
@@ -153,16 +154,16 @@ export function skyAt(h: number): { top: string; hor: string } {
 
 // ---- the palette ----
 interface Look {
-  wall: string; wallLo: string; stripe: string; wood: string; woodHi: string; woodLo: string; edge: string; line: string;
+  wall: string; wallLo: string; wood: string; woodHi: string; woodLo: string; edge: string; line: string;
   paper: string; ink: string; cork: string; metal: string; metalLo: string; plastic: string; plasticLo: string; cloth: string;
 }
 const look = (T: Theme): Look => T.dark
   ? {
-    wall: '#121a31', wallLo: '#0d1327', stripe: '#19244a', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
+    wall: '#121a31', wallLo: '#0d1327', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
     paper: '#aeb8d4', ink: '#2b3560', cork: '#5a4634', metal: '#7d8bb0', metalLo: '#4a5679', plastic: '#2a3252', plasticLo: '#1b2140', cloth: '#5a4a86',
   }
   : {
-    wall: '#d3e3ea', wallLo: '#c0d3de', stripe: '#e0edf1', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
+    wall: '#d3e3ea', wallLo: '#c0d3de', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
     paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', cloth: '#7a63c4',
   };
 
@@ -242,9 +243,9 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const f = new Graphics(), fWrap = bakeBox(); fWrap.addChild(f); front.addChild(fWrap);
   const o = new Graphics(); over.addChild(o); // what stands in front of the cables that run behind it (the mug)
 
-  // wall: an endless colour, a slow wallpaper stripe, and the darker band the desk throws on it
+  // wall: an endless colour, the slat wall behind the desk (`wall.ts`), and the darker band the desk throws on it
   g.rect(-90000, -90000, 180000, 180000).fill({ color: L.wall });
-  for (let x = -48000; x < 48000; x += 1200) g.rect(x, -90000, 420, 180000).fill({ color: L.stripe, alpha: T.dark ? 0.55 : 0.6 });
+  drawSlats(g, T, { ys, window: geo.window, deskX1: geo.desk.x1, top: geo.top });
   for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it

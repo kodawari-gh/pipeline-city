@@ -98,9 +98,13 @@ export class LightView {
   private readonly rts: RenderTexture[] = [];
   private key = '';
   private fAmount = 0;
+  /** Texture pixels per world unit, x and y: the region maps to the whole texture (the size is rounded up, so this is `LIGHT_RES` to within a pixel; a scene drawn at exactly `LIGHT_RES` would leave a blank edge column). */
+  private readonly sx: number;
+  private readonly sy: number;
 
   constructor(private readonly r: Renderer, private readonly g: LightGeo) {
     const reg = g.region, w = Math.ceil(reg.w * LIGHT_RES), h = Math.ceil(reg.h * LIGHT_RES);
+    this.sx = w / reg.w; this.sy = h / reg.h;
     for (const s of [this.shade, this.glow, this.focus]) {
       const rt = RenderTexture.create({ width: w, height: h, resolution: 1 });
       this.rts.push(rt); s.texture = rt; s.position.set(reg.x, reg.y); s.scale.set(reg.w / w, reg.h / h);
@@ -132,7 +136,7 @@ export class LightView {
   /** The scene drawn into a texture: world units in, the region's top-left at the texture's origin. */
   private paint(rt: RenderTexture, build: (c: Container) => void) {
     const c = new Container(), reg = this.g.region;
-    c.scale.set(LIGHT_RES); c.position.set(-reg.x * LIGHT_RES, -reg.y * LIGHT_RES);
+    c.scale.set(this.sx, this.sy); c.position.set(-reg.x * this.sx, -reg.y * this.sy);
     build(c);
     this.r.render({ container: c, target: rt, clear: true, clearColor: [0, 0, 0, 0] });
     c.destroy({ children: true });
