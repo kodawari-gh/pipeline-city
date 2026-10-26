@@ -13,7 +13,7 @@ export interface PeriphLook { plastic: string; plasticLo: string; line: string; 
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its crest: about 0.65 of the width, as in the owner's photos). Sizes against the 24 inch. */
 export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
-export const MOUSE = { w: 1250, l: 2500, h: 800, yaw: -9 };
+export const MOUSE = { w: 900, l: 1800, h: 575, yaw: -35 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
 export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
@@ -26,7 +26,7 @@ export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
 
 /** Where the keyboard is (its centre at the feet line, a little west of the monitor's middle, so its right end clears the mouse). */
 export const keyboardPlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300, D.ys - 210, KEYBOARD.yaw);
-export const mousePlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300 + KEYBOARD.w / 2 + 1000, D.ys - 40, MOUSE.yaw);
+export const mousePlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300 + KEYBOARD.w / 2 + 1200, D.ys - 40, MOUSE.yaw);
 
 const flat = (pts: Pt[]) => pts.flat();
 
@@ -150,11 +150,11 @@ const shellH = (x: number, z: number) => {
 };
 
 /** The scroll wheel: a narrow cylinder whose axis runs across the mouse (along x), square to the centre line and through it, a little behind the front, sunk in a slot of the shell so only its top arc stands out. Its ends, the tread's edges and the slot follow the shell's curve. */
-const WHEEL = { u: 0.21, r: 200, w: 120, out: 120 };
+const WHEEL = { u: 0.21, r: 200 * MOUSE.w / 1250, w: 120 * MOUSE.w / 1250, out: 120 * MOUSE.w / 1250 }; // the wireframe's numbers (for a mouse 1250 wide), scaled with the mouse
 function wheelGeom(D: DeskGeo, monitorCx: number) {
   const { r, w, out } = WHEEL, hw = w / 2, zm = (WHEEL.u - 0.5) * MOUSE.l, th = Math.atan((shellH(0, zm + 20) - shellH(0, zm - 20)) / 40);
   const zc = zm + (r - out) * Math.sin(th), hc = shellH(0, zm) - (r - out) * Math.cos(th); // the circle's centre sits under the shell, square to its slope, so the bump is even on both sides
-  const west = monitorCx - 300 + KEYBOARD.w / 2 + 1000 > D.P.vx; // the mouse is east of the vanishing point: its west side is the one that faces it
+  const west = monitorCx - 300 + KEYBOARD.w / 2 + 1200 > D.P.vx; // the mouse is east of the vanishing point: its west side is the one that faces it
   const e = west ? -hw : hw, cz = (a: number) => zc + r * Math.cos(a), ch = (a: number) => hc + r * Math.sin(a);
   // the part of the circle that stands out of the shell at a distance `x` from the centre line (found by stepping out from the top): the shell falls away toward the sides, so the wheel shows more there
   const ex = (x: number): [number, number] => {
