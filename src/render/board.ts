@@ -26,10 +26,14 @@ import { Live, type DriveHook, type GlowTarget } from './live';
 import { PipelineView } from './pipeline';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from './room';
 import { focusAt } from './light';
+import { captureShape } from './capture';
+import { lazyShape, movedShape, pick, rectShape, type Shape } from './shape';
 import { onThemeChange, readTheme, type Theme } from './theme';
 import { initThumbs } from './thumbs';
 
-interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean }
+interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean;
+  /** The silhouette (the lamp, a key, the power button): the pointer picks what is drawn, not the box round it. */ shape?: Shape;
+  /** A backdrop (the board, the case): it answers only where nothing else is, near or on. */ base?: boolean }
 
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -254,10 +258,28 @@ export async function mountBoard(host: HTMLElement) {
     }
   };
   const dropMail = (m: Mail) => { m.letter?.back.destroy({ children: true }); m.letter?.front.destroy({ children: true }); const i = mails.indexOf(m); if (i >= 0) mails.splice(i, 1); };
+  /** The silhouette of a prop: plain geometry (`shape`), or its art read once (`sil`, one reading for every key of a kind), placed on the prop. Nothing is read until the pointer comes near. */
+  const silhouettes = new Map<string, Shape>();
+  const propShape = (o: PropObj): Shape | undefined => {
+    if (o.shape) return o.shape;
+    const sil = o.sil;
+    if (!sil) return undefined;
+    const bx = o.base.x, by = o.base.y, local: Rect = { x: o.rect.x - bx, y: o.rect.y - by, w: o.rect.w, h: o.rect.h };
+    return lazyShape(o.rect, () => {
+      let s = silhouettes.get(sil.key);
+      if (!s) {
+        const art = sil.make();
+        s = captureShape(app.renderer, art, local) ?? rectShape(local);
+        art.destroy({ children: true });
+        silhouettes.set(sil.key, s);
+      }
+      return movedShape(s, bx, by);
+    });
+  };
   const rebuildPropHits = () => {
     const hide = new Set(mails.map((m) => 'key:' + m.id));
     propHits = [
-      ...propObjs().filter((o) => !hide.has(o.id)).map((o) => ({ id: o.id, rect: o.rect })),
+      ...propObjs().filter((o) => !hide.has(o.id)).map((o) => ({ id: o.id, rect: o.rect, shape: propShape(o) })),
       { id: 'usb', rect: { x: USB_PORT.x - 20, y: USB_PORT.y - 20, w: USB_PORT.w + 40, h: USB_PORT.h + 40 } },
       ...(trayOn ? [{ id: 'tray', rect: TRAY }] : []),
     ];
@@ -286,7 +308,11 @@ export async function mountBoard(host: HTMLElement) {
   let powerArtRef: PropsArt | null = null;
   let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
   let netHits: Hit[] = [];
-  const mergeHits = () => { allHits = [...propHits, ...netHits, ...cableHits, ...mainHits, ...roomHits]; };
+  const mergeHits = () => {
+    allHits = [...propHits, ...netHits, ...cableHits, ...mainHits, ...roomHits];
+    scene.shapes.clear();
+    for (const h of allHits) if (h.shape && !scene.shapes.has(h.id)) scene.shapes.set(h.id, h.shape);
+  };
 
   // ---- LOD driven by zoom ----
   /** 0..1: how much the exterior case covers the interior (zoom crossfade, pulled back to 0 while a drag or a highlight needs the inside). */
@@ -417,7 +443,7 @@ export async function mountBoard(host: HTMLElement) {
     let hasPsu = false, hasDisplay = false;
     const dimms: number[] = [];
     scene.rects.clear(); scene.interactive.clear(); scene.slots.clear();
-    roomHits = roomView.hits.map((h: RoomHit) => ({ id: h.id, rect: h.rect }));
+    roomHits = roomView.hits.map((h: RoomHit) => ({ id: h.id, rect: h.rect, shape: h.shape }));
     for (const h of roomView.hits) { scene.rects.set(h.id, h.rect); scene.interactive.add(h.id); }
 
     for (const d of s?.devices ?? []) {
@@ -591,16 +617,16 @@ export async function mountBoard(host: HTMLElement) {
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
     if (coolerHit) mainHits.push(coolerHit);
-    mainHits.push({ id: 'case', rect: CASE, extOnly: true }, ...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
+    mainHits.push({ id: 'case', rect: CASE, extOnly: true, base: true }, ...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
       { id: 'bay', rect: BAY },
       // the chassis frame (panel, side walls, floor) is the case; the glass area stays free so the board is not outlined by accident
-      { id: 'case', rect: CASE_PANEL, more: [
+      { id: 'case', rect: CASE_PANEL, base: true, more: [
         { x: CASE.x, y: CASE.y, w: CASE_IN.x - CASE.x, h: CASE.h }, { x: CASE_IN.x + CASE_IN.w, y: CASE.y, w: CASE.x + CASE.w - CASE_IN.x - CASE_IN.w, h: CASE.h },
         { x: CASE.x, y: CASE_IN.y + CASE_IN.h, w: CASE.w, h: CASE.y + CASE.h - CASE_IN.y - CASE_IN.h },
       ] });
     // the motherboard itself: the last hit, so devices, slots, regions and cables always win over it; an empty area of the board
     // selects `board` (the board picker)
-    mainHits.push({ id: 'board', rect: BD });
+    mainHits.push({ id: 'board', rect: BD, base: true });
     if (hasPsu) scene.interactive.add('psu.readout');
     scene.rects.set('psu.readout', PSU);
     mergeHits();
@@ -870,15 +896,11 @@ export async function mountBoard(host: HTMLElement) {
   camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
 
   // ---- hit testing: hover and click write the shared signals ----
+  // A target is what is drawn (its silhouette), and a small or thin one is grown on screen to a size a finger or a mouse can find (`pick`, shape.ts)
   const hitAt = (cx: number, cy: number): string | null => {
     const w = camera.toWorld(cx, cy), z = camera.z;
     const ext = extA > 0.5; // the exterior covers the interior: only the always-external ids (and the whole case) can be hit
-    for (const h of allHits) {
-      if (ext ? !isExternalId(h.id) : h.extOnly) continue;
-      if ((h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max) || (h.cond && !h.cond())) continue;
-      for (const r of h.more ? [h.rect, ...h.more] : [h.rect]) if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) return h.id;
-    }
-    return null;
+    return pick(allHits, w.x, w.y, z, (h) => (ext ? !isExternalId(h.id) : !!h.extOnly) || (h.min !== undefined && z < h.min) || (h.max !== undefined && z >= h.max) || (!!h.cond && !h.cond()));
   };
   interact.hitAt = hitAt;
   interact.onHeld = (k) => { held = k; if (lastSnap || k === null) syncCables(lastSnap, true); };

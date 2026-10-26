@@ -8,6 +8,8 @@ import { roundedPath } from './routes';
 import { drawMug, MUG } from './mug';
 import { Steam } from './steam';
 import { drawSlats } from './wall';
+import { captureShape } from './capture';
+import { lazyShape, rectShape, type Shape } from './shape';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
@@ -235,6 +237,31 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
   void m;
 }
 
+/** The desk lamp itself (the soft shadow under it is the scenery's): a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live). `lampShape` reads the silhouette of this. */
+export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
+  const ys = geo.ys;
+  const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
+  f.roundRect(lx - LAMP.base, ys - 200, LAMP.base * 2, 200, 50).fill({ color: L.metalLo }).stroke({ width: 7, color: L.metal });
+  f.roundRect(lx - LAMP.base + 120, ys - 330, LAMP.base * 2 - 240, 150, 60).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo });
+  f.rect(lx - LAMP.base + 150, ys - 318, LAMP.base * 2 - 300, 18).fill({ color: '#ffffff', alpha: 0.2 });
+  // an arm: a rod and, beside it, the thin rod of the parallel linkage (the spring)
+  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx2 = -dy / l, ny2 = dx / l;
+    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 160, color: L.metalLo, cap: 'round' });
+    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 86, color: L.metal, cap: 'round' });
+    f.moveTo(a.x - nx2 * 22, a.y - ny2 * 22).lineTo(b.x - nx2 * 22, b.y - ny2 * 22).stroke({ width: 16, color: '#ffffff', alpha: 0.22, cap: 'round' });
+    f.moveTo(a.x + nx2 * 230, a.y + ny2 * 230).lineTo(b.x + nx2 * 230, b.y + ny2 * 230).stroke({ width: 44, color: L.metalLo, cap: 'round' });
+  };
+  arm(p0, el); arm(el, hd);
+  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) { f.circle(px2, py2, 170).fill({ color: L.metal }).stroke({ width: 8, color: L.metalLo }); f.circle(px2, py2, 58).fill({ color: L.metalLo }); }
+  // the hood: a cone from the arm's end to a wide mouth, a rim, a lit stripe along its top
+  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
+  const hood = [hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk];
+  f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 9, color: '#27486b' });
+  f.poly([hd.x - nx * nk, hd.y - ny * nk, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw * 0.86 - LAMP_D.x * 90, mo.y - ny * hw * 0.86 - LAMP_D.y * 90, hd.x - nx * nk * 0.8, hd.y - ny * nk * 0.8]).fill({ color: '#ffffff', alpha: 0.2 });
+  f.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw - LAMP_D.x * 80, mo.y - ny * hw - LAMP_D.y * 80, mo.x + nx * hw - LAMP_D.x * 80, mo.y + ny * hw - LAMP_D.y * 80]).fill({ color: '#27486b' });
+}
+
 /** The scenery: wall, window frame, shelf, clock face, desk, shelf unit, the wall socket and the cords, and what stands on the desk. */
 function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container; over: Container; bakes: Container[] } {
   const L = look(T), ys = geo.ys;
@@ -394,27 +421,8 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const mx = geo.mug;
   drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
-  const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
-  f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 });
-  f.roundRect(lx - LAMP.base, ys - 200, LAMP.base * 2, 200, 50).fill({ color: L.metalLo }).stroke({ width: 7, color: L.metal });
-  f.roundRect(lx - LAMP.base + 120, ys - 330, LAMP.base * 2 - 240, 150, 60).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo });
-  f.rect(lx - LAMP.base + 150, ys - 318, LAMP.base * 2 - 300, 18).fill({ color: '#ffffff', alpha: 0.2 });
-  // an arm: a rod and, beside it, the thin rod of the parallel linkage (the spring)
-  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx2 = -dy / l, ny2 = dx / l;
-    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 160, color: L.metalLo, cap: 'round' });
-    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 86, color: L.metal, cap: 'round' });
-    f.moveTo(a.x - nx2 * 22, a.y - ny2 * 22).lineTo(b.x - nx2 * 22, b.y - ny2 * 22).stroke({ width: 16, color: '#ffffff', alpha: 0.22, cap: 'round' });
-    f.moveTo(a.x + nx2 * 230, a.y + ny2 * 230).lineTo(b.x + nx2 * 230, b.y + ny2 * 230).stroke({ width: 44, color: L.metalLo, cap: 'round' });
-  };
-  arm(p0, el); arm(el, hd);
-  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) { f.circle(px2, py2, 170).fill({ color: L.metal }).stroke({ width: 8, color: L.metalLo }); f.circle(px2, py2, 58).fill({ color: L.metalLo }); }
-  // the hood: a cone from the arm's end to a wide mouth, a rim, a lit stripe along its top
-  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
-  const hood = [hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk];
-  f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 9, color: '#27486b' });
-  f.poly([hd.x - nx * nk, hd.y - ny * nk, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw * 0.86 - LAMP_D.x * 90, mo.y - ny * hw * 0.86 - LAMP_D.y * 90, hd.x - nx * nk * 0.8, hd.y - ny * nk * 0.8]).fill({ color: '#ffffff', alpha: 0.2 });
-  f.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw - LAMP_D.x * 80, mo.y - ny * hw - LAMP_D.y * 80, mo.x + nx * hw - LAMP_D.x * 80, mo.y + ny * hw - LAMP_D.y * 80]).fill({ color: '#27486b' });
+  { const lx = geo.lamp.x; f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 }); }
+  drawLamp(f, L, geo);
   return { back, front, over, bakes: [gWrap, fWrap] };
 }
 
@@ -503,7 +511,20 @@ export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
 }
 
 /** A rectangle that answers a click, with the tooltip words. */
-export interface RoomHit { id: 'lamp' | 'blind'; rect: Rect }
+/** `shape` is the thing's silhouette (what the pointer picks and the hover ring follows); without one the rectangle is. */
+export interface RoomHit { id: 'lamp' | 'blind'; rect: Rect; shape?: Shape }
+
+/** The lamp's silhouette (base, arms, joints, hood) read from its own art: the box round it is mostly wall, and reaches over the monitor. Built when the pointer first comes near. */
+export function lampShape(renderer: Renderer, T: Theme, geo: RoomGeo): Shape {
+  const r = geo.lamp.rect;
+  return lazyShape(r, () => {
+    const g = new Graphics();
+    drawLamp(g, look(T), geo);
+    const s = captureShape(renderer, g, r, { threshold: 130 });
+    g.destroy();
+    return s ?? rectShape(r);
+  });
+}
 
 /**
  * The room as a scene node: static scenery, plus the live parts. `frame(gt, dt)` moves them on the game clock `gt` (ms); the
@@ -563,7 +584,7 @@ export class RoomView {
     this.root.addChild(this.glow, this.clockG);
     this.steam = new Steam(geo.mug, geo.ys - MUG.h + 30, T.dark);
     this.over.addChild(this.steam);
-    this.hits = [{ id: 'lamp', rect: geo.lamp.rect }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
+    this.hits = [{ id: 'lamp', rect: geo.lamp.rect, shape: renderer ? lampShape(renderer, T, geo) : undefined }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
     this.frame(0, 0, true);
   }
 

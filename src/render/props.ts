@@ -4,6 +4,7 @@ import { getSpec } from '../sim/board/specs';
 import { box, dashed, disc, HEAD, label, mix, MONO } from './ink';
 import { wallTone } from './case';
 import { usbPlug } from './ports';
+import { discShape, type Shape } from './shape';
 import { CASE_LEDS, HOOK_PITCH, HOOK_Y, LANYARD, POWER_BTN, ROW_DROP, TRAY, TRAY_COLS, TRAY_ROWS, USB_PORT, type Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -15,6 +16,10 @@ export interface PropObj {
   id: string;
   /** World rect of the whole object (hit test, outline, highlight ring). */
   rect: Rect;
+  /** The silhouette the pointer picks and the hover ring follows, when it is plain geometry (the power button's disc). */
+  shape?: Shape;
+  /** Or a throwaway copy of the art, centred on the node's origin, whose pixels are read once for the silhouette (`key` names the variant: every key of a kind shares one reading). */
+  sil?: { key: string; make: () => Container };
   /** The container that animates on hover (position = its centre in world units). */
   node: Container;
   /** Everything drawn inside `node` (board.ts caches it as a texture when far out). */
@@ -357,7 +362,8 @@ export function trayArt(T: Theme, keys: KeySnap[], mode: TrayMode = 'off'): Prop
     const { node, swing, lan, vec, retime } = hangingKey(T, k);
     node.position.set(p.x, p.y);
     root.addChild(node);
-    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN }, node, vec, swing, lan, retime, base: { x: p.x, y: p.y, s: 1 } });
+    const sil = { key: 'hang', make: () => { const v = keyStick(T, k); v.rotation = Math.PI / 2; const c = new Container(); c.addChild(v); return c; } };
+    objs.push({ id: 'key:' + k.id, rect: { x: p.x - KEY_H / 2 - 5, y: p.y - KEY_LEN / 2, w: KEY_H + 10, h: KEY_LEN }, sil, node, vec, swing, lan, retime, base: { x: p.x, y: p.y, s: 1 } });
   });
   return { root, chrome, objs, led: new Graphics(), ledText: null };
 }
@@ -399,7 +405,8 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
   const cut = new Graphics().rect(USB_PORT.x - 6000, p.y - 600, 6000 + 6, 1200).fill({ color: '#ffffff' });
   root.addChild(cut);
   clip.mask = cut; // the stick only: the remove cue's glow and tag stay whole
-  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, retime, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null, cue };
+  const sil = { key: 'plug', make: () => { const c = new Container(); c.addChild(keyStick(T, k, true)); return c; } };
+  return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, sil, node, vec, retime, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null, cue };
 }
 
 /**
@@ -455,7 +462,7 @@ export function powerArt(T: Theme, st: PowerState): PropsArt {
   root.addChild(led);
   return {
     root,
-    objs: [{ id: 'power', rect: { x: b.x - b.r - 20, y: b.y - b.r - 20, w: (b.r + 20) * 2, h: (b.r + 20) * 2 }, node, vec, base: { x: b.x, y: b.y, s: 1 } }],
+    objs: [{ id: 'power', rect: { x: b.x - b.r - 20, y: b.y - b.r - 20, w: (b.r + 20) * 2, h: (b.r + 20) * 2 }, shape: discShape(b.x, b.y, b.r + 14), node, vec, base: { x: b.x, y: b.y, s: 1 } }],
     led,
     ledText: null,
   };

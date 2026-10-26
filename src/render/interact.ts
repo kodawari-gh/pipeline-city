@@ -9,6 +9,7 @@ import { box, MONO, mix } from './ink';
 import { BD, CASE, PLUG_L, PLUG_W, type Rect } from './layout';
 import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
 import { roomClick } from './room';
+import type { Shape } from './shape';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
 
@@ -50,6 +51,8 @@ export interface SceneInfo {
   rects: Map<string, Rect>;
   /** Ids that animate on hover. */
   interactive: Set<string>;
+  /** The silhouette of the ids that have one (the lamp, the keys, the power button): the hover ring follows it instead of a box round the rect. */
+  shapes: Map<string, Shape>;
   /** Props whose node lifts on hover (tray keys, power button, plugged key). */
   props: Map<string, PropObj>;
   cables: Map<CableKind, CableInfo>;
@@ -60,7 +63,7 @@ export interface SceneInfo {
   lan: LanScene | null;
 }
 
-export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 }, lan: null });
+export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), shapes: new Map(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 }, lan: null });
 
 const DRAG_PX = 6;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -539,11 +542,13 @@ export class Interact {
       const o = this.scene.props.get(id);
       if (o) { o.node.position.set(o.base.x, o.base.y - 10 * a); o.node.scale.set(o.base.s * (1 + 0.03 * a)); }
       if (a > 0) {
-        const r = this.scene.rects.get(id) ?? o?.rect;
-        if (r) {
-          // one thin outline, no halo: hovering only hints, it must not shout
-          const e = 5 + 7 * a, rr = Math.min(60, 20 + e);
-          box(g, r.x - e, r.y - e - (o ? 10 * a : 0), r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.55 * a });
+        const r = this.scene.rects.get(id) ?? o?.rect, e = 5 + 7 * a, lift = o ? 10 * a : 0;
+        // one thin outline, no halo: hovering only hints, it must not shout. A thing with a silhouette is traced; the rest get a box round the rect
+        const trace = this.scene.shapes.get(id)?.outline(Math.max(e, lw * 0.9));
+        if (trace) for (const poly of trace) { g.poly(poly.flatMap(([x, y]) => [x, y - lift]), true).stroke({ width: lw, color: T.alu, alpha: 0.55 * a, join: 'round' }); }
+        else if (r) {
+          const rr = Math.min(60, 20 + e);
+          box(g, r.x - e, r.y - e - lift, r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.55 * a });
         }
       }
     }
