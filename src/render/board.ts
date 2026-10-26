@@ -55,7 +55,7 @@ const propsFrame = () => new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200,
  * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. The zoom-out is capped by the room
  * (`capZoom`), never short of `fadeTo`. Tune `fadeFrom` and `fadeTo`.
  */
-export const LOD = { fadeFrom: 0.92, fadeTo: 0.8 };
+export const LOD = { fadeFrom: 0.92, fadeTo: 0.8, liveFrom: 0.4 };
 /** The overview shows the machine with some of the room around it: the fit margin (the machine alone would fill the screen at 0.96). */
 const ROOM_MARGIN = 0.84;
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
@@ -360,8 +360,9 @@ export async function mountBoard(host: HTMLElement) {
     exteriorCover = extA;
     exteriorLayer.alpha = extA;
     exteriorLayer.visible = extA > 0.004;
-    interior.visible = extA < 0.996;
-    live.setInterior(interior.visible);
+    // the glass side of the exterior is see-through, so the interior (baked far out) is always drawn; only its live work stops far out
+    interior.visible = true;
+    live.setInterior(camera.z / f >= LOD.liveFrom);
     // the monitor is one cached texture far out
     const want = camera.z < Z_BAKE_DEV;
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }

@@ -83,16 +83,25 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
   for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
-  // tempered glass side: smoked, opaque, a faint diagonal reflection and a hairline edge. Nothing of the inside shows.
+  // tempered glass side: smoked, a faint diagonal reflection and a hairline edge. The inside shows through it.
   const win = { x: BR.io.x + BR.io.w + 110, y: gl.y + 56, w: gl.x + gl.w - 56 - (BR.io.x + BR.io.w + 110), h: gl.h - 112 };
   box(g, win.x - 26, win.y - 26, win.w + 52, win.h + 52, 70, { fill: c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
-  g.roundRect(win.x, win.y, win.w, win.h, 50).fill(vgrad(c.glassTop, c.glassBot));
-  const refl = (x0: number, w: number, a: number) => g.poly([win.x + x0, win.y + 8, win.x + x0 + w, win.y + 8, win.x + x0 + w - 1500, win.y + win.h - 8, win.x + x0 - 1500, win.y + win.h - 8]).fill({ color: '#ffffff', alpha: a });
+  // the window is a hole in the body (blend erase) with a smoked pane over it, so the real interior shows through at every zoom
+  const hole = new Graphics();
+  hole.blendMode = 'erase';
+  hole.roundRect(win.x, win.y, win.w, win.h, 50).fill('#000000');
+  const pane = new Graphics();
+  root.addChild(hole, pane);
+  pane.roundRect(win.x, win.y, win.w, win.h, 50).fill(vgrad(c.glassTop, c.glassBot));
+  pane.alpha = T.dark ? 0.4 : 0.34;
+  const top = new Graphics();
+  root.addChild(top);
+  const refl = (x0: number, w: number, a: number) => top.poly([win.x + x0, win.y + 8, win.x + x0 + w, win.y + 8, win.x + x0 + w - 1500, win.y + win.h - 8, win.x + x0 - 1500, win.y + win.h - 8]).fill({ color: '#ffffff', alpha: a });
   const ra = T.dark ? 0.045 : 0.07;
   refl(3200, 700, ra); refl(4200, 150, ra * 0.8); refl(7500, 500, ra * 0.7);
-  box(g, win.x + 14, win.y + 14, win.w - 28, win.h - 28, 40, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.08 : 0.3 });
+  box(top, win.x + 14, win.y + 14, win.w - 28, win.h - 28, 40, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.08 : 0.3 });
   for (const [x, y] of [[win.x - 6, win.y + 70], [win.x + win.w + 6, win.y + 70], [win.x - 6, win.y + win.h - 70], [win.x + win.w + 6, win.y + win.h - 70]] as const) {
-    disc(g, x, y, 26, { fill: mix(c.hi, c.lo, 0.3), stroke: c.edge, lw: 4, sa: 0.8 }); g.moveTo(x - 13, y).lineTo(x + 13, y).stroke({ width: 4, color: c.shade, alpha: 0.7 });
+    disc(top, x, y, 26, { fill: mix(c.hi, c.lo, 0.3), stroke: c.edge, lw: 4, sa: 0.8 }); top.moveTo(x - 13, y).lineTo(x + 13, y).stroke({ width: 4, color: c.shade, alpha: 0.7 });
   }
 
   // PSU compartment: brushed panel with a perforated intake (the drive cage is inside, behind the glass)
