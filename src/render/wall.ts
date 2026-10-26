@@ -5,15 +5,15 @@ import type { Rect } from './layout';
 // The wall's finish: an acoustic slat wall over the whole wall, thin vertical wooden slats on a dark felt backing. Drawn inside the baked wall art, under what
 // hangs on it (the key rack, the router's shelf, the letterbox, the clock, the monitor, the case).
 
-/** What the wall is placed by: the floor (the slats run on far below it; the dark under the desk covers them). */
-export interface WallBox { floor: number }
+/** What the wall is placed by: where it meets the ceiling and the floor (`shell.ts` draws the crown moulding, the baseboard and both planes). */
+export interface WallBox { ceil: number; floor: number }
 
-/** The slats' width and the gap between them, and how far the wall is drawn each way from the origin (a view never shows more: a phone in portrait is about 40,000 units tall). */
+/** The slats' width and the gap between them, and how far the wall is drawn each way from the origin (a view never shows more width than that). */
 export const SLAT = { w: 230, gap: 70, reach: 60000 };
 
-/** The wall: all of it, from far west to far east and from far above to far below the floor (the dark under the desk covers what is under it). */
+/** The wall: from far west to far east, and from the ceiling to the floor. */
 export function slatWall(B: WallBox): Rect {
-  return { x: -SLAT.reach, y: -SLAT.reach, w: 2 * SLAT.reach, h: 2 * SLAT.reach + B.floor };
+  return { x: -SLAT.reach, y: B.ceil, w: 2 * SLAT.reach, h: B.floor - B.ceil };
 }
 
 /** The slat tone (0 to 2) of slat `i`: a fixed pseudo-random pick, so the wall is drawn the same on every build. */

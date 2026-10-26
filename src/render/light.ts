@@ -95,6 +95,8 @@ export class LightView {
   private readonly shadeG = new Graphics();
   /** The window's shafts, live: they follow the sun every frame (the textures are redrawn only in steps). */
   private readonly beamG = new Graphics();
+  /** The even washes (the sky's lift, the warm of the ends of the day): over all the room, not the region, so no edge of the region shows on a tall or wide screen. */
+  private readonly washG = new Graphics();
   private beamKey = '';
   private readonly focusG = new Graphics();
   private readonly focusBox = new Container();
@@ -114,8 +116,9 @@ export class LightView {
     }
     this.glow.blendMode = 'screen';
     this.beamG.blendMode = 'screen';
+    this.washG.blendMode = 'screen';
     this.focusBox.addChild(this.focusG, this.focus);
-    this.root.addChild(this.shadeG, this.shade, this.glow, this.beamG, this.focusBox);
+    this.root.addChild(this.shadeG, this.shade, this.glow, this.washG, this.beamG, this.focusBox);
     this.focusBox.alpha = 0;
     this.drawFocus();
   }
@@ -216,11 +219,12 @@ export class LightView {
 
   private drawGlow(i: LightIn) {
     const A = ambientOf(i), G = this.g, sc = G.screen, mo = G.mouth, ang = Math.atan2(G.dir.y, G.dir.x), reg = G.region, d = i.dark;
+    // the sky's lift by day (a pale wash in the dark theme) and the warm of the ends of the day: even, over the whole room
+    const lift = d ? 0.1 * (1 - i.night) : 0, warm = 0.08 * i.dusk * (d ? 1 : 1.3), BIG = 90000;
+    this.washG.clear();
+    if (lift > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#bcd4ff', alpha: lift });
+    if (warm > 0.002) this.washG.rect(-BIG, -BIG, 2 * BIG, 2 * BIG).fill({ color: '#ff9a5a', alpha: warm });
     this.paint(this.rts[1]!, (c) => {
-      // the sky's lift by day (a pale wash in the dark theme) and the warm of the ends of the day
-      const lift = d ? 0.1 * (1 - i.night) : 0, warm = 0.08 * i.dusk * (d ? 1 : 1.3);
-      if (lift > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#bcd4ff', alpha: lift }));
-      if (warm > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#ff9a5a', alpha: warm }));
       // the window's light: a wide soft pool round the glass in the colour of the sun or the moon (the shaft itself is live, `setBeams`)
       const wg = windowGlow(i.beams), wr = G.window;
       if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { color: wg.color, alpha: 0.32 * wg.k * (d ? 1 : 0.7) });

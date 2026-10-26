@@ -8,6 +8,7 @@ import { roundedPath } from './routes';
 import { drawMug, MUG } from './mug';
 import { Steam } from './steam';
 import { drawSlats } from './wall';
+import { drawCeiling, drawCrown, drawFloor, FADE } from './shell';
 import { captureShape } from './capture';
 import { lazyShape, rectShape, type Shape } from './shape';
 import {
@@ -26,7 +27,9 @@ export { FOOT };
 /** How far the desk reaches west of the lamp (which stands at its very west end) and east of the case (which is the last thing on it). */
 const DESK_WEST = 1500, DESK_EAST = 500;
 /** How much wall the camera may show beyond the desk's and the window's ends, and below the wall socket (no floor); the top is the router or the window, whichever is higher. */
-const BOX_SIDE = 900, BOX_BELOW = 700, BOX_TOP_ABOVE = 500;
+const BOX_SIDE = 900, BOX_BELOW = 1700, BOX_TOP_ABOVE = 500;
+/** How much wall there is above the highest thing on it, up to the ceiling. */
+const CEIL_ABOVE = 2700;
 /**
  * The lamp stands at the desk's west end: a weighted base, a lower arm that leans back (west, away from the work), an elbow, an upper arm that reaches
  * forward over the desk (east), and a hood on its end pointing down and east (SIDE 1; -1 would mirror it) at `LAMP_D`. The joints are offsets from the base
@@ -42,6 +45,8 @@ export interface RoomGeo {
   /** The desk's top surface, the floor, and the desk's west and east ends (the east end follows the case's width). */
   ys: number;
   floor: number;
+  /** Where the wall meets the ceiling. */
+  ceil: number;
   desk: { x0: number; x1: number };
   /** The mug's centre x (east of the case; the steam rises from it). */
   mug: number;
@@ -61,13 +66,13 @@ export interface RoomGeo {
 
 /** The camera cap: the zoom-out stops where this box fills the screen, and panning stays inside it: the desk and the window with a little wall beyond, from just above the router shelf (or the window) to just under the wall socket (no floor, no ceiling; the wall itself reaches much further). Follows the case. */
 export function roomBox(geo: RoomGeo = roomGeo()): Rect {
-  const bottom = geo.socket.plate.y + geo.socket.plate.h + BOX_BELOW, top = geo.top - BOX_TOP_ABOVE, x0 = Math.min(geo.desk.x0, geo.window.x - 420) - BOX_SIDE;
+  const bottom = geo.floor + BOX_BELOW, top = geo.top - BOX_TOP_ABOVE, x0 = Math.min(geo.desk.x0, geo.window.x - 420) - BOX_SIDE;
   return { x: x0, y: top, w: geo.desk.x1 + BOX_SIDE - x0, h: bottom - top };
 }
 
 /** The room's static art (the wall, the desk) is baked to two textures while the camera is far out: the region they cover (the camera box and some wall around it, for a screen that is wider or taller than the box), and the texture's pixels per world unit. */
 export const ROOM_BAKE_RES = 0.09;
-export const roomBakeRect = (geo: RoomGeo = roomGeo()): Rect => { const b = roomBox(geo); return { x: b.x - 2500, y: b.y - 4000, w: b.w + 5000, h: b.h + 8000 }; };
+export const roomBakeRect = (geo: RoomGeo = roomGeo()): Rect => { const b = roomBox(geo), y0 = geo.ceil - FADE.ceil - 500, y1 = geo.floor + FADE.floor + 500; return { x: b.x - 2500, y: y0, w: b.w + 5000, h: y1 - y0 }; };
 
 /** Whether the baked art fits `view` (a world rect) at zoom `z` on a display with `dpr` pixels per css pixel: the view lies inside the region and is no finer than the texture. */
 export function roomBakeFits(view: Rect, z: number, dpr: number, geo: RoomGeo = roomGeo()): boolean {
@@ -100,6 +105,7 @@ export function roomGeo(): RoomGeo {
   return {
     ys,
     floor: FLOOR_Y,
+    ceil: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y) - CEIL_ABOVE,
     desk: { x0: lx - DESK_WEST, x1: east + DESK_EAST },
     mug: MONITOR.x + MONITOR.w + 710,
     socket: { plate, mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 }, pc: { x: plate.x + plate.w * 0.72, y: plate.y + plate.h / 2 } },
@@ -273,8 +279,11 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const o = new Graphics(); over.addChild(o); // what stands in front of the cables that run behind it (the mug)
 
   // wall: an endless colour, the slat wall over all of it (`wall.ts`), and the darker band the desk throws on it
-  g.rect(-90000, -90000, 180000, 180000).fill({ color: L.wall });
-  drawSlats(g, T, { floor: geo.floor });
+  const shell = { ceil: geo.ceil, floor: geo.floor };
+  drawCeiling(g, T, shell);
+  g.rect(-90000, geo.ceil, 180000, geo.floor - geo.ceil).fill({ color: L.wall });
+  drawSlats(g, T, shell);
+  drawCrown(g, T, shell);
   for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
@@ -327,7 +336,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const d = DESK, ye = geo.floor, { x0, x1 } = geo.desk;
   // the dark under the desk: there is no floor in the picture; the wall just goes dark toward the bottom (below), so the legs and the
   // pedestal run on into the dark and no screen shape can show an edge of the room
-  const under = ye + 500 - ys - d.slab, ped = { x: x1 - 4500, y: ys + d.slab, w: 4400, h: under };
+  const under = ye - ys - d.slab, ped = { x: x1 - 4500, y: ys + d.slab, w: 4400, h: under };
   f.rect(x0 + 60, ys + d.slab, ped.x - x0 - 60, under).fill({ color: '#000000', alpha: T.dark ? 0.55 : 0.28 });
   // the west leg
   f.rect(x0 + 60, ys + d.slab, 600, under).fill({ color: L.woodLo }).stroke({ width: 8, color: L.edge, alpha: 0.6 });
@@ -340,10 +349,9 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
     f.rect(ped.x + 110, dy, ped.w - 220, dh - 130).fill({ color: L.woodHi, alpha: 0.5 }).stroke({ width: 7, color: L.edge, alpha: 0.6 });
     f.rect(ped.x + ped.w / 2 - 380, dy + (dh - 130) / 2 - 24, 760, 48).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo });
   }
-  // the bottom goes dark in 16 bands (no gradient: it is also built in tests, which have no canvas), then stays dark
-  const dark = T.dark ? mix(L.wallLo, '#000000', 0.6) : mix(L.wallLo, '#1b2a55', 0.35), aMax = T.dark ? 0.97 : 0.62;
-  for (let k = 0; k < 16; k++) f.rect(-90000, ye - 400 + (k * 900) / 16, 180000, 900 / 16 + 2).fill({ color: dark, alpha: aMax * ((k + 1) / 16) });
-  f.rect(-90000, ye + 500, 180000, 90000).fill({ color: dark, alpha: aMax });
+  // the floor and the baseboard (`shell.ts`), under the desk and over the foot of the wall; the desk, its legs and the pedestal stand on it and throw a shadow on it
+  drawFloor(f, T, { ceil: geo.ceil, floor: ye });
+  for (const [sx, sw] of [[x0 + 60, 900], [ped.x - 200, ped.w + 600]] as const) f.ellipse(sx + sw / 2, ye + 120, sw / 2 + 200, 150).fill({ color: '#000000', alpha: T.dark ? 0.45 : 0.22 });
   powerArt(T, geo, g, f);
   // the slab: a lit top, a front edge, a grain
   f.rect(x0, ys, x1 - x0, d.slab).fill({ color: L.wood }).stroke({ width: 10, color: L.edge, alpha: 0.8 });

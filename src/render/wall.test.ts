@@ -16,12 +16,15 @@ const THEME: Theme = {
 const inside = (r: Rect, o: Rect) => r.x >= o.x && r.y >= o.y && r.x + r.w <= o.x + o.w && r.y + r.h <= o.y + o.h;
 
 describe('the slat wall', () => {
-  it.each([0, 1, 2, 3])('tier %i: covers all of the wall (everything on it, the baked region and a very tall view), under the floor too', (t) => {
+  it.each([0, 1, 2, 3])('tier %i: covers everything that hangs on the wall, from the ceiling to the floor, and the whole width a view can show', (t) => {
     setLayoutTier(t, t);
-    const g = roomGeo(), w = slatWall({ floor: g.floor });
-    for (const r of [g.keyRack, g.clock, g.window, OUTBOX, ROUTER_SPOT, MONITOR, CASE, roomBakeRect(g)]) expect(inside(r, w)).toBe(true);
-    expect(w.y + w.h).toBeGreaterThan(g.floor + 40000);
-    expect(w.h).toBeGreaterThan(40000 + g.floor); // a phone in portrait shows about 40,000 units above the desk
+    const g = roomGeo(), w = slatWall({ ceil: g.ceil, floor: g.floor });
+    for (const r of [g.keyRack, g.clock, g.window, OUTBOX, ROUTER_SPOT, MONITOR, CASE]) expect(inside(r, w)).toBe(true);
+    const b = roomBakeRect(g);
+    expect(w.x).toBeLessThanOrEqual(b.x);
+    expect(w.x + w.w).toBeGreaterThanOrEqual(b.x + b.w);
+    expect(w.y).toBe(g.ceil);
+    expect(w.y + w.h).toBe(g.floor);
   });
   it('is drawn from a fixed pattern: the same tones every time, all three used', () => {
     const a = Array.from({ length: 120 }, (_, i) => slatTone(i)), b = Array.from({ length: 120 }, (_, i) => slatTone(i));
@@ -30,12 +33,13 @@ describe('the slat wall', () => {
   });
   it('fits whole slats across the wall, in both themes', () => {
     setLayoutTier(0, 0);
-    const box = { floor: roomGeo().floor }, w = slatWall(box);
+    const g0 = roomGeo(), box = { ceil: g0.ceil, floor: g0.floor }, w = slatWall(box);
     expect(slatCount(w) * (SLAT.w + SLAT.gap) + SLAT.gap).toBeLessThanOrEqual(w.w);
     for (const dark of [true, false]) {
       const g = new Graphics();
       expect(() => drawSlats(g, { ...THEME, dark }, box)).not.toThrow();
       expect(g.getLocalBounds().width).toBeGreaterThan(w.w * 0.99);
+      expect(g.getLocalBounds().height).toBeGreaterThan(w.h * 0.99);
     }
   });
 });

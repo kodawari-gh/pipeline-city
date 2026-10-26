@@ -79,7 +79,7 @@ let interactRef: Interact | null = null;
 let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 /** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
-const overviewFit = (c: Camera): View => c.clampView(c.fit(WORLD, Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
+const overviewFit = (c: Camera): View => c.clampView(c.fit(WORLD, c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
 /** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the box). */
 const capZoom = (c: Camera, overview: View): number => {
   const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom), box = c.bounds ?? roomBox();

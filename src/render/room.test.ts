@@ -99,8 +99,9 @@ describe('the room layout', () => {
     expect(ROUTER_SPOT.y + ROUTER_SPOT.h).toBeLessThan(MONITOR.y);
     expect(box.x).toBeLessThan(g.desk.x0);
     expect(box.x + box.w).toBeGreaterThan(g.desk.x1);
-    expect(box.y + box.h).toBeLessThan(g.floor - 150); // no floor (or skirting board) in the box,
-    expect(box.y + box.h).toBeGreaterThan(g.socket.plate.y + g.socket.plate.h); // but the wall socket is
+    expect(box.y + box.h).toBeGreaterThan(g.floor + 500); // a strip of floor is part of the picture (with the skirting board),
+    expect(box.y + box.h).toBeLessThan(g.floor + 2500); // not more
+    expect(box.y + box.h).toBeGreaterThan(g.socket.plate.y + g.socket.plate.h); // and the wall socket is in it
     expect(box.y).toBeLessThan(g.top); // nothing above the highest thing (the router, the window) but a little wall
     expect(g.top - box.y).toBeLessThan(700);
     // the overview (WORLD) has the machine, the monitor and the router on their shelf
