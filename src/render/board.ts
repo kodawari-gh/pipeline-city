@@ -192,14 +192,25 @@ export async function mountBoard(host: HTMLElement) {
     const bx0 = Math.min(...rs.map((r) => r.x)), by0 = Math.min(...rs.map((r) => r.y));
     const bx1 = Math.max(...rs.map((r) => r.x + r.w)), by1 = Math.max(...rs.map((r) => r.y + r.h));
     const aw = Math.max(50, camera.w - camera.inset.left - camera.inset.right), ah = Math.max(50, camera.h - camera.inset.top - camera.inset.bottom);
+    const W = camera.bounds ?? WORLD; // the room, not just the machine: the wall socket under the desk is a target too
     let cw = Math.max(9500, bx1 - bx0 + 2200), ch = cw * ah / aw;
     if (ch < by1 - by0 + 1800) { ch = by1 - by0 + 1800; cw = ch * aw / ah; }
-    cw = Math.min(cw, WORLD.w); ch = Math.min(ch, WORLD.h);
-    const cx = Math.min(Math.max((bx0 + bx1) / 2, WORLD.x + cw / 2), WORLD.x + WORLD.w - cw / 2);
-    const cy = Math.min(Math.max((by0 + by1) / 2, WORLD.y + ch / 2), WORLD.y + WORLD.h - ch / 2);
+    cw = Math.min(cw, W.w); ch = Math.min(ch, W.h);
+    const cx = Math.min(Math.max((bx0 + bx1) / 2, W.x + cw / 2), W.x + W.w - cw / 2);
+    const cy = Math.min(Math.max((by0 + by1) / 2, W.y + ch / 2), W.y + W.h - ch / 2);
     const v = camera.fit({ x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch }, 1);
     const z = opts.zoom ?? Math.max(v.z, overviewFit(camera).z, fits.z * LOD.fadeFrom * 1.02); // never short of the zoom where the case is open
-    camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
+    let to = { x: v.x, y: v.y, z };
+    if (z > v.z * 1.001) {
+      // Closer than the window: the window was kept inside the room for the wider view, which leaves a target near the room's edge (the key rack
+      // at the top, the wall socket at the bottom) off screen once zoomed in. Centre on the target again, kept inside the room for this zoom.
+      const vw = Math.min(aw / z, W.w), vh = Math.min(ah / z, W.h);
+      const tx = Math.min(Math.max((bx0 + bx1) / 2, W.x + vw / 2), W.x + W.w - vw / 2);
+      const ty = Math.min(Math.max((by0 + by1) / 2, W.y + vh / 2), W.y + W.h - vh / 2);
+      const v2 = camera.fit({ x: tx - vw / 2, y: ty - vh / 2, w: vw, h: vh }, 1);
+      to = { x: v2.x, y: v2.y, z: v2.z };
+    }
+    camera.flyTo(to, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;
   interact.setTheme(T);

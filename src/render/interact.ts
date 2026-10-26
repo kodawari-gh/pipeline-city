@@ -572,7 +572,14 @@ export class Interact {
 
   flyToId(id: string, opts: FlyOpts = {}) {
     const rs = this.rectsFor(id);
-    if (rs.length) this.flyToRects(rs, opts);
+    if (id.startsWith('key:') && rs.length && opts.zoom === undefined) {
+      // A key is dragged to the USB port, far from the rack: both must be on screen, so the view is the one that holds the two (both are
+      // external things, drawn at any zoom).
+      const both = [...rs, ...this.rectsFor('usb')], pad = 600;
+      const x0 = Math.min(...both.map((r) => r.x)) - pad, y0 = Math.min(...both.map((r) => r.y)) - pad;
+      const x1 = Math.max(...both.map((r) => r.x + r.w)) + pad, y1 = Math.max(...both.map((r) => r.y + r.h)) + pad;
+      this.flyToRects(both, { ...opts, zoom: this.camera.fit({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 0.95).z });
+    } else if (rs.length) this.flyToRects(rs, opts);
     else opts.onDone?.(false);
   }
 

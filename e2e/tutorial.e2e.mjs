@@ -47,11 +47,12 @@ const browser = await chromium.launch({
   headless: !!process.env.HEADLESS,
   slowMo: Number(process.env.SLOWMO || 0),
   ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', `--window-size=${W},${H + 90}`],
+  // The real GPU by default (a windowed run); SOFTWARE=1 (or HEADLESS=1 on a machine without one) falls back to SwiftShader, which is several times slower.
+  args: [...(process.env.SOFTWARE || process.env.HEADLESS ? ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] : []), '--ignore-gpu-blocklist', `--window-size=${W},${H + 90}`],
 });
 const ctx = await browser.newContext({ viewport: { width: W, height: H } });
 const p = await ctx.newPage();
-p.setDefaultTimeout(6000);
+p.setDefaultTimeout(Number(process.env.TMO || 6000));
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 p.on('crash', () => { errors.push('PAGE CRASHED'); console.log('!!! PAGE CRASHED: the browser tab died (a headless-GL flake seen about one run in three; rerun). Stopping.'); process.exit(2); });
