@@ -28,13 +28,13 @@ function Cpu({ spec }: { spec: CpuSpec }) {
         </>
       ) : (
         <>
-          {e.kind === 'inorder' && e.forwarding && (
+          {(e.kind === 'inorder' || e.kind === 'inorder2') && e.forwarding && (
             <path d="M34 28 Q60 12 86 28" class="fwd" fill="none" stroke-width={1.6} />
           )}
           {[0, 1, 2, 3, 4].map((i) => (
             <rect key={i} x={28 + i * 14} y={34} width={11} height={14} rx={2} class={i === 2 ? 'ink' : 'ink2'} />
           ))}
-          {e.kind === 'inorder' && e.cacheLines ? (
+          {e.kind !== 'ref' && e.cacheLines ? (
             <>
               {Array.from({ length: 8 }, (_, i) => (
                 <rect key={i} x={30 + i * 8} y={53} width={6} height={6} rx={1} class="cache" />

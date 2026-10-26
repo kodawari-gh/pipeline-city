@@ -1,6 +1,6 @@
 // Pure UI logic: formatting, stats helpers, hint triggers, device descriptions, HUD status text. No DOM, no signals.
 
-import { BOARD_TIERS, CASE_TIERS, getSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { BOARD_TIERS, CASE_TIERS, getSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { BANDWIDTH_NERD, describeNet } from './netdesc';
@@ -164,15 +164,26 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   nic: 'A network card for an expansion slot. Plug the ethernet cable into its jack to reach the router: its speed replaces the speed of the board jack. Fast cards run hot.',
 };
 
+/** What a CPU's engine has, in words (every architecture and every optional part). */
+export function cpuFeatures(e: CpuSpec['engine']): string[] {
+  const out: string[] = [];
+  if (e.kind === 'ref') return ['reference interpreter'];
+  if (e.kind === 'unpipelined') out.push('unpipelined');
+  else if (e.kind === 'inorder') out.push(`5-stage, ${e.forwarding === false ? 'no forwarding' : 'forwarding'}`);
+  else if (e.kind === 'inorder2') out.push(`2-wide in-order, ${e.forwarding === false ? 'no forwarding' : 'forwarding'}`);
+  else out.push(`${e.width ?? 2}-wide out of order, ROB ${e.robSize ?? 8}`);
+  if (e.cacheLines) out.push(`${e.cacheLines}-line data cache${e.ways && e.ways > 1 ? `, ${e.ways}-way` : ''}`);
+  if (e.icacheLines) out.push(`${e.icacheLines}-line instruction cache`);
+  if (e.l2Lines) out.push(`${e.l2Lines}-line L2`);
+  if (e.predBits === 2 || (e.predEntries && e.predEntries !== 64)) out.push(`${e.predBits === 2 ? '2-bit' : '1-bit'} predictor, ${e.predEntries ?? 64} entries`);
+  return out;
+}
+
 export function describeSpec(spec: DeviceSpec): Description {
   const bits: string[] = [`tier ${spec.tier}`];
   if (spec.kind === 'cpu') {
-    const e = spec.engine;
-    if (e.kind === 'unpipelined') bits.push('unpipelined');
-    else if (e.kind === 'inorder') {
-      bits.push(`5-stage, ${e.forwarding ? 'forwarding' : 'no forwarding'}`);
-      if (e.cacheLines) bits.push(`${e.cacheLines}-line cache`);
-    }
+    bits.push(...cpuFeatures(spec.engine));
+    if (spec.branch) bits.push(`leans ${spec.branch === 'frontend' ? 'on the front end (branchy code)' : spec.branch === 'memory' ? 'on memory (big data)' : 'wide (everything)'}`);
   }
   if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`);
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);

@@ -8,7 +8,7 @@ import { cpuProfile } from '../sim/game/cpuprofile';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { getIspSpec, getRouterSpec, ISP_SPECS, ROUTER_SPECS } from '../sim/net/specs';
-import { clockWarning, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
+import { clockWarning, cpuFeatures, describeId, fmtMoney, fmtTicks, KIND_LABEL, type Level, statusChip } from './logic';
 import { fmtMbit, isJackId } from './netdesc';
 import { hardwareWarn, jackPort, netStateLines, netStats, nicLines, nicStats } from './netui';
 import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, moreOffer, unlockedFirst, type JobView, type LevelLock, type MoreOffer } from './levelui';
@@ -370,10 +370,7 @@ export function zoneOf(z: ClockZones, clock: number): ZoneName {
 export function specBrief(spec: DeviceSpec): string {
   switch (spec.kind) {
     case 'cpu': {
-      const e = spec.engine;
-      const arch = e.kind === 'unpipelined'
-        ? 'one step at a time'
-        : e.kind === 'inorder' && e.forwarding ? '5-stage, forwarding' : '5-stage, no forwarding';
+      const arch = spec.engine.kind === 'unpipelined' ? 'one step at a time' : cpuFeatures(spec.engine).filter((x, i) => i === 0 || !/^\d+-line data cache$/.test(x)).join(', ');
       const clk = spec.clock ? `, ${spec.clock.base}x base clock (max ${spec.clock.max}x)` : '';
       return arch + clk;
     }
