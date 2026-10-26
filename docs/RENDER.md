@@ -34,6 +34,7 @@ Code: `src/render/`. Entry point `mountBoard(host)` in `board.ts` (called from `
 | `capture.ts` | `captureShape`: reads the alpha of an object's own art back from the GPU once and makes a `Shape` of it |
 | `interact.ts` | everything the pointer does: hover affordance, drag and drop of parts (`beginPartDrag`) / plugs / keys, drop-target pulses, inline messages, tutorial highlight rings and edge arrows |
 | `pipeline.ts` | zoomed-in CPU chips and stage highlights |
+| `cpuplan.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested): the new die view will be drawn from it, see [`DIE.md`](DIE.md) |
 | `case.ts` | the PC case: chassis and rear wall (the I/O opening, a slot cover per expansion slot, the rear fan), the tray with a brass standoff at every mounting hole of every form factor the case takes, the fan hub in the floor corner and the fans' cable stubs, top and front fans (`EdgeFan`: blades and light strips that spin with the machine), glass, the drive cage, SATA data cables and the power lead |
 | `drives.ts` | drive art (`hdd`, `ssd-sata`, `ssd-nvme`) and their live parts (platter, head arm, activity LED) |
 | `net.ts` | the network props: router, wall plate, ISP line, ethernet cable, NIC card art, link LEDs and traffic pulses (see Network) |
