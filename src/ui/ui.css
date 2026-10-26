@@ -642,6 +642,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 @keyframes lvl-pop { from { opacity: 0; transform: translateY(0.8rem) scale(.6); } to { opacity: 1; transform: none; } }
 
 /* Inventory: stack count, kind filter chips, the "fits" chip */
+.tile .tsell { margin-top: 0.2rem; font: 600 0.7rem var(--mono); padding: 0.15rem 0.5rem; border-radius: 0.4rem; border: 1px solid var(--warn); background: transparent; color: var(--warn); cursor: pointer; }
+.tile .tsell:hover { background: var(--warn); color: var(--on); }
 .tile .tcount { position: absolute; top: 0.4rem; left: 0.4rem; font: 700 0.7rem var(--mono); padding: 0 0.35rem; border-radius: 99rem; background: var(--accent); color: var(--on); line-height: 1.05rem; }
 .inv-chips, .inv-fit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-width: 0; }
 .inv-chips button { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 99rem; }

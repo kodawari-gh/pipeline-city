@@ -23,6 +23,7 @@ export type ToSim =
   | { type: 'setSpeed'; speed: Speed }
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
+  | { type: 'sell'; invId: string }
   | { type: 'setCpuClock'; clock: number }
   | { type: 'setRamClock'; deviceId: string; clock: number }
   | { type: 'powerCycle' }

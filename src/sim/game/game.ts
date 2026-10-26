@@ -27,7 +27,7 @@ import {
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
   boardTierOf, caseTierOf, caseTooSmall, catalog, demandRate, ECONOMY, payMulFor, payout, pickTemplate, postTicks, reputation,
-  SANDBOX_MONEY, type EconomyConfig,
+  SANDBOX_MONEY, sellValue, type EconomyConfig,
 } from "./economy";
 import {
   classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, levelRows, LEVELS, MAX_LEVEL,
@@ -245,6 +245,8 @@ export interface InventorySnap {
   installable: boolean;
   /** Why not (first reason), when there is no valid target or the machine is on. */
   reason?: string;
+  /** What selling this spare returns now (`SELL_RATE` of its price; 0 in the sandbox, where money means nothing). */
+  sellPrice?: number;
 }
 
 export interface SlotSnap {
@@ -986,6 +988,20 @@ export class Game {
     this.progress.firstPurchase = true;
     this.note("purchase", `bought ${cand.name} ${this.priceText(price)}`);
     return { ok: true, invId };
+  }
+
+  /** Sell a spare from the inventory for `SELL_RATE` of its price. Not the part a queued swap is waiting to fit; nothing in the sandbox. */
+  sell(invId: string): Result<{ money: number }> {
+    if (this.sandbox) return { ok: false, reason: "the sandbox has no money: nothing to sell for" };
+    const it = this.inventory.find((i) => i.id === invId);
+    if (!it) return { ok: false, reason: `no inventory item "${invId}"` };
+    if (this.pendingSwap?.invId === invId) return { ok: false, reason: "this part is waiting to be fitted: wait for the swap" };
+    const value = sellValue(it.spec);
+    const name = this.inventorySnap().find((i) => i.id === invId)?.name ?? it.spec;
+    this.inventory = this.inventory.filter((i) => i.id !== invId);
+    this.money += value;
+    this.note("purchase", `sold ${name} for $${value}`);
+    return { ok: true, money: value };
   }
 
   /** Level gate (docs/PROGRESSION.md "Unlock table"): null when the item is open now, always in the sandbox. */
@@ -1776,7 +1792,7 @@ export class Game {
         id: it.id, spec: it.spec, kind: spec.kind, name: spec.name, freeSlots: free, swapSlots: swap, installable,
         ...(installable ? {} : { reason: !off ? "power the machine off first" : why }),
       };
-    });
+    }).map((it) => ({ ...it, sellPrice: this.sandbox ? 0 : sellValue(it.spec) }));
   }
 
   // ---------- internals: storage and the OS ----------

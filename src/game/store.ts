@@ -84,6 +84,8 @@ export function loadAutosaveOffer(): boolean {
 }
 
 export const purchase = (id: string) => send({ type: 'purchase', id });
+/** Sell a spare part from the inventory back for most of its price. */
+export const sell = (invId: string) => send({ type: 'sell', invId });
 export const setCpuClock = (clock: number) => send({ type: 'setCpuClock', clock });
 export const setRamClock = (deviceId: string, clock: number) => send({ type: 'setRamClock', deviceId, clock });
 export const powerCycle = () => send({ type: 'powerCycle' });

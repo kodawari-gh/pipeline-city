@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '../sim/game/game';
 import { powerLens, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
+import { sell } from '../game/store';
+import { SELL_RATE } from '../sim/game/economy';
 import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from './logic';
 import { Icon } from './Icons';
 import { PartArt } from './PartArt';
@@ -92,6 +94,12 @@ function Tile({ st, pulse, active, onHover }: { st: Stack<InventorySnap>; pulse:
       <div class="tart"><PartArt id={it.spec} size={112} /></div>
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
+      {active && !!it.sellPrice && (
+        <button class="tsell" aria-label={`Sell ${shortName(it.name)} for $${it.sellPrice}`}
+          title={`Sell one back for $${it.sellPrice}: you lose ${Math.round((1 - SELL_RATE) * 100)}% of its price.`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); selected.value = null; sell(it.id); }}>Sell ${it.sellPrice}</button>
+      )}
       {n > 1 && <b class="tcount" aria-label={`${n} of them`}>x{n}</b>}
       {why ? <span class="tlock" aria-label={why}><Icon name="lock" size={12} /></span> : <span class="tgrab" aria-hidden="true">drag</span>}
     </div>

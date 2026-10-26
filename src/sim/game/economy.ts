@@ -249,6 +249,12 @@ export function offerPrice(id: string): number | undefined {
   return t !== undefined ? BOARD_TIERS[t]?.price : (getSpec(id)?.price ?? getOsSpec(id)?.price ?? getRouterSpec(id)?.price ?? getIspSpec(id)?.price);
 }
 
+/** Selling a spare part back returns this share of its list price: the rest is lost (docs/GAME.md "Selling"). */
+export const SELL_RATE = 0.8;
+
+/** What a spare is worth when sold, in whole dollars: `SELL_RATE` of the price the shop asks (the starter crate's free parts count as the `SPARE_FLOOR`). */
+export const sellValue = (spec: string): number => Math.floor(Math.max(offerPrice(spec) ?? 0, SPARE_FLOOR) * SELL_RATE);
+
 /** Why a board of this tier cannot go into the board's case. */
 export const caseTooSmall = (board: Board, boardTier: number): string =>
   `the ${CASE_TIERS[board.caseTier]?.name ?? "case"} is too small for a ${BOARD_TIERS[boardTier]?.name ?? "bigger"} board: buy a ${CASE_TIERS[caseFor(boardTier)]?.name ?? "bigger case"} first`;
