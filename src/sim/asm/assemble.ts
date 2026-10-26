@@ -29,7 +29,7 @@ interface Item {
 }
 
 /** Strip a `#` or `;` comment, ignoring those characters inside quotes. */
-function stripComment(s: string): string {
+export function stripComment(s: string): string {
   let q: string | null = null;
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
@@ -43,7 +43,7 @@ function stripComment(s: string): string {
 }
 
 /** Split on commas outside quotes. */
-function splitOps(s: string): string[] {
+export function splitOps(s: string): string[] {
   const out: string[] = [];
   let q: string | null = null;
   let cur = "";
@@ -83,7 +83,7 @@ function parseString(line: number, s: string): number[] {
 }
 
 /** Numeric literal (decimal, 0x, 0b, 'c') or null. */
-function parseNum(s: string): number | null {
+export function parseNum(s: string): number | null {
   if (/^[-+]?(0x[0-9a-f]+|0b[01]+|\d+)$/i.test(s)) {
     const neg = s[0] === "-";
     const body = s.replace(/^[-+]/, "");
@@ -113,7 +113,7 @@ function liSize(v: number): number {
   return splitHiLo(v | 0).lo === 0 ? 4 : 8;
 }
 
-const LABEL_RE = /^[A-Za-z_.][\w.]*$/;
+export const LABEL_RE = /^[A-Za-z_.][\w.]*$/;
 
 export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
   const origin = opts.origin ?? RAM_BASE;

@@ -18,6 +18,11 @@ All three follow the existing device rules: a declarative spec in `DEVICE_SPECS`
 ## GPU
 
 - **ISA:** its own small instruction set on the same assembler framework (second opcode table, same R/I/S/B formats, 32-bit words). Lane registers (8 vector registers of N lanes), a lane id register, an execution mask, vector ALU ops, `vld` / `vst` to on-card memory, a mask-set compare, `bar` (lockstep barrier, trivial in v1) and `halt`. Opcodes are the implementer's choice (ARCHITECTURE "Open questions").
+- **ISA as built (T74, `src/sim/isa/gpu.ts`, assembler `src/sim/asm/gpu.ts`, `assembleGpu`):** 8 vector registers `v0..v7` (one 32-bit value per lane), the execution mask, a mask stack (8 deep) and word memory on the card. Only active lanes run an instruction. Formats reuse the CPU's field positions (op in bits 6:0, rd 10:7, rs1 14:11, rs2 18:15, 17-bit immediates).
+  - Vector ALU: `vadd vsub vand vor vxor vsll vsrl vsra vslt vmul vmin vmax` (`vd, vs1, vs2`), `vaddi vandi vslli vsrli vsrai` (`vd, vs, imm`), `vli vd, imm` (splat), `lane vd` (lane id), pseudo `vmv vd, vs`.
+  - Memory: `vld vd, imm(vs)` gathers and `vst vs2, imm(vs1)` scatters, per active lane, byte address = lane's register + imm, word aligned.
+  - Mask: `mseteq msetne msetlt msetge vs1, vs2` set `mask &= (vs1 cmp vs2)` per lane; `mpush`, `melse` (mask = saved mask minus the current one), `mpop` (restore) make an `if / else`; `bany off` branches while any lane is active (a loop runs until its last lane is done), `jmp off` is uniform; both offsets are byte offsets from the instruction (labels in the assembler).
+  - `bar` (lockstep barrier, a no-op with one unit) and `halt`.
 - **Model:** one SIMD unit, N lanes in lockstep, unpipelined in `gpu1` and in-order 5-stage in `gpu2`/`gpu3` (reuse the CPU engine code where it fits). Divergence is real: both sides of a branch run under the mask, the idle lanes are drawn dark. On-card memory is small and banked; bank conflicts serialize, so memory-bound kernels look memory-bound.
 - **Launch:** the CPU copies inputs into the card window with stores (no DMA, so the copy cost is visible), writes the descriptor (kernel address, lane count, args), sets `go`, polls. Kernel code lives in card memory and is loaded the same way.
 - **Tiers** (prices are orders of magnitude only):
