@@ -9,7 +9,7 @@ import type { Kernel, Mix } from "./kernels";
 import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from "./templates";
 
 export * from "./kernels";
-export { TEMPLATES, BUF_BASE, type GenParams, type ResolvedParams, type TemplateFn } from "./templates";
+export { TEMPLATES, BUF_BASE, type GenParams, type GpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
 
 export interface KernelInfo {
   kernel: string;
@@ -50,7 +50,7 @@ export function generate(template: string, seed: number, params: GenParams = {})
   const rng = new Prng(seed);
   const jobId = params.jobId ?? rng.nextInt(100);
   if (!Number.isInteger(jobId) || jobId < 0 || jobId > 99) throw new RangeError(`jobId ${jobId}`);
-  const resolved: ResolvedParams = { scale, row: params.row ?? 0, jobId };
+  const resolved: ResolvedParams = { scale, row: params.row ?? 0, jobId, ...(params.gpu ? { gpu: params.gpu } : {}) };
   const built = fn(rng, resolved);
   // Builder.finish ends main with a lone `ecall` line; a hosted program returns to the ROM instead.
   const asm = params.hosted ? built.asm.replace("\n  ecall\n", `\n  li t0, ${ROM_DONE_VECTOR}\n  jalr zero, t0, 0\n`) : built.asm;

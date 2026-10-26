@@ -16,8 +16,8 @@ import {
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_PORTS, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
-import { generate, runReference, TEMPLATES } from "../gen";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
+import { generate, runReference, TEMPLATES, type GpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
@@ -1173,7 +1173,7 @@ export class Game {
     if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
     let program: Uint32Array;
     try {
-      program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program;
+      program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget() }).program;
     } catch (e) {
       this.tray.giveBack(key);
       return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
@@ -1639,7 +1639,7 @@ export class Game {
         key.result = p.result;
         key.retired = p.retired ?? (legacyRetired && !p.done);
         g.plugged = key;
-        g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program, done: key.done, result: key.result };
+        g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: g.gpuTarget() }).program, done: key.done, result: key.result };
         g.pch.plug(g.pchKey);
       }
     } catch (e) {
@@ -1820,6 +1820,15 @@ export class Game {
       const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "storage" && !x.burnt);
       port.attach(d ? this.diskFor(d) : null);
     }
+  }
+
+  /** The first working GPU as a job generator sees it (undefined without one, or while its power lead is unplugged): `gpu.render` programs offload to it. */
+  private gpuTarget(): GpuTarget | undefined {
+    const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "gpu");
+    const spec = d && (deviceSpec(d) as CardSpec);
+    const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
+    if (!spec?.gpu || k < 0 || (spec.needsPcieCable && !this.cables.pcie)) return undefined;
+    return { base: GPU_BASE + k * GPU_STRIDE, lanes: spec.gpu.lanes, memBytes: spec.gpu.memBytes };
   }
 
   /** Put each working GPU on the bus in its PCIe slot (a burnt or removed card drops off). */
@@ -2457,7 +2466,7 @@ export class Game {
 
   /** Put a job on the virtual USB key (the NIC feed): the kernel ingests it, or flashes its result, with no waits. */
   private netPlug(key: Key, kind: "ingest" | "flash", fromRx: boolean): void {
-    const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true }).program;
+    const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget() }).program;
     const pk: PchKey = { id: key.id, program, done: false, result: "" };
     this.pch.enumTicks = 0;
     this.pch.flashTicks = 0;

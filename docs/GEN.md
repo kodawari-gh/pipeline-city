@@ -32,6 +32,7 @@ Small leaf subroutines, args in `a0..a3`, result in `a0`, return with `ret`. The
 | `cli.log` | poll display idle, write a status line `#72 user login OK` as packed word stores | 20-22 |
 | `cli.calc` | 1-2 rounds of `x*m+a`, prints `#72 mul=31 OK` (result & 63) | 36 or 40 |
 | `cli.checksum` | hashes one embedded data word, prints `#72 sum=31 OK` | 40 |
+| `gpu.render` | a batch kernel (`vadd`, `saxpy`, `blur3`, `mandel`, picked by the seed) over `32 x max(1, scale/2)` seeded words, prints the sum of its outputs, e.g. `#07 blur3 41 OK`. **Hardware-aware**: `generate(..., { gpu })` (a `GpuTarget` of bus base, lanes, card memory) makes the program copy the GPU kernel and data into the card window, launch and poll; without `gpu` (or when the card is too small or the lanes do not divide the work) it runs the same work in a CPU loop. The line is identical either way, and the seed alone picks it. The game passes the first working GPU whose power lead is plugged at plug time. Needs a bus that has the card, so only `Machine` runs the card path; `runReference` runs the CPU path | ~600 to 3k on the CPU path (mandel up to ~10k at scale 4) |
 | `cli.scan` | fill then sum a RAM table at 0x4000 with a seeded stride (64 or 128 B, both cache-hostile: every load misses), prints `#72 scan 4x128B 0123 OK` | ~96 (heavy, one third of the starting economy mix) |
 | `cli` | picks log / calc / checksum from the seed | 20-40 |
 

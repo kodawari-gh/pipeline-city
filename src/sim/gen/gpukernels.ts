@@ -2,6 +2,10 @@
 // checked and the CPU fallback prints the same checksum. All sizes are baked in as immediates, so a kernel needs no argument block:
 // the CPU copies the input arrays into card memory at KERNEL_LAYOUT, uploads the code at `code`, launches and reads `out` back.
 //
+// The job is "a batch": vadd and saxpy repeat their arithmetic ROUNDS times per element (unrolled, so both the GPU kernel and the CPU
+// loop are straight-line there), blur3 and mandel are heavy per element. Copying the data to the card costs about as much as a few
+// rounds on the CPU, so a card pays off by running many lanes of real work, not by adding two arrays once.
+//
 // Every kernel walks the arrays in chunks of `lanes` elements (lane l of chunk k handles element k*lanes + l) and ends with `halt`.
 // Register convention: v0 is only written where a kernel says so; the others are scratch. Integers are 32-bit, fixed point is Q12.
 
@@ -9,6 +13,11 @@ export const GPU_KERNEL_NAMES = ["vadd", "saxpy", "blur3", "mandel"] as const;
 export type GpuKernelName = (typeof GPU_KERNEL_NAMES)[number];
 
 /** Byte addresses in card memory. Arrays hold up to `maxLen` words. */
+import type { Kernel } from "./kernels";
+
+/** Unrolled repeats of the arithmetic in vadd and saxpy. */
+export const ROUNDS = 12;
+
 export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256 } as const;
 
 export interface GpuKernelParams {
@@ -21,7 +30,7 @@ export interface GpuKernelParams {
 }
 
 /** mandel: points along one row of the plane, `1 << logW` of them, wrapping every that many elements; Q12 window start `xMin`, step `dx`, imaginary part `cy`. */
-export const MANDEL = { logW: 5, xMin: -2 * 4096, dx: 3 * 4096 / 32 | 0, cy: Math.round(0.35 * 4096), maxIter: 48 } as const;
+export const MANDEL = { logW: 5, xMin: -2 * 4096, dx: 3 * 4096 / 32 | 0, cy: Math.round(0.35 * 4096), maxIter: 16 } as const;
 
 function check(p: GpuKernelParams): void {
   if (!Number.isInteger(p.lanes) || p.lanes < 1 || p.lanes > 32) throw new RangeError(`lanes ${p.lanes}`);
@@ -35,7 +44,7 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
   check(p);
   const n = p.lanes, len = p.len;
   switch (name) {
-    case "vadd": // out[i] = a[i] + b[i]
+    case "vadd": // out[i] = a[i] + ROUNDS * b[i]
       return `
         lane v1
         mpush
@@ -43,15 +52,14 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
         vslli v2, v1, 2
         vld v3, ${A}(v2)
         vld v4, ${B}(v2)
-        vadd v3, v3, v4
-        vst v3, ${OUT}(v2)
+${"        vadd v3, v3, v4\n".repeat(ROUNDS)}        vst v3, ${OUT}(v2)
         vaddi v1, v1, ${n}
         vli v5, ${len}
         msetlt v1, v5
         bany loop
         mpop
         halt`;
-    case "saxpy": // out[i] = scale * a[i] + b[i]
+    case "saxpy": // out[i] = b[i] + ROUNDS * (scale * a[i])
       return `
         lane v1
         vli v6, ${p.scale ?? 3}
@@ -60,9 +68,9 @@ export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string
         vslli v2, v1, 2
         vld v3, ${A}(v2)
         vld v4, ${B}(v2)
-        vmul v3, v3, v6
-        vadd v3, v3, v4
-        vst v3, ${OUT}(v2)
+        vmul v5, v3, v6
+        vmv v3, v4
+${"        vadd v3, v3, v5\n".repeat(ROUNDS)}        vst v3, ${OUT}(v2)
         vaddi v1, v1, ${n}
         vli v5, ${len}
         msetlt v1, v5
@@ -162,8 +170,8 @@ export function gpuKernelExpected(name: GpuKernelName, p: GpuKernelParams, a: re
   const out: number[] = [];
   for (let i = 0; i < p.len; i++) {
     switch (name) {
-      case "vadd": out.push((a[i]! + b[i]!) | 0); break;
-      case "saxpy": out.push((Math.imul(a[i]!, p.scale ?? 3) + b[i]!) | 0); break;
+      case "vadd": out.push((a[i]! + Math.imul(ROUNDS, b[i]!)) | 0); break;
+      case "saxpy": out.push((b[i]! + Math.imul(ROUNDS, Math.imul(a[i]!, p.scale ?? 3))) | 0); break;
       case "blur3": {
         const l = i === 0 ? a[i]! : a[i - 1]!, r = i === p.len - 1 ? a[i]! : a[i + 1]!;
         out.push(Math.imul(l + a[i]! + r, 21846) >>> 16);
@@ -190,9 +198,58 @@ export function mandelCount(i: number): number {
   }
 }
 
-/** A cheap checksum of an output array (what the job prints). */
-export function arrayChecksum(xs: readonly number[]): number {
+/** What the job prints: the sum of the output words, low 6 bits. */
+export function outputChecksum(xs: readonly number[]): number {
   let h = 0;
-  for (const x of xs) h = (Math.imul(h, 31) + x) & 0xffff;
-  return h;
+  for (const x of xs) h = (h + x) | 0;
+  return h & 63;
+}
+
+// ---------- the same kernels on the CPU (the job's path when no card is installed) ----------
+
+const kernel = (name: string, ns: string, mix: Kernel["mix"], body: string[]): Kernel =>
+  ({ name, ns, mix, footprintBytes: 0, asm: [`${ns}:`, ...body.map((l) => `  ${l}`)].join("\n") });
+
+/**
+ * The CPU version of a kernel, a leaf following the kernel call convention (kernels.ts). vadd, saxpy, blur3: a0 = input a, a1 = input b,
+ * a2 = output, a3 = element count. mandel: a0 = output, the count is baked in. blur3 reads one guard word on each side of `a`.
+ */
+export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): Kernel {
+  switch (name) {
+    case "vadd":
+      return kernel("gpu_vadd", ns, ["mem", "alu", "branch"], [
+        `${ns}_i:`, "lw t0, 0(a0)", "lw t1, 0(a1)", ...Array<string>(ROUNDS).fill("add t0, t0, t1"),
+        "sw t0, 0(a2)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
+      ]);
+    case "saxpy":
+      return kernel("gpu_saxpy", ns, ["mem", "mul", "alu", "branch"], [
+        `li t3, ${p.scale ?? 3}`, `${ns}_i:`, "lw t0, 0(a0)", "lw t1, 0(a1)", "mul t0, t0, t3", ...Array<string>(ROUNDS).fill("add t1, t1, t0"),
+        "sw t1, 0(a2)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
+      ]);
+    case "blur3":
+      return kernel("gpu_blur3", ns, ["mem", "mul", "alu", "branch"], [
+        "li t3, 21846", `${ns}_i:`, "lw t0, -4(a0)", "lw t1, 0(a0)", "lw t2, 4(a0)", "add t0, t0, t1", "add t0, t0, t2", "mul t0, t0, t3", "srli t0, t0, 16",
+        "sw t0, 0(a2)", "addi a0, a0, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
+      ]);
+    case "mandel": {
+      const m = MANDEL;
+      return kernel("gpu_mandel", ns, ["mem", "mul", "alu", "branch"], [
+        "li a1, 0",
+        `${ns}_o:`, `andi t0, a1, ${(1 << m.logW) - 1}`, `li t4, ${m.dx}`, "mul t0, t0, t4", `li t4, ${m.xMin}`, "add t0, t0, t4",
+        "li t1, 0", "li t2, 0", "li t3, 0",
+        `${ns}_n:`, "mul t4, t1, t1", "srai t4, t4, 12", "mul a3, t2, t2", "srai a3, a3, 12",
+        "add a2, t4, a3", "srli a2, a2, 14", `bne a2, zero, ${ns}_d`,
+        "mul t2, t1, t2", "srai t2, t2, 11", `addi t2, t2, ${m.cy}`, "sub t1, t4, a3", "add t1, t1, t0",
+        "addi t3, t3, 1", `li a2, ${m.maxIter}`, `bne t3, a2, ${ns}_n`,
+        `${ns}_d:`, "sw t3, 0(a0)", "addi a0, a0, 4", "addi a1, a1, 1", `li a2, ${p.len}`, `bne a1, a2, ${ns}_o`, "ret",
+      ]);
+    }
+  }
+}
+
+/** copy_words(dst = a0, src = a1, bytes = a2, a multiple of 4, >= 4): a word copy, used to fill card memory through the bus window. */
+export function copyWords(ns: string): Kernel {
+  return kernel("gpu_copy", ns, ["mem", "alu", "branch"], [
+    `${ns}_loop:`, "lw t0, 0(a1)", "sw t0, 0(a0)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, -4", `bne a2, zero, ${ns}_loop`, "ret",
+  ]);
 }

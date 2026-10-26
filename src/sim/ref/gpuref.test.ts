@@ -44,8 +44,8 @@ describe("GPU reference interpreter: kernels", () => {
     g.load([1, 2, 3, 4], KERNEL_LAYOUT.a);
     g.load([10, 20, 30, 40], KERNEL_LAYOUT.b);
     g.run();
-    expect(g.read(KERNEL_LAYOUT.out, 4)).toEqual([11, 22, 33, 44]);
-    expect(gpuKernelExpected("saxpy", { lanes: 4, len: 4, scale: 2 }, [1, 2, 3, 4], [10, 20, 30, 40])).toEqual([12, 24, 36, 48]);
+    expect(g.read(KERNEL_LAYOUT.out, 4)).toEqual([121, 242, 363, 484]); // a + 12 * b
+    expect(gpuKernelExpected("saxpy", { lanes: 4, len: 4, scale: 2 }, [1, 2, 3, 4], [10, 20, 30, 40])).toEqual([34, 68, 102, 136]); // b + 12 * (2 * a)
     // blur3 over a ramp: the edges reuse their own value (3, 6, 9, 12 -> (3+3+6)/3 = 4, 6, 9, (9+12+12)/3 = 11)
     expect(gpuKernelExpected("blur3", { lanes: 4, len: 4 }, [3, 6, 9, 12], [])).toEqual([4, 6, 9, 11]);
   });
@@ -58,8 +58,8 @@ describe("GPU reference interpreter: kernels", () => {
   it("mandel is heavily divergent: lanes finish at different times and the loop runs for the slowest", () => {
     const { g, out } = runKernel("mandel", 8, 32);
     expect(new Set(out).size).toBeGreaterThan(3);
-    expect(out.some((c) => c === 48)).toBe(true); // inside the set: runs to the iteration cap
-    expect(out.some((c) => c < 10)).toBe(true); // far outside: escapes at once
+    expect(out.some((c) => c === 16)).toBe(true); // inside the set: runs to the iteration cap (16)
+    expect(out.some((c) => c < 5)).toBe(true); // far outside: escapes at once
     expect(out).toEqual([...Array(32).keys()].map(mandelCount));
     // an inner-loop pass costs the same however few lanes are still going, so a lot of lane-slots are idle
     expect(g.idleLaneSlots / (g.instructions * 8)).toBeGreaterThan(0.1);

@@ -303,13 +303,13 @@ describe("jobs the machine cannot run", () => {
     expect(avg0).toBeCloseTo(50, 6);
     const r0 = g.snapshot().reputation;
     expect(r0).toBeCloseTo(1.08, 6);
-    expect(g.spawnKey("gpu")).toMatchObject({ ok: true });
-    const k = g.snapshot().tray.find((x) => x.cls === "gpu")!;
-    expect(k).toMatchObject({ runnable: false, needs: ["GPU"], missing: ["a GPU"], type: "gpu", declinable: true });
-    expect(k.label).toMatch(/gpu$/);
+    expect(g.spawnKey("secure")).toMatchObject({ ok: true }); // the TPM job is the one class still waiting for its device (gpu jobs run on the CPU without a card)
+    const k = g.snapshot().tray.find((x) => x.cls === "secure")!;
+    expect(k).toMatchObject({ runnable: false, needs: ["TPM"], missing: ["a TPM"], type: "secure", declinable: true });
+    expect(k.label).toMatch(/secure$/);
     expect(k.expiresTick - k.arrivalTick).toBe(Math.round(180 * 0.9));
     const plug = g.plugKey(k.id);
-    expect(plug).toMatchObject({ ok: false, reason: expect.stringMatching(/GPU/) });
+    expect(plug).toMatchObject({ ok: false, reason: expect.stringMatching(/TPM/) });
     expect(g.trayKeyIds()).not.toContain(k.id); // bots only see keys they can run
     // Waiting does not count as an age (the player is punished once, at the expiry).
     while (g.baseTick < k.expiresTick - 1) g.advanceBaseTick();
@@ -355,15 +355,19 @@ describe("jobs the machine cannot run", () => {
     expect(g.plugKey(id).ok).toBe(true);
   });
 
-  it("needsMet reads the machine; unknown devices (network, TPM, GPU, NPU, multicore) are never there yet", () => {
+  it("needsMet reads the machine; unknown devices (network, TPM, NPU, multicore) are never there yet; the GPU class needs nothing", () => {
     expect(needsMet([{ kind: "os", min: 1 }], NO_CAPS)).toEqual({ ok: false, missing: ["an OS"] });
     expect(needsMet([{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], { ...NO_CAPS, osTier: 1, storageTier: 2 }).ok).toBe(true);
     expect(needsMet([{ kind: "storage", minTier: 1 }], { ...NO_CAPS, storageTier: 0 }).ok).toBe(false);
-    for (const id of ["web", "secure", "gpu", "npu", "hpc"]) {
+    for (const id of ["web", "secure", "npu", "hpc"]) {
       const c = JOB_CLASSES.find((x) => x.id === id)!;
       expect(c.placeholder, id).toBe(true);
       expect(needsMet(c.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok, id).toBe(false);
     }
+    const gpu = JOB_CLASSES.find((x) => x.id === "gpu")!;
+    expect(gpu).toMatchObject({ template: "gpu.render", needs: [] });
+    expect(gpu.placeholder).toBeUndefined();
+    expect(needsMet(gpu.needs, NO_CAPS).ok).toBe(true);
   });
 });
 

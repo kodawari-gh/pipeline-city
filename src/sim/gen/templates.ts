@@ -4,10 +4,14 @@
 // plus "cli" which picks a family from the seed). To add a scenario (web request, GPU render, secure execution, ...):
 // write a TemplateFn, add it to TEMPLATES below, and document it in docs/GEN.md. Nothing else needs to change.
 
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS } from "../isa/memmap";
+import { assembleGpu } from "../asm/gpu";
+import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG } from "../isa/memmap";
 import { Prng } from "../machine/prng";
 import * as K from "./kernels";
 import type { Kernel } from "./kernels";
+import {
+  copyWords, cpuKernel, GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+} from "./gpukernels";
 
 export interface GenParams {
   /** Work multiplier (default 1): more log lines, more hash words, more scan elements, more multiply rounds. */
@@ -22,12 +26,23 @@ export interface GenParams {
    * reference interpreter). The two differ only in that last instruction.
    */
   hosted?: boolean;
+  /** A working GPU the job may use (`gpu.render` offloads its kernel to it; without one it runs the same work on the CPU). */
+  gpu?: GpuTarget;
+}
+
+/** Where a card sits on the bus and what it has: the part of the hardware a program may be generated for. */
+export interface GpuTarget {
+  /** Bus address of the card's window (`GPU_BASE + k * GPU_STRIDE`). */
+  base: number;
+  lanes: number;
+  memBytes: number;
 }
 
 export interface ResolvedParams {
   scale: number;
   row: number;
   jobId: number;
+  gpu?: GpuTarget;
 }
 
 /** What a template returns. */
@@ -234,6 +249,60 @@ const cliScan: TemplateFn = (rng, p) => {
   return b.finish("cli.scan request", blankRows(p.row) + renderLine(segs, [result]));
 };
 
+/**
+ * GPU batch job (docs/ACCEL.md "Job classes"): one of the kernels vadd, saxpy, blur3, mandel over a seeded array, printing the sum of
+ * the outputs. With a card the CPU copies the kernel and its data into card memory, launches and polls; without one it runs the same
+ * work in a loop on the CPU. Both print the same line (the seed alone picks kernel, data and answer, never the hardware), and pay the same.
+ */
+const gpuRender: TemplateFn = (rng, p) => {
+  const b = new Builder();
+  const name = GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!;
+  const len = 32 * Math.max(1, Math.floor(p.scale / 2));
+  const scale = 2 + rng.nextInt(4);
+  const { a, b: bIn } = kernelInputs(len, rng.nextU32());
+  const kp: GpuKernelParams = { lanes: 1, len, scale }; // results do not depend on the lane count
+  const expected = outputChecksum(gpuKernelExpected(name, kp, a, bIn));
+  const segs: Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, " OK"];
+  const line = layoutLine(segs);
+  const guards = name === "blur3"; // blur3 reads a[-1] and a[len]: the input carries a copy of its edge elements there
+  const aWords = guards ? [a[0]!, ...a, a[len - 1]!] : a;
+  const needsB = name === "vadd" || name === "saxpy";
+  const aData = b.ns("a"), bData = b.ns("b");
+  b.emit(`li s0, ${rowAddr(p.row)}`);
+  emitStatic(b, line, 0);
+  const gpu = p.gpu;
+  const L = KERNEL_LAYOUT;
+  const onCard = gpu && len % gpu.lanes === 0 && gpu.lanes <= 32 && gpu.memBytes >= L.out + 4 * len + 4;
+  let sumAt: number;
+  if (onCard) {
+    const code = assembleGpu(gpuKernelSource(name, { ...kp, lanes: gpu.lanes })).program;
+    if (code.length * 4 > L.a - 4) throw new RangeError("gpu kernel too large");
+    const kData = b.ns("kernel");
+    const win = gpu.base + GPU_MEM;
+    const copy = b.add(copyWords(b.ns("copy")), 0);
+    b.emit(`li a0, ${win + L.code}`, `la a1, ${kData}`, `li a2, ${code.length * 4}`, `call ${copy}`);
+    if (name !== "mandel") {
+      b.emit(`li a0, ${win + L.a - (guards ? 4 : 0)}`, `la a1, ${aData}`, `li a2, ${aWords.length * 4}`, `call ${copy}`);
+    }
+    if (needsB) b.emit(`li a0, ${win + L.b}`, `la a1, ${bData}`, `li a2, ${len * 4}`, `call ${copy}`);
+    const poll = b.ns("poll");
+    b.emit(`li t0, ${gpu.base}`, `sw zero, ${GPU_REG.KERNEL}(t0)`, `sw zero, ${GPU_REG.LANES}(t0)`, "li t1, 1", `sw t1, ${GPU_REG.CMD}(t0)`);
+    b.emit(`${poll}:`, `lw t1, ${GPU_REG.STATUS}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${poll}`);
+    sumAt = win + L.out;
+    b.addData([`${kData}:`, ...Array.from(code, (w) => `  .word ${w}`)]);
+  } else {
+    const kern = b.add(cpuKernel(name, b.ns("cpu"), kp), 4 * len);
+    sumAt = BUF_BASE;
+    if (name === "mandel") b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
+    else b.emit(`la a0, ${aData}`, ...(guards ? ["addi a0, a0, 4"] : []), `la a1, ${needsB ? bData : aData}`, `li a2, ${BUF_BASE}`, `li a3, ${len}`, `call ${kern}`);
+  }
+  b.emit(`li a0, ${sumAt}`, `li a1, ${len}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * len)}`, "andi a1, a0, 63");
+  b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
+  if (name !== "mandel") b.addData([`${aData}:`, ...aWords.map((w) => `  .word ${w}`)]);
+  if (needsB) b.addData([`${bData}:`, ...bIn.map((w) => `  .word ${w}`)]);
+  return b.finish(`gpu.render request`, blankRows(p.row) + renderLine(segs, [expected]));
+};
+
 const CLI_FAMILIES = [cliLog, cliCalc, cliChecksum];
 
 /** Default CLI request: family picked from the seed. */
@@ -246,5 +315,6 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   "cli.calc": cliCalc,
   "cli.checksum": cliChecksum,
   "cli.scan": cliScan,
+  "gpu.render": gpuRender,
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").
 };

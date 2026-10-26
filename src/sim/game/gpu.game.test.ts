@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assembleGpu } from "../asm/gpu";
 import { GPU_BASE, GPU_MEM, GPU_REG, GpuStatus } from "../isa/memmap";
+import { Operator } from "./operator";
 import { econ } from "./testkit";
 import { Game } from "./game";
 
@@ -47,5 +48,31 @@ describe("a GPU in the machine", () => {
     while (bus.load32(base + GPU_REG.STATUS) & GpuStatus.Busy) { g.advanceBaseTick(); if (++idleTicks > 2000) throw new Error("the card never finished"); }
     expect(bus.load32(base + GPU_REG.STATUS) & GpuStatus.Done).toBeTruthy();
     expect([0, 1, 7].map((k) => bus.load32(base + GPU_MEM + 1024 + 4 * k))).toEqual([100, 101, 107]);
+  });
+});
+
+describe("a gpu job in the machine", () => {
+  /** Serve one `gpu` class job with the bot, with or without a card; returns the ticks it took and what the card did. */
+  function serve(card: boolean) {
+    const g = maxed();
+    if (card) {
+      expect(g.install(buy(g, "gpu1")).ok).toBe(true);
+      expect(g.connectCable("pcie").ok).toBe(true);
+    }
+    g.clearQueue();
+    expect(g.spawnKey("gpu").ok).toBe(true);
+    const key = g.snapshot().tray.find((k) => k.cls === "gpu")!;
+    expect(key.runnable).toBe(true); // no card needed
+    const op = new Operator(g, 1);
+    let ticks = 0;
+    while (g.completed < 1 && ticks < 60_000) { g.advanceBaseTick(); op.step(); ticks++; }
+    expect(g.completed).toBe(1);
+    expect(g.errors).toBe(0);
+    return { ticks, snap: g.snapshot() };
+  }
+
+  it("runs on the CPU alone and faster with a card (the job and its class pay are the same either way: the key is the same)", () => {
+    const cpu = serve(false), gpu = serve(true);
+    expect(gpu.ticks).toBeLessThan(cpu.ticks);
   });
 });
