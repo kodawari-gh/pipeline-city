@@ -1,429 +1,323 @@
-// The floorplans of each CPU architecture (see cpuplan.ts for the data model and docs/DIE.md for the grammar).
+// The floorplans of each CPU architecture (see cpuplan.ts for the data model, cpufloor.ts for the layout engine, docs/DIE.md for the grammar).
+//
+// Every die has the same edge ring, on the sides the package pins are (docs/RENDER.md "Routing"): power and SVID in the north (the VRM's
+// vcore stubs), the memory controller in the east (the DIMM bus), the clock and PCIe / NVMe / DMI in the south, USB, the display and the
+// interrupt controller in the west. The core fills the middle, tiled edge to edge; blocks that talk to each other touch across a gutter.
 
-import { Builder, U, cacheSub, gridFor, type Block, type BlockKind, type CpuPlan, type Link, type PlanInput, type Pt, type Rect } from './cpuplan';
+import { type Block, type CpuPlan, type Link, type PlanInput, type Rect } from './cpuplan';
+import { GAP, col, leaf, place, routeLinks, row, spans, type LinkSpec, type Node } from './cpufloor';
 import { DIE } from './layout';
 
-// ---------------------------------------------------------------- shared pieces
+/** The die's usable area, the width of the edge columns and the height of the north and south bands. */
+const R: Rect = { x: DIE.x + 24, y: DIE.y + 24, w: DIE.w - 48, h: DIE.h - 48 };
+const EDGE = { side: 104, north: 64, south: 84 };
+const CORE: Rect = { x: R.x + EDGE.side + GAP, y: R.y + EDGE.north + GAP, w: R.w - 2 * EDGE.side - 2 * GAP, h: R.h - EDGE.north - EDGE.south - 2 * GAP };
 
-const cy = (b: Block): number => Math.round(b.rect.y + 0.5 * b.rect.h);
-const cx = (b: Block): number => Math.round(b.rect.x + 0.5 * b.rect.w);
-
-/** Clock and interrupt controller (north-west corner). The clock is the cpu clock domain (and its throttling), the INTC the controller of docs/CPU.md. */
-function corner(b: Builder): void {
-  b.add('clk', 'clock', 'CLOCK', U.x0, U.y0, 118, 62, { sub: 'cpu domain' });
-  b.add('intc', 'intc', 'INTC', U.x0, U.y0 + 70, 118, 62, { sub: 'interrupts' });
+function ringTree(core: Node): Node {
+  return col([
+    row([leaf('pwr', 'power', 'POWER', { sub: 'vcore · one stub per VRM phase', shape: [6, 1], f: 3 }), leaf('thermal', 'thermal', 'SVID · THERMAL', { sub: 'sensors · throttle', f: 1.2 })], { px: EDGE.north }),
+    row([
+      col([
+        leaf('usb', 'usb', 'USB', { sub: 'four lanes', shape: [1, 4], f: 1 }),
+        leaf('display', 'display', 'DISPLAY', { sub: 'video pairs', shape: [1, 2], f: 1 }),
+        leaf('intc', 'intc', 'INTC', { sub: 'four lines', shape: [4, 1], f: 1 }),
+      ], { px: EDGE.side }),
+      core,
+      leaf('mc', 'mc', 'MEMORY CONTROLLER', { sub: 'six lanes a DIMM', shape: [1, 6], px: EDGE.side }),
+    ], { f: 1 }),
+    row([leaf('clk', 'clock', 'CLOCK · PLL', { sub: '24 MHz', f: 1 }), leaf('pcie', 'pcie', 'PCIe · NVMe · DMI', { sub: '12 PCIe · 3 NVMe · 6 DMI lanes', shape: [21, 1], f: 4 })], { px: EDGE.south }),
+  ], { zone: 'edge' });
 }
 
-/** The bus interface unit: the east column, toward the package pins and the memory bus. */
-function biu(b: Builder, w = 138): Block {
-  return b.add('biu', 'biu', 'BUS INTERFACE', U.x1 - w, U.y0, w, U.y1 - U.y0, { sub: 'RAM · MMIO' });
-}
+const fabric = () => leaf('fabric', 'fabric', 'SYSTEM BUS', { sub: 'RAM · devices', px: 50, zone: 'edge' });
 
-const gridIn = (n: number, w: number, h: number, minCols = 1) => gridFor(n, w - 24, h - 56, minCols);
+type L = [id: string, kind: LinkSpec['kind'], from: string, to: string, lanes?: 1 | 2 | 3 | 4, label?: string, both?: boolean];
+const links = (a: L[]): LinkSpec[] => a.map(([id, kind, from, to, lanes, label, both]) => ({ id, kind, from, to, ...(lanes ? { lanes } : {}), ...(label ? { label } : {}), ...(both ? { both } : {}) }));
 
-function dcache(b: Builder, x: number, y: number, w: number, h: number, lines: number, ways: number): Block {
-  return b.add('dc', 'dcache', 'D-CACHE', x, y, w, h, { sub: cacheSub(lines, ways), grid: gridIn(lines, w, h, ways) });
-}
+const cacheSub = (lines: number, ways: number): string => `${lines} lines${ways > 1 ? ` · ${ways}-way` : ''}`;
 
-function icache(b: Builder, x: number, y: number, w: number, h: number, lines: number): Block {
-  return b.add('ic', 'icache', 'I-CACHE', x, y, w, h, { sub: cacheSub(lines, 1), grid: gridIn(lines, w, h) });
-}
-
-function l2(b: Builder, x: number, y: number, w: number, h: number, lines: number): Block {
-  return b.add('l2', 'l2', 'L2 CACHE', x, y, w, h, { sub: `${lines} lines · shared`, grid: gridFor(lines, w - 24, h - 40) });
-}
-
-function regfile(b: Builder, x: number, y: number, w: number, h: number, sub: string): Block {
-  return b.add('rf', 'regfile', 'REGISTER FILE', x, y, w, h, { sub, grid: gridIn(16, w, h) });
-}
-
-// ---------------------------------------------------------------- stage frames and their sub-blocks
-
-interface Sub {
-  id: string; kind: BlockKind; label: string; sub?: string; h: number;
-  /** Shares the row with this one (half width each). */
-  pair?: Sub;
-  /** Takes the extra height of the frame (default: the last item). */
-  fill?: boolean;
-  lane?: number;
-}
-
-const PAD = 16, TOP = 36, GAP = 8, BOT = 12;
-
-const need = (items: Sub[]): number => TOP + items.reduce((n, s) => n + s.h, 0) + GAP * (items.length - 1) + BOT;
-
-/** Stack sub-blocks top to bottom inside a stage frame; the extra height goes to the `fill` item. */
-function stack(b: Builder, f: Block, items: Sub[]): void {
-  const extra = f.rect.h - need(items);
-  const fillAt = Math.max(0, items.findIndex((s) => s.fill));
-  const fi = items.some((s) => s.fill) ? fillAt : items.length - 1;
-  let y = f.rect.y + TOP;
-  const x = f.rect.x + PAD, w = f.rect.w - 2 * PAD;
-  items.forEach((s, k) => {
-    const h = s.h + (k === fi ? extra : 0);
-    const put = (sub: Sub, sx: number, sw: number) => b.add(sub.id, sub.kind, sub.label, sx, y, sw, h, {
-      parent: f.id, ...(sub.sub ? { sub: sub.sub } : {}), ...(sub.lane !== undefined ? { lane: sub.lane } : {}),
-    });
-    if (s.pair) {
-      const hw = Math.floor((w - GAP) / 2);
-      put(s, x, hw);
-      put(s.pair, x + hw + GAP, hw);
-    } else put(s, x, w);
-    y += h + GAP;
-  });
+/** The links every die has: the system bus to the edge blocks, the interrupt vector, the clock, the power into the core's top. */
+function edgeLinks(coreTops: string[], pcId: string, clockTo: string): L[] {
+  const out: L[] = [
+    ['fab-mc', 'mem', 'fabric', 'mc', 4, undefined, true],
+    ['fab-pcie', 'mmio', 'fabric', 'pcie', 3, 'DMI · PCIe · NVMe', true],
+    ['fab-usb', 'mmio', 'fabric', 'usb', 2],
+    ['fab-display', 'mmio', 'fabric', 'display', 2],
+    ['fab-intc', 'mmio', 'fabric', 'intc', 1],
+    ['irq-pc', 'irq', 'intc', pcId, 1, 'interrupt vector'],
+    ['clk-core', 'control', 'clk', clockTo, 1, 'clock'],
+    ['thermal-pwr', 'control', 'thermal', 'pwr', 1],
+  ];
+  for (const t of coreTops) out.push([`pwr-${t}`, 'power', 'pwr', t, 1]);
+  return out;
 }
 
 // ---------------------------------------------------------------- unpipelined and in-order pipelines
 
-const LATCH = ['IF/ID', 'ID/EX', 'EX/MEM', 'MEM/WB'];
-const STAGE_NAMES = ['IF · fetch', 'ID · decode', 'EX · execute', 'MEM · memory', 'WB · write back'];
-
-export function pipeline(i: PlanInput): Builder {
-  const b = new Builder();
+function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
   const un = i.arch === 'unpipelined', two = i.arch === 'inorder2', fwd = i.forwarding ?? true;
   const lines = i.cacheLines ?? 8, ways = i.ways ?? 1;
   const icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0;
   const predEntries = i.predEntries ?? 64, predBits = i.predBits ?? 1;
-  corner(b);
+  const frame = (id: string, label: string, stage: number, kids: Node[], f: number) => col(kids, { frame: { id, kind: 'stage', label, stage }, f });
+  const latch = (k: number, name: string) => leaf(`lat${k}`, 'latch', name, { px: 30 });
 
-  const ifItems: Sub[] = [
-    { id: 'pc', kind: 'pc', label: 'PC', sub: 'program counter', h: 40 },
-    { id: 'npc', kind: 'nextpc', label: 'NEXT PC', h: 38, pair: { id: 'pcadd', kind: 'pcadd', label: 'PC + 4', h: 38 } },
-    { id: 'fetch', kind: 'fetch', label: two ? 'FETCH × 2' : 'FETCH', sub: icLines ? 'reads the I-cache' : 'reads RAM', h: 56, fill: true },
+  const ifKids: Node[] = [
+    ...(un ? [] : [leaf('bp', 'predictor', 'BRANCH PREDICTOR', { cells: predEntries, sub: `${predEntries} x ${predBits}-bit`, f: 1.5 })]),
+    row([leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }), leaf('pcadd', 'pcadd', 'PC + 4', { shape: [32, 1] })], { px: un ? 64 : 52 }),
+    leaf('pc', 'pc', 'PC', { sub: 'program counter', shape: [32, 1], px: un ? 60 : 50 }),
+    leaf('fetch', 'fetch', two ? 'FETCH × 2' : 'FETCH', { sub: icLines ? 'reads the I-cache' : 'reads RAM', shape: [32, 1], f: 1 }),
   ];
-  const idItems: Sub[] = un
-    ? [{ id: 'imm', kind: 'imm', label: 'IMMEDIATE', h: 40 }, { id: 'dec', kind: 'decode', label: 'DECODER', sub: 'opcode to control', h: 70, fill: true }]
+  const idKids: Node[] = un
+    ? [leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 70 }), leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 })]
     : two
       ? [
-        { id: 'hz', kind: 'hazard', label: 'HAZARD', sub: fwd ? 'load-use stall' : 'waits for write back', h: 46 },
-        { id: 'imm', kind: 'imm', label: 'IMMEDIATE', h: 36 },
-        { id: 'bundle', kind: 'bundle', label: 'PAIR / ISSUE', sub: 'one bundle a cycle', h: 46 },
-        { id: 'dec0', kind: 'decode', label: 'DECODE A', h: 54, lane: 0, fill: true, pair: { id: 'dec1', kind: 'decode', label: 'DECODE B', h: 54, lane: 1 } },
+        leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 56 }),
+        leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }),
+        leaf('bundle', 'bundle', 'PAIR / ISSUE', { sub: 'one bundle a cycle', px: 52 }),
+        row([leaf('dec0', 'decode', 'DECODE A', { lane: 0, shape: [8, 4] }), leaf('dec1', 'decode', 'DECODE B', { lane: 1, shape: [8, 4] })], { f: 1 }),
       ]
       : [
-        { id: 'hz', kind: 'hazard', label: 'HAZARD', sub: fwd ? 'load-use stall' : 'waits for write back', h: 50 },
-        { id: 'imm', kind: 'imm', label: 'IMMEDIATE', h: 38 },
-        { id: 'dec', kind: 'decode', label: 'DECODER', sub: 'opcode to control', h: 70, fill: true },
+        leaf('hz', 'hazard', 'HAZARD', { sub: fwd ? 'load-use stall' : 'waits for write back', px: 60 }),
+        leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 50 }),
+        leaf('dec', 'decode', 'DECODER', { sub: 'opcode to control', shape: [8, 4], f: 1 }),
       ];
-  const exTop: Sub[] = [
-    { id: 'br', kind: 'branch', label: 'BRANCH', sub: 'compare · target', h: 46 },
-    ...(!un && fwd ? [{ id: 'fwd', kind: 'forward', label: 'FORWARD', sub: 'bypass A / B', h: 46 } as Sub] : []),
+  const exKids: Node[] = [
+    leaf('br', 'branch', 'BRANCH', { sub: 'compare · target', px: un ? 70 : 64 }),
+    ...(!un && fwd ? [leaf('fwd', 'forward', 'FORWARD', { sub: 'bypass A / B', px: 56 })] : []),
+    ...(two
+      ? [leaf('alu0', 'alu', 'ALU A', { sub: 'add · logic · shift · mul', lane: 0, shape: [32, 1], f: 1 }), leaf('alu1', 'alu', 'ALU B', { lane: 1, shape: [32, 1], f: 1 })]
+      : [leaf('alu', 'alu', 'ALU', { sub: 'add · logic · shift · mul', shape: [32, 1], f: 1 })]),
   ];
-  const exItems: Sub[] = two
-    ? [...exTop, { id: 'alu0', kind: 'alu', label: 'ALU A', sub: 'add · logic · shift · mul', h: 54, lane: 0 }, { id: 'alu1', kind: 'alu', label: 'ALU B', h: 54, lane: 1, fill: true }]
-    : [...exTop, { id: 'alu', kind: 'alu', label: 'ALU', sub: 'add · logic · shift · mul', h: 70, fill: true }];
-  const memItems: Sub[] = [
-    { id: 'mmio', kind: 'mmio', label: 'DEVICE?', sub: 'skips the cache', h: 46 },
-    { id: 'lsu', kind: 'lsu', label: 'LOAD / STORE', sub: 'address · align', h: 70, fill: true },
+  const memKids: Node[] = [leaf('dev', 'mmio', 'DEVICE?', { sub: 'skips the cache', px: 64 }), leaf('lsu', 'lsu', 'LOAD / STORE', { sub: 'address · align', shape: [32, 1], f: 1 })];
+  const wbKids: Node[] = [leaf('wb', 'wb', 'WRITE BACK', { sub: two ? 'two write ports' : 'result mux', shape: [32, 1], f: 1 })];
+
+  // the stage columns, and the spans the south row has to line up with
+  const defs = un
+    ? [{ f: 1 }, { f: 1 }, { f: 1 }, { f: 1 }, { f: 0.8 }]
+    : [{ f: 1.3 }, { px: 30 }, { f: 1.1 }, { px: 30 }, { f: 1.2 }, { px: 30 }, { f: 1 }, { px: 30 }, { f: 0.7 }];
+  const sp = spans(cw, defs, GAP);
+  const cover = (a: number, b: number) => sp[b]![0] + sp[b]![1] - sp[a]![0];
+  const stageRow = row(un
+    ? [
+      frame('if', 'IF · FETCH', 0, ifKids, 1), frame('id', 'ID · DECODE', 1, idKids, 1), frame('ex', 'EX · EXECUTE', 2, exKids, 1),
+      frame('mem', 'MEM · MEMORY', 3, memKids, 1), frame('wbf', 'WB · WRITE BACK', 4, wbKids, 0.8),
+    ]
+    : [
+      frame('if', 'IF · FETCH', 0, ifKids, 1.3), latch(0, 'IF/ID'), frame('id', 'ID · DECODE', 1, idKids, 1.1), latch(1, 'ID/EX'),
+      frame('ex', 'EX · EXECUTE', 2, exKids, 1.2), latch(2, 'EX/MEM'), frame('mem', 'MEM · MEMORY', 3, memKids, 1), latch(3, 'MEM/WB'),
+      frame('wbf', 'WB · WRITE BACK', 4, wbKids, 0.7),
+    ], { f: 52 });
+  const southRow = row([
+    ...(icLines > 0 ? [leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: un ? cover(0, 0) : cover(0, 1) })] : []),
+    leaf('rf', 'regfile', 'REGISTER FILE', { cells: 16, sub: two ? '4 read · 2 write' : '2 read · 1 write', px: icLines > 0 ? (un ? cover(1, 2) : cover(2, 5)) : (un ? cover(0, 2) : cover(0, 5)) }),
+    leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
+  ], { f: 31 });
+  const tree = col([
+    ...(un ? [leaf('seq', 'control', 'SEQUENCER', { cells: 5, sub: 'one instruction at a time · five phases', px: 70 })] : []),
+    stageRow,
+    southRow,
+    ...(l2Lines > 0 && !tile ? [leaf('l2', 'l2', 'L2 CACHE', { cells: l2Lines, sub: `${l2Lines} lines · shared by both L1s`, px: 92 })] : []),
+    ...(tile ? [] : [fabric()]),
+  ], { f: 1, zone: 'core' });
+
+  const specs: L[] = [
+    // the fetch group
+    ['pc-pcadd', 'data', 'pc', 'pcadd', 1], ['pcadd-npc', 'data', 'pcadd', 'npc', 1], ['npc-pc', 'data', 'npc', 'pc', 1], ['pc-fetch', 'data', 'pc', 'fetch', 1],
+    ...(icLines > 0
+      ? [['fetch-ic', 'data', 'fetch', 'ic', 2, 'instruction fetch', true] as L]
+      : [['fetch-mem', 'mem', 'fetch', l2Lines > 0 ? 'l2' : 'fabric', 3, 'instruction fetch (uncached)'] as L]),
   ];
-  const wbItems: Sub[] = [{ id: 'wb', kind: 'wb', label: 'WRITE BACK', sub: two ? 'two write ports' : 'result mux', h: 70, fill: true }];
-  const lists = [ifItems, idItems, exItems, memItems, wbItems];
-
-  // frames
-  const y0 = -308;
-  const H = Math.max(un ? 340 : 360, ...lists.map(need));
-  const widths = un ? [200, 200, 200, 200, 150] : [210, 210, 210, 210, 160];
-  const gap = un ? 36 : 46;
-  const frames: Block[] = [];
-  let x = U.x0;
-  widths.forEach((w, k) => {
-    frames.push(b.frame(['if', 'id', 'ex', 'mem', 'wbf'][k]!, STAGE_NAMES[k]!, k, x, y0, w, H));
-    stack(b, frames[k]!, lists[k]!);
-    if (!un && k < 4) b.add(`lat${k}`, 'latch', LATCH[k]!, x + w + 8, y0, 30, H);
-    x += w + gap;
-  });
-  const bu = biu(b);
-  const g = (id: string) => b.get(id);
-  const FR = frames;
-
-  // ---- south band: I-cache | register file | D-cache, and the L2 under them
-  const sy = y0 + H + 48;
-  const l2h = l2Lines > 0 ? 120 : 0;
-  const bottom = U.y1 - (l2Lines > 0 ? l2h + 18 : 30);
-  const rfX = FR[1]!.rect.x, rfW = FR[2]!.rect.x + FR[2]!.rect.w - rfX;
-  regfile(b, rfX, sy, rfW, bottom - sy, two ? '4 read · 2 write' : '2 read · 1 write');
-  const dcX = FR[3]!.rect.x, dcW = bu.rect.x - 40 - dcX;
-  dcache(b, dcX, sy, dcW, bottom - sy, lines, ways);
-  if (icLines > 0) icache(b, U.x0, sy, FR[1]!.rect.x - 40 - U.x0, bottom - sy, icLines);
-  if (l2Lines > 0) l2(b, U.x0, U.y1 - l2h, bu.rect.x - 40 - U.x0, l2h, l2Lines);
-
-  // ---- north band: the predictor (or, unpipelined, the sequencer)
-  const nx = U.x0 + 134;
   if (un) {
-    b.add('seq', 'control', 'SEQUENCER', nx, U.y0, bu.rect.x - 40 - nx, 104, { sub: 'one instruction at a time · five phases', grid: { cols: 5, rows: 1, count: 5 } });
+    specs.push(
+      ['fetch-dec', 'data', 'fetch', 'dec', 2, 'instruction'], ['fetch-imm', 'data', 'fetch', 'imm', 1],
+      ['dec-alu', 'data', 'dec', 'alu', 2], ['imm-alu', 'data', 'imm', 'alu', 1], ['dec-br', 'data', 'dec', 'br', 1],
+      ['alu-lsu', 'data', 'alu', 'lsu', 2], ['lsu-dev', 'control', 'lsu', 'dev', 1], ['lsu-wb', 'data', 'lsu', 'wb', 2],
+      ['br-npc', 'flush', 'br', 'npc', 1, 'branch target'],
+      ['seq-dec', 'control', 'seq', 'dec', 1, 'phase'],
+    );
   } else {
-    b.add('bp', 'predictor', 'BRANCH PREDICTOR', nx, U.y0, FR[3]!.rect.x + 90 - nx, 104, {
-      sub: `${predEntries} x ${predBits}-bit`, grid: gridFor(predEntries, FR[3]!.rect.x + 90 - nx - 24, 48),
-    });
-  }
-
-  // ---- links
-  const lane = { mmio: -386, fwdB: -373, fwdA: -360, flush: -347, bp: -334 };
-  const feed = (id: string, latch: string, sub: string) => b.link(id, 'data', latch, 'E', sub, 'W', { ft: b.ty(latch, cy(g(sub))), tt: 0.5, width: 2 });
-  const drain = (id: string, sub: string, latch: string) => b.link(id, 'data', sub, 'E', latch, 'W', { ft: 0.5, tt: b.ty(latch, cy(g(sub))), width: 2 });
-  const direct = (id: string, a: string, c: string, label?: string) => b.link(id, 'data', a, 'E', c, 'W', { width: 2, ...(label ? { label } : {}) });
-
-  // fetch group: PC -> +4 -> next PC -> PC, PC -> fetch address
-  b.link('pc-add', 'data', 'pc', 'S', 'pcadd', 'N', { ft: 0.75, tt: 0.5, width: 1 });
-  b.link('add-npc', 'data', 'pcadd', 'W', 'npc', 'E', { width: 1 });
-  b.link('npc-pc', 'data', 'npc', 'N', 'pc', 'S', { ft: 0.5, tt: 0.2, width: 1 });
-  b.link('pc-fetch', 'data', 'pc', 'S', 'fetch', 'N', { ft: 0.5, tt: 0.5, width: 1 });
-  // interrupts: the controller forces the vector into the PC
-  b.link('irq-pc', 'irq', 'intc', 'S', 'pc', 'W', { ft: 0.5, tt: 0.5, width: 1, via: [[FR[0]!.rect.x + 4, cy(g('pc'))]], label: 'IRQ vector' });
-
-  if (un) {
-    direct('fetch-dec', 'fetch', 'dec', 'instruction');
-    direct('fetch-imm', 'fetch', 'imm');
-    direct('dec-alu', 'dec', 'alu');
-    direct('imm-alu', 'imm', 'alu');
-    direct('alu-lsu', 'alu', 'lsu');
-    direct('mmio-lsu', 'lsu', 'mmio');
-    direct('lsu-wb', 'lsu', 'wb');
-    b.link('br-pc', 'control', 'br', 'N', 'npc', 'W', { ft: 0.5, tt: 0.3, via: [[cx(g('br')), lane.flush], [FR[0]!.rect.x + 10, lane.flush]], width: 1, label: 'branch target' });
-  } else {
-    // pipeline registers carry the instruction from stage to stage
-    drain('if-l0', 'fetch', 'lat0');
-    b.link('pc-l0', 'data', 'pc', 'E', 'lat0', 'W', { ft: 0.5, tt: b.ty('lat0', cy(g('pc'))), width: 1 });
-    feed('l0-hz', 'lat0', 'hz');
-    feed('l0-imm', 'lat0', 'imm');
+    specs.push(
+      ['if-l0', 'data', 'fetch', 'lat0', 2], ['pc-l0', 'data', 'pc', 'lat0', 1],
+      ['l0-hz', 'data', 'lat0', 'hz', 1], ['l0-imm', 'data', 'lat0', 'imm', 2],
+      ['imm-l1', 'data', 'imm', 'lat1', 1], ['rf-l1', 'data', 'rf', 'lat1', 2, 'operands'],
+      ['l1-br', 'data', 'lat1', 'br', 1], ['l2-lsu', 'data', 'lat2', 'lsu', 2], ['l2-dev', 'data', 'lat2', 'dev', 1],
+      ['lsu-l3', 'data', 'lsu', 'lat3', 2], ['l3-wb', 'data', 'lat3', 'wb', 2],
+      ['bp-npc', 'control', 'bp', 'npc', 1, 'predicted target'], ['br-bp', 'control', 'br', 'bp', 1, 'learn'], ['br-npc', 'flush', 'br', 'npc', 1, 'redirect · squash'],
+    );
     if (two) {
-      // both decoders sit side by side under the pairing logic; the whole stage reads the register and feeds the next one
-      b.link('l0-id', 'data', 'lat0', 'E', 'id', 'W', { width: 2 });
-      b.link('bundle-dec0', 'control', 'bundle', 'S', 'dec0', 'N', { width: 1 });
-      b.link('bundle-dec1', 'control', 'bundle', 'S', 'dec1', 'N', { width: 1 });
-      b.link('id-l1', 'data', 'id', 'E', 'lat1', 'W', { width: 2 });
+      specs.push(['l0-dec0', 'data', 'lat0', 'dec0', 2], ['l0-dec1', 'data', 'lat0', 'dec1', 2], ['bundle-dec0', 'control', 'bundle', 'dec0', 1], ['bundle-dec1', 'control', 'bundle', 'dec1', 1],
+        ['dec0-l1', 'data', 'dec0', 'lat1', 2], ['dec1-l1', 'data', 'dec1', 'lat1', 2],
+        ['l1-alu0', 'data', 'lat1', 'alu0', 2], ['l1-alu1', 'data', 'lat1', 'alu1', 2], ['alu0-l2', 'data', 'alu0', 'lat2', 2], ['alu1-l2', 'data', 'alu1', 'lat2', 2]);
     } else {
-      feed('l0-dec', 'lat0', 'dec');
-      drain('dec-l1', 'dec', 'lat1');
+      specs.push(['l0-dec', 'data', 'lat0', 'dec', 2], ['dec-l1', 'data', 'dec', 'lat1', 2], ['l1-alu', 'data', 'lat1', 'alu', 2], ['alu-l2', 'data', 'alu', 'lat2', 2]);
     }
-    drain('imm-l1', 'imm', 'lat1');
-    feed('l1-br', 'lat1', 'br');
-    if (fwd) feed('l1-fwd', 'lat1', 'fwd');
-    if (two) { feed('l1-alu0', 'lat1', 'alu0'); feed('l1-alu1', 'lat1', 'alu1'); drain('alu0-l2', 'alu0', 'lat2'); drain('alu1-l2', 'alu1', 'lat2'); } else { feed('l1-alu', 'lat1', 'alu'); drain('alu-l2', 'alu', 'lat2'); }
-    feed('l2-lsu', 'lat2', 'lsu');
-    feed('l2-mmio', 'lat2', 'mmio');
-    drain('lsu-l3', 'lsu', 'lat3');
-    feed('l3-wb', 'lat3', 'wb');
-    // forwarding: the results of the two older instructions go straight back to the ALU inputs
-    if (fwd) {
-      // they come in along the stage's east margin and enter the forwarding mux from its east edge
-      const ex = FR[2]!.rect, strip = ex.x + ex.w - 5;
-      b.link('fwd-a', 'forward', 'lat2', 'N', 'fwd', 'E', { ft: 0.5, tt: 0.3, via: [[cx(g('lat2')), lane.fwdA], [strip, lane.fwdA], [strip, cy(g('fwd')) - 8]], width: 2, label: 'forward' });
-      b.link('fwd-b', 'forward', 'lat3', 'N', 'fwd', 'E', { ft: 0.5, tt: 0.75, via: [[cx(g('lat3')), lane.fwdB], [strip - 7, lane.fwdB], [strip - 7, cy(g('fwd')) + 8]], width: 2 });
-      b.link('fwd-alu', 'data', 'fwd', 'S', two ? 'alu0' : 'alu', 'N', { width: 2 });
-    }
-    // a taken branch: the next PC is redirected and the younger instructions are squashed; the predictor learns
-    b.link('br-npc', 'flush', 'br', 'N', 'npc', 'W', { ft: 0.5, tt: 0.3, via: [[cx(g('br')), lane.flush], [FR[0]!.rect.x + 9, lane.flush]], width: 1, label: 'redirect · squash' });
-    b.link('br-bp', 'control', 'br', 'N', 'bp', 'S', { ft: 0.85, tt: b.tx('bp', Math.round(g('br').rect.x + 0.85 * g('br').rect.w)), width: 1, label: 'learn' });
-    b.link('bp-npc', 'control', 'bp', 'S', 'npc', 'W', { ft: 0.02, tt: 0.7, via: [[nx + 6, lane.bp], [FR[0]!.rect.x + 13, lane.bp]], width: 1, label: 'predicted target' });
+    if (fwd) specs.push(['l1-fwd', 'data', 'lat1', 'fwd', 2], ['fwd-a', 'forward', 'lat2', 'fwd', 2, 'forward'], ['fwd-b', 'forward', 'lat3', 'fwd', 2], ['fwd-alu', 'data', 'fwd', two ? 'alu0' : 'alu', 2]);
   }
-
-  // register file ports
-  const decs = two ? ['dec0', 'dec1'] : ['dec'];
-  decs.forEach((d, k) => {
-    b.link(`${d}-rfa`, 'data', d, 'S', 'rf', 'N', { ft: 0.3, tt: 0.12 + 0.12 * k, width: 2, label: k === 0 ? 'read' : undefined });
-    b.link(`${d}-rfb`, 'data', d, 'S', 'rf', 'N', { ft: 0.7, tt: 0.26 + 0.12 * k, width: 2 });
-  });
-  b.link('wb-rf', 'data', 'wbf', 'S', 'rf', 'N', { ft: 0.5, tt: 0.88, via: [[cx(g('wbf')), y0 + H + 24]], width: 2, label: 'write' });
-
-  // memory: the cache for RAM addresses, the bus interface for devices, and the instruction side
-  b.link('lsu-dc', 'data', 'lsu', 'S', 'dc', 'N', { ft: 0.5, tt: b.tx('dc', cx(g('lsu'))), both: true, width: 2 });
-  b.link('mmio-biu', 'mmio', 'mmio', 'N', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', lane.mmio), via: [[cx(g('mmio')), lane.mmio]], width: 2, label: 'device access' });
+  // the register file ports
+  for (const d of two ? ['dec0', 'dec1'] : ['dec']) specs.push([`${d}-rf`, 'data', d, 'rf', 2, 'read']);
+  specs.push(['wb-rf', 'data', 'wb', 'rf', 2, 'write']);
+  // memory
+  specs.push(['lsu-dc', 'data', 'lsu', 'dc', 2, undefined, true], ['dev-fab', 'mmio', 'dev', 'fabric', 2, 'device access']);
   if (l2Lines > 0) {
-    b.link('dc-l2', 'mem', 'dc', 'S', 'l2', 'N', { ft: 0.5, tt: b.tx('l2', cx(g('dc'))), both: true, width: 3 });
-    if (icLines > 0) b.link('ic-l2', 'mem', 'ic', 'S', 'l2', 'N', { ft: 0.5, tt: b.tx('l2', cx(g('ic'))), both: true, width: 3 });
-    b.link('l2-biu', 'mem', 'l2', 'E', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', cy(g('l2'))), both: true, width: 3 });
-    if (icLines > 0) b.link('fetch-ic', 'data', 'fetch', 'S', 'ic', 'N', { ft: 0.5, tt: b.tx('ic', cx(g('fetch'))), both: true, width: 2 });
-    else b.link('fetch-l2', 'mem', 'fetch', 'S', 'l2', 'N', { ft: 0.5, tt: b.tx('l2', cx(g('fetch'))), width: 3, label: 'instruction fetch' });
+    specs.push(['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true], ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true]);
+    if (icLines > 0) specs.push(['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true]);
   } else {
-    b.link('dc-biu', 'mem', 'dc', 'E', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', cy(g('dc'))), both: true, width: 3 });
-    const yb = U.y1 - 14;
-    if (icLines > 0) {
-      b.link('fetch-ic', 'data', 'fetch', 'S', 'ic', 'N', { ft: 0.5, tt: b.tx('ic', cx(g('fetch'))), both: true, width: 2 });
-      b.link('ic-biu', 'mem', 'ic', 'S', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', yb), via: [[cx(g('ic')), yb]], width: 3, label: 'instruction fetch' });
-    } else {
-      b.link('fetch-biu', 'mem', 'fetch', 'S', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', yb), via: [[cx(g('fetch')), yb]], width: 3, label: 'instruction fetch' });
-    }
+    specs.push(['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true]);
+    if (icLines > 0) specs.push(['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true]);
   }
-  return b;
+  specs.push(...edgeLinks(['if', 'id', 'ex', 'mem', 'wbf'], 'pc', 'fetch'));
+  return { tree, specs: links(specs) };
 }
 
 // ---------------------------------------------------------------- out of order
 
-export function outOfOrder(i: PlanInput): Builder {
-  const b = new Builder();
+function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
   const W = i.width ?? 2, rob = i.robSize ?? 8, sched = i.schedSize ?? 6, fq = i.fetchQueue ?? 4;
   const lines = i.cacheLines ?? 8, ways = i.ways ?? 1, icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0;
   const predEntries = i.predEntries ?? 64, predBits = i.predBits ?? 1;
-  corner(b);
-  const bu = biu(b);
-  const decItems: Sub[] = [
-    { id: 'imm', kind: 'imm', label: 'IMMEDIATE', h: 34 },
-    ...Array.from({ length: W }, (_, k): Sub => ({ id: `dec${k}`, kind: 'decode', label: `DECODER ${String.fromCharCode(65 + k)}`, h: 54, lane: k, ...(k === W - 1 ? { fill: true } : {}) })),
+  const frame = (id: string, label: string, stage: number, kids: Node[], f: number) => col(kids, { frame: { id, kind: 'stage', label, stage }, f });
+  const defs = [{ f: 1.35 }, { f: 0.45 }, { f: 0.95 }, { f: 1.05 }, { f: 1.1 }, { f: 1.25 }, { px: 26 }];
+  const sp = spans(cw, defs, GAP);
+  const cover = (a: number, b: number) => sp[b]![0] + sp[b]![1] - sp[a]![0];
+  const decs = Array.from({ length: W }, (_, k) => leaf(`dec${k}`, 'decode', `DECODER ${String.fromCharCode(65 + k)}`, { lane: k, shape: [8, 4], f: 1 }));
+  const stageRow = row([
+    frame('if', 'IF · FETCH', 0, [
+      leaf('bp', 'predictor', 'BRANCH PREDICTOR', { cells: predEntries, sub: `${predEntries} x ${predBits}-bit`, f: 1.4 }),
+      row([leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }), leaf('pcadd', 'pcadd', `PC + ${4 * W}`, { shape: [32, 1] })], { px: 52 }),
+      leaf('pc', 'pc', 'PC', { sub: 'program counter', shape: [32, 1], px: 46 }),
+      leaf('fetch', 'fetch', W > 1 ? `FETCH × ${W}` : 'FETCH', { sub: icLines ? 'reads the I-cache' : 'reads RAM', shape: [32, 1], f: 1 }),
+    ], 1.35),
+    leaf('fq', 'queue', 'FETCH QUEUE', { cells: fq, ring: true, sub: `${fq} slots`, f: 0.45 }),
+    frame('dcf', 'ID · DECODE', 1, [leaf('imm', 'imm', 'IMMEDIATE', { shape: [32, 1], px: 46 }), ...decs], 0.95),
+    frame('rnf', 'RENAME', 1, [leaf('rat', 'rename', 'RENAME TABLE', { cells: 16, sub: 'register to producer', f: 1.3 }), leaf('disp', 'queue', 'DISPATCH', { sub: `${W} a cycle`, px: 64 })], 1.05),
+    leaf('sched', 'sched', 'SCHEDULER', { cells: sched, sub: `${sched} entries · oldest ready first`, f: 1.1 }),
+    frame('exf', 'EXECUTE', 2, [
+      leaf('alu0', 'alu', 'ALU 0', { sub: 'add · logic · shift · branch', unit: 'ALU0', shape: [32, 1], f: 1 }),
+      leaf('alu1', 'alu', 'ALU 1', { sub: 'add · logic · shift · branch', unit: 'ALU1', shape: [32, 1], f: 1 }),
+      leaf('mul', 'mul', 'MULTIPLIER', { sub: '3 cycles', unit: 'MUL', shape: [32, 1], f: 1 }),
+      leaf('lsu', 'lsu', 'LOAD / STORE', { sub: 'loads wait for older stores', unit: 'LSU', shape: [32, 1], f: 1.5 }),
+    ], 1.25),
+    leaf('bus', 'resultbus', 'RESULT BUS', { px: 26 }),
+  ], { f: 50 });
+  const southRow = row([
+    ...(icLines > 0 ? [leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: cover(0, 1) })] : []),
+    leaf('rf', 'regfile', 'REGISTER FILE', { cells: 16, sub: `${W} read · commit write`, px: icLines > 0 ? cover(2, 2) : cover(0, 2) }),
+    leaf('rob', 'rob', 'REORDER BUFFER', { cells: rob, ring: true, sub: `${rob} entries · commit ${i.commitWidth ?? W} a cycle`, px: cover(3, 4) }),
+    leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
+  ], { f: 31 });
+  const tree = col([
+    stageRow, southRow,
+    ...(l2Lines > 0 && !tile ? [leaf('l2', 'l2', 'L2 CACHE', { cells: l2Lines, sub: `${l2Lines} lines · shared by both L1s`, px: 92 })] : []),
+    ...(tile ? [] : [fabric()]),
+  ], { f: 1, zone: 'core' });
+
+  const specs: L[] = [
+    ['pc-pcadd', 'data', 'pc', 'pcadd', 1], ['pcadd-npc', 'data', 'pcadd', 'npc', 1], ['npc-pc', 'data', 'npc', 'pc', 1], ['pc-fetch', 'data', 'pc', 'fetch', 1],
+    ['bp-npc', 'control', 'bp', 'npc', 1, 'predicted target'],
+    ['fetch-fq', 'data', 'fetch', 'fq', 2],
+    ...(icLines > 0
+      ? [['fetch-ic', 'data', 'fetch', 'ic', 2, 'instruction fetch', true] as L]
+      : [['fetch-mem', 'mem', 'fetch', l2Lines > 0 ? 'l2' : 'fabric', 3, 'instruction fetch (uncached)'] as L]),
+    ['rat-disp', 'data', 'rat', 'disp', 2], ['disp-sched', 'data', 'disp', 'sched', 2, 'dispatch'], ['disp-rob', 'data', 'disp', 'rob', 2],
+    ['bus-sched', 'wakeup', 'bus', 'sched', 1, 'wake up'], ['bus-rob', 'data', 'bus', 'rob', 2, 'result'],
+    ['bus-npc', 'flush', 'bus', 'npc', 1, 'mispredict: squash'], ['bus-bp', 'control', 'bus', 'bp', 1, 'learn'],
+    ['rob-rf', 'data', 'rob', 'rf', 2, 'commit'],
+    ['lsu-dc', 'data', 'lsu', 'dc', 2, undefined, true], ['lsu-fab', 'mmio', 'lsu', 'fabric', 2, 'device access'],
   ];
-  const y0 = -308, H = Math.max(290, need(decItems));
-
-  const ifF = b.frame('if', 'IF · fetch', 0, U.x0, y0, 200, H);
-  stack(b, ifF, [
-    { id: 'pc', kind: 'pc', label: 'PC', sub: 'program counter', h: 40 },
-    { id: 'npc', kind: 'nextpc', label: 'NEXT PC', h: 38, pair: { id: 'pcadd', kind: 'pcadd', label: `PC + ${4 * W}`, h: 38 } },
-    { id: 'fetch', kind: 'fetch', label: W > 1 ? `FETCH × ${W}` : 'FETCH', sub: icLines ? 'reads the I-cache' : 'reads RAM', h: 56, fill: true },
-  ]);
-  const fqX = ifF.rect.x + ifF.rect.w + 18;
-  b.add('fq', 'queue', 'FETCH QUEUE', fqX, y0, 84, H, { sub: `${fq} slots`, grid: { cols: 1, rows: fq, count: fq, ring: true } });
-  const dcF = b.frame('dcf', 'ID · decode', 1, fqX + 84 + 18, y0, 150, H);
-  stack(b, dcF, decItems);
-  const rnF = b.frame('rnf', 'RENAME', 1, dcF.rect.x + dcF.rect.w + 18, y0, 170, H);
-  stack(b, rnF, [
-    { id: 'rat', kind: 'rename', label: 'RENAME TABLE', sub: 'register to producer', h: 130, fill: true },
-    { id: 'disp', kind: 'queue', label: 'DISPATCH', sub: `${W} a cycle`, h: 52 },
-  ]);
-  b.get('rat').grid = { cols: 4, rows: 4, count: 16 };
-  const sx = rnF.rect.x + rnF.rect.w + 18;
-  b.add('sched', 'sched', 'SCHEDULER', sx, y0, 190, H, { sub: `${sched} entries · oldest ready first`, grid: gridFor(sched, 190 - 24, H - 56) });
-  const ux = sx + 190 + 26;
-  const uy = (k: number) => y0 + k * 64;
-  b.add('alu0', 'alu', 'ALU 0', ux, uy(0), 200, 56, { sub: 'add · logic · shift · branch', unit: 'ALU0' });
-  b.add('alu1', 'alu', 'ALU 1', ux, uy(1), 200, 56, { sub: 'add · logic · shift · branch', unit: 'ALU1' });
-  b.add('mul', 'mul', 'MULTIPLIER', ux, uy(2), 200, 56, { sub: '3 cycles', unit: 'MUL' });
-  b.add('lsu', 'lsu', 'LOAD / STORE', ux, uy(3), 200, H - 3 * 64, { sub: 'loads wait for older stores', unit: 'LSU' });
-  const busX = ux + 200 + 14;
-  b.add('bus', 'resultbus', 'RESULT BUS', busX, y0, 20, H - 40);
-  // reorder buffer: a ring under the rename stage and the scheduler; the register file takes the commits
-  const ry = y0 + H + 38, rh = 150;
-  const robX = rnF.rect.x;
-  b.add('rob', 'rob', 'REORDER BUFFER', robX, ry, sx + 190 - robX, rh, {
-    sub: `${rob} entries · commit ${i.commitWidth ?? W} a cycle`, grid: { ...gridFor(rob, sx + 190 - robX - 24, rh - 56), ring: true },
-  });
-  regfile(b, robX - 16 - 230, ry, 230, rh, '2 read · commit write');
-  // caches
-  const l2h = l2Lines > 0 ? 100 : 0;
-  const bottom = U.y1 - (l2Lines > 0 ? l2h + 18 : 30);
-  const cy0 = ry + rh + 40;
-  dcache(b, fqX, cy0, bu.rect.x - 40 - fqX, bottom - cy0, lines, ways);
-  if (icLines > 0) icache(b, U.x0, cy0, fqX - 24 - U.x0, bottom - cy0, icLines);
-  if (l2Lines > 0) l2(b, U.x0, U.y1 - l2h, bu.rect.x - 40 - U.x0, l2h, l2Lines);
-  const nx = U.x0 + 134;
-  b.add('bp', 'predictor', 'BRANCH PREDICTOR', nx, U.y0, busX + 20 - nx, 104, { sub: `${predEntries} x ${predBits}-bit`, grid: gridFor(predEntries, busX - nx - 24, 48) });
-
-  const g = (id: string) => b.get(id);
-  const lane = { flush: -373, wake: -360, bp: -347 };
-  b.link('pc-add', 'data', 'pc', 'S', 'pcadd', 'N', { ft: 0.75, tt: 0.5, width: 1 });
-  b.link('add-npc', 'data', 'pcadd', 'W', 'npc', 'E', { width: 1 });
-  b.link('npc-pc', 'data', 'npc', 'N', 'pc', 'S', { ft: 0.5, tt: 0.2, width: 1 });
-  b.link('pc-fetch', 'data', 'pc', 'S', 'fetch', 'N', { ft: 0.5, tt: 0.5, width: 1 });
-  b.link('irq-pc', 'irq', 'intc', 'S', 'pc', 'W', { ft: 0.5, tt: 0.5, width: 1, via: [[ifF.rect.x + 4, cy(g('pc'))]], label: 'IRQ vector' });
-  b.link('fetch-fq', 'data', 'fetch', 'E', 'fq', 'W', { ft: 0.5, tt: b.ty('fq', cy(g('fetch'))), width: 2 });
-  b.link('fq-dec', 'data', 'fq', 'E', 'dcf', 'W', { width: 2 });
-  b.link('dec-ren', 'data', 'dcf', 'E', 'rnf', 'W', { width: 2 });
-  b.link('ren-sched', 'data', 'rnf', 'E', 'sched', 'W', { width: 2, label: 'dispatch' });
-  b.link('ren-rob', 'data', 'rnf', 'S', 'rob', 'N', { ft: 0.5, tt: 0.2, width: 2 });
-  ['alu0', 'alu1', 'mul', 'lsu'].forEach((u, k) => {
-    const yy = y0 + Math.round(H * (0.15 + 0.22 * k)), mx = sx + 190 + 6 + 5 * k;
-    b.link(`sched-${u}`, 'data', 'sched', 'E', u, 'W', { ft: b.ty('sched', yy), tt: 0.5, via: [[mx, yy], [mx, cy(g(u))]], width: 2, label: k === 0 ? 'issue' : undefined });
-  });
-  ['alu0', 'alu1', 'mul', 'lsu'].forEach((u) => b.link(`${u}-bus`, 'data', u, 'E', 'bus', 'W', { ft: 0.5, tt: b.ty('bus', cy(g(u))), width: 2 }));
-  b.link('bus-wake', 'wakeup', 'bus', 'N', 'sched', 'N', { ft: 0.25, tt: 0.7, via: [[busX + 5, lane.wake], [Math.round(sx + 0.7 * 190), lane.wake]], width: 1, label: 'wake up' });
-  b.link('bus-rob', 'data', 'bus', 'S', 'rob', 'E', { ft: 0.5, tt: 0.5, via: [[busX + 10, cy(g('rob'))]], width: 2, label: 'result' });
-  b.link('bus-flush', 'flush', 'bus', 'N', 'npc', 'W', { ft: 0.6, tt: 0.3, via: [[busX + 12, lane.flush], [ifF.rect.x + 9, lane.flush]], width: 1, label: 'mispredict: squash' });
-  b.link('bus-bp', 'control', 'bus', 'N', 'bp', 'S', { ft: 0.9, tt: b.tx('bp', busX + 18), width: 1, label: 'learn' });
-  b.link('bp-npc', 'control', 'bp', 'S', 'npc', 'W', { ft: 0.02, tt: 0.7, via: [[nx + 6, lane.bp], [ifF.rect.x + 13, lane.bp]], width: 1, label: 'predicted target' });
-  b.link('rob-rf', 'data', 'rob', 'W', 'rf', 'E', { width: 2, label: 'commit' });
-  b.link('dec-rf', 'data', 'dcf', 'S', 'rf', 'N', { ft: 0.35, tt: 0.5, width: 2, label: 'read' });
-  b.link('lsu-dc', 'data', 'lsu', 'S', 'dc', 'N', { ft: 0.5, tt: b.tx('dc', cx(g('lsu'))), both: true, width: 2 });
-  const mmioY = Math.round(g('lsu').rect.y + 0.92 * g('lsu').rect.h);
-  b.link('lsu-biu', 'mmio', 'lsu', 'E', 'biu', 'W', { ft: 0.92, tt: b.ty('biu', mmioY), width: 2, label: 'device access' });
-  const fx = ifF.rect.x + 40;
-  if (l2Lines > 0) {
-    b.link('dc-l2', 'mem', 'dc', 'S', 'l2', 'N', { ft: 0.5, tt: b.tx('l2', cx(g('dc'))), both: true, width: 3 });
-    if (icLines > 0) {
-      b.link('ic-l2', 'mem', 'ic', 'S', 'l2', 'N', { ft: 0.5, tt: b.tx('l2', cx(g('ic'))), both: true, width: 3 });
-      b.link('fetch-ic', 'data', 'fetch', 'S', 'ic', 'N', { ft: 0.2, tt: b.tx('ic', fx), both: true, width: 2 });
-    } else b.link('fetch-l2', 'mem', 'fetch', 'S', 'l2', 'N', { ft: 0.2, tt: b.tx('l2', fx), width: 3, label: 'instruction fetch' });
-    b.link('l2-biu', 'mem', 'l2', 'E', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', cy(g('l2'))), both: true, width: 3 });
-  } else {
-    b.link('dc-biu', 'mem', 'dc', 'E', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', cy(g('dc'))), both: true, width: 3 });
-    const yb = U.y1 - 14;
-    if (icLines > 0) {
-      b.link('fetch-ic', 'data', 'fetch', 'S', 'ic', 'N', { ft: 0.2, tt: b.tx('ic', fx), both: true, width: 2 });
-      b.link('ic-biu', 'mem', 'ic', 'S', 'biu', 'W', { ft: 0.5, tt: b.ty('biu', yb), via: [[cx(g('ic')), yb]], width: 3, label: 'instruction fetch' });
-    } else b.link('fetch-biu', 'mem', 'fetch', 'S', 'biu', 'W', { ft: 0.2, tt: b.ty('biu', yb), via: [[fx, yb]], width: 3, label: 'instruction fetch' });
-  }
-  return b;
+  for (let k = 0; k < W; k++) specs.push([`fq-dec${k}`, 'data', 'fq', `dec${k}`, 2], [`dec${k}-rat`, 'data', `dec${k}`, 'rat', 2], [`dec${k}-rf`, 'data', `dec${k}`, 'rf', 2, k === 0 ? 'read' : undefined]);
+  for (const u of ['alu0', 'alu1', 'mul', 'lsu']) specs.push([`sched-${u}`, 'data', 'sched', u, 2, u === 'alu0' ? 'issue' : undefined], [`${u}-bus`, 'data', u, 'bus', 2]);
+  if (l2Lines > 0) specs.push(['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true], ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true], ...(icLines > 0 ? [['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true] as L] : []));
+  else specs.push(['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true], ...(icLines > 0 ? [['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true] as L] : []));
+  specs.push(...edgeLinks(['if', 'dcf', 'rnf', 'sched', 'exf'], 'pc', 'fetch'));
+  return { tree, specs: links(specs) };
 }
 
-// ---------------------------------------------------------------- several cores on one die
+// ---------------------------------------------------------------- one core, and several
 
-/**
- * Core tiles in rows, a coherence ring bar above each row (every tile's bus interface reaches its bar going up), a trunk joining the bars,
- * and a shared column: the memory controller and the shared L2. Nothing multicore is simulated yet (docs/CPU.md).
- */
+const cache = new Map<string, CpuPlan>();
+
+function single(i: PlanInput): CpuPlan {
+  const { tree, specs } = i.arch === 'ooo' ? outOfOrder(i) : pipeline(i);
+  const blocks: Block[] = [];
+  place(ringTree(tree), R, blocks, 'edge');
+  return { arch: i.arch, cores: 1, die: DIE, blocks, links: routeLinks(DIE, blocks, specs) };
+}
+
+/** One core of a multicore die: the core's floorplan laid out in a w x h rectangle at the origin, its links routed in it. */
+function coreTile(i: PlanInput, w: number, h: number): { blocks: Block[]; links: Link[] } {
+  const { tree, specs } = i.arch === 'ooo' ? outOfOrder(i, w, true) : pipeline(i, w, true);
+  const blocks: Block[] = [];
+  place(tree, { x: 0, y: 0, w, h }, blocks, 'core');
+  const have = new Set(blocks.map((b) => b.id));
+  const inner = specs.filter((l) => have.has(l.from) && have.has(l.to));
+  return { blocks, links: routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner) };
+}
+
+/** Core tiles in the die's middle (each core laid out for its own tile, then scaled to fit), a shared L2 at their east end and one system bus under them (nothing multicore is simulated yet). */
 function multicore(i: PlanInput): CpuPlan {
   const n = Math.max(2, Math.floor(i.cores ?? 2));
-  const one = cpuPlan({ ...i, cores: 1, l2Lines: 0 }); // the cores share one L2, they have none of their own
-  const src = { x: U.x0, y: U.y0, w: U.x1 - U.x0, h: U.y1 - U.y0 };
-  const BAR = 14, UP = 30;
-  const area = { x: U.x0, y: U.y0, w: 1110, h: src.h };
-  let best = { cols: 1, rows: n, s: 0 };
+  // the ring blocks, with the core area holding a placeholder for the tiles, the shared L2 and the system bus
+  const holder = col([
+    row([leaf('__tiles', 'stage', ''), leaf('l2s', 'l2', 'SHARED L2', { cells: i.l2Lines ?? 64, sub: `${i.l2Lines ?? 64} lines · all cores`, px: 150, zone: 'edge' })], { f: 1 }),
+    fabric(),
+  ], { f: 1, zone: 'core' });
+  const ring: Block[] = [];
+  place(ringTree(holder), R, ring, 'edge');
+  const region = ring.find((b) => b.id === '__tiles')!.rect;
+  const blocks = ring.filter((b) => b.id !== '__tiles');
+  const G2 = 18, TW = 1136;
+  // the tile grid: every (cols x rows) that holds n tiles; each tile is laid out at its cell's shape, and the biggest scale wins
+  let best = { cols: 1, rows: n, s: 0, th: 0 };
   for (let cols = 1; cols <= n; cols++) {
-    const rows = Math.ceil(n / cols);
-    const s = Math.min(area.w / cols / src.w, (area.h - rows * UP) / rows / src.h);
-    if (s > best.s + 1e-9) best = { cols, rows, s };
+    if (n % cols !== 0) continue;
+    const rows = n / cols;
+    const cellW = (region.w - (cols - 1) * G2) / cols, cellH = (region.h - (rows - 1) * G2) / rows;
+    const th = Math.min(900, Math.max(430, Math.round((TW * cellH) / cellW)));
+    const s = Math.min(cellW / TW, cellH / th);
+    if (s > best.s + 1e-9) best = { cols, rows, s, th };
   }
-  const { cols, rows, s } = best;
-  const cw = area.w / cols, ch = (area.h - rows * UP) / rows;
-  const blocks: Block[] = [], links: Link[] = [], tiles: Rect[] = [];
-  const origin = (k: number): Pt => [
-    area.x + (k % cols) * cw + (cw - src.w * s) / 2,
-    area.y + UP + Math.floor(k / cols) * (ch + UP) + (ch - src.h * s) / 2,
+  const { cols, rows, s, th } = best;
+  const cellW = (region.w - (cols - 1) * G2) / cols, cellH = (region.h - (rows - 1) * G2) / rows;
+  const one = coreTile(i, TW, th);
+  const ids = new Set(one.blocks.map((b) => b.id));
+  const at = (k: number, x: number, y: number): [number, number] => [
+    Math.round(region.x + (k % cols) * (cellW + G2) + (cellW - TW * s) / 2 + x * s),
+    Math.round(region.y + Math.floor(k / cols) * (cellH + G2) + (cellH - th * s) / 2 + y * s),
   ];
-  const at = (k: number, p: Pt): Pt => {
-    const [ox, oy] = origin(k);
-    return [Math.round(ox + (p[0] - src.x) * s), Math.round(oy + (p[1] - src.y) * s)];
-  };
-  const trunkX = area.x + area.w + 14;
-  const barY = (r: number): number => Math.round(area.y + r * (ch + UP) + 6);
-  for (let r = 0; r < rows; r++) blocks.push({ id: `ringbar${r}`, kind: 'ring', label: '', rect: { x: area.x, y: barY(r), w: area.w, h: BAR } });
+  const tiles: Rect[] = [];
+  const inner: Link[] = [];
   for (let k = 0; k < n; k++) {
     const p = `c${k}.`;
-    const [tx, ty] = at(k, [src.x, src.y]);
-    tiles.push({ x: tx, y: ty, w: Math.round(src.w * s), h: Math.round(src.h * s) });
+    const [tx, ty] = at(k, 0, 0);
+    tiles.push({ x: tx, y: ty, w: Math.round(TW * s), h: Math.round(th * s) });
     for (const b of one.blocks) {
-      const [x0, y0] = at(k, [b.rect.x, b.rect.y]), [x1, y1] = at(k, [b.rect.x + b.rect.w, b.rect.y + b.rect.h]);
-      blocks.push({
-        ...b, id: p + b.id, ...(b.parent ? { parent: p + b.parent } : {}), core: k, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 },
-        ...(b.id === 'biu' ? { label: 'RING PORT', sub: 'to the ring' } : {}),
-      });
+      const [a0, b0] = at(k, b.rect.x, b.rect.y), [a1, b1] = at(k, b.rect.x + b.rect.w, b.rect.y + b.rect.h);
+      blocks.push({ ...b, id: p + b.id, ...(b.parent ? { parent: p + b.parent } : {}), core: k, rect: { x: a0, y: b0, w: a1 - a0, h: b1 - b0 } });
     }
     for (const l of one.links) {
-      // a small tile rounds short segments away
-      const pts = l.pts.map((q) => at(k, q)).filter((q, m, all) => m === 0 || q[0] !== all[m - 1]![0] || q[1] !== all[m - 1]![1]);
-      if (pts.length >= 2) links.push({ ...l, id: p + l.id, from: p + l.from, to: p + l.to, pts });
+      const pts = l.pts.map(([x, y]) => at(k, x, y)).filter((q, m, all) => m === 0 || q[0] !== all[m - 1]![0] || q[1] !== all[m - 1]![1]);
+      if (pts.length >= 2) inner.push({ ...l, id: p + l.id, from: p + l.from, to: p + l.to, pts });
     }
   }
-  const sx = U.x1 - 170;
-  blocks.push({ id: 'ring', kind: 'ring', label: 'COHERENCE RING', rect: { x: trunkX, y: U.y0, w: 18, h: src.h }, sub: 'keeps the L1 caches in step' });
-  blocks.push({ id: 'mc', kind: 'biu', label: 'MEMORY CONTROLLER', rect: { x: sx, y: U.y0, w: 170, h: 150 }, sub: 'RAM · MMIO' });
-  blocks.push({ id: 'l2s', kind: 'l2', label: 'SHARED L2', rect: { x: sx, y: U.y0 + 170, w: 170, h: src.h - 170 }, sub: `${i.l2Lines ?? 64} lines`, grid: gridFor(i.l2Lines ?? 64, 146, src.h - 226) });
-  const my = U.y0 + 75, ly = U.y0 + 170 + Math.round((src.h - 170) / 2);
-  links.push({ id: 'ring-mc', kind: 'mem', from: 'ring', to: 'mc', pts: [[trunkX + 18, my], [sx, my]], width: 3, both: true });
-  links.push({ id: 'ring-l2', kind: 'mem', from: 'ring', to: 'l2s', pts: [[trunkX + 18, ly], [sx, ly]], width: 3, both: true });
-  for (let r = 0; r < rows; r++) {
-    const y = barY(r) + BAR / 2;
-    links.push({ id: `bar${r}-ring`, kind: 'mem', from: `ringbar${r}`, to: 'ring', pts: [[area.x + area.w, y], [trunkX, y]], width: 3, both: true });
-  }
+  void ids;
+  // the links out of every tile: its caches into the shared L2, its device path to the system bus; the edge blocks hang off the system bus
+  const outs: L[] = [];
   for (let k = 0; k < n; k++) {
-    const b = blocks.find((x) => x.id === `c${k}.biu`)!;
-    const bx = Math.round(b.rect.x + b.rect.w / 2), bar = blocks.find((x) => x.id === `ringbar${Math.floor(k / cols)}`)!;
-    links.push({ id: `c${k}.ring`, kind: 'mem', from: b.id, to: bar.id, pts: [[bx, b.rect.y], [bx, bar.rect.y + bar.rect.h]], width: 3, both: true });
+    const p = `c${k}.`;
+    outs.push([`${p}dc-l2`, 'mem', `${p}dc`, 'l2s', 3, undefined, true], [`${p}src-l2`, 'mem', `${p}${i.icacheLines ? 'ic' : 'fetch'}`, 'l2s', 3, undefined, true], [`${p}dev-fab`, 'mmio', `${p}${i.arch === 'ooo' ? 'lsu' : 'dev'}`, 'fabric', 2]);
   }
-  return { arch: i.arch, cores: n, die: DIE, blocks, links, tiles };
+  for (let k = 0; k < n; k++) outs.push([`c${k}.irq`, 'irq', 'intc', `c${k}.pc`, 1]);
+  outs.push(['l2-fab', 'mem', 'l2s', 'fabric', 4, undefined, true], ...edgeLinks([], 'c0.pc', 'c0.fetch').filter((l) => !['irq-pc', 'clk-core'].includes(l[0])));
+  const routed = routeLinks(DIE, blocks, links(outs));
+  return { arch: i.arch, cores: n, die: DIE, blocks, links: [...inner, ...routed], tiles };
 }
 
 export function cpuPlan(i: PlanInput): CpuPlan {
-  if ((i.cores ?? 1) > 1) return multicore(i);
-  const b = i.arch === 'ooo' ? outOfOrder(i) : pipeline(i);
-  return { arch: i.arch, cores: 1, die: DIE, blocks: b.blocks, links: b.links };
+  const key = JSON.stringify(i);
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const plan = (i.cores ?? 1) > 1 ? multicore(i) : single(i);
+  cache.set(key, plan);
+  return plan;
 }
-
-export type { Pt };
