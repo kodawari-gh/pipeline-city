@@ -7,12 +7,12 @@ import { LightView, type Beam, type LightGeo } from './light';
 import { roundedPath } from './routes';
 import { drawMug, MUG } from './mug';
 import { Steam } from './steam';
-import { drawSlats } from './wall';
+import { drawSlats, drawWallShade } from './wall';
 import { drawCeiling, drawCrown, drawFloor, FADE } from './shell';
 import { captureShape } from './capture';
 import { drawPlant, drawRug } from './decor';
 import { drawDesk, drawDeskShadow, drawUnderDesk } from './desk';
-import { deskGeo, roomPersp, S_FRONT, type Persp } from './persp';
+import { deskGeo, roomPersp, S_FRONT, spreadX, spreadY, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from './shape';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
@@ -289,9 +289,10 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
 
   // wall: an endless colour, the slat wall over all of it (`wall.ts`), and the darker band the desk throws on it
   const shell = { ceil: geo.ceil, floor: geo.floor };
-  drawCeiling(g, T, shell);
+  drawCeiling(g, T, { ...shell, ...geo.persp });
   g.rect(-90000, geo.ceil, 180000, geo.floor - geo.ceil).fill({ color: L.wall });
-  drawSlats(g, T, shell);
+  drawSlats(g, T, shell, geo.persp.vx);
+  drawWallShade(g, T, shell, geo.persp.vx);
   drawCrown(g, T, shell);
   // the desk's top meets the wall at its far edge: the wall just above it is a little in shadow, easing out upward (24 fine bands: a gradient, not a stripe)
   // (in the light theme the wall's own pale blue over the tan slats read as a haze: the shadow is a warm dark there)
@@ -329,10 +330,24 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   gf.rect(w.x + 28, w.y + 28, w.w - 56, 18).fill({ color: '#ffffff', alpha: 0.14 });
   gf.rect(w.x + w.w / 2 - 65, w.y, 22, w.h).fill({ color: '#ffffff', alpha: 0.1 }); // the lit edge of the mullion
   gf.circle(w.x + w.w - 380, w.y + w.h * 0.68 + 60, 38).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo }); // the latch
+  // the recess: the glass is set back in the wall, so the sides of the opening that face the vanishing point show (the west side, the head from below, the sill's inner top)
+  {
+    const P = geo.persp, k = 0.97, gx = (x: number) => P.vx + (x - P.vx) * k, gy = (y: number) => P.yH + (y - P.yH) * k, x1 = w.x + w.w, y1 = w.y + w.h;
+    const face = (pts: [number, number][], col: string, a = 0.96) => gf.poly(pts.flat()).fill({ color: col, alpha: a });
+    if (gx(w.x) > w.x) face([[w.x, w.y], [w.x, y1], [gx(w.x), gy(y1)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', T.dark ? 0.2 : 0.32));
+    if (gy(w.y) > w.y) face([[w.x, w.y], [x1, w.y], [Math.min(x1, gx(x1)), gy(w.y)], [gx(w.x), gy(w.y)]], mix(L.wallLo, '#000000', T.dark ? 0.45 : 0.4)); // (the glass is set back: the opening's far side clips it)
+    if (gx(x1) < x1) face([[x1, w.y], [x1, y1], [gx(x1), gy(y1)], [gx(x1), gy(w.y)]], mix(L.wallLo, '#ffffff', 0.1));
+    if (gy(y1) < y1) face([[w.x, y1], [x1, y1], [Math.min(x1, gx(x1)), gy(y1)], [gx(w.x), gy(y1)]], mix(frameCol, '#ffffff', 0.15));
+  }
+  // the sill: a board that sticks out of the wall, seen from above (its top is a trapezoid to the vanishing point) with its front edge and the shadow under it
   const sill = new Graphics();
-  sill.rect(w.x - 500, w.y + w.h + 80, w.w + 1000, 210).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
-  sill.rect(w.x - 480, w.y + w.h + 92, w.w + 960, 20).fill({ color: L.woodHi, alpha: 0.8 });
-  sill.rect(w.x - 440, w.y + w.h + 290, w.w + 880, 90).fill({ color: '#000000', alpha: 0.16 });
+  {
+    const P = geo.persp, S = 1.03, sy0 = w.y + w.h + 80, sy1 = spreadY(P, sy0, S), sx0 = w.x - 500, sx1 = w.x + w.w + 500, fx0 = spreadX(P, sx0, S), fx1 = spreadX(P, sx1, S);
+    sill.poly([sx0, sy0, sx1, sy0, fx1, sy1, fx0, sy1]).fill({ color: L.woodHi }).stroke({ width: 6, color: L.edge, alpha: 0.5 });
+    sill.rect(fx0, sy1, fx1 - fx0, 210).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
+    sill.rect(fx0 + 20, sy1 + 10, fx1 - fx0 - 40, 20).fill({ color: L.woodHi, alpha: 0.8 });
+    sill.rect(fx0 + 60, sy1 + 210, fx1 - fx0 - 120, 120).fill({ color: '#000000', alpha: 0.16 });
+  }
   back.addChild(gf, sill);
 
   // the digital clock on the wall above the case: a dark case, a dimmed "88:88" behind the lit digits (the digits are live)

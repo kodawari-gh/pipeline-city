@@ -5,7 +5,7 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 
 import { CASE, MONITOR, OUTBOX, ROUTER_SPOT, setLayoutTier, type Rect } from './layout';
 import { roomBakeRect, roomGeo } from './room';
-import { SLAT, drawSlats, slatCount, slatTone, slatWall } from './wall';
+import { SLAT, SLAT_DEPTH, drawSlats, drawWallShade, slatCount, slatTone, slatWall } from './wall';
 import type { Theme } from './theme';
 
 const THEME: Theme = {
@@ -40,6 +40,19 @@ describe('the slat wall', () => {
       expect(() => drawSlats(g, { ...THEME, dark }, box)).not.toThrow();
       expect(g.getLocalBounds().width).toBeGreaterThan(w.w * 0.99);
       expect(g.getLocalBounds().height).toBeGreaterThan(w.h * 0.99);
+    }
+  });
+  it('shows the side of a slat that faces the vanishing point, wider the farther from it, and never more than the gap; the wall shade is built in both themes', () => {
+    setLayoutTier(0, 0);
+    const g0 = roomGeo(), box = { ceil: g0.ceil, floor: g0.floor }, vx = g0.persp.vx;
+    expect(SLAT_DEPTH * 60000).toBeGreaterThan(SLAT.gap); // far enough out, the gaps are closed
+    expect(SLAT_DEPTH * 3000).toBeLessThan(SLAT.gap / 4); // near the middle, they are open
+    for (const dark of [true, false]) {
+      const a = new Graphics(), b = new Graphics();
+      expect(() => { drawSlats(a, { ...THEME, dark }, box, vx); drawWallShade(b, { ...THEME, dark }, box, vx); }).not.toThrow();
+      expect(b.getLocalBounds().width).toBeGreaterThan(100000);
+      expect(b.getLocalBounds().minY).toBeGreaterThanOrEqual(box.ceil - 1);
+      expect(b.getLocalBounds().maxY).toBeLessThanOrEqual(box.floor + 1);
     }
   });
 });

@@ -30,7 +30,7 @@ export interface ShellLook {
 
 export const shellLook = (T: Theme): ShellLook => T.dark
   ? { ceilNear: '#0c1122', ceilFar: '#04060e', floorNear: '#2a1f22', floorFar: '#07080f', boardA: '#2d2125', boardB: '#251b1f', seam: '#07090f', trim: '#3d3036', trimLo: '#241b20', trimHi: '#5a4a50' }
-  : { ceilNear: '#e9eff4', ceilFar: '#b9c6d3', floorNear: '#c9a47f', floorFar: '#7f8396', boardA: '#c9a47f', boardB: '#bf9a76', seam: '#8e6f55', trim: '#f2f5f8', trimLo: '#c4ceda', trimHi: '#ffffff' };
+  : { ceilNear: '#e9eff4', ceilFar: '#b9c6d3', floorNear: '#c9a47f', floorFar: '#988b88', boardA: '#c9a47f', boardB: '#bf9a76', seam: '#8e6f55', trim: '#e9e4da', trimLo: '#bdb5a6', trimHi: '#f8f5ee' };
 
 /** The depth below the floor line (world units) of the top of floorboard `k` (0 is the first seam, where the first board begins), for an eye `h` above the floor line: the seam is `k` steps of the way to the viewer, so it is at the scale `1 / (1 - k step)` of the floor plane. */
 export function boardTop(k: number, h: number): number {
@@ -45,11 +45,19 @@ function bands(g: Graphics, x: number, w: number, y0: number, y1: number, a: str
   for (let k = 0; k < BANDS; k++) g.rect(x, y0 + k * h, w, h + 2).fill({ color: mix(a, b, (k + 0.5) / BANDS) });
 }
 
-/** The ceiling: above `ceil`, the colour next to the wall fading to the far colour, then flat. */
-export function drawCeiling(g: Graphics, T: Theme, B: ShellBox) {
-  const L = shellLook(T);
+/** The ceiling: above `ceil`, the colour next to the wall fading to the far colour, then flat; boards run along it toward the vanishing point like the floor's, fading out with it. */
+export function drawCeiling(g: Graphics, T: Theme, B: ShellBox & Persp) {
+  const L = shellLook(T), hc = B.yH - B.ceil;
   g.rect(-BIG, B.ceil - BIG, 2 * BIG, BIG - FADE.ceil).fill({ color: L.ceilFar });
   bands(g, -BIG, 2 * BIG, B.ceil - FADE.ceil, B.ceil, L.ceilFar, L.ceilNear);
+  for (let k = 0; k < BOARD.count; k++) {
+    const ya = B.ceil - boardTop(k, hc), yb = B.ceil - boardTop(k + 1, hc), sa = (B.yH - ya) / hc, sb = (B.yH - yb) / hc, a = 1 - (B.ceil - ya) / FADE.ceil;
+    if (a <= 0) break;
+    g.rect(-BIG, yb, 2 * BIG, ya - yb).fill({ color: L.trimLo, alpha: (k % 2 ? 0.05 : 0.02) * a * (T.dark ? 2 : 1) });
+    g.rect(-BIG, ya - 5, 2 * BIG, 7).fill({ color: L.seam, alpha: 0.35 * a });
+    const off = ((Math.sin(k * 7.13 + 2.1) * 43758.5453) % 1 + 1) % 1;
+    for (let x = B.vx - 60000 + off * BOARD.length; x < B.vx + 60000; x += BOARD.length * 1.3) g.poly([spreadX(B, x, sa), ya, spreadX(B, x, sa) + 6, ya, spreadX(B, x, sb) + 6 * sb, yb, spreadX(B, x, sb), yb]).fill({ color: L.seam, alpha: 0.28 * a });
+  }
 }
 
 /** The crown moulding: a lit strip under the ceiling with a shadow line under it, over the top of the slats. */
