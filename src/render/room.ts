@@ -243,9 +243,9 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const f = new Graphics(), fWrap = bakeBox(); fWrap.addChild(f); front.addChild(fWrap);
   const o = new Graphics(); over.addChild(o); // what stands in front of the cables that run behind it (the mug)
 
-  // wall: an endless colour, the slat wall behind the desk (`wall.ts`), and the darker band the desk throws on it
+  // wall: an endless colour, the slat wall over all of it (`wall.ts`), and the darker band the desk throws on it
   g.rect(-90000, -90000, 180000, 180000).fill({ color: L.wall });
-  drawSlats(g, T, { ys, window: geo.window, deskX1: geo.desk.x1, top: geo.top });
+  drawSlats(g, T, { floor: geo.floor });
   for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
