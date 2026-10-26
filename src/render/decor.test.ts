@@ -21,11 +21,11 @@ describe('the room decor', () => {
   });
   it.each([true, false])('a rug lies on the floor under the desk, inside its width (dark %s)', (dark) => {
     const g = new Graphics();
-    drawRug(g, { ...THEME, dark }, { x0: -2000, x1: 14000, floor: 7000 });
+    drawRug(g, { ...THEME, dark }, { x0: -2000, x1: 14000, floor: 7000, vx: 6000, yH: -2000 });
     const b = g.getLocalBounds();
     expect(b.minY).toBeGreaterThan(7000);
     expect(b.maxY).toBeLessThan(7000 + 4200);
-    expect(b.minX).toBeGreaterThanOrEqual(-2000);
-    expect(b.maxX).toBeLessThanOrEqual(14000);
+    expect(b.minX).toBeGreaterThanOrEqual(-2000 - 800); // it comes toward the viewer, so a little wider than the desk at its near edge
+    expect(b.maxX).toBeLessThanOrEqual(14000 + 800);
   });
 });

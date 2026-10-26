@@ -34,7 +34,7 @@ export interface Beam { color: string; a: number; slant: number; quads: { pts: n
 export interface LightIn { dark: boolean; night: number; dusk: number; lamp: number; screen: number; beams: Beam[] }
 
 /** The places the light is cut around (world units): the whole region it covers, the case and its inside, the monitor and its screen, the router, the clock, the lamp's mouth, the desk top. */
-export interface LightGeo { window: Rect; region: Rect; case: Rect; inner: Rect; monitor: Rect; screen: Rect; router: Rect; clock: Rect; mouth: { x: number; y: number }; dir: { x: number; y: number }; ys: number; keyboard: Rect }
+export interface LightGeo { window: Rect; region: Rect; case: Rect; inner: Rect; monitor: Rect; screen: Rect; router: Rect; clock: Rect; mouth: { x: number; y: number }; dir: { x: number; y: number }; ys: number; keyboard: Rect; /** The desk top's front and back edges: the lamp's light reaches the top, not the slab under it. */ deskTop: number; deskBack: number }
 
 /** How much the window lights the room round it, 0 to 1, and in what colour: from the strongest shaft (the sun by day, the moon by night). */
 export function windowGlow(beams: Beam[]): { k: number; color: string } {
@@ -192,7 +192,7 @@ export class LightView {
         c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: A.color, alpha: A.alpha }));
         // the lamp: the cone down and east from its mouth (not below the desk's front: the desk shades what is under it) and the pool round the hood
         if (A.lamp > 0.01) {
-          const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.ys + 340 - reg.y).fill({ color: '#ffffff' });
+          const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.deskTop - reg.y).fill({ color: '#ffffff' });
           lit.addChild(clip); lit.mask = clip;
           this.spot(lit, coneTexture(), mo.x, mo.y, BEAM.reach, BEAM.reach, { erase: true, alpha: Math.min(1, A.lamp * 1.15), rot: ang, anchor: [0, 0.5] });
           this.spot(lit, blobTexture(), mo.x - 400, mo.y - 300, this.pool(5500), this.pool(5500), { erase: true, alpha: Math.min(1, A.lamp) });
@@ -233,12 +233,12 @@ export class LightView {
       if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { color: wg.color, alpha: 0.32 * wg.k * (d ? 1 : 0.7) });
       // the lamp: its cone is warm, its pool round the hood too, a warm smear along the desk top, its reflection on the monitor's glass
       if (A.lamp > 0.01) {
-        const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.ys + 340 - reg.y).fill({ color: '#ffffff' });
+        const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.deskTop - reg.y).fill({ color: '#ffffff' });
         lit.addChild(clip); lit.mask = clip;
         const k = A.lamp * (d ? 1 : 0.55);
         this.spot(lit, coneTexture(), mo.x, mo.y, BEAM.reach, BEAM.reach, { color: '#ffb35a', alpha: 0.34 * k, rot: ang, anchor: [0, 0.5] });
         this.spot(lit, blobTexture(), mo.x - 400, mo.y - 300, this.pool(9200), this.pool(9200), { color: '#ffb35a', alpha: 0.3 * k });
-        this.spot(lit, blobTexture(), mo.x + 3600, G.ys + 40, 11000, 260, { color: '#ffd9a0', alpha: 0.5 * k });
+        this.spot(lit, blobTexture(), mo.x + 3600, (G.deskTop + G.deskBack) / 2, 11000, (G.deskTop - G.deskBack) * 1.2, { color: '#ffd9a0', alpha: 0.5 * k });
         this.spot(lit, blobTexture(), G.monitor.x + 1100, G.monitor.y + 900, 1700, 1000, { color: '#ffe0a8', alpha: 0.28 * k });
         this.spot(lit, blobTexture(), mo.x - 60, mo.y - 60, 1500, 1500, { color: '#fff2c8', alpha: 0.5 * Math.min(1, k * 1.5) });
         c.addChild(lit);
@@ -250,7 +250,7 @@ export class LightView {
         const k = i.screen * (d ? 1 : 0.5), tint = '#8fffd6';
         this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h + 600, sc.w * 1.15, 3800, { color: tint, alpha: 0.3 * k });
         this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h / 2, sc.w * 1.7, sc.h * 1.9, { color: tint, alpha: 0.1 * k });
-        this.spot(c, blobTexture(), sc.x + sc.w / 2, G.ys + 40, sc.w * 0.95, 220, { color: tint, alpha: 0.5 * k });
+        this.spot(c, blobTexture(), sc.x + sc.w / 2, (G.deskTop + G.deskBack) / 2, sc.w * 0.95, (G.deskTop - G.deskBack) * 1.1, { color: tint, alpha: 0.5 * k });
         const kb = G.keyboard;
         c.addChild(new Graphics().poly([kb.x + 70, kb.y, kb.x + kb.w - 70, kb.y, kb.x + kb.w - 260, kb.y - kb.h, kb.x + 260, kb.y - kb.h]).fill({ color: tint, alpha: 0.1 * k }));
       }

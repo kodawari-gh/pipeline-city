@@ -6,6 +6,7 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 import { setLayoutTier } from './layout';
 import { roomBakeRect, roomBox, roomGeo } from './room';
 import { BOARD, FADE, TRIM, boardTop, drawCeiling, drawCrown, drawFloor, shellLook } from './shell';
+import { floorScale } from './persp';
 import type { Theme } from './theme';
 
 const THEME: Theme = {
@@ -25,18 +26,21 @@ describe('the room shell', () => {
     expect(region.y).toBeLessThanOrEqual(g.ceil - FADE.ceil);
     expect(region.y + region.h).toBeGreaterThanOrEqual(g.floor + FADE.floor);
   });
-  it('floorboards widen away from the wall', () => {
+  it('floorboards widen away from the wall, and equal depths of the room are the steps of the perspective', () => {
+    const h = 9000;
     let prev = 0;
     for (let k = 1; k <= BOARD.count; k++) {
-      const d = boardTop(k) - boardTop(k - 1);
+      const d = boardTop(k, h) - boardTop(k - 1, h);
       expect(d).toBeGreaterThan(prev);
       prev = d;
+      expect(floorScale({ vx: 0, yH: -h }, 0, boardTop(k, h))).toBeCloseTo(1 / (1 - k * BOARD.step), 9);
     }
-    expect(boardTop(0)).toBe(0);
-    expect(boardTop(1)).toBe(BOARD.first);
+    expect(boardTop(0, h)).toBe(0);
+    expect(boardTop(1, h)).toBeGreaterThan(300);
+    expect(boardTop(1, h)).toBeLessThan(600);
   });
   it.each([true, false])('is built (dark theme %s) and reaches far past any view with its flat far colour', (dark) => {
-    const T = { ...THEME, dark }, B = { ceil: -9000, floor: 7000 }, L = shellLook(T);
+    const T = { ...THEME, dark }, B = { ceil: -9000, floor: 7000, vx: 2000, yH: -2000 }, L = shellLook(T);
     for (const draw of [drawCeiling, drawCrown, drawFloor]) {
       const g = new Graphics();
       expect(() => draw(g, T, B)).not.toThrow();

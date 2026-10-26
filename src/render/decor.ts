@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import { mix } from './ink';
+import { spreadX, spreadY, type Persp } from './persp';
 import type { Theme } from './theme';
 
 // The small things that make the room lived in: a plant on the desk and a rug on the floor under it. Drawn into the room's front art, so the light layer lights
@@ -29,22 +30,21 @@ export function drawPlant(g: Graphics, T: Theme, x: number, ys: number) {
   g.ellipse(x, top - 28, w0 + 4, 26).fill({ color: soil });
 }
 
-export interface RugBox { x0: number; x1: number; floor: number }
+export interface RugBox extends Persp { x0: number; x1: number; floor: number }
 
-/** A rug on the floor under the desk, seen from a little above: a trapezoid that is narrower at the wall, with a border, stripes and a fringe. */
+/** A rug on the floor under the desk, in the room's perspective: its sides run to the vanishing point, and it has a border, stripes and a fringe. */
 export function drawRug(g: Graphics, T: Theme, B: RugBox) {
   const d = T.dark, base = d ? '#1f3d4d' : '#6f98a8', band = d ? '#8a5a3a' : '#c98f5a', stripe = d ? '#2d5a6e' : '#8fb7c6', edge = d ? '#0e1f28' : '#4a6e7e';
-  const y0 = B.floor + 650, y1 = B.floor + 3500, inset = 0.14, w = B.x1 - B.x0, xa = B.x0 + w * 0.08, xb = B.x1 - w * 0.08, cut = (xb - xa) * inset;
-  const quad = (a: number, b: number, color: string, alpha = 1) => {
-    // the rug between depth fractions a and b (0 at the wall, 1 at the viewer)
-    const lx = (t: number) => xa + cut * (1 - t), rx = (t: number) => xb - cut * (1 - t), ya = y0 + (y1 - y0) * a, yb = y0 + (y1 - y0) * b;
-    g.poly([lx(a), ya, rx(a), ya, rx(b), yb, lx(b), yb]).fill({ color, alpha });
-  };
-  g.poly([xa + cut, y0 + 50, xb - cut, y0 + 50, xb + 60, y1 + 90, xa - 60, y1 + 90]).fill({ color: '#000000', alpha: d ? 0.4 : 0.18 }); // its shadow
+  const h = B.floor - B.yH, s0 = 1.075, s1 = 1.4, w = B.x1 - B.x0, c = (B.x0 + B.x1) / 2, half = w * 0.36;
+  // a point of the rug: `t` from the wall to the viewer (0 to 1), `u` across it (-1 to 1)
+  const pt = (t: number, u: number): [number, number] => { const s = s0 + (s1 - s0) * t; return [spreadX(B, c + half * u, s), spreadY(B, B.floor, s)]; };
+  const quad = (a: number, b: number, color: string, alpha = 1, u = 1) => g.poly([...pt(a, -u), ...pt(a, u), ...pt(b, u), ...pt(b, -u)]).fill({ color, alpha });
+  g.poly([...pt(-0.02, -1.03), ...pt(-0.02, 1.03), ...pt(1.05, 1.06), ...pt(1.05, -1.06)]).fill({ color: '#000000', alpha: d ? 0.4 : 0.18 }); // its shadow
   quad(0, 1, base);
   quad(0, 0.07, band); quad(0.93, 1, band);
   for (const t of [0.22, 0.5, 0.78]) quad(t, t + 0.05, stripe);
-  g.poly([xa + cut, y0, xb - cut, y0, xb, y1, xa, y1]).stroke({ width: 14, color: edge, alpha: 0.8 });
+  g.poly([...pt(0, -1), ...pt(0, 1), ...pt(1, 1), ...pt(1, -1)]).stroke({ width: 14, color: edge, alpha: 0.8 });
   // the fringe at the viewer's edge
-  for (let x = xa + 40; x < xb - 40; x += 90) g.rect(x, y1, 22, 120).fill({ color: mix(band, '#ffffff', 0.25), alpha: 0.85 });
+  const [, fy] = pt(1, 0), fringe = h * 0.012;
+  for (let u = -0.96; u < 0.96; u += 0.045) { const [x] = pt(1, u); g.rect(x, fy, 22 * s1, fringe).fill({ color: mix(band, '#ffffff', 0.25), alpha: 0.85 }); }
 }

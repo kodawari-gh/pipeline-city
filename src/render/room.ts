@@ -11,6 +11,8 @@ import { drawSlats } from './wall';
 import { drawCeiling, drawCrown, drawFloor, FADE } from './shell';
 import { captureShape } from './capture';
 import { drawPlant, drawRug } from './decor';
+import { drawDesk, drawDeskShadow, drawUnderDesk } from './desk';
+import { deskGeo, roomPersp, S_FRONT, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from './shape';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
@@ -28,7 +30,7 @@ export { FOOT };
 /** How far the desk reaches west of the lamp (which stands at its very west end) and east of the case (which is the last thing on it). */
 const DESK_WEST = 1500, DESK_EAST = 500;
 /** How much wall the camera may show beyond the desk's and the window's ends, and below the wall socket (no floor); the top is the router or the window, whichever is higher. */
-const BOX_SIDE = 900, BOX_BELOW = 1700, BOX_TOP_ABOVE = 500;
+const BOX_SIDE = 900, BOX_BELOW = 2200, BOX_TOP_ABOVE = 500;
 /** How much wall there is above the highest thing on it, up to the ceiling. */
 const CEIL_ABOVE = 2700;
 /**
@@ -48,6 +50,8 @@ export interface RoomGeo {
   floor: number;
   /** Where the wall meets the ceiling. */
   ceil: number;
+  /** The room's one perspective (`persp.ts`): the floor, the desk and the window's recess meet at its vanishing point. */
+  persp: Persp;
   desk: { x0: number; x1: number };
   /** The mug's centre x (east of the case; the steam rises from it). */
   mug: number;
@@ -103,11 +107,13 @@ export function roomGeo(): RoomGeo {
   const WIN_W = 5600, winTop = Math.min(clock.y, ROUTER_SPOT.y, TRAY.y) + 190, WIN_H = ys - 700 - winTop;
   const window: Rect = { x: lx - DESK_WEST - 250 - WIN_W, y: winTop, w: WIN_W, h: WIN_H };
   const head = { x: lx + LAMP.head.x, y: ys + LAMP.head.y };
+  const ceil = Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y) - CEIL_ABOVE, desk = { x0: lx - DESK_WEST, x1: east + DESK_EAST };
   return {
     ys,
     floor: FLOOR_Y,
-    ceil: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y) - CEIL_ABOVE,
-    desk: { x0: lx - DESK_WEST, x1: east + DESK_EAST },
+    ceil,
+    persp: roomPersp({ ceil, floor: FLOOR_Y, ...desk }),
+    desk,
     mug: MONITOR.x + MONITOR.w + 710,
     socket: { plate, mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 }, pc: { x: plate.x + plate.w * 0.72, y: plate.y + plate.h / 2 } },
     window,
@@ -178,8 +184,10 @@ const look = (T: Theme): Look => T.dark
     paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', cloth: '#7a63c4',
   };
 
-/** A flat ellipse of shadow on the desk top (the desk's far strip, seen edge-on). */
-const shadow = (g: Graphics, x: number, y: number, w: number, a = 0.3) => { g.ellipse(x, y, w / 2, Math.max(24, w * 0.035)).fill({ color: '#000000', alpha: a }); };
+/** A soft shadow of a thing standing on the desk top, on the top (three ellipses, each smaller and darker; a little toward the viewer and the east, away from the lamp and the window). */
+const shadow = (g: Graphics, x: number, y: number, w: number, a = 0.3) => {
+  for (let k = 0; k < 3; k++) g.ellipse(x + w * 0.015, y + 70, w / 2 + (2 - k) * 110, 130 + (2 - k) * 80).fill({ color: '#000000', alpha: a / 2.2 });
+};
 
 /** The clock's LED colour. */
 const ledColor = (T: Theme) => (T.dark ? '#ffa54a' : '#d9421f');
@@ -285,10 +293,10 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   g.rect(-90000, geo.ceil, 180000, geo.floor - geo.ceil).fill({ color: L.wall });
   drawSlats(g, T, shell);
   drawCrown(g, T, shell);
+  // the desk's top meets the wall at its far edge: the wall just above it is a little in shadow, easing out upward (24 fine bands: a gradient, not a stripe)
   // (in the light theme the wall's own pale blue over the tan slats read as a haze: the shadow is a warm dark there)
-  const dusk = T.dark ? L.wallLo : '#4a3a30', dk = T.dark ? 1 : 0.4;
-  for (let k = 0; k < 24; k++) g.rect(-90000, ys - 1600 + k * 67.5, 180000, 72).fill({ color: dusk, alpha: ((0.18 + k * 0.0125) * dk) / 2.6 }); // (24 fine bands add up to what six coarse ones did)
-  g.rect(-90000, ys - 400, 180000, 420).fill({ color: dusk, alpha: 0.5 * dk });
+  const dusk = T.dark ? L.wallLo : '#4a3a30', dk = T.dark ? 1 : 0.4, D = deskGeo(geo.persp, ys, geo.floor);
+  for (let k = 0; k < 24; k++) g.rect(-90000, D.yBack - 1700 + k * 71, 180000, 75).fill({ color: dusk, alpha: 0.5 * dk * ((k + 1) / 24) ** 2.2 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
   const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60) => {
     const n = 16; // enough nested rects that no ring shows
@@ -335,37 +343,15 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (const [x, y] of clockDigits(c)) segDigit(g, x, y, 8, led, 0.1);
   g.roundRect(c.x + 80, c.y + 74, c.w - 160, 18, 9).fill({ color: '#ffffff', alpha: 0.05 });
 
-  // ---- the desk: a west leg, a drawer pedestal at the east end, and the slab on top; it spans from west of the keyboard to just past the case ----
-  const d = DESK, ye = geo.floor, { x0, x1 } = geo.desk;
-  // the dark under the desk: there is no floor in the picture; the wall just goes dark toward the bottom (below), so the legs and the
-  // pedestal run on into the dark and no screen shape can show an edge of the room
-  const under = ye - ys - d.slab, ped = { x: x1 - 4500, y: ys + d.slab, w: 4400, h: under };
-  f.rect(x0 + 60, ys + d.slab, ped.x - x0 - 60, under).fill({ color: '#000000', alpha: T.dark ? 0.55 : 0.28 });
-  // the west leg
-  f.rect(x0 + 60, ys + d.slab, 600, under).fill({ color: L.woodLo }).stroke({ width: 8, color: L.edge, alpha: 0.6 });
-  f.rect(x0 + 90, ys + d.slab, 40, under).fill({ color: L.woodHi, alpha: 0.35 });
-  // the drawer pedestal, down to the floor, at the east end: two or three drawers by its height
-  f.rect(ped.x, ped.y, ped.w, ped.h).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
-  const nd = 3, dh = ped.h / nd;
-  for (let k = 0; k < nd; k++) {
-    const dy = ped.y + 90 + k * dh;
-    f.rect(ped.x + 110, dy, ped.w - 220, dh - 130).fill({ color: L.woodHi, alpha: 0.5 }).stroke({ width: 7, color: L.edge, alpha: 0.6 });
-    f.rect(ped.x + ped.w / 2 - 380, dy + (dh - 130) / 2 - 24, 760, 48).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo });
-  }
-  // the floor and the baseboard (`shell.ts`), under the desk and over the foot of the wall; the desk, its legs and the pedestal stand on it and throw a shadow on it
-  drawFloor(f, T, { ceil: geo.ceil, floor: ye });
-  drawRug(f, T, { x0, x1, floor: ye });
-  for (const [sx, sw] of [[x0 + 60, 900], [ped.x - 200, ped.w + 600]] as const) f.ellipse(sx + sw / 2, ye + 120, sw / 2 + 200, 150).fill({ color: '#000000', alpha: T.dark ? 0.45 : 0.22 });
+  // ---- the desk (`desk.ts`, in the room's perspective): a top with depth that things stand on, a slab, a side panel at the west end and a drawer pedestal at the east end that stand on the floor in front of the baseboard; it spans from west of the lamp to just past the case ----
+  const { x0, x1 } = geo.desk, ye = geo.floor, P = geo.persp;
+  drawUnderDesk(f, T, D, x0, x1);
+  // the floor and the baseboard (`shell.ts`), under the desk and over the foot of the wall, the rug on it, and the desk's shadow
+  drawFloor(f, T, { ceil: geo.ceil, floor: ye, ...P });
+  drawRug(f, T, { x0, x1, floor: ye, ...P });
+  drawDeskShadow(f, T, D, x0, x1);
   powerArt(T, geo, g, f);
-  // the slab: a lit top, a front edge, a grain
-  f.rect(x0, ys, x1 - x0, d.slab).fill({ color: L.wood }).stroke({ width: 10, color: L.edge, alpha: 0.8 });
-  f.rect(x0 + 8, ys + 6, x1 - x0 - 16, 70).fill({ color: L.woodHi }); // the far strip of the top, seen at a slant
-  f.rect(x0 + 8, ys + d.slab - 50, x1 - x0 - 16, 44).fill({ color: L.woodLo, alpha: 0.7 });
-  for (let k = 0; k < 40; k++) {
-    const x = x0 + ((k * 2654435761) % 1000) / 1000 * (x1 - x0 - 1800), y = ys + 100 + (k % 4) * 52;
-    f.rect(x, y, 600 + (k % 5) * 420, 8).fill({ color: L.woodLo, alpha: 0.22 });
-  }
-  f.rect(x0, ys + d.slab, x1 - x0, 150).fill({ color: '#000000', alpha: 0.24 });
+  drawDesk(f, T, L, D, x0, x1);
 
   // ---- the key rack on the wall above the monitor (props.ts draws the lettering and the sticks on their lanyards): two wooden rails, five brass hooks on each ----
   const kr = geo.keyRack;
@@ -405,7 +391,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   o.rect(matX0 + 40, ys - 62, matX1 - matX0 - 80, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
   // the keyboard: a front face, a sloped top seen from a little above with five rows of caps (the space bar in the front row), a pair of lamps at the back
   const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8';
-  o.ellipse(kx + kw / 2, kb + 26, kw / 2 + 200, 52).fill({ color: '#000000', alpha: 0.22 });
+  o.ellipse(kx + kw / 2, kb + 40, kw / 2 + 200, 110).fill({ color: '#000000', alpha: 0.2 });
   o.roundRect(kx, kb - kf - 70, kw, kf + 70, 44).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
   const topL = (t: number) => kx + 70 + 190 * t, topR = (t: number) => kx + kw - 70 - 190 * t, topY = (t: number) => kb - kf - 70 - kd * t;
   o.poly([topL(0), topY(0), topR(0), topY(0), topR(1), topY(1), topL(1), topY(1)]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
@@ -421,7 +407,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (const [dx, col] of [[kw - 520, '#6dffa6'], [kw - 380, T.dark ? '#33406e' : '#aebbd6']] as const) o.circle(kx + dx, topY(0.96), 14).fill({ color: col, alpha: 0.9 });
   // the mouse: a domed body with the two buttons and the wheel, on the mat east of the keyboard, and its cord curling back behind the keyboard
   const mox = kx + kw + 1050;
-  o.ellipse(mox, ys + 8, 520, 40).fill({ color: '#000000', alpha: 0.24 });
+  o.ellipse(mox, ys + 30, 520, 80).fill({ color: '#000000', alpha: 0.24 });
   o.moveTo(mox - 20, ys - 330).bezierCurveTo(mox - 300, ys - 640, mox - 1700, ys - 560, mox - 2100, ys - 820).stroke({ width: 20, color: L.plasticLo, cap: 'round' });
   o.roundRect(mox - 330, ys - 260, 660, 260, 120).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
   o.moveTo(mox - 360, ys - 210).bezierCurveTo(mox - 360, ys - 520, mox - 150, ys - 560, mox, ys - 560).bezierCurveTo(mox + 150, ys - 560, mox + 360, ys - 520, mox + 360, ys - 210).closePath().fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
@@ -434,7 +420,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
   drawPlant(f, T, geo.lamp.x + LAMP.base + 1250, ys); // a plant between the lamp and the monitor
-  { const lx = geo.lamp.x; f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 }); }
+  shadow(f, geo.lamp.x, ys, 2 * (LAMP.base + 400), 0.34);
   drawLamp(f, L, geo);
   return { back, front, over, bakes: [gWrap, fWrap] };
 }
@@ -457,7 +443,8 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
   edge({ x: geo.socket.plate.x, y: geo.socket.plate.y, w: geo.socket.plate.w, h: geo.socket.plate.h }, 50, 0.5);
   const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
   edge({ x: kx, y: ys - 260, w: kw, h: 260 }, 44, 0.7);
-  g.moveTo(geo.desk.x0, ys).lineTo(geo.desk.x1, ys).stroke({ width: 20, color: hi, alpha: 0.8 }); // the desk's top edge
+  const D = deskGeo(geo.persp, ys, geo.floor);
+  g.moveTo(D.xAt(geo.desk.x0, S_FRONT), D.yFront).lineTo(D.xAt(geo.desk.x1, S_FRONT), D.yFront).stroke({ width: 20, color: hi, alpha: 0.8 }); // the desk's front edge, where the top turns down
   const mx = geo.mug, mt = ys - MUG.h;
   g.ellipse(mx, mt, MUG.r, MUG.r * MUG.e).stroke({ width: w2, color: hi, alpha: 0.7 });
   g.moveTo(mx - MUG.r, mt).lineTo(mx - MUG.rb, ys - 20).stroke({ width: w1, color: hi, alpha: 0.6 });
@@ -472,10 +459,10 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
 
 /** The places the room's light is cut around, from the layout of the moment (the case follows the tier). The keyboard is its sloped top: `y` its front edge, `h` how far it runs back. */
 export function lightGeo(geo: RoomGeo): LightGeo {
-  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
+  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300, dk = deskGeo(geo.persp, geo.ys, geo.floor);
   return {
     window: geo.window, region: roomBakeRect(geo), case: CASE, inner: CASE_IN, monitor: MONITOR, screen: SCREEN, router: ROUTER_SPOT, clock: geo.clock, mouth: geo.lamp.mouth, dir: LAMP_D, ys: geo.ys,
-    keyboard: { x: kx, y: geo.ys - 260, w: kw, h: 400 },
+    keyboard: { x: kx, y: geo.ys - 260, w: kw, h: 400 }, deskTop: dk.yFront, deskBack: dk.yBack,
   };
 }
 
