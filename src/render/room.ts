@@ -309,6 +309,15 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   cast(OUTBOX, 130, 200, 130, 0.45, 40);
   for (let row = 0; row < TRAY_ROWS; row++) cast({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 140, 210, 140, 0.45, 30);
   cast({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 200, 300, 160, 0.42, 20);
+  // what stands on the desk throws its shadow on the wall behind it too: the plant, the mug and the lamp's arms and hood
+  cast({ x: geo.lamp.x + LAMP.base + 1250 - 380, y: ys - 1700, w: 760, h: 1700 }, 360, 280, 260, 0.3, 200);
+  cast({ x: geo.mug - MUG.r, y: ys - MUG.h, w: MUG.r * 2, h: MUG.h }, 300, 220, 200, 0.3, 200);
+  {
+    const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth, dx = 520, dy = 380, k = T.dark ? 1 : 0.6;
+    const nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
+    for (const [w, a] of [[420, 0.07], [300, 0.08], [190, 0.1]] as const) g.moveTo(p0.x + dx, p0.y + dy).lineTo(el.x + dx, el.y + dy).lineTo(hd.x + dx, hd.y + dy).stroke({ width: w, color: '#000000', alpha: a * k, cap: 'round', join: 'round' });
+    for (const grow of [1.5, 1.25, 1]) g.poly([hd.x + nx * nk * grow + dx, hd.y + ny * nk * grow + dy, mo.x + nx * hw * grow + dx, mo.y + ny * hw * grow + dy, mo.x - nx * hw * grow + dx, mo.y - ny * hw * grow + dy, hd.x - nx * nk * grow + dx, hd.y - ny * nk * grow + dy]).fill({ color: '#000000', alpha: 0.05 * k });
+  }
 
   // the router shelf: a plank on two brackets, the wall plate above it on the left (both drawn by the network layer)
   const sx0 = ROUTER_SPOT.x - 300, sx1 = ROUTER_SPOT.x + ROUTER_SPOT.w + 120, sy = SHELF_Y;
