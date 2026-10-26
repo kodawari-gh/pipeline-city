@@ -12,13 +12,13 @@ import {
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard, upgradeCase,
   type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
-  specsOfKind, type NicSpec, type StorageSpec,
+  specsOfKind, type CardSpec, type NicSpec, type StorageSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_PORTS, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES } from "../gen";
-import { Disk, Machine, StoragePort } from "../machine";
+import { Disk, GpuPort, Machine, StoragePort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
@@ -605,6 +605,7 @@ export class Game {
   private readonly tray: UsbTray<Key>;
   private plugged: Key | null = null;
   private readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
+  private readonly gpus: GpuPort[] = GPU_PORTS.map((slot, i) => new GpuPort(slot, i));
   private readonly disks = new Map<string, Disk>();
   private os: InstalledOs | null = null;
   private pchKey: PchKey | null = null;
@@ -681,6 +682,7 @@ export class Game {
     this.pch.onPhase = () => this.applyBoost();
     this.machine.addDevice(this.pch);
     for (const p of this.ports) this.machine.addDevice(p);
+    for (const p of this.gpus) this.machine.addDevice(p);
     this.thermal = new ThermalModel(this.machine.prng);
     // The crate: CPU, PSU, RAM, monitor, stock cooler (last, so the older item ids stay inv1..inv4). Nothing is mounted at the start.
     for (const spec of ["cpu0", "psu0", "ram0", "display0", "cooler0"]) this.inventory.push({ id: `inv${this.nextInvId++}`, spec });
@@ -727,7 +729,7 @@ export class Game {
     const nic = this.board.devices.find((d) => deviceSpec(d).kind === "nic");
     if (nic) ok("plug the ethernet cable", this.connectCable("lan", nic.id));
     // swaps can unplug a cable whose source part changed: plug the others again
-    for (const c of CABLES) if (c.id !== "lan" && !this.cables[c.id]) ok(`plug ${c.id}`, this.connectCable(c.id));
+    for (const c of CABLES) if (c.id !== "lan" && !this.cables[c.id] && cableNeeded(this.board, c.id)) ok(`plug ${c.id}`, this.connectCable(c.id));
     this.log = [];
   }
 
@@ -1344,11 +1346,13 @@ export class Game {
       || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing");
     const load = busy ? 1 : this.cfg.idleLoad;
     const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
+    const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
     const boardWasOk = !this.board.burnt;
     const netLoad = this.downloads.length + this.uploads.length > 0 ? 1 : this.cfg.idleLoad;
-    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad }, this.powered);
+    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad }, this.powered);
     this.meterWall();
     this.syncStorage(); // a drive that burnt out drops off the bus
+    this.syncGpus();
     if (boardWasOk && this.board.burnt) this.note("fault", "the VRM burnt out: board dead: replace the board");
     if (this.powered && busy && !this.board.burnt) {
       // A thermal error or a VRM voltage droop crashes the machine: it reboots and the job restarts from the ROM; no payout for the attempt.
@@ -1644,6 +1648,7 @@ export class Game {
     if (s.tripped) g.thermal.power = { ...g.thermal.power, tripped: true };
     g.powered = false;
     g.syncStorage();
+    g.syncGpus();
     g.syncRates(false);
     g.link = g.computeLink();
     return g;
@@ -1814,6 +1819,15 @@ export class Game {
     for (const port of this.ports) {
       const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "storage" && !x.burnt);
       port.attach(d ? this.diskFor(d) : null);
+    }
+  }
+
+  /** Put each working GPU on the bus in its PCIe slot (a burnt or removed card drops off). */
+  private syncGpus(): void {
+    for (const port of this.gpus) {
+      const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "gpu" && !x.burnt);
+      const cfg = d ? (deviceSpec(d) as CardSpec).gpu : undefined;
+      port.configure(cfg ?? null);
     }
   }
 
@@ -2139,7 +2153,9 @@ export class Game {
     this.pch.powerOn(ram >> 10, deviceSpec(cpu).tier);
     // A bootable OS drive: the ROM loads the kernel from it. USB then has latency (enumerating, flashing).
     this.syncStorage();
+    this.syncGpus();
     for (const p of this.ports) p.reset();
+    for (const p of this.gpus) p.reset();
     const boot = this.osPort();
     this.pch.bootDev = boot ? boot.base : 0;
     this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
@@ -2238,7 +2254,7 @@ export class Game {
     this.applyBoost();
   }
 
-  private readonly rateDomains: readonly string[] = ["cpu", "display", ...STORAGE_PORTS];
+  private readonly rateDomains: readonly string[] = ["cpu", "display", ...STORAGE_PORTS, ...GPU_PORTS];
   /** Each domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
   private readonly baseRates = new Map<string, { mul: number; div: number }>();
 

@@ -1,7 +1,7 @@
 // Wiring: apply a Board (and its thermal state) to a Machine.
 
 import { createEngine, type EngineConfig } from "../engines";
-import { STORAGE_PORTS } from "../isa/memmap";
+import { GPU_PORTS, STORAGE_PORTS } from "../isa/memmap";
 import type { Machine, MachineConfig } from "../machine/machine";
 import type { Rate } from "../machine/clock";
 import { deviceSpec, findDevices, type Board, type InstalledDevice } from "./board";
@@ -15,7 +15,7 @@ export function clockToRate(clock: number): Rate {
   return { mul: Math.max(0, Math.round(clock * CLOCK_SCALE)), div: CLOCK_SCALE };
 }
 
-function working(board: Board, kind: "cpu" | "ram" | "display" | "storage"): InstalledDevice[] {
+function working(board: Board, kind: "cpu" | "ram" | "display" | "storage" | "gpu"): InstalledDevice[] {
   return findDevices(board, kind).filter((d) => !d.burnt);
 }
 
@@ -57,6 +57,12 @@ export function applyRates(board: Board, machine: Machine, thermal?: ThermalMode
   for (const slot of STORAGE_PORTS) {
     if (!machine.clock.hasDomain(slot)) continue;
     const d = working(board, "storage").find((x) => x.slot === slot);
+    machine.clock.setRate(slot, clockToRate(d ? clockOf(d, thermal) : 0));
+  }
+  // GPU cards: one clock domain per PCIe slot, driven by the card installed there.
+  for (const slot of GPU_PORTS) {
+    if (!machine.clock.hasDomain(slot)) continue;
+    const d = working(board, "gpu").find((x) => x.slot === slot);
     machine.clock.setRate(slot, clockToRate(d ? clockOf(d, thermal) : 0));
   }
 }

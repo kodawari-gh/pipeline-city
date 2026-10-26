@@ -121,6 +121,8 @@ export interface CardSpec extends SpecBase {
   needsPcieCable: boolean;
   /** Leads it takes: 1 normally, 2 on the biggest card. */
   pcieLeads?: number;
+  /** GPU only: the SIMD unit and its card memory. */
+  gpu?: { lanes: number; memBytes: number; banks: number };
 }
 
 /** A TPM daughterboard on the board's header (slot `tpm`), no cable (docs/ACCEL.md). */
@@ -220,7 +222,7 @@ const specList: DeviceSpec[] = [
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
   { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.7, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
-    needsPcieCable: true },
+    needsPcieCable: true, gpu: { lanes: 8, memBytes: 8 * 1024, banks: 1 } },
   { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
     thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false },
   { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,

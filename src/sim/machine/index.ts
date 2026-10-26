@@ -8,3 +8,4 @@ export * from "./engine";
 export * from "./refEngine";
 export * from "./machine";
 export * from "./storage";
+export * from "./gpu";

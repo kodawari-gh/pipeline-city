@@ -140,3 +140,40 @@ export const KSLOT_BYTES = 64;
 export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48 } as const;
 /** Job slot states. */
 export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
+
+// ---- GPU cards (PCIe slots). See docs/ACCEL.md "GPU".
+
+/** The card in PCIe slot k (ids in GPU_PORTS order) sits at GPU_BASE + k * GPU_STRIDE. */
+export const GPU_BASE = 0x4005_0000;
+export const GPU_STRIDE = 0x1_0000;
+/** Slot ids a GPU can sit in (a board has at most four PCIe slots); the slot id doubles as the port and clock domain name. */
+export const GPU_PORTS: readonly string[] = ["pcie0", "pcie1", "pcie2", "pcie3"];
+/** Card registers (word access, offsets from the port base). */
+export const GPU_REG = {
+  /** ro: GpuStatus bits. */
+  STATUS: 0x00,
+  /** wo: 1 = launch the kernel at KERNEL on LANES lanes. Starts when written. */
+  CMD: 0x04,
+  /** rw: byte address of the kernel in card memory. */
+  KERNEL: 0x08,
+  /** rw: lanes to run, 0 = all of the card's lanes. */
+  LANES: 0x0c,
+  /** ro: lanes the card has. */
+  LANES_MAX: 0x10,
+  /** ro: card memory in bytes. */
+  MEM_BYTES: 0x14,
+  /** ro: memory banks. */
+  BANKS: 0x18,
+  /** ro: cycles the last kernel took on the card (bank conflicts included, the PCIe hops not). */
+  CYCLES: 0x1c,
+  /** ro: why the last launch failed (GpuFault), 0 = fine. */
+  FAULT: 0x20,
+} as const;
+/** The card memory window: word k of card memory is at GPU_MEM + 4k. Kernel code and data share it. */
+export const GPU_MEM = 0x1000;
+/** Bits of GPU_REG.STATUS. Done stays set from the end of a launch until the next one. */
+export const GpuStatus = { Busy: 1, Error: 2, Present: 4, Done: 8 } as const;
+/** Values of GPU_REG.FAULT. */
+export const GpuFaultCode = { None: 0, BadLaunch: 1, Kernel: 2 } as const;
+/** Ticks the PCIe hop costs each way, in the card's own clock (docs/ACCEL.md "Bus and MMIO"). */
+export const GPU_HOP_TICKS = 8;

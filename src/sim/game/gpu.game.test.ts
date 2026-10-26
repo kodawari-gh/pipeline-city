@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import { assembleGpu } from "../asm/gpu";
+import { GPU_BASE, GPU_MEM, GPU_REG, GpuStatus } from "../isa/memmap";
+import { econ } from "./testkit";
+import { Game } from "./game";
+
+// A GPU installed in a Game appears on the bus in its PCIe slot and runs launches (the CPU side of a launch is T77's job template).
+const maxed = () => new Game({ seed: 3, sandbox: true, preassembled: true, maxed: true, economy: econ() });
+const buy = (g: Game, id: string): string => {
+  const r = g.purchase(id);
+  if (!r.ok) throw new Error(`${id}: ${r.reason}`);
+  return r.invId;
+};
+const status = (g: Game, slot = 0) => g.machine.bus.load32(GPU_BASE + slot * 0x10000 + GPU_REG.STATUS);
+
+describe("a GPU in the machine", () => {
+  it("is on the bus once installed, reports its card, and drops off when taken out", () => {
+    const g = maxed();
+    expect(status(g)).toBe(0);
+    const inv = buy(g, "gpu1");
+    const put = g.install(inv);
+    expect(put).toMatchObject({ ok: true });
+    g.advanceBaseTick(); // the bus follows the board on the next tick
+    const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
+    const idx = Number(slot.slice(4));
+    expect(status(g, idx)).toBe(GpuStatus.Present);
+    expect(g.machine.bus.load32(GPU_BASE + idx * 0x10000 + GPU_REG.LANES_MAX)).toBe(8);
+    expect(g.uninstall(g.board.devices.find((d) => d.spec === "gpu1")!.id)).toMatchObject({ ok: true });
+    g.advanceBaseTick();
+    expect(status(g, idx)).toBe(0);
+  });
+
+  it("without its PCIe lead the machine will not POST; with it, a launch runs and the card shows load", () => {
+    const g = maxed();
+    g.install(buy(g, "gpu1"));
+    expect(g.snapshot().cables.find((c) => c.id === "pcie")).toMatchObject({ connected: false });
+    expect(g.snapshot().postBlocker).toMatch(/PCIe power lead/);
+    expect(g.connectCable("pcie")).toMatchObject({ ok: true });
+    expect(g.snapshot().postBlocker).toBeNull();
+    expect(g.powerButton().ok).toBe(true);
+    const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
+    const base = GPU_BASE + Number(slot.slice(4)) * 0x10000;
+    const bus = g.machine.bus;
+    assembleGpu("lane v1\nvaddi v1, v1, 100\nlane v2\nvslli v2, v2, 2\nvst v1, 1024(v2)\nhalt").program.forEach((w, k) => bus.store32(base + GPU_MEM + 4 * k, w));
+    bus.store32(base + GPU_REG.CMD, 1);
+    let idleTicks = 0;
+    while (bus.load32(base + GPU_REG.STATUS) & GpuStatus.Busy) { g.advanceBaseTick(); if (++idleTicks > 2000) throw new Error("the card never finished"); }
+    expect(bus.load32(base + GPU_REG.STATUS) & GpuStatus.Done).toBeTruthy();
+    expect([0, 1, 7].map((k) => bus.load32(base + GPU_MEM + 1024 + 4 * k))).toEqual([100, 101, 107]);
+  });
+});
