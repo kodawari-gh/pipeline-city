@@ -15,13 +15,16 @@ export const BEAM = { reach: 19000, half: 0.74 };
 const sstep = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /**
- * How much of the room is dimmed to put the case in the light, 0 to 1: the share of the view the case covers. The whole room (about a sixth) and the
- * monitor (none) leave it at 0; it rises as the case fills more than a third of the view and is full when it fills most of it.
+ * How much of the room is dimmed to put the case in the light, 0 to 1: it rises as the case fills the view, measured two ways, and takes the larger. By area: the
+ * share of the view the case covers (the whole room is about a sixth, the monitor none; it rises past a third and is full at most of it). By reach: how much of the
+ * view's width or height the case spans, which is what a tall phone (the case spans its width and a quarter of its height) and a very wide screen show; the
+ * overview of the whole machine stays under it on every screen (the case spans about half to three quarters of the shorter side there), a view of the case alone
+ * is full.
  */
 export function focusAt(view: Rect, cover: Rect): number {
   const w = Math.min(view.x + view.w, cover.x + cover.w) - Math.max(view.x, cover.x), h = Math.min(view.y + view.h, cover.y + cover.h) - Math.max(view.y, cover.y);
   if (w <= 0 || h <= 0 || view.w <= 0 || view.h <= 0) return 0;
-  return sstep(0.3, 0.7, (w * h) / (view.w * view.h));
+  return Math.max(sstep(0.3, 0.7, (w * h) / (view.w * view.h)), sstep(0.8, 0.96, Math.max(w / view.w, h / view.h)));
 }
 
 /** A shaft of light from the window (`beamsAt` in `room.ts`): its colour, its strength and slant, the slices it is drawn in (a polygon and how much of the strength it keeps) and the patch where it meets the desk top. */

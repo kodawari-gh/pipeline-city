@@ -30,6 +30,16 @@ describe('the focus dark', () => {
     expect(seq[0]).toBe(0);
     expect(seq.some((v) => v > 0 && v < 1)).toBe(true);
   });
+  it('responds to a tall or a very wide view that the case fills along its short side: a phone zoomed on the case, but not its overview', () => {
+    // a tall phone: the view is 2.2 times as tall as wide; zoomed on the case it spans the width
+    expect(focusAt({ x: -200, y: -6000, w: 8400, h: 18500 }, CASE)).toBeGreaterThan(0.95);
+    // the same phone at the overview of the whole machine (the case spans about 45 percent of the width)
+    expect(focusAt({ x: -9000, y: -16000, w: 17800, h: 39000 }, CASE)).toBe(0);
+    // an ultra-wide screen at the overview: the case spans three quarters of the height
+    expect(focusAt({ x: -22000, y: -700, w: 36000, h: 8400 }, CASE)).toBe(0);
+    // and zoomed on the case
+    expect(focusAt({ x: -2500, y: -250, w: 13000, h: 6500 }, CASE)).toBeGreaterThan(0.8);
+  });
   it('is 0 for a view that misses the case or has no size', () => {
     expect(focusAt({ x: 20000, y: 0, w: 5000, h: 3000 }, CASE)).toBe(0);
     expect(focusAt({ x: 0, y: 0, w: 0, h: 0 }, CASE)).toBe(0);
