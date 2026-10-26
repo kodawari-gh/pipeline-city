@@ -177,3 +177,31 @@ export const GpuStatus = { Busy: 1, Error: 2, Present: 4, Done: 8 } as const;
 export const GpuFaultCode = { None: 0, BadLaunch: 1, Kernel: 2 } as const;
 /** Ticks the PCIe hop costs each way, in the card's own clock (docs/ACCEL.md "Bus and MMIO"). */
 export const GPU_HOP_TICKS = 8;
+
+// ---- TPM (the header slot). See docs/ACCEL.md "TPM".
+
+export const TPM_BASE = 0x400a_0000;
+export const TPM_SIZE = 0x1000;
+/** Module registers (word access, offsets from TPM_BASE). */
+export const TPM_REG = {
+  /** ro: TpmStatus bits. */
+  STATUS: 0x00,
+  /** wo: a TpmCmd. Starts when written. */
+  CMD: 0x04,
+  /** rw: first argument (address, nonce or key handle). */
+  ARG0: 0x08,
+  /** rw: second argument (word count, or the value to seal). */
+  ARG1: 0x0c,
+  /** ro: what the last command returned (hash, quote or unsealed value). */
+  RESULT: 0x10,
+  /** ro: why the last command or the job failed (TpmFault), 0 = fine. */
+  FAULT: 0x14,
+} as const;
+export const TpmStatus = { Busy: 1, Error: 2, Present: 4, Done: 8, Protected: 16 } as const;
+/** Commands. `Protect` starts protected mode over the byte range [ARG0, ARG0 + 4 * ARG1) of RAM; `Unprotect` ends it. */
+export const TpmCmd = { Measure: 1, Attest: 2, Seal: 3, Unseal: 4, Protect: 5, Unprotect: 6 } as const;
+export const TpmFault = { None: 0, BadCommand: 1, BadRange: 2, NoSuchKey: 3, Violation: 4 } as const;
+/** Ticks the header costs each way, in the module's own clock: slow on purpose (docs/ACCEL.md). */
+export const TPM_HOP_TICKS = 20;
+/** Ticks a seal or unseal takes inside the module. */
+export const TPM_SEAL_TICKS = 10;

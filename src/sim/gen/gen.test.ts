@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { createEngine, type EngineConfig } from "../engines";
 import { DISPLAY_COLS } from "../isa/memmap";
-import { Machine } from "../machine";
+import { Machine, TpmPort } from "../machine";
 import { generate, runReference, TEMPLATE_NAMES } from "./index";
 import * as K from "./kernels";
 
@@ -83,6 +83,9 @@ describe("every generated program", () => {
         const ref = runReference(g);
         for (const cfg of cfgs) {
           const m = new Machine();
+          const tpm = new TpmPort(null, m.ram, m.prng, true); // the secure job talks to a TPM: an instant one, like the reference interpreter has
+          tpm.configure({ measureTicks: 0, attestTicks: 0, surcharge: 0 });
+          m.addDevice(tpm);
           const e = createEngine(cfg);
           m.attach(e, g.program);
           let guard = 0;

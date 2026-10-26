@@ -40,7 +40,7 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "db", template: "cli.checksum", scale: 3, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], firstLevel: 5, rampTicks: 600, heavy: true, placeholder: true },
   // PLACEHOLDERS below: they need devices that do not exist yet, so they are never runnable today (they arrive and expire).
   { id: "web", template: "cli.calc", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true, placeholder: true },
-  { id: "secure", template: "cli.checksum", scale: 4, payMul: 3, needs: [{ kind: "tpm" }], firstLevel: 9, rampTicks: 600, heavy: true, placeholder: true },
+  { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }], firstLevel: 9, rampTicks: 600, heavy: true },
   // The GPU batch job (template gpu.render) needs no card: with one the program offloads its kernel, without one it runs the same work on the CPU, slower and at the same pay (docs/ACCEL.md).
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },
   { id: "npu", template: "cli.calc", scale: 6, payMul: 4, needs: [{ kind: "npu" }], firstLevel: 12, rampTicks: 600, heavy: true, placeholder: true },

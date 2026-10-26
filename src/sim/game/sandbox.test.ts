@@ -191,7 +191,7 @@ describe("sandbox high-end build", () => {
     play(g, 4000, 0);
     expect(g.completed).toBeGreaterThan(5);
     expect(g.snapshot().board.burnt).toBe(false);
-  });
+  }, 20_000); // a long run: the default 5 s timed out when the whole suite ran in parallel
 });
 
 describe("sandbox maxed machine", () => {

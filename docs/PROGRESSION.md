@@ -188,7 +188,7 @@ A **job class** groups templates and carries `needs`. The four existing classes 
 | `scan` | built | nothing (RAM speeds it) | 5 | ramp over 300 ticks as today |
 | `db` | planned | an OS and a drive of tier SATA SSD or better | 5 | many block reads; slow on HDD is not allowed, so it needs `ssd1`+ |
 | `web` | planned | a plan bought and a live link (any OS with the net stack) | 4 | small request, big response; upload-bound. No share until a plan is bought, none during the USB fallback (`NETWORK.md`) |
-| `secure` | planned | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
+| `secure` | built (T72, T73) | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
 | `gpu` | built (T77) | nothing: it runs on the CPU, faster with a GPU (decision 2026-10-24, docs/ACCEL.md) | 10 | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators" |
 | `npu` | planned | an NPU | 12 | |
 | `hpc` | planned | a multicore CPU (at least 2 cores) | 14 | the multi-core simulation template |

@@ -55,6 +55,8 @@ export class Machine {
   stepCpu(): void {
     const e = this.engine;
     if (!e || e.halted) return;
+    // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
+    if (this.cpuStall > 0) { this.cpuStall--; return; }
     if (e.drained !== undefined && e.holdFetch && e.redirect) {
       const line = this.intc.next();
       if (line < 0) {
@@ -70,8 +72,17 @@ export class Machine {
         this.irqWait++;
       }
     }
-    e.step();
+    this.bus.guardOn = true;
+    try {
+      e.step();
+    } finally {
+      this.bus.guardOn = false;
+    }
+    if (this.bus.stallCycles > 0) { this.cpuStall += this.bus.stallCycles; this.bus.stallCycles = 0; }
   }
+
+  /** CPU cycles still to wait for the guard's surcharge. */
+  private cpuStall = 0;
 
   /** Map a device on the bus; if it has clock settings it gets a domain named after it. */
   addDevice(d: Device): void {
@@ -91,6 +102,8 @@ export class Machine {
     this.engine = engine;
     this.intc.reset();
     this.irqWait = 0;
+    this.cpuStall = 0;
+    this.bus.stallCycles = 0;
     engine.reset(this, program);
   }
 

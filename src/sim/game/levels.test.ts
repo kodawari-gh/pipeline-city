@@ -359,11 +359,16 @@ describe("jobs the machine cannot run", () => {
     expect(needsMet([{ kind: "os", min: 1 }], NO_CAPS)).toEqual({ ok: false, missing: ["an OS"] });
     expect(needsMet([{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], { ...NO_CAPS, osTier: 1, storageTier: 2 }).ok).toBe(true);
     expect(needsMet([{ kind: "storage", minTier: 1 }], { ...NO_CAPS, storageTier: 0 }).ok).toBe(false);
-    for (const id of ["web", "secure", "npu", "hpc"]) {
+    for (const id of ["web", "npu", "hpc"]) {
       const c = JOB_CLASSES.find((x) => x.id === id)!;
       expect(c.placeholder, id).toBe(true);
       expect(needsMet(c.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok, id).toBe(false);
     }
+    const secure = JOB_CLASSES.find((x) => x.id === "secure")!;
+    expect(secure).toMatchObject({ template: "secure.sign", needs: [{ kind: "tpm" }] });
+    expect(secure.placeholder).toBeUndefined();
+    expect(needsMet(secure.needs, NO_CAPS).ok).toBe(false);
+    expect(needsMet(secure.needs, { ...NO_CAPS, tpm: true }).ok).toBe(true);
     const gpu = JOB_CLASSES.find((x) => x.id === "gpu")!;
     expect(gpu).toMatchObject({ template: "gpu.render", needs: [] });
     expect(gpu.placeholder).toBeUndefined();

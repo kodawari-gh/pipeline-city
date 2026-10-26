@@ -15,7 +15,7 @@ export function clockToRate(clock: number): Rate {
   return { mul: Math.max(0, Math.round(clock * CLOCK_SCALE)), div: CLOCK_SCALE };
 }
 
-function working(board: Board, kind: "cpu" | "ram" | "display" | "storage" | "gpu"): InstalledDevice[] {
+function working(board: Board, kind: "cpu" | "ram" | "display" | "storage" | "gpu" | "tpm"): InstalledDevice[] {
   return findDevices(board, kind).filter((d) => !d.burnt);
 }
 
@@ -59,6 +59,8 @@ export function applyRates(board: Board, machine: Machine, thermal?: ThermalMode
     const d = working(board, "storage").find((x) => x.slot === slot);
     machine.clock.setRate(slot, clockToRate(d ? clockOf(d, thermal) : 0));
   }
+  // The TPM runs on one fixed slow clock while a module is installed (no overclock).
+  if (machine.clock.hasDomain("tpm")) machine.clock.setRate("tpm", clockToRate(working(board, "tpm").length > 0 ? 1 : 0));
   // GPU cards: one clock domain per PCIe slot, driven by the card installed there.
   for (const slot of GPU_PORTS) {
     if (!machine.clock.hasDomain(slot)) continue;

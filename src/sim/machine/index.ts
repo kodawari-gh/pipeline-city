@@ -9,3 +9,4 @@ export * from "./refEngine";
 export * from "./machine";
 export * from "./storage";
 export * from "./gpu";
+export * from "./tpm";

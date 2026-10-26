@@ -5,12 +5,12 @@
 // write a TemplateFn, add it to TEMPLATES below, and document it in docs/GEN.md. Nothing else needs to change.
 
 import { assembleGpu } from "../asm/gpu";
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG } from "../isa/memmap";
+import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, TpmCmd } from "../isa/memmap";
 import { Prng } from "../machine/prng";
 import * as K from "./kernels";
 import type { Kernel } from "./kernels";
 import {
-  copyWords, cpuKernel, GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  copyWords, cpuKernel, GPU_KERNEL_NAMES, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 
 export interface GenParams {
@@ -303,6 +303,42 @@ const gpuRender: TemplateFn = (rng, p) => {
   return b.finish(`gpu.render request`, blankRows(p.row) + renderLine(segs, [expected]));
 };
 
+/**
+ * Signed transaction (docs/ACCEL.md "Job classes"): measure the job's own data with the TPM, attest the measurement, hash the data
+ * in protected mode (RAM outside the program is off limits and every access pays the encryption surcharge), seal the digest, unseal
+ * it and print its low 6 bits. Needs a TPM; the reference interpreter runs it against an instant fake.
+ */
+const secureSign: TemplateFn = (rng, p) => {
+  const b = new Builder();
+  const words = 4 * p.scale;
+  const vals: number[] = [];
+  let h = 5381;
+  for (let i = 0; i < words; i++) {
+    const w = rng.nextU32();
+    vals.push(w);
+    h = (((h + (h << 5)) ^ w) >>> 0) | 0;
+  }
+  const segs: Seg[] = [`#${pad2(p.jobId)} secure `, { dyn: 2 }, " OK"];
+  const line = layoutLine(segs);
+  const data = b.ns("data");
+  const cmd = b.add(tpmCommand(b.ns("tpm")));
+  const hash = b.add(K.checksum(b.ns("checksum")), 4 * words);
+  const handle = p.jobId + 1;
+  b.emit(`li s0, ${rowAddr(p.row)}`);
+  emitStatic(b, line, 0);
+  b.emit(`li a0, ${TpmCmd.Measure}`, `la a1, ${data}`, `li a2, ${words}`, `call ${cmd}`, "mv s1, a0"); // the measurement
+  b.emit(`li a0, ${TpmCmd.Attest}`, "mv a1, s1", "li a2, 0", `call ${cmd}`); // a quote binding it (not shown: it depends on the machine)
+  // Protect everything from the program's own start (0x1000 hosted, 0 standalone) up to the scratch buffer.
+  b.emit("la a1, main", `li a2, ${BUF_BASE}`, "sub a2, a2, a1", "srli a2, a2, 2", `li a0, ${TpmCmd.Protect}`, `call ${cmd}`);
+  b.emit(`la a1, ${data}`, `li a2, ${words}`, `call ${hash}`, "mv s2, a0"); // the digest, in protected mode
+  b.emit(`li a0, ${TpmCmd.Unprotect}`, "li a1, 0", "li a2, 0", `call ${cmd}`);
+  b.emit(`li a0, ${TpmCmd.Seal}`, `li a1, ${handle}`, "mv a2, s2", `call ${cmd}`);
+  b.emit(`li a0, ${TpmCmd.Unseal}`, `li a1, ${handle}`, "li a2, 0", `call ${cmd}`, "andi a1, a0, 63");
+  b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
+  b.addData([`${data}:`, ...vals.map((w) => `  .word ${w}`)]);
+  return b.finish("secure.sign request", blankRows(p.row) + renderLine(segs, [h & 63]));
+};
+
 const CLI_FAMILIES = [cliLog, cliCalc, cliChecksum];
 
 /** Default CLI request: family picked from the seed. */
@@ -316,5 +352,6 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   "cli.checksum": cliChecksum,
   "cli.scan": cliScan,
   "gpu.render": gpuRender,
+  "secure.sign": secureSign,
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").
 };

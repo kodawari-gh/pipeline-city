@@ -4,6 +4,15 @@ import type { Device } from "./device";
 export class Bus {
   readonly devices: Device[] = [];
   private readonly ramView: DataView;
+  /**
+   * Protected mode (the TPM): asked for every access to RAM. Returns the extra CPU cycles the access costs, or -1 to refuse it (a read
+   * then gives 0 and a write is dropped). Null = off.
+   */
+  guard: ((addr: number, write: boolean) => number) | null = null;
+  /** True only while the CPU is executing (the machine sets it around the engine's step): the game's own peeks at RAM and the devices' DMA-free reads are never guarded. */
+  guardOn = false;
+  /** Extra cycles the guard has charged since the machine last collected them. */
+  stallCycles = 0;
 
   constructor(private readonly ram: Uint8Array) {
     this.ramView = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);
@@ -29,14 +38,23 @@ export class Bus {
     throw new RangeError(`${kind} unmapped address 0x${addr.toString(16)}`);
   }
 
+  /** Run the guard for a RAM access: true if it may go ahead. */
+  private allowed(addr: number, write: boolean): boolean {
+    const c = this.guard!(addr, write);
+    if (c < 0) return false;
+    this.stallCycles += c;
+    return true;
+  }
+
   load8(addr: number): number {
-    if (addr < this.ram.length) return this.ram[addr]!;
+    if (addr < this.ram.length) return this.guardOn && this.guard && !this.allowed(addr, false) ? 0 : this.ram[addr]!;
     const d = this.find(addr, 1);
     return d ? d.read(addr - d.base) : this.unmapped("load8 from", addr);
   }
 
   store8(addr: number, v: number): void {
     if (addr < this.ram.length) {
+      if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ram[addr] = v & 0xff;
       return;
     }
@@ -47,7 +65,7 @@ export class Bus {
 
   load32(addr: number): number {
     if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
-    if (addr + 4 <= this.ram.length) return this.ramView.getUint32(addr, true);
+    if (addr + 4 <= this.ram.length) return this.guardOn && this.guard && !this.allowed(addr, false) ? 0 : this.ramView.getUint32(addr, true);
     const d = this.find(addr, 4);
     if (!d) this.unmapped("load32 from", addr);
     const o = addr - d.base;
@@ -57,6 +75,7 @@ export class Bus {
   store32(addr: number, v: number): void {
     if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
     if (addr + 4 <= this.ram.length) {
+      if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ramView.setUint32(addr, v >>> 0, true);
       return;
     }

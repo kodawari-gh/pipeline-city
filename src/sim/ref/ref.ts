@@ -7,6 +7,10 @@ import {
   RAM_BASE, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE,
 } from "../isa/memmap";
 
+import type { Device } from "../machine/device";
+import { Prng } from "../machine/prng";
+import { TpmPort } from "../machine/tpm";
+
 export class RefFault extends Error {
   constructor(public pc: number, msg: string) {
     super(`pc=0x${pc.toString(16)}: ${msg}`);
@@ -31,12 +35,22 @@ export class RefMemory {
   readonly display: Region;
   readonly status: Region;
   private readonly regions: Region[];
+  /** Devices with behaviour (byte access through `read` / `write`). The reference has one: an instant TPM, so a job that talks to the TPM runs here. */
+  private readonly devices: Device[] = [];
 
   constructor(ramSize = RAM_DEFAULT_SIZE) {
     this.ram = region(RAM_BASE, ramSize);
     this.display = region(DISPLAY_BASE, DISPLAY_SIZE);
     this.status = region(STATUS_BASE, STATUS_SIZE);
     this.regions = [this.ram, this.display, this.status];
+    const tpm = new TpmPort(null, this.ram.bytes, new Prng(1), true);
+    tpm.configure({ measureTicks: 0, attestTicks: 0, surcharge: 0 });
+    this.devices.push(tpm);
+  }
+
+  private device(addr: number, n: number): Device | null {
+    for (const d of this.devices) if (addr >= d.base && addr + n <= d.base + d.size) return d;
+    return null;
   }
 
   private find(addr: number, n: number): Region | null {
@@ -50,24 +64,43 @@ export class RefMemory {
   /** Throws RangeError for unmapped or (word) misaligned addresses; callers wrap it into a fault. */
   load8(addr: number): number {
     const r = this.find(addr, 1);
-    if (!r) throw new RangeError(`load8 from unmapped address 0x${addr.toString(16)}`);
+    if (!r) {
+      const d = this.device(addr, 1);
+      if (d) return d.read(addr - d.base);
+      throw new RangeError(`load8 from unmapped address 0x${addr.toString(16)}`);
+    }
     return r.bytes[addr - r.base]!;
   }
   load32(addr: number): number {
     if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
     const r = this.find(addr, 4);
-    if (!r) throw new RangeError(`load32 from unmapped address 0x${addr.toString(16)}`);
+    if (!r) {
+      const d = this.device(addr, 4);
+      if (d) return (d.read(addr - d.base) | (d.read(addr - d.base + 1) << 8) | (d.read(addr - d.base + 2) << 16) | (d.read(addr - d.base + 3) << 24)) >>> 0;
+      throw new RangeError(`load32 from unmapped address 0x${addr.toString(16)}`);
+    }
     return r.view.getUint32(addr - r.base, true);
   }
   store8(addr: number, v: number): void {
     const r = this.find(addr, 1);
-    if (!r) throw new RangeError(`store8 to unmapped address 0x${addr.toString(16)}`);
+    if (!r) {
+      const d = this.device(addr, 1);
+      if (d) return d.write(addr - d.base, v & 0xff);
+      throw new RangeError(`store8 to unmapped address 0x${addr.toString(16)}`);
+    }
     r.bytes[addr - r.base] = v & 0xff;
   }
   store32(addr: number, v: number): void {
     if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
     const r = this.find(addr, 4);
-    if (!r) throw new RangeError(`store32 to unmapped address 0x${addr.toString(16)}`);
+    if (!r) {
+      const d = this.device(addr, 4);
+      if (d) {
+        for (let k = 0; k < 4; k++) d.write(addr - d.base + k, (v >>> (8 * k)) & 0xff);
+        return;
+      }
+      throw new RangeError(`store32 to unmapped address 0x${addr.toString(16)}`);
+    }
     r.view.setUint32(addr - r.base, v >>> 0, true);
   }
 
