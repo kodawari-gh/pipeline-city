@@ -411,13 +411,18 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   // the desk mat, the keyboard and the mouse, in front of the monitor's foot (they are drawn on the over layer, above the monitor): real sizes against the 24 inch
   const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300, kb = ys, kf = 190, kd = 400; // keyboard: left, width, base line, front face height, depth of its top
   const matX0 = kx - 500, matX1 = cx + kw / 2 + 2500;
-  o.roundRect(matX0, ys - 70, matX1 - matX0, 70, 30).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2 });
-  o.rect(matX0 + 40, ys - 62, matX1 - matX0 - 80, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
+  // (the mat lies flat on the desk top: a trapezoid whose sides run to the vanishing point, like the top's own; the keyboard's sloped top and its sides do too)
+  const dg = deskGeo(geo.persp, ys, geo.floor), onTop = (x: number, y: number): [number, number] => [dg.xAt(x, (y - dg.P.yH) / (dg.yBack - dg.P.yH)), y];
+  const mat = [onTop(matX0, ys - 230), onTop(matX1, ys - 230), onTop(matX1, ys + 330), onTop(matX0, ys + 330)].flat();
+  o.poly(mat).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2, join: 'round' });
+  o.poly([...onTop(matX0, ys + 330), ...onTop(matX1, ys + 330), ...onTop(matX1, ys + 290), ...onTop(matX0, ys + 290)]).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
   // the keyboard: a front face, a sloped top seen from a little above with five rows of caps (the space bar in the front row), a pair of lamps at the back
   const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8';
   o.ellipse(kx + kw / 2, kb + 40, kw / 2 + 200, 110).fill({ color: '#000000', alpha: 0.2 });
   o.roundRect(kx, kb - kf - 70, kw, kf + 70, 44).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
-  const topL = (t: number) => kx + 70 + 190 * t, topR = (t: number) => kx + kw - 70 - 190 * t, topY = (t: number) => kb - kf - 70 - kd * t;
+  // the sides of the sloped top lean toward the vanishing point by how far each is from it (the left one a lot, the right one, almost under it, hardly)
+  const leanL = ((geo.persp.vx - kx) / (ys - geo.persp.yH)) * kd, leanR = ((geo.persp.vx - (kx + kw)) / (ys - geo.persp.yH)) * kd;
+  const topL = (t: number) => kx + 70 + leanL * t, topR = (t: number) => kx + kw - 70 + leanR * t, topY = (t: number) => kb - kf - 70 - kd * t;
   o.poly([topL(0), topY(0), topR(0), topY(0), topR(1), topY(1), topL(1), topY(1)]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
   o.poly([topL(0), topY(0), topR(0), topY(0), topR(0.1), topY(0.1), topL(0.1), topY(0.1)]).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.35 });
   for (let r = 0; r < 5; r++) {
