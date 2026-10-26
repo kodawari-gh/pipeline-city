@@ -55,7 +55,7 @@ const propsFrame = () => new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200,
  * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. The zoom-out is capped by the room
  * (`capZoom`), never short of `fadeTo`. Tune `fadeFrom` and `fadeTo`.
  */
-export const LOD = { fadeFrom: 0.92, fadeTo: 0.8, liveFrom: 0.4 };
+export const LOD = { fadeFrom: 3.4, fadeTo: 2.6, liveFrom: 0.8, capK: 0.8 };
 /** The overview shows the machine with some of the room around it: the fit margin (the machine alone would fill the screen at 0.96). */
 const ROOM_MARGIN = 0.84;
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
@@ -82,10 +82,10 @@ export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: 
 /** What the overview frames: the machine and the monitor (`WORLD`), down to the foot of the wall plate under the desk (it shows the internet plan and is where the cable goes), which the HUD's bottom pills would otherwise cover. */
 const overviewRect = (): Rect => ({ x: WORLD.x, y: WORLD.y, w: WORLD.w, h: Math.max(WORLD.h, WALL_PLATE.y + WALL_PLATE.h + 200 - WORLD.y) });
 const overviewFit = (c: Camera): View => c.clampView(c.fit(overviewRect(), c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
-/** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the box). */
+/** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of `LOD.capK` of the overview, so a wide or tall screen still gets there (the wall and the desk run on past the box). */
 const capZoom = (c: Camera, overview: View): number => {
   const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom), box = c.bounds ?? roomBox();
-  return Math.min(overview.z * LOD.fadeTo, Math.max(aw / box.w, ah / box.h));
+  return Math.min(overview.z * LOD.capK, Math.max(aw / box.w, ah / box.h));
 };
 export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(cameraRef)); }
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
@@ -192,7 +192,7 @@ export async function mountBoard(host: HTMLElement) {
     const cx = Math.min(Math.max((bx0 + bx1) / 2, WORLD.x + cw / 2), WORLD.x + WORLD.w - cw / 2);
     const cy = Math.min(Math.max((by0 + by1) / 2, WORLD.y + ch / 2), WORLD.y + WORLD.h - ch / 2);
     const v = camera.fit({ x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch }, 1);
-    const z = opts.zoom ?? Math.max(v.z, overviewFit(camera).z);
+    const z = opts.zoom ?? Math.max(v.z, overviewFit(camera).z, fits.z * LOD.fadeFrom * 1.02); // never short of the zoom where the case is open
     camera.flyTo({ x: v.x, y: v.y, z }, opts.smooth === false ? 0 : 1400, opts.onDone, !!opts.hold);
   });
   interactRef = interact;
