@@ -55,7 +55,7 @@ const propsFrame = () => new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200,
  * at or below `fadeTo` only the exterior (and the always-external things) is drawn and updated. The zoom-out is capped by the room
  * (`capZoom`), never short of `fadeTo`. Tune `fadeFrom` and `fadeTo`.
  */
-export const LOD = { fadeFrom: 2.6, fadeTo: 2.0, liveFrom: 0.8, capK: 0.8 };
+export const LOD = { fadeFrom: 1.9, fadeTo: 1.5, liveFrom: 0.8, capK: 0.8 };
 /** The overview shows the machine with some of the room around it: the fit margin (the machine alone would fill the screen at 0.96). */
 const ROOM_MARGIN = 0.84;
 /** Ids that stay hit targets (and never force the interior open) at any zoom. Everything else is interior. */
