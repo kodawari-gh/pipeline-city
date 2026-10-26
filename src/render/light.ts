@@ -42,7 +42,7 @@ export function windowGlow(beams: Beam[]): { k: number; color: string } {
 
 /** The quantised state the textures are drawn for: equal keys draw the same picture. */
 export function lightKey(i: LightIn): string {
-  return [i.dark ? 1 : 0, Math.round(i.night * 24), Math.round(i.dusk * 12), Math.round(i.lamp * 20), Math.round(i.screen * 20), ...i.beams.map((b) => `${b.color}:${Math.round(b.slant * 20)}:${Math.round(b.a * 80)}`)].join('|');
+  return [i.dark ? 1 : 0, Math.round(i.night * 24), Math.round(i.dusk * 12), Math.round(i.lamp * 20), Math.round(i.screen * 20), ...i.beams.map((b) => `${b.color}:${Math.round(b.slant * 200)}:${Math.round(b.a * 200)}`)].join('|');
 }
 
 /** The dark of the room and the glow's tints at a moment: the shade's colour and opacity (night), what the lamp gives (the lamp is worth less by day). */
@@ -93,6 +93,9 @@ export class LightView {
   private readonly glow = new Sprite();
   private readonly focus = new Sprite();
   private readonly shadeG = new Graphics();
+  /** The window's shafts, live: they follow the sun every frame (the textures are redrawn only in steps). */
+  private readonly beamG = new Graphics();
+  private beamKey = '';
   private readonly focusG = new Graphics();
   private readonly focusBox = new Container();
   private readonly rts: RenderTexture[] = [];
@@ -110,8 +113,9 @@ export class LightView {
       this.rts.push(rt); s.texture = rt; s.position.set(reg.x, reg.y); s.scale.set(reg.w / w, reg.h / h);
     }
     this.glow.blendMode = 'screen';
+    this.beamG.blendMode = 'screen';
     this.focusBox.addChild(this.focusG, this.focus);
-    this.root.addChild(this.shadeG, this.shade, this.glow, this.focusBox);
+    this.root.addChild(this.shadeG, this.shade, this.glow, this.beamG, this.focusBox);
     this.focusBox.alpha = 0;
     this.drawFocus();
   }
@@ -123,6 +127,19 @@ export class LightView {
     this.focusBox.visible = f > 0.004;
   }
   get focusAmount() { return this.fAmount; }
+
+  /** The window's shafts and the patch on the desk top: redrawn (a few small polygons) when the sun has moved. */
+  setBeams(beams: Beam[], dark: boolean) {
+    const k = beams.map((b) => `${b.color}:${Math.round(b.slant * 500)}:${Math.round(b.a * 500)}`).join('|') + (dark ? 'd' : 'l');
+    if (k === this.beamKey) return;
+    this.beamKey = k;
+    const g = this.beamG;
+    g.clear();
+    for (const b of beams) {
+      for (const q of b.quads) g.poly(q.pts).fill({ color: b.color, alpha: Math.min(0.6, b.a * q.fade * 2.2) });
+      if (b.patch) g.ellipse(b.patch.x, b.patch.y, b.patch.rx, b.patch.ry).fill({ color: b.color, alpha: Math.min(0.5, b.a * 3.2) });
+    }
+  }
 
   /** Redraw the shade and the glow if the quantised state changed. Returns whether it did. */
   set(i: LightIn, force = false): boolean {
@@ -204,15 +221,9 @@ export class LightView {
       const lift = d ? 0.1 * (1 - i.night) : 0, warm = 0.08 * i.dusk * (d ? 1 : 1.3);
       if (lift > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#bcd4ff', alpha: lift }));
       if (warm > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#ff9a5a', alpha: warm }));
-      // the window's light: a wide soft pool round the glass in the colour of the sun or the moon, a pale shaft and the patch where it meets the desk top
+      // the window's light: a wide soft pool round the glass in the colour of the sun or the moon (the shaft itself is live, `setBeams`)
       const wg = windowGlow(i.beams), wr = G.window;
       if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { color: wg.color, alpha: 0.32 * wg.k * (d ? 1 : 0.7) });
-      for (const b of i.beams) {
-        const g = new Graphics();
-        for (const q of b.quads) g.poly(q.pts).fill({ color: b.color, alpha: Math.min(0.6, b.a * q.fade * 2.2) });
-        if (b.patch) g.ellipse(b.patch.x, b.patch.y, b.patch.rx, b.patch.ry).fill({ color: b.color, alpha: Math.min(0.5, b.a * 3.2) });
-        c.addChild(g);
-      }
       // the lamp: its cone is warm, its pool round the hood too, a warm smear along the desk top, its reflection on the monitor's glass
       if (A.lamp > 0.01) {
         const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.ys + 340 - reg.y).fill({ color: '#ffffff' });

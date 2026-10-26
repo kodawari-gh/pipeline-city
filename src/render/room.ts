@@ -5,6 +5,8 @@ import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
 import { LightView, type Beam, type LightGeo } from './light';
 import { roundedPath } from './routes';
+import { drawMug, MUG } from './mug';
+import { Steam } from './steam';
 import { drawSlats } from './wall';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
@@ -129,7 +131,7 @@ export const ROOM_IDS = ['lamp', 'blind'] as const;
 export const isRoomId = (id: string) => (ROOM_IDS as readonly string[]).includes(id);
 
 // ---- time of day: one day is `DAY_S` seconds of game time, and the first view is the evening ----
-export const DAY_S = 480;
+export const DAY_S = 1800;
 export const START_HOUR = 18.6;
 const sstep = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** The hour (0 to 24) of the room's clock at game time `gt` (ms). */
@@ -388,23 +390,9 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   o.moveTo(mox - 350, ys - 360).bezierCurveTo(mox - 200, ys - 380, mox - 60, ys - 380, mox + 350, ys - 360).stroke({ width: 6, color: L.line, alpha: 0.8 });
   o.roundRect(mox - 22, ys - 520, 44, 110, 20).fill({ color: T.dark ? '#aab6dc' : L.paper }).stroke({ width: 4, color: capEdge });
   o.ellipse(mox - 150, ys - 470, 110, 40).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.55 });
-  // the mug in the gap between the monitor and the case: a coaster, a tapered ceramic body with a band of little towers, a handle, the coffee in it (the steam is live)
-  const mx = geo.mug, mh = 1300, mt = ys - mh, R = 560, ceramic = T.dark ? '#eaeef8' : '#ffffff', ceramicLo = T.dark ? '#aeb8d4' : '#cdd5e4';
-  o.ellipse(mx, ys - 14, 840, 50).fill({ color: L.cork }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
-  o.ellipse(mx, ys - 26, 790, 40).fill({ color: mix(L.cork, '#ffffff', 0.15) });
-  o.ellipse(mx + 420, ys + 20, 1150, 56).fill({ color: '#000000', alpha: 0.26 });
-  o.ellipse(mx + R + 70, ys - 700, 290, 340).stroke({ width: 110, color: ceramicLo });  // the handle (behind the body, which covers its inner half)
-  o.ellipse(mx + R + 70, ys - 700, 290, 340).stroke({ width: 50, color: ceramic });
-  o.poly([mx - R, mt, mx + R, mt, mx + R - 60, ys - 64, mx + R - 140, ys - 34, mx - R + 140, ys - 34, mx - R + 60, ys - 64]).fill({ color: ceramic }).stroke({ width: 8, color: ceramicLo });
-  o.poly([mx + R * 0.5, mt + 40, mx + R + 2, mt + 40, mx + R - 66, ys - 70, mx + R * 0.55, ys - 70]).fill({ color: '#000000', alpha: 0.1 }); // the shaded side
-  o.roundRect(mx - R + 90, mt + 130, 100, mh - 290, 50).fill({ color: '#ffffff', alpha: T.dark ? 0.5 : 0.8 }); // the lit stripe
-  o.ellipse(mx, mt, R, 108).fill({ color: ceramic }).stroke({ width: 8, color: ceramicLo });
-  o.ellipse(mx, mt + 7, R - 62, 80).fill({ color: '#25140c' });
-  o.ellipse(mx, mt + 3, R - 62, 80).stroke({ width: 9, color: ceramicLo, alpha: 0.7 });
-  o.ellipse(mx - 140, mt + 18, 160, 22).fill({ color: '#7a4a2e', alpha: 0.7 });
-  o.roundRect(mx - R + 14, mt + 450, 2 * R - 28, 260, 12).fill({ color: '#d03a4a', alpha: 0.95 }); // the band, with a skyline on it
-  for (const [dx, hh, ww] of [[-410, 100, 76], [-318, 160, 68], [-232, 120, 84], [-120, 196, 76], [-26, 136, 94], [94, 178, 68], [178, 110, 84], [282, 152, 76], [366, 94, 68]] as const) o.rect(mx + dx, mt + 690 - hh, ww, hh).fill({ color: '#ffffff', alpha: 0.9 });
-  o.rect(mx - R + 14, mt + 450, 2 * R - 28, 16).fill({ color: '#ffffff', alpha: 0.18 });
+  // the mug in the gap between the monitor and the case (`mug.ts`: seen from a little above, a coaster, a tapered body with a band of little towers, a handle, the coffee; the steam is live)
+  const mx = geo.mug;
+  drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
   const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
   f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 });
@@ -449,9 +437,9 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
   const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
   edge({ x: kx, y: ys - 260, w: kw, h: 260 }, 44, 0.7);
   g.moveTo(geo.desk.x0, ys).lineTo(geo.desk.x1, ys).stroke({ width: 20, color: hi, alpha: 0.8 }); // the desk's top edge
-  const mx = geo.mug, mt = ys - 1300;
-  g.ellipse(mx, mt, 560, 108).stroke({ width: w2, color: hi, alpha: 0.7 });
-  g.moveTo(mx - 560, mt).lineTo(mx - 500, ys - 64).stroke({ width: w1, color: hi, alpha: 0.6 });
+  const mx = geo.mug, mt = ys - MUG.h;
+  g.ellipse(mx, mt, MUG.r, MUG.r * MUG.e).stroke({ width: w2, color: hi, alpha: 0.7 });
+  g.moveTo(mx - MUG.r, mt).lineTo(mx - MUG.rb, ys - 20).stroke({ width: w1, color: hi, alpha: 0.6 });
   // the lamp: the hood's rim and the lit side of the arms
   const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth;
   const nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
@@ -539,7 +527,7 @@ export class RoomView {
   private readonly glow = new Graphics();
   private readonly lightView: LightView | null;
   private readonly clockG = new Graphics();
-  private readonly steam = new Graphics();
+  private readonly steam: Steam;
   private readonly blindG = new Graphics();
   private readonly mask = new Graphics();
   private readonly bakes: Container[];
@@ -549,6 +537,7 @@ export class RoomView {
   private screenOn = false;
   private screen = 0;
   private lastKey = '';
+  private beamKey = '';
 
   /** `renderer` lets the room's light be drawn into textures; without one (tests) there is no light layer. */
   constructor(private T: Theme, geo = roomGeo(), renderer?: Renderer) {
@@ -572,6 +561,7 @@ export class RoomView {
     back.addChildAt(this.blindG, 3); // over the sky, under the frame and the sill
     this.root.addChild(front);
     this.root.addChild(this.glow, this.clockG);
+    this.steam = new Steam(geo.mug, geo.ys - MUG.h + 30, T.dark);
     this.over.addChild(this.steam);
     this.hits = [{ id: 'lamp', rect: geo.lamp.rect }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
     this.frame(0, 0, true);
@@ -606,7 +596,14 @@ export class RoomView {
     const goalS = this.screenOn ? 1 : 0;
     this.screen += (goalS - this.screen) * (dtMs > 0 ? 1 - Math.exp(-dtMs / 400) : 1); if (Math.abs(goalS - this.screen) < 0.01) this.screen = goalS;
     this.blind += (goalB - this.blind) * (dtMs > 0 ? 1 - Math.exp(-dtMs / 260) : 1); if (Math.abs(goalB - this.blind) < 0.004) this.blind = goalB;
-    const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 120)}|${this.lamp.toFixed(2)}|${this.screen.toFixed(2)}|${this.blind.toFixed(3)}`;
+    if (this.root.visible) {
+      // what moves smoothly runs every frame (they are cheap: sprites and one small Graphics): the steam, and the window's shaft as the sun moves
+      this.steam.frame(gt);
+      const h0 = roomDebug.hour ?? hourAt(gt), bk = `${Math.round(h0 * 3000)}|${this.blind.toFixed(3)}`;
+      if (force || bk !== this.beamKey) { this.beamKey = bk; this.lightView?.setBeams(beamsAt(this.geo, h0, this.blind), this.T.dark); }
+    }
+    // the rest (the sky's stars, clouds and city, the clock, the light's textures) is redrawn about 30 times a second, and when something visible changed
+    const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 33)}|${this.lamp.toFixed(2)}|${this.screen.toFixed(2)}|${this.blind.toFixed(3)}`;
     if (!force && (key === this.lastKey || !this.root.visible)) return false;
     this.lastKey = key;
     const h = roomDebug.hour ?? hourAt(gt);
@@ -614,7 +611,6 @@ export class RoomView {
     this.drawGlow(h);
     this.lightView?.set({ dark: this.T.dark, night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen, beams: beamsAt(this.geo, h, this.blind) }, force);
     this.drawClock(h, gt);
-    this.drawSteam(gt);
     return true;
   }
 
@@ -673,17 +669,4 @@ export class RoomView {
     for (const y of [y0, y1]) g.circle(cx, y, 46).fill({ color: led, alpha: on ? 0.95 : 0.12 });
   }
 
-  private drawSteam(gt: number) {
-    const g = this.steam, ys = this.geo.ys, mx = this.geo.mug;
-    g.clear();
-    for (let k = 0; k < 3; k++) {
-      const t = (gt / 3200 + k / 3) % 1, x0 = mx - 270 + k * 270, top = ys - 1380;
-      // a wisp: a wavy column that rises, thins and fades; each of the three keeps its own phase
-      const pts: number[] = [];
-      for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push(x0 + Math.sin(gt / 700 + k * 2 + u * 5) * (70 + 160 * u), top - (0.15 + t) * 700 * u * 2.8); }
-      g.moveTo(pts[0]!, pts[1]!);
-      for (let i = 1; i <= 12; i++) g.lineTo(pts[i * 2]!, pts[i * 2 + 1]!);
-      g.stroke({ width: 70 - 26 * t, color: '#ffffff', alpha: 0.26 * Math.sin(Math.PI * t), cap: 'round', join: 'round' });
-    }
-  }
 }
