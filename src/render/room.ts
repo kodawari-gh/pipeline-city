@@ -583,14 +583,13 @@ export class RoomView {
   private drawAmbient(h: number) {
     const g = this.amb, night = nightAt(h), dusk = duskAt(h), d = this.T.dark;
     g.clear();
-    const R = roomBox(this.geo), big = 9000;
     // the whole room dims at night (the light theme more than the dark one, which is dim already), brightens a little by day in the dark
-    // theme and warms at the ends of the day: three washes, laid into one fill
+    // theme and warms at the ends of the day: three washes, laid into one fill (over the whole wall: a tall phone view runs far past the camera box)
     let wash = { c: d ? '#02040c' : '#1b2a55', a: d ? 0.3 * night : 0.34 * night };
     const lift = d ? 0.1 * (1 - night) : 0;
     if (lift > 0.002) wash = over({ c: '#bcd4ff', a: lift }, wash);
     if (dusk > 0.02) wash = over({ c: '#ff9a5a', a: 0.08 * dusk * (d ? 1 : 1.3) }, wash);
-    if (wash.a > 0.002) g.rect(R.x - big, R.y - big, R.w + 2 * big, R.h + 2 * big).fill({ color: wash.c, alpha: wash.a });
+    if (wash.a > 0.002) g.rect(-90000, -90000, 180000, 180000).fill({ color: wash.c, alpha: wash.a });
     // the window's light: a shaft that leaves the glass in the direction the sun (or the moon) shines from, strongest at the glass and fading out by the
     // desk, and a flat patch where it reaches the desk top: it comes from where the body is in the sky (west of centre throws it east and the other way round),
     // the lower the body the longer and more slanted it is, and the sun is warm at the ends of the day
