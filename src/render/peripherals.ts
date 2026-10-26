@@ -13,7 +13,7 @@ export interface PeriphLook { plastic: string; plasticLo: string; line: string; 
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its dome). Sizes against the 24 inch. */
 export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
-export const MOUSE = { w: 1250, l: 2500, h: 600, yaw: -9 };
+export const MOUSE = { w: 1250, l: 2500, h: 360, yaw: -9 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
 export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
@@ -67,10 +67,13 @@ export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, m
   for (const [dx, col] of [[hw - 700, '#6dffa6'], [hw - 520, T.dark ? '#33406e' : '#aebbd6']] as const) { const q = p(dx, -hd + 150, h); o.circle(q[0], q[1], 14).fill({ color: col, alpha: 0.9 }); }
 }
 
+/** How wide the mouse is at plan depth `z`, as a part of its full width: slim at the front (the buttons), full and round at the palm. */
+const taperAt = (z: number) => 0.46 + 0.54 * Math.sin((Math.min(1, Math.max(0, z / MOUSE.l + 0.5)) * Math.PI) / 2);
+
 /** The outline of the mouse's footprint at a scale: a rounded rectangle, narrower at the front (the buttons, toward the wall) than at the back (the palm). */
 const mouseOutline = (k: number, n = 36): Pt[] => Array.from({ length: n }, (_, i) => {
   const a = (i / n) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), q = 2 / 2.3, sx = Math.sign(c) * Math.abs(c) ** q, sz = Math.sign(s) * Math.abs(s) ** q;
-  const z = (MOUSE.l / 2) * sz, taper = 0.7 + 0.3 * Math.sin((Math.min(1, Math.max(0, z / MOUSE.l + 0.5)) * Math.PI) / 2);
+  const z = (MOUSE.l / 2) * sz, taper = taperAt(z);
   return [(MOUSE.w / 2) * sx * taper * k, z * k] as Pt;
 });
 
@@ -91,17 +94,21 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
   const ringP = (k: number, f: number) => mouseOutline(k).map(([x, z]) => ({ x, s: p(x, z, f * h * wedge(z)) }));
   const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff';
   // the height of the dome over a plan point (a half ellipsoid, a little flattened toward the edge)
-  const dome = (x: number, z: number) => h * wedge(z) * Math.sqrt(Math.max(0, 1 - (x / (w * 0.47)) ** 2 - (z / (l * 0.47)) ** 2)) ** 0.9;
+  const dome = (x: number, z: number) => {
+    const k = (Math.abs(x / ((w / 2) * taperAt(z))) ** 2.3 + Math.abs(z / (l / 2)) ** 2.3) ** (1 / 2.3), u = Math.acos(Math.min(1, (Math.min(k, 0.99) / 0.99) ** (1 / 0.7)));
+    return h * wedge(z) * (k >= 0.99 ? 0.5 : k <= 0.3 ? 1 : 0.5 + 0.5 * Math.sin(u) ** 0.9);
+  };
   contact(o, p, mouseOutline(1), T.dark ? 0.55 : 0.4);
-  const prof: [number, number][] = [[0.98, 0], [0.99, 0.09], ...Array.from({ length: 9 }, (_, i) => { const t = ((i + 1) / 9) * (Math.PI / 2) * 0.985; return [Math.max(0.3, 0.99 * Math.cos(t) ** 0.7), Math.sin(t) ** 0.9] as [number, number]; })], rings = prof.map(([k, f]) => ringP(k, f)), skirt = T.dark ? '#0d1122' : '#7e879c';
+  // flat sides: the walls go straight up to half the height, then the shoulder rounds over to the crown
+  const prof: [number, number][] = [[0.98, 0], [0.99, 0.09], [0.99, 0.3], [0.99, 0.5], ...Array.from({ length: 8 }, (_, i) => { const u = ((i + 1) / 8) * (Math.PI / 2) * 0.985; return [Math.max(0.3, 0.99 * Math.cos(u) ** 0.7), 0.5 + 0.5 * Math.sin(u) ** 0.9] as [number, number]; })], rings = prof.map(([k, f]) => ringP(k, f)), skirt = T.dark ? '#0d1122' : '#7e879c';
   for (let i = 0; i + 1 < prof.length; i++) {
-    const t = (i - 1) / (prof.length - 3), col = i === 0 ? skirt : t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
+    const t = Math.max(0, (i - 1) / (prof.length - 3)), col = i === 0 ? skirt : t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
     o.poly(flat(hull([...rings[i]!, ...rings[i + 1]!].map((q) => q.s)))).fill({ color: col });
   }
   o.poly(flat(rings[1]!.map((q) => q.s))).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' }); // the skirt's top edge
   o.poly(flat(hull(rings.flat().map((q) => q.s)))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
   // the button plates (a little lighter than the palm) with the curved cut under them, a lit patch toward the window (west), the seam between the buttons
-  const cut = -l * 0.1, bulge = l * 0.035, xw = w * 0.34, cutZ = (x: number) => cut - bulge * (1 - Math.min(1, (x / xw) ** 2));
+  const cut = -l * 0.1, bulge = l * 0.035, xw = w * 0.3, cutZ = (x: number) => cut - bulge * (1 - Math.min(1, (x / xw) ** 2));
   {
     // the ring's front part (the parameter runs from the west end of the cut, round the front, to its east end), closed by the cut's arc
     const front = mouseOutline(0.9).filter(([, z]) => z <= cut);
@@ -118,10 +125,9 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
   };
   line(Array.from({ length: 9 }, (_, i) => [0, -l * 0.46 + (i / 8) * l * 0.4] as [number, number]), 7, 0.9);
   line(Array.from({ length: 13 }, (_, i) => { const x = -xw + (i / 12) * 2 * xw; return [x, cutZ(x)] as [number, number]; }), 6, 0.7); // the cut between the plates and the palm
-  // the wheel: a little roller standing proud of the top, with a dark side, a lit top and grooves
-  const wz0 = -l * 0.35, wz1 = -l * 0.22, wx = 40, rise = 30;
-  const roller = (hh: number): [number, number][] => [[-wx, wz0], [wx, wz0], [wx + 8, (wz0 + wz1) / 2], [wx, wz1], [-wx, wz1], [-wx - 8, (wz0 + wz1) / 2]].map(([x, z]) => p(x!, z!, dome(0, (wz0 + wz1) / 2) + hh));
-  o.poly(flat(hull([...roller(0), ...roller(rise)]))).fill({ color: T.dark ? '#27304f' : '#2e333e' }).stroke({ width: 4, color: '#000000', alpha: 0.35, join: 'round' });
-  o.poly(flat(roller(rise))).fill({ color: T.dark ? '#aab6dc' : '#5b6170' }).stroke({ width: 3, color: T.dark ? '#4a5679' : '#8794b4', join: 'round' });
-  for (let g = 1; g < 4; g++) { const z = wz0 + ((wz1 - wz0) * g) / 4, a = p(-wx, z, dome(0, (wz0 + wz1) / 2) + rise), b = p(wx, z, dome(0, (wz0 + wz1) / 2) + rise); o.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: 3, color: T.dark ? '#4a5679' : '#8794b4', alpha: 0.8 }); }
+  // the wheel: a semi-disk standing barely out of the top, seen from the front (flat side down), with a lit rim
+  const zc = -l * 0.3, wx = 80, rise = 40, base = dome(0, zc) - 6, c0 = p(0, zc, base), cL = p(-wx, zc, base), cR = p(wx, zc, base), rxs = (cR[0] - cL[0]) / 2;
+  const arc = (k: number): [number, number][] => Array.from({ length: 17 }, (_, i) => { const a = (i / 16) * Math.PI; return [c0[0] + Math.cos(Math.PI - a) * rxs * k, c0[1] - Math.sin(a) * rise * k] as [number, number]; });
+  o.poly(flat(arc(1))).fill({ color: T.dark ? '#1a2038' : '#2e333e' }).stroke({ width: 4, color: '#000000', alpha: 0.35, join: 'round' });
+  o.poly(flat(arc(0.72))).fill({ color: T.dark ? '#8d9acb' : '#5b6170' });
 }
