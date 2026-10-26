@@ -454,6 +454,10 @@ export interface Snapshot {
   bootProgress: number;
   /** The monitor is installed, its cable is connected and it is not burnt. */
   monitorLive: boolean;
+  /** The monitor's own cord is in the wall (the screen is lit): false shows a dark screen, not NO SIGNAL. */
+  monitorPowered: boolean;
+  /** What the machine takes from the wall right now (W, the parts' draw; a monitor with its cord out takes nothing) and the energy it has taken in total (Wh, one game tick counted as one second: the future power bill reads this). */
+  energy: { wallW: number; wh: number };
   /** Why the power button would do nothing, or null. */
   noPowerReason: string | null;
   /** Why POST would fail now (missing CPU / CPU power / RAM), or null. */
@@ -578,6 +582,10 @@ export class Game {
   readonly pch: Pch;
   board: Board;
   cables: Cables = noCables();
+  /** Energy taken from the wall in W x ticks (a tick is a game second): metered while the machine is on. */
+  private wattTicks = 0;
+  /** What the wall is giving the machine this tick (W), kept for the snapshot. */
+  private wallW = 0;
   progress: Progress = newProgress();
 
   money = 0;
@@ -654,6 +662,7 @@ export class Game {
     this.seed = opts.seed >>> 0;
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.sandbox = !!opts.sandbox;
+    if (this.sandbox) { this.cables.pcmains = true; this.cables.monmains = true; } // a sandbox machine is plugged into the wall from the start
     const start = Math.min(MAX_LEVEL, Math.max(1, Math.round(opts.startLevel ?? 1)));
     this.lvl = this.sandbox ? 1 : start;
     this.clientBase = this.sandbox ? 0 : LEVELS[start - 1]!.threshold;
@@ -882,11 +891,16 @@ export class Game {
   /** Plug a cable in (needs its source part installed). Only while off. */
   connectCable(cable: string, port?: string): Result<{ cable: CableId }> {
     if (cable === "lan") return this.connectLan(port);
-    if (this.powered) return { ok: false, reason: "power the machine off first" };
+    const wall = cable === "pcmains" || cable === "monmains";
+    if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
     const r = boardConnect(this.board, this.cables, cable);
     if (!r.ok) return r;
-    const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress;
-    this.progress[flag] = true;
+    const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress | undefined;
+    if (flag) this.progress[flag] = true;
+    if (wall) {
+      this.machine.display.connected = this.monitorLive();
+      if (this.cables.pcmains && this.cables.monmains) this.progress.mainsConnected = true;
+    }
     this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} connected`);
     return r;
   }
@@ -919,9 +933,17 @@ export class Game {
       this.note("cable", "Ethernet cable disconnected");
       return { ok: true, cable: "lan" };
     }
-    if (this.powered) return { ok: false, reason: "power the machine off first" };
+    const wall = cable === "pcmains" || cable === "monmains";
+    if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
     const r = boardDisconnect(this.cables, cable);
-    if (r.ok) this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} disconnected`);
+    if (!r.ok) return r;
+    this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} disconnected`);
+    if (wall) this.machine.display.connected = this.monitorLive();
+    // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
+    if (r.cable === "pcmains" && this.powered) {
+      this.powerButton();
+      this.note("fault", "the power cord was pulled: the machine lost power");
+    }
     return r;
   }
 
@@ -1309,6 +1331,7 @@ export class Game {
     const boardWasOk = !this.board.burnt;
     const netLoad = this.downloads.length + this.uploads.length > 0 ? 1 : this.cfg.idleLoad;
     this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad }, this.powered);
+    this.meterWall();
     this.syncStorage(); // a drive that burnt out drops off the bus
     if (boardWasOk && this.board.burnt) this.note("fault", "the VRM burnt out: board dead: replace the board");
     if (this.powered && busy && !this.board.burnt) {
@@ -1394,6 +1417,8 @@ export class Game {
       powered: this.powered,
       bootProgress: this.bootProgress(phase),
       monitorLive: live,
+      monitorPowered: this.cables.monmains,
+      energy: { wallW: this.wallW, wh: this.wattTicks / 3600 },
       noPowerReason: chk.noPower,
       postBlocker: chk.post?.reason ?? null,
       inventory: this.inventorySnap(),
@@ -1544,8 +1569,8 @@ export class Game {
     g.lastCompleted = s.lastCompleted && { ...s.lastCompleted };
     g.inventory = s.inventory.map((i) => ({ ...i }));
     g.nextInvId = s.nextInvId;
-    g.cables = { ...s.cables };
-    g.progress = { ...s.progress };
+    g.cables = { ...s.cables, pcmains: s.cables.pcmains ?? true, monmains: s.cables.monmains ?? true }; // a save from before the wall cords had them plugged
+    g.progress = { ...s.progress, mainsConnected: s.progress.mainsConnected ?? true }; // a save from before the cords needs no lesson on them
     // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
     g.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
     g.declined = s.declined ?? 0;
@@ -2051,9 +2076,17 @@ export class Game {
 
   // ---------- internals: machine ----------
 
+  /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */
+  private meterWall(): void {
+    const p = this.thermal.power;
+    const mon = this.cables.monmains ? 0 : findDevices(this.board, "display").reduce((a, d) => a + (this.thermal.state(d.id)?.powerW ?? 0), 0);
+    this.wallW = this.powered && !p.off ? Math.max(0, p.totalW - mon) : 0;
+    this.wattTicks += this.wallW;
+  }
+
   private monitorLive(): boolean {
     const d = findDevices(this.board, "display")[0];
-    return !!d && !d.burnt && this.cables.video;
+    return !!d && !d.burnt && this.cables.video && this.cables.monmains;
   }
 
   /** Why a powered machine is stopped (PSU trip, burnt CPU), or null. */

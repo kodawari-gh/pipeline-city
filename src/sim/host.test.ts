@@ -75,6 +75,8 @@ describe('host message handling', () => {
     expect(snap(handleMessage(h, { type: 'connectCable', cable: 'atx' })).progress.atxConnected).toBe(true);
     handleMessage(h, { type: 'connectCable', cable: 'cpu' });
     handleMessage(h, { type: 'connectCable', cable: 'video' });
+    handleMessage(h, { type: 'connectCable', cable: 'pcmains' });
+    handleMessage(h, { type: 'connectCable', cable: 'monmains' });
     expect(snap(handleMessage(h, { type: 'powerButton' })).phase).toBe('posting');
     expect(types(handleMessage(h, { type: 'disconnectCable', cable: 'video' }))).toEqual(['error', 'snapshot']); // powered on
     for (let i = 0; i < 8; i++) advance(h, 12_000); // past the cold boot and POST

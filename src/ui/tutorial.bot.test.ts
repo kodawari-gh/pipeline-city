@@ -66,6 +66,9 @@ function act(g: Game, s: Snapshot, id: StepId): void {
       for (const cable of ['atx', 'cpu', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     }
+    case 'wall':
+      for (const cable of ['pcmains', 'monmains']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
+      break;
     case 'bootOs':
       if (!g.powered) g.powerButton();
       break;

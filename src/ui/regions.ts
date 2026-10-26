@@ -126,6 +126,21 @@ export const REGIONS: Record<string, Description> = {
     plain: 'Carries the picture from the motherboard to the monitor.',
     nerd: 'HDMI path from the PCH. The machine also runs without it, but blind.',
   },
+  'cable.pcmains': {
+    title: 'PC power cord',
+    plain: 'Brings electricity from the wall to the power supply. Without it the machine has no power at all.',
+    nerd: 'Mains into the PSU inlet. Pulling it on a running machine cuts the power: a hard power-off.',
+  },
+  'cable.monmains': {
+    title: 'Monitor power cord',
+    plain: 'Brings electricity from the wall to the monitor. Without it the screen stays dark.',
+    nerd: 'The machine keeps running; you just cannot see it.',
+  },
+  'socket': {
+    title: 'Wall socket',
+    plain: 'The wall socket. The PC and the monitor each plug into one of its holes.',
+    nerd: 'All the electricity the machine uses comes through here.',
+  },
   'cable.pcie': {
     title: 'PCIe power cable',
     plain: 'Extra power for graphics cards. Not needed yet.',

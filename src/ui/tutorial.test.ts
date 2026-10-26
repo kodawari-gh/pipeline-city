@@ -10,10 +10,10 @@ import { describeId } from './logic';
 import { boardSnap, dev, key, snap, STARTER_CRATE } from './testdata';
 
 const welcomed: TutorialState = { ...INITIAL_TUTORIAL, welcomed: true };
-/** The first fourteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
+/** The first fifteen flags, in the order the player meets them (the pre-OS tutorial: key in first, then power, then the manual cycle). */
 const OLD_IN_ORDER: Array<keyof Progress> = [
   'cpuInstalled', 'coolerInstalled', 'ramInstalled', 'psuInstalled', 'monitorInstalled', 'atxConnected', 'cpuPowerConnected',
-  'videoConnected', 'firstKeyPlugged', 'poweredOn', 'firstJobDone', 'firstKeyEjected', 'firstManualCycle', 'firstPurchase',
+  'videoConnected', 'mainsConnected', 'firstKeyPlugged', 'poweredOn', 'firstJobDone', 'firstKeyEjected', 'firstManualCycle', 'firstPurchase',
 ];
 const oldUpTo = (n: number): Progress => {
   const p = newProgress(false);
@@ -21,7 +21,7 @@ const oldUpTo = (n: number): Progress => {
   return p;
 };
 const idOf = (s: ReturnType<typeof currentStep>) => s?.id ?? null;
-const oldDone = () => oldUpTo(14);
+const oldDone = () => oldUpTo(15);
 
 const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
   deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
@@ -62,22 +62,22 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
-    // the three cables are one step; the key leaves by itself, so the watch step ends on its removal
-    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'plugKey', 'watch', 'watch', 'watch', 'money', 'spend'];
+    // the three cables are one step, the two wall cords the next; the key leaves by itself, so the watch step ends on its removal
+    const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'wall', 'plugKey', 'watch', 'watch', 'watch', 'money', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
     }
   });
 
   it('after the first pay the three numbers are explained one by one, each ended by Got it, before the next key', () => {
-    const paid = { progress: oldUpTo(12) }; // firstKeyEjected is the 12th flag
+    const paid = { progress: oldUpTo(13) }; // firstKeyEjected is the 13th flag
     const at = (acks: string[]) => idOf(currentStep(snap(paid), { ...welcomed, acks }));
     expect(at([])).toBe('money');
     expect(at(['money'])).toBe('reputation');
     expect(at(['money', 'reputation'])).toBe('level');
     expect(at(['money', 'reputation', 'level'])).toBe('cycle');
     // A player already past them (an older save) is not sent back.
-    expect(idOf(currentStep(snap({ progress: oldUpTo(13) }), welcomed))).toBe('spend');
+    expect(idOf(currentStep(snap({ progress: oldUpTo(14) }), welcomed))).toBe('spend');
     expect(STEPS.filter((x) => x.ack).map((x) => x.targets(snap()))).toEqual([['hud:money'], ['hud:reputation'], ['hud:level']]);
   });
 
@@ -132,7 +132,7 @@ describe('tutorial step from snapshot flags', () => {
     const s = snap({ progress: oldUpTo(7) });
     const step = currentStep(s, INITIAL_TUTORIAL);
     expect(step?.id).toBe('cables');
-    expect(stepCount(step!)).toEqual({ n: 6, total: 6, chapter: 'Build' });
+    expect(stepCount(step!)).toEqual({ n: 6, total: 7, chapter: 'Build' });
   });
 
   it('resumes at the drive step from a save that has the bought part fitted and no drive yet', () => {
@@ -181,7 +181,7 @@ describe('tutorial step from snapshot flags', () => {
     p.cpuInstalled = true;
     expect(idOf(currentStep(snap({ progress: p }), welcomed))).toBe('cooler');
     // Everything but the cooler is done: still the cooler, not the power button.
-    const q = { ...oldUpTo(14), coolerInstalled: false, poweredOn: false, firstKeyPlugged: false, firstJobDone: false, firstKeyEjected: false, firstManualCycle: false, firstPurchase: false };
+    const q = { ...oldUpTo(15), coolerInstalled: false, poweredOn: false, firstKeyPlugged: false, firstJobDone: false, firstKeyEjected: false, firstManualCycle: false, firstPurchase: false };
     expect(idOf(currentStep(snap({ progress: q }), welcomed))).toBe('cooler');
     // A legacy save (cooler pre-mounted, flag derived true) skips the step.
     expect(idOf(currentStep(snap({ progress: oldUpTo(2) }), welcomed))).toBe('ram');
@@ -499,6 +499,14 @@ describe('step targets (what the renderer pulses)', () => {
     expect(targets(['atx', 'cpu', 'video'])).toEqual(['cable.atx']);
     expect(targets(['cpu', 'video'])).toEqual(['cable.cpu']);
     expect(targets(['video'])).toEqual(['cable.video']);
+    expect(targets([])).toEqual([]);
+  });
+
+  it('the wall step lights the PC cord first, then the monitor cord, with the socket they go into', () => {
+    const cables = (open: string[]) => ['pcmains', 'monmains'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
+    const targets = (open: string[]) => STEPS.find((x) => x.id === 'wall')!.targets(snap({ cables: cables(open) as never }));
+    expect(targets(['pcmains', 'monmains'])).toEqual(['cable.pcmains', 'socket']);
+    expect(targets(['monmains'])).toEqual(['cable.monmains', 'socket']);
     expect(targets([])).toEqual([]);
   });
 

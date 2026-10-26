@@ -20,7 +20,7 @@ function bare(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
 function assembled(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   const g = bare(economy);
   for (const id of ["inv1", "inv5", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
-  for (const c of ["atx", "cpu", "video"]) expect(g.connectCable(c).ok).toBe(true);
+  for (const c of ["atx", "cpu", "video", "pcmains", "monmains"]) expect(g.connectCable(c).ok).toBe(true);
   return g;
 }
 
@@ -50,8 +50,8 @@ describe("the bare start", () => {
     expect(s.tray).toHaveLength(1);
     expect(s.plugged).toBeNull();
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
-    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["lan", false]]); // the ethernet cable joined with the network
-    expect(s.cables.every((c) => c.blocked)).toBe(true); // no PSU / monitor yet
+    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["pcmains", false], ["monmains", false], ["lan", false]]); // the ethernet cable joined with the network
+    expect(s.cables.filter((c) => c.id !== "pcmains" && c.id !== "monmains").every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (the wall cords need no part)
     expect(s.noPowerReason).toMatch(/PSU/);
     expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
   });
@@ -156,6 +156,8 @@ describe("power button and POST errors", () => {
     g.install("inv2");
     expect(g.powerButton()).toMatchObject({ ok: false, reason: expect.stringMatching(/ATX cable/) });
     g.connectCable("atx");
+    expect(g.powerButton()).toMatchObject({ ok: false, reason: expect.stringMatching(/power cord/) });
+    g.connectCable("pcmains");
     expect(g.powerButton().ok).toBe(true);
     expect(g.currentPhase()).toBe("error"); // powered, but no CPU yet
   });
@@ -491,6 +493,8 @@ describe("tutorial progress flags are set by real events", () => {
     g.connectCable("atx"); expect(p()).toMatchObject({ atxConnected: true, cpuPowerConnected: false });
     g.connectCable("cpu"); expect(p().cpuPowerConnected).toBe(true);
     g.connectCable("video"); expect(p().videoConnected).toBe(true);
+    g.connectCable("pcmains"); expect(p().mainsConnected).toBe(false); // both cords make the milestone
+    g.connectCable("monmains"); expect(p().mainsConnected).toBe(true);
     expect(p().poweredOn).toBe(false);
     expect(p().firstKeyPlugged).toBe(false);
     g.plugKey(1); expect(p().firstKeyPlugged).toBe(true); // the key goes in first, then power
@@ -611,5 +615,84 @@ describe("auto-eject and quick boots (no OS)", () => {
     expect(g.snapshot().postTicks).toBeLessThanOrEqual(5);
     const t = runUntil(g, "halted");
     expect(t).toBeLessThanOrEqual(30);
+  });
+});
+
+describe("the cords from the wall", () => {
+  it("start loose in a campaign, plugged in a sandbox and in a preassembled machine", () => {
+    const g = bare();
+    expect(g.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").map((c) => c.connected)).toEqual([false, false]);
+    const sb = new Game({ seed: 1, sandbox: true });
+    expect(sb.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
+    const pre = new Game({ seed: 1, sandbox: true, preassembled: true });
+    expect(pre.snapshot().progress.mainsConnected).toBe(true);
+  });
+
+  it("need no part, can be plugged and pulled while the machine runs, and stay in the wall when a part is swapped", () => {
+    const g = assembled();
+    expect(g.connectCable("pcmains")).toMatchObject({ ok: false, reason: expect.stringMatching(/already connected/) });
+    bootWithKey(g);
+    expect(g.disconnectCable("monmains").ok).toBe(true); // a running machine: allowed
+    expect(g.connectCable("monmains").ok).toBe(true);
+    g.powerButton();
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "psu")!.id);
+    g.uninstall(g.snapshot().devices.find((d) => d.kind === "display")!.id);
+    expect(g.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
+  });
+
+  it("pulling the PC's cord on a running machine cuts the power: a hard power-off, and the button refuses until it is back", () => {
+    const g = assembled();
+    bootWithKey(g);
+    ticks(g, 40);
+    expect(g.powered).toBe(true);
+    expect(g.disconnectCable("pcmains").ok).toBe(true);
+    expect(g.powered).toBe(false);
+    expect(g.currentPhase()).toBe("off");
+    expect(g.powerButton()).toMatchObject({ ok: false, reason: expect.stringMatching(/power cord/) });
+    expect(g.snapshot().noPowerReason).toMatch(/power cord/);
+    g.connectCable("pcmains");
+    expect(g.powerButton().ok).toBe(true);
+  });
+
+  it("without the monitor's cord the screen is dark (not NO SIGNAL) and the machine keeps running", () => {
+    const g = assembled();
+    g.disconnectCable("monmains");
+    bootWithKey(g);
+    ticks(g, 30);
+    let s = g.snapshot();
+    expect(s.powered).toBe(true);
+    expect(s.monitorLive).toBe(false);
+    expect(s.monitorPowered).toBe(false);
+    g.connectCable("monmains");
+    s = g.snapshot();
+    expect(s.monitorLive).toBe(true);
+    expect(s.monitorPowered).toBe(true);
+  });
+
+  it("the wall meters what the machine draws while it is on, and a monitor with its cord out draws nothing", () => {
+    const g = assembled();
+    expect(g.snapshot().energy).toEqual({ wallW: 0, wh: 0 });
+    bootWithKey(g);
+    ticks(g, 60);
+    const a = g.snapshot().energy;
+    expect(a.wallW).toBeGreaterThan(0);
+    expect(a.wh).toBeGreaterThan(0);
+    ticks(g, 60);
+    expect(g.snapshot().energy.wh).toBeGreaterThan(a.wh);
+    g.disconnectCable("monmains");
+    ticks(g, 2);
+    expect(g.snapshot().energy.wallW).toBeLessThan(a.wallW);
+    g.powerButton();
+    ticks(g, 2);
+    expect(g.snapshot().energy.wallW).toBe(0);
+  });
+
+  it("a save from before the cords loads with both plugged", () => {
+    const g = assembled();
+    const save = JSON.parse(JSON.stringify(g.toSave()));
+    delete save.cables.pcmains; delete save.cables.monmains; delete save.progress.mainsConnected;
+    const l = Game.fromSave(save);
+    expect(l.snapshot().cables.filter((c) => c.id === "pcmains" || c.id === "monmains").every((c) => c.connected)).toBe(true);
+    expect(l.snapshot().progress.mainsConnected).toBe(true);
   });
 });

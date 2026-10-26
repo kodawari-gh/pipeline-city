@@ -57,6 +57,8 @@ export interface Progress {
   atxConnected: boolean;
   cpuPowerConnected: boolean;
   videoConnected: boolean;
+  /** Both cords from the wall (the PC's and the monitor's) were plugged in (sticky; a save from before them has it true). */
+  mainsConnected: boolean;
   poweredOn: boolean;
   firstKeyPlugged: boolean;
   firstJobDone: boolean;
@@ -82,7 +84,7 @@ export interface Progress {
 
 export const PROGRESS_KEYS: readonly (keyof Progress)[] = [
   "cpuInstalled", "psuInstalled", "ramInstalled", "monitorInstalled", "atxConnected", "cpuPowerConnected",
-  "videoConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
+  "videoConnected", "mainsConnected", "poweredOn", "firstKeyPlugged", "firstJobDone", "firstKeyEjected", "firstPurchase",
   "storageInstalled", "osInstalled", "firstOsJob", "coolerInstalled", "firstManualCycle",
   "ispBought", "routerInstalled", "lanConnected", "linkUp", "firstNetJob",
 ];
@@ -219,7 +221,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       board: s.board,
       inventory: s.pending.map((spec, i) => ({ id: `inv${i + 1}`, spec })),
       nextInvId: s.pending.length + 1,
-      cables: { atx: true, cpu: true, video: true, lan: false },
+      cables: { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true },
       tray: keys,
       plugged: null,
       tripped: s.tripped,
@@ -331,10 +333,13 @@ export function parseSave(input: unknown): SaveV4 {
   if (!Array.isArray(s.inventory) || s.inventory.some((p) => !isObj(p) || typeof p.id !== "string" || typeof p.spec !== "string" || offerPrice(p.spec) === undefined)) {
     throw new Error('save: "inventory" must be a list of {id, spec} with known item ids');
   }
-  if (!isObj(s.cables) || CABLE_IDS.some((c) => typeof (s.cables as Record<string, unknown>)[c] !== "boolean")) {
+  // the wall cords and their milestone came later: a save without them is read as plugged in (additive, no version bump)
+  const optional = (k: string) => k === "pcmains" || k === "monmains" || k === "mainsConnected";
+  const flag = (o: unknown, k: string) => { const v = (o as Record<string, unknown>)[k]; return typeof v === "boolean" || (optional(k) && v === undefined); };
+  if (!isObj(s.cables) || CABLE_IDS.some((c) => !flag(s.cables, c))) {
     throw new Error('save: "cables" must say whether each cable is connected');
   }
-  if (!isObj(s.progress) || PROGRESS_KEYS.some((k) => typeof (s.progress as Record<string, unknown>)[k] !== "boolean")) {
+  if (!isObj(s.progress) || PROGRESS_KEYS.some((k) => !flag(s.progress, k))) {
     throw new Error('save: "progress" must be a list of boolean milestones');
   }
   if (!Array.isArray(s.tray)) throw new Error('save: "tray" must be an array');

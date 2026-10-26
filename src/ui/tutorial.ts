@@ -37,7 +37,7 @@ export const INITIAL_TUTORIAL: TutorialState = {
 };
 
 export type StepId =
-  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
+  | 'welcome' | 'cpu' | 'cooler' | 'ram' | 'psu' | 'monitor' | 'cables' | 'wall' | 'plugKey' | 'watch' | 'money' | 'reputation' | 'level'
   | 'cycle' | 'spend' | 'fit' | 'reachLevel3' | 'buyDrive' | 'drive' | 'buyRam' | 'fitRam' | 'buyOs' | 'os' | 'bootOs' | 'osIngest' | 'osPaid'
   | 'reachLevel4' | 'buyIsp' | 'buyRouter' | 'placeRouter' | 'buyCase' | 'fitCase' | 'buyBoard' | 'fitBoard' | 'plugLan' | 'linkUp' | 'firstNetJob' | 'done';
 
@@ -179,6 +179,14 @@ export const STEPS: StepDef[] = [
       const c = CABLES.find((x) => !s.cables.find((y) => y.id === x.id)?.connected);
       return c ? [`cable.${c.id}`] : [];
     } },
+  // The two cords from the wall: the machine has no power without its cord, the screen stays dark without its own.
+  { id: 'wall', chapter: 'Build', title: 'Plug in to the wall', flag: 'mainsConnected',
+    text: 'One last thing: electricity! The machine and its screen each have a power cord, and both lie loose by the wall socket under the desk. Drag each plug into a hole in the socket. Tip: the lightning button shows the power lens, a map of where the power goes.',
+    // the PC's cord first, then the monitor's: one plug at a time
+    targets: (s) => {
+      const c = ['pcmains', 'monmains'].find((id) => !s.cables.find((y) => y.id === id)?.connected);
+      return c ? [`cable.${c}`, 'socket'] : [];
+    } },
   { id: 'plugKey', chapter: 'First jobs', title: 'Plug in a client key', flag: 'firstKeyPlugged',
     text: 'Your first client has arrived! Jobs come on USB keys, a bit like a letter in an envelope. Plugging one in wakes the machine up: it checks itself, then reads the job off the key. Drag the key from the tray into the USB port.',
     targets: (s, drag) => plugTarget(s, drag, s.tray[0]) },
@@ -315,7 +323,7 @@ export function effectiveProgress(s: Snapshot, st: TutorialState): Progress {
   const done = ejected || !!s.plugged?.done;
   return {
     cpuInstalled: has('cpu'), coolerInstalled: has('cooler'), psuInstalled: has('psu'), ramInstalled: has('ram'), monitorInstalled: has('display'),
-    atxConnected: cable('atx'), cpuPowerConnected: cable('cpu'), videoConnected: cable('video'),
+    atxConnected: cable('atx'), cpuPowerConnected: cable('cpu'), videoConnected: cable('video'), mainsConnected: cable('pcmains') && cable('monmains'),
     poweredOn: s.powered && s.phase !== 'off',
     storageInstalled: s.storage.length > 0, osInstalled: !!s.os, firstOsJob: s.progress.firstOsJob,
     firstKeyPlugged: !!s.plugged || done,
