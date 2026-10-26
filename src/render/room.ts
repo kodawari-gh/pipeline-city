@@ -10,6 +10,7 @@ import { Steam } from './steam';
 import { drawSlats } from './wall';
 import { drawCeiling, drawCrown, drawFloor, FADE } from './shell';
 import { captureShape } from './capture';
+import { drawPlant, drawRug } from './decor';
 import { lazyShape, rectShape, type Shape } from './shape';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
@@ -284,8 +285,10 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   g.rect(-90000, geo.ceil, 180000, geo.floor - geo.ceil).fill({ color: L.wall });
   drawSlats(g, T, shell);
   drawCrown(g, T, shell);
-  for (let k = 0; k < 6; k++) g.rect(-90000, ys - 1600 + k * 270, 180000, 280).fill({ color: L.wallLo, alpha: 0.18 + k * 0.05 });
-  g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
+  // (in the light theme the wall's own pale blue over the tan slats read as a haze: the shadow is a warm dark there)
+  const dusk = T.dark ? L.wallLo : '#4a3a30', dk = T.dark ? 1 : 0.4;
+  for (let k = 0; k < 24; k++) g.rect(-90000, ys - 1600 + k * 67.5, 180000, 72).fill({ color: dusk, alpha: ((0.18 + k * 0.0125) * dk) / 2.6 }); // (24 fine bands add up to what six coarse ones did)
+  g.rect(-90000, ys - 400, 180000, 420).fill({ color: dusk, alpha: 0.5 * dk });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
   const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60) => {
     const n = 16; // enough nested rects that no ring shows
@@ -351,6 +354,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   }
   // the floor and the baseboard (`shell.ts`), under the desk and over the foot of the wall; the desk, its legs and the pedestal stand on it and throw a shadow on it
   drawFloor(f, T, { ceil: geo.ceil, floor: ye });
+  drawRug(f, T, { x0, x1, floor: ye });
   for (const [sx, sw] of [[x0 + 60, 900], [ped.x - 200, ped.w + 600]] as const) f.ellipse(sx + sw / 2, ye + 120, sw / 2 + 200, 150).fill({ color: '#000000', alpha: T.dark ? 0.45 : 0.22 });
   powerArt(T, geo, g, f);
   // the slab: a lit top, a front edge, a grain
@@ -429,6 +433,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const mx = geo.mug;
   drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
+  drawPlant(f, T, geo.lamp.x + LAMP.base + 1250, ys); // a plant between the lamp and the monitor
   { const lx = geo.lamp.x; f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 }); }
   drawLamp(f, L, geo);
   return { back, front, over, bakes: [gWrap, fWrap] };

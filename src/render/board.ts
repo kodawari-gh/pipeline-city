@@ -17,7 +17,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
   BAY, BD, BLOCKS, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from './mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
@@ -79,7 +79,9 @@ let interactRef: Interact | null = null;
 let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
 /** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
-const overviewFit = (c: Camera): View => c.clampView(c.fit(WORLD, c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
+/** What the overview frames: the machine and the monitor (`WORLD`), down to the foot of the wall plate under the desk (it shows the internet plan and is where the cable goes), which the HUD's bottom pills would otherwise cover. */
+const overviewRect = (): Rect => ({ x: WORLD.x, y: WORLD.y, w: WORLD.w, h: Math.max(WORLD.h, WALL_PLATE.y + WALL_PLATE.h + 200 - WORLD.y) });
+const overviewFit = (c: Camera): View => c.clampView(c.fit(overviewRect(), c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
 /** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of the full exterior view (`LOD.fadeTo` of the overview), so a wide or tall screen still gets there (the wall and the desk run on past the box). */
 const capZoom = (c: Camera, overview: View): number => {
   const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom), box = c.bounds ?? roomBox();

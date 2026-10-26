@@ -24,7 +24,7 @@ export const slatCount = (p: Rect) => Math.floor((p.w - SLAT.gap) / (SLAT.w + SL
 
 export function drawSlats(g: Graphics, T: Theme, B: WallBox) {
   const d = T.dark, p = slatWall(B);
-  const felt = d ? '#0a0d1a' : '#74829a', tones = d ? ['#43332b', '#4c3b30', '#392a24'] : ['#cdb08b', '#c6a981', '#d2b893'];
+  const felt = d ? '#0a0d1a' : '#97a3b6', tones = d ? ['#43332b', '#4c3b30', '#392a24'] : ['#cdb08b', '#c6a981', '#d2b893'];
   g.rect(p.x, p.y, p.w, p.h).fill({ color: felt });
   for (let i = 0; i < slatCount(p); i++) {
     const x = p.x + SLAT.gap + i * (SLAT.w + SLAT.gap);
