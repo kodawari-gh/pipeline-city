@@ -59,12 +59,20 @@ export const Counter = {
   DualIssues: 20,
   /** inorder width > 1: cycles the pairing rules (RAW/WAW in bundle, one mem op, branch ends bundle) kept the next instruction back. */
   PairBreaks: 21,
+  /** Instruction cache (when the CPU has one): fetches that hit / missed. */
+  ICacheHits: 22,
+  ICacheMisses: 23,
+  /** Cycles fetch waited for an instruction cache line. */
+  StallIFetch: 24,
+  /** Shared L2 (when the CPU has one): L1 misses that hit / missed it. */
+  L2Hits: 25,
+  L2Misses: 26,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
-  "dualIssues", "pairBreaks",
+  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 
@@ -217,7 +225,7 @@ export const SchedWhy = { None: 0, Operands: 1, Memory: 2, Unit: 3, Head: 4 } as
 
 /** Indices into OooView.stall: why each front/back end part made no progress this cycle (0 = fine). */
 export const OooPart = { Fetch: 0, Dispatch: 1, Commit: 2 } as const;
-export const FetchStall = { None: 0, QueueFull: 1, Stopped: 2 } as const;
+export const FetchStall = { None: 0, QueueFull: 1, Stopped: 2, ICache: 3 } as const;
 export const DispatchStall = { None: 0, Empty: 1, RobFull: 2, SchedFull: 3 } as const;
 export const CommitStall = { None: 0, Empty: 1, HeadPending: 2 } as const;
 

@@ -15,6 +15,7 @@ import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { CordsView, type CordKind } from './cords';
 import { PowerLens, lensModel } from './lens';
 import { NetView, nicArt } from './net';
+import { cardArt, cardRect, tpmArt, tpmHeader, tpmRect } from './accelart';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
@@ -437,6 +438,7 @@ export async function mountBoard(host: HTMLElement) {
       case 'pcie': { const r = PCIE_RAILS[idx]; return r ? { x: r.x, y: r.y - 20, w: r.w, h: r.h + 40 } : null; }
       case 'vrm-sink': return VRM_SINK;
       case 'ram-sink': return RAM_SINK;
+      case 'tpm': return tpmRect(LAYOUT_TIER);
       default: return null;
     }
   };
@@ -576,6 +578,22 @@ export async function mountBoard(host: HTMLElement) {
         targets.push({ id: d.id, kind: 'nic', spec: d.spec, rect: r });
         deviceHits.push(partHit(d.id, p, r));
         scene.rects.set(d.id, r);
+      } else if (spec.kind === 'gpu' || spec.kind === 'npu') {
+        const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
+        const p = cardArt(T, spec.visual, idx);
+        deviceLayer.addChild(p);
+        const r = cardRect(idx, spec.visual);
+        targets.push({ id: d.id, kind: spec.kind, spec: d.spec, rect: r });
+        deviceHits.push(partHit(d.id, p, r));
+        scene.rects.set(d.id, r);
+      } else if (spec.kind === 'tpm') {
+        const hdr = tpmHeader(LAYOUT_TIER), r = tpmRect(LAYOUT_TIER);
+        if (hdr && r) {
+          const p = tpmArt(T, spec.visual, hdr);
+          deviceLayer.addChild(p);
+          deviceHits.push(partHit(d.id, p, r));
+          scene.rects.set(d.id, r);
+        }
       } else if (spec.kind === 'storage') {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
@@ -608,6 +626,7 @@ export async function mountBoard(host: HTMLElement) {
     empty('pcie', slots.pcie ?? 0, (i) => slotRectOf('pcie' + i)!);
     empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
     empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
+    empty('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER)!);
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
     const driveSlots = [...Array.from({ length: nSata }, (_, i) => `sata${i}`), ...Array.from({ length: nM2 }, (_, i) => `m2${i}`)];
@@ -725,7 +744,7 @@ export async function mountBoard(host: HTMLElement) {
       extDrives = storageDevs.filter((d) => slotKind.get(d.slot) !== 'ssd-nvme').map((d) => ({ slot: d.slot }));
     }
 
-    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie') && d.kind !== 'nic');
+    const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie'); // listed only while a card needs the lead (or it is plugged)
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks);
     sceneKey = keyOf(s);
@@ -748,7 +767,7 @@ export async function mountBoard(host: HTMLElement) {
   function syncCables(s: Snapshot | null, force = false) {
     const now = performance.now();
     const hasPsu = !!s?.devices.some((d) => d.kind === 'psu'), hasDisplay = !!s?.devices.some((d) => d.kind === 'display');
-    const needsPcie = (s?.devices ?? []).some((d) => d.slot.startsWith('pcie') && d.kind !== 'nic');
+    const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie');
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
     const states = cables.map((c) => {
       const snapC = s?.cables.find((x) => x.id === c.kind);

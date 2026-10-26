@@ -98,6 +98,19 @@ sw t2, 4(s3)   |..FDSSSSSSSSXRC
 ecall          |..FDSRRRRRRRRRC
 ```
 
+## Optional parts (all off by default)
+
+Engine settings that a CPU spec can turn on (docs/TECHTREE.md, docs/DIE.md); with them off an engine is exactly as described above (the golden timings do not move; `features.test.ts` "off means off" checks counters too).
+
+| Setting | Default | What it does |
+|---|---|---|
+| `ways` | 1 | Data cache lines per set (power of two, at most `cacheLines`); least recently used replacement. 1 = direct mapped. |
+| `icacheLines` | 0 | Instruction cache (same line size as the data cache; tags only). A fetch miss makes fetch wait the miss cost (`StallIFetch` counts the cycles, `ICacheHits`/`ICacheMisses` the lookups); the line is filled when the wait ends; a redirect during the wait starts a new lookup. Not on the unpipelined engine. On the out-of-order engine the fetch stall shows as `FetchStall.ICache`. |
+| `l2Lines`, `l2Penalty` | 0, 2 | One L2 (4-way) behind both L1 caches. An L1 miss that hits it costs `l2Penalty` cycles instead of `missPenalty`; an L2 miss costs `missPenalty` and fills the L2 (`L2Hits`/`L2Misses`). |
+| `predEntries`, `predBits` | 64, 1 | The branch predictor table: entries and bits per entry. 2 bits = saturating counters (predict taken from 2), which stop a loop exit from flipping the next entry's prediction. `flipPredictor` toggles the prediction and keeps the strength. |
+
+Counters 22 to 26 are the new ones (`view.ts`). Interrupts stay precise with every part on (`interrupts.test.ts` runs the wide engines with all of them).
+
 ## Measured CPI
 
 Cycles per retired instruction, mean of 12 seeds, default settings (cache 8x16 B, miss penalty 4), standalone programs (no boot ROM). `ooo` is robSize 8 / schedSize 6 / fetchQueue 4; `ooo32` is 32 / 16 / 8 with commitWidth 4.

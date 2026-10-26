@@ -37,7 +37,6 @@ export interface OooSettings extends EngineSettings {
 
 /** Per-slot lifecycle. */
 const Os = { Free: 0, Fetched: 1, Decoded: 2, Wait: 3, Issued: 4, Done: 5, Committed: 6 } as const;
-const PRED_SIZE = 64;
 const F_CTRL = F.Branch | F.Jal | F.Jalr;
 const HIT_LAT = 2;
 
@@ -48,7 +47,6 @@ export class OooEngine extends EngineBase {
   readonly schedSize: number;
   readonly fetchQueueSize: number;
   private readonly ov: OooViewState;
-  private readonly pred = new Uint8Array(PRED_SIZE);
   // Per pool slot.
   private readonly slotId: Int32Array;
   private readonly ost: Uint8Array;
@@ -112,7 +110,6 @@ export class OooEngine extends EngineBase {
   }
 
   protected override onReset(): void {
-    this.pred.fill(0);
     this.slotId.fill(-1); this.ost.fill(0); this.prodSA.fill(-1); this.prodSB.fill(-1); this.rsPos.fill(-1);
     this.fqS.fill(-1); this.dqS.fill(-1); this.robS.fill(-1); this.rsS.fill(-1); this.unitS.fill(-1);
     this.rat.fill(-1);
@@ -123,13 +120,7 @@ export class OooEngine extends EngineBase {
     this.snapshot();
   }
 
-  override flipPredictor(pc?: number): void {
-    if (pc === undefined) for (let i = 0; i < PRED_SIZE; i++) this.pred[i] = this.pred[i]! ^ 1;
-    else {
-      const i = (pc >>> 2) % PRED_SIZE;
-      this.pred[i] = this.pred[i]! ^ 1;
-    }
-  }
+  override flipPredictor(pc?: number): void { this.pred.flip(pc); }
 
   step(): void {
     if (this.isHalted) return;
@@ -201,7 +192,7 @@ export class OooEngine extends EngineBase {
         const next = this.actual[s]!;
         if (f & F.Branch) {
           c[Counter.Branches]!++;
-          this.pred[(p.pc[s]! >>> 2) % PRED_SIZE] = next !== ((p.pc[s]! + 4) >>> 0) ? 1 : 0;
+          this.pred.train(p.pc[s]!, next !== ((p.pc[s]! + 4) >>> 0));
         }
         if (next !== p.predNext[s]) {
           c[Counter.Flushes]!++;
@@ -286,7 +277,12 @@ export class OooEngine extends EngineBase {
     // FETCH: a group of up to `width`, ended by any control instruction.
     if (this.fetchStopped || this.hold) v.stall[OooPart.Fetch] = FetchStall.Stopped;
     else if (this.fqN + W > this.fetchQueueSize) v.stall[OooPart.Fetch] = FetchStall.QueueFull;
-    else for (let l = 0; l < W; l++) if (this.fetchOne()) break;
+    else {
+      for (let l = 0; l < W; l++) {
+        if (!this.fetchReady(this.fetchPc)) { v.stall[OooPart.Fetch] = FetchStall.ICache; break; }
+        if (this.fetchOne()) break;
+      }
+    }
 
     // Timeline: everything in flight shows where it is this cycle (explicit marks above win).
     for (let i = 0; i < this.fqN; i++) v.mark(slotId[this.fqS[i]!]!, StageCode.F);
@@ -354,7 +350,7 @@ export class OooEngine extends EngineBase {
     if (this.cache.hit(addr)) { c[Counter.CacheHits]!++; return HIT_LAT; }
     c[Counter.CacheMisses]!++;
     p.state[s]! |= St.Missing;
-    return HIT_LAT + this.cache.missPenalty;
+    return HIT_LAT + this.missCost(addr);
   }
 
   /** Squash everything younger than id `bid`: ROB tail, queues, units; rebuild the RAT from what remains. */
@@ -401,7 +397,7 @@ export class OooEngine extends EngineBase {
     const f = OPF[p.op[s]!]!;
     let next = (pc + 4) >>> 0;
     if (f & F.Branch) {
-      if (this.pred[(pc >>> 2) % PRED_SIZE]) next = (pc + p.imm[s]!) >>> 0;
+      if (this.pred.predict(pc)) next = (pc + p.imm[s]!) >>> 0;
     } else if (f & F.Jal) {
       next = (pc + p.imm[s]!) >>> 0;
     }

@@ -87,32 +87,77 @@ function branchTaken(op: number, a: number, b: number): boolean {
   }
 }
 
-/** Direct-mapped, tags only (RAM is always up to date: write-through, no-allocate). Only RAM addresses are cached. */
+/**
+ * Tags only (RAM is always up to date: write-through, no-allocate). Only RAM addresses are cached. `ways` lines share a set
+ * (default 1: direct mapped); within a set the least recently used line is replaced.
+ */
 export class DataCache {
   private readonly tags: Uint32Array;
   private readonly valid: Uint8Array;
+  private readonly used: Uint32Array;
   private readonly shift: number;
-  private readonly mask: number;
-  constructor(readonly lines: number, readonly lineBytes: number, readonly missPenalty: number) {
+  private readonly setMask: number;
+  private clock = 0;
+  constructor(readonly lines: number, readonly lineBytes: number, readonly missPenalty: number, readonly ways = 1) {
     if (lines < 1 || (lines & (lines - 1)) !== 0) throw new RangeError("cache lines must be a power of two");
     if (lineBytes < 4 || (lineBytes & (lineBytes - 1)) !== 0) throw new RangeError("cache line size must be a power of two >= 4");
     if (missPenalty < 0 || !Number.isInteger(missPenalty)) throw new RangeError("missPenalty must be an integer >= 0");
+    if (ways < 1 || (ways & (ways - 1)) !== 0 || ways > lines) throw new RangeError("cache ways must be a power of two no larger than the line count");
     this.tags = new Uint32Array(lines);
     this.valid = new Uint8Array(lines);
+    this.used = new Uint32Array(lines);
     this.shift = Math.log2(lineBytes);
-    this.mask = lines - 1;
+    this.setMask = lines / ways - 1;
   }
-  invalidate(): void { this.valid.fill(0); }
+  invalidate(): void { this.valid.fill(0); this.used.fill(0); this.clock = 0; }
   hit(addr: number): boolean {
     const line = addr >>> this.shift;
-    const i = line & this.mask;
-    return this.valid[i] === 1 && this.tags[i] === line;
+    const base = (line & this.setMask) * this.ways;
+    for (let w = 0; w < this.ways; w++) {
+      const i = base + w;
+      if (this.valid[i] === 1 && this.tags[i] === line) {
+        if (this.ways > 1) this.used[i] = ++this.clock;
+        return true;
+      }
+    }
+    return false;
   }
   fill(addr: number): void {
     const line = addr >>> this.shift;
-    const i = line & this.mask;
-    this.valid[i] = 1;
-    this.tags[i] = line;
+    const base = (line & this.setMask) * this.ways;
+    let victim = base;
+    for (let w = 0; w < this.ways; w++) {
+      const i = base + w;
+      if (this.valid[i] === 1 && this.tags[i] === line) { victim = i; break; } // already there
+      if (this.valid[i] === 0) { victim = i; break; }
+      if (this.used[i]! < this.used[victim]!) victim = i;
+    }
+    this.valid[victim] = 1;
+    this.tags[victim] = line;
+    this.used[victim] = ++this.clock;
+  }
+}
+
+/** Branch predictor: `entries` saturating counters of `bits` (1 or 2) indexed by (pc >> 2) % entries. All start at "not taken". */
+export class Predictor {
+  private readonly t: Uint8Array;
+  constructor(readonly entries = 64, readonly bits = 1) {
+    if (!Number.isInteger(entries) || entries < 1) throw new RangeError("predictor entries must be an integer >= 1");
+    if (bits !== 1 && bits !== 2) throw new RangeError("predictor bits must be 1 or 2");
+    this.t = new Uint8Array(entries);
+  }
+  reset(): void { this.t.fill(0); }
+  predict(pc: number): boolean { return this.t[(pc >>> 2) % this.entries]! >= (this.bits === 2 ? 2 : 1); }
+  train(pc: number, taken: boolean): void {
+    const i = (pc >>> 2) % this.entries;
+    if (this.bits === 1) this.t[i] = taken ? 1 : 0;
+    else this.t[i] = taken ? Math.min(3, this.t[i]! + 1) : Math.max(0, this.t[i]! - 1);
+  }
+  /** Flip the prediction of the entry for `pc` (every entry if omitted), keeping its strength. */
+  flip(pc?: number): void {
+    const x = this.bits === 2 ? 2 : 1;
+    if (pc === undefined) for (let i = 0; i < this.entries; i++) this.t[i] = this.t[i]! ^ x;
+    else { const i = (pc >>> 2) % this.entries; this.t[i] = this.t[i]! ^ x; }
   }
 }
 
@@ -192,8 +237,19 @@ export interface EngineSettings {
   cacheLines?: number;
   /** Data cache: bytes per line (power of two). Default 16. */
   cacheLineBytes?: number;
-  /** Extra cycles a load miss freezes the pipeline. Default 4. */
+  /** Data cache: lines per set (power of two, default 1 = direct mapped; least recently used replacement). */
+  ways?: number;
+  /** Extra cycles a load miss freezes the pipeline (a miss that also misses the L2, when there is one). Default 4. */
   missPenalty?: number;
+  /** Instruction cache lines (power of two, same line size as the data cache). Default 0: none, every fetch reads RAM at once. */
+  icacheLines?: number;
+  /** Shared second-level cache lines (power of two, 4-way, same line size) behind both L1 caches. Default 0: none. */
+  l2Lines?: number;
+  /** Cycles an L1 miss that hits the L2 costs. Default 2. */
+  l2Penalty?: number;
+  /** Branch predictor: entries (default 64) and bits per entry, 1 or 2 (default 1). */
+  predEntries?: number;
+  predBits?: number;
   /** Timeline ring: instructions kept (>= 8, default 32) and cycles kept (default 64). */
   timelineRows?: number;
   timelineCols?: number;
@@ -204,6 +260,13 @@ export abstract class EngineBase implements PipelineEngine {
   protected readonly v: ViewState;
   protected readonly pool: InstrPool;
   protected readonly cache: DataCache;
+  protected readonly icache: DataCache | null;
+  protected readonly l2: DataCache | null;
+  protected readonly l2Penalty: number;
+  protected readonly pred: Predictor;
+  /** The pc whose instruction cache line is being waited for, and the cycles left. */
+  private iWaitPc = -1;
+  private iWait = 0;
   protected machine!: Machine;
   protected bus!: Bus;
   protected regs!: Int32Array;
@@ -219,7 +282,13 @@ export abstract class EngineBase implements PipelineEngine {
   constructor(s: EngineSettings = {}, poolSize = POOL, view?: ViewState) {
     this.pool = new InstrPool(poolSize);
     this.v = view ?? new ViewState(s.timelineRows ?? 32, s.timelineCols ?? 64);
-    this.cache = new DataCache(s.cacheLines ?? 8, s.cacheLineBytes ?? 16, s.missPenalty ?? 4);
+    const lineBytes = s.cacheLineBytes ?? 16, penalty = s.missPenalty ?? 4;
+    this.cache = new DataCache(s.cacheLines ?? 8, lineBytes, penalty, s.ways ?? 1);
+    this.icache = s.icacheLines ? new DataCache(s.icacheLines, lineBytes, penalty) : null;
+    this.l2 = s.l2Lines ? new DataCache(s.l2Lines, lineBytes, penalty, Math.min(4, s.l2Lines)) : null;
+    this.l2Penalty = s.l2Penalty ?? 2;
+    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) throw new RangeError("l2Penalty must be an integer >= 0");
+    this.pred = new Predictor(s.predEntries ?? 64, s.predBits ?? 1);
   }
 
   get view(): EngineView { return this.v; }
@@ -234,7 +303,7 @@ export abstract class EngineBase implements PipelineEngine {
 
   abstract step(): void;
   flipPredictor(_pc?: number): void {}
-  invalidateCache(): void { this.cache.invalidate(); }
+  invalidateCache(): void { this.cache.invalidate(); this.icache?.invalidate(); this.l2?.invalidate(); }
 
   reset(machine: Machine, program: Uint32Array): void {
     machine.loadProgram(program);
@@ -247,10 +316,50 @@ export abstract class EngineBase implements PipelineEngine {
     this.isHalted = false;
     this.hold = false;
     this.cache.invalidate();
+    this.icache?.invalidate();
+    this.l2?.invalidate();
+    this.pred.reset();
+    this.iWaitPc = -1; this.iWait = 0;
     this.v.reset();
     this.onReset();
   }
   protected onReset(): void {}
+
+  /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
+  protected missCost(addr: number): number {
+    const l2 = this.l2;
+    if (!l2) return this.cache.missPenalty;
+    const c = this.v.counters;
+    if (l2.hit(addr)) { c[Counter.L2Hits]!++; return this.l2Penalty; }
+    c[Counter.L2Misses]!++;
+    l2.fill(addr);
+    return this.cache.missPenalty;
+  }
+
+  /**
+   * Whether the instruction at `pc` can be fetched this cycle. Without an instruction cache always; with one, a hit fetches at once and a
+   * miss makes fetch wait the miss cost (counted in StallIFetch), then the line is filled and the fetch goes ahead. A redirect while
+   * waiting starts a new lookup at the new pc.
+   */
+  protected fetchReady(pc: number): boolean {
+    const ic = this.icache;
+    if (!ic || pc >= this.ramSize) return true;
+    const c = this.v.counters;
+    if (this.iWaitPc !== pc) {
+      if (ic.hit(pc)) { c[Counter.ICacheHits]!++; return true; }
+      c[Counter.ICacheMisses]!++;
+      this.iWaitPc = pc;
+      this.iWait = this.missCost(pc);
+    }
+    if (this.iWait > 0) {
+      this.iWait--;
+      c[Counter.StallIFetch]!++;
+      return false;
+    }
+    ic.fill(pc);
+    this.iWaitPc = -1;
+    return true;
+  }
 
   protected retire(id: number, op: number): void {
     if (op === OP_IRET) this.machine.intc.leave(); // interrupts are on again once the iret has retired
@@ -308,7 +417,7 @@ export abstract class EngineBase implements PipelineEngine {
       st |= St.Started;
       if (addr < this.ramSize) {
         if (this.cache.hit(addr)) { c[Counter.CacheHits]!++; p.res[s] = this.load(op, addr); }
-        else { c[Counter.CacheMisses]!++; st |= St.Missing; p.wait[s] = this.cache.missPenalty; }
+        else { c[Counter.CacheMisses]!++; st |= St.Missing; p.wait[s] = this.missCost(addr); }
       } else {
         p.res[s] = this.load(op, addr); // device access: uncached
       }

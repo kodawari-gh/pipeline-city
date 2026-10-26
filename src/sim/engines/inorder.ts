@@ -26,15 +26,12 @@ export interface InOrderSettings extends EngineSettings {
   width?: number;
 }
 
-const PRED_SIZE = 64;
 const F_CTRL = F.Branch | F.Jal | F.Jalr;
 
 export class InOrderEngine extends EngineBase {
   /** Live options; may be toggled between steps. */
   readonly options: { forwarding: boolean; sharedPort: boolean };
   readonly width: number;
-  /** 1-bit predictor, indexed by (pc >> 2) % 64. 1 = predict taken. */
-  private readonly pred = new Uint8Array(PRED_SIZE);
   private fetchStopped = false;
   private readonly mask: number;
 
@@ -58,18 +55,11 @@ export class InOrderEngine extends EngineBase {
   }
 
   protected override onReset(): void {
-    this.pred.fill(0);
     this.fetchStopped = false;
     for (let s = 0; s < 5 * this.width; s++) this.v.clearStage(s);
   }
 
-  override flipPredictor(pc?: number): void {
-    if (pc === undefined) for (let i = 0; i < PRED_SIZE; i++) this.pred[i] = this.pred[i]! ^ 1;
-    else {
-      const i = (pc >>> 2) % PRED_SIZE;
-      this.pred[i] = this.pred[i]! ^ 1;
-    }
-  }
+  override flipPredictor(pc?: number): void { this.pred.flip(pc); }
 
   step(): void {
     if (this.isHalted) return;
@@ -177,7 +167,10 @@ export class InOrderEngine extends EngineBase {
         v.setStage(iff, SlotKind.Bubble, -1, 0, Cause.Struct);
         c[Counter.StallStruct]!++;
       } else {
-        for (let l = 0; l < W; l++) if (this.fetch(l)) break;
+        for (let l = 0; l < W; l++) {
+          if (!this.fetchReady(this.fetchPc)) break;
+          if (this.fetch(l)) break;
+        }
       }
     }
 
@@ -236,7 +229,7 @@ export class InOrderEngine extends EngineBase {
     const isBranch = (f & F.Branch) !== 0;
     if (isBranch) {
       c[Counter.Branches]!++;
-      this.pred[(p.pc[s]! >>> 2) % PRED_SIZE] = this.taken ? 1 : 0;
+      this.pred.train(p.pc[s]!, this.taken);
     }
     if (next !== p.predNext[s]) {
       c[Counter.Flushes]!++;
@@ -329,7 +322,7 @@ export class InOrderEngine extends EngineBase {
     const f = OPF[p.op[s]!]!;
     let next = (pc + 4) >>> 0;
     if (f & F.Branch) {
-      if (this.pred[(pc >>> 2) % PRED_SIZE]) next = (pc + p.imm[s]!) >>> 0;
+      if (this.pred.predict(pc)) next = (pc + p.imm[s]!) >>> 0;
     } else if (f & F.Jal) {
       next = (pc + p.imm[s]!) >>> 0;
     }

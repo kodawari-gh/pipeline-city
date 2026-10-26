@@ -93,6 +93,8 @@ const ENGINES: { name: string; make: () => Engine }[] = [
   { name: "ref", make: () => new RefEngine() },
   ...CONFIGS.map((c) => ({ name: c.name, make: () => c.make() })),
   ...WIDE_CONFIGS.map((c) => ({ name: c.name, make: () => c.make() })),
+  // the optional parts: an interrupt during an instruction cache miss, an L2 refill or a 2-bit predicted loop is still precise
+  ...WIDE_CONFIGS.map((c) => ({ name: `${c.name} +I$ +2way +L2 +2bit`, make: () => c.make({ icacheLines: 4, cacheLines: 8, ways: 2, l2Lines: 16, predBits: 2 }) })),
 ];
 
 interface Result { regs: number[]; data: Uint8Array; count: number; cycles: number; taken: number; maxLatency: number; machine: Machine }
