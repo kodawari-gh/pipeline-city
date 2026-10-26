@@ -57,16 +57,18 @@ export function levelBar(s: Snapshot): LevelBarModel {
 // ---------- milestone screen ----------
 
 export type IconKey = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' | 'lock' | 'check' | 'box' | 'fan' | 'slot' | 'warn' | 'gauge'
-  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave';
+  | 'net' | 'usb' | 'screen' | 'disk' | 'eff' | 'wave' | 'card' | 'grid';
 
 /** Icon for an unlock-table kind, for items that have no illustration yet (planned devices). */
 export function kindIcon(kind: string): IconKey {
   switch (kind) {
-    case 'cpu': case 'npu': case 'os': return 'cpu';
+    case 'cpu': case 'os': return 'cpu';
+    case 'npu': return 'grid';
     case 'ram': return 'memory';
     case 'cooler': case 'fan': case 'vrm-sink': case 'ram-sink': return 'fan';
     case 'psu': return 'bolt';
-    case 'display': case 'gpu': return 'screen';
+    case 'display': return 'screen';
+    case 'gpu': return 'card';
     case 'storage': case 'raid': return 'disk';
     case 'board': case 'case': return 'slot';
     case 'router': case 'isp': case 'nic': return 'net';

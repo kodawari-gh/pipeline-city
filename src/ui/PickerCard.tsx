@@ -105,6 +105,13 @@ const STAT_HELP: Record<string, string> = {
   latency: 'How long one read takes, in ticks. Lower is better: the processor waits less.',
   watts: 'The most power the supply can deliver. Everything you fit must add up to less than this.',
   cooling: 'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',
+  lanes: 'How many things the card does at the same instant, all following the same instructions. More lanes means big batches finish sooner.',
+  cardclk: 'How fast the card runs compared with a processor at its stock clock. Higher means every step of its work takes less time.',
+  cardmem: 'The memory on the card itself. The work and its data are copied in first, so bigger jobs need more.',
+  cells: 'How many multiply-and-add cells the matrix unit has. More cells means each layer of a network finishes in fewer steps.',
+  measure: 'How long the module takes to check each word of memory. Lower is better: a secure job starts sooner.',
+  attest: 'How long the module takes to sign a statement about what is running. Lower is better.',
+  surcharge: 'Extra processor cycles every memory access costs while a secure job runs (the encryption). Lower is better.',
   throughput: 'How many bytes per second it moves once a read has started. Higher loads and saves faster.',
 };
 

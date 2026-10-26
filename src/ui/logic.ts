@@ -158,9 +158,9 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
   'ram-sink': 'Fins that cool the memory regulator beside the RAM slots, so memory can run faster without overheating the supply.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
-  gpu: 'A graphics card: many small lanes that run the same instructions on different data. Not built yet.',
-  npu: 'An AI card that multiplies matrices in hardware. Not built yet.',
-  tpm: 'A secure module on the board header that measures and signs what the machine runs. Not built yet.',
+  gpu: 'A graphics card: many small lanes that run the same instructions on different data. Jobs that suit it (batches, filters, fractals) run much faster on it, but the processor has to copy the work over and back, and it draws a lot of power.',
+  npu: 'An AI card that multiplies matrices in hardware. Inference jobs run far faster on it than on the processor or even a graphics card.',
+  tpm: 'A secure module on the board header that measures and signs what the machine runs. Secure jobs need one; while one runs, memory is a little slower.',
   nic: 'A network card for an expansion slot. Plug the ethernet cable into its jack to reach the router: its speed replaces the speed of the board jack. Fast cards run hot.',
 };
 
@@ -175,9 +175,12 @@ export function describeSpec(spec: DeviceSpec): Description {
     }
   }
   if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`);
-  if (spec.kind === 'psu') bits.push(`${spec.watts} W`);
+  if (spec.kind === 'psu') bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);
   if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
+  if (spec.kind === 'gpu' && spec.gpu) bits.push(`${spec.gpu.lanes} lanes`, `${spec.gpu.memBytes / 1024}K card memory in ${spec.gpu.banks} bank${spec.gpu.banks === 1 ? '' : 's'}`, spec.needsPcieCable ? `PCIe power lead${(spec.pcieLeads ?? 1) > 1 ? `s x${spec.pcieLeads}` : ''}` : 'slot power only');
+  if (spec.kind === 'npu' && spec.npu) bits.push(`${spec.npu.grid}x${spec.npu.grid} cells`, `${spec.npu.memBytes / 1024}K card memory`, spec.needsPcieCable ? 'PCIe power lead' : 'slot power only');
+  if (spec.kind === 'tpm' && spec.tpm) bits.push(`measures at ${spec.tpm.measureTicks} ticks per word`, `attests in ${spec.tpm.attestTicks} ticks`, `+${spec.tpm.surcharge} cycles per memory access while protected`);
   if (spec.kind === 'nic') bits.push(`${spec.mbps} Mbit/s`, `throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
   if (spec.clock) bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);
   if (spec.kind !== 'psu') bits.push(`${spec.idleW}-${spec.loadW} W`);

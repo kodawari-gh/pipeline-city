@@ -2,7 +2,7 @@
 // The card opens only when the renderer selects something (`selected`). Parts are placed by dragging from the
 // inventory tray (or the world); the card offers purchases (into the inventory), the clock, power and job actions.
 
-import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
+import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type CardSpec, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
@@ -194,7 +194,7 @@ export const caseId = (tier: number) => `case${tier}`;
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
   if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic' || kind === 'gpu' || kind === 'npu' || kind === 'tpm') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
@@ -266,7 +266,24 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'nic': return nicStats(spec);
-    case 'gpu': case 'npu': case 'tpm': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
+    case 'gpu': return [
+      { key: 'lanes', label: 'Lanes', icon: 'cpu', value: spec.gpu?.lanes ?? 0, unit: '', higherIsBetter: true },
+      { key: 'cardclk', label: 'Clock', icon: 'clock', value: spec.clock?.base ?? 0, unit: 'x', higherIsBetter: true },
+      { key: 'cardmem', label: 'Card memory', icon: 'memory', value: (spec.gpu?.memBytes ?? 0) / 1024, unit: 'K', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'npu': return [
+      { key: 'cells', label: 'Matrix cells', icon: 'cpu', value: (spec.npu?.grid ?? 0) ** 2, unit: '', higherIsBetter: true },
+      { key: 'cardclk', label: 'Clock', icon: 'clock', value: spec.clock?.base ?? 0, unit: 'x', higherIsBetter: true },
+      { key: 'cardmem', label: 'Card memory', icon: 'memory', value: (spec.npu?.memBytes ?? 0) / 1024, unit: 'K', higherIsBetter: true },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
+    case 'tpm': return [
+      { key: 'measure', label: 'Measuring', icon: 'clock', value: spec.tpm?.measureTicks ?? 0, unit: 'ticks/word', higherIsBetter: false },
+      { key: 'attest', label: 'Attesting', icon: 'gauge', value: spec.tpm?.attestTicks ?? 0, unit: 'ticks', higherIsBetter: false },
+      { key: 'surcharge', label: 'Memory overhead', icon: 'warn', value: spec.tpm?.surcharge ?? 0, unit: 'cycles', higherIsBetter: false },
+      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+    ];
   }
 }
 
@@ -366,15 +383,15 @@ export function specBrief(spec: DeviceSpec): string {
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
     case 'ram-sink': return `${spec.coolingPerC} W/C cooling for the memory VRM`;
     case 'nic': return `${spec.mbps} Mbit network card`;
-    case 'gpu': return `graphics card, ${spec.loadW} W`;
-    case 'npu': return `AI card, ${spec.loadW} W`;
-    case 'tpm': return 'secure module';
+    case 'gpu': return `${spec.gpu?.lanes ?? 0} lanes, ${(spec.gpu?.memBytes ?? 0) / 1024}K, ${spec.loadW} W`;
+    case 'npu': return `${spec.npu?.grid ?? 0}x${spec.npu?.grid ?? 0} cells, ${(spec.npu?.memBytes ?? 0) / 1024}K, ${spec.loadW} W`;
+    case 'tpm': return `secure module, ${spec.loadW} W`;
   }
 }
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
-  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic',
+  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic', tpm: 'tpm',
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp'> = {
   psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', case: 'case', bay: 'storage', os: 'os', router: 'router', wall: 'isp',
@@ -776,9 +793,20 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     }
     // A network card: which jack it is, whether the cable is in it, and its heat (a hot card runs at half speed).
     if (kind === 'nic') {
-      if (emptySocket) lines.push({ level: 'info', text: 'Drop a network card here: its jack then appears on the back of the machine.' });
+      if (emptySocket) lines.push({ level: 'info', text: 'Drop a network card here: its jack then appears on the back of the machine. This slot also takes a graphics card or an AI card.' });
       if (dev) lines.push(...nicLines(s, dev));
     }
+    // Accelerator cards: the PCIe power lead they ask for, the secure module's header, and what each is for.
+    if ((kind === 'gpu' || kind === 'npu') && dev && !dev.burnt) {
+      const spec = getSpec(dev.spec) as CardSpec | undefined;
+      if (spec?.needsPcieCable) {
+        const lead = s.cables.find((c) => c.id === 'pcie');
+        lines.push(lead?.connected
+          ? { level: 'info', text: 'Power lead plugged in.' }
+          : { level: 'bad', text: 'Needs the PCIe power lead from the PSU: plug it in with the machine off, or the machine will not start.' });
+      }
+    }
+    if (kind === 'tpm' && emptySocket) lines.push({ level: 'info', text: 'Drop a secure module here: secure jobs need one, and it slows memory a little while they run.' });
     // A liquid cooler (fitted, or the one in the inventory) gives the VRM no airflow.
     if (kind === 'cooler') {
       const coolerId = dev?.spec ?? invItem?.spec;

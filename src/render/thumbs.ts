@@ -8,6 +8,7 @@ import { driveArt, drawDriveLive, driveKindOf } from './drives';
 import { exteriorArt, exteriorFrame } from './exterior';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier, BD } from './layout';
 import { nicArt, routerArt, wallArt } from './net';
+import { cardArt, tpmArt, tpmHeader } from './accelart';
 import { onThemeChange, readTheme, type Theme } from './theme';
 
 // Pictures of the parts for the shop, the inventory and the picker: the same art the board draws, rendered to a small image, so a
@@ -150,6 +151,8 @@ function make(id: string, T: Theme): string | null {
         break;
       }
       case 'nic': holder.addChild(nicArt(T, spec.visual, 0)); break;
+      case 'gpu': case 'npu': holder.addChild(cardArt(T, spec.visual, 0)); break;
+      case 'tpm': { const h = tpmHeader(3); if (h) holder.addChild(tpmArt(T, spec.visual, h)); break; }
       case 'storage': {
         const kind = driveKindOf(spec.visual), slot = kind === 'ssd-nvme' ? 'm20' : 'sata0';
         holder.addChild(driveArt(T, kind, slot, spec.name, `${Math.round(spec.capacityBytes / 1024)}K`));

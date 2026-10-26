@@ -107,7 +107,7 @@ function Cooler({ tier }: { tier: number }) {
 }
 
 function Psu({ spec }: { spec: PsuSpec }) {
-  const frac = Math.min(1, spec.watts / 250);
+  const frac = Math.min(1, Math.sqrt(spec.watts / 1000)); // 40 W to 1 kW on one dial
   const arc = 'M28 62 A32 32 0 0 1 92 62';
   return (
     <>
@@ -117,6 +117,65 @@ function Psu({ spec }: { spec: PsuSpec }) {
         stroke-dasharray={`${Math.max(3, frac * 100)} 100`} />
       <text x={60} y={60} class="dial-txt" font-size={15}>{spec.watts}</text>
       <text x={60} y={70} class="dial-lab" font-size={8}>watts</text>
+    </>
+  );
+}
+
+/** A graphics card: PCB, a shroud with one to three fans by tier, the bracket with its ports and the power plug. */
+function GpuCard({ tier }: { tier: number }) {
+  const n = Math.max(1, Math.min(3, tier));
+  const w = 76 / n;
+  return (
+    <>
+      <rect x={10} y={22} width={100} height={40} rx={4} class="plate edge" />
+      <rect x={4} y={18} width={6} height={48} rx={1} class="ink2" />
+      {[0, 1, 2].map((i) => <rect key={i} x={0} y={26 + i * 12} width={5} height={7} rx={1} class="jack" />)}
+      <rect x={18} y={27} width={84} height={30} rx={3} class="ink" />
+      {Array.from({ length: n }, (_, i) => {
+        const cx = 22 + w * (i + 0.5);
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={42} r={Math.min(11, w / 2 - 2)} class="fanring" />
+            <circle cx={cx} cy={42} r={2.4} class="ink-on" />
+          </g>
+        );
+      })}
+      <rect x={88} y={16} width={14} height={7} rx={1.5} class="jack" />
+      {tier >= 3 && <rect x={70} y={16} width={14} height={7} rx={1.5} class="jack" />}
+      {Array.from({ length: 8 }, (_, i) => <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />)}
+    </>
+  );
+}
+
+/** An AI card: a die made of a grid of multiply-accumulate cells (4 x 4 or 8 x 8), a heatsink on the big one. */
+function NpuCard({ tier }: { tier: number }) {
+  const k = tier >= 2 ? 8 : 4, size = tier >= 2 ? 34 : 28, c = size / k;
+  return (
+    <>
+      <rect x={10} y={22} width={100} height={40} rx={4} class="plate edge" />
+      <rect x={4} y={18} width={6} height={48} rx={1} class="ink2" />
+      <circle cx={2.5} cy={42} r={1.8} class="led-on" />
+      <rect x={20} y={42 - size / 2 - 3} width={size + 6} height={size + 6} rx={3} class="ink" />
+      {Array.from({ length: k * k }, (_, i) => (
+        <rect key={i} x={23 + (i % k) * c + 0.5} y={42 - size / 2 + Math.floor(i / k) * c + 0.5} width={c - 1} height={c - 1} class="ink-on" />
+      ))}
+      {tier >= 2 && Array.from({ length: 7 }, (_, i) => <rect key={i} x={62 + i * 5} y={30} width={2.6} height={24} rx={0.8} class="fin" />)}
+      {tier >= 2 && <rect x={90} y={16} width={14} height={7} rx={1.5} class="jack" />}
+      {Array.from({ length: 8 }, (_, i) => <rect key={i} x={30 + i * 3.5} y={62} width={2} height={6} class="pin" />)}
+    </>
+  );
+}
+
+/** The secure module: a small board on a pin row, with the secure chip (and a shield on the second). */
+function TpmModule({ tier }: { tier: number }) {
+  return (
+    <>
+      <rect x={28} y={14} width={64} height={46} rx={4} class="plate edge" />
+      <rect x={38} y={22} width={30} height={26} rx={2} class="ink" />
+      <circle cx={43} cy={27} r={1.6} class="ink-on" />
+      {tier >= 2 && <rect x={72} y={22} width={14} height={16} rx={2} class="ink2" />}
+      {Array.from({ length: 6 }, (_, i) => <rect key={i} x={35 + i * 9} y={60} width={4} height={8} class="pin" />)}
+      <text x={60} y={56} class="gauge-lab" font-size={7}>TPM</text>
     </>
   );
 }
@@ -397,6 +456,9 @@ export function PartArt({ id, size = 64, label }: { id: string; size?: number; l
         case 'display': body = <Display />; break;
         case 'vrm-sink': case 'ram-sink': body = <VrmSink tier={spec.tier} />; break;
         case 'nic': body = <NicCard tier={spec.tier} />; break;
+        case 'gpu': body = <GpuCard tier={spec.tier} />; break;
+        case 'npu': body = <NpuCard tier={spec.tier} />; break;
+        case 'tpm': body = <TpmModule tier={spec.tier} />; break;
         case 'storage':
           body = spec.visual === 'hdd' ? <Hdd /> : spec.visual === 'ssd-nvme' ? <SsdNvme /> : <SsdSata />;
           break;

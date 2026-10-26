@@ -262,8 +262,8 @@ export function getSpec(id: string): DeviceSpec | undefined {
 }
 
 /** Specs of one kind ordered by tier (the per-device upgrade ladder). */
-export function specsOfKind<K extends DeviceKind>(kind: K): Extract<DeviceSpec, { kind: K }>[] {
-  return specList.filter((s) => s.kind === kind).sort((a, b) => a.tier - b.tier) as Extract<DeviceSpec, { kind: K }>[];
+export function specsOfKind<K extends DeviceKind>(kind: K): (DeviceSpec & { kind: K })[] {
+  return specList.filter((s) => s.kind === kind).sort((a, b) => a.tier - b.tier) as (DeviceSpec & { kind: K })[];
 }
 
 /** A voltage regulator on the board (see docs/VRM.md): phases of buck converters feeding the CPU or the memory. */
