@@ -174,7 +174,7 @@ export class ThermalModel {
     const powerOf = (d: InstalledDevice, psuFactor: number): { w: number; clk: number } => {
       const spec = deviceSpec(d);
       if (!live || d.burnt) return { w: 0, clk: 0 };
-      if (spec.kind === "nic" || spec.kind === "npu" || spec.kind === "tpm") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
+      if (spec.kind === "nic" || spec.kind === "tpm") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
       if (!spec.clock) {
         // Cooler fan follows CPU load; PSU draws nothing of its own in this model.
         return { w: spec.kind === "cooler" || spec.kind === "vrm-sink" || spec.kind === "ram-sink" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };

@@ -5,12 +5,15 @@
 // write a TemplateFn, add it to TEMPLATES below, and document it in docs/GEN.md. Nothing else needs to change.
 
 import { assembleGpu } from "../asm/gpu";
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, TpmCmd } from "../isa/memmap";
+import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, NPU_MEM, NPU_REG, TpmCmd } from "../isa/memmap";
 import { Prng } from "../machine/prng";
 import * as K from "./kernels";
 import type { Kernel } from "./kernels";
 import {
-  copyWords, cpuKernel, GPU_KERNEL_NAMES, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  cpuLayer, GPU_NET_LAYOUT, gpuLayerCode, M as NET_M, makeNetwork, networkChecksum, NPU_LAYOUT, npuBytes, npuProgram,
+} from "./npukernels";
+import {
+  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 
 export interface GenParams {
@@ -28,6 +31,16 @@ export interface GenParams {
   hosted?: boolean;
   /** A working GPU the job may use (`gpu.render` offloads its kernel to it; without one it runs the same work on the CPU). */
   gpu?: GpuTarget;
+  /** A working NPU the job may use (`npu.infer` runs its network on it; without one it falls back to the GPU, then the CPU). */
+  npu?: NpuTarget;
+}
+
+/** Where an NPU sits on the bus and what it has. */
+export interface NpuTarget {
+  base: number;
+  /** The array is `grid` x `grid`. */
+  grid: number;
+  memBytes: number;
 }
 
 /** Where a card sits on the bus and what it has: the part of the hardware a program may be generated for. */
@@ -43,6 +56,7 @@ export interface ResolvedParams {
   row: number;
   jobId: number;
   gpu?: GpuTarget;
+  npu?: NpuTarget;
 }
 
 /** What a template returns. */
@@ -280,9 +294,9 @@ const gpuRender: TemplateFn = (rng, p) => {
     const kData = b.ns("kernel");
     const win = gpu.base + GPU_MEM;
     const copy = b.add(copyWords(b.ns("copy")), 0);
-    b.emit(`li a0, ${win + L.code}`, `la a1, ${kData}`, `li a2, ${code.length * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + L.code}`, `la a1, ${kData}`, `li a2, ${roundUp16(code.length * 4)}`, `call ${copy}`);
     if (name !== "mandel") {
-      b.emit(`li a0, ${win + L.a - (guards ? 4 : 0)}`, `la a1, ${aData}`, `li a2, ${aWords.length * 4}`, `call ${copy}`);
+      b.emit(`li a0, ${win + L.a - (guards ? 4 : 0)}`, `la a1, ${aData}`, `li a2, ${roundUp16(aWords.length * 4)}`, `call ${copy}`);
     }
     if (needsB) b.emit(`li a0, ${win + L.b}`, `la a1, ${bData}`, `li a2, ${len * 4}`, `call ${copy}`);
     const poll = b.ns("poll");
@@ -339,6 +353,82 @@ const secureSign: TemplateFn = (rng, p) => {
   return b.finish("secure.sign request", blankRows(p.row) + renderLine(segs, [h & 63]));
 };
 
+/**
+ * Inference job (docs/ACCEL.md "Job classes"): a few dense layers, X <- relu(W X + b), over an 8 x 8 batch with seeded weights, printing the
+ * sum of the final activations. The fallback chain is the NPU (descriptors in card memory), then a GPU (one kernel launch per layer),
+ * then the CPU (a loop per layer): the same line and the same pay on every path, and the speed gap down the chain is what a card sells.
+ */
+const npuInfer: TemplateFn = (rng, p) => {
+  const b = new Builder();
+  const layers = Math.min(6, 1 + p.scale);
+  const net = makeNetwork(rng, layers);
+  const segs: Seg[] = [`#${pad2(p.jobId)} infer `, { dyn: 2 }, " OK"];
+  const line = layoutLine(segs);
+  const flat = (rows: number[][]) => rows.flat();
+  const dX = b.ns("x"), dW = b.ns("w"), dB = b.ns("b");
+  const words = (label: string, ws: number[]) => b.addData([`${label}:`, ...ws.map((w) => `  .word ${w}`)]);
+  b.emit(`li s0, ${rowAddr(p.row)}`);
+  emitStatic(b, line, 0);
+  const npu = p.npu, gpu = p.gpu;
+  const useNpu = !!npu && NET_M % npu.grid === 0 && npu.memBytes >= npuBytes(net);
+  const useGpu = !useNpu && !!gpu && (NET_M * NET_M) % gpu.lanes === 0 && gpu.lanes <= 32 && gpu.memBytes >= GPU_NET_LAYOUT.b + layers * NET_M * 4;
+  const copy = useNpu || useGpu ? b.add(copyWords(b.ns("copy"))) : "";
+  const poll = (reg: number, base: number, name: string) => {
+    b.emit(`${name}:`, `lw t1, ${reg}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${name}`);
+    void base;
+  };
+  let sumAt: number;
+  if (useNpu) {
+    const win = npu.base + NPU_MEM;
+    const d = npuProgram(net), dD = b.ns("desc");
+    b.emit(`li a0, ${win + NPU_LAYOUT.x[0]}`, `la a1, ${dX}`, `li a2, ${NET_M * NET_M * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + NPU_LAYOUT.w}`, `la a1, ${dW}`, `li a2, ${layers * NET_M * NET_M * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + NPU_LAYOUT.b}`, `la a1, ${dB}`, `li a2, ${layers * NET_M * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + NPU_LAYOUT.desc}`, `la a1, ${dD}`, `li a2, ${roundUp16(d.words.length * 4)}`, `call ${copy}`);
+    b.emit(`li t0, ${npu.base}`, `li t1, ${NPU_LAYOUT.desc}`, `sw t1, ${NPU_REG.DESC}(t0)`, `li t1, ${d.count}`, `sw t1, ${NPU_REG.COUNT}(t0)`, "li t1, 1", `sw t1, ${NPU_REG.CMD}(t0)`);
+    poll(NPU_REG.STATUS, npu.base, b.ns("poll"));
+    sumAt = win + d.finalAt;
+    words(dX, net.x0);
+    words(dW, flat(net.w));
+    words(dB, flat(net.b));
+    words(dD, d.words);
+  } else if (useGpu) {
+    const win = gpu.base + GPU_MEM, L = GPU_NET_LAYOUT, code = gpuLayerCode(gpu.lanes), dK = b.ns("kernel");
+    b.emit(`li a0, ${win}`, `la a1, ${dK}`, `li a2, ${roundUp16(code.length * 4)}`, `call ${copy}`);
+    b.emit(`li a0, ${win + L.x[0]}`, `la a1, ${dX}`, `li a2, ${NET_M * NET_M * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + L.w}`, `la a1, ${dW}`, `li a2, ${layers * NET_M * NET_M * 4}`, `call ${copy}`);
+    b.emit(`li a0, ${win + L.b}`, `la a1, ${dB}`, `li a2, ${layers * NET_M * 4}`, `call ${copy}`);
+    for (let l = 0; l < layers; l++) {
+      const args = [L.w + l * NET_M * NET_M * 4, L.x[l % 2]!, L.x[(l + 1) % 2]!, L.b + l * NET_M * 4];
+      b.emit(`li t0, ${win}`);
+      args.forEach((v, k) => b.emit(`li t1, ${v}`, `sw t1, ${L.args + 4 * k}(t0)`));
+      b.emit(`li t0, ${gpu.base}`, `sw zero, ${GPU_REG.KERNEL}(t0)`, `sw zero, ${GPU_REG.LANES}(t0)`, "li t1, 1", `sw t1, ${GPU_REG.CMD}(t0)`);
+      poll(GPU_REG.STATUS, gpu.base, b.ns("poll"));
+    }
+    sumAt = win + L.x[layers % 2]!;
+    b.addData([`${dK}:`, ...Array.from(code, (w) => `  .word ${w}`)]);
+    words(dX, net.x0);
+    words(dW, flat(net.w));
+    words(dB, flat(net.b));
+  } else {
+    const layer = b.add(cpuLayer(b.ns("layer")), 3 * 256);
+    const buf = [BUF_BASE, BUF_BASE + 256];
+    for (let l = 0; l < layers; l++) {
+      b.emit(`la a0, ${dW}`, `addi a0, a0, ${l * NET_M * NET_M * 4}`);
+      if (l === 0) b.emit(`la a1, ${dX}`);
+      else b.emit(`li a1, ${buf[(l - 1) % 2]}`);
+      b.emit(`li a2, ${buf[l % 2]}`, `la a3, ${dB}`, `addi a3, a3, ${l * NET_M * 4}`, `call ${layer}`);
+    }
+    sumAt = buf[(layers - 1) % 2]!;
+    words(dX, net.x0);
+    words(dW, flat(net.w));
+    words(dB, flat(net.b));
+  }
+  b.emit(`li a0, ${sumAt}`, `li a1, ${NET_M * NET_M}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * NET_M * NET_M)}`, "andi a1, a0, 63");
+  b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
+  return b.finish("npu.infer request", blankRows(p.row) + renderLine(segs, [networkChecksum(net)]));
+};
+
 const CLI_FAMILIES = [cliLog, cliCalc, cliChecksum];
 
 /** Default CLI request: family picked from the seed. */
@@ -353,5 +443,6 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   "cli.scan": cliScan,
   "gpu.render": gpuRender,
   "secure.sign": secureSign,
+  "npu.infer": npuInfer,
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").
 };

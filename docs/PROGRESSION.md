@@ -190,7 +190,7 @@ A **job class** groups templates and carries `needs`. The four existing classes 
 | `web` | planned | a plan bought and a live link (any OS with the net stack) | 4 | small request, big response; upload-bound. No share until a plan is bought, none during the USB fallback (`NETWORK.md`) |
 | `secure` | built (T72, T73) | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
 | `gpu` | built (T77) | nothing: it runs on the CPU, faster with a GPU (decision 2026-10-24, docs/ACCEL.md) | 10 | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators" |
-| `npu` | planned | an NPU | 12 | |
+| `npu` | built (T78, T79) | nothing: NPU, then GPU, then CPU, slower down the chain, same pay | 12 | |
 | `hpc` | planned | a multicore CPU (at least 2 cores) | 14 | the multi-core simulation template |
 
 Needs are one of: `{kind: "os", min}`, `{kind: "storage", minTier}`, `{kind: "net"}`, `{kind: "tpm"}`, `{kind: "gpu", minTier}`, `{kind: "npu"}`, `{kind: "cores", min}`. A need is **met** when the matching device is installed and working (not burnt) at the moment the job would be picked to run (and for `net` while the link is up).

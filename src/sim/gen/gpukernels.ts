@@ -257,9 +257,16 @@ export function tpmCommand(ns: string): Kernel {
   ]);
 }
 
-/** copy_words(dst = a0, src = a1, bytes = a2, a multiple of 4, >= 4): a word copy, used to fill card memory through the bus window. */
+/**
+ * copy_words(dst = a0, src = a1, bytes = a2, a multiple of 16, >= 16): a word copy, four words a turn, used to fill card memory through
+ * the bus window. Callers round the size up (`roundUp16`); the few extra bytes read and written are harmless.
+ */
 export function copyWords(ns: string): Kernel {
   return kernel("gpu_copy", ns, ["mem", "alu", "branch"], [
-    `${ns}_loop:`, "lw t0, 0(a1)", "sw t0, 0(a0)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, -4", `bne a2, zero, ${ns}_loop`, "ret",
+    `${ns}_loop:`, "lw t0, 0(a1)", "lw t1, 4(a1)", "lw t2, 8(a1)", "lw t3, 12(a1)", "sw t0, 0(a0)", "sw t1, 4(a0)", "sw t2, 8(a0)", "sw t3, 12(a0)",
+    "addi a0, a0, 16", "addi a1, a1, 16", "addi a2, a2, -16", `bne a2, zero, ${ns}_loop`, "ret",
   ]);
 }
+
+/** Bytes rounded up to the 16 `copyWords` moves at a time. */
+export const roundUp16 = (n: number): number => (n + 15) & ~15;

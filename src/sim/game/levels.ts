@@ -43,7 +43,8 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }], firstLevel: 9, rampTicks: 600, heavy: true },
   // The GPU batch job (template gpu.render) needs no card: with one the program offloads its kernel, without one it runs the same work on the CPU, slower and at the same pay (docs/ACCEL.md).
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },
-  { id: "npu", template: "cli.calc", scale: 6, payMul: 4, needs: [{ kind: "npu" }], firstLevel: 12, rampTicks: 600, heavy: true, placeholder: true },
+  // The inference job needs no card: NPU, then GPU, then CPU, slower down the chain at the same pay (docs/ACCEL.md).
+  { id: "npu", template: "npu.infer", scale: 4, payMul: 4, needs: [], firstLevel: 12, rampTicks: 600, heavy: true },
   { id: "hpc", template: "cli.scan", scale: 8, payMul: 5, needs: [{ kind: "cores", min: 2 }], firstLevel: 14, rampTicks: 600, heavy: true, placeholder: true },
 ];
 

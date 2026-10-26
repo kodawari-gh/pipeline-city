@@ -91,7 +91,7 @@ describe("every generated program", () => {
           let guard = 0;
           while (!e.halted) {
             e.step();
-            if (++guard > 50_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
+            if (++guard > 400_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
           }
           expect(Array.from(m.regs)).toEqual(Array.from(ref.cpu.regs));
           expect(firstDiff(m.ram, ref.cpu.mem.ram.bytes)).toBe(-1);

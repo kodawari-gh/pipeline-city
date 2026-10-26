@@ -16,9 +16,9 @@ import {
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { disassemble } from "../isa";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
-import { generate, runReference, TEMPLATES, type GpuTarget } from "../gen";
-import { Disk, GpuPort, Machine, StoragePort, TpmPort } from "../machine";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
+import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
+import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
@@ -606,6 +606,7 @@ export class Game {
   private plugged: Key | null = null;
   private readonly ports: StoragePort[] = STORAGE_PORTS.map((slot, i) => new StoragePort(slot, i));
   private tpm!: TpmPort;
+  private readonly npus: NpuPort[] = NPU_PORTS.map((slot, i) => new NpuPort(slot, i));
   private readonly gpus: GpuPort[] = GPU_PORTS.map((slot, i) => new GpuPort(slot, i));
   private readonly disks = new Map<string, Disk>();
   private os: InstalledOs | null = null;
@@ -684,6 +685,7 @@ export class Game {
     this.machine.addDevice(this.pch);
     for (const p of this.ports) this.machine.addDevice(p);
     for (const p of this.gpus) this.machine.addDevice(p);
+    for (const p of this.npus) this.machine.addDevice(p);
     this.tpm = new TpmPort(this.machine.bus, this.machine.ram, this.machine.prng);
     this.machine.addDevice(this.tpm);
     this.thermal = new ThermalModel(this.machine.prng);
@@ -1176,7 +1178,7 @@ export class Game {
     if (!key) return { ok: false, reason: `no key ${keyId} in the tray` };
     let program: Uint32Array;
     try {
-      program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget() }).program;
+      program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
     } catch (e) {
       this.tray.giveBack(key);
       return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
@@ -1350,12 +1352,14 @@ export class Game {
     const load = busy ? 1 : this.cfg.idleLoad;
     const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
     const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
+    const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
     const boardWasOk = !this.board.burnt;
     const netLoad = this.downloads.length + this.uploads.length > 0 ? 1 : this.cfg.idleLoad;
-    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad }, this.powered);
+    this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad, npu: npuLoad }, this.powered);
     this.meterWall();
     this.syncStorage(); // a drive that burnt out drops off the bus
     this.syncGpus();
+    this.syncNpus();
     this.syncTpm();
     const violated = this.tpm.takeViolation();
     if (boardWasOk && this.board.burnt) this.note("fault", "the VRM burnt out: board dead: replace the board");
@@ -1644,7 +1648,7 @@ export class Game {
         key.result = p.result;
         key.retired = p.retired ?? (legacyRetired && !p.done);
         g.plugged = key;
-        g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: g.gpuTarget() }).program, done: key.done, result: key.result };
+        g.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: g.gpuTarget(), npu: g.npuTarget() }).program, done: key.done, result: key.result };
         g.pch.plug(g.pchKey);
       }
     } catch (e) {
@@ -1654,6 +1658,7 @@ export class Game {
     g.powered = false;
     g.syncStorage();
     g.syncGpus();
+    g.syncNpus();
     g.syncTpm();
     g.syncRates(false);
     g.link = g.computeLink();
@@ -1828,6 +1833,14 @@ export class Game {
     }
   }
 
+  /** Put each working NPU on the bus (port npuK for the card in slot pcieK). */
+  private syncNpus(): void {
+    this.npus.forEach((port, k) => {
+      const d = this.board.devices.find((x) => x.slot === `pcie${k}` && deviceSpec(x).kind === "npu" && !x.burnt);
+      port.configure(d ? (deviceSpec(d) as CardSpec).npu ? { grid: (deviceSpec(d) as CardSpec).npu!.grid, memBytes: (deviceSpec(d) as CardSpec).npu!.memBytes } : null : null);
+    });
+  }
+
   /** The TPM on the header (a burnt or removed module drops off the bus). */
   private syncTpm(): void {
     const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "tpm");
@@ -1841,6 +1854,15 @@ export class Game {
     const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
     if (!spec?.gpu || k < 0 || (spec.needsPcieCable && !this.cables.pcie)) return undefined;
     return { base: GPU_BASE + k * GPU_STRIDE, lanes: spec.gpu.lanes, memBytes: spec.gpu.memBytes };
+  }
+
+  /** The first working NPU as a job generator sees it (undefined without one, or while its power lead is unplugged). */
+  private npuTarget(): NpuTarget | undefined {
+    const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "npu");
+    const spec = d && (deviceSpec(d) as CardSpec);
+    const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
+    if (!spec?.npu || k < 0 || (spec.needsPcieCable && !this.cables.pcie)) return undefined;
+    return { base: NPU_BASE + k * NPU_STRIDE, grid: spec.npu.grid, memBytes: spec.npu.memBytes };
   }
 
   /** Put each working GPU on the bus in its PCIe slot (a burnt or removed card drops off). */
@@ -2175,9 +2197,11 @@ export class Game {
     // A bootable OS drive: the ROM loads the kernel from it. USB then has latency (enumerating, flashing).
     this.syncStorage();
     this.syncGpus();
+    this.syncNpus();
     this.syncTpm();
     for (const p of this.ports) p.reset();
     for (const p of this.gpus) p.reset();
+    for (const p of this.npus) p.reset();
     this.tpm.reset();
     const boot = this.osPort();
     this.pch.bootDev = boot ? boot.base : 0;
@@ -2277,7 +2301,7 @@ export class Game {
     this.applyBoost();
   }
 
-  private readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", ...STORAGE_PORTS, ...GPU_PORTS];
+  private readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", ...STORAGE_PORTS, ...GPU_PORTS, ...NPU_PORTS];
   /** Each domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
   private readonly baseRates = new Map<string, { mul: number; div: number }>();
 
@@ -2480,7 +2504,7 @@ export class Game {
 
   /** Put a job on the virtual USB key (the NIC feed): the kernel ingests it, or flashes its result, with no waits. */
   private netPlug(key: Key, kind: "ingest" | "flash", fromRx: boolean): void {
-    const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget() }).program;
+    const program = generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program;
     const pk: PchKey = { id: key.id, program, done: false, result: "" };
     this.pch.enumTicks = 0;
     this.pch.flashTicks = 0;

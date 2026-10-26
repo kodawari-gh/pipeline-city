@@ -205,3 +205,50 @@ export const TpmFault = { None: 0, BadCommand: 1, BadRange: 2, NoSuchKey: 3, Vio
 export const TPM_HOP_TICKS = 20;
 /** Ticks a seal or unseal takes inside the module. */
 export const TPM_SEAL_TICKS = 10;
+
+// ---- NPU cards (PCIe slots). See docs/ACCEL.md "NPU".
+
+/** The NPU in PCIe slot k sits at NPU_BASE + k * NPU_STRIDE; its port and clock domain are named "npu" + k. */
+export const NPU_BASE = 0x400b_0000;
+export const NPU_STRIDE = 0x1_0000;
+export const NPU_PORTS: readonly string[] = ["npu0", "npu1", "npu2", "npu3"];
+/** Registers (word access, offsets from the port base). Status bits are GpuStatus, fault codes GpuFaultCode. */
+export const NPU_REG = {
+  STATUS: 0x00,
+  /** wo: 1 = run COUNT descriptors from DESC. Starts when written. */
+  CMD: 0x04,
+  /** rw: byte address of the descriptor list in card memory. */
+  DESC: 0x08,
+  /** rw: number of descriptors. */
+  COUNT: 0x0c,
+  /** ro: the grid size K (K x K multiply-accumulate cells). */
+  GRID: 0x10,
+  /** ro: card memory in bytes. */
+  MEM_BYTES: 0x14,
+  /** ro: cycles the last run took on the card (the PCIe hops not included). */
+  CYCLES: 0x1c,
+  /** ro: GpuFaultCode of the last launch. */
+  FAULT: 0x20,
+} as const;
+/** The card memory window (word k of card memory at NPU_MEM + 4k): descriptors, weights, activations. */
+export const NPU_MEM = 0x1000;
+/** A descriptor is four words: op, a, b, c. */
+export const NPU_DESC_WORDS = 4;
+/** Tile registers the NPU holds (a K x K tile each), besides the accumulator. */
+export const NPU_TILES = 4;
+/**
+ * Descriptor ops. Tiles and the accumulator are K x K int32 matrices stored row-major, K words per row.
+ *   Load     tile[a] = card memory at byte address b
+ *   Matmul   acc = tile[a] x tile[b]
+ *   Macc     acc += tile[a] x tile[b]
+ *   Bias     acc[i][j] += the word at b + 4 * i (one bias per row)
+ *   Relu     acc = max(acc, 0)
+ *   Store    card memory at byte address b = acc
+ * And one command for a whole dense layer, so a network is a few descriptors, not hundreds (the command processor walks the tiles):
+ *   Layer    the block of NPU_LAYER_WORDS words at byte address a: [W, X, OUT, bias, n, relu] -> OUT = relu(W X + bias) for n x n
+ *            row-major int32 matrices (n a multiple of K, at most 16), one bias per output row (bias = NPU_NO_BIAS for none), relu if 1
+ */
+export const NpuOp = { Load: 1, Matmul: 2, Macc: 3, Bias: 4, Relu: 5, Store: 6, Layer: 7 } as const;
+export const NPU_LAYER_WORDS = 6;
+/** `Layer`'s "no bias" address. */
+export const NPU_NO_BIAS = 0xffff_ffff;

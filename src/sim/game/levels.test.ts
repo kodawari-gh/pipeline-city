@@ -355,11 +355,11 @@ describe("jobs the machine cannot run", () => {
     expect(g.plugKey(id).ok).toBe(true);
   });
 
-  it("needsMet reads the machine; unknown devices (network, TPM, NPU, multicore) are never there yet; the GPU class needs nothing", () => {
+  it("needsMet reads the machine; unknown devices (network, TPM, multicore) are never there yet; the GPU and NPU classes need nothing", () => {
     expect(needsMet([{ kind: "os", min: 1 }], NO_CAPS)).toEqual({ ok: false, missing: ["an OS"] });
     expect(needsMet([{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], { ...NO_CAPS, osTier: 1, storageTier: 2 }).ok).toBe(true);
     expect(needsMet([{ kind: "storage", minTier: 1 }], { ...NO_CAPS, storageTier: 0 }).ok).toBe(false);
-    for (const id of ["web", "npu", "hpc"]) {
+    for (const id of ["web", "hpc"]) {
       const c = JOB_CLASSES.find((x) => x.id === id)!;
       expect(c.placeholder, id).toBe(true);
       expect(needsMet(c.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok, id).toBe(false);
@@ -369,6 +369,9 @@ describe("jobs the machine cannot run", () => {
     expect(secure.placeholder).toBeUndefined();
     expect(needsMet(secure.needs, NO_CAPS).ok).toBe(false);
     expect(needsMet(secure.needs, { ...NO_CAPS, tpm: true }).ok).toBe(true);
+    const npu = JOB_CLASSES.find((x) => x.id === "npu")!;
+    expect(npu).toMatchObject({ template: "npu.infer", needs: [] });
+    expect(npu.placeholder).toBeUndefined();
     const gpu = JOB_CLASSES.find((x) => x.id === "gpu")!;
     expect(gpu).toMatchObject({ template: "gpu.render", needs: [] });
     expect(gpu.placeholder).toBeUndefined();
