@@ -12,8 +12,8 @@ type Pt = [number, number];
 export interface PeriphLook { plastic: string; plasticLo: string; line: string; paper: string }
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its dome). Sizes against the 24 inch. */
-export const KEYBOARD = { w: 6200, d: 3300, h: 260, yaw: -3.5 };
-export const MOUSE = { w: 1500, l: 2600, h: 500, yaw: 9 };
+export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
+export const MOUSE = { w: 1250, l: 2500, h: 540, yaw: -9 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
 export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
@@ -25,7 +25,7 @@ export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
 }
 
 /** Where the keyboard is (its centre at the feet line, a little west of the monitor's middle, so its right end clears the mouse). */
-export const keyboardPlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300, D.ys - 190, KEYBOARD.yaw);
+export const keyboardPlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300, D.ys - 210, KEYBOARD.yaw);
 export const mousePlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300 + KEYBOARD.w / 2 + 1000, D.ys - 40, MOUSE.yaw);
 
 const flat = (pts: Pt[]) => pts.flat();
@@ -83,24 +83,33 @@ function hull(pts: Pt[]): Pt[] {
   return [...lo.slice(0, -1), ...up.slice(0, -1)];
 }
 
-/** The mouse: a dome turned a few degrees on the mat, two buttons with a seam, a wheel, a lit patch on its top, and its cord running back behind the keyboard. */
+/** The mouse: a dome turned a few degrees on the mat, built from rings of its outline at rising heights (each band lighter, so the top is round), two buttons with a seam, a wheel that stands proud of the top, and a lit patch. It has no cord. */
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
-  const p = mousePlacer(D, monitorCx), kp = keyboardPlacer(D, monitorCx), { w, l, h } = MOUSE;
+  const p = mousePlacer(D, monitorCx), { w, l, h } = MOUSE;
   const ring = (k: number, hh: number) => mouseOutline(k).map(([x, z]) => p(x, z, hh));
-  const body = mix(L.plastic, '#ffffff', T.dark ? 0.12 : 0), shade = mix(L.plasticLo, '#ffffff', T.dark ? 0.05 : 0);
-  // the cord first (it leaves the front and curls back behind the keyboard)
-  const s0 = p(0, -l / 2, h * 0.3), e0 = kp(KEYBOARD.w / 2 - 900, -KEYBOARD.d / 2, KEYBOARD.h);
-  o.moveTo(s0[0], s0[1]).bezierCurveTo(s0[0] - 120, s0[1] - 520, e0[0] + 1500, e0[1] + 260, e0[0], e0[1]).stroke({ width: 20, color: L.plasticLo, cap: 'round' });
+  const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff';
+  // the height of the dome over a plan point (a half ellipsoid, a little flattened toward the edge)
+  const dome = (x: number, z: number) => h * Math.sqrt(Math.max(0, 1 - (x / (w * 0.47)) ** 2 - (z / (l * 0.47)) ** 2)) ** 0.9;
   contact(o, p, mouseOutline(1), T.dark ? 0.55 : 0.4);
-  // the silhouette: the hull of the footprint, the widest ring a little up the body and the dome's top
-  o.poly(flat(hull([...ring(0.97, 0), ...ring(1, h * 0.35), ...ring(0.8, h)]))).fill({ color: shade }).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
-  o.poly(flat(hull([...ring(1, h * 0.35), ...ring(0.8, h)]))).fill({ color: body, alpha: 0.35 }); // the body's own colour above the foot
-  o.poly(flat(ring(0.8, h))).fill({ color: body }).stroke({ width: 6, color: mix(L.line, '#ffffff', T.dark ? 0.35 : 0), alpha: 0.9, join: 'round' });
-  // the top: a lit patch, the seam between the buttons, the line under them and the wheel
-  o.poly(flat(mouseOutline(0.5).map(([x, z]) => p(x - 120, z + 220, h * 1.02)))).fill({ color: '#ffffff', alpha: T.dark ? 0.16 : 0.5 });
-  const seam = (x0: number, z0: number, x1: number, z1: number, wd: number, a: number) => { const u = p(x0, z0, h * 0.98), v = p(x1, z1, h * 0.98); o.moveTo(u[0], u[1]).lineTo(v[0], v[1]).stroke({ width: wd, color: L.line, alpha: a, cap: 'round' }); };
-  seam(0, -l * 0.4, 0, -l * 0.04, 7, 0.9);
-  seam(-w * 0.3, -l * 0.04, w * 0.3, -l * 0.04, 6, 0.7);
-  const wl = [p(-70, -l * 0.34, h), p(70, -l * 0.34, h), p(70, -l * 0.2, h), p(-70, -l * 0.2, h)];
-  o.poly(flat(wl)).fill({ color: T.dark ? '#aab6dc' : L.paper }).stroke({ width: 4, color: T.dark ? '#4a5679' : '#9aabc8' });
+  const prof: [number, number][] = [[0.98, 0], [1, 0.2], [0.96, 0.48], [0.84, 0.74], [0.62, 0.92], [0.36, 1]], rings = prof.map(([k, f]) => ring(k, f * h));
+  for (let i = 0; i + 1 < prof.length; i++) {
+    const t = i / (prof.length - 2), col = t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
+    o.poly(flat(hull([...rings[i]!, ...rings[i + 1]!]))).fill({ color: col });
+  }
+  o.poly(flat(hull(rings.flat()))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
+  // a lit patch toward the window (west), the seam between the buttons, the line under them
+  o.poly(flat(mouseOutline(0.34).map(([x, z]) => { const q = p(x - 260, z + 120, dome(x - 260, z + 120) + 30); return q; }))).fill({ color: '#ffffff', alpha: T.dark ? 0.16 : 0.55 });
+  const line = (pts: [number, number][], wd: number, a: number) => {
+    const q = pts.map(([x, z]) => p(x, z, dome(x, z) + 14));
+    o.moveTo(q[0]![0], q[0]![1]); for (const u of q.slice(1)) o.lineTo(u[0], u[1]);
+    o.stroke({ width: wd, color: mix(L.line, '#000000', T.dark ? 0 : 0.25), alpha: a, cap: 'round', join: 'round' });
+  };
+  line(Array.from({ length: 9 }, (_, i) => [0, -l * 0.46 + (i / 8) * l * 0.4] as [number, number]), 7, 0.9);
+  line(Array.from({ length: 9 }, (_, i) => [-w * 0.42 + (i / 8) * w * 0.84, -l * 0.06] as [number, number]), 6, 0.7);
+  // the wheel: a little roller standing proud of the top, with a dark side, a lit top and grooves
+  const wz0 = -l * 0.35, wz1 = -l * 0.22, wx = 55, rise = 45;
+  const roller = (hh: number): [number, number][] => [[-wx, wz0], [wx, wz0], [wx + 8, (wz0 + wz1) / 2], [wx, wz1], [-wx, wz1], [-wx - 8, (wz0 + wz1) / 2]].map(([x, z]) => p(x!, z!, dome(0, (wz0 + wz1) / 2) + hh));
+  o.poly(flat(hull([...roller(0), ...roller(rise)]))).fill({ color: T.dark ? '#27304f' : '#8794b4' }).stroke({ width: 4, color: '#000000', alpha: 0.35, join: 'round' });
+  o.poly(flat(roller(rise))).fill({ color: T.dark ? '#aab6dc' : '#f4f7fc' }).stroke({ width: 3, color: T.dark ? '#4a5679' : '#8794b4', join: 'round' });
+  for (let g = 1; g < 4; g++) { const z = wz0 + ((wz1 - wz0) * g) / 4, a = p(-wx, z, dome(0, (wz0 + wz1) / 2) + rise), b = p(wx, z, dome(0, (wz0 + wz1) / 2) + rise); o.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: 3, color: T.dark ? '#4a5679' : '#8794b4', alpha: 0.8 }); }
 }
