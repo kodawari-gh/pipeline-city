@@ -266,6 +266,7 @@ export function statsOf(specId: string): Stat[] {
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'nic': return nicStats(spec);
+    case 'gpu': case 'npu': case 'tpm': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
   }
 }
 
@@ -365,6 +366,9 @@ export function specBrief(spec: DeviceSpec): string {
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
     case 'ram-sink': return `${spec.coolingPerC} W/C cooling for the memory VRM`;
     case 'nic': return `${spec.mbps} Mbit network card`;
+    case 'gpu': return `graphics card, ${spec.loadW} W`;
+    case 'npu': return `AI card, ${spec.loadW} W`;
+    case 'tpm': return 'secure module';
   }
 }
 

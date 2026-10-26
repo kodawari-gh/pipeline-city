@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { Machine, Prng } from "../machine";
 import {
   applyEngine, applyRates, boardFromJson, boardToJson, createBoard, engineConfigFor, install, installedPsu,
   machineConfigFor, setClock, ThermalModel, uninstall, upgradeBoard, type Board,
 } from "./index";
+import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, type DeviceSpec } from "./specs";
 
 function ok<T extends { ok: boolean }>(r: T): T {
   expect(r.ok).toBe(true);
@@ -313,5 +314,62 @@ describe("apply", () => {
     for (let i = 0; i < 20 && !m.engine!.halted; i++) m.engine!.step();
     expect(m.engine!.halted).toBe(true);
     expect(applyEngine(createBoard(1), m, prog)).toBe(false);
+  });
+});
+
+// Accelerator slots and rules (docs/ACCEL.md "Shared shape"). The card and TPM specs arrive in T69, so these tests add their own.
+describe("accelerator slots", () => {
+  const added: string[] = [];
+  const base = { tier: 1, slot: "pcie", price: 1, idleW: 1, heatFactor: 1, visual: "x", thermal: DEVICE_SPECS.nic1!.thermal } as const;
+  const fake = (spec: Record<string, unknown>) => {
+    (DEVICE_SPECS as Record<string, DeviceSpec>)[spec.id as string] = spec as unknown as DeviceSpec;
+    added.push(spec.id as string);
+  };
+  afterEach(() => { for (const id of added.splice(0)) delete (DEVICE_SPECS as Record<string, DeviceSpec>)[id]; });
+
+  it("the TPM header exists on Mainstream and Enthusiast only", () => {
+    expect(BOARD_TIERS.map((t) => t.slots.tpm ?? 0)).toEqual([0, 0, 1, 1]);
+  });
+
+  it("a TPM goes in the header, and Starter and Basic refuse it", () => {
+    fake({ ...base, id: "tpmT", kind: "tpm", slot: "tpm", name: "Test TPM", loadW: 0.5 });
+    expect(install(createBoard(2), "tpmT")).toMatchObject({ ok: true, slot: "tpm0" });
+    for (const tier of [0, 1]) {
+      const r = install(createBoard(tier), "tpmT");
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.reason).toContain("no tpm slot");
+    }
+  });
+
+  it("the header takes one TPM", () => {
+    fake({ ...base, id: "tpmT", kind: "tpm", slot: "tpm", name: "Test TPM", loadW: 0.5 });
+    const b = createBoard(2);
+    ok(install(b, "tpmT"));
+    expect(install(b, "tpmT").ok).toBe(false);
+  });
+
+  it("PSUs carry PCIe leads: none on the small two, one on the ATX+", () => {
+    const leads = ["psu0", "psu1", "psu2"].map((id) => (DEVICE_SPECS[id] as { pcieLeads: number }).pcieLeads);
+    expect(leads).toEqual([0, 0, 1]);
+  });
+
+  it("a card above the slot's power refuses without needsPcieCable, and installs with it", () => {
+    fake({ ...base, id: "gpuHot", kind: "gpu", name: "Hot card", loadW: PCIE_SLOT_W + 5, needsPcieCable: false });
+    fake({ ...base, id: "gpuCabled", kind: "gpu", name: "Cabled card", loadW: PCIE_SLOT_W + 5, needsPcieCable: true });
+    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: PCIE_SLOT_W, needsPcieCable: false });
+    const b = createBoard(2);
+    const r = install(b, "gpuHot");
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toContain("PCIe power cable");
+    ok(install(b, "gpuCabled"));
+    ok(install(b, "npuSlot"));
+  });
+
+  it("cards compete with NIC cards for the PCIe slots", () => {
+    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: 15, needsPcieCable: false });
+    const b = createBoard(1); // Basic: two PCIe slots
+    ok(install(b, "nic1"));
+    ok(install(b, "npuSlot"));
+    expect(install(b, "npuSlot").ok).toBe(false);
   });
 });

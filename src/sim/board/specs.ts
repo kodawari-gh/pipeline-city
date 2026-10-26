@@ -4,9 +4,12 @@
 import type { EngineConfig } from "../engines";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm";
+
+/** What a PCIe slot can give a card on its own (W). A card that draws more must have `needsPcieCable` (docs/ACCEL.md). */
+export const PCIE_SLOT_W = 75;
 
 /** Clock range in ticks per base tick (1 = one device tick per second at 1x). */
 export interface ClockRange { min: number; base: number; max: number }
@@ -65,6 +68,8 @@ export interface PsuSpec extends SpecBase {
   kind: "psu";
   /** Wattage budget. */
   watts: number;
+  /** PCIe power leads the PSU has (the `pcie` cable of docs/ACCEL.md): 0 for the small ones. */
+  pcieLeads: number;
 }
 
 export interface CoolerSpec extends SpecBase {
@@ -109,7 +114,21 @@ export interface NicSpec extends SpecBase {
   mbps: number;
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec;
+/** An accelerator card in a PCIe slot (docs/ACCEL.md): a GPU or an NPU. Its own regulator is folded into `heatFactor`; it draws from the PSU. */
+export interface CardSpec extends SpecBase {
+  kind: "gpu" | "npu";
+  /** It needs the PSU's PCIe power lead plugged in (the `pcie` cable). Required above `PCIE_SLOT_W`. */
+  needsPcieCable: boolean;
+  /** Leads it takes: 1 normally, 2 on the biggest card. */
+  pcieLeads?: number;
+}
+
+/** A TPM daughterboard on the board's header (slot `tpm`), no cable (docs/ACCEL.md). */
+export interface TpmSpec extends SpecBase {
+  kind: "tpm";
+}
+
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -151,11 +170,11 @@ const specList: DeviceSpec[] = [
     sizeBytes: 64 * 1024, latency: 4 },
 
   { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-basic", watts: 40 },
+    thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0 },
   { id: "psu1", kind: "psu", tier: 1, name: "PSU 100 W", slot: "atx", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-mid", watts: 100 },
+    thermal: inertThermal, visual: "psu-mid", watts: 100, pcieLeads: 0 },
   { id: "psu2", kind: "psu", tier: 2, name: "PSU 250 W (ATX+)", slot: "atx-plus", price: 250, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 250 },
+    thermal: inertThermal, visual: "psu-big", watts: 250, pcieLeads: 1 },
 
   { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },
@@ -289,12 +308,12 @@ export const BOARD_TIERS: readonly BoardTierSpec[] = [
     vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps },
     ramVrm: { phases: 2, ampsPerPhase: 8, peakEfficiency: 0.82, ripple: 0.45, mass: 22, passive: 0.2, ...vrmTemps } },
   { tier: 2, name: "Mainstream", price: 300, visual: "board-mainstream",
-    slots: { cpu: 1, dimm: 4, pcie: 3, sata: 4, m2: 2, usb: 3, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: { cpu: 1, dimm: 4, pcie: 3, sata: 4, m2: 2, usb: 3, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 100, usbPorts: 3, displayPorts: 2 },
     vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps },
     ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps } },
   { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
-    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 8, m2: 3, usb: 4, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
+    slots: { cpu: 1, dimm: 8, pcie: 4, sata: 8, m2: 3, usb: 4, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
     vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps },
     ramVrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.9, ripple: 0.1, mass: 45, passive: 0.4, ...vrmTemps } },

@@ -12,7 +12,7 @@ export type ShopKind = DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp';
 /** One picture per category, so the inventory and the shop read without words. */
 export const KIND_ICON: Record<ShopKind, IconName> = {
   cpu: 'cpu', ram: 'memory', cooler: 'fan', psu: 'bolt', display: 'screen', storage: 'disk', board: 'board', case: 'case',
-  'vrm-sink': 'heatsink', 'ram-sink': 'wave', nic: 'net', os: 'layers', router: 'router', isp: 'globe',
+  'vrm-sink': 'heatsink', 'ram-sink': 'wave', nic: 'net', gpu: 'cpu', npu: 'cpu', tpm: 'lock', os: 'layers', router: 'router', isp: 'globe',
 };
 
 export const SHOP_ORDER: ShopKind[] = ['case', 'board', 'cpu', 'cooler', 'ram', 'psu', 'display', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'os', 'router', 'isp'];

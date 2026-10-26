@@ -24,6 +24,7 @@ export function fmtClock(c: number): string {
 export const KIND_LABEL: Record<DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard', case: 'Case',
   os: 'Operating system', 'vrm-sink': 'VRM cooling', 'ram-sink': 'Memory VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
+  gpu: 'Graphics card', npu: 'AI card', tpm: 'Secure module',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -157,6 +158,9 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
   'ram-sink': 'Fins that cool the memory regulator beside the RAM slots, so memory can run faster without overheating the supply.',
   storage: 'Keeps data between power-ups. Faster drives load the operating system and its jobs sooner.',
+  gpu: 'A graphics card: many small lanes that run the same instructions on different data. Not built yet.',
+  npu: 'An AI card that multiplies matrices in hardware. Not built yet.',
+  tpm: 'A secure module on the board header that measures and signs what the machine runs. Not built yet.',
   nic: 'A network card for an expansion slot. Plug the ethernet cable into its jack to reach the router: its speed replaces the speed of the board jack. Fast cards run hot.',
 };
 

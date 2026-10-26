@@ -1,6 +1,6 @@
 // Board model: pure data plus validation. A Board is plain JSON-serialisable data.
 
-import { BOARD_TIERS, CASE_TIERS, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
+import { BOARD_TIERS, CASE_TIERS, PCIE_SLOT_W, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -123,6 +123,9 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
         reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}` : `no free ${spec.slot} slot for ${spec.name} (${total} of ${total} used)`,
       };
     }
+  }
+  if ((spec.kind === "gpu" || spec.kind === "npu") && spec.loadW > PCIE_SLOT_W && !spec.needsPcieCable) {
+    return { ok: false, reason: `${spec.name} draws ${spec.loadW} W, more than a PCIe slot gives (${PCIE_SLOT_W} W): it needs the PCIe power cable` };
   }
   if (spec.kind === "psu") {
     const need = ratedLoadW(board);
