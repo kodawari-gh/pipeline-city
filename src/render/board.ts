@@ -694,7 +694,17 @@ export async function mountBoard(host: HTMLElement) {
   }
 
   // ---- props: tray, power button, the key in the USB port ----
+  /** The timers of the keys on the rack and in the port follow the sim's ticks (the sticks themselves are rebuilt only when something else changes). */
+  const refreshTimers = (s: Snapshot | null) => {
+    if (!s) return;
+    for (const o of propObjs()) {
+      if (!o.retime) continue;
+      const id = Number(o.id.slice(4)), k = s.plugged?.id === id ? s.plugged : s.tray.find((q) => q.id === id);
+      if (k) o.retime(k);
+    }
+  };
   function syncProps(s: Snapshot | null, force = false) {
+    refreshTimers(s);
     const powered = !!s?.powered, down = !!s?.power.tripped || !!s?.board?.burnt, error = s?.phase === 'error' || down;
     const notRead = !!s?.keyIgnored;
     // No key tray while the machine is being built: it appears once the PC can be powered on (and stays once it ever was).
@@ -797,6 +807,7 @@ export async function mountBoard(host: HTMLElement) {
     chromeBake.position.set(TRAY.x - 100, TRAY.y - 100);
     chromeBakeLayer.addChild(chromeBake);
     onZoom();
+    refreshTimers(s);
     if (s) live.setPlugged(!!s.plugged);
   }
 

@@ -7,7 +7,8 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
 
 import { CABLE_ROW_Y, CASE, MONITOR, OUTBOX, ROUTER_SPOT, TRAY, USB_PORT, setLayoutTier } from './layout';
-import { HANG_Y, pluggedKeyArt, trayKeyCentre } from './props';
+import { Graphics } from 'pixi.js';
+import { HANG_Y, KEY_LEN, KEY_LEN_PLUGGED, WORKLOAD_COLOURS, drawKeyTimer, keyTimerSpot, lanyardColour, pluggedKeyArt, trayKeyCentre } from './props';
 import type { KeySnap } from '../sim/game/game';
 import { roomBox, roomGeo } from './room';
 import { ENV_H, ENV_W, MAIL_S, OUT_K, POST_K, POSTING_FROM, SWAY, buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, outKeyPose, outLetterPose, outboxSlot, setLetter, swayAngle, swayStep, type SwayState } from './mail';
@@ -119,5 +120,31 @@ describe('the key in the USB port', () => {
     expect(o.vec.parent).not.toBe(o.node);       // inside a wrapper...
     expect(o.vec.parent!.parent).toBe(o.node);
     expect(o.vec.parent!.mask).toBeTruthy();   // ...which carries the mask
+  });
+});
+
+describe('the key: lanyard for the workload, a dial for the time', () => {
+  const key = (o: Partial<KeySnap>) => ({ id: 1, label: '#1 log', template: 'cli.log', type: 'log', jobNo: 1, arrivalTick: 0, deadlineTick: 100, age: 0, late: false, done: false, result: '', stage: 'tray', cls: 'cli', ...o }) as unknown as KeySnap;
+
+  it('every workload kind has its own lanyard colour (an unknown one a neutral)', () => {
+    const cols = Object.values(WORKLOAD_COLOURS);
+    expect(new Set(cols).size).toBe(cols.length);
+    for (const t of ['log', 'calc', 'checksum', 'scan', 'db', 'web', 'secure', 'gpu', 'npu', 'hpc']) expect(WORKLOAD_COLOURS[t], t).toBeTruthy();
+    expect(lanyardColour(key({ type: 'db' }))).toBe(WORKLOAD_COLOURS.db);
+    expect(lanyardColour(key({ type: 'zzz' }))).toMatch(/^#/);
+  });
+
+  it.each([false, true])('the dial (compact %s) sits inside the stick body, clear of the keyring and the collar', (compact) => {
+    const sp = keyTimerSpot(compact), half = (compact ? KEY_LEN_PLUGGED : KEY_LEN) / 2, plugL = compact ? 200 : 220;
+    expect(sp.x - sp.r).toBeGreaterThan(-half + 102);                     // east of the keyring cap and the text's start
+    expect(sp.x + sp.r).toBeLessThan(half - plugL - 54);                  // west of the collar band
+    expect(sp.r).toBeLessThan(230 / 2 - 10);                              // and inside the body's height
+  });
+
+  it('the dial is eaten as the age runs, ends empty when late, and a key with its result has none', () => {
+    const g = new Graphics(), draw = (o: Partial<KeySnap>) => { drawKeyTimer(g, DARK, key(o), false); return g.context.instructions.length; };
+    const fresh = draw({ age: 0 }), half = draw({ age: 50 }), late = draw({ age: 120, late: true }), done = draw({ done: true });
+    expect(fresh).toBeGreaterThan(0); expect(half).toBeGreaterThan(0); expect(late).toBeGreaterThan(0);
+    expect(done).toBe(0);
   });
 });
