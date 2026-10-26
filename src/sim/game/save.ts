@@ -150,6 +150,8 @@ export interface SaveV4 {
   firstBootTick?: number | null;
   /** Sandbox game (docs/SANDBOX.md). Optional and additive: absent means a campaign game; written only when true. */
   sandbox?: boolean;
+  /** The guided tutorial's per-viewer state (skipped, acks...), attached by the UI so a loaded save resumes it. Opaque to the sim; sanitised by the UI. */
+  tutorial?: unknown;
   /**
    * Client base score and the derived level (docs/PROGRESSION.md). Optional and additive, no version bump: a save without
    * `clientBase` gets `completed * 1.1` on load (the level is derived from the score, `level` is informational).

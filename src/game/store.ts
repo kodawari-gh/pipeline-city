@@ -16,6 +16,12 @@ export const autosaveOffer = signal<SaveV1 | null>(null);
 const AUTOSAVE_KEY = 'pipeline-city.autosave';
 const AUTOSAVE_EVERY_MS = 10_000;
 
+/** UI hooks, set by `ui/state.ts`: add per-viewer state (the tutorial's) to every save, and take it back from a loaded one. */
+export const saveHooks = {
+  attach: (s: SaveV1): SaveV1 => s,
+  restore: (_s: SaveV1): void => {},
+};
+
 let worker: Worker | null = null;
 let autosaveTimer: ReturnType<typeof setInterval> | undefined;
 let saveWaiters: Array<(s: SaveV1) => void> = [];
@@ -24,6 +30,7 @@ const send = (m: ToSim) => worker?.postMessage(m);
 
 /** (Re)start the worker with a save, or a new random game. */
 export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preassembled?: boolean; maxed?: boolean } = {}) {
+  if (save) saveHooks.restore(save);
   worker?.terminate();
   clearInterval(autosaveTimer);
   saveWaiters = [];
@@ -41,7 +48,8 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
     else if (m.type === 'saved') {
       const waiters = saveWaiters;
       saveWaiters = [];
-      waiters.forEach((f) => f(m.save));
+      const save = saveHooks.attach(m.save);
+      waiters.forEach((f) => f(save));
     }
   };
   send({ type: 'init', save, seed: (Math.random() * 0x100000000) >>> 0, sandbox: !!opts.sandbox, preassembled: !!opts.preassembled, maxed: !!opts.maxed });

@@ -1,14 +1,15 @@
 // UI-only signals: theme, the stats panel, hint toasts, the guided tutorial's per-viewer state.
 // Everything persisted is per-viewer (localStorage) and wrapped in try/catch. The tutorial's progress itself comes
-// from the snapshot's `progress` flags, so it survives a save/load; localStorage only remembers skip/finish/replay.
+// from the snapshot's `progress` flags; skip/finish/replay/acks live here and are also written into every save
+// (`saveHooks`), so loading a save restores them. localStorage is the copy for the running game.
 
 import { effect, signal } from '@preact/signals';
 import { selected } from '../game/hover';
-import { snapshot, speed, togglePause } from '../game/store';
+import { saveHooks, snapshot, speed, togglePause } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
 import { celebrationFor, reconcileSeen, type Celebration } from './levelui';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
-import { currentStep, INITIAL_TUTORIAL, resumeState, type TutorialState } from './tutorial';
+import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from './tutorial';
 
 const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';
@@ -112,7 +113,10 @@ function setTutorial(next: TutorialState) {
   tutorial.value = next;
   writeStore(TUTORIAL_KEY, JSON.stringify(next));
 }
-/** The welcome card's Start button. */
+// The tutorial state travels inside every save, so a loaded save resumes it (also on another browser or after another game).
+saveHooks.attach = (save) => ({ ...save, tutorial: tutorial.peek() });
+saveHooks.restore = (save) => setTutorial(tutorialForSave(save.tutorial, save.progress));
+
 /** A new campaign asks whether the player wants the tutorial: yes starts it from the welcome card, no hides it (the menu replays it). */
 export const resetTutorial = (wanted: boolean) => setTutorial(wanted ? { ...INITIAL_TUTORIAL } : { ...INITIAL_TUTORIAL, skipped: true });
 export const startTutorial = () => setTutorial({ ...tutorial.value, welcomed: true });

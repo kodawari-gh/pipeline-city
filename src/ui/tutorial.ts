@@ -469,6 +469,20 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
   }
 }
 
+/** Milestones added with the OS and network lessons: any of them set means the player took those lessons. */
+const LESSON_FLAGS: Array<keyof Progress> = ['storageInstalled', 'osInstalled', 'firstOsJob', 'ispBought', 'routerInstalled', 'lanConnected', 'linkUp', 'firstNetJob'];
+
+/**
+ * The tutorial state for a loaded save: the one saved with it, else (an older save) derived from its flags. A save with
+ * every first-lesson flag and none of the later ones is a legacy finish: not welcomed, so it gets the OS offer.
+ */
+export function tutorialForSave(raw: unknown, p: Progress): TutorialState {
+  if (raw && typeof raw === 'object') return resumeState(raw);
+  const osLesson = LESSON_FLAGS.some((f) => p[f]);
+  const legacy = !osLesson && OLD_FLAGS.every((f) => p[f]);
+  return { ...INITIAL_TUTORIAL, welcomed: anyFlag(p) && !legacy, osLesson, offered: osLesson };
+}
+
 export function resumeState(raw: unknown): TutorialState {
   const o = (raw ?? {}) as Partial<TutorialState>;
   const r = o.replay;

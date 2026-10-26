@@ -4,7 +4,7 @@ import type { Progress } from '../sim/game/save';
 import { newProgress } from '../sim/game/save';
 import {
   currentStep, effectiveProgress, INITIAL_TUTORIAL, legacyFinished, offerNextLesson, resumeState, STEPS, stepCount,
-  stepProblem, type TutorialState,
+  stepProblem, tutorialForSave, type TutorialState,
 } from './tutorial';
 import { describeId } from './logic';
 import { boardSnap, dev, key, snap, STARTER_CRATE } from './testdata';
@@ -578,5 +578,32 @@ describe('persisted tutorial state', () => {
 
   it('a state saved before the OS lesson existed reads as not having it', () => {
     expect(resumeState({ welcomed: true, finished: true })).toEqual({ ...INITIAL_TUTORIAL, welcomed: true, finished: true });
+  });
+});
+
+describe('tutorial state in a save', () => {
+  it('a state stored in the save wins (skipped, acks, replay baseline)', () => {
+    const saved = { ...INITIAL_TUTORIAL, welcomed: true, skipped: true, acks: ['money'], replay: { completed: 2, owned: 5 } };
+    expect(tutorialForSave(saved, newProgress(false))).toEqual(saved);
+  });
+
+  it('an older save mid-OS-lesson resumes the lesson instead of offering it', () => {
+    const p = { ...oldDone(), storageInstalled: true };
+    const st = tutorialForSave(undefined, p);
+    expect(st).toMatchObject({ welcomed: true, osLesson: true, offered: true });
+    expect(legacyFinished(snap({ progress: p }), st)).toBe(false);
+    expect(offerNextLesson(snap({ progress: p }), st)).toBe(false);
+  });
+
+  it('an older save mid-way through the first lesson resumes without the welcome card', () => {
+    const st = tutorialForSave(undefined, oldUpTo(6));
+    expect(st.welcomed).toBe(true);
+    expect(idOf(currentStep(snap({ progress: oldUpTo(6) }), st))).not.toBe('welcome');
+  });
+
+  it('an older save that finished the first lesson still gets the OS offer; a blank one starts at the welcome', () => {
+    const done = snap({ progress: oldDone() });
+    expect(offerNextLesson(done, tutorialForSave(undefined, oldDone()))).toBe(true);
+    expect(idOf(currentStep(snap(), tutorialForSave(undefined, newProgress(false))))).toBe('welcome');
   });
 });
