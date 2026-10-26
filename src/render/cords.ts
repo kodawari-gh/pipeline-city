@@ -61,6 +61,9 @@ export class CordsView {
   private T!: Theme;
   private plan: Record<CordKind, CordPlan> | null = null;
   private key = '';
+  private last: { connected: Record<CordKind, boolean>; held: { kind: CordKind; at: Pt } | null } | null = null;
+  /** Changes whenever a cord's state or a plug's place does (the power lens rebuilds its model on it). */
+  get stateKey() { return this.key; }
 
   constructor() { this.behind.addChild(this.gb); this.root.addChild(this.gf); }
 
@@ -81,10 +84,21 @@ export class CordsView {
       return { kind: k, connected: connected[k] && !isHeld, held: isHeld, plug: plugRect(at), outlet: pl.outlet, outletRect: { x: pl.outlet[0] - 300, y: pl.outlet[1] - 300, w: 600, h: 600 }, rest: pl.rest } satisfies CordScene;
     });
     this.hits = scene.cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug }));
+    this.last = { connected: { ...connected }, held };
     if (key === this.key) return false;
     this.key = key;
     this.draw(connected, held);
     return true;
+  }
+
+  /** The cords as the power lens needs them: where each plug is and the cord from its machine to it. */
+  lensCords(): { kind: CordKind; connected: boolean; plugAt: Pt; route: Pt[]; outlet: Pt }[] {
+    if (!this.plan || !this.last) return [];
+    const { connected, held } = this.last;
+    return CORD_KINDS.map((k) => {
+      const pl = this.plan![k], isHeld = held?.kind === k, at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : pl.rest;
+      return { kind: k, connected: connected[k] && !isHeld, plugAt: at, route: cordRoute(pl, at), outlet: pl.outlet };
+    });
   }
 
   private draw(connected: Record<CordKind, boolean>, held: { kind: CordKind; at: Pt } | null) {

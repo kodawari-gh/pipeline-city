@@ -51,6 +51,7 @@ Looking-at-it tasks (`[human]`, real-browser and real-device checks) were droppe
 
 ## Later features (do not start without the owner)
 
+- [ ] T127 [owner] The power bill (owner 2026-10-26: wanted, not designed). Groundwork is in: the wall meters the machine's draw (`Snapshot.energy {wallW, wh}`, one tick counted as one game second) and the power lens shows it. Needs decisions: a rate and its tiers, when the bill is due and how it is paid, what an unpaid bill does, and a bill line in the HUD. Docs: `docs/GAME.md`, `docs/RENDER.md` "The power lens".
 - [ ] T50 [owner] Owner priority (2026-10-24): `web` jobs first; needs a design note in `docs/NETWORK.md` before automation. Job classes that never run yet: `web` (needs the network), `secure`/TPM, `gpu`, `npu`, `hpc`. Build the devices, then make the classes runnable. Design note done (T58); build tasks T60 to T66 (W3 and W4 accepted 2026-10-24). Left open for `hpc` only.
 - [ ] T51 [owner] GPU with its own ISA (the `pcie` cable type is reserved), NPU, TPM as a header slot on Mainstream and up. Design note done (T59, `docs/ACCEL.md`); build tasks T67 to T84, to run after T60 to T66 (owner 2026-10-24).
 - [ ] T52 [owner] (design note: T86) OS tiers 2 and 3 (cooperative multitasking, preemptive concurrency) as locked "later" entries; the program-slot count is a data field the kernel respects.

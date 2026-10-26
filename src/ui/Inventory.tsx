@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '../sim/game/game';
-import { selected } from '../game/hover';
+import { powerLens, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
 import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from './logic';
 import { Icon } from './Icons';
@@ -44,9 +44,20 @@ function ShopButton() {
   );
 }
 
+/** The power lens switch: dims the room and lights where power must be linked and where it flows (the P key does the same). */
+function LensButton() {
+  const on = powerLens.value;
+  return (
+    <button class={`invbtn ${on ? 'on' : ''} ${!on && highlight.value.includes('hud:lens') ? 'pulse' : ''}`} data-hud="lens" aria-pressed={on} aria-label="Power lens" title="Power lens (P): see where power must be plugged in and where it flows" onClick={() => { powerLens.value = !powerLens.value; }}>
+      <Icon name="bolt" size={14} />
+      <span class="hide-narrow">Power</span>
+    </button>
+  );
+}
+
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /></div>;
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */

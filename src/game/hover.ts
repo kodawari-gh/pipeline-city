@@ -10,5 +10,8 @@ export const hover = signal<Hover | null>(null);
 export interface Inset { top: number; right: number; bottom: number; left: number }
 export const viewInset = signal<Inset>({ top: 0, right: 0, bottom: 0, left: 0 });
 
+// The power lens (docs/RENDER.md "The power lens"): the UI's button and the P key write it, the renderer draws it.
+export const powerLens = signal(false);
+
 // Set by the UI when a board element is clicked (render writes, ui reads).
 export const selected = signal<string | null>(null);

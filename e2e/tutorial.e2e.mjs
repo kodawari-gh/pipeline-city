@@ -20,7 +20,7 @@ const SPEED = Number(process.env.SPEED || 12);
 const SHOTS = new URL('./shots/', import.meta.url);
 mkdirSync(SHOTS, { recursive: true });
 
-const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
+const EXPECTED = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'wall', 'plugKey', 'watch', 'money', 'reputation', 'level', 'cycle', 'spend',
   'fit', 'reachLevel3', 'buyDrive', 'drive', 'buyRam', 'fitRam', 'buyOs', 'os', 'bootOs', 'osIngest', 'osPaid',
   'reachLevel4', 'buyIsp', 'buyRouter', 'placeRouter', 'buyCase', 'fitCase', 'buyBoard', 'fitBoard', 'plugLan', 'linkUp', 'firstNetJob', 'done'];
 // A player may already be past these when they come up (the level is reached while the OS lesson runs).
@@ -241,6 +241,10 @@ for (let i = 0; i < 1500; i++) {
       break; }
     case 'cables': {
       const next = ['atx', 'cpu', 'video'].find((k) => !s.cables.find((c) => c.id === k)?.connected);
+      if (next) await dragCable(next);
+      break; }
+    case 'wall': {
+      const next = ['pcmains', 'monmains'].find((k) => !s.cables.find((c) => c.id === k)?.connected);
       if (next) await dragCable(next);
       break; }
     case 'plugKey': case 'cycle': case 'osIngest': {

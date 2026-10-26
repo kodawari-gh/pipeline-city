@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
-import { hover, viewInset, type Inset } from '../game/hover';
+import { hover, powerLens, viewInset, type Inset } from '../game/hover';
 import { cameraRev, dragging, highlight } from '../game/interaction';
 import { snapshot, speed } from '../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/board/specs';
@@ -13,6 +13,7 @@ import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, typ
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
 import { CordsView, type CordKind } from './cords';
+import { PowerLens, lensModel } from './lens';
 import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
@@ -165,6 +166,8 @@ export async function mountBoard(host: HTMLElement) {
   net.silhouette = (art, rect) => liveShape(art, rect);
   /** The two cords from the wall (the PC's and the monitor's): their bodies run behind the desk, their plugs are external and drawn at every zoom. */
   const cords = new CordsView();
+  /** The power lens: the room dimmed and the electrical map lit over it (`powerLens`). */
+  const lens = new PowerLens();
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();
@@ -206,7 +209,7 @@ export async function mountBoard(host: HTMLElement) {
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
   const outLedG = new Graphics();
   const mailBack = new Container(), mailMid = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, a finished key on its way into one, its pocket and flap over them
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, cords.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, cords.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, lens.root, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -796,6 +799,21 @@ export async function mountBoard(host: HTMLElement) {
     }
   }
 
+  // ---- the power lens (lens.ts): the model is rebuilt when the snapshot or a plug changes, only while the lens is on ----
+  let lensKey: unknown = null;
+  const lensFrame = (gdt: number) => {
+    const on = powerLens.peek() && !!lastSnap && !!roomView;
+    if (on) {
+      const k = [lastSnap, cords.stateKey];
+      if (!lensKey || (lensKey as unknown[])[0] !== k[0] || (lensKey as unknown[])[1] !== k[1]) {
+        lensKey = k;
+        lens.setTheme(T);
+        lens.setModel(lensModel({ s: lastSnap!, cords: cords.lensCords(), cables: ALL_CABLES, slots: scene.slots, monitor: scene.rects.get('monitor') ?? MONITOR }));
+      }
+    } else lensKey = null;
+    lens.frame(on, { x: camera.x, y: camera.y, z: camera.z, cx: camera.cx, cy: camera.cy, w: camera.w, h: camera.h }, gdt, performance.now());
+  };
+
   // ---- props: tray, power button, the key in the USB port ----
   /** The timers of the keys on the rack and in the port follow the sim's ticks (the sticks themselves are rebuilt only when something else changes). */
   const refreshTimers = (s: Snapshot | null) => {
@@ -954,7 +972,7 @@ export async function mountBoard(host: HTMLElement) {
     fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
     if (toOverview) camera.flyTo(fits, 450); else camera.apply();
   };
-  camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : flyToBoard());
+  camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : k === 'lens' ? (powerLens.value = !powerLens.value) : flyToBoard());
 
   // ---- hit testing: hover and click write the shared signals ----
   // A target is what is drawn (its silhouette), and a small or thin one is grown on screen to a size a finger or a mouse can find (`pick`, shape.ts)
@@ -1115,6 +1133,7 @@ export async function mountBoard(host: HTMLElement) {
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
     syncCords(lastSnap);
+    lensFrame(gdt);
     net.frame(gt, gdt);
     // the remove cue on a finished key: game clock, scaled up as the camera moves out so it stays readable
     const cueK = Math.min(2.6, Math.max(1, fits.z / Math.max(1e-6, camera.z)));

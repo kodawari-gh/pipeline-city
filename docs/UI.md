@@ -114,6 +114,7 @@ The step is derived from the snapshot's sticky `progress` flags (`src/sim/game/s
 | - | Welcome (Start): open the inventory (the box at the bottom) | button | `inventory` |
 | Build | `cpu`, `cooler`, `ram`, `psu`, `monitor` | `cpuInstalled`, `coolerInstalled`, `ramInstalled`, `psuInstalled`, `monitorInstalled` | `inv:<part>` and its socket |
 | Build | `cables`: the three plugs (main power, processor power, video) in one step | all of `atxConnected`, `cpuPowerConnected`, `videoConnected` | the cables still loose and where they come from |
+| Build | `wall`: the PC's and the monitor's power cords into the wall socket under the desk (the cord first, then the monitor's; the socket is lit too) | `mainsConnected` (both cords plugged) | the loose cord, and the socket |
 | First jobs | `plugKey` | `firstKeyPlugged` | `usb`, the first key |
 | First jobs | `power` | `poweredOn` | `power` |
 | First jobs | `watch`: the key pops out by itself, pays, and the machine switches itself off | `firstKeyEjected` | `monitor` |

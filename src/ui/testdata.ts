@@ -87,6 +87,8 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
       { id: 'atx', name: '24-pin ATX power', connected: false, blocked: 'the power supply is not installed' },
       { id: 'cpu', name: '8-pin CPU power', connected: false, blocked: 'the power supply is not installed' },
       { id: 'video', name: 'Video cable', connected: false, blocked: 'the monitor is not installed' },
+      { id: 'pcmains', name: 'PC power cord', connected: false },
+      { id: 'monmains', name: 'Monitor power cord', connected: false },
     ] as Snapshot['cables'],
     tray: [], plugged: null, progress: NO_PROGRESS, log: [],
     storage: [], os: null, keyActivity: 'none',
