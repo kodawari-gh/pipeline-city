@@ -78,6 +78,10 @@ export interface PowerReport {
   tripped: boolean;
 }
 
+/** Degrees C the case air warms for every watt a GPU or NPU card draws (docs/ACCEL.md "Case heat"): a 180 W card warms the other parts by 9. */
+export const CASE_HEAT_C_PER_W = 0.05;
+const isCard = (kind: DeviceKind): boolean => kind === "gpu" || kind === "npu";
+
 export type Loads = Partial<Record<DeviceKind, number>>;
 
 export class ThermalModel {
@@ -86,6 +90,8 @@ export class ThermalModel {
   /** The memory regulator live state. */
   ramVrm: VrmThermal = freshVrm();
   power: PowerReport = { totalW: 0, vrmLossW: 0, budgetW: 0, psuFactor: 1, off: true, tripped: false };
+  /** How much warmer the case air is than the room because of the cards (last tick), C. */
+  caseRiseC = 0;
 
   constructor(private readonly prng: Prng) {}
 
@@ -168,7 +174,7 @@ export class ThermalModel {
     const powerOf = (d: InstalledDevice, psuFactor: number): { w: number; clk: number } => {
       const spec = deviceSpec(d);
       if (!live || d.burnt) return { w: 0, clk: 0 };
-      if (spec.kind === "nic") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
+      if (spec.kind === "nic" || spec.kind === "npu" || spec.kind === "tpm") return { w: spec.idleW + (spec.loadW - spec.idleW) * load(d), clk: 0 };
       if (!spec.clock) {
         // Cooler fan follows CPU load; PSU draws nothing of its own in this model.
         return { w: spec.kind === "cooler" || spec.kind === "vrm-sink" || spec.kind === "ram-sink" ? spec.idleW + (spec.loadW - spec.idleW) * cpuLoad : 0, clk: 0 };
@@ -212,6 +218,12 @@ export class ThermalModel {
     const ramNow = ramAt(effLive ? psuFactor : 1);
     let drawn = effLive ? vrmNow.loss + ramNow.loss : 0;
 
+    // Case heat (docs/ACCEL.md): a working card warms the air every other part breathes, CASE_HEAT_C_PER_W degrees per watt it draws.
+    let cardW = 0;
+    if (effLive) for (const d of board.devices) if (isCard(deviceSpec(d).kind) && !d.burnt) cardW += powerOf(d, psuFactor).w;
+    const caseRiseC = CASE_HEAT_C_PER_W * cardW;
+    this.caseRiseC = caseRiseC;
+
     const cooler = findDevices(board, "cooler").find((d) => !d.burnt);
     const coolerK = effLive && cooler ? (deviceSpec(cooler) as { coolingPerC: number }).coolingPerC : 0;
 
@@ -224,7 +236,7 @@ export class ThermalModel {
       const k = spec.thermal.passive + (spec.kind === "cpu" ? coolerK : 0);
       st.powerW = p.w;
       st.heatW = heat;
-      st.tempC += (heat - k * (st.tempC - AMBIENT_C)) / spec.thermal.mass;
+      st.tempC += (heat - k * (st.tempC - (AMBIENT_C + (isCard(spec.kind) ? 0 : caseRiseC)))) / spec.thermal.mass;
       st.effClock = p.clk;
       st.throttle = therm.get(d.id)!;
       st.unstable = !d.burnt && st.tempC > spec.thermal.unstableC;
@@ -233,18 +245,18 @@ export class ThermalModel {
       else st.stress = Math.max(0, st.stress - 1);
       if (st.stress >= DAMAGE_TICKS && !d.burnt) d.burnt = true;
     }
-    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink");
-    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink");
+    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink", caseRiseC);
+    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink", caseRiseC);
     this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss + ramNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
   }
 
-  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink"): void {
+  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink", caseRiseC: number): void {
     const sink = live ? findDevices(board, sinkKind).find((d) => !d.burnt) : undefined;
     const cooler = live ? findDevices(board, "cooler").find((d) => !d.burnt) : undefined;
     const sinkK = sink ? (deviceSpec(sink) as { coolingPerC: number }).coolingPerC : 0;
     const airK = cooler ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC : 0;
     v.heatW = now.loss;
-    v.tempC += (now.loss - (vspec.passive + sinkK + airK) * (v.tempC - AMBIENT_C)) / vspec.mass;
+    v.tempC += (now.loss - (vspec.passive + sinkK + airK) * (v.tempC - AMBIENT_C - caseRiseC)) / vspec.mass;
     v.loadRatio = now.ratio;
     v.efficiency = now.eff;
     v.throttle = throttle;

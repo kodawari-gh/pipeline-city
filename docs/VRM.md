@@ -41,6 +41,7 @@ efficiency  = clamp(peak - light - heavy, 0.4, peak)
 lossW       = P * (1 / efficiency - 1)        heat made in the VRM
 total draw  = ... + P + lossW                 (the loss is drawn from the PSU like any other part)
 T          += (lossW - (passive + sinkK + airK) * (T - ambient)) / mass
+# ambient = room + case rise: 0.05 C per watt a GPU or NPU card draws (docs/ACCEL.md), 0 with no card
 ```
 
 `passive` is the spec's own cooling to the case; `sinkK` is the installed VRM heatsink's `coolingPerC` (0 with none); `airK` is the installed CPU cooler's `vrmAirPerC` (an air cooler blows over the VRM, **a liquid cooler gives 0**; a burnt cooler gives 0). `sinkK` and `airK` apply only while the machine is powered.

@@ -7,6 +7,7 @@ import {
   BOARD_TIERS, boardSlots, createBoard, findDevices, install, setClock, ThermalModel, upgradeBoard, type Board,
 } from "./index";
 import { ECONOMY } from "../game/economy";
+import { DEVICE_SPECS, type DeviceSpec } from "./specs";
 
 // These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
 ECONOMY.levelGating = false;
@@ -314,3 +315,70 @@ describe("the game around the VRM", () => {
 });
 
 void findDevices;
+
+describe("cards in the case (docs/ACCEL.md)", () => {
+  const cpuTemp = (b: Board, th: ThermalModel) => th.state(findDevices(b, "cpu")[0]!.id)!.tempC;
+  const settle = (b: Board, loads: Record<string, number>, ticks = 400) => {
+    const th = new ThermalModel(new Prng(1));
+    for (let k = 0; k < ticks; k++) th.step(b, loads);
+    return th;
+  };
+  const withCard = (card: string, psu = "psu3") => { const b = rig(3, "cpu1", { psu, cooler: "cooler1" }); ok(install(b, card)); return b; };
+
+  it("a 180 W card warms the CPU by about 9 degrees without a case fan", () => {
+    // gpu3 is a later tier (T80): stand in for it with the table's numbers.
+    const gpu3 = { ...DEVICE_SPECS.gpu1!, id: "gpu3t", loadW: 180, idleW: 12, thermal: { ...DEVICE_SPECS.gpu1!.thermal, passive: 6 } } as DeviceSpec;
+    (DEVICE_SPECS as Record<string, DeviceSpec>).gpu3t = gpu3;
+    try {
+      const bare = rig(3, "cpu1", { psu: "psu3", cooler: "cooler1" });
+      const base = cpuTemp(bare, settle(bare, { cpu: 1, gpu: 1 }));
+      const card = withCard("gpu3t");
+      const th = settle(card, { cpu: 1, gpu: 1 });
+      expect(th.caseRiseC).toBeCloseTo(9, 0);
+      expect(cpuTemp(card, th) - base).toBeGreaterThan(8);
+      expect(cpuTemp(card, th) - base).toBeLessThan(10);
+    } finally { delete (DEVICE_SPECS as Record<string, DeviceSpec>).gpu3t; }
+  });
+
+  it("the card itself is not warmed by its own heat, only by its own load; no card, no rise", () => {
+    const bare = rig(3, "cpu1", { psu: "psu3" });
+    expect(settle(bare, { cpu: 1 }, 50).caseRiseC).toBe(0);
+    const b = withCard("gpu1");
+    const idle = settle(b, {}, 50);
+    expect(idle.caseRiseC).toBeCloseTo(0.05 * 4 * 1, 1); // idle watts only, until something drives it
+    const busy = settle(b, { gpu: 1 }, 50);
+    expect(busy.caseRiseC).toBeGreaterThan(idle.caseRiseC);
+  });
+
+  it("the card throttles like a CPU when it runs hot, and burns when far over", () => {
+    const b = withCard("gpu1");
+    const dev = findDevices(b, "gpu")[0]!;
+    ok(setClock(b, dev.id, 3));
+    const th = new ThermalModel(new Prng(1));
+    for (let k = 0; k < 600 && !dev.burnt; k++) th.step(b, { gpu: 1, cpu: 1 });
+    const st = th.state(dev.id)!;
+    expect(st.tempC).toBeGreaterThan(80); // past its throttle point
+    expect(st.throttle).toBeLessThan(1);
+  });
+
+  it("the card's watts count against the PSU: an overclocked card can brown out a small supply", () => {
+    (DEVICE_SPECS as Record<string, DeviceSpec>).gpuCool = { ...DEVICE_SPECS.gpu1!, id: "gpuCool", thermal: { ...DEVICE_SPECS.gpu1!.thermal, passive: 8 } } as DeviceSpec;
+    const mk = () => { const b = rig(3, "cpu0", { psu: "psu1", cooler: "cooler0" }); ok(install(b, "gpuCool")); return b; };
+    const calm = mk();
+    expect(settle(calm, { gpu: 1, cpu: 1 }, 20).power.psuFactor).toBe(1);
+    const hot = mk();
+    ok(setClock(hot, findDevices(hot, "gpu")[0]!.id, 3));
+    const th = settle(hot, { gpu: 1, cpu: 1 }, 20);
+    expect(th.power.psuFactor).toBeLessThan(1);
+    delete (DEVICE_SPECS as Record<string, DeviceSpec>).gpuCool;
+  });
+
+  it("an NPU or a TPM draws its watts too (they have no clock)", () => {
+    const b = withCard("npu1");
+    const th = settle(b, { npu: 1 }, 20);
+    expect(th.state(findDevices(b, "npu")[0]!.id)!.powerW).toBeCloseTo(15, 5);
+    ok(install(b, "tpm1"));
+    const th2 = settle(b, {}, 5);
+    expect(th2.state(findDevices(b, "tpm")[0]!.id)!.powerW).toBeCloseTo(0.2, 5);
+  });
+});

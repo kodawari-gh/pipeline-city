@@ -78,6 +78,7 @@ Only `secure` is gated: its arrival is refused (not queued) without a TPM, with 
 - **Slot power cap:** a card with `loadW > 75` must have `needsPcieCable` (all GPUs; `npu2`). The PSU rule counts the card's `loadW` in the rated load as today.
 - **Case heat:** card heat raises the ambient for other parts by a small amount (`ambientRiseC = 0.05 x card W`), so a 180 W `gpu3` warms the CPU by about 9 degrees without case fans (`fan1`, planned level 7, offsets it). This is the one new thermal coupling.
 - **TPM:** under 1 W, ignored by the VRM, counted in the PSU sum.
+- **Built (T71):** `ThermalModel` draws a GPU through the clocked path (its clock scales its watts and its throttle, like a CPU) and an NPU or TPM at `idleW + (loadW - idleW) x load` like a NIC. The accelerator load defaults to 0 (idle) until a device drives it. `CASE_HEAT_C_PER_W` (0.05) times the watts of the working cards is `th.caseRiseC`, added to the ambient of every non-card part and of both VRMs; cards do not warm themselves. Tests: `vrm.test.ts` "cards in the case".
 
 ## Picker and board art
 
