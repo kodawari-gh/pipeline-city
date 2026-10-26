@@ -402,11 +402,15 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .inv-title { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
 .inv-title b { font-family: var(--mono); color: var(--accent); }
 .inv-hint { font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.inv-groups { display: flex; gap: 1rem; overflow-x: auto; padding: 0.4rem 0.4rem 0.4rem; scrollbar-width: thin; align-items: flex-start; min-height: 12.5rem; }
+.inv-groups { display: flex; gap: 1rem; overflow-x: auto; padding: 0.4rem 0.4rem 0.4rem; scrollbar-width: thin; align-items: flex-start; }
 .inv-group { flex: none; }
 .inv-gname { display: flex; align-items: center; gap: 0.3rem; font-size: 0.65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); font-weight: 600; margin: 0 0 0.3rem 0.15rem; }
 .inv-tiles { display: flex; gap: 0.5rem; }
-.inv-empty { font-size: 0.85rem; padding: 0.8rem 0.3rem; }
+/* Empty shelf: an invisible tile sets the height a stocked shelf has; the message sits over it. */
+.inv-empty { position: relative; font-size: 0.85rem; padding: 0.4rem; }
+.inv-empty .ghost { visibility: hidden; pointer-events: none; }
+.inv-empty .tart { height: 7rem; }
+.inv-empty .inv-msg { position: absolute; left: 0.4rem; top: 50%; transform: translateY(-50%); }
 .tile {
   position: relative; flex: none; width: 8rem; display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.5rem 0.4rem 0.55rem;
   border-radius: 0.8rem; border: 1px solid var(--glass-line); background: var(--glass-hi); cursor: grab; user-select: none; touch-action: none;

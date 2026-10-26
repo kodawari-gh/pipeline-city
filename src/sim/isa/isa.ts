@@ -7,7 +7,7 @@
 //   B: same as S; imm is a byte offset from the branch, multiple of 4
 //   U: rd[10:7] imm[31:11]              (21 bits; lui: rd = imm << 11)
 //   J: rd[10:7] imm[31:11]              (21-bit signed byte offset, multiple of 4)
-//   N: no operands (ecall)
+//   N: no operands (ecall, iret)
 
 export type Format = "R" | "I" | "S" | "B" | "U" | "J" | "N";
 
@@ -58,6 +58,8 @@ export const OPS: readonly OpSpec[] = [
   { name: "auipc", op: 0x39, fmt: "U" },
   { name: "jal", op: 0x40, fmt: "J" },
   { name: "ecall", op: 0x70, fmt: "N" },
+  // Return from an interrupt handler: pc = the interrupt controller's EPC, interrupts back on (docs/CPU.md).
+  { name: "iret", op: 0x71, fmt: "N" },
 ];
 
 export const SPEC_BY_NAME = new Map<string, OpSpec>(OPS.map((s) => [s.name, s]));

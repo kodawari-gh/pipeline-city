@@ -5,6 +5,7 @@ import { ClockScheduler, type Rate } from "./clock";
 import { RamDevice, type Device } from "./device";
 import { Display } from "./display";
 import type { Engine } from "./engine";
+import { Intc } from "./intc";
 import { Prng } from "./prng";
 
 export interface MachineConfig {
@@ -26,6 +27,8 @@ export class Machine {
   readonly prng: Prng;
   readonly display: Display;
   readonly status: RamDevice;
+  /** Interrupt controller, always on the bus at INTC_BASE. */
+  readonly intc = new Intc();
   engine: Engine | null = null;
 
   constructor(cfg: MachineConfig = {}) {
@@ -36,11 +39,38 @@ export class Machine {
     this.status = new RamDevice("status", STATUS_BASE, STATUS_SIZE);
     this.addDevice(this.display);
     this.addDevice(this.status);
+    this.addDevice(this.intc);
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
-    this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => {
-      const e = this.engine;
-      if (e && !e.halted) e.step();
-    });
+    this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
+  }
+
+  /** Cycles an interrupt has been deliverable and waiting for the pipeline to drain. */
+  private irqWait = 0;
+
+  /**
+   * One CPU cycle: take a deliverable interrupt if the engine is between instructions, otherwise stop fetching so it gets
+   * there (the pipeline drains, which is the interrupt latency), then step the engine. A handler starts at `intc.vector`
+   * and returns with `iret`. A halted engine (ecall) takes none.
+   */
+  stepCpu(): void {
+    const e = this.engine;
+    if (!e || e.halted) return;
+    if (e.drained !== undefined && e.holdFetch && e.redirect) {
+      const line = this.intc.next();
+      if (line < 0) {
+        e.holdFetch(false);
+        this.irqWait = 0;
+      } else if (e.drained) {
+        this.intc.enter(line, e.pc, this.irqWait);
+        e.redirect(this.intc.vector);
+        e.holdFetch(false);
+        this.irqWait = 0;
+      } else {
+        e.holdFetch(true);
+        this.irqWait++;
+      }
+    }
+    e.step();
   }
 
   /** Map a device on the bus; if it has clock settings it gets a domain named after it. */

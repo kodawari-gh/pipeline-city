@@ -14,6 +14,31 @@ export const DISPLAY_SIZE = 0x1000; // reserved window (cols*rows fits inside)
 export const STATUS_BASE = 0x4001_0000;
 export const STATUS_SIZE = 0x1000;
 
+// ---- Interrupt controller (docs/CPU.md "Interrupts"). Word registers, offsets from INTC_BASE.
+
+export const INTC_BASE = 0x4004_0000;
+export const INTC_SIZE = 0x100;
+export const INTC_REG = {
+  /** ro: lines raised and not yet acknowledged (bit n = line n). */
+  PENDING: 0x00,
+  /** rw: lines allowed to interrupt the CPU. Reset: 0. */
+  MASK: 0x04,
+  /** wo: write 1 bits to clear them in PENDING. */
+  ACK: 0x08,
+  /** rw: where the CPU jumps on an interrupt. */
+  VECTOR: 0x0c,
+  /** rw: where `iret` returns to (set by the CPU on entry: the next instruction the interrupted program would have run). */
+  EPC: 0x10,
+  /** ro: the line of the interrupt that was taken last. */
+  CAUSE: 0x14,
+  /** rw: bit0 = interrupts enabled. Cleared by the CPU on entry, set again by `iret`. Reset: 0. */
+  CTRL: 0x18,
+  /** ro: how many interrupts the CPU has taken. */
+  COUNT: 0x1c,
+} as const;
+/** Interrupt lines. The lowest pending line wins. */
+export const IRQ = { TIMER: 0, NIC: 1, DISK: 2, USB: 3 } as const;
+
 // ---- PCH (platform controller hub): boot ROM shadow, USB host controller, display control. See docs/ASSEMBLY.md.
 
 /** The boot ROM image is shadowed into RAM at address 0 at power-on; the CPU starts executing there. */

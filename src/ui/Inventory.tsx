@@ -166,7 +166,13 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
         <button class="close" aria-label="Close inventory" title="Close" onClick={toggleInventory}><Icon name="close" size={12} /></button>
       </header>
       {n === 0 ? (
-        <div class="inv-empty mute">No spare parts. Click a part on the board to buy an upgrade.</div>
+        <div class="inv-empty mute">
+          <div class="inv-group ghost" aria-hidden="true">
+            <div class="inv-gname">&nbsp;</div>
+            <div class="tile"><div class="tart" /><span class="tname">&nbsp;</span><span class="tmeta" /></div>
+          </div>
+          <span class="inv-msg">No spare parts. Click a part on the board to buy an upgrade.</span>
+        </div>
       ) : (
         <div class="inv-groups">
           {groups.map((g) => (
