@@ -14,7 +14,9 @@ export interface Ctx { g: Graphics; labels: Container; T: Theme; P: Palette; tie
 
 /** A soft drop shadow under a part that stands off the board. */
 export function shadow(c: Ctx, x: number, y: number, w: number, h: number, r: number, off = 12, a = 0.28) {
-  box(c.g, x + off, y + off * 1.3, w, h, r, { fill: '#000000', fa: c.T.dark ? a : a * 0.5 });
+  const k = c.T.dark ? 1 : 0.5, s = off * 0.9;
+  box(c.g, x + off * 0.6 - s, y + off * 1.1 - s, w + 2 * s, h + 2 * s, r + s, { fill: '#000000', fa: a * 0.4 * k }); // the soft penumbra
+  box(c.g, x + off, y + off * 1.3, w, h, r, { fill: '#000000', fa: a * k });                                       // the tight core
 }
 
 /** Queue pads (small rects centred on the points) in the colour of the palette's plated copper. */

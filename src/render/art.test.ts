@@ -4,6 +4,9 @@ import { Container } from 'pixi.js';
 // The text goes through Pixi's Text, which needs a canvas: the art builders only need their Graphics, so labels are empty containers here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
+// gradient fills draw on a canvas, which the tests do not have
+vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
+
 import { BOARD_TIERS } from '../sim/board/specs';
 import { buildBoard } from './boardArt';
 import { bayArt, caseBack, caseGlass, sataCablePath, sataLinkArt, sataPowerArt } from './case';

@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/board/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng } from './layout';
 import { shieldSheet } from './ports';
-import { box, disc, label, mix } from './ink';
+import { box, disc, label, lgrad, mix } from './ink';
 import { IO_PORTS } from './boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './pins';
 import { tuneBump } from './match';
@@ -90,9 +90,12 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
 
   // ---- plate: a soft shadow on the tray, the substrate, an edge bevel (the mounting holes go on last, over any trim) ----
   box(g, BD.x + 22, BD.y + 34, BD.w, BD.h, 120, { fill: '#000000', fa: T.dark ? 0.32 : 0.14 });
-  box(g, BD.x, BD.y, BD.w, BD.h, 120, { fill: P.board, stroke: P.edge, lw: 12 });
+  // the solder mask: lit from the top left (the lamp's side), a little deeper toward the bottom right
+  g.roundRect(BD.x, BD.y, BD.w, BD.h, 120).fill(lgrad(mix(P.board, '#ffffff', T.dark ? 0.07 : 0.14), mix(P.board, '#000000', T.dark ? 0.26 : 0.1), [1, 1])).stroke({ width: 12, color: P.edge });
   box(g, BD.x + 70, BD.y + 70, BD.w - 140, BD.h - 140, 90, { stroke: P.edge, lw: 4, sa: 0.5 });
-  g.rect(BD.x + 130, BD.y + 14, BD.w - 260, 6).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.3 });
+  // the bevel: a lit edge on the top and west sides, a shaded one on the bottom and east
+  g.moveTo(BD.x + 120, BD.y + 9).lineTo(BD.x + BD.w - 120, BD.y + 9).moveTo(BD.x + 9, BD.y + 120).lineTo(BD.x + 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
+  g.moveTo(BD.x + 120, BD.y + BD.h - 9).lineTo(BD.x + BD.w - 120, BD.y + BD.h - 9).moveTo(BD.x + BD.w - 9, BD.y + 120).lineTo(BD.x + BD.w - 9, BD.y + BD.h - 120).stroke({ width: 7, color: '#000000', alpha: T.dark ? 0.3 : 0.16, cap: 'round' });
   // the better boards carry a little more: a trim line round the plate (Mainstream, Enthusiast) and a second line for the top tier;
   // drawn first, so every part sits over it (the holes clear it with their own ring)
   if (skin.trim >= 1) box(g, BD.x + 120, BD.y + 120, BD.w - 240, BD.h - 240, 70, { stroke: T.alu, lw: 5, sa: skin.trim >= 2 ? 0.3 : 0.16 });
@@ -301,6 +304,10 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       for (let y = k.y + 70; y <= k.y + k.h - 70; y += PKG_PIN) { g.rect(k.x + o - 5, y - 5, 10, 10); g.rect(k.x + k.w - o - 5, y - 5, 10, 10); }
     }
     g.fill({ color: T.pin, alpha: 0.4 });
+    // silkscreen corner brackets round the socket's keep-out, as a real board prints it
+    const kx0 = k.x - e - 74, ky0 = k.y - e - 74, kx1 = k.x + k.w + e + 74, ky1 = k.y + k.h + e + 74, bl = 130;
+    for (const [bx, by, sx, sy] of [[kx0, ky0, 1, 1], [kx1, ky0, -1, 1], [kx0, ky1, 1, -1], [kx1, ky1, -1, -1]] as const) g.moveTo(bx + sx * bl, by).lineTo(bx, by).lineTo(bx, by + sy * bl);
+    g.stroke({ width: 7, color: P.silkHi, alpha: 0.45, join: 'round', cap: 'round' });
     lbl('CPU_SOCKET · LGA-1337', k.x - e, k.y - e - 36, 38);
   }
 

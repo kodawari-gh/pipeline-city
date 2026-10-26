@@ -60,7 +60,7 @@ export interface Palette {
 
 export function makePalette(T: Theme): Palette {
   const mix = (a: string, b: string, t: number) => mixHex(a, b, t);
-  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(T.board, '#ffffff', 0.12);
+  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(mix(T.board, '#ffffff', 0.12), '#c9ddd0', 0.3); // the light board is a calm sage, not a teal wash
   return {
     board,
     edge: mix(board, T.line, T.dark ? 0.9 : 0.55),

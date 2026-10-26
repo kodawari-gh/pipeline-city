@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 
 import { currentTextResolution, registerLabel } from './camera';
 
@@ -56,6 +56,14 @@ export function label(
   registerLabel(t, o.a ?? 1, size, o.minPx);
   return t;
 }
+
+/** A linear gradient over the shape it fills (local space): `a` at the start, `b` at the end; (0,0) to (0,1) runs top to bottom. */
+export const lgrad = (a: string, b: string, to: [number, number] = [0, 1], from: [number, number] = [0, 0]) =>
+  new FillGradient({ type: 'linear', start: { x: from[0], y: from[1] }, end: { x: to[0], y: to[1] }, colorStops: [{ offset: 0, color: a }, { offset: 1, color: b }], textureSpace: 'local' });
+
+/** A radial gradient over the shape it fills (local space, stretched to its box): `inner` at the centre, `outer` at the edge. */
+export const rgrad = (inner: string, outer: string, centre: [number, number] = [0.5, 0.5], radius = 0.5) =>
+  new FillGradient({ type: 'radial', center: { x: centre[0], y: centre[1] }, innerRadius: 0, outerCenter: { x: centre[0], y: centre[1] }, outerRadius: radius, colorStops: [{ offset: 0, color: inner }, { offset: 1, color: outer }], textureSpace: 'local' });
 
 export function clear(c: Container): void {
   for (const ch of c.removeChildren()) ch.destroy({ children: true });

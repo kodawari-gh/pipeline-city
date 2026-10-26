@@ -8,7 +8,7 @@ import type { StorageSnap } from '../sim/game/game';
 import type { Snapshot } from '../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from './camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, cpuFanCableArt, emptyCellHint, sinkFanCableArt, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, cpuFanCableArt, emptyCellHint, sinkFanCableArt, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from './case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
@@ -212,6 +212,8 @@ export async function mountBoard(host: HTMLElement) {
   let deviceBake: Sprite | null = null;
   /** The case chassis (vector close up, one baked texture far out) and drive slide-in animations. */
   let caseVec: Container | null = null;
+  /** The glass's reflections: strong while the case is closed, a faint hint once it is open (they would streak across the board you are working on). */
+  let glassSheen: Container | null = null;
   let caseBake: Sprite | null = null;
   let builtOnce = false;
   /** True once the first scene exists (the camera is framed then). */
@@ -359,6 +361,7 @@ export async function mountBoard(host: HTMLElement) {
     extA = smooth(LOD.fadeFrom, LOD.fadeTo, camera.z / f) * (1 - reveal);
     exteriorCover = extA;
     exteriorLayer.alpha = extA;
+    if (glassSheen) glassSheen.alpha = 0.3 + 0.7 * extA;
     exteriorLayer.visible = extA > 0.004;
     // the glass side of the exterior is see-through, so the interior (baked far out) is always drawn; only its live work stops far out
     interior.visible = true;
@@ -463,7 +466,9 @@ export async function mountBoard(host: HTMLElement) {
     caseBake = new Sprite(app.renderer.generateTexture({ target: caseVec, frame: cf, resolution: 0.2, antialias: true }));
     caseBake.position.set(cf.x, cf.y);
     caseLayer.addChild(caseBake);
-    glassLayer.addChild(caseGlass(T));
+    glassLayer.addChild(caseShade(T));
+    glassSheen = caseGlass(T);
+    glassLayer.addChild(glassSheen);
 
     const targets: GlowTarget[] = [];
     const storageDevs: { id: string; spec: string; slot: string }[] = [];

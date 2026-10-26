@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { box, dashed, disc, label, mix } from './ink';
+import { box, disc, label, lgrad, mix, rgrad } from './ink';
 import { TIER_GEO, geoOf } from './boardlayout';
 import {
   BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
@@ -44,7 +44,13 @@ export function caseBack(T: Theme): Container {
   for (let k = 0; k < look.vents; k++) box(g, -1900 + k * 70, p.y + 120, 26, 170, 13, { fill: cav, fa: 0.9 });
   if (look.trim >= 1) g.rect(p.x + 40, p.y + p.h - 12, p.w - 80, 5).fill({ color: T.alu, alpha: look.trim >= 2 ? 0.5 : 0.28 });
   // cavity (behind the glass) and the PSU compartment
-  box(g, i.x, i.y, i.w, i.h, 36, { fill: cav, stroke: edge, lw: 6, sa: 0.8 });
+  g.roundRect(i.x, i.y, i.w, i.h, 36).fill(lgrad(mix(cav, '#ffffff', T.dark ? 0.07 : 0.12), mix(cav, '#000000', T.dark ? 0.3 : 0.1))).stroke({ width: 6, color: edge, alpha: 0.8 });
+  // the back panel's stamped ribs, and an inner shadow where the walls turn in (the cavity is a box, not a flat sheet)
+  for (let y = i.y + 300; y < i.y + i.h - 200; y += 380) g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  g.stroke({ width: 5, color: '#000000', alpha: T.dark ? 0.14 : 0.07 });
+  for (let y = i.y + 304; y < i.y + i.h - 200; y += 380) g.moveTo(i.x + 30, y).lineTo(i.x + i.w - 30, y);
+  g.stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.04 : 0.3 });
+  for (let k = 0; k < 7; k++) box(g, i.x + 8 + k * 14, i.y + 8 + k * 14, i.w - 16 - k * 28, i.h - 16 - k * 28, 30, { stroke: '#000000', lw: 16, sa: (T.dark ? 0.1 : 0.045) * (1 - k / 7) });
   const psuTop = PSU.y - 200;
   g.rect(i.x + 8, psuTop, i.w - 16, i.y + i.h - psuTop - 8).fill({ color: mix(cav, T.bg, 0.3), alpha: 0.5 });
   g.moveTo(i.x + 8, psuTop).lineTo(i.x + i.w - 8, psuTop).stroke({ width: 5, color: edge, alpha: 0.55 });
@@ -54,7 +60,9 @@ export function caseBack(T: Theme): Container {
   // every form factor the case takes (the installed board's holes sit over its own: they line up by construction) and a cable cut-out
   {
     const BD = CASE_BD, x0 = Math.max(BD.x - 110, i.x + 12), tr = { x: x0, y: BD.y - 110, w: BD.x + BD.w + 110 - x0, h: BD.h + 220 }, tone = mix(cav, wall, T.dark ? 0.32 : 0.45);
-    box(g, tr.x, tr.y, tr.w, tr.h, 120, { fill: tone, stroke: edge, lw: 6, sa: 0.55 });
+    box(g, tr.x + 14, tr.y + 24, tr.w, tr.h, 120, { fill: '#000000', fa: T.dark ? 0.28 : 0.1 }); // the tray stands off the back panel
+    g.roundRect(tr.x, tr.y, tr.w, tr.h, 120).fill(lgrad(mix(tone, '#ffffff', T.dark ? 0.08 : 0.16), mix(tone, '#000000', T.dark ? 0.18 : 0.08))).stroke({ width: 6, color: edge, alpha: 0.55 });
+    g.moveTo(tr.x + 110, tr.y + 8).lineTo(tr.x + tr.w - 110, tr.y + 8).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + 60; y < tr.y + 190; y += 80) g.circle(x, y, 14);
     for (let x = tr.x + 90; x < tr.x + tr.w - 60; x += 90) for (let y = tr.y + tr.h - 190; y < tr.y + tr.h - 50; y += 80) g.circle(x, y, 14);
     g.fill({ color: cav, alpha: 0.9 });
@@ -366,23 +374,58 @@ export function caseGlass(T: Theme): Container {
   return root;
 }
 
-/** The drive cage: a rack along the front, a rail and a dashed cell per slot, the connector hints and the labels. Cells beyond the board's SATA ports are locked. */
+/**
+ * The light inside the case, over the board and under the glass's sheen: the walls shade the corners a little (a vignette) and the room's
+ * lamp bounces a warm wash in from the top west, so the inside belongs to the room instead of being lit flat.
+ */
+export function caseShade(T: Theme): Container {
+  const root = new Container();
+  // from the cavity's west wall to the glass's east edge, so no edge of it shows inside the picture
+  const r = { x: CASE_IN.x + 8, y: CASE_GLASS.y, w: CASE_GLASS.x + CASE_GLASS.w - CASE_IN.x - 8, h: CASE_GLASS.h };
+  const vig = new Graphics();
+  vig.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#00000000', T.dark ? '#000000' : '#1c2a3a', [0.5, 0.5], 0.72));
+  vig.alpha = T.dark ? 0.26 : 0.1;
+  const warm = new Graphics();
+  warm.roundRect(r.x, r.y, r.w, r.h, 30).fill(rgrad('#ffb26a', '#ffb26a00', [0.0, 0.0], 0.8));
+  warm.alpha = T.dark ? 0.05 : 0.04;
+  root.addChild(vig, warm);
+  return root;
+}
+
+/** The drive cage: a stamped metal rack along the front (perforated uprights), a recessed bay per slot with its rails and grommets, the connector hints and the labels. Cells beyond the board's SATA ports are locked (dim, no bracket). */
 export function bayArt(T: Theme, nSata: number): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const edge = edgeTone(T), b = BAY, k = driveScale();
-  box(g, b.x, b.y, b.w, b.h, 24, { fill: mix(cavityTone(T), T.bg, 0.2), fa: 0.55, stroke: edge, lw: 6, sa: 0.65 });
-  // the rack's uprights, and its screws
-  g.rect(b.x + 14, b.y + 24, 14, b.h - 48).rect(b.x + b.w - 28, b.y + 24, 14, b.h - 48).fill({ color: edge, alpha: 0.4 });
+  const edge = edgeTone(T), b = BAY, k = driveScale(), cav = cavityTone(T), metal = mix(wallTone(T), T.bg, 0.15);
+  box(g, b.x + 12, b.y + 22, b.w, b.h, 24, { fill: '#000000', fa: T.dark ? 0.3 : 0.1 });
+  g.roundRect(b.x, b.y, b.w, b.h, 24).fill(lgrad(mix(metal, '#ffffff', T.dark ? 0.1 : 0.16), mix(metal, '#000000', T.dark ? 0.25 : 0.08), [1, 1])).stroke({ width: 6, color: edge, alpha: 0.7 });
+  g.moveTo(b.x + 40, b.y + 8).lineTo(b.x + b.w - 40, b.y + 8).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.1 : 0.4, cap: 'round' });
+  // the uprights: a strip down each side, punched with a column of slots
+  for (const ux of [b.x + 12, b.x + b.w - 40]) {
+    box(g, ux, b.y + 20, 28, b.h - 40, 8, { fill: mix(metal, '#000000', T.dark ? 0.2 : 0.06), stroke: edge, lw: 3, sa: 0.5 });
+    for (let y = b.y + 60; y < b.y + b.h - 50; y += 64) g.roundRect(ux + 8, y, 12, 30, 6);
+  }
+  g.fill({ color: cav, alpha: 0.9 });
   root.addChild(label('DRIVE CAGE', b.x + 52, b.y + 44, 38, T.mute, { head: true, a: 0.9 }));
   BAY_CELLS.forEach((c, i) => {
-    const live = i < nSata;
-    const pts: [number, number][] = [[c.x, c.y], [c.x + c.w, c.y], [c.x + c.w, c.y + c.h], [c.x, c.y + c.h], [c.x, c.y]];
-    dashed(g, pts, 34, 26);
-    g.stroke({ width: 6, color: live ? T.mul : T.mute, alpha: live ? 0.55 : 0.25 });
-    // guide rails the drive slides along
-    g.rect(c.x + 40 * k, c.y + 10, c.w - 60 * k, 8).rect(c.x + 40 * k, c.y + c.h - 18, c.w - 60 * k, 8).fill({ color: edge, alpha: live ? 0.55 : 0.25 });
+    const live = i < nSata, w = c.w - 60 * k;
+    // the recess: a dark bay with its top shadowed and its lower lip lit
+    box(g, c.x, c.y, c.w, c.h, 10, { fill: mix(cav, '#000000', T.dark ? 0.3 : 0.12), fa: live ? 0.9 : 0.6, stroke: edge, lw: 4, sa: live ? 0.55 : 0.25 });
+    g.rect(c.x + 6, c.y + 6, c.w - 12, 30).fill({ color: '#000000', alpha: live ? 0.28 : 0.16 });
+    g.moveTo(c.x + 14, c.y + c.h - 4).lineTo(c.x + c.w - 14, c.y + c.h - 4).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.06 : 0.3 });
+    // the guide rails the drive slides along (a lit top edge on each) and a rubber grommet at the end of each
+    for (const ry of [c.y + 10, c.y + c.h - 18]) {
+      g.rect(c.x + 40 * k, ry, w, 8).fill({ color: edge, alpha: live ? 0.7 : 0.3 });
+      g.rect(c.x + 40 * k, ry, w, 2).fill({ color: '#ffffff', alpha: (T.dark ? 0.1 : 0.35) * (live ? 1 : 0.5) });
+      disc(g, c.x + 40 * k + w - 18, ry + 4, 9, { fill: T.dark ? '#05070b' : mix(edge, '#000000', 0.5), stroke: edge, lw: 2, sa: 0.7 });
+    }
+    // a live bay shows its corners (the drop target); a locked one stays plain
+    if (live) {
+      const L = 70, ins = 8;
+      for (const [bx, by, sx, sy] of [[c.x + ins, c.y + ins, 1, 1], [c.x + c.w - ins, c.y + ins, -1, 1], [c.x + ins, c.y + c.h - ins, 1, -1], [c.x + c.w - ins, c.y + c.h - ins, -1, -1]] as const) g.moveTo(bx + sx * L, by).lineTo(bx, by).lineTo(bx, by + sy * L);
+      g.stroke({ width: 6, color: T.mul, alpha: 0.6, join: 'round', cap: 'round' });
+    }
     // empty-connector hint (the drive's connectors mate here)
     box(g, c.x - 4 * k, c.y + 112 * k, 52 * k, 46 * k, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
     box(g, c.x - 4 * k, c.y + 300 * k, 52 * k, 118 * k, 6, { stroke: edge, lw: 3, sa: live ? 0.6 : 0.25 });
