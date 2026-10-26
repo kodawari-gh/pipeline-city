@@ -90,13 +90,31 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
   );
 }
 
+/** What each compared stat means, in plain words for a newcomer (keyed by CompareRow.key). */
+const STAT_HELP: Record<string, string> = {
+  board: 'The biggest motherboard this case can hold. A bigger board has more slots and a stronger power regulator.',
+  dimm: 'How many memory sticks the board can hold. More sticks means more memory for bigger jobs.',
+  slots: 'Total places for parts on the board.',
+  programs: 'How many programs the OS can run at the same time. More means more jobs done in parallel.',
+  queue: 'How many jobs can wait in line for the OS. A longer queue means fewer jobs turned away.',
+  memory: 'Memory the OS needs fitted before it will run. Lower is easier to meet.',
+  disk: 'Drive space the OS takes up when installed. Lower leaves more room for jobs.',
+  speed: 'How much work the processor gets done each second (clock speed times how clever its design is). Higher finishes jobs sooner.',
+  power: 'Electricity it draws while working. Lower is better: it costs less and leaves room on the power supply.',
+  size: 'How much it can hold. More lets bigger jobs fit.',
+  latency: 'How long one read takes, in ticks. Lower is better: the processor waits less.',
+  watts: 'The most power the supply can deliver. Everything you fit must add up to less than this.',
+  cooling: 'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',
+  throughput: 'How many bytes per second it moves once a read has started. Higher loads and saves faster.',
+};
+
 /** Before/after bars: grey is the current part, coloured is the option; the delta is coloured by whether it is better. */
 export function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {
   if (!rows.length) return null;
   return (
     <div class="compare" aria-label={`Compared with ${shortName(getSpec(option)?.name ?? option)}`}>
       {rows.map((r) => (
-        <div class="crow" key={r.key} title={r.curText ? `${r.label}: ${r.curText} now, ${r.optText} with this` : `${r.label}: ${r.optText}`}>
+        <div class="crow" key={r.key} title={`${r.curText ? `${r.label}: ${r.curText} now, ${r.optText} with this` : `${r.label}: ${r.optText}`}. ${STAT_HELP[r.key] ?? ''}`}>
           <div class="ctop">
             <Icon name={r.icon} size={12} />
             <span class="clabel">{r.label}</span>
@@ -292,9 +310,9 @@ function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
   if (dev.burnt) return <div class="chips"><span class="chip bad"><Icon name="warn" size={12} /> burnt out</span></div>;
   return (
     <div class="chips">
-      <span class="chip" title="Temperature"><Icon name="flame" size={12} /> {dev.tempC.toFixed(0)} C</span>
-      <span class="chip" title="Power draw"><Icon name="bolt" size={12} /> {dev.powerW.toFixed(1)} W</span>
-      <span class="chip" title="Effective clock"><Icon name="clock" size={12} /> {dev.effectiveClock.toFixed(2)}x</span>
+      <span class="chip" title="Temperature right now, in degrees Celsius. Too hot and the part slows down (throttles), then becomes unstable."><Icon name="flame" size={12} /> {dev.tempC.toFixed(0)} C</span>
+      <span class="chip" title="Power it is drawing right now, in watts. All parts together must stay under the power supply's capacity."><Icon name="bolt" size={12} /> {dev.powerW.toFixed(1)} W</span>
+      <span class="chip" title="Speed it is really running at compared with its stock clock (1.00x). Above 1 is overclocked, below 1 is throttled by heat."><Icon name="clock" size={12} /> {dev.effectiveClock.toFixed(2)}x</span>
       {dev.throttle < 1 && <span class="chip warn" title="Throttled: too hot, running slower than asked"><Icon name="warn" size={12} /> slow</span>}
       {dev.unstable && <span class="chip bad" title="Unstable: errors restart the job"><Icon name="warn" size={12} /> unstable</span>}
     </div>
@@ -401,7 +419,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           <div class="part"><PartArt id={artId} size={104} /></div>
         )}
         <div class="ptext">
-          <div class="ptitle" title={m.plain}>{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
+          <div class="ptitle" title={m.nerd ? `${m.plain} ${m.nerd}` : m.plain}>{m.title}{m.tag && <> <span class="chip idle" title="The client is online now, so this key expires without a penalty.">{m.tag}</span></>}</div>
         </div>
       </header>
       {m.job && (m.job.needs.length > 0 || !m.job.runnable) && (
@@ -451,18 +469,11 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
           {option && m.current !== option && <Compare rows={rows} option={option} />}
         </section>
       )}
-      {m.emptyText && <div class="sub">{m.emptyText}</div>}
       {m.actions.length > 0 && (
         <div class="pactions">
           {m.actions.map((a) => <Action key={a.id + (a.keyId ?? '')} a={a} />)}
           {m.job && <DeclineButton job={m.job} via="key" />}
         </div>
-      )}
-      {m.nerd && (
-        <details class="nerdwrap">
-          <summary>Details</summary>
-          <div class="nerd">{m.nerd}</div>
-        </details>
       )}
     </div>
   );
@@ -500,6 +511,9 @@ export function PickerCard() {
   useEffect(() => {
     const el = shell.current, inner = content.current;
     if (!open || !el || !inner || !id) { lastId.current = null; return; }
+    // A card that has just opened is placed at once (no glide in from the top left, where the shell starts).
+    const first = lastId.current === null;
+    if (first) el.classList.add('nomove');
     const reposition = () => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const inset = viewInset.peek();
@@ -538,6 +552,7 @@ export function PickerCard() {
     }
     lastId.current = id;
     reposition();
+    if (first) { void el.offsetWidth; el.classList.remove('nomove'); }
     const ro = new ResizeObserver(reposition);
     ro.observe(inner);
     const stop = effect(() => { cameraRev.value; viewInset.value; reposition(); });
