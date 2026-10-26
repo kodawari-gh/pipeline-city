@@ -302,13 +302,12 @@ export class Live {
     this.standby.visible = false;
   }
 
-  /** The blank screen: dim glass with the mark (breathing a little) instead of a black slab. */
-  private frameStandby(now: number) {
+  /** The blank screen: dim glass with the mark instead of a black slab (still: it is a screen that is off, not an animation). */
+  private frameStandby() {
     const k = this.blank ? standbyLook(this.blank, monitorView(this.blank), this.osOn) : null;
     this.standby.visible = k !== null;
     if (k === null) return;
     if (this.standbyCap) this.standbyCap.visible = k === 'off';
-    this.standby.alpha = 0.8 + 0.2 * Math.sin(now / 1400);
   }
 
   /** The pooled rows of the OS screen (created on first use). */
@@ -804,7 +803,7 @@ export class Live {
   /** Per-frame animation. dt in seconds. */
   frame(dt: number, now: number) {
     const inner = this.interior;
-    this.frameStandby(now);
+    this.frameStandby();
     this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));
