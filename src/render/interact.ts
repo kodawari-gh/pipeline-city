@@ -696,7 +696,7 @@ export class Interact {
       line(pts); g.stroke({ width: w, color: accent, alpha: 0.16, cap: 'round', join: 'round' });
       // the fixed plug at the PSU socket / monitor port
       const fixed: Plug = ci.kind === 'video' ? cab.b : cab.a;
-      drawPlug(g, T, fixed, accent, ci.kind === 'video', ci.kind === 'video' ? 'hdmi' : 'power');
+      if (ci.kind !== 'video') drawPlug(g, T, fixed, accent, false, 'power'); // (a video cable is built into the monitor: nothing to draw there)
       this.ghost.position.set(tip[0], tip[1]);
       this.ghost.rotation = ang;
       this.ghost.scale.set(1);

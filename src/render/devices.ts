@@ -6,7 +6,7 @@ import {
 } from './layout';
 import { box, dashed, disc, label, mix } from './ink';
 import { SINK_FAN_R, sinkFanAt } from './pins';
-import { hdmiPlug, monitorInlet, monitorSocketDown, rj45Plug } from './ports';
+import { hdmiPlug, rj45Plug } from './ports';
 import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
 import type { Theme } from './theme';
 
@@ -414,30 +414,43 @@ export function monitorArt(T: Theme, on: boolean): Part {
   // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
   root.position.set(MONITOR.x, MONITOR.y); root.scale.set(MONITOR_K);
   const m = { x: 0, y: 0, w: 3300, h: 1995 }, s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
-  const shell = T.dark ? '#141a26' : '#262d3a';
+  const shell = T.dark ? '#171d2b' : '#2a313f', shellHi = mix(shell, '#ffffff', T.dark ? 0.1 : 0.14), shellLo = mix(shell, '#000000', 0.35);
   const cx = m.x + m.w / 2, by = m.y + m.h;
-  // stand: base, neck
-  box(g, cx - 780, by + 330, 1560, 100, 50, { fill: '#000000', fa: 0.2 });
-  box(g, cx - 800, by + 300, 1600, 100, 50, { fill: shell, stroke: T.line, lw: 6 });
-  g.poly([cx - 150, by - 10, cx + 150, by - 10, cx + 210, by + 320, cx - 210, by + 320]).fill({ color: mix(shell, '#ffffff', 0.08) });
-  g.rect(cx - 150, by - 10, 36, 330).fill({ color: '#ffffff', alpha: 0.05 });
-  // bezel
-  box(g, m.x + 10, m.y + 18, m.w, m.h, 70, { fill: '#000000', fa: 0.22 });
-  box(g, m.x, m.y, m.w, m.h, 70, { fill: shell, stroke: on ? T.st : T.line, lw: 9, sa: on ? 0.55 : 1 });
-  box(g, s.x - 14, s.y - 14, s.w + 28, s.h + 28, 26, { fill: '#05070a' });
+  // ---- the stand: a flat oval base on a rubber strip, a neck that fans out to a hinge under the bezel (lit on the left, shaded on the right) ----
+  box(g, cx - 780, by + 345, 1560, 90, 45, { fill: '#000000', fa: 0.22 });
+  box(g, cx - 800, by + 318, 1600, 82, 41, { fill: shell, stroke: T.line, lw: 5 });
+  box(g, cx - 780, by + 322, 1560, 34, 17, { fill: shellHi, fa: 0.55 });
+  g.rect(cx - 740, by + 388, 1480, 12).fill({ color: '#000000', alpha: 0.45 });
+  g.poly([cx - 130, by, cx + 130, by, cx + 250, by + 322, cx - 250, by + 322]).fill({ color: shell }).stroke({ width: 4, color: T.line, alpha: 0.8 });
+  g.poly([cx - 130, by, cx - 10, by, cx - 20, by + 322, cx - 250, by + 322]).fill({ color: shellHi, alpha: 0.55 });
+  g.poly([cx + 60, by, cx + 130, by, cx + 250, by + 322, cx + 130, by + 322]).fill({ color: '#000000', alpha: 0.25 });
+  box(g, cx - 210, by - 22, 420, 74, 34, { fill: shellLo, stroke: T.line, lw: 4 });
+  // ---- the body: a soft shadow on the wall, the shell (a lit rim along the top, a darker chin), the glass set deep in a black border ----
+  box(g, m.x + 14, m.y + 26, m.w, m.h, 80, { fill: '#000000', fa: 0.26 });
+  box(g, m.x, m.y, m.w, m.h, 80, { fill: shell, stroke: T.line, lw: 7 });
+  box(g, m.x + 8, m.y + 8, m.w - 16, m.h * 0.46, 72, { fill: shellHi, fa: 0.4 });
+  box(g, m.x + 8, m.y + m.h * 0.72, m.w - 16, m.h * 0.28 - 8, 72, { fill: '#000000', fa: 0.18 });
+  g.roundRect(m.x + 4, m.y + 4, m.w - 8, m.h - 8, 76).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.12 : 0.18 });
+  box(g, s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38, { fill: '#020406' });
+  g.roundRect(s.x - 26, s.y - 26, s.w + 52, s.h + 52, 38).stroke({ width: 4, color: '#000000', alpha: 0.6 });
   box(g, s.x, s.y, s.w, s.h, 14, { fill: SCREEN_BG });
-  // scanlines and glass sheen
+  if (on) g.roundRect(s.x, s.y, s.w, s.h, 14).stroke({ width: 10, color: T.st, alpha: 0.08 });
+  // scanlines and glass: a sheen across, a lit line along the top edge, the corners darker
   for (let y = s.y + 8; y < s.y + s.h; y += 10) g.moveTo(s.x, y).lineTo(s.x + s.w, y);
   g.stroke({ width: 3, color: on ? T.st : '#ffffff', alpha: on ? 0.035 : 0.02 });
-  g.poly([s.x + 20, s.y + s.h - 20, s.x + 700, s.y + 20, s.x + 1120, s.y + 20, s.x + 440, s.y + s.h - 20]).fill({ color: '#ffffff', alpha: 0.025 });
-  // chin: brand and power LED
-  const cy = s.y + s.h + 14 + (m.y + m.h - (s.y + s.h + 14)) / 2;
-  labels.addChild(label('PIPELINE CITY', cx, cy, 44, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
-  disc(g, m.x + m.w - 150, cy, 16, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
-  // side port (the HDMI cable plugs in here)
-  // the video socket and the mains inlet are in the underside, where a real monitor's are (the plug and the cord hang below them)
-  monitorSocketDown(g, T, (VIDEO_SOCKET.x - MONITOR.x) / MONITOR_K, by - 4, 110, 44);
-  monitorInlet(g, T, (MONITOR_POWER.x - MONITOR.x) / MONITOR_K, by - 4, 120, 36);
+  g.poly([s.x + 20, s.y + s.h - 20, s.x + 700, s.y + 20, s.x + 1120, s.y + 20, s.x + 440, s.y + s.h - 20]).fill({ color: '#ffffff', alpha: 0.03 });
+  g.poly([s.x + 1300, s.y + s.h - 20, s.x + 1700, s.y + 20, s.x + 1820, s.y + 20, s.x + 1420, s.y + s.h - 20]).fill({ color: '#ffffff', alpha: 0.018 });
+  g.rect(s.x + 30, s.y + 4, s.w - 60, 6).fill({ color: '#ffffff', alpha: 0.07 });
+  for (const [qx, qy] of [[s.x, s.y], [s.x + s.w - 160, s.y], [s.x, s.y + s.h - 160], [s.x + s.w - 160, s.y + s.h - 160]] as const) g.rect(qx, qy, 160, 160).fill({ color: '#000000', alpha: 0.05 });
+  // ---- the chin: a little skyline mark and the brand, the power lamp and the touch buttons ----
+  const cy = s.y + s.h + 26 + (m.y + m.h - (s.y + s.h + 26)) / 2;
+  for (const [dx, hh] of [[0, 20], [14, 34], [28, 26], [42, 40], [56, 22]] as const) g.rect(cx - 150 + dx, cy + 20 - hh, 10, hh).fill({ color: T.mute, alpha: 0.7 });
+  labels.addChild(label('PIPELINE CITY', cx + 40, cy, 40, T.mute, { head: true, anchor: [0, 0.5], a: 0.85 }));
+  for (let k = 0; k < 4; k++) disc(g, m.x + m.w - 520 + k * 62, cy, 7, { fill: T.mute, fa: 0.35 });
+  disc(g, m.x + m.w - 220, cy, 26, { fill: '#000000', fa: 0.4 });
+  disc(g, m.x + m.w - 220, cy, 14, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
+  if (on) disc(g, m.x + m.w - 220, cy, 34, { fill: T.st, fa: 0.12 });
+  // no sockets: the monitor's video cable and its mains cord are built in and come out from behind it
   labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.55 }));
   root.addChild(labels);
   return { root };
@@ -514,7 +527,7 @@ export function cableArt(T: Theme, c: Cable): Part {
   line(offsetLine(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' });
   const shape = c.kind === 'video' ? 'hdmi' : 'power';
   drawPlug(g, T, c.a, accent, c.kind === 'video', shape);
-  drawPlug(g, T, c.b, accent, true, shape);
+  if (c.kind !== 'video') drawPlug(g, T, c.b, accent, true, shape); // (the video cable's other end is inside the monitor)
   return { root };
 }
 
@@ -531,7 +544,7 @@ export function looseCableArt(T: Theme, c: Cable): Part {
   line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
   line(pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
   const shape = c.kind === 'video' ? 'hdmi' : 'power';
-  drawPlug(g, T, c.kind === 'video' ? c.b : c.a, accent, c.kind === 'video', shape);
+  if (c.kind !== 'video') drawPlug(g, T, c.a, accent, false, shape); // (a video cable comes out of the monitor: no plug there)
   drawPlug(g, T, lo.plug, accent, true, shape);
   void movablePlug;
   return { root };

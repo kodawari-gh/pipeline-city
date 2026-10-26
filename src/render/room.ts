@@ -1,10 +1,11 @@
 import { Container, Graphics, Rectangle, Sprite, type Renderer, type Texture } from 'pixi.js';
 import { disc, label, mix } from './ink';
+import { drawAircraft, drawCityLive, drawClouds, drawSkyline, drawStars } from './skyline';
 import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
 import { roundedPath } from './routes';
 import {
-  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
+  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
 import type { Theme } from './theme';
 
@@ -17,11 +18,16 @@ import type { Theme } from './theme';
 export const DESK = { slab: DESK_SLAB, under: DESK_UNDER };
 export { FOOT };
 /** How far the desk reaches west of the lamp (which stands at its very west end) and east of the case (which is the last thing on it). */
-const DESK_WEST = 1100, DESK_EAST = 500;
+const DESK_WEST = 1500, DESK_EAST = 500;
 /** How much wall the camera may show beyond the desk's and the window's ends, and below the wall socket (no floor); the top is the router or the window, whichever is higher. */
 const BOX_SIDE = 900, BOX_BELOW = 700, BOX_TOP_ABOVE = 500;
-/** The lamp stands at the desk's west end, its hood pointing down and east (SIDE 1; -1 would mirror it) at this angle; `LAMP_REACH` is the hood's length from the arm to its mouth. */
-const SIDE = 1, LAMP_D = { x: 0.766 * SIDE, y: 0.643 }, LAMP_REACH = 840;
+/**
+ * The lamp stands at the desk's west end: a weighted base, a lower arm that leans back (west, away from the work), an elbow, an upper arm that reaches
+ * forward over the desk (east), and a hood on its end pointing down and east (SIDE 1; -1 would mirror it) at `LAMP_D`. The joints are offsets from the base
+ * centre on the desk top (x east, y up is negative); `reach` is the hood's length from the arm's end to its mouth, `hood` its half width at the mouth.
+ */
+const SIDE = 1, LAMP_D = { x: 0.766 * SIDE, y: 0.643 };
+const LAMP = { pivot: { x: 0, y: -300 }, elbow: { x: -1300 * SIDE, y: -3900 }, head: { x: 1400 * SIDE, y: -7600 }, reach: 1500, hood: 760, neck: 180, base: 1100 };
 
 /** Y of the desk's top surface: the case stands on it, so it follows the case (a taller case sits lower on the desk). */
 export const deskY = () => DESK_Y;
@@ -64,25 +70,26 @@ export function shaftSpan(w: Rect, y: number, slant: number): { xl: number; xr: 
 }
 
 export function roomGeo(): RoomGeo {
-  const ys = deskY(), east = CASE.x + CASE.w, lx = MONITOR.x - 1800, plate = POWER_PLATE;
-  const window: Rect = { x: lx - 290 - 3900, y: -5600, w: 3900, h: 5700 };
+  const ys = deskY(), east = CASE.x + CASE.w, lx = MONITOR.x - 3600, plate = POWER_PLATE;
+  // the window: west of the desk, the whole height of the wall: from just under the top of the highest thing on it (the key rack) down to its sill, which is just above the desk top's height
   const clock: Rect = { x: CASE.x + CASE.w / 2 - 1500, y: -5500, w: 3000, h: 1100 };
-  const head = { x: lx + 600 * SIDE, y: ys - 3150 };
+  const WIN_W = 5600, winTop = Math.min(clock.y, ROUTER_SPOT.y, TRAY.y) + 190, WIN_H = ys - 700 - winTop;
+  const window: Rect = { x: lx - DESK_WEST - 250 - WIN_W, y: winTop, w: WIN_W, h: WIN_H };
+  const head = { x: lx + LAMP.head.x, y: ys + LAMP.head.y };
   return {
     ys,
     floor: FLOOR_Y,
     desk: { x0: lx - DESK_WEST, x1: east + DESK_EAST },
-    mug: MONITOR.x + MONITOR.w + 550,
+    mug: MONITOR.x + MONITOR.w + 710,
     socket: { plate, mon: { x: plate.x + plate.w * 0.28, y: plate.y + plate.h / 2 }, pc: { x: plate.x + plate.w * 0.72, y: plate.y + plate.h / 2 } },
     window,
     clock,
-    lamp: { x: lx, head, mouth: { x: head.x + LAMP_D.x * LAMP_REACH, y: head.y + LAMP_D.y * LAMP_REACH }, rect: { x: lx - (SIDE > 0 ? 600 : 1750), y: ys - 3500, w: 2350, h: 3500 } },
+    lamp: { x: lx, head, mouth: { x: head.x + LAMP_D.x * LAMP.reach, y: head.y + LAMP_D.y * LAMP.reach }, rect: { x: lx - 1900, y: ys - 8300, w: 6600, h: 8300 } },
     keyRack: TRAY,
     top: Math.min(window.y - 190, clock.y, ROUTER_SPOT.y, TRAY.y),
   };
 }
 
-// ---- the clickable props and their state (a per-viewer convenience: kept in localStorage when it is there) ----
 export interface RoomState { lamp: boolean; blind: boolean }
 const KEY = 'pipeline-city.room';
 export const roomState: RoomState = { lamp: true, blind: false };
@@ -131,16 +138,16 @@ export function skyAt(h: number): { top: string; hor: string } {
 // ---- the palette ----
 interface Look {
   wall: string; wallLo: string; stripe: string; wood: string; woodHi: string; woodLo: string; edge: string; line: string;
-  paper: string; ink: string; cork: string; metal: string; metalLo: string; plastic: string; plasticLo: string; leaf: string; leafLo: string; pot: string; cloth: string;
+  paper: string; ink: string; cork: string; metal: string; metalLo: string; plastic: string; plasticLo: string; cloth: string;
 }
 const look = (T: Theme): Look => T.dark
   ? {
     wall: '#0e1a33', wallLo: '#0a1327', stripe: '#16264a', wood: '#3a2a2e', woodHi: '#4d3a3d', woodLo: '#241a1d', edge: '#6b5558', line: '#2a3768',
-    paper: '#aeb8d4', ink: '#2b3560', cork: '#5a4634', metal: '#7d8bb0', metalLo: '#4a5679', plastic: '#2a3252', plasticLo: '#1b2140', leaf: '#3f9a6a', leafLo: '#256444', pot: '#a35a45', cloth: '#5a4a86',
+    paper: '#aeb8d4', ink: '#2b3560', cork: '#5a4634', metal: '#7d8bb0', metalLo: '#4a5679', plastic: '#2a3252', plasticLo: '#1b2140', cloth: '#5a4a86',
   }
   : {
     wall: '#dbe3ee', wallLo: '#c9d4e3', stripe: '#e6ecf5', wood: '#c39b72', woodHi: '#d8b68f', woodLo: '#a37c58', edge: '#8a6a4c', line: '#9aabc8',
-    paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', leaf: '#3f9a6a', leafLo: '#2b7a52', pot: '#c9694e', cloth: '#7a63c4',
+    paper: '#fbfcff', ink: '#2c3a63', cork: '#c9a26c', metal: '#8d99b4', metalLo: '#6b7794', plastic: '#e9eef6', plasticLo: '#c4cedf', cloth: '#7a63c4',
   };
 
 /** A flat ellipse of shadow on the desk top (the desk's far strip, seen edge-on). */
@@ -190,15 +197,13 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
     line(); back.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
     line(-w * 0.22, 0); back.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.16 : 0.12, cap: 'round', join: 'round' });
   };
-  // the PC: the plug in the rear wall's inlet, the cord west and down the gap
+  // the PC: the plug in the rear wall's inlet; the cord leaves its tail, turns down and falls straight to its outlet (the plate is set so that the outlet is right under it)
   const pcPlug = { x: PC_POWER.x - 6, y: PC_POWER.y, dx: -1, dy: 0, w: 190, l: 330 };
-  const pcX = pcPlug.x - 40 - pcPlug.l + 4 + 120;
-  cord([[pcPlug.x - pcPlug.l + 10, pcPlug.y], [pcX, pcPlug.y], [pcX, jog], [s.pc.x, jog], [s.pc.x, s.pc.y - 310]]);
+  cord([[pcPlug.x - pcPlug.l + 10, pcPlug.y], [PC_CORD_X, pcPlug.y], [PC_CORD_X, s.pc.y - 310]]);
   acPlug(back, T, pcPlug);
-  // the monitor: the plug hangs under its bezel, the cord drops behind the shelf unit and the desk
-  const mon = MONITOR_POWER, mPlug = { x: mon.x, y: mon.y + 4, dx: 0, dy: 1, w: 170, l: 300 };
-  cord([[mon.x, mPlug.y + mPlug.l - 10], [mon.x, jog], [s.mon.x, jog], [s.mon.x, s.mon.y - 310]]);
-  acPlug(back, T, mPlug);
+  // the monitor: its cord is built in and comes out from behind it (this layer is under the monitor, so the start is hidden), drops behind the desk and runs to its outlet
+  const mon = MONITOR_POWER;
+  cord([[mon.x, mon.y - 200], [mon.x, jog], [s.mon.x, jog], [s.mon.x, s.mon.y - 310]]);
   // the socket: a plate with two outlets, both plugged
   const plate = T.dark ? '#7b86a8' : '#f4f6fb', edge = T.dark ? '#b3bddb' : '#a8b3cc';
   front.roundRect(p.x + 14, p.y + 20, p.w, p.h, 50).fill({ color: '#000000', alpha: 0.3 });
@@ -232,28 +237,23 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   for (const bx of [sx0 + 380, sx1 - 560]) { g.poly([bx, sy + 170, bx + 120, sy + 170, bx + 120, sy + 560, bx, sy + 560]).fill({ color: L.metalLo }); g.poly([bx + 120, sy + 170, bx + 120, sy + 520, bx + 400, sy + 170]).fill({ color: L.metal, alpha: 0.9 }); }
   g.rect(sx0 + 20, sy + 170, sx1 - sx0 - 40, 70).fill({ color: '#000000', alpha: 0.16 });
 
-  // the window: a recess in the wall, the glass (live sky goes here), a frame with a cross bar, a sill with a plant
+  // the window: a recess in the wall, the glass (live sky goes here), a frame with a cross bar and a transom, a sill
   const w = geo.window;
-  g.rect(w.x - 190, w.y - 190, w.w + 380, w.h + 380).fill({ color: L.wallLo }).stroke({ width: 10, color: L.line, alpha: 0.6 });
-  g.rect(w.x - 120, w.y - 120, w.w + 240, w.h + 120).fill({ color: mix(L.wood, '#ffffff', T.dark ? 0.08 : 0.4) }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
+  const frameCol = mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.45);
+  g.rect(w.x - 230, w.y - 230, w.w + 460, w.h + 460).fill({ color: L.wallLo }).stroke({ width: 10, color: L.line, alpha: 0.6 });
+  g.rect(w.x - 150, w.y - 150, w.w + 300, w.h + 150).fill({ color: mix(L.wood, '#ffffff', T.dark ? 0.08 : 0.4) }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
   g.rect(w.x, w.y, w.w, w.h).fill({ color: '#0a0f24' });
   const gf = new Graphics(); // the frame over the glass and the live sky
-  gf.rect(w.x + w.w / 2 - 55, w.y, 110, w.h).fill({ color: mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.45) });
-  gf.rect(w.x, w.y + w.h * 0.46, w.w, 100).fill({ color: mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.45) });
-  gf.rect(w.x, w.y, w.w, w.h).stroke({ width: 70, color: mix(L.wood, '#ffffff', T.dark ? 0.1 : 0.45), alignment: 1 });
-  gf.rect(w.x + 24, w.y + 24, w.w - 48, 16).fill({ color: '#ffffff', alpha: 0.14 });
+  gf.rect(w.x + w.w / 2 - 65, w.y, 130, w.h).fill({ color: frameCol });
+  for (const t of [0.16, 0.42, 0.68]) gf.rect(w.x, w.y + w.h * t, w.w, 120).fill({ color: frameCol });
+  gf.rect(w.x, w.y, w.w, w.h).stroke({ width: 90, color: frameCol, alignment: 1 });
+  gf.rect(w.x + 28, w.y + 28, w.w - 56, 18).fill({ color: '#ffffff', alpha: 0.14 });
+  gf.rect(w.x + w.w / 2 - 65, w.y, 22, w.h).fill({ color: '#ffffff', alpha: 0.1 }); // the lit edge of the mullion
+  gf.circle(w.x + w.w - 380, w.y + w.h * 0.68 + 60, 38).fill({ color: L.metal }).stroke({ width: 5, color: L.metalLo }); // the latch
   const sill = new Graphics();
-  sill.rect(w.x - 420, w.y + w.h + 70, w.w + 840, 190).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
-  sill.rect(w.x - 400, w.y + w.h + 80, w.w + 800, 18).fill({ color: L.woodHi, alpha: 0.8 });
-  // a small plant on the sill
-  const px = w.x + 900, py = w.y + w.h + 70;
-  sill.poly([px - 380, py - 520, px + 380, py - 520, px + 300, py, px - 300, py]).fill({ color: L.pot }).stroke({ width: 8, color: L.edge, alpha: 0.6 });
-  sill.rect(px - 420, py - 600, 840, 120).fill({ color: mix(L.pot, '#000000', 0.18) });
-  for (const [dx, a, len] of [[-260, -0.55, 760], [-90, -0.2, 950], [100, 0.18, 880], [290, 0.5, 700], [0, 0, 620]] as const) {
-    const ex = px + dx + Math.sin(a) * len, ey = py - 600 - Math.cos(a) * len;
-    sill.moveTo(px + dx * 0.4, py - 590).quadraticCurveTo(px + dx + Math.sin(a) * len * 0.3, py - 600 - len * 0.6, ex, ey).stroke({ width: 70, color: L.leaf, cap: 'round' });
-    sill.ellipse(ex, ey, 150, 90).fill({ color: L.leafLo });
-  }
+  sill.rect(w.x - 500, w.y + w.h + 80, w.w + 1000, 210).fill({ color: L.wood }).stroke({ width: 8, color: L.edge, alpha: 0.7 });
+  sill.rect(w.x - 480, w.y + w.h + 92, w.w + 960, 20).fill({ color: L.woodHi, alpha: 0.8 });
+  sill.rect(w.x - 440, w.y + w.h + 290, w.w + 880, 90).fill({ color: '#000000', alpha: 0.16 });
   back.addChild(gf, sill);
 
   // the digital clock on the wall above the case: a dark case, a dimmed "88:88" behind the lit digits (the digits are live)
@@ -327,39 +327,76 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
 
   // ---- on the desk: the case's own shadow, the lamp at the very west, the keyboard and the mouse under the monitor (either side of its foot), the mug between the monitor and the case ----
   shadow(f, CASE.x + CASE.w / 2, ys + 44, CASE.w + 400, 0.34);
-  // the keyboard: a low wedge with a row of caps along its top, on a thin mat
-  const kx = MONITOR.x + 150, kw = 2400;
-  f.rect(kx - 200, ys - 36, kw + 400, 40).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
-  f.poly([kx, ys - 36, kx + kw, ys - 36, kx + kw, ys - 186, kx + 80, ys - 270]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  for (let k = 0; k < 13; k++) f.rect(kx + 200 + k * 160, ys - 256 + ((200 + k * 160) / (kw - 80)) * 84, 120, 28).fill({ color: T.dark ? '#aab6dc' : L.paper, alpha: T.dark ? 0.7 : 0.95 });
-  shadow(f, kx + kw / 2, ys + 30, kw, 0.28);
-  // the mouse, east of the monitor's foot
-  const mox = MONITOR.x + MONITOR.w / 2 + 2400 + 900;
-  f.rect(mox - 520, ys - 36, 1040, 40).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
-  f.ellipse(mox, ys - 100, 220, 100).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
-  f.rect(mox - 12, ys - 180, 24, 80).fill({ color: L.line, alpha: 0.7 });
-  // the mug in the gap between the monitor and the case (steam is live)
-  const mx = geo.mug;
-  o.rect(mx - 420, ys - 1040, 840, 1040).fill({ color: '#e8edf8' }).stroke({ width: 8, color: L.line });
-  o.rect(mx - 420, ys - 1040, 840, 140).fill({ color: '#3a2418' });
-  o.circle(mx + 470, ys - 560, 230).stroke({ width: 70, color: '#e8edf8' });
-  o.rect(mx - 380, ys - 700, 160, 600).fill({ color: '#000000', alpha: 0.07 });
-  o.rect(mx - 120, ys - 760, 520, 90).fill({ color: '#d03a4a', alpha: 0.9 });
-  shadow(f, mx, ys + 30, 1200, 0.3);
-  // the lamp at the desk's very west end: base, two arms, a hood pointing east over the keyboard (the glow is live)
-  const lx = geo.lamp.x, hd = geo.lamp.head, ex = lx + 1000 * SIDE, ey = ys - 1850;
-  f.rect(lx - 520, ys - 150, 1040, 150).fill({ color: L.metalLo }).stroke({ width: 6, color: L.metal });
-  f.rect(lx - 420, ys - 220, 840, 80).fill({ color: L.metal });
-  f.moveTo(lx, ys - 200).lineTo(ex, ey).lineTo(hd.x, hd.y).stroke({ width: 82, color: L.metalLo, cap: 'round', join: 'round' });
-  f.moveTo(lx, ys - 200).lineTo(ex, ey).lineTo(hd.x, hd.y).stroke({ width: 28, color: L.metal, cap: 'round', join: 'round' });
-  for (const [px2, py2] of [[lx, ys - 200], [ex, ey], [hd.x, hd.y]] as const) f.circle(px2, py2, 70).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo });
+  // the desk mat, the keyboard and the mouse, in front of the monitor's foot (they are drawn on the over layer, above the monitor): real sizes against the 24 inch
+  const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300, kb = ys, kf = 190, kd = 400; // keyboard: left, width, base line, front face height, depth of its top
+  const matX0 = kx - 500, matX1 = cx + kw / 2 + 2500;
+  o.roundRect(matX0, ys - 70, matX1 - matX0, 70, 30).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2 });
+  o.rect(matX0 + 40, ys - 62, matX1 - matX0 - 80, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
+  // the keyboard: a front face, a sloped top seen from a little above with five rows of caps (the space bar in the front row), a pair of lamps at the back
+  const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8';
+  o.ellipse(kx + kw / 2, kb + 26, kw / 2 + 200, 52).fill({ color: '#000000', alpha: 0.22 });
+  o.roundRect(kx, kb - kf - 70, kw, kf + 70, 44).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
+  const topL = (t: number) => kx + 70 + 190 * t, topR = (t: number) => kx + kw - 70 - 190 * t, topY = (t: number) => kb - kf - 70 - kd * t;
+  o.poly([topL(0), topY(0), topR(0), topY(0), topR(1), topY(1), topL(1), topY(1)]).fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
+  o.poly([topL(0), topY(0), topR(0), topY(0), topR(0.1), topY(0.1), topL(0.1), topY(0.1)]).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.35 });
+  for (let r = 0; r < 5; r++) {
+    const t0 = 0.06 + r * 0.17, t1 = t0 + 0.13, y0 = topY(t0), y1 = topY(t1), xl0 = topL(t0) + 40, xr0 = topR(t0) - 40, xl1 = topL(t1) + 40, xr1 = topR(t1) - 40;
+    const caps = r === 0 ? [[0, 0.1], [0.11, 0.2], [0.21, 0.3], [0.31, 0.69], [0.7, 0.79], [0.8, 0.89], [0.9, 1]] : Array.from({ length: r === 4 ? 14 : 15 }, (_, k) => { const n = r === 4 ? 14 : 15; return [k / n + 0.004, (k + 1) / n - 0.004]; });
+    for (const [a, b] of caps as number[][]) {
+      const lx0 = xl0 + (xr0 - xl0) * a!, rx0 = xl0 + (xr0 - xl0) * b!, lx1 = xl1 + (xr1 - xl1) * a!, rx1 = xl1 + (xr1 - xl1) * b!;
+      o.poly([lx0, y0, rx0, y0, rx1, y1, lx1, y1]).fill({ color: capCol, alpha: T.dark ? 0.78 : 0.97 }).stroke({ width: 3, color: capEdge, alpha: 0.7 });
+    }
+  }
+  for (const [dx, col] of [[kw - 520, '#6dffa6'], [kw - 380, T.dark ? '#33406e' : '#aebbd6']] as const) o.circle(kx + dx, topY(0.96), 14).fill({ color: col, alpha: 0.9 });
+  // the mouse: a domed body with the two buttons and the wheel, on the mat east of the keyboard, and its cord curling back behind the keyboard
+  const mox = kx + kw + 1050;
+  o.ellipse(mox, ys + 8, 520, 40).fill({ color: '#000000', alpha: 0.24 });
+  o.moveTo(mox - 20, ys - 330).bezierCurveTo(mox - 300, ys - 640, mox - 1700, ys - 560, mox - 2100, ys - 820).stroke({ width: 20, color: L.plasticLo, cap: 'round' });
+  o.roundRect(mox - 330, ys - 260, 660, 260, 120).fill({ color: L.plasticLo }).stroke({ width: 6, color: '#000000', alpha: 0.3 });
+  o.moveTo(mox - 360, ys - 210).bezierCurveTo(mox - 360, ys - 520, mox - 150, ys - 560, mox, ys - 560).bezierCurveTo(mox + 150, ys - 560, mox + 360, ys - 520, mox + 360, ys - 210).closePath().fill({ color: L.plastic }).stroke({ width: 6, color: L.line });
+  o.moveTo(mox, ys - 560).lineTo(mox, ys - 360).stroke({ width: 7, color: L.line });
+  o.moveTo(mox - 350, ys - 360).bezierCurveTo(mox - 200, ys - 380, mox - 60, ys - 380, mox + 350, ys - 360).stroke({ width: 6, color: L.line, alpha: 0.8 });
+  o.roundRect(mox - 22, ys - 520, 44, 110, 20).fill({ color: T.dark ? '#aab6dc' : L.paper }).stroke({ width: 4, color: capEdge });
+  o.ellipse(mox - 150, ys - 470, 110, 40).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.55 });
+  // the mug in the gap between the monitor and the case: a coaster, a tapered ceramic body with a band of little towers, a handle, the coffee in it (the steam is live)
+  const mx = geo.mug, mh = 1300, mt = ys - mh, R = 560, ceramic = T.dark ? '#eaeef8' : '#ffffff', ceramicLo = T.dark ? '#aeb8d4' : '#cdd5e4';
+  o.ellipse(mx, ys - 14, 840, 50).fill({ color: L.cork }).stroke({ width: 5, color: '#000000', alpha: 0.25 });
+  o.ellipse(mx, ys - 26, 790, 40).fill({ color: mix(L.cork, '#ffffff', 0.15) });
+  o.ellipse(mx + 420, ys + 20, 1150, 56).fill({ color: '#000000', alpha: 0.26 });
+  o.ellipse(mx + R + 70, ys - 700, 290, 340).stroke({ width: 110, color: ceramicLo });  // the handle (behind the body, which covers its inner half)
+  o.ellipse(mx + R + 70, ys - 700, 290, 340).stroke({ width: 50, color: ceramic });
+  o.poly([mx - R, mt, mx + R, mt, mx + R - 60, ys - 64, mx + R - 140, ys - 34, mx - R + 140, ys - 34, mx - R + 60, ys - 64]).fill({ color: ceramic }).stroke({ width: 8, color: ceramicLo });
+  o.poly([mx + R * 0.5, mt + 40, mx + R + 2, mt + 40, mx + R - 66, ys - 70, mx + R * 0.55, ys - 70]).fill({ color: '#000000', alpha: 0.1 }); // the shaded side
+  o.roundRect(mx - R + 90, mt + 130, 100, mh - 290, 50).fill({ color: '#ffffff', alpha: T.dark ? 0.5 : 0.8 }); // the lit stripe
+  o.ellipse(mx, mt, R, 108).fill({ color: ceramic }).stroke({ width: 8, color: ceramicLo });
+  o.ellipse(mx, mt + 7, R - 62, 80).fill({ color: '#25140c' });
+  o.ellipse(mx, mt + 3, R - 62, 80).stroke({ width: 9, color: ceramicLo, alpha: 0.7 });
+  o.ellipse(mx - 140, mt + 18, 160, 22).fill({ color: '#7a4a2e', alpha: 0.7 });
+  o.roundRect(mx - R + 14, mt + 450, 2 * R - 28, 260, 12).fill({ color: '#d03a4a', alpha: 0.95 }); // the band, with a skyline on it
+  for (const [dx, hh, ww] of [[-410, 100, 76], [-318, 160, 68], [-232, 120, 84], [-120, 196, 76], [-26, 136, 94], [94, 178, 68], [178, 110, 84], [282, 152, 76], [366, 94, 68]] as const) o.rect(mx + dx, mt + 690 - hh, ww, hh).fill({ color: '#ffffff', alpha: 0.9 });
+  o.rect(mx - R + 14, mt + 450, 2 * R - 28, 16).fill({ color: '#ffffff', alpha: 0.18 });
+  // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
+  const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
+  f.ellipse(lx, ys + 30, LAMP.base + 400, 60).fill({ color: '#000000', alpha: 0.3 });
+  f.roundRect(lx - LAMP.base, ys - 200, LAMP.base * 2, 200, 50).fill({ color: L.metalLo }).stroke({ width: 7, color: L.metal });
+  f.roundRect(lx - LAMP.base + 120, ys - 330, LAMP.base * 2 - 240, 150, 60).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo });
+  f.rect(lx - LAMP.base + 150, ys - 318, LAMP.base * 2 - 300, 18).fill({ color: '#ffffff', alpha: 0.2 });
+  // an arm: a rod and, beside it, the thin rod of the parallel linkage (the spring)
+  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx2 = -dy / l, ny2 = dx / l;
+    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 160, color: L.metalLo, cap: 'round' });
+    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 86, color: L.metal, cap: 'round' });
+    f.moveTo(a.x - nx2 * 22, a.y - ny2 * 22).lineTo(b.x - nx2 * 22, b.y - ny2 * 22).stroke({ width: 16, color: '#ffffff', alpha: 0.22, cap: 'round' });
+    f.moveTo(a.x + nx2 * 230, a.y + ny2 * 230).lineTo(b.x + nx2 * 230, b.y + ny2 * 230).stroke({ width: 44, color: L.metalLo, cap: 'round' });
+  };
+  arm(p0, el); arm(el, hd);
+  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) { f.circle(px2, py2, 170).fill({ color: L.metal }).stroke({ width: 8, color: L.metalLo }); f.circle(px2, py2, 58).fill({ color: L.metalLo }); }
   // the hood: a cone from the arm's end to a wide mouth, a rim, a lit stripe along its top
-  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE;
-  const hood = [hd.x + nx * 110, hd.y + ny * 110, mo.x + nx * 440, mo.y + ny * 440, mo.x - nx * 440, mo.y - ny * 440, hd.x - nx * 110, hd.y - ny * 110];
-  f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 8, color: '#27486b' });
-  f.poly([hd.x - nx * 110, hd.y - ny * 110, mo.x - nx * 440, mo.y - ny * 440, mo.x - nx * 380 - LAMP_D.x * 70, mo.y - ny * 380 - LAMP_D.y * 70, hd.x - nx * 90, hd.y - ny * 90]).fill({ color: '#ffffff', alpha: 0.2 });
-  f.poly([mo.x + nx * 440, mo.y + ny * 440, mo.x - nx * 440, mo.y - ny * 440, mo.x - nx * 440 - LAMP_D.x * 60, mo.y - ny * 440 - LAMP_D.y * 60, mo.x + nx * 440 - LAMP_D.x * 60, mo.y + ny * 440 - LAMP_D.y * 60]).fill({ color: '#27486b' });
-  shadow(f, lx, ys + 30, 1500, 0.3);
+  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
+  const hood = [hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk];
+  f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 9, color: '#27486b' });
+  f.poly([hd.x - nx * nk, hd.y - ny * nk, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw * 0.86 - LAMP_D.x * 90, mo.y - ny * hw * 0.86 - LAMP_D.y * 90, hd.x - nx * nk * 0.8, hd.y - ny * nk * 0.8]).fill({ color: '#ffffff', alpha: 0.2 });
+  f.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw - LAMP_D.x * 80, mo.y - ny * hw - LAMP_D.y * 80, mo.x + nx * hw - LAMP_D.x * 80, mo.y + ny * hw - LAMP_D.y * 80]).fill({ color: '#27486b' });
   return { back, front, over };
 }
 
@@ -377,7 +414,7 @@ function glowTexture(r: Renderer): Texture {
   return t;
 }
 /** The glow's radius in world units. */
-const GLOW_R = 5600;
+const GLOW_R = 9200;
 
 /** `top` laid over `bottom` (each a colour and an opacity): the one colour and opacity that look the same, so a stack of full-screen washes is one fill. */
 function over(top: { c: string; a: number }, bottom: { c: string; a: number }): { c: string; a: number } {
@@ -423,7 +460,11 @@ export class RoomView {
   readonly over = new Container();
   readonly geo: RoomGeo;
   readonly hits: RoomHit[];
-  private readonly sky = new Graphics();
+  private readonly sky = new Container();
+  private readonly skyBack = new Graphics();
+  private readonly skyCity = new Graphics();
+  private readonly skyLive = new Graphics();
+  private cityKey = '';
   private readonly amb = new Graphics();
   private readonly glow = new Graphics();
   private readonly pool: Sprite | null;
@@ -444,6 +485,7 @@ export class RoomView {
     this.over.addChild(over);
     const w = geo.window;
     this.mask.rect(w.x, w.y, w.w, w.h).fill({ color: '#ffffff' });
+    this.sky.addChild(this.skyBack, this.skyCity, this.skyLive);
     this.sky.mask = this.mask;
     this.blindG.mask = this.mask;
     // order: wall and window frame, then the sky inside the glass (under the frame art), the desk, the lights, the hands
@@ -451,7 +493,7 @@ export class RoomView {
     back.addChild(this.behind);
     back.addChildAt(this.sky, 1);
     back.addChildAt(this.mask, 1);
-    back.addChildAt(this.blindG, 3); // over the sky, under the frame, the sill and the plant on it
+    back.addChildAt(this.blindG, 3); // over the sky, under the frame and the sill
     this.root.addChild(front, this.amb);
     if (this.pool) this.root.addChild(this.pool);
     this.root.addChild(this.glow, this.clockG);
@@ -478,34 +520,23 @@ export class RoomView {
   }
 
   private drawSky(h: number, gt: number) {
-    const g = this.sky, w = this.geo.window, night = nightAt(h), s = skyAt(h);
+    const g = this.skyBack, w = this.geo.window, night = nightAt(h), s = skyAt(h);
     g.clear();
-    const bands = 14;
+    const bands = 20;
     for (let i = 0; i < bands; i++) g.rect(w.x, w.y + (i * w.h) / bands, w.w, w.h / bands + 2).fill({ color: mix(s.top, s.hor, Math.pow(i / (bands - 1), 1.4)) });
-    // the stars come out with the night
-    if (night > 0.05) for (let k = 0; k < 46; k++) {
-      const sx = w.x + (((k * 7919) % 1000) / 1000) * w.w, sy = w.y + (((k * 104729) % 1000) / 1000) * w.h * 0.62, tw = 0.6 + 0.4 * Math.sin(gt / 900 + k);
-      g.circle(sx, sy, 16 + (k % 3) * 8).fill({ color: '#ffffff', alpha: Math.min(1, night * 1.2) * tw * 0.85 });
-    }
+    drawStars(g, w, night, gt);
     // the sun by day and the moon by night, each on an arc across the glass
     const sunT = (h - 5.6) / 12.8, moonT = ((h + 6) % 24) / 12.6;
-    const arc = (t: number) => ({ x: w.x + w.w * (0.12 + 0.76 * t), y: w.y + w.h * (0.78 - 0.62 * Math.sin(Math.PI * Math.min(1, Math.max(0, t)))) });
-    if (sunT > -0.05 && sunT < 1.05) { const p = arc(sunT); g.circle(p.x, p.y, 340).fill({ color: '#fff3c4', alpha: 0.28 }); g.circle(p.x, p.y, 230).fill({ color: '#fff0a8' }); }
-    if (moonT > 0 && moonT < 1) { const p = arc(moonT); g.circle(p.x, p.y, 320).fill({ color: '#dfe8ff', alpha: 0.12 }); g.circle(p.x, p.y, 200).fill({ color: '#eef2ff' }); g.circle(p.x - 70, p.y - 40, 40).fill({ color: '#c3cbe6' }); g.circle(p.x + 60, p.y + 50, 28).fill({ color: '#c3cbe6' }); }
-    // the skyline: two rows of towers, dark against the day and lit windows at night
-    const far = mix('#7d93b8', '#161c42', night), near = mix('#4a5f86', '#0a0e26', night);
-    const row = (col: string, base: number, seed: number, lit: number) => {
-      let x = w.x - 100, i = seed;
-      while (x < w.x + w.w + 100) {
-        const bw = 420 + ((i * 37) % 5) * 130, bh = base + ((i * 53) % 7) * 190;
-        g.rect(x, w.y + w.h - bh, bw, bh + 10).fill({ color: col });
-        if (night > 0.1 && lit > 0) for (let r = 0; r < Math.floor(bh / 280); r++) for (let q = 0; q < Math.floor(bw / 190); q++) if ((r * 5 + q * 3 + i) % 3 !== 0) g.rect(x + 50 + q * 190, w.y + w.h - bh + 80 + r * 280, 80, 120).fill({ color: '#ffd77a', alpha: night * lit * (0.55 + 0.4 * (((i + r + q) * 7) % 3 === 0 ? 0.5 : 1)) });
-        x += bw + 40; i++;
-      }
-    };
-    row(far, 620, 3, 0.5); row(near, 360, 11, 1);
-    // a red beacon on the tallest tower blinks at night
-    if (night > 0.3 && Math.floor(gt / 700) % 2 === 0) g.circle(w.x + w.w * 0.34, w.y + w.h - 1650, 34).fill({ color: '#ff4a4a', alpha: night });
+    const arc = (t: number) => ({ x: w.x + w.w * (0.12 + 0.76 * t), y: w.y + w.h * (0.62 - 0.5 * Math.sin(Math.PI * Math.min(1, Math.max(0, t)))) });
+    if (sunT > -0.05 && sunT < 1.05) { const p = arc(sunT); g.circle(p.x, p.y, 460).fill({ color: '#fff3c4', alpha: 0.26 }); g.circle(p.x, p.y, 300).fill({ color: '#fff0a8' }); }
+    if (moonT > 0 && moonT < 1) { const p = arc(moonT); g.circle(p.x, p.y, 420).fill({ color: '#dfe8ff', alpha: 0.12 }); g.circle(p.x, p.y, 260).fill({ color: '#eef2ff' }); g.circle(p.x - 90, p.y - 50, 52).fill({ color: '#c3cbe6' }); g.circle(p.x + 80, p.y + 66, 36).fill({ color: '#c3cbe6' }); g.circle(p.x + 20, p.y - 110, 24).fill({ color: '#c3cbe6' }); }
+    drawClouds(g, w, night, s.hor, gt);
+    drawAircraft(g, w, night, gt);
+    // the city: the static part is redrawn when the light has moved on by a step, the live part (flickering windows, beacons) every time
+    const ck = `${Math.round(night * 24)}|${Math.round(h * 6)}`;
+    if (ck !== this.cityKey) { this.cityKey = ck; this.skyCity.clear(); drawSkyline(this.skyCity, w, night, s.hor); }
+    this.skyLive.clear();
+    drawCityLive(this.skyLive, w, night, gt);
     // the blind: slats that roll down from the top, ending in a bar
     const b = this.blindG; b.clear();
     if (this.blind > 0.002) {
@@ -555,12 +586,13 @@ export class RoomView {
     if (I < 0.01) return;
     const mo = geo.lamp.mouth, ys = geo.ys, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE;
     // a warm pool on the wall around the hood, a cone down from its mouth onto the desk and the keyboard, a bright bulb in the mouth
-    if (this.pool) { this.pool.position.set(mo.x - 300 * SIDE, mo.y - 200); this.pool.scale.set((2 * GLOW_R) / 256); this.pool.alpha = I; this.pool.visible = true; }
-    else for (let k = 0; k < 8; k++) g.circle(mo.x - 300 * SIDE, mo.y - 200, GLOW_R - k * 650).fill({ color: '#ffb35a', alpha: 0.023 * I * (1 + k * 0.2) });
-    g.poly([mo.x + nx * 440, mo.y + ny * 440, mo.x - nx * 440, mo.y - ny * 440, mo.x + 3600 * SIDE, ys, mo.x - 900 * SIDE, ys]).fill({ color: '#ffc27a', alpha: 0.1 * I });
-    g.ellipse(mo.x + 1300 * SIDE, ys + 30, 3000, 110).fill({ color: '#ffd9a0', alpha: 0.22 * I });
-    g.circle(mo.x - LAMP_D.x * 40, mo.y - LAMP_D.y * 40, 330).fill({ color: '#ffd68a', alpha: 0.22 * I });
-    g.circle(mo.x - LAMP_D.x * 40, mo.y - LAMP_D.y * 40, 170).fill({ color: '#fff2c8', alpha: 0.95 * Math.min(1, I * 1.5) });
+    if (this.pool) { this.pool.position.set(mo.x - 400 * SIDE, mo.y - 300); this.pool.scale.set((2 * GLOW_R) / 256); this.pool.alpha = I; this.pool.visible = true; }
+    else for (let k = 0; k < 8; k++) g.circle(mo.x - 400 * SIDE, mo.y - 300, GLOW_R - k * 850).fill({ color: '#ffb35a', alpha: 0.023 * I * (1 + k * 0.2) });
+    const hw = LAMP.hood;
+    g.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x + 8000 * SIDE, ys, mo.x - 2800 * SIDE, ys]).fill({ color: '#ffc27a', alpha: 0.1 * I });
+    g.ellipse(mo.x + 2600 * SIDE, ys + 30, 6400, 170).fill({ color: '#ffd9a0', alpha: 0.2 * I });
+    g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 560).fill({ color: '#ffd68a', alpha: 0.22 * I });
+    g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 300).fill({ color: '#fff2c8', alpha: 0.95 * Math.min(1, I * 1.5) });
   }
 
   private drawClock(h: number, gt: number) {
@@ -582,13 +614,13 @@ export class RoomView {
     const g = this.steam, ys = this.geo.ys, mx = this.geo.mug;
     g.clear();
     for (let k = 0; k < 3; k++) {
-      const t = (gt / 3200 + k / 3) % 1, x0 = mx - 240 + k * 240, top = ys - 1100;
+      const t = (gt / 3200 + k / 3) % 1, x0 = mx - 270 + k * 270, top = ys - 1380;
       // a wisp: a wavy column that rises, thins and fades; each of the three keeps its own phase
       const pts: number[] = [];
-      for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push(x0 + Math.sin(gt / 700 + k * 2 + u * 5) * (50 + 120 * u), top - (0.15 + t) * 700 * u * 2.4); }
+      for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push(x0 + Math.sin(gt / 700 + k * 2 + u * 5) * (70 + 160 * u), top - (0.15 + t) * 700 * u * 2.8); }
       g.moveTo(pts[0]!, pts[1]!);
       for (let i = 1; i <= 12; i++) g.lineTo(pts[i * 2]!, pts[i * 2 + 1]!);
-      g.stroke({ width: 52 - 20 * t, color: '#ffffff', alpha: 0.26 * Math.sin(Math.PI * t), cap: 'round', join: 'round' });
+      g.stroke({ width: 70 - 26 * t, color: '#ffffff', alpha: 0.26 * Math.sin(Math.PI * t), cap: 'round', join: 'round' });
     }
   }
 }

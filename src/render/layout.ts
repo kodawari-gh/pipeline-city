@@ -244,7 +244,10 @@ export let SHELF_Y = -2480;
 export let CABLE_ROW_Y = SHELF_Y + 200;
 export let ROUTER_SPOT: Rect = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
 /** The power socket plate on the wall under the desk (two outlets: the monitor's, the PC's). */
-export let POWER_PLATE: Rect = { x: -4870, y: 0, w: 1500, h: 800 };
+/** Where the PC's mains cord drops: it leaves the plug's tail (the plug is 330 long, the cord turns down 150 beyond it) and falls straight to its outlet. */
+export const PC_CORD_X = IO_X - 476;
+export const POWER_PLATE_W = 1500, PC_OUTLET_AT = 0.72;
+export let POWER_PLATE: Rect = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: 0, w: POWER_PLATE_W, h: 800 };
 /** The ISP's wall plate, under the desk next to the power socket, its jack position (bottom edge, `WALL_Y`) and the y of the ISP cable's turn under the desk (the cable then runs up behind the desk, the riser and the monitor to the router). */
 export let WALL_PLATE: Rect = { x: -6300, y: 0, w: 460 * NET_K, h: 420 * NET_K };
 export let WALL_Y = 0;
@@ -336,14 +339,14 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   MONITOR = { x: MONITOR_EAST - MW, y: DESK_Y - MON_STAND - MH, w: MW, h: MH };
   SCREEN = { x: MONITOR.x + 90 * MONITOR_K, y: MONITOR.y + 80 * MONITOR_K, w: 3120 * MONITOR_K, h: 1755 * MONITOR_K };
   const by = MONITOR.y + MONITOR.h;
-  VIDEO_SOCKET = { x: MONITOR.x + MW - 388 * MONITOR_K, y: by + 40 * MONITOR_K };
+  VIDEO_SOCKET = { x: MONITOR.x + MW - 388 * MONITOR_K, y: by }; // where the cable comes out from behind the bezel (its end is built into the monitor)
   VIDEO_RUN_Y = by + 700;
-  MONITOR_POWER = { x: MONITOR.x + MW - 900 * MONITOR_K, y: by + 36 * MONITOR_K };
+  MONITOR_POWER = { x: MONITOR.x + MW - 900 * MONITOR_K, y: by }; // where its cord comes out from behind the monitor (built in as well)
   TRAY = { x: MONITOR.x + 1700, y: MONITOR.y - 2800, w: TRAY_W, h: TRAY_H };
   OUTBOX = { x: IO_X - 1900, y: MONITOR.y - 1900, w: OUTBOX_W, h: OUTBOX_H };
   SHELF_Y = MONITOR.y - 700; CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
-  POWER_PLATE = { x: -4870, y: FLOOR_Y - 1750, w: 1500, h: 800 };
+  POWER_PLATE = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: FLOOR_Y - 1750, w: POWER_PLATE_W, h: 800 };
   WALL_PLATE = { x: -6300, y: FLOOR_Y - 1750, w: 460 * NET_K, h: 420 * NET_K };
   WALL_Y = WALL_PLATE.y + WALL_PLATE.h;
   WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: WALL_Y };

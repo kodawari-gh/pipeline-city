@@ -5,7 +5,7 @@ import { Container } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import {
-  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_POWER, POWER_PLATE, HOOK_PITCH, LANYARD, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
+  CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_CORD_X, PC_POWER, POWER_PLATE, HOOK_PITCH, LANYARD, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
 } from './layout';
 import { buildCables } from './routes';
 import { trayHook, trayKeyCentre } from './props';
@@ -76,10 +76,11 @@ describe('the desk follows the case', () => {
     setLayoutTier(t, t);
     const g = roomGeo();
     expect(g.desk.x0).toBeLessThan(g.lamp.x - 520);          // the lamp is the first thing on the desk
-    expect(g.lamp.x + 1700).toBeLessThan(MONITOR.x);          // and its hood clears the monitor
+    expect(g.lamp.mouth.x + 760).toBeLessThan(MONITOR.x);     // and its hood clears the monitor
+    expect(g.lamp.head.y).toBeLessThan(MONITOR.y + 1200);     // it is as tall as the monitor (its arm's end is up at the bezel's top)
     expect(g.lamp.x + 520).toBeLessThan(MONITOR.x);
     expect(g.mug - 420).toBeGreaterThan(MONITOR.x + MONITOR.w); // the mug is east of the monitor
-    expect(g.mug + 770).toBeLessThan(CASE.x - 800);            // and west of the cables' trunks by the case wall
+    expect(g.mug + 1000).toBeLessThan(VIDEO_TRUNK_X);          // and its handle west of the cables' trunks by the case wall
     expect(g.desk.x1).toBeGreaterThan(CASE.x + CASE.w);        // the PC is on the desk,
     expect(g.desk.x1 - (CASE.x + CASE.w)).toBeLessThan(700);   // and the last thing on it
   });
@@ -155,7 +156,7 @@ describe('the mains, the ISP line and the video cable', () => {
     // the PC's inlet is on the rear wall at the PSU; the monitor's is under its bezel, west of the video socket and east of the riser's foot
     expect(PC_POWER.y).toBeGreaterThan(CASE.y + CASE.h / 2);
     expect(PC_POWER.y).toBeLessThan(CASE.y + CASE.h);
-    expect(MONITOR_POWER.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
+    expect(MONITOR_POWER.y).toBe(MONITOR.y + MONITOR.h);                   // its cord comes out from behind the monitor's bottom edge (it is built in: no inlet)
     expect(MONITOR_POWER.x).toBeLessThan(VIDEO_SOCKET.x - 200);
     expect(Math.abs(MONITOR_POWER.x - (MONITOR.x + MONITOR.w / 2))).toBeLessThan(800 * MONITOR_K + 85); // the plug hangs over the foot's east end (the foot is 1,600 design wide)
   });
@@ -182,9 +183,9 @@ describe('the mains, the ISP line and the video cable', () => {
       const pts = c.path.pts, first = pts[0]!, last = pts[pts.length - 1]!;
       expect(first[1]).toBe(VIDEO_Y);
       expect(last[0]).toBeCloseTo(VIDEO_SOCKET.x, 6);
-      expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is below the socket: the cable hangs from it
-      expect(c.b).toMatchObject({ x: VIDEO_SOCKET.x, y: VIDEO_SOCKET.y, dx: 0, dy: 1 }); // the monitor's plug points up into it, its body below
-      expect(VIDEO_SOCKET.y).toBeGreaterThan(MONITOR.y + MONITOR.h);
+      expect(last[1]).toBeGreaterThan(VIDEO_SOCKET.y); // the end is just under the bezel's edge: the cable comes out from behind it (built in, no socket or plug on the monitor)
+      expect(last[1] - VIDEO_SOCKET.y).toBeLessThan(c.w);
+      expect(VIDEO_SOCKET.y).toBe(MONITOR.y + MONITOR.h);
       // the run under the monitor is above the riser, and the trunk is in the gap between the monitor and the case
       expect(VIDEO_RUN_Y + c.w / 2).toBeLessThan(MONITOR.y + MONITOR.h + MON_STAND - 100); // above the foot
       expect(VIDEO_TRUNK_X).toBeGreaterThan(MONITOR.x + MONITOR.w);
@@ -273,5 +274,16 @@ describe.each([0, 1, 2, 3])('RoomView at case tier %i', (t) => {
     roomDebug.hour = 3;
     expect(v.frame(5500, 0)).toBe(true); // a pinned hour redraws at once
     roomDebug.hour = null;
+  });
+});
+
+describe('the PC power cord', () => {
+  it.each([0, 1, 2, 3])('tier %i: the cord leaves the plug tail, turns down once and falls straight to the PC outlet (no jog, no doubling back)', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo(), s = g.socket;
+    expect(s.pc.x).toBe(PC_CORD_X);                                    // the outlet is right under the drop
+    expect(PC_CORD_X).toBeLessThan(PC_POWER.x - 330);                  // west of the plug's tail
+    expect(PC_CORD_X).toBeGreaterThan(CASE.x - 900);                   // and not far from the case
+    expect(POWER_PLATE.x + POWER_PLATE.w).toBeLessThan(CASE.x);        // the strip is west of the case's rear wall
   });
 });
