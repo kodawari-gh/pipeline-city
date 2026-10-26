@@ -99,6 +99,7 @@ export class Live {
   private bootPhase: Snapshot['phase'] = 'off';
   private bootProgress = 0;
   private monitorLive = false;
+  private monitorPowered = true;
   private powered = false;
   /** Machine switched on AND the power path is healthy (PSU not tripped, board not dead): fans spin, lights glow, buses move data. */
   private liveOn = false;
@@ -392,7 +393,7 @@ export class Live {
       this.lastText = shown;
     }
     // boot: data moves USB port <-> PCH <-> CPU <-> RAM along the real buses (only in the phases that move data)
-    this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.powered = s.powered;
+    this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;
     // the cold-boot wait (posting, before the first POST line: no progress yet) is the CPU idling: nothing is read yet
     const coldWait = s.phase === 'posting' && !(s.bootProgress > 0);
     this.coldWait = coldWait;
@@ -504,7 +505,7 @@ export class Live {
     // CLI monitor: last lines that fit, wrapped to the screen width
     // black while the cold-boot wait runs (the sim has no text yet) and after a power-off; a POST error shows its text; any other
     // error (a trip, a burnt part) shows NO SIGNAL rather than a stale line (see monitorView)
-    this.blank = { hasDisplay: this.hasDisplay, powered: s.powered, monitorLive: s.monitorLive, phase: s.phase, postFailed: s.postFailed, display: s.display };
+    this.blank = { hasDisplay: this.hasDisplay, powered: s.powered, monitorLive: s.monitorLive, monitorPowered: s.monitorPowered, phase: s.phase, postFailed: s.postFailed, display: s.display };
     const mv = monitorView(this.blank);
     const txt = mv.text;
     this.noSignal.visible = mv.noSignal;
@@ -675,7 +676,7 @@ export class Live {
       const m = MONITOR, s = SCREEN, K = MONITOR_K, cy = s.y + s.h + 14 * K + (m.y + m.h - (s.y + s.h + 14 * K)) / 2;
       e.circle(m.x + m.w - 150 * K, cy, 19 * K).fill({ color: '#0a0f1a' });
       const col2 = this.monitorLive ? (this.powered ? T.st : T.ld) : T.mute;
-      e.circle(m.x + m.w - 150 * K, cy, 15 * K).fill({ color: col2, alpha: this.monitorLive ? 1 : 0.4 });
+      e.circle(m.x + m.w - 150 * K, cy, 15 * K).fill({ color: col2, alpha: !this.monitorPowered ? 0.12 : this.monitorLive ? 1 : 0.4 }); // dark with its cord out
       if (showBar) {
         const bx = s.x + 60 * K, by = s.y + s.h - 36 * K, bw = s.w - 120 * K, th = 14 * K;
         e.roundRect(bx, by, bw, th, th / 2).fill({ color: '#0e1830' });

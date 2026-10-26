@@ -4,7 +4,6 @@ import { drawAircraft, drawCityLive, drawClouds, drawSkyline, drawStars } from '
 import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
 import { LightView, type Beam, type LightGeo } from './light';
-import { roundedPath } from './routes';
 import { drawMug, MUG } from './mug';
 import { Steam } from './steam';
 import { drawSlats, drawWallShade } from './wall';
@@ -16,7 +15,7 @@ import { drawDesk, drawDeskShadow, drawUnderDesk } from './desk';
 import { deskGeo, roomPersp, S_FRONT, spreadX, spreadY, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from './shape';
 import {
-  CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
+  CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, PC_POWER, OUTBOX, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
 import type { Theme } from './theme';
 
@@ -208,48 +207,27 @@ function segDigit(g: Graphics, x: number, y: number, d: number, color: string, a
   g.fill({ color, alpha });
 }
 
-/** A face-on mains plug in a wall outlet, its cord leaving at the top. */
-function plugFace(f: Graphics, T: Theme, x: number, y: number) {
-  const body = T.dark ? '#141a26' : '#262d3a', rim = T.dark ? '#5b6a94' : '#6b7794';
-  f.roundRect(x - 270 + 14, y - 280 + 20, 540, 560, 70).fill({ color: '#000000', alpha: 0.3 });
-  f.roundRect(x - 270, y - 280, 540, 560, 70).fill({ color: body }).stroke({ width: 8, color: rim, alpha: 0.8 });
-  f.roundRect(x - 220, y - 240, 440, 70, 30).fill({ color: '#ffffff', alpha: T.dark ? 0.08 : 0.2 });
-  for (let k = 0; k < 4; k++) f.rect(x - 200, y - 80 + k * 90, 400, 18).fill({ color: '#ffffff', alpha: 0.08 });
-  f.roundRect(x - 90, y - 330, 180, 90, 30).fill({ color: body }).stroke({ width: 6, color: rim, alpha: 0.6 }); // the boot
-}
-
 /**
- * The mains: a double socket on the wall under the desk, the PC's and the monitor's plugs and the two cords. A cord leaves its plug,
- * drops behind the desk (so only the stretches above the desk and under it show) and runs to its outlet. The cords are in `back`
- * (the desk, the shelf unit and the slab cover them), the plate and the plugs in `front`.
+ * The mains: a double socket on the wall under the desk, the plug in the case's inlet and the empty outlets. The two cords and their wall plugs are live (`cords.ts`):
+ * a cord leaves its machine, drops behind the desk (so only the stretches above the desk and under it show) and runs to its outlet.
  */
 function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
-  const m = metalOf(T), s = geo.socket, p = s.plate, jog = p.y - 330;
-  const rim = T.dark ? '#7d8bb0' : '#8d99b4', sleeve = T.dark ? '#0a0d15' : '#232a38';
-  const cord = (route: [number, number][], w = 70) => {
-    const pts = roundedPath(route, 170);
-    const line = (dx = 0, dy = 0) => { back.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) back.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
-    line(10, 14); back.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-    line(); back.stroke({ width: w + 10, color: rim, alpha: T.dark ? 0.32 : 0.0, cap: 'round', join: 'round' });
-    line(); back.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
-    line(-w * 0.22, 0); back.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.16 : 0.12, cap: 'round', join: 'round' });
-  };
+  const m = metalOf(T), s = geo.socket, p = s.plate;
   // the PC: the plug in the rear wall's inlet; the cord leaves its tail, turns down and falls straight to its outlet (the plate is set so that the outlet is right under it)
   const pcPlug = { x: PC_POWER.x - 6, y: PC_POWER.y, dx: -1, dy: 0, w: 190, l: 330 };
-  cord([[pcPlug.x - pcPlug.l + 10, pcPlug.y], [PC_CORD_X, pcPlug.y], [PC_CORD_X, s.pc.y - 310]]);
-  acPlug(back, T, pcPlug);
-  // the monitor: its cord is built in and comes out from behind it (this layer is under the monitor, so the start is hidden), drops behind the desk and runs to its outlet
-  const mon = MONITOR_POWER;
-  cord([[mon.x, mon.y - 200], [mon.x, jog], [s.mon.x, jog], [s.mon.x, s.mon.y - 310]]);
-  // the socket: a plate with two outlets, both plugged
+  acPlug(back, T, pcPlug); // (the cord itself, and the plugs in the wall, are live: `cords.ts`)
+  // the socket: a plate with two outlets
   const plate = T.dark ? '#7b86a8' : '#f4f6fb', edge = T.dark ? '#b3bddb' : '#a8b3cc';
   front.roundRect(p.x + 14, p.y + 20, p.w, p.h, 50).fill({ color: '#000000', alpha: 0.3 });
   front.roundRect(p.x, p.y, p.w, p.h, 50).fill({ color: plate }).stroke({ width: 8, color: edge, alpha: 0.8 });
   front.roundRect(p.x + 24, p.y + 20, p.w - 48, 50, 24).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.5 });
   for (const o of [s.mon, s.pc]) front.circle(o.x, o.y, 300).fill({ color: mix(plate, '#000000', 0.18) }).stroke({ width: 6, color: edge, alpha: 0.5 });
   for (const sx of [p.x + 70, p.x + p.w - 70]) { front.circle(sx, p.y + p.h / 2, 24).fill({ color: mix(plate, '#000000', 0.3) }); front.moveTo(sx - 14, p.y + p.h / 2).lineTo(sx + 14, p.y + p.h / 2).stroke({ width: 5, color: edge, alpha: 0.7 }); }
-  plugFace(front, T, s.mon.x, s.mon.y);
-  plugFace(front, T, s.pc.x, s.pc.y);
+  // each outlet's pins and earth: the plug (cords.ts) covers them while it is in
+  for (const o of [s.mon, s.pc]) {
+    for (const dx of [-110, 110]) front.roundRect(o.x + dx - 24, o.y - 70, 48, 140, 14).fill({ color: mix(plate, '#000000', 0.55) });
+    front.circle(o.x, o.y + 150, 30).fill({ color: mix(plate, '#000000', 0.55) });
+  }
   void m;
 }
 

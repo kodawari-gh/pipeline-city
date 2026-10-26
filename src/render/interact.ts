@@ -1,3 +1,4 @@
+import { SEAT_R } from './cords';
 import { Container, Graphics, Text } from 'pixi.js';
 import { hover, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
@@ -46,6 +47,19 @@ export interface LanScene {
   port: string | null;
 }
 
+/** One of the wall cords as the pointer sees it (filled by `CordsView.sync`): the plug's grab rect (seated, loose or in the hand) and the outlet it seats in. */
+export interface CordScene {
+  kind: 'pcmains' | 'monmains';
+  connected: boolean;
+  held: boolean;
+  plug: Rect;
+  /** The outlet's centre, and a rect round it for highlight rings. */
+  outlet: Pt;
+  outletRect: Rect;
+  /** Where the plug lies when it is out. */
+  rest: Pt;
+}
+
 export interface SceneInfo {
   /** Id to world rect, for outlines, highlight rings and flyTo. */
   rects: Map<string, Rect>;
@@ -61,9 +75,11 @@ export interface SceneInfo {
   usb: Rect;
   /** The ethernet cable (null while there is no router). */
   lan: LanScene | null;
+  /** The cords from the wall (the PC's, the monitor's). */
+  cords: CordScene[];
 }
 
-export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), shapes: new Map(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 }, lan: null });
+export const emptyScene = (): SceneInfo => ({ rects: new Map(), interactive: new Set(), shapes: new Map(), props: new Map(), cables: new Map(), slots: new Map(), usb: { x: 0, y: 0, w: 0, h: 0 }, lan: null, cords: [] });
 
 const DRAG_PX = 6;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -81,6 +97,8 @@ export class Interact {
   onHeld: (k: CableKind | null) => void = () => {};
   /** The ethernet plug is in the hand (its cable art is hidden while it is). */
   onLanHeld: (held: boolean) => void = () => {};
+  /** A wall cord's plug is in the hand (`at` is the plug's centre, world) or was let go (null): `CordsView` draws it. */
+  onCordHeld: (kind: CordScene['kind'], at: Pt | null) => void = () => {};
   forced = new Map<string, { connected: boolean; until: number; port?: string }>();
   hitAt: (cx: number, cy: number) => string | null = () => null;
 
@@ -100,6 +118,7 @@ export class Interact {
     /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
     /** cable */ cable?: CableInfo; snapped?: boolean; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
+    /** a wall cord: which, where the plug's centre is relative to the pointer, and where the plug is now */ cord?: CordScene['kind']; off?: Pt; at?: Pt;
     /** key */ fromPlugged?: boolean; keyId?: number;
   } = null;
   private back: { c: Container; fx: number; fy: number; tx: number; ty: number; t0: number; to: 'fade' | 'return' }[] = [];
@@ -194,8 +213,9 @@ export class Interact {
   }
 
   private isDraggable(id: string | null) {
-    return !!id && (id.startsWith('key:') || (id === 'cable.lan' && !!this.scene.lan) || (id.startsWith('cable.') && this.plugHit(id)));
+    return !!id && (id.startsWith('key:') || (id === 'cable.lan' && !!this.scene.lan) || this.cordOf(id) !== null || (id.startsWith('cable.') && this.plugHit(id)));
   }
+  private cordOf(id: string): CordScene | null { return this.scene.cords.find((c) => 'cable.' + c.kind === id) ?? null; }
   private plugHit(id: string) { return this.scene.cables.has(id.slice(6) as CableKind); }
 
   private updateCursor() {
@@ -263,6 +283,11 @@ export class Interact {
       const lan = this.scene.lan;
       if (!lan || lan.held || !inside(lan.plug, wx, wy, 30)) return null;
       return this.pending(cx, cy, id, () => this.beginLan(cx, cy));
+    }
+    const cord = this.cordOf(id);
+    if (cord) {
+      if (cord.held || !inside(cord.plug, wx, wy, 30)) return null;
+      return this.pending(cx, cy, id, () => this.beginCord(cord, cx, cy));
     }
     if (id.startsWith('cable.')) {
       const ci = this.scene.cables.get(id.slice(6) as CableKind);
@@ -347,6 +372,20 @@ export class Interact {
     return true;
   }
 
+  /** Pick up a wall cord's plug (from where it lies, or out of the wall: that pulls the cord, which works while the PC runs, and cuts its power). */
+  private beginCord(c: CordScene, cx: number, cy: number): boolean {
+    const d = this.start('cable', 'cable.' + c.kind, cx, cy);
+    const at: Pt = c.connected ? c.outlet : [c.plug.x + c.plug.w / 2, c.plug.y + 330];
+    d.cord = c.kind; d.off = [at[0] - d.wx, at[1] - d.wy]; d.at = at;
+    if (c.connected) {
+      this.act(cx, cy);
+      disconnectCable(c.kind);
+      this.forced.set(c.kind, { connected: false, until: performance.now() + 1500 });
+    }
+    this.onCordHeld(c.kind, at);
+    return true;
+  }
+
   /** Pick up the ethernet plug (from its rest spot, or out of a jack: that unplugs it, which works while the PC runs). */
   private beginLan(cx: number, cy: number): boolean {
     const lan = this.scene.lan;
@@ -403,6 +442,12 @@ export class Interact {
     if (d.kind === 'part') d.over = this.slotAt(d.wx, d.wy, d);
     if (d.kind === 'cable' && d.cable) {
       d.snapped = inside(d.cable.connector, d.wx, d.wy, d.cable.kind === 'video' ? 160 : 260);
+    }
+    if (d.cord) {
+      const c = this.scene.cords.find((q) => q.kind === d.cord);
+      d.at = [d.wx + d.off![0], d.wy + d.off![1]];
+      d.snapped = !!c && Math.hypot(d.at[0] - c.outlet[0], d.at[1] - c.outlet[1]) < SEAT_R;
+      this.onCordHeld(d.cord, d.at);
     }
     if (d.lan) {
       d.jack = this.scene.lan?.jacks.find((j) => j.valid && inside(j.rect, d.wx, d.wy, 130)) ?? null;
@@ -468,6 +513,16 @@ export class Interact {
         if (!cancelled && !d.fromPlugged && overPort && d.why) this.toast(d.why, cx, cy);
         flash('return', o ? o.base.x : gx, o ? o.base.y : gy);
       }
+    } else if (d.kind === 'cable' && d.cord) {
+      const c = this.scene.cords.find((q) => q.kind === d.cord);
+      if (!cancelled && d.snapped) {
+        this.act(cx, cy);
+        connectCable(d.cord);
+        this.forced.set(d.cord, { connected: true, until: performance.now() + 1500 });
+      } else if (!cancelled && d.at && c && this.scene.cords.some((o) => o.kind !== d.cord && Math.hypot(d.at![0] - o.outlet[0], d.at![1] - o.outlet[1]) < SEAT_R)) {
+        this.toast('That hole is for the other cord: this cord reaches the one next to it.', cx, cy);
+      }
+      this.onCordHeld(d.cord, null);
     } else if (d.kind === 'cable' && d.lan) {
       this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
       if (!cancelled && d.jack) {
@@ -499,6 +554,8 @@ export class Interact {
   // ------------------------------------------------------------------ highlight geometry
 
   rectsFor(id: string): Rect[] {
+    const cord = this.cordOf(id);
+    if (cord) return cord.connected ? [cord.plug] : [cord.plug, cord.outletRect];
     if (id === 'cable.lan') {
       const lan = this.scene.lan;
       if (!lan) return [];

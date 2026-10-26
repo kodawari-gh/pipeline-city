@@ -12,6 +12,7 @@ import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, cpuFanCableArt, emptyC
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { Interact, type CableInfo, type SceneInfo } from './interact';
+import { CordsView, type CordKind } from './cords';
 import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
@@ -62,7 +63,7 @@ const ROOM_MARGIN = 0.84;
 const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'monitor' || id === 'tray' || id === 'case'
   || id === 'cable.video' || id.startsWith('key:') || id.startsWith('display')
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
-  || id === 'router' || id === 'wall' || id === 'cable.lan' || /^eth\d+$/.test(id)
+  || id === 'router' || id === 'wall' || id === 'cable.lan' || id === 'cable.pcmains' || id === 'cable.monmains' || id === 'socket' || /^eth\d+$/.test(id)
   // the room's props (the lamp and the blind) answer a click at any zoom
   || id === 'lamp' || id === 'blind';
 
@@ -162,6 +163,8 @@ export async function mountBoard(host: HTMLElement) {
   /** Router, wall plate, ethernet cable, jack LEDs and traffic pulses: external, drawn at every zoom. */
   const net = new NetView();
   net.silhouette = (art, rect) => liveShape(art, rect);
+  /** The two cords from the wall (the PC's and the monitor's): their bodies run behind the desk, their plugs are external and drawn at every zoom. */
+  const cords = new CordsView();
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();
@@ -203,7 +206,7 @@ export async function mountBoard(host: HTMLElement) {
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
   const outLedG = new Graphics();
   const mailBack = new Container(), mailMid = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, a finished key on its way into one, its pocket and flap over them
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, cords.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -326,8 +329,9 @@ export async function mountBoard(host: HTMLElement) {
   let powerArtRef: PropsArt | null = null;
   let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
   let netHits: Hit[] = [];
+  let cordHits: Hit[] = [];
   const mergeHits = () => {
-    allHits = [...propHits, ...netHits, ...cableHits, ...mainHits, ...roomHits];
+    allHits = [...propHits, ...netHits, ...cordHits, ...cableHits, ...mainHits, ...roomHits];
     scene.shapes.clear();
     for (const h of allHits) if (h.shape && h.ring !== false && !scene.shapes.has(h.id)) scene.shapes.set(h.id, h.shape);
     warmShapes();
@@ -439,6 +443,7 @@ export async function mountBoard(host: HTMLElement) {
     const tierChanged = sceneReady && (tier !== LAYOUT_TIER || caseTier !== LAYOUT_CASE), wasOverview = tierChanged && atOverviewNow();
     setLayoutTier(tier, caseTier);
     // the room follows the case (the desk top is where its feet stand) and the theme
+    cords.behind.parent?.removeChild(cords.behind);
     net.behind.parent?.removeChild(net.behind); // (it survives the room it was in: the ISP lead runs behind the desk, so it lives in the room's back layer)
     clear(roomLayer);
     roomView?.dispose();
@@ -447,7 +452,8 @@ export async function mountBoard(host: HTMLElement) {
     roomLayer.addChild(roomView.root);
     clear(lightLayer); lightLayer.addChild(roomView.light);
     clear(roomOverLayer); roomOverLayer.addChild(roomView.over);
-    roomView.behind.addChild(net.behind);
+    roomView.behind.addChild(net.behind, cords.behind);
+    cords.setRoom(T, roomView.geo);
     camera.bounds = roomBox(roomView.geo);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
@@ -706,6 +712,7 @@ export async function mountBoard(host: HTMLElement) {
     cableKey = ''; propsKey = '';
     syncCables(s, true);
     syncNet(s, true);
+    syncCords(s, true);
     syncProps(s, true);
     applyBadge(s);
     onZoom();
@@ -777,6 +784,18 @@ export async function mountBoard(host: HTMLElement) {
     }
   }
 
+  // ---- the wall cords (cords.ts): same optimistic scheme, a plug in the hand is drawn by the view itself ----
+  let cordHeld: { kind: CordKind; at: [number, number] } | null = null;
+  function syncCords(s: Snapshot | null, force = false) {
+    if (!roomView) return;
+    const now = performance.now(), on = (k: CordKind) => interact.cableStateOf(k, !!s?.cables.find((c) => c.id === k)?.connected, now);
+    if (cords.sync({ pcmains: on('pcmains'), monmains: on('monmains') }, cordHeld, scene, roomView.geo.socket.plate) || force) {
+      cordHits = cords.hits.map((h) => ({ id: h.id, rect: h.rect }));
+      sceneDirty = true;
+      mergeHits();
+    }
+  }
+
   // ---- props: tray, power button, the key in the USB port ----
   /** The timers of the keys on the rack and in the port follow the sim's ticks (the sticks themselves are rebuilt only when something else changes). */
   const refreshTimers = (s: Snapshot | null) => {
@@ -795,7 +814,7 @@ export async function mountBoard(host: HTMLElement) {
     const trayShown = !!s && (s.sandbox || s.progress.poweredOn || s.noPowerReason === null);
     if (trayShown) scene.rects.set('tray', TRAY); else scene.rects.delete('tray');
     powerState = { powered, down, error, blocked: !!s?.noPowerReason };
-    screenOn = powered && !!s?.devices.some((d) => d.kind === 'display');
+    screenOn = powered && s?.monitorPowered !== false && !!s?.devices.some((d) => d.kind === 'display');
     roomView?.setScreen(screenOn);
     const key = [
       T.dark, trayShown, s ? s.tray.map((k) => `${k.id}${urgencyOf(k)}${k.stage}`).join(',') : '',
@@ -947,6 +966,7 @@ export async function mountBoard(host: HTMLElement) {
   interact.hitAt = hitAt;
   interact.onHeld = (k) => { held = k; if (lastSnap || k === null) syncCables(lastSnap, true); };
   interact.onLanHeld = (h) => { lanHeld = h; syncNet(lastSnap, true); };
+  interact.onCordHeld = (kind, at) => { cordHeld = at ? { kind, at } : null; syncCords(lastSnap, true); };
   camera.onHover = (p) => {
     if (interact.busy) { if (hover.peek()) hover.value = null; return; }
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
@@ -974,7 +994,7 @@ export async function mountBoard(host: HTMLElement) {
     const now = gt;
     lastSnap = s;
     if (keyOf(s) !== sceneKey) build(s);
-    else { syncCables(s); syncNet(s); syncProps(s); }
+    else { syncCables(s); syncNet(s); syncCords(s); syncProps(s); }
     applyBadge(s);
     live.update(s, now);
     pipeline.update(s, fast, now);
@@ -984,7 +1004,7 @@ export async function mountBoard(host: HTMLElement) {
   /** True while something the player is doing needs the inside: a part or an internal cable is dragged, or an internal id is highlighted. */
   const needsInterior = () => {
     const d = dragging.peek();
-    if (d && (d.kind === 'part' || (d.kind === 'cable' && d.id !== 'cable.video' && d.id !== 'cable.lan'))) return true;
+    if (d && (d.kind === 'part' || (d.kind === 'cable' && d.id !== 'cable.video' && d.id !== 'cable.lan' && d.id !== 'cable.pcmains' && d.id !== 'cable.monmains'))) return true;
     for (const id of highlight.peek()) if (!isExternalId(id) && interact.rectsFor(id).length > 0) return true;
     return false;
   };
@@ -1094,6 +1114,7 @@ export async function mountBoard(host: HTMLElement) {
     pipeline.frame(gt);
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
+    syncCords(lastSnap);
     net.frame(gt, gdt);
     // the remove cue on a finished key: game clock, scaled up as the camera moves out so it stays readable
     const cueK = Math.min(2.6, Math.max(1, fits.z / Math.max(1e-6, camera.z)));

@@ -3,6 +3,8 @@ export interface MonitorInput {
   hasDisplay: boolean;
   powered: boolean;
   monitorLive: boolean;
+  /** The monitor's own cord is in the wall (absent counts as plugged): without it the glass is dead, not showing NO SIGNAL. */
+  monitorPowered?: boolean;
   phase: string;
   postFailed: boolean;
   display: string;
@@ -21,6 +23,7 @@ export interface MonitorView {
  * error (a PSU trip, a burnt part): the screen lost its picture. A cold-boot wait or a power-off stays black.
  */
 export function monitorView(m: MonitorInput): MonitorView {
+  if (m.monitorPowered === false) return { text: '', noSignal: false };
   const blanked = m.phase === 'error' && !m.postFailed;
   return {
     text: m.monitorLive && !blanked ? m.display : '',
@@ -34,6 +37,6 @@ export function monitorView(m: MonitorInput): MonitorView {
  * screen, NO SIGNAL) or there is no display.
  */
 export function standbyLook(m: MonitorInput, v: MonitorView, osOn: boolean): 'off' | 'wait' | null {
-  if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn) return null;
+  if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn || m.monitorPowered === false) return null;
   return m.powered ? 'wait' : 'off';
 }
