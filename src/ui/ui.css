@@ -5,7 +5,7 @@
   --tile: #ffffff; --ink: #0f1830; --mute: #475372; --line: #9aabc8; --dot: #c3cfe3;
   --alu: #0786ab; --mul: #6a49e0; --ld: #c47600; --st: #0f9a53; --br: #c4259f; --on: #ffffff;
   --accent: #0a6f8f; --ok: #0e7a45; --warn: #9a5a00; --bad: #c81e3e;
-  --panel: rgba(255, 255, 255, .82); --glass-line: rgba(30, 44, 90, .24); --glass-hi: rgba(255, 255, 255, .6);
+  --menu-solid: #f4f7fc; --panel: rgba(255, 255, 255, .82); --glass-line: rgba(30, 44, 90, .24); --glass-hi: rgba(255, 255, 255, .6);
   --art-plate: #e1e9f5;
   --ui: system-ui, 'Segoe UI', sans-serif; --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   color-scheme: light;
@@ -76,7 +76,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 /* HUD bar: one row of the few numbers that matter, the rest sits in the menu. */
 .hud { position: fixed; top: 0.533rem; left: 0.533rem; right: 0.533rem; z-index: 30; display: flex; justify-content: space-between; align-items: flex-start; gap: 0.533rem; pointer-events: none; }
 .hud-side { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.667rem; padding: 0.333rem 0.533rem; min-height: 2.667rem; box-sizing: border-box; }
-.hud-right { margin-left: auto; justify-content: flex-end; }
+.hud-right { margin-left: auto; justify-content: flex-end; position: relative; z-index: 2; } /* (its menu opens over the level card, which sits later in the bar) */
 /* The level sits alone at the top centre, out of the stats bar. */
 /* Pause/play and the speed: collapsed to the play state and the current speed, the rest open on hover, focus or tap. */
 .speedctl { display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -103,7 +103,8 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .seg > :first-child { border-radius: 0.467rem 0 0 0.467rem; margin-left: 0; }
 .seg > :last-child { border-radius: 0 0.467rem 0.467rem 0; }
 .menu { position: relative; }
-.menu-pop { position: absolute; right: 0; top: calc(100% + 0.4rem); display: flex; flex-direction: column; gap: 0.133rem; min-width: 12.667rem; padding: 0.333rem; z-index: 35; }
+/* (inside the bar's glass its own blur does nothing, so it is nearly opaque: what is behind it must not show through the words) */
+.menu-pop { background: color-mix(in srgb, var(--panel) 20%, var(--menu-solid, #0a0e22)); position: absolute; right: 0; top: calc(100% + 0.4rem); display: flex; flex-direction: column; gap: 0.133rem; min-width: 12.667rem; padding: 0.333rem; z-index: 35; }
 .menu-pop button, .menuitem { border: 0; background: transparent; width: 100%; justify-content: flex-start; padding: 0.333rem 0.467rem; font-weight: 500; }
 .menu-pop button:hover, .menuitem:hover { background: var(--glass-hi); }
 .menuitem { display: flex; cursor: pointer; }
