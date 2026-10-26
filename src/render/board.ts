@@ -27,13 +27,14 @@ import { PipelineView } from './pipeline';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from './room';
 import { focusAt } from './light';
 import { captureShape } from './capture';
-import { lazyShape, movedShape, pick, rectShape, type Shape } from './shape';
+import { lazyShape, movedShape, pick, rectShape, unionRect, type Shape } from './shape';
 import { onThemeChange, readTheme, type Theme } from './theme';
 import { initThumbs } from './thumbs';
 
 interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean;
   /** The silhouette (the lamp, a key, the power button): the pointer picks what is drawn, not the box round it. */ shape?: Shape;
-  /** A backdrop (the board, the case): it answers only where nothing else is, near or on. */ base?: boolean }
+  /** A backdrop (the board, the case): it answers only where nothing else is, near or on. */ base?: boolean;
+  /** False: the hover ring is not traced along the silhouette (a cable's ring stays on its plug, the part that is grabbed). */ ring?: false }
 
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -158,6 +159,7 @@ export async function mountBoard(host: HTMLElement) {
   const cableExtLayer = new Container();
   /** Router, wall plate, ethernet cable, jack LEDs and traffic pulses: external, drawn at every zoom. */
   const net = new NetView();
+  net.silhouette = (art, rect) => liveShape(art, rect);
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();
@@ -276,6 +278,18 @@ export async function mountBoard(host: HTMLElement) {
       return movedShape(s, bx, by);
     });
   };
+  /**
+   * The silhouette of a piece of live art (a part, a drive, the monitor, a cable), read from its own pixels the first time the pointer comes near. The art is read in its
+   * own space (the position it has now is taken off the rect), a little beyond the rect so a bracket or a fin that sticks out is part of it; `threshold` is the alpha that
+   * counts (a cable's soft shadow is under it).
+   */
+  const liveShape = (art: Container, rect: Rect, threshold = 90): Shape => {
+    const ox = art.position.x, oy = art.position.y, m = 40;
+    const local: Rect = { x: rect.x - ox - m, y: rect.y - oy - m, w: rect.w + 2 * m, h: rect.h + 2 * m };
+    return lazyShape(rect, () => { const s = captureShape(app.renderer, art, local, { threshold }); return s ? (ox || oy ? movedShape(s, ox, oy) : s) : rectShape(rect); });
+  };
+  /** A hit for a piece of art: its rect, and its silhouette read from the art itself (`extra`: the zoom range, the ring, and so on). Every part, drive, monitor and cable registers through this. */
+  const partHit = (id: string, art: Container, rect: Rect, extra: Partial<Hit> = {}): Hit => ({ id, rect, shape: liveShape(art, rect), ...extra });
   const rebuildPropHits = () => {
     const hide = new Set(mails.map((m) => 'key:' + m.id));
     propHits = [
@@ -311,7 +325,26 @@ export async function mountBoard(host: HTMLElement) {
   const mergeHits = () => {
     allHits = [...propHits, ...netHits, ...cableHits, ...mainHits, ...roomHits];
     scene.shapes.clear();
-    for (const h of allHits) if (h.shape && !scene.shapes.has(h.id)) scene.shapes.set(h.id, h.shape);
+    for (const h of allHits) if (h.shape && h.ring !== false && !scene.shapes.has(h.id)) scene.shapes.set(h.id, h.shape);
+    warmShapes();
+  };
+  // The silhouettes are read from the art the first time the pointer comes near (`lazyShape`, a few milliseconds each); so that the first hover never hitches, they are
+  // read one at a time in the idle moments after the hits change, and not while a gesture is running.
+  const warmed = new WeakSet<Shape>();
+  let warmTimer = 0;
+  const warmShapes = () => {
+    clearTimeout(warmTimer);
+    const todo = allHits.filter((h) => h.shape && !warmed.has(h.shape));
+    const step = () => {
+      if (interact.busy) { warmTimer = window.setTimeout(step, 400); return; }
+      const h = todo.shift();
+      if (!h) return;
+      warmed.add(h.shape!);
+      const b = h.shape!.bounds;
+      h.shape!.dist(b.x + b.w / 2, b.y + b.h / 2); // inside the box: it builds
+      warmTimer = window.setTimeout(step, 90);
+    };
+    warmTimer = window.setTimeout(step, 600);
   };
 
   // ---- LOD driven by zoom ----
@@ -457,7 +490,7 @@ export async function mountBoard(host: HTMLElement) {
         targets.push({ id: d.id, kind: 'cpu', spec: d.spec, rect: { x: PKG.x - 46, y: PKG.y - 46, w: PKG.w + 92, h: PKG.h + 92 } });
         // the package (the CPU) is hit everywhere; the cooler sits over it and is hit first below the die zoom (coolerHit), so
         // the exposed package ring picks the CPU and the cooler body picks the cooler
-        deviceHits.push({ id: d.id, rect: PKG });
+        deviceHits.push(partHit(d.id, p.root, PKG));
         scene.rects.set(d.id, PKG);
       } else if (spec.kind === 'ram') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
@@ -467,7 +500,7 @@ export async function mountBoard(host: HTMLElement) {
         const r = { x: DIMM_X(idx), y: DIMM_Y(idx), w: DIMM_W, h: DIMM_H };
         dimms.push(idx);
         targets.push({ id: d.id, kind: 'ram', spec: d.spec, rect: r });
-        deviceHits.push({ id: d.id, rect: r });
+        deviceHits.push(partHit(d.id, p.root, r));
         scene.rects.set(d.id, r);
         dram = dram.concat((p.chips ?? []).map((c) => ({ x: c.x + r.x, y: c.y + r.y, w: c.w, h: c.h })));
       } else if (spec.kind === 'psu') {
@@ -475,7 +508,7 @@ export async function mountBoard(host: HTMLElement) {
         deviceLayer.addChild(p.root); parts.push(p);
         if (p.fan) { fans.push({ c: p.fan, kind: 'psu' }); fanLayer.addChild(p.fan); }
         if (p.over) fanLayer.addChild(p.over);
-        deviceHits.push({ id: 'psu', rect: PSU });
+        deviceHits.push(partHit('psu', p.root, PSU));
         scene.rects.set(d.id, PSU); scene.rects.set('psu', PSU);
         scene.interactive.add('psu');
         hasPsu = true;
@@ -484,21 +517,21 @@ export async function mountBoard(host: HTMLElement) {
         coolerLayer.addChild(p.root); parts.push(p);
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
         sataLayer.addChild(cpuFanCableArt(T)); // its fan cable to the CPU_FAN header
-        coolerHit = { id: d.id, rect: COOLER, max: Z_DIE };
+        coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
         deviceLayer.addChild(p.root); parts.push(p);
         if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'vrm')); }
         if (p.over) fanLayer.addChild(p.over);
-        deviceHits.push({ id: d.id, rect: VRM_SINK });
+        deviceHits.push(partHit(d.id, p.root, VRM_SINK));
         scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'ram-sink') {
         const p = vrmSinkArt(T, spec.visual, RAM_SINK);
         deviceLayer.addChild(p.root); parts.push(p);
         if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'ram')); }
         if (p.over) fanLayer.addChild(p.over);
-        deviceHits.push({ id: d.id, rect: RAM_SINK });
+        deviceHits.push(partHit(d.id, p.root, RAM_SINK));
         scene.rects.set(d.id, RAM_SINK);
       } else if (spec.kind === 'nic') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
@@ -506,7 +539,7 @@ export async function mountBoard(host: HTMLElement) {
         deviceLayer.addChild(p);
         const r = nicRect(idx, spec.visual);
         targets.push({ id: d.id, kind: 'nic', spec: d.spec, rect: r });
-        deviceHits.push({ id: d.id, rect: r });
+        deviceHits.push(partHit(d.id, p, r));
         scene.rects.set(d.id, r);
       } else if (spec.kind === 'storage') {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
@@ -514,7 +547,7 @@ export async function mountBoard(host: HTMLElement) {
         const p = monitorArt(T, true);
         monitorLayer.addChild(p.root);
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
-        deviceHits.push({ id: 'monitor', rect: MONITOR });
+        deviceHits.push(partHit('monitor', p.root, MONITOR));
         scene.rects.set(d.id, MONITOR); scene.rects.set('monitor', MONITOR);
         scene.interactive.add('monitor');
         hasDisplay = true;
@@ -565,7 +598,7 @@ export async function mountBoard(host: HTMLElement) {
       if (kind !== 'ssd-nvme') sataLayer.addChild(sataLinkArt(T, idx));
       hooks.push({ slot: sd.slot, kind, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx) });
       scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
-      deviceHits.push({ id: sd.id, rect: body });
+      deviceHits.push(partHit(sd.id, node, body));
     }
     sataLayer.addChild(fanTrunkArt(T)); // the fan hub's control cable (the hub is part of the case)
     // one power lead for the cage, with a plug on every installed SATA drive
@@ -708,13 +741,15 @@ export async function mountBoard(host: HTMLElement) {
         const p = cableArt(T, c);
         (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const rs = laneRects(c.path, c.w / 2 + 10);
-        cableHits.push({ id: 'cable.' + c.kind, rect: rs[0]!, more: [...rs.slice(1), plugRect(c.a), plugRect(c.b)] });
+        const parts = [...rs, plugRect(c.a), plugRect(c.b)];
+        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1), ring: false }));
       } else if (state === 'loose') {
         const p = looseCableArt(T, c);
         (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const pad = (r: Rect, e = 30): Rect => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
         const rs = laneRects(lo.path, c.w * 0.31 + 10);
-        cableHits.push({ id: 'cable.' + c.kind, rect: pad(rest), more: [...rs, plugRect(c.kind === 'video' ? c.b : c.a)] });
+        const parts = [pad(rest), ...rs, plugRect(c.kind === 'video' ? c.b : c.a)];
+        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1), ring: false }));
       }
     }
     live.setConnected(connectedKinds);
@@ -728,7 +763,7 @@ export async function mountBoard(host: HTMLElement) {
     const conn = interact.cableStateOf('lan', snapConn, performance.now());
     const state = lanHeld ? 'held' as const : conn ? 'connected' as const : 'loose' as const;
     if (net.sync(s, T, scene, state, interact.forced.get('lan')?.port ?? null, force)) {
-      netHits = net.hits.map((h) => ({ id: h.id, rect: h.rect, more: h.more }));
+      netHits = net.hits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape }));
       sceneDirty = true;
       mergeHits();
     }

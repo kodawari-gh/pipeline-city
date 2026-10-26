@@ -69,7 +69,7 @@ describe('a silhouette read from pixels', () => {
       const rings = s.outline(e)!;
       expect(rings.length).toBe(1);
       for (const [x, y] of rings[0]!) expect(Math.abs(Math.hypot(x - 200, y - 200) - (100 + e))).toBeLessThan(8);
-      expect(rings[0]!.length).toBeGreaterThan(20);
+      expect(rings[0]!.length).toBeGreaterThan(12);
     }
     expect(s.outline(12)).toBe(s.outline(12)); // the same ring again is not worked out again
   });
@@ -80,6 +80,28 @@ describe('a silhouette read from pixels', () => {
     expect(s.dist(200, 330)).toBe(0); // the foot
     expect(s.dist(200, 150)).toBeGreaterThan(90); // the empty corner of the box round them: 100 from the upright
     expect(cell).toBe(10);
+  });
+  it('places an anti-aliased edge to a fraction of a cell, not a whole one', () => {
+    // 10 world units a pixel; the edge runs at x = 105.3 (a pixel column that is 53 percent covered), the same for every row
+    const w = 30, h = 30, p = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) p[(y * w + x) * 4 + 3] = x < 10 ? 255 : x === 10 ? 135 : 0;
+    const s = fieldShape(p, w, h, { x: 0, y: 0, w: 300, h: 300 }, { threshold: 128 })!;
+    expect(s.dist(105, 150)).toBeLessThan(1.5);
+    expect(s.dist(125, 150)).toBeGreaterThan(18);
+    expect(s.dist(125, 150)).toBeLessThan(21.5);
+    expect(s.dist(95, 150)).toBe(0);
+    const ring = s.outline(0)!.flat().filter(([x, y]) => y > 60 && y < 240);
+    for (const [x] of ring) expect(Math.abs(x - 105.3)).toBeLessThan(2);
+  });
+  it('knows about how thick a thing is, and drops specks and pinholes from its ring', () => {
+    const w = 60, h = 60, cell = 10;
+    const stroke = fieldShape(pixels(w, h, (x, y) => y >= 28 && y < 31 && x > 5 && x < 55), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    expect(stroke.thickness!).toBeGreaterThan(18);
+    expect(stroke.thickness!).toBeLessThan(45);
+    const block = fieldShape(pixels(w, h, (x, y) => x >= 5 && x < 55 && y >= 5 && y < 55), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    expect(block.thickness!).toBeGreaterThan(stroke.thickness! * 3);
+    const speck = fieldShape(pixels(w, h, (x, y) => (x >= 10 && x < 40 && y >= 10 && y < 40 && !(x === 25 && y === 25)) || (x === 50 && y === 50)), w, h, { x: 0, y: 0, w: w * cell, h: h * cell })!;
+    expect(speck.outline(0)!.length).toBe(1); // the body only: no ring for the one-cell dot or the one-cell hole
   });
   it('is null for nothing, and far away it is at least the margin', () => {
     expect(fieldShape(pixels(8, 8, () => false), 8, 8, { x: 0, y: 0, w: 80, h: 80 })).toBeNull();

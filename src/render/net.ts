@@ -13,6 +13,7 @@ import { portProfile } from './ports';
 import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from './routes';
 import type { Theme } from './theme';
+import type { Shape } from './shape';
 
 // The network props (docs/RENDER.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
 // ethernet cable (router to the board jack or a NIC jack), the NIC cards, the link LEDs and the traffic pulses. Everything the
@@ -192,7 +193,7 @@ export function nicPlateLeds(i: number): Pt2[] { return nicLeds(i); }
 type LanState = 'connected' | 'loose' | 'held';
 type Light = [string | null, number];
 
-export interface NetHit { id: string; rect: Rect; more?: Rect[] }
+export interface NetHit { id: string; rect: Rect; more?: Rect[]; shape?: Shape }
 
 export class NetView {
   /** External layer (router, wall plate, ISP line, ethernet cable, jack LEDs, traffic pulses): drawn at every zoom. */
@@ -202,6 +203,8 @@ export class NetView {
   private art = new Container();
   private g = new Graphics();
   hits: NetHit[] = [];
+  /** Reads the silhouette of a piece of art (board.ts gives it the renderer): the router's and the wall plate's. Without it they keep their rectangles. */
+  silhouette: ((art: Container, rect: Rect) => Shape) | null = null;
   private T!: Theme;
   private key = '';
   private own: string[] = [];
@@ -274,7 +277,8 @@ export class NetView {
     g.roundRect(ROUTER_SPOT.x - 30, SHELF_Y + 2, ROUTER_SPOT.w + 90, 16, 8).fill({ color: T.mute, alpha: 0.4 });
     scene.slots.set('router', ROUTER_SPOT);
     const rr = this.router ? routerRect(this.router.visual) : ROUTER_SPOT;
-    if (this.router) this.art.addChild(routerArt(T, this.router.visual, this.router.name));
+    let routerBox: Container | null = null;
+    if (this.router) { routerBox = routerArt(T, this.router.visual, this.router.name); this.art.addChild(routerBox); }
     else {
       const r = ROUTER_SPOT;
       dashed(g, [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h], [r.x, r.y]], 40, 30);
@@ -282,8 +286,9 @@ export class NetView {
       this.art.addChild(label('ROUTER', r.x + r.w / 2, r.y + r.h / 2, 170, T.mute, { anchor: [0.5, 0.5], head: true, a: 0.75 }));
     }
     reg('router', rr);
-    this.hits.push({ id: 'router', rect: rr });
-    this.art.addChild(wallArt(T, net?.isp ?? null));
+    this.hits.push({ id: 'router', rect: rr, shape: routerBox && this.silhouette ? this.silhouette(routerBox, rr) : undefined });
+    const wallBox = wallArt(T, net?.isp ?? null);
+    this.art.addChild(wallBox);
     reg('wall', WALL_PLATE);
 
     const cable = (pts: Pt[], w: number, col: string, a = 1, gg: Graphics = g) => {
@@ -334,7 +339,7 @@ export class NetView {
       scene.lan = { connected: lanState === 'connected' && !!jack, held: lanState === 'held', plug, anchor: [lx, SHELF_Y + PLUG_L - 10], anchorDir: [0, 1], seated, jacks, port: jack?.id ?? null };
     }
     for (const j of jacks) { reg(j.id, j.rect); this.hits.push({ id: j.id, rect: j.rect }); }
-    this.hits.push({ id: 'wall', rect: WALL_PLATE });
+    this.hits.push({ id: 'wall', rect: WALL_PLATE, shape: this.silhouette ? this.silhouette(wallBox, WALL_PLATE) : undefined });
     return true;
   }
 
