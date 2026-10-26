@@ -201,7 +201,7 @@ describe("sandbox maxed machine", () => {
     expect(g.board.tier).toBe(3);
     expect(g.board.caseTier).toBe(3);
     const specs = s.devices.map((d) => d.spec).sort();
-    expect(specs.filter((x) => x === "cpu4")).toHaveLength(1);
+    expect(specs.filter((x) => x === "cpu4w")).toHaveLength(1);
     expect(specs.filter((x) => x === "ram2")).toHaveLength(8);
     expect(specs.filter((x) => x === "nvme2")).toHaveLength(3);
     for (const id of ["psu4", "cooler2", "vsink2", "rsink2", "nic3", "display0"]) expect(specs).toContain(id);

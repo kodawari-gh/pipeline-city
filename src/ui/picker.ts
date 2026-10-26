@@ -4,6 +4,7 @@
 
 import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type CardSpec, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
+import { cpuProfile } from '../sim/game/cpuprofile';
 import type { DeviceSnap, KeySnap, Snapshot } from '../sim/game/game';
 import { getOsSpec, OS_SPECS } from '../sim/os';
 import { getIspSpec, getRouterSpec, ISP_SPECS, ROUTER_SPECS } from '../sim/net/specs';
@@ -178,13 +179,6 @@ export function osSection(s: Snapshot): OsSection | null {
   };
 }
 
-/** Relative throughput per base clock tick, by engine. A placeholder guess like the other balance numbers. */
-export function ipcGuess(e: CpuSpec['engine']): number {
-  if (e.kind === 'unpipelined') return 0.2;
-  if (e.kind === 'inorder') return e.forwarding ? 0.8 : 0.55;
-  return 1;
-}
-
 /** Board ids in the board ladder, one per tier. */
 export const boardId = (tier: number) => `board${tier}`;
 /** Case ids in the case ladder, one per tier. */
@@ -240,10 +234,18 @@ export function statsOf(specId: string): Stat[] {
   const spec = getSpec(specId);
   if (!spec) return [];
   switch (spec.kind) {
-    case 'cpu': return [
-      { key: 'speed', label: 'Speed', icon: 'clock', value: Math.round(spec.clock.base * ipcGuess(spec.engine) * 100) / 100, unit: '', higherIsBetter: true },
-      { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
-    ];
+    case 'cpu': {
+      // Measured on the real engine (sim/game/cpuprofile.ts): speed is the average of the three kinds of work, and each kind is a bar of
+      // its own, so the branches of the CPU tree read as what they are good at.
+      const p = cpuProfile(specId)!;
+      return [
+        { key: 'speed', label: 'Speed', icon: 'clock', value: Math.round(((p.compute + p.memory + p.branchy) / 3) * 100) / 100, unit: '', higherIsBetter: true },
+        { key: 'compute', label: 'Number crunching', icon: 'clock', value: p.compute, unit: '', higherIsBetter: true },
+        { key: 'memory', label: 'Big data', icon: 'memory', value: p.memory, unit: '', higherIsBetter: true },
+        { key: 'branchy', label: 'Branchy code', icon: 'clock', value: p.branchy, unit: '', higherIsBetter: true },
+        { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
+      ];
+    }
     case 'ram': return [
       { key: 'size', label: 'Memory', icon: 'memory', value: spec.sizeBytes / 1024, unit: 'K', higherIsBetter: true },
       { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latency, unit: 'ticks', higherIsBetter: false },

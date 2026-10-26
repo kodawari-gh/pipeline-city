@@ -109,7 +109,14 @@ export function planInput(e: EngineConfig, extra: Partial<PlanInput> = {}): Plan
       base.commitWidth = e.commitWidth ?? base.width;
       break;
   }
-  if (e.kind !== 'ref') base.cacheLines = e.cacheLines;
+  if (e.kind !== 'ref') {
+    base.cacheLines = e.cacheLines;
+    if (e.ways) base.ways = e.ways;
+    if (e.icacheLines) base.icacheLines = e.icacheLines;
+    if (e.l2Lines) base.l2Lines = e.l2Lines;
+    if (e.predEntries) base.predEntries = e.predEntries;
+    if (e.predBits) base.predBits = e.predBits;
+  }
   return { ...base, ...extra };
 }
 

@@ -151,14 +151,14 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 5 | `psu2` 250 W ATX+ ($250), `ram2` 64K low-latency ($400) | board 2 Mainstream ($300: 4 DIMM, 2 PCIe, M.2, ATX+, 100 Mbit jack) | db and web grow |
 | 6 | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300) | `isp2` ($500: 200/50 Mbit, 4 clients) | |
 | 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), case fans `fan1` (**planned**) | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
-| 8 | `cpu3` 2-wide in-order (**planned**, engine `inorder2`; price TBD) | `os2` Cooperative OS (**planned**: `programSlots` 2, $600) | |
-| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
+| 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Cooperative OS (**planned**: `programSlots` 2, $600) | |
+| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
 | 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (**planned**) | | **GPU render** (needs a GPU) |
-| 11 | `cpu4` out-of-order (**planned**, engine `ooo`; wants a 250 W+ PSU and liquid cooling), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
+| 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
-| 13 | `tpm2` (**planned**) | `os3` Preemptive OS (**planned**: `programSlots` 4, $2000) | |
+| 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS (**planned**: `programSlots` 4, $2000) | |
 | 14 | `cpu5` multicore (**planned**), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
-| 15 | `psu4` 1 kW (**planned**) | board 4 server (**planned**: second CPU socket, more PCIe) | |
+| 15 | `psu4` 1 kW (**planned**), `cpu4w` wide out-of-order ($12,000) | board 4 server (**planned**: second CPU socket, more PCIe) | |
 | 16 | `gpu3`, `npu2` (**planned**), RAID of two NVMe (**planned**) | | |
 | 17 | | `nic3` 40 Gbit card ($1800), `router4` ($2500, 40G, 16 clients) | |
 | 18 | | `isp5` ($15000: 20000/10000 Mbit, 32 clients); "build a second machine" (far future, not designed) | |

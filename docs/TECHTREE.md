@@ -6,15 +6,26 @@ How it is enforced today: each device is a declarative spec (`src/sim/board/spec
 
 Status: **built** (in the catalog and playable), **planned** (not in the sim yet). All numbers are placeholders.
 
-## CPU (built: 3 of ~8)
-| Tier | Part | Key requirements | |
-|---|---|---|---|
-| 0 | cpu0 unpipelined | cpu socket | built (starter) |
-| 1 | cpu1 5-stage, no forwarding | PSU >= rated load (100 W for the usual build) | built |
-| 2 | cpu2 5-stage + forwarding, cache | 100 W+ PSU, tower cooler advised | built |
-| 3 | 2-wide in-order | bigger PSU (250 W), better cooler | planned (engines agent) |
-| 4 | out-of-order | 250 W PSU, liquid cooling | planned (engines agent) |
-| 5 | multicore | board with a second core slot or a bigger socket tier, shared L2 | planned |
+## CPU (built: 12, a tree)
+
+The CPUs form a **tree**, not a line (owner 2026-10-27). The trunk is the three early parts; from `cpu2` on each step has a generalist and **specialists** that lean one way, so two players with the same money build different machines. `tier` is the depth (siblings share a tier); `CpuSpec.after` names the part a CPU builds on and `CpuSpec.branch` the way it leans. Every part has its own die floorplan ([`DIE.md`](DIE.md)); the speed numbers in the picker are **measured** on the real engine ([`cpuProfile`](../src/sim/game/cpuprofile.ts): number crunching, big data, branchy code; benchmarks written for it, see the note there).
+
+| Tier | Part | Engine | Leans | Level | Price |
+|---|---|---|---|---|---|
+| 0 | cpu0 unpipelined | `unpipelined` | start | start | free |
+| 1 | cpu1 5-stage, no forwarding | `inorder` | | 1 | $200 |
+| 2 | cpu2 5-stage + forwarding | `inorder`, D$ 16 | | 6 | $800 |
+| 3 | cpu3 2-wide in-order | `inorder2` | generalist: crunching | 8 | $2,400 |
+| 3 | cpu2f front end | `inorder` + I$ 8, 2-bit predictor 128 | branchy code | 9 | $1,500 |
+| 3 | cpu2m memory | `inorder` + D$ 32 2-way, L2 32 | big data | 9 | $1,500 |
+| 4 | cpu4 out of order, ROB 8 | `ooo` | generalist | 11 | $6,000 |
+| 4 | cpu3f 2-wide, front end | `inorder2` + I$ 16, 2-bit 256 | branchy | 11 | $3,600 |
+| 4 | cpu3m 2-wide, memory | `inorder2` + D$ 64 4-way, L2 64 | big data | 11 | $3,600 |
+| 5 | cpu4f out of order ROB 16, front end | `ooo` + I$ 32, 2-bit 512 | branchy | 13 | $8,500 |
+| 5 | cpu4m out of order ROB 16, memory | `ooo` + D$ 64 4-way, L2 128 | big data | 13 | $8,500 |
+| 6 | cpu4w 4-wide out of order, ROB 32 | `ooo` width 4 + everything | all | 15 | $12,000 |
+
+From `cpu2` up an engine has `redirectPenalty` 2 (a jump waits for instruction memory unless there is an instruction cache), which is what the I-cache saves; the parts are only ever **additions** to their parent (the tests check that no specialist is slower than the part it builds on). Prices, power and levels are placeholders for the balance pass; the power numbers are kept under what the Enthusiast board's VRM feeds (a 130 W part droops it). Planned: multicore (`cpu5`: server style, many small cores, against HPC style, one big core; the die layouts exist, the simulation does not: [`DIE.md`](DIE.md), docs/MULTICORE.md to come) and the **CPU gallery** that shows the whole tree.
 
 ## RAM (built: 3)
 ram0 16K (starter), ram1 32K fast, ram2 64K low-latency: a free DIMM slot and watts. Planned: more and bigger sticks per board tier, ECC (for secure workloads).

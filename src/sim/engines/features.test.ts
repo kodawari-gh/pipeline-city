@@ -17,7 +17,7 @@ const KINDS: { name: string; cfg: EngineConfig }[] = [
   { name: "ooo", cfg: { kind: "ooo", width: 2, robSize: 16, schedSize: 8, fetchQueue: 8, ...FEATURES } },
   { name: "ooo wide", cfg: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, ...FEATURES, ways: 4 } },
 ];
-const make = (cfg: EngineConfig, extra: Record<string, number> = {}) => createEngine({ ...cfg, ...extra } as EngineConfig) as PipelineEngine;
+const make = (cfg: EngineConfig, extra: Record<string, unknown> = {}) => createEngine({ ...cfg, ...extra } as EngineConfig) as PipelineEngine;
 
 describe.each(KINDS)("features stay correct vs the reference: $name", ({ cfg }) => {
   it("random programs, with cache invalidations and predictor flips", () => {
@@ -73,39 +73,50 @@ describe("off means off", () => {
   });
 });
 
-// A straight-line loop of 12 instructions run 20 times: one cold pass of misses, then hits.
+// A loop that calls a subroutine placed far from it, 20 times. Fetch in sequence is a stream and always free; only a jump has to find its
+// target: the first call finds a cold line (a miss), every later call, return and loop-back is a hit. Without an instruction cache every
+// jump waits `redirectPenalty` (the game sets it; the engine default 0 is ideal instruction memory).
+const PAD = Array.from({ length: 40 }, () => "  nop").join("\n");
 const LOOP = `
   li t0, 0
   li t1, 20
 loop:
-  addi t2, t2, 1
-  addi t3, t3, 2
-  addi t4, t4, 3
-  addi a0, a0, 4
-  addi a1, a1, 5
-  addi a2, a2, 6
-  addi a3, a3, 7
-  xor  a0, a0, a1
+  call sub
   addi t0, t0, 1
   bne  t0, t1, loop
-  ecall`;
+  ecall
+${PAD}
+sub:
+  addi a0, a0, 1
+  ret`;
 
 describe("instruction cache", () => {
   for (const kind of ["inorder", "inorder2", "ooo"] as const) {
-    it(`${kind}: a cold loop pays one miss per line, then fetches at full speed`, () => {
-      const off = run({ kind } as EngineConfig, LOOP);
+    it(`${kind}: the first jump to a cold line misses, every later jump to it hits`, () => {
       const on = run({ kind, icacheLines: 8 } as EngineConfig, LOOP);
       const misses = on.c[Counter.ICacheMisses]!, hits = on.c[Counter.ICacheHits]!;
       expect(misses).toBeGreaterThan(0);
-      expect(misses).toBeLessThanOrEqual(6); // 14 instructions = 4 lines of 4 words (a refetch after a redirect may count again)
-      expect(hits).toBeGreaterThan(misses * 10);
+      expect(misses).toBeLessThanOrEqual(4);
+      expect(hits).toBeGreaterThan(misses * 8);
       expect(on.c[Counter.StallIFetch]).toBeGreaterThan(0);
-      expect(on.cycles).toBeGreaterThan(off.cycles);
-      // the cost is only the cold misses: a few times the penalty, not per iteration
-      expect(on.cycles - off.cycles).toBeLessThanOrEqual(misses * 4 + 12);
-      expect(off.c[Counter.ICacheMisses]).toBe(0);
+      // against ideal instruction memory the cost is only the cold misses
+      const ideal = run({ kind } as EngineConfig, LOOP);
+      expect(on.cycles).toBeGreaterThan(ideal.cycles);
+      expect(on.cycles - ideal.cycles).toBeLessThanOrEqual(misses * 8);
+      expect(ideal.c[Counter.ICacheMisses]).toBe(0);
+    });
+
+    it(`${kind}: with a redirect penalty (the game's instruction memory) the cache saves it on every hit`, () => {
+      const off = run({ kind, redirectPenalty: 2 } as EngineConfig, LOOP);
+      const on = run({ kind, icacheLines: 8, redirectPenalty: 2 } as EngineConfig, LOOP);
+      expect(off.c[Counter.StallIFetch]).toBeGreaterThan(20 * 3 * 2 - 10); // call, ret and loop-back, 2 cycles each, 20 times
+      expect(on.cycles).toBeLessThan(off.cycles * 0.85);
     });
   }
+
+  it("a redirect penalty of zero changes nothing (the default)", () => {
+    expect(run({ kind: "inorder", redirectPenalty: 0 }, LOOP).cycles).toBe(run({ kind: "inorder" }, LOOP).cycles);
+  });
 
   it("a loop bigger than the cache keeps missing; a bigger cache holds it", () => {
     const body = Array.from({ length: 40 }, (_, k) => `  addi t${(k % 3) + 2}, t${(k % 3) + 2}, 1`).join("\n");
@@ -190,7 +201,7 @@ describe("shared L2", () => {
   it("the instruction side shares it: an I-cache miss on a line the data side loaded hits the L2", () => {
     const a = run({ kind: "inorder", icacheLines: 8, l2Lines: 32 }, LOOP);
     const b = run({ kind: "inorder", icacheLines: 8 }, LOOP);
-    expect(a.c[Counter.L2Misses]!).toBeGreaterThan(0);
+    expect(a.c[Counter.L2Misses]!).toBeGreaterThan(0); // the cold jump target goes through the L2
     expect(a.cycles).toBeLessThanOrEqual(b.cycles);
   });
 });
@@ -266,5 +277,5 @@ describe("determinism", () => {
     }
   });
 
-  it("assembles", () => { expect(assemble(LOOP).program.length).toBeGreaterThan(10); });
+  it("assembles", () => { expect(assemble(LOOP).program.length).toBeGreaterThan(40); });
 });

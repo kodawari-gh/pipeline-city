@@ -247,6 +247,12 @@ export interface EngineSettings {
   l2Lines?: number;
   /** Cycles an L1 miss that hits the L2 costs. Default 2. */
   l2Penalty?: number;
+  /**
+   * Cycles a jump (a taken branch, a jump, a flush, an interrupt) waits for its target when there is no instruction cache: the
+   * target has to come from RAM. Fetch that carries on in sequence is free. Default 0 (instruction memory is ideal, as in the engine tests); the game
+   * sets it for every CPU (apply.ts), so an instruction cache has something to save. With an instruction cache it does not apply.
+   */
+  redirectPenalty?: number;
   /** Branch predictor: entries (default 64) and bits per entry, 1 or 2 (default 1). */
   predEntries?: number;
   predBits?: number;
@@ -267,6 +273,9 @@ export abstract class EngineBase implements PipelineEngine {
   /** The pc whose instruction cache line is being waited for, and the cycles left. */
   private iWaitPc = -1;
   private iWait = 0;
+  /** The pc a sequential fetch would come from next. */
+  private seqPc = 0;
+  protected readonly redirectPenalty: number;
   protected machine!: Machine;
   protected bus!: Bus;
   protected regs!: Int32Array;
@@ -288,6 +297,8 @@ export abstract class EngineBase implements PipelineEngine {
     this.l2 = s.l2Lines ? new DataCache(s.l2Lines, lineBytes, penalty, Math.min(4, s.l2Lines)) : null;
     this.l2Penalty = s.l2Penalty ?? 2;
     if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) throw new RangeError("l2Penalty must be an integer >= 0");
+    this.redirectPenalty = s.redirectPenalty ?? 0;
+    if (!Number.isInteger(this.redirectPenalty) || this.redirectPenalty < 0) throw new RangeError("redirectPenalty must be an integer >= 0");
     this.pred = new Predictor(s.predEntries ?? 64, s.predBits ?? 1);
   }
 
@@ -319,7 +330,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.icache?.invalidate();
     this.l2?.invalidate();
     this.pred.reset();
-    this.iWaitPc = -1; this.iWait = 0;
+    this.iWaitPc = -1; this.iWait = 0; this.seqPc = 0;
     this.v.reset();
     this.onReset();
   }
@@ -337,27 +348,33 @@ export abstract class EngineBase implements PipelineEngine {
   }
 
   /**
-   * Whether the instruction at `pc` can be fetched this cycle. Without an instruction cache always; with one, a hit fetches at once and a
-   * miss makes fetch wait the miss cost (counted in StallIFetch), then the line is filled and the fetch goes ahead. A redirect while
-   * waiting starts a new lookup at the new pc.
+   * Whether the instruction at `pc` can be fetched this cycle. Fetch that carries on from the last instruction is a stream and always free
+   * (the line it enters is filled into the instruction cache on the way). A jump (a taken branch, a jump, a flush, an interrupt) has to
+   * find its target: with an instruction cache a hit is free and a miss waits the miss cost (the L2's if it holds the line, else RAM's);
+   * without one it waits `redirectPenalty`. The wait counts in StallIFetch; a redirect during it starts a new lookup at the new pc.
    */
   protected fetchReady(pc: number): boolean {
-    const ic = this.icache;
-    if (!ic || pc >= this.ramSize) return true;
-    const c = this.v.counters;
+    if (pc >= this.ramSize) return true;
+    const ic = this.icache, c = this.v.counters;
     if (this.iWaitPc !== pc) {
-      if (ic.hit(pc)) { c[Counter.ICacheHits]!++; return true; }
-      c[Counter.ICacheMisses]!++;
-      this.iWaitPc = pc;
-      this.iWait = this.missCost(pc);
+      let wait = 0;
+      if (pc === this.seqPc) { ic?.fill(pc); this.seqPc = (pc + 4) >>> 0; return true; }
+      if (ic) {
+        if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.seqPc = (pc + 4) >>> 0; return true; }
+        c[Counter.ICacheMisses]!++;
+        wait = this.missCost(pc);
+      } else if (this.redirectPenalty > 0) wait = this.redirectPenalty;
+      else { this.seqPc = (pc + 4) >>> 0; return true; }
+      this.iWaitPc = pc; this.iWait = wait;
     }
     if (this.iWait > 0) {
       this.iWait--;
       c[Counter.StallIFetch]!++;
       return false;
     }
-    ic.fill(pc);
+    this.icache?.fill(pc);
     this.iWaitPc = -1;
+    this.seqPc = (pc + 4) >>> 0;
     return true;
   }
 
