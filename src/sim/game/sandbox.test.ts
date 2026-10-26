@@ -204,7 +204,7 @@ describe("sandbox maxed machine", () => {
     expect(specs.filter((x) => x === "cpu4")).toHaveLength(1);
     expect(specs.filter((x) => x === "ram2")).toHaveLength(8);
     expect(specs.filter((x) => x === "nvme2")).toHaveLength(3);
-    for (const id of ["psu2", "cooler2", "vsink2", "rsink2", "nic3", "display0"]) expect(specs).toContain(id);
+    for (const id of ["psu3", "cooler2", "vsink2", "rsink2", "nic3", "display0"]) expect(specs).toContain(id);
     expect(specs).not.toContain("cpu0");
     expect(specs).not.toContain("psu0");
     expect(specs).not.toContain("cooler0");

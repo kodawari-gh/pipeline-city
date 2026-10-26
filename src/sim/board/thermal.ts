@@ -148,7 +148,8 @@ export class ThermalModel {
     const tripped = this.power.tripped;
     const live = powered && !!psu && !psu.dev.burnt && !tripped && !board.burnt;
     const vspec = BOARD_TIERS[board.tier]!.vrm, rspec = BOARD_TIERS[board.tier]!.ramVrm;
-    const load = (d: InstalledDevice): number => loads[deviceSpec(d).kind] ?? 1;
+    // Accelerators idle until something drives them (docs/ACCEL.md); every other kind defaults to full load.
+    const load = (d: InstalledDevice): number => { const k = deviceSpec(d).kind; return loads[k] ?? (k === "gpu" || k === "npu" || k === "tpm" ? 0 : 1); };
     const cpuLoad = Math.max(0, ...findDevices(board, "cpu").map(load));
 
     // Thermal factor from last tick's temperatures.

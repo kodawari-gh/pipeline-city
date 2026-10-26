@@ -152,10 +152,10 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 6 | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300) | `isp2` ($500: 200/50 Mbit, 4 clients) | |
 | 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), case fans `fan1` (**planned**) | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
 | 8 | `cpu3` 2-wide in-order (**planned**, engine `inorder2`; price TBD) | `os2` Cooperative OS (**planned**: `programSlots` 2, $600) | |
-| 9 | `tpm1` secure module (**planned**), `ram3` ECC RAM (**planned**) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
-| 10 | `gpu1` (**planned**, PCIe + PCIe power connector), `psu3` 500 W (**planned**), `display1` graphics display (**planned**) | | **GPU render** (needs a GPU) |
+| 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
+| 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (**planned**) | | **GPU render** (needs a GPU) |
 | 11 | `cpu4` out-of-order (**planned**, engine `ooo`; wants a 250 W+ PSU and liquid cooling), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
-| 12 | `npu1` (**planned**) | | **NPU inference** (needs an NPU) |
+| 12 | `npu1` | | **NPU inference** (needs an NPU) |
 | 13 | `tpm2` (**planned**) | `os3` Preemptive OS (**planned**: `programSlots` 4, $2000) | |
 | 14 | `cpu5` multicore (**planned**), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
 | 15 | `psu4` 1 kW (**planned**) | board 4 server (**planned**: second CPU socket, more PCIe) | |

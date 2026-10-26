@@ -466,7 +466,7 @@ export function friendlyError(message: string): string {
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
 
-const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'router', 'os'];
+const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'gpu', 'npu', 'tpm', 'router', 'os'];
 
 /** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
 export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {

@@ -1,6 +1,6 @@
 # Accelerators: GPU, NPU, TPM (design note, T59)
 
-Status: designed, not built. Owner decision 2026-10-24: start on T51. This note covers the GPU (own ISA, fed by the reserved `pcie` power cable), the NPU and the TPM (a header slot on Mainstream and up). It ends with a proposed task split for the owner to approve. Background: [`ARCHITECTURE.md`](ARCHITECTURE.md) "Accelerators" and "Security", unlock rows in [`PROGRESSION.md`](PROGRESSION.md), slots and VRM in [`BOARD.md`](BOARD.md) / [`VRM.md`](VRM.md).
+Status: designed; the specs `tpm1`, `gpu1`, `npu1`, `psu3` exist (T68, T69) and do nothing yet. Owner decision 2026-10-24: start on T51. This note covers the GPU (own ISA, fed by the reserved `pcie` power cable), the NPU and the TPM (a header slot on Mainstream and up). It ends with a proposed task split for the owner to approve. Background: [`ARCHITECTURE.md`](ARCHITECTURE.md) "Accelerators" and "Security", unlock rows in [`PROGRESSION.md`](PROGRESSION.md), slots and VRM in [`BOARD.md`](BOARD.md) / [`VRM.md`](VRM.md).
 
 All three follow the existing device rules: a declarative spec in `DEVICE_SPECS`, a typed slot, `idleW` / `loadW` / `heatFactor` / `thermal`, an MMIO range on the bus, programs that reach them through plain loads and stores and poll a status register (no interrupts, no DMA). Numbers below are first guesses for the balance pass.
 

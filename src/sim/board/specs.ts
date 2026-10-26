@@ -176,6 +176,10 @@ const specList: DeviceSpec[] = [
   { id: "psu2", kind: "psu", tier: 2, name: "PSU 250 W (ATX+)", slot: "atx-plus", price: 250, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-big", watts: 250, pcieLeads: 1 },
 
+  // 500 W with two PCIe leads (docs/ACCEL.md). Placeholder price.
+  { id: "psu3", kind: "psu", tier: 3, name: "PSU 500 W (ATX+)", slot: "atx-plus", price: 900, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "psu-big", watts: 500, pcieLeads: 2 },
+
   { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },
   { id: "cooler1", kind: "cooler", tier: 1, name: "Tower fan", slot: "cooler", price: 50, idleW: 0.5, loadW: 3, heatFactor: 0,
@@ -212,6 +216,15 @@ const specList: DeviceSpec[] = [
     thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 }, visual: "nic-10g", mbps: 10000 },
   { id: "nic3", kind: "nic", tier: 3, name: "40GbE card", slot: "pcie", price: 1800, idleW: 9, loadW: 22, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 60, unstableC: 75, damageC: 90 }, visual: "nic-40g", mbps: 40000 },
+
+  // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
+  { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
+    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.7, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
+    needsPcieCable: true },
+  { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
+    thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false },
+  { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,
+    thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-1" },
 
   { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
