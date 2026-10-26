@@ -13,7 +13,7 @@ export interface PeriphLook { plastic: string; plasticLo: string; line: string; 
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its dome). Sizes against the 24 inch. */
 export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
-export const MOUSE = { w: 1250, l: 2500, h: 360, yaw: -9 };
+export const MOUSE = { w: 1250, l: 2500, h: 430, yaw: -9 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
 export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
@@ -90,7 +90,7 @@ function hull(pts: Pt[]): Pt[] {
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx), { w, l, h } = MOUSE;
   // a wedge: higher at the palm (toward the viewer) than at the buttons
-  const wedge = (z: number) => 0.78 + 0.22 * (z / l + 0.5);
+  const wedge = (z: number) => 0.4 + 0.6 * (z / l + 0.5);
   const ringP = (k: number, f: number) => mouseOutline(k).map(([x, z]) => ({ x, s: p(x, z, f * h * wedge(z)) }));
   const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff';
   // the height of the dome over a plan point (a half ellipsoid, a little flattened toward the edge)
