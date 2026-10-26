@@ -7,7 +7,7 @@
 // the next job. Parts and cables can only change while the machine is off.
 
 import {
-  applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, bootCheck, BOARD_TIERS, CABLES, CASE_TIERS, cableBlocked, caseFor, caseHolds,
+  applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, bootCheck, BOARD_TIERS, CABLES, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, createBoard, deviceSpec, disconnectCable as boardDisconnect, engineConfigFor,
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard, upgradeCase,
@@ -1311,7 +1311,7 @@ export class Game {
   /** Cables that could be plugged in (source part installed) but are not. */
   missingCables(): CableId[] {
     // The ethernet cable is the player's choice (a port, a router): never part of the bot's assembly.
-    return CABLES.filter((c) => c.id !== "lan" && !this.cables[c.id] && !cableBlocked(this.board, c.id)).map((c) => c.id);
+    return CABLES.filter((c) => c.id !== "lan" && !this.cables[c.id] && !cableBlocked(this.board, c.id) && cableNeeded(this.board, c.id)).map((c) => c.id);
   }
 
   /** Items in the inventory (ids and spec ids). */
@@ -1439,7 +1439,8 @@ export class Game {
       postBlocker: chk.post?.reason ?? null,
       inventory: this.inventorySnap(),
       slots: this.slotSnaps(),
-      cables: CABLES.map((c) => {
+      // The PCIe lead is listed only while a card asks for it (or it is plugged): a machine with no accelerator has no such cable to show.
+      cables: CABLES.filter((c) => this.cables[c.id] || cableNeeded(this.board, c.id)).map((c) => {
         const blocked = c.id === "lan" ? (this.routerTier ? null : "needs a router next to the monitor") : cableBlocked(this.board, c.id);
         return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
       }),

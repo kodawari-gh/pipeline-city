@@ -370,3 +370,14 @@ describe("coolerInstalled in older saves", () => {
     expect(Game.fromSave(json(V1)).snapshot().progress.coolerInstalled).toBe(true);
   });
 });
+
+describe("pcie power lead in saves (additive, no version bump)", () => {
+  it("a save from before the accelerators loads with the lead unplugged; a plugged lead survives", () => {
+    const save = JSON.parse(JSON.stringify(new Game({ seed: 9 }).toSave()));
+    expect(save.cables.pcie).toBe(false);
+    delete save.cables.pcie;
+    expect(parseSave(save).cables.pcie).toBe(false);
+    save.cables.pcie = true;
+    expect(parseSave(save).cables.pcie).toBe(true);
+  });
+});

@@ -6,7 +6,7 @@
 // holds no key. With an OS it keeps the machine on: plug a tray key to ingest it, unplug it once queued (the OS holds it),
 // plug a held key whose result is ready, remove it when the flash landed. The sim itself never needs it.
 
-import { CABLE_IDS, deviceSpec, getSpec } from "../board";
+import { deviceSpec, getSpec } from "../board";
 import { getRouterSpec } from "../net";
 import { boardTierOf, caseTierOf } from "./economy";
 import type { Game } from "./game";
@@ -95,7 +95,7 @@ export class Operator {
         }
       }
     }
-    for (const c of CABLE_IDS) if (c !== "lan") g.connectCable(c);
+    for (const c of g.missingCables()) g.connectCable(c);
     if (powerOn) g.powerButton();
   }
 }

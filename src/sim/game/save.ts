@@ -223,7 +223,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       board: s.board,
       inventory: s.pending.map((spec, i) => ({ id: `inv${i + 1}`, spec })),
       nextInvId: s.pending.length + 1,
-      cables: { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true },
+      cables: { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true, pcie: false },
       tray: keys,
       plugged: null,
       tripped: s.tripped,
@@ -284,6 +284,8 @@ export function parseSave(input: unknown): SaveV4 {
   }
   // Saves from before the network: the ethernet cable is unplugged and the network milestones are not reached.
   if (isObj(s.cables) && typeof (s.cables as Record<string, unknown>).lan !== "boolean") s.cables = { ...s.cables, lan: false };
+  // Saves from before the accelerators have no PCIe power lead: it is unplugged (additive, no version bump, like the ethernet cable).
+  if (isObj(s.cables) && (s.cables as Record<string, unknown>).pcie === undefined) s.cables = { ...s.cables, pcie: false };
   if (isObj(s.progress)) {
     const p = { ...s.progress } as Record<string, unknown>;
     for (const k of PROGRESS_KEYS) if (typeof p[k] !== "boolean" && NEW_FLAGS.includes(k)) p[k] = false;

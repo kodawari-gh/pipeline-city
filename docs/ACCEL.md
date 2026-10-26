@@ -12,7 +12,7 @@ All three follow the existing device rules: a declarative spec in `DEVICE_SPECS`
 - **Clock domains:** each card gets its own domain named after its slot (`pcie0`, `pcie1`), like drives. TPM runs on a fixed slow domain `tpm` (no overclock).
 - **Bus and MMIO:** each device takes a fixed window in the device range (command / status / data registers plus, for GPU and NPU, a small on-card memory window). The CPU writes a command descriptor, sets `go`, polls `status`. The crossing has explicit latency (PCIe hop: about 8 CPU-domain ticks each way; TPM header: about 20, it is slow on purpose). Bus traffic shows on the board as today.
 - **Fast model:** how accelerators key the calibration cache waits for the fast-model design note (T54, T87).
-- **Save:** devices go in `board.devices` as today; `Cables` gains `pcie`. One save version bump, migration fills `pcie: false`.
+- **Save:** devices go in `board.devices` as today; `Cables` gains `pcie`, filled `false` for older saves with no version bump (additive, see SAVE.md).
 - **Sandbox:** every tier offered, as for every other kind.
 
 ## GPU
