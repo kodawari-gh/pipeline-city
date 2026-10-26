@@ -115,7 +115,7 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
   const NZ = 28, us = Array.from({ length: NZ + 1 }, (_, i) => 0.5 - 0.5 * Math.cos((i / NZ) * Math.PI));
   const grid = us.map((u) => { const z = (u - 0.5) * l, hh = h * heightAt(u), hw = (MOUSE.w / 2) * widthAt(u); return prof.map(([k, f]): [Pt, Pt] => [p(hw * k, z, f * hh), p(-hw * k, z, f * hh)]); });
   const all: Pt[] = grid.flat(2);
-  for (let i = 0; i < NZ; i++) { // from the far end (the buttons) to the near one
+  const tile = (i: number) => {
     const um = (us[i]! + us[i + 1]!) / 2, hh = h * heightAt(um), hw = (MOUSE.w / 2) * widthAt(um), du = us[i + 1]! - us[i]!;
     const gz = ((heightAt(us[i + 1]!) - heightAt(us[i]!)) * h) / (du * l); // how fast the top rises toward the viewer
     const dw = ((widthAt(us[i + 1]!) - widthAt(us[i]!)) * (MOUSE.w / 2)) / (du * l); // how fast the half width grows toward the viewer (the outline's slope: its normal turns toward the viewer at the rounded rear)
@@ -131,12 +131,16 @@ export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, moni
     // the small flat crown between the two sides of the top ring
     const gt = gz, cl = Math.max(0, Math.min(1, 0.6 + 1.2 * ((0.8 - 0.4 * gt) / Math.hypot(gt, 1) / 1.025 - 0.78))), cc = mix(shade, crown, cl), tp = prof.length - 1;
     o.poly(flat([grid[i]![tp]![0], grid[i]![tp]![1], grid[i + 1]![tp]![1], grid[i + 1]![tp]![0]])).fill({ color: cc }).stroke({ width: 1.5, color: cc });
-  }
+  };
+  // painter's order, from the far end (the buttons) to the near one; the wheel goes in between: the tiles nearer than its slot are drawn after it, because the dome rises behind it (toward the viewer) and hides what is under their line of sight
+  const w = wheelGeom(D, monitorCx), zNearEnd = w.zNear + 14;
+  for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l < zNearEnd) tile(i);
+  drawWheel(o, T, p, w);
+  for (let i = 0; i < NZ; i++) if ((us[i]! - 0.5) * l >= zNearEnd) tile(i);
   // the skirt's top edge, on the half toward the viewer only (the far half is behind the body)
   const near = [...grid.slice(NZ >> 1).map((st) => st[1]![0]), ...grid.slice(NZ >> 1).reverse().map((st) => st[1]![1])];
   o.poly(flat(near), false).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' });
   o.poly(flat(hull(all))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
-  drawWheel(o, T, D, p, monitorCx);
 }
 
 /** The height of the mouse's shell at a point `(x across, z toward the viewer)` of its plan: the dome's section (a superellipse of exponent 2.2) at that station, scaled to the top line there. */
@@ -147,7 +151,7 @@ const shellH = (x: number, z: number) => {
 
 /** The scroll wheel: a narrow cylinder whose axis runs across the mouse (along x), square to the centre line and through it, a little behind the front, sunk in a slot of the shell so only its top arc stands out. Its ends, the tread's edges and the slot follow the shell's curve. */
 const WHEEL = { u: 0.21, r: 200, w: 120, out: 120 };
-function drawWheel(o: Graphics, T: Theme, D: DeskGeo, p: ReturnType<typeof placer>, monitorCx: number) {
+function wheelGeom(D: DeskGeo, monitorCx: number) {
   const { r, w, out } = WHEEL, hw = w / 2, zm = (WHEEL.u - 0.5) * MOUSE.l, th = Math.atan((shellH(0, zm + 20) - shellH(0, zm - 20)) / 40);
   const zc = zm + (r - out) * Math.sin(th), hc = shellH(0, zm) - (r - out) * Math.cos(th); // the circle's centre sits under the shell, square to its slope, so the bump is even on both sides
   const west = monitorCx - 300 + KEYBOARD.w / 2 + 1000 > D.P.vx; // the mouse is east of the vanishing point: its west side is the one that faces it
@@ -159,7 +163,11 @@ function drawWheel(o: Graphics, T: Theme, D: DeskGeo, p: ReturnType<typeof place
     while (hi < Math.PI + 0.6 && ch(hi + 0.02) >= shellH(x, cz(hi + 0.02))) hi += 0.02;
     return [lo, hi];
   };
-  const [aLo, aHi] = ex(hw), zNear = cz(aLo), zFar = cz(aHi), sw = hw + 14, z0 = zFar - 14, z1 = zNear + 14, zs = Array.from({ length: 9 }, (_, i) => z0 + (i / 8) * (z1 - z0));
+  const [aLo, aHi] = ex(hw);
+  return { hw, e, cz, ch, ex, aLo, aHi, zNear: cz(aLo), zFar: cz(aHi) };
+}
+function drawWheel(o: Graphics, T: Theme, p: ReturnType<typeof placer>, g: ReturnType<typeof wheelGeom>) {
+  const { hw, e, cz, ch, ex, aLo, aHi, zNear, zFar } = g, sw = hw + 14, z0 = zFar - 14, z1 = zNear + 14, zs = Array.from({ length: 9 }, (_, i) => z0 + (i / 8) * (z1 - z0));
   const dark = T.dark ? '#141a30' : '#39405a', lite = T.dark ? '#7f8db8' : '#aab3cf';
   // the dark opening in the shell around the wheel
   o.poly(flat([...zs.map((z) => p(-sw, z, shellH(sw, z))), ...[...zs].reverse().map((z) => p(sw, z, shellH(sw, z)))])).fill({ color: T.dark ? '#02030a' : '#262b3d', alpha: 0.75 });
