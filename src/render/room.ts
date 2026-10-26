@@ -59,6 +59,21 @@ export function roomBox(geo: RoomGeo = roomGeo()): Rect {
   return { x: x0, y: top, w: geo.desk.x1 + BOX_SIDE - x0, h: bottom - top };
 }
 
+/** The room's static art (the wall, the desk) is baked to two textures while the camera is far out: the region they cover (the camera box and some wall around it, for a screen that is wider or taller than the box), and the texture's pixels per world unit. */
+export const ROOM_BAKE_RES = 0.09;
+export const roomBakeRect = (geo: RoomGeo = roomGeo()): Rect => { const b = roomBox(geo); return { x: b.x - 2500, y: b.y - 4000, w: b.w + 5000, h: b.h + 8000 }; };
+
+/** Whether the baked art fits `view` (a world rect) at zoom `z` on a display with `dpr` pixels per css pixel: the view lies inside the region and is no finer than the texture. */
+export function roomBakeFits(view: Rect, z: number, dpr: number, geo: RoomGeo = roomGeo()): boolean {
+  const r = roomBakeRect(geo);
+  return z * dpr <= ROOM_BAKE_RES * 1.2 && view.x >= r.x && view.y >= r.y && view.x + view.w <= r.x + r.w && view.y + view.h <= r.y + r.h;
+}
+
+/** Whether `view` lies inside `cover` (shrunk by `margin`): the case's interior fills the screen there, so the room behind it need not be drawn. */
+export function roomHidden(view: Rect, cover: Rect, margin = 200): boolean {
+  return view.x >= cover.x + margin && view.y >= cover.y + margin && view.x + view.w <= cover.x + cover.w - margin && view.y + view.h <= cover.y + cover.h - margin;
+}
+
 /**
  * The window's light at height `y` below the glass, for a light that moves `slant` units west for every unit down (negative: east): the x
  * span of the shaft, whose edges are the rays from the glass's top-left and bottom-right corners (top-right and bottom-left when it runs east).
@@ -217,11 +232,13 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
 }
 
 /** The scenery: wall, window frame, shelf, clock face, desk, shelf unit, the wall socket and the cords, and what stands on the desk. */
-function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container; over: Container } {
+function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container; over: Container; bakes: Container[] } {
   const L = look(T), ys = geo.ys;
   const back = new Container(), front = new Container(), over = new Container();
-  const g = new Graphics(); back.addChild(g);
-  const f = new Graphics(); front.addChild(f);
+  // the wall and the desk are each one Graphics inside a wrapper with fixed bounds (the wall is 180000 wide: it is only baked over the region `roomBakeRect`)
+  const area = roomBakeRect(geo), bakeBox = () => { const c = new Container(); c.boundsArea = new Rectangle(area.x, area.y, area.w, area.h); return c; };
+  const g = new Graphics(), gWrap = bakeBox(); gWrap.addChild(g); back.addChild(gWrap);
+  const f = new Graphics(), fWrap = bakeBox(); fWrap.addChild(f); front.addChild(fWrap);
   const o = new Graphics(); over.addChild(o); // what stands in front of the cables that run behind it (the mug)
 
   // wall: an endless colour, a slow wallpaper stripe, and the darker band the desk throws on it
@@ -397,7 +414,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 9, color: '#27486b' });
   f.poly([hd.x - nx * nk, hd.y - ny * nk, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw * 0.86 - LAMP_D.x * 90, mo.y - ny * hw * 0.86 - LAMP_D.y * 90, hd.x - nx * nk * 0.8, hd.y - ny * nk * 0.8]).fill({ color: '#ffffff', alpha: 0.2 });
   f.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw - LAMP_D.x * 80, mo.y - ny * hw - LAMP_D.y * 80, mo.x + nx * hw - LAMP_D.x * 80, mo.y + ny * hw - LAMP_D.y * 80]).fill({ color: '#27486b' });
-  return { back, front, over };
+  return { back, front, over, bakes: [gWrap, fWrap] };
 }
 
 /** The soft pool of light round the lamp, drawn once into a small texture (30 nested discs): one sprite per frame instead of 30 big circles. */
@@ -472,6 +489,8 @@ export class RoomView {
   private readonly steam = new Graphics();
   private readonly blindG = new Graphics();
   private readonly mask = new Graphics();
+  private readonly bakes: Container[];
+  private baked = false;
   private lamp = roomState.lamp ? 1 : 0;
   private blind = roomState.blind ? 1 : 0;
   private lastKey = '';
@@ -481,7 +500,8 @@ export class RoomView {
     this.geo = geo;
     this.pool = renderer ? new Sprite(glowTexture(renderer)) : null;
     this.pool?.anchor.set(0.5);
-    const { back, front, over } = sceneryArt(T, geo);
+    const { back, front, over, bakes } = sceneryArt(T, geo);
+    this.bakes = bakes;
     this.over.addChild(over);
     const w = geo.window;
     this.mask.rect(w.x, w.y, w.w, w.h).fill({ color: '#ffffff' });
@@ -502,13 +522,25 @@ export class RoomView {
     this.frame(0, 0, true);
   }
 
+  /**
+   * Far out the wall and the desk are two baked textures (one quad each instead of a hundred overlapping shapes); close in, and when the view runs
+   * past the baked region (a very wide or tall screen), they are drawn as shapes again. While `cover` (the case) fills the view, the room is not drawn.
+   */
+  setView(view: Rect, z: number, dpr: number, cover: Rect | null) {
+    const hide = !!cover && roomHidden(view, cover), want = !hide && roomBakeFits(view, z, dpr, this.geo);
+    this.root.visible = !hide;
+    if (want === this.baked) return;
+    this.baked = want;
+    for (const c of this.bakes) c.cacheAsTexture(want ? { resolution: ROOM_BAKE_RES, antialias: true } : false);
+  }
+
   /** Advance the live parts. Cheap when nothing visible changed (the key rounds the clock to a few steps a second). */
   frame(gt: number, dtMs: number, force = false): boolean {
     const goalL = roomState.lamp ? 1 : 0, goalB = roomState.blind ? 1 : 0, k = 1 - Math.exp(-dtMs / 140);
     this.lamp += (goalL - this.lamp) * (dtMs > 0 ? k : 1); if (Math.abs(goalL - this.lamp) < 0.01) this.lamp = goalL;
     this.blind += (goalB - this.blind) * (dtMs > 0 ? 1 - Math.exp(-dtMs / 260) : 1); if (Math.abs(goalB - this.blind) < 0.004) this.blind = goalB;
     const key = `${roomDebug.hour ?? ''}|${Math.round(gt / 120)}|${this.lamp.toFixed(2)}|${this.blind.toFixed(3)}`;
-    if (!force && key === this.lastKey) return false;
+    if (!force && (key === this.lastKey || !this.root.visible)) return false;
     this.lastKey = key;
     const h = roomDebug.hour ?? hourAt(gt);
     this.drawSky(h, gt);

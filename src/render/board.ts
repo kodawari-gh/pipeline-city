@@ -301,9 +301,15 @@ export async function mountBoard(host: HTMLElement) {
     const want = camera.z < Z_BAKE_DEV;
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
+  // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
+  const syncRoom = () => {
+    const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
+    roomView?.setView({ x: left, y: top, w: camera.w / z, h: camera.h / z }, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
+  };
   const onZoom = () => {
     const z = camera.z;
     applyLod();
+    syncRoom();
     const labelsOn = z > 0.12, partLabels = z > 0.22;
     if (boardArt) boardArt.labels.visible = labelsOn;
     const baked = !!boardBake && z < Z_BAKE;

@@ -9,7 +9,7 @@ import {
 } from './layout';
 import { buildCables } from './routes';
 import { trayHook, trayKeyCentre } from './props';
-import { DAY_S, DESK, FOOT, RoomView, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
+import { DAY_S, DESK, FOOT, ROOM_BAKE_RES, RoomView, roomBakeFits, roomBakeRect, roomHidden, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
 
@@ -285,5 +285,40 @@ describe('the PC power cord', () => {
     expect(PC_CORD_X).toBeLessThan(PC_POWER.x - 330);                  // west of the plug's tail
     expect(PC_CORD_X).toBeGreaterThan(CASE.x - 900);                   // and not far from the case
     expect(POWER_PLATE.x + POWER_PLATE.w).toBeLessThan(CASE.x);        // the strip is west of the case's rear wall
+  });
+});
+
+describe('the baked room', () => {
+  const view = (r: Rect, k = 1): Rect => ({ x: r.x + r.w / 2 - (r.w * k) / 2, y: r.y + r.h / 2 - (r.h * k) / 2, w: r.w * k, h: r.h * k });
+  it.each([0, 1, 2, 3])('tier %i: the baked region holds the camera box with wall to spare, and the wall and the desk are each in a wrapper with that fixed region', (t) => {
+    setLayoutTier(t, t);
+    const g = roomGeo(), box = roomBox(g), r = roomBakeRect(g);
+    expect(inside(box, r)).toBe(true);
+    expect(r.w * ROOM_BAKE_RES).toBeLessThan(4096);                    // a texture most GPUs take
+    expect(r.h * ROOM_BAKE_RES).toBeLessThan(4096);
+    const room = new RoomView(DARK, g);
+    const wraps = [room.root.children[0]!.children[0]!, room.root.children[1]!.children[0]!];
+    for (const w of wraps) expect(w.boundsArea).toBeTruthy();         // (the 180000-unit wall must not set the texture's size)
+    expect(wraps[0]!.boundsArea!.width).toBe(r.w);
+  });
+  it('bakes only while the view is inside the region and no finer than the texture', () => {
+    setLayoutTier(1, 1);
+    const g = roomGeo(), box = roomBox(g);
+    expect(roomBakeFits(box, 0.05, 1, g)).toBe(true);                  // the overview
+    expect(roomBakeFits(box, 0.5, 1, g)).toBe(false);                  // close in: the shapes, crisp
+    expect(roomBakeFits(box, 0.09, 2, g)).toBe(false);                 // a 2x display would see the texture's pixels
+    expect(roomBakeFits(view(roomBakeRect(g), 1.5), 0.05, 1, g)).toBe(false); // a screen taller or wider than the region
+  });
+  it('is not drawn at all while the view lies inside the case', () => {
+    setLayoutTier(1, 1);
+    expect(roomHidden(view(CASE, 0.5), CASE)).toBe(true);
+    expect(roomHidden(view(CASE, 1), CASE)).toBe(false);               // the case's edge shows the wall
+    expect(roomHidden({ x: CASE.x - 5000, y: CASE.y, w: CASE.w, h: CASE.h }, CASE)).toBe(false);
+    const room = new RoomView(DARK, roomGeo());
+    room.setView(view(CASE, 0.5), 0.5, 1, CASE);
+    expect(room.root.visible).toBe(false);
+    expect(room.frame(1000, 16)).toBe(false);                          // and its live parts are not redrawn
+    room.setView(view(roomBox(roomGeo()), 1), 0.05, 1, CASE);
+    expect(room.root.visible).toBe(true);
   });
 });
