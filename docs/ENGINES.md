@@ -11,6 +11,8 @@ machine.attach(createEngine({ kind: "inorder", forwarding: true, sharedPort: fal
 
 ## Common behaviour
 
+- **Interrupts** ([`CPU.md`](CPU.md) section 4): every engine reports `drained` (nothing in flight), can `holdFetch` (stop fetching so it drains) and `redirect(pc)`. `Machine.stepCpu` uses them to enter a handler between two instructions. `iret` is a register-less jump to the interrupt controller's `EPC`, flagged as `jalr`; the in-order engines never bundle it behind another instruction and the out-of-order one issues it only as the oldest ROB entry. With no interrupt raised nothing changes (the golden charts are unchanged).
+
 - **Fetch is a real bus read** of the instruction word; `InstrPool.decodeSlot` decodes it straight into the pool's typed arrays with no allocation (same layout and zeros as `decode` in `src/sim/isa`; `decode.test.ts` compares them on random words). Fetches outside RAM or unaligned give an illegal instruction, which only throws `RangeError` if it reaches EX (wrong-path fetches are squashed first).
 - **ecall** halts when it enters WB (`halted` is true, `cycle` is the cycle it shows W). Anything fetched behind it is squashed. `pc` after halting is the address after the ecall, like the reference.
 - **Data cache**: direct-mapped, tags only (RAM is write-through, no-allocate, so data always comes from RAM). Only RAM addresses are cached; device (MMIO) accesses bypass it so status polling is always live. A load miss freezes MEM for `missPenalty` extra cycles (`StallCache` counts them). Stores never miss.

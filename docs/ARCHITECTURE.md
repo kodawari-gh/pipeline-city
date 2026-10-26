@@ -33,7 +33,7 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
 - **Final ISA spec: [`docs/ISA.md`](ISA.md).**
-- **Machine, bus, clocks and engine interface: [`docs/MACHINE.md`](MACHINE.md).**
+- **Machine, bus, clocks and engine interface: [`docs/MACHINE.md`](MACHINE.md). How the CPU is driven, what it sees, and interrupts: [`docs/CPU.md`](CPU.md).**
 - **Timed engines (unpipelined, 5-stage in-order), options, observability view: [`docs/ENGINES.md`](ENGINES.md).**
 - **Device specs, board slots, power and thermal: [`docs/BOARD.md`](BOARD.md).**
 - **Program generator (kernels, templates, seeds): [`docs/GEN.md`](GEN.md).**
@@ -43,13 +43,13 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
 - **Assembly, inventory, boot loop, USB-key queue, progress flags: [`docs/ASSEMBLY.md`](ASSEMBLY.md).**
 - **Storage, OS v1 (resident kernel, key ingest and output step): [`docs/OS.md`](OS.md). Planned tech ladders for every device: [`docs/TECHTREE.md`](TECHTREE.md).**
-- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`docs/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`docs/NETWORK.md`](NETWORK.md).**
+- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`docs/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`docs/NETWORK.md`](NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`docs/NETSTACK.md`](NETSTACK.md).**
 - **Hover/selected ids, drag and drop, camera helpers: see [`docs/RENDER.md`](RENDER.md) (interaction section).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
 - **Calls:** a link register and a stack pointer register with a minimal convention, so stack traffic is real and visible in the memory view and kernels compose as functions.
-- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. Interrupts and DMA are not in scope for now.
+- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. **Interrupts exist** (a controller on the bus, `iret`, taken between instructions on every engine: [`docs/CPU.md`](CPU.md)); **DMA** is designed for the NIC ([`docs/NETSTACK.md`](NETSTACK.md)) and not built.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
 - **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/sim/board/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2`, `cpu4` `ooo` (ROB 8, 4-wide commit; ROB 16/32 deferred). cpu3/cpu4 price/power are placeholders.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
