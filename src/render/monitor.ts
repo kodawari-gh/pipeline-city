@@ -27,3 +27,13 @@ export function monitorView(m: MonitorInput): MonitorView {
     noSignal: m.hasDisplay && m.powered && (!m.monitorLive || blanked),
   };
 }
+
+/**
+ * What a blank screen shows instead of plain black: `off` while the machine is off (the monitor is in standby: the brand's mark and `STANDBY` on dim glass),
+ * `wait` while it is powered but has no picture yet (the cold-boot wait: the mark alone), or null when the screen has its own content (text, the OS
+ * screen, NO SIGNAL) or there is no display.
+ */
+export function standbyLook(m: MonitorInput, v: MonitorView, osOn: boolean): 'off' | 'wait' | null {
+  if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn) return null;
+  return m.powered ? 'wait' : 'off';
+}

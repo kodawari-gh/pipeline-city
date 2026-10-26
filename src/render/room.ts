@@ -3,7 +3,7 @@ import { disc, label, mix } from './ink';
 import { drawAircraft, drawCityLive, drawClouds, drawSkyline, drawStars } from './skyline';
 import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
-import { LightView, type LightGeo } from './light';
+import { LightView, type Beam, type LightGeo } from './light';
 import { roundedPath } from './routes';
 import {
   CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, PC_CORD_X, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
@@ -463,7 +463,7 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
 export function lightGeo(geo: RoomGeo): LightGeo {
   const cx = MONITOR.x + MONITOR.w / 2, kw = 6200, kx = cx - kw / 2 - 300;
   return {
-    region: roomBakeRect(geo), case: CASE, inner: CASE_IN, monitor: MONITOR, screen: SCREEN, router: ROUTER_SPOT, clock: geo.clock, mouth: geo.lamp.mouth, dir: LAMP_D, ys: geo.ys,
+    window: geo.window, region: roomBakeRect(geo), case: CASE, inner: CASE_IN, monitor: MONITOR, screen: SCREEN, router: ROUTER_SPOT, clock: geo.clock, mouth: geo.lamp.mouth, dir: LAMP_D, ys: geo.ys,
     keyboard: { x: kx, y: geo.ys - 260, w: kw, h: 400 },
   };
 }
@@ -491,6 +491,27 @@ export function lightsAt(h: number): { body: 'sun' | 'moon'; slant: number; stre
   return out;
 }
 
+/**
+ * The window's light as the slices the light layer draws (`light.ts`): for each body above the horizon a shaft that leaves the glass in the direction it
+ * shines from, strongest at the glass and fading out by the desk (the slices step down 12 times between the sill and the desk top, each keeping `fade` of
+ * the strength), and a flat patch where it reaches the desk top. `blind` (0 open, 1 down) takes it away.
+ */
+export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
+  const w = geo.window, ys = geo.ys, out: Beam[] = [];
+  for (const L of lightsAt(h)) {
+    const a = L.strength * (1 - blind);
+    if (a < 0.003) continue;
+    const yb = w.y + w.h, ya0 = [w.y, yb, ...Array.from({ length: 12 }, (_, k) => yb + ((ys - yb) * (k + 1)) / 12)], quads: Beam['quads'] = [];
+    for (let k = 0; k + 1 < ya0.length; k++) {
+      const ya = ya0[k]!, ye = ya0[k + 1]!, top = shaftSpan(w, ya, L.slant), bot = shaftSpan(w, ye - 0.01, L.slant);
+      quads.push({ pts: [top.xl, ya, top.xr, ya, bot.xr, ye + 3, bot.xl, ye + 3], fade: Math.pow(1 - Math.max(0, ya - yb) / (ys - yb), 1.4) });
+    }
+    const hit = shaftSpan(w, ys, L.slant), xa = Math.max(hit.xl, geo.desk.x0), xb = Math.min(hit.xr, geo.desk.x1);
+    out.push({ color: L.color, a, slant: L.slant, quads, patch: xb - xa > 200 ? { x: (xa + xb) / 2, y: ys + 26, rx: (xb - xa) / 2, ry: 70 } : null });
+  }
+  return out;
+}
+
 /** A rectangle that answers a click, with the tooltip words. */
 export interface RoomHit { id: 'lamp' | 'blind'; rect: Rect }
 
@@ -513,7 +534,6 @@ export class RoomView {
   private readonly skyCity = new Graphics();
   private readonly skyLive = new Graphics();
   private cityKey = '';
-  private readonly amb = new Graphics();
   private readonly glow = new Graphics();
   private readonly lightView: LightView | null;
   private readonly clockG = new Graphics();
@@ -548,7 +568,7 @@ export class RoomView {
     back.addChildAt(this.sky, 1);
     back.addChildAt(this.mask, 1);
     back.addChildAt(this.blindG, 3); // over the sky, under the frame and the sill
-    this.root.addChild(front, this.amb);
+    this.root.addChild(front);
     this.root.addChild(this.glow, this.clockG);
     this.over.addChild(this.steam);
     this.hits = [{ id: 'lamp', rect: geo.lamp.rect }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
@@ -589,9 +609,8 @@ export class RoomView {
     this.lastKey = key;
     const h = roomDebug.hour ?? hourAt(gt);
     this.drawSky(h, gt);
-    this.drawAmbient(h);
     this.drawGlow(h);
-    this.lightView?.set({ dark: this.T.dark, night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen }, force);
+    this.lightView?.set({ dark: this.T.dark, night: nightAt(h), dusk: duskAt(h), lamp: this.lamp, screen: this.screen, beams: beamsAt(this.geo, h, this.blind) }, force);
     this.drawClock(h, gt);
     this.drawSteam(gt);
     return true;
@@ -623,28 +642,6 @@ export class RoomView {
       for (let y = w.y + 120; y < w.y + bh - 60; y += 160) b.rect(w.x, y, w.w, 10).fill({ color: '#000000', alpha: 0.16 });
       b.rect(w.x, w.y + bh - 60, w.w, 60).fill({ color: look(this.T).metal });
       b.rect(w.x + w.w / 2 - 36, w.y + bh - 60, 72, 140).fill({ color: look(this.T).metalLo });
-    }
-  }
-
-  private drawAmbient(h: number) {
-    const g = this.amb;
-    g.clear();
-    // the window's light: a shaft that leaves the glass in the direction the sun (or the moon) shines from, strongest at the glass and fading out by the
-    // desk, and a flat patch where it reaches the desk top: it comes from where the body is in the sky (west of centre throws it east and the other way round),
-    // the lower the body the longer and more slanted it is, and the sun is warm at the ends of the day
-    const w = this.geo.window, ys = this.geo.ys;
-    for (const L of lightsAt(h)) {
-      const a = L.strength * (1 - this.blind);
-      if (a < 0.003) continue;
-      const yb = w.y + w.h, ya0 = [w.y, yb, ...Array.from({ length: 12 }, (_, k) => yb + ((ys - yb) * (k + 1)) / 12)];
-      for (let k = 0; k + 1 < ya0.length; k++) {
-        const ya = ya0[k]!, ye = ya0[k + 1]!, top = shaftSpan(w, ya, L.slant), bot = shaftSpan(w, ye - 0.01, L.slant);
-        const fade = Math.pow(1 - Math.max(0, ya - yb) / (ys - yb), 1.4);
-        g.poly([top.xl, ya, top.xr, ya, bot.xr, ye + 3, bot.xl, ye + 3]).fill({ color: L.color, alpha: a * fade });
-      }
-      // the patch it throws on the desk top (where the shaft meets it)
-      const hit = shaftSpan(w, ys, L.slant), xa = Math.max(hit.xl, this.geo.desk.x0), xb = Math.min(hit.xr, this.geo.desk.x1);
-      if (xb - xa > 200) g.ellipse((xa + xb) / 2, ys + 26, (xb - xa) / 2, 70).fill({ color: L.color, alpha: Math.min(0.5, a * 3.2) });
     }
   }
 

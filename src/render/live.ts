@@ -3,10 +3,10 @@ import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
 import type { KeyActivity } from '../sim/game/game';
 import { blades } from './devices';
-import { HEAD, box, mix, MONO } from './ink';
+import { HEAD, box, label, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './drives';
 import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
-import { monitorView } from './monitor';
+import { monitorView, standbyLook, type MonitorInput } from './monitor';
 import { EdgeFan } from './case';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
@@ -106,6 +106,10 @@ export class Live {
   /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
   private bootG = new Graphics();
   private noSignal: Text;
+  /** The blank screen's look (`standbyLook`): dim glass with the brand's mark, and `STANDBY` while the machine is off. */
+  private standby = new Container();
+  private standbyCap: Text | null = null;
+  private blank: MonitorInput | null = null;
   private pchLevel = 0;
   private lastBootDraw = '';
   private T!: Theme;
@@ -267,7 +271,8 @@ export class Live {
     }
     // the screen's contents are laid out at the design size inside a container scaled onto the (bigger) monitor
     this.scr.removeChildren();
-    this.scr.addChild(this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
+    this.buildStandby(T);
+    this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
     this.scr.position.set(SCREEN.x, SCREEN.y); this.scr.scale.set(MONITOR_K);
     this.ext.addChild(this.extG, this.scr);
     const showPsu = flags.psu;
@@ -284,6 +289,26 @@ export class Live {
     this.panelFan.children.forEach((c) => { (c as Graphics).tint = LCD_MUTE; });
     this.psuTexts.of.style.fill = LCD_MUTE;
     this.psuTexts.rpm.style.fill = LCD_INK;
+  }
+
+  /** The blank screen's art, at the screen's design size: a faint light in the glass, the skyline mark of the chin made large, the brand and, while off, `STANDBY`. */
+  private buildStandby(T: Theme) {
+    for (const c of this.standby.removeChildren()) c.destroy({ children: true });
+    const g = new Graphics(), W = SCREEN_D.w, H = SCREEN_D.h, cx = W / 2, cy = H / 2;
+    for (let k = 0; k < 7; k++) g.ellipse(cx, cy, W * 0.5 * (1 - k / 8), H * 0.5 * (1 - k / 8)).fill({ color: T.dark ? '#1a2a4a' : '#2a3d63', alpha: 0.05 });
+    for (const [i, hh] of [80, 136, 104, 160, 88].entries()) g.rect(cx - 140 + i * 56, cy - 40 - hh, 38, hh).fill({ color: T.mute, alpha: 0.5 });
+    this.standbyCap = label('STANDBY', cx, cy + 330, 64, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.4 });
+    this.standby.addChild(g, label('PIPELINE CITY', cx, cy + 100, 130, T.mute, { head: true, anchor: [0.5, 0.5], a: 0.45 }), this.standbyCap);
+    this.standby.visible = false;
+  }
+
+  /** The blank screen: dim glass with the mark (breathing a little) instead of a black slab. */
+  private frameStandby(now: number) {
+    const k = this.blank ? standbyLook(this.blank, monitorView(this.blank), this.osOn) : null;
+    this.standby.visible = k !== null;
+    if (k === null) return;
+    if (this.standbyCap) this.standbyCap.visible = k === 'off';
+    this.standby.alpha = 0.8 + 0.2 * Math.sin(now / 1400);
   }
 
   /** The pooled rows of the OS screen (created on first use). */
@@ -480,7 +505,8 @@ export class Live {
     // CLI monitor: last lines that fit, wrapped to the screen width
     // black while the cold-boot wait runs (the sim has no text yet) and after a power-off; a POST error shows its text; any other
     // error (a trip, a burnt part) shows NO SIGNAL rather than a stale line (see monitorView)
-    const mv = monitorView({ hasDisplay: this.hasDisplay, powered: s.powered, monitorLive: s.monitorLive, phase: s.phase, postFailed: s.postFailed, display: s.display });
+    this.blank = { hasDisplay: this.hasDisplay, powered: s.powered, monitorLive: s.monitorLive, phase: s.phase, postFailed: s.postFailed, display: s.display };
+    const mv = monitorView(this.blank);
     const txt = mv.text;
     this.noSignal.visible = mv.noSignal;
     if (txt !== this.shownText) {
@@ -778,6 +804,7 @@ export class Live {
   /** Per-frame animation. dt in seconds. */
   frame(dt: number, now: number) {
     const inner = this.interior;
+    this.frameStandby(now);
     this.phase += dt * 260 * this.clockRatio;
     for (const f of this.fans) {
       f.speed += (f.target - f.speed) * Math.min(1, dt * (f.target > f.speed ? 2 : 4));

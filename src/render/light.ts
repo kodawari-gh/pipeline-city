@@ -24,15 +24,25 @@ export function focusAt(view: Rect, cover: Rect): number {
   return sstep(0.3, 0.7, (w * h) / (view.w * view.h));
 }
 
-/** What the light needs to know about the room at a moment. All the numbers are 0 to 1. */
-export interface LightIn { dark: boolean; night: number; dusk: number; lamp: number; screen: number }
+/** A shaft of light from the window (`beamsAt` in `room.ts`): its colour, its strength and slant, the slices it is drawn in (a polygon and how much of the strength it keeps) and the patch where it meets the desk top. */
+export interface Beam { color: string; a: number; slant: number; quads: { pts: number[]; fade: number }[]; patch: { x: number; y: number; rx: number; ry: number } | null }
+
+/** What the light needs to know about the room at a moment: the numbers are 0 to 1, `beams` the window's light. */
+export interface LightIn { dark: boolean; night: number; dusk: number; lamp: number; screen: number; beams: Beam[] }
 
 /** The places the light is cut around (world units): the whole region it covers, the case and its inside, the monitor and its screen, the router, the clock, the lamp's mouth, the desk top. */
-export interface LightGeo { region: Rect; case: Rect; inner: Rect; monitor: Rect; screen: Rect; router: Rect; clock: Rect; mouth: { x: number; y: number }; dir: { x: number; y: number }; ys: number; keyboard: Rect }
+export interface LightGeo { window: Rect; region: Rect; case: Rect; inner: Rect; monitor: Rect; screen: Rect; router: Rect; clock: Rect; mouth: { x: number; y: number }; dir: { x: number; y: number }; ys: number; keyboard: Rect }
+
+/** How much the window lights the room round it, 0 to 1, and in what colour: from the strongest shaft (the sun by day, the moon by night). */
+export function windowGlow(beams: Beam[]): { k: number; color: string } {
+  let best: Beam | null = null, sum = 0;
+  for (const b of beams) { sum += b.a; if (!best || b.a > best.a) best = b; }
+  return { k: Math.min(1, sum * 2.5), color: best?.color ?? '#ffffff' };
+}
 
 /** The quantised state the textures are drawn for: equal keys draw the same picture. */
 export function lightKey(i: LightIn): string {
-  return [i.dark ? 1 : 0, Math.round(i.night * 24), Math.round(i.dusk * 12), Math.round(i.lamp * 20), Math.round(i.screen * 20)].join('|');
+  return [i.dark ? 1 : 0, Math.round(i.night * 24), Math.round(i.dusk * 12), Math.round(i.lamp * 20), Math.round(i.screen * 20), ...i.beams.map((b) => `${b.color}:${Math.round(b.slant * 20)}:${Math.round(b.a * 80)}`)].join('|');
 }
 
 /** The dark of the room and the glow's tints at a moment: the shade's colour and opacity (night), what the lamp gives (the lamp is worth less by day). */
@@ -167,6 +177,13 @@ export class LightView {
           this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h + 700, sc.w * 1.25, 4200, { erase: true, alpha: 0.7 * i.screen });
           this.spot(c, blobTexture(), sc.x + sc.w / 2, sc.y + sc.h / 2, sc.w * 1.7, sc.h * 1.9, { erase: true, alpha: 0.35 * i.screen });
         }
+        // the window's light: a wide soft pool round the glass (it lights the lamp and the west of the desk), and where a shaft falls the room is lit, whatever stands there
+        const wg = windowGlow(i.beams), wr = G.window;
+        if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { erase: true, alpha: Math.min(0.7, wg.k * 1.5) });
+        for (const b of i.beams) {
+          this.cut(c, (g) => { for (const q of b.quads) g.poly(q.pts).fill({ color: '#ffffff', alpha: Math.min(0.75, b.a * q.fade * 4) }); });
+          if (b.patch) this.cut(c, (g) => g.ellipse(b.patch!.x, b.patch!.y, b.patch!.rx, b.patch!.ry).fill({ color: '#ffffff' }), Math.min(0.7, b.a * 4));
+        }
         const ck = G.clock;
         this.cut(c, (g) => softRect(g, ck, 260), 0.9);
         this.spot(c, blobTexture(), ck.x + ck.w / 2, ck.y + ck.h / 2, 6200, 3400, { erase: true, alpha: 0.5 });
@@ -183,6 +200,15 @@ export class LightView {
       const lift = d ? 0.1 * (1 - i.night) : 0, warm = 0.08 * i.dusk * (d ? 1 : 1.3);
       if (lift > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#bcd4ff', alpha: lift }));
       if (warm > 0.002) c.addChild(new Graphics().rect(reg.x, reg.y, reg.w, reg.h).fill({ color: '#ff9a5a', alpha: warm }));
+      // the window's light: a wide soft pool round the glass in the colour of the sun or the moon, a pale shaft and the patch where it meets the desk top
+      const wg = windowGlow(i.beams), wr = G.window;
+      if (wg.k > 0.01) this.spot(c, blobTexture(), wr.x + wr.w / 2 + 1500, wr.y + wr.h / 2, 26000, 19000, { color: wg.color, alpha: 0.32 * wg.k * (d ? 1 : 0.7) });
+      for (const b of i.beams) {
+        const g = new Graphics();
+        for (const q of b.quads) g.poly(q.pts).fill({ color: b.color, alpha: Math.min(0.6, b.a * q.fade * 2.2) });
+        if (b.patch) g.ellipse(b.patch.x, b.patch.y, b.patch.rx, b.patch.ry).fill({ color: b.color, alpha: Math.min(0.5, b.a * 3.2) });
+        c.addChild(g);
+      }
       // the lamp: its cone is warm, its pool round the hood too, a warm smear along the desk top, its reflection on the monitor's glass
       if (A.lamp > 0.01) {
         const lit = new Container(), clip = new Graphics().rect(reg.x, reg.y, reg.w, G.ys + 340 - reg.y).fill({ color: '#ffffff' });

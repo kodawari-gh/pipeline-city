@@ -5,7 +5,7 @@ import { Container } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import { BEAM, LIGHT_RES, ambientOf, focusAt, lightKey, type LightIn } from './light';
-import { DAY_S, RoomView, roomBakeRect, roomGeo } from './room';
+import { DAY_S, RoomView, beamsAt, roomBakeRect, roomGeo } from './room';
 import type { Theme } from './theme';
 
 const THEME: Theme = {
@@ -14,7 +14,7 @@ const THEME: Theme = {
   alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78',
 };
 const CASE = { x: 0, y: 0, w: 8000, h: 6000 };
-const day: LightIn = { dark: true, night: 0, dusk: 0, lamp: 1, screen: 1 };
+const day: LightIn = { dark: true, night: 0, dusk: 0, lamp: 1, screen: 1, beams: [] };
 
 describe('the focus dark', () => {
   it('is off for the whole room and for a view of the monitor, full once the case fills the view', () => {
@@ -43,6 +43,29 @@ describe('the quantised light state', () => {
     expect(lightKey(day)).not.toBe(lightKey({ ...day, lamp: 0 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, screen: 0 }));
     expect(lightKey(day)).not.toBe(lightKey({ ...day, dark: false }));
+  });
+});
+
+describe('the window light', () => {
+  const geo = roomGeo();
+  it('is a shaft of 13 slices with a patch on the desk top for the sun by day, and the moon by night', () => {
+    const sun = beamsAt(geo, 10, 0);
+    expect(sun.length).toBe(1);
+    expect(sun[0]!.quads.length).toBe(13);
+    expect(sun[0]!.quads[0]!.fade).toBe(1);
+    expect(sun[0]!.quads.at(-1)!.fade).toBeLessThan(0.1);
+    const moon = beamsAt(geo, 1, 0);
+    expect(moon.length).toBe(1);
+    expect(moon[0]!.a).toBeLessThan(sun[0]!.a);
+  });
+  it('is gone with the blind down and below the horizon', () => {
+    expect(beamsAt(geo, 10, 1)).toEqual([]);
+    expect(beamsAt(geo, 5.6, 0).every((b) => b.a < 0.05)).toBe(true);
+  });
+  it('moves the light key as the sun crosses the sky', () => {
+    const k = (h: number) => lightKey({ ...day, beams: beamsAt(geo, h, 0) });
+    expect(k(8)).not.toBe(k(14));
+    expect(k(12)).toBe(k(12));
   });
 });
 

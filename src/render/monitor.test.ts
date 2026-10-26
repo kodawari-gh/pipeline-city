@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { monitorView, type MonitorInput } from './monitor';
+import { monitorView, standbyLook, type MonitorInput } from './monitor';
 
 const base: MonitorInput = { hasDisplay: true, powered: true, monitorLive: true, phase: 'running', postFailed: false, display: 'HELLO' };
 
@@ -19,5 +19,21 @@ describe('monitorView', () => {
   it('stays black when off, and has no NO SIGNAL without a monitor', () => {
     expect(monitorView({ ...base, powered: false, phase: 'off' }).noSignal).toBe(false);
     expect(monitorView({ ...base, hasDisplay: false, phase: 'error' }).noSignal).toBe(false);
+  });
+});
+
+describe('standbyLook', () => {
+  const look = (m: Partial<MonitorInput>, osOn = false) => { const i = { ...base, ...m }; return standbyLook(i, monitorView(i), osOn); };
+  it('is the standby screen while the machine is off', () => {
+    expect(look({ powered: false, phase: 'off', display: '' })).toBe('off');
+  });
+  it('is the mark alone while the machine is on and has no picture yet (the cold-boot wait)', () => {
+    expect(look({ phase: 'posting', display: '' })).toBe('wait');
+  });
+  it('is nothing while the screen has its own content, and without a display', () => {
+    expect(look({})).toBeNull(); // text
+    expect(look({ phase: 'error' })).toBeNull(); // NO SIGNAL
+    expect(look({ display: '' }, true)).toBeNull(); // the OS screen
+    expect(look({ hasDisplay: false, powered: false, display: '' })).toBeNull();
   });
 });
