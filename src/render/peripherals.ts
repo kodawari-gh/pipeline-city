@@ -13,7 +13,7 @@ export interface PeriphLook { plastic: string; plasticLo: string; line: string; 
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its dome). Sizes against the 24 inch. */
 export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
-export const MOUSE = { w: 1250, l: 2500, h: 540, yaw: -9 };
+export const MOUSE = { w: 1250, l: 2500, h: 600, yaw: -9 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
 export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
@@ -86,17 +86,20 @@ function hull(pts: Pt[]): Pt[] {
 /** The mouse: a dome turned a few degrees on the mat, built from rings of its outline at rising heights (each band lighter, so the top is round), two buttons with a seam, a wheel that stands proud of the top, and a lit patch. It has no cord. */
 export function drawMouse(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = mousePlacer(D, monitorCx), { w, l, h } = MOUSE;
-  const ring = (k: number, hh: number) => mouseOutline(k).map(([x, z]) => p(x, z, hh));
+  // a wedge: higher at the palm (toward the viewer) than at the buttons
+  const wedge = (z: number) => 0.78 + 0.22 * (z / l + 0.5);
+  const ringP = (k: number, f: number) => mouseOutline(k).map(([x, z]) => ({ x, s: p(x, z, f * h * wedge(z)) }));
   const body = mix(L.plastic, '#ffffff', T.dark ? 0.06 : 0), shade = mix(L.plasticLo, '#000000', T.dark ? 0.1 : 0), crown = T.dark ? mix(L.plastic, '#9fb0e0', 0.4) : '#ffffff';
   // the height of the dome over a plan point (a half ellipsoid, a little flattened toward the edge)
-  const dome = (x: number, z: number) => h * Math.sqrt(Math.max(0, 1 - (x / (w * 0.47)) ** 2 - (z / (l * 0.47)) ** 2)) ** 0.9;
+  const dome = (x: number, z: number) => h * wedge(z) * Math.sqrt(Math.max(0, 1 - (x / (w * 0.47)) ** 2 - (z / (l * 0.47)) ** 2)) ** 0.9;
   contact(o, p, mouseOutline(1), T.dark ? 0.55 : 0.4);
-  const prof: [number, number][] = Array.from({ length: 10 }, (_, i) => { const t = (i / 9) * (Math.PI / 2) * 0.985; return [Math.max(0.3, 0.99 * Math.cos(t) ** 0.7), Math.sin(t) ** 0.9] as [number, number]; }), rings = prof.map(([k, f]) => ring(k, f * h));
+  const prof: [number, number][] = [[0.98, 0], [0.99, 0.09], ...Array.from({ length: 9 }, (_, i) => { const t = ((i + 1) / 9) * (Math.PI / 2) * 0.985; return [Math.max(0.3, 0.99 * Math.cos(t) ** 0.7), Math.sin(t) ** 0.9] as [number, number]; })], rings = prof.map(([k, f]) => ringP(k, f)), skirt = T.dark ? '#0d1122' : '#7e879c';
   for (let i = 0; i + 1 < prof.length; i++) {
-    const t = i / (prof.length - 2), col = t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
-    o.poly(flat(hull([...rings[i]!, ...rings[i + 1]!]))).fill({ color: col });
+    const t = (i - 1) / (prof.length - 3), col = i === 0 ? skirt : t < 0.5 ? mix(shade, body, t * 2) : mix(body, crown, (t - 0.5) * 2);
+    o.poly(flat(hull([...rings[i]!, ...rings[i + 1]!].map((q) => q.s)))).fill({ color: col });
   }
-  o.poly(flat(hull(rings.flat()))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
+  o.poly(flat(rings[1]!.map((q) => q.s))).stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.12 : 0.35, join: 'round' }); // the skirt's top edge
+  o.poly(flat(hull(rings.flat().map((q) => q.s)))).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
   // the button plates (a little lighter than the palm) with the curved cut under them, a lit patch toward the window (west), the seam between the buttons
   const cut = -l * 0.1, bulge = l * 0.035, xw = w * 0.34, cutZ = (x: number) => cut - bulge * (1 - Math.min(1, (x / xw) ** 2));
   {
