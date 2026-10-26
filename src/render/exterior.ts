@@ -1,8 +1,8 @@
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { Snapshot } from '../sim/protocol';
 import { IO_PORTS, IO_X } from './boardlayout';
 import { acInlet, portProfile, shieldSheet } from './ports';
-import { box, disc, label, mix } from './ink';
+import { box, disc, label, lgrad, mix } from './ink';
 import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, nicJack, nicY, type Rect } from './layout';
 import { CASE_LOOK } from './case';
 import type { DriveKind } from './drives';
@@ -32,7 +32,6 @@ export interface ExteriorOpts {
 /** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
 export const frontLed = (cell: number) => ({ x: stripRect().x + 10, y: BAY_CELLS[cell]!.y + BAY_CELLS[cell]!.h / 2 });
 
-const vgrad = (top: string, bot: string) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' });
 
 export function exteriorTones(T: Theme) {
   const d = T.dark;
@@ -49,65 +48,113 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, T: Theme
   for (let yy = y + step / 2, k = 0; yy < y + h; yy += step, k++) g.moveTo(x, yy).lineTo(x + w, yy).stroke({ width: 5, color: k % 2 ? '#ffffff' : '#000000', alpha: T.dark ? 0.028 : 0.05 });
 }
 
+/**
+ * How each case tier looks from outside, beyond its size: the colour of its body, its trim, its accent light and how round it is.
+ * Mini: a pale aluminium shell, soft corners, amber light. Micro: matte black, cyan. Mid: gunmetal with brass trim, violet.
+ * Full: graphite with an aluminium frame, square corners and an RGB light line under the glass.
+ */
+interface CaseStyle { mixTo: string; k: number; accent: (T: Theme) => string; trim: (T: Theme) => string | null; rad: number; rgb: boolean }
+const STYLES: CaseStyle[] = [
+  { mixTo: '#c4cfe4', k: 0.34, accent: (T) => T.ld, trim: () => null, rad: 160, rgb: false },
+  { mixTo: '#000000', k: 0.3, accent: (T) => T.alu, trim: () => null, rad: 120, rgb: false },
+  { mixTo: '#000000', k: 0.02, accent: (T) => T.mul, trim: (T) => T.pin, rad: 90, rgb: false },
+  { mixTo: '#000000', k: 0.2, accent: (T) => T.br, trim: (T) => T.alu, rad: 60, rgb: true },
+];
+const styleOf = (): CaseStyle => STYLES[LAYOUT_CASE] ?? STYLES[2]!;
+
+/** The body tones of the current tier: the shared steel tones mixed toward the tier's colour. */
+function bodyTones(T: Theme, st: CaseStyle) {
+  const c = exteriorTones(T), m = (v: string) => mix(v, st.mixTo, st.k);
+  return { ...c, hi: m(c.hi), mid: m(c.mid), lo: m(c.lo), edge: mix(c.edge, st.mixTo, st.k * 0.6), cut: mix(c.cut, '#000000', 0.2) };
+}
+
+/** A bevel round a rounded box: a lit edge on the top and west sides, a shaded one on the bottom and east. */
+function bevel(g: Graphics, x: number, y: number, w: number, h: number, r: number, T: Theme, a = 1) {
+  g.moveTo(x + r, y).lineTo(x + w - r, y).moveTo(x, y + r).lineTo(x, y + h - r).stroke({ width: 6, color: '#ffffff', alpha: (T.dark ? 0.13 : 0.55) * a, cap: 'round' });
+  g.moveTo(x + r, y + h).lineTo(x + w - r, y + h).moveTo(x + w, y + r).lineTo(x + w, y + h - r).stroke({ width: 6, color: '#000000', alpha: (T.dark ? 0.4 : 0.2) * a, cap: 'round' });
+}
+
 /** The static exterior (world coordinates, around `CASE`). */
 export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const c = tones(T), c0 = CASE, p = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN;
+  const st = styleOf(), c = bodyTones(T, st), acc = st.accent(T), trim = st.trim(T), R = st.rad, d = T.dark;
+  const c0 = CASE, p = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN;
+  const ink = d ? '#dfe7ff' : '#1a2338', dim = d ? '#8d9bc4' : '#2a3550';
 
-  // feet and soft shadow
-  for (const fx of [c0.x + 300, c0.x + c0.w - 700]) box(g, fx, c0.y + c0.h - 40, 400, 150, 34, { fill: c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
-  box(g, c0.x + 24, c0.y + 40, c0.w, c0.h, 120, { fill: '#000000', fa: T.dark ? 0.4 : 0.16 });
+  // the feet (rubber pads on the small cases, wider blocks on the full tower, which also throws a little light on the desk) and the soft shadow
+  const fw = [300, 360, 400, 560][LAYOUT_CASE] ?? 400;
+  for (const fx of [c0.x + 300, c0.x + c0.w - 300 - fw]) {
+    box(g, fx, c0.y + c0.h - 40, fw, 150, 34, { fill: c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
+    g.rect(fx + 30, c0.y + c0.h - 40, fw - 60, 5).fill({ color: '#ffffff', alpha: d ? 0.08 : 0.3 });
+    if (st.rgb) g.rect(fx + 20, c0.y + c0.h + 100, fw - 40, 8).fill({ color: acc, alpha: 0.55 });
+  }
+  box(g, c0.x + 24, c0.y + 40, c0.w, c0.h, R, { fill: '#000000', fa: d ? 0.4 : 0.16 });
+  box(g, c0.x + 60, c0.y + c0.h + 40, c0.w - 80, 120, 60, { fill: '#000000', fa: d ? 0.22 : 0.1 });
 
-  // body: brushed steel with a lit top edge and a darker lower edge
-  g.roundRect(c0.x, c0.y, c0.w, c0.h, 120).fill(vgrad(c.hi, c.lo)).stroke({ width: 12, color: c.edge, alpha: 0.9 });
+  // body: brushed metal lit from the top left, with a bevelled rim and a soft light band down the side
+  g.roundRect(c0.x, c0.y, c0.w, c0.h, R).fill(lgrad(c.hi, c.lo, [0.25, 1])).stroke({ width: 12, color: c.edge, alpha: 0.9 });
+  g.roundRect(c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10).fill(lgrad(d ? '#ffffff12' : '#ffffff30', '#ffffff00', [1, 0.2]));
   brush(g, c0.x + 40, c0.y + 40, c0.w - 80, c0.h - 80, T);
-  g.roundRect(c0.x + 16, c0.y + 14, c0.w - 32, 8, 4).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.55 });
+  bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T);
 
-  // top panel: a darker strip with a vent row and the light window for the status LEDs
-  g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-  const nv = [10, 16, 22, 28][LAYOUT_CASE] ?? 22;
-  for (let k = 0; k < nv; k++) box(g, -2500 + k * 78, p.y + 130, 34, 190, 17, { fill: c.cut });
+  // top panel: a recessed plate with an accent hairline, the brand, a row of vents and the light window for the status LEDs
+  g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+  g.rect(p.x + 70, p.y + 44, p.w - 140, 10).fill({ color: '#000000', alpha: d ? 0.3 : 0.12 });
+  g.rect(p.x + 90, p.y + p.h - 34, p.w - 180, 5).fill({ color: acc, alpha: 0.5 });
+  const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
+  for (let k = 0; k < nv; k++) box(g, -2250 + k * 78, p.y + 120, 30, 190, 15, { fill: c.cut });
   box(g, CASE_LEDS.disk - 120, p.y + 70, CASE_LEDS.err - CASE_LEDS.disk + 240, 250, 40, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.5 });
-  root.addChild(label(`PIPELINE CITY · ${CASE_LOOK[LAYOUT_CASE]?.tag ?? ''}`, -3560, p.y + 200, 130, T.dark ? '#dfe7ff' : '#1a2338', { head: true, a: 0.5 }));
-  root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.dark ? '#8d9bc4' : '#2a3550', { anchor: [0.5, 0.5], a: 0.9 }));
-  for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.dark ? '#8d9bc4' : '#2a3550', { anchor: [0.5, 0.5], a: 0.9 }));
+  root.addChild(label(`PIPELINE CITY · ${CASE_LOOK[LAYOUT_CASE]?.tag ?? ''}`, -3560, p.y + 205, 92, ink, { head: true, a: 0.55 }));
+  root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
+  for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
 
   // rear I/O plate (west): a panel with the external connectors cut into it
   const io = { x: c0.x + 30, y: ci.y, w: BR.io.x + BR.io.w + 60 - (c0.x + 30), h: gl.h };
-  g.roundRect(io.x, io.y, io.w, io.h, 30).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
+  g.roundRect(io.x, io.y, io.w, io.h, 30).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
   brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, T, 40);
   rearIo(g, T, o);
-  root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, T.dark ? '#8d9bc4' : '#2a3550', { head: true, a: 0.6 }));
+  root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, dim, { head: true, a: 0.6 }));
   // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
   for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
-  // tempered glass side: smoked, a faint diagonal reflection and a hairline edge. The inside shows through it.
+  // the glass side: a bezel (the tier's trim colour where it has one), a dark gasket, then the window itself, a hole in the body
+  // with a thin smoked pane over it, so the real interior shows through at every zoom
   const win = { x: BR.io.x + BR.io.w + 110, y: gl.y + 56, w: gl.x + gl.w - 56 - (BR.io.x + BR.io.w + 110), h: gl.h - 112 };
-  box(g, win.x - 26, win.y - 26, win.w + 52, win.h + 52, 70, { fill: c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
-  // the window is a hole in the body (blend erase) with a smoked pane over it, so the real interior shows through at every zoom
+  const bz = 44;
+  g.roundRect(win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, 76).fill(lgrad(trim ? mix(trim, c.hi, 0.5) : c.mid, trim ? mix(trim, c.lo, 0.5) : c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+  bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 70, T, 0.8);
+  box(g, win.x - 16, win.y - 16, win.w + 32, win.h + 32, 62, { fill: c.shade });
   const hole = new Graphics();
   hole.blendMode = 'erase';
   hole.roundRect(win.x, win.y, win.w, win.h, 50).fill('#000000');
   const pane = new Graphics();
   root.addChild(hole, pane);
-  pane.roundRect(win.x, win.y, win.w, win.h, 50).fill(vgrad(c.glassTop, c.glassBot));
-  pane.alpha = T.dark ? 0.4 : 0.34;
+  pane.roundRect(win.x, win.y, win.w, win.h, 50).fill(lgrad(c.glassTop, c.glassBot));
+  pane.alpha = d ? 0.4 : 0.34;
   const top = new Graphics();
   root.addChild(top);
   const refl = (x0: number, w: number, a: number) => top.poly([win.x + x0, win.y + 8, win.x + x0 + w, win.y + 8, win.x + x0 + w - 1500, win.y + win.h - 8, win.x + x0 - 1500, win.y + win.h - 8]).fill({ color: '#ffffff', alpha: a });
-  const ra = T.dark ? 0.045 : 0.07;
+  const ra = d ? 0.05 : 0.08;
   refl(3200, 700, ra); refl(4200, 150, ra * 0.8); refl(7500, 500, ra * 0.7);
-  box(top, win.x + 14, win.y + 14, win.w - 28, win.h - 28, 40, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.08 : 0.3 });
+  box(top, win.x + 14, win.y + 14, win.w - 28, win.h - 28, 40, { stroke: '#ffffff', lw: 5, sa: d ? 0.1 : 0.3 });
+  // the light line under the glass: a thin accent on every tier, a full RGB line on the top one
+  if (st.rgb) {
+    const ly = win.y + win.h - 54, lx0 = win.x + 120, lw = win.w - 240;
+    top.roundRect(lx0, ly - 24, lw, 56, 28).fill(lgrad(acc + '00', acc + '40', [0, 1]));
+    top.roundRect(lx0, ly, lw, 10, 5).fill(lgrad(acc, T.alu, [1, 0]));
+  } else top.roundRect(win.x + 160, win.y + win.h - 40, win.w - 320, 6, 3).fill({ color: acc, alpha: 0.5 });
   for (const [x, y] of [[win.x - 6, win.y + 70], [win.x + win.w + 6, win.y + 70], [win.x - 6, win.y + win.h - 70], [win.x + win.w + 6, win.y + win.h - 70]] as const) {
     disc(top, x, y, 26, { fill: mix(c.hi, c.lo, 0.3), stroke: c.edge, lw: 4, sa: 0.8 }); top.moveTo(x - 13, y).lineTo(x + 13, y).stroke({ width: 4, color: c.shade, alpha: 0.7 });
   }
 
-  // PSU compartment: brushed panel with a perforated intake (the drive cage is inside, behind the glass)
+  // PSU compartment: a brushed panel with a perforated intake (the drive cage is inside, behind the glass)
   const lowY = gl.y + gl.h, lowH = ci.y + ci.h - lowY;
-  g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(vgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.5 });
+  g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.5 });
   brush(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, T, 40);
+  bevel(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 30, T, 0.7);
+  if (trim) g.rect(ci.x + 40, lowY + 14, ci.w - 80, 6).fill({ color: trim, alpha: 0.5 });
   const mesh = { x: PSU.x + 120, y: PSU.y + 60, w: 3300, h: PSU.h - 120 };
   box(g, mesh.x, mesh.y, mesh.w, mesh.h, 40, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
   for (let y = mesh.y + 60; y < mesh.y + mesh.h - 40; y += 64) for (let x = mesh.x + 60 + (Math.round((y - mesh.y) / 64) % 2) * 32; x < mesh.x + mesh.w - 40; x += 64) g.circle(x, y, 13);
@@ -115,12 +162,17 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   g.rect(mesh.x + 20, mesh.y + 20, mesh.w - 40, 4).fill({ color: '#ffffff', alpha: 0.04 });
   // the mains inlet in the rear wall at the PSU's end (the cord is drawn by the room)
   acInlet(g, T, PC_POWER, { wallX: IO_X, wallW: WALL_T });
-  // nameplate beside the intake, along the lower front
+  // the badge beside the intake: a plate of the body's metal with the name pressed into it (a lit edge above each letter's shadow)
   const npx = mesh.x + mesh.w + 260, np = { x: npx, y: PSU.y + 250, w: Math.min(4200, ci.x + ci.w - 300 - npx), h: 620 };
-  box(g, np.x, np.y, np.w, np.h, 36, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
-  g.rect(np.x + 60, np.y + np.h - 130, np.w - 120, 8).fill({ color: T.alu, alpha: 0.55 });
-  root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, T.dark ? '#dfe7ff' : '#e9eefb', { head: true, anchor: [0.5, 0.5], a: 0.8 }));
-  root.addChild(label(`MODEL PC-${LAYOUT_CASE + 1} · TEMPERED GLASS EDITION`, np.x + np.w / 2, np.y + np.h - 70, 50, T.dark ? '#8d9bc4' : '#aeb8d0', { anchor: [0.5, 0.5], a: 0.8 }));
+  box(g, np.x + 8, np.y + 14, np.w, np.h, 36, { fill: '#000000', fa: d ? 0.3 : 0.12 });
+  g.roundRect(np.x, np.y, np.w, np.h, 36).fill(lgrad(mix(c.mid, c.hi, 0.5), mix(c.mid, c.lo, 0.4))).stroke({ width: 5, color: c.edge, alpha: 0.7 });
+  bevel(g, np.x + 6, np.y + 6, np.w - 12, np.h - 12, 30, T, 0.8);
+  g.rect(np.x + 80, np.y + np.h - 150, np.w - 160, 8).fill({ color: acc, alpha: 0.8 });
+  // dark bodies carry light lettering with a shadow under it, light bodies a pressed dark one with a lit edge under it
+  const press = d ? '#b4c0e4' : '#25304a';
+  root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 256, 230, d ? '#000000' : '#ffffff', { head: true, anchor: [0.5, 0.5], a: d ? 0.45 : 0.55 }));
+  root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 250, 230, press, { head: true, anchor: [0.5, 0.5], a: 0.85 }));
+  root.addChild(label(`MODEL PC-${LAYOUT_CASE + 1} · TEMPERED GLASS EDITION`, np.x + np.w / 2, np.y + np.h - 70, 50, press, { anchor: [0.5, 0.5], a: 0.7 }));
 
   // front rim: a slim vertical vent column east of the glass
   const STRIP = stripRect();
