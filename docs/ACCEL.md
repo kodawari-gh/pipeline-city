@@ -11,7 +11,7 @@ All three follow the existing device rules: a declarative spec in `DEVICE_SPECS`
 - **PSU connector:** `psu0` / `psu1` have no PCIe lead, `psu2` (250 W ATX+) has one, `psu3` (500 W, planned) two, `psu4` (1 kW) four. A spec field `pcieLeads` on the PSU; `connectCable("pcie")` refuses with "this PSU has no PCIe power lead".
 - **Clock domains:** each card gets its own domain named after its slot (`pcie0`, `pcie1`), like drives. TPM runs on a fixed slow domain `tpm` (no overclock).
 - **Bus and MMIO:** each device takes a fixed window in the device range (command / status / data registers plus, for GPU and NPU, a small on-card memory window). The CPU writes a command descriptor, sets `go`, polls `status`. The crossing has explicit latency (PCIe hop: about 8 CPU-domain ticks each way; TPM header: about 20, it is slow on purpose). Bus traffic shows on the board as today.
-- **Fast model:** the calibration key's hardware hash includes the installed accelerators and their clocks. Changing a card invalidates only entries whose program touches that device class.
+- **Fast model:** how accelerators key the calibration cache waits for the fast-model design note (T54, T87).
 - **Save:** devices go in `board.devices` as today; `Cables` gains `pcie`. One save version bump, migration fills `pcie: false`.
 - **Sandbox:** every tier offered, as for every other kind.
 
@@ -66,11 +66,11 @@ As already listed in PROGRESSION.md, unchanged: `tpm1` 9 (with the `secure` clas
 
 All three classes already exist in `levels.ts` as never-running classes (T50); this makes them runnable. Each is a generator template ([`GEN.md`](GEN.md)) emitting real CPU code plus device code:
 
-- **`gpu`** ("render frame" / "batch shader"): CPU kernel copies a seeded input tile to card memory, uploads a GPU kernel, launches, polls, reads back a checksum and prints it on the CLI. GPU kernels: `vadd`, `saxpy`, `blur3` (divergent at the edges), `mandel` (heavy divergence). Accepted only if a working GPU with its cable is installed.
-- **`npu`** ("inference"): CPU builds a 2 to 6 descriptor list (seeded layer sizes), launches, polls, prints the class index. Accepted with an NPU, **or** with a GPU at a lower payout (the template has a GPU fallback kernel, slower), so a GPU owner is not locked out and the NPU is a real upgrade, not a key.
-- **`secure`** ("signed transaction"): `measure` the job's code range, `attest`, run a small hash / checksum kernel in protected mode, `seal` the result, print the quote. Accepted only with a TPM. Pays more per tick than `db` to make up for the surcharge.
+- **`gpu`** ("render frame" / "batch shader"): with a working GPU (and its cable) the CPU kernel copies a seeded input tile to card memory, uploads a GPU kernel, launches, polls, reads back a checksum and prints it on the CLI. Without one, the generator emits an equivalent CPU loop that prints the same checksum, only slower. GPU kernels: `vadd`, `saxpy`, `blur3` (divergent at the edges), `mandel` (heavy divergence). Same pay either way.
+- **`npu`** ("inference"): with an NPU the CPU builds a 2 to 6 descriptor list (seeded layer sizes), launches, polls, prints the class index. The fallback chain is NPU, then GPU (a slower kernel), then CPU (a slower loop). All three print the same class index and pay the same; the speed gap down the chain is what the card sells, so the NPU is an upgrade, not a key.
+- **`secure`** ("signed transaction"): `measure` the job's code range, `attest`, run a small hash / checksum kernel in protected mode, `seal` the result, print the quote. The only class that needs its hardware: accepted only with a TPM. Pays more per tick than `db` to make up for the surcharge.
 
-Gating follows the existing pattern: the arrival is refused (not queued) when the device is missing, with the reason on the hover ("needs a GPU"). The job mix weights per level are already in PROGRESSION.md.
+Only `secure` is gated: its arrival is refused (not queued) without a TPM, with the reason on the hover ("needs a TPM"). `gpu` and `npu` jobs are never refused for lack of a card. The job mix weights per level are already in PROGRESSION.md.
 
 ## Board and VRM demand
 
@@ -111,4 +111,4 @@ Each line is meant as one TODO entry, in dependency order:
 13. **Internal views** [visual]: GPU lanes and banks, NPU grid, TPM stages; hover ids.
 14. **Later tiers:** `gpu2` (pipelined), `gpu3`, `npu2`, `tpm2` as data plus any engine option they need.
 
-Open points for the owner: the NPU as descriptor-driven rather than a third ISA (recommended, for scope); `npu` jobs accepted on a GPU-only machine at lower pay; the case-heat coupling (could be dropped to keep thermal per-device only).
+Open points for the owner: the NPU as descriptor-driven rather than a third ISA (recommended, for scope) (decided: yes); the case-heat coupling (decided: it stays); no gpu or npu job is gated by hardware or paid less without the card (decided, T67).
