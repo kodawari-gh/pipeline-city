@@ -12,7 +12,7 @@ type Pt = [number, number];
 export interface PeriphLook { plastic: string; plasticLo: string; line: string; paper: string }
 
 /** The keyboard (plan width, plan depth, height), turned `yaw` degrees; the mouse (width, length, height of its crest: about 0.65 of the width, as in the owner's photos). Sizes against the 24 inch. */
-export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: -7 };
+export const KEYBOARD = { w: 6200, d: 2900, h: 260, yaw: 7 };
 export const MOUSE = { w: 900, l: 1800, h: 575, yaw: -35 };
 
 /** Turns plan points about a centre on the desk top and puts them on the top in perspective: `(px, pz, h)` is across, toward the viewer, and up. */
@@ -25,14 +25,16 @@ export function placer(D: DeskGeo, cx: number, cy: number, yawDeg: number) {
 }
 
 /** Where the keyboard is (its centre at the feet line, a little west of the monitor's middle, so its right end clears the mouse). */
-export const keyboardPlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300, D.ys - 210, KEYBOARD.yaw);
-export const mousePlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 300 + KEYBOARD.w / 2 + 1200, D.ys - 40, MOUSE.yaw);
+export const keyboardPlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx - 800, D.ys + 40, KEYBOARD.yaw);
+export const mousePlacer = (D: DeskGeo, monitorCx: number) => placer(D, monitorCx + MOUSE_DX, D.ys + 130, MOUSE.yaw);
 
+/** Where the mouse is across, from the monitor's middle. */
+const MOUSE_DX = 4000;
 const flat = (pts: Pt[]) => pts.flat();
 
 /** The mat: a rectangle on the desk top, with a lit front edge. */
 export function drawMat(o: Graphics, T: Theme, D: DeskGeo, monitorCx: number) {
-  const p = placer(D, monitorCx - 300 + 500, D.ys + 50, 0), w = KEYBOARD.w + 4200, d = 4800;
+  const p = placer(D, monitorCx - 50, D.ys + 120, 0), w = KEYBOARD.w + 4200, d = 4800;
   o.poly(flat([p(-w / 2, -d / 2), p(w / 2, -d / 2), p(w / 2, d / 2), p(-w / 2, d / 2)])).fill({ color: T.dark ? '#141c36' : '#c4cedf' }).stroke({ width: 5, color: '#000000', alpha: 0.2, join: 'round' });
   o.poly(flat([p(-w / 2, d / 2), p(w / 2, d / 2), p(w / 2, d / 2 - 380), p(-w / 2, d / 2 - 380)])).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.4 });
 }
@@ -45,7 +47,7 @@ function contact(o: Graphics, p: ReturnType<typeof placer>, outline: Pt[], a: nu
 /** The keyboard: a box turned a few degrees, its front and the side that faces the vanishing point, and a top of five rows of keycaps (the space bar in the front row) with a pair of lamps at the back. */
 export function drawKeyboard(o: Graphics, T: Theme, L: PeriphLook, D: DeskGeo, monitorCx: number) {
   const p = keyboardPlacer(D, monitorCx), { w, d, h } = KEYBOARD, hw = w / 2, hd = d / 2;
-  const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8', side = mix(L.plasticLo, '#000000', 0.2), eastSide = monitorCx - 300 < D.P.vx;
+  const capCol = T.dark ? '#b8c2e4' : '#ffffff', capEdge = T.dark ? '#4a5679' : '#9aabc8', side = mix(L.plasticLo, '#000000', 0.2), eastSide = monitorCx - 800 < D.P.vx;
   contact(o, p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], T.dark ? 0.5 : 0.35);
   // the faces: the front, the end that faces the vanishing point, the top
   o.poly(flat([p(-hw, hd), p(hw, hd), p(hw, hd, h), p(-hw, hd, h)])).fill({ color: L.plasticLo }).stroke({ width: 5, color: '#000000', alpha: 0.3, join: 'round' });
@@ -154,7 +156,7 @@ const WHEEL = { u: 0.21, r: 200 * MOUSE.w / 1250, w: 120 * MOUSE.w / 1250, out: 
 function wheelGeom(D: DeskGeo, monitorCx: number) {
   const { r, w, out } = WHEEL, hw = w / 2, zm = (WHEEL.u - 0.5) * MOUSE.l, th = Math.atan((shellH(0, zm + 20) - shellH(0, zm - 20)) / 40);
   const zc = zm + (r - out) * Math.sin(th), hc = shellH(0, zm) - (r - out) * Math.cos(th); // the circle's centre sits under the shell, square to its slope, so the bump is even on both sides
-  const west = monitorCx - 300 + KEYBOARD.w / 2 + 1200 > D.P.vx; // the mouse is east of the vanishing point: its west side is the one that faces it
+  const west = monitorCx + MOUSE_DX > D.P.vx; // the mouse is east of the vanishing point: its west side is the one that faces it
   const e = west ? -hw : hw, cz = (a: number) => zc + r * Math.cos(a), ch = (a: number) => hc + r * Math.sin(a);
   // the part of the circle that stands out of the shell at a distance `x` from the centre line (found by stepping out from the top): the shell falls away toward the sides, so the wheel shows more there
   const ex = (x: number): [number, number] => {
