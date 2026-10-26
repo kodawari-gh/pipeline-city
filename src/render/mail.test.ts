@@ -3,11 +3,14 @@ import { Container } from 'pixi.js';
 
 // The labels go through Pixi's Text (a canvas): only the shapes matter here.
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
+// gradient fills draw on a canvas, which the tests do not have
+vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
 
-import { MONITOR, TRAY, setLayoutTier } from './layout';
-import { HANG_Y, trayKeyCentre } from './props';
+import { CABLE_ROW_Y, CASE, MONITOR, OUTBOX, ROUTER_SPOT, TRAY, USB_PORT, setLayoutTier } from './layout';
+import { HANG_Y, pluggedKeyArt, trayKeyCentre } from './props';
+import type { KeySnap } from '../sim/game/game';
 import { roomBox, roomGeo } from './room';
-import { ENV_H, ENV_W, MAIL_S, SWAY, buildLetter, carryAx, keyPose, letterPose, mailStage, setLetter, swayAngle, swayStep, type SwayState } from './mail';
+import { ENV_H, ENV_W, MAIL_S, OUT_K, POST_K, POSTING_FROM, SWAY, buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, outKeyPose, outLetterPose, outboxSlot, setLetter, swayAngle, swayStep, type SwayState } from './mail';
 import type { Theme } from './theme';
 
 const DARK: Theme = {
@@ -105,5 +108,16 @@ describe('the letter art', () => {
     expect(L.flap.parent).toBe(L.back); expect(L.flapTop.visible).toBe(false); expect(L.flapUnder.visible).toBe(true);
     expect(L.back.position.x).toBe(L.front.position.x);
     expect(MAIL_S).toBeGreaterThan(2);
+  });
+});
+
+describe('the key in the USB port', () => {
+  it('is cut at the port by a mask on a wrapper, never on the stick board.ts bakes to a texture (a mask on the baked container blanked the key at every far zoom)', () => {
+    const k = { id: 1, label: '#1 log', template: 'cli.log', type: 'log', jobNo: 1, arrivalTick: 0, deadlineTick: 100, age: 5, late: false, done: false, result: '', stage: 'tray' } as unknown as KeySnap;
+    const art = pluggedKeyArt(DARK, k), o = art.objs[0]!;
+    expect(o.vec.mask).toBeFalsy();
+    expect(o.vec.parent).not.toBe(o.node);       // inside a wrapper...
+    expect(o.vec.parent!.parent).toBe(o.node);
+    expect(o.vec.parent!.mask).toBeTruthy();   // ...which carries the mask
   });
 });

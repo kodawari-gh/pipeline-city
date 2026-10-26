@@ -167,6 +167,13 @@ export const TRAY_COLS = 5, TRAY_ROWS = 2;
 /** The rack's geometry: the hooks' pitch along a rail, how far the lower rail is under the upper, the lanyard's length, and the hooks' height under the rack's top. */
 export const HOOK_PITCH = 660, ROW_DROP = 700, LANYARD = 380, HOOK_Y = 260;
 export let TRAY: Rect = { x: 0, y: 0, w: TRAY_W, h: TRAY_H };
+/**
+ * The letterbox on the wall between the router's shelf and the case: where a finished key's letter is posted (`mail.ts`). A wall thing like
+ * the rack, so it follows the monitor (the case tier); clear of the router, the clock, the LAN cable's row below it and the case.
+ */
+export const OUTBOX_W = 1000, OUTBOX_H = 800;
+export let OUTBOX: Rect = { x: 0, y: 0, w: OUTBOX_W, h: OUTBOX_H };
+
 // ---- the PC case: chassis around the board and the PSU, with the front/top panel and the drive bay ----
 /** Rear wall thickness (its outer face is the rear I/O plate's west edge: the connectors and the expansion brackets pass through it), and the top of the case. */
 export const WALL_T = 170, CASE_TOP = -3400;
@@ -333,6 +340,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   VIDEO_RUN_Y = by + 700;
   MONITOR_POWER = { x: MONITOR.x + MW - 900 * MONITOR_K, y: by + 36 * MONITOR_K };
   TRAY = { x: MONITOR.x + 1700, y: MONITOR.y - 2800, w: TRAY_W, h: TRAY_H };
+  OUTBOX = { x: IO_X - 1900, y: MONITOR.y - 1900, w: OUTBOX_W, h: OUTBOX_H };
   SHELF_Y = MONITOR.y - 700; CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
   POWER_PLATE = { x: -4870, y: FLOOR_Y - 1750, w: 1500, h: 800 };

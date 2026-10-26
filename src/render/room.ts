@@ -4,7 +4,7 @@ import { acPlug, metalOf } from './ports';
 import { trayHook } from './props';
 import { roundedPath } from './routes';
 import {
-  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
+  CASE, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, MONITOR_POWER, PC_POWER, OUTBOX, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from './layout';
 import type { Theme } from './theme';
 
@@ -311,6 +311,17 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
     g.circle(h.x, h.y, 34).fill({ color: L.metal }).stroke({ width: 6, color: L.metalLo }); // a brass cup hook: its base on the rail,
     g.moveTo(h.x, h.y).quadraticCurveTo(h.x + 54, h.y + 40, h.x + 12, h.y + 96).stroke({ width: 16, color: L.metal, cap: 'round' }); // and the bend the lanyard hangs from
   }
+  // ---- the letterbox: a red wall box with a slot in its top, between the router's shelf and the case ----
+  const ob = OUTBOX, red = T.dark ? '#8e2f38' : '#c24c55', redHi = mix(red, '#ffffff', T.dark ? 0.22 : 0.3), redLo = mix(red, '#000000', 0.35);
+  g.roundRect(ob.x + 18, ob.y + 28, ob.w, ob.h, 40).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.16 });
+  g.roundRect(ob.x, ob.y, ob.w, ob.h, 40).fill({ color: red }).stroke({ width: 8, color: redLo, alpha: 0.9 });
+  g.roundRect(ob.x + 16, ob.y + 14, ob.w - 32, 26, 13).fill({ color: redHi, alpha: 0.7 });
+  g.roundRect(ob.x + 150, ob.y + 80, ob.w - 300, 56, 20).fill({ color: '#05070c' }).stroke({ width: 6, color: redLo, alpha: 0.9 }); // the slot
+  g.roundRect(ob.x + 130, ob.y + 54, ob.w - 260, 30, 12).fill({ color: redLo }); // its hood
+  g.roundRect(ob.x + 80, ob.y + 330, ob.w - 160, 250, 24).fill({ color: redLo, alpha: 0.55 }); // the plate under the slot
+  for (const sx of [ob.x + 60, ob.x + ob.w - 60]) for (const sy of [ob.y + 60, ob.y + ob.h - 60]) g.circle(sx, sy, 14).fill({ color: L.metal }).stroke({ width: 3, color: L.metalLo });
+  back.addChild(label('OUT', ob.x + ob.w / 2, ob.y + 455, 130, T.dark ? '#f0d9d9' : '#fff1f1', { head: true, anchor: [0.5, 0.5], a: 0.9 }));
+  g.circle(ob.x + ob.w - 130, ob.y + ob.h - 100, 22).fill({ color: '#05070c' }).stroke({ width: 4, color: redLo }); // the lamp that lights when a letter goes in
   // the monitor's foot casts a little shadow on the desk
   shadow(f, MONITOR.x + MONITOR.w / 2, ys + 44, 5600, 0.32);
 

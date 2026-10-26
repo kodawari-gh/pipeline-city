@@ -16,10 +16,10 @@ import { NetView, nicArt } from './net';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from './exterior';
 import { box, clear, dashed, label } from './ink';
 import {
-  BAY, BD, BLOCKS, boardBakeFrame, BR, CASE, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  BAY, BD, BLOCKS, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, STAGES, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
 } from './layout';
-import { buildLetter, carryAx, keyPose, letterPose, mailStage, MAIL_S, setLetter, swayAngle, swayStep, type Letter, type SwayState } from './mail';
+import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from './mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from './props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from './live';
@@ -189,8 +189,9 @@ export async function mountBoard(host: HTMLElement) {
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
-  const mailBack = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, its pocket and flap over them
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, propsLayer, mailFront, keyFx, live.ext, interact.fx);
+  const outLedG = new Graphics();
+  const mailBack = new Container(), mailMid = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, a finished key on its way into one, its pocket and flap over them
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, mailFront, outLedG, keyFx, live.ext, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -228,6 +229,10 @@ export async function mountBoard(host: HTMLElement) {
   // ---- the rack: a new key arrives in a letter and is hung on its hook, a key that shifts to another hook glides there, and every hanging key sways ----
   interface Mail { id: number; t: number; letter: Letter | null }
   const mails: Mail[] = [];
+  /** A finished key leaving in a letter: the ghost of the key that was in the port, and the envelope it goes into. */
+  interface MailOut { t: number; letter: Letter | null; ghost: Container; node: Container; from: { x: number; y: number }; clip: Graphics[] }
+  const outs: MailOut[] = [];
+  let outLed = 0; // the letterbox's lamp, lit for a moment when a letter has gone in
   const sway = new Map<number, SwayState>();
   const glides = new Map<number, { fx: number; fy: number; t: number }>();
   const knownKeys = new Set<number>();
@@ -737,8 +742,16 @@ export async function mountBoard(host: HTMLElement) {
       if (keySeen && keyPlugged && s.plugged?.id !== keyPlugged.id) {
         const ghost = pluggedKeyArt(T, { ...keyPlugged, stage: keyPlugged.stage === 'done' ? 'done' : keyPlugged.stage }, false, null);
         const o = ghost.objs[0]!;
-        keyFx.addChild(ghost.root);
-        keyAnims.push({ node: o.node, baseX: o.base.x, t0: performance.now(), dir: -1 });
+        if ((keyPlugged.done || keyPlugged.stage === 'done') && outs.length < 2) {
+          // a finished key does not just fade: it goes into an envelope that is sent off (the cut at the port's mouth is not needed any more)
+          if (o.vec.parent) o.vec.parent.mask = null;
+          for (const c of [...ghost.root.children]) if (c !== o.node) c.destroy();
+          mailMid.addChild(ghost.root);
+          outs.push({ t: 0, letter: null, ghost: ghost.root, node: o.node, from: { x: o.base.x, y: o.base.y }, clip: [] });
+        } else {
+          keyFx.addChild(ghost.root);
+          keyAnims.push({ node: o.node, baseX: o.base.x, t0: performance.now(), dir: -1 });
+        }
       }
       keyPlugged = s.plugged ?? null;
       if (!s.plugged) keyInId = -1;
@@ -923,6 +936,38 @@ export async function mountBoard(host: HTMLElement) {
         dropMail(m); i--; flying.delete(m.id);
         rebuildPropHits();
       }
+    }
+    const outStage = mailOutStage();
+    for (let i = outs.length - 1; i >= 0; i--) {
+      const m = outs[i]!;
+      if (!m.letter) { m.letter = buildLetter(T); mailBack.addChild(m.letter.back); mailFront.addChild(m.letter.front); }
+      m.t += gdt * mailSlow;
+      const u = Math.min(1, m.t / MAIL_OUT_S);
+      setLetter(m.letter, outLetterPose(u, outStage));
+      const kp = outKeyPose(u, m.from, outStage);
+      m.node.visible = kp.visible;
+      m.node.position.set(kp.x, kp.y); m.node.rotation = kp.rot; m.node.scale.set(kp.scale);
+      // going into the slot: everything below the slot's line is hidden (a mask each for the two layers of the envelope, in world space)
+      if (u >= POSTING_FROM && !m.clip.length) {
+        const slot = outboxSlot();
+        for (const c of [m.letter.back, m.letter.front]) {
+          const mk = new Graphics().rect(slot.x - 2000, slot.y - 6000, 4000, 6000 + 6).fill({ color: '#ffffff' });
+          (c === m.letter.back ? mailBack : mailFront).addChild(mk);
+          c.mask = mk; m.clip.push(mk);
+        }
+      }
+      if (u >= 1) {
+        outLed = 1;
+        for (const c of [m.letter.back, m.letter.front]) c.mask = null;
+        for (const mk of m.clip) mk.destroy();
+        m.letter.back.destroy({ children: true }); m.letter.front.destroy({ children: true }); m.ghost.destroy({ children: true }); outs.splice(i, 1);
+      }
+    }
+    if (outLed > 0 || outLedG.visible) {
+      outLed = Math.max(0, outLed - gdt * mailSlow / 1.6);
+      outLedG.clear();
+      if (outLed > 0) { const cx = OUTBOX.x + OUTBOX.w - 130, cy = OUTBOX.y + OUTBOX.h - 100; outLedG.circle(cx, cy, 120 * outLed).fill({ color: T.st, alpha: 0.25 * outLed }).circle(cx, cy, 22).fill({ color: T.st, alpha: 0.4 + 0.6 * outLed }); }
+      outLedG.visible = outLed > 0;
     }
     for (const [id, g] of glides) {
       const o = scene.props.get('key:' + id);

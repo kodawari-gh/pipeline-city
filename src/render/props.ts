@@ -360,14 +360,16 @@ export function pluggedKeyArt(T: Theme, k: KeySnap, notRead = false, cueLabel: s
     node.addChild(glow);
     cue = { glow, tag, pill };
   }
-  node.addChild(vec);
+  const clip = new Container(); // the mask goes on a wrapper: on `vec` itself it blanked the stick once board.ts baked it to a texture far out (the mask is in the root's space, the bake is not)
+  clip.addChild(vec);
+  node.addChild(clip);
   if (cue) node.addChild(cue.tag);
   node.position.set(p.x, p.y);
   root.addChild(node);
   // the part of the plug inside the port is hidden by the port's shell: the stick is cut at the port's mouth
   const cut = new Graphics().rect(USB_PORT.x - 6000, p.y - 600, 6000 + 6, 1200).fill({ color: '#ffffff' });
   root.addChild(cut);
-  vec.mask = cut; // the stick only: the remove cue's glow and tag stay whole
+  clip.mask = cut; // the stick only: the remove cue's glow and tag stay whole
   return { root, objs: [{ id: 'key:' + k.id, rect: { x: p.x - KEY_LEN_PLUGGED / 2, y: p.y - KEY_H / 2 - 5, w: KEY_LEN_PLUGGED, h: KEY_H + 10 }, node, vec, base: { x: p.x, y: p.y, s: 1 } }], led: new Graphics(), ledText: null, cue };
 }
 

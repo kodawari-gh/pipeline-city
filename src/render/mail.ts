@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, mix } from './ink';
-import { TRAY } from './layout';
+import { OUTBOX, TRAY, USB_PORT } from './layout';
 import { HANG_Y } from './props';
 import type { Theme } from './theme';
 
@@ -25,7 +25,7 @@ const outCubic = (t: number) => 1 - Math.pow(1 - clamp01(t), 3);
 /** Where the letter comes to rest: on the open wall above the monitor, west of the rack. */
 export const mailStage = () => ({ x: TRAY.x - 1100, y: TRAY.y + 1250 });
 
-export interface LetterPose { x: number; y: number; rot: number; alpha: number; /** 1 closed .. -1 open (the flap's vertical scale about the top edge). */ flap: number }
+export interface LetterPose { x: number; y: number; rot: number; alpha: number; scale: number; /** 1 closed .. -1 open (the flap's vertical scale about the top edge). */ flap: number }
 
 export function letterPose(u: number, stage: { x: number; y: number }): LetterPose {
   const fly = outCubic(u / FLY_END);
@@ -34,7 +34,7 @@ export function letterPose(u: number, stage: { x: number; y: number }): LetterPo
   if (u >= FLY_END) y += 14 * Math.sin((u - FLY_END) * 40) * Math.max(0, 1 - (u - FLY_END) / 0.1); // a small bob as it settles
   const l = sm(LEAVE0, LEAVE1, u);
   x -= 300 * l; y += 800 * l * l; rot += 0.55 * l;
-  return { x, y, rot, alpha: Math.min(1, u / 0.04) * (1 - l), flap: 1 - 2 * sm(FLAP0, FLAP1, u) };
+  return { x, y, rot, scale: 1, alpha: Math.min(1, u / 0.04) * (1 - l), flap: 1 - 2 * sm(FLAP0, FLAP1, u) };
 }
 
 export type MailPhase = 'wait' | 'rise' | 'carry' | 'settle';
@@ -62,6 +62,51 @@ export function keyPose(u: number, stage: { x: number; y: number }, rest: { x: n
 export function carryAx(u: number, stage: { x: number; y: number }, rest: { x: number; y: number }): number {
   const d = 0.01, h = d * MAIL_S;
   return (keyPose(u + d, stage, rest).x - 2 * keyPose(u, stage, rest).x + keyPose(u - d, stage, rest).x) / (h * h);
+}
+
+// ---------------------------------------------------------------- the letter going out
+
+/** A finished key leaves in a letter: the whole send-off, in game seconds, and the envelope's scale (a smaller one than the one that comes in), then its scale at the letterbox. */
+export const MAIL_OUT_S = 3.8;
+export const OUT_K = 0.75, POST_K = 0.4;
+const KEY_IN_K = 0.8, OUT_FLY = 0.2, OUT_SHUT0 = 0.56, OUT_SHUT1 = 0.67, OUT_GO = 0.68, OUT_AT = 0.86;
+
+/** Where the outgoing letter waits: the gap west of the USB port, clear of the monitor and of the cables' trunks. */
+export const mailOutStage = () => ({ x: USB_PORT.x - 1500, y: USB_PORT.y + USB_PORT.h / 2 + 60 });
+/** The letterbox's slot (its centre): the envelope is held over it, then slides down into it. */
+export const outboxSlot = () => ({ x: OUTBOX.x + OUTBOX.w / 2, y: OUTBOX.y + 108 });
+const POST_DROP = 1000, ABOVE = 520;
+
+/**
+ * The outgoing envelope: in from the lower west with its flap open, the flap shuts on the key, then it is carried up to the letterbox (turning
+ * upright and getting small as it goes), held over the slot and posted: it slides down into the slot and the slot hides it (board.ts clips it there).
+ */
+export function outLetterPose(u: number, st: { x: number; y: number }): LetterPose {
+  const fly = outCubic(u / OUT_FLY), slot = outboxSlot();
+  let x = st.x - 900 * (1 - fly), y = st.y + 1300 * (1 - fly), rot = 0.35 * (1 - fly) + 0.06 * Math.sin(fly * 11) * (1 - fly), scale = OUT_K;
+  if (u >= OUT_SHUT1 - 0.02 && u < OUT_GO) y += 16 * Math.sin((u - OUT_SHUT1 + 0.02) / (OUT_GO - OUT_SHUT1 + 0.02) * Math.PI); // a pat on the flap
+  const s = sm(OUT_GO, OUT_AT, u), d = sm(OUT_AT, 1, u);
+  x += (slot.x - st.x) * s; y += (slot.y - ABOVE - st.y) * s - 350 * Math.sin(Math.PI * s);
+  rot += (Math.PI / 2 - rot) * s; scale += (POST_K - OUT_K) * s;
+  y += POST_DROP * d;
+  return { x, y, rot, scale, alpha: Math.min(1, u / 0.05), flap: -1 + 2 * sm(OUT_SHUT0, OUT_SHUT1, u) };
+}
+
+/** From when the envelope is going into the slot (so the slot should clip it), as a fraction of the send-off; and the instant it is in. */
+export const POSTING_FROM = OUT_AT - 0.02;
+
+export interface OutKeyPose { visible: boolean; x: number; y: number; rot: number; scale: number }
+
+/** The finished key, from the port to the envelope: out of the port, over to the envelope turning upright, and down into the pocket (hidden once the flap is shut). */
+export function outKeyPose(u: number, from: { x: number; y: number }, st: { x: number; y: number }): OutKeyPose {
+  const above = { x: st.x, y: st.y - 700 * OUT_K - 340 - 80 }, inside = { x: st.x, y: st.y + 140 };
+  if (u < 0.1) return { visible: true, x: from.x, y: from.y, rot: 0, scale: 1 };
+  if (u < 0.42) {
+    const s = sm(0.1, 0.42, u);
+    return { visible: true, x: from.x + (above.x - from.x) * s, y: from.y + (above.y - from.y) * s - 300 * Math.sin(Math.PI * s), rot: Math.PI / 2 * s, scale: 1 - (1 - KEY_IN_K) * s };
+  }
+  const s = sm(0.42, 0.58, u);
+  return { visible: u < 0.64, x: above.x, y: above.y + (inside.y - above.y) * s, rot: Math.PI / 2, scale: KEY_IN_K };
 }
 
 // ---------------------------------------------------------------- the sway
@@ -123,7 +168,7 @@ export function buildLetter(T: Theme): Letter {
 
 /** Put the letter at a pose: both layers move together; the flap shows its outside while closed, its inside once it has turned over, and sits behind the key then. */
 export function setLetter(L: Letter, p: LetterPose) {
-  for (const c of [L.back, L.front]) { c.position.set(p.x, p.y); c.rotation = p.rot; c.alpha = p.alpha; }
+  for (const c of [L.back, L.front]) { c.position.set(p.x, p.y); c.rotation = p.rot; c.alpha = p.alpha; c.scale.set(p.scale); }
   L.flap.scale.y = Math.abs(p.flap) < 0.02 ? 0.02 : p.flap;
   L.flapTop.visible = p.flap > 0; L.flapUnder.visible = p.flap <= 0;
   const want = p.flap > 0 ? L.front : L.back;
