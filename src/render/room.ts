@@ -249,7 +249,8 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   g.rect(-90000, ys - 400, 180000, 420).fill({ color: L.wallLo, alpha: 0.5 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
   const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60) => {
-    for (let k = 0; k < 6; k++) { const e = spread * (1 - k / 5); g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e).fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / 6 }); }
+    const n = 16; // enough nested rects that no ring shows
+    for (let k = 0; k < n; k++) { const e = spread * (1 - k / (n - 1)); g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e).fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / n }); }
   };
   cast(MONITOR, 520, 420, 460, 0.42, 300);
   cast(CASE, 560, 420, 500, 0.42, 120);
