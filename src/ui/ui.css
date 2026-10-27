@@ -811,13 +811,21 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .dx-record .stars { display: inline-flex; color: #e7b33a; }
 
 /* the program on the main page */
-.dx-code { display: flex; flex-direction: column; gap: 0.3rem; position: relative; }
-.dx-codebar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.dx-codebar .alm-tabs { margin: 0; }
-.dx-nums { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; font: 0.68rem var(--mono); color: var(--mute); }
+.dx-code { display: flex; flex-direction: column; position: relative; border: 1px solid var(--glass-line); border-radius: 0.5rem; overflow: hidden; background: rgba(0,0,0,.22); gap: 0; }
+.dx-codebar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.35rem 0.6rem; background: color-mix(in srgb, var(--g) 12%, rgba(0,0,0,.25)); border-bottom: 1px solid var(--glass-line); }
+.dx-win { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--g); }
+.dx-codebar .seg button { padding: 0.15rem 0.6rem; font-size: 0.72rem; color: var(--mute); }
+.dx-codebar .seg button.on { color: var(--ink); background: var(--glass-line); }
+.dx-codebar .seg button.off { opacity: 0.55; }
+.dx-view { margin-left: auto; }
+.dx-metrics { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.dx-scale { margin-left: auto; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.66rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); font-weight: 700; }
+.dx-scale .seg button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); text-transform: none; }
+.dx-scale .seg button.on { color: var(--ink); background: var(--glass-line); }
+.dx-nums { display: inline-flex; align-items: center; gap: 0.3rem; font: 0.68rem var(--mono); color: var(--mute); }
 .dx-nums .ico { margin-left: 0.4rem; }
 .dx-nums .ico:first-child { margin-left: 0; }
-.dx-code .alm-code { max-height: 17rem; }
+.dx-code .alm-code { max-height: 17rem; border: 0; border-radius: 0; background: none; }
 .dx-lock { display: flex; align-items: center; justify-content: center; height: 7rem; color: var(--mute); border: 1px dashed var(--glass-line); border-radius: 0.4rem; }
 
 /* the ways to do it better */

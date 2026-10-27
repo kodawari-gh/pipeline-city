@@ -15,8 +15,10 @@ export const almanacOpen = signal(false);
 export const toggleAlmanac = () => { almanacOpen.value = !almanacOpen.value; };
 export const closeAlmanac = () => { almanacOpen.value = false; };
 const picked = signal<string | null>(null);
-type Tab = 'asm' | 'src' | 'cpp' | 'python';
+type Tab = 'asm' | 'cpp' | 'python';
 const tab = signal<Tab>('asm');
+/** The assembly view: the listing (addresses, bytes, heat) or the assembler text. */
+const asmText = signal(false);
 const scaleOf = signal<Record<string, number>>({});
 /** Groups the player has collapsed (the ones still to come start collapsed). */
 const shut = signal<Record<string, boolean>>({ soon: true });
@@ -53,10 +55,19 @@ function Ring({ value, color, icon, label, title }: { value: number; color: stri
 }
 
 /** What the job leans on, from the instructions it ran (compute, memory, control) and its mix as one coloured bar. */
-function Leans({ p }: { p: CodeProfile }) {
+function Leans({ e, p }: { e: DexEntry; p: CodeProfile }) {
   const sh = mixShares(p), rel = reliance(p);
+  const scales = CODE_SOURCE[e.id]?.scales ?? [], scale = scaleOf.value[e.id] ?? scales[0]!;
   return (
     <div class="dx-leans">
+      <div class="dx-metrics">
+        <span class="dx-nums" title="Instructions run, 256-byte pages touched, bytes moved per instruction"><Icon name="clock" size={11} /> {p.steps.toLocaleString('en-US')} <Icon name="box" size={11} /> {p.pages} <Icon name="memory" size={11} /> {rel.bytesPerInstr.toFixed(1)}B</span>
+        {scales.length > 1 && (
+          <span class="dx-scale" title="The same job, bigger: the numbers and the program below change with it">
+            Scale <span class="seg" role="group" aria-label="Scale">{scales.map((x) => <button key={x} class={x === scale ? 'on' : ''} onClick={() => { scaleOf.value = { ...scaleOf.value, [e.id]: x }; }}>x{x}</button>)}</span>
+          </span>
+        )}
+      </div>
       <div class="rings">
         <Ring value={rel.compute} color="#3aa8d9" icon="cpu" label="Compute" title="The ALU and multiplier: CPU clock, width, multiplier" />
         <Ring value={rel.memory} color="#d9a23a" icon="memory" label="Memory" title="Loads and stores: caches, RAM latency and banks" />
@@ -106,14 +117,14 @@ function Source({ lang, text }: { lang: Lang; text: string }) {
   );
 }
 
-/** The program on the main page: the assembly listing by default, the assembler text, and (once a job is finished) the C++ and Python. */
+/** The program on the main page, in a window of its own: a toggle for the language (assembly, C++, Python) in its title bar, and for assembly the listing or the assembler text. */
 function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean }) {
   const src = CODE_SOURCE[e.id];
   if (!src) return null;
-  const t = tab.value, scales = src.scales, scale = scaleOf.value[e.id] ?? scales[0]!;
+  const t = tab.value, scale = scaleOf.value[e.id] ?? src.scales[0]!;
   const canAsm = open || rank >= 1, canHigh = open || rank >= 2;
   const btn = (id: Tab, label: string, ok: boolean) => (
-    <button key={id} role="tab" aria-selected={t === id} class={`${t === id ? 'on' : ''}${ok ? '' : ' off'}`} disabled={!ok} title={ok ? '' : id === 'cpp' || id === 'python' ? 'Finish one of these jobs to read it in C++ and Python' : 'Meet this job to read its assembly'} onClick={() => { tab.value = id; }}>
+    <button key={id} role="tab" aria-selected={t === id} class={`${t === id ? 'on' : ''}${ok ? '' : ' off'}`} disabled={!ok} title={ok ? '' : id === 'asm' ? 'Meet this job to read its assembly' : 'Finish one of these jobs to read it in C++ and Python'} onClick={() => { tab.value = id; }}>
       {!ok && <Icon name="lock" size={10} />} {label}
     </button>
   );
@@ -121,17 +132,19 @@ function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean
   return (
     <div class="dx-code">
       <div class="dx-codebar">
-        <div class="alm-tabs" role="tablist">{btn('asm', 'Assembly', canAsm)}{btn('src', 'Source', canAsm)}{btn('cpp', 'C++', canHigh)}{btn('python', 'Python', canHigh)}</div>
-        {scales.length > 1 && canAsm && (t === 'asm' || t === 'src') && (
-          <span class="seg" role="group" aria-label="Scale">{scales.map((x) => <button key={x} class={x === scale ? 'on' : ''} title={`Scale ${x}: the same job, bigger`} onClick={() => { scaleOf.value = { ...scaleOf.value, [e.id]: x }; }}>x{x}</button>)}</span>
+        <span class="dx-win"><Icon name="cpu" size={12} /> Code</span>
+        <span class="seg" role="tablist" aria-label="Language">{btn('asm', 'ASM', canAsm)}{btn('cpp', 'C++', canHigh)}{btn('python', 'Python', canHigh)}</span>
+        {t === 'asm' && canAsm && (
+          <span class="seg dx-view" role="group" aria-label="Assembly view">
+            <button class={asmText.value ? '' : 'on'} title="Each word of the program with its bytes and how often it ran" onClick={() => { asmText.value = false; }}>Listing</button>
+            <button class={asmText.value ? 'on' : ''} title="The assembler text with its labels and comments" onClick={() => { asmText.value = true; }}>Text</button>
+          </span>
         )}
-        {p && <span class="dx-nums" title="Instructions run, 256-byte pages touched, bytes moved per instruction"><Icon name="clock" size={11} /> {p.steps.toLocaleString('en-US')} <Icon name="box" size={11} /> {p.pages} <Icon name="memory" size={11} /> {reliance(p).bytesPerInstr.toFixed(1)}B</span>}
       </div>
-      {t === 'asm' && p && <Listing p={p} />}
-      {t === 'src' && p && <Source lang="asm" text={p.asm} />}
+      {t === 'asm' && p && (asmText.value ? <Source lang="asm" text={p.asm} /> : <Listing p={p} />)}
       {t === 'cpp' && canHigh && <Source lang="cpp" text={HIGH_LEVEL[e.id]!.cpp} />}
       {t === 'python' && canHigh && <Source lang="python" text={HIGH_LEVEL[e.id]!.python} />}
-      {((t === 'asm' || t === 'src') && !canAsm) && <div class="dx-lock"><Icon name="lock" size={22} /></div>}
+      {((t === 'asm' && !canAsm) || (t !== 'asm' && !canHigh)) && <div class="dx-lock"><Icon name="lock" size={22} /></div>}
     </div>
   );
 }
@@ -174,7 +187,7 @@ function Hero({ e, g, state, d, level, sandbox, p }: { e: DexEntry; g: DexGroup 
         {state === 'unseen' && <p class="dx-blurb mute">{level >= firstLevel ? 'Clients may send one at any time.' : `Clients start sending this at level ${firstLevel}.`}</p>}
         {state === 'planned' && <p class="dx-blurb mute">{e.blurb} <b>Coming soon.</b></p>}
         {!hidden && <p class="dx-blurb">{e.blurb}</p>}
-        {!hidden && p && <Leans p={p} />}
+        {!hidden && p && <Leans e={e} p={p} />}
         <div class="dx-needs">
           <span class="dx-need lv" title="The level clients start sending this kind of job"><Icon name="star" size={11} /> Lv {firstLevel}</span>
           {chips.length === 0 ? <span class="dx-need ok" title="Needs nothing special"><Icon name="check" size={11} /> any machine</span> : chips.map((n) => <span key={n.kind + n.short} class="dx-need" title={`Needs ${n.long}`}><Icon name={needIcon(n.kind)} size={11} /> {n.short}</span>)}
