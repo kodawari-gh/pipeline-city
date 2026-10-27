@@ -264,6 +264,10 @@ export class RamView {
           const t = this.text(this.stickTexts, ns++, SZ, k.color);
           t.text = `${k.name} ${sizeText(k.bytes)}`; t.style.fill = k.color; t.anchor.set(0, flip ? 1 : 0); t.position.set(x, line(i)); t.visible = true;
         });
+        [['READ', T.alu], ['WRITE', T.br]].forEach(([name, col], i) => {
+          const k = this.text(this.stickTexts, ns++, SZ, col!);
+          k.text = name!; k.style.fill = col!; k.anchor.set(1, flip ? 1 : 0); k.position.set(x + w - (i === 0 ? 40 : 0), line(1)); k.visible = true;
+        });
         const t = this.text(this.stickTexts, ns++, SZ, T.mute);
         t.text = `${sizeText(used)}/${sizeText(hi - lo)}`;
         t.style.fill = T.mute;
