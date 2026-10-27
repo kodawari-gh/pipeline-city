@@ -21,6 +21,9 @@ export type ToSim =
   /** Start (or restart) the sim, from a save if given, else a new game with `seed`. */
   | { type: 'init'; save?: SaveV1 | null; seed?: number; sandbox?: boolean; preassembled?: boolean; maxed?: boolean }
   | { type: 'setSpeed'; speed: Speed }
+  /** While paused: run the machine for this many CPU cycles (1 to 100000) or for one whole base tick. Replies with a snapshot. */
+  | { type: 'step'; cycles: number }
+  | { type: 'stepTick' }
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
   | { type: 'sell'; invId: string }

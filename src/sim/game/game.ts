@@ -1346,6 +1346,21 @@ export class Game {
 
   // ---------- simulation ----------
 
+  /**
+   * Debug stepping (the paused game's "step" buttons): run only the machine for `cycles` CPU cycles, in sub-ticks, so the event log and the die show every cycle.
+   * The game's per-tick bookkeeping (arrivals, thermals, the economy) waits for the next whole tick. Returns the cycles run.
+   */
+  stepCycles(cycles: number): number {
+    const e = this.machine.engine;
+    const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
+    if (!e || !this.powered || this.postError || this.bootDelay > 0 || this.fault()) return 0;
+    const start = e.cycle, target = start + n;
+    for (let guard = 0; e.cycle < target && !e.halted && guard < 4_000_000; guard++) this.machine.clock.advance(1);
+    this.trackPages();
+    this.checkFaults();
+    return e.cycle - start;
+  }
+
   /** Advance one base tick: key arrivals, run the machine if it is on, thermal step, clock rates. */
   advanceBaseTick(): void {
     this.baseTick++;

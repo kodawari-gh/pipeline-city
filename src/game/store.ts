@@ -108,6 +108,9 @@ export const clearQueue = () => send({ type: 'clearQueue' });
 export const repairAll = () => send({ type: 'repairAll' });
 export const setReputation = (value: number) => send({ type: 'setReputation', value });
 export const setLevel = (level: number) => send({ type: 'setLevel', level });
+/** While paused: run the machine a number of CPU cycles, or one whole base tick (the Trace panel's step buttons). */
+export const stepCycles = (cycles: number) => send({ type: 'step', cycles });
+export const stepTick = () => send({ type: 'stepTick' });
 export function setSpeed(s: Speed) {
   speed.value = s;
   if (s !== 0) lastRunSpeed.value = s;

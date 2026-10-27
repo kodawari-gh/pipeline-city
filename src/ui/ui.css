@@ -715,3 +715,19 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .ptr-ghost { transition: opacity .25s ease; }
 .gh-ring { r: 1.1rem; fill: none; stroke: var(--accent); stroke-width: 0.13rem; opacity: .8; }
 .gh-core { r: 0.45rem; fill: var(--accent); opacity: .85; }
+
+/* Trace panel: the engine's event log and the step buttons (bottom left, over the board) */
+.tracedock { left: 0.75rem; right: auto; bottom: 3.6rem; top: auto; width: min(30rem, 92vw); max-height: 46vh; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.74rem; }
+.tracedock .trace-head { padding-right: 1.6rem; }
+.tracedock .trace-steps, .tracedock .trace-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.tracedock .trace-steps button, .tracedock .trace-filter button { padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+.tracedock .trace-filter button.on { background: var(--glass-line); border-color: var(--ink); color: var(--ink); }
+.tracedock .trace-filter button { color: var(--mute); }
+.tracedock .trace-lines { overflow-y: auto; min-height: 5rem; font-family: ui-monospace, Consolas, monospace; line-height: 1.35; }
+.tracedock .tl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tracedock .tc { color: var(--mute); display: inline-block; min-width: 4.2em; text-align: right; margin-right: 0.4em; }
+.tracedock .tl-os { color: #d96ad6; }
+.tracedock .tl-tlb { color: #d9a23a; }
+.tracedock .tl-dram { color: #3aa8d9; }
+.tracedock .tl-mem, .tracedock .tl-cache { color: var(--ink); }
+.tracedock .tl-reg, .tracedock .tl-pred { color: var(--mute); }

@@ -20,6 +20,7 @@ import { SandboxTools } from './SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
 import { Shop } from './Shop';
 import { TutorialCard } from './TutorialCard';
+import { toggleTrace, TracePanel, traceOpen } from './TracePanel';
 import {
   netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
@@ -190,6 +191,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
       {open && (
         <div class="card menu-pop" role="menu">
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
+          <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
           <label class="menuitem" title="Load a game file">
@@ -258,6 +260,7 @@ export function Hud() {
         </aside>
       )}
       <NetDock />
+      <TracePanel />
       <Tooltip />
       <LevelUpModal />
       <div class="stack">

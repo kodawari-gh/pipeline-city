@@ -1,0 +1,64 @@
+// The Trace panel: the engine's event log as lines (interrupts, address-space switches, page faults, TLB walks, memory, DRAM rows, cache and register writes),
+// with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/RENDER.md "Following the machine").
+import { signal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
+import { setSpeed, snapshot, speed, stepCycles, stepTick } from '../game/store';
+import { Icon } from './Icons';
+import { TraceBuffer, type TraceGroup } from './trace';
+
+export const traceOpen = signal(false);
+export const toggleTrace = () => { traceOpen.value = !traceOpen.value; };
+
+const GROUPS: { id: TraceGroup; label: string; title: string }[] = [
+  { id: 'os', label: 'OS', title: 'Interrupts, returns and address-space switches' },
+  { id: 'tlb', label: 'TLB', title: 'Translations: hits, walks and page faults' },
+  { id: 'mem', label: 'Mem', title: 'Loads and stores' },
+  { id: 'dram', label: 'DRAM', title: 'Row hits, opens, conflicts and refresh' },
+  { id: 'cache', label: 'Cache', title: 'Cache hits and fills' },
+  { id: 'reg', label: 'Reg', title: 'Register writes' },
+  { id: 'pred', label: 'Pred', title: 'Branch predictor updates' },
+];
+
+const buffer = new TraceBuffer(500);
+const shown = signal<Set<TraceGroup>>(new Set<TraceGroup>(['os', 'tlb', 'dram']));
+const rev = signal(0);
+
+/** Pause, then run the machine (the sim only steps a paused game). */
+const stepBy = (cycles: number) => { if (speed.value !== 0) setSpeed(0); stepCycles(cycles); };
+const stepOneTick = () => { if (speed.value !== 0) setSpeed(0); stepTick(); };
+
+export function TracePanel() {
+  const s = snapshot.value;
+  const box = useRef<HTMLDivElement>(null);
+  const events = s?.pipe?.stored?.events;
+  useEffect(() => {
+    if (!traceOpen.value) return;
+    if (!events) { buffer.clear(); rev.value++; return; }
+    if (buffer.add(events)) rev.value++;
+  }, [events, traceOpen.value]);
+  useEffect(() => { const e = box.current; if (e) e.scrollTop = e.scrollHeight; }, [rev.value, traceOpen.value]);
+  if (!traceOpen.value) return null;
+  const on = shown.value;
+  const lines = buffer.lines.filter((l) => on.has(l.group));
+  const toggle = (g: TraceGroup) => { const n = new Set(on); if (n.has(g)) n.delete(g); else n.add(g); shown.value = n; };
+  return (
+    <aside class="dock tracedock" aria-label="Trace">
+      <button class="close" aria-label="Close trace" onClick={toggleTrace}><Icon name="close" size={11} /></button>
+      <div class="trace-head"><b>Trace</b><span class="mute"> cycle {s?.cycle ?? 0}</span></div>
+      <div class="trace-steps" role="group" aria-label="Step the paused machine">
+        <button title="Run one CPU cycle (pauses the game first)" onClick={() => stepBy(1)}>+1 cycle</button>
+        <button title="Run 10 CPU cycles" onClick={() => stepBy(10)}>+10</button>
+        <button title="Run 100 CPU cycles" onClick={() => stepBy(100)}>+100</button>
+        <button title="Run one base tick" onClick={stepOneTick}>+1 tick</button>
+        <button title="Clear the trace" onClick={() => { buffer.clear(); rev.value++; }}>clear</button>
+      </div>
+      <div class="trace-filter" role="group" aria-label="Show">
+        {GROUPS.map((g) => <button key={g.id} class={on.has(g.id) ? 'on' : ''} aria-pressed={on.has(g.id)} title={g.title} onClick={() => toggle(g.id)}>{g.label}</button>)}
+      </div>
+      <div class="trace-lines" ref={box}>
+        {lines.length === 0 && <div class="mute">Nothing yet. Pause and step, or run: events appear as the CPU does them.</div>}
+        {lines.map((l, i) => <div key={i} class={`tl tl-${l.group}`}><span class="tc">{l.cycle}</span> {l.text}</div>)}
+      </div>
+    </aside>
+  );
+}
