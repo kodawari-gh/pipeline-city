@@ -122,7 +122,7 @@ describe("the client base score and the level", () => {
     expect(s.level.progress).toBeGreaterThanOrEqual(0);
     expect(s.level.progress).toBeLessThan(1);
     expect(s.level.upcoming).toHaveLength(18);
-    expect(s.level.upcoming[2]!.unlocks.map((u) => u.id)).toEqual(["ssd1", "os1"]);
+    expect(s.level.upcoming[2]!.unlocks.map((u) => u.id)).toEqual(["ssd1", "os1", "ram1b"]);
   });
 
   it("the level never decreases over a whole play with crashes, overclock burns and a reputation at the floor", { timeout: 60000 }, () => {

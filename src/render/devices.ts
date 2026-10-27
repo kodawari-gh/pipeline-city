@@ -91,7 +91,10 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const accent = spec.visual === 'dimm-ecc' ? T.st : spec.visual === 'dimm-lowlat' ? T.ld : spec.visual === 'dimm-fast' ? T.br : T.alu;
+  const accent = ({ 'dimm-ecc': T.st, 'dimm-ddr5ecc': T.st, 'dimm-lowlat': T.ld, 'dimm-ddr5': T.ld, 'dimm-ddr3': T.mul, 'dimm-fast': T.br } as Record<string, string>)[spec.visual] ?? T.alu;
+  // each generation's key notch sits in a different place, so a stick fits only its own slot: the pin row has a gap there
+  const notch = ({ 'dimm-basic': 6, 'dimm-fast': 8, 'dimm-ddr3': 10, 'dimm-lowlat': 12, 'dimm-ecc': 12, 'dimm-ddr5': 14, 'dimm-ddr5ecc': 14 } as Record<string, number>)[spec.visual] ?? 12;
+  const ddr5 = spec.visual === 'dimm-ddr5' || spec.visual === 'dimm-ddr5ecc';
   const fy = (y: number, h = 0) => (flip ? DIMM_H - y - h : y);
   box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
   box(g, 14, 50, 142, DIMM_H - 100, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
@@ -112,7 +115,12 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
     g.rect(14, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
     g.rect(144, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
   }
-  for (let k = 0; k < 24; k++) g.rect(22 + k * 5.4, fy(DIMM_H - 58, 50), 3.4, 50);
+  if (ddr5) {
+    // DDR5 carries its own power management chip on the stick
+    const py = fy(560, 22);
+    box(g, 100, py, 40, 22, 4, { fill: T.tile, stroke: accent, lw: 3 });
+  }
+  for (let k = 0; k < 24; k++) if (k !== notch && k !== notch + 1) g.rect(22 + k * 5.4, fy(DIMM_H - 58, 50), 3.4, 50);
   g.fill({ color: T.pin });
   for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, fy(24, 14), 8, 14);
   g.fill({ color: accent, alpha: 0.9 });

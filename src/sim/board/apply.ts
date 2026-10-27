@@ -100,7 +100,8 @@ export function engineConfigFor(board: Board): EngineConfig | null {
       const cy = (t: number) => Math.max(1, Math.ceil(t * k));
       const mc = cpu.memory ?? { channels: 1, policy: "open" as const };
       let channels = 1;
-      while (channels * 2 <= Math.min(mc.channels, sticks.length)) channels *= 2;
+      const lanes = sticks.reduce((n, s) => n + (s.ram.subChannels ?? 1), 0); // a DDR5 stick brings two sub-channels
+      while (channels * 2 <= Math.min(mc.channels, lanes)) channels *= 2;
       cfg.dram = {
         channels, banks: Math.min(...sticks.map((s) => s.ram.banks)), bankGroups: Math.min(...sticks.map((s) => s.ram.bankGroups)), rowBytes: r.rowBytes,
         tCL: cy(r.tCL), tRCD: cy(r.tRCD), tRP: cy(r.tRP), burst: cy(r.burst), ccdS: cy(r.burst), ccdL: cy(r.burst * 2),

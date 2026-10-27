@@ -13,12 +13,22 @@ plus `burst` cycles to move the line on the channel's data bus. A bus carries on
 
 Who decides what: the **RAM stick** (`RamSpec`) has banks, bank groups, row size, tCL / tRCD / tRP and burst in RAM ticks (the CPU/RAM clock ratio converts them to cycles in `engineConfigFor`, so overclocking RAM helps) and `ecc`. The **CPU** (`CpuSpec.memory`) has the controller: channels (1, 2 or 4; the controller drives `min(channels, sticks)` of them, so dual channel needs two sticks) and the page policy. Unpipelined CPUs and engines without a `dram` setting keep the flat `missPenalty` (engine goldens do not move).
 
-| stick | banks / groups | tCL / tRCD / tRP / burst | ECC |
-|---|---|---|---|
-| ram0 16K | 2 / 1 | 80 / 120 / 100 / 8 | no |
-| ram1 32K fast | 4 / 2 | 5 / 7 / 6 / 2 | no |
-| ram2 64K low latency | 8 / 4 | 2 / 2 / 2 / 1 | no |
-| ram3 64K ECC (L9) | 16 / 4 | 2 / 3 / 2 / 1 | yes |
+## The ladder (`RamSpec.gen`)
+Capacities stay inside what the sim addresses (the OS uses 64K; no stick is larger, sizes are real bytes, nothing is scaled). Sticks differ the way real memory generations did: more banks, bank groups (DDR4), tighter timings, ECC, and on DDR5 two independent sub-channels per stick. Timings are in RAM ticks (the game's early-game pacing keeps SDR very slow).
+
+| id | stick | level | banks / groups | tCL / tRCD / tRP / burst | channels per stick | ECC |
+|---|---|---|---|---|---|---|
+| ram0 | SDRAM 16K | start | 2 / 1 | 80 / 120 / 100 / 8 | 1 | no |
+| ram1 | DDR2 32K | 1 | 4 / 1 | 5 / 7 / 6 / 2 | 1 | no |
+| ram1b | DDR3 32K | 3 | 8 / 1 | 4 / 5 / 4 / 2 | 1 | no |
+| ram2 | DDR4 64K | 5 | 16 / 4 | 2 / 2 / 2 / 1 | 1 | no |
+| ram3 | DDR4 ECC 64K | 9 | 16 / 4 | 2 / 3 / 2 / 1 | 1 | yes |
+| ram4 | DDR5 64K | 11 | 32 / 8 | 2 / 2 / 2 / 1 | 2 | no |
+| ram5 | DDR5 ECC 64K | 13 | 32 / 8 | 2 / 3 / 2 / 1 | 2 | yes |
+
+The DRAM the CPU reaches takes the weakest stick's banks and the slowest stick's timing. A controller drives `min(channels, sub-channels of all sticks)` channels, so one DDR5 stick already feeds a dual-channel controller, where DDR4 needs two sticks. The stick art shows the generation: accent colour, a key notch in a different place on each generation, and the DDR5 power-management chip.
+
+Not modelled: the CPU only supporting some generations (a board/CPU would refuse a DDR5 stick), ranks, on-die ECC, XMP profiles, row sizes other than 256 bytes. Larger memory needs the scaling or the wider address space (see "Larger memory" below).
 
 Controllers: cpu0 none; cpu1, cpu2, cpu2f: 1 channel, open page; cpu2m: 2 open; cpu3 family, cpu4, cpu4f: 2 adaptive; cpu4m, cpu4w: 4 adaptive.
 

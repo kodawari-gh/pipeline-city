@@ -80,6 +80,10 @@ export interface RamSpec extends SpecBase {
   burst: number;
   /** Error-correcting memory: a flipped bit is found and fixed instead of corrupting a program. A TPM needs it. */
   ecc?: boolean;
+  /** The memory generation, for the name and the look: SDR, DDR2, DDR3, DDR4, DDR5 (docs/RAM.md "The ladder"). */
+  gen: string;
+  /** Independent channels one stick brings to the controller (DDR5: two 32-bit sub-channels on one stick); default 1. */
+  subChannels?: number;
 }
 
 export interface PsuSpec extends SpecBase {
@@ -206,18 +210,27 @@ const specList: DeviceSpec[] = [
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, commitWidth: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
 
-  { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
+  { id: "ram0", kind: "ram", tier: 0, gen: "SDR", name: "SDRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
     sizeBytes: 16 * 1024, latency: 200, banks: 2, bankGroups: 1, rowBytes: 256, tCL: 80, tRCD: 120, tRP: 100, burst: 8 },
-  { id: "ram1", kind: "ram", tier: 1, name: "DRAM 32K fast", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
+  { id: "ram1", kind: "ram", tier: 1, gen: "DDR2", name: "DDR2 32K", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: ramThermal, visual: "dimm-fast",
-    sizeBytes: 32 * 1024, latency: 12, banks: 4, bankGroups: 2, rowBytes: 256, tCL: 5, tRCD: 7, tRP: 6, burst: 2 },
-  { id: "ram2", kind: "ram", tier: 2, name: "DRAM 64K low-latency", slot: "dimm", price: 400, idleW: 2, loadW: 5, heatFactor: 1,
+    sizeBytes: 32 * 1024, latency: 12, banks: 4, bankGroups: 1, rowBytes: 256, tCL: 5, tRCD: 7, tRP: 6, burst: 2 },
+  { id: "ram1b", kind: "ram", tier: 2, gen: "DDR3", name: "DDR3 32K", slot: "dimm", price: 220, idleW: 1, loadW: 3, heatFactor: 1,
+    clock: { min: 1.5, base: 2.5, max: 3.5 }, thermal: ramThermal, visual: "dimm-ddr3",
+    sizeBytes: 32 * 1024, latency: 9, banks: 8, bankGroups: 1, rowBytes: 256, tCL: 4, tRCD: 5, tRP: 4, burst: 2 },
+  { id: "ram2", kind: "ram", tier: 3, gen: "DDR4", name: "DDR4 64K", slot: "dimm", price: 400, idleW: 2, loadW: 5, heatFactor: 1,
     clock: { min: 2, base: 3, max: 5 }, thermal: ramThermal, visual: "dimm-lowlat",
-    sizeBytes: 64 * 1024, latency: 4, banks: 8, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
-  { id: "ram3", kind: "ram", tier: 3, name: "DRAM 64K ECC", slot: "dimm", price: 1500, idleW: 3, loadW: 7, heatFactor: 1,
+    sizeBytes: 64 * 1024, latency: 4, banks: 16, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
+  { id: "ram3", kind: "ram", tier: 4, gen: "DDR4", name: "DDR4 ECC 64K", slot: "dimm", price: 1500, idleW: 3, loadW: 7, heatFactor: 1,
     clock: { min: 2, base: 3, max: 4 }, thermal: ramThermal, visual: "dimm-ecc",
     sizeBytes: 64 * 1024, latency: 5, banks: 16, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
+  { id: "ram4", kind: "ram", tier: 5, gen: "DDR5", name: "DDR5 64K", slot: "dimm", price: 2400, idleW: 3, loadW: 7, heatFactor: 1,
+    clock: { min: 3, base: 4, max: 6 }, thermal: ramThermal, visual: "dimm-ddr5", subChannels: 2,
+    sizeBytes: 64 * 1024, latency: 4, banks: 32, bankGroups: 8, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
+  { id: "ram5", kind: "ram", tier: 6, gen: "DDR5", name: "DDR5 ECC 64K", slot: "dimm", price: 4200, idleW: 4, loadW: 9, heatFactor: 1,
+    clock: { min: 3, base: 4, max: 5.5 }, thermal: ramThermal, visual: "dimm-ddr5ecc", subChannels: 2,
+    sizeBytes: 64 * 1024, latency: 4, banks: 32, bankGroups: 8, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
 
   { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0 },
