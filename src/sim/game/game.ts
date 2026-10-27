@@ -21,7 +21,7 @@ import { PAGED_HEAP, PAGED_TABLES, BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, K
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { Prng } from "../machine/prng";
-import { bootBlocksFor, bootImage, FMAP, FRAME_END, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
@@ -354,6 +354,9 @@ export interface StorageSnap {
   hasOs: boolean;
 }
 
+/** One line of the health panel. */
+export interface HealthItem { level: "ok" | "warn" | "bad"; text: string }
+
 /** One ingested job in the OS queue. */
 export interface OsJobSnap {
   /** Kernel table slot (0..7). */
@@ -443,6 +446,8 @@ export interface Snapshot {
   bitFlips?: number;
   /** The CPU's MMU while the paged OS runs a program: TLB size, translations the TLB had and missed, page faults taken (the kernel fixes most of them). Absent without an MMU. */
   mmu?: { tlb: number; hits: number; misses: number; faults: number; on: boolean };
+  /** What the OS and the memory look like from outside: bookkeeping that should always add up, and what has gone wrong this session (the Trace panel shows it). */
+  health?: HealthItem[];
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -1470,6 +1475,7 @@ export class Game {
       faults: this.faults,
       ...(this.machine.mmu.tlbEntries > 0 ? { mmu: { tlb: this.machine.mmu.tlbEntries, hits: this.mmuCount(Counter.TlbHits), misses: this.mmuCount(Counter.TlbMisses), faults: this.machine.mmu.faults, on: this.machine.mmu.enabled } } : {}),
       eccCorrected: this.eccCorrected,
+      health: this.health(),
       bitFlips: this.bitFlips,
       dropped: this.dropped,
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
@@ -2022,6 +2028,41 @@ export class Game {
       for (let p = PAGED_HEAP >> 8; p < next && p < (PAGED_TABLES >> 8); p++) this.claimed.add(p);
     } else if (job && (this.os?.spec.tier ?? 1) < 2) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
     dirty.fill(0);
+  }
+
+  private leakSeen = 0;
+  private timerSeen = 0;
+
+  /**
+   * Checks that should always hold while the OS runs, and the session's trouble so far. A check has to fail on several snapshots in a row before it
+   * is reported (the kernel is mid-update at some instants), so a line here means something is really wrong.
+   */
+  private health(): HealthItem[] {
+    const out: HealthItem[] = [];
+    const tier = this.os?.spec.tier ?? 0;
+    if (this.powered && this.pch.osMode && !this.postError && tier >= 3) {
+      const bus = this.machine.bus, jobs = this.kernelJobs();
+      const running = jobs.filter((j) => j.state === JobState.Running).length;
+      let used = 0, leaked = 0;
+      for (let f = FRAME_FIRST; f < FRAME_END; f++) {
+        const w = bus.load32(FMAP + 4 * f);
+        if (w === 0) continue;
+        used++;
+        const j = jobs.find((x) => x.slot === (w & 15) - 1);
+        if (!j || (j.state !== JobState.Running && j.state !== JobState.Queued)) leaked++;
+      }
+      this.leakSeen = leaked > 0 ? this.leakSeen + 1 : 0;
+      this.timerSeen = running > 0 && this.machine.timer.interval === 0 ? this.timerSeen + 1 : 0;
+      if (this.leakSeen >= 3) out.push({ level: "bad", text: `${leaked} frames are owned by a job that is not running: the kernel did not give them back` });
+      if (this.timerSeen >= 3) out.push({ level: "bad", text: "programs are running but the timer is off: none will be preempted" });
+      const free = FRAME_END - FRAME_FIRST - used;
+      if (free < 16) out.push({ level: "warn", text: `only ${free} free frames: a new program may have to wait` });
+      if (out.length === 0) out.push({ level: "ok", text: `${used} of ${FRAME_END - FRAME_FIRST} frames in use, ${running} running, ${this.machine.timer.fired} timer interrupts` });
+    }
+    if (this.faults > 0) out.push({ level: "warn", text: `${this.faults} job${this.faults === 1 ? "" : "s"} killed by the OS this session` });
+    if (this.bitFlips > 0) out.push({ level: "warn", text: `${this.bitFlips} bit flip${this.bitFlips === 1 ? "" : "s"} in memory (no ECC)` });
+    if (this.eccCorrected > 0) out.push({ level: "ok", text: `ECC corrected ${this.eccCorrected} flipped bit${this.eccCorrected === 1 ? "" : "s"}` });
+    return out;
   }
 
   /** The kernel's job table, read straight from RAM (empty unless the kernel is up). */

@@ -731,3 +731,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tracedock .tl-dram { color: #3aa8d9; }
 .tracedock .tl-mem, .tracedock .tl-cache { color: var(--ink); }
 .tracedock .tl-reg, .tracedock .tl-pred { color: var(--mute); }
+.tracedock .trace-health, .tracedock .trace-progs { display: flex; flex-direction: column; gap: 0.1rem; }
+.tracedock .th-ok { color: #4cc38a; }
+.tracedock .th-warn { color: #d9a23a; }
+.tracedock .th-bad { color: #e5534b; font-weight: 700; }
+.tracedock .tp { display: flex; justify-content: space-between; gap: 0.6rem; }

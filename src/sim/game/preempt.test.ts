@@ -127,4 +127,21 @@ spin:
     };
     expect(run()).toBe(run());
   });
+
+  it("the health lines stay quiet on a healthy machine and name a frame the kernel forgot to free", () => {
+    const g = pre();
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    const { dv, states } = submit(g, [generate("cli.calc", 11, { row: JOB_ROW, scale: 16, hosted: true }).program]);
+    for (let i = 0; i < 200 && !states().every((x) => x === JobState.Result); i++) {
+      g.advanceBaseTick();
+      for (const h of g.snapshot().health ?? []) expect(h.level).not.toBe("bad");
+    }
+    until(g, () => states().every((x) => x === JobState.Result), 60000);
+    until(g, () => g.currentPhase() === "idle-os");
+    // a frame owned by job slot 5, which is not running
+    dv.setUint32(FMAP + 4 * 100, 5 + 1, true);
+    for (let i = 0; i < 4; i++) g.snapshot();
+    expect(g.snapshot().health!.some((h) => h.level === "bad" && /not give them back/.test(h.text))).toBe(true);
+  });
 });

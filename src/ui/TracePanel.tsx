@@ -3,6 +3,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepTick } from '../game/store';
+import { memoryTable, sizeText } from '../render/ramlayout';
 import { Icon } from './Icons';
 import { TraceBuffer, type TraceGroup } from './trace';
 
@@ -39,12 +40,16 @@ export function TracePanel() {
   useEffect(() => { const e = box.current; if (e) e.scrollTop = e.scrollHeight; }, [rev.value, traceOpen.value]);
   if (!traceOpen.value) return null;
   const on = shown.value;
+  const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
+  const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
   const lines = buffer.lines.filter((l) => on.has(l.group));
   const toggle = (g: TraceGroup) => { const n = new Set(on); if (n.has(g)) n.delete(g); else n.add(g); shown.value = n; };
   return (
     <aside class="dock tracedock" aria-label="Trace">
       <button class="close" aria-label="Close trace" onClick={toggleTrace}><Icon name="close" size={11} /></button>
       <div class="trace-head"><b>Trace</b><span class="mute"> cycle {s?.cycle ?? 0}</span></div>
+      {(s?.health?.length ?? 0) > 0 && <div class="trace-health" aria-label="Health">{s!.health!.map((h, i) => <div key={i} class={`th th-${h.level}`}>{h.level === 'ok' ? 'ok' : h.level === 'warn' ? '!' : 'BAD'} {h.text}</div>)}</div>}
+      {progs.length > 0 && <div class="trace-progs" aria-label="Programs">{progs.map((p) => <div key={p.label} class="tp"><span>{p.label}</span><span class="mute">image {sizeText(p.image)}, data {sizeText(p.claimed)}</span></div>)}</div>}
       <div class="trace-steps" role="group" aria-label="Step the paused machine">
         <button title="Run one CPU cycle (pauses the game first)" onClick={() => stepBy(1)}>+1 cycle</button>
         <button title="Run 10 CPU cycles" onClick={() => stepBy(10)}>+10</button>
