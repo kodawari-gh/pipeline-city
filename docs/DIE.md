@@ -60,6 +60,14 @@ Hover ids are **one per kind of block** (`cpu.<kind>`, the lanes of a unit share
 
 Not live yet (the snapshot does not carry them): the cache lines (valid, hit, miss), the register writes, the interrupt controller's pending lines, the rename table.
 
+## Motion and what is stored (built)
+
+A snapshot is a sampled instant (100+ CPU cycles apart), so the die plays back a **slow-motion replay** (`diemotion.ts`, 4.5 cycles a second): the snapshot carries the last 24 cycles of every instruction (`TraceSnap`: stage code per cycle, pc, disassembly) and the writes of those cycles (`StoredSnap.events`: register writes, cache hits and fills with the evicted line, predictor updates, loads and stores). The replay rewinds the snapshot's state by those writes to the window's start and applies them cycle by cycle (`StoreReplay`, tested against the engine cycle by cycle), so the register file, the cache lines (address and first word; mnemonic in the I-cache) and the predictor counters show what they hold and change when written. The newest window starts when the current one ends (the old one fades); pausing freezes it.
+
+Instructions are traceable: chips, packets and the wire left lit behind them (1.5 s) are in the colour of the instruction's class; a fetch sends its address out through the system bus and memory controller and the word comes back through the L2 and I-cache when there are any; a load asks the D-cache, and on a miss the line comes from RAM; a store writes through. A colour key sits under the die.
+
+**Memory:** the snapshot has a RAM fill map (`RamMap`, 256 buckets: filled share and instruction-like share). Each DRAM chip of the sticks is a grid of cells over its part of the address space, cyan where the program is, amber where data is, and the address the CPU fetches, loads or stores lights its cell in the instruction's colour (`DieView.onMemory` -> `Live.touchRam`). Not yet: RAM clock ticks as such, and the bytes inside a cell.
+
 ## Stages
 
 1. **Layout data, router, tests, mock-ups** (built).
