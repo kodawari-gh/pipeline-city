@@ -86,11 +86,23 @@ export function engineConfigFor(board: Board): EngineConfig | null {
   const cfg: EngineConfig = { ...cpu.engine };
   // Several sticks run at the speed of the slowest one: the miss penalty comes from the stick that costs most cycles.
   const cpuClock = cpuDev.clock ?? cpu.clock.base;
-  const penalties = working(board, "ram").map((d) => {
+  const sticks = working(board, "ram").map((d) => {
     const ram = deviceSpec(d) as RamSpec;
-    return Math.ceil(ram.latency * (cpuClock / (d.clock ?? ram.clock.base)));
+    return { ram, penalty: Math.ceil(ram.latency * (cpuClock / (d.clock ?? ram.clock.base))) };
   });
-  if (penalties.length > 0 && cfg.kind !== "ref") cfg.missPenalty = Math.max(1, ...penalties);
+  if (sticks.length > 0 && cfg.kind !== "ref") {
+    cfg.missPenalty = Math.max(1, ...sticks.map((s) => s.penalty));
+    if (cfg.kind !== "unpipelined") {
+      // the DRAM the CPU reaches: as many banks as the weakest stick has, the slowest stick's timing (docs/RAM.md): an activate costs the stick's latency,
+      // the open row a share of it, a conflict half as much again
+      const slow = sticks.reduce((a, b) => (b.penalty > a.penalty ? b : a));
+      const p = Math.max(1, slow.penalty);
+      cfg.dram = {
+        banks: Math.min(...sticks.map((s) => s.ram.banks)), rowBytes: slow.ram.rowBytes,
+        hit: Math.max(1, Math.round(p * slow.ram.rowHit)), empty: p, conflict: Math.max(p, Math.round(p * 1.5)), refreshEvery: 6000,
+      };
+    }
+  }
   return cfg;
 }
 

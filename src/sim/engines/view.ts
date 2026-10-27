@@ -67,12 +67,16 @@ export const Counter = {
   /** Shared L2 (when the CPU has one): L1 misses that hit / missed it. */
   L2Hits: 25,
   L2Misses: 26,
+  /** DRAM (when the game gives the engine one): accesses that found their row open, found the bank closed, or had to close another row first. */
+  RowHits: 27,
+  RowEmpty: 28,
+  RowConflicts: 29,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
-  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses",
+  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 

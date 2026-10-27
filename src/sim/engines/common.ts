@@ -6,6 +6,7 @@ import type { Bus } from "../machine/bus";
 import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
 import { Counter, Fate, ViewState, type EngineView } from "./view";
+import { Dram, type DramSettings } from "./dram";
 
 const opc = (name: string): number => SPEC_BY_NAME.get(name)!.op;
 const ADD = opc("add"), SUB = opc("sub"), AND = opc("and"), OR = opc("or"), XOR = opc("xor");
@@ -153,7 +154,7 @@ export class DataCache {
 }
 
 /** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
-export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5 } as const;
+export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6 } as const;
 /** Which cache an event is about. */
 export const Which = { D: 0, I: 1, L2: 2 } as const;
 const EV_SIZE = 6, EV_CAP = 1024;
@@ -185,6 +186,8 @@ export interface EngineState {
   i?: CacheState;
   l2?: CacheState;
   pred: { entries: number; bits: number; table: number[] };
+  /** The DRAM behind the caches, when the engine has one: geometry and the open row of every bank (-1: closed). */
+  dram?: { banks: number; rowBytes: number; open: number[] };
   events: EventLog;
 }
 
@@ -311,6 +314,11 @@ export interface EngineSettings {
   /** Branch predictor: entries (default 64) and bits per entry, 1 or 2 (default 1). */
   predEntries?: number;
   predBits?: number;
+  /**
+   * The DRAM behind the caches (docs/RAM.md): banks with an open row each; a miss that reaches RAM costs a row hit, an empty bank's activate, or a
+   * conflict instead of the flat `missPenalty`. Default: none (the flat penalty), so the engine tests are unchanged.
+   */
+  dram?: DramSettings;
   /** Timeline ring: instructions kept (>= 8, default 32) and cycles kept (default 64). */
   timelineRows?: number;
   timelineCols?: number;
@@ -324,6 +332,7 @@ export abstract class EngineBase implements PipelineEngine {
   protected readonly icache: DataCache | null;
   protected readonly l2: DataCache | null;
   protected readonly l2Penalty: number;
+  protected readonly dram: Dram | null;
   protected readonly pred: Predictor;
   protected readonly events = new EventLog();
   /** The pc whose instruction cache line is being waited for, and the cycles left. */
@@ -352,6 +361,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.icache = s.icacheLines ? new DataCache(s.icacheLines, lineBytes, penalty) : null;
     this.l2 = s.l2Lines ? new DataCache(s.l2Lines, lineBytes, penalty, Math.min(4, s.l2Lines)) : null;
     this.l2Penalty = s.l2Penalty ?? 2;
+    this.dram = s.dram ? new Dram(s.dram) : null;
     if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) throw new RangeError("l2Penalty must be an integer >= 0");
     this.redirectPenalty = s.redirectPenalty ?? 0;
     if (!Number.isInteger(this.redirectPenalty) || this.redirectPenalty < 0) throw new RangeError("redirectPenalty must be an integer >= 0");
@@ -376,6 +386,7 @@ export abstract class EngineBase implements PipelineEngine {
       regs: Array.from(this.regs ?? []),
       d: c(this.cache), ...(this.icache ? { i: c(this.icache) } : {}), ...(this.l2 ? { l2: c(this.l2) } : {}),
       pred: { entries: this.pred.entries, bits: this.pred.bits, table: this.pred.dump() },
+      ...(this.dram ? { dram: { banks: this.dram.banks, rowBytes: this.dram.rowBytes, open: this.dram.openRows() } } : {}),
       events: this.events,
     };
   }
@@ -423,6 +434,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.icache?.invalidate();
     this.l2?.invalidate();
     this.pred.reset();
+    this.dram?.reset();
     this.events.reset();
     this.iWaitPc = -1; this.iWait = 0; this.seqPc = 0;
     this.v.reset();
@@ -433,13 +445,23 @@ export abstract class EngineBase implements PipelineEngine {
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
   protected missCost(addr: number): number {
     const l2 = this.l2;
-    if (!l2) return this.cache.missPenalty;
+    if (!l2) return this.ramCost(addr);
     const c = this.v.counters;
     if (l2.hit(addr)) { c[Counter.L2Hits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0); return this.l2Penalty; }
     c[Counter.L2Misses]!++;
     l2.fill(addr);
     this.events.push(this.cycleNo, Ev.Fill, Which.L2, l2.lastSlot, addr >>> l2.lineShift, l2.lastEvicted);
-    return this.cache.missPenalty;
+    return this.ramCost(addr);
+  }
+
+  /** What reaching RAM costs: the flat penalty, or the DRAM's answer (a row hit, an activate, a conflict), which is logged for the die. */
+  private ramCost(addr: number): number {
+    const d = this.dram;
+    if (!d) return this.cache.missPenalty;
+    const c = this.v.counters;
+    const a = d.access(addr, this.cycleNo, (cycle, bank, row, prev, outcome) => this.events.push(cycle, Ev.Row, bank, row, prev, outcome));
+    c[a.outcome === 0 ? Counter.RowHits : a.outcome === 1 ? Counter.RowEmpty : Counter.RowConflicts]!++;
+    return a.cycles;
   }
 
   /**
