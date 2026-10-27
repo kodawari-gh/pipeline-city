@@ -1,39 +1,23 @@
-import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import type { RamMap } from '../sim/game/pipesnap';
 import type { RamRegion } from '../sim/game/ramregions';
 import { label, mix } from './ink';
-import { CHIPS_PER_STICK, PAGE, TILE, chipContent, chipLayout, lensRows, ownerMap, pixelOf, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
+import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
 
-// The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a window onto an address range and shows it as a picture with
-// one pixel per byte: the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the brightness is the byte's value,
-// a byte that has just changed flashes white. Zoomed in, the regions are outlined and named, each stick shows how full it is, and a magnifier
-// beside the address the CPU touches last reads the memory as text: the instructions of the code, the words of the data.
+// The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a grid of cells, one per 256-byte page (a block of the drive):
+// the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the strength is how full the page is. Zoomed in, the
+// regions are outlined, each stick shows how full it is, and a magnifier beside the address the CPU touches last reads the memory as text:
+// the instructions of the code, the words of the data. Cells are drawn only when the memory changes, so the view costs next to nothing.
 
-const HEAT_MS = 900;
-const TOUCH_MS = 1400;
-const LENS_Z = 1.7, OUTLINE_Z = 0.55, BAND_Z = 0.5, SMOOTH_Z = 1.2;
+const TOUCH_MS = 700, MAX_TOUCHES = 8;
+const LENS_Z = 1.7, OUTLINE_Z = 0.55, BAND_Z = 0.5;
 const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 4;
 
 interface Touch { addr: number; kind: string; color: string; t: number }
 
-interface ChipView {
-  slot: ChipSlot;
-  sprite: Sprite | null;
-  canvas: HTMLCanvasElement | null;
-  img: ImageData | null;
-  heat: Uint8Array;
-  hot: number;
-  dirty: boolean;
-}
-
-const rgb = (c: string): [number, number, number] => {
-  const m = /^#?([0-9a-f]{6})$/i.exec(c.trim());
-  if (!m) return [128, 128, 128];
-  const v = parseInt(m[1]!, 16);
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
-};
+interface ChipView { slot: ChipSlot }
 
 /** Text broken into at most `lines` lines of `width` characters (the last one cut short with an ellipsis). */
 function wrap(text: string, width: number, lines: number): string {
@@ -57,18 +41,13 @@ export class RamView {
   private prev: Uint8Array | null = null;
   private regionSig = '';
   private own: Uint8Array = new Uint8Array(0);
-  /** colour lookup: (region index + 1) * 2 + data, then the byte's value; index 0 is memory no region claims. */
-  private lut = new Uint32Array(0);
   private touches: Touch[] = [];
   private lastTouch: Touch | null = null;
   private zoom = 1;
-  private smooth = true;
-  private visible = false;
-  private lastNow = 0;
+  private touchDrawn = false;
   private imgVersion = 0;
 
   private readonly back = new Graphics();
-  private readonly sprites = new Container();
   private readonly outG = new Graphics();
   private readonly names = new Container();
   private readonly touchG = new Graphics();
@@ -88,7 +67,7 @@ export class RamView {
 
   constructor() {
     this.lens.addChild(this.lensG);
-    this.root.addChild(this.back, this.sprites, this.outG, this.names, this.touchG, this.lens);
+    this.root.addChild(this.back, this.outG, this.names, this.touchG, this.lens);
     this.root.visible = false;
   }
 
@@ -105,9 +84,7 @@ export class RamView {
   }
 
   private destroyChips(): void {
-    for (const c of this.chips) { c.sprite?.destroy({ texture: true, textureSource: true }); }
     this.chips = [];
-    this.sprites.removeChildren();
   }
 
   private layout(): void {
@@ -115,7 +92,7 @@ export class RamView {
     const bytes = this.map?.bytes ?? 0;
     if (!this.map || this.rects.length === 0) return;
     const slots = chipLayout(this.rects, this.sticks, bytes);
-    this.chips = slots.map((slot) => ({ slot, sprite: null, canvas: null, img: null, heat: new Uint8Array(slot.hi - slot.lo), hot: 0, dirty: true }));
+    this.chips = slots.map((slot) => ({ slot }));
     const T = this.T!;
     for (const c of this.chips) {
       const r = chipContent(c.slot.rect);
@@ -136,18 +113,13 @@ export class RamView {
 
   setZoom(z: number): void {
     this.zoom = z;
-    const smooth = z < (this.smooth ? SMOOTH_Z : SMOOTH_Z * 1.15);
-    if (smooth !== this.smooth) {
-      this.smooth = smooth;
-      for (const c of this.chips) if (c.sprite) c.sprite.texture.source.scaleMode = smooth ? 'linear' : 'nearest';
-    }
   }
 
   /** The CPU reached for a RAM address (a fetch, a load, a store): that spot lights in the colour of the instruction. */
   touch(kind: string, addr: number, color: string): void {
     const t = { addr, kind, color, t: performance.now() };
     this.touches.push(t);
-    if (this.touches.length > 24) this.touches.shift();
+    if (this.touches.length > MAX_TOUCHES) this.touches.shift();
     this.lastTouch = t;
   }
 
@@ -160,111 +132,23 @@ export class RamView {
     const sig = m.regions.map((r) => `${r.id}:${r.lo}:${r.hi}:${r.codeEnd ?? 0}:${r.type ?? ''}`).join('|');
     if (sig !== this.regionSig) { this.regionSig = sig; this.recolor(m.regions); }
     const prev = this.prev;
-    let changed = false;
-    for (const c of this.chips) {
-      const { lo, hi } = c.slot;
-      const top = Math.min(hi, m.image.length);
-      for (let a = lo; a < top; a++) {
-        const v = m.image[a]!;
-        if (prev && prev[a] !== v) { c.heat[a - lo] = 255; c.hot++; c.dirty = true; changed = true; }
-        else if (!prev && v !== 0) c.dirty = true;
-      }
-    }
-    if (changed || !prev) this.imgVersion++;
+    let changed = !prev;
+    if (prev) for (let a = 0; a < m.image.length; a++) if (prev[a] !== m.image[a]) { changed = true; break; }
+    if (changed) this.imgVersion++;
     this.prev = m.image;
   }
 
   private recolor(regions: RamRegion[]): void {
-    const T = this.T;
-    if (!T) return;
-    const lutN = (regions.length + 1) * 2;
-    this.lut = new Uint32Array(lutN * 256);
-    const bg = rgb(T.die);
-    const fill = (slot: number, color: string, floor: number) => {
-      const c = rgb(color);
-      for (let b = 0; b < 256; b++) {
-        const v = b === 0 ? floor : 0.38 + 0.62 * (b / 255);
-        const k = b === 0 && floor === 0 ? -1 : v;
-        const px = k < 0 ? 0 : (255 << 24) | (Math.round(bg[2] + (c[2] - bg[2]) * v) << 16) | (Math.round(bg[1] + (c[1] - bg[1]) * v) << 8) | Math.round(bg[0] + (c[0] - bg[0]) * v);
-        this.lut[slot * 256 + b] = px >>> 0;
-      }
-    };
-    fill(0, T.mute, 0); fill(1, T.mute, 0);
-    regions.forEach((r, i) => {
-      const col = regionColor(r, T);
-      fill((i + 1) * 2, col, 0.14);
-      fill((i + 1) * 2 + 1, mix(col, T.die, 0.4), 0.14);
-    });
+    if (!this.T) return;
     this.own = ownerMap(regions, this.map?.image.length ?? 0);
-    for (const c of this.chips) c.dirty = true;
     this.outSig = '';
-  }
-
-  /** Draw one chip's picture into its canvas texture: a tile of 16 x 16 pixels for every 256-byte page. */
-  private paint(c: ChipView): void {
-    const m = this.map;
-    if (!m || typeof document === 'undefined') return;
-    const { lo, hi, tilesX, tilesY } = c.slot;
-    const W = tilesX * TILE, H = tilesY * TILE;
-    if (!c.canvas) {
-      c.canvas = document.createElement('canvas');
-      c.canvas.width = W; c.canvas.height = H;
-    }
-    const ctx = c.canvas.getContext('2d');
-    if (!ctx) return;
-    if (!c.img) c.img = ctx.createImageData(W, H);
-    const px = new Uint32Array(c.img.data.buffer);
-    px.fill(0);
-    const regions = m.regions, img = m.image, own = this.own, lut = this.lut;
-    const top = Math.min(hi, img.length);
-    for (let a = lo; a < top; a++) {
-      const off = a - lo, page = off >> 8, w = off & 255;
-      const o = own[a]!;
-      let slot = 0;
-      if (o) {
-        const r = regions[o - 1]!;
-        slot = o * 2 + (r.kind === 'app' && a >= (r.codeEnd ?? r.hi) ? 1 : 0);
-      }
-      let v = lut[slot * 256 + img[a]!]!;
-      const h = c.heat[off]!;
-      if (h > 0) {
-        const k = (h / 255) * 0.85;
-        const r = (v & 255), g = (v >> 8) & 255, b = (v >> 16) & 255;
-        v = ((255 << 24) | (Math.round(b + (255 - b) * k) << 16) | (Math.round(g + (255 - g) * k) << 8) | Math.round(r + (255 - r) * k)) >>> 0;
-      }
-      px[((Math.floor(page / tilesX) * TILE + (w >> 4)) * W) + (page % tilesX) * TILE + (w & 15)] = v;
-    }
-    ctx.putImageData(c.img, 0, 0);
-    if (!c.sprite) {
-      const tex = Texture.from(c.canvas);
-      tex.source.scaleMode = this.smooth ? 'linear' : 'nearest';
-      c.sprite = new Sprite(tex);
-      const r = chipContent(c.slot.rect);
-      c.sprite.position.set(r.x, r.y);
-      c.sprite.width = r.w; c.sprite.height = r.h;
-      this.sprites.addChild(c.sprite);
-    } else c.sprite.texture.source.update();
-    c.dirty = false;
   }
 
   /** Per frame (`inner`: the interior of the board shows, not the exterior covering it). */
   frame(inner: boolean, wall = performance.now()): void {
     const show = inner && !!this.map && this.chips.length > 0;
     this.root.visible = show;
-    this.visible = show;
-    if (!show) { this.lastNow = wall; return; }
-    const dt = this.lastNow ? Math.min(100, wall - this.lastNow) : 16;
-    this.lastNow = wall;
-    for (const c of this.chips) {
-      if (c.hot > 0) {
-        const d = Math.max(1, Math.round((255 * dt) / HEAT_MS));
-        let left = 0;
-        for (let i = 0; i < c.heat.length; i++) { const h = c.heat[i]!; if (h > 0) { c.heat[i] = h > d ? h - d : 0; if (c.heat[i]) left++; } }
-        c.hot = left;
-        c.dirty = true;
-      }
-      if (c.dirty) this.paint(c);
-    }
+    if (!show) return;
     this.touches = this.touches.filter((t) => wall - t.t < TOUCH_MS);
     this.drawOutlines();
     this.drawLens(wall);
@@ -281,11 +165,11 @@ export class RamView {
     return this.chips.find((c) => addr >= c.slot.lo && addr < c.slot.hi);
   }
 
-  /** Where a byte of the address space sits in the world (and how big one byte is there). */
+  /** The cell (page) that holds `addr`, in the world. */
   private spot(c: ChipView, addr: number): { x: number; y: number; sx: number; sy: number } {
     const r = chipContent(c.slot.rect);
-    const sx = r.w / (c.slot.tilesX * TILE), sy = r.h / (c.slot.tilesY * TILE), p = pixelOf(c.slot, addr);
-    return { x: r.x + p.x * sx, y: r.y + p.y * sy, sx, sy };
+    const sx = r.w / c.slot.tilesX, sy = r.h / c.slot.tilesY, p = Math.floor((addr - c.slot.lo) / PAGE);
+    return { x: r.x + (p % c.slot.tilesX) * sx, y: r.y + Math.floor(p / c.slot.tilesX) * sy, sx, sy };
   }
 
   private text(pool: Text[], k: number, size: number, color: string): Text {
@@ -312,11 +196,11 @@ export class RamView {
     const outlines = z >= OUTLINE_Z, bands = z >= BAND_Z;
     for (const t of this.regionTexts) t.visible = false;
     for (const t of this.stickTexts) t.visible = false;
-    const tint = Math.max(0, Math.min(1, (1.7 - z) / 0.7));
+    const tint = 1;
     for (const c of this.chips) {
       const cr = chipContent(c.slot.rect), cw = cr.w / c.slot.tilesX, ch = cr.h / c.slot.tilesY;
       const pages = Math.ceil((c.slot.hi - c.slot.lo) / PAGE);
-      // from afar a page is one lit cell (its owner's colour, brighter the fuller it is); closer, its bytes show through
+      // a page is one cell: its owner's colour, stronger the fuller it is
       if (tint > 0.02) {
         for (let p = 0; p < pages; p++) {
           const a0 = c.slot.lo + p * PAGE, a1 = Math.min(a0 + PAGE, m.image.length);
@@ -390,24 +274,24 @@ export class RamView {
     }
   }
 
-  /** The addresses the CPU touched in the last moments: the 16-byte line lights in the colour of the instruction and a ring spreads from it. */
+  /** The pages the CPU touched in the last moments: the cell is outlined in the colour of the instruction and fades; the last one is joined to the magnifier. */
   private drawTouches(wall: number): void {
+    if (this.touches.length === 0) {
+      if (this.touchDrawn) { this.touchG.clear(); this.touchDrawn = false; }
+      return;
+    }
     const g = this.touchG;
     g.clear();
+    this.touchDrawn = true;
     const z = this.zoom;
     for (const t of this.touches) {
       const c = this.chipOf(t.addr);
       if (!c) continue;
       const a = 1 - (wall - t.t) / TOUCH_MS;
-      const line = t.addr & ~15;
-      const sp = this.spot(c, line);
-      const w = Math.min(16, c.slot.hi - line) * sp.sx, h = sp.sy;
-      const pad = (1 - a) * 9 / z + 1.2 / z;
-      g.rect(sp.x - pad, sp.y - pad * 0.7, w + 2 * pad, h + 1.4 * pad).stroke({ width: Math.max(0.5, 1.6 / z), color: t.color, alpha: 0.9 * a });
-      g.rect(sp.x, sp.y - 0.15, w, h + 0.3).fill({ color: t.color, alpha: 0.95 * a });
-      // a thread from the touched line down to the magnifier that reads it
+      const sp = this.spot(c, t.addr);
+      g.rect(sp.x + 0.3, sp.y + 0.3, sp.sx - 0.6, sp.sy - 0.6).fill({ color: t.color, alpha: 0.55 * a }).stroke({ width: Math.max(0.5, 1.4 / z), color: t.color, alpha: a });
       if (this.lens.visible && this.lensAt && t === this.lastTouch) {
-        g.moveTo(sp.x + w / 2, sp.y + h).lineTo(this.lensAt.x, this.lensAt.y).stroke({ width: Math.max(0.4, 1.1 / z), color: t.color, alpha: 0.7 * a });
+        g.moveTo(sp.x + sp.sx / 2, sp.y + sp.sy).lineTo(this.lensAt.x, this.lensAt.y).stroke({ width: Math.max(0.4, 1.1 / z), color: t.color, alpha: 0.7 * a });
       }
     }
   }
@@ -426,7 +310,7 @@ export class RamView {
     const color = focus?.color ?? T.alu;
     // sized so its text stays about 14 px on the screen, beside the line it reads: below it when the line is in the upper half of its chip, else above
     const z = this.zoom, k = Math.min(1.05, 1.75 / z);
-    const sp = this.spot(c, addr & ~15);
+    const sp = this.spot(c, addr);
     const rc = c.slot.rect;
     const below = sp.y < rc.y + rc.h / 2;
     const gap = 6 + 8 / z, top = below ? sp.y + sp.sy + gap : sp.y - gap - LENS_H * k;
