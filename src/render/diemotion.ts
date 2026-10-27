@@ -38,7 +38,8 @@ const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 
 export interface Route { pts: Pt[]; len: number; links: { link: Link; reverse: boolean }[] }
 
-const ROUTE_KINDS: ReadonlySet<string> = new Set(['data', 'mem', 'control', 'mmio']);
+const SIDE_KINDS: ReadonlySet<string> = new Set(['imm', 'regfile', 'predictor']);
+const ROUTE_KINDS: ReadonlySet<string> = new Set(['data', 'control']); // an instruction does not travel the memory wires (its address and data do: packets)
 const centre = (b: Block): Pt => [b.rect.x + b.rect.w / 2, b.rect.y + b.rect.h / 2];
 const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const routes = new WeakMap<CpuPlan, Map<string, Route | null>>();
@@ -70,7 +71,8 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
           if (l.from !== u && !rev) continue;
           const v = rev ? l.from : l.to;
           if (!by.has(v)) continue;
-          const w = l.pts.reduce((s, p, i) => (i ? s + dist(p, l.pts[i - 1]!) : 0), 0) + dist(centre(by.get(u)!), centre(by.get(v)!)) * 0.3;
+          // the side units (immediate, register file, predictor) are not on the way from stage to stage: going through one costs extra
+          const w = l.pts.reduce((s, p, i) => (i ? s + dist(p, l.pts[i - 1]!) : 0), 0) + dist(centre(by.get(u)!), centre(by.get(v)!)) * 0.3 + (SIDE_KINDS.has(by.get(v)!.kind) ? 5000 : 0);
           const nd = dd.get(u)! + w;
           if (nd < (dd.get(v) ?? Infinity)) { dd.set(v, nd); prev.set(v, { id: u, link: l, reverse: rev }); todo.add(v); }
         }
@@ -87,7 +89,7 @@ export function routeBetween(plan: CpuPlan, from: string, to: string): Route | n
         }
         let len = 0;
         for (let i = 1; i < pts.length; i++) len += dist(pts[i]!, pts[i - 1]!);
-        if (len <= straight * 3 + 500) out = { pts, len, links: hops.map((h) => ({ link: h.link, reverse: h.reverse })) };
+        if (len <= straight * 4 + 900) out = { pts, len, links: hops.map((h) => ({ link: h.link, reverse: h.reverse })) };
       }
       if (!out) out = { pts: [centre(a), centre(b)], len: straight, links: [] };
     }

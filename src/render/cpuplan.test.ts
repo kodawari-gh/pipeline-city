@@ -245,13 +245,21 @@ describe('slicing layout', () => {
 describe('channel router', () => {
   const die = { x: 0, y: 0, w: 400, h: 300 };
   const mk = (id: string, r: Rect): Block => ({ id, kind: 'pc', label: id, rect: r, zone: 'core' });
-  it('crosses the gutter between two neighbours in a straight line', () => {
+  it('joins two neighbours with a jog along the gutter (a visible wire, not a stub): out of one edge high, into the other low', () => {
     const blocks = [mk('a', { x: 40, y: 40, w: 100, h: 100 }), mk('b', { x: 154, y: 40, w: 100, h: 100 })];
     const [l] = routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }]);
-    expect(l!.pts).toHaveLength(2);
-    expect(l!.pts[0]![1]).toBe(l!.pts[1]![1]);
+    expect(l!.pts).toHaveLength(4);
     expect(l!.pts[0]![0]).toBe(140);
-    expect(l!.pts[1]![0]).toBe(154);
+    expect(l!.pts[3]![0]).toBe(154);
+    expect(l!.pts[0]![1]).toBeLessThan(l!.pts[3]![1]);
+    expect(l!.pts[1]![0]).toBe(l!.pts[2]![0]); // the run along the gutter
+    expect(l!.pts[2]![1] - l!.pts[1]![1]).toBeGreaterThan(30);
+  });
+  it('keeps a hop straight where the blocks face each other along too little of their edges to jog', () => {
+    const blocks = [mk('a', { x: 40, y: 40, w: 100, h: 100 }), mk('b', { x: 154, y: 120, w: 100, h: 100 })];
+    const [l] = routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }]);
+    expect(l!.pts.length).toBeLessThanOrEqual(4);
+    for (let k = 1; k < l!.pts.length; k++) expect(l!.pts[k]![0] === l!.pts[k - 1]![0] || l!.pts[k]![1] === l!.pts[k - 1]![1]).toBe(true);
   });
   it('goes around a block in the way, through the gutters only', () => {
     const blocks = [mk('a', { x: 40, y: 100, w: 60, h: 60 }), mk('wall', { x: 114, y: 40, w: 60, h: 180 }), mk('b', { x: 188, y: 100, w: 60, h: 60 })];

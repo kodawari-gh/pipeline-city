@@ -223,6 +223,7 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
     ...(icLines > 0
       ? [['fetch-ic', 'data', 'fetch', 'ic', 2, 'instruction fetch', true] as L]
       : [['fetch-mem', 'mem', 'fetch', l2Lines > 0 ? 'l2' : 'fabric', 3, 'instruction fetch (uncached)'] as L]),
+    ['fq-imm', 'data', 'fq', 'imm', 1], ['imm-disp', 'data', 'imm', 'disp', 1, 'immediate'],
     ['rat-disp', 'data', 'rat', 'disp', 2], ['disp-sched', 'data', 'disp', 'sched', 2, 'dispatch'], ['disp-rob', 'data', 'disp', 'rob', 2],
     ['bus-sched', 'wakeup', 'bus', 'sched', 1, 'wake up'], ['bus-rob', 'data', 'bus', 'rob', 2, 'result'],
     ['bus-npc', 'flush', 'bus', 'npc', 1, 'mispredict: squash'], ['bus-bp', 'control', 'bus', 'bp', 1, 'learn'],

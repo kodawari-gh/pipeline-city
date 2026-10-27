@@ -147,6 +147,29 @@ class Heap {
 }
 
 /**
+ * Two blocks side by side are joined by a hop across the gutter that is only a few units long, which reads as a stub, not a wire. Where the blocks
+ * face each other along enough of their edges, the hop becomes a jog: out of one block high on its edge, along the gutter, into the other low on
+ * its edge, so the trace is long enough to see and to run a pulse along.
+ */
+export function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
+  if (pts.length !== 2) return pts;
+  const [p, q] = [pts[0]!, pts[1]!];
+  if (p[1] === q[1] && Math.abs(q[0] - p[0]) <= 40) {
+    const lo = Math.max(ra.y, rb.y) + 10, hi = Math.min(ra.y + ra.h, rb.y + rb.h) - 10;
+    if (hi - lo < 24) return pts;
+    const y1 = lo + (hi - lo) * 0.2, y2 = lo + (hi - lo) * 0.8, mx = (p[0] + q[0]) / 2;
+    return [[p[0], y1], [mx, y1], [mx, y2], [q[0], y2]];
+  }
+  if (p[0] === q[0] && Math.abs(q[1] - p[1]) <= 40) {
+    const lo = Math.max(ra.x, rb.x) + 10, hi = Math.min(ra.x + ra.w, rb.x + rb.w) - 10;
+    if (hi - lo < 24) return pts;
+    const x1 = lo + (hi - lo) * 0.2, x2 = lo + (hi - lo) * 0.8, my = (p[1] + q[1]) / 2;
+    return [[x1, p[1]], [x1, my], [x2, my], [x2, q[1]]];
+  }
+  return pts;
+}
+
+/**
  * Route every link through the gutters: orthogonal, as few bends as it can, keeping clear of every block (a stage frame is a container, not
  * an obstacle), and avoiding the cells earlier links already use. The ends are on the facing edges of the two blocks.
  */
@@ -257,7 +280,7 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[]): Link[
       }
       out.push(p);
     }
-    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: out, lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
+    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: jog(a.rect, b.rect, out), lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
   }
   return links;
 }
