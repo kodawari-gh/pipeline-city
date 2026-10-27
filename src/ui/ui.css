@@ -736,3 +736,24 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tracedock .th-warn { color: #d9a23a; }
 .tracedock .th-bad { color: #e5534b; font-weight: 700; }
 .tracedock .tp { display: flex; justify-content: space-between; gap: 0.6rem; }
+
+/* Almanac: the job cards */
+.almanac { width: 21rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.78rem; }
+.almanac h2 { margin: 0; }
+.almanac h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.almanac h4 { margin: 0.6rem 0 0.25rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
+.alm-list { display: flex; flex-direction: column; gap: 0.2rem; }
+.alm-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.3rem 0.55rem; text-align: left; }
+.alm-row { color: var(--ink); }
+.alm-row.on { border-color: var(--ink); background: var(--glass-line); color: var(--ink); }
+.alm-unseen .alm-name { color: var(--mute); letter-spacing: .2em; }
+.alm-planned { opacity: 0.6; }
+.alm-tag { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
+.alm-done .alm-tag { color: #4cc38a; }
+.alm-seen .alm-tag { color: #d9a23a; }
+.alm-detail p { margin: 0 0 0.4rem; line-height: 1.4; }
+.alm-facts { display: flex; flex-direction: column; gap: 0.15rem; margin: 0.4rem 0; }
+.alm-facts .mute { display: inline-block; min-width: 5.6rem; }
+.alm-tips { margin: 0; padding-left: 1.05rem; display: flex; flex-direction: column; gap: 0.35rem; line-height: 1.4; }
+.alm-rec { margin-top: 0.6rem; color: var(--mute); }
+.alm-lock { display: flex; align-items: center; gap: 0.35rem; }

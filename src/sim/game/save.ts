@@ -165,6 +165,8 @@ export interface SaveV4 {
   expired?: number;
   /** Network state (docs/NETWORK.md "Save"). Optional and additive, no version bump: absent means no plan, no router, no cable. */
   net?: SavedNet;
+  /** The job almanac: per job type, when it first arrived, how many were finished and the fastest run (docs/JOBS.md). Optional and additive, no version bump. */
+  jobDex?: Record<string, { seen: number; runs: number; best: number }>;
 }
 
 /** Network state. Transfers are not saved: downloads and finished-but-unspooled jobs come back as offers. */

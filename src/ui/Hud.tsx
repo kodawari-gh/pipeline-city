@@ -21,6 +21,7 @@ import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
 import { Shop } from './Shop';
 import { TutorialCard } from './TutorialCard';
 import { toggleTrace, TracePanel, traceOpen } from './TracePanel';
+import { AlmanacPanel, almanacOpen, toggleAlmanac } from './AlmanacPanel';
 import {
   netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
@@ -191,6 +192,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
       {open && (
         <div class="card menu-pop" role="menu">
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
+          <button role="menuitem" onClick={() => { toggleAlmanac(); close(); }} title="Every kind of job: what it is, what it needs, how to do it better"><Icon name="layers" size={13} /> {almanacOpen.value ? 'Hide almanac' : 'Almanac'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
@@ -261,6 +263,7 @@ export function Hud() {
       )}
       <NetDock />
       <TracePanel />
+      <AlmanacPanel />
       <Tooltip />
       <LevelUpModal />
       <div class="stack">

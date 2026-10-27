@@ -16,6 +16,7 @@ import {
 } from "../board";
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
+import { dexEntry, dexState, JOB_DEX, type DexRecord, type DexSnap } from "./jobdex";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { walkTable } from "./vmmap";
 /** The memory array the machine is built with: the most a paged OS manages (its 20-bit virtual space). */
@@ -451,6 +452,8 @@ export interface Snapshot {
   mmu?: { tlb: number; hits: number; misses: number; faults: number; on: boolean };
   /** What the OS and the memory look like from outside: bookkeeping that should always add up, and what has gone wrong this session (the Trace panel shows it). */
   health?: HealthItem[];
+  /** The job almanac: how far the player has got with each kind of job (docs/JOBS.md). */
+  dex?: DexSnap[];
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -1269,6 +1272,7 @@ export class Game {
       id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - key.pluggedAt, late,
       attempts: key.attempts, completedAt: this.baseTick,
     };
+    this.dexDone(key);
     this.note("payout", `key ${key.id} ${how}: $${pay}${late ? " (late)" : ""}`);
     return pay;
   }
@@ -1479,6 +1483,7 @@ export class Game {
       ...(this.machine.mmu.tlbEntries > 0 ? { mmu: { tlb: this.machine.mmu.tlbEntries, hits: this.mmuCount(Counter.TlbHits), misses: this.mmuCount(Counter.TlbMisses), faults: this.machine.mmu.faults, on: this.machine.mmu.enabled } } : {}),
       eccCorrected: this.eccCorrected,
       health: this.health(),
+      dex: JOB_DEX.map((e) => { const r = this.dex[e.id]; return { id: e.id, state: dexState(e, r), runs: r?.runs ?? 0, best: r?.best ?? 0, seenTick: r?.seen ?? 0 }; }),
       bitFlips: this.bitFlips,
       dropped: this.dropped,
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
@@ -1616,6 +1621,7 @@ export class Game {
       levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
       declined: this.declined,
       expired: this.expired,
+      ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
       net: this.savedNet(sk),
     };
   }
@@ -1654,6 +1660,7 @@ export class Game {
     // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
     g.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
     g.declined = s.declined ?? 0;
+    g.dex = s.jobDex ? JSON.parse(JSON.stringify(s.jobDex)) as Record<string, DexRecord> : {};
     g.expired = s.expired ?? 0;
     if (!g.sandbox) {
       if (s.clientBase !== undefined) {
@@ -2788,6 +2795,22 @@ export class Game {
     };
   }
 
+  /** The job almanac's record per kind of job (docs/JOBS.md). */
+  private dex: Record<string, DexRecord> = {};
+
+  private dexSeen(k: Key): void {
+    if (dexEntry(k.type) && !this.dex[k.type]) this.dex[k.type] = { seen: this.baseTick, runs: 0, best: 0 };
+  }
+
+  private dexDone(k: Key): void {
+    this.dexSeen(k);
+    const r = this.dex[k.type];
+    if (!r) return;
+    const ticks = Math.max(1, k.doneAt - k.pluggedAt);
+    r.runs++;
+    r.best = r.best === 0 ? ticks : Math.min(r.best, ticks);
+  }
+
   /** A key arrives from a client: it goes in the tray, or the client gives up if the tray is full. */
   private enqueue(template: string, scale = 1, cls?: string, net = false): boolean {
     const seed = this.machine.prng.nextU32();
@@ -2801,6 +2824,7 @@ export class Game {
     }
     const key = this.rebuild({ id: this.nextKeyId++, template, seed, scale, arrival: this.baseTick, deadline: this.baseTick + this.deadlineTicks(), ...(cls ? { cls } : {}) });
     src.offer(key);
+    this.dexSeen(key);
     return true;
   }
 
