@@ -31,7 +31,8 @@ describe("the RAM ladder", () => {
     const channels = (ram: string): number => {
       const b = createBoard(3);
       for (const s of ["cpu3m", "display0", "cooler2", "psu2", ram]) expect(install(b, s).ok).toBe(true);
-      return engineConfigFor(b)!.dram!.channels;
+      const c = engineConfigFor(b)!;
+      return c.kind === "ref" ? 0 : c.dram!.channels;
     };
     expect(getSpec("ram4")).toMatchObject({ subChannels: 2 });
     expect(channels("ram2")).toBe(1);
