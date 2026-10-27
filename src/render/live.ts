@@ -67,6 +67,9 @@ export class Live {
   private dots: Sprite[] = [];
   private dotTex: Texture;
   private lit = new Map<BusKind, Lit>();
+  /** The memory bus is one bundle per DIMM: each lights only when the CPU talks to that stick (key: the slot number). */
+  private memLit = new Map<number, Lit>();
+  private gt = 0;
   private cables: LitCable[] = [];
   private badge: Text;
   private screenText: Text;
@@ -190,7 +193,7 @@ export class Live {
     this.extDots = [];
     this.root.addChild(this.deadG);
     this.deadDrawn = false;
-    this.glows.clear(); this.lit.clear(); this.cables = [];
+    this.glows.clear(); this.lit.clear(); this.memLit.clear(); this.cables = [];
     this.dots = [];
     this.hasPsu = flags.psu;
     this.fans = fans.map((f) => ({ ...f, speed: 0, target: 0 }));
@@ -219,6 +222,22 @@ export class Live {
       const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
       const g = new Graphics();
       if (this.additive) g.blendMode = 'add';
+      if (bus.id === 'mem') {
+        for (const t of bus.taps ?? []) {
+          const idx = Number(t.key.slice(4));
+          if (!dimms.includes(idx)) continue;
+          const mg = new Graphics();
+          if (this.additive) mg.blendMode = 'add';
+          for (const l of t.lanes) { mg.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) mg.lineTo(l.pts[i]![0], l.pts[i]![1]); }
+          mg.stroke({ width: bus.w * 1.15, color: colorOf('mem'), alpha: 1, cap: 'round', join: 'round' });
+          mg.alpha = 0;
+          this.root.addChild(mg);
+          const pulses = t.lanes.reduce((a, l) => a + Math.max(1, Math.min(3, Math.round(l.len / 900))), 0);
+          nDots += pulses;
+          this.memLit.set(idx, { bus, lanes: t.lanes, g: mg, level: 0, hold: 0, dir: 1, color: colorOf('mem'), alwaysOn: false, pulses });
+        }
+        continue;
+      }
       const lanes = bus.lanes.concat(bus.taps ? bus.taps.filter((t) => dimms.includes(Number(t.key.slice(4)))).flatMap((t) => t.lanes) : []);
       for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
       g.stroke({ width: bus.w * (power ? 0.7 : 1.15), color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
@@ -343,6 +362,7 @@ export class Live {
 
   /** Keep a bus lit for a boot phase (re-armed on every snapshot, so it fades about 1.6 s after the phase ends). */
   private flow(id: BusKind, now: number, dir: number) {
+    if (id === 'mem') { for (const l of this.memLit.values()) { l.hold = Math.max(l.hold, now + 1700); l.dir = dir; } return; }
     const l = this.lit.get(id);
     if (!l) return;
     l.hold = Math.max(l.hold, now + 1700);
@@ -360,7 +380,16 @@ export class Live {
     dr.dir = toDrive ? -1 : 1; // the cable lane runs drive -> board
   }
 
+  /** Light the memory bundle of one stick. */
+  private triggerMem(idx: number, now: number, dir: number) {
+    const l = this.memLit.get(idx);
+    if (!l) return;
+    l.hold = now + (HOLD.mem ?? 900);
+    l.dir = dir;
+  }
+
   private trigger(id: BusKind, now: number, dir = 1) {
+    if (id === 'mem') { for (const idx of this.memLit.keys()) this.triggerMem(idx, now, dir); return; }
     const l = this.lit.get(id);
     if (!l) return;
     l.hold = now + (HOLD[id] ?? 1000);
@@ -371,9 +400,12 @@ export class Live {
   /** The CPU reached for a RAM address (a fetch, a load, a store): that cell of the sticks lights in the colour of the instruction. */
   touchRam(kind: string, addr: number, color: string): void {
     this.ram.touch(kind, addr, color);
+    const idx = this.ram.stickOf(addr);
+    if (idx >= 0) this.triggerMem(idx, this.gt, kind === 'store' ? 1 : -1); // the stick that holds the address answers (or is written)
   }
 
   update(s: Snapshot | null, now: number) {
+    this.gt = now;
     if (s) {
       const sticks = s.devices.filter((d) => d.kind === 'ram').map((d, i) => ({ idx: this.dimmIdx[i] ?? i, bytes: (getSpec(d.spec) as { sizeBytes?: number } | undefined)?.sizeBytes ?? 0 }));
       this.ram.setSticks(sticks);
@@ -395,8 +427,8 @@ export class Live {
     const mem = s.pipe?.stages[3 * (s.pipe.width || 1)];
     const op = mem && mem.kind === 1 ? mem.op : '';
     if (running) {
-      if (missed || LOADS.has(op) && !!mem && mem.stalled) { this.memAt = now; this.memWall = performance.now(); this.trigger('mem', now, -1); } // miss: RAM answers the CPU
-      else if (STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); this.trigger('mem', now, 1); } // stores always go out to RAM
+      // (RAM traffic lights the bundle of the stick the address is on: `touchRam`, fed by the die's own fetches, loads and stores)
+      if (missed || LOADS.has(op) && !!mem && mem.stalled || STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); }
     }
     const reqId = s.request?.id ?? -1;
     if (reqId !== this.lastReq) {
@@ -449,7 +481,7 @@ export class Live {
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
     const quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
     if (quiet) {
-      for (const l of this.lit.values()) if (l.pulses > 0) l.hold = 0;
+      for (const l of [...this.lit.values(), ...this.memLit.values()]) if (l.pulses > 0) l.hold = 0;
       for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.flowUntil = -1e9; }
       this.memAt = -1e9; this.memWall = -1e9;
     }
@@ -820,6 +852,7 @@ export class Live {
 
   /** Per-frame animation. dt in seconds. */
   frame(dt: number, now: number) {
+    this.gt = now;
     const inner = this.interior;
     this.frameStandby();
     this.phase += dt * 260 * this.clockRatio;
@@ -857,7 +890,7 @@ export class Live {
       sp.position.set(p[0], p[1]);
       sp.tint = col; sp.alpha = a; sp.scale.set(r * scale);
     };
-    for (const l of inner ? this.lit.values() : []) {
+    for (const l of inner ? [...this.lit.values(), ...this.memLit.values()] : []) {
       const power = l.pulses === 0;
       if (!this.liveOn) { l.level = 0; l.g.alpha = 0; continue; } // off, tripped or dead: no glow or pulses on the next frame
       if (power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g.alpha = l.level * 0.55; continue; }
@@ -915,15 +948,8 @@ export class Live {
     this.drawBoot(now, dt);
 
     this.ram.frame(inner);
-    // DRAM chips flash while the memory bus is busy
-    const mf = clamp(1 - (performance.now() - this.memWall) / 900); // wall time: a pause does not hold a flash on screen
+    // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)
     this.dramFlash.clear();
-    if (mf > 0 && inner) {
-      let n = 0;
-      for (const c of this.dramChips) {
-        if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { stroke: this.T.alu, sa: mf * 0.7, lw: 3 }); // a ring only: the chip's map (ramview.ts) shows what moves
-      }
-    }
   }
 }
 

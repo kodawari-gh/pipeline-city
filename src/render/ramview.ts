@@ -271,6 +271,12 @@ export class RamView {
     this.drawTouches(wall);
   }
 
+  /** The slot number of the stick that holds `addr` (-1: none). */
+  stickOf(addr: number): number {
+    const i = this.chips.findIndex((c) => addr >= c.slot.lo && addr < c.slot.hi);
+    return i < 0 ? -1 : this.sticks[Math.floor(i / CHIPS_PER_STICK)]?.idx ?? -1;
+  }
+
   private chipOf(addr: number): ChipView | undefined {
     return this.chips.find((c) => addr >= c.slot.lo && addr < c.slot.hi);
   }
