@@ -35,8 +35,8 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
         if (msg.speed === 64 && !g.sandbox) return [{ type: 'error', message: 'setSpeed: 64x is for the sandbox only' }];
         state.speed = msg.speed;
         return [];
-      case 'step': return [{ type: 'snapshot', snapshot: (g.stepCycles(msg.cycles), g.snapshot()) }];
-      case 'stepTick': g.advanceBaseTick(); return [{ type: 'snapshot', snapshot: g.snapshot() }];
+      case 'step': { const ran = g.stepCycles(msg.cycles); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(ran) }]; }
+      case 'stepTick': { const c0 = g.cycleNow(); g.advanceBaseTick(); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(g.cycleNow() - c0) }]; }
       case 'spawnKey': return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
       case 'clearQueue': return refusable(g, 'clearQueue', g.clearQueue());
       case 'repairAll': return refusable(g, 'repairAll', g.repairAll());

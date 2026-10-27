@@ -5,6 +5,7 @@ import type { Theme } from './theme';
 import type { CpuSpec } from '../sim/board/specs';
 import { planInput } from './cpuplan';
 import { cpuPlan } from './cpuplans';
+import { glyph, glyphArea, GLYPH_KINDS } from './blockart';
 
 // The static art of a CPU die, drawn from a `CpuPlan` (docs/DIE.md): macro blocks with rim lines, dense cell arrays, trace bundles
 // ending in solder pads, bond pads on the edge. Two parts so the far view stays cheap:
@@ -138,8 +139,12 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
   cells.addChild(cg);
   for (const b of plan.blocks) {
     const c = T[KIND_COLOR[b.kind]];
-    for (const r of cellRects(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
-    if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
+    const ga = GLYPH_KINDS.has(b.kind) && !isTall(b) ? glyphArea(b) : null;
+    if (ga) glyph(cg, T, b, ga, c, (t, x, y, size) => subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })));
+    else {
+      for (const r of cellRects(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
+      if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
+    }
     if (b.kind === 'stage') {
       names.addChild(label(b.label, b.rect.x + 8, b.rect.y + 12, 11, T.mute, { weight: '600', a: 0.9 }));
       continue;

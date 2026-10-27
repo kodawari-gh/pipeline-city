@@ -720,6 +720,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tracedock { left: 0.75rem; right: auto; bottom: 3.6rem; top: auto; width: min(30rem, 92vw); max-height: 46vh; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.74rem; }
 .tracedock .trace-head { padding-right: 1.6rem; }
 .tracedock .trace-steps, .tracedock .trace-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.tracedock .trace-scrub { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; }
+.tracedock .trace-scrub input[type=range] { flex: 1; min-width: 0; }
+.tracedock .trace-scrub button { padding: 0.1rem 0.4rem; font-size: 0.7rem; }
+.tracedock .tl.now { background: var(--glass-line); }
+.tracedock .tl { cursor: default; }
 .tracedock .trace-steps button, .tracedock .trace-filter button { padding: 0.15rem 0.5rem; font-size: 0.72rem; }
 .tracedock .trace-filter button.on { background: var(--glass-line); border-color: var(--ink); color: var(--ink); }
 .tracedock .trace-filter button { color: var(--mute); }

@@ -2,10 +2,12 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { disassemble } from '../sim/isa';
 import { Ev } from '../sim/engines/common';
 import type { Snapshot } from '../sim/protocol';
+import { scrubCursor, scrubRange, scrubShown } from '../game/scrub';
 import type { Block, CpuPlan, Pt, Rect } from './cpuplan';
-import { cellRects, dieNear, offsetPts, LANE_GAP, type DieArt } from './dieart';
+import { cellRects, isTall, dieNear, offsetPts, LANE_GAP, type DieArt } from './dieart';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from './ink';
+import { glyphArea, glyphLive, GLYPH_KINDS } from './blockart';
 import type { Theme } from './theme';
 
 // The CPU die in motion (docs/DIE.md "Motion" and "What is stored"). It draws the near layer of the die (traces, cell arrays, names;
@@ -32,6 +34,8 @@ class Chip {
   private t1: Text;
   private t2: Text;
   private sig = '';
+  /** Where the chip sits in its block, eased: off to a corner (and smaller) in a block whose symbol shows the instruction itself. */
+  ox = 0; oy = 0; k = 1;
 
   constructor() {
     this.t1 = new Text({ text: '', style: { fontFamily: MONO, fontSize: 28, fontWeight: '700', fill: '#000' }, resolution: 2 });
@@ -124,6 +128,8 @@ export class DieView {
   private dataG = new Graphics();
   private dataTexts = new Container();
   private cellLive = new Graphics();
+  private glyphG = new Graphics();
+  private glyphSig = '#';
   private texts = new Container();
   private trailG = new Graphics();
   private packetG = new Graphics();
@@ -149,7 +155,7 @@ export class DieView {
   T!: Theme;
 
   constructor() {
-    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.texts, this.trailG, this.packetG, this.chipLayer, this.legend);
+    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.chipLayer, this.legend);
   }
 
   /** Build (or rebuild, on a theme change) the near layer of a plan. */
@@ -168,7 +174,7 @@ export class DieView {
     this.trails.clear();
     this.glow.clear();
     this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
-    this.cellSig = ''; this.dataSig = '';
+    this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
     this.buildLegend(T, plan);
     this.setZoom(this.z);
   }
@@ -202,7 +208,7 @@ export class DieView {
     this.art?.root.destroy({ children: true });
     this.art = null;
     for (const c of this.legend.removeChildren()) c.destroy({ children: true });
-    this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.packetG.clear(); this.trailG.clear();
+    this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.glyphSig = '#'; this.packetG.clear(); this.trailG.clear();
     this.packets = [];
     this.trails.clear();
   }
@@ -219,6 +225,7 @@ export class DieView {
     this.art.wires.visible = z >= 0.7;
     this.art.cells.visible = z >= 0.8;
     this.cellLive.visible = z >= 0.8;
+    this.glyphG.visible = z >= 0.8;
     this.dataG.visible = z >= 0.8;
     this.texts.visible = z >= 0.8;
     this.dataTexts.visible = z >= 0.85;
@@ -245,7 +252,7 @@ export class DieView {
     const pipe = s?.pipe ?? null;
     if (!pipe || !pipe.trace) {
       // no machine running: the replay stops and the chips go
-      if (this.running) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.dataSig = ''; this.running = false; }
+      if (this.running) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#'; this.running = false; }
       return;
     }
     this.running = true;
@@ -275,18 +282,31 @@ export class DieView {
     chip.look(T, { text: st.op.toUpperCase(), sub: st.text.slice(st.op.length + 1).slice(0, 17), color: this.colorOf(cls), stalled: st.stalled, bad: st.flushed });
     const host = this.byId.get(st.host);
     const fit = host ? fitOf(host.rect) : 0.6;
-    chip.c.position.set(st.x, st.y + 6);
-    chip.c.scale.set(st.scale * fit);
+    // in a block the chip is a small tag in its top right corner, so what the block shows (its symbol, its cells) stays readable
+    const sym = !!host && host.kind !== 'stage' && !isTall(host);
+    const kt = sym ? 0.5 : 1;
+    const tx = sym ? host!.rect.x + host!.rect.w - 8 - (CHIP_W * fit * kt) / 2 - st.x : 0, ty = sym ? host!.rect.y + 6 + (CHIP_H * fit * kt) / 2 - (st.y + 6) : 0;
+    chip.k += (kt - chip.k) * 0.3;
+    chip.ox += (tx - chip.ox) * 0.3; chip.oy += (ty - chip.oy) * 0.3;
+    chip.c.position.set(st.x + chip.ox, st.y + 6 + chip.oy);
+    chip.c.scale.set(st.scale * fit * chip.k);
     chip.c.alpha = st.alpha;
     seen.add(st.key);
   }
 
   /** Draw one frame at game time `now` (ms). */
-  frame(now: number) {
+  frame(now: number, paused = false) {
     const plan = this.plan, player = this.player;
     if (!plan || !player) return;
     const T = this.T;
-    const fr = player.update(now);
+    // a paused game can be scrubbed: the Trace panel names a cycle and the die shows the machine at it
+    const cur = paused ? scrubCursor.peek() : null;
+    if (cur !== null && cur !== player.shown() && player.seek(cur)) { this.packets = []; this.trails.clear(); this.cellSig = ''; this.glyphSig = '#'; }
+    const fr = player.update(now, paused);
+    const rg = player.range(), sh = player.shown();
+    const old = scrubRange.peek();
+    if ((rg?.lo ?? -1) !== (old?.lo ?? -1) || (rg?.hi ?? -1) !== (old?.hi ?? -1)) scrubRange.value = rg;
+    if (sh !== scrubShown.peek()) scrubShown.value = sh;
 
     // beats: packets on the wires, flashes, reads of the register file, the memory sticks told
     const byCycle = new Map<number, StoreEvent[]>();
@@ -345,6 +365,7 @@ export class DieView {
     if (fl(this.flash.flush, 900) > 0) hot(plan.blocks.find((b) => b.kind === 'fetch'), fl(this.flash.flush, 900), T.bad, 3);
 
     this.cells(player);
+    this.glyphs(player);
     this.storage(fr.store, now);
     this.drawTrails(now);
     this.drawPackets(now);
@@ -439,6 +460,37 @@ export class DieView {
       const tl = cs[live.length];
       if (tl) box(g, tl.x - 1, tl.y - 1, tl.w + 2, tl.h + 2, 2, { stroke: T.mute, lw: 1.2, sa: 0.8 });
     }
+  }
+
+  /** The symbols inside the blocks (blockart.ts) show the instructions in them: the PC's digits, the words fetched, the decoded word and the control lines it raises, the operation in the ALU. */
+  private glyphs(player: Player) {
+    const plan = this.plan!, T = this.T, g = this.glyphG;
+    const rows = player.now();
+    const sig = rows.map((r) => r.id + r.ch + r.lane).join(',');
+    if (sig === this.glyphSig) return;
+    this.glyphSig = sig;
+    g.clear();
+    const by = new Map<string, { op: string; text: string; pc: number }[]>();
+    for (const r of rows) {
+      const host = player.hostOf(r.ch, r.lane, r.op, r.id);
+      if (!host) continue;
+      const l = by.get(host.id);
+      if (l) l.push(r); else by.set(host.id, [r]);
+    }
+    const fetched = rows.filter((r) => r.ch === 'F').sort((a, b) => a.id - b.id)[0];
+    const used = new Set<string>();
+    for (const b of plan.blocks) {
+      if (!GLYPH_KINDS.has(b.kind) || isTall(b)) continue;
+      const a = glyphArea(b);
+      if (!a) continue;
+      const live = glyphLive(b, a, by.get(b.id) ?? [], b.kind === 'pc' ? fetched?.pc : undefined);
+      for (const l of live.lit) box(g, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
+      if (live.texts.length === 0) continue;
+      const ct = this.texts_('g:' + b.id, used);
+      live.texts.forEach((t, k) => ct.set(k, t.top, t.bottom, t.rect, T.on));
+      ct.hideFrom(live.texts.length);
+    }
+    for (const [id, ct] of this.cellTexts) if (id.startsWith('g:') && !used.has(id)) ct.hideFrom(0);
   }
 
   /** What the register file, the caches and the predictor hold at the cycle being shown; reads and writes flash. */

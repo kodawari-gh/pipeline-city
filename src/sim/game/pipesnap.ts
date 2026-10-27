@@ -43,6 +43,8 @@ export interface TraceSnap {
 
 /** Cycles of history in a snapshot. */
 export const TRACE_CYCLES = 24;
+/** Most cycles a step's snapshot carries (the engine's timeline keeps 64 columns). */
+export const STEP_TRACE_CYCLES = 64;
 
 /** One cache: `tags[slot]` is the line number held (address / lineBytes), -1 empty; `words` the words of each line (slot-major, lineBytes / 4 each) as RAM holds them now. */
 export interface CacheSnap { lines: number; ways: number; lineBytes: number; tags: number[]; words: number[] }
@@ -189,7 +191,7 @@ export function traceOf(v: EngineView, end: number, want = TRACE_CYCLES): TraceS
   return { end, n, rows };
 }
 
-export function pipeSnapOf(eng: PipelineEngine, ram?: Uint8Array): PipeSnap {
+export function pipeSnapOf(eng: PipelineEngine, ram?: Uint8Array, cycles = TRACE_CYCLES): PipeSnap {
   const v: EngineView = eng.view;
   const t = v.timeline;
   const stages: StageSnap[] = [];
@@ -203,7 +205,7 @@ export function pipeSnapOf(eng: PipelineEngine, ram?: Uint8Array): PipeSnap {
   const out: PipeSnap = { width: v.width, stages: "robId" in v ? [] : stages };
   if ("robId" in v) out.ooo = oooOf(v as OooView);
   if (eng.cycle > 0) {
-    out.trace = traceOf(v, eng.cycle);
+    out.trace = traceOf(v, eng.cycle, cycles);
     if (ram) out.stored = storedOf(eng, ram, eng.cycle - out.trace.n + 1);
   }
   return out;

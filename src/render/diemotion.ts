@@ -17,6 +17,8 @@ export const CYCLES_PER_SEC = 4.5;
 export const FADE_S = 0.5;
 /** Cycles to hold the last frame of a window before the next window replaces it. */
 const HOLD = 0.4;
+/** Windows kept for the scrubber. */
+const HISTORY = 120;
 
 export type OpClass = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'sys';
 
@@ -355,9 +357,45 @@ export class Player {
   private fadeChips: ChipState[] = [];
   private hosts: Hosts;
   private lastShown = -1;
+  /** The windows already seen, oldest first (the Trace panel's scrubber moves through them while the game is paused). */
+  private history: { seg: TraceSnap; stored?: StoredSnap }[] = [];
 
   constructor(readonly plan: CpuPlan, private readonly cyclesPerSec = CYCLES_PER_SEC) {
     this.hosts = new Hosts(plan);
+  }
+
+  /** The engine cycles the replay can be moved to (the history of windows), or null when there is none. */
+  range(): { lo: number; hi: number } | null {
+    if (this.history.length === 0) return null;
+    return { lo: this.history[0]!.seg.end - this.history[0]!.seg.n + 1, hi: this.history[this.history.length - 1]!.seg.end };
+  }
+
+  /** The engine cycle shown now (a window's first cycle until it plays), or -1. */
+  shown(): number {
+    const w = this.cur;
+    return w ? w.end - w.n + 1 + Math.floor(Math.min(this.tau, w.n - 1)) : -1;
+  }
+
+  /**
+   * Show the machine at engine `cycle`, frozen there: the window that holds it is taken from the history, the writes before the cycle are
+   * applied at once and the cycle's own beats and writes play on the next update. Returns false when no window holds the cycle.
+   */
+  seek(cycle: number): boolean {
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      const h = this.history[i]!, start = h.seg.end - h.seg.n + 1;
+      if (cycle < start || cycle > h.seg.end) continue;
+      this.show(prepare(h.seg, ++this.seq, h.stored), cycle - start);
+      return true;
+    }
+    return false;
+  }
+
+  /** Put a window on screen at cycle `k` of it, the cycles before `k` already done. */
+  private show(w: Window, k: number): void {
+    this.cur = w; this.pending = null; this.tau = k;
+    this.fadeChips = []; this.fadeFrom = -1e9;
+    for (let j = 0; j < k; j++) w.store?.step(w.end - w.n + 1 + j, w.seq * 1000 + j);
+    this.lastShown = k - 1;
   }
 
   /** A new snapshot's trace. Only the newest waiting window is kept: the replay is a sample of the run, not all of it. */
@@ -365,15 +403,21 @@ export class Player {
     if (!seg || seg.rows.length === 0) return;
     if (this.cur && seg.end === this.cur.end) return;
     if (this.pending && seg.end === this.pending.end) return;
-    if (this.cur && seg.end < this.cur.end - 1000) { this.cur = null; this.pending = null; } // a new attempt: the cycles started over
+    if (this.cur && seg.end < this.cur.end - 1000) { this.cur = null; this.pending = null; this.history = []; } // a new attempt: the cycles started over
+    this.history.push({ seg, stored });
+    if (this.history.length > HISTORY) this.history.shift();
     this.pending = prepare(seg, ++this.seq, stored);
   }
 
   /** Forget everything (the machine was reset or the plan changed). */
-  reset(): void { this.cur = null; this.pending = null; this.fadeChips = []; this.tau = 0; this.lastShown = -1; }
+  reset(): void { this.cur = null; this.pending = null; this.history = []; this.fadeChips = []; this.tau = 0; this.lastShown = -1; }
 
-  /** Advance to game time `now` (ms) and return what to draw. */
-  update(now: number): Frame {
+  /**
+   * Advance to game time `now` (ms) and return what to draw. While the game is `paused` the replay does not play: a window that arrives
+   * (a step of the machine) is shown at once at its last cycle, so each step moves the die to the cycle it ran.
+   */
+  update(now: number, paused = false): Frame {
+    if (paused && this.pending) { const w = this.pending; this.show(w, w.n - 1); }
     const dt = this.lastNow ? Math.max(0, Math.min(0.25, (now - this.lastNow) / 1000)) : 0;
     this.lastNow = now;
     const beats: BeatEvent[] = [];
@@ -408,14 +452,17 @@ export class Player {
   }
 
   /** What every instruction is doing at the cycle being shown: its stage code. Oldest first. */
-  now(): { id: number; op: string; ch: string }[] {
+  now(): { id: number; op: string; ch: string; text: string; pc: number; lane: number }[] {
     const w = this.cur;
     if (!w) return [];
     const k = Math.min(w.n - 1, Math.floor(this.tau));
-    const out: { id: number; op: string; ch: string }[] = [];
-    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch }); }
+    const out: { id: number; op: string; ch: string; text: string; pc: number; lane: number }[] = [];
+    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch, text: r.text, pc: r.pc, lane: r.lanes[k]! }); }
     return out;
   }
+
+  /** The block an instruction in stage `ch` (lane `lane`) is in, or undefined where the die shows none. */
+  hostOf(ch: string, lane: number, op: string, id: number): Block | undefined { return this.hosts.host(ch, lane, op, id)?.block; }
 
   /** What enters a stage at the start of cycle `k` of a window. */
   private beatsAt(w: Window, k: number): BeatEvent[] {

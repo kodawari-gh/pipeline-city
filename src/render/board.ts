@@ -1166,7 +1166,7 @@ export async function mountBoard(host: HTMLElement) {
     lodFrame(dt);
     live.frame(gdt, gt);
     roomView?.frame(gt, tk.deltaMS);
-    die.frame(gt);
+    die.frame(gt, speed.peek() <= 0);
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
     syncCords(lastSnap);

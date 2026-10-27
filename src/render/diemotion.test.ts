@@ -212,3 +212,21 @@ describe('routes and points', () => {
     expect(routeBetween(plan, 'fetch', 'nope')).toBeNull();
   });
 });
+
+describe('stepping a paused die', () => {
+  const win = (end: number, n = 24) => ({ end, n, rows: [{ id: end, pc: 0, text: 'addi a0, a0, 1', codes: 'F'.repeat(n) }] });
+  it('shows a window that arrives while paused at once, at its last cycle, and keeps a history to seek in', () => {
+    const plan = cpuPlan(CONFIGS[1]!.plan);
+    const p = new Player(plan);
+    let now = 0;
+    p.push(win(100)); p.update(now += 16, true);
+    expect(p.shown()).toBe(100);
+    p.push(win(101)); p.update(now += 16, true);
+    expect(p.shown()).toBe(101); // the step moved the die, though game time did not run
+    expect(p.range()).toEqual({ lo: 77, hi: 101 });
+    expect(p.seek(90)).toBe(true);
+    p.update(now += 16, true);
+    expect(p.shown()).toBe(90);
+    expect(p.seek(500)).toBe(false);
+  });
+});

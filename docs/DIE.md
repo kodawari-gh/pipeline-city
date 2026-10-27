@@ -40,6 +40,16 @@ The die edge is a ring (`EDGE`): **north** the power block (vcore: one stub per 
 | Variants | An I-cache takes the south-west; cache and predictor tables scale their grids; ways are columns; an L2 strip joins both L1s to the system bus; a bigger ROB, scheduler or queue grows its grid; width adds decoders (the frame grows). |
 | Multicore (`cores: n`) | n core tiles in the middle (each laid out for its tile's shape, so a tile fills its cell), one shared L2 at their east end, one system bus under them; the edge ring is shared and every tile's PC gets an interrupt line. Server style = many small tiles, HPC style = one big out-of-order tile. Nothing multicore is simulated yet. |
 
+## Inside the blocks (`blockart.ts`)
+
+A block whose job is a piece of logic is drawn as the symbol an engineer would draw, not as a field of identical cells (`GLYPH_KINDS`): the **PC** a row of eight hex digits, **NEXT PC** and **WRITE BACK** a multiplexer with its inputs (`+4`, `br`, `irq`; `alu`, `mem`, `pc+4`), **PC + n** an adder, **FETCH** the words it reads (one strip per lane, each split into the fields of the instruction word: op, rd, rs1, rs2, imm), **IMMEDIATE** the sign copy and the field, the **DECODER** the word and the six control lines it raises (alu, mem, wr, br, imm, sys), the **ALU** the notched trapezoid with operands A and B, an op and a result register, the **MULTIPLIER** a triangle of partial products, **LOAD / STORE** the address adder and the waiting loads and stores. Structures with entries (caches, the register file, the reorder buffer, the predictor, the TLB) keep their cell arrays.
+
+While the machine runs, `glyphLive` puts the instructions into the symbols (`DieView.glyphs`): the PC's digits are the PC of the instruction being fetched, the fetch block lists the words in it, the decoder shows its word and lights the lines `controlsOf(op)` says it raises, an execution unit shows its operation and operands. An instruction's chip is a small tag in the top right corner of the block it is in, so the symbol stays readable.
+
+## Stepping (`Player.seek`, the Trace panel)
+
+While the game is paused the replay does not play (game time is frozen): a window that arrives (a step of the machine) is shown at once at its last cycle, so **+1 cycle** moves the die by one cycle, and the Trace panel's step buttons ask the sim for a snapshot that carries up to 64 cycles (`snapshotAfterStep`, `STEP_TRACE_CYCLES`) so a **+10** or a **+1 tick** keeps its cycles. The player keeps the last 120 windows (`history`); the Trace panel's **scrubber** (back, forward, a slider, the line of the trace you click) sets `scrubCursor` and the die shows the machine at that cycle (`Player.seek`: the window that holds it, the writes before it applied, its beats and writes played). `scrubRange` and `scrubShown` (`src/game/scrub.ts`) tell the panel what the die can show. Running again follows the machine.
+
 ## Tests (`cpuplan.test.ts`)
 
 For fourteen configurations (every architecture, with and without the optional parts, wide and scalar OoO, 2, 4 and 8 cores): everything inside the die, no overlaps, unique ids, every grid an exact rectangle (power-of-two counts have power-of-two sides), **the blocks cover at least 78% of the die** (55% on a multicore die), the board-facing blocks on the right edge relative to the core, every link's ends on the block edges it names, every segment square and non-zero, **no link through a block it does not connect**, grid counts equal to the configuration, exactly the structures the architecture has, the catalog CPUs plan cleanly, five different floorplans; plus `gridExact`, the slicing layout and the router on small cases.
@@ -58,7 +68,7 @@ Chips are the old pipeline chips (an instruction's mnemonic and operands, colour
 
 Hover ids are **one per kind of block** (`cpu.<kind>`, the lanes of a unit share one; the stage frames are not targets); the descriptions are in `src/ui/regions.ts`, and `logic.test.ts` checks that every kind every floorplan writes has one.
 
-Not live yet (the snapshot does not carry them): the cache lines (valid, hit, miss), the register writes, the interrupt controller's pending lines, the rename table.
+Not live yet (the snapshot does not carry them): the interrupt controller's pending lines and the rename table; the ALU's operand and result values (only the operation and its operands as written).
 
 ## Motion and what is stored (built)
 

@@ -65,7 +65,7 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
   const ifKids: Node[] = [
     ...(un ? [] : [leaf('bp', 'predictor', 'BRANCH PREDICTOR', { cells: predEntries, sub: `${predEntries} x ${predBits}-bit`, f: 1.5 })]),
     row([leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }), leaf('pcadd', 'pcadd', 'PC + 4', { shape: [32, 1] })], { px: un ? 64 : 52 }),
-    leaf('pc', 'pc', 'PC', { sub: 'program counter', shape: [32, 1], px: un ? 60 : 50 }),
+    leaf('pc', 'pc', 'PC', { shape: [32, 1], px: un ? 60 : 50 }),
     leaf('fetch', 'fetch', two ? 'FETCH × 2' : 'FETCH', { sub: icLines ? 'reads the I-cache' : 'reads RAM', shape: [32, 1], f: 1 }),
   ];
   const idKids: Node[] = un
@@ -188,7 +188,7 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
     frame('if', 'IF · FETCH', 0, [
       leaf('bp', 'predictor', 'BRANCH PREDICTOR', { cells: predEntries, sub: `${predEntries} x ${predBits}-bit`, f: 1.4 }),
       row([leaf('npc', 'nextpc', 'NEXT PC', { shape: [32, 1] }), leaf('pcadd', 'pcadd', `PC + ${4 * W}`, { shape: [32, 1] })], { px: 52 }),
-      leaf('pc', 'pc', 'PC', { sub: 'program counter', shape: [32, 1], px: 46 }),
+      leaf('pc', 'pc', 'PC', { shape: [32, 1], px: 46 }),
       leaf('fetch', 'fetch', W > 1 ? `FETCH × ${W}` : 'FETCH', { sub: icLines ? 'reads the I-cache' : 'reads RAM', shape: [32, 1], f: 1 }),
     ], 1.35),
     leaf('fq', 'queue', 'FETCH QUEUE', { cells: fq, ring: true, sub: `${fq} slots`, f: 0.45 }),

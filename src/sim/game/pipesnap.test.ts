@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { createEngine, type PipelineEngine } from "../engines";
 import { Machine } from "../machine";
-import { pipeSnapOf, ramMapOf, RAM_BUCKETS } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, RAM_BUCKETS, STEP_TRACE_CYCLES, TRACE_CYCLES } from "./pipesnap";
 import { Ev } from "../engines/common";
 
 // The die's live state in the snapshot (docs/DIE.md): the stages of an in-order engine per lane, the structures of the out-of-order one.
@@ -25,6 +25,18 @@ function run(engine: PipelineEngine, cycles: number) {
   for (let i = 0; i < cycles && !engine.halted; i++) engine.step();
   return engine;
 }
+
+describe("the trace of a step", () => {
+  it("carries 24 cycles by default and up to 64 when asked (a step of the paused machine), with the writes of all of them", () => {
+    const e = run(createEngine({ kind: "inorder", forwarding: true }) as PipelineEngine, 100);
+    const a = pipeSnapOf(e, new Uint8Array(65536)), b = pipeSnapOf(e, new Uint8Array(65536), STEP_TRACE_CYCLES);
+    expect(a.trace!.n).toBe(TRACE_CYCLES);
+    expect(b.trace!.n).toBeGreaterThan(TRACE_CYCLES); // (this short program ends before 64 cycles)
+    expect(b.trace!.n).toBeLessThanOrEqual(STEP_TRACE_CYCLES);
+    expect(b.trace!.end).toBe(a.trace!.end);
+    expect(b.stored!.events.length).toBeGreaterThan(a.stored!.events.length);
+  });
+});
 
 describe("pipeSnapOf", () => {
   it("a scalar in-order engine: five stages, one lane", () => {

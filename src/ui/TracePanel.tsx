@@ -3,6 +3,7 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepTick } from '../game/store';
+import { scrubCursor, scrubRange, scrubShown } from '../game/scrub';
 import { memoryTable, sizeText } from '../render/ramlayout';
 import { Icon } from './Icons';
 import { TraceBuffer, type TraceGroup } from './trace';
@@ -25,8 +26,10 @@ const shown = signal<Set<TraceGroup>>(new Set<TraceGroup>(['os', 'tlb', 'dram'])
 const rev = signal(0);
 
 /** Pause, then run the machine (the sim only steps a paused game). */
-const stepBy = (cycles: number) => { if (speed.value !== 0) setSpeed(0); stepCycles(cycles); };
-const stepOneTick = () => { if (speed.value !== 0) setSpeed(0); stepTick(); };
+const stepBy = (cycles: number) => { if (speed.value !== 0) setSpeed(0); scrubCursor.value = null; stepCycles(cycles); };
+const stepOneTick = () => { if (speed.value !== 0) setSpeed(0); scrubCursor.value = null; stepTick(); };
+/** Move the paused die to a cycle of its history (clamped to what it holds). */
+const goTo = (c: number) => { const r = scrubRange.peek(); if (!r) return; scrubCursor.value = Math.max(r.lo, Math.min(r.hi, Math.round(c))); };
 
 export function TracePanel() {
   const s = snapshot.value;
@@ -38,8 +41,10 @@ export function TracePanel() {
     if (buffer.add(events)) rev.value++;
   }, [events, traceOpen.value]);
   useEffect(() => { const e = box.current; if (e) e.scrollTop = e.scrollHeight; }, [rev.value, traceOpen.value]);
+  useEffect(() => { if (speed.value !== 0) scrubCursor.value = null; }, [speed.value]); // running again: follow the machine
   if (!traceOpen.value) return null;
   const on = shown.value;
+  const range = scrubRange.value, at = scrubShown.value, paused = speed.value === 0;
   const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
   const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
   const lines = buffer.lines.filter((l) => on.has(l.group));
@@ -57,12 +62,20 @@ export function TracePanel() {
         <button title="Run one base tick" onClick={stepOneTick}>+1 tick</button>
         <button title="Clear the trace" onClick={() => { buffer.clear(); rev.value++; }}>clear</button>
       </div>
+      {paused && range && (
+        <div class="trace-scrub" role="group" aria-label="Move the die to a cycle">
+          <button title="One cycle back" disabled={at <= range.lo} onClick={() => goTo(at - 1)}>&#9664;</button>
+          <input type="range" aria-label="Cycle" min={range.lo} max={range.hi} value={at < 0 ? range.hi : at} onInput={(e) => goTo(Number((e.currentTarget as HTMLInputElement).value))} />
+          <button title="One cycle forward" disabled={at >= range.hi} onClick={() => goTo(at + 1)}>&#9654;</button>
+          <span class="mute">die at cycle {at}</span>
+        </div>
+      )}
       <div class="trace-filter" role="group" aria-label="Show">
         {GROUPS.map((g) => <button key={g.id} class={on.has(g.id) ? 'on' : ''} aria-pressed={on.has(g.id)} title={g.title} onClick={() => toggle(g.id)}>{g.label}</button>)}
       </div>
       <div class="trace-lines" ref={box}>
         {lines.length === 0 && <div class="mute">Nothing yet. Pause and step, or run: events appear as the CPU does them.</div>}
-        {lines.map((l, i) => <div key={i} class={`tl tl-${l.group}`}><span class="tc">{l.cycle}</span> {l.text}</div>)}
+        {lines.map((l, i) => <div key={i} class={`tl tl-${l.group}${paused && l.cycle === at ? ' now' : ''}`} title={paused ? 'Show the die at this cycle' : undefined} onClick={paused ? () => goTo(l.cycle) : undefined}><span class="tc">{l.cycle}</span> {l.text}</div>)}
       </div>
     </aside>
   );

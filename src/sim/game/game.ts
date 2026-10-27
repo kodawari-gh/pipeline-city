@@ -15,7 +15,7 @@ import {
   specsOfKind, type CardSpec, type NicSpec, type StorageSpec, type TpmSpec,
 } from "../board";
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
-import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, STEP_TRACE_CYCLES, TRACE_CYCLES, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { dexEntry, dexState, JOB_DEX, pickTask, taskNeeds, taskOfTemplate, type DexRecord, type DexSnap } from "./jobdex";
 import { JOB_LOG_CAP, windowOf, type JobLogEntry, type JobOutcome, type JobWindow } from "./joblog";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
@@ -2561,8 +2561,20 @@ export class Game {
     }
   }
 
+  /** Cycles of history the next snapshot's trace carries: a step of the paused machine asks for more so none of it is lost. */
+  traceCycles = TRACE_CYCLES;
+
+  /** The CPU engine's cycle counter (0 without an engine). */
+  cycleNow(): number { return this.machine.engine?.cycle ?? 0; }
+
+  /** A snapshot that carries the cycles of a step (up to `STEP_TRACE_CYCLES`), for the die and the Trace panel to show one by one. */
+  snapshotAfterStep(cycles: number): Snapshot {
+    this.traceCycles = Math.max(TRACE_CYCLES, Math.min(STEP_TRACE_CYCLES, cycles));
+    try { return this.snapshot(); } finally { this.traceCycles = TRACE_CYCLES; }
+  }
+
   private pipeSnap(eng: PipelineEngine): PipeSnap {
-    const s = pipeSnapOf(eng, this.machine.ram);
+    const s = pipeSnapOf(eng, this.machine.ram, this.traceCycles);
     if (s.stored && this.machine.mmu.tlbEntries > 0) s.stored.tlb = this.machine.mmu.dump();
     return s;
   }
