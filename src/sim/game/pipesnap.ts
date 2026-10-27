@@ -38,7 +38,7 @@ export interface TraceSnap {
   /** Cycles covered (the columns are end - n + 1 .. end). */
   n: number;
   /** Instructions that did something in the window, oldest first. `codes` has one character per cycle (STAGE_CODE_CHARS: F D X M W for the in-order engines; F D S X R C for the out-of-order one; x flushed; space nothing). */
-  rows: { id: number; pc: number; text: string; codes: string }[];
+  rows: { id: number; pc: number; text: string; codes: string; /** The raw instruction word. */ word?: number }[];
 }
 
 /** Cycles of history in a snapshot. */
@@ -185,7 +185,7 @@ export function traceOf(v: EngineView, end: number, want = TRACE_CYCLES): TraceS
       if (code) any = true;
       codes += CH[code] ?? " ";
     }
-    if (any) rows.push({ id, pc: t.pc[r]!, text: disassemble(t.word[r]!), codes });
+    if (any) rows.push({ id, pc: t.pc[r]!, text: disassemble(t.word[r]!), codes, word: t.word[r]! });
   }
   rows.sort((a, b) => a.id - b.id);
   return { end, n, rows };

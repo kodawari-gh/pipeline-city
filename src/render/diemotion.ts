@@ -289,6 +289,10 @@ export interface ChipState {
   flushed: boolean;
   /** The block it is in (or leaving). */
   host: string;
+  /** Its address and raw word. */
+  pc: number; word: number;
+  /** The stage it is in (F D X M W S R C, x flushed), the stage it goes to next and how far along that step it is (0..1): the token changes with them. */
+  stage: string; next: string; e: number;
 }
 
 /** Something that happens at a cycle boundary: the die turns it into packets on the wires. */
@@ -328,12 +332,12 @@ export interface Frame {
   cycle: number;
 }
 
-interface PreparedRow { id: number; pc: number; op: string; text: string; codes: string; lanes: number[] }
+interface PreparedRow { id: number; pc: number; word: number; op: string; text: string; codes: string; lanes: number[] }
 interface Window { seq: number; end: number; n: number; rows: PreparedRow[]; store: StoreReplay | null }
 
 function prepare(seg: TraceSnap, seq: number, stored?: StoredSnap): Window {
   // lane of an instruction in a stage: its rank among the instructions in that stage that cycle, oldest first
-  const rows: PreparedRow[] = seg.rows.map((r) => ({ id: r.id, pc: r.pc ?? 0, op: r.text.split(' ')[0] ?? '', text: r.text, codes: r.codes, lanes: new Array<number>(r.codes.length).fill(0) }));
+  const rows: PreparedRow[] = seg.rows.map((r) => ({ id: r.id, pc: r.pc ?? 0, word: r.word ?? 0, op: r.text.split(' ')[0] ?? '', text: r.text, codes: r.codes, lanes: new Array<number>(r.codes.length).fill(0) }));
   for (let k = 0; k < seg.n; k++) {
     const seen = new Map<string, number>();
     for (const r of rows) {
@@ -489,7 +493,7 @@ export class Player {
     const out: ChipState[] = [];
     for (const r of w.rows) {
       const a = r.codes[k]!, b = k + 1 < w.n ? r.codes[k + 1]! : a;
-      const base = { key: `${w.seq}:${r.id}`, id: r.id, op: r.op, text: r.text, stalled: false, flushed: false };
+      const base = { key: `${w.seq}:${r.id}`, id: r.id, op: r.op, text: r.text, stalled: false, flushed: false, pc: r.pc, word: r.word, stage: a === ' ' ? b : a, next: b === ' ' ? a : b, e };
       const at = (ch: string, kk: number) => H.host(ch, r.lanes[kk]!, r.op, r.id);
       if (a === ' ') {
         // about to enter: it fades in where it will be

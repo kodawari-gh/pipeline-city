@@ -8,6 +8,7 @@ import { cellRects, isTall, dieNear, offsetPts, LANE_GAP, type DieArt } from './
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from './ink';
 import { glyphArea, glyphLive, GLYPH_KINDS } from './blockart';
+import { bodyOf, idColor, pcText, seqText, type Body } from './tokentext';
 import type { Theme } from './theme';
 
 // The CPU die in motion (docs/DIE.md "Motion" and "What is stored"). It draws the near layer of the die (traces, cell arrays, names;
@@ -20,7 +21,8 @@ import type { Theme } from './theme';
 //  - blocks glow while an instruction is in them, the clock beats once per cycle.
 // A snapshot is a sampled instant: the replay is a slow-motion sample of the run.
 
-const CHIP_W = 156, CHIP_H = 78;
+const CHIP_W = 176, CHIP_H = 92;
+const TOKEN_W = CHIP_W, TOKEN_H = CHIP_H;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 /** How long a wire stays lit behind a packet (ms). */
 const TRAIL_MS = 1500;
@@ -28,35 +30,96 @@ const TRAIL_MS = 1500;
 /** What the memory sticks should show: the CPU asked RAM for an address (a fetch, a load, a store), `at` is game time in ms. */
 export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number }
 
+/** One part of a token's lower half: the fields of the word, or a line of text. Two of them cross-fade when the stage changes. */
+class TokenBody {
+  readonly c = new Container();
+  private g = new Graphics();
+  private texts: Text[] = [];
+  sig = '';
+  constructor() { this.c.addChild(this.g); }
+  private text(i: number): Text {
+    let t = this.texts[i];
+    if (!t) { t = new Text({ text: '', style: { fontFamily: MONO, fontSize: 20, fontWeight: '700', fill: '#000' }, resolution: 2 }); t.anchor.set(0.5); this.texts[i] = t; this.c.addChild(t); }
+    return t;
+  }
+  private put(i: number, str: string, x: number, y: number, size: number, maxW: number, color: string, bold = true) {
+    const t = this.text(i);
+    t.visible = true; t.text = str; t.style.fill = color; t.style.fontWeight = bold ? '700' : '500';
+    t.position.set(x, y);
+    t.scale.set(Math.min(size / 20, maxW / Math.max(1, t.width / t.scale.x)));
+  }
+  draw(T: Theme, body: Body) {
+    this.g.clear();
+    for (const t of this.texts) t.visible = false;
+    const x0 = -TOKEN_W / 2 + 10, w = TOKEN_W - 20, y0 = 2;
+    if (body.fields) {
+      const total = body.fields.reduce((n, f) => n + Math.max(4, f.bits), 0), gap = 3, avail = w - gap * (body.fields.length - 1);
+      let x = x0;
+      body.fields.forEach((f, k) => {
+        const fw = (avail * Math.max(4, f.bits)) / total;
+        box(this.g, x, y0, fw, 36, 5, { fill: T.on, fa: 0.2 });
+        this.put(k * 2, f.name, x + fw / 2, y0 + 8, 9, fw - 4, T.on, false);
+        this.put(k * 2 + 1, f.value, x + fw / 2, y0 + 24, 16, fw - 4, T.on);
+        x += fw + gap;
+      });
+    } else if (body.text) {
+      box(this.g, x0, y0 + 4, w, 28, 6, { fill: T.on, fa: 0.2 });
+      this.put(0, body.text, x0 + w / 2, y0 + 18, 17, w - 10, T.on);
+    }
+  }
+}
+
+/** An instruction on the die: a token that shows what the stage is doing to it (docs/DIE.md "The token"). */
 class Chip {
   readonly c = new Container();
   private bg = new Graphics();
-  private t1: Text;
-  private t2: Text;
+  private head: Text;
+  private addr: Text;
+  private seq: Text;
+  private bodies: [TokenBody, TokenBody] = [new TokenBody(), new TokenBody()];
+  private stage = '';
+  private fadeAt = -1e9;
   private sig = '';
   /** Where the chip sits in its block, eased: off to a corner (and smaller) in a block whose symbol shows the instruction itself. */
   ox = 0; oy = 0; k = 1;
+  /** Motion: last position, a short tail of where it has been, the block it was last in and when it got there (wall ms). */
+  px = NaN; py = NaN; hist: Pt[] = []; lastHost = ''; landed = -1e9;
 
   constructor() {
-    this.t1 = new Text({ text: '', style: { fontFamily: MONO, fontSize: 28, fontWeight: '700', fill: '#000' }, resolution: 2 });
-    this.t2 = new Text({ text: '', style: { fontFamily: MONO, fontSize: 17, fill: '#000' }, resolution: 2 });
-    this.t1.anchor.set(0.5); this.t2.anchor.set(0.5);
-    this.t1.position.set(0, -10); this.t2.position.set(0, 20);
-    this.c.addChild(this.bg, this.t1, this.t2);
+    const mk = (size: number, bold: boolean, ax: number) => { const t = new Text({ text: '', style: { fontFamily: MONO, fontSize: size, fontWeight: bold ? '700' : '500', fill: '#000' }, resolution: 2 }); t.anchor.set(ax, 0.5); return t; };
+    this.head = mk(28, true, 0); this.addr = mk(15, true, 1); this.seq = mk(11, false, 1);
+    this.head.position.set(-TOKEN_W / 2 + 12, -22);
+    this.addr.position.set(TOKEN_W / 2 - 12, -28);
+    this.seq.position.set(TOKEN_W / 2 - 12, -12);
+    this.c.addChild(this.bg, this.head, this.addr, this.seq, this.bodies[0].c, this.bodies[1].c);
+    this.bodies[1].c.alpha = 0;
   }
 
-  look(T: Theme, o: { text: string; sub: string; color: string; stalled: boolean; bad: boolean }) {
-    const sig = [o.text, o.sub, o.color, o.stalled, o.bad, T.on].join('|');
-    if (sig === this.sig) return;
-    this.sig = sig;
-    const g = this.bg;
-    g.clear();
-    const w = CHIP_W, h = CHIP_H;
-    box(g, -w / 2 - 5, -h / 2 - 5, w + 10, h + 10, 20, { fill: o.bad ? T.bad : o.color, fa: 0.25 });
-    box(g, -w / 2, -h / 2, w, h, 14, { fill: o.bad ? T.bad : o.color });
-    if (o.stalled) box(g, -w / 2 - 9, -h / 2 - 9, w + 18, h + 18, 22, { stroke: T.ld, lw: 5 });
-    this.t1.text = o.text; this.t1.style.fill = T.on; this.t1.style.fontSize = 28;
-    this.t2.text = o.sub; this.t2.style.fill = T.on;
+  look(T: Theme, o: { text: string; pc: string; seq: string; color: string; ring: string; stalled: boolean; bad: boolean; stage: string; body: Body }) {
+    const sig = [o.text, o.pc, o.seq, o.color, o.ring, o.stalled, o.bad, T.on].join('|');
+    if (sig !== this.sig) {
+      this.sig = sig;
+      const g = this.bg, w = TOKEN_W, h = TOKEN_H;
+      g.clear();
+      box(g, -w / 2 - 6, -h / 2 - 6, w + 12, h + 12, 20, { fill: o.bad ? T.bad : o.color, fa: 0.22 });
+      box(g, -w / 2, -h / 2, w, h, 14, { fill: o.bad ? T.bad : o.color });
+      box(g, -w / 2 - 2, -h / 2 - 2, w + 4, h + 4, 16, { stroke: o.ring, lw: 4 }); // the instruction's own colour: the same one marks it in the queues
+      if (o.stalled) box(g, -w / 2 - 11, -h / 2 - 11, w + 22, h + 22, 24, { stroke: T.ld, lw: 5 });
+      this.head.text = o.text; this.head.style.fill = T.on;
+      this.addr.text = o.pc; this.addr.style.fill = T.on;
+      this.seq.text = o.seq; this.seq.style.fill = T.on; this.seq.alpha = 0.7;
+    }
+    // the lower half: when the stage changes the old one fades out as the new one comes in
+    const bsig = o.stage + '|' + JSON.stringify(o.body);
+    const now = performance.now();
+    if (o.stage !== this.stage) {
+      this.bodies = [this.bodies[1], this.bodies[0]];
+      this.bodies[0].draw(T, o.body); this.bodies[0].sig = bsig;
+      this.fadeAt = this.stage === '' ? -1e9 : now;
+      this.stage = o.stage;
+    } else if (this.bodies[0].sig !== bsig) { this.bodies[0].draw(T, o.body); this.bodies[0].sig = bsig; }
+    const u = Math.min(1, (now - this.fadeAt) / 280);
+    this.bodies[0].c.alpha = u; this.bodies[1].c.alpha = 1 - u;
   }
 }
 
@@ -129,6 +192,9 @@ export class DieView {
   private dataTexts = new Container();
   private cellLive = new Graphics();
   private glyphG = new Graphics();
+  private tailG = new Graphics();
+  /** The address each load and store reached for, by instruction id (a token shows it in its memory stage). */
+  private addrs = new Map<number, number>();
   private glyphSig = '#';
   private texts = new Container();
   private trailG = new Graphics();
@@ -155,7 +221,7 @@ export class DieView {
   T!: Theme;
 
   constructor() {
-    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.chipLayer, this.legend);
+    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.chipLayer, this.legend);
   }
 
   /** Build (or rebuild, on a theme change) the near layer of a plan. */
@@ -274,23 +340,36 @@ export class DieView {
   }
 
   /** The chip of a state, placed and looked. */
-  private place(st: ChipState, seen: Set<string>) {
+  private place(st: ChipState, seen: Set<string>, regs: readonly number[]) {
     const T = this.T;
     let chip = this.chips.get(st.key);
     if (!chip) { chip = this.take(); this.chips.set(st.key, chip); }
     const cls = opClass(st.op);
-    chip.look(T, { text: st.op.toUpperCase(), sub: st.text.slice(st.op.length + 1).slice(0, 17), color: this.colorOf(cls), stalled: st.stalled, bad: st.flushed });
+    const body = bodyOf(st.flushed ? 'x' : st.e >= 0.5 && st.next !== st.stage ? st.next : st.stage, { word: st.word, regs, addr: this.addrs.get(st.id) });
+    chip.look(T, { text: st.op.toUpperCase(), pc: pcText(st.pc), seq: seqText(st.id), color: this.colorOf(cls), ring: idColor(st.id, T.dark), stalled: st.stalled, bad: st.flushed, stage: st.flushed ? 'x' : st.e >= 0.5 && st.next !== st.stage ? st.next : st.stage, body });
     const host = this.byId.get(st.host);
     const fit = host ? fitOf(host.rect) : 0.6;
-    // in a block the chip is a small tag in its top right corner, so what the block shows (its symbol, its cells) stays readable
+    // in a block the token is a small tag in its top right corner, so what the block shows (its symbol, its cells) stays readable
     const sym = !!host && host.kind !== 'stage' && !isTall(host);
     const kt = sym ? 0.5 : 1;
     const tx = sym ? host!.rect.x + host!.rect.w - 8 - (CHIP_W * fit * kt) / 2 - st.x : 0, ty = sym ? host!.rect.y + 6 + (CHIP_H * fit * kt) / 2 - (st.y + 6) : 0;
     chip.k += (kt - chip.k) * 0.3;
     chip.ox += (tx - chip.ox) * 0.3; chip.oy += (ty - chip.oy) * 0.3;
-    chip.c.position.set(st.x + chip.ox, st.y + 6 + chip.oy);
-    chip.c.scale.set(st.scale * fit * chip.k);
+    const x = st.x + chip.ox, y = st.y + 6 + chip.oy;
+    // motion: it stretches along the way it is going, drops a short tail, and pops when it lands in a block
+    const dx = Number.isNaN(chip.px) ? 0 : x - chip.px, dy = Number.isNaN(chip.py) ? 0 : y - chip.py, v = Math.hypot(dx, dy);
+    chip.px = x; chip.py = y;
+    if (v > 1.2) { chip.hist.push([x, y]); if (chip.hist.length > 9) chip.hist.shift(); } else if (chip.hist.length) chip.hist.shift();
+    const wall = performance.now();
+    if (st.host !== chip.lastHost) { if (chip.lastHost) chip.landed = wall; chip.lastHost = st.host; }
+    const pop = 1 + 0.14 * Math.max(0, 1 - (wall - chip.landed) / 380);
+    const stretch = 1 + Math.min(0.18, v * 0.0035);
+    const base = st.scale * fit * chip.k * pop;
+    chip.c.position.set(x, y);
+    chip.c.scale.set(base * (Math.abs(dx) >= Math.abs(dy) ? stretch : 1 / stretch), base * (Math.abs(dx) >= Math.abs(dy) ? 1 / stretch : stretch));
     chip.c.alpha = st.alpha;
+    const tg = this.tailG, tc = this.colorOf(cls);
+    chip.hist.forEach((p, i) => { const f = (i + 1) / chip.hist.length; tg.circle(p[0], p[1], 3 + 9 * f * fit).fill({ color: tc, alpha: 0.28 * f * st.alpha }); });
     seen.add(st.key);
   }
 
@@ -329,6 +408,7 @@ export class DieView {
       if (ev.to === 'W' || ev.to === 'C') this.flash.retire = now;
       if (ev.to === 'R') this.flash.result = now;
       if (ev.to === 'x') this.flash.flush = now;
+      if (cls === 'ld' || cls === 'st') { const m = events.find((e) => e.kind === Ev.Mem); if (m && (plan.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M')) { this.addrs.set(ev.id, m.b >>> 0); if (this.addrs.size > 400) this.addrs.delete(this.addrs.keys().next().value!); } }
       this.touchMemory(ev, events, now, cls);
     }
     if (fr.tick) {
@@ -339,8 +419,10 @@ export class DieView {
 
     // chips
     const seen = new Set<string>();
-    for (const c of fr.fading) this.place(c, seen);
-    for (const c of fr.chips) this.place(c, seen);
+    this.tailG.clear();
+    const regs = fr.store?.regs ?? [];
+    for (const c of fr.fading) this.place(c, seen, regs);
+    for (const c of fr.chips) this.place(c, seen, regs);
     for (const [key, chip] of this.chips) if (!seen.has(key)) { this.chips.delete(key); this.release(chip); }
 
     // blocks glow while an instruction is in them
@@ -439,20 +521,23 @@ export class DieView {
     g.clear();
     const used = new Set<string>();
     const fq = plan.blocks.find((b) => b.id === 'fq'), sched = plan.blocks.find((b) => b.kind === 'sched'), rob = plan.blocks.find((b) => b.kind === 'rob');
-    const fill = (b: Block | undefined, items: { op: string; color: string }[]) => {
+    const fill = (b: Block | undefined, items: { op: string; color: string; pc: number; id: number }[]) => {
       if (!b) return;
       const cs = cellRects(b), ct = this.texts_(b.id, used);
       cs.forEach((r, k) => {
         const it = items[k];
-        if (it) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: it.color, fa: 0.85 });
-        ct.set(k, it?.op ?? '', '', r, T.on);
+        if (it) {
+          box(g, r.x, r.y, r.w, r.h, 1.5, { fill: it.color, fa: 0.85 });
+          if (r.w >= 28 && r.h >= 22) box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id, T.dark) }); // the instruction's own colour, as on its token
+        }
+        ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
       });
     };
-    fill(fq, rows.filter((r) => r.ch === 'F').map((r) => ({ op: r.op, color: T.alu })));
-    fill(sched, rows.filter((r) => r.ch === 'S').map((r) => ({ op: r.op, color: T.ld })));
+    fill(fq, rows.filter((r) => r.ch === 'F').map((r) => ({ op: r.op, color: T.alu, pc: r.pc, id: r.id })));
+    fill(sched, rows.filter((r) => r.ch === 'S').map((r) => ({ op: r.op, color: T.ld, pc: r.pc, id: r.id })));
     // the reorder buffer holds everything between dispatch and commit, oldest first: waiting, executing, done
     const live = rows.filter((r) => r.ch === 'S' || r.ch === 'X' || r.ch === 'R');
-    fill(rob, live.map((r) => ({ op: r.op, color: r.ch === 'S' ? T.ld : r.ch === 'X' ? T.alu : T.st })));
+    fill(rob, live.map((r) => ({ op: r.op, color: r.ch === 'S' ? T.ld : r.ch === 'X' ? T.alu : T.st, pc: r.pc, id: r.id })));
     if (rob && live.length) {
       const cs = cellRects(rob);
       const h = cs[0];
