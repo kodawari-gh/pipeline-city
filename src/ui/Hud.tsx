@@ -22,6 +22,7 @@ import { Shop } from './Shop';
 import { TutorialCard } from './TutorialCard';
 import { toggleTrace, TracePanel, traceOpen } from './TracePanel';
 import { AlmanacPanel } from './AlmanacPanel';
+import { LogPanel } from './LogPanel';
 import {
   netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
@@ -263,6 +264,7 @@ export function Hud() {
       <NetDock />
       <TracePanel />
       <AlmanacPanel />
+      <LogPanel />
       <Tooltip />
       <LevelUpModal />
       <div class="stack">

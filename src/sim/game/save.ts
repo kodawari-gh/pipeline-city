@@ -167,6 +167,8 @@ export interface SaveV4 {
   net?: SavedNet;
   /** The job almanac: per job type, when it first arrived, how many were finished and the fastest run (docs/JOBS.md). Optional and additive, no version bump. */
   jobDex?: Record<string, { seen: number; runs: number; best: number }>;
+  /** The job log: the last jobs that ended and where their time went (docs/JOBS.md "The log"). Optional and additive, no version bump. */
+  jobLog?: import("./joblog").JobLogEntry[];
 }
 
 /** Network state. Transfers are not saved: downloads and finished-but-unspooled jobs come back as offers. */

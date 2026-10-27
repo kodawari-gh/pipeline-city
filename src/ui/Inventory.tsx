@@ -11,6 +11,7 @@ import { INVENTORY_ID } from './tutorial';
 import { StatCard } from './StatCard';
 import { kindIcon, kindLabel, tierOfSpec } from './shopdata';
 import { almanacOpen, toggleAlmanac } from './AlmanacPanel';
+import { logOpen, toggleLog } from './LogPanel';
 import { fitTarget, inventoryKind, inventoryOpen, shopOpen, toggleInventory, toggleShop } from './state';
 import { beginPartDrag } from './worldDrag';
 
@@ -69,9 +70,20 @@ function AlmanacButton() {
   );
 }
 
+/** The job log button: the jobs that ended and where each one's time went. */
+function LogButton() {
+  const open = logOpen.value;
+  return (
+    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="joblog" aria-pressed={open} aria-label="Job log" title="Job log: the jobs that ended and where their time went" onClick={toggleLog}>
+      <Icon name="clock" size={14} />
+      <span class="hide-narrow">Log</span>
+    </button>
+  );
+}
+
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /></div>;
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /><LogButton /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */

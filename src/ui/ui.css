@@ -804,3 +804,36 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tk.op-alu { color: #3aa8d9; } .tk.op-ld { color: #d9a23a; } .tk.op-st { color: #4cc38a; } .tk.op-mul { color: #a78bfa; } .tk.op-br { color: #d96ad6; } .tk.op-sys { color: #8893b0; }
 .tk-op { font-weight: 700; }
 .almanac .alm-row.on, .almanac .alm-row.on .alm-name { color: var(--ink); }
+
+/* The job log: a list of jobs with a bar of where each one's time went, and a summary or detail on the right */
+.joblog .jl-left { width: 27rem; flex: none; display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
+.jl-ctl { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; }
+.jl-filter { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+.jl-filter button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); }
+.jl-filter button.on { color: var(--ink); background: var(--glass-line); border-color: var(--ink); }
+.jl-list { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1; }
+.jl-row { display: grid; grid-template-columns: 2.6rem 5.5rem 1fr 3.2rem 3.4rem; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; text-align: left; color: var(--ink); }
+.jl-row.on { border-color: var(--ink); background: var(--glass-line); color: var(--ink); }
+.jl-row.off { opacity: 0.7; }
+.jl-row .id { color: var(--mute); font-family: var(--mono); }
+.jl-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jl-row .tm { text-align: right; font-family: var(--mono); }
+.jl-row .tg { text-align: right; font-size: 0.68rem; color: var(--mute); }
+.jl-row .tg.warn { color: var(--warn); }
+.jl-bar { display: flex; height: 0.55rem; border-radius: 0.2rem; overflow: hidden; background: var(--glass-line); min-width: 2rem; }
+.jl-bar i { display: block; height: 100%; }
+.jl-wait { background: var(--warn); }
+.jl-run { background: var(--accent); }
+.jl-collect { background: var(--mute); }
+.jl-phases { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.3rem 0; }
+.jl-phases .row, .jl-stalls .row { display: grid; grid-template-columns: 6rem 1fr 3.4rem; align-items: center; gap: 0.5rem; }
+.jl-phases .b { height: 0.6rem; background: var(--glass-line); border-radius: 0.2rem; overflow: hidden; }
+.jl-phases .b i { display: block; height: 100%; }
+.jl-phases .v { text-align: right; font-family: var(--mono); }
+.jl-stalls .row { grid-template-columns: 7rem 1fr 2.8rem; }
+.jl-kinds { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.3rem 0; max-width: 40rem; }
+.jl-kind { display: grid; grid-template-columns: 11rem 1fr 3rem; align-items: center; gap: 0.5rem; }
+.jl-kind .v { text-align: right; font-family: var(--mono); }
+.jl-sum p, .jl-detail p { margin: 0.3rem 0; line-height: 1.4; max-width: 56rem; }
+.jl-empty { padding: 1rem; }
+@media (max-width: 52rem) { .joblog .jl-left { width: auto; } .jl-row { grid-template-columns: 2.4rem 4.5rem 1fr 3rem; } .jl-row .tg { display: none; } }

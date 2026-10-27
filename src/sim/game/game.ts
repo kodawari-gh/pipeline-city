@@ -17,6 +17,7 @@ import {
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { dexEntry, dexState, JOB_DEX, type DexRecord, type DexSnap } from "./jobdex";
+import { JOB_LOG_CAP, windowOf, type JobLogEntry, type JobOutcome, type JobWindow } from "./joblog";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { walkTable } from "./vmmap";
 /** The memory array the machine is built with: the most a paged OS manages (its 20-bit virtual space). */
@@ -89,6 +90,10 @@ interface Key extends Job {
   pluggedAt: number;
   done: boolean;
   doneAt: number;
+  /** The engine's counters when the machine took the job (not saved): the job log reports the change by the time it finishes. */
+  c0?: number[];
+  /** What the counters changed by from the job being taken to its result landing (set when `doneAt` is). */
+  win?: JobWindow;
   /** The result landed while no OS was installed (not saved): ejecting it under an OS later is not an OS job. */
   doneBeforeOs?: boolean;
   result: string;
@@ -454,6 +459,8 @@ export interface Snapshot {
   health?: HealthItem[];
   /** The job almanac: how far the player has got with each kind of job (docs/JOBS.md). */
   dex?: DexSnap[];
+  /** The job log: the last jobs that ended, oldest first, with where their time went (docs/JOBS.md "The log"). */
+  jobLog?: JobLogEntry[];
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -1213,6 +1220,7 @@ export class Game {
       return { ok: false, reason: `the key is unreadable (${(e as Error).message})` };
     }
     key.pluggedAt = this.baseTick;
+    key.c0 = this.countersNow();
     this.plugged = key;
     this.pchKey = { id: key.id, program, done: key.done, result: key.result };
     this.pch.plug(this.pchKey);
@@ -1273,6 +1281,7 @@ export class Game {
       attempts: key.attempts, completedAt: this.baseTick,
     };
     this.dexDone(key);
+    this.addLog(key, "done", pay, late);
     this.note("payout", `key ${key.id} ${how}: $${pay}${late ? " (late)" : ""}`);
     return pay;
   }
@@ -1295,6 +1304,7 @@ export class Game {
     const inTray = this.tray.waiting().some((k) => k.id === keyId);
     const inOffers = this.offersQ.waiting().some((k) => k.id === keyId);
     const spooled = this.spool.find((k) => k.id === keyId);
+    const gone = this.tray.waiting().find((k) => k.id === keyId) ?? this.offersQ.waiting().find((k) => k.id === keyId) ?? spooled;
     if (inOffers) {
       this.offersQ.take(keyId);
     } else if (this.downloads.some((t) => t.key.id === keyId) || this.rx.some((k) => k.id === keyId)) {
@@ -1312,6 +1322,7 @@ export class Game {
       this.tray.take(keyId);
     }
     this.declined++;
+    if (gone) this.addLog(gone, "declined", 0, false);
     // A retired key costs nothing to decline (docs/NETWORK.md "Retired keys"): its client already went online.
     if (!this.sandbox && !retired) this.avgTurnaround += this.cfg.emaAlpha * (this.targetTurnaround() - this.avgTurnaround);
     this.note("decline", `declined job ${keyId}${this.sandbox ? " (free in the sandbox)" : retired ? " (free: retired)" : ""}`);
@@ -1484,6 +1495,7 @@ export class Game {
       eccCorrected: this.eccCorrected,
       health: this.health(),
       dex: JOB_DEX.map((e) => { const r = this.dex[e.id]; return { id: e.id, state: dexState(e, r), runs: r?.runs ?? 0, best: r?.best ?? 0, seenTick: r?.seen ?? 0 }; }),
+      jobLog: this.jobLog.map((e) => ({ ...e })),
       bitFlips: this.bitFlips,
       dropped: this.dropped,
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
@@ -1622,6 +1634,7 @@ export class Game {
       declined: this.declined,
       expired: this.expired,
       ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
+      ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
       net: this.savedNet(sk),
     };
   }
@@ -1661,6 +1674,7 @@ export class Game {
     g.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;
     g.declined = s.declined ?? 0;
     g.dex = s.jobDex ? JSON.parse(JSON.stringify(s.jobDex)) as Record<string, DexRecord> : {};
+    g.jobLog = Array.isArray(s.jobLog) ? (JSON.parse(JSON.stringify(s.jobLog)) as JobLogEntry[]).filter((e) => e && typeof e.id === "number" && typeof e.type === "string").slice(-JOB_LOG_CAP) : [];
     g.expired = s.expired ?? 0;
     if (!g.sandbox) {
       if (s.clientBase !== undefined) {
@@ -2499,6 +2513,7 @@ export class Game {
     if (k && pk && pk.done && !k.done) {
       k.done = true;
       k.doneAt = this.baseTick;
+      this.closeWindow(k);
       if (!this.os) k.doneBeforeOs = true;
       k.result = pk.result;
       this.progress.firstJobDone = true;
@@ -2663,6 +2678,7 @@ export class Game {
       if (!next) break;
       this.offersQ.take(next.id);
       next.pluggedAt = this.baseTick;
+      next.c0 = this.countersNow();
       const z = jobSizes(next.cls, next.type, next.scale);
       this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0 });
     }
@@ -2734,6 +2750,7 @@ export class Game {
         if (!j || j.state !== JobState.Result || this.uploads.some((t) => t.key.id === k.id)) continue;
         k.result = this.kernelResult(j.slot);
         k.doneAt = this.baseTick;
+        this.closeWindow(k);
         this.freeKernelSlot(k.id);
         this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0 });
       }
@@ -2750,6 +2767,7 @@ export class Game {
         const key = nk.key;
         key.result = nk.pch.result;
         key.doneAt = this.baseTick;
+        this.closeWindow(key);
         this.dropNetKey();
         this.freeKernelSlot(key.id);
         this.uploads.push({ key, totalMB: jobSizes(key.cls, key.type, key.scale).upMB, doneMB: 0 });
@@ -2793,6 +2811,32 @@ export class Game {
       cls: clsId, needs: cls?.needs ?? [], payMul,
       attempts: 1, pluggedAt: 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
     };
+  }
+
+  /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */
+  private jobLog: JobLogEntry[] = [];
+
+  private countersNow(): number[] | undefined {
+    const eng = this.machine.engine as PipelineEngine | null;
+    return eng?.view ? Array.from(eng.view.counters).slice(0, COUNTER_NAMES.length) : undefined;
+  }
+
+  /** The result has landed: how much the counters moved since the machine took the job. */
+  private closeWindow(k: Key): void {
+    const now = this.countersNow();
+    k.win = now ? windowOf(k.c0, now) : undefined;
+    if (!k.win) delete k.win;
+  }
+
+  private addLog(k: Key, outcome: JobOutcome, pay: number, late: boolean): void {
+    const done = outcome === "done";
+    this.jobLog.push({
+      id: k.id, type: k.type, scale: k.scale, outcome, arrival: k.arrival,
+      start: done ? k.pluggedAt : this.baseTick, finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
+      deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
+      ...(done && k.win ? { win: { ...k.win } } : {}),
+    });
+    if (this.jobLog.length > JOB_LOG_CAP) this.jobLog.splice(0, this.jobLog.length - JOB_LOG_CAP);
   }
 
   /** The job almanac's record per kind of job (docs/JOBS.md). */
@@ -2889,6 +2933,7 @@ export class Game {
       this.tray.take(k.id);
       this.offersQ.take(k.id);
       this.expired++;
+      this.addLog(k, "expired", 0, true);
       this.avgTurnaround += this.cfg.emaAlpha * (this.cfg.giveUpTurnaround * this.patience() - this.avgTurnaround);
       this.note("expire", `a client took back job ${k.id} (${k.type}): the machine cannot run it`);
     }

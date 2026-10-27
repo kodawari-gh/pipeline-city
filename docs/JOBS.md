@@ -29,6 +29,25 @@ The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no
 
 To add a job: write its template, give it a class, add its `DexEntry` (blurb, what it leans on, memory, tips). `jobdex.test.ts` checks that every non-placeholder class has an almanac entry and every playable entry has at least two tips.
 
+## The log
+The **Log** button in the bottom bar (beside Almanac; a modal, Esc closes it) (`src/ui/LogPanel.tsx`, data and helpers in `src/sim/game/joblog.ts`) lists the jobs that ended, to find where the machine is slow. Every job that ends adds one `JobLogEntry` (`Game.addLog`), kept as the last 60 (`JOB_LOG_CAP`), sent in `Snapshot.jobLog` and saved as the optional `jobLog` field (no version bump):
+
+| outcome | when |
+|---|---|
+| done | the client has the result (`deliver`: key collected, or the result uploaded) |
+| expired | a client took back a job the machine could not run, at its deadline |
+| declined | the player declined it (`declineKey`) |
+
+A done job's time is cut in three, in base ticks (seconds): **waiting** (key arrival until the machine took it: the key plugged, or the download started), **running** (taken until the result was written: `doneAt`) and **collecting** (result written until the client had it). A job that never ran has only the wait.
+
+For a run, the log also keeps a **window of the engine's counters** from the job being taken to its result landing (`Key.c0` read at plug or download, `closeWindow` at `doneAt`, `windowOf` the difference): cycles, instructions, the five stall causes, cache hits and misses, TLB misses and page faults. It counts the whole machine, so with several programs at once the numbers are shared among them; if the machine restarted in between (the counters went backwards) the job has no window. The counters are not saved with a running key: a job that is mid-run when the game is loaded logs without a window.
+
+The view: a list of rows (id, kind, a bar in the three phases scaled to the longest in view, total time, payout or *late* / *taken back* / *declined*), filterable by kind and ordered newest or slowest. With no row picked, the right side is a **summary** (counts, the average job's three phases, and the average of each kind of job, longest first). A row opens its **detail**: the three phases, the ticks, the margin to the deadline, the player's fastest run of that kind from the almanac, a **reading** and the machine's counters for the run. `verdictOf` writes the reading from the largest phase: a long wait points at throughput (a faster CPU, an OS that runs several programs, a network plan), a long collect at removing the key, and for a run the biggest stall share (memory, mispredicted branches, earlier results, the memory port), page faults on a paged OS, or compute bound when none stands out.
+
+`joblog.test.ts` covers the phases, the counter window, the readings, the summary, and a game that logs a finished job (with a window and a save round trip) and a declined one.
+
+Not built: the log is not written to disk beyond the save (the last 60 only), a job's page faults are the machine's during the run (not its own when several run), and the readings are text rather than a chart over time.
+
 ## Reading the code
 A card for a job that has been met has tabs (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/highlight.ts`):
 
@@ -43,4 +62,4 @@ A **sandbox** game has the whole almanac open: every job (except the planned one
 
 `jobcode.test.ts` runs every job's program (it halts, shows its text, and its counts add up to the instructions run) and checks that the jobs differ in what they lean on; `highlight.test.ts` checks the colouring and that the pieces always join back to the text.
 
-Not built: the C++ and Python versions are written by hand, not compiled from or checked against the program (the assembly is the program), a side-by-side of a line of C++ with the instructions it became, per-run detail (which hardware limited a real run), tips that react to the machine, and entries for the sub-kinds of the GPU and NPU jobs.
+Not built: the C++ and Python versions are written by hand, not compiled from or checked against the program (the assembly is the program), a side-by-side of a line of C++ with the instructions it became, tips that react to the machine, and entries for the sub-kinds of the GPU and NPU jobs.
