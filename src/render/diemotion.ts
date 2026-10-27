@@ -1,5 +1,7 @@
 import type { Block, CpuPlan, Link, Pt } from './cpuplan';
-import type { TraceSnap } from '../sim/game/pipesnap';
+import { Ev, Which } from '../sim/engines/common';
+import { REG_NAMES } from '../sim/isa';
+import type { CacheSnap, StoredSnap, TraceSnap } from '../sim/game/pipesnap';
 
 // How the die moves (docs/DIE.md "Motion"). Pure geometry and timing, no Pixi, so it is testable.
 //
@@ -183,6 +185,90 @@ export class Hosts {
   get exit(): Block | undefined { return this.first('regfile'); }
 }
 
+// ---------------------------------------------------------------- what is stored, rewound and replayed
+
+/** A cache as the replay shows it: the line in each slot at the cycle being shown, and the words of the lines whose words are known. */
+export interface CacheView {
+  lines: number; ways: number; lineBytes: number;
+  tags: number[];
+  /** Words of a line (by line number), as RAM held them at the snapshot. Unknown for a line that came and went inside the window. */
+  words: Map<number, number[]>;
+  /** The replay clock (window * 1000 + cycle shown) of the last hit or fill of each slot, -1 never. */
+  hitAt: number[];
+  fillAt: number[];
+}
+
+/** One write the machine did (see `Ev`). */
+export interface StoreEvent { cycle: number; kind: number; a: number; b: number; c: number; d: number }
+
+function cacheView(c: CacheSnap): CacheView {
+  const words = new Map<number, number[]>();
+  const per = c.lineBytes / 4;
+  c.tags.forEach((t, slot) => { if (t >= 0) words.set(t, c.words.slice(slot * per, slot * per + per)); });
+  return { lines: c.lines, ways: c.ways, lineBytes: c.lineBytes, tags: c.tags.slice(), words, hitAt: new Array(c.lines).fill(-1), fillAt: new Array(c.lines).fill(-1) };
+}
+
+/**
+ * The register file, the cache lines and the predictor counters of the cycle being replayed: the snapshot's state is the end of the window, so
+ * the window's writes are undone (newest first) to get the state at its start, and applied again cycle by cycle as the replay passes them.
+ */
+export class StoreReplay {
+  regs: number[];
+  regAt: number[];
+  readAt: number[];
+  d: CacheView; i?: CacheView; l2?: CacheView;
+  pred: { entries: number; bits: number; table: number[]; at: number[] };
+  readonly events: StoreEvent[] = [];
+  private byCycle = new Map<number, StoreEvent[]>();
+
+  constructor(st: StoredSnap) {
+    this.regs = st.regs.slice();
+    this.regAt = new Array(this.regs.length).fill(-1);
+    this.readAt = new Array(this.regs.length).fill(-1);
+    this.d = cacheView(st.d);
+    if (st.i) this.i = cacheView(st.i);
+    if (st.l2) this.l2 = cacheView(st.l2);
+    this.pred = { entries: st.pred.entries, bits: st.pred.bits, table: st.pred.table.slice(), at: new Array(st.pred.entries).fill(-1) };
+    for (let k = 0; k < st.events.length; k += 6) {
+      const e = { cycle: st.events[k]!, kind: st.events[k + 1]!, a: st.events[k + 2]!, b: st.events[k + 3]!, c: st.events[k + 4]!, d: st.events[k + 5]! };
+      this.events.push(e);
+      const l = this.byCycle.get(e.cycle);
+      if (l) l.push(e); else this.byCycle.set(e.cycle, [e]);
+    }
+    for (let k = this.events.length - 1; k >= 0; k--) this.apply(this.events[k]!, true, -1);
+  }
+
+  private cache(which: number): CacheView | undefined { return which === Which.D ? this.d : which === Which.I ? this.i : this.l2; }
+
+  private apply(e: StoreEvent, undo: boolean, at: number): void {
+    switch (e.kind) {
+      case Ev.Reg: this.regs[e.a] = undo ? e.c : e.b; if (!undo) this.regAt[e.a] = at; break;
+      case Ev.Fill: { const c = this.cache(e.a); if (c) { c.tags[e.b] = undo ? e.d : e.c; if (!undo) c.fillAt[e.b] = at; } break; }
+      case Ev.Hit: { const c = this.cache(e.a); if (c && !undo) c.hitAt[e.b] = at; break; }
+      case Ev.Pred: this.pred.table[e.a] = undo ? e.c : e.b; if (!undo) this.pred.at[e.a] = at; break;
+    }
+  }
+
+  /** The writes of engine cycle `cycle` happen now (`at` is the replay clock). Returns them. */
+  step(cycle: number, at: number): StoreEvent[] {
+    const l = this.byCycle.get(cycle) ?? [];
+    for (const e of l) this.apply(e, false, at);
+    return l;
+  }
+}
+
+/** The registers an instruction reads, by its disassembly ("sw a2, 4(s0)" reads a2 and s0; "add a1, a1, a0" reads a1 and a0). */
+export function regsRead(text: string): number[] {
+  const sp = text.indexOf(' ');
+  if (sp < 0) return [];
+  const op = text.slice(0, sp);
+  const names = text.slice(sp + 1).split(/[\s,()]+/).filter((x) => x && (REG_NAMES as readonly string[]).includes(x));
+  const idx = names.map((n) => (REG_NAMES as readonly string[]).indexOf(n));
+  const noDest = op === 'sw' || op === 'sb' || op[0] === 'b' || op === 'ecall' || op === 'iret';
+  const out = noDest ? idx : idx.slice(1);
+  return [...new Set(out)].filter((r) => r !== 0);
+}
+
 // ---------------------------------------------------------------- the replay
 
 export interface ChipState {
@@ -207,11 +293,21 @@ export interface BeatEvent {
   lane: number;
   op: string;
   id: number;
+  /** The engine cycle of the beat, the instruction's disassembly and pc. */
+  cycle: number;
+  text: string;
+  pc: number;
+  /** Cycles the instruction stays in this stage (counted from this beat to the end of the window at most). */
+  dwell: number;
   /** An in-order instruction that stays in M for more than one cycle: a data cache miss. */
   miss: boolean;
 }
 
 export interface Frame {
+  /** What is stored at the cycle shown (null without a stored state). */
+  store: StoreReplay | null;
+  /** The writes of the cycles this update crossed (they have just happened). */
+  applied: StoreEvent[];
   /** Cycles into the current window (fractional). */
   tau: number;
   chips: ChipState[];
@@ -227,12 +323,12 @@ export interface Frame {
   cycle: number;
 }
 
-interface PreparedRow { id: number; op: string; text: string; codes: string; lanes: number[] }
-interface Window { seq: number; end: number; n: number; rows: PreparedRow[] }
+interface PreparedRow { id: number; pc: number; op: string; text: string; codes: string; lanes: number[] }
+interface Window { seq: number; end: number; n: number; rows: PreparedRow[]; store: StoreReplay | null }
 
-function prepare(seg: TraceSnap, seq: number): Window {
+function prepare(seg: TraceSnap, seq: number, stored?: StoredSnap): Window {
   // lane of an instruction in a stage: its rank among the instructions in that stage that cycle, oldest first
-  const rows: PreparedRow[] = seg.rows.map((r) => ({ id: r.id, op: r.text.split(' ')[0] ?? '', text: r.text, codes: r.codes, lanes: new Array<number>(r.codes.length).fill(0) }));
+  const rows: PreparedRow[] = seg.rows.map((r) => ({ id: r.id, pc: r.pc ?? 0, op: r.text.split(' ')[0] ?? '', text: r.text, codes: r.codes, lanes: new Array<number>(r.codes.length).fill(0) }));
   for (let k = 0; k < seg.n; k++) {
     const seen = new Map<string, number>();
     for (const r of rows) {
@@ -243,7 +339,7 @@ function prepare(seg: TraceSnap, seq: number): Window {
       r.lanes[k] = lane;
     }
   }
-  return { seq, end: seg.end, n: seg.n, rows };
+  return { seq, end: seg.end, n: seg.n, rows, store: stored ? new StoreReplay(stored) : null };
 }
 
 export class Player {
@@ -262,12 +358,12 @@ export class Player {
   }
 
   /** A new snapshot's trace. Only the newest waiting window is kept: the replay is a sample of the run, not all of it. */
-  push(seg: TraceSnap | undefined): void {
+  push(seg: TraceSnap | undefined, stored?: StoredSnap): void {
     if (!seg || seg.rows.length === 0) return;
     if (this.cur && seg.end === this.cur.end) return;
     if (this.pending && seg.end === this.pending.end) return;
     if (this.cur && seg.end < this.cur.end - 1000) { this.cur = null; this.pending = null; } // a new attempt: the cycles started over
-    this.pending = prepare(seg, ++this.seq);
+    this.pending = prepare(seg, ++this.seq, stored);
   }
 
   /** Forget everything (the machine was reset or the plan changed). */
@@ -278,6 +374,7 @@ export class Player {
     const dt = this.lastNow ? Math.max(0, Math.min(0.25, (now - this.lastNow) / 1000)) : 0;
     this.lastNow = now;
     const beats: BeatEvent[] = [];
+    const applied: StoreEvent[] = [];
     let tick = false;
     if (!this.cur && this.pending) { this.cur = this.pending; this.pending = null; this.tau = 0; this.lastShown = -1; }
     if (this.cur) {
@@ -293,14 +390,18 @@ export class Player {
       const t = Math.min(this.tau, this.cur.n - 1);
       // beats: every integer boundary passed since the last update (the first frame of a window counts its start)
       const k0 = this.lastShown < 0 ? 0 : Math.floor(this.lastShown) + 1;
-      for (let k = k0; k <= Math.floor(t); k++) { beats.push(...this.beatsAt(this.cur, k)); tick = true; }
+      for (let k = k0; k <= Math.floor(t); k++) {
+        beats.push(...this.beatsAt(this.cur, k));
+        tick = true;
+        if (this.cur.store) applied.push(...this.cur.store.step(this.cur.end - this.cur.n + 1 + k, this.cur.seq * 1000 + k));
+      }
       this.lastShown = Math.max(this.lastShown, Math.floor(t));
       void before;
     }
     const fadeT = clamp01((now - this.fadeFrom) / (FADE_S * 1000));
     const fading = fadeT < 1 ? this.fadeChips.map((c) => ({ ...c, alpha: c.alpha * (1 - fadeT) })) : [];
     const w = this.cur;
-    return { tau: this.tau, chips: w ? this.chipsAt(w, Math.min(this.tau, w.n - 1)) : [], fading, beats, tick, window: w?.seq ?? 0, cycle: w ? w.end - w.n + 1 + Math.floor(Math.min(this.tau, w.n - 1)) : 0 };
+    return { store: w?.store ?? null, applied, tau: this.tau, chips: w ? this.chipsAt(w, Math.min(this.tau, w.n - 1)) : [], fading, beats, tick, window: w?.seq ?? 0, cycle: w ? w.end - w.n + 1 + Math.floor(Math.min(this.tau, w.n - 1)) : 0 };
   }
 
   /** What every instruction is doing at the cycle being shown: its stage code. Oldest first. */
@@ -321,9 +422,10 @@ export class Player {
       if (a === ' ') continue;
       const prev = k > 0 ? r.codes[k - 1]! : ' ';
       if (a === prev) continue;
-      let miss = false;
-      if (a === 'M' && !this.hosts.ooo) { let j = k; while (j < w.n && r.codes[j] === 'M') j++; miss = j - k > 1; }
-      out.push({ to: a, lane: r.lanes[k]!, op: r.op, id: r.id, miss });
+      let j = k;
+      while (j < w.n && r.codes[j] === a) j++;
+      const dwell = j - k;
+      out.push({ to: a, lane: r.lanes[k]!, op: r.op, id: r.id, miss: a === 'M' && !this.hosts.ooo && dwell > 1, dwell, cycle: w.end - w.n + 1 + k, text: r.text, pc: r.pc });
     }
     return out;
   }
@@ -394,57 +496,92 @@ export class Player {
 
 // ---------------------------------------------------------------- packets: the data that moves with the instructions
 
-export interface PacketPlan { link: Link; reverse: boolean; delay: number; color: 'alu' | 'ld' | 'st' | 'mul' | 'br' | 'bad' | 'mute' }
+export interface PacketPlan { link: Link; reverse: boolean; delay: number; color: 'inst' | 'bad' | 'mute' }
 
-/** The packets a beat sends along the wires: operands read from the registers, a load asking memory and the data coming back, a result written back. `delay` is in cycles. */
-export function packetsFor(plan: CpuPlan, ev: BeatEvent): PacketPlan[] {
+/** The writes the die has just seen, of the beat's cycle, by kind. */
+export interface BeatContext { events: StoreEvent[] }
+
+/**
+ * The packets a beat sends along the wires, coloured by the instruction that causes them (`inst`): its address going out to memory and the
+ * instruction word coming back from RAM through the memory controller and the system bus (through the L2 and the instruction cache when
+ * the CPU has them), operands read from the registers, a load asking the data cache and the data coming back (from RAM on a miss), a store
+ * writing through to RAM, a result written back. `delay` is in cycles after the beat.
+ */
+export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { events: [] }): PacketPlan[] {
   const out: PacketPlan[] = [];
-  const add = (a: string, b: string, delay: number, color: PacketPlan['color'], kinds?: readonly string[]) => {
-    const l = linkBetween(plan, a, b, kinds);
-    if (l) out.push({ ...l, delay, color });
+  const has = (id: string) => plan.blocks.some((b) => b.id === id);
+  /** Packets along a chain of blocks, each hop `step` cycles after the last; blocks the die lacks are skipped. */
+  const chain = (ids: string[], delay: number, color: PacketPlan['color'] = 'inst', step = 0.3, kinds?: readonly string[]) => {
+    const list = ids.filter(has).filter((x, i, all) => i === 0 || x !== all[i - 1]);
+    for (let i = 1; i < list.length; i++) {
+      const l = linkBetween(plan, list[i - 1]!, list[i]!, kinds);
+      if (l) out.push({ ...l, delay: delay + (i - 1) * step, color });
+    }
   };
   const cls = opClass(ev.op);
   const ooo = plan.arch === 'ooo';
   const unit = (id: number) => (cls === 'mul' ? 'mul' : cls === 'ld' || cls === 'st' ? 'lsu' : id % 2 ? 'alu1' : 'alu0');
-  const fabric = plan.blocks.some((b) => b.id === 'fabric');
-  const dec = (lane: number) => (plan.blocks.some((b) => b.id === 'dec') ? 'dec' : `dec${lane}`);
+  const dec = (lane: number) => (has('dec') ? 'dec' : `dec${lane}`);
+  const at = (kind: number, which: number) => ctx.events.some((e) => e.kind === kind && e.a === which);
+  const hasL2 = has('l2');
   switch (ev.to) {
     case 'F':
-      add('pc', 'fetch', 0, 'alu');
-      if (plan.blocks.some((b) => b.id === 'ic')) { add('fetch', 'ic', 0.2, 'ld'); add('ic', 'fetch', 0.6, 'ld'); } else if (fabric) add('fetch', 'fabric', 0.2, 'ld');
+      chain(['pc', 'fetch'], 0);
+      if (has('ic')) {
+        if (at(Ev.Fill, Which.I)) {
+          chain(['fetch', 'ic', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.1, 'mute', 0.25);
+          chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'ic', 'fetch'], 1.0, 'inst', 0.3);
+        } else if (hasL2 && at(Ev.Hit, Which.L2)) chain(['l2', 'ic', 'fetch'], 0.2);
+        else chain(['ic', 'fetch'], 0.2);
+      } else {
+        chain(['fetch', 'fabric', 'mc'], 0.1, 'mute', 0.2);
+        chain(['mc', 'fabric', 'fetch'], 0.6, 'inst', 0.3);
+      }
       break;
     case 'D':
-      add(dec(ev.lane), 'rf', 0, 'st');
-      add('rf', dec(ev.lane), 0.4, 'st');
-      if (ooo) add(dec(ev.lane), 'rat', 0.3, 'alu');
+      chain(['rf', dec(ev.lane)], 0.1);
+      if (ooo) chain([dec(ev.lane), 'rat'], 0.4);
       break;
     case 'X':
-      if (!ooo) { add('rf', 'lat1', 0, 'st'); if (cls === 'br') add('lat1', 'br', 0.3, 'br'); }
-      else add('sched', unit(ev.id), 0, cls === 'mul' ? 'mul' : 'alu');
+      if (!ooo) {
+        chain(['rf', 'lat1'], 0.1);
+        if (cls === 'br') chain(['lat1', 'br'], 0.4);
+      } else {
+        chain(['sched', unit(ev.id)], 0);
+        if (cls === 'ld') memAccess(0.3, ev.dwell > 2);
+        else if (cls === 'st') chain(['lsu', 'dc'], 0.3);
+      }
       break;
     case 'M':
-      if (cls === 'ld') { add('lsu', 'dc', 0, 'ld'); add('dc', 'lsu', 0.5, 'ld'); } else if (cls === 'st') add('lsu', 'dc', 0, 'st');
-      if (ev.miss) {
-        const l2 = plan.blocks.some((b) => b.id === 'l2');
-        if (l2) { add('dc', 'l2', 0.3, 'ld'); add('l2', 'fabric', 0.7, 'ld'); } else add('dc', 'fabric', 0.3, 'ld');
-        add('fabric', 'mc', 1.1, 'ld');
+      if (cls === 'ld') memAccess(0, ev.miss, Math.max(0, ev.dwell - 1));
+      else if (cls === 'st') {
+        chain(['lsu', 'dc'], 0);
+        chain(['dc', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], 0.4, 'inst', 0.25);
       }
       break;
     case 'W':
-      add('wb', 'rf', 0, 'st');
+      chain(['wb', 'rf'], 0);
       break;
     case 'S':
-      add('disp', 'sched', 0, 'alu'); add('disp', 'rob', 0.1, 'mul');
+      chain(['disp', 'sched'], 0); chain(['disp', 'rob'], 0.1);
       break;
     case 'R':
-      add(unit(ev.id), 'bus', 0, 'mul'); add('bus', 'rob', 0.4, 'mul'); add('bus', 'sched', 0.4, 'mul', ['wakeup']);
+      chain([unit(ev.id), 'bus'], 0); chain(['bus', 'rob'], 0.4); chain(['bus', 'sched'], 0.4, 'inst', 0.3, ['wakeup']);
       break;
     case 'C':
-      add('rob', 'rf', 0, 'st');
+      chain(['rob', 'rf'], 0);
       break;
     case 'x':
-      add('br', 'npc', 0, 'bad', ['flush']); add('bus', 'npc', 0, 'bad', ['flush']);
+      chain(['br', 'npc'], 0, 'bad', 0.3, ['flush']); chain(['bus', 'npc'], 0, 'bad', 0.3, ['flush']);
       break;
   }
   return out;
+
+  /** A load: the address goes to the data cache; on a hit the word comes straight back, on a miss the line comes from RAM through the bus (and the L2). */
+  function memAccess(delay: number, miss: boolean, wait = 0) {
+    chain(['lsu', 'dc'], delay);
+    if (!miss) { chain(['dc', 'lsu'], delay + 0.5); return; }
+    chain(['dc', hasL2 ? 'l2' : 'fabric', 'fabric', 'mc'], delay + 0.3, 'mute', 0.25);
+    chain(['mc', 'fabric', hasL2 ? 'l2' : 'fabric', 'dc', 'lsu'], delay + 1 + wait * 0.6, 'inst', 0.3);
+  }
 }

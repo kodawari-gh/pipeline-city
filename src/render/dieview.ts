@@ -1,19 +1,30 @@
 import { Container, Graphics, Text } from 'pixi.js';
+import { disassemble } from '../sim/isa';
+import { Ev } from '../sim/engines/common';
 import type { Snapshot } from '../sim/protocol';
 import type { Block, CpuPlan, Pt, Rect } from './cpuplan';
 import { cellRects, dieNear, offsetPts, LANE_GAP, type DieArt } from './dieart';
-import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, type ChipState, type PacketPlan } from './diemotion';
+import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from './ink';
 import type { Theme } from './theme';
 
-// The CPU die in motion (docs/DIE.md "Motion"). It draws the near layer of the die (traces, cell arrays, names; `dieart.ts`) faded in by
-// zoom, and plays back the engine's recent cycles in slow motion (`diemotion.ts`): instruction chips glide from block to block along the
-// die's own wires, packets of data run along the links they use (operands from the registers, a load asking the cache and the data coming
-// back, a result written back), the block an instruction is in glows while it is there, the clock beats once per cycle. The out-of-order
-// structures (fetch queue, scheduler, reorder buffer) are cells that change colour as instructions move through them.
+// The CPU die in motion (docs/DIE.md "Motion" and "What is stored"). It draws the near layer of the die (traces, cell arrays, names;
+// `dieart.ts`) faded in by zoom, and plays back the engine's recent cycles in slow motion (`diemotion.ts`):
+//  - instruction chips glide from block to block along the die's own wires, and everything that moves because of an instruction is
+//    painted in the colour of its class (arithmetic, multiply, load, store, branch): the address going out to memory, the instruction
+//    word coming back from RAM, the operands read from the registers, the data of a load, the result written back; the wire stays lit
+//    behind it for a moment, so the path an instruction took can be read off the die;
+//  - the register file, the cache lines and the predictor counters show what they hold, and change when the replay writes them;
+//  - blocks glow while an instruction is in them, the clock beats once per cycle.
+// A snapshot is a sampled instant: the replay is a slow-motion sample of the run.
 
 const CHIP_W = 156, CHIP_H = 78;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
+/** How long a wire stays lit behind a packet (ms). */
+const TRAIL_MS = 1500;
+
+/** What the memory sticks should show: the CPU asked RAM for an address (a fetch, a load, a store), `at` is game time in ms. */
+export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number }
 
 class Chip {
   readonly c = new Container();
@@ -48,57 +59,97 @@ class Chip {
 /** The scale a chip has in a block: it fits inside it. */
 const fitOf = (r: Rect) => Math.max(0.3, Math.min(1, (r.w - 12) / CHIP_W, (r.h - 22) / CHIP_H));
 
-/** The cell text of an out-of-order structure (ROB, scheduler, queues): a pool, one per cell. */
+/** Texts of the cells of a structure: a pool, one or two lines per cell, set only when the string changes. */
 class CellTexts {
-  private texts: Text[] = [];
+  private a: Text[] = [];
+  private b: Text[] = [];
   constructor(private layer: Container) {}
-  set(i: number, str: string, r: Rect, color: string) {
-    let t = this.texts[i];
+  private text(list: Text[], i: number, bold: boolean): Text {
+    let t = list[i];
     if (!t) {
-      t = new Text({ text: '', style: { fontFamily: MONO, fontSize: 20, fontWeight: '700', fill: color }, resolution: 2 });
+      t = new Text({ text: '', style: { fontFamily: MONO, fontSize: 20, fontWeight: bold ? '700' : '500', fill: '#fff' }, resolution: 2 });
       t.anchor.set(0.5);
-      this.texts[i] = t;
+      list[i] = t;
       this.layer.addChild(t);
     }
+    return t;
+  }
+  private put(t: Text, str: string, x: number, y: number, size: number, color: string) {
     t.visible = str !== '';
     if (!str) return;
-    t.text = str; t.style.fill = color;
-    t.position.set(r.x + r.w / 2, r.y + r.h / 2);
-    t.scale.set(Math.min(1, (r.w - 4) / Math.max(1, str.length * 12.5), (r.h - 2) / 24));
+    if (t.text !== str) t.text = str;
+    if (t.style.fill !== color) t.style.fill = color;
+    t.position.set(x, y);
+    t.scale.set(size / 20);
   }
-  hideFrom(n: number) { for (let i = n; i < this.texts.length; i++) if (this.texts[i]) this.texts[i]!.visible = false; }
-  clear() { for (const t of this.texts) t?.destroy(); this.texts = []; }
+  /** One line (the mnemonic of a queue entry) or two (a name above, a value below) in the cell `r`. */
+  set(i: number, top: string, bottom: string, r: Rect, color: string) {
+    const cx = r.x + r.w / 2, fit = (s: string, k: number) => Math.min(k, (r.w - 4) / Math.max(1, s.length * 0.62));
+    if (r.h < 14 || r.w < 18) { this.hide(i); return; }
+    if (bottom === '') {
+      this.put(this.text(this.a, i, true), top, cx, r.y + r.h / 2, Math.min(fit(top, 20), r.h * 0.6), color);
+      if (this.b[i]) this.b[i]!.visible = false;
+      return;
+    }
+    const s = Math.min(r.h * 0.3, 15);
+    this.put(this.text(this.a, i, false), top, cx, r.y + r.h * 0.3, Math.min(fit(top, s), s), color);
+    this.put(this.text(this.b, i, true), bottom, cx, r.y + r.h * 0.68, Math.min(fit(bottom, s * 1.15), s * 1.15), color);
+  }
+  hide(i: number) { if (this.a[i]) this.a[i]!.visible = false; if (this.b[i]) this.b[i]!.visible = false; }
+  hideFrom(n: number) { for (let i = n; i < Math.max(this.a.length, this.b.length); i++) this.hide(i); }
+  clear() { for (const t of [...this.a, ...this.b]) t?.destroy(); this.a = []; this.b = []; }
 }
 
 /** A packet of data running along a link. */
 interface Packet { lines: Pt[][]; len: number; t0: number; dur: number; color: string }
+/** A wire lit by a packet that has gone along it. */
+interface Trail { lines: Pt[][]; t0: number; color: string }
 
 const lengthOf = (pts: Pt[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
+
+const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
+/** A register or memory value in a few characters. */
+export function showValue(v: number): string {
+  if (v >= -999 && v <= 99999) return String(v);
+  return '0x' + hex(v);
+}
+
+const CLASS_LABEL: [OpClass, string][] = [['alu', 'ARITHMETIC'], ['mul', 'MULTIPLY'], ['ld', 'LOAD'], ['st', 'STORE'], ['br', 'BRANCH']];
 
 export class DieView {
   readonly root = new Container();
   private plan: CpuPlan | null = null;
   private art: DieArt | null = null;
   private glowG = new Graphics();
+  private dataG = new Graphics();
+  private dataTexts = new Container();
   private cellLive = new Graphics();
   private texts = new Container();
+  private trailG = new Graphics();
   private packetG = new Graphics();
   private chipLayer = new Container();
+  private legend = new Container();
   private chips = new Map<string, Chip>();
   private free: Chip[] = [];
   private cellTexts = new Map<string, CellTexts>();
   private player: Player | null = null;
   private byId = new Map<string, Block>();
   private packets: Packet[] = [];
+  private trails = new Map<string, Trail>();
   private glow = new Map<string, { v: number; color: string }>();
   private flash = { miss: -1e9, retire: -1e9, result: -1e9, flush: -1e9, clock: -1e9 };
-  private lastCounters = -1;
+  private regWrite: number[] = [];
+  private regRead: number[] = [];
+  private running = false;
   private z = 1;
   private cellSig = '';
+  private dataSig = '';
+  /** Told every time the CPU reaches out to RAM, for the memory sticks (set by board.ts). */
+  onMemory: ((e: MemoryTouch) => void) | null = null;
   T!: Theme;
 
   constructor() {
-    this.root.addChild(this.glowG, this.cellLive, this.texts, this.packetG, this.chipLayer);
+    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.texts, this.trailG, this.packetG, this.chipLayer, this.legend);
   }
 
   /** Build (or rebuild, on a theme change) the near layer of a plan. */
@@ -114,9 +165,31 @@ export class DieView {
     this.byId = new Map(plan.blocks.map((b) => [b.id, b]));
     this.player = new Player(plan);
     this.packets = [];
+    this.trails.clear();
     this.glow.clear();
-    this.cellSig = '';
+    this.regWrite = []; this.regRead = []; this.slotTime.clear();
+    this.cellSig = ''; this.dataSig = '';
+    this.buildLegend(T, plan);
     this.setZoom(this.z);
+  }
+
+  /** The colour key under the die: what each colour of chip, packet and lit wire means. */
+  private buildLegend(T: Theme, plan: CpuPlan) {
+    for (const c of this.legend.removeChildren()) c.destroy({ children: true });
+    const g = new Graphics();
+    this.legend.addChild(g);
+    let x = plan.die.x + 40;
+    const y = plan.die.y + plan.die.h + 62;
+    for (const [cls, name] of CLASS_LABEL) {
+      g.roundRect(x, y - 9, 18, 18, 5).fill({ color: T[cls as 'alu'] });
+      const t = new Text({ text: name, style: { fontFamily: MONO, fontSize: 18, fontWeight: '700', fill: T.mute }, resolution: 2 });
+      t.anchor.set(0, 0.5); t.position.set(x + 28, y);
+      this.legend.addChild(t);
+      x += 28 + name.length * 11.5 + 30;
+    }
+    const note = new Text({ text: 'THE COLOUR OF AN INSTRUCTION FOLLOWS IT THROUGH THE CHIP', style: { fontFamily: MONO, fontSize: 16, fill: T.mute }, resolution: 2 });
+    note.anchor.set(0, 0.5); note.position.set(x + 20, y); note.alpha = 0.7;
+    this.legend.addChild(note);
   }
 
   /** No CPU in the socket. */
@@ -124,10 +197,14 @@ export class DieView {
     this.plan = null;
     this.player = null;
     this.dropChips();
+    for (const ct of this.cellTexts.values()) ct.clear();
+    this.cellTexts.clear();
     this.art?.root.destroy({ children: true });
     this.art = null;
-    this.glowG.clear(); this.cellLive.clear(); this.packetG.clear();
+    for (const c of this.legend.removeChildren()) c.destroy({ children: true });
+    this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.packetG.clear(); this.trailG.clear();
     this.packets = [];
+    this.trails.clear();
   }
 
   private dropChips() {
@@ -135,16 +212,20 @@ export class DieView {
     this.chips.clear();
   }
 
-  /** Levels of detail: wires from about 0.7, cell arrays from 0.8, the second line of a block from 1.2. */
+  /** Levels of detail: wires from about 0.7, cell arrays from 0.8, what they hold and the second line of a block from 1.2. */
   setZoom(z: number) {
     this.z = z;
     if (!this.art) return;
     this.art.wires.visible = z >= 0.7;
     this.art.cells.visible = z >= 0.8;
     this.cellLive.visible = z >= 0.8;
+    this.dataG.visible = z >= 0.8;
     this.texts.visible = z >= 0.8;
+    this.dataTexts.visible = z >= 0.85;
     this.art.subs.visible = z >= 1.2;
     this.packetG.visible = z >= 0.6;
+    this.trailG.visible = z >= 0.6;
+    this.legend.visible = z >= 0.5;
   }
 
   private take(): Chip {
@@ -158,28 +239,31 @@ export class DieView {
     this.free.push(c);
   }
 
-  /** A new snapshot: its trace joins the replay; nothing is drawn here (frame() draws). */
+  /** A new snapshot: its trace and stored state join the replay; nothing is drawn here (frame() draws). */
   update(s: Snapshot | null, _simple: boolean, _now: number) {
     if (!this.plan || !this.player) return;
     const pipe = s?.pipe ?? null;
     if (!pipe || !pipe.trace) {
       // no machine running: the replay stops and the chips go
-      if (this.lastCounters !== 0) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.lastCounters = 0; }
+      if (this.running) { this.player.reset(); this.dropChips(); this.cellSig = ''; this.dataSig = ''; this.running = false; }
       return;
     }
-    this.lastCounters = 1;
-    this.player.push(pipe.trace);
+    this.running = true;
+    this.player.push(pipe.trace, pipe.stored);
   }
 
-  private send(plan: CpuPlan, pk: PacketPlan[], now: number) {
+  private colorOf(cls: OpClass): string { return cls === 'sys' ? this.T.mute : this.T[cls]; }
+
+  private send(pk: PacketPlan[], now: number, cls: OpClass) {
     const T = this.T;
     for (const p of pk) {
       const pts = p.reverse ? [...p.link.pts].reverse() : p.link.pts;
       const lines = Array.from({ length: p.link.lanes }, (_, k) => offsetPts(pts, (k - (p.link.lanes - 1) / 2) * LANE_GAP));
-      const color = p.color === 'bad' ? T.bad : T[p.color];
-      this.packets.push({ lines, len: lengthOf(pts), t0: now + p.delay * CYCLE_MS, dur: CYCLE_MS * 1.1, color });
+      const color = p.color === 'bad' ? T.bad : p.color === 'mute' ? mix(T.mute, this.colorOf(cls), 0.45) : this.colorOf(cls);
+      const t0 = now + p.delay * CYCLE_MS;
+      this.packets.push({ lines, len: lengthOf(pts), t0, dur: CYCLE_MS * 1.1, color });
+      this.trails.set(p.link.id, { lines: Array.from({ length: p.link.lanes }, (_, k) => offsetPts(p.link.pts, (k - (p.link.lanes - 1) / 2) * LANE_GAP)), t0: t0 + CYCLE_MS * 0.6, color });
     }
-    void plan;
   }
 
   /** The chip of a state, placed and looked. */
@@ -188,7 +272,7 @@ export class DieView {
     let chip = this.chips.get(st.key);
     if (!chip) { chip = this.take(); this.chips.set(st.key, chip); }
     const cls = opClass(st.op);
-    chip.look(T, { text: st.op.toUpperCase(), sub: st.text.slice(st.op.length + 1).slice(0, 17), color: cls === 'sys' ? T.mute : T[cls], stalled: st.stalled, bad: st.flushed });
+    chip.look(T, { text: st.op.toUpperCase(), sub: st.text.slice(st.op.length + 1).slice(0, 17), color: this.colorOf(cls), stalled: st.stalled, bad: st.flushed });
     const host = this.byId.get(st.host);
     const fit = host ? fitOf(host.rect) : 0.6;
     chip.c.position.set(st.x, st.y + 6);
@@ -204,17 +288,29 @@ export class DieView {
     const T = this.T;
     const fr = player.update(now);
 
-    // beats: packets on the wires, flashes
+    // beats: packets on the wires, flashes, reads of the register file, the memory sticks told
+    const byCycle = new Map<number, StoreEvent[]>();
+    for (const e of fr.applied) { const l = byCycle.get(e.cycle); if (l) l.push(e); else byCycle.set(e.cycle, [e]); }
+    for (const e of fr.applied) {
+      if (e.kind === Ev.Reg) this.regWrite[e.a] = now;
+      else if (e.kind === Ev.Hit || e.kind === Ev.Fill) this.slotTime.set(WHICH[e.a]! + e.b, now);
+      else if (e.kind === Ev.Pred) this.slotTime.set('p' + e.a, now);
+    }
     for (const ev of fr.beats) {
-      this.send(plan, packetsFor(plan, ev), now);
+      const events = byCycle.get(ev.cycle) ?? [];
+      const cls = opClass(ev.op);
+      this.send(packetsFor(plan, ev, { events }), now, cls);
+      if (ev.to === 'D') for (const r of regsRead(ev.text)) this.regRead[r] = now + CYCLE_MS * 0.1;
       if (ev.to === 'M' && ev.miss) this.flash.miss = now;
       if (ev.to === 'W' || ev.to === 'C') this.flash.retire = now;
       if (ev.to === 'R') this.flash.result = now;
       if (ev.to === 'x') this.flash.flush = now;
+      this.touchMemory(ev, events, now, cls);
     }
     if (fr.tick) {
       this.flash.clock = now;
-      this.send(plan, [clockPacket(plan)].filter((x): x is PacketPlan => !!x), now);
+      const l = plan.links.find((x) => x.id === 'clk-core');
+      if (l) this.send([{ link: l, reverse: false, delay: 0, color: 'mute' }], now, 'sys');
     }
 
     // chips
@@ -227,8 +323,7 @@ export class DieView {
     const want = new Map<string, string>();
     for (const c of fr.chips) {
       if (c.alpha < 0.5) continue;
-      const cls = opClass(c.op);
-      want.set(c.host, c.flushed ? T.bad : cls === 'sys' ? T.mute : T[cls]);
+      want.set(c.host, c.flushed ? T.bad : this.colorOf(opClass(c.op)));
     }
     for (const [id, color] of want) this.glow.set(id, { v: Math.min(1, (this.glow.get(id)?.v ?? 0) + 0.2), color });
     for (const [id, g] of this.glow) if (!want.has(id)) { g.v *= 0.9; if (g.v < 0.02) this.glow.delete(id); }
@@ -238,20 +333,49 @@ export class DieView {
       const b = this.byId.get(id);
       if (b) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: g.color, fa: 0.16 * g.v, stroke: g.color, lw: 2.5, sa: 0.55 * g.v });
     }
-    // event flashes
     const fl = (t: number, ms: number) => Math.max(0, 1 - (now - t) / ms);
     const hot = (b: Block | undefined, k: number, color: string, w = 4) => { if (b && k > 0) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: color, fa: k * 0.4, stroke: color, lw: w, sa: k }); };
     hot(plan.blocks.find((b) => b.kind === 'dcache'), fl(this.flash.miss, 1400), T.ld);
-    hot(plan.blocks.find((b) => b.kind === 'regfile'), fl(this.flash.retire, 500), T.st, 3);
     hot(plan.blocks.find((b) => b.kind === 'resultbus'), fl(this.flash.result, 450), T.mul, 3);
     hot(plan.blocks.find((b) => b.kind === 'clock'), fl(this.flash.clock, CYCLE_MS * 0.9) * 0.9, T.mute, 2);
     if (fl(this.flash.flush, 900) > 0) hot(plan.blocks.find((b) => b.kind === 'fetch'), fl(this.flash.flush, 900), T.bad, 3);
 
     this.cells(player);
+    this.storage(fr.store, now);
+    this.drawTrails(now);
     this.drawPackets(now);
   }
 
-  /** Packets: a bright head with a short tail running along each line of the bundle. */
+  /** Tell the memory sticks which address the CPU is reaching for (the instruction fetch, the load and the store each have one). */
+  private touchMemory(ev: { to: string; op: string; pc: number; cycle: number; dwell: number }, events: StoreEvent[], now: number, cls: OpClass) {
+    const cb = this.onMemory;
+    if (!cb) return;
+    if (ev.to === 'F') cb({ kind: 'fetch', addr: ev.pc, cls, at: now + CYCLE_MS * 0.6 });
+    const mem = events.find((e) => e.kind === Ev.Mem);
+    if (mem && ((this.plan!.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M') && (cls === 'ld' || cls === 'st'))) {
+      cb({ kind: mem.a === 1 ? 'store' : 'load', addr: mem.b >>> 0, cls, at: now + CYCLE_MS * (mem.a === 1 ? 0.5 : 0.8) });
+    }
+  }
+
+  /** The wires a packet has gone along stay lit in its colour for a moment: the path an instruction took. */
+  private drawTrails(now: number) {
+    const g = this.trailG;
+    g.clear();
+    if (this.z < 0.6) return;
+    for (const [id, t] of this.trails) {
+      const age = now - t.t0;
+      if (age > TRAIL_MS) { this.trails.delete(id); continue; }
+      if (age < 0) continue;
+      const a = 0.85 * (1 - age / TRAIL_MS);
+      for (const line of t.lines) {
+        g.moveTo(line[0]![0], line[0]![1]);
+        for (let i = 1; i < line.length; i++) g.lineTo(line[i]![0], line[i]![1]);
+        g.stroke({ width: 2.6, color: t.color, alpha: a, join: 'round' });
+      }
+    }
+  }
+
+  /** Packets: a bright head with a tail running along each line of the bundle. */
   private drawPackets(now: number) {
     const g = this.packetG;
     g.clear();
@@ -264,38 +388,39 @@ export class DieView {
       const e = u * u * (3 - 2 * u);
       const fade = Math.min(1, u * 8, (1 - u) * 5 + 0.2);
       for (const line of p.lines) {
-        for (let i = 0; i < 4; i++) {
-          const q = pointAt(line, Math.max(0, e - i * 0.03));
-          g.circle(q[0], q[1], 3.4 - i * 0.6).fill({ color: i === 0 ? mix(p.color, T.ink, 0.45) : p.color, alpha: fade * (1 - i * 0.22) });
+        for (let i = 0; i < 6; i++) {
+          const q = pointAt(line, Math.max(0, e - i * 0.025));
+          g.circle(q[0], q[1], 4.6 - i * 0.6).fill({ color: i === 0 ? mix(p.color, T.ink, 0.35) : p.color, alpha: fade * (1 - i * 0.15) });
         }
       }
     }
   }
 
+  private texts_(id: string, used: Set<string>): CellTexts {
+    used.add(id);
+    let ct = this.cellTexts.get(id);
+    if (!ct) { ct = new CellTexts(id.startsWith('data:') ? this.dataTexts : this.texts); this.cellTexts.set(id, ct); }
+    return ct;
+  }
+
   /** The out-of-order structures as cells: the fetch queue, the scheduler and the reorder buffer, from the stage of each instruction in the replay. */
   private cells(player: Player) {
     const plan = this.plan!, T = this.T, g = this.cellLive;
-    if (plan.arch !== 'ooo') { if (this.cellSig !== '-') { g.clear(); for (const ct of this.cellTexts.values()) ct.hideFrom(0); this.cellSig = '-'; } return; }
+    if (plan.arch !== 'ooo') { if (this.cellSig !== '-') { g.clear(); this.cellSig = '-'; } return; }
     const rows = player.now();
     const sig = rows.map((r) => r.id + r.ch).join(',');
     if (sig === this.cellSig) return;
     this.cellSig = sig;
     g.clear();
     const used = new Set<string>();
-    const texts = (id: string) => {
-      used.add(id);
-      let ct = this.cellTexts.get(id);
-      if (!ct) { ct = new CellTexts(this.texts); this.cellTexts.set(id, ct); }
-      return ct;
-    };
     const fq = plan.blocks.find((b) => b.id === 'fq'), sched = plan.blocks.find((b) => b.kind === 'sched'), rob = plan.blocks.find((b) => b.kind === 'rob');
     const fill = (b: Block | undefined, items: { op: string; color: string }[]) => {
       if (!b) return;
-      const cs = cellRects(b), ct = texts(b.id);
+      const cs = cellRects(b), ct = this.texts_(b.id, used);
       cs.forEach((r, k) => {
         const it = items[k];
         if (it) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: it.color, fa: 0.85 });
-        ct.set(k, it?.op ?? '', r, T.on);
+        ct.set(k, it?.op ?? '', '', r, T.on);
       });
     };
     fill(fq, rows.filter((r) => r.ch === 'F').map((r) => ({ op: r.op, color: T.alu })));
@@ -310,12 +435,72 @@ export class DieView {
       const tl = cs[live.length];
       if (tl) box(g, tl.x - 1, tl.y - 1, tl.w + 2, tl.h + 2, 2, { stroke: T.mute, lw: 1.2, sa: 0.8 });
     }
-    for (const [id, ct] of this.cellTexts) if (!used.has(id)) ct.hideFrom(0);
   }
+
+  /** What the register file, the caches and the predictor hold at the cycle being shown; reads and writes flash. */
+  private storage(st: StoreReplay | null, now: number) {
+    const plan = this.plan!, T = this.T, g = this.dataG;
+    g.clear();
+    if (!st) return;
+    const used = new Set<string>();
+    const fade = (t: number, ms: number) => (t < 0 ? 0 : Math.max(0, 1 - (now - t) / ms));
+    const sigParts: string[] = [];
+
+    // the register file: a name and a value in each cell
+    const rf = plan.blocks.find((b) => b.kind === 'regfile');
+    if (rf) {
+      const cs = cellRects(rf), ct = this.texts_('data:rf', used);
+      cs.forEach((r, k) => {
+        const w = fade(this.regWrite[k] ?? -1, 900), rd = fade(this.regRead[k] ?? -1, 600);
+        if (w > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.75 * w });
+        if (rd > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.alu, lw: 3, sa: rd });
+        const v = st.regs[k] ?? 0;
+        if (v !== 0 || k === 0) box(g, r.x + 1, r.y + r.h - 4, Math.max(1, Math.min(r.w - 2, ((Math.abs(v) % 4096) / 4096) * (r.w - 2))), 3, 1, { fill: T.st, fa: 0.5 });
+        const s1 = REG[k] ?? 'x' + k, s2 = showValue(v);
+        sigParts.push(s2);
+        ct.set(k, s1, s2, r, T.ink);
+      });
+    }
+
+    // the caches: the line in each slot (its address and what is in it)
+    const cacheBlock = (kind: string) => plan.blocks.find((b) => b.kind === kind);
+    const drawCache = (id: string, b: Block | undefined, c: CacheView | undefined, content: (words: number[] | undefined) => string, color: string) => {
+      if (!b || !c) return;
+      const cs = cellRects(b), ct = this.texts_('data:' + id, used);
+      cs.forEach((r, k) => {
+        const tag = c.tags[k] ?? -1;
+        if (tag < 0) { ct.hide(k); return; }
+        box(g, r.x, r.y, r.w, r.h, 1.5, { fill: color, fa: 0.3 });
+        const f = fade(this.slotTime.get(id + k) ?? -1, 900);
+        if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: color, fa: 0.7 * f, stroke: T.ink, lw: 2, sa: f });
+        const words = c.words.get(tag);
+        const s2 = content(words);
+        sigParts.push(String(tag) + s2);
+        ct.set(k, '@' + hex(tag * c.lineBytes, 4), s2, r, T.ink);
+      });
+    };
+    drawCache('d', cacheBlock('dcache'), st.d, (w) => (w ? showValue(w[0]!) : '··'), T.ld);
+    drawCache('i', cacheBlock('icache'), st.i, (w) => (w ? (disassemble(w[0]!).split(' ')[0] ?? '') : '··'), T.ld);
+    drawCache('l2', cacheBlock('l2'), st.l2, (w) => (w ? showValue(w[0]!) : '··'), T.ld);
+
+    // the branch predictor: a counter per entry, brighter the more sure it is of "taken"
+    const bp = cacheBlock('predictor');
+    if (bp) {
+      const cs = cellRects(bp), max = st.pred.bits === 2 ? 3 : 1;
+      cs.forEach((r, k) => {
+        const v = st.pred.table[k] ?? 0;
+        if (v > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.br, fa: 0.15 + 0.7 * (v / max) });
+        const f = fade(this.slotTime.get('p' + k) ?? -1, 700);
+        if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: f });
+      });
+    }
+    void sigParts;
+    for (const [id, ct] of this.cellTexts) if (id.startsWith('data:') && !used.has(id)) ct.hideFrom(0);
+  }
+
+  /** The replay clock of the last hit or fill of each cache slot and predictor entry, in game ms (for the flash). */
+  private slotTime = new Map<string, number>();
 }
 
-/** A tick of the clock along its wire. */
-function clockPacket(plan: CpuPlan): PacketPlan | null {
-  const l = plan.links.find((x) => x.id === 'clk-core');
-  return l ? { link: l, reverse: false, delay: 0, color: 'mute' } : null;
-}
+const WHICH = ['d', 'i', 'l2'];
+const REG = ['zero', 'ra', 'sp', 'a0', 'a1', 'a2', 'a3', 't0', 't1', 't2', 't3', 't4', 's0', 's1', 's2', 's3'];
