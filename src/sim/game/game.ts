@@ -11,17 +11,17 @@ import {
   connectCable as boardConnect, createBoard, deviceSpec, disconnectCable as boardDisconnect, engineConfigFor,
   findDevices, freeSlots, getSpec, install, machineConfigFor, noCables, allCables, pruneCables, setClock, slotAccepts,
   ThermalModel, uninstall, upgradeBoard, upgradeCase,
-  type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type RamSpec, type SlotType,
+  type Board, type BoardFeatures, type CableId, type Cables, type DeviceKind, type InstalledDevice, type CpuSpec, type RamSpec, type SlotType,
   specsOfKind, type CardSpec, type NicSpec, type StorageSpec, type TpmSpec,
 } from "../board";
-import { COUNTER_NAMES, type PipelineEngine } from "../engines";
+import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap } from "./pipesnap";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
+import { PAGED_HEAP, PAGED_TABLES, BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { Prng } from "../machine/prng";
-import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootBlocksFor, bootImage, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
@@ -441,6 +441,8 @@ export interface Snapshot {
   /** Bit flips in the running job's memory: fixed by ECC RAM, or kept by plain RAM (this session only). */
   eccCorrected?: number;
   bitFlips?: number;
+  /** The CPU's MMU while the paged OS runs a program: TLB size, translations the TLB had and missed, page faults taken (the kernel fixes most of them). Absent without an MMU. */
+  mmu?: { tlb: number; hits: number; misses: number; faults: number; on: boolean };
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -1451,6 +1453,7 @@ export class Game {
       completed: this.completed,
       errors: this.errors,
       faults: this.faults,
+      ...(this.machine.mmu.tlbEntries > 0 ? { mmu: { tlb: this.machine.mmu.tlbEntries, hits: this.mmuCount(Counter.TlbHits), misses: this.mmuCount(Counter.TlbMisses), faults: this.machine.mmu.faults, on: this.machine.mmu.enabled } } : {}),
       eccCorrected: this.eccCorrected,
       bitFlips: this.bitFlips,
       dropped: this.dropped,
@@ -1905,8 +1908,20 @@ export class Game {
   }
 
   /** The port the OS boots from, if its drive works. */
+  /** One of the engine's MMU counters (0 without an engine). */
+  private mmuCount(i: number): number {
+    return (this.machine.engine as { view?: { counters: Float64Array } } | null)?.view?.counters[i] ?? 0;
+  }
+
+  /** The installed CPU has an MMU (docs/VM.md). */
+  cpuHasMmu(): boolean {
+    const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
+    return !!cpu && ((deviceSpec(cpu) as CpuSpec).mmu?.tlb ?? 0) > 0;
+  }
+
   private osPort(): StoragePort | null {
     if (!this.os) return null;
+    if (this.os.spec.needsMmu && !this.cpuHasMmu()) return null; // the OS cannot boot on this CPU: the machine falls back to the key loader
     const d = this.board.devices.find((x) => x.id === this.os!.deviceId);
     if (!d || d.burnt) return null;
     const port = this.ports.find((p) => p.name === d.slot);
@@ -1924,7 +1939,7 @@ export class Game {
   private ramRegions(jobs: KernelJob[]): RamRegion[] {
     const osUp = !!this.os && this.pch.osMode && !this.postError;
     const job = this.ramJob(jobs);
-    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
+    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name, tier: this.os!.spec.tier } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
   }
 
   /** The program the CPU has in RAM right now (OS: the kernel's running slot; no OS: the key's program), or null. */
@@ -1960,20 +1975,26 @@ export class Game {
 
   /** A fault is the OS killing a job that wrote to protected memory: counted and logged; the kernel has already ended the job. */
   private checkFaults(): void {
-    const m = this.machine.mpu;
-    if (m.faults < this.mpuSeen) this.mpuSeen = 0; // the machine was reset
-    if (m.faults === this.mpuSeen) return;
-    this.mpuSeen = m.faults;
+    if (!this.powered || !this.pch.osMode) { this.mpuSeen = 0; return; }
+    const killed = this.machine.bus.load32(KFAULTS); // the kernel counts the jobs it kills
+    if (killed < this.mpuSeen) this.mpuSeen = 0;
+    if (killed === this.mpuSeen) return;
+    this.mpuSeen = killed;
     this.faults++;
     const job = this.claimKey >= 0 ? `job on key ${this.claimKey}` : "a job";
-    this.note("fault", `memory fault: ${job} wrote to protected memory at 0x${m.faultAddr.toString(16)} and was killed by the OS`);
+    const paged = (this.os?.spec.tier ?? 1) >= 2, at = paged ? this.machine.mmu.faultAddr : this.machine.mpu.faultAddr;
+    this.note("fault", `memory fault: ${job} ${paged ? "touched memory it has no right to" : "wrote to protected memory"} at 0x${at.toString(16)} and was killed by the OS`);
   }
 
   private trackPages(): void {
     const dirty = this.machine.bus.dirty;
     const job = this.powered ? this.ramJob(this.kernelJobs()) : null;
     if (!job || job.key !== this.claimKey) { this.claimed = new Set(); this.claimKey = job?.key ?? -1; }
-    if (job) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
+    if (job && (this.os?.spec.tier ?? 1) >= 2) {
+      // the paged OS hands out frames from its bump pointer: those are the pages the program has claimed
+      const bus = this.machine.bus, next = bus.load32(KBUMP);
+      for (let p = PAGED_HEAP >> 8; p < next && p < (PAGED_TABLES >> 8); p++) this.claimed.add(p);
+    } else if (job) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
     dirty.fill(0);
   }
 
@@ -2043,6 +2064,7 @@ export class Game {
     if (d.burnt) return `${s.name} is burnt out`;
     const ram = this.installedRamBytes();
     if (ram < os.minRamBytes) return `${os.name} needs ${os.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`;
+    if (os.needsMmu && !this.cpuHasMmu()) return `${os.name} needs a CPU with an MMU (virtual memory): Tiny-5F or better`;
     const disk = this.diskFor(d);
     const need = os.diskBytes + SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES;
     const free = disk.capacityBytes - disk.usedBytes;
@@ -2352,7 +2374,7 @@ export class Game {
       case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
       case "booting-os": {
         const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
-        return 0.4 + 0.6 * Math.min(1, read / (BOOT_BLOCKS * BLOCK_BYTES));
+        return 0.4 + 0.6 * Math.min(1, read / (bootBlocksFor(this.os?.spec.tier ?? 1) * BLOCK_BYTES));
       }
       case "running": case "writing": case "done-remove-key": case "idle-os": case "ingesting": case "running-os": case "flashing": return 1;
       default: return 0;

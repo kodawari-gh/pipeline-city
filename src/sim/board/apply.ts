@@ -115,6 +115,8 @@ export function engineConfigFor(board: Board): EngineConfig | null {
 export function applyEngine(board: Board, machine: Machine, program: Uint32Array): boolean {
   const cfg = engineConfigFor(board);
   if (!cfg) return false;
+  // the MMU the CPU has (none: the unit cannot be switched on and the paged OS will not boot)
+  machine.mmu.configure((deviceSpec(working(board, "cpu")[0]!) as CpuSpec).mmu?.tlb ?? 0);
   machine.attach(createEngine(cfg), program);
   return true;
 }

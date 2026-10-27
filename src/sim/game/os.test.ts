@@ -94,9 +94,9 @@ describe("buying and installing storage and the OS", () => {
     expect(by("os1").blocked).toBeUndefined(); // for sale; the spare says what it still needs
     const os = g.purchase("os1") as { invId: string };
     expect(spare(os.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/storage/) });
-    expect(by("os2")).toMatchObject({ later: true, blocked: expect.stringMatching(/not available/) });
-    expect(by("os3")).toMatchObject({ later: true });
-    expect(g.purchase("os2").ok).toBe(false);
+    expect(by("os2").later).toBeUndefined(); // the paged OS is for sale (it needs a CPU with an MMU to install)
+    expect(by("os3")).toMatchObject({ later: true, blocked: expect.stringMatching(/not available/) });
+    expect(g.purchase("os3").ok).toBe(false);
     g.powerButton();
     g.install((g.purchase("hdd0") as { invId: string }).invId);
     expect(spare(os.invId).reason).toMatch(/RAM/); // 16K installed, the OS wants 32K
@@ -353,7 +353,7 @@ describe("save v3 with an OS", () => {
     const save = JSON.parse(JSON.stringify(rig("ssd1").toSave()));
     expect(() => Game.fromSave({ ...save, os: { spec: "os1", deviceId: "nope" } })).toThrow(/storage device/);
     expect(() => Game.fromSave({ ...save, os: { spec: "os9", deviceId: "dev1" } })).toThrow(/unknown OS/);
-    expect(() => Game.fromSave({ ...save, os: { spec: "os2", deviceId: save.os.deviceId } })).toThrow(/unknown OS/); // locked tier
+    expect(() => Game.fromSave({ ...save, os: { spec: "os3", deviceId: save.os.deviceId } })).toThrow(/unknown OS/); // locked tier
   });
 
   it("a key the OS is working on is saved as the plugged key", () => {

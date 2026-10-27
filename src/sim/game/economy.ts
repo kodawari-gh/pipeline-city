@@ -154,7 +154,7 @@ export const ECONOMY: EconomyConfig = {
   lateFactor: 0.5,
   startQueue: [{ template: "cli.log" }],
   idleLoad: 0.1,
-  memoryFlipRate: 0,
+  memoryFlipRate: 0.00005,
   startMoney: 0,
   giveUpTurnaround: 180,
   payBase: 20,

@@ -131,6 +131,13 @@ export const KERNEL_BASE = 0xc100;
 export const KERNEL_DONE = KERNEL_BASE + 4;
 /** + 8 is where the CPU is sent when a job writes to protected memory (the MPU tripped): the kernel ends the job with a fault result. */
 export const KERNEL_FAULT = KERNEL_BASE + 8;
+/** + 12 is where the MMU sends the CPU on a page fault (OS 2 and up: the kernel maps a page for the program, or kills it). */
+export const KERNEL_PAGEFAULT = KERNEL_BASE + 12;
+/** Memory map of a program under the paged OS: the program lives at physical virtual + PAGED_SHIFT, the OS keeps its page tables at PAGED_TABLES and hands out frames to the program from PAGED_HEAP up to the tables. */
+export const PAGED_SHIFT = 0x1000;
+export const PAGED_HEAP = 0x6000;
+export const PAGED_TABLES = 0xb000;
+export const PAGED_TABLES_BYTES = 0x400;
 /** Header words: magic, total blocks (header + kernel), queue slots, program slots, spool start block, spool blocks per job, OS tier. */
 export const OS_MAGIC = 0x3153_564f;
 export const OS_HEADER = { MAGIC: 0, TOTAL_BLOCKS: 1, QUEUE_SLOTS: 2, PROGRAM_SLOTS: 3, SPOOL_LBA: 4, SPOOL_BLOCKS: 5, TIER: 6 } as const;

@@ -19,6 +19,8 @@ export interface OsSpec {
   programSlots: number;
   /** Jobs the ingest queue can hold (further bounded by free disk space, see `queueSlotsFor`). */
   queueSlots: number;
+  /** Needs a CPU with an MMU (docs/VM.md): every program gets its own address space. */
+  needsMmu?: boolean;
   /** Not implemented yet: shown locked, cannot be bought or installed. */
   later?: boolean;
   visual: string;
@@ -28,9 +30,9 @@ export const OS_SPECS: readonly OsSpec[] = [
   { id: "os1", tier: 1, name: "Resident OS 1.0", price: 150, minRamBytes: 32 * 1024, diskBytes: 12 * 1024,
     programSlots: 1, queueSlots: 4, visual: "os-resident",
     description: "Single-task resident: boots once and stays running. Ingests client keys into a job queue and runs one program at a time." },
-  { id: "os2", tier: 2, name: "Cooperative OS", price: 600, minRamBytes: 64 * 1024, diskBytes: 24 * 1024,
-    programSlots: 2, queueSlots: 8, later: true, visual: "os-coop",
-    description: "Cooperative multitasking: several programs resident at once, switching when one yields. Planned." },
+  { id: "os2", tier: 2, name: "Paged OS 2.0", price: 600, minRamBytes: 64 * 1024, diskBytes: 24 * 1024,
+    programSlots: 1, queueSlots: 8, needsMmu: true, visual: "os-coop",
+    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Several programs at once is next." },
   { id: "os3", tier: 3, name: "Preemptive OS", price: 2000, minRamBytes: 64 * 1024, diskBytes: 48 * 1024,
     programSlots: 4, queueSlots: 16, later: true, visual: "os-preempt",
     description: "Preemptive scheduling with a timer interrupt: programs share the CPU fairly. Planned." },

@@ -60,6 +60,8 @@ export interface CpuSpec extends SpecBase {
   branch?: "frontend" | "memory" | "wide";
   /** The memory controller (docs/RAM.md): how many sticks it drives in parallel (channels) and what it does with a row after an access. Default 1 channel, open page. */
   memory?: { channels: number; policy: "open" | "closed" | "adaptive" };
+  /** The memory management unit (docs/VM.md): the TLB entries it has. Absent: no MMU, programs only ever see physical memory and the paged OS will not run. */
+  mmu?: { tlb: number };
 }
 
 export interface RamSpec extends SpecBase {
@@ -169,38 +171,38 @@ const specList: DeviceSpec[] = [
   { id: "cpu1", kind: "cpu", tier: 1, name: "Tiny-5 (5-stage, no forwarding)", slot: "cpu", price: 200, idleW: 3, loadW: 20, heatFactor: 1,
     clock: { min: 0.5, base: 2, max: 3 }, thermal: cpuThermal, visual: "cpu-inorder",
     engine: { kind: "inorder", forwarding: false } },
-  { id: "cpu2", kind: "cpu", tier: 2, name: "Tiny-5F (5-stage, forwarding)", slot: "cpu", price: 800, idleW: 4, loadW: 35, heatFactor: 1,
+  { id: "cpu2", kind: "cpu", tier: 2, name: "Tiny-5F (5-stage, forwarding)", slot: "cpu", mmu: { tlb: 4 }, price: 800, idleW: 4, loadW: 35, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
   // Placeholder price, power and art: the owner sets the price (docs/PROGRESSION.md), T32 the board/VRM demand, T33 the art.
-  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
+  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 8 }, price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
-  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
+  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 8, commitWidth: 4, cacheLines: 16, redirectPenalty: 2 } },
   // The branches (owner 2026-10-27, docs/TECHTREE.md): at each step a specialist leans one way. Placeholder numbers like the rest.
   // Tier is the depth in the tree, so siblings share a tier: cpu3, cpu2f and cpu2m are all tier 3.
-  { id: "cpu2f", kind: "cpu", tier: 3, name: "Tiny-5F+I (front end: I-cache, 2-bit predictor)", slot: "cpu", price: 1500, idleW: 4, loadW: 40, heatFactor: 1, after: "cpu2", branch: "frontend",
+  { id: "cpu2f", kind: "cpu", tier: 3, name: "Tiny-5F+I (front end: I-cache, 2-bit predictor)", slot: "cpu", mmu: { tlb: 8 }, price: 1500, idleW: 4, loadW: 40, heatFactor: 1, after: "cpu2", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, icacheLines: 8, predEntries: 128, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu2m", kind: "cpu", tier: 3, name: "Tiny-5F+D (memory: 2-way D-cache, L2)", slot: "cpu", memory: { channels: 2, policy: "open" }, price: 1500, idleW: 4, loadW: 42, heatFactor: 1, after: "cpu2", branch: "memory",
+  { id: "cpu2m", kind: "cpu", tier: 3, name: "Tiny-5F+D (memory: 2-way D-cache, L2)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 8 }, price: 1500, idleW: 4, loadW: 42, heatFactor: 1, after: "cpu2", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 32, ways: 2, l2Lines: 32, redirectPenalty: 2 } },
-  { id: "cpu3f", kind: "cpu", tier: 4, name: "Tiny-5F2+I (2-wide, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 3600, idleW: 5, loadW: 58, heatFactor: 1, after: "cpu2f", branch: "frontend",
+  { id: "cpu3f", kind: "cpu", tier: 4, name: "Tiny-5F2+I (2-wide, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 8 }, price: 3600, idleW: 5, loadW: 58, heatFactor: 1, after: "cpu2f", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16, icacheLines: 16, predEntries: 256, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu3m", kind: "cpu", tier: 4, name: "Tiny-5F2+D (2-wide, memory)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 3600, idleW: 5, loadW: 60, heatFactor: 1, after: "cpu2m", branch: "memory",
+  { id: "cpu3m", kind: "cpu", tier: 4, name: "Tiny-5F2+D (2-wide, memory)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 3600, idleW: 5, loadW: 60, heatFactor: 1, after: "cpu2m", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 64, ways: 4, l2Lines: 64, redirectPenalty: 2 } },
-  { id: "cpu4f", kind: "cpu", tier: 5, name: "Tiny-OoO+I (out of order, ROB 16, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 8500, idleW: 6, loadW: 88, heatFactor: 1, after: "cpu3f", branch: "frontend",
+  { id: "cpu4f", kind: "cpu", tier: 5, name: "Tiny-OoO+I (out of order, ROB 16, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 8500, idleW: 6, loadW: 88, heatFactor: 1, after: "cpu3f", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 16, icacheLines: 32, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu4m", kind: "cpu", tier: 5, name: "Tiny-OoO+D (out of order, ROB 16, memory)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, price: 8500, idleW: 6, loadW: 90, heatFactor: 1, after: "cpu3m", branch: "memory",
+  { id: "cpu4m", kind: "cpu", tier: 5, name: "Tiny-OoO+D (out of order, ROB 16, memory)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 32 }, price: 8500, idleW: 6, loadW: 90, heatFactor: 1, after: "cpu3m", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 64, ways: 4, l2Lines: 128, redirectPenalty: 2 } },
-  { id: "cpu4w", kind: "cpu", tier: 6, name: "Tiny-OoO-W (4-wide out of order, ROB 32)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, price: 12000, idleW: 8, loadW: 100, heatFactor: 1, after: "cpu4", branch: "wide",
+  { id: "cpu4w", kind: "cpu", tier: 6, name: "Tiny-OoO-W (4-wide out of order, ROB 32)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 32 }, price: 12000, idleW: 8, loadW: 100, heatFactor: 1, after: "cpu4", branch: "wide",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, commitWidth: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
 

@@ -55,7 +55,7 @@ describe("sandbox purchases", () => {
     const g = sb({ preassembled: true });
     const ids = g.snapshot().purchases.map((p) => p.id);
     for (const id of ["cpu0", "cpu2", "ram0", "psu1", "cooler0", "vsink0", "board1", "board2", "board3", "hdd0", "ssd1", "nvme2", "os1"]) expect(ids).toContain(id);
-    expect(g.purchase("os2").ok).toBe(false); // later: stays locked
+    expect(g.purchase("os3").ok).toBe(false); // later: stays locked
     const before = g.board.devices.map((d) => d.id);
     g.install(buy(g, "board3"));
     expect(g.board.tier).toBe(3);
