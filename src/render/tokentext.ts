@@ -1,22 +1,14 @@
 import { decode, REG_NAMES, SPEC_BY_NAME } from '../sim/isa';
 
-// What an instruction's token shows at each stage of its trip (docs/DIE.md "The token"): the raw word when it is fetched, its fields when it is
-// decoded, the values it works on when it executes, the address it reaches for, the value it writes. Pure, so it is testable; dieview.ts draws it.
-
-export interface TokenCtx {
-  word: number;
-  /** The registers as they are at the cycle shown. */
-  regs: readonly number[];
-  /** The address a load or store reached for, when it has been seen. */
-  addr?: number;
-}
+// What the die shows of one instruction (docs/DIE.md "Instructions on the die"): its address, its own colour, the fields of its word, the
+// registers it reads and writes. Pure, so it is testable; blockart.ts and dieview.ts draw it.
 
 /** One field of the instruction word, `bits` wide in the encoding. */
 export interface Field { name: string; value: string; bits: number }
-export interface Body { fields?: Field[]; text?: string }
 
 const hex = (v: number, w = 1) => '0x' + (v >>> 0).toString(16).padStart(w, '0');
-const reg = (n: number) => REG_NAMES[n] ?? 'x' + n;
+export const regName = (n: number): string => REG_NAMES[n] ?? 'x' + n;
+const reg = regName;
 /** An address as the token's reference: `@c5a0`. */
 export const pcText = (pc: number): string => '@' + (pc >>> 0).toString(16).padStart(4, '0');
 /** A short number that tells apart two runs of the same instruction (a loop body): the instruction's sequence number. */
@@ -63,27 +55,11 @@ export function fieldsOf(word: number): Field[] {
   }
 }
 
-/** What the token shows in `stage` (F D X M W in order, F D S X R C out of order, x flushed). */
-export function bodyOf(stage: string, c: TokenCtx): Body {
-  const i = decode(c.word);
-  switch (stage) {
-    case 'F': return { text: hex(c.word, 8) };
-    case 'D': return { fields: fieldsOf(c.word) };
-    case 'S': return { text: 'waits for ' + (readsOf(c.word).filter((r) => r !== 0).map(reg).join(' ') || 'nothing') };
-    case 'X': {
-      const rs = readsOf(c.word);
-      const vals = rs.map((r) => `${reg(r)}=${r === 0 ? 0 : (c.regs[r] ?? 0) | 0}`);
-      if (i && SPEC_BY_NAME.get(i.name)?.fmt === 'I') vals.push(String(i.imm));
-      return { text: vals.join('  ') || '·' };
-    }
-    case 'M': return { text: c.addr !== undefined ? '[' + hex(c.addr, 4) + ']' : '·' };
-    case 'R': return { text: 'result on the bus' };
-    case 'W': case 'C': {
-      const w = writesOf(c.word);
-      if (w >= 0) return { text: `${reg(w)} ← ${hex(c.regs[w] ?? 0)}` };
-      return { text: i && (i.name === 'sw' || i.name === 'sb') ? 'stored' : 'done' };
-    }
-    case 'x': return { text: 'flushed' };
-    default: return { text: '' };
-  }
+
+/** The five slots of the decoder's word strip (op, rd, rs1, rs2, imm), each with what the instruction has there ('' when the format has none). */
+export function slotValues(word: number): string[] {
+  const i = decode(word);
+  if (!i) return ['?', '', '', '', ''];
+  const f = SPEC_BY_NAME.get(i.name)?.fmt;
+  return [i.name, f === 'R' || f === 'I' || f === 'U' || f === 'J' ? reg(i.rd) : '', f === 'R' || f === 'I' || f === 'S' || f === 'B' ? reg(i.rs1) : '', f === 'R' || f === 'S' || f === 'B' ? reg(i.rs2) : '', f === 'N' || f === 'R' ? '' : String(i.imm)];
 }

@@ -458,12 +458,12 @@ export class Player {
   }
 
   /** What every instruction is doing at the cycle being shown: its stage code. Oldest first. */
-  now(): { id: number; op: string; ch: string; text: string; pc: number; lane: number }[] {
+  now(): { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean }[] {
     const w = this.cur;
     if (!w) return [];
     const k = Math.min(w.n - 1, Math.floor(this.tau));
-    const out: { id: number; op: string; ch: string; text: string; pc: number; lane: number }[] = [];
-    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch, text: r.text, pc: r.pc, lane: r.lanes[k]! }); }
+    const out: { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean }[] = [];
+    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch, text: r.text, pc: r.pc, word: r.word, lane: r.lanes[k]!, fresh: k === 0 || r.codes[k - 1] !== ch }); }
     return out;
   }
 

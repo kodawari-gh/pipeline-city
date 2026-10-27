@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../sim/asm';
-import { bodyOf, fieldsOf, idColor, pcText, readsOf, seqText, writesOf } from './tokentext';
+import { fieldsOf, idColor, pcText, readsOf, seqText, slotValues, writesOf } from './tokentext';
 
-// What an instruction's token shows at each stage (docs/DIE.md "The token").
+// What the die shows of one instruction (docs/DIE.md "Instructions on the die").
 const word = (src: string) => { const p = assemble(src).program; return new DataView(p.buffer, p.byteOffset).getUint32(0, true) >>> 0; };
 const regs = Array.from({ length: 16 }, (_, k) => k * 10);
 
@@ -17,21 +17,13 @@ describe('token text', () => {
     expect(writesOf(bne)).toBe(-1);
   });
 
-  it('shows the raw word when fetched, the fields when decoded, the values when it executes', () => {
-    expect(bodyOf('F', { word: add, regs }).text).toBe('0x' + add.toString(16).padStart(8, '0'));
+  it('splits a word into the decoder slots', () => {
     expect(fieldsOf(add).map((f) => f.name)).toEqual(['op', 'rd', 'rs1', 'rs2']);
-    expect(fieldsOf(add)[0]!.value).toBe('add');
     expect(fieldsOf(lw).map((f) => f.name)).toEqual(['op', 'rd', 'rs1', 'imm']);
     expect(fieldsOf(bne).map((f) => f.name)).toEqual(['op', 'rs1', 'rs2', 'imm']);
-    expect(bodyOf('X', { word: add, regs }).text).toBe('t1=80  t2=90');
-    expect(bodyOf('X', { word: lw, regs }).text).toBe('t2=90  8');
-  });
-
-  it('shows the address a load reached for and the value written back', () => {
-    expect(bodyOf('M', { word: lw, regs, addr: 0x4a10 }).text).toBe('[0x4a10]');
-    expect(bodyOf('W', { word: add, regs }).text).toBe('t4 ← 0x6e');
-    expect(bodyOf('C', { word: sw, regs }).text).toBe('stored');
-    expect(bodyOf('x', { word: add, regs }).text).toBe('flushed');
+    expect(slotValues(add)).toEqual(['add', 't4', 't1', 't2', '']);
+    expect(slotValues(lw)).toEqual(['lw', 'a0', 't2', '', '8']);
+    expect(slotValues(bne).slice(0, 4)).toEqual(['bne', '', 't0', 't1']);
   });
 
   it('gives every instruction its address and number, and a colour of its own', () => {

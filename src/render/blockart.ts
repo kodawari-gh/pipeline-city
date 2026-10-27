@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js';
 import type { Block, BlockKind, Rect } from './cpuplan';
 import { mix } from './ink';
+import { regName, slotValues, writesOf } from './tokentext';
 import type { Theme } from './theme';
 
 // What is inside a block of the die (docs/DIE.md "Inside the blocks"): the symbol an engineer would draw for the part, not a field of identical
@@ -10,6 +11,11 @@ import type { Theme } from './theme';
 
 /** The kinds drawn as symbols (the others keep their cell arrays). */
 export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>(['pc', 'pcadd', 'nextpc', 'fetch', 'imm', 'decode', 'alu', 'mul', 'lsu', 'wb', 'branch']);
+
+/** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
+export const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
+/** The lanes a dispatch stage passes at once ("4 a cycle"). */
+export const laneCount = (b: Block): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
 
 /** Where a text goes: its centre, in die units, and its size. */
 export type Put = (text: string, x: number, y: number, size: number) => void;
@@ -62,6 +68,12 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
     });
   };
 
+  if (b.id === 'disp') {
+    // the lanes that leave for the scheduler this cycle
+    const n = laneCount(b), gap = 4, sw = (w - (n - 1) * gap) / n, sh = Math.min(16, h);
+    for (let k = 0; k < n; k++) { rect(x + k * (sw + gap), y + (h - sh) / 2, sw, sh, soft); stub(x + k * (sw + gap) + sw, y + h / 2, x + k * (sw + gap) + sw + gap, y + h / 2); }
+    return;
+  }
   switch (b.kind) {
     case 'pc': {
       // eight hex digits, four bits each
@@ -161,7 +173,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
 // ---------------------------------------------------------------- what the symbols show while the machine runs
 
 /** An instruction as the live symbols need it. */
-export interface LiveItem { op: string; text: string; pc: number }
+export interface LiveItem { op: string; text: string; pc: number; word?: number }
 /** Text to show in a rectangle (it is fitted to it), and rectangles to light. */
 export interface LiveGlyph { texts: { rect: Rect; top: string; bottom: string }[]; lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[] }
 
@@ -181,8 +193,9 @@ export function controlsOf(op: string): number[] {
 }
 
 /** The rectangles inside a symbol where live text goes (the same geometry `glyph` draws). */
-export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; word?: Rect; lines?: Rect[]; op?: Rect; operands?: Rect; out?: Rect } {
+export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; word?: Rect; fields?: Rect[]; lines?: Rect[]; op?: Rect; operands?: Rect; out?: Rect } {
   const { x, y, w, h } = a;
+  if (b.id === 'disp') { const n = laneCount(b), gap = 4, sw = (w - (n - 1) * gap) / n, sh = Math.min(16, h); return { words: Array.from({ length: n }, (_, k) => ({ x: x + k * (sw + gap), y: y + (h - sh) / 2, w: sw, h: sh })) }; }
   switch (b.kind) {
     case 'pc': {
       const gap = 3, dw = (w - 7 * gap) / 8, dh = Math.min(h, 22);
@@ -194,12 +207,17 @@ export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; w
     }
     case 'decode': {
       const wh = Math.min(14, h * 0.4), ly = y + wh + 4, lh = Math.max(4, Math.min(11, h - wh - 6)), n = CONTROL_LINES.length, lw = (w - (n - 1) * 3) / n;
-      return { word: { x, y, w, h: wh }, lines: Array.from({ length: n }, (_, k) => ({ x: x + k * (lw + 3), y: ly, w: lw, h: lh })) };
+      const total = WORD_FIELDS.reduce((n, f) => n + f.bits, 0);
+      let fx = x;
+      const fields = WORD_FIELDS.map((f) => { const fw = (w * f.bits) / total, r = { x: fx, y, w: fw, h: wh }; fx += fw; return r; });
+      return { word: { x, y, w, h: wh }, fields, lines: Array.from({ length: n }, (_, k) => ({ x: x + k * (lw + 3), y: ly, w: lw, h: lh })) };
     }
     case 'alu': {
       const ah = Math.min(h, 56), ay = y + (h - ah) / 2, aw = Math.min(w * 0.5, 88), ax = x + w * 0.2, ow = Math.min(40, x + w - (ax + aw + 8));
       return { op: { x: ax + aw * 0.1, y: ay + ah * 0.3, w: aw * 0.8, h: ah * 0.4 }, out: { x: ax + aw + 8, y: ay + ah * 0.3, w: ow, h: ah * 0.4 }, operands: { x: ax, y: ay + ah + 1, w: aw + ow + 8, h: Math.max(0, y + h - (ay + ah) - 1) } };
     }
+    case 'imm': { const bh = Math.min(h, 18); return { out: { x: x + w * 0.44, y: y + (h - bh) / 2, w: w * 0.56, h: bh } }; }
+    case 'wb': { const mw = Math.min(w * 0.3, 40), ox = x + w * 0.4 + mw + 8; return { out: { x: ox, y: y + h / 2 - 7, w: Math.max(0, x + w - ox), h: 14 } }; }
     case 'mul': return { out: { x: x + w * 0.62, y: y + h / 2 - 8, w: Math.min(60, w * 0.3), h: 16 } };
     case 'lsu': return { operands: { x: x + w * 0.45, y: y + h - 9, w: w * 0.55, h: 9 } };
     default: return {};
@@ -214,6 +232,12 @@ export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, pro
   const pr = (k: number) => Math.max(0, Math.min(1, prog[k] ?? 1));
   const wipe = (r: Rect, f: number): Rect => ({ ...r, w: r.w * f });
   switch (b.kind) {
+    case 'queue':
+      items.slice(0, s.words?.length ?? 0).forEach((x, k) => {
+        out.lit.push({ rect: wipe(s.words![k]!, pr(k)), color: 'ld', a: 0.92 });
+        if (pr(k) > 0.55) out.texts.push({ rect: s.words![k]!, top: x.op, bottom: '' });
+      });
+      break;
     case 'pc':
       if (pc !== undefined && s.digits) { const hex = (pc >>> 0).toString(16).padStart(8, '0'); s.digits.forEach((r, k) => out.texts.push({ rect: r, top: hex[k]!, bottom: '' })); }
       break;
@@ -226,9 +250,15 @@ export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, pro
     case 'decode':
       if (it && s.word && s.lines) {
         out.lit.push({ rect: wipe(s.word, pr(0)), color: 'alu', a: 0.92 });
-        if (pr(0) > 0.55) out.texts.push({ rect: s.word, top: it.text, bottom: '' });
+        if (pr(0) > 0.55 && s.fields) slotValues(it.word ?? 0).forEach((v, k) => { if (v) out.texts.push({ rect: s.fields![k]!, top: v, bottom: '' }); });
         controlsOf(it.op).forEach((k, j) => { if (pr(0) > 0.45 + 0.1 * j) out.lit.push({ rect: s.lines![k]!, color: 'br', a: 0.6 }); });
       }
+      break;
+    case 'imm':
+      if (it && s.out) { out.lit.push({ rect: wipe(s.out, pr(0)), color: 'alu', a: 0.92 }); if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: slotValues(it.word ?? 0)[4] ?? '', bottom: '' }); }
+      break;
+    case 'wb':
+      if (it && s.out && s.out.w > 20) { const wr = writesOf(it.word ?? 0); out.lit.push({ rect: wipe(s.out, pr(0)), color: 'st', a: 0.9 }); if (pr(0) > 0.55) out.texts.push({ rect: s.out, top: wr >= 0 ? '→ ' + regName(wr) : 'done', bottom: '' }); }
       break;
     case 'alu': case 'mul': case 'lsu':
       if (it) {
