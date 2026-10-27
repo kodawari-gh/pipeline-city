@@ -34,7 +34,7 @@ In code: `startSim(null, { sandbox: true, preassembled: assembled, maxed: assemb
 
 ## What stays locked
 
-- **Later OS tiers** (`os2`, `os3`) are listed as "planned: not available yet" in every game. The sandbox does not unlock them.
+- **Later OS tiers** (`os4`) are listed as "planned: not available yet" in every game. The sandbox does not unlock them.
 - **Things that are not built** are not in the sandbox either: there is no network card, router or GPU yet (see `docs/HANDOVER.md`, next steps).
 - The monitor has one spec, so there is nothing to buy for it.
 

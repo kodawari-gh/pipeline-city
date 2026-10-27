@@ -72,12 +72,13 @@ Ethernet card in a PCIe slot (or on-board on the ATX+ board). Requires: PCIe slo
 ## Router (planned)
 A separate device on the network side of the NIC: more clients and a better uplink. Requires a NIC and an OS. Tiers by ports and throughput; a tier decides how many clients can reach the machine, so it feeds demand.
 
-## OS (built: tier 1 of 3)
+## OS (built: tiers 1 to 3 of 4)
 | Tier | OS | Key requirements | |
 |---|---|---|---|
 | 1 | Resident OS 1.0: boots once, job queue, one program at a time | 32K RAM, a drive with 12K + spool free | built |
-| 2 | Cooperative multitasking: several programs resident, switch on yield | 64K RAM, 24K free, `programSlots` 2 (data field) | planned (data entry exists, locked) |
-| 3 | Preemptive: timer interrupt, fair scheduling | 64K RAM, 48K free, `programSlots` 4, a CPU with an interrupt line | planned (data entry exists, locked) |
+| 2 | Paged OS: an address space per program, memory claimed on demand, the OS out of reach | 64K RAM, 24K free, a CPU with an MMU | built |
+| 3 | Preemptive: timer interrupt, up to four programs at once | 64K RAM, 48K free, a CPU with an MMU | built |
+| 4 | Multicore: programs spread over several CPU cores | | planned (data entry exists, locked) |
 
 ## GPU (planned)
 A PCIe card running its own ISA (see ARCHITECTURE.md "Accelerators"). Tiers by lanes and memory. Requires: a PCIe slot, a PSU with a PCIe power connector and the watts, a cooler headroom, an OS that can launch its kernels (cooperative or better), and a display tier for graphics jobs.

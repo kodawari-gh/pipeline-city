@@ -317,7 +317,7 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
   it('the ladder offers the later tiers locked, with their description', () => {
     const sec = osSection(withOs())!;
     const later = sec.ladder.filter((r) => r.state === 'level');
-    expect(later.map((r) => r.specId)).toEqual(['os2', 'os3']);
+    expect(later.map((r) => r.specId)).toEqual(['os2', 'os3', 'os4']);
     expect(later[0]!.reason).toMatch(/Level 8/);
   });
 
@@ -352,7 +352,7 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
 
   it('the bay offers the operating systems while none is installed, and not once one is', () => {
     const none = pickerFor('bay', snap({ storage: [], devices: [] }))!;
-    expect(none.shelf?.map((r) => r.specId)).toEqual(['os1', 'os2', 'os3']);
+    expect(none.shelf?.map((r) => r.specId)).toEqual(['os1', 'os2', 'os3', 'os4']);
     expect(pickerFor('bay', withOs())!.shelf).toBeUndefined();
   });
 

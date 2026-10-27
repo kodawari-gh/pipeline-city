@@ -32,10 +32,13 @@ export const OS_SPECS: readonly OsSpec[] = [
     description: "Single-task resident: boots once and stays running. Ingests client keys into a job queue and runs one program at a time." },
   { id: "os2", tier: 2, name: "Paged OS 2.0", price: 600, minRamBytes: 64 * 1024, diskBytes: 24 * 1024,
     programSlots: 1, queueSlots: 8, needsMmu: true, visual: "os-coop",
-    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Several programs at once is next." },
-  { id: "os3", tier: 3, name: "Preemptive OS", price: 2000, minRamBytes: 64 * 1024, diskBytes: 48 * 1024,
-    programSlots: 4, queueSlots: 16, later: true, visual: "os-preempt",
-    description: "Preemptive scheduling with a timer interrupt: programs share the CPU fairly. Planned." },
+    description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Programs run one at a time." },
+  { id: "os3", tier: 3, name: "Preemptive OS 3.0", price: 2000, minRamBytes: 64 * 1024, diskBytes: 48 * 1024,
+    programSlots: 4, queueSlots: 8, needsMmu: true, visual: "os-preempt",
+    description: "Preemptive scheduling: a timer interrupt shares the CPU between up to four programs, each in its own address space. Needs a CPU with an MMU." },
+  { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 64 * 1024, diskBytes: 96 * 1024,
+    programSlots: 8, queueSlots: 8, needsMmu: true, later: true, visual: "os-smp",
+    description: "Schedules programs over several CPU cores. Planned." },
 ];
 
 export function getOsSpec(id: string): OsSpec | undefined {

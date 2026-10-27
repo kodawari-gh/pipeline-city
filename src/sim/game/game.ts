@@ -21,7 +21,7 @@ import { PAGED_HEAP, PAGED_TABLES, BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, K
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { Prng } from "../machine/prng";
-import { bootBlocksFor, bootImage, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootBlocksFor, bootImage, FMAP, FRAME_END, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
@@ -1939,6 +1939,17 @@ export class Game {
   private ramRegions(jobs: KernelJob[]): RamRegion[] {
     const osUp = !!this.os && this.pch.osMode && !this.postError;
     const job = this.ramJob(jobs);
+    if (osUp && this.os!.spec.tier >= 3) {
+      // the preemptive OS keeps a map of RAM frames: whose every page is comes from there, for every running program
+      const bus = this.machine.bus;
+      const frames = Array.from({ length: FRAME_END }, (_, f) => bus.load32(FMAP + 4 * f));
+      const procs: NonNullable<RamContext["procs"]> = [];
+      for (const j of jobs) {
+        const key = this.plugged?.id === j.key ? this.plugged : this.spool.find((k) => k.id === j.key);
+        if (key) procs[j.slot] = { key: key.id, label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, type: key.type };
+      }
+      return ramRegionsOf(this.machine.ram, { os: { name: this.os!.spec.name, tier: this.os!.spec.tier }, job: null, frames, procs });
+    }
     return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name, tier: this.os!.spec.tier } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
   }
 
@@ -1990,11 +2001,11 @@ export class Game {
     const dirty = this.machine.bus.dirty;
     const job = this.powered ? this.ramJob(this.kernelJobs()) : null;
     if (!job || job.key !== this.claimKey) { this.claimed = new Set(); this.claimKey = job?.key ?? -1; }
-    if (job && (this.os?.spec.tier ?? 1) >= 2) {
+    if (job && (this.os?.spec.tier ?? 1) === 2) {
       // the paged OS hands out frames from its bump pointer: those are the pages the program has claimed
       const bus = this.machine.bus, next = bus.load32(KBUMP);
       for (let p = PAGED_HEAP >> 8; p < next && p < (PAGED_TABLES >> 8); p++) this.claimed.add(p);
-    } else if (job) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
+    } else if (job && (this.os?.spec.tier ?? 1) < 2) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
     dirty.fill(0);
   }
 

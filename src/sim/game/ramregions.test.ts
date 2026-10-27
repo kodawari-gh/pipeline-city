@@ -111,4 +111,20 @@ describe("what lives where in RAM", () => {
     expect(ids).toContain("app");
     expect(ids).not.toContain("os");
   });
+
+  it("the preemptive OS: every owned frame is a region of its program (image, data, page tables), by the OS's frame map", () => {
+    const frames = new Array<number>(176).fill(0);
+    // job slot 0 (owner 1): tables at 16..19, image at 20..22, data at 40; job slot 2 (owner 3): image at 23..24
+    for (let f = 16; f < 20; f++) frames[f] = 0x20 | 1;
+    for (let f = 20; f < 23; f++) frames[f] = 1;
+    frames[40] = 0x10 | 1;
+    for (let f = 23; f < 25; f++) frames[f] = 3;
+    const r = ramRegionsOf(new Uint8Array(65536), { os: { name: "Preemptive OS 3.0", tier: 3 }, job: null, frames, procs: [{ key: 7, label: "#07 calc", type: "calc" }, undefined, { key: 9, label: "#09 scan", type: "scan" }] });
+    const find = (kind: string, owner?: number) => r.filter((x) => x.kind === kind && (owner === undefined || x.owner === owner));
+    expect(find("app", 7)).toMatchObject([{ lo: 20 * 256, hi: 23 * 256 }]);
+    expect(find("app", 9)).toMatchObject([{ lo: 23 * 256, hi: 25 * 256 }]);
+    expect(find("work", 7)).toMatchObject([{ lo: 40 * 256, hi: 41 * 256 }]);
+    expect(r.find((x) => x.id.startsWith("ptab-0"))).toMatchObject({ kind: "osdata", lo: 16 * 256, hi: 20 * 256 });
+    expect(r.some((x) => x.id === "os-ktable")).toBe(true);
+  });
 });

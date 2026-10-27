@@ -133,6 +133,8 @@ export const KERNEL_DONE = KERNEL_BASE + 4;
 export const KERNEL_FAULT = KERNEL_BASE + 8;
 /** + 12 is where the MMU sends the CPU on a page fault (OS 2 and up: the kernel maps a page for the program, or kills it). */
 export const KERNEL_PAGEFAULT = KERNEL_BASE + 12;
+/** + 16 is the timer interrupt (OS 3: the scheduler). */
+export const KERNEL_TIMER = KERNEL_BASE + 16;
 /** Memory map of a program under the paged OS: the program lives at physical virtual + PAGED_SHIFT, the OS keeps its page tables at PAGED_TABLES and hands out frames to the program from PAGED_HEAP up to the tables. */
 export const PAGED_SHIFT = 0x1000;
 export const PAGED_HEAP = 0x6000;
@@ -164,6 +166,19 @@ export const MPU_REG = {
 } as const;
 /** The result text of a job the OS killed for writing to protected memory. */
 export const FAULT_TEXT = "SEGFAULT";
+
+// ---- Interval timer (docs/OS.md "Preemption"). Word registers, offsets from TIMER_BASE.
+
+export const TIMER_BASE = 0x4012_0000;
+export const TIMER_SIZE = 0x100;
+export const TIMER_REG = {
+  /** rw: CPU cycles between TIMER interrupts; 0 turns the timer off (reset). Writing restarts the count. */
+  INTERVAL: 0x00,
+  /** ro: interrupts raised since power-on. */
+  COUNT: 0x04,
+  /** wo: any write raises the TIMER line now and restarts the count (a program giving up the rest of its slice). */
+  KICK: 0x08,
+} as const;
 
 // ---- Memory management unit (docs/VM.md). Word registers, offsets from MMU_BASE.
 

@@ -776,13 +776,22 @@ export class Live {
         rows.push({ t: `VM  TLB ${vm.tlb}  HIT ${all ? Math.round((100 * vm.hits) / all) : 100}%  FAULTS ${vm.faults}`, c: OS_DIM });
       }
       const proc = mt?.procs[0];
-      const shown = mt ? (vm ? 2 : 3) : 4;
+      const runN = q.filter((j) => j.state === 'running').length;
+      const shown = Math.max(0, (mt ? (vm ? 2 : 3) : 4) - Math.max(0, runN - 1));
       this.osBarRow = (mt ? 4 : 3) + (vm ? 1 : 0);
       if (ph === 'ingesting') { rows.push({ t: `INGESTING KEY ${s.plugged?.label ?? ''}`, c: OS_CYAN }); this.osJob = 'ingest'; }
       else if (ph === 'flashing') { rows.push({ t: `WRITING RESULT ${s.plugged?.label ?? ''}`, c: OS_AMBER }); this.osJob = 'flash'; }
-      else if (running) { rows.push({ t: proc ? `RUN  ${running.label}  ${sizeText(proc.image)}+${sizeText(proc.claimed)}`.slice(0, 26) : `RUN  ${running.label}`, c: OS_INK }); this.osJob = 'run'; }
+      else if (running) {
+        // every program that runs has a row with the memory it holds (image + what it claimed); a preemptive OS has several
+        const all = q.filter((j) => j.state === 'running');
+        for (const j of all) {
+          const pj = mt?.procs.find((p) => p.owner === j.keyId) ?? (all.length === 1 ? proc : undefined);
+          rows.push({ t: pj ? `RUN  ${j.label}  ${sizeText(pj.image)}+${sizeText(pj.claimed)}`.slice(0, 26) : `RUN  ${j.label}`, c: OS_INK });
+        }
+        this.osJob = 'run';
+      }
       else rows.push({ t: 'IDLE  insert a key', c: OS_DIM });
-      const rest = q.filter((j) => j !== running);
+      const rest = q.filter((j) => j.state !== 'running');
       for (const j of rest.slice(0, shown)) {
         const st = j.state === 'result' ? 'DONE' : j.state === 'queued' ? (j.ahead <= 0 ? 'NEXT' : `+${j.ahead} AHEAD`) : 'RUN';
         rows.push({ t: pad(`  ${j.label}`.slice(0, 28), st), c: j.state === 'result' ? OS_AMBER : OS_INK });

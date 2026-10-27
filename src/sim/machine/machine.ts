@@ -8,6 +8,7 @@ import type { Engine } from "./engine";
 import { Intc } from "./intc";
 import { Mmu } from "./mmu";
 import { Mpu } from "./mpu";
+import { Timer } from "./timer";
 import { Prng } from "./prng";
 
 export interface MachineConfig {
@@ -33,6 +34,7 @@ export class Machine {
   readonly intc = new Intc();
   /** Memory protection, always on the bus at MPU_BASE (off until the kernel enables it for a job). */
   readonly mpu = new Mpu();
+  readonly timer = new Timer(this.intc);
   /** Memory management unit (docs/VM.md), always on the bus at MMU_BASE; a CPU without one leaves it `tlbEntries` 0. */
   readonly mmu: Mmu;
   engine: Engine | null = null;
@@ -47,6 +49,7 @@ export class Machine {
     this.addDevice(this.status);
     this.addDevice(this.intc);
     this.addDevice(this.mpu);
+    this.addDevice(this.timer);
     this.mmu = new Mmu(this.ram);
     this.addDevice(this.mmu);
     this.bus.mpu = this.mpu;
@@ -65,6 +68,7 @@ export class Machine {
   stepCpu(): void {
     const e = this.engine;
     if (!e || e.halted) return;
+    this.timer.step();
     // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
     if (this.cpuStall > 0) { this.cpuStall--; return; }
     if (e.drained !== undefined && e.holdFetch && e.redirect) {
@@ -122,6 +126,7 @@ export class Machine {
     this.engine = engine;
     this.intc.reset();
     this.mpu.reset();
+    this.timer.reset();
     this.mmu.reset();
     this.irqWait = 0;
     this.cpuStall = 0;

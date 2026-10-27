@@ -151,12 +151,12 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 5 | `psu2` 250 W ATX+ ($250), `ram2` 64K low-latency ($400) | board 2 Mainstream ($300: 4 DIMM, 2 PCIe, M.2, ATX+, 100 Mbit jack) | db and web grow |
 | 6 | `cpu2` ($800; needs the Mainstream VRM), `cooler2` ($300) | `isp2` ($500: 200/50 Mbit, 4 clients) | |
 | 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), case fans `fan1` (**planned**) | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
-| 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Cooperative OS (**planned**: `programSlots` 2, $600) | |
+| 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Paged OS 2.0 ($600) | |
 | 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
 | 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (**planned**) | | **GPU render** (needs a GPU) |
 | 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
-| 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS (**planned**: `programSlots` 4, $2000) | |
+| 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4) | |
 | 14 | `cpu5` multicore (**planned**), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
 | 15 | `psu4` 1 kW (**planned**), `cpu4w` wide out-of-order ($12,000) | board 4 server (**planned**: second CPU socket, more PCIe) | |
 | 16 | `gpu3`, `npu2` (**planned**), RAID of two NVMe (**planned**) | | |
@@ -165,7 +165,7 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 
 Notes on the table:
 
-- **Every item in `specs.ts` is covered**: `cpu0` (start) `cpu1` L1 `cpu2` L6; `ram0` start `ram1` L1 `ram2` L5; `psu0` start `psu1` L1 `psu2` L5; `cooler0` start `cooler1` L1 `cooler2` L6; `vsink0` L1 `vsink1` L2 `vsink2` L7; `hdd0` L2 `ssd1` L3 `nvme2` L7; `display0` start; boards 0 start, 1 L2, 2 L5, 3 L9; `os1` L3, `os2`/`os3` L8 / L13 (still "later" until built; their data entries exist). The engines `inorder2` and `ooo` become `cpu3` (L8) and `cpu4` (L11); `docs/ENGINES.md` says the game does not use them yet, and HANDOVER build step (f) wires them. They need a spec entry, the VRM demand data and picker art before the level only gates them.
+- **Every item in `specs.ts` is covered**: `cpu0` (start) `cpu1` L1 `cpu2` L6; `ram0` start `ram1` L1 `ram2` L5; `psu0` start `psu1` L1 `psu2` L5; `cooler0` start `cooler1` L1 `cooler2` L6; `vsink0` L1 `vsink1` L2 `vsink2` L7; `hdd0` L2 `ssd1` L3 `nvme2` L7; `display0` start; boards 0 start, 1 L2, 2 L5, 3 L9; `os1` L3, `os2`/`os3`/`os4` L8 / L13 / L14 (`os4` still "later" until built; its data entry exists). The engines `inorder2` and `ooo` become `cpu3` (L8) and `cpu4` (L11); `docs/ENGINES.md` says the game does not use them yet, and HANDOVER build step (f) wires them. They need a spec entry, the VRM demand data and picker art before the level only gates them.
 - **Ordering rationale.** Level 1 keeps the CPU-versus-RAM first decision intact (`cpu1` and `ram1` both on sale from the start; `tradeoff.test.ts` buys them in the first minutes). The board and the OS come at levels 2 to 3 because that is when the manual loop starts to hurt (patience 3 at level 3). The network starts at level 4, right after the OS (owner decision 1): the Basic jack, a router and a plan are the cheapest step that takes the plugging out of the loop, and the $750 they need is about what a player has earned by then (see the price check below). Mainstream and `cpu2` move to levels 5 and 6, after the network start, so the first level-4 bill stays small. The second 32K stick is a level-1 item, so the 64K the network needs is reachable before level 4. Faster network tiers (1 Gbit card and router, 10G, 40G) and the faster plans are spread over levels 6 to 18.
 - **Price check to level 4 (owner decision 1).** The sums a player needs by level 4:
   - network minimum (strict): board 1 $150 + `os1` $150 + two `ram1` $200 + `hdd0` $40 + `router1` $60 + `isp1` $150 = **$750**;

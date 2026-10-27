@@ -2,7 +2,7 @@
 // the program the CPU is running. Everything is derived from the memory map and the machine's state; nothing here changes the sim.
 
 import { disassemble, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT_BYTES, OS_HEADER_BASE, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, USER_BASE } from "../isa";
-import { KDATA_END, kernelImageFor } from "../os/kernel";
+import { FRAME_FIRST, kdataEndFor, kernelImageFor, KTBL } from "../os/kernel";
 
 /** What a region is: the boot ROM, the OS (code or tables), an application (its loaded code and data), or the working memory it has claimed since (`work`). */
 export type RamKind = "rom" | "os" | "osdata" | "app" | "work";
@@ -32,6 +32,9 @@ export interface RamContext {
   job: null | { key: number; label: string; type: string; words: number };
   /** Pages (256 bytes each, by page number) the running program has written to outside its image and the OS: memory it claimed. */
   work?: number[];
+  /** The preemptive OS: its frame map, one word per frame from frame 0 (0 free, else kind << 4 | job slot + 1) and the programs by job slot. Replaces `job` and `work`. */
+  frames?: number[];
+  procs?: ({ key: number; label: string; type: string } | undefined)[];
 }
 
 /** Where the code of the program at `lo` ends: after its last return or ecall (what follows is its data). */
@@ -59,9 +62,27 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
     const paged = (ctx.os.tier ?? 1) >= 2;
     add({ id: "os-kernel", kind: "os", name: ctx.os.name, note: "The kernel's code: it ingests keys, loads a job from the spool, runs it and flashes the result.", lo: KERNEL_BASE, hi: KERNEL_BASE + kernelImageFor(ctx.os.tier ?? 1).length * 4 });
     if (paged) add({ id: "os-tables", kind: "osdata", name: "Page tables", note: "The page tables of the running program: one level 1 table and the level 2 tables it points to.", lo: PAGED_TABLES, hi: PAGED_TABLES + PAGED_TABLES_BYTES });
-    add({ id: "os-table", kind: "osdata", name: "Job table", note: `${KDATA_SLOTS} job slots of ${KSLOT_BYTES} bytes: state, key, length, spool block and the result text.`, lo: KDATA_BASE, hi: KDATA_END });
+    const pre = (ctx.os.tier ?? 1) >= 3;
+    add({ id: "os-table", kind: "osdata", name: pre ? "Job table and processes" : "Job table", note: pre ? `${KDATA_SLOTS} job slots of ${KSLOT_BYTES} bytes, each program's saved registers and the map of RAM frames.` : `${KDATA_SLOTS} job slots of ${KSLOT_BYTES} bytes: state, key, length, spool block and the result text.`, lo: KDATA_BASE, hi: kdataEndFor(ctx.os.tier ?? 1) });
+    if (pre) add({ id: "os-ktable", kind: "osdata", name: "Kernel page table", note: "The kernel's own address space: all of RAM, mapped to itself.", lo: KTBL, hi: KTBL + 0x500 });
   }
-  if (ctx.job) {
+  if (ctx.os && ctx.frames) {
+    // the preemptive OS owns every frame by the map: runs of frames of one owner and kind are one region
+    let n = 0;
+    for (let f = FRAME_FIRST, e = ctx.frames.length; f < e;) {
+      const w: number = ctx.frames[f] ?? 0;
+      if (w === 0) { f++; continue; }
+      let g = f;
+      while (g + 1 < e && ctx.frames[g + 1] === w) g++;
+      const kind = w >> 4, slot = (w & 15) - 1, p = ctx.procs?.[slot];
+      const who = p ? p.label : `program ${slot + 1}`;
+      if (kind === 2) add({ id: `ptab-${slot}-${n++}`, kind: "osdata", name: `Page tables ${who}`, note: "The page tables of a running program: one level 1 table and the level 2 tables it points to.", lo: f * 256, hi: (g + 1) * 256 });
+      else if (kind === 1) add({ id: `work-${slot}-${n++}`, kind: "work", name: `${who} data`, note: "Memory the program claimed while running: its stack and the data it writes.", lo: f * 256, hi: (g + 1) * 256, owner: p?.key, type: p?.type });
+      else add({ id: `app-${slot}-${n++}`, kind: "app", name: who, note: "A program the OS has loaded from the spool: its code, then its data. Its pages are mapped into its own address space.", lo: f * 256, hi: (g + 1) * 256, owner: p?.key, type: p?.type, codeEnd: codeEndOf(ram, f * 256, (g + 1) * 256) });
+      f = g + 1;
+    }
+  }
+  if (ctx.job && !ctx.frames) {
     // under the paged OS the program lives at physical virtual + PAGED_SHIFT (its page table maps it back to USER_BASE)
     const lo = USER_BASE + ((ctx.os?.tier ?? 1) >= 2 ? PAGED_SHIFT : 0), hi = Math.min(lo + ctx.job.words * 4, OS_HEADER_BASE);
     add({
@@ -90,5 +111,5 @@ export function protectedPage(page: number, imageWords: number, base = USER_BASE
   const lo = page * 256, hi = lo + 256;
   if (hi <= USER_BASE) return true;
   if (lo < base + imageWords * 4 && hi > base) return true;
-  return hi > OS_HEADER_BASE && lo < KDATA_END;
+  return hi > OS_HEADER_BASE && lo < kdataEndFor(1);
 }

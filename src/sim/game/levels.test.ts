@@ -180,7 +180,9 @@ describe("unlock gating", () => {
     expect(p.get("cpu2")!.locked).toEqual({ level: 6, name: "Neighbourhood" });
     expect(p.get("os2")).toMatchObject({ locked: { level: 8 } });
     expect(p.get("os2")!.later).toBeUndefined(); // the paged OS exists now
-    expect(p.get("os3")).toMatchObject({ later: true, locked: { level: 13 } });
+    expect(p.get("os3")).toMatchObject({ locked: { level: 13 } });
+    expect(p.get("os3")!.later).toBeUndefined(); // the preemptive OS exists now
+    expect(p.get("os4")).toMatchObject({ later: true, locked: { level: 14 } });
     expect(p.get("cpu1")!.locked).toBeUndefined();
     expect(p.get("ram1")!.locked).toBeUndefined();
     for (const x of g.snapshot().purchases) expect(!!x.locked, x.id).toBe(unlockLevelOf(x.id) > 1);

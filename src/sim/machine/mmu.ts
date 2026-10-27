@@ -185,7 +185,7 @@ export class Mmu implements Device {
     switch (reg) {
       case MMU_REG.CONTROL:
         // bit 0: translation on (ignored without an MMU); bit 1: flush the TLB
-        if (this.tlbEntries > 0) this.enabled = (next & 1) !== 0;
+        if (this.tlbEntries > 0) { this.enabled = (next & 1) !== 0; if (this.saved) this.saved = this.enabled; }
         if (next & 2) this.flush();
         break;
       case MMU_REG.TABLE: this.table = next; this.flush(); break; // a new address space: nothing translated before holds

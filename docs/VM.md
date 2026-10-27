@@ -1,6 +1,6 @@
 # Virtual memory
 
-Status: **built** — the MMU and TLB (`src/sim/machine/mmu.ts`), translation and precise page faults in all four engines, the paged OS 2 (`src/sim/os/kernel.ts`, `kernelSource(true)`), the TLB on the die and the VM line on the CLI monitor. Not built: several programs resident at once (cooperative / preemptive switching: OS 2's `programSlots` is 1 for now), swap to the drive, the page tables as a navigable view in the RAM magnifier.
+Status: **built** — the MMU and TLB (`src/sim/machine/mmu.ts`), translation and precise page faults in all four engines, the paged OS 2 (`src/sim/os/kernel.ts`, `kernelSource(true)`), the TLB on the die and the VM line on the CLI monitor. Several programs at once is OS 3 (docs/OS.md "OS 3: preemptive"). Not built: swap to the drive, address-space ids in the TLB, the page tables as a navigable view in the RAM magnifier.
 
 ## The hardware
 A CPU either has an **MMU** (`CpuSpec.mmu = { tlb }`: cpu2 and up; cpu0 and cpu1 have none) or it does not. With translation on, the CPU's instruction fetches, loads and stores use **virtual addresses**: a 20-bit space (1 MiB) of 256-byte pages (the size of a drive block and of a DRAM row), translated through a **two-level page table** the OS keeps in RAM:
@@ -37,7 +37,7 @@ A CPU without an MMU cannot switch translation on (`STATUS` bit 0 is 0), and pro
 - **Shop and picker:** the CPU's TLB size is a stat; its description says "MMU, n-entry TLB" or "no MMU: physical memory only". OS 2's install is blocked with the reason on a CPU without one.
 
 ## Next
-1. Several programs resident (OS 2's second half): a process table per address space, cooperative switching when a program yields, a context switch in the kernel (registers, table register).
-2. Preemption (OS 3): a timer interrupt, the same context switch on a clock.
+1. ~~Several programs resident, preemption~~ built as OS 3.
+2. Address-space ids in the TLB, so a context switch does not empty it.
 3. Swap: evict pages to the spool when the frames run out; real drive time, so RAM size matters again.
 4. The page tables in the RAM magnifier (virtual and physical address side by side, a fault outlining its page), and live TLB events on the die (a fill, a walk, a fault).
