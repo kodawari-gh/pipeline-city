@@ -13,6 +13,8 @@ export interface Engine {
   /** The next instruction to fetch. When `drained` this is the next instruction of the program, in program order. */
   readonly pc: number;
   readonly cycle: number;
+  /** An event for the engine's log (`Ev` in engines/common.ts): an interrupt taken, an address space switched. Optional. */
+  note?(kind: number, a: number, b: number, c: number): void;
   // Interrupt support (docs/CPU.md). An engine without it never takes interrupts.
   /** No instruction in flight (everything fetched has retired or been squashed), so a handler may start. */
   readonly drained?: boolean;

@@ -167,7 +167,7 @@ export class DieView {
     this.packets = [];
     this.trails.clear();
     this.glow.clear();
-    this.regWrite = []; this.regRead = []; this.slotTime.clear();
+    this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
     this.cellSig = ''; this.dataSig = '';
     this.buildLegend(T, plan);
     this.setZoom(this.z);
@@ -295,6 +295,10 @@ export class DieView {
       if (e.kind === Ev.Reg) this.regWrite[e.a] = now;
       else if (e.kind === Ev.Hit || e.kind === Ev.Fill) this.slotTime.set(WHICH[e.a]! + e.b, now);
       else if (e.kind === Ev.Pred) this.slotTime.set('p' + e.a, now);
+      else if (e.kind === Ev.Tlb) { if (e.a === 2) this.sysAt.set('fault', now); else { this.slotTime.set('t' + e.b, now); this.tlbKind.set(e.b, e.a); } }
+      else if (e.kind === Ev.Irq) { this.sysAt.set('irq', now); this.sysLine = e.a; }
+      else if (e.kind === Ev.Iret) this.sysAt.set('iret', now);
+      else if (e.kind === Ev.Space) this.sysAt.set('space', now);
     }
     for (const ev of fr.beats) {
       const events = byCycle.get(ev.cycle) ?? [];
@@ -491,9 +495,22 @@ export class DieView {
         const vpn = tb.vpn[k] ?? -1;
         if (vpn < 0) { ct.hide(k); return; }
         box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.3 });
+        const f = fade(this.slotTime.get('t' + k) ?? -1, 900);
+        if (f > 0) box(g, r.x, r.y, r.w, r.h, 1.5, { fill: this.tlbKind.get(k) === 1 ? T.st : T.alu, fa: 0.7 * f, stroke: T.ink, lw: 2, sa: f }); // a fill (after a walk) or a hit
         ct.set(k, 'v' + hex(vpn * 256, 4), 'p' + hex((tb.frame[k] ?? 0) * 256, 4), r, T.ink);
       });
     }
+
+    // the OS at work: the interrupt controller lights when an interrupt is taken and when iret returns; the TLB block when the address space changes or a page faults
+    const flash = (b: Block | undefined, key: string, ms: number, color: string, lw = 3) => {
+      const f = fade(this.sysAt.get(key) ?? -1, ms);
+      if (b && f > 0) box(g, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { stroke: color, lw, sa: f, fill: color, fa: 0.18 * f });
+    };
+    const ic = plan.blocks.find((b) => b.id === 'intc' || b.kind === 'intc');
+    flash(ic, 'irq', 1100, T.br, 4);
+    flash(ic, 'iret', 800, T.alu, 3);
+    flash(tl, 'space', 1100, T.ld, 4);
+    flash(tl, 'fault', 1100, T.br, 4);
 
     // the branch predictor: a counter per entry, brighter the more sure it is of "taken"
     const bp = cacheBlock('predictor');
@@ -512,6 +529,10 @@ export class DieView {
 
   /** The replay clock of the last hit or fill of each cache slot and predictor entry, in game ms (for the flash). */
   private slotTime = new Map<string, number>();
+  /** What each TLB entry last did (0 hit, 1 filled by a walk) and when the interrupt controller / address space last did something. */
+  private tlbKind = new Map<number, number>();
+  private sysAt = new Map<string, number>();
+  private sysLine = 0;
 }
 
 const WHICH = ['d', 'i', 'l2'];

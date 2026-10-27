@@ -51,6 +51,7 @@ export class Machine {
     this.addDevice(this.mpu);
     this.addDevice(this.timer);
     this.mmu = new Mmu(this.ram);
+    this.mmu.onSpace = (table) => this.engine?.note?.(10, table, 0, 0); // Ev.Space
     this.addDevice(this.mmu);
     this.bus.mpu = this.mpu;
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
@@ -78,6 +79,7 @@ export class Machine {
         this.irqWait = 0;
       } else if (e.drained) {
         this.intc.enter(line, e.pc, this.irqWait);
+        e.note?.(8, line, e.pc, this.intc.vector); // Ev.Irq
         this.mmu.enterKernel(); // the handler runs on physical addresses
         e.redirect(this.intc.vector);
         e.holdFetch(false);

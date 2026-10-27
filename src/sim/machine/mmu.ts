@@ -25,6 +25,8 @@ export class Mmu implements Device {
   tlbEntries = 0;
   /** Translation is on (the OS switches it on to run a program; a trap or an interrupt switches it off). */
   enabled = false;
+  /** Told when the page table register is written (a new address space). */
+  onSpace?: (table: number) => void;
   /** Translation was on when the CPU last entered the OS: `iret` turns it back on. */
   private saved = false;
   /** Physical address of the level 1 table. */
@@ -188,7 +190,7 @@ export class Mmu implements Device {
         if (this.tlbEntries > 0) { this.enabled = (next & 1) !== 0; if (this.saved) this.saved = this.enabled; }
         if (next & 2) this.flush();
         break;
-      case MMU_REG.TABLE: this.table = next; this.flush(); break; // a new address space: nothing translated before holds
+      case MMU_REG.TABLE: this.table = next; this.flush(); this.onSpace?.(next); break; // a new address space: nothing translated before holds
       case MMU_REG.VECTOR: this.vector = next; break;
     }
   }

@@ -155,7 +155,7 @@ export class DataCache {
 }
 
 /** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
-export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6, Tlb: 7 } as const;
+export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6, Tlb: 7, Irq: 8, Iret: 9, Space: 10 } as const;
 /** Which cache an event is about. */
 export const Which = { D: 0, I: 1, L2: 2 } as const;
 const EV_SIZE = 6, EV_CAP = 1024;
@@ -379,6 +379,8 @@ export abstract class EngineBase implements PipelineEngine {
   /** Address of the next instruction to fetch (after ecall: the address following it, like the reference). */
   get pc(): number { return this.fetchPc; }
   get cycle(): number { return this.cycleNo; }
+  /** The machine tells the engine about something that happened outside it (an interrupt taken, an address space switched) so the event log shows it in order. */
+  note(kind: number, a: number, b: number, c: number): void { this.events.push(this.cycleNo, kind, a | 0, b | 0, c | 0, 0); }
   /** No instruction in flight (see `Engine.drained`). */
   abstract get drained(): boolean;
   holdFetch(on: boolean): void { this.hold = on; }
@@ -544,6 +546,7 @@ export abstract class EngineBase implements PipelineEngine {
     m.intc.enter(FAULT_CAUSE_LINE, p.pc[s]!, 0);
     this.v.counters[Counter.PageFaults]!++;
     this.events.push(this.cycleNo, Ev.Tlb, 2, 0, p.vaddr[s]! >>> 8, p.fault[s]!);
+    this.events.push(this.cycleNo, Ev.Irq, FAULT_CAUSE_LINE, p.pc[s]! | 0, m.mmu.vector | 0, 0);
     this.fetchPc = m.mmu.vector >>> 0;
     p.fault[s] = 0;
   }
@@ -556,7 +559,7 @@ export abstract class EngineBase implements PipelineEngine {
   }
 
   protected retire(id: number, op: number): void {
-    if (op === OP_IRET) this.machine.intc.leave(); // interrupts are on again once the iret has retired
+    if (op === OP_IRET) { this.machine.intc.leave(); this.events.push(this.cycleNo, Ev.Iret, this.machine.intc.epc | 0, 0, 0, 0); } // interrupts are on again once the iret has retired
     this.v.counters[Counter.Retired]!++;
     this.v.setFate(id, Fate.Retired);
   }
