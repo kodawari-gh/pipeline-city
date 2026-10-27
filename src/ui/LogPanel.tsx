@@ -1,18 +1,19 @@
-// The job log: a modal like the almanac and the shop that lists the jobs that ended with where each one's time went (waiting for the machine,
-// running on it, the result waiting to be collected), and for a run what the machine spent its cycles on (docs/JOBS.md "The log").
+// The job log: a modal like the almanac and the shop. It opens on the whole machine seen from far away (where jobs spend their time, what slows the
+// runs, which kinds of job cost the most) and each kind links to its almanac page, where the ways to do it better are. A list of recent jobs sits
+// beside it for the single case (docs/JOBS.md "The log").
 import { signal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { snapshot } from '../game/store';
 import { dexEntry } from '../sim/game/jobdex';
-import { phasesOf, summarise, verdictOf, type JobLogEntry, type Phases } from '../sim/game/joblog';
+import { aggregate, byKind, phasesOf, stallShares, verdictOf, type Agg, type JobLogEntry, type Phases } from '../sim/game/joblog';
+import { openAlmanacFor } from './AlmanacPanel';
 import { Icon } from './Icons';
-import { cacheHitRate, fmtNum, fmtMoney, fmtTicks, STALL_CAUSES } from './logic';
+import { fmtMoney, fmtNum, fmtTicks } from './logic';
 
 export const logOpen = signal(false);
 export const toggleLog = () => { logOpen.value = !logOpen.value; };
 export const closeLog = () => { logOpen.value = false; };
 const picked = signal<number | null>(null);
-const filter = signal<string>('all');
 const order = signal<'new' | 'slow'>('new');
 
 const nameOf = (type: string) => dexEntry(type)?.name ?? type;
@@ -24,11 +25,11 @@ const PHASES = [
   ['collect', 'Collecting', 'the time from the result being written until the client had it'],
 ] as const;
 
-/** One bar of a job's time in three parts, scaled against `max` (the longest in view) so rows compare. */
+/** A job's time in three parts as one bar, scaled against `max` so bars compare. */
 function PhaseBar({ p, max }: { p: Phases; max: number }) {
   const w = (n: number) => `${(n / Math.max(1, max)) * 100}%`;
   return (
-    <span class="jl-bar" role="img" aria-label={`waited ${p.wait}s, ran ${p.run}s, collected after ${p.collect}s`}>
+    <span class="jl-bar" role="img" aria-label={`waiting ${Math.round(p.wait)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s`}>
       {PHASES.map(([k]) => p[k] > 0 && <i key={k} class={`jl-${k}`} style={{ width: w(p[k]) }} />)}
     </span>
   );
@@ -38,122 +39,95 @@ function Legend() {
   return <div class="alm-legend">{PHASES.map(([k, name, hint]) => <span key={k} title={hint}><i class={`dot jl-${k}`} /> {name}</span>)}</div>;
 }
 
-function outcomeText(e: JobLogEntry): string {
-  return e.outcome === 'expired' ? 'taken back' : e.outcome === 'declined' ? 'declined' : e.late ? 'late' : '';
+const totalOf = (a: Agg): Phases => ({ wait: a.wait, run: a.run, collect: a.collect, total: a.wait + a.run + a.collect });
+
+/** Go to the almanac page of a kind of job. */
+function AlmanacLink({ type }: { type: string }) {
+  if (!dexEntry(type)) return null;
+  return (
+    <button class="jl-alm" title={`Open the almanac page for ${nameOf(type)}: what it leans on and how to do it better`} onClick={() => { closeLog(); openAlmanacFor(type); }}>
+      <Icon name="layers" size={12} /> Almanac
+    </button>
+  );
 }
 
-function Summary({ list }: { list: JobLogEntry[] }) {
-  const s = summarise(list);
-  const n = Math.max(1, s.done);
-  const avg: Phases = { wait: s.wait / n, run: s.run / n, collect: s.collect / n, total: (s.wait + s.run + s.collect) / n };
-  const kinds = [...new Set(list.filter((e) => e.outcome === 'done').map((e) => e.type))].map((t) => {
-    const of = list.filter((e) => e.type === t && e.outcome === 'done');
-    const sum = summarise(of), m = Math.max(1, of.length);
-    return { t, n: of.length, wait: sum.wait / m, run: sum.run / m, collect: sum.collect / m };
-  }).sort((a, b) => (b.wait + b.run + b.collect) - (a.wait + a.run + a.collect));
-  const worst = s.done ? PHASES.reduce((a, b) => (avg[b[0]] > avg[a[0]] ? b : a)) : null;
-  const maxKind = Math.max(1, ...kinds.map((k) => k.wait + k.run + k.collect));
+/** The share of the run's cycles each stall took: where the machine's time went while it was running. */
+function Stalls({ a }: { a: Agg }) {
+  if (!a.win || a.win.cycles <= 0) return null;
+  const sh = stallShares(a.win);
+  const useful = a.win.retired > 0 ? a.win.retired / a.win.cycles : 0;
   return (
-    <div class="jl-sum">
-      <h3>Summary</h3>
-      <div class="alm-chips">
-        <span>{s.done} done</span>
-        {s.late > 0 && <span>{s.late} late</span>}
-        {s.expired > 0 && <span>{s.expired} taken back</span>}
-        {s.declined > 0 && <span>{s.declined} declined</span>}
-      </div>
-      {worst && (
-        <>
-          <h4>Average job</h4>
-          <PhaseBar p={avg} max={avg.total} />
-          <Legend />
-          <p>
-            A job spends most of its time <b>{worst[1].toLowerCase()}</b> ({pct(avg[worst[0]] / Math.max(1, avg.total))} of {fmtNum(avg.total, 0)}s). {worst[1]} is {worst[2]}.
-          </p>
-        </>
-      )}
-      {kinds.length > 0 && (
-        <>
-          <h4>By kind of job</h4>
-          <div class="jl-kinds">
-            {kinds.map((k) => (
-              <div key={k.t} class="jl-kind">
-                <span class="n">{nameOf(k.t)} <span class="mute">x{k.n}</span></span>
-                <PhaseBar p={{ wait: k.wait, run: k.run, collect: k.collect, total: k.wait + k.run + k.collect }} max={maxKind} />
-                <span class="v">{fmtNum(k.wait + k.run + k.collect, 0)}s</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {s.slowest && <p class="mute">Slowest: <button class="link" onClick={() => { picked.value = s.slowest!.id; }}>#{s.slowest.id} {nameOf(s.slowest.type)}</button> at {fmtTicks(phasesOf(s.slowest).total)}.</p>}
-      <p class="mute">Pick a job in the list for the detail. The log keeps the last 60 jobs.</p>
+    <div class="alm-rely jl-stalls">
+      {sh.map((c) => (
+        <div key={c.key} class="row"><span class="n">{c.label}</span><span class="b"><i style={{ width: pct(c.share) }} /></span><span class="v">{pct(c.share)}</span></div>
+      ))}
+      <div class="row" title="Cycles that finished an instruction, out of all cycles (1.0 is the best a simple pipeline can do)"><span class="n">Instructions per cycle</span><span class="b"><i style={{ width: pct(Math.min(1, useful)) }} /></span><span class="v">{fmtNum(useful, 2)}</span></div>
     </div>
   );
 }
 
-function Detail({ e, best }: { e: JobLogEntry; best: number }) {
+function Macro({ list }: { list: JobLogEntry[] }) {
+  const all = aggregate(list), kinds = byKind(list);
+  const maxAvg = Math.max(1, ...kinds.map((k) => k.wait + k.run + k.collect));
+  const lost = list.filter((e) => e.outcome !== 'done').length;
+  if (all.n === 0) return <p class="mute">No job has been finished yet, so there is nothing to compare. {lost > 0 ? `${lost} were taken back or declined.` : ''}</p>;
+  return (
+    <div class="jl-macro">
+      <h3>Where the time goes</h3>
+      <PhaseBar p={totalOf(all)} max={all.wait + all.run + all.collect} />
+      <Legend />
+      <p><b>{all.verdict.text}</b></p>
+      {all.verdict.hint && <p class="mute">{all.verdict.hint}</p>}
+      {all.win && all.win.cycles > 0 && (
+        <>
+          <h4>While jobs run: what the cycles were spent on</h4>
+          <Stalls a={all} />
+        </>
+      )}
+      <h4>Kinds of job, the ones that cost the most time first</h4>
+      <div class="jl-kinds">
+        {kinds.map((k) => {
+          const t = totalOf(k);
+          return (
+            <div key={k.type} class="jl-kind">
+              <div class="top">
+                <span class="n">{nameOf(k.type)} <span class="mute">x{k.n}{k.lost > 0 ? `, ${k.lost} lost` : ''}{k.late > 0 ? `, ${k.late} late` : ''}</span></span>
+                <PhaseBar p={t} max={maxAvg} />
+                <span class="v">{k.n ? fmtTicks(t.total) : '-'}</span>
+                <AlmanacLink type={k.type} />
+              </div>
+              {k.n > 0 ? <div class="why">{k.verdict.text} <span class="mute">{k.verdict.hint}</span></div> : <div class="why mute">Never finished: it was taken back or declined.</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One job: its three phases, the reading, a line about the run, and the way to its almanac page. */
+function Detail({ e }: { e: JobLogEntry }) {
   const p = phasesOf(e), v = verdictOf(e), w = e.win;
   const max = Math.max(1, p.total);
-  const margin = e.deadline - e.end;
+  const how = e.outcome === 'done' ? `paid ${fmtMoney(e.payout)}${e.late ? ', late' : ''}` : e.outcome === 'expired' ? 'taken back by the client' : 'declined';
   return (
     <div class="jl-detail">
-      <h3>#{e.id} {nameOf(e.type)} <span class="mute">scale {e.scale}</span> <button class="link" onClick={() => { picked.value = null; }}>back to summary</button></h3>
-      <div class="alm-chips">
-        <span>{e.outcome === 'done' ? 'delivered' : e.outcome === 'expired' ? 'taken back by the client' : 'declined'}</span>
-        {e.outcome === 'done' && <span>paid {fmtMoney(e.payout)}</span>}
-        {e.late && e.outcome === 'done' && <span>late</span>}
-        {e.attempts > 1 && <span>{e.attempts} attempts</span>}
-        <span>{e.os ? `OS ${e.os}` : 'no OS'}</span>
-      </div>
+      <h3>#{e.id} {nameOf(e.type)} <span class="mute">{how}</span></h3>
+      <p><button class="link" onClick={() => { picked.value = null; }}>back to the overview</button> <AlmanacLink type={e.type} /></p>
       {e.outcome === 'done' && (
-        <>
-          <h4>Where the time went</h4>
-          <div class="jl-phases">
-            {PHASES.map(([k, name, hint]) => (
-              <div key={k} class="row" title={hint}>
-                <span class="n">{name}</span>
-                <span class="b"><i class={`jl-${k}`} style={{ width: pct(p[k] / max) }} /></span>
-                <span class="v">{fmtTicks(p[k])}</span>
-              </div>
-            ))}
-          </div>
-          <p class="mute">
-            Arrived at tick {e.arrival}, taken at {e.start}, result at {e.finish}, collected at {e.end}.{' '}
-            {margin >= 0 ? `${fmtTicks(margin)} before the deadline.` : `${fmtTicks(-margin)} after the deadline.`}
-            {best > 0 && ` Your fastest ${nameOf(e.type)} run is ${fmtTicks(best)}; this one ran ${fmtTicks(p.run)}.`}
-          </p>
-        </>
+        <div class="jl-phases">
+          {PHASES.map(([k, name, hint]) => (
+            <div key={k} class="row" title={hint}>
+              <span class="n">{name}</span>
+              <span class="b"><i class={`jl-${k}`} style={{ width: pct(p[k] / max) }} /></span>
+              <span class="v">{fmtTicks(p[k])}</span>
+            </div>
+          ))}
+        </div>
       )}
-      <h4>Reading</h4>
-      <p>{v.text}</p>
+      <p><b>{v.text}</b></p>
       {v.hint && <p class="mute">{v.hint}</p>}
-      {w && w.cycles > 0 && (
-        <>
-          <h4>The machine during the run</h4>
-          <div class="alm-chips">
-            <span>{w.cycles} cycles</span>
-            <span>{w.retired} instructions</span>
-            <span>CPI {w.retired > 0 ? fmtNum(w.cycles / w.retired, 2) : '-'}</span>
-            {(() => { const h = cacheHitRate({ cacheHits: w.cacheHits, cacheMisses: w.cacheMisses }); return h === null ? null : <span>{pct(h)} cache hits</span>; })()}
-            {w.tlbMisses > 0 && <span>{w.tlbMisses} TLB misses</span>}
-            {w.pageFaults > 0 && <span>{w.pageFaults} page faults</span>}
-          </div>
-          <div class="alm-rely jl-stalls">
-            {STALL_CAUSES.map((c) => {
-              const val = c.key === 'stallLoad' ? w.stallLoad : c.key === 'stallData' ? w.stallData : c.key === 'stallFlush' ? w.stallFlush : c.key === 'stallStruct' ? w.stallStruct : w.stallCache;
-              return (
-                <div key={c.key} class="row" title={c.hint}>
-                  <span class="n">{c.label}</span>
-                  <span class="b"><i style={{ width: pct(val / w.cycles) }} /></span>
-                  <span class="v">{pct(val / w.cycles)}</span>
-                </div>
-              );
-            })}
-          </div>
-          <p class="mute">Counted for the whole machine between the job being taken and its result, so with several programs at once the numbers are shared.</p>
-        </>
-      )}
+      {w && w.cycles > 0 && <Stalls a={{ n: 1, late: 0, wait: p.wait, run: p.run, collect: p.collect, win: w, verdict: v }} />}
     </div>
   );
 }
@@ -167,15 +141,10 @@ export function LogPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
   if (!open) return null;
-  const s = snapshot.value;
-  const all = s?.jobLog ?? [];
-  const types = [...new Set(all.map((e) => e.type))];
-  const f = types.includes(filter.value) ? filter.value : 'all';
-  const list = all.filter((e) => f === 'all' || e.type === f);
-  const rows = [...list].sort(order.value === 'slow' ? (a, b) => phasesOf(b).total - phasesOf(a).total : (a, b) => b.end - a.end || b.id - a.id);
-  const maxTotal = Math.max(1, ...list.map((e) => phasesOf(e).total));
-  const sel = list.find((e) => e.id === picked.value) ?? null;
-  const best = sel ? (s?.dex?.find((d) => d.id === sel.type)?.best ?? 0) : 0;
+  const all = snapshot.value?.jobLog ?? [];
+  const rows = [...all].sort(order.value === 'slow' ? (a, b) => phasesOf(b).total - phasesOf(a).total : (a, b) => b.end - a.end || b.id - a.id);
+  const maxTotal = Math.max(1, ...all.map((e) => phasesOf(e).total));
+  const sel = all.find((e) => e.id === picked.value) ?? null;
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeLog(); }}>
       <div class="card almanac joblog" role="dialog" aria-modal="true" aria-label="Job log">
@@ -190,34 +159,30 @@ export function LogPanel() {
           <div class="alm-body">
             <div class="jl-left">
               <div class="jl-ctl">
-                <div class="jl-filter" role="group" aria-label="Kind of job">
-                  {['all', ...types].map((t) => <button key={t} class={f === t ? 'on' : ''} aria-pressed={f === t} onClick={() => { filter.value = t; }}>{t === 'all' ? 'All' : nameOf(t)}</button>)}
-                </div>
                 <div class="jl-filter" role="group" aria-label="Order">
                   <button class={order.value === 'new' ? 'on' : ''} aria-pressed={order.value === 'new'} onClick={() => { order.value = 'new'; }}>Newest</button>
                   <button class={order.value === 'slow' ? 'on' : ''} aria-pressed={order.value === 'slow'} onClick={() => { order.value = 'slow'; }}>Slowest</button>
                 </div>
               </div>
-              <Legend />
               <div class="jl-list" role="listbox" aria-label="Jobs">
                 {rows.map((e) => {
-                  const p = phasesOf(e), tag = outcomeText(e);
+                  const p = phasesOf(e);
                   return (
                     <button key={e.id} role="option" aria-selected={sel?.id === e.id} class={`jl-row ${sel?.id === e.id ? 'on' : ''} ${e.outcome !== 'done' ? 'off' : ''}`} onClick={() => { picked.value = e.id; }}>
-                      <span class="id">#{e.id}</span>
                       <span class="nm">{nameOf(e.type)}</span>
                       <PhaseBar p={p} max={maxTotal} />
                       <span class="tm">{fmtTicks(p.total)}</span>
-                      <span class={`tg ${e.late || e.outcome === 'expired' ? 'warn' : ''}`}>{tag || (e.outcome === 'done' ? fmtMoney(e.payout) : '')}</span>
+                      <span class={`tg ${e.late || e.outcome === 'expired' ? 'warn' : ''}`}>{e.outcome === 'expired' ? 'taken back' : e.outcome === 'declined' ? 'declined' : e.late ? 'late' : ''}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
-            <div class="alm-main">{sel ? <Detail e={sel} best={best} /> : <Summary list={list} />}</div>
+            <div class="alm-main">{sel ? <Detail e={sel} /> : <Macro list={all} />}</div>
           </div>
         )}
       </div>
     </div>
   );
 }
+

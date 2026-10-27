@@ -84,13 +84,14 @@ export interface Verdict {
   hint: string;
 }
 
+const roundPhases = (p: Phases): Phases => ({ wait: Math.round(p.wait), run: Math.round(p.run), collect: Math.round(p.collect), total: Math.round(p.total) });
 const pc = (x: number) => `${Math.round(x * 100)}%`;
 
 /** A plain reading of a log entry: the largest phase, and for a run, what the machine spent its cycles on. */
 export function verdictOf(e: JobLogEntry): Verdict {
   if (e.outcome === "expired") return { where: "wait", text: "A client took it back at its deadline: the machine could not run it.", hint: "Look at what it needs in the almanac (OS, drive, RAM, network) and add that." };
   if (e.outcome === "declined") return { where: "none", text: "You declined it.", hint: "Declining costs a little reputation outside the sandbox." };
-  const p = phasesOf(e);
+  const p = roundPhases(phasesOf(e));
   if (p.total <= 0) return { where: "none", text: "Too quick to tell.", hint: "" };
   const top = (["wait", "run", "collect"] as const).reduce((a, b) => (p[b] > p[a] ? b : a), "wait");
   const share = p[top] / p.total;
@@ -131,4 +132,49 @@ export function summarise(list: readonly JobLogEntry[]): LogSummary {
     if (!s.slowest || p.total > phasesOf(s.slowest).total) s.slowest = e;
   }
   return s;
+}
+
+/** The stall causes a run's cycles are spent on, as a share of its cycles, largest first. */
+export function stallShares(w: JobWindow): Array<{ key: string; label: string; share: number }> {
+  const c = Math.max(1, w.cycles);
+  return [
+    { key: "cache", label: "Waiting on memory", share: w.stallCache / c },
+    { key: "flush", label: "Mispredicted branches", share: w.stallFlush / c },
+    { key: "data", label: "Waiting on earlier results", share: (w.stallLoad + w.stallData) / c },
+    { key: "struct", label: "Memory port busy", share: w.stallStruct / c },
+  ].sort((a, b) => b.share - a.share);
+}
+
+/** A group of jobs seen from far away: the average split of their time, the counters of their runs added up, and one reading of it. */
+export interface Agg { n: number; late: number; wait: number; run: number; collect: number; win?: JobWindow; verdict: Verdict }
+
+export function aggregate(list: readonly JobLogEntry[]): Agg {
+  const done = list.filter((e) => e.outcome === "done");
+  const n = done.length;
+  let wait = 0, run = 0, collect = 0, late = 0;
+  let win: JobWindow | undefined;
+  for (const e of done) {
+    const p = phasesOf(e);
+    wait += p.wait; run += p.run; collect += p.collect;
+    if (e.late) late++;
+    if (e.win) {
+      win ??= { cycles: 0, retired: 0, stallLoad: 0, stallData: 0, stallFlush: 0, stallStruct: 0, stallCache: 0, cacheHits: 0, cacheMisses: 0, tlbMisses: 0, pageFaults: 0 };
+      for (const k of WINDOW_COUNTERS) win[k] += e.win[k];
+    }
+  }
+  const m = Math.max(1, n);
+  const avg = { wait: wait / m, run: run / m, collect: collect / m };
+  const typical: JobLogEntry = { id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: avg.wait, finish: avg.wait + avg.run, end: avg.wait + avg.run + avg.collect, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(win ? { win } : {}) };
+  return { n, late, ...avg, ...(win ? { win } : {}), verdict: n ? verdictOf(typical) : { where: "none", text: "No finished job yet.", hint: "" } };
+}
+
+/** The same, per kind of job, with the kinds that took the most total time first; `lost` counts jobs of the kind that were taken back or declined. */
+export interface KindAgg extends Agg { type: string; spent: number; lost: number }
+
+export function byKind(list: readonly JobLogEntry[]): KindAgg[] {
+  return [...new Set(list.map((e) => e.type))].map((type) => {
+    const of = list.filter((e) => e.type === type);
+    const a = aggregate(of);
+    return { ...a, type, spent: (a.wait + a.run + a.collect) * a.n, lost: of.filter((e) => e.outcome !== "done").length };
+  }).sort((a, b) => b.spent - a.spent || b.lost - a.lost);
 }

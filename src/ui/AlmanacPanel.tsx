@@ -16,6 +16,8 @@ export const closeAlmanac = () => { almanacOpen.value = false; };
 const picked = signal<string | null>(null);
 type Tab = 'about' | 'asm' | 'cpp' | 'python';
 const tab = signal<Tab>('about');
+/** Open the almanac on a kind of job (the job log links here); a kind the almanac does not know opens it as it is. */
+export const openAlmanacFor = (id: string) => { if (dexEntry(id)) { picked.value = id; tab.value = 'about'; } almanacOpen.value = true; };
 const asmView = signal<'listing' | 'source'>('listing');
 const scaleOf = signal<Record<string, number>>({});
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "./game";
 import { ECONOMY } from "./economy";
 import { COUNTER_NAMES } from "../engines/view";
-import { JOB_LOG_CAP, phasesOf, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
+import { aggregate, byKind, JOB_LOG_CAP, phasesOf, stallShares, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
 import { netRig, rig } from "./testkit";
 
 ECONOMY.levelGating = false;
@@ -96,6 +96,27 @@ describe("a job that was in the spool when the game was saved", () => {
     for (const k of spooled) expect(k.pluggedAt ?? 0).toBeGreaterThan(0);
     const back = Game.fromSave(JSON.parse(JSON.stringify(saved)));
     expect(back.toSave().net!.spool.map((k) => k.pluggedAt)).toEqual(spooled.map((k) => k.pluggedAt));
+  });
+});
+
+describe("the macro view", () => {
+  it("averages the phases of the finished jobs, adds up their counters and reads the whole", () => {
+    const a = aggregate([entry(), entry({ id: 2, start: 30, finish: 50, end: 50, win: win({ stallCache: 600 }) }), entry({ id: 3, outcome: "declined", win: undefined })]);
+    expect(a.n).toBe(2);
+    expect(a.wait).toBe(20);
+    expect(a.win!.cycles).toBe(2000);
+    expect(a.win!.stallCache).toBe(600);
+    expect(aggregate([]).verdict.where).toBe("none");
+  });
+
+  it("ranks the kinds by the total time they took and counts the ones that were lost", () => {
+    const k = byKind([entry({ type: "log" }), entry({ id: 2, type: "scan", start: 5, finish: 200, end: 205 }), entry({ id: 3, type: "calc", outcome: "expired", end: 90, win: undefined })]);
+    expect(k.map((x) => x.type)).toEqual(["scan", "log", "calc"]);
+    expect(k[2]).toMatchObject({ n: 0, lost: 1 });
+  });
+
+  it("orders the stalls largest first", () => {
+    expect(stallShares(win({ stallFlush: 300, stallCache: 100 }))[0]).toMatchObject({ key: "flush", share: 0.3 });
   });
 });
 

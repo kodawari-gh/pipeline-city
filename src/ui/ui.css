@@ -806,13 +806,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .almanac .alm-row.on, .almanac .alm-row.on .alm-name { color: var(--ink); }
 
 /* The job log: a list of jobs with a bar of where each one's time went, and a summary or detail on the right */
-.joblog .jl-left { width: 27rem; flex: none; display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
+.joblog .jl-left { width: 22rem; flex: none; display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
 .jl-ctl { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; }
 .jl-filter { display: flex; flex-wrap: wrap; gap: 0.2rem; }
 .jl-filter button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); }
 .jl-filter button.on { color: var(--ink); background: var(--glass-line); border-color: var(--ink); }
 .jl-list { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1; }
-.jl-row { display: grid; grid-template-columns: 2.6rem 5.5rem 1fr 3.2rem 3.4rem; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; text-align: left; color: var(--ink); }
+.jl-row { display: grid; grid-template-columns: 6rem 1fr 3.2rem 4.2rem; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; text-align: left; color: var(--ink); }
 .jl-row.on { border-color: var(--ink); background: var(--glass-line); color: var(--ink); }
 .jl-row.off { opacity: 0.7; }
 .jl-row .id { color: var(--mute); font-family: var(--mono); }
@@ -830,10 +830,13 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .jl-phases .b { height: 0.6rem; background: var(--glass-line); border-radius: 0.2rem; overflow: hidden; }
 .jl-phases .b i { display: block; height: 100%; }
 .jl-phases .v { text-align: right; font-family: var(--mono); }
-.jl-stalls .row { grid-template-columns: 7rem 1fr 2.8rem; }
-.jl-kinds { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.3rem 0; max-width: 40rem; }
-.jl-kind { display: grid; grid-template-columns: 11rem 1fr 3rem; align-items: center; gap: 0.5rem; }
+.jl-stalls .row { grid-template-columns: 13rem 1fr 2.8rem; max-width: 48rem; }
+.jl-kinds { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.3rem 0; max-width: 52rem; }
+.jl-kind { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.4rem 0.6rem; border: 1px solid var(--glass-line); border-radius: 0.3rem; }
+.jl-kind .top { display: grid; grid-template-columns: 11rem 1fr 3.4rem auto; align-items: center; gap: 0.6rem; }
 .jl-kind .v { text-align: right; font-family: var(--mono); }
-.jl-sum p, .jl-detail p { margin: 0.3rem 0; line-height: 1.4; max-width: 56rem; }
+.jl-kind .why { line-height: 1.35; font-size: 0.75rem; }
+.jl-alm { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; font-size: 0.7rem; }
+.jl-macro p, .jl-detail p { margin: 0.3rem 0; line-height: 1.4; max-width: 56rem; }
 .jl-empty { padding: 1rem; }
-@media (max-width: 52rem) { .joblog .jl-left { width: auto; } .jl-row { grid-template-columns: 2.4rem 4.5rem 1fr 3rem; } .jl-row .tg { display: none; } }
+@media (max-width: 52rem) { .joblog .jl-left { width: auto; } .jl-row { grid-template-columns: 5rem 1fr 3rem; } .jl-row .tg { display: none; } }
