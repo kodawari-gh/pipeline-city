@@ -5,8 +5,8 @@ import type { Theme } from './theme';
 import type { CpuSpec } from '../sim/board/specs';
 import { planInput } from './cpuplan';
 import { cpuPlan } from './cpuplans';
-import { glyph, glyphArea, isGlyph } from './blockart';
-import { isTall } from './glyphgeom';
+import { glyph, glyphArea } from './blockart';
+import { hasSymbol, isTall } from './glyphgeom';
 export { isTall };
 
 // The static art of a CPU die, drawn from a `CpuPlan` (docs/DIE.md): macro blocks with rim lines, dense cell arrays, trace bundles
@@ -135,7 +135,7 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
   cells.addChild(cg);
   for (const b of plan.blocks) {
     const c = T[KIND_COLOR[b.kind]];
-    const ga = isGlyph(b) && !isTall(b) ? glyphArea(b) : null;
+    const ga = hasSymbol(b) ? glyphArea(b) : null;
     if (ga) glyph(cg, T, b, ga, c, (t, x, y, size) => subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })));
     else {
       for (const r of cellRects(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);

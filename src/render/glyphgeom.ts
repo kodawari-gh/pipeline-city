@@ -20,9 +20,15 @@ export const isTall = (b: Block): boolean => {
   return b.kind === 'latch' || (r.w < 56 && r.h > r.w * 2.2) || (r.w <= 110 && r.h >= r.w * 2.4 && b.label.length * 8.5 > r.w - 14);
 };
 
+/** A decoder in a narrow column (the two lanes of the 2-wide die) draws its word standing up. */
+export const isVertical = (b: Block): boolean => b.kind === 'decode' && isTall(b);
+/** Whether a block draws a symbol: the symbol kinds, except the narrow ones (a queue, a latch), and the decoder in a column. */
+export const hasSymbol = (b: Block): boolean => isGlyph(b) && (!isTall(b) || isVertical(b));
+
 /** The drawing area of a block's symbol: the box under the name (the same as its cell grid's). */
 export function glyphArea(b: Block): Rect | null {
   const r = b.rect;
+  if (isVertical(b)) { const a = { x: r.x + 24, y: r.y + 8, w: r.w - 30, h: r.h - 16 }; return a.w > 14 && a.h > 40 ? a : null; }
   const head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
   return a.w > 14 && a.h > 8 ? a : null;
@@ -32,14 +38,14 @@ export function glyphArea(b: Block): Rect | null {
 export interface Pins { ins: Record<string, Pt>; out: Pt | null }
 
 export function glyphPins(b: Block): Pins | null {
-  if (!isGlyph(b) || isTall(b)) return null;
+  if (!hasSymbol(b)) return null;
   const a = glyphArea(b);
   if (!a) return null;
   const { x, y, w, h } = a;
   if (b.id === 'disp') return { ins: { in: [x, y + h / 2] }, out: [x + w, y + h / 2] };
   switch (b.kind) {
     case 'pc': case 'fetch': case 'imm': return { ins: { in: [x, y + h / 2] }, out: [x + w, y + h / 2] };
-    case 'decode': { const wh = Math.min(14, h * 0.4); return { ins: { in: [x, y + wh / 2] }, out: [x + w, y + wh / 2] }; }
+    case 'decode': { if (isVertical(b)) return { ins: { in: [x, y + h * 0.2] }, out: [x + w, y + h * 0.2] }; const wh = Math.min(14, h * 0.4); return { ins: { in: [x, y + wh / 2] }, out: [x + w, y + wh / 2] }; }
     case 'nextpc': {
       const mh = Math.min(h, 40), mw = Math.min(w * 0.35, 46), mx = x + w * 0.38, my = y + (h - mh) / 2;
       const iy = (k: number, n: number) => my + mh * ((k + 0.5) / n);

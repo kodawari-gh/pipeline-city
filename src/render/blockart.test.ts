@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
-import type { PlanInput, Rect } from './cpuplan';
+import { planInput, type PlanInput, type Rect } from './cpuplan';
 import { cpuPlan } from './cpuplans';
+import { specsOfKind, type CpuSpec } from '../sim/board/specs';
 import { isTall } from './dieart';
-import { dockLink, glyphPins, inPinFor } from './glyphgeom';
+import { dockLink, glyphPins, hasSymbol, inPinFor } from './glyphgeom';
 import { controlsOf, glyph, glyphArea, glyphLive, GLYPH_KINDS, slotsOf, CONTROL_LINES } from './blockart';
 import type { Theme } from './theme';
 
@@ -26,7 +27,7 @@ const inside = (r: Rect, o: Rect) => r.x >= o.x - 4 && r.y >= o.y - 1 && r.x + r
 describe('block symbols', () => {
   it('every symbol block of every architecture has room for its symbol, which is drawn without error', () => {
     for (const i of INPUTS) {
-      for (const b of cpuPlan(i).blocks.filter((x) => GLYPH_KINDS.has(x.kind) && !isTall(x))) {
+      for (const b of cpuPlan(i).blocks.filter((x) => hasSymbol(x))) {
         const a = glyphArea(b);
         expect(a, `${i.arch} ${b.id}`).not.toBeNull();
         const texts: string[] = [];
@@ -38,7 +39,7 @@ describe('block symbols', () => {
   it('the live text of an instruction goes inside the block it is in', () => {
     const items = [{ op: 'addi', text: 'addi t0, t0, 4', pc: 0x1004 }];
     for (const i of INPUTS) {
-      for (const b of cpuPlan(i).blocks.filter((x) => GLYPH_KINDS.has(x.kind) && !isTall(x))) {
+      for (const b of cpuPlan(i).blocks.filter((x) => hasSymbol(x))) {
         const a = glyphArea(b)!;
         const l = glyphLive(b, a, items, 0x1004);
         for (const t of l.texts) expect(inside(t.rect, b.rect), `${i.arch} ${b.id}`).toBe(true);
@@ -67,7 +68,7 @@ describe('block symbols', () => {
   it('every symbol has its pins inside its block, and a link into it ends on the right one', () => {
     for (const i of INPUTS) {
       const plan = cpuPlan(i);
-      for (const b of plan.blocks.filter((x) => GLYPH_KINDS.has(x.kind) && !isTall(x))) {
+      for (const b of plan.blocks.filter((x) => hasSymbol(x))) {
         const pins = glyphPins(b)!;
         expect(pins, `${i.arch} ${b.id}`).not.toBeNull();
         for (const p of [...Object.values(pins.ins), ...(pins.out ? [pins.out] : [])]) {
@@ -94,5 +95,29 @@ describe('block symbols', () => {
     // a link docks: it runs on from the block's edge to the pin without a diagonal
     const d = dockLink(npc, npc, 'br-npc', [[npc.rect.x, npc.rect.y + 20], [npc.rect.x - 30, npc.rect.y + 20]]);
     for (let k = 1; k < d.length; k++) expect(d[k]![0] === d[k - 1]![0] || d[k]![1] === d[k - 1]![1]).toBe(true);
+  });
+
+  it('every CPU the game ships draws every symbol, docks every link into a pin or an edge, and fills its decoders', () => {
+    const cpus = specsOfKind('cpu') as CpuSpec[];
+    expect(cpus.length).toBeGreaterThanOrEqual(10);
+    for (const spec of cpus) {
+      const plan = cpuPlan(planInput(spec.engine, spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}));
+      const symbols = plan.blocks.filter((b) => hasSymbol(b));
+      expect(symbols.length, spec.id).toBeGreaterThan(8);
+      for (const b of symbols) {
+        expect(glyphArea(b), `${spec.id} ${b.id}`).not.toBeNull();
+        expect(() => glyph(new Graphics(), DARK, b, glyphArea(b)!, '#0af', () => {})).not.toThrow();
+        const live = glyphLive(b, glyphArea(b)!, [{ op: 'add', text: 'add t4, t1, t2', pc: 0x1000, word: 0x00a01083 }], 0x1000, [1]);
+        for (const t of live.texts) expect(t.rect.x + t.rect.w, `${spec.id} ${b.id}`).toBeLessThanOrEqual(b.rect.x + b.rect.w + 4);
+      }
+      // a decoder never falls back to a field of cells: wide or in a column it is a symbol
+      for (const b of plan.blocks.filter((x) => x.kind === 'decode')) expect(hasSymbol(b), `${spec.id} ${b.id}`).toBe(true);
+      for (const l of plan.links) {
+        const to = plan.blocks.find((b) => b.id === l.to)!, pins = glyphPins(to);
+        if (pins) expect(l.pts[l.pts.length - 1], `${spec.id} ${l.id}`).toEqual(inPinFor(to, l.id, pins));
+        const from = plan.blocks.find((b) => b.id === l.from)!, fp = glyphPins(from);
+        if (fp?.out) expect(l.pts[0], `${spec.id} ${l.id} from ${from.id}`).toEqual(fp.out);
+      }
+    }
   });
 });

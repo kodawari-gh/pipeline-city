@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import type { Block, Rect } from './cpuplan';
-import { fetchWidth, glyphArea, isGlyph, laneCount, GLYPH_KINDS } from './glyphgeom';
+import { fetchWidth, glyphArea, hasSymbol, isGlyph, isVertical, laneCount, GLYPH_KINDS } from './glyphgeom';
 import { mix } from './ink';
 import { regName, slotValues, writesOf } from './tokentext';
 import type { Theme } from './theme';
@@ -10,7 +10,7 @@ import type { Theme } from './theme';
 // trapezoid, a multiplier a triangle of partial products, the decoder the instruction's fields and the control lines it raises.
 // Pure drawing into a Graphics (and a callback for the few labels), so it is testable and the far view never pays for it.
 
-export { fetchWidth, glyphArea, isGlyph, laneCount, GLYPH_KINDS };
+export { fetchWidth, glyphArea, hasSymbol, isGlyph, isVertical, laneCount, GLYPH_KINDS };
 
 /** Where a text goes: its centre, in die units, and its size. */
 export type Put = (text: string, x: number, y: number, size: number) => void;
@@ -96,6 +96,13 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       break;
     }
     case 'decode': {
+      if (isVertical(b)) {
+        // in a narrow column the word stands up, its fields one under the other, and the lines it raises are rows under it
+        const sl = slotsOf(b, a);
+        sl.fields!.forEach((r, k) => { rect(r.x, r.y + 0.6, r.w, r.h - 1.2, k % 2 ? solid : soft); if (r.h >= 9) put(WORD_FIELDS[k]!.name, r.x + r.w / 2, r.y + r.h / 2, Math.min(7, r.h * 0.7)); });
+        sl.lines!.forEach((r, k) => { rect(r.x, r.y, r.w, r.h, soft); if (r.h >= 7) put(CONTROL_LINES[k]!, r.x + r.w / 2, r.y + r.h / 2, 6); });
+        break;
+      }
       // the word it holds, and the lines it raises
       const wh = Math.min(14, h * 0.4);
       word(x, y, w, wh);
@@ -194,6 +201,12 @@ export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; w
       return { words: Array.from({ length: n }, (_, k) => ({ x, y: y + k * (wh + gap), w, h: wh })) };
     }
     case 'decode': {
+      if (isVertical(b)) {
+        const wordH = h * 0.55, total = WORD_FIELDS.reduce((n, f) => n + f.bits, 0), n = CONTROL_LINES.length, lh = Math.min(11, (h - wordH - 6 - (n - 1) * 3) / n);
+        let fy = y;
+        const fields = WORD_FIELDS.map((f) => { const fh = (wordH * f.bits) / total, r = { x, y: fy, w, h: fh }; fy += fh; return r; });
+        return { word: { x, y, w, h: wordH }, fields, lines: Array.from({ length: n }, (_, k) => ({ x, y: y + wordH + 6 + k * (lh + 3), w, h: lh })) };
+      }
       const wh = Math.min(14, h * 0.4), ly = y + wh + 4, lh = Math.max(4, Math.min(11, h - wh - 6)), n = CONTROL_LINES.length, lw = (w - (n - 1) * 3) / n;
       const total = WORD_FIELDS.reduce((n, f) => n + f.bits, 0);
       let fx = x;

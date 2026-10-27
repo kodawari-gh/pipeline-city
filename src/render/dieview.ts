@@ -7,7 +7,7 @@ import type { Block, CpuPlan, Pt, Rect } from './cpuplan';
 import { cellRects, isTall, dieNear, offsetPts, LANE_GAP, type DieArt } from './dieart';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from './ink';
-import { controlsOf, glyphArea, glyphLive, isGlyph } from './blockart';
+import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { idColor, pcText, writesOf } from './tokentext';
 import type { Theme } from './theme';
 
@@ -501,7 +501,7 @@ export class DieView {
     const fetched = rows.filter((r) => r.ch === 'F').sort((a, b) => a.id - b.id)[0];
     const used = new Set<string>();
     for (const b of plan.blocks) {
-      if (!isGlyph(b) || isTall(b)) continue;
+      if (!hasSymbol(b)) continue;
       const a = glyphArea(b);
       if (!a) continue;
       // the immediate lights when the instruction being decoded has one, the dispatch lanes when instructions go to the scheduler
