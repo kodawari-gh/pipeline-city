@@ -1277,7 +1277,7 @@ export class Game {
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
     this.addClientBase(this.reputation());
     this.lastCompleted = {
-      id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - key.pluggedAt, late,
+      id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - this.startOf(key), late,
       attempts: key.attempts, completedAt: this.baseTick,
     };
     this.dexDone(key);
@@ -1602,7 +1602,7 @@ export class Game {
 
   /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
   toSave(): SaveV4 {
-    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired });
+    const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired, ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}) });
     const p = this.plugged;
     const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
     return {
@@ -2809,12 +2809,17 @@ export class Game {
       id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
       work: runReference(g).steps, type: clsId === "cli" || clsId === "scan" ? parsed : clsId, jobNo: g.meta.params.jobId,
       cls: clsId, needs: cls?.needs ?? [], payMul,
-      attempts: 1, pluggedAt: 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
+      attempts: 1, pluggedAt: r.pluggedAt ?? 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
     };
   }
 
   /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */
   private jobLog: JobLogEntry[] = [];
+
+  /** The tick the machine took the job. A key restored from an older save has none (0): its arrival stands in, so the wait reads as nothing rather than as the whole game. */
+  private startOf(k: Key): number {
+    return Math.max(k.pluggedAt, k.arrival);
+  }
 
   private countersNow(): number[] | undefined {
     const eng = this.machine.engine as PipelineEngine | null;
@@ -2832,7 +2837,7 @@ export class Game {
     const done = outcome === "done";
     this.jobLog.push({
       id: k.id, type: k.type, scale: k.scale, outcome, arrival: k.arrival,
-      start: done ? k.pluggedAt : this.baseTick, finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
+      start: done ? this.startOf(k) : this.baseTick, finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
       deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
       ...(done && k.win ? { win: { ...k.win } } : {}),
     });
@@ -2850,7 +2855,7 @@ export class Game {
     this.dexSeen(k);
     const r = this.dex[k.type];
     if (!r) return;
-    const ticks = Math.max(1, k.doneAt - k.pluggedAt);
+    const ticks = Math.max(1, k.doneAt - this.startOf(k));
     r.runs++;
     r.best = r.best === 0 ? ticks : Math.min(r.best, ticks);
   }

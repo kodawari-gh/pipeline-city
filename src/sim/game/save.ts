@@ -24,6 +24,8 @@ export interface SavedKey {
    * not retired, except that the USB keys of a save whose link had been up are retired on load (see `fromSave`).
    */
   retired?: boolean;
+  /** The tick the machine took the job (a spooled job keeps it across a save). Optional and additive: absent means unknown. */
+  pluggedAt?: number;
 }
 
 export interface SavedPlugged extends SavedKey {

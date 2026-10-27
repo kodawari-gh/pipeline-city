@@ -3,7 +3,7 @@ import { Game } from "./game";
 import { ECONOMY } from "./economy";
 import { COUNTER_NAMES } from "../engines/view";
 import { JOB_LOG_CAP, phasesOf, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
-import { rig } from "./testkit";
+import { netRig, rig } from "./testkit";
 
 ECONOMY.levelGating = false;
 ECONOMY.caseGating = false;
@@ -84,3 +84,18 @@ describe("the job log in a game", () => {
     expect(Game.fromSave(JSON.parse(JSON.stringify(save))).snapshot().jobLog).toHaveLength(JOB_LOG_CAP);
   });
 });
+
+describe("a job that was in the spool when the game was saved", () => {
+  it("keeps the tick the machine took it, so the log does not read its run as the whole game", () => {
+    const g = netRig("ssd1", { keys: [] });
+    (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue("cli.log", 1, undefined, true);
+    for (let t = 0; t < 3000 && g.toSave().net?.spool.length === 0; t++) g.advanceBaseTick();
+    const saved = g.toSave();
+    const spooled = saved.net!.spool;
+    expect(spooled.length).toBeGreaterThan(0);
+    for (const k of spooled) expect(k.pluggedAt ?? 0).toBeGreaterThan(0);
+    const back = Game.fromSave(JSON.parse(JSON.stringify(saved)));
+    expect(back.toSave().net!.spool.map((k) => k.pluggedAt)).toEqual(spooled.map((k) => k.pluggedAt));
+  });
+});
+
