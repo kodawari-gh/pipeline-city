@@ -6,6 +6,7 @@ import type { PipelineEngine } from "../engines";
 import type { EngineView, OooView, TimelineView } from "../engines/view";
 import { disassemble, OPS } from "../isa";
 import type { StageSnap } from "./game";
+import type { RamRegion } from "./ramregions";
 
 /** One slot of an out-of-order structure: the mnemonic ("" when empty) and a state code (see each field). */
 export interface OooSlot { op: string; state: number }
@@ -98,10 +99,14 @@ export interface RamMap {
   filled: number[];
   /** Per bucket: 0..255, the share of its lines that hold only legal instructions (the program, as opposed to data). */
   code: number[];
+  /** What lives where (boot ROM, OS, the running program), see ramregions.ts. */
+  regions: RamRegion[];
+  /** A copy of the memory itself: the sticks show its bytes, and the program's instructions at deep zoom. */
+  image: Uint8Array;
 }
 export const RAM_BUCKETS = 256;
 
-export function ramMapOf(ram: Uint8Array): RamMap {
+export function ramMapOf(ram: Uint8Array, regions: RamRegion[] = []): RamMap {
   const per = Math.max(16, Math.ceil(ram.length / RAM_BUCKETS / 16) * 16);
   const filled: number[] = [], code: number[] = [];
   for (let b = 0; b < RAM_BUCKETS; b++) {
@@ -121,7 +126,7 @@ export function ramMapOf(ram: Uint8Array): RamMap {
     filled.push(lines ? Math.round((255 * nz) / lines) : 0);
     code.push(lines ? Math.round((255 * cd) / lines) : 0);
   }
-  return { bytes: ram.length, filled, code };
+  return { bytes: ram.length, filled, code, regions, image: ram.slice() };
 }
 const LEGAL = new Set<number>(OPS.map((o) => o.op));
 

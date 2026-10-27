@@ -100,7 +100,7 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
     const cy = fy(84 + j * 128, 112);
     box(g, 27, cy, 116, 112, 8, { fill: T.tile, stroke: T.line, lw: 5 });
     chips.push({ x: 27, y: cy, w: 116, h: 112 });
-    labels.addChild(label('DRAM', 85, cy + 56, 26, T.mute, { anchor: [0.5, 0.5] }));
+    labels.addChild(label('DRAM', 85, cy + 12, 15, T.mute, { anchor: [0.5, 0.5] })); // the strip above the chip's memory map (ramview.ts)
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks

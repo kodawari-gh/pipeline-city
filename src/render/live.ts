@@ -8,6 +8,7 @@ import { drawDriveLive, type DriveKind } from './drives';
 import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
 import { monitorView, standbyLook, type MonitorInput } from './monitor';
 import { EdgeFan } from './case';
+import { RamView } from './ramview';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
@@ -74,10 +75,9 @@ export class Live {
   private panelFan = new Container();
   private dramFlash = new Graphics();
   private dramChips: Rect[] = [];
-  /** What the memory sticks hold (the snapshot's RAM map) and the addresses the CPU touched lately (docs/DIE.md "Memory"). */
-  private ramMap: { bytes: number; filled: number[]; code: number[] } | null = null;
-  private ramTouch: { addr: number; kind: string; color: string; t: number }[] = [];
-  private ramG = new Graphics();
+  /** The memory sticks as a map of RAM: what each byte holds, whose it is, and what the CPU touches (docs/DIE.md "Memory"). */
+  private ram = new RamView();
+  private dimmIdx: number[] = [];
   private ramSig = '';
   /** Wall time (ms) of the last memory-bus event: the DRAM flash fades by wall time (see `memAt` for the game-time trigger). */
   private memWall = -1e9;
@@ -184,7 +184,7 @@ export class Live {
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.ramG, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.ram.root, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.extDots = [];
@@ -195,6 +195,8 @@ export class Live {
     this.hasPsu = flags.psu;
     this.fans = fans.map((f) => ({ ...f, speed: 0, target: 0 }));
     this.dramChips = dramChips;
+    this.dimmIdx = dimms;
+    this.ram.setScene(T, dramChips);
     for (const t of targets) {
       const g = new Graphics(), dim = new Graphics();
       if (this.additive) g.blendMode = 'add';
@@ -258,7 +260,7 @@ export class Live {
       this.root.addChild(glow);
       this.drives.set(d.slot, { ...d, glow, busyUntil: -1e9, flowUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, level: 0, dir: 1, sig: '', burnt: false });
     }
-    this.root.addChild(this.ramG, this.dramFlash);
+    this.root.addChild(this.ram.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
@@ -332,7 +334,7 @@ export class Live {
   /** The OS badge on the host drive (null: no OS). The dot animates on the game clock in `frame`. */
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
-  setZoom(z: number) { this.zoom = z; }
+  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); }
   /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
   setInterior(on: boolean) { this.interior = on; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
@@ -368,45 +370,15 @@ export class Live {
   /** Per-snapshot update. `s` may be null before the sim has started. */
   /** The CPU reached for a RAM address (a fetch, a load, a store): that cell of the sticks lights in the colour of the instruction. */
   touchRam(kind: string, addr: number, color: string): void {
-    this.ramTouch.push({ addr, kind, color, t: performance.now() });
-    if (this.ramTouch.length > 24) this.ramTouch.shift();
-  }
-
-  /** The sticks as a map of the address space: each DRAM chip is a grid of cells, lit where the memory holds the program (cyan) or data (amber). */
-  private drawRam(inner: boolean): void {
-    const g = this.ramG, m = this.ramMap, n = this.dramChips.length;
-    const wall = performance.now();
-    this.ramTouch = this.ramTouch.filter((t) => wall - t.t < 1400);
-    const sig = m ? m.filled.join('') + m.code.join('') + n : '';
-    g.clear();
-    this.ramG.visible = inner;
-    if (!m || !inner || n === 0) return;
-    void sig;
-    const COLS = 8, ROWS = 4, per = COLS * ROWS;
-    const buckets = m.filled.length;
-    this.dramChips.forEach((c, ci) => {
-      const px = 10, w = (c.w - 2 * px) / COLS, h = (c.h - 20) / ROWS;
-      for (let k = 0; k < per; k++) {
-        const lo = Math.floor(((ci * per + k) / (n * per)) * buckets), hi = Math.max(lo + 1, Math.floor(((ci * per + k + 1) / (n * per)) * buckets));
-        let f = 0, cd = 0;
-        for (let b = lo; b < hi && b < buckets; b++) { f = Math.max(f, m.filled[b]!); cd = Math.max(cd, m.code[b]!); }
-        if (f === 0) continue;
-        const x = c.x + px + (k % COLS) * w, y = c.y + 10 + Math.floor(k / COLS) * h;
-        g.rect(x + 1, y + 1, w - 2, h - 2).fill({ color: cd > f / 2 ? this.T.alu : this.T.ld, alpha: 0.35 + 0.5 * (f / 255) });
-      }
-    });
-    for (const t of this.ramTouch) {
-      const u = (t.addr / m.bytes) * n * per, k = Math.floor(u);
-      const ci = Math.floor(k / per), cell = k % per, c = this.dramChips[ci];
-      if (!c || t.addr >= m.bytes) continue;
-      const px = 10, w = (c.w - 2 * px) / COLS, h = (c.h - 20) / ROWS;
-      const a = 1 - (wall - t.t) / 1400;
-      g.rect(c.x + px + (cell % COLS) * w, c.y + 10 + Math.floor(cell / COLS) * h, w, h).fill({ color: t.color, alpha: 0.9 * a }).stroke({ width: 3, color: t.color, alpha: a });
-    }
+    this.ram.touch(kind, addr, color);
   }
 
   update(s: Snapshot | null, now: number) {
-    this.ramMap = s?.ram ?? null;
+    if (s) {
+      const sticks = s.devices.filter((d) => d.kind === 'ram').map((d, i) => ({ idx: this.dimmIdx[i] ?? i, bytes: (getSpec(d.spec) as { sizeBytes?: number } | undefined)?.sizeBytes ?? 0 }));
+      this.ram.setSticks(sticks);
+    }
+    this.ram.setMap(s?.ram ?? null);
     const T = this.T;
     if (!s) return;
     const cpu = s.devices.find((d) => d.kind === 'cpu');
@@ -942,14 +914,14 @@ export class Live {
 
     this.drawBoot(now, dt);
 
-    this.drawRam(inner);
+    this.ram.frame(inner);
     // DRAM chips flash while the memory bus is busy
     const mf = clamp(1 - (performance.now() - this.memWall) / 900); // wall time: a pause does not hold a flash on screen
     this.dramFlash.clear();
     if (mf > 0 && inner) {
       let n = 0;
       for (const c of this.dramChips) {
-        if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { fill: this.T.alu, fa: mf * 0.55, stroke: this.T.alu, lw: 5 });
+        if ((Math.floor(now / 140) + n++) % 3 === 0) box(this.dramFlash, c.x, c.y, c.w, c.h, 8, { stroke: this.T.alu, sa: mf * 0.7, lw: 3 }); // a ring only: the chip's map (ramview.ts) shows what moves
       }
     }
   }

@@ -1200,6 +1200,6 @@ export async function mountBoard(host: HTMLElement) {
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { die, net, camera, hitAt, hitList: () => allHits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape, ring: h.ring })), app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { die, live, net, camera, hitAt, hitList: () => allHits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape, ring: h.ring })), app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
   return app;
 }

@@ -16,6 +16,7 @@ import {
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap } from "./pipesnap";
+import { ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
@@ -1428,7 +1429,7 @@ export class Game {
       boardTier: this.board.tier,
       caseTier: this.board.caseTier,
       pipe: this.powered && eng?.view ? this.pipeSnap(eng) : null,
-      ram: this.powered ? ramMapOf(this.machine.ram) : null,
+      ram: this.powered ? ramMapOf(this.machine.ram, this.ramRegions(jobs)) : null,
       display: this.powered && live ? this.machine.display.text() : "",
       counters,
       completed: this.completed,
@@ -1884,6 +1885,19 @@ export class Game {
     if (!d || d.burnt) return null;
     const port = this.ports.find((p) => p.name === d.slot);
     return port?.media ? port : null;
+  }
+
+  /** What lives where in RAM now: the boot ROM, the OS when it is up, and the program the CPU has loaded (docs/DIE.md "Memory"). */
+  private ramRegions(jobs: KernelJob[]): RamRegion[] {
+    const osUp = !!this.os && this.pch.osMode && !this.postError;
+    let job: RamContext["job"] = null;
+    const running = jobs.find((j) => j.state === JobState.Running);
+    const key = running ? (this.plugged?.id === running.key ? this.plugged : this.spool.find((k) => k.id === running.key)) : !osUp ? this.plugged : null;
+    if (key && !key.done && (running || this.pch.key)) {
+      const words = running ? running.len : this.pch.key?.program.length ?? 0;
+      if (words > 0) job = { key: key.id, label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, type: key.type, words };
+    }
+    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name } : null, job });
   }
 
   /** The kernel's job table, read straight from RAM (empty unless the kernel is up). */
