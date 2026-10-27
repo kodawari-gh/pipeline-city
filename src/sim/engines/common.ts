@@ -2,6 +2,7 @@
 // Everything dynamic lives in typed arrays (structure-of-arrays); there are no per-instruction objects.
 
 import { OPS, SPEC_BY_NAME } from "../isa/isa";
+import { DEVICE_BASE, FAULT_CAUSE_LINE } from "../isa/memmap";
 import type { Bus } from "../machine/bus";
 import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
@@ -154,7 +155,7 @@ export class DataCache {
 }
 
 /** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
-export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6 } as const;
+export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6, Tlb: 7 } as const;
 /** Which cache an event is about. */
 export const Which = { D: 0, I: 1, L2: 2 } as const;
 const EV_SIZE = 6, EV_CAP = 1024;
@@ -238,6 +239,9 @@ export class InstrPool {
   readonly predNext: Uint32Array;
   readonly wait: Int32Array;
   readonly state: Uint8Array;
+  /** A page fault this instruction carries (`VmFault`, 0 none) and the virtual address it faulted on: taken when the instruction is known to be on the right path. */
+  readonly fault: Uint8Array;
+  readonly vaddr: Uint32Array;
   /** Slot = id & mask. */
   readonly mask: number;
 
@@ -249,11 +253,13 @@ export class InstrPool {
     this.imm = new Int32Array(size); this.a = new Int32Array(size); this.b = new Int32Array(size);
     this.res = new Int32Array(size); this.addr = new Uint32Array(size); this.predNext = new Uint32Array(size);
     this.wait = new Int32Array(size); this.state = new Uint8Array(size);
+    this.fault = new Uint8Array(size); this.vaddr = new Uint32Array(size);
   }
 
   /** Instruction fetch: a real read through the bus. Unaligned or non-RAM pcs yield an illegal (op 0) instruction. */
   fetch(bus: Bus, ramSize: number, slot: number, pc: number): void {
     this.pc[slot] = pc;
+    this.fault[slot] = 0;
     this.state[slot] = 0;
     this.wait[slot] = 0;
     this.word[slot] = pc % 4 === 0 && pc + 4 <= ramSize ? bus.load32(pc) : 0;
@@ -470,19 +476,22 @@ export abstract class EngineBase implements PipelineEngine {
    * find its target: with an instruction cache a hit is free and a miss waits the miss cost (the L2's if it holds the line, else RAM's);
    * without one it waits `redirectPenalty`. The wait counts in StallIFetch; a redirect during it starts a new lookup at the new pc.
    */
-  protected fetchReady(pc: number): boolean {
+  protected fetchReady(vpc: number): boolean {
+    // the instruction cache and the L2 are physical: with translation on, look the address up (no side effects; a missing page is the fetch's fault to take)
+    let pc = vpc;
+    if (this.machine.mmu.enabled) { pc = this.machine.mmu.peek(vpc); if (pc < 0) return true; }
     if (pc >= this.ramSize) return true;
     const ic = this.icache, c = this.v.counters;
-    if (this.iWaitPc !== pc) {
+    if (this.iWaitPc !== vpc) {
       let wait = 0;
-      if (pc === this.seqPc) { if (ic) this.iFill(ic, pc); this.seqPc = (pc + 4) >>> 0; return true; }
+      if (vpc === this.seqPc) { if (ic) this.iFill(ic, pc); this.seqPc = (vpc + 4) >>> 0; return true; }
       if (ic) {
-        if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.I, ic.lastSlot, pc >>> ic.lineShift, 0); this.seqPc = (pc + 4) >>> 0; return true; }
+        if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.I, ic.lastSlot, pc >>> ic.lineShift, 0); this.seqPc = (vpc + 4) >>> 0; return true; }
         c[Counter.ICacheMisses]!++;
         wait = this.missCost(pc);
       } else if (this.redirectPenalty > 0) wait = this.redirectPenalty;
-      else { this.seqPc = (pc + 4) >>> 0; return true; }
-      this.iWaitPc = pc; this.iWait = wait;
+      else { this.seqPc = (vpc + 4) >>> 0; return true; }
+      this.iWaitPc = vpc; this.iWait = wait;
     }
     if (this.iWait > 0) {
       this.iWait--;
@@ -491,8 +500,52 @@ export abstract class EngineBase implements PipelineEngine {
     }
     if (this.icache) this.iFill(this.icache, pc);
     this.iWaitPc = -1;
-    this.seqPc = (pc + 4) >>> 0;
+    this.seqPc = (vpc + 4) >>> 0;
     return true;
+  }
+
+  // ---- virtual memory (docs/VM.md) ----
+
+  /**
+   * Fetch the instruction at `pc` into pool slot `s`. With translation off it is the plain read. With it on the address is translated first: a TLB miss
+   * pays its table walk, and a page that cannot be fetched from leaves the slot an illegal word that carries the fault (taken only if the instruction
+   * turns out to be on the right path: fetch runs ahead of branches).
+   */
+  protected fetchInto(s: number, pc: number): void {
+    const mmu = this.machine.mmu, p = this.pool;
+    if (!mmu.enabled || pc >= DEVICE_BASE) { p.fetch(this.bus, this.ramSize, s, pc); return; }
+    p.pc[s] = pc; p.fault[s] = 0; p.state[s] = 0; p.wait[s] = 0; p.op[s] = 0; p.word[s] = 0;
+    const f = this.translate(pc, false, true);
+    if (f) { p.fault[s] = f; p.vaddr[s] = pc; return; }
+    const pa = mmu.pa;
+    p.word[s] = pa % 4 === 0 && pa + 4 <= this.ramSize ? this.bus.load32(pa) : 0;
+  }
+
+  /** One translation through the MMU: counts it, logs it for the die and charges the walk (each table read goes through the L2 and DRAM like any miss). Returns the fault code or 0; the physical address is in `machine.mmu.pa`. */
+  protected translate(va: number, write: boolean, exec: boolean): number {
+    const mmu = this.machine.mmu, c = this.v.counters;
+    const f = mmu.lookup(va, write, exec);
+    if (mmu.hit) c[Counter.TlbHits]!++;
+    else {
+      c[Counter.TlbMisses]!++;
+      let cycles = 0;
+      for (let i = 0; i < mmu.walkN; i++) cycles += this.missCost(mmu.walkAt[i]!);
+      this.bus.stallCycles += cycles; // the CPU waits the walk out after this step
+    }
+    if (mmu.slot >= 0) this.events.push(this.cycleNo, Ev.Tlb, mmu.hit ? 0 : 1, mmu.slot, va >>> 8, mmu.pa >>> 8);
+    return f;
+  }
+
+  /** The instruction in slot `s` carries a page fault and is on the right path: hand it to the OS. Registers, memory and the pc of everything older are final; this one has done nothing. */
+  protected takeFault(s: number): void {
+    const p = this.pool, m = this.machine;
+    m.mmu.recordFault(p.fault[s]!, p.vaddr[s]!);
+    m.mmu.enterKernel();
+    m.intc.enter(FAULT_CAUSE_LINE, p.pc[s]!, 0);
+    this.v.counters[Counter.PageFaults]!++;
+    this.events.push(this.cycleNo, Ev.Tlb, 2, 0, p.vaddr[s]! >>> 8, p.fault[s]!);
+    this.fetchPc = m.mmu.vector >>> 0;
+    p.fault[s] = 0;
   }
 
   private iFill(ic: DataCache, pc: number): void {
@@ -520,14 +573,20 @@ export abstract class EngineBase implements PipelineEngine {
     const f = OPF[op]!;
     const a = p.a[s]!, b = p.b[s]!, imm = p.imm[s]!;
     if (f & F_MEM) {
-      p.addr[s] = (a + imm) >>> 0;
+      const va = (a + imm) >>> 0;
+      p.addr[s] = va;
+      if (this.machine.mmu.enabled && va < DEVICE_BASE) {
+        const fault = this.translate(va, (f & F.Store) !== 0, false);
+        if (fault) { p.fault[s] = fault; p.vaddr[s] = va; p.addr[s] = 0xffff_fffc; } // an address no load can use: younger loads wait for this store, which will fault at commit
+        else p.addr[s] = this.machine.mmu.pa;
+      }
       return (pc + 4) >>> 0;
     }
     if (f & F.Branch) {
       this.taken = branchTaken(op, a, b);
       return (this.taken ? pc + imm : pc + 4) >>> 0;
     }
-    if (op === OP_IRET) return this.machine.intc.epc >>> 0;
+    if (op === OP_IRET) { this.machine.mmu.leaveKernel(); return this.machine.intc.epc >>> 0; }
     if (f & F.Jal) { p.res[s] = pc + 4; return (pc + imm) >>> 0; }
     if (f & F.Jalr) { p.res[s] = pc + 4; return ((a + imm) & ~3) >>> 0; }
     if (op !== OP_ECALL) p.res[s] = alu(op, a, b, imm, pc);

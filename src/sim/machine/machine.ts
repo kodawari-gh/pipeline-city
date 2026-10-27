@@ -6,6 +6,7 @@ import { RamDevice, type Device } from "./device";
 import { Display } from "./display";
 import type { Engine } from "./engine";
 import { Intc } from "./intc";
+import { Mmu } from "./mmu";
 import { Mpu } from "./mpu";
 import { Prng } from "./prng";
 
@@ -32,6 +33,8 @@ export class Machine {
   readonly intc = new Intc();
   /** Memory protection, always on the bus at MPU_BASE (off until the kernel enables it for a job). */
   readonly mpu = new Mpu();
+  /** Memory management unit (docs/VM.md), always on the bus at MMU_BASE; a CPU without one leaves it `tlbEntries` 0. */
+  readonly mmu: Mmu;
   engine: Engine | null = null;
 
   constructor(cfg: MachineConfig = {}) {
@@ -44,6 +47,8 @@ export class Machine {
     this.addDevice(this.status);
     this.addDevice(this.intc);
     this.addDevice(this.mpu);
+    this.mmu = new Mmu(this.ram);
+    this.addDevice(this.mmu);
     this.bus.mpu = this.mpu;
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
@@ -69,6 +74,7 @@ export class Machine {
         this.irqWait = 0;
       } else if (e.drained) {
         this.intc.enter(line, e.pc, this.irqWait);
+        this.mmu.enterKernel(); // the handler runs on physical addresses
         e.redirect(this.intc.vector);
         e.holdFetch(false);
         this.irqWait = 0;
@@ -116,6 +122,7 @@ export class Machine {
     this.engine = engine;
     this.intc.reset();
     this.mpu.reset();
+    this.mmu.reset();
     this.irqWait = 0;
     this.cpuStall = 0;
     this.bus.stallCycles = 0;

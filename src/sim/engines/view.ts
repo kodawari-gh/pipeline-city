@@ -71,12 +71,16 @@ export const Counter = {
   RowHits: 27,
   RowEmpty: 28,
   RowConflicts: 29,
+  /** MMU (when the CPU has one and the OS has it on): translations the TLB had, translations that needed a table walk, page faults taken. */
+  TlbHits: 30,
+  TlbMisses: 31,
+  PageFaults: 32,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
-  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts",
+  "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts", "tlbHits", "tlbMisses", "pageFaults",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 

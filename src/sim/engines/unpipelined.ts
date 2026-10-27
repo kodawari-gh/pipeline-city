@@ -3,7 +3,7 @@
 // IF reads the word through the bus, ID decodes, EX reads registers and computes, MEM does the data access, WB writes back.
 
 import { EngineBase, F, OPF, OP_ECALL, POOL_MASK, type EngineSettings } from "./common";
-import { Cause, Counter, SlotKind, Stage } from "./view";
+import { Cause, Counter, Fate, SlotKind, Stage, StageCode } from "./view";
 
 export class UnpipelinedEngine extends EngineBase {
   private active = false;
@@ -49,6 +49,16 @@ export class UnpipelinedEngine extends EngineBase {
     v.mark(this.curId, s + 1);
   }
 
+  /** A page fault: the instruction is dropped (it has done nothing), the OS takes over, and the next fetch comes from its handler. */
+  private fault(s: number): void {
+    this.takeFault(s);
+    this.v.mark(this.curId, StageCode.Flushed);
+    this.v.setFate(this.curId, Fate.Flushed);
+    this.v.counters[Counter.FlushedInstrs]!++;
+    this.v.counters[Counter.Flushes]!++;
+    this.active = false;
+  }
+
   private fetch(): void {
     const id = this.v.nextId++;
     const slot = id & POOL_MASK;
@@ -56,7 +66,7 @@ export class UnpipelinedEngine extends EngineBase {
     this.active = true;
     this.stage = Stage.IF;
     this.memDone = true;
-    this.pool.fetch(this.bus, this.ramSize, slot, this.fetchPc);
+    this.fetchInto(slot, this.fetchPc);
     this.v.startRow(id, this.fetchPc, this.pool.word[slot]!);
   }
 
@@ -69,9 +79,11 @@ export class UnpipelinedEngine extends EngineBase {
         break;
       case Stage.EX: {
         const f = OPF[p.op[s]!]!;
+        if (p.fault[s]) { this.fault(s); break; }
         p.a[s] = f & F.Rs1 ? this.regs[p.rs1[s]!]! : 0;
         p.b[s] = f & F.Rs2 ? this.regs[p.rs2[s]!]! : 0;
         const next = this.execute(s);
+        if (p.fault[s]) { this.fault(s); break; }
         if (f & F.Branch) this.v.counters[Counter.Branches]!++;
         this.fetchPc = next;
         break;

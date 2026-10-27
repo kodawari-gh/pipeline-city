@@ -158,6 +158,33 @@ export const MPU_REG = {
 /** The result text of a job the OS killed for writing to protected memory. */
 export const FAULT_TEXT = "SEGFAULT";
 
+// ---- Memory management unit (docs/VM.md). Word registers, offsets from MMU_BASE.
+
+export const MMU_BASE = 0x4011_0000;
+export const MMU_SIZE = 0x100;
+/** Addresses from here up are devices: never translated. */
+export const DEVICE_BASE = 0x4000_0000;
+export const MMU_REG = {
+  /** ro: bit 0 this CPU has an MMU, bit 1 translation is on. */
+  STATUS: 0x00,
+  /** wo: bit 0 translation on, bit 1 flush the TLB. */
+  CONTROL: 0x04,
+  /** rw: physical address of the level 1 table (writing it flushes the TLB). */
+  TABLE: 0x08,
+  /** rw: where the CPU goes on a page fault (the OS's handler; translation is off there). */
+  VECTOR: 0x0c,
+  /** ro: the faulting virtual address and why (`VmFault`) of the last fault. */
+  FAULT_ADDR: 0x10, FAULT_CAUSE: 0x14,
+  /** ro: TLB entries, and page faults taken since power-on. */
+  TLB_ENTRIES: 0x18, FAULTS: 0x1c,
+} as const;
+/** Table entry bits (the frame is bits 8 and up). */
+export const PteBit = { Valid: 1, Write: 2, Exec: 4 } as const;
+/** Why a translation failed (MMU_REG.FAULT_CAUSE). */
+export const VmFault = { None: 0, NotPresent: 1, Write: 2, Exec: 3, Range: 4 } as const;
+/** The interrupt-controller cause a page fault shows. */
+export const FAULT_CAUSE_LINE = 30;
+
 // ---- GPU cards (PCIe slots). See docs/ACCEL.md "GPU".
 
 /** The card in PCIe slot k (ids in GPU_PORTS order) sits at GPU_BASE + k * GPU_STRIDE. */

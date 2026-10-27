@@ -88,7 +88,7 @@ export class InOrderEngine extends EngineBase {
       const s = sid[ex + l]! & mask;
       if (!(p.state[s]! & St.ExDone)) {
         p.state[s]! |= St.ExDone;
-        this.exStage(s);
+        if (this.exStage(s, l)) break; // a page fault: this and everything younger is gone
       }
     }
 
@@ -210,22 +210,25 @@ export class InOrderEngine extends EngineBase {
     return this.regs[r]!;
   }
 
-  private exStage(s: number): void {
+  /** EX work for slot `s` in lane `lane`; true when it took a page fault (nothing of it or of anything younger survives). */
+  private exStage(s: number, lane: number): boolean {
     const p = this.pool, v = this.v, c = v.counters;
     const op = p.op[s]!;
     const f = OPF[op]!;
+    if (p.fault[s]) return this.fault(s, lane); // a fetch fault, now known to be on the right path (EX is never speculative here)
     p.a[s] = f & F.Rs1 ? this.operand(p.rs1[s]!) : 0;
     p.b[s] = f & F.Rs2 ? this.operand(p.rs2[s]!) : 0;
     const next = this.execute(s);
+    if (p.fault[s]) return this.fault(s, lane); // a load or store the MMU refused
     if (op === OP_ECALL) {
       // Stop fetching and squash anything fetched behind it.
       this.squash(Stage.IF, false);
       this.squash(Stage.ID, false);
       this.fetchStopped = true;
       this.fetchPc = next;
-      return;
+      return false;
     }
-    if (!(f & F_CTRL)) return;
+    if (!(f & F_CTRL)) return false;
     const isBranch = (f & F.Branch) !== 0;
     if (isBranch) {
       c[Counter.Branches]!++;
@@ -239,6 +242,27 @@ export class InOrderEngine extends EngineBase {
       c[Counter.StallFlush]! += 2;
       this.fetchPc = next;
     }
+    return false;
+  }
+
+  /** A page fault at EX: this instruction and the ones behind it (the younger lanes of EX, ID and IF) are squashed; the older ones in MEM and WB finish. */
+  private fault(s: number, lane: number): boolean {
+    const v = this.v, W = this.width, ex = Stage.EX * W;
+    this.takeFault(s);
+    for (let l = lane; l < W; l++) {
+      const i = ex + l;
+      if (v.stageKind[i] === SlotKind.Instr) {
+        const id = v.stageId[i]!;
+        v.mark(id, StageCode.Flushed); v.setFate(id, Fate.Flushed);
+        v.counters[Counter.FlushedInstrs]!++;
+      }
+      v.clearStage(i);
+    }
+    this.squash(Stage.IF, true);
+    this.squash(Stage.ID, true);
+    this.fetchStopped = false;
+    v.counters[Counter.Flushes]!++;
+    return true;
   }
 
   /** Kill every occupant of a front-end stage; with `bubble` lane 0 becomes a flush bubble. */
@@ -316,7 +340,7 @@ export class InOrderEngine extends EngineBase {
     const id = v.nextId++;
     const s = id & this.mask;
     const pc = this.fetchPc;
-    p.fetch(this.bus, this.ramSize, s, pc);
+    this.fetchInto(s, pc);
     p.decodeSlot(s);
     v.startRow(id, pc, p.word[s]!);
     const f = OPF[p.op[s]!]!;

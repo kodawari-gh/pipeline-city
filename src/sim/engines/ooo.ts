@@ -138,6 +138,7 @@ export class OooEngine extends EngineBase {
       if (ost[s] !== Os.Done) { if (n === 0) v.stall[OooPart.Commit] = CommitStall.HeadPending; break; }
       const id = slotId[s]!;
       const op = p.op[s]!;
+      if (p.fault[s]) { this.faultAtCommit(s, id); return; } // a page fault, now known to be on the right path: it is the oldest, everything older has retired
       if (op === 0) this.execute(s); // illegal instruction reached commit: throws RangeError
       this.robS[this.robHead] = -1;
       this.robHead = (this.robHead + 1) % rs;
@@ -224,7 +225,8 @@ export class OooEngine extends EngineBase {
       p.b[s] = f & F.Rs2 ? this.value(this.prodSB[s]!, this.prodIB[s]!, p.rs2[s]!) : 0;
       this.actual[s] = this.execute(s);
       let lat = 1;
-      if (f & F.Load) {
+      if (p.fault[s]) { /* the MMU refused the access: it completes as nothing and the fault is taken at commit */ }
+      else if (f & F.Load) {
         lat = this.issueLoad(k, s);
         if (lat < 0) { v.schedWhy[pos] = this.why; c[Counter.LoadWaits]!++; continue; }
       } else if (op === OP_MUL) lat = 3;
@@ -355,6 +357,15 @@ export class OooEngine extends EngineBase {
     return HIT_LAT + this.missCost(addr);
   }
 
+  /** The oldest instruction carries a page fault: it and everything younger are squashed (nothing of it has happened), the OS takes over. */
+  private faultAtCommit(s: number, id: number): void {
+    this.takeFault(s);
+    this.squashAfter(id - 1);
+    this.fetchStopped = false;
+    this.ov.counters[Counter.Flushes]!++;
+    this.snapshot();
+  }
+
   /** Squash everything younger than id `bid`: ROB tail, queues, units; rebuild the RAT from what remains. */
   private squashAfter(bid: number): void {
     const v = this.ov, p = this.pool, rs = this.robSize;
@@ -393,7 +404,7 @@ export class OooEngine extends EngineBase {
     const s = this.freeSlots[--this.freeN]!;
     const id = v.nextId++;
     const pc = this.fetchPc;
-    p.fetch(this.bus, this.ramSize, s, pc);
+    this.fetchInto(s, pc);
     p.decodeSlot(s);
     v.startRow(id, pc, p.word[s]!);
     const f = OPF[p.op[s]!]!;
