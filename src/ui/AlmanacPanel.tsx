@@ -222,7 +222,6 @@ function Tile({ e, state, on, no }: { e: DexEntry; state: State; on: boolean; no
   return (
     <button role="option" aria-selected={on} class={`dx-tile st-${state}${on ? ' on' : ''}`} title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name} onClick={() => { picked.value = e.id; tipOpen.value = null; }}>
       <span class="no">{String(no).padStart(2, '0')}</span>
-      <JobSprite id={e.id} silhouette={hidden} />
       <span class="nm">{state === 'unseen' ? '? ? ?' : e.name}</span>
       {state === 'done' && <span class="bdg gold" aria-label="Finished"><Icon name="star" size={10} /></span>}
       {state === 'seen' && <span class="bdg" aria-label="Met"><Icon name="check" size={10} /></span>}
