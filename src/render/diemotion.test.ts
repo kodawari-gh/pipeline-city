@@ -65,6 +65,28 @@ describe.each(CONFIGS)('motion: $name', ({ cfg, plan: pi }) => {
     expect(steps).toBeGreaterThan(10);
   });
 
+  it('a pulse is only ever on a trace of the die (an end of a link, or a point along one), never across a block', () => {
+    const p = new Player(plan);
+    p.push(tr);
+    const segs: [number, number, number, number][] = [];
+    for (const l of plan.links) for (let i = 1; i < l.pts.length; i++) segs.push([l.pts[i - 1]![0], l.pts[i - 1]![1], l.pts[i]![0], l.pts[i]![1]]);
+    const near = (x: number, y: number) => segs.some(([ax, ay, bx, by]) => {
+      const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(x - (ax + t * dx), y - (ay + t * dy)) < 0.5;
+    });
+    let now = 1000, seen = 0, off = 0;
+    for (let f = 0; f < 600; f++) {
+      now += 16;
+      for (const c of p.update(now).chips) {
+        if (c.wx === undefined) continue;
+        seen++;
+        if (!near(c.wx, c.wy!)) off++;
+      }
+    }
+    expect(seen).toBeGreaterThan(20);
+    expect(off).toBe(0);
+  });
+
   it('the replay is continuous: no chip moves more than a short hop between two frames, and all stay on the die', () => {
     const p = new Player(plan);
     p.push(tr);

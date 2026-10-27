@@ -105,6 +105,25 @@ export function stepRoute(plan: CpuPlan, from: string, to: string, maxHops = 3):
   return { pts: [a, b], len: dist(a, b), links: [] };
 }
 
+/**
+ * The point a fraction `u` (0..1) of the way along the traces of a route: the links' own polylines one after another by length. The gaps inside
+ * the blocks between two links are not travelled (the pulse is always on a trace and passes into the next one at the block's edge).
+ */
+export function wirePoint(rt: Route, u: number): Pt | null {
+  const lens = rt.links.map((h) => h.link.pts.reduce((n, p, i) => (i ? n + dist(p, h.link.pts[i - 1]!) : 0), 0));
+  const total = lens.reduce((n, x) => n + x, 0);
+  if (rt.links.length === 0 || total <= 0) return null;
+  let d = clamp01(u) * total;
+  for (let k = 0; k < rt.links.length; k++) {
+    if (d <= lens[k]! || k === rt.links.length - 1) {
+      const h = rt.links[k]!, pts = h.reverse ? [...h.link.pts].reverse() : h.link.pts;
+      return pointAt(pts, lens[k]! > 0 ? d / lens[k]! : 0);
+    }
+    d -= lens[k]!;
+  }
+  return null;
+}
+
 /** The point a fraction `u` (0..1) of the way along a polyline, by length. */
 export function pointAt(pts: Pt[], u: number): Pt {
   if (pts.length === 1) return pts[0]!;
@@ -295,6 +314,8 @@ export interface ChipState {
   stage: string; next: string; e: number;
   /** On a step between two blocks: the block it left and the block it goes to (otherwise both are `host`). */
   from?: string; to?: string;
+  /** Where the instruction is on the wires between the two blocks (only the die's own traces, never across a block); undefined when no trace joins them. */
+  wx?: number; wy?: number;
 }
 
 /** Something that happens at a cycle boundary: the die turns it into packets on the wires. */
@@ -541,10 +562,11 @@ export class Player {
       const hb = at(b, k + 1);
       if (!hb) { if (ha.visible) out.push({ ...base, x: ca[0], y: ca[1], scale: 1, alpha: 1, host: ha.block.id }); continue; }
       const rt = stepRoute(this.plan, ha.block.id, hb.block.id);
+      const wp = rt ? wirePoint(rt, e) : null;
       const p = rt && rt.len > 0 ? pointAt(rt.pts, e) : (() => { const cb = centre(hb.block); return [ca[0] + (cb[0] - ca[0]) * e, ca[1] + (cb[1] - ca[1]) * e] as Pt; })();
       const alpha = (ha.visible ? 1 - e : 0) + (hb.visible ? e : 0);
       if (alpha <= 0.01) continue;
-      out.push({ ...base, x: p[0], y: p[1], scale: 1 - 0.12 * Math.sin(Math.PI * e), alpha: Math.min(1, alpha), host: e < 0.5 ? ha.block.id : hb.block.id, from: ha.block.id, to: hb.block.id });
+      out.push({ ...base, x: p[0], y: p[1], scale: 1 - 0.12 * Math.sin(Math.PI * e), alpha: Math.min(1, alpha), host: e < 0.5 ? ha.block.id : hb.block.id, from: ha.block.id, to: hb.block.id, wx: wp?.[0], wy: wp?.[1] });
     }
     return out;
   }

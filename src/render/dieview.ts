@@ -249,11 +249,13 @@ export class DieView {
     let d = this.dots.get(st.key);
     if (!d) { d = { px: NaN, py: NaN, hist: [], lastHost: '', env: 1 }; this.dots.set(st.key, d); }
     seen.add(st.key);
-    const moving = st.from !== undefined && st.from !== st.to;
-    const x = st.x, y = st.y + 6;
+    // a pulse runs on the die's traces only: with no trace between the two blocks there is none (the blocks light instead)
+    const moving = st.from !== undefined && st.from !== st.to && st.wx !== undefined;
+    const x = st.wx ?? st.x, y = st.wy ?? st.y;
     const dx = Number.isNaN(d.px) ? 0 : x - d.px, dy = Number.isNaN(d.py) ? 0 : y - d.py;
     d.px = x; d.py = y;
     if (!moving) { d.hist.length = 0; return; }
+    if (Math.hypot(dx, dy) > 60) d.hist.length = 0; // it passed from one trace into the next at a block's edge: no streak across the block
     if (Math.hypot(dx, dy) > 1.2) { d.hist.push([x, y]); if (d.hist.length > 10) d.hist.shift(); } else if (d.hist.length) d.hist.shift();
     // it leaves a block's inside and arrives in the next one: the pulse fades in and out at the ends of its way
     const ease = (v: number) => { const t = Math.max(0, Math.min(1, v)); return t * t * (3 - 2 * t); };
