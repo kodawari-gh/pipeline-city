@@ -1,5 +1,6 @@
 import type { Graphics } from 'pixi.js';
-import type { Block, BlockKind, Rect } from './cpuplan';
+import type { Block, Rect } from './cpuplan';
+import { fetchWidth, glyphArea, isGlyph, laneCount, GLYPH_KINDS } from './glyphgeom';
 import { mix } from './ink';
 import { regName, slotValues, writesOf } from './tokentext';
 import type { Theme } from './theme';
@@ -9,13 +10,7 @@ import type { Theme } from './theme';
 // trapezoid, a multiplier a triangle of partial products, the decoder the instruction's fields and the control lines it raises.
 // Pure drawing into a Graphics (and a callback for the few labels), so it is testable and the far view never pays for it.
 
-/** The kinds drawn as symbols (the others keep their cell arrays). */
-export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>(['pc', 'pcadd', 'nextpc', 'fetch', 'imm', 'decode', 'alu', 'mul', 'lsu', 'wb', 'branch']);
-
-/** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
-export const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
-/** The lanes a dispatch stage passes at once ("4 a cycle"). */
-export const laneCount = (b: Block): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
+export { fetchWidth, glyphArea, isGlyph, laneCount, GLYPH_KINDS };
 
 /** Where a text goes: its centre, in die units, and its size. */
 export type Put = (text: string, x: number, y: number, size: number) => void;
@@ -27,17 +22,6 @@ export const WORD_FIELDS: readonly { name: string; bits: number }[] = [
 /** The control lines the decoder raises, in the order they are drawn. */
 export const CONTROL_LINES: readonly string[] = ['alu', 'mem', 'wr', 'br', 'imm', 'sys'];
 
-/** The drawing area of a block's symbol: the box under the name (the same as its cell grid's). */
-export function glyphArea(b: Block): Rect | null {
-  const r = b.rect;
-  const head = r.h >= 70 ? 44 : r.h * 0.55;
-  const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
-  return a.w > 14 && a.h > 8 ? a : null;
-}
-
-/** The number of words a fetch block reads at once ("FETCH × 4"). */
-export const fetchWidth = (b: Block): number => Number(/×\s*(\d+)/.exec(b.label)?.[1] ?? 1);
-
 /** Draw the symbol of block `b` into `g`; `put` adds a label. */
 export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: Put): void {
   const solid = mix(T.die, c, 0.42), soft = mix(T.die, c, 0.2), line = mix(T.die, c, 0.85);
@@ -47,13 +31,13 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
   const poly = (pts: number[], f = soft) => { g.poly(pts).fill({ color: f }).stroke({ width: 1.3, color: line }); };
   const mux = (mx: number, my: number, mw: number, mh: number, ins: string[]) => {
     poly([mx, my, mx + mw, my + mh * 0.22, mx + mw, my + mh * 0.78, mx, my + mh]);
-    ins.forEach((t, k) => { const iy = my + mh * ((k + 0.5) / ins.length); stub(mx - 7, iy, mx, iy); put(t, mx - 7 - t.length * 2.2, iy, 6.5); });
+    ins.forEach((t, k) => { const iy = my + mh * ((k + 0.5) / ins.length); stub(mx - 7, iy, mx, iy); put(t, mx + 3 + t.length * 2, iy, 6); });
     stub(mx + mw, my + mh / 2, mx + mw + 7, my + mh / 2);
   };
   const adder = (cx: number, cy: number, r: number, ins: string[]) => {
     g.circle(cx, cy, r).fill({ color: soft }).stroke({ width: 1.3, color: line });
     g.moveTo(cx - r * 0.5, cy).lineTo(cx + r * 0.5, cy).moveTo(cx, cy - r * 0.5).lineTo(cx, cy + r * 0.5).stroke({ width: 1.3, color: line });
-    ins.forEach((t, k) => { const iy = cy + (k - (ins.length - 1) / 2) * r * 1.1; stub(cx - r - 7, iy, cx - r * 0.8, iy); put(t, cx - r - 7 - t.length * 2.2, iy, 6.5); });
+    ins.forEach((t, k) => { const iy = cy + (k - (ins.length - 1) / 2) * r * 1.1; stub(cx - r - 7, iy, cx - r * 0.8, iy); if (t) put(t, cx - r - 3, iy - 4, 6); });
     stub(cx + r, cy, cx + r + 7, cy);
   };
   /** A word as its fields in proportion, `n` bits wide in `bw`. */
@@ -123,8 +107,10 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       // the notched trapezoid: operands A and B in, the operation in on top, the result out
       const ah = Math.min(h, 56), ay = y + (h - ah) / 2, aw = Math.min(w * 0.5, 88), ax = x + w * 0.2;
       poly([ax, ay, ax + aw, ay + ah * 0.22, ax + aw, ay + ah * 0.78, ax, ay + ah, ax, ay + ah * 0.62, ax + aw * 0.14, ay + ah / 2, ax, ay + ah * 0.38]);
-      stub(ax - 8, ay + ah * 0.2, ax, ay + ah * 0.2); put('A', ax - 12, ay + ah * 0.2, 7);
-      stub(ax - 8, ay + ah * 0.8, ax, ay + ah * 0.8); put('B', ax - 12, ay + ah * 0.8, 7);
+      // the operands arrive on one bus (the pin the wires run into) that feeds A and B
+      stub(ax - 18, ay + ah * 0.2, ax, ay + ah * 0.2); put('A', ax - 9, ay + ah * 0.2 - 5, 6);
+      stub(ax - 18, ay + ah * 0.8, ax, ay + ah * 0.8); put('B', ax - 9, ay + ah * 0.8 + 5, 6);
+      stub(ax - 18, ay + ah * 0.2, ax - 18, ay + ah * 0.8);
       stub(ax + aw, ay + ah / 2, ax + aw + 8, ay + ah / 2);
       rect(ax + aw + 8, ay + ah * 0.3, Math.min(40, x + w - (ax + aw + 8)), ah * 0.4);
       put('out', ax + aw + 8 + Math.min(40, x + w - (ax + aw + 8)) / 2, ay + ah / 2, 7);
@@ -135,6 +121,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       // partial products added up in a triangle
       const rows = Math.max(3, Math.min(7, Math.floor(h / 7))), cell = Math.min(6, (h - 2) / rows, (w * 0.5) / rows);
       for (let r = 0; r < rows; r++) for (let k = 0; k <= r; k++) rect(x + 8 + k * (cell + 1.5), y + 1 + r * (cell + 1.5), cell, cell, k === r ? solid : soft);
+      stub(x + 2, y + h / 2, x + 8, y + h / 2);
       stub(x + 12 + rows * (cell + 1.5), y + h / 2, x + w * 0.62, y + h / 2);
       rect(x + w * 0.62, y + h / 2 - 8, Math.min(60, w * 0.3), 16);
       put('a × b', x + w * 0.62 + Math.min(60, w * 0.3) / 2, y + h / 2, 7);
@@ -143,7 +130,8 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
     case 'lsu': {
       // the address adder, then the older loads and stores that are waiting
       const r = Math.min(h / 2.4, 14), cx = x + r + 10;
-      adder(cx, y + h / 2, r, ['base', 'off']);
+      adder(cx, y + h / 2, r, ['', '']);
+      stub(cx - r - 12, y + h / 2 - r * 0.55, cx - r - 12, y + h / 2 + r * 0.55); stub(cx - r - 12, y + h / 2 - r * 0.55, cx - r - 7, y + h / 2 - r * 0.55); stub(cx - r - 12, y + h / 2 + r * 0.55, cx - r - 7, y + h / 2 + r * 0.55);
       const qx = cx + r + 14, qw = x + w - qx, n = 4, sw = (qw - (n - 1) * 3) / n, sh = Math.min(12, (h - 6) / 2);
       for (let q = 0; q < 2; q++) for (let k = 0; k < n; k++) rect(qx + k * (sw + 3), y + h / 2 - sh - 1.5 + q * (sh + 3), sw, sh, q ? solid : soft);
       put('load', qx - 11, y + h / 2 - sh / 2 - 1.5, 6);
@@ -155,7 +143,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       const bh = Math.min(h, 40), by = y + (h - bh) / 2, bw = Math.min(w * 0.4, 56), bx = x + w * 0.25;
       poly([bx, by, bx + bw, by + bh * 0.2, bx + bw, by + bh * 0.8, bx, by + bh]);
       put('cmp', bx + bw * 0.45, by + bh / 2, 7);
-      stub(bx - 8, by + bh * 0.25, bx, by + bh * 0.25); stub(bx - 8, by + bh * 0.75, bx, by + bh * 0.75);
+      stub(bx - 14, by + bh * 0.25, bx, by + bh * 0.25); stub(bx - 14, by + bh * 0.75, bx, by + bh * 0.75); stub(bx - 14, by + bh * 0.25, bx - 14, by + bh * 0.75);
       stub(bx + bw, by + bh / 2, bx + bw + 8, by + bh / 2);
       rect(bx + bw + 8, by + bh / 2 - 6, 24, 12);
       put('taken', bx + bw + 20, by + bh / 2, 6);

@@ -2,6 +2,7 @@
 // with weights, a gutter between siblings), and a channel router that finds each wire's route through the gutters. Pure geometry.
 
 import { gridExact, type Block, type BlockKind, type Link, type LinkKind, type Pt, type Rect } from './cpuplan';
+import { dockLink } from './glyphgeom';
 
 /** The gutter between sibling blocks: the wires run in it. */
 export const GAP = 14;
@@ -173,7 +174,7 @@ export function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
  * Route every link through the gutters: orthogonal, as few bends as it can, keeping clear of every block (a stage frame is a container, not
  * an obstacle), and avoiding the cells earlier links already use. The ends are on the facing edges of the two blocks.
  */
-export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[]): Link[] {
+export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock = true): Link[] {
   const cols = Math.floor(die.w / STEP), rows = Math.floor(die.h / STEP);
   const cx = (i: number) => die.x + 3 + i * STEP, cy = (j: number) => die.y + 3 + j * STEP;
   const blocked = new Uint8Array(cols * rows);
@@ -280,7 +281,7 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[]): Link[
       }
       out.push(p);
     }
-    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: jog(a.rect, b.rect, out), lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
+    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: dock ? dockLink(a, b, spec.id, jog(a.rect, b.rect, out)) : jog(a.rect, b.rect, out), lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
   }
   return links;
 }

@@ -6,6 +6,8 @@ import type { CpuSpec } from '../sim/board/specs';
 import { planInput } from './cpuplan';
 import { cpuPlan } from './cpuplans';
 import { glyph, glyphArea, isGlyph } from './blockart';
+import { isTall } from './glyphgeom';
+export { isTall };
 
 // The static art of a CPU die, drawn from a `CpuPlan` (docs/DIE.md): macro blocks with rim lines, dense cell arrays, trace bundles
 // ending in solder pads, bond pads on the edge. Two parts so the far view stays cheap:
@@ -30,12 +32,6 @@ export const EVENT_LINK: ReadonlySet<LinkKind> = new Set<LinkKind>(['flush', 'fo
 const PAD_SIDE: Partial<Record<BlockKind, 'N' | 'S' | 'E' | 'W'>> = { power: 'N', thermal: 'N', mc: 'E', pcie: 'S', clock: 'S', usb: 'W', display: 'W' };
 
 export const colorOf = (T: Theme, k: Key): string => T[k];
-
-/** A narrow tall block (a queue, a latch) carries its name rotated along its left side. */
-export const isTall = (b: Block): boolean => {
-  const r = b.rect;
-  return b.kind === 'latch' || (r.w < 56 && r.h > r.w * 2.2) || (r.w <= 110 && r.h >= r.w * 2.4 && b.label.length * 8.5 > r.w - 14);
-};
 
 /** The cell rectangles of a block's grid (die coordinates, in entry order, row by row), under the block's name (beside it for a tall block). */
 export function cellRects(b: Block): Rect[] {

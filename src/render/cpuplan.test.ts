@@ -5,6 +5,7 @@ import { specsOfKind, type CpuSpec } from '../sim/board/specs';
 import { gridExact, planInput, type Block, type CpuPlan, type PlanInput, type Pt, type Rect } from './cpuplan';
 import { GAP, col, leaf, place, routeLinks, row, spans } from './cpufloor';
 import { cpuPlan } from './cpuplans';
+import { glyphPins } from './glyphgeom';
 import { DIE } from './layout';
 
 const CONFIGS: [string, PlanInput][] = [
@@ -40,6 +41,7 @@ const crosses = (a: Pt, b: Pt, r: Rect): boolean => {
   const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
   return x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h;
 };
+const eq = (a: Pt, b: Pt): boolean => a[0] === b[0] && a[1] === b[1];
 const isPow2 = (n: number): boolean => n > 0 && (n & (n - 1)) === 0;
 
 function check(plan: CpuPlan): string[] {
@@ -73,8 +75,9 @@ function check(plan: CpuPlan): string[] {
     if (l.pts.length < 2) bad.push(`${l.id} has fewer than two points`);
     if (!(l.lanes >= 1 && l.lanes <= 4)) bad.push(`${l.id} has ${l.lanes} lanes`);
     const p0 = l.pts[0]!, p1 = l.pts[l.pts.length - 1]!;
-    if (!onEdge(p0, a.rect)) bad.push(`${l.id} starts off the edge of ${l.from}`);
-    if (!onEdge(p1, c.rect)) bad.push(`${l.id} ends off the edge of ${l.to}`);
+    // a link ends on the edge of its block, or (where the block draws a symbol) at a pin inside it
+    if (!onEdge(p0, a.rect) && !(glyphPins(a)?.out && eq(p0, glyphPins(a)!.out!))) bad.push(`${l.id} starts off the edge and off the output pin of ${l.from}`);
+    if (!onEdge(p1, c.rect) && !(glyphPins(c) && Object.values(glyphPins(c)!.ins).some((q) => eq(p1, q)))) bad.push(`${l.id} ends off the edge and off an input pin of ${l.to}`);
     for (let k = 1; k < l.pts.length; k++) {
       const u = l.pts[k - 1]!, v = l.pts[k]!;
       if (u[0] !== v[0] && u[1] !== v[1]) bad.push(`${l.id} has a diagonal segment`);
@@ -244,7 +247,7 @@ describe('slicing layout', () => {
 
 describe('channel router', () => {
   const die = { x: 0, y: 0, w: 400, h: 300 };
-  const mk = (id: string, r: Rect): Block => ({ id, kind: 'pc', label: id, rect: r, zone: 'core' });
+  const mk = (id: string, r: Rect): Block => ({ id, kind: 'l2', label: id, rect: r, zone: 'core' }); // a kind with no symbol, so the ends stay on the edges
   it('joins two neighbours with a jog along the gutter (a visible wire, not a stub): out of one edge high, into the other low', () => {
     const blocks = [mk('a', { x: 40, y: 40, w: 100, h: 100 }), mk('b', { x: 154, y: 40, w: 100, h: 100 })];
     const [l] = routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }]);

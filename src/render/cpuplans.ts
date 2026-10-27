@@ -6,6 +6,7 @@
 
 import { type Block, type CpuPlan, type Link, type PlanInput, type Rect } from './cpuplan';
 import { GAP, col, leaf, place, routeLinks, row, spans, type LinkSpec, type Node } from './cpufloor';
+import { dockLink } from './glyphgeom';
 import { DIE } from './layout';
 
 /** The die's usable area, the width of the edge columns and the height of the north and south bands. */
@@ -169,7 +170,7 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
     specs.push(['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true]);
     if (icLines > 0) specs.push(['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true]);
   }
-  specs.push(...edgeLinks(['if', 'id', 'ex', 'mem', 'wbf'], 'pc', 'fetch'));
+  specs.push(...edgeLinks(['if', 'id', 'ex', 'mem', 'wbf'], 'npc', 'fetch'));
   return { tree, specs: links(specs) };
 }
 
@@ -235,7 +236,7 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
   for (const u of ['alu0', 'alu1', 'mul', 'lsu']) specs.push([`sched-${u}`, 'data', 'sched', u, 2, u === 'alu0' ? 'issue' : undefined], [`${u}-bus`, 'data', u, 'bus', 2]);
   if (l2Lines > 0) specs.push(['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true], ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true], ...(icLines > 0 ? [['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true] as L] : []));
   else specs.push(['dc-fab', 'mem', 'dc', 'fabric', 3, undefined, true], ...(icLines > 0 ? [['ic-fab', 'mem', 'ic', 'fabric', 3, undefined, true] as L] : []));
-  specs.push(...edgeLinks(['if', 'dcf', 'rnf', 'sched', 'exf'], 'pc', 'fetch'));
+  specs.push(...edgeLinks(['if', 'dcf', 'rnf', 'sched', 'exf'], 'npc', 'fetch'));
   return { tree, specs: links(specs) };
 }
 
@@ -257,7 +258,7 @@ function coreTile(i: PlanInput, w: number, h: number): { blocks: Block[]; links:
   place(tree, { x: 0, y: 0, w, h }, blocks, 'core');
   const have = new Set(blocks.map((b) => b.id));
   const inner = specs.filter((l) => have.has(l.from) && have.has(l.to));
-  return { blocks, links: routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner) };
+  return { blocks, links: routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner, false) }; // docked into the symbols once the tile is placed (the symbols are drawn at the placed size)
 }
 
 /** Core tiles in the die's middle (each core laid out for its own tile, then scaled to fit), a shared L2 at their east end and one system bus under them (nothing multicore is simulated yet). */
@@ -303,7 +304,8 @@ function multicore(i: PlanInput): CpuPlan {
     }
     for (const l of one.links) {
       const pts = l.pts.map(([x, y]) => at(k, x, y)).filter((q, m, all) => m === 0 || q[0] !== all[m - 1]![0] || q[1] !== all[m - 1]![1]);
-      if (pts.length >= 2) inner.push({ ...l, id: p + l.id, from: p + l.from, to: p + l.to, pts });
+      const a = blocks.find((b) => b.id === p + l.from), c = blocks.find((b) => b.id === p + l.to);
+      if (pts.length >= 2) inner.push({ ...l, id: p + l.id, from: p + l.from, to: p + l.to, pts: a && c ? dockLink(a, c, l.id, pts) : pts });
     }
   }
   void ids;

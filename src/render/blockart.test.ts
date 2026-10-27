@@ -3,6 +3,7 @@ import { Graphics } from 'pixi.js';
 import type { PlanInput, Rect } from './cpuplan';
 import { cpuPlan } from './cpuplans';
 import { isTall } from './dieart';
+import { dockLink, glyphPins, inPinFor } from './glyphgeom';
 import { controlsOf, glyph, glyphArea, glyphLive, GLYPH_KINDS, slotsOf, CONTROL_LINES } from './blockart';
 import type { Theme } from './theme';
 
@@ -61,5 +62,37 @@ describe('block symbols', () => {
     expect(on('sw')).toEqual(['mem', 'imm']);
     expect(on('bne')).toEqual(['br']);
     expect(on('ecall')).toEqual(['sys']);
+  });
+
+  it('every symbol has its pins inside its block, and a link into it ends on the right one', () => {
+    for (const i of INPUTS) {
+      const plan = cpuPlan(i);
+      for (const b of plan.blocks.filter((x) => GLYPH_KINDS.has(x.kind) && !isTall(x))) {
+        const pins = glyphPins(b)!;
+        expect(pins, `${i.arch} ${b.id}`).not.toBeNull();
+        for (const p of [...Object.values(pins.ins), ...(pins.out ? [pins.out] : [])]) {
+          expect(p[0], b.id).toBeGreaterThanOrEqual(b.rect.x); expect(p[0], b.id).toBeLessThanOrEqual(b.rect.x + b.rect.w);
+          expect(p[1], b.id).toBeGreaterThanOrEqual(b.rect.y); expect(p[1], b.id).toBeLessThanOrEqual(b.rect.y + b.rect.h);
+        }
+      }
+      for (const l of plan.links) {
+        const to = plan.blocks.find((b) => b.id === l.to)!, pins = glyphPins(to);
+        if (!pins) continue;
+        const pin = inPinFor(to, l.id, pins)!;
+        expect(l.pts[l.pts.length - 1], `${i.arch} ${l.id} into ${to.id}`).toEqual(pin);
+      }
+    }
+  });
+
+  it('the next-PC multiplexer takes the +4, the branch redirect and the interrupt vector on three different pins', () => {
+    const plan = cpuPlan(INPUTS[3]!);
+    const npc = plan.blocks.find((b) => b.kind === 'nextpc')!, pins = glyphPins(npc)!;
+    expect(inPinFor(npc, 'pcadd-npc', pins)).toEqual(pins.ins['+4']);
+    expect(inPinFor(npc, 'br-npc', pins)).toEqual(pins.ins.br);
+    expect(inPinFor(npc, 'irq-pc', pins)).toEqual(pins.ins.irq);
+    expect(new Set([pins.ins['+4']![1], pins.ins.br![1], pins.ins.irq![1]]).size).toBe(3);
+    // a link docks: it runs on from the block's edge to the pin without a diagonal
+    const d = dockLink(npc, npc, 'br-npc', [[npc.rect.x, npc.rect.y + 20], [npc.rect.x - 30, npc.rect.y + 20]]);
+    for (let k = 1; k < d.length; k++) expect(d[k]![0] === d[k - 1]![0] || d[k]![1] === d[k - 1]![1]).toBe(true);
   });
 });
