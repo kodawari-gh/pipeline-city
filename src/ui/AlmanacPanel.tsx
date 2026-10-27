@@ -2,19 +2,17 @@
 // a job that has come in shows what it is, what it needs and its assembly; one that has been finished teaches how to do it better, shows the same job
 // in C++ and Python, and keeps the player's record. A sandbox game has everything open.
 import { signal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { snapshot } from '../game/store';
 import { dexEntry, dexNeeds, JOB_DEX, type DexEntry, type DexSnap } from '../sim/game/jobdex';
 import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, OP_CLASS_NAME, profileOf, reliance, type CodeLine, type CodeProfile, type OpClass } from '../sim/game/jobcode';
 import { highlightLines, type Lang, type Tok } from './highlight';
 import { Icon } from './Icons';
-import { netOpen, statsOpen } from './state';
 
 export const almanacOpen = signal(false);
-export const toggleAlmanac = () => {
-  almanacOpen.value = !almanacOpen.value;
-  if (almanacOpen.value) { statsOpen.value = false; netOpen.value = false; }
-};
+export const toggleAlmanac = () => { almanacOpen.value = !almanacOpen.value; };
+export const closeAlmanac = () => { almanacOpen.value = false; };
 const picked = signal<string | null>(null);
 type Tab = 'about' | 'asm' | 'cpp' | 'python';
 const tab = signal<Tab>('about');
@@ -158,7 +156,7 @@ function Detail({ e, d, level, sandbox }: { e: DexEntry; d: DexSnap; level: numb
   const t = tab.value, rank = state === 'done' ? 2 : 1;
   return (
     <div class="alm-detail">
-      <h3>{e.name}{sandbox && <span class="mute alm-sb"> sandbox: all open</span>}</h3>
+      <h3>{e.name}</h3>
       <CodeTabs e={e} rank={rank} open={sandbox} />
       {t === 'about' && (
         <>
@@ -183,7 +181,14 @@ function Detail({ e, d, level, sandbox }: { e: DexEntry; d: DexSnap; level: numb
 }
 
 export function AlmanacPanel() {
-  if (!almanacOpen.value) return null;
+  const open = almanacOpen.value;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAlmanac(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+  if (!open) return null;
   const s = snapshot.value;
   const sandbox = !!s?.sandbox;
   const dex = s?.dex ?? [];
@@ -191,23 +196,30 @@ export function AlmanacPanel() {
   const met = JOB_DEX.filter((x) => { const st = stateOf(x.id); return st === 'seen' || st === 'done'; }).length, avail = JOB_DEX.filter((x) => !x.planned).length;
   const sel = picked.value ?? JOB_DEX.find((x) => !x.planned && stateOf(x.id) !== 'unseen')?.id ?? JOB_DEX[0]!.id;
   const e = dexEntry(sel)!, d = dex.find((x) => x.id === sel) ?? { id: sel, state: 'unseen', runs: 0, best: 0, seenTick: 0 } as DexSnap;
-  const wide = tab.value !== 'about' && stateOf(sel) !== 'unseen' && stateOf(sel) !== 'planned';
   return (
-    <aside class={`dock almanac${wide ? ' wide' : ''}`} aria-label="Almanac">
-      <button class="close" aria-label="Close almanac" onClick={toggleAlmanac}><Icon name="close" size={11} /></button>
-      <h2>Almanac <span class="mute">{met}/{avail} met</span></h2>
-      <div class="alm-list" role="listbox" aria-label="Jobs">
-        {JOB_DEX.map((x) => {
-          const st = stateOf(x.id);
-          return (
-            <button key={x.id} role="option" aria-selected={sel === x.id} class={`alm-row alm-${st} ${sel === x.id ? 'on' : ''}`} onClick={() => { picked.value = x.id; if (!CODE_SOURCE[x.id]) tab.value = 'about'; }}>
-              <span class="alm-name">{st === 'unseen' ? '? ? ?' : x.name}</span>
-              <span class="alm-tag">{STATE_TEXT[st]}</span>
-            </button>
-          );
-        })}
+    <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeAlmanac(); }}>
+      <div class="card almanac" role="dialog" aria-modal="true" aria-label="Almanac">
+        <header class="alm-head">
+          <span class="alm-title"><Icon name="layers" size={16} /> Almanac</span>
+          <span class="chip">{met}/{avail} met</span>
+          {sandbox && <span class="chip">sandbox: all open</span>}
+          <button class="close" aria-label="Close almanac" title="Close (Esc)" onClick={closeAlmanac}><Icon name="close" size={12} /></button>
+        </header>
+        <div class="alm-body">
+          <div class="alm-list" role="listbox" aria-label="Jobs">
+            {JOB_DEX.map((x) => {
+              const st = stateOf(x.id);
+              return (
+                <button key={x.id} role="option" aria-selected={sel === x.id} class={`alm-row alm-${st} ${sel === x.id ? 'on' : ''}`} onClick={() => { picked.value = x.id; if (!CODE_SOURCE[x.id]) tab.value = 'about'; }}>
+                  <span class="alm-name">{st === 'unseen' ? '? ? ?' : x.name}</span>
+                  <span class="alm-tag">{STATE_TEXT[st]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div class="alm-main"><Detail e={e} d={d} level={s?.level.level ?? 1} sandbox={sandbox} /></div>
+        </div>
       </div>
-      <Detail e={e} d={d} level={s?.level.level ?? 1} sandbox={sandbox} />
-    </aside>
+    </div>
   );
 }

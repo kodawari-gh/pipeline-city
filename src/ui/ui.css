@@ -16,7 +16,7 @@
   --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
   --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
   --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
-  --art-plate: #0e1a3c;
+  --art-plate: #0e1a3c; --menu-solid: #0a0e22;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -26,7 +26,7 @@
     --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
     --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
     --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
-    --art-plate: #0e1a3c;
+    --art-plate: #0e1a3c; --menu-solid: #0a0e22;
     color-scheme: dark;
   }
 }
@@ -737,31 +737,33 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tracedock .th-bad { color: #e5534b; font-weight: 700; }
 .tracedock .tp { display: flex; justify-content: space-between; gap: 0.6rem; }
 
-/* Almanac: the job cards */
-.almanac { width: 21rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.78rem; }
-.almanac h2 { margin: 0; }
-.almanac h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+/* Almanac: a modal like the shop, the list of jobs on the left and the card on the right */
+.almanac-back { display: flex; align-items: center; justify-content: center; }
+.almanac { background: var(--bg); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 76rem); height: min(100%, 48rem); padding: 0.8rem 0.9rem; gap: 0.6rem; font-size: 0.8rem; animation: pop-in .25s ease both; }
+.alm-head { position: relative; display: flex; align-items: center; gap: 0.7rem; padding-right: 2rem; flex-wrap: wrap; }
+.alm-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
+.alm-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 1rem; }
+.alm-body { display: flex; gap: 0.9rem; min-height: 0; flex: 1; }
+.alm-main { flex: 1; min-width: 0; overflow-y: auto; scrollbar-width: thin; padding-right: 0.3rem; }
+.almanac h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
 .almanac h4 { margin: 0.6rem 0 0.25rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--mute); }
-.alm-list { display: flex; flex-direction: column; gap: 0.2rem; }
-.alm-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.3rem 0.55rem; text-align: left; }
-.alm-row { color: var(--ink); }
-.alm-row.on { border-color: var(--ink); background: var(--glass-line); color: var(--ink); }
+.alm-list { width: 14rem; flex: none; display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: thin; }
+.alm-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; text-align: left; color: var(--ink); }
+.alm-row.on { border-color: var(--ink); background: var(--glass-line); }
 .alm-unseen .alm-name { color: var(--mute); letter-spacing: .2em; }
 .alm-planned { opacity: 0.6; }
 .alm-tag { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .alm-done .alm-tag { color: #4cc38a; }
 .alm-seen .alm-tag { color: #d9a23a; }
-.alm-detail p { margin: 0 0 0.4rem; line-height: 1.4; }
+.alm-detail p { margin: 0 0 0.4rem; line-height: 1.4; max-width: 60rem; }
 .alm-facts { display: flex; flex-direction: column; gap: 0.15rem; margin: 0.4rem 0; }
-.alm-facts .mute { display: inline-block; min-width: 5.6rem; }
-.alm-tips { margin: 0; padding-left: 1.05rem; display: flex; flex-direction: column; gap: 0.35rem; line-height: 1.4; }
+.alm-facts .mute { display: inline-block; min-width: 6.4rem; }
+.alm-tips { margin: 0; padding-left: 1.05rem; display: flex; flex-direction: column; gap: 0.35rem; line-height: 1.4; max-width: 60rem; }
 .alm-rec { margin-top: 0.6rem; color: var(--mute); }
 .alm-lock { display: flex; align-items: center; gap: 0.35rem; }
+@media (max-width: 52rem) { .alm-body { flex-direction: column; } .alm-list { width: auto; flex-direction: row; flex-wrap: wrap; } }
 
 /* Almanac: code views */
-.almanac.wide { width: min(38rem, 94vw); }
-.almanac { overflow-y: auto; }
-.alm-sb { font-weight: 400; font-size: 0.7rem; }
 .alm-tabs { display: flex; gap: 0.25rem; margin: 0.2rem 0 0.5rem; }
 .alm-tabs button { padding: 0.2rem 0.6rem; font-size: 0.74rem; color: var(--mute); display: inline-flex; align-items: center; gap: 0.25rem; }
 .alm-tabs button.on { color: var(--ink); border-color: var(--ink); background: var(--glass-line); }
@@ -784,7 +786,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .alm-chips { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; font-size: 0.68rem; color: var(--mute); }
 .alm-chips span { padding: 0.05rem 0.4rem; border: 1px solid var(--glass-line); border-radius: 99rem; }
 .bg-alu { background: #3aa8d9; } .bg-ld { background: #d9a23a; } .bg-st { background: #4cc38a; } .bg-mul { background: #a78bfa; } .bg-br { background: #d96ad6; } .bg-sys { background: #8893b0; }
-.alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; background: rgba(0,0,0,.18); border: 1px solid var(--glass-line); border-radius: 0.3rem; padding: 0.35rem 0.1rem; max-height: 22rem; overflow: auto; }
+.alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; background: rgba(0,0,0,.18); border: 1px solid var(--glass-line); border-radius: 0.3rem; padding: 0.35rem 0.1rem; max-height: 28rem; overflow: auto; }
 .alm-listing .lbl { color: #b69cf0; padding: 0.15rem 0.5rem 0; font-weight: 700; }
 .alm-listing .ins { display: grid; grid-template-columns: 2.6rem 4.4rem minmax(11rem, 1fr) 3.4rem 3.2rem; gap: 0.4rem; padding: 0 0.5rem; align-items: center; white-space: nowrap; }
 .alm-listing .ln.cold { opacity: 0.45; }
@@ -801,3 +803,4 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tk-type { color: #5cc1e0; } .tk-func { color: #e6d37a; } .tk-label { color: #b69cf0; } .tk-reg { color: #6fd0c0; } .tk-directive { color: #7f8aa8; } .tk-pre { color: #c08ad6; } .tk-punct { color: var(--mute); }
 .tk.op-alu { color: #3aa8d9; } .tk.op-ld { color: #d9a23a; } .tk.op-st { color: #4cc38a; } .tk.op-mul { color: #a78bfa; } .tk.op-br { color: #d96ad6; } .tk.op-sys { color: #8893b0; }
 .tk-op { font-weight: 700; }
+.almanac .alm-row.on, .almanac .alm-row.on .alm-name { color: var(--ink); }

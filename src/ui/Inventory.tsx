@@ -10,6 +10,7 @@ import { PartArt } from './PartArt';
 import { INVENTORY_ID } from './tutorial';
 import { StatCard } from './StatCard';
 import { kindIcon, kindLabel, tierOfSpec } from './shopdata';
+import { almanacOpen, toggleAlmanac } from './AlmanacPanel';
 import { fitTarget, inventoryKind, inventoryOpen, shopOpen, toggleInventory, toggleShop } from './state';
 import { beginPartDrag } from './worldDrag';
 
@@ -57,9 +58,20 @@ function LensButton() {
   );
 }
 
+/** The almanac button: every kind of job, what it needs, its code and how to do it better. */
+function AlmanacButton() {
+  const open = almanacOpen.value;
+  return (
+    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="almanac" aria-pressed={open} aria-label="Almanac" title="Almanac: every kind of job, its code and how to do it better" onClick={toggleAlmanac}>
+      <Icon name="layers" size={14} />
+      <span class="hide-narrow">Almanac</span>
+    </button>
+  );
+}
+
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /></div>;
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */

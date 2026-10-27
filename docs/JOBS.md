@@ -16,7 +16,7 @@ A job is a generated program (docs/GEN.md) plus a class (`JOB_CLASSES` in `src/s
 Until the in-memory index, no job used more than 8K: RAM above that bought nothing. `db.index` is the first job whose working set is the point: it builds a table of 256-byte records (one per page) at `HEAP_BASE` 0x10000 (`indexBytes(scale)`: 32K at scale 1, doubling at 2, 4, 8 and 16 up to 512K), then makes lookups that scatter over all of it (`indexFill`, `indexProbe` in `src/sim/gen/kernels.ts`). Memory is needed at the same virtual addresses on every OS: physical memory on OS 1, demand-paged frames on OS 2 and 3 (docs/RAM.md "How much RAM the OS uses"). Measured on a cpu2 (base clock): the class's 32K job (scale 1) takes 33 ticks on OS 1, 633 on OS 2 and 1189 on OS 3; the 64K job (scale 3) takes 52 ticks on OS 1 and 1223 on OS 2. The difference is the page faults of a paged OS: one per page claimed, each a trap, a frame allocation, a zeroed page and a table update. This is a balance question (payout and patience were set when this job was a cheap placeholder) and is left for the balance pass.
 
 ## The almanac
-`Menu > Almanac` (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobdex.ts`): one card per kind of job, like a pokedex. Each fills in as the player meets it:
+The **Almanac** button in the bottom bar (beside Power; a modal like the shop, Esc closes it) (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobdex.ts`): one card per kind of job, like a pokedex. Each fills in as the player meets it:
 
 | state | shown |
 |---|---|
