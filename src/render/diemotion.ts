@@ -481,12 +481,12 @@ export class Player {
   }
 
   /** What every instruction is doing at the cycle being shown: its stage code. Oldest first. */
-  now(): { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean }[] {
+  now(): { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean; stalled: boolean }[] {
     const w = this.cur;
     if (!w) return [];
     const k = Math.min(w.n - 1, Math.floor(this.tau));
-    const out: { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean }[] = [];
-    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch, text: r.text, pc: r.pc, word: r.word, lane: r.lanes[k]!, fresh: k === 0 || r.codes[k - 1] !== ch }); }
+    const out: { id: number; op: string; ch: string; text: string; pc: number; word: number; lane: number; fresh: boolean; stalled: boolean }[] = [];
+    for (const r of w.rows) { const ch = r.codes[k]!; if (ch !== ' ' && ch !== 'x') out.push({ id: r.id, op: r.op, ch, text: r.text, pc: r.pc, word: r.word, lane: r.lanes[k]!, fresh: k === 0 || r.codes[k - 1] !== ch, stalled: !this.hosts.ooo && k > 0 && r.codes[k - 1] === ch && (ch === 'D' || ch === 'F' || ch === 'M') }); }
     return out;
   }
 

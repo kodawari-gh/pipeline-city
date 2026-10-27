@@ -147,7 +147,7 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
     }
     const r = b.rect;
     if (isTall(b)) {
-      const t = label(b.label, b.grid ? r.x + 11 : r.x + r.w / 2 + 4, r.y + r.h / 2, Math.min(13, Math.max(8, r.w * 0.45)), T.ink, { weight: '700', anchor: [0.5, 0.5] });
+      const t = label(b.label, b.grid ? r.x + 11 : b.kind === 'latch' ? r.x + r.w - 7 : r.x + r.w / 2 + 4, r.y + r.h / 2, Math.min(13, Math.max(8, r.w * 0.45)), T.ink, { weight: '700', anchor: [0.5, 0.5] });
       t.rotation = -Math.PI / 2;
       names.addChild(t);
       continue;

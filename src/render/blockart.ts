@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import type { Block, Rect } from './cpuplan';
-import { fetchWidth, glyphArea, hasSymbol, isGlyph, isVertical, laneCount, GLYPH_KINDS } from './glyphgeom';
+import { bundleGeom, deviceGeom, fetchWidth, forwardGeom, glyphArea, hasSymbol, hazardGeom, isGlyph, isVertical, laneCount, latchSlots, GLYPH_KINDS } from './glyphgeom';
 import { mix } from './ink';
 import { regName, slotValues, writesOf } from './tokentext';
 import type { Theme } from './theme';
@@ -31,7 +31,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
   const poly = (pts: number[], f = soft) => { g.poly(pts).fill({ color: f }).stroke({ width: 1.3, color: line }); };
   const mux = (mx: number, my: number, mw: number, mh: number, ins: string[]) => {
     poly([mx, my, mx + mw, my + mh * 0.22, mx + mw, my + mh * 0.78, mx, my + mh]);
-    ins.forEach((t, k) => { const iy = my + mh * ((k + 0.5) / ins.length); stub(mx - 7, iy, mx, iy); put(t, mx + 3 + t.length * 2, iy, 6); });
+    ins.forEach((t, k) => { const iy = my + mh * ((k + 0.5) / ins.length); stub(mx - 7, iy, mx, iy); if (t) put(t, mx + 3 + t.length * 2, iy, 6); });
     stub(mx + mw, my + mh / 2, mx + mw + 7, my + mh / 2);
   };
   const adder = (cx: number, cy: number, r: number, ins: string[]) => {
@@ -145,6 +145,61 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       put('store', qx - 12, y + h / 2 + sh / 2 + 1.5, 6);
       break;
     }
+    case 'hazard': {
+      // the destination of the instruction ahead against the sources of the one behind: equal means wait
+      const gz = hazardGeom(a);
+      rect(gz.rd.x, gz.rd.y, gz.rd.w, gz.rd.h, soft); put('rd', gz.rd.x + gz.rd.w / 2, gz.rd.y + gz.rd.h / 2, 6);
+      rect(gz.rs.x, gz.rs.y, gz.rs.w, gz.rs.h, soft); put('rs', gz.rs.x + gz.rs.w / 2, gz.rs.y + gz.rs.h / 2, 6);
+      stub(gz.bx, gz.rd.y + gz.rd.h / 2, gz.rd.x, gz.rd.y + gz.rd.h / 2); stub(gz.bx, gz.rs.y + gz.rs.h / 2, gz.rs.x, gz.rs.y + gz.rs.h / 2); stub(gz.bx, gz.rd.y + gz.rd.h / 2, gz.bx, gz.rs.y + gz.rs.h / 2);
+      stub(gz.rd.x + gz.rd.w, gz.rd.y + gz.rd.h / 2, gz.cx - gz.r * 0.7, gz.cy - gz.r * 0.4); stub(gz.rs.x + gz.rs.w, gz.rs.y + gz.rs.h / 2, gz.cx - gz.r * 0.7, gz.cy + gz.r * 0.4);
+      g.circle(gz.cx, gz.cy, gz.r).fill({ color: soft }).stroke({ width: 1.3, color: line });
+      put('=?', gz.cx, gz.cy, 7);
+      stub(gz.cx + gz.r, gz.cy, gz.lamp.x, gz.cy);
+      rect(gz.lamp.x, gz.lamp.y, gz.lamp.w, gz.lamp.h, soft); put('stall', gz.lamp.x + gz.lamp.w / 2, gz.lamp.y + gz.lamp.h / 2, 7);
+      break;
+    }
+    case 'forward': {
+      // two multiplexers, one for each operand, choosing the register file, the result ahead or the one before it
+      const gf = forwardGeom(a);
+      stub(gf.busx, a.y + a.h * 0.1, gf.busx, a.y + a.h * 0.9);
+      gf.muxes.forEach((m, k) => {
+        mux(m.mx, m.my, m.mw, m.mh, ['', '', '']);
+        for (let j = 0; j < 3; j++) { const iy = m.my + m.mh * ((j + 0.5) / 3); stub(gf.busx, iy, m.mx - 7, iy); }
+        put(k ? 'B' : 'A', m.mx + m.mw * 0.55, m.my + m.mh / 2, 8);
+        stub(m.mx + m.mw + 7, m.my + m.mh / 2, gf.xo, m.my + m.mh / 2);
+      });
+      stub(gf.xo, gf.muxes[0]!.my + gf.muxes[0]!.mh / 2, gf.xo, gf.muxes[1]!.my + gf.muxes[1]!.mh / 2);
+      stub(gf.xo, a.y + a.h / 2, a.x + a.w, a.y + a.h / 2);
+      break;
+    }
+    case 'bundle': {
+      // the two instructions looked at together: independent and not both memory, or only the first goes
+      const gb = bundleGeom(a);
+      rect(gb.box.x, gb.box.y, gb.box.w, gb.box.h, soft); put('pair?', gb.box.x + gb.box.w / 2, gb.box.y + gb.box.h / 2, 8);
+      gb.lanes.forEach((l, k) => {
+        stub(gb.box.x + gb.box.w, gb.box.y + gb.box.h * (k ? 0.75 : 0.25), l.x, l.y + l.h / 2);
+        rect(l.x, l.y, l.w, l.h, solid); put(k ? 'lane 1' : 'lane 0', l.x + l.w / 2, l.y + l.h / 2, 7);
+        stub(l.x + l.w, l.y + l.h / 2, gb.xo, l.y + l.h / 2);
+      });
+      stub(gb.xo, gb.lanes[0]!.y + gb.lanes[0]!.h / 2, gb.xo, gb.lanes[1]!.y + gb.lanes[1]!.h / 2);
+      stub(gb.xo, a.y + a.h / 2, a.x + a.w, a.y + a.h / 2);
+      break;
+    }
+    case 'mmio': {
+      // is the address in the device window? yes: to the bus past the cache; no: the cache as usual
+      const gd = deviceGeom(a);
+      poly([gd.cx - gd.rx, gd.cy, gd.cx, gd.cy - gd.ry, gd.cx + gd.rx, gd.cy, gd.cx, gd.cy + gd.ry]);
+      put('device?', gd.cx, gd.cy, 6.5);
+      stub(a.x, gd.cy, gd.cx - gd.rx, gd.cy);
+      stub(gd.cx, gd.cy - gd.ry, gd.cx, gd.upY); stub(gd.cx, gd.upY, a.x + a.w * 0.72, gd.upY); put('no: cache', a.x + a.w * 0.86, gd.upY, 6);
+      stub(gd.cx, gd.cy + gd.ry, gd.cx, gd.downY); stub(gd.cx, gd.downY, a.x + a.w, gd.downY); put('yes', a.x + a.w * 0.62, gd.downY - 5, 6);
+      break;
+    }
+    case 'latch': {
+      // a register for every signal that crosses the stage boundary, clocked together
+      for (const r of latchSlots(a)) { rect(r.x, r.y, r.w, r.h, soft); g.poly([r.x + 1, r.y + r.h - 1, r.x + 4, r.y + r.h - 4, r.x + 7, r.y + r.h - 1]).stroke({ width: 0.8, color: line }); }
+      break;
+    }
     case 'branch': {
       // two values compared: equal, less, less unsigned -> taken
       const bh = Math.min(h, 40), by = y + (h - bh) / 2, bw = Math.min(w * 0.4, 56), bx = x + w * 0.25;
@@ -168,7 +223,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
 // ---------------------------------------------------------------- what the symbols show while the machine runs
 
 /** An instruction as the live symbols need it. */
-export interface LiveItem { op: string; text: string; pc: number; word?: number }
+export interface LiveItem { op: string; text: string; pc: number; word?: number; /** For the forwarding unit: bit 0 operand A is taken from an older result, bit 1 operand B. */ flags?: number }
 /** Text to show in a rectangle (it is fitted to it), and rectangles to light. */
 export interface LiveGlyph { texts: { rect: Rect; top: string; bottom: string }[]; lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[] }
 
@@ -233,6 +288,12 @@ export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, pro
   const pr = (k: number) => Math.max(0, Math.min(1, prog[k] ?? 1));
   const wipe = (r: Rect, f: number): Rect => ({ ...r, w: r.w * f });
   switch (b.kind) {
+    case 'hazard':
+      if (it) { const gz = hazardGeom(a); out.lit.push({ rect: wipe(gz.lamp, pr(0)), color: 'ld', a: 0.95 }); }
+      break;
+    case 'forward':
+      if (it) forwardGeom(a).muxes.forEach((m, k) => { if ((it.flags ?? 0) & (1 << k)) out.lit.push({ rect: { x: m.mx, y: m.my, w: m.mw, h: m.mh }, color: 'st', a: 0.5 * pr(0) }); });
+      break;
     case 'queue':
       items.slice(0, s.words?.length ?? 0).forEach((x, k) => {
         out.lit.push({ rect: wipe(s.words![k]!, pr(k)), color: 'ld', a: 0.92 });

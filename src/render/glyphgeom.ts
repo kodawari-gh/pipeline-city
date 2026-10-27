@@ -5,7 +5,7 @@ import type { Block, BlockKind, Pt, Rect } from './cpuplan';
 // (docs/DIE.md "Pins"). Pure, no drawing. blockart.ts draws the symbols with the same numbers: change them together (blockart.test.ts checks it).
 
 /** The kinds drawn as symbols (the others keep their cell arrays). */
-export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>(['pc', 'pcadd', 'nextpc', 'fetch', 'imm', 'decode', 'alu', 'mul', 'lsu', 'wb', 'branch']);
+export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>(['pc', 'pcadd', 'nextpc', 'fetch', 'imm', 'decode', 'alu', 'mul', 'lsu', 'wb', 'branch', 'hazard', 'forward', 'bundle', 'mmio', 'latch']);
 
 /** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
 export const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
@@ -23,15 +23,44 @@ export const isTall = (b: Block): boolean => {
 /** A decoder in a narrow column (the two lanes of the 2-wide die) draws its word standing up. */
 export const isVertical = (b: Block): boolean => b.kind === 'decode' && isTall(b);
 /** Whether a block draws a symbol: the symbol kinds, except the narrow ones (a queue, a latch), and the decoder in a column. */
-export const hasSymbol = (b: Block): boolean => isGlyph(b) && (!isTall(b) || isVertical(b));
+export const hasSymbol = (b: Block): boolean => isGlyph(b) && (!isTall(b) || isVertical(b) || b.kind === 'latch');
 
 /** The drawing area of a block's symbol: the box under the name (the same as its cell grid's). */
 export function glyphArea(b: Block): Rect | null {
   const r = b.rect;
+  if (b.kind === 'latch') { const a = { x: r.x + 4, y: r.y + 8, w: 12, h: r.h - 16 }; return a.h > 20 ? a : null; }
   if (isVertical(b)) { const a = { x: r.x + 24, y: r.y + 8, w: r.w - 30, h: r.h - 16 }; return a.w > 14 && a.h > 40 ? a : null; }
   const head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
   return a.w > 14 && a.h > 8 ? a : null;
+}
+
+/** The rectangles of the pipeline latch's register slots (a column of flip-flops). */
+export function latchSlots(a: Rect): Rect[] {
+  const n = Math.max(1, Math.floor(a.h / 14));
+  return Array.from({ length: n }, (_, k) => ({ x: a.x, y: a.y + k * (a.h / n) + 1.5, w: a.w, h: a.h / n - 3 }));
+}
+
+/** The geometry of the small control symbols (shared by the drawing, the pins and the live lamps). */
+export function hazardGeom(a: Rect) {
+  const bx = a.x + 2, rd = { x: bx + 6, y: a.y + a.h * 0.12, w: Math.min(30, a.w * 0.2), h: a.h * 0.3 }, rs = { x: bx + 6, y: a.y + a.h * 0.58, w: rd.w, h: a.h * 0.3 };
+  const r = Math.min(a.h * 0.3, 12), cx = a.x + a.w * 0.46, cy = a.y + a.h / 2;
+  const lamp = { x: a.x + a.w * 0.66, y: cy - Math.min(9, a.h * 0.22), w: Math.min(44, a.w * 0.28), h: Math.min(18, a.h * 0.44) };
+  return { bx, rd, rs, r, cx, cy, lamp };
+}
+export function forwardGeom(a: Rect) {
+  const busx = a.x + a.w * 0.1, mx = a.x + a.w * 0.36, mw = Math.min(34, a.w * 0.2), mh = a.h * 0.42;
+  const muxes = [0, 1].map((k) => ({ mx, my: a.y + a.h * (k ? 0.54 : 0.04), mw, mh }));
+  return { busx, muxes, xo: mx + mw + 16 };
+}
+export function bundleGeom(a: Rect) {
+  const box = { x: a.x, y: a.y + a.h * 0.2, w: a.w * 0.34, h: a.h * 0.6 };
+  const lanes = [0, 1].map((k) => ({ x: a.x + a.w * 0.52, y: a.y + a.h * (k ? 0.58 : 0.06), w: a.w * 0.3, h: a.h * 0.34 }));
+  return { box, lanes, xo: a.x + a.w - 6 };
+}
+export function deviceGeom(a: Rect) {
+  const cx = a.x + a.w * 0.36, cy = a.y + a.h / 2, rx = Math.min(a.w * 0.2, 34), ry = Math.min(a.h * 0.42, 20);
+  return { cx, cy, rx, ry, upY: a.y + a.h * 0.2, downY: a.y + a.h * 0.78 };
 }
 
 /** The pins of a block's symbol: where each input enters and where the output leaves, in die coordinates. */
@@ -62,6 +91,11 @@ export function glyphPins(b: Block): Pins | null {
       return { ins: { in: [ax - 18, ay + ah / 2] }, out: [ax + aw + 8 + ow, ay + ah / 2] };
     }
     case 'branch': { const bh = Math.min(h, 40), by = y + (h - bh) / 2, bw = Math.min(w * 0.4, 56), bx = x + w * 0.25; return { ins: { in: [bx - 14, by + bh / 2] }, out: [bx + bw + 32, by + bh / 2] }; }
+    case 'hazard': { const g = hazardGeom(a); return { ins: { in: [g.bx, y + h / 2] }, out: null }; }
+    case 'forward': { const g = forwardGeom(a); return { ins: { in: [g.busx, y + h / 2] }, out: [x + w, y + h / 2] }; }
+    case 'bundle': return { ins: {}, out: [bundleGeom(a).xo, y + h / 2] };
+    case 'mmio': { const g = deviceGeom(a); return { ins: { in: [x, g.cy] }, out: [x + w, g.downY] }; }
+    case 'latch': return null;
     case 'mul': return { ins: { in: [x + 2, y + h / 2] }, out: [x + w * 0.62 + Math.min(60, w * 0.3), y + h / 2] };
     case 'lsu': { const r = Math.min(h / 2.4, 14), cx = x + r + 10; return { ins: { in: [cx - r - 12, y + h / 2] }, out: [x + w, y + h / 2] }; }
     default: return null;

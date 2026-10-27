@@ -8,6 +8,7 @@ import { cellRects, isTall, dieNear, offsetPts, LANE_GAP, type DieArt } from './
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from './ink';
 import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
+import { readsOf } from './tokentext';
 import { idColor, pcText, writesOf } from './tokentext';
 import type { Theme } from './theme';
 
@@ -491,7 +492,7 @@ export class DieView {
     for (const r of rows) { const k = r.id + r.ch; born.set(k, this.born.get(k) ?? wall); }
     this.born = born;
     this.glyphAnim = false;
-    const by = new Map<string, { op: string; text: string; pc: number; word: number; id: number; ch: string }[]>();
+    const by = new Map<string, { op: string; text: string; pc: number; word: number; id: number; ch: string; flags?: number }[]>();
     for (const r of rows) {
       const host = player.hostOf(r.ch, r.lane, r.op, r.id);
       if (!host) continue;
@@ -505,7 +506,11 @@ export class DieView {
       const a = glyphArea(b);
       if (!a) continue;
       // the immediate lights when the instruction being decoded has one, the dispatch lanes when instructions go to the scheduler
-      const here = b.kind === 'imm' ? rows.filter((r) => r.ch === 'D' && controlsOf(r.op).includes(4)) : b.id === 'disp' ? rows.filter((r) => r.ch === 'S' && r.fresh) : by.get(b.id) ?? [];
+      // the hazard unit's lamp lights while an instruction waits in decode; the forwarding unit's multiplexer when an operand of the instruction executing is the result of one ahead of it
+      const ahead = rows.filter((r) => r.ch === 'M' || r.ch === 'W').flatMap((r) => (writesOf(r.word) > 0 ? [writesOf(r.word)] : []));
+      const here = b.kind === 'hazard' ? rows.filter((r) => r.ch === 'D' && r.stalled)
+        : b.kind === 'forward' ? rows.filter((r) => r.ch === 'X').map((r) => { const rs = readsOf(r.word); return { ...r, flags: (rs[0] !== undefined && ahead.includes(rs[0]) ? 1 : 0) | (rs[1] !== undefined && ahead.includes(rs[1]) ? 2 : 0) }; }).filter((r) => r.flags > 0)
+        : b.kind === 'imm' ? rows.filter((r) => r.ch === 'D' && controlsOf(r.op).includes(4)) : b.id === 'disp' ? rows.filter((r) => r.ch === 'S' && r.fresh) : by.get(b.id) ?? [];
       const prog = here.map((r) => Math.min(1, (wall - (born.get(r.id + r.ch) ?? wall)) / WIPE_MS));
       if (prog.some((x) => x < 1)) this.glyphAnim = true;
       const live = glyphLive(b, a, here, b.kind === 'pc' ? fetched?.pc : undefined, prog.map((x) => x * x * (3 - 2 * x)));

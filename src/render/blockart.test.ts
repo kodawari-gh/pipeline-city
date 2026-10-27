@@ -69,6 +69,7 @@ describe('block symbols', () => {
     for (const i of INPUTS) {
       const plan = cpuPlan(i);
       for (const b of plan.blocks.filter((x) => hasSymbol(x))) {
+        if (b.kind === 'latch') continue; // a column of registers: the wires meet its edge, it has no pins
         const pins = glyphPins(b)!;
         expect(pins, `${i.arch} ${b.id}`).not.toBeNull();
         for (const p of [...Object.values(pins.ins), ...(pins.out ? [pins.out] : [])]) {
@@ -119,5 +120,16 @@ describe('block symbols', () => {
         if (fp?.out) expect(l.pts[0], `${spec.id} ${l.id} from ${from.id}`).toEqual(fp.out);
       }
     }
+  });
+
+  it('the hazard lamp lights for a waiting instruction and the forwarding multiplexer for the operand that is forwarded', () => {
+    const plan = cpuPlan(INPUTS[2]!);
+    const hz = plan.blocks.find((b) => b.kind === 'hazard')!, fw = plan.blocks.find((b) => b.kind === 'forward')!;
+    const item = { op: 'add', text: 'add t0, t1, t2', pc: 0x1000, word: 1 };
+    expect(glyphLive(hz, glyphArea(hz)!, [], undefined, []).lit).toHaveLength(0);
+    expect(glyphLive(hz, glyphArea(hz)!, [item]).lit).toHaveLength(1);
+    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 0 }]).lit).toHaveLength(0);
+    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 2 }]).lit).toHaveLength(1); // operand B only
+    expect(glyphLive(fw, glyphArea(fw)!, [{ ...item, flags: 3 }]).lit).toHaveLength(2);
   });
 });
