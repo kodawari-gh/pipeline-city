@@ -96,10 +96,15 @@ export function engineConfigFor(board: Board): EngineConfig | null {
       // the DRAM the CPU reaches: as many banks as the weakest stick has, the slowest stick's timing (docs/RAM.md): an activate costs the stick's latency,
       // the open row a share of it, a conflict half as much again
       const slow = sticks.reduce((a, b) => (b.penalty > a.penalty ? b : a));
-      const p = Math.max(1, slow.penalty);
+      const r = slow.ram, k = Math.max(0.01, slow.penalty / Math.max(1, r.latency)); // RAM ticks -> CPU cycles for this clock ratio
+      const cy = (t: number) => Math.max(1, Math.ceil(t * k));
+      const mc = cpu.memory ?? { channels: 1, policy: "open" as const };
+      let channels = 1;
+      while (channels * 2 <= Math.min(mc.channels, sticks.length)) channels *= 2;
       cfg.dram = {
-        banks: Math.min(...sticks.map((s) => s.ram.banks)), rowBytes: slow.ram.rowBytes,
-        hit: Math.max(1, Math.round(p * slow.ram.rowHit)), empty: p, conflict: Math.max(p, Math.round(p * 1.5)), refreshEvery: 6000,
+        channels, banks: Math.min(...sticks.map((s) => s.ram.banks)), bankGroups: Math.min(...sticks.map((s) => s.ram.bankGroups)), rowBytes: r.rowBytes,
+        tCL: cy(r.tCL), tRCD: cy(r.tRCD), tRP: cy(r.tRP), burst: cy(r.burst), ccdS: cy(r.burst), ccdL: cy(r.burst * 2),
+        refreshEvery: 6000, tRFC: cy(r.tRCD + r.tRP), policy: mc.policy,
       };
     }
   }

@@ -56,4 +56,21 @@ describe("a TPM in the machine", () => {
     expect(g.snapshot().log.some((e) => /protected-mode violation/.test(e.text))).toBe(true);
     expect(g.snapshot().tray.length + (g.pluggedKey() ? 1 : 0)).toBeGreaterThan(0); // the job is not lost, it restarts
   });
+
+  it("a TPM needs ECC RAM: without it the module is off the bus and a secure job is not runnable", () => {
+    const g = maxed();
+    g.install(buy(g, "tpm1"));
+    g.advanceBaseTick();
+    expect(g.eccInstalled()).toBe(true);
+    expect(g.machine.bus.load32(TPM_BASE + TPM_REG.STATUS)).toBe(TpmStatus.Present);
+    // swap every stick for plain RAM
+    for (const d of g.board.devices.filter((x) => x.spec.startsWith("ram"))) g.uninstall(d.id);
+    g.install(buy(g, "ram2"));
+    g.clearQueue();
+    g.spawnKey("secure");
+    g.advanceBaseTick();
+    expect(g.eccInstalled()).toBe(false);
+    expect(g.machine.bus.load32(TPM_BASE + TPM_REG.STATUS)).toBe(0);
+    expect(g.snapshot().tray.find((k) => k.cls === "secure")).toMatchObject({ runnable: false, missing: ["a TPM", "ECC RAM"].filter((x) => x !== "a TPM") });
+  });
 });

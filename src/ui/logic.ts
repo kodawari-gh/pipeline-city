@@ -185,7 +185,7 @@ export function describeSpec(spec: DeviceSpec): Description {
     bits.push(...cpuFeatures(spec.engine));
     if (spec.branch) bits.push(`leans ${spec.branch === 'frontend' ? 'on the front end (branchy code)' : spec.branch === 'memory' ? 'on memory (big data)' : 'wide (everything)'}`);
   }
-  if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`);
+  if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`, `${spec.banks} banks`, ...(spec.ecc ? ['ECC: fixes flipped bits, a TPM needs it'] : []));
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);
   if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);

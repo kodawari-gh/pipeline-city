@@ -208,7 +208,7 @@ describe('upgrade ladder', () => {
 
 describe('part stats and before/after', () => {
   it('summarises each part with numbers the bars can use', () => {
-    expect(statsOf('ram0').map((x) => [x.key, x.value])).toEqual([['size', 16], ['latency', 200], ['power', 2]]);
+    expect(statsOf('ram0').map((x) => [x.key, x.value])).toEqual([['size', 16], ['latency', 200], ['banks', 2], ['power', 2]]);
     expect(statsOf('psu1')).toEqual([expect.objectContaining({ key: 'watts', value: 100, higherIsBetter: true })]);
     expect(statsOf('cpu2')[0]!.value).toBeGreaterThan(statsOf('cpu1')[0]!.value);
     expect(statsOf('nope')).toEqual([]);
@@ -236,7 +236,7 @@ describe('part stats and before/after', () => {
 
   it('describes each kind of part in a line', () => {
     expect(specBrief(getSpec('cpu2')!)).toBe('5-stage, forwarding, 3x base clock (max 5x)');
-    expect(specBrief(getSpec('ram1')!)).toBe('32K, latency 12');
+    expect(specBrief(getSpec('ram1')!)).toBe('32K, latency 12, 4 banks');
     expect(specBrief(getSpec('psu2')!)).toBe('250 W, needs ATX+ board');
     expect(specBrief(getSpec('cooler1')!)).toBe('0.8 W/C cooling');
   });

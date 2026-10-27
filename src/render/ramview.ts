@@ -221,12 +221,12 @@ export class RamView {
           g.rect(x + 0.4, y + 0.4, cw - 0.8, ch - 0.8).fill({ color: col, alpha: tint * (0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE)) });
         }
       }
-      // DRAM: a column of the grid is a bank (pages are rows, banks interleave by row), and the row open in each bank is lit
+      // DRAM: pages are rows, interleaved over channels and banks, and the row open in each bank is outlined
       const d = m.dram;
-      if (outlines && d && d.rowBytes === PAGE && c.slot.tilesX % d.banks === 0) {
+      if (outlines && d && d.rowBytes === PAGE) {
         d.open.forEach((row, bank) => {
           if (row < 0) return;
-          const page = row * d.banks + bank, off = page - c.slot.lo / PAGE;
+          const ch2 = Math.floor(bank / d.banks), b = bank % d.banks, page = (row * d.banks + b) * d.channels + ch2, off = page - c.slot.lo / PAGE; // the inverse of Dram.locate
           if (off < 0 || off >= pages) return;
           const x = cr.x + (off % c.slot.tilesX) * cw, y = cr.y + Math.floor(off / c.slot.tilesX) * ch;
           g.rect(x + 1, y + 1, cw - 2, ch - 2).stroke({ width: Math.max(0.5, 1.6 / z), color: T.ink, alpha: 0.85 });
@@ -256,7 +256,8 @@ export class RamView {
         const lo = Math.min(...cs.map((c) => c.slot.lo)), hi = Math.max(...cs.map((c) => c.slot.hi));
         const minY = Math.min(...cs.map((c) => c.slot.rect.y)), maxY = Math.max(...cs.map((c) => c.slot.rect.y + c.slot.rect.h));
         const flip = cs[0]!.slot.rect.y > cs[cs.length - 1]!.slot.rect.y;
-        const x = cs[0]!.slot.rect.x, w = cs[0]!.slot.rect.w, y = flip ? minY - 16 : maxY + 10, h = 0;
+        // the key sits on the free end of the stick, away from the pins and the ECC chip
+        const x = cs[0]!.slot.rect.x, w = cs[0]!.slot.rect.w, y = flip ? maxY + 8 : minY - 14, h = 0;
         // the key: a line per owner on this stick (its colour and name, and what it holds here); a stick does not know how full it is
         const keys: { name: string; color: string; bytes: number }[] = [];
         for (const r of m.regions) {
@@ -270,7 +271,7 @@ export class RamView {
         const sw = [...keys.slice(0, 6).map((k) => k.color), T.alu, T.br];
         sw.forEach((col, i) => {
           const gap = i >= sw.length - 2 ? 6 : 0;
-          g.roundRect(x + i * 11 + gap, flip ? y - 9 : y + 3, 8, 6, 2).fill({ color: col });
+          g.roundRect(x + i * 11 + gap, y, 8, 6, 2).fill({ color: col });
         });
       }
     }

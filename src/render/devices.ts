@@ -91,7 +91,7 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const accent = spec.visual === 'dimm-lowlat' ? T.ld : spec.visual === 'dimm-fast' ? T.br : T.alu;
+  const accent = spec.visual === 'dimm-ecc' ? T.st : spec.visual === 'dimm-lowlat' ? T.ld : spec.visual === 'dimm-fast' ? T.br : T.alu;
   const fy = (y: number, h = 0) => (flip ? DIMM_H - y - h : y);
   box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
   box(g, 14, 50, 142, DIMM_H - 100, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
@@ -100,6 +100,12 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
     const cy = fy(84 + j * 128, 112);
     box(g, 27, cy, 116, 112, 8, { fill: T.tile, stroke: T.line, lw: 5 });
     chips.push({ x: 27, y: cy, w: 116, h: 112 });
+  }
+  if (spec.ecc) {
+    // the extra chip of an error-correcting stick: the parity bits, a small chip of its own under the data chips
+    const ey = fy(590, 40);
+    box(g, 27, ey, 116, 40, 6, { fill: T.tile, stroke: accent, lw: 4 });
+    for (let k = 0; k < 8; k++) g.rect(36 + k * 13, ey + 10, 8, 20).fill({ color: accent, alpha: 0.55 });
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks

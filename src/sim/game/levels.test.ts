@@ -305,7 +305,7 @@ describe("jobs the machine cannot run", () => {
     expect(r0).toBeCloseTo(1.08, 6);
     expect(g.spawnKey("secure")).toMatchObject({ ok: true }); // the TPM job is the one class still waiting for its device (gpu jobs run on the CPU without a card)
     const k = g.snapshot().tray.find((x) => x.cls === "secure")!;
-    expect(k).toMatchObject({ runnable: false, needs: ["TPM"], missing: ["a TPM"], type: "secure", declinable: true });
+    expect(k).toMatchObject({ runnable: false, needs: ["TPM", "ECC"], missing: ["a TPM", "ECC RAM"], type: "secure", declinable: true });
     expect(k.label).toMatch(/secure$/);
     expect(k.expiresTick - k.arrivalTick).toBe(Math.round(180 * 0.9));
     const plug = g.plugKey(k.id);
@@ -365,10 +365,11 @@ describe("jobs the machine cannot run", () => {
       expect(needsMet(c.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok, id).toBe(false);
     }
     const secure = JOB_CLASSES.find((x) => x.id === "secure")!;
-    expect(secure).toMatchObject({ template: "secure.sign", needs: [{ kind: "tpm" }] });
+    expect(secure).toMatchObject({ template: "secure.sign", needs: [{ kind: "tpm" }, { kind: "ecc" }] });
     expect(secure.placeholder).toBeUndefined();
     expect(needsMet(secure.needs, NO_CAPS).ok).toBe(false);
-    expect(needsMet(secure.needs, { ...NO_CAPS, tpm: true }).ok).toBe(true);
+    expect(needsMet(secure.needs, { ...NO_CAPS, tpm: true, ecc: true }).ok).toBe(true);
+    expect(needsMet(secure.needs, { ...NO_CAPS, tpm: true }).missing).toEqual(["ECC RAM"]);
     const npu = JOB_CLASSES.find((x) => x.id === "npu")!;
     expect(npu).toMatchObject({ template: "npu.infer", needs: [] });
     expect(npu.placeholder).toBeUndefined();

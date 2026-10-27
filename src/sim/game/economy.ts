@@ -76,6 +76,11 @@ export interface EconomyConfig {
   mix?: MixEntry[];
   /** Device utilisation fed to the thermal model while the machine is idle (waiting for a key, or showing REMOVE KEY). */
   idleLoad: number;
+  /**
+   * Chance per base tick that a bit flips in the memory the running job uses (cosmic rays, heat). ECC RAM corrects it (counted); other RAM keeps it and the
+   * job may crash or answer wrongly. 0 (the default) switches it off: the rate is a balance decision still to be made (docs/RAM.md "ECC").
+   */
+  memoryFlipRate: number;
   /** Dollars a game starts with in the sim itself (0: the tests and bots depend on it; a new campaign is given `CAMPAIGN_START_MONEY`). */
   startMoney: number;
   /**
@@ -149,6 +154,7 @@ export const ECONOMY: EconomyConfig = {
   lateFactor: 0.5,
   startQueue: [{ template: "cli.log" }],
   idleLoad: 0.1,
+  memoryFlipRate: 0,
   startMoney: 0,
   giveUpTurnaround: 180,
   payBase: 20,

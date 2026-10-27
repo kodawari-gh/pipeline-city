@@ -249,6 +249,7 @@ export function statsOf(specId: string): Stat[] {
     case 'ram': return [
       { key: 'size', label: 'Memory', icon: 'memory', value: spec.sizeBytes / 1024, unit: 'K', higherIsBetter: true },
       { key: 'latency', label: 'Latency', icon: 'gauge', value: spec.latency, unit: 'ticks', higherIsBetter: false },
+      { key: 'banks', label: 'Banks', icon: 'memory', value: spec.banks, unit: '', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
     case 'psu': return [{ key: 'watts', label: 'Capacity', icon: 'bolt', value: spec.watts, unit: 'W', higherIsBetter: true }];
@@ -374,7 +375,7 @@ export function specBrief(spec: DeviceSpec): string {
       const clk = spec.clock ? `, ${spec.clock.base}x base clock (max ${spec.clock.max}x)` : '';
       return arch + clk;
     }
-    case 'ram': return `${spec.sizeBytes / 1024}K, latency ${spec.latency}`;
+    case 'ram': return `${spec.sizeBytes / 1024}K, latency ${spec.latency}, ${spec.banks} banks${spec.ecc ? ', ECC' : ''}`;
     case 'psu': return `${spec.watts} W${spec.slot === 'atx-plus' ? ', needs ATX+ board' : ''}`;
     case 'cooler': return `${spec.coolingPerC} W/C cooling`;
     case 'display': return 'text monitor';

@@ -20,6 +20,7 @@ import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
+import { Prng } from "../machine/prng";
 import { BOOT_BLOCKS, bootImage, getOsSpec, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
@@ -437,6 +438,9 @@ export interface Snapshot {
   errors: number;
   /** Jobs the OS killed for writing to protected memory (a statistic of this session; not saved). */
   faults?: number;
+  /** Bit flips in the running job's memory: fixed by ECC RAM, or kept by plain RAM (this session only). */
+  eccCorrected?: number;
+  bitFlips?: number;
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -602,6 +606,9 @@ export class Game {
   /** Memory faults the OS has handled, and how many the MPU had counted at the last check. */
   faults = 0;
   private mpuSeen = 0;
+  eccCorrected = 0;
+  bitFlips = 0;
+  private readonly flipRng: Prng;
   dropped = 0;
   lastCompleted: CompletedInfo | null = null;
   powered = false;
@@ -687,6 +694,7 @@ export class Game {
     this.board = createBoard(0);
     // RAM is fixed at construction, so the machine always has the largest RAM (64K); the installed RAM tier
     // changes the PCH-reported size, the cache miss penalty and which jobs arrive (EconomyConfig.mix).
+    this.flipRng = new Prng((opts.seed ^ 0x5eed_ecc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
     this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: 64 * 1024 });
     this.pch = new Pch(this.machine.display);
     this.pch.onPhase = () => this.applyBoost();
@@ -1353,6 +1361,7 @@ export class Game {
       this.machine.advanceBaseTick();
       this.trackPages();
       this.checkFaults();
+      this.memoryFlips();
       this.afterMachine();
       this.autoEject();
     }
@@ -1442,6 +1451,8 @@ export class Game {
       completed: this.completed,
       errors: this.errors,
       faults: this.faults,
+      eccCorrected: this.eccCorrected,
+      bitFlips: this.bitFlips,
       dropped: this.dropped,
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
       avgTurnaround: this.avgTurnaround,
@@ -1853,10 +1864,17 @@ export class Game {
     });
   }
 
+  /** Every working memory stick has error correction (and there is at least one). */
+  eccInstalled(): boolean {
+    const sticks = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "ram");
+    return sticks.length > 0 && sticks.every((d) => (deviceSpec(d) as RamSpec).ecc === true);
+  }
+
   /** The TPM on the header (a burnt or removed module drops off the bus). */
   private syncTpm(): void {
     const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "tpm");
-    this.tpm.configure(d ? ((deviceSpec(d) as TpmSpec).tpm ?? null) : null);
+    // the module encrypts memory: it only works when every stick can correct errors
+    this.tpm.configure(d && this.eccInstalled() ? ((deviceSpec(d) as TpmSpec).tpm ?? null) : null);
   }
 
   /** The first working GPU as a job generator sees it (undefined without one, or while its power lead is unplugged): `gpu.render` programs offload to it. */
@@ -1922,6 +1940,24 @@ export class Game {
   /** The pages the running program has written to outside the OS and its own image: it claims memory by using it (docs/OS.md "Memory"). */
   private claimed = new Set<number>();
   private claimKey = -1;
+  /** A cosmic ray: at the economy's rate a bit flips in memory the running job uses. ECC memory corrects it; plain memory keeps it. */
+  private memoryFlips(): void {
+    const rate = this.cfg.memoryFlipRate;
+    if (rate <= 0 || this.flipRng.nextU32() / 4294967296 >= rate) return;
+    const regions = this.ramRegions(this.kernelJobs()).filter((r) => r.kind === "app" || r.kind === "work");
+    if (regions.length === 0) return;
+    const r = regions[this.flipRng.nextU32() % regions.length]!;
+    const addr = r.lo + (this.flipRng.nextU32() % (r.hi - r.lo)), bit = this.flipRng.nextU32() & 7;
+    if (this.eccInstalled()) {
+      this.eccCorrected++;
+      this.note("ecc", `ECC corrected a flipped bit at 0x${addr.toString(16)}`);
+    } else {
+      this.machine.ram[addr] = this.machine.ram[addr]! ^ (1 << bit);
+      this.bitFlips++;
+      this.note("fault", `a bit flipped in memory at 0x${addr.toString(16)}: no ECC`);
+    }
+  }
+
   /** A fault is the OS killing a job that wrote to protected memory: counted and logged; the kernel has already ended the job. */
   private checkFaults(): void {
     const m = this.machine.mpu;
@@ -2686,7 +2722,7 @@ export class Game {
   private capsWith(netOk: boolean): Caps {
     const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
     const tpm = this.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === "tpm");
-    return { ...NO_CAPS, net: netOk, tpm, osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+    return { ...NO_CAPS, net: netOk, tpm, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
   }
 
   private runnable(k: Key, caps = this.caps()): boolean {

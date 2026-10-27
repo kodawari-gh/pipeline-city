@@ -187,7 +187,7 @@ export interface EngineState {
   l2?: CacheState;
   pred: { entries: number; bits: number; table: number[] };
   /** The DRAM behind the caches, when the engine has one: geometry and the open row of every bank (-1: closed). */
-  dram?: { banks: number; rowBytes: number; open: number[] };
+  dram?: { channels: number; banks: number; rowBytes: number; open: number[] };
   events: EventLog;
 }
 
@@ -386,7 +386,7 @@ export abstract class EngineBase implements PipelineEngine {
       regs: Array.from(this.regs ?? []),
       d: c(this.cache), ...(this.icache ? { i: c(this.icache) } : {}), ...(this.l2 ? { l2: c(this.l2) } : {}),
       pred: { entries: this.pred.entries, bits: this.pred.bits, table: this.pred.dump() },
-      ...(this.dram ? { dram: { banks: this.dram.banks, rowBytes: this.dram.rowBytes, open: this.dram.openRows() } } : {}),
+      ...(this.dram ? { dram: { channels: this.dram.channels, banks: this.dram.banks, rowBytes: this.dram.rowBytes, open: this.dram.openRows() } } : {}),
       events: this.events,
     };
   }

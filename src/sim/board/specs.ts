@@ -58,6 +58,8 @@ export interface CpuSpec extends SpecBase {
   after?: string;
   /** The way a specialist leans: `frontend` (instruction cache, better predictor: branchy code), `memory` (bigger and associative data cache, L2: big data), `wide` (everything big). */
   branch?: "frontend" | "memory" | "wide";
+  /** The memory controller (docs/RAM.md): how many sticks it drives in parallel (channels) and what it does with a row after an access. Default 1 channel, open page. */
+  memory?: { channels: number; policy: "open" | "closed" | "adaptive" };
 }
 
 export interface RamSpec extends SpecBase {
@@ -66,10 +68,16 @@ export interface RamSpec extends SpecBase {
   sizeBytes: number;
   /** Access cost in RAM clock ticks (to a bank whose row is closed); becomes the CPU's cache miss penalty (see apply.ts). */
   latency: number;
-  /** Banks, each with its own row buffer (power of two), bytes per row, and what an access to the open row costs as a share of `latency`. Docs/RAM.md. */
+  /** The DRAM chips (docs/RAM.md): banks in groups, each with its own row buffer; bytes per row; the row timings in RAM ticks (column access, activate, precharge) and the ticks a line takes on the bus. */
   banks: number;
+  bankGroups: number;
   rowBytes: number;
-  rowHit: number;
+  tCL: number;
+  tRCD: number;
+  tRP: number;
+  burst: number;
+  /** Error-correcting memory: a flipped bit is found and fixed instead of corrupting a program. A TPM needs it. */
+  ecc?: boolean;
 }
 
 export interface PsuSpec extends SpecBase {
@@ -165,11 +173,11 @@ const specList: DeviceSpec[] = [
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
   // Placeholder price, power and art: the owner sets the price (docs/PROGRESSION.md), T32 the board/VRM demand, T33 the art.
-  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
+  { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
-  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
+  { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 8, commitWidth: 4, cacheLines: 16, redirectPenalty: 2 } },
   // The branches (owner 2026-10-27, docs/TECHTREE.md): at each step a specialist leans one way. Placeholder numbers like the rest.
@@ -177,34 +185,37 @@ const specList: DeviceSpec[] = [
   { id: "cpu2f", kind: "cpu", tier: 3, name: "Tiny-5F+I (front end: I-cache, 2-bit predictor)", slot: "cpu", price: 1500, idleW: 4, loadW: 40, heatFactor: 1, after: "cpu2", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, icacheLines: 8, predEntries: 128, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu2m", kind: "cpu", tier: 3, name: "Tiny-5F+D (memory: 2-way D-cache, L2)", slot: "cpu", price: 1500, idleW: 4, loadW: 42, heatFactor: 1, after: "cpu2", branch: "memory",
+  { id: "cpu2m", kind: "cpu", tier: 3, name: "Tiny-5F+D (memory: 2-way D-cache, L2)", slot: "cpu", memory: { channels: 2, policy: "open" }, price: 1500, idleW: 4, loadW: 42, heatFactor: 1, after: "cpu2", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 32, ways: 2, l2Lines: 32, redirectPenalty: 2 } },
-  { id: "cpu3f", kind: "cpu", tier: 4, name: "Tiny-5F2+I (2-wide, front end)", slot: "cpu", price: 3600, idleW: 5, loadW: 58, heatFactor: 1, after: "cpu2f", branch: "frontend",
+  { id: "cpu3f", kind: "cpu", tier: 4, name: "Tiny-5F2+I (2-wide, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 3600, idleW: 5, loadW: 58, heatFactor: 1, after: "cpu2f", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16, icacheLines: 16, predEntries: 256, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu3m", kind: "cpu", tier: 4, name: "Tiny-5F2+D (2-wide, memory)", slot: "cpu", price: 3600, idleW: 5, loadW: 60, heatFactor: 1, after: "cpu2m", branch: "memory",
+  { id: "cpu3m", kind: "cpu", tier: 4, name: "Tiny-5F2+D (2-wide, memory)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 3600, idleW: 5, loadW: 60, heatFactor: 1, after: "cpu2m", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 64, ways: 4, l2Lines: 64, redirectPenalty: 2 } },
-  { id: "cpu4f", kind: "cpu", tier: 5, name: "Tiny-OoO+I (out of order, ROB 16, front end)", slot: "cpu", price: 8500, idleW: 6, loadW: 88, heatFactor: 1, after: "cpu3f", branch: "frontend",
+  { id: "cpu4f", kind: "cpu", tier: 5, name: "Tiny-OoO+I (out of order, ROB 16, front end)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, price: 8500, idleW: 6, loadW: 88, heatFactor: 1, after: "cpu3f", branch: "frontend",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 16, icacheLines: 32, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
-  { id: "cpu4m", kind: "cpu", tier: 5, name: "Tiny-OoO+D (out of order, ROB 16, memory)", slot: "cpu", price: 8500, idleW: 6, loadW: 90, heatFactor: 1, after: "cpu3m", branch: "memory",
+  { id: "cpu4m", kind: "cpu", tier: 5, name: "Tiny-OoO+D (out of order, ROB 16, memory)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, price: 8500, idleW: 6, loadW: 90, heatFactor: 1, after: "cpu3m", branch: "memory",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 64, ways: 4, l2Lines: 128, redirectPenalty: 2 } },
-  { id: "cpu4w", kind: "cpu", tier: 6, name: "Tiny-OoO-W (4-wide out of order, ROB 32)", slot: "cpu", price: 12000, idleW: 8, loadW: 100, heatFactor: 1, after: "cpu4", branch: "wide",
+  { id: "cpu4w", kind: "cpu", tier: 6, name: "Tiny-OoO-W (4-wide out of order, ROB 32)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, price: 12000, idleW: 8, loadW: 100, heatFactor: 1, after: "cpu4", branch: "wide",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "ooo", width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, commitWidth: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2, redirectPenalty: 2 } },
 
   { id: "ram0", kind: "ram", tier: 0, name: "DRAM 16K", slot: "dimm", price: 0, idleW: 1, loadW: 2, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.5 }, thermal: ramThermal, visual: "dimm-basic",
-    sizeBytes: 16 * 1024, latency: 200, banks: 2, rowBytes: 256, rowHit: 0.6 },
+    sizeBytes: 16 * 1024, latency: 200, banks: 2, bankGroups: 1, rowBytes: 256, tCL: 80, tRCD: 120, tRP: 100, burst: 8 },
   { id: "ram1", kind: "ram", tier: 1, name: "DRAM 32K fast", slot: "dimm", price: 100, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: ramThermal, visual: "dimm-fast",
-    sizeBytes: 32 * 1024, latency: 12, banks: 4, rowBytes: 256, rowHit: 0.45 },
+    sizeBytes: 32 * 1024, latency: 12, banks: 4, bankGroups: 2, rowBytes: 256, tCL: 5, tRCD: 7, tRP: 6, burst: 2 },
   { id: "ram2", kind: "ram", tier: 2, name: "DRAM 64K low-latency", slot: "dimm", price: 400, idleW: 2, loadW: 5, heatFactor: 1,
     clock: { min: 2, base: 3, max: 5 }, thermal: ramThermal, visual: "dimm-lowlat",
-    sizeBytes: 64 * 1024, latency: 4, banks: 8, rowBytes: 256, rowHit: 0.35 },
+    sizeBytes: 64 * 1024, latency: 4, banks: 8, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 2, tRP: 2, burst: 1 },
+  { id: "ram3", kind: "ram", tier: 3, name: "DRAM 64K ECC", slot: "dimm", price: 1500, idleW: 3, loadW: 7, heatFactor: 1,
+    clock: { min: 2, base: 3, max: 4 }, thermal: ramThermal, visual: "dimm-ecc",
+    sizeBytes: 64 * 1024, latency: 5, banks: 16, bankGroups: 4, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
 
   { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0 },

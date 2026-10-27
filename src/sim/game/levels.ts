@@ -11,7 +11,7 @@ import { getOsSpec } from "../os";
 /** What a job needs from the machine to run. Met when the device is installed and working when the job would be picked. */
 export type Need =
   | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net" }
-  | { kind: "tpm" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number };
+  | { kind: "tpm" } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number };
 
 export type JobClassId = "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc";
 
@@ -40,7 +40,7 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "db", template: "cli.checksum", scale: 3, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], firstLevel: 5, rampTicks: 600, heavy: true, placeholder: true },
   // PLACEHOLDERS below: they need devices that do not exist yet, so they are never runnable today (they arrive and expire).
   { id: "web", template: "cli.calc", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true, placeholder: true },
-  { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }], firstLevel: 9, rampTicks: 600, heavy: true },
+  { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }, { kind: "ecc" }], firstLevel: 9, rampTicks: 600, heavy: true },
   // The GPU batch job (template gpu.render) needs no card: with one the program offloads its kernel, without one it runs the same work on the CPU, slower and at the same pay (docs/ACCEL.md).
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },
   // The inference job needs no card: NPU, then GPU, then CPU, slower down the chain at the same pay (docs/ACCEL.md).
@@ -64,12 +64,14 @@ export interface Caps {
   storageTier: number;
   net: boolean;
   tpm: boolean;
+  /** Every working memory stick is error-correcting (a TPM needs it). */
+  ecc: boolean;
   gpuTier: number;
   npu: boolean;
   cores: number;
 }
 
-export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, tpm: false, gpuTier: 0, npu: false, cores: 1 };
+export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, tpm: false, ecc: false, gpuTier: 0, npu: false, cores: 1 };
 
 /** Short chip text (`NEEDS GPU`) and the long phrase for a refusal. */
 export function describeNeed(n: Need): { short: string; long: string } {
@@ -78,6 +80,7 @@ export function describeNeed(n: Need): { short: string; long: string } {
     case "storage": return n.minTier >= 1 ? { short: "SSD", long: "a SATA SSD or better" } : { short: "DRIVE", long: "a storage drive" };
     case "net": return { short: "NET", long: "a network link" };
     case "tpm": return { short: "TPM", long: "a TPM" };
+    case "ecc": return { short: "ECC", long: "ECC RAM" };
     case "gpu": return { short: "GPU", long: "a GPU" };
     case "npu": return { short: "NPU", long: "an NPU" };
     case "cores": return { short: "CORES", long: "a multicore CPU" };
@@ -90,6 +93,7 @@ function needOk(n: Need, c: Caps): boolean {
     case "storage": return c.storageTier >= n.minTier;
     case "net": return c.net;
     case "tpm": return c.tpm;
+    case "ecc": return c.ecc;
     case "gpu": return c.gpuTier >= n.minTier;
     case "npu": return c.npu;
     case "cores": return c.cores >= n.min;
@@ -152,7 +156,6 @@ export const START_CRATE: readonly string[] = ["cpu0", "ram0", "psu0", "cooler0"
 
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
 export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = { fan1: { name: "Case fans", kind: "fan" },
-  ram3: { name: "ECC RAM", kind: "ram" },
   display1: { name: "Graphics display", kind: "display" },
   cooler3: { name: "Big radiator", kind: "cooler" },
   cpu5: { name: "Multicore CPU", kind: "cpu" },
