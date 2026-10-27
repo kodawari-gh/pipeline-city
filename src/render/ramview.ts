@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import type { RamMap } from '../sim/game/pipesnap';
 import type { RamRegion } from '../sim/game/ramregions';
 import { label, mix } from './ink';
+import { opClass, type OpClass } from './diemotion';
 import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
 import type { Rect } from './layout';
 import type { Theme } from './theme';
@@ -13,7 +14,8 @@ import type { Theme } from './theme';
 
 const TOUCH_MS = 700, MAX_TOUCHES = 8;
 const LENS_Z = 1.7, OUTLINE_Z = 0.55, BAND_Z = 0.5;
-const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 4;
+const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 14;
+const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
 interface Touch { addr: number; kind: string; color: string; t: number }
 
@@ -59,6 +61,7 @@ export class RamView {
   private lensTitle: Text | null = null;
   private lensTag: Text | null = null;
   private lensNote: Text | null = null;
+  private lensKey: Text[] = [];
   private lensSig = '';
   private regionTexts: Text[] = [];
   private stickTexts: Text[] = [];
@@ -76,8 +79,8 @@ export class RamView {
     this.T = T;
     this.rects = rects;
     this.destroyChips();
-    for (const t of [...this.regionTexts, ...this.stickTexts, ...this.lensRowsT, ...(this.lensTitle ? [this.lensTitle] : []), ...(this.lensTag ? [this.lensTag] : []), ...(this.lensNote ? [this.lensNote] : [])]) t.destroy();
-    this.regionTexts = []; this.stickTexts = []; this.lensRowsT = []; this.lensTitle = null; this.lensTag = null; this.lensNote = null; this.lensSig = ''; this.outSig = '';
+    for (const t of [...this.regionTexts, ...this.stickTexts, ...this.lensRowsT, ...(this.lensTitle ? [this.lensTitle] : []), ...(this.lensTag ? [this.lensTag] : []), ...(this.lensNote ? [this.lensNote] : []), ...this.lensKey]) t.destroy();
+    this.regionTexts = []; this.stickTexts = []; this.lensRowsT = []; this.lensTitle = null; this.lensTag = null; this.lensNote = null; this.lensKey = []; this.lensSig = ''; this.outSig = '';
     this.back.clear(); this.outG.clear(); this.touchG.clear(); this.lensG.clear(); this.lens.visible = false;
     this.regionSig = '';
     this.layout();
@@ -241,39 +244,26 @@ export class RamView {
         const lo = Math.min(...cs.map((c) => c.slot.lo)), hi = Math.max(...cs.map((c) => c.slot.hi));
         const minY = Math.min(...cs.map((c) => c.slot.rect.y)), maxY = Math.max(...cs.map((c) => c.slot.rect.y + c.slot.rect.h));
         const flip = cs[0]!.slot.rect.y > cs[cs.length - 1]!.slot.rect.y;
-        const x = cs[0]!.slot.rect.x, w = cs[0]!.slot.rect.w, y = flip ? minY - 30 : maxY + 14, h = 9;
-        g.roundRect(x, y, w, h, 2).fill({ color: mix(T.die, T.bg, 0.5) }).stroke({ width: Math.max(0.4, 1 / z), color: T.line });
-        let used = 0;
-        for (const r of m.regions) {
-          const a = Math.max(r.lo, lo), b = Math.min(r.hi, hi);
-          if (b <= a) continue;
-          used += b - a;
-          g.rect(x + ((a - lo) / (hi - lo)) * w, y + 1, Math.max(0.6, ((b - a) / (hi - lo)) * w), h - 2).fill({ color: regionColor(r, T) });
-        }
-        // the key: a line per owner on this stick (its colour, name and size), the total beside the first
+        const x = cs[0]!.slot.rect.x, w = cs[0]!.slot.rect.w, y = flip ? minY - 16 : maxY + 10, h = 0;
+        // the key: a line per owner on this stick (its colour and name, and what it holds here); a stick does not know how full it is
         const keys: { name: string; color: string; bytes: number }[] = [];
         for (const r of m.regions) {
           const n = Math.min(r.hi, hi) - Math.max(r.lo, lo);
           if (n <= 0) continue;
-          const name = r.kind === 'rom' ? 'ROM' : r.kind === 'app' ? r.name : 'OS';
+          const name = r.kind === 'rom' ? 'ROM' : r.kind === 'app' || r.kind === 'work' ? r.name.replace(/ data$/, '') : 'OS';
           const k = keys.find((q) => q.name === name);
-          if (k) k.bytes += n; else keys.push({ name, color: regionColor(r.kind === 'osdata' ? { ...r, kind: 'os' } : r, T), bytes: n });
+          if (k) k.bytes += n; else keys.push({ name, color: regionColor(r.kind === 'osdata' ? { ...r, kind: 'os' } : r.kind === 'work' ? { ...r, kind: 'app' } : r, T), bytes: n });
         }
         const SZ = 9, line = (n: number) => (flip ? y - 4 - n * 11 : y + h + 3 + n * 11);
-        keys.slice(0, 3).forEach((k, i) => {
+        const shown = keys.slice(0, 2);
+        shown.forEach((k, i) => {
           const t = this.text(this.stickTexts, ns++, SZ, k.color);
           t.text = `${k.name} ${sizeText(k.bytes)}`; t.style.fill = k.color; t.anchor.set(0, flip ? 1 : 0); t.position.set(x, line(i)); t.visible = true;
         });
         [['READ', T.alu], ['WRITE', T.br]].forEach(([name, col], i) => {
           const k = this.text(this.stickTexts, ns++, SZ, col!);
-          k.text = name!; k.style.fill = col!; k.anchor.set(1, flip ? 1 : 0); k.position.set(x + w - (i === 0 ? 40 : 0), line(1)); k.visible = true;
+          k.text = name!; k.style.fill = col!; k.anchor.set(0, flip ? 1 : 0); k.position.set(x + i * 34, line(shown.length)); k.visible = true;
         });
-        const t = this.text(this.stickTexts, ns++, SZ, T.mute);
-        t.text = `${sizeText(used)}/${sizeText(hi - lo)}`;
-        t.style.fill = T.mute;
-        t.anchor.set(1, flip ? 1 : 0);
-        t.position.set(x + w, line(0));
-        t.visible = true;
       }
     }
   }
@@ -340,12 +330,25 @@ export class RamView {
     this.lensNote.position.set(8, 16 + LENS_ROWS * LINE + 8);
     this.lensNote.text = reg ? wrap(`${sizeText(reg.hi - reg.lo)}: ${reg.note}`, 64, NOTE_LINES) : '';
     this.lensNote.style.fill = T.mute;
+    const classColor: Record<OpClass, string> = { alu: T.alu, ld: T.ld, st: T.st, mul: T.mul, br: T.br, sys: T.mute };
+    // the key to the pills: what kind of instruction each colour is
+    let kx = 8;
+    CLASS_KEY.forEach(([c, name], i) => {
+      let k = this.lensKey[i];
+      if (!k) { k = label('', 0, 0, 7, T.mute, { minPx: 4, anchor: [0, 0.5] }); this.lensKey[i] = k; this.lens.addChild(k); }
+      k.text = name; k.style.fill = classColor[c];
+      g.roundRect(kx, LENS_H - 11, 6, 5, 2).fill({ color: classColor[c] });
+      k.position.set(kx + 9, LENS_H - 8.5);
+      kx += 9 + name.length * 4.6 + 8;
+    });
     rows.forEach((row, i) => {
       const y = 16 + i * LINE;
       if (row.current) g.rect(3, y, LENS_W - 6, LINE).fill({ color, alpha: 0.3 });
+      // a pill per instruction: its class, so a code area reads at a glance as mostly arithmetic, loads, branches...
+      if (row.code && row.text) g.roundRect(6, y + 2, 8, LINE - 4, 3).fill({ color: classColor[opClass(row.text.split(' ')[0]!)] });
       let t = this.lensRowsT[i];
-      if (!t) { t = label('', 8, y + LINE / 2, 8, T.ink, { minPx: 4 }); this.lensRowsT[i] = t; this.lens.addChild(t); }
-      t.position.set(8, y + LINE / 2);
+      if (!t) { t = label('', 20, y + LINE / 2, 8, T.ink, { minPx: 4 }); this.lensRowsT[i] = t; this.lens.addChild(t); }
+      t.position.set(20, y + LINE / 2);
       t.text = `${row.addr.toString(16).padStart(4, '0')}  ${row.hex}  ${row.text}`;
       t.style.fill = row.code || row.current ? T.ink : T.mute;
       t.visible = true;

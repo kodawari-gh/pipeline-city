@@ -4,7 +4,7 @@ import { KDATA_BASE, KERNEL_BASE, OS_HEADER_BASE, USER_BASE } from "../isa/memma
 import { KERNEL_IMAGE } from "../os";
 import { ECONOMY } from "./economy";
 import type { Game } from "./game";
-import { codeEndOf, ramRegionsOf } from "./ramregions";
+import { codeEndOf, protectedPage, ramRegionsOf, type RamRegion } from "./ramregions";
 import { rig } from "./testkit";
 
 ECONOMY.levelGating = false;
@@ -68,6 +68,37 @@ describe("what lives where in RAM", () => {
     // when the job is done the program leaves the map
     until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
     expect(g.snapshot().ram!.regions.some((r) => r.kind === "app")).toBe(false);
+  });
+
+  it("a program claims the memory it writes to, never the OS's, and gives it back when it ends", () => {
+    // a scan builds a table in memory it was not given (a log only uses registers and claims nothing)
+    const g = rig("ssd1", { keys: [{ template: "cli.scan", scale: 3 }] });
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    let seen: RamRegion[] = [];
+    until(g, () => { seen = (g.snapshot().ram?.regions ?? []).filter((r) => r.kind === "work"); return seen.length > 0; }, 4000);
+    const snap = g.snapshot().ram!;
+    const app = snap.regions.find((r) => r.kind === "app")!;
+    for (const w of seen) {
+      expect(w.owner).toBe(app.owner);
+      expect(w.name).toBe(`${app.name} data`);
+      expect(w.lo % 256).toBe(0);
+      expect(w.lo >= app.hi || w.hi <= app.lo).toBe(true); // outside the program's own image
+      for (const o of snap.regions.filter((r) => r.kind === "rom" || r.kind === "os" || r.kind === "osdata")) expect(w.hi <= o.lo || w.lo >= o.hi).toBe(true);
+    }
+    until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
+    expect(g.snapshot().ram!.regions.some((r) => r.kind === "work" || r.kind === "app")).toBe(false);
+  });
+
+  it("protected pages: the ROM, the OS and the program's own image", () => {
+    expect(protectedPage(0, 40)).toBe(true);
+    expect(protectedPage(USER_BASE >> 8, 40)).toBe(true);
+    expect(protectedPage((USER_BASE >> 8) + 1, 40)).toBe(false);
+    expect(protectedPage((USER_BASE >> 8) + 1, 100)).toBe(true);
+    expect(protectedPage(KERNEL_BASE >> 8, 40)).toBe(true);
+    expect(protectedPage(KDATA_BASE >> 8, 40)).toBe(true);
+    expect(protectedPage(0xf0, 40)).toBe(false);
   });
 
   it("without an OS the key's program is the application, and the OS regions are absent", () => {

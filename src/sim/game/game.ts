@@ -16,7 +16,7 @@ import {
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap } from "./pipesnap";
-import { ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
+import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
@@ -1346,6 +1346,7 @@ export class Game {
     else if (running) {
       this.pch.usbTick();
       this.machine.advanceBaseTick();
+      this.trackPages();
       this.afterMachine();
       this.autoEject();
     }
@@ -1890,14 +1891,29 @@ export class Game {
   /** What lives where in RAM now: the boot ROM, the OS when it is up, and the program the CPU has loaded (docs/DIE.md "Memory"). */
   private ramRegions(jobs: KernelJob[]): RamRegion[] {
     const osUp = !!this.os && this.pch.osMode && !this.postError;
-    let job: RamContext["job"] = null;
+    const job = this.ramJob(jobs);
+    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
+  }
+
+  /** The program the CPU has in RAM right now (OS: the kernel's running slot; no OS: the key's program), or null. */
+  private ramJob(jobs: KernelJob[]): RamContext["job"] {
+    const osUp = !!this.os && this.pch.osMode && !this.postError;
     const running = jobs.find((j) => j.state === JobState.Running);
     const key = running ? (this.plugged?.id === running.key ? this.plugged : this.spool.find((k) => k.id === running.key)) : !osUp ? this.plugged : null;
-    if (key && !key.done && (running || this.pch.key)) {
-      const words = running ? running.len : this.pch.key?.program.length ?? 0;
-      if (words > 0) job = { key: key.id, label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, type: key.type, words };
-    }
-    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name } : null, job });
+    if (!key || key.done || !(running || this.pch.key)) return null;
+    const words = running ? running.len : this.pch.key?.program.length ?? 0;
+    return words > 0 ? { key: key.id, label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, type: key.type, words } : null;
+  }
+
+  /** The pages the running program has written to outside the OS and its own image: it claims memory by using it (docs/OS.md "Memory"). */
+  private claimed = new Set<number>();
+  private claimKey = -1;
+  private trackPages(): void {
+    const dirty = this.machine.bus.dirty;
+    const job = this.powered ? this.ramJob(this.kernelJobs()) : null;
+    if (!job || job.key !== this.claimKey) { this.claimed = new Set(); this.claimKey = job?.key ?? -1; }
+    if (job) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
+    dirty.fill(0);
   }
 
   /** The kernel's job table, read straight from RAM (empty unless the kernel is up). */

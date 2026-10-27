@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../sim/asm';
 import type { RamRegion } from '../sim/game/ramregions';
-import { CHIPS_PER_STICK, PAGE, TILE, chipLayout, isCodeAt, lensRows, ownerMap, pixelOf, regionColor, sizeText, spanOutline } from './ramlayout';
+import { CHIPS_PER_STICK, PAGE, TILE, chipLayout, isCodeAt, lensRows, memoryTable, ownerMap, pixelOf, regionColor, sizeText, spanOutline } from './ramlayout';
 import type { Theme } from './theme';
 
 const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ x: i * 150, y: 0, w: 116, h: 112 }));
@@ -60,6 +60,26 @@ describe('what the colours say', () => {
     const a2 = regionColor(reg({ id: 'b', kind: 'app', lo: 0, hi: 1, owner: 9, type: 'calc' }), T);
     expect(a1).toBe(a2);
     expect(new Set([rom, os, a1]).size).toBe(3);
+  });
+});
+
+describe('the memory table the OS shows', () => {
+  it('splits memory into what the system holds, what each program holds (image and claimed) and what is free', () => {
+    const rs = [
+      reg({ id: 'rom', kind: 'rom', lo: 0, hi: 4096 }), reg({ id: 'k', kind: 'os', lo: 0xc100, hi: 0xc500 }),
+      reg({ id: 'a', kind: 'app', lo: 4096, hi: 4096 + 300, owner: 5, type: 'scan', name: '#05 scan' }),
+      reg({ id: 'w', kind: 'work', lo: 0x4000, hi: 0x4600, owner: 5, type: 'scan', name: '#05 scan data' }),
+    ];
+    const t = memoryTable(rs, 65536);
+    expect(t.sys).toBe(4096 + 1024);
+    expect(t.procs).toEqual([{ owner: 5, name: '#05 scan', type: 'scan', bytes: 300 + 1536, image: 300, claimed: 1536 }]);
+    expect(t.free).toBe(65536 - 5120 - 1836);
+  });
+  it('working memory is the programs colour, duller', () => {
+    const T: Theme = { dark: true, bg: '#000000', board: '#001', trace: '#002', sub: '#003', die: '#111111', pin: '#d4af5f', tile: '#222222', ink: '#e2eaff', mute: '#8a97c2', line: '#2a366a', dot: '#18214a', on: '#08102a', alu: '#3be3ff', mul: '#a68bff', ld: '#ffc247', st: '#6dffa6', br: '#ff55dc', bad: '#ff5a78' };
+    const a = regionColor(reg({ id: 'a', kind: 'app', lo: 0, hi: 1, owner: 1, type: 'scan' }), T);
+    const w = regionColor(reg({ id: 'w', kind: 'work', lo: 0, hi: 1, owner: 1, type: 'scan' }), T);
+    expect(w).not.toBe(a);
   });
 });
 

@@ -4,8 +4,8 @@
 import { disassemble, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT_BYTES, OS_HEADER_BASE, USER_BASE } from "../isa";
 import { KERNEL_IMAGE } from "../os/kernel";
 
-/** What a region is: the boot ROM, the OS (code or tables), an application (one per program in RAM). */
-export type RamKind = "rom" | "os" | "osdata" | "app";
+/** What a region is: the boot ROM, the OS (code or tables), an application (its loaded code and data), or the working memory it has claimed since (`work`). */
+export type RamKind = "rom" | "os" | "osdata" | "app" | "work";
 
 export interface RamRegion {
   id: string;
@@ -17,9 +17,9 @@ export interface RamRegion {
   lo: number;
   /** Exclusive. */
   hi: number;
-  /** An application: the job's key id (its colour follows its type). */
+  /** An application or its working memory: the job's key id (its colour follows its type). */
   owner?: number;
-  /** An application: its job type ("calc", "log"...), which picks the colour so one kind of program always looks the same. */
+  /** An application or its working memory: its job type ("calc", "log"...), which picks the colour so one kind of program always looks the same. */
   type?: string;
   /** An application: the address where its code ends and its data begins. */
   codeEnd?: number;
@@ -30,6 +30,8 @@ export interface RamContext {
   os: null | { name: string };
   /** The program in RAM at USER_BASE, or null. */
   job: null | { key: number; label: string; type: string; words: number };
+  /** Pages (256 bytes each, by page number) the running program has written to outside its image and the OS: memory it claimed. */
+  work?: number[];
 }
 
 /** Where the code of the program at `lo` ends: after its last return or ecall (what follows is its data). */
@@ -65,5 +67,26 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
       lo, hi, owner: ctx.job.key, type: ctx.job.type, codeEnd: codeEndOf(ram, lo, Math.min(hi, ram.length)),
     });
   }
+  if (ctx.job && ctx.work?.length) {
+    const pages = [...ctx.work].sort((a, b) => a - b);
+    let n = 0;
+    for (let i = 0; i < pages.length;) {
+      let j = i;
+      while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) j++;
+      add({
+        id: `work-${ctx.job.key}-${n++}`, kind: "work", name: `${ctx.job.label} data`, note: "Memory the program claimed while running: its stack and the data it writes.",
+        lo: pages[i]! * 256, hi: (pages[j]! + 1) * 256, owner: ctx.job.key, type: ctx.job.type,
+      });
+      i = j + 1;
+    }
+  }
   return out;
+}
+
+/** The pages the OS owns (ROM, header, kernel, job table) and the program image: a program cannot claim these. */
+export function protectedPage(page: number, imageWords: number): boolean {
+  const lo = page * 256, hi = lo + 256;
+  if (hi <= USER_BASE) return true;
+  if (lo < USER_BASE + imageWords * 4 && hi > USER_BASE) return true;
+  return hi > OS_HEADER_BASE && lo < KDATA_END;
 }

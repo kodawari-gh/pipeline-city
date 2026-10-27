@@ -13,9 +13,12 @@ export class Bus {
   guardOn = false;
   /** Extra cycles the guard has charged since the machine last collected them. */
   stallCycles = 0;
+  /** One flag per 256-byte page of RAM, set by every store the CPU (or the kernel) does; the game reads and clears it to see which pages a program claims. */
+  readonly dirty: Uint8Array;
 
   constructor(private readonly ram: Uint8Array) {
     this.ramView = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);
+    this.dirty = new Uint8Array((ram.length + 255) >> 8);
   }
 
   attach(d: Device): void {
@@ -56,6 +59,7 @@ export class Bus {
     if (addr < this.ram.length) {
       if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ram[addr] = v & 0xff;
+      this.dirty[addr >> 8] = 1;
       return;
     }
     const d = this.find(addr, 1);
@@ -77,6 +81,7 @@ export class Bus {
     if (addr + 4 <= this.ram.length) {
       if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ramView.setUint32(addr, v >>> 0, true);
+      this.dirty[addr >> 8] = 1;
       return;
     }
     const d = this.find(addr, 4);

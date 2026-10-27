@@ -9,6 +9,7 @@ import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN
 import { monitorView, standbyLook, type MonitorInput } from './monitor';
 import { EdgeFan } from './case';
 import { RamView } from './ramview';
+import { memoryTable, sizeText } from './ramlayout';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
 import type { Theme } from './theme';
 
@@ -137,6 +138,8 @@ export class Live {
   private osG = new Graphics();
   private osSig = '';
   private osOn = false;
+  /** The row of the running job on the OS screen (the progress cue sits under it). */
+  private osBarRow = 3;
   private osJob: 'none' | 'run' | 'ingest' | 'flash' = 'none';
   private osUpTick: number | null = null;
   private bootLike = false;
@@ -763,16 +766,21 @@ export class Live {
       for (const ln of lines.slice(-6)) rows.push({ t: ln, c: OS_DIM });
     } else {
       const running = q.find((j) => j.state === 'running');
+      // memory is the OS's business, not the sticks': what the system holds, what the process holds (its image and what it claimed), what is free
+      const mt = s.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
+      if (mt) rows.push({ t: pad(`MEM ${sizeText(mt.total)}  SYS ${sizeText(mt.sys)}`, `FREE ${sizeText(mt.free)}`), c: OS_DIM });
+      const proc = mt?.procs[0];
+      this.osBarRow = mt ? 4 : 3;
       if (ph === 'ingesting') { rows.push({ t: `INGESTING KEY ${s.plugged?.label ?? ''}`, c: OS_CYAN }); this.osJob = 'ingest'; }
       else if (ph === 'flashing') { rows.push({ t: `WRITING RESULT ${s.plugged?.label ?? ''}`, c: OS_AMBER }); this.osJob = 'flash'; }
-      else if (running) { rows.push({ t: `RUN  ${running.label}`, c: OS_INK }); this.osJob = 'run'; }
+      else if (running) { rows.push({ t: proc ? `RUN  ${running.label}  ${sizeText(proc.image)}+${sizeText(proc.claimed)}`.slice(0, 26) : `RUN  ${running.label}`, c: OS_INK }); this.osJob = 'run'; }
       else rows.push({ t: 'IDLE  insert a key', c: OS_DIM });
       const rest = q.filter((j) => j !== running);
-      for (const j of rest.slice(0, 4)) {
+      for (const j of rest.slice(0, mt ? 3 : 4)) {
         const st = j.state === 'result' ? 'DONE' : j.state === 'queued' ? (j.ahead <= 0 ? 'NEXT' : `+${j.ahead} AHEAD`) : 'RUN';
         rows.push({ t: pad(`  ${j.label}`.slice(0, 28), st), c: j.state === 'result' ? OS_AMBER : OS_INK });
       }
-      if (rest.length > 4) rows.push({ t: `  +${rest.length - 4} MORE`, c: OS_DIM });
+      if (rest.length > (mt ? 3 : 4)) rows.push({ t: `  +${rest.length - (mt ? 3 : 4)} MORE`, c: OS_DIM });
       while (rows.length < 8) rows.push({ t: '', c: OS_DIM });
       const ready = q.filter((j) => j.state === 'result');
       if (s.keyActivity === 'done' && s.plugged) rows.push({ t: `REMOVE KEY ${s.plugged.label}`, c: OS_INK });
@@ -823,7 +831,7 @@ export class Live {
     const g = this.osG;
     g.clear();
     if (!this.osOn || this.osJob === 'none') return;
-    const x0 = 90 + 27 * 71, w = SCREEN_D.w - 120 - x0, y = 56 + 3 * OS_LINE + 42, bw = 300;
+    const x0 = 90 + 27 * 71, w = SCREEN_D.w - 120 - x0, y = 56 + this.osBarRow * OS_LINE + 42, bw = 300;
     const col = this.osJob === 'run' ? OS_INK : this.osJob === 'ingest' ? OS_CYAN : OS_AMBER;
     g.roundRect(x0, y, w, 34, 17).fill({ color: '#16241e' });
     const u = (now / 1500) % 1, left = x0 + (w + bw) * u - bw, a = Math.max(x0, left), b = Math.min(x0 + w, left + bw);

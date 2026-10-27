@@ -54,7 +54,8 @@ export function regionColor(r: RamRegion, T: Theme): string {
       const palette = [T.alu, T.ld, T.st, T.mul, T.br];
       let h = 0;
       for (const ch of r.type ?? String(r.owner ?? 0)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-      return palette[h % palette.length]!;
+      const c = palette[h % palette.length]!;
+      return r.kind === 'work' ? mix(c, T.die, 0.4) : c; // a program's working memory is its colour, duller
     }
   }
 }
@@ -119,6 +120,22 @@ export function lensRows(img: Uint8Array, regions: RamRegion[], addr: number, co
     rows.push({ addr: a, word: w, hex: hex8(w), text: code ? disassemble(w) : w === 0 ? '' : ascii(w), code, current: a === mid, region: regionAt(regions, a) });
   }
   return rows;
+}
+
+/** The process table the OS keeps of memory: what the system holds, what each program holds (its image and the memory it claimed), what is free. */
+export interface MemTable { total: number; sys: number; procs: { owner: number; name: string; type: string; bytes: number; image: number; claimed: number }[]; free: number }
+export function memoryTable(regions: RamRegion[], total: number): MemTable {
+  let sys = 0;
+  const procs: MemTable['procs'] = [];
+  for (const r of regions) {
+    const n = r.hi - r.lo;
+    if (r.kind === 'rom' || r.kind === 'os' || r.kind === 'osdata') { sys += n; continue; }
+    let p = procs.find((q) => q.owner === r.owner);
+    if (!p) { p = { owner: r.owner ?? 0, name: r.name.replace(/ data$/, ''), type: r.type ?? '', bytes: 0, image: 0, claimed: 0 }; procs.push(p); }
+    p.bytes += n;
+    if (r.kind === 'work') p.claimed += n; else p.image += n;
+  }
+  return { total, sys, procs, free: Math.max(0, total - sys - procs.reduce((a, p) => a + p.bytes, 0)) };
 }
 
 /** Bytes as "4.0K" / "812B". */
