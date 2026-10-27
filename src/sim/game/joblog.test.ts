@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "./game";
 import { ECONOMY } from "./economy";
 import { COUNTER_NAMES } from "../engines/view";
-import { aggregate, byKind, JOB_LOG_CAP, phasesOf, stallShares, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
+import { aggregate, byKind, JOB_LOG_CAP, livePhases, liveVerdict, phasesOf, stallShares, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
 import { netRig, rig } from "./testkit";
 
 ECONOMY.levelGating = false;
@@ -87,6 +87,43 @@ describe("the job log in a game", () => {
     const save = g.toSave();
     save.jobLog = Array.from({ length: JOB_LOG_CAP + 30 }, (_, i) => entry({ id: i + 1 }));
     expect(Game.fromSave(JSON.parse(JSON.stringify(save))).snapshot().jobLog).toHaveLength(JOB_LOG_CAP);
+  });
+});
+
+describe("jobs on the machine now", () => {
+  const live = { arrivalTick: 100, deadlineTick: 400 };
+
+  it("cuts a job's time so far into waiting, running and collecting", () => {
+    expect(livePhases(live, 130)).toEqual({ wait: 30, run: 0, collect: 0, total: 30 });
+    expect(livePhases({ ...live, startedAt: 120 }, 150)).toEqual({ wait: 20, run: 30, collect: 0, total: 50 });
+    expect(livePhases({ ...live, startedAt: 120, finishedAt: 140 }, 150)).toEqual({ wait: 20, run: 20, collect: 10, total: 50 });
+    expect(livePhases({ ...live, startedAt: 0 }, 150).wait).toBe(0); // a start before the arrival reads as no wait
+  });
+
+  it("reads a running job from its cycles so far, and says nothing before there are enough", () => {
+    const k = { ...live, startedAt: 100 };
+    expect(liveVerdict(k, 160)).toBeNull();
+    expect(liveVerdict({ ...k, live: win({ cycles: 50 }) }, 160)).toBeNull();
+    expect(liveVerdict({ ...k, live: win({ stallCache: 500 }) }, 160)).toMatchObject({ kind: "memory" });
+    expect(liveVerdict({ ...k, live: win() }, 160)?.kind).toBe("compute");
+  });
+
+  it("a plugged job's snapshot says when it was taken, and a running one carries the cycles counted so far", () => {
+    const g = rig("ssd1", { keys: [{ template: "cli.scan" }] });
+    const tray = g.snapshot().tray[0]!;
+    expect(tray.startedAt).toBeUndefined();
+    g.powerButton();
+    for (let t = 0; t < 400 && g.currentPhase() !== "idle-os"; t++) g.advanceBaseTick();
+    g.plugKey(g.trayKeyIds()[0]!);
+    let seen: ReturnType<Game["snapshot"]>["plugged"] = null;
+    for (let t = 0; t < 600 && g.completed < 1 && !seen?.live; t++) {
+      g.advanceBaseTick();
+      const k = g.snapshot().plugged;
+      if (k?.stage === "running" && k.live && k.live.cycles > 0) seen = k;
+    }
+    expect(seen?.startedAt).toBeGreaterThan(0);
+    expect(seen!.live!.cycles).toBeGreaterThan(0);
+    expect(seen!.finishedAt).toBeUndefined();
   });
 });
 

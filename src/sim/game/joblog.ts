@@ -75,6 +75,19 @@ export function phasesOf(e: JobLogEntry): Phases {
   return { wait, run, collect, total: wait + run + collect };
 }
 
+/** A job still on the machine, as the key snapshot shows it (docs/JOBS.md "On the machine now"). */
+export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; finishedAt?: number; live?: JobWindow }
+
+/** Where a job's time has gone so far: waiting for the machine, running on it, and (once the result is written) the result waiting to be collected. */
+export function livePhases(k: LiveShape, now: number): Phases {
+  const at = Math.max(k.arrivalTick, now);
+  if (k.startedAt === undefined) return { wait: at - k.arrivalTick, run: 0, collect: 0, total: at - k.arrivalTick };
+  const start = Math.min(Math.max(k.arrivalTick, k.startedAt), at);
+  const fin = k.finishedAt === undefined ? at : Math.min(Math.max(start, k.finishedAt), at);
+  const wait = start - k.arrivalTick, run = fin - start, collect = at - fin;
+  return { wait, run, collect, total: wait + run + collect };
+}
+
 /** What held a job up, in one word the UI can colour and draw an icon for. */
 export type VerdictKind = "queue" | "collect" | "memory" | "branch" | "deps" | "port" | "paging" | "compute" | "lost" | "none";
 
@@ -123,6 +136,15 @@ export function verdictOf(e: JobLogEntry): Verdict {
   };
   if (sShare >= 0.2) return { where: "run", kind: sk, tag: st, text: `It ran ${p.run}s, ${pc(sShare)} of the cycles ${sn} (CPI ${cpi.toFixed(2)}).`, hint: sh };
   return { where: "run", kind: "compute", tag: "Compute-bound", text: `It ran ${p.run}s and kept the CPU busy (CPI ${cpi.toFixed(2)}, ${pc(sShare)} stalls).`, hint: "Compute bound: a higher clock, a wider or out-of-order CPU, or a multiplier if the job multiplies." };
+}
+
+/** A reading of a job that is running now, from the cycles counted so far: what is holding it up, or null while there is nothing to read yet. */
+export function liveVerdict(k: LiveShape, now: number): Verdict | null {
+  const w = k.live;
+  if (!w || w.cycles < 200) return null;
+  const run = Math.max(1, livePhases(k, now).run);
+  const v = verdictOf({ id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: 0, finish: run, end: run, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, win: w });
+  return v.kind === "none" || v.kind === "queue" || v.kind === "collect" || v.kind === "lost" ? null : v;
 }
 
 /** Totals over a list of entries for the summary line. */

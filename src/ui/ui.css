@@ -949,6 +949,19 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .jl-kind .v { text-align: right; font: 0.75rem var(--mono); }
 .jl-alm { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; font-size: 0.7rem; }
 
+/* the jobs on the machine now: one row each, a bar that fills toward the deadline */
+.jl-now { flex: none; max-height: 15rem; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 0.25rem; padding: 0.4rem 0.6rem; border: 1px solid var(--glass-line); border-radius: 0.5rem; background: rgba(0,0,0,.16); }
+.jl-now h4 { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.1rem; }
+.jl-now-row { display: grid; grid-template-columns: 2.6rem 9rem 11rem 1fr 3.4rem 8rem auto; align-items: center; gap: 0.6rem; }
+.jl-now-row.off { opacity: 0.75; }
+.jl-now-row .spr { width: 2.6rem; height: 1.5rem; }
+.jl-now-row .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; }
+.jl-now-row .tm { text-align: right; font: 0.72rem var(--mono); }
+.jl-live { position: relative; height: 0.65rem; }
+.jl-live.late { box-shadow: 0 0 0 1px var(--warn); }
+.jl-live u { position: absolute; top: -0.1rem; bottom: -0.1rem; width: 0.15rem; background: var(--ink); opacity: 0.55; text-decoration: none; }
+.jl-more { margin: 0; font-size: 0.7rem; }
+
 /* one job */
 .jl-dhead { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
 .jl-dhead .spr { width: 6rem; height: 3.4rem; }
@@ -959,4 +972,4 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .jl-detail .jl-donut { width: 7rem; height: 7rem; display: inline-block; vertical-align: top; margin: 0 1rem 0.6rem 0; }
 .jl-detail .jl-stats { display: inline-grid; width: calc(100% - 8.5rem); vertical-align: top; }
 .jl-empty { padding: 1rem; display: flex; align-items: center; gap: 0.4rem; }
-@media (max-width: 52rem) { .joblog .jl-left { width: auto; max-height: 12rem; } .jl-kind { grid-template-columns: 3rem 1fr auto; } .jl-kind .v, .jl-kind .jl-alm { display: none; } .jl-stalls .row { grid-template-columns: 1.2rem 7rem 1fr 2.6rem; } }
+@media (max-width: 52rem) { .joblog .jl-left { width: auto; max-height: 12rem; } .jl-kind { grid-template-columns: 3rem 1fr auto; } .jl-kind .v, .jl-kind .jl-alm { display: none; } .jl-stalls .row { grid-template-columns: 1.2rem 7rem 1fr 2.6rem; } .jl-now-row { grid-template-columns: 2.6rem 1fr auto; } .jl-now-row .jl-live, .jl-now-row .tm, .jl-now-row .jl-tag:nth-of-type(2), .jl-now-row .jl-alm { display: none; } }

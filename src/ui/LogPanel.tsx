@@ -5,7 +5,8 @@ import { signal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { snapshot } from '../game/store';
 import { dexEntry } from '../sim/game/jobdex';
-import { aggregate, byKind, phasesOf, stallShares, verdictOf, type Agg, type JobLogEntry, type Phases, type Verdict, type VerdictKind } from '../sim/game/joblog';
+import type { KeySnap, KeyStage, Snapshot } from '../sim/game/game';
+import { aggregate, byKind, livePhases, liveVerdict, phasesOf, stallShares, verdictOf, type Agg, type JobLogEntry, type Phases, type Verdict, type VerdictKind } from '../sim/game/joblog';
 import { openAlmanacFor } from './AlmanacPanel';
 import { Icon } from './Icons';
 import type { IconName } from './picker';
@@ -179,6 +180,63 @@ function Detail({ e }: { e: JobLogEntry }) {
   );
 }
 
+/** How each stage of a job still on the machine reads: an icon, a word, and the colour family it shares with the log's phases (amber waiting, green running, violet collecting). */
+const STAGE: Record<KeyStage, readonly [IconName, string, VerdictKind]> = {
+  tray: ['box', 'In the tray', 'queue'], offer: ['net', 'On offer', 'queue'], downloading: ['down', 'Downloading', 'queue'], ingesting: ['disk', 'Loading', 'queue'],
+  spooled: ['disk', 'On the drive', 'queue'], queued: ['clock', 'Queued', 'queue'], running: ['bolt', 'Running', 'compute'],
+  result: ['box', 'Result ready', 'collect'], flashing: ['up', 'Writing result', 'collect'], uploading: ['up', 'Uploading', 'collect'], done: ['check', 'Collect it', 'collect'],
+};
+/** Running first, then the ones with a result, then the ones queued on the machine, then the ones not taken yet; the oldest first inside each. */
+const STAGE_RANK: Record<KeyStage, number> = { running: 0, flashing: 1, result: 1, done: 1, uploading: 2, queued: 2, ingesting: 2, downloading: 2, spooled: 3, offer: 4, tray: 5 };
+const NOW_ROWS = 6;
+
+/** Every job the machine has been given and has not finished with: the plugged key, the spool, the offers at the ISP and the tray. */
+function inFlight(s: Snapshot): KeySnap[] {
+  const seen = new Set<number>(), out: KeySnap[] = [];
+  for (const k of [s.plugged, ...(s.net?.spooled ?? []), ...(s.net?.offers ?? []), ...s.tray]) if (k && !seen.has(k.id)) { seen.add(k.id); out.push(k); }
+  return out.sort((a, b) => STAGE_RANK[a.stage] - STAGE_RANK[b.stage] || a.arrivalTick - b.arrivalTick);
+}
+
+/** One job on the machine: its picture, where it is, a bar that fills as it waits and runs toward its deadline, and, while it runs, what is holding it up so far. */
+function NowRow({ k, s }: { k: KeySnap; s: Snapshot }) {
+  const now = s.baseTick, p = livePhases(k, now);
+  const span = Math.max(1, k.deadlineTick - k.arrivalTick, p.total);
+  const w = (n: number) => `${(n / span) * 100}%`;
+  const [icon, word, fam] = STAGE[k.stage];
+  const ahead = k.stage === 'queued' ? s.os?.queue.find((j) => j.keyId === k.id)?.ahead : undefined;
+  const xfer = k.stage === 'downloading' || k.stage === 'uploading' ? s.net?.transfers.find((t) => t.jobId === k.id) : undefined;
+  const more = xfer ? ` ${Math.round(xfer.percent)}%` : ahead !== undefined && ahead > 0 ? ` · ${ahead} ahead` : '';
+  const v = liveVerdict(k, now);
+  const late = p.total > k.deadlineTick - k.arrivalTick;
+  return (
+    <div class={`jl-now-row ${k.runnable ? '' : 'off'}`}>
+      <JobSprite id={k.type} silhouette={!k.runnable} />
+      <span class="who"><b>{nameOf(k.type)}</b> <span class="mute">#{k.jobNo}</span></span>
+      <span class={`jl-tag k-${k.runnable ? fam : 'lost'}`} title={k.runnable ? undefined : `It cannot run yet: it needs ${k.missing.join(', ')}. The client takes it back at its deadline.`}>
+        <Icon name={k.runnable ? icon : 'lock'} size={11} /> {k.runnable ? word : 'Cannot run'}{k.runnable ? more : ''}
+      </span>
+      <span class={`jl-bar jl-live ${late ? 'late' : ''}`} role="img" aria-label={`waiting ${Math.round(p.wait)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s of ${Math.round(span)}s`}>
+        {PHASES.map(([n]) => p[n] > 0 && <i key={n} class={`jl-${n}`} style={{ width: w(p[n]) }} />)}
+        <u title="Deadline" style={{ left: w(k.deadlineTick - k.arrivalTick) }} />
+      </span>
+      <span class="tm">{fmtTicks(p.total)}</span>
+      {v ? <Tag v={v} /> : <span />}
+      <AlmanacLink type={k.type} />
+    </div>
+  );
+}
+
+/** The jobs on the machine right now, live: the log's own phases, drawn as they happen. */
+function Now({ list, s }: { list: KeySnap[]; s: Snapshot }) {
+  return (
+    <section class="jl-now" aria-label="On the machine now">
+      <h4><Icon name="bolt" size={12} /> On the machine now <span class="chip">{list.length}</span></h4>
+      {list.slice(0, NOW_ROWS).map((k) => <NowRow key={k.id} k={k} s={s} />)}
+      {list.length > NOW_ROWS && <p class="mute jl-more">+{list.length - NOW_ROWS} more waiting</p>}
+    </section>
+  );
+}
+
 export function LogPanel() {
   const open = logOpen.value;
   useEffect(() => {
@@ -188,7 +246,9 @@ export function LogPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
   if (!open) return null;
-  const all = snapshot.value?.jobLog ?? [];
+  const snap = snapshot.value;
+  const all = snap?.jobLog ?? [];
+  const live = snap ? inFlight(snap) : [];
   const rows = [...all].sort(order.value === 'slow' ? (a, b) => phasesOf(b).total - phasesOf(a).total : (a, b) => b.end - a.end || b.id - a.id);
   const maxTotal = Math.max(1, ...all.map((e) => phasesOf(e).total));
   const sel = all.find((e) => e.id === picked.value) ?? null;
@@ -201,6 +261,7 @@ export function LogPanel() {
           <span class="jl-key">{PHASES.map(([k, name]) => <span key={k}><i class={`dot jl-${k}`} /> {name}</span>)}</span>
           <button class="close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
         </header>
+        {snap && live.length > 0 && <Now list={live} s={snap} />}
         {all.length === 0 ? (
           <p class="mute jl-empty">No job has ended yet.</p>
         ) : (

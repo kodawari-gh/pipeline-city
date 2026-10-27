@@ -316,6 +316,12 @@ export interface KeySnap {
    * additive: the sim always sets it; absent means false (old fixtures).
    */
   retired?: boolean;
+  /** The tick the machine took the job (key plugged, download begun); absent while it is still in the tray or on offer. */
+  startedAt?: number;
+  /** The tick the result was written, once it is. */
+  finishedAt?: number;
+  /** While it runs: what the engine has counted since the machine took it (the job log's window, still open). */
+  live?: JobWindow;
 }
 
 /** The player level block (docs/PROGRESSION.md). In a sandbox `level` is the pinned rules level and `sandbox` is true. */
@@ -3018,7 +3024,17 @@ export class Game {
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,
       payoutEstimate: this.estimate(k), attempts: k.attempts, done: k.done, result: k.result,
+      ...(stage !== "tray" && stage !== "offer" ? { startedAt: this.startOf(k) } : {}),
+      ...(k.done ? { finishedAt: k.doneAt } : {}),
+      ...(stage === "running" ? this.liveOf(k) : {}),
     };
+  }
+
+  /** The counters of the running job so far (the log's window, still open), or nothing when the machine has none for it. */
+  private liveOf(k: Key): { live?: JobWindow } {
+    const now = this.countersNow();
+    const live = now ? windowOf(k.c0, now) : undefined;
+    return live ? { live } : {};
   }
 
   private note(kind: string, text: string): void {
