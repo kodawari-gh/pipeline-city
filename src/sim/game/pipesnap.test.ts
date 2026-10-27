@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { createEngine, type PipelineEngine } from "../engines";
 import { Machine } from "../machine";
-import { pipeSnapOf } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, RAM_BUCKETS } from "./pipesnap";
+import { Ev } from "../engines/common";
 
 // The die's live state in the snapshot (docs/DIE.md): the stages of an in-order engine per lane, the structures of the out-of-order one.
 
@@ -107,5 +108,99 @@ describe("pipeSnapOf", () => {
     const s = pipeSnapOf(e);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
     expect(JSON.stringify(s).length).toBeLessThan(6000);
+  });
+});
+
+const CFGS = [
+  { name: "unpipelined", cfg: { kind: "unpipelined" } },
+  { name: "inorder", cfg: { kind: "inorder", forwarding: true } },
+  { name: "inorder2 +caches", cfg: { kind: "inorder2", forwarding: true, cacheLines: 16, icacheLines: 8, l2Lines: 32, predBits: 2 } },
+  { name: "ooo", cfg: { kind: "ooo", width: 2, robSize: 8, schedSize: 6, fetchQueue: 4, cacheLines: 8, ways: 2 } },
+] as const;
+
+describe.each(CFGS)("what is stored: $name", ({ cfg }) => {
+  const make = () => {
+    const e = createEngine({ ...cfg, missPenalty: 4 } as never) as PipelineEngine;
+    const m = new Machine();
+    m.attach(e, assemble(SRC).program);
+    return { e, m };
+  };
+
+  it("the registers in the snapshot are the machine's", () => {
+    const { e, m } = make();
+    for (let i = 0; i < 60; i++) e.step();
+    const st = pipeSnapOf(e, m.ram).stored!;
+    expect(st.regs).toEqual(Array.from(m.regs));
+  });
+
+  it("rewinding the window's register writes and playing them forward gives the register file at every cycle", () => {
+    const { e, m } = make();
+    const hist: number[][] = [];
+    const at = new Map<number, number[]>();
+    for (let i = 0; i < 90; i++) { e.step(); at.set(e.cycle, Array.from(m.regs)); hist.push([]); }
+    const sn = pipeSnapOf(e, m.ram);
+    const tr = sn.trace!, st = sn.stored!;
+    const start = tr.end - tr.n + 1;
+    const regs = st.regs.slice();
+    const ev = st.events;
+    for (let i = ev.length - 6; i >= 0; i -= 6) if (ev[i + 1] === Ev.Reg) regs[ev[i + 2]!] = ev[i + 4]!; // undo, newest first
+    expect(regs).toEqual(at.get(start - 1));
+    // forward: after each cycle's writes the file is what the machine had
+    for (let c = start; c <= tr.end; c++) {
+      for (let i = 0; i < ev.length; i += 6) if (ev[i] === c && ev[i + 1] === Ev.Reg) regs[ev[i + 2]!] = ev[i + 3]!;
+      expect(regs, `cycle ${c}`).toEqual(at.get(c));
+    }
+  });
+
+  it("the data cache's lines can be rewound with the window's fills", () => {
+    const { e, m } = make();
+    const tags = new Map<number, number[]>();
+    for (let i = 0; i < 90; i++) { e.step(); tags.set(e.cycle, e.storedState().d.tags.slice()); }
+    const sn = pipeSnapOf(e, m.ram);
+    const tr = sn.trace!, st = sn.stored!;
+    const start = tr.end - tr.n + 1;
+    const t = st.d.tags.slice();
+    const ev = st.events;
+    for (let i = ev.length - 6; i >= 0; i -= 6) if (ev[i + 1] === Ev.Fill && ev[i + 2] === 0) t[ev[i + 3]!] = ev[i + 5]!;
+    expect(t).toEqual(tags.get(start - 1));
+    for (let c = start; c <= tr.end; c++) {
+      for (let i = 0; i < ev.length; i += 6) if (ev[i] === c && ev[i + 1] === Ev.Fill && ev[i + 2] === 0) t[ev[i + 3]!] = ev[i + 4]!;
+      expect(t, `cycle ${c}`).toEqual(tags.get(c));
+    }
+  });
+
+  it("the words of a cached line are what RAM holds, and the predictor table has its size", () => {
+    const { e, m } = make();
+    for (let i = 0; i < 120; i++) e.step();
+    const st = pipeSnapOf(e, m.ram).stored!;
+    const per = st.d.lineBytes / 4;
+    st.d.tags.forEach((t, slot) => {
+      if (t < 0) return;
+      for (let k = 0; k < per; k++) expect(st.d.words[slot * per + k]).toBe(m.bus.load32(t * st.d.lineBytes + 4 * k) | 0);
+    });
+    expect(st.pred.table).toHaveLength(st.pred.entries);
+  });
+});
+
+describe("the RAM map", () => {
+  it("shows the program where it was loaded and nothing elsewhere", () => {
+    const m = new Machine();
+    const prog = assemble(SRC).program;
+    m.loadProgram(prog);
+    const map = ramMapOf(m.ram);
+    expect(map.bytes).toBe(m.ram.length);
+    expect(map.filled).toHaveLength(RAM_BUCKETS);
+    expect(map.filled[0]).toBeGreaterThan(0);
+    expect(map.code[0]).toBeGreaterThan(0);
+    expect(map.filled.slice(8).every((v) => v === 0)).toBe(true);
+  });
+
+  it("data that is not instructions counts as filled but not as code", () => {
+    const m = new Machine();
+    for (let i = 0; i < 256; i++) m.ram[0x1000 + i] = 0xff;
+    const map = ramMapOf(m.ram);
+    const b = Math.floor(0x1000 / (m.ram.length / RAM_BUCKETS));
+    expect(map.filled[b]).toBeGreaterThan(0);
+    expect(map.code[b]).toBe(0);
   });
 });

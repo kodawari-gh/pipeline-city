@@ -4,7 +4,7 @@
 
 import type { PipelineEngine } from "../engines";
 import type { EngineView, OooView, TimelineView } from "../engines/view";
-import { disassemble } from "../isa";
+import { disassemble, OPS } from "../isa";
 import type { StageSnap } from "./game";
 
 /** One slot of an out-of-order structure: the mnemonic ("" when empty) and a state code (see each field). */
@@ -37,11 +37,28 @@ export interface TraceSnap {
   /** Cycles covered (the columns are end - n + 1 .. end). */
   n: number;
   /** Instructions that did something in the window, oldest first. `codes` has one character per cycle (STAGE_CODE_CHARS: F D X M W for the in-order engines; F D S X R C for the out-of-order one; x flushed; space nothing). */
-  rows: { id: number; text: string; codes: string }[];
+  rows: { id: number; pc: number; text: string; codes: string }[];
 }
 
 /** Cycles of history in a snapshot. */
 export const TRACE_CYCLES = 24;
+
+/** One cache: `tags[slot]` is the line number held (address / lineBytes), -1 empty; `words` the words of each line (slot-major, lineBytes / 4 each) as RAM holds them now. */
+export interface CacheSnap { lines: number; ways: number; lineBytes: number; tags: number[]; words: number[] }
+
+/**
+ * What is stored, for the die to show: the register file, the cache lines, the predictor counters, and the writes of the trace window
+ * (`events`, flat [cycle, kind, a, b, c, d]: Ev.Reg reg new old; Ev.Hit cache slot line; Ev.Fill cache slot line evicted; Ev.Pred index new old)
+ * so the replay can rewind to the start of the window and apply them cycle by cycle.
+ */
+export interface StoredSnap {
+  regs: number[];
+  d: CacheSnap;
+  i?: CacheSnap;
+  l2?: CacheSnap;
+  pred: { entries: number; bits: number; table: number[] };
+  events: number[];
+}
 
 export interface PipeSnap {
   /** Lanes per stage. `stages` is indexed stage * width + lane. */
@@ -49,7 +66,64 @@ export interface PipeSnap {
   stages: StageSnap[];
   ooo?: OooSnap;
   trace?: TraceSnap;
+  stored?: StoredSnap;
 }
+
+const wordAt = (ram: Uint8Array, a: number): number => (a + 4 <= ram.length ? (ram[a]! | (ram[a + 1]! << 8) | (ram[a + 2]! << 16) | (ram[a + 3]! << 24)) : 0);
+
+function cacheSnap(c: { lines: number; ways: number; lineBytes: number; tags: number[] }, ram: Uint8Array): CacheSnap {
+  const words: number[] = [];
+  const per = c.lineBytes / 4;
+  for (const t of c.tags) for (let k = 0; k < per; k++) words.push(t < 0 ? 0 : wordAt(ram, t * c.lineBytes + 4 * k));
+  return { lines: c.lines, ways: c.ways, lineBytes: c.lineBytes, tags: c.tags, words };
+}
+
+/** The stored state of an engine and the writes since cycle `from`. */
+export function storedOf(eng: PipelineEngine, ram: Uint8Array, from: number): StoredSnap {
+  const st = eng.storedState();
+  return {
+    regs: st.regs,
+    d: cacheSnap(st.d, ram),
+    ...(st.i ? { i: cacheSnap(st.i, ram) } : {}),
+    ...(st.l2 ? { l2: cacheSnap(st.l2, ram) } : {}),
+    pred: st.pred,
+    events: st.events.since(from),
+  };
+}
+
+/** How full the RAM is, in `RAM_BUCKETS` equal parts of the address space, for the memory sticks to show. */
+export interface RamMap {
+  bytes: number;
+  /** Per bucket: 0..255, the share of its 16-byte lines that hold anything. */
+  filled: number[];
+  /** Per bucket: 0..255, the share of its lines that hold only legal instructions (the program, as opposed to data). */
+  code: number[];
+}
+export const RAM_BUCKETS = 256;
+
+export function ramMapOf(ram: Uint8Array): RamMap {
+  const per = Math.max(16, Math.ceil(ram.length / RAM_BUCKETS / 16) * 16);
+  const filled: number[] = [], code: number[] = [];
+  for (let b = 0; b < RAM_BUCKETS; b++) {
+    const lo = b * per, hi = Math.min(ram.length, lo + per);
+    let lines = 0, nz = 0, cd = 0;
+    for (let a = lo; a < hi; a += 16) {
+      lines++;
+      let any = false, legal = true;
+      for (let k = 0; k < 4; k++) {
+        const w = wordAt(ram, a + 4 * k);
+        if (w !== 0) any = true;
+        if (w === 0 || !LEGAL.has(w & 0x7f)) legal = false;
+      }
+      if (any) nz++;
+      if (any && legal) cd++;
+    }
+    filled.push(lines ? Math.round((255 * nz) / lines) : 0);
+    code.push(lines ? Math.round((255 * cd) / lines) : 0);
+  }
+  return { bytes: ram.length, filled, code };
+}
+const LEGAL = new Set<number>(OPS.map((o) => o.op));
 
 function opOf(t: TimelineView, id: number): string {
   if (id < 0) return "";
@@ -94,13 +168,13 @@ export function traceOf(v: EngineView, end: number, want = TRACE_CYCLES): TraceS
       if (code) any = true;
       codes += CH[code] ?? " ";
     }
-    if (any) rows.push({ id, text: disassemble(t.word[r]!), codes });
+    if (any) rows.push({ id, pc: t.pc[r]!, text: disassemble(t.word[r]!), codes });
   }
   rows.sort((a, b) => a.id - b.id);
   return { end, n, rows };
 }
 
-export function pipeSnapOf(eng: PipelineEngine): PipeSnap {
+export function pipeSnapOf(eng: PipelineEngine, ram?: Uint8Array): PipeSnap {
   const v: EngineView = eng.view;
   const t = v.timeline;
   const stages: StageSnap[] = [];
@@ -113,6 +187,9 @@ export function pipeSnapOf(eng: PipelineEngine): PipeSnap {
   }
   const out: PipeSnap = { width: v.width, stages: "robId" in v ? [] : stages };
   if ("robId" in v) out.ooo = oooOf(v as OooView);
-  if (eng.cycle > 0) out.trace = traceOf(v, eng.cycle);
+  if (eng.cycle > 0) {
+    out.trace = traceOf(v, eng.cycle);
+    if (ram) out.stored = storedOf(eng, ram, eng.cycle - out.trace.n + 1);
+  }
   return out;
 }

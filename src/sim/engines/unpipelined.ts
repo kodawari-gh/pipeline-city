@@ -81,7 +81,7 @@ export class UnpipelinedEngine extends EngineBase {
         break;
       case Stage.WB: {
         const op = p.op[s]!;
-        if (OPF[op]! & F.Writes && p.rd[s] !== 0) this.regs[p.rd[s]!] = p.res[s]!;
+        if (OPF[op]! & F.Writes && p.rd[s] !== 0) this.writeReg(p.rd[s]!, p.res[s]!);
         this.retire(this.curId, op);
         if (op === OP_ECALL) this.isHalted = true;
         break;

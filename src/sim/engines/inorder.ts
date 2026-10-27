@@ -192,7 +192,7 @@ export class InOrderEngine extends EngineBase {
       if (v.stageKind[wb + l] !== SlotKind.Instr) continue;
       const id = v.stageId[wb + l]!;
       const s = id & this.mask;
-      if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) this.regs[p.rd[s]!] = p.res[s]!;
+      if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) this.writeReg(p.rd[s]!, p.res[s]!);
       this.retire(id, p.op[s]!);
     }
   }
@@ -229,7 +229,7 @@ export class InOrderEngine extends EngineBase {
     const isBranch = (f & F.Branch) !== 0;
     if (isBranch) {
       c[Counter.Branches]!++;
-      this.pred.train(p.pc[s]!, this.taken);
+      this.trainPred(p.pc[s]!, this.taken);
     }
     if (next !== p.predNext[s]) {
       c[Counter.Flushes]!++;

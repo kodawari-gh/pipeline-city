@@ -98,6 +98,9 @@ export class DataCache {
   private readonly shift: number;
   private readonly setMask: number;
   private clock = 0;
+  /** Slot (set * ways + way) of the last hit or fill, and the line number the last fill evicted (-1: none). For the die view. */
+  lastSlot = 0;
+  lastEvicted = -1;
   constructor(readonly lines: number, readonly lineBytes: number, readonly missPenalty: number, readonly ways = 1) {
     if (lines < 1 || (lines & (lines - 1)) !== 0) throw new RangeError("cache lines must be a power of two");
     if (lineBytes < 4 || (lineBytes & (lineBytes - 1)) !== 0) throw new RangeError("cache line size must be a power of two >= 4");
@@ -117,6 +120,7 @@ export class DataCache {
       const i = base + w;
       if (this.valid[i] === 1 && this.tags[i] === line) {
         if (this.ways > 1) this.used[i] = ++this.clock;
+        this.lastSlot = i;
         return true;
       }
     }
@@ -132,10 +136,56 @@ export class DataCache {
       if (this.valid[i] === 0) { victim = i; break; }
       if (this.used[i]! < this.used[victim]!) victim = i;
     }
+    this.lastEvicted = this.valid[victim] === 1 && this.tags[victim] !== line ? this.tags[victim]! : -1;
+    this.lastSlot = victim;
     this.valid[victim] = 1;
     this.tags[victim] = line;
     this.used[victim] = ++this.clock;
   }
+  /** The line number held in each slot (address >> log2(lineBytes)), -1 where the slot is empty. */
+  dump(): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < this.lines; i++) out.push(this.valid[i] === 1 ? this.tags[i]! : -1);
+    return out;
+  }
+  /** Bytes per line, as a shift. */
+  get lineShift(): number { return this.shift; }
+}
+
+/** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
+export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5 } as const;
+/** Which cache an event is about. */
+export const Which = { D: 0, I: 1, L2: 2 } as const;
+const EV_SIZE = 6, EV_CAP = 1024;
+export class EventLog {
+  private readonly a = new Int32Array(EV_SIZE * EV_CAP);
+  private n = 0;
+  reset(): void { this.n = 0; }
+  push(cycle: number, kind: number, a: number, b: number, c: number, d: number): void {
+    const i = (this.n++ % EV_CAP) * EV_SIZE;
+    const x = this.a;
+    x[i] = cycle; x[i + 1] = kind; x[i + 2] = a; x[i + 3] = b; x[i + 4] = c; x[i + 5] = d;
+  }
+  /** Events of cycle >= `from`, oldest first, flattened [cycle, kind, a, b, c, d, ...]. */
+  since(from: number): number[] {
+    const out: number[] = [];
+    const first = Math.max(0, this.n - EV_CAP);
+    for (let k = first; k < this.n; k++) {
+      const i = (k % EV_CAP) * EV_SIZE;
+      if (this.a[i]! >= from) for (let j = 0; j < EV_SIZE; j++) out.push(this.a[i + j]!);
+    }
+    return out;
+  }
+}
+
+export interface CacheState { lines: number; ways: number; lineBytes: number; tags: number[] }
+export interface EngineState {
+  regs: number[];
+  d: CacheState;
+  i?: CacheState;
+  l2?: CacheState;
+  pred: { entries: number; bits: number; table: number[] };
+  events: EventLog;
 }
 
 /** Branch predictor: `entries` saturating counters of `bits` (1 or 2) indexed by (pc >> 2) % entries. All start at "not taken". */
@@ -147,6 +197,9 @@ export class Predictor {
     this.t = new Uint8Array(entries);
   }
   reset(): void { this.t.fill(0); }
+  /** The counter of the entry for `pc`. */
+  get(pc: number): number { return this.t[(pc >>> 2) % this.entries]!; }
+  dump(): number[] { return Array.from(this.t); }
   predict(pc: number): boolean { return this.t[(pc >>> 2) % this.entries]! >= (this.bits === 2 ? 2 : 1); }
   train(pc: number, taken: boolean): void {
     const i = (pc >>> 2) % this.entries;
@@ -230,6 +283,8 @@ export interface PipelineEngine extends Engine {
   invalidateCache(): void;
   /** Flip the 1-bit branch predictor entry for `pc`, or every entry if omitted. No-op for engines without prediction. */
   flipPredictor(pc?: number): void;
+  /** What is stored right now (registers, cache lines, predictor counters) and the recent writes, for the die view. */
+  storedState(): EngineState;
 }
 
 export interface EngineSettings {
@@ -270,6 +325,7 @@ export abstract class EngineBase implements PipelineEngine {
   protected readonly l2: DataCache | null;
   protected readonly l2Penalty: number;
   protected readonly pred: Predictor;
+  protected readonly events = new EventLog();
   /** The pc whose instruction cache line is being waited for, and the cycles left. */
   private iWaitPc = -1;
   private iWait = 0;
@@ -314,6 +370,43 @@ export abstract class EngineBase implements PipelineEngine {
 
   abstract step(): void;
   flipPredictor(_pc?: number): void {}
+  storedState(): EngineState {
+    const c = (x: DataCache): CacheState => ({ lines: x.lines, ways: x.ways, lineBytes: 1 << x.lineShift, tags: x.dump() });
+    return {
+      regs: Array.from(this.regs ?? []),
+      d: c(this.cache), ...(this.icache ? { i: c(this.icache) } : {}), ...(this.l2 ? { l2: c(this.l2) } : {}),
+      pred: { entries: this.pred.entries, bits: this.pred.bits, table: this.pred.dump() },
+      events: this.events,
+    };
+  }
+
+  /** Write a register and log it (the die shows the register file filling in). */
+  protected writeReg(r: number, value: number): void {
+    this.events.push(this.cycleNo, Ev.Reg, r, value | 0, this.regs[r]! | 0, 0);
+    this.regs[r] = value;
+  }
+
+  /** The data cache lookup and fill, logged. */
+  protected dHit(addr: number): boolean {
+    const h = this.cache.hit(addr);
+    if (h) this.events.push(this.cycleNo, Ev.Hit, Which.D, this.cache.lastSlot, addr >>> this.cache.lineShift, 0);
+    return h;
+  }
+  protected dFill(addr: number): void {
+    this.cache.fill(addr);
+    this.events.push(this.cycleNo, Ev.Fill, Which.D, this.cache.lastSlot, addr >>> this.cache.lineShift, this.cache.lastEvicted);
+  }
+  /** A load (kind 0) or a store (kind 1) of the data side: address and value. */
+  protected logMem(kind: number, addr: number, value: number): void {
+    this.events.push(this.cycleNo, Ev.Mem, kind, addr | 0, value | 0, 0);
+  }
+  /** Train the predictor and log the counter's change. */
+  protected trainPred(pc: number, taken: boolean): void {
+    const old = this.pred.get(pc);
+    this.pred.train(pc, taken);
+    this.events.push(this.cycleNo, Ev.Pred, (pc >>> 2) % this.pred.entries, this.pred.get(pc), old, 0);
+  }
+
   invalidateCache(): void { this.cache.invalidate(); this.icache?.invalidate(); this.l2?.invalidate(); }
 
   reset(machine: Machine, program: Uint32Array): void {
@@ -330,6 +423,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.icache?.invalidate();
     this.l2?.invalidate();
     this.pred.reset();
+    this.events.reset();
     this.iWaitPc = -1; this.iWait = 0; this.seqPc = 0;
     this.v.reset();
     this.onReset();
@@ -341,9 +435,10 @@ export abstract class EngineBase implements PipelineEngine {
     const l2 = this.l2;
     if (!l2) return this.cache.missPenalty;
     const c = this.v.counters;
-    if (l2.hit(addr)) { c[Counter.L2Hits]!++; return this.l2Penalty; }
+    if (l2.hit(addr)) { c[Counter.L2Hits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0); return this.l2Penalty; }
     c[Counter.L2Misses]!++;
     l2.fill(addr);
+    this.events.push(this.cycleNo, Ev.Fill, Which.L2, l2.lastSlot, addr >>> l2.lineShift, l2.lastEvicted);
     return this.cache.missPenalty;
   }
 
@@ -358,9 +453,9 @@ export abstract class EngineBase implements PipelineEngine {
     const ic = this.icache, c = this.v.counters;
     if (this.iWaitPc !== pc) {
       let wait = 0;
-      if (pc === this.seqPc) { ic?.fill(pc); this.seqPc = (pc + 4) >>> 0; return true; }
+      if (pc === this.seqPc) { if (ic) this.iFill(ic, pc); this.seqPc = (pc + 4) >>> 0; return true; }
       if (ic) {
-        if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.seqPc = (pc + 4) >>> 0; return true; }
+        if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.I, ic.lastSlot, pc >>> ic.lineShift, 0); this.seqPc = (pc + 4) >>> 0; return true; }
         c[Counter.ICacheMisses]!++;
         wait = this.missCost(pc);
       } else if (this.redirectPenalty > 0) wait = this.redirectPenalty;
@@ -372,10 +467,17 @@ export abstract class EngineBase implements PipelineEngine {
       c[Counter.StallIFetch]!++;
       return false;
     }
-    this.icache?.fill(pc);
+    if (this.icache) this.iFill(this.icache, pc);
     this.iWaitPc = -1;
     this.seqPc = (pc + 4) >>> 0;
     return true;
+  }
+
+  private iFill(ic: DataCache, pc: number): void {
+    const had = ic.hit(pc); // a line already there is only touched
+    if (had) return;
+    ic.fill(pc);
+    this.events.push(this.cycleNo, Ev.Fill, Which.I, ic.lastSlot, pc >>> ic.lineShift, ic.lastEvicted);
   }
 
   protected retire(id: number, op: number): void {
@@ -427,13 +529,15 @@ export abstract class EngineBase implements PipelineEngine {
         p.state[s] = st | St.Started;
         if (op === SW) this.bus.store32(addr, p.b[s]!);
         else this.bus.store8(addr, p.b[s]!);
+        this.logMem(1, addr, p.b[s]!);
       }
       return true;
     }
     if (!(st & St.Started)) {
       st |= St.Started;
+      if (addr < this.ramSize) this.logMem(0, addr, this.load(op, addr));
       if (addr < this.ramSize) {
-        if (this.cache.hit(addr)) { c[Counter.CacheHits]!++; p.res[s] = this.load(op, addr); }
+        if (this.dHit(addr)) { c[Counter.CacheHits]!++; p.res[s] = this.load(op, addr); }
         else { c[Counter.CacheMisses]!++; st |= St.Missing; p.wait[s] = this.missCost(addr); }
       } else {
         p.res[s] = this.load(op, addr); // device access: uncached
@@ -446,7 +550,7 @@ export abstract class EngineBase implements PipelineEngine {
         c[Counter.StallCache]!++;
         return false;
       }
-      this.cache.fill(addr);
+      this.dFill(addr);
       p.res[s] = this.load(op, addr);
       p.state[s] = st & ~St.Missing;
     }

@@ -15,7 +15,7 @@ import {
   specsOfKind, type CardSpec, type NicSpec, type StorageSpec, type TpmSpec,
 } from "../board";
 import { COUNTER_NAMES, type PipelineEngine } from "../engines";
-import { pipeSnapOf, type PipeSnap } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap } from "./pipesnap";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
@@ -425,6 +425,8 @@ export interface Snapshot {
   board: BoardSnap;
   /** Pipeline stage occupants while the machine is powered with a working CPU, else null. */
   pipe: null | PipeSnap;
+  /** How full the RAM is (the memory sticks show it), while the machine is on. */
+  ram?: RamMap | null;
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */
   display: string;
   /** Engine counters since power-on, by name (all zero when no engine). */
@@ -1426,6 +1428,7 @@ export class Game {
       boardTier: this.board.tier,
       caseTier: this.board.caseTier,
       pipe: this.powered && eng?.view ? this.pipeSnap(eng) : null,
+      ram: this.powered ? ramMapOf(this.machine.ram) : null,
       display: this.powered && live ? this.machine.display.text() : "",
       counters,
       completed: this.completed,
@@ -2320,7 +2323,7 @@ export class Game {
     }
   }
 
-  private pipeSnap(eng: PipelineEngine): PipeSnap { return pipeSnapOf(eng); }
+  private pipeSnap(eng: PipelineEngine): PipeSnap { return pipeSnapOf(eng, this.machine.ram); }
 
   // ---------- internals: the network (docs/NETWORK.md) ----------
 

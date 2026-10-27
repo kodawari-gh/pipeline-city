@@ -146,8 +146,9 @@ export class OooEngine extends EngineBase {
       if (f & F.Store) {
         if (op === OP_SW) this.bus.store32(p.addr[s]!, p.b[s]!);
         else this.bus.store8(p.addr[s]!, p.b[s]!);
+        this.logMem(1, p.addr[s]!, p.b[s]!);
       } else if (f & F.Writes && p.rd[s] !== 0) {
-        this.regs[p.rd[s]!] = p.res[s]!;
+        this.writeReg(p.rd[s]!, p.res[s]!);
         if (this.rat[p.rd[s]!] === s) this.rat[p.rd[s]!] = -1;
       }
       ost[s] = Os.Committed;
@@ -187,12 +188,12 @@ export class OooEngine extends EngineBase {
       ost[s] = Os.Done;
       v.mark(id, StageCode.R);
       const f = OPF[p.op[s]!]!;
-      if (p.state[s]! & St.Missing) { this.cache.fill(p.addr[s]!); p.state[s]! &= ~St.Missing; }
+      if (p.state[s]! & St.Missing) { this.dFill(p.addr[s]!); p.state[s]! &= ~St.Missing; }
       if (f & F_CTRL) {
         const next = this.actual[s]!;
         if (f & F.Branch) {
           c[Counter.Branches]!++;
-          this.pred.train(p.pc[s]!, next !== ((p.pc[s]! + 4) >>> 0));
+          this.trainPred(p.pc[s]!, next !== ((p.pc[s]! + 4) >>> 0));
         }
         if (next !== p.predNext[s]) {
           c[Counter.Flushes]!++;
@@ -347,7 +348,8 @@ export class OooEngine extends EngineBase {
       return HIT_LAT;
     }
     p.res[s] = this.load(op, addr);
-    if (this.cache.hit(addr)) { c[Counter.CacheHits]!++; return HIT_LAT; }
+    this.logMem(0, addr, p.res[s]!);
+    if (this.dHit(addr)) { c[Counter.CacheHits]!++; return HIT_LAT; }
     c[Counter.CacheMisses]!++;
     p.state[s]! |= St.Missing;
     return HIT_LAT + this.missCost(addr);
