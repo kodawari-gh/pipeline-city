@@ -27,11 +27,28 @@ export interface OooSnap {
   stall: [number, number, number];
 }
 
+/**
+ * The last `n` cycles of the engine as they happened, for the die view to play back slowly (docs/DIE.md "Motion"): a snapshot is a sampled
+ * instant, the cycles between two snapshots are not in it, but the engine keeps a ring of what every instruction did in each recent cycle.
+ */
+export interface TraceSnap {
+  /** The engine cycle of the last column. */
+  end: number;
+  /** Cycles covered (the columns are end - n + 1 .. end). */
+  n: number;
+  /** Instructions that did something in the window, oldest first. `codes` has one character per cycle (STAGE_CODE_CHARS: F D X M W for the in-order engines; F D S X R C for the out-of-order one; x flushed; space nothing). */
+  rows: { id: number; text: string; codes: string }[];
+}
+
+/** Cycles of history in a snapshot. */
+export const TRACE_CYCLES = 24;
+
 export interface PipeSnap {
   /** Lanes per stage. `stages` is indexed stage * width + lane. */
   width: number;
   stages: StageSnap[];
   ooo?: OooSnap;
+  trace?: TraceSnap;
 }
 
 function opOf(t: TimelineView, id: number): string {
@@ -61,6 +78,28 @@ function oooOf(v: OooView): OooSnap {
   return { fetchQ, decode, rob, robHead: occ[5]!, robCount: occ[2]!, sched, units, stall: [v.stall[0]!, v.stall[1]!, v.stall[2]!] };
 }
 
+/** The recent cycles of an engine's timeline ring. */
+export function traceOf(v: EngineView, end: number, want = TRACE_CYCLES): TraceSnap {
+  const t = v.timeline;
+  const n = Math.max(1, Math.min(want, t.cols, end));
+  const rows: TraceSnap["rows"] = [];
+  const CH = " FDXMWxSRC";
+  for (let r = 0; r < t.rows; r++) {
+    const id = t.id[r]!;
+    if (id < 0) continue;
+    let codes = "", any = false;
+    for (let k = 0; k < n; k++) {
+      const c = end - n + 1 + k;
+      const code = c > 0 ? t.codes[r * t.cols + (c % t.cols)]! : 0;
+      if (code) any = true;
+      codes += CH[code] ?? " ";
+    }
+    if (any) rows.push({ id, text: disassemble(t.word[r]!), codes });
+  }
+  rows.sort((a, b) => a.id - b.id);
+  return { end, n, rows };
+}
+
 export function pipeSnapOf(eng: PipelineEngine): PipeSnap {
   const v: EngineView = eng.view;
   const t = v.timeline;
@@ -74,5 +113,6 @@ export function pipeSnapOf(eng: PipelineEngine): PipeSnap {
   }
   const out: PipeSnap = { width: v.width, stages: "robId" in v ? [] : stages };
   if ("robId" in v) out.ooo = oooOf(v as OooView);
+  if (eng.cycle > 0) out.trace = traceOf(v, eng.cycle);
   return out;
 }

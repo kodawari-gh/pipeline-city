@@ -71,10 +71,41 @@ describe("pipeSnapOf", () => {
     }
   });
 
+  it("the trace holds the last cycles of every instruction that was in flight, one code character per cycle", () => {
+    const e = run(createEngine({ kind: "inorder", forwarding: true }) as PipelineEngine, 40);
+    const tr = pipeSnapOf(e).trace!;
+    expect(tr.end).toBe(e.cycle);
+    expect(tr.n).toBe(24);
+    expect(tr.rows.length).toBeGreaterThan(10);
+    for (const r of tr.rows) {
+      expect(r.codes).toHaveLength(tr.n);
+      expect(r.codes).toMatch(/^[ FDXMWx]+$/);
+      expect(r.text.length).toBeGreaterThan(1);
+    }
+    // an instruction that went all the way through shows its stages in order: F D X M W
+    const full = tr.rows.find((r) => /F+D+X+M+W/.test(r.codes.replace(/ /g, "")));
+    expect(full).toBeDefined();
+    // ids ascend
+    for (let i = 1; i < tr.rows.length; i++) expect(tr.rows[i]!.id).toBeGreaterThan(tr.rows[i - 1]!.id);
+  });
+
+  it("the out-of-order trace uses its own stages (S scheduler, R result, C commit)", () => {
+    const e = run(createEngine({ kind: "ooo", width: 2, robSize: 8, schedSize: 6, fetchQueue: 4 }) as PipelineEngine, 60);
+    const all = pipeSnapOf(e).trace!.rows.map((r) => r.codes).join("");
+    for (const ch of "FDSXRC") expect(all, ch).toContain(ch);
+  });
+
+  it("there is no trace before the first cycle", () => {
+    const e = createEngine({ kind: "inorder" }) as PipelineEngine;
+    const m = new Machine();
+    m.attach(e, assemble(SRC).program);
+    expect(pipeSnapOf(e).trace).toBeUndefined();
+  });
+
   it("is plain data (it goes through postMessage)", () => {
     const e = run(createEngine({ kind: "ooo", width: 2, robSize: 8, schedSize: 6, fetchQueue: 4 }) as PipelineEngine, 25);
     const s = pipeSnapOf(e);
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
-    expect(JSON.stringify(s).length).toBeLessThan(2500);
+    expect(JSON.stringify(s).length).toBeLessThan(6000);
   });
 });
