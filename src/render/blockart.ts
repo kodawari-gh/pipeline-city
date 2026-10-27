@@ -207,29 +207,36 @@ export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; w
 }
 
 /** What a symbol shows for the instructions in its block: the PC's digits, the words fetched, the decoded word and the lines it raises, the operation in the ALU. */
-export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number): LiveGlyph {
+export function glyphLive(b: Block, a: Rect, items: LiveItem[], pc?: number, prog: readonly number[] = []): LiveGlyph {
   const s = slotsOf(b, a), out: LiveGlyph = { texts: [], lit: [] };
   const it = items[0];
+  /** How far an instruction has got into the block (0 just arrived .. 1 settled): its words wipe in, its control lines light one after another. */
+  const pr = (k: number) => Math.max(0, Math.min(1, prog[k] ?? 1));
+  const wipe = (r: Rect, f: number): Rect => ({ ...r, w: r.w * f });
   switch (b.kind) {
     case 'pc':
       if (pc !== undefined && s.digits) { const hex = (pc >>> 0).toString(16).padStart(8, '0'); s.digits.forEach((r, k) => out.texts.push({ rect: r, top: hex[k]!, bottom: '' })); }
       break;
     case 'fetch':
-      items.slice(0, s.words?.length ?? 0).forEach((x, k) => { out.texts.push({ rect: s.words![k]!, top: x.text, bottom: '' }); out.lit.push({ rect: s.words![k]!, color: 'alu', a: 0.92 }); });
+      items.slice(0, s.words?.length ?? 0).forEach((x, k) => {
+        out.lit.push({ rect: wipe(s.words![k]!, pr(k)), color: 'alu', a: 0.92 });
+        if (pr(k) > 0.55) out.texts.push({ rect: s.words![k]!, top: x.text, bottom: '' });
+      });
       break;
     case 'decode':
       if (it && s.word && s.lines) {
-        out.texts.push({ rect: s.word, top: it.text, bottom: '' });
-        out.lit.push({ rect: s.word, color: 'alu', a: 0.92 });
-        for (const k of controlsOf(it.op)) out.lit.push({ rect: s.lines[k]!, color: 'br', a: 0.6 });
+        out.lit.push({ rect: wipe(s.word, pr(0)), color: 'alu', a: 0.92 });
+        if (pr(0) > 0.55) out.texts.push({ rect: s.word, top: it.text, bottom: '' });
+        controlsOf(it.op).forEach((k, j) => { if (pr(0) > 0.45 + 0.1 * j) out.lit.push({ rect: s.lines![k]!, color: 'br', a: 0.6 }); });
       }
       break;
     case 'alu': case 'mul': case 'lsu':
       if (it) {
-        if (s.op) { out.lit.push({ rect: s.op, color: b.kind === 'mul' ? 'mul' : b.kind === 'lsu' ? 'ld' : 'alu', a: 0.92 }); out.texts.push({ rect: s.op, top: it.op, bottom: '' }); }
+        const col = b.kind === 'mul' ? 'mul' : b.kind === 'lsu' ? 'ld' : 'alu';
+        if (s.op) { out.lit.push({ rect: wipe(s.op, pr(0)), color: col, a: 0.92 }); if (pr(0) > 0.55) out.texts.push({ rect: s.op, top: it.op, bottom: '' }); }
         const r = s.operands;
-        if (r && r.h >= 7) out.texts.push({ rect: { ...r, h: Math.max(14, r.h) }, top: it.text.slice(it.op.length + 1), bottom: '' });
-        if (s.out) out.lit.push({ rect: s.out, color: b.kind === 'mul' ? 'mul' : b.kind === 'lsu' ? 'ld' : 'alu', a: 0.55 });
+        if (r && r.h >= 7 && pr(0) > 0.7) out.texts.push({ rect: { ...r, h: Math.max(14, r.h) }, top: it.text.slice(it.op.length + 1), bottom: '' });
+        if (s.out && pr(0) > 0.8) out.lit.push({ rect: s.out, color: col, a: 0.55 });
       }
       break;
     default: break;

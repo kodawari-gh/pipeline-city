@@ -24,6 +24,10 @@ import type { Theme } from './theme';
 const CHIP_W = 176, CHIP_H = 92;
 const TOKEN_W = CHIP_W, TOKEN_H = CHIP_H;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
+/** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
+const WIPE_MS = 320;
+/** The blocks that show an instruction themselves: a token does not sit on them, it travels to them and goes in. */
+const DOCKS: ReadonlySet<string> = new Set(['fetch', 'decode', 'alu', 'mul', 'lsu', 'queue', 'sched', 'rob']);
 /** How long a wire stays lit behind a packet (ms). */
 const TRAIL_MS = 1500;
 
@@ -81,7 +85,7 @@ class Chip {
   private fadeAt = -1e9;
   private sig = '';
   /** Where the chip sits in its block, eased: off to a corner (and smaller) in a block whose symbol shows the instruction itself. */
-  ox = 0; oy = 0; k = 1;
+  ox = 0; oy = 0; k = 1; env = 1;
   /** Motion: last position, a short tail of where it has been, the block it was last in and when it got there (wall ms). */
   px = NaN; py = NaN; hist: Pt[] = []; lastHost = ''; landed = -1e9;
 
@@ -196,6 +200,11 @@ export class DieView {
   /** The address each load and store reached for, by instruction id (a token shows it in its memory stage). */
   private addrs = new Map<number, number>();
   private glyphSig = '#';
+  private glyphAnim = false;
+  /** When each instruction (id + stage) was first seen in its place, wall ms. */
+  private born = new Map<string, number>();
+  private cellBorn = new Map<string, number>();
+  private cellAnim = false;
   private texts = new Container();
   private trailG = new Graphics();
   private packetG = new Graphics();
@@ -349,7 +358,17 @@ export class DieView {
     chip.look(T, { text: st.op.toUpperCase(), pc: pcText(st.pc), seq: seqText(st.id), color: this.colorOf(cls), ring: idColor(st.id, T.dark), stalled: st.stalled, bad: st.flushed, stage: st.flushed ? 'x' : st.e >= 0.5 && st.next !== st.stage ? st.next : st.stage, body });
     const host = this.byId.get(st.host);
     const fit = host ? fitOf(host.rect) : 0.6;
-    // in a block the token is a small tag in its top right corner, so what the block shows (its symbol, its cells) stays readable
+    // a block that shows its instructions itself (a symbol, a queue) is not covered: the token travels to it, shrinks into it and is gone; and comes out of it the same way
+    const docked = (id: string | undefined) => { const b = id ? this.byId.get(id) : undefined; return !!b && DOCKS.has(b.kind) && !isTall(b); };
+    const moving = st.from !== undefined && st.from !== st.to;
+    let env = 1;
+    if (moving) {
+      const ease = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
+      if (docked(st.from)) env *= ease(st.e / 0.3);
+      if (docked(st.to)) env *= ease((1 - st.e) / 0.3);
+    } else if (docked(st.host)) env = 0;
+    if (Number.isNaN(chip.px)) chip.env = env; else chip.env += (env - chip.env) * 0.5;
+    // in any other block the token is a small tag in its top right corner
     const sym = !!host && host.kind !== 'stage' && !isTall(host);
     const kt = sym ? 0.5 : 1;
     const tx = sym ? host!.rect.x + host!.rect.w - 8 - (CHIP_W * fit * kt) / 2 - st.x : 0, ty = sym ? host!.rect.y + 6 + (CHIP_H * fit * kt) / 2 - (st.y + 6) : 0;
@@ -364,12 +383,12 @@ export class DieView {
     if (st.host !== chip.lastHost) { if (chip.lastHost) chip.landed = wall; chip.lastHost = st.host; }
     const pop = 1 + 0.14 * Math.max(0, 1 - (wall - chip.landed) / 380);
     const stretch = 1 + Math.min(0.18, v * 0.0035);
-    const base = st.scale * fit * chip.k * pop;
+    const base = st.scale * fit * chip.k * pop * (0.4 + 0.6 * chip.env);
     chip.c.position.set(x, y);
     chip.c.scale.set(base * (Math.abs(dx) >= Math.abs(dy) ? stretch : 1 / stretch), base * (Math.abs(dx) >= Math.abs(dy) ? 1 / stretch : stretch));
-    chip.c.alpha = st.alpha;
+    chip.c.alpha = st.alpha * chip.env;
     const tg = this.tailG, tc = this.colorOf(cls);
-    chip.hist.forEach((p, i) => { const f = (i + 1) / chip.hist.length; tg.circle(p[0], p[1], 3 + 9 * f * fit).fill({ color: tc, alpha: 0.28 * f * st.alpha }); });
+    chip.hist.forEach((p, i) => { const f = (i + 1) / chip.hist.length; tg.circle(p[0], p[1], 3 + 9 * f * fit).fill({ color: tc, alpha: 0.28 * f * st.alpha * chip.env }); });
     seen.add(st.key);
   }
 
@@ -516,28 +535,39 @@ export class DieView {
     if (plan.arch !== 'ooo') { if (this.cellSig !== '-') { g.clear(); this.cellSig = '-'; } return; }
     const rows = player.now();
     const sig = rows.map((r) => r.id + r.ch).join(',');
-    if (sig === this.cellSig) return;
+    if (sig === this.cellSig && !this.cellAnim) return;
     this.cellSig = sig;
     g.clear();
+    const wall = performance.now(), cb = new Map<string, number>();
+    for (const r of rows) { const k = r.id + r.ch; cb.set(k, this.cellBorn.get(k) ?? wall); }
+    this.cellBorn = cb;
+    this.cellAnim = false;
     const used = new Set<string>();
     const fq = plan.blocks.find((b) => b.id === 'fq'), sched = plan.blocks.find((b) => b.kind === 'sched'), rob = plan.blocks.find((b) => b.kind === 'rob');
-    const fill = (b: Block | undefined, items: { op: string; color: string; pc: number; id: number }[]) => {
+    const fill = (b: Block | undefined, items: { op: string; color: string; pc: number; id: number; ch: string }[]) => {
       if (!b) return;
       const cs = cellRects(b), ct = this.texts_(b.id, used);
       cs.forEach((r, k) => {
         const it = items[k];
+        let u = 1;
         if (it) {
-          box(g, r.x, r.y, r.w, r.h, 1.5, { fill: it.color, fa: 0.85 });
+          u = Math.min(1, (wall - (cb.get(it.id + it.ch) ?? wall)) / WIPE_MS);
+          if (u < 1) this.cellAnim = true;
+          const e = u * u * (3 - 2 * u);
+          // a new entry grows into its cell from the middle and flashes white once
+          const gw = r.w * (0.35 + 0.65 * e), gh = r.h * (0.35 + 0.65 * e);
+          box(g, r.x + (r.w - gw) / 2, r.y + (r.h - gh) / 2, gw, gh, 1.5, { fill: it.color, fa: 0.85 * (0.3 + 0.7 * e) });
+          if (u < 1) box(g, r.x, r.y, r.w, r.h, 1.5, { stroke: T.ink, lw: 2, sa: 1 - e });
           if (r.w >= 28 && r.h >= 22) box(g, r.x + r.w - 10, r.y + 4, 6, 6, 3, { fill: idColor(it.id, T.dark) }); // the instruction's own colour, as on its token
         }
-        ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
+        if (it && u < 0.6) ct.hide(k); else ct.set(k, it?.op ?? '', it && r.h >= 40 ? pcText(it.pc) : '', r, T.on);
       });
     };
-    fill(fq, rows.filter((r) => r.ch === 'F').map((r) => ({ op: r.op, color: T.alu, pc: r.pc, id: r.id })));
-    fill(sched, rows.filter((r) => r.ch === 'S').map((r) => ({ op: r.op, color: T.ld, pc: r.pc, id: r.id })));
+    fill(fq, rows.filter((r) => r.ch === 'F').map((r) => ({ op: r.op, color: T.alu, pc: r.pc, id: r.id, ch: r.ch })));
+    fill(sched, rows.filter((r) => r.ch === 'S').map((r) => ({ op: r.op, color: T.ld, pc: r.pc, id: r.id, ch: r.ch })));
     // the reorder buffer holds everything between dispatch and commit, oldest first: waiting, executing, done
     const live = rows.filter((r) => r.ch === 'S' || r.ch === 'X' || r.ch === 'R');
-    fill(rob, live.map((r) => ({ op: r.op, color: r.ch === 'S' ? T.ld : r.ch === 'X' ? T.alu : T.st, pc: r.pc, id: r.id })));
+    fill(rob, live.map((r) => ({ op: r.op, color: r.ch === 'S' ? T.ld : r.ch === 'X' ? T.alu : T.st, pc: r.pc, id: r.id, ch: r.ch })));
     if (rob && live.length) {
       const cs = cellRects(rob);
       const h = cs[0];
@@ -552,10 +582,16 @@ export class DieView {
     const plan = this.plan!, T = this.T, g = this.glyphG;
     const rows = player.now();
     const sig = rows.map((r) => r.id + r.ch + r.lane).join(',');
-    if (sig === this.glyphSig) return;
+    const wall = performance.now();
+    if (sig === this.glyphSig && !this.glyphAnim) return;
     this.glyphSig = sig;
     g.clear();
-    const by = new Map<string, { op: string; text: string; pc: number }[]>();
+    // when each instruction got into its block: its words wipe in, the control lines light one after another
+    const born = new Map<string, number>();
+    for (const r of rows) { const k = r.id + r.ch; born.set(k, this.born.get(k) ?? wall); }
+    this.born = born;
+    this.glyphAnim = false;
+    const by = new Map<string, { op: string; text: string; pc: number; id: number; ch: string }[]>();
     for (const r of rows) {
       const host = player.hostOf(r.ch, r.lane, r.op, r.id);
       if (!host) continue;
@@ -568,7 +604,10 @@ export class DieView {
       if (!GLYPH_KINDS.has(b.kind) || isTall(b)) continue;
       const a = glyphArea(b);
       if (!a) continue;
-      const live = glyphLive(b, a, by.get(b.id) ?? [], b.kind === 'pc' ? fetched?.pc : undefined);
+      const here = by.get(b.id) ?? [];
+      const prog = here.map((r) => Math.min(1, (wall - (born.get(r.id + r.ch) ?? wall)) / WIPE_MS));
+      if (prog.some((x) => x < 1)) this.glyphAnim = true;
+      const live = glyphLive(b, a, here, b.kind === 'pc' ? fetched?.pc : undefined, prog.map((x) => x * x * (3 - 2 * x)));
       for (const l of live.lit) box(g, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: T[l.color], fa: l.a });
       if (live.texts.length === 0) continue;
       const ct = this.texts_('g:' + b.id, used);

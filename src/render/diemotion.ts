@@ -293,6 +293,8 @@ export interface ChipState {
   pc: number; word: number;
   /** The stage it is in (F D X M W S R C, x flushed), the stage it goes to next and how far along that step it is (0..1): the token changes with them. */
   stage: string; next: string; e: number;
+  /** On a step between two blocks: the block it left and the block it goes to (otherwise both are `host`). */
+  from?: string; to?: string;
 }
 
 /** Something that happens at a cycle boundary: the die turns it into packets on the wires. */
@@ -542,7 +544,7 @@ export class Player {
       const p = rt && rt.len > 0 ? pointAt(rt.pts, e) : (() => { const cb = centre(hb.block); return [ca[0] + (cb[0] - ca[0]) * e, ca[1] + (cb[1] - ca[1]) * e] as Pt; })();
       const alpha = (ha.visible ? 1 - e : 0) + (hb.visible ? e : 0);
       if (alpha <= 0.01) continue;
-      out.push({ ...base, x: p[0], y: p[1], scale: 1 - 0.12 * Math.sin(Math.PI * e), alpha: Math.min(1, alpha), host: e < 0.5 ? ha.block.id : hb.block.id });
+      out.push({ ...base, x: p[0], y: p[1], scale: 1 - 0.12 * Math.sin(Math.PI * e), alpha: Math.min(1, alpha), host: e < 0.5 ? ha.block.id : hb.block.id, from: ha.block.id, to: hb.block.id });
     }
     return out;
   }
