@@ -136,6 +136,8 @@ export const CODE_SOURCE: Record<string, { template: string; scales: number[] }>
   secure: { template: "secure.sign", scales: [1, 2, 4] },
   gpu: { template: "gpu.render", scales: [2, 4, 8] },
   npu: { template: "npu.infer", scales: [1, 2, 4] },
+  // The web class is a stand-in: it runs the calculation program (levels.ts) until real web code exists.
+  web: { template: "cli.calc", scales: [2] },
 };
 
 export interface HighLevel { cpp: string; python: string }
@@ -296,3 +298,25 @@ def layer(W, X, b):
              for c in range(8)] for r in range(8)]`,
   },
 };
+// The web class runs the calculation program for now, so it reads as the calculation does.
+HIGH_LEVEL.web = HIGH_LEVEL.calc!;
+
+/** One cell of a job's picture: the kind of instruction it is and how often it ran (0 = never, 1 = the busiest word). */
+export interface SpriteCell { cls: OpClass; heat: number }
+
+/** A job's program drawn as a picture: one cell per instruction word, in order, wrapped into rows. */
+export interface Sprite { cols: number; rows: number; cells: SpriteCell[] }
+
+/**
+ * The picture of a program (the almanac's sprite for the job): every word that ran, coloured by what the instruction does and as bright as it was busy.
+ * Two jobs look different at a glance (a tight loop of multiplies against a long run of loads and stores), and it is the program itself, not a drawing.
+ */
+export function spriteOf(p: CodeProfile, maxCells = 400): Sprite {
+  let last = -1;
+  p.lines.forEach((l, i) => { if (l.count > 0) last = i; });
+  const lines = p.lines.slice(0, last + 1).slice(0, maxCells);
+  const lg = Math.log(Math.max(...lines.map((l) => l.count), 1) + 1);
+  const cells = lines.map((l): SpriteCell => ({ cls: l.cls, heat: l.count > 0 ? Math.max(0.18, Math.log(l.count + 1) / lg) : 0 }));
+  const cols = Math.max(6, Math.min(32, Math.ceil(Math.sqrt(Math.max(1, cells.length) * 2.2))));
+  return { cols, rows: Math.max(1, Math.ceil(cells.length / cols)), cells };
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "./game";
 import { ECONOMY } from "./economy";
 import { JOB_CLASSES } from "./levels";
-import { dexEntry, dexNeeds, dexState, JOB_DEX } from "./jobdex";
+import { DEX_GROUPS, dexEntry, dexGroup, dexNeeds, dexState, JOB_DEX } from "./jobdex";
 import { rig } from "./testkit";
 
 ECONOMY.levelGating = false;
@@ -17,7 +17,15 @@ describe("the job almanac data", () => {
       if (!e.planned) { expect(e.tips.length, e.id).toBeGreaterThanOrEqual(2); expect(e.stresses.length, e.id).toBeGreaterThan(0); }
     }
     for (const c of JOB_CLASSES.filter((x) => !x.placeholder)) expect(JOB_DEX.some((e) => e.cls === c.id && !e.planned), c.id).toBe(true);
-    expect(JOB_DEX.filter((e) => e.planned).map((e) => e.id)).toEqual(["web", "hpc"]);
+    expect(JOB_DEX.filter((e) => e.planned).map((e) => e.id)).toEqual(["hpc"]);
+  });
+
+  it("puts every kind of job in exactly one group, and the tips name a part and a few words", () => {
+    const ids = DEX_GROUPS.flatMap((g) => g.ids);
+    expect([...ids].sort()).toEqual(JOB_DEX.map((e) => e.id).sort());
+    expect(dexGroup("db")?.id).toBe("memory");
+    for (const g of DEX_GROUPS) expect(g.color, g.id).toMatch(/^#[0-9a-f]{6}$/);
+    for (const e of JOB_DEX) for (const t of e.tips) { expect(t.short.split(" ").length, `${e.id}: ${t.short}`).toBeLessThanOrEqual(4); expect(t.text.length).toBeGreaterThan(t.short.length); }
   });
 
   it("says what a class needs and when it arrives", () => {
@@ -30,7 +38,7 @@ describe("the job almanac data", () => {
     expect(dexState(e, undefined)).toBe("unseen");
     expect(dexState(e, { seen: 3, runs: 0, best: 0 })).toBe("seen");
     expect(dexState(e, { seen: 3, runs: 2, best: 9 })).toBe("done");
-    expect(dexState(dexEntry("web")!, undefined)).toBe("planned");
+    expect(dexState(dexEntry("hpc")!, undefined)).toBe("planned");
   });
 });
 

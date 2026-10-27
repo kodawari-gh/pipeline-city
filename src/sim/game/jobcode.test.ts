@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance } from "./jobcode";
+import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, spriteOf } from "./jobcode";
 import { JOB_DEX } from "./jobdex";
 
 describe("the code view of a job", () => {
@@ -36,3 +36,22 @@ describe("the code view of a job", () => {
     expect(db.taken).toBeGreaterThan(0);
   });
 });
+
+describe("the picture of a job", () => {
+  it("has a cell for every word that ran, in rows of the stated width, with the busiest words brightest", () => {
+    for (const [id, src] of Object.entries(CODE_SOURCE)) {
+      const p = profileOf(src.template, src.scales[0]!), sp = spriteOf(p);
+      expect(sp.cells.length, id).toBeGreaterThan(5);
+      expect(sp.cells.length, id).toBeLessThanOrEqual(sp.cols * sp.rows);
+      expect(sp.cols * (sp.rows - 1), id).toBeLessThan(sp.cells.length);
+      for (const c of sp.cells) { expect(c.heat).toBeGreaterThanOrEqual(0); expect(c.heat).toBeLessThanOrEqual(1); }
+      expect(Math.max(...sp.cells.map((c) => c.heat)), id).toBe(1);
+    }
+  });
+
+  it("looks different for different jobs", () => {
+    const sig = (id: string) => { const sp = spriteOf(profileOf(CODE_SOURCE[id]!.template, CODE_SOURCE[id]!.scales[0]!)); return sp.cells.map((c) => c.cls[0]).join(""); };
+    expect(new Set(["log", "calc", "scan", "db", "secure", "gpu"].map(sig)).size).toBe(6);
+  });
+});
+

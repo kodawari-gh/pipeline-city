@@ -16,18 +16,26 @@ A job is a generated program (docs/GEN.md) plus a class (`JOB_CLASSES` in `src/s
 Until the in-memory index, no job used more than 8K: RAM above that bought nothing. `db.index` is the first job whose working set is the point: it builds a table of 256-byte records (one per page) at `HEAP_BASE` 0x10000 (`indexBytes(scale)`: 32K at scale 1, doubling at 2, 4, 8 and 16 up to 512K), then makes lookups that scatter over all of it (`indexFill`, `indexProbe` in `src/sim/gen/kernels.ts`). Memory is needed at the same virtual addresses on every OS: physical memory on OS 1, demand-paged frames on OS 2 and 3 (docs/RAM.md "How much RAM the OS uses"). Measured on a cpu2 (base clock): the class's 32K job (scale 1) takes 33 ticks on OS 1, 633 on OS 2 and 1189 on OS 3; the 64K job (scale 3) takes 52 ticks on OS 1 and 1223 on OS 2. The difference is the page faults of a paged OS: one per page claimed, each a trap, a frame allocation, a zeroed page and a table update. This is a balance question (payout and patience were set when this job was a cheap placeholder) and is left for the balance pass.
 
 ## The almanac
-The **Almanac** button in the bottom bar (beside Power; a modal like the shop, Esc closes it) (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobdex.ts`): one card per kind of job, like a pokedex. Each fills in as the player meets it:
+The **Almanac** button in the bottom bar (beside Power; a modal like the shop, Esc closes it) (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobdex.ts`) is a collection like a pokedex. It is mostly pictures, with words kept to a few.
 
-| state | shown |
+**The collection** (left) is the kinds of job in collapsible groups (`DEX_GROUPS`: Everyday, Memory-hungry, Network, Trust, Accelerators, Coming soon), each with its colour, a pip per member (empty, met, finished) and a count. A group header folds it; "Coming soon" starts folded. Each job is a tile with its number (No. 01, 02, ...), its **sprite**, its name and a badge (check: met, gold star: finished, lock: not met).
+
+**The sprite** (`spriteOf` in `src/sim/game/jobcode.ts`, drawn by `src/ui/Sprite.tsx`) is the job's real program as a picture: one cell per instruction word that ran, coloured by what the instruction does (the colours of the listing: arithmetic blue, load amber, store green, multiply violet, branch pink, system grey), as bright as it ran often. A job that is not met is a dark silhouette of the same shape, so the collection shows how big each unknown job is before it is met.
+
+**The page** (right) shows, for a met job: the big sprite and its number; the name and group; one line of what it is; three **rings** for what the job leans on (compute, memory, control, from the instructions it ran) and the instruction mix as a coloured bar; chips with an icon for what it needs (OS, SSD, RAM, TPM...), the level it arrives at and the memory it keeps; and the player's record (stars for finished jobs, the fastest run). Under that is **the program itself, always on the main page**: the assembly listing (address, bytes, the instruction coloured by kind, a heat bar, how often it ran), with tabs for the assembler Source and, once a job is finished, C++ and Python, a scale selector and the numbers of the run (instructions, pages, bytes per instruction). Last are the **ways to do it better** as chips, an icon for the part (`Tip.part`) and a few words (`Tip.short`): a click opens the sentence (`Tip.text`); a part that does not help (`Tip.none`) is crossed out so the player does not buy it for this job. They are locked chips until one job of the kind is finished.
+
+| state | the page shows |
 |---|---|
-| not met | `? ? ?` and the level clients start sending it |
-| met (one arrived) | name, what it is, what it leans on, the memory it keeps, what it needs, the level |
-| done (one finished) | the above plus **how to do it better** (tips, each something the sim really does) and the player's record: how many were finished and the fastest run in ticks of machine time |
-| planned | name and blurb only (web, hpc) |
+| not met | the silhouette, `? ? ?`, the level clients start sending it, what it needs, a locked program and locked tips |
+| met (one arrived) | the above, with the sprite, rings and assembly, and locked tips and high-level code |
+| done (one finished) | everything, with C++ and Python and the tips |
+| planned | the silhouette, the name and a line (hpc) |
 
-The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no version bump): `seen` is the tick the first one arrived, `runs` the jobs delivered, `best` the fewest ticks between the key being plugged and the job being done. It updates when a job arrives (`enqueue`) and when one is delivered (`deliver`), by the label the monitor shows (`Key.type`).
+The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no version bump): `seen` is the tick the first one arrived, `runs` the jobs delivered, `best` the fewest ticks between the key being taken and the job being done. It updates when a job arrives (`enqueue`) and when one is delivered (`deliver`), by the label the monitor shows (`Key.type`).
 
-To add a job: write its template, give it a class, add its `DexEntry` (blurb, what it leans on, memory, tips). `jobdex.test.ts` checks that every non-placeholder class has an almanac entry and every playable entry has at least two tips.
+The web class is a stand-in (it runs the calculation program, levels.ts), so its page shows that program until real web code exists.
+
+To add a job: write its template, give it a class, add its `DexEntry` (blurb, what it leans on, memory, tips each with a part and a few words) and put its id in a group of `DEX_GROUPS`. `jobdex.test.ts` checks that every non-placeholder class has an almanac entry, that every entry is in exactly one group, and that the tips have short labels.
 
 ## The log
 The **Log** button in the bottom bar (beside Almanac; a modal, Esc closes it) (`src/ui/LogPanel.tsx`, data and helpers in `src/sim/game/joblog.ts`) lists the jobs that ended, to find where the machine is slow. Every job that ends adds one `JobLogEntry` (`Game.addLog`), kept as the last 60 (`JOB_LOG_CAP`), sent in `Snapshot.jobLog` and saved as the optional `jobLog` field (no version bump):
@@ -42,29 +50,31 @@ A done job's time is cut in three, in base ticks (seconds): **waiting** (key arr
 
 For a run, the log also keeps a **window of the engine's counters** from the job being taken to its result landing (`Key.c0` read at plug or download, `closeWindow` at `doneAt`, `windowOf` the difference): cycles, instructions, the five stall causes, cache hits and misses, TLB misses and page faults. It counts the whole machine, so with several programs at once the numbers are shared among them; if the machine restarted in between (the counters went backwards) the job has no window. The counters are not saved with a running key: a job that is mid-run when the game is loaded logs without a window.
 
-The view opens on the machine seen from far away, with the recent jobs in a short list beside it. The **overview** (`aggregate`, `byKind`) gives:
-- **Where the time goes:** the average finished job's waiting, running and collecting as one bar, and one reading of it (`verdictOf` on the average job with the counters of all runs added up).
-- **While jobs run:** what the runs' cycles were spent on (`stallShares`: waiting on memory, mispredicted branches, waiting on earlier results, the memory port) and instructions per cycle.
-- **Kinds of job, the ones that cost the most time first:** per kind, the count (with how many were lost or late), its average bar, a one-line reading with what to try, and an **Almanac** button that opens that job's almanac page (`openAlmanacFor`, About tab, where the tips are).
+The view is drawn rather than written. The **overview** (`aggregate`, `byKind`) is:
+- **A ring of where the time goes** (waiting amber, running cyan, collecting violet) with the average job's total in the middle, three big percentages and one coloured **tag** for what held it up.
+- **Inside the runs:** bars, each with an icon and a colour, for what the cycles of the runs were spent on (`stallShares`: waiting on memory, mispredicted branches, waiting on earlier results, the memory port) and instructions per cycle.
+- **By kind of job**, the ones that cost the most time first: a card with the job's sprite (the almanac's picture), its count (with small badges for lost and late ones), its average phase bar, its tag and an **Almanac** button that opens that job's page (`openAlmanacFor`, on the assembly).
 
-Picking a job in the list shows only its three phases, the reading, the cycle breakdown of its run and the Almanac button, with a way back to the overview. `verdictOf` writes the reading from the largest phase: a long wait points at throughput (a faster CPU, an OS that runs several programs, a network plan), a long collect at removing the key, and for a run the biggest stall share (memory, mispredicted branches, earlier results, the memory port), page faults on a paged OS, or compute bound when none stands out.
+The tag is the verdict as a kind and one or two words (`Verdict.kind`, `.tag`): *Queue* (a long wait: busy or off machine, a download), *Result sat* (a long collect), *Memory-bound*, *Branchy*, *Dependencies*, *Port-bound* (the biggest stall of the run, at least a fifth of the cycles), *Paging* (page faults and TLB misses on a paged OS), *Compute-bound* (no stall stands out), *Taken back*, *Declined*. The sentence and what to try are its tooltip (`verdictOf` writes them), so the page holds almost no text.
+
+The short list beside it is the recent jobs: the sprite, the name, the phase bar, the time and a coloured icon for the tag. Picking one shows its sprite, tag, payout, ring and three percentages, and the cycle bars of its run, with a way back to the overview.
 
 `joblog.test.ts` covers the phases, the counter window, the readings, the summary, the per-kind aggregation, and a game that logs a finished job (with a window and a save round trip) and a declined one.
 
 Not built: the log is not written to disk beyond the save (the last 60 only), a job's page faults are the machine's during the run (not its own when several run), and the readings are text rather than a chart over time.
 
 ## Reading the code
-A card for a job that has been met has tabs (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/highlight.ts`):
+The page of a job that has been met shows its program on the main page (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/highlight.ts`):
 
-- **Assembly** (the core view, unlocked when the job is met). The program the generator makes for the job (`profileOf(template, scale)`, a scale selector for the jobs that have one) is **run on the reference interpreter**, counting every instruction by what it does. The view shows:
-  - **Where the work goes:** a bar of the instructions executed by kind (arithmetic and logic, loads, stores, multiplies, branches, system) with their shares, and three **reliance** bars: *compute* (ALU and multiplier), *memory* (loads and stores) and *control* (branches), each a share of the instructions that did something. They point at the hardware to look at: CPU clock and width, caches and RAM, predictor.
-  - **Chips:** instructions run, words of code and of data, distinct 256-byte pages touched, bytes moved (per instruction), and the share of conditional branches taken.
+- **Assembly** (the core view, unlocked when the job is met, and the tab the page opens on). The program the generator makes for the job (`profileOf(template, scale)`, a scale selector for the jobs that have one) is **run on the reference interpreter**, counting every instruction by what it does. From that the page draws:
+  - **The sprite** and **where the work goes:** the program as a picture (see above), a bar of the instructions executed by kind (arithmetic and logic, loads, stores, multiplies, branches, system), and three **rings** for what the job leans on: *compute* (ALU and multiplier), *memory* (loads and stores) and *control* (branches), each a share of the instructions that did something. They point at the hardware to look at: CPU clock and width, caches and RAM, predictor.
+  - **Numbers:** instructions run, distinct 256-byte pages touched and bytes moved per instruction, beside the tabs.
   - **Listing:** every word of the program with its address, its bytes, the instruction coloured by kind (the same colours as the die and the RAM view's pills), a heat bar and the count of how many times it ran, with the kernel labels. The words after the last executed instruction are the program's data and are folded into one line.
-  - **Source:** the assembler text the generator wrote, with labels and comments.
-- **C++ and Python** (unlocked when one of the jobs has been finished): the same job as a person would write it, coloured, with the assembly above kept as the truth. Hand-written per job in `HIGH_LEVEL`.
+- **Source:** the assembler text the generator wrote, with labels and comments.
+- **C++ and Python** (unlocked when one of the jobs has been finished): the same job as a person would write it, coloured, with the assembly kept as the truth. Hand-written per job in `HIGH_LEVEL`.
 
 A **sandbox** game has the whole almanac open: every job (except the planned ones) counts as finished, with all tabs and the tips, and no record.
 
-`jobcode.test.ts` runs every job's program (it halts, shows its text, and its counts add up to the instructions run) and checks that the jobs differ in what they lean on; `highlight.test.ts` checks the colouring and that the pieces always join back to the text.
+`jobcode.test.ts` runs every job's program (it halts, shows its text, and its counts add up to the instructions run), checks that the jobs differ in what they lean on and that their sprites have a cell per executed word and look different; `highlight.test.ts` checks the colouring and that the pieces always join back to the text.
 
 Not built: the C++ and Python versions are written by hand, not compiled from or checked against the program (the assembly is the program), a side-by-side of a line of C++ with the instructions it became, tips that react to the machine, and entries for the sub-kinds of the GPU and NPU jobs.

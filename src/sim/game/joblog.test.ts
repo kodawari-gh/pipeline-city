@@ -34,6 +34,11 @@ describe("job log pieces", () => {
     const mem = verdictOf(entry({ win: win({ stallCache: 500 }) }));
     expect(mem.where).toBe("run");
     expect(mem.text).toContain("memory");
+    expect(mem).toMatchObject({ kind: "memory", tag: "Memory-bound" });
+    expect(verdictOf(entry({ start: 80, finish: 100, end: 102 }))).toMatchObject({ kind: "queue", tag: "Queue" });
+    expect(verdictOf(entry({ win: win({ pageFaults: 300, tlbMisses: 900 }) })).kind).toBe("paging");
+    expect(verdictOf(entry()).kind).toBe("compute");
+    expect(verdictOf(entry({ outcome: "declined" })).kind).toBe("lost");
     expect(verdictOf(entry({ win: win({ stallFlush: 400 }) })).text).toContain("mispredicted");
     expect(verdictOf(entry({ win: win({ pageFaults: 300, tlbMisses: 900 }) })).text).toContain("page faults");
     expect(verdictOf(entry()).text).toContain("CPI");
