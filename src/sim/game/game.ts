@@ -15,13 +15,14 @@ import {
   specsOfKind, type CardSpec, type NicSpec, type StorageSpec, type TpmSpec,
 } from "../board";
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
-import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
+import { walkTable } from "./vmmap";
 import { PAGED_HEAP, PAGED_TABLES, BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { Prng } from "../machine/prng";
-import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, PCB, PCBS, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
@@ -1953,7 +1954,28 @@ export class Game {
     const m = ramMapOf(this.machine.ram, this.ramRegions(jobs));
     const st = (this.machine.engine as { storedState?: () => { dram?: RamMap["dram"] } } | null)?.storedState?.();
     if (st?.dram) m.dram = st.dram;
+    const vm = this.vmSnap(jobs);
+    if (vm) m.vm = vm;
     return m;
+  }
+
+  /** The running programs' page tables read out of RAM (paged OSes only). */
+  private vmSnap(jobs: KernelJob[]): VmSnap | null {
+    const tier = this.os?.spec.tier ?? 0;
+    if (tier < 2 || !this.powered || !this.pch.osMode || this.postError) return null;
+    const bus = this.machine.bus, spaces: VSpaceSnap[] = [];
+    const label = (j: KernelJob): { label: string; owner?: number } => {
+      const key = this.plugged?.id === j.key ? this.plugged : this.spool.find((k) => k.id === j.key);
+      return key ? { label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, owner: key.id } : { label: `program ${j.slot + 1}` };
+    };
+    for (const j of jobs) {
+      if (j.state !== JobState.Running) continue;
+      const table = tier >= 3 ? bus.load32(PCBS + j.slot * PCB.BYTES + PCB.TABLE) : PAGED_TABLES;
+      const w = walkTable(this.machine.ram, table);
+      if (w.pages.length) spaces.push({ ...label(j), table, pages: w.pages.flatMap((p) => [p.vpn, p.frame, p.flags]), tables: w.tables });
+    }
+    const mmu = this.machine.mmu;
+    return { spaces, ...(mmu.faults > 0 ? { fault: { addr: mmu.faultAddr, cause: mmu.cause } } : {}) };
   }
 
   /** What lives where in RAM now: the boot ROM, the OS when it is up, and the program the CPU has loaded (docs/DIE.md "Memory"). */

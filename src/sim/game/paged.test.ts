@@ -105,4 +105,16 @@ describe("the paged OS", () => {
     };
     expect(run()).toBe(run());
   });
+
+  it("the snapshot carries the program's page table, and the frames its tables are in", () => {
+    const g = paged({ keys: [{ template: "cli.scan", scale: 3 }] });
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    g.plugKey(g.trayKeyIds()[0]!);
+    let sp: { pages: number[]; tables: number[]; table: number } | undefined;
+    until(g, () => { const x = g.snapshot().ram?.vm?.spaces[0]; if (x && (!sp || x.pages.length > sp.pages.length)) sp = x; return g.completed === 1 && g.pluggedKey() === null; });
+    expect(sp!.table).toBe(PAGED_TABLES);
+    expect(sp!.tables[0]).toBe(PAGED_TABLES >> 8);
+    expect(sp!.pages.length / 3).toBeGreaterThan(20);
+  });
 });

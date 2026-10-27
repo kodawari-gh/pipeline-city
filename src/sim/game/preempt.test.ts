@@ -144,4 +144,19 @@ spin:
     for (let i = 0; i < 4; i++) g.snapshot();
     expect(g.snapshot().health!.some((h) => h.level === "bad" && /not give them back/.test(h.text))).toBe(true);
   });
+
+  it("the snapshot carries each running program's page table: the ROM, its image and the pages it claimed, with their bits", () => {
+    const g = pre({ keys: [{ template: "cli.scan", scale: 3 }] });
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    g.plugKey(g.trayKeyIds()[0]!);
+    let best: number[] = [];
+    until(g, () => { const sp = g.snapshot().ram?.vm?.spaces[0]; if (sp && sp.pages.length > best.length) best = sp.pages; return g.completed === 1 && g.pluggedKey() === null; });
+    const pages = new Map<number, [number, number]>();
+    for (let i = 0; i < best.length; i += 3) pages.set(best[i]!, [best[i + 1]!, best[i + 2]!]);
+    expect(pages.get(0)![1]).toBe(5);
+    expect(pages.get(0x10)![1]).toBe(7);
+    expect([...pages.keys()].some((v) => v >= 0x40 && v < 0x80 && pages.get(v)![1] === 3)).toBe(true);
+    expect(pages.get(0xc1)![1]).toBe(5);
+  });
 });

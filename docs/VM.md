@@ -33,7 +33,7 @@ A CPU without an MMU cannot switch translation on (`STATUS` bit 0 is 0), and pro
 ## Seen
 - **Die:** a `TLB` block (one cell per entry, showing the virtual page and the frame it maps to) between the register file and the D-cache, with a link from fetch and one from the load/store unit ("translate") and one to the L2 or the system bus ("page walk"); drawn only on CPUs with an MMU.
 - **CLI monitor:** `VM  TLB 8  HIT 91%  FAULTS 12` under the memory line (page faults the kernel fixed count; killed jobs are `Snapshot.faults`).
-- **RAM view:** the program at physical + 0x1000, its claimed frames, and `Page tables` as OS memory.
+- **RAM view:** the program at physical + 0x1000, its claimed frames, and `Page tables` as OS memory. The page tables themselves are read out of RAM for every running program (`Snapshot.ram.vm`, `vmmap.ts`): each mapped page has a bar at the foot of its cell by what the table allows (cyan read and run, magenta read and write, amber all three), and the magnifier's note names the virtual address and rights of the page being touched, per program that maps it. Not shown: unmapped faulting pages (the last fault is in the snapshot, `vm.fault`) and the TLB entries in the view.
 - **Shop and picker:** the CPU's TLB size is a stat; its description says "MMU, n-entry TLB" or "no MMU: physical memory only". OS 2's install is blocked with the reason on a CPU without one.
 
 ## Next

@@ -107,7 +107,13 @@ export interface RamMap {
   image: Uint8Array;
   /** The DRAM's banks and the row open in each (-1: closed); a row is a 256-byte page when `rowBytes` is 256. Absent without a CPU engine that models it. */
   dram?: { channels: number; banks: number; rowBytes: number; open: number[] };
+  /** The address spaces of the programs that run under a paged OS, read out of their page tables (docs/VM.md "Seen"), and the last page fault. */
+  vm?: VmSnap;
 }
+
+/** One address space: its job, the level 1 table's physical address, its mapped pages (flat vpn, frame, flags) and the frames its tables are in. */
+export interface VSpaceSnap { label: string; owner?: number; table: number; pages: number[]; tables: number[] }
+export interface VmSnap { spaces: VSpaceSnap[]; fault?: { addr: number; cause: number } }
 export const RAM_BUCKETS = 256;
 
 export function ramMapOf(ram: Uint8Array, regions: RamRegion[] = []): RamMap {

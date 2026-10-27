@@ -23,6 +23,23 @@ interface Touch { addr: number; kind: string; color: string; t: number }
 interface ChipView { slot: ChipSlot }
 
 /** Text broken into at most `lines` lines of `width` characters (the last one cut short with an ellipsis). */
+/** A signature of the mapped pages, to redraw when a table changes. */
+const vmSig = (m: RamMap): string => (m.vm ? m.vm.spaces.map((s) => `${s.table}:${s.pages.length}:${s.pages.reduce((a, b) => (a * 31 + b) | 0, 0)}`).join(',') : '');
+
+/** What the page tables say about the page that holds `addr`: where each running program sees it (virtual address and what it may do with it), or the last fault. */
+export function vmNote(m: RamMap, addr: number): string {
+  if (!m.vm) return '';
+  const frame = addr >>> 8, out: string[] = [];
+  for (const sp of m.vm.spaces) {
+    for (let i = 0; i < sp.pages.length; i += 3) {
+      if (sp.pages[i + 1] !== frame) continue;
+      const f = sp.pages[i + 2]!;
+      out.push(`${sp.label}: virtual 0x${(sp.pages[i]! * 256).toString(16)} ${f & 1 ? 'R' : '-'}${f & 2 ? 'W' : '-'}${f & 4 ? 'X' : '-'}`);
+    }
+  }
+  return out.slice(0, 2).join(' | ');
+}
+
 function wrap(text: string, width: number, lines: number): string {
   const out: string[] = [];
   let cur = '';
@@ -191,7 +208,7 @@ export class RamView {
     const m = this.map, T = this.T;
     if (!m || !T) return;
     const z = this.zoom;
-    const sig = `${this.regionSig}|${Math.round(z * 4)}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}`;
+    const sig = `${this.regionSig}|${Math.round(z * 4)}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
     if (sig === this.outSig) return;
     this.outSig = sig;
     const g = this.outG;
@@ -236,6 +253,22 @@ export class RamView {
         for (let i = 0; i <= c.slot.tilesX; i++) g.moveTo(cr.x + i * cw, cr.y).lineTo(cr.x + i * cw, cr.y + ch * c.slot.tilesY);
         for (let j = 0; j <= c.slot.tilesY; j++) g.moveTo(cr.x, cr.y + j * ch).lineTo(cr.x + cw * c.slot.tilesX, cr.y + j * ch);
         g.stroke({ width: Math.max(0.15, 0.6 / z), color: T.line, alpha: 0.55 });
+      }
+    }
+    // the page tables: a bar at the foot of every page a program has mapped, by what the table allows (read and run: cyan, read and write: magenta, all three: amber)
+    if (outlines && m.vm) {
+      const seen = new Set<number>();
+      for (const sp of m.vm.spaces) {
+        for (let i = 0; i < sp.pages.length; i += 3) {
+          const frame = sp.pages[i + 1]!, fl = sp.pages[i + 2]!;
+          if (seen.has(frame)) continue;
+          seen.add(frame);
+          const c = this.chipOf(frame * PAGE);
+          if (!c) continue;
+          const sx = chipContent(c.slot.rect), cw = sx.w / c.slot.tilesX, ch = sx.h / c.slot.tilesY, off = frame - c.slot.lo / PAGE;
+          const x = sx.x + (off % c.slot.tilesX) * cw, y = sx.y + Math.floor(off / c.slot.tilesX) * ch;
+          g.rect(x + 1, y + ch - Math.max(1.2, ch * 0.16) - 0.6, cw - 2, Math.max(1.2, ch * 0.16)).fill({ color: fl & 4 && fl & 2 ? T.ld : fl & 4 ? T.alu : T.br, alpha: 0.95 });
+        }
       }
     }
     if (outlines) {
@@ -321,7 +354,7 @@ export class RamView {
     this.lens.scale.set(k);
     this.lens.position.set(cx - (LENS_W * k) / 2, top);
     this.lensAt = { x: cx, y: below ? top : top + LENS_H * k };
-    const sig = `${addr}|${this.imgVersion}|${color}|${focus?.kind ?? ''}|${this.regionSig}|${T.dark}`;
+    const sig = `${addr}|${this.imgVersion}|${color}|${focus?.kind ?? ''}|${this.regionSig}|${T.dark}|${vmSig(m)}`;
     if (sig === this.lensSig) return;
     this.lensSig = sig;
     const rows = lensRows(m.image, m.regions, addr, LENS_ROWS);
@@ -337,7 +370,7 @@ export class RamView {
     this.lensTag.style.fill = color;
     if (!this.lensNote) { this.lensNote = label('', 8, 16 + LENS_ROWS * LINE + 8, 7, T.mute, { minPx: 4, anchor: [0, 0], align: 'left' }); this.lens.addChild(this.lensNote); }
     this.lensNote.position.set(8, 16 + LENS_ROWS * LINE + 8);
-    this.lensNote.text = '';
+    this.lensNote.text = vmNote(m, addr);
     this.lensNote.style.fill = T.mute;
     const classColor: Record<OpClass, string> = { alu: T.alu, ld: T.ld, st: T.st, mul: T.mul, br: T.br, sys: T.mute };
     // the key to the pills: what kind of instruction each colour is
