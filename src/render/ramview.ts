@@ -266,15 +266,11 @@ export class RamView {
           const k = keys.find((q) => q.name === name);
           if (k) k.bytes += n; else keys.push({ name, color: regionColor(r.kind === 'osdata' ? { ...r, kind: 'os' } : r.kind === 'work' ? { ...r, kind: 'app' } : r, T), bytes: n });
         }
-        const SZ = 9, line = (n: number) => (flip ? y - 4 - n * 11 : y + h + 3 + n * 11);
-        const shown = keys.slice(0, 2);
-        shown.forEach((k, i) => {
-          const t = this.text(this.stickTexts, ns++, SZ, k.color);
-          t.text = `${k.name} ${sizeText(k.bytes)}`; t.style.fill = k.color; t.anchor.set(0, flip ? 1 : 0); t.position.set(x, line(i)); t.visible = true;
-        });
-        [['READ', T.alu], ['WRITE', T.br]].forEach(([name, col], i) => {
-          const k = this.text(this.stickTexts, ns++, SZ, col!);
-          k.text = name!; k.style.fill = col!; k.anchor.set(0, flip ? 1 : 0); k.position.set(x + i * 34, line(shown.length)); k.visible = true;
+        // the key is colour only: a swatch per owner on this stick, then the read and write colours
+        const sw = [...keys.slice(0, 6).map((k) => k.color), T.alu, T.br];
+        sw.forEach((col, i) => {
+          const gap = i >= sw.length - 2 ? 6 : 0;
+          g.roundRect(x + i * 11 + gap, flip ? y - 9 : y + 3, 8, 6, 2).fill({ color: col });
         });
       }
     }
@@ -340,7 +336,7 @@ export class RamView {
     this.lensTag.style.fill = color;
     if (!this.lensNote) { this.lensNote = label('', 8, 16 + LENS_ROWS * LINE + 8, 7, T.mute, { minPx: 4, anchor: [0, 0], align: 'left' }); this.lens.addChild(this.lensNote); }
     this.lensNote.position.set(8, 16 + LENS_ROWS * LINE + 8);
-    this.lensNote.text = reg ? wrap(`${sizeText(reg.hi - reg.lo)}: ${reg.note}`, 64, NOTE_LINES) : '';
+    this.lensNote.text = '';
     this.lensNote.style.fill = T.mute;
     const classColor: Record<OpClass, string> = { alu: T.alu, ld: T.ld, st: T.st, mul: T.mul, br: T.br, sys: T.mute };
     // the key to the pills: what kind of instruction each colour is
@@ -348,10 +344,9 @@ export class RamView {
     CLASS_KEY.forEach(([c, name], i) => {
       let k = this.lensKey[i];
       if (!k) { k = label('', 0, 0, 7, T.mute, { minPx: 4, anchor: [0, 0.5] }); this.lensKey[i] = k; this.lens.addChild(k); }
-      k.text = name; k.style.fill = classColor[c];
-      g.roundRect(kx, LENS_H - 11, 6, 5, 2).fill({ color: classColor[c] });
-      k.position.set(kx + 9, LENS_H - 8.5);
-      kx += 9 + name.length * 4.6 + 8;
+      k.text = ''; k.style.fill = classColor[c]; void name;
+      g.roundRect(kx, LENS_H - 11, 12, 5, 2).fill({ color: classColor[c] });
+      kx += 18;
     });
     rows.forEach((row, i) => {
       const y = 16 + i * LINE;

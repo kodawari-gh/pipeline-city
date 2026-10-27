@@ -100,7 +100,6 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
     const cy = fy(84 + j * 128, 112);
     box(g, 27, cy, 116, 112, 8, { fill: T.tile, stroke: T.line, lw: 5 });
     chips.push({ x: 27, y: cy, w: 116, h: 112 });
-    labels.addChild(label('DRAM', 85, cy + 12, 15, T.mute, { anchor: [0.5, 0.5] })); // the strip above the chip's memory map (ramview.ts)
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks
@@ -111,7 +110,6 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   g.fill({ color: T.pin });
   for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, fy(24, 14), 8, 14);
   g.fill({ color: accent, alpha: 0.9 });
-  labels.addChild(label(`${spec.banks} BANKS`, DIMM_W / 2, fy(58), 20, accent, { anchor: [0.5, 0.5], head: true })); // what the stick is, not how big (the OS knows the size)
   root.addChild(labels);
   return { root, labels, chips };
 }
