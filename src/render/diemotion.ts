@@ -218,11 +218,14 @@ export class StoreReplay {
   readAt: number[];
   d: CacheView; i?: CacheView; l2?: CacheView;
   pred: { entries: number; bits: number; table: number[]; at: number[] };
+  /** The TLB at the snapshot (not rewound: it shows what is in it now). */
+  tlb?: { vpn: number[]; frame: number[] };
   readonly events: StoreEvent[] = [];
   private byCycle = new Map<number, StoreEvent[]>();
 
   constructor(st: StoredSnap) {
     this.regs = st.regs.slice();
+    this.tlb = st.tlb;
     this.regAt = new Array(this.regs.length).fill(-1);
     this.readAt = new Array(this.regs.length).fill(-1);
     this.d = cacheView(st.d);

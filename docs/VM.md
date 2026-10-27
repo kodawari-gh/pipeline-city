@@ -1,29 +1,43 @@
-# Virtual memory: plan
+# Virtual memory
 
-Status: **plan, nothing built.** The OS tiers 2 and 3 (several programs, preemption) need it: today a program is built for `USER_BASE` and sees physical memory, so two programs cannot coexist, and the memory protection unit (docs/OS.md) is a bolt-on.
+Status: **built** — the MMU and TLB (`src/sim/machine/mmu.ts`), translation and precise page faults in all four engines, the paged OS 2 (`src/sim/os/kernel.ts`, `kernelSource(true)`), the TLB on the die and the VM line on the CLI monitor. Not built: several programs resident at once (cooperative / preemptive switching: OS 2's `programSlots` is 1 for now), swap to the drive, the page tables as a navigable view in the RAM magnifier.
 
-## What it is in this game
-Each program gets its own **address space**: it always starts at the same virtual address, whatever physical pages hold it. The **MMU** translates every virtual address to a physical one through a **page table** the OS keeps in RAM, with a **TLB** (a small cache of translations) in front. A missing translation is a **page fault**: the OS maps a page (claiming it on first write: the "programs claim memory by writing" rule we have now), or loads it from the drive (swap), or kills the program (a write outside its space: the SEGFAULT we have now).
+## The hardware
+A CPU either has an **MMU** (`CpuSpec.mmu = { tlb }`: cpu2 and up; cpu0 and cpu1 have none) or it does not. With translation on, the CPU's instruction fetches, loads and stores use **virtual addresses**: a 20-bit space (1 MiB) of 256-byte pages (the size of a drive block and of a DRAM row), translated through a **two-level page table** the OS keeps in RAM:
 
-## Pieces
-1. **Sim: MMU device** (`src/sim/machine/mmu.ts`): page table base register, enable bit, a TLB of N entries (N is a CPU spec), permission bits per page (read, write, execute, user). The bus asks the MMU before RAM. The MPU is replaced by page permissions (kernel pages not user-writable); the fault handler stays.
-2. **Page walks cost cycles.** A TLB miss walks a two-level table: two RAM reads through the caches and DRAM (so it shows on the die and in the row buffers). A page fault costs a trap into the kernel.
-3. **Engines:** loads, stores and instruction fetch translate; the engine keeps the translation for the access (like `missCost` keeps the RAM answer). Instruction fetch gets an ITLB, data a DTLB (`tlbEntries`, default 0 = off, so goldens stay). Faults must be precise: the engines already drain for interrupts, so a fault is an interrupt taken at the faulting instruction.
-4. **ISA:** a few registers in the MMU's MMIO window (table base, enable, fault address, fault cause); no new opcodes. `iret` returns to the faulting instruction.
-5. **OS (kernel in asm):** page-table builder, page-fault handler (claim a zeroed page, or swap in), frame allocator, per-process tables, context switch on `iret`. OS 2 (cooperative) switches on yield, OS 3 on a timer interrupt; both need the process table the CLI already shows.
-6. **Swap:** pages evicted to the drive (the spool area) when RAM is full: this makes RAM size matter again once programs are many. It costs real drive time.
+```
+virtual address:  [ level 1 index (6) | level 2 index (6) | offset (8) ]
+table entry:      bit 0 valid, bit 1 write, bit 2 execute, bits 8.. the frame (physical address >> 8)
+```
 
-## Visual updates
-- **CPU die:** MMU and TLB blocks next to the load/store and fetch units (floorplans for every architecture that has them; TLBs are small cell grids like the caches, entries show the virtual page and the frame); a translate step on the load/store and fetch paths (a packet through the TLB; a lit wire to the page walker and the memory controller on a TLB miss).
-- **RAM view:** pages are coloured by owner already; with address spaces the magnifier shows both addresses and the page tables are a region of their own. A page fault outlines the page and shows it filling.
-- **CLI monitor:** the process table gets virtual size, resident size, faults and swapped pages per process.
-- **Memory scale** (docs/RAM.md "Larger memory"): the page tables are the natural place to cheat big memory: a sparse table maps virtual pages onto a small set of real frames.
+Addresses from `DEVICE_BASE` (0x4000_0000) up are devices and are never translated. The MMU is a device on the bus at `MMU_BASE` (`MMU_REG`: status, control, table, vector, fault address and cause, TLB entries, fault count).
 
-## Order of work
-1. MMU device and TLB model with tests on the bare machine (no OS), all engines.
-2. Page walks through caches and DRAM, counters, die blocks and packets.
-3. Kernel: tables, fault handler; claim-on-write replaces the dirty-page tracking in `game.ts`.
-4. OS 2 (two programs resident), process table on the CLI.
-5. Swap, OS 3 (timer, preemption).
+- **TLB.** A translation the TLB has costs nothing. A miss is a **table walk**: two reads of the table, each paid like any cache miss (through the L2 and DRAM, so a walk can hit or miss the L2 and open a DRAM row) and waited out by the CPU. The TLB is unified, fully associative, least-recently-used; writing the table register or the control flush bit empties it. Caches are physical: a translation precedes every cache lookup.
+- **Page faults** are **precise and restartable.** A fault is an access the tables do not allow (no page, a write to a read-only page, a fetch from a page without execute, an address outside 20 bits). The faulting instruction has done nothing, everything older has finished, everything younger is gone; the CPU goes to the OS handler (`MMU_REG.VECTOR`) on physical addresses; `iret` re-runs the instruction with translation on again (the MMU remembers it was on: a trap or an interrupt switches it off, `iret` back on). The handler reads the faulting address and cause from the MMU and the retry address from the interrupt controller (`EPC`). Engines: the in-order ones take it at EX (the stage is never speculative), the out-of-order one at commit (a wrong-path fault is squashed with the instruction); fetch faults ride on the fetched slot so speculative fetch never traps. Counters `tlbHits / tlbMisses / pageFaults`.
 
-Open questions: page size (256 B like the drive block and the DRAM row is simplest and matches the visuals); CPU tiers differ by TLB size and walk hardware (this is the CPU-architecture change the tree needs).
+A CPU without an MMU cannot switch translation on (`STATUS` bit 0 is 0), and programs only ever see physical memory.
+
+## OS 2 (the paged OS)
+`os2` ("Paged OS 2.0", level 8; `OsSpec.needsMmu`) cannot be installed on a CPU without an MMU, and a machine whose CPU was swapped for one falls back to the key loader. Its kernel gives every job an address space (`kmap`) before it runs:
+
+| virtual | what | how |
+|---|---|---|
+| 0x0000–0x0fff | the boot ROM (the job ends by jumping into it) | identity, read and run |
+| 0x1000.. | the program's image | physical + 0x1000, read, write, run |
+| 0x4000–0x7fff | the heap | **claimed by page faults** |
+| 0xc000–(kernel end) | the OS (header, kernel, job table) | identity, read and run, **never written** |
+| 0xf000–0xffff | the stack | **claimed by page faults** |
+
+`kpf` is the page-fault handler: a fault on a page of the heap or the stack takes a frame from the kernel's bump pointer (`KBUMP`, from `PAGED_HEAP` up to the tables at `PAGED_TABLES`), zeroes it, maps it read and write, and returns; the program's registers are restored, the instruction runs again. Any other fault (the OS, the ROM, an unmapped page, a write to read-only memory, no frames left) goes to `kfault`: the job is killed with the `SEGFAULT` result and counted (`KFAULTS`, `Snapshot.faults`), exactly like OS 1's protection fault. So **programs claim memory as they need it**, and the frames they claimed are what the RAM view and the CLI process table show (`work` regions, read from `KBUMP`); the frames go back when the next job starts. OS 1 keeps the memory protection unit and needs no MMU.
+
+## Seen
+- **Die:** a `TLB` block (one cell per entry, showing the virtual page and the frame it maps to) between the register file and the D-cache, with a link from fetch and one from the load/store unit ("translate") and one to the L2 or the system bus ("page walk"); drawn only on CPUs with an MMU.
+- **CLI monitor:** `VM  TLB 8  HIT 91%  FAULTS 12` under the memory line (page faults the kernel fixed count; killed jobs are `Snapshot.faults`).
+- **RAM view:** the program at physical + 0x1000, its claimed frames, and `Page tables` as OS memory.
+- **Shop and picker:** the CPU's TLB size is a stat; its description says "MMU, n-entry TLB" or "no MMU: physical memory only". OS 2's install is blocked with the reason on a CPU without one.
+
+## Next
+1. Several programs resident (OS 2's second half): a process table per address space, cooperative switching when a program yields, a context switch in the kernel (registers, table register).
+2. Preemption (OS 3): a timer interrupt, the same context switch on a clock.
+3. Swap: evict pages to the spool when the frames run out; real drive time, so RAM size matters again.
+4. The page tables in the RAM magnifier (virtual and physical address side by side, a fault outlining its page), and live TLB events on the die (a fill, a walk, a fault).

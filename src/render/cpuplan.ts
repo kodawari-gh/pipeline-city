@@ -19,7 +19,7 @@ export type BlockKind =
   | 'pc' | 'pcadd' | 'nextpc' | 'fetch' | 'port' | 'icache' | 'predictor' | 'queue'
   | 'imm' | 'decode' | 'bundle' | 'hazard' | 'control'
   | 'regfile' | 'alu' | 'mul' | 'branch' | 'forward' | 'mmio' | 'lsu' | 'wb'
-  | 'dcache' | 'l2'
+  | 'dcache' | 'l2' | 'tlb'
   | 'rename' | 'rob' | 'sched' | 'resultbus' | 'ring';
 
 /** Entries a block shows as cells, an exact `cols` x `rows` (never a partial row). */
@@ -73,6 +73,8 @@ export interface PlanInput {
   ways?: number;
   icacheLines?: number;
   l2Lines?: number;
+  /** The MMU's TLB entries (0 or absent: the CPU has no MMU and no TLB block is drawn). */
+  tlbEntries?: number;
   /** Predictor table entries and bits per entry (default 64 x 1; none on the unpipelined engine). */
   predEntries?: number;
   predBits?: number;

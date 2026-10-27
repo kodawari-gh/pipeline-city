@@ -183,6 +183,7 @@ export const REGIONS: Record<string, Description> = {
   'cpu.mmio': { title: 'Device check', plain: 'Sends device addresses past the cache.', nerd: 'Address check: the device range is uncached and goes to the bus.' },
   'cpu.lsu': { title: 'Load and store', plain: 'Reads or writes memory for loads and stores.', nerd: 'MEM: load/store unit, data access through the D-cache.' },
   'cpu.wb': { title: 'Write back', plain: 'Puts the result into a register. The instruction is done.', nerd: 'WB: register file write, retire.' },
+  'cpu.tlb': { title: 'TLB', plain: 'Remembers where recent addresses are, so each access does not have to look them up.', nerd: 'Translation lookaside buffer of the MMU: virtual page to physical frame. A miss walks the two-level page table in RAM (through the L2) and the CPU waits for it; a missing or forbidden page is a page fault, which the OS handles.' },
   'cpu.dcache': { title: 'Data cache', plain: 'A small, fast copy of recent data.', nerd: 'D-cache: direct mapped or set associative; a miss freezes the pipeline for the RAM latency.' },
   'cpu.l2': { title: 'Second-level cache', plain: 'A bigger, slower cache behind the small ones.', nerd: 'L2: shared by both L1 caches, in front of RAM.' },
   'cpu.rename': { title: 'Rename table', plain: 'Gives every result its own register so instructions can overtake each other.', nerd: 'Register alias table: maps each architectural register to the newest producer.' },

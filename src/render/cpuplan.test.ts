@@ -19,6 +19,10 @@ const CONFIGS: [string, PlanInput][] = [
   ['ooo + I-cache', { arch: 'ooo', width: 2, robSize: 16, schedSize: 10, fetchQueue: 4, cacheLines: 16, icacheLines: 16 }],
   ['ooo wide', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, predEntries: 512, predBits: 2 }],
   ['ooo scalar', { arch: 'ooo', width: 1, robSize: 2, schedSize: 1, fetchQueue: 2, cacheLines: 8 }],
+  ['5-stage + MMU', { arch: 'inorder', forwarding: true, cacheLines: 16, tlbEntries: 4 }],
+  ['2-wide + MMU + L2', { arch: 'inorder2', forwarding: true, cacheLines: 64, ways: 4, icacheLines: 16, l2Lines: 64, tlbEntries: 16 }],
+  ['ooo + MMU', { arch: 'ooo', width: 2, robSize: 16, schedSize: 10, fetchQueue: 4, cacheLines: 16, icacheLines: 16, tlbEntries: 8 }],
+  ['ooo wide + MMU + L2', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, icacheLines: 32, l2Lines: 128, tlbEntries: 32 }],
   ['4 cores in-order', { arch: 'inorder', forwarding: true, cacheLines: 16, cores: 4, l2Lines: 64 }],
   ['8 cores in-order', { arch: 'inorder', forwarding: true, cacheLines: 8, cores: 8, l2Lines: 128 }],
   ['2 cores ooo', { arch: 'ooo', width: 4, robSize: 32, schedSize: 16, fetchQueue: 8, cacheLines: 64, ways: 4, cores: 2, l2Lines: 128 }],
@@ -258,5 +262,27 @@ describe('channel router', () => {
   it('fails loudly when a block is walled in', () => {
     const blocks = [mk('a', { x: 150, y: 100, w: 40, h: 40 }), mk('wall', { x: 40, y: 40, w: 320, h: 220 }), mk('b', { x: 380, y: 280, w: 10, h: 10 })];
     expect(() => routeLinks(die, blocks, [{ id: 'l', kind: 'data', from: 'a', to: 'b' }])).toThrow(/no route|no free edge/);
+  });
+});
+
+describe('the TLB', () => {
+  it('is drawn when the CPU has an MMU, with one cell per entry and the links of translation and the page walk, and not otherwise', () => {
+    for (const tlb of [4, 8, 16, 32]) {
+      for (const arch of ['inorder', 'inorder2', 'ooo'] as const) {
+        const p = cpuPlan({ arch, cacheLines: 16, tlbEntries: tlb, l2Lines: tlb % 8 === 0 ? 64 : 0 });
+        const b = p.blocks.find((x) => x.kind === 'tlb');
+        expect(b, `${arch} ${tlb}`).toBeDefined();
+        expect(b!.grid!.count).toBe(tlb);
+        for (const id of ['lsu-tlb', 'fetch-tlb', 'tlb-walk']) expect(p.links.some((l) => l.id === id), `${arch} ${id}`).toBe(true);
+      }
+    }
+    for (const arch of ['unpipelined', 'inorder', 'ooo'] as const) expect(cpuPlan({ arch, cacheLines: 8 }).blocks.some((x) => x.kind === 'tlb')).toBe(false);
+  });
+
+  it('every shipped CPU with an MMU draws its TLB at the size of its spec', () => {
+    for (const s of specsOfKind('cpu') as CpuSpec[]) {
+      const p = cpuPlan(planInput(s.engine, s.mmu ? { tlbEntries: s.mmu.tlb } : {}));
+      expect(p.blocks.find((x) => x.kind === 'tlb')?.grid?.count, s.id).toBe(s.mmu?.tlb);
+    }
   });
 });

@@ -243,6 +243,7 @@ export function statsOf(specId: string): Stat[] {
         { key: 'compute', label: 'Number crunching', icon: 'clock', value: p.compute, unit: '', higherIsBetter: true },
         { key: 'memory', label: 'Big data', icon: 'memory', value: p.memory, unit: '', higherIsBetter: true },
         { key: 'branchy', label: 'Branchy code', icon: 'clock', value: p.branchy, unit: '', higherIsBetter: true },
+        { key: 'tlb', label: 'Virtual memory (TLB)', icon: 'memory', value: spec.mmu?.tlb ?? 0, unit: '', higherIsBetter: true },
         { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
       ];
     }

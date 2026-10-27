@@ -183,6 +183,7 @@ export function describeSpec(spec: DeviceSpec): Description {
   const bits: string[] = [`tier ${spec.tier}`];
   if (spec.kind === 'cpu') {
     bits.push(...cpuFeatures(spec.engine));
+    bits.push(spec.mmu ? `MMU, ${spec.mmu.tlb}-entry TLB (virtual memory)` : 'no MMU: physical memory only');
     if (spec.branch) bits.push(`leans ${spec.branch === 'frontend' ? 'on the front end (branchy code)' : spec.branch === 'memory' ? 'on memory (big data)' : 'wide (everything)'}`);
   }
   if (spec.kind === 'ram') bits.push(`${spec.sizeBytes / 1024}K`, `latency ${spec.latency}`, `${spec.banks} banks`, ...(spec.ecc ? ['ECC: fixes flipped bits, a TPM needs it'] : []));

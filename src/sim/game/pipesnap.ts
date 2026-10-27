@@ -59,6 +59,8 @@ export interface StoredSnap {
   l2?: CacheSnap;
   pred: { entries: number; bits: number; table: number[] };
   events: number[];
+  /** The MMU's TLB: the virtual page and the frame of every entry (-1: empty). Present when the CPU has an MMU. */
+  tlb?: { vpn: number[]; frame: number[] };
 }
 
 export interface PipeSnap {

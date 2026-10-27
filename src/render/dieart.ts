@@ -20,7 +20,7 @@ export const KIND_COLOR: Record<BlockKind, Key> = {
   pc: 'alu', pcadd: 'alu', nextpc: 'alu', fetch: 'alu', port: 'ld', icache: 'ld', predictor: 'br', queue: 'alu',
   imm: 'alu', decode: 'alu', bundle: 'mul', hazard: 'br', control: 'br',
   regfile: 'st', alu: 'alu', mul: 'mul', branch: 'br', forward: 'st', mmio: 'ld', lsu: 'ld', wb: 'alu',
-  dcache: 'ld', l2: 'ld', rename: 'alu', rob: 'mul', sched: 'mul', resultbus: 'mul', ring: 'mul',
+  dcache: 'ld', l2: 'ld', tlb: 'st', rename: 'alu', rob: 'mul', sched: 'mul', resultbus: 'mul', ring: 'mul',
 };
 export const LINK_COLOR: Record<LinkKind, Key> = { data: 'alu', control: 'mute', flush: 'bad', forward: 'st', wakeup: 'mul', irq: 'br', mem: 'ld', mmio: 'ld', power: 'ld' };
 /** Links drawn dashed: they carry an event, not a stream. */
@@ -159,4 +159,4 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
 }
 
 /** The floorplan of a CPU spec (cached by its input). */
-export const planOf = (spec: CpuSpec): CpuPlan => cpuPlan(planInput(spec.engine));
+export const planOf = (spec: CpuSpec): CpuPlan => cpuPlan(planInput(spec.engine, spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}));

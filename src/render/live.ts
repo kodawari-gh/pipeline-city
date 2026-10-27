@@ -769,18 +769,25 @@ export class Live {
       // memory is the OS's business, not the sticks': what the system holds, what the process holds (its image and what it claimed), what is free
       const mt = s.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
       if (mt) rows.push({ t: pad(`MEM ${sizeText(mt.total)}  SYS ${sizeText(mt.sys)}`, `FREE ${sizeText(mt.free)}`), c: OS_DIM });
+      // the paged OS: the MMU's counters (translations the TLB had, page faults the kernel fixed)
+      const vm = s.mmu && (s.os?.tier ?? 1) >= 2 ? s.mmu : null;
+      if (vm) {
+        const all = vm.hits + vm.misses;
+        rows.push({ t: `VM  TLB ${vm.tlb}  HIT ${all ? Math.round((100 * vm.hits) / all) : 100}%  FAULTS ${vm.faults}`, c: OS_DIM });
+      }
       const proc = mt?.procs[0];
-      this.osBarRow = mt ? 4 : 3;
+      const shown = mt ? (vm ? 2 : 3) : 4;
+      this.osBarRow = (mt ? 4 : 3) + (vm ? 1 : 0);
       if (ph === 'ingesting') { rows.push({ t: `INGESTING KEY ${s.plugged?.label ?? ''}`, c: OS_CYAN }); this.osJob = 'ingest'; }
       else if (ph === 'flashing') { rows.push({ t: `WRITING RESULT ${s.plugged?.label ?? ''}`, c: OS_AMBER }); this.osJob = 'flash'; }
       else if (running) { rows.push({ t: proc ? `RUN  ${running.label}  ${sizeText(proc.image)}+${sizeText(proc.claimed)}`.slice(0, 26) : `RUN  ${running.label}`, c: OS_INK }); this.osJob = 'run'; }
       else rows.push({ t: 'IDLE  insert a key', c: OS_DIM });
       const rest = q.filter((j) => j !== running);
-      for (const j of rest.slice(0, mt ? 3 : 4)) {
+      for (const j of rest.slice(0, shown)) {
         const st = j.state === 'result' ? 'DONE' : j.state === 'queued' ? (j.ahead <= 0 ? 'NEXT' : `+${j.ahead} AHEAD`) : 'RUN';
         rows.push({ t: pad(`  ${j.label}`.slice(0, 28), st), c: j.state === 'result' ? OS_AMBER : OS_INK });
       }
-      if (rest.length > (mt ? 3 : 4)) rows.push({ t: `  +${rest.length - (mt ? 3 : 4)} MORE`, c: OS_DIM });
+      if (rest.length > shown) rows.push({ t: `  +${rest.length - shown} MORE`, c: OS_DIM });
       while (rows.length < 8) rows.push({ t: '', c: OS_DIM });
       const ready = q.filter((j) => j.state === 'result');
       if (s.keyActivity === 'done' && s.plugged) rows.push({ t: `REMOVE KEY ${s.plugged.label}`, c: OS_INK });

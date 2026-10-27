@@ -483,6 +483,18 @@ export class DieView {
     drawCache('i', cacheBlock('icache'), st.i, (w) => (w ? (disassemble(w[0]!).split(' ')[0] ?? '') : '··'), T.ld);
     drawCache('l2', cacheBlock('l2'), st.l2, (w) => (w ? showValue(w[0]!) : '··'), T.ld);
 
+    // the TLB: the virtual page each entry stands for and the frame it maps to
+    const tl = cacheBlock('tlb');
+    if (tl && st.tlb) {
+      const cs = cellRects(tl), ct = this.texts_('data:tlb', used), tb = st.tlb;
+      cs.forEach((r, k) => {
+        const vpn = tb.vpn[k] ?? -1;
+        if (vpn < 0) { ct.hide(k); return; }
+        box(g, r.x, r.y, r.w, r.h, 1.5, { fill: T.st, fa: 0.3 });
+        ct.set(k, 'v' + hex(vpn * 256, 4), 'p' + hex((tb.frame[k] ?? 0) * 256, 4), r, T.ink);
+      });
+    }
+
     // the branch predictor: a counter per entry, brighter the more sure it is of "taken"
     const bp = cacheBlock('predictor');
     if (bp) {

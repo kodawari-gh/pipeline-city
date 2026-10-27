@@ -78,3 +78,6 @@ At the CPU die's zoom levels (cells 0.8x, keys 0.85x, details 1.2x; below 0.7x t
 2. **Snapshot data and the new renderer** for the five existing CPUs (built: `pipeline.ts`, `BLOCKS`/`STAGES` and the fixed tiles are gone; hover ids and descriptions come from the plan; the thumbnails keep the far die).
 3. **Sim features** (I-cache, 2-bit and bigger predictor, set-associative D-cache, shared L2; default off so existing timings do not move), **new CPU parts** and the branching tree, the picker's branching ladder with measured speed numbers.
 4. Later: the multicore simulation (`cores > 1`) and the CPU gallery.
+
+## The TLB
+A CPU with an MMU (docs/VM.md) has a `tlb` block between the register file and the D-cache: one cell per entry, showing the virtual page and the frame it maps to (state at the snapshot), with links `fetch-tlb` and `lsu-tlb` (translate) and `tlb-walk` to the L2 or the system bus. `PlanInput.tlbEntries` (from `CpuSpec.mmu.tlb`) switches it on; the unpipelined CPU has none.

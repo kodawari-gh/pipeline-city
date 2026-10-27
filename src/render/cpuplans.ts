@@ -57,7 +57,7 @@ function edgeLinks(coreTops: string[], pcId: string, clockTo: string): L[] {
 function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
   const un = i.arch === 'unpipelined', two = i.arch === 'inorder2', fwd = i.forwarding ?? true;
   const lines = i.cacheLines ?? 8, ways = i.ways ?? 1;
-  const icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0;
+  const icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0, tlb = i.tlbEntries ?? 0;
   const predEntries = i.predEntries ?? 64, predBits = i.predBits ?? 1;
   const frame = (id: string, label: string, stage: number, kids: Node[], f: number) => col(kids, { frame: { id, kind: 'stage', label, stage }, f });
   const latch = (k: number, name: string) => leaf(`lat${k}`, 'latch', name, { px: 30 });
@@ -111,6 +111,7 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
   const southRow = row([
     ...(icLines > 0 ? [leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: un ? cover(0, 0) : cover(0, 1) })] : []),
     leaf('rf', 'regfile', 'REGISTER FILE', { cells: 16, sub: two ? '4 read · 2 write' : '2 read · 1 write', px: icLines > 0 ? (un ? cover(1, 2) : cover(2, 5)) : (un ? cover(0, 2) : cover(0, 5)) }),
+    ...(tlb > 0 ? [leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })] : []),
     leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
   ], { f: 31 });
   const tree = col([
@@ -159,6 +160,8 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
   specs.push(['wb-rf', 'data', 'wb', 'rf', 2, 'write']);
   // memory
   specs.push(['lsu-dc', 'data', 'lsu', 'dc', 2, undefined, true], ['dev-fab', 'mmio', 'dev', 'fabric', 2, 'device access']);
+  // the MMU: loads, stores and instruction fetches are translated, and a TLB miss walks the page table through the L2 and RAM
+  if (tlb > 0) specs.push(['lsu-tlb', 'control', 'lsu', 'tlb', 1, 'translate'], ['fetch-tlb', 'control', 'fetch', 'tlb', 1, 'translate'], ['tlb-walk', 'mem', 'tlb', l2Lines > 0 ? 'l2' : 'fabric', 3, 'page walk']);
   if (l2Lines > 0) {
     specs.push(['dc-l2', 'mem', 'dc', 'l2', 3, undefined, true], ['l2-fab', 'mem', 'l2', 'fabric', 3, undefined, true]);
     if (icLines > 0) specs.push(['ic-l2', 'mem', 'ic', 'l2', 3, undefined, true]);
@@ -174,7 +177,7 @@ function pipeline(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node
 
 function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: Node; specs: LinkSpec[] } {
   const W = i.width ?? 2, rob = i.robSize ?? 8, sched = i.schedSize ?? 6, fq = i.fetchQueue ?? 4;
-  const lines = i.cacheLines ?? 8, ways = i.ways ?? 1, icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0;
+  const lines = i.cacheLines ?? 8, ways = i.ways ?? 1, icLines = i.icacheLines ?? 0, l2Lines = i.l2Lines ?? 0, tlb = i.tlbEntries ?? 0;
   const predEntries = i.predEntries ?? 64, predBits = i.predBits ?? 1;
   const frame = (id: string, label: string, stage: number, kids: Node[], f: number) => col(kids, { frame: { id, kind: 'stage', label, stage }, f });
   const defs = [{ f: 1.35 }, { f: 0.45 }, { f: 0.95 }, { f: 1.05 }, { f: 1.1 }, { f: 1.25 }, { px: 26 }];
@@ -204,6 +207,7 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
     ...(icLines > 0 ? [leaf('ic', 'icache', 'I-CACHE', { cells: icLines, sub: cacheSub(icLines, 1), px: cover(0, 1) })] : []),
     leaf('rf', 'regfile', 'REGISTER FILE', { cells: 16, sub: `${W} read · commit write`, px: icLines > 0 ? cover(2, 2) : cover(0, 2) }),
     leaf('rob', 'rob', 'REORDER BUFFER', { cells: rob, ring: true, sub: `${rob} entries · commit ${i.commitWidth ?? W} a cycle`, px: cover(3, 4) }),
+    ...(tlb > 0 ? [leaf('tlb', 'tlb', 'TLB', { cells: tlb, sub: `${tlb} entries · virtual to physical`, f: 0.55 })] : []),
     leaf('dc', 'dcache', 'D-CACHE', { cells: lines, sub: cacheSub(lines, ways), f: 1 }),
   ], { f: 31 });
   const tree = col([
@@ -224,6 +228,7 @@ function outOfOrder(i: PlanInput, cw: number = CORE.w, tile = false): { tree: No
     ['bus-npc', 'flush', 'bus', 'npc', 1, 'mispredict: squash'], ['bus-bp', 'control', 'bus', 'bp', 1, 'learn'],
     ['rob-rf', 'data', 'rob', 'rf', 2, 'commit'],
     ['lsu-dc', 'data', 'lsu', 'dc', 2, undefined, true], ['lsu-fab', 'mmio', 'lsu', 'fabric', 2, 'device access'],
+    ...(tlb > 0 ? [['lsu-tlb', 'control', 'lsu', 'tlb', 1, 'translate'] as L, ['fetch-tlb', 'control', 'fetch', 'tlb', 1, 'translate'] as L, ['tlb-walk', 'mem', 'tlb', l2Lines > 0 ? 'l2' : 'fabric', 3, 'page walk'] as L] : []),
   ];
   for (let k = 0; k < W; k++) specs.push([`fq-dec${k}`, 'data', 'fq', `dec${k}`, 2], [`dec${k}-rat`, 'data', `dec${k}`, 'rat', 2], [`dec${k}-rf`, 'data', `dec${k}`, 'rf', 2, k === 0 ? 'read' : undefined]);
   for (const u of ['alu0', 'alu1', 'mul', 'lsu']) specs.push([`sched-${u}`, 'data', 'sched', u, 2, u === 'alu0' ? 'issue' : undefined], [`${u}-bus`, 'data', u, 'bus', 2]);

@@ -34,4 +34,4 @@ No text on the sticks. A stick's chips are a grid of 256-byte pages (docs/DIE.md
 The sim array stays 64 KiB. Each RAM tier gets a *scale* (one sim page stands for N real pages); chips become windows onto a sparse virtual space; the OS table and workload footprints are scaled numbers; only touched pages (`Bus.dirty`, regions) are real, everything else is drawn procedurally by level of detail (far: bank and row heat; near: pages). DRAM timing already works on any address, so it needs nothing more.
 
 ## Virtual memory
-Planned: `docs/VM.md`.
+Built: `docs/VM.md` (the MMU, the paged OS 2).

@@ -2436,7 +2436,11 @@ export class Game {
     }
   }
 
-  private pipeSnap(eng: PipelineEngine): PipeSnap { return pipeSnapOf(eng, this.machine.ram); }
+  private pipeSnap(eng: PipelineEngine): PipeSnap {
+    const s = pipeSnapOf(eng, this.machine.ram);
+    if (s.stored && this.machine.mmu.tlbEntries > 0) s.stored.tlb = this.machine.mmu.dump();
+    return s;
+  }
 
   // ---------- internals: the network (docs/NETWORK.md) ----------
 
