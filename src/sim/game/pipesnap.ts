@@ -103,6 +103,8 @@ export interface RamMap {
   regions: RamRegion[];
   /** A copy of the memory itself: the sticks show its bytes, and the program's instructions at deep zoom. */
   image: Uint8Array;
+  /** The DRAM's banks and the row open in each (-1: closed); a row is a 256-byte page when `rowBytes` is 256. Absent without a CPU engine that models it. */
+  dram?: { banks: number; rowBytes: number; open: number[] };
 }
 export const RAM_BUCKETS = 256;
 

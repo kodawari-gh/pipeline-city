@@ -191,7 +191,7 @@ export class RamView {
     const m = this.map, T = this.T;
     if (!m || !T) return;
     const z = this.zoom;
-    const sig = `${this.regionSig}|${Math.round(z * 4)}|${this.imgVersion}|${T.dark}`;
+    const sig = `${this.regionSig}|${Math.round(z * 4)}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}`;
     if (sig === this.outSig) return;
     this.outSig = sig;
     const g = this.outG;
@@ -220,6 +220,17 @@ export class RamView {
           const x = cr.x + (p % c.slot.tilesX) * cw, y = cr.y + Math.floor(p / c.slot.tilesX) * ch;
           g.rect(x + 0.4, y + 0.4, cw - 0.8, ch - 0.8).fill({ color: col, alpha: tint * (0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE)) });
         }
+      }
+      // DRAM: a column of the grid is a bank (pages are rows, banks interleave by row), and the row open in each bank is lit
+      const d = m.dram;
+      if (outlines && d && d.rowBytes === PAGE && c.slot.tilesX % d.banks === 0) {
+        d.open.forEach((row, bank) => {
+          if (row < 0) return;
+          const page = row * d.banks + bank, off = page - c.slot.lo / PAGE;
+          if (off < 0 || off >= pages) return;
+          const x = cr.x + (off % c.slot.tilesX) * cw, y = cr.y + Math.floor(off / c.slot.tilesX) * ch;
+          g.rect(x + 1, y + 1, cw - 2, ch - 2).stroke({ width: Math.max(0.5, 1.6 / z), color: T.ink, alpha: 0.85 });
+        });
       }
       if (outlines) {
         for (let i = 0; i <= c.slot.tilesX; i++) g.moveTo(cr.x + i * cw, cr.y).lineTo(cr.x + i * cw, cr.y + ch * c.slot.tilesY);

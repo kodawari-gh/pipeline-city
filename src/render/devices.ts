@@ -111,7 +111,7 @@ export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   g.fill({ color: T.pin });
   for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, fy(24, 14), 8, 14);
   g.fill({ color: accent, alpha: 0.9 });
-  labels.addChild(label(`${spec.sizeBytes / 1024}K`, DIMM_W / 2, fy(56), 40, accent, { anchor: [0.5, 0.5], head: true }));
+  labels.addChild(label(`${spec.banks} BANKS`, DIMM_W / 2, fy(58), 20, accent, { anchor: [0.5, 0.5], head: true })); // what the stick is, not how big (the OS knows the size)
   root.addChild(labels);
   return { root, labels, chips };
 }

@@ -1436,7 +1436,7 @@ export class Game {
       boardTier: this.board.tier,
       caseTier: this.board.caseTier,
       pipe: this.powered && eng?.view ? this.pipeSnap(eng) : null,
-      ram: this.powered ? ramMapOf(this.machine.ram, this.ramRegions(jobs)) : null,
+      ram: this.powered ? this.ramSnap(jobs) : null,
       display: this.powered && live ? this.machine.display.text() : "",
       counters,
       completed: this.completed,
@@ -1893,6 +1893,13 @@ export class Game {
     if (!d || d.burnt) return null;
     const port = this.ports.find((p) => p.name === d.slot);
     return port?.media ? port : null;
+  }
+
+  private ramSnap(jobs: KernelJob[]): RamMap {
+    const m = ramMapOf(this.machine.ram, this.ramRegions(jobs));
+    const st = (this.machine.engine as { storedState?: () => { dram?: RamMap["dram"] } } | null)?.storedState?.();
+    if (st?.dram) m.dram = st.dram;
+    return m;
   }
 
   /** What lives where in RAM now: the boot ROM, the OS when it is up, and the program the CPU has loaded (docs/DIE.md "Memory"). */
