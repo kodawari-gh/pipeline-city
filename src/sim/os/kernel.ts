@@ -15,7 +15,7 @@
 import { assemble } from "../asm";
 import {
   BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, OS_HEADER, OS_HEADER_BASE,
-  OS_MAGIC, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
+  MPU_BASE, MPU_REG, OS_MAGIC, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
 } from "../isa/memmap";
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
@@ -40,6 +40,8 @@ export const KERNEL_SOURCE = [
   "  j kmain",
   "k_done_vec:", // KERNEL_DONE = KERNEL_BASE + 4: the ROM epilogue lands here when a job ends
   "  j kdone",
+  "k_fault_vec:", // KERNEL_FAULT = KERNEL_BASE + 8: the CPU is sent here when a job wrote to protected memory
+  "  j kfault",
   "kmain:",
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
@@ -49,6 +51,15 @@ export const KERNEL_SOURCE = [
   "  sw zero, 0(t0)",
   "  addi t0, t0, 4",
   "  bne t0, t1, kzero",
+  // memory protection: the boot ROM, and the OS's own header, kernel and job table, are not the jobs' to write
+  `  li t2, ${MPU_BASE}`,
+  `  li t0, ${USER_BASE}`,
+  `  sw zero, ${MPU_REG.R0_LO}(t2)`,
+  `  sw t0, ${MPU_REG.R0_HI}(t2)`,
+  `  li t0, ${OS_HEADER_BASE}`,
+  `  sw t0, ${MPU_REG.R1_LO}(t2)`,
+  `  li t0, ${KDATA_END}`,
+  `  sw t0, ${MPU_REG.R1_HI}(t2)`,
   "kloop:",
   `  li s0, ${PCH_BASE}`,
   `  li s3, ${OS_HEADER_BASE}`,
@@ -143,10 +154,15 @@ export const KERNEL_SOURCE = [
   "  addi s2, s2, -1",
   "  bne s2, zero, kload",
   `  li t0, ${USER_BASE}`,
+  `  li t2, ${MPU_BASE}`,
+  "  li t1, 1",
+  `  sw t1, ${MPU_REG.ENABLE}(t2)`, // from here until kdone or kfault the job may not write to the OS
   "  jalr ra, t0, 0", // the job ends at the ROM done vector, which lands in kdone
 
   // ---- a job finished: keep its output line as the result ----
   "kdone:",
+  `  li t2, ${MPU_BASE}`,
+  `  sw zero, ${MPU_REG.ENABLE}(t2)`, // back in the kernel: the tables are ours again
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
   `  li t0, ${CUR}`,
@@ -160,6 +176,29 @@ export const KERNEL_SOURCE = [
   "  addi t0, t0, 4",
   "  addi t1, t1, 4",
   "  bne t0, t2, kres",
+  "  li t0, 4",
+  `  sw t0, ${KSLOT.STATE}(a0)`,
+  "  j kloop",
+
+  // ---- a job wrote to protected memory: the OS ends it, its result is the fault text ----
+  "kfault:",
+  `  li t2, ${MPU_BASE}`,
+  `  sw zero, ${MPU_REG.ENABLE}(t2)`,
+  "  li sp, 65536",
+  `  li s0, ${PCH_BASE}`,
+  `  li t0, ${CUR}`,
+  "  lw a0, 0(t0)",
+  `  addi t1, a0, ${KSLOT.RESULT}`,
+  `  li t3, ${0x46474553}`, // "SEGF"
+  "  sw t3, 0(t1)",
+  `  li t3, ${0x544c5541}`, // "AULT"
+  "  sw t3, 4(t1)",
+  `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
+  "  addi t1, t1, 8",
+  "kfz:",
+  "  sw zero, 0(t1)",
+  "  addi t1, t1, 4",
+  "  bne t1, t2, kfz",
   "  li t0, 4",
   `  sw t0, ${KSLOT.STATE}(a0)`,
   "  j kloop",
@@ -294,6 +333,7 @@ export const KERNEL_IMAGE: Uint32Array = assembled.program;
 export const KERNEL_SYMBOLS: ReadonlyMap<string, number> = assembled.symbols;
 
 if (KERNEL_SYMBOLS.get("k_done_vec") !== 4) throw new Error("kernel: k_done_vec must be at KERNEL_BASE + 4");
+if (KERNEL_SYMBOLS.get("k_fault_vec") !== 8) throw new Error("kernel: k_fault_vec must be at KERNEL_BASE + 8");
 if (KERNEL_BASE !== OS_HEADER_BASE + BLOCK_BYTES) throw new Error("kernel must follow the header block");
 if (KERNEL_BASE + KERNEL_IMAGE.length * 4 > KD) throw new Error("kernel overlaps its data");
 

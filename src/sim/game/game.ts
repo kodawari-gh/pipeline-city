@@ -435,6 +435,8 @@ export interface Snapshot {
   completed: number;
   /** Thermal errors that crashed the machine and restarted the job from boot. */
   errors: number;
+  /** Jobs the OS killed for writing to protected memory (a statistic of this session; not saved). */
+  faults?: number;
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;
@@ -597,6 +599,9 @@ export class Game {
   baseTick = 0;
   completed = 0;
   errors = 0;
+  /** Memory faults the OS has handled, and how many the MPU had counted at the last check. */
+  faults = 0;
+  private mpuSeen = 0;
   dropped = 0;
   lastCompleted: CompletedInfo | null = null;
   powered = false;
@@ -1347,6 +1352,7 @@ export class Game {
       this.pch.usbTick();
       this.machine.advanceBaseTick();
       this.trackPages();
+      this.checkFaults();
       this.afterMachine();
       this.autoEject();
     }
@@ -1435,6 +1441,7 @@ export class Game {
       counters,
       completed: this.completed,
       errors: this.errors,
+      faults: this.faults,
       dropped: this.dropped,
       lastCompleted: this.lastCompleted && { ...this.lastCompleted },
       avgTurnaround: this.avgTurnaround,
@@ -1908,6 +1915,17 @@ export class Game {
   /** The pages the running program has written to outside the OS and its own image: it claims memory by using it (docs/OS.md "Memory"). */
   private claimed = new Set<number>();
   private claimKey = -1;
+  /** A fault is the OS killing a job that wrote to protected memory: counted and logged; the kernel has already ended the job. */
+  private checkFaults(): void {
+    const m = this.machine.mpu;
+    if (m.faults < this.mpuSeen) this.mpuSeen = 0; // the machine was reset
+    if (m.faults === this.mpuSeen) return;
+    this.mpuSeen = m.faults;
+    this.faults++;
+    const job = this.claimKey >= 0 ? `job on key ${this.claimKey}` : "a job";
+    this.note("fault", `memory fault: ${job} wrote to protected memory at 0x${m.faultAddr.toString(16)} and was killed by the OS`);
+  }
+
   private trackPages(): void {
     const dirty = this.machine.bus.dirty;
     const job = this.powered ? this.ramJob(this.kernelJobs()) : null;

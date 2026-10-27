@@ -1,4 +1,5 @@
 import type { Device } from "./device";
+import type { Mpu } from "./mpu";
 
 /** Routes addresses to RAM (default, at base 0) or to a device range. Unmapped/misaligned access throws RangeError. */
 export class Bus {
@@ -15,6 +16,8 @@ export class Bus {
   stallCycles = 0;
   /** One flag per 256-byte page of RAM, set by every store the CPU (or the kernel) does; the game reads and clears it to see which pages a program claims. */
   readonly dirty: Uint8Array;
+  /** Memory protection: a store the unit denies is dropped and trips it. Null = none. */
+  mpu: Mpu | null = null;
 
   constructor(private readonly ram: Uint8Array) {
     this.ramView = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);
@@ -57,6 +60,7 @@ export class Bus {
 
   store8(addr: number, v: number): void {
     if (addr < this.ram.length) {
+      if (this.mpu?.denies(addr)) { this.mpu.trip(addr); return; }
       if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ram[addr] = v & 0xff;
       this.dirty[addr >> 8] = 1;
@@ -79,6 +83,7 @@ export class Bus {
   store32(addr: number, v: number): void {
     if (addr % 4 !== 0) throw new RangeError(`misaligned word access at 0x${addr.toString(16)}`);
     if (addr + 4 <= this.ram.length) {
+      if (this.mpu?.denies(addr)) { this.mpu.trip(addr); return; }
       if (this.guardOn && this.guard && !this.allowed(addr, true)) return;
       this.ramView.setUint32(addr, v >>> 0, true);
       this.dirty[addr >> 8] = 1;

@@ -129,6 +129,8 @@ export const OS_HEADER_BASE = 0xc000;
 export const KERNEL_BASE = 0xc100;
 /** Kernel entry points: KERNEL_BASE + 0 boots, + 4 is where a finished job lands (the ROM epilogue jumps there in OS mode). */
 export const KERNEL_DONE = KERNEL_BASE + 4;
+/** + 8 is where the CPU is sent when a job writes to protected memory (the MPU tripped): the kernel ends the job with a fault result. */
+export const KERNEL_FAULT = KERNEL_BASE + 8;
 /** Header words: magic, total blocks (header + kernel), queue slots, program slots, spool start block, spool blocks per job, OS tier. */
 export const OS_MAGIC = 0x3153_564f;
 export const OS_HEADER = { MAGIC: 0, TOTAL_BLOCKS: 1, QUEUE_SLOTS: 2, PROGRAM_SLOTS: 3, SPOOL_LBA: 4, SPOOL_BLOCKS: 5, TIER: 6 } as const;
@@ -140,6 +142,21 @@ export const KSLOT_BYTES = 64;
 export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48 } as const;
 /** Job slot states. */
 export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
+
+// ---- Memory protection unit (docs/OS.md "Memory protection"). Word registers, offsets from MPU_BASE.
+
+export const MPU_BASE = 0x4010_0000;
+export const MPU_SIZE = 0x100;
+export const MPU_REG = {
+  /** rw: 1 = stores into the protected ranges are refused and fault. The kernel sets it just before it jumps to a job. Reset: 0. */
+  ENABLE: 0x00,
+  /** rw: the two protected ranges [LO, HI) of RAM (the boot ROM; the OS header, kernel and job table). Reset: empty. */
+  R0_LO: 0x04, R0_HI: 0x08, R1_LO: 0x0c, R1_HI: 0x10,
+  /** ro: faults since power-on, and the address the last refused store aimed at. */
+  FAULTS: 0x14, FAULT_ADDR: 0x18,
+} as const;
+/** The result text of a job the OS killed for writing to protected memory. */
+export const FAULT_TEXT = "SEGFAULT";
 
 // ---- GPU cards (PCIe slots). See docs/ACCEL.md "GPU".
 

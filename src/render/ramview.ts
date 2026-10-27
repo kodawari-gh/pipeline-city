@@ -13,7 +13,8 @@ import type { Theme } from './theme';
 // the instructions of the code, the words of the data. Cells are drawn only when the memory changes, so the view costs next to nothing.
 
 const TOUCH_MS = 700, MAX_TOUCHES = 8;
-const LENS_Z = 1.7, OUTLINE_Z = 0.55, BAND_Z = 0.5;
+// the same zoom levels as the CPU die (dieview.ts setZoom: wires 0.7, cells 0.8, texts 0.85, subtexts 1.2): below them the traces are the picture
+const SHOW_Z = 0.7, OUTLINE_Z = 0.8, BAND_Z = 0.85, LENS_Z = 1.2;
 const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
@@ -149,7 +150,7 @@ export class RamView {
 
   /** Per frame (`inner`: the interior of the board shows, not the exterior covering it). */
   frame(inner: boolean, wall = performance.now()): void {
-    const show = inner && !!this.map && this.chips.length > 0;
+    const show = inner && !!this.map && this.chips.length > 0 && this.zoom >= SHOW_Z;
     this.root.visible = show;
     if (!show) return;
     this.touches = this.touches.filter((t) => wall - t.t < TOUCH_MS);

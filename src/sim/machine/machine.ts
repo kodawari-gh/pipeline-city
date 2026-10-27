@@ -1,11 +1,12 @@
 import { REG_COUNT, REG_SP } from "../isa/isa";
-import { RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "../isa/memmap";
+import { KERNEL_FAULT, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "../isa/memmap";
 import { Bus } from "./bus";
 import { ClockScheduler, type Rate } from "./clock";
 import { RamDevice, type Device } from "./device";
 import { Display } from "./display";
 import type { Engine } from "./engine";
 import { Intc } from "./intc";
+import { Mpu } from "./mpu";
 import { Prng } from "./prng";
 
 export interface MachineConfig {
@@ -29,6 +30,8 @@ export class Machine {
   readonly status: RamDevice;
   /** Interrupt controller, always on the bus at INTC_BASE. */
   readonly intc = new Intc();
+  /** Memory protection, always on the bus at MPU_BASE (off until the kernel enables it for a job). */
+  readonly mpu = new Mpu();
   engine: Engine | null = null;
 
   constructor(cfg: MachineConfig = {}) {
@@ -40,6 +43,8 @@ export class Machine {
     this.addDevice(this.display);
     this.addDevice(this.status);
     this.addDevice(this.intc);
+    this.addDevice(this.mpu);
+    this.bus.mpu = this.mpu;
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
   }
@@ -72,6 +77,15 @@ export class Machine {
         this.irqWait++;
       }
     }
+    // A job wrote to protected memory: stop fetching until the pipeline is empty, then send the CPU to the kernel's fault handler (the OS ends the job).
+    if (this.mpu.tripped && e.drained !== undefined && e.holdFetch && e.redirect) {
+      if (e.drained) {
+        this.mpu.tripped = false;
+        this.mpu.enabled = false;
+        e.redirect(KERNEL_FAULT);
+        e.holdFetch(false);
+      } else e.holdFetch(true);
+    }
     this.bus.guardOn = true;
     try {
       e.step();
@@ -101,6 +115,7 @@ export class Machine {
   attach(engine: Engine, program: Uint32Array): void {
     this.engine = engine;
     this.intc.reset();
+    this.mpu.reset();
     this.irqWait = 0;
     this.cpuStall = 0;
     this.bus.stallCycles = 0;
