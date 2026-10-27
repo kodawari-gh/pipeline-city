@@ -263,6 +263,33 @@ const cliScan: TemplateFn = (rng, p) => {
   return b.finish("cli.scan request", blankRows(p.row) + renderLine(segs, [result]));
 };
 
+/** Where a program keeps its big working memory: virtual 0x10000 up under the paged OSes (their "big heap"), the same physical addresses without one. */
+export const HEAP_BASE = 0x10000;
+/** The bytes the in-memory index job needs at a scale (a power of two, so the probes can mask): 32K, 64K, 128K, 256K, 512K for scale 1, 2-3, 4-7, 8-15, 16. */
+export const indexBytes = (scale: number): number => 32 * 1024 * 2 ** Math.floor(Math.log2(Math.max(1, scale)));
+
+/**
+ * In-memory index (the database class, docs/JOBS.md): build a table of `indexBytes(scale)` bytes, one 256-byte record per page, then answer lookups that scatter over
+ * all of it. It lives or dies by memory: the table has to fit in RAM, claiming it costs a page fault per page under a paged OS, and the scattered reads
+ * are row conflicts and TLB misses.
+ */
+const dbIndex: TemplateFn = (rng, p) => {
+  const b = new Builder();
+  const bytes = indexBytes(p.scale), lines = bytes / 256, probes = lines / 2;
+  const mult = 2 * rng.nextInt(2000) + 40503; // odd
+  let sum = 0;
+  for (let j = 0; j < probes; j++) sum = (sum + (((Math.imul(j, mult) & (lines - 1)) * 7 + 3) | 0)) | 0;
+  const result = sum & 1023;
+  const segs: Seg[] = [`#${pad2(p.jobId)} index ${Math.round(bytes / 1024)}K `, { dyn: 4 }, " OK"];
+  const line = layoutLine(segs);
+  b.emit(`li s0, ${rowAddr(p.row)}`);
+  emitStatic(b, line, 0);
+  b.emit(`li a0, ${HEAP_BASE}`, `li a1, ${lines}`, `call ${b.add(K.indexFill(b.ns("fill")), bytes)}`);
+  b.emit(`li a0, ${HEAP_BASE}`, `li a1, ${lines}`, `li a2, ${probes}`, `li a3, ${mult}`, `call ${b.add(K.indexProbe(b.ns("probe")), bytes)}`, "andi a1, a0, 1023");
+  b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 4))}`);
+  return b.finish("db.index request", blankRows(p.row) + renderLine(segs, [result]));
+};
+
 /**
  * GPU batch job (docs/ACCEL.md "Job classes"): one of the kernels vadd, saxpy, blur3, mandel over a seeded array, printing the sum of
  * the outputs. With a card the CPU copies the kernel and its data into card memory, launches and polls; without one it runs the same
@@ -441,6 +468,7 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   "cli.calc": cliCalc,
   "cli.checksum": cliChecksum,
   "cli.scan": cliScan,
+  "db.index": dbIndex,
   "gpu.render": gpuRender,
   "secure.sign": secureSign,
   "npu.infer": npuInfer,

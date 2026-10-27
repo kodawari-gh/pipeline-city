@@ -81,9 +81,12 @@ describe("patience by level", () => {
 describe("the manual loop needs an OS to last", () => {
   interface Run { rep: number; jobs: number; firstPay: number; expired: number }
 
-  /** Mean reputation after tick 600 of a 3000 s run on a mid-game machine (CPU tier 2, NVMe, 32K RAM) that starts at `level`. */
+  /** Mean reputation after tick 600 of a 3000 s run on a mid-game machine (CPU tier 2, NVMe, two 64K sticks) that starts at `level`. */
   function play(os: boolean, seed: number, level: number): Run {
-    const g = rig("nvme2", { os, cpu: "cpu2", seed, startLevel: level, economy: { baseDemandPerTick: ECONOMY.baseDemandPerTick, startQueue: [{ template: "cli.log" }] } });
+    const g = rig("nvme2", { os, cpu: "cpu2", seed, startLevel: level, ram: "ram1b", // two 64K sticks (below): the database jobs of the mid levels keep a table in memory
+     economy: { baseDemandPerTick: ECONOMY.baseDemandPerTick, startQueue: [{ template: "cli.log" }] } });
+    const second = g.purchase("ram1b") as { invId: string };
+    expect(g.install(second.invId).ok).toBe(true);
     const op = new Operator(g, 3); // a human takes about 3 s per manual step
     let sum = 0;
     let n = 0;
@@ -109,8 +112,8 @@ describe("the manual loop needs an OS to last", () => {
       // With the short POST the manual loop is fast per job (about 15 s), so its reputation is close to the OS's; what the OS
       // wins is volume and patience: more jobs, and the keys the manual loop lets expire (the slow human steps).
       SEEDS.forEach((_, i) => expect(withOs[i]!.jobs, `level ${level} seed ${i}`).toBeGreaterThan(manual[i]!.jobs));
-      expect(mean(withOs, "rep")).toBeGreaterThan(mean(manual, "rep") * 0.97); // a tie at the high levels: the manual loop is quick per job now
-      expect(mean(withOs, "jobs")).toBeGreaterThan(mean(manual, "jobs") * 1.2);
+      expect(mean(withOs, "rep")).toBeGreaterThan(mean(manual, "rep") * 0.9); // close to a tie: the manual loop is quick per job, and the OS machine also serves the database jobs now (which keep a table in memory and take longer)
+      expect(mean(withOs, "jobs")).toBeGreaterThan(mean(manual, "jobs") * 1.1); // was 1.2 before the database jobs became real work
       expect(mean(withOs, "expired")).toBeLessThan(mean(manual, "expired"));
       expect(mean(withOs, "rep")).toBeGreaterThan(0.7);
     }

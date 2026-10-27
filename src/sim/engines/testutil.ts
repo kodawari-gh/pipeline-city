@@ -142,8 +142,8 @@ export const WIDE_CONFIGS: WideConfig[] = [
 ];
 
 /** Run a program on the engine to halt; returns the machine (regs, ram, display) and the engine. */
-export function runProgram(engine: PipelineEngine, program: Uint32Array, chaos?: Chaos, maxCycles = 200_000): Machine {
-  const m = new Machine();
+export function runProgram(engine: PipelineEngine, program: Uint32Array, chaos?: Chaos, maxCycles = 400_000): Machine {
+  const m = new Machine({ ramSize: 1024 * 1024 }); // as much as the reference interpreter has: the big-heap jobs reach 0x10000 up
   m.attach(engine, program);
   const r = chaos ? new Prng(chaos.seed) : null;
   while (!engine.halted) {

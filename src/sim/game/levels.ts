@@ -11,7 +11,7 @@ import { getOsSpec } from "../os";
 /** What a job needs from the machine to run. Met when the device is installed and working when the job would be picked. */
 export type Need =
   | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net" }
-  | { kind: "tpm" } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number };
+  | { kind: "tpm" } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number } | { kind: "ram"; minBytes: number };
 
 export type JobClassId = "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc";
 
@@ -36,8 +36,8 @@ export interface JobClassDef {
 export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "cli", template: "cli", scale: 1, payMul: 1, needs: [], firstLevel: 1, rampTicks: 0, heavy: false },
   { id: "scan", template: "cli.scan", scale: 4, payMul: 2, needs: [], firstLevel: 5, rampTicks: 300, heavy: false },
-  // PLACEHOLDER template: the real db job (many block reads) is planned. Runs on an OS with a SATA SSD or better.
-  { id: "db", template: "cli.checksum", scale: 3, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], firstLevel: 5, rampTicks: 600, heavy: true, placeholder: true },
+  // The in-memory index: a 32K table at virtual 0x10000, so it needs RAM that reaches past it (96K), an OS and a SATA SSD or better.
+  { id: "db", template: "db.index", scale: 1, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }, { kind: "ram", minBytes: 0x10000 + 32 * 1024 }], firstLevel: 5, rampTicks: 600, heavy: true },
   // PLACEHOLDERS below: they need devices that do not exist yet, so they are never runnable today (they arrive and expire).
   { id: "web", template: "cli.calc", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true, placeholder: true },
   { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }, { kind: "ecc" }], firstLevel: 9, rampTicks: 600, heavy: true },
@@ -54,7 +54,7 @@ export function jobClass(id: string): JobClassDef | undefined {
 
 /** The class of a job made from a plain generator template (a sandbox key, the guided first key, an old save). */
 export function classOfTemplate(template: string): JobClassId {
-  return template === "cli.scan" ? "scan" : "cli";
+  return template === "cli.scan" ? "scan" : template === "db.index" ? "db" : "cli";
 }
 
 /** What the machine offers to jobs. `net` is false until the network phase. */
@@ -69,9 +69,11 @@ export interface Caps {
   gpuTier: number;
   npu: boolean;
   cores: number;
+  /** Installed RAM, in bytes. */
+  ramBytes: number;
 }
 
-export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, tpm: false, ecc: false, gpuTier: 0, npu: false, cores: 1 };
+export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, tpm: false, ecc: false, gpuTier: 0, npu: false, cores: 1, ramBytes: 0 };
 
 /** Short chip text (`NEEDS GPU`) and the long phrase for a refusal. */
 export function describeNeed(n: Need): { short: string; long: string } {
@@ -84,6 +86,7 @@ export function describeNeed(n: Need): { short: string; long: string } {
     case "gpu": return { short: "GPU", long: "a GPU" };
     case "npu": return { short: "NPU", long: "an NPU" };
     case "cores": return { short: "CORES", long: "a multicore CPU" };
+    case "ram": return { short: `${n.minBytes / 1024}K RAM`, long: `${n.minBytes / 1024}K of RAM` };
   }
 }
 
@@ -97,6 +100,7 @@ function needOk(n: Need, c: Caps): boolean {
     case "gpu": return c.gpuTier >= n.minTier;
     case "npu": return c.npu;
     case "cores": return c.cores >= n.min;
+    case "ram": return c.ramBytes >= n.minBytes;
   }
 }
 

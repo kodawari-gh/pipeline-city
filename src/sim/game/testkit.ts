@@ -11,7 +11,7 @@ export const econ = (keys: Keys = [{ template: "cli.log" }]) => ({ baseDemandPer
  * A machine ready for an OS: CPU `cpu`, 32K RAM, a PSU big enough, one storage drive and (unless `os: false`) the OS
  * installed, powered off. Built from preassembled by buying with free money and installing by hand.
  */
-export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os?: boolean; keys?: Keys; seed?: number; economy?: Partial<EconomyConfig>; startLevel?: number } = {}): Game {
+export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os?: boolean; keys?: Keys; seed?: number; economy?: Partial<EconomyConfig>; startLevel?: number; ram?: string } = {}): Game {
   const g = new Game({ seed: opts.seed ?? 7, preassembled: true, startLevel: opts.startLevel, economy: { ...econ(opts.keys), levelGating: false, caseGating: false, ...opts.economy } });
   g.money = 1_000_000;
   g.powerButton();
@@ -27,7 +27,7 @@ export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os
   put("psu1");
   put(opts.cpu ?? "cpu1");
   g.uninstall(g.board.devices.find((d) => d.spec === "ram0")!.id);
-  put("ram1");
+  put(opts.ram ?? "ram1");
   put(storage);
   if (opts.os !== false) put("os1");
   return g;

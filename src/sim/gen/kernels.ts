@@ -129,6 +129,46 @@ export function fillStride(ns: string, strideBytes: number): Kernel {
   ]);
 }
 
+/**
+ * The table of the in-memory index job: store a value in the first word of each of the a1 rows (256 bytes each, a page) from a0: row i holds i*7 + 3.
+ * Touching one word per row touches every page, so the job claims its whole table.
+ */
+export function indexFill(ns: string): Kernel {
+  return k("index_fill", ns, ["mem", "alu", "branch"], 0, [
+    "li t0, 3",
+    `${ns}_loop:`,
+    "sw t0, 0(a0)",
+    "addi t0, t0, 7",
+    "addi a0, a0, 256",
+    "addi a1, a1, -1",
+    `bne a1, zero, ${ns}_loop`,
+    "ret",
+  ]);
+}
+
+/**
+ * Point lookups into that table: a2 probes, probe j reads row (j * a3) mod a1 (a1 is a power of two, a3 odd, so the reads scatter over the whole table and
+ * hit every page, row and bank). Returns the sum of what it read in a0.
+ */
+export function indexProbe(ns: string): Kernel {
+  return k("index_probe", ns, ["mem", "mul", "alu", "branch"], 0, [
+    "addi t3, a1, -1", // the mask
+    "li t0, 0", // the sum
+    "li t1, 0", // j
+    `${ns}_loop:`,
+    "mul t2, t1, a3",
+    "and t2, t2, t3",
+    "slli t2, t2, 8",
+    "add t2, t2, a0",
+    "lw t4, 0(t2)",
+    "add t0, t0, t4",
+    "addi t1, t1, 1",
+    `bne t1, a2, ${ns}_loop`,
+    "mv a0, t0",
+    "ret",
+  ]);
+}
+
 /** a1 rounds (>= 1) of x = x*mul + add starting from x = a0 (wraps at 32 bits). Result in a0. */
 export function mulLoop(ns: string, mul: number, add: number): Kernel {
   return k("mul_loop", ns, ["mul", "alu", "branch"], 0, [

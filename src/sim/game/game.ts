@@ -18,11 +18,13 @@ import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { walkTable } from "./vmmap";
+/** The memory array the machine is built with: the most a paged OS manages (its 20-bit virtual space). */
+const MACHINE_RAM_BYTES = 1024 * 1024;
 import { PAGED_HEAP, PAGED_TABLES, BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_RESULT_WORDS, PchPhase, STORAGE_PORTS } from "../isa/memmap";
 import { generate, runReference, TEMPLATES, type GpuTarget, type NpuTarget } from "../gen";
 import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machine";
 import { Prng } from "../machine/prng";
-import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, PCB, PCBS, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, PCB, PCBS, RESERVED_FRAME, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
   bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
@@ -700,10 +702,10 @@ export class Game {
     this.tray = new UsbTray<Key>(this.cfg.queueCap);
     this.offersQ = new NetworkSource<Key>(this.cfg.queueCap);
     this.board = createBoard(0);
-    // RAM is fixed at construction, so the machine always has the largest RAM (64K); the installed RAM tier
-    // changes the PCH-reported size, the cache miss penalty and which jobs arrive (EconomyConfig.mix).
+    // The machine's memory array is built once at the most the paged OSes can use (1 MiB, their 20-bit virtual space); the installed RAM
+    // changes the PCH-reported size (what the OS manages and the screens show), the cache miss penalty and which jobs arrive (EconomyConfig.mix).
     this.flipRng = new Prng((opts.seed ^ 0x5eed_ecc) >>> 0); // its own stream: the flips never disturb the machine's or the clients' randomness
-    this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: 64 * 1024 });
+    this.machine = new Machine({ ...machineConfigFor(this.board, opts.seed), ramSize: MACHINE_RAM_BYTES });
     this.pch = new Pch(this.machine.display);
     this.pch.onPhase = () => this.applyBoost();
     this.machine.addDevice(this.pch);
@@ -1951,7 +1953,7 @@ export class Game {
   }
 
   private ramSnap(jobs: KernelJob[]): RamMap {
-    const m = ramMapOf(this.machine.ram, this.ramRegions(jobs));
+    const m = ramMapOf(this.installedMemory(), this.ramRegions(jobs));
     const st = (this.machine.engine as { storedState?: () => { dram?: RamMap["dram"] } } | null)?.storedState?.();
     if (st?.dram) m.dram = st.dram;
     const vm = this.vmSnap(jobs);
@@ -1991,9 +1993,9 @@ export class Game {
         const key = this.plugged?.id === j.key ? this.plugged : this.spool.find((k) => k.id === j.key);
         if (key) procs[j.slot] = { key: key.id, label: `#${String(key.jobNo).padStart(2, "0")} ${key.type}`, type: key.type };
       }
-      return ramRegionsOf(this.machine.ram, { os: { name: this.os!.spec.name, tier: this.os!.spec.tier }, job: null, frames, procs });
+      return ramRegionsOf(this.installedMemory(), { os: { name: this.os!.spec.name, tier: this.os!.spec.tier }, job: null, frames, procs });
     }
-    return ramRegionsOf(this.machine.ram, { os: osUp ? { name: this.os!.spec.name, tier: this.os!.spec.tier } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
+    return ramRegionsOf(this.installedMemory(), { os: osUp ? { name: this.os!.spec.name, tier: this.os!.spec.tier } : null, job, work: job && this.claimKey === job.key ? [...this.claimed] : [] });
   }
 
   /** The program the CPU has in RAM right now (OS: the kernel's running slot; no OS: the key's program), or null. */
@@ -2047,7 +2049,7 @@ export class Game {
     if (job && (this.os?.spec.tier ?? 1) === 2) {
       // the paged OS hands out frames from its bump pointer: those are the pages the program has claimed
       const bus = this.machine.bus, next = bus.load32(KBUMP);
-      for (let p = PAGED_HEAP >> 8; p < next && p < (PAGED_TABLES >> 8); p++) this.claimed.add(p);
+      for (let p = PAGED_HEAP >> 8; p < next; p++) if (p < (PAGED_TABLES >> 8) || p >= 256) this.claimed.add(p); // the bump pointer skips the tables and the OS
     } else if (job && (this.os?.spec.tier ?? 1) < 2) for (let p = 0; p < dirty.length; p++) if (dirty[p] && !protectedPage(p, job.words)) this.claimed.add(p);
     dirty.fill(0);
   }
@@ -2065,10 +2067,11 @@ export class Game {
     if (this.powered && this.pch.osMode && !this.postError && tier >= 3) {
       const bus = this.machine.bus, jobs = this.kernelJobs();
       const running = jobs.filter((j) => j.state === JobState.Running).length;
-      let used = 0, leaked = 0;
+      let used = 0, leaked = 0, reserved = 0;
       for (let f = FRAME_FIRST; f < FRAME_END; f++) {
         const w = bus.load32(FMAP + 4 * f);
         if (w === 0) continue;
+        if (w === RESERVED_FRAME) { reserved++; continue; }
         used++;
         const j = jobs.find((x) => x.slot === (w & 15) - 1);
         if (!j || (j.state !== JobState.Running && j.state !== JobState.Queued)) leaked++;
@@ -2077,9 +2080,9 @@ export class Game {
       this.timerSeen = running > 0 && this.machine.timer.interval === 0 ? this.timerSeen + 1 : 0;
       if (this.leakSeen >= 3) out.push({ level: "bad", text: `${leaked} frames are owned by a job that is not running: the kernel did not give them back` });
       if (this.timerSeen >= 3) out.push({ level: "bad", text: "programs are running but the timer is off: none will be preempted" });
-      const free = FRAME_END - FRAME_FIRST - used;
+      const free = FRAME_END - FRAME_FIRST - reserved - used;
       if (free < 16) out.push({ level: "warn", text: `only ${free} free frames: a new program may have to wait` });
-      if (out.length === 0) out.push({ level: "ok", text: `${used} of ${FRAME_END - FRAME_FIRST} frames in use, ${running} running, ${this.machine.timer.fired} timer interrupts` });
+      if (out.length === 0) out.push({ level: "ok", text: `${used} of ${FRAME_END - FRAME_FIRST - reserved} frames in use, ${running} running, ${this.machine.timer.fired} timer interrupts` });
     }
     if (this.faults > 0) out.push({ level: "warn", text: `${this.faults} job${this.faults === 1 ? "" : "s"} killed by the OS this session` });
     if (this.bitFlips > 0) out.push({ level: "warn", text: `${this.bitFlips} bit flip${this.bitFlips === 1 ? "" : "s"} in memory (no ECC)` });
@@ -2759,6 +2762,13 @@ export class Game {
 
   // ---------- internals: keys and economy ----------
 
+  /** The part of the machine's memory the installed sticks cover (what the screens show and the OS manages). */
+  private installedMemory(): Uint8Array {
+    // at least the first 64K: OS 1 keeps its kernel at 0xC000 whatever the sticks add up to (the sim always backs that much)
+    const n = Math.max(64 * 1024, Math.min(this.installedRamBytes(), this.machine.ram.length));
+    return n >= this.machine.ram.length ? this.machine.ram : this.machine.ram.subarray(0, n);
+  }
+
   private installedRamBytes(): number {
     return findDevices(this.board, "ram").filter((d) => !d.burnt).reduce((n, d) => n + (deviceSpec(d) as RamSpec).sizeBytes, 0);
   }
@@ -2837,7 +2847,7 @@ export class Game {
   private capsWith(netOk: boolean): Caps {
     const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
     const tpm = this.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === "tpm");
-    return { ...NO_CAPS, net: netOk, tpm, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+    return { ...NO_CAPS, net: netOk, tpm, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
   }
 
   private runnable(k: Key, caps = this.caps()): boolean {

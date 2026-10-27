@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { generate, TEMPLATES } from "../gen";
 import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KERNEL_BASE, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS } from "../isa/memmap";
-import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, SPOOL_BLOCKS_PER_JOB } from "../os";
+import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, RESERVED_FRAME, SPOOL_BLOCKS_PER_JOB } from "../os";
 import { ECONOMY } from "./economy";
 import type { Game } from "./game";
 import { rig } from "./testkit";
@@ -20,7 +20,7 @@ const until = (g: Game, done: () => boolean, max = 9000): void => { for (let t =
 function pre(opts: { cpu?: string; keys?: { template: string; scale?: number }[] } = {}): Game {
   const g = rig("ssd1", { cpu: opts.cpu ?? "cpu2", os: false, keys: opts.keys });
   for (const d of g.board.devices.filter((x) => x.spec.startsWith("ram"))) g.uninstall(d.id);
-  const ram = g.purchase("ram2");
+  const ram = g.purchase("ram4");
   if (!ram.ok) throw new Error(ram.reason);
   g.install(ram.invId);
   const os = g.purchase("os3");
@@ -56,9 +56,9 @@ const resultText = (dv: DataView, k: number): string => {
   return Array.from({ length: PCH_RESULT_WORDS * 4 }, (_, i) => dv.getUint8(at + i)).map((c) => (c ? String.fromCharCode(c) : " ")).join("").trim();
 };
 const lastLine = (text: string): string => text.split("\n").filter((l) => l.trim()).pop()!.trim();
-const framesInUse = (dv: DataView): number => Array.from({ length: FRAME_END - FRAME_FIRST }, (_, f) => dv.getUint32(FMAP + 4 * (FRAME_FIRST + f), true)).filter(Boolean).length;
+const framesInUse = (dv: DataView): number => Array.from({ length: FRAME_END - FRAME_FIRST }, (_, f) => dv.getUint32(FMAP + 4 * (FRAME_FIRST + f), true)).filter((w) => w !== 0 && w !== RESERVED_FRAME).length;
 
-describe("the preemptive OS", () => {
+describe("the preemptive OS", { timeout: 60_000 }, () => { // several long programs on a loaded machine
   it("needs a CPU with an MMU", () => {
     expect(() => pre({ cpu: "cpu1" })).toThrow(/MMU/);
   });
@@ -140,7 +140,7 @@ spin:
     until(g, () => states().every((x) => x === JobState.Result), 60000);
     until(g, () => g.currentPhase() === "idle-os");
     // a frame owned by job slot 5, which is not running
-    dv.setUint32(FMAP + 4 * 100, 5 + 1, true);
+    dv.setUint32(FMAP + 4 * 1000, 5 + 1, true);
     for (let i = 0; i < 4; i++) g.snapshot();
     expect(g.snapshot().health!.some((h) => h.level === "bad" && /not give them back/.test(h.text))).toBe(true);
   });

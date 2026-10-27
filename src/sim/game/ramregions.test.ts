@@ -48,7 +48,7 @@ describe("what lives where in RAM", () => {
     until(g, () => g.currentPhase() === "idle-os");
     let s = g.snapshot();
     expect(s.ram!.regions.map((r) => r.id)).toEqual(["rom", "os-header", "os-kernel", "os-table"]);
-    expect(s.ram!.image).toHaveLength(g.machine.ram.length);
+    expect(s.ram!.image).toHaveLength(64 * 1024); // the first 64K at least: the installed sticks here add up to less
     const id = g.trayKeyIds()[0]!;
     expect(g.plugKey(id).ok).toBe(true);
     until(g, () => (g.snapshot().ram?.regions ?? []).some((r) => r.kind === "app"));
@@ -119,12 +119,13 @@ describe("what lives where in RAM", () => {
     for (let f = 20; f < 23; f++) frames[f] = 1;
     frames[40] = 0x10 | 1;
     for (let f = 23; f < 25; f++) frames[f] = 3;
-    const r = ramRegionsOf(new Uint8Array(65536), { os: { name: "Preemptive OS 3.0", tier: 3 }, job: null, frames, procs: [{ key: 7, label: "#07 calc", type: "calc" }, undefined, { key: 9, label: "#09 scan", type: "scan" }] });
+    const r = ramRegionsOf(new Uint8Array(1024 * 1024), { os: { name: "Preemptive OS 3.0", tier: 3 }, job: null, frames, procs: [{ key: 7, label: "#07 calc", type: "calc" }, undefined, { key: 9, label: "#09 scan", type: "scan" }] });
     const find = (kind: string, owner?: number) => r.filter((x) => x.kind === kind && (owner === undefined || x.owner === owner));
     expect(find("app", 7)).toMatchObject([{ lo: 20 * 256, hi: 23 * 256 }]);
     expect(find("app", 9)).toMatchObject([{ lo: 23 * 256, hi: 25 * 256 }]);
     expect(find("work", 7)).toMatchObject([{ lo: 40 * 256, hi: 41 * 256 }]);
     expect(r.find((x) => x.id.startsWith("ptab-0"))).toMatchObject({ kind: "osdata", lo: 16 * 256, hi: 20 * 256 });
     expect(r.some((x) => x.id === "os-ktable")).toBe(true);
+    expect(r.find((x) => x.id === "os-fmap")).toMatchObject({ kind: "osdata", lo: 0x10000, hi: 0x14000 });
   });
 });

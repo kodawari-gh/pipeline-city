@@ -2,7 +2,7 @@
 // the program the CPU is running. Everything is derived from the memory map and the machine's state; nothing here changes the sim.
 
 import { disassemble, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT_BYTES, OS_HEADER_BASE, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, USER_BASE } from "../isa";
-import { FRAME_FIRST, kdataEndFor, kernelImageFor, KTBL } from "../os/kernel";
+import { FMAP, FRAME_FIRST, kdataEndFor, kernelImageFor, KTBL, KTBL_BYTES, MAX_FRAMES, RESERVED_FRAME } from "../os/kernel";
 
 /** What a region is: the boot ROM, the OS (code or tables), an application (its loaded code and data), or the working memory it has claimed since (`work`). */
 export type RamKind = "rom" | "os" | "osdata" | "app" | "work";
@@ -64,14 +64,15 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
     if (paged) add({ id: "os-tables", kind: "osdata", name: "Page tables", note: "The page tables of the running program: one level 1 table and the level 2 tables it points to.", lo: PAGED_TABLES, hi: PAGED_TABLES + PAGED_TABLES_BYTES });
     const pre = (ctx.os.tier ?? 1) >= 3;
     add({ id: "os-table", kind: "osdata", name: pre ? "Job table and processes" : "Job table", note: pre ? `${KDATA_SLOTS} job slots of ${KSLOT_BYTES} bytes, each program's saved registers and the map of RAM frames.` : `${KDATA_SLOTS} job slots of ${KSLOT_BYTES} bytes: state, key, length, spool block and the result text.`, lo: KDATA_BASE, hi: kdataEndFor(ctx.os.tier ?? 1) });
-    if (pre) add({ id: "os-ktable", kind: "osdata", name: "Kernel page table", note: "The kernel's own address space: all of RAM, mapped to itself.", lo: KTBL, hi: KTBL + 0x500 });
+    if (pre) add({ id: "os-ktable", kind: "osdata", name: "Kernel page table", note: "The kernel's own address space: all of RAM, mapped to itself.", lo: KTBL, hi: KTBL + KTBL_BYTES });
+    if (pre) add({ id: "os-fmap", kind: "osdata", name: "Frame map", note: "One word per 256-byte frame of RAM: free, or whose it is (a program's image, its memory or its page tables).", lo: FMAP, hi: FMAP + 4 * MAX_FRAMES });
   }
   if (ctx.os && ctx.frames) {
     // the preemptive OS owns every frame by the map: runs of frames of one owner and kind are one region
     let n = 0;
     for (let f = FRAME_FIRST, e = ctx.frames.length; f < e;) {
       const w: number = ctx.frames[f] ?? 0;
-      if (w === 0) { f++; continue; }
+      if (w === 0 || w === RESERVED_FRAME) { f++; continue; }
       let g = f;
       while (g + 1 < e && ctx.frames[g + 1] === w) g++;
       const kind = w >> 4, slot = (w & 15) - 1, p = ctx.procs?.[slot];

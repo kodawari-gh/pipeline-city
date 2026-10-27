@@ -4,12 +4,12 @@
 import { assemble } from "../asm";
 import { Prng } from "../machine/prng";
 import { ROM_DONE_VECTOR } from "../isa/memmap";
-import { RefCpu } from "../ref";
+import { RefCpu, RefMemory } from "../ref";
 import type { Kernel, Mix } from "./kernels";
 import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from "./templates";
 
 export * from "./kernels";
-export { TEMPLATES, BUF_BASE, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
+export { TEMPLATES, BUF_BASE, HEAP_BASE, indexBytes, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
 
 export interface KernelInfo {
   kernel: string;
@@ -77,7 +77,7 @@ export function generate(template: string, seed: number, params: GenParams = {})
 
 /** Run a generated program on the reference interpreter. `steps` is the dynamic instruction count (ecall included). */
 export function runReference(g: Generated, maxSteps = 100_000): { steps: number; text: string; cpu: RefCpu } {
-  const cpu = new RefCpu();
+  const cpu = new RefCpu(new RefMemory(1024 * 1024)); // room for the jobs that use a big heap at 0x10000
   cpu.load(g.program);
   const steps = cpu.run(maxSteps);
   return { steps, text: cpu.mem.displayText(), cpu };

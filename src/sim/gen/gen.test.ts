@@ -82,7 +82,7 @@ describe("every generated program", () => {
         const g = generate(t, s * 31 + 9, { scale: 1 + (s % 2) });
         const ref = runReference(g);
         for (const cfg of cfgs) {
-          const m = new Machine();
+          const m = new Machine({ ramSize: 1024 * 1024 }); // the reference has room for the big-heap jobs
           const tpm = new TpmPort(null, m.ram, m.prng, true); // the secure job talks to a TPM: an instant one, like the reference interpreter has
           tpm.configure({ measureTicks: 0, attestTicks: 0, surcharge: 0 });
           m.addDevice(tpm);
@@ -160,7 +160,7 @@ describe("kernels", () => {
       "msg:", '  .string "hello"', "  .align",
     ].join("\n");
     const { program } = assemble(src);
-    const m = new Machine();
+    const m = new Machine({ ramSize: 1024 * 1024 }); // the reference has room for the big-heap jobs
     m.attach(createEngine({ kind: "ref" }), program);
     let n = 0;
     while (!m.engine!.halted && n++ < 1000) m.engine!.step();

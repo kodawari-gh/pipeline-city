@@ -10,6 +10,7 @@ describe("the RAM ladder", () => {
   it("climbs by generation: banks, bank groups and price never go down, timings never get slower, ECC only on the ECC sticks", () => {
     const l = ladder();
     expect(l.map((s) => s.gen)).toEqual(["SDR", "DDR2", "DDR3", "DDR4", "DDR4", "DDR5", "DDR5"]);
+    expect(l.map((s) => s.sizeBytes / 1024)).toEqual([16, 32, 64, 128, 128, 256, 256]);
     for (let i = 1; i < l.length; i++) {
       const a = l[i - 1]!, b = l[i]!;
       expect(b.tier).toBe(a.tier + 1);
@@ -23,8 +24,9 @@ describe("the RAM ladder", () => {
     for (const s of l) expect(s.banks % s.bankGroups).toBe(0);
   });
 
-  it("a stick is never more than the 64K the sim addresses", () => {
-    for (const s of ladder()) expect(s.sizeBytes).toBeLessThanOrEqual(64 * 1024);
+  it("a stick is never more than the 1 MiB a paged OS can use, and four of the biggest fill that", () => {
+    for (const s of ladder()) expect(s.sizeBytes).toBeLessThanOrEqual(256 * 1024);
+    expect(Math.max(...ladder().map((s) => s.sizeBytes)) * 4).toBe(1024 * 1024);
   });
 
   it("only DDR5 brings two channels on one stick: one stick feeds a dual-channel controller", () => {

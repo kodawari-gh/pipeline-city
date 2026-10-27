@@ -34,26 +34,40 @@ const BUMP = KBUMP; // OS 2: the next free frame for a program's memory
 const PFS = TABLE_END + 28; // OS 2: the registers the page-fault handler borrows (five words)
 /** Jobs the kernel has killed for touching memory they may not (the game reads it as the fault statistic). */
 export const KFAULTS = TABLE_END + 48;
-export const KDATA_END = TABLE_END + 52;
+/** OS 2 and 3: the number of 256-byte frames the machine has (up to MAX_FRAMES), read from the PCH at boot. */
+export const NFRAMES = TABLE_END + 52;
+export const KDATA_END = TABLE_END + 56;
+/** The frames a paged OS manages: the virtual space is 20 bits, so RAM above 1 MiB is not used. */
+export const MAX_FRAMES = 4096;
 // The preemptive kernel (OS 3) keeps more: a process control block per slot (plus one for the kernel itself), the map of RAM frames, and scratch words.
 /** A process control block: the 15 registers (ra, sp, a0..a3, t0..t4, s0..s3), the pc, its page table (physical), the frames of its three second-level tables, its job slot and a copy of its output row. */
 export const PCB = { PC: 60, TABLE: 64, L2_IMAGE: 68, L2_HEAP: 72, L2_STACK: 76, SLOT: 80, ROW: 84, BYTES: 128 } as const;
 /** PCBs: one per job slot (indexed like the slot), the kernel's is the ninth. */
-export const PCBS = TABLE_END + 64;
-const CURP = TABLE_END + 52; // OS 3: the PCB of the context that is running
-const SCR = TABLE_END + 56; // OS 3: the timer handler's scratch
-const SLEEP = TABLE_END + 60; // OS 3: rounds the idle kernel is skipped for
+export const PCBS = TABLE_END + 72;
+const CURP = TABLE_END + 56; // OS 3: the PCB of the context that is running
+const SCR = TABLE_END + 60; // OS 3: the timer handler's scratch
+const SLEEP = TABLE_END + 64;
+const HINT = TABLE_END + 68; // OS 3: where the frame allocator looks next (nothing below it is free: frames are only freed by kfreeown, which resets it) // OS 3: rounds the idle kernel is skipped for
 /** Rounds of the scheduler an idle kernel sits out while programs run. */
 const KERNEL_NAP = 3;
-const PFSB = PCBS + 9 * PCB.BYTES; // OS 3: registers the page-fault handler borrows (eight words)
-const KSCR = PFSB + 32; // OS 3: kstart's scratch: ra, slot, image pages, owner, the four table frames
-/** Frame map: one word per physical frame, 0 = free, else (kind << 4) | (job slot + 1); kind 0 image, 1 the program's own memory, 2 page tables. */
-export const FMAP = KSCR + 32;
+const PFSB = PCBS + 9 * PCB.BYTES; // OS 3: registers the page-fault handler borrows (seven saved, then the slot, the page, the level 1 entry and the PTE)
+const KSCR = PFSB + 48; // OS 3: kstart's scratch: ra, slot, image pages, owner, the four table frames
+export const KDATA_END_PRE = KSCR + 32;
+/**
+ * Frame map (OS 3): one word per physical frame, 0 = free, else (kind << 4) | (job slot + 1): kind 0 a program's image, 1 its own memory, 2 its page tables;
+ * `RESERVED_FRAME` is the OS's own (the tables, the map itself, frames beyond the installed RAM). It sits above 64K, so OS 3 needs RAM that reaches `OS3_MIN_BYTES`.
+ */
+export const FMAP = 0x10000;
+export const RESERVED_FRAME = 0xf0;
 export const FRAME_FIRST = 16;
-export const FRAME_END = 176;
-export const KDATA_END_PRE = FMAP + 4 * FRAME_END;
-/** The kernel's own address space (identity, all of RAM) sits just above the frames. */
-export const KTBL = 0xb000;
+export const FRAME_END = MAX_FRAMES;
+/** The kernel's own address space (identity, all of RAM: a level 1 table and up to 64 level 2 tables) follows the frame map. */
+export const KTBL = FMAP + 4 * MAX_FRAMES;
+export const KTBL_BYTES = 0x100 + 0x100 * 64;
+/** Frames 0xb0 up to here belong to the OS (its tables, the frame map and the kernel table). */
+export const OS_FRAMES_END = (KTBL + KTBL_BYTES + 255) >> 8;
+/** The RAM OS 3 needs so that its tables fit and programs have room. */
+export const OS3_MIN_BYTES = 256 * 1024;
 /** Interrupt-free stack of the code that ends a job. */
 const KSTK = 0xfc00;
 /** CPU cycles one program runs before the scheduler looks again. */
@@ -217,6 +231,8 @@ function preemptive(kendPage: number): string[] {
     "kfo2:",
     "  addi t2, t2, 4",
     "  bne t2, t3, kfo1",
+    `  li t2, ${FMAP_FIRST}`,
+    `  sw t2, ${HINT}(zero)`,
     "  ret",
 
     // kcnt: a0 = jobs running (clobbers t0-t3)
@@ -236,7 +252,7 @@ function preemptive(kendPage: number): string[] {
 
     // kalloc: a0 = the owner word to write -> a0 = a free frame (now owned), or 0 (clobbers t0-t2)
     "kalloc:",
-    `  li t0, ${FMAP_FIRST}`,
+    `  lw t0, ${HINT}(zero)`,
     `  li t1, ${FMAP_LAST}`,
     "ka1:",
     "  lw t2, 0(t0)",
@@ -247,6 +263,8 @@ function preemptive(kendPage: number): string[] {
     "  ret",
     "ka2:",
     "  sw a0, 0(t0)",
+    "  addi t2, t0, 4",
+    `  sw t2, ${HINT}(zero)`,
     `  li t1, ${FMAP}`,
     "  sub t0, t0, t1",
     "  srli a0, t0, 2",
@@ -412,7 +430,7 @@ function preemptive(kendPage: number): string[] {
     `  lw ra, ${K}(zero)`,
     "  ret",
 
-    // ---- kpf: a program touched a page that is not mapped: a frame for its heap or stack, or the end of the program ----
+    // ---- kpf: a program touched a page that is not mapped: a frame for its heap, its big heap or its stack (and a level 2 table when that part of its space has none), or the end of the program ----
     "kpf:",
     ...["ra", "a0", "t0", "t1", "t2", "t3", "t4"].map((r, i) => `  sw ${r}, ${PFSB + 4 * i}(zero)`),
     `  li t0, ${MMU_BASE}`,
@@ -424,18 +442,54 @@ function preemptive(kendPage: number): string[] {
     "  li t2, 64",
     "  blt t1, t2, kpkill",
     "  li t2, 128",
-    "  blt t1, t2, kpok",
+    "  blt t1, t2, kpok", // 0x40..0x7f: the heap
     "  li t2, 240",
     "  blt t1, t2, kpkill",
     "  li t2, 256",
-    "  bge t1, t2, kpkill",
+    "  blt t1, t2, kpok", // 0xf0..0xff: the stack
+    `  li t2, ${MAX_FRAMES}`,
+    "  bge t1, t2, kpkill", // 0x100..0xfff: the big heap (virtual 0x10000 up)
     "kpok:",
+    `  sw t1, ${PFSB + 32}(zero)`,
     `  lw t0, ${CURP}(zero)`,
-    `  lw t1, ${PCB.SLOT}(t0)`,
+    `  lw t3, ${PCB.SLOT}(t0)`,
     `  li t2, ${KD}`,
-    "  sub t1, t1, t2",
-    "  srli t1, t1, 6",
-    "  addi a0, t1, 17", // owner id, kind 1: the program's own memory
+    "  sub t3, t3, t2",
+    "  srli t3, t3, 6",
+    `  sw t3, ${PFSB + 28}(zero)`, // the slot
+    `  lw t4, ${PCB.TABLE}(t0)`,
+    "  srli t2, t1, 6",
+    "  slli t2, t2, 2",
+    "  add t4, t4, t2", // this page's entry in the level 1 table
+    `  sw t4, ${PFSB + 36}(zero)`,
+    "  lw t2, 0(t4)",
+    "  andi t2, t2, 1",
+    "  bne t2, zero, kphave",
+    "  addi a0, t3, 33", // a level 2 table: owner id, kind 2
+    "  call kalloc",
+    "  beq a0, zero, kpkill",
+    "  slli t3, a0, 8",
+    "  addi t4, t3, 256",
+    "kpz4:",
+    "  sw zero, 0(t3)",
+    "  addi t3, t3, 4",
+    "  bne t3, t4, kpz4",
+    `  lw t0, ${PFSB + 36}(zero)`,
+    "  slli t3, a0, 8",
+    "  addi t3, t3, 1",
+    "  sw t3, 0(t0)",
+    "kphave:",
+    `  lw t0, ${PFSB + 36}(zero)`,
+    "  lw t0, 0(t0)",
+    "  srli t0, t0, 8",
+    "  slli t0, t0, 8",
+    `  lw t1, ${PFSB + 32}(zero)`,
+    "  andi t1, t1, 63",
+    "  slli t1, t1, 2",
+    "  add t0, t0, t1", // the page's entry in its level 2 table
+    `  sw t0, ${PFSB + 40}(zero)`,
+    `  lw t3, ${PFSB + 28}(zero)`,
+    "  addi a0, t3, 17", // the page itself: owner id, kind 1: the program's own memory
     "  call kalloc",
     "  beq a0, zero, kpkill",
     "  slli t3, a0, 8",
@@ -444,26 +498,41 @@ function preemptive(kendPage: number): string[] {
     "  sw zero, 0(t3)",
     "  addi t3, t3, 4",
     "  bne t3, t4, kpz3",
-    `  lw t0, ${CURP}(zero)`,
-    `  li t2, ${MMU_BASE}`,
-    `  lw t1, ${MMU_REG.FAULT_ADDR}(t2)`,
-    "  srli t1, t1, 8",
-    `  lw t2, ${PCB.L2_HEAP}(t0)`,
-    "  li t4, 192",
-    "  blt t1, t4, kpm3",
-    `  lw t2, ${PCB.L2_STACK}(t0)`,
-    "kpm3:",
-    "  slli t2, t2, 8",
-    "  andi t4, t1, 63",
-    "  slli t4, t4, 2",
-    "  add t4, t4, t2",
+    `  lw t0, ${PFSB + 40}(zero)`,
     "  slli t3, a0, 8",
     "  addi t3, t3, 3", // the frame, valid and writable
-    "  sw t3, 0(t4)",
+    "  sw t3, 0(t0)",
     ...["ra", "a0", "t0", "t1", "t2", "t3", "t4"].map((r, i) => `  lw ${r}, ${PFSB + 4 * i}(zero)`),
     "  iret",
     "kpkill:",
     "  j kfault",
+  ];
+}
+
+/**
+ * OS 2's frame allocator, inline (the page-fault handler has no stack to call from): takes the next frame from the bump pointer into t2, zeroes it, and ends the
+ * program (kpkill) when the frames are used up. The pointer skips from the tables' frames (0xb0) to 0x100, the first frame above the OS.
+ */
+function bump2(tag: string): string[] {
+  return [
+    `  li t3, ${BUMP}`,
+    "  lw t2, 0(t3)",
+    `  li t4, ${PAGED_TABLES >> 8}`,
+    `  blt t2, t4, kb1${tag}`,
+    "  li t4, 256",
+    `  bge t2, t4, kb1${tag}`,
+    "  mv t2, t4",
+    `kb1${tag}:`,
+    `  lw t4, ${NFRAMES}(zero)`,
+    "  bge t2, t4, kpkill",
+    "  addi t4, t2, 1",
+    "  sw t4, 0(t3)",
+    "  slli t3, t2, 8",
+    "  addi t4, t3, 256",
+    `kb2${tag}:`,
+    "  sw zero, 0(t3)",
+    "  addi t3, t3, 4",
+    `  bne t3, t4, kb2${tag}`,
   ];
 }
 
@@ -491,22 +560,67 @@ export function kernelSource(paged: boolean, pre = false): string {
   "  addi t0, t0, 4",
   "  bne t0, t1, kzero",
   ...(pre ? [
+    // how many frames the machine has (the PCH knows the installed RAM), at most the 20-bit virtual space
+    `  lw t0, ${PCH_REG.RAM_KB}(s0)`,
+    "  slli t0, t0, 2",
+    `  li t1, ${MAX_FRAMES}`,
+    "  blt t0, t1, knf",
+    "  mv t0, t1",
+    "knf:",
+    `  sw t0, ${NFRAMES}(zero)`,
+    `  li t1, ${FMAP_FIRST}`,
+    `  sw t1, ${HINT}(zero)`,
+    // the frame map: zero, then reserve the OS's frames and everything beyond the RAM
+    `  li t0, ${FMAP}`,
+    `  li t1, ${FMAP + 4 * MAX_FRAMES}`,
+    "kmz0:",
+    "  sw zero, 0(t0)",
+    "  addi t0, t0, 4",
+    "  bne t0, t1, kmz0",
+    `  li t3, ${RESERVED_FRAME}`,
+    `  li t0, ${FMAP + 4 * (PAGED_TABLES >> 8)}`,
+    `  li t1, ${FMAP + 4 * OS_FRAMES_END}`,
+    "kmr0:",
+    "  sw t3, 0(t0)",
+    "  addi t0, t0, 4",
+    "  bne t0, t1, kmr0",
+    `  lw t2, ${NFRAMES}(zero)`,
+    "  slli t0, t2, 2",
+    `  li t4, ${FMAP}`,
+    "  add t0, t0, t4",
+    `  li t1, ${FMAP + 4 * MAX_FRAMES}`,
+    "  bge t0, t1, kmr1",
+    "kmr2:",
+    "  sw t3, 0(t0)",
+    "  addi t0, t0, 4",
+    "  bne t0, t1, kmr2",
+    "kmr1:",
     // the kernel's own address space: all of RAM, identity, read write run. The kernel runs translated like every program, as one more context the timer switches to.
     `  li t0, ${KTBL}`,
-    `  li t1, ${KTBL + 0x500}`,
+    `  li t1, ${KTBL + KTBL_BYTES}`,
     "kz3:",
     "  sw zero, 0(t0)",
     "  addi t0, t0, 4",
     "  bne t0, t1, kz3",
-    ...[0, 1, 2, 3].flatMap((i) => [`  li t1, ${KTBL + 0x100 * (i + 1) + 1}`, `  sw t1, ${4 * i + KTBL}(zero)`]),
     `  li t0, ${KTBL + 0x100}`,
     "  li t1, 7",
-    `  li t2, ${KTBL + 0x100 + 4 * 256}`,
+    "  li t3, 0",
     "kt3:",
     "  sw t1, 0(t0)",
     "  addi t0, t0, 4",
     "  addi t1, t1, 256",
-    "  bne t0, t2, kt3",
+    "  addi t3, t3, 1",
+    "  bne t3, t2, kt3",
+    "  addi t3, t2, 63",
+    "  srli t3, t3, 6",
+    `  li t0, ${KTBL}`,
+    `  li t1, ${KTBL + 0x100 + 1}`,
+    "kl3:",
+    "  sw t1, 0(t0)",
+    "  addi t0, t0, 4",
+    "  addi t1, t1, 256",
+    "  addi t3, t3, -1",
+    "  bne t3, zero, kl3",
     `  li t0, ${PCBS + 8 * PCB.BYTES}`,
     `  sw t0, ${CURP}(zero)`,
     `  li t1, ${KTBL}`,
@@ -523,6 +637,13 @@ export function kernelSource(paged: boolean, pre = false): string {
     `  sw t1, ${INTC_REG.MASK}(t2)`,
     `  sw t1, ${INTC_REG.CTRL}(t2)`, // interrupts on: the timer only fires while a program runs
   ] : paged ? [
+    `  lw t0, ${PCH_REG.RAM_KB}(s0)`,
+    "  slli t0, t0, 2",
+    `  li t1, ${MAX_FRAMES}`,
+    "  blt t0, t1, knf",
+    "  mv t0, t1",
+    "knf:",
+    `  sw t0, ${NFRAMES}(zero)`,
     // the MMU sends page faults to kpf
     `  li t2, ${MMU_BASE}`,
     `  li t0, ${KERNEL_PAGEFAULT}`,
@@ -872,9 +993,10 @@ export function kernelSource(paged: boolean, pre = false): string {
     "  ret",
 
     // ---- kpf: the program touched a page that is not mapped ----
-    // The heap and the stack are claimed on demand: a frame from the bump pointer, zeroed, mapped read and write. Anything else (a page the program has no
-    // business with, a write to the OS, memory running out) ends the program like a protection fault. The handler runs untranslated and gives the program
-    // its registers back, so the faulting instruction simply runs again.
+    // The heap, the big heap (virtual 0x10000 up) and the stack are claimed on demand: a frame from the bump pointer, zeroed, mapped read and write, and a level 2
+    // table first where that part of the space has none. The bump pointer runs over the frames between the program and the tables, then over everything from
+    // 0x10000 up. Anything else (a page the program has no business with, a write to the OS, memory running out) ends the program like a protection fault.
+    // The handler runs untranslated and gives the program its registers back, so the faulting instruction simply runs again.
     "kpf:",
     `  sw t0, ${PFS}(zero)`,
     `  sw t1, ${PFS + 4}(zero)`,
@@ -894,31 +1016,32 @@ export function kernelSource(paged: boolean, pre = false): string {
     "  li t2, 240",
     "  blt t1, t2, kpkill",
     "  li t2, 256",
-    "  bge t1, t2, kpkill", // 0xf0..0xff: the stack
+    "  blt t1, t2, kpok", // 0xf0..0xff: the stack
+    `  li t2, ${MAX_FRAMES}`,
+    "  bge t1, t2, kpkill", // 0x100..0xfff: the big heap
     "kpok:",
-    `  li t0, ${BUMP}`,
+    `  li t0, ${TBL}`,
+    "  srli t2, t1, 6",
+    "  slli t2, t2, 2",
+    "  add t0, t0, t2", // this page's entry in the level 1 table
     "  lw t2, 0(t0)",
-    `  li t3, ${TBL >> 8}`,
-    "  bge t2, t3, kpkill", // the frames are used up
-    "  addi t3, t2, 1",
-    "  sw t3, 0(t0)",
+    "  andi t2, t2, 1",
+    "  bne t2, zero, kphave",
+    ...bump2("a"), // a frame for the level 2 table, in t2
     "  slli t3, t2, 8",
-    "  addi t0, t3, 256",
-    "kpz:", // a new page is zeroed
-    "  sw zero, 0(t3)",
-    "  addi t3, t3, 4",
-    "  bne t3, t0, kpz",
-    `  li t0, ${TBL + 0x200}`,
-    "  li t4, 192",
-    "  blt t1, t4, kpm",
-    `  li t0, ${TBL + 0x300}`,
-    "kpm:",
-    "  andi t4, t1, 63",
-    "  slli t4, t4, 2",
-    "  add t4, t4, t0", // this page's entry in its level 2 table
+    "  addi t4, t3, 1",
+    "  sw t4, 0(t0)",
+    "kphave:",
+    "  lw t0, 0(t0)",
+    "  srli t0, t0, 8",
+    "  slli t0, t0, 8",
+    "  andi t2, t1, 63",
+    "  slli t2, t2, 2",
+    "  add t0, t0, t2", // the page's entry in its level 2 table
+    ...bump2("b"), // the page's frame, in t2
     "  slli t3, t2, 8",
     "  addi t3, t3, 3", // the frame, valid and writable
-    "  sw t3, 0(t4)",
+    "  sw t3, 0(t0)",
     `  lw t0, ${PFS}(zero)`,
     `  lw t1, ${PFS + 4}(zero)`,
     `  lw t2, ${PFS + 8}(zero)`,

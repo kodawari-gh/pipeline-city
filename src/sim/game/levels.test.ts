@@ -343,8 +343,8 @@ describe("jobs the machine cannot run", () => {
     g.powerButton();
     expect(g.spawnKey("db")).toMatchObject({ ok: true });
     const id = g.snapshot().tray.find((x) => x.cls === "db")!.id;
-    expect(g.snapshot().tray.find((x) => x.id === id)).toMatchObject({ runnable: false, missing: ["an OS", "a SATA SSD or better"] });
-    for (const item of ["ram1", "ssd1"]) {
+    expect(g.snapshot().tray.find((x) => x.id === id)).toMatchObject({ runnable: false, missing: ["an OS", "a SATA SSD or better", "96K of RAM"] });
+    for (const item of ["ram2", "ssd1"]) {
       const b = g.purchase(item);
       expect(b.ok, item).toBe(true);
       expect(g.install((b as { invId: string }).invId).ok, item).toBe(true);
