@@ -181,7 +181,7 @@ export function LogPanel() {
       <div class="card almanac joblog" role="dialog" aria-modal="true" aria-label="Job log">
         <header class="alm-head">
           <span class="alm-title"><Icon name="clock" size={16} /> Job log</span>
-          <span class="chip">{all.length} jobs</span>
+          <span class="chip">{all.length} {all.length === 1 ? 'job' : 'jobs'}</span>
           <button class="close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
         </header>
         {all.length === 0 ? (
