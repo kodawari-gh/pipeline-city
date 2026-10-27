@@ -3,6 +3,7 @@ import { clearQueue, repairAll, setLevel, setReputation, setSpeed, spawnKey, spe
 import type { Snapshot } from '../sim/game/game';
 import { LEVELS } from '../sim/game/levels';
 import { TEMPLATE_NAMES } from '../sim/gen';
+import { taskOfTemplate } from '../sim/game/jobdex';
 
 // The sandbox chip in the HUD bar and its tools popover (docs/SANDBOX.md). Styles are in ui.css (the sandbox section).
 // Keyboard: the chip toggles the popover, Escape closes it and gives focus back to the chip.
@@ -46,7 +47,7 @@ export function SandboxTools({ s }: { s: Snapshot }) {
           <h4>Add a key</h4>
           <div class="sbx-row">
             <select aria-label="Job template" value={tpl} onChange={(e) => setTpl(e.currentTarget.value)}>
-              {TEMPLATE_NAMES.map((t) => <option key={t} value={t}>{TEMPLATE_LABEL[t] ?? t}</option>)}
+              {TEMPLATE_NAMES.map((t) => <option key={t} value={t}>{TEMPLATE_LABEL[t] ?? taskOfTemplate(t)?.name ?? t}</option>)}
             </select>
             <select aria-label="Work multiplier" value={scale} title="Work multiplier" onChange={(e) => setScale(Number(e.currentTarget.value))}>
               {[1, 2, 4, 8, 16].map((n) => <option key={n} value={n}>x{n}</option>)}

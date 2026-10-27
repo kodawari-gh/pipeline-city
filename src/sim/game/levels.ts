@@ -3,15 +3,15 @@
 // kept in this one file (the LEVELS rows and the JOB_CLASSES) so the balance pass touches one place.
 
 import { BOARD_TIERS, CASE_TIERS, getSpec } from "../board";
-import { getIspSpec, getRouterSpec } from "../net";
+import { getIspSpec, getRouterSpec, ispByTier } from "../net";
 import { getOsSpec } from "../os";
 
 // ---------- job classes and needs ----------
 
 /** What a job needs from the machine to run. Met when the device is installed and working when the job would be picked. */
 export type Need =
-  | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net" }
-  | { kind: "tpm" } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number } | { kind: "ram"; minBytes: number };
+  | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net"; minTier?: number }
+  | { kind: "tpm"; minTier?: number } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number } | { kind: "ram"; minBytes: number };
 
 export type JobClassId = "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc";
 
@@ -39,7 +39,8 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   // The in-memory index: a 32K table at virtual 0x10000, so it needs RAM that reaches past it (96K), an OS and a SATA SSD or better.
   { id: "db", template: "db.index", scale: 1, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }, { kind: "ram", minBytes: 0x10000 + 32 * 1024 }], firstLevel: 5, rampTicks: 600, heavy: true },
   // PLACEHOLDERS below: they need devices that do not exist yet, so they are never runnable today (they arrive and expire).
-  { id: "web", template: "cli.calc", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true, placeholder: true },
+  // The network jobs: what a client asks of a server. Each kind sets its own plan tier (docs/JOBS.md); the class need is a link of any plan.
+  { id: "web", template: "web.page", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true },
   { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }, { kind: "ecc" }], firstLevel: 9, rampTicks: 600, heavy: true },
   // The GPU batch job (template gpu.render) needs no card: with one the program offloads its kernel, without one it runs the same work on the CPU, slower and at the same pay (docs/ACCEL.md).
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },
@@ -63,7 +64,11 @@ export interface Caps {
   /** Highest tier of a working storage device, -1 if none. */
   storageTier: number;
   net: boolean;
+  /** Tier of the network plan (0 when there is no usable link). */
+  netTier: number;
   tpm: boolean;
+  /** Tier of the best working TPM (0 when there is none). */
+  tpmTier: number;
   /** Every working memory stick is error-correcting (a TPM needs it). */
   ecc: boolean;
   gpuTier: number;
@@ -73,15 +78,15 @@ export interface Caps {
   ramBytes: number;
 }
 
-export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, tpm: false, ecc: false, gpuTier: 0, npu: false, cores: 1, ramBytes: 0 };
+export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, netTier: 0, tpm: false, tpmTier: 0, ecc: false, gpuTier: 0, npu: false, cores: 1, ramBytes: 0 };
 
 /** Short chip text (`NEEDS GPU`) and the long phrase for a refusal. */
 export function describeNeed(n: Need): { short: string; long: string } {
   switch (n.kind) {
     case "os": return { short: "OS", long: "an OS" };
     case "storage": return n.minTier >= 1 ? { short: "SSD", long: "a SATA SSD or better" } : { short: "DRIVE", long: "a storage drive" };
-    case "net": return { short: "NET", long: "a network link" };
-    case "tpm": return { short: "TPM", long: "a TPM" };
+    case "net": return n.minTier ? { short: `NET ${n.minTier}`, long: `a ${ispByTier(n.minTier)?.name ?? "faster"} plan or better` } : { short: "NET", long: "a network link" };
+    case "tpm": return n.minTier && n.minTier > 1 ? { short: `TPM ${n.minTier}`, long: "a second-generation TPM (Secure module 2)" } : { short: "TPM", long: "a TPM" };
     case "ecc": return { short: "ECC", long: "ECC RAM" };
     case "gpu": return { short: "GPU", long: "a GPU" };
     case "npu": return { short: "NPU", long: "an NPU" };
@@ -94,8 +99,8 @@ function needOk(n: Need, c: Caps): boolean {
   switch (n.kind) {
     case "os": return c.osTier >= n.min;
     case "storage": return c.storageTier >= n.minTier;
-    case "net": return c.net;
-    case "tpm": return c.tpm;
+    case "net": return c.net && c.netTier >= (n.minTier ?? 0);
+    case "tpm": return c.tpm && c.tpmTier >= (n.minTier ?? 0);
     case "ecc": return c.ecc;
     case "gpu": return c.gpuTier >= n.minTier;
     case "npu": return c.npu;

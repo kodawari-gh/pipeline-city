@@ -5,175 +5,27 @@
 // write a TemplateFn, add it to TEMPLATES below, and document it in docs/GEN.md. Nothing else needs to change.
 
 import { assembleGpu } from "../asm/gpu";
-import { DISPLAY_BASE, DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, NPU_MEM, NPU_REG, TpmCmd } from "../isa/memmap";
-import { Prng } from "../machine/prng";
+import type { Prng } from "../machine/prng";
+import { DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, NPU_MEM, NPU_REG, TpmCmd } from "../isa/memmap";
 import * as K from "./kernels";
-import type { Kernel } from "./kernels";
 import {
   cpuLayer, GPU_NET_LAYOUT, gpuLayerCode, M as NET_M, makeNetwork, networkChecksum, NPU_LAYOUT, npuBytes, npuProgram,
 } from "./npukernels";
 import {
-  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
+import { EVERYDAY_TEMPLATES } from "./tasks.everyday";
+import { MEMORY_TEMPLATES } from "./tasks.memory";
+import { TRUST_TEMPLATES } from "./tasks.trust";
+import { WEB_TEMPLATES } from "./tasks.web";
 
-export interface GenParams {
-  /** Work multiplier (default 1): more log lines, more hash words, more scan elements, more multiply rounds. */
-  scale?: number;
-  /** Display row where the request's output starts (default 0). */
-  row?: number;
-  /** Job id shown on the display, 0..99 (default: from the seed). */
-  jobId?: number;
-  /**
-   * Hosted program (a USB key's job): instead of `ecall` it ends by jumping to the boot ROM's done vector, so the
-   * ROM epilogue writes the result back to the key. Default false (standalone: ends with ecall, runs on the
-   * reference interpreter). The two differ only in that last instruction.
-   */
-  hosted?: boolean;
-  /** A working GPU the job may use (`gpu.render` offloads its kernel to it; without one it runs the same work on the CPU). */
-  gpu?: GpuTarget;
-  /** A working NPU the job may use (`npu.infer` runs its network on it; without one it falls back to the GPU, then the CPU). */
-  npu?: NpuTarget;
-}
+import {
+  BUF_BASE, BUF_LIMIT, Builder, MAX_CODE_BYTES, blankRows, emitStatic, layoutLine, pad2, renderLine, rowAddr,
+  type Built, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type Seg, type TemplateFn,
+} from "./build";
 
-/** Where an NPU sits on the bus and what it has. */
-export interface NpuTarget {
-  base: number;
-  /** The array is `grid` x `grid`. */
-  grid: number;
-  memBytes: number;
-}
-
-/** Where a card sits on the bus and what it has: the part of the hardware a program may be generated for. */
-export interface GpuTarget {
-  /** Bus address of the card's window (`GPU_BASE + k * GPU_STRIDE`). */
-  base: number;
-  lanes: number;
-  memBytes: number;
-}
-
-export interface ResolvedParams {
-  scale: number;
-  row: number;
-  jobId: number;
-  gpu?: GpuTarget;
-  npu?: NpuTarget;
-}
-
-/** What a template returns. */
-export interface Built {
-  /** Assembly for the whole program (code, kernels, data). */
-  asm: string;
-  /** Kernels instantiated in the program, with the footprint the template knows about added. */
-  kernels: Kernel[];
-  /** Display text the program should produce, computed in TypeScript independently of the interpreter. */
-  expectedText: string;
-}
-
-export type TemplateFn = (rng: Prng, p: ResolvedParams) => Built;
-
-/** Scratch RAM for templates that need a data buffer (well above any generated code, well below the stack). */
-export const BUF_BASE = 0x4000;
-/** Hosted programs load at USER_BASE (0x1000), so code must end before the scan buffer at BUF_BASE. */
-export const MAX_CODE_BYTES = BUF_BASE - 0x1000;
-const BUF_LIMIT = 0xc000;
-
-// ---------- program builder ----------
-
-class Builder {
-  private n = 0;
-  private readonly kernels: Kernel[] = [];
-  private readonly body: string[] = [];
-  private readonly data: string[] = [];
-
-  /** A fresh label namespace for a kernel or data block. */
-  ns(name: string): string {
-    return `k${this.n++}_${name}`;
-  }
-  /** Register a kernel (its function text is appended after main) and return its entry label. `extraFootprint` is the runtime-sized region it touches. */
-  add(kernel: Kernel, extraFootprint = 0): string {
-    this.kernels.push({ ...kernel, footprintBytes: kernel.footprintBytes + extraFootprint });
-    return kernel.ns;
-  }
-  emit(...lines: string[]): void {
-    for (const l of lines) this.body.push(`  ${l}`);
-  }
-  addData(lines: string[]): void {
-    this.data.push(...lines);
-  }
-  finish(header: string, expectedText: string): Built {
-    const asm = [
-      `# ${header}`,
-      "main:",
-      ...this.body,
-      "  ecall",
-      "",
-      ...this.kernels.map((k) => k.asm + "\n"),
-      ...this.data,
-      "",
-    ].join("\n");
-    return { asm, kernels: this.kernels, expectedText };
-  }
-}
-
-// ---------- display lines ----------
-
-/** A line is static text plus numeric fields filled in by print_dec at run time. */
-type Seg = string | { dyn: number };
-
-interface Line {
-  bytes: (number | null)[]; // null = filled at run time
-  fields: { off: number; width: number }[];
-}
-
-function layoutLine(segs: Seg[]): Line {
-  const bytes: (number | null)[] = [];
-  const fields: Line["fields"] = [];
-  for (const s of segs) {
-    if (typeof s === "string") for (const ch of s) bytes.push(ch.charCodeAt(0));
-    else {
-      fields.push({ off: bytes.length, width: s.dyn });
-      for (let i = 0; i < s.dyn; i++) bytes.push(null);
-    }
-  }
-  if (bytes.length > DISPLAY_COLS) throw new RangeError("line too long");
-  return { bytes, fields };
-}
-
-/** Text of a line with dynamic fields replaced by the given numbers (zero padded). */
-function renderLine(segs: Seg[], values: number[]): string {
-  let v = 0;
-  return segs.map((s) => (typeof s === "string" ? s : String(values[v++]!).padStart(s.dyn, "0"))).join("");
-}
-
-/** Static text goes out as packed word stores (about 3 instructions per 4 characters). Dynamic fields stay 0. */
-function emitStatic(b: Builder, line: Line, rowOff: number): void {
-  for (let w = 0; w * 4 < line.bytes.length; w++) {
-    let val = 0;
-    let any = false;
-    for (let i = 0; i < 4; i++) {
-      const c = line.bytes[w * 4 + i];
-      if (c !== undefined && c !== null) {
-        val |= c << (8 * i);
-        any = true;
-      }
-    }
-    if (!any) continue;
-    b.emit(`li t0, ${val >>> 0}`, `sw t0, ${rowOff + 4 * w}(s0)`);
-  }
-}
-
-function rowAddr(row: number): number {
-  if (row < 0 || row >= DISPLAY_ROWS) throw new RangeError(`row ${row}`);
-  return DISPLAY_BASE + row * DISPLAY_COLS;
-}
-
-function blankRows(row: number): string {
-  return "\n".repeat(row);
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
+export { BUF_BASE, MAX_CODE_BYTES };
+export type { Built, GenParams, GpuTarget, NpuTarget, ResolvedParams, TemplateFn };
 
 // ---------- CLI request family ----------
 
@@ -295,9 +147,11 @@ const dbIndex: TemplateFn = (rng, p) => {
  * the outputs. With a card the CPU copies the kernel and its data into card memory, launches and polls; without one it runs the same
  * work in a loop on the CPU. Both print the same line (the seed alone picks kernel, data and answer, never the hardware), and pay the same.
  */
-const gpuRender: TemplateFn = (rng, p) => {
+const gpuRender: TemplateFn = (rng, p) => gpuJob(rng, p, GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!, "gpu.render request");
+
+/** The GPU job for one named kernel (the mixed job above picks it from the seed; the single-kernel jobs `gpu.<kernel>` fix it). */
+function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string): Built {
   const b = new Builder();
-  const name = GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!;
   const len = 32 * Math.max(1, Math.floor(p.scale / 2));
   const scale = 2 + rng.nextInt(4);
   const { a, b: bIn } = kernelInputs(len, rng.nextU32());
@@ -307,7 +161,7 @@ const gpuRender: TemplateFn = (rng, p) => {
   const line = layoutLine(segs);
   const guards = name === "blur3"; // blur3 reads a[-1] and a[len]: the input carries a copy of its edge elements there
   const aWords = guards ? [a[0]!, ...a, a[len - 1]!] : a;
-  const needsB = name === "vadd" || name === "saxpy";
+  const needsB = name === "vadd" || name === "saxpy" || name === "poly";
   const aData = b.ns("a"), bData = b.ns("b");
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
@@ -341,8 +195,8 @@ const gpuRender: TemplateFn = (rng, p) => {
   b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
   if (name !== "mandel") b.addData([`${aData}:`, ...aWords.map((w) => `  .word ${w}`)]);
   if (needsB) b.addData([`${bData}:`, ...bIn.map((w) => `  .word ${w}`)]);
-  return b.finish(`gpu.render request`, blankRows(p.row) + renderLine(segs, [expected]));
-};
+  return b.finish(header, blankRows(p.row) + renderLine(segs, [expected]));
+}
 
 /**
  * Signed transaction (docs/ACCEL.md "Job classes"): measure the job's own data with the TPM, attest the measurement, hash the data
@@ -385,11 +239,13 @@ const secureSign: TemplateFn = (rng, p) => {
  * sum of the final activations. The fallback chain is the NPU (descriptors in card memory), then a GPU (one kernel launch per layer),
  * then the CPU (a loop per layer): the same line and the same pay on every path, and the speed gap down the chain is what a card sells.
  */
-const npuInfer: TemplateFn = (rng, p) => {
+const npuInfer: TemplateFn = (rng, p) => npuJob(rng, p, Math.min(6, 1 + p.scale), "npu.infer request");
+
+/** The inference job for a given depth (the jobs `npu.perceptron`, `npu.infer` and `npu.deep` differ only in how many layers they run). */
+function npuJob(rng: Prng, p: ResolvedParams, layers: number, header: string): Built {
   const b = new Builder();
-  const layers = Math.min(6, 1 + p.scale);
   const net = makeNetwork(rng, layers);
-  const segs: Seg[] = [`#${pad2(p.jobId)} infer `, { dyn: 2 }, " OK"];
+  const segs: Seg[] = [`#${pad2(p.jobId)} ${header.replace(/^npu\./, "").replace(/ request$/, "")} `, { dyn: 2 }, " OK"];
   const line = layoutLine(segs);
   const flat = (rows: number[][]) => rows.flat();
   const dX = b.ns("x"), dW = b.ns("w"), dB = b.ns("b");
@@ -453,8 +309,8 @@ const npuInfer: TemplateFn = (rng, p) => {
   }
   b.emit(`li a0, ${sumAt}`, `li a1, ${NET_M * NET_M}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * NET_M * NET_M)}`, "andi a1, a0, 63");
   b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
-  return b.finish("npu.infer request", blankRows(p.row) + renderLine(segs, [networkChecksum(net)]));
-};
+  return b.finish(header, blankRows(p.row) + renderLine(segs, [networkChecksum(net)]));
+}
 
 const CLI_FAMILIES = [cliLog, cliCalc, cliChecksum];
 
@@ -472,5 +328,13 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   "gpu.render": gpuRender,
   "secure.sign": secureSign,
   "npu.infer": npuInfer,
+  ...EVERYDAY_TEMPLATES,
+  ...MEMORY_TEMPLATES,
+  ...WEB_TEMPLATES,
+  ...TRUST_TEMPLATES,
+  // The accelerator jobs, one per kernel and one per depth of network (docs/JOBS.md).
+  ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as TemplateFn])),
+  "npu.perceptron": (rng, p) => npuJob(rng, p, Math.min(2, p.scale), "npu.perceptron request"),
+  "npu.deep": (rng, p) => npuJob(rng, p, Math.min(6, 1 + 2 * p.scale), "npu.deep request"),
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").
 };

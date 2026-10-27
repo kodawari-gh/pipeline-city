@@ -10,7 +10,9 @@
 // Register convention: v0 is only written where a kernel says so; the others are scratch. Integers are 32-bit, fixed point is Q12.
 
 export const GPU_KERNEL_NAMES = ["vadd", "saxpy", "blur3", "mandel"] as const;
-export type GpuKernelName = (typeof GPU_KERNEL_NAMES)[number];
+/** Every kernel a GPU job can be about: the four the mixed `gpu.render` job picks from, and two more that only their own jobs use (a branch per element, a chain of multiplies). */
+export const GPU_TASK_KERNELS = [...GPU_KERNEL_NAMES, "thresh", "poly"] as const;
+export type GpuKernelName = (typeof GPU_TASK_KERNELS)[number];
 
 /** Byte addresses in card memory. Arrays hold up to `maxLen` words. */
 import { TPM_BASE, TPM_REG } from "../isa/memmap";
@@ -18,6 +20,9 @@ import type { Kernel } from "./kernels";
 
 /** Unrolled repeats of the arithmetic in vadd and saxpy. */
 export const ROUNDS = 12;
+/** poly: the degree of the polynomial, one multiply and one add per power. thresh: the level a value has to reach, and what it becomes. */
+export const POLY_ROUNDS = 8;
+export const THRESH = { level: 500, high: 100 } as const;
 
 export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256 } as const;
 
@@ -108,6 +113,43 @@ ${"        vadd v3, v3, v5\n".repeat(ROUNDS)}        vst v3, ${OUT}(v2)
         bany loop
         mpop
         halt`;
+    case "thresh": // out[i] = a[i] >= level ? high : 0: an if and an else under the mask
+      return `
+        lane v1
+        vli v7, ${len}
+        vli v5, ${THRESH.level}
+        mpush
+      loop:
+        vslli v2, v1, 2
+        vld v3, ${A}(v2)
+        mpush
+        msetge v3, v5
+        vli v4, ${THRESH.high}
+        melse
+        vli v4, 0
+        mpop
+        vst v4, ${OUT}(v2)
+        vaddi v1, v1, ${n}
+        msetlt v1, v7
+        bany loop
+        mpop
+        halt`;
+    case "poly": // out[i] = b + a * (b + a * (...)), POLY_ROUNDS times: a chain where each multiply needs the one before
+      return `
+        lane v1
+        vli v7, ${len}
+        mpush
+      loop:
+        vslli v2, v1, 2
+        vld v3, ${A}(v2)
+        vld v4, ${B}(v2)
+        vmv v5, v4
+${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}        vst v5, ${OUT}(v2)
+        vaddi v1, v1, ${n}
+        msetlt v1, v7
+        bany loop
+        mpop
+        halt`;
     case "mandel": { // out[i] = escape iterations of c = (xMin + i * dx, cy): lanes leave the inner loop at different times
       const m = MANDEL;
       return `
@@ -179,6 +221,13 @@ export function gpuKernelExpected(name: GpuKernelName, p: GpuKernelParams, a: re
         break;
       }
       case "mandel": out.push(mandelCount(i)); break;
+      case "thresh": out.push(a[i]! >= THRESH.level ? THRESH.high : 0); break;
+      case "poly": {
+        let r = b[i]!;
+        for (let k = 0; k < POLY_ROUNDS; k++) r = (Math.imul(r, a[i]!) + b[i]!) | 0;
+        out.push(r);
+        break;
+      }
     }
   }
   return out;
@@ -231,6 +280,16 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
       return kernel("gpu_blur3", ns, ["mem", "mul", "alu", "branch"], [
         "li t3, 21846", `${ns}_i:`, "lw t0, -4(a0)", "lw t1, 0(a0)", "lw t2, 4(a0)", "add t0, t0, t1", "add t0, t0, t2", "mul t0, t0, t3", "srli t0, t0, 16",
         "sw t0, 0(a2)", "addi a0, a0, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
+      ]);
+    case "thresh":
+      return kernel("gpu_thresh", ns, ["mem", "alu", "branch"], [
+        `li t3, ${THRESH.level}`, `${ns}_i:`, "lw t0, 0(a0)", "li t1, 0", `blt t0, t3, ${ns}_s`, `li t1, ${THRESH.high}`,
+        `${ns}_s:`, "sw t1, 0(a2)", "addi a0, a0, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
+      ]);
+    case "poly":
+      return kernel("gpu_poly", ns, ["mem", "mul", "alu", "branch"], [
+        `${ns}_i:`, "lw t0, 0(a0)", "lw t1, 0(a1)", "mv t2, t1", ...Array.from({ length: POLY_ROUNDS }).flatMap(() => ["mul t2, t2, t0", "add t2, t2, t1"]),
+        "sw t2, 0(a2)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
       ]);
     case "mandel": {
       const m = MANDEL;

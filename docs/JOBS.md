@@ -1,28 +1,113 @@
 # Jobs and the almanac
 
-## The jobs today
-A job is a generated program (docs/GEN.md) plus a class (`JOB_CLASSES` in `src/sim/game/levels.ts`) that says what it needs and when clients start sending it.
+## The catalogue
+A **job** is a generated program (docs/GEN.md) plus a **class** (`JOB_CLASSES` in `src/sim/game/levels.ts`: cli, scan, db, web, secure, gpu, npu, hpc) that says how many clients send it and what it needs by default. Inside a class there are **kinds of job**, the almanac's rows (`JOB_DEX` in `src/sim/game/jobdex.ts`). Each kind has its own generator template (the key keeps it, and it names the kind), its own **level** and, when it differs from the class, its own **needs**. The almanac groups them (`DEX_GROUPS`).
 
-| class | job (almanac id) | template | what it leans on | memory it keeps | needs |
+**How a kind arrives.** A class is picked from the level's mix, as before. Then `pickTask` chooses among the kinds of that class whose level the player has reached, by the key's seed (weights equal; no extra random draw, so the stream does not depend on it). While only the `legacy` kinds (the ones the class sent before it had several) have arrived, the class sends its own template as it always did, so the first levels play as they used to: levels 1 to 3 are the tutorial and send only the log, calculation and checksum. Everything else arrives one kind at a time from level 4.
+
+**What "locked" means.** A kind has up to two locks, both shown in the almanac (a small `L7` and an icon per need on the row, the same as chips on the page):
+- **Level.** Clients do not send it before the player's level reaches the kind's level.
+- **Hardware (`needs`).** The machine has to be able to run it (an OS, a SATA SSD, RAM, a network plan of a given tier, a TPM of a given tier, ECC RAM). A job that arrives while the need is unmet cannot be plugged and is taken back at its deadline. The accelerator jobs have no hard need: they run on the CPU without a card, slower, at the same pay, and the page says by how much a card helps (`boost`, measured on the sim's cards).
+
+How the sizes were chosen: a network kind's plan tier follows from what it moves (`WEB_SIZES`): its slower leg takes about 25 ticks on a Basic DSL, so the bigger ones ask for Cable (tier 2) or Fibre (tier 3); `tasks.test.ts` checks that every kind fits its own plan. A memory kind that keeps a buffer at 0x4000 needs RAM that covers it, and the heap kinds need RAM past 0x10000 and an OS.
+
+### Everyday (10 kinds)
+Only the CPU and the display; each leans on something different.
+
+| job (almanac id) | template | level | locked behind | leans on |
+|---|---|---|---|---|
+| Log line (`log`) | `cli.log` | 1 | nothing | display speed, CPU clock |
+| Calculation (`calc`) | `cli.calc` | 1 | nothing | CPU clock, multiplier and branch speed |
+| Checksum (`checksum`) | `cli.checksum` | 1 | nothing | load and ALU speed, D-cache |
+| Fibonacci (`fib`) | `cli.fib` | 4 | nothing | ALU latency, forwarding |
+| Reverse text (`reverse`) | `cli.reverse` | 4 | nothing | display speed, byte stores |
+| Greatest common divisor (`gcd`) | `cli.gcd` | 5 | nothing | branch predictor, CPU clock |
+| Bit count (`popcount`) | `cli.popcount` | 5 | nothing | CPU clock, branch speed |
+| Sort (`sort`) | `cli.sort` | 6 | nothing | loads and stores, D-cache, branches |
+| Matrix product (`matmul`) | `cli.matmul` | 7 | nothing | the multiplier, loads, CPU width |
+| CRC check (`crc`) | `cli.crc` | 8 | nothing | branch predictor, CPU clock |
+
+### Memory-hungry (8 kinds)
+Each walks memory in a different pattern, so a different part of the memory system limits it.
+
+| job (almanac id) | template | level | locked behind | leans on |
+|---|---|---|---|---|
+| Memory scan (`scan`) | `cli.scan` | 5 | nothing | RAM latency, DRAM banks and open rows, D-cache size, memory channels |
+| Pointer chase (`chase`) | `mem.chase` | 6 | 24K of RAM | RAM latency, D-cache size |
+| Block copy (`stream`) | `mem.stream` | 6 | 17K of RAM | RAM bandwidth, open rows |
+| Neighbour sum (`stencil`) | `mem.stencil` | 7 | 17K of RAM | D-cache, CPU width |
+| Transpose (`transpose`) | `mem.transpose` | 7 | 17K of RAM | D-cache conflicts, DRAM banks |
+| Prime sieve (`sieve`) | `mem.sieve` | 8 | 17K of RAM | D-cache, byte stores, branches |
+| In-memory index (`db`) | `db.index` | 5 | an OS + a SATA SSD or better + 96K of RAM | RAM size, page faults (paged OS), TLB size, DRAM banks and row conflicts |
+| Hash table (`hashtab`) | `mem.hashtab` | 8 | an OS + 65K of RAM | RAM past 64K, page faults (paged OS), TLB, DRAM banks |
+
+### Network (8 kinds)
+The wire part of each is `WEB_SIZES` (what arrives, what goes back); the program is the work the request is about. The stand-in that ran the calculation program is gone.
+
+| job (almanac id) | template | level | locked behind | moves (down / up, MB) | leans on |
 |---|---|---|---|---|---|
-| cli | log, calc, checksum | `cli.log` / `cli.calc` / `cli.checksum` | display, CPU clock / multiplier / loads | bytes | nothing |
-| scan | scan | `cli.scan` | RAM latency, banks, D-cache | up to about 8K at 0x4000 | nothing |
-| db | in-memory index (db) | `db.index` | RAM size, page faults, TLB, DRAM row conflicts | 32K to 512K at 0x10000 | an OS, a SATA SSD, RAM past the table (96K for the class's 32K) |
-| secure | signed transaction | `secure.sign` | TPM, protected-mode surcharge | a few words | TPM and ECC |
-| gpu | GPU batch | `gpu.render` | GPU lanes, else the CPU | hundreds of bytes | nothing (a card is faster) |
-| npu | inference | `npu.infer` | NPU, else GPU, else CPU | up to a few K | nothing (a card is faster) |
-| web, hpc | planned | | | | a network link / several cores |
+| Web page (`page`) | `web.page` | 4 | a Basic DSL plan | 4 / 25 | network plan, router, CPU clock |
+| API call (`api`) | `web.api` | 4 | a Basic DSL plan | 1 / 1 | client slots, the multiplier |
+| Name lookup (`dns`) | `web.dns` | 5 | a Basic DSL plan | 0.5 / 0.5 | client slots, branch predictor |
+| Form check (`form`) | `web.form` | 5 | a Basic DSL plan | 8 / 4 | network plan, byte loads |
+| Text search (`search`) | `web.search` | 6 | a Cable plan | 20 / 30 | upload speed, branches |
+| Upload scan (`upload`) | `web.upload` | 7 | a Cable plan | 300 / 5 | download speed, loads |
+| Image resize (`image`) | `web.image` | 8 | a Cable plan | 40 / 40 | network plan, byte loads, CPU width |
+| Video chunk (`video`) | `web.video` | 9 | a Fibre plan | 5 / 600 | upload speed, the multiplier |
 
+### Trust (7 kinds)
+Each uses the TPM differently (one measurement, a chain, a burst of quotes, sealing, a hash in protected mode, a value sealed again every round). All need a TPM and ECC RAM; the burst of quotes needs the second module.
+
+| job (almanac id) | template | level | locked behind | leans on |
+|---|---|---|---|---|
+| Signed transaction (`secure`) | `secure.sign` | 9 | a TPM + ECC RAM | TPM speed, protected-mode surcharge |
+| Integrity check (`verify`) | `secure.verify` | 9 | a TPM + ECC RAM | TPM measure speed |
+| Measured boot (`measure`) | `secure.measure` | 10 | a TPM + ECC RAM | TPM measure speed |
+| Protected hash (`encrypt`) | `secure.encrypt` | 10 | a TPM + ECC RAM | the protected-mode surcharge (+2 / +1) |
+| Key vault (`vault`) | `secure.vault` | 11 | a TPM + ECC RAM | the header trips (fixed on both modules) |
+| Key rotation (`rotate`) | `secure.rotate` | 12 | a TPM + ECC RAM | the header trips, the multiplier |
+| Attestation burst (`attest`) | `secure.attest` | 13 | a second-generation TPM + ECC RAM | TPM attest time (60 / 20) |
+
+A quote is the machine's own random word (`machine/tpm.ts`), so the attestation job counts its quotes and prints the count; the others print values the instant fake in the reference interpreter also computes.
+
+### Accelerators (9 kinds)
+One job per GPU kernel and one per depth of network. None needs a card: without one the work runs on the CPU, slower, at the same pay (docs/ACCEL.md). The chip on a page, `boost`, is the speed-up measured on the sim (an 8-lane card against the CPU path; a 4x4 NPU against the CPU path).
+
+| job (almanac id) | template | level | locked behind | a card helps | leans on |
+|---|---|---|---|---|---|
+| Array add (`vadd`) | `gpu.vadd` | 10 | nothing | GPU, about 2x | lanes, CPU copy speed |
+| Scale and add (`saxpy`) | `gpu.saxpy` | 10 | nothing | GPU, about 2x | lanes, the multiplier |
+| Threshold (`thresh`) | `gpu.thresh` | 11 | nothing | GPU, about 1.4x | lanes taking turns under the mask |
+| Blur (`blur3`) | `gpu.blur3` | 11 | nothing | GPU, about 1.6x | lanes, card memory banks |
+| Polynomial (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
+| Mandelbrot (`mandel`) | `gpu.mandel` | 13 | nothing | GPU, about 15x | lanes, divergence |
+| Perceptron (`perceptron`) | `npu.perceptron` | 12 | nothing | NPU, about 4x | NPU grid, else GPU, else CPU |
+| Inference (`npu`) | `npu.infer` | 12 | nothing | NPU, about 8x | NPU grid, else GPU, else CPU |
+| Deep network (`deep`) | `npu.deep` | 14 | nothing | NPU, about 9x | NPU grid, else GPU, else CPU |
+
+`gpu.render`, the job that picked one of the first four kernels by seed, is still a template (a key saved before the split loads and runs) but no class sends it now.
+
+### Coming soon (1 kind, and why not more)
+The class `hpc` needs several cores (`needs: cores >= 2`), and nothing in the sim has more than one: the engines run one core, and the OS has one program slot per CPU. A job that "wants many cores" cannot be built honestly before the multicore stage (docs/TODO.md T53 and T85: engines sharing RAM and an L2, an OS with a slot per core, a per-core interrupt line). What is planned for it, each with the cores it will need: an n-body step (2+), a big matrix product split by rows (2, 4), a parallel reduction (2+), a Monte-Carlo run with a core per stream (4+), a merge sort of a big array (4+), a breadth-first search (8+), an FFT (8+). They are listed here, not in the game, because a row that cannot be played would only be a locked silhouette; `hpc` stays as the one planned row.
+
+### Why some groups are not ten
+- **Everyday** reaches ten because a program needs only the CPU and the display, so each can be a different dependency (a chain, unpredictable branches, a shift loop, loads and stores, the multiplier, bytes written backwards, a bit loop).
+- **Network** is eight: more would only be the same few programs with different sizes. The kinds already differ in size, plan tier and the program.
+- **Trust** is seven: the module has six commands (measure, attest, seal, unseal, protect, unprotect), and each kind is a different mix of them. A seventh mix without a new command would repeat one.
+- **Accelerators** are nine: the GPU has six distinct kernels and the NPU runs one operation (a dense layer and a ReLU over an 8x8 batch), so a network job can only differ in depth (one to six layers). A convolution, an attention or a different activation would be new NPU hardware, not a new job.
+- **Memory-hungry** is eight: the access patterns that differ in what limits them are a stride (scan), a dependent chain (chase), a stream (copy), reuse (stencil), a conflict (transpose), flags (sieve) and scattered heap probes (index, hash table).
+
+### Notes on the index job
 Until the in-memory index, no job used more than 8K: RAM above that bought nothing. `db.index` is the first job whose working set is the point: it builds a table of 256-byte records (one per page) at `HEAP_BASE` 0x10000 (`indexBytes(scale)`: 32K at scale 1, doubling at 2, 4, 8 and 16 up to 512K), then makes lookups that scatter over all of it (`indexFill`, `indexProbe` in `src/sim/gen/kernels.ts`). Memory is needed at the same virtual addresses on every OS: physical memory on OS 1, demand-paged frames on OS 2 and 3 (docs/RAM.md "How much RAM the OS uses"). Measured on a cpu2 (base clock): the class's 32K job (scale 1) takes 33 ticks on OS 1, 633 on OS 2 and 1189 on OS 3; the 64K job (scale 3) takes 52 ticks on OS 1 and 1223 on OS 2. The difference is the page faults of a paged OS: one per page claimed, each a trap, a frame allocation, a zeroed page and a table update. This is a balance question (payout and patience were set when this job was a cheap placeholder) and is left for the balance pass.
 
 ## The almanac
 The **Almanac** button in the bottom bar (beside Power; a modal like the shop, Esc closes it) (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobdex.ts`) is a collection like a pokedex. It is mostly pictures, with words kept to a few.
 
-**The collection** (left) is the kinds of job in collapsible groups (`DEX_GROUPS`: Everyday, Memory-hungry, Network, Trust, Accelerators, Coming soon), each with its colour, a pip per member (empty, met, finished) and a count. A group header folds it; "Coming soon" starts folded. Each job is one plain row, one column wide: its number (01, 02, ...), its name and a badge (check: met, gold star: finished, lock: not met). The list carries no pictures, to stay quiet; the colour of the group is the only decoration.
+**The collection** (left) is the kinds of job in collapsible groups (`DEX_GROUPS`: Everyday, Memory-hungry, Network, Trust, Accelerators, Coming soon), each with its colour, a pip per member (empty, met, finished) and a count. A group header folds it; "Coming soon" starts folded. Each job is one plain row, one column wide: its number (01, 02, ..., in the order the groups show them), its name, what it is locked behind (a small `L7` for the level, amber while the player is below it, and an icon for each piece of hardware it needs) and a badge (check: met, gold star: finished, lock: not met). The list carries no pictures, to stay quiet; the colour of the group is the only decoration.
 
 **The sprite** (`spriteOf` in `src/sim/game/jobcode.ts`, drawn by `src/ui/Sprite.tsx`) is the job's real program as a picture: one cell per instruction word that ran, coloured by what the instruction does (the colours of the listing: arithmetic blue, load amber, store green, multiply violet, branch pink, system grey), as bright as it ran often. A job that is not met is a dark silhouette of the same shape on its page. The sprite is on the job's page and in the job log's cards, not in the list.
 
-**The page** (right) shows, for a met job: the big sprite and its number; the name and group; one line of what it is; three **rings** for what the job leans on (compute, memory, control, from the instructions it ran) and the instruction mix as a coloured bar; chips with an icon for what it needs (OS, SSD, RAM, TPM...), the level it arrives at and the memory it keeps; and the player's record (stars for finished jobs, the fastest run). Under that is **the program itself, always on the main page**: the assembly listing (address, bytes, the instruction coloured by kind, a heat bar, how often it ran), in a code window whose title bar toggles ASM, C++ and Python (C++ and Python once a job is finished) and, for ASM, the Listing or the assembler Text. The scale selector and the numbers of the run (instructions, pages, bytes per instruction) are in the metrics card above it, because they change the rings and the mix as well as the program. Last are the **ways to do it better** as chips, an icon for the part (`Tip.part`) and a few words (`Tip.short`): a click opens the sentence (`Tip.text`); a part that does not help (`Tip.none`) is crossed out so the player does not buy it for this job. They are locked chips until one job of the kind is finished.
+**The page** (right) shows, for a met job: the big sprite and its number; the name and group; one line of what it is; three **rings** for what the job leans on (compute, memory, control, from the instructions it ran) and the instruction mix as a coloured bar; chips with an icon for what it needs (OS, SSD, RAM, a network plan, a TPM...), the level it arrives at (amber with a lock until the player reaches it, green with a check after), the memory it keeps and, for an accelerator job, a dashed chip for the card that is not needed but helps ("GPU: about 2x faster"); and the player's record (stars for finished jobs, the fastest run). Under that is **the program itself, always on the main page**: the assembly listing (address, bytes, the instruction coloured by kind, a heat bar, how often it ran), in a code window whose title bar toggles ASM, C++ and Python (C++ and Python once a job is finished) and, for ASM, the Listing or the assembler Text. The scale selector and the numbers of the run (instructions, pages, bytes per instruction) are in the metrics card above it, because they change the rings and the mix as well as the program. Last are the **ways to do it better** as chips, an icon for the part (`Tip.part`) and a few words (`Tip.short`): a click opens the sentence (`Tip.text`); a part that does not help (`Tip.none`) is crossed out so the player does not buy it for this job. They are locked chips until one job of the kind is finished.
 
 | state | the page shows |
 |---|---|
@@ -33,9 +118,7 @@ The **Almanac** button in the bottom bar (beside Power; a modal like the shop, E
 
 The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no version bump): `seen` is the tick the first one arrived, `runs` the jobs delivered, `best` the fewest ticks between the key being taken and the job being done. It updates when a job arrives (`enqueue`) and when one is delivered (`deliver`), by the label the monitor shows (`Key.type`).
 
-The web class is a stand-in (it runs the calculation program, levels.ts), so its page shows that program until real web code exists.
-
-To add a job: write its template, give it a class, add its `DexEntry` (blurb, what it leans on, memory, tips each with a part and a few words) and put its id in a group of `DEX_GROUPS`. `jobdex.test.ts` checks that every non-placeholder class has an almanac entry, that every entry is in exactly one group, and that the tips have short labels.
+To add a kind of job: write its template (a `tasks.*.ts` file in `src/sim/gen`, registered in `templates.ts`), add its `DexEntry` (its class and template, its level and needs when they differ from the class, a blurb, what it leans on, the memory it keeps, tips each with a part and a few words), its `CODE_SOURCE` and `HIGH_LEVEL` (`jobcode.ts`), and put its id in a group of `DEX_GROUPS`. For a network kind add its sizes to `WEB_SIZES` (`net/specs.ts`). `jobdex.test.ts` checks that every non-placeholder class has an almanac entry, that every entry is in exactly one group and that the tips have short labels; `tasks.test.ts` that every kind has its own template, is sent only from its level, runs to the end in a game (the trust kinds against a TPM, the network kinds over the link) and is counted in the log and the almanac under its own name; the generator tests run every template on the reference interpreter and the engines.
 
 ## The log
 The **Log** button in the bottom bar (beside Almanac; a modal, Esc closes it) (`src/ui/LogPanel.tsx`, data and helpers in `src/sim/game/joblog.ts`) lists the jobs that ended, to find where the machine is slow. Every job that ends adds one `JobLogEntry` (`Game.addLog`), kept as the last 60 (`JOB_LOG_CAP`), sent in `Snapshot.jobLog` and saved as the optional `jobLog` field (no version bump):

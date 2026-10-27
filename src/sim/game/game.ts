@@ -16,7 +16,7 @@ import {
 } from "../board";
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
-import { dexEntry, dexState, JOB_DEX, type DexRecord, type DexSnap } from "./jobdex";
+import { dexEntry, dexState, JOB_DEX, pickTask, taskNeeds, taskOfTemplate, type DexRecord, type DexSnap } from "./jobdex";
 import { JOB_LOG_CAP, windowOf, type JobLogEntry, type JobOutcome, type JobWindow } from "./joblog";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import { walkTable } from "./vmmap";
@@ -1082,8 +1082,13 @@ export class Game {
     if (!Number.isInteger(scale) || scale < 1 || scale > 16) return { ok: false, reason: "scale must be a whole number from 1 to 16" };
     if (this.tray.waiting().length >= this.cfg.queueCap) return { ok: false, reason: `the tray is full (${this.cfg.queueCap} keys)` };
     const keyId = this.nextKeyId;
-    if (cls) this.enqueue(cls.template, cls.scale, cls.id);
-    else this.enqueue(template, scale);
+    try {
+      if (cls) this.enqueue(cls.template, cls.scale, cls.id);
+      else this.enqueue(template, scale);
+    } catch (e) {
+      if (e instanceof RangeError) return { ok: false, reason: e.message }; // a scale this job's buffer or display cannot hold
+      throw e;
+    }
     this.note("sandbox", `spawned key ${keyId} (${template} x${scale})`);
     return { ok: true, keyId };
   }
@@ -2806,15 +2811,19 @@ export class Game {
 
   private rebuild(r: SavedKey): Key {
     const g = generate(r.template, r.seed, { scale: r.scale });
-    const clsId = r.cls ?? classOfTemplate(r.template);
+    const known = taskOfTemplate(r.template);
+    const clsId = r.cls ?? known?.cls ?? classOfTemplate(r.template);
     const cls = jobClass(clsId);
-    // A test-override mix carries its own payout multipliers; otherwise the class does (when the key is the class's own job).
-    const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : cls && cls.template === r.template && cls.scale === r.scale ? cls.payMul : 1;
+    // The kind of job is the one whose template made the key (a key of another class, such as an old web key that ran the calculation, keeps its class).
+    const task = known && known.cls === clsId ? known : undefined;
+    // A test-override mix carries its own payout multipliers; otherwise the class does (when the key is the class's own job, or one of the kinds it sends).
+    const own = cls && (task ? r.scale === (task.scale ?? cls.scale) : cls.template === r.template && cls.scale === r.scale);
+    const payMul = this.cfg.mix ? payMulFor(this.cfg, r.template, r.scale) : own ? cls.payMul * (task?.payMul ?? 1) : 1;
     const parsed = /^# (?:\S*\.)?(\w+) request/.exec(g.asm)?.[1] ?? "cli";
     return {
       id: r.id, arrival: r.arrival, template: r.template, seed: r.seed, scale: r.scale, deadline: r.deadline,
-      work: runReference(g).steps, type: clsId === "cli" || clsId === "scan" ? parsed : clsId, jobNo: g.meta.params.jobId,
-      cls: clsId, needs: cls?.needs ?? [], payMul,
+      work: runReference(g).steps, type: task?.id ?? (clsId === "cli" || clsId === "scan" ? parsed : clsId), jobNo: g.meta.params.jobId,
+      cls: clsId, needs: task ? taskNeeds(task) : cls?.needs ?? [], payMul,
       attempts: 1, pluggedAt: r.pluggedAt ?? 0, done: false, doneAt: 0, result: "", retired: r.retired === true,
     };
   }
@@ -2867,8 +2876,12 @@ export class Game {
   }
 
   /** A key arrives from a client: it goes in the tray, or the client gives up if the tray is full. */
-  private enqueue(template: string, scale = 1, cls?: string, net = false): boolean {
+  private enqueue(template: string, scale = 1, cls?: string, net = false, pick = false): boolean {
     const seed = this.machine.prng.nextU32();
+    // A class with several kinds of job sends one the player's level has reached, chosen by the seed (no extra draw: the PRNG stream does not depend on it).
+    const c = pick && cls ? jobClass(cls) : undefined;
+    const task = c && pickTask(c, this.level, seed);
+    if (task) { template = task.template; scale = task.scale ?? c!.scale; }
     const src = net ? this.offersQ : this.tray;
     if (src.waiting().length >= this.cfg.queueCap) {
       this.dropped++;
@@ -2907,7 +2920,7 @@ export class Game {
         // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
         const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => c.id !== "web" || (this.ispTier > 0 && !fallback));
         const c: JobClassDef = pickClass(mix, r);
-        this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web");
+        this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web", true);
       }
     }
   }
@@ -2925,8 +2938,9 @@ export class Game {
   /** Caps with the network need decided by the caller (`netOk`): admission asks about the link as it is right now. */
   private capsWith(netOk: boolean): Caps {
     const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
-    const tpm = this.board.devices.some((d) => !d.burnt && deviceSpec(d).kind === "tpm");
-    return { ...NO_CAPS, net: netOk, tpm, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+    const tpms = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "tpm");
+    const tpm = tpms.length > 0;
+    return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
   }
 
   private runnable(k: Key, caps = this.caps()): boolean {

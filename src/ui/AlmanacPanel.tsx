@@ -4,7 +4,7 @@
 import { signal } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { snapshot } from '../game/store';
-import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, type DexEntry, type DexGroup, type DexSnap } from '../sim/game/jobdex';
+import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, dexNumber, taskLevel, type DexEntry, type DexGroup, type DexSnap } from '../sim/game/jobdex';
 import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, type CodeLine, type CodeProfile, type OpClass } from '../sim/game/jobcode';
 import { highlightLines, type Lang, type Tok } from './highlight';
 import { Icon } from './Icons';
@@ -172,7 +172,7 @@ function Tips({ e, locked }: { e: DexEntry; locked: boolean }) {
 function Hero({ e, g, state, d, level, sandbox, p }: { e: DexEntry; g: DexGroup | undefined; state: State; d: DexSnap; level: number; sandbox: boolean; p: CodeProfile | null }) {
   const { firstLevel } = dexNeeds(e), chips = needChips(e);
   const hidden = state === 'unseen' || state === 'planned';
-  const no = String(JOB_DEX.findIndex((x) => x.id === e.id) + 1).padStart(2, '0');
+  const no = String(dexNumber(e.id)).padStart(2, '0');
   return (
     <div class="dx-hero">
       <div class="dx-pic">
@@ -189,8 +189,9 @@ function Hero({ e, g, state, d, level, sandbox, p }: { e: DexEntry; g: DexGroup 
         {!hidden && <p class="dx-blurb">{e.blurb}</p>}
         {!hidden && p && <Leans e={e} p={p} />}
         <div class="dx-needs">
-          <span class="dx-need lv" title="The level clients start sending this kind of job"><Icon name="star" size={11} /> Lv {firstLevel}</span>
+          <span class={`dx-need ${level >= firstLevel ? 'ok' : 'lv'}`} title={level >= firstLevel ? `Level ${firstLevel}: clients can send this now` : `Locked until level ${firstLevel}: clients start sending this kind of job then`}><Icon name={level >= firstLevel ? 'check' : 'lock'} size={11} /> Lv {firstLevel}</span>
           {chips.length === 0 ? <span class="dx-need ok" title="Needs nothing special"><Icon name="check" size={11} /> any machine</span> : chips.map((n) => <span key={n.kind + n.short} class="dx-need" title={`Needs ${n.long}`}><Icon name={needIcon(n.kind)} size={11} /> {n.short}</span>)}
+          {e.boost && <span class="dx-need boost" title={`Not needed, but it helps: ${e.boost}`}><Icon name="card" size={11} /> {e.boost}</span>}
           {!hidden && <span class="dx-need foot" title="The memory the job keeps"><Icon name="memory" size={11} /> {e.footprint}</span>}
         </div>
         {state === 'done' && !sandbox && (
@@ -217,12 +218,24 @@ function Page({ e, state, d, level, sandbox }: { e: DexEntry; state: State; d: D
   );
 }
 
-function Tile({ e, state, on, no }: { e: DexEntry; state: State; on: boolean; no: number }) {
+/** What a kind of job is locked behind, small: the hardware it needs (an icon each) and the level clients start sending it. */
+function Locks({ e, level }: { e: DexEntry; level: number }) {
+  const lv = taskLevel(e), chips = needChips(e);
+  return (
+    <span class="lk">
+      {chips.map((n) => <span key={n.kind + n.short} class="nd" title={`Needs ${n.long}`}><Icon name={needIcon(n.kind)} size={10} /></span>)}
+      <span class={`lv${level < lv ? ' hi' : ''}`} title={level < lv ? `Locked until level ${lv}` : `Clients send this from level ${lv}`}>L{lv}</span>
+    </span>
+  );
+}
+
+function Tile({ e, state, on, no, level }: { e: DexEntry; state: State; on: boolean; no: number; level: number }) {
   const hidden = state === 'unseen' || state === 'planned';
   return (
     <button role="option" aria-selected={on} class={`dx-tile st-${state}${on ? ' on' : ''}`} title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name} onClick={() => { picked.value = e.id; tipOpen.value = null; }}>
       <span class="no">{String(no).padStart(2, '0')}</span>
       <span class="nm">{state === 'unseen' ? '? ? ?' : e.name}</span>
+      {!e.planned && <Locks e={e} level={level} />}
       {state === 'done' && <span class="bdg gold" aria-label="Finished"><Icon name="star" size={10} /></span>}
       {state === 'seen' && <span class="bdg" aria-label="Met"><Icon name="check" size={10} /></span>}
       {(state === 'unseen' || state === 'planned') && <span class="bdg" aria-label="Locked"><Icon name="lock" size={10} /></span>}
@@ -230,7 +243,7 @@ function Tile({ e, state, on, no }: { e: DexEntry; state: State; on: boolean; no
   );
 }
 
-function Group({ g, stateOf, sel }: { g: DexGroup; stateOf: (id: string) => State; sel: string }) {
+function Group({ g, stateOf, sel, level }: { g: DexGroup; stateOf: (id: string) => State; sel: string; level: number }) {
   const closed = !!shut.value[g.id];
   const items = g.ids.map((id) => dexEntry(id)!).filter(Boolean);
   const got = items.filter((x) => { const s = stateOf(x.id); return s === 'seen' || s === 'done'; }).length;
@@ -242,7 +255,7 @@ function Group({ g, stateOf, sel }: { g: DexGroup; stateOf: (id: string) => Stat
         <span class="pips" aria-label={`${got} of ${items.length} met`}>{items.map((x) => { const s = stateOf(x.id); return <i key={x.id} class={s === 'done' ? 'full' : s === 'seen' ? 'half' : ''} />; })}</span>
         <span class="cnt">{got}/{items.length}</span>
       </button>
-      {!closed && <div class="dx-grid">{items.map((x) => <Tile key={x.id} e={x} state={stateOf(x.id)} on={sel === x.id} no={JOB_DEX.findIndex((y) => y.id === x.id) + 1} />)}</div>}
+      {!closed && <div class="dx-grid">{items.map((x) => <Tile key={x.id} e={x} state={stateOf(x.id)} on={sel === x.id} no={dexNumber(x.id)} level={level} />)}</div>}
     </section>
   );
 }
@@ -277,7 +290,7 @@ export function AlmanacPanel() {
         </header>
         <div class="alm-body">
           <div class="alm-list" role="listbox" aria-label="Jobs">
-            {DEX_GROUPS.map((g) => <Group key={g.id} g={g} stateOf={stateOf} sel={sel} />)}
+            {DEX_GROUPS.map((g) => <Group key={g.id} g={g} stateOf={stateOf} sel={sel} level={s?.level.level ?? 1} />)}
           </div>
           <div class="alm-main"><Page e={e} state={stateOf(sel)} d={d} level={s?.level.level ?? 1} sandbox={sandbox} /></div>
         </div>

@@ -34,7 +34,14 @@ export const ispByTier = (tier: number): IspSpec | undefined => ISP_SPECS.find((
 export const DISK_NET_MBPS: Readonly<Record<string, number>> = { hdd0: 80, ssd1: 400, nvme2: 2000 };
 
 /** Download / upload size (game MB) of a job: by class id; plain `cli` depends on the template type (checksum is bigger). */
+/** What each kind of network job moves (game MB): the request that arrives and the answer that goes back. A kind's plan tier follows from these: its slower leg takes about 25 ticks on a Basic DSL, so bigger ones want Cable (tier 2) or Fibre (tier 3). */
+export const WEB_SIZES: Readonly<Record<string, { downMB: number; upMB: number }>> = {
+  page: { downMB: 4, upMB: 25 }, api: { downMB: 1, upMB: 1 }, dns: { downMB: 0.5, upMB: 0.5 }, form: { downMB: 8, upMB: 4 },
+  search: { downMB: 20, upMB: 30 }, upload: { downMB: 300, upMB: 5 }, image: { downMB: 40, upMB: 40 }, video: { downMB: 5, upMB: 600 },
+};
+
 export function jobSizes(cls: string, type: string, scale: number): { downMB: number; upMB: number } {
+  if (cls === "web" && WEB_SIZES[type]) return WEB_SIZES[type]!;
   switch (cls) {
     case "scan": return { downMB: 75 * scale, upMB: 2.5 * scale };
     case "db": return { downMB: 400, upMB: 80 };

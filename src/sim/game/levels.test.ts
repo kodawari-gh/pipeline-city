@@ -363,11 +363,16 @@ describe("jobs the machine cannot run", () => {
     expect(needsMet([{ kind: "os", min: 1 }], NO_CAPS)).toEqual({ ok: false, missing: ["an OS"] });
     expect(needsMet([{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], { ...NO_CAPS, osTier: 1, storageTier: 2 }).ok).toBe(true);
     expect(needsMet([{ kind: "storage", minTier: 1 }], { ...NO_CAPS, storageTier: 0 }).ok).toBe(false);
-    for (const id of ["web", "hpc"]) {
-      const c = JOB_CLASSES.find((x) => x.id === id)!;
-      expect(c.placeholder, id).toBe(true);
-      expect(needsMet(c.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok, id).toBe(false);
-    }
+    const hpc = JOB_CLASSES.find((x) => x.id === "hpc")!;
+    expect(hpc.placeholder).toBe(true);
+    expect(needsMet(hpc.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok).toBe(false);
+    // The network jobs are real now: a link of any plan meets the class, and a kind can ask for a faster plan.
+    const web = JOB_CLASSES.find((x) => x.id === "web")!;
+    expect(web.placeholder).toBeUndefined();
+    expect(needsMet(web.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok).toBe(false);
+    expect(needsMet(web.needs, { ...NO_CAPS, net: true, netTier: 1 }).ok).toBe(true);
+    expect(needsMet([{ kind: "net", minTier: 2 }], { ...NO_CAPS, net: true, netTier: 1 })).toEqual({ ok: false, missing: ["a Cable plan or better"] });
+    expect(needsMet([{ kind: "net", minTier: 2 }], { ...NO_CAPS, net: true, netTier: 2 }).ok).toBe(true);
     const secure = JOB_CLASSES.find((x) => x.id === "secure")!;
     expect(secure).toMatchObject({ template: "secure.sign", needs: [{ kind: "tpm" }, { kind: "ecc" }] });
     expect(secure.placeholder).toBeUndefined();

@@ -23,7 +23,7 @@ export interface Kernel {
   asm: string;
 }
 
-function k(name: string, ns: string, mix: Mix[], footprintBytes: number, body: string[]): Kernel {
+export function k(name: string, ns: string, mix: Mix[], footprintBytes: number, body: string[]): Kernel {
   return { name, ns, mix, footprintBytes, asm: [`${ns}:`, ...body.map((l) => `  ${l}`)].join("\n") };
 }
 

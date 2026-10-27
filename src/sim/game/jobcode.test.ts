@@ -51,7 +51,7 @@ describe("the picture of a job", () => {
 
   it("looks different for different jobs", () => {
     const sig = (id: string) => { const sp = spriteOf(profileOf(CODE_SOURCE[id]!.template, CODE_SOURCE[id]!.scales[0]!)); return sp.cells.map((c) => c.cls[0]).join(""); };
-    expect(new Set(["log", "calc", "scan", "db", "secure", "gpu"].map(sig)).size).toBe(6);
+    expect(new Set(["log", "calc", "scan", "db", "secure", "mandel"].map(sig)).size).toBe(6);
   });
 });
 

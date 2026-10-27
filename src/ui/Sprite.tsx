@@ -43,8 +43,9 @@ export function needIcon(kind: string): IconName {
     case 'os': return 'layers';
     case 'storage': return 'disk';
     case 'net': return 'net';
-    case 'tpm': return 'lock';
-    case 'ecc': case 'ram': return 'memory';
+    case 'tpm': return 'slot';
+    case 'ecc': return 'memory';
+    case 'ram': return 'stick';
     case 'gpu': return 'card';
     case 'npu': return 'bolt';
     case 'cores': return 'cpu';

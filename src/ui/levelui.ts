@@ -4,7 +4,8 @@
 import { getSpec } from '../sim/board/specs';
 import { ECONOMY } from '../sim/game/economy';
 import type { Snapshot } from '../sim/game/game';
-import { levelDef, unlockLevelOf } from '../sim/game/levels';
+import { dexGroup, JOB_DEX, taskLevel } from '../sim/game/jobdex';
+import { describeNeed, jobClass, levelDef, unlockLevelOf } from '../sim/game/levels';
 import { fmtMoney, fmtNum } from './logic';
 
 // ---------- HUD level bar ----------
@@ -84,10 +85,21 @@ export const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hin
   db: { label: 'Database', icon: 'disk', hint: 'Needs an operating system and a SATA SSD or better.' },
   web: { label: 'Web', icon: 'net', hint: 'Needs a network link.' },
   secure: { label: 'Secure', icon: 'lock', hint: 'Needs a secure module (TPM).' },
-  gpu: { label: 'GPU', icon: 'screen', hint: 'Needs a graphics card.' },
-  npu: { label: 'AI', icon: 'cpu', hint: 'Needs a neural accelerator.' },
+  gpu: { label: 'GPU', icon: 'screen', hint: 'Array jobs: a graphics card makes them faster (they run without one, slowly).' },
+  npu: { label: 'AI', icon: 'cpu', hint: 'Network jobs: a neural accelerator makes them faster (they run without one, slowly).' },
   hpc: { label: 'Heavy compute', icon: 'fan', hint: 'Needs a multicore processor.' },
 };
+
+/** The icon of each group of kinds of job, for a kind that arrives after its class did. */
+const GROUP_ICON: Record<string, IconKey> = { everyday: 'clock', memory: 'memory', network: 'net', trust: 'lock', accel: 'card' };
+
+/** The kinds of job that first arrive at a level, apart from the ones that come with their class (the class has its own chip). */
+export function newKindsAt(level: number): { id: string; label: string; icon: IconKey; hint: string }[] {
+  return JOB_DEX.filter((e) => !e.planned && taskLevel(e) === level && taskLevel(e) > (jobClass(e.cls)?.firstLevel ?? 1)).map((e) => {
+    const needs = (e.needs ?? jobClass(e.cls)?.needs ?? []).map((n) => describeNeed(n).long);
+    return { id: e.id, label: e.name, icon: GROUP_ICON[dexGroup(e.id)?.id ?? ''] ?? 'box', hint: needs.length ? `Needs ${needs.join(' and ')}.` : 'Needs nothing special.' };
+  });
+}
 
 export type MilestoneStatus = 'passed' | 'current' | 'upcoming';
 
@@ -122,7 +134,7 @@ export function milestoneRows(s: Snapshot): MilestoneRow[] {
       threshold: r.threshold,
       status: r.level < cur ? 'passed' : r.level === cur ? 'current' : 'upcoming',
       unlocks: r.unlocks.map((u) => ({ ...u, icon: kindIcon(u.kind) })),
-      newJobs: r.newJobs.map((id) => ({ id, ...(JOB_CLASS_LABEL[id] ?? { label: id, icon: 'box' as const, hint: '' }) })),
+      newJobs: [...r.newJobs.map((id) => ({ id, ...(JOB_CLASS_LABEL[id] ?? { label: id, icon: 'box' as const, hint: '' }) })), ...newKindsAt(r.level)],
       waitS: Math.round(ECONOMY.deadlineTicks * r.patienceMul),
       payMul: r.payMul,
       patience: prev ? (r.patienceMul < prev.patienceMul ? 'stricter' : 'same') : null,
