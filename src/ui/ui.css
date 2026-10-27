@@ -757,3 +757,47 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .alm-tips { margin: 0; padding-left: 1.05rem; display: flex; flex-direction: column; gap: 0.35rem; line-height: 1.4; }
 .alm-rec { margin-top: 0.6rem; color: var(--mute); }
 .alm-lock { display: flex; align-items: center; gap: 0.35rem; }
+
+/* Almanac: code views */
+.almanac.wide { width: min(38rem, 94vw); }
+.almanac { overflow-y: auto; }
+.alm-sb { font-weight: 400; font-size: 0.7rem; }
+.alm-tabs { display: flex; gap: 0.25rem; margin: 0.2rem 0 0.5rem; }
+.alm-tabs button { padding: 0.2rem 0.6rem; font-size: 0.74rem; color: var(--mute); display: inline-flex; align-items: center; gap: 0.25rem; }
+.alm-tabs button.on { color: var(--ink); border-color: var(--ink); background: var(--glass-line); }
+.alm-tabs button.off { opacity: 0.55; }
+.alm-ctl { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.alm-ctl .seg button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); }
+.alm-ctl .seg button.on { color: var(--ink); background: var(--glass-line); }
+.alm-note { margin: 0 0 0.35rem; font-size: 0.7rem; }
+.alm-out { margin-top: 0.35rem; font-size: 0.7rem; }
+.alm-mix { margin-bottom: 0.5rem; }
+.alm-bar { display: flex; height: 0.7rem; border-radius: 0.2rem; overflow: hidden; background: var(--glass-line); }
+.alm-bar .seg { display: block; height: 100%; }
+.alm-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 0.7rem; margin: 0.3rem 0; font-size: 0.7rem; color: var(--mute); }
+.dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 0.15rem; vertical-align: -0.05rem; }
+.alm-rely { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.4rem 0; }
+.alm-rely .row { display: grid; grid-template-columns: 4.2rem 1fr 2.6rem; align-items: center; gap: 0.5rem; }
+.alm-rely .b { height: 0.45rem; background: var(--glass-line); border-radius: 0.2rem; overflow: hidden; }
+.alm-rely .b i { display: block; height: 100%; background: var(--ink); opacity: 0.75; }
+.alm-rely .v { text-align: right; color: var(--mute); }
+.alm-chips { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; font-size: 0.68rem; color: var(--mute); }
+.alm-chips span { padding: 0.05rem 0.4rem; border: 1px solid var(--glass-line); border-radius: 99rem; }
+.bg-alu { background: #3aa8d9; } .bg-ld { background: #d9a23a; } .bg-st { background: #4cc38a; } .bg-mul { background: #a78bfa; } .bg-br { background: #d96ad6; } .bg-sys { background: #8893b0; }
+.alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; background: rgba(0,0,0,.18); border: 1px solid var(--glass-line); border-radius: 0.3rem; padding: 0.35rem 0.1rem; max-height: 22rem; overflow: auto; }
+.alm-listing .lbl { color: #b69cf0; padding: 0.15rem 0.5rem 0; font-weight: 700; }
+.alm-listing .ins { display: grid; grid-template-columns: 2.6rem 4.4rem minmax(11rem, 1fr) 3.4rem 3.2rem; gap: 0.4rem; padding: 0 0.5rem; align-items: center; white-space: nowrap; }
+.alm-listing .ln.cold { opacity: 0.45; }
+.alm-listing .ad { color: var(--mute); }
+.alm-listing .wd { color: var(--mute); opacity: 0.7; }
+.alm-listing .hc { height: 0.4rem; background: var(--glass-line); border-radius: 0.15rem; overflow: hidden; }
+.alm-listing .hc i { display: block; height: 100%; }
+.alm-listing .ct { text-align: right; color: var(--mute); }
+.alm-listing .ln:hover { background: var(--glass-line); }
+.alm-data { padding: 0.3rem 0.5rem; font-family: inherit; }
+.alm-source .sl { display: grid; grid-template-columns: 2.2rem 1fr; gap: 0.5rem; padding: 0 0.5rem; white-space: pre; }
+.alm-source .no { color: var(--mute); opacity: 0.6; text-align: right; user-select: none; }
+.tk-comment { color: #7f8aa8; font-style: italic; } .tk-string { color: #7cc98a; } .tk-number { color: #e3a35c; } .tk-keyword { color: #d96ad6; }
+.tk-type { color: #5cc1e0; } .tk-func { color: #e6d37a; } .tk-label { color: #b69cf0; } .tk-reg { color: #6fd0c0; } .tk-directive { color: #7f8aa8; } .tk-pre { color: #c08ad6; } .tk-punct { color: var(--mute); }
+.tk.op-alu { color: #3aa8d9; } .tk.op-ld { color: #d9a23a; } .tk.op-st { color: #4cc38a; } .tk.op-mul { color: #a78bfa; } .tk.op-br { color: #d96ad6; } .tk.op-sys { color: #8893b0; }
+.tk-op { font-weight: 700; }

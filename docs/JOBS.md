@@ -29,4 +29,18 @@ The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no
 
 To add a job: write its template, give it a class, add its `DexEntry` (blurb, what it leans on, memory, tips). `jobdex.test.ts` checks that every non-placeholder class has an almanac entry and every playable entry has at least two tips.
 
-Not built: per-run detail (which hardware limited this run), tips that react to the machine (for example "your RAM is the limit"), and entries for the sub-kinds of the GPU and NPU jobs.
+## Reading the code
+A card for a job that has been met has tabs (`src/ui/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/highlight.ts`):
+
+- **Assembly** (the core view, unlocked when the job is met). The program the generator makes for the job (`profileOf(template, scale)`, a scale selector for the jobs that have one) is **run on the reference interpreter**, counting every instruction by what it does. The view shows:
+  - **Where the work goes:** a bar of the instructions executed by kind (arithmetic and logic, loads, stores, multiplies, branches, system) with their shares, and three **reliance** bars: *compute* (ALU and multiplier), *memory* (loads and stores) and *control* (branches), each a share of the instructions that did something. They point at the hardware to look at: CPU clock and width, caches and RAM, predictor.
+  - **Chips:** instructions run, words of code and of data, distinct 256-byte pages touched, bytes moved (per instruction), and the share of conditional branches taken.
+  - **Listing:** every word of the program with its address, its bytes, the instruction coloured by kind (the same colours as the die and the RAM view's pills), a heat bar and the count of how many times it ran, with the kernel labels. The words after the last executed instruction are the program's data and are folded into one line.
+  - **Source:** the assembler text the generator wrote, with labels and comments.
+- **C++ and Python** (unlocked when one of the jobs has been finished): the same job as a person would write it, coloured, with the assembly above kept as the truth. Hand-written per job in `HIGH_LEVEL`.
+
+A **sandbox** game has the whole almanac open: every job (except the planned ones) counts as finished, with all tabs and the tips, and no record.
+
+`jobcode.test.ts` runs every job's program (it halts, shows its text, and its counts add up to the instructions run) and checks that the jobs differ in what they lean on; `highlight.test.ts` checks the colouring and that the pieces always join back to the text.
+
+Not built: the C++ and Python versions are written by hand, not compiled from or checked against the program (the assembly is the program), a side-by-side of a line of C++ with the instructions it became, per-run detail (which hardware limited a real run), tips that react to the machine, and entries for the sub-kinds of the GPU and NPU jobs.
