@@ -66,7 +66,7 @@ const stepShot = (id, tag = '') => shot(`${String(++shotN).padStart(2, '0')}-${i
 const problems = [];
 const center = (a) => ({ x: a.x + a.w / 2, y: a.y + a.h / 2 });
 const snap = () => p.evaluate(async () => JSON.parse(JSON.stringify((await import('/src/game/store.ts')).snapshot.value)));
-const anchor = (id) => p.evaluate(async (id) => (await import('/src/ui/anchor.ts')).anchorOf(id), id);
+const anchor = (id) => p.evaluate(async (id) => (await import('/src/ui/tutorial/anchor.ts')).anchorOf(id), id);
 const stepId = () => p.evaluate(() => document.querySelector('aside.tut')?.getAttribute('data-step') ?? null);
 const dragging = () => p.evaluate(async () => (await import('/src/game/interaction.ts')).dragging.value);
 const setSpeed = (n) => p.evaluate(async (n) => (await import('/src/game/store.ts')).setSpeed(n), n);
@@ -131,10 +131,10 @@ async function validateHeld(id) {
   await p.waitForTimeout(1200); // the camera flight to the target
   if (await p.$('.lvl-card')) return; // a level-up popup is read first; the card waits behind it
   const out = await p.evaluate(async (id) => {
-    const { STEPS } = await import('/src/ui/tutorial.ts');
+    const { STEPS } = await import('/src/ui/tutorial/tutorial.ts');
     const { snapshot } = await import('/src/game/store.ts');
     const { highlight, dragging } = await import('/src/game/interaction.ts');
-    const { anchorOf } = await import('/src/ui/anchor.ts');
+    const { anchorOf } = await import('/src/ui/tutorial/anchor.ts');
     const step = STEPS.find((x) => x.id === id);
     // A short step can be over before it is checked (the first job takes a few seconds): then there is nothing to compare.
     if (document.querySelector('aside.tut')?.getAttribute('data-step') !== id) return ['__moved'];

@@ -1,17 +1,17 @@
-import { SEAT_R } from './cords';
+import { SEAT_R } from './board/cords';
 import { Container, Graphics, Text } from 'pixi.js';
 import { hover, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
 import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
 import type { Camera, FlyOpts, Grab } from './camera';
-import { drawPlug, ACCENT } from './devices';
+import { drawPlug, ACCENT } from './board/devices';
 import { box, MONO, mix } from './ink';
-import { BD, CASE, PLUG_L, PLUG_W, type Rect } from './layout';
-import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './props';
-import { roomClick } from './room';
+import { BD, CASE, PLUG_L, PLUG_W, type Rect } from './board/layout';
+import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from './room/props';
+import { roomClick } from './room/room';
 import type { Shape } from './shape';
-import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './routes';
+import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from './board/routes';
 import type { Theme } from './theme';
 
 // Everything the player does with the mouse or a finger, and every moving overlay that goes with it: hover affordance,

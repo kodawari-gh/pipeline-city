@@ -8,8 +8,8 @@ import { REGIONS } from './regions';
 import { getSpec } from '../sim/board/specs';
 import type { Phase } from '../sim/game/game';
 import { dev, key, snap } from './testdata';
-import { cpuPlan } from '../render/cpuplans';
-import type { PlanInput } from '../render/cpuplan';
+import { cpuPlan } from '../render/die/cpuplans';
+import type { PlanInput } from '../render/die/cpuplan';
 
 /** One floorplan per architecture and optional part: the ids the die writes. */
 const DIE_INPUTS: PlanInput[] = [

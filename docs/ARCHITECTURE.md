@@ -25,6 +25,8 @@ src/render   Pixi board; reads snapshots, never touches sim internals
 src/ui       Preact panels; reads signals from src/game
 ```
 
+Folders: `src/render/` holds the shared helpers (camera, theme, ink, shape, live, interact, capture) and three groups: `die/` (the CPU die view), `board/` (the board, its parts, wiring, RAM view) and `room/` (the desk, wall, props, light). `src/ui/` holds `panels/` (log, jobs, levels, trace, network, HUD), `shop/` (shop, picker, parts, placement), `tutorial/` and `kit/` (icons, meter, sprite, hover), with the shared state, logic and `ui.css` at its root. A test sits next to the file it covers.
+
 Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `src/game` puts them in signals, and render/ui read the signals. Player actions go back as `ToSim` messages. The protocol file is the only thing shared across the thread boundary.
 
 ## Simulation

@@ -1,6 +1,6 @@
 # The CPU die: floorplans, links and levels of detail
 
-Code: `src/render/cpuplan.ts` (the data model), `src/render/cpufloor.ts` (the slicing layout and the channel router), `src/render/cpuplans.ts` (the floorplan of each architecture), `src/render/cpuplan.test.ts`. Status: **stages 1 and 2 built** (the layout data and its tests; the snapshot data and the die view that draw it in the game, `src/render/dieart.ts`, `src/render/dieview.ts`, `src/sim/game/pipesnap.ts`). Not built yet: the new CPU parts and their sim features (stage 3). Background: [`CPU.md`](CPU.md) (how the CPU runs, interrupts), [`ENGINES.md`](ENGINES.md) (the pipelines), [`RENDER.md`](RENDER.md) (the board and its buses).
+Code: `src/render/die/cpuplan.ts` (the data model), `src/render/die/cpufloor.ts` (the slicing layout and the channel router), `src/render/die/cpuplans.ts` (the floorplan of each architecture), `src/render/die/cpuplan.test.ts`. Status: **stages 1 and 2 built** (the layout data and its tests; the snapshot data and the die view that draw it in the game, `src/render/die/dieart.ts`, `src/render/die/dieview.ts`, `src/sim/game/pipesnap.ts`). Not built yet: the new CPU parts and their sim features (stage 3). Background: [`CPU.md`](CPU.md) (how the CPU runs, interrupts), [`ENGINES.md`](ENGINES.md) (the pipelines), [`RENDER.md`](RENDER.md) (the board and its buses).
 
 ## Why, and what the owner asked for
 

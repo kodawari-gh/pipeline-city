@@ -4,11 +4,11 @@ import { Container } from 'pixi.js';
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
 import { BOARD_TIERS } from '../sim/board/specs';
-import { IO_PORTS, TIER_GEO } from './boardlayout';
-import { standoffs } from './case';
-import { CASE_BD, GEO, PKG, SOCKET_E, setLayoutTier, type Rect } from './layout';
-import { buildBuses, buildCables, type Lane } from './routes';
-import { plugRect } from './devices';
+import { IO_PORTS, TIER_GEO } from './board/boardlayout';
+import { standoffs } from './room/case';
+import { CASE_BD, GEO, PKG, SOCKET_E, setLayoutTier, type Rect } from './board/layout';
+import { buildBuses, buildCables, type Lane } from './board/routes';
+import { plugRect } from './board/devices';
 
 // The last look over every board in every case: the screws meet the case's standoffs, and every part of the board is wired to
 // something (a trace from a pin of the part, a cable plug on its connector).

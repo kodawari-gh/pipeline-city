@@ -7,9 +7,9 @@ import { effect, signal } from '@preact/signals';
 import { selected } from '../game/hover';
 import { saveHooks, snapshot, speed, togglePause } from '../game/store';
 import type { Snapshot } from '../sim/protocol';
-import { celebrationFor, reconcileSeen, type Celebration } from './levelui';
+import { celebrationFor, reconcileSeen, type Celebration } from './panels/levelui';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
-import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from './tutorial';
+import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from './tutorial/tutorial';
 
 const THEME_KEY = 'pipeline-city.theme';
 const HINTS_KEY = 'pipeline-city.hints';

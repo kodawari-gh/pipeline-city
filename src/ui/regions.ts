@@ -151,7 +151,7 @@ export const REGIONS: Record<string, Description> = {
     plain: 'Shows how much power the machine uses compared with what the supply can give.',
     nerd: 'Load = sum of device watts against the rated budget; over 100% trips the supply.',
   },
-  // Zoomed-in processor die (src/render/dieview.ts, docs/DIE.md): one id per kind of block, `cpu.<kind>`.
+  // Zoomed-in processor die (src/render/die/dieview.ts, docs/DIE.md): one id per kind of block, `cpu.<kind>`.
   'cpu.power': { title: 'Power', plain: 'Where the board’s power enters the chip: the supply voltage arrives through many small pads.', nerd: 'vcore from the VRM, one stub per phase. A bigger load needs more phases.' },
   'cpu.thermal': { title: 'Sensors', plain: 'The temperature sensor and the power-management bus.', nerd: 'Thermal diode and SVID: the VRM and the throttle read them.' },
   'cpu.mc': { title: 'Memory controller', plain: 'Talks to the memory sticks.', nerd: 'MC: the DIMM bus, 6 lanes drawn; latency comes from the RAM spec and sets the cache miss penalty.' },

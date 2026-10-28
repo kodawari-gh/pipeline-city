@@ -8,9 +8,9 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()), FillGradient: class { constructor(public o?: unknown) {} } }));
 
 import { BOARD_TIERS } from '../sim/board/specs';
-import { buildBoard } from './boardArt';
-import { bayArt, caseBack, caseGlass, sataCablePath, sataLinkArt, sataPowerArt } from './case';
-import { BAY_CELLS, setLayoutTier } from './layout';
+import { buildBoard } from './board/boardArt';
+import { bayArt, caseBack, caseGlass, sataCablePath, sataLinkArt, sataPowerArt } from './room/case';
+import { BAY_CELLS, setLayoutTier } from './board/layout';
 import type { Theme } from './theme';
 
 const DARK: Theme = {

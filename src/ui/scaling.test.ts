@@ -70,7 +70,7 @@ describe('UI scaling: no fixed pixel sizes', () => {
   it('scans a sensible set of files', () => {
     const names = files.map((f) => f.slice(1));
     expect(names).toContain('src/ui/ui.css');
-    expect(names).toContain('src/ui/Hud.tsx');
+    expect(names).toContain('src/ui/panels/Hud.tsx');
     expect(names).toContain('index.html');
     expect(names).toContain('src/main.tsx');
   });

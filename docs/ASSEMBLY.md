@@ -161,7 +161,7 @@ Measured over 30 seeds with a bot that runs the manual loop with 2 s per step (`
 
 `ToSim` additions (`uninstallOs` came with the OS, see OS.md): `install {invId, slotId?}`, `uninstall {deviceId}`, `connectCable {cable}`, `disconnectCable {cable}`, `powerButton`, `plugKey {keyId}`, `ejectKey`. Each replies with a `snapshot`, preceded by an `error {message}` if it was refused (`"<call>: <reason>"`). `purchase` now means "buy to the inventory". Store functions (`src/game/store.ts`): `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey` (plus the existing `purchase`, `setCpuClock`, `powerCycle`, `setSpeed`, `exportSave`, `importSave`); a refusal lands in the `lastError` signal. Levels added `declineKey {keyId}` and `declineJob {id}` (decline a waiting job, see GAME.md) and the sandbox tool `setLevel {level}`; the store has `declineKey(id)`, `declineJob(id)`, `setLevel(n)`.
 
-`src/ui/Shop.tsx` has a minimal "Machine" section (power, cables, install and remove buttons, plug/remove key) so the old UI stays playable until the drag-and-drop UI exists.
+`src/ui/shop/Shop.tsx` has a minimal "Machine" section (power, cables, install and remove buttons, plug/remove key) so the old UI stays playable until the drag-and-drop UI exists.
 
 ## Board ladder and the VRM (see [`VRM.md`](VRM.md))
 

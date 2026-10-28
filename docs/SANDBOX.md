@@ -2,7 +2,7 @@
 
 A sandbox game is a campaign game with the money and the tutorial taken out, and a few tools added for trying ideas fast. **The physics stays.** Slots, watts, cooling, the VRM and the power-off rule all still apply; the sandbox only removes what costs time and money.
 
-Code: `src/sim/game/game.ts` (the `sandbox` option, the sandbox tools, the purchase rules), `src/sim/game/economy.ts` (`SANDBOX_MONEY`, `sandboxOffers`), `src/sim/protocol.ts` (`SANDBOX_SPEEDS`), `src/sim/host.ts` (the 64x refusal and the catch-up cap), `src/sim/game/save.ts` (the optional `sandbox` field), `src/game/store.ts` (`startSim` options and the tool actions), `src/ui/NewGame.tsx` (the dialog), `src/ui/SandboxTools.tsx` (the chip and its tools), `src/ui/Hud.tsx` (the infinity sign), `src/ui/tutorial.ts` (no tutorial), `src/sim/bench/speed.ts` and `tools/bench-speed.mjs` (the 64x benchmark, see Speed). Tests: `src/sim/game/sandbox.test.ts`, `src/ui/tutorial.test.ts` (the sandbox cases).
+Code: `src/sim/game/game.ts` (the `sandbox` option, the sandbox tools, the purchase rules), `src/sim/game/economy.ts` (`SANDBOX_MONEY`, `sandboxOffers`), `src/sim/protocol.ts` (`SANDBOX_SPEEDS`), `src/sim/host.ts` (the 64x refusal and the catch-up cap), `src/sim/game/save.ts` (the optional `sandbox` field), `src/game/store.ts` (`startSim` options and the tool actions), `src/ui/panels/NewGame.tsx` (the dialog), `src/ui/shop/SandboxTools.tsx` (the chip and its tools), `src/ui/panels/Hud.tsx` (the infinity sign), `src/ui/tutorial/tutorial.ts` (no tutorial), `src/sim/bench/speed.ts` and `tools/bench-speed.mjs` (the 64x benchmark, see Speed). Tests: `src/sim/game/sandbox.test.ts`, `src/ui/tutorial/tutorial.test.ts` (the sandbox cases).
 
 ## Starting one
 
@@ -83,4 +83,4 @@ A sandbox game writes an optional top-level field `sandbox: true` (`Game.toSave`
 
 ## Tests
 
-`src/sim/game/sandbox.test.ts` covers the free and constant-money rules, the offers (any tier, replacement of a burnt board), the physics that still applies, the tools and their refusals outside a sandbox, the 64x refusal, the sandbox save field and the assembled and bare starts. `src/ui/tutorial.test.ts` covers "a sandbox game has no tutorial and no offer". The speed benchmark is not a test and is not run by `npm test`: `npm run bench:speed`.
+`src/sim/game/sandbox.test.ts` covers the free and constant-money rules, the offers (any tier, replacement of a burnt board), the physics that still applies, the tools and their refusals outside a sandbox, the 64x refusal, the sandbox save field and the assembled and bare starts. `src/ui/tutorial/tutorial.test.ts` covers "a sandbox game has no tutorial and no offer". The speed benchmark is not a test and is not run by `npm test`: `npm run bench:speed`.

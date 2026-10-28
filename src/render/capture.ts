@@ -1,5 +1,5 @@
 import { Rectangle, type Container, type Renderer } from 'pixi.js';
-import type { Rect } from './layout';
+import type { Rect } from './board/layout';
 import { fieldShape, type Shape } from './shape';
 
 /**

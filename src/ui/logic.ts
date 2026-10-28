@@ -3,7 +3,7 @@
 import { BOARD_TIERS, CASE_TIERS, getSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
-import { BANDWIDTH_NERD, describeNet } from './netdesc';
+import { BANDWIDTH_NERD, describeNet } from './panels/netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
@@ -306,7 +306,7 @@ function describeOs(id: string): Description | null {
   };
 }
 
-/** Words for the room's clickable props (the lamp and the window blind: scenery, `src/render/room.ts`). */
+/** Words for the room's clickable props (the lamp and the window blind: scenery, `src/render/room/room.ts`). */
 const ROOM_TIPS: Record<'lamp' | 'blind', { title: string; plain: string }> = {
   lamp: { title: 'Desk lamp', plain: 'Click to switch it on or off. It does nothing for the machine, but the room is cosier with it.' },
   blind: { title: 'Window blind', plain: 'Click to pull the blind down or up. Outside, the day goes round while the machine runs.' },

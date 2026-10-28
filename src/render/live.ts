@@ -2,15 +2,15 @@ import { Container, Graphics, Sprite, Text, Texture, type Renderer } from 'pixi.
 import { getSpec } from '../sim/board/specs';
 import type { Snapshot } from '../sim/protocol';
 import type { KeyActivity } from '../sim/game/game';
-import { blades } from './devices';
+import { blades } from './board/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
-import { drawDriveLive, type DriveKind } from './drives';
-import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './layout';
-import { monitorView, standbyLook, type MonitorInput } from './monitor';
-import { EdgeFan } from './case';
-import { RamView } from './ramview';
-import { memoryTable, sizeText } from './ramlayout';
-import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './routes';
+import { drawDriveLive, type DriveKind } from './board/drives';
+import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './board/layout';
+import { monitorView, standbyLook, type MonitorInput } from './room/monitor';
+import { EdgeFan } from './room/case';
+import { RamView } from './board/ramview';
+import { memoryTable, sizeText } from './board/ramlayout';
+import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
