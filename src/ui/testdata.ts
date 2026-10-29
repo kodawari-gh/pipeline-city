@@ -80,7 +80,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     display: '', counters: {}, completed: 0, errors: 0, dropped: 0, lastCompleted: null, avgTurnaround: 0,
     reputation: 1, demandRate: 0.1, devices: [], power: { vrmLossW: 0, totalW: 0, budgetW: 40, psuFactor: 1, off: true, tripped: false },
     cpuClock: null, purchases: PURCHASES, pendingPurchases: [],
-    phase: 'off', phaseReason: null, powered: false, bootProgress: 0, monitorLive: false, monitorPowered: true, energy: { wallW: 0, wh: 0 },
+    phase: 'off', phaseReason: null, powered: false, bootProgress: 0, monitorLive: false, monitorPowered: true, energy: { wallW: 0, wh: 0 }, bill: null,
     noPowerReason: 'Install a power supply and connect the ATX cable first.', postBlocker: null,
     inventory: STARTER_CRATE, slots: EMPTY_SLOTS,
     cables: [

@@ -401,6 +401,19 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
 
 export type ChipLevel = 'idle' | 'ok' | 'warn' | 'bad';
 
+/**
+ * The power bill's HUD chip: what is owed or running up, and when the next bill or the cut comes. Null without a bill.
+ * Amber while a bill is unpaid, red once the wall is cut.
+ */
+export function billChip(s: Snapshot): { text: string; level: ChipLevel } | null {
+  const b = s.bill;
+  if (!b) return null;
+  if (b.cut) return { text: `CUT $${b.unpaid}`, level: 'bad' };
+  if (b.unpaid > 0) return { text: `$${b.unpaid} due${b.cutTick === null ? '' : `, cut in ${fmtTicks(b.cutTick - s.baseTick)}`}`, level: 'warn' };
+  const next = b.nextTick === null ? '' : ` ${fmtTicks(b.nextTick - s.baseTick)}`;
+  return { text: `$${b.accruedCost}${next}`, level: 'idle' };
+}
+
 /** Short machine status for the HUD chip. */
 export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
   const c = baseChip(s);

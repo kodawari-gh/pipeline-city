@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
+  billChip, cacheHitRate, clockWarning, cpiIpc, describeId, fillToasts, fmtMoney, friendlyError, fmtTicks, HINTS, newHints,
   fitFilterFor, fitsFilter, statusChip, stallsByCause, stackItems, tempLevel, triggeredHints,
 } from './logic';
 import { inventoryGroups } from './logic';
@@ -267,5 +267,19 @@ describe('inventory stacks and the fit filter', () => {
     expect(fitsFilter(f, item('c', 'ram1', 'ram', ['dimm0']))).toBe(false);
     expect(fitsFilter({ label: 'bay', slots: [], kinds: ['storage', 'os'] }, item('d', 'hdd0', 'storage'))).toBe(true);
     expect(fitsFilter({ label: 'bay', slots: [], kinds: ['storage', 'os'] }, item('e', 'cpu1', 'cpu'))).toBe(false);
+  });
+});
+
+describe('billChip', () => {
+  const bill = { ratePerWh: 0.15, periodTicks: 600, nextTick: 700, accruedWh: 4, accruedCost: 1, unpaid: 0, cutTick: null, cut: false, last: null, paidTotal: 0 };
+  it('is absent without a bill', () => {
+    expect(billChip(snap())).toBeNull();
+  });
+  it('shows the running cost and the time to the next bill', () => {
+    expect(billChip(snap({ baseTick: 640, bill }))).toEqual({ text: '$1 1m 00s', level: 'idle' });
+  });
+  it('warns while a bill is unpaid and goes red when the wall is cut', () => {
+    expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toEqual({ text: '$3 due, cut in 1m 00s', level: 'warn' });
+    expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toEqual({ text: 'CUT $3', level: 'bad' });
   });
 });

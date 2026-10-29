@@ -321,6 +321,25 @@ export interface OsSnap {
   spoolFull?: boolean;
 }
 
+/** The power bill: a flat rate on the energy the wall gave the machine, issued every period and paid by itself from the money. */
+export interface BillSnap {
+  /** Dollars per Wh and ticks between bills. */
+  ratePerWh: number;
+  periodTicks: number;
+  /** Base tick the next bill is issued, or null before the first power-on (the clock starts then). */
+  nextTick: number | null;
+  /** Energy since the last bill (Wh) and what it would cost now (whole dollars, rounded up). */
+  accruedWh: number;
+  accruedCost: number;
+  /** Issued and not yet paid (dollars), the tick the wall will be cut for it (null: nothing unpaid), and whether it is cut now. */
+  unpaid: number;
+  cutTick: number | null;
+  cut: boolean;
+  /** The last bill issued, and what all bills have cost so far. */
+  last: { tick: number; wh: number; amount: number } | null;
+  paidTotal: number;
+}
+
 /** What the USB port's LED would be doing. */
 export type KeyActivity = "none" | "enumerating" | "ingesting" | "flashing" | "done";
 
@@ -408,8 +427,10 @@ export interface Snapshot {
   monitorLive: boolean;
   /** The monitor's own cord is in the wall (the screen is lit): false shows a dark screen, not NO SIGNAL. */
   monitorPowered: boolean;
-  /** What the machine takes from the wall right now (W, the parts' draw; a monitor with its cord out takes nothing) and the energy it has taken in total (Wh, one game tick counted as one second: the future power bill reads this). */
+  /** What the machine takes from the wall right now (W, the parts' draw; a monitor with its cord out takes nothing) and the energy it has taken in total (Wh, one game tick counted as one second: the power bill reads this). */
   energy: { wallW: number; wh: number };
+  /** The power bill (docs/GAME.md "The power bill"), or null when there is none (the sandbox, or a game with the rate at 0). */
+  bill: BillSnap | null;
   /** Why the power button would do nothing, or null. */
   noPowerReason: string | null;
   /** Why POST would fail now (missing CPU / CPU power / RAM), or null. */

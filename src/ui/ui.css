@@ -602,6 +602,17 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .sbx-val { font-family: var(--mono); min-width: 2.6rem; text-align: right; }
 .sbx-msg { color: var(--mute); font-size: 0.733rem; }
 
+/* Power bill chip and its detail popover (PowerBill.tsx, docs/GAME.md "The power bill"). */
+.bill { position: relative; display: inline-flex; }
+.bill > .chip { cursor: pointer; font-family: var(--mono); }
+.bill-pop { position: absolute; top: calc(100% + 0.4rem); left: 0; z-index: 40; display: flex; flex-direction: column; gap: 0.5rem;
+  width: 17rem; max-width: calc(100vw - 1.6rem); padding: 0.667rem; }
+.bill-pop dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.8rem; font-size: 0.8rem; }
+.bill-pop dt { color: var(--mute); }
+.bill-pop dd { margin: 0; text-align: right; font-family: var(--mono); }
+.bill-pop dd.bad { color: var(--bad); }
+.bill-msg { color: var(--mute); font-size: 0.733rem; }
+
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
   .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i { transition: none !important; animation: none !important; }

@@ -33,6 +33,8 @@ export function powerButton(this: Game): Result<{ powered: boolean }> {
     this.note("power", "powered off");
     return { ok: true, powered: false };
   }
+  const cut = this.cutReason();
+  if (cut) return { ok: false, reason: `no power: ${cut}` };
   const chk = bootCheck(this.board, this.cables);
   if (chk.noPower) return { ok: false, reason: `no power: ${chk.noPower}` };
   this.powered = true;
@@ -208,6 +210,7 @@ export function stepCycles(this: Game, cycles: number): number {
 /** Advance one base tick: key arrivals, run the machine if it is on, thermal step, clock rates. */
 export function advanceBaseTick(this: Game): void {
   this.baseTick++;
+  this.billTick();
   this.applyPendingSwap();
   this.arrivals();
   this.expireKeys();

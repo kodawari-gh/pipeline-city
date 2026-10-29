@@ -171,6 +171,20 @@ export interface SaveV4 {
   jobDex?: Record<string, { seen: number; runs: number; best: number }>;
   /** The job log: the last jobs that ended and where their time went (docs/JOBS.md "The log"). Optional and additive, no version bump. */
   jobLog?: import("./joblog").JobLogEntry[];
+  /** The energy meter and the power bill (docs/GAME.md "The power bill"). Optional and additive, no version bump: absent means a fresh meter and no bill yet. */
+  bill?: SavedBill;
+}
+
+/** The meter (Wh, all time) and the bill's state; `nextTick` and `unpaidSince` are base ticks. */
+export interface SavedBill {
+  wh: number;
+  billedWh: number;
+  nextTick: number | null;
+  unpaid: number;
+  unpaidSince: number | null;
+  powerCut: boolean;
+  paid: number;
+  last: { tick: number; wh: number; amount: number } | null;
 }
 
 /** Network state. Transfers are not saved: downloads and finished-but-unspooled jobs come back as offers. */
@@ -368,6 +382,16 @@ export function parseSave(input: unknown): SaveV4 {
     if (!os || os.later) throw new Error(`save: unknown OS "${String(o.spec)}"`);
     const dev = (s.board as unknown as BoardJson).devices.find((d) => d.id === o.deviceId);
     if (!dev || getSpec(dev.spec)?.kind !== "storage") throw new Error('save: "os" must name an installed storage device');
+  }
+  if (s.bill !== undefined) {
+    const b = s.bill;
+    const money = (x: unknown) => typeof x === "number" && Number.isFinite(x) && x >= 0;
+    const tickOrNull = (x: unknown) => x === null || isNat(x);
+    if (!isObj(b) || !money(b.wh) || !money(b.billedWh) || !tickOrNull(b.nextTick) || !isNat(b.unpaid) || !tickOrNull(b.unpaidSince)
+      || typeof b.powerCut !== "boolean" || !isNat(b.paid) || (b.unpaid as number) > 0 && b.unpaidSince === null
+      || (b.last !== null && (!isObj(b.last) || !isNat(b.last.tick) || !money(b.last.wh) || !isNat(b.last.amount)))) {
+      throw new Error('save: "bill" must be the meter and the bill\'s state');
+    }
   }
   if (s.lastCompleted !== null && !isObj(s.lastCompleted)) throw new Error('save: "lastCompleted" must be an object or null');
   return s as unknown as SaveV4;

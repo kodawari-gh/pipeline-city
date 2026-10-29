@@ -49,6 +49,12 @@ export function toSave(this: Game): SaveV4 {
     ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
     ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
     net: this.savedNet(sk),
+    ...(this.sandbox ? {} : {
+      bill: {
+        wh: this.wattTicks / 3600, billedWh: this.billedWh, nextTick: this.nextBillTick, unpaid: this.unpaid, unpaidSince: this.unpaidSince,
+        powerCut: this.powerCut, paid: this.billPaid, last: this.lastBill && { ...this.lastBill },
+      },
+    }),
   };
 }
 
@@ -98,6 +104,18 @@ export function restoreSave(this: Game, s: SaveV4): void {
       this.lvl = levelFor(this.clientBase);
       this.levelTicks = { [this.lvl]: s.baseTick };
     }
+  }
+  if (s.bill && !this.sandbox) {
+    const b = s.bill;
+    this.wattTicks = b.wh * 3600;
+    this.billedWh = b.billedWh;
+    // A saved clock keeps its due tick; a save from before the bill starts its clock at the first tick (see `billTick`).
+    this.nextBillTick = b.nextTick;
+    this.unpaid = b.unpaid;
+    this.unpaidSince = b.unpaidSince;
+    this.powerCut = b.powerCut;
+    this.billPaid = b.paid;
+    this.lastBill = b.last && { ...b.last };
   }
   if (s.net) {
     this.ispTier = s.net.ispTier;

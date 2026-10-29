@@ -9,6 +9,7 @@ import { SPEEDS } from '../../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from '../logic';
 import { Icon } from '../kit/Icons';
 import { hudNetChip } from './netui';
+import { PowerBill } from './PowerBill';
 import { InventoryBar, InventoryPanel } from '../shop/Inventory';
 import { PickerCard } from '../shop/PickerCard';
 import { Stats } from './Stats';
@@ -238,6 +239,7 @@ export function Hud() {
         <div class={`money ${lit('money')}`} data-hud="money" title="Money. Finish client keys to earn more.">{s.sandbox ? '∞' : fmtMoney(s.money)}</div>
         <span class="time" title="Game time">{fmtTicks(s.baseTick)}</span>
         <Reputation s={s} />
+        <PowerBill s={s} />
         <PhaseChip s={s} />
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}

@@ -16,6 +16,7 @@
 //   shop       buying, selling, prices and the level gate
 //   sandbox    the sandbox tools
 //   machine    power, cold boot, phases, clock rates, the base tick
+//   bill       the power bill: the rate on the metered energy, auto-pay, the wall cut for an unpaid bill
 //   keys       the USB key's life: plug, eject, pay, decline; the job log and almanac entries
 //   clients    arrivals, what the machine can offer a job, reputation, client base, level, patience
 //   hardware   drives, GPU / NPU / TPM ports, ECC, MMU, the memory the sticks add up to
@@ -34,6 +35,7 @@ import { Prng } from "../machine/prng";
 import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from "../isa/memmap";
 import { NetworkSource } from "../net";
 import { Pch, type PchKey } from "../pch";
+import * as bill from "./bill";
 import * as clients from "./clients";
 import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "./economy";
 import * as hardware from "./hardware";
@@ -63,7 +65,7 @@ export * from "./types";
 export type { GameOptions };
 
 /** The feature files' exports, which `Game` has as methods. */
-type Features = typeof parts & typeof shop & typeof sandbox & typeof machine & typeof keys & typeof clients
+type Features = typeof parts & typeof shop & typeof sandbox & typeof machine & typeof bill & typeof keys & typeof clients
   & typeof hardware & typeof os & typeof memory & typeof network & typeof snapshot & typeof persist;
 export interface Game extends Features {}
 
@@ -79,6 +81,14 @@ export class Game {
   wattTicks = 0;
   /** What the wall is giving the machine this tick (W), kept for the snapshot. */
   wallW = 0;
+  /** The power bill (bill.ts): energy already on a bill (Wh), the tick the next one is issued, dollars issued and unpaid (and since when), the wall cut for them, dollars paid so far, the last bill. */
+  billedWh = 0;
+  nextBillTick: number | null = null;
+  unpaid = 0;
+  unpaidSince: number | null = null;
+  powerCut = false;
+  billPaid = 0;
+  lastBill: { tick: number; wh: number; amount: number } | null = null;
   progress: Progress = newProgress();
 
   money = 0;
@@ -252,5 +262,5 @@ export class Game {
 
 Object.assign(
   Game.prototype,
-  parts, shop, sandbox, machine, keys, clients, hardware, os, memory, network, snapshot, persist,
+  parts, shop, sandbox, machine, bill, keys, clients, hardware, os, memory, network, snapshot, persist,
 );

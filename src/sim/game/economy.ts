@@ -137,6 +137,15 @@ export interface EconomyConfig {
    * it for the before and after comparison only).
    */
   retireUsbKeys: boolean;
+  /**
+   * The power bill (docs/GAME.md "The power bill"): dollars per Wh the wall gives the machine (a flat rate; game scale, not the real tariff).
+   * 0 (the default) switches the bill off, as the tests and bots need; a new campaign is given `CAMPAIGN_POWER_RATE`. The sandbox has no bill.
+   */
+  powerRatePerWh: number;
+  /** Base ticks between bills, from the first power-on. */
+  billPeriodTicks: number;
+  /** Base ticks an unpaid bill waits before the power company cuts the wall (it is paid by itself the moment the money is there). */
+  billGraceTicks: number;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -169,6 +178,9 @@ export const ECONOMY: EconomyConfig = {
   usbFallbackTicks: NET.usbFallbackTicks,
   usbFallbackMul: NET.usbFallbackMul,
   retireUsbKeys: true,
+  powerRatePerWh: 0,
+  billPeriodTicks: 600,
+  billGraceTicks: 120,
 };
 
 /**
@@ -301,3 +313,6 @@ export const SANDBOX_MONEY = 1_000_000_000;
  * never held up by money while learning. Someone who does not understand a part does not spend on it anyway.
  */
 export const CAMPAIGN_START_MONEY = 600;
+
+/** A new campaign's power rate ($ per Wh): a 54 W machine pays about $2 per 10-minute bill, a few percent of what it earns (a placeholder). */
+export const CAMPAIGN_POWER_RATE = 0.15;
