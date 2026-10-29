@@ -35,9 +35,25 @@ export const INTC_REG = {
   CTRL: 0x18,
   /** ro: how many interrupts the CPU has taken. */
   COUNT: 0x1c,
+  // ---- Per-core registers (docs/MULTICORE.md section 4): each core sees its own bank at these addresses.
+  /** rw: display row base. A display access from this core lands that many rows lower (the OS sets it when it switches a job in). Reset: 0. */
+  ROW_BASE: 0x20,
+  /** ro: the number of the core reading it. */
+  CORE_ID: 0x24,
+  /** ro: how many cores the machine has. */
+  CORES: 0x28,
+  /** wo: a mask of cores; each one gets an `IRQ.IPI` interrupt (an inter-processor interrupt). */
+  IPI: 0x2c,
+  /** rw: write nonzero and this core stops fetching; what is already in its pipeline finishes, then it sleeps (idle power) until a line that is not
+   * masked is pending; reads 1 while parked. Follow the write with a jump back to it (an idle loop), not with code that must wait for the wake. */
+  PARK: 0x30,
+  /** rw, 16 words from here: `ROUTE + 4 * line` holds the core that takes a device line (default 0). Shared by all cores. */
+  ROUTE: 0x40,
 } as const;
+/** Lines with a route register. */
+export const INTC_ROUTES = 16;
 /** Interrupt lines. The lowest pending line wins. */
-export const IRQ = { TIMER: 0, NIC: 1, DISK: 2, USB: 3 } as const;
+export const IRQ = { TIMER: 0, NIC: 1, DISK: 2, USB: 3, IPI: 4 } as const;
 
 // ---- PCH (platform controller hub): boot ROM shadow, USB host controller, display control. See docs/ASSEMBLY.md.
 

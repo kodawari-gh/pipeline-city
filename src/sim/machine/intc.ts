@@ -2,13 +2,41 @@
 // address. The Machine owns one. The CPU takes an interrupt only between instructions (the engine is drained), so the
 // state a handler sees is precise. Nothing here is saved: a loaded game starts powered off.
 
-import { INTC_BASE, INTC_REG, INTC_SIZE } from "../isa/memmap";
+import { INTC_BASE, INTC_REG, INTC_ROUTES, INTC_SIZE, IRQ } from "../isa/memmap";
 import type { Device } from "./device";
+
+/** What the cores' controller banks share: who they are (for IPIs) and which core takes each device line. */
+export class IntcHub {
+  readonly banks: Intc[] = [];
+  /** The core that takes each device line, as written to the ROUTE registers (a bad core number means core 0). */
+  readonly routes = new Uint32Array(INTC_ROUTES);
+
+  routeOf(line: number): number {
+    const r = this.routes[line] ?? 0;
+    return r < this.banks.length ? r : 0;
+  }
+
+  /** A device raises `line`: the core its route names takes it. Per-core lines (the timer, IPIs) are raised on a bank directly. */
+  raise(line: number): void {
+    this.banks[this.routeOf(line)]!.raise(line);
+  }
+
+  /** Raise `IRQ.IPI` on every core whose bit is set in `mask`. */
+  ipi(mask: number): void {
+    for (let k = 0; k < this.banks.length && k < 32; k++) if ((mask >>> k) & 1) this.banks[k]!.raise(IRQ.IPI);
+  }
+}
 
 export class Intc implements Device {
   readonly name = "intc";
   readonly base = INTC_BASE;
   readonly size = INTC_SIZE;
+  /** Set by a write to PARK: the machine does not step this core until a line that is not masked is pending. */
+  parked = false;
+  /** CPU cycles spent parked. */
+  parkedCycles = 0;
+  /** Display row base of this core (see `INTC_REG.ROW_BASE`). */
+  rowBase = 0;
   /** Lines raised and not yet acknowledged. */
   pending = 0;
   /** Lines allowed to interrupt. */
@@ -24,10 +52,24 @@ export class Intc implements Device {
   lastLatency = 0;
   maxLatency = 0;
 
-  /** Power-on reset: nothing pending, nothing enabled, no vector, interrupts off. */
+  /** Bank `index` of `hub` (a controller on its own is a one-core machine's). */
+  constructor(readonly index = 0, readonly hub: IntcHub = new IntcHub()) {
+    hub.banks[index] = this;
+  }
+
+  /** Power-on reset: nothing pending, nothing enabled, no vector, interrupts off, not parked. Routes are the hub's and are reset with core 0. */
   reset(): void {
     this.pending = this.mask = this.vector = this.epc = this.cause = this.taken = this.lastLatency = this.maxLatency = 0;
     this.ie = false;
+    this.parked = false;
+    this.parkedCycles = 0;
+    this.rowBase = 0;
+    if (this.index === 0) this.hub.routes.fill(0);
+  }
+
+  /** Whether a parked core wakes now: a line that is not masked is pending (the interrupt is taken, if interrupts are on, as usual). */
+  get wakes(): boolean {
+    return (this.pending & this.mask) !== 0;
   }
 
   /** A device asks for service. Stays pending until the handler acknowledges it. */
@@ -71,7 +113,14 @@ export class Intc implements Device {
       case INTC_REG.CAUSE: return this.cause;
       case INTC_REG.CTRL: return this.ie ? 1 : 0;
       case INTC_REG.COUNT: return this.taken;
-      default: return 0;
+      case INTC_REG.ROW_BASE: return this.rowBase;
+      case INTC_REG.CORE_ID: return this.index;
+      case INTC_REG.CORES: return this.hub.banks.length;
+      case INTC_REG.PARK: return this.parked ? 1 : 0;
+      default: {
+        const line = (reg - INTC_REG.ROUTE) >> 2;
+        return reg >= INTC_REG.ROUTE && line < INTC_ROUTES ? this.hub.routes[line]! : 0;
+      }
     }
   }
 
@@ -91,6 +140,13 @@ export class Intc implements Device {
       case INTC_REG.VECTOR: this.vector = merge(this.vector); break;
       case INTC_REG.EPC: this.epc = merge(this.epc); break;
       case INTC_REG.CTRL: if (shift === 0) this.ie = (val & 1) !== 0; break;
+      case INTC_REG.ROW_BASE: this.rowBase = merge(this.rowBase) | 0; break;
+      case INTC_REG.IPI: this.hub.ipi(byte >>> 0); break;
+      case INTC_REG.PARK: if (val & 0xff) this.parked = true; break;
+      default: {
+        const line = (reg - INTC_REG.ROUTE) >> 2;
+        if (reg >= INTC_REG.ROUTE && line < INTC_ROUTES) this.hub.routes[line] = merge(this.hub.routes[line]!);
+      }
     }
   }
 

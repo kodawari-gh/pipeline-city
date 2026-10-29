@@ -7,6 +7,7 @@ import { BankedDevice, Core } from "./core";
 import { RamDevice, type Device } from "./device";
 import { Display } from "./display";
 import type { Engine } from "./engine";
+import { IntcHub } from "./intc";
 import { Prng } from "./prng";
 
 export interface MachineConfig {
@@ -30,6 +31,8 @@ export interface MachineConfig {
 export class Machine {
   readonly ram: Uint8Array;
   readonly cores: Core[];
+  /** What the cores' interrupt controllers share: IPIs and the device-line routes. */
+  readonly hub: IntcHub;
   readonly bus: Bus;
   readonly clock = new ClockScheduler();
   readonly prng: Prng;
@@ -58,10 +61,13 @@ export class Machine {
     const n = cfg.cores ?? 1;
     if (!Number.isInteger(n) || n < 1) throw new RangeError("a machine needs at least one core");
     if (this.mem && n > 1) this.mem.shared = true;
-    this.cores = Array.from({ length: n }, (_, k) => new Core(k, this.ram));
+    this.hub = new IntcHub();
+    this.cores = Array.from({ length: n }, (_, k) => new Core(k, this.ram, this.hub));
     const c0 = this.cores[0]!;
     this.regs = c0.regs; this.intc = c0.intc; this.mpu = c0.mpu; this.timer = c0.timer; this.mmu = c0.mmu;
     this.display = new Display(cfg.displayRate, cfg.displayLatency ?? 0);
+    // A display access lands `rowBase` rows lower for the core making it (0 unless the OS sets it, so one core is unchanged).
+    this.display.rowShift = () => this.cores[this.bus.core]!.intc.rowBase;
     this.status = new RamDevice("status", STATUS_BASE, STATUS_SIZE);
     this.addDevice(this.display);
     this.addDevice(this.status);
@@ -75,6 +81,11 @@ export class Machine {
     this.bus.mpu = this.mpu;
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
+  }
+
+  /** A device raises `line`: the core its ROUTE register names takes it (core 0 by default). */
+  raise(line: number): void {
+    this.hub.raise(line);
   }
 
   /** One CPU cycle: every core in turn (index order, rotating with a shared L2), so the same save gives the same cycles. */
@@ -101,9 +112,20 @@ export class Machine {
     if (!e || e.halted) return;
     const { intc, mpu, mmu } = c;
     c.timer.step();
+    // A parked core stops fetching, lets what is already in the pipeline finish, and then is not stepped at all (it draws idle power) until a
+    // line that is not masked is pending; the interrupt itself is taken below, if interrupts are on.
+    let draining = false;
+    if (intc.parked) {
+      if (intc.wakes) intc.parked = false;
+      else {
+        e.holdFetch?.(true);
+        if (e.drained !== false) { intc.parkedCycles++; return; }
+        draining = true;
+      }
+    }
     // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
     if (c.cpuStall > 0) { c.cpuStall--; return; }
-    if (e.drained !== undefined && e.holdFetch && e.redirect) {
+    if (!draining && e.drained !== undefined && e.holdFetch && e.redirect) {
       const line = intc.next();
       if (line < 0) {
         e.holdFetch(false);

@@ -24,14 +24,26 @@ export class Display implements Device {
     readonly rows = DISPLAY_ROWS,
   ) {}
 
+  /** Rows the access in progress is moved down (the row base of the core making it, set by the machine; none by default). */
+  rowShift: () => number = () => 0;
+
+  /** The cell a bus access lands on, or -1 when the row base pushes it off the screen. */
+  private at(addr: number): number {
+    const a = addr + this.rowShift() * this.cols;
+    return a >= 0 && a < this.cells.length ? a : -1;
+  }
+
   read(addr: number): number {
-    return this.cells[addr]!;
+    const a = this.at(addr);
+    return a < 0 ? 0 : this.cells[a]!;
   }
 
   write(addr: number, val: number): void {
     if (!this.connected) return;
-    if (this.writeLatency <= 0) this.cells[addr] = val & 0xff;
-    else this.queue.push({ addr, val: val & 0xff });
+    const a = this.at(addr);
+    if (a < 0) return;
+    if (this.writeLatency <= 0) this.cells[a] = val & 0xff;
+    else this.queue.push({ addr: a, val: val & 0xff });
   }
 
   /** Writes accepted but not yet landed. */

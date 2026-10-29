@@ -88,8 +88,16 @@ Always present at `INTC_BASE` 0x4004_0000. Word registers (`INTC_REG`):
 | 0x14 | `CAUSE` | ro | the line taken last |
 | 0x18 | `CTRL` | rw | bit0 = interrupts on. Cleared on entry, set by `iret`. Reset 0 |
 | 0x1c | `COUNT` | ro | interrupts taken |
+| 0x20 | `ROW_BASE` | rw | display row base of this core: its display accesses land that many rows lower (reset 0) |
+| 0x24 | `CORE_ID` | ro | the number of the core reading it |
+| 0x28 | `CORES` | ro | how many cores the machine has |
+| 0x2c | `IPI` | wo | a mask of cores; each gets line `IPI` (a core may signal itself; bits past the last core are ignored) |
+| 0x30 | `PARK` | rw | write nonzero: this core stops fetching, what is in its pipeline finishes, then it sleeps until a line that is not masked is pending. Reads 1 while parked |
+| 0x40 + 4n | `ROUTE[n]` | rw | the core that takes device line n, n < 16 (reset 0; a core number that does not exist means 0) |
 
-Lines (`IRQ`): `TIMER` 0, `NIC` 1, `DISK` 2, `USB` 3. **The lowest pending, enabled line wins.** Lines are *latched*: a raise stays pending until the handler writes `ACK`. A handler that forgets to acknowledge is entered again the moment `iret` turns interrupts on, which is the real behaviour and a good way to see a bug.
+**Cores.** With several cores each has its own bank of all of these at the same address (the bus answers for the core it is serving, `bus.core`), except `ROUTE`, which is one table all banks show. A single-core machine has one bank: `CORE_ID` 0, `CORES` 1. `Machine.raise(line)` is what a device calls to reach the routed core; the timer and `IPI` are per core and always go to their own. A parked core does not step, draws idle power and counts `parkedCycles`; it wakes the cycle a masked-in line is pending (the interrupt itself is taken only if `CTRL` has interrupts on, so a core with them off just resumes after the park). A wake that was already pending when the core parked is not lost. Follow a `PARK` write with a jump back to it (an idle loop): the instructions already behind it in the pipeline complete before the sleep, as with any fetch stop. `ROW_BASE` lets several cores print their jobs' lines at once without overwriting each other; the OS sets it when it switches a context in (`src/sim/machine/display.ts`: an access pushed off the screen is dropped). See [`MULTICORE.md`](MULTICORE.md) sections 4 and 6.
+
+Lines (`IRQ`): `TIMER` 0, `NIC` 1, `DISK` 2, `USB` 3, `IPI` 4. **The lowest pending, enabled line wins.** Lines are *latched*: a raise stays pending until the handler writes `ACK`. A handler that forgets to acknowledge is entered again the moment `iret` turns interrupts on, which is the real behaviour and a good way to see a bug.
 
 Host side (`Intc`): `raise(line)`, `next()` (the line to take now, or -1), `enter(line, epc, latency)`, `leave()`, `reset()`, and the counters `taken`, `lastLatency`, `maxLatency` (CPU cycles an interrupt waited for the pipeline to empty; for the UI and tuning).
 

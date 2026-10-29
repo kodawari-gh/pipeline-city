@@ -6,16 +6,16 @@ import { REG_COUNT } from "../isa/isa";
 import type { Bus } from "./bus";
 import type { Device } from "./device";
 import type { Engine } from "./engine";
-import { Intc } from "./intc";
+import { Intc, type IntcHub } from "./intc";
 import { Mmu } from "./mmu";
 import { Mpu } from "./mpu";
 import { Timer } from "./timer";
 
 export class Core {
   readonly regs = new Int32Array(REG_COUNT);
-  readonly intc = new Intc();
+  readonly intc: Intc;
   readonly mpu = new Mpu();
-  readonly timer = new Timer(this.intc);
+  readonly timer: Timer;
   readonly mmu: Mmu;
   engine: Engine | null = null;
   /** Where this core's program is loaded and starts (0 for core 0), and its initial stack pointer (the top of RAM unless given). */
@@ -26,7 +26,9 @@ export class Core {
   /** CPU cycles still to wait for the guard's surcharge. */
   cpuStall = 0;
 
-  constructor(readonly index: number, ram: Uint8Array) {
+  constructor(readonly index: number, ram: Uint8Array, hub?: IntcHub) {
+    this.intc = new Intc(index, hub);
+    this.timer = new Timer(this.intc);
     this.mmu = new Mmu(ram);
     this.stackTop = ram.length | 0;
   }
