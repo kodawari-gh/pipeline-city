@@ -7,7 +7,7 @@ import type { Binding } from "../net";
 import type { DexSnap } from "./jobdex";
 import type { JobLogEntry, JobWindow } from "./joblog";
 import type { ItemInfo, LevelRowSnap } from "./levels";
-import type { PipeSnap, RamMap } from "./pipesnap";
+import type { CoresSnap, PipeSnap, RamMap } from "./pipesnap";
 import type { EconomyConfig } from "./economy";
 import type { Progress } from "./save";
 
@@ -385,6 +385,8 @@ export interface Snapshot {
   board: BoardSnap;
   /** Pipeline stage occupants while the machine is powered with a working CPU, else null. */
   pipe: null | PipeSnap;
+  /** The logical cores of a multicore CPU while the machine is on (absent with one core): `pipe` follows the selected one. */
+  cores?: CoresSnap;
   /** How full the RAM is (the memory sticks show it), while the machine is on. */
   ram?: RamMap | null;
   /** The installed graphics cards' insides (lanes, mask, banks, the last instructions), while the machine is on; absent without a card. */

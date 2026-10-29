@@ -193,4 +193,38 @@ describe("the hpc kinds on the multicore OS 4", { timeout: 240_000 }, () => {
     expect(eight.texts).toEqual(eight.expected);
     expect(eight.took).toBeLessThan(two.took * 0.6);
   });
+  it("the snapshot has every logical core live, with the job thread on it, and follows the core that is selected", () => {
+    const g = machine("cpu5s");
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    expect(g.snapshot().cores?.live.length).toBe(8);
+    const gen = generate("hpc.fft", 33, { row: JOB_ROW, scale: 16, hosted: true });
+    const { states } = submit(g, [gen.program]);
+    let busy = 0;
+    const seen = new Set<number>();
+    until(g, () => {
+      const c = g.snapshot().cores!;
+      busy = Math.max(busy, c.live.filter((x) => x.job !== 0).length);
+      for (const x of c.live) if (x.job !== 0) seen.add(x.thread);
+      return states()[0] === JobState.Result;
+    }, 80000);
+    const c = g.snapshot().cores!;
+    expect(c.tiles.length).toBe(4); // eight logical cores on four hardware cores
+    expect(c.live.map((x) => x.hw)).toEqual([0, 1, 2, 3, 0, 1, 2, 3]);
+    expect(busy).toBe(8); // every core held a thread of the job at once
+    expect([...seen].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(c.tiles.every((t) => (t.trace?.rows.length ?? 0) > 0)).toBe(true);
+    // the selected core's pipeline carries the stored state; the detailed view (`pipe`) is its hardware core's
+    expect(c.selected).toBe(0);
+    expect(c.tiles[0]!.stored).toBeDefined();
+    expect(c.tiles[1]!.stored).toBeUndefined();
+    expect(g.snapshot().pipe?.trace?.end).toBe(c.tiles[0]!.trace!.end);
+    expect(g.setViewCore(6)).toBe(6);
+    const d = g.snapshot().cores!;
+    expect(d.selected).toBe(6);
+    expect(d.tiles[2]!.stored).toBeDefined();
+    expect(d.tiles[0]!.stored).toBeUndefined();
+    expect(g.snapshot().pipe?.trace?.end).toBe(d.tiles[2]!.trace!.end);
+    expect(g.setViewCore(99)).toBe(7);
+  });
 });

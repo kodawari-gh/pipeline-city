@@ -137,6 +137,8 @@ export class Game {
   readonly baseRates = new Map<string, { mul: number; div: number }>();
   /** Cycles of history the next snapshot's trace carries: a step of the paused machine asks for more so none of it is lost. */
   traceCycles = TRACE_CYCLES;
+  /** The logical core the snapshot's `pipe` (the die's detailed view and the Trace panel) follows (memory.ts `setViewCore`). */
+  viewCore = 0;
 
   /** Client base score (campaign only; the sandbox leaves it at 0) and the level derived from it (never decreases). */
   clientBase = 0;

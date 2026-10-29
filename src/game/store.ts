@@ -108,6 +108,8 @@ export const clearQueue = () => send({ type: 'clearQueue' });
 export const repairAll = () => send({ type: 'repairAll' });
 export const setReputation = (value: number) => send({ type: 'setReputation', value });
 export const setLevel = (level: number) => send({ type: 'setLevel', level });
+/** Follow a logical core of a multicore CPU in the die's detail and the Trace panel. */
+export const viewCore = (core: number) => send({ type: 'viewCore', core });
 export const setJobClasses = (off: string[]) => send({ type: 'setJobClasses', off });
 /** While paused: run the machine a number of CPU cycles, or one whole base tick (the Trace panel's step buttons). */
 export const stepCycles = (cycles: number) => send({ type: 'step', cycles });

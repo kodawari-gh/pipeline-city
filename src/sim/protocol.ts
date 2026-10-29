@@ -24,6 +24,8 @@ export type ToSim =
   /** While paused: run the machine for this many CPU cycles (1 to 100000) or for one whole base tick. Replies with a snapshot. */
   | { type: 'step'; cycles: number }
   | { type: 'stepTick' }
+  /** Follow a logical core of a multicore CPU: the snapshot's `pipe` (the die's detail, the Trace panel) is its hardware core's. Replies with a snapshot. */
+  | { type: 'viewCore'; core: number }
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
   | { type: 'sell'; invId: string }

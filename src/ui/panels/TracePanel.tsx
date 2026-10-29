@@ -2,9 +2,11 @@
 // with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/render/live.md "Following the machine").
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { setSpeed, snapshot, speed, stepCycles, stepTick } from '../../game/store';
+import { setSpeed, snapshot, speed, stepCycles, stepTick, viewCore } from '../../game/store';
 import { scrubCursor, scrubRange, scrubShown } from '../../game/scrub';
 import { memoryTable, sizeText } from '../../render/board/ramlayout';
+import { tileModels } from '../../render/die/coretiles';
+import { isDark } from '../../render/theme';
 import { Icon } from '../kit/Icons';
 import { TraceBuffer, type TraceGroup } from './trace';
 
@@ -47,6 +49,7 @@ export function TracePanel() {
   const range = scrubRange.value, at = scrubShown.value, paused = speed.value === 0;
   const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
   const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
+  const tiles = s?.cores ? tileModels(s.cores, isDark()) : [];
   const lines = buffer.lines.filter((l) => on.has(l.group));
   const toggle = (g: TraceGroup) => { const n = new Set(on); if (n.has(g)) n.delete(g); else n.add(g); shown.value = n; };
   return (
@@ -55,6 +58,17 @@ export function TracePanel() {
       <div class="trace-head"><b>Trace</b><span class="mute"> cycle {s?.cycle ?? 0}</span></div>
       {(s?.health?.length ?? 0) > 0 && <div class="trace-health" aria-label="Health">{s!.health!.map((h, i) => <div key={i} class={`th th-${h.level}`}>{h.level === 'ok' ? 'ok' : h.level === 'warn' ? '!' : 'BAD'} {h.text}</div>)}</div>}
       {progs.length > 0 && <div class="trace-progs" aria-label="Programs">{progs.map((p) => <div key={p.label} class="tp"><span>{p.label}</span><span class="mute">image {sizeText(p.image)}, data {sizeText(p.claimed)}</span></div>)}</div>}
+      {tiles.length > 0 && (
+        <div class="trace-cores" role="group" aria-label="Core shown in the detail">
+          {tiles.map((t) => (
+            <button key={t.core} class={`tcore${t.parked && !t.tint ? ' idle' : ''}`} aria-pressed={t.selected} style={t.tint ? { borderColor: t.tint, background: `color-mix(in srgb, ${t.tint} 22%, transparent)` } : undefined}
+              title={`Show core ${t.core} in the die detail (hardware core ${t.hw})`} onClick={() => viewCore(t.core)}>
+              <b>{t.label}</b> <span class="mute">{t.sub}</span>
+              <span class="tcells" aria-hidden="true">{t.cells.map((c, i) => <i key={i} class={`tc-${c ?? 'none'}`} />)}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div class="trace-steps" role="group" aria-label="Step the paused machine">
         <button title="Run one CPU cycle (pauses the game first)" onClick={() => stepBy(1)}>+1 cycle</button>
         <button title="Run 10 CPU cycles" onClick={() => stepBy(10)}>+10</button>

@@ -737,6 +737,18 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 /* Trace panel: the engine's event log and the step buttons (bottom left, over the board) */
 .tracedock { left: 0.75rem; right: auto; bottom: 3.6rem; top: auto; width: min(30rem, 92vw); max-height: 46vh; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.74rem; }
 .tracedock .trace-head { padding-right: 1.6rem; }
+.tracedock .trace-cores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
+.tracedock .tcore { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; padding: 0.2rem 0.3rem; font-size: 0.7rem; border-width: 0.0625rem; }
+.tracedock .tcore[aria-pressed=true] { border-color: var(--ink); box-shadow: 0 0 0 0.0625rem var(--ink); }
+.tracedock .tcore.idle { opacity: 0.55; }
+.tracedock .tcells { display: flex; gap: 0.0625rem; width: 100%; }
+.tracedock .tcells i { flex: 1; height: 0.3rem; border-radius: 0.0625rem; background: var(--line); opacity: 0.4; }
+.tracedock .tcells .tc-alu { background: var(--alu); opacity: 1; }
+.tracedock .tcells .tc-mul { background: var(--mul); opacity: 1; }
+.tracedock .tcells .tc-ld { background: var(--ld); opacity: 1; }
+.tracedock .tcells .tc-st { background: var(--st); opacity: 1; }
+.tracedock .tcells .tc-br { background: var(--br); opacity: 1; }
+.tracedock .tcells .tc-sys { background: var(--mute); opacity: 1; }
 .tracedock .trace-steps, .tracedock .trace-filter { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .tracedock .trace-scrub { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; }
 .tracedock .trace-scrub input[type=range] { flex: 1; min-width: 0; }

@@ -6,7 +6,7 @@ import { JobState, KDATA_BASE, KSLOT_BYTES, PAGED_HEAP, PAGED_TABLES } from "../
 import { FMAP, FRAME_END, FRAME_FIRST, KBUMP, KFAULTS, PCB, PCBS, RESERVED_FRAME } from "../os";
 import type { Game } from "./game";
 import type { KernelJob } from "./internal";
-import { pipeSnapOf, ramMapOf, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, type CoreLive, type CoresSnap, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import type { HealthItem } from "./types";
 import { walkTable } from "./vmmap";
@@ -75,10 +75,58 @@ export function mmuCount(this: Game, i: number): number {
   return (this.machine.engine as { view?: { counters: Float64Array } } | null)?.view?.counters[i] ?? 0;
 }
 
-export function pipeSnap(this: Game, eng: PipelineEngine): PipeSnap {
-  const s = pipeSnapOf(eng, this.machine.ram, this.traceCycles);
+export function pipeSnap(this: Game, eng: PipelineEngine, withStored = true): PipeSnap {
+  const s = pipeSnapOf(eng, withStored ? this.machine.ram : undefined, this.traceCycles);
   if (s.stored && this.machine.mmu.tlbEntries > 0) s.stored.tlb = this.machine.mmu.dump();
   return s;
+}
+
+/** Choose the logical core the die's detailed view and the Trace panel follow (clamped to the cores there are). */
+export function setViewCore(this: Game, core: number): number {
+  const n = this.machine.cores.length;
+  this.viewCore = Math.max(0, Math.min(n - 1, Math.floor(Number.isFinite(core) ? core : 0)));
+  return this.viewCore;
+}
+
+/** The engine that runs the selected logical core (null before one is attached). */
+export function viewEngine(this: Game): PipelineEngine | null {
+  return (this.machine.cores[this.viewCore]?.engine ?? this.machine.engine) as PipelineEngine | null;
+}
+
+/** The engines of the CPU, one per hardware core, and for each logical core the index of the engine it runs on (cores that share an engine are threads of one hardware core). */
+export function hardwareOf(this: Game): { engines: PipelineEngine[]; hw: number[] } {
+  const engines: PipelineEngine[] = [], hw: number[] = [];
+  for (const c of this.machine.cores) {
+    const e = c.engine as PipelineEngine | null;
+    let i = e ? engines.indexOf(e) : -1;
+    if (e && i < 0) { engines.push(e); i = engines.length - 1; }
+    hw.push(i);
+  }
+  return { engines, hw };
+}
+
+/** The contexts of a threaded or preemptive OS read out of the kernel's table: for each logical core, the job slot and thread it runs (0 when none). */
+export function runningOn(this: Game, cores: number): { job: number; thread: number }[] {
+  const out = Array.from({ length: cores }, () => ({ job: 0, thread: 0 }));
+  if ((this.os?.spec.tier ?? 0) < 3 || !this.pch.osMode || this.postError) return out;
+  const bus = this.machine.bus;
+  for (let c = 0; c <= 8; c++) {
+    const at = PCBS + c * PCB.BYTES, on = bus.load32(at + PCB.CORE), slot = bus.load32(at + PCB.SLOT);
+    if (on > 0 && on <= cores && slot !== 0) out[on - 1] = { job: slot, thread: bus.load32(at + PCB.TIDX) };
+  }
+  return out;
+}
+
+/** Every logical core for the die's tiles (null with one core): the hardware core's pipeline, whether the core sleeps, and the job thread on it. */
+export function coresSnap(this: Game): CoresSnap | null {
+  const cores = this.machine.cores;
+  if (cores.length < 2) return null;
+  const { engines, hw } = this.hardwareOf();
+  const sel = Math.min(this.viewCore, cores.length - 1);
+  const run = this.runningOn(cores.length);
+  const live: CoreLive[] = cores.map((c, k) => ({ core: k, hw: hw[k]!, parked: c.intc.parked, job: run[k]!.job, thread: run[k]!.thread }));
+  const tiles = engines.map((e, i) => (e.view ? this.pipeSnap(e, i === hw[sel]) : { width: 1, stages: [] }));
+  return { selected: sel, live, tiles };
 }
 
 /** A cosmic ray: at the economy's rate a bit flips in memory the running job uses. ECC memory corrects it; plain memory keeps it. */

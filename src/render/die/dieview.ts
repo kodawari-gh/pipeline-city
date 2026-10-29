@@ -11,6 +11,7 @@ import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { readsOf } from './tokentext';
 import { idColor, pcText, writesOf } from './tokentext';
 import type { Theme } from '../theme';
+import { tileModels, tileRect } from './coretiles';
 
 // The CPU die in motion (docs/DIE.md "Motion" and "What is stored"). It draws the near layer of the die (traces, cell arrays, names;
 // `dieart.ts`) faded in by zoom, and plays back the engine's recent cycles in slow motion (`diemotion.ts`):
@@ -118,6 +119,10 @@ export class DieView {
   private trailG = new Graphics();
   private packetG = new Graphics();
   private legend = new Container();
+  /** The core tiles above the die of a multicore CPU (docs/DIE.md "Core tiles"). */
+  private tilesG = new Graphics();
+  private tileTexts = new Container();
+  private tileSig = '';
   private dots = new Map<string, Dot>();
   private cellTexts = new Map<string, CellTexts>();
   private player: Player | null = null;
@@ -137,7 +142,7 @@ export class DieView {
   T!: Theme;
 
   constructor() {
-    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.legend);
+    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.legend, this.tilesG, this.tileTexts);
   }
 
   /** Build (or rebuild, on a theme change) the near layer of a plan. */
@@ -158,6 +163,7 @@ export class DieView {
     this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
     this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
     this.buildLegend(T, plan);
+    this.dropTiles();
     this.setZoom(this.z);
   }
 
@@ -190,9 +196,45 @@ export class DieView {
     this.art?.root.destroy({ children: true });
     this.art = null;
     for (const c of this.legend.removeChildren()) c.destroy({ children: true });
+    this.dropTiles();
     this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.glyphSig = '#'; this.packetG.clear(); this.trailG.clear();
     this.packets = [];
     this.trails.clear();
+  }
+
+  private dropTiles() {
+    this.tilesG.clear();
+    for (const c of this.tileTexts.removeChildren()) c.destroy({ children: true });
+    this.tileSig = '';
+  }
+
+  /** One tile per logical core above the die: the thread's tint, the pipeline of its hardware core as cells, the selected core outlined. */
+  private tiles(s: Snapshot | null) {
+    const plan = this.plan!, T = this.T, cores = s?.cores;
+    if (!cores) { if (this.tileSig) this.dropTiles(); return; }
+    const models = tileModels(cores, T.dark);
+    const sig = models.map((m) => [m.core, m.tint, m.parked ? 1 : 0, m.selected ? 1 : 0, m.sub, m.cells.join('.'), Math.round(m.fill * 8)].join(':')).join('|');
+    if (sig === this.tileSig) return;
+    this.tileSig = sig;
+    const g = this.tilesG;
+    g.clear();
+    for (const c of this.tileTexts.removeChildren()) c.destroy({ children: true });
+    const h = 64, gap = 12, y0 = plan.die.y - h - 30;
+    models.forEach((m, k) => {
+      const r = tileRect(k, models.length, plan.die.w, gap, 150, h);
+      const x = plan.die.x + r.x, col = m.tint ?? T.line;
+      g.roundRect(x, y0, r.w, h, 6).fill({ color: mix(T.die, col, m.tint ? 0.28 : 0.1), alpha: m.parked && !m.tint ? 0.5 : 1 });
+      g.roundRect(x, y0, r.w, h, 6).stroke({ width: m.selected ? 4 : 1.5, color: m.selected ? T.ink : col, alpha: m.selected ? 1 : 0.7 });
+      const n = Math.max(1, m.cells.length), cw = (r.w - 16) / n;
+      m.cells.forEach((cls, i) => {
+        const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls];
+        g.roundRect(x + 8 + i * cw + 1, y0 + h - 22, Math.max(2, cw - 2), 14, 3).fill({ color: c, alpha: cls === null ? 0.35 : 1 });
+      });
+      if (m.fill > 0) g.rect(x + 8, y0 + h - 5, (r.w - 16) * m.fill, 3).fill({ color: T.mul });
+      const t = new Text({ text: m.label + ' ' + m.sub, style: { fontFamily: MONO, fontSize: 16, fontWeight: '700', fill: m.tint ? T.ink : T.mute }, resolution: 2 });
+      t.anchor.set(0, 0); t.position.set(x + 8, y0 + 8);
+      this.tileTexts.addChild(t);
+    });
   }
 
   private dropChips() { this.dots.clear(); this.tailG.clear(); }
@@ -212,11 +254,13 @@ export class DieView {
     this.packetG.visible = z >= 0.2;
     this.trailG.visible = z >= 0.2;
     this.legend.visible = z >= 0.5;
+    this.tilesG.visible = this.tileTexts.visible = z >= 0.3;
   }
 
   /** A new snapshot: its trace and stored state join the replay; nothing is drawn here (frame() draws). */
   update(s: Snapshot | null, _simple: boolean, _now: number) {
     if (!this.plan || !this.player) return;
+    this.tiles(s);
     const pipe = s?.pipe ?? null;
     if (!pipe || !pipe.trace) {
       // no machine running: the replay stops and the chips go

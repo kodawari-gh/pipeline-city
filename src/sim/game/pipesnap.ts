@@ -65,6 +65,25 @@ export interface StoredSnap {
   tlb?: { vpn: number[]; frame: number[] };
 }
 
+/** One logical core of a multicore CPU, for the die's tiles: which hardware core's pipeline it shares, whether it sleeps, and the job thread it runs (OS 3 and 4). */
+export interface CoreLive {
+  core: number;
+  /** The hardware core (engine) this logical core runs on: logical cores of one hardware core share a pipeline. */
+  hw: number;
+  parked: boolean;
+  /** The context running here: the slot word of the job (0 = none: the kernel or an idle core) and the thread number in it. */
+  job: number;
+  thread: number;
+}
+
+/** What a multicore die shows: every logical core, a pipeline snapshot per hardware core (the selected one has the stored state too), and the core the detailed view follows. */
+export interface CoresSnap {
+  selected: number;
+  live: CoreLive[];
+  /** Per hardware core: stage occupants or the out-of-order structures, and the recent cycles. */
+  tiles: PipeSnap[];
+}
+
 export interface PipeSnap {
   /** Lanes per stage. `stages` is indexed stage * width + lane. */
   width: number;

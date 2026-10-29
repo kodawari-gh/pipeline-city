@@ -251,3 +251,7 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 - **Tip.** After 22 s on a drag step a plain-words tip bubble appears above the card ("press and hold the glowing part, move it to the glowing spot, then let go"). It floats, so the card does not grow and the camera does not re-frame.
 - **Quiet shelf.** The shelf opens for steps that use it and tucks away on the others (never during a drag).
 - **One steady camera.** Guided flights frame a fixed-size window (about 9500 world units wide, more for big targets) around the target, moved back inside the world, so a small part is always shown in its surroundings at the same zoom. A HUD target far from the card (the money) gets no connector line; it pulses by itself.
+
+## Trace panel core selector
+
+On a multicore CPU `TracePanel.tsx` shows one button per logical core above the step buttons (label, `T<n>` of the job thread or idle/kernel, the hardware core's pipeline as small cells, tinted like the die tiles via `tileModels`). `aria-pressed` marks the selected core; a click sends `viewCore(k)` and the trace, scrubber and die detail follow that core (docs/DIE.md "Core tiles").
