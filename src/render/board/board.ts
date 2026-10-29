@@ -10,7 +10,8 @@ import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '../camera';
 import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, cpuFanCableArt, emptyCellHint, sinkFanCableArt, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from '../room/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
-import { cableArt, coolerArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
+import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
+import { coolerArt, radiatorArt } from './cooler';
 import { Interact, type CableInfo, type SceneInfo } from '../interact';
 import { CordsView, type CordKind } from './cords';
 import { PowerLens, lensModel } from '../room/lens';
@@ -22,7 +23,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../room/exte
 import { box, clear, dashed, label } from '../ink';
 import {
   BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RADIATOR, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../room/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
@@ -519,7 +520,9 @@ export async function mountBoard(host: HTMLElement) {
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
-    for (const r of [...frontFanRects(), ...(REAR_FAN_FITTED ? [REAR_FAN] : []), ...TOP_FANS]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
+    // (a liquid cooler's radiator stands where the first top fan would, so that one is left out)
+    const aio = (s?.devices ?? []).some((d) => d.kind === 'cooler' && getSpec(d.spec)?.visual === 'cooler-liquid');
+    for (const r of [...frontFanRects(), ...(REAR_FAN_FITTED ? [REAR_FAN] : []), ...TOP_FANS.filter((f) => !aio || f !== TOP_FANS[0])]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
@@ -578,6 +581,13 @@ export async function mountBoard(host: HTMLElement) {
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
         sataLayer.addChild(cpuFanCableArt(T)); // its fan cable to the CPU_FAN header
         coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
+        if (aio) {
+          // the radiator in the case's top, its fan spinning with the pump; picking it picks the cooler
+          const ra = radiatorArt(T, RADIATOR);
+          deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
+          fans.push({ c: ra.fan, kind: 'radiator' }); fanLayer.addChild(ra.fan);
+          deviceHits.push(partHit(d.id, ra.root, RADIATOR));
+        }
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);

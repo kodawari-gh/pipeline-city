@@ -74,34 +74,50 @@ function Ram({ spec }: { spec: RamSpec }) {
 }
 
 function Cooler({ tier }: { tier: number }) {
-  const fins = Array.from({ length: 7 }, (_, i) => 18 + i * 8);
-  if (tier === 0) {
-    return (
-      <>
-        <rect x={16} y={62} width={88} height={8} rx={2} class="ink2" />
-        {fins.map((y) => <rect key={y} x={22} y={y - 4} width={76} height={3} rx={1} class="fin" />)}
-      </>
-    );
-  }
-  if (tier === 1) {
-    return (
-      <>
-        {fins.map((y) => <rect key={y} x={14} y={y - 4} width={56} height={3} rx={1} class="fin" />)}
-        <rect x={12} y={60} width={60} height={8} rx={2} class="ink2" />
-        <circle cx={92} cy={42} r={20} class="fanring" />
-        <circle cx={92} cy={42} r={6} class="ink" />
-        <path d="M92 36a6 6 0 0 1 6 6M98 42a6 6 0 0 1-6 6M92 48a6 6 0 0 1-6-6M86 42a6 6 0 0 1 6-6" class="blade" />
-      </>
-    );
-  }
-  return (
+  const vanes = (cx: number, cy: number, r: number) => (
     <>
-      <rect x={10} y={34} width={30} height={30} rx={5} class="ink2" />
-      <path d="M40 40 C52 40 52 26 64 26 M40 56 C52 56 52 68 64 68" class="tube" fill="none" stroke-width={3} />
-      <rect x={64} y={14} width={22} height={62} rx={3} class="plate edge" />
-      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <rect key={i} x={66} y={18 + i * 7} width={18} height={2} class="fin" />)}
-      <circle cx={100} cy={44} r={9} class="fanring" />
-      <circle cx={100} cy={44} r={2.5} class="ink" />
+      <circle cx={cx} cy={cy} r={r} class="fanring" />
+      <circle cx={cx} cy={cy} r={r * 0.3} class="ink" />
+      <path d={`M${cx} ${cy - r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3} ${r * 0.3}M${cx + r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3} ${r * 0.3}M${cx} ${cy + r * 0.3}a${r * 0.3} ${r * 0.3} 0 0 1-${r * 0.3}-${r * 0.3}M${cx - r * 0.3} ${cy}a${r * 0.3} ${r * 0.3} 0 0 1 ${r * 0.3}-${r * 0.3}`} class="blade" />
+    </>
+  );
+  const stack = (x: number) => (
+    <>
+      <rect x={x} y={14} width={14} height={56} rx={2} class="plate edge" />
+      {Array.from({ length: 7 }, (_, i) => <rect key={i} x={x + 1.5} y={17 + i * 7.5} width={11} height={2} rx={1} class="fin" />)}
+    </>
+  );
+  if (tier === 0) { // a plate with a radial-vaned fan
+    return (
+      <>
+        <rect x={20} y={10} width={80} height={64} rx={5} class="plate edge" />
+        {Array.from({ length: 12 }, (_, i) => {
+          const th = (i / 12) * Math.PI * 2;
+          return <path key={i} d={`M${60 + Math.cos(th) * 18} ${42 + Math.sin(th) * 18}L${60 + Math.cos(th) * 28} ${42 + Math.sin(th) * 28}`} class="fin" stroke-width={2} fill="none" />;
+        })}
+        {vanes(60, 42, 17)}
+      </>
+    );
+  }
+  if (tier === 1) { // two fin stacks, copper pipes between them, a frame fan
+    return (
+      <>
+        {stack(14)}
+        {stack(92)}
+        <path d="M21 26H99M21 42H99M21 58H99" class="tube" fill="none" stroke-width={3} />
+        <rect x={34} y={14} width={52} height={56} rx={4} class="plate edge" />
+        {vanes(60, 42, 20)}
+      </>
+    );
+  }
+  return ( // an all-in-one: the pump on the CPU, two tubes up to a radiator with a fan
+    <>
+      <rect x={14} y={58} width={34} height={20} rx={5} class="ink2" />
+      <circle cx={31} cy={68} r={7} class="fanring" />
+      <path d="M22 58V36C22 22 34 22 34 14M40 58V44C40 26 52 26 52 14" class="tube" fill="none" stroke-width={3} />
+      <rect x={28} y={6} width={84} height={12} rx={3} class="plate edge" />
+      {Array.from({ length: 10 }, (_, i) => <rect key={i} x={46 + i * 6} y={8} width={2} height={8} class="fin" />)}
+      {vanes(96, 12, 5)}
     </>
   );
 }

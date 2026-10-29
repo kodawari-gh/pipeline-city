@@ -82,7 +82,7 @@ New in `Snapshot` (`src/sim/game/types.ts`, additive, existing consumers untouch
 
 - Text is rasterised at 2x once; at zoom above about 2 it softens (no SDF/bitmap font yet).
 - At far zoom the monitor text is small (zoom scales it with everything else; it is readable down to about 0.5x of the fit zoom, a shape only below). The exterior is baked at 0.35x, so it is soft if forced visible at high zoom (it never is, the LOD fades it out above 0.7x). The 8 DIMM sockets use shorter sticks (4 chips) than the old single bank, and the second row's memory taps are drawn but only lit by the shared memory bus.
-- The liquid cooler's tubes end in fittings (no radiator art). No GPU, NVMe, SATA or USB devices exist in the sim, so those buses never light (the PCIe cable is plumbed but never drawn).
+- The liquid cooler is an AIO (no reservoir): two tubes run from the pump on the CPU to a radiator in the first top-fan band (`RADIATOR` in `layout.ts`, drawn by `radiatorArt` in `board/cooler.ts`; the first top fan is not drawn then). Its fan spins with the cooler's. No GPU, NVMe, SATA or USB devices exist in the sim, so those buses never light (the PCIe cable is plumbed but never drawn).
 - PSU temperature and fan rpm are renderer estimates from load (see above).
 - Touch was verified with synthesized touch events (CDP), not on a device: tap to select, one-finger pan, two-finger pinch, and dragging a drive from the shelf onto `sata0` (see Verification). There is no hover on touch. Installed parts cannot be dragged back out (the UI picker uninstalls). Loose cable plugs and tray keys are small at overview zoom (use the tutorial rings, `flyTo` or zoom).
 - Bus lanes are 9-11 world units wide, about a pixel at overview zoom; the pulses carry the activity there.

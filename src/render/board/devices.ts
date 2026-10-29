@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
-import type { CoolerSpec, CpuSpec, PsuSpec, RamSpec } from '../../sim/board/specs';
+import type { CpuSpec, PsuSpec, RamSpec } from '../../sim/board/specs';
 import {
-  COOLER, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
+  DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
   type Rect,
 } from './layout';
 import { box, dashed, disc, label, mix } from '../ink';
@@ -176,50 +176,7 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Par
   return { root };
 }
 
-// ---------------------------------------------------------------- cooler (sits on the CPU)
-export function coolerArt(T: Theme, spec: CoolerSpec): Part {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const c: Rect = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2;
-  const liquid = spec.visual === 'cooler-liquid', tower = spec.visual === 'cooler-tower';
-  box(g, c.x, c.y, c.w, c.h, 60, { fill: T.tile, stroke: tower ? T.alu : liquid ? T.mul : T.line, lw: 10 });
-  // fins
-  for (let x = c.x + 40; x < c.x + c.w - 30; x += 26) g.moveTo(x, c.y + 24).lineTo(x, c.y + c.h - 24);
-  g.stroke({ width: 8, color: T.line, alpha: 0.9 });
-  for (const [x, y] of [[c.x + 40, c.y + 40], [c.x + c.w - 40, c.y + 40], [c.x + 40, c.y + c.h - 40], [c.x + c.w - 40, c.y + c.h - 40]] as const) disc(g, x, y, 22, { fill: T.pin });
-  const fan = new Container();
-  fan.position.set(cx, cy);
-  const fr = tower ? 560 : liquid ? 330 : 430;
-  const fg = new Graphics();
-  disc(fg, 0, 0, fr + 30, { fill: T.sub, stroke: T.line, lw: 9 });
-  blades(fg, tower ? 9 : liquid ? 5 : 7, 60, fr, T.dot, tower ? T.alu : T.br, 4);
-  fan.addChild(fg);
-  root.addChild(fan);
-  const hub = new Graphics();
-  hub.position.set(cx, cy);
-  disc(hub, 0, 0, 62, { fill: T.tile, stroke: tower ? T.alu : T.br, lw: 7 });
-  disc(hub, 0, 0, 20, { fill: tower ? T.alu : T.br });
-  root.addChild(hub);
-  if (tower) {
-    // heat pipes
-    for (let i = 0; i < 4; i++) g.moveTo(c.x + 120 + i * 40, c.y + c.h).lineTo(c.x + 120 + i * 40, c.y + c.h + 60);
-    g.stroke({ width: 16, color: T.pin, alpha: 0.9 });
-  }
-  if (liquid) {
-    // tubes up from the water block, each ending in a fitting (the radiator is off the board)
-    const tubes: [number, number][][] = [
-      [[cx - 90, c.y], [cx - 90, c.y - 140], [cx - 520, c.y - 140]],
-      [[cx + 90, c.y], [cx + 90, c.y - 110], [cx + 520, c.y - 110]],
-    ];
-    for (const t of tubes) { g.moveTo(t[0]![0], t[0]![1]); for (const q of t.slice(1)) g.lineTo(q[0], q[1]); }
-    g.stroke({ width: 40, color: T.line, join: 'round' });
-    for (const t of tubes) { g.moveTo(t[0]![0], t[0]![1]); for (const q of t.slice(1)) g.lineTo(q[0], q[1]); }
-    g.stroke({ width: 20, color: T.mul, alpha: 0.8, join: 'round' });
-    for (const t of tubes) { const e = t[t.length - 1]!; disc(g, e[0], e[1], 34, { fill: T.tile, stroke: T.mul, lw: 8 }); }
-  }
-  return { root, fan };
-}
+// (the cooler and the AIO's radiator are in cooler.ts)
 
 // ---------------------------------------------------------------- PSU (below the board)
 /**

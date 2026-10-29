@@ -105,7 +105,7 @@ export function partIcon(T: Theme, kind: string, _spec = ''): Container {
     box(g, -120, 160, 240, 24, 12, { fill: body, stroke: a, lw: 5 });
   } else if (kind === 'cooler') {
     box(g, -180, -180, 360, 360, 24, { fill: body, ...edge() });
-    for (let x = -150; x < 150; x += 30) g.moveTo(x, -160).lineTo(x, 160);
+    for (let k = 0; k < 24; k++) { const th = (k / 24) * Math.PI * 2; g.moveTo(Math.cos(th) * 90, Math.sin(th) * 90).lineTo(Math.cos(th) * 150, Math.sin(th) * 150); }
     g.stroke({ width: 7, color: T.line });
     disc(g, 0, 0, 120, { fill: T.die, stroke: a, lw: 6 });
     for (let k = 0; k < 6; k++) { const th = (k / 6) * Math.PI * 2; g.moveTo(0, 0).lineTo(Math.cos(th) * 105, Math.sin(th) * 105); }

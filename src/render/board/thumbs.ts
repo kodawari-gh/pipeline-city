@@ -3,7 +3,8 @@ import { Container, Graphics, Rectangle, type Renderer } from 'pixi.js';
 import { BOARD_TIERS, CASE_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../../sim/board/specs';
 import { getIspSpec, getRouterSpec } from '../../sim/net/specs';
 import { buildBoard } from './boardArt';
-import { coolerArt, cpuArt, monitorArt, psuBoxArt, ramArt, vrmSinkArt } from './devices';
+import { cpuArt, monitorArt, psuBoxArt, ramArt, vrmSinkArt } from './devices';
+import { coolerKitArt } from './cooler';
 import { driveArt, drawDriveLive, driveKindOf } from './drives';
 import { exteriorArt, exteriorFrame } from '../room/exterior';
 import { LAYOUT_CASE, LAYOUT_TIER, setLayoutTier, BD } from './layout';
@@ -139,7 +140,7 @@ function make(id: string, T: Theme): string | null {
         holder.addChild(p.root);
         break;
       }
-      case 'cooler': { const p = coolerArt(T, spec as CoolerSpec); holder.addChild(p.root); break; }
+      case 'cooler': holder.addChild(coolerKitArt(T, spec as CoolerSpec)); break;
       case 'psu': holder.addChild(psuBoxArt(T, spec as PsuSpec)); break;
       case 'display': holder.addChild(monitorArt(T, true, spec.visual === 'monitor-gfx').root); break;
       case 'vrm-sink': case 'ram-sink': {

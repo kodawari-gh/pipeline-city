@@ -7,7 +7,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/re
 | File | Role |
 |---|---|
 | `ports.ts` | the rear connectors, the plugs that seat into them and the wall they pass through, all in **side profile** with one light model (`portProfile`, `shieldSheet`, `hdmiPlug`, `rj45Plug`, `usbPlug`, `monitorSocket`); see "Rear I/O in side profile" |
-| `devices.ts` | static art of installed devices: CPU package + die floorplan, DIMM, cooler, PSU shroud, monitor, sleeved cables and plugs |
+| `devices.ts` | static art of installed devices: CPU package + die floorplan, DIMM, PSU shroud, monitor, sleeved cables and plugs (the cooler and the AIO's radiator are in `cooler.ts`) |
 | `exterior.ts` | the far-zoom exterior case (static art baked to one texture) and its live accent strip, `LOD` thresholds are in `board.ts` |
 | `case.ts` | the PC case: chassis and rear wall (the I/O opening, a slot cover per expansion slot, the rear fan), the tray with a brass standoff at every mounting hole of every form factor the case takes, the fan hub in the floor corner and the fans' cable stubs, top and front fans (`EdgeFan`: blades and light strips that spin with the machine), glass, the drive cage, SATA data cables and the power lead |
 | `drives.ts` | drive art (`hdd`, `ssd-sata`, `ssd-nvme`) and their live parts (platter, head arm, activity LED) |

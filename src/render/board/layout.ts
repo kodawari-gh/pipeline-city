@@ -176,7 +176,12 @@ export let REAR_FAN_FITTED = true;
 export let TOP_FANS: Rect[] = [];
 /** Top fans the cases carry (mini, micro, mid, full tower). */
 export const TOP_FAN_COUNT = [0, 1, 2, 3];
-export const TOP_FAN_T = 230, TOP_FAN_LEN = 1700, TOP_FAN_PITCH = 1800;
+export const TOP_FAN_T = 230, TOP_FAN_LEN = 1700, TOP_FAN_PITCH = 1800, TOP_FAN_X0 = -2500;
+/**
+ * Where a liquid cooler's radiator stands (edge-on, like the top fans): in the first top fan's place, or on the Mini, which has no top fan, in
+ * the same band shifted west, clear of the 8-pin cable's run. Set with the case (`setLayoutTier`).
+ */
+export let RADIATOR: Rect = { x: TOP_FAN_X0 - 300, y: CASE_TOP + 440, w: TOP_FAN_LEN, h: TOP_FAN_T };
 /**
  * The drive cage: a column of cells along the case's front, east of the cable gutter and level with the board's SATA ports (cell i =
  * slot sata<i>, top to bottom; the cage has the case's bays (`CASE_BAYS`), those beyond the board's SATA ports are locked). The cells' bottom lines up with the board's, so every cell is above its port and the cables are short.
@@ -313,7 +318,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   CASE_LEDS = { y: top + 200, on: ce - 1080, off: ce - 960, err: ce - 840, disk: ce - 1360 };
   REAR_FAN = { x: IO_X + 14, y: CASE_IN.y + 70, w: WALL_T - 28, h: -2140 - (CASE_IN.y + 70) };
   REAR_FAN_FITTED = REAR_FAN.h >= 500;
-  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: -2500 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));
+  TOP_FANS = Array.from({ length: TOP_FAN_COUNT[cg.tier] ?? 0 }, (_, k) => ({ x: TOP_FAN_X0 + k * TOP_FAN_PITCH, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T }));
+  RADIATOR = { x: TOP_FANS.length ? TOP_FAN_X0 : TOP_FAN_X0 - 300, y: CASE_IN.y + 40, w: TOP_FAN_LEN, h: TOP_FAN_T };
   // the desk top is where the case's feet stand; the monitor, the key tray, the router and the plates all follow it
   DESK_Y = bottom + FOOT; FLOOR_Y = DESK_Y + DESK_SLAB + DESK_UNDER;
   const MW = 3300 * MONITOR_K, MH = 1995 * MONITOR_K;

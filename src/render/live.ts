@@ -536,8 +536,8 @@ export class Live {
     for (const d of s.devices) {
       const gl = this.glows.get(d.id);
       if (d.kind === 'cooler') {
-        const f = this.fans.find((x) => x.kind === 'cooler');
-        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
+        // the fan or the pump's impeller, and a liquid cooler's radiator fan
+        for (const f of this.fans) if (f.kind === 'cooler' || f.kind === 'radiator') f.target = d.burnt || !this.liveOn ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
       }
       if (d.kind === 'vrm-sink') {
         // the heatsink fan follows the CPU load (its draw is 0.3 W idle to 1.5 W under load) and stops with the power
