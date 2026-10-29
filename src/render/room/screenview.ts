@@ -127,17 +127,16 @@ export class ScreenView extends Container {
 }
 
 /**
- * The graphics display with its cable on a GPU: the card's output as a grid of coloured cells (`frameColor`) with a status strip under it.
- * Repainted only when the frame or the strip changes.
+ * The GPU's picture, a panel of the dashboard under the process table (the graphics display with its cable on a card): the card's output as a
+ * grid of coloured cells (`frameColor`) with a status strip under it. Repainted only when the frame or the strip changes.
  */
 export class FrameView extends Container {
   private g = new Graphics();
-  private strip = new Text({ text: '', style: { fontFamily: MONO, fontSize: 70, fontWeight: '600' as TextStyleFontWeight, fill: INK }, resolution: 2 });
+  private strip = new Text({ text: '', style: { fontFamily: MONO, fontSize: 46, fontWeight: '600' as TextStyleFontWeight, fill: INK }, resolution: 2 });
   private sig = '';
 
   constructor() {
     super();
-    this.strip.position.set(X0, 1600);
     this.addChild(this.g, this.strip);
     this.visible = false;
   }
@@ -148,12 +147,16 @@ export class FrameView extends Container {
     const sig = m.status + '|' + m.cells.map((c) => Math.round(c * 255)).join(',');
     if (sig === this.sig) return;
     this.sig = sig;
-    const g = this.g, gap = 5, area = { x: X0, y: 70, w: X1 - X0, h: 1480 };
+    const g = this.g, area = { x: RX, y: 940, w: X1 - RX, h: 430 };
     const cell = Math.min(area.w / m.cols, area.h / m.rows);
-    const ox = area.x + (area.w - cell * m.cols) / 2, oy = area.y + (area.h - cell * m.rows) / 2;
+    const ox = area.x + (area.w - cell * m.cols) / 2, oy = area.y;
     g.clear();
-    g.rect(ox - 14, oy - 14, cell * m.cols + 28, cell * m.rows + 28).fill({ color: TRACK }).stroke({ width: 5, color: RULE });
-    m.cells.forEach((v, i) => g.rect(ox + (i % m.cols) * cell + gap / 2, oy + Math.floor(i / m.cols) * cell + gap / 2, cell - gap, cell - gap).fill({ color: frameColor(v) }));
+    g.rect(RX, 900, X1 - RX, 5).fill({ color: RULE });
+    g.rect(ox - 10, oy - 10, cell * m.cols + 20, cell * m.rows + 20).fill({ color: TRACK }).stroke({ width: 4, color: RULE });
+    // a seamless picture (no gaps), with a dark line under every row like a scanline
+    m.cells.forEach((v, i) => g.rect(ox + (i % m.cols) * cell, oy + Math.floor(i / m.cols) * cell, cell + 0.5, cell + 0.5).fill({ color: frameColor(v) }));
+    for (let r = 0; r < m.rows; r++) g.rect(ox, oy + r * cell + cell * 0.8, cell * m.cols, cell * 0.2).fill({ color: 0x000000, alpha: 0.18 });
+    this.strip.position.set(RX, oy + cell * m.rows + 36);
     this.strip.text = m.status;
     this.strip.style.fill = m.status.includes('FAULT') ? RED : m.status.includes('DRAWING') ? CYAN : INK;
   }

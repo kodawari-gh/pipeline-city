@@ -36,6 +36,8 @@ export interface DashCtx {
   ipc: number[];
   /** When each key's program was first seen running (base tick). */
   started: ReadonlyMap<number, number>;
+  /** The GPU's frame is up under the process table: fewer rows fit. */
+  compact?: boolean;
 }
 
 export const IPC_SAMPLES = 48;
@@ -114,7 +116,7 @@ export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
       tone: j.state === 'running' ? 'run' : j.state === 'result' ? 'done' : 'wait',
     };
   });
-  const SHOWN = 8;
+  const SHOWN = ctx.compact ? 3 : 8;
 
   const ready = q.filter((j) => j.state === 'result');
   let prompt = '', promptTone: DashModel['promptTone'] = 'dim';
@@ -168,8 +170,8 @@ export function frameModel(g: GpuSnap | undefined): FrameModel | null {
   };
 }
 
-const RAMP = [[8, 20, 16], [24, 90, 70], [90, 255, 176], [79, 227, 255], [255, 194, 71], [255, 255, 255]] as const;
-/** The picture's colour for a cell value 0..1: dark glass up through the terminal green and cyan to amber and white. */
+const RAMP = [[6, 4, 24], [38, 12, 110], [120, 20, 160], [220, 40, 120], [255, 130, 40], [255, 225, 90], [255, 255, 235]] as const;
+/** The picture's colour for a cell value 0..1: deep indigo up through violet and magenta to orange, yellow and white-hot (a heat-map, so low and high read apart). */
 export function frameColor(t: number): string {
   const x = clamp01(t) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
   const c = RAMP[i]!.map((a, k) => Math.round(a + (RAMP[i + 1]![k]! - a) * f));

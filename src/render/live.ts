@@ -11,7 +11,7 @@ import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
 import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
-import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold } from './room/screenmodel';
+import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from './room/screenmodel';
 import { FrameView, ScreenView } from './room/screenview';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import type { Theme } from './theme';
@@ -129,6 +129,8 @@ export class Live {
   private frameV = new FrameView();
   private frameHold: FrameHold = { seq: 0, at: -Infinity };
   private frameOn = false;
+  /** The card's picture for this snapshot (null when the frame is not up), shown by `updateDash`. */
+  private frameM: FrameModel | null = null;
   /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
   private bootG = new Graphics();
   private noSignal: Text;
@@ -490,8 +492,8 @@ export class Live {
       if (dr) { dr.burnt = st.burnt; if (st.busy && s.powered) this.driveFlow(st.slot, now, s.phase === 'ingesting', true); }
     }
     this.keyActivity = s.keyActivity ?? 'none';
-    this.updateOsScreen(s, now);
     this.updateGpuFrame(s);
+    this.updateOsScreen(s, now);
     // the board: VRM state for the glow, a dead board for the dimming; a new 'fault' in the log flashes the VRM once
     this.vrm = s.board?.vrm ?? null;
     this.ramVrm = s.board?.ramVrm ?? null;
@@ -776,10 +778,11 @@ export class Live {
     this.screenText.visible = this.hasDisplay && !on;
     this.osG.visible = on;
     this.osJob = 'none';
-    if (!on || !s.os) { for (const t of this.osRows) t.visible = false; this.osSig = ''; this.dash.show(null); this.dashIpc = []; this.dashPrev = null; this.dashStarted.clear(); return; }
+    if (!on || !s.os) { for (const t of this.osRows) t.visible = false; this.osSig = ''; this.dash.show(null); this.frameV.show(null); this.dashIpc = []; this.dashPrev = null; this.dashStarted.clear(); return; }
     const os = s.os, q = os.queue ?? [];
     if (screenMode(on, this.gfxDisplay, ph) === 'dash') { this.updateDash(s); return; }
     this.dash.show(null);
+    this.frameV.show(null);
     const pad = (a: string, b: string) => a + ' '.repeat(Math.max(1, OS_COLS - a.length - b.length)) + b;
     const rows: { t: string; c: string }[] = [];
     const status = ph === 'booting-os' ? 'BOOTING' : ph === 'idle-os' ? 'READY' : ph === 'ingesting' ? 'INGEST' : ph === 'running-os' ? 'RUNNING' : 'FLASHING';
@@ -848,19 +851,14 @@ export class Live {
     });
   }
 
-  /** With the cable on a card: the card's frame takes the glass over while it draws and a few ticks after, then the normal screen is back. */
+  /** With the cable on a card: its frame is worked out here and drawn as a panel of the dashboard (`updateDash`) while it draws and a few ticks after. */
   private updateGpuFrame(s: Snapshot) {
     const port = s.videoPort ?? 'board';
     const card = this.gfxDisplay && s.monitorLive && s.powered && port !== 'board' ? s.gpus?.find((g) => g.slot === port) : undefined;
     const r = holdFrame(this.frameHold, card, s.baseTick);
     this.frameHold = r.hold;
-    const m = r.show ? frameModel(card) : null;
-    this.frameOn = !!m;
-    this.frameV.show(m);
-    if (!m) return;
-    this.screenText.visible = false;
-    this.osG.visible = false;
-    this.dash.visible = false; // only hidden, so the dashboard underneath keeps its signature and does not repaint every frame
+    this.frameM = r.show ? frameModel(card) : null;
+    this.frameOn = false;
   }
 
   /** The graphics display's OS screen: the dashboard (gauges, IPC trace, process table) in place of the text rows. */
@@ -874,7 +872,9 @@ export class Live {
     if (ipc !== null) { this.dashIpc.push(ipc); if (this.dashIpc.length > IPC_SAMPLES) this.dashIpc.shift(); }
     for (const j of q) if (j.state === 'running' && !this.dashStarted.has(j.keyId)) this.dashStarted.set(j.keyId, s.baseTick);
     for (const k of [...this.dashStarted.keys()]) if (!q.some((j) => j.keyId === k && j.state === 'running')) this.dashStarted.delete(k);
-    this.dash.show(dashModel(s, { upTick: this.osUpTick, ipc: this.dashIpc, started: this.dashStarted }));
+    this.dash.show(dashModel(s, { upTick: this.osUpTick, ipc: this.dashIpc, started: this.dashStarted, compact: !!this.frameM }));
+    this.frameV.show(this.frameM);
+    this.frameOn = !!this.frameM;
   }
 
   private drawBadge(now: number) {

@@ -65,6 +65,13 @@ describe("GPU reference interpreter: kernels", () => {
     expect(g.idleLaneSlots / (g.instructions * 8)).toBeGreaterThan(0.1);
   });
 
+  it("mandel draws an image: every row has its own imaginary part", () => {
+    const { out } = runKernel("mandel", 8, 256);
+    expect(out).toEqual([...Array(256).keys()].map(mandelCount));
+    const rows = [...Array(8).keys()].map((r) => out.slice(r * 32, r * 32 + 32).join());
+    expect(new Set(rows).size).toBe(8);
+  });
+
   it("is deterministic and counts cycles", () => {
     const a = runKernel("saxpy", 8, 32).g, b = runKernel("saxpy", 8, 32).g;
     expect(a.cycles).toBe(b.cycles);

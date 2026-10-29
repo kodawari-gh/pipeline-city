@@ -134,8 +134,8 @@ describe('frameModel', () => {
 
 describe('frameColor', () => {
   it('runs from dark glass to white', () => {
-    expect(frameColor(0)).toBe('#081410');
-    expect(frameColor(1)).toBe('#ffffff');
+    expect(frameColor(0)).toBe('#060418');
+    expect(frameColor(1)).toBe('#ffffeb');
     expect(frameColor(-3)).toBe(frameColor(0));
     expect(frameColor(7)).toBe(frameColor(1));
   });

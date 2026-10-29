@@ -35,8 +35,11 @@ export interface GpuKernelParams {
   scale?: number;
 }
 
-/** mandel: points along one row of the plane, `1 << logW` of them, wrapping every that many elements; Q12 window start `xMin`, step `dx`, imaginary part `cy`. */
-export const MANDEL = { logW: 5, xMin: -2 * 4096, dx: 3 * 4096 / 32 | 0, cy: Math.round(0.35 * 4096), maxIter: 16 } as const;
+/**
+ * mandel: an image of the plane, `1 << logW` points per row, element i at column `i % 32`, row `i >> 5`. Q12 window: real part from `xMin` in steps of `dx`,
+ * imaginary part from `yMin` in steps of `1 << dyLog` (a shift in the kernel, so it needs no register). Eight rows (256 elements) span -0.09 to 0.78: the top of the set, off the mirror line so no two rows are alike.
+ */
+export const MANDEL = { logW: 5, xMin: -2 * 4096, dx: 3 * 4096 / 32 | 0, yMin: -384, dyLog: 9, maxIter: 16 } as const;
 
 function check(p: GpuKernelParams): void {
   if (!Number.isInteger(p.lanes) || p.lanes < 1 || p.lanes > 32) throw new RangeError(`lanes ${p.lanes}`);
@@ -150,7 +153,7 @@ ${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}     
         bany loop
         mpop
         halt`;
-    case "mandel": { // out[i] = escape iterations of c = (xMin + i * dx, cy): lanes leave the inner loop at different times
+    case "mandel": { // out[i] = escape iterations of c = (xMin + col * dx, yMin + row * dy): lanes leave the inner loop at different times
       const m = MANDEL;
       return `
         lane v0
@@ -176,7 +179,10 @@ ${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}     
         mseteq v6, v7
         vmul v3, v2, v3
         vsrai v3, v3, 11
-        vaddi v3, v3, ${m.cy}
+        vsrli v6, v0, ${8 + m.logW}
+        vslli v6, v6, ${m.dyLog}
+        vadd v3, v3, v6
+        vaddi v3, v3, ${m.yMin}
         vsub v2, v4, v5
         vadd v2, v2, v1
         vaddi v0, v0, 1
@@ -237,11 +243,12 @@ export function gpuKernelExpected(name: GpuKernelName, p: GpuKernelParams, a: re
 export function mandelCount(i: number): number {
   const m = MANDEL;
   const cx = Math.imul(i & ((1 << m.logW) - 1), m.dx) + m.xMin | 0;
+  const cy = ((i >> m.logW) << m.dyLog) + m.yMin | 0;
   let zr = 0, zi = 0, count = 0;
   for (;;) {
     const zr2 = Math.imul(zr, zr) >> 12, zi2 = Math.imul(zi, zi) >> 12;
     if ((zr2 + zi2) >>> 14 !== 0) return count; // escaped before this step
-    zi = (Math.imul(zr, zi) >> 11) + m.cy | 0;
+    zi = (Math.imul(zr, zi) >> 11) + cy | 0;
     zr = zr2 - zi2 + cx | 0;
     count++;
     if (count >= m.maxIter) return count;
@@ -299,7 +306,7 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
         "li t1, 0", "li t2, 0", "li t3, 0",
         `${ns}_n:`, "mul t4, t1, t1", "srai t4, t4, 12", "mul a3, t2, t2", "srai a3, a3, 12",
         "add a2, t4, a3", "srli a2, a2, 14", `bne a2, zero, ${ns}_d`,
-        "mul t2, t1, t2", "srai t2, t2, 11", `addi t2, t2, ${m.cy}`, "sub t1, t4, a3", "add t1, t1, t0",
+        "mul t2, t1, t2", "srai t2, t2, 11", `srli a2, a1, ${m.logW}`, `slli a2, a2, ${m.dyLog}`, "add t2, t2, a2", `addi t2, t2, ${m.yMin}`, "sub t1, t4, a3", "add t1, t1, t0",
         "addi t3, t3, 1", `li a2, ${m.maxIter}`, `bne t3, a2, ${ns}_n`,
         `${ns}_d:`, "sw t3, 0(a0)", "addi a0, a0, 4", "addi a1, a1, 1", `li a2, ${p.len}`, `bne a1, a2, ${ns}_o`, "ret",
       ]);
