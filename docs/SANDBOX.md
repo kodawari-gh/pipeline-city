@@ -35,7 +35,7 @@ In code: `startSim(null, { sandbox: true, preassembled: assembled, maxed: assemb
 ## What stays locked
 
 - **Later OS tiers** (`os4`) are listed as "planned: not available yet" in every game. The sandbox does not unlock them.
-- **Things that are not built** are not in the sandbox either: there is no network card, router or GPU yet (see `docs/HANDOVER.md`, next steps).
+- **Things that are not built** are not in the sandbox either (see `docs/TODO.md`).
 - The monitor has one spec, so there is nothing to buy for it.
 
 ## Sandbox tools
@@ -75,7 +75,7 @@ Over three runs the cost stayed at 0.06 to 0.09 ms per tick (the job-running and
 
 **64x is sustainable on this machine, and the sim is not the limit.** At 64x the sim uses about 1% of one core (64 ticks at 0.085 ms, plus 10 snapshots at 0.46 ms, each second). The flat-out ceiling is about 190 times 64x, so a machine would have to be about 190 times slower to fall below it. Every paced run kept up, and the catch-up cap was never reached.
 
-The practical limit at high speed is on the client, not in the sim: the main thread receives a 13 KB snapshot up to 10 times a second, then applies it and redraws the board, the pipeline and the monitor. That side is not measured by the bench (the browser checks in `HANDOVER.md` are at 1x to 16x).
+The practical limit at high speed is on the client, not in the sim: the main thread receives a 13 KB snapshot up to 10 times a second, then applies it and redraws the board, the pipeline and the monitor. That side is not measured by the bench.
 
 ## Saves
 
