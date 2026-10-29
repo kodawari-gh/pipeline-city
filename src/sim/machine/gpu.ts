@@ -7,7 +7,7 @@
 // after the kernel halts. The instruction semantics and the cycle rule are the reference interpreter's (src/sim/ref/gpuref.ts): this
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
-import { GPU_BASE, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
+import { GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
 import { GpuFault, GpuRef, type GpuConfig, type GpuStep } from "../ref/gpuref";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
@@ -37,6 +37,8 @@ export interface GpuView {
   stats: { instructions: number; idleLaneSlots: number; conflictCycles: number; cycles: number };
   /** Set when the last launch ended in a fault. */
   error: boolean;
+  /** What a display on this card's port shows: the output region of card memory (`GPU_FRAME`), as words; empty before the first launch of this power-on. */
+  frame: number[];
 }
 
 export class GpuPort implements Device {
@@ -102,6 +104,7 @@ export class GpuPort implements Device {
       launches: this.launches,
       stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
       error: this.error,
+      frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
     };
   }
 

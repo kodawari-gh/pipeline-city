@@ -85,6 +85,13 @@ export function gpuSnaps(this: Game): GpuSnap[] {
   return out;
 }
 
+/** The working graphics card the video cable is plugged into (the GPU in slot `this.video`), or null when it goes to the board, or that card is gone or burnt. */
+export function videoCard(this: Game): InstalledDevice | null {
+  if (this.video === "board") return null;
+  const d = this.board.devices.find((x) => x.slot === this.video && deviceSpec(x).kind === "gpu");
+  return d && !d.burnt ? d : null;
+}
+
 /** The installed CPU has an MMU (docs/VM.md). */
 export function cpuHasMmu(this: Game): boolean {
   const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);

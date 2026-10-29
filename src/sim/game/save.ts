@@ -167,6 +167,8 @@ export interface SaveV4 {
   expired?: number;
   /** Network state (docs/NETWORK.md "Save"). Optional and additive, no version bump: absent means no plan, no router, no cable. */
   net?: SavedNet;
+  /** Where the video cable is plugged: absent means the board's HDMI port, else the slot of a GPU card ("pcie1"). Optional and additive, no version bump (docs/SAVE.md). */
+  video?: string;
   /** The job almanac: per job type, when it first arrived, how many were finished and the fastest run (docs/JOBS.md). Optional and additive, no version bump. */
   jobDex?: Record<string, { seen: number; runs: number; best: number }>;
   /** The job log: the last jobs that ended and where their time went (docs/JOBS.md "The log"). Optional and additive, no version bump. */
@@ -311,6 +313,7 @@ export function parseSave(input: unknown): SaveV4 {
     for (const k of PROGRESS_KEYS) if (typeof p[k] !== "boolean" && NEW_FLAGS.includes(k)) p[k] = false;
     s.progress = p;
   }
+  if (s.video !== undefined && typeof s.video !== "string") throw new Error('save: "video" must be a string');
   if (s.net !== undefined) {
     const n = s.net;
     if (!isObj(n) || !isNat(n.ispTier) || !isNat(n.routerTier) || !isNat(n.deadTicks) || typeof n.networkLinked !== "boolean"

@@ -18,7 +18,7 @@ const T: Theme = {
 const snap = (o: Partial<GpuSnap> = {}): GpuSnap => ({
   slot: 'pcie0', lanes: 8, banks: 1, memBytes: 8192, phase: 'run', mask: 0xff, stack: [0xff], pc: 8, regs: Array.from({ length: 8 }, () => Array(8).fill(1)),
   trace: [{ pc: 0, name: 'vld', kind: 'ld', mask: 0x0f, cost: 2, banks: [2], dest: 3 }, { pc: 4, name: 'halt', kind: 'sys', mask: 0x0f, cost: 1, banks: null, dest: null }],
-  launches: 1, error: false, stats: { instructions: 2, idleLaneSlots: 4, conflictCycles: 1, cycles: 3 }, ...o,
+  launches: 1, error: false, frame: [], stats: { instructions: 2, idleLaneSlots: 4, conflictCycles: 1, cycles: 3 }, ...o,
 });
 
 describe('GPU view', () => {

@@ -154,7 +154,8 @@ export function fault(this: Game): string | null {
 
 export function monitorLive(this: Game): boolean {
   const d = findDevices(this.board, "display")[0];
-  return !!d && !d.burnt && this.cables.video && this.cables.monmains;
+  if (!d || d.burnt || !this.cables.video || !this.cables.monmains) return false;
+  return this.video === "board" || this.videoCard() !== null;
 }
 
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */

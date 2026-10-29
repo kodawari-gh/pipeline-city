@@ -6,7 +6,7 @@ import {
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
   findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts,
   specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
-  type Board, type CableId, type DeviceKind, type InstalledDevice,
+  type Board, type CableId, type DeviceKind, type DisplaySpec, type InstalledDevice,
 } from "../board";
 import { getRouterSpec, ISP_SPECS, ROUTER_SPECS, routerByTier, type RouterSpec } from "../net";
 import { getOsSpec, OS_SPECS } from "../os";
@@ -209,8 +209,17 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
   if (cable === "lan") return this.connectLan(port);
   const wall = cable === "pcmains" || cable === "monmains";
   if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
+  // The video cable goes to the board's HDMI port, or to a display port on a GPU's bracket (graphics display only).
+  const to = cable === "video" ? (port ?? "board") : "board";
+  if (to !== "board") {
+    const card = this.board.devices.find((d) => d.slot === to && deviceSpec(d).kind === "gpu");
+    if (!card || card.burnt) return { ok: false, reason: `no working graphics card in "${to}"` };
+    const disp = findDevices(this.board, "display")[0];
+    if (!disp || !(deviceSpec(disp) as DisplaySpec).graphics) return { ok: false, reason: "a text monitor has no picture to show a graphics card: install the graphics display" };
+  }
   const r = boardConnect(this.board, this.cables, cable);
   if (!r.ok) return r;
+  if (cable === "video") this.video = to;
   const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress | undefined;
   if (flag) this.progress[flag] = true;
   if (wall) {
@@ -253,6 +262,7 @@ export function disconnectCable(this: Game, cable: string): Result<{ cable: Cabl
   if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
   const r = boardDisconnect(this.cables, cable);
   if (!r.ok) return r;
+  if (r.cable === "video") this.video = "board";
   this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} disconnected`);
   if (wall) this.machine.display.connected = this.monitorLive();
   // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
@@ -323,7 +333,17 @@ export function afterBoardChange(this: Game): void {
     this.cables.lan = false;
     this.note("cable", "Ethernet cable came unplugged");
   }
+  // A video cable plugged into a card that left the board (or into a card while the display is no longer a graphics one) comes out too.
+  if (this.video !== "board") {
+    const disp = findDevices(this.board, "display")[0];
+    if (!this.videoCard() || !disp || !(deviceSpec(disp) as DisplaySpec).graphics) {
+      this.video = "board";
+      this.cables.video = false;
+      this.note("cable", "Video cable came unplugged");
+    }
+  }
   for (const c of pruneCables(this.board, this.cables)) this.note("cable", `${CABLES.find((x) => x.id === c)!.name} came unplugged`);
+  if (!this.cables.video) this.video = "board";
 }
 
 /**

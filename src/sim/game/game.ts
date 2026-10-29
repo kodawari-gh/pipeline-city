@@ -172,6 +172,8 @@ export class Game {
   ispTier = 0;
   /** Where the ethernet cable is plugged: "board", a NIC device id, or null. */
   lan: string | null = null;
+  /** Where the video cable's PC end is plugged: "board" (the rear HDMI port) or the slot of a GPU card ("pcie1"), which needs a graphics display. */
+  video = "board";
   /** The link has been up once: USB keys retired (sticky, saved). */
   networkLinked = false;
   deadTicks = 0;

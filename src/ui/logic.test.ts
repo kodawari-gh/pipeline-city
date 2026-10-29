@@ -228,7 +228,7 @@ describe('descriptions', () => {
 
 describe('graphics card ids', () => {
   const gpuSnap = (slot: string, lanes: number, banks: number): NonNullable<ReturnType<typeof snap>['gpus']>[number] => ({
-    slot, lanes, banks, memBytes: 8192, phase: 'run', mask: 0b101, stack: [1], pc: 8, regs: [], launches: 2, error: false,
+    slot, lanes, banks, memBytes: 8192, phase: 'run', mask: 0b101, stack: [1], pc: 8, regs: [], launches: 2, error: false, frame: [],
     trace: [], stats: { instructions: 10, idleLaneSlots: 3, conflictCycles: 4, cycles: 14 },
   });
 

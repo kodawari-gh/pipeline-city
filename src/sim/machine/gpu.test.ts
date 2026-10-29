@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assembleGpu } from "../asm/gpu";
 import {
-  GPU_BASE, GPU_HOP_TICKS, GPU_MEM, GPU_PORTS, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus,
+  GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_PORTS, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus,
 } from "../isa/memmap";
 import { GpuRef } from "../ref/gpuref";
 import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, type GpuKernelName } from "../gen/gpukernels";
@@ -220,6 +220,15 @@ describe("GPU card on the bus", () => {
     expect(r.port.view()!.trace).toEqual([]);
     r.port.configure(null);
     expect(r.port.view()).toBeNull();
+  });
+
+  it("view().frame is the output region of card memory: empty before a launch, the kernel output after it, blank after a reset", () => {
+    const r = runKernel("mandel", 8, 64);
+    expect(r.port.view()!.frame).toHaveLength(GPU_FRAME.words);
+    expect(r.port.view()!.frame.slice(0, 64)).toEqual(r.want.map((v) => v >>> 0));
+    r.port.reset(); // card memory is volatile: the frame is blank again
+    expect(r.port.view()!.frame.every((w) => w === 0)).toBe(true);
+    expect(rig(8, 1).port.view()!.frame).toEqual([]);
   });
 
   it("a stopped clock freezes a launch, and removing the card takes it off the bus status", () => {

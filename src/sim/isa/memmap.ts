@@ -267,6 +267,8 @@ export const GPU_REG = {
 } as const;
 /** The card memory window: word k of card memory is at GPU_MEM + 4k. Kernel code and data share it. */
 export const GPU_MEM = 0x1000;
+/** The part of card memory a display on the card's port shows as its frame: where the kernels write their output (gpukernels.ts `KERNEL_LAYOUT.out`, `maxLen`), as a byte offset and a word count. */
+export const GPU_FRAME = { at: 0xa00, words: 256 } as const;
 /** Bits of GPU_REG.STATUS. Done stays set from the end of a launch until the next one. */
 export const GpuStatus = { Busy: 1, Error: 2, Present: 4, Done: 8 } as const;
 /** Values of GPU_REG.FAULT. */

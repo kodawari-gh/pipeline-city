@@ -449,6 +449,8 @@ export interface Snapshot {
   /** Every slot of the board and what sits in it. */
   slots: SlotSnap[];
   cables: CableSnap[];
+  /** Where the video cable's PC end is plugged: "board" or a GPU card's slot ("pcie1"); the picture comes from there. */
+  videoPort: string;
   /** Keys lying in the tray, oldest first. */
   tray: KeySnap[];
   /** The key in the USB port. */

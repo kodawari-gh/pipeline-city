@@ -118,6 +118,8 @@ export interface DisplaySpec extends SpecBase {
   clock: ClockRange;
   /** Display ticks per landed write. */
   writeLatency: number;
+  /** A graphics display: its video cable can go to a GPU's display port, and the card's frame shows on it (docs/ACCEL.md "Display"). */
+  graphics?: boolean;
 }
 
 /**
@@ -332,7 +334,7 @@ const specList: DeviceSpec[] = [
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
   // The graphics display (docs/ACCEL.md "Display"): a faster panel (writes land at once) with a richer screen: the OS dashboard, or what a GPU draws when the cable is on the card.
   { id: "display1", kind: "display", tier: 1, name: "Graphics display", slot: "display", price: 2500, idleW: 3, loadW: 8, heatFactor: 1,
-    clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-gfx", writeLatency: 0 },
+    clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-gfx", writeLatency: 0, graphics: true },
 ];
 
 export const DEVICE_SPECS: Readonly<Record<string, DeviceSpec>> = Object.fromEntries(specList.map((s) => [s.id, s]));

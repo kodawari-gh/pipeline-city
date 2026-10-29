@@ -49,6 +49,7 @@ export function toSave(this: Game): SaveV4 {
     ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
     ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
     net: this.savedNet(sk),
+    ...(this.video !== "board" ? { video: this.video } : {}),
     ...(this.sandbox ? {} : {
       bill: {
         wh: this.wattTicks / 3600, billedWh: this.billedWh, nextTick: this.nextBillTick, unpaid: this.unpaid, unpaidSince: this.unpaidSince,
@@ -127,6 +128,9 @@ export function restoreSave(this: Game, s: SaveV4): void {
   if (this.lan && this.lan !== "board" && !this.board.devices.some((d) => d.id === this.lan)) this.lan = null;
   if (!this.routerTier) this.lan = null;
   this.cables.lan = this.lan !== null;
+  // the video cable's port (absent: the board's); a card that is not there any more puts it back
+  this.video = typeof s.video === "string" ? s.video : "board";
+  if (this.video !== "board" && !this.videoCard()) { this.video = "board"; this.cables.video = false; }
   this.log = [];
   if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
   // A save from before the retired flag, whose link had been up: its USB keys are retired (the rule of the link's return).

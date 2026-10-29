@@ -6,7 +6,7 @@ import { bankState, conflicted, GpuPlayer, laneActive, stepText } from './gpumot
 
 const step = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({ pc, name: 'vadd', kind: 'alu', mask: 0xff, cost: 1, banks: null, dest: 1, ...o });
 const snap = (trace: GpuStep[], o: Partial<GpuSnap> = {}): GpuSnap => ({
-  slot: 'pcie0', lanes: 8, banks: 4, memBytes: 8192, phase: 'run', mask: 0xff, stack: [], pc: 0, regs: [], trace, launches: 1, error: false,
+  slot: 'pcie0', lanes: 8, banks: 4, memBytes: 8192, phase: 'run', mask: 0xff, stack: [], pc: 0, regs: [], trace, launches: 1, error: false, frame: [],
   stats: { instructions: trace.length, idleLaneSlots: 0, conflictCycles: 0, cycles: trace.length }, ...o,
 });
 /** Seconds one cycle of the replay lasts. */
