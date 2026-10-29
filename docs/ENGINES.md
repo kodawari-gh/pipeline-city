@@ -110,6 +110,8 @@ Engine settings that a CPU spec can turn on (docs/TECHTREE.md, docs/DIE.md); wit
 | `l2Lines`, `l2Penalty` | 0, 2 | One L2 (4-way) behind both L1 caches. An L1 miss that hits it costs `l2Penalty` cycles instead of `missPenalty`; an L2 miss costs `missPenalty` and fills the L2 (`L2Hits`/`L2Misses`). |
 | `predEntries`, `predBits` | 64, 1 | The branch predictor table: entries and bits per entry. 2 bits = saturating counters (predict taken from 2), which stop a loop exit from flipping the next entry's prediction. `flipPredictor` toggles the prediction and keeps the strength. |
 
+**`MemSystem`** (`memsys.ts`, [`MULTICORE.md`](MULTICORE.md) section 2) holds the L2 and the DRAM and answers `missCost(addr, cycle, counters, events)`: the L2's hit time, or RAM's cost (flat penalty or the DRAM's) with the line filled into the L2. An engine builds its own from its settings, so a single core is unchanged. `useMemSystem(mem)` (before `reset`) hands it one shared with other cores; the engine then does not reset it (its owner does), and `L2Hits`, `L2Misses` and the events go to the asking engine. The L1 caches and the predictor stay in the engine.
+
 Counters 22 to 26 are the new ones (`view.ts`). Interrupts stay precise with every part on (`interrupts.test.ts` runs the wide engines with all of them).
 
 ## Measured CPI

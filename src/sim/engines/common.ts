@@ -7,7 +7,8 @@ import type { Bus } from "../machine/bus";
 import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
 import { Counter, Fate, ViewState, type EngineView } from "./view";
-import { Dram, type DramSettings } from "./dram";
+import type { DramSettings } from "./dram";
+import { MemSystem } from "./memsys";
 
 const opc = (name: string): number => SPEC_BY_NAME.get(name)!.op;
 const ADD = opc("add"), SUB = opc("sub"), AND = opc("and"), OR = opc("or"), XOR = opc("xor");
@@ -336,9 +337,9 @@ export abstract class EngineBase implements PipelineEngine {
   protected readonly pool: InstrPool;
   protected readonly cache: DataCache;
   protected readonly icache: DataCache | null;
-  protected readonly l2: DataCache | null;
-  protected readonly l2Penalty: number;
-  protected readonly dram: Dram | null;
+  /** The L2 and the DRAM behind the L1 caches: built from the settings, or shared with other cores (`useMemSystem`). */
+  protected mem: MemSystem;
+  private ownsMem = true;
   protected readonly pred: Predictor;
   protected readonly events = new EventLog();
   /** The pc whose instruction cache line is being waited for, and the cycles left. */
@@ -365,10 +366,7 @@ export abstract class EngineBase implements PipelineEngine {
     const lineBytes = s.cacheLineBytes ?? 16, penalty = s.missPenalty ?? 4;
     this.cache = new DataCache(s.cacheLines ?? 8, lineBytes, penalty, s.ways ?? 1);
     this.icache = s.icacheLines ? new DataCache(s.icacheLines, lineBytes, penalty) : null;
-    this.l2 = s.l2Lines ? new DataCache(s.l2Lines, lineBytes, penalty, Math.min(4, s.l2Lines)) : null;
-    this.l2Penalty = s.l2Penalty ?? 2;
-    this.dram = s.dram ? new Dram(s.dram) : null;
-    if (!Number.isInteger(this.l2Penalty) || this.l2Penalty < 0) throw new RangeError("l2Penalty must be an integer >= 0");
+    this.mem = new MemSystem({ lineBytes, missPenalty: penalty, l2Lines: s.l2Lines ?? 0, l2Penalty: s.l2Penalty ?? 2, dram: s.dram });
     this.redirectPenalty = s.redirectPenalty ?? 0;
     if (!Number.isInteger(this.redirectPenalty) || this.redirectPenalty < 0) throw new RangeError("redirectPenalty must be an integer >= 0");
     this.pred = new Predictor(s.predEntries ?? 64, s.predBits ?? 1);
@@ -383,6 +381,8 @@ export abstract class EngineBase implements PipelineEngine {
   note(kind: number, a: number, b: number, c: number): void { this.events.push(this.cycleNo, kind, a | 0, b | 0, c | 0, 0); }
   /** No instruction in flight (see `Engine.drained`). */
   abstract get drained(): boolean;
+  /** Use a memory system shared with other cores instead of the engine's own (before `reset`). Its owner resets it. */
+  useMemSystem(mem: MemSystem): void { this.mem = mem; this.ownsMem = false; }
   holdFetch(on: boolean): void { this.hold = on; }
   redirect(pc: number): void { this.fetchPc = pc >>> 0; }
 
@@ -390,11 +390,12 @@ export abstract class EngineBase implements PipelineEngine {
   flipPredictor(_pc?: number): void {}
   storedState(): EngineState {
     const c = (x: DataCache): CacheState => ({ lines: x.lines, ways: x.ways, lineBytes: 1 << x.lineShift, tags: x.dump() });
+    const { l2, dram } = this.mem;
     return {
       regs: Array.from(this.regs ?? []),
-      d: c(this.cache), ...(this.icache ? { i: c(this.icache) } : {}), ...(this.l2 ? { l2: c(this.l2) } : {}),
+      d: c(this.cache), ...(this.icache ? { i: c(this.icache) } : {}), ...(l2 ? { l2: c(l2) } : {}),
       pred: { entries: this.pred.entries, bits: this.pred.bits, table: this.pred.dump() },
-      ...(this.dram ? { dram: { channels: this.dram.channels, banks: this.dram.banks, rowBytes: this.dram.rowBytes, open: this.dram.openRows() } } : {}),
+      ...(dram ? { dram: { channels: dram.channels, banks: dram.banks, rowBytes: dram.rowBytes, open: dram.openRows() } } : {}),
       events: this.events,
     };
   }
@@ -426,7 +427,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.events.push(this.cycleNo, Ev.Pred, (pc >>> 2) % this.pred.entries, this.pred.get(pc), old, 0);
   }
 
-  invalidateCache(): void { this.cache.invalidate(); this.icache?.invalidate(); this.l2?.invalidate(); }
+  invalidateCache(): void { this.cache.invalidate(); this.icache?.invalidate(); this.mem.invalidate(); }
 
   reset(machine: Machine, program: Uint32Array): void {
     machine.loadProgram(program);
@@ -440,9 +441,8 @@ export abstract class EngineBase implements PipelineEngine {
     this.hold = false;
     this.cache.invalidate();
     this.icache?.invalidate();
-    this.l2?.invalidate();
+    if (this.ownsMem) this.mem.reset();
     this.pred.reset();
-    this.dram?.reset();
     this.events.reset();
     this.iWaitPc = -1; this.iWait = 0; this.seqPc = 0;
     this.v.reset();
@@ -452,24 +452,7 @@ export abstract class EngineBase implements PipelineEngine {
 
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
   protected missCost(addr: number): number {
-    const l2 = this.l2;
-    if (!l2) return this.ramCost(addr);
-    const c = this.v.counters;
-    if (l2.hit(addr)) { c[Counter.L2Hits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.L2, l2.lastSlot, addr >>> l2.lineShift, 0); return this.l2Penalty; }
-    c[Counter.L2Misses]!++;
-    l2.fill(addr);
-    this.events.push(this.cycleNo, Ev.Fill, Which.L2, l2.lastSlot, addr >>> l2.lineShift, l2.lastEvicted);
-    return this.ramCost(addr);
-  }
-
-  /** What reaching RAM costs: the flat penalty, or the DRAM's answer (a row hit, an activate, a conflict), which is logged for the die. */
-  private ramCost(addr: number): number {
-    const d = this.dram;
-    if (!d) return this.cache.missPenalty;
-    const c = this.v.counters;
-    const a = d.access(addr, this.cycleNo, (cycle, bank, row, prev, outcome) => this.events.push(cycle, Ev.Row, bank, row, prev, outcome));
-    c[a.outcome === 0 ? Counter.RowHits : a.outcome === 1 ? Counter.RowEmpty : Counter.RowConflicts]!++;
-    return a.cycles;
+    return this.mem.missCost(addr, this.cycleNo, this.v.counters, this.events);
   }
 
   /**
