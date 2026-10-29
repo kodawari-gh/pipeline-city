@@ -88,7 +88,7 @@ Players can overclock or underclock each supported device. The ladder is: more c
 - **Devices are declarative specs** (data, not classes): slot and bus type, power draw, heat, clock range, per-tier stats, and visual hooks. The sim and the renderer read the same record, so adding a device is mostly adding data.
 - **The board is fixed with typed slots and ports that fill up** (DIMM, PCIe, SATA, USB, power connectors). A device only fits a matching free slot, and the PSU needs a matching connector and enough watts. Board and PSU tiers are part of the tree.
 - **Each device has a stylised-but-recognisable internal view** showing its real structure in simplified form (pipeline, DRAM banks and rows, GPU SMs, disk platter or flash channels), animated from sim state.
-- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template.
+- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template. Design: [`docs/MULTICORE.md`](MULTICORE.md).
 - **Security:** secure workloads need a TPM or secure enclave device to be accepted, and run in a protected mode with real, visible cycle costs (attestation steps, encrypted memory traffic, extra latency).
 
 ## Progression
