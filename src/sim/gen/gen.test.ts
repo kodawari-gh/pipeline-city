@@ -51,7 +51,7 @@ describe("every generated program", () => {
           const seed = s * 104729 + scale;
           const g = generate(t, seed, { scale });
           expect(() => assemble(g.asm)).not.toThrow();
-          const r = runReference(g, 30_000); // RefFault on unmapped access or step overrun
+          const r = runReference(g, t.startsWith("gpu.") ? 150_000 : 30_000); // RefFault on unmapped access or step overrun
           expect(r.cpu.halted).toBe(true);
           expect(r.text.length).toBeGreaterThan(0);
           expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
@@ -123,8 +123,8 @@ describe("pacing", () => {
 
   it("scale makes requests heavier", () => {
     for (const t of TEMPLATE_NAMES.filter((x) => x !== "cli")) {
-      const a = runReference(generate(t, 3, { scale: 1 })).steps;
-      const b = runReference(generate(t, 3, { scale: 4 })).steps;
+      const a = runReference(generate(t, 3, { scale: 1 }), 300_000).steps;
+      const b = runReference(generate(t, 3, { scale: 4 }), 300_000).steps;
       expect(b).toBeGreaterThan(a * 1.5);
     }
   });

@@ -52,7 +52,7 @@ export const DEX_GROUPS: readonly DexGroup[] = [
   { id: "memory", name: "Memory-hungry", color: "#f0803c", ids: ["scan", "chase", "stream", "stencil", "transpose", "sieve", "db", "hashtab"] },
   { id: "network", name: "Network", color: "#5b9cf5", ids: ["page", "api", "dns", "form", "search", "upload", "image", "video"] },
   { id: "trust", name: "Trust", color: "#ef5b7b", ids: ["secure", "verify", "measure", "encrypt", "vault", "rotate", "attest"] },
-  { id: "accel", name: "Accelerators", color: "#8b7cf6", ids: ["vadd", "saxpy", "thresh", "blur3", "poly", "mandel", "perceptron", "npu", "deep"] },
+  { id: "accel", name: "Accelerators", color: "#8b7cf6", ids: ["vadd", "saxpy", "thresh", "blur3", "poly", "mandel", "sphere", "perceptron", "npu", "deep"] },
   { id: "hpc", name: "High-performance", color: "#f2c14e", ids: ["hpc-reduce", "hpc-matmul", "hpc-nbody", "hpc-montecarlo", "hpc-sort", "hpc-bfs", "hpc-fft"] },
 ];
 
@@ -371,6 +371,14 @@ export const JOB_DEX: readonly DexEntry[] = [
       { part: "gpu", short: "Card is a must", text: "Without a card this runs the whole loop on the CPU, about fifteen times slower: the clients will take it back long before it is done." },
       { part: "gpu", short: "More lanes", text: "Many points run at once, but a chunk of lanes waits for its slowest point: more lanes still finish the row sooner." },
       { part: "clock", short: "A higher card clock", text: "The card spends nearly all its time in the inner loop: its clock speeds that directly." },
+    ] },
+  { id: "sphere", name: "Spinning balls", cls: "gpu", template: "gpu.sphere", level: 14, scale: 4, boost: "GPU: about 7x faster",
+    blurb: "Shade a row of four checkered balls, one point at a time: where each point sits on a ball decides how bright it is and which square it lands on. Every job has the balls turned a different way.",
+    stresses: ["a GPU (lanes)", "the multiplier"], footprint: "no input: the picture comes from the element number",
+    tips: [
+      { part: "gpu", short: "More lanes", text: "Every point is shaded on its own with the same steps, so lanes never wait for each other: twice the lanes draws the picture in about half the time." },
+      { part: "gpu", short: "Card is a must", text: "Without a card the CPU shades the points one after another, many times slower, for the same pay." },
+      { part: "clock", short: "A higher card clock", text: "It is all multiplies and shifts, one after the other: the card's own clock speeds every step." },
     ] },
   { id: "npu", name: "Inference", cls: "npu", template: "npu.infer", legacy: true,
     boost: "NPU: about 8x faster",

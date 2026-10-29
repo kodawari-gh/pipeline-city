@@ -264,7 +264,7 @@ describe("sandbox: which job classes arrive on their own", () => {
     const seen = arrivals(g, 6000);
     expect(seen.has("gpu")).toBe(true);
     expect([...seen].filter((c) => c !== "gpu")).toEqual([]);
-  });
+  }, 30_000); // gpu pictures are heavy to generate
   it("brings nothing when every class is off, but spawnKey still works", () => {
     const g = start();
     g.setJobClasses(["cli", "scan", "db", "web", "secure", "gpu", "npu", "hpc"]);

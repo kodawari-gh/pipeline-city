@@ -159,6 +159,7 @@ export const CODE_SOURCE: Record<string, { template: string; scales: number[] }>
   blur3: { template: "gpu.blur3", scales: [2, 4, 8] },
   poly: { template: "gpu.poly", scales: [2, 4, 8] },
   mandel: { template: "gpu.mandel", scales: [2, 4, 8] },
+  sphere: { template: "gpu.sphere", scales: [2, 4, 8] },
   perceptron: { template: "npu.perceptron", scales: [1, 2] },
   npu: { template: "npu.infer", scales: [1, 2, 4] },
   deep: { template: "npu.deep", scales: [1, 2, 4] },
@@ -911,7 +912,7 @@ def poly(a, b):
     return out`,
   },
   mandel: {
-    cpp: `// gpu.mandel: how long each point of a row takes to escape (at most 16 rounds)
+    cpp: `// gpu.mandel: how long each point of a picture takes to escape (at most 16 rounds)
 #include <cstdint>
 int mandel_point(int32_t cx, int32_t cy) {            // Q12 fixed point
     int32_t zr = 0, zi = 0; int count = 0;
@@ -924,7 +925,7 @@ int mandel_point(int32_t cx, int32_t cy) {            // Q12 fixed point
     }
     return count;
 }`,
-    python: `# gpu.mandel: how long each point of a row takes to escape (at most 16 rounds)
+    python: `# gpu.mandel: how long each point of a picture takes to escape (at most 16 rounds)
 def mandel_point(cx, cy):                              # Q12 fixed point
     zr = zi = count = 0
     while count < 16:
@@ -935,6 +936,28 @@ def mandel_point(cx, cy):                              # Q12 fixed point
         zr = zr2 - zi2 + cx
         count += 1
     return count`,
+  },
+  sphere: {
+    cpp: `// gpu.sphere: one point of a row of four checkered balls (16 columns each), lit from the upper left
+#include <cstdint>
+int ball_pixel(int col, int row, int rows, int phase) {
+    int x = 2 * (col & 15) - 15, y = (2 * row - (rows - 1)) * (16 / rows);   // the point's place on its ball
+    int d2 = x * x + y * y, h = 225 - d2;
+    if (h <= 0) return 0;                              // off the ball: dark
+    int s = x + ((x * d2) >> 8) + phase + (col >> 4) * 21;   // the checker slides faster toward the rim, and each ball is turned differently
+    int chk = ((s >> 3) ^ (y >> 3)) & 1;
+    return 40 + 36 * chk - x - y + (h >> 2);           // square colour, the light from the corner, brightest at the middle
+}`,
+    python: `# gpu.sphere: one point of a row of four checkered balls (16 columns each), lit from the upper left
+def ball_pixel(col, row, rows, phase):
+    x, y = 2 * (col & 15) - 15, (2 * row - (rows - 1)) * (16 // rows)   # the point's place on its ball
+    d2 = x * x + y * y
+    h = 225 - d2
+    if h <= 0:
+        return 0                                       # off the ball: dark
+    s = x + ((x * d2) >> 8) + phase + (col >> 4) * 21  # the checker slides faster toward the rim, and each ball is turned differently
+    chk = ((s >> 3) ^ (y >> 3)) & 1
+    return 40 + 36 * chk - x - y + (h >> 2)            # square colour, the light from the corner, brightest at the middle`,
   },
   perceptron: {
     cpp: `// npu.perceptron: one dense layer, X <- relu(W X + b), over an 8x8 batch

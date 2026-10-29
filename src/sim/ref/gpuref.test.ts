@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assembleGpu } from "../asm/gpu";
 import {
-  GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, mandelCount, type GpuKernelName,
+  ballPixel, GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, mandelCount, type GpuKernelName,
 } from "../gen/gpukernels";
 import { bankCycles, bankLoad, GpuFault, GpuRef } from "./gpuref";
 
@@ -56,20 +56,31 @@ describe("GPU reference interpreter: kernels", () => {
   });
 
   it("mandel is heavily divergent: lanes finish at different times and the loop runs for the slowest", () => {
-    const { g, out } = runKernel("mandel", 8, 32);
+    const { g, out } = runKernel("mandel", 8, 256);
     expect(new Set(out).size).toBeGreaterThan(3);
     expect(out.some((c) => c === 16)).toBe(true); // inside the set: runs to the iteration cap (16)
     expect(out.some((c) => c < 5)).toBe(true); // far outside: escapes at once
-    expect(out).toEqual([...Array(32).keys()].map(mandelCount));
+    expect(out).toEqual([...Array(256).keys()].map(mandelCount));
     // an inner-loop pass costs the same however few lanes are still going, so a lot of lane-slots are idle
     expect(g.idleLaneSlots / (g.instructions * 8)).toBeGreaterThan(0.1);
   });
 
   it("mandel draws an image: every row has its own imaginary part", () => {
-    const { out } = runKernel("mandel", 8, 256);
-    expect(out).toEqual([...Array(256).keys()].map(mandelCount));
-    const rows = [...Array(8).keys()].map((r) => out.slice(r * 32, r * 32 + 32).join());
-    expect(new Set(rows).size).toBe(8);
+    const { out } = runKernel("mandel", 16, 1024);
+    expect(out).toEqual([...Array(1024).keys()].map(mandelCount));
+    const rows = [...Array(16).keys()].map((r) => out.slice(r * 64, r * 64 + 64).join());
+    expect(new Set(rows).size).toBe(16);
+  });
+
+  it("sphere draws four lit, checkered balls and the kernel matches the plain-JS pixel", () => {
+    const { out } = runKernel("sphere", 16, 1024);
+    expect(out).toEqual([...Array(1024).keys()].map((i) => ballPixel(i, 16, 0)));
+    expect(out[0]).toBe(0); // the corner is off the ball
+    expect(out.filter((v) => v > 0).length).toBeGreaterThan(500);
+    expect(new Set(out).size).toBeGreaterThan(30); // shading, not flat colour
+    expect(out.slice(8 * 64, 8 * 64 + 16)).not.toEqual(out.slice(8 * 64 + 16, 8 * 64 + 32)); // middle row: each ball is turned differently
+    expect(ballPixel(8 * 64 + 8, 16, 0)).not.toBe(ballPixel(8 * 64 + 8, 16, 8)); // and the spin moves the checker (8 slides it one square)
+    expect(runKernel("sphere", 4, 256).out).toEqual([...Array(256).keys()].map((i) => ballPixel(i, 4, 0)));
   });
 
   it("is deterministic and counts cycles", () => {

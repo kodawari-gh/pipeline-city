@@ -107,6 +107,6 @@ describe("the video cable's port", () => {
 
 describe("the frame region of a card", () => {
   it("is where the kernels write their output", () => {
-    expect(GPU_FRAME).toEqual({ at: KERNEL_LAYOUT.out, words: KERNEL_LAYOUT.maxLen });
+    expect(GPU_FRAME).toEqual({ at: KERNEL_LAYOUT.out, words: KERNEL_LAYOUT.maxPicture });
   });
 });

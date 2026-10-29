@@ -103,7 +103,7 @@ describe('frameModel', () => {
     for (let i = 0; i < 40; i++) frame[i] = i % 4 === 0 ? 16 : 2;
     const m = frameModel(card({ frame }))!;
     expect(m.cols).toBe(FRAME_COLS);
-    expect(m.rows).toBe(2); // 40 words: two rows of 32
+    expect(m.rows).toBe(1); // 40 words: one row of 64
     expect(m.cells).toHaveLength(64);
     expect(Math.min(...m.cells)).toBe(0);
     expect(Math.max(...m.cells)).toBe(1);

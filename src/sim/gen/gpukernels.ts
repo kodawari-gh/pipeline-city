@@ -10,8 +10,8 @@
 // Register convention: v0 is only written where a kernel says so; the others are scratch. Integers are 32-bit, fixed point is Q12.
 
 export const GPU_KERNEL_NAMES = ["vadd", "saxpy", "blur3", "mandel"] as const;
-/** Every kernel a GPU job can be about: the four the mixed `gpu.render` job picks from, and two more that only their own jobs use (a branch per element, a chain of multiplies). */
-export const GPU_TASK_KERNELS = [...GPU_KERNEL_NAMES, "thresh", "poly"] as const;
+/** Every kernel a GPU job can be about: the four the mixed `gpu.render` job picks from, and three more that only their own jobs use (a branch per element, a chain of multiplies, a shaded picture). */
+export const GPU_TASK_KERNELS = [...GPU_KERNEL_NAMES, "thresh", "poly", "sphere"] as const;
 export type GpuKernelName = (typeof GPU_TASK_KERNELS)[number];
 
 /** Byte addresses in card memory. Arrays hold up to `maxLen` words. */
@@ -24,7 +24,10 @@ export const ROUNDS = 12;
 export const POLY_ROUNDS = 8;
 export const THRESH = { level: 500, high: 100 } as const;
 
-export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256 } as const;
+/** `maxLen`: words in the input arrays; `maxPicture`: words of output for the kernels that draw a 64-wide picture (`mandel`, `sphere`: up to 16 rows, from `out` to 0x1a00, inside the smallest card's memory). */
+export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256, maxPicture: 1024 } as const;
+/** Width of the pictures in words (the display's frame is this wide). */
+export const PICTURE_COLS = 64;
 
 export interface GpuKernelParams {
   /** Lanes of the card the kernel runs on. */
@@ -33,24 +36,47 @@ export interface GpuKernelParams {
   len: number;
   /** saxpy: the scale. */
   scale?: number;
+  /** sphere: how far the balls have spun (the texture slides by this much), 0 to 63. */
+  phase?: number;
 }
 
 /**
- * mandel: an image of the plane, `1 << logW` points per row, element i at column `i % 32`, row `i >> 5`. Q12 window: real part from `xMin` in steps of `dx`,
- * imaginary part from `yMin` in steps of `1 << dyLog` (a shift in the kernel, so it needs no register). Eight rows (256 elements) span -0.09 to 0.78: the top of the set, off the mirror line so no two rows are alike.
+ * mandel: an image of the plane, `1 << logW` points per row, element i at column `i % 64`, row `i >> 6`. Q12 window: real part from `xMin` in steps of `dx`,
+ * imaginary part from `yMin` in steps of `1 << dyLog` (a shift in the kernel, so it needs no register). Sixteen rows (1024 elements) span -0.08 to 0.86: the top of the set,
+ * off the mirror line so no two rows are alike.
  */
-export const MANDEL = { logW: 5, xMin: -2 * 4096, dx: 3 * 4096 / 32 | 0, yMin: -384, dyLog: 9, maxIter: 16 } as const;
+export const MANDEL = { logW: 6, xMin: -2 * 4096, dx: 3 * 4096 / 64 | 0, yMin: -320, dyLog: 8, maxIter: 16 } as const;
 
-function check(p: GpuKernelParams): void {
+/**
+ * sphere: four shaded balls in a row, each 16 columns wide; the picture is 64 wide and 4, 8 or 16 rows tall (a ball is squeezed to fit). A point's place on its
+ * ball is (x, y) in half cells, -15..15; it is on the ball when `225 - x*x - y*y` is above 0. Mirrors the kernel exactly.
+ */
+export function ballPixel(i: number, rows: number, phase: number): number {
+  const col = i & 63, row = i >> 6, ball = col >> 4;
+  const x = 2 * (col & 15) - 15, y = (2 * row - (rows - 1)) * (16 / rows);
+  const d2 = x * x + y * y, hp = Math.max(225 - d2, 0);
+  const s = x + ((x * d2) >> 8) + phase + ball * 21; // the texture slides faster toward the rim, as it does on a sphere
+  const chk = ((s >> 3) ^ (y >> 3)) & 1;
+  return hp > 0 ? 40 + 36 * chk - x - y + (hp >> 2) : 0; // a checker, lit from the upper left, brightest at the middle
+}
+
+function sphereRows(len: number): number {
+  const rows = len >> 6;
+  if (len !== rows << 6 || (rows !== 1 && rows !== 2 && rows !== 4 && rows !== 8 && rows !== 16)) throw new RangeError(`sphere needs 64 x (1, 2, 4, 8 or 16) elements, not ${len}`);
+  return rows;
+}
+
+function check(p: GpuKernelParams, name?: GpuKernelName): void {
+  const max = name === "mandel" || name === "sphere" ? KERNEL_LAYOUT.maxPicture : KERNEL_LAYOUT.maxLen;
   if (!Number.isInteger(p.lanes) || p.lanes < 1 || p.lanes > 32) throw new RangeError(`lanes ${p.lanes}`);
-  if (!Number.isInteger(p.len) || p.len < p.lanes || p.len % p.lanes !== 0 || p.len > KERNEL_LAYOUT.maxLen) throw new RangeError(`len ${p.len}`);
+  if (!Number.isInteger(p.len) || p.len < p.lanes || p.len % p.lanes !== 0 || p.len > max) throw new RangeError(`len ${p.len}`);
 }
 
 const A = KERNEL_LAYOUT.a, B = KERNEL_LAYOUT.b, OUT = KERNEL_LAYOUT.out;
 
 /** The kernel's assembly (GPU ISA). */
 export function gpuKernelSource(name: GpuKernelName, p: GpuKernelParams): string {
-  check(p);
+  check(p, name);
   const n = p.lanes, len = p.len;
   switch (name) {
     case "vadd": // out[i] = a[i] + ROUNDS * b[i]
@@ -153,6 +179,57 @@ ${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}     
         bany loop
         mpop
         halt`;
+    case "sphere": { // out[i] = ballPixel(i): a row of four checkered, lit balls, no input; every lane runs the same straight-line code
+      const rows = sphereRows(len), sh = 5 - Math.log2(rows), c = (rows - 1) * 16 / rows;
+      return `
+        lane v1
+        mpush
+      loop:
+        vandi v2, v1, 15
+        vslli v2, v2, 1
+        vaddi v2, v2, -15
+        vsrli v3, v1, 6
+        vslli v3, v3, ${sh}
+        vaddi v3, v3, ${-c}
+        vmul v4, v2, v2
+        vmul v5, v3, v3
+        vadd v4, v4, v5
+        vmul v5, v2, v4
+        vsrai v5, v5, 8
+        vadd v5, v5, v2
+        vsrli v6, v1, 4
+        vandi v6, v6, 3
+        vli v7, 21
+        vmul v6, v6, v7
+        vadd v5, v5, v6
+        vaddi v5, v5, ${p.phase ?? 0}
+        vsrai v5, v5, 3
+        vsrai v6, v3, 3
+        vxor v5, v5, v6
+        vandi v5, v5, 1
+        vli v7, 36
+        vmul v5, v5, v7
+        vsub v5, v5, v2
+        vsub v5, v5, v3
+        vaddi v5, v5, 40
+        vli v6, 225
+        vsub v6, v6, v4
+        vli v7, 0
+        vmax v6, v6, v7
+        vsrli v4, v6, 2
+        vadd v5, v5, v4
+        vli v7, 1
+        vmin v6, v6, v7
+        vmul v5, v5, v6
+        vslli v2, v1, 2
+        vst v5, ${OUT}(v2)
+        vaddi v1, v1, ${n}
+        vli v5, ${len}
+        msetlt v1, v5
+        bany loop
+        mpop
+        halt`;
+    }
     case "mandel": { // out[i] = escape iterations of c = (xMin + col * dx, yMin + row * dy): lanes leave the inner loop at different times
       const m = MANDEL;
       return `
@@ -215,7 +292,7 @@ export function kernelInputs(len: number, seed: number): { a: number[]; b: numbe
 
 /** What the kernel computes, in plain JS (the same integer arithmetic). */
 export function gpuKernelExpected(name: GpuKernelName, p: GpuKernelParams, a: readonly number[], b: readonly number[]): number[] {
-  check(p);
+  check(p, name);
   const out: number[] = [];
   for (let i = 0; i < p.len; i++) {
     switch (name) {
@@ -227,6 +304,7 @@ export function gpuKernelExpected(name: GpuKernelName, p: GpuKernelParams, a: re
         break;
       }
       case "mandel": out.push(mandelCount(i)); break;
+      case "sphere": out.push(ballPixel(i, sphereRows(p.len), p.phase ?? 0)); break;
       case "thresh": out.push(a[i]! >= THRESH.level ? THRESH.high : 0); break;
       case "poly": {
         let r = b[i]!;
@@ -298,6 +376,22 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
         `${ns}_i:`, "lw t0, 0(a0)", "lw t1, 0(a1)", "mv t2, t1", ...Array.from({ length: POLY_ROUNDS }).flatMap(() => ["mul t2, t2, t0", "add t2, t2, t1"]),
         "sw t2, 0(a2)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
       ]);
+    case "sphere": {
+      const rows = sphereRows(p.len), sh = 5 - Math.log2(rows), c = (rows - 1) * 16 / rows;
+      return kernel("gpu_sphere", ns, ["mem", "mul", "alu", "branch"], [
+        "li a1, 0",
+        `${ns}_o:`, "andi t0, a1, 15", "slli t0, t0, 1", "addi t0, t0, -15",
+        "srli t1, a1, 6", `slli t1, t1, ${sh}`, `addi t1, t1, ${-c}`,
+        "mul t2, t0, t0", "mul a2, t1, t1", "add t2, t2, a2",
+        "mul t3, t0, t2", "srai t3, t3, 8", "add t3, t3, t0",
+        "srli t4, a1, 4", "andi t4, t4, 3", "li a2, 21", "mul t4, t4, a2", "add t3, t3, t4", `addi t3, t3, ${p.phase ?? 0}`,
+        "srai t3, t3, 3", "srai t4, t1, 3", "xor t3, t3, t4", "andi t3, t3, 1", "li a2, 36", "mul t3, t3, a2",
+        "sub t3, t3, t0", "sub t3, t3, t1", "addi t3, t3, 40",
+        "li a2, 225", "sub a2, a2, t2", `bge zero, a2, ${ns}_z`, "srli a2, a2, 2", "add t3, t3, a2", `beq zero, zero, ${ns}_s`,
+        `${ns}_z:`, "li t3, 0",
+        `${ns}_s:`, "sw t3, 0(a0)", "addi a0, a0, 4", "addi a1, a1, 1", `li a2, ${p.len}`, `bne a1, a2, ${ns}_o`, "ret",
+      ]);
+    }
     case "mandel": {
       const m = MANDEL;
       return kernel("gpu_mandel", ns, ["mem", "mul", "alu", "branch"], [

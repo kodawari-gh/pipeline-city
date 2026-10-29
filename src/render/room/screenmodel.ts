@@ -134,8 +134,8 @@ export const dashSig = (m: DashModel): string => JSON.stringify(m);
 
 // ---------------------------------------------------------------- the GPU's frame (the graphics display with its cable on a card)
 
-/** Width of the picture in cells: the mandelbrot kernel's row (`MANDEL.logW`); the other kernels' arrays read as bars of the same width. */
-export const FRAME_COLS = 32;
+/** Width of the picture in cells: the picture kernels' row (`PICTURE_COLS`, `MANDEL.logW`); the other kernels' arrays read as bars of the same width. */
+export const FRAME_COLS = 64;
 /** How many base ticks the frame stays up after the card's last launch before the normal screen comes back. */
 export const FRAME_HOLD = 8;
 

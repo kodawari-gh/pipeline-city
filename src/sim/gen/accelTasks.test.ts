@@ -34,11 +34,11 @@ describe("one job per GPU kernel", () => {
   for (const k of GPU_TASK_KERNELS) {
     const template = `gpu.${k}`;
     it(`${template}: always the same kernel, the same line with a card as without, and the card is launched once`, () => {
-      for (const seed of k === "mandel" ? [1] : [1, 2, 3]) { // the CPU path of a Mandelbrot row is long
+      for (const seed of k === "mandel" || k === "sphere" ? [1] : [1, 2, 3]) { // the CPU path of a Mandelbrot row is long
         const cpu = generate(template, seed, { scale: 4 }), card = generate(template, seed, { scale: 4, gpu: GPU });
         expect(cpu.meta.expectedText).toContain(` ${k} `);
         expect(card.meta.expectedText).toBe(cpu.meta.expectedText);
-        expect(runReference(cpu, 400_000).text).toBe(cpu.meta.expectedText);
+        expect(runReference(cpu, 600_000).text).toBe(cpu.meta.expectedText);
         const withCard = onMachine(card, { gpu: true }), without = onMachine(cpu, {});
         expect(withCard.text).toBe(cpu.meta.expectedText);
         expect(without.text).toBe(cpu.meta.expectedText);

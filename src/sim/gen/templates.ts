@@ -12,7 +12,7 @@ import {
   cpuLayer, GPU_NET_LAYOUT, gpuLayerCode, M as NET_M, makeNetwork, networkChecksum, NPU_LAYOUT, npuBytes, npuProgram,
 } from "./npukernels";
 import {
-  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, PICTURE_COLS, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 import { EVERYDAY_TEMPLATES } from "./tasks.everyday";
 import { HPC_TEMPLATES } from "./tasks.hpc";
@@ -151,13 +151,19 @@ const dbIndex: TemplateFn = (rng, p) => {
 const gpuRender: TemplateFn = (rng, p) => gpuJob(rng, p, GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!, "gpu.render request");
 
 /** The GPU job for one named kernel (the mixed job above picks it from the seed; the single-kernel jobs `gpu.<kernel>` fix it). */
-function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string): Built {
+function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string, own = false): Built {
   const b = new Builder();
-  // mandel draws one picture row per scale step (32 wide, up to 8 rows): a 1- or 2-row picture shows nothing; the others grow with the scale.
-  const len = name === "mandel" ? 32 * Math.min(8, p.scale) : 32 * Math.max(1, Math.floor(p.scale / 2));
+  // mandel draws one picture row per scale step (64 wide, up to 8 rows): a 1- or 2-row picture shows nothing; the others grow with the scale.
+  // mandel and sphere draw a 64-wide picture from no input, one row count per scale step (a ball is squeezed to fit): sphere 4, 8 or 16 rows, mandel half of that
+  // (it iterates per point: 16 rows would take a card 40,000 ticks); the others grow with the scale.
+  // The mixed `gpu.render` job (`own` false) keeps the small Mandelbrot it always had (its CPU path must stay short).
+  const rows = (p.scale >= 4 ? 16 : p.scale >= 2 ? 8 : 4) / (name === "mandel" ? 2 : 1);
+  const len = name === "sphere" || (name === "mandel" && own) ? PICTURE_COLS * rows : name === "mandel" ? PICTURE_COLS * Math.max(1, Math.floor(p.scale / 2)) : 32 * Math.max(1, Math.floor(p.scale / 2));
   const scale = 2 + rng.nextInt(4);
   const { a, b: bIn } = kernelInputs(len, rng.nextU32());
-  const kp: GpuKernelParams = { lanes: 1, len, scale }; // results do not depend on the lane count
+  const phase = name === "sphere" ? rng.nextInt(64) : 0; // drawn last and only here, so no other kernel's seeds move
+  const noInput = name === "mandel" || name === "sphere";
+  const kp: GpuKernelParams = { lanes: 1, len, scale, phase }; // results do not depend on the lane count
   const expected = outputChecksum(gpuKernelExpected(name, kp, a, bIn));
   const segs: Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, " OK"];
   const line = layoutLine(segs);
@@ -178,7 +184,7 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
     const win = gpu.base + GPU_MEM;
     const copy = b.add(copyWords(b.ns("copy")), 0);
     b.emit(`li a0, ${win + L.code}`, `la a1, ${kData}`, `li a2, ${roundUp16(code.length * 4)}`, `call ${copy}`);
-    if (name !== "mandel") {
+    if (!noInput) {
       b.emit(`li a0, ${win + L.a - (guards ? 4 : 0)}`, `la a1, ${aData}`, `li a2, ${roundUp16(aWords.length * 4)}`, `call ${copy}`);
     }
     if (needsB) b.emit(`li a0, ${win + L.b}`, `la a1, ${bData}`, `li a2, ${len * 4}`, `call ${copy}`);
@@ -190,12 +196,12 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
   } else {
     const kern = b.add(cpuKernel(name, b.ns("cpu"), kp), 4 * len);
     sumAt = BUF_BASE;
-    if (name === "mandel") b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
+    if (noInput) b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
     else b.emit(`la a0, ${aData}`, ...(guards ? ["addi a0, a0, 4"] : []), `la a1, ${needsB ? bData : aData}`, `li a2, ${BUF_BASE}`, `li a3, ${len}`, `call ${kern}`);
   }
   b.emit(`li a0, ${sumAt}`, `li a1, ${len}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * len)}`, "andi a1, a0, 63");
   b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
-  if (name !== "mandel") b.addData([`${aData}:`, ...aWords.map((w) => `  .word ${w}`)]);
+  if (!noInput) b.addData([`${aData}:`, ...aWords.map((w) => `  .word ${w}`)]);
   if (needsB) b.addData([`${bData}:`, ...bIn.map((w) => `  .word ${w}`)]);
   return b.finish(header, blankRows(p.row) + renderLine(segs, [expected]));
 }
@@ -336,7 +342,7 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   ...HPC_TEMPLATES,
   ...TRUST_TEMPLATES,
   // The accelerator jobs, one per kernel and one per depth of network (docs/JOBS.md).
-  ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as TemplateFn])),
+  ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`, true)) as TemplateFn])),
   "npu.perceptron": (rng, p) => npuJob(rng, p, Math.min(2, p.scale), "npu.perceptron request"),
   "npu.deep": (rng, p) => npuJob(rng, p, Math.min(6, 1 + 2 * p.scale), "npu.deep request"),
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").

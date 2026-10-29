@@ -81,6 +81,7 @@ One job per GPU kernel and one per depth of network. None needs a card: without 
 | Blur (`blur3`) | `gpu.blur3` | 11 | nothing | GPU, about 1.6x | lanes, card memory banks |
 | Polynomial (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
 | Mandelbrot (`mandel`) | `gpu.mandel` | 13 | nothing | GPU, about 15x | lanes, divergence |
+| Spinning balls (`sphere`) | `gpu.sphere` | 14 | nothing | GPU, about 7x | lanes, the multiplier |
 | Perceptron (`perceptron`) | `npu.perceptron` | 12 | nothing | NPU, about 4x | NPU grid, else GPU, else CPU |
 | Inference (`npu`) | `npu.infer` | 12 | nothing | NPU, about 8x | NPU grid, else GPU, else CPU |
 | Deep network (`deep`) | `npu.deep` | 14 | nothing | NPU, about 9x | NPU grid, else GPU, else CPU |
