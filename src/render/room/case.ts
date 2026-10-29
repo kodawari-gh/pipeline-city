@@ -266,7 +266,7 @@ function standoff(g: Graphics, T: Theme, x: number, y: number, wall: string, edg
  * A case fan seen edge-on (the glass looks along the board), the static part: the frame, the hub line and four corner screws.
  * The blades and the light strips are the live `EdgeFan` on top. `vertical`: the long side runs along y (front and rear fans); else along x.
  */
-function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall: string, edge: string) {
+export function edgeFan(g: Graphics, T: Theme, r: Rect, vertical: boolean, wall: string, edge: string) {
   const { x, y, w, h } = r;
   box(g, x + 14, y + 20, w, h, 40, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
   box(g, x, y, w, h, 40, { fill: mix(wall, T.bg, 0.35), stroke: edge, lw: 6, sa: 0.8 });
@@ -293,6 +293,8 @@ export class EdgeFan extends Container {
     this.draw(0);
   }
   private get vertical() { return this.r.h > this.r.w; }
+  /** How far the blades have slid along the fan (0 up to one blade spacing). */
+  get offset() { return this.phase; }
   /** Advance by `d` blade-lengths per frame's worth of spin and set the light level (0 = off, 1 = full). */
   spin(d: number, level: number) {
     this.phase = (this.phase + d * BLADE) % BLADE;

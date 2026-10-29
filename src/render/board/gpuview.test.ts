@@ -47,9 +47,10 @@ describe('GPU view', () => {
     expect(fans).toHaveLength(2);
     v.setZoom(1);
     v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: false } as never]);
-    const before = fans.map((f) => f.rotation);
+    const offset = (f: unknown) => (f as { offset: number }).offset;
+    const before = fans.map(offset);
     for (let i = 0; i < 30; i++) v.frame(1 / 30, true);
-    expect(fans.map((f) => f.rotation)).not.toEqual(before);
+    expect(fans.map(offset)).not.toEqual(before);
     // zoomed in the cover is gone and the insides show; zoomed out the reverse
     expect(card.children[0]!.visible).toBe(true);
     expect(card.children[1]!.alpha).toBeCloseTo(0, 1);
@@ -60,9 +61,9 @@ describe('GPU view', () => {
     // no snapshot: the fans wind down toward a stop
     v.update(undefined, undefined);
     for (let i = 0; i < 600; i++) v.frame(1 / 30, true);
-    const a = fans[0]!.rotation;
+    const a = offset(fans[0]);
     v.frame(1 / 30, true);
-    expect(Math.abs(fans[0]!.rotation - a)).toBeLessThan(0.01);
+    expect(Math.abs(offset(fans[0]) - a)).toBeLessThan(0.5);
     v.frame(1 / 30, false);
     expect(v.root.visible).toBe(false);
   });

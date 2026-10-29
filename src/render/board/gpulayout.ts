@@ -11,11 +11,12 @@ export const GPU_LEN: Record<string, number> = { 'gpu-1': 2000, 'gpu-2': 2500, '
 export const GPU_H: Record<string, number> = { 'gpu-1': 318, 'gpu-2': 324, 'gpu-3': 330 };
 
 /** Fan band (the fans stand a little over the PCB's top edge), then the body with the die's rows. */
-const FAN_R = 64, FAN_CY = 64, BODY_Y = 152;
+const FAN_Y = 4, FAN_H = 110, FAN_W = 600, BODY_Y = 152;
 const ROW_A = 24, ROW_B = 88, ROW_C = 20, GAP = 6, CELL = 44, REG_W = 12, BANK_W = 40, SLOT = 16;
 const SHROUD_X = 150, TAIL = 180;
 
-export interface GpuFan { cx: number; cy: number; r: number }
+/** A fan module seen edge-on, like the case fans (card-local rectangle, long side along x). */
+export type GpuFan = Rect;
 
 export interface GpuPlan {
   visual: string;
@@ -65,7 +66,10 @@ export function gpuPlan(visual: string): GpuPlan {
   const w = GPU_LEN[visual] ?? 2000, h = GPU_H[visual] ?? 320;
   const shroud: Rect = { x: SHROUD_X, y: 12, w: w - SHROUD_X - TAIL, h: h - 24 };
   const n = gpuFanCount(visual), cell = shroud.w / n;
-  const fans: GpuFan[] = Array.from({ length: n }, (_, k) => ({ cx: shroud.x + cell * (k + 0.5), cy: FAN_CY, r: Math.min(FAN_R, cell / 2 - 18) }));
+  const fans: GpuFan[] = Array.from({ length: n }, (_, k) => {
+    const w = Math.min(FAN_W, cell - 120);
+    return { x: shroud.x + cell * (k + 0.5) - w / 2, y: FAN_Y, w, h: FAN_H };
+  });
   const body: Rect = { x: shroud.x, y: BODY_Y, w: shroud.w, h: h - BODY_Y - 12 };
 
   const lx = shroud.x + 24, yA = BODY_Y + 4, yB = yA + ROW_A + GAP, yC = yB + ROW_B + GAP;
@@ -76,7 +80,7 @@ export function gpuPlan(visual: string): GpuPlan {
   const bitW = mask.w / lanes;
   const maskBits: Rect[] = Array.from({ length: lanes }, (_, k) => ({ x: mask.x + k * bitW, y: yC, w: bitW - 2, h: ROW_C }));
 
-  const rx = lanesBlock.x + lanesBlock.w + 40, rowH = ROW_B / 8;
+  const rx = lanesBlock.x + lanesBlock.w + 64, rowH = ROW_B / 8;
   const regs: Rect = { x: rx, y: yB, w: lanes * REG_W, h: ROW_B };
   const regRows: Rect[] = Array.from({ length: 8 }, (_, r) => ({ x: rx, y: yB + r * rowH, w: regs.w, h: rowH - 1 }));
   const pc: Rect = { x: lx, y: yA, w: regs.x + regs.w - lx, h: ROW_A };
@@ -100,7 +104,7 @@ export interface GpuPart { id: string; rect: Rect; inner: boolean }
 /** Every part with an id, most specific first (the first hit wins), so the lanes come before the shroud they sit on. */
 export function gpuParts(p: GpuPlan): GpuPart[] {
   const out: GpuPart[] = [];
-  p.fans.forEach((f, k) => out.push({ id: `fan${k}`, rect: { x: f.cx - f.r - 8, y: f.cy - f.r - 8, w: 2 * f.r + 16, h: 2 * f.r + 16 }, inner: false }));
+  p.fans.forEach((f, k) => out.push({ id: `fan${k}`, rect: f, inner: false }));
   p.laneCells.forEach((r, k) => out.push({ id: `lane${k}`, rect: r, inner: true }));
   p.bankBars.forEach((r, k) => out.push({ id: `bank${k}`, rect: r, inner: true }));
   out.push({ id: 'regs', rect: p.regs, inner: true });

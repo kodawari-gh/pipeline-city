@@ -33,9 +33,9 @@ describe('GPU floorplan', () => {
         expect(inside(part.rect, room), `${s.id} ${part.id}`).toBe(true);
       }
       for (const f of p.fans) {
-        expect(f.cy - f.r).toBeLessThan(20); // on the top edge
-        expect(f.cy + f.r).toBeLessThan(p.body.y); // above the body
-        expect(f.r).toBeGreaterThan(30);
+        expect(f.y).toBeLessThan(20); // on the top edge
+        expect(f.y + f.h).toBeLessThan(p.body.y); // above the body
+        expect(f.w).toBeGreaterThan(f.h); // seen edge-on like the case fans
       }
     }
   });

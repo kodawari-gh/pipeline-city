@@ -5,7 +5,7 @@ import { Container, Graphics } from 'pixi.js';
 vi.mock('../ink', async (orig) => ({ ...(await orig<typeof import('../ink')>()), label: () => new Container() }));
 
 import { specsOfKind } from '../../sim/board/specs';
-import { cardArt, cardOrigin, cardRect, CARD_LEN, FAN_BLADES, fanBlades, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
+import { cardArt, cardOrigin, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
 import { gpuPlan, GPU_H } from './gpulayout';
 import { setLayoutTier } from './layout';
 import type { Theme } from '../theme';
@@ -52,12 +52,6 @@ describe('accelerator art', () => {
       expect(gpuPlan(v).fans).toHaveLength(fans);
     }
     const instr = (g: unknown) => (g as { context: { instructions: unknown[] } }).context.instructions.length;
-    expect(FAN_BLADES).toBeGreaterThan(4);
-    expect(instr(fanBlades(DARK, 60))).toBeGreaterThan(0);
-    const b = fanBlades(DARK, 60).getLocalBounds(); // the blades fill the fan about its centre
-    expect(b.minX).toBeLessThan(-40);
-    expect(b.maxX).toBeGreaterThan(40);
-    expect(b.maxX).toBeLessThan(62);
     expect(instr(gpuCover(new Graphics(), DARK, gpuPlan('gpu-2')))).toBeGreaterThan(0);
   });
 
@@ -66,8 +60,9 @@ describe('accelerator art', () => {
     for (const v of ['gpu-1', 'gpu-2', 'gpu-3']) {
       const r = cardRect(0, v), o = cardOrigin(0, v), p = gpuPlan(v);
       for (const f of p.fans) {
-        expect(o.y + f.cy - f.r).toBeLessThan(r.y + 20);
-        expect(o.y + f.cy + f.r).toBeLessThan(r.y + r.h / 2);
+        expect(o.y + f.y).toBeLessThan(r.y + 20);
+        expect(o.y + f.y + f.h).toBeLessThan(r.y + r.h / 2);
+        expect(f.w).toBeGreaterThan(f.h); // a module seen edge-on, long side along the card
       }
       expect(r.h).toBe(GPU_H[v]);
     }

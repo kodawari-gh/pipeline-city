@@ -2,7 +2,8 @@ import { Container, Graphics } from 'pixi.js';
 import { geoOf } from './boardlayout';
 import { BD, NIC_BRACKET_X, nicY, type Rect } from './layout';
 import { box, disc, label, mix } from '../ink';
-import { gpuPlan, GPU_H, GPU_LEN, type GpuPlan } from './gpulayout';
+import { gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from './gpulayout';
+import { EdgeFan, edgeFan } from '../room/case';
 import type { Theme } from '../theme';
 
 // The accelerator parts (docs/ACCEL.md "Picker and board art"): graphics and AI cards in a PCIe slot, and the TPM module on the board's
@@ -23,26 +24,6 @@ export const cardRect = (i: number, visual: string): Rect => {
 
 /** Where a card's north-west PCB corner is in board space (the origin of its `gpuPlan`). */
 export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({ x: BD.x, y: nicY(i) - (CARD_H[visual] ?? 200) / 2 });
-
-/** Blades of a cooling fan. */
-export const FAN_BLADES = 9;
-
-/** One fan's blades about (0, 0), radius `r`: the view rotates it. */
-export function fanBlades(T: Theme, r: number): Graphics {
-  const g = new Graphics(), c = Math.cos, s = Math.sin, hub = r * 0.24, tip = r * 0.94, sweep = 0.6;
-  for (let b = 0; b < FAN_BLADES; b++) {
-    const a = (b / FAN_BLADES) * Math.PI * 2;
-    g.moveTo(c(a) * hub, s(a) * hub)
-      .quadraticCurveTo(c(a + sweep * 0.25) * r * 0.72, s(a + sweep * 0.25) * r * 0.72, c(a + sweep) * tip, s(a + sweep) * tip)
-      .quadraticCurveTo(c(a + sweep * 0.7) * r * 0.55, s(a + sweep * 0.7) * r * 0.55, c(a + 0.45) * hub, s(a + 0.45) * hub)
-      .closePath();
-  }
-  g.fill({ color: mix(T.alu, '#05070c', 0.45), alpha: 0.95 });
-  g.stroke({ width: 3, color: T.alu, alpha: 0.75 });
-  disc(g, 0, 0, r * 0.22, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.9 });
-  disc(g, 0, 0, r * 0.07, { fill: T.alu, fa: 0.9 });
-  return g;
-}
 
 /** The shroud plate over the die, in card-local units: dark with the heatsink's fins running across it. The view fades it away when zoomed in. */
 export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
@@ -75,12 +56,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     // the shroud frame, a row of fans along the top edge in their bezels, an accent stripe, the power plug blocks on the end
     const p = gpuPlan(visual), o = { x: x0, y: y - H / 2 };
     box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 4 });
-    for (const f of p.fans) {
-      const cx = o.x + f.cx, cy = o.y + f.cy;
-      box(g, cx - f.r - 12, cy - f.r - 12, 2 * f.r + 24, 2 * f.r + 24, 18, { fill: '#0a0f1a', stroke: T.alu, lw: 4, sa: 0.7 });
-      disc(g, cx, cy, f.r + 2, { fill: '#05070c', stroke: T.alu, lw: 3, sa: 0.6 });
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) disc(g, cx + dx * (f.r + 2), cy + dy * (f.r + 2), 4, { fill: T.alu, fa: 0.6 });
-    }
+    for (const f of p.fans) edgeFan(g, T, moveRect(f, o), false, '#1d2536', mix(T.alu, T.bg, 0.4)); // the case fans' look, edge-on
     g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
     box(g, x0 + L - 150, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 });
@@ -95,9 +71,9 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
       cover.position.set(o.x, o.y);
       root.addChild(cover);
       for (const f of p.fans) {
-        const b = fanBlades(T, f.r);
-        b.position.set(o.x + f.cx, o.y + f.cy);
-        root.addChild(b);
+        const fan = new EdgeFan(moveRect(f, o), T);
+        fan.spin(0, 0.3);
+        root.addChild(fan);
       }
     }
     root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, y - H / 2 + 142, 30, T.alu, { head: true, a: 0.9 }));

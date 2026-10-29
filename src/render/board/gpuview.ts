@@ -3,7 +3,8 @@ import type { DeviceSnap, GpuSnap } from '../../sim/game/types';
 import type { GpuStepKind } from '../../sim/ref/gpuref';
 import { label, mix } from '../ink';
 import type { Theme } from '../theme';
-import { fanBlades, gpuCover } from './accelart';
+import { EdgeFan } from '../room/case';
+import { gpuCover } from './accelart';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } from './gpumotion';
 
@@ -17,6 +18,8 @@ import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } 
 const FADE_FROM = 0.28, FADE_TO = 0.45, TEXT_Z = 0.5, DETAIL_Z = 0.9;
 /** Fan speed in turns per second: idle (just powered, cold), and at the card's throttle point. */
 const FAN_IDLE = 0.5, FAN_FULL = 3.5;
+/** Seen edge-on a turn is some blade spacings sliding past (the case fans do the same, a little slower). */
+const BLADES_PER_TURN = 1.6;
 
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -47,7 +50,7 @@ interface CardView {
   inner: Container;
   dyn: Graphics;
   cover: Graphics;
-  fans: { spin: Container; turns: number; angle: number }[];
+  fans: { fan: EdgeFan; turns: number }[];
   titles: Text[];
   details: Text[];
   pcText: Text;
@@ -102,7 +105,7 @@ export class GpuView {
     title('LANES', plan.lanesBlock.x, plan.pc.y + 4);
     title(`REGISTERS v0-v7 x ${plan.lanes}`, plan.regs.x, plan.mem.y + plan.mem.h + 4);
     title(plan.banks === 1 ? 'BANK' : `BANKS x ${plan.banks}`, plan.bankBars[0]!.x, plan.mem.y + plan.mem.h + 4);
-    title('MASK', plan.mask.x + plan.mask.w + 8, plan.mask.y + 3);
+    title('MASK', plan.mask.x + plan.mask.w + 6, plan.mask.y + 3, 11);
     title('MASK STACK', plan.maskStack.x + plan.maskStack.w + 8, plan.maskStack.y + 5);
     title(`CARD MEMORY ${Math.round(plan.memBytes / 1024)}K`, plan.mem.x + 4, plan.mem.y + 3);
     const pcText = label('', plan.pc.x + 90, plan.pc.y + 3, 16, T.ink, { head: true, a: 0.95, minPx: 4 });
@@ -112,13 +115,8 @@ export class GpuView {
     details.push(ctrText);
 
     const cover = gpuCover(new Graphics(), T, plan);
-    const fans = plan.fans.map((f) => {
-      const spin = new Container(), blades = fanBlades(T, f.r);
-      spin.addChild(blades);
-      spin.position.set(f.cx, f.cy);
-      return { spin, turns: 0, angle: Math.random() * Math.PI * 2 };
-    });
-    root.addChild(inner, cover, ...fans.map((f) => f.spin));
+    const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
+    root.addChild(inner, cover, ...fans.map((f) => f.fan));
     this.root.addChild(root);
     return { slot: c.slot, plan, root, inner, dyn, cover, fans, titles, details, pcText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false }, snap: undefined, tempC: 25, throttled: false, sig: '' };
   }
@@ -149,8 +147,7 @@ export class GpuView {
       const target = c.snap ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) : 0;
       for (const f of c.fans) {
         f.turns += (target - f.turns) * Math.min(1, dt * 1.2);
-        f.angle = (f.angle + f.turns * dt * Math.PI * 2) % (Math.PI * 2);
-        f.spin.rotation = f.angle;
+        f.fan.spin(f.turns * dt * BLADES_PER_TURN, Math.min(1, f.turns / FAN_FULL));
       }
       c.tick = c.player.advance(dt);
       c.cover.alpha = 1 - fade;
