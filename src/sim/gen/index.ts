@@ -31,6 +31,8 @@ export interface GenMeta {
   footprintBytes: number;
   /** Program size in words. */
   codeWords: number;
+  /** Threads the job runs (1 for every job but the threaded ones, which need OS 4 and that many logical cores to run in parallel). */
+  threads: number;
 }
 
 export interface Generated {
@@ -71,6 +73,7 @@ export function generate(template: string, seed: number, params: GenParams = {})
       expectedText: built.expectedText,
       footprintBytes: kernels.reduce((s, k) => s + k.footprintBytes, 0),
       codeWords: program.length,
+      threads: built.threads ?? 1,
     },
   };
 }

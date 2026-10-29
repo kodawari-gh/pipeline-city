@@ -1,0 +1,147 @@
+// Threaded programs on the multicore OS 4 (docs/MULTICORE.md section 7, docs/OS.md "Threaded programs"): T contexts per job, one page table, a0 = k, a1 = T, the job is done when its last thread ends.
+import { afterAll, describe, expect, it } from "vitest";
+import { assemble } from "../asm";
+import { generate, TEMPLATES } from "../gen";
+import { parSum } from "../gen/threadtest";
+import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KERNEL_BASE, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS } from "../isa/memmap";
+import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, kernelImageFor, KERNEL_IMAGE_PRE_SMP, KERNEL_IMAGE_THR, PCB, PCBS, RESERVED_FRAME, SPOOL_BLOCKS_PER_JOB } from "../os";
+import { ECONOMY } from "./economy";
+import { Game } from "./game";
+import { econ } from "./testkit";
+
+ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
+
+TEMPLATES["test.par2"] = parSum(2);
+TEMPLATES["test.par3"] = parSum(3);
+TEMPLATES["test.par4"] = parSum(4);
+afterAll(() => { delete TEMPLATES["test.par2"]; delete TEMPLATES["test.par3"]; delete TEMPLATES["test.par4"]; });
+
+/** Cores seen running a thread of a program (the claim word of a context holds its core plus one). */
+const ran = new Set<number>();
+const until = (g: Game, done: () => boolean, max = 9000): void => {
+  const dv = new DataView(g.machine.ram.buffer);
+  for (let t = 0; t < max && !done(); t++) {
+    g.advanceBaseTick();
+    for (let c = 0; c < 8; c++) { const w = dv.getUint32(PCBS + c * PCB.BYTES + PCB.CORE, true); if (w) ran.add(w - 1); }
+  }
+  expect(done()).toBe(true);
+};
+
+/** The Enthusiast board with `cpu`, a cooler, 256K of RAM, a drive and OS 4, powered off. */
+function machine(cpu: string): Game {
+  const g = new Game({ seed: 7, preassembled: true, economy: { ...econ([]), levelGating: false, caseGating: false } });
+  g.money = 1_000_000;
+  g.powerButton();
+  for (const id of ["board1", "board2", "board3", "psu2", cpu, "cooler2"]) {
+    const b = g.purchase(id);
+    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    const r = g.install(b.invId);
+    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+  }
+  for (const d of g.board.devices.filter((x) => x.spec.startsWith("ram"))) g.uninstall(d.id);
+  for (const id of ["ram4", "nvme2", "os4"]) {
+    const b = g.purchase(id);
+    if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
+    const r = g.install(b.invId);
+    if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
+  }
+  return g;
+}
+
+function submit(g: Game, programs: Uint32Array[]) {
+  const priv = g as unknown as { os: { deviceId: string }; diskFor(d: unknown): { poke(block: number, bytes: Uint8Array): void } };
+  const disk = priv.diskFor(g.board.devices.find((d) => d.id === priv.os.deviceId));
+  const spool = Math.ceil(getOsSpec("os4")!.diskBytes / BLOCK_BYTES);
+  const dv = new DataView(g.machine.ram.buffer);
+  programs.forEach((program, k) => {
+    const lba = spool + k * SPOOL_BLOCKS_PER_JOB, at = KDATA_BASE + k * KSLOT_BYTES;
+    disk.poke(lba, new Uint8Array(program.buffer, program.byteOffset, program.length * 4));
+    dv.setUint32(at + KSLOT.KEY, 100 + k, true);
+    dv.setUint32(at + KSLOT.LEN, program.length, true);
+    dv.setUint32(at + KSLOT.LBA, lba, true);
+    dv.setUint32(at + KSLOT.SEQ, k + 1, true);
+    dv.setUint32(at + KSLOT.STATE, JobState.Queued, true);
+  });
+  return { dv, states: () => programs.map((_, k) => dv.getUint32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, true)) };
+}
+
+const resultText = (dv: DataView, k: number): string => {
+  const at = KDATA_BASE + k * KSLOT_BYTES + KSLOT.RESULT;
+  return Array.from({ length: PCH_RESULT_WORDS * 4 }, (_, i) => dv.getUint8(at + i)).map((c) => (c ? String.fromCharCode(c) : " ")).join("").trim();
+};
+const lastLine = (text: string): string => text.split("\n").filter((l) => l.trim()).pop()!.trim();
+const framesInUse = (dv: DataView): number => Array.from({ length: FRAME_END - FRAME_FIRST }, (_, f) => dv.getUint32(FMAP + 4 * (FRAME_FIRST + f), true)).filter((w) => w !== 0 && w !== RESERVED_FRAME).length;
+const claimedContexts = (dv: DataView): number => Array.from({ length: 8 }, (_, c) => dv.getUint32(PCBS + c * PCB.BYTES + PCB.SLOT, true)).filter((w) => w !== 0).length;
+
+function run(cpu: string, templates: string[], seeds: number[]) {
+  ran.clear();
+  const g = machine(cpu);
+  g.powerButton();
+  until(g, () => g.currentPhase() === "idle-os");
+  const gens = templates.map((t, k) => generate(t, seeds[k]!, { row: JOB_ROW, scale: 2 + k, hosted: true }));
+  const { dv, states } = submit(g, gens.map((x) => x.program));
+  until(g, () => states().every((x) => x === JobState.Result), 80000);
+  until(g, () => g.currentPhase() === "idle-os");
+  const texts = gens.map((_, k) => resultText(dv, k)), expected = gens.map((x) => lastLine(x.meta.expectedText));
+  const signature = [g.snapshot().cycle, ...g.machine.cores.map((c) => `${c.intc.taken}/${c.mmu.hits}/${c.mmu.misses}`)].join(",");
+  return { g, dv, texts, expected, signature };
+}
+
+describe("threaded programs on the multicore OS 4", { timeout: 120_000 }, () => {
+  it("is its own kernel image, on the spec with 256K of RAM", () => {
+    expect(kernelImageFor(4, true)).toBe(KERNEL_IMAGE_THR);
+    expect(KERNEL_IMAGE_THR).not.toBe(KERNEL_IMAGE_PRE_SMP);
+    expect(getOsSpec("os4")!.later).toBeFalsy();
+    expect(getOsSpec("os4")!.minRamBytes).toBe(256 * 1024);
+  });
+
+  it("runs a two-thread job on a dual-core CPU with the reference's text, on both cores", () => {
+    const r = run("cpu2d", ["test.par2"], [11]);
+    expect(r.texts).toEqual(r.expected);
+    expect(r.g.snapshot().faults).toBe(0);
+    expect([...ran].sort()).toEqual([0, 1]);
+    expect(framesInUse(r.dv)).toBe(0);
+    expect(claimedContexts(r.dv)).toBe(0);
+  });
+
+  it("runs threaded and plain jobs together on four logical cores", () => {
+    const r = run("cpu3t", ["test.par4", "test.par3", "cli.calc", "test.par2"], [12, 13, 14, 15]);
+    expect(r.texts).toEqual(r.expected);
+    expect(r.g.snapshot().faults).toBe(0);
+    expect(framesInUse(r.dv)).toBe(0);
+    expect(claimedContexts(r.dv)).toBe(0);
+  });
+
+  it("time-shares more threads than cores", () => {
+    const r = run("cpu2d", ["test.par4", "test.par3"], [16, 17]);
+    expect(r.texts).toEqual(r.expected);
+    expect(framesInUse(r.dv)).toBe(0);
+  });
+
+  it("is deterministic per seed", () => {
+    expect(run("cpu2d", ["test.par3"], [18]).signature).toBe(run("cpu2d", ["test.par3"], [18]).signature);
+  });
+
+  it("kills the whole job when one thread faults, and frees its contexts", () => {
+    ran.clear();
+    const g = machine("cpu2d");
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    // thread 1 stores into the kernel, thread 0 spins on a flag thread 1 never sets
+    const bad = assemble(`addi zero, zero, 2
+  beq a0, zero, wait
+  li s0, ${KERNEL_BASE}
+  sw zero, 0(s0)
+wait:
+  j wait`).program;
+    const good = generate("test.par2", 19, { row: JOB_ROW, scale: 2, hosted: true });
+    const { dv, states } = submit(g, [bad, good.program]);
+    until(g, () => states().every((x) => x === JobState.Result), 60000);
+    expect(resultText(dv, 0)).toBe("SEGFAULT");
+    expect(resultText(dv, 1)).toBe(lastLine(good.meta.expectedText));
+    until(g, () => g.currentPhase() === "idle-os");
+    expect(framesInUse(dv)).toBe(0);
+    expect(claimedContexts(dv)).toBe(0);
+  });
+});

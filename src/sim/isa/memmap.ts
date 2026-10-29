@@ -171,7 +171,14 @@ export const KDATA_BASE = 0xe000;
 export const KDATA_SLOTS = 8;
 export const KSLOT_BYTES = 64;
 /** Slot word offsets (bytes). */
-export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48 } as const;
+export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48, THREADS: 52, LIVE: 56, DEAD: 60 } as const;
+/**
+ * Threaded jobs (OS 4, docs/MULTICORE.md section 7, docs/OS.md): a program that wants T > 1 threads starts with the nop `addi zero, zero, T`, which every engine runs
+ * as any other nop. The kernel makes T contexts that share the address space; thread k starts at the program's entry with `a0 = k`, `a1 = T` and its stack top at `threadStackTop(k)`.
+ * `KSLOT.THREADS` is T, `LIVE` the contexts of the job not yet ended, `DEAD` is set when a thread fault killed the job.
+ */
+export const MAX_THREADS_PER_JOB = 8;
+export const threadStackTop = (k: number): number => (k === 0 ? 0x10000 : 0x80000 + k * 0x1000);
 /** Job slot states. */
 export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
 

@@ -60,13 +60,13 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
 
 /** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one, the preemptive OS up to two programs per logical core (docs/MULTICORE.md), every other tier its own number. */
 export function osProgramSlots(this: Game, os: OsSpec): number {
-  if (os.tier === 3) return Math.max(os.programSlots, Math.min(8, 2 * this.cpuLogicalCores()));
+  if (os.tier >= 3) return Math.max(os.programSlots, Math.min(8, 2 * this.cpuLogicalCores()));
   return os.tier === 2 ? Math.min(2, this.cpuCores()) : os.programSlots;
 }
 
 /** The OS tier boots its multicore kernel on this machine: the paged OS with a second core, the preemptive OS with several logical cores. */
 export function osSmp(this: Game, tier: number): boolean {
-  return tier === 2 ? this.cpuCores() > 1 : tier === 3 && this.cpuLogicalCores() > 1;
+  return tier === 2 ? this.cpuCores() > 1 : tier >= 3 && this.cpuLogicalCores() > 1;
 }
 
 /** The boot area of `os` as this machine needs it (the paged OS has a multicore kernel for a CPU with two cores or more). */

@@ -2,7 +2,7 @@
 // memory faults and the health panel's checks. Every export is a `Game` method (see game.ts).
 
 import type { PipelineEngine } from "../engines";
-import { JobState, PAGED_HEAP, PAGED_TABLES } from "../isa/memmap";
+import { JobState, KDATA_BASE, KSLOT_BYTES, PAGED_HEAP, PAGED_TABLES } from "../isa/memmap";
 import { FMAP, FRAME_END, FRAME_FIRST, KBUMP, KFAULTS, PCB, PCBS, RESERVED_FRAME } from "../os";
 import type { Game } from "./game";
 import type { KernelJob } from "./internal";
@@ -31,7 +31,10 @@ export function vmSnap(this: Game, jobs: KernelJob[]): VmSnap | null {
   };
   for (const j of jobs) {
     if (j.state !== JobState.Running) continue;
-    const table = tier >= 3 ? bus.load32(PCBS + j.slot * PCB.BYTES + PCB.TABLE) : PAGED_TABLES;
+    // OS 4: a threaded job has one context per thread, not one per slot: the contexts that belong to the slot (their PCB.SLOT is its record address) share the table
+    let ctx = j.slot;
+    if (tier >= 4) for (let c = 0; c < 8; c++) if (bus.load32(PCBS + c * PCB.BYTES + PCB.SLOT) === KDATA_BASE + j.slot * KSLOT_BYTES) { ctx = c; break; }
+    const table = tier >= 3 ? bus.load32(PCBS + ctx * PCB.BYTES + PCB.TABLE) : PAGED_TABLES;
     const w = walkTable(this.machine.ram, table);
     if (w.pages.length) spaces.push({ ...label(j), table, pages: w.pages.flatMap((p) => [p.vpn, p.frame, p.flags]), tables: w.tables });
   }

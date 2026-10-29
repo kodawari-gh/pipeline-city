@@ -14,7 +14,7 @@
 
 import { assemble } from "../asm";
 import {
-  BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, OS_HEADER, OS_HEADER_BASE,
+  BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, MAX_THREADS_PER_JOB, OS_HEADER, OS_HEADER_BASE,
   INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_PVEC, KERNEL_SECONDARY, KERNEL_TIMER, KERNEL_TVEC, KERNEL_VEC_CORES, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
 } from "../isa/memmap";
 import { ROW, status } from "./asmtext";
@@ -63,7 +63,9 @@ const KSTK1 = ARENA1 + 0x1000;
 export const MAX_FRAMES = 4096;
 // The preemptive kernel (OS 3) keeps more: a process control block per slot (plus one for the kernel itself), the map of RAM frames, and scratch words.
 /** A process control block: the 15 registers (ra, sp, a0..a3, t0..t4, s0..s3), the pc, its page table (physical), the frames of its three second-level tables, its job slot and a copy of its output row. */
-export const PCB = { PC: 60, TABLE: 64, L2_IMAGE: 68, L2_HEAP: 72, L2_STACK: 76, SLOT: 80, ROW: 84, CORE: 120, BYTES: 128 } as const;
+export const PCB = { PC: 60, TABLE: 64, L2_IMAGE: 68, L2_HEAP: 72, L2_STACK: 76, SLOT: 80, ROW: 84, TIDX: 116, CORE: 120, LAST: 124, BYTES: 128 } as const;
+/** The nop that marks a threaded program (`addi zero, zero, T`) without its immediate: the kernel of OS 4 reads T from the program's first word. */
+const ADDI_OP = assemble("addi zero, zero, 0").program[0]!;
 /** PCBs: one per job slot (indexed like the slot), the kernel's is the ninth. */
 export const PCBS = TABLE_END + 72;
 const CURP = TABLE_END + 56; // OS 3: the PCB of the context that is running
@@ -86,8 +88,10 @@ const PCORE_BYTES = 64;
 /** In a core's block: the borrowed registers (ra, a0, t0..t4: 28 bytes), then the page-fault handler's slot, page, level 1 entry and PTE entry words, its saved s3, the PCB of the running context and the timer stub's scratch. */
 const PC_S3 = 44, PC_CURP = 48, PC_SCR = 52;
 const KSCR_SMP = PCORE + MAX_LCORES * PCORE_BYTES;
-const LOCK3 = KSCR_SMP + 32;
-export const KDATA_END_PRE_SMP = LOCK3 + 4;
+const LOCK3 = KSCR_SMP + 64;
+/** OS 4: how many times a core took a context that another core had run last (the affinity pass found none of its own). */
+export const KMIGR = LOCK3 + 4;
+export const KDATA_END_PRE_SMP = KMIGR + 4;
 /**
  * Frame map (OS 3): one word per physical frame, 0 = free, else (kind << 4) | (job slot + 1): kind 0 a program's image, 1 its own memory, 2 its page tables;
  * `RESERVED_FRAME` is the OS's own (the tables, the map itself, frames beyond the installed RAM). It sits above 64K, so OS 3 needs RAM that reaches `OS3_MIN_BYTES`.
@@ -127,7 +131,7 @@ const copy = (label: string, from: string, to: string, end: string, tmp: string)
  * The timer handler and scheduler, the page-fault handler that hands out frames, the job start that builds an address space, and the ends of a job. Contexts are
  * the job slots plus the kernel's own (index 8); the timer rotates through the ones that can run. See docs/OS.md "Preemption".
  */
-function preemptive(kendPage: number, smp = false): string[] {
+function preemptive(kendPage: number, smp = false, thr = false): string[] {
   const K = smp ? KSCR_SMP : KSCR;
   /** The PCB of the context running on this core, into `rd` (`tmp` is clobbered; they may be the same register). */
   const curp = (rd: string, tmp: string): string[] => smp
@@ -158,6 +162,7 @@ function preemptive(kendPage: number, smp = false): string[] {
     `  sw t2, ${INTC_REG.ACK}(t1)`,
     `  lw t1, ${PCB.SLOT}(t0)`,
     "  beq t1, zero, kpick", // the kernel (and an idle core) has no output row
+    ...(thr ? [`  lw t2, ${KSLOT.DEAD}(t1)`, "  bne t2, zero, kthrdead"] : []), // a thread of a job that was killed ends here
     ...rowSave,
     // falls into kpick
 
@@ -187,7 +192,7 @@ function preemptive(kendPage: number, smp = false): string[] {
       "  bne t3, t4, kps",
       `  sw zero, ${PCB.CORE}(t2)`,
       "kps:",
-      "  li s2, 9",
+      `  li s2, ${thr ? 18 : 9}`, // OS 4: two rounds, the first only takes a context this core ran last (or none has run)
       "kpn:",
       "  addi t0, t0, 1",
       "  li t1, 9",
@@ -205,20 +210,49 @@ function preemptive(kendPage: number, smp = false): string[] {
       "  bne t0, t1, kpj",
       `  lw t3, ${SLEEP}(zero)`, // the kernel found nothing to do: it is skipped for a few rounds, so the programs get the processors
       "  beq t3, zero, kpgo",
+      ...(thr ? ["  li t4, 9", "  bge s2, t4, kpn"] : []), // the sleep counts rounds of the scan, not passes
       "  addi t3, t3, -1",
       `  sw t3, ${SLEEP}(zero)`,
       "  j kpn",
       "kpj:",
-      "  slli t3, t0, 6",
-      `  li t1, ${KD}`,
-      "  add t3, t3, t1",
-      `  lw t3, ${KSLOT.STATE}(t3)`,
-      "  li t4, 3",
-      "  bne t3, t4, kpn",
+      ...(thr ? [
+        `  lw t3, ${PCB.SLOT}(t2)`, // a context belongs to a job, or is free
+        "  beq t3, zero, kpn",
+        `  lw t3, ${KSLOT.STATE}(t3)`,
+        "  li t4, 3",
+        "  bne t3, t4, kpn",
+        "  li t4, 9",
+        "  blt s2, t4, kpgo", // second round: any
+        `  lw t3, ${PCB.LAST}(t2)`,
+        "  beq t3, zero, kpgo",
+        "  addi t4, s0, 1",
+        "  bne t3, t4, kpn", // another core ran it last: it waits for its turn in the second round
+      ] : [
+        "  slli t3, t0, 6",
+        `  li t1, ${KD}`,
+        "  add t3, t3, t1",
+        `  lw t3, ${KSLOT.STATE}(t3)`,
+        "  li t4, 3",
+        "  bne t3, t4, kpn",
+      ]),
       "kpgo:",
       "  addi t3, s0, 1",
       `  sw t3, ${PCB.CORE}(t2)`, // claimed
       `  sw t2, ${PCORE + PC_CURP}(s1)`,
+      ...(thr ? [
+        "  li t4, 8",
+        "  beq t0, t4, kpg2", // the kernel's context has no affinity
+        `  lw t4, ${PCB.LAST}(t2)`,
+        "  beq t4, zero, kpg1",
+        "  beq t4, t3, kpg1",
+        `  li t4, ${KMIGR}`, // a migration: another core ran it last
+        "  lw a0, 0(t4)",
+        "  addi a0, a0, 1",
+        "  sw a0, 0(t4)",
+        "kpg1:",
+        `  sw t3, ${PCB.LAST}(t2)`,
+        "kpg2:",
+      ] : []),
       "  call kuk",
       "  mv t1, t2", // t1 = its PCB
       `  li t3, ${INTC_BASE}`,
@@ -304,10 +338,12 @@ function preemptive(kendPage: number, smp = false): string[] {
       `  lw t0, ${CURP}(zero)`,
     ]),
     `  lw a0, ${PCB.SLOT}(t0)`,
+    ...(thr ? [`  lw t4, ${PCB.TIDX}(t0)`, "  bne t4, zero, kdn", "  call klk", `  lw t1, ${KSLOT.DEAD}(a0)`, "  bne t1, zero, kdu"] : []), // thread 0 writes the job's result, under the lock so that a fault cannot write at the same time
     `  li t0, ${JOB_ROW_ADDR}`,
     `  addi t1, a0, ${KSLOT.RESULT}`,
     `  addi t2, t0, ${4 * PCH_RESULT_WORDS}`,
     ...copy("kres3", "t0", "t1", "t2", "t3"),
+    ...(thr ? ["kdu:", "  call kuk", "kdn:"] : []),
     ...(smp ? [] : ["  li t0, 4", `  sw t0, ${KSLOT.STATE}(a0)`]), // multicore: kfinish marks the slot done once the frames are back
     "  j kfinish",
 
@@ -319,9 +355,7 @@ function preemptive(kendPage: number, smp = false): string[] {
       "  slli t1, t0, 8",
       `  li sp, ${KSTK}`,
       "  sub sp, sp, t1",
-      `  li t0, ${KFAULTS}`,
-      "  li t1, 1",
-      "  amoadd t2, t1, (t0)", // every core counts faults
+      ...(thr ? [] : [`  li t0, ${KFAULTS}`, "  li t1, 1", "  amoadd t2, t1, (t0)"]), // every core counts faults (OS 4: the thread that kills the job does)
     ] : [
       `  li sp, ${KSTK}`,
       `  li t0, ${KFAULTS}`,
@@ -331,6 +365,18 @@ function preemptive(kendPage: number, smp = false): string[] {
     ]),
     ...curp("t0", "t1"),
     `  lw a0, ${PCB.SLOT}(t0)`,
+    ...(thr ? [
+      // one thread kills the job: it marks it, counts the fault and writes the text; the contexts of the job that no core holds end here, the others at their next interrupt
+      "  call klk",
+      `  lw t1, ${KSLOT.DEAD}(a0)`,
+      "  bne t1, zero, kfd",
+      "  li t1, 1",
+      `  sw t1, ${KSLOT.DEAD}(a0)`,
+      `  li t1, ${KFAULTS}`,
+      "  lw t2, 0(t1)",
+      "  addi t2, t2, 1",
+      "  sw t2, 0(t1)",
+    ] : []),
     `  addi t1, a0, ${KSLOT.RESULT}`,
     `  li t3, ${0x46474553}`, // "SEGF"
     "  sw t3, 0(t1)",
@@ -342,12 +388,53 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  sw zero, 0(t1)",
     "  addi t1, t1, 4",
     "  bne t1, t2, kfz3",
+    ...(thr ? [
+      `  li t1, ${PCBS}`,
+      `  li t2, ${PCBS + 8 * PCB.BYTES}`,
+      "kfl1:",
+      `  lw t3, ${PCB.SLOT}(t1)`,
+      "  bne t3, a0, kfn",
+      `  lw t4, ${PCB.CORE}(t1)`,
+      "  bne t4, zero, kfn",
+      `  sw zero, ${PCB.SLOT}(t1)`,
+      `  lw t4, ${KSLOT.LIVE}(a0)`,
+      "  addi t4, t4, -1",
+      `  sw t4, ${KSLOT.LIVE}(a0)`,
+      "kfn:",
+      `  addi t1, t1, ${PCB.BYTES}`,
+      "  bne t1, t2, kfl1",
+      "kfd:",
+      "  call kuk",
+    ] : []),
     ...(smp ? [] : ["  li t0, 4", `  sw t0, ${KSLOT.STATE}(a0)`]),
     // falls into kfinish
 
     // ---- kfinish: a0 = the slot of the job that ended: give back its frames, stop the timer when nothing else runs, switch ----
     "kfinish:",
     `  sw zero, ${SLEEP}(zero)`,
+    ...(thr ? [
+      // OS 4: the context ends (it is free for another job); the last thread of the job gives the frames back and marks the slot done
+      ...curp("t0", "t1"),
+      "  call klk",
+      `  sw zero, ${PCB.SLOT}(t0)`,
+      `  sw zero, ${PCB.CORE}(t0)`,
+      `  lw t1, ${KSLOT.LIVE}(a0)`,
+      "  addi t1, t1, -1",
+      `  sw t1, ${KSLOT.LIVE}(a0)`,
+      "  call kuk",
+      "  bne t1, zero, kpick",
+      `  li t1, ${KD}`,
+      "  sub t1, a0, t1",
+      "  srli t1, t1, 6",
+      "  addi t1, t1, 1",
+      "  call kfreeown",
+      "  li t0, 4",
+      `  sw t0, ${KSLOT.STATE}(a0)`,
+      "  j kpick",
+      "kthrdead:", // a thread of a killed job found out at its interrupt: t1 = the job's slot
+      "  mv a0, t1",
+      "  j kfinish",
+    ] : [
     `  li t1, ${KD}`,
     "  sub t1, a0, t1",
     "  srli t1, t1, 6",
@@ -366,6 +453,7 @@ function preemptive(kendPage: number, smp = false): string[] {
       `  li t2, ${TIMER_BASE}`,
       `  sw zero, ${TIMER_REG.INTERVAL}(t2)`,
       "  j kpick",
+    ]),
     ]),
 
     // kfreeown: free every frame owned by job t1 (clobbers t2-t4)
@@ -423,6 +511,28 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  srli a0, t0, 2",
     ...unlockIn("t0"),
     "  ret",
+
+    ...(thr ? [
+      // kalloc_nl: the same with the big kernel lock already held (the page-fault handler holds it while it changes the page tables of a job its other threads share)
+      "kalloc_nl:",
+      `  lw t0, ${HINT}(zero)`,
+      `  li t1, ${FMAP_LAST}`,
+      "kan1:",
+      "  lw t2, 0(t0)",
+      "  beq t2, zero, kan2",
+      "  addi t0, t0, 4",
+      "  bne t0, t1, kan1",
+      "  li a0, 0",
+      "  ret",
+      "kan2:",
+      "  sw a0, 0(t0)",
+      "  addi t2, t0, 4",
+      `  sw t2, ${HINT}(zero)`,
+      `  li t1, ${FMAP}`,
+      "  sub t0, t0, t1",
+      "  srli a0, t0, 2",
+      "  ret",
+    ] : []),
 
     // kidle: the kernel has nothing to do: while programs run, give the processor to them at once instead of spinning
     "kidle:",
@@ -544,7 +654,94 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  addi s2, s2, 1",
     `  lw t0, ${K + 8}(zero)`,
     "  bne s2, t0, kst_l",
-    // its context
+    // its context(s)
+    ...(thr ? [
+      // T from the program's first word (the nop addi zero, zero, T), one context per thread: free ones, all sharing the address space
+      `  lw t1, ${K + 20}(zero)`,
+      "  slli t1, t1, 8",
+      "  addi t1, t1, 64",
+      "  lw t1, 0(t1)",
+      "  srli t1, t1, 8",
+      "  slli t1, t1, 8",
+      "  lw t1, 0(t1)",
+      "  andi t2, t1, 32767",
+      `  li t3, ${ADDI_OP}`,
+      "  li s2, 1",
+      "  bne t2, t3, kst_t1",
+      "  srli t2, t1, 15",
+      "  beq t2, zero, kst_t1",
+      `  li t3, ${MAX_THREADS_PER_JOB + 1}`,
+      "  bge t2, t3, kst_t1",
+      "  mv s2, t2",
+      "kst_t1:",
+      `  sw s2, ${K + 32}(zero)`,
+      "  li t0, 0",
+      `  li t1, ${PCBS}`,
+      `  li t4, ${PCBS + 8 * PCB.BYTES}`,
+      "kst_cf:",
+      `  lw t2, ${PCB.SLOT}(t1)`,
+      "  bne t2, zero, kst_cn",
+      `  lw t2, ${PCB.CORE}(t1)`,
+      "  bne t2, zero, kst_cn",
+      "  addi t0, t0, 1",
+      "kst_cn:",
+      `  addi t1, t1, ${PCB.BYTES}`,
+      "  bne t1, t4, kst_cf",
+      "  blt t0, s2, kst_fail", // not enough free contexts: the job waits
+      `  lw t0, ${K + 4}(zero)`,
+      `  sw s2, ${KSLOT.THREADS}(t0)`,
+      `  sw s2, ${KSLOT.LIVE}(t0)`,
+      `  sw zero, ${KSLOT.DEAD}(t0)`,
+      `  li t1, ${PCBS}`,
+      `  sw t1, ${K + 36}(zero)`,
+      "  li s2, 0",
+      "kst_c:",
+      `  lw t1, ${K + 36}(zero)`,
+      "kst_cf2:",
+      `  lw t2, ${PCB.SLOT}(t1)`,
+      "  bne t2, zero, kst_cx",
+      `  lw t2, ${PCB.CORE}(t1)`,
+      "  beq t2, zero, kst_cok",
+      "kst_cx:",
+      `  addi t1, t1, ${PCB.BYTES}`,
+      "  j kst_cf2",
+      "kst_cok:",
+      `  addi t2, t1, ${PCB.BYTES}`,
+      `  sw t2, ${K + 36}(zero)`,
+      "  mv t2, t1",
+      `  addi t3, t1, ${PCB.BYTES}`,
+      "kst_pz:",
+      "  sw zero, 0(t2)",
+      "  addi t2, t2, 4",
+      "  bne t2, t3, kst_pz",
+      "  li t2, 65536",
+      "  beq s2, zero, kst_s0",
+      "  slli t2, s2, 12",
+      "  li t3, 524288",
+      "  add t2, t2, t3", // thread k > 0: its stack is above the heap, 0x80000 + k x 4K (threadStackTop)
+      "kst_s0:",
+      `  sw t2, ${roff("sp")}(t1)`,
+      `  sw s2, ${PCB.TIDX}(t1)`,
+      `  sw s2, ${roff("a0")}(t1)`,
+      `  lw t2, ${K + 32}(zero)`,
+      `  sw t2, ${roff("a1")}(t1)`,
+      `  li t2, ${USER_BASE}`,
+      `  sw t2, ${PCB.PC}(t1)`,
+      `  lw t2, ${K + 16}(zero)`,
+      "  slli t2, t2, 8",
+      `  sw t2, ${PCB.TABLE}(t1)`,
+      `  lw t2, ${K + 20}(zero)`,
+      `  sw t2, ${PCB.L2_IMAGE}(t1)`,
+      `  lw t2, ${K + 24}(zero)`,
+      `  sw t2, ${PCB.L2_HEAP}(t1)`,
+      `  lw t2, ${K + 28}(zero)`,
+      `  sw t2, ${PCB.L2_STACK}(t1)`,
+      `  lw t0, ${K + 4}(zero)`,
+      `  sw t0, ${PCB.SLOT}(t1)`, // last: now the scheduler may take it
+      "  addi s2, s2, 1",
+      `  lw t2, ${K + 32}(zero)`,
+      "  bne s2, t2, kst_c",
+    ] : [
     `  lw t0, ${K + 4}(zero)`,
     `  li t1, ${KD}`,
     "  sub t1, t0, t1",
@@ -571,6 +768,7 @@ function preemptive(kendPage: number, smp = false): string[] {
     `  lw t2, ${K + 28}(zero)`,
     `  sw t2, ${PCB.L2_STACK}(t1)`,
     `  sw t0, ${PCB.SLOT}(t1)`,
+    ]),
     `  li t2, ${PchPhase.OsRun}`,
     `  sw t2, ${PCH_REG.PHASE}(s0)`,
     `  li a3, ${DISPLAY_BASE}`,
@@ -624,6 +822,7 @@ function preemptive(kendPage: number, smp = false): string[] {
     `  li t2, ${MAX_FRAMES}`,
     "  bge t1, t2, kpkill", // 0x100..0xfff: the big heap (virtual 0x10000 up)
     "kpok:",
+    ...(thr ? lockIn("kpl0", "t0", "t2", "t3") : []), // OS 4: the threads of a job share its page tables, so one at a time
     `  sw t1, ${pf(32)}`,
     ...curp("t0", "t3"),
     `  lw t3, ${PCB.SLOT}(t0)`,
@@ -640,8 +839,8 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  andi t2, t2, 1",
     "  bne t2, zero, kphave",
     "  addi a0, t3, 33", // a level 2 table: owner id, kind 2
-    "  call kalloc",
-    "  beq a0, zero, kpkill",
+    thr ? "  call kalloc_nl" : "  call kalloc",
+    thr ? "  beq a0, zero, kpku" : "  beq a0, zero, kpkill",
     "  slli t3, a0, 8",
     "  addi t4, t3, 256",
     "kpz4:",
@@ -662,10 +861,11 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  slli t1, t1, 2",
     "  add t0, t0, t1", // the page's entry in its level 2 table
     `  sw t0, ${pf(40)}`,
+    ...(thr ? ["  lw t3, 0(t0)", "  andi t3, t3, 1", "  bne t3, zero, kpout"] : []), // another thread mapped this page while this one waited for the lock
     `  lw t3, ${pf(28)}`,
     "  addi a0, t3, 17", // the page itself: owner id, kind 1: the program's own memory
-    "  call kalloc",
-    "  beq a0, zero, kpkill",
+    thr ? "  call kalloc_nl" : "  call kalloc",
+    thr ? "  beq a0, zero, kpku" : "  beq a0, zero, kpkill",
     "  slli t3, a0, 8",
     "  addi t4, t3, 256",
     "kpz3:",
@@ -676,6 +876,7 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  slli t3, a0, 8",
     "  addi t3, t3, 3", // the frame, valid and writable
     "  sw t3, 0(t0)",
+    ...(thr ? ["kpout:", ...unlockIn("t0")] : []),
     ...(smp ? [
       ...["ra", "a0", "t0", "t1", "t2", "t3", "t4"].map((r, i) => `  lw ${r}, ${4 * i}(s3)`),
       `  lw s3, ${PC_S3}(s3)`,
@@ -683,6 +884,7 @@ function preemptive(kendPage: number, smp = false): string[] {
     "  iret",
     "kpkill:",
     "  j kfault",
+    ...(thr ? ["kpku:", ...unlockIn("t0"), "  j kfault"] : []),
     ...(smp ? secondary3() : []),
   ];
 }
@@ -1092,11 +1294,11 @@ function secondary(kendPage: number): string[] {
 }
 
 /** The kernel's source: `paged` is OS 2, which gives each program an address space (docs/VM.md) instead of guarding the OS with the memory protection unit. */
-export function kernelSource(paged: boolean, pre = false, smp = false): string {
+export function kernelSource(paged: boolean, pre = false, smp = false, thr = false): string {
   const TBL = PAGED_TABLES, KEND = pre ? (smp ? KDATA_END_PRE_SMP : KDATA_END_PRE) : smp ? KDATA_END_SMP : KDATA_END, KEND_PAGE = (KEND + 255) & ~255;
   const smp2 = smp && !pre; // core 1 of the multicore OS 2
   return [
-  pre ? (smp ? "# OS v3 kernel (preemptive on every core)" : "# OS v3 kernel (preemptive: several programs, each in its own address space)") : smp ? "# OS v2 kernel (paged, two cores: one program per core)" : paged ? "# OS v2 kernel (paged: one address space per program)" : "# OS v1 kernel (single-task resident)",
+  pre ? (thr ? "# OS v4 kernel (preemptive on every core, threaded jobs)" : smp ? "# OS v3 kernel (preemptive on every core)" : "# OS v3 kernel (preemptive: several programs, each in its own address space)") : smp ? "# OS v2 kernel (paged, two cores: one program per core)" : paged ? "# OS v2 kernel (paged: one address space per program)" : "# OS v1 kernel (single-task resident)",
   "k_entry:",
   "  j kmain",
   "k_done_vec:", // KERNEL_DONE = KERNEL_BASE + 4: the ROM epilogue lands here when a job ends
@@ -1513,7 +1715,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false): string {
   "  mv a0, t0",
   "  ret",
   "",
-  ...(pre ? preemptive(KEND_PAGE, smp) : paged ? [
+  ...(pre ? preemptive(KEND_PAGE, smp, thr) : paged ? [
     // ---- kmap: the address space of the job just loaded, and translation on ----
     // Virtual pages 0..15 are the ROM (read, run: the job ends by jumping into it), 16.. the program's image (read, write, run) at physical + PAGED_SHIFT,
     // 0xc0.. the OS (read, run: the job table can be read, never written), and nothing else: the heap (0x4000..0x7fff) and the stack (0xf000..0xffff) are
@@ -1549,11 +1751,13 @@ export const KERNEL_SOURCE_PAGED = kernelSource(true);
 export const KERNEL_SOURCE_PRE = kernelSource(true, true);
 export const KERNEL_SOURCE_SMP = kernelSource(true, false, true);
 export const KERNEL_SOURCE_PRE_SMP = kernelSource(true, true, true);
+export const KERNEL_SOURCE_THR = kernelSource(true, true, true, true);
 const assembled = assemble(KERNEL_SOURCE);
 const assembledPaged = assemble(KERNEL_SOURCE_PAGED);
 const assembledPre = assemble(KERNEL_SOURCE_PRE);
 const assembledSmp = assemble(KERNEL_SOURCE_SMP);
 const assembledPreSmp = assemble(KERNEL_SOURCE_PRE_SMP);
+const assembledThr = assemble(KERNEL_SOURCE_THR);
 /** The kernel image (words); its first word is at KERNEL_BASE. */
 export const KERNEL_IMAGE: Uint32Array = assembled.program;
 export const KERNEL_IMAGE_PAGED: Uint32Array = assembledPaged.program;
@@ -1562,18 +1766,20 @@ export const KERNEL_IMAGE_PRE: Uint32Array = assembledPre.program;
 export const KERNEL_IMAGE_SMP: Uint32Array = assembledSmp.program;
 /** The OS 3 kernel for a CPU with several logical cores: every core runs programs. */
 export const KERNEL_IMAGE_PRE_SMP: Uint32Array = assembledPreSmp.program;
+/** The OS 4 kernel: the multicore OS 3 plus threaded jobs (several contexts of one job in one address space). */
+export const KERNEL_IMAGE_THR: Uint32Array = assembledThr.program;
 export const KERNEL_SYMBOLS: ReadonlyMap<string, number> = assembled.symbols;
 /** The kernel an OS tier boots: OS 1 guards itself with the protection unit, OS 2 and up are paged. */
-export const kernelImageFor = (tier: number, smp = false): Uint32Array => (tier >= 3 ? (smp ? KERNEL_IMAGE_PRE_SMP : KERNEL_IMAGE_PRE) : smp && tier === 2 ? KERNEL_IMAGE_SMP : tier >= 2 ? KERNEL_IMAGE_PAGED : KERNEL_IMAGE);
+export const kernelImageFor = (tier: number, smp = false): Uint32Array => (tier >= 4 ? KERNEL_IMAGE_THR : tier >= 3 ? (smp ? KERNEL_IMAGE_PRE_SMP : KERNEL_IMAGE_PRE) : smp && tier === 2 ? KERNEL_IMAGE_SMP : tier >= 2 ? KERNEL_IMAGE_PAGED : KERNEL_IMAGE);
 
 if (KERNEL_SYMBOLS.get("k_done_vec") !== 4) throw new Error("kernel: k_done_vec must be at KERNEL_BASE + 4");
 if (KERNEL_SYMBOLS.get("k_fault_vec") !== 8) throw new Error("kernel: k_fault_vec must be at KERNEL_BASE + 8");
-for (const [name, a] of [["", assembled], ["paged ", assembledPaged], ["preemptive ", assembledPre], ["multicore preemptive ", assembledPreSmp]] as const) if (a.symbols.get("k_pf_vec") !== 12) throw new Error(`${name}kernel: k_pf_vec must be at KERNEL_BASE + 12`);
+for (const [name, a] of [["", assembled], ["paged ", assembledPaged], ["preemptive ", assembledPre], ["multicore preemptive ", assembledPreSmp], ["threaded ", assembledThr]] as const) if (a.symbols.get("k_pf_vec") !== 12) throw new Error(`${name}kernel: k_pf_vec must be at KERNEL_BASE + 12`);
 if (assembledSmp.symbols.get("k_sec_vec") !== KERNEL_SECONDARY - KERNEL_BASE || assembledSmp.symbols.get("k_pf1_vec") !== KERNEL_PAGEFAULT1 - KERNEL_BASE) throw new Error("kernel: the second core's vectors are at KERNEL_BASE + 20 and + 24");
 if (assembledPre.symbols.get("k_timer_vec") !== 16 || assembledPreSmp.symbols.get("k_timer_vec") !== 16) throw new Error("kernel: k_timer_vec must be at KERNEL_BASE + 16");
 if (assembledPreSmp.symbols.get("k_sec_vec") !== KERNEL_SECONDARY - KERNEL_BASE || assembledPreSmp.symbols.get("k_tvec0") !== KERNEL_TVEC - KERNEL_BASE || assembledPreSmp.symbols.get("k_pvec0") !== KERNEL_PVEC - KERNEL_BASE) throw new Error("kernel: the multicore OS 3 vectors are at KERNEL_SECONDARY, KERNEL_TVEC and KERNEL_PVEC");
 if (KERNEL_BASE !== OS_HEADER_BASE + BLOCK_BYTES) throw new Error("kernel must follow the header block");
-if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length, KERNEL_IMAGE_SMP.length, KERNEL_IMAGE_PRE_SMP.length) * 4 > KD) throw new Error("kernel overlaps its data");
+if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length, KERNEL_IMAGE_SMP.length, KERNEL_IMAGE_PRE_SMP.length, KERNEL_IMAGE_THR.length) * 4 > KD) throw new Error("kernel overlaps its data");
 
 export interface BootParams {
   /** Jobs the queue may hold (already bounded by the OS tier and the disk space). */

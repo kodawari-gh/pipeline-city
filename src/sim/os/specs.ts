@@ -36,9 +36,9 @@ export const OS_SPECS: readonly OsSpec[] = [
   { id: "os3", tier: 3, name: "Preemptive OS 3.0", price: 2000, minRamBytes: 256 * 1024, diskBytes: 48 * 1024,
     programSlots: 4, queueSlots: 8, needsMmu: true, visual: "os-preempt",
     description: "Preemptive scheduling: a timer interrupt shares the CPU between up to four programs, each in its own address space. Needs a CPU with an MMU and 256K of RAM." },
-  { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 64 * 1024, diskBytes: 96 * 1024,
-    programSlots: 8, queueSlots: 8, needsMmu: true, later: true, visual: "os-smp",
-    description: "Schedules programs over several CPU cores. Planned." },
+  { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 256 * 1024, diskBytes: 96 * 1024,
+    programSlots: 8, queueSlots: 8, needsMmu: true, visual: "os-smp",
+    description: "Preemptive scheduling on every logical core, and threaded programs: one program on several cores at once, with the threads kept on the cores they ran on. Needs a CPU with an MMU and 256K of RAM." },
 ];
 
 export function getOsSpec(id: string): OsSpec | undefined {

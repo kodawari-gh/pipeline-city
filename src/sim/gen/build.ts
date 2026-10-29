@@ -40,6 +40,10 @@ export interface GpuTarget {
   memBytes: number;
 }
 
+/** Where a threaded program keeps its shared words: the arrival counter at the barrier, then one partial result per thread. Inside the heap the OS maps on demand. */
+export const THREAD_SYNC = 0x7f00;
+export const THREAD_PARTS = 0x7f40;
+
 export interface ResolvedParams {
   scale: number;
   row: number;
@@ -56,6 +60,8 @@ export interface Built {
   kernels: Kernel[];
   /** Display text the program should produce, computed in TypeScript independently of the interpreter. */
   expectedText: string;
+  /** Threads the program wants (default 1): it starts with the nop `addi zero, zero, T` and every thread runs it from the entry with a0 = k, a1 = T. */
+  threads?: number;
 }
 
 export type TemplateFn = (rng: Prng, p: ResolvedParams) => Built;
@@ -89,18 +95,21 @@ export class Builder {
   addData(lines: string[]): void {
     this.data.push(...lines);
   }
-  finish(header: string, expectedText: string): Built {
+  /** `threads` > 1 marks the program as threaded: the first instruction is the nop `addi zero, zero, T` (the OS 4 kernel reads T from it, docs/OS.md). A thread that is done jumps to `thread_end`. */
+  finish(header: string, expectedText: string, threads?: number): Built {
     const asm = [
       `# ${header}`,
       "main:",
+      ...(threads !== undefined && threads > 1 ? [`  addi zero, zero, ${threads}`] : []),
       ...this.body,
+      ...(threads !== undefined ? ["thread_end:"] : []),
       "  ecall",
       "",
       ...this.kernels.map((k) => k.asm + "\n"),
       ...this.data,
       "",
     ].join("\n");
-    return { asm, kernels: this.kernels, expectedText };
+    return { asm, kernels: this.kernels, expectedText, ...(threads !== undefined && threads > 1 ? { threads } : {}) };
   }
 }
 
