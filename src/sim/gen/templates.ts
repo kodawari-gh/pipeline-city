@@ -12,7 +12,7 @@ import {
   cpuLayer, GPU_NET_LAYOUT, gpuLayerCode, M as NET_M, makeNetwork, networkChecksum, NPU_LAYOUT, npuBytes, npuProgram,
 } from "./npukernels";
 import {
-  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, PICTURE_COLS, WIDE_ROWS, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, PICTURE_COLS, WIDE_ROWS, sphereFrames, spinOf, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 import { EVERYDAY_TEMPLATES } from "./tasks.everyday";
 import { HPC_TEMPLATES } from "./tasks.hpc";
@@ -154,7 +154,12 @@ const gpuRender: TemplateFn = (rng, p) => gpuJob(rng, p, GPU_KERNEL_NAMES[rng.ne
 function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string, own = false): Built {
   const b = new Builder();
   const { len, kp, a, bIn, noInput } = gpuPlan(rng, p.scale, name, own);
-  const expected = outputChecksum(gpuKernelExpected(name, kp, a, bIn));
+  // sphere is an animation: SPHERE_FRAMES launches with the spin advancing; the line printed is the checksum of the last picture
+  const anim = name === "sphere", first = kp.phase ?? 0, frames = anim ? sphereFrames(len >> 6) : 1;
+  const expected = outputChecksum(gpuKernelExpected(name, anim ? { ...kp, phase: spinOf(first, frames - 1, frames) } : kp, a, bIn));
+  const loop = anim ? b.ns("frame") : "";
+  const frameStart = anim ? [`li s1, ${frames}`, `li s2, ${first}`, `${loop}:`] : [];
+  const frameNext = anim ? [`addi s2, s2, ${16 / frames}`,"addi s1, s1, -1", `bne s1, zero, ${loop}`] : [];
   const segs: Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, " OK"];
   const line = layoutLine(segs);
   const guards = name === "blur3"; // blur3 reads a[-1] and a[len]: the input carries a copy of its edge elements there
@@ -179,14 +184,16 @@ function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: strin
     }
     if (needsB) b.emit(`li a0, ${win + L.b}`, `la a1, ${bData}`, `li a2, ${len * 4}`, `call ${copy}`);
     const poll = b.ns("poll");
+    b.emit(...frameStart, ...(anim ? [`li t0, ${win + L.a}`, "sw s2, 0(t0)"] : [])); // the spin goes in the first word of the `a` region
     b.emit(`li t0, ${gpu.base}`, `sw zero, ${GPU_REG.KERNEL}(t0)`, `sw zero, ${GPU_REG.LANES}(t0)`, "li t1, 1", `sw t1, ${GPU_REG.CMD}(t0)`);
-    b.emit(`${poll}:`, `lw t1, ${GPU_REG.STATUS}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${poll}`);
+    b.emit(`${poll}:`, `lw t1, ${GPU_REG.STATUS}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${poll}`, ...frameNext);
     sumAt = win + L.out;
     b.addData([`${kData}:`, ...Array.from(code, (w) => `  .word ${w}`)]);
   } else {
     const kern = b.add(cpuKernel(name, b.ns("cpu"), kp), 4 * len);
     sumAt = BUF_BASE;
-    if (noInput) b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
+    if (anim) b.emit(...frameStart, `li a0, ${BUF_BASE}`, "mv a3, s2", `call ${kern}`, ...frameNext);
+    else if (noInput) b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
     else b.emit(`la a0, ${aData}`, ...(guards ? ["addi a0, a0, 4"] : []), `la a1, ${needsB ? bData : aData}`, `li a2, ${BUF_BASE}`, `li a3, ${len}`, `call ${kern}`);
   }
   b.emit(`li a0, ${sumAt}`, `li a1, ${len}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * len)}`, "andi a1, a0, 63");
@@ -216,14 +223,15 @@ function gpuPlan(rng: Prng, jobScale: number, name: GpuKernelName, own: boolean)
   return { len, kp, a, bIn, noInput };
 }
 
-/** The words a GPU job leaves in the card's output region for a seed (what a display on the card shows): the almanac's preview of the job. */
-export function gpuPicture(template: string, seed: number, jobScale: number): number[] | null {
+/** The pictures a GPU job leaves in the card's output region for a seed, frame by frame (what a display on the card shows): the almanac's preview of the job. One frame unless the job is an animation. */
+export function gpuPicture(template: string, seed: number, jobScale: number): number[][] | null {
   const name = GPU_TASK_KERNELS.find((k) => template === `gpu.${k}` || (k === "sphere" && template === "gpu.spherewide"));
   if (!name) return null;
   const rng = new Prng(seed);
   rng.nextInt(100); // the job number, as `generate` draws it first
   const { kp, a, bIn } = gpuPlan(rng, jobScale, name, true);
-  return gpuKernelExpected(name, kp, a, bIn);
+  const frames = name === "sphere" ? sphereFrames(kp.len >> 6) : 1;
+  return Array.from({ length: frames }, (_, k) => gpuKernelExpected(name, name === "sphere" ? { ...kp, phase: spinOf(kp.phase ?? 0, k, frames) } : kp, a, bIn));
 }
 
 /**

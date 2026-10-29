@@ -28,6 +28,13 @@ export const THRESH = { level: 500, high: 100 } as const;
 export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256, maxPicture: 2304 } as const;
 /** Width of the pictures in words (the display's frame is this wide). */
 export const PICTURE_COLS = 64;
+/**
+ * The sphere job is an animation: one launch per frame, the spin advancing by `16 / frames` each (the checker repeats every 16, so the last frame leads
+ * back into the first: it loops). The CPU twin draws every frame too, so the frames are capped to about 4,000 points in all (8 frames of 8 rows, 4 of 16 or of 36).
+ */
+export const sphereFrames = (rows: number): number => (rows <= 8 ? 8 : 4);
+/** The spin of frame `k` of a sphere animation of `frames` frames that starts at `phase`. */
+export const spinOf = (phase: number, k: number, frames: number): number => phase + (16 / frames) * k;
 /** Rows of the 16:9 picture (64 x 36 words, 9 KB: from `out` to 0x2e00, so it needs a 16K card; the 8K `gpu1` runs it on the CPU). The other pictures are 4 to 16 rows. */
 export const WIDE_ROWS = 36;
 
@@ -40,6 +47,7 @@ export interface GpuKernelParams {
   scale?: number;
   /** sphere: how far the balls have spun (the texture slides by this much), 0 to 63. */
   phase?: number;
+  // (the card kernel reads the phase from the first word of the `a` region, so the program can change it between launches; the CPU twin takes it in a3)
 }
 
 /**
@@ -234,7 +242,9 @@ ${ballNo}
         vli v7, 21
         vmul v6, v6, v7
         vadd v5, v5, v6
-        vaddi v5, v5, ${p.phase ?? 0}
+        vli v6, 0
+        vld v7, ${A}(v6)
+        vadd v5, v5, v7
         vsrai v5, v5, 3
         vsrai v6, v3, 3
         vxor v5, v5, v6
@@ -422,7 +432,7 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
         ...yRow,
         "mul t2, t0, t0", "mul a2, t1, t1", "add t2, t2, a2",
         "mul t3, t0, t2", "srai t3, t3, 8", "add t3, t3, t0",
-        ...ballNo, "li a2, 21", "mul t4, t4, a2", "add t3, t3, t4", `addi t3, t3, ${p.phase ?? 0}`,
+        ...ballNo, "li a2, 21", "mul t4, t4, a2", "add t3, t3, t4", "add t3, t3, a3", // a3 = the phase
         "srai t3, t3, 3", "srai t4, t1, 3", "xor t3, t3, t4", "andi t3, t3, 1", "li a2, 36", "mul t3, t3, a2",
         "sub t3, t3, t0", "sub t3, t3, t1", "addi t3, t3, 40",
         "li a2, 225", "sub a2, a2, t2", `bge zero, a2, ${ns}_z`, "srli a2, a2, 2", "add t3, t3, a2", `beq zero, zero, ${ns}_s`,

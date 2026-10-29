@@ -303,7 +303,7 @@ describe("sandbox: which job classes arrive on their own", () => {
     expect(seen.has("fib")).toBe(false);
     expect(seen.has("log") || seen.has("calc") || seen.has("checksum")).toBe(false);
     expect(seen.size).toBeGreaterThan(3);
-  });
+  }, 30_000); // gpu pictures are heavy to generate
   it("a class with every kind off sends nothing, and spawnKey still works", () => {
     const g = start();
     g.setJobClasses(["cli", "scan", "db", "web", "secure", "npu", "hpc"]); // only gpu is left at level 18...

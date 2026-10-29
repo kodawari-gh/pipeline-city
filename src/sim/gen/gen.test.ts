@@ -51,7 +51,7 @@ describe("every generated program", () => {
           const seed = s * 104729 + scale;
           const g = generate(t, seed, { scale });
           expect(() => assemble(g.asm)).not.toThrow();
-          const r = runReference(g, t.startsWith("gpu.") ? 150_000 : 30_000); // RefFault on unmapped access or step overrun
+          const r = runReference(g, t.startsWith("gpu.") ? 1_000_000 : 30_000); // RefFault on unmapped access or step overrun
           expect(r.cpu.halted).toBe(true);
           expect(r.text.length).toBeGreaterThan(0);
           expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
@@ -61,7 +61,7 @@ describe("every generated program", () => {
         }
       }
     }
-  });
+  }, 60_000); // 40 seeds of every template, the gpu pictures among them
 
   it("honours row and jobId", () => {
     const g = generate("cli.calc", 5, { row: 3, jobId: 7 });
@@ -91,7 +91,7 @@ describe("every generated program", () => {
           let guard = 0;
           while (!e.halted) {
             e.step();
-            if (++guard > 400_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
+            if (++guard > 1_500_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
           }
           expect(Array.from(m.regs)).toEqual(Array.from(ref.cpu.regs));
           expect(firstDiff(m.ram, ref.cpu.mem.ram.bytes)).toBe(-1);
@@ -123,8 +123,8 @@ describe("pacing", () => {
 
   it("scale makes requests heavier", () => {
     for (const t of TEMPLATE_NAMES.filter((x) => x !== "cli")) {
-      const a = runReference(generate(t, 3, { scale: 1 }), 300_000).steps;
-      const b = runReference(generate(t, 3, { scale: 4 }), 300_000).steps;
+      const a = runReference(generate(t, 3, { scale: 1 }), 1_000_000).steps;
+      const b = runReference(generate(t, 3, { scale: 4 }), 1_000_000).steps;
       expect(b).toBeGreaterThan(a * 1.5);
     }
   });
@@ -174,9 +174,12 @@ describe("kernels", () => {
 
 describe("gpuPicture (the almanac's preview of a GPU job)", () => {
   it("is the picture the job's kernel draws: 64 x 16 balls, 64 x 36 for the widescreen job, null for other jobs", () => {
-    expect(gpuPicture("gpu.sphere", 7, 4)).toHaveLength(64 * 16);
-    expect(gpuPicture("gpu.spherewide", 7, 8)).toHaveLength(64 * 36);
-    expect(gpuPicture("gpu.mandel", 7, 4)!.length % 64).toBe(0);
+    const balls = gpuPicture("gpu.sphere", 7, 4)!;
+    expect(balls).toHaveLength(4); // the spin is an animation: 4 frames of 16 rows
+    expect(balls[0]).toHaveLength(64 * 16);
+    expect(balls[0]).not.toEqual(balls[1]);
+    expect(gpuPicture("gpu.spherewide", 7, 8)![0]).toHaveLength(64 * 36);
+    expect(gpuPicture("gpu.mandel", 7, 4)).toHaveLength(1);
     expect(gpuPicture("gpu.sphere", 7, 4)).toEqual(gpuPicture("gpu.sphere", 7, 4));
     expect(gpuPicture("cli.log", 7, 1)).toBeNull();
   });

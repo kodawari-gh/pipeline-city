@@ -4,7 +4,7 @@ import { createEngine } from "../engines";
 import { GPU_BASE, NPU_BASE } from "../isa/memmap";
 import { GpuPort, Machine, NpuPort } from "../machine";
 import { generate, runReference, type Generated } from "./index";
-import { GPU_TASK_KERNELS } from "./gpukernels";
+import { GPU_TASK_KERNELS, sphereFrames } from "./gpukernels";
 import { npuBytes, makeNetwork } from "./npukernels";
 import { Prng } from "../machine/prng";
 
@@ -33,7 +33,7 @@ function onMachine(g: Generated, cards: { gpu?: boolean; npu?: boolean }): { tic
 describe("one job per GPU kernel", () => {
   for (const k of GPU_TASK_KERNELS) {
     const template = `gpu.${k}`;
-    it(`${template}: always the same kernel, the same line with a card as without, and the card is launched once`, () => {
+    it(`${template}: always the same kernel, the same line with a card as without, and the card is launched once per frame`, () => {
       for (const seed of k === "mandel" || k === "sphere" ? [1] : [1, 2, 3]) { // the CPU path of a Mandelbrot row is long
         const cpu = generate(template, seed, { scale: 4 }), card = generate(template, seed, { scale: 4, gpu: GPU });
         expect(cpu.meta.expectedText).toContain(` ${k} `);
@@ -42,7 +42,7 @@ describe("one job per GPU kernel", () => {
         const withCard = onMachine(card, { gpu: true }), without = onMachine(cpu, {});
         expect(withCard.text).toBe(cpu.meta.expectedText);
         expect(without.text).toBe(cpu.meta.expectedText);
-        expect(withCard.gpuLaunches).toBe(1);
+        expect(withCard.gpuLaunches).toBe(k === "sphere" ? sphereFrames(16) : 1);
         expect(without.gpuLaunches).toBe(0);
       }
     }, 30_000);

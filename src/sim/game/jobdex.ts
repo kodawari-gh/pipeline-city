@@ -373,7 +373,7 @@ export const JOB_DEX: readonly DexEntry[] = [
       { part: "clock", short: "A higher card clock", text: "The card spends nearly all its time in the inner loop: its clock speeds that directly." },
     ] },
   { id: "sphere", name: "Spinning balls", cls: "gpu", template: "gpu.sphere", level: 14, scale: 4, boost: "GPU: about 7x faster",
-    blurb: "Shade a row of four checkered balls, one point at a time: where each point sits on a ball decides how bright it is and which square it lands on. Every job has the balls turned a different way.",
+    blurb: "Shade a row of four checkered balls, one point at a time, and spin them over several frames (the display plays them as they are drawn): where each point sits on a ball decides how bright it is and which square it lands on. Every job has the balls turned a different way.",
     stresses: ["a GPU (lanes)", "the multiplier"], footprint: "no input: the picture comes from the element number",
     tips: [
       { part: "gpu", short: "More lanes", text: "Every point is shaded on its own with the same steps, so lanes never wait for each other: twice the lanes draws the picture in about half the time." },

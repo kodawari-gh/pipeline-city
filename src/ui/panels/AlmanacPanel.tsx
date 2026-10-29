@@ -2,7 +2,7 @@
 // a picture of its real program, that is a dark silhouette until the job is met. A met job's page puts that program on the main page (its picture,
 // what it leans on, its assembly); finishing one opens the C++ and Python and the ways to do it better, as icon chips. A sandbox game has everything open.
 import { signal } from '@preact/signals';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { gpuPicture } from '../../sim/gen';
 import { frameColor, pictureOf } from '../../render/room/screenmodel';
 import { snapshot } from '../../game/store';
@@ -210,9 +210,17 @@ function Hero({ e, g, state, d, level, sandbox, p }: { e: DexEntry; g: DexGroup 
 function Preview({ e }: { e: DexEntry }) {
   const src = CODE_SOURCE[e.id];
   const scale = scaleOf.value[e.id] ?? src?.scales[0] ?? 1;
-  const pic = src ? gpuPicture(src.template, 7, scale) : null;
+  const pics = src ? gpuPicture(src.template, 7, scale) : null;
   const ref = useRef<HTMLCanvasElement>(null);
-  const m = pic ? pictureOf(pic) : null;
+  const [k, setK] = useState(0);
+  const n = pics?.length ?? 1;
+  // an animation plays in a loop, as the display shows the card's frames one after the other
+  useEffect(() => {
+    if (n < 2) return;
+    const t = setInterval(() => setK((x) => (x + 1) % n), 150);
+    return () => clearInterval(t);
+  }, [n]);
+  const m = pics ? pictureOf(pics[k % n]!) : null;
   useEffect(() => {
     const cv = ref.current;
     if (!cv || !m) return;
@@ -229,7 +237,7 @@ function Preview({ e }: { e: DexEntry }) {
   if (!m) return null;
   return (
     <div class="dx-code dx-preview">
-      <div class="dx-codebar"><span class="dx-win"><Icon name="screen" size={12} /> Output</span><span class="mute">{m.cols} x {m.rows} on a graphics display</span></div>
+      <div class="dx-codebar"><span class="dx-win"><Icon name="screen" size={12} /> Output</span><span class="mute">{m.cols} x {m.rows} on a graphics display{n > 1 ? `, ${n} frames` : ''}</span></div>
       <canvas ref={ref} class="dx-shot" style={{ aspectRatio: `${m.cols} / ${m.rows}` }} role="img" aria-label="The picture this job draws" />
     </div>
   );

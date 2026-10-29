@@ -19,6 +19,7 @@ function runAsm(src: string, lanes = 8, banks = 1, active = lanes): GpuRef {
 function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1, kb = 8) {
   const p = { lanes, len, scale: 5 };
   const { a, b } = kernelInputs(len, 7);
+  if (name === "sphere") a[0] = 0; // the card kernel reads its phase from the first word of the `a` region
   const g = card(lanes, banks, kb);
   g.load(assembleGpu(gpuKernelSource(name, p)).program, KERNEL_LAYOUT.code);
   g.load(a, KERNEL_LAYOUT.a);
