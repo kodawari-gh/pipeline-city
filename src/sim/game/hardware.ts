@@ -80,6 +80,12 @@ export function cpuHasMmu(this: Game): boolean {
   return !!cpu && ((deviceSpec(cpu) as CpuSpec).mmu?.tlb ?? 0) > 0;
 }
 
+/** Hardware cores of the installed CPU (1 for a single-core part or none). */
+export function cpuCores(this: Game): number {
+  const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
+  return cpu ? (deviceSpec(cpu) as CpuSpec).cores ?? 1 : 1;
+}
+
 /** The port the OS boots from, if its drive works. */
 export function osPort(this: Game): StoragePort | null {
   if (!this.os) return null;

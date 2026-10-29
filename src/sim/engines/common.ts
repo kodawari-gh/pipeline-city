@@ -421,6 +421,8 @@ export abstract class EngineBase implements PipelineEngine {
   note(kind: number, a: number, b: number, c: number): void { this.events.push(this.cycleNo, kind, a | 0, b | 0, c | 0, 0); }
   /** No instruction in flight (see `Engine.drained`). */
   abstract get drained(): boolean;
+  /** The L2 and DRAM this engine reaches (its own, or the shared one it was given). */
+  get memSystem(): MemSystem { return this.mem; }
   /** Use a memory system shared with other cores instead of the engine's own (before `reset`). Its owner resets it. */
   useMemSystem(mem: MemSystem): void { this.mem = mem; this.ownsMem = false; }
   holdFetch(on: boolean): void { this.hold = on; }

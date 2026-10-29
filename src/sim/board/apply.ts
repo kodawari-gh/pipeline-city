@@ -1,7 +1,7 @@
 // Wiring: apply a Board (and its thermal state) to a Machine.
 
 import { createEngine, type EngineConfig } from "../engines";
-import { GPU_PORTS, NPU_PORTS, STORAGE_PORTS } from "../isa/memmap";
+import { GPU_PORTS, KERNEL_SECONDARY, NPU_PORTS, STORAGE_PORTS } from "../isa/memmap";
 import type { Machine, MachineConfig } from "../machine/machine";
 import type { Rate } from "../machine/clock";
 import { deviceSpec, findDevices, type Board, type InstalledDevice } from "./board";
@@ -112,12 +112,25 @@ export function engineConfigFor(board: Board): EngineConfig | null {
   return cfg;
 }
 
-/** Build the board's engine and attach it with the program. Only call between requests (caches go cold). */
+/**
+ * Build the board's engine and attach it with the program. Only call between requests (caches go cold). A multicore CPU gets one engine per core, all on
+ * the first engine's L2 and DRAM: core 0 runs the program, the others start parked with their interrupt vector at the kernel's secondary entry (what a
+ * multicore OS wakes with an IPI; under the key loader or the first OS they stay asleep).
+ */
 export function applyEngine(board: Board, machine: Machine, program: Uint32Array): boolean {
   const cfg = engineConfigFor(board);
   if (!cfg) return false;
+  const spec = deviceSpec(working(board, "cpu")[0]!) as CpuSpec;
   // the MMU the CPU has (none: the unit cannot be switched on and the paged OS will not boot)
-  machine.mmu.configure((deviceSpec(working(board, "cpu")[0]!) as CpuSpec).mmu?.tlb ?? 0);
-  machine.attach(createEngine(cfg), program);
+  machine.mmu.configure(spec.mmu?.tlb ?? 0);
+  const first = createEngine(cfg);
+  const cores = first.memSystem ? spec.cores ?? 1 : 1; // an engine without a memory system (the reference, the unpipelined one) cannot share one
+  machine.mem = cores > 1 ? first.memSystem! : null;
+  machine.setCores(cores); // after the memory system is set: it switches the shared L2 on
+  machine.attach(first, program);
+  for (let k = 1; k < cores; k++) {
+    machine.attachCore(k, createEngine(cfg), new Uint32Array(0));
+    machine.parkCore(k, KERNEL_SECONDARY);
+  }
   return true;
 }

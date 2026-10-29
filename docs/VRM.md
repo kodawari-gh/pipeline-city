@@ -57,6 +57,8 @@ Behaviours:
 
 Stock `cpu1` on Starter: 20 A of 24 A, 0.78 efficiency, VRM about 40 C. `cpu2` (35 W) on Starter: 1.46 of rating, unstable at once (about 14% crash chance per busy tick), heats to throttle after about 100 ticks, equilibrium near 98 C at throttle 0.9, then burns after about 40 more ticks; with a fan heatsink it stays cool and is merely unstable (crashing). The same `cpu2` on Mainstream: 58% of rating, 34 C. Liquid cooling `cpu1` overclocked to 2.1 on Starter: VRM 71 C versus a clearly cooler VRM with a tower cooler (it blows air over the VRM).
 
+`cpu2d` (the Duo, 70 W with both cores busy; the thermal load follows the busy cores, a parked core idles): on Enthusiast (6 x 20 A) about 0.58 of the rating, on Mainstream above 1 (it droops and burns), so it wants `board3`. Two busy cores also need a real cooler: on the stock heatsink the CPU passes `unstableC` within a hundred ticks and crashes (the tests fit a `cooler2`).
+
 ### What must not happen
 
 A CPU on its tier's board (`cpu0` on Starter, `cpu1` on Basic, `cpu2` on Mainstream, or on any better board) at stock clock under full load never gets near `throttleC`, and `loadRatio` stays below 1. Trouble needs one of: an **overclock** (power and voltage both rise), a **heavy CPU on a weak board** (`cpu2` on Starter: loadRatio about 1.5, it crashes at once and cooks), a bad or absent heatsink with liquid cooling, or (later) a hot case.

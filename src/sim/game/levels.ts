@@ -151,7 +151,7 @@ export const LEVELS: readonly LevelDef[] = [
   row(6, "Neighbourhood", 110, 1.7, 1.69, 1.6, { cli: 37, scan: 23, db: 22, web: 18 }, ["cpu2", "cooler2", "isp2"]),
   row(7, "District", 155, 1.45, 1.87, 1.72, { cli: 33, scan: 22, db: 24, web: 21 }, ["nvme2", "vsink2", "rsink2", "fan1", "router2", "nic1"]),
   row(8, "Town Hub", 215, 1.25, 2.08, 1.84, { cli: 28, scan: 22, db: 25, web: 25 }, ["cpu3", "os2"]),
-  row(9, "Business Park", 285, 1.05, 2.3, 1.96, { cli: 25, scan: 18, db: 20, web: 22, secure: 15 }, ["tpm1", "ram3", "case3", "board3", "isp3", "cpu2f", "cpu2m"]),
+  row(9, "Business Park", 285, 1.05, 2.3, 1.96, { cli: 25, scan: 18, db: 20, web: 22, secure: 15 }, ["tpm1", "ram3", "case3", "board3", "isp3", "cpu2f", "cpu2m", "cpu2d"]),
   row(10, "Tech Quarter", 360, 0.9, 2.56, 2.08, { cli: 20, scan: 15, db: 15, web: 18, secure: 12, gpu: 20 }, ["gpu1", "psu3", "display1"]),
   row(11, "Campus", 450, 0.8, 2.84, 2.2, { cli: 18, scan: 12, db: 14, web: 18, secure: 12, gpu: 26 }, ["cpu4", "cooler3", "router3", "nic2", "cpu3f", "cpu3m", "ram4"]),
   row(12, "Data Annex", 550, 0.72, 3.15, 2.32, { cli: 15, scan: 10, db: 12, web: 18, secure: 10, gpu: 20, npu: 15 }, ["npu1"]),

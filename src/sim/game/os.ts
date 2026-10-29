@@ -52,10 +52,28 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   const osBlocks = Math.ceil(os.diskBytes / BLOCK_BYTES);
   const queueSlots = queueSlotsFor(os, disk.capacityBytes - disk.usedBytes - os.diskBytes, BLOCK_BYTES);
   if (queueSlots < 1) throw new Error("save: the OS does not fit its drive");
-  disk.poke(0, bootImage({ queueSlots, programSlots: os.programSlots, spoolLba: osBlocks, spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier }));
+  disk.poke(0, this.osBootImage(os, queueSlots));
   disk.reserve(0, osBlocks);
   if (count) disk.bytesWritten += os.diskBytes;
   this.os = { spec: os, deviceId, queueSlots };
+}
+
+/** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one (docs/MULTICORE.md), every other tier its own number. */
+export function osProgramSlots(this: Game, os: OsSpec): number {
+  return os.tier === 2 ? Math.min(2, this.cpuCores()) : os.programSlots;
+}
+
+/** The boot area of `os` as this machine needs it (the paged OS has a multicore kernel for a CPU with two cores or more). */
+export function osBootImage(this: Game, os: OsSpec, queueSlots: number): Uint8Array {
+  return bootImage({ queueSlots, programSlots: this.osProgramSlots(os), spoolLba: Math.ceil(os.diskBytes / BLOCK_BYTES), spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier, smp: os.tier === 2 && this.cpuCores() > 1 });
+}
+
+/** Write the boot area again, so the kernel on the drive matches the CPU (the player may swap the CPU after installing the OS). Only while off. */
+export function refreshBootImage(this: Game): void {
+  const os = this.os;
+  const dev = os && this.board.devices.find((d) => d.id === os.deviceId);
+  if (!os || !dev || dev.burnt || os.spec.tier !== 2) return;
+  this.diskFor(dev).poke(0, this.osBootImage(os.spec, os.queueSlots));
 }
 
 /** Take the OS off its drive (back to the inventory; the drive is wiped). Only while off. */
@@ -144,7 +162,7 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
   const spool = this.spoolSnap();
   return {
     spec: os.spec.id, tier: os.spec.tier, name: os.spec.name, deviceId: os.deviceId, slot: dev.slot,
-    programSlots: os.spec.programSlots, queueSlots: os.queueSlots, up: this.powered && this.pch.osMode && !this.postError,
+    programSlots: this.osProgramSlots(os.spec), queueSlots: os.queueSlots, up: this.powered && this.pch.osMode && !this.postError,
     queue: [
       ...(running ? [row(running, "running", 0)] : []),
       ...queued.map((j, i) => row(j, "queued", i + (running ? 1 : 0))),

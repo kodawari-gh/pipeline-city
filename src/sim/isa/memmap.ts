@@ -151,6 +151,9 @@ export const KERNEL_FAULT = KERNEL_BASE + 8;
 export const KERNEL_PAGEFAULT = KERNEL_BASE + 12;
 /** + 16 is the timer interrupt (OS 3: the scheduler). */
 export const KERNEL_TIMER = KERNEL_BASE + 16;
+/** + 20 is where a parked second core starts when the first IPI wakes it (the multicore OS 2, docs/MULTICORE.md); + 24 is its page-fault handler. */
+export const KERNEL_SECONDARY = KERNEL_BASE + 20;
+export const KERNEL_PAGEFAULT1 = KERNEL_BASE + 24;
 /** Memory map of a program under the paged OS: the program lives at physical virtual + PAGED_SHIFT, the OS keeps its page tables at PAGED_TABLES and hands out frames to the program from PAGED_HEAP up to the tables. */
 export const PAGED_SHIFT = 0x1000;
 export const PAGED_HEAP = 0x6000;

@@ -76,6 +76,7 @@ export function coldBoot(this: Game): void {
   for (const p of this.gpus) p.reset();
   for (const p of this.npus) p.reset();
   this.tpm.reset();
+  this.refreshBootImage();
   const boot = this.osPort();
   this.pch.bootDev = boot ? boot.base : 0;
   this.pch.enumTicks = boot ? this.cfg.usbEnumTicks : 0;
@@ -131,7 +132,7 @@ export function bootProgress(this: Game, phase: Phase): number {
     case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
     case "booting-os": {
       const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
-      return 0.4 + 0.6 * Math.min(1, read / (bootBlocksFor(this.os?.spec.tier ?? 1) * BLOCK_BYTES));
+      return 0.4 + 0.6 * Math.min(1, read / (bootBlocksFor(this.os?.spec.tier ?? 1, this.os?.spec.tier === 2 && this.cpuCores() > 1) * BLOCK_BYTES));
     }
     case "running": case "writing": case "done-remove-key": case "idle-os": case "ingesting": case "running-os": case "flashing": return 1;
     default: return 0;
@@ -232,7 +233,8 @@ export function advanceBaseTick(this: Game): void {
   const phase = this.currentPhase();
   const busy = !delayed && (phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
     || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing");
-  const load = busy ? 1 : this.cfg.idleLoad;
+  // a multicore CPU draws by the cores that run: one busy core of two is half the chip's load (a parked core is idle)
+  const load = busy ? Math.max(1, this.machine.busyCores()) / this.machine.cores.length : this.cfg.idleLoad;
   const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
   const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
   const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;

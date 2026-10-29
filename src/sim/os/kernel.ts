@@ -15,7 +15,7 @@
 import { assemble } from "../asm";
 import {
   BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, OS_HEADER, OS_HEADER_BASE,
-  INTC_BASE, INTC_REG, KERNEL_PAGEFAULT, KERNEL_TIMER, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
+  INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_SECONDARY, KERNEL_TIMER, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
 } from "../isa/memmap";
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
@@ -37,6 +37,28 @@ export const KFAULTS = TABLE_END + 48;
 /** OS 2 and 3: the number of 256-byte frames the machine has (up to MAX_FRAMES), read from the PCH at boot. */
 export const NFRAMES = TABLE_END + 52;
 export const KDATA_END = TABLE_END + 56;
+// OS 2 on a multicore CPU (docs/MULTICORE.md section 6): core 0 is the kernel core (ingest, flash, queue) and hands a job to core 1 when that is free, else runs it itself.
+// Core 1 has its own arena of RAM (tables, image, heap frames), its own page-fault handler and its own display row; the shared words below are the mailbox,
+// the "core 1 is busy" flag and the big kernel lock, which guards every update of the job table made by either core.
+const LOCK = KDATA_END; // the big kernel lock (0 free, 1 held: taken with amoswap)
+const MBOX = LOCK + 4; // the slot core 0 wants core 1 to run (0: nothing)
+const C1BUSY = LOCK + 8; // 1 from the hand-over until core 1 has stored the job's result
+const CUR1 = LOCK + 12; // the slot running on core 1
+const ARENA_END = LOCK + 16; // core 0's frame allocator skips frames up to here (0: no arena, a single-core kernel)
+const BUMP1 = LOCK + 20; // core 1's next free frame
+const PFS1 = LOCK + 24; // core 1's page-fault scratch (five words)
+const SMPON = LOCK + 44; // 1 when the machine has a second core and RAM for its arena
+/** The end of the kernel's data for the multicore os2 image. */
+export const KDATA_END_SMP = LOCK + 48;
+/** Core 1's arena: its page tables at the start, its kernel stack below the image, the image at virtual + `ARENA1_SHIFT`, heap frames from `ARENA1_HEAP` up to `ARENA1_END`. Needs 128K of RAM. */
+export const ARENA1 = 0x10000;
+export const ARENA1_SHIFT = 0x10000;
+export const ARENA1_HEAP = 0x120;
+export const ARENA1_END = 0x180;
+/** RAM frames the multicore os2 needs before it hands jobs to core 1 (128K). */
+export const SMP_MIN_FRAMES = 0x200;
+/** The kernel stack of core 1 (below its image, above its tables). */
+const KSTK1 = ARENA1 + 0x1000;
 /** The frames a paged OS manages: the virtual space is 20 bits, so RAM above 1 MiB is not used. */
 export const MAX_FRAMES = 4096;
 // The preemptive kernel (OS 3) keeps more: a process control block per slot (plus one for the kernel itself), the map of RAM frames, and scratch words.
@@ -73,7 +95,7 @@ const KSTK = 0xfc00;
 /** CPU cycles one program runs before the scheduler looks again. */
 export const SLICE_CYCLES = 5000;
 /** Where the end of the kernel's data is, by OS tier. */
-export const kdataEndFor = (tier: number): number => (tier >= 3 ? KDATA_END_PRE : KDATA_END);
+export const kdataEndFor = (tier: number, smp = false): number => (tier >= 3 ? KDATA_END_PRE : smp && tier === 2 ? KDATA_END_SMP : KDATA_END);
 const H = (k: keyof typeof OS_HEADER): number => 4 * OS_HEADER[k];
 
 const setPhase = (p: number): string[] => [`  li t0, ${p}`, `  sw t0, ${PCH_REG.PHASE}(s0)`];
@@ -511,9 +533,10 @@ function preemptive(kendPage: number): string[] {
 
 /**
  * OS 2's frame allocator, inline (the page-fault handler has no stack to call from): takes the next frame from the bump pointer into t2, zeroes it, and ends the
- * program (kpkill) when the frames are used up. The pointer skips from the tables' frames (0xb0) to 0x100, the first frame above the OS.
+ * program (kpkill) when the frames are used up. The pointer skips from the tables' frames (0xb0) to 0x100, the first frame above the OS. On the multicore image it
+ * also skips core 1's arena (frames 0x100 up to `ARENA_END`, a word that is 0 when there is no second core).
  */
-function bump2(tag: string): string[] {
+function bump2(tag: string, smp = false): string[] {
   return [
     `  li t3, ${BUMP}`,
     "  lw t2, 0(t3)",
@@ -523,6 +546,14 @@ function bump2(tag: string): string[] {
     `  bge t2, t4, kb1${tag}`,
     "  mv t2, t4",
     `kb1${tag}:`,
+    ...(smp ? [
+      `  lw t4, ${ARENA_END}(zero)`,
+      `  bge t2, t4, kb3${tag}`,
+      "  li t4, 256",
+      `  blt t2, t4, kb3${tag}`,
+      `  lw t2, ${ARENA_END}(zero)`,
+      `kb3${tag}:`,
+    ] : []),
     `  lw t4, ${NFRAMES}(zero)`,
     "  bge t2, t4, kpkill",
     "  addi t4, t2, 1",
@@ -536,11 +567,284 @@ function bump2(tag: string): string[] {
   ];
 }
 
-/** The kernel's source: `paged` is OS 2, which gives each program an address space (docs/VM.md) instead of guarding the OS with the memory protection unit. */
-export function kernelSource(paged: boolean, pre = false): string {
-  const TBL = PAGED_TABLES, KEND_PAGE = ((pre ? KDATA_END_PRE : KDATA_END) + 255) & ~255, KEND = pre ? KDATA_END_PRE : KDATA_END;
+/** Core 1's frame allocator: the next frame of its arena into t2, zeroed; the program is ended (kpkill) when the arena is used up. */
+function bump1(tag: string): string[] {
   return [
-  pre ? "# OS v3 kernel (preemptive: several programs, each in its own address space)" : paged ? "# OS v2 kernel (paged: one address space per program)" : "# OS v1 kernel (single-task resident)",
+    `  li t3, ${BUMP1}`,
+    "  lw t2, 0(t3)",
+    `  li t4, ${ARENA1_END}`,
+    "  bge t2, t4, kpkill",
+    "  addi t4, t2, 1",
+    "  sw t4, 0(t3)",
+    "  slli t3, t2, 8",
+    "  addi t4, t3, 256",
+    `kb2${tag}:`,
+    "  sw zero, 0(t3)",
+    "  addi t3, t3, 4",
+    `  bne t3, t4, kb2${tag}`,
+  ];
+}
+
+/** The tables of a job just loaded: level 1 at `tbl` with its three level 2 tables, the ROM identity, the image at virtual + `shift`, the OS identity up to `kendPage`, and the frame pointer at `bumpAt` set to `bumpFrom`. `cur` holds the job's slot. Labels get `tag`. */
+function mapTables(tag: string, tbl: number, shift: number, cur: number, bumpAt: number, bumpFrom: number, kendPage: number): string[] {
+  return [
+    `  li t0, ${tbl}`,
+    `  li t1, ${tbl + PAGED_TABLES_BYTES}`,
+    `kmz${tag}:`,
+    "  sw zero, 0(t0)",
+    "  addi t0, t0, 4",
+    `  bne t0, t1, kmz${tag}`,
+    `  li t0, ${tbl}`,
+    `  li t1, ${tbl + 0x100 + 1}`,
+    "  sw t1, 0(t0)", // level 1 entry 0: virtual 0x0000..0x3fff
+    `  li t1, ${tbl + 0x200 + 1}`,
+    "  sw t1, 4(t0)", // entry 1: 0x4000..0x7fff, the heap
+    `  li t1, ${tbl + 0x300 + 1}`,
+    "  sw t1, 12(t0)", // entry 3: 0xc000..0xffff, the OS and the stack
+    `  li t0, ${tbl + 0x100}`,
+    "  li t1, 0",
+    `  li t2, ${USER_BASE}`,
+    `kmr${tag}:`, // the ROM: identity, read and run
+    "  addi t3, t1, 5",
+    "  sw t3, 0(t0)",
+    "  addi t0, t0, 4",
+    "  addi t1, t1, 256",
+    `  bne t1, t2, kmr${tag}`,
+    `  li t4, ${cur}`,
+    "  lw t4, 0(t4)",
+    `  lw t4, ${KSLOT.LEN}(t4)`,
+    "  slli t4, t4, 2",
+    "  addi t4, t4, 255",
+    "  srli t4, t4, 8", // the program's pages
+    `kmi${tag}:`, // its image: read, write, run
+    ...(shift + 7 < 65536 ? [`  addi t3, t1, ${shift + 7}`] : [`  li t3, ${shift + 7}`, "  add t3, t3, t1"]), // the immediate of addi is 17 bits
+    "  sw t3, 0(t0)",
+    "  addi t0, t0, 4",
+    "  addi t1, t1, 256",
+    "  addi t4, t4, -1",
+    `  bne t4, zero, kmi${tag}`,
+    `  li t0, ${tbl + 0x300}`,
+    "  li t1, 49152",
+    `  li t2, ${kendPage}`,
+    `kmk${tag}:`, // the OS: identity, read and run
+    "  addi t3, t1, 5",
+    "  sw t3, 0(t0)",
+    "  addi t0, t0, 4",
+    "  addi t1, t1, 256",
+    `  bne t1, t2, kmk${tag}`,
+    `  li t0, ${bumpAt}`,
+    `  li t1, ${bumpFrom}`,
+    "  sw t1, 0(t0)", // the first frame for the program's own memory
+  ];
+}
+
+/** The page-fault handler of a core: tables at `tbl`, scratch words at `pfs`, `bump(tag)` the frame allocator (frame into t2). The handler for core 0 is `kpf`, for core 1 `kpf1`. */
+function pageFault(tag: string, tbl: number, pfs: number, bump: (t: string) => string[]): string[] {
+  return [
+    `kpf${tag}:`,
+    `  sw t0, ${pfs}(zero)`,
+    `  sw t1, ${pfs + 4}(zero)`,
+    `  sw t2, ${pfs + 8}(zero)`,
+    `  sw t3, ${pfs + 12}(zero)`,
+    `  sw t4, ${pfs + 16}(zero)`,
+    `  li t0, ${MMU_BASE}`,
+    `  lw t1, ${MMU_REG.FAULT_CAUSE}(t0)`,
+    "  li t2, 1",
+    "  bne t1, t2, kpkill", // only a missing page can be fixed
+    `  lw t1, ${MMU_REG.FAULT_ADDR}(t0)`,
+    "  srli t1, t1, 8", // the page number
+    "  li t2, 64",
+    "  blt t1, t2, kpkill",
+    "  li t2, 128",
+    `  blt t1, t2, kpok${tag}`, // 0x40..0x7f: the heap
+    "  li t2, 240",
+    "  blt t1, t2, kpkill",
+    "  li t2, 256",
+    `  blt t1, t2, kpok${tag}`, // 0xf0..0xff: the stack
+    `  li t2, ${MAX_FRAMES}`,
+    "  bge t1, t2, kpkill", // 0x100..0xfff: the big heap
+    `kpok${tag}:`,
+    `  li t0, ${tbl}`,
+    "  srli t2, t1, 6",
+    "  slli t2, t2, 2",
+    "  add t0, t0, t2", // this page's entry in the level 1 table
+    "  lw t2, 0(t0)",
+    "  andi t2, t2, 1",
+    `  bne t2, zero, kphave${tag}`,
+    ...bump(`a${tag}`), // a frame for the level 2 table, in t2
+    "  slli t3, t2, 8",
+    "  addi t4, t3, 1",
+    "  sw t4, 0(t0)",
+    `kphave${tag}:`,
+    "  lw t0, 0(t0)",
+    "  srli t0, t0, 8",
+    "  slli t0, t0, 8",
+    "  andi t2, t1, 63",
+    "  slli t2, t2, 2",
+    "  add t0, t0, t2", // the page's entry in its level 2 table
+    ...bump(`b${tag}`), // the page's frame, in t2
+    "  slli t3, t2, 8",
+    "  addi t3, t3, 3", // the frame, valid and writable
+    "  sw t3, 0(t0)",
+    `  lw t0, ${pfs}(zero)`,
+    `  lw t1, ${pfs + 4}(zero)`,
+    `  lw t2, ${pfs + 8}(zero)`,
+    `  lw t3, ${pfs + 12}(zero)`,
+    `  lw t4, ${pfs + 16}(zero)`,
+    "  iret",
+  ];
+}
+
+/**
+ * Core 1 of the multicore OS 2. Core 0 (`kdispatch`) loads a job from the spool into core 1's arena, builds its tables (`kmap1`), writes the mailbox and sends an IPI;
+ * core 1 wakes in `k2entry`, turns its translation on and runs the job. The job ends in `kdone`/`kfault`, which branch to `kdone1`/`kfault1` on core 1: they store the
+ * result under the big lock and park the core again (`k2idle`: acknowledge, look in the mailbox, park). Core 1 never touches a drive or the display's status line.
+ */
+function secondary(kendPage: number): string[] {
+  const rowAddr = DISPLAY_BASE + (JOB_ROW + 1) * ROW, ownRow = DISPLAY_BASE + JOB_ROW * ROW; // core 1's output row; core 1 itself reaches it as JOB_ROW (its row base is 1)
+  return [
+    "kmap1:",
+    ...mapTables("1", ARENA1, ARENA1_SHIFT, CUR1, BUMP1, ARENA1_HEAP, kendPage),
+    "  ret",
+    ...pageFault("1", ARENA1, PFS1, bump1),
+
+    // ---- kdispatch: core 0 hands the job in slot a0 to core 1 ----
+    "kdispatch:",
+    `  li t0, ${PchPhase.OsRun}`,
+    `  sw t0, ${PCH_REG.PHASE}(s0)`,
+    "  li t0, 3",
+    `  sw t0, ${KSLOT.STATE}(a0)`,
+    `  li t0, ${CUR1}`,
+    "  sw a0, 0(t0)",
+    `  li a3, ${DISPLAY_BASE}`,
+    ...status("RUNNING JOB", "a3"),
+    `  li t0, ${rowAddr}`, // clear core 1's output row
+    `  addi t1, t0, ${ROW}`,
+    "kclr1:",
+    "  sw zero, 0(t0)",
+    "  addi t0, t0, 4",
+    "  bne t0, t1, kclr1",
+    `  lw s2, ${KSLOT.LEN}(a0)`,
+    `  lw a1, ${KSLOT.LBA}(a0)`,
+    "  slli s2, s2, 2",
+    `  addi s2, s2, ${BLOCK_BYTES - 1}`,
+    "  srli s2, s2, 8",
+    `  li a2, ${USER_BASE + ARENA1_SHIFT}`, // the program is loaded where core 1's table will map it
+    "kload1:",
+    "  mv a0, s1",
+    "  call blk_read",
+    "  addi a1, a1, 1",
+    `  addi a2, a2, ${BLOCK_BYTES}`,
+    "  addi s2, s2, -1",
+    "  bne s2, zero, kload1",
+    "  call kmap1",
+    "  li t0, 1",
+    `  sw t0, ${C1BUSY}(zero)`,
+    `  lw t1, ${CUR1}(zero)`,
+    `  sw t1, ${MBOX}(zero)`,
+    `  li t0, ${INTC_BASE}`,
+    "  li t1, 2", // core 1
+    `  sw t1, ${INTC_REG.IPI}(t0)`,
+    "  j kloop",
+
+    // ---- the big kernel lock: spin on amoswap (clobbers t0-t2) ----
+    "klock:",
+    `  li t0, ${LOCK}`,
+    "  li t1, 1",
+    "kls:",
+    "  amoswap t2, t1, (t0)",
+    "  bne t2, zero, kls",
+    "  ret",
+    "kunlock:",
+    `  li t0, ${LOCK}`,
+    "  sw zero, 0(t0)",
+    "  ret",
+
+    // ---- core 1: woken by the first IPI (its vector), or by the park instruction returning ----
+    "k2entry:",
+    `  li sp, ${KSTK1}`,
+    `  li s0, ${PCH_BASE}`,
+    `  li t2, ${MMU_BASE}`,
+    `  li t0, ${KERNEL_PAGEFAULT1}`,
+    `  sw t0, ${MMU_REG.VECTOR}(t2)`,
+    `  li t2, ${INTC_BASE}`,
+    "  li t0, 1",
+    `  sw t0, ${INTC_REG.ROW_BASE}(t2)`,
+    "k2idle:",
+    `  li t2, ${INTC_BASE}`,
+    `  li t0, ${1 << IRQ.IPI}`,
+    `  sw t0, ${INTC_REG.ACK}(t2)`,
+    `  lw t1, ${MBOX}(zero)`,
+    "  bne t1, zero, k2run",
+    "  li t0, 1",
+    `  sw t0, ${INTC_REG.PARK}(t2)`,
+    "  j k2idle",
+    "k2run:",
+    `  sw zero, ${MBOX}(zero)`,
+    `  li t2, ${MMU_BASE}`,
+    `  li t0, ${ARENA1}`,
+    `  sw t0, ${MMU_REG.TABLE}(t2)`,
+    "  li t0, 1",
+    `  sw t0, ${MMU_REG.CONTROL}(t2)`,
+    "  li sp, 65536",
+    `  li t0, ${USER_BASE}`,
+    "  jalr ra, t0, 0", // the job ends at the ROM done vector, which lands in kdone
+
+    // ---- core 1's job finished: keep its output row as the result ----
+    "kdone1:",
+    `  li t2, ${MMU_BASE}`,
+    `  sw zero, ${MMU_REG.CONTROL}(t2)`,
+    `  li sp, ${KSTK1}`,
+    `  li s0, ${PCH_BASE}`,
+    `  lw a0, ${CUR1}(zero)`,
+    `  li t0, ${ownRow}`,
+    `  addi t1, a0, ${KSLOT.RESULT}`,
+    `  addi t2, t0, ${PCH_RESULT_WORDS * 4}`,
+    "kres1:",
+    "  lw t3, 0(t0)",
+    "  sw t3, 0(t1)",
+    "  addi t0, t0, 4",
+    "  addi t1, t1, 4",
+    "  bne t0, t2, kres1",
+    "  j kend1",
+
+    // ---- core 1's job touched what it may not ----
+    "kfault1:",
+    `  li t2, ${MMU_BASE}`,
+    `  sw zero, ${MMU_REG.CONTROL}(t2)`,
+    `  li sp, ${KSTK1}`,
+    `  li s0, ${PCH_BASE}`,
+    `  li t0, ${KFAULTS}`,
+    "  li t1, 1",
+    "  amoadd t2, t1, (t0)",
+    `  lw a0, ${CUR1}(zero)`,
+    `  addi t1, a0, ${KSLOT.RESULT}`,
+    `  li t3, ${0x46474553}`, // "SEGF"
+    "  sw t3, 0(t1)",
+    `  li t3, ${0x544c5541}`, // "AULT"
+    "  sw t3, 4(t1)",
+    `  addi t2, t1, ${PCH_RESULT_WORDS * 4}`,
+    "  addi t1, t1, 8",
+    "kfz1:",
+    "  sw zero, 0(t1)",
+    "  addi t1, t1, 4",
+    "  bne t1, t2, kfz1",
+    // falls into kend1
+    "kend1:",
+    "  call klock",
+    "  li t0, 4",
+    `  sw t0, ${KSLOT.STATE}(a0)`,
+    `  sw zero, ${C1BUSY}(zero)`,
+    "  call kunlock",
+    "  j k2idle",
+  ];
+}
+
+/** The kernel's source: `paged` is OS 2, which gives each program an address space (docs/VM.md) instead of guarding the OS with the memory protection unit. */
+export function kernelSource(paged: boolean, pre = false, smp = false): string {
+  const TBL = PAGED_TABLES, KEND = pre ? KDATA_END_PRE : smp ? KDATA_END_SMP : KDATA_END, KEND_PAGE = (KEND + 255) & ~255;
+  return [
+  pre ? "# OS v3 kernel (preemptive: several programs, each in its own address space)" : smp ? "# OS v2 kernel (paged, two cores: one program per core)" : paged ? "# OS v2 kernel (paged: one address space per program)" : "# OS v1 kernel (single-task resident)",
   "k_entry:",
   "  j kmain",
   "k_done_vec:", // KERNEL_DONE = KERNEL_BASE + 4: the ROM epilogue lands here when a job ends
@@ -550,6 +854,7 @@ export function kernelSource(paged: boolean, pre = false): string {
   "k_pf_vec:", // KERNEL_PAGEFAULT = KERNEL_BASE + 12: the MMU sends the CPU here on a page fault
   "  j kpf",
   ...(pre ? ["k_timer_vec:", "  j ktimer"] : []), // KERNEL_TIMER = KERNEL_BASE + 16
+  ...(smp ? ["k_spare_vec:", "  j kfault", "k_sec_vec:", "  j k2entry", "k_pf1_vec:", "  j kpf1"] : []), // + 16 unused, KERNEL_SECONDARY = + 20, KERNEL_PAGEFAULT1 = + 24
   "kmain:",
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
@@ -644,6 +949,20 @@ export function kernelSource(paged: boolean, pre = false): string {
     "  mv t0, t1",
     "knf:",
     `  sw t0, ${NFRAMES}(zero)`,
+    ...(smp ? [
+      // a second core and the RAM for its arena: jobs go to core 1 when it is free
+      `  li t2, ${INTC_BASE}`,
+      `  lw t1, ${INTC_REG.CORES}(t2)`,
+      "  li t2, 2",
+      "  blt t1, t2, ksm",
+      `  li t2, ${SMP_MIN_FRAMES}`,
+      "  blt t0, t2, ksm",
+      "  li t1, 1",
+      `  sw t1, ${SMPON}(zero)`,
+      `  li t1, ${ARENA1_END}`,
+      `  sw t1, ${ARENA_END}(zero)`,
+      "ksm:",
+    ] : []),
     // the MMU sends page faults to kpf
     `  li t2, ${MMU_BASE}`,
     `  li t0, ${KERNEL_PAGEFAULT}`,
@@ -667,6 +986,7 @@ export function kernelSource(paged: boolean, pre = false): string {
   `  li t1, ${PchPhase.OsIdle}`,
   "  beq t0, t1, kpoll",
   ...(pre ? ["  call kcnt", "  li t1, " + PchPhase.OsIdle, "  bne a0, zero, kpoll"] : []), // programs still running: the phase stays "running"
+  ...(smp ? [`  lw t2, ${C1BUSY}(zero)`, "  bne t2, zero, kpoll"] : []), // core 1 still runs a job
   `  sw t1, ${PCH_REG.PHASE}(s0)`,
   `  li a3, ${DISPLAY_BASE}`,
   ...status("OS READY", "a3"),
@@ -725,6 +1045,8 @@ export function kernelSource(paged: boolean, pre = false): string {
   `  lw a1, ${H("PROGRAM_SLOTS")}(s3)`,
   `  bge t3, a1, ${pre ? "kidle" : "kloop"}`, // every program slot is busy (never the case in v1: a job runs to completion)
   "  mv a0, t1",
+  // the multicore OS 2: core 0 stays the kernel core (it can ingest and flash while a job runs), so a job goes to core 1 when that is free
+  ...(smp ? [`  lw t0, ${SMPON}(zero)`, "  beq t0, zero, klocal", `  lw t0, ${C1BUSY}(zero)`, "  bne t0, zero, klocal", "  j kdispatch", "klocal:"] : []),
   ...(pre ? ["  call kstart", "  j kloop"] : []),
   ...(pre ? [] : [
   // ---- start the job in slot a0 ----
@@ -768,6 +1090,7 @@ export function kernelSource(paged: boolean, pre = false): string {
 
   // ---- a job finished: keep its output line as the result ----
   "kdone:",
+  ...(smp ? [`  li t2, ${INTC_BASE}`, `  lw t2, ${INTC_REG.CORE_ID}(t2)`, "  bne t2, zero, kdone1"] : []), // core 1's jobs end here too
   ...(paged ? [`  li t2, ${MMU_BASE}`, `  sw zero, ${MMU_REG.CONTROL}(t2)`] : [`  li t2, ${MPU_BASE}`, `  sw zero, ${MPU_REG.ENABLE}(t2)`]), // back in the kernel: addresses are physical again, the tables are ours
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
@@ -782,19 +1105,20 @@ export function kernelSource(paged: boolean, pre = false): string {
   "  addi t0, t0, 4",
   "  addi t1, t1, 4",
   "  bne t0, t2, kres",
+  ...(smp ? ["  call klock"] : []),
   "  li t0, 4",
   `  sw t0, ${KSLOT.STATE}(a0)`,
+  ...(smp ? ["  call kunlock"] : []),
   "  j kloop",
 
   // ---- a job wrote to protected memory: the OS ends it, its result is the fault text ----
   "kfault:",
+  ...(smp ? [`  li t2, ${INTC_BASE}`, `  lw t2, ${INTC_REG.CORE_ID}(t2)`, "  bne t2, zero, kfault1"] : []),
   ...(paged ? [`  li t2, ${MMU_BASE}`, `  sw zero, ${MMU_REG.CONTROL}(t2)`] : [`  li t2, ${MPU_BASE}`, `  sw zero, ${MPU_REG.ENABLE}(t2)`]),
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
   `  li t0, ${KFAULTS}`,
-  "  lw t1, 0(t0)",
-  "  addi t1, t1, 1",
-  "  sw t1, 0(t0)",
+  ...(smp ? ["  li t1, 1", "  amoadd t2, t1, (t0)"] : ["  lw t1, 0(t0)", "  addi t1, t1, 1", "  sw t1, 0(t0)"]), // both cores count faults
   `  li t0, ${CUR}`,
   "  lw a0, 0(t0)",
   `  addi t1, a0, ${KSLOT.RESULT}`,
@@ -808,8 +1132,10 @@ export function kernelSource(paged: boolean, pre = false): string {
   "  sw zero, 0(t1)",
   "  addi t1, t1, 4",
   "  bne t1, t2, kfz",
+  ...(smp ? ["  call klock"] : []),
   "  li t0, 4",
   `  sw t0, ${KSLOT.STATE}(a0)`,
+  ...(smp ? ["  call kunlock"] : []),
   "  j kloop",
 
   ]),
@@ -938,53 +1264,7 @@ export function kernelSource(paged: boolean, pre = false): string {
     // 0xc0.. the OS (read, run: the job table can be read, never written), and nothing else: the heap (0x4000..0x7fff) and the stack (0xf000..0xffff) are
     // claimed by page faults as the program touches them (kpf). The tables sit at PAGED_TABLES, out of the program's reach.
     "kmap:",
-    `  li t0, ${TBL}`,
-    `  li t1, ${TBL + PAGED_TABLES_BYTES}`,
-    "kmz:",
-    "  sw zero, 0(t0)",
-    "  addi t0, t0, 4",
-    "  bne t0, t1, kmz",
-    `  li t0, ${TBL}`,
-    `  li t1, ${TBL + 0x100 + 1}`,
-    "  sw t1, 0(t0)", // level 1 entry 0: virtual 0x0000..0x3fff
-    `  li t1, ${TBL + 0x200 + 1}`,
-    "  sw t1, 4(t0)", // entry 1: 0x4000..0x7fff, the heap
-    `  li t1, ${TBL + 0x300 + 1}`,
-    "  sw t1, 12(t0)", // entry 3: 0xc000..0xffff, the OS and the stack
-    `  li t0, ${TBL + 0x100}`,
-    "  li t1, 0",
-    `  li t2, ${USER_BASE}`,
-    "kmr:", // the ROM: identity, read and run
-    "  addi t3, t1, 5",
-    "  sw t3, 0(t0)",
-    "  addi t0, t0, 4",
-    "  addi t1, t1, 256",
-    "  bne t1, t2, kmr",
-    `  li t4, ${CUR}`,
-    "  lw t4, 0(t4)",
-    `  lw t4, ${KSLOT.LEN}(t4)`,
-    "  slli t4, t4, 2",
-    "  addi t4, t4, 255",
-    "  srli t4, t4, 8", // the program's pages
-    "kmi:", // its image: read, write, run
-    `  addi t3, t1, ${PAGED_SHIFT + 7}`,
-    "  sw t3, 0(t0)",
-    "  addi t0, t0, 4",
-    "  addi t1, t1, 256",
-    "  addi t4, t4, -1",
-    "  bne t4, zero, kmi",
-    `  li t0, ${TBL + 0x300}`,
-    "  li t1, 49152",
-    `  li t2, ${KEND_PAGE}`,
-    "kmk:", // the OS: identity, read and run
-    "  addi t3, t1, 5",
-    "  sw t3, 0(t0)",
-    "  addi t0, t0, 4",
-    "  addi t1, t1, 256",
-    "  bne t1, t2, kmk",
-    `  li t0, ${BUMP}`,
-    `  li t1, ${PAGED_HEAP >> 8}`,
-    "  sw t1, 0(t0)", // the first frame for the program's own memory
+    ...mapTables("", TBL, PAGED_SHIFT, CUR, BUMP, PAGED_HEAP >> 8, KEND_PAGE),
     `  li t2, ${MMU_BASE}`,
     `  li t1, ${TBL}`,
     `  sw t1, ${MMU_REG.TABLE}(t2)`,
@@ -997,57 +1277,8 @@ export function kernelSource(paged: boolean, pre = false): string {
     // table first where that part of the space has none. The bump pointer runs over the frames between the program and the tables, then over everything from
     // 0x10000 up. Anything else (a page the program has no business with, a write to the OS, memory running out) ends the program like a protection fault.
     // The handler runs untranslated and gives the program its registers back, so the faulting instruction simply runs again.
-    "kpf:",
-    `  sw t0, ${PFS}(zero)`,
-    `  sw t1, ${PFS + 4}(zero)`,
-    `  sw t2, ${PFS + 8}(zero)`,
-    `  sw t3, ${PFS + 12}(zero)`,
-    `  sw t4, ${PFS + 16}(zero)`,
-    `  li t0, ${MMU_BASE}`,
-    `  lw t1, ${MMU_REG.FAULT_CAUSE}(t0)`,
-    "  li t2, 1",
-    "  bne t1, t2, kpkill", // only a missing page can be fixed
-    `  lw t1, ${MMU_REG.FAULT_ADDR}(t0)`,
-    "  srli t1, t1, 8", // the page number
-    "  li t2, 64",
-    "  blt t1, t2, kpkill",
-    "  li t2, 128",
-    "  blt t1, t2, kpok", // 0x40..0x7f: the heap
-    "  li t2, 240",
-    "  blt t1, t2, kpkill",
-    "  li t2, 256",
-    "  blt t1, t2, kpok", // 0xf0..0xff: the stack
-    `  li t2, ${MAX_FRAMES}`,
-    "  bge t1, t2, kpkill", // 0x100..0xfff: the big heap
-    "kpok:",
-    `  li t0, ${TBL}`,
-    "  srli t2, t1, 6",
-    "  slli t2, t2, 2",
-    "  add t0, t0, t2", // this page's entry in the level 1 table
-    "  lw t2, 0(t0)",
-    "  andi t2, t2, 1",
-    "  bne t2, zero, kphave",
-    ...bump2("a"), // a frame for the level 2 table, in t2
-    "  slli t3, t2, 8",
-    "  addi t4, t3, 1",
-    "  sw t4, 0(t0)",
-    "kphave:",
-    "  lw t0, 0(t0)",
-    "  srli t0, t0, 8",
-    "  slli t0, t0, 8",
-    "  andi t2, t1, 63",
-    "  slli t2, t2, 2",
-    "  add t0, t0, t2", // the page's entry in its level 2 table
-    ...bump2("b"), // the page's frame, in t2
-    "  slli t3, t2, 8",
-    "  addi t3, t3, 3", // the frame, valid and writable
-    "  sw t3, 0(t0)",
-    `  lw t0, ${PFS}(zero)`,
-    `  lw t1, ${PFS + 4}(zero)`,
-    `  lw t2, ${PFS + 8}(zero)`,
-    `  lw t3, ${PFS + 12}(zero)`,
-    `  lw t4, ${PFS + 16}(zero)`,
-    "  iret",
+    ...pageFault("", TBL, PFS, (t) => bump2(t, smp)),
+    ...(smp ? secondary(KEND_PAGE) : []),
     "kpkill:",
     "  j kfault",
   ] : ["kpf:", "  j kfault"]), // OS 1 has no MMU to fault
@@ -1061,23 +1292,28 @@ export function kernelSource(paged: boolean, pre = false): string {
 export const KERNEL_SOURCE = kernelSource(false);
 export const KERNEL_SOURCE_PAGED = kernelSource(true);
 export const KERNEL_SOURCE_PRE = kernelSource(true, true);
+export const KERNEL_SOURCE_SMP = kernelSource(true, false, true);
 const assembled = assemble(KERNEL_SOURCE);
 const assembledPaged = assemble(KERNEL_SOURCE_PAGED);
 const assembledPre = assemble(KERNEL_SOURCE_PRE);
+const assembledSmp = assemble(KERNEL_SOURCE_SMP);
 /** The kernel image (words); its first word is at KERNEL_BASE. */
 export const KERNEL_IMAGE: Uint32Array = assembled.program;
 export const KERNEL_IMAGE_PAGED: Uint32Array = assembledPaged.program;
 export const KERNEL_IMAGE_PRE: Uint32Array = assembledPre.program;
+/** The OS 2 kernel for a multicore CPU: the paged kernel plus core 1's part. */
+export const KERNEL_IMAGE_SMP: Uint32Array = assembledSmp.program;
 export const KERNEL_SYMBOLS: ReadonlyMap<string, number> = assembled.symbols;
 /** The kernel an OS tier boots: OS 1 guards itself with the protection unit, OS 2 and up are paged. */
-export const kernelImageFor = (tier: number): Uint32Array => (tier >= 3 ? KERNEL_IMAGE_PRE : tier >= 2 ? KERNEL_IMAGE_PAGED : KERNEL_IMAGE);
+export const kernelImageFor = (tier: number, smp = false): Uint32Array => (tier >= 3 ? KERNEL_IMAGE_PRE : smp && tier === 2 ? KERNEL_IMAGE_SMP : tier >= 2 ? KERNEL_IMAGE_PAGED : KERNEL_IMAGE);
 
 if (KERNEL_SYMBOLS.get("k_done_vec") !== 4) throw new Error("kernel: k_done_vec must be at KERNEL_BASE + 4");
 if (KERNEL_SYMBOLS.get("k_fault_vec") !== 8) throw new Error("kernel: k_fault_vec must be at KERNEL_BASE + 8");
 for (const [name, a] of [["", assembled], ["paged ", assembledPaged], ["preemptive ", assembledPre]] as const) if (a.symbols.get("k_pf_vec") !== 12) throw new Error(`${name}kernel: k_pf_vec must be at KERNEL_BASE + 12`);
+if (assembledSmp.symbols.get("k_sec_vec") !== KERNEL_SECONDARY - KERNEL_BASE || assembledSmp.symbols.get("k_pf1_vec") !== KERNEL_PAGEFAULT1 - KERNEL_BASE) throw new Error("kernel: the second core's vectors are at KERNEL_BASE + 20 and + 24");
 if (assembledPre.symbols.get("k_timer_vec") !== 16) throw new Error("kernel: k_timer_vec must be at KERNEL_BASE + 16");
 if (KERNEL_BASE !== OS_HEADER_BASE + BLOCK_BYTES) throw new Error("kernel must follow the header block");
-if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length) * 4 > KD) throw new Error("kernel overlaps its data");
+if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length, KERNEL_IMAGE_SMP.length) * 4 > KD) throw new Error("kernel overlaps its data");
 
 export interface BootParams {
   /** Jobs the queue may hold (already bounded by the OS tier and the disk space). */
@@ -1088,16 +1324,18 @@ export interface BootParams {
   spoolLba: number;
   spoolBlocks: number;
   tier: number;
+  /** The OS 2 image for a multicore CPU (core 1 runs jobs too). */
+  smp?: boolean;
 }
 
 /** Blocks the boot image of an OS tier takes: the header block plus the kernel. */
-export const bootBlocksFor = (tier: number): number => 1 + Math.ceil((kernelImageFor(tier).length * 4) / BLOCK_BYTES);
+export const bootBlocksFor = (tier: number, smp = false): number => 1 + Math.ceil((kernelImageFor(tier, smp).length * 4) / BLOCK_BYTES);
 /** Blocks the OS 1 boot image takes. */
 export const BOOT_BLOCKS = bootBlocksFor(1);
 
 /** The boot area of the disk: block 0 is the header, then the kernel image (padded to whole blocks). */
 export function bootImage(p: BootParams): Uint8Array {
-  const image = kernelImageFor(p.tier), blocks = bootBlocksFor(p.tier);
+  const image = kernelImageFor(p.tier, p.smp), blocks = bootBlocksFor(p.tier, p.smp);
   const out = new Uint8Array(blocks * BLOCK_BYTES);
   const w = new DataView(out.buffer);
   const header: Record<keyof typeof OS_HEADER, number> = {

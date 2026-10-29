@@ -16,6 +16,7 @@ The CPUs form a **tree**, not a line (owner 2026-10-27). The trunk is the three 
 | 1 | cpu1 5-stage, no forwarding | `inorder` | | 1 | $200 |
 | 2 | cpu2 5-stage + forwarding | `inorder`, D$ 16 | | 6 | $800 |
 | 3 | cpu3 2-wide in-order | `inorder2` | generalist: crunching | 8 | $2,400 |
+| 3 | cpu2d dual core (two cores, shared L2) | `inorder` D$ 16, L2 32, `cores` 2 | on cores (several programs at once) | 9 | $2,000 |
 | 3 | cpu2f front end | `inorder` + I$ 8, 2-bit predictor 128 | branchy code | 9 | $1,500 |
 | 3 | cpu2m memory | `inorder` + D$ 32 2-way, L2 32 | big data | 9 | $1,500 |
 | 4 | cpu4 out of order, ROB 8 | `ooo` | generalist | 11 | $6,000 |

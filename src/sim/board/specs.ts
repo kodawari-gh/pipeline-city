@@ -56,10 +56,12 @@ export interface CpuSpec extends SpecBase {
   engine: EngineConfig;
   /** The part this one builds on in the CPU tree (docs/TECHTREE.md); absent for the trunk and the generalists after it. */
   after?: string;
-  /** The way a specialist leans: `frontend` (instruction cache, better predictor: branchy code), `memory` (bigger and associative data cache, L2: big data), `wide` (everything big). */
-  branch?: "frontend" | "memory" | "wide";
+  /** The way a specialist leans: `frontend` (instruction cache, better predictor: branchy code), `memory` (bigger and associative data cache, L2: big data), `wide` (everything big), `multicore` (several cores on one die: more programs at once). */
+  branch?: "frontend" | "memory" | "wide" | "multicore";
   /** The memory controller (docs/RAM.md): how many sticks it drives in parallel (channels) and what it does with a row after an access. Default 1 channel, open page. */
   memory?: { channels: number; policy: "open" | "closed" | "adaptive" };
+  /** Hardware cores, all running `engine` and sharing the L2 and memory controller (docs/MULTICORE.md). Absent: one. */
+  cores?: number;
   /** The memory management unit (docs/VM.md): the TLB entries it has. Absent: no MMU, programs only ever see physical memory and the paged OS will not run. */
   mmu?: { tlb: number };
 }
@@ -182,6 +184,10 @@ const specList: DeviceSpec[] = [
   { id: "cpu3", kind: "cpu", tier: 3, name: "Tiny-5F2 (2-wide in-order)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 8 }, price: 2400, idleW: 5, loadW: 50, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder2", forwarding: true, cacheLines: 16, redirectPenalty: 2 } },
+  // The consumer dual core (owner 2026-10-29, docs/MULTICORE.md): two `cpu2` cores on one shared 32-line L2. Placeholder price, power and art. 70 W is the whole chip with both cores busy.
+  { id: "cpu2d", kind: "cpu", tier: 3, name: "Tiny-5F x2 (dual core)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, price: 2000, idleW: 5, loadW: 70, heatFactor: 1, after: "cpu2", branch: "multicore",
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 32, redirectPenalty: 2 } },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
   { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",

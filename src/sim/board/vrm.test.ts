@@ -74,8 +74,8 @@ describe("board tier ladder", () => {
 
 describe("VRM under normal use", () => {
   it("a stock CPU never throttles, destabilises or burns the VRM on its tier's board or any better one", () => {
-    const minTier: Record<string, number> = { cpu0: 0, cpu1: 0, cpu2: 2 };
-    for (const cpu of ["cpu0", "cpu1", "cpu2"]) {
+    const minTier: Record<string, number> = { cpu0: 0, cpu1: 0, cpu2: 2, cpu2d: 3 };
+    for (const cpu of ["cpu0", "cpu1", "cpu2", "cpu2d"]) {
       for (let tier = minTier[cpu]!; tier < 4; tier++) {
         const r = run(rig(tier, cpu), 600);
         const label = `${cpu} on tier ${tier}`;
@@ -85,6 +85,18 @@ describe("VRM under normal use", () => {
         expect(r.burnAt, label).toBe(-1);
       }
     }
+  });
+
+  it("the dual core draws by the cores that run: both busy needs the Enthusiast board, one core fits the Mainstream one", () => {
+    const both = run(rig(3, "cpu2d"), 600);
+    expect(both.maxRatio).toBeGreaterThan(0.5);
+    expect(both.maxRatio).toBeLessThan(0.65); // about 0.58 of the 120 A
+    const lesson = run(rig(2, "cpu2d"), 600, 1);
+    expect(lesson.maxRatio).toBeGreaterThan(1); // the Mainstream board cannot feed both cores (the lesson: buy the board first)
+    expect(lesson.unstableAt).toBeGreaterThanOrEqual(0);
+    const one = run(rig(2, "cpu2d"), 600, 0.5); // one of two cores busy, as under a single-job OS
+    expect(one.maxRatio).toBeLessThan(1);
+    expect(one.unstableAt).toBe(-1);
   });
 
   it("idle stays cool, with a small loss", () => {

@@ -11,6 +11,8 @@ export interface Engine {
   reset(machine: Machine, program: Uint32Array, core?: Core): void;
   /** Use an L2 and DRAM shared with the other cores instead of the engine's own (before `reset`; its owner resets it). Optional. */
   useMemSystem?(mem: MemSystem): void;
+  /** The L2 and DRAM behind this engine's caches (what the other cores of a multicore CPU are given). Optional. */
+  readonly memSystem?: MemSystem;
   /** Advance one CPU cycle. No-op once halted. */
   step(): void;
   readonly halted: boolean;

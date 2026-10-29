@@ -1,5 +1,5 @@
 import { REG_SP } from "../isa/isa";
-import { KERNEL_FAULT, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "../isa/memmap";
+import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "../isa/memmap";
 import type { MemSystem } from "../engines/memsys";
 import { Bus } from "./bus";
 import { ClockScheduler, type Rate } from "./clock";
@@ -30,6 +30,7 @@ export interface MachineConfig {
  */
 export class Machine {
   readonly ram: Uint8Array;
+  /** The cores; `setCores` grows or shrinks the list in place. */
   readonly cores: Core[];
   /** What the cores' interrupt controllers share: IPIs and the device-line routes. */
   readonly hub: IntcHub;
@@ -38,8 +39,8 @@ export class Machine {
   readonly prng: Prng;
   readonly display: Display;
   readonly status: RamDevice;
-  /** The L2 and DRAM the cores share, if the machine was given one. */
-  readonly mem: MemSystem | null;
+  /** The L2 and DRAM the cores share, if the machine was given one (the game gives a multicore CPU's before `attach`). */
+  mem: MemSystem | null;
   /** Core 0's register file. */
   readonly regs: Core["regs"];
   /** Interrupt controller, always on the bus at INTC_BASE (banked per core on a multicore machine). */
@@ -72,15 +73,62 @@ export class Machine {
     this.addDevice(this.display);
     this.addDevice(this.status);
     // The per-core devices sit at the same addresses for every core; with several cores a banked device answers for the core the bus is serving.
-    const per = <T extends Device>(pick: (c: Core) => T): Device => (n === 1 ? pick(c0) : new BankedDevice(pick(c0).name, this.cores.map(pick), this.bus));
-    this.addDevice(per((c) => c.intc));
-    this.addDevice(per((c) => c.mpu));
-    this.addDevice(per((c) => c.timer));
+    this.perCore = ([(c) => c.intc, (c) => c.mpu, (c) => c.timer, (c) => c.mmu] as ((c: Core) => Device)[]).map((pick) => ({ pick, dev: this.deviceFor(pick) }));
     for (const c of this.cores) c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0); // Ev.Space
-    this.addDevice(per((c) => c.mmu));
+    for (const e of this.perCore) this.addDevice(e.dev);
     this.bus.mpu = this.mpu;
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
+  }
+
+  private readonly perCore: { pick: (c: Core) => Device; dev: Device }[];
+
+  /** The bus device for one per-core unit: the unit itself on a single core, else a banked device that answers for the core being served. */
+  private deviceFor(pick: (c: Core) => Device): Device {
+    const n = this.cores.length;
+    return n === 1 ? pick(this.cores[0]!) : new BankedDevice(pick(this.cores[0]!).name, this.cores.map(pick), this.bus);
+  }
+
+  /**
+   * Make the machine have `n` cores (the game calls this when the CPU is swapped; no engines are attached to new cores yet). Core 0 and its devices
+   * stay; the per-core devices on the bus are swapped for banked ones (or back for a single core), and a shared L2 is switched on for more than one.
+   */
+  setCores(n: number): void {
+    if (!Number.isInteger(n) || n < 1) throw new RangeError("a machine needs at least one core");
+    if (n !== this.cores.length) {
+      while (this.cores.length < n) {
+        const c = new Core(this.cores.length, this.ram, this.hub);
+        c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0);
+        this.cores.push(c);
+      }
+      while (this.cores.length > n) this.cores.pop();
+      this.hub.banks.length = n;
+      for (const e of this.perCore) {
+        const at = this.bus.devices.indexOf(e.dev);
+        e.dev = this.deviceFor(e.pick);
+        this.bus.devices[at] = e.dev;
+      }
+    }
+    if (this.mem) this.mem.shared = n > 1;
+  }
+
+  /** Cores that are running something: an engine that has not halted and is not parked (the power model's busy cores). */
+  busyCores(): number {
+    let n = 0;
+    for (const c of this.cores) if (c.engine && !c.engine.halted && !c.intc.parked) n++;
+    return n;
+  }
+
+  /**
+   * Put core `k` in the state a secondary core powers on in: parked, interrupts on, only the IPI line unmasked and its vector at `vector`. The first IPI
+   * sends it to `vector` (as a reset vector would); the kernel's secondary entry sets the core up from there. Call after `attachCore`.
+   */
+  parkCore(k: number, vector: number): void {
+    const intc = this.cores[k]!.intc;
+    intc.vector = vector >>> 0;
+    intc.mask = (1 << IRQ.IPI) >>> 0;
+    intc.ie = true;
+    intc.parked = true;
   }
 
   /** A device raises `line`: the core its ROUTE register names takes it (core 0 by default). */
