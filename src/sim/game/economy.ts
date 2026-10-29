@@ -213,6 +213,17 @@ export function payout(cfg: EconomyConfig, work: number, turnaround: number, lat
   return Math.round((cfg.payBase + cfg.payPerInstr * work) * speed * (late ? cfg.lateFactor : 1) * levelPay);
 }
 
+/**
+ * The pay factor of a job with a latency SLA (docs/NETWORK.md "Web jobs"): 1 when delivered within `slaTicks` of arrival,
+ * falling in a straight line to `lateFactor` at the deadline and staying there after it. It replaces the late factor of
+ * `payout` for such a job (pass `late = false` there), so the pay is continuous across the deadline.
+ */
+export function slaFactor(cfg: EconomyConfig, turnaround: number, slaTicks: number, deadlineTicks: number): number {
+  if (turnaround <= slaTicks) return 1;
+  if (turnaround >= deadlineTicks || deadlineTicks <= slaTicks) return cfg.lateFactor;
+  return 1 - (1 - cfg.lateFactor) * ((turnaround - slaTicks) / (deadlineTicks - slaTicks));
+}
+
 /** Pick a template from the test-override mix that the installed RAM allows. */
 export function pickTemplate(mix: MixEntry[], ramBytes: number, r: number, tick = Infinity): MixEntry {
   const ok = mix.filter((m) => m.minRamBytes <= ramBytes);

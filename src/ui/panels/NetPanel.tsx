@@ -32,20 +32,26 @@ export function NetPanel() {
             </div>
           ))}
         </div>
+        {m.uploadLimit && <div class="kv" title="The slowest piece on the way out. Web jobs are paid for how fast the answer goes back."><span>upload</span><b class="limit">{m.uploadLimit}</b></div>}
         {m.advice && <div class="mute sub">{m.advice}</div>}
       </section>
       <section>
         <h3>Flow <span class="mute">({m.delivered} delivered)</span></h3>
         <div class="net-stages">
           {m.stages.map((g) => <span key={g.id} class="chip idle">{g.label} <b>{g.count}</b></span>)}
+          {m.uploadsWaiting > 0 && (
+            <span class="chip warn" title="Finished results are waiting for a free client slot. A router and plan with more clients send them sooner.">
+              Waiting for a slot <b>{m.uploadsWaiting}</b>
+            </span>
+          )}
         </div>
       </section>
       {m.offers.length > 0 && (
         <section>
           <h3>Offers</h3>
           {m.offers.map((o) => (
-            <div class="kv" key={o.key.id} title={`${o.type} job. The client leaves in ${fmtTicks(o.left)}.`}>
-              <span>{o.label}{o.retired && <span class="chip idle"> retired</span>}</span>
+            <div class="kv" key={o.key.id} title={`${o.type} job. The client leaves in ${fmtTicks(o.left)}.${o.sla ? ' A web client pays in full only if the answer is back in time.' : ''}`}>
+              <span>{o.label}{o.retired && <span class="chip idle"> retired</span>}{o.sla && <span class={`sla ${o.sla.over ? 'warn' : ''}`}> {o.sla.text}</span>}</span>
               <b class={o.late ? 'warn' : ''}>{offerPay(o)}</b>
             </div>
           ))}

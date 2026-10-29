@@ -1,6 +1,6 @@
 # Network phase: NIC, router, cable, ISP and the network work source
 
-Status: **sim built** (see "Built" below; the renderer and UI are not built). **The next version of the network (interrupt-driven NIC, DMA, a simplified TCP with packet loss and retries) is designed in [`NETSTACK.md`](NETSTACK.md), which will replace the feed and the transfer counters described here; the rest (arrival channels, USB fallback, spool, power loss, save) stays.** It was built after the level system ([`PROGRESSION.md`](PROGRESSION.md)); the unlock levels below are the ones of that document. All numbers are placeholders. Owner decisions are marked **(owner)**. Background: [`TECHTREE.md`](TECHTREE.md) (notes "Network phase design notes"), [`OS.md`](OS.md) (the kernel and the key ingest this replaces), [`ASSEMBLY.md`](ASSEMBLY.md) (cables, power, `WorkSource` in `src/sim/game/work.ts`), [`BOARD.md`](BOARD.md) / [`VRM.md`](VRM.md) (`BoardFeatures.ethernetMbps`: 0 on Starter, 100 on Basic and Mainstream, 1000 on Enthusiast).
+Status: **sim built** (see "Built" below; the web jobs' SLA, client slots and panel lines are built, see "Web jobs"). **The next version of the network (interrupt-driven NIC, DMA, a simplified TCP with packet loss and retries) is designed in [`NETSTACK.md`](NETSTACK.md), which will replace the feed and the transfer counters described here; the rest (arrival channels, USB fallback, spool, power loss, save) stays.** It was built after the level system ([`PROGRESSION.md`](PROGRESSION.md)); the unlock levels below are the ones of that document. All numbers are placeholders. Owner decisions are marked **(owner)**. Background: [`TECHTREE.md`](TECHTREE.md) (notes "Network phase design notes"), [`OS.md`](OS.md) (the kernel and the key ingest this replaces), [`ASSEMBLY.md`](ASSEMBLY.md) (cables, power, `WorkSource` in `src/sim/game/work.ts`), [`BOARD.md`](BOARD.md) / [`VRM.md`](VRM.md) (`BoardFeatures.ethernetMbps`: 0 on Starter, 100 on Basic and Mainstream, 1000 on Enthusiast).
 
 ## Decisions (2026-10-24)
 
@@ -331,54 +331,51 @@ Hints (first occurrence): link `down` after a power-off (and that the spooled jo
 9. Save: v4 loads into v5 with defaults; round trip of router, plan, lan and `networkLinked`; offers and transfers are not saved; determinism with the same seed.
 10. Protocol and store: `connectCable("lan", port)` and `disconnectCable("lan")` while on; `purchase("isp2")` and `purchase("router2")` apply immediately and respect level and money; the snapshot's `net` block matches the game state; an operator bot test that sets up the network and compares the income and reputation with and without it.
 
-## Web jobs (design note, 2026-10-24)
+## Web jobs (built 2026-10-29)
 
-Status: **designed, not built.** Owner decision 2026-10-24: `web` jobs first, then the build. Today `web` is a placeholder class in `src/sim/game/levels.ts` (template `cli.calc` at scale 2, `payMul` 2, needs `net`, from level 4, `placeholder: true`) with sizes 4 MB down and 25 MB up (`src/sim/net/specs.ts`). It already arrives as an offer only (never on a key), has no share without a plan or in fallback, and waits (and expires) until the link is up. This note makes it a job of its own: a small request whose cost is the **upload**, paid for **latency**. All numbers are placeholders.
+Web is the upload-heavy class: a small request whose cost is the **answer going back**, paid for **latency**. It sends eight kinds (`web.page`, `api`, `dns`, `form`, `search`, `upload`, `image`, `video`; sizes in `WEB_SIZES`, docs/JOBS.md). All numbers are placeholders.
 
-### 1. What a web job needs from the network
+### What a web job needs from the network
 
-- **Link:** the `net` need, as now: the offer is runnable only while the state is `link-up` or `saturated`. A web job never comes on a key, so a dead link means web offers age and expire; in fallback no new ones come (as now).
-- **Bandwidth:** the only upload-heavy class. Down 4 MB is under a second on any line; up 25 MB is the cost: 20 s alone on `isp1` (10 Mbit up), 4 s on `isp2` (50), under 1 s on `isp3` (300). Two uploads on `isp1` take 40 s each. So for web, `upMbps` is the binding limiter and the ISP plan (its upload column) is the upgrade it teaches. The port and the disk sink never bind for web (the download is tiny).
-- **Router:** proposed change: `clients` caps **active transfers of both directions** (today it gates downloads only). Web results then queue for a client slot like downloads do, so `router1` (2 clients) is felt at level 4 to 6 and `router2` (4) is the cure at level 7. Without the change the router never matters for web. **(owner: accept the change, or keep `clients` on downloads only.)**
-- **Plan:** a plan is required (as now: no plan, no web share). The plan tier sets how many web jobs can be on time (see "Pays" below): `isp1` is enough for one web job at a time on time, `isp2` for the level-6 mix.
+- **Link:** the `net` need (a kind may ask for a faster plan). A web job never comes on a key: a dead link means web offers age and expire, and in the USB fallback no new ones come. No plan, no web share.
+- **Bandwidth:** `upMbps` is the limiter that teaches the plan's upload column: the answer of a `page` is 25 MB, 20 s alone on `isp1` (10 Mbit up), 4 s on `isp2`. The port and the drive never bind a web job. The panel names the leg (`limited by: isp (upload)`, `uploadLimiter` in `netui.ts`).
+- **Client slots:** the router's and plan's `clients` (the smaller) cap **active transfers of both directions**. A finished result takes a free slot before a new download does, in the order the results were read out; until then it waits (`NetSnap.uploadsWaiting`, a chip in the panel) and the job's slot in the spool stays taken. A wait costs nothing but time: the SLA clock keeps running. `router1` (2 clients) is felt from level 4; `router2` (4) is the cure at level 7 (the plan caps it too: `isp1` has 2).
+- **Order:** admission takes the offer in the **oldest age band** (`NET.ageBandTicks`, 60 ticks of age per band); inside a band a **web offer goes first**, then the oldest. An older band always goes first, so nothing starves. The kernel queue stays FIFO (`pickOffer` in `net/source.ts`).
 
-### 2. How it runs and pays
+### How it pays (latency SLA)
 
-- **Program:** a new generator template `web.serve` (`src/sim/gen/templates.ts`, `GEN.md` "Adding a template") replaces `cli.calc` for the class: parse the request line out of the job's data (byte loads, compare loop), hash the path into a small route table in RAM (memory-bound lookup), fill a response template (memcpy-like loop), write a status line to the monitor (`GET /shop 200`, real text by stores). About half the instructions of `cli.calc` at the same scale, so on a level-4 machine the run is short and the upload is the long part. It runs on the OS like any job (virtual key, kernel ingest, one program at a time); the kernel is not changed.
-- **Flow:** unchanged from "The flow of a job": offer, admission, download, spool, run, upload, delivery. The result is the 25 MB response.
-- **Pays (latency SLA):** a web job has an `slaTicks` (proposed 120 at 1x, scaled by the level's patience like the deadline). Delivered within `slaTicks` of arrival: full pay (`payMul` 2 as now). After it: the pay falls linearly to 50% at the deadline. Paid at delivery, as every network job; reputation and client base as now (turnaround is arrival to upload end). The offer tile shows the SLA countdown and the current estimate (`payoutEstimate` already exists, it now decays).
-- **Order:** proposed: admission takes **web offers before other offers** of the same age band (they are short and latency-paid), and the kernel queue stays FIFO. **(owner: accept, or keep strict oldest-first.)**
+`JobClassDef.slaTicks` (web: **120** at 1x, scaled by the level's patience like the deadline, so 288 ticks at level 4). Delivered within the SLA of arrival: full pay. After it the pay falls in a straight line to the late factor (50%) at the deadline and stays there (`slaFactor` beside `payout` in `economy.ts`). It **replaces** the late factor for such a job (no double penalty), so the pay is continuous across the deadline. Paid at delivery like every network job; reputation and the client base by turnaround as before. No fine: the SLA is a pay curve. `KeySnap.slaTick` (arrival plus the SLA, web only) and the decaying `payoutEstimate` feed the offer rows (`slaModel`: `full pay for 1m 00s`, then `pay is falling`).
 
-### 3. How it fails
+### How it fails
 
 | Failure | Cause | Effect |
 |---|---|---|
-| Never admitted | no link, spool full, no client slot | the offer ages, past its deadline it expires with the normal penalty (as now) |
-| Late | slow upload (plan), shared upload, slow CPU, long job ahead in the queue | delivered with reduced pay (SLA), reputation by turnaround as usual |
-| Lost result | power loss, crash, cable pulled during upload | the job is spooled, so it runs again and re-uploads (as now, "Power loss"); the SLA clock keeps running from arrival |
-| Lost download | power loss during the 4 MB download | the offer returns with `attempts + 1` (as now) |
-| Upload stall | NIC unstable (drops frames) | the upload stalls on the retry timer and slips past the SLA |
+| Never admitted | no link, spool full, no client slot | the offer ages; past its deadline it expires with the normal penalty |
+| Late | slow upload (plan), shared upload, a result waiting for a slot, slow CPU, a long job ahead | delivered with reduced pay (SLA), reputation by turnaround as usual |
+| Lost result | power loss, crash, cable pulled during the upload or the wait | the job is spooled, so it runs again and re-uploads; the SLA clock keeps running from arrival |
+| Lost download | power loss during the download | the offer returns with `attempts + 1` |
 | Declined | the player declines a waiting web offer | normal decline cost (one third of an expiry) |
 
-No new failure state and no new penalty: the SLA is a pay curve, not a fine.
+### Measured (2026-10-29)
 
-### 4. Sim hooks
+Rig: Mainstream board, `cpu2`, SATA SSD, `os1`, `ram2` (96K), level 4 to 7 start, demand 0.03 per tick, the level's real job mix, 6 seeds of 4,000 ticks each. `router1` and `router2` differ only with `isp2` (`clients` is the smaller of the two, `isp1` has 2). SLA 120. *Web* is web jobs delivered; *turn* the mean turnaround in ticks; *on time* the share inside the SLA; *yield* the share of the full pay that was paid; *$/ktick* the web pay per 1,000 ticks.
 
-- `levels.ts`: the `web` class row takes `template: "web.serve"`, drops `placeholder`, gains `slaTicks`. The mix shares are unchanged.
-- `gen/templates.ts`: the `web.serve` template and its generator tests (determinism per seed, runs on the reference interpreter, monitor text).
-- `net/source.ts` and `game.ts` ("internals: the network"): `clients` gating uploads (if accepted), web-first admission (if accepted), the SLA pay at delivery (one function beside the payout, unit-tested alone).
-- `net/specs.ts`: sizes stay (4 / 25); a `NET.webSlaTicks` constant if the SLA is not per class.
-- Snapshot (additive): `KeySnap.slaTick` (optional, web only) and the decaying `payoutEstimate`; `NetSnap.uploadsWaiting` (results waiting for a client slot) if the gating change is accepted. Save: nothing new (the SLA is derived from the arrival tick and the class).
-- Bot measurement: the level-4 to 7 rig of "Pacing" with web at its share, `isp1` vs `isp2`, `router1` vs `router2`, to set `slaTicks` so that `isp2` visibly pays.
+| Level | Plan / router | Web | Turn | On time | Yield | $/ktick |
+|---|---|---|---|---|---|---|
+| 4 | `isp1` / any | 122 | 122 | 88% | 97% | 6,253 |
+| 4 | `isp2` / `router1` | 157 | 121 | 86% | 97% | 8,084 |
+| 4 | `isp2` / `router2` | 154 | 106 | 87% | 97% | 9,212 |
+| 5 | `isp1` / any | 74 | 163 | 78% | 94% | 3,313 |
+| 5 | `isp2` / `router1` | 109 | 148 | 73% | 94% | 5,612 |
+| 5 | `isp2` / `router2` | 112 | 104 | 91% | 99% | 8,037 |
+| 6 | `isp1` / any | 50 | 238 | 36% | 83% | 2,188 |
+| 6 | `isp2` / `router1` | 91 | 153 | 75% | 93% | 4,701 |
+| 6 | `isp2` / `router2` | 92 | 167 | 66% | 91% | 5,565 |
+| 7 | `isp1` / any | 58 | 209 | 41% | 83% | 2,357 |
+| 7 | `isp2` / `router1` | 116 | 175 | 51% | 85% | 6,502 |
+| 7 | `isp2` / `router2` | 113 | 162 | 60% | 89% | 7,843 |
 
-### Proposed task split (after the owner reads this note; T50 stays open for them)
-
-1. **W1 [auto] Template `web.serve`**: generator template plus tests. Files: `src/sim/gen/`. No game change.
-2. **W2 [auto] Web class goes live**: switch the class to `web.serve`, drop `placeholder`, the SLA pay curve at delivery, `KeySnap.slaTick` and the decaying estimate, tests in `net.test.ts`. Files: `src/sim/game/levels.ts`, `game.ts`, `protocol.ts`, tests.
-3. **W3 [auto] Router clients gate uploads** (only if the owner accepts): `clients` counts both directions, `uploadsWaiting`, tests. Files: `src/sim/net/`, `game.ts`.
-4. **W4 [auto] Web-first admission** (only if accepted): one ordering rule in the offer admission, test.
-5. **W5 [auto] Pacing measurement**: the bot rig above, set `slaTicks`, record the numbers in this document and `PROGRESSION.md`.
-6. **W6 [auto] UI**: SLA countdown and estimate on the web offer tile, `limited by: isp (upload)` in the net panel, uploads waiting chip. Depends on the net panel task.
+`isp2` pays visibly more at every level (more web jobs delivered, and a better yield from level 5), and `router2` adds 14 to 43% on top of it. The SLA's own share of that is the yield column: small at level 4 (the CPU, not the line, sets the time), 5 to 8 points from level 5. A sweep of `slaTicks` from 45 to 120 left the yield gap between `isp1` and `isp2` / `router2` unchanged (level 4: 0 to 1 points, 5: 5 to 7, 6: 7 to 8, 7: 6) and only 120 keeps `isp2` / `router2` on time at 60% or more at every level (at 45 it is 60, 54, 21 and 19%), so **120 stays**. No other balance number changed.
 
 ## Decided (2026-10-24)
 

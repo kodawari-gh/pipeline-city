@@ -408,3 +408,7 @@ Owner decisions are at the top. Every other proposal is accepted as written: **d
 ## Pacing update (2026-10-24)
 
 Client-base thresholds for the early levels were lowered so the network is reached much sooner: level 2 at 3, level 3 at 6, level 4 at 9, level 5 at 40 (it was 4, 12, 14, 70). Level 6 and above are unchanged and need a balance pass. With the quick boots a job takes about 15 s, so level 4 is a matter of minutes.
+
+## Web pacing (2026-10-29)
+
+Web jobs pay by a latency SLA (`slaTicks` 120 at 1x, docs/NETWORK.md "Web jobs"), and the router's `clients` cap uploads as well as downloads. Measured on a Mainstream board, `cpu2`, SATA SSD, `os1`, demand 0.03, 6 seeds of 4,000 ticks (the full table is in NETWORK.md): the mean web turnaround on `isp1` is 122, 163, 238 and 209 ticks at levels 4 to 7, on `isp2` with `router2` 106, 104, 167 and 162. The share of web jobs inside the SLA is 88, 78, 36 and 41% on `isp1` against 87, 91, 66 and 60%, and web pay per 1,000 ticks is 6,253, 3,313, 2,188 and 2,357 against 9,212, 8,037, 5,565 and 7,843. Levels 6 and 7 are where `isp1` stops keeping up with the shrinking patience, which is when the level table already offers `isp2` (level 6). No level, price or threshold changed.

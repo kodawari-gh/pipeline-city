@@ -28,3 +28,24 @@ export class NetworkSource<J extends Job> implements WorkSource<J> {
     this.list = jobs;
   }
 }
+
+/**
+ * The offer to start downloading next (docs/NETWORK.md "Web jobs"): among the offers that may start, the one in the oldest
+ * age band (`bandTicks` of age per band); inside a band a web offer goes before the others; then the oldest. The list is
+ * in arrival order, so "oldest" is the first of equals. Returns undefined when none may start.
+ */
+export function pickOffer<J extends Job & { cls: string }>(
+  offers: readonly J[], now: number, bandTicks: number, mayStart: (j: J) => boolean,
+): J | undefined {
+  let best: J | undefined;
+  let bestBand = -1;
+  for (const j of offers) {
+    if (!mayStart(j)) continue;
+    const band = Math.floor(Math.max(0, now - j.arrival) / bandTicks);
+    if (!best || band > bestBand || (band === bestBand && j.cls === "web" && best.cls !== "web")) {
+      best = j;
+      bestBand = band;
+    }
+  }
+  return best;
+}

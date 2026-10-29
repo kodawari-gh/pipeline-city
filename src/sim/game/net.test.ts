@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bandwidth, ISP_SPECS, jobSizes, NET, ROUTER_SPECS, getIspSpec, getRouterSpec } from "../net";
+import { bandwidth, ISP_SPECS, jobSizes, NET, pickOffer, ROUTER_SPECS, getIspSpec, getRouterSpec } from "../net";
 import { getSpec } from "../board";
-import { ECONOMY } from "./economy";
+import { ECONOMY, slaFactor } from "./economy";
 import { Game } from "./game";
 import { unlockLevelOf } from "./levels";
 import { econ, netRig, rig } from "./testkit";
@@ -439,5 +439,133 @@ describe("host messages", () => {
     handleMessage(st, { type: "install", invId: inv.id });
     const out = handleMessage(st, { type: "connectCable", cable: "lan", port: "board" });
     expect(out.some((m) => m.type === "error")).toBe(true); // the Starter board has no jack
+  });
+});
+
+describe("web jobs: the SLA, the client slots and the admission order", () => {
+  const offerIds = (g: Game): number[] => net(g).offers.map((o) => o.id);
+  const downloading = (g: Game): number[] => net(g).transfers.filter((t) => t.dir === "down").map((t) => t.jobId);
+
+  it("the SLA pay factor is 1 within the SLA, falls in a line to the late factor at the deadline and stays there", () => {
+    const f = (t: number): number => slaFactor(ECONOMY, t, 100, 300);
+    expect(f(0)).toBe(1);
+    expect(f(100)).toBe(1);
+    expect(f(200)).toBeCloseTo((1 + ECONOMY.lateFactor) / 2);
+    expect(f(300)).toBe(ECONOMY.lateFactor);
+    expect(f(900)).toBe(ECONOMY.lateFactor);
+    expect(f(101)).toBeLessThan(1);
+    expect(f(101)).toBeGreaterThan(f(102));
+  });
+
+  it("only the web class has an SLA; its tick is the arrival plus the SLA scaled like the deadline", () => {
+    const g = netRig("ssd1", { isp: "isp2", router: "router2" });
+    g.disconnectCable("lan"); // keep the offers where they are
+    offer(g, "web.page", 2);
+    offer(g, "cli.log");
+    const [web, plain] = net(g).offers;
+    expect(web!.cls).toBe("web");
+    expect(plain!.slaTick).toBeUndefined();
+    const deadline = web!.deadlineTick - web!.arrivalTick;
+    expect(web!.slaTick! - web!.arrivalTick).toBe(Math.round((120 * deadline) / ECONOMY.deadlineTicks));
+  });
+
+  it("the payout estimate holds until the SLA runs out, then falls to the late factor at the deadline", () => {
+    const g = netRig("ssd1", { isp: "isp2", router: "router2" });
+    g.disconnectCable("lan");
+    offer(g, "web.page", 2);
+    const o0 = net(g).offers[0]!;
+    const full = o0.payoutEstimate;
+    until(g, () => g.snapshot().baseTick >= o0.slaTick!, 2000);
+    expect(net(g).offers[0]!.payoutEstimate).toBe(full);
+    tick(g, Math.round((o0.deadlineTick - o0.slaTick!) / 2));
+    const mid = net(g).offers[0]!.payoutEstimate;
+    expect(mid).toBeLessThan(full);
+    expect(mid).toBeGreaterThan(Math.round(full * ECONOMY.lateFactor));
+    tick(g, o0.deadlineTick - g.snapshot().baseTick - 1);
+    expect(net(g).offers[0]!.payoutEstimate).toBeLessThanOrEqual(Math.round(full * (ECONOMY.lateFactor + 0.02)));
+  });
+
+  it("a web job delivered late pays less than the same job delivered on time", () => {
+    const run = (stall: boolean): number => {
+      const g = netRig("ssd1", { isp: "isp2", router: "router2" });
+      if (stall) g.disconnectCable("lan");
+      offer(g, "web.page", 2);
+      if (stall) {
+        const o = net(g).offers[0]!;
+        until(g, () => g.snapshot().baseTick >= o.slaTick! + (o.deadlineTick - o.slaTick!) / 2, 2000);
+        g.connectCable("lan");
+      }
+      until(g, () => g.snapshot().progress.firstNetJob, 4000);
+      return g.snapshot().lastCompleted!.payout;
+    };
+    const onTime = run(false), late = run(true);
+    expect(late).toBeLessThan(onTime);
+    expect(late).toBeGreaterThan(0);
+  });
+
+  it("router1 (2 clients) holds back a third transfer, router2 (4) does not", () => {
+    const slow = netRig("ssd1", { isp: "isp2", router: "router1" });
+    for (let i = 0; i < 3; i++) offer(slow);
+    tick(slow, 1);
+    expect(downloading(slow)).toHaveLength(2);
+    expect(net(slow).offers).toHaveLength(1);
+    expect(nets(slow)).toBe("saturated");
+    const fast = netRig("ssd1", { isp: "isp2", router: "router2" });
+    for (let i = 0; i < 3; i++) offer(fast);
+    tick(fast, 1);
+    expect(downloading(fast)).toHaveLength(3);
+    expect(net(fast).offers).toHaveLength(0);
+  });
+
+  it("a result waits for a client slot while downloads hold them all, and is sent when one frees", () => {
+    const g = netRig("ssd1", { isp: "isp1", router: "router1" }); // 2 clients
+    offer(g, "cli.log");
+    offer(g, "cli.scan", 4);
+    offer(g, "cli.scan", 4);
+    let sawWaiting = false, maxActive = 0;
+    for (let i = 0; i < 4000 && g.snapshot().completed < 3; i++) {
+      g.advanceBaseTick();
+      const n = net(g);
+      if (n.uploadsWaiting > 0) sawWaiting = true;
+      maxActive = Math.max(maxActive, n.transfers.length);
+    }
+    expect(g.snapshot().completed).toBe(3);
+    expect(sawWaiting).toBe(true);
+    expect(maxActive).toBeLessThanOrEqual(2); // both directions count against the cap
+    expect(net(g).uploadsWaiting).toBe(0);
+  });
+
+  it("admission takes a web offer before an older non-web offer of the same band, and the oldest first otherwise", () => {
+    const g = netRig("ssd1", { isp: "isp1", router: "router1" });
+    offer(g, "cli.log"); offer(g, "cli.scan", 4); // hold both slots; the log frees its slot first, alone
+    tick(g, 1);
+    offer(g, "cli.log"); // older, not web
+    offer(g, "web.page", 2); // newer, web
+    const [older, newer] = offerIds(g) as [number, number];
+    const first = until(g, () => downloading(g).some((id) => id === older || id === newer), 200);
+    expect(first).toBeGreaterThan(0);
+    expect(downloading(g)).toContain(newer);
+    expect(downloading(g)).not.toContain(older);
+
+    const h = netRig("ssd1", { isp: "isp1", router: "router1" });
+    offer(h, "cli.log"); offer(h, "cli.scan", 4);
+    tick(h, 1);
+    offer(h, "cli.log"); offer(h, "cli.log");
+    const [a, b] = offerIds(h) as [number, number];
+    until(h, () => downloading(h).some((id) => id === a || id === b), 200);
+    expect(downloading(h)).toContain(a);
+    expect(downloading(h)).not.toContain(b);
+  });
+
+  it("pickOffer: an older age band goes first, web first inside a band, then the oldest", () => {
+    const o = (id: number, arrival: number, cls: string) => ({ id, arrival, cls });
+    const any = () => true;
+    const band = NET.ageBandTicks;
+    const now = 10 * band;
+    expect(pickOffer([o(1, now - 3 * band - 10, "cli"), o(2, now - 3 * band - 5, "web")], now, band, any)!.id).toBe(2); // same band: web first
+    expect(pickOffer([o(1, now - 3 * band - 1, "cli"), o(2, now - band, "web")], now, band, any)!.id).toBe(1); // older band beats web
+    expect(pickOffer([o(1, now - 2 * band, "cli"), o(2, now - 2 * band, "cli")], now, band, any)!.id).toBe(1); // oldest first
+    expect(pickOffer([o(1, now - 2 * band, "web"), o(2, now - 2 * band, "web")], now, band, any)!.id).toBe(1);
+    expect(pickOffer([o(1, 0, "cli")], now, band, () => false)).toBeUndefined();
   });
 });

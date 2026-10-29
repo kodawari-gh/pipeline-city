@@ -619,6 +619,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .netpanel .chip b { font-family: var(--mono); }
 .netpanel .kv.warn, .netpanel b.warn { color: var(--warn); }
 .netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }
+.netpanel .sla { font-size: 0.667rem; color: var(--ok); font-family: var(--mono); }
+.netpanel .sla.warn { color: var(--warn); }
+.netpanel b.limit { font-size: 0.667rem; font-family: var(--mono); }
 
 /* Tutorial extras: the chapter label, the Why? toggle, the waiting-step meter and the calm "nothing yet" line */
 .tmeter { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; font-size: 0.7rem; }

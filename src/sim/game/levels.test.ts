@@ -369,6 +369,10 @@ describe("jobs the machine cannot run", () => {
     // The network jobs are real now: a link of any plan meets the class, and a kind can ask for a faster plan.
     const web = JOB_CLASSES.find((x) => x.id === "web")!;
     expect(web.placeholder).toBeUndefined();
+    // Only the web class has a latency SLA (docs/NETWORK.md "Web jobs"): 120 ticks at 1x, measured to leave the better plan mostly on time at levels 4 to 7.
+    expect(web.slaTicks).toBe(120);
+    expect(web.slaTicks!).toBeLessThan(ECONOMY.deadlineTicks);
+    expect(JOB_CLASSES.filter((c) => c.slaTicks !== undefined).map((c) => c.id)).toEqual(["web"]);
     expect(needsMet(web.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok).toBe(false);
     expect(needsMet(web.needs, { ...NO_CAPS, net: true, netTier: 1 }).ok).toBe(true);
     expect(needsMet([{ kind: "net", minTier: 2 }], { ...NO_CAPS, net: true, netTier: 1 })).toEqual({ ok: false, missing: ["a Cable plan or better"] });

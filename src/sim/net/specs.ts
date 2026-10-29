@@ -77,4 +77,6 @@ export const NET = {
   /** Dead-link ticks before USB keys come back, and their rate while they do. */
   usbFallbackTicks: 300,
   usbFallbackMul: 1 / 3,
+  /** Offers whose age falls in the same band of this many ticks are admitted web first, then oldest first; an older band always goes before a younger one. */
+  ageBandTicks: 60,
 } as const;

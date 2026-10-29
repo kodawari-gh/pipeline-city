@@ -98,7 +98,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     expired: 0, declined: 0, postTicks: 30,
     net: {
       state: 'no-device', reason: 'no ISP plan: buy one', port: { kind: null, deviceId: null, mbps: 0 }, router: null, isp: null,
-      bandwidth: { downMbps: 0, upMbps: 0, clients: 0, binding: null }, transfers: [], offers: [], spooled: [], usbRetired: false,
+      bandwidth: { downMbps: 0, upMbps: 0, clients: 0, binding: null }, transfers: [], uploadsWaiting: 0, offers: [], spooled: [], usbRetired: false,
       usbFallback: { state: 'off', deadTicks: 0, startsIn: null, keyRateMul: 1 }, retiredKeys: 0, portBusyKey: null, counters: { delivered: 0, downloaded: 0, uploaded: 0, lost: 0 },
     },
     board: boardSnap(),

@@ -126,6 +126,21 @@ export function limiterLadder(s: Snapshot): LimiterLadder {
   };
 }
 
+/**
+ * The piece that sets the upload speed (the leg a web job pays for): the slowest of the port, the router and the plan's
+ * upload, in the sim's tie order. The drive only limits what is written, so it never binds the upload. Null with no usable link.
+ */
+export function uploadLimiter(s: Snapshot): { id: 'port' | 'router' | 'isp'; text: string } | null {
+  const n = s.net;
+  if (!linkUsable(s) || n.bandwidth.upMbps <= 0) return null;
+  const legs: Array<{ id: 'port' | 'router' | 'isp'; mbps: number }> = [
+    { id: 'port', mbps: n.port.mbps }, { id: 'router', mbps: n.router?.mbps ?? 0 }, { id: 'isp', mbps: n.isp?.upMbps ?? 0 },
+  ];
+  let best = legs[0]!;
+  for (const l of legs) if (l.mbps < best.mbps) best = l;
+  return { id: best.id, text: `limited by: ${best.id} (upload)` };
+}
+
 /** What to upgrade to speed the line up, in plain words (the binding limiter), or null when nothing is binding. */
 export function limiterAdvice(l: LimiterLadder): string | null {
   switch (l.binding) {
@@ -298,6 +313,16 @@ export function effectLine(e: Effect): { text: string; same: boolean; better: bo
 export type StageId = 'offer' | 'downloading' | 'spooled' | 'uploading';
 export interface StageCount { id: StageId; label: string; count: number; dir: 'down' | 'up' | null }
 
+/** The latency SLA of a web offer: how long it still pays in full, then that the pay is falling. */
+export interface SlaModel { left: number; over: boolean; text: string }
+
+/** The SLA countdown of a job (`KeySnap.slaTick`, web only), or null for a job without one. */
+export function slaModel(k: KeySnap, now: number): SlaModel | null {
+  if (k.slaTick === undefined) return null;
+  const left = k.slaTick - now;
+  return left > 0 ? { left, over: false, text: `full pay for ${fmtTicks(left)}` } : { left: 0, over: true, text: 'pay is falling' };
+}
+
 export interface OfferRow {
   key: KeySnap;
   label: string;
@@ -307,6 +332,8 @@ export interface OfferRow {
   left: number;
   late: boolean;
   retired: boolean;
+  /** Web only: the SLA countdown beside the payout estimate, which falls once it runs out. */
+  sla: SlaModel | null;
 }
 export interface TransferRow {
   jobId: number;
@@ -326,6 +353,10 @@ export interface NetPanelModel {
   ladder: LimiterLadder;
   advice: string | null;
   clients: { busy: number; max: number };
+  /** The upload limiter line (`limited by: isp (upload)`), or null with no usable link. */
+  uploadLimit: string | null;
+  /** Finished results waiting for a client slot (the chip beside the stages). */
+  uploadsWaiting: number;
   stages: StageCount[];
   offers: OfferRow[];
   transfers: TransferRow[];
@@ -386,6 +417,8 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
     ladder: limiterLadder(s),
     advice: n.state === 'link-up' || n.state === 'saturated' ? limiterAdvice(limiterLadder(s)) : null,
     clients: { busy: busyJobs.size, max: n.bandwidth.clients },
+    uploadLimit: uploadLimiter(s)?.text ?? null,
+    uploadsWaiting: n.uploadsWaiting ?? 0,
     stages: [
       { id: 'offer', label: 'Offers', count: n.offers.length, dir: null },
       { id: 'downloading', label: 'Downloading', count: downs.length, dir: 'down' },
@@ -393,7 +426,7 @@ export function netPanel(s: Snapshot): NetPanelModel | null {
       { id: 'uploading', label: 'Uploading', count: ups.length, dir: 'up' },
     ],
     offers: n.offers.map((k) => ({
-      key: k, label: k.label, type: k.type, payout: k.payoutEstimate, left: Math.max(0, k.deadlineTick - now), late: k.late, retired: !!k.retired,
+      key: k, label: k.label, type: k.type, payout: k.payoutEstimate, left: Math.max(0, k.deadlineTick - now), late: k.late, retired: !!k.retired, sla: slaModel(k, now),
     })),
     transfers: n.transfers.map(row),
     spooled: n.spooled.map((k) => {

@@ -28,13 +28,13 @@ import { Disk, GpuPort, Machine, NpuPort, StoragePort, TpmPort } from "../machin
 import { Prng } from "../machine/prng";
 import { bootBlocksFor, bootImage, FMAP, FRAME_END, FRAME_FIRST, PCB, PCBS, RESERVED_FRAME, getOsSpec, KBUMP, KFAULTS, OS_SPECS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import {
-  bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, ROUTER_SPECS, routerByTier,
+  bandwidth, NET, DISK_NET_MBPS, getIspSpec, getRouterSpec, ISP_SPECS, ispByTier, jobSizes, NetworkSource, pickOffer, ROUTER_SPECS, routerByTier,
   type Binding, type IspSpec, type RouterSpec,
 } from "../net";
 import { Pch, ROM_IMAGE, type PchKey } from "../pch";
 import {
   boardTierOf, caseTierOf, caseTooSmall, catalog, demandRate, ECONOMY, payMulFor, payout, pickTemplate, postTicks, reputation,
-  SANDBOX_MONEY, sellValue, type EconomyConfig,
+  SANDBOX_MONEY, sellValue, slaFactor, type EconomyConfig,
 } from "./economy";
 import {
   classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, levelRows, LEVELS, MAX_LEVEL,
@@ -105,7 +105,13 @@ interface Key extends Job {
 }
 
 /** A download or upload in progress (RAM, lost on power loss). */
-interface Transfer { key: Key; totalMB: number; doneMB: number }
+interface Transfer {
+  key: Key;
+  totalMB: number;
+  doneMB: number;
+  /** An upload whose result is read out but has no client slot yet (docs/NETWORK.md "Web jobs"): it moves no bytes. */
+  waiting?: boolean;
+}
 
 /** The link as evaluated each tick. */
 interface Link {
@@ -316,6 +322,8 @@ export interface KeySnap {
    * additive: the sim always sets it; absent means false (old fixtures).
    */
   retired?: boolean;
+  /** Web jobs only: the tick by which delivery pays in full (arrival plus the SLA); `payoutEstimate` falls after it. */
+  slaTick?: number;
   /** The tick the machine took the job (key plugged, download begun); absent while it is still in the tray or on offer. */
   startedAt?: number;
   /** The tick the result was written, once it is. */
@@ -569,6 +577,8 @@ export interface NetSnap {
   isp: { id: string; name: string; downMbps: number; upMbps: number; clients: number } | null;
   bandwidth: { downMbps: number; upMbps: number; clients: number; binding: Binding | null };
   transfers: TransferSnap[];
+  /** Results read out of the kernel that wait for a client slot to be sent (the router's and plan's `clients` cap both directions). */
+  uploadsWaiting: number;
   /** Jobs waiting at the ISP side, oldest first. */
   offers: KeySnap[];
   /** Jobs on the drive spool (queued, running, result or uploading), also while the OS is down. */
@@ -1282,7 +1292,10 @@ export class Game {
   private deliver(key: Key, how: string): number {
     const turnaround = this.baseTick - key.arrival;
     const late = this.baseTick > key.deadline;
-    const pay = payout(this.cfg, key.work * key.payMul, turnaround, late, levelPayMul(this.level));
+    // A job with a latency SLA (web) pays by the SLA curve, which already ends at the late factor, instead of the late factor itself.
+    const sla = this.slaOf(key);
+    const base = payout(this.cfg, key.work * key.payMul, turnaround, sla === null && late, levelPayMul(this.level));
+    const pay = sla === null ? base : Math.round(base * slaFactor(this.cfg, turnaround, sla, key.deadline - key.arrival));
     if (!this.sandbox) this.money += pay; // the sandbox balance is a constant
     this.completed++;
     this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
@@ -1424,7 +1437,7 @@ export class Game {
     const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
     const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
     const boardWasOk = !this.board.burnt;
-    const netLoad = this.downloads.length + this.uploads.length > 0 ? 1 : this.cfg.idleLoad;
+    const netLoad = this.activeTransfers() > 0 ? 1 : this.cfg.idleLoad;
     this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad, npu: npuLoad }, this.powered);
     this.meterWall();
     this.syncStorage(); // a drive that burnt out drops off the bus
@@ -2325,14 +2338,14 @@ export class Game {
   private transferSnaps(): TransferSnap[] {
     const out: TransferSnap[] = [];
     const add = (t: Transfer, dir: "down" | "up"): void => {
-      const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.length) : this.link.bw.upMbps / Math.max(1, this.uploads.length)) / 8;
+      const rate = (dir === "down" ? this.link.bw.downMbps / Math.max(1, this.downloads.length) : this.link.bw.upMbps / Math.max(1, this.activeUploads().length)) / 8;
       out.push({
         jobId: t.key.id, label: `#${String(t.key.jobNo).padStart(2, "0")} ${t.key.type}`, dir, totalMB: t.totalMB, doneMB: t.doneMB,
         percent: Math.min(100, Math.round((100 * t.doneMB) / t.totalMB)), etaTicks: rate > 0 ? Math.ceil((t.totalMB - t.doneMB) / rate) : -1, persisted: false,
       });
     };
     for (const t of this.downloads) add(t, "down");
-    for (const t of this.uploads) add(t, "up");
+    for (const t of this.activeUploads()) add(t, "up");
     return out;
   }
 
@@ -2343,7 +2356,7 @@ export class Game {
       state: l.state, reason: l.reason, port: { ...l.port },
       router: l.router && { id: l.router.id, name: l.router.name, mbps: l.router.mbps, clients: l.router.clients, visual: l.router.visual },
       isp: l.isp && { id: l.isp.id, name: l.isp.name, downMbps: l.isp.downMbps, upMbps: l.isp.upMbps, clients: l.isp.clients },
-      bandwidth: { ...l.bw }, transfers: this.transferSnaps(),
+      bandwidth: { ...l.bw }, transfers: this.transferSnaps(), uploadsWaiting: this.uploads.filter((t) => t.waiting).length,
       offers: this.offersQ.waiting().map((k) => this.keySnap(k, jobs)),
       spooled: this.spool.map((k) => this.keySnap(k, jobs)),
       usbRetired: this.networkLinked,
@@ -2615,8 +2628,9 @@ export class Game {
     if (phase !== "idle-os" && phase !== "ingesting" && phase !== "running-os" && phase !== "flashing") return mk("down", "the OS is starting", true);
     const up = mk("link-up", null, true);
     const waiting = this.offersQ.waiting().some((k) => this.runnable(k, this.capsWith(true)));
-    if (this.downloads.length >= up.bw.clients || (waiting && this.reserved() >= this.os.queueSlots)) {
-      return { ...up, state: "saturated", reason: this.downloads.length >= up.bw.clients ? "every client slot is busy" : "the spool is full" };
+    const slotsFull = this.activeTransfers() >= up.bw.clients;
+    if (slotsFull || (waiting && this.reserved() >= this.os.queueSlots)) {
+      return { ...up, state: "saturated", reason: slotsFull ? "every client slot is busy" : "the spool is full" };
     }
     return up;
   }
@@ -2691,13 +2705,28 @@ export class Game {
     this.feedKernel();
   }
 
+  /** Uploads that hold a client slot and move bytes. */
+  private activeUploads(): Transfer[] {
+    return this.uploads.filter((t) => !t.waiting);
+  }
+
+  /** Transfers holding a client slot, of both directions (the router's and the plan's `clients` cap this). */
+  private activeTransfers(): number {
+    return this.downloads.length + this.activeUploads().length;
+  }
+
   /** Start downloads for waiting offers and move the bytes of every transfer. */
   private runTransfers(): void {
     const bw = this.link.bw;
     const slots = this.os?.queueSlots ?? 0;
     const caps = this.capsWith(true);
-    while (this.downloads.length < bw.clients && this.reserved() < slots) {
-      const next = this.offersQ.waiting().find((k) => needsMet(k.needs, caps).ok);
+    // A client slot serves one transfer of either direction. Results waiting to go out take the free slots first (they are paid work), in the order they were read out.
+    for (const t of this.uploads) {
+      if (this.activeTransfers() >= bw.clients) break;
+      if (t.waiting) t.waiting = false;
+    }
+    while (this.activeTransfers() < bw.clients && this.reserved() < slots) {
+      const next = pickOffer(this.offersQ.waiting(), this.baseTick, NET.ageBandTicks, (k) => needsMet(k.needs, caps).ok);
       if (!next) break;
       this.offersQ.take(next.id);
       next.pluggedAt = this.baseTick;
@@ -2714,10 +2743,11 @@ export class Game {
         this.netCount.downloaded++;
       }
     }
-    if (this.uploads.length > 0) {
-      const each = bw.upMbps / 8 / this.uploads.length;
-      for (const t of this.uploads) t.doneMB += each;
-      for (const t of this.uploads.filter((x) => x.doneMB >= x.totalMB)) {
+    const sending = this.activeUploads();
+    if (sending.length > 0) {
+      const each = bw.upMbps / 8 / sending.length;
+      for (const t of sending) t.doneMB += each;
+      for (const t of sending.filter((x) => x.doneMB >= x.totalMB)) {
         this.uploads = this.uploads.filter((x) => x !== t);
         this.spool = this.spool.filter((k) => k.id !== t.key.id); // delivery is the receipt: the spool slot is free
         this.netCount.uploaded++;
@@ -2775,7 +2805,7 @@ export class Game {
         k.doneAt = this.baseTick;
         this.closeWindow(k);
         this.freeKernelSlot(k.id);
-        this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0 });
+        this.uploads.push({ key: k, totalMB: jobSizes(k.cls, k.type, k.scale).upMB, doneMB: 0, waiting: true });
       }
     }
     const nk = this.netKey;
@@ -2793,7 +2823,7 @@ export class Game {
         this.closeWindow(key);
         this.dropNetKey();
         this.freeKernelSlot(key.id);
-        this.uploads.push({ key, totalMB: jobSizes(key.cls, key.type, key.scale).upMB, doneMB: 0 });
+        this.uploads.push({ key, totalMB: jobSizes(key.cls, key.type, key.scale).upMB, doneMB: 0, waiting: true });
       } else if (this.baseTick - nk.since > 300) {
         this.dropNetKey(); // the kernel did not take it (no slot): try again later
         this.netCooldown = 30;
@@ -3035,8 +3065,19 @@ export class Game {
     return Math.round(this.cfg.deadlineTicks * this.patience());
   }
 
+  /** Ticks after arrival within which the job pays in full, or null for a job without an SLA. Scaled like the deadline: the key's own deadline carries the level's patience at its arrival. */
+  private slaOf(k: Key): number | null {
+    const base = jobClass(k.cls)?.slaTicks;
+    if (base === undefined) return null;
+    return Math.round((base * (k.deadline - k.arrival)) / this.cfg.deadlineTicks);
+  }
+
+  /** What the job pays if served on target now; for a job with an SLA it falls once the SLA has run out. */
   private estimate(k: Key): number {
-    return payout(this.cfg, k.work * k.payMul, this.cfg.targetTurnaround, false, levelPayMul(this.level));
+    const full = payout(this.cfg, k.work * k.payMul, this.cfg.targetTurnaround, false, levelPayMul(this.level));
+    const sla = this.slaOf(k);
+    if (sla === null || !this.progress.poweredOn) return full;
+    return Math.round(full * slaFactor(this.cfg, this.baseTick - k.arrival, sla, k.deadline - k.arrival));
   }
 
   private keySnap(k: Key, jobs: KernelJob[]): KeySnap {
@@ -3050,6 +3091,7 @@ export class Game {
       arrivalTick: k.arrival, deadlineTick: k.deadline, age: this.progress.poweredOn ? this.baseTick - k.arrival : 0,
       late: this.baseTick > k.deadline && this.progress.poweredOn,
       payoutEstimate: this.estimate(k), attempts: k.attempts, done: k.done, result: k.result,
+      ...(this.slaOf(k) !== null ? { slaTick: k.arrival + this.slaOf(k)! } : {}),
       ...(stage !== "tray" && stage !== "offer" ? { startedAt: this.startOf(k) } : {}),
       ...(k.done ? { finishedAt: k.doneAt } : {}),
       ...(stage === "running" ? this.liveOf(k) : {}),

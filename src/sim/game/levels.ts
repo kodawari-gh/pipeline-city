@@ -31,6 +31,11 @@ export interface JobClassDef {
   heavy: boolean;
   /** PLACEHOLDER: the class has no generator template or device of its own yet. Its jobs borrow `template`, arrive and expire. */
   placeholder?: boolean;
+  /**
+   * Latency SLA (docs/NETWORK.md "Web jobs"): ticks after arrival, at 1x patience, within which the job pays in full. Later the
+   * pay falls in a line to the late factor at the deadline. Scaled by the level's patience like the deadline. Absent: no SLA.
+   */
+  slaTicks?: number;
 }
 
 export const JOB_CLASSES: readonly JobClassDef[] = [
@@ -40,7 +45,7 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "db", template: "db.index", scale: 1, payMul: 2, needs: [{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }, { kind: "ram", minBytes: 0x10000 + 32 * 1024 }], firstLevel: 5, rampTicks: 600, heavy: true },
   // PLACEHOLDERS below: they need devices that do not exist yet, so they are never runnable today (they arrive and expire).
   // The network jobs: what a client asks of a server. Each kind sets its own plan tier (docs/JOBS.md); the class need is a link of any plan.
-  { id: "web", template: "web.page", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true },
+  { id: "web", template: "web.page", scale: 2, payMul: 2, needs: [{ kind: "net" }], firstLevel: 4, rampTicks: 600, heavy: true, slaTicks: 120 },
   { id: "secure", template: "secure.sign", scale: 4, payMul: 3, needs: [{ kind: "tpm" }, { kind: "ecc" }], firstLevel: 9, rampTicks: 600, heavy: true },
   // The GPU batch job (template gpu.render) needs no card: with one the program offloads its kernel, without one it runs the same work on the CPU, slower and at the same pay (docs/ACCEL.md).
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },

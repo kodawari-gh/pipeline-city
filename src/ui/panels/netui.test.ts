@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec } from '../../sim/net/specs';
 import type { Snapshot, StorageSnap } from '../../sim/game/game';
-import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netPanelShown, netStateChip, usbModel } from './netui';
+import { hudNetChip, limiterAdvice, limiterLadder, netPanel, netPanelShown, netStateChip, slaModel, uploadLimiter, usbModel } from './netui';
 import { key, snap } from '../testdata';
 
 /** A linked rig: board jack `portMbps`, router and plan by id, OS drive by spec id. The bandwidth comes from the sim's own rule. */
@@ -144,5 +144,41 @@ describe('network panel: open and close with netOpen', () => {
     expect(netOpen.value).toBe(false);
     expect(netPanelShown(netOpen.value, linked)).toBe(false);
     toggleStats();
+  });
+});
+
+describe('network panel: web jobs (SLA, upload limiter, waiting results)', () => {
+  it('counts the SLA down to the tick, then says the pay is falling', () => {
+    const web = key({ id: 5, cls: 'web', slaTick: 200, payoutEstimate: 900 });
+    expect(slaModel(web, 140)).toEqual({ left: 60, over: false, text: 'full pay for 1m 00s' });
+    expect(slaModel(web, 200)).toEqual({ left: 0, over: true, text: 'pay is falling' });
+    expect(slaModel(web, 350)).toMatchObject({ over: true });
+    expect(slaModel(key({ id: 6 }), 10)).toBeNull(); // a job without an SLA has no countdown
+  });
+  it('puts the SLA and the estimate on the offer rows of web jobs only', () => {
+    const p = netPanel(withNet({
+      offers: [key({ id: 1, cls: 'web', slaTick: 100, payoutEstimate: 700 }), key({ id: 2 })],
+    }, { baseTick: 40 }))!;
+    expect(p.offers[0]).toMatchObject({ payout: 700, sla: { left: 60, over: false } });
+    expect(p.offers[1]!.sla).toBeNull();
+  });
+  it('names the slowest piece of the upload, in the sim tie order', () => {
+    // Basic DSL uploads 10 Mbit: the plan limits the way out even though the board jack and router are faster.
+    expect(uploadLimiter(rig(100, 'router1', 'isp1', 'ssd1'))).toEqual({ id: 'isp', text: 'limited by: isp (upload)' });
+    expect(netPanel(rig(100, 'router1', 'isp1', 'ssd1'))!.uploadLimit).toBe('limited by: isp (upload)');
+    // Fibre uploads 300 Mbit: the 100 Mbit router is the slowest.
+    expect(uploadLimiter(rig(1000, 'router1', 'isp3', 'nvme2'))!.id).toBe('router');
+    // A 100 Mbit jack on a fast router and plan.
+    expect(uploadLimiter(rig(100, 'router3', 'isp4', 'nvme2'))!.id).toBe('port');
+  });
+  it('has no upload limiter when the link is not usable', () => {
+    const down = rig(100, 'router1', 'isp1', 'ssd1');
+    down.net = { ...down.net, state: 'down', bandwidth: { ...down.net.bandwidth, upMbps: 0 } };
+    expect(uploadLimiter(down)).toBeNull();
+    expect(netPanel(down)!.uploadLimit).toBeNull();
+  });
+  it('carries the results waiting for a client slot', () => {
+    expect(netPanel(withNet({ uploadsWaiting: 3 }))!.uploadsWaiting).toBe(3);
+    expect(netPanel(withNet({ uploadsWaiting: 0 }))!.uploadsWaiting).toBe(0);
   });
 });
