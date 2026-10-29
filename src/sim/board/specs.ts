@@ -62,6 +62,8 @@ export interface CpuSpec extends SpecBase {
   memory?: { channels: number; policy: "open" | "closed" | "adaptive" };
   /** Hardware cores, all running `engine` and sharing the L2 and memory controller (docs/MULTICORE.md). Absent: one. */
   cores?: number;
+  /** Logical cores (threads) per hardware core, switching on a data cache miss (docs/MULTICORE.md section 5). Absent: one. */
+  threads?: number;
   /** The memory management unit (docs/VM.md): the TLB entries it has. Absent: no MMU, programs only ever see physical memory and the paged OS will not run. */
   mmu?: { tlb: number };
 }
@@ -188,6 +190,10 @@ const specList: DeviceSpec[] = [
   { id: "cpu2d", kind: "cpu", tier: 3, name: "Tiny-5F x2 (dual core)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, price: 2000, idleW: 5, loadW: 70, heatFactor: 1, after: "cpu2", branch: "multicore",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 32, redirectPenalty: 2 } },
+  // The Duo with two threads on each core (docs/MULTICORE.md section 5): a thread that misses the data cache hands its core to the other one. Four logical cores. Placeholder price, power and art.
+  { id: "cpu3t", kind: "cpu", tier: 4, name: "Tiny-5F x2 SMT (dual core, 2 threads)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, threads: 2, price: 5000, idleW: 6, loadW: 80, heatFactor: 1, after: "cpu2d", branch: "multicore",
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
   { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",

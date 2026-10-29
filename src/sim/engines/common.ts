@@ -277,6 +277,8 @@ export class InstrPool {
   /** A page fault this instruction carries (`VmFault`, 0 none) and the virtual address it faulted on: taken when the instruction is known to be on the right path. */
   readonly fault: Uint8Array;
   readonly vaddr: Uint32Array;
+  /** The logical core (thread) the instruction belongs to: an index into the engine's `cores` (0 when it has one). */
+  readonly thread: Uint8Array;
   /** Slot = id & mask. */
   readonly mask: number;
 
@@ -289,6 +291,7 @@ export class InstrPool {
     this.res = new Int32Array(size); this.addr = new Uint32Array(size); this.predNext = new Uint32Array(size);
     this.wait = new Int32Array(size); this.state = new Uint8Array(size);
     this.fault = new Uint8Array(size); this.vaddr = new Uint32Array(size);
+    this.thread = new Uint8Array(size);
   }
 
   /** Instruction fetch: a real read through the bus. Unaligned or non-RAM pcs yield an illegal (op 0) instruction. */
@@ -389,6 +392,11 @@ export abstract class EngineBase implements PipelineEngine {
   protected regs!: Int32Array;
   protected ramSize = 0;
   protected fetchPc = 0;
+  /** The logical cores (threads) this engine runs; the first is the one it was reset with. `core` and `regs` follow `useThread`. */
+  protected cores: Core[] = [];
+  /** The thread fetch is for (an index into `cores`; when `fetchIdle` it is the one that fetched last). */
+  protected fetchThread = 0;
+  protected fetchIdle = false;
   protected cycleNo = 0;
   protected isHalted = false;
   /** Set while an interrupt waits for the pipeline to empty: nothing new is fetched. */
@@ -417,6 +425,18 @@ export abstract class EngineBase implements PipelineEngine {
   /** Address of the next instruction to fetch (after ecall: the address following it, like the reference). */
   get pc(): number { return this.fetchPc; }
   get cycle(): number { return this.cycleNo; }
+  get threads(): readonly Core[] | undefined { return this.cores.length > 1 ? this.cores : undefined; }
+  get activeCore(): Core | null { return this.fetchIdle ? null : this.cores[this.fetchThread] ?? null; }
+  get waiting(): boolean { return false; }
+  switchTo(_core: Core): boolean { return true; }
+  yieldThread(): void {}
+  /** Add a logical core. Only engines that support threads (the in-order one) do. */
+  addThread(_core: Core): void { throw new RangeError("this engine runs one thread per core"); }
+  /** Make thread `t`'s registers, MMU and interrupt state the ones the engine's helpers use. */
+  protected useThread(t: number): void {
+    const c = this.cores[t]!;
+    if (c !== this.core) { this.core = c; this.regs = c.regs; }
+  }
   /** The machine tells the engine about something that happened outside it (an interrupt taken, an address space switched) so the event log shows it in order. */
   note(kind: number, a: number, b: number, c: number): void { this.events.push(this.cycleNo, kind, a | 0, b | 0, c | 0, 0); }
   /** No instruction in flight (see `Engine.drained`). */
@@ -477,6 +497,9 @@ export abstract class EngineBase implements PipelineEngine {
     machine.loadProgram(program, core);
     this.machine = machine;
     this.core = core;
+    this.cores = [core];
+    this.fetchThread = 0;
+    this.fetchIdle = false;
     this.bus = machine.bus;
     this.regs = core.regs;
     this.ramSize = machine.ram.length;
@@ -495,6 +518,8 @@ export abstract class EngineBase implements PipelineEngine {
     this.onReset();
   }
   protected onReset(): void {}
+  /** Forget the instruction fetch in progress and the sequential stream: the next fetch is a jump (a thread switch). */
+  protected resetFetchWait(): void { this.iWaitPc = -1; this.iWait = 0; this.seqPc = -1; }
 
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
   protected missCost(addr: number): number {
@@ -639,6 +664,7 @@ export abstract class EngineBase implements PipelineEngine {
     const c = this.v.counters;
     let st = p.state[s]!;
     const addr = p.addr[s]!;
+    if (this.cores.length > 1) { const t = this.cores[p.thread[s]!]!; this.bus.serve(t.index, t.mpu); } // a device access is the thread's own, whoever fetches now
     if (f & F.Amo) return this.amoStep(s);
     if (f & F.Store) {
       if (!(st & St.Started)) {

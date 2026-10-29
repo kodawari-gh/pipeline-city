@@ -112,10 +112,32 @@ export class Machine {
     if (this.mem) this.mem.shared = n > 1;
   }
 
-  /** Cores that are running something: an engine that has not halted and is not parked (the power model's busy cores). */
+  /** Hardware cores: the engines (a core that runs several threads is one). */
+  hardwareCores(): number {
+    let n = 0;
+    for (const c of this.cores) if (this.isPrimary(c)) n++;
+    return n;
+  }
+
+  /** The first logical core of its hardware core, the one the machine steps for it. */
+  private isPrimary(c: Core): boolean {
+    const t = c.engine?.threads;
+    return !t || t[0] === c;
+  }
+
+  /**
+   * The power model's busy cores, in hardware cores: an engine that has not halted and has a thread that is not parked counts one, plus 15 percent of a
+   * core for each core whose second thread is busy too (more of the core switches).
+   */
   busyCores(): number {
     let n = 0;
-    for (const c of this.cores) if (c.engine && !c.engine.halted && !c.intc.parked) n++;
+    for (const c of this.cores) {
+      const e = c.engine;
+      if (!e || e.halted || !this.isPrimary(c)) continue;
+      const ts = e.threads ?? [c];
+      const live = ts.filter((t) => !t.intc.parked).length;
+      if (live > 0) n += 1 + 0.15 * (live - 1);
+    }
     return n;
   }
 
@@ -144,6 +166,7 @@ export class Machine {
     const mem = this.mem, n = cores.length, first = mem ? mem.now % n : 0;
     for (let i = 0; i < n; i++) {
       const k = (first + i) % n, c = cores[k]!;
+      if (!this.isPrimary(c)) continue; // a thread is stepped with its core
       this.bus.serve(k, c.mpu);
       this.stepCore(c);
     }
@@ -155,11 +178,18 @@ export class Machine {
    * there (the pipeline drains, which is the interrupt latency), then step the engine. A handler starts at `intc.vector`
    * and returns with `iret`. A halted engine (ecall) takes none.
    */
-  private stepCore(c: Core): void {
-    const e = c.engine;
+  private stepCore(p: Core): void {
+    const e = p.engine;
     if (!e || e.halted) return;
+    // With threads, the core being served is the one the engine fetches for; a core with nothing to fetch for still counts its misses down.
+    let c = p;
+    if (e.threads) {
+      const a = this.pickThread(p, e, e.threads);
+      if (!a) return;
+      c = a;
+      this.bus.serve(c.index, c.mpu);
+    } else c.timer.step();
     const { intc, mpu, mmu } = c;
-    c.timer.step();
     // A parked core stops fetching, lets what is already in the pipeline finish, and then is not stepped at all (it draws idle power) until a
     // line that is not masked is pending; the interrupt itself is taken below, if interrupts are on.
     let draining = false;
@@ -167,12 +197,16 @@ export class Machine {
       if (intc.wakes) intc.parked = false;
       else {
         e.holdFetch?.(true);
-        if (e.drained !== false) { intc.parkedCycles++; return; }
+        if (e.drained !== false) {
+          intc.parkedCycles++;
+          if (e.threads) { e.yieldThread?.(); if (e.waiting) this.runEngine(e, p); } // another thread takes the core
+          return;
+        }
         draining = true;
       }
     }
     // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
-    if (c.cpuStall > 0) { c.cpuStall--; return; }
+    if (p.cpuStall > 0) { p.cpuStall--; return; }
     if (!draining && e.drained !== undefined && e.holdFetch && e.redirect) {
       const line = intc.next();
       if (line < 0) {
@@ -199,13 +233,35 @@ export class Machine {
         e.holdFetch(false);
       } else e.holdFetch(true);
     }
+    this.runEngine(e, p);
+  }
+
+  /** One engine step with the guard on; the stall it asked for is its hardware core's. */
+  private runEngine(e: Engine, p: Core): void {
     this.bus.guardOn = true;
     try {
       e.step();
     } finally {
       this.bus.guardOn = false;
     }
-    if (this.bus.stallCycles > 0) { c.cpuStall += this.bus.stallCycles; this.bus.stallCycles = 0; }
+    if (this.bus.stallCycles > 0) { p.cpuStall += this.bus.stallCycles; this.bus.stallCycles = 0; }
+  }
+
+  /**
+   * The threads of one hardware core for this cycle: every thread's timer counts and a parked one wakes if a line is pending; a thread that has an
+   * interrupt to take asks for the core. Returns the thread the engine fetches for, or null (every thread waits: parked, ended or on a miss).
+   */
+  private pickThread(p: Core, e: Engine, ts: readonly Core[]): Core | null {
+    for (const t of ts) {
+      t.timer.step();
+      if (t.intc.parked && t.intc.wakes) t.intc.parked = false;
+    }
+    const a = e.activeCore ?? null;
+    for (const t of ts) if (t !== a && !t.intc.parked && t.intc.next() >= 0) { e.switchTo?.(t); break; }
+    if (a) return a;
+    if (e.waiting || ts.some((t) => !t.intc.parked)) this.runEngine(e, p);
+    else for (const t of ts) t.intc.parkedCycles++;
+    return null;
   }
 
   /** Map a device on the bus; if it has clock settings it gets a domain named after it. */
@@ -242,6 +298,23 @@ export class Machine {
     c.stackTop = opts.stackTop ?? this.ram.length;
     if (k > 0) c.mmu.configure(this.mmu.tlbEntries);
     this.install(c, engine, program);
+  }
+
+  /**
+   * Make logical core `k` another thread of the engine of hardware core `of` (an `attachCore` call has installed it): the thread has its own registers,
+   * interrupt controller, timer and MMU and shares the engine's pipeline and caches. With a `program` it is loaded at `entry` and the thread runs it at
+   * once (a test); without, the caller parks the thread like a secondary core (see `parkCore`) for the OS to start.
+   */
+  attachThread(k: number, of: number, program?: Uint32Array, opts: { entry?: number; stackTop?: number } = {}): void {
+    const c = this.cores[k], e = this.cores[of]?.engine;
+    if (!c || !e?.addThread) throw new RangeError(`no core ${k} or no threads on core ${of}`);
+    c.powerOn();
+    c.entry = opts.entry ?? 0;
+    c.stackTop = opts.stackTop ?? this.ram.length;
+    if (k > 0) c.mmu.configure(this.mmu.tlbEntries);
+    c.engine = e;
+    e.addThread(c);
+    if (program) this.loadProgram(program, c);
   }
 
   private install(c: Core, engine: Engine, program: Uint32Array): void {

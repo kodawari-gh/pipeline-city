@@ -125,12 +125,20 @@ export function applyEngine(board: Board, machine: Machine, program: Uint32Array
   machine.mmu.configure(spec.mmu?.tlb ?? 0);
   const first = createEngine(cfg);
   const cores = first.memSystem ? spec.cores ?? 1 : 1; // an engine without a memory system (the reference, the unpipelined one) cannot share one
+  const threads = cfg.kind === "inorder" ? spec.threads ?? 1 : 1; // only the in-order engine switches threads
   machine.mem = cores > 1 ? first.memSystem! : null;
-  machine.setCores(cores); // after the memory system is set: it switches the shared L2 on
+  machine.setCores(cores * threads); // after the memory system is set: it switches the shared L2 on
   machine.attach(first, program);
   for (let k = 1; k < cores; k++) {
     machine.attachCore(k, createEngine(cfg), new Uint32Array(0));
     machine.parkCore(k, KERNEL_SECONDARY);
+  }
+  // The logical cores come in turn: the first thread of every hardware core, then the second of each, so a kernel that uses the first few runs them on different cores.
+  for (let t = 1; t < threads; t++) {
+    for (let h = 0; h < cores; h++) {
+      machine.attachThread(h + t * cores, h);
+      machine.parkCore(h + t * cores, KERNEL_SECONDARY);
+    }
   }
   return true;
 }

@@ -7,7 +7,7 @@ export const Stage = { IF: 0, ID: 1, EX: 2, MEM: 3, WB: 4 } as const;
 export const SlotKind = { Empty: 0, Instr: 1, Bubble: 2 } as const;
 
 /** Why a bubble exists. */
-export const Cause = { None: 0, Load: 1, Data: 2, Flush: 3, Struct: 4 } as const;
+export const Cause = { None: 0, Load: 1, Data: 2, Flush: 3, Struct: 4, Switch: 5 } as const;
 
 /** Timeline cell codes. Index into STAGE_CODE_CHARS for the letter. */
 export const StageCode = { None: 0, F: 1, D: 2, X: 3, M: 4, W: 5, Flushed: 6, S: 7, R: 8, C: 9 } as const;
@@ -81,18 +81,21 @@ export const Counter = {
   /** Lines another core's store dropped from this core's L1 caches, and this core's L1 misses on a line dropped that way. */
   CoherenceInvals: 35,
   CoherenceMisses: 36,
+  /** Switch-on-miss threads (docs/MULTICORE.md section 5): times the core changed the thread it fetches for, and the bubbles that cost. */
+  ThreadSwitches: 37,
+  StallSwitch: 38,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
   "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts", "tlbHits", "tlbMisses", "pageFaults",
-  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses",
+  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses", "threadSwitches", "stallSwitch",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 
 /** Cause -> stall counter index. */
-export const CAUSE_COUNTER = [0, Counter.StallLoad, Counter.StallData, Counter.StallFlush, Counter.StallStruct] as const;
+export const CAUSE_COUNTER = [0, Counter.StallLoad, Counter.StallData, Counter.StallFlush, Counter.StallStruct, Counter.StallSwitch] as const;
 
 /**
  * Ring buffer of the last `rows` instructions (row = id % rows) by `cols` cycles (column = cycle % cols).

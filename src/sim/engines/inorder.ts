@@ -11,10 +11,16 @@
 //  - at most one is a load/store,
 //  - a branch/jal/jalr/ecall ends the bundle (nothing issues behind it).
 // Fetch brings in up to `width` instructions per cycle and ends a group after any control instruction.
+//
+// Threads (width 1 only; docs/MULTICORE.md section 5): a core can run several logical cores, one at a time. When the thread in MEM misses the data
+// cache and another thread could run, the load leaves MEM for that thread's miss buffer (it writes its register when the miss ends), the thread's
+// younger instructions in EX, ID and IF are squashed, and fetch goes on at the other thread's pc. A thread is picked again when it is the next one
+// that is ready. With one thread none of this runs and the cycles are the plain engine's.
 
 import {
   CAUSE_COUNTER, Cause, Counter, Fate, SlotKind, Stage, StageCode, ViewState,
 } from "./view";
+import type { Core } from "../machine/core";
 import { EngineBase, F, F_MEM, OPF, OP_ECALL, OP_IRET, St, type EngineSettings } from "./common";
 
 export interface InOrderSettings extends EngineSettings {
@@ -27,6 +33,8 @@ export interface InOrderSettings extends EngineSettings {
 }
 
 const F_CTRL = F.Branch | F.Jal | F.Jalr;
+/** Threads a core can hold. */
+export const MAX_THREADS = 4;
 
 export class InOrderEngine extends EngineBase {
   /** Live options; may be toggled between steps. */
@@ -34,6 +42,129 @@ export class InOrderEngine extends EngineBase {
   readonly width: number;
   private fetchStopped = false;
   private readonly mask: number;
+  // Per thread: where it resumes fetching, whether it ended, and its outstanding load miss (at most one).
+  private readonly resume = new Uint32Array(MAX_THREADS);
+  private readonly tHalted = new Uint8Array(MAX_THREADS);
+  private readonly missOn = new Uint8Array(MAX_THREADS);
+  private readonly missWait = new Int32Array(MAX_THREADS);
+  private readonly missAddr = new Uint32Array(MAX_THREADS);
+  private readonly missOp = new Uint8Array(MAX_THREADS);
+  private readonly missRd = new Uint8Array(MAX_THREADS);
+  private readonly missId = new Int32Array(MAX_THREADS);
+  /** The thread a switch to waits for (the pipeline must empty first), or -1. */
+  private want = -1;
+
+  override get waiting(): boolean { for (let t = 0; t < this.cores.length; t++) if (this.missOn[t]) return true; return false; }
+
+  override addThread(core: Core): void {
+    if (this.width !== 1) throw new RangeError("threads need the scalar in-order pipeline");
+    if (this.cores.length >= MAX_THREADS) throw new RangeError(`at most ${MAX_THREADS} threads on a core`);
+    this.resume[this.cores.length] = core.entry;
+    this.cores.push(core);
+  }
+
+  private ready(t: number): boolean { return !this.missOn[t] && !this.tHalted[t] && !this.cores[t]!.intc.parked; }
+
+  /** The first thread after `from` (`from` itself last) that can run, or -1. */
+  private pickNext(from: number): number {
+    const n = this.cores.length;
+    for (let i = 1; i <= n; i++) { const t = (from + i) % n; if (this.ready(t)) return t; }
+    return -1;
+  }
+
+  /** Fetch for thread `t` from where it left off (its pc is in `resume`; the caller saved the old thread's). */
+  private switchFetch(t: number): void {
+    if (t !== this.fetchThread) this.v.counters[Counter.ThreadSwitches]!++;
+    this.fetchThread = t;
+    this.fetchIdle = false;
+    this.fetchPc = this.resume[t]!;
+    this.fetchStopped = false;
+    this.want = -1;
+    this.resetFetchWait();
+  }
+
+  override switchTo(core: Core): boolean {
+    const t = this.cores.indexOf(core);
+    if (t < 0) return false;
+    if (t === this.fetchThread && !this.fetchIdle) return true;
+    if (this.ready(t)) this.want = t;
+    return false;
+  }
+
+  override yieldThread(): void {
+    const ft = this.fetchThread;
+    this.resume[ft] = this.fetchPc;
+    const n = this.pickNext(ft);
+    if (n >= 0) this.switchFetch(n); else this.fetchIdle = true;
+  }
+
+  /** Per cycle, before the stages: outstanding misses count down and land; a wanted switch happens once the pipeline is empty; an idle core finds a thread. */
+  private threadTick(): void {
+    for (let t = 0; t < this.cores.length; t++) {
+      if (!this.missOn[t]) continue;
+      if (this.missWait[t]! > 0) this.missWait[t]!--; else this.completeMiss(t);
+    }
+    if (this.want >= 0 && this.drained) {
+      if (!this.fetchIdle) this.resume[this.fetchThread] = this.fetchPc;
+      if (this.ready(this.want)) this.switchFetch(this.want);
+      this.want = -1;
+    }
+    if (this.fetchIdle) {
+      const n = this.pickNext(this.fetchThread);
+      if (n >= 0) this.switchFetch(n);
+    }
+  }
+
+  /** The miss of thread `t` ends: the line fills, the load writes its register and retires, the thread can run again. */
+  private completeMiss(t: number): void {
+    this.useThread(t);
+    const addr = this.missAddr[t]!, op = this.missOp[t]!, rd = this.missRd[t]!, id = this.missId[t]!;
+    this.dFill(addr);
+    if (rd !== 0) this.writeReg(rd, this.load(op, addr));
+    this.v.mark(id, StageCode.W);
+    this.retire(id, op);
+    this.missOn[t] = 0;
+  }
+
+  /**
+   * The load of slot `s` missed in MEM. If another thread could run, move it to its thread's miss buffer, squash the thread's younger instructions and
+   * switch fetch to the other thread; true when it did (the load has left MEM). False: the miss freezes the pipeline as usual.
+   */
+  private tryBuffer(s: number): boolean {
+    const p = this.pool, v = this.v, mask = this.mask, t = p.thread[s]!;
+    const op = p.op[s]!, f = OPF[op]!;
+    if (!(f & F.Load) || f & F.Amo || !(p.state[s]! & St.Missing)) return false;
+    let other = false;
+    for (let u = 0; u < this.cores.length; u++) if (u !== t && !this.tHalted[u] && !this.cores[u]!.intc.parked) other = true;
+    if (!other) return false;
+    if (v.stageKind[Stage.EX] === SlotKind.Instr && p.thread[v.stageId[Stage.EX]! & mask] === t) {
+      const eop = p.op[v.stageId[Stage.EX]! & mask];
+      if (eop === OP_IRET || eop === OP_ECALL) return false; // already acted at EX: cannot be taken back
+    }
+    this.missOn[t] = 1;
+    this.missWait[t] = p.wait[s]!;
+    this.missAddr[t] = p.addr[s]!;
+    this.missOp[t] = op;
+    this.missRd[t] = p.rd[s]!;
+    this.missId[t] = v.stageId[Stage.MEM]!;
+    this.resume[t] = (p.pc[s]! + 4) >>> 0;
+    for (const st of [Stage.EX, Stage.ID, Stage.IF]) {
+      if (v.stageKind[st] !== SlotKind.Instr) continue;
+      const id = v.stageId[st]!;
+      if (p.thread[id & mask] !== t) continue;
+      v.mark(id, StageCode.Flushed); v.setFate(id, Fate.Flushed);
+      v.counters[Counter.FlushedInstrs]!++;
+      v.clearStage(st);
+    }
+    if (this.fetchThread === t && !this.fetchIdle) {
+      const n = this.pickNext(t);
+      if (n >= 0) this.switchFetch(n); else this.fetchIdle = true;
+      v.setStage(Stage.IF, SlotKind.Bubble, -1, 0, Cause.Switch);
+      v.counters[Counter.StallSwitch]! += 2;
+    }
+    v.clearStage(Stage.MEM);
+    return true;
+  }
 
   /** Nothing in any stage (bubbles do not count), and none still waiting in WB to write back. */
   get drained(): boolean {
@@ -56,6 +187,7 @@ export class InOrderEngine extends EngineBase {
 
   protected override onReset(): void {
     this.fetchStopped = false;
+    this.resume.fill(0); this.tHalted.fill(0); this.missOn.fill(0); this.want = -1;
     for (let s = 0; s < 5 * this.width; s++) this.v.clearStage(s);
   }
 
@@ -71,6 +203,8 @@ export class InOrderEngine extends EngineBase {
     c[Counter.Cycles]!++;
     v.beginCycle(this.cycleNo);
     stalled.fill(0);
+    const multi = this.cores.length > 1;
+    if (multi) this.threadTick();
 
     // WB: results land in the register file (before this cycle's register reads).
     this.writeback();
@@ -79,13 +213,17 @@ export class InOrderEngine extends EngineBase {
     // MEM: a data cache miss holds the whole pipe.
     let frozen = false;
     for (let l = 0; l < W; l++) {
-      if (kind[mem + l] === SlotKind.Instr && !this.memStep(sid[mem + l]! & mask)) frozen = true;
+      if (kind[mem + l] === SlotKind.Instr && !this.memStep(sid[mem + l]! & mask)) {
+        if (multi && this.tryBuffer(sid[mem + l]! & mask)) continue;
+        frozen = true;
+      }
     }
 
     // EX: operands, ALU, address generation, control-transfer resolution.
     for (let l = 0; l < W; l++) {
       if (kind[ex + l] !== SlotKind.Instr) continue;
       const s = sid[ex + l]! & mask;
+      if (multi) this.useThread(p.thread[s]!);
       if (!(p.state[s]! & St.ExDone)) {
         p.state[s]! |= St.ExDone;
         if (this.exStage(s, l)) break; // a page fault: this and everything younger is gone
@@ -158,7 +296,8 @@ export class InOrderEngine extends EngineBase {
     for (let l = 0; l < W; l++) if (kind[iff + l] !== SlotKind.Empty) stalled[iff + l] = 1;
 
     // Fetch.
-    if (kind[iff] === SlotKind.Empty && !this.fetchStopped && !this.hold) {
+    if (multi) this.useThread(this.fetchThread);
+    if (kind[iff] === SlotKind.Empty && !this.fetchStopped && !this.hold && !this.fetchIdle && this.want < 0) {
       let memOp = false;
       for (let l = 0; l < W; l++) {
         if (kind[mem + l] === SlotKind.Instr && OPF[p.op[sid[mem + l]! & mask]!]! & F_MEM) memOp = true;
@@ -178,11 +317,25 @@ export class InOrderEngine extends EngineBase {
     for (let l = 0; l < W; l++) {
       if (kind[wb + l] === SlotKind.Instr && p.op[sid[wb + l]! & mask] === OP_ECALL) {
         this.writeback();
-        this.isHalted = true;
+        if (multi) this.endThread(p.thread[sid[wb + l]! & mask]!);
+        else this.isHalted = true;
         break;
       }
     }
     this.log();
+  }
+
+  /** The ecall of thread `t` retired: the thread is done; the core halts when all are, else fetch goes to one that can run. */
+  private endThread(t: number): void {
+    this.tHalted[t] = 1;
+    this.fetchStopped = false;
+    let all = true;
+    for (let u = 0; u < this.cores.length; u++) if (!this.tHalted[u] && !this.cores[u]!.intc.parked) all = false; // a parked thread has nothing left to run
+    if (all) { this.isHalted = true; return; }
+    if (this.fetchThread === t && !this.fetchIdle) {
+      const n = this.pickNext(t);
+      if (n >= 0) this.switchFetch(n); else this.fetchIdle = true;
+    }
   }
 
   /** Register writes and retirement for the WB occupants (the stage is not cleared). */
@@ -192,6 +345,7 @@ export class InOrderEngine extends EngineBase {
       if (v.stageKind[wb + l] !== SlotKind.Instr) continue;
       const id = v.stageId[wb + l]!;
       const s = id & this.mask;
+      if (this.cores.length > 1) this.useThread(p.thread[s]!);
       if (OPF[p.op[s]!]! & F.Writes && p.rd[s] !== 0) this.writeReg(p.rd[s]!, p.res[s]!);
       this.retire(id, p.op[s]!);
     }
@@ -351,6 +505,7 @@ export class InOrderEngine extends EngineBase {
       next = (pc + p.imm[s]!) >>> 0;
     }
     p.predNext[s] = next;
+    p.thread[s] = this.fetchThread;
     this.fetchPc = next;
     v.setStage(Stage.IF * this.width + lane, SlotKind.Instr, id, pc, Cause.None);
     return (f & F_CTRL) !== 0 || p.op[s] === OP_ECALL;

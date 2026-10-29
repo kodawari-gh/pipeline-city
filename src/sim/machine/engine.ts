@@ -28,4 +28,17 @@ export interface Engine {
   holdFetch?(on: boolean): void;
   /** Fetch from `pc` next. Only valid while `drained`. */
   redirect?(pc: number): void;
+  // Switch-on-miss threads (docs/MULTICORE.md section 5). An engine with one logical core leaves all of these out.
+  /** The logical cores this engine runs, the first being the one it was reset with. Only present when there are several. */
+  readonly threads?: readonly Core[];
+  /** The thread the engine fetches for now, or null when every thread waits (on a miss, parked or halted). */
+  readonly activeCore?: Core | null;
+  /** A thread has a miss outstanding: the engine has to keep stepping even when nothing is fetched. */
+  readonly waiting?: boolean;
+  /** Add a logical core to this engine (before it runs). */
+  addThread?(core: Core): void;
+  /** Ask the engine to fetch for `core` (once the pipeline is empty); true when it already does. Call again while the wish holds. */
+  switchTo?(core: Core): boolean;
+  /** The active thread is parked or done: fetch for another one (only valid while `drained`). */
+  yieldThread?(): void;
 }

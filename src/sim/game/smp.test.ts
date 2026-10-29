@@ -158,6 +158,28 @@ describe("the paged OS on a dual core", { timeout: 60_000 }, () => {
   });
 });
 
+describe("the Duo-T: two cores of two threads", () => {
+  it("has four logical cores, os2 uses the first thread of each core, and the second threads stay parked", () => {
+    const g = machine({ cpu: "cpu3t" });
+    expect(g.cpuCores()).toBe(2);
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    expect(g.machine.cores).toHaveLength(4);
+    expect(g.machine.hardwareCores()).toBe(2);
+    const gens = [calc(81), calc(82)];
+    const { dv, states } = submit(g, gens.map((x) => x.program));
+    let most = 0;
+    until(g, () => { most = Math.max(most, states().filter((x) => x === JobState.Running).length); return states().every((x) => x === JobState.Result); }, 60000);
+    expect(most).toBe(2);
+    gens.forEach((gen, k) => expect(resultText(dv, k)).toBe(lastLine(gen.meta.expectedText)));
+    expect(g.errors).toBe(0);
+    expect(g.machine.cores[1]!.engine!.cycle).toBeGreaterThan(100);
+    expect(g.machine.cores[2]!.intc.parked).toBe(true);
+    expect(g.machine.cores[3]!.intc.parked).toBe(true);
+    expect(g.machine.cores[2]!.intc.taken).toBe(0);
+  });
+});
+
 describe("a multicore CPU under the other kernels", () => {
   it("os1 runs on core 0 alone: core 1 stays parked, and a key's job completes", () => {
     const g = machine({ os: "os1", ram: "ram1b" });

@@ -19,6 +19,7 @@ The CPUs form a **tree**, not a line (owner 2026-10-27). The trunk is the three 
 | 3 | cpu2d dual core (two cores, shared L2) | `inorder` D$ 16, L2 32, `cores` 2 | on cores (several programs at once) | 9 | $2,000 |
 | 3 | cpu2f front end | `inorder` + I$ 8, 2-bit predictor 128 | branchy code | 9 | $1,500 |
 | 3 | cpu2m memory | `inorder` + D$ 32 2-way, L2 32 | big data | 9 | $1,500 |
+| 4 | cpu3t dual core, two threads each (switch-on-miss) | `inorder` D$ 16, L2 64, `cores` 2, `threads` 2 | on cores (four logical cores) | 11 | $5,000 |
 | 4 | cpu4 out of order, ROB 8 | `ooo` | generalist | 11 | $6,000 |
 | 4 | cpu3f 2-wide, front end | `inorder2` + I$ 16, 2-bit 256 | branchy | 11 | $3,600 |
 | 4 | cpu3m 2-wide, memory | `inorder2` + D$ 64 4-way, L2 64 | big data | 11 | $3,600 |

@@ -234,7 +234,7 @@ export function advanceBaseTick(this: Game): void {
   const busy = !delayed && (phase === "posting" || phase === "loading" || phase === "running" || phase === "writing"
     || phase === "booting-os" || phase === "ingesting" || phase === "running-os" || phase === "flashing");
   // a multicore CPU draws by the cores that run: one busy core of two is half the chip's load (a parked core is idle)
-  const load = busy ? Math.max(1, this.machine.busyCores()) / this.machine.cores.length : this.cfg.idleLoad;
+  const load = busy ? Math.max(1, this.machine.busyCores()) / this.machine.hardwareCores() : this.cfg.idleLoad;
   const diskLoad = this.ports.reduce((a, p) => p.takeActivity() || a, false) ? 1 : this.cfg.idleLoad;
   const gpuLoad = this.gpus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
   const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
