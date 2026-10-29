@@ -48,6 +48,8 @@ export interface GpuStep {
   cost: number;
   /** Distinct addresses per bank for a vld / vst, else null. */
   banks: number[] | null;
+  /** The vector register the instruction writes (ALU work and loads), else null. */
+  dest: number | null;
 }
 
 const MASK_OPS = new Set(["mseteq", "msetne", "msetlt", "msetge", "mpush", "melse", "mpop"]);
@@ -200,7 +202,8 @@ export class GpuRef {
       case "halt": this.halted = true; next = this.pc; break;
     }
     this.idleLaneSlots += L - this.popcount(mask);
-    this.lastStep = { pc: this.pc, name: i.name, kind: stepKind(i.name), mask, cost, banks };
+    const kind = stepKind(i.name);
+    this.lastStep = { pc: this.pc, name: i.name, kind, mask, cost, banks, dest: kind === "alu" || kind === "ld" ? i.rd : null };
     this.cycles += cost;
     this.instructions++;
     this.pc = next;

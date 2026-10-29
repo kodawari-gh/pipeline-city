@@ -21,6 +21,8 @@ export interface GpuPlan {
   visual: string;
   lanes: number;
   banks: number;
+  /** Card memory in bytes. */
+  memBytes: number;
   /** The card's PCB. */
   w: number;
   h: number;
@@ -49,17 +51,17 @@ export interface GpuPlan {
   mem: Rect;
 }
 
-/** The lane and bank count of a card, from its spec (so a new tier needs no change here). */
-export function gpuShape(visual: string): { lanes: number; banks: number } {
+/** The lane count, bank count and card memory of a card, from its spec (so a new tier needs no change here). */
+export function gpuShape(visual: string): { lanes: number; banks: number; memBytes: number } {
   const s = specsOfKind('gpu').find((x) => x.visual === visual);
-  return { lanes: s?.gpu?.lanes ?? 8, banks: s?.gpu?.banks ?? 1 };
+  return { lanes: s?.gpu?.lanes ?? 8, banks: s?.gpu?.banks ?? 1, memBytes: s?.gpu?.memBytes ?? 8192 };
 }
 
 /** Cooling fans a GPU shows along its top edge: one, two, three by tier. */
 export const gpuFanCount = (visual: string): number => Number(/(\d)$/.exec(visual)?.[1] ?? 1);
 
 export function gpuPlan(visual: string): GpuPlan {
-  const { lanes, banks } = gpuShape(visual);
+  const { lanes, banks, memBytes } = gpuShape(visual);
   const w = GPU_LEN[visual] ?? 2000, h = GPU_H[visual] ?? 320;
   const shroud: Rect = { x: SHROUD_X, y: 12, w: w - SHROUD_X - TAIL, h: h - 24 };
   const n = gpuFanCount(visual), cell = shroud.w / n;
@@ -87,7 +89,7 @@ export function gpuPlan(visual: string): GpuPlan {
   const maskSlots: Rect[] = Array.from({ length: 8 }, (_, k) => ({ x: memX + k * (SLOT + 4), y: yA + (ROW_A - SLOT) / 2, w: SLOT, h: SLOT }));
 
   return {
-    visual, lanes, banks, w, h, shroud, body, fans, link: { x: 18, y: BODY_Y + 24, w: 112, h: 70 }, pc, laneCells, lanesBlock, mask, maskBits,
+    visual, lanes, banks, memBytes, w, h, shroud, body, fans, link: { x: 18, y: BODY_Y + 24, w: 112, h: 70 }, pc, laneCells, lanesBlock, mask, maskBits,
     maskStack, maskSlots, regs, regRows, bankBars, mem,
   };
 }

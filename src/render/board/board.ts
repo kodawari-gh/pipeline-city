@@ -15,7 +15,9 @@ import { Interact, type CableInfo, type SceneInfo } from '../interact';
 import { CordsView, type CordKind } from './cords';
 import { PowerLens, lensModel } from '../room/lens';
 import { NetView, nicArt } from '../room/net';
-import { cardArt, cardRect, tpmArt, tpmHeader, tpmRect } from './accelart';
+import { cardArt, cardOrigin, cardRect, tpmArt, tpmHeader, tpmRect } from './accelart';
+import { gpuParts, gpuPlan, moveRect } from './gpulayout';
+import type { GpuCardScene } from './gpuview';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../room/exterior';
 import { box, clear, dashed, label } from '../ink';
 import {
@@ -43,6 +45,8 @@ interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) th
 const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
 const Z_DIE = 0.45;
+/** A graphics card's insides (lanes, banks, registers) hover from the zoom where its shroud starts to fade (gpuview.ts); its fans from further out. */
+const Z_GPU = 0.3, Z_GPU_FAN = 0.2;
 /** Below this zoom the baked board texture replaces the vector board. */
 const Z_BAKE = 0.2;
 const BAKE_RES = 0.4;
@@ -507,6 +511,8 @@ export async function mountBoard(host: HTMLElement) {
     die.clear();
     let coolerHit: Hit | null = null;
     const deviceHits: Hit[] = [];
+    // graphics cards: their live view (fans, lanes, banks) and the hits of every part of them, tried before the card itself
+    const gpuCards: GpuCardScene[] = [], gpuHits: Hit[] = [];
     let hasPsu = false, hasDisplay = false;
     const dimms: number[] = [];
     scene.rects.clear(); scene.interactive.clear(); scene.slots.clear();
@@ -581,12 +587,23 @@ export async function mountBoard(host: HTMLElement) {
         scene.rects.set(d.id, r);
       } else if (spec.kind === 'gpu' || spec.kind === 'npu') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
-        const p = cardArt(T, spec.visual, idx);
+        const isGpu = spec.kind === 'gpu';
+        const p = cardArt(T, spec.visual, idx, isGpu);
         deviceLayer.addChild(p);
         const r = cardRect(idx, spec.visual);
         targets.push({ id: d.id, kind: spec.kind, spec: d.spec, rect: r });
         deviceHits.push(partHit(d.id, p, r));
         scene.rects.set(d.id, r);
+        if (isGpu) {
+          const origin = cardOrigin(idx, spec.visual);
+          gpuCards.push({ slot: d.slot, visual: spec.visual, origin });
+          for (const part of gpuParts(gpuPlan(spec.visual))) {
+            const id = `${d.slot}.${part.id}`, pr = moveRect(part.rect, origin);
+            gpuHits.push({ id, rect: pr, min: part.inner ? Z_GPU : Z_GPU_FAN });
+            scene.rects.set(id, pr);
+            scene.interactive.add(id);
+          }
+        }
       } else if (spec.kind === 'tpm') {
         const hdr = tpmHeader(LAYOUT_TIER), r = tpmRect(LAYOUT_TIER);
         if (hdr && r) {
@@ -705,7 +722,7 @@ export async function mountBoard(host: HTMLElement) {
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
     if (coolerHit) mainHits.push(coolerHit);
-    mainHits.push({ id: 'case', rect: CASE, extOnly: true, base: true }, ...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
+    mainHits.push({ id: 'case', rect: CASE, extOnly: true, base: true }, ...gpuHits, ...deviceHits, ...emptyHits, { id: 'chipset', rect: BR.chip }, ...REGIONS.filter((r) => r.id !== 'chipset').map((r) => ({ id: r.id, rect: r.rect })),
       { id: 'bay', rect: BAY },
       // the chassis frame (panel, side walls, floor) is the case; the glass area stays free so the board is not outlined by accident
       { id: 'case', rect: CASE_PANEL, base: true, more: [
@@ -747,7 +764,7 @@ export async function mountBoard(host: HTMLElement) {
 
     const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie'); // listed only while a card needs the lead (or it is plugged)
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
-    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks);
+    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks, gpuCards);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
     syncCables(s, true);

@@ -9,6 +9,7 @@ import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN
 import { monitorView, standbyLook, type MonitorInput } from './room/monitor';
 import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
+import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import type { Theme } from './theme';
@@ -81,6 +82,8 @@ export class Live {
   private dramChips: Rect[] = [];
   /** The memory sticks as a map of RAM: what each byte holds, whose it is, and what the CPU touches (docs/DIE.md "Memory"). */
   private ram = new RamView();
+  /** The graphics cards: spinning fans and the lanes, registers and banks under the shroud (board/gpuview.ts). */
+  private gpu = new GpuView();
   private dimmIdx: number[] = [];
   private ramSig = '';
   /** Wall time (ms) of the last memory-bus event: the DRAM flash fades by wall time (see `memAt` for the game-time trigger). */
@@ -186,11 +189,11 @@ export class Live {
   /** (Re)build live objects for a scene. Called when the theme or the installed set changes. */
   setScene(
     T: Theme, targets: GlowTarget[], buses: Bus[], cables: Cable[], fans: { c: Container; kind: string }[], dramChips: Rect[], dimms: number[],
-    flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [],
+    flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [], gpuCards: GpuCardScene[] = [],
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.ram.root, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.extDots = [];
@@ -203,6 +206,7 @@ export class Live {
     this.dramChips = dramChips;
     this.dimmIdx = dimms;
     this.ram.setScene(T, dramChips);
+    this.gpu.setScene(T, gpuCards);
     for (const t of targets) {
       const g = new Graphics(), dim = new Graphics();
       if (this.additive) g.blendMode = 'add';
@@ -282,7 +286,7 @@ export class Live {
       this.root.addChild(glow);
       this.drives.set(d.slot, { ...d, glow, busyUntil: -1e9, flowUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, level: 0, dir: 1, sig: '', burnt: false });
     }
-    this.root.addChild(this.ram.root, this.dramFlash);
+    this.root.addChild(this.ram.root, this.gpu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
@@ -356,7 +360,7 @@ export class Live {
   /** The OS badge on the host drive (null: no OS). The dot animates on the game clock in `frame`. */
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
-  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); }
+  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); }
   /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
   setInterior(on: boolean) { this.interior = on; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
@@ -415,6 +419,7 @@ export class Live {
       this.ram.setSticks(sticks);
     }
     this.ram.setMap(s?.ram ?? null);
+    this.gpu.update(s?.gpus, s?.devices);
     const T = this.T;
     if (!s) return;
     const cpu = s.devices.find((d) => d.kind === 'cpu');
@@ -973,6 +978,7 @@ export class Live {
     this.drawBoot(now, dt);
 
     this.ram.frame(inner);
+    this.gpu.frame(dt, inner);
     // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)
     this.dramFlash.clear();
   }

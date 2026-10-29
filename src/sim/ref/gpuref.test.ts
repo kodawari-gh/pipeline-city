@@ -165,20 +165,20 @@ describe("GPU reference interpreter: card memory banks", () => {
     g.reset();
     expect(g.lastStep).toBeNull();
     g.step();
-    expect(g.lastStep).toMatchObject({ pc: 0, name: "lane", kind: "alu", mask: 0xff, cost: 1, banks: null });
+    expect(g.lastStep).toMatchObject({ pc: 0, name: "lane", kind: "alu", mask: 0xff, cost: 1, banks: null, dest: 1 });
     g.step();
     g.step();
     expect(g.lastStep).toMatchObject({ pc: 8, name: "mseteq", kind: "mask", mask: 0xff });
     g.step();
     // only lane 0 is left active, so one address in one bank
-    expect(g.lastStep).toMatchObject({ pc: 12, name: "vld", kind: "ld", mask: 1, cost: 1, banks: [1, 0, 0, 0] });
+    expect(g.lastStep).toMatchObject({ pc: 12, name: "vld", kind: "ld", mask: 1, cost: 1, banks: [1, 0, 0, 0], dest: 3 });
     g.reset();
     g.load(assembleGpu("lane v1\nvslli v2, v1, 4\nvld v3, 1024(v2)\nhalt").program);
     g.reset();
     g.step(); g.step(); g.step();
     expect(g.lastStep).toMatchObject({ name: "vld", cost: 8, banks: [8, 0, 0, 0] }); // all eight lanes in bank 0
     g.step();
-    expect(g.lastStep).toMatchObject({ name: "halt", kind: "sys" });
+    expect(g.lastStep).toMatchObject({ name: "halt", kind: "sys", dest: null });
   });
 
   it("a strided access serializes and an in-order one does not", () => {
