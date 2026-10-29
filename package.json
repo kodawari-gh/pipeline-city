@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:q": "vitest run --reporter=dot",
     "bench:speed": "node tools/bench-speed.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"

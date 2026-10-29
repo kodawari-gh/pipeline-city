@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./legacy/**)",
+      "Read(./package-lock.json)",
+      "Read(./dist/**)",
+      "Read(./e2e/shots/**)"
+    ]
+  }
+}
