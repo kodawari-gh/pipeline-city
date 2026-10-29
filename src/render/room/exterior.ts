@@ -3,7 +3,7 @@ import type { Snapshot } from '../../sim/protocol';
 import { IO_PORTS, IO_X } from '../board/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '../board/ports';
 import { box, disc, label, lgrad, mix } from '../ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, nicJack, nicY, type Rect } from '../board/layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '../board/layout';
 import { CASE_LOOK } from './case';
 import type { DriveKind } from '../board/drives';
 import type { Theme } from '../theme';
@@ -27,6 +27,8 @@ export interface ExteriorOpts {
   features: { ethernetMbps: number; usbPorts: number; displayPorts: number };
   /** PCIe slot indices that hold a NIC card: each has its jack on the rear plate. */
   nics?: number[];
+  /** PCIe slot indices that hold a graphics card: each has an HDMI port on the rear plate (the video cable goes in there on a graphics display). */
+  gpus?: number[];
 }
 
 /** Where a cage drive's activity LED sits (world), by cell: on the front rim, level with its cell. */
@@ -202,6 +204,11 @@ function rearIo(g: Graphics, T: Theme, o: ExteriorOpts) {
     const j = nicJack(i);
     portProfile(g, T, { id: `nic${i}`, kind: 'rj45', x: j.x, y: nicY(i), w: j.w, h: j.h }, true, { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
     for (const lx of [j.x + 50, j.x + 112]) g.circle(lx, j.y + j.h + 30, 11).fill({ color: '#05070c' }).stroke({ width: 3, color: c.edge, alpha: 0.7 });
+  }
+  // graphics cards: an HDMI port at the height of the card's slot
+  for (const i of o.gpus ?? []) {
+    const p = gpuPort(i);
+    portProfile(g, T, { id: `gpu${i}`, kind: 'hdmi', x: p.x, y: p.y + p.h / 2, w: p.w, h: p.h }, true, { wallX: IO_X, wallW: WALL_T, depth: WALL_T - 24 });
   }
 }
 

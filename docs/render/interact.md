@@ -52,7 +52,7 @@ World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` 
 | `power` | the power button (on the case's top panel, with the on / off / error and disk lights) |
 | `chipset` | the PCH |
 | `board` | the whole motherboard: the board picker, written by a click or hover on an empty area of the board (the last hit, below every device, slot, region and cable); also a highlight / flyTo target |
-| `cable.atx`, `cable.cpu`, `cable.video` (`cable.pcie` is plumbed, never drawn) | a cable: the plug is what is grabbed; as a highlight target it rings the plug and, while loose, also the matching board socket |
+| `cable.atx`, `cable.cpu`, `cable.video` (`cable.pcie` is plumbed, never drawn) | a cable: the plug is what is grabbed; as a highlight target it rings the plug and, while loose, also the matching board socket. With the graphics display the dragged video plug also snaps to a working card's display port on its rear plate (`CableInfo.alts`, drop calls `connectCable('video', slot)`) |
 
 Click behaviour on top of writing `selected`: `power` calls `powerButton()` (and shows `noPowerReason` as a message when it would do nothing); `key:<id>` in the tray calls `plugKey`, the plugged key calls `ejectKey` (not while loading, running or writing: a message explains). A refused sim action (`lastError`) is shown as a short message at the point where the player acted.
 

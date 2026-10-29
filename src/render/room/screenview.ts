@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, type TextStyleFontWeight } from 'pixi.js';
 import { MONO } from '../ink';
-import { dashSig, type DashModel, type Tone } from './screenmodel';
+import { dashSig, frameColor, type DashModel, type FrameModel, type Tone } from './screenmodel';
 
 // The graphics display's screen (docs/render/live.md "Screen modes"): the OS dashboard drawn at the screen's design size
 // (SCREEN_D, 3120x1755) with a Graphics for gauges and pooled Texts for the words. It repaints only when the model changes.
@@ -99,7 +99,7 @@ export class ScreenView extends Container {
 
     // process table
     g.rect(RX - 30, 330, 5, 1090).fill({ color: RULE });
-    const hy = 330, cols = { pid: RX, name: RX + 230, state: RX + 720, mem: RX + 960, time: X1 };
+    const hy = 330, cols = { pid: RX, name: RX + 200, state: RX + 740, mem: RX + 950, time: X1 };
     this.put('PID', cols.pid, hy, 64, DIM);
     this.put('NAME', cols.name, hy, 64, DIM);
     this.put('STATE', cols.state, hy, 64, DIM);
@@ -111,7 +111,7 @@ export class ScreenView extends Container {
       const c = p.tone === 'run' ? INK : p.tone === 'done' ? AMBER : DIM;
       if (p.tone === 'run') g.roundRect(RX - 14, ry - 8, X1 - RX + 28, 112, 14).fill({ color: INK, alpha: 0.12 });
       this.put(p.pid, cols.pid, ry, 76, c);
-      this.put(p.name.slice(0, 12), cols.name, ry, 76, c);
+      this.put(p.name.slice(0, 11), cols.name, ry, 76, c);
       this.put(p.state, cols.state, ry, 76, c);
       this.put(p.mem, cols.mem, ry, 76, c);
       this.put(p.time, cols.time, ry, 76, c, true);
@@ -123,5 +123,38 @@ export class ScreenView extends Container {
     if (m.prompt) this.put(m.prompt, X0, 1590, 90, m.promptTone === 'warn' ? AMBER : m.promptTone === 'ok' ? INK : DIM, false, '700');
 
     for (let i = this.used; i < this.pool.length; i++) this.pool[i]!.visible = false;
+  }
+}
+
+/**
+ * The graphics display with its cable on a GPU: the card's output as a grid of coloured cells (`frameColor`) with a status strip under it.
+ * Repainted only when the frame or the strip changes.
+ */
+export class FrameView extends Container {
+  private g = new Graphics();
+  private strip = new Text({ text: '', style: { fontFamily: MONO, fontSize: 70, fontWeight: '600' as TextStyleFontWeight, fill: INK }, resolution: 2 });
+  private sig = '';
+
+  constructor() {
+    super();
+    this.strip.position.set(X0, 1600);
+    this.addChild(this.g, this.strip);
+    this.visible = false;
+  }
+
+  show(m: FrameModel | null) {
+    this.visible = !!m;
+    if (!m) { this.sig = ''; return; }
+    const sig = m.status + '|' + m.cells.map((c) => Math.round(c * 255)).join(',');
+    if (sig === this.sig) return;
+    this.sig = sig;
+    const g = this.g, gap = 5, area = { x: X0, y: 70, w: X1 - X0, h: 1480 };
+    const cell = Math.min(area.w / m.cols, area.h / m.rows);
+    const ox = area.x + (area.w - cell * m.cols) / 2, oy = area.y + (area.h - cell * m.rows) / 2;
+    g.clear();
+    g.rect(ox - 14, oy - 14, cell * m.cols + 28, cell * m.rows + 28).fill({ color: TRACK }).stroke({ width: 5, color: RULE });
+    m.cells.forEach((v, i) => g.rect(ox + (i % m.cols) * cell + gap / 2, oy + Math.floor(i / m.cols) * cell + gap / 2, cell - gap, cell - gap).fill({ color: frameColor(v) }));
+    this.strip.text = m.status;
+    this.strip.style.fill = m.status.includes('FAULT') ? RED : m.status.includes('DRAWING') ? CYAN : INK;
   }
 }

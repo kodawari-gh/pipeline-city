@@ -22,11 +22,11 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../room/exte
 import { box, clear, dashed, label } from '../ink';
 import {
   BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, nicJack, nicRect, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../room/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
-import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
+import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
@@ -450,7 +450,23 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene build: runs on theme change, board tier change, or an install/uninstall ----
   const keyOf = (s: Snapshot | null) =>
-    `${T.dark}|${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}`;
+    `${T.dark}|${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}|${s?.videoPort ?? 'board'}`;
+
+  /** The cables to draw: the video cable's PC end is in the board's HDMI port, or in a graphics card's display port (`Snapshot.videoPort`). */
+  const cablesOf = (s: Snapshot | null, hasPsu: boolean, hasDisplay: boolean, needsPcie: boolean): Cable[] => {
+    const m = /^pcie(\d+)$/.exec(s?.videoPort ?? '');
+    return ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)))
+      .map((c) => (c.kind === 'video' && m && s?.cables.find((x) => x.id === 'video')?.connected ? videoCableAt(nicY(Number(m[1]))) : c));
+  };
+  /** The graphics cards' display ports the video cable could go into (a graphics display only; a burnt card is no port). */
+  const videoAlts = (s: Snapshot | null): NonNullable<CableInfo['alts']> => {
+    const disp = s?.devices.find((d) => d.kind === 'display');
+    if (!s || !disp || !(getSpec(disp.spec) as { graphics?: boolean } | undefined)?.graphics) return [];
+    return s.devices.filter((d) => d.kind === 'gpu' && !d.burnt).map((d) => {
+      const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
+      return { port: d.slot, rect: gpuPort(idx), cable: videoCableAt(nicY(idx)) };
+    });
+  };
 
   function build(s: Snapshot | null) {
     boardBake?.texture.destroy(true); deviceBake?.texture.destroy(true); caseBake?.texture.destroy(true);
@@ -753,6 +769,7 @@ export async function mountBoard(host: HTMLElement) {
         drives: storageDevs.map((d) => ({ slot: d.slot, kind: slotKind.get(d.slot) ?? 'hdd' })).filter((d) => d.kind !== 'ssd-nvme'),
         features: bt?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
         nics: (s?.devices ?? []).filter((d) => d.kind === 'nic').map((d) => Number(/\d+$/.exec(d.slot)?.[0] ?? 0)),
+        gpus: (s?.devices ?? []).filter((d) => d.kind === 'gpu').map((d) => Number(/\d+$/.exec(d.slot)?.[0] ?? 0)),
       });
       const EF = exteriorFrame();
       const tx = app.renderer.generateTexture({ target: ext, frame: new Rectangle(EF.x, EF.y, EF.w, EF.h), resolution: 0.35, antialias: true });
@@ -764,7 +781,7 @@ export async function mountBoard(host: HTMLElement) {
     }
 
     const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie'); // listed only while a card needs the lead (or it is plugged)
-    const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
+    const cables = cablesOf(s, hasPsu, hasDisplay, needsPcie);
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay, gfx: gfxDisplay }, hooks, gpuCards);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
@@ -787,13 +804,14 @@ export async function mountBoard(host: HTMLElement) {
     const now = performance.now();
     const hasPsu = !!s?.devices.some((d) => d.kind === 'psu'), hasDisplay = !!s?.devices.some((d) => d.kind === 'display');
     const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie');
-    const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
+    const cables = cablesOf(s, hasPsu, hasDisplay, needsPcie);
+    const alts = videoAlts(s);
     const states = cables.map((c) => {
       const snapC = s?.cables.find((x) => x.id === c.kind);
       const connected = snapC ? interact.cableStateOf(c.kind, snapC.connected, now) : true;
       return { c, state: held === c.kind ? 'held' as const : connected ? 'connected' as const : 'loose' as const };
     });
-    const key = `${T.dark}|` + states.map((x) => x.c.kind + ':' + x.state).join(',');
+    const key = `${T.dark}|` + states.map((x) => x.c.kind + ':' + x.state).join(',') + '|' + alts.map((a) => a.port).join(',');
     if (!force && key === cableKey) return;
     cableKey = key;
     sceneDirty = true;
@@ -805,7 +823,7 @@ export async function mountBoard(host: HTMLElement) {
     for (const { c, state } of states) {
       const lo = looseCable(c);
       const seated = plugRect(movablePlug(c)), rest = plugRect(lo.plug);
-      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: connectorOf(c.kind), state };
+      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: connectorOf(c.kind), state, ...(c.kind === 'video' ? { alts } : {}) };
       scene.cables.set(c.kind, info);
       scene.interactive.add('cable.' + c.kind);
       scene.rects.set('cable.' + c.kind, info.plug);

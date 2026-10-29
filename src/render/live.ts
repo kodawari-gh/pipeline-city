@@ -11,8 +11,8 @@ import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
 import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
-import { dashModel, IPC_SAMPLES, ipcBetween } from './room/screenmodel';
-import { ScreenView } from './room/screenview';
+import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold } from './room/screenmodel';
+import { FrameView, ScreenView } from './room/screenview';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import type { Theme } from './theme';
 
@@ -125,6 +125,10 @@ export class Live {
   private dashIpc: number[] = [];
   private dashPrev: Record<string, number> | null = null;
   private dashStarted = new Map<number, number>();
+  /** What a GPU draws, when the graphics display's cable is on the card, and how long it stays up (`holdFrame`). */
+  private frameV = new FrameView();
+  private frameHold: FrameHold = { seq: 0, at: -Infinity };
+  private frameOn = false;
   /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
   private bootG = new Graphics();
   private noSignal: Text;
@@ -315,7 +319,7 @@ export class Live {
     // the screen's contents are laid out at the design size inside a container scaled onto the (bigger) monitor
     this.scr.removeChildren();
     this.buildStandby(T);
-    this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.dash, this.noSignal);
+    this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.dash, this.frameV, this.noSignal);
     this.scr.position.set(SCREEN.x, SCREEN.y); this.scr.scale.set(MONITOR_K);
     this.ext.addChild(this.extG, this.scr);
     const showPsu = flags.psu;
@@ -349,7 +353,7 @@ export class Live {
   /** The blank screen: dim glass with the mark instead of a black slab (still: it is a screen that is off, not an animation). */
   private frameStandby() {
     const k = this.blank ? standbyLook(this.blank, monitorView(this.blank), this.osOn) : null;
-    this.standby.visible = k !== null;
+    this.standby.visible = k !== null && !this.frameOn;
     if (k === null) return;
     if (this.standbyCap) this.standbyCap.visible = k === 'off';
   }
@@ -487,6 +491,7 @@ export class Live {
     }
     this.keyActivity = s.keyActivity ?? 'none';
     this.updateOsScreen(s, now);
+    this.updateGpuFrame(s);
     // the board: VRM state for the glow, a dead board for the dimming; a new 'fault' in the log flashes the VRM once
     this.vrm = s.board?.vrm ?? null;
     this.ramVrm = s.board?.ramVrm ?? null;
@@ -835,6 +840,21 @@ export class Live {
       if (t.text !== r.t) t.text = r.t;
       if (t.style.fill !== r.c) t.style.fill = r.c;
     });
+  }
+
+  /** With the cable on a card: the card's frame takes the glass over while it draws and a few ticks after, then the normal screen is back. */
+  private updateGpuFrame(s: Snapshot) {
+    const port = s.videoPort ?? 'board';
+    const card = this.gfxDisplay && s.monitorLive && s.powered && port !== 'board' ? s.gpus?.find((g) => g.slot === port) : undefined;
+    const r = holdFrame(this.frameHold, card, s.baseTick);
+    this.frameHold = r.hold;
+    const m = r.show ? frameModel(card) : null;
+    this.frameOn = !!m;
+    this.frameV.show(m);
+    if (!m) return;
+    this.screenText.visible = false;
+    this.osG.visible = false;
+    this.dash.visible = false; // only hidden, so the dashboard underneath keeps its signature and does not repaint every frame
   }
 
   /** The graphics display's OS screen: the dashboard (gauges, IPC trace, process table) in place of the text rows. */

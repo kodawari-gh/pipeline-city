@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { GpuSnap } from '../../sim/game/types';
 import type { Snapshot } from '../../sim/protocol';
-import { clock, dashModel, ipcBetween, type DashCtx } from './screenmodel';
+import { FRAME_COLS, FRAME_HOLD, clock, dashModel, frameColor, frameModel, holdFrame, ipcBetween, type DashCtx } from './screenmodel';
 
 const job = (slot: number, keyId: number, label: string, state: 'queued' | 'running' | 'result', ahead = 0) => ({ slot, keyId, label, state, persisted: true, ahead });
 
@@ -84,4 +85,79 @@ describe('dashModel', () => {
   });
 
   it('formats clock time', () => expect(clock(125)).toBe('02:05'));
+});
+
+const card = (o: Partial<GpuSnap> = {}): GpuSnap => ({
+  slot: 'pcie1', lanes: 8, banks: 1, memBytes: 8192, phase: 'idle', mask: 0, stack: [], pc: 0, regs: [], trace: [], launches: 1, error: false,
+  stats: { instructions: 100, idleLaneSlots: 80, conflictCycles: 3, cycles: 120 }, frame: [], ...o,
+});
+
+describe('frameModel', () => {
+  it('is null before the first launch', () => {
+    expect(frameModel(undefined)).toBeNull();
+    expect(frameModel(card({ frame: [] }))).toBeNull();
+  });
+
+  it('trims to whole rows of the last non-zero word and scales to 0..1', () => {
+    const frame = Array(256).fill(0);
+    for (let i = 0; i < 40; i++) frame[i] = i % 4 === 0 ? 16 : 2;
+    const m = frameModel(card({ frame }))!;
+    expect(m.cols).toBe(FRAME_COLS);
+    expect(m.rows).toBe(2); // 40 words: two rows of 32
+    expect(m.cells).toHaveLength(64);
+    expect(Math.min(...m.cells)).toBe(0);
+    expect(Math.max(...m.cells)).toBe(1);
+    expect(m.cells[0]).toBe(1);
+    expect(m.cells[1]).toBeCloseTo((2 - 0) / 16);
+  });
+
+  it('reads the words as signed integers', () => {
+    const frame = Array(256).fill(0);
+    frame[0] = 0xffffffff; frame[1] = 1;
+    const m = frameModel(card({ frame }))!;
+    expect(m.cells[0]).toBe(0);
+    expect(m.cells[1]).toBe(1);
+  });
+
+  it('states what the card is doing, in numbers it has', () => {
+    const frame = Array(256).fill(1);
+    expect(frameModel(card({ frame, phase: 'run' }))!.status).toContain('DRAWING');
+    expect(frameModel(card({ frame }))!.status).toContain('DONE');
+    expect(frameModel(card({ frame, error: true }))!.status).toContain('FAULT');
+    const s = frameModel(card({ frame, launches: 3 }))!.status;
+    expect(s).toContain('FRAME 3');
+    expect(s).toContain('120 CYC');
+    expect(s).toContain('8 LANES 90% BUSY');
+    expect(s).toContain('3 CONFLICTS');
+  });
+});
+
+describe('frameColor', () => {
+  it('runs from dark glass to white', () => {
+    expect(frameColor(0)).toBe('#081410');
+    expect(frameColor(1)).toBe('#ffffff');
+    expect(frameColor(-3)).toBe(frameColor(0));
+    expect(frameColor(7)).toBe(frameColor(1));
+  });
+});
+
+describe('holdFrame', () => {
+  const idle = card({ launches: 1 });
+  it('shows nothing before a launch', () => {
+    expect(holdFrame({ seq: 0, at: -Infinity }, card({ launches: 0 }), 50).show).toBe(false);
+  });
+  it('shows while the card works and for the hold after its latest launch, then lets go', () => {
+    let h = { seq: 0, at: -Infinity };
+    let r = holdFrame(h, card({ launches: 1, phase: 'run' }), 100);
+    expect(r.show).toBe(true); h = r.hold;
+    r = holdFrame(h, idle, 100 + FRAME_HOLD); expect(r.show).toBe(true); h = r.hold;
+    r = holdFrame(h, idle, 100 + FRAME_HOLD + 1); expect(r.show).toBe(false);
+  });
+  it('a new launch restarts the hold, even one that finished between two snapshots', () => {
+    let h = { seq: 1, at: 100 };
+    const r = holdFrame(h, card({ launches: 2 }), 150);
+    expect(r.show).toBe(true);
+    h = r.hold;
+    expect(holdFrame(h, card({ launches: 2 }), 150 + FRAME_HOLD).show).toBe(true);
+  });
 });

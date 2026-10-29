@@ -599,14 +599,19 @@ export function buildCables(): Cable[] {
     out.push(mkc('pcie', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 84, plugV(x, PORT_Y, 110, [3, 2]),
       { x: plugX, y, dx: 1, dy: 0, w: g.pciew.h - 40, l: 270, pins: [3, 2] }, 190));
   }
-  // video: from the HDMI port on the rear I/O (west edge of the board) west into the gap, down it, under the monitor and up behind its bezel: the cable is
-  // built into the monitor (no socket, no plug on that end), so it simply comes out from behind the bezel's bottom edge
-  {
-    const x0 = BR.io.x, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y, l = 220;
-    out.push(mkc('video', [[x0 - 200, VIDEO_Y], [VIDEO_TRUNK_X, VIDEO_Y], [VIDEO_TRUNK_X, VIDEO_RUN_Y], [sx, VIDEO_RUN_Y], [sx, sy + CABLE_HIDE]], 76,
-      { x: x0, y: VIDEO_Y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] }, { x: sx, y: sy, dx: 0, dy: 1, w: 130, l, pins: [1, 1] }, 150));
-  }
+  out.push(videoCableAt(VIDEO_Y));
   return out;
+}
+
+/**
+ * The video cable with its PC end at height `y` of the rear plate: `VIDEO_Y` is the board's HDMI port, a card's display port is at `gpuPort(i).y + 60`.
+ * It runs from there west into the gap, down it, under the monitor and up behind its bezel: the cable is built into the monitor (no socket, no plug on
+ * that end), so it simply comes out from behind the bezel's bottom edge.
+ */
+export function videoCableAt(y: number): Cable {
+  const x0 = BR.io.x, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y, l = 220;
+  return { kind: 'video', path: mkLane(roundedPath([[x0 - 200, y], [VIDEO_TRUNK_X, y], [VIDEO_TRUNK_X, VIDEO_RUN_Y], [sx, VIDEO_RUN_Y], [sx, sy + CABLE_HIDE]], 150)), w: 76,
+    a: { x: x0, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] }, b: { x: sx, y: sy, dx: 0, dy: 1, w: 130, l, pins: [1, 1] } };
 }
 
 /** Thin rects along a lane for hit testing (pad on both sides). */

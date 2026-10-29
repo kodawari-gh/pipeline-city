@@ -29,6 +29,8 @@ export interface CableInfo {
   /** Where the loose plug goes (board connector). */
   connector: Rect;
   state: CableState;
+  /** The video cable only: other places its plug can go, a graphics card's display port (`port` is the card's slot, `cable` the cable seated there). */
+  alts?: { port: string; rect: Rect; cable: Cable }[];
 }
 
 /** A network port the ethernet plug can go into: the board's own jack (`eth0`, port `board`) or a NIC's jack (`eth1`.., port = the card's device id). */
@@ -123,7 +125,7 @@ export class Interact {
     cx: number; cy: number; wx: number; wy: number;
     /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
-    /** cable */ cable?: CableInfo; snapped?: boolean; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
+    /** cable */ cable?: CableInfo; snapped?: boolean; /** the video plug over a graphics card's port (its alt) */ alt?: NonNullable<CableInfo['alts']>[number] | null; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
     /** a wall cord: which, where the plug's centre is relative to the pointer, and where the plug is now */ cord?: CordScene['kind']; off?: Pt; at?: Pt;
     /** key */ fromPlugged?: boolean; keyId?: number;
   } = null;
@@ -449,7 +451,8 @@ export class Interact {
     [d.wx, d.wy] = this.world(cx, cy);
     if (d.kind === 'part') d.over = this.slotAt(d.wx, d.wy, d);
     if (d.kind === 'cable' && d.cable) {
-      d.snapped = inside(d.cable.connector, d.wx, d.wy, d.cable.kind === 'video' ? 160 : 260);
+      d.alt = d.cable.alts?.find((a) => inside(a.rect, d.wx, d.wy, 130)) ?? null;
+      d.snapped = !!d.alt || inside(d.cable.connector, d.wx, d.wy, d.cable.kind === 'video' ? 160 : 260);
     }
     if (d.cord) {
       const c = this.scene.cords.find((q) => q.kind === d.cord);
@@ -548,8 +551,8 @@ export class Interact {
       this.ghost.removeChildren().forEach((x) => x.destroy({ children: true }));
       if (!cancelled && d.snapped) {
         this.act(cx, cy);
-        connectCable(ci.kind);
-        this.forced.set(ci.kind, { connected: true, until: performance.now() + 1500 });
+        connectCable(ci.kind, d.alt?.port);
+        this.forced.set(ci.kind, { connected: true, until: performance.now() + 1500, ...(d.alt ? { port: d.alt.port } : {}) });
       } else if (!cancelled) {
         // dropped near the wrong socket?
         for (const o of this.scene.cables.values()) if (o.kind !== ci.kind && inside(o.connector, d.wx, d.wy, 200)) { this.toast('That plug does not fit this socket.', cx, cy); break; }
@@ -755,7 +758,12 @@ export class Interact {
       box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30, { fill: accent, fa: d.snapped ? 0.3 : 0.08 + 0.08 * pulse, stroke: accent, lw: lw * (d.snapped ? 2.2 : 1.6), sa: d.snapped ? 1 : 0.55 + 0.4 * pulse });
       // pose of the plug: the pin face at the pointer, body trailing back along the cable; snapped, it sits in the socket
       const lo = ci.loose, l = lo.plug.l;
-      const seated = movablePlug(cab);
+      // the video plug can also seat in a graphics card's port: those ports pulse too, and the one under the plug takes it
+      for (const a of ci.alts ?? []) {
+        const on = d.alt === a, ee = 14 + 14 * pulse + (on ? 14 : 0);
+        box(g, a.rect.x - ee, a.rect.y - ee, a.rect.w + 2 * ee, a.rect.h + 2 * ee, 30, { fill: accent, fa: on ? 0.3 : 0.08 + 0.08 * pulse, stroke: accent, lw: lw * (on ? 2.2 : 1.6), sa: on ? 1 : 0.55 + 0.4 * pulse });
+      }
+      const seated = d.alt ? movablePlug(d.alt.cable) : movablePlug(cab);
       let tip: Pt = [d.wx, d.wy], ang: number;
       if (d.snapped) { tip = [seated.x, seated.y]; ang = Math.atan2(seated.dy, seated.dx); }
       else {

@@ -1,4 +1,5 @@
 import { getSpec } from '../../sim/board/specs';
+import type { GpuSnap } from '../../sim/game/types';
 import type { Snapshot } from '../../sim/protocol';
 import { memoryTable, sizeText } from '../board/ramlayout';
 
@@ -128,3 +129,59 @@ export function dashModel(s: Snapshot, ctx: DashCtx): DashModel | null {
 
 /** A stable text of everything the view draws, so it repaints only when this changes. */
 export const dashSig = (m: DashModel): string => JSON.stringify(m);
+
+// ---------------------------------------------------------------- the GPU's frame (the graphics display with its cable on a card)
+
+/** Width of the picture in cells: the mandelbrot kernel's row (`MANDEL.logW`); the other kernels' arrays read as bars of the same width. */
+export const FRAME_COLS = 32;
+/** How many base ticks the frame stays up after the card's last launch before the normal screen comes back. */
+export const FRAME_HOLD = 8;
+
+export interface FrameModel {
+  cols: number;
+  rows: number;
+  /** One value per cell, 0..1 over the frame's own range (row by row). */
+  cells: number[];
+  /** The strip under the picture. */
+  status: string;
+  /** Launches so far: the frame number. */
+  seq: number;
+}
+
+/**
+ * The card's output region as a picture: the used part (up to the last non-zero word, rounded up to whole rows of `FRAME_COLS`), each word scaled to 0..1 between
+ * the smallest and largest of them (signed, as the kernels' integers are). Null before the card's first launch.
+ */
+export function frameModel(g: GpuSnap | undefined): FrameModel | null {
+  if (!g || !g.frame.length) return null;
+  let last = -1;
+  for (let i = g.frame.length - 1; i >= 0; i--) if (g.frame[i] !== 0) { last = i; break; }
+  const rows = Math.max(1, Math.ceil((last + 1) / FRAME_COLS));
+  const w = g.frame.slice(0, rows * FRAME_COLS).map((v) => v | 0);
+  const lo = Math.min(...w), hi = Math.max(...w), span = hi - lo || 1;
+  const slots = g.stats.instructions * g.lanes;
+  const busy = slots > 0 ? Math.round((100 * (slots - g.stats.idleLaneSlots)) / slots) : 0;
+  const state = g.error ? 'FAULT' : g.phase === 'idle' ? 'DONE' : 'DRAWING';
+  return {
+    cols: FRAME_COLS, rows, cells: w.map((v) => (v - lo) / span), seq: g.launches,
+    status: `FRAME ${g.launches}  ${state}  ${g.stats.cycles} CYC  ${g.lanes} LANES ${busy}% BUSY  ${g.stats.conflictCycles} CONFLICTS`,
+  };
+}
+
+const RAMP = [[8, 20, 16], [24, 90, 70], [90, 255, 176], [79, 227, 255], [255, 194, 71], [255, 255, 255]] as const;
+/** The picture's colour for a cell value 0..1: dark glass up through the terminal green and cyan to amber and white. */
+export function frameColor(t: number): string {
+  const x = clamp01(t) * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
+  const c = RAMP[i]!.map((a, k) => Math.round(a + (RAMP[i + 1]![k]! - a) * f));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** What the screen remembers of a card to decide how long its frame stays up: the launch count it last saw and the tick it last saw the card busy or launched. */
+export interface FrameHold { seq: number; at: number }
+
+/** Advance the hold with this snapshot's card: the frame is up while the card works and `FRAME_HOLD` ticks after its latest launch. */
+export function holdFrame(h: FrameHold, g: GpuSnap | undefined, tick: number): { hold: FrameHold; show: boolean } {
+  if (!g || g.launches === 0) return { hold: { seq: g?.launches ?? 0, at: -Infinity }, show: false };
+  const hold = g.launches !== h.seq || g.phase !== 'idle' ? { seq: g.launches, at: tick } : h;
+  return { hold, show: tick - hold.at <= FRAME_HOLD };
+}
