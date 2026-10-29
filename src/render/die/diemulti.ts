@@ -56,7 +56,7 @@ export class DieView {
       view.legendOn = false;
       view.scrubLead = false;
       view.onMemory = this.mem;
-      view.setPlan(T, tile.plan);
+      view.setPlan(T, tile.plan, tile.motion);
       this.tilesAt.addChild(view.root);
       this.cores.push({ view, tile });
     }

@@ -104,6 +104,8 @@ export class PlanView {
   /** Whether this view tells the Trace panel's scrubber what it can show (on a multicore die only the selected core's view does). */
   scrubLead = true;
   private plan: CpuPlan | null = null;
+  /** What the replay moves on: the plan, or for a core tile also the shared blocks and the wires out to them. */
+  private motion: CpuPlan | null = null;
   private art: DieArt | null = null;
   private glowG = new Graphics();
   private dataG = new Graphics();
@@ -145,18 +147,22 @@ export class PlanView {
     this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.legend);
   }
 
-  /** Build (or rebuild, on a theme change) the near layer of a plan. */
-  setPlan(T: Theme, plan: CpuPlan) {
+  /**
+   * Build (or rebuild, on a theme change) the near layer of a plan. `motion` is the plan the replay moves on when it is more than the one drawn:
+   * a core tile of a multicore die also knows the shared blocks and the wires out to them (`splitPlan`), so packets and flashes reach them.
+   */
+  setPlan(T: Theme, plan: CpuPlan, motion: CpuPlan = plan) {
     this.T = T;
     this.plan = plan;
+    this.motion = motion;
     this.dropChips();
     for (const ct of this.cellTexts.values()) ct.clear();
     this.cellTexts.clear();
     this.art?.root.destroy({ children: true });
     this.art = dieNear(T, plan);
     this.root.addChildAt(this.art.root, 0);
-    this.byId = new Map(plan.blocks.map((b) => [b.id, b]));
-    this.player = new Player(plan);
+    this.byId = new Map(motion.blocks.map((b) => [b.id, b]));
+    this.player = new Player(motion);
     this.packets = [];
     this.trails.clear();
     this.glow.clear();
@@ -189,6 +195,7 @@ export class PlanView {
   /** No CPU in the socket. */
   clear() {
     this.plan = null;
+    this.motion = null;
     this.player = null;
     this.dropChips();
     for (const ct of this.cellTexts.values()) ct.clear();
@@ -274,7 +281,7 @@ export class PlanView {
 
   /** Draw one frame at game time `now` (ms). */
   frame(now: number, paused = false) {
-    const plan = this.plan, player = this.player;
+    const plan = this.motion, player = this.player;
     if (!plan || !player) return;
     const T = this.T;
     // a paused game can be scrubbed: the Trace panel names a cycle and the die shows the machine at it
@@ -296,7 +303,11 @@ export class PlanView {
       else if (e.kind === Ev.Hit || e.kind === Ev.Fill) this.slotTime.set(WHICH[e.a]! + e.b, now);
       else if (e.kind === Ev.Pred) this.slotTime.set('p' + e.a, now);
       else if (e.kind === Ev.Tlb) { if (e.a === 2) this.sysAt.set('fault', now); else { this.slotTime.set('t' + e.b, now); this.tlbKind.set(e.b, e.a); } }
-      else if (e.kind === Ev.Irq) { this.sysAt.set('irq', now); this.sysLine = e.a; }
+      else if (e.kind === Ev.Irq) {
+        this.sysAt.set('irq', now); this.sysLine = e.a;
+        const wire = plan.links.find((l) => l.kind === 'irq');
+        if (wire) this.send([{ link: wire, reverse: false, delay: 0, color: 'inst' }], now, 'br'); // the interrupt comes in along its wire from the controller
+      }
       else if (e.kind === Ev.Iret) this.sysAt.set('iret', now);
       else if (e.kind === Ev.Space) this.sysAt.set('space', now);
     }
@@ -595,7 +606,7 @@ export class PlanView {
       const f = fade(this.sysAt.get(key) ?? -1, ms);
       if (b && f > 0) box(g, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { stroke: color, lw, sa: f, fill: color, fa: 0.18 * f });
     };
-    const ic = plan.blocks.find((b) => b.id === 'intc' || b.kind === 'intc');
+    const ic = this.motion!.blocks.find((b) => b.id === 'intc' || b.kind === 'intc');
     flash(ic, 'irq', 1100, T.br, 4);
     flash(ic, 'iret', 800, T.alu, 3);
     flash(tl, 'space', 1100, T.ld, 4);

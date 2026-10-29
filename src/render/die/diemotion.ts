@@ -614,8 +614,10 @@ export function packetsFor(plan: CpuPlan, ev: BeatEvent, ctx: BeatContext = { ev
         } else if (hasL2 && at(Ev.Hit, Which.L2)) chain(['l2', 'ic', 'fetch'], 0.2);
         else chain(['ic', 'fetch'], 0.2);
       } else {
-        chain(['fetch', 'fabric', 'mc'], 0.1, 'mute', 0.2);
-        chain(['mc', 'fabric', 'fetch'], 0.6, 'inst', 0.3);
+        // no instruction cache: fetches go to the system bus, through the shared L2 when the fetch unit is wired to it (a multicore tile)
+        const via = hasL2 && linkBetween(plan, 'fetch', 'l2') ? 'l2' : 'fabric';
+        chain(['fetch', via, 'fabric', 'mc'], 0.1, 'mute', 0.2);
+        chain(['mc', 'fabric', via, 'fetch'], 0.6, 'inst', 0.3);
       }
       break;
     case 'D':
