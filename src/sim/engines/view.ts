@@ -75,12 +75,19 @@ export const Counter = {
   TlbHits: 30,
   TlbMisses: 31,
   PageFaults: 32,
+  /** Multicore (docs/MULTICORE.md section 2): L2 lookups this core made through the shared port, and the cycles it waited for the port. */
+  L2PortBusy: 33,
+  StallL2Port: 34,
+  /** Lines another core's store dropped from this core's L1 caches, and this core's L1 misses on a line dropped that way. */
+  CoherenceInvals: 35,
+  CoherenceMisses: 36,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
   "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts", "tlbHits", "tlbMisses", "pageFaults",
+  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 

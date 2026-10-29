@@ -57,6 +57,7 @@ export class Machine {
     this.mem = cfg.mem ?? null;
     const n = cfg.cores ?? 1;
     if (!Number.isInteger(n) || n < 1) throw new RangeError("a machine needs at least one core");
+    if (this.mem && n > 1) this.mem.shared = true;
     this.cores = Array.from({ length: n }, (_, k) => new Core(k, this.ram));
     const c0 = this.cores[0]!;
     this.regs = c0.regs; this.intc = c0.intc; this.mpu = c0.mpu; this.timer = c0.timer; this.mmu = c0.mmu;
@@ -76,15 +77,18 @@ export class Machine {
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
   }
 
-  /** One CPU cycle: every core in index order, so the same save gives the same cycles. */
+  /** One CPU cycle: every core in turn (index order, rotating with a shared L2), so the same save gives the same cycles. */
   stepCpu(): void {
     const cores = this.cores;
     if (cores.length === 1) { this.stepCore(cores[0]!); return; }
-    for (let k = 0; k < cores.length; k++) {
-      const c = cores[k]!;
+    // With a shared L2 the cores that miss in the same cycle are served one per cycle in rotation, starting at cycle % cores: the step order rotates so no core is starved.
+    const mem = this.mem, n = cores.length, first = mem ? mem.now % n : 0;
+    for (let i = 0; i < n; i++) {
+      const k = (first + i) % n, c = cores[k]!;
       this.bus.serve(k, c.mpu);
       this.stepCore(c);
     }
+    if (mem) mem.now++;
   }
 
   /**

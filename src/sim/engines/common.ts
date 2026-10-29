@@ -9,7 +9,7 @@ import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
 import { Counter, Fate, ViewState, type EngineView } from "./view";
 import type { DramSettings } from "./dram";
-import { MemSystem } from "./memsys";
+import { MemSystem, type CoreCaches } from "./memsys";
 
 const opc = (name: string): number => SPEC_BY_NAME.get(name)!.op;
 const ADD = opc("add"), SUB = opc("sub"), AND = opc("and"), OR = opc("or"), XOR = opc("xor");
@@ -102,6 +102,9 @@ export class DataCache {
   private readonly shift: number;
   private readonly setMask: number;
   private clock = 0;
+  /** Slots another core's store dropped (their tag stays so the next miss on the line can be told apart), and how many are marked. */
+  private readonly dropped: Uint8Array;
+  private droppedN = 0;
   /** Slot (set * ways + way) of the last hit or fill, and the line number the last fill evicted (-1: none). For the die view. */
   lastSlot = 0;
   lastEvicted = -1;
@@ -113,10 +116,37 @@ export class DataCache {
     this.tags = new Uint32Array(lines);
     this.valid = new Uint8Array(lines);
     this.used = new Uint32Array(lines);
+    this.dropped = new Uint8Array(lines);
     this.shift = Math.log2(lineBytes);
     this.setMask = lines / ways - 1;
   }
-  invalidate(): void { this.valid.fill(0); this.used.fill(0); this.clock = 0; }
+  invalidate(): void { this.valid.fill(0); this.used.fill(0); this.clock = 0; this.dropped.fill(0); this.droppedN = 0; }
+  /** Another core stored to this line: drop it if held (true), remembering that coherence took it. */
+  drop(addr: number): boolean {
+    const line = addr >>> this.shift;
+    const base = (line & this.setMask) * this.ways;
+    for (let w = 0; w < this.ways; w++) {
+      const i = base + w;
+      if (this.valid[i] === 1 && this.tags[i] === line) {
+        this.valid[i] = 0;
+        this.lastSlot = i;
+        if (this.dropped[i] === 0) { this.dropped[i] = 1; this.droppedN++; }
+        return true;
+      }
+    }
+    return false;
+  }
+  /** Whether a miss on this line is because coherence dropped it (the mark is consumed). */
+  takeDropped(addr: number): boolean {
+    if (this.droppedN === 0) return false;
+    const line = addr >>> this.shift;
+    const base = (line & this.setMask) * this.ways;
+    for (let w = 0; w < this.ways; w++) {
+      const i = base + w;
+      if (this.dropped[i] === 1 && this.tags[i] === line) { this.dropped[i] = 0; this.droppedN--; return true; }
+    }
+    return false;
+  }
   hit(addr: number): boolean {
     const line = addr >>> this.shift;
     const base = (line & this.setMask) * this.ways;
@@ -140,6 +170,7 @@ export class DataCache {
       if (this.valid[i] === 0) { victim = i; break; }
       if (this.used[i]! < this.used[victim]!) victim = i;
     }
+    if (this.droppedN > 0 && this.dropped[victim] === 1) { this.dropped[victim] = 0; this.droppedN--; }
     this.lastEvicted = this.valid[victim] === 1 && this.tags[victim] !== line ? this.tags[victim]! : -1;
     this.lastSlot = victim;
     this.valid[victim] = 1;
@@ -157,7 +188,7 @@ export class DataCache {
 }
 
 /** What the die view needs to show what is stored: a ring of the writes the machine did in its last cycles (docs/DIE.md "What is stored"). */
-export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6, Tlb: 7, Irq: 8, Iret: 9, Space: 10 } as const;
+export const Ev = { Reg: 1, Hit: 2, Fill: 3, Pred: 4, Mem: 5, Row: 6, Tlb: 7, Irq: 8, Iret: 9, Space: 10, Inval: 11 } as const;
 /** Which cache an event is about. */
 export const Which = { D: 0, I: 1, L2: 2 } as const;
 const EV_SIZE = 6, EV_CAP = 1024;
@@ -373,7 +404,11 @@ export abstract class EngineBase implements PipelineEngine {
     this.redirectPenalty = s.redirectPenalty ?? 0;
     if (!Number.isInteger(this.redirectPenalty) || this.redirectPenalty < 0) throw new RangeError("redirectPenalty must be an integer >= 0");
     this.pred = new Predictor(s.predEntries ?? 64, s.predBits ?? 1);
+    this.port = { cache: this.cache, icache: this.icache, counters: this.v.counters, events: this.events };
   }
+
+  /** What a shared memory system sees of this core: its L1 caches and where to count and log (the coherence rule). */
+  protected readonly port: CoreCaches;
 
   get view(): EngineView { return this.v; }
   get halted(): boolean { return this.isHalted; }
@@ -413,6 +448,7 @@ export abstract class EngineBase implements PipelineEngine {
   protected dHit(addr: number): boolean {
     const h = this.cache.hit(addr);
     if (h) this.events.push(this.cycleNo, Ev.Hit, Which.D, this.cache.lastSlot, addr >>> this.cache.lineShift, 0);
+    else if (this.mem.shared && this.cache.takeDropped(addr)) this.v.counters[Counter.CoherenceMisses]!++;
     return h;
   }
   protected dFill(addr: number): void {
@@ -422,6 +458,7 @@ export abstract class EngineBase implements PipelineEngine {
   /** A load (kind 0) or a store (kind 1) of the data side: address and value. */
   protected logMem(kind: number, addr: number, value: number): void {
     this.events.push(this.cycleNo, Ev.Mem, kind, addr | 0, value | 0, 0);
+    if (kind === 1 && this.mem.shared && addr < this.ramSize) this.mem.storeLanded(this.port, addr, this.cycleNo); // the store has landed in RAM: other cores drop the line
   }
   /** Train the predictor and log the counter's change. */
   protected trainPred(pc: number, taken: boolean): void {
@@ -446,6 +483,7 @@ export abstract class EngineBase implements PipelineEngine {
     this.cache.invalidate();
     this.icache?.invalidate();
     if (this.ownsMem) this.mem.reset();
+    if (this.mem.shared) this.mem.join(this.port);
     this.pred.reset();
     this.events.reset();
     this.iWaitPc = -1; this.iWait = 0; this.seqPc = 0;
@@ -456,7 +494,8 @@ export abstract class EngineBase implements PipelineEngine {
 
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
   protected missCost(addr: number): number {
-    return this.mem.missCost(addr, this.cycleNo, this.v.counters, this.events);
+    const m = this.mem;
+    return m.missCost(addr, m.shared ? m.now : this.cycleNo, this.v.counters, this.events, this.cycleNo);
   }
 
   /**
@@ -477,6 +516,7 @@ export abstract class EngineBase implements PipelineEngine {
       if (ic) {
         if (ic.hit(pc)) { c[Counter.ICacheHits]!++; this.events.push(this.cycleNo, Ev.Hit, Which.I, ic.lastSlot, pc >>> ic.lineShift, 0); this.seqPc = (vpc + 4) >>> 0; return true; }
         c[Counter.ICacheMisses]!++;
+        if (this.mem.shared && ic.takeDropped(pc)) c[Counter.CoherenceMisses]!++;
         wait = this.missCost(pc);
       } else if (this.redirectPenalty > 0) wait = this.redirectPenalty;
       else { this.seqPc = (vpc + 4) >>> 0; return true; }
