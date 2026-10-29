@@ -153,7 +153,8 @@ const gpuRender: TemplateFn = (rng, p) => gpuJob(rng, p, GPU_KERNEL_NAMES[rng.ne
 /** The GPU job for one named kernel (the mixed job above picks it from the seed; the single-kernel jobs `gpu.<kernel>` fix it). */
 function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string): Built {
   const b = new Builder();
-  const len = 32 * Math.max(1, Math.floor(p.scale / 2));
+  // mandel draws one picture row per scale step (32 wide, up to 8 rows): a 1- or 2-row picture shows nothing; the others grow with the scale.
+  const len = name === "mandel" ? 32 * Math.min(8, p.scale) : 32 * Math.max(1, Math.floor(p.scale / 2));
   const scale = 2 + rng.nextInt(4);
   const { a, b: bIn } = kernelInputs(len, rng.nextU32());
   const kp: GpuKernelParams = { lanes: 1, len, scale }; // results do not depend on the lane count
