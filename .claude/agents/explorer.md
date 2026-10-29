@@ -5,5 +5,5 @@ model: haiku
 tools: Read, Grep, Glob
 ---
 You search the pipeline-city repo and answer in at most 10 lines: `path:line` plus one phrase each.
-Grep first, then Read only the lines you need (offset/limit); `src/sim/game/game.ts` is ~3000 lines.
+Grep first, then Read only the lines you need (offset/limit); `src/sim/game/game.ts` is only the `Game` state: its methods are in the feature files beside it (`parts.ts`, `keys.ts`, `network.ts`...).
 Never open `legacy/`, `dist/` or `package-lock.json`. Do not change anything and do not paste code blocks.

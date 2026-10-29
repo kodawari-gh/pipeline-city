@@ -4,7 +4,7 @@ Code: `src/sim/game` (import from `src/sim/game`). No DOM imports; it runs insid
 
 The assembly side (inventory, install, cables, power, phases, boot ROM, USB keys, progress flags) is in [`ASSEMBLY.md`](ASSEMBLY.md); this file covers the economy and the per-tick loop.
 
-## API (`game.ts`)
+## API (`game.ts` and the feature files beside it)
 
 ```ts
 const g = new Game({ seed, economy?: Partial<EconomyConfig>, preassembled?: boolean });

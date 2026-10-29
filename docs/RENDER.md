@@ -64,7 +64,7 @@ Working parts (CPU, DIMMs, cooler, PSU, monitor, the cables) use the full theme 
 
 `boardTier` (new), `devices[]` (`id, spec, kind, slot` (new), `burnt, effectiveClock, tempC, powerW, throttle, unstable`), `power` (`totalW, budgetW, tripped, off`), `request` (an id change means a program load), `display` (monitor text; a change lights the video path), `counters` (`cycles`, `cacheMisses`, `stallCache` for RAM traffic), `pipe` (MEM stage op for stores).
 
-New in `Snapshot` (`src/sim/game/game.ts`, additive, existing consumers untouched):
+New in `Snapshot` (`src/sim/game/types.ts`, additive, existing consumers untouched):
 
 - `boardTier: number`
 - `DeviceSnap.slot: string` (e.g. `dimm1`)

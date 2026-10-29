@@ -7,14 +7,14 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - While working run only what you touched: `npx vitest run <path>`. Full `npm run test:q` (quiet) only before a push; plain `npm test` only to debug a failure.
 
 ## Where to look
-- `src/sim` pure TS, no DOM/Pixi/Preact. `sim/game/game.ts` is ~3000 lines: Grep for the symbol, then Read with offset/limit.
+- `src/sim` pure TS, no DOM/Pixi/Preact. `sim/game/game.ts` is the `Game` state; its methods live in feature files next to it (see its header): Grep for the method.
 - `src/game` main-thread state, signals, save/load. `src/render` Pixi (`die/`, `board/`, `room/`). `src/ui` Preact (`panels/`, `shop/`, `tutorial/`, `kit/`).
 - A test sits next to the file it covers (`x.ts` -> `x.test.ts`).
 
 ## Docs: read one, by topic, only when needed
 - Cross-layer work only: `docs/ARCHITECTURE.md`.
-- render, board, room -> `RENDER.md`, `BOARD.md` | die, CPU -> `DIE.md`, `CPU.md` | UI, panels -> `UI.md` | economy, loop -> `GAME.md` | jobs -> `JOBS.md`, `GEN.md` | levels, unlocks -> `PROGRESSION.md` | network -> `NETWORK.md`, `NETSTACK.md` | OS, kernel -> `OS.md` | saves -> `SAVE.md` | accelerators -> `ACCEL.md` | assembly, install -> `ASSEMBLY.md`
-- Docs over ~20 KB (`RENDER`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^## ` for the headings, then Read only that section. Never read them whole.
+- render, board, room -> `RENDER.md` (hub with a topic table to `render/{interact,live,board,case,net}.md` and `render/room/{room,shell,light}.md`), `BOARD.md` | die, CPU -> `DIE.md`, `CPU.md` | UI, panels -> `UI.md` | economy, loop -> `GAME.md` | jobs -> `JOBS.md`, `GEN.md` | levels, unlocks -> `PROGRESSION.md` | network -> `NETWORK.md`, `NETSTACK.md` | OS, kernel -> `OS.md` | saves -> `SAVE.md` | accelerators -> `ACCEL.md` | assembly, install -> `ASSEMBLY.md`
+- Docs over ~20 KB (`render/interact`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^## ` for the headings, then Read only that section. Never read them whole.
 
 ## Rules
 - The old prototype `legacy/` is not in this tree; it lives on the `legacy-archive` branch (`git show legacy-archive:legacy/<file>` only if asked). Never read `dist/` or `package-lock.json`.

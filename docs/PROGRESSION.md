@@ -15,7 +15,7 @@ Owner decisions. They override the drafts below where they conflict.
 
 ## Built (sim, 2026-10-24): deviations and measurements
 
-Code: `src/sim/game/levels.ts` (all level, class, mix and unlock data), `economy.ts` (`postTicks`, `payout`, `demandRate`), `game.ts` (score, gating, expiry, decline), `save.ts`. Behaviour is in [`GAME.md`](GAME.md) "Levels". Differences from the design above:
+Code: `src/sim/game/levels.ts` (all level, class, mix and unlock data), `economy.ts` (`postTicks`, `payout`, `demandRate`), `clients.ts` (score, expiry), `shop.ts` (gating), `keys.ts` (decline), `save.ts`. Behaviour is in [`GAME.md`](GAME.md) "Levels". Differences from the design above:
 
 - **Level 4 threshold is 14, not 38** (network phase): after the OS lesson the tutorial bot (cpu1, HDD, OS, reputation at the floor) earns about 0.5 points per job, so 38 was not reached in 4,000 s and 20 took 28 minutes; at 14 the wait is about ten minutes. The table's later thresholds are untouched, so level 5 (70) is now a big step: re-tune with the balance pass.
 - **Level 3 threshold is 12, not 17.** The bot measured about 0.0106 client-base points per second early (the model assumed 0.014): a manual-loop machine serves one job per 50 to 100 s at a reputation of 0.5 to 1, so a point is about 0.6 to 1 per job. At 17 the tutorial bot (which buys `cpu1` and `ram1` and serves) needed 1,440 s of waiting after its first purchase; at 12 it needs 592 s, inside the tutorial's 10 minute limit, and level 3 lands at about 19 minutes, which is what the table's "20 min" estimate says. Every other threshold is as designed and still unmeasured.

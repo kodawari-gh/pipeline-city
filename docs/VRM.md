@@ -1,6 +1,6 @@
 # The VRM, the board ladder and VRM cooling
 
-Code: `src/sim/board/vrm.ts` (the maths), `src/sim/board/thermal.ts` (the VRM's temperature state, stepped with everything else), `src/sim/board/specs.ts` (`BOARD_TIERS`, `VrmSpec`, the heatsink parts), `src/sim/game/game.ts` (crash, burn-out, snapshot). **All numbers are placeholders** for the balance pass; the structure is what matters.
+Code: `src/sim/board/vrm.ts` (the maths), `src/sim/board/thermal.ts` (the VRM's temperature state, stepped with everything else), `src/sim/board/specs.ts` (`BOARD_TIERS`, `VrmSpec`, the heatsink parts), `src/sim/game/machine.ts` (crash, burn-out), `snapshot.ts`. **All numbers are placeholders** for the balance pass; the structure is what matters.
 
 ## What a VRM is, in plain words
 

@@ -1,6 +1,6 @@
 # Storage and the OS (v1)
 
-Code: `src/sim/machine/storage.ts` (block device), `src/sim/os/` (OS ladder data, kernel in toy-ISA asm, shared block-I/O asm), `src/sim/pch/` (ROM boot path, USB timers), `src/sim/game/game.ts` (install, queue view, snapshot). Tests: `src/sim/game/os.test.ts`, `src/sim/machine/storage.test.ts`. All numbers are placeholders.
+Code: `src/sim/machine/storage.ts` (block device), `src/sim/os/` (OS ladder data, kernel in toy-ISA asm, shared block-I/O asm), `src/sim/pch/` (ROM boot path, USB timers), `src/sim/game/os.ts` (install, queue view), `memory.ts` (RAM map, faults), `snapshot.ts`. Tests: `src/sim/game/os.test.ts`, `src/sim/machine/storage.test.ts`. All numbers are placeholders.
 
 ## Storage devices
 
