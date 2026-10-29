@@ -35,6 +35,8 @@ export interface InOrderSettings extends EngineSettings {
 const F_CTRL = F.Branch | F.Jal | F.Jalr;
 /** Threads a core can hold. */
 export const MAX_THREADS = 4;
+/** Cycles a thread may keep the pipeline while another could run: a thread that waits for a lock never misses, so without a limit the one that holds it would never run again. */
+export const THREAD_TIMEOUT = 24;
 
 export class InOrderEngine extends EngineBase {
   /** Live options; may be toggled between steps. */
@@ -53,6 +55,8 @@ export class InOrderEngine extends EngineBase {
   private readonly missId = new Int32Array(MAX_THREADS);
   /** The thread a switch to waits for (the pipeline must empty first), or -1. */
   private want = -1;
+  /** Cycles the thread being fetched has had the pipeline since the last switch. */
+  private runLen = 0;
 
   override get waiting(): boolean { for (let t = 0; t < this.cores.length; t++) if (this.missOn[t]) return true; return false; }
 
@@ -80,6 +84,7 @@ export class InOrderEngine extends EngineBase {
     this.fetchPc = this.resume[t]!;
     this.fetchStopped = false;
     this.want = -1;
+    this.runLen = 0;
     this.resetFetchWait();
   }
 
@@ -112,6 +117,10 @@ export class InOrderEngine extends EngineBase {
     if (this.fetchIdle) {
       const n = this.pickNext(this.fetchThread);
       if (n >= 0) this.switchFetch(n);
+    } else if (++this.runLen > THREAD_TIMEOUT && this.want < 0) {
+      const n = this.pickNext(this.fetchThread);
+      if (n >= 0 && n !== this.fetchThread) this.want = n;
+      else this.runLen = 0;
     }
   }
 

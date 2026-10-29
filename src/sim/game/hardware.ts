@@ -86,6 +86,14 @@ export function cpuCores(this: Game): number {
   return cpu ? (deviceSpec(cpu) as CpuSpec).cores ?? 1 : 1;
 }
 
+/** Logical cores of the installed CPU: its hardware cores times their threads (what the OS sees as processors). */
+export function cpuLogicalCores(this: Game): number {
+  const cpu = findDevices(this.board, "cpu").find((d) => !d.burnt);
+  if (!cpu) return 1;
+  const spec = deviceSpec(cpu) as CpuSpec;
+  return (spec.cores ?? 1) * (spec.threads ?? 1);
+}
+
 /** The port the OS boots from, if its drive works. */
 export function osPort(this: Game): StoragePort | null {
   if (!this.os) return null;

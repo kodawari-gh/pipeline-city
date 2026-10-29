@@ -132,7 +132,7 @@ export function bootProgress(this: Game, phase: Phase): number {
     case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));
     case "booting-os": {
       const read = (this.osPort()?.media?.bytesRead ?? 0) - this.bootRead0;
-      return 0.4 + 0.6 * Math.min(1, read / (bootBlocksFor(this.os?.spec.tier ?? 1, this.os?.spec.tier === 2 && this.cpuCores() > 1) * BLOCK_BYTES));
+      return 0.4 + 0.6 * Math.min(1, read / (bootBlocksFor(this.os?.spec.tier ?? 1, this.osSmp(this.os?.spec.tier ?? 1)) * BLOCK_BYTES));
     }
     case "running": case "writing": case "done-remove-key": case "idle-os": case "ingesting": case "running-os": case "flashing": return 1;
     default: return 0;

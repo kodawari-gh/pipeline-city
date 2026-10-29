@@ -154,6 +154,10 @@ export const KERNEL_TIMER = KERNEL_BASE + 16;
 /** + 20 is where a parked second core starts when the first IPI wakes it (the multicore OS 2, docs/MULTICORE.md); + 24 is its page-fault handler. */
 export const KERNEL_SECONDARY = KERNEL_BASE + 20;
 export const KERNEL_PAGEFAULT1 = KERNEL_BASE + 24;
+/** The multicore OS 3 (docs/OS.md): logical core c takes its timer interrupt at the word KERNEL_TVEC + 4c and its page fault at KERNEL_PVEC + 4c (up to `KERNEL_VEC_CORES` cores). */
+export const KERNEL_TVEC = KERNEL_BASE + 28;
+export const KERNEL_PVEC = KERNEL_BASE + 60;
+export const KERNEL_VEC_CORES = 8;
 /** Memory map of a program under the paged OS: the program lives at physical virtual + PAGED_SHIFT, the OS keeps its page tables at PAGED_TABLES and hands out frames to the program from PAGED_HEAP up to the tables. */
 export const PAGED_SHIFT = 0x1000;
 export const PAGED_HEAP = 0x6000;

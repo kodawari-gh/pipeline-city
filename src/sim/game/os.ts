@@ -58,21 +58,27 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   this.os = { spec: os, deviceId, queueSlots };
 }
 
-/** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one (docs/MULTICORE.md), every other tier its own number. */
+/** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one, the preemptive OS up to two programs per logical core (docs/MULTICORE.md), every other tier its own number. */
 export function osProgramSlots(this: Game, os: OsSpec): number {
+  if (os.tier === 3) return Math.max(os.programSlots, Math.min(8, 2 * this.cpuLogicalCores()));
   return os.tier === 2 ? Math.min(2, this.cpuCores()) : os.programSlots;
+}
+
+/** The OS tier boots its multicore kernel on this machine: the paged OS with a second core, the preemptive OS with several logical cores. */
+export function osSmp(this: Game, tier: number): boolean {
+  return tier === 2 ? this.cpuCores() > 1 : tier === 3 && this.cpuLogicalCores() > 1;
 }
 
 /** The boot area of `os` as this machine needs it (the paged OS has a multicore kernel for a CPU with two cores or more). */
 export function osBootImage(this: Game, os: OsSpec, queueSlots: number): Uint8Array {
-  return bootImage({ queueSlots, programSlots: this.osProgramSlots(os), spoolLba: Math.ceil(os.diskBytes / BLOCK_BYTES), spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier, smp: os.tier === 2 && this.cpuCores() > 1 });
+  return bootImage({ queueSlots, programSlots: this.osProgramSlots(os), spoolLba: Math.ceil(os.diskBytes / BLOCK_BYTES), spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier, smp: this.osSmp(os.tier) });
 }
 
 /** Write the boot area again, so the kernel on the drive matches the CPU (the player may swap the CPU after installing the OS). Only while off. */
 export function refreshBootImage(this: Game): void {
   const os = this.os;
   const dev = os && this.board.devices.find((d) => d.id === os.deviceId);
-  if (!os || !dev || dev.burnt || os.spec.tier !== 2) return;
+  if (!os || !dev || dev.burnt || os.spec.tier < 2) return;
   this.diskFor(dev).poke(0, this.osBootImage(os.spec, os.queueSlots));
 }
 
