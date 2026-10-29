@@ -1,7 +1,7 @@
 // Game feature: the save. Writing the game's state out and putting a parsed save back into a fresh game (docs/SAVE.md).
 // Every export is a `Game` method (see game.ts).
 
-import { boardFromJson, boardToJson } from "../board";
+import { allCables, boardFromJson, boardToJson, cablesOf, caseMounts, fittedRadiator, isFanCable, radiatorSlot } from "../board";
 import { generate } from "../gen";
 import { JOB_ROW } from "../isa/memmap";
 import { getOsSpec } from "../os";
@@ -33,7 +33,7 @@ export function toSave(this: Game): SaveV4 {
     board: boardToJson(this.board),
     inventory: this.inventory.map((i) => ({ ...i })),
     nextInvId: this.nextInvId,
-    cables: { ...this.cables },
+    cables: { ...this.cables, ...Object.fromEntries(cablesOf(this.board).map((c) => [c.id, !!this.cables[c.id]])) }, // every cable of this case said outright (a missing fan cable reads as plugged: the saves from before them)
     tray: [...this.tray.waiting()].sort((a, b) => a.id - b.id).map(sk),
     plugged,
     tripped: this.thermal.power.tripped,
@@ -74,6 +74,11 @@ export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
  */
 export function restoreSave(this: Game, s: SaveV4): void {
   this.board = boardFromJson(s.board);
+  // a save from before the radiators: its liquid loop kept the cooling of a slim radiator, so it gets one for free (top fan mount if the case has one)
+  if (this.board.devices.some((d) => d.spec === "cooler2") && !fittedRadiator(this.board)) {
+    const mounts = caseMounts(this.board.caseTier);
+    this.board.devices.push({ id: `dev${this.board.nextId++}`, spec: "rad1", slot: radiatorSlot(mounts.find((m) => m.startsWith("top")) ?? mounts[0]!) });
+  }
   this.machine.prng.setState(s.prngState);
   this.money = this.sandbox ? SANDBOX_MONEY : s.money;
   this.baseTick = s.baseTick;
@@ -86,6 +91,8 @@ export function restoreSave(this: Game, s: SaveV4): void {
   this.inventory = s.inventory.map((i) => ({ ...i }));
   this.nextInvId = s.nextInvId;
   this.cables = { ...s.cables, pcmains: s.cables.pcmains ?? true, monmains: s.cables.monmains ?? true }; // a save from before the wall cords had them plugged
+  // a save from before the fan cables had the machine running: every fan it has is plugged (a machine that used to run is not locked out of POST)
+  for (const [k, v] of Object.entries(allCables(this.board))) if (isFanCable(k) && this.cables[k] === undefined) this.cables[k] = v;
   this.progress = { ...s.progress, mainsConnected: s.progress.mainsConnected ?? true }; // a save from before the cords needs no lesson on them
   // The first boot marks when clients start arriving; a save without the field (older v4) restarts it at the load tick.
   this.firstBootTick = s.progress.poweredOn ? (s.firstBootTick ?? s.baseTick) : null;

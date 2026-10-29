@@ -1,7 +1,7 @@
 // Game feature: the running machine. The power button, cold boot, the phase it is in, the clock rates and the base tick
 // that steps it all. Every export is a `Game` method (see game.ts).
 
-import { applyEngine, applyRates, bootCheck, deviceSpec, findDevices, type RamSpec } from "../board";
+import { applyEngine, applyRates, bootCheck, caseMounts, deviceSpec, findDevices, fittedRadiator, UNFANNED_SHARE, type FanPower, type RadiatorSpec, type RamSpec } from "../board";
 import { BLOCK_BYTES, PchPhase } from "../isa/memmap";
 import { bootBlocksFor } from "../os";
 import { ROM_IMAGE } from "../pch";
@@ -158,6 +158,18 @@ export function monitorLive(this: Game): boolean {
   return this.video === "board" || this.videoCard() !== null;
 }
 
+/** Which fans turn: each part's own (cable plugged), and the case fans (their cable and the hub's, with the hub on the board's SYS_FAN header). */
+export function fanPower(this: Game): FanPower {
+  const c = this.cables;
+  const hub = !!c.sysfan;
+  const rad = fittedRadiator(this.board);
+  const radSpec = rad ? (deviceSpec(rad.dev) as RadiatorSpec) : null;
+  // The radiator takes its mount's fan: that mount no longer counts as a case fan, its fan cable turns the radiator's fan instead.
+  const mounts = caseMounts(this.board.caseTier).filter((m) => m !== rad?.mount);
+  const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (hub && c[`fan:${rad!.mount}`] ? 1 : UNFANNED_SHARE) : 0;
+  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: hub ? mounts.filter((m) => c[`fan:${m}`]).length : 0, loopK };
+}
+
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */
 export function meterWall(this: Game): void {
   const p = this.thermal.power;
@@ -241,7 +253,7 @@ export function advanceBaseTick(this: Game): void {
   const npuLoad = this.npus.reduce((a, p) => p.takeActivity() || a, false) ? 1 : 0;
   const boardWasOk = !this.board.burnt;
   const netLoad = this.activeTransfers() > 0 ? 1 : this.cfg.idleLoad;
-  this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad, npu: npuLoad }, this.powered);
+  this.thermal.step(this.board, { cpu: load, ram: load, display: load, storage: diskLoad, nic: netLoad, gpu: gpuLoad, npu: npuLoad }, this.powered, this.fanPower());
   this.meterWall();
   this.syncStorage(); // a drive that burnt out drops off the bus
   this.syncGpus();

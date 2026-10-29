@@ -74,6 +74,7 @@ describe('host message handling', () => {
     for (const id of ['inv1', 'inv5', 'inv2', 'inv3', 'inv4']) expect(types(handleMessage(h, { type: 'install', invId: id }))).toEqual(['snapshot']);
     expect(snap(handleMessage(h, { type: 'connectCable', cable: 'atx' })).progress.atxConnected).toBe(true);
     handleMessage(h, { type: 'connectCable', cable: 'cpu' });
+    handleMessage(h, { type: 'connectCable', cable: 'cpufan' });
     handleMessage(h, { type: 'connectCable', cable: 'video' });
     handleMessage(h, { type: 'connectCable', cable: 'pcmains' });
     handleMessage(h, { type: 'connectCable', cable: 'monmains' });

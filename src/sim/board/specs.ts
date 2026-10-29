@@ -4,9 +4,9 @@
 import type { EngineConfig } from "../engines";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
-export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm";
+export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm" | "radiator";
 
-export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm";
+export type DeviceKind = "cpu" | "ram" | "psu" | "cooler" | "display" | "storage" | "vrm-sink" | "ram-sink" | "nic" | "gpu" | "npu" | "tpm" | "radiator";
 
 /** What a PCIe slot can give a card on its own (W). A card that draws more must have `needsPcieCable` (docs/ACCEL.md). */
 export const PCIE_SLOT_W = 75;
@@ -104,6 +104,15 @@ export interface CoolerSpec extends SpecBase {
   coolingPerC: number;
   /** Airflow the cooler gives the VRM, W per degree C above ambient (an air cooler blows over it, liquid does not). */
   vrmAirPerC: number;
+  /** A liquid loop (an AIO): `coolingPerC` is its best, with a radiator; the pump alone gives `pumpPerC`, and the radiator adds its own (`RadiatorSpec`). */
+  loop?: { pumpPerC: number };
+}
+
+/** A radiator for a liquid loop: it mounts on a fan mount of the case (slot `rad-<mount>`, replacing that fan) and its fan has the mount's cable. */
+export interface RadiatorSpec extends SpecBase {
+  kind: "radiator";
+  /** W per degree C it adds to the loop. */
+  coolingPerC: number;
 }
 
 /** A heatsink bolted onto one of the board's VRMs: slot `vrm-sink` is the CPU's, slot `ram-sink` the memory's (see docs/VRM.md). A fan version draws idleW..loadW. */
@@ -111,6 +120,8 @@ export interface VrmSinkSpec extends SpecBase {
   kind: "vrm-sink" | "ram-sink";
   /** Heat removal from the VRM, W per degree C above ambient. */
   coolingPerC: number;
+  /** Carries a fan: it has a cable to plug into the board's VRM_FAN / RAM_FAN header. */
+  fan?: true;
 }
 
 export interface DisplaySpec extends SpecBase {
@@ -162,7 +173,7 @@ export interface TpmSpec extends SpecBase {
   tpm?: { measureTicks: number; attestTicks: number; surcharge: number };
 }
 
-export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec;
+export type DeviceSpec = CpuSpec | RamSpec | PsuSpec | CoolerSpec | DisplaySpec | StorageSpec | VrmSinkSpec | NicSpec | CardSpec | TpmSpec | RadiatorSpec;
 
 export const AMBIENT_C = 25;
 /** Ticks above damageC (accumulated, cooling slowly forgives) before a device is burnt. */
@@ -274,20 +285,28 @@ const specList: DeviceSpec[] = [
   { id: "cooler1", kind: "cooler", tier: 1, name: "Tower fan", slot: "cooler", price: 50, idleW: 0.5, loadW: 3, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-tower", coolingPerC: 0.8, vrmAirPerC: 0.25 },
   { id: "cooler2", kind: "cooler", tier: 2, name: "Liquid loop", slot: "cooler", price: 300, idleW: 1, loadW: 6, heatFactor: 0,
-    thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8, vrmAirPerC: 0 },
+    thermal: inertThermal, visual: "cooler-liquid", coolingPerC: 1.8, vrmAirPerC: 0, loop: { pumpPerC: 0.4 } },
+
+  // radiators: the loop's cooling is the pump's plus the radiator's (rad1 brings it to the old 1.8). Placeholder prices.
+  { id: "rad1", kind: "radiator", tier: 1, name: "Slim radiator", slot: "radiator", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "radiator-slim", coolingPerC: 1.4 },
+  { id: "rad2", kind: "radiator", tier: 2, name: "Thick radiator", slot: "radiator", price: 130, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "radiator-thick", coolingPerC: 2 },
+  { id: "rad3", kind: "radiator", tier: 3, name: "Big radiator", slot: "radiator", price: 240, idleW: 0, loadW: 0, heatFactor: 0,
+    thermal: inertThermal, visual: "radiator-big", coolingPerC: 2.6 },
 
   { id: "vsink0", kind: "vrm-sink", tier: 0, name: "VRM fins", slot: "vrm-sink", price: 30, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
   { id: "vsink1", kind: "vrm-sink", tier: 1, name: "VRM big fins", slot: "vrm-sink", price: 70, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
   { id: "vsink2", kind: "vrm-sink", tier: 2, name: "VRM fins + fan", slot: "vrm-sink", price: 140, idleW: 0.3, loadW: 1.5, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1 },
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fan: true },
   { id: "rsink0", kind: "ram-sink", tier: 0, name: "RAM VRM fins", slot: "ram-sink", price: 25, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-fins", coolingPerC: 0.25 },
   { id: "rsink1", kind: "ram-sink", tier: 1, name: "RAM VRM big fins", slot: "ram-sink", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
     thermal: inertThermal, visual: "vrm-sink-big", coolingPerC: 0.5 },
   { id: "rsink2", kind: "ram-sink", tier: 2, name: "RAM VRM fins + fan", slot: "ram-sink", price: 120, idleW: 0.3, loadW: 1.5, heatFactor: 0,
-    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1 },
+    thermal: inertThermal, visual: "vrm-sink-fan", coolingPerC: 1, fan: true },
 
   { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
@@ -402,14 +421,23 @@ export interface CaseTierSpec {
   /** The form factor of the biggest board it holds, for the player's eyes. */
   form: string;
   visual: string;
+  /** The fan mounts it comes with: front, top and rear (the Mini tower has a rear grille, no fan). The renderer's layout must show the same counts (`layout.test.ts`). */
+  fans: { front: number; top: number; rear: boolean };
 }
 
 export const CASE_TIERS: readonly CaseTierSpec[] = [
-  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini" },
-  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro" },
-  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid" },
-  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full" },
+  { tier: 0, name: "Mini tower", price: 25, maxBoard: 0, form: "mini-ITX", visual: "case-mini", fans: { front: 2, top: 0, rear: false } },
+  { tier: 1, name: "Micro tower", price: 70, maxBoard: 1, form: "micro-ATX", visual: "case-micro", fans: { front: 3, top: 1, rear: true } },
+  { tier: 2, name: "Mid tower", price: 160, maxBoard: 2, form: "ATX", visual: "case-mid", fans: { front: 3, top: 2, rear: true } },
+  { tier: 3, name: "Full tower", price: 320, maxBoard: 3, form: "E-ATX", visual: "case-full", fans: { front: 4, top: 3, rear: true } },
 ];
+
+/** The fan mounts of a case tier, ids `front0..`, `top0..` and `rear`: each carries a fan and a cable to the fan hub. */
+export function caseMounts(tier: number): string[] {
+  const f = CASE_TIERS[tier]?.fans;
+  if (!f) return [];
+  return [...Array.from({ length: f.front }, (_, k) => `front${k}`), ...Array.from({ length: f.top }, (_, k) => `top${k}`), ...(f.rear ? ["rear"] : [])];
+}
 
 /** The smallest case tier that holds a board tier. */
 export const caseFor = (boardTier: number): number => CASE_TIERS.findIndex((c) => c.maxBoard >= boardTier);

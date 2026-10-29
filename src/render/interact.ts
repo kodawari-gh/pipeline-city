@@ -1,4 +1,3 @@
-import { SEAT_R } from './board/cords';
 import { Container, Graphics, Text } from 'pixi.js';
 import { hover, selected } from '../game/hover';
 import { dragging, highlight } from '../game/interaction';
@@ -49,18 +48,29 @@ export interface LanScene {
   port: string | null;
 }
 
-/** One of the wall cords as the pointer sees it (filled by `CordsView.sync`): the plug's grab rect (seated, loose or in the hand) and the outlet it seats in. */
+/**
+ * A cord with a plug the player drags, as the pointer sees it (filled by `CordsView.sync` for the two wall cords and `FanCordsView.sync` for the
+ * fans' cables): the plug's grab rect (seated, loose or in the hand) and the outlet it seats in.
+ */
 export interface CordScene {
-  kind: 'pcmains' | 'monmains';
+  /** The sim's cable id: `pcmains`, `monmains`, `cpufan`, `fan:front0`... */
+  kind: string;
   connected: boolean;
   held: boolean;
   plug: Rect;
+  /** Where the plug's centre is now. */
+  centre: Pt;
   /** The outlet's centre, and a rect round it for highlight rings. */
   outlet: Pt;
   outletRect: Rect;
   /** Where the plug lies when it is out. */
   rest: Pt;
+  /** How close the plug's centre must come to the outlet for a drop to seat it. */
+  seatR: number;
 }
+
+/** The two wall cords may be pulled while the machine runs; the fans' cables only while it is off. */
+export const isWallCord = (kind: string) => kind === 'pcmains' || kind === 'monmains';
 
 export interface SceneInfo {
   /** Id to world rect, for outlines, highlight rings and flyTo. */
@@ -384,8 +394,9 @@ export class Interact {
 
   /** Pick up a wall cord's plug (from where it lies, or out of the wall: that pulls the cord, which works while the PC runs, and cuts its power). */
   private beginCord(c: CordScene, cx: number, cy: number): boolean {
+    if (!isWallCord(c.kind) && this.snap()?.powered) { this.toast('Power the machine off first: cables only change while it is off.', cx, cy); return false; }
     const d = this.start('cable', 'cable.' + c.kind, cx, cy);
-    const at: Pt = c.connected ? c.outlet : [c.plug.x + c.plug.w / 2, c.plug.y + 330];
+    const at: Pt = c.connected ? c.outlet : c.centre;
     d.cord = c.kind; d.off = [at[0] - d.wx, at[1] - d.wy]; d.at = at;
     if (c.connected) {
       this.act(cx, cy);
@@ -457,7 +468,7 @@ export class Interact {
     if (d.cord) {
       const c = this.scene.cords.find((q) => q.kind === d.cord);
       d.at = [d.wx + d.off![0], d.wy + d.off![1]];
-      d.snapped = !!c && Math.hypot(d.at[0] - c.outlet[0], d.at[1] - c.outlet[1]) < SEAT_R;
+      d.snapped = !!c && Math.hypot(d.at[0] - c.outlet[0], d.at[1] - c.outlet[1]) < c.seatR;
       this.onCordHeld(d.cord, d.at);
     }
     if (d.lan) {
@@ -530,8 +541,8 @@ export class Interact {
         this.act(cx, cy);
         connectCable(d.cord);
         this.forced.set(d.cord, { connected: true, until: performance.now() + 1500 });
-      } else if (!cancelled && d.at && c && this.scene.cords.some((o) => o.kind !== d.cord && Math.hypot(d.at![0] - o.outlet[0], d.at![1] - o.outlet[1]) < SEAT_R)) {
-        this.toast('That hole is for the other cord: this cord reaches the one next to it.', cx, cy);
+      } else if (!cancelled && d.at && c && this.scene.cords.some((o) => o.kind !== d.cord && Math.hypot(d.at![0] - o.outlet[0], d.at![1] - o.outlet[1]) < o.seatR)) {
+        this.toast(isWallCord(c.kind) ? 'That hole is for the other cord: this cord reaches the one next to it.' : 'That header is for another fan: this plug belongs on its own header.', cx, cy);
       }
       this.onCordHeld(d.cord, null);
     } else if (d.kind === 'cable' && d.lan) {

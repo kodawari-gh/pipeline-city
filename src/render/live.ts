@@ -532,22 +532,28 @@ export class Live {
     }
 
     // the case fans run with the machine and speed up with the CPU's heat
-    for (const f of this.fans) if (f.kind === 'case') f.target = !this.liveOn ? 0 : 1.6 + 6 * this.cpuHeat;
+    // (a fan only turns while its cable is plugged: a case fan or the radiator's on the hub, so the hub's own cable too; the others on their header)
+    const plugged = (id: string) => !!s.cables.find((c) => c.id === id)?.connected;
+    const hubOn = plugged('sysfan');
+    for (const f of this.fans) if (f.kind.startsWith('case:')) f.target = !this.liveOn || !hubOn || !plugged('fan:' + f.kind.slice(5)) ? 0 : 1.6 + 6 * this.cpuHeat;
     for (const d of s.devices) {
       const gl = this.glows.get(d.id);
       if (d.kind === 'cooler') {
-        // the fan or the pump's impeller, and a liquid cooler's radiator fan
-        for (const f of this.fans) if (f.kind === 'cooler' || f.kind === 'radiator') f.target = d.burnt || !this.liveOn ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
+        // the fan or the pump's impeller (on the CPU_FAN header), and a liquid cooler's radiator fan (on its mount's hub header)
+        for (const f of this.fans) {
+          const on = f.kind === 'cooler' ? plugged('cpufan') : f.kind.startsWith('radiator:') ? hubOn && plugged('fan:' + f.kind.slice(9)) : null;
+          if (on !== null) f.target = d.burnt || !this.liveOn || !on ? 0 : 1.2 + 9 * this.cpuHeat + (running ? 2 : 0);
+        }
       }
       if (d.kind === 'vrm-sink') {
         // the heatsink fan follows the CPU load (its draw is 0.3 W idle to 1.5 W under load) and stops with the power
         const f = this.fans.find((x) => x.kind === 'vrm');
-        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
+        if (f) f.target = d.burnt || !this.liveOn || !plugged('vrmfan') ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
         continue;
       }
       if (d.kind === 'ram-sink') {
         const f = this.fans.find((x) => x.kind === 'ramvrm');
-        if (f) f.target = d.burnt || !this.liveOn ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
+        if (f) f.target = d.burnt || !this.liveOn || !plugged('ramfan') ? 0 : 1.5 + 7 * clamp((d.powerW - 0.3) / 1.2);
         continue;
       }
       if (d.kind === 'psu') {

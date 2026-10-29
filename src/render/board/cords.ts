@@ -81,7 +81,7 @@ export class CordsView {
     scene.rects.set('socket', plate);
     scene.cords = CORD_KINDS.map((k) => {
       const pl = plan[k], isHeld = held?.kind === k, at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : pl.rest;
-      return { kind: k, connected: connected[k] && !isHeld, held: isHeld, plug: plugRect(at), outlet: pl.outlet, outletRect: { x: pl.outlet[0] - 300, y: pl.outlet[1] - 300, w: 600, h: 600 }, rest: pl.rest } satisfies CordScene;
+      return { kind: k, connected: connected[k] && !isHeld, held: isHeld, plug: plugRect(at), centre: at, outlet: pl.outlet, outletRect: { x: pl.outlet[0] - 300, y: pl.outlet[1] - 300, w: 600, h: 600 }, rest: pl.rest, seatR: SEAT_R } satisfies CordScene;
     });
     this.hits = scene.cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug }));
     this.last = { connected: { ...connected }, held };

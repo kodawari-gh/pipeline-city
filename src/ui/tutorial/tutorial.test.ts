@@ -62,7 +62,7 @@ describe('tutorial step from snapshot flags', () => {
   });
 
   it('walks the old steps in order as flags come in, then the OS steps', () => {
-    // the three cables are one step, the two wall cords the next; the key leaves by itself, so the watch step ends on its removal
+    // the four cables are one step, the two wall cords the next; the key leaves by itself, so the watch step ends on its removal
     const order = ['cpu', 'cooler', 'ram', 'psu', 'monitor', 'cables', 'cables', 'cables', 'wall', 'plugKey', 'watch', 'watch', 'watch', 'money', 'spend'];
     for (let n = 0; n < OLD_IN_ORDER.length; n++) {
       expect(idOf(currentStep(snap({ progress: oldUpTo(n) }), welcomed)), `after ${n} flags`).toBe(order[n]);
@@ -494,10 +494,11 @@ describe('step targets (what the renderer pulses)', () => {
   });
 
   it('the cable step lights one cable at a time: its plug and socket, not the devices', () => {
-    const cables = (open: string[]) => ['atx', 'cpu', 'video'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
+    const cables = (open: string[]) => ['atx', 'cpu', 'cpufan', 'video'].map((id) => ({ id, connected: !open.includes(id), blocked: null }));
     const targets = (open: string[]) => STEPS.find((x) => x.id === 'cables')!.targets(snap({ cables: cables(open) as never }));
-    expect(targets(['atx', 'cpu', 'video'])).toEqual(['cable.atx']);
-    expect(targets(['cpu', 'video'])).toEqual(['cable.cpu']);
+    expect(targets(['atx', 'cpu', 'cpufan', 'video'])).toEqual(['cable.atx']);
+    expect(targets(['cpu', 'cpufan', 'video'])).toEqual(['cable.cpu']);
+    expect(targets(['cpufan', 'video'])).toEqual(['cable.cpufan']);
     expect(targets(['video'])).toEqual(['cable.video']);
     expect(targets([])).toEqual([]);
   });

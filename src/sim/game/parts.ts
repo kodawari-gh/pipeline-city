@@ -2,7 +2,7 @@
 // snapshot, clocks, and the sandbox's maximum rig. Every export is a `Game` method (see game.ts).
 
 import {
-  boardFromJson, boardSlots, boardToJson, BOARD_TIERS, CABLES, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
+  boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
   findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts,
   specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
@@ -33,6 +33,7 @@ export function buildMaxRig(this: Game): void {
   put(`case${CASE_TIERS.length - 1}`);
   put(`board${boardTier}`);
   for (const kind of ["psu", "cpu", "cooler", "vrm-sink", "ram-sink"] as const) put(top(kind));
+  put(top("radiator"), "rad-top0");
   for (let i = 0; i < (slots.dimm ?? 0); i++) put(top("ram"), `dimm${i}`);
   for (let i = 0; i < (slots.m2 ?? 0); i++) put(top("storage"), `m2${i}`);
   put(top("nic"));
@@ -43,7 +44,7 @@ export function buildMaxRig(this: Game): void {
   const nic = this.board.devices.find((d) => deviceSpec(d).kind === "nic");
   if (nic) ok("plug the ethernet cable", this.connectCable("lan", nic.id));
   // swaps can unplug a cable whose source part changed: plug the others again
-  for (const c of CABLES) if (c.id !== "lan" && !this.cables[c.id] && cableNeeded(this.board, c.id)) ok(`plug ${c.id}`, this.connectCable(c.id));
+  for (const c of cablesOf(this.board)) if (c.id !== "lan" && !this.cables[c.id] && cableNeeded(this.board, c.id)) ok(`plug ${c.id}`, this.connectCable(c.id));
   this.log = [];
 }
 
@@ -226,7 +227,7 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
     this.machine.display.connected = this.monitorLive();
     if (this.cables.pcmains && this.cables.monmains) this.progress.mainsConnected = true;
   }
-  this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} connected`);
+  this.note("cable", `${cableName(r.cable)} connected`);
   return r;
 }
 
@@ -260,10 +261,10 @@ export function disconnectCable(this: Game, cable: string): Result<{ cable: Cabl
   }
   const wall = cable === "pcmains" || cable === "monmains";
   if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
-  const r = boardDisconnect(this.cables, cable);
+  const r = boardDisconnect(this.cables, cable, this.board);
   if (!r.ok) return r;
   if (r.cable === "video") this.video = "board";
-  this.note("cable", `${CABLES.find((c) => c.id === r.cable)!.name} disconnected`);
+  this.note("cable", `${cableName(r.cable)} disconnected`);
   if (wall) this.machine.display.connected = this.monitorLive();
   // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
   if (r.cable === "pcmains" && this.powered) {
@@ -300,7 +301,7 @@ export function canInstall(this: Game, invId: string): boolean {
 /** Cables that could be plugged in (source part installed) but are not. */
 export function missingCables(this: Game): CableId[] {
   // The ethernet cable is the player's choice (a port, a router): never part of the bot's assembly.
-  return CABLES.filter((c) => c.id !== "lan" && !this.cables[c.id] && !cableBlocked(this.board, c.id) && cableNeeded(this.board, c.id)).map((c) => c.id);
+  return cablesOf(this.board).filter((c) => c.id !== "lan" && !this.cables[c.id] && !cableBlocked(this.board, c.id) && cableNeeded(this.board, c.id)).map((c) => c.id);
 }
 
 /** Items in the inventory (ids and spec ids). */
@@ -342,7 +343,7 @@ export function afterBoardChange(this: Game): void {
       this.note("cable", "Video cable came unplugged");
     }
   }
-  for (const c of pruneCables(this.board, this.cables)) this.note("cable", `${CABLES.find((x) => x.id === c)!.name} came unplugged`);
+  for (const c of pruneCables(this.board, this.cables)) this.note("cable", `${cableName(c)} came unplugged`);
   if (!this.cables.video) this.video = "board";
 }
 

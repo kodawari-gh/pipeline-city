@@ -71,6 +71,8 @@ Input is pointer events only (mouse, touch, pen). `camera.onGrab` decides at poi
 
 `dragging` (`src/game/interaction.ts`) is `{kind: 'part' | 'cable' | 'key', id}` during a drag and null otherwise.
 
+**Fan cables.** The fans' cables (`cable.cpufan`, `cable.vrmfan`, `cable.ramfan`, `cable.sysfan`, `cable.fan:<mount>`) ride the wall cords' machinery: a `CordScene` per cable (`kind` is the sim's cable id, `centre` the plug, `outlet` / `seatR` the header to seat on, `isWallCord` tells the two apart), drawn by `FanCordsView` (`board/fancords.ts`; its `hits` are merged with the wall cords' in `board.ts` `syncCords`) and the same optimistic `forced` / `cableStateOf` scheme. Unlike the wall cords they refuse to move while the machine is on (toast "Power the machine off first"), and a drop near the wrong header toasts "That header is for another fan". The radiator's mount slots (`rad-<mount>`) are in `scene.slots`, empty ones are drop targets while an AIO is fitted with no radiator.
+
 ## Tutorial support
 
 The UI writes `highlight` (`src/game/interaction.ts`, an array of ids from the table above). Each resolvable id gets a pulsing amber double ring and a bobbing arrow above it, sized to stay readable at any zoom. When the target is off-screen (outside the free area, see `viewInset`) a round edge indicator with an arrow sits on the border of the free area pointing at it; clicking it flies there. Ids that do not exist right now (an `inv:` part already installed, `cable.atx` before a PSU exists) are skipped silently.

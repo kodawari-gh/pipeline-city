@@ -20,7 +20,7 @@ function bare(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
 function assembled(economy: Partial<EconomyConfig> = NO_ARRIVALS): Game {
   const g = bare(economy);
   for (const id of ["inv1", "inv5", "inv2", "inv3", "inv4"]) expect(g.install(id).ok).toBe(true);
-  for (const c of ["atx", "cpu", "video", "pcmains", "monmains"]) expect(g.connectCable(c).ok).toBe(true);
+  for (const c of ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"]) expect(g.connectCable(c).ok).toBe(true);
   return g;
 }
 
@@ -50,10 +50,11 @@ describe("the bare start", () => {
     expect(s.tray).toHaveLength(1);
     expect(s.plugged).toBeNull();
     expect(Object.values(s.progress).every((v) => v === false)).toBe(true);
-    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["pcmains", false], ["monmains", false], ["lan", false]]); // the ethernet cable joined with the network
-    expect(s.cables.filter((c) => c.id !== "pcmains" && c.id !== "monmains").every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (the wall cords need no part)
+    // the ethernet cable joined with the network; the Mini tower's hub cable and two front fans' cables need only the case (no cooler yet: no CPU fan cable)
+    expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["pcmains", false], ["monmains", false], ["sysfan", false], ["lan", false], ["fan:front0", false], ["fan:front1", false]]);
+    expect(s.cables.filter((c) => !["pcmains", "monmains", "sysfan"].includes(c.id) && !c.id.startsWith("fan:")).every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (the wall cords and the case's fans need no part)
     expect(s.noPowerReason).toMatch(/PSU/);
-    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
+    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "rad-front0", "rad-front1", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
   });
 
   it("lists the free compatible slots of each inventory part (drop targets)", () => {
@@ -492,6 +493,7 @@ describe("tutorial progress flags are set by real events", () => {
     g.install("inv4"); expect(p().monitorInstalled).toBe(true);
     g.connectCable("atx"); expect(p()).toMatchObject({ atxConnected: true, cpuPowerConnected: false });
     g.connectCable("cpu"); expect(p().cpuPowerConnected).toBe(true);
+    g.connectCable("cpufan"); // the CPU fan cable: POST stops without it
     g.connectCable("video"); expect(p().videoConnected).toBe(true);
     g.connectCable("pcmains"); expect(p().mainsConnected).toBe(false); // both cords make the milestone
     g.connectCable("monmains"); expect(p().mainsConnected).toBe(true);
@@ -552,6 +554,11 @@ describe("the CPU cooler mounts on the CPU", () => {
     expect(g.snapshot().display).toContain("NO CPU COOLER");
     g.powerButton();
     expect(g.install(g.snapshot().inventory.find((i) => i.spec === "cooler0")!.id).ok).toBe(true);
+    g.powerButton();
+    ticks(g, g.snapshot().postTicks + 50);
+    expect(g.snapshot().display).toContain("NO CPU FAN"); // the cooler is on, its cable is not
+    g.powerButton();
+    expect(g.connectCable("cpufan").ok).toBe(true);
     g.powerButton();
     expect(g.snapshot().phase).toBe("posting");
   });

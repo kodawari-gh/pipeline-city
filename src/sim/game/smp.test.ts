@@ -18,7 +18,7 @@ function machine(opts: { cpu?: string; ram?: string; os?: string } = {}): Game {
   const g = new Game({ seed: 7, preassembled: true, economy: { ...econ([]), levelGating: false, caseGating: false } });
   g.money = 1_000_000;
   g.powerButton();
-  for (const id of ["board1", "board2", "board3", "psu2", opts.cpu ?? "cpu2d", "cooler2"]) { // the liquid loop: two busy cores would otherwise crash the machine on the stock heatsink
+  for (const id of ["board1", "board2", "board3", "psu2", opts.cpu ?? "cpu2d", "cooler2", "rad2"]) { // the liquid loop and its radiator: two busy cores would otherwise crash the machine on the stock heatsink
     const b = g.purchase(id);
     if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
     const r = g.install(b.invId);

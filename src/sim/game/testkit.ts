@@ -30,6 +30,7 @@ export function rig(storage: "hdd0" | "ssd1" | "nvme2", opts: { cpu?: string; os
   put(opts.ram ?? "ram1");
   put(storage);
   if (opts.os !== false) put("os1");
+  for (const c of g.missingCables()) g.connectCable(c); // the bigger cases brought fans of their own: plug them
   return g;
 }
 

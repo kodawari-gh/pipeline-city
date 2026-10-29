@@ -22,6 +22,7 @@ function ok<T extends { ok: boolean }>(r: T): T {
 function rig(tier: number, cpu: string, o: { clock?: number; cooler?: string; sink?: string; psu?: string } = {}): Board {
   const b = createBoard(tier);
   for (const s of [cpu, "ram0", "display0", o.cooler ?? "cooler1", o.psu ?? (tier >= 2 ? "psu2" : "psu1")]) ok(install(b, s));
+  if (o.cooler === "cooler2") ok(install(b, "rad2", boardSlots(b).find((s) => s.type === "radiator")!.id)); // an AIO cools through its radiator
   if (o.sink) ok(install(b, o.sink));
   if (o.clock) ok(setClock(b, findDevices(b, "cpu")[0]!.id, o.clock));
   return b;
@@ -284,7 +285,7 @@ describe("the game around the VRM", () => {
     const g = new Game({ seed: 1 });
     const s = g.snapshot();
     expect(s.board).toMatchObject({ tier: 0, name: "Starter", burnt: false, features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 } });
-    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "pcie", "ram-sink", "sata", "sata", "usb", "vrm-sink"]);
+    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "pcie", "radiator", "radiator", "ram-sink", "sata", "sata", "usb", "vrm-sink"]);
     expect(s.board.slots).toEqual(s.slots);
     expect(s.board.vrm).toMatchObject({ phases: 2, ampsPerPhase: 12, burnt: false, sinkDeviceId: null });
     expect(s.board.vrmSink).toBeNull();

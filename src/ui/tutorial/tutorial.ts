@@ -138,10 +138,11 @@ export const INVENTORY_ID = 'inventory';
 
 const OS_RAM_KB = (getOsSpec('os1')?.minRamBytes ?? 32 * 1024) / 1024;
 
-/** The three cables of the first build, by cable id and the progress flag that says each is in. */
-const CABLES: Array<{ id: 'atx' | 'cpu' | 'video'; flag: keyof Progress; end: string }> = [
+/** The four cables of the first build, by cable id and the progress flag that says each is in (the fan cable has none: the cable list says). */
+const CABLES: Array<{ id: 'atx' | 'cpu' | 'cpufan' | 'video'; flag: keyof Progress | null; end: string }> = [
   { id: 'atx', flag: 'atxConnected', end: 'psu' },
   { id: 'cpu', flag: 'cpuPowerConnected', end: 'psu' },
+  { id: 'cpufan', flag: null, end: 'cooler' },
   { id: 'video', flag: 'videoConnected', end: 'monitor' },
 ];
 
@@ -171,9 +172,9 @@ export const STEPS: StepDef[] = [
   { id: 'monitor', chapter: 'Build', title: 'Install the monitor', flag: 'monitorInstalled',
     text: 'A screen lets you see what your machine is up to, from its first wake-up to the finished answer. Drag the monitor onto the display bay.',
     targets: installTargets('display') },
-  { id: 'cables', chapter: 'Build', title: 'Plug in the three cables', flag: null,
-    done: (_s, p) => CABLES.every((c) => p[c.flag]),
-    text: 'Parts need wires to talk to each other. Main power and processor power carry energy from the power supply to the board. The video cable carries pictures from the board to the monitor. Drag the lit cable plug to its socket, three cables in all.',
+  { id: 'cables', chapter: 'Build', title: 'Plug in the four cables', flag: null,
+    done: (s, p) => CABLES.every((c) => (c.flag ? p[c.flag] : !s.cables.some((y) => y.id === c.id && !y.connected))), // the fan cable counts once the cooler it belongs to is on (else it is not listed)
+    text: 'Parts need wires to talk to each other. Main power and processor power carry energy from the power supply to the board. The fan cable lets the board spin the cooler\'s fan, and it will not start without it. The video cable carries pictures from the board to the monitor. Drag the lit cable plug to its socket, four cables in all.',
     // One cable at a time, and only its two ends (plug and socket), not the whole device around it.
     targets: (s) => {
       const c = CABLES.find((x) => !s.cables.find((y) => y.id === x.id)?.connected);

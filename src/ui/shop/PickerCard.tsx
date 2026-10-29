@@ -423,7 +423,7 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
         <Icon name="close" size={11} />
       </button>
       <header class="phead">
-        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
+        {artId && (m.kind === 'cpu' || m.kind === 'ram' || m.kind === 'psu' || m.kind === 'cooler' || m.kind === 'radiator' || m.kind === 'display' || m.kind === 'board' || m.kind === 'vrm-sink' || m.kind === 'ram-sink') && (
           <div class="part"><PartArt id={artId} size={104} /></div>
         )}
         <div class="ptext">

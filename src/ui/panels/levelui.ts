@@ -66,7 +66,7 @@ export function kindIcon(kind: string): IconKey {
     case 'cpu': case 'os': return 'cpu';
     case 'npu': return 'grid';
     case 'ram': return 'memory';
-    case 'cooler': case 'fan': case 'vrm-sink': case 'ram-sink': return 'fan';
+    case 'cooler': case 'fan': case 'radiator': case 'vrm-sink': case 'ram-sink': return 'fan';
     case 'psu': return 'bolt';
     case 'display': return 'screen';
     case 'gpu': return 'card';

@@ -381,3 +381,17 @@ describe("pcie power lead in saves (additive, no version bump)", () => {
     expect(parseSave(save).cables.pcie).toBe(true);
   });
 });
+
+describe("fan cables in saves", () => {
+  it("a new machine has them unplugged and a save keeps that; a save from before them reads them plugged", () => {
+    const g = new Game({ seed: 3 });
+    const save = json(g.toSave());
+    expect(save.cables["fan:front0"]).toBe(false);
+    expect(Game.fromSave(save).snapshot().cables.find((c) => c.id === "fan:front0")!.connected).toBe(false);
+    const old = json(g.toSave()) as { cables: Record<string, boolean> };
+    for (const k of Object.keys(old.cables)) if (k === "sysfan" || k === "cpufan" || k.startsWith("fan:")) delete old.cables[k];
+    const l = Game.fromSave(parseSave(old));
+    expect(l.snapshot().cables.find((c) => c.id === "sysfan")!.connected).toBe(true);
+    expect(l.snapshot().cables.find((c) => c.id === "fan:front1")!.connected).toBe(true);
+  });
+});

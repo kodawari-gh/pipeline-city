@@ -155,7 +155,7 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Paged OS 2.0 ($600) | |
 | 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
 | 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (OS dashboard, and the GPU's frame when its cable is on the card) | | **GPU render** (needs a GPU) |
-| 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
+| 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), radiator `rad3` (the big one; `rad1` unlocks at level 6 with `cooler2`, `rad2` at 7: the AIO cools only through a radiator, on a fan mount of the player's choice) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
 | 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4) | |
 | 14 | `cpu5s` server ($9,000), `cpu5h` HPC ($11,000), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |

@@ -25,7 +25,7 @@ export function fmtClock(c: number): string {
 export const KIND_LABEL: Record<DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp', string> = {
   cpu: 'Processor', ram: 'Memory', cooler: 'Cooling', psu: 'Power supply', display: 'Monitor', storage: 'Drive', board: 'Motherboard', case: 'Case',
   os: 'Operating system', 'vrm-sink': 'VRM cooling', 'ram-sink': 'Memory VRM cooling', nic: 'Network card', router: 'Router', isp: 'Internet plan',
-  gpu: 'Graphics card', npu: 'AI card', tpm: 'Secure module',
+  gpu: 'Graphics card', npu: 'AI card', tpm: 'Secure module', radiator: 'Radiator',
 };
 
 export type Level = 'ok' | 'warn' | 'bad';
@@ -154,6 +154,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
   cooler: 'Mounts on the CPU and pulls heat off it so it can run fast without slowing down or breaking. The fan spins only while the machine is powered.',
+  radiator: 'Where a liquid loop gets rid of its heat. It bolts onto a fan spot of the case (front, top or back) in place of that fan, and the two tubes of the loop run to it. A bigger radiator cools the processor more, and its fan needs plugging in too.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
@@ -216,7 +217,28 @@ const SLOT_PLAIN: Record<string, string> = {
   usb: 'USB port',
   'vrm-sink': 'VRM heatsink slot: bolts onto the voltage regulators (drag a heatsink here)',
   'ram-sink': 'Memory VRM heatsink slot: bolts onto the memory regulator (drag a RAM heatsink here)',
+  radiator: 'radiator mount: a liquid cooler\'s radiator bolts on a fan mount of the case (drag a radiator here)',
 };
+
+const FAN_CABLE_TIPS: Record<string, { title: string; plain: string; nerd: string }> = {
+  'cable.cpufan': { title: 'CPU fan cable', plain: 'Powers the cooler\'s fan (or the liquid cooler\'s pump). Plug it into the CPU_FAN header on the board; the machine will not start without it.', nerd: 'POST fails with NO CPU FAN while it is out; an unplugged cooler does not cool.' },
+  'cable.vrmfan': { title: 'VRM fan cable', plain: 'Powers the fan on the voltage-regulator heatsink. Plug it into the VRM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
+  'cable.ramfan': { title: 'Memory VRM fan cable', plain: 'Powers the fan on the memory-regulator heatsink. Plug it into the RAM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
+  'cable.sysfan': { title: 'Fan hub cable', plain: 'Feeds the case\'s fan hub from the SYS_FAN header on the board. No case fan turns without it.', nerd: 'The hub carries every case fan and the radiator\'s fan.' },
+};
+const MOUNT_NAME: Record<string, string> = { top: 'top', front: 'front', rear: 'rear' };
+
+/** The tip of a fan cable (`cable.<id>`): the fixed ones by id, and `cable.fan:<mount>` by the mount's place in the case. */
+function describeFanCable(id: string, s?: Snapshot | null): Description | null {
+  if (FAN_CABLE_TIPS[id]) return FAN_CABLE_TIPS[id]!;
+  const m = /^cable\.fan:(front|top|rear)(\d*)$/.exec(id);
+  if (!m) return null;
+  const n = m[2] === '' ? '' : ` ${Number(m[2]) + 1}`, place = `${MOUNT_NAME[m[1]!]}${n}`;
+  const rad = s?.devices.some((d) => d.kind === 'radiator' && d.slot === `rad-${id.slice(10)}`);
+  return rad
+    ? { title: `Radiator fan cable (${place})`, plain: `Powers the radiator fan on the ${place} mount. Plug it into its header on the fan hub; unplugged, the radiator cools much less.`, nerd: 'The radiator adds its cooling to the pump with its fan turning, a fraction of it without.' }
+    : { title: `Case fan cable (${place})`, plain: `Powers the ${place} case fan. Plug it into its header on the fan hub; a plugged fan moves air over every part.`, nerd: 'Each turning case fan adds a little cooling to every part.' };
+}
 
 /** One plain line per motherboard tier (the tier's slot counts and features are in the nerd line). */
 const BOARD_PLAIN: Record<number, string> = {
@@ -320,6 +342,8 @@ const ROOM_TIPS: Record<'lamp' | 'blind', { title: string; plain: string }> = {
 export function describeId(id: string, s?: Snapshot | null): Description | null {
   // the room's props (the lamp and the window blind) are scenery that answers a click
   if (id === 'lamp' || id === 'blind') return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
+  const fanCable = describeFanCable(id, s);
+  if (fanCable) return fanCable;
   const net = describeNet(id, s);
   if (net) return net;
   const gpu = describeGpuId(id, s);
@@ -497,7 +521,7 @@ export function friendlyError(message: string): string {
   return `Not now: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}${/[.!?]$/.test(reason) ? '' : '.'}`;
 }
 
-const INVENTORY_ORDER = ['cpu', 'cooler', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'gpu', 'npu', 'tpm', 'router', 'os'];
+const INVENTORY_ORDER = ['cpu', 'cooler', 'radiator', 'ram', 'psu', 'display', 'case', 'board', 'storage', 'vrm-sink', 'ram-sink', 'nic', 'gpu', 'npu', 'tpm', 'router', 'os'];
 
 /** The inventory shelf groups: known kinds in shelf order, then any other kind, so no spare part is ever left off the shelf. */
 export function inventoryGroups<T extends { kind: string }>(items: readonly T[]): { k: string; items: T[] }[] {

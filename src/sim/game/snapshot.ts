@@ -2,7 +2,7 @@
 // Every export is a `Game` method (see game.ts).
 
 import {
-  boardSlots, BOARD_TIERS, bootCheck, CABLES, cableBlocked, cableNeeded, CASE_TIERS, deviceSpec, findDevices, type InstalledDevice,
+  boardSlots, BOARD_TIERS, bootCheck, cablesOf, cableBlocked, cableNeeded, CASE_TIERS, deviceSpec, findDevices, type InstalledDevice,
 } from "../board";
 import { COUNTER_NAMES, Counter, type PipelineEngine } from "../engines";
 import { PchPhase, JobState } from "../isa/memmap";
@@ -93,7 +93,7 @@ export function snapshot(this: Game): Snapshot {
     powered: this.powered,
     bootProgress: this.bootProgress(phase),
     monitorLive: live,
-    monitorPowered: this.cables.monmains,
+    monitorPowered: !!this.cables.monmains,
     energy: { wallW: this.wallW, wh: this.wattTicks / 3600 },
     bill: this.billSnap(),
     noPowerReason: this.cutReason() ?? chk.noPower,
@@ -101,9 +101,9 @@ export function snapshot(this: Game): Snapshot {
     inventory: this.inventorySnap(),
     slots: this.slotSnaps(),
     // The PCIe lead is listed only while a card asks for it (or it is plugged): a machine with no accelerator has no such cable to show.
-    cables: CABLES.filter((c) => this.cables[c.id] || cableNeeded(this.board, c.id)).map((c) => {
+    cables: cablesOf(this.board).filter((c) => this.cables[c.id] || cableNeeded(this.board, c.id)).map((c) => {
       const blocked = c.id === "lan" ? (this.routerTier ? null : "needs a router next to the monitor") : cableBlocked(this.board, c.id);
-      return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
+      return { id: c.id, name: c.name, connected: !!this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
     }),
     videoPort: this.video,
     tray: this.tray.waiting().map((k) => this.keySnap(k, jobs)),

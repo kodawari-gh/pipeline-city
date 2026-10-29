@@ -227,7 +227,7 @@ export class Game {
     for (const q of this.cfg.startQueue) this.enqueue(q.template, q.scale);
     if (opts.preassembled) {
       for (const it of [...this.inventory]) this.mustInstall(it.spec, it.id);
-      this.cables = allCables();
+      this.cables = allCables(this.board);
       this.progress = newProgress(true);
       this.firstBootTick = 0;
       this.syncRates(false);

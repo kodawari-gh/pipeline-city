@@ -8,12 +8,14 @@ import type { StorageSnap } from '../../sim/game/game';
 import type { Snapshot } from '../../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '../camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, cpuFanCableArt, emptyCellHint, sinkFanCableArt, fanTrunkArt, frontFanRects, sataCablePath, sataLinkArt, sataPowerArt } from '../room/case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, sataCablePath, sataLinkArt, sataPowerArt } from '../room/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
-import { coolerArt, radiatorArt } from './cooler';
-import { Interact, type CableInfo, type SceneInfo } from '../interact';
+import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, type RadiatorFit } from './cooler';
+import { Interact, isWallCord, type CableInfo, type SceneInfo } from '../interact';
 import { CordsView, type CordKind } from './cords';
+import { FanCordsView } from './fancords';
+import { isFanCable } from '../../sim/board/cables';
 import { PowerLens, lensModel } from '../room/lens';
 import { NetView, nicArt } from '../room/net';
 import { cardArt, cardOrigin, cardRect, tpmArt, tpmHeader, tpmRect } from './accelart';
@@ -23,7 +25,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../room/exte
 import { box, clear, dashed, label } from '../ink';
 import {
   BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RADIATOR, RAM_SINK, WALL_PLATE, REAR_FAN, REAR_FAN_FITTED, REGIONS, SCREEN, TOP_FANS, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../room/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
@@ -173,6 +175,8 @@ export async function mountBoard(host: HTMLElement) {
   net.silhouette = (art, rect) => liveShape(art, rect);
   /** The two cords from the wall (the PC's and the monitor's): their bodies run behind the desk, their plugs are external and drawn at every zoom. */
   const cords = new CordsView();
+  /** The fans' cables (cooler, heatsinks, hub and each case fan): inside the case, plugs the player drags to their headers. */
+  const fanCords = new FanCordsView();
   /** The power lens: the room dimmed and the electrical map lit over it (`powerLens`). */
   const lens = new PowerLens();
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
@@ -222,7 +226,7 @@ export async function mountBoard(host: HTMLElement) {
   });
   interactRef = interact;
   interact.setTheme(T);
-  interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, cableLayer, glassLayer, coolerLayer, die.root, live.root);
+  interior.addChild(caseLayer, boardLayer, deviceLayer, deviceBakeLayer, sataLayer, driveLayer, fanLayer, fanCords.root, cableLayer, glassLayer, coolerLayer, die.root, live.root);
   exteriorLayer.addChild(stripG);
   const keyFx = new Container(); // a key sliding out of the port after its removal (outlives the props rebuild)
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
@@ -494,6 +498,7 @@ export async function mountBoard(host: HTMLElement) {
     clear(roomOverLayer); roomOverLayer.addChild(roomView.over);
     roomView.behind.addChild(net.behind, cords.behind);
     cords.setRoom(T, roomView.geo);
+    fanCords.setRoom(T);
     camera.bounds = roomBox(roomView.geo);
     ALL_CABLES = buildCables();
     boardArt = buildBoard(T, tier);
@@ -520,9 +525,12 @@ export async function mountBoard(host: HTMLElement) {
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
-    // (a liquid cooler's radiator stands where the first top fan would, so that one is left out)
-    const aio = (s?.devices ?? []).some((d) => d.kind === 'cooler' && getSpec(d.spec)?.visual === 'cooler-liquid');
-    for (const r of [...frontFanRects(), ...(REAR_FAN_FITTED ? [REAR_FAN] : []), ...TOP_FANS.filter((f) => !aio || f !== TOP_FANS[0])]) { const f = new EdgeFan(r, T); fans.push({ c: f, kind: 'case' }); fanLayer.addChild(f); }
+    // (a radiator on a mount replaces that mount's fan: it brings its own)
+    const mounts = fanMounts();
+    const radDev = (s?.devices ?? []).find((d) => d.kind === 'radiator');
+    const radMount = radDev ? mounts.find((m) => `rad-${m.id}` === radDev.slot) ?? null : null;
+    const radFit: RadiatorFit | null = radMount ? radiatorFit(radMount, COOLER.x + COOLER.w / 2) : null;
+    for (const m of mounts) { if (m === radMount) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
@@ -576,30 +584,32 @@ export async function mountBoard(host: HTMLElement) {
         scene.interactive.add('psu');
         hasPsu = true;
       } else if (spec.kind === 'cooler') {
-        const p = coolerArt(T, spec as CoolerSpec);
+        const p = coolerArt(T, spec as CoolerSpec, radFit);
         coolerLayer.addChild(p.root); parts.push(p);
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
-        sataLayer.addChild(cpuFanCableArt(T)); // its fan cable to the CPU_FAN header
         coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
-        if (aio) {
-          // the radiator in the case's top, its fan spinning with the pump; picking it picks the cooler
-          const ra = radiatorArt(T, RADIATOR);
-          deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
-          fans.push({ c: ra.fan, kind: 'radiator' }); fanLayer.addChild(ra.fan);
-          deviceHits.push(partHit(d.id, ra.root, RADIATOR));
-        }
         scene.rects.set(d.id, COOLER);
+      } else if (spec.kind === 'radiator') {
+        // bolted on the mount the player chose; its fan runs on that mount's fan cable
+        const mount = mounts.find((m) => `rad-${m.id}` === d.slot);
+        if (mount && radFit) {
+          const ra = radiatorArt(T, radFit, radiatorGrade(spec.visual));
+          deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
+          fans.push({ c: ra.fan, kind: 'radiator:' + mount.id }); fanLayer.addChild(ra.fan);
+          deviceHits.push(partHit(d.id, ra.root, mount.rect));
+          scene.rects.set(d.id, mount.rect);
+        }
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'vrm')); }
+        if (p.fan) { fans.push({ c: p.fan, kind: 'vrm' }); fanLayer.addChild(p.fan); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push(partHit(d.id, p.root, VRM_SINK));
         scene.rects.set(d.id, VRM_SINK);
       } else if (spec.kind === 'ram-sink') {
         const p = vrmSinkArt(T, spec.visual, RAM_SINK);
         deviceLayer.addChild(p.root); parts.push(p);
-        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); sataLayer.addChild(sinkFanCableArt(T, 'ram')); }
+        if (p.fan) { fans.push({ c: p.fan, kind: 'ramvrm' }); fanLayer.addChild(p.fan); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push(partHit(d.id, p.root, RAM_SINK));
         scene.rects.set(d.id, RAM_SINK);
@@ -672,6 +682,13 @@ export async function mountBoard(host: HTMLElement) {
     empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
     empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
     empty('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER)!);
+    // the radiator mounts: a drop target for each fan mount once an AIO is fitted and no radiator is on (the ids are the sim's `rad-<mount>` slots)
+    const hasAio = (s?.devices ?? []).some((d) => d.kind === 'cooler' && getSpec(d.spec)?.visual === 'cooler-liquid');
+    for (const m of mounts) {
+      const id = `rad-${m.id}`;
+      scene.slots.set(id, m.rect); scene.rects.set(id, m.rect);
+      if (hasAio && !radDev && !filled.has(id)) { emptyHits.push({ id, rect: m.rect }); scene.interactive.add(id); }
+    }
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;
     const driveSlots = [...Array.from({ length: nSata }, (_, i) => `sata${i}`), ...Array.from({ length: nM2 }, (_, i) => `m2${i}`)];
@@ -699,7 +716,6 @@ export async function mountBoard(host: HTMLElement) {
       scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
       deviceHits.push(partHit(sd.id, node, body));
     }
-    sataLayer.addChild(fanTrunkArt(T)); // the fan hub's control cable (the hub is part of the case)
     // one power lead for the cage, with a plug on every installed SATA drive
     if (hasPsu) sataLayer.addChild(sataPowerArt(T, storageDevs.filter((d) => d.slot.startsWith('sata')).map((d) => slotIndex(d.slot))));
     driveSlotsSeen.clear();
@@ -871,12 +887,20 @@ export async function mountBoard(host: HTMLElement) {
   }
 
   // ---- the wall cords (cords.ts): same optimistic scheme, a plug in the hand is drawn by the view itself ----
-  let cordHeld: { kind: CordKind; at: [number, number] } | null = null;
+  // (the fan cables, fancords.ts, are inside the case and go the same way: a plug in the hand is drawn by its view)
+  let cordHeld: { kind: string; at: [number, number] } | null = null;
   function syncCords(s: Snapshot | null, force = false) {
     if (!roomView) return;
     const now = performance.now(), on = (k: CordKind) => interact.cableStateOf(k, !!s?.cables.find((c) => c.id === k)?.connected, now);
-    if (cords.sync({ pcmains: on('pcmains'), monmains: on('monmains') }, cordHeld, scene, roomView.geo.socket.plate) || force) {
-      cordHits = cords.hits.map((h) => ({ id: h.id, rect: h.rect }));
+    const wallHeld = cordHeld && isWallCord(cordHeld.kind) ? (cordHeld as { kind: CordKind; at: [number, number] }) : null;
+    const wallRedrew = cords.sync({ pcmains: on('pcmains'), monmains: on('monmains') }, wallHeld, scene, roomView.geo.socket.plate);
+    const present = new Map<string, boolean>();
+    for (const c of s?.cables ?? []) if (isFanCable(c.id)) present.set(c.id, interact.cableStateOf(c.id, c.connected, now));
+    const fan = fanCords.sync(present, cordHeld && !isWallCord(cordHeld.kind) ? cordHeld : null, force);
+    scene.cords = [...scene.cords, ...fan.cords];
+    for (const c of fan.cords) { scene.interactive.add('cable.' + c.kind); scene.rects.set('cable.' + c.kind, c.plug); }
+    if (wallRedrew || fan.redrew || force) {
+      cordHits = [...cords.hits, ...fanCords.hits].map((h) => ({ id: h.id, rect: h.rect }));
       sceneDirty = true;
       mergeHits();
     }

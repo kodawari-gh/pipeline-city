@@ -105,6 +105,22 @@ function frontFans(g: Graphics, T: Theme, cav: string, wall: string, edge: strin
   for (const r of frontFanRects()) edgeFan(g, T, r, true, wall, edge);
 }
 
+export interface FanMount {
+  /** The sim's mount id (`caseMounts` in the sim's specs): `front0..`, `top0..`, `rear`. A radiator's slot is `rad-<id>`, the fan's cable `fan:<id>`. */
+  id: string;
+  side: 'front' | 'top' | 'rear';
+  rect: Rect;
+}
+
+/** Every fan mount of the case, in the sim's order (front, top, rear): the same order as `fanStubs` and `hubHeaders`. */
+export function fanMounts(): FanMount[] {
+  return [
+    ...frontFanRects().map((rect, k) => ({ id: `front${k}`, side: 'front' as const, rect })),
+    ...TOP_FANS.map((rect, k) => ({ id: `top${k}`, side: 'top' as const, rect })),
+    ...(REAR_FAN_FITTED ? [{ id: 'rear', side: 'rear' as const, rect: REAR_FAN }] : []),
+  ];
+}
+
 /** Where each case fan's cable leaves it: a short stub into the gap beside the fan (front fans below, top fans east, the rear fan below), that goes behind the tray. */
 export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
   return [
@@ -146,15 +162,11 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   g.fill({ color: T.pin, alpha: 0.55 });
   box(g, mcu.x, mcu.y, mcu.w, mcu.h, 8, { fill: '#05070b', stroke: T.mul, lw: 4, sa: 0.6 });
   root.addChild(label('MCU', mcu.x + mcu.w / 2, mcu.y + mcu.h / 2, 40, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
-  hubHeaders().forEach((p, i) => {
-    const accent = i % 2 ? T.ld : T.mul;
+  hubHeaders().forEach((p) => {
     box(g, p.x - 40, p.y + 8, 80, 44, 6, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.8 });
     for (let k = 0; k < 4; k++) g.rect(p.x - 31 + k * 20, p.y + 22, 10, 16);
     g.fill({ color: T.pin, alpha: 0.7 });
-    // its cable: a plug on the header, a sleeve straight up into the slot
-    g.moveTo(p.x, p.y - 30).lineTo(p.x, sl.y + sl.h * 0.5).stroke({ width: 20, color: sleeve, cap: 'round' });
-    g.moveTo(p.x, p.y - 30).lineTo(p.x, sl.y + sl.h * 0.5).stroke({ width: 20, color: accent, alpha: 0.16, cap: 'round' });
-    box(g, p.x - 36, p.y - 30, 72, 48, 6, { fill: plugTone(T), stroke: accent, lw: 3, sa: 0.85 });
+    // (its cable, a plug on the header and a sleeve up into the slot, is live: `fancords.ts`)
   });
   // the input header (the cable from the board's SYS_FAN header) and the power plug on the west edge (from the PSU's east face)
   box(g, h.x + 40, h.y + 8, 100, 44, 6, { fill: '#05070b', stroke: T.mul, lw: 3, sa: 0.7 });
@@ -185,63 +197,6 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   root.addChild(label('FAN HUB', h.x + 170, h.y + 110, 38, T.mute, { head: true, a: 0.9 }));
   root.addChild(label('FAN + LIGHTING CONTROLLER', h.x + 170, h.y + 330, 26, T.mute, { a: 0.6 }));
   root.addChild(label(`${hubHeaders().length} CH`, h.x + h.w - 60, h.y + h.h - 40, 28, T.mute, { anchor: [1, 0.5], a: 0.7 }));
-}
-
-/** The cooler's fan cable: a plug on the CPU_FAN header and a sleeve east to the cooler's west edge (drawn only while a cooler is installed). */
-export function cpuFanCableArt(T: Theme): Container {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const h = GEO.hdrs.find((q) => q.name === 'CPU_FAN');
-  if (!h) return root;
-  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24, y = h.y + hh / 2, x0 = h.x + w, x1 = COOLER.x + 70, sleeve = sleeveOf(T);
-  g.moveTo(x0 + 6, y + 9).lineTo(x1, y + 9).stroke({ width: 30, color: '#000000', alpha: 0.26, cap: 'round' });
-  g.moveTo(x0, y).lineTo(x1, y).stroke({ width: 24, color: sleeve, cap: 'round' });
-  g.moveTo(x0, y).lineTo(x1, y).stroke({ width: 24, color: T.mul, alpha: 0.2, cap: 'round' });
-  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
-  plugBox(g, T, x1 - 30, y - 28, 64, 56, T.mul); // on the cooler
-  return root;
-}
-
-/**
- * The fan cable of a heatsink with a fan (drawn while it is installed): a plug on the regulator's fan header, a sleeve up above the regulator,
- * east along a run of its own and down onto the fan's housing.
- */
-export function sinkFanCableArt(T: Theme, which: 'vrm' | 'ram'): Container {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const h = GEO.hdrs.find((q) => q.name === (which === 'vrm' ? 'VRM_FAN' : 'RAM_FAN'));
-  if (!h) return root;
-  const sink = which === 'vrm' ? GEO.vrmSink : GEO.dSink, f = sinkFanAt(sink), sleeve = sleeveOf(T);
-  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24;
-  const start: Pt = which === 'vrm' ? [h.x + w / 2, h.y - 6] : [h.x + w - 26, h.y - 6];
-  const yRun = which === 'vrm' ? GEO.vrm.y - 80 : GEO.dvrm.y - 70;
-  const path = roundedPath([start, [start[0], yRun], [f.x, yRun], [f.x, f.y - f.r + 6]], 70, 30);
-  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 28, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 22, color: sleeve, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 22, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
-  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
-  plugBox(g, T, f.x - 26, f.y - f.r - 10, 52, 40, T.mul); // on the fan
-  return root;
-}
-
-/** The control cable of the fan hub: a plug on the board's SYS_FAN header and a sleeve that runs down over the board's south edge, east under the PSU cables and up into the hub. */
-export function fanTrunkArt(T: Theme): Container {
-  const root = new Container();
-  const g = new Graphics();
-  root.addChild(g);
-  const h = GEO.hdrs.find((q) => q.name === 'SYS_FAN');
-  if (!h) return root;
-  const w = h.cols * 52 + 24, hh = h.rows * 52 + 24, cx = h.x + w / 2, south = CASE_BD.y + CASE_BD.h, sleeve = sleeveOf(T);
-  const route: Pt[] = [[cx, h.y + hh + 6], [cx, south + 130], [FAN_HUB.x + 90, south + 130], [FAN_HUB.x + 90, FAN_HUB.y + 4]];
-  const path = roundedPath(route, 70, 30);
-  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 30, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 24, color: sleeve, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 24, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
-  plugBox(g, T, h.x - 8, h.y - 10, w + 16, hh + 16, T.mul); // on the header
-  plugBox(g, T, FAN_HUB.x + 90 - 36, FAN_HUB.y - 24, 72, 44, T.mul); // on the hub's input header
-  return root;
 }
 
 /** The standoff positions of the case: every mounting hole of every board tier it takes (no duplicates). */
@@ -459,13 +414,13 @@ export function sataCablePath(i: number): Lane {
 
 export const SATA_CABLE_W = 32;
 
-function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, accent: string) {
+export function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, h: number, accent: string) {
   box(g, x + 4, y + 8, w, h, 8, { fill: '#000000', fa: 0.25 });
   box(g, x, y, w, h, 8, { fill: T.dark ? '#1b2230' : '#2c3442', stroke: accent, lw: 4, sa: 0.85 });
 }
 
-const sleeveOf = (T: Theme) => (T.dark ? '#171d29' : '#2a313d');
-const lineOf = (g: Graphics, list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
+export const sleeveOf = (T: Theme) => (T.dark ? '#171d29' : '#2a313d');
+export const lineOf = (g: Graphics, list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
 
 /** The data cable for the drive in cage cell i: the sleeve, the plug on the drive and the plug in the board's port. Sits under the PSU cables. */
 export function sataLinkArt(T: Theme, i: number): Container {

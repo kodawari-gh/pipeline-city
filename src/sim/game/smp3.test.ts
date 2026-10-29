@@ -31,7 +31,7 @@ function machine(cpu: string): Game {
   const g = new Game({ seed: 7, preassembled: true, economy: { ...econ([]), levelGating: false, caseGating: false } });
   g.money = 1_000_000;
   g.powerButton();
-  for (const id of ["board1", "board2", "board3", "psu2", cpu, "cooler2"]) {
+  for (const id of ["board1", "board2", "board3", "psu2", cpu, "cooler2", "rad2"]) {
     const b = g.purchase(id);
     if (!b.ok) throw new Error(`purchase ${id}: ${b.reason}`);
     const r = g.install(b.invId);

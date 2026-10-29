@@ -1,7 +1,7 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import { boardFromJson, CABLE_IDS, getSpec, type BoardJson, type Cables } from "../board";
+import { boardFromJson, CABLE_IDS, getSpec, isFanCable, type BoardJson, type Cables } from "../board";
 import { getOsSpec } from "../os";
 import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
@@ -361,7 +361,8 @@ export function parseSave(input: unknown): SaveV4 {
     throw new Error('save: "inventory" must be a list of {id, spec} with known item ids');
   }
   // the wall cords and their milestone came later: a save without them is read as plugged in (additive, no version bump)
-  const optional = (k: string) => k === "pcmains" || k === "monmains" || k === "mainsConnected";
+  // and the fan cables later still: a save without them is read as plugged in (`Game.restore`)
+  const optional = (k: string) => k === "pcmains" || k === "monmains" || k === "mainsConnected" || isFanCable(k);
   const flag = (o: unknown, k: string) => { const v = (o as Record<string, unknown>)[k]; return typeof v === "boolean" || (optional(k) && v === undefined); };
   if (!isObj(s.cables) || CABLE_IDS.some((c) => !flag(s.cables, c))) {
     throw new Error('save: "cables" must say whether each cable is connected');

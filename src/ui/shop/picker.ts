@@ -190,7 +190,7 @@ export const caseId = (tier: number) => `case${tier}`;
 export function catalogOf(kind: PickerKind): string[] {
   if (kind === 'board') return BOARD_TIERS.map((b) => boardId(b.tier));
   if (kind === 'case') return CASE_TIERS.map((c) => caseId(c.tier));
-  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic' || kind === 'gpu' || kind === 'npu' || kind === 'tpm') {
+  if (kind === 'cpu' || kind === 'ram' || kind === 'psu' || kind === 'cooler' || kind === 'display' || kind === 'storage' || kind === 'vrm-sink' || kind === 'ram-sink' || kind === 'nic' || kind === 'gpu' || kind === 'npu' || kind === 'tpm' || kind === 'radiator') {
     return specsOfKind(kind).map((x) => x.id);
   }
   if (kind === 'os') return OS_SPECS.map((o) => o.id);
@@ -261,6 +261,7 @@ export function statsOf(specId: string): Stat[] {
       { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
     ];
+    case 'radiator': return [{ key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true }];
     case 'display': return [{ key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false }];
     case 'vrm-sink': case 'ram-sink': return [
       { key: 'cooling', label: 'Heat removal', icon: 'flame', value: spec.coolingPerC, unit: 'W/C', higherIsBetter: true },
@@ -382,6 +383,7 @@ export function specBrief(spec: DeviceSpec): string {
     case 'ram': return `${spec.gen} ${spec.sizeBytes / 1024}K, ${spec.banks} banks${spec.bankGroups > 1 ? ` in ${spec.bankGroups} groups` : ''}${spec.subChannels && spec.subChannels > 1 ? `, ${spec.subChannels} sub-channels` : ''}, latency ${spec.latency}${spec.ecc ? ', ECC' : ''}`;
     case 'psu': return `${spec.watts} W${spec.slot === 'atx-plus' ? ', needs ATX+ board' : ''}`;
     case 'cooler': return `${spec.coolingPerC} W/C cooling`;
+    case 'radiator': return `adds ${spec.coolingPerC} W/C to a liquid loop`;
     case 'display': return 'text monitor';
     case 'storage': return `${spec.capacityBytes / 1024}K, ${spec.slot === 'm2' ? 'M.2' : 'SATA'}`;
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
@@ -395,7 +397,7 @@ export function specBrief(spec: DeviceSpec): string {
 
 const SLOT_KIND: Record<string, DeviceKind> = {
   cpu: 'cpu', dimm: 'ram', atx: 'psu', 'atx-plus': 'psu', cooler: 'cooler', display: 'display', sata: 'storage', m2: 'storage',
-  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic', tpm: 'tpm',
+  'vrm-sink': 'vrm-sink', 'ram-sink': 'ram-sink', pcie: 'nic', tpm: 'tpm', radiator: 'radiator',
 };
 const WORLD_KIND: Record<string, DeviceKind | 'board' | 'case' | 'os' | 'router' | 'isp'> = {
   psu: 'psu', monitor: 'display', 'psu.readout': 'psu', board: 'board', case: 'case', bay: 'storage', os: 'os', router: 'router', wall: 'isp',

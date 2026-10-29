@@ -159,7 +159,7 @@ describe("queue, reputation and demand", () => {
     expect(s.tray).toHaveLength(1); // only the starter key
     expect(s.tray[0]!.age).toBe(0);
     g.install("inv1"); g.install("inv5"); g.install("inv2"); g.install("inv3"); g.install("inv4");
-    for (const c of ["atx", "cpu", "video", "pcmains", "monmains"]) g.connectCable(c);
+    for (const c of ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"]) g.connectCable(c);
     expect(g.powerButton()).toEqual({ ok: true, powered: true });
     for (let t = 0; t < 10; t++) g.advanceBaseTick();
     s = g.snapshot();
@@ -274,7 +274,7 @@ describe("board upgrade purchase", () => {
     expect(g.install(b1.invId).ok).toBe(true);
     expect(g.install(b.invId).ok).toBe(true);
     expect(g.snapshot().boardTier).toBe(2);
-    expect(g.snapshot().cables.filter((c) => c.id !== "lan").every((c) => c.connected)).toBe(true); // parts and cables carried over
+    expect(g.snapshot().cables.filter((c) => ["atx", "cpu", "cpufan", "video", "pcmains", "monmains"].includes(c.id)).every((c) => c.connected)).toBe(true); // parts and cables carried over
     expect(g.install(p.invId).ok).toBe(true); // swaps over the 40 W PSU, which goes back to the inventory
     expect(g.snapshot().cables.find((c) => c.id === "atx")!.connected).toBe(true); // swapping keeps the cables on the board
     g.powerButton();

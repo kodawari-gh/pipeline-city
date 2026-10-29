@@ -1,6 +1,6 @@
 // Board model: pure data plus validation. A Board is plain JSON-serialisable data.
 
-import { BOARD_TIERS, CASE_TIERS, PCIE_SLOT_W, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
+import { BOARD_TIERS, CASE_TIERS, PCIE_SLOT_W, caseMounts, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -51,6 +51,11 @@ export function upgradeCase(board: Board, tier: number): Result<object> {
   if (!c) return { ok: false, reason: `unknown case tier ${tier}` };
   if (tier === board.caseTier) return { ok: false, reason: `the ${c.name} is already fitted` };
   if (c.maxBoard < board.tier) return { ok: false, reason: `the ${c.name} is too small for the ${BOARD_TIERS[board.tier]!.name} board: fit a smaller board first` };
+  const mounts = caseMounts(tier);
+  for (const d of board.devices) {
+    const m = radiatorMount(d.slot);
+    if (m !== null && !mounts.includes(m)) return { ok: false, reason: `the ${c.name} has no ${m} fan mount for the radiator: take it out first` };
+  }
   board.caseTier = tier;
   return { ok: true };
 }
@@ -63,7 +68,24 @@ export function boardSlots(board: Board): SlotInfo[] {
   for (const [type, n] of Object.entries(t.slots) as [SlotType, number][]) {
     for (let k = 0; k < n; k++) out.push({ id: `${type}${k}`, type });
   }
+  // A radiator bolts onto a fan mount of the case: one slot per mount, replacing that mount's fan.
+  for (const m of caseMounts(board.caseTier)) out.push({ id: radiatorSlot(m), type: "radiator" });
   return out;
+}
+
+/** The slot id of the radiator at a case fan mount (`front0`, `top1`, `rear`). */
+export const radiatorSlot = (mount: string): string => `rad-${mount}`;
+
+/** The fan mount a radiator slot sits on, or null for any other slot. */
+export const radiatorMount = (slotId: string): string | null => (slotId.startsWith("rad-") ? slotId.slice(4) : null);
+
+/** The mount holding a radiator (and the radiator), if one is fitted. */
+export function fittedRadiator(board: Board): { dev: InstalledDevice; mount: string } | null {
+  for (const d of board.devices) {
+    const m = radiatorMount(d.slot);
+    if (m !== null) return { dev: d, mount: m };
+  }
+  return null;
 }
 
 export function deviceSpec(d: InstalledDevice): DeviceSpec {

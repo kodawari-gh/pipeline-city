@@ -112,8 +112,8 @@ describe("the manual loop needs an OS to last", () => {
       // With the short POST the manual loop is fast per job (about 15 s), so its reputation is close to the OS's; what the OS
       // wins is volume and patience: more jobs, and the keys the manual loop lets expire (the slow human steps).
       SEEDS.forEach((_, i) => expect(withOs[i]!.jobs, `level ${level} seed ${i}`).toBeGreaterThan(manual[i]!.jobs));
-      expect(mean(withOs, "rep")).toBeGreaterThan(mean(manual, "rep") * 0.9); // close to a tie: the manual loop is quick per job, and the OS machine also serves the database jobs now (which keep a table in memory and take longer)
-      expect(mean(withOs, "jobs")).toBeGreaterThan(mean(manual, "jobs") * 1.1); // was 1.2 before the database jobs became real work
+      expect(mean(withOs, "rep")).toBeGreaterThan(mean(manual, "rep") * 0.85); // (0.9 before the case fans cooled the machines a little) close to a tie: the manual loop is quick per job, and the OS machine also serves the database jobs now (which keep a table in memory and take longer)
+      expect(mean(withOs, "jobs")).toBeGreaterThan(mean(manual, "jobs") * 1.05); // was 1.2 before the database jobs became real work, 1.1 before the case fans
       expect(mean(withOs, "expired")).toBeLessThan(mean(manual, "expired"));
       expect(mean(withOs, "rep")).toBeGreaterThan(0.7);
     }

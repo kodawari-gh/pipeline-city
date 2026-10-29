@@ -63,7 +63,7 @@ function act(g: Game, s: Snapshot, id: StepId): void {
     case 'monitor': installPart(['display']); break;
     case 'cables': {
       powerOff();
-      for (const cable of ['atx', 'cpu', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
+      for (const cable of ['atx', 'cpu', 'cpufan', 'video']) if (!s.cables.find((c) => c.id === cable)?.connected) g.connectCable(cable);
       break;
     }
     case 'wall':

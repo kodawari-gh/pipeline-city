@@ -23,8 +23,8 @@
 //   No PSU installed -> machine is off (not latched).
 
 import type { Prng } from "../machine/prng";
-import { deviceSpec, findDevices, installedPsu, type Board, type InstalledDevice } from "./board";
-import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, type DeviceKind } from "./specs";
+import { deviceSpec, findDevices, fittedRadiator, installedPsu, type Board, type InstalledDevice } from "./board";
+import { AMBIENT_C, BOARD_TIERS, DAMAGE_TICKS, type CoolerSpec, type DeviceKind, type RadiatorSpec } from "./specs";
 import { currentDemand, efficiency, errorProb, lossW, loadRatio, ramDemand, VRM_BURN_RATIO, VRM_HOT_STRESS, VRM_OVERLOAD } from "./vrm";
 
 type VrmSpecOf = (typeof BOARD_TIERS)[number]["vrm"];
@@ -83,6 +83,18 @@ export const CASE_HEAT_C_PER_W = 0.05;
 const isCard = (kind: DeviceKind): boolean => kind === "gpu" || kind === "npu";
 
 export type Loads = Partial<Record<DeviceKind, number>>;
+
+/** Which fans are plugged in (docs/VRM.md "Fans"): the Game reads it off the cables. `caseFans` counts the case fans that turn (their own cable and the hub's). */
+export interface FanPower {
+  cpu: boolean; vrm: boolean; ram: boolean; caseFans: number;
+  /** What the fitted radiator adds to a liquid loop, W/C (0 with none). The Game works it out: full with its fan plugged, `UNFANNED_SHARE` of it without. */
+  loopK?: number;
+}
+/** The default for a model with no cables to look at: every part's fan turns, no case fans counted, and a liquid loop runs the fitted radiator (if any) at full fan. */
+export const FANS_ON: FanPower = { cpu: true, vrm: true, ram: true, caseFans: 0 };
+/** W per degree C each turning case fan adds to every part's own cooling (airflow through the case). */
+export const CASE_FAN_K = 0.01;/** A heatsink with a fan whose fan is not plugged in still works as fins: this share of its cooling is left. */
+export const UNFANNED_SHARE = 0.5;
 
 export class ThermalModel {
   readonly devices = new Map<string, DeviceThermal>();
@@ -149,7 +161,7 @@ export class ThermalModel {
    * Advance one base tick. `loads` is the utilisation (0..1) per device kind; default 1. With `powered` false the
    * machine is switched off (nothing draws, parts cool down); the trip latch is left alone.
    */
-  step(board: Board, loads: Loads = {}, powered = true): void {
+  step(board: Board, loads: Loads = {}, powered = true, fans: FanPower = FANS_ON): void {
     const psu = installedPsu(board);
     const tripped = this.power.tripped;
     const live = powered && !!psu && !psu.dev.burnt && !tripped && !board.burnt;
@@ -225,7 +237,13 @@ export class ThermalModel {
     this.caseRiseC = caseRiseC;
 
     const cooler = findDevices(board, "cooler").find((d) => !d.burnt);
-    const coolerK = effLive && cooler ? (deviceSpec(cooler) as { coolingPerC: number }).coolingPerC : 0;
+    const coolerSpec = cooler ? (deviceSpec(cooler) as CoolerSpec) : null;
+    // An AIO's pump moves heat only as far as its radiator: without one it is the pump alone.
+    const rad = coolerSpec?.loop && fans.loopK === undefined ? fittedRadiator(board) : null;
+    const loopK = fans.loopK ?? (rad && !rad.dev.burnt ? (deviceSpec(rad.dev) as RadiatorSpec).coolingPerC : 0);
+    const coolerBase = coolerSpec?.loop ? coolerSpec.loop.pumpPerC + loopK : (coolerSpec?.coolingPerC ?? 0);
+    const coolerK = effLive && fans.cpu ? coolerBase : 0;
+    const caseAirK = effLive ? fans.caseFans * CASE_FAN_K : 0;
 
     for (const d of board.devices) {
       const spec = deviceSpec(d);
@@ -233,7 +251,7 @@ export class ThermalModel {
       const p = effLive ? powerOf(d, psuFactor) : { w: 0, clk: 0 };
       drawn += p.w;
       const heat = p.w * spec.heatFactor;
-      const k = spec.thermal.passive + (spec.kind === "cpu" ? coolerK : 0);
+      const k = spec.thermal.passive + caseAirK + (spec.kind === "cpu" ? coolerK : 0);
       st.powerW = p.w;
       st.heatW = heat;
       st.tempC += (heat - k * (st.tempC - (AMBIENT_C + (isCard(spec.kind) ? 0 : caseRiseC)))) / spec.thermal.mass;
@@ -245,18 +263,19 @@ export class ThermalModel {
       else st.stress = Math.max(0, st.stress - 1);
       if (st.stress >= DAMAGE_TICKS && !d.burnt) d.burnt = true;
     }
-    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink", caseRiseC);
-    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink", caseRiseC);
+    this.stepVrm(board, this.vrm, vspec, vrmNow, vrmThrottle, effLive, "vrm-sink", caseRiseC, fans.vrm, fans.cpu, caseAirK);
+    this.stepVrm(board, this.ramVrm, rspec, ramNow, ramThrottle, effLive, "ram-sink", caseRiseC, fans.ram, fans.cpu, caseAirK);
     this.power = { totalW: drawn, vrmLossW: effLive ? vrmNow.loss + ramNow.loss : 0, budgetW: budget, psuFactor, off: !effLive, tripped: nowTripped };
   }
 
-  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink", caseRiseC: number): void {
+  private stepVrm(board: Board, v: VrmThermal, vspec: VrmSpecOf, now: { ratio: number; eff: number; loss: number }, throttle: number, live: boolean, sinkKind: "vrm-sink" | "ram-sink", caseRiseC: number, sinkFanOn: boolean, coolerFanOn: boolean, caseAirK: number): void {
     const sink = live ? findDevices(board, sinkKind).find((d) => !d.burnt) : undefined;
     const cooler = live ? findDevices(board, "cooler").find((d) => !d.burnt) : undefined;
-    const sinkK = sink ? (deviceSpec(sink) as { coolingPerC: number }).coolingPerC : 0;
-    const airK = cooler ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC : 0;
+    const sinkSpec = sink ? (deviceSpec(sink) as { coolingPerC: number; fan?: true }) : undefined;
+    const sinkK = sinkSpec ? sinkSpec.coolingPerC * (sinkSpec.fan && !sinkFanOn ? UNFANNED_SHARE : 1) : 0;
+    const airK = cooler && coolerFanOn ? (deviceSpec(cooler) as { vrmAirPerC: number }).vrmAirPerC : 0;
     v.heatW = now.loss;
-    v.tempC += (now.loss - (vspec.passive + sinkK + airK) * (v.tempC - AMBIENT_C - caseRiseC)) / vspec.mass;
+    v.tempC += (now.loss - (vspec.passive + sinkK + airK + caseAirK) * (v.tempC - AMBIENT_C - caseRiseC)) / vspec.mass;
     v.loadRatio = now.ratio;
     v.efficiency = now.eff;
     v.throttle = throttle;
