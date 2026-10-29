@@ -48,6 +48,7 @@ export function setJobClasses(this: Game, off: readonly string[]): Result<{ off:
   const bad = off.find((id) => !known.has(id));
   if (bad !== undefined) return { ok: false, reason: `unknown job class '${bad}'` };
   this.sandboxOff = new Set(off as JobClassId[]);
+  for (const q of [this.tray, this.offersQ]) for (const k of q.waiting()) if (this.sandboxOff.has(k.cls as JobClassId)) q.take(k.id);
   this.note("sandbox", this.sandboxOff.size ? `arrivals off: ${[...this.sandboxOff].join(", ")}` : "every job class arrives again");
   return { ok: true, off: [...this.sandboxOff] };
 }
@@ -62,6 +63,8 @@ export function setJobKinds(this: Game, off: readonly string[]): Result<{ off: s
   const bad = off.find((id) => !known.has(id));
   if (bad !== undefined) return { ok: false, reason: `unknown kind of job '${bad}'` };
   this.sandboxKindsOff = new Set(off);
+  // Keys of a kind just switched off that are still waiting go back to their client, so the choice shows at once (the plugged key and the OS's stay).
+  for (const q of [this.tray, this.offersQ]) for (const k of q.waiting()) if (this.sandboxKindsOff.has(k.type)) q.take(k.id);
   this.note("sandbox", this.sandboxKindsOff.size ? `${this.sandboxKindsOff.size} kinds of job off` : "every kind of job arrives again");
   return { ok: true, off: [...this.sandboxKindsOff] };
 }

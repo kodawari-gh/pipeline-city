@@ -311,6 +311,15 @@ describe("sandbox: which job classes arrive on their own", () => {
     expect(kinds(g, 3000).size).toBe(0);
     expect(g.spawnKey("gpu").ok).toBe(true);
   });
+  it("switching a kind or class off also removes its waiting keys", () => {
+    const g = start();
+    g.spawnKey("cli"); g.spawnKey("gpu");
+    g.setJobKinds(["log", "calc", "checksum"]);
+    expect(g.snapshot().tray.some((k) => k.cls === "cli")).toBe(false);
+    expect(g.snapshot().tray.some((k) => k.cls === "gpu")).toBe(true);
+    g.setJobClasses(["gpu"]);
+    expect(g.snapshot().tray.length).toBe(0);
+  });
   it("refuses unknown kinds, and a campaign game", () => {
     expect(start().setJobKinds(["nope"]).ok).toBe(false);
     expect(new Game({ seed: 1, economy: econ() }).setJobKinds([])).toEqual({ ok: false, reason: "sandbox mode only" });
