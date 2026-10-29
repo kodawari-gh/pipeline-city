@@ -150,22 +150,28 @@ export interface FrameModel {
   seq: number;
 }
 
+/** A card's output words as cells: the used part (up to the last non-zero word, whole rows of `FRAME_COLS`), each scaled to 0..1 between the smallest and largest. The almanac's job preview uses it too. */
+export function pictureOf(words: readonly number[]): { cols: number; rows: number; cells: number[] } {
+  let last = -1;
+  for (let i = words.length - 1; i >= 0; i--) if (words[i] !== 0) { last = i; break; }
+  const rows = Math.max(1, Math.ceil((last + 1) / FRAME_COLS));
+  const w = words.slice(0, rows * FRAME_COLS).map((v) => v | 0);
+  const lo = Math.min(...w), hi = Math.max(...w), span = hi - lo || 1;
+  return { cols: FRAME_COLS, rows, cells: w.map((v) => (v - lo) / span) };
+}
+
 /**
  * The card's output region as a picture: the used part (up to the last non-zero word, rounded up to whole rows of `FRAME_COLS`), each word scaled to 0..1 between
  * the smallest and largest of them (signed, as the kernels' integers are). Null before the card's first launch.
  */
 export function frameModel(g: GpuSnap | undefined): FrameModel | null {
   if (!g || !g.frame.length) return null;
-  let last = -1;
-  for (let i = g.frame.length - 1; i >= 0; i--) if (g.frame[i] !== 0) { last = i; break; }
-  const rows = Math.max(1, Math.ceil((last + 1) / FRAME_COLS));
-  const w = g.frame.slice(0, rows * FRAME_COLS).map((v) => v | 0);
-  const lo = Math.min(...w), hi = Math.max(...w), span = hi - lo || 1;
+  const pic = pictureOf(g.frame);
   const slots = g.stats.instructions * g.lanes;
   const busy = slots > 0 ? Math.round((100 * (slots - g.stats.idleLaneSlots)) / slots) : 0;
   const state = g.error ? 'FAULT' : g.phase === 'idle' ? 'DONE' : 'DRAWING';
   return {
-    cols: FRAME_COLS, rows, cells: w.map((v) => (v - lo) / span), seq: g.launches,
+    cols: pic.cols, rows: pic.rows, cells: pic.cells, seq: g.launches,
     status: `FRAME ${g.launches}  ${state}  ${g.stats.cycles} CYC  ${g.lanes} LANES ${busy}% BUSY  ${g.stats.conflictCycles} CONFLICTS`,
   };
 }

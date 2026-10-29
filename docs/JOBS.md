@@ -82,6 +82,7 @@ One job per GPU kernel and one per depth of network. None needs a card: without 
 | Polynomial (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
 | Mandelbrot (`mandel`) | `gpu.mandel` | 13 | nothing | GPU, about 15x | lanes, divergence |
 | Spinning balls (`sphere`) | `gpu.sphere` | 14 | nothing | GPU, about 7x | lanes, the multiplier |
+| Spinning balls, widescreen (`spherewide`) | `gpu.spherewide` | 15 | nothing | GPU with 16K, about 7x | card memory, lanes |
 | Perceptron (`perceptron`) | `npu.perceptron` | 12 | nothing | NPU, about 4x | NPU grid, else GPU, else CPU |
 | Inference (`npu`) | `npu.infer` | 12 | nothing | NPU, about 8x | NPU grid, else GPU, else CPU |
 | Deep network (`deep`) | `npu.deep` | 14 | nothing | NPU, about 9x | NPU grid, else GPU, else CPU |
@@ -163,6 +164,7 @@ Not built: the log is not written to disk beyond the save (the last 60 only), a 
 
 ## Reading the code
 The page of a job that has been met shows its program on the main page (`src/ui/panels/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/tutorial/highlight.ts`):
+- **Output (GPU jobs):** a window above the code shows the picture the job leaves on a graphics display (`gpuPicture` in `gen/templates.ts` replays the job's seed, `pictureOf` in `render/room/screenmodel.ts` scales it, drawn on a canvas); the scale chips change it.
 
 - **Assembly** (the core view, unlocked when the job is met, and the tab the page opens on). The program the generator makes for the job (`profileOf(template, scale)`, a scale selector for the jobs that have one) is **run on the reference interpreter**, counting every instruction by what it does. From that the page draws:
   - **The sprite** and **where the work goes:** the program as a picture (see above), a bar of the instructions executed by kind (arithmetic and logic, loads, stores, multiplies, branches, system), and three **rings** for what the job leans on: *compute* (ALU and multiplier), *memory* (loads and stores) and *control* (branches), each a share of the instructions that did something. They point at the hardware to look at: CPU clock and width, caches and RAM, predictor.

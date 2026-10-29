@@ -147,7 +147,7 @@ export class FrameView extends Container {
     const sig = m.status + '|' + m.cells.map((c) => Math.round(c * 255)).join(',');
     if (sig === this.sig) return;
     this.sig = sig;
-    const g = this.g, area = { x: RX, y: 940, w: X1 - RX, h: 430 };
+    const g = this.g, area = { x: RX, y: 940, w: X1 - RX, h: m.rows > 16 ? 690 : 430 }; // the 16:9 picture (64 x 36) takes the rest of the screen's height
     const cell = Math.min(area.w / m.cols, area.h / m.rows);
     const ox = area.x + (area.w - cell * m.cols) / 2, oy = area.y;
     g.clear();

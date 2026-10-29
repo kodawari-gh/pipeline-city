@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { assembleGpu } from "../asm/gpu";
 import {
-  ballPixel, GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, mandelCount, type GpuKernelName,
+  ballPixel, GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, mandelCount, WIDE_ROWS, type GpuKernelName,
 } from "../gen/gpukernels";
 import { bankCycles, bankLoad, GpuFault, GpuRef } from "./gpuref";
 
-const card = (lanes = 8, banks = 1) => new GpuRef({ lanes, memBytes: 8 * 1024, banks });
+const card = (lanes = 8, banks = 1, kb = 8) => new GpuRef({ lanes, memBytes: kb * 1024, banks });
 
 /** Assemble and run a snippet; returns the card. */
 function runAsm(src: string, lanes = 8, banks = 1, active = lanes): GpuRef {
@@ -16,10 +16,10 @@ function runAsm(src: string, lanes = 8, banks = 1, active = lanes): GpuRef {
   return g;
 }
 
-function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1) {
+function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1, kb = 8) {
   const p = { lanes, len, scale: 5 };
   const { a, b } = kernelInputs(len, 7);
-  const g = card(lanes, banks);
+  const g = card(lanes, banks, kb);
   g.load(assembleGpu(gpuKernelSource(name, p)).program, KERNEL_LAYOUT.code);
   g.load(a, KERNEL_LAYOUT.a);
   g.load(b, KERNEL_LAYOUT.b);
@@ -81,6 +81,14 @@ describe("GPU reference interpreter: kernels", () => {
     expect(out.slice(8 * 64, 8 * 64 + 16)).not.toEqual(out.slice(8 * 64 + 16, 8 * 64 + 32)); // middle row: each ball is turned differently
     expect(ballPixel(8 * 64 + 8, 16, 0)).not.toBe(ballPixel(8 * 64 + 8, 16, 8)); // and the spin moves the checker (8 slides it one square)
     expect(runKernel("sphere", 4, 256).out).toEqual([...Array(256).keys()].map((i) => ballPixel(i, 4, 0)));
+  });
+
+  it("the 16:9 sphere picture is two bands of balls and the kernel matches the plain-JS pixel", () => {
+    const n = 64 * WIDE_ROWS, { out } = runKernel("sphere", 16, n, 1, 16);
+    expect(out).toEqual([...Array(n).keys()].map((i) => ballPixel(i, WIDE_ROWS, 0)));
+    const band = (b: number) => out.slice(b * 18 * 64, (b + 1) * 18 * 64).join();
+    expect(band(0)).not.toBe(band(1)); // the lower balls are turned differently
+    expect(out.slice(9 * 64, 9 * 64 + 16).some((v) => v > 0) && out.slice(27 * 64, 27 * 64 + 16).some((v) => v > 0)).toBe(true);
   });
 
   it("is deterministic and counts cycles", () => {

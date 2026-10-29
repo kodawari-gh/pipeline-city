@@ -2,7 +2,9 @@
 // a picture of its real program, that is a dark silhouette until the job is met. A met job's page puts that program on the main page (its picture,
 // what it leans on, its assembly); finishing one opens the C++ and Python and the ways to do it better, as icon chips. A sandbox game has everything open.
 import { signal } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
+import { gpuPicture } from '../../sim/gen';
+import { frameColor, pictureOf } from '../../render/room/screenmodel';
 import { snapshot } from '../../game/store';
 import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, dexNumber, taskLevel, type DexEntry, type DexGroup, type DexSnap } from '../../sim/game/jobdex';
 import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, type CodeLine, type CodeProfile, type OpClass } from '../../sim/game/jobcode';
@@ -204,6 +206,35 @@ function Hero({ e, g, state, d, level, sandbox, p }: { e: DexEntry; g: DexGroup 
   );
 }
 
+/** What the job leaves on a graphics display: its output words as the display shows them, one cell per word, on the same heat scale. Only for a job a GPU draws. */
+function Preview({ e }: { e: DexEntry }) {
+  const src = CODE_SOURCE[e.id];
+  const scale = scaleOf.value[e.id] ?? src?.scales[0] ?? 1;
+  const pic = src ? gpuPicture(src.template, 7, scale) : null;
+  const ref = useRef<HTMLCanvasElement>(null);
+  const m = pic ? pictureOf(pic) : null;
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv || !m) return;
+    cv.width = m.cols; cv.height = m.rows;
+    const c = cv.getContext('2d');
+    if (!c) return;
+    const img = c.createImageData(m.cols, m.rows);
+    m.cells.forEach((v, i) => {
+      const hex = frameColor(v);
+      img.data[i * 4] = parseInt(hex.slice(1, 3), 16); img.data[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); img.data[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); img.data[i * 4 + 3] = 255;
+    });
+    c.putImageData(img, 0, 0);
+  });
+  if (!m) return null;
+  return (
+    <div class="dx-code dx-preview">
+      <div class="dx-codebar"><span class="dx-win"><Icon name="screen" size={12} /> Output</span><span class="mute">{m.cols} x {m.rows} on a graphics display</span></div>
+      <canvas ref={ref} class="dx-shot" style={{ aspectRatio: `${m.cols} / ${m.rows}` }} role="img" aria-label="The picture this job draws" />
+    </div>
+  );
+}
+
 function Page({ e, state, d, level, sandbox }: { e: DexEntry; state: State; d: DexSnap; level: number; sandbox: boolean }) {
   const g = dexGroup(e.id), rank = state === 'done' ? 2 : state === 'seen' ? 1 : 0;
   const src = CODE_SOURCE[e.id];
@@ -211,6 +242,7 @@ function Page({ e, state, d, level, sandbox }: { e: DexEntry; state: State; d: D
   return (
     <div class="dx-page" style={{ '--g': g?.color ?? '#8893b0' }}>
       <Hero e={e} g={g} state={state} d={d} level={level} sandbox={sandbox} p={p} />
+      {e.cls === 'gpu' && state !== 'planned' && state !== 'unseen' && <Preview e={e} />}
       {state !== 'planned' && state !== 'unseen' && <CodePanel e={e} rank={rank} open={sandbox} />}
       {state === 'unseen' && src && <CodePanel e={e} rank={0} open={false} />}
       {state !== 'planned' && <Tips e={e} locked={rank < 2 && !sandbox} />}

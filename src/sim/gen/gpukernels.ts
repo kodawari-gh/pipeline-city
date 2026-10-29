@@ -24,10 +24,12 @@ export const ROUNDS = 12;
 export const POLY_ROUNDS = 8;
 export const THRESH = { level: 500, high: 100 } as const;
 
-/** `maxLen`: words in the input arrays; `maxPicture`: words of output for the kernels that draw a 64-wide picture (`mandel`, `sphere`: up to 16 rows, from `out` to 0x1a00, inside the smallest card's memory). */
-export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256, maxPicture: 1024 } as const;
+/** `maxLen`: words in the input arrays; `maxPicture`: words of output for the kernels that draw a 64-wide picture (`mandel`, `sphere`: 4 to 16 rows end at 0x1a00, inside the smallest card's memory; `WIDE_ROWS` ends at 0x2e00, inside the 16K card's). */
+export const KERNEL_LAYOUT = { code: 0, a: 0x200, b: 0x600, out: 0xa00, maxLen: 256, maxPicture: 2304 } as const;
 /** Width of the pictures in words (the display's frame is this wide). */
 export const PICTURE_COLS = 64;
+/** Rows of the 16:9 picture (64 x 36 words, 9 KB: from `out` to 0x2e00, so it needs a 16K card; the 8K `gpu1` runs it on the CPU). The other pictures are 4 to 16 rows. */
+export const WIDE_ROWS = 36;
 
 export interface GpuKernelParams {
   /** Lanes of the card the kernel runs on. */
@@ -52,8 +54,11 @@ export const MANDEL = { logW: 6, xMin: -2 * 4096, dx: 3 * 4096 / 64 | 0, yMin: -
  * ball is (x, y) in half cells, -15..15; it is on the ball when `225 - x*x - y*y` is above 0. Mirrors the kernel exactly.
  */
 export function ballPixel(i: number, rows: number, phase: number): number {
-  const col = i & 63, row = i >> 6, ball = col >> 4;
-  const x = 2 * (col & 15) - 15, y = (2 * row - (rows - 1)) * (16 / rows);
+  // the 16:9 picture (WIDE_ROWS) is two bands of four balls, 18 rows each; `(row * 57) >> 10` is row / 18 without a divide
+  const bands = rows === WIDE_ROWS ? 2 : 1, br = rows / bands;
+  const col = i & 63, r = i >> 6, band = bands === 2 ? (r * 57) >> 10 : 0, row = r - br * band;
+  const ball = (col >> 4) + 2 * band;
+  const x = 2 * (col & 15) - 15, y = ((2 * row - (br - 1)) * Math.round(4096 / br)) >> 8;
   const d2 = x * x + y * y, hp = Math.max(225 - d2, 0);
   const s = x + ((x * d2) >> 8) + phase + ball * 21; // the texture slides faster toward the rim, as it does on a sphere
   const chk = ((s >> 3) ^ (y >> 3)) & 1;
@@ -62,9 +67,12 @@ export function ballPixel(i: number, rows: number, phase: number): number {
 
 function sphereRows(len: number): number {
   const rows = len >> 6;
-  if (len !== rows << 6 || (rows !== 1 && rows !== 2 && rows !== 4 && rows !== 8 && rows !== 16)) throw new RangeError(`sphere needs 64 x (1, 2, 4, 8 or 16) elements, not ${len}`);
+  if (len !== rows << 6 || (rows !== 1 && rows !== 2 && rows !== 4 && rows !== 8 && rows !== 16 && rows !== WIDE_ROWS)) throw new RangeError(`sphere needs 64 x (1, 2, 4, 8, 16 or ${WIDE_ROWS}) elements, not ${len}`);
   return rows;
 }
+
+/** `WIDE_ROWS` is drawn as two bands of balls, the other pictures as one. */
+const wide = (rows: number): boolean => rows === WIDE_ROWS;
 
 function check(p: GpuKernelParams, name?: GpuKernelName): void {
   const max = name === "mandel" || name === "sphere" ? KERNEL_LAYOUT.maxPicture : KERNEL_LAYOUT.maxLen;
@@ -180,7 +188,34 @@ ${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}     
         mpop
         halt`;
     case "sphere": { // out[i] = ballPixel(i): a row of four checkered, lit balls, no input; every lane runs the same straight-line code
-      const rows = sphereRows(len), sh = 5 - Math.log2(rows), c = (rows - 1) * 16 / rows;
+      const rows = sphereRows(len), br = rows / 2;
+      const yRow = wide(rows)
+        ? `        vsrli v3, v1, 6
+        vli v7, 57
+        vmul v4, v3, v7
+        vsrli v4, v4, 10
+        vli v7, ${br}
+        vmul v5, v4, v7
+        vsub v3, v3, v5
+        vslli v3, v3, 1
+        vaddi v3, v3, ${-(br - 1)}
+        vli v7, ${Math.round(4096 / br)}
+        vmul v3, v3, v7
+        vsrai v3, v3, 8`
+        : `        vsrli v3, v1, 6
+        vslli v3, v3, ${5 - Math.log2(rows)}
+        vaddi v3, v3, ${-(rows - 1) * 16 / rows}`;
+      const ballNo = wide(rows)
+        ? `        vsrli v6, v1, 6
+        vli v7, 57
+        vmul v6, v6, v7
+        vsrli v6, v6, 10
+        vslli v6, v6, 1
+        vsrli v7, v1, 4
+        vandi v7, v7, 3
+        vadd v6, v6, v7`
+        : `        vsrli v6, v1, 4
+        vandi v6, v6, 3`;
       return `
         lane v1
         mpush
@@ -188,17 +223,14 @@ ${"        vmul v5, v5, v3\n        vadd v5, v5, v4\n".repeat(POLY_ROUNDS)}     
         vandi v2, v1, 15
         vslli v2, v2, 1
         vaddi v2, v2, -15
-        vsrli v3, v1, 6
-        vslli v3, v3, ${sh}
-        vaddi v3, v3, ${-c}
+${yRow}
         vmul v4, v2, v2
         vmul v5, v3, v3
         vadd v4, v4, v5
         vmul v5, v2, v4
         vsrai v5, v5, 8
         vadd v5, v5, v2
-        vsrli v6, v1, 4
-        vandi v6, v6, 3
+${ballNo}
         vli v7, 21
         vmul v6, v6, v7
         vadd v5, v5, v6
@@ -377,14 +409,20 @@ export function cpuKernel(name: GpuKernelName, ns: string, p: GpuKernelParams): 
         "sw t2, 0(a2)", "addi a0, a0, 4", "addi a1, a1, 4", "addi a2, a2, 4", "addi a3, a3, -1", `bne a3, zero, ${ns}_i`, "ret",
       ]);
     case "sphere": {
-      const rows = sphereRows(p.len), sh = 5 - Math.log2(rows), c = (rows - 1) * 16 / rows;
+      const rows = sphereRows(p.len), br = rows / 2;
+      const yRow = wide(rows)
+        ? ["srli t1, a1, 6", "li a2, 57", "mul t4, t1, a2", "srli t4, t4, 10", `li a2, ${br}`, "mul a2, t4, a2", "sub t1, t1, a2", "slli t1, t1, 1", `addi t1, t1, ${-(br - 1)}`, `li a2, ${Math.round(4096 / br)}`, "mul t1, t1, a2", "srai t1, t1, 8"]
+        : ["srli t1, a1, 6", `slli t1, t1, ${5 - Math.log2(rows)}`, `addi t1, t1, ${-(rows - 1) * 16 / rows}`];
+      const ballNo = wide(rows)
+        ? ["srli t4, a1, 6", "li a2, 57", "mul t4, t4, a2", "srli t4, t4, 10", "slli t4, t4, 1", "srli a2, a1, 4", "andi a2, a2, 3", "add t4, t4, a2"]
+        : ["srli t4, a1, 4", "andi t4, t4, 3"];
       return kernel("gpu_sphere", ns, ["mem", "mul", "alu", "branch"], [
         "li a1, 0",
         `${ns}_o:`, "andi t0, a1, 15", "slli t0, t0, 1", "addi t0, t0, -15",
-        "srli t1, a1, 6", `slli t1, t1, ${sh}`, `addi t1, t1, ${-c}`,
+        ...yRow,
         "mul t2, t0, t0", "mul a2, t1, t1", "add t2, t2, a2",
         "mul t3, t0, t2", "srai t3, t3, 8", "add t3, t3, t0",
-        "srli t4, a1, 4", "andi t4, t4, 3", "li a2, 21", "mul t4, t4, a2", "add t3, t3, t4", `addi t3, t3, ${p.phase ?? 0}`,
+        ...ballNo, "li a2, 21", "mul t4, t4, a2", "add t3, t3, t4", `addi t3, t3, ${p.phase ?? 0}`,
         "srai t3, t3, 3", "srai t4, t1, 3", "xor t3, t3, t4", "andi t3, t3, 1", "li a2, 36", "mul t3, t3, a2",
         "sub t3, t3, t0", "sub t3, t3, t1", "addi t3, t3, 40",
         "li a2, 225", "sub a2, a2, t2", `bge zero, a2, ${ns}_z`, "srli a2, a2, 2", "add t3, t3, a2", `beq zero, zero, ${ns}_s`,

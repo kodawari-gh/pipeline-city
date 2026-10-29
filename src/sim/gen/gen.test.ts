@@ -3,7 +3,7 @@ import { assemble } from "../asm";
 import { createEngine, type EngineConfig } from "../engines";
 import { DISPLAY_COLS } from "../isa/memmap";
 import { Machine, TpmPort } from "../machine";
-import { generate, runReference, TEMPLATE_NAMES } from "./index";
+import { generate, gpuPicture, runReference, TEMPLATE_NAMES } from "./index";
 import * as K from "./kernels";
 
 const DEFAULT_FAMILIES = ["cli.log", "cli.calc", "cli.checksum"];
@@ -169,5 +169,15 @@ describe("kernels", () => {
     expect(row.slice(8, 12)).toBe("1028");
     expect(row.slice(16, 21)).toBe("hello");
     expect(row.slice(32, 35)).toBe("hel");
+  });
+});
+
+describe("gpuPicture (the almanac's preview of a GPU job)", () => {
+  it("is the picture the job's kernel draws: 64 x 16 balls, 64 x 36 for the widescreen job, null for other jobs", () => {
+    expect(gpuPicture("gpu.sphere", 7, 4)).toHaveLength(64 * 16);
+    expect(gpuPicture("gpu.spherewide", 7, 8)).toHaveLength(64 * 36);
+    expect(gpuPicture("gpu.mandel", 7, 4)!.length % 64).toBe(0);
+    expect(gpuPicture("gpu.sphere", 7, 4)).toEqual(gpuPicture("gpu.sphere", 7, 4));
+    expect(gpuPicture("cli.log", 7, 1)).toBeNull();
   });
 });

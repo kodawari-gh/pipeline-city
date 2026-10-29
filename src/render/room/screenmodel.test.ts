@@ -111,6 +111,13 @@ describe('frameModel', () => {
     expect(m.cells[1]).toBeCloseTo((2 - 0) / 16);
   });
 
+  it('keeps a whole 16:9 picture (64 x 36)', () => {
+    const frame = Array(64 * 36).fill(0);
+    frame[64 * 36 - 1] = 5;
+    const m = frameModel(card({ frame }))!;
+    expect([m.cols, m.rows]).toEqual([64, 36]);
+  });
+
   it('reads the words as signed integers', () => {
     const frame = Array(256).fill(0);
     frame[0] = 0xffffffff; frame[1] = 1;

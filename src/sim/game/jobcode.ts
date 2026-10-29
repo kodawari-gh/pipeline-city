@@ -159,7 +159,8 @@ export const CODE_SOURCE: Record<string, { template: string; scales: number[] }>
   blur3: { template: "gpu.blur3", scales: [2, 4, 8] },
   poly: { template: "gpu.poly", scales: [2, 4, 8] },
   mandel: { template: "gpu.mandel", scales: [2, 4, 8] },
-  sphere: { template: "gpu.sphere", scales: [2, 4, 8] },
+  sphere: { template: "gpu.sphere", scales: [2, 4] },
+  spherewide: { template: "gpu.spherewide", scales: [8] },
   perceptron: { template: "npu.perceptron", scales: [1, 2] },
   npu: { template: "npu.infer", scales: [1, 2, 4] },
   deep: { template: "npu.deep", scales: [1, 2, 4] },
@@ -1141,6 +1142,31 @@ def worker(x, k, T, barrier):
         barrier.wait()
         s += 1`,
   },
+};
+HIGH_LEVEL.spherewide = {
+  cpp: `// gpu.spherewide: one point of a 64 x 36 picture, two bands of four checkered balls (18 rows each)
+#include <cstdint>
+int ball_pixel(int col, int row, int phase) {
+    int band = (row * 57) >> 10, r = row - 18 * band;          // which band: row / 18 without a divide
+    int x = 2 * (col & 15) - 15, y = ((2 * r - 17) * 228) >> 8;   // the point's place on its ball
+    int d2 = x * x + y * y, h = 225 - d2;
+    if (h <= 0) return 0;                              // off the ball: dark
+    int s = x + ((x * d2) >> 8) + phase + ((col >> 4) + 2 * band) * 21;   // each ball is turned differently
+    int chk = ((s >> 3) ^ (y >> 3)) & 1;
+    return 40 + 36 * chk - x - y + (h >> 2);           // square colour, the light from the corner
+}`,
+  python: `# gpu.spherewide: one point of a 64 x 36 picture, two bands of four checkered balls (18 rows each)
+def ball_pixel(col, row, phase):
+    band = (row * 57) >> 10                            # row // 18 without a divide
+    r = row - 18 * band
+    x, y = 2 * (col & 15) - 15, ((2 * r - 17) * 228) >> 8   # the point's place on its ball
+    d2 = x * x + y * y
+    h = 225 - d2
+    if h <= 0:
+        return 0                                       # off the ball: dark
+    s = x + ((x * d2) >> 8) + phase + ((col >> 4) + 2 * band) * 21   # each ball is turned differently
+    chk = ((s >> 3) ^ (y >> 3)) & 1
+    return 40 + 36 * chk - x - y + (h >> 2)            # square colour, the light from the corner`,
 };
 // The web class runs the calculation program for now, so it reads as the calculation does.
 HIGH_LEVEL.web = HIGH_LEVEL.calc!;

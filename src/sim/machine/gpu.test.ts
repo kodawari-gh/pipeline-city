@@ -224,7 +224,8 @@ describe("GPU card on the bus", () => {
 
   it("view().frame is the output region of card memory: empty before a launch, the kernel output after it, blank after a reset", () => {
     const r = runKernel("mandel", 8, 64);
-    expect(r.port.view()!.frame).toHaveLength(GPU_FRAME.words);
+    expect(r.port.view()!.frame.length).toBeGreaterThanOrEqual(64); // as much of the region as the card's memory holds
+    expect(r.port.view()!.frame.length).toBeLessThanOrEqual(GPU_FRAME.words);
     expect(r.port.view()!.frame.slice(0, 64)).toEqual(r.want.map((v) => v >>> 0));
     r.port.reset(); // card memory is volatile: the frame is blank again
     expect(r.port.view()!.frame.every((w) => w === 0)).toBe(true);

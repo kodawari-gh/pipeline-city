@@ -879,6 +879,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .dx-nums { display: inline-flex; align-items: center; gap: 0.3rem; font: 0.68rem var(--mono); color: var(--mute); }
 .dx-nums .ico { margin-left: 0.4rem; }
 .dx-nums .ico:first-child { margin-left: 0; }
+.dx-preview .mute { font-size: 0.68rem; margin-left: auto; }
+.dx-shot { display: block; width: 100%; max-height: 20rem; object-fit: contain; image-rendering: pixelated; background: #060418; }
 .dx-code .alm-code { max-height: 17rem; border: 0; border-radius: 0; background: none; }
 .dx-lock { display: flex; align-items: center; justify-content: center; height: 7rem; color: var(--mute); border: 1px dashed var(--glass-line); border-radius: 0.4rem; }
 

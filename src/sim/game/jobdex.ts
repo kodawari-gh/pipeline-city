@@ -52,7 +52,7 @@ export const DEX_GROUPS: readonly DexGroup[] = [
   { id: "memory", name: "Memory-hungry", color: "#f0803c", ids: ["scan", "chase", "stream", "stencil", "transpose", "sieve", "db", "hashtab"] },
   { id: "network", name: "Network", color: "#5b9cf5", ids: ["page", "api", "dns", "form", "search", "upload", "image", "video"] },
   { id: "trust", name: "Trust", color: "#ef5b7b", ids: ["secure", "verify", "measure", "encrypt", "vault", "rotate", "attest"] },
-  { id: "accel", name: "Accelerators", color: "#8b7cf6", ids: ["vadd", "saxpy", "thresh", "blur3", "poly", "mandel", "sphere", "perceptron", "npu", "deep"] },
+  { id: "accel", name: "Accelerators", color: "#8b7cf6", ids: ["vadd", "saxpy", "thresh", "blur3", "poly", "mandel", "sphere", "spherewide", "perceptron", "npu", "deep"] },
   { id: "hpc", name: "High-performance", color: "#f2c14e", ids: ["hpc-reduce", "hpc-matmul", "hpc-nbody", "hpc-montecarlo", "hpc-sort", "hpc-bfs", "hpc-fft"] },
 ];
 
@@ -379,6 +379,13 @@ export const JOB_DEX: readonly DexEntry[] = [
       { part: "gpu", short: "More lanes", text: "Every point is shaded on its own with the same steps, so lanes never wait for each other: twice the lanes draws the picture in about half the time." },
       { part: "gpu", short: "Card is a must", text: "Without a card the CPU shades the points one after another, many times slower, for the same pay." },
       { part: "clock", short: "A higher card clock", text: "It is all multiplies and shifts, one after the other: the card's own clock speeds every step." },
+    ] },
+  { id: "spherewide", name: "Spinning balls, widescreen", cls: "gpu", template: "gpu.spherewide", level: 15, scale: 8, boost: "GPU: about 7x faster",
+    blurb: "The same balls on a 16:9 picture, two rows of four. It is 9 KB of picture: more than the smallest card holds, so it wants a bigger card.",
+    stresses: ["a GPU (card memory)", "the multiplier"], footprint: "no input: the picture comes from the element number",
+    tips: [
+      { part: "gpu", short: "A card with 16K", text: "The picture does not fit the 8K card's memory, so that card leaves the whole job to the CPU: a bigger card draws it, and shows the whole 16:9 picture on its display." },
+      { part: "gpu", short: "More lanes", text: "Every point is shaded on its own with the same steps: twice the lanes draws the picture in about half the time." },
     ] },
   { id: "npu", name: "Inference", cls: "npu", template: "npu.infer", legacy: true,
     boost: "NPU: about 8x faster",

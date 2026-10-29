@@ -9,7 +9,7 @@ import type { Kernel, Mix } from "./kernels";
 import { MAX_CODE_BYTES, TEMPLATES, type GenParams, type ResolvedParams } from "./templates";
 
 export * from "./kernels";
-export { TEMPLATES, BUF_BASE, HEAP_BASE, indexBytes, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
+export { TEMPLATES, gpuPicture, BUF_BASE, HEAP_BASE, indexBytes, type GenParams, type GpuTarget, type NpuTarget, type ResolvedParams, type TemplateFn } from "./templates";
 
 export interface KernelInfo {
   kernel: string;
