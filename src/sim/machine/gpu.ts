@@ -8,11 +8,36 @@
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
 import { GPU_BASE, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
-import { GpuFault, GpuRef, type GpuConfig } from "../ref/gpuref";
+import { GpuFault, GpuRef, type GpuConfig, type GpuStep } from "../ref/gpuref";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
 
 type Phase = "idle" | "in" | "run" | "out";
+
+/** Instructions of the last launch a card remembers for its view (the die view's window is 24 cycles too). */
+export const GPU_TRACE_STEPS = 24;
+
+/** What a card shows from the outside: its shape, where the launch is, and the last instructions it ran (docs/ACCEL.md "Art as built"). */
+export interface GpuView {
+  lanes: number;
+  banks: number;
+  memBytes: number;
+  phase: Phase;
+  /** Execution mask now (bit n = lane n). */
+  mask: number;
+  /** The mask stack, oldest first. */
+  stack: number[];
+  pc: number;
+  /** Vector registers `regs[r][lane]` as of now; empty before the first launch of this power-on. */
+  regs: number[][];
+  /** The last instructions run, oldest first (at most GPU_TRACE_STEPS), kept after the launch ends. */
+  trace: GpuStep[];
+  launches: number;
+  /** Counters of the current / last launch. */
+  stats: { instructions: number; idleLaneSlots: number; conflictCycles: number; cycles: number };
+  /** Set when the last launch ended in a fault. */
+  error: boolean;
+}
 
 export class GpuPort implements Device {
   readonly size = GPU_STRIDE;
@@ -31,6 +56,7 @@ export class GpuPort implements Device {
   private error = false;
   private fault: number = GpuFaultCode.None;
   private lastCycles = 0;
+  private trace: GpuStep[] = [];
   /** Set while a launch is in flight, cleared by `takeActivity` (the game reads it for the thermal load). */
   active = false;
   /** Totals since power-on, for the stats and the tests. */
@@ -61,7 +87,22 @@ export class GpuPort implements Device {
     this.done = this.error = false;
     this.fault = GpuFaultCode.None;
     this.lastCycles = 0;
+    this.trace = [];
     this.active = false;
+  }
+
+  /** The card seen from outside, or null without one. Copies, so the snapshot never aliases the core's arrays. */
+  view(): GpuView | null {
+    const core = this.core;
+    if (!core) return null;
+    return {
+      lanes: core.lanes, banks: core.banks, memBytes: core.mem.length * 4, phase: this.phase, mask: core.mask, stack: [...core.stack], pc: core.pc,
+      regs: this.launches > 0 ? core.regs.map((r) => Array.from(r)) : [],
+      trace: this.trace.map((s) => ({ ...s, banks: s.banks && [...s.banks] })),
+      launches: this.launches,
+      stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
+      error: this.error,
+    };
   }
 
   get present(): boolean {
@@ -133,6 +174,7 @@ export class GpuPort implements Device {
     this.fault = GpuFaultCode.None;
     this.phase = "in";
     this.wait = GPU_HOP_TICKS;
+    this.trace = [];
     this.active = true;
     this.launches++;
   }
@@ -154,6 +196,10 @@ export class GpuPort implements Device {
         try {
           core.step();
           this.stall = core.cycles - before - 1;
+          if (core.lastStep) {
+            this.trace.push(core.lastStep);
+            if (this.trace.length > GPU_TRACE_STEPS) this.trace.shift();
+          }
         } catch (e) {
           if (!(e instanceof GpuFault)) throw e;
           this.error = true;

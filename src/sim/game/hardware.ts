@@ -6,6 +6,7 @@ import type { GpuTarget, NpuTarget } from "../gen";
 import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from "../isa/memmap";
 import { Disk, type StoragePort } from "../machine";
 import type { Game } from "./game";
+import type { GpuSnap } from "./types";
 
 /** The drive's media for an installed storage device (created blank the first time). */
 export function diskFor(this: Game, d: InstalledDevice): Disk {
@@ -72,6 +73,16 @@ export function syncGpus(this: Game): void {
     const cfg = d ? (deviceSpec(d) as CardSpec).gpu : undefined;
     port.configure(cfg ?? null);
   }
+}
+
+/** The insides of every graphics card on the bus, for the snapshot (the board view draws lanes, mask and banks from it). */
+export function gpuSnaps(this: Game): GpuSnap[] {
+  const out: GpuSnap[] = [];
+  for (const port of this.gpus) {
+    const v = port.view();
+    if (v) out.push({ ...v, slot: port.name });
+  }
+  return out;
 }
 
 /** The installed CPU has an MMU (docs/VM.md). */

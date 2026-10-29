@@ -23,19 +23,36 @@ export interface GpuConfig {
   banks: number;
 }
 
+/** Distinct addresses each bank has to serve for one access, `banks` entries (bank = word % banks). */
+export function bankLoad(addrs: readonly number[], banks: number): number[] {
+  const perBank = Array.from({ length: banks }, () => new Set<number>());
+  for (const a of addrs) perBank[(a >>> 2) % banks]!.add(a);
+  return perBank.map((s) => s.size);
+}
+
 /** Cycles a memory access takes: the most distinct addresses any one bank has to serve (at least 1). */
 export function bankCycles(addrs: readonly number[], banks: number): number {
-  const perBank = new Map<number, Set<number>>();
-  for (const a of addrs) {
-    const b = (a >>> 2) % banks;
-    let s = perBank.get(b);
-    if (!s) perBank.set(b, (s = new Set()));
-    s.add(a);
-  }
-  let worst = 1;
-  for (const s of perBank.values()) worst = Math.max(worst, s.size);
-  return worst;
+  return Math.max(1, ...bankLoad(addrs, banks));
 }
+
+/** What an instruction does, for the card's view: ALU work, a load, a store, a mask change, a branch, or the rest. */
+export type GpuStepKind = "alu" | "ld" | "st" | "mask" | "br" | "sys";
+
+/** The instruction `step()` ran last: where it was, the mask it ran under, what it cost, and the bank loads of a vld / vst. */
+export interface GpuStep {
+  pc: number;
+  name: string;
+  kind: GpuStepKind;
+  /** The execution mask the instruction ran under (before it changed it). */
+  mask: number;
+  cost: number;
+  /** Distinct addresses per bank for a vld / vst, else null. */
+  banks: number[] | null;
+}
+
+const MASK_OPS = new Set(["mseteq", "msetne", "msetlt", "msetge", "mpush", "melse", "mpop"]);
+const stepKind = (name: string): GpuStepKind =>
+  name === "vld" ? "ld" : name === "vst" ? "st" : MASK_OPS.has(name) ? "mask" : name === "bany" || name === "jmp" ? "br" : name === "bar" || name === "halt" ? "sys" : "alu";
 
 export class GpuRef {
   readonly lanes: number;
@@ -55,6 +72,8 @@ export class GpuRef {
   conflictCycles = 0;
   /** Lanes that were idle on the instructions run so far (divergence), summed over instructions. */
   idleLaneSlots = 0;
+  /** The instruction the last `step()` ran (null before the first). */
+  lastStep: GpuStep | null = null;
 
   private readonly all: number;
 
@@ -77,6 +96,7 @@ export class GpuRef {
     this.pc = pc;
     this.halted = false;
     this.cycles = this.instructions = this.conflictCycles = this.idleLaneSlots = 0;
+    this.lastStep = null;
   }
 
   /** Copy words into card memory at a byte address. */
@@ -107,6 +127,7 @@ export class GpuRef {
     const mask = this.mask;
     const active = (l: number): boolean => ((mask >>> l) & 1) === 1;
     let cost = 1;
+    let banks: number[] | null = null;
     let next = this.pc + 4;
 
     const alu = (f: (a: number, b: number) => number, bFrom: "reg" | "imm"): void => {
@@ -158,7 +179,8 @@ export class GpuRef {
           if (i.name === "vld") R[i.rd]![l] = this.mem[a >>> 2]! | 0;
           else this.mem[a >>> 2] = R[i.rs2]![l]! >>> 0;
         }
-        cost = bankCycles(addrs, this.banks);
+        banks = bankLoad(addrs, this.banks);
+        cost = Math.max(1, ...banks);
         this.conflictCycles += cost - 1;
         break;
       }
@@ -178,6 +200,7 @@ export class GpuRef {
       case "halt": this.halted = true; next = this.pc; break;
     }
     this.idleLaneSlots += L - this.popcount(mask);
+    this.lastStep = { pc: this.pc, name: i.name, kind: stepKind(i.name), mask, cost, banks };
     this.cycles += cost;
     this.instructions++;
     this.pc = next;

@@ -48,6 +48,21 @@ describe("a GPU in the machine", () => {
     while (bus.load32(base + GPU_REG.STATUS) & GpuStatus.Busy) { g.advanceBaseTick(); if (++idleTicks > 2000) throw new Error("the card never finished"); }
     expect(bus.load32(base + GPU_REG.STATUS) & GpuStatus.Done).toBeTruthy();
     expect([0, 1, 7].map((k) => bus.load32(base + GPU_MEM + 1024 + 4 * k))).toEqual([100, 101, 107]);
+    // the snapshot carries the card's insides: shape, slot, and the instructions the launch ran
+    const card = g.snapshot().gpus?.find((x) => x.slot === slot);
+    expect(card).toMatchObject({ lanes: 8, phase: "idle", launches: 1 });
+    expect(card!.trace.map((s) => s.name)).toEqual(["lane", "vaddi", "lane", "vslli", "vst", "halt"]);
+  });
+
+  it("the snapshot lists a card only while the machine is on", () => {
+    const g = maxed();
+    expect(g.snapshot().gpus).toBeUndefined();
+    g.install(buy(g, "gpu1"));
+    g.connectCable("pcie");
+    expect(g.snapshot().gpus).toBeUndefined(); // installed but off
+    expect(g.powerButton().ok).toBe(true);
+    g.advanceBaseTick();
+    expect(g.snapshot().gpus).toHaveLength(1);
   });
 });
 

@@ -3,7 +3,7 @@ import { assembleGpu } from "../asm/gpu";
 import {
   GPU_KERNEL_NAMES, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, mandelCount, type GpuKernelName,
 } from "../gen/gpukernels";
-import { bankCycles, GpuFault, GpuRef } from "./gpuref";
+import { bankCycles, bankLoad, GpuFault, GpuRef } from "./gpuref";
 
 const card = (lanes = 8, banks = 1) => new GpuRef({ lanes, memBytes: 8 * 1024, banks });
 
@@ -150,6 +150,35 @@ describe("GPU reference interpreter: card memory banks", () => {
     expect(bankCycles([0, 0, 0, 0], 4)).toBe(1); // a broadcast shares one access
     expect(bankCycles([0, 4, 16], 4)).toBe(2);
     expect(bankCycles([], 2)).toBe(1);
+  });
+
+  it("bankLoad lists the distinct addresses of every bank and agrees with bankCycles", () => {
+    expect(bankLoad([0, 4, 16], 4)).toEqual([2, 1, 0, 0]);
+    expect(bankLoad([0, 0, 0, 0], 4)).toEqual([1, 0, 0, 0]);
+    expect(bankLoad([], 2)).toEqual([0, 0]);
+    for (const a of [[0, 4, 8, 12], [0, 16, 32, 48], [0, 4, 16], []]) expect(bankCycles(a, 4)).toBe(Math.max(1, ...bankLoad(a, 4)));
+  });
+
+  it("lastStep reports the instruction, its mask, its cost and (for vld / vst) the bank loads", () => {
+    const g = card(8, 4);
+    g.load(assembleGpu("lane v1\nvslli v2, v1, 4\nmseteq v1, v0\nvld v3, 1024(v2)\nhalt").program);
+    g.reset();
+    expect(g.lastStep).toBeNull();
+    g.step();
+    expect(g.lastStep).toMatchObject({ pc: 0, name: "lane", kind: "alu", mask: 0xff, cost: 1, banks: null });
+    g.step();
+    g.step();
+    expect(g.lastStep).toMatchObject({ pc: 8, name: "mseteq", kind: "mask", mask: 0xff });
+    g.step();
+    // only lane 0 is left active, so one address in one bank
+    expect(g.lastStep).toMatchObject({ pc: 12, name: "vld", kind: "ld", mask: 1, cost: 1, banks: [1, 0, 0, 0] });
+    g.reset();
+    g.load(assembleGpu("lane v1\nvslli v2, v1, 4\nvld v3, 1024(v2)\nhalt").program);
+    g.reset();
+    g.step(); g.step(); g.step();
+    expect(g.lastStep).toMatchObject({ name: "vld", cost: 8, banks: [8, 0, 0, 0] }); // all eight lanes in bank 0
+    g.step();
+    expect(g.lastStep).toMatchObject({ name: "halt", kind: "sys" });
   });
 
   it("a strided access serializes and an in-order one does not", () => {

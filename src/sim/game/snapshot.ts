@@ -62,6 +62,7 @@ export function snapshot(this: Game): Snapshot {
     caseTier: this.board.caseTier,
     pipe: this.powered && eng?.view ? this.pipeSnap(eng) : null,
     ram: this.powered ? this.ramSnap(jobs) : null,
+    ...(this.powered && this.gpus.some((p) => p.present) ? { gpus: this.gpuSnaps() } : {}),
     display: this.powered && live ? this.machine.display.text() : "",
     counters,
     completed: this.completed,

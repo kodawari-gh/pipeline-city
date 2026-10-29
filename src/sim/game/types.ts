@@ -2,6 +2,7 @@
 // game.ts re-exports all of it, so `import { Snapshot } from "./game"` keeps working.
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
+import type { GpuView } from "../machine/gpu";
 import type { Binding } from "../net";
 import type { DexSnap } from "./jobdex";
 import type { JobLogEntry, JobWindow } from "./joblog";
@@ -350,6 +351,9 @@ export interface GameEvent {
   text: string;
 }
 
+/** One graphics card as the view draws it: its PCIe slot (`pcie0`..) and what `GpuPort.view()` reports. */
+export type GpuSnap = GpuView & { slot: string };
+
 export interface Snapshot {
   money: number;
   /** Sandbox game: money is a constant stand-in for infinity (show a symbol), purchases are free (price 0), the sandbox tools work. */
@@ -381,6 +385,8 @@ export interface Snapshot {
   pipe: null | PipeSnap;
   /** How full the RAM is (the memory sticks show it), while the machine is on. */
   ram?: RamMap | null;
+  /** The installed graphics cards' insides (lanes, mask, banks, the last instructions), while the machine is on; absent without a card. */
+  gpus?: GpuSnap[];
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */
   display: string;
   /** Engine counters since power-on, by name (all zero when no engine). */
