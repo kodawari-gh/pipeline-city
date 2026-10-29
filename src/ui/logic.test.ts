@@ -118,9 +118,10 @@ describe('hints', () => {
     expect(triggeredHints(snap({ powered: true, cables: none }))).not.toContain('looseFan');
   });
   it('a radiator fan cable is described as the radiator\'s, a bare mount\'s as a case fan', () => {
-    const s = snap({ devices: [dev({ kind: 'radiator', slot: 'rad-top0' })] });
+    const s = snap({ devices: [dev({ kind: 'radiator', slot: 'rad-top' })] });
     expect(describeId('cable.fan:top0', s)!.title).toMatch(/Radiator fan cable \(top 1\)/);
-    expect(describeId('cable.fan:top1', s)!.title).toMatch(/Case fan cable \(top 2\)/);
+    expect(describeId('cable.fan:top1', s)!.title).toMatch(/Radiator fan cable \(top 2\)/); // it spans the whole top
+    expect(describeId('cable.fan:front0', s)!.title).toMatch(/Case fan cable \(front 1\)/);
   });
   describe('network hints', () => {
     const base = snap().net;

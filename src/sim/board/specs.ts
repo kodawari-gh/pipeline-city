@@ -108,7 +108,7 @@ export interface CoolerSpec extends SpecBase {
   loop?: { pumpPerC: number };
 }
 
-/** A radiator for a liquid loop: it mounts on a fan mount of the case (slot `rad-<mount>`, replacing that fan) and its fan has the mount's cable. */
+/** A radiator for a liquid loop: it bolts along the front or the top of the case (slot `rad-front` / `rad-top`), spanning every fan mount of that side and replacing their fans; each fan keeps its mount's cable. */
 export interface RadiatorSpec extends SpecBase {
   kind: "radiator";
   /** W per degree C it adds to the loop. */

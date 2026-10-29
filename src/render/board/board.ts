@@ -8,7 +8,7 @@ import type { StorageSnap } from '../../sim/game/game';
 import type { Snapshot } from '../../sim/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '../camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, sataCablePath, sataLinkArt, sataPowerArt } from '../room/case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../room/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from './drives';
 import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, type RadiatorFit } from './cooler';
@@ -525,12 +525,12 @@ export async function mountBoard(host: HTMLElement) {
     const storageDevs: { id: string; spec: string; slot: string }[] = [];
     const fans: { c: Container; kind: string }[] = [];
     // the case's own fans (front, rear, top): the blades and light strips are live, the frames are in the baked case
-    // (a radiator on a mount replaces that mount's fan: it brings its own)
+    // (a radiator on a side replaces the fans of every mount on it: it brings its own, one per mount)
     const mounts = fanMounts();
     const radDev = (s?.devices ?? []).find((d) => d.kind === 'radiator');
-    const radMount = radDev ? mounts.find((m) => `rad-${m.id}` === radDev.slot) ?? null : null;
-    const radFit: RadiatorFit | null = radMount ? radiatorFit(radMount, COOLER.x + COOLER.w / 2) : null;
-    for (const m of mounts) { if (m === radMount) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
+    const radSpan = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
+    const radFit: RadiatorFit | null = radSpan ? radiatorFit(radSpan, COOLER.x + COOLER.w / 2) : null;
+    for (const m of mounts) { if (radSpan?.ids.includes(m.id)) continue; const f = new EdgeFan(m.rect, T); fans.push({ c: f, kind: 'case:' + m.id }); fanLayer.addChild(f); }
     let dram: Rect[] = [];
     const slots = BOARD_TIERS[tier]?.slots ?? {};
     const filled = new Set<string>();
@@ -590,14 +590,13 @@ export async function mountBoard(host: HTMLElement) {
         coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'radiator') {
-        // bolted on the mount the player chose; its fan runs on that mount's fan cable
-        const mount = mounts.find((m) => `rad-${m.id}` === d.slot);
-        if (mount && radFit) {
-          const ra = radiatorArt(T, radFit, radiatorGrade(spec.visual));
+        // bolted along the side the player chose; each of its fans runs on its mount's fan cable
+        if (radSpan && radFit) {
+          const ra = radiatorArt(T, radFit, radiatorGrade(spec.visual), radSpan.ids.length);
           deviceLayer.addChild(ra.root); parts.push({ root: ra.root });
-          fans.push({ c: ra.fan, kind: 'radiator:' + mount.id }); fanLayer.addChild(ra.fan);
-          deviceHits.push(partHit(d.id, ra.root, mount.rect));
-          scene.rects.set(d.id, mount.rect);
+          ra.fans.forEach((f, k) => { fans.push({ c: f, kind: 'radiator:' + radSpan.ids[k]! }); fanLayer.addChild(f); });
+          deviceHits.push(partHit(d.id, ra.root, radSpan.rect));
+          scene.rects.set(d.id, radSpan.rect);
         }
       } else if (spec.kind === 'vrm-sink') {
         const p = vrmSinkArt(T, spec.visual);
@@ -682,12 +681,14 @@ export async function mountBoard(host: HTMLElement) {
     empty('vrm-sink', slots['vrm-sink'] ?? 0, () => VRM_SINK);
     empty('ram-sink', slots['ram-sink'] ?? 0, () => RAM_SINK);
     empty('tpm', slots.tpm ?? 0, () => tpmRect(LAYOUT_TIER)!);
-    // the radiator mounts: a drop target for each fan mount once an AIO is fitted and no radiator is on (the ids are the sim's `rad-<mount>` slots)
+    // the radiator sides: a drop target over all the fans of the front and of the top once an AIO is fitted and no radiator is on (the ids are the sim's `rad-<side>` slots)
     const hasAio = (s?.devices ?? []).some((d) => d.kind === 'cooler' && getSpec(d.spec)?.visual === 'cooler-liquid');
-    for (const m of mounts) {
-      const id = `rad-${m.id}`;
-      scene.slots.set(id, m.rect); scene.rects.set(id, m.rect);
-      if (hasAio && !radDev && !filled.has(id)) { emptyHits.push({ id, rect: m.rect }); scene.interactive.add(id); }
+    for (const side of ['front', 'top'] as const) {
+      const span = radiatorSpan(side);
+      if (!span) continue;
+      const id = `rad-${side}`;
+      scene.slots.set(id, span.rect); scene.rects.set(id, span.rect);
+      if (hasAio && !radDev && !filled.has(id)) { emptyHits.push({ id, rect: span.rect }); scene.interactive.add(id); }
     }
     // storage slots: the bay cells and the M.2 slot are drop targets whether empty or filled (an OS goes onto an installed drive)
     const nSata = slots.sata ?? 0, nM2 = slots.m2 ?? 0;

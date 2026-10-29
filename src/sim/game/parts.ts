@@ -33,7 +33,7 @@ export function buildMaxRig(this: Game): void {
   put(`case${CASE_TIERS.length - 1}`);
   put(`board${boardTier}`);
   for (const kind of ["psu", "cpu", "cooler", "vrm-sink", "ram-sink"] as const) put(top(kind));
-  put(top("radiator"), "rad-top0");
+  put(top("radiator"), "rad-top");
   for (let i = 0; i < (slots.dimm ?? 0); i++) put(top("ram"), `dimm${i}`);
   for (let i = 0; i < (slots.m2 ?? 0); i++) put(top("storage"), `m2${i}`);
   put(top("nic"));

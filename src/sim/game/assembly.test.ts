@@ -54,7 +54,7 @@ describe("the bare start", () => {
     expect(s.cables.map((c) => [c.id, c.connected])).toEqual([["atx", false], ["cpu", false], ["video", false], ["pcmains", false], ["monmains", false], ["sysfan", false], ["lan", false], ["fan:front0", false], ["fan:front1", false]]);
     expect(s.cables.filter((c) => !["pcmains", "monmains", "sysfan"].includes(c.id) && !c.id.startsWith("fan:")).every((c) => c.blocked)).toBe(true); // no PSU / monitor yet (the wall cords and the case's fans need no part)
     expect(s.noPowerReason).toMatch(/PSU/);
-    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "rad-front0", "rad-front1", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
+    expect(s.slots.filter((x) => x.deviceId === null).map((x) => x.id).sort()).toEqual(["atx0", "cooler0", "cpu0", "dimm0", "display0", "pcie0", "rad-front", "ram-sink0", "sata0", "sata1", "usb0", "vrm-sink0"]);
   });
 
   it("lists the free compatible slots of each inventory part (drop targets)", () => {

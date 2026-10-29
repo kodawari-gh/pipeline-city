@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prng } from "../machine";
-import { boardSlots, caseMounts, createBoard, findDevices, fittedRadiator, install, radiatorSlot, setClock, ThermalModel, upgradeCase, type Board } from "./index";
+import { boardSlots, createBoard, findDevices, fittedRadiator, install, legacyRadiatorSlots, setClock, sideMounts, ThermalModel, upgradeCase, type Board } from "./index";
 import { CASE_FAN_K, FANS_ON, type FanPower } from "./thermal";
 
 const ok = <T extends { ok: boolean }>(r: T): T => { expect(r.ok).toBe(true); return r; };
@@ -49,14 +49,22 @@ describe("fans in the thermal model", () => {
 });
 
 describe("radiators on a liquid loop", () => {
-  it("a radiator bolts onto any fan mount of the case, one at a time per slot", () => {
+  it("a radiator bolts onto the front or the top of the case and spans every fan mount of that side (never the rear)", () => {
     const b = createBoard(2);
-    expect(boardSlots(b).filter((s) => s.type === "radiator").map((s) => s.id)).toEqual(caseMounts(b.caseTier).map(radiatorSlot));
-    expect(install(b, "rad2", "rad-top1").ok).toBe(true);
-    expect(fittedRadiator(b)?.mount).toBe("top1");
-    expect(install(b, "rad1", "rad-top1").ok).toBe(false); // taken
-    expect(install(b, "rad1", "rad-nowhere").ok).toBe(false);
+    expect(boardSlots(b).filter((s) => s.type === "radiator").map((s) => s.id)).toEqual(["rad-front", "rad-top"]);
+    expect(install(b, "rad2", "rad-top").ok).toBe(true);
+    expect(fittedRadiator(b)?.side).toBe("top");
+    expect(fittedRadiator(b)?.mounts).toEqual(sideMounts(b.caseTier, "top"));
+    expect(fittedRadiator(b)!.mounts.length).toBeGreaterThan(1);
+    expect(install(b, "rad1", "rad-top").ok).toBe(false); // taken
+    expect(install(b, "rad1", "rad-front").ok).toBe(false); // one radiator per loop
+    expect(install(b, "rad1", "rad-rear").ok).toBe(false); // no radiator on the rear
+    expect(install(b, "rad1", "rad-top1").ok).toBe(false); // a side, not a single mount
     expect(install(b, "rad1", "cpu0").ok).toBe(false); // not a radiator slot
+  });
+
+  it("the Mini tower has a front to bolt one to, and no top", () => {
+    expect(boardSlots(createBoard(0)).filter((s) => s.type === "radiator").map((s) => s.id)).toEqual(["rad-front"]);
   });
 
   it("the loop is the pump alone without a radiator, and a bigger radiator cools more", () => {
@@ -71,9 +79,17 @@ describe("radiators on a liquid loop", () => {
 
   it("a case with fewer mounts refuses to take a radiator's mount away", () => {
     const b = createBoard(1);
-    ok(install(b, "rad1", "rad-top0"));
-    ok(upgradeCase(b, 2)); // a bigger case keeps the mount
-    ok(install(b, "rad1", "rad-rear"));
-    expect(upgradeCase(b, 0).ok).toBe(false); // the Mini has neither top nor rear mount
+    ok(install(b, "rad1", "rad-top"));
+    ok(upgradeCase(b, 2)); // a bigger case keeps the side
+    expect(upgradeCase(b, 0).ok).toBe(false); // the Mini has no top mounts
+  });
+
+  it("a save from when a radiator took one mount keeps it on that mount's side (the rear goes to the top)", () => {
+    const b = createBoard(2);
+    for (const [from, to] of [["rad-top1", "rad-top"], ["rad-front2", "rad-front"], ["rad-rear", "rad-top"]] as const) {
+      b.devices = [{ id: "dev9", spec: "rad1", slot: from }];
+      legacyRadiatorSlots(b);
+      expect(b.devices[0]!.slot).toBe(to);
+    }
   });
 });

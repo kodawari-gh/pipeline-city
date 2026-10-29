@@ -10,7 +10,7 @@ import type { Theme } from '../theme';
 // The CPU cooler (docs/render/board.md "Cooler"): three looks on the same mounting plate (`COOLER`), which is the hit area, the empty-slot
 // outline and where the fan cable plugs in. The stock cooler is a round aluminium heatsink with radial vanes and a small fan; the tower is
 // two fin stacks with copper heat pipes either side of a big fan; the liquid loop (an AIO) is a pump head with a ring light, its two tubes
-// running to the radiator the player bolted on a fan mount of the case (front, top or rear; seen edge-on like the case fans, `radiatorArt`). The
+// running to the radiator the player bolted on a fan mount of the case (front or top, spanning every fan of that side; seen edge-on like the case fans, `radiatorArt`). The
 // fan, or on the loop the pump's impeller, is the `fan` child the live layer spins; the radiator's fan is an `EdgeFan` it drives the same way.
 
 type Pt = [number, number];
@@ -88,10 +88,11 @@ export function radiatorPorts(f: RadiatorFit): { tips: [Pt, Pt]; base: [Pt, Pt];
 export const radiatorGrade = (visual: string): 1 | 2 | 3 => (visual === 'radiator-big' ? 3 : visual === 'radiator-thick' ? 2 : 1);
 
 /**
- * A radiator seen edge-on, bolted on a fan mount of the case: an end tank at each end (one with the two barbs the tubes plug into), the finned
- * core against the outside and the live fan on the inside of it (the same frame and blade strips as the case fans). It replaces the mount's fan.
+ * A radiator seen edge-on, bolted along a side of the case: an end tank at each end (one with the two barbs the tubes plug into), the finned
+ * core against the outside and the live fans on the inside of it (the same frame and blade strips as the case fans), `count` of them, one per
+ * fan mount of the side it spans. It replaces those mounts' fans.
  */
-export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2): { root: Container; fan: EdgeFan } {
+export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2, count = 1): { root: Container; fans: EdgeFan[] } {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   const fr = frameOf(f.mount, f.end), { L, S } = fr, r = f.mount.rect;
@@ -103,9 +104,15 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2): { r
   box(g, r.x + 14, r.y + 20, r.w, r.h, 30, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
   // the fan strip's frame (the live blades go on top)
   box(g, fan.x, fan.y, fan.w, fan.h, 24, { fill: mix(T.sub, T.tile, 0.3), stroke: edge, lw: 5, sa: 0.8 });
-  line(cu0 + 60, CORE + GAP + (S - CORE - GAP) / 2, cu0 + cuL - 60, CORE + GAP + (S - CORE - GAP) / 2);
-  g.stroke({ width: 14, color: T.line, alpha: 0.6, cap: 'round' });
-  for (const u of [cu0 + 36, cu0 + cuL - 36]) { const p = fr.P(u, CORE + GAP + (S - CORE - GAP) / 2); screw(g, T, p[0], p[1], 11); }
+  const fanV = CORE + GAP + (S - CORE - GAP) / 2, seg = cuL / count;
+  // the fans side by side along the strip: a hub bar and two screws on each, a divider between them
+  const strips = Array.from({ length: count }, (_, k) => fr.rect(cu0 + k * seg, CORE + GAP, seg, S - CORE - GAP));
+  for (let k = 0; k < count; k++) {
+    line(cu0 + k * seg + 60, fanV, cu0 + (k + 1) * seg - 60, fanV);
+    g.stroke({ width: 14, color: T.line, alpha: 0.6, cap: 'round' });
+    for (const u of [cu0 + k * seg + 36, cu0 + (k + 1) * seg - 36]) { const p = fr.P(u, fanV); screw(g, T, p[0], p[1], 11); }
+    if (k > 0) { line(cu0 + k * seg, CORE + GAP + 8, cu0 + k * seg, S - 8); g.stroke({ width: 8, color: edge, alpha: 0.8 }); }
+  }
   // the core: fin edges as a ladder across it, a lit outer edge (a finer ladder the bigger the grade)
   g.roundRect(core.x, core.y, core.w, core.h, 10).fill(lgrad(m.hi, m.lo)).stroke({ width: 5, color: edge });
   const pitch = grade === 3 ? 11 : grade === 2 ? 16 : 22;
@@ -137,7 +144,7 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2): { r
     fitting(fg, T, 0, 0, 1);
     root.addChild(fg);
   });
-  return { root, fan: new EdgeFan(fan, T) };
+  return { root, fans: strips.map((r) => new EdgeFan(r, T)) };
 }
 
 /**
@@ -145,20 +152,15 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2): { r
  * lane of their own, run along it to the side the radiator is on, then go on to its barbs (up through the case's top, or down a channel beside a side mount).
  */
 export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
-  const yLow = -880, yHigh = -1010, ports = radiatorPorts(f), [t0, t1] = ports.tips, side = f.mount.side;
-  if (side === 'top') {
+  const yLow = -880, yHigh = -1010, ports = radiatorPorts(f), [t0, t1] = ports.tips;
+  if (f.mount.side === 'top') {
     const [pw, pe] = t0[0] <= t1[0] ? [t0, t1] : [t1, t0];
     if (pw[0] < a[0]) return [[a, [a[0], yLow], [pw[0], yLow], pw], [b, [b[0], yHigh], [pe[0], yHigh], pe]];
     return [[a, [a[0], yHigh], [pw[0], yHigh], pw], [b, [b[0], yLow], [pe[0], yLow], pe]];
   }
-  if (side === 'front') {
-    // the barbs face west: the west tube takes the upper lane to the northern barb, the east one the lower lane to the other
-    const xa = t0[0] - 300, xb = t0[0] - 150;
-    return [[a, [a[0], yHigh], [xa, yHigh], [xa, t0[1]], t0], [b, [b[0], yLow], [xb, yLow], [xb, t1[1]], t1]];
-  }
-  // the rear mount's barbs face east: the east tube takes the upper lane to the northern barb
-  const xa = t0[0] + 150, xb = t0[0] + 300;
-  return [[a, [a[0], yLow], [xa, yLow], [xa, t1[1]], t1], [b, [b[0], yHigh], [xb, yHigh], [xb, t0[1]], t0]];
+  // the front's barbs face west: the west tube takes the upper lane to the northern barb, the east one the lower lane to the other
+  const xa = t0[0] - 300, xb = t0[0] - 150;
+  return [[a, [a[0], yHigh], [xa, yHigh], [xa, t0[1]], t0], [b, [b[0], yLow], [xb, yLow], [xb, t1[1]], t1]];
 }
 
 /** The cooler on the CPU. `rad` is the radiator the loop's tubes run to (only a liquid cooler uses it; with none the pump's ports are bare). */
@@ -258,8 +260,8 @@ export function coolerKitArt(T: Theme, spec: CoolerSpec): Container {
   const holder = new Container();
   if (spec.visual !== 'cooler-liquid') { holder.addChild(coolerArt(T, spec).root); return holder; }
   const fit = kitFit();
-  const ra = radiatorArt(T, fit);
-  holder.addChild(ra.root, ra.fan, coolerArt(T, spec, fit).root);
+  const ra = radiatorArt(T, fit, 2, 2);
+  holder.addChild(ra.root, ...ra.fans, coolerArt(T, spec, fit).root);
   return holder;
 }
 
@@ -269,7 +271,7 @@ const kitFit = (): RadiatorFit => radiatorFit({ id: 'top0', side: 'top', rect: {
 /** A picture of a radiator for a shop tile: the slab alone, its fan switched off. */
 export function radiatorKitArt(T: Theme, visual: string): Container {
   const holder = new Container();
-  const ra = radiatorArt(T, kitFit(), radiatorGrade(visual));
-  holder.addChild(ra.root, ra.fan);
+  const ra = radiatorArt(T, kitFit(), radiatorGrade(visual), 2);
+  holder.addChild(ra.root, ...ra.fans);
   return holder;
 }

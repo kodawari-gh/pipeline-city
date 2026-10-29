@@ -88,7 +88,7 @@ Buying: every `board<N>` is for sale at any time (any tier, any number, the mach
 
 Coupling to the CPU cooler (it now mounts on the installed CPU, so with no CPU or cooler the VRM gets no airflow; `CoolerSpec.vrmAirPerC`): stock heatsink 0.05, tower fan 0.25, **liquid loop 0**. A liquid-cooled CPU therefore leaves the VRM with only its own passive path and the sink, which is why a good CPU cooler can make the VRM the new bottleneck.
 
-Fans need their plug (docs/ASSEMBLY.md "Fan cables and radiators"): an unplugged `vrmfan` / `ramfan` loses the fan's share of the heatsink, an unplugged `cpufan` stops the cooler (and the airflow it gives the VRM), and every plugged case fan on the hub adds `CASE_FAN_K` = 0.01 W/C to each passive path. `ThermalModel.step` takes the plugs as `FanPower` (`FANS_ON` for a bare board: all on, the fitted radiator at full fan).
+Fans need their plug (docs/ASSEMBLY.md "Fan cables and radiators"): an unplugged `vrmfan` / `ramfan` loses the fan's share of the heatsink, an unplugged `cpufan` stops the cooler (and the airflow it gives the VRM), and every plugged case fan on the hub adds `CASE_FAN_K` = 0.01 W/C to each passive path. `ThermalModel.step` takes the plugs as `FanPower` (`FANS_ON` for a bare board: all on, the fitted radiator at full fan). A radiator spans its side's fans: its cooling is half without any fan turning and full with all of them (`fanPower`).
 
 ## Snapshot (`snapshot.board`)
 

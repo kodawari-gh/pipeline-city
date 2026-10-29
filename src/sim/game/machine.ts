@@ -164,9 +164,11 @@ export function fanPower(this: Game): FanPower {
   const hub = !!c.sysfan;
   const rad = fittedRadiator(this.board);
   const radSpec = rad ? (deviceSpec(rad.dev) as RadiatorSpec) : null;
-  // The radiator takes its mount's fan: that mount no longer counts as a case fan, its fan cable turns the radiator's fan instead.
-  const mounts = caseMounts(this.board.caseTier).filter((m) => m !== rad?.mount);
-  const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (hub && c[`fan:${rad!.mount}`] ? 1 : UNFANNED_SHARE) : 0;
+  // The radiator spans every mount of its side: those fans are no longer case fans, their cables turn the radiator's fans instead, and the more
+  // of them turn the nearer the radiator gets to its full cooling (none: UNFANNED_SHARE of it).
+  const mounts = caseMounts(this.board.caseTier).filter((m) => !rad?.mounts.includes(m));
+  const turning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]).length / rad.mounts.length : 0;
+  const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * turning) : 0;
   return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: hub ? mounts.filter((m) => c[`fan:${m}`]).length : 0, loopK };
 }
 

@@ -285,7 +285,7 @@ describe("the game around the VRM", () => {
     const g = new Game({ seed: 1 });
     const s = g.snapshot();
     expect(s.board).toMatchObject({ tier: 0, name: "Starter", burnt: false, features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 } });
-    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "pcie", "radiator", "radiator", "ram-sink", "sata", "sata", "usb", "vrm-sink"]);
+    expect(s.board.slots.map((x) => x.type).sort()).toEqual(["atx", "cooler", "cpu", "dimm", "display", "pcie", "radiator", "ram-sink", "sata", "sata", "usb", "vrm-sink"]);
     expect(s.board.slots).toEqual(s.slots);
     expect(s.board.vrm).toMatchObject({ phases: 2, ampsPerPhase: 12, burnt: false, sinkDeviceId: null });
     expect(s.board.vrmSink).toBeNull();

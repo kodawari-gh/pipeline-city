@@ -157,7 +157,7 @@ const PLAIN_KIND: Record<DeviceKind, string> = {
   cpu: 'The brain. It runs each request one instruction at a time. Better ones overlap work and run faster.',
   ram: 'Short-term memory. Faster memory hurts less when the processor has to wait for data.',
   cooler: 'Mounts on the CPU and pulls heat off it so it can run fast without slowing down or breaking. The fan spins only while the machine is powered.',
-  radiator: 'Where a liquid loop gets rid of its heat. It bolts onto a fan spot of the case (front, top or back) in place of that fan, and the two tubes of the loop run to it. A bigger radiator cools the processor more, and its fan needs plugging in too.',
+  radiator: 'Where a liquid loop gets rid of its heat. It bolts along the front or the top of the case and covers every fan on that side in place of them, and the two tubes of the loop run to it. A bigger radiator cools the processor more, and each of its fans needs plugging in too.',
   psu: 'Feeds the whole machine. If parts want more power than it has, everything slows or shuts off.',
   display: 'Shows what the machine is doing. A request is done when its output has appeared here.',
   'vrm-sink': 'Fins that cool the voltage regulators next to the processor, so they do not throttle the power.',
@@ -220,14 +220,14 @@ const SLOT_PLAIN: Record<string, string> = {
   usb: 'USB port',
   'vrm-sink': 'VRM heatsink slot: bolts onto the voltage regulators (drag a heatsink here)',
   'ram-sink': 'Memory VRM heatsink slot: bolts onto the memory regulator (drag a RAM heatsink here)',
-  radiator: 'radiator mount: a liquid cooler\'s radiator bolts on a fan mount of the case (drag a radiator here)',
+  radiator: 'radiator side: a liquid cooler\'s radiator bolts along the front or the top of the case, over all the fans there (drag a radiator here)',
 };
 
 const FAN_CABLE_TIPS: Record<string, { title: string; plain: string; nerd: string }> = {
   'cable.cpufan': { title: 'CPU fan cable', plain: 'Powers the cooler\'s fan (or the liquid cooler\'s pump). Plug it into the CPU_FAN header on the board; the machine will not start without it.', nerd: 'POST fails with NO CPU FAN while it is out; an unplugged cooler does not cool.' },
   'cable.vrmfan': { title: 'VRM fan cable', plain: 'Powers the fan on the voltage-regulator heatsink. Plug it into the VRM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
   'cable.ramfan': { title: 'Memory VRM fan cable', plain: 'Powers the fan on the memory-regulator heatsink. Plug it into the RAM_FAN header.', nerd: 'Unplugged, the heatsink loses the fan\'s share of its cooling.' },
-  'cable.sysfan': { title: 'Fan hub cable', plain: 'Feeds the case\'s fan hub from the SYS_FAN header on the board. No case fan turns without it.', nerd: 'The hub carries every case fan and the radiator\'s fan.' },
+  'cable.sysfan': { title: 'Fan hub cable', plain: 'Feeds the case\'s fan hub from the SYS_FAN header on the board. No case fan turns without it.', nerd: 'The hub carries every case fan and the radiator\'s fans.' },
 };
 const MOUNT_NAME: Record<string, string> = { top: 'top', front: 'front', rear: 'rear' };
 
@@ -237,9 +237,9 @@ function describeFanCable(id: string, s?: Snapshot | null): Description | null {
   const m = /^cable\.fan:(front|top|rear)(\d*)$/.exec(id);
   if (!m) return null;
   const n = m[2] === '' ? '' : ` ${Number(m[2]) + 1}`, place = `${MOUNT_NAME[m[1]!]}${n}`;
-  const rad = s?.devices.some((d) => d.kind === 'radiator' && d.slot === `rad-${id.slice(10)}`);
+  const rad = s?.devices.some((d) => d.kind === 'radiator' && d.slot === `rad-${id.slice(10).replace(/\d+$/, '')}`); // the radiator spans the side: fan:top1 is under rad-top
   return rad
-    ? { title: `Radiator fan cable (${place})`, plain: `Powers the radiator fan on the ${place} mount. Plug it into its header on the fan hub; unplugged, the radiator cools much less.`, nerd: 'The radiator adds its cooling to the pump with its fan turning, a fraction of it without.' }
+    ? { title: `Radiator fan cable (${place})`, plain: `Powers the radiator fan at the ${place} mount. Plug it into its header on the fan hub; every fan of the radiator left unplugged costs it cooling.`, nerd: 'The radiator adds its cooling to the pump in proportion to the share of its fans turning, and half of it with none.' }
     : { title: `Case fan cable (${place})`, plain: `Powers the ${place} case fan. Plug it into its header on the fan hub; a plugged fan moves air over every part.`, nerd: 'Each turning case fan adds a little cooling to every part.' };
 }
 

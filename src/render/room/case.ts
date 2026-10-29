@@ -121,6 +121,18 @@ export function fanMounts(): FanMount[] {
   ];
 }
 
+/**
+ * What a radiator on a side of the case covers: every fan mount of that side, as one mount (`id` is the side, `rect` the box round all of them).
+ * Null when the case has no mount there. The sim's slot is `rad-<side>`; `ids` are the mounts it takes the fans of, in order along the side.
+ */
+export function radiatorSpan(side: 'front' | 'top'): (FanMount & { ids: string[] }) | null {
+  const ms = fanMounts().filter((m) => m.side === side);
+  if (ms.length === 0) return null;
+  const x0 = Math.min(...ms.map((m) => m.rect.x)), y0 = Math.min(...ms.map((m) => m.rect.y));
+  const x1 = Math.max(...ms.map((m) => m.rect.x + m.rect.w)), y1 = Math.max(...ms.map((m) => m.rect.y + m.rect.h));
+  return { id: side, side, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, ids: ms.map((m) => m.id) };
+}
+
 /** Where each case fan's cable leaves it: a short stub into the gap beside the fan (front fans below, top fans east, the rear fan below), that goes behind the tray. */
 export function fanStubs(): { x: number; y: number; dx: number; dy: number }[] {
   return [

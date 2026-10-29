@@ -51,10 +51,9 @@ export function upgradeCase(board: Board, tier: number): Result<object> {
   if (!c) return { ok: false, reason: `unknown case tier ${tier}` };
   if (tier === board.caseTier) return { ok: false, reason: `the ${c.name} is already fitted` };
   if (c.maxBoard < board.tier) return { ok: false, reason: `the ${c.name} is too small for the ${BOARD_TIERS[board.tier]!.name} board: fit a smaller board first` };
-  const mounts = caseMounts(tier);
   for (const d of board.devices) {
-    const m = radiatorMount(d.slot);
-    if (m !== null && !mounts.includes(m)) return { ok: false, reason: `the ${c.name} has no ${m} fan mount for the radiator: take it out first` };
+    const side = radiatorSide(d.slot);
+    if (side !== null && sideMounts(tier, side).length === 0) return { ok: false, reason: `the ${c.name} has no ${side} fan mounts for the radiator: take it out first` };
   }
   board.caseTier = tier;
   return { ok: true };
@@ -68,24 +67,40 @@ export function boardSlots(board: Board): SlotInfo[] {
   for (const [type, n] of Object.entries(t.slots) as [SlotType, number][]) {
     for (let k = 0; k < n; k++) out.push({ id: `${type}${k}`, type });
   }
-  // A radiator bolts onto a fan mount of the case: one slot per mount, replacing that mount's fan.
-  for (const m of caseMounts(board.caseTier)) out.push({ id: radiatorSlot(m), type: "radiator" });
+  // A radiator bolts onto one side of the case (front or top) and spans every fan mount of that side, taking their fans.
+  for (const side of RADIATOR_SIDES) if (sideMounts(board.caseTier, side).length > 0) out.push({ id: radiatorSlot(side), type: "radiator" });
   return out;
 }
 
-/** The slot id of the radiator at a case fan mount (`front0`, `top1`, `rear`). */
-export const radiatorSlot = (mount: string): string => `rad-${mount}`;
+/** The sides of the case a radiator can bolt onto (the rear has one fan and the tubes cannot reach it). */
+export const RADIATOR_SIDES = ["front", "top"] as const;
+export type RadiatorSide = (typeof RADIATOR_SIDES)[number];
 
-/** The fan mount a radiator slot sits on, or null for any other slot. */
-export const radiatorMount = (slotId: string): string | null => (slotId.startsWith("rad-") ? slotId.slice(4) : null);
+/** The slot id of the radiator on a side of the case (`rad-front`, `rad-top`). */
+export const radiatorSlot = (side: RadiatorSide): string => `rad-${side}`;
 
-/** The mount holding a radiator (and the radiator), if one is fitted. */
-export function fittedRadiator(board: Board): { dev: InstalledDevice; mount: string } | null {
+/** The side a radiator slot sits on, or null for any other slot. */
+export const radiatorSide = (slotId: string): RadiatorSide | null => (slotId === "rad-front" ? "front" : slotId === "rad-top" ? "top" : null);
+
+/** The fan mounts of one side of the case (`front0..`, `top0..`): the ones a radiator on that side spans. */
+export const sideMounts = (tier: number, side: RadiatorSide): string[] => caseMounts(tier).filter((m) => m.startsWith(side));
+
+/** The radiator, the side it is on and the mounts it spans, if one is fitted. */
+export function fittedRadiator(board: Board): { dev: InstalledDevice; side: RadiatorSide; mounts: string[] } | null {
   for (const d of board.devices) {
-    const m = radiatorMount(d.slot);
-    if (m !== null) return { dev: d, mount: m };
+    const side = radiatorSide(d.slot);
+    if (side !== null) return { dev: d, side, mounts: sideMounts(board.caseTier, side) };
   }
   return null;
+}
+
+/** A save from when a radiator took one mount (`rad-top1`, `rad-rear`) keeps it, now on that mount's side (the rear becomes the top, or the front). */
+export function legacyRadiatorSlots(board: Board): void {
+  for (const d of board.devices) {
+    const m = /^rad-(front|top|rear)\d*$/.exec(d.slot);
+    if (!m || radiatorSide(d.slot)) continue;
+    d.slot = radiatorSlot(m[1] === "front" || sideMounts(board.caseTier, "top").length === 0 ? "front" : "top");
+  }
 }
 
 export function deviceSpec(d: InstalledDevice): DeviceSpec {
@@ -146,6 +161,7 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
       };
     }
   }
+  if (spec.kind === "radiator" && fittedRadiator(board)) return { ok: false, reason: "the loop already has a radiator: take it out first" };
   if ((spec.kind === "gpu" || spec.kind === "npu") && spec.loadW > PCIE_SLOT_W && !spec.needsPcieCable) {
     return { ok: false, reason: `${spec.name} draws ${spec.loadW} W, more than a PCIe slot gives (${PCIE_SLOT_W} W): it needs the PCIe power cable` };
   }

@@ -1,7 +1,7 @@
 // Game feature: the save. Writing the game's state out and putting a parsed save back into a fresh game (docs/SAVE.md).
 // Every export is a `Game` method (see game.ts).
 
-import { allCables, boardFromJson, boardToJson, cablesOf, caseMounts, fittedRadiator, isFanCable, radiatorSlot } from "../board";
+import { allCables, boardFromJson, boardToJson, cablesOf, fittedRadiator, isFanCable, legacyRadiatorSlots, radiatorSlot, sideMounts } from "../board";
 import { generate } from "../gen";
 import { JOB_ROW } from "../isa/memmap";
 import { getOsSpec } from "../os";
@@ -75,9 +75,9 @@ export function savedNet(this: Game, sk: (k: Key) => SavedKey): SavedNet {
 export function restoreSave(this: Game, s: SaveV4): void {
   this.board = boardFromJson(s.board);
   // a save from before the radiators: its liquid loop kept the cooling of a slim radiator, so it gets one for free (top fan mount if the case has one)
+  legacyRadiatorSlots(this.board);
   if (this.board.devices.some((d) => d.spec === "cooler2") && !fittedRadiator(this.board)) {
-    const mounts = caseMounts(this.board.caseTier);
-    this.board.devices.push({ id: `dev${this.board.nextId++}`, spec: "rad1", slot: radiatorSlot(mounts.find((m) => m.startsWith("top")) ?? mounts[0]!) });
+    this.board.devices.push({ id: `dev${this.board.nextId++}`, spec: "rad1", slot: radiatorSlot(sideMounts(this.board.caseTier, "top").length > 0 ? "top" : "front") });
   }
   this.machine.prng.setState(s.prngState);
   this.money = this.sandbox ? SANDBOX_MONEY : s.money;

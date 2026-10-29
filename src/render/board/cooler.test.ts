@@ -8,7 +8,7 @@ vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()
 
 import { specsOfKind, type CoolerSpec } from '../../sim/board/specs';
 import { coolerArt, coolerKitArt, radiatorArt, radiatorFit, radiatorPorts, tubeRoutes } from './cooler';
-import { fanMounts } from '../room/case';
+import { radiatorSpan } from '../room/case';
 import { CASE_IN, COOLER, setLayoutTier } from './layout';
 import type { Theme } from '../theme';
 
@@ -40,26 +40,41 @@ describe('cooler art', () => {
     setLayoutTier(3, 3);
     for (const spec of coolers) {
       const kit = coolerKitArt(DARK, spec);
-      expect(kit.children.length, spec.id).toBe(spec.visual === 'cooler-liquid' ? 3 : 1);
+      expect(kit.children.length, spec.id).toBe(spec.visual === 'cooler-liquid' ? 4 : 1); // the radiator, its two fans, the pump
     }
   });
 });
 
+/** What a radiator can span in the case now: the front and the top (the rear takes none), each as one mount. */
+const spans = () => (['front', 'top'] as const).map((s) => radiatorSpan(s)).filter((m): m is NonNullable<ReturnType<typeof radiatorSpan>> => !!m);
+
 describe('the radiator', () => {
-  it('bolts on any fan mount of any case, in either theme, with a live fan', () => {
+  it('bolts along the front or the top of any case, in either theme, with a live fan for every mount it spans', () => {
     for (const tier of [0, 1, 2, 3]) {
       setLayoutTier(tier, tier);
-      for (const m of fanMounts()) for (const T of [DARK, LIGHT]) for (const grade of [1, 2, 3] as const) {
-        const r = radiatorArt(T, radiatorFit(m, 0), grade);
+      for (const m of spans()) for (const T of [DARK, LIGHT]) for (const grade of [1, 2, 3] as const) {
+        const r = radiatorArt(T, radiatorFit(m, 0), grade, m.ids.length);
         expect(r.root.children.length, `${tier} ${m.id}`).toBeGreaterThan(0);
-        expect(r.fan.offset).toBe(0);
+        expect(r.fans.length, `${tier} ${m.id}`).toBe(m.ids.length);
+        for (const f of r.fans) expect(f.offset).toBe(0);
       }
     }
   });
 
+  it('spans every fan of its side, and the rear has no radiator', () => {
+    setLayoutTier(3, 3);
+    const top = radiatorSpan('top')!, front = radiatorSpan('front')!;
+    expect(top.ids).toEqual(['top0', 'top1', 'top2']);
+    expect(front.ids).toEqual(['front0', 'front1', 'front2', 'front3']);
+    expect(top.rect.w).toBeGreaterThan(top.rect.h);
+    expect(front.rect.h).toBeGreaterThan(front.rect.w);
+    setLayoutTier(0, 0);
+    expect(radiatorSpan('top')).toBeNull(); // the Mini tower has no top fans
+  });
+
   it('its two ports are on the inboard face of the mount, side by side, in the tank nearer the pump', () => {
     setLayoutTier(3, 3);
-    for (const m of fanMounts()) {
+    for (const m of spans()) {
       const f = radiatorFit(m, 0), { tips, inward } = radiatorPorts(f), [a, b] = tips, r = m.rect;
       expect(Math.hypot(a[0] - b[0], a[1] - b[1]), m.id).toBeGreaterThan(60); // room for a tube each
       const c: [number, number] = [r.x + r.w / 2, r.y + r.h / 2];
@@ -74,7 +89,7 @@ describe('the radiator', () => {
   it('the tubes run from the pump to the ports of every mount without leaving the case', () => {
     setLayoutTier(3, 3);
     const a: [number, number] = [COOLER.x + COOLER.w / 2 - 120, COOLER.y + 170], b: [number, number] = [COOLER.x + COOLER.w / 2 + 120, COOLER.y + 170];
-    for (const m of fanMounts()) {
+    for (const m of spans()) {
       const [t1, t2] = tubeRoutes(radiatorFit(m, 0), a, b);
       for (const route of [t1, t2]) {
         expect(route.length, m.id).toBeGreaterThanOrEqual(2);
