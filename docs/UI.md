@@ -175,7 +175,7 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 
 ## Camera inset
 
-`InsetReporter` (in `Hud.tsx`) measures the top bar, the stats drawer, the inventory shelf and, while a tutorial step is active, the tutorial card (its layout top) and writes `viewInset` (CSS px, from live rects). It watches the HUD's `class` and `style` attributes, so a card that changes height is measured. The picker popup, toasts and modals are overlays and reserve nothing (the card also lifts away from its target when it would cover one). The shelf's reserved size is remembered while it is collapsed during a drag. The renderer eases to the new inset and never applies it mid-gesture (docs/RENDER.md).
+`InsetReporter` (in `Hud.tsx`) measures the top bar, the stats drawer, the inventory shelf and, while a tutorial step is active, the tutorial card (its layout top) and writes `viewInset` (CSS px, from live rects). It watches the HUD's `class` and `style` attributes, so a card that changes height is measured. The picker popup, toasts and modals are overlays and reserve nothing (the card also lifts away from its target when it would cover one). The shelf's reserved size is remembered while it is collapsed during a drag. The renderer eases to the new inset and never applies it mid-gesture (docs/render/interact.md).
 
 ## Theme
 

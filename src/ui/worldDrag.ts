@@ -1,4 +1,4 @@
-// The renderer's drag-from-menu hook (docs/RENDER.md, `beginPartDrag`). The inventory tray calls it from a DOM
+// The renderer's drag-from-menu hook (docs/render/interact.md, `beginPartDrag`). The inventory tray calls it from a DOM
 // pointerdown; the renderer starts the part drag, listens on window, and installs on a valid drop. Kept as a wrapper
 // so the UI does not import the renderer directly from every component.
 import { beginPartDrag as startPartDrag } from '../render/board/board';

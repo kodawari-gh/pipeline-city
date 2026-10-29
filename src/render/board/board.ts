@@ -95,7 +95,7 @@ export function flyToBoard() { if (cameraRef) cameraRef.flyTo(overviewFit(camera
 /** Screen rectangle of a world object, for popups and tutorial pointers (see `anchorOf`). */
 export interface Anchor { x: number; y: number; w: number; h: number; visible: boolean }
 /**
- * Live screen rectangle of a world id (any id in the RENDER.md table: slot ids, device ids, `psu`, `monitor`, `case`,
+ * Live screen rectangle of a world id (any id in the render/interact.md table: slot ids, device ids, `psu`, `monitor`, `case`,
  * `bay`, `power`, `usb`, `tray`, `held`, `os`, `vrm`, `key:<id>`, `cable.*`, `chipset`, `board`). Client px (relative to
  * the viewport, canvas offset included). The stage is in CSS px (autoDensity), so no device-pixel-ratio factor is needed.
  * Same rects as hit testing. `visible` is false when the rect does not meet the free area (the canvas minus `viewInset`),
@@ -117,10 +117,10 @@ export function anchorOf(id: string): Anchor | null {
  */
 export function beginPartDrag(inventoryId: string, event: PointerEvent): void { interactRef?.beginPartDrag(inventoryId, event); }
 /**
- * Fly the camera to a world object by id (any id listed in docs/RENDER.md: slot ids, device ids, 'key:<id>',
+ * Fly the camera to a world object by id (any id listed in docs/render/interact.md: slot ids, device ids, 'key:<id>',
  * 'tray', 'usb', 'power', 'monitor', 'psu', 'chipset', 'board', 'cable.atx|cpu|video'). Unknown ids do nothing.
  * Returns whether the id was found (synchronously; `opts.onDone(false)` is then called too). Defaults and the
- * `onDone` contract are in docs/RENDER.md ("Flights"). A press, wheel, pinch or another flight cancels it.
+ * `onDone` contract are in docs/render/interact.md ("Flights"). A press, wheel, pinch or another flight cancels it.
  */
 export function flyTo(id: string, opts: FlyOpts = {}): boolean {
   if (!interactRef || !interactRef.rectsFor(id).length) { opts.onDone?.(false); return false; }
@@ -142,7 +142,7 @@ export async function mountBoard(host: HTMLElement) {
 
   // ---- scene graph ----
   const world = new Container();
-  /** The bedroom behind everything: wall, window, desk and what is on it (docs/RENDER.md "The room"). */
+  /** The bedroom behind everything: wall, window, desk and what is on it (docs/render/room/room.md "The room"). */
   const roomLayer = new Container();
   /** What stands in front of the video cable: the mug and its steam (the room's `over`). */
   const roomOverLayer = new Container();

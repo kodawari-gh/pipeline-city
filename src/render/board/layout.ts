@@ -213,7 +213,7 @@ export let PC_POWER = { x: IO_X, y: 2550 };
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: IO_X, y: VIDEO_Y - 60, w: 240, h: 120 };
 
-// ---- network props (docs/RENDER.md "Network"): the router stands on a shelf above the monitor, the ISP's wall plate is under the desk by the power socket ----
+// ---- network props (docs/render/net.md "Network"): the router stands on a shelf above the monitor, the ISP's wall plate is under the desk by the power socket ----
 /** Scale of the network props (router, wall plate) against their design size. */
 export const NET_K = 1.45;
 /** The router is right-aligned to this x on its shelf (its footprint depends on the tier). */

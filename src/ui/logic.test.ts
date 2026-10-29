@@ -212,7 +212,7 @@ describe('descriptions', () => {
     }
   });
 
-  it('every network render id has a description (docs/RENDER.md "Network")', () => {
+  it('every network render id has a description (docs/render/net.md "Network")', () => {
     const s = snap();
     for (const id of ['router', 'wall', 'cable.lan', 'eth0', 'eth1', 'eth2', 'eth3']) {
       for (const d of [describeId(id, s), describeId(id)]) {

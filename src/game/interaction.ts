@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 
 // Shared contract between src/render and src/ui for the assembly/onboarding UX.
-// World element ids (render owns them; see docs/RENDER.md): slot ids, device ids,
+// World element ids (render owns them; see docs/render/interact.md): slot ids, device ids,
 // 'cable.atx' | 'cable.cpu' | 'cable.video',
 // 'key:<keyId>' for keys in the tray, 'usb' (the USB port), 'power' (the power button),
 // 'monitor', 'psu', 'tray'. Parts are dragged out of the HTML inventory via beginPartDrag (src/render/board/board.ts).

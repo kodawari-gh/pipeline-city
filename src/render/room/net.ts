@@ -15,7 +15,7 @@ import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt 
 import type { Theme } from '../theme';
 import type { Shape } from '../shape';
 
-// The network props (docs/RENDER.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
+// The network props (docs/render/net.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
 // ethernet cable (router to the board jack or a NIC jack), the NIC cards, the link LEDs and the traffic pulses. Everything the
 // player sees of the network that is not inside a part lives in `NetView.root` (an external layer: it is drawn at any zoom).
 

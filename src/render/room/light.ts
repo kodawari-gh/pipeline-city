@@ -1,7 +1,7 @@
 import { Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { Rect } from '../board/layout';
 
-// The room's light (docs/RENDER.md "Light"): one layer above everything outside the case, made of three small textures that are redrawn only when the
+// The room's light (docs/render/room/light.md "Light"): one layer above everything outside the case, made of three small textures that are redrawn only when the
 // light changes. The *shade* is the dark of the room (night, a dim evening) with the lit places cut out of it: the lamp's cone and pool, the screen and
 // the clock (they shine, so they are never dimmed), and the inside of the case (it has its own light). The *glow* is what the lights add on top: warm
 // in the lamp's cone, pale green round the screen and over the keyboard and the desk. The *focus* is a second dark that fades in while the case fills the

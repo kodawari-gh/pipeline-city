@@ -1,6 +1,6 @@
 // The floorplans of each CPU architecture (see cpuplan.ts for the data model, cpufloor.ts for the layout engine, docs/DIE.md for the grammar).
 //
-// Every die has the same edge ring, on the sides the package pins are (docs/RENDER.md "Routing"): power and SVID in the north (the VRM's
+// Every die has the same edge ring, on the sides the package pins are (docs/render/board.md "Routing"): power and SVID in the north (the VRM's
 // vcore stubs), the memory controller in the east (the DIMM bus), the clock and PCIe / NVMe / DMI in the south, USB, the display and the
 // interrupt controller in the west. The core fills the middle, tiled edge to edge; blocks that talk to each other touch across a gutter.
 

@@ -4,7 +4,7 @@ export interface View { x: number; y: number; z: number }
 export interface Inset { top: number; right: number; bottom: number; left: number }
 export interface Rect { x: number; y: number; w: number; h: number }
 
-/** Options for a flight (`flyTo` in board.ts, `Camera.flyTo`). Defaults are in docs/RENDER.md. */
+/** Options for a flight (`flyTo` in board.ts, `Camera.flyTo`). Defaults are in docs/render/interact.md. */
 export interface FlyOpts {
   /** `false` jumps to the target instead of animating. Default `true`. */
   smooth?: boolean;

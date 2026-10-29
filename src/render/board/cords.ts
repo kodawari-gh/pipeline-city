@@ -6,7 +6,7 @@ import type { RoomGeo } from '../room/room';
 import type { Theme } from '../theme';
 
 // The two cords from the wall: the PC's (from the inlet in the case's rear wall) and the monitor's (built into it). Each ends in a plug that
-// seats in its outlet of the wall socket under the desk, or lies loose below it: the player drags it in (docs/RENDER.md "The wall cords").
+// seats in its outlet of the wall socket under the desk, or lies loose below it: the player drags it in (docs/render/room/room.md "The wall cords").
 // The cord's body runs behind the desk, like the ISP lead, so it lives in the room's back layer (`behind`); the plugs, and a cord that is
 // in the hand, are drawn above everything (`root`).
 

@@ -19,7 +19,7 @@ import {
 } from '../board/layout';
 import type { Theme } from '../theme';
 
-// The room the machine lives in (docs/RENDER.md "The room"): a bedroom wall, a long desk and what stands on it, seen from the front
+// The room the machine lives in (docs/render/room/room.md "The room"): a bedroom wall, a long desk and what stands on it, seen from the front
 // like the rest of the world. It is all scenery behind the machine: one static art container plus a few live parts (the sky in
 // the window, the wall's light, the lamp's glow, the mug's steam, the clock's hands) that follow the game clock. The lamp and the
 // window blind are the only things that answer a click.

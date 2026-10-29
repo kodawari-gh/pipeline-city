@@ -1,4 +1,4 @@
-// Side-profile art for the rear connectors, their plugs and the wall they pass through (docs/RENDER.md "Rear I/O").
+// Side-profile art for the rear connectors, their plugs and the wall they pass through (docs/render/case.md "Rear I/O").
 //
 // The case is a side view: the board stands on its tray and the rear wall is the slab at the left edge. Every connector is seen from
 // the side, the way it looks along the board's normal: its depth along x (mouth at the wall's outer face, facing west) and its width

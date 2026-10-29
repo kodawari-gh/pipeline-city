@@ -42,11 +42,11 @@ Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `s
 - **Game loop, economy, snapshot shape, pacing: [`docs/GAME.md`](GAME.md).**
 - **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`docs/SANDBOX.md`](SANDBOX.md).**
 - **Save format, versioning, worker protocol: [`docs/SAVE.md`](SAVE.md).**
-- **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
+- **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md) (hub and topic table), [`docs/render/interact.md`](render/interact.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
 - **Assembly, inventory, boot loop, USB-key queue, progress flags: [`docs/ASSEMBLY.md`](ASSEMBLY.md).**
 - **Storage, OS v1 (resident kernel, key ingest and output step): [`docs/OS.md`](OS.md). Planned tech ladders for every device: [`docs/TECHTREE.md`](TECHTREE.md).**
 - **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`docs/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`docs/NETWORK.md`](NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`docs/NETSTACK.md`](NETSTACK.md).**
-- **Hover/selected ids, drag and drop, camera helpers: see [`docs/RENDER.md`](RENDER.md) (interaction section).**
+- **Hover/selected ids, drag and drop, camera helpers: see [`docs/render/interact.md`](render/interact.md).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.

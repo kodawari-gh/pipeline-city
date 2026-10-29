@@ -39,7 +39,7 @@ const HOLD: Partial<Record<BusKind, number>> = { mem: 900, nvme: 1600, dmi: 1300
 
 /**
  * Everything that changes with the sim. The board is dim by default; a bus only lights when the snapshot shows real
- * traffic on it (see `docs/RENDER.md`, "Activity"). Power conductors glow in proportion to current. Per-snapshot work
+ * traffic on it (see `docs/render/live.md`, "Activity"). Power conductors glow in proportion to current. Per-snapshot work
  * redraws a few small Graphics and Texts, per-frame work moves pooled sprites and rotates fans.
  */
 export class Live {

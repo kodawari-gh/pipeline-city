@@ -1,5 +1,5 @@
 // The Trace panel: the engine's event log as lines (interrupts, address-space switches, page faults, TLB walks, memory, DRAM rows, cache and register writes),
-// with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/RENDER.md "Following the machine").
+// with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/render/live.md "Following the machine").
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepTick } from '../../game/store';

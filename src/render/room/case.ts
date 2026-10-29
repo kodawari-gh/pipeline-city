@@ -16,7 +16,7 @@ import type { Theme } from '../theme';
 // (baked with the device layer); the lights and the drives are live (Live, props.ts).
 
 export const wallTone = (T: Theme) => mix(T.bg, T.dark ? T.line : '#ffffff', T.dark ? 0.3 : 0.6);
-/** What the player's case is called on its top panel, and how many vents it has: the cases differ at a glance (docs/RENDER.md "Cases"). */
+/** What the player's case is called on its top panel, and how many vents it has: the cases differ at a glance (docs/render/board.md "Cases"). */
 export const CASE_LOOK = [
   { tag: 'MINI', vents: 7, trim: 0 }, { tag: 'MICRO', vents: 11, trim: 0 }, { tag: 'MID', vents: 16, trim: 1 }, { tag: 'FULL', vents: 22, trim: 2 },
 ] as const;

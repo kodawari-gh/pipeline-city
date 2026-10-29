@@ -22,7 +22,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 ## Open now
 
 - [~] T02 [owner] Push the local commits so GitHub Pages is current. The owner said NOT YET. Before the push run `npm test` and `npm run build`. Done when: the owner says yes and `git push` succeeds.
-- [ ] T83 [auto] {sonnet} Accelerator internal views animated from sim state (GPU lanes with mask and banks, NPU MAC grid with the descriptor list, TPM three stages with a lock badge) and hover ids for each lane, bank, cell and stage. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/RENDER.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
+- [ ] T83 [auto] {sonnet} Accelerator internal views animated from sim state (GPU lanes with mask and banks, NPU MAC grid with the descriptor list, TPM three stages with a lock badge) and hover ids for each lane, bank, cell and stage. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/render/interact.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
 
 ## Design notes (no code)
 
@@ -46,7 +46,7 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Later features (do not start without the owner)
 
-- [ ] T127 [owner] The power bill. The wall already meters the machine's draw (`Snapshot.energy {wallW, wh}`). Needs decisions: a rate and its tiers, when the bill is due and how it is paid, what an unpaid bill does, and a bill line in the HUD. Docs: `docs/GAME.md`, `docs/RENDER.md` "The power lens".
+- [ ] T127 [owner] The power bill. The wall already meters the machine's draw (`Snapshot.energy {wallW, wh}`). Needs decisions: a rate and its tiers, when the bill is due and how it is paid, what an unpaid bill does, and a bill line in the HUD. Docs: `docs/GAME.md`, `docs/render/room/room.md` "The power lens".
 - [ ] T50 [owner] Make the `hpc` job class runnable (needs multicore, T53).
 - [ ] T52 [owner] OS tiers 2 and 3 (after T86).
 - [ ] T53 [owner] Multicore (after T85).

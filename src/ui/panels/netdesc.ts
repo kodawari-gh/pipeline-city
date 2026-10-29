@@ -1,4 +1,4 @@
-// Words for the network ids (docs/NETWORK.md, docs/RENDER.md "Network"): router, wall, cable.lan, the jacks and the
+// Words for the network ids (docs/NETWORK.md, docs/render/net.md "Network"): router, wall, cable.lan, the jacks and the
 // router and plan specs. Pure. It imports nothing from logic.ts (logic.ts imports this), so the formatters live here.
 
 import { getSpec, type NicSpec } from '../../sim/board/specs';
