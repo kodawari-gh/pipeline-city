@@ -100,6 +100,7 @@ export const HINTS: Record<string, Hint> = {
   burnt: { id: 'burnt', text: 'A part burnt out. Buy a replacement of the same kind.' },
   trip: { id: 'trip', text: 'The power supply tripped. Power cycle it, then cut the load or buy a bigger one.' },
   brownout: { id: 'brownout', text: 'The power supply is overloaded and everything slows down. Upgrade it or lower the clock.' },
+  looseFan: { id: 'looseFan', text: 'A fan is not plugged in, so it does not turn and cools less. Power off, then plug it into its header.' },
   keyIgnored: { id: 'keyIgnored', text: 'Without an OS the machine only looks for a program at boot: power off and on to load this key.' },
   osFull: { id: 'osFull', text: 'The OS queue is full. A plugged key waits until a job finishes.' },
   retiredKeys: { id: 'retiredKeys', text: 'The link is up: jobs come over the network now. Keys left in the tray expire without penalty.' },
@@ -119,6 +120,8 @@ export function triggeredHints(s: Snapshot): string[] {
   if (s.devices.some((d) => d.burnt)) out.push('burnt');
   if (s.power.tripped) out.push('trip');
   else if (s.power.psuFactor < 1 && !s.power.off) out.push('brownout');
+  // A fitted fan whose cable is out (a cable with no fan to power is `blocked`, not loose).
+  if (s.powered && s.cables.some((c) => /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(c.id) && !c.connected && !c.blocked)) out.push('looseFan');
   if (s.keyIgnored) out.push('keyIgnored');
   // The OS has no free queue slot and keys are waiting (a plugged key stays stage "tray" then).
   if (s.os && s.os.queue.length >= s.os.queueSlots && s.tray.length > 0) out.push('osFull');

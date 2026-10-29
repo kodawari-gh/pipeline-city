@@ -110,6 +110,18 @@ describe('hints', () => {
     expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 90, budgetW: 40, psuFactor: 0.4, off: false, tripped: true } }))).toEqual(['trip']);
     expect(triggeredHints(snap({ power: { vrmLossW: 0, totalW: 50, budgetW: 40, psuFactor: 0.8, off: false, tripped: false } }))).toEqual(['brownout']);
   });
+  it('looseFan: a fitted fan with its cable out while the machine is on', () => {
+    const cable = (id: string, connected: boolean, blocked: string | null = null) => ({ id, name: id, connected, blocked, plain: '' }) as unknown as ReturnType<typeof snap>['cables'][number];
+    const loose = [cable('fan:front0', false)], none = [cable('fan:front0', false, 'no fan fitted'), cable('vrmfan', true)];
+    expect(triggeredHints(snap({ powered: true, cables: loose }))).toContain('looseFan');
+    expect(triggeredHints(snap({ powered: false, cables: loose }))).not.toContain('looseFan');
+    expect(triggeredHints(snap({ powered: true, cables: none }))).not.toContain('looseFan');
+  });
+  it('a radiator fan cable is described as the radiator\'s, a bare mount\'s as a case fan', () => {
+    const s = snap({ devices: [dev({ kind: 'radiator', slot: 'rad-top0' })] });
+    expect(describeId('cable.fan:top0', s)!.title).toMatch(/Radiator fan cable \(top 1\)/);
+    expect(describeId('cable.fan:top1', s)!.title).toMatch(/Case fan cable \(top 2\)/);
+  });
   describe('network hints', () => {
     const base = snap().net;
     const withNet = (o: Partial<typeof base>) => snap({ net: { ...base, ...o } });

@@ -70,6 +70,8 @@ Opens only when `selected` is set. Escape, the x, or a click on empty space (the
 - **Header**: the part's illustration (80 px), its name and one plain line.
 - **Live readings** (installed parts): temperature, power and effective clock as small icon chips; `slow` or `unstable` as a warning chip. For the PSU, a load bar against its budget.
 - **Lines**: the socket's hint (empty socket, or "drag it onto its socket" for a spare), the PSU load, the sim's own reasons. The CPU's overclock warnings are not repeated as text: the dial shows the zone.
+- **Cable cards** (`cable.<id>`, any cord or lead): the title and tip come from `describeId(id, s)` (fixed text in `logic.ts` `FAN_CABLE_TIPS` for `cable.cpufan`, `vrmfan`, `ramfan`, `sysfan`; `cable.fan:<mount>` is worded as the radiator's fan when `rad-<mount>` holds a radiator, otherwise as a case fan, so the snapshot must be passed), and one line says connected, the sim's `blocked` reason, or "drag its end to the socket". A missing CPU fan cable also shows as `POST error: the CPU fan cable is not connected...` (`NO CPU FAN`) on the power card, the monitor and the tutorial.
+- **Radiator mounts** (`SLOT_PLAIN.radiator`, slot ids `rad-<mount>`) and the radiator parts (`radiator` kind, shop icon `flame`, shelf group after the cooler) go through the usual slot and ladder cards.
 - **Upgrade ladder** (`ladderFor`): one rung per tier of the kind. Tiers older than the best part you own are left out.
 
   | State | Rung shows | Hover |
@@ -150,6 +152,7 @@ Shown once each as a small dismissible toast, remembered in `localStorage['pipel
 | `burnt` | a device is burnt |
 | `trip` | the PSU has hard-tripped |
 | `brownout` | PSU overloaded (`psuFactor < 1`) but not tripped |
+| `looseFan` | the machine is on and a fitted fan's cable (`cpufan`, `vrmfan`, `ramfan`, `sysfan`, `fan:<mount>`) is out and not `blocked` (a cable with no fan to power is `blocked`, not loose) |
 | `retiredKeys` | `net.usbRetired` and `net.retiredKeys > 0`: the link is up and USB keys are left in the tray |
 | `portBusyKey` | `net.portBusyKey != null`: "a key is parked in the USB port" and blocks network jobs from the drive |
 | `spoolFull` | the OS spool is full while the link is `link-up` or `saturated` |

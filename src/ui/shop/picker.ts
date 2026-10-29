@@ -709,7 +709,7 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
   if (id.startsWith('cable.') && id !== 'cable.pcie') {
     const cid = id.slice(6);
     const c = s.cables.find((x) => x.id === cid);
-    const d = describeId(id)!;
+    const d = describeId(id, s)!;
     return {
       ...emptyCard(id, 'info', d.title, d.plain, d.nerd),
       lines: c
