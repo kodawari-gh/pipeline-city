@@ -21,7 +21,6 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Open now
 
-- [~] T02 [owner] Push the local commits so GitHub Pages is current. The owner said NOT YET. Before the push run `npm test` and `npm run build`. Done when: the owner says yes and `git push` succeeds.
 - [ ] T83 [auto] {sonnet} Accelerator internal views animated from sim state (GPU lanes with mask and banks, NPU MAC grid with the descriptor list, TPM three stages with a lock badge) and hover ids for each lane, bank, cell and stage. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/render/interact.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
 
 ## Design notes (no code)
@@ -32,7 +31,6 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Deferred until the UI pass is done (owner)
 
-- [~] T98 [owner] UI review of the whole game, dark theme first. Output: a list of tasks here.
 - [ ] T96 [auto] Portrait phone: the scene is small because the world is wide. Frame the case first and let the player pan to the monitor, or stack the monitor above the case. Files: `src/render/camera.ts`, `src/render/board/layout.ts`. Done when: a framing test covers a 9:19 viewport.
 - [ ] T109 [auto] Run `npm run e2e:tutorial` for the case steps (not run since they were added; the owner paused e2e) and read the screenshots.
 - [ ] T110 [auto] Camera: recheck the guided "medium" window and the tutorial rings in the small cases (Mini tower) and with the bigger monitor.
