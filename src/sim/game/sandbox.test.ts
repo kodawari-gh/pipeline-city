@@ -3,6 +3,7 @@ import { advance, handleMessage, newHost } from "../host";
 import type { FromSim, Snapshot } from "../protocol";
 import { SANDBOX_MONEY } from "./economy";
 import { Game } from "./game";
+import { JOB_DEX } from "./jobdex";
 import { play } from "./operator";
 import { parseSave } from "./save";
 import { econ } from "./testkit";
@@ -273,5 +274,45 @@ describe("sandbox: which job classes arrive on their own", () => {
   it("refuses unknown classes, and a campaign game", () => {
     expect(start().setJobClasses(["nope"]).ok).toBe(false);
     expect(new Game({ seed: 1, economy: econ() }).setJobClasses([])).toEqual({ ok: false, reason: "sandbox mode only" });
+  });
+
+  const kinds = (g: Game, ticks: number): Set<string> => {
+    const seen = new Set<string>();
+    for (let i = 0; i < ticks; i++) {
+      g.advanceBaseTick();
+      for (const k of g.snapshot().tray) seen.add(k.type);
+      g.clearQueue();
+    }
+    return seen;
+  };
+  it("turns single kinds of job off and shows the choice in the snapshot", () => {
+    const g = start();
+    expect(g.snapshot().level.kindsOff).toEqual([]);
+    expect(g.setJobKinds(["fib", "mandel"])).toEqual({ ok: true, off: ["fib", "mandel"] });
+    expect(g.snapshot().level.kindsOff).toEqual(["fib", "mandel"]);
+    expect(g.setJobKinds([]).ok).toBe(true);
+    expect(g.snapshot().level.kindsOff).toEqual([]);
+  });
+  it("stops an off kind arriving while its siblings still do", () => {
+    const g = start();
+    const before = kinds(g, 3000);
+    expect(before.has("fib")).toBe(true);
+    const off = start();
+    off.setJobKinds(["fib", "log", "calc", "checksum"]);
+    const seen = kinds(off, 3000);
+    expect(seen.has("fib")).toBe(false);
+    expect(seen.has("log") || seen.has("calc") || seen.has("checksum")).toBe(false);
+    expect(seen.size).toBeGreaterThan(3);
+  });
+  it("a class with every kind off sends nothing, and spawnKey still works", () => {
+    const g = start();
+    g.setJobClasses(["cli", "scan", "db", "web", "secure", "npu", "hpc"]); // only gpu is left at level 18...
+    g.setJobKinds(JOB_DEX.filter((e) => e.cls === "gpu").map((e) => e.id));
+    expect(kinds(g, 3000).size).toBe(0);
+    expect(g.spawnKey("gpu").ok).toBe(true);
+  });
+  it("refuses unknown kinds, and a campaign game", () => {
+    expect(start().setJobKinds(["nope"]).ok).toBe(false);
+    expect(new Game({ seed: 1, economy: econ() }).setJobKinds([])).toEqual({ ok: false, reason: "sandbox mode only" });
   });
 });

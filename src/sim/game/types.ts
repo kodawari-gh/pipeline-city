@@ -262,6 +262,8 @@ export interface LevelSnap {
   sandbox: boolean;
   /** Sandbox: the job classes switched off for the natural arrivals (empty elsewhere). */
   classesOff: string[];
+  /** Sandbox: the kinds of job (job dex ids) switched off for the natural arrivals (empty elsewhere). */
+  kindsOff: string[];
 }
 
 /** A storage device and its live statistics. */

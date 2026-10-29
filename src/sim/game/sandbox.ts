@@ -3,6 +3,7 @@
 import { TEMPLATES } from "../gen";
 import type { Game } from "./game";
 import { NOT_SANDBOX } from "./internal";
+import { JOB_DEX } from "./jobdex";
 import { JOB_CLASSES, jobClass, levelDef, MAX_LEVEL, type JobClassId } from "./levels";
 import type { Result } from "./types";
 
@@ -49,6 +50,20 @@ export function setJobClasses(this: Game, off: readonly string[]): Result<{ off:
   this.sandboxOff = new Set(off as JobClassId[]);
   this.note("sandbox", this.sandboxOff.size ? `arrivals off: ${[...this.sandboxOff].join(", ")}` : "every job class arrives again");
   return { ok: true, off: [...this.sandboxOff] };
+}
+
+/**
+ * Sandbox: choose which kinds of job (job dex ids such as `fib`, `mandel`) arrive on their own, finer than `setJobClasses`: `off` lists the kinds that stop
+ * (empty = all arrive). A class whose kinds at the pinned level are all off sends nothing. `spawnKey` still adds any. Refused in a campaign.
+ */
+export function setJobKinds(this: Game, off: readonly string[]): Result<{ off: string[] }> {
+  if (!this.sandbox) return NOT_SANDBOX;
+  const known = new Set(JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
+  const bad = off.find((id) => !known.has(id));
+  if (bad !== undefined) return { ok: false, reason: `unknown kind of job '${bad}'` };
+  this.sandboxKindsOff = new Set(off);
+  this.note("sandbox", this.sandboxKindsOff.size ? `${this.sandboxKindsOff.size} kinds of job off` : "every kind of job arrives again");
+  return { ok: true, off: [...this.sandboxKindsOff] };
 }
 
 /** Sandbox: throw away every key in the tray (the plugged key and keys the OS holds stay). */

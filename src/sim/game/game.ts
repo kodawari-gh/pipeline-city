@@ -153,6 +153,8 @@ export class Game {
   sandboxLevel = SANDBOX_LEVEL;
   /** Sandbox: job classes switched off for the natural arrivals (spawnKey still adds any). Not saved, like the pinned level. */
   sandboxOff = new Set<JobClassId>();
+  /** Sandbox: kinds of job (job dex ids) switched off for the natural arrivals, on top of `sandboxOff`. Not saved. */
+  sandboxKindsOff = new Set<string>();
 
   /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */
   jobLog: JobLogEntry[] = [];

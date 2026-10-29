@@ -56,7 +56,9 @@ export type ToSim =
   /** Pin the sandbox rules level (patience, payout, demand, job mix), 1 to 18. */
   | { type: 'setLevel'; level: number }
   /** Sandbox: the job classes that stop arriving on their own (empty = all arrive). */
-  | { type: 'setJobClasses'; off: string[] };
+  | { type: 'setJobClasses'; off: string[] }
+  /** Sandbox: the kinds of job (job dex ids) that stop arriving on their own (empty = all arrive). */
+  | { type: 'setJobKinds'; off: string[] };
 
 export type FromSim =
   | { type: 'ready' }

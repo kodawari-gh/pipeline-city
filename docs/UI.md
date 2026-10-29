@@ -32,7 +32,7 @@ The UI is for onboarding and reading the machine, and it recedes: the board is t
 | `state.ts` | UI signals: theme, stats drawer, the inventory shelf, the tutorial's per-viewer state, hint toasts, the stats sparkline history. Everything persisted is in try/catch. |
 | `testdata.ts` | Snapshot fixtures for the tests (a fresh game by default). |
 | `Hud.tsx` | Top bar, Start / Continue modal, the menu (with the UI size slider), the stats drawer, the bottom `.stack` (notices, toasts, tutorial, inventory shelf), inset reporting for the camera. |
-| `NewGame.tsx`, `SandboxTools.tsx` | New game dialog (Campaign or Sandbox) and the sandbox chip with its tools (docs/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Both keep their styles in `ui.css` (no inline `<style>`). |
+| `NewGame.tsx`, `SandboxTools.tsx`, `SandboxJobs.tsx` | New game dialog (Campaign or Sandbox), the sandbox chip with its tools and the sandbox-only LEVEL / JOBS button (level grid, a switch per kind of job) (docs/SANDBOX.md). Sandbox shows an infinity for money and `free` for prices; nothing is unaffordable. Both keep their styles in `ui.css` (no inline `<style>`). |
 | `ladder.test.ts` | Heatsink and upgrade rows: the next tier line, and "Nothing better" only at the top tier. |
 | `place.ts` (+ `place.test.ts`) | Pure: `placePopup` (right, left, below, above, else dock; flipped, clamped, tail offset), `liftAbove` (tutorial card vs target), `comfortablyVisible`. |
 | `anchor.ts`, `units.ts` | Re-export of the renderer's `anchorOf`, `flyTo`, `hasTarget`; the `rem(units)` helper. |

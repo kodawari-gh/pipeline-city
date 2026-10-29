@@ -47,11 +47,14 @@ Shown as the **SANDBOX** chip in the HUD bar. Each is a `ToSim` message and a `G
 | `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray, or a job class id (`db`, `web`, `secure`, `gpu`, `npu`, `hpc`: the class sets template and scale and carries its needs, so it may be unrunnable). Refused when the tray is full. |
 | `setLevel(level)` | Pins the rules level (patience, payout, demand, arrival mix) at 1 to 18; refused in a campaign (`sandbox mode only`). |
 | `setJobClasses(off)` | Chooses which job classes arrive on their own: `off` lists the classes that stop (`cli`, `scan`, `db`, `web`, `secure`, `gpu`, `npu`, `hpc`; empty = all arrive). A class the pinned level has no share for never arrives anyway. With every class off nothing arrives; `spawnKey` still adds any. Not saved, like the pinned level. Shown as the "Arriving on their own" checkboxes in the tools popover. |
+| `setJobKinds(off)` | Finer than the classes: `off` lists kinds of job (job dex ids such as `fib`, `mandel`, `hpc-fft`) that stop arriving on their own (empty = all arrive). A kind arrives when its class is on, the pinned level has reached it and it is not off; a class whose kinds at the level are all off sends nothing (`classBlocked`). `spawnKey` still adds any. Not saved. Shown in the **LEVEL n · JOBS** panel (below). |
 | `clearQueue()` | Throws away every key in the tray. The plugged key and the keys the OS holds stay. |
 | `repairAll()` | Un-burns every part and the board, cools everything to ambient, clears a PSU trip. Works powered or not. |
 | `setReputation(value)` | Sets reputation within the economy's range (0.4 to 4). The turnaround average is set to match, and it moves as usual afterwards. |
 
-The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation`, `setJobClasses` and `setLevel` in `src/game/store.ts`.
+The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation`, `setJobClasses`, `setJobKinds` and `setLevel` in `src/game/store.ts`.
+
+**LEVEL n · JOBS** (`SandboxJobs.tsx`, a second button beside the SANDBOX chip, sandbox games only; the chip's popover is unchanged): a grid of the 18 levels (`setLevel`) with the level's name and arrival mix under it, and every kind of job by group (the job dex groups) with a checkbox each (`setJobKinds`), per-group on/off and All on / All off. Kinds the level has not reached show their level and are dimmed, as are kinds whose class is off in the tools popover.
 
 ## Speed
 

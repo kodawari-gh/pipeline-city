@@ -146,7 +146,7 @@ export function levelSnap(this: Game): LevelSnap {
     progress: this.sandbox || !nextDef ? (this.sandbox ? 0 : 1) : Math.min(1, Math.max(0, (this.clientBase - def.threshold) / span)),
     patienceMul: def.patienceMul, payMul: def.payMul, demandMul: def.demandMul,
     leveledUpAt: this.leveledUpAt, recentlyUnlocked: this.recentUnlocks.map((i) => ({ ...i })),
-    upcoming: LEVEL_ROWS, sandbox: this.sandbox, classesOff: [...this.sandboxOff],
+    upcoming: LEVEL_ROWS, sandbox: this.sandbox, classesOff: [...this.sandboxOff], kindsOff: [...this.sandboxKindsOff],
   };
 }
 

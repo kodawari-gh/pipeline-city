@@ -17,6 +17,7 @@ import { NetDock } from './NetPanel';
 import { Tooltip } from '../kit/Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
+import { SandboxJobs } from '../shop/SandboxJobs';
 import { SandboxTools } from '../shop/SandboxTools';
 import { LevelBar, LevelUpModal, MilestoneScreen } from './Levels';
 import { Shop } from '../shop/Shop';
@@ -243,6 +244,7 @@ export function Hud() {
         <PhaseChip s={s} />
         <NetChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
+        {s.sandbox && <SandboxJobs s={s} />}
         </div>
         <div class={`hud-side hud-center ${lit('level')}`} data-hud="level"><LevelBar s={s} /></div>
         <div class="hud-side hud-right">

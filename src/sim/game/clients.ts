@@ -8,7 +8,7 @@ import {
 } from "./economy";
 import type { Game } from "./game";
 import type { Key } from "./internal";
-import { pickTask, taskNeeds, taskOfTemplate } from "./jobdex";
+import { classBlocked, pickTask, taskNeeds, taskOfTemplate } from "./jobdex";
 import {
   classOfTemplate, itemInfo, jobClass, jobMix, levelDef, levelDemandMul, levelFor, levelPayMul, needsMet, NO_CAPS, patienceMul, pickClass,
   pointsFor, type Caps, type JobClassDef,
@@ -39,7 +39,7 @@ export function enqueue(this: Game, template: string, scale = 1, cls?: string, n
   const seed = this.machine.prng.nextU32();
   // A class with several kinds of job sends one the player's level has reached, chosen by the seed (no extra draw: the PRNG stream does not depend on it).
   const c = pick && cls ? jobClass(cls) : undefined;
-  const task = c && pickTask(c, this.level, seed);
+  const task = c && pickTask(c, this.level, seed, this.sandbox ? this.sandboxKindsOff : undefined);
   if (task) { template = task.template; scale = task.scale ?? c!.scale; }
   const src = net ? this.offersQ : this.tray;
   if (src.waiting().length >= this.cfg.queueCap) {
@@ -77,8 +77,8 @@ export function arrivals(this: Game): void {
       this.enqueue(m.template, m.scale, undefined, toNet);
     } else {
       // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
-      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => (c.id !== "web" || (this.ispTier > 0 && !fallback)) && !this.sandboxOff.has(c.id));
-      if (mix.length === 0) return; // the sandbox switched off every class of this level
+      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => (c.id !== "web" || (this.ispTier > 0 && !fallback)) && !this.sandboxOff.has(c.id) && !classBlocked(c, this.level, this.sandboxKindsOff));
+      if (mix.length === 0) return; // the sandbox switched off every class (or every kind of them) of this level
       const c: JobClassDef = pickClass(mix, r);
       this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web", true);
     }

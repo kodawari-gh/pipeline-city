@@ -465,9 +465,10 @@ export const taskNeeds = (e: DexEntry): Need[] => e.needs ?? jobClass(e.cls)?.ne
  * The job a class sends for a draw `seed` at `level`, from the ones that have arrived at that level (weighted), or undefined to send the class's own
  * template (while only legacy jobs have arrived, which keeps a game that has not got further playing as it always did).
  */
-export function pickTask(cls: JobClassDef, level: number, seed: number): DexEntry | undefined {
-  const open = JOB_DEX.filter((e) => e.cls === cls.id && !e.planned && taskLevel(e) <= level);
-  if (open.length === 0 || open.every((e) => e.legacy)) return undefined;
+export function pickTask(cls: JobClassDef, level: number, seed: number, off?: ReadonlySet<string>): DexEntry | undefined {
+  const open = JOB_DEX.filter((e) => e.cls === cls.id && !e.planned && taskLevel(e) <= level && !off?.has(e.id));
+  // With kinds switched off (sandbox) the class's own template could send one of them, so a pick is always made from what is left.
+  if (open.length === 0 || (!off?.size && open.every((e) => e.legacy))) return undefined;
   const total = open.reduce((n, e) => n + (e.weight ?? 1), 0);
   let x = (Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) >>> 0) / 2 ** 32 * total;
   for (const e of open) {
@@ -475,6 +476,12 @@ export function pickTask(cls: JobClassDef, level: number, seed: number): DexEntr
     if (x < 0) return e;
   }
   return open[open.length - 1];
+}
+
+/** True when the class has kinds at `level` and every one of them is in `off`: it has nothing left to send (sandbox). */
+export function classBlocked(cls: JobClassDef, level: number, off: ReadonlySet<string>): boolean {
+  const open = JOB_DEX.filter((e) => e.cls === cls.id && !e.planned && taskLevel(e) <= level);
+  return open.length > 0 && open.every((e) => off.has(e.id));
 }
 
 /** The number of an entry in the collection (1, 2, ...): the order the groups show them in. */
