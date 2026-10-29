@@ -17,7 +17,7 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - Docs over ~20 KB (`RENDER`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^## ` for the headings, then Read only that section. Never read them whole.
 
 ## Rules
-- The old prototype `legacy/` is removed on this branch (it is still on `main`; use `git show main:legacy/<file>` only if asked). Never read `dist/` or `package-lock.json`.
+- The old prototype `legacy/` is not in this tree; it lives on the `legacy-archive` branch (`git show legacy-archive:legacy/<file>` only if asked). Never read `dist/` or `package-lock.json`.
 - Work list: `docs/TODO.md` (tagged, bite-size tasks), run by the separate `prompt-system` repo; do not add runner scripts here.
 - Other sessions share the working tree: new files and small edits, stage explicit paths only (never `git add -A`).
 - Use Edit, never rewrite a file from a script. UI sizes are relative units (`src/ui/scaling.test.ts` stays green).

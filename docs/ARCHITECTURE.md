@@ -2,7 +2,7 @@
 
 Pipeline City is an incremental game (think Universal Paperclips) about building computing hardware. Money comes from running customer workloads, and money buys better or more hardware. A cycle-accurate CPU simulation is the economy and the show.
 
-Status: POC. Decisions below are current, not final. The old prototype was `legacy/`; it is removed on this branch and still lives on `main` (see `legacy/HANDOVER.md` there) as the reference for the engines and board visuals.
+Status: POC. Decisions below are current, not final. The old prototype was `legacy/`; it lives on the `legacy-archive` branch (see `legacy/HANDOVER.md` there) as the reference for the engines and board visuals.
 
 ## Stack
 
