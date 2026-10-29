@@ -21,8 +21,8 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Open now
 
-- [ ] T83 [auto] {sonnet} Accelerator internal views animated from sim state (GPU lanes with mask and banks, NPU MAC grid with the descriptor list, TPM three stages with a lock badge) and hover ids for each lane, bank, cell and stage. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/render/interact.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
-- [ ] T84 [auto] {sonnet} Accelerator graphics overhault, including GPU fans at the top, and intern detailed view for the GPUS up to par with what we have for CPU and RAM high LOD
+- Accelerator internal views animated from sim state (GPU lanes with mask and banks, NPU MAC grid with the descriptor list, TPM three stages with a lock badge) and hover ids for each lane, bank, cell and stage. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/render/interact.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
+- Accelerator graphics overhault, including GPU fans at the top, and intern detailed view for the GPUS up to par with what we have for CPU and RAM high LOD
 
 ## Design notes (no code)
 

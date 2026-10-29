@@ -59,6 +59,23 @@ describe('picker contents per id', () => {
     expect(hot.lines.some((l) => l.level === 'bad' && /Unstable/.test(l.text))).toBe(true);
   });
 
+  it('a fitted part offers Remove (by its slot, its device id or its world id); an empty socket and a spare do not', () => {
+    const s = snap({
+      devices: [dev({ id: 'dev9', spec: 'display0', kind: 'display', slot: 'display0', name: 'CLI monitor' })],
+      slots: [{ id: 'display0', type: 'display', deviceId: 'dev9' }, { id: 'cpu0', type: 'cpu', deviceId: null }],
+      powered: false, phase: 'off',
+    });
+    for (const id of ['display0', 'dev9', 'monitor']) {
+      expect(pickerFor(id, s)!.actions).toEqual([expect.objectContaining({ id: 'uninstall', deviceId: 'dev9', label: 'Remove CLI monitor' })]);
+      expect(pickerFor(id, s)!.actions[0]!.why).toBeUndefined();
+    }
+    expect(pickerFor('cpu0', s)!.actions).toEqual([]);
+    expect(pickerFor('inv:inv3', s)!.actions).toEqual([]);
+    expect(pickerFor('dev9', { ...s, powered: true })!.actions[0]!.why).toMatch(/Power the machine off/);
+    const burnt = snap({ devices: [dev({ id: 'dev9', spec: 'display0', kind: 'display', slot: 'display0', name: 'CLI monitor', burnt: true })], slots: s.slots });
+    expect(pickerFor('dev9', burnt)!.actions[0]!.label).toBe('Scrap CLI monitor');
+  });
+
   it('a spec id that is not installed shows the spec, and is the default comparison', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu0', kind: 'cpu' })] });
     const m = pickerFor('cpu1', s)!;
@@ -348,6 +365,11 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
   it('uninstall is refused while the machine is on (the reason is the disabled tooltip)', () => {
     const a = pickerFor('os', withOs())!.actions[0]!;
     expect(a.why).toMatch(/Power the machine off/);
+  });
+
+  it('the drive that hosts the OS cannot be removed until the OS is', () => {
+    const a = pickerFor('dev-hdd', withOs([], { powered: false, phase: 'off' }))!.actions.find((x) => x.id === 'uninstall')!;
+    expect(a.why).toMatch(/uninstall the OS first/);
   });
 
   it('the bay offers the operating systems while none is installed, and not once one is', () => {

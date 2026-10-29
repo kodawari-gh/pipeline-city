@@ -27,9 +27,11 @@ export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' 
 export interface PickerLine { level: Level | 'info'; text: string }
 
 export interface PickerAction {
-  id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstallOs';
+  id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstall' | 'uninstallOs';
   label: string;
   keyId?: number;
+  /** `uninstall`: the installed device to take out (`router` for the router spot). */
+  deviceId?: string;
   primary?: boolean;
   /** Disabled reason, when the action is shown but cannot be taken now. */
   why?: string;
@@ -577,9 +579,12 @@ function netCard(id: string, kind: 'router' | 'isp', s: Snapshot): PickerModel {
   if (kind === 'isp' && !cur) lines.push({ level: 'warn', text: 'No internet plan yet. Buy one below: it sets how fast jobs and results travel.' });
   if (kind === 'router' && !cur && !inv) lines.push({ level: 'warn', text: 'No router yet. Buy one below, then drag it from the inventory to this spot.' });
   lines.push(...netStateLines(s));
+  // The router is external (own power): it comes out of its spot with the machine on or off.
+  const actions: PickerAction[] = kind === 'router' && id === 'router' && cur
+    ? [{ id: 'uninstall', label: 'Remove router', deviceId: 'router' }] : [];
   return {
     ...emptyCard(id, kind, d.title, d.plain, d.nerd),
-    ladder, current: cur?.id ?? null, focus: specId, lines,
+    ladder, current: cur?.id ?? null, focus: specId, lines, actions,
     emptyText: nextUpgrade(ladder) ? undefined : 'Nothing better to buy right now.',
   };
 }
@@ -767,6 +772,14 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
       actions.push({ id: 'uninstallOs', label: 'Uninstall OS', why: s.powered ? 'Power the machine off first' : undefined });
     } else if (kind === 'os') {
       lines.push({ level: 'info', text: 'No operating system installed. Buy one from a drive bay, then install it onto a drive.' });
+    }
+    // Any fitted part (the monitor, the PSU, a DIMM, a card...) can come out again, into the inventory; a burnt one is scrapped.
+    if (dev && !emptySocket && !invItem && (slot?.deviceId === dev.id || id === dev.id || !!WORLD_KIND[id])) {
+      actions.push({
+        id: 'uninstall', deviceId: dev.id,
+        label: dev.burnt ? `Scrap ${dev.name}` : `Remove ${dev.name}`,
+        why: s.powered ? 'Power the machine off first' : hostsOs ? 'The OS is on this drive: uninstall the OS first' : undefined,
+      });
     }
     const cpu = kind === 'cpu' ? dev : undefined;
     if (cpu) {

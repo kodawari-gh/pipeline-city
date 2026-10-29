@@ -2,7 +2,7 @@ import { effect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../game/hover';
 import { cameraRev, highlight } from '../../game/interaction';
-import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstallOs } from '../../game/store';
+import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstall, uninstallOs } from '../../game/store';
 import { getSpec, type CpuSpec, type RamSpec } from '../../sim/board/specs';
 import type { Snapshot } from '../../sim/game/game';
 import { getOsSpec } from '../../sim/os';
@@ -335,6 +335,7 @@ function Action({ a }: { a: PickerAction }) {
       case 'powerCycle': powerCycle(); break;
       case 'plug': if (a.keyId !== undefined) plugKey(a.keyId); break;
       case 'eject': ejectKey(); break;
+      case 'uninstall': if (a.deviceId) uninstall(a.deviceId); break;
       case 'uninstallOs':
         if (!armed) { setArmed(true); return; }
         setArmed(false);
@@ -347,7 +348,7 @@ function Action({ a }: { a: PickerAction }) {
     <button
       class={a.primary || (a.id === 'uninstallOs' && armed) ? 'primary' : ''}
       disabled={!!a.why}
-      title={a.why ?? (a.id === 'uninstallOs' ? 'Takes the OS off its drive and back into your inventory. The drive is wiped.' : undefined)}
+      title={a.why ?? (a.id === 'uninstallOs' ? 'Takes the OS off its drive and back into your inventory. The drive is wiped.' : a.id === 'uninstall' ? 'Takes it out of the machine and into your inventory (a processor takes its cooler along).' : undefined)}
       onClick={run}
     >
       {label}
