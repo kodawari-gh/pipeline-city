@@ -1,6 +1,7 @@
 // Placeholder engine: the reference interpreter at one instruction per CPU tick, going through the Machine bus.
 
 import { RefCpu, RefMemory } from "../ref/ref";
+import type { Core } from "./core";
 import type { Engine } from "./engine";
 import type { Machine } from "./machine";
 
@@ -18,13 +19,13 @@ class BusMemory extends RefMemory {
 export class RefEngine implements Engine {
   private cpu: RefCpu | null = null;
 
-  reset(machine: Machine, program: Uint32Array): void {
-    machine.loadProgram(program);
+  reset(machine: Machine, program: Uint32Array, core: Core = machine.cores[0]!): void {
+    machine.loadProgram(program, core);
     const cpu = new RefCpu(new BusMemory(machine));
-    // Share the machine's register file (readonly is TS-only).
-    (cpu as { regs: Int32Array }).regs = machine.regs;
-    cpu.pc = 0;
-    cpu.intc = machine.intc;
+    // Share the core's register file (readonly is TS-only).
+    (cpu as { regs: Int32Array }).regs = core.regs;
+    cpu.pc = core.entry;
+    cpu.intc = core.intc;
     this.cpu = cpu;
   }
 

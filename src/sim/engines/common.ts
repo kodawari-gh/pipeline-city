@@ -4,6 +4,7 @@
 import { OPS, SPEC_BY_NAME } from "../isa/isa";
 import { DEVICE_BASE, FAULT_CAUSE_LINE } from "../isa/memmap";
 import type { Bus } from "../machine/bus";
+import type { Core } from "../machine/core";
 import type { Engine } from "../machine/engine";
 import type { Machine } from "../machine/machine";
 import { Counter, Fate, ViewState, type EngineView } from "./view";
@@ -349,6 +350,8 @@ export abstract class EngineBase implements PipelineEngine {
   private seqPc = 0;
   protected readonly redirectPenalty: number;
   protected machine!: Machine;
+  /** The core this engine runs: its registers, interrupt controller and MMU. */
+  protected core!: Core;
   protected bus!: Bus;
   protected regs!: Int32Array;
   protected ramSize = 0;
@@ -429,13 +432,14 @@ export abstract class EngineBase implements PipelineEngine {
 
   invalidateCache(): void { this.cache.invalidate(); this.icache?.invalidate(); this.mem.invalidate(); }
 
-  reset(machine: Machine, program: Uint32Array): void {
-    machine.loadProgram(program);
+  reset(machine: Machine, program: Uint32Array, core: Core = machine.cores[0]!): void {
+    machine.loadProgram(program, core);
     this.machine = machine;
+    this.core = core;
     this.bus = machine.bus;
-    this.regs = machine.regs;
+    this.regs = core.regs;
     this.ramSize = machine.ram.length;
-    this.fetchPc = 0;
+    this.fetchPc = core.entry;
     this.cycleNo = 0;
     this.isHalted = false;
     this.hold = false;
@@ -464,7 +468,7 @@ export abstract class EngineBase implements PipelineEngine {
   protected fetchReady(vpc: number): boolean {
     // the instruction cache and the L2 are physical: with translation on, look the address up (no side effects; a missing page is the fetch's fault to take)
     let pc = vpc;
-    if (this.machine.mmu.enabled) { pc = this.machine.mmu.peek(vpc); if (pc < 0) return true; }
+    if (this.core.mmu.enabled) { pc = this.core.mmu.peek(vpc); if (pc < 0) return true; }
     if (pc >= this.ramSize) return true;
     const ic = this.icache, c = this.v.counters;
     if (this.iWaitPc !== vpc) {
@@ -497,7 +501,7 @@ export abstract class EngineBase implements PipelineEngine {
    * turns out to be on the right path: fetch runs ahead of branches).
    */
   protected fetchInto(s: number, pc: number): void {
-    const mmu = this.machine.mmu, p = this.pool;
+    const mmu = this.core.mmu, p = this.pool;
     if (!mmu.enabled || pc >= DEVICE_BASE) { p.fetch(this.bus, this.ramSize, s, pc); return; }
     p.pc[s] = pc; p.fault[s] = 0; p.state[s] = 0; p.wait[s] = 0; p.op[s] = 0; p.word[s] = 0;
     const f = this.translate(pc, false, true);
@@ -508,7 +512,7 @@ export abstract class EngineBase implements PipelineEngine {
 
   /** One translation through the MMU: counts it, logs it for the die and charges the walk (each table read goes through the L2 and DRAM like any miss). Returns the fault code or 0; the physical address is in `machine.mmu.pa`. */
   protected translate(va: number, write: boolean, exec: boolean): number {
-    const mmu = this.machine.mmu, c = this.v.counters;
+    const mmu = this.core.mmu, c = this.v.counters;
     const f = mmu.lookup(va, write, exec);
     if (mmu.hit) c[Counter.TlbHits]!++;
     else {
@@ -523,7 +527,7 @@ export abstract class EngineBase implements PipelineEngine {
 
   /** The instruction in slot `s` carries a page fault and is on the right path: hand it to the OS. Registers, memory and the pc of everything older are final; this one has done nothing. */
   protected takeFault(s: number): void {
-    const p = this.pool, m = this.machine;
+    const p = this.pool, m = this.core;
     m.mmu.recordFault(p.fault[s]!, p.vaddr[s]!);
     m.mmu.enterKernel();
     m.intc.enter(FAULT_CAUSE_LINE, p.pc[s]!, 0);
@@ -542,7 +546,7 @@ export abstract class EngineBase implements PipelineEngine {
   }
 
   protected retire(id: number, op: number): void {
-    if (op === OP_IRET) { this.machine.intc.leave(); this.events.push(this.cycleNo, Ev.Iret, this.machine.intc.epc | 0, 0, 0, 0); } // interrupts are on again once the iret has retired
+    if (op === OP_IRET) { this.core.intc.leave(); this.events.push(this.cycleNo, Ev.Iret, this.core.intc.epc | 0, 0, 0, 0); } // interrupts are on again once the iret has retired
     this.v.counters[Counter.Retired]!++;
     this.v.setFate(id, Fate.Retired);
   }
@@ -561,10 +565,10 @@ export abstract class EngineBase implements PipelineEngine {
     if (f & F_MEM) {
       const va = (a + imm) >>> 0;
       p.addr[s] = va;
-      if (this.machine.mmu.enabled && va < DEVICE_BASE) {
+      if (this.core.mmu.enabled && va < DEVICE_BASE) {
         const fault = this.translate(va, (f & F.Store) !== 0, false);
         if (fault) { p.fault[s] = fault; p.vaddr[s] = va; p.addr[s] = 0xffff_fffc; } // an address no load can use: younger loads wait for this store, which will fault at commit
-        else p.addr[s] = this.machine.mmu.pa;
+        else p.addr[s] = this.core.mmu.pa;
       }
       return (pc + 4) >>> 0;
     }
@@ -572,7 +576,7 @@ export abstract class EngineBase implements PipelineEngine {
       this.taken = branchTaken(op, a, b);
       return (this.taken ? pc + imm : pc + 4) >>> 0;
     }
-    if (op === OP_IRET) { this.machine.mmu.leaveKernel(); return this.machine.intc.epc >>> 0; }
+    if (op === OP_IRET) { this.core.mmu.leaveKernel(); return this.core.intc.epc >>> 0; }
     if (f & F.Jal) { p.res[s] = pc + 4; return (pc + imm) >>> 0; }
     if (f & F.Jalr) { p.res[s] = pc + 4; return ((a + imm) & ~3) >>> 0; }
     if (op !== OP_ECALL) p.res[s] = alu(op, a, b, imm, pc);

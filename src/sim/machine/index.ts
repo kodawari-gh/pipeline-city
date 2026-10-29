@@ -6,6 +6,7 @@ export * from "./bus";
 export * from "./intc";
 export * from "./engine";
 export * from "./refEngine";
+export * from "./core";
 export * from "./machine";
 export * from "./storage";
 export * from "./gpu";

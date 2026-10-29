@@ -1,12 +1,16 @@
+import type { MemSystem } from "../engines/memsys";
+import type { Core } from "./core";
 import type { Machine } from "./machine";
 
 /**
- * A CPU engine (unpipelined, 5-stage, ...). It owns its pipeline state; the Machine owns RAM, registers and devices.
- * The CPU clock domain calls step() once per CPU tick.
+ * A CPU engine (unpipelined, 5-stage, ...). It owns its pipeline state; the Machine owns RAM and the devices, and each Core its registers and
+ * interrupt state. The CPU clock domain calls step() once per CPU tick (on a multicore machine for each core's engine in turn).
  */
 export interface Engine {
-  /** Load the program into machine RAM and restart: cold caches/pipeline, pc = 0, cycle = 0. */
-  reset(machine: Machine, program: Uint32Array): void;
+  /** Load the program into machine RAM at the core's entry and restart: cold caches/pipeline, pc = the core's entry (0), cycle = 0. `core` defaults to core 0. */
+  reset(machine: Machine, program: Uint32Array, core?: Core): void;
+  /** Use an L2 and DRAM shared with the other cores instead of the engine's own (before `reset`; its owner resets it). Optional. */
+  useMemSystem?(mem: MemSystem): void;
   /** Advance one CPU cycle. No-op once halted. */
   step(): void;
   readonly halted: boolean;

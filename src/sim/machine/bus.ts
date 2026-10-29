@@ -18,6 +18,14 @@ export class Bus {
   readonly dirty: Uint8Array;
   /** Memory protection: a store the unit denies is dropped and trips it. Null = none. */
   mpu: Mpu | null = null;
+  /** The logical core the access in progress comes from; the machine sets it before each core's step, so per-core devices answer per core. */
+  core = 0;
+
+  /** Serve core `index`, whose protection unit is `mpu`. */
+  serve(index: number, mpu: Mpu): void {
+    this.core = index;
+    this.mpu = mpu;
+  }
 
   constructor(private readonly ram: Uint8Array) {
     this.ramView = new DataView(ram.buffer, ram.byteOffset, ram.byteLength);
