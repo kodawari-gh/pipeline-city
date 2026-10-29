@@ -40,7 +40,7 @@ All three follow the existing device rules: a declarative spec in `DEVICE_SPECS`
 | `gpu3` | 32 | 32K, 4 banks | 4 | 12 / 180 | yes, 2 leads | about $15,000 | 16 |
 
 - **Thermal:** its own cooler, built into the card (`passive` high, no cooler slot), throttles like a CPU. Fans on the card are art, not a part.
-- **Display:** `display1` (planned, level 10) is the graphics display the GPU drives; `gpu` jobs whose template renders write the frame there. Without `display1` the job still runs and pays, it just shows nothing.
+- **Display:** `display1` (level 10, a part like `display0`, same slot) is the graphics display. Its OS screen is a dashboard (clock, temperature, power, disk, memory bar, IPC trace, process table; `room/screenmodel.ts`, `screenview.ts`); the OS's boot text still shows as on `display0`. Planned next: plug its video cable into a GPU's display port and the job's frame shows there while a `gpu` job draws. Without it the job still runs and pays, it just shows nothing.
 
 ## NPU
 

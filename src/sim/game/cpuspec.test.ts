@@ -55,7 +55,7 @@ describe("accelerator specs (docs/ACCEL.md tables)", () => {
     expect(getSpec("gpu1")).toMatchObject({ kind: "gpu", slot: "pcie", idleW: 4, loadW: 40, needsPcieCable: true, clock: { base: 2 } });
     expect(getSpec("npu1")).toMatchObject({ kind: "npu", slot: "pcie", idleW: 2, loadW: 15, needsPcieCable: false });
     expect(getSpec("psu3")).toMatchObject({ kind: "psu", slot: "atx-plus", watts: 500, pcieLeads: 2 });
-    for (const id of ["tpm1", "gpu1", "npu1", "psu3"]) expect(isPlannedItem(id)).toBe(false);
+    for (const id of ["tpm1", "gpu1", "npu1", "psu3", "display1"]) expect(isPlannedItem(id)).toBe(false);
   });
 
   it("unlock levels match PROGRESSION.md", () => {

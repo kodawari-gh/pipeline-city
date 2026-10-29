@@ -513,7 +513,7 @@ export async function mountBoard(host: HTMLElement) {
     const deviceHits: Hit[] = [];
     // graphics cards: their live view (fans, lanes, banks) and the hits of every part of them, tried before the card itself
     const gpuCards: GpuCardScene[] = [], gpuHits: Hit[] = [];
-    let hasPsu = false, hasDisplay = false;
+    let hasPsu = false, hasDisplay = false, gfxDisplay = false;
     const dimms: number[] = [];
     scene.rects.clear(); scene.interactive.clear(); scene.slots.clear();
     roomHits = roomView.hits.map((h: RoomHit) => ({ id: h.id, rect: h.rect, shape: h.shape }));
@@ -615,13 +615,14 @@ export async function mountBoard(host: HTMLElement) {
       } else if (spec.kind === 'storage') {
         storageDevs.push({ id: d.id, spec: d.spec, slot: d.slot });
       } else if (spec.kind === 'display') {
-        const p = monitorArt(T, true);
+        const p = monitorArt(T, true, spec.visual === 'monitor-gfx');
         monitorLayer.addChild(p.root);
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
         deviceHits.push(partHit('monitor', p.root, MONITOR));
         scene.rects.set(d.id, MONITOR); scene.rects.set('monitor', MONITOR);
         scene.interactive.add('monitor');
         hasDisplay = true;
+        gfxDisplay = spec.visual === 'monitor-gfx';
       }
     }
     if (!hasPsu) scene.rects.set('psu', PSU);
@@ -764,7 +765,7 @@ export async function mountBoard(host: HTMLElement) {
 
     const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie'); // listed only while a card needs the lead (or it is plugged)
     const cables = ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)));
-    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay }, hooks, gpuCards);
+    live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay, gfx: gfxDisplay }, hooks, gpuCards);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
     syncCables(s, true);

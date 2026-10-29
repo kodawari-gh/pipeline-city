@@ -40,3 +40,12 @@ export function standbyLook(m: MonitorInput, v: MonitorView, osOn: boolean): 'of
   if (!m.hasDisplay || v.text !== '' || v.noSignal || osOn || m.monitorPowered === false) return null;
   return m.powered ? 'wait' : 'off';
 }
+
+/**
+ * Which picture the glass draws once the monitor is live: `text` (the POST/CLI text), `os` (the text status screen of the plain display),
+ * or `dash` (the graphics display's dashboard, once the OS is up: its boot still shows the status text).
+ */
+export function screenMode(osOn: boolean, gfx: boolean, phase: string): 'text' | 'os' | 'dash' {
+  if (!osOn) return 'text';
+  return gfx && phase !== 'booting-os' ? 'dash' : 'os';
+}

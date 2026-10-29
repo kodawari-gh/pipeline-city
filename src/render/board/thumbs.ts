@@ -141,7 +141,7 @@ function make(id: string, T: Theme): string | null {
       }
       case 'cooler': { const p = coolerArt(T, spec as CoolerSpec); holder.addChild(p.root); break; }
       case 'psu': holder.addChild(psuBoxArt(T, spec as PsuSpec)); break;
-      case 'display': holder.addChild(monitorArt(T, true).root); break;
+      case 'display': holder.addChild(monitorArt(T, true, spec.visual === 'monitor-gfx').root); break;
       case 'vrm-sink': case 'ram-sink': {
         // a compact block (the one on the board is a long strip): the fins, the heat pipe, the fan
         const p = vrmSinkArt(T, spec.visual, { x: 0, y: 0, w: spec.kind === 'ram-sink' ? 1100 : 1300, h: 640 });

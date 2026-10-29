@@ -65,10 +65,13 @@ describe('milestone list', () => {
   it('lists what each level unlocks, with art only for real parts', () => {
     const l10 = rows[9]!;
     expect(l10.unlocks.map((u) => u.id)).toContain('display1');
-    const router = l10.unlocks.find((u) => u.id === 'display1')!;
-    expect(router.planned).toBe(true);
-    expect(hasArt(router.id, router.kind, router.planned)).toBe(false);
-    expect(router.icon).toBe('screen');
+    const display = l10.unlocks.find((u) => u.id === 'display1')!;
+    expect(display.planned).toBe(false);
+    expect(hasArt(display.id, display.kind, display.planned)).toBe(true);
+    expect(display.icon).toBe('screen');
+    const planned = rows[6]!.unlocks.find((u) => u.id === 'fan1')!; // still only a name in the table
+    expect(planned.planned).toBe(true);
+    expect(hasArt(planned.id, planned.kind, planned.planned)).toBe(false);
     const cpu = rows[0]!.unlocks.find((u) => u.id === 'cpu1')!;
     expect(hasArt(cpu.id, cpu.kind, cpu.planned)).toBe(true);
     expect(hasArt('board1', 'board', false)).toBe(true);

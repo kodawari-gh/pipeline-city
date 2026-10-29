@@ -364,14 +364,15 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
 }
 
 // ---------------------------------------------------------------- monitor (west of the board, 16:9)
-export function monitorArt(T: Theme, on: boolean): Part {
+/** `gfx`: the graphics display (`display1`): a bluer shell, an accent line under the glass and its own name; the CLI monitor is the plain one. */
+export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
   // drawn at its design size (3300 x 1995, the screen inset by 90 / 80) and scaled up into place
   root.position.set(MONITOR.x, MONITOR.y); root.scale.set(MONITOR_K);
   const m = { x: 0, y: 0, w: 3300, h: 1995 }, s = { x: 90, y: 80, w: SCREEN_D.w, h: SCREEN_D.h };
-  const shell = T.dark ? '#171d2b' : '#2a313f', shellHi = mix(shell, '#ffffff', T.dark ? 0.1 : 0.14), shellLo = mix(shell, '#000000', 0.35);
+  const shell = gfx ? (T.dark ? '#141c30' : '#26334a') : T.dark ? '#171d2b' : '#2a313f', shellHi = mix(shell, '#ffffff', T.dark ? 0.1 : 0.14), shellLo = mix(shell, '#000000', 0.35);
   const cx = m.x + m.w / 2, by = m.y + m.h;
   // ---- the stand: a flat oval base on a rubber strip, a neck that fans out to a hinge under the bezel (lit on the left, shaded on the right) ----
   box(g, cx - 780, by + 345, 1560, 90, 45, { fill: '#000000', fa: 0.22 });
@@ -399,6 +400,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
   g.poly([s.x + 1300, s.y + s.h - 20, s.x + 1700, s.y + 20, s.x + 1820, s.y + 20, s.x + 1420, s.y + s.h - 20]).fill({ color: '#ffffff', alpha: 0.018 });
   g.rect(s.x + 30, s.y + 4, s.w - 60, 6).fill({ color: '#ffffff', alpha: 0.07 });
   for (const [qx, qy] of [[s.x, s.y], [s.x + s.w - 160, s.y], [s.x, s.y + s.h - 160], [s.x + s.w - 160, s.y + s.h - 160]] as const) g.rect(qx, qy, 160, 160).fill({ color: '#000000', alpha: 0.05 });
+  if (gfx) g.rect(s.x + 120, s.y + s.h + 38, s.w - 240, 8).fill({ color: T.alu, alpha: on ? 0.55 : 0.25 });
   // ---- the chin: a little skyline mark and the brand, the power lamp and the touch buttons ----
   const cy = s.y + s.h + 26 + (m.y + m.h - (s.y + s.h + 26)) / 2;
   for (const [dx, hh] of [[0, 20], [14, 34], [28, 26], [42, 40], [56, 22]] as const) g.rect(cx - 150 + dx, cy + 20 - hh, 10, hh).fill({ color: T.mute, alpha: 0.7 });
@@ -408,7 +410,7 @@ export function monitorArt(T: Theme, on: boolean): Part {
   disc(g, m.x + m.w - 220, cy, 14, { fill: on ? T.st : T.mute, fa: on ? 1 : 0.4 });
   if (on) disc(g, m.x + m.w - 220, cy, 34, { fill: T.st, fa: 0.12 });
   // no sockets: the monitor's video cable and its mains cord are built in and come out from behind it
-  labels.addChild(label('CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.8 }));
+  labels.addChild(label(gfx ? 'GRAPHICS MONITOR' : 'CLI MONITOR', m.x + 20, m.y - 40, 56, T.ink, { a: 0.8 }));
   root.addChild(labels);
   return { root };
 }

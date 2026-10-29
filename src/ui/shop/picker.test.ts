@@ -165,11 +165,11 @@ describe('picker contents per id', () => {
     }
   });
 
-  it('monitor: explanation, and no upgrades when there is only the starter monitor', () => {
+  it('monitor: explanation, and no upgrades to buy yet when only the starter monitor is installed (the graphics display waits for its level)', () => {
     const m = pickerFor('monitor', snap({ devices: [dev({ id: 'dev3', spec: 'display0', kind: 'display', name: 'CLI monitor' })] }))!;
     expect(m.kind).toBe('display');
-    expect(m.ladder.map((r) => r.state)).toEqual(['installed']);
-    expect(m.emptyText).toBe('Nothing better to buy right now.');
+    expect(m.ladder.map((r) => r.state)).toEqual(['installed', 'level']);
+    expect(m.emptyText).toBeUndefined(); // the locked graphics display is the next upgrade
   });
 
   it('board: the ladder offers the next motherboard tier, with its price', () => {

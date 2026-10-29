@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { monitorView, standbyLook, type MonitorInput } from './monitor';
+import { monitorView, screenMode, standbyLook, type MonitorInput } from './monitor';
 
 const base: MonitorInput = { hasDisplay: true, powered: true, monitorLive: true, phase: 'running', postFailed: false, display: 'HELLO' };
 
@@ -35,5 +35,14 @@ describe('standbyLook', () => {
     expect(look({ phase: 'error' })).toBeNull(); // NO SIGNAL
     expect(look({ display: '' }, true)).toBeNull(); // the OS screen
     expect(look({ hasDisplay: false, powered: false, display: '' })).toBeNull();
+  });
+});
+
+describe('screenMode', () => {
+  it('shows text while the OS screen is off', () => expect(screenMode(false, true, 'idle-os')).toBe('text'));
+  it('shows the status screen on the plain display', () => expect(screenMode(true, false, 'running-os')).toBe('os'));
+  it('shows the dashboard on the graphics display once the OS is up, the status text while it boots', () => {
+    expect(screenMode(true, true, 'running-os')).toBe('dash');
+    expect(screenMode(true, true, 'booting-os')).toBe('os');
   });
 });

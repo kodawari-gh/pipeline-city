@@ -330,6 +330,9 @@ const specList: DeviceSpec[] = [
 
   { id: "display0", kind: "display", tier: 0, name: "CLI monitor", slot: "display", price: 0, idleW: 1, loadW: 3, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-cli", writeLatency: 1 },
+  // The graphics display (docs/ACCEL.md "Display"): a faster panel (writes land at once) with a richer screen: the OS dashboard, or what a GPU draws when the cable is on the card.
+  { id: "display1", kind: "display", tier: 1, name: "Graphics display", slot: "display", price: 2500, idleW: 3, loadW: 8, heatFactor: 1,
+    clock: { min: 0.5, base: 1, max: 2 }, thermal: dispThermal, visual: "monitor-gfx", writeLatency: 0 },
 ];
 
 export const DEVICE_SPECS: Readonly<Record<string, DeviceSpec>> = Object.fromEntries(specList.map((s) => [s.id, s]));

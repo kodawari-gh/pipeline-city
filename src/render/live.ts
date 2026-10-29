@@ -6,11 +6,13 @@ import { blades } from './board/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './board/drives';
 import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './board/layout';
-import { monitorView, standbyLook, type MonitorInput } from './room/monitor';
+import { monitorView, screenMode, standbyLook, type MonitorInput } from './room/monitor';
 import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
 import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
+import { dashModel, IPC_SAMPLES, ipcBetween } from './room/screenmodel';
+import { ScreenView } from './room/screenview';
 import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import type { Theme } from './theme';
 
@@ -116,6 +118,13 @@ export class Live {
   /** Machine switched on AND the power path is healthy (PSU not tripped, board not dead): fans spin, lights glow, buses move data. */
   private liveOn = false;
   private hasDisplay = false;
+  /** The installed display is the graphics display (`display1`): its screen shows the dashboard, and what a GPU draws. */
+  private gfxDisplay = false;
+  /** The graphics display's dashboard, and what it remembers between snapshots (IPC samples, when each program was first seen running). */
+  private dash = new ScreenView();
+  private dashIpc: number[] = [];
+  private dashPrev: Record<string, number> | null = null;
+  private dashStarted = new Map<number, number>();
   /** PCH, USB LED, monitor LED and boot bar: redrawn every frame while something is active. */
   private bootG = new Graphics();
   private noSignal: Text;
@@ -189,7 +198,7 @@ export class Live {
   /** (Re)build live objects for a scene. Called when the theme or the installed set changes. */
   setScene(
     T: Theme, targets: GlowTarget[], buses: Bus[], cables: Cable[], fans: { c: Container; kind: string }[], dramChips: Rect[], dimms: number[],
-    flags: { psu: boolean; display: boolean }, drives: DriveHook[] = [], gpuCards: GpuCardScene[] = [],
+    flags: { psu: boolean; display: boolean; gfx?: boolean }, drives: DriveHook[] = [], gpuCards: GpuCardScene[] = [],
   ) {
     this.T = T;
     this.placePsuTexts();
@@ -306,7 +315,7 @@ export class Live {
     // the screen's contents are laid out at the design size inside a container scaled onto the (bigger) monitor
     this.scr.removeChildren();
     this.buildStandby(T);
-    this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.noSignal);
+    this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.dash, this.noSignal);
     this.scr.position.set(SCREEN.x, SCREEN.y); this.scr.scale.set(MONITOR_K);
     this.ext.addChild(this.extG, this.scr);
     const showPsu = flags.psu;
@@ -316,6 +325,7 @@ export class Live {
     this.osSig = '\u0000'; this.osOn = false; this.osG.visible = false;
     for (const t of this.osRows) t.visible = false;
     this.hasDisplay = flags.display;
+    this.gfxDisplay = !!flags.gfx;
     this.noSignal.visible = false;
     this.screenText.style.fill = T.st;
     this.badge.position.set(0, PKG.y - 160);
@@ -755,8 +765,10 @@ export class Live {
     this.screenText.visible = this.hasDisplay && !on;
     this.osG.visible = on;
     this.osJob = 'none';
-    if (!on || !s.os) { for (const t of this.osRows) t.visible = false; this.osSig = ''; return; }
+    if (!on || !s.os) { for (const t of this.osRows) t.visible = false; this.osSig = ''; this.dash.show(null); this.dashIpc = []; this.dashPrev = null; this.dashStarted.clear(); return; }
     const os = s.os, q = os.queue ?? [];
+    if (screenMode(on, this.gfxDisplay, ph) === 'dash') { this.updateDash(s); return; }
+    this.dash.show(null);
     const pad = (a: string, b: string) => a + ' '.repeat(Math.max(1, OS_COLS - a.length - b.length)) + b;
     const rows: { t: string; c: string }[] = [];
     const status = ph === 'booting-os' ? 'BOOTING' : ph === 'idle-os' ? 'READY' : ph === 'ingesting' ? 'INGEST' : ph === 'running-os' ? 'RUNNING' : 'FLASHING';
@@ -823,6 +835,20 @@ export class Live {
       if (t.text !== r.t) t.text = r.t;
       if (t.style.fill !== r.c) t.style.fill = r.c;
     });
+  }
+
+  /** The graphics display's OS screen: the dashboard (gauges, IPC trace, process table) in place of the text rows. */
+  private updateDash(s: Snapshot) {
+    for (const t of this.osRows) t.visible = false;
+    this.osSig = '';
+    this.osG.visible = false;
+    const q = s.os?.queue ?? [];
+    const ipc = ipcBetween(this.dashPrev, s.counters);
+    this.dashPrev = s.counters;
+    if (ipc !== null) { this.dashIpc.push(ipc); if (this.dashIpc.length > IPC_SAMPLES) this.dashIpc.shift(); }
+    for (const j of q) if (j.state === 'running' && !this.dashStarted.has(j.keyId)) this.dashStarted.set(j.keyId, s.baseTick);
+    for (const k of [...this.dashStarted.keys()]) if (!q.some((j) => j.keyId === k && j.state === 'running')) this.dashStarted.delete(k);
+    this.dash.show(dashModel(s, { upTick: this.osUpTick, ipc: this.dashIpc, started: this.dashStarted }));
   }
 
   private drawBadge(now: number) {

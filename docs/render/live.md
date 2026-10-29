@@ -21,6 +21,10 @@ Idle is calm: everything is a dim base stroke. A bus lights (colour overlay plus
 - **Power conductors and cables** glow in proportion to current, only while power flows (not off, not tripped): `sqrt(W / budget)` for the conductor's load (CPU watts for the 8-pin and vcore, 55-60% of the total for the 12 V / 24-pin, RAM watts for the 5 V rail). A fully idle machine shows a faint glow.
 - **Heat glow** around the CPU / DIMMs only above about 42 C (heat, not load); burnt parts get a dark overlay with a red X.
 
+## Screen modes
+
+`screenMode(osOn, gfx, phase)` (`room/monitor.ts`) picks the glass: `text` (POST/CLI text), `os` (the text status rows of `display0`, and of the graphics display while the OS boots) or `dash` (the graphics display, `display1`, once the OS is up). `setScene` gets `gfx` from the installed display's `visual` (`monitor-gfx`). The dashboard is `ScreenView` (`room/screenview.ts`: one Graphics and pooled Texts at the screen's design size, repainted only when `dashSig` of the `DashModel` changes); `room/screenmodel.ts` `dashModel` is the pure snapshot-to-rows function. `Live.updateDash` keeps what the snapshot lacks: the IPC samples (retired over cycles between snapshots) and the tick each program was first seen running. There is no per-process CPU share in the sim, so the table shows state, memory (image + claimed) and time, and the CPU rows are the machine's.
+
 ## Boot visuals
 
 - **PCH** (`chipset`): when powered and posting (after the cold-boot wait), loading or writing it gets a violet outline glow and a row of animated activity bars; calm in every other phase.

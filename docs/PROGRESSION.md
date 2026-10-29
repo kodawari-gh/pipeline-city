@@ -154,7 +154,7 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 7 | `nvme2` ($400, M.2 SSD), `vsink2` ($140), case fans `fan1` (**planned**) | `router2` ($200, 1 Gbit), `nic1` ($120, 1 Gbit PCIe card) | |
 | 8 | `cpu3` 2-wide in-order ($2,400) | `os2` Paged OS 2.0 ($600) | |
 | 9 | `tpm1` secure module, `ram3` ECC RAM (**planned**), CPU branches `cpu2f` (front end) and `cpu2m` (memory), $1,500 each, and `cpu2d` (dual core, $2,000: `os2` runs two programs at once on it) | board 3 Enthusiast ($700: 8 DIMM, 4 PCIe, onboard 1 Gbit), `isp3` ($1500: 1000/300 Mbit, 8 clients) | **secure / TPM job** (needs a TPM) |
-| 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (**planned**) | | **GPU render** (needs a GPU) |
+| 10 | `gpu1` (PCIe + PCIe power connector), `psu3` 500 W, `display1` graphics display (OS dashboard; the GPU frame is planned) | | **GPU render** (needs a GPU) |
 | 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
 | 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4) | |
