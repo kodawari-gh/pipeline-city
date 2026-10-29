@@ -89,6 +89,12 @@ const NO_EJECT = new Set(['loading', 'running', 'writing']);
 
 interface Toast { c: Container; t0: number; x: number; y: number }
 
+/** A part of a graphics card (`pcie1.lane3`, `pcie1.fan0`) hovers on its own, but a click on it is a click on the card: the id of the device in that slot. */
+export function deviceOfPart(id: string, devices: readonly { id: string; slot: string }[]): string {
+  const part = /^(pcie\d+)\.[a-z]+\d*$/.exec(id);
+  return part ? devices.find((d) => d.slot === part[1])?.id ?? id : id;
+}
+
 export class Interact {
   readonly fx = new Container();
   readonly hud = new Container();
@@ -228,6 +234,8 @@ export class Interact {
     // the room's props (lamp, blind) do their thing at once, with no card
     if (roomClick(id)) { selected.value = null; return; }
     const s = this.snap();
+    // a part of a graphics card (`pcie1.lane3`, `pcie1.fan0`) hovers on its own but a click opens the card itself
+    if (s) id = deviceOfPart(id, s.devices);
     // The power button and a key do their thing at once: no card pops up over the action. A tripped or failed machine still
     // opens the power card, because that is where its way out (power cycle) and its reason are.
     const direct = id === 'power' ? !(s?.power.tripped || s?.phase === 'error') : id.startsWith('key:');

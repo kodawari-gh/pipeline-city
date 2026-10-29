@@ -8,6 +8,8 @@ import { REGIONS } from './regions';
 import { getSpec } from '../sim/board/specs';
 import type { Phase } from '../sim/game/game';
 import { dev, key, snap } from './testdata';
+import { gpuIds } from '../render/board/gpulayout';
+import { isGpuId } from './panels/gpudesc';
 import { cpuPlan } from '../render/die/cpuplans';
 import type { PlanInput } from '../render/die/cpuplan';
 
@@ -221,6 +223,43 @@ describe('descriptions', () => {
         expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
       }
     }
+  });
+});
+
+describe('graphics card ids', () => {
+  const gpuSnap = (slot: string, lanes: number, banks: number): NonNullable<ReturnType<typeof snap>['gpus']>[number] => ({
+    slot, lanes, banks, memBytes: 8192, phase: 'run', mask: 0b101, stack: [1], pc: 8, regs: [], launches: 2, error: false,
+    trace: [], stats: { instructions: 10, idleLaneSlots: 3, conflictCycles: 4, cycles: 14 },
+  });
+
+  it('every part the board draws on a graphics card has a description, with and without a snapshot', () => {
+    for (const [spec, visual] of [['gpu1', 'gpu-1'], ['gpu2', 'gpu-2'], ['gpu3', 'gpu-3']] as const) {
+      const gs = getSpec(spec) as { gpu: { lanes: number; banks: number } };
+      const s = snap({ devices: [dev({ id: 'g1', spec, kind: 'gpu', slot: 'pcie1', tempC: 61 })], gpus: [gpuSnap('pcie1', gs.gpu.lanes, gs.gpu.banks)] });
+      const ids = gpuIds(visual, 'pcie1');
+      expect(ids.length, visual).toBeGreaterThan(gs.gpu.lanes + gs.gpu.banks);
+      for (const id of ids) {
+        for (const d of [describeId(id, s), describeId(id)]) {
+          expect(d, `${visual} ${id}`).not.toBeNull();
+          expect(d!.title.length, `${id} title`).toBeGreaterThan(2);
+          expect(d!.plain.length, `${id} plain`).toBeGreaterThan(10);
+          expect(d!.nerd.length, `${id} nerd`).toBeGreaterThan(10);
+        }
+      }
+    }
+  });
+
+  it('says what a lane, bank and fan are doing now, and ignores ids that are not card parts', () => {
+    const s = snap({ devices: [dev({ id: 'g1', spec: 'gpu2', kind: 'gpu', slot: 'pcie0', tempC: 72 })], gpus: [gpuSnap('pcie0', 16, 2)] });
+    expect(describeId('pcie0.lane0', s)!.nerd).toMatch(/lane 0 of 16 \| on/);
+    expect(describeId('pcie0.lane1', s)!.nerd).toMatch(/off under the mask/);
+    expect(describeId('pcie0.bank1', s)!.nerd).toMatch(/bank 1 of 2.*4 cycles lost/);
+    expect(describeId('pcie0.fan1', s)!.nerd).toMatch(/72 C now.*fan 2/);
+    expect(describeId('pcie0.maskstack', s)!.nerd).toBe('depth 1 of 8');
+    expect(describeId('pcie0.lane99')).not.toBeNull(); // any lane number reads as a lane; the board only writes the ones that exist
+    expect(describeId('pcie0.unknown', s)).toBeNull();
+    expect(isGpuId('pcie2.mem')).toBe(true);
+    expect(isGpuId('pcie2')).toBe(false);
   });
 });
 

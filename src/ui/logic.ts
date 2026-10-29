@@ -3,6 +3,7 @@
 import { BOARD_TIERS, CASE_TIERS, getSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../sim/board/specs';
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
+import { describeGpuId } from './panels/gpudesc';
 import { BANDWIDTH_NERD, describeNet } from './panels/netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
@@ -321,6 +322,8 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   if (id === 'lamp' || id === 'blind') return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
   const net = describeNet(id, s);
   if (net) return net;
+  const gpu = describeGpuId(id, s);
+  if (gpu) return gpu;
   if (s) {
     if (id === 'os' && s.os) {
       const host = s.storage.find((x) => x.hasOs);
