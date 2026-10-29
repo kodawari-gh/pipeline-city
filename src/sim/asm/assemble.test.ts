@@ -66,7 +66,7 @@ describe("assembler", () => {
     const src = OPS.map((o) => {
       switch (o.fmt) {
         case "N": return o.name;
-        case "R": return `${o.name} a0, a1, a2`;
+        case "R": return o.amo ? `${o.name} a0, a2, (a1)` : `${o.name} a0, a1, a2`;
         case "I": return o.mem ? `${o.name} t0, -8(sp)` : `${o.name} s0, s1, 3`;
         case "S": return `${o.name} a3, 12(t4)`;
         case "B": return `${o.name} a0, a1, -8`;

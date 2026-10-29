@@ -17,6 +17,7 @@ const SLL = opc("sll"), SRL = opc("srl"), SRA = opc("sra"), SLT = opc("slt"), SL
 const ADDI = opc("addi"), ANDI = opc("andi"), ORI = opc("ori"), XORI = opc("xori");
 const SLLI = opc("slli"), SRLI = opc("srli"), SRAI = opc("srai"), SLTI = opc("slti"), SLTIU = opc("sltiu");
 const LW = opc("lw"), LB = opc("lb"), SW = opc("sw");
+const AMOADD = opc("amoadd");
 const BEQ = opc("beq"), BNE = opc("bne"), BLT = opc("blt"), BGE = opc("bge"), BLTU = opc("bltu");
 const LUI = opc("lui"), AUIPC = opc("auipc");
 export const OP_ECALL = opc("ecall");
@@ -27,9 +28,9 @@ export const OP_LW = LW;
 export const OP_LB = LB;
 
 /** Per-opcode class flags (indexed by the 7-bit opcode). */
-export const F = { Writes: 1, Rs1: 2, Rs2: 4, Load: 8, Store: 16, Branch: 32, Jal: 64, Jalr: 128 } as const;
+export const F = { Writes: 1, Rs1: 2, Rs2: 4, Load: 8, Store: 16, Branch: 32, Jal: 64, Jalr: 128, Amo: 256 } as const;
 export const F_MEM = F.Load | F.Store;
-export const OPF = new Uint8Array(128);
+export const OPF = new Uint16Array(128);
 for (const s of OPS) {
   let f = 0;
   switch (s.fmt) {
@@ -42,6 +43,7 @@ for (const s of OPS) {
     case "N": break;
   }
   if (s.mem) f |= F.Load;
+  if (s.amo) f |= F.Load | F.Store | F.Amo; // an atomic is both: the load-use hazard of a load, the shared port and the store ordering of a store
   if (s.name === "jalr" || s.name === "iret") f |= F.Jalr; // iret is a register-less jump to the interrupt controller's EPC
   OPF[s.op] = f;
 }
@@ -635,6 +637,7 @@ export abstract class EngineBase implements PipelineEngine {
     const c = this.v.counters;
     let st = p.state[s]!;
     const addr = p.addr[s]!;
+    if (f & F.Amo) return this.amoStep(s);
     if (f & F.Store) {
       if (!(st & St.Started)) {
         p.state[s] = st | St.Started;
@@ -666,6 +669,45 @@ export abstract class EngineBase implements PipelineEngine {
       p.state[s] = st & ~St.Missing;
     }
     return true;
+  }
+
+  /**
+   * An atomic in MEM (docs/MULTICORE.md section 4): the access always goes to the L2 (never hits the L1, and does not fill it), so it waits the
+   * miss cost (the L2's time, or RAM's on an L2 miss), then reads and writes the word in this one step. Cores step one after another, so nothing
+   * can come between the read and the write. The write invalidates the line in the other cores like any store.
+   */
+  protected amoStep(s: number): boolean {
+    const p = this.pool, st = p.state[s]!;
+    if (!(st & St.Started)) {
+      this.amoCheck(p.addr[s]!, p.pc[s]!);
+      p.state[s] = st | St.Started | St.Missing;
+      p.wait[s] = this.missCost(p.addr[s]!);
+    }
+    if (p.state[s]! & St.Missing) {
+      if (p.wait[s]! > 0) {
+        p.wait[s]!--;
+        this.v.counters[Counter.StallCache]!++;
+        return false;
+      }
+      p.state[s]! &= ~St.Missing;
+    }
+    this.amoApply(s);
+    return true;
+  }
+
+  /** An atomic touches only a word-aligned word of RAM; anything else faults like a bad load. */
+  protected amoCheck(addr: number, pc: number): void {
+    if (addr % 4 !== 0 || addr + 4 > this.ramSize) throw new RangeError(`atomic on 0x${addr.toString(16)}, not a word-aligned RAM address, at pc=0x${pc.toString(16)}`);
+  }
+
+  /** The read-modify-write itself: res = the old word, memory gets old + rs2 (amoadd) or rs2 (amoswap). */
+  protected amoApply(s: number): void {
+    const p = this.pool, addr = p.addr[s]!;
+    const old = this.bus.load32(addr) | 0, nw = p.op[s] === AMOADD ? (old + p.b[s]!) | 0 : p.b[s]!;
+    this.bus.store32(addr, nw);
+    p.res[s] = old;
+    this.logMem(0, addr, old);
+    this.logMem(1, addr, nw);
   }
 
   protected load(op: number, addr: number): number {

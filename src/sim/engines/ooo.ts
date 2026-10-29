@@ -144,7 +144,13 @@ export class OooEngine extends EngineBase {
       this.robHead = (this.robHead + 1) % rs;
       this.robN--;
       const f = OPF[op]!;
-      if (f & F.Store) {
+      if (f & F.Amo) {
+        // the read and the write were done when it issued as the oldest entry (nothing older was pending); only the register is left
+        if (p.rd[s] !== 0) {
+          this.writeReg(p.rd[s]!, p.res[s]!);
+          if (this.rat[p.rd[s]!] === s) this.rat[p.rd[s]!] = -1;
+        }
+      } else if (f & F.Store) {
         if (op === OP_SW) this.bus.store32(p.addr[s]!, p.b[s]!);
         else this.bus.store8(p.addr[s]!, p.b[s]!);
         this.logMem(1, p.addr[s]!, p.b[s]!);
@@ -216,6 +222,8 @@ export class OooEngine extends EngineBase {
       // iret reads the interrupt controller's EPC, which older stores may still be writing: it runs when it is the oldest.
       if (op === OP_IRET && k !== 0) { v.schedWhy[pos] = SchedWhy.Head; continue; }
       const f = OPF[op]!;
+      // an atomic reads and writes memory in one step, so it waits until it is the oldest (every older store has committed): never speculative
+      if (f & F.Amo && k !== 0) { v.schedWhy[pos] = SchedWhy.Head; continue; }
       let u: number;
       if (f & F_MEM) u = this.unitS[Unit.LSU]! < 0 ? Unit.LSU : -1;
       else if (op === OP_MUL) u = this.unitS[Unit.MUL]! < 0 ? Unit.MUL : -1;
@@ -226,7 +234,12 @@ export class OooEngine extends EngineBase {
       this.actual[s] = this.execute(s);
       let lat = 1;
       if (p.fault[s]) { /* the MMU refused the access: it completes as nothing and the fault is taken at commit */ }
-      else if (f & F.Load) {
+      else if (f & F.Amo) {
+        // always through the L2 (never the L1): the access costs the miss cost; the word is read and written now
+        this.amoCheck(p.addr[s]!, p.pc[s]!);
+        this.amoApply(s);
+        lat = HIT_LAT + this.missCost(p.addr[s]!);
+      } else if (f & F.Load) {
         lat = this.issueLoad(k, s);
         if (lat < 0) { v.schedWhy[pos] = this.why; c[Counter.LoadWaits]!++; continue; }
       } else if (op === OP_MUL) lat = 3;
@@ -334,6 +347,7 @@ export class OooEngine extends EngineBase {
       const js = this.robS[(this.robHead + j) % rs]!;
       if (!(OPF[p.op[js]!]! & F.Store)) continue;
       if (this.ost[js] !== Os.Done || p.addr[js]! >= this.ramSize) { this.why = SchedWhy.Memory; return -1; }
+      if (OPF[p.op[js]!]! & F.Amo) continue; // an atomic has already written RAM: read it from there, never forward its operand
       const sz = p.op[js] === OP_SW ? 4 : 1;
       if (p.addr[js]! < addr + size && addr < p.addr[js]! + sz) fwd = js; // youngest overlapping older store wins
     }

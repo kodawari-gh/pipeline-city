@@ -9,7 +9,7 @@ export function disassemble(word: number): string {
   const spec = SPEC_BY_NAME.get(i.name)!;
   switch (spec.fmt) {
     case "N": return i.name;
-    case "R": return `${i.name} ${r(i.rd)}, ${r(i.rs1)}, ${r(i.rs2)}`;
+    case "R": return spec.amo ? `${i.name} ${r(i.rd)}, ${r(i.rs2)}, (${r(i.rs1)})` : `${i.name} ${r(i.rd)}, ${r(i.rs1)}, ${r(i.rs2)}`;
     case "I":
       return spec.mem
         ? `${i.name} ${r(i.rd)}, ${i.imm}(${r(i.rs1)})`

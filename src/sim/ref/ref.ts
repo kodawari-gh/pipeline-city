@@ -61,6 +61,11 @@ export class RefMemory {
     return null;
   }
 
+  /** Whether `addr` is a word-aligned RAM word (the only place an atomic may touch). */
+  isRamWord(addr: number): boolean {
+    return addr % 4 === 0 && addr >= this.ram.base && addr + 4 <= this.ram.base + this.ram.bytes.length;
+  }
+
   /** Throws RangeError for unmapped or (word) misaligned addresses; callers wrap it into a fault. */
   load8(addr: number): number {
     const r = this.find(addr, 1);
@@ -204,6 +209,15 @@ export class RefCpu {
       case "lbu": res = this.mem.load8((a + i.imm) >>> 0); break;
       case "sw": this.mem.store32((a + i.imm) >>> 0, b); break;
       case "sb": this.mem.store8((a + i.imm) >>> 0, b); break;
+      case "amoadd":
+      case "amoswap": {
+        const addr = a >>> 0;
+        if (!this.mem.isRamWord(addr)) throw new RangeError(`${i.name} needs a word-aligned RAM address, got 0x${addr.toString(16)}`);
+        const old = this.mem.load32(addr) | 0;
+        this.mem.store32(addr, i.name === "amoadd" ? old + b : b);
+        res = old;
+        break;
+      }
       case "beq": if (a === b) next = (pc + i.imm) >>> 0; break;
       case "bne": if (a !== b) next = (pc + i.imm) >>> 0; break;
       case "blt": if (a < b) next = (pc + i.imm) >>> 0; break;

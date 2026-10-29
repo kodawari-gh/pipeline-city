@@ -29,6 +29,7 @@ Opcode is always bits [6:0]; every mnemonic has its own opcode (no funct fields)
 | I | addi 10, andi 11, ori 12, xori 13, slli 14, srli 15, srai 16, slti 17, sltiu 18, jalr 19 |
 | I (loads) | lw 20, lb 21 (sign-extend), lbu 22 |
 | S | sw 28, sb 29 |
+| R (atomics) | amoadd 2a, amoswap 2b: `amoadd rd, rs2, (rs1)`. One step: `rd = mem[rs1]; mem[rs1] = rd + rs2` (amoswap: `= rs2`). `rs1` must be a word-aligned RAM address, else a fault. Always served by the L2 (never the L1), see [`ENGINES.md`](ENGINES.md) |
 | B | beq 30, bne 31, blt 32, bge 33, bltu 34, bgeu 35 |
 | U | lui 38 (`rd = imm << 11`), auipc 39 (`rd = pc + (imm << 11)`) |
 | J | jal 40 (`rd = pc+4; pc += imm`) |

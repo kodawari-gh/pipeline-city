@@ -19,6 +19,8 @@ export interface OpSpec {
   mem?: boolean;
   /** I-format shift: immediate is a shift amount 0..31. */
   shift?: boolean;
+  /** R-format atomic memory operation: assembler syntax is `rd, rs2, (rs1)`; it reads and writes the RAM word at rs1 in one step (docs/MULTICORE.md section 4). */
+  amo?: boolean;
 }
 
 export const OPS: readonly OpSpec[] = [
@@ -48,6 +50,9 @@ export const OPS: readonly OpSpec[] = [
   { name: "lbu", op: 0x22, fmt: "I", mem: true },
   { name: "sw", op: 0x28, fmt: "S" },
   { name: "sb", op: 0x29, fmt: "S" },
+  // Atomics: rd = mem[rs1]; mem[rs1] = rd + rs2 (amoadd) or rs2 (amoswap), as one step.
+  { name: "amoadd", op: 0x2a, fmt: "R", amo: true },
+  { name: "amoswap", op: 0x2b, fmt: "R", amo: true },
   { name: "beq", op: 0x30, fmt: "B" },
   { name: "bne", op: 0x31, fmt: "B" },
   { name: "blt", op: 0x32, fmt: "B" },

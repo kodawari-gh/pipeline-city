@@ -281,7 +281,14 @@ export function assemble(src: string, opts: AsmOptions = {}): AsmResult {
           const spec = SPEC_BY_NAME.get(mnem)!;
           switch (spec.fmt) {
             case "N": arity(0); out.push(instr(mnem)); break;
-            case "R": arity(3); out.push(instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), rs2: reg(ops[2]) })); break;
+            case "R":
+              arity(3);
+              if (spec.amo) {
+                const m = memOp(ops[2]);
+                if (m.imm !== 0) throw new AsmError(line, `${mnem}: no offset, use (reg)`);
+                out.push(instr(mnem, { rd: reg(ops[0]), rs1: m.rs1, rs2: reg(ops[1]) }));
+              } else out.push(instr(mnem, { rd: reg(ops[0]), rs1: reg(ops[1]), rs2: reg(ops[2]) }));
+              break;
             case "I":
               if (spec.mem) {
                 arity(2);

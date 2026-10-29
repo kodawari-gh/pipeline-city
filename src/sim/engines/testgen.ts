@@ -17,7 +17,7 @@ class Gen {
   readonly lines: string[] = [];
   private labels = 0;
   private recent: string[] = ["a0"];
-  constructor(private readonly r: Prng) {}
+  constructor(private readonly r: Prng, private readonly atomics = false) {}
 
   private pick<T>(a: readonly T[]): T { return a[this.r.nextInt(a.length)]!; }
   private chance(p: number): boolean { return this.r.next() < p; }
@@ -38,7 +38,8 @@ class Gen {
   /** One non-control-flow instruction. */
   alu(): void {
     const rd = this.dst();
-    const k = this.r.nextInt(14);
+    const k = this.r.nextInt(this.atomics ? 17 : 14);
+    if (k >= 14) { this.amo(rd); return; }
     if (k < 4) this.emit(`${this.pick(R_OPS)} ${rd}, ${this.src()}, ${this.src()}`);
     else if (k < 7) this.emit(`${this.pick(I_OPS)} ${rd}, ${this.src()}, ${this.imm()}`);
     else if (k < 8) this.emit(`${this.pick(SH_OPS)} ${rd}, ${this.src()}, ${this.r.nextInt(32)}`);
@@ -53,6 +54,15 @@ class Gen {
     const k = this.r.nextInt(3);
     if (k === 0) this.emit(`lw ${rd}, ${4 * this.r.nextInt(DATA_SIZE / 4)}(s3)`);
     else this.emit(`${k === 1 ? "lb" : "lbu"} ${rd}, ${this.r.nextInt(DATA_SIZE)}(s3)`);
+    this.wrote(rd);
+  }
+
+  /** An atomic on a word of the data region: the address goes into a register first (it may be the destination or the operand too). */
+  private amo(rd: string): void {
+    const adr = this.dst();
+    this.emit(`addi ${adr}, s3, ${4 * this.r.nextInt(DATA_SIZE / 4)}`);
+    this.emit(`${this.chance(0.5) ? "amoadd" : "amoswap"} ${rd}, ${this.src()}, (${adr})`);
+    this.wrote(adr);
     this.wrote(rd);
   }
 
@@ -104,8 +114,8 @@ class Gen {
 }
 
 /** Assembly source for the program with this seed (deterministic). */
-export function genProgram(seed: number, size = 30): string {
-  return new Gen(new Prng(seed)).program(size);
+export function genProgram(seed: number, size = 30, atomics = false): string {
+  return new Gen(new Prng(seed), atomics).program(size);
 }
 
 /** Pseudo-random initial contents for the data region (deterministic). */

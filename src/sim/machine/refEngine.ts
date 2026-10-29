@@ -10,6 +10,7 @@ class BusMemory extends RefMemory {
   constructor(private readonly m: Machine) {
     super(0);
   }
+  override isRamWord(a: number): boolean { return a % 4 === 0 && a + 4 <= this.m.ram.length; }
   override load8(a: number): number { return this.m.bus.load8(a); }
   override load32(a: number): number { return this.m.bus.load32(a); }
   override store8(a: number, v: number): void { this.m.bus.store8(a, v); }
