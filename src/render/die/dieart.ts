@@ -160,4 +160,4 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
 }
 
 /** The floorplan of a CPU spec (cached by its input). */
-export const planOf = (spec: CpuSpec): CpuPlan => cpuPlan(planInput(spec.engine, spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}));
+export const planOf = (spec: CpuSpec): CpuPlan => cpuPlan(planInput(spec.engine, { ...(spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}), ...(spec.cores && spec.cores > 1 ? { cores: spec.cores } : {}) }));

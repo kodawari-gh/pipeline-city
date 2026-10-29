@@ -254,4 +254,4 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 
 ## Trace panel core selector
 
-On a multicore CPU `TracePanel.tsx` shows one button per logical core above the step buttons (label, `T<n>` of the job thread or idle/kernel, the hardware core's pipeline as small cells, tinted like the die tiles via `tileModels`). `aria-pressed` marks the selected core; a click sends `viewCore(k)` and the trace, scrubber and die detail follow that core (docs/DIE.md "Core tiles").
+On a multicore CPU `TracePanel.tsx` shows one button per logical core above the step buttons (label, `T<n>` of the job thread or idle/kernel, the hardware core's pipeline as small cells, tinted like the die tiles via `tileModels`). `aria-pressed` marks the selected core; a click sends `viewCore(k)` and the trace and scrubber follow that core's hardware core; the die shows every core live whatever is selected (docs/DIE.md "Core tiles").

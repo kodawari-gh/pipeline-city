@@ -28,7 +28,7 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
-import { DieView } from '../die/dieview';
+import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../room/room';
 import { focusAt } from '../room/light';

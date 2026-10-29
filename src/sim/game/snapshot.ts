@@ -18,6 +18,8 @@ import type {
 
 export function snapshot(this: Game): Snapshot {
   const eng = this.machine.engine as PipelineEngine | null;
+  // a multicore CPU: every hardware core's pipeline, and `pipe` is the selected one's (the same object, so it crosses the thread boundary once)
+  const cores = this.powered && eng?.view && this.machine.cores.length > 1 ? this.coresSnap() : null;
   const counters: Record<string, number> = {};
   COUNTER_NAMES.forEach((n, i) => { counters[n] = eng?.view ? eng.view.counters[i]! : 0; });
   const rep = this.reputation();
@@ -60,8 +62,8 @@ export function snapshot(this: Game): Snapshot {
     },
     boardTier: this.board.tier,
     caseTier: this.board.caseTier,
-    pipe: this.powered && eng?.view ? this.pipeSnap(this.viewEngine() ?? eng) : null,
-    ...(this.powered && eng?.view && this.machine.cores.length > 1 ? { cores: this.coresSnap()! } : {}),
+    pipe: cores ? cores.tiles[cores.live[cores.selected]!.hw] ?? null : this.powered && eng?.view ? this.pipeSnap(this.viewEngine() ?? eng) : null,
+    ...(cores ? { cores } : {}),
     ram: this.powered ? this.ramSnap(jobs) : null,
     ...(this.powered && this.gpus.some((p) => p.present) ? { gpus: this.gpuSnaps() } : {}),
     display: this.powered && live ? this.machine.display.text() : "",
@@ -103,6 +105,7 @@ export function snapshot(this: Game): Snapshot {
       const blocked = c.id === "lan" ? (this.routerTier ? null : "needs a router next to the monitor") : cableBlocked(this.board, c.id);
       return { id: c.id, name: c.name, connected: this.cables[c.id], ...(blocked && !this.cables[c.id] ? { blocked } : {}) };
     }),
+    videoPort: this.video,
     tray: this.tray.waiting().map((k) => this.keySnap(k, jobs)),
     plugged: plugged && this.keySnap(plugged, jobs),
     progress: { ...this.progress },

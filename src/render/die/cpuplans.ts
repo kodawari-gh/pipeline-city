@@ -261,6 +261,9 @@ function coreTile(i: PlanInput, w: number, h: number): { blocks: Block[]; links:
   return { blocks, links: routeLinks({ x: -24, y: -24, w: w + 48, h: h + 48 }, blocks, inner, false) }; // docked into the symbols once the tile is placed (the symbols are drawn at the placed size)
 }
 
+/** The width a core tile is laid out at before it is scaled into its cell on the die. */
+export const CORE_TILE_W = 1136;
+
 /** Core tiles in the die's middle (each core laid out for its own tile, then scaled to fit), a shared L2 at their east end and one system bus under them (nothing multicore is simulated yet). */
 function multicore(i: PlanInput): CpuPlan {
   const n = Math.max(2, Math.floor(i.cores ?? 2));
@@ -273,7 +276,7 @@ function multicore(i: PlanInput): CpuPlan {
   place(ringTree(holder), R, ring, 'edge');
   const region = ring.find((b) => b.id === '__tiles')!.rect;
   const blocks = ring.filter((b) => b.id !== '__tiles');
-  const G2 = 18, TW = 1136;
+  const G2 = 18, TW = CORE_TILE_W;
   // the tile grid: every (cols x rows) that holds n tiles; each tile is laid out at its cell's shape, and the biggest scale wins
   let best = { cols: 1, rows: n, s: 0, th: 0 };
   for (let cols = 1; cols <= n; cols++) {

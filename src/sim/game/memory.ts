@@ -117,7 +117,7 @@ export function runningOn(this: Game, cores: number): { job: number; thread: num
   return out;
 }
 
-/** Every logical core for the die's tiles (null with one core): the hardware core's pipeline, whether the core sleeps, and the job thread on it. */
+/** Every logical core for the die's tiles (null with one core): the hardware core's pipeline, whether the core sleeps, and the job thread on it. Every tile carries its trace and stored state, so the die runs each core live. */
 export function coresSnap(this: Game): CoresSnap | null {
   const cores = this.machine.cores;
   if (cores.length < 2) return null;
@@ -125,7 +125,7 @@ export function coresSnap(this: Game): CoresSnap | null {
   const sel = Math.min(this.viewCore, cores.length - 1);
   const run = this.runningOn(cores.length);
   const live: CoreLive[] = cores.map((c, k) => ({ core: k, hw: hw[k]!, parked: c.intc.parked, job: run[k]!.job, thread: run[k]!.thread }));
-  const tiles = engines.map((e, i) => (e.view ? this.pipeSnap(e, i === hw[sel]) : { width: 1, stages: [] }));
+  const tiles = engines.map((e) => (e.view ? this.pipeSnap(e) : { width: 1, stages: [] }));
   return { selected: sel, live, tiles };
 }
 

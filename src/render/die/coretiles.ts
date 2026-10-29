@@ -73,3 +73,18 @@ export function tileRect(k: number, n: number, w: number, gap: number, maxW: num
   const tw = Math.min(maxW, (w - gap * (n - 1)) / n);
   return { x: k * (tw + gap), y: 0, w: tw, h };
 }
+
+/** What the wash of one hardware core's tile shows: the logical cores on it. */
+export interface WashModel { hw: number; selected: boolean; models: TileModel[] }
+
+/** The logical cores grouped by hardware core, in tile order. */
+export function washModels(c: CoresSnap, dark: boolean): WashModel[] {
+  const all = tileModels(c, dark), out: WashModel[] = [];
+  for (const m of all) {
+    let w = out.find((x) => x.hw === m.hw);
+    if (!w) { w = { hw: m.hw, selected: false, models: [] }; out.push(w); }
+    w.models.push(m);
+    if (m.selected) w.selected = true;
+  }
+  return out.sort((a, b) => a.hw - b.hw);
+}

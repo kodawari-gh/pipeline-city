@@ -214,16 +214,13 @@ describe("the hpc kinds on the multicore OS 4", { timeout: 240_000 }, () => {
     expect(busy).toBe(8); // every core held a thread of the job at once
     expect([...seen].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     expect(c.tiles.every((t) => (t.trace?.rows.length ?? 0) > 0)).toBe(true);
-    // the selected core's pipeline carries the stored state; the detailed view (`pipe`) is its hardware core's
+    // every tile carries its stored state (each core runs live on the die); the detailed view (`pipe`) is the selected core's hardware core's
     expect(c.selected).toBe(0);
-    expect(c.tiles[0]!.stored).toBeDefined();
-    expect(c.tiles[1]!.stored).toBeUndefined();
+    expect(c.tiles.every((t) => t.stored !== undefined)).toBe(true);
     expect(g.snapshot().pipe?.trace?.end).toBe(c.tiles[0]!.trace!.end);
     expect(g.setViewCore(6)).toBe(6);
     const d = g.snapshot().cores!;
     expect(d.selected).toBe(6);
-    expect(d.tiles[2]!.stored).toBeDefined();
-    expect(d.tiles[0]!.stored).toBeUndefined();
     expect(g.snapshot().pipe?.trace?.end).toBe(d.tiles[2]!.trace!.end);
     expect(g.setViewCore(99)).toBe(7);
   });

@@ -82,7 +82,7 @@ export interface PlanInput {
   schedSize?: number;
   fetchQueue?: number;
   commitWidth?: number;
-  /** Cores tiled on the die (default 1). Nothing multicore is simulated yet. */
+  /** Cores tiled on the die (default 1). */
   cores?: number;
 }
 

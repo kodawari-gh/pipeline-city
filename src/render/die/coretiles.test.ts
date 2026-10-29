@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoresSnap, PipeSnap } from '../../sim/game/pipesnap';
-import { pipeCells, threadTint, tileModels, tileRect } from './coretiles';
+import { pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
 
 const stage = (op: string) => ({ kind: op ? 1 : 0, id: op ? 1 : -1, op, text: op, cause: 0, stalled: false });
 const inorder = (...ops: string[]): PipeSnap => ({ width: 1, stages: ops.map(stage) });
@@ -61,5 +61,12 @@ describe('core tiles', () => {
     const r = tileRect(7, 8, 1000, 10, 200, 60);
     expect(r.x + r.w).toBeLessThanOrEqual(1000.0001);
     expect(tileRect(0, 2, 1000, 10, 200, 60).w).toBe(200);
+  });
+});
+
+describe('washModels', () => {
+  it('groups the logical cores by the hardware core they share, in tile order, and marks the tile of the selected core', () => {
+    const w = washModels(snap(), true);
+    expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([[0, [0, 2], false], [1, [1], true]]);
   });
 });
