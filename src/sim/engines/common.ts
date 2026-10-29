@@ -520,6 +520,12 @@ export abstract class EngineBase implements PipelineEngine {
   protected onReset(): void {}
   /** Forget the instruction fetch in progress and the sequential stream: the next fetch is a jump (a thread switch). */
   protected resetFetchWait(): void { this.iWaitPc = -1; this.iWait = 0; this.seqPc = -1; }
+  /** Exchange the instruction fetch in progress (the pc being waited for, the cycles left, the sequential stream) with `w` (three words): a core that fetches for several threads keeps one stream per thread. */
+  protected swapFetchWait(w: Int32Array): void {
+    const a = this.iWaitPc, b = this.iWait, c = this.seqPc;
+    this.iWaitPc = w[0]!; this.iWait = w[1]!; this.seqPc = w[2]!;
+    w[0] = a; w[1] = b; w[2] = c;
+  }
 
   /** Cycles a miss of an L1 cache costs: the L2's hit time if the line is in it, else the full RAM penalty (and the line goes into the L2). */
   protected missCost(addr: number): number {

@@ -84,6 +84,7 @@ export function engineConfigFor(board: Board): EngineConfig | null {
   if (!cpuDev) return null;
   const cpu = deviceSpec(cpuDev) as CpuSpec;
   const cfg: EngineConfig = { ...cpu.engine };
+  if (cfg.kind === "ooo" && (cpu.threads ?? 1) > 1) cfg.threads = cpu.threads; // the out-of-order core holds its threads in the pipeline together
   // Several sticks run at the speed of the slowest one: the miss penalty comes from the stick that costs most cycles.
   const cpuClock = cpuDev.clock ?? cpu.clock.base;
   const sticks = working(board, "ram").map((d) => {
@@ -125,7 +126,7 @@ export function applyEngine(board: Board, machine: Machine, program: Uint32Array
   machine.mmu.configure(spec.mmu?.tlb ?? 0);
   const first = createEngine(cfg);
   const cores = first.memSystem ? spec.cores ?? 1 : 1; // an engine without a memory system (the reference, the unpipelined one) cannot share one
-  const threads = cfg.kind === "inorder" ? spec.threads ?? 1 : 1; // only the in-order engine switches threads
+  const threads = cfg.kind === "inorder" || cfg.kind === "ooo" ? spec.threads ?? 1 : 1; // the in-order engine switches threads on a miss, the out-of-order one runs them together
   machine.mem = cores > 1 ? first.memSystem! : null;
   machine.setCores(cores * threads); // after the memory system is set: it switches the shared L2 on
   machine.attach(first, program);

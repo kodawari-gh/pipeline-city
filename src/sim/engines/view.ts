@@ -84,13 +84,15 @@ export const Counter = {
   /** Switch-on-miss threads (docs/MULTICORE.md section 5): times the core changed the thread it fetches for, and the bubbles that cost. */
   ThreadSwitches: 37,
   StallSwitch: 38,
+  /** Full SMT (section 5): ready instructions that found the unit they need held by the other thread. */
+  SmtUnitConflicts: 39,
 } as const;
 export const COUNTER_NAMES = [
   "cycles", "retired", "stallLoad", "stallData", "stallFlush", "stallStruct", "stallCache",
   "flushes", "flushedInstrs", "branches", "branchMispredicts", "cacheHits", "cacheMisses",
   "stallRobFull", "stallSchedFull", "issued", "loadForwards", "loadWaits", "robOccupancySum", "schedOccupancySum",
   "dualIssues", "pairBreaks", "iCacheHits", "iCacheMisses", "stallIFetch", "l2Hits", "l2Misses", "rowHits", "rowEmpty", "rowConflicts", "tlbHits", "tlbMisses", "pageFaults",
-  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses", "threadSwitches", "stallSwitch",
+  "l2PortBusy", "stallL2Port", "coherenceInvals", "coherenceMisses", "threadSwitches", "stallSwitch", "smtUnitConflicts",
 ] as const;
 export const COUNTER_COUNT = COUNTER_NAMES.length;
 
@@ -113,6 +115,8 @@ export interface TimelineView {
   /** Fate enum. */
   readonly fate: Uint8Array;
   readonly codes: Uint8Array;
+  /** The thread (index of the engine's logical cores) each row's instruction belongs to; 0 on an engine with one. */
+  readonly thread: Uint8Array;
 }
 
 /** Read-only observability surface of an engine. All arrays are live (mutated in place every cycle): read, do not write. */
@@ -161,7 +165,7 @@ export class ViewState implements EngineView {
     this.timeline = {
       rows, cols,
       id: new Int32Array(rows), pc: new Uint32Array(rows), word: new Uint32Array(rows),
-      fate: new Uint8Array(rows), codes: new Uint8Array(rows * cols),
+      fate: new Uint8Array(rows), codes: new Uint8Array(rows * cols), thread: new Uint8Array(rows),
     };
     this.reset();
   }
@@ -174,7 +178,7 @@ export class ViewState implements EngineView {
     this.stageStalled.fill(0);
     this.counters.fill(0);
     const t = this.timeline;
-    t.id.fill(-1); t.pc.fill(0); t.word.fill(0); t.fate.fill(0); t.codes.fill(0);
+    t.id.fill(-1); t.pc.fill(0); t.word.fill(0); t.fate.fill(0); t.codes.fill(0); t.thread.fill(0);
     this.nextId = 0;
     this.col = 0;
   }
@@ -186,10 +190,10 @@ export class ViewState implements EngineView {
     for (let r = 0; r < t.rows; r++) t.codes[r * t.cols + this.col] = 0;
   }
 
-  startRow(id: number, pc: number, word: number): void {
+  startRow(id: number, pc: number, word: number, thread = 0): void {
     const t = this.timeline;
     const r = id % t.rows;
-    t.id[r] = id; t.pc[r] = pc; t.word[r] = word; t.fate[r] = Fate.InFlight;
+    t.id[r] = id; t.pc[r] = pc; t.word[r] = word; t.fate[r] = Fate.InFlight; t.thread[r] = thread;
     t.codes.fill(0, r * t.cols, (r + 1) * t.cols);
   }
 
@@ -277,8 +281,19 @@ export interface OooView extends EngineView {
   readonly unitPc: Uint32Array;
   readonly unitLeft: Uint8Array;
   readonly unitTotal: Uint8Array;
-  /** Counts indexed by Occ. */
+  /** Counts indexed by Occ (with several threads: those of thread 0; `laneOcc` has them all). */
   readonly occ: Int32Array;
+  /**
+   * Full SMT (docs/MULTICORE.md section 5): the threads in the pipeline (1 on the plain engine), and how the structures split between them. Thread t's fetch queue is
+   * `fetchId[t * fetchCap ..]`, its decode slots `decodeId[t * width ..]` and its ROB partition `robId[t * robCap ..]` (a ring of `robCap`). `laneOcc[t * 4 ..]` is its fetch
+   * queue, decode, ROB counts and ROB head. `threadRetired` and `threadIssued` count per thread.
+   */
+  lanes: number;
+  robCap: number;
+  fetchCap: number;
+  readonly laneOcc: Int32Array;
+  readonly threadRetired: Float64Array;
+  readonly threadIssued: Float64Array;
   /** Per OooPart: FetchStall / DispatchStall / CommitStall cause this cycle. */
   readonly stall: Uint8Array;
 }
@@ -294,11 +309,21 @@ export class OooViewState extends ViewState implements OooView {
   readonly unitTotal = new Uint8Array(UNIT_COUNT);
   readonly occ = new Int32Array(6);
   readonly stall = new Uint8Array(3);
+  lanes = 1;
+  robCap: number;
+  fetchCap: number;
+  readonly laneOcc: Int32Array;
+  readonly threadRetired: Float64Array;
+  readonly threadIssued: Float64Array;
 
-  constructor(rows: number, cols: number, width: number, readonly robSize: number, readonly schedSize: number, readonly fetchQueueSize: number) {
+  /** `maxThreads` is how many threads the engine can hold (the decode slots and the per-thread arrays are sized for them). */
+  constructor(rows: number, cols: number, width: number, readonly robSize: number, readonly schedSize: number, readonly fetchQueueSize: number, maxThreads = 1) {
     super(rows, cols, width);
+    this.robCap = robSize; this.fetchCap = fetchQueueSize;
+    this.laneOcc = new Int32Array(4 * maxThreads);
+    this.threadRetired = new Float64Array(maxThreads); this.threadIssued = new Float64Array(maxThreads);
     this.fetchId = new Int32Array(fetchQueueSize); this.fetchPc = new Uint32Array(fetchQueueSize);
-    this.decodeId = new Int32Array(width); this.decodePc = new Uint32Array(width);
+    this.decodeId = new Int32Array(width * maxThreads); this.decodePc = new Uint32Array(width * maxThreads);
     this.robId = new Int32Array(robSize); this.robPc = new Uint32Array(robSize); this.robState = new Uint8Array(robSize);
     this.schedId = new Int32Array(schedSize); this.schedPc = new Uint32Array(schedSize); this.schedWhy = new Uint8Array(schedSize);
     this.reset();
@@ -313,5 +338,7 @@ export class OooViewState extends ViewState implements OooView {
     this.schedId.fill(-1); this.schedPc.fill(0); this.schedWhy.fill(0);
     this.unitId.fill(-1); this.unitPc.fill(0); this.unitLeft.fill(0); this.unitTotal.fill(0);
     this.occ.fill(0); this.stall.fill(0);
+    this.lanes = 1; this.robCap = this.robSize; this.fetchCap = this.fetchQueueSize;
+    this.laneOcc.fill(0); this.threadRetired.fill(0); this.threadIssued.fill(0);
   }
 }

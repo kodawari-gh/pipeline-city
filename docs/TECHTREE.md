@@ -25,9 +25,11 @@ The CPUs form a **tree**, not a line (owner 2026-10-27). The trunk is the three 
 | 4 | cpu3m 2-wide, memory | `inorder2` + D$ 64 4-way, L2 64 | big data | 11 | $3,600 |
 | 5 | cpu4f out of order ROB 16, front end | `ooo` + I$ 32, 2-bit 512 | branchy | 13 | $8,500 |
 | 5 | cpu4m out of order ROB 16, memory | `ooo` + D$ 64 4-way, L2 128 | big data | 13 | $8,500 |
+| 5 | cpu5s server, 4 small cores x 2 threads | `inorder` forwarding, D$ 16, L2 64, `cores` 4, `threads` 2 (switch-on-miss) | many jobs (eight logical cores) | 14 | $9,000 |
+| 5 | cpu5h HPC, 2 out-of-order cores x 2 threads | `ooo` ROB 16, D$ 16, L2 64, `cores` 2, `threads` 2 (full SMT) | big jobs (four logical cores) | 14 | $11,000 |
 | 6 | cpu4w 4-wide out of order, ROB 32 | `ooo` width 4 + everything | all | 15 | $12,000 |
 
-From `cpu2` up an engine has `redirectPenalty` 2 (a jump waits for instruction memory unless there is an instruction cache), which is what the I-cache saves; the parts are only ever **additions** to their parent (the tests check that no specialist is slower than the part it builds on). Prices, power and levels are placeholders for the balance pass; the power numbers are kept under what the Enthusiast board's VRM feeds (a 130 W part droops it). Planned: multicore (`cpu5`: server style, many small cores, against HPC style, one big core; the die layouts exist, the simulation does not: [`DIE.md`](DIE.md), [`MULTICORE.md`](MULTICORE.md)) and the **CPU gallery** that shows the whole tree.
+From `cpu2` up an engine has `redirectPenalty` 2 (a jump waits for instruction memory unless there is an instruction cache), which is what the I-cache saves; the parts are only ever **additions** to their parent (the tests check that no specialist is slower than the part it builds on). Prices, power and levels are placeholders for the balance pass; the power numbers are kept under what the Enthusiast board's VRM feeds (a 130 W part droops it). Multicore is built as `cpu5s` (server) and `cpu5h` (HPC) ([`MULTICORE.md`](MULTICORE.md)); planned: the **CPU gallery** that shows the whole tree.
 
 ## RAM (built: 3)
 ram0 16K (starter), ram1 32K fast, ram2 64K low-latency: a free DIMM slot and watts. Planned: more and bigger sticks per board tier, ECC (for secure workloads).

@@ -156,7 +156,7 @@ export const LEVELS: readonly LevelDef[] = [
   row(11, "Campus", 450, 0.8, 2.84, 2.2, { cli: 18, scan: 12, db: 14, web: 18, secure: 12, gpu: 26 }, ["cpu4", "cooler3", "router3", "nic2", "cpu3f", "cpu3m", "ram4", "cpu3t"]),
   row(12, "Data Annex", 550, 0.72, 3.15, 2.32, { cli: 15, scan: 10, db: 12, web: 18, secure: 10, gpu: 20, npu: 15 }, ["npu1"]),
   row(13, "Colocation", 650, 0.66, 3.5, 2.44, { cli: 12, scan: 8, db: 12, web: 18, secure: 10, gpu: 20, npu: 20 }, ["tpm2", "os3", "cpu4f", "cpu4m", "ram5"]),
-  row(14, "Compute Floor", 770, 0.62, 3.88, 2.56, { cli: 10, scan: 8, db: 10, web: 16, secure: 10, gpu: 18, npu: 16, hpc: 12 }, ["cpu5", "gpu2", "isp4", "os4"]),
+  row(14, "Compute Floor", 770, 0.62, 3.88, 2.56, { cli: 10, scan: 8, db: 10, web: 16, secure: 10, gpu: 18, npu: 16, hpc: 12 }, ["cpu5s", "cpu5h", "gpu2", "isp4", "os4"]),
   row(15, "Enterprise", 900, 0.58, 4.31, 2.68, { cli: 8, scan: 6, db: 10, web: 16, secure: 10, gpu: 18, npu: 16, hpc: 16 }, ["psu4", "board4", "cpu4w"]),
   row(16, "Hyperscale", 1050, 0.55, 4.78, 2.8, { cli: 6, scan: 5, db: 9, web: 16, secure: 10, gpu: 18, npu: 17, hpc: 19 }, ["gpu3", "npu2", "raid2"]),
   row(17, "Metro Grid", 1200, 0.52, 5.31, 2.92, { cli: 5, scan: 4, db: 8, web: 15, secure: 10, gpu: 18, npu: 18, hpc: 22 }, ["nic3", "router4"]),
@@ -172,7 +172,6 @@ export const START_CRATE: readonly string[] = ["cpu0", "ram0", "psu0", "cooler0"
 export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = { fan1: { name: "Case fans", kind: "fan" },
   display1: { name: "Graphics display", kind: "display" },
   cooler3: { name: "Big radiator", kind: "cooler" },
-  cpu5: { name: "Multicore CPU", kind: "cpu" },
   board4: { name: "Server board", kind: "board" },
   raid2: { name: "RAID of two NVMe", kind: "raid" },
 };

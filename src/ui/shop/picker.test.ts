@@ -184,7 +184,7 @@ describe('upgrade ladder', () => {
   it('lists every tier, the lower ones too: nothing is outgrown', () => {
     const s = snap({ devices: [dev({ id: 'dev1', spec: 'cpu1', kind: 'cpu' })], inventory: [] });
     const lad = ladderFor(s, 'cpu');
-    expect(lad.map((r) => r.specId)).toEqual(['cpu0', 'cpu1', 'cpu2', 'cpu3', 'cpu2d', 'cpu2f', 'cpu2m', 'cpu3t', 'cpu4', 'cpu3f', 'cpu3m', 'cpu4f', 'cpu4m', 'cpu4w']);
+    expect(lad.map((r) => r.specId)).toEqual(['cpu0', 'cpu1', 'cpu2', 'cpu3', 'cpu2d', 'cpu2f', 'cpu2m', 'cpu3t', 'cpu4', 'cpu3f', 'cpu3m', 'cpu5s', 'cpu5h', 'cpu4f', 'cpu4m', 'cpu4w']);
     expect(lad.find((r) => r.specId === 'cpu1')!.state).toBe('installed');
   });
 

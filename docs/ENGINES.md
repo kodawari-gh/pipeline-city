@@ -100,6 +100,12 @@ sw t2, 4(s3)   |..FDSSSSSSSSXRC
 ecall          |..FDSRRRRRRRRRC
 ```
 
+### Full SMT (`threads: 2`, `cpu5h`)
+
+`OooSettings.threads` (1 or 2, `MAX_SMT_THREADS`) makes each logical core a **lane**: its own fetch pc, fetch queue and decode queue, RAT, and a ROB of `robSize / threads` entries (the fetch queue is split the same way). The scheduler, the units (two ALUs, MUL, LSU), the caches, the predictor and the pool of in-flight slots are shared: issue picks the oldest ready entry of either lane, so a thread that is stalled leaves its units to the other, and one that is not competes for them (`Counter.SmtUnitConflicts` counts the cycles an entry waited for a unit the other thread held). Fetch and dispatch give each slot to the lanes in turn; commit takes `commitWidth` entries per cycle from the lane with the older head. A flush (branch, page fault, MMU register write) squashes only its own lane. Helpers (registers, MMU, interrupt state, the bus's core) follow the lane being served (`on(t)`); `Machine.stepSmt` serves each thread's timer, park state, interrupts and protection trips every cycle. `ecall` ends only its thread; the engine halts when every lane has ended or is parked. With one thread, or the second parked, a lane runs as the plain engine did (single-thread goldens are cycle-identical; a parked thread still keeps its half of the ROB and the queue). Test: `smt.test.ts`.
+
+A store that commits to the MMU registers also flushes everything younger in its lane: those instructions were fetched and translated under the old state (the kernel's turn-translation-off store is followed straight away by physical-address accesses).
+
 ## Optional parts (all off by default)
 
 Engine settings that a CPU spec can turn on (docs/TECHTREE.md, docs/DIE.md); with them off an engine is exactly as described above (the golden timings do not move; `features.test.ts` "off means off" checks counters too).

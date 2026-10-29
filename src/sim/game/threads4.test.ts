@@ -15,7 +15,8 @@ ECONOMY.caseGating = false;
 TEMPLATES["test.par2"] = parSum(2);
 TEMPLATES["test.par3"] = parSum(3);
 TEMPLATES["test.par4"] = parSum(4);
-afterAll(() => { delete TEMPLATES["test.par2"]; delete TEMPLATES["test.par3"]; delete TEMPLATES["test.par4"]; });
+TEMPLATES["test.par8"] = parSum(8);
+afterAll(() => { delete TEMPLATES["test.par2"]; delete TEMPLATES["test.par3"]; delete TEMPLATES["test.par4"]; delete TEMPLATES["test.par8"]; });
 
 /** Cores seen running a thread of a program (the claim word of a context holds its core plus one). */
 const ran = new Set<number>();
@@ -111,6 +112,23 @@ describe("threaded programs on the multicore OS 4", { timeout: 120_000 }, () => 
     expect(r.g.snapshot().faults).toBe(0);
     expect(framesInUse(r.dv)).toBe(0);
     expect(claimedContexts(r.dv)).toBe(0);
+  });
+
+  it("runs four threads on the HPC part (two out-of-order cores with full SMT) with the reference's text", () => {
+    const r = run("cpu5h", ["test.par4"], [20]);
+    expect(r.g.cpuLogicalCores()).toBe(4);
+    expect(r.texts).toEqual(r.expected);
+    expect(r.g.snapshot().faults).toBe(0);
+    expect([...ran].sort()).toEqual([0, 1, 2, 3]);
+    expect(framesInUse(r.dv)).toBe(0);
+  });
+
+  it("runs eight threads on the server part (eight logical cores)", () => {
+    const r = run("cpu5s", ["test.par8"], [21]);
+    expect(r.g.cpuLogicalCores()).toBe(8);
+    expect(r.texts).toEqual(r.expected);
+    expect(r.g.snapshot().faults).toBe(0);
+    expect(framesInUse(r.dv)).toBe(0);
   });
 
   it("time-shares more threads than cores", () => {

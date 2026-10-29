@@ -158,7 +158,7 @@ level  patienceMul  payMul  demandMul   target(s)  deadline(s)
 | 11 | `cpu4` out-of-order ($6,000; wants a 250 W+ PSU and liquid cooling), branches `cpu3f` / `cpu3m` ($3,600), `cpu3t` (dual core, two threads each: four logical cores, $5,000), `cooler3` big radiator (**planned**) | `router3` ($700, 10G, 8 clients), `nic2` ($500, 10G card) | |
 | 12 | `npu1` | | **NPU inference** (needs an NPU) |
 | 13 | `tpm2` (**planned**), branches `cpu4f` / `cpu4m` ($8,500) | `os3` Preemptive OS 3.0 ($2000, `programSlots` 4) | |
-| 14 | `cpu5` multicore (**planned**), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
+| 14 | `cpu5s` server ($9,000), `cpu5h` HPC ($11,000), `gpu2` (**planned**) | `isp4` ($5000: 5000/1500 Mbit, 16 clients) | **HPC multi-core simulation** (needs a multicore CPU) |
 | 15 | `psu4` 1 kW (**planned**), `cpu4w` wide out-of-order ($12,000) | board 4 server (**planned**: second CPU socket, more PCIe) | |
 | 16 | `gpu3`, `npu2` (**planned**), RAID of two NVMe (**planned**) | | |
 | 17 | | `nic3` 40 Gbit card ($1800), `router4` ($2500, 40G, 16 clients) | |

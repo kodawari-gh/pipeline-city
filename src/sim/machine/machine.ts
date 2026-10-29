@@ -181,6 +181,7 @@ export class Machine {
   private stepCore(p: Core): void {
     const e = p.engine;
     if (!e || e.halted) return;
+    if (e.concurrent && e.threads) { this.stepSmt(p, e, e.threads); return; }
     // With threads, the core being served is the one the engine fetches for; a core with nothing to fetch for still counts its misses down.
     let c = p;
     if (e.threads) {
@@ -189,7 +190,7 @@ export class Machine {
       c = a;
       this.bus.serve(c.index, c.mpu);
     } else c.timer.step();
-    const { intc, mpu, mmu } = c;
+    const { intc } = c;
     // A parked core stops fetching, lets what is already in the pipeline finish, and then is not stepped at all (it draws idle power) until a
     // line that is not masked is pending; the interrupt itself is taken below, if interrupts are on.
     let draining = false;
@@ -207,6 +208,45 @@ export class Machine {
     }
     // Protected mode charges extra cycles per RAM access (the TPM's encryption): the CPU waits them out.
     if (p.cpuStall > 0) { p.cpuStall--; return; }
+    this.trap(e, c, draining);
+    this.runEngine(e, p);
+  }
+
+  /**
+   * One cycle of a core whose threads all run at once (full SMT): every thread's timer counts and a parked one wakes if a line is pending, then each thread
+   * takes its own interrupt once its share of the pipeline has drained (the other thread goes on meanwhile), and the engine steps once. A core with every
+   * thread parked and drained is not stepped at all.
+   */
+  private stepSmt(p: Core, e: Engine, ts: readonly Core[]): void {
+    for (const t of ts) {
+      t.timer.step();
+      if (t.intc.parked && t.intc.wakes) t.intc.parked = false;
+    }
+    if (p.cpuStall > 0) { p.cpuStall--; return; }
+    let busy = false;
+    for (let t = 0; t < ts.length; t++) {
+      if (e.threadHalted?.(t)) continue;
+      const c = ts[t]!;
+      e.selectThread!(t);
+      this.bus.serve(c.index, c.mpu);
+      let draining = false;
+      if (c.intc.parked) {
+        e.holdFetch?.(true);
+        if (e.drained !== false) { c.intc.parkedCycles++; continue; }
+        draining = true;
+      }
+      busy = true;
+      this.trap(e, c, draining);
+    }
+    if (busy) this.runEngine(e, p);
+  }
+
+  /**
+   * An interrupt for core `c` if the engine is between instructions (otherwise stop fetching so it gets there), and the jump to the kernel's fault handler after
+   * a write to protected memory (the OS ends the job). `draining` is a parked core finishing what it has in flight: it takes neither.
+   */
+  private trap(e: Engine, c: Core, draining: boolean): void {
+    const { intc, mpu, mmu } = c;
     if (!draining && e.drained !== undefined && e.holdFetch && e.redirect) {
       const line = intc.next();
       if (line < 0) {
@@ -233,7 +273,6 @@ export class Machine {
         e.holdFetch(false);
       } else e.holdFetch(true);
     }
-    this.runEngine(e, p);
   }
 
   /** One engine step with the guard on; the stall it asked for is its hardware core's. */

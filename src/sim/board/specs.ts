@@ -194,6 +194,14 @@ const specList: DeviceSpec[] = [
   { id: "cpu3t", kind: "cpu", tier: 4, name: "Tiny-5F x2 SMT (dual core, 2 threads)", slot: "cpu", memory: { channels: 2, policy: "open" }, mmu: { tlb: 4 }, cores: 2, threads: 2, price: 5000, idleW: 6, loadW: 80, heatFactor: 1, after: "cpu2d", branch: "multicore",
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
     engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
+  // The level 14 pair (docs/MULTICORE.md sections 5 and 8). The server: four cores with two switch-on-miss threads each, eight logical cores for the 8-thread `hpc` kinds. Placeholder price, power and art.
+  { id: "cpu5s", kind: "cpu", tier: 5, name: "Tiny-5F x4 SMT (server, 4 cores, 8 threads)", slot: "cpu", memory: { channels: 4, policy: "open" }, mmu: { tlb: 8 }, cores: 4, threads: 2, price: 9000, idleW: 8, loadW: 95, heatFactor: 1, after: "cpu3t", branch: "multicore",
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "inorder", forwarding: true, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
+  // The HPC part: two out-of-order cores with full SMT (both threads in the pipeline at once, a ROB of 16 split between them). Four logical cores.
+  { id: "cpu5h", kind: "cpu", tier: 5, name: "Tiny-OoO x2 SMT (HPC, 2 cores, 4 threads)", slot: "cpu", memory: { channels: 4, policy: "adaptive" }, mmu: { tlb: 16 }, cores: 2, threads: 2, price: 11000, idleW: 9, loadW: 115, heatFactor: 1, after: "cpu4", branch: "multicore",
+    clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",
+    engine: { kind: "ooo", robSize: 16, schedSize: 8, fetchQueue: 8, commitWidth: 4, cacheLines: 16, l2Lines: 64, redirectPenalty: 2 } },
   // The only ooo CPU (owner 2026-10-24): ROB 8, 4-wide commit. ROB 16 and 32 are deferred. Placeholder price, power and art as cpu3.
   { id: "cpu4", kind: "cpu", tier: 4, name: "Tiny-OoO (out-of-order, ROB 8)", slot: "cpu", memory: { channels: 2, policy: "adaptive" }, mmu: { tlb: 16 }, price: 6000, idleW: 6, loadW: 80, heatFactor: 1,
     clock: { min: 1, base: 3, max: 5 }, thermal: cpuThermal, visual: "cpu-inorder-fwd",

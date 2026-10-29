@@ -41,4 +41,11 @@ export interface Engine {
   switchTo?(core: Core): boolean;
   /** The active thread is parked or done: fetch for another one (only valid while `drained`). */
   yieldThread?(): void;
+  // Full SMT (docs/MULTICORE.md section 5): every thread is in the pipeline at once. `drained`, `pc`, `holdFetch` and `redirect` then speak for the thread chosen with `selectThread`.
+  /** All the engine's threads run at the same time (not one at a time): the machine serves each thread's interrupts every cycle. */
+  readonly concurrent?: boolean;
+  /** Choose the thread that `drained`, `pc`, `holdFetch` and `redirect` refer to. */
+  selectThread?(t: number): void;
+  /** The thread has ended (its ecall has retired). */
+  threadHalted?(t: number): boolean;
 }
