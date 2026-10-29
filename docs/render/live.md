@@ -1,12 +1,13 @@
 # Rendering: live state (activity, boot, power-off, performance, tracing)
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/render/live.ts`, `src/render/board/ramview.ts`, `src/render/die/dieview.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/render/live.ts`, `src/render/board/ramview.ts`, `src/render/board/gpuview.ts`, `src/render/die/dieview.ts`.
 
 ## Files
 
 | File | Role |
 |---|---|
 | `live.ts` | per-snapshot and per-frame state: bus activity, cable glow, PSU readout, monitor text and NO SIGNAL, heat glow, fans, DRAM flashes (a ring round the chip; the memory map itself is `ramview.ts`), boot visuals (PCH glow, USB LED, boot bar), the VRM glow, power-good light, crash flash and the dead-board look. Two roots: `root` (interior) and `ext` (monitor screen, USB / monitor LEDs, video cable glow) |
+| `gpuview.ts`, `gpumotion.ts`, `gpulayout.ts` | the graphics cards, alive (`Live` owns the `GpuView`; `Snapshot.gpus` feeds it). `gpulayout.ts` is the pure floorplan (fans along the top edge, then lanes in two rows, vector registers, banks, card memory, mask, mask stack, pc, PCIe link; the art, the hits and the tooltip test all read it). `gpumotion.ts` replays the snapshot's last 24 instructions at the die's pace (`GpuPlayer`: a conflicted vld takes its cost in rounds, the newest window replaces the old one when it is over). `gpuview.ts` spins each fan (turns per second from the card's temperature, load and throttle: `fanTurns`), fades the shroud cover out between zoom 0.28 and 0.45 and draws, only when the picture changes, the lanes lit by the mask (dark = masked off), the register rows (the destination row glows), the banks with the addresses queued on each (red outline = conflict), the bus and link. Texts from zoom 0.5, counters from 0.9. The mask stack shows the card's current depth, not the replayed one |
 | `ramview.ts`, `ramlayout.ts` | the memory sticks as a map of RAM (docs/DIE.md "Memory"): one square cell per 256-byte page (colour = owner, strength = fullness; redrawn only when the memory changes), region outlines and a key per stick, the magnifier that reads the touched address as code or data; `ramlayout.ts` is the pure part (chip address ranges, colours, outlines, the lens rows) |
 
 ## Activity (what lights up)
