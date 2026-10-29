@@ -87,8 +87,20 @@ One job per GPU kernel and one per depth of network. None needs a card: without 
 
 `gpu.render`, the job that picked one of the first four kernels by seed, is still a template (a key saved before the split loads and runs) but no class sends it now.
 
-### Coming soon (1 kind, and why not more)
-The class `hpc` needs several cores (`needs: cores >= 2`), and nothing in the sim has more than one: the engines run one core, and the OS has one program slot per CPU. A job that "wants many cores" cannot be built honestly before the multicore stage (docs/TODO.md T53 and T85: engines sharing RAM and an L2, an OS with a slot per core, a per-core interrupt line). What is planned for it, each with the cores it will need: an n-body step (2+), a big matrix product split by rows (2, 4), a parallel reduction (2+), a Monte-Carlo run with a core per stream (4+), a merge sort of a big array (4+), a breadth-first search (8+), an FFT (8+). They are listed here, not in the game, because a row that cannot be played would only be a locked silhouette; `hpc` stays as the one planned row.
+### High-performance (7 kinds, `tasks.hpc.ts`)
+The class `hpc` sends threaded programs (docs/MULTICORE.md section 7). Every kind needs the multicore OS 4 (`os >= 4`, which starts the threads) and as many logical cores as it has threads (`cores >= T`); payMul is the class's. One program serves any thread count: thread k (a0) takes its share by k and T (a1), the threads meet at barriers (a shared arrival counter) and add their partial results into one total with `amoadd`. Every kind is race free, so the text is the same under any interleaving, and a program started with a1 = 0 runs as one thread (the generic template tests, the plain reference).
+
+| Kind | Template | Level | Threads | Needs | Leans on |
+|---|---|---|---|---|---|
+| Parallel sum (`hpc-reduce`) | `hpc.reduce` | 14 | 2 | 2 cores | cores, memory |
+| Matrix product (`hpc-matmul`) | `hpc.matmul` | 14 | 2 | 2 cores | cores, the multiplier |
+| N-body step (`hpc-nbody`) | `hpc.nbody` | 15 | 2 | 2 cores | cores, barriers after each step |
+| Monte Carlo (`hpc-montecarlo`) | `hpc.montecarlo` | 15 | 4 | 4 cores | cores (scales best) |
+| Parallel sort (`hpc-sort`) | `hpc.sort` | 16 | 4 | 4 cores | cores, the predictor; thread 0 merges alone |
+| Graph search (`hpc-bfs`) | `hpc.bfs` | 17 | 8 | 8 cores | cores, memory latency, a barrier per level |
+| Fourier transform (`hpc-fft`) | `hpc.fft` | 17 | 8 | 8 cores | cores, barriers per stage |
+
+The level 14 server CPU (`cpu5s`) has eight logical cores, so it covers every kind. How much faster more hardware cores make a job shows on the long jobs (fft: about 5x from two cores to eight); a short job is dominated by the kernel's own work under the one big lock (start, page faults, the end of the job), so it can finish later on a bigger CPU than on a small one: that is for the balance pass (docs/MULTICORE.md M13).
 
 ### Why some groups are not ten
 - **Everyday** reaches ten because a program needs only the CPU and the display, so each can be a different dependency (a chain, unpredictable branches, a shift loop, loads and stores, the multiplier, bytes written backwards, a bit loop).
@@ -114,7 +126,7 @@ The **Almanac** button in the bottom bar (beside Power; a modal like the shop, E
 | not met | the silhouette, `? ? ?`, the level clients start sending it, what it needs, a locked program and locked tips |
 | met (one arrived) | the above, with the sprite, rings and assembly, and locked tips and high-level code |
 | done (one finished) | everything, with C++ and Python and the tips |
-| planned | the silhouette, the name and a line (hpc) |
+| planned | the silhouette, the name and a line (no kind is planned today) |
 
 The record is per game (`Snapshot.dex`, saved as the optional `jobDex` field, no version bump): `seen` is the tick the first one arrived, `runs` the jobs delivered, `best` the fewest ticks between the key being taken and the job being done. It updates when a job arrives (`enqueue`) and when one is delivered (`deliver`), by the label the monitor shows (`Key.type`).
 

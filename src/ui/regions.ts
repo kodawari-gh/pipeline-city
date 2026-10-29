@@ -204,5 +204,5 @@ export const JOB_TYPES: Record<string, string> = {
   secure: 'A secure job: signs and checks data. Needs a secure module (TPM).',
   gpu: 'A graphics job: heavy parallel work. Needs a graphics card.',
   npu: 'An AI job: neural network work. Needs a neural accelerator.',
-  hpc: 'A heavy compute job: big work that wants several cores. Needs a multicore processor.',
+  hpc: 'A heavy compute job: threads that split big work between the cores. Needs OS 4 and a multicore processor.',
 };

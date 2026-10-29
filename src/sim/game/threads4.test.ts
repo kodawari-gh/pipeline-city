@@ -20,13 +20,15 @@ afterAll(() => { delete TEMPLATES["test.par2"]; delete TEMPLATES["test.par3"]; d
 
 /** Cores seen running a thread of a program (the claim word of a context holds its core plus one). */
 const ran = new Set<number>();
-const until = (g: Game, done: () => boolean, max = 9000): void => {
+const until = (g: Game, done: () => boolean, max = 9000): number => {
   const dv = new DataView(g.machine.ram.buffer);
-  for (let t = 0; t < max && !done(); t++) {
+  let t = 0;
+  for (; t < max && !done(); t++) {
     g.advanceBaseTick();
     for (let c = 0; c < 8; c++) { const w = dv.getUint32(PCBS + c * PCB.BYTES + PCB.CORE, true); if (w) ran.add(w - 1); }
   }
   expect(done()).toBe(true);
+  return t;
 };
 
 /** The Enthusiast board with `cpu`, a cooler, 256K of RAM, a drive and OS 4, powered off. */
@@ -75,18 +77,18 @@ const lastLine = (text: string): string => text.split("\n").filter((l) => l.trim
 const framesInUse = (dv: DataView): number => Array.from({ length: FRAME_END - FRAME_FIRST }, (_, f) => dv.getUint32(FMAP + 4 * (FRAME_FIRST + f), true)).filter((w) => w !== 0 && w !== RESERVED_FRAME).length;
 const claimedContexts = (dv: DataView): number => Array.from({ length: 8 }, (_, c) => dv.getUint32(PCBS + c * PCB.BYTES + PCB.SLOT, true)).filter((w) => w !== 0).length;
 
-function run(cpu: string, templates: string[], seeds: number[]) {
+function run(cpu: string, templates: string[], seeds: number[], scale = 2) {
   ran.clear();
   const g = machine(cpu);
   g.powerButton();
   until(g, () => g.currentPhase() === "idle-os");
-  const gens = templates.map((t, k) => generate(t, seeds[k]!, { row: JOB_ROW, scale: 2 + k, hosted: true }));
+  const gens = templates.map((t, k) => generate(t, seeds[k]!, { row: JOB_ROW, scale: scale + k, hosted: true }));
   const { dv, states } = submit(g, gens.map((x) => x.program));
-  until(g, () => states().every((x) => x === JobState.Result), 80000);
+  const took = until(g, () => states().every((x) => x === JobState.Result), 80000);
   until(g, () => g.currentPhase() === "idle-os");
   const texts = gens.map((_, k) => resultText(dv, k)), expected = gens.map((x) => lastLine(x.meta.expectedText));
   const signature = [g.snapshot().cycle, ...g.machine.cores.map((c) => `${c.intc.taken}/${c.mmu.hits}/${c.mmu.misses}`)].join(",");
-  return { g, dv, texts, expected, signature };
+  return { g, dv, texts, expected, signature, took };
 }
 
 describe("threaded programs on the multicore OS 4", { timeout: 120_000 }, () => {
@@ -161,5 +163,34 @@ wait:
     until(g, () => g.currentPhase() === "idle-os");
     expect(framesInUse(dv)).toBe(0);
     expect(claimedContexts(dv)).toBe(0);
+  });
+});
+
+describe("the hpc kinds on the multicore OS 4", { timeout: 240_000 }, () => {
+  const WHERE: [string, string][] = [
+    ["hpc.reduce", "cpu2d"], ["hpc.matmul", "cpu2d"], ["hpc.nbody", "cpu2d"], // 2 threads on 2 logical cores
+    ["hpc.montecarlo", "cpu3t"], ["hpc.sort", "cpu5h"], // 4 threads on 4 logical cores (two cores with two threads each)
+    ["hpc.bfs", "cpu5s"], ["hpc.fft", "cpu5s"], // 8 threads on 8 logical cores
+  ];
+  it.each(WHERE)("%s runs on %s with the generator's text and no fault", (kind, cpu) => {
+    const r = run(cpu, [kind], [31]);
+    expect(r.texts).toEqual(r.expected);
+    expect(r.g.snapshot().faults).toBe(0);
+    expect(framesInUse(r.dv)).toBe(0);
+    expect(claimedContexts(r.dv)).toBe(0);
+  });
+
+  it("an 8-thread kind shares fewer cores, correctly and slower", () => {
+    const few = run("cpu2d", ["hpc.fft"], [32], 8), many = run("cpu5s", ["hpc.fft"], [32], 8);
+    expect(few.texts).toEqual(few.expected);
+    expect(many.texts).toEqual(many.expected);
+    expect(many.took).toBeLessThan(few.took);
+  });
+
+  it("an 8-thread kind is faster on eight logical cores than on two (short jobs are still dominated by the kernel's own work)", () => {
+    const two = run("cpu2d", ["hpc.fft"], [33], 16), eight = run("cpu5s", ["hpc.fft"], [33], 16);
+    expect(two.texts).toEqual(two.expected);
+    expect(eight.texts).toEqual(eight.expected);
+    expect(eight.took).toBeLessThan(two.took * 0.6);
   });
 });

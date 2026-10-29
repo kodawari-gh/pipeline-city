@@ -51,7 +51,8 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "gpu", template: "gpu.render", scale: 4, payMul: 3, needs: [], firstLevel: 10, rampTicks: 600, heavy: true },
   // The inference job needs no card: NPU, then GPU, then CPU, slower down the chain at the same pay (docs/ACCEL.md).
   { id: "npu", template: "npu.infer", scale: 4, payMul: 4, needs: [], firstLevel: 12, rampTicks: 600, heavy: true },
-  { id: "hpc", template: "cli.scan", scale: 8, payMul: 5, needs: [{ kind: "cores", min: 2 }], firstLevel: 14, rampTicks: 600, heavy: true, placeholder: true },
+  // The high-performance compute jobs (src/sim/gen/tasks.hpc.ts): threaded programs, so they need the multicore OS 4 and as many logical cores as the kind has threads (2, 4 or 8; the kinds say which).
+  { id: "hpc", template: "hpc.reduce", scale: 8, payMul: 5, needs: [{ kind: "cores", min: 2 }, { kind: "os", min: 4 }], firstLevel: 14, rampTicks: 600, heavy: true },
 ];
 
 export function jobClass(id: string): JobClassDef | undefined {

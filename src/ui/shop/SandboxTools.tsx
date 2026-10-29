@@ -14,7 +14,7 @@ const TEMPLATE_LABEL: Record<string, string> = {
 
 const CLASS_LABEL: Record<string, string> = {
   cli: 'Command line', scan: 'Memory scan', db: 'Database', web: 'Web page (needs an ISP plan)', secure: 'Secure signing (needs TPM + ECC)',
-  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC (needs 2+ cores)',
+  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC (OS 4, 2+ cores)',
 };
 
 export function SandboxTools({ s }: { s: Snapshot }) {

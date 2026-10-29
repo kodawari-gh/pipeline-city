@@ -17,7 +17,7 @@ describe("the job almanac data", () => {
       if (!e.planned) { expect(e.tips.length, e.id).toBeGreaterThanOrEqual(2); expect(e.stresses.length, e.id).toBeGreaterThan(0); }
     }
     for (const c of JOB_CLASSES.filter((x) => !x.placeholder)) expect(JOB_DEX.some((e) => e.cls === c.id && !e.planned), c.id).toBe(true);
-    expect(JOB_DEX.filter((e) => e.planned).map((e) => e.id)).toEqual(["hpc"]);
+    expect(JOB_DEX.filter((e) => e.planned)).toEqual([]);
   });
 
   it("puts every kind of job in exactly one group, and the tips name a part and a few words", () => {
@@ -31,6 +31,8 @@ describe("the job almanac data", () => {
   it("says what a class needs and when it arrives", () => {
     expect(dexNeeds(dexEntry("db")!)).toEqual({ needs: ["an OS", "a SATA SSD or better", "96K of RAM"], firstLevel: 5 });
     expect(dexNeeds(dexEntry("log")!).needs).toEqual([]);
+    expect(dexNeeds(dexEntry("hpc-reduce")!)).toMatchObject({ firstLevel: 14 });
+    expect(dexEntry("hpc-bfs")!.needs).toEqual([{ kind: "cores", min: 8 }, { kind: "os", min: 4 }]);
   });
 
   it("goes unseen, seen, done", () => {
@@ -38,7 +40,7 @@ describe("the job almanac data", () => {
     expect(dexState(e, undefined)).toBe("unseen");
     expect(dexState(e, { seen: 3, runs: 0, best: 0 })).toBe("seen");
     expect(dexState(e, { seen: 3, runs: 2, best: 9 })).toBe("done");
-    expect(dexState(dexEntry("hpc")!, undefined)).toBe("planned");
+    expect(dexState(dexEntry("hpc-fft")!, undefined)).toBe("unseen");
   });
 });
 

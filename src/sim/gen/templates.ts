@@ -15,6 +15,7 @@ import {
   copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 import { EVERYDAY_TEMPLATES } from "./tasks.everyday";
+import { HPC_TEMPLATES } from "./tasks.hpc";
 import { MEMORY_TEMPLATES } from "./tasks.memory";
 import { TRUST_TEMPLATES } from "./tasks.trust";
 import { WEB_TEMPLATES } from "./tasks.web";
@@ -331,6 +332,7 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   ...EVERYDAY_TEMPLATES,
   ...MEMORY_TEMPLATES,
   ...WEB_TEMPLATES,
+  ...HPC_TEMPLATES,
   ...TRUST_TEMPLATES,
   // The accelerator jobs, one per kernel and one per depth of network (docs/JOBS.md).
   ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as TemplateFn])),

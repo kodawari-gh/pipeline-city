@@ -87,7 +87,7 @@ export const JOB_CLASS_LABEL: Record<string, { label: string; icon: IconKey; hin
   secure: { label: 'Secure', icon: 'lock', hint: 'Needs a secure module (TPM).' },
   gpu: { label: 'GPU', icon: 'screen', hint: 'Array jobs: a graphics card makes them faster (they run without one, slowly).' },
   npu: { label: 'AI', icon: 'cpu', hint: 'Network jobs: a neural accelerator makes them faster (they run without one, slowly).' },
-  hpc: { label: 'Heavy compute', icon: 'fan', hint: 'Needs a multicore processor.' },
+  hpc: { label: 'Heavy compute', icon: 'fan', hint: 'Needs OS 4 and a multicore processor.' },
 };
 
 /** The icon of each group of kinds of job, for a kind that arrives after its class did. */

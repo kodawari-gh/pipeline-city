@@ -365,8 +365,10 @@ describe("jobs the machine cannot run", () => {
     expect(needsMet([{ kind: "os", min: 1 }, { kind: "storage", minTier: 1 }], { ...NO_CAPS, osTier: 1, storageTier: 2 }).ok).toBe(true);
     expect(needsMet([{ kind: "storage", minTier: 1 }], { ...NO_CAPS, storageTier: 0 }).ok).toBe(false);
     const hpc = JOB_CLASSES.find((x) => x.id === "hpc")!;
-    expect(hpc.placeholder).toBe(true);
-    expect(needsMet(hpc.needs, { ...NO_CAPS, osTier: 3, storageTier: 2 }).ok).toBe(false);
+    expect(hpc.placeholder).toBeUndefined();
+    expect(needsMet(hpc.needs, { ...NO_CAPS, osTier: 3, storageTier: 2, cores: 8 }).ok).toBe(false); // OS 3 does not start threaded programs
+    expect(needsMet(hpc.needs, { ...NO_CAPS, osTier: 4, storageTier: 2, cores: 1 }).ok).toBe(false);
+    expect(needsMet(hpc.needs, { ...NO_CAPS, osTier: 4, storageTier: 2, cores: 2 }).ok).toBe(true);
     // The network jobs are real now: a link of any plan meets the class, and a kind can ask for a faster plan.
     const web = JOB_CLASSES.find((x) => x.id === "web")!;
     expect(web.placeholder).toBeUndefined();

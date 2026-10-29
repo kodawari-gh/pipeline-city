@@ -192,7 +192,7 @@ A **job class** groups templates and carries `needs`. The four existing classes 
 | `secure` | built (T72, T73) | a TPM / secure module | 9 | attestation and encrypted memory steps, extra cycles |
 | `gpu` | built (T77) | nothing: it runs on the CPU, faster with a GPU (decision 2026-10-24, docs/ACCEL.md) | 10 | CPU prepares, GPU kernel, ARCHITECTURE "Accelerators" |
 | `npu` | built (T78, T79) | nothing: NPU, then GPU, then CPU, slower down the chain, same pay | 12 | |
-| `hpc` | planned | a multicore CPU (at least 2 cores) | 14 | the multi-core simulation template |
+| `hpc` | built (M11) | OS 4 and a multicore CPU (at least 2 logical cores; a kind asks for 2, 4 or 8) | 14 | seven threaded kinds, `tasks.hpc.ts` (JOBS.md) |
 
 Needs are one of: `{kind: "os", min}`, `{kind: "storage", minTier}`, `{kind: "net"}`, `{kind: "tpm"}`, `{kind: "gpu", minTier}`, `{kind: "npu"}`, `{kind: "cores", min}`. A need is **met** when the matching device is installed and working (not burnt) at the moment the job would be picked to run (and for `net` while the link is up).
 

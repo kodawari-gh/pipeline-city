@@ -111,6 +111,8 @@ export const OS3_MIN_BYTES = 256 * 1024;
 const KSTK = 0xfc00;
 /** CPU cycles one program runs before the scheduler looks again. */
 export const SLICE_CYCLES = 5000;
+/** The threaded kernel's slice: with up to eight cores asking for the one big lock every slice, 5000 cycles keeps the lock busy most of the time. */
+export const SLICE_CYCLES_THR = 20000;
 /** Where the end of the kernel's data is, by OS tier. */
 export const kdataEndFor = (tier: number, smp = false): number => (tier >= 3 ? (smp ? KDATA_END_PRE_SMP : KDATA_END_PRE) : smp && tier === 2 ? KDATA_END_SMP : KDATA_END);
 const H = (k: keyof typeof OS_HEADER): number => 4 * OS_HEADER[k];
@@ -458,21 +460,48 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
 
     // kfreeown: free every frame owned by job t1 (clobbers t2-t4)
     "kfreeown:",
-    ...lockIn("kfl0", "t2", "t3", "t4"),
-    `  li t2, ${FMAP_FIRST}`,
-    `  li t3, ${FMAP_LAST}`,
-    "kfo1:",
-    "  lw t4, 0(t2)",
-    "  andi t4, t4, 15",
-    "  bne t4, t1, kfo2",
-    "  sw zero, 0(t2)",
-    "kfo2:",
-    "  addi t2, t2, 4",
-    "  bne t2, t3, kfo1",
-    `  li t2, ${FMAP_FIRST}`,
-    `  sw t2, ${HINT}(zero)`,
-    ...unlockIn("t2"),
-    "  ret",
+    ...(thr ? [
+      // OS 4: a chunk of the map at a time under the big lock, so that the threads of a job that end together are not all kept waiting for the whole scan (they would
+      // spin in its way: a core's second thread gets a share of the pipeline). The hint goes back to the start with every chunk, which is never wrong.
+      `  li t2, ${FMAP_FIRST}`,
+      "kfo0:",
+      ...lockIn("kfl0", "t0", "t3", "t4"),
+      "  addi t0, t2, 256",
+      `  li t3, ${FMAP_LAST}`,
+      "  blt t0, t3, kfoe",
+      "  mv t0, t3",
+      "kfoe:",
+      "kfo1:",
+      "  lw t4, 0(t2)",
+      "  andi t4, t4, 15",
+      "  bne t4, t1, kfo2",
+      "  sw zero, 0(t2)",
+      "kfo2:",
+      "  addi t2, t2, 4",
+      "  bne t2, t0, kfo1",
+      `  li t4, ${FMAP_FIRST}`,
+      `  sw t4, ${HINT}(zero)`,
+      ...unlockIn("t0"),
+      `  li t3, ${FMAP_LAST}`,
+      "  bne t2, t3, kfo0",
+      "  ret",
+    ] : [
+      ...lockIn("kfl0", "t2", "t3", "t4"),
+      `  li t2, ${FMAP_FIRST}`,
+      `  li t3, ${FMAP_LAST}`,
+      "kfo1:",
+      "  lw t4, 0(t2)",
+      "  andi t4, t4, 15",
+      "  bne t4, t1, kfo2",
+      "  sw zero, 0(t2)",
+      "kfo2:",
+      "  addi t2, t2, 4",
+      "  bne t2, t3, kfo1",
+      `  li t2, ${FMAP_FIRST}`,
+      `  sw t2, ${HINT}(zero)`,
+      ...unlockIn("t2"),
+      "  ret",
+    ]),
 
     // kcnt: a0 = jobs running (clobbers t0-t3)
     "kcnt:",
@@ -777,7 +806,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     "  li t2, 3",
     `  sw t2, ${KSLOT.STATE}(t0)`, // it can run now
     `  li t2, ${TIMER_BASE}`,
-    `  li t3, ${SLICE_CYCLES}`,
+    `  li t3, ${thr ? SLICE_CYCLES_THR : SLICE_CYCLES}`,
     `  sw t3, ${TIMER_REG.INTERVAL}(t2)`,
     ...(smp ? [
       // wake the other cores: the job is theirs to run too
@@ -885,7 +914,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     "kpkill:",
     "  j kfault",
     ...(thr ? ["kpku:", ...unlockIn("t0"), "  j kfault"] : []),
-    ...(smp ? secondary3() : []),
+    ...(smp ? secondary3(thr) : []),
   ];
 }
 
@@ -894,7 +923,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
  * the entry stubs below load the block's addresses, because an interrupt handler has no register to spare. A core without a context to run sits in `kidlec` parked and wakes
  * for its timer or an IPI to look again.
  */
-function secondary3(): string[] {
+function secondary3(thr = false): string[] {
   const ack = (1 << IRQ.TIMER) | (1 << IRQ.IPI);
   const stubs: string[] = [];
   for (let c = 0; c < MAX_LCORES; c++) {
@@ -965,7 +994,7 @@ function secondary3(): string[] {
     `  addi t0, t0, ${IDLEP}`,
     `  sw t0, ${PCORE + PC_CURP}(t2)`,
     `  li t2, ${TIMER_BASE}`,
-    `  li t0, ${SLICE_CYCLES}`,
+    `  li t0, ${thr ? SLICE_CYCLES_THR : SLICE_CYCLES}`,
     `  sw t0, ${TIMER_REG.INTERVAL}(t2)`,
     `  li t0, ${KTBL}`,
     `  sw t0, ${MMU_REG.TABLE}(t3)`,
