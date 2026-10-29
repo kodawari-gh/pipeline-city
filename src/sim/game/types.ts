@@ -260,6 +260,8 @@ export interface LevelSnap {
   /** Every level, for the milestone screen. */
   upcoming: LevelRowSnap[];
   sandbox: boolean;
+  /** Sandbox: the job classes switched off for the natural arrivals (empty elsewhere). */
+  classesOff: string[];
 }
 
 /** A storage device and its live statistics. */

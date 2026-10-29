@@ -46,11 +46,12 @@ Shown as the **SANDBOX** chip in the HUD bar. Each is a `ToSim` message and a `G
 |---|---|
 | `spawnKey(template, scale)` | Adds a key with a generator template (for example `cli`, `cli.log`, `cli.scan`) at scale 1 to 16 to the tray, or a job class id (`db`, `web`, `secure`, `gpu`, `npu`, `hpc`: the class sets template and scale and carries its needs, so it may be unrunnable). Refused when the tray is full. |
 | `setLevel(level)` | Pins the rules level (patience, payout, demand, arrival mix) at 1 to 18; refused in a campaign (`sandbox mode only`). |
+| `setJobClasses(off)` | Chooses which job classes arrive on their own: `off` lists the classes that stop (`cli`, `scan`, `db`, `web`, `secure`, `gpu`, `npu`, `hpc`; empty = all arrive). A class the pinned level has no share for never arrives anyway. With every class off nothing arrives; `spawnKey` still adds any. Not saved, like the pinned level. Shown as the "Arriving on their own" checkboxes in the tools popover. |
 | `clearQueue()` | Throws away every key in the tray. The plugged key and the keys the OS holds stay. |
 | `repairAll()` | Un-burns every part and the board, cools everything to ambient, clears a PSU trip. Works powered or not. |
 | `setReputation(value)` | Sets reputation within the economy's range (0.4 to 4). The turnaround average is set to match, and it moves as usual afterwards. |
 
-The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation` and `setLevel` in `src/game/store.ts`.
+The store actions are `spawnKey`, `clearQueue`, `repairAll`, `setReputation`, `setJobClasses` and `setLevel` in `src/game/store.ts`.
 
 ## Speed
 

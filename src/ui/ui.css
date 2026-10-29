@@ -600,6 +600,10 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .sbx-row input[type=range] { flex: 1; min-width: 6rem; accent-color: var(--accent); }
 .sbx-row button { flex: 0 0 auto; }
 .sbx-val { font-family: var(--mono); min-width: 2.6rem; text-align: right; }
+.sbx-classes { display: grid; grid-template-columns: 1fr; gap: 0.15rem; margin-bottom: 0.3rem; }
+.sbx-classes label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85em; }
+.sbx-classes label.dim { opacity: 0.5; }
+.sbx-classes input { accent-color: var(--accent); }
 .sbx-msg { color: var(--mute); font-size: 0.733rem; }
 
 /* Power bill chip and its detail popover (PowerBill.tsx, docs/GAME.md "The power bill"). */

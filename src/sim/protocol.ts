@@ -52,7 +52,9 @@ export type ToSim =
   | { type: 'repairAll' }
   | { type: 'setReputation'; value: number }
   /** Pin the sandbox rules level (patience, payout, demand, job mix), 1 to 18. */
-  | { type: 'setLevel'; level: number };
+  | { type: 'setLevel'; level: number }
+  /** Sandbox: the job classes that stop arriving on their own (empty = all arrive). */
+  | { type: 'setJobClasses'; off: string[] };
 
 export type FromSim =
   | { type: 'ready' }

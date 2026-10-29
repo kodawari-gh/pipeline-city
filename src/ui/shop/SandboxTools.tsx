@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { clearQueue, repairAll, setLevel, setReputation, setSpeed, spawnKey, speed } from '../../game/store';
+import { clearQueue, repairAll, setJobClasses, setLevel, setReputation, setSpeed, spawnKey, speed } from '../../game/store';
 import type { Snapshot } from '../../sim/game/game';
-import { LEVELS } from '../../sim/game/levels';
+import { JOB_CLASSES, levelDef, LEVELS } from '../../sim/game/levels';
 import { TEMPLATE_NAMES } from '../../sim/gen';
 import { taskOfTemplate } from '../../sim/game/jobdex';
 
@@ -10,6 +10,11 @@ import { taskOfTemplate } from '../../sim/game/jobdex';
 
 const TEMPLATE_LABEL: Record<string, string> = {
   cli: 'mixed (log / calc / checksum)', 'cli.log': 'log', 'cli.calc': 'calc', 'cli.checksum': 'checksum', 'cli.scan': 'scan (memory heavy)',
+};
+
+const CLASS_LABEL: Record<string, string> = {
+  cli: 'Command line', scan: 'Memory scan', db: 'Database', web: 'Web page (needs an ISP plan)', secure: 'Secure signing (needs TPM + ECC)',
+  gpu: 'GPU batch', npu: 'AI inference', hpc: 'HPC (needs 2+ cores)',
 };
 
 export function SandboxTools({ s }: { s: Snapshot }) {
@@ -76,6 +81,22 @@ export function SandboxTools({ s }: { s: Snapshot }) {
               onChange={(e) => setLevel(Number(e.currentTarget.value))}>
               {LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}: {l.name}</option>)}
             </select>
+          </div>
+          <h4>Arriving on their own</h4>
+          <div class="sbx-classes" role="group" aria-label="Job classes that arrive on their own">
+            {JOB_CLASSES.map((c) => {
+              const atLevel = !!levelDef(s.level.level).mix[c.id], off = s.level.classesOff.includes(c.id);
+              return (
+                <label key={c.id} class={atLevel ? '' : 'dim'} title={atLevel ? undefined : `Not part of the arrival mix at level ${s.level.level}. Spawn one by hand, or raise the rules level.`}>
+                  <input type="checkbox" checked={!off} onChange={(e) => setJobClasses(JOB_CLASSES.map((x) => x.id).filter((id) => (id === c.id ? !e.currentTarget.checked : s.level.classesOff.includes(id))))} />
+                  {CLASS_LABEL[c.id] ?? c.id}
+                </label>
+              );
+            })}
+          </div>
+          <div class="sbx-row">
+            <button onClick={() => setJobClasses([])} title="Let every class arrive again">All on</button>
+            <button onClick={() => setJobClasses(JOB_CLASSES.map((c) => c.id))} title="Stop every class: no key arrives until you spawn one or switch a class on">All off</button>
           </div>
           <h4>Speed</h4>
           <div class="sbx-row">

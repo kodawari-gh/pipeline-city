@@ -46,7 +46,7 @@ import {
 import type { DexRecord } from "./jobdex";
 import type { JobLogEntry } from "./joblog";
 import * as keys from "./keys";
-import { LEVELS, MAX_LEVEL, type ItemInfo } from "./levels";
+import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from "./levels";
 import * as machine from "./machine";
 import * as memory from "./memory";
 import * as network from "./network";
@@ -149,6 +149,8 @@ export class Game {
   recentUnlocks: ItemInfo[] = [];
   /** Sandbox: the rules level (patience, payout, demand, mix) is pinned here instead of following the score. */
   sandboxLevel = SANDBOX_LEVEL;
+  /** Sandbox: job classes switched off for the natural arrivals (spawnKey still adds any). Not saved, like the pinned level. */
+  sandboxOff = new Set<JobClassId>();
 
   /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */
   jobLog: JobLogEntry[] = [];

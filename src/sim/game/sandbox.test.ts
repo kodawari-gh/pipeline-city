@@ -231,3 +231,47 @@ describe("sandbox maxed machine", () => {
     expect(sb({ preassembled: true }).snapshot().devices.length).toBe(5);
   });
 });
+
+describe("sandbox: which job classes arrive on their own", () => {
+  const arrivals = (g: Game, ticks: number): Set<string> => {
+    const seen = new Set<string>();
+    for (let i = 0; i < ticks; i++) {
+      g.advanceBaseTick();
+      for (const k of g.snapshot().tray) seen.add(k.cls);
+      g.clearQueue();
+    }
+    return seen;
+  };
+  const start = (): Game => {
+    const g = new Game({ seed: 3, sandbox: true, preassembled: true, economy: { startQueue: [] } }); // the real arrival rate
+    g.powerButton();
+    g.setLevel(18);
+    g.setReputation(4);
+    return g;
+  };
+  it("turns classes off and back on, and shows the choice in the snapshot", () => {
+    const g = start();
+    expect(g.snapshot().level.classesOff).toEqual([]);
+    expect(g.setJobClasses(["gpu", "npu"])).toEqual({ ok: true, off: ["gpu", "npu"] });
+    expect(g.snapshot().level.classesOff).toEqual(["gpu", "npu"]);
+    expect(g.setJobClasses([]).ok).toBe(true);
+    expect(g.snapshot().level.classesOff).toEqual([]);
+  });
+  it("stops an off class arriving while the others still do", () => {
+    const g = start();
+    g.setJobClasses(["cli", "scan", "db", "web", "secure", "npu", "hpc"]);
+    const seen = arrivals(g, 6000);
+    expect(seen.has("gpu")).toBe(true);
+    expect([...seen].filter((c) => c !== "gpu")).toEqual([]);
+  });
+  it("brings nothing when every class is off, but spawnKey still works", () => {
+    const g = start();
+    g.setJobClasses(["cli", "scan", "db", "web", "secure", "gpu", "npu", "hpc"]);
+    expect(arrivals(g, 3000).size).toBe(0);
+    expect(g.spawnKey("gpu").ok).toBe(true);
+  });
+  it("refuses unknown classes, and a campaign game", () => {
+    expect(start().setJobClasses(["nope"]).ok).toBe(false);
+    expect(new Game({ seed: 1, economy: econ() }).setJobClasses([])).toEqual({ ok: false, reason: "sandbox mode only" });
+  });
+});

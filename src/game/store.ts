@@ -108,6 +108,7 @@ export const clearQueue = () => send({ type: 'clearQueue' });
 export const repairAll = () => send({ type: 'repairAll' });
 export const setReputation = (value: number) => send({ type: 'setReputation', value });
 export const setLevel = (level: number) => send({ type: 'setLevel', level });
+export const setJobClasses = (off: string[]) => send({ type: 'setJobClasses', off });
 /** While paused: run the machine a number of CPU cycles, or one whole base tick (the Trace panel's step buttons). */
 export const stepCycles = (cycles: number) => send({ type: 'step', cycles });
 export const stepTick = () => send({ type: 'stepTick' });

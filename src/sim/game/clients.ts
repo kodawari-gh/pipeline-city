@@ -77,7 +77,8 @@ export function arrivals(this: Game): void {
       this.enqueue(m.template, m.scale, undefined, toNet);
     } else {
       // The web class needs a plan and has no share while no client is on the wire (no plan, or a long dead link).
-      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => c.id !== "web" || (this.ispTier > 0 && !fallback));
+      const mix = jobMix(this.level, this.reputation(), this.levelTicks, this.baseTick).filter(([c]) => (c.id !== "web" || (this.ispTier > 0 && !fallback)) && !this.sandboxOff.has(c.id));
+      if (mix.length === 0) return; // the sandbox switched off every class of this level
       const c: JobClassDef = pickClass(mix, r);
       this.enqueue(c.template, c.scale, c.id, toNet || c.id === "web", true);
     }

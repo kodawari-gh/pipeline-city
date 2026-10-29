@@ -3,7 +3,7 @@
 import { TEMPLATES } from "../gen";
 import type { Game } from "./game";
 import { NOT_SANDBOX } from "./internal";
-import { jobClass, levelDef, MAX_LEVEL } from "./levels";
+import { JOB_CLASSES, jobClass, levelDef, MAX_LEVEL, type JobClassId } from "./levels";
 import type { Result } from "./types";
 
 /**
@@ -35,6 +35,20 @@ export function setLevel(this: Game, level: number): Result<{ level: number }> {
   this.sandboxLevel = level;
   this.note("sandbox", `rules level set to ${level} (${levelDef(level).name})`);
   return { ok: true, level };
+}
+
+/**
+ * Sandbox: choose which job classes arrive on their own. `off` lists the classes that stop arriving (an empty list turns them all back on);
+ * with every class of the level off nothing arrives. `spawnKey` still adds any class by hand. Refused in a campaign.
+ */
+export function setJobClasses(this: Game, off: readonly string[]): Result<{ off: JobClassId[] }> {
+  if (!this.sandbox) return NOT_SANDBOX;
+  const known = new Set<string>(JOB_CLASSES.map((c) => c.id));
+  const bad = off.find((id) => !known.has(id));
+  if (bad !== undefined) return { ok: false, reason: `unknown job class '${bad}'` };
+  this.sandboxOff = new Set(off as JobClassId[]);
+  this.note("sandbox", this.sandboxOff.size ? `arrivals off: ${[...this.sandboxOff].join(", ")}` : "every job class arrives again");
+  return { ok: true, off: [...this.sandboxOff] };
 }
 
 /** Sandbox: throw away every key in the tray (the plugged key and keys the OS holds stay). */
