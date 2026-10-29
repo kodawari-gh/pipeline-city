@@ -2,15 +2,18 @@ import { Container, Graphics } from 'pixi.js';
 import { geoOf } from './boardlayout';
 import { BD, NIC_BRACKET_X, nicY, type Rect } from './layout';
 import { box, disc, label, mix } from '../ink';
+import { gpuPlan, GPU_H, GPU_LEN, type GpuPlan } from './gpulayout';
 import type { Theme } from '../theme';
 
 // The accelerator parts (docs/ACCEL.md "Picker and board art"): graphics and AI cards in a PCIe slot, and the TPM module on the board's
 // header. A card is drawn the way the NIC is (net.ts `nicArt`): in board space, on the slot's rail, bracket at the board's west edge,
 // longer cards reaching further east (they may overhang the next slot's rail on screen, never in the sim).
+// A GPU's fans stand along its top edge and its shroud covers the die; the board's `GpuView` (gpuview.ts) spins the blades and fades the cover
+// away when zoomed in, so a card drawn for the board (`live`) leaves both out, and a card drawn for a shop tile has them as a still picture.
 
 /** Card length by the spec's `visual` key. */
-export const CARD_LEN: Record<string, number> = { 'gpu-1': 2000, 'gpu-2': 2500, 'gpu-3': 3000, 'npu-1': 1500, 'npu-2': 1900 };
-const CARD_H: Record<string, number> = { 'gpu-1': 250, 'gpu-2': 260, 'gpu-3': 280, 'npu-1': 196, 'npu-2': 214 };
+export const CARD_LEN: Record<string, number> = { ...GPU_LEN, 'npu-1': 1500, 'npu-2': 1900 };
+const CARD_H: Record<string, number> = { ...GPU_H, 'npu-1': 196, 'npu-2': 214 };
 
 /** The board-space rectangle of a card in PCIe slot `i`: what a click or hover on it hits. */
 export const cardRect = (i: number, visual: string): Rect => {
@@ -18,11 +21,46 @@ export const cardRect = (i: number, visual: string): Rect => {
   return { x: NIC_BRACKET_X, y: nicY(i) - h / 2, w: (CARD_LEN[visual] ?? 1500) + (BD.x - NIC_BRACKET_X), h };
 };
 
-/** Cooling fans a GPU shows: one, two, three by tier. */
-const gpuFans = (visual: string): number => Number(/(\d)$/.exec(visual)?.[1] ?? 1);
+/** Where a card's north-west PCB corner is in board space (the origin of its `gpuPlan`). */
+export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({ x: BD.x, y: nicY(i) - (CARD_H[visual] ?? 200) / 2 });
 
-/** A GPU or NPU card on slot `i`, `visual` = the spec's key (`gpu-1`...`npu-2`). */
-export function cardArt(T: Theme, visual: string, i: number): Container {
+/** Blades of a cooling fan. */
+export const FAN_BLADES = 9;
+
+/** One fan's blades about (0, 0), radius `r`: the view rotates it. */
+export function fanBlades(T: Theme, r: number): Graphics {
+  const g = new Graphics(), c = Math.cos, s = Math.sin, hub = r * 0.24, tip = r * 0.94, sweep = 0.6;
+  for (let b = 0; b < FAN_BLADES; b++) {
+    const a = (b / FAN_BLADES) * Math.PI * 2;
+    g.moveTo(c(a) * hub, s(a) * hub)
+      .quadraticCurveTo(c(a + sweep * 0.25) * r * 0.72, s(a + sweep * 0.25) * r * 0.72, c(a + sweep) * tip, s(a + sweep) * tip)
+      .quadraticCurveTo(c(a + sweep * 0.7) * r * 0.55, s(a + sweep * 0.7) * r * 0.55, c(a + 0.45) * hub, s(a + 0.45) * hub)
+      .closePath();
+  }
+  g.fill({ color: mix(T.alu, '#05070c', 0.45), alpha: 0.95 });
+  g.stroke({ width: 3, color: T.alu, alpha: 0.75 });
+  disc(g, 0, 0, r * 0.22, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.9 });
+  disc(g, 0, 0, r * 0.07, { fill: T.alu, fa: 0.9 });
+  return g;
+}
+
+/** The shroud plate over the die, in card-local units: dark with the heatsink's fins running across it. The view fades it away when zoomed in. */
+export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
+  const b = p.body;
+  box(g, b.x, b.y - 6, b.w, b.h + 6, 8, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 3 });
+  const fin = T.dark ? '#7d89a4' : '#b9c3d8';
+  for (let x = b.x + 18; x < b.x + b.w - 10; x += 22) g.moveTo(x, b.y + 4).lineTo(x, b.y + b.h - 8);
+  g.stroke({ width: 8, color: fin, alpha: 0.2 });
+  for (let x = b.x + 18; x < b.x + b.w - 10; x += 22) g.moveTo(x + 9, b.y + 4).lineTo(x + 9, b.y + b.h - 8);
+  g.stroke({ width: 3, color: '#000000', alpha: 0.35 });
+  // two heat pipes arching over the fins
+  for (const k of [0.3, 0.7]) g.moveTo(b.x + 10, b.y + b.h * k).lineTo(b.x + b.w - 10, b.y + b.h * k);
+  g.stroke({ width: 10, color: T.alu, alpha: 0.22 });
+  return g;
+}
+
+/** A GPU or NPU card on slot `i`, `visual` = the spec's key (`gpu-1`...`npu-2`). `live`: a GPU on the board, whose blades and cover the `GpuView` draws. */
+export function cardArt(T: Theme, visual: string, i: number, live = false): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   const isGpu = visual.startsWith('gpu');
@@ -34,28 +72,35 @@ export function cardArt(T: Theme, visual: string, i: number): Container {
   for (let k = 0; k < 18; k++) g.rect(-2830 + k * 34, y - 14, 18, 28);
   g.fill({ color: T.pin, alpha: 0.85 });
   if (isGpu) {
-    // shroud with its fans, an accent stripe, and the power plug block on the end
-    const n = gpuFans(visual), sh = { x: x0 + 150, y: y - H / 2 + 22, w: L - 330, h: H - 44 };
-    box(g, sh.x, sh.y, sh.w, sh.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 4 });
-    const r = Math.min(sh.h / 2 - 12, (sh.w / n) / 2 - 20);
-    for (let k = 0; k < n; k++) {
-      const cx = sh.x + (sh.w / n) * (k + 0.5);
-      disc(g, cx, y, r, { fill: '#05070c', stroke: T.alu, lw: 4, sa: 0.8 });
-      for (let b = 0; b < 7; b++) {
-        const a = (b / 7) * Math.PI * 2;
-        g.moveTo(cx, y).lineTo(cx + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9);
-      }
-      g.stroke({ width: 8, color: T.alu, alpha: 0.5 });
-      disc(g, cx, y, 14, { fill: T.alu });
+    // the shroud frame, a row of fans along the top edge in their bezels, an accent stripe, the power plug blocks on the end
+    const p = gpuPlan(visual), o = { x: x0, y: y - H / 2 };
+    box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 4 });
+    for (const f of p.fans) {
+      const cx = o.x + f.cx, cy = o.y + f.cy;
+      box(g, cx - f.r - 12, cy - f.r - 12, 2 * f.r + 24, 2 * f.r + 24, 18, { fill: '#0a0f1a', stroke: T.alu, lw: 4, sa: 0.7 });
+      disc(g, cx, cy, f.r + 2, { fill: '#05070c', stroke: T.alu, lw: 3, sa: 0.6 });
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) disc(g, cx + dx * (f.r + 2), cy + dy * (f.r + 2), 4, { fill: T.alu, fa: 0.6 });
     }
-    g.rect(sh.x + 14, sh.y + sh.h - 14, sh.w - 28, 6);
+    g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
     box(g, x0 + L - 150, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 });
     if (visual === 'gpu-3') box(g, x0 + L - 290, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the second lead
     // bracket with the display outputs
     box(g, NIC_BRACKET_X, y - H / 2 - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
-    root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 40, y - H / 2 + 8, 36, T.alu, { head: true, a: 0.9 }));
+    if (!live) {
+      // a still picture (shop tile): the cover and the blades drawn in
+      const cover = new Graphics();
+      gpuCover(cover, T, p);
+      cover.position.set(o.x, o.y);
+      root.addChild(cover);
+      for (const f of p.fans) {
+        const b = fanBlades(T, f.r);
+        b.position.set(o.x + f.cx, o.y + f.cy);
+        root.addChild(b);
+      }
+    }
+    root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, y - H / 2 + 142, 30, T.alu, { head: true, a: 0.9 }));
   } else {
     // the matrix unit: a die with its grid of multiply-accumulate cells, a heatsink on the bigger card
     const K = visual === 'npu-2' ? 8 : 4, die = 150 + K * 14, cx = x0 + 420, c0 = { x: cx - die / 2, y: y - die / 2 };
