@@ -781,6 +781,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .tracedock .tl-dram { color: #3aa8d9; }
 .tracedock .tl-mem, .tracedock .tl-cache { color: var(--ink); }
 .tracedock .tl-reg, .tracedock .tl-pred { color: var(--mute); }
+.tracedock .tl-lbl { color: #b69cf0; font-weight: 700; }
+.tracedock .tl-k-ld, .tracedock .tl-k-st { color: #d9a23a; }
+.tracedock .tl-k-br { color: #d96ad6; }
+.tracedock .tl-k-mul { color: #3aa8d9; }
+.tracedock .trace-filter button:disabled { opacity: 0.45; }
 .tracedock .trace-health, .tracedock .trace-progs { display: flex; flex-direction: column; gap: 0.1rem; }
 .tracedock .th-ok { color: #4cc38a; }
 .tracedock .th-warn { color: #d9a23a; }
@@ -920,6 +925,18 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .alm-chips span { padding: 0.05rem 0.4rem; border: 1px solid var(--glass-line); border-radius: 99rem; }
 .bg-alu { background: #3aa8d9; } .bg-ld { background: #d9a23a; } .bg-st { background: #4cc38a; } .bg-mul { background: #a78bfa; } .bg-br { background: #d96ad6; } .bg-sys { background: #8893b0; }
 .alm-code { font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem; line-height: 1.45; background: rgba(0,0,0,.18); border: 1px solid var(--glass-line); border-radius: 0.3rem; padding: 0.35rem 0.1rem; max-height: 28rem; overflow: auto; }
+/* the kernel of a graphics job: lanes picker, the busy numbers and its instruction mix, then the instruction set under the listing */
+.dx-kstats { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--glass-line); }
+.dx-kstats .seg button { padding: 0.15rem 0.5rem; font-size: 0.72rem; color: var(--mute); }
+.dx-kstats .seg button.on { color: var(--ink); background: var(--glass-line); }
+.dx-kstats .alm-bar { flex: 1 1 8rem; min-width: 6rem; }
+.dx-isa { border-top: 1px solid var(--glass-line); padding: 0.4rem 0.6rem; font-size: 0.72rem; }
+.dx-isa summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.dx-isa p { margin: 0.3rem 0; }
+.isa-group h4 { margin: 0.5rem 0 0.15rem; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); }
+.isa-op { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: 0.6rem; padding: 0.1rem 0; align-items: baseline; }
+.isa-op code { color: #b69cf0; white-space: nowrap; }
+@media (max-width: 40rem) { .isa-op { grid-template-columns: 1fr; gap: 0; } }
 .alm-listing .lbl { color: #b69cf0; padding: 0.15rem 0.5rem 0; font-weight: 700; }
 .alm-listing .ins { display: grid; grid-template-columns: 2.6rem 4.4rem minmax(11rem, 1fr) 3.4rem 3.2rem; gap: 0.4rem; padding: 0 0.5rem; align-items: center; white-space: nowrap; }
 .alm-listing .ln.cold { opacity: 0.45; }

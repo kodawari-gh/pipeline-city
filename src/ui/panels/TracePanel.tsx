@@ -1,12 +1,14 @@
 // The Trace panel: the engine's event log as lines (interrupts, address-space switches, page faults, TLB walks, memory, DRAM rows, cache and register writes),
 // with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/render/live.md "Following the machine").
 import { signal } from '@preact/signals';
+import { Fragment } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepGpu, stepTick, viewCore } from '../../game/store';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub } from '../../game/scrub';
 import { memoryTable, sizeText } from '../../render/board/ramlayout';
 import { tileModels } from '../../render/die/coretiles';
 import { isDark } from '../../render/theme';
+import { gpuListing } from '../../sim/game/gpucode';
 import { Icon } from '../kit/Icons';
 import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
 
@@ -33,6 +35,8 @@ const GPU_GROUPS: { id: GpuGroup; label: string; title: string }[] = [
 
 const buffer = new TraceBuffer(500);
 const gpuShown = signal<Set<GpuGroup>>(new Set<GpuGroup>(['launch', 'mask', 'mem', 'reg', 'sched']));
+/** The card's side shows the kernel in its memory instead of the steps. */
+const kernelShown = signal(false);
 const shown = signal<Set<TraceGroup>>(new Set<TraceGroup>(['os', 'tlb', 'dram']));
 const rev = signal(0);
 
@@ -69,6 +73,7 @@ export function TracePanel() {
   const gOn = gpuShown.value;
   const gLines = card ? gpuLines(card.trace, card.launches).filter((l) => gOn.has(l.group)) : [];
   const lines = buffer.lines.filter((l) => on.has(l.group));
+  const kernel = card && kernelShown.value ? gpuListing(card.code ?? []) : [];
   const gToggle = (g: GpuGroup) => { const n = new Set(gOn); if (n.has(g)) n.delete(g); else n.add(g); gpuShown.value = n; };
   const toggle = (g: TraceGroup) => { const n = new Set(on); if (n.has(g)) n.delete(g); else n.add(g); shown.value = n; };
   return (
@@ -112,12 +117,24 @@ export function TracePanel() {
       {card ? (
         <>
           <div class="trace-filter" role="group" aria-label="Show">
-            {GPU_GROUPS.map((g) => <button key={g.id} class={gOn.has(g.id) ? 'on' : ''} aria-pressed={gOn.has(g.id)} title={g.title} onClick={() => gToggle(g.id)}>{g.label}</button>)}
+            {GPU_GROUPS.map((g) => <button key={g.id} class={gOn.has(g.id) ? 'on' : ''} aria-pressed={gOn.has(g.id)} title={g.title} disabled={kernelShown.value} onClick={() => gToggle(g.id)}>{g.label}</button>)}
+            <button class={kernelShown.value ? 'on' : ''} aria-pressed={kernelShown.value} title="The kernel in the card's memory, word by word, with the instruction the card is at marked" onClick={() => { kernelShown.value = !kernelShown.value; }}>Kernel</button>
           </div>
-          <div class="trace-lines">
+          {kernelShown.value && (
+            <div class="trace-lines trace-kernel" aria-label="Kernel in card memory">
+              {kernel.length === 0 && <div class="mute">No kernel in card memory yet. The CPU copies it in before a launch.</div>}
+              {kernel.map((l) => (
+                <Fragment key={l.addr}>
+                  {l.labels.map((n) => <div key={n} class="tl tl-lbl">{n}:</div>)}
+                  <div class={`tl tl-k-${l.cls}${l.addr === card!.pc && card!.phase !== 'idle' ? ' now' : ''}`}><span class="tc">{l.addr.toString(16).padStart(4, '0')}</span> {l.text}</div>
+                </Fragment>
+              ))}
+            </div>
+          )}
+          {!kernelShown.value && <div class="trace-lines">
             {gLines.length === 0 && <div class="mute">Nothing yet. The card has not run a kernel since power-on.</div>}
             {gLines.map((l, i) => <div key={i} class={`tl tl-${l.group}${paused && l.cycle === at ? ' now' : ''}`} title={paused ? 'Show the card at this cycle' : undefined} onClick={paused ? () => goTo(l.cycle) : undefined}><span class="tc">{l.cycle}</span> {l.text}</div>)}
-          </div>
+          </div>}
         </>
       ) : <>
       <div class="trace-filter" role="group" aria-label="Show">

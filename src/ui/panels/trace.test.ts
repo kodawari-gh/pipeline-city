@@ -45,14 +45,17 @@ describe('card trace lines', () => {
   it('groups a window into launch, mask, mem, reg and sched lines on the window clock', () => {
     const lines = gpuLines([
       st(0, { startCycle: 5, sm: 0, warp: 0 }),
-      st(1, { startCycle: 6, sm: 0, warp: 1, name: 'vld', kind: 'ld', cost: 3, banks: [2, 0], stall: 'bank' }),
-      st(2, { startCycle: 9, sm: 0, warp: 1, name: 'mpush', kind: 'mask', mask: 0xff, maskAfter: 0x0f }),
-      st(3, { startCycle: 10, sm: 0, warp: 1, name: 'halt', kind: 'sys' }),
+      st(4, { startCycle: 6, sm: 0, warp: 1, name: 'vld', kind: 'ld', cost: 3, banks: [2, 0], stall: 'bank' }),
+      st(8, { startCycle: 9, sm: 0, warp: 1, name: 'mpush', kind: 'mask', mask: 0xff, maskAfter: 0x0f }),
+      st(12, { startCycle: 10, sm: 0, warp: 1, name: 'halt', kind: 'sys' }),
     ], 2);
     expect(lines[0]).toMatchObject({ cycle: 0, group: 'launch' });
     expect(lines.map((l) => l.group)).toEqual(['launch', 'reg', 'sched', 'mem', 'sched', 'mask', 'launch']);
     expect(lines.find((l) => l.group === 'mem')).toMatchObject({ cycle: 1 });
     expect(lines.find((l) => l.group === 'mask')!.text).toContain('0xff -> 0x0f');
+    // the pc of a step is a byte address: the second instruction sits at 0x0004, the fourth at 0x000c
+    expect(lines.find((l) => l.group === 'mem')!.text).toContain('0x0004 vld');
+    expect(lines.at(-1)!.text).toContain('0x000c halt');
     expect(gpuLines([])).toEqual([]);
   });
 });

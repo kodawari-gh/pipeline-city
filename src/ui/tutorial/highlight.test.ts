@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HIGH_LEVEL } from '../../sim/game/jobcode';
 import { profileOf } from '../../sim/game/jobcode';
 import { highlight, highlightLines } from './highlight';
+import { gpuKernelProfile } from '../../sim/game/gpucode';
 
 const kinds = (lang: 'asm' | 'cpp' | 'python', text: string) => highlight(lang, text).filter((t) => t.k !== 'plain' && t.k !== 'punct').map((t) => `${t.k}:${t.t}${t.cls ? '/' + t.cls : ''}`);
 
@@ -30,5 +31,18 @@ describe('syntax colouring', () => {
       expect(highlight('python', h.python).map((t) => t.t).join('')).toBe(h.python);
       expect(highlightLines('python', h.python)).toHaveLength(h.python.split('\n').length);
     }
+  });
+
+  it('GPU assembly: mnemonics coloured by what they do, vector registers, labels, and the pieces join back', () => {
+    const text = ['  loop:', '  vld v3, 4(v2)', '  vmul v3, v3, v1', '  vst v3, 8(v2)', '  mseteq v1, v2 # keep', '  bany loop', '  halt'].join('\n');
+    const toks = highlightLines('gpu', text).flat(); // a line at a time, as the listing draws them: the first word of a line is the instruction
+    expect(toks.map((t) => t.t).join('')).toBe(text.replace(/\n/g, ''));
+    const op = (n: string) => toks.find((t) => t.k === 'op' && t.t === n)?.cls;
+    expect([op('vld'), op('vst'), op('vmul'), op('mseteq'), op('bany'), op('halt')]).toEqual(['ld', 'st', 'mul', 'br', 'br', 'sys']);
+    expect(toks.filter((t) => t.k === 'reg').map((t) => t.t)).toContain('v3');
+    expect(toks.some((t) => t.k === 'comment' && t.t === '# keep')).toBe(true);
+    expect(toks.filter((t) => t.k === 'label').map((t) => t.t)).toEqual(['loop:', 'loop']);
+    const k = gpuKernelProfile('gpu.blur3', 8)!;
+    expect(highlight('gpu', k.asm).map((t) => t.t).join('')).toBe(k.asm);
   });
 });

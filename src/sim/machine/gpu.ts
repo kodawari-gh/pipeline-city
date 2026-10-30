@@ -7,7 +7,7 @@
 // after the kernel halts. The instruction semantics and the cycle rule are the reference interpreter's (src/sim/ref/gpuref.ts): this
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
-import { GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
+import { GPU_BASE, GPU_CODE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
 import { createGpu, sameGpuConfig, type GpuConfig, type GpuEngine, type GpuSmView } from "../gpu";
 import { GpuFault, type GpuStep } from "../ref/gpuref";
 import type { Rate } from "./clock";
@@ -44,6 +44,15 @@ export interface GpuView {
   error: boolean;
   /** What a display on this card's port shows: the output region of card memory (`GPU_FRAME`), as words; empty before the first launch of this power-on. */
   frame: number[];
+  /** The kernel in card memory (words from address 0, up to the last one that is not zero), as a launch finds it; empty until the card has had one copied in. */
+  code?: number[];
+}
+
+/** The words of the kernel in card memory: the code area up to its last word that is not zero. */
+function kernelWords(mem: Uint32Array): number[] {
+  let n = Math.min(GPU_CODE.words, mem.length);
+  while (n > 0 && mem[n - 1] === 0) n--;
+  return Array.from(mem.subarray(0, n));
 }
 
 export class GpuPort implements Device {
@@ -108,6 +117,7 @@ export class GpuPort implements Device {
       stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
       sms: core.smViews?.() ?? [{ warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? "done" : "ready" }] }],
       error: this.error,
+      code: kernelWords(core.mem),
       frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
     };
   }

@@ -100,14 +100,14 @@ export function gpuLines(trace: readonly GpuStep[], launches = 0): GpuLine[] {
   if (trace.length === 0) return out;
   const timed = trace.every((s) => s.startCycle !== undefined), base = timed ? trace[0]!.startCycle! : 0;
   let at = 0, prev: GpuStep | null = null;
-  out.push({ cycle: 0, group: 'launch', text: `launch ${launches}: kernel at ${hex(trace[0]!.pc * 4)}` });
+  out.push({ cycle: 0, group: 'launch', text: `launch ${launches}: kernel at ${hex(trace[0]!.pc)}` });
   for (const s of trace) {
     const cycle = timed ? Math.max(0, s.startCycle! - base) : at;
     const where = s.sm !== undefined || s.warp !== undefined ? `SM ${s.sm ?? 0} warp ${s.warp ?? 0}: ` : '';
     const mask = s.maskAfter !== undefined && s.maskAfter !== s.mask ? `, mask ${hex(s.mask, 2)} -> ${hex(s.maskAfter, 2)}` : `, ${lanesOn(s.mask)} lanes`;
     if (prev && (prev.sm !== s.sm || prev.warp !== s.warp)) out.push({ cycle, group: 'sched', text: `scheduler issues ${where.slice(0, -2)}` });
     const addr = s.banks ? ` (${s.banks.filter((b) => b > 0).length} banks, busiest ${Math.max(...s.banks)})` : '';
-    out.push({ cycle, group: GROUP_OF[s.kind], text: `${where}${hex(s.pc * 4)} ${s.name}${s.dest !== null ? ` -> v${s.dest}` : ''}${mask}${addr}${s.cost > 1 ? `, ${s.cost} cycles` : ''}` });
+    out.push({ cycle, group: GROUP_OF[s.kind], text: `${where}${hex(s.pc)} ${s.name}${s.dest !== null ? ` -> v${s.dest}` : ''}${mask}${addr}${s.cost > 1 ? `, ${s.cost} cycles` : ''}` });
     if (s.stall) out.push({ cycle, group: 'sched', text: `${where}stalled: ${STALL_TEXT[s.stall]} (${s.cost} cycles)` });
     at += Math.max(1, s.cost);
     prev = s;

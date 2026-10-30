@@ -103,6 +103,7 @@ Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lin
 - `GpuStep` (one issued instruction) gains the raw `word`, `maskAfter`, `stackDepth`, `startCycle`, `sm`, `warp` and a `stall` reason; `kind` and `banks` mean what they meant.
 - `GpuView.sms?: { warps: { pc, mask, stack[], state: 'ready' | 'wait-mem' | 'barrier' | 'done' }[], l1?: tags }[]` and `l2?: tags` for the tiers that have them; a pipeline ring of stage codes like `engines/view.ts` for the stage lamps.
 - The trace ring grows from 24 to 64 entries; a paused card keeps the window that one stepping request produced.
+- `GpuView.code?: number[]`: the kernel as it sits in card memory (`GPU_CODE`, address 0 up to its last non-zero word; empty before the CPU has copied one in). The Trace panel's *Kernel* button lists it (`gpuListing`) with the instruction the card is at marked; the almanac's *GPU kernel* tab shows the same kernel by job (docs/JOBS.md "Reading the code"). A step's `pc` is a byte address.
 
 ## 7. The card view
 

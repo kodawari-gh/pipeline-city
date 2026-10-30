@@ -238,3 +238,15 @@ describe("GPU card on the bus", () => {
     expect(r.status()).toBe(0);
   });
 });
+
+describe("the kernel a card can show", () => {
+  it("the view reads the kernel back from card memory, up to its last word, and nothing before one is copied in", () => {
+    const r = rig(8, 1);
+    expect(r.port.view()!.code).toEqual([]);
+    const program = assembleGpu(["  lane v1", "  vli v2, 5", "  vadd v3, v1, v2", "  halt"].join("\n")).program;
+    r.put(KERNEL_LAYOUT.code, program);
+    expect(r.port.view()!.code).toEqual(Array.from(program));
+    r.go();
+    expect(r.port.view()!.code).toEqual(Array.from(program));
+  });
+});

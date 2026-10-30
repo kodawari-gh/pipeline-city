@@ -424,16 +424,33 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       break;
     }
     case 'coalescer': {
-      // the lanes' addresses funnel into the few lines they touch: each lane's request merges onto the line it falls in
-      const n = 8, outs = 3, lx0 = h / n >= 12 ? 14 : 3, mx = x + w * 0.6;
+      // every lane's address is shifted down to the number of the line it falls in; lanes of one line merge onto that line's buffer (here two lanes to a line, eight
+      // lanes to four lines, the way a unit-stride load lands), and the lines go out on one bus to the bank arbiter
+      const n = 8, outs = 4, foot = h >= 150 ? 30 : 0, bodyH = h - foot, pl = bodyH / n, po = bodyH / outs, rq = Math.min(10, pl - 2);
+      const sx = x + 26, sw = 18, mx = x + w * 0.46, bx = x + w * 0.6, bw = x + w - 14 - bx, busX = x + w - 6, bh = Math.min(28, po * 0.62), cw = (bw - 2) / 4;
       for (let k = 0; k < n; k++) {
-        const ly = y + ((k + 0.5) * h) / n, oy = y + ((Math.floor((k * outs) / n) + 0.5) * h) / outs;
-        if (lx0 > 3) put(`l${k}`, x + 6, ly, 5.5);
-        g.circle(x + lx0, ly, 2).fill({ color: solid });
-        wire(x + lx0, ly, x + w * 0.4, ly, mx - 6, oy, x + w - 16, oy);
-        dot(mx - 6, oy);
+        const ly = y + (k + 0.5) * pl, oy = y + (Math.floor(k / 2) + 0.5) * po;
+        rect(x, ly - rq / 2, 16, rq, k % 2 ? soft : solid); if (pl >= 11) put(`l${k}`, x + 8, ly, 5.5);
+        stub(x + 16, ly, sx, ly);
+        rect(sx, ly - rq / 2, sw, rq, soft); if (pl >= 11) put('>>', sx + sw / 2, ly, 6);
+        wire(sx + sw, ly, mx, ly, mx + 8, oy, bx, oy);
       }
-      for (let k = 0; k < outs; k++) { const oy = y + ((k + 0.5) * h) / outs; rect(x + w - 16, oy - 6, 16, 12, solid); put('ln', x + w - 8, oy, 5.5); }
+      for (let k = 0; k < outs; k++) {
+        const oy = y + (k + 0.5) * po;
+        dot(mx + 8, oy);
+        rect(bx, oy - bh / 2, bw, bh, soft); outline(bx, oy - bh / 2, bw, bh);
+        for (let j = 0; j < 4; j++) rect(bx + 1 + j * cw + 1, oy - bh / 2 + 2, cw - 2, bh - 4, j < 2 || k % 2 ? solid : soft);
+        if (bh >= 14) put(`line ${k}`, bx + bw / 2, oy - bh / 2 - 4, 5.5);
+        stub(bx + bw, oy, busX, oy);
+      }
+      stub(busX, y + 0.5 * po, busX, y + (outs - 0.5) * po);
+      if (foot) {
+        // the counter of distinct lines the access touched: one cycle of the memory path per line
+        const fy = y + h - foot + 8, cwid = Math.min(18, (w - 60) / 4);
+        lab('lines', x, fy + 5, 6);
+        for (let k = 0; k < 4; k++) rect(x + 34 + k * (cwid + 3), fy, cwid, 10, k < 2 ? solid : soft);
+        stub(x + 34 + 4 * (cwid + 3) - 3, fy + 5, busX, fy + 5); dot(busX, fy + 5); stub(busX, y + (outs - 0.5) * po, busX, fy + 5);
+      }
       break;
     }
     case 'arbiter': {

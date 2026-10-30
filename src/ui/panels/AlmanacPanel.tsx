@@ -8,6 +8,8 @@ import { frameColor, pictureOf } from '../../render/room/screenmodel';
 import { snapshot } from '../../game/store';
 import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, dexNumber, taskLevel, type DexEntry, type DexGroup, type DexSnap } from '../../sim/game/jobdex';
 import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, type CodeLine, type CodeProfile, type OpClass } from '../../sim/game/jobcode';
+import { gpuKernelOf, gpuKernelProfile, type GpuKernelProfile } from '../../sim/game/gpucode';
+import { GPU_GROUP_NAME, GPU_GROUP_ORDER, GPU_OP_DOC } from '../../sim/isa/gpudoc';
 import { highlightLines, type Lang, type Tok } from '../tutorial/highlight';
 import { Icon } from '../kit/Icons';
 import { fmtTicks } from '../logic';
@@ -17,8 +19,12 @@ export const almanacOpen = signal(false);
 export const toggleAlmanac = () => { almanacOpen.value = !almanacOpen.value; };
 export const closeAlmanac = () => { almanacOpen.value = false; };
 const picked = signal<string | null>(null);
-type Tab = 'asm' | 'cpp' | 'python';
+type Tab = 'asm' | 'gpu' | 'cpp' | 'python';
 const tab = signal<Tab>('asm');
+/** The lanes the kernel on show is assembled for: the cards have 8, 16 and 32. */
+const gpuLanes = signal(8);
+/** The tab a job opens on: a graphics job opens on the kernel the card runs, any other on its assembly. */
+const tabFor = (id: string): Tab => (gpuKernelOf(CODE_SOURCE[id]?.template ?? '') ? 'gpu' : 'asm');
 /** The assembly view: the listing (addresses, bytes, heat) or the assembler text. */
 const asmText = signal(false);
 const scaleOf = signal<Record<string, number>>({});
@@ -27,7 +33,7 @@ const shut = signal<Record<string, boolean>>({ soon: true });
 const tipOpen = signal<string | null>(null);
 /** Open the almanac on a kind of job (the job log links here); a kind the almanac does not know opens it as it is. */
 export const openAlmanacFor = (id: string) => {
-  if (dexEntry(id)) { picked.value = id; tab.value = 'asm'; tipOpen.value = null; const g = dexGroup(id); if (g) shut.value = { ...shut.value, [g.id]: false }; }
+  if (dexEntry(id)) { picked.value = id; tab.value = tabFor(id); tipOpen.value = null; const g = dexGroup(id); if (g) shut.value = { ...shut.value, [g.id]: false }; }
   almanacOpen.value = true;
 };
 
@@ -84,12 +90,12 @@ function Leans({ e, p }: { e: DexEntry; p: CodeProfile }) {
 }
 
 /** The listing: each word of the program with its address, bytes, the instruction coloured by what it does, and how often it ran. */
-function Listing({ p }: { p: CodeProfile }) {
+function Listing({ lines, lang = 'asm' }: { lines: CodeLine[]; lang?: Lang }) {
   let lastExec = -1;
-  p.lines.forEach((l, i) => { if (l.count > 0) lastExec = i; });
-  const code = p.lines.slice(0, lastExec + 1), data = p.lines.slice(lastExec + 1);
+  lines.forEach((l, i) => { if (l.count > 0) lastExec = i; });
+  const code = lines.slice(0, lastExec + 1), data = lines.slice(lastExec + 1);
   const max = Math.max(1, ...code.map((l) => l.count)), lg = Math.log(max + 1);
-  const toks = highlightLines('asm', code.map((l) => l.text).join('\n'));
+  const toks = highlightLines(lang, code.map((l) => l.text).join('\n'));
   const row = (l: CodeLine, i: number) => (
     <div key={l.addr} class={`ln${l.count === 0 ? ' cold' : ''}`}>
       {l.labels.filter((n) => !/^k\d+_.*_(loop|done)$/.test(n)).slice(0, 2).map((n) => <div key={n} class="lbl">{n}:</div>)}
@@ -119,14 +125,59 @@ function Source({ lang, text }: { lang: Lang; text: string }) {
   );
 }
 
+/** What a graphics job's kernel does, from the reference card running its first frame: the lanes it is assembled for, how much of the card it keeps busy, and the colours of its instructions. */
+function KernelStats({ k }: { k: GpuKernelProfile }) {
+  const sh = OP_CLASSES.map((c) => ({ c, n: k.mix[c] })).filter((x) => x.n > 0);
+  return (
+    <div class="dx-kstats">
+      <span class="seg" role="group" aria-label="Lanes">
+        {[8, 16, 32].map((n) => <button key={n} class={n === k.lanes ? 'on' : ''} title={`The kernel as the ${n}-lane card runs it (${n === 8 ? 'gpu1' : n === 16 ? 'gpu2' : 'gpu3'}): the loop steps ${n} pixels at a time`} onClick={() => { gpuLanes.value = n; }}>{n} lanes</button>)}
+      </span>
+      <span class="dx-nums" title="Instructions one lane group runs for the first frame of the picture, and the share of lane slots that did work (below 100% where lanes sat out a branch)"><Icon name="clock" size={11} /> {k.instructions.toLocaleString('en-US')} <Icon name="gauge" size={11} /> {Math.round(k.laneUse * 100)}% lanes busy</span>
+      <div class="alm-bar" role="img" aria-label="Instructions executed by kind">
+        {sh.map(({ c, n }) => <span key={c} class={`seg bg-${c}`} style={{ width: `${Math.max(0.5, (n / k.instructions) * 100)}%` }} title={`${MIX_NAME[c]}: ${n}`} />)}
+      </div>
+    </div>
+  );
+}
+
+/** The GPU instruction set: each instruction as written, with what it does, in its group. */
+function GpuIsa() {
+  return (
+    <details class="dx-isa">
+      <summary>GPU instruction set</summary>
+      <p class="mute">Every instruction acts on all the lanes the execution mask has on. Registers v0..v7 hold one value per lane; the mask stack is 8 deep.</p>
+      {GPU_GROUP_ORDER.map((g) => (
+        <div key={g} class="isa-group">
+          <h4>{GPU_GROUP_NAME[g]}</h4>
+          {Object.values(GPU_OP_DOC).filter((d) => d.group === g).map((d) => <div key={d.form} class="isa-op"><code>{d.form}</code><span>{d.text}</span></div>)}
+        </div>
+      ))}
+    </details>
+  );
+}
+
+/** The kernel a graphics job copies into the card: its listing (each word, how often it ran in a frame) or its assembler text, and the instruction set to read it with. */
+function KernelView({ template }: { template: string }) {
+  const k = gpuKernelProfile(template, gpuLanes.value);
+  if (!k) return null;
+  return (
+    <>
+      <KernelStats k={k} />
+      {asmText.value ? <Source lang="gpu" text={k.asm} /> : <Listing lines={k.lines} lang="gpu" />}
+      <GpuIsa />
+    </>
+  );
+}
+
 /** The program on the main page, in a window of its own: a toggle for the language (assembly, C++, Python) in its title bar, and for assembly the listing or the assembler text. */
 function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean }) {
   const src = CODE_SOURCE[e.id];
   if (!src) return null;
-  const t = tab.value, scale = scaleOf.value[e.id] ?? src.scales[0]!;
+  const scale = scaleOf.value[e.id] ?? src.scales[0]!, hasKernel = gpuKernelOf(src.template) !== null, t: Tab = tab.value === 'gpu' && !hasKernel ? 'asm' : tab.value;
   const canAsm = open || rank >= 1, canHigh = open || rank >= 2;
   const btn = (id: Tab, label: string, ok: boolean) => (
-    <button key={id} role="tab" aria-selected={t === id} class={`${t === id ? 'on' : ''}${ok ? '' : ' off'}`} disabled={!ok} title={ok ? '' : id === 'asm' ? 'Meet this job to read its assembly' : 'Finish one of these jobs to read it in C++ and Python'} onClick={() => { tab.value = id; }}>
+    <button key={id} role="tab" aria-selected={t === id} class={`${t === id ? 'on' : ''}${ok ? '' : ' off'}`} disabled={!ok} title={ok ? '' : id === 'asm' || id === 'gpu' ? 'Meet this job to read its assembly' : 'Finish one of these jobs to read it in C++ and Python'} onClick={() => { tab.value = id; }}>
       {!ok && <Icon name="lock" size={10} />} {label}
     </button>
   );
@@ -135,18 +186,19 @@ function CodePanel({ e, rank, open }: { e: DexEntry; rank: number; open: boolean
     <div class="dx-code">
       <div class="dx-codebar">
         <span class="dx-win"><Icon name="cpu" size={12} /> Code</span>
-        <span class="seg" role="tablist" aria-label="Language">{btn('asm', 'ASM', canAsm)}{btn('cpp', 'C++', canHigh)}{btn('python', 'Python', canHigh)}</span>
-        {t === 'asm' && canAsm && (
+        <span class="seg" role="tablist" aria-label="Language">{hasKernel && btn('gpu', 'GPU kernel', canAsm)}{btn('asm', hasKernel ? 'CPU ASM' : 'ASM', canAsm)}{btn('cpp', 'C++', canHigh)}{btn('python', 'Python', canHigh)}</span>
+        {(t === 'asm' || t === 'gpu') && canAsm && (
           <span class="seg dx-view" role="group" aria-label="Assembly view">
             <button class={asmText.value ? '' : 'on'} title="Each word of the program with its bytes and how often it ran" onClick={() => { asmText.value = false; }}>Listing</button>
             <button class={asmText.value ? 'on' : ''} title="The assembler text with its labels and comments" onClick={() => { asmText.value = true; }}>Text</button>
           </span>
         )}
       </div>
-      {t === 'asm' && p && (asmText.value ? <Source lang="asm" text={p.asm} /> : <Listing p={p} />)}
+      {t === 'asm' && p && (asmText.value ? <Source lang="asm" text={p.asm} /> : <Listing lines={p.lines} />)}
+      {t === 'gpu' && canAsm && <KernelView template={src.template} />}
       {t === 'cpp' && canHigh && <Source lang="cpp" text={HIGH_LEVEL[e.id]!.cpp} />}
       {t === 'python' && canHigh && <Source lang="python" text={HIGH_LEVEL[e.id]!.python} />}
-      {((t === 'asm' && !canAsm) || (t !== 'asm' && !canHigh)) && <div class="dx-lock"><Icon name="lock" size={22} /></div>}
+      {(((t === 'asm' || t === 'gpu') && !canAsm) || ((t === 'cpp' || t === 'python') && !canHigh)) && <div class="dx-lock"><Icon name="lock" size={22} /></div>}
     </div>
   );
 }
@@ -272,7 +324,7 @@ function Locks({ e, level }: { e: DexEntry; level: number }) {
 function Tile({ e, state, on, no, level }: { e: DexEntry; state: State; on: boolean; no: number; level: number }) {
   const hidden = state === 'unseen' || state === 'planned';
   return (
-    <button role="option" aria-selected={on} class={`dx-tile st-${state}${on ? ' on' : ''}`} title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name} onClick={() => { picked.value = e.id; tipOpen.value = null; }}>
+    <button role="option" aria-selected={on} class={`dx-tile st-${state}${on ? ' on' : ''}`} title={hidden ? (state === 'planned' ? e.name : 'Not met yet') : e.name} onClick={() => { picked.value = e.id; if (tab.value === 'gpu' || tabFor(e.id) === 'gpu') tab.value = tabFor(e.id); tipOpen.value = null; }}>
       <span class="no">{String(no).padStart(2, '0')}</span>
       <span class="nm">{state === 'unseen' ? '? ? ?' : e.name}</span>
       {!e.planned && <Locks e={e} level={level} />}

@@ -2,8 +2,10 @@
 // Pure: text in, a list of coloured pieces out (`Tok`), so the view only has to draw them and tests can read them.
 
 import { opClassOf, type OpClass } from '../../sim/game/jobcode';
+import { gpuOpClass } from '../../sim/game/gpucode';
+import { GPU_SPEC_BY_NAME } from '../../sim/isa/gpu';
 
-export type Lang = 'asm' | 'cpp' | 'python';
+export type Lang = 'asm' | 'gpu' | 'cpp' | 'python';
 
 /** A coloured piece of text: `k` is the kind (a CSS class suffix), and for an assembly mnemonic `cls` is the instruction class. */
 export interface Tok { t: string; k: 'plain' | 'comment' | 'string' | 'number' | 'keyword' | 'type' | 'func' | 'label' | 'reg' | 'op' | 'directive' | 'punct' | 'pre'; cls?: OpClass }
@@ -62,6 +64,21 @@ const ASM: Rule[] = [
   [/[,()+\-]/y, (m) => [tok(m[0], 'punct')]],
 ];
 
+/** The GPU's assembly: its mnemonics coloured by what they do, the vector registers v0..v7, labels and constants. A comment starts with # or ;. */
+const GPU: Rule[] = [
+  [/[#;][^\n]*/y, (m) => [tok(m[0], 'comment')]],
+  [/[A-Za-z_][\w.]*:/y, (m) => [tok(m[0], 'label')]],
+  [/[A-Za-z_][\w.]*/y, (m, out) => {
+    const w = m[0];
+    if (/^v[0-7]$/.test(w)) return [tok(w, 'reg')];
+    const first = out.every((t) => t.k === 'label' || (t.k === 'plain' && t.t.trim() === ''));
+    if (first && (GPU_SPEC_BY_NAME.has(w) || w === 'vmv')) return [tok(w, 'op', gpuOpClass(w))];
+    return [tok(w, 'label')];
+  }],
+  [/-?0x[0-9a-fA-F]+|-?\d+/y, (m) => [tok(m[0], 'number')]],
+  [/[,()+\-]/y, (m) => [tok(m[0], 'punct')]],
+];
+
 const CPP: Rule[] = [
   [/\/\/[^\n]*/y, (m) => [tok(m[0], 'comment')]],
   [/\/\*[\s\S]*?\*\//y, (m) => [tok(m[0], 'comment')]],
@@ -94,7 +111,7 @@ const PY: Rule[] = [
 /** Colour `text` as `lang`. The pieces join back to exactly `text`. */
 export function highlight(lang: Lang, text: string): Tok[] {
   void NUM;
-  return lex(text, lang === 'asm' ? ASM : lang === 'cpp' ? CPP : PY);
+  return lex(text, lang === 'asm' ? ASM : lang === 'gpu' ? GPU : lang === 'cpp' ? CPP : PY);
 }
 
 /** One line at a time (what the listing draws), keeping the pieces of a multi-line comment together is not needed for the code shown. */
