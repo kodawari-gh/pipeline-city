@@ -16,7 +16,7 @@ import { PlanView, type MemoryTouch } from './dieview';
 import { DEVICE_LOD, deviceLod, seenZoom, smooth, type LodRect } from '../lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
-const WASH_FROM = 0.3, WASH_TO = 0.6;
+const WASH_FROM = 0.9, WASH_TO = 1.4;
 
 export class DieView {
   readonly root = new Container();

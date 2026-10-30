@@ -25,7 +25,7 @@ describe('multicore die LoD', () => {
   it('shows a tile\'s insides only once its wash is gone, never both', () => {
     const d = make();
     const view = { x: -710, y: -565, w: 1420, h: 1130 };
-    for (const z of [0.05, 0.2, 0.5, 1, 3]) {
+    for (const z of [0.05, 0.5, 1, 2, 3]) {
       d.setZoom(z, z, view);
       for (const c of tiles(d)) {
         const a = c.view.root.alpha;
@@ -35,7 +35,7 @@ describe('multicore die LoD', () => {
     }
     d.setZoom(0.05, 0.05, view);
     expect(tiles(d).every((c) => !c.view.root.visible)).toBe(true);
-    d.setZoom(1.9, 1.9, null); // no view: every tile reads the die's zoom, and the core view has not started
+    d.setZoom(3.3, 3.3, null); // no view: every tile reads the die's zoom, and the core view has not started
     expect(tiles(d).every((c) => c.view.root.visible && c.view.root.alpha === 1)).toBe(true);
   });
 
@@ -45,7 +45,7 @@ describe('multicore die LoD', () => {
     const r = first!.tile.rect;
     // a small view centred on the first tile: it is in focus, the others are not
     const view = { x: r.x + r.w / 2 - 200, y: r.y + r.h / 2 - 150, w: 400, h: 300 };
-    d.setZoom(1.2, 1.2, view);
+    d.setZoom(2.8, 2.8, view);
     const alphas = tiles(d).map((c) => c.view.root.alpha);
     expect(alphas[0]).toBeGreaterThan(alphas[alphas.length - 1]!);
   });
@@ -54,7 +54,7 @@ describe('multicore die LoD', () => {
     const d = make();
     const r = tiles(d)[0]!.tile.rect;
     const view = { x: r.x + r.w / 2 - 100, y: r.y + r.h / 2 - 75, w: 200, h: 150 };
-    d.setZoom(6, 6, view);
+    d.setZoom(8, 8, view);
     const t = tiles(d);
     expect(t[0]!.view.root.visible).toBe(true);
     expect(t.slice(1).every((c) => !c.view.root.visible)).toBe(true);
