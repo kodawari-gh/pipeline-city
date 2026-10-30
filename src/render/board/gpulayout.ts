@@ -1,22 +1,27 @@
 import { specsOfKind } from '../../sim/board/specs';
+import type { Pt } from '../die/cpuplan';
+import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from '../gpu/gpuplan';
+import { gpuCells, GPU_DIE, gpuPlan as dieOf } from '../gpu/gpuplans';
 import type { Rect } from './layout';
 
-// The floorplan of a graphics card (docs/ACCEL.md "Art as built"), in card-local units: (0, 0) is the PCB's north-west corner. One pure function
-// gives every part the art draws, the view animates and the hover hits: the fans along the top edge, and under them the die's insides (the
-// lanes in two rows, the vector registers, the card-memory banks, the execution mask and its stack, the program counter). Like `cpuplan` for the
-// die: the tooltip test enumerates the ids from here, so a part cannot be drawn without a description.
+// The floorplan of a graphics card (docs/GPU.md section 7), in card-local units: (0, 0) is the PCB's north-west corner. The die's insides come
+// from `gpu/gpuplans.ts` (the same slicing layout and router as the CPU die) and are moved under the fans; this file lays the card round it
+// (the shroud, the fans along the top edge) and gives the card view the rectangles it animates and the hover table the parts it hits. Like
+// `cpuplan` for the die: the tooltip test enumerates the ids from here, so a part cannot be drawn without a description.
+
+/** The PCB: a fan band over the die, a margin all round, the host side and the power plugs at the ends. */
+const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 110, FAN_W = 600, DIE_Y = 118;
+const CARD_H = 660;
 
 /** Card size by the spec's `visual` key; the card is centred on its slot's rail. */
-export const GPU_LEN: Record<string, number> = { 'gpu-1': 2000, 'gpu-2': 2500, 'gpu-3': 3000 };
-export const GPU_H: Record<string, number> = { 'gpu-1': 318, 'gpu-2': 324, 'gpu-3': 330 };
-
-/** Fan band (the fans stand a little over the PCB's top edge), then the body with the die's rows. */
-const FAN_Y = 4, FAN_H = 110, FAN_W = 600, BODY_Y = 152;
-const ROW_A = 24, ROW_B = 88, ROW_C = 20, GAP = 6, CELL = 44, REG_W = 12, BANK_W = 40, SLOT = 16;
-const SHROUD_X = 150, TAIL = 180;
+export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, GPU_DIE[gpuPlanInput(s.gpu!).kind].w + 2 * MARGIN + SHROUD_X + TAIL]));
+export const GPU_H: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, CARD_H]));
 
 /** A fan module seen edge-on, like the case fans (card-local rectangle, long side along x). */
 export type GpuFan = Rect;
+
+/** One SM's vector registers on the card: `rows[r]` is register r's strip, `cols` lanes wide, the first lane `lane0`. */
+export interface RegSet { lane0: number; cols: number; rows: Rect[] }
 
 export interface GpuPlan {
   visual: string;
@@ -27,75 +32,109 @@ export interface GpuPlan {
   /** The card's PCB. */
   w: number;
   h: number;
-  /** The shroud over the die (its fins show through when the card is zoomed out), and the body inside it where the internals live. */
+  /** The shroud over the die (its fins show through when the card is zoomed out), and the body inside it where the die lives (the die's rectangle). */
   shroud: Rect;
   body: Rect;
   fans: GpuFan[];
-  /** PCIe link block, on the PCB west of the shroud. */
+  /** The die's plan (die coordinates) and where its north-west corner is on the card. */
+  die: DiePlan;
+  origin: { x: number; y: number };
+  /** The routed links, moved to card-local points. */
+  links: { id: string; kind: GpuLinkKind; pts: Pt[]; lanes: number }[];
+  /** PCIe link block, on the die's west edge. */
   link: Rect;
-  /** Program counter and current instruction (above the lanes and registers). */
+  /** Program counter and current instruction (SM 0's front end). */
   pc: Rect;
-  /** The lane cells, lane 0 first (two rows, row-major). */
+  /** The lane cells, lane 0 first, SM after SM (row-major in each). */
   laneCells: Rect[];
   lanesBlock: Rect;
-  /** The execution mask: one bit per lane, under the lanes. */
+  /** The execution mask: one bit per lane (all SMs), in the mask block of each SM. */
   mask: Rect;
   maskBits: Rect[];
-  /** The mask stack (8 deep). */
+  /** The mask stack (8 deep) of SM 0. */
   maskStack: Rect;
   maskSlots: Rect[];
-  /** The vector registers: `regRows[r]` is one register's strip, `lanes` cells wide. */
+  /** The vector registers of SM 0: `regRows[r]` is one register's strip, and every SM's in `regSets`. */
   regs: Rect;
   regRows: Rect[];
-  /** The memory banks, and the card memory beside them. */
+  regSets: RegSet[];
+  /** The memory banks of SM 0, and the card memory. */
   bankBars: Rect[];
   mem: Rect;
 }
 
-/** The lane count, bank count and card memory of a card, from its spec (so a new tier needs no change here). */
-export function gpuShape(visual: string): { lanes: number; banks: number; memBytes: number } {
+const FALLBACK: GpuPlanInput = { kind: 'simd', sms: 1, warps: 1, lanes: 8, banks: 1, memBytes: 8192, lineWords: 1, l1Lines: 0, l2Lines: 0 };
+
+/** The plan input of a card, from its spec (so a new tier needs no change here). */
+export function gpuInputOf(visual: string): GpuPlanInput {
   const s = specsOfKind('gpu').find((x) => x.visual === visual);
-  return { lanes: s?.gpu?.lanes ?? 8, banks: s?.gpu?.banks ?? 1, memBytes: s?.gpu?.memBytes ?? 8192 };
+  return s?.gpu ? gpuPlanInput(s.gpu) : FALLBACK;
+}
+
+/** The lane count, bank count and card memory of a card, from its spec. */
+export function gpuShape(visual: string): { lanes: number; banks: number; memBytes: number } {
+  const i = gpuInputOf(visual);
+  return { lanes: i.lanes, banks: i.banks, memBytes: i.memBytes };
 }
 
 /** Cooling fans a GPU shows along its top edge: one, two, three by tier. */
 export const gpuFanCount = (visual: string): number => Number(/(\d)$/.exec(visual)?.[1] ?? 1);
 
+const SLOTS = 8;
+
+/** The mask strip (one bit per lane) and the stack slots in the lower part of a mask block (die coordinates). */
+function maskParts(r: Rect, bits: number): { strip: Rect; bits: Rect[]; stack: Rect; slots: Rect[] } {
+  const head = Math.min(44, r.h * 0.4), body = r.h - head - 6, bh = Math.max(4, body * 0.4), sh = Math.max(4, Math.min(16, body * 0.4));
+  const strip: Rect = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: bh }, bw = strip.w / bits;
+  const sw = Math.min(16, (r.w - 16) / SLOTS - 3), y = r.y + head + bh + Math.max(2, body * 0.12);
+  return {
+    strip, bits: Array.from({ length: bits }, (_, k) => ({ x: strip.x + k * bw, y: strip.y, w: bw - 1, h: bh })),
+    stack: { x: r.x + 8, y, w: SLOTS * (sw + 3) - 3, h: sh }, slots: Array.from({ length: SLOTS }, (_, k) => ({ x: r.x + 8 + k * (sw + 3), y, w: sw, h: sh })),
+  };
+}
+
+const cache = new Map<string, GpuPlan>();
+
 export function gpuPlan(visual: string): GpuPlan {
-  const { lanes, banks, memBytes } = gpuShape(visual);
-  const w = GPU_LEN[visual] ?? 2000, h = GPU_H[visual] ?? 320;
-  const shroud: Rect = { x: SHROUD_X, y: 12, w: w - SHROUD_X - TAIL, h: h - 24 };
+  const hit = cache.get(visual);
+  if (hit) return hit;
+  const input = gpuInputOf(visual), die = dieOf(input), { lanes, banks, memBytes } = input;
+  const w = GPU_LEN[visual] ?? SHROUD_X + 2 * MARGIN + die.die.w + TAIL, h = GPU_H[visual] ?? CARD_H;
+  const shroud: Rect = { x: SHROUD_X, y: MARGIN, w: die.die.w + 2 * MARGIN, h: h - 2 * MARGIN };
   const n = gpuFanCount(visual), cell = shroud.w / n;
   const fans: GpuFan[] = Array.from({ length: n }, (_, k) => {
-    const w = Math.min(FAN_W, cell - 120);
-    return { x: shroud.x + cell * (k + 0.5) - w / 2, y: FAN_Y, w, h: FAN_H };
+    const fw = Math.min(FAN_W, cell - 120);
+    return { x: shroud.x + cell * (k + 0.5) - fw / 2, y: FAN_Y, w: fw, h: FAN_H };
   });
-  const body: Rect = { x: shroud.x, y: BODY_Y, w: shroud.w, h: h - BODY_Y - 12 };
-
-  const lx = shroud.x + 24, yA = BODY_Y + 4, yB = yA + ROW_A + GAP, yC = yB + ROW_B + GAP;
-  const cols = Math.ceil(lanes / 2);
-  const lanesBlock: Rect = { x: lx, y: yB, w: cols * CELL, h: 2 * CELL };
-  const laneCells: Rect[] = Array.from({ length: lanes }, (_, k) => ({ x: lx + (k % cols) * CELL + 2, y: yB + Math.floor(k / cols) * CELL + 2, w: CELL - 4, h: CELL - 4 }));
-  const mask: Rect = { x: lx, y: yC, w: lanesBlock.w, h: ROW_C };
-  const bitW = mask.w / lanes;
-  const maskBits: Rect[] = Array.from({ length: lanes }, (_, k) => ({ x: mask.x + k * bitW, y: yC, w: bitW - 2, h: ROW_C }));
-
-  const rx = lanesBlock.x + lanesBlock.w + 64, rowH = ROW_B / 8;
-  const regs: Rect = { x: rx, y: yB, w: lanes * REG_W, h: ROW_B };
-  const regRows: Rect[] = Array.from({ length: 8 }, (_, r) => ({ x: rx, y: yB + r * rowH, w: regs.w, h: rowH - 1 }));
-  const pc: Rect = { x: lx, y: yA, w: regs.x + regs.w - lx, h: ROW_A };
-
-  const bx = regs.x + regs.w + 40;
-  const bankBars: Rect[] = Array.from({ length: banks }, (_, b) => ({ x: bx + b * (BANK_W + 8), y: yB, w: BANK_W, h: ROW_B }));
-  const memX = bx + banks * (BANK_W + 8) + 16, memEnd = shroud.x + shroud.w - 24;
-  const mem: Rect = { x: memX, y: yB, w: memEnd - memX, h: ROW_B };
-  const maskStack: Rect = { x: memX, y: yA, w: 8 * (SLOT + 4), h: ROW_A };
-  const maskSlots: Rect[] = Array.from({ length: 8 }, (_, k) => ({ x: memX + k * (SLOT + 4), y: yA + (ROW_A - SLOT) / 2, w: SLOT, h: SLOT }));
-
-  return {
-    visual, lanes, banks, memBytes, w, h, shroud, body, fans, link: { x: 18, y: BODY_Y + 24, w: 112, h: 70 }, pc, laneCells, lanesBlock, mask, maskBits,
-    maskStack, maskSlots, regs, regRows, bankBars, mem,
+  const origin = { x: SHROUD_X + MARGIN, y: DIE_Y }, body: Rect = { x: origin.x, y: origin.y, w: die.die.w, h: die.die.h };
+  const mv = (r: Rect): Rect => ({ x: r.x + origin.x, y: r.y + origin.y, w: r.w, h: r.h });
+  const get = (id: string): GpuBlock => die.blocks.find((b) => b.id === id)!;
+  const per = lanes / input.sms, laneCells: Rect[] = [], maskBits: Rect[] = [], regSets: RegSet[] = [];
+  let first: { lanes: Rect; regs: Rect; mask: ReturnType<typeof maskParts>; pc: Rect; banks: Rect[] } | null = null;
+  for (let k = 0; k < input.sms; k++) {
+    const p = input.sms > 1 ? `sm${k}.` : '', lb = get(`${p}lanes`), rb = get(`${p}regs`), mb = get(`${p}mask`);
+    laneCells.push(...gpuCells(lb).map(mv));
+    const m = maskParts(mb.rect, per);
+    maskBits.push(...m.bits.map(mv));
+    const rc = gpuCells(rb), rows = Array.from({ length: 8 }, (_, r): Rect => {
+      const a = rc[r * per]!, z = rc[r * per + per - 1]!;
+      return mv({ x: a.x, y: a.y, w: z.x + z.w - a.x, h: a.h });
+    });
+    regSets.push({ lane0: k * per, cols: per, rows });
+    if (!first) {
+      const bb = die.blocks.find((b) => b.id === `${p}banks`) ?? get(`${p}arb`);
+      first = { lanes: mv(lb.rect), regs: mv(rb.rect), mask: { ...m, strip: mv(m.strip), stack: mv(m.stack), slots: m.slots.map(mv) }, pc: mv((die.blocks.find((b) => b.id === 'pc') ?? get(`${p}fetch`)).rect), banks: gpuCells(bb).map(mv) };
+    }
+  }
+  const f = first!;
+  const plan: GpuPlan = {
+    visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin,
+    links: die.links.map((l) => ({ id: l.id, kind: l.kind, lanes: l.lanes, pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]) })),
+    link: mv(get('pcie').rect), pc: f.pc, laneCells, lanesBlock: f.lanes, mask: f.mask.strip, maskBits, maskStack: f.mask.stack, maskSlots: f.mask.slots,
+    regs: f.regs, regRows: regSets[0]!.rows, regSets, bankBars: f.banks, mem: mv(get('dram').rect),
   };
+  cache.set(visual, plan);
+  return plan;
 }
 
 /** A hoverable part: the id without its slot (`lane3`; the full id is `pcie1.lane3`), its card-local rectangle, and whether it is a part of the zoomed-in view (the fans are seen from afar). */

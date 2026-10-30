@@ -2,16 +2,27 @@
 // the launch registers sit in the west; the SM (the front end, the warps, the registers and lanes, the memory path) fills the middle; the
 // card memory is in the east. A multi-SM card stacks one framed SM per row and gives the L2 and the card memory the east column.
 
-import { gridExact } from '../die/cpuplan';
+import { gridExact, type Rect } from '../die/cpuplan';
 import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../die/cpufloor';
 import type { GpuBlock, GpuBlockKind, GpuLinkKind, GpuPlan, GpuPlanInput } from './gpuplan';
 
 /** The die's size by kind: the card is tall enough for the labels and symbols to read (docs/GPU.md section 7). */
 export const GPU_DIE: Record<GpuPlanInput['kind'], { w: number; h: number }> = {
   simd: { w: 2300, h: 520 },
-  warp: { w: 2900, h: 520 },
-  multi: { w: 3500, h: 520 },
+  warp: { w: 2800, h: 520 },
+  multi: { w: 3400, h: 520 },
 };
+
+/** The cell rectangles of a block's grid (die coordinates, row by row), under the block's name; the same area as `gridExact` was asked for in `make`. */
+export function gpuCells(b: GpuBlock): Rect[] {
+  const g = b.grid;
+  if (!g) return [];
+  const r = b.rect, head = r.h >= 70 ? 44 : r.h * 0.55;
+  const gx = r.x + 8, gy = r.y + head, gw = r.w - 16, gh = r.y + r.h - 6 - gy;
+  if (gw <= 8 || gh <= 6) return [];
+  const cw = gw / g.cols, ch = gh / g.rows;
+  return Array.from({ length: g.count }, (_, k) => ({ x: gx + (k % g.cols) * cw + 1, y: gy + Math.floor(k / g.cols) * ch + 1, w: Math.max(1.5, cw - 2), h: Math.max(1.5, ch - 2) }));
+}
 
 type K = GpuBlockKind;
 type N = Node<K>;
@@ -91,7 +102,7 @@ function build(i: GpuPlanInput): { tree: N; specs: WireSpec<GpuLinkKind>[] } {
   if (i.sms === 1) {
     const sm = i.kind === 'simd' ? simdSm(i) : warpSm(i, '', false);
     specs.push([`launch-${sm.entry}`, 'launch', 'launch', sm.entry, 1], ...sm.specs, [`${sm.exit}-dram`, 'mem', sm.exit, 'dram', 3]);
-    return { tree: row<K>([west, sm.tree, dram], { f: 1 }), specs: wires(specs) };
+    return { tree: row<K>([west, { ...sm.tree, f: 56 }, dram], { f: 1 }), specs: wires(specs) };
   }
   const frames: N[] = [];
   for (let k = 0; k < i.sms; k++) {

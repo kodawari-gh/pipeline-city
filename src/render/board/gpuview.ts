@@ -1,11 +1,13 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, type Text } from 'pixi.js';
 import type { DeviceSnap, GpuSnap } from '../../sim/game/types';
 import type { GpuStepKind } from '../../sim/ref/gpuref';
 import { label, mix } from '../ink';
 import type { Theme } from '../theme';
 import { EdgeFan } from '../room/case';
 import { gpuCover } from './accelart';
+import { gpuFar, gpuNear } from '../gpu/gpuart';
 import { gpuPlan, type GpuPlan } from './gpulayout';
+import type { Rect } from './layout';
 import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } from './gpumotion';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
@@ -14,8 +16,9 @@ import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } 
 // the mask stack, the program counter and the instruction on show. The picture is a slow-motion replay of the snapshot's last instructions
 // (gpumotion.ts), like the die view's. Everything below the fans is drawn only when something changes.
 
-// Zoom levels (board scale; the card is large, 3000 units, so they sit below the die's): the cover fades 0.28 -> 0.45, the texts come at 0.5, the counters at 0.9.
-const FADE_FROM = 0.28, FADE_TO = 0.45, TEXT_Z = 0.5, DETAIL_Z = 0.9;
+// Zoom levels (board scale; the card is large, up to 3800 units, so they sit below the die's): the cover fades 0.16 -> 0.28, the traces and cells
+// are there with it, the names come at 0.3, the second lines and the counters at 0.6.
+const FADE_FROM = 0.16, FADE_TO = 0.28, TEXT_Z = 0.3, DETAIL_Z = 0.6;
 /** Fan speed in turns per second: idle (just powered, cold), and at the card's throttle point. */
 const FAN_IDLE = 0.5, FAN_FULL = 3.5;
 /** Seen edge-on a turn is some blade spacings sliding past (the case fans do the same, a little slower). */
@@ -51,8 +54,10 @@ interface CardView {
   dyn: Graphics;
   cover: Graphics;
   fans: { fan: EdgeFan; turns: number }[];
-  titles: Text[];
-  details: Text[];
+  wires: Container;
+  cells: Container;
+  names: Container;
+  subs: Container;
   pcText: Text;
   linkText: Text;
   ctrText: Text;
@@ -85,40 +90,32 @@ export class GpuView {
   private build(T: Theme, c: GpuCardScene): CardView {
     const plan = gpuPlan(c.visual), root = new Container(), inner = new Container(), plate = new Graphics(), dyn = new Graphics();
     root.position.set(c.origin.x, c.origin.y);
-    const ink = T.dark ? '#070b14' : '#0f1626', dim = mix(T.line, '#000000', 0.2);
-    // the plate: the die's floor with the outlines of every block, drawn once
-    plate.roundRect(plan.body.x, plan.body.y - 6, plan.body.w, plan.body.h + 6, 8).fill({ color: ink, alpha: 0.96 });
-    plate.roundRect(plan.body.x, plan.body.y - 6, plan.body.w, plan.body.h + 6, 8).stroke({ width: 3, color: T.line, alpha: 0.9 });
-    const frame = (r: { x: number; y: number; w: number; h: number }): void => { plate.rect(r.x - 3, r.y - 3, r.w + 6, r.h + 6).stroke({ width: 2, color: dim, alpha: 0.9 }); };
-    frame(plan.lanesBlock); frame(plan.regs); frame(plan.mem); frame(plan.maskStack);
-    for (const b of plan.bankBars) frame(b);
-    plate.rect(plan.link.x, plan.link.y, plan.link.w, plan.link.h).fill({ color: ink }).stroke({ width: 2, color: dim });
-    // the card memory as a grid of words (a flash runs over it on a load or a store)
-    const gx = 40, gy = 8, cw = plan.mem.w / gx, ch = (plan.mem.h - 28) / gy;
-    for (let a = 0; a < gx; a++) for (let b = 0; b < gy; b++) plate.rect(plan.mem.x + a * cw + 1, plan.mem.y + 22 + b * ch + 1, cw - 2, ch - 2);
-    plate.fill({ color: T.alu, alpha: 0.07 });
-    for (const m of plan.maskSlots) plate.rect(m.x, m.y, m.w, m.h).stroke({ width: 1.5, color: dim });
-    inner.addChild(plate, dyn);
-
-    const titles: Text[] = [], details: Text[] = [];
-    const title = (s: string, x: number, y: number, size = 13, list = titles): Text => { const t = label(s, x, y, size, T.mute, { head: true, a: 0.9, minPx: 4 }); list.push(t); inner.addChild(t); return t; };
-    title('LANES', plan.lanesBlock.x, plan.pc.y + 4);
-    title(`REGISTERS v0-v7 x ${plan.lanes}`, plan.regs.x, plan.mem.y + plan.mem.h + 4);
-    title(plan.banks === 1 ? 'BANK' : `BANKS x ${plan.banks}`, plan.bankBars[0]!.x, plan.mem.y + plan.mem.h + 4);
-    title('MASK', plan.mask.x + plan.mask.w + 6, plan.mask.y + 3, 11);
-    title('MASK STACK', plan.maskStack.x + plan.maskStack.w + 8, plan.maskStack.y + 5);
-    title(`CARD MEMORY ${Math.round(plan.memBytes / 1024)}K`, plan.mem.x + 4, plan.mem.y + 3);
-    const pcText = label('', plan.pc.x + 90, plan.pc.y + 3, 16, T.ink, { head: true, a: 0.95, minPx: 4 });
-    const linkText = label('PCIe', plan.link.x + 10, plan.link.y + 8, 15, T.mute, { head: true, a: 0.95, minPx: 4 });
-    const ctrText = label('', plan.mem.x + 4, plan.mem.y + plan.mem.h - 18, 12, T.mute, { a: 0.9, minPx: 4 });
+    // the die at the card's offset: its floor and blocks drawn once, then the traces, cells and names the zoom brings in, then the live layer over them
+    const art = new Container();
+    art.position.set(plan.origin.x, plan.origin.y);
+    gpuFar(plate, T, plan.die);
+    const near = gpuNear(T, plan.die);
+    art.addChild(plate, near.wires, near.cells);
+    const live = new Container();
+    live.addChild(dyn);
+    inner.addChild(art, live);
+    const names = new Container(), subs = new Container();
+    names.position.set(plan.origin.x, plan.origin.y);
+    subs.position.set(plan.origin.x, plan.origin.y);
+    names.addChild(near.names);
+    subs.addChild(near.subs);
+    inner.addChild(names, subs);
+    const low = (r: Rect, lines: number, size: number): number => r.y + r.h - 8 - lines * (size + 3);
+    const pcText = label('', plan.pc.x + 7, low(plan.pc, 2, 11), 11, T.ink, { head: true, a: 0.95, minPx: 4 });
+    const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, { head: true, a: 0.95, minPx: 4 });
+    const ctrText = label('', plan.mem.x + 7, low(plan.mem, 4, 10), 10, T.mute, { a: 0.9, minPx: 4 });
     inner.addChild(pcText, linkText, ctrText);
-    details.push(ctrText);
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
     root.addChild(inner, cover, ...fans.map((f) => f.fan));
     this.root.addChild(root);
-    return { slot: c.slot, plan, root, inner, dyn, cover, fans, titles, details, pcText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false }, snap: undefined, tempC: 25, throttled: false, sig: '' };
+    return { slot: c.slot, plan, root, inner, dyn, cover, fans, wires: near.wires, cells: near.cells, names, subs, pcText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false }, snap: undefined, tempC: 25, throttled: false, sig: '' };
   }
 
   setZoom(z: number): void {
@@ -155,9 +152,8 @@ export class GpuView {
       c.inner.visible = fade > 0.02;
       if (!c.inner.visible) continue;
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
-      for (const t of c.titles) t.visible = showText;
-      c.pcText.visible = c.linkText.visible = showText;
-      for (const t of c.details) t.visible = showDetail;
+      c.names.visible = c.pcText.visible = c.linkText.visible = showText;
+      c.subs.visible = c.ctrText.visible = showDetail;
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === c.sig) continue;
@@ -187,36 +183,51 @@ export class GpuView {
     const depth = s?.stack.length ?? 0;
     p.maskSlots.forEach((r, k) => { if (k < depth) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.mul, alpha: 0.85 }); });
     // the registers: a cell is bright when the lane holds something, the destination of the instruction on show glows in its colour
-    p.regRows.forEach((row, ri) => {
-      const cw = row.w / p.lanes, vals = s?.regs[ri];
-      for (let l = 0; l < p.lanes; l++) g.rect(row.x + l * cw + 1, row.y, cw - 2, row.h).fill({ color: T.alu, alpha: vals && vals[l] !== 0 ? 0.5 : 0.1 });
+    for (const set of p.regSets) set.rows.forEach((row, ri) => {
+      const cw = row.w / set.cols, vals = s?.regs[ri];
+      for (let l = 0; l < set.cols; l++) g.rect(row.x + l * cw + 0.5, row.y, Math.max(1, cw - 1), row.h).fill({ color: T.alu, alpha: vals && vals[set.lane0 + l] !== 0 ? 0.5 : 0.1 });
       if (step && step.dest === ri) g.rect(row.x, row.y, row.w, row.h).fill({ color: col, alpha: 0.55 * pulse }).stroke({ width: 1.5, color: col, alpha: 0.9 });
     });
     // the banks: the addresses queued on each, served one round at a time
     const mem = step?.kind === 'ld' || step?.kind === 'st';
     const bad = conflicted(t);
     p.bankBars.forEach((r, b) => {
-      const { queued, served } = bankState(t, b), segH = (r.h - 4) / 8;
+      const { queued, served } = bankState(t, b), along = r.w >= r.h, len = (along ? r.w : r.h) - 4, segL = len / 8;
       for (let k = 0; k < Math.min(queued, 8); k++) {
-        const y = r.y + r.h - 2 - (k + 1) * segH;
-        g.rect(r.x + 3, y + 1, r.w - 6, segH - 2).fill({ color: k < served ? col : T.line, alpha: k < served ? 0.9 : 0.5 });
+        const f = { color: k < served ? col : T.line, alpha: k < served ? 0.9 : 0.5 };
+        if (along) g.rect(r.x + 2 + k * segL + 1, r.y + 1, segL - 2, r.h - 2).fill(f);
+        else g.rect(r.x + 1, r.y + r.h - 2 - (k + 1) * segL + 1, r.w - 2, segL - 2).fill(f);
       }
       if (queued > 1) g.rect(r.x - 2, r.y - 2, r.w + 4, r.h + 4).stroke({ width: 3, color: T.bad, alpha: 0.9 });
     });
     if (mem) {
-      // the bus from the lanes to the banks, and the card memory answering
-      const y = p.lanesBlock.y - 4, x1 = p.bankBars[p.bankBars.length - 1]!.x + p.bankBars[0]!.w;
-      g.moveTo(p.lanesBlock.x, y).lineTo(x1, y).stroke({ width: 3, color: bad ? T.bad : col, alpha: 0.8 * pulse });
-      p.bankBars.forEach((r, b) => { if (bankState(t, b).queued > 0) g.moveTo(r.x + r.w / 2, y).lineTo(r.x + r.w / 2, r.y).stroke({ width: 3, color: bad ? T.bad : col, alpha: 0.8 }); });
-      g.rect(p.mem.x, p.mem.y + 22, p.mem.w, p.mem.h - 22).fill({ color: col, alpha: 0.12 * pulse });
+      // the memory links of the die light up, and the card memory answers
+      for (const l of p.links) {
+        if (l.kind !== 'mem') continue;
+        g.moveTo(l.pts[0]![0], l.pts[0]![1]);
+        for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+        g.stroke({ width: 3, color: bad ? T.bad : col, alpha: 0.8 * pulse, join: 'round' });
+      }
+      g.rect(p.mem.x, p.mem.y, p.mem.w, p.mem.h).fill({ color: col, alpha: 0.12 * pulse });
     }
     // the PCIe link: lit while a launch crosses it
     const hop = s?.phase === 'in' || s?.phase === 'out';
-    g.rect(p.link.x + 8, p.link.y + 34, p.link.w - 16, 8).fill({ color: hop ? T.mul : T.line, alpha: hop ? 0.9 : 0.5 });
-    for (let k = 0; k < 4; k++) g.rect(p.link.x + 12 + k * 24, p.link.y + 48, 14, 10).fill({ color: hop ? T.mul : T.line, alpha: hop ? 0.4 + 0.15 * k : 0.35 });
+    if (hop) {
+      g.rect(p.link.x, p.link.y, p.link.w, p.link.h).fill({ color: T.mul, alpha: 0.18 });
+      for (const l of p.links) {
+        if (l.kind !== 'launch') continue;
+        g.moveTo(l.pts[0]![0], l.pts[0]![1]);
+        for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]);
+        g.stroke({ width: 3, color: T.mul, alpha: 0.9, join: 'round' });
+      }
+    }
     // the texts
     c.linkText.text = s ? `PCIe ${PHASE_TEXT[s.phase]}` : 'PCIe';
-    c.pcText.text = s ? `pc 0x${(step?.pc ?? s.pc).toString(16).padStart(3, '0')}  ${stepText(t, p.lanes)}` : '';
-    c.ctrText.text = s ? `${s.launches} launches   ${s.stats.instructions} instr   ${s.stats.idleLaneSlots} idle lane slots   ${s.stats.conflictCycles} conflict cycles` : '';
+    c.pcText.text = s ? `pc 0x${(step?.pc ?? s.pc).toString(16).padStart(3, '0')}
+${stepText(t, p.lanes)}` : '';
+    c.ctrText.text = s ? `${s.launches} launches
+${s.stats.instructions} instr
+${s.stats.idleLaneSlots} idle lane slots
+${s.stats.conflictCycles} conflict cycles` : '';
   }
 }
