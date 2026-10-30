@@ -5,7 +5,7 @@
 // busiest memory bank has distinct addresses to serve (lanes reading the same address share one access, so a broadcast is free). Lanes
 // that are masked off do not touch memory.
 
-import { gpuDecode, GPU_MASK_DEPTH, GPU_REG_COUNT, type GpuInstr } from "../isa/gpu";
+import { gpuDecode, GPU_MASK_DEPTH, GPU_REG_COUNT, GPU_SPEC_BY_NAME, type GpuInstr } from "../isa/gpu";
 
 export class GpuFault extends Error {
   constructor(public pc: number, msg: string) {
@@ -66,8 +66,11 @@ export interface GpuStep {
   warp?: number;
   /** Why it took more than one cycle: a memory bank conflict, else null. */
   stall?: GpuStall | null;
-  /** What a vld / vst touched in card memory, for the card's memory popups. */
+  /** What a vld / vst touched in card memory, for the card's memory view. */
   mem?: GpuMemTouch;
+  /** The vector register values the instruction read and wrote, one word per lane of its unit (lane `lane0 + n`): `a` and `b` the source registers as they were, `d` the destination after. */
+  vals?: { a?: number[]; b?: number[]; d?: number[] };
+  lane0?: number;
 }
 
 /** The words a vld / vst moved, as the card memory held them when it ran. */
@@ -173,6 +176,9 @@ export class GpuRef {
     let cost = 1;
     let banks: number[] | null = null;
     let touch: GpuMemTouch | undefined;
+    const fmt = GPU_SPEC_BY_NAME.get(i.name)?.fmt;
+    const usesA = fmt === "R" || fmt === "M" || fmt === "S" || (fmt === "I" && i.name !== "vli"), usesB = fmt === "R" || fmt === "M" || fmt === "S";
+    const srcA = usesA ? Array.from(this.regs[i.rs1]!) : undefined, srcB = usesB ? Array.from(this.regs[i.rs2]!) : undefined;
     let next = this.pc + 4;
 
     const alu = (f: (a: number, b: number) => number, bFrom: "reg" | "imm"): void => {
@@ -253,7 +259,8 @@ export class GpuRef {
     this.idleLaneSlots += L - this.popcount(mask);
     const kind = stepKind(i.name);
     this.lastStep = { pc: this.pc, name: i.name, kind, mask, cost, banks, dest: kind === "alu" || kind === "ld" ? i.rd : null,
-      word, maskAfter: this.mask, stackDepth: this.stack.length, startCycle, sm: 0, warp: 0, stall: cost > 1 ? "bank" : null, ...(touch ? { mem: touch } : {}) };
+      word, maskAfter: this.mask, stackDepth: this.stack.length, startCycle, sm: 0, warp: 0, stall: cost > 1 ? "bank" : null, ...(touch ? { mem: touch } : {}),
+      vals: { ...(srcA ? { a: srcA } : {}), ...(srcB ? { b: srcB } : {}), ...(kind === "alu" || kind === "ld" ? { d: Array.from(this.regs[i.rd]!) } : {}) }, lane0: this.laneBase };
     this.cycles += cost;
     this.instructions++;
     this.pc = next;

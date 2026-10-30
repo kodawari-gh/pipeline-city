@@ -240,7 +240,7 @@ export function glyph(g: Graphics, T: Theme, b: Pick<Block, 'id' | 'kind' | 'lab
 /** An instruction as the live symbols need it. */
 export interface LiveItem { op: string; text: string; pc: number; word?: number; /** For the forwarding unit: bit 0 operand A is taken from an older result, bit 1 operand B. */ flags?: number }
 /** Text to show in a rectangle (it is fitted to it), and rectangles to light. */
-export interface LiveGlyph { texts: { rect: Rect; top: string; bottom: string }[]; lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[] }
+export interface LiveGlyph { texts: { rect: Rect; top: string; bottom: string; /** A single line in a small cell (the GPU's memory parts), in the ink colour not the lit one. */ small?: boolean; ink?: boolean; /** Texts of one group are sized alike, to the longest of them (`small` ones). */ grp?: string; fit?: number }[]; lit: { rect: Rect; color: 'alu' | 'mul' | 'ld' | 'st' | 'br'; a: number }[] }
 
 const isImm = (op: string) => op.endsWith('i') && op !== 'bltui' || op === 'lw' || op === 'lb' || op === 'lbu' || op === 'sw' || op === 'sb' || op === 'jalr' || op === 'lui' || op === 'auipc' || op[0] === 'b' || op === 'jal';
 const writes = (op: string) => !(op === 'sw' || op === 'sb' || op[0] === 'b' || op === 'ecall' || op === 'iret');

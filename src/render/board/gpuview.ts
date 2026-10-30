@@ -1,7 +1,7 @@
 import { Container, Graphics, type Text } from 'pixi.js';
 import type { DeviceSnap, GpuSnap } from '../../sim/game/types';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '../../game/scrub';
-import type { GpuStepKind } from '../../sim/ref/gpuref';
+import type { GpuStep, GpuStepKind } from '../../sim/ref/gpuref';
 import { box, label, mix } from '../ink';
 import type { Theme } from '../theme';
 import { EdgeFan } from '../room/case';
@@ -15,8 +15,8 @@ import { CYCLES_PER_SEC } from '../die/diemotion';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import type { Rect } from './layout';
 import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu/gpuplayer';
-import { gpuLenses, type GpuLens } from '../gpu/gpulens';
-import { GpuLensView, LENS_Z } from './gpulensview';
+import { dramFill, gpuMemLive } from '../gpu/gpumem';
+import type { GpuBlock } from '../gpu/gpuplan';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -28,6 +28,7 @@ import { GpuLensView, LENS_Z } from './gpulensview';
 
 // Zoom levels (board scale; the card is large, up to 3800 units, so they sit below the die's): the cover fades 0.16 -> 0.28, the traces and cells
 // are there with it, the names come at 0.3, the second lines and the counters at 0.6.
+const MEM_KINDS = new Set<GpuBlock['kind']>(['dram', 'banks', 'l1', 'l2', 'regfile']);
 const FADE_FROM = 0.16, FADE_TO = 0.28, TEXT_Z = 0.3, DETAIL_Z = 0.6;
 /** Fan speed in turns per second: idle (just powered, cold), and at the card's throttle point. */
 const FAN_IDLE = 0.5, FAN_FULL = 3.5;
@@ -106,10 +107,8 @@ interface CardView {
   ctrText: Text;
   memText: Text;
   player: GpuPlayer;
-  /** The memory popups beside the parts an instruction touched, and what they were last made from. */
-  lens: GpuLensView;
-  lensKey: string;
-  lensMade: GpuLens[];
+  /** The memory parts of the die (card memory, banks, caches, registers) in card coordinates, with their cell grids. */
+  memParts: GpuBlock[];
   tick: GpuTick;
   snap: GpuSnap | undefined;
   tempC: number;
@@ -160,18 +159,18 @@ export class GpuView {
     inner.addChild(names, subs);
     const low = (r: Rect, lines: number, size: number): number => r.y + r.h - 8 - lines * (size + 3);
     const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, { head: true, a: 0.95, minPx: 4 });
-    const ctrText = label('', plan.mem.x + 7, low(plan.mem, 4, 10), 10, T.mute, { a: 0.9, minPx: 4 });
+    const ctrText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 30, 8, T.mute, { a: 0.9, minPx: 4, anchor: [1, 0.5] });
     const memText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 12, 10, T.ink, { head: true, a: 0.95, anchor: [1, 0.5], minPx: 4 });
     inner.addChild(linkText, ctrText, memText);
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
-    const lens = new GpuLensView();
-    root.addChild(inner, cover, ...fans.map((f) => f.fan), lens.root);
+    root.addChild(inner, cover, ...fans.map((f) => f.fan));
     this.root.addChild(root);
     return {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
-      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens, lensKey: '', lensMade: [],
+      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(),
+      memParts: plan.die.blocks.filter((b) => MEM_KINDS.has(b.kind)).map((b) => ({ ...b, rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h } })),
       tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '',
     };
   }
@@ -220,39 +219,17 @@ export class GpuView {
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;
-      if (!c.inner.visible) { c.lens.hide(); continue; }
+      if (!c.inner.visible) continue;
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
       this.animate(T, c, cur !== null);
-      this.popups(T, c);
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === c.sig) continue;
       c.sig = sig;
       this.draw(T, c);
     }
-  }
-
-  /** The memory popups: made again when the instruction on show, the card's contents or the zoom change, drawn only when zoomed in. */
-  private popups(T: Theme, c: CardView): void {
-    const s = c.snap, t = c.tick;
-    if (!s || this.zoom < LENS_Z) { c.lens.hide(); return; }
-    const key = `${t.index}|${s.launches}|${s.stats.cycles}|${s.phase}|${t.sms.map((x) => `${x.sm}:${x.index}`).join(',')}`;
-    const step = t.sms.find((x) => x.step)?.step ?? t.step;
-    const lenses: GpuLens[] = [];
-    if (key !== c.lensKey) {
-      c.lensKey = key;
-      const input = c.plan.die.input;
-      const groups = t.sms.length > 0 ? t.sms.map((x) => x.sm) : [0];
-      for (const sm of groups) {
-        const blocks = c.plan.blocks.filter((b) => (b.sm ?? 0) === sm).map((b) => ({ id: b.id, kind: b.kind, sm: b.sm }));
-        lenses.push(...gpuLenses(blocks, s, t.sms.find((x) => x.sm === sm)?.step ?? step, input.lineWords, input.banks));
-      }
-      c.lensMade = lenses;
-    }
-    const rects = new Map(c.plan.blocks.map((b) => [b.id, b.rect] as const));
-    c.lens.set(T, c.lensMade, rects, c.plan.body, this.zoom, step ? kindColor(T, step.kind) : T.alu);
   }
 
   /** A hop of a route as a link in card coordinates, for the packets. */
@@ -335,6 +312,28 @@ export class GpuView {
       live.texts.forEach((x, n) => ct!.set(n, x.top, x.bottom, x.rect, T.on));
       ct.hideFrom(live.texts.length);
     }
+    // the memory parts: what the instruction moves through them, in them
+    if (s) {
+      const sms = t.sms.length > 0 ? t.sms : [];
+      const memStepOf = (sm: number | null): GpuStep | null => [...s.trace].reverse().find((x) => x.mem && (sm === null || (x.sm ?? 0) === sm)) ?? null;
+      for (const b of c.memParts) {
+        const a = gpuGlyphArea({ kind: b.kind, rect: b.rect });
+        if (!a) continue;
+        const own = b.sm !== undefined && plan.die.input.sms > 1 ? b.sm : null, shared = b.kind === 'dram' || b.kind === 'l2';
+        const sm = shared ? (sms.find((x) => x.step?.mem)?.sm ?? sms[0]?.sm ?? 0) : (own ?? 0), tk = sms.find((x) => x.sm === sm);
+        const step = tk?.step ?? null;
+        const live = gpuMemLive(b, a, {
+          step, memStep: step?.mem ? step : memStepOf(shared ? null : sm), sm, perSm: plan.perSm, banks: plan.die.input.banks, lineWords: plan.die.input.lineWords,
+          cache: b.kind === 'l1' ? s.caches?.find((x) => x.level === 'L1' && (x.sm ?? 0) === sm) : b.kind === 'l2' ? s.caches?.find((x) => x.level === 'L2') : undefined, round: tk?.round ?? 0,
+        });
+        for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
+        let ct = c.cellTexts.get(b.id);
+        if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+        used.add(b.id);
+        live.texts.forEach((x, n) => { if (x.small) ct!.line(n, x.top, x.rect, x.ink ? T.ink : T.on, x.fit); else ct!.set(n, x.top, x.bottom, x.rect, x.ink ? T.ink : T.on); });
+        ct.hideFrom(live.texts.length);
+      }
+    }
     c.born = born;
     for (const [id, ct] of c.cellTexts) if (!used.has(id)) ct.hideFrom(0);
 
@@ -409,6 +408,9 @@ export class GpuView {
       g.rect(r.x + 2, r.y + r.h - 6, (r.w - 4) * (n / p.perSm), 4).fill({ color: T.alu, alpha: 0.85 });
       if (wt.busy) g.rect(r.x, r.y, r.w, r.h).stroke({ width: 2, color: wt.index === t.index ? col : T.mul, alpha: 0.9 });
     }
+    // card memory: the map of cells, each as full as the words in it
+    const dram = c.memParts.find((b) => b.kind === 'dram'), da = dram && gpuGlyphArea({ kind: 'dram', rect: dram.rect });
+    if (dram && da && s?.fill) for (const f of dramFill(da, dram.bytes ?? 0, s.fill)) g.rect(f.rect.x, f.rect.y, f.rect.w, f.rect.h).fill({ color: T[f.color], alpha: f.a });
     // the PCIe link: lit while a launch crosses it
     const hop = s?.phase === 'in' || s?.phase === 'out';
     if (hop) g.rect(p.link.x, p.link.y, p.link.w, p.link.h).fill({ color: T.mul, alpha: 0.18 });
@@ -416,10 +418,7 @@ export class GpuView {
     c.linkText.text = s ? `PCIe ${PHASE_TEXT[s.phase]}` : 'PCIe';
     const ms = smStep(0), accesses = ms?.banks ? ms.banks.reduce((n, v) => n + v, 0) : 0;
     c.memText.text = s && mem && ms ? `${ms.name} · ${accesses} access${accesses === 1 ? '' : 'es'}${bad ? ` · ${ms.cost} cycles` : ''}` : '';
-    c.ctrText.text = s ? `${s.launches} launches
-${s.stats.instructions} instr
-${s.stats.idleLaneSlots} idle lane slots
-${s.stats.conflictCycles} conflict cycles` : '';
+    c.ctrText.text = s ? `${s.launches} launches · ${s.stats.instructions} instr · ${s.stats.idleLaneSlots} idle · ${s.stats.conflictCycles} conflicts` : '';
     void stepText;
   }
 }

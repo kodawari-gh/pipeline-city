@@ -8,6 +8,7 @@ import { gpuDecode, gpuDisassemble, GPU_SPEC_BY_NAME } from '../../sim/isa/gpu';
 import type { GpuStep } from '../../sim/ref/gpuref';
 import type { Theme } from '../theme';
 import type { GpuBlock, GpuBlockKind } from './gpuplan';
+import { dramGeom } from './gpumem';
 import { cellInset, gpuCells, maskParts } from './gpuplans';
 
 // What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the schematic an engineer would draw for the part,
@@ -609,7 +610,7 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
     }
     case 'dram': {
       // the card's memory: rows of words (with the map of what lives where), the row buffer under them and the controller
-      const foot = h > 150 ? 34 : 0, cw = 9, cols = Math.min(64, Math.floor(w / cw)), rows = Math.min(40, Math.floor((h - foot) / cw));
+      const { foot, cw, cols, rows, by, slots } = dramGeom(a);
       for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) g.rect(x + k * cw + 1, y + r * cw + 1, cw - 2, cw - 2);
       g.fill({ color: soft });
       // the map of the memory: the kernel code, its two parameter words, the picture the card draws (docs/GPU.md section 2), as bands over the rows
@@ -620,16 +621,17 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
         ];
         for (const bd of bands) {
           const a0 = cell(bd.from), z = Math.max(a0 + 1, cell(bd.to));
-          for (let k = a0; k < Math.min(z, total); k++) g.rect(x + (k % cols) * cw + 1, y + Math.floor(k / cols) * cw + 1, cw - 2, cw - 2).fill({ color: bd.fill, alpha: 0.9 });
+          for (let k = a0; k < Math.min(z, total); k++) g.rect(x + (k % cols) * cw + 1, y + Math.floor(k / cols) * cw + 1, cw - 2, cw - 2).fill({ color: bd.fill, alpha: 0.3 });
           const r0 = Math.floor(a0 / cols);
           if (cols * cw > 90 && r0 < rows - 1) put(bd.name, x + (a0 % cols) * cw + 18, y + r0 * cw + cw / 2 + 0.5, 7);
         }
       }
       if (foot) {
-        const by = y + rows * cw + 4, mx = x + cols * cw / 2, bw = cols * cw * 0.4, cy = by + 21;
-        for (let k = 0; k < cols; k++) g.rect(x + k * cw + 1, by, cw - 2, 6).fill({ color: solid });
-        lab('row buffer', x + 2, by + 13, 6);
-        stub(mx, by + 6, mx, cy - 6);
+        // the row buffer: the words of the row the last access opened, in slots the live layer fills
+        const mx = x + cols * cw / 2, bw = cols * cw * 0.4, cy = by + 22 + 12;
+        for (const r of slots) { rect(r.x, r.y, r.w, r.h, solid); outline(r.x, r.y, r.w, r.h); }
+        lab('row buffer', x + 2, by + 22 + 12, 6);
+        stub(mx, by + 22, mx, cy - 6);
         rect(mx - bw / 2, cy - 6, bw, 12, soft); outline(mx - bw / 2, cy - 6, bw, 12); put('ctrl', mx, cy, 6.5);
         stub(x, cy, mx - bw / 2, cy); stub(mx + bw / 2, cy, x + cols * cw, cy);
       }

@@ -120,6 +120,13 @@ export class CellTexts {
     this.put(this.text(this.a, i, false), top, cx, r.y + r.h * 0.3, Math.min(fit(top, s), s), color);
     this.put(this.text(this.b, i, true), bottom, cx, r.y + r.h * 0.68, Math.min(fit(bottom, s * 1.15), s * 1.15), color);
   }
+  /** One line in a cell too small for `set`: as large as the cell's height and width allow, left out below 3 px. */
+  line(i: number, str: string, r: Rect, color: string, fit = str.length) {
+    const size = Math.min(r.h * 0.85, (r.w - 1) / Math.max(1, fit * 0.62), 15);
+    if (size < 3) { this.hide(i); return; }
+    this.put(this.text(this.a, i, false), str, r.x + r.w / 2, r.y + r.h / 2, size, color);
+    if (this.b[i]) this.b[i]!.visible = false;
+  }
   hide(i: number) { if (this.a[i]) this.a[i]!.visible = false; if (this.b[i]) this.b[i]!.visible = false; }
   hideFrom(n: number) { for (let i = n; i < Math.max(this.a.length, this.b.length); i++) this.hide(i); }
   clear() { for (const t of [...this.a, ...this.b]) t?.destroy(); this.a = []; this.b = []; }

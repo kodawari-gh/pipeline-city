@@ -48,6 +48,18 @@ export interface GpuView {
   code?: number[];
   /** The caches and the lines they hold (a card with an L1 / L2 only). */
   caches?: GpuCacheView[];
+  /** A map of card memory: for every `GPU_FILL_WORDS` words, how many are not zero. */
+  fill?: number[];
+}
+
+/** Words of card memory one entry of `GpuView.fill` covers. */
+export const GPU_FILL_WORDS = 4;
+
+/** How full card memory is, block by block: the words that are not zero in each `GPU_FILL_WORDS`. */
+function fillMap(mem: Uint32Array): number[] {
+  const out: number[] = new Array(Math.ceil(mem.length / GPU_FILL_WORDS)).fill(0);
+  for (let k = 0; k < mem.length; k++) if (mem[k] !== 0) out[(k / GPU_FILL_WORDS) | 0]!++;
+  return out;
 }
 
 /** The words of the kernel in card memory: the code area up to its last word that is not zero. */
@@ -121,6 +133,7 @@ export class GpuPort implements Device {
       error: this.error,
       code: kernelWords(core.mem),
       ...(core.cacheViews ? { caches: core.cacheViews() } : {}),
+      fill: fillMap(core.mem),
       frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
     };
   }
