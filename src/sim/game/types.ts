@@ -240,6 +240,8 @@ export interface KeySnap {
   finishedAt?: number;
   /** While it runs: what the engine has counted since the machine took it (the job log's window, still open). */
   live?: JobWindow;
+  /** The job runs on a graphics card, so `live` is the host spinning, not the job's stalls. */
+  gpu?: true;
 }
 
 /** The player level block (docs/PROGRESSION.md). In a sandbox `level` is the pinned rules level and `sandbox` is true. */

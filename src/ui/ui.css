@@ -989,7 +989,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* colours of what held a job up */
 .k-queue { --k: #ffc247; } .k-collect { --k: #8b7cf6; } .k-memory { --k: #f0803c; } .k-branch { --k: #d96ad6; } .k-deps { --k: #3aa8d9; }
-.k-port { --k: #4fd1c5; } .k-paging { --k: #ef5b7b; } .k-compute { --k: #4cc38a; } .k-lost { --k: #8893b0; } .k-none { --k: #8893b0; } .k-ipc { --k: #4cc38a; }
+.k-port { --k: #4fd1c5; } .k-paging { --k: #ef5b7b; } .k-compute { --k: #4cc38a; } .k-card { --k: #b48cf2; } .k-lost { --k: #8893b0; } .k-none { --k: #8893b0; } .k-ipc { --k: #4cc38a; }
 .jl-tag { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.6rem; border-radius: 99rem; border: 1px solid var(--k); color: var(--k); background: color-mix(in srgb, var(--k) 14%, transparent); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
 
 /* the overview */

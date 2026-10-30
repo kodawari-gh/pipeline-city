@@ -89,6 +89,9 @@ describe("a gpu job in the machine", () => {
   it("runs on the CPU alone and faster with a card (the job and its class pay are the same either way: the key is the same)", () => {
     const cpu = serve(false), gpu = serve(true);
     expect(gpu.ticks).toBeLessThan(cpu.ticks);
+    // the log marks only the card run: without a card the CPU stalls are the job's own
+    expect(gpu.snap.jobLog!.at(-1)!.gpu).toBe(true);
+    expect(cpu.snap.jobLog!.at(-1)!.gpu).toBeUndefined();
   }, 120_000);
 });
 

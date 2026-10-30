@@ -42,6 +42,8 @@ export interface JobLogEntry {
   attempts: number;
   /** OS tier installed when it ended (0 none). */
   os: number;
+  /** The job's work ran on a graphics card (the host only spun on its status), so the window's CPU stalls are not the job's. Absent on older saves. */
+  gpu?: true;
   /** Absent for jobs that never ran, and when the machine rebooted mid-job. */
   win?: JobWindow;
 }
@@ -76,7 +78,7 @@ export function phasesOf(e: JobLogEntry): Phases {
 }
 
 /** A job still on the machine, as the key snapshot shows it (docs/JOBS.md "On the machine now"). */
-export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; finishedAt?: number; live?: JobWindow }
+export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; finishedAt?: number; live?: JobWindow; gpu?: true }
 
 /** Where a job's time has gone so far: waiting for the machine, running on it, and (once the result is written) the result waiting to be collected. */
 export function livePhases(k: LiveShape, now: number): Phases {
@@ -89,7 +91,7 @@ export function livePhases(k: LiveShape, now: number): Phases {
 }
 
 /** What held a job up, in one word the UI can colour and draw an icon for. */
-export type VerdictKind = "queue" | "collect" | "memory" | "branch" | "deps" | "port" | "paging" | "compute" | "lost" | "none";
+export type VerdictKind = "queue" | "collect" | "memory" | "branch" | "deps" | "port" | "paging" | "compute" | "card" | "lost" | "none";
 
 export interface Verdict {
   /** What dominated: the machine was busy, the job was slow to run, or the result sat. */
@@ -119,6 +121,10 @@ export function verdictOf(e: JobLogEntry): Verdict {
     where: "wait", kind: "queue", tag: "Queue", text: `It waited ${p.wait}s for the machine (${pc(share)} of the time).`,
     hint: "The machine was busy or off: a faster CPU shortens each job, an OS runs several at once, and a network plan feeds it without keys.",
   };
+  if (e.gpu) return {
+    where: "run", kind: "card", tag: "On the card", text: `It ran ${p.run}s on the graphics card while the CPU waited on its status.`,
+    hint: "More lanes, a faster card clock or more card memory shorten the run; the CPU's stalls do not apply here.",
+  };
   const w = e.win;
   if (!w || w.cycles <= 0) return { where: "run", kind: "none", tag: "Ran", text: `It ran ${p.run}s.`, hint: "No counters for this run (the machine restarted during it)." };
   const stalls: Array<[number, string, string, VerdictKind, string]> = [
@@ -143,7 +149,7 @@ export function liveVerdict(k: LiveShape, now: number): Verdict | null {
   const w = k.live;
   if (!w || w.cycles < 200) return null;
   const run = Math.max(1, livePhases(k, now).run);
-  const v = verdictOf({ id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: 0, finish: run, end: run, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, win: w });
+  const v = verdictOf({ id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: 0, finish: run, end: run, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(k.gpu ? { gpu: true as const } : {}), win: w });
   return v.kind === "none" || v.kind === "queue" || v.kind === "collect" || v.kind === "lost" ? null : v;
 }
 
@@ -185,14 +191,14 @@ export function aggregate(list: readonly JobLogEntry[]): Agg {
     const p = phasesOf(e);
     wait += p.wait; run += p.run; collect += p.collect;
     if (e.late) late++;
-    if (e.win) {
+    if (e.win && !e.gpu) { // a card job's window is the host spinning: it would pollute the CPU stall bars
       win ??= { cycles: 0, retired: 0, stallLoad: 0, stallData: 0, stallFlush: 0, stallStruct: 0, stallCache: 0, cacheHits: 0, cacheMisses: 0, tlbMisses: 0, pageFaults: 0 };
       for (const k of WINDOW_COUNTERS) win[k] += e.win[k];
     }
   }
   const m = Math.max(1, n);
   const avg = { wait: wait / m, run: run / m, collect: collect / m };
-  const typical: JobLogEntry = { id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: avg.wait, finish: avg.wait + avg.run, end: avg.wait + avg.run + avg.collect, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(win ? { win } : {}) };
+  const typical: JobLogEntry = { id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: avg.wait, finish: avg.wait + avg.run, end: avg.wait + avg.run + avg.collect, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(n > 0 && done.every((e) => e.gpu) ? { gpu: true as const } : {}), ...(win ? { win } : {}) };
   return { n, late, ...avg, ...(win ? { win } : {}), verdict: n ? verdictOf(typical) : { where: "none", kind: "none", tag: "None", text: "No finished job yet.", hint: "" } };
 }
 

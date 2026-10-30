@@ -46,6 +46,21 @@ describe("job log pieces", () => {
     expect(verdictOf(entry({ outcome: "expired" })).text).toContain("took it back");
   });
 
+  it("reads a card job as waiting on the card, not as CPU stalls, and keeps its spin out of the aggregate", () => {
+    const g = entry({ gpu: true, win: win({ stallCache: 900 }) });
+    expect(verdictOf(g)).toMatchObject({ where: "run", kind: "card", tag: "On the card" });
+    expect(verdictOf(g).text).not.toContain("memory");
+    expect(verdictOf(entry({ gpu: true, start: 80, finish: 100, end: 102 })).kind).toBe("queue"); // a long wait is still the queue
+    const mixed = aggregate([g, entry({ id: 2, win: win({ stallFlush: 400 }) })]);
+    expect(mixed.win).toMatchObject({ cycles: 1000, stallFlush: 400, stallCache: 0 });
+    const only = aggregate([g]);
+    expect(only.win).toBeUndefined();
+    expect(only.verdict.kind).toBe("card");
+    const run = { arrivalTick: 0, deadlineTick: 100, startedAt: 0, live: win({ stallCache: 900 }) };
+    expect(liveVerdict(run, 50)!.kind).toBe("memory");
+    expect(liveVerdict({ ...run, gpu: true }, 50)!.kind).toBe("card");
+  });
+
   it("sums up a list", () => {
     const s = summarise([entry(), entry({ id: 2, finish: 70, end: 75, late: true }), entry({ id: 3, outcome: "declined" })]);
     expect(s).toMatchObject({ done: 2, declined: 1, expired: 0, late: 1, wait: 20, run: 90, collect: 10 });

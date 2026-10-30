@@ -217,10 +217,15 @@ export function closeWindow(this: Game, k: Key): void {
 }
 
 /** The counters of the running job so far (the log's window, still open), or nothing when the machine has none for it. */
-export function liveOf(this: Game, k: Key): { live?: JobWindow } {
+export function liveOf(this: Game, k: Key): { live?: JobWindow; gpu?: true } {
   const now = this.countersNow();
   const live = now ? windowOf(k.c0, now) : undefined;
-  return live ? { live } : {};
+  return live ? { live, ...(this.onCard(k) ? { gpu: true as const } : {}) } : {};
+}
+
+/** The job's work runs on a graphics card: a `gpu` class job while a working card is fitted (without one the CPU does it and its stalls are real). The CPU only spins on the card's status. */
+export function onCard(this: Game, k: Key): boolean {
+  return k.cls === "gpu" && this.gpuTarget() !== undefined;
 }
 
 /** The job log: one line for a job that ended (docs/JOBS.md "The log"). */
@@ -230,6 +235,7 @@ export function addLog(this: Game, k: Key, outcome: JobOutcome, pay: number, lat
     id: k.id, type: k.type, scale: k.scale, outcome, arrival: k.arrival,
     start: done ? this.startOf(k) : this.baseTick, finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
     deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
+    ...(done && this.onCard(k) ? { gpu: true as const } : {}),
     ...(done && k.win ? { win: { ...k.win } } : {}),
   });
   if (this.jobLog.length > JOB_LOG_CAP) this.jobLog.splice(0, this.jobLog.length - JOB_LOG_CAP);

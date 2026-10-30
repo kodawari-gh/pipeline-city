@@ -29,7 +29,7 @@ const PHASES = [
 ] as const satisfies ReadonlyArray<readonly [keyof Phases, string, IconName, string]>;
 
 /** The icon of each thing that can hold a job up. */
-const KIND_ICON: Record<VerdictKind, IconName> = { queue: 'clock', collect: 'box', memory: 'memory', branch: 'gauge', deps: 'wave', port: 'slot', paging: 'warn', compute: 'cpu', lost: 'lock', none: 'check' };
+const KIND_ICON: Record<VerdictKind, IconName> = { queue: 'clock', collect: 'box', memory: 'memory', branch: 'gauge', deps: 'wave', port: 'slot', paging: 'warn', compute: 'cpu', card: 'card', lost: 'lock', none: 'check' };
 const STALL_KIND: Record<string, VerdictKind> = { cache: 'memory', flush: 'branch', data: 'deps', struct: 'port' };
 
 /** One coloured tag for what held a job up; its tooltip is the sentence and what to try. */
@@ -175,7 +175,7 @@ function Detail({ e }: { e: JobLogEntry }) {
         <button class="link" onClick={() => { picked.value = null; }}>Overview</button>
       </div>
       {e.outcome === 'done' && <><Donut p={p} /><PhaseStats p={p} /></>}
-      {w && w.cycles > 0 && <Stalls a={{ n: 1, late: 0, wait: p.wait, run: p.run, collect: p.collect, win: w, verdict: v }} />}
+      {w && w.cycles > 0 && !e.gpu && <Stalls a={{ n: 1, late: 0, wait: p.wait, run: p.run, collect: p.collect, win: w, verdict: v }} />}
     </div>
   );
 }
