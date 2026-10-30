@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assembleGpu } from "../asm/gpu";
-import { GPU_BASE, GPU_MEM, GPU_REG, GpuStatus } from "../isa/memmap";
+import { GPU_BASE, GPU_MEM, GPU_REG, GPU_STRIDE, GpuStatus } from "../isa/memmap";
 import { Operator } from "./operator";
 import { econ } from "./testkit";
 import { Game } from "./game";
@@ -12,7 +12,7 @@ const buy = (g: Game, id: string): string => {
   if (!r.ok) throw new Error(`${id}: ${r.reason}`);
   return r.invId;
 };
-const status = (g: Game, slot = 0) => g.machine.bus.load32(GPU_BASE + slot * 0x10000 + GPU_REG.STATUS);
+const status = (g: Game, slot = 0) => g.machine.bus.load32(GPU_BASE + slot * GPU_STRIDE + GPU_REG.STATUS);
 
 describe("a GPU in the machine", () => {
   it("is on the bus once installed, reports its card, and drops off when taken out", () => {
@@ -25,7 +25,7 @@ describe("a GPU in the machine", () => {
     const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
     const idx = Number(slot.slice(4));
     expect(status(g, idx)).toBe(GpuStatus.Present);
-    expect(g.machine.bus.load32(GPU_BASE + idx * 0x10000 + GPU_REG.LANES_MAX)).toBe(8);
+    expect(g.machine.bus.load32(GPU_BASE + idx * GPU_STRIDE + GPU_REG.LANES_MAX)).toBe(8);
     expect(g.uninstall(g.board.devices.find((d) => d.spec === "gpu1")!.id)).toMatchObject({ ok: true });
     g.advanceBaseTick();
     expect(status(g, idx)).toBe(0);
@@ -40,7 +40,7 @@ describe("a GPU in the machine", () => {
     expect(g.snapshot().postBlocker).toBeNull();
     expect(g.powerButton().ok).toBe(true);
     const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
-    const base = GPU_BASE + Number(slot.slice(4)) * 0x10000;
+    const base = GPU_BASE + Number(slot.slice(4)) * GPU_STRIDE;
     const bus = g.machine.bus;
     assembleGpu("lane v1\nvaddi v1, v1, 100\nlane v2\nvslli v2, v2, 2\nvst v1, 1024(v2)\nhalt").program.forEach((w, k) => bus.store32(base + GPU_MEM + 4 * k, w));
     bus.store32(base + GPU_REG.CMD, 1);
@@ -80,7 +80,7 @@ describe("a gpu job in the machine", () => {
     expect(key.runnable).toBe(true); // no card needed
     const op = new Operator(g, 1);
     let ticks = 0;
-    while (g.completed < 1 && ticks < 60_000) { g.advanceBaseTick(); op.step(); ticks++; }
+    while (g.completed < 1 && ticks < 5_000_000) { g.advanceBaseTick(); op.step(); ticks++; }
     expect(g.completed).toBe(1);
     expect(g.errors).toBe(0);
     return { ticks, snap: g.snapshot() };
@@ -89,5 +89,5 @@ describe("a gpu job in the machine", () => {
   it("runs on the CPU alone and faster with a card (the job and its class pay are the same either way: the key is the same)", () => {
     const cpu = serve(false), gpu = serve(true);
     expect(gpu.ticks).toBeLessThan(cpu.ticks);
-  });
+  }, 120_000);
 });

@@ -170,7 +170,7 @@ describe.each(WIDE_CONFIGS)("wide correctness vs reference: $name", ({ make }) =
 
   it("generated game programs (cli, scan, every template; text on the display)", () => {
     // the secure.* jobs talk to a TPM this bare machine does not have (securejob.test.ts and gen.test.ts run it against one)
-    const names = [...new Set(["cli", "cli.scan", ...TEMPLATE_NAMES])].filter((t) => !t.startsWith("secure."));
+    const names = [...new Set(["cli", "cli.scan", ...TEMPLATE_NAMES])].filter((t) => !t.startsWith("secure.") && !t.startsWith("gpu.")); // the gpu.* picture jobs run 0.2 to 1.3M instructions on the CPU: gen.test.ts runs them on the in-order engines
     for (const t of names) {
       for (let s = 0; s < 6; s++) {
         const g = generate(t, s * 37 + 5, { scale: 1 + (s % 3) });

@@ -98,29 +98,28 @@ describe('frameModel', () => {
     expect(frameModel(card({ frame: [] }))).toBeNull();
   });
 
-  it('trims to whole rows of the last non-zero word and scales to 0..1', () => {
+  it('fills whole rows of 64 and reads each word as a brightness over 255', () => {
     const frame = Array(256).fill(0);
-    for (let i = 0; i < 40; i++) frame[i] = i % 4 === 0 ? 16 : 2;
+    for (let i = 0; i < 40; i++) frame[i] = i % 4 === 0 ? 255 : 51;
     const m = frameModel(card({ frame }))!;
     expect(m.cols).toBe(FRAME_COLS);
-    expect(m.rows).toBe(1); // 40 words: one row of 64
-    expect(m.cells).toHaveLength(64);
-    expect(Math.min(...m.cells)).toBe(0);
-    expect(Math.max(...m.cells)).toBe(1);
+    expect(m.rows).toBe(4); // 256 words: four rows of 64
+    expect(m.cells).toHaveLength(256);
     expect(m.cells[0]).toBe(1);
-    expect(m.cells[1]).toBeCloseTo((2 - 0) / 16);
+    expect(m.cells[1]).toBeCloseTo(0.2);
+    expect(m.cells[100]).toBe(0);
   });
 
-  it('keeps a whole 16:9 picture (64 x 36)', () => {
-    const frame = Array(64 * 36).fill(0);
-    frame[64 * 36 - 1] = 5;
+  it('keeps a whole 16:10 picture (64 x 40), even when its last rows are black', () => {
+    const frame = Array(64 * 40).fill(0);
+    frame[0] = 5;
     const m = frameModel(card({ frame }))!;
-    expect([m.cols, m.rows]).toEqual([64, 36]);
+    expect([m.cols, m.rows]).toEqual([64, 40]);
   });
 
-  it('reads the words as signed integers', () => {
+  it('clamps negative and big words into 0..1', () => {
     const frame = Array(256).fill(0);
-    frame[0] = 0xffffffff; frame[1] = 1;
+    frame[0] = 0xffffffff; frame[1] = 1000;
     const m = frameModel(card({ frame }))!;
     expect(m.cells[0]).toBe(0);
     expect(m.cells[1]).toBe(1);

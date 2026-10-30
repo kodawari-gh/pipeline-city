@@ -328,14 +328,14 @@ const specList: DeviceSpec[] = [
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
   { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
-    needsPcieCable: true, gpu: { lanes: 8, memBytes: 8 * 1024, banks: 1 } },
+    needsPcieCable: true, gpu: { lanes: 8, memBytes: 16 * 1024, banks: 1 } },
   // Later tiers (docs/ACCEL.md tables): more lanes, memory and banks, a faster clock. gpu3 needs both PCIe leads of a big PSU.
   { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
     clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
-    needsPcieCable: true, gpu: { lanes: 16, memBytes: 16 * 1024, banks: 2 } },
+    needsPcieCable: true, gpu: { lanes: 16, memBytes: 32 * 1024, banks: 2 } },
   { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
     clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
-    needsPcieCable: true, pcieLeads: 2, gpu: { lanes: 32, memBytes: 32 * 1024, banks: 4 } },
+    needsPcieCable: true, pcieLeads: 2, gpu: { lanes: 32, memBytes: 64 * 1024, banks: 4 } },
   { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false,
     npu: { grid: 4, memBytes: 8 * 1024 } },

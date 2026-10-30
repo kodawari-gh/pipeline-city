@@ -12,7 +12,7 @@ import {
   cpuLayer, GPU_NET_LAYOUT, gpuLayerCode, M as NET_M, makeNetwork, networkChecksum, NPU_LAYOUT, npuBytes, npuProgram,
 } from "./npukernels";
 import {
-  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, PICTURE_COLS, WIDE_ROWS, sphereFrames, spinOf, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, outputChecksum, type GpuKernelParams,
+  copyWords, roundUp16, cpuKernel, GPU_KERNEL_NAMES, GPU_TASK_KERNELS, CPU_PARAM, framesOf, frameParams, PICTURE_LEN, type GpuKernelName, tpmCommand, gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, outputChecksum, type GpuKernelParams,
 } from "./gpukernels";
 import { EVERYDAY_TEMPLATES } from "./tasks.everyday";
 import { HPC_TEMPLATES } from "./tasks.hpc";
@@ -144,94 +144,68 @@ const dbIndex: TemplateFn = (rng, p) => {
 };
 
 /**
- * GPU batch job (docs/ACCEL.md "Job classes"): one of the kernels vadd, saxpy, blur3, mandel over a seeded array, printing the sum of
- * the outputs. With a card the CPU copies the kernel and its data into card memory, launches and polls; without one it runs the same
- * work in a loop on the CPU. Both print the same line (the seed alone picks kernel, data and answer, never the hardware), and pay the same.
+ * GPU picture job (docs/ACCEL.md "Job classes"): one of the kernels vadd (brightness), saxpy (contrast), blur3, mandel over a 64 x 40 picture, a few frames of
+ * it, printing the sum of the last picture. With a card the CPU copies the kernel into card memory, then per frame writes the frame's two parameter words,
+ * launches and polls; without one it runs the same work in a loop on the CPU. Both print the same line (the seed alone picks the answer, never the hardware).
  */
 const gpuRender: TemplateFn = (rng, p) => gpuJob(rng, p, GPU_KERNEL_NAMES[rng.nextInt(GPU_KERNEL_NAMES.length)]!, "gpu.render request");
 
 /** The GPU job for one named kernel (the mixed job above picks it from the seed; the single-kernel jobs `gpu.<kernel>` fix it). */
-function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string, own = false): Built {
+function gpuJob(rng: Prng, p: ResolvedParams, name: GpuKernelName, header: string): Built {
   const b = new Builder();
-  const { len, kp, a, bIn, noInput } = gpuPlan(rng, p.scale, name, own);
-  // sphere is an animation: SPHERE_FRAMES launches with the spin advancing; the line printed is the checksum of the last picture
-  const anim = name === "sphere", first = kp.phase ?? 0, frames = anim ? sphereFrames(len >> 6) : 1;
-  const expected = outputChecksum(gpuKernelExpected(name, anim ? { ...kp, phase: spinOf(first, frames - 1, frames) } : kp, a, bIn));
-  const loop = anim ? b.ns("frame") : "";
-  const frameStart = anim ? [`li s1, ${frames}`, `li s2, ${first}`, `${loop}:`] : [];
-  const frameNext = anim ? [`addi s2, s2, ${16 / frames}`,"addi s1, s1, -1", `bne s1, zero, ${loop}`] : [];
+  const { len, kp, frames } = gpuPlan(rng, p.scale, name);
+  const expected = outputChecksum(gpuKernelExpected(name, { ...kp, ...frames[frames.length - 1]! }));
   const segs: Seg[] = [`#${pad2(p.jobId)} ${name} `, { dyn: 2 }, " OK"];
   const line = layoutLine(segs);
-  const guards = name === "blur3"; // blur3 reads a[-1] and a[len]: the input carries a copy of its edge elements there
-  const aWords = guards ? [a[0]!, ...a, a[len - 1]!] : a;
-  const needsB = name === "vadd" || name === "saxpy" || name === "poly";
-  const aData = b.ns("a"), bData = b.ns("b");
   b.emit(`li s0, ${rowAddr(p.row)}`);
   emitStatic(b, line, 0);
   const gpu = p.gpu;
   const L = KERNEL_LAYOUT;
   const onCard = gpu && len % gpu.lanes === 0 && gpu.lanes <= 32 && gpu.memBytes >= L.out + 4 * len + 4;
+  const setParams = (base: number, f: { phase: number; level: number }) => [`li t0, ${base}`, `li t1, ${f.phase}`, "sw t1, 0(t0)", `li t1, ${f.level}`, "sw t1, 4(t0)"];
   let sumAt: number;
   if (onCard) {
     const code = assembleGpu(gpuKernelSource(name, { ...kp, lanes: gpu.lanes })).program;
-    if (code.length * 4 > L.a - 4) throw new RangeError("gpu kernel too large");
+    if (code.length * 4 > L.param - 4) throw new RangeError("gpu kernel too large");
     const kData = b.ns("kernel");
     const win = gpu.base + GPU_MEM;
     const copy = b.add(copyWords(b.ns("copy")), 0);
     b.emit(`li a0, ${win + L.code}`, `la a1, ${kData}`, `li a2, ${roundUp16(code.length * 4)}`, `call ${copy}`);
-    if (!noInput) {
-      b.emit(`li a0, ${win + L.a - (guards ? 4 : 0)}`, `la a1, ${aData}`, `li a2, ${roundUp16(aWords.length * 4)}`, `call ${copy}`);
-    }
-    if (needsB) b.emit(`li a0, ${win + L.b}`, `la a1, ${bData}`, `li a2, ${len * 4}`, `call ${copy}`);
-    const poll = b.ns("poll");
-    b.emit(...frameStart, ...(anim ? [`li t0, ${win + L.a}`, "sw s2, 0(t0)"] : [])); // the spin goes in the first word of the `a` region
-    b.emit(`li t0, ${gpu.base}`, `sw zero, ${GPU_REG.KERNEL}(t0)`, `sw zero, ${GPU_REG.LANES}(t0)`, "li t1, 1", `sw t1, ${GPU_REG.CMD}(t0)`);
-    b.emit(`${poll}:`, `lw t1, ${GPU_REG.STATUS}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${poll}`, ...frameNext);
+    frames.forEach((f, k) => {
+      const poll = b.ns(`poll${k}`);
+      b.emit(...setParams(win + L.param, f));
+      b.emit(`li t0, ${gpu.base}`, `sw zero, ${GPU_REG.KERNEL}(t0)`, `sw zero, ${GPU_REG.LANES}(t0)`, "li t1, 1", `sw t1, ${GPU_REG.CMD}(t0)`);
+      b.emit(`${poll}:`, `lw t1, ${GPU_REG.STATUS}(t0)`, "andi t1, t1, 1", `bne t1, zero, ${poll}`);
+    });
     sumAt = win + L.out;
     b.addData([`${kData}:`, ...Array.from(code, (w) => `  .word ${w}`)]);
   } else {
     const kern = b.add(cpuKernel(name, b.ns("cpu"), kp), 4 * len);
     sumAt = BUF_BASE;
-    if (anim) b.emit(...frameStart, `li a0, ${BUF_BASE}`, "mv a3, s2", `call ${kern}`, ...frameNext);
-    else if (noInput) b.emit(`li a0, ${BUF_BASE}`, `call ${kern}`);
-    else b.emit(`la a0, ${aData}`, ...(guards ? ["addi a0, a0, 4"] : []), `la a1, ${needsB ? bData : aData}`, `li a2, ${BUF_BASE}`, `li a3, ${len}`, `call ${kern}`);
+    for (const f of frames) b.emit(...setParams(CPU_PARAM, f), `li a0, ${BUF_BASE}`, `call ${kern}`);
   }
   b.emit(`li a0, ${sumAt}`, `li a1, ${len}`, `call ${b.add(K.arraySum(b.ns("array_sum"), 4), 4 * len)}`, "andi a1, a0, 63");
   b.emit(`addi a0, s0, ${line.fields[0]!.off}`, `call ${b.add(K.printDec(b.ns("print_dec"), 2))}`);
-  if (!noInput) b.addData([`${aData}:`, ...aWords.map((w) => `  .word ${w}`)]);
-  if (needsB) b.addData([`${bData}:`, ...bIn.map((w) => `  .word ${w}`)]);
   return b.finish(header, blankRows(p.row) + renderLine(segs, [expected]));
 }
 
-/**
- * What the seed decides about a GPU job: its size, the kernel's parameters and its input arrays. The job's program is built from it,
- * and the almanac draws the job's output picture from it (`gpuPicture`).
- */
-function gpuPlan(rng: Prng, jobScale: number, name: GpuKernelName, own: boolean) {
-  // mandel draws one picture row per scale step (64 wide, up to 8 rows): a 1- or 2-row picture shows nothing; the others grow with the scale.
-  // mandel and sphere draw a 64-wide picture from no input, one row count per scale step (a ball is squeezed to fit): sphere 4, 8 or 16 rows, mandel half of that
-  // (it iterates per point: 16 rows would take a card 40,000 ticks); the others grow with the scale.
-  // The mixed `gpu.render` job (`own` false) keeps the small Mandelbrot it always had (its CPU path must stay short).
-  // Sphere at scale 8 is the 16:9 picture (WIDE_ROWS): too big for the 8K card, which then runs it on the CPU.
-  const rows = name === "sphere" && jobScale >= 8 ? WIDE_ROWS : (jobScale >= 4 ? 16 : jobScale >= 2 ? 8 : 4) / (name === "mandel" ? 2 : 1);
-  const len = name === "sphere" || (name === "mandel" && own) ? PICTURE_COLS * rows : name === "mandel" ? PICTURE_COLS * Math.max(1, Math.floor(jobScale / 2)) : 32 * Math.max(1, Math.floor(jobScale / 2));
-  const scale = 2 + rng.nextInt(4);
-  const { a, b: bIn } = kernelInputs(len, rng.nextU32());
-  const phase = name === "sphere" ? rng.nextInt(64) : 0; // drawn last and only here, so no other kernel's seeds move
-  const noInput = name === "mandel" || name === "sphere";
-  const kp: GpuKernelParams = { lanes: 1, len, scale, phase }; // results do not depend on the lane count
-  return { len, kp, a, bIn, noInput };
+/** What the seed decides about a GPU job: where its scene starts and the frames (phase and level of each). The program is built from it and the almanac draws the frames (`gpuPicture`). */
+function gpuPlan(rng: Prng, jobScale: number, name: GpuKernelName) {
+  const phase0 = rng.nextInt(64);
+  const n = framesOf(jobScale);
+  const frames = Array.from({ length: n }, (_, k) => frameParams(name, phase0, k, n));
+  const kp: GpuKernelParams = { lanes: 1, len: PICTURE_LEN }; // results do not depend on the lane count
+  return { len: PICTURE_LEN, kp, frames };
 }
 
-/** The pictures a GPU job leaves in the card's output region for a seed, frame by frame (what a display on the card shows): the almanac's preview of the job. One frame unless the job is an animation. */
+/** The pictures a GPU job leaves in the card's output region for a seed, frame by frame (what a display on the card shows): the almanac's preview of the job. */
 export function gpuPicture(template: string, seed: number, jobScale: number): number[][] | null {
-  const name = GPU_TASK_KERNELS.find((k) => template === `gpu.${k}` || (k === "sphere" && template === "gpu.spherewide"));
+  const name = GPU_TASK_KERNELS.find((k) => template === `gpu.${k}`);
   if (!name) return null;
   const rng = new Prng(seed);
   rng.nextInt(100); // the job number, as `generate` draws it first
-  const { kp, a, bIn } = gpuPlan(rng, jobScale, name, true);
-  const frames = name === "sphere" ? sphereFrames(kp.len >> 6) : 1;
-  return Array.from({ length: frames }, (_, k) => gpuKernelExpected(name, name === "sphere" ? { ...kp, phase: spinOf(kp.phase ?? 0, k, frames) } : kp, a, bIn));
+  const { kp, frames } = gpuPlan(rng, jobScale, name);
+  return frames.map((f) => gpuKernelExpected(name, { ...kp, ...f }));
 }
 
 /**
@@ -370,8 +344,7 @@ export const TEMPLATES: Record<string, TemplateFn> = {
   ...HPC_TEMPLATES,
   ...TRUST_TEMPLATES,
   // The accelerator jobs, one per kernel and one per depth of network (docs/JOBS.md).
-  ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`, true)) as TemplateFn])),
-  "gpu.spherewide": (rng, p) => gpuJob(rng, p, "sphere", "gpu.spherewide request", true), // the same kernel; the dex entry asks for scale 8, which is the 16:9 picture
+  ...Object.fromEntries(GPU_TASK_KERNELS.map((k) => [`gpu.${k}`, ((rng, p) => gpuJob(rng, p, k, `gpu.${k} request`)) as TemplateFn])),
   "npu.perceptron": (rng, p) => npuJob(rng, p, Math.min(2, p.scale), "npu.perceptron request"),
   "npu.deep": (rng, p) => npuJob(rng, p, Math.min(6, 1 + 2 * p.scale), "npu.deep request"),
   // Later: "web", "gpu.render", "secure" (see docs/GEN.md "Adding a template").

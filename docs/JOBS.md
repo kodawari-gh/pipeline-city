@@ -75,14 +75,13 @@ One job per GPU kernel and one per depth of network. None needs a card: without 
 
 | job (almanac id) | template | level | locked behind | a card helps | leans on |
 |---|---|---|---|---|---|
-| Array add (`vadd`) | `gpu.vadd` | 10 | nothing | GPU, about 2x | lanes, CPU copy speed |
-| Scale and add (`saxpy`) | `gpu.saxpy` | 10 | nothing | GPU, about 2x | lanes, the multiplier |
-| Threshold (`thresh`) | `gpu.thresh` | 11 | nothing | GPU, about 1.4x | lanes taking turns under the mask |
+| Brightness (`vadd`) | `gpu.vadd` | 10 | nothing | GPU, about 5x | lanes, CPU copy speed |
+| Contrast (`saxpy`) | `gpu.saxpy` | 10 | nothing | GPU, about 2x | lanes, the multiplier |
+| Threshold (`thresh`) | `gpu.thresh` | 11 | nothing | GPU, about 4x | lanes taking turns under the mask |
 | Blur (`blur3`) | `gpu.blur3` | 11 | nothing | GPU, about 1.6x | lanes, card memory banks |
-| Polynomial (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
+| Tone curve (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
 | Mandelbrot (`mandel`) | `gpu.mandel` | 13 | nothing | GPU, about 15x | lanes, divergence |
 | Spinning balls (`sphere`) | `gpu.sphere` | 14 | nothing | GPU, about 7x | lanes, the multiplier |
-| Spinning balls, widescreen (`spherewide`) | `gpu.spherewide` | 15 | nothing | GPU with 16K, about 7x | card memory, lanes |
 | Perceptron (`perceptron`) | `npu.perceptron` | 12 | nothing | NPU, about 4x | NPU grid, else GPU, else CPU |
 | Inference (`npu`) | `npu.infer` | 12 | nothing | NPU, about 8x | NPU grid, else GPU, else CPU |
 | Deep network (`deep`) | `npu.deep` | 14 | nothing | NPU, about 9x | NPU grid, else GPU, else CPU |

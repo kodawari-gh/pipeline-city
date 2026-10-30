@@ -134,7 +134,7 @@ export const dashSig = (m: DashModel): string => JSON.stringify(m);
 
 // ---------------------------------------------------------------- the GPU's frame (the graphics display with its cable on a card)
 
-/** Width of the picture in cells: the picture kernels' row (`PICTURE_COLS`, `MANDEL.logW`); the other kernels' arrays read as bars of the same width. */
+/** Width of the picture in cells: the picture kernels' row (`PICTURE_COLS`); the other kernels' arrays read as bars of the same width. */
 export const FRAME_COLS = 64;
 /** How many base ticks the frame stays up after the card's last launch before the normal screen comes back. */
 export const FRAME_HOLD = 8;
@@ -142,7 +142,7 @@ export const FRAME_HOLD = 8;
 export interface FrameModel {
   cols: number;
   rows: number;
-  /** One value per cell, 0..1 over the frame's own range (row by row). */
+  /** One value per cell, the word over 255 (row by row). */
   cells: number[];
   /** The strip under the picture. */
   status: string;
@@ -150,19 +150,15 @@ export interface FrameModel {
   seq: number;
 }
 
-/** A card's output words as cells: the used part (up to the last non-zero word, whole rows of `FRAME_COLS`), each scaled to 0..1 between the smallest and largest. The almanac's job preview uses it too. */
+/** A card's output words as cells: whole rows of `FRAME_COLS` (the 64 x 40 picture), each word as a brightness 0..255 scaled to 0..1 (fixed, so a brightness job visibly dims and brightens). The almanac's job preview uses it too. */
 export function pictureOf(words: readonly number[]): { cols: number; rows: number; cells: number[] } {
-  let last = -1;
-  for (let i = words.length - 1; i >= 0; i--) if (words[i] !== 0) { last = i; break; }
-  const rows = Math.max(1, Math.ceil((last + 1) / FRAME_COLS));
-  const w = words.slice(0, rows * FRAME_COLS).map((v) => v | 0);
-  const lo = Math.min(...w), hi = Math.max(...w), span = hi - lo || 1;
-  return { cols: FRAME_COLS, rows, cells: w.map((v) => (v - lo) / span) };
+  const rows = Math.max(1, Math.ceil(words.length / FRAME_COLS));
+  const cells = Array.from({ length: rows * FRAME_COLS }, (_, i) => clamp01(((words[i] ?? 0) | 0) / 255));
+  return { cols: FRAME_COLS, rows, cells };
 }
 
 /**
- * The card's output region as a picture: the used part (up to the last non-zero word, rounded up to whole rows of `FRAME_COLS`), each word scaled to 0..1 between
- * the smallest and largest of them (signed, as the kernels' integers are). Null before the card's first launch.
+ * The card's output region as a picture (see `pictureOf`). Null before the card's first launch.
  */
 export function frameModel(g: GpuSnap | undefined): FrameModel | null {
   if (!g || !g.frame.length) return null;

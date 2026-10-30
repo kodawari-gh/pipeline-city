@@ -4,7 +4,7 @@ import {
   GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_PORTS, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus,
 } from "../isa/memmap";
 import { GpuRef } from "../ref/gpuref";
-import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, kernelInputs, type GpuKernelName } from "../gen/gpukernels";
+import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, type GpuKernelName } from "../gen/gpukernels";
 import { getSpec } from "../board/specs";
 import { GpuPort } from "./gpu";
 import { Machine } from "./machine";
@@ -35,20 +35,17 @@ function rig(lanes = 8, banks = 1, memBytes = 8192) {
 }
 
 function runKernel(name: GpuKernelName, lanes: number, len: number, banks = 1) {
-  const p = { lanes, len, scale: 5 };
-  const { a, b } = kernelInputs(len, 7);
+  const p = { lanes, len, phase: 5, level: 3 };
   const r = rig(lanes, banks);
   r.put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource(name, p)).program);
-  r.put(KERNEL_LAYOUT.a, a);
-  r.put(KERNEL_LAYOUT.b, b);
+  r.put(KERNEL_LAYOUT.param, [p.phase, p.level]);
   const ticks = r.go();
   // the same kernel on the reference interpreter
   const ref = new GpuRef({ lanes, memBytes: 8192, banks });
   ref.load(assembleGpu(gpuKernelSource(name, p)).program, KERNEL_LAYOUT.code);
-  ref.load(a, KERNEL_LAYOUT.a);
-  ref.load(b, KERNEL_LAYOUT.b);
+  ref.load([p.phase, p.level], KERNEL_LAYOUT.param);
   ref.run();
-  return { ...r, ticks, ref, out: r.get(KERNEL_LAYOUT.out, len), want: gpuKernelExpected(name, p, a, b) };
+  return { ...r, ticks, ref, out: r.get(KERNEL_LAYOUT.out, len), want: gpuKernelExpected(name, p) };
 }
 
 describe("GPU tiers", () => {
@@ -56,15 +53,13 @@ describe("GPU tiers", () => {
     const spec = (id: string) => getSpec(id) as unknown as { clock: { base: number }; gpu: { lanes: number; memBytes: number; banks: number } };
     const run = (id: string) => {
       const s = spec(id);
-      const p = { lanes: s.gpu.lanes, len: 64 };
-      const { a, b } = kernelInputs(64, 3);
+      const p = { lanes: s.gpu.lanes, len: 64, phase: 3, level: 2 };
       const r = rig(s.gpu.lanes, s.gpu.banks, s.gpu.memBytes);
       r.m.clock.setRate("pcie0", { mul: s.clock.base, div: 1 });
       r.put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource("blur3", p)).program);
-      r.put(KERNEL_LAYOUT.a, a);
-      r.put(KERNEL_LAYOUT.b, b);
+      r.put(KERNEL_LAYOUT.param, [p.phase, p.level]);
       const ticks = r.go();
-      expect(r.get(KERNEL_LAYOUT.out, 64)).toEqual(gpuKernelExpected("blur3", p, a, b));
+      expect(r.get(KERNEL_LAYOUT.out, 64)).toEqual(gpuKernelExpected("blur3", p));
       return { cycles: r.m.bus.load32(R(GPU_REG.CYCLES)), baseTicks: ticks / s.clock.base };
     };
     const [g1, g2, g3] = [run("gpu1"), run("gpu2"), run("gpu3")];
@@ -120,7 +115,7 @@ describe("GPU card on the bus", () => {
   it("golden trace: blur3 on 8 lanes over 32 elements", () => {
     const { ref, ticks, port } = runKernel("blur3", 8, 32);
     expect({ instructions: ref.instructions, cycles: ref.cycles, conflictCycles: ref.conflictCycles, ticks, idle: port.lastStats.idleLaneSlots })
-      .toEqual({ instructions: 93, cycles: 205, conflictCycles: 112, ticks: 221, idle: 140 });
+      .toEqual({ instructions: 462, cycles: 602, conflictCycles: 140, ticks: 618, idle: 16 });
   });
 
   it("Busy while the launch is in flight, Done afterwards, until the next launch", () => {

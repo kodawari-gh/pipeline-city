@@ -241,7 +241,7 @@ export const FAULT_CAUSE_LINE = 30;
 
 /** The card in PCIe slot k (ids in GPU_PORTS order) sits at GPU_BASE + k * GPU_STRIDE. */
 export const GPU_BASE = 0x4005_0000;
-export const GPU_STRIDE = 0x1_0000;
+export const GPU_STRIDE = 0x2_0000; // room for a 64K card behind the register page
 /** Slot ids a GPU can sit in (a board has at most four PCIe slots); the slot id doubles as the port and clock domain name. */
 export const GPU_PORTS: readonly string[] = ["pcie0", "pcie1", "pcie2", "pcie3"];
 /** Card registers (word access, offsets from the port base). */
@@ -268,7 +268,7 @@ export const GPU_REG = {
 /** The card memory window: word k of card memory is at GPU_MEM + 4k. Kernel code and data share it. */
 export const GPU_MEM = 0x1000;
 /** The part of card memory a display on the card's port shows as its frame: where the kernels write their output (gpukernels.ts `KERNEL_LAYOUT.out`, `maxLen`, and `maxPicture` for the picture kernels, 64 wide), as a byte offset and a word count. */
-export const GPU_FRAME = { at: 0xa00, words: 2304 } as const;
+export const GPU_FRAME = { at: 0x800, words: 2560 } as const;
 /** Bits of GPU_REG.STATUS. Done stays set from the end of a launch until the next one. */
 export const GpuStatus = { Busy: 1, Error: 2, Present: 4, Done: 8 } as const;
 /** Values of GPU_REG.FAULT. */
@@ -278,7 +278,7 @@ export const GPU_HOP_TICKS = 8;
 
 // ---- TPM (the header slot). See docs/ACCEL.md "TPM".
 
-export const TPM_BASE = 0x400a_0000;
+export const TPM_BASE = 0x400e_0000;
 export const TPM_SIZE = 0x1000;
 /** Module registers (word access, offsets from TPM_BASE). */
 export const TPM_REG = {
@@ -307,7 +307,7 @@ export const TPM_SEAL_TICKS = 10;
 // ---- NPU cards (PCIe slots). See docs/ACCEL.md "NPU".
 
 /** The NPU in PCIe slot k sits at NPU_BASE + k * NPU_STRIDE; its port and clock domain are named "npu" + k. */
-export const NPU_BASE = 0x400b_0000;
+export const NPU_BASE = 0x4013_0000;
 export const NPU_STRIDE = 0x1_0000;
 export const NPU_PORTS: readonly string[] = ["npu0", "npu1", "npu2", "npu3"];
 /** Registers (word access, offsets from the port base). Status bits are GpuStatus, fault codes GpuFaultCode. */

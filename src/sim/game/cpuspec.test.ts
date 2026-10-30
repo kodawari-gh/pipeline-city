@@ -65,8 +65,8 @@ describe("accelerator specs (docs/ACCEL.md tables)", () => {
   });
 
   it("the later tiers follow the ACCEL.md tables", () => {
-    expect(getSpec("gpu2")).toMatchObject({ clock: { base: 3 }, idleW: 8, loadW: 90, gpu: { lanes: 16, memBytes: 16384, banks: 2 } });
-    expect(getSpec("gpu3")).toMatchObject({ clock: { base: 4 }, idleW: 12, loadW: 180, pcieLeads: 2, gpu: { lanes: 32, memBytes: 32768, banks: 4 } });
+    expect(getSpec("gpu2")).toMatchObject({ clock: { base: 3 }, idleW: 8, loadW: 90, gpu: { lanes: 16, memBytes: 32768, banks: 2 } });
+    expect(getSpec("gpu3")).toMatchObject({ clock: { base: 4 }, idleW: 12, loadW: 180, pcieLeads: 2, gpu: { lanes: 32, memBytes: 65536, banks: 4 } });
     expect(getSpec("npu2")).toMatchObject({ idleW: 5, loadW: 45, needsPcieCable: true, npu: { grid: 8 } });
     expect(getSpec("npu1")).toMatchObject({ needsPcieCable: false, npu: { grid: 4 } });
     expect(getSpec("tpm2")).toMatchObject({ tpm: { measureTicks: 1, attestTicks: 20, surcharge: 1 } });

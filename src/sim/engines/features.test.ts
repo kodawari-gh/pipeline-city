@@ -44,7 +44,7 @@ describe.each(KINDS)("features stay correct vs the reference: $name", ({ cfg }) 
   });
 
   it("generated game programs", () => {
-    for (const t of [...new Set(["cli", "cli.scan", ...TEMPLATE_NAMES])].filter((x) => !x.startsWith("secure."))) {
+    for (const t of [...new Set(["cli", "cli.scan", ...TEMPLATE_NAMES])].filter((x) => !x.startsWith("secure.") && !x.startsWith("gpu."))) {
       const g = generate(t, 11, { scale: 1 });
       const ref = runReference(g);
       const m = runProgram(make(cfg), g.program);

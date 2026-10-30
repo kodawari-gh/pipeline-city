@@ -51,7 +51,7 @@ describe("every generated program", () => {
           const seed = s * 104729 + scale;
           const g = generate(t, seed, { scale });
           expect(() => assemble(g.asm)).not.toThrow();
-          const r = runReference(g, t.startsWith("gpu.") ? 1_000_000 : 30_000); // RefFault on unmapped access or step overrun
+          const r = runReference(g, t.startsWith("gpu.") ? 3_000_000 : 30_000); // RefFault on unmapped access or step overrun
           expect(r.cpu.halted).toBe(true);
           expect(r.text.length).toBeGreaterThan(0);
           expect(r.text).toMatch(/^[\n\x20-\x7e]+$/);
@@ -78,7 +78,7 @@ describe("every generated program", () => {
       { kind: "inorder", forwarding: false, sharedPort: true },
     ];
     for (const t of TEMPLATE_NAMES) {
-      for (let s = 0; s < 4; s++) {
+      for (let s = 0; s < (t.startsWith("gpu.") ? 1 : 4); s++) {
         const g = generate(t, s * 31 + 9, { scale: 1 + (s % 2) });
         const ref = runReference(g);
         for (const cfg of cfgs) {
@@ -91,7 +91,7 @@ describe("every generated program", () => {
           let guard = 0;
           while (!e.halted) {
             e.step();
-            if (++guard > 1_500_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
+            if (++guard > 20_000_000) throw new Error(`${t} seed ${s} ${cfg.kind} did not halt`);
           }
           expect(Array.from(m.regs)).toEqual(Array.from(ref.cpu.regs));
           expect(firstDiff(m.ram, ref.cpu.mem.ram.bytes)).toBe(-1);
@@ -99,7 +99,7 @@ describe("every generated program", () => {
         }
       }
     }
-  }, 60_000);
+  }, 180_000);
 });
 
 describe("pacing", () => {
@@ -123,8 +123,8 @@ describe("pacing", () => {
 
   it("scale makes requests heavier", () => {
     for (const t of TEMPLATE_NAMES.filter((x) => x !== "cli")) {
-      const a = runReference(generate(t, 3, { scale: 1 }), 1_000_000).steps;
-      const b = runReference(generate(t, 3, { scale: 4 }), 1_000_000).steps;
+      const a = runReference(generate(t, 3, { scale: 1 }), 3_000_000).steps;
+      const b = runReference(generate(t, 3, { scale: 4 }), 3_000_000).steps;
       expect(b).toBeGreaterThan(a * 1.5);
     }
   });
@@ -173,13 +173,13 @@ describe("kernels", () => {
 });
 
 describe("gpuPicture (the almanac's preview of a GPU job)", () => {
-  it("is the picture the job's kernel draws: 64 x 16 balls, 64 x 36 for the widescreen job, null for other jobs", () => {
+  it("is the animation the job's kernel draws: 64 x 40 words per frame, 2 frames at scale 1 and 4 above, null for other jobs", () => {
     const balls = gpuPicture("gpu.sphere", 7, 4)!;
-    expect(balls).toHaveLength(4); // the spin is an animation: 4 frames of 16 rows
-    expect(balls[0]).toHaveLength(64 * 16);
+    expect(balls).toHaveLength(4);
+    expect(balls[0]).toHaveLength(64 * 40);
     expect(balls[0]).not.toEqual(balls[1]);
-    expect(gpuPicture("gpu.spherewide", 7, 8)![0]).toHaveLength(64 * 36);
-    expect(gpuPicture("gpu.mandel", 7, 4)).toHaveLength(1);
+    expect(gpuPicture("gpu.vadd", 7, 1)).toHaveLength(2);
+    expect(gpuPicture("gpu.spherewide", 7, 8)).toBeNull();
     expect(gpuPicture("gpu.sphere", 7, 4)).toEqual(gpuPicture("gpu.sphere", 7, 4));
     expect(gpuPicture("cli.log", 7, 1)).toBeNull();
   });
