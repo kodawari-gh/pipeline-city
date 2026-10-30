@@ -414,6 +414,14 @@ export class Live {
   /** A message that goes on for as long as the snapshots say so (a boot phase, a busy drive, a transfer): sent every `STREAM_GAP` ms by `frame`. */
   private arm(key: string, c: Chain) { this.streams.set(key, c); }
 
+  /** The hops of a network message: through the NIC card's slot, or the board's jack, PHY and hub; none without a link port. `down` runs toward the CPU. */
+  private netHops(s: Snapshot, dir: 'down' | 'up'): Hop[] {
+    const p = s.net?.port;
+    if (!p) return [];
+    if (p.kind === 'nic') { const d = s.devices.find((x) => x.id === p.deviceId); return d ? slotChain(d.slot, dir === 'up') : []; }
+    return p.kind === 'board' ? boardNetChain(dir === 'down') : [];
+  }
+
   /** A drive moves data: its slot's chain streams, with the drive's own cable lane (SATA, which runs drive -> board) before a read or after a write. */
   private armDrive(slot: string, toDrive: boolean) {
     const lane = this.drives.get(slot)?.lane;
@@ -509,7 +517,9 @@ export class Live {
         const bootSlot = s.os?.slot ?? s.storage.find((d) => d.hasOs)?.slot ?? null;
         if (bootSlot) this.armDrive(bootSlot, s.phase === 'ingesting');
         if (s.phase === 'booting-os') this.flowMem(1);
-        else this.arm('key', { hops: keyChain(s.phase === 'flashing') });
+        // the phase is the same for a stick in the port and for a job from the network (the kernel takes it from a virtual key): only a real key uses the USB lanes
+        else if (s.plugged) this.arm('key', { hops: keyChain(s.phase === 'flashing') });
+        else this.arm('net:' + (s.phase === 'flashing' ? 'up' : 'down'), { hops: this.netHops(s, s.phase === 'flashing' ? 'up' : 'down') });
       }
     }
     // storage activity: the platter / LEDs / bus light only while the drive reports busy (held a moment so snapshots do not flicker)
@@ -533,10 +543,7 @@ export class Live {
     // the network: transfers run over the board's jack (PHY, hub, uplink) or the NIC card's slot, toward the CPU for a download
     const net = s.net, down = net?.transfers.some((t) => t.dir === 'down') ?? false, up = net?.transfers.some((t) => t.dir === 'up') ?? false;
     if (net && (down || up) && (net.state === 'link-up' || net.state === 'saturated')) {
-      const nic = net.port.kind === 'nic' ? s.devices.find((d) => d.id === net.port.deviceId) : undefined;
-      for (const [dir, on] of [['down', down], ['up', up]] as const) {
-        if (on) this.arm('net:' + dir, { hops: nic ? slotChain(nic.slot, dir === 'up') : net.port.kind === 'board' ? boardNetChain(dir === 'down') : [] });
-      }
+      for (const [dir, on] of [['down', down], ['up', up]] as const) if (on) this.arm('net:' + dir, { hops: this.netHops(s, dir) });
     }
     // power-on: the switch is read and the CPU asks for its voltage; a change of clock or throttle asks again
     if (this.wasPowered === false && s.powered) { this.fire('power', { hops: POWER_ON_CHAIN, force: true }, now, 0); this.fire('volt', { hops: VOLTAGE_CHAIN, force: true }, now, 0); }
