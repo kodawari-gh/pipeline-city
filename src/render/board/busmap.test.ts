@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DISPLAY_BASE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, MMU_BASE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE,
+  DISPLAY_BASE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, MMU_BASE, MPU_BASE, NPU_BASE, TIMER_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE,
 } from '../../sim/isa/memmap';
 import { TIER_GEO } from './boardlayout';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
@@ -31,8 +31,10 @@ describe('deviceAt', () => {
     expect(deviceAt(PCH_BASE + 0x28)).toEqual({ kind: 'chipset' }); // the chipset's registers
     expect(deviceAt(TPM_BASE + 4)).toEqual({ kind: 'tpm' });
     expect(deviceAt(DISPLAY_BASE + 70)).toEqual({ kind: 'display' });
-    expect(deviceAt(INTC_BASE)).toBeNull(); // inside the CPU: no trace
-    expect(deviceAt(MMU_BASE)).toBeNull();
+    expect(deviceAt(INTC_BASE + 8)).toEqual({ kind: 'intc' }); // on the CPU's die: no trace on the board, the die view lights them
+    expect(deviceAt(TIMER_BASE)).toEqual({ kind: 'timer' });
+    expect(deviceAt(MPU_BASE)).toEqual({ kind: 'mpu' });
+    expect(deviceAt(MMU_BASE)).toEqual({ kind: 'mmu' });
     expect(deviceAt(0x1000)).toBeNull();
     expect(deviceAt(0xc100)).toBeNull();
   });

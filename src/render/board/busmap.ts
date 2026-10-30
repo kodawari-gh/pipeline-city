@@ -2,7 +2,7 @@
 // port -> chipset -> CPU), each hop naming the lanes it runs on. `live.ts` decides when a message happens; this decides where it goes.
 
 import {
-  DISPLAY_BASE, DISPLAY_SIZE, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
+  DISPLAY_BASE, DISPLAY_SIZE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, INTC_SIZE, MMU_BASE, MMU_SIZE, MPU_BASE, MPU_SIZE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, TIMER_BASE, TIMER_SIZE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
   STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE, TPM_SIZE,
 } from '../../sim/isa/memmap';
 import type { Bus, BusKind, Lane } from './routes';
@@ -98,12 +98,14 @@ export const POST_CODE_CHAIN: Hop[] = [{ bus: 'dmi', dir: 1 }, { bus: 'dbg', dir
 export const VIDEO_CHAIN: Hop[] = [{ bus: 'video', dir: 1 }];
 
 /** The part a bus address belongs to (everything but RAM is memory-mapped, and the CPU moves every word itself: there is no DMA). */
-export type DeviceHit = { kind: 'drive'; slot: string } | { kind: 'card'; slot: string } | { kind: 'key' } | { kind: 'tpm' } | { kind: 'display' } | { kind: 'chipset' };
+export type DeviceHit = { kind: 'drive'; slot: string } | { kind: 'card'; slot: string } | { kind: 'key' } | { kind: 'tpm' } | { kind: 'display' } | { kind: 'chipset' }
+  // on the CPU's die (the die view shows them: `PlanView.poke`)
+  | { kind: 'intc' } | { kind: 'timer' } | { kind: 'mpu' } | { kind: 'mmu' };
 
 /**
  * The device whose window holds `addr`: a drive's registers and block buffer, a graphics or AI card's registers and memory (the NPU in slot k
  * is at the slot's `pcie<k>`), the plugged key's program and result words, the TPM on its header, the text display, the chipset's own
- * registers; null for RAM and for what lives inside the CPU (interrupt controller, timer, MPU, MMU).
+ * registers, and the units on the CPU's own die (interrupt controller, timer, MPU, MMU: no trace on the board, the die view shows them); null for RAM.
  */
 export function deviceAt(addr: number): DeviceHit | null {
   const a = addr >>> 0, within = (base: number, size: number) => a >= base && a < base + size;
@@ -114,6 +116,10 @@ export function deviceAt(addr: number): DeviceHit | null {
   if (within(PCH_BASE, PCH_KEY_WINDOW)) return { kind: 'chipset' };
   if (within(TPM_BASE, TPM_SIZE)) return { kind: 'tpm' };
   if (within(DISPLAY_BASE, DISPLAY_SIZE)) return { kind: 'display' };
+  if (within(INTC_BASE, INTC_SIZE)) return { kind: 'intc' };
+  if (within(TIMER_BASE, TIMER_SIZE)) return { kind: 'timer' };
+  if (within(MPU_BASE, MPU_SIZE)) return { kind: 'mpu' };
+  if (within(MMU_BASE, MMU_SIZE)) return { kind: 'mmu' };
   return null;
 }
 

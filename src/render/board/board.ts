@@ -18,6 +18,7 @@ import { FanCordsView } from './fancords';
 import { isFanCable } from '../../sim/board/cables';
 import { PowerLens, lensModel } from '../room/lens';
 import { NetView, nicArt } from '../room/net';
+import { deviceAt } from './busmap';
 import { cardArt, cardOrigin, cardRect, tpmArt, tpmHeader, tpmRect } from './accelart';
 import { gpuParts, gpuPlan, moveRect } from './gpulayout';
 import type { GpuCardScene } from './gpuview';
@@ -194,7 +195,12 @@ export async function mountBoard(host: HTMLElement) {
   /** Hover-animated props: vector art close up, one small baked sprite far out. */
   let propBakes: { vec: Container; cached: boolean }[] = [];
   const die = new DieView();
-  die.onMemory = (e) => live.touchRam(e.kind, e.addr, T[e.cls === 'sys' ? 'mute' : e.cls]);
+  die.onMemory = (e) => {
+    live.touchRam(e.kind, e.addr, T[e.cls === 'sys' ? 'mute' : e.cls]);
+    const hit = deviceAt(e.addr); // the units on the die itself (interrupt controller, timer, MPU, MMU) light on the die, not on the board
+    if (hit && (hit.kind === 'intc' || hit.kind === 'timer' || hit.kind === 'mpu' || hit.kind === 'mmu')) die.poke(hit.kind, e.kind === 'store', gt);
+  };
+  die.onInterrupt = (line) => live.touchIrq(line);
   const live = new Live(app.renderer, T.dark);
   const camera = new Camera(world, app.canvas);
   cameraRef = camera;

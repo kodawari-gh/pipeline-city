@@ -43,6 +43,18 @@ export class DieView {
     for (const c of this.cores) c.view.onMemory = f;
   }
 
+  /** Told when a core takes an interrupt (set by board.ts). */
+  private irq: ((line: number) => void) | null = null;
+  get onInterrupt() { return this.irq; }
+  set onInterrupt(f: ((line: number) => void) | null) {
+    this.irq = f;
+    this.shared.onInterrupt = f;
+    for (const c of this.cores) c.view.onInterrupt = f;
+  }
+
+  /** A load or store reached a register of a unit on the die (the interrupt controller, timer, MPU, MMU): its block and wire light (the units are shared by the cores). */
+  poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number) { this.shared.poke(unit, write, now); }
+
   setPlan(T: Theme, plan: CpuPlan) {
     this.T = T;
     this.plan = plan;
@@ -56,6 +68,7 @@ export class DieView {
       view.legendOn = false;
       view.scrubLead = false;
       view.onMemory = this.mem;
+      view.onInterrupt = this.irq;
       view.setPlan(T, tile.plan, tile.motion);
       this.tilesAt.addChild(view.root);
       this.cores.push({ view, tile });

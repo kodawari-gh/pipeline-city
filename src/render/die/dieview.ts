@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { disassemble } from '../../sim/isa';
 import { Ev } from '../../sim/engines/common';
+import { IRQ } from '../../sim/isa/memmap';
 import type { PipeSnap } from '../../sim/game/pipesnap';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '../../game/scrub';
 import type { Block, CpuPlan, Rect } from './cpuplan';
@@ -89,6 +90,8 @@ export class PlanView {
   private dataSig = '';
   /** Told every time the CPU reaches out to RAM, for the memory sticks (set by board.ts). */
   onMemory: ((e: MemoryTouch) => void) | null = null;
+  /** Told when the replay takes an interrupt, with its line (`IRQ`): the board lights the path the device's signal came along. */
+  onInterrupt: ((line: number) => void) | null = null;
   T!: Theme;
 
   constructor() {
@@ -189,6 +192,18 @@ export class PlanView {
 
   private colorOf(cls: OpClass): string { return cls === 'sys' ? this.T.mute : this.T[cls]; }
 
+  /**
+   * The CPU read or wrote a register of a unit on the die: the interrupt controller, the timer, the MPU, or the MMU (whose TLB block flashes).
+   * A packet runs along the unit's system-bus wire (out for a write, back for a read) and the block flashes. `now` is game ms.
+   */
+  poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number) {
+    const plan = this.motion;
+    if (!plan) return;
+    this.sysAt.set('mm:' + unit, now);
+    const link = plan.links.find((l) => l.id === 'fab-' + unit);
+    if (link) this.send([{ link, reverse: !write, delay: 0, color: 'inst' }], now, 'ld');
+  }
+
   private send(pk: PacketPlan[], now: number, cls: OpClass) {
     const T = this.T;
     for (const p of pk) {
@@ -237,7 +252,12 @@ export class PlanView {
       else if (e.kind === Ev.Irq) {
         this.sysAt.set('irq', now); this.sysLine = e.a;
         const wire = plan.links.find((l) => l.kind === 'irq');
-        if (wire) this.send([{ link: wire, reverse: false, delay: 0, color: 'inst' }], now, 'br'); // the interrupt comes in along its wire from the controller
+        // where the line came from: the timer (on the die) along its tick wire, any other (disk, network, USB) in over the system bus
+        const from = plan.links.find((l) => l.id === (e.a === IRQ.TIMER ? 'timer-intc' : 'fab-intc'));
+        if (e.a === IRQ.TIMER) this.sysAt.set('mm:timer', now);
+        if (from) this.send([{ link: from, reverse: false, delay: 0, color: 'inst' }], now, 'br');
+        if (wire) this.send([{ link: wire, reverse: false, delay: from ? 1 : 0, color: 'inst' }], now, 'br'); // the interrupt comes in along its wire from the controller
+        this.onInterrupt?.(e.a);
       }
       else if (e.kind === Ev.Iret) this.sysAt.set('iret', now);
       else if (e.kind === Ev.Space) this.sysAt.set('space', now);
@@ -503,6 +523,11 @@ export class PlanView {
     flash(ic, 'iret', 800, T.alu, 3);
     flash(tl, 'space', 1100, T.ld, 4);
     flash(tl, 'fault', 1100, T.br, 4);
+    // a register of a unit touched by a load or store: the unit flashes (the MMU's registers flash the TLB block)
+    flash(ic, 'mm:intc', 700, T.ld, 3);
+    flash(this.motion!.blocks.find((b) => b.kind === 'timer'), 'mm:timer', 700, T.ld, 3);
+    flash(this.motion!.blocks.find((b) => b.kind === 'mpu'), 'mm:mpu', 700, T.mul, 3);
+    flash(tl, 'mm:mmu', 700, T.ld, 3);
 
     // the branch predictor: a counter per entry, brighter the more sure it is of "taken"
     const bp = cacheBlock('predictor');

@@ -139,7 +139,7 @@ describe('cpu floorplans', () => {
       const top = Math.min(...core.map((b) => b.rect.y)), bottom = Math.max(...core.map((b) => b.rect.y + b.rect.h));
       const west = (id: string) => get(plan, id).rect.x + get(plan, id).rect.w <= left;
       expect(get(plan, 'mc').rect.x).toBeGreaterThanOrEqual(right);   // the DIMM bus leaves east
-      expect(west('usb') && west('display') && west('intc')).toBe(true); // USB, video out, interrupts: west
+      expect(west('usb') && west('display') && west('intc') && west('timer') && west('mpu')).toBe(true); // USB, video out, interrupts, the timer and the MPU: west
       for (const id of ['pwr', 'thermal']) expect(get(plan, id).rect.y + get(plan, id).rect.h).toBeLessThanOrEqual(top); // vcore and SVID: north
       for (const id of ['pcie', 'clk']) expect(get(plan, id).rect.y).toBeGreaterThanOrEqual(bottom - 1);               // PCIe, NVMe, DMI, the crystal: south
     });
@@ -148,8 +148,11 @@ describe('cpu floorplans', () => {
   it('has the clock, the interrupt controller and every edge block exactly once', () => {
     for (const [, input] of CONFIGS) {
       const plan = cpuPlan(input);
-      for (const id of ['pwr', 'thermal', 'mc', 'pcie', 'clk', 'usb', 'display', 'intc', 'fabric']) expect(plan.blocks.filter((b) => b.id === id), id).toHaveLength(1);
+      for (const id of ['pwr', 'thermal', 'mc', 'pcie', 'clk', 'usb', 'display', 'intc', 'timer', 'mpu', 'fabric']) expect(plan.blocks.filter((b) => b.id === id), id).toHaveLength(1);
       expect(plan.links.some((l) => l.kind === 'irq')).toBe(true);
+      // every unit the CPU reaches through the system bus has its wire (the die view runs a packet along it), and the timer ticks the controller
+      for (const id of ['fab-intc', 'fab-timer', 'fab-mpu', 'timer-intc']) expect(plan.links.some((l) => l.id === id), id).toBe(true);
+      expect(plan.links.find((l) => l.kind === 'irq')!.from).toBe('intc'); // (the die view sends the interrupt along the first irq wire)
     }
   });
 

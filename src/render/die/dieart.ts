@@ -18,7 +18,7 @@ type Key = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
 
 /** The accent of each block kind (the theme token it is drawn with). */
 export const KIND_COLOR: Record<BlockKind, Key> = {
-  power: 'ld', thermal: 'br', mc: 'ld', pcie: 'alu', clock: 'mute', usb: 'st', display: 'st', intc: 'br', fabric: 'ld',
+  power: 'ld', thermal: 'br', mc: 'ld', pcie: 'alu', clock: 'mute', usb: 'st', display: 'st', intc: 'br', timer: 'ld', mpu: 'mul', fabric: 'ld',
   stage: 'mute', latch: 'mute',
   pc: 'alu', pcadd: 'alu', nextpc: 'alu', fetch: 'alu', port: 'ld', icache: 'ld', predictor: 'br', queue: 'alu',
   imm: 'alu', decode: 'alu', bundle: 'mul', hazard: 'br', control: 'br',

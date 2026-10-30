@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, Texture, type Renderer } from 'pixi.js';
 import { getSpec } from '../sim/board/specs';
+import { IRQ } from '../sim/isa/memmap';
 import type { Snapshot } from '../sim/protocol';
 import type { KeyActivity } from '../sim/game/game';
 import { blades } from './board/devices';
@@ -82,6 +83,9 @@ export class Live {
   private keyIn = false;
   /** The video cable's PC end is on the board's HDMI port (not on a card). */
   private boardVideo = true;
+  /** The last snapshot, and the drive that last moved data (the disk interrupt comes from it). */
+  private snap: Snapshot | null = null;
+  private lastDrive: string | null = null;
   /** Game time until which a message is on a path that crosses the chipset (it glows for that long). */
   private pchUntil = -1e9;
   /** What the last snapshot showed, to tell a change from a state: power, the CPU's clock and throttle, the boot progress. */
@@ -431,8 +435,22 @@ export class Live {
     return p.kind === 'board' ? boardNetChain(dir === 'down') : [];
   }
 
+  /**
+   * The replay took an interrupt on `line` (`IRQ`): the device that raised it signals the CPU along the path its data takes (a message
+   * signalled interrupt, as on a real board): the drive that last worked, the network port, the key. The timer and the other cores are on the die.
+   */
+  touchIrq(line: number): void {
+    const now = this.gt, s = this.snap;
+    if (!s) return;
+    if (line === IRQ.DISK) {
+      const slot = this.lastDrive ?? s.os?.slot ?? s.storage?.[0]?.slot;
+      if (slot && this.installed.has(slot)) this.fire('irq:disk', this.driveMsg(slot, false), now, MIN_GAP);
+    } else if (line === IRQ.NIC) this.fire('irq:nic', { hops: this.netHops(s, 'down') }, now, MIN_GAP);
+    else if (line === IRQ.USB && this.keyIn) this.fire('irq:usb', { hops: keyChain(false) }, now, MIN_GAP);
+  }
+
   /** A drive moves data: its slot's chain streams, with the drive's own cable lane (SATA, which runs drive -> board) before a read or after a write. */
-  private armDrive(slot: string, toDrive: boolean) { this.arm('drive:' + slot, this.driveMsg(slot, toDrive)); }
+  private armDrive(slot: string, toDrive: boolean) { this.lastDrive = slot; this.arm('drive:' + slot, this.driveMsg(slot, toDrive)); }
 
   private driveMsg(slot: string, toDrive: boolean): Chain {
     const lane = this.drives.get(slot)?.lane;
@@ -444,7 +462,8 @@ export class Live {
    * (each a message out and its reply back, so a part that is not there is never pinged and a failed POST shows what it found).
    */
   private postProbes(s: Snapshot): Chain[] {
-    const force = true, out: Chain[] = [{ hops: BIOS_CHAIN, force }, { hops: VOLTAGE_CHAIN, force, pong: true }, { hops: COOLER_CHAIN, force, pong: true }];
+    // (the first ping is the BIOS: flash, chipset, CPU, and on into the stick that holds address 0, where the ROM is shadowed to run from)
+    const shadow = this.ram.stickOf(0), force = true, out: Chain[] = [{ hops: BIOS_CHAIN, force, ...(shadow >= 0 ? { mem: shadow } : {}) },{ hops: VOLTAGE_CHAIN, force, pong: true }, { hops: COOLER_CHAIN, force, pong: true }];
     for (const idx of this.memLit.keys()) out.push({ hops: [], mem: idx, force, pong: true });
     for (const st of s.storage ?? []) out.push({ ...this.driveMsg(st.slot, true), force, pong: true });
     for (const d of s.devices) if (/^pcie\d+$/.test(d.slot)) out.push({ hops: slotChain(d.slot, true), force, pong: true });
@@ -510,7 +529,9 @@ export class Live {
       if (this.monitorLive && this.boardVideo) this.fire('video', { hops: VIDEO_CHAIN, cable: true }, now, 250);
       return;
     }
+    if (hit.kind !== 'drive' && hit.kind !== 'card') return; // (the units on the CPU's die: board.ts pokes the die view)
     if (!this.installed.has(hit.slot)) return; // (nothing there to answer)
+    if (hit.kind === 'drive') this.lastDrive = hit.slot;
     this.fire('dev:' + hit.slot, hit.kind === 'drive' ? this.driveMsg(hit.slot, write) : { hops: slotChain(hit.slot, write) }, now, MIN_GAP);
   }
 
@@ -552,6 +573,7 @@ export class Live {
       // (RAM traffic lights the bundle of the stick the address is on: `touchRam`, fed by the die's own fetches, loads and stores)
       if (missed || LOADS.has(op) && !!mem && mem.stalled || STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); }
     }
+    this.snap = s;
     this.installed = new Set([...s.devices.map((d) => d.slot), ...(s.storage ?? []).map((d) => d.slot)]);
     this.keyIn = !!s.plugged;
     this.boardVideo = (s.videoPort ?? 'board') === 'board';

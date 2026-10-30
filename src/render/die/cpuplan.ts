@@ -13,7 +13,7 @@ export type Pt = [number, number];
 
 export type BlockKind =
   // the die's edge: the parts that talk to the board
-  | 'power' | 'thermal' | 'mc' | 'pcie' | 'clock' | 'usb' | 'display' | 'intc' | 'fabric'
+  | 'power' | 'thermal' | 'mc' | 'pcie' | 'clock' | 'usb' | 'display' | 'intc' | 'timer' | 'mpu' | 'fabric'
   // the core
   | 'stage' | 'latch'
   | 'pc' | 'pcadd' | 'nextpc' | 'fetch' | 'port' | 'icache' | 'predictor' | 'queue'
