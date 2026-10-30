@@ -82,6 +82,8 @@ One job per GPU kernel and one per depth of network. None needs a card: without 
 | Tone curve (`poly`) | `gpu.poly` | 12 | nothing | GPU, about 2x | lanes, card clock |
 | Mandelbrot (`mandel`) | `gpu.mandel` | 13 | nothing | GPU, about 15x | lanes, divergence |
 | Spinning balls (`sphere`) | `gpu.sphere` | 14 | nothing | GPU, about 7x | lanes, the multiplier |
+
+The speed-ups are measured on `gpu1`. "Lanes" in the last column also means the tier's SMs and warps: `gpu2` hides memory waits behind its second warp and `gpu3` splits a launch over two SMs (docs/GPU.md section 4); the order gpu3 < gpu2 < gpu1 in cycles is pinned in `gpu.test.ts`.
 | Perceptron (`perceptron`) | `npu.perceptron` | 12 | nothing | NPU, about 4x | NPU grid, else GPU, else CPU |
 | Inference (`npu`) | `npu.infer` | 12 | nothing | NPU, about 8x | NPU grid, else GPU, else CPU |
 | Deep network (`deep`) | `npu.deep` | 14 | nothing | NPU, about 9x | NPU grid, else GPU, else CPU |

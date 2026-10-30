@@ -1,6 +1,6 @@
 # The GPU: engines, memory path and card view
 
-Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **design approved 2026-10-30; building.** Built: the engine contract, the `simd`, `warp` and `multi` engines and the memory system (`src/sim/gpu`, T129 to T134) and the card specs on them (`gpu1` simd, `gpu2` warp, `gpu3` multi, T135); the floorplans (`src/render/gpu`, T138) and the card geometry and static die art (T139: cards 600 high on a 700 PCIe pitch, `gpuart.ts` in the CPU die style); blur3 over 64 elements: 1198 cycles on the unit, 991 on the two-warp SM. The tasks that build the rest are T129 to T145 in [`TODO.md`](TODO.md). Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view will copy).
+Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **built** (T128 to T145; the balance pass T56 stays with the owner). The engine contract, the `simd`, `warp` and `multi` engines and the memory system (`src/sim/gpu`), the card specs on them, the floorplans and block symbols (`src/render/gpu`: `gpuplans`, `gpuart`, `gpuglyph`), the card player (`gpuplayer`), hover ids from the plan, card stepping with the Trace panel's card section, and the picker stats. Cards are 600 high on a 700 PCIe pitch; blur3 over 64 elements: 1198 cycles on the unit, 991 on the two-warp SM. Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view copies).
 
 ## Why
 
@@ -30,7 +30,7 @@ A launch is a CMD write; the card starts `GPU_HOP_TICKS` after it, runs, and sho
 
 Registers and the card-memory window are in ACCEL.md "Device as built". Card memory is one flat word array (the engines call it global memory); kernel code, the two parameter words (0x700) and the 64 x 40 picture (0x800) live in it, and the CPU fills it with plain stores. The ISA has no shared-memory space, so the tiers differ in the **path** between a lane and that array, not in the address map.
 
-## 3. The engine contract (to build: T129)
+## 3. The engine contract
 
 ```ts
 interface GpuEngine {
@@ -96,7 +96,7 @@ The lanes are split into warps of `lanes / warps` lanes. **Each warp has its own
 
 Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lineWords` 8, `l1Lines` 16, `l2Lines` 64.
 
-## 6. The view contract (to build: T130)
+## 6. The view contract
 
 `GpuView` only grows (the board art, the screen and the tooltips read it):
 
@@ -104,9 +104,9 @@ Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lin
 - `GpuView.sms?: { warps: { pc, mask, stack[], state: 'ready' | 'wait-mem' | 'barrier' | 'done' }[], l1?: tags }[]` and `l2?: tags` for the tiers that have them; a pipeline ring of stage codes like `engines/view.ts` for the stage lamps.
 - The trace ring grows from 24 to 64 entries; a paused card keeps the window that one stepping request produced.
 
-## 7. The card view (design; mock-ups first, T136)
+## 7. The card view
 
-The card gets a die plan in the style of [`DIE.md`](DIE.md): a data model (`gpuplan.ts`: blocks, routed links, per-tier variants), the same slicing layout and channel router (generalised, T137), block symbols instead of cell fields (lane ALU column, warp scheduler with scoreboard and warp cards, coalescer, bank arbiter, mask and stack strips, cache lines with tags), pulses that travel exactly along the routed wires, an instruction shown inside the block that holds it, a history with a scrubber, and the Trace panel with a card selector. Blocks per tier: PCIe link and launch registers (west), pc, fetch, decode, scheduler, register file, lanes, mask and stack, coalescer, arbiter, banks, L1 and L2 where present, card memory, the frame region. The fans stay art along the top edge. Hover ids are generated from the plan, `pcie<k>.<part>` with an index suffix for lane, warp, bank and SM; the closed regexes in `ui/panels/gpudesc.ts` and `render/interact.ts` are updated in the same commit (T142). The card is 6 to 9 times wider than tall and the body under the fans is about 160 px high, so the card must grow. **Decided (T136, owner):** the floorplans in `src/render/gpu/gpuplans.ts` (the mock-up layouts) are approved; the cards become much taller (about 680, the die 520) and the PCIe pitch grows with them, and the card art copies the CPU die's (`dieart.ts`, `blockart.ts`), not a new style.
+The card gets a die plan in the style of [`DIE.md`](DIE.md): a data model (`gpuplan.ts`: blocks, routed links, per-tier variants), the same slicing layout and channel router (generalised, T137), block symbols instead of cell fields (lane ALU column, warp scheduler with scoreboard and warp cards, coalescer, bank arbiter, mask and stack strips, cache lines with tags), pulses that travel exactly along the routed wires, an instruction shown inside the block that holds it, a history with a scrubber, and the Trace panel with a card selector. Blocks per tier: PCIe link and launch registers (west), pc, fetch, decode, scheduler, register file, lanes, mask and stack, coalescer, arbiter, banks, L1 and L2 where present, card memory, the frame region. The fans stay art along the top edge. Hover ids are generated from the plan, `pcie<k>.<part>` with an index suffix for lane, warp, bank and SM; the closed regexes in `ui/panels/gpudesc.ts` and `render/interact.ts` are updated in the same commit (T142). The card is 6 to 9 times wider than tall and the body under the fans is about 160 px high, so the card must grow. **Decided (T136, owner):** the floorplans in `src/render/gpu/gpuplans.ts` (the mock-up layouts) are approved; the cards became much taller (built: 600 high, the die 440) and the PCIe pitch grows with them, and the card art copies the CPU die's (`dieart.ts`, `blockart.ts`), not a new style.
 
 ## 8. Tests (copy the CPU's)
 

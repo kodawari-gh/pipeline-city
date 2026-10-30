@@ -25,7 +25,6 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## GPU architecture (design: `docs/GPU.md`; one task = one commit; order is the ID order except R-tasks that say otherwise)
 
-- [ ] T145 [auto] GPU docs sweep: ACCEL.md GPU section down to a pointer plus the tiers table, JOBS.md accelerator table, GEN.md GPU rows, PROGRESSION.md class rows, `render/{live,board,case,interact}.md`, UI.md, DIE.md cross-link; delete the done lines here. Files: the docs listed. Done when: no doc contradicts `docs/GPU.md`.
 
 ## Design notes (no code)
 
