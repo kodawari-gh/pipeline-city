@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
-import { Camera, currentTextResolution, labelFade, registerLabel, screenRect, textResolutionFor } from './camera';
+import { Camera, currentTextResolution, labelFade, registerLabel, screenRect, stepTextResolution, textResolutionFor } from './camera';
 
 // The camera only needs an element (style, listeners, a rect) and a container (scale, position); no DOM is required.
 const fakeEl = () => ({
@@ -95,6 +95,33 @@ describe('text resolution follows zoom', () => {
     expect(currentTextResolution()).toBe(3);
     cam.set({ x: 0, y: 0, z: 0.5 });
     expect(text.resolution).toBe(2);
+  });
+
+  it('steps up at once but down only once clearly below the step', () => {
+    expect(stepTextResolution(2, 2.5)).toBe(3);
+    expect(stepTextResolution(3, 1.95)).toBe(3); // a wobble under 2x keeps the sharper step
+    expect(stepTextResolution(3, 1.8)).toBe(2);
+    expect(stepTextResolution(4, 2.9)).toBe(4);
+    expect(stepTextResolution(4, 2.5)).toBe(3);
+    expect(stepTextResolution(2, 0.3)).toBe(2);
+  });
+
+  it('a flight or a wheel applies a new step a few hundred texts a frame, not all at once', () => {
+    const texts = Array.from({ length: 600 }, () => ({ text: 'x', resolution: 2, children: [] as unknown[] }));
+    const world = { scale: { set() {} }, position: { set() {} }, children: [{ children: texts }] } as unknown as Container;
+    const cam = new Camera(world, fakeEl());
+    cam.resize(800, 600);
+    cam.set({ x: 0, y: 0, z: 0.5 });
+    cam.flyTo({ x: 0, y: 0, z: 3 }, 100);
+    let t = performance.now() + 1000;
+    cam.update(t);
+    const done = () => texts.filter((x) => x.resolution === 3).length;
+    expect(currentTextResolution()).toBe(3); // new labels start at the new step at once
+    expect(done()).toBeGreaterThan(0);
+    expect(done()).toBeLessThan(600);
+    for (let i = 0; i < 4; i++) cam.update((t += 16));
+    expect(done()).toBe(600);
+    cam.set({ x: 0, y: 0, z: 0.5 }); // back to rest for the tests after this one
   });
 });
 

@@ -145,4 +145,14 @@ describe('ZoomSwitch', () => {
     expect(s.warm).toBe(true);
     expect(s.on).toBe(false);
   });
+  it('keeps the warm ring through a wobble and always holds it while on', () => {
+    const s = new ZoomSwitch(0.2);
+    s.update(0.22);
+    expect(s.warm).toBe(true);
+    s.update(0.235); // just over the warm line, inside its dead band
+    expect(s.warm).toBe(true);
+    s.update(0.26);
+    expect(s.warm).toBe(false);
+    for (const z of [0.15, 0.19, 0.21, 0.24, 0.25]) { s.update(z); if (s.on) expect(s.warm).toBe(true); }
+  });
 });

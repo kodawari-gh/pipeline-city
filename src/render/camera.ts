@@ -31,15 +31,49 @@ export function textResolutionFor(z: number, dpr = 1): number {
   return Math.min(4, Math.max(2, Math.ceil(z * dpr)));
 }
 
+/**
+ * The step to use at zoom `z` when the current one is `cur`: up as soon as the zoom needs it, down only once it is clearly below the step
+ * (8 % under), so a wheel wobble around 2x or 3x does not re-rasterise every label back and forth.
+ */
+export function stepTextResolution(cur: number, z: number, dpr = 1): number {
+  const want = textResolutionFor(z, dpr);
+  if (want >= cur) return want;
+  return z * dpr < (cur - 1) * 0.92 ? want : cur;
+}
+
 let textRes = 2;
 /** The text resolution the camera last set; new labels (ink.ts `label`) start at this. */
 export const currentTextResolution = () => textRes;
 
+type TextNode = { text?: unknown; resolution?: number; children?: Container[]; destroyed?: boolean };
+
 /** Set the resolution on every Text under `node` (found by shape, so no Pixi runtime import is needed here). */
 function retexture(node: Container, res: number): void {
-  const n = node as unknown as { text?: unknown; resolution?: number; children?: Container[] };
+  const n = node as unknown as TextNode;
   if (typeof n.text === 'string' && n.resolution !== undefined && n.resolution !== res) n.resolution = res;
   for (const ch of n.children ?? []) retexture(ch, res);
+}
+
+/** The Text nodes under `node` still on another resolution than `res` (just a walk: nothing is re-rasterised yet). */
+function staleTexts(node: Container, res: number, out: TextNode[] = []): TextNode[] {
+  const n = node as unknown as TextNode;
+  if (typeof n.text === 'string' && n.resolution !== undefined && n.resolution !== res) out.push(n);
+  for (const ch of n.children ?? []) staleTexts(ch, res, out);
+  return out;
+}
+
+/** Texts waiting for a new resolution while the wheel or a flight is moving: a few hundred a frame, not the whole world in one. */
+let retexQueue: TextNode[] = [];
+let retexAt = 0;
+const RETEX_PER_FRAME = 250;
+function drainRetexture(): void {
+  for (let n = 0; retexAt < retexQueue.length && n < RETEX_PER_FRAME; retexAt++) {
+    const t = retexQueue[retexAt]!;
+    if (t.destroyed || t.resolution === textRes) continue;
+    t.resolution = textRes;
+    n++;
+  }
+  if (retexAt >= retexQueue.length) { retexQueue = []; retexAt = 0; }
 }
 
 /**
@@ -104,6 +138,8 @@ export class Camera {
   /** The inset as drawn (eased). `cx`/`cy` and the free area use this. */
   private shown: Inset = { top: 0, right: 0, bottom: 0, left: 0 };
   private easeAt = 0;
+  /** A zoom event left its text work (resolution step, label sizes) for the next `update`. */
+  private textStale = false;
   /** Set by `flyTo(..., hold = true)`: the held world point. Cleared by a pan, a wheel, a pinch or a non-held flight. */
   holdAt: { x: number; y: number } | null = null;
   onChange: () => void = () => {};
@@ -175,15 +211,25 @@ export class Camera {
   /** `v` as the camera would settle on it once the UI inset is where it is going (the overview fit uses this). */
   clampView(v: View): View { return this.clamped(v, this.inset); }
 
-  apply() {
+  /** Put the world where the camera is. `defer`: the high-rate paths (wheel, pinch, a flight step) leave the text work (resolution, label sizes) to `update`, once per frame. */
+  apply(defer = false) {
     const c = this.clamped(this, this.shown);
     this.x = c.x; this.y = c.y;
     this.world.scale.set(this.z);
     this.world.position.set(this.cx - this.x * this.z, this.cy - this.y * this.z);
-    const res = textResolutionFor(this.z, (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1);
-    if (res !== textRes) { textRes = res; retexture(this.world, res); }
-    if (this.z !== fadeZ) fadeLabels(this.z, this.world);
+    if (defer) this.textStale = true; else this.syncText(false);
     this.onChange();
+  }
+
+  /** The text resolution and the label sizes for the zoom. `amortise`: the new resolution is applied a few hundred texts a frame (`drainRetexture`). */
+  private syncText(amortise: boolean) {
+    this.textStale = false;
+    const res = stepTextResolution(textRes, this.z, (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1);
+    if (res !== textRes) {
+      textRes = res;
+      if (amortise) { retexQueue = staleTexts(this.world, res); retexAt = 0; } else { retexQueue = []; retexAt = 0; retexture(this.world, res); }
+    }
+    if (this.z !== fadeZ) fadeLabels(this.z, this.world);
   }
 
   set(v: View) { this.cancelFlight(); this.x = v.x; this.y = v.y; this.z = this.clampZ(v.z); this.apply(); }
@@ -235,8 +281,10 @@ export class Camera {
       if (t >= 1) { this.flight = null; landed = () => f.done?.(true); }
     }
     if (this.easeInset(now)) moved = true;
-    if (moved) this.apply();
+    if (moved) this.apply(true);
     else if (fadeDirty) fadeLabels(this.z, this.world); // labels made since the last frame
+    if (this.textStale) this.syncText(true); // the text work of every zoom event since the last frame, once
+    drainRetexture();
     landed?.();
   }
 
@@ -263,7 +311,7 @@ export class Camera {
     // keep the world point under the cursor fixed
     this.x = before.x - (cx - r.left - this.cx) / this.z;
     this.y = before.y - (cy - r.top - this.cy) / this.z;
-    this.apply();
+    this.apply(true);
   }
 
   private pdown = (e: PointerEvent) => {

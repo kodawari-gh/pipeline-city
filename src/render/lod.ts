@@ -114,8 +114,9 @@ export class TierBudget {
 }
 
 /**
- * A bake switch with hysteresis for "baked below `at`". It turns on when the zoom drops under `at` and off only above `at * (1 + band)`;
- * `warm` is true from `at * (1 + warm)` down, the time to make the bake while the vector art is still showing.
+ * A bake switch with hysteresis for "baked below `at`". It turns on when the zoom drops under `at` and off only above `at * (1 + band)`.
+ * `warm` is the outer ring: it turns on under `at * (1 + warmBand)` and off only above that by the same dead band, so the bake can be
+ * made (a cached layer, a texture uploaded) a few frames before the swap, while the vector art still shows, and is never dropped on a wobble.
  */
 export class ZoomSwitch {
   on = false;
@@ -125,7 +126,10 @@ export class ZoomSwitch {
   update(z: number): boolean {
     if (z < this.at) this.on = true;
     else if (z > this.at * (1 + this.band)) this.on = false;
-    this.warm = this.on || z < this.at * (1 + this.warmBand);
+    const w = this.at * (1 + this.warmBand);
+    if (z < w) this.warm = true;
+    else if (z > w * (1 + this.band)) this.warm = false;
+    if (this.on) this.warm = true;
     return this.on;
   }
 }

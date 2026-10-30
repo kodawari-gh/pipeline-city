@@ -582,7 +582,8 @@ export class RoomView {
    * past the baked region (a very wide or tall screen), they are drawn as shapes again. While `cover` (the case) fills the view, the room is not drawn.
    */
   setView(view: Rect, z: number, dpr: number, cover: Rect | null) {
-    const hide = !!cover && roomHidden(view, cover), want = !hide && roomBakeFits(view, z, dpr, this.geo);
+    // a dead band on the zoom (8 %): a baked room stays baked through a wobble around the line instead of re-baking (lod.ts `ZoomSwitch`)
+    const hide = !!cover && roomHidden(view, cover), want = !hide && roomBakeFits(view, this.baked ? z / 1.08 : z, dpr, this.geo);
     this.root.visible = !hide;
     this.light.visible = !hide;
     if (want === this.baked) return;

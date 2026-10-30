@@ -407,6 +407,11 @@ export async function mountBoard(host: HTMLElement) {
   let lodDirty = true;
   /** The bakes, with a dead band: a wobble around a threshold never swaps or re-bakes. */
   const bakeBoard = new ZoomSwitch(Z_BAKE), bakeDev = new ZoomSwitch(Z_BAKE_DEV), bakeProps = new ZoomSwitch(Z_BAKE_PROPS);
+  /**
+   * A baked sprite is drawn once the zoom is in the switch's warm ring, at 1 % until the swap (the vector art still carries the picture), so its
+   * texture is uploaded before it is needed. The cached layers (monitor, props) are made in the warm ring too, not at the swap.
+   */
+  const stageBake = (n: { visible: boolean; alpha: number }, sw: ZoomSwitch) => { n.visible = sw.warm; n.alpha = sw.on ? 1 : 0.01; };
   const applyLod = () => {
     const f = fits.z > 0 ? fits.z : 0.1;
     extA = smooth(LOD.fadeFrom, LOD.fadeTo, lod.zs / f) * (1 - reveal);
@@ -418,7 +423,7 @@ export async function mountBoard(host: HTMLElement) {
     interior.visible = true;
     live.setInterior(lod.zs / f >= LOD.liveFrom);
     // the monitor is one cached texture far out
-    const want = bakeDev.on;
+    const want = bakeDev.warm;
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
   /** The die is not drawn while the view is elsewhere on the board (its replay and the sticks it feeds keep running). */
@@ -440,12 +445,12 @@ export async function mountBoard(host: HTMLElement) {
     const labelsOn = z > DEVICE_LOD.labels.board, partLabels = z > DEVICE_LOD.labels.parts;
     if (boardArt) boardArt.labels.visible = labelsOn;
     const baked = !!boardBake && bakeBoard.on;
-    if (boardBake) boardBake.visible = baked;
+    if (boardBake) stageBake(boardBake, bakeBoard);
     if (boardArt) boardArt.root.visible = !baked;
     const dbaked = !!deviceBake && bakeDev.on;
-    if (caseBake) caseBake.visible = dbaked;
+    if (caseBake) stageBake(caseBake, bakeDev);
     if (caseVec) caseVec.visible = !dbaked;
-    if (deviceBake) deviceBake.visible = dbaked;
+    if (deviceBake) stageBake(deviceBake, bakeDev);
     deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
@@ -454,11 +459,11 @@ export async function mountBoard(host: HTMLElement) {
     die.root.visible = die.root.alpha > 0.01 && dieInView;
     die.setZoom(z);
     for (const pb of propBakes) {
-      const want = bakeProps.on;
+      const want = bakeProps.warm;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
     }
     chromeLayer.visible = !chromeBake || !bakeProps.on;
-    chromeBakeLayer.visible = !!chromeBake && bakeProps.on;
+    if (chromeBake) stageBake(chromeBakeLayer, bakeProps); else chromeBakeLayer.visible = false;
     live.setZoom(z);
   };
   camera.onChange = () => { lodDirty = true; };
