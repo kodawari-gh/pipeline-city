@@ -1,6 +1,17 @@
 # Level of detail (zoom and location)
 
-One module, `src/render/lod.ts` (pure, no Pixi), decides how much detail each piece of hardware shows. Tests: `lod.test.ts`.
+One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the location rule every piece of hardware reads. Tests: `lod.test.ts`. Not every chip uses every part:
+
+| Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
+|---|---|---|---|
+| GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
+| CPU die | yes | root hidden only; `die.frame` still runs | no (it has no counter tier to budget) |
+| RAM view | yes | yes (sticks plus magnifier margin) | no |
+| PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
+| Cooler | fade only | no | no |
+| Other board parts | global bakes and labels | no | no |
+
+`anchorOf` (`board.ts`) and `anyVisible` (`interact.ts`) have their own on-screen tests: they place popups and hit-test, they are not LoD.
 
 ## What is shared
 | Piece | What it does |
@@ -22,7 +33,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), decides how much detail each pi
 - RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.
 
 ## Adding a view
-Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`.
+Put its bands in `DEVICE_LOD`, fade layers with `bandAlpha(zoom, onBand(z0))`, key redraw signatures on the on/off flags (not on the raw zoom), and if it is a card give it `candidates(view)` and a `frame(..., lod?: CardLod)` like `gpuview.ts`, built on `cardCandidates` / `cardText` (`board/lodcard.ts`).
 
 ## Debug and measuring
 `window.__board.lod()` (dev) returns `{ extA, reveal, interior, z, zs, bakes: { board, devices, props } }`. Frame times at the thresholds were **not measured in a browser** when this was written: use the setup of "Performance" in [case.md](case.md) (headless Chrome, SwiftShader) with a scripted wheel sweep and compare the worst frame at zoom 0.14, 0.2, 1, 2 and 3.

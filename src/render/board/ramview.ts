@@ -8,7 +8,7 @@ import { coreColor } from '../die/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from './layout';
 import type { Theme } from '../theme';
-import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '../lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, type LodRect } from '../lod';
 
 // The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a grid of cells, one per 256-byte page (a block of the drive):
 // the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the strength is how full the page is. Zoomed in, the
@@ -175,9 +175,9 @@ export class RamView {
   }
 
   /** Per frame (`inner`: the interior of the board shows, not the exterior covering it). */
-  frame(inner: boolean, wall = performance.now()): void {
+  frame(inner: boolean, wall = performance.now(), view?: LodRect): void {
     const fade = bandAlpha(this.zoom, onBand(SHOW_Z));
-    const show = inner && !!this.map && this.chips.length > 0 && fade > SHOWN;
+    const show = inner && !!this.map && this.chips.length > 0 && fade > SHOWN && this.inView(view);
     this.root.visible = show;
     this.root.alpha = fade;
     if (!show) return;
@@ -185,6 +185,14 @@ export class RamView {
     this.drawOutlines();
     this.drawLens(wall);
     this.drawTouches(wall);
+  }
+
+  /** Whether the sticks (and the magnifier beside a touched spot) are in `view`; without a view, or sticks, nothing is skipped on a guess. */
+  private inView(view?: LodRect): boolean {
+    if (!view || this.rects.length === 0) return true;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const r of this.rects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+    return deviceLod({ x: x0 - LENS_W, y: y0 - LENS_H, w: x1 - x0 + 2 * LENS_W, h: y1 - y0 + 2 * LENS_H }, view).onScreen;
   }
 
   /** The slot number of the stick that holds `addr` (-1: none). */

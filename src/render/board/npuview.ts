@@ -12,8 +12,9 @@ import { npuHostRoute, npuRoute, type HostAccess } from '../npu/npuroute';
 import type { NpuBlock } from '../npu/npuplan';
 import { npuCover } from './accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
-import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
+import { cardCandidates, cardText } from './lodcard';
 
 // The AI cards of the board, alive (docs/ACCEL.md "NPU internal view"). Seen from afar a card is a lid over its die. Zoomed in, the lid fades away like a
 // graphics card's shroud and the die shows through, drawn in the CPU die's style (npu/npuart.ts): the control registers with the words the CPU wrote, the
@@ -145,10 +146,7 @@ export class NpuCardView {
 
   /** The cards in view that want their counters, for the detail budget (live.ts). */
   candidates(view: LodRect): Candidate[] {
-    if (this.zoom < DETAIL_Z) return [];
-    const out: Candidate[] = [];
-    for (const c of this.cards) { const p = this.rects.place(c, c.root, view); if (p.onScreen) out.push({ id: `npu:${c.slot}`, focus: p.focus }); }
-    return out;
+    return cardCandidates('npu', this.cards, this.rects, view, this.zoom, DETAIL_Z);
   }
 
   /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a card out of view is not drawn. */
@@ -172,7 +170,7 @@ export class NpuCardView {
       c.die.alpha = fade;
       c.die.visible = fade > 0.02;
       if (!c.die.visible || !on) continue;
-      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`npu:${c.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
+      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `npu:${c.slot}`, TEXT_Z, DETAIL_Z);
       c.names.visible = c.texts.visible = showText;
       c.names.alpha = c.texts.alpha = ta;
       c.subs.visible = showDetail;

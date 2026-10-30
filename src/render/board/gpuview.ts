@@ -18,8 +18,9 @@ import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu
 import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from '../gpu/gpumem';
 import { GpuLensView } from './gpulensview';
 import type { GpuBlock } from '../gpu/gpuplan';
-import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
+import { cardCandidates, cardText } from './lodcard';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -195,10 +196,7 @@ export class GpuView {
 
   /** The cards in view that want their counters, for the detail budget (live.ts). */
   candidates(view: LodRect): Candidate[] {
-    if (this.zoom < DETAIL_Z) return [];
-    const out: Candidate[] = [];
-    for (const c of this.cards) { const p = this.rects.place(c, c.root, view); if (p.onScreen) out.push({ id: `gpu:${c.slot}`, focus: p.focus }); }
-    return out;
+    return cardCandidates('gpu', this.cards, this.rects, view, this.zoom, DETAIL_Z);
   }
 
   /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a card out of view is not drawn (its fans stop with it). */
@@ -233,7 +231,7 @@ export class GpuView {
       c.inner.visible = fade > 0.02;
       if (!c.inner.visible || !on) { c.lens.hide(); continue; }
       // names and counters fade in over a short band (no pop); a redraw is only asked for when one starts to show
-      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`gpu:${c.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
+      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z);
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.names.alpha = c.linkText.alpha = c.texts.alpha = ta;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;

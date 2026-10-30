@@ -11,8 +11,9 @@ import { tpmRoute } from '../tpm/tpmroute';
 import type { TpmBlock } from '../tpm/tpmplan';
 import { tpmCover } from './accelart';
 import { tpmGeo, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
+import { cardCandidates, cardText } from './lodcard';
 
 // The secure module of the board, alive (docs/ACCEL.md "TPM"). Seen from afar it is the lid of a small daughterboard, with a padlock closed on it while
 // protected mode is on. Zoomed in, the lid fades away like a card's shroud and the die shows through, drawn in the CPU die's style (tpm/tpmart.ts): the
@@ -113,10 +114,7 @@ export class TpmView {
 
   /** The modules in view that want their counters, for the detail budget (live.ts). */
   candidates(view: LodRect): Candidate[] {
-    if (this.zoom < DETAIL_Z) return [];
-    const out: Candidate[] = [];
-    for (const m of this.modules) { const p = this.rects.place(m, m.root, view); if (p.onScreen) out.push({ id: `tpm:${m.slot}`, focus: p.focus }); }
-    return out;
+    return cardCandidates('tpm', this.modules, this.rects, view, this.zoom, DETAIL_Z);
   }
 
   /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a module out of view is not drawn. */
@@ -139,7 +137,7 @@ export class TpmView {
       m.die.alpha = fade;
       m.die.visible = fade > 0.02;
       if (!m.die.visible || !on) continue;
-      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`tpm:${m.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
+      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `tpm:${m.slot}`, TEXT_Z, DETAIL_Z);
       m.names.visible = m.texts.visible = showText;
       m.names.alpha = m.texts.alpha = ta;
       m.subs.visible = showDetail;

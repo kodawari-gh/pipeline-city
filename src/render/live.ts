@@ -20,7 +20,7 @@ import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type Ca
 import { BusFlow, slice } from './board/busflow';
 import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
-import { TierBudget, type LodRect } from './lod';
+import { TierBudget, deviceLod, type LodRect } from './lod';
 import { HIT_MS, chipLegOf, drawPch, ledOf, type ChipLeg, type LegHit } from './board/pchlive';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -890,12 +890,16 @@ export class Live {
     const lv = this.pchLevel;
     if (this.interior) {
       this.pchHits = this.powered ? this.pchHits.filter((h) => now < h.at + HIT_MS) : [];
-      const led = ledOf(this.powered, ph, this.keyActivity, now), drawn = led !== null || lv > 0.01 || this.pchHits.length > 0;
-      if (drawn || this.pchDrawn) {
-        g.clear();
-        drawPch(g, T, BR.chip, { tier: GEO.tier, level: lv, hits: this.pchHits, led, now });
+      // out of view it is not drawn; the level and the hits above keep running, and the flag below makes it redraw on the way back
+      if (this.view && !deviceLod(BR.chip, this.view).onScreen) this.pchDrawn = true;
+      else {
+        const led = ledOf(this.powered, ph, this.keyActivity, now), drawn = led !== null || lv > 0.01 || this.pchHits.length > 0;
+        if (drawn || this.pchDrawn) {
+          g.clear();
+          drawPch(g, T, BR.chip, { tier: GEO.tier, level: lv, hits: this.pchHits, led, now });
+        }
+        this.pchDrawn = drawn;
       }
-      this.pchDrawn = drawn;
     }
     const e = this.extG;
     e.clear();
@@ -1180,7 +1184,7 @@ export class Live {
     // the cards: those out of view are not drawn, and at most two show their counters, the ones nearest the centre (lod.ts `TierBudget`)
     const v = this.view;
     const lod = inner && v ? { view: v, top: this.detail.assign([...this.gpu.candidates(v), ...this.npu.candidates(v), ...this.tpm.candidates(v)]) } : undefined;
-    this.ram.frame(inner);
+    this.ram.frame(inner, undefined, v ?? undefined);
     this.gpu.frame(dt, inner, paused, lod);
     this.tpm.frame(dt, inner, paused, lod);
     this.npu.frame(dt, inner, paused, lod);
