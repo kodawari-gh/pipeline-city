@@ -40,7 +40,7 @@ The die edge is a ring (`EDGE`): **north** the power block (vcore: one stub per 
 | cpu3 two-wide | A pair/issue unit above two decoders, two ALUs, a register file with 4 read and 2 write ports, one load/store unit. |
 | cpu4 out of order | Fetch queue (ring), decode (one decoder per lane of width), rename table + dispatch, scheduler, ALU 0, ALU 1, multiplier, load/store, the result bus (wakes the scheduler, fills the ROB, resolves branches), the reorder buffer (ring) committing into the register file under decode. |
 | Variants | An I-cache takes the south-west; cache and predictor tables scale their grids; ways are columns; an L2 strip joins both L1s to the system bus; a bigger ROB, scheduler or queue grows its grid; width adds decoders (the frame grows). |
-| Multicore (`cores: n`) | n core tiles in the middle (each laid out for its tile's shape, so a tile fills its cell), one shared L2 at their east end, one system bus under them; the edge ring is shared and every tile's PC gets an interrupt line. Server style = many small tiles, HPC style = one big out-of-order tile. The game's multicore CPUs use this plan, live (see "Core tiles"). |
+| Multicore (`cores: n`) | n core tiles in the middle (each laid out for its tile's shape, so a tile fills its cell; the grid whose tiles cover the most area wins: 2 cores stack, 4 make 2x2, 6 make 2x3), one shared L2 at their east end, one system bus under them; the edge ring is shared and every tile's PC gets an interrupt line. Server style = many small tiles, HPC style = one big out-of-order tile. The game's multicore CPUs use this plan, live (see "Core tiles"). |
 
 ## Inside the blocks (`blockart.ts`)
 

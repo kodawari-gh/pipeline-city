@@ -282,15 +282,16 @@ function multicore(i: PlanInput): CpuPlan {
   const region = ring.find((b) => b.id === '__tiles')!.rect;
   const blocks = ring.filter((b) => b.id !== '__tiles');
   const G2 = 18, TW = CORE_TILE_W;
-  // the tile grid: every (cols x rows) that holds n tiles; each tile is laid out at its cell's shape, and the biggest scale wins
-  let best = { cols: 1, rows: n, s: 0, th: 0 };
+  // the tile grid: every (cols x rows) that holds n tiles; each tile is laid out at its cell's shape, and the grid whose tiles cover the most area wins
+  // (a tall stack of wide tiles has the biggest scale but leaves the region half empty: a squarer grid fills it)
+  let best = { cols: 1, rows: n, s: 0, th: 0, area: 0 };
   for (let cols = 1; cols <= n; cols++) {
     if (n % cols !== 0) continue;
     const rows = n / cols;
     const cellW = (region.w - (cols - 1) * G2) / cols, cellH = (region.h - (rows - 1) * G2) / rows;
-    const th = Math.min(900, Math.max(430, Math.round((TW * cellH) / cellW)));
-    const s = Math.min(cellW / TW, cellH / th);
-    if (s > best.s + 1e-9) best = { cols, rows, s, th };
+    const th = Math.min(900, Math.max(380, Math.round((TW * cellH) / cellW)));
+    const s = Math.min(cellW / TW, cellH / th), area = s * s * TW * th;
+    if (area > best.area + 1e-6) best = { cols, rows, s, th, area };
   }
   const { cols, rows, s, th } = best;
   const cellW = (region.w - (cols - 1) * G2) / cols, cellH = (region.h - (rows - 1) * G2) / rows;
