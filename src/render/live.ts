@@ -933,7 +933,7 @@ export class Live {
   }
 
   /** Per-frame animation. dt in seconds. */
-  frame(dt: number, now: number) {
+  frame(dt: number, now: number, paused = false) {
     this.gt = now;
     const inner = this.interior;
     this.frameStandby();
@@ -1030,7 +1030,7 @@ export class Live {
     this.drawBoot(now, dt);
 
     this.ram.frame(inner);
-    this.gpu.frame(dt, inner);
+    this.gpu.frame(dt, inner, paused);
     // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)
     this.dramFlash.clear();
   }

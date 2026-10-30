@@ -3,7 +3,7 @@ import { Graphics } from 'pixi.js';
 import { specsOfKind } from '../../sim/board/specs';
 import type { Theme } from '../theme';
 import { gpuEncode, gpuInstr, GPU_OPS } from '../../sim/isa/gpu';
-import { ALU_UNITS, aluUnitOf, decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, hasGpuSymbol, laneUnits, pcArea } from './gpuglyph';
+import { ALU_UNITS, aluUnitOf, decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, gpuHostLive, hasGpuSymbol, laneUnits, launchGeom, pcArea, pcieGeom } from './gpuglyph';
 import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './gpuplan';
 import { cellInset, gpuCells, gpuPlan } from './gpuplans';
 
@@ -119,6 +119,35 @@ describe('gpu block symbols', () => {
     }
     expect(seen).toBeGreaterThan(4);
     expect(plans.some(({ plan }) => plan.blocks.some((x) => x.kind === 'regfile' && cellInset(x).b > 0))).toBe(true);
+  });
+
+  it('the host link and the launch registers keep their parts inside their area, on every tier', () => {
+    for (const { id, plan } of plans) {
+      for (const b of plan.blocks.filter((x) => x.kind === 'pcie' || x.kind === 'launch')) {
+        const a = gpuGlyphArea(b)!, inside = (r: { x: number; y: number; w: number; h: number }) => r.x >= a.x - 0.5 && r.y >= a.y - 0.5 && r.x + r.w <= a.x + a.w + 0.5 && r.y + r.h <= a.y + a.h + 0.5;
+        if (b.kind === 'pcie') { const q = pcieGeom(a); for (const r of [q.dma, ...q.credits, ...q.lanes.flatMap((l) => [l.rx, l.tx])]) expect(inside(r), `${id} ${b.id}`).toBe(true); }
+        else { const l = launchGeom(a); for (const r of [l.go, ...l.regs, ...l.states, ...l.slots]) expect(inside(r), `${id} ${b.id}`).toBe(true); }
+      }
+    }
+  });
+
+  it('a launch moves the link and the launch registers: in on the receive cells, out on the transmit cells, run at the run state; idle shows nothing', () => {
+    const a = { x: 0, y: 0, w: 200, h: 131 }, host = (phase: 'idle' | 'in' | 'run' | 'out') => ({ phase, lanes: 16, launches: 1, ms: 1000 });
+    const q = pcieGeom(a), l = launchGeom(a);
+    expect(gpuHostLive('pcie', a, host('idle'))).toEqual({ texts: [], lit: [] });
+    expect(gpuHostLive('launch', a, host('idle'))).toEqual({ texts: [], lit: [] });
+    const lit = (kind: 'pcie' | 'launch', phase: 'in' | 'run' | 'out') => gpuHostLive(kind, a, host(phase)).lit.map((x) => x.rect);
+    expect(lit('pcie', 'in')).toContainEqual(q.lanes[0]!.rx);
+    expect(lit('pcie', 'in')).not.toContainEqual(q.lanes[0]!.tx);
+    expect(lit('pcie', 'out')).toContainEqual(q.lanes[0]!.tx);
+    expect(lit('pcie', 'run')).toContainEqual(q.dma);
+    expect(lit('launch', 'run')).toContainEqual(l.go);
+    expect(lit('launch', 'run')).toContainEqual(l.states[1]!);
+    expect(lit('launch', 'out')).toContainEqual(l.states[2]!);
+    expect(gpuHostLive('launch', a, host('run')).texts.map((t) => t.top)).toEqual(['0x0000', '16', 'busy']);
+    // the receive cells flow: the same lane is brighter at one moment than another
+    const at = (ms: number) => gpuHostLive('pcie', a, { ...host('in'), ms }).lit[0]!.a;
+    expect(new Set([0, 90, 180, 270].map(at)).size).toBeGreaterThan(1);
   });
 
   it('a wide fetch keeps a side panel for the address, clear of its word rows', () => {

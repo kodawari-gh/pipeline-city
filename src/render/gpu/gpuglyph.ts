@@ -122,6 +122,65 @@ export function decodeGeom(a: Rect): { word: Rect; fields: Rect[]; lines: Rect[]
   };
 }
 
+/** The registers of the launch block, in the order of its rows. */
+export const LAUNCH_REGS = ['kernel', 'arg0', 'arg1', 'lanes', 'status'] as const;
+
+/** The host link: a receive and a transmit cell per lane, the bus into the DMA engine, and its credit counters. */
+export function pcieGeom(a: Rect) {
+  const { x, y, w, h } = a, foot = h > 70 ? 16 : 0, top = h > 50 ? 9 : 0, bodyH = h - foot - top;
+  const n = Math.max(2, Math.min(8, Math.floor(bodyH / 11))), cw = w * 0.25 - 1, busX = x + w * 0.56;
+  const lanes = Array.from({ length: n }, (_, k) => { const ry = y + top + ((k + 0.5) * bodyH) / n; return { y: ry, rx: { x, y: ry - 3, w: cw, h: 6 }, tx: { x: x + cw + 2, y: ry - 3, w: cw, h: 6 } }; });
+  const dh = Math.min(bodyH * 0.5, 44), dy = y + top + (bodyH - dh) / 2, dx = x + w * 0.64, dw = x + w - dx;
+  const credits: Rect[] = dy + dh + 12 < y + h - foot ? Array.from({ length: 4 }, (_, k) => ({ x: dx + 1 + (k * (dw - 2)) / 4, y: dy + dh + 6, w: (dw - 2) / 4 - 2, h: 5 })) : [];
+  return { top, bodyH, n, cw, busX, lanes, dma: { x: dx, y: dy, w: dw, h: dh } as Rect, credits };
+}
+
+/** The launch registers: a value cell per register, the go flag the bus raises, and with room the three states of a launch and the command queue. */
+export function launchGeom(a: Rect) {
+  const { x, y, w, h } = a, rows = h >= 85 ? 5 : Math.max(3, Math.floor(h / 15));
+  const state = h >= rows * 17 + 34, queue = h >= rows * 17 + 70, pitch = state ? 17 : Math.min(26, h / rows), gut = Math.min(34, w * 0.26), vw = w * 0.6 - gut, busX = x + w * 0.68;
+  const regs: Rect[] = Array.from({ length: rows }, (_, k) => ({ x: x + gut, y: y + k * pitch, w: vw, h: pitch - 3 }));
+  const gh = Math.min(rows * pitch * 0.5, 26), gy = y + (rows * pitch - gh) / 2 - 1.5, gx = x + w * 0.76, go: Rect = { x: gx, y: gy, w: x + w - gx, h: gh };
+  const sy = y + rows * pitch + 14, bw = (w - 28) / 3, qy = sy + 34;
+  const states: Rect[] = state ? [0, 1, 2].map((k) => ({ x: x + k * (bw + 14), y: sy, w: bw, h: 14 })) : [];
+  const slots: Rect[] = queue ? [0, 1, 2, 3].map((k) => ({ x: x + k * ((w - 3) / 4), y: qy, w: (w - 3) / 4 - 3, h: 12 })) : [];
+  return { rows, pitch, gut, vw, busX, regs, go, states, slots };
+}
+
+/** What the host side of the card is doing, as the symbols of the PCIe and launch blocks need it. */
+export interface HostLive { phase: 'idle' | 'in' | 'run' | 'out'; lanes: number; launches: number; /** The clock the motion runs on, in ms. */ ms: number }
+
+/**
+ * The PCIe and launch blocks in motion: a launch crosses the link into the card (`in`: the receive cells flow, the DMA engine and its credits fill), the launch
+ * registers hold the command, the go flag is up and the state machine sits at run until the kernel ends, and the result crosses back (`out`: the transmit cells).
+ */
+export function gpuHostLive(kind: 'pcie' | 'launch', a: Rect, h: HostLive): LiveGlyph {
+  const out: LiveGlyph = { texts: [], lit: [] };
+  if (h.phase === 'idle') return out;
+  const wave = h.ms / 90;
+  if (kind === 'pcie') {
+    const q = pcieGeom(a), moving = h.phase === 'in' || h.phase === 'out';
+    q.lanes.forEach((l, k) => {
+      if (h.phase === 'in') out.lit.push({ rect: l.rx, color: 'mul', a: 0.35 + 0.6 * (0.5 + 0.5 * Math.sin(wave - k * 0.9)) });
+      else if (h.phase === 'out') out.lit.push({ rect: l.tx, color: 'mul', a: 0.35 + 0.6 * (0.5 + 0.5 * Math.sin(wave + k * 0.9)) });
+    });
+    out.lit.push({ rect: q.dma, color: 'mul', a: moving ? 0.35 + 0.25 * Math.sin(wave) ** 2 : 0.18 });
+    const up = moving ? 1 + (Math.floor(h.ms / 160) % 4) : 3;
+    q.credits.forEach((r, k) => { if (k < up) out.lit.push({ rect: r, color: 'mul', a: 0.85 }); });
+    return out;
+  }
+  const l = launchGeom(a), vals: string[] = ['0x0000', '', '', String(h.lanes || ''), h.phase === 'run' ? 'busy' : h.phase];
+  l.regs.forEach((r, k) => {
+    out.lit.push({ rect: r, color: 'br', a: k % 2 ? 0.5 : 0.35 });
+    if (vals[k]) out.texts.push({ rect: r, top: vals[k]!, bottom: '' });
+  });
+  out.lit.push({ rect: l.go, color: 'br', a: 0.5 + 0.3 * Math.sin(wave) ** 2 });
+  const at = h.phase === 'out' ? 2 : 1;
+  if (l.states[at]) out.lit.push({ rect: l.states[at]!, color: 'br', a: 0.7 });
+  if (l.slots[0]) out.lit.push({ rect: l.slots[0], color: 'br', a: 0.8 });
+  return out;
+}
+
 /** What the symbols of the shared kinds show for the instruction on show (the program counter's digits, the word fetched, the decoded word and the lines it raises). `prog` is how far the instruction has got into the block (0..1), as on the CPU die. */
 export function gpuGlyphLive(b: Pick<GpuBlock, 'id' | 'kind' | 'label' | 'sub' | 'rect'>, a: Rect, step: GpuStep | null, prog = 1): LiveGlyph {
   const out: LiveGlyph = { texts: [], lit: [] };
@@ -170,47 +229,39 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
   switch (b.kind) {
     case 'pcie': {
       // the lanes of the link, receive and transmit a pair of cells each, merged onto a bus into the DMA engine and its credit counters
-      const foot = h > 70 ? 16 : 0, top = h > 50 ? 9 : 0, bodyH = h - foot - top;
-      const n = Math.max(2, Math.min(8, Math.floor(bodyH / 11))), cw = w * 0.25 - 1, busX = x + w * 0.56;
-      if (top) { put('rx', x + cw / 2, y + 4, 6); put('tx', x + cw + 2 + cw / 2, y + 4, 6); }
-      for (let k = 0; k < n; k++) {
-        const ry = y + top + ((k + 0.5) * bodyH) / n;
-        rect(x, ry - 3, cw, 6, soft); rect(x + cw + 2, ry - 3, cw, 6, solid);
-        stub(x + 2 * cw + 2, ry, busX, ry);
-      }
-      stub(busX, y + top + 0.5 * bodyH / n, busX, y + top + (n - 0.5) * bodyH / n);
-      const dh = Math.min(bodyH * 0.5, 44), dy = y + top + (bodyH - dh) / 2, dx = x + w * 0.64, dw = x + w - dx;
-      stub(busX, dy + dh / 2, dx, dy + dh / 2); dot(busX, dy + dh / 2);
-      rect(dx, dy, dw, dh, soft); outline(dx, dy, dw, dh); put('dma', dx + dw / 2, dy + dh / 2, 7);
-      if (dy + dh + 12 < y + h - foot) for (let k = 0; k < 4; k++) rect(dx + 1 + (k * (dw - 2)) / 4, dy + dh + 6, (dw - 2) / 4 - 2, 5, k < 3 ? solid : soft);
+      const q = pcieGeom(a);
+      if (q.top) { put('rx', x + q.cw / 2, y + 4, 6); put('tx', x + q.cw + 2 + q.cw / 2, y + 4, 6); }
+      q.lanes.forEach((l) => { rect(l.rx.x, l.rx.y, l.rx.w, l.rx.h, soft); rect(l.tx.x, l.tx.y, l.tx.w, l.tx.h, solid); stub(l.tx.x + l.tx.w, l.y, q.busX, l.y); });
+      const f = q.lanes[0]!, z = q.lanes[q.lanes.length - 1]!, d = q.dma, dcy = d.y + d.h / 2;
+      stub(q.busX, f.y, q.busX, z.y);
+      stub(q.busX, dcy, d.x, dcy); dot(q.busX, dcy);
+      rect(d.x, d.y, d.w, d.h, soft); outline(d.x, d.y, d.w, d.h); put('dma', d.x + d.w / 2, dcy, 7);
+      q.credits.forEach((r, k) => rect(r.x, r.y, r.w, r.h, k < 3 ? solid : soft));
       break;
     }
     case 'launch': {
       // the argument registers by name, merged onto a bus that raises the go flag; with room, the state machine of a launch and the command queue
-      const names = ['kernel', 'arg0', 'arg1', 'lanes', 'status'], rows = h >= 85 ? 5 : Math.max(3, Math.floor(h / 15));
-      const state = h >= rows * 17 + 34, queue = h >= rows * 17 + 70, pitch = state ? 17 : Math.min(26, h / rows), gut = Math.min(34, w * 0.26), vw = w * 0.6 - gut, busX = x + w * 0.68;
-      for (let k = 0; k < rows; k++) {
-        const ry = y + k * pitch;
-        lab(names[k]!, x, ry + pitch / 2 - 1, 6.5);
-        rect(x + gut, ry, vw, pitch - 3, k % 2 ? solid : soft);
-        stub(x + gut + vw, ry + pitch / 2 - 1.5, busX, ry + pitch / 2 - 1.5);
-      }
-      stub(busX, y + pitch / 2 - 1.5, busX, y + (rows - 0.5) * pitch - 1.5);
-      const gh = Math.min(rows * pitch * 0.5, 26), gy = y + (rows * pitch - gh) / 2 - 1.5, gx = x + w * 0.76;
-      stub(busX, gy + gh / 2, gx, gy + gh / 2); dot(busX, gy + gh / 2);
-      rect(gx, gy, x + w - gx, gh, soft); outline(gx, gy, x + w - gx, gh); put('go', gx + (x + w - gx) / 2, gy + gh / 2, 7);
-      if (state) {
+      const l = launchGeom(a);
+      l.regs.forEach((r, k) => {
+        lab(LAUNCH_REGS[k]!, x, r.y + l.pitch / 2 - 1, 6.5);
+        rect(r.x, r.y, r.w, r.h, k % 2 ? solid : soft);
+        stub(r.x + r.w, r.y + r.h / 2, l.busX, r.y + r.h / 2);
+      });
+      const r0 = l.regs[0]!, rz = l.regs[l.regs.length - 1]!, g = l.go, gcy = g.y + g.h / 2;
+      stub(l.busX, r0.y + r0.h / 2, l.busX, rz.y + rz.h / 2);
+      stub(l.busX, gcy, g.x, gcy); dot(l.busX, gcy);
+      rect(g.x, g.y, g.w, g.h, soft); outline(g.x, g.y, g.w, g.h); put('go', g.x + g.w / 2, gcy, 7);
+      if (l.states.length) {
         // idle -> run -> done, and the commands waiting behind the one running
-        const sy = y + rows * pitch + 14, bw = (w - 28) / 3;
-        lab('launch state', x, sy - 6, 6.5);
-        ['idle', 'run', 'done'].forEach((t, k) => {
-          const bx = x + k * (bw + 14);
-          rect(bx, sy, bw, 14, k === 1 ? solid : soft); outline(bx, sy, bw, 14); put(t, bx + bw / 2, sy + 7, 6.5);
-          if (k < 2) wire(bx + bw, sy + 7, bx + bw + 14, sy + 7);
+        const st0 = l.states[0]!;
+        lab('launch state', x, st0.y - 6, 6.5);
+        l.states.forEach((r, k) => {
+          rect(r.x, r.y, r.w, r.h, k === 1 ? solid : soft); outline(r.x, r.y, r.w, r.h); put(['idle', 'run', 'done'][k]!, r.x + r.w / 2, r.y + 7, 6.5);
+          if (k < 2) wire(r.x + r.w, r.y + 7, r.x + r.w + 14, r.y + 7);
         });
-        wire(x + 2 * (bw + 14) + bw / 2, sy + 14, x + 2 * (bw + 14) + bw / 2, sy + 22, x + bw / 2, sy + 22, x + bw / 2, sy + 14);
-        const qy = sy + 34;
-        if (queue) { lab('command queue', x, qy - 6, 6.5); for (let k = 0; k < 4; k++) rect(x + k * ((w - 3) / 4), qy, (w - 3) / 4 - 3, 12, k === 0 ? solid : soft); }
+        const last = l.states[2]!, first = l.states[0]!;
+        wire(last.x + last.w / 2, last.y + 14, last.x + last.w / 2, last.y + 22, first.x + first.w / 2, last.y + 22, first.x + first.w / 2, last.y + 14);
+        if (l.slots.length) { lab('command queue', x, l.slots[0]!.y - 6, 6.5); l.slots.forEach((r, k) => rect(r.x, r.y, r.w, r.h, k === 0 ? solid : soft)); }
       }
       break;
     }

@@ -117,4 +117,30 @@ describe("stepping a paused card", () => {
     expect(card().trace).toHaveLength(11);
     expect(card().stats.cycles).toBe(11);
   });
+
+  it("an idle card runs the machine to the CPU's next launch first, and steps its cycles from there", () => {
+    const g = maxed();
+    g.install(buy(g, "gpu1"));
+    g.connectCable("pcie");
+    g.clearQueue();
+    g.spawnKey("gpu");
+    expect(g.powerButton().ok).toBe(true);
+    const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
+    const card = () => g.snapshot().gpus!.find((x) => x.slot === slot)!;
+    const op = new Operator(g, 1);
+    // until the OS has the job running: the CPU is copying the kernel into the card, nothing has been launched
+    for (let k = 0; k < 3_000_000 && !g.snapshot().os?.queue?.some((j) => j.state === "running"); k++) { g.advanceBaseTick(); op.step(); }
+    expect(g.snapshot().os?.queue?.some((j) => j.state === "running")).toBe(true);
+    expect(card()).toMatchObject({ phase: "idle", launches: 0 });
+    // one step on the idle card: the machine runs until the launch starts, and stops there
+    expect(g.stepGpu(slot, 1)).toBe(1);
+    expect(card().phase).not.toBe("idle");
+    expect(card().trace).toHaveLength(0);
+    // from there it steps card cycles as before
+    for (let k = 0; k < 100 && card().phase !== "run"; k++) g.stepGpu(slot, 1);
+    expect(card().phase).toBe("run");
+    expect(g.stepGpu(slot, 3)).toBe(3);
+    expect(card().trace).toHaveLength(3);
+    expect(card().code!.length).toBeGreaterThan(20); // the kernel the CPU copied in is on show
+  }, 120_000);
 });

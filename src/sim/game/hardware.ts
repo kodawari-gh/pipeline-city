@@ -75,6 +75,9 @@ export function syncGpus(this: Game): void {
   }
 }
 
+/** Sub-ticks `stepGpu` lets the machine run to find the next launch on an idle card. */
+export const LAUNCH_RUN_LIMIT = 400_000;
+
 /** The insides of every graphics card on the bus, for the snapshot (the board view draws lanes, mask and banks from it). */
 export function gpuSnaps(this: Game): GpuSnap[] {
   const out: GpuSnap[] = [];
@@ -88,11 +91,21 @@ export function gpuSnaps(this: Game): GpuSnap[] {
 /**
  * Debug stepping of one card (the paused game's "step" buttons for a card): tick the card in slot `slot` for `cycles` of its own ticks (a tick is one card
  * cycle on the pipelined engines), stopping when it goes idle. The card's trace (the last 64 instructions) then ends at the cycle reached. Returns the ticks run.
+ * A card with nothing in flight cannot be stepped, so then the machine runs (only the machine, as `stepCycles`) until the CPU launches a kernel on it, and the
+ * step ends there with the card at the start of its launch (`LAUNCH_RUN_LIMIT` sub-ticks at most: a program that never launches leaves it idle).
  */
 export function stepGpu(this: Game, slot: string, cycles: number): number {
   const port = this.gpus.find((p) => p.name === slot);
   if (!port || !port.present || !this.powered || this.postError || this.fault()) return 0;
   const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
+  if (!port.isBusy) {
+    const e = this.machine.engine;
+    if (!e || this.bootDelay > 0) return 0;
+    for (let guard = 0; !port.isBusy && !e.halted && guard < LAUNCH_RUN_LIMIT; guard++) this.machine.clock.advance(1);
+    this.trackPages();
+    this.checkFaults();
+    return port.isBusy ? 1 : 0;
+  }
   let ran = 0;
   while (ran < n && port.isBusy) { port.tick(); ran++; }
   return ran;

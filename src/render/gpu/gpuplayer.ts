@@ -71,6 +71,8 @@ export class GpuPlayer {
   private hold = 0;
   private past: GpuStep[][] = [];
   private frozen = false;
+  /** A window was just put on show and nothing has played of it yet (a paused game lands it on its last cycle). */
+  private fresh = false;
 
   /** The newest snapshot of the card (undefined: no card, forget everything). */
   feed(g: GpuSnap | undefined): void {
@@ -94,6 +96,7 @@ export class GpuPlayer {
     this.total = tl.total;
     this.t = 0;
     this.hold = 0;
+    this.fresh = true;
     if (steps.length) this.keep(steps);
   }
 
@@ -129,8 +132,16 @@ export class GpuPlayer {
     if (last) { const tl = timeline(last); this.win = tl.items; this.total = tl.total; this.t = tl.total; this.hold = HOLD_S; }
   }
 
-  /** Move the replay on by `dt` seconds and say what is on show. */
-  advance(dt: number): GpuTick {
+  /**
+   * Move the replay on by `dt` seconds and say what is on show. While the game is `paused` the replay does not play: a window that arrives (the card was stepped)
+   * is shown at once at its last cycle, so each step moves the card, as on the CPU die.
+   */
+  advance(dt: number, paused = false): GpuTick {
+    if (paused && !this.frozen) {
+      if (this.pending) { const next = this.pending; this.pending = null; this.show(next); }
+      if (this.fresh && this.win.length > 0) { this.t = this.total; this.hold = HOLD_S; }
+    }
+    this.fresh = false;
     if (this.win.length === 0) return IDLE;
     if (!this.frozen) {
       if (this.t < this.total) this.t = Math.min(this.total, this.t + dt * CYCLES_PER_SEC);

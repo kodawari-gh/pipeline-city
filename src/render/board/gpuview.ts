@@ -8,7 +8,7 @@ import { EdgeFan } from '../room/case';
 import { gpuCover } from './accelart';
 import type { Pt } from '../die/cpuplan';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
-import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, laneUnits } from '../gpu/gpuglyph';
+import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, gpuHostLive, laneUnits } from '../gpu/gpuglyph';
 import { gpuRoute, launchRoute, type Hop } from '../gpu/gpuroute';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../die/diepulse';
 import { CYCLES_PER_SEC } from '../die/diemotion';
@@ -118,6 +118,7 @@ export class GpuView {
   private zoom = 1;
   /** The replay's own clock (ms): packets and glows run on it. */
   private now = 0;
+  private lastWall = 0;
 
   constructor() {
     this.root.visible = false;
@@ -185,10 +186,13 @@ export class GpuView {
   }
 
   /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). */
-  frame(dt: number, inner: boolean): void {
+  frame(dt: number, inner: boolean, paused = false): void {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
-    this.now += dt * 1000;
+    // a paused game has no game time, but a card that is stepped still has to move: its packets and lights run on the wall clock then
+    const wall = performance.now(), wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
+    this.lastWall = wall;
+    this.now += (paused ? wdt : dt) * 1000;
     const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
     for (const c of this.cards) {
       // the fans: always on, whatever the zoom
@@ -200,7 +204,7 @@ export class GpuView {
       // a paused game can be scrubbed: the Trace panel names a cycle of this card's last instructions and the card shows the machine at it
       const mine = scrubTarget.peek() === `gpu:${c.slot}`, cur = mine ? scrubCursor.peek() : null;
       if (cur !== null) c.tick = c.player.seek(0, cur);
-      else { if (c.player.scrubbed) c.player.resume(); c.tick = c.player.advance(dt); }
+      else { if (c.player.scrubbed) c.player.resume(); c.tick = c.player.advance(dt, paused); }
       if (mine) {
         const hi = Math.floor(c.player.span), old = scrubRange.peek(), sh = Math.round(c.player.cycle);
         if (!old || old.lo !== 0 || old.hi !== hi) scrubRange.value = hi > 0 ? { lo: 0, hi } : null;
@@ -282,6 +286,19 @@ export class GpuView {
       born.set(k, c.born.get(k) ?? wall);
       const u = Math.min(1, (wall - born.get(k)!) / WIPE_MS), prog = u * u * (3 - 2 * u);
       const live = gpuGlyphLive({ id: b.id, kind: b.kind, label: b.kind === 'fetch' ? 'FETCH' : b.kind.toUpperCase(), rect: b.rect }, a, sm.step, prog);
+      for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
+      let ct = c.cellTexts.get(b.id);
+      if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
+      used.add(b.id);
+      live.texts.forEach((x, n) => ct!.set(n, x.top, x.bottom, x.rect, T.on));
+      ct.hideFrom(live.texts.length);
+    }
+    // the host side: the link and the launch registers move while a launch crosses the link and the kernel runs
+    for (const b of plan.blocks) {
+      if (b.kind !== 'pcie' && b.kind !== 'launch') continue;
+      const a = gpuGlyphArea({ kind: b.kind, rect: b.rect });
+      if (!a || !s) continue;
+      const live = gpuHostLive(b.kind, a, { phase: s.phase, lanes: s.lanes, launches: s.launches, ms: now });
       for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
       let ct = c.cellTexts.get(b.id);
       if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }

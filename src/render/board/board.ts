@@ -1235,7 +1235,7 @@ export async function mountBoard(host: HTMLElement) {
     if (pendingInset && !camera.gesturing && !interact.busy) { const i = pendingInset; pendingInset = null; applyInset(i); }
     camera.update(now);
     lodFrame(dt);
-    live.frame(gdt, gt);
+    live.frame(gdt, gt, speed.peek() <= 0);
     roomView?.frame(gt, tk.deltaMS);
     die.frame(gt, speed.peek() <= 0);
     syncCables(lastSnap); // optimistic cable state expires on its own

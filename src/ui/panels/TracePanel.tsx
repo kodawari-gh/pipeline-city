@@ -100,9 +100,9 @@ export function TracePanel() {
         </div>
       )}
       <div class="trace-steps" role="group" aria-label="Step the paused machine">
-        <button title="Run one CPU cycle (pauses the game first)" onClick={() => stepBy(1)}>+1 cycle</button>
-        <button title="Run 10 CPU cycles" onClick={() => stepBy(10)}>+10</button>
-        <button title="Run 100 CPU cycles" onClick={() => stepBy(100)}>+100</button>
+        <button title={card ? 'Run one cycle of the card (pauses the game first). A card with nothing running first runs the machine until the CPU launches a kernel on it.' : 'Run one CPU cycle (pauses the game first)'} onClick={() => stepBy(1)}>+1 cycle</button>
+        <button title={card ? 'Run 10 cycles of the card' : 'Run 10 CPU cycles'} onClick={() => stepBy(10)}>+10</button>
+        <button title={card ? 'Run 100 cycles of the card' : 'Run 100 CPU cycles'} onClick={() => stepBy(100)}>+100</button>
         <button title="Run one base tick" onClick={stepOneTick}>+1 tick</button>
         <button title="Clear the trace" onClick={() => { buffer.clear(); rev.value++; }}>clear</button>
       </div>

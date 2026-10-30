@@ -36,6 +36,20 @@ describe('GPU replay', () => {
     expect(last).toMatchObject({ index: 2, playing: false, progress: 1 }); // held on the last instruction
   });
 
+  it('while the game is paused a window that arrives (the card was stepped) is shown at once on its last instruction', () => {
+    const p = new GpuPlayer();
+    p.feed(snap([step(0), step(4), step(8)]));
+    expect(p.advance(0, true)).toMatchObject({ index: 2, playing: false }); // a first window lands on its last cycle, nothing plays
+    // a step: the window now ends one instruction later; the card moves on by that one instruction, not by replaying the window
+    p.feed(snap([step(0), step(4), step(8), step(12, { name: 'vld', kind: 'ld' })], { stats: { instructions: 4, idleLaneSlots: 0, conflictCycles: 0, cycles: 4 } }));
+    expect(p.advance(0, true)).toMatchObject({ index: 3, length: 4, playing: false });
+    expect(p.advance(0, true).step?.name).toBe('vld');
+    // the same card running (not paused) plays the new window from its start instead
+    const q = new GpuPlayer();
+    q.feed(snap([step(0), step(4), step(8)]));
+    expect(q.advance(0)).toMatchObject({ index: 0, playing: true });
+  });
+
   it('plays the newest window after the current one, dropping the ones between', () => {
     const p = new GpuPlayer();
     p.feed(snap([step(0), step(4)], { stats: { instructions: 2, idleLaneSlots: 0, conflictCycles: 0, cycles: 2 } }));
