@@ -115,8 +115,9 @@ const SPECS: Spec[] = [
   { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
 ];
 
-/** The four PCIe slot rails (x16, x8, x4, x1): the tier uses the first ones. Lengths stop before the M.2 area. */
-const PCIE_ALL: Rect[] = [R(-2850, 1030, 3300, 60), R(-2850, 1460, 2600, 60), R(-2850, 1810, 1800, 60), R(-2850, 2130, 1000, 60)];
+/** The four PCIe slot rails (x16, x8, x4, x1), an even 360 apart: the tier uses the first ones. Lengths stop before the M.2 area. */
+const PCIE_Y0 = 1030, PCIE_PITCH = 360;
+const PCIE_ALL: Rect[] = [3300, 2600, 1800, 1000].map((w, i) => R(-2850, PCIE_Y0 + i * PCIE_PITCH, w, 60));
 
 function build(s: Spec): TierGeo {
   const bd = s.bd, east = bd.x + bd.w, south = bd.y + bd.h;
