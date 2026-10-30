@@ -56,11 +56,11 @@ describe('ledOf', () => {
   });
 });
 
-it('the LED sits on the package, inside its east edge', () => {
+it('the LED sits on the face of the package, well in from the east edge and clear of the label', () => {
   for (const tier of [0, 1, 2, 3]) {
     setLayoutTier(tier);
     const c = BR.chip, p = pchLedAt(c);
-    expect(p.x).toBeGreaterThan(c.x + c.w - 40);
-    expect(p.x).toBeLessThan(c.x + c.w);
+    expect(p.x).toBeLessThanOrEqual(c.x + c.w - 60);
+    expect(p.x).toBeGreaterThan(c.x + c.w * 0.7);
   }
 });

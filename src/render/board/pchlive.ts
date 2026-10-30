@@ -57,13 +57,13 @@ export function ledOf(powered: boolean, phase: string, keyActivity: string, now:
   return { tone: 'st', on: true, a: 1 };
 }
 
-/** Where the LED sits: on the strip of the package between the last fin and the edge, level with the middle of the east side. */
-export const pchLedAt = (chip: Rect): { x: number; y: number } => ({ x: chip.x + chip.w - 25, y: chip.y + chip.h / 2 });
+/** Where the LED sits: on the face of the package, well in from the east edge (clear of the corner screws and the PCH label), level with the middle. */
+export const pchLedAt = (chip: Rect): { x: number; y: number } => ({ x: chip.x + chip.w - 80, y: chip.y + chip.h / 2 });
 
 /** The LED's dark housing, drawn once with the board. */
 export function pchLedHousing(g: Graphics, chip: Rect): void {
   const { x, y } = pchLedAt(chip);
-  g.circle(x, y, 11).fill({ color: '#0a0f1a', alpha: 0.9 });
+  g.circle(x, y, 14).fill({ color: '#0a0f1a', alpha: 0.9 });
   g.circle(x, y, 8).fill({ color: '#2a3150', alpha: 0.7 });
 }
 
