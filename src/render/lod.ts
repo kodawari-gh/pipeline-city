@@ -33,8 +33,8 @@ export const REF_SIZE = 1420;
  */
 export const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
 
-/** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.6 of it, so its stages start later than at the centre. */
-export const FAR_ZOOM = 0.6;
+/** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.35 of it, so its stages start later than at the centre. */
+export const FAR_ZOOM = 0.35;
 
 /** The zoom a device of world width `size` is read at: the camera zoom in terms of the ladder, less the further it is from the view centre (`focus` 1 keeps all). */
 export const seenZoom = (zoom: number, size: number, focus = 1): number => zoom * (size / REF_SIZE) * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
@@ -101,7 +101,7 @@ export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
   const cx = view.x + view.w / 2, cy = view.y + view.h / 2;
   const dx = Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)), dy = Math.max(rect.y - cy, 0, cy - (rect.y + rect.h));
   const d = Math.hypot(dx, dy) / (Math.hypot(view.w, view.h) / 2 || 1);
-  return { onScreen, focus: onScreen ? 1 - smooth(0.2, 1.1, d) : 0, size: rect.w };
+  return { onScreen, focus: onScreen ? 1 - smooth(0, 0.8, d) : 0, size: rect.w };
 }
 
 /** A device that wants its top tier this frame, and how close to the focus it is. */

@@ -34,7 +34,7 @@ describe('distance from the centre', () => {
     const near = [{ slot: 'a', root: node(1300, 1400) }], far = [{ slot: 'b', root: node(3800, 2900) }];
     expect(cardCandidates('gpu', near, new RectCache(), view, 1.6, 1.5)).toHaveLength(1);
     expect(cardCandidates('gpu', far, new RectCache(), view, 1.6, 1.5)).toHaveLength(0);
-    expect(cardCandidates('gpu', far, new RectCache(), view, 3, 1.5)).toHaveLength(1);
+    expect(cardCandidates('gpu', far, new RectCache(), view, 5, 1.5)).toHaveLength(1);
   });
 });
 
