@@ -1,7 +1,10 @@
 // Which traces carry what. Pure geometry and tables: the role of every bus of the board, and the chains of hops a message takes (a SATA read goes
 // port -> chipset -> CPU), each hop naming the lanes it runs on. `live.ts` decides when a message happens; this decides where it goes.
 
-import { GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE } from '../../sim/isa/memmap';
+import {
+  DISPLAY_BASE, DISPLAY_SIZE, GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
+  STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE, TPM_SIZE,
+} from '../../sim/isa/memmap';
 import type { Bus, BusKind, Lane } from './routes';
 
 /**
@@ -15,8 +18,8 @@ export const BUS_ROLE: Record<BusKind, BusRole> = {
   mem: 'data', nvme: 'data', dmi: 'data', pcie: 'data', sata: 'data', usb: 'data', video: 'data',
   lan: 'data', phyl: 'data',
   spi: 'control', lpc: 'control', hdr: 'control', svid: 'control', pwmc: 'control', dbg: 'control', fanc: 'control',
-  pwr12: 'power', pwrcpu: 'power', vcore: 'power', vdimm: 'power',
-  dp: 'dark', audio: 'dark', hda: 'dark', rtc: 'dark', clk: 'dark', rgb: 'dark', pwrpcie: 'dark',
+  pwr12: 'power', pwrcpu: 'power', vcore: 'power', vdimm: 'power', pwrpcie: 'power',
+  dp: 'dark', audio: 'dark', hda: 'dark', rtc: 'dark', clk: 'dark', rgb: 'dark',
 };
 
 /** Buses that carry messages. */
@@ -95,16 +98,31 @@ export const POST_CODE_CHAIN: Hop[] = [{ bus: 'dmi', dir: 1 }, { bus: 'dbg', dir
 export const VIDEO_CHAIN: Hop[] = [{ bus: 'video', dir: 1 }];
 
 /** The part a bus address belongs to (everything but RAM is memory-mapped, and the CPU moves every word itself: there is no DMA). */
-export type DeviceHit = { kind: 'drive' | 'card'; slot: string } | { kind: 'key' };
+export type DeviceHit = { kind: 'drive'; slot: string } | { kind: 'card'; slot: string } | { kind: 'key' } | { kind: 'tpm' } | { kind: 'display' } | { kind: 'chipset' };
 
-/** The device whose window holds `addr`: a drive's registers and block buffer, a card's registers and memory, the plugged key's program and result words; null for RAM and the rest. */
+/**
+ * The device whose window holds `addr`: a drive's registers and block buffer, a graphics or AI card's registers and memory (the NPU in slot k
+ * is at the slot's `pcie<k>`), the plugged key's program and result words, the TPM on its header, the text display, the chipset's own
+ * registers; null for RAM and for what lives inside the CPU (interrupt controller, timer, MPU, MMU).
+ */
 export function deviceAt(addr: number): DeviceHit | null {
   const a = addr >>> 0, within = (base: number, size: number) => a >= base && a < base + size;
   if (within(STORAGE_BASE, STORAGE_PORTS.length * STORAGE_STRIDE)) return { kind: 'drive', slot: STORAGE_PORTS[Math.floor((a - STORAGE_BASE) / STORAGE_STRIDE)]! };
   if (within(GPU_BASE, GPU_PORTS.length * GPU_STRIDE)) return { kind: 'card', slot: GPU_PORTS[Math.floor((a - GPU_BASE) / GPU_STRIDE)]! };
+  if (within(NPU_BASE, NPU_PORTS.length * NPU_STRIDE)) return { kind: 'card', slot: 'pcie' + Math.floor((a - NPU_BASE) / NPU_STRIDE) };
   if (within(PCH_BASE + PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE) || within(PCH_BASE + PCH_RESULT_WINDOW, PCH_RESULT_WORDS * 4)) return { kind: 'key' };
+  if (within(PCH_BASE, PCH_KEY_WINDOW)) return { kind: 'chipset' };
+  if (within(TPM_BASE, TPM_SIZE)) return { kind: 'tpm' };
+  if (within(DISPLAY_BASE, DISPLAY_SIZE)) return { kind: 'display' };
   return null;
 }
+
+/** The CPU reads or writes one of the chipset's registers (the boot phase, the key's id...): over DMI. */
+export const chipsetChain = (write: boolean): Hop[] => [{ bus: 'dmi', dir: write ? 1 : -1 }];
+/** The TPM stands on a pin header off the I/O controller's trunk, which is on the chipset's LPC lanes: DMI, LPC, the header trunk. */
+export const tpmChain = (write: boolean): Hop[] => write
+  ? [{ bus: 'dmi', dir: 1 }, { bus: 'lpc', dir: -1 }, { bus: 'hdr', dir: 1 }]
+  : [{ bus: 'hdr', dir: -1 }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
 
 /** The slot number of a drive or card slot id, or -1. */
 export const slotIndex = (slot: string): number => { const m = /(\d+)$/.exec(slot); return m ? Number(m[1]) : -1; };

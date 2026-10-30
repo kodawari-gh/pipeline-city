@@ -15,7 +15,7 @@ import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHo
 import { FrameView, ScreenView } from './room/screenview';
 import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import { BusFlow, slice } from './board/busflow';
-import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, deviceAt, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
+import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -80,6 +80,8 @@ export class Live {
   /** The slots with a part in them and whether a real key is in the USB port, for the CPU's accesses to device windows (`touchDevice`). */
   private installed = new Set<string>();
   private keyIn = false;
+  /** The video cable's PC end is on the board's HDMI port (not on a card). */
+  private boardVideo = true;
   /** Game time until which a message is on a path that crosses the chipset (it glows for that long). */
   private pchUntil = -1e9;
   /** What the last snapshot showed, to tell a change from a state: power, the CPU's clock and throttle, the boot progress. */
@@ -502,6 +504,12 @@ export class Live {
     if (!hit) return;
     const now = this.gt, write = kind === 'store';
     if (hit.kind === 'key') { if (this.keyIn) this.fire('dev:key', { hops: keyChain(write) }, now, MIN_GAP); return; }
+    if (hit.kind === 'chipset') { this.fire('dev:pch', { hops: chipsetChain(write) }, now, MIN_GAP); return; }
+    if (hit.kind === 'tpm') { if (this.installed.has('tpm')) this.fire('dev:tpm', { hops: tpmChain(write) }, now, MIN_GAP); return; }
+    if (hit.kind === 'display') { // text for the screen leaves the CPU's video lanes for the HDMI port (not when the cable is on a card: the card's picture comes from the card)
+      if (this.monitorLive && this.boardVideo) this.fire('video', { hops: VIDEO_CHAIN, cable: true }, now, 250);
+      return;
+    }
     if (!this.installed.has(hit.slot)) return; // (nothing there to answer)
     this.fire('dev:' + hit.slot, hit.kind === 'drive' ? this.driveMsg(hit.slot, write) : { hops: slotChain(hit.slot, write) }, now, MIN_GAP);
   }
@@ -546,6 +554,7 @@ export class Live {
     }
     this.installed = new Set([...s.devices.map((d) => d.slot), ...(s.storage ?? []).map((d) => d.slot)]);
     this.keyIn = !!s.plugged;
+    this.boardVideo = (s.videoPort ?? 'board') === 'board';
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;
     // Every message goes where the copper goes (board/busmap.ts): the key's data over the hub's uplink and its port only, a SATA drive over its
     // port and DMI, an M.2 straight to the CPU, a card over its slot (and DMI when the slot is the chipset's), the BIOS over SPI and DMI.
@@ -620,12 +629,13 @@ export class Live {
     const level = (w: number) => (flow && s.power.budgetW > 0 ? clamp(Math.sqrt(w / s.power.budgetW) * 1.15) : 0);
     const cpuW = cpu?.powerW ?? 0;
     const ramW = s.devices.filter((d) => d.kind === 'ram').reduce((a, d) => a + d.powerW, 0);
+    const cardW = s.devices.filter((d) => /^pcie\d+$/.test(d.slot)).reduce((a, d) => a + d.powerW, 0); // what the cards in the slots draw, through the 6-pin
     const lv: Partial<Record<BusKind, number>> = {
-      pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), vdimm: level(ramW + 0.5),
+      pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), vdimm: level(ramW + 0.5), pwrpcie: level(cardW),
     };
     for (const [id, v] of Object.entries(lv) as [BusKind, number][]) { const l = this.lit.get(id); if (l) l.hold = v; }
     for (const lc of this.cables) {
-      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : 0;
+      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : level(cardW);
       if (!this.connected.has(lc.cable.kind)) lc.target = 0;
     }
 

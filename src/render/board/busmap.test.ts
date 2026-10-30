@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE } from '../../sim/isa/memmap';
+import {
+  DISPLAY_BASE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, MMU_BASE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE,
+} from '../../sim/isa/memmap';
 import { TIER_GEO } from './boardlayout';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
-  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, deviceAt, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, chipsetChain, deviceAt, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
   type Hop,
 } from './busmap';
 
@@ -25,7 +27,12 @@ describe('deviceAt', () => {
     GPU_PORTS.forEach((slot, k) => expect(deviceAt(GPU_BASE + k * GPU_STRIDE + 0x1_0000)).toEqual({ kind: 'card', slot })); // card memory, behind the registers
     expect(deviceAt(PCH_BASE + PCH_KEY_WINDOW + 4)).toEqual({ kind: 'key' });
     expect(deviceAt(PCH_BASE + PCH_RESULT_WINDOW)).toEqual({ kind: 'key' });
-    expect(deviceAt(PCH_BASE + 0x28)).toBeNull(); // the chipset's registers
+    NPU_PORTS.forEach((_, k) => expect(deviceAt(NPU_BASE + k * NPU_STRIDE + 8)).toEqual({ kind: 'card', slot: 'pcie' + k }));
+    expect(deviceAt(PCH_BASE + 0x28)).toEqual({ kind: 'chipset' }); // the chipset's registers
+    expect(deviceAt(TPM_BASE + 4)).toEqual({ kind: 'tpm' });
+    expect(deviceAt(DISPLAY_BASE + 70)).toEqual({ kind: 'display' });
+    expect(deviceAt(INTC_BASE)).toBeNull(); // inside the CPU: no trace
+    expect(deviceAt(MMU_BASE)).toBeNull();
     expect(deviceAt(0x1000)).toBeNull();
     expect(deviceAt(0xc100)).toBeNull();
   });
@@ -104,6 +111,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     expect(near(first(lane('svid')), g.pwm)).toBe(true);
     expect(near(last(lane('svid')), PKG, 120)).toBe(true);
     expect(near(first(lane('pwmc')), g.pwm)).toBe(true); // the first pwmc is the CPU's regulator
+    expect(resolve(map, tpmChain(true)).map((l) => l.bus)).toEqual(['dmi', 'lpc', 'hdr']);
+    expect(resolve(map, chipsetChain(false)).map((l) => l.bus)).toEqual(['dmi']);
+    expect(BUS_ROLE.pwrpcie).toBe('power');
     expect(resolve(map, COOLER_CHAIN).map((l) => l.bus)).toEqual(['fanc']);
     expect(near(first(lane('fanc')), g.hub)).toBe(true); // the first fan lead is the CPU_FAN header's, from the I/O hub
     expect(resolve(map, POST_CODE_CHAIN).map((l) => l.bus)).toEqual(g.dbg ? ['dmi', 'dbg'] : ['dmi']);
