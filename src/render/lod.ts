@@ -84,6 +84,12 @@ export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
   return { onScreen, focus: onScreen ? 1 - smooth(0.2, 1.1, d) : 0 };
 }
 
+/** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.6 of the zoom, so its names and counters start later than at the centre. */
+export const FAR_ZOOM = 0.6;
+
+/** The zoom a device is drawn at: the camera zoom, less the further it is from the centre of the view (`focus` 1 keeps all of it). */
+export const focusZoom = (zoom: number, focus: number): number => zoom * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
+
 /** A device that wants its top tier this frame, and how close to the focus it is. */
 export interface Candidate { id: string; focus: number }
 

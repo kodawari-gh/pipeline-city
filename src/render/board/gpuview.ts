@@ -209,7 +209,7 @@ export class GpuView {
     this.now += (paused ? wdt : dt) * 1000;
     const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
     for (const c of this.cards) {
-      const on = this.rects.place(c, c.root, lod?.view).onScreen;
+      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen;
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view
       const target = c.snap ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) : 0;
@@ -231,7 +231,7 @@ export class GpuView {
       c.inner.visible = fade > 0.02;
       if (!c.inner.visible || !on) { c.lens.hide(); continue; }
       // names and counters fade in over a short band (no pop); a redraw is only asked for when one starts to show
-      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z);
+      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z, pl.focus);
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.names.alpha = c.linkText.alpha = c.texts.alpha = ta;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;

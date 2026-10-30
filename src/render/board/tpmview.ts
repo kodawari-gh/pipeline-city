@@ -131,13 +131,13 @@ export class TpmView {
       m.player.advance(step);
       const show = m.player.show(this.now);
       this.lockBadge(T, m, show);
-      const on = this.rects.place(m, m.root, lod?.view).onScreen;
+      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen;
       m.root.visible = on;
       m.badge.alpha = m.cover.alpha = 1 - fade;
       m.die.alpha = fade;
       m.die.visible = fade > 0.02;
       if (!m.die.visible || !on) continue;
-      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `tpm:${m.slot}`, TEXT_Z, DETAIL_Z);
+      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `tpm:${m.slot}`, TEXT_Z, DETAIL_Z, pl.focus);
       m.names.visible = m.texts.visible = showText;
       m.names.alpha = m.texts.alpha = ta;
       m.subs.visible = showDetail;

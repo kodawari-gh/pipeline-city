@@ -18,6 +18,20 @@ describe('cardCandidates', () => {
   });
 });
 
+describe('distance from the centre', () => {
+  const lod = { view, top: new Set(['gpu:a']) };
+  it('a card at the edge shows its names later than one at the centre', () => {
+    // zoom 0.35 sits above the text zoom 0.3 at the centre, but the edge sees it at 0.6 of that (0.21)
+    expect(cardText(0.35, lod, 'gpu:a', 0.3, 0.6, 1).showText).toBe(true);
+    expect(cardText(0.35, lod, 'gpu:a', 0.3, 0.6, 0).showText).toBe(false);
+  });
+  it('a far card is not a candidate for counters where a central one is', () => {
+    const near = [{ slot: 'a', root: node(450, 450) }], far = [{ slot: 'b', root: node(880, 880) }];
+    expect(cardCandidates('gpu', near, new RectCache(), view, 0.65, 0.6)).toHaveLength(1);
+    expect(cardCandidates('gpu', far, new RectCache(), view, 0.65, 0.6)).toHaveLength(0);
+  });
+});
+
 describe('cardText', () => {
   const lod = (ids: string[]) => ({ view, top: new Set(ids) });
   it('shows the counters without a budget', () => {

@@ -20,6 +20,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | `DEVICE_LOD` | the one table of zoom bands: die, cooler, gpu, npu, tpm, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
 | `smooth`, `bandAlpha`, `onBand` | one smoothstep; a layer that turns on at `z0` fades in over `z0` to `z0 * 1.15` (`TEXT_BAND`) and is hidden below `SHOWN` (0.01) alpha |
 | `deviceLod(rect, view)` | where a device is: `onScreen` (view plus 10 % margin) and `focus` (1 at the view centre, falling to 0) |
+| `focusZoom(zoom, focus)` | the zoom a device is read at: `zoom * (0.6 + 0.4 * focus)`, so the further from the view centre, the later its names and counters start (cards: `cardText` / `cardCandidates` in `board/lodcard.ts`). The cover/die fade is not shifted, only the text and counter layers. The die, RAM and PCH do not use it yet |
 | `TierBudget` | at most 2 devices show their counters at once (cards: GPU, NPU, TPM), the ones nearest the centre; a holder keeps its slot unless a challenger leads by 0.15. Drops are immediate |
 | `ZoomSwitch` | a bake switch with a dead band (8 %): `on` below the threshold, plus a `warm` ring (15 % above it) |
 
