@@ -87,7 +87,7 @@ For fourteen configurations (every architecture, with and without the optional p
 A die is drawn like the board's parts, not as a diagram: macro blocks with coloured rim lines and a faint tinted fill; cells as dense arrays; names small in capitals; traces as bundles of thin parallel lines (3.2 apart) ending in solder pads, dashed for the links that carry an event (flush, forward, wakeup, interrupt); bond pads along the die border. The accent of a block is by kind (`KIND_COLOR`: data cyan, memory amber, control magenta, registers green, multiply and reorder violet), of a link by kind (`LINK_COLOR`).
 
 - `cpuArt` (devices.ts, baked with the device, also used by the shop thumbnails) draws the package, the die and `dieFar`: stage frames, blocks, bond pads. That is all the far view shows.
-- `DieView` (dieview.ts) draws `dieNear` on top, faded in by zoom: wires from about zoom 0.7, cell arrays from 0.8, the second line of a block from 1.2; names fade by their own size on screen (`label()`); the camera's maximum zoom is 6.
+- `DieView` (dieview.ts) draws `dieNear` on top, faded in by zoom, each layer over a short band (`DEVICE_LOD.die` in `lod.ts`, see render/lod.md): wires from 0.25, cell arrays and symbols from 0.3, names from 0.8, the second line of a block from 1.2; names fade by their own size on screen (`label()`); the camera's maximum zoom is 6.
 - A **tall, narrow block** (a queue, a latch) carries its name rotated in a 22-wide strip on its left; its cells sit beside it (`isTall`, `cellRects`).
 
 ## Live state (built)

@@ -28,7 +28,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/re
 
 ## Level of detail: interior and exterior (far zoom)
 
-The camera scale drives one clean LOD, in multiples of the **fit zoom** (`fits.z`, the zoom of the default overview). Constants are `LOD` in `board.ts` (exported, also `window.__board.LOD` in dev):
+The camera scale drives one clean LOD, in multiples of the **fit zoom** (`fits.z`, the zoom of the default overview). Constants are `LOD` in `board.ts` (exported, also `window.__board.LOD` in dev). The zoom it reads is the smoothed one of `LodClock` (render/lod.md), not the raw camera zoom, and the bakes below it switch with a dead band:
 
 | Zoom (x fit) | What shows |
 |---|---|
