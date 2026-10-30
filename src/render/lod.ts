@@ -145,8 +145,8 @@ export class ZoomSwitch {
   }
 }
 
-/** Zoom where the replay starts to slow (the names of the base ladder are readable), and where it is slowest (the camera's closest). */
-export const SLOW_FROM = BASE_LOD.text, SLOW_TO = 6;
+/** Zoom where the replay starts to slow (the die starts to read as a machine, well before the names), and where it is slowest (the camera's closest). */
+export const SLOW_FROM = 0.3, SLOW_TO = 6;
 /** The slowest the replay crawls, in seconds per cycle, at the closest zoom. */
 export const DEEP_CYCLE_S = 0.5;
 

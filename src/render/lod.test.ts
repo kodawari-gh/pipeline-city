@@ -101,7 +101,7 @@ describe('the shared ladder', () => {
 
 describe('zoomSlow', () => {
   it('runs at full pace when zoomed out and crawls to 0.5 s per cycle at the closest zoom', () => {
-    expect(zoomSlow(0.2, 4.5)).toBe(1);
+    expect(zoomSlow(0.25, 4.5)).toBe(1);
     expect(zoomSlow(6, 4.5)).toBeCloseTo(2 / 4.5);
   });
   it('slows steadily as the camera comes in', () => {
