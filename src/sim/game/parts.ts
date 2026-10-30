@@ -4,7 +4,7 @@
 import {
   boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
-  findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts,
+  findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts, slotFitsWidth, slotRefusal,
   specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
   type Board, type CableId, type DeviceKind, type DisplaySpec, type InstalledDevice,
 } from "../board";
@@ -359,14 +359,15 @@ export function placeInto(this: Game, board: Board, specId: string, slotId?: str
   if (slot !== undefined) {
     const info = boardSlots(board).find((s) => s.id === slot);
     if (!info) return { ok: false, reason: `board has no slot "${slot}"` };
-    if (!slotAccepts(info.type, spec.slot)) return { ok: false, reason: `${spec.name} needs a ${spec.slot} slot, "${slot}" is ${info.type}` };
+    const refusal = slotRefusal(info, spec);
+    if (refusal) return { ok: false, reason: refusal };
     occupant = board.devices.find((d) => d.slot === slot);
     if (occupant && deviceSpec(occupant).kind !== spec.kind) return { ok: false, reason: `slot "${slot}" is occupied by ${deviceSpec(occupant).name}` };
   } else {
-    slot = freeSlots(board, spec.slot)[0]?.id;
+    slot = freeSlots(board, spec.slot, spec)[0]?.id;
     if (slot === undefined) {
       const slots = boardSlots(board);
-      occupant = findDevices(board, spec.kind).find((d) => slotAccepts(slots.find((s) => s.id === d.slot)!.type, spec.slot));
+      occupant = findDevices(board, spec.kind).find((d) => slotRefusal(slots.find((s) => s.id === d.slot)!, spec) === null);
       if (!occupant) return boardInstall(board, specId); // fails with the board's own reason
       slot = occupant.slot;
     }
@@ -449,6 +450,7 @@ export function inventorySnap(this: Game): InventorySnap[] {
     let why: string | undefined;
     for (const s of boardSlots(this.board)) {
       if (!slotAccepts(s.type, spec.slot)) continue;
+      if (!slotFitsWidth(s, spec)) { why ??= slotRefusal(s, spec)!; continue; }
       const occ = this.board.devices.find((d) => d.slot === s.id);
       if (occ && deviceSpec(occ).kind !== spec.kind) continue;
       const r = this.placeInto(boardFromJson(boardToJson(this.board)), it.spec, s.id);

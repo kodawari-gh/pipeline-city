@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { Machine, Prng } from "../machine";
 import {
-  applyEngine, applyRates, boardFromJson, boardToJson, createBoard, engineConfigFor, install, installedPsu,
+  applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, createBoard, engineConfigFor, install, installedPsu,
   machineConfigFor, setClock, ThermalModel, uninstall, upgradeBoard, type Board,
 } from "./index";
 import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, type DeviceSpec } from "./specs";
@@ -371,5 +371,53 @@ describe("accelerator slots", () => {
     ok(install(b, "nic1"));
     ok(install(b, "npuSlot"));
     expect(install(b, "npuSlot").ok).toBe(false);
+  });
+});
+
+describe("PCIe slot widths", () => {
+  const placed = (b: Board, spec: string): string => { const r = install(b, spec); if (!r.ok) throw new Error(r.reason); return r.slot; };
+  const widths = (b: Board) => boardSlots(b).filter((s) => s.type === "pcie").map((s) => s.width);
+  it("each tier lists a width per pcie slot, widest first", () => {
+    for (const t of BOARD_TIERS) {
+      expect(t.pcieWidths.length).toBe(t.slots.pcie ?? 0);
+      expect([...t.pcieWidths].sort((a, b) => b - a)).toEqual(t.pcieWidths);
+    }
+  });
+
+  it("the 32 lane GPU only fits the top board's x32 slot", () => {
+    for (const tier of [0, 1, 2]) {
+      const r = install(createBoard(tier), "gpu3");
+      expect(r.ok).toBe(false);
+      expect((r as { reason: string }).reason).toMatch(/wide enough|needs a x32/);
+    }
+    const b = createBoard(3);
+    expect(install(b, "gpu3", "pcie1")).toMatchObject({ ok: false, reason: expect.stringContaining("x32") });
+    expect(placed(b, "gpu3")).toBe("pcie0");
+  });
+
+  it("a small card takes the narrowest free slot, leaving the wide one for a GPU", () => {
+    const b = createBoard(3);
+    expect(placed(b, "nic1")).toBe("pcie3"); // x4
+    expect(placed(b, "nic3")).toBe("pcie2"); // x8
+    expect(placed(b, "gpu2")).toBe("pcie1"); // x16 (the x32 stays free)
+    expect(widths(b)).toEqual([32, 16, 8, 4]);
+  });
+
+  it("a card is refused a slot narrower than it needs, and a wider one is fine", () => {
+    const b = createBoard(2);
+    expect(install(b, "gpu2", "pcie2").ok).toBe(false); // x4
+    expect(install(b, "nic1", "pcie0").ok).toBe(true); // x4 card in the x16 slot
+  });
+
+  it("upgradeBoard moves the wide card first and refuses a board without a wide enough slot", () => {
+    const b = createBoard(3);
+    ok(install(b, "nic1", "pcie0"));
+    ok(install(b, "gpu2", "pcie1"));
+    ok(upgradeBoard(b, 2));
+    expect(b.devices.find((d) => d.spec === "gpu2")!.slot).toBe("pcie0");
+    const c = createBoard(3);
+    ok(install(c, "gpu3"));
+    const r = upgradeBoard(c, 2);
+    expect(r.ok).toBe(false);
   });
 });

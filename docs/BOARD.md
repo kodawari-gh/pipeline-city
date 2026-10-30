@@ -22,7 +22,8 @@ Slot types: `cpu dimm pcie sata m2 usb cooler display atx atx-plus vrm-sink ram-
 
 `Board = {tier, nextId, devices: InstalledDevice[], burnt?}` (`burnt`: the VRM burnt out, the board is dead), `InstalledDevice = {id, spec, slot, clock?, burnt?}`. Plain data; slots are derived from the tier (`boardSlots`, ids like `dimm0`).
 
-- `install(board, specId, slotId?)` returns `{ok:true,id,slot}` or `{ok:false,reason}`: wrong slot type, slot used, no free slot, no such slot, or PSU limits. Auto-picks the first free slot of the right type.
+- `install(board, specId, slotId?)` returns `{ok:true,id,slot}` or `{ok:false,reason}`: wrong slot type, slot used, no free slot, no such slot, or PSU limits. Auto-picks the first free slot of the right type; for a `pcie` card, the narrowest free slot it fits.
+- **PCIe widths:** each board tier lists its slots' lane widths in `BoardTierSpec.pcieWidths` (Starter x16; Basic x16, x4; Mainstream x16, x8, x4; Enthusiast x32, x16, x8, x4), and a card spec's `pcieWidth` is the narrowest slot it fits (NICs x4, x4, x8; GPUs x8, x16, x32; NPUs x4, x8). `install` / `placeInto` refuse a narrower slot (`slotRefusal`), `upgradeBoard` moves the widest cards first, and `boardFromJson` does not check widths so an older save keeps its cards. The board art's slot rails are as long as their width.
 - PSU rule: a PSU needs a matching connector and `watts >= rated load` (sum of `loadW` at base clocks of all non-PSU parts). With a PSU present, a new part is refused if rated load would exceed it. Overclocking can still exceed the budget at run time (brownout below).
 - `uninstall`, `setClock(board, id, clock)` (range checked), `boardToJson` / `boardFromJson` (validates; throws on bad saves).
 

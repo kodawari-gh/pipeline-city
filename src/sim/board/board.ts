@@ -25,7 +25,8 @@ export interface Board {
   burnt?: boolean;
 }
 
-export interface SlotInfo { id: string; type: SlotType }
+/** `width`: a `pcie` slot's lanes. */
+export interface SlotInfo { id: string; type: SlotType; width?: number }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; reason: string };
 
@@ -65,7 +66,7 @@ export function boardSlots(board: Board): SlotInfo[] {
   if (!t) return [];
   const out: SlotInfo[] = [];
   for (const [type, n] of Object.entries(t.slots) as [SlotType, number][]) {
-    for (let k = 0; k < n; k++) out.push({ id: `${type}${k}`, type });
+    for (let k = 0; k < n; k++) out.push(type === "pcie" ? { id: `${type}${k}`, type, width: t.pcieWidths[k] } : { id: `${type}${k}`, type });
   }
   // A radiator bolts onto one side of the case (front or top) and spans every fan mount of that side, taking their fans.
   for (const side of RADIATOR_SIDES) if (sideMounts(board.caseTier, side).length > 0) out.push({ id: radiatorSlot(side), type: "radiator" });
@@ -113,9 +114,21 @@ export function findDevices(board: Board, kind: DeviceSpec["kind"]): InstalledDe
   return board.devices.filter((d) => deviceSpec(d).kind === kind);
 }
 
-export function freeSlots(board: Board, type: SlotType): SlotInfo[] {
+/** Is a card of `spec` narrow enough for the slot? (Always, for a slot without a width.) */
+export const slotFitsWidth = (slot: SlotInfo, spec: DeviceSpec): boolean => slot.width === undefined || (spec.pcieWidth ?? 1) <= slot.width;
+
+/** Why `spec` does not go into `slot`, or null if it does. */
+export function slotRefusal(slot: SlotInfo, spec: DeviceSpec): string | null {
+  if (!slotAccepts(slot.type, spec.slot)) return `${spec.name} needs a ${spec.slot} slot, "${slot.id}" is ${slot.type}`;
+  if (!slotFitsWidth(slot, spec)) return `${spec.name} needs a x${spec.pcieWidth} slot, "${slot.id}" is only x${slot.width}`;
+  return null;
+}
+
+/** Free slots of `type`; with `spec`, only those it fits, the narrowest first (a small card does not take the big slot a GPU needs). */
+export function freeSlots(board: Board, type: SlotType, spec?: DeviceSpec): SlotInfo[] {
   const used = new Set(board.devices.map((d) => d.slot));
-  return boardSlots(board).filter((s) => slotAccepts(s.type, type) && !used.has(s.id));
+  const free = boardSlots(board).filter((s) => slotAccepts(s.type, type) && !used.has(s.id) && (!spec || slotFitsWidth(s, spec)));
+  return spec ? free.sort((a, b) => (a.width ?? 0) - (b.width ?? 0)) : free;
 }
 
 /** Rated load (W, at base clocks) of everything except the PSU. */
@@ -149,15 +162,19 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
   if (slotId !== undefined) {
     slot = boardSlots(board).find((s) => s.id === slotId);
     if (!slot) return { ok: false, reason: `board has no slot "${slotId}"` };
-    if (!slotAccepts(slot.type, spec.slot)) return { ok: false, reason: `${spec.name} needs a ${spec.slot} slot, "${slotId}" is ${slot.type}` };
+    const refusal = slotRefusal(slot, spec);
+    if (refusal) return { ok: false, reason: refusal };
     if (board.devices.some((d) => d.slot === slotId)) return { ok: false, reason: `slot "${slotId}" is already used` };
   } else {
-    slot = freeSlots(board, spec.slot)[0];
+    slot = freeSlots(board, spec.slot, spec)[0];
     if (!slot) {
-      const total = boardSlots(board).filter((s) => slotAccepts(s.type, spec.slot)).length;
+      const all = boardSlots(board).filter((s) => slotAccepts(s.type, spec.slot)), total = all.length;
+      const wide = all.filter((s) => slotFitsWidth(s, spec)).length;
       return {
         ok: false,
-        reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}` : `no free ${spec.slot} slot for ${spec.name} (${total} of ${total} used)`,
+        reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}`
+          : wide === 0 ? `no ${spec.slot} slot on this board is wide enough for ${spec.name} (needs x${spec.pcieWidth}, the widest is x${Math.max(...all.map((s) => s.width ?? 0))})`
+          : `no free ${spec.slot} slot for ${spec.name} (${wide} of ${wide} used)`,
       };
     }
   }
@@ -200,16 +217,19 @@ export function upgradeBoard(board: Board, tier: number): Result<object> {
   const slots = boardSlots(next);
   const used = new Set<string>();
   const place = (d: InstalledDevice): string | undefined => {
-    const need = deviceSpec(d).slot;
-    const same = slots.find((s) => s.id === d.slot && slotAccepts(s.type, need) && !used.has(s.id));
-    return (same ?? slots.find((s) => slotAccepts(s.type, need) && !used.has(s.id)))?.id;
+    const spec = deviceSpec(d), need = spec.slot, fits = (s: SlotInfo) => slotAccepts(s.type, need) && slotFitsWidth(s, spec) && !used.has(s.id);
+    const same = slots.find((s) => s.id === d.slot && fits(s));
+    return (same ?? slots.filter(fits).sort((a, b) => (a.width ?? 0) - (b.width ?? 0))[0])?.id;
   };
-  for (const d of board.devices) {
+  // (the widest cards choose first, so a narrow one does not leave them without a slot)
+  const moved = new Map<string, string>();
+  for (const d of [...board.devices].sort((a, b) => (deviceSpec(b).pcieWidth ?? 0) - (deviceSpec(a).pcieWidth ?? 0))) {
     const slot = place(d);
     if (!slot) return { ok: false, reason: `the ${BOARD_TIERS[tier]!.name} board has no slot for ${deviceSpec(d).name}: take it out first` };
     used.add(slot);
-    next.devices.push({ ...d, slot });
+    moved.set(d.id, slot);
   }
+  for (const d of board.devices) next.devices.push({ ...d, slot: moved.get(d.id)! });
   board.tier = next.tier;
   board.devices = next.devices;
   delete board.burnt; // the dead board is gone

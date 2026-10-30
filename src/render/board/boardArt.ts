@@ -177,7 +177,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   geo.dimm.forEach((d, i) => dimmSocket(c, d.rect, d.flip, i));
 
   // ---- PCIe slots ----
-  geo.pcie.forEach((r, i) => pcieSlot(c, r, ['PCIe x16 · GPU', 'PCIe x8', 'PCIe x4', 'PCIe x1'][i]!, skin.armor > 0, i === 0));
+  geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, skin.armor > 0, i === 0));
   // every other slot's supply ties into the board's plane: a tab at its latch end, a stub to a patch of copper stitched with vias
   geo.pcie.forEach((r, i) => {
     if (i === 0 && geo.pciew) return;

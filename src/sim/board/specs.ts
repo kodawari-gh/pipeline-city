@@ -36,6 +36,8 @@ interface SpecBase {
   name: string;
   /** Slot (or, for a PSU, connector) type it needs. */
   slot: SlotType;
+  /** `pcie` cards only: the narrowest slot (lanes) it fits. Absent = any (x1). */
+  pcieWidth?: number;
   price: number;
   /** Power draw in W at the base clock with no load / full load. Scales with clock, see thermal.ts. */
   idleW: number;
@@ -318,28 +320,28 @@ const specList: DeviceSpec[] = [
     clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
     capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14 },
 
-  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
+  { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", pcieWidth: 4, price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "nic-gbe", mbps: 1000 },
-  { id: "nic2", kind: "nic", tier: 2, name: "10GbE card", slot: "pcie", price: 500, idleW: 5, loadW: 11, heatFactor: 1,
+  { id: "nic2", kind: "nic", tier: 2, name: "10GbE card", slot: "pcie", pcieWidth: 4, price: 500, idleW: 5, loadW: 11, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 65, unstableC: 80, damageC: 95 }, visual: "nic-10g", mbps: 10000 },
-  { id: "nic3", kind: "nic", tier: 3, name: "40GbE card", slot: "pcie", price: 1800, idleW: 9, loadW: 22, heatFactor: 1,
+  { id: "nic3", kind: "nic", tier: 3, name: "40GbE card", slot: "pcie", pcieWidth: 8, price: 1800, idleW: 9, loadW: 22, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 60, unstableC: 75, damageC: 90 }, visual: "nic-40g", mbps: 40000 },
 
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
-  { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
+  { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", pcieWidth: 8, price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
     needsPcieCable: true, gpu: { lanes: 8, memBytes: 16 * 1024, banks: 1 } },
   // Later tiers (docs/ACCEL.md tables): more lanes, memory and banks, a faster clock. gpu3 needs both PCIe leads of a big PSU.
-  { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
+  { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", pcieWidth: 16, price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
     clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
     needsPcieCable: true, gpu: { lanes: 16, memBytes: 32 * 1024, banks: 2 } },
-  { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
+  { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", pcieWidth: 32, price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
     clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
     needsPcieCable: true, pcieLeads: 2, gpu: { lanes: 32, memBytes: 64 * 1024, banks: 4 } },
-  { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
+  { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", pcieWidth: 4, price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1", needsPcieCable: false,
     npu: { grid: 4, memBytes: 8 * 1024 } },
-  { id: "npu2", kind: "npu", tier: 2, name: "NPU 8x8", slot: "pcie", price: 10000, idleW: 5, loadW: 45, heatFactor: 1,
+  { id: "npu2", kind: "npu", tier: 2, name: "NPU 8x8", slot: "pcie", pcieWidth: 8, price: 10000, idleW: 5, loadW: 45, heatFactor: 1,
     clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 1.2, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-2", needsPcieCable: true,
     npu: { grid: 8, memBytes: 32 * 1024 } },
   { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,
@@ -399,6 +401,8 @@ export interface BoardTierSpec {
   /** Price to buy it (also the price of a replacement of the same tier when the board is burnt). */
   price: number;
   slots: Partial<Record<SlotType, number>>;
+  /** Lane width of each `pcie` slot, in slot order (`pcie0`, `pcie1`, ...): a card fits a slot at least as wide as its `pcieWidth`. */
+  pcieWidths: number[];
   features: BoardFeatures;
   /** The CPU core regulator. */
   vrm: VrmSpec;
@@ -446,21 +450,25 @@ const vrmTemps = { throttleC: 90, unstableC: 105, damageC: 120 };
 
 export const BOARD_TIERS: readonly BoardTierSpec[] = [
   { tier: 0, name: "Starter", price: 40, visual: "board-starter",
+    pcieWidths: [16],
     slots: { cpu: 1, dimm: 1, pcie: 1, sata: 2, usb: 1, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 },
     vrm: { phases: 2, ampsPerPhase: 12, peakEfficiency: 0.8, ripple: 0.6, mass: 20, passive: 0.15, ...vrmTemps },
     ramVrm: { phases: 2, ampsPerPhase: 6, peakEfficiency: 0.78, ripple: 0.6, mass: 15, passive: 0.15, ...vrmTemps } },
   { tier: 1, name: "Basic", price: 150, visual: "board-basic",
+    pcieWidths: [16, 4],
     slots: { cpu: 1, dimm: 2, pcie: 2, sata: 3, usb: 2, atx: 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 100, usbPorts: 2, displayPorts: 1 },
     vrm: { phases: 3, ampsPerPhase: 12, peakEfficiency: 0.84, ripple: 0.45, mass: 30, passive: 0.2, ...vrmTemps },
     ramVrm: { phases: 2, ampsPerPhase: 8, peakEfficiency: 0.82, ripple: 0.45, mass: 22, passive: 0.2, ...vrmTemps } },
   { tier: 2, name: "Mainstream", price: 300, visual: "board-mainstream",
+    pcieWidths: [16, 8, 4],
     slots: { cpu: 1, dimm: 4, pcie: 3, sata: 4, m2: 2, usb: 3, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 100, usbPorts: 3, displayPorts: 2 },
     vrm: { phases: 4, ampsPerPhase: 15, peakEfficiency: 0.88, ripple: 0.25, mass: 45, passive: 0.3, ...vrmTemps },
     ramVrm: { phases: 3, ampsPerPhase: 10, peakEfficiency: 0.86, ripple: 0.25, mass: 32, passive: 0.3, ...vrmTemps } },
   { tier: 3, name: "Enthusiast", price: 700, visual: "board-enthusiast",
+    pcieWidths: [32, 16, 8, 4],
     slots: { cpu: 1, dimm: 8, pcie: 4, sata: 8, m2: 3, usb: 4, tpm: 1, "atx-plus": 1, cooler: 1, display: 1, "vrm-sink": 1, "ram-sink": 1 },
     features: { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 },
     vrm: { phases: 6, ampsPerPhase: 20, peakEfficiency: 0.92, ripple: 0.1, mass: 60, passive: 0.4, ...vrmTemps },

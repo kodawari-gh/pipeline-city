@@ -1,3 +1,4 @@
+import { BOARD_TIERS } from '../../sim/board/specs';
 import type { Rect } from './layout';
 import { MEM_LANES, MEM_SPACING, legRun, legsFrom, legsOf, type IoPort } from './pins';
 
@@ -115,9 +116,13 @@ const SPECS: Spec[] = [
   { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
 ];
 
-/** The four PCIe slot rails (x16, x8, x4, x1), an even 360 apart: the tier uses the first ones. Lengths stop before the M.2 area. */
+/** Rail lengths going down the board, widest slot first. The lengths stop before the M.2 area; the first one ends east of the CPU's x16 lanes
+ * (they are tuned to it), so every tier's rails take these by slot order, and the lane widths (`BOARD_TIERS[].pcieWidths`, which only ever
+ * fall going down) are told by the label. */
+const PCIE_RAIL_LEN = [3300, 2600, 1800, 1000];
+/** The PCIe slot rails of a tier, an even 360 apart. */
 const PCIE_Y0 = 1030, PCIE_PITCH = 360;
-const PCIE_ALL: Rect[] = [3300, 2600, 1800, 1000].map((w, i) => R(-2850, PCIE_Y0 + i * PCIE_PITCH, w, 60));
+const pcieRails = (tier: number): Rect[] => BOARD_TIERS[tier]!.pcieWidths.map((_, i) => R(-2850, PCIE_Y0 + i * PCIE_PITCH, PCIE_RAIL_LEN[i]!, 60));
 
 function build(s: Spec): TierGeo {
   const bd = s.bd, east = bd.x + bd.w, south = bd.y + bd.h;
@@ -204,7 +209,7 @@ function build(s: Spec): TierGeo {
     vrmRailY: -1752,
     dvrm, dPhases, dSink, vdimmY, dRailY: dy - 70,
     dimm, memY, padY,
-    pcie: PCIE_ALL.slice(0, s.pcie),
+    pcie: pcieRails(s.tier),
     m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
     sata: sataRects.slice(0, s.sata),
     // the sticker patch: along the bottom edge, or (on the top board, whose header bus runs there) in the free corner by the rear I/O
