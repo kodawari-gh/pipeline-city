@@ -1,5 +1,7 @@
 // The floorplan engine of the CPU die (docs/DIE.md): a slicing layout that fills a rectangle edge to edge (rows and columns of blocks
-// with weights, a gutter between siblings), and a channel router that finds each wire's route through the gutters. Pure geometry.
+// with weights, a gutter between siblings), and a channel router that finds each wire's route through the gutters. Pure geometry. The tree
+// (`placeTree`) and the router (`routeWires`) are generic over the block kind and need only `{id, rect, parent?}`, so the GPU card plan
+// (render/gpu) uses them too; `place` and `routeLinks` are the CPU die's instances.
 
 import { gridExact, type Block, type BlockKind, type Link, type LinkKind, type Pt, type Rect } from './cpuplan';
 import { dockLink } from './glyphgeom';
@@ -7,9 +9,12 @@ import { dockLink } from './glyphgeom';
 /** The gutter between sibling blocks: the wires run in it. */
 export const GAP = 14;
 
-export interface Spec {
+/** What the router needs of a block: where it is and which frame (a container, never an obstacle) holds it. */
+export interface Boxed { id: string; rect: Rect; parent?: string }
+
+export interface Spec<K extends string = BlockKind> {
   id: string;
-  kind: BlockKind;
+  kind: K;
   label: string;
   sub?: string;
   /** Show this many cells (registers, entries, lines), laid out as an exact grid. */
@@ -23,34 +28,34 @@ export interface Spec {
   lane?: number;
   unit?: string;
 }
-export interface Leaf { spec: Spec; f?: number; px?: number }
-export interface Split {
+export interface Leaf<K extends string = BlockKind> { spec: Spec<K>; f?: number; px?: number }
+export interface Split<K extends string = BlockKind> {
   dir: 'row' | 'col';
-  kids: Node[];
+  kids: Node<K>[];
   /** Weight (default 1) or a fixed size in pixels along the parent's axis. */
   f?: number;
   px?: number;
   gap?: number;
   /** A frame (a pipeline stage's column): a block drawn behind its children, with a title strip. */
-  frame?: Spec;
+  frame?: Spec<K>;
   pad?: number;
   title?: number;
   zone?: Block['zone'];
 }
-export type Node = Leaf | Split;
+export type Node<K extends string = BlockKind> = Leaf<K> | Split<K>;
 
-const isSplit = (n: Node): n is Split => 'dir' in n;
+const isSplit = <K extends string>(n: Node<K>): n is Split<K> => 'dir' in n;
 
 type Sized = { f?: number; px?: number };
 
-export const leaf = (id: string, kind: BlockKind, label: string, o: Partial<Spec> & Sized = {}): Leaf => {
+export const leaf = <K extends string = BlockKind>(id: string, kind: K, label: string, o: Partial<Spec<K>> & Sized = {}): Leaf<K> => {
   const { f, px, ...spec } = o;
   return { spec: { id, kind, label, ...spec }, ...(f !== undefined ? { f } : {}), ...(px !== undefined ? { px } : {}) };
 };
-export const row = (kids: Node[], o: Omit<Split, 'dir' | 'kids'> = {}): Split => ({ dir: 'row', kids, ...o });
-export const col = (kids: Node[], o: Omit<Split, 'dir' | 'kids'> = {}): Split => ({ dir: 'col', kids, ...o });
+export const row = <K extends string = BlockKind>(kids: Node<K>[], o: Omit<Split<K>, 'dir' | 'kids'> = {}): Split<K> => ({ dir: 'row', kids, ...o });
+export const col = <K extends string = BlockKind>(kids: Node<K>[], o: Omit<Split<K>, 'dir' | 'kids'> = {}): Split<K> => ({ dir: 'col', kids, ...o });
 
-const sizeOf = (n: Node): Sized => ({ f: n.f, px: n.px });
+const sizeOf = (n: Node<string>): Sized => ({ f: n.f, px: n.px });
 
 /** Start and size of each child along an axis of length `total`, the gutter between them; whole pixels, the gutters exact. */
 export function spans(total: number, kids: Sized[], gap: number): [number, number][] {
@@ -80,13 +85,16 @@ function make(s: Spec, r: Rect, parent: string | undefined, zone: Block['zone'])
   return b;
 }
 
-/** Lay a tree out in `r`, pushing the blocks (a frame before its children). */
-export function place(node: Node, r: Rect, out: Block[], zone: Block['zone'] = 'core', parent?: string): void {
-  if (!isSplit(node)) { out.push(make(node.spec, r, parent, zone)); return; }
+/** Builds the block of a spec: `frame` is true for the container drawn behind a split's children. */
+export type Maker<K extends string, B> = (s: Spec<K>, r: Rect, parent: string | undefined, zone: Block['zone'], frame: boolean) => B;
+
+/** Lay a tree out in `r`, pushing the blocks (a frame before its children), each made by `mk`. */
+export function placeTree<K extends string, B>(node: Node<K>, r: Rect, out: B[], mk: Maker<K, B>, zone: Block['zone'] = 'core', parent?: string): void {
+  if (!isSplit(node)) { out.push(mk(node.spec, r, parent, zone, false)); return; }
   if (node.zone) zone = node.zone;
   let inner = r, par = parent;
   if (node.frame) {
-    out.push(make({ ...node.frame, kind: 'stage' }, r, parent, zone));
+    out.push(mk(node.frame, r, parent, zone, true));
     par = node.frame.id;
     const pad = node.pad ?? 8, title = node.title ?? 22;
     inner = { x: r.x + pad, y: r.y + title, w: r.w - 2 * pad, h: r.h - title - pad };
@@ -95,13 +103,21 @@ export function place(node: Node, r: Rect, out: Block[], zone: Block['zone'] = '
   const sp = spans(horizontal ? inner.w : inner.h, node.kids.map(sizeOf), node.gap ?? GAP);
   node.kids.forEach((k, i) => {
     const [a, s] = sp[i]!;
-    place(k, horizontal ? { x: inner.x + a, y: inner.y, w: s, h: inner.h } : { x: inner.x, y: inner.y + a, w: inner.w, h: s }, out, zone, par);
+    placeTree(k, horizontal ? { x: inner.x + a, y: inner.y, w: s, h: inner.h } : { x: inner.x, y: inner.y + a, w: inner.w, h: s }, out, mk, zone, par);
   });
+}
+
+/** The CPU die's instance: a frame is a block of kind 'stage'. */
+export function place(node: Node, r: Rect, out: Block[], zone: Block['zone'] = 'core', parent?: string): void {
+  placeTree(node, r, out, (s, rr, p, z, frame) => make(frame ? { ...s, kind: 'stage' } : s, rr, p, z), zone, parent);
 }
 
 // ---------------------------------------------------------------- the channel router
 
-export interface LinkSpec { id: string; kind: LinkKind; from: string; to: string; lanes?: 1 | 2 | 3 | 4; label?: string; both?: boolean }
+export interface WireSpec<K extends string = LinkKind> { id: string; kind: K; from: string; to: string; lanes?: 1 | 2 | 3 | 4; label?: string; both?: boolean }
+export type LinkSpec = WireSpec;
+/** A routed wire: the spec with its polyline. */
+export type Wire<K extends string = LinkKind> = Required<Pick<WireSpec<K>, 'id' | 'kind' | 'from' | 'to' | 'lanes'>> & Pick<WireSpec<K>, 'label' | 'both'> & { pts: Pt[] };
 
 const STEP = 6;       // routing grid pitch
 const CLEAR = 2;      // a wire keeps this far from every block
@@ -171,10 +187,11 @@ export function jog(ra: Rect, rb: Rect, pts: Pt[]): Pt[] {
 }
 
 /**
- * Route every link through the gutters: orthogonal, as few bends as it can, keeping clear of every block (a stage frame is a container, not
- * an obstacle), and avoiding the cells earlier links already use. The ends are on the facing edges of the two blocks.
+ * Route every wire through the gutters: orthogonal, as few bends as it can, keeping clear of every block (a frame, a block other blocks name
+ * as their parent, is a container, not an obstacle), and avoiding the cells earlier wires already use. The ends are on the facing edges of
+ * the two blocks; `dock` may run them on into the blocks' symbols. `tag` prefixes the errors.
  */
-export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock = true): Link[] {
+export function routeWires<B extends Boxed, K extends string>(die: Rect, blocks: B[], specs: WireSpec<K>[], dock?: (from: B, to: B, id: string, pts: Pt[]) => Pt[], tag = 'plan'): Wire<K>[] {
   const cols = Math.floor(die.w / STEP), rows = Math.floor(die.h / STEP);
   const cx = (i: number) => die.x + 3 + i * STEP, cy = (j: number) => die.y + 3 + j * STEP;
   const blocked = new Uint8Array(cols * rows);
@@ -183,10 +200,11 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock =
     const x = cx(i), y = cy(j);
     if (x < die.x + margin || y < die.y + margin || x > die.x + die.w - margin || y > die.y + die.h - margin) blocked[j * cols + i] = 1;
   }
-  const byId = new Map<string, Block>();
+  const byId = new Map<string, B>();
+  const frames = new Set(blocks.map((b) => b.parent).filter((p): p is string => p !== undefined));
   for (const b of blocks) {
     byId.set(b.id, b);
-    if (b.kind === 'stage') continue;
+    if (frames.has(b.id)) continue;
     const r = b.rect;
     const i0 = Math.max(0, Math.floor((r.x - CLEAR - die.x) / STEP) - 1), i1 = Math.min(cols - 1, Math.ceil((r.x + r.w + CLEAR - die.x) / STEP) + 1);
     const j0 = Math.max(0, Math.floor((r.y - CLEAR - die.y) / STEP) - 1), j1 = Math.min(rows - 1, Math.ceil((r.y + r.h + CLEAR - die.y) / STEP) + 1);
@@ -224,14 +242,14 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock =
     }
   };
 
-  const links: Link[] = [];
+  const links: Wire<K>[] = [];
   const dist = new Float64Array(cols * rows * 4);
   const prev = new Int32Array(cols * rows * 4);
   for (const spec of specs) {
     const a = byId.get(spec.from), b = byId.get(spec.to);
-    if (!a || !b) throw new Error(`cpuplan: link ${spec.id}: unknown block ${spec.from} / ${spec.to}`);
+    if (!a || !b) throw new Error(`${tag}: link ${spec.id}: unknown block ${spec.from} / ${spec.to}`);
     const src = ports(a.rect), dst = ports(b.rect);
-    if (src.length === 0 || dst.length === 0) throw new Error(`cpuplan: link ${spec.id}: no free edge on ${src.length === 0 ? spec.from : spec.to}`);
+    if (src.length === 0 || dst.length === 0) throw new Error(`${tag}: link ${spec.id}: no free edge on ${src.length === 0 ? spec.from : spec.to}`);
     const target = new Map<number, Port>();
     for (const p of dst) target.set(p.cell, p);
     const heur = (c: number): number => {
@@ -260,7 +278,7 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock =
         if (ng < dist[ns]!) { dist[ns] = ng; prev[ns] = st; heap.push(ng + heur(nc), ns); }
       }
     }
-    if (end < 0) throw new Error(`cpuplan: no route for link ${spec.id} (${spec.from} to ${spec.to})`);
+    if (end < 0) throw new Error(`${tag}: no route for link ${spec.id} (${spec.from} to ${spec.to})`);
     const states: number[] = [];
     for (let st = end; st >= 0; st = prev[st]!) states.push(st);
     states.reverse();
@@ -281,7 +299,12 @@ export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock =
       }
       out.push(p);
     }
-    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: dock ? dockLink(a, b, spec.id, jog(a.rect, b.rect, out)) : jog(a.rect, b.rect, out), lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
+    links.push({ id: spec.id, kind: spec.kind, from: spec.from, to: spec.to, pts: dock ? dock(a, b, spec.id, jog(a.rect, b.rect, out)) : jog(a.rect, b.rect, out), lanes: spec.lanes ?? 2, ...(spec.label ? { label: spec.label } : {}), ...(spec.both ? { both: true } : {}) });
   }
   return links;
+}
+
+/** The CPU die's instance: wires docked into the block symbols (`dock` false leaves them on the block edges). */
+export function routeLinks(die: Rect, blocks: Block[], specs: LinkSpec[], dock = true): Link[] {
+  return routeWires(die, blocks, specs, dock ? dockLink : undefined, 'cpuplan');
 }

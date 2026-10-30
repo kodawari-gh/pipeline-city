@@ -3,9 +3,10 @@ import { disassemble } from '../../sim/isa';
 import { Ev } from '../../sim/engines/common';
 import type { PipeSnap } from '../../sim/game/pipesnap';
 import { scrubCursor, scrubRange, scrubShown } from '../../game/scrub';
-import type { Block, CpuPlan, Pt, Rect } from './cpuplan';
-import { cellRects, isTall, dieNear, offsetPts, LANE_GAP, type DieArt } from './dieart';
-import { CYCLES_PER_SEC, opClass, packetsFor, Player, pointAt, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
+import type { Block, CpuPlan, Rect } from './cpuplan';
+import { cellRects, isTall, dieNear, type DieArt } from './dieart';
+import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
+import { CYCLES_PER_SEC, opClass, packetsFor, Player, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from '../ink';
 import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { readsOf } from './tokentext';
@@ -27,65 +28,12 @@ const TOKEN_W = CHIP_W, TOKEN_H = CHIP_H;
 const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 /** How long an instruction takes to settle into a block's symbol or a queue cell (wall ms). */
 const WIPE_MS = 320;
-/** How long a wire stays lit behind a packet (ms). */
-const TRAIL_MS = 1500;
 
 /** What the memory sticks should show: the CPU asked RAM for an address (a fetch, a load, a store), `at` is game time in ms. */
 export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number }
 
-/** A pulse running along the wires for one instruction: where it was last drawn and its short tail. */
-interface Dot { px: number; py: number; hist: Pt[]; lastHost: string; env: number }
-
 /** The scale a chip has in a block: it fits inside it. */
 const fitOf = (r: Rect) => Math.max(0.3, Math.min(1, (r.w - 12) / CHIP_W, (r.h - 22) / CHIP_H));
-
-/** Texts of the cells of a structure: a pool, one or two lines per cell, set only when the string changes. */
-class CellTexts {
-  private a: Text[] = [];
-  private b: Text[] = [];
-  constructor(private layer: Container) {}
-  private text(list: Text[], i: number, bold: boolean): Text {
-    let t = list[i];
-    if (!t) {
-      t = new Text({ text: '', style: { fontFamily: MONO, fontSize: 20, fontWeight: bold ? '700' : '500', fill: '#fff' }, resolution: 2 });
-      t.anchor.set(0.5);
-      list[i] = t;
-      this.layer.addChild(t);
-    }
-    return t;
-  }
-  private put(t: Text, str: string, x: number, y: number, size: number, color: string) {
-    t.visible = str !== '';
-    if (!str) return;
-    if (t.text !== str) t.text = str;
-    if (t.style.fill !== color) t.style.fill = color;
-    t.position.set(x, y);
-    t.scale.set(size / 20);
-  }
-  /** One line (the mnemonic of a queue entry) or two (a name above, a value below) in the cell `r`. */
-  set(i: number, top: string, bottom: string, r: Rect, color: string) {
-    const cx = r.x + r.w / 2, fit = (s: string, k: number) => Math.min(k, (r.w - 4) / Math.max(1, s.length * 0.62));
-    if (r.h < 14 || r.w < 18) { this.hide(i); return; }
-    if (bottom === '') {
-      this.put(this.text(this.a, i, true), top, cx, r.y + r.h / 2, Math.min(fit(top, 20), r.h * 0.6), color);
-      if (this.b[i]) this.b[i]!.visible = false;
-      return;
-    }
-    const s = Math.min(r.h * 0.3, 15);
-    this.put(this.text(this.a, i, false), top, cx, r.y + r.h * 0.3, Math.min(fit(top, s), s), color);
-    this.put(this.text(this.b, i, true), bottom, cx, r.y + r.h * 0.68, Math.min(fit(bottom, s * 1.15), s * 1.15), color);
-  }
-  hide(i: number) { if (this.a[i]) this.a[i]!.visible = false; if (this.b[i]) this.b[i]!.visible = false; }
-  hideFrom(n: number) { for (let i = n; i < Math.max(this.a.length, this.b.length); i++) this.hide(i); }
-  clear() { for (const t of [...this.a, ...this.b]) t?.destroy(); this.a = []; this.b = []; }
-}
-
-/** A packet of data running along a link. */
-interface Packet { lines: Pt[][]; len: number; t0: number; dur: number; color: string }
-/** A wire lit by a packet that has gone along it. */
-interface Trail { lines: Pt[][]; t0: number; color: string }
-
-const lengthOf = (pts: Pt[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
 
 const hex = (v: number, min = 1) => (v >>> 0).toString(16).padStart(min, '0');
 /** A register or memory value in a few characters. */
@@ -244,12 +192,10 @@ export class PlanView {
   private send(pk: PacketPlan[], now: number, cls: OpClass) {
     const T = this.T;
     for (const p of pk) {
-      const pts = p.reverse ? [...p.link.pts].reverse() : p.link.pts;
-      const lines = Array.from({ length: p.link.lanes }, (_, k) => offsetPts(pts, (k - (p.link.lanes - 1) / 2) * LANE_GAP));
       const color = p.color === 'bad' ? T.bad : p.color === 'mute' ? mix(T.mute, this.colorOf(cls), 0.45) : this.colorOf(cls);
-      const t0 = now + p.delay * CYCLE_MS;
-      this.packets.push({ lines, len: lengthOf(pts), t0, dur: CYCLE_MS * 1.1, color });
-      this.trails.set(p.link.id, { lines: Array.from({ length: p.link.lanes }, (_, k) => offsetPts(p.link.pts, (k - (p.link.lanes - 1) / 2) * LANE_GAP)), t0: t0 + CYCLE_MS * 0.6, color });
+      const { packet, trail } = packetOn(p.link, p.reverse, now + p.delay * CYCLE_MS, CYCLE_MS * 1.1, color);
+      this.packets.push(packet);
+      this.trails.set(p.link.id, trail);
     }
   }
 
@@ -259,24 +205,9 @@ export class PlanView {
    */
   private pulse(st: ChipState, seen: Set<string>) {
     const T = this.T;
-    let d = this.dots.get(st.key);
-    if (!d) { d = { px: NaN, py: NaN, hist: [], lastHost: '', env: 1 }; this.dots.set(st.key, d); }
-    seen.add(st.key);
     // a pulse runs on the die's traces only: with no trace between the two blocks there is none (the blocks light instead)
     const moving = st.from !== undefined && st.from !== st.to && st.wx !== undefined;
-    const x = st.wx ?? st.x, y = st.wy ?? st.y;
-    const dx = Number.isNaN(d.px) ? 0 : x - d.px, dy = Number.isNaN(d.py) ? 0 : y - d.py;
-    d.px = x; d.py = y;
-    if (!moving) { d.hist.length = 0; return; }
-    if (Math.hypot(dx, dy) > 60) d.hist.length = 0; // it passed from one trace into the next at a block's edge: no streak across the block
-    if (Math.hypot(dx, dy) > 1.2) { d.hist.push([x, y]); if (d.hist.length > 10) d.hist.shift(); } else if (d.hist.length) d.hist.shift();
-    // it leaves a block's inside and arrives in the next one: the pulse fades in and out at the ends of its way
-    const ease = (v: number) => { const t = Math.max(0, Math.min(1, v)); return t * t * (3 - 2 * t); };
-    const env = ease(st.e / 0.2) * ease((1 - st.e) / 0.2) * st.alpha;
-    const g = this.tailG, core = st.flushed ? T.bad : this.colorOf(opClass(st.op)), halo = idColor(st.id, T.dark);
-    d.hist.forEach((p, i) => { const f = (i + 1) / d.hist.length; g.circle(p[0], p[1], 2 + 5 * f).fill({ color: core, alpha: 0.4 * f * env }); });
-    g.circle(x, y, 11).fill({ color: halo, alpha: 0.3 * env });
-    g.circle(x, y, 6).fill({ color: core, alpha: env }).stroke({ width: 1.6, color: halo, alpha: env });
+    drawPulse(this.tailG, this.dots, seen, { key: st.key, x: st.wx ?? st.x, y: st.wy ?? st.y, moving, e: st.e, alpha: st.alpha, core: st.flushed ? T.bad : this.colorOf(opClass(st.op)), halo: idColor(st.id, T.dark) });
   }
 
   /** Draw one frame at game time `now` (ms). */
@@ -365,8 +296,8 @@ export class PlanView {
     this.cells(player);
     this.glyphs(player);
     this.storage(fr.store, now);
-    this.drawTrails(now);
-    this.drawPackets(now);
+    drawTrails(this.trailG, this.trails, now, this.z);
+    this.packets = drawPackets(this.packetG, this.packets, now, this.z, this.T.ink);
   }
 
   /** Tell the memory sticks which address the CPU is reaching for (the instruction fetch, the load and the store each have one). */
@@ -377,45 +308,6 @@ export class PlanView {
     const mem = events.find((e) => e.kind === Ev.Mem);
     if (mem && ((this.plan!.arch === 'ooo' ? ev.to === 'X' : ev.to === 'M') && (cls === 'ld' || cls === 'st'))) {
       cb({ kind: mem.a === 1 ? 'store' : 'load', addr: mem.b >>> 0, cls, at: now + CYCLE_MS * (mem.a === 1 ? 0.5 : 0.8) });
-    }
-  }
-
-  /** The wires a packet has gone along stay lit in its colour for a moment: the path an instruction took. */
-  private drawTrails(now: number) {
-    const g = this.trailG;
-    g.clear();
-    if (this.z < 0.2) return;
-    for (const [id, t] of this.trails) {
-      const age = now - t.t0;
-      if (age > TRAIL_MS) { this.trails.delete(id); continue; }
-      if (age < 0) continue;
-      const a = 0.85 * (1 - age / TRAIL_MS);
-      for (const line of t.lines) {
-        g.moveTo(line[0]![0], line[0]![1]);
-        for (let i = 1; i < line.length; i++) g.lineTo(line[i]![0], line[i]![1]);
-        g.stroke({ width: 2.6, color: t.color, alpha: a, join: 'round' });
-      }
-    }
-  }
-
-  /** Packets: a bright head with a tail running along each line of the bundle. */
-  private drawPackets(now: number) {
-    const g = this.packetG;
-    g.clear();
-    this.packets = this.packets.filter((p) => now < p.t0 + p.dur);
-    if (this.z < 0.2) return;
-    const T = this.T;
-    for (const p of this.packets) {
-      const u = (now - p.t0) / p.dur;
-      if (u < 0 || p.len < 2) continue;
-      const e = u * u * (3 - 2 * u);
-      const fade = Math.min(1, u * 8, (1 - u) * 5 + 0.2);
-      for (const line of p.lines) {
-        for (let i = 0; i < 6; i++) {
-          const q = pointAt(line, Math.max(0, e - i * 0.025));
-          g.circle(q[0], q[1], 4.6 - i * 0.6).fill({ color: i === 0 ? mix(p.color, T.ink, 0.35) : p.color, alpha: fade * (1 - i * 0.15) });
-        }
-      }
     }
   }
 
