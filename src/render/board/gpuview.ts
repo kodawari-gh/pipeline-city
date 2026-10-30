@@ -8,7 +8,7 @@ import { EdgeFan } from '../room/case';
 import { gpuCover } from './accelart';
 import type { Pt } from '../die/cpuplan';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
-import { gpuGlyphArea, gpuGlyphLive } from '../gpu/gpuglyph';
+import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, laneUnits } from '../gpu/gpuglyph';
 import { gpuRoute, launchRoute, type Hop } from '../gpu/gpuroute';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../die/diepulse';
 import { CYCLES_PER_SEC } from '../die/diemotion';
@@ -316,9 +316,14 @@ export class GpuView {
     const smTick = (sm: number) => t.sms.find((x) => x.sm === sm), smStep = (sm: number) => smTick(sm)?.step ?? step;
     const laneOn = (k: number): boolean => { const st = smStep(Math.floor(k / p.perSm)); return st ? ((st.mask >>> (k % p.perSm)) & 1) === 1 : true; };
     p.laneCells.forEach((r, k) => {
-      const act = laneOn(k);
+      const act = laneOn(k), units = laneUnits(r);
       if (!s) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.line, alpha: 0.18 });
-      else if (act) g.rect(r.x, r.y, r.w, r.h).fill({ color: col, alpha: on ? 0.28 + 0.55 * pulse : 0.2 }).stroke({ width: 2, color: col, alpha: on ? 0.8 : 0.35 });
+      else if (act) {
+        // a roomy cell keeps its ALU readable: a faint wash, and the unit the instruction goes through lit
+        g.rect(r.x, r.y, r.w, r.h).fill({ color: col, alpha: units ? (on ? 0.08 + 0.12 * pulse : 0.06) : on ? 0.28 + 0.55 * pulse : 0.2 }).stroke({ width: 2, color: col, alpha: on ? 0.8 : 0.35 });
+        const st = smStep(Math.floor(k / p.perSm)), u = units && st ? aluUnitOf(st.name) : -1;
+        if (units && u >= 0) { const ur = units.units[u]!; g.rect(ur.x, ur.y, ur.w, ur.h).fill({ color: col, alpha: on ? 0.55 + 0.35 * pulse : 0.35 }); g.rect(units.res.x, units.res.y, units.res.w, units.res.h).fill({ color: col, alpha: on ? 0.4 * pulse + 0.15 : 0.15 }); }
+      }
       else g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.55 }).stroke({ width: 1.5, color: T.line, alpha: 0.5 });
     });
     // the execution mask, one bit per lane

@@ -16,12 +16,20 @@ export const GPU_DIE: Record<GpuPlanInput['kind'], { w: number; h: number }> = {
   multi: { w: 3400, h: 440 },
 };
 
-/** The cell rectangles of a block's grid (die coordinates, row by row), under the block's name; the same area as `gridExact` was asked for in `make`. */
+/** Room a symbol keeps beside its cell grid: the register file's row decoder (left) and its operand latches (under), a cache's index decoder (left) and its tag compare (under). */
+export function cellInset(b: Pick<GpuBlock, 'kind' | 'rect'>): { l: number; b: number } {
+  const { w, h } = b.rect;
+  if (b.kind === 'regfile') return { l: w >= 110 ? 16 : 0, b: h >= 200 ? 28 : 0 };
+  if (b.kind === 'l1' || b.kind === 'l2') return { l: w >= 90 ? 12 : 0, b: h >= 130 ? 24 : 0 };
+  return { l: 0, b: 0 };
+}
+
+/** The cell rectangles of a block's grid (die coordinates, row by row), under the block's name (and inside `cellInset`); about the area `gridExact` was asked for in `make`. */
 export function gpuCells(b: GpuBlock): Rect[] {
   const g = b.grid;
   if (!g) return [];
-  const r = b.rect, head = r.h >= 70 ? 44 : r.h * 0.55;
-  const gx = r.x + 8, gy = r.y + head, gw = r.w - 16, gh = r.y + r.h - 6 - gy;
+  const r = b.rect, head = r.h >= 70 ? 44 : r.h * 0.55, ins = cellInset(b);
+  const gx = r.x + 8 + ins.l, gy = r.y + head, gw = r.w - 16 - ins.l, gh = r.y + r.h - 6 - ins.b - gy;
   if (gw <= 8 || gh <= 6) return [];
   const cw = gw / g.cols, ch = gh / g.rows;
   return Array.from({ length: g.count }, (_, k) => ({ x: gx + (k % g.cols) * cw + 1, y: gy + Math.floor(k / g.cols) * ch + 1, w: Math.max(1.5, cw - 2), h: Math.max(1.5, ch - 2) }));
@@ -46,9 +54,9 @@ function simdSm(i: GpuPlanInput): Built {
   // the front end is a column (the program counter, the fetch, the decoder) like the CPU's IF and ID stages: wide blocks, not tall empty ones
   const tree = row<K>([
     col<K>([
-      L('pc', 'pc', 'PC', { sub: 'program counter', f: 30 }),
-      L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 34 }),
-      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 36 }),
+      L('pc', 'pc', 'PC', { sub: 'program counter', f: 34 }),
+      L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 31 }),
+      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 35 }),
     ], { f: 16 }),
     L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 13 }),
     col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 17 }),

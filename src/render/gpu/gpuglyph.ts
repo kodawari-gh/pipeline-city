@@ -8,7 +8,7 @@ import { gpuDecode, gpuDisassemble, GPU_SPEC_BY_NAME } from '../../sim/isa/gpu';
 import type { GpuStep } from '../../sim/ref/gpuref';
 import type { Theme } from '../theme';
 import type { GpuBlock, GpuBlockKind } from './gpuplan';
-import { gpuCells, maskParts } from './gpuplans';
+import { cellInset, gpuCells, maskParts } from './gpuplans';
 
 // What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the schematic an engineer would draw for the part,
 // drawn with the CPU die's own tools (`glyphKit`, `aluPoly`, `pcDigits`, the word strip) so the two read as one family, and wired inside: the
@@ -74,10 +74,35 @@ function fieldRects(x: number, y: number, w: number, h: number): Rect[] {
 /** The program counter's digits, on the left of the block with the next-pc logic beside them when it is wide enough. */
 export const pcArea = (a: Rect): Rect => ({ x: a.x, y: a.y, w: a.w >= 200 ? a.w * 0.54 : a.w, h: Math.min(a.h, 22) });
 
-/** The fetch: a window of the kernel, the word being fetched on the first row (the live word goes there), the words behind it dim. */
-export function fetchGeom(a: Rect): { gutter: number; rows: Rect[] } {
+/** The fetch: a window of the kernel, the word being fetched on the first row (the live word goes there), the words behind it dim; a wide block keeps a side panel (kernel base + pc = the address) on the right. */
+export function fetchGeom(a: Rect): { gutter: number; rows: Rect[]; side: Rect | null } {
   const gutter = a.w >= 90 ? 18 : 0, rh = Math.min(14, a.h), n = Math.max(1, Math.min(5, Math.floor((a.h + 3) / 17)));
-  return { gutter, rows: Array.from({ length: n }, (_, k) => ({ x: a.x + gutter, y: a.y + k * 17, w: a.w - gutter, h: rh })) };
+  const side = a.w >= 400 ? { x: a.x + a.w - 150, y: a.y, w: 150, h: rh } : null, rw = a.w - gutter - (side ? 158 : 0);
+  return { gutter, rows: Array.from({ length: n }, (_, k) => ({ x: a.x + gutter, y: a.y + k * 17, w: rw, h: rh })), side };
+}
+
+/** The units inside a lane's ALU, in the order they are drawn, and the unit an instruction goes through (-1 when it does not use the ALU). */
+export const ALU_UNITS = ['add', 'logic', 'shift', 'cmp', 'mul', 'min/max'] as const;
+export function aluUnitOf(name: string): number {
+  if (/^(vadd|vsub|vaddi|vli|lane|vld|vst)$/.test(name)) return 0;
+  if (/^(vand|vor|vxor|vandi)$/.test(name)) return 1;
+  if (/^(vsll|vsrl|vsra|vslli|vsrli|vsrai)$/.test(name)) return 2;
+  if (/^(vslt|mset(eq|ne|lt|ge))$/.test(name)) return 3;
+  if (name === 'vmul') return 4;
+  if (/^(vmin|vmax)$/.test(name)) return 5;
+  return -1;
+}
+
+/** Inside a roomy lane cell: the operand bus, one box per unit, the mux that picks the result, the result latch. Null for the small cells of the wider cards. */
+export function laneUnits(r: Rect): { units: Rect[]; busX: number; mux: Rect; res: Rect; notch: { x: number; y: number } } | null {
+  if (r.w < 70 || r.h < 40) return null;
+  const ax = r.x + 1.5, ay = r.y + 1.5, aw = r.w - 3, ah = r.h - 3, n = ALU_UNITS.length;
+  const busX = ax + aw * 0.22, top = ay + ah * 0.16, span = ah * 0.68, pitch = span / n, ux = busX + 12, uw = aw * 0.3;
+  const mux = { x: ux + uw + 9, y: top, w: aw * 0.07, h: span };
+  return {
+    units: ALU_UNITS.map((_, k) => ({ x: ux, y: top + k * pitch + 1, w: uw, h: pitch - 2 })), busX, mux,
+    res: { x: mux.x + mux.w + 14, y: ay + ah * 0.38, w: Math.max(10, ax + aw * 0.96 - (mux.x + mux.w + 14)), h: ah * 0.24 }, notch: { x: ax + aw * 0.14, y: ay + ah / 2 },
+  };
 }
 
 /** The decoder: the word on top; below it, when there is room, the register selects and the sign extender under their fields, the control unit under the op field and the control lines it fans out to. */
@@ -190,19 +215,34 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       break;
     }
     case 'pc': {
-      // the program counter feeding its own next value: + 1 for the next word, a branch target or the reconvergence point of a divergent branch, back in
+      // the program counter feeding its own next value: pc + 1 for the next word, or the branch target (pc + imm) when `jmp` or `bany` takes it, back in;
+      // with room, the target adder with the immediate, and the gate that takes a `bany` only when a lane of the mask is still active
       const pa = pcArea(a);
       pcDigits(g, kit, pa);
       if (pa.w < a.w - 1) {
-        const cy = pa.y + pa.h / 2, r = Math.min(7, pa.h / 2 - 2), end = pa.x + pa.w, cx = end + 16 + r, mx = cx + r + 14, mw = 24, mh = Math.min(pa.h + 4, 26), my = cy - mh / 2, ox = mx + mw + 7;
+        const cy = pa.y + pa.h / 2, r = 7, end = pa.x + pa.w, cx = end + 23, mx = end + 54, mw = 24, mh = 22, my = cy - mh * 0.25, ox = mx + mw + 7;
+        const rich = a.h >= 50, loopY = pa.y + pa.h + 9, ry = loopY + 10, selX = mx + mw / 2;
         stub(end, cy, end + 9, cy);
         adder(cx, cy, r, ['', '']);
         stub(end + 9, cy, cx - r - 7, cy); dot(end + 9, cy);
-        mux(mx, my, mw, mh, ['', '', '']);
-        put('br', mx + mw * 0.45, my + mh * 0.26, 5.5); put('rcv', mx + mw * 0.45, my + mh * 0.78, 5.5);
+        stub(cx + r + 7, cy, mx - 7, cy);
+        mux(mx, my, mw, mh, ['seq', 'tgt']);
         put('+1', cx, cy - r - 5, 5.5);
-        if (a.h >= pa.h + 8) wire(ox, cy, ox + 1, cy, ox + 1, pa.y + pa.h + 5, pa.x + 4, pa.y + pa.h + 5, pa.x + 4, pa.y + pa.h);
-        else stub(mx + mw, cy, ox, cy);
+        if (!rich) { stub(mx + mw, my + mh / 2, ox, my + mh / 2); break; }
+        wire(ox, my + mh / 2, ox + 1, my + mh / 2, ox + 1, loopY, pa.x + 4, loopY, pa.x + 4, pa.y + pa.h);
+        dot(ox + 1, loopY); wire(ox + 1, loopY, a.x + a.w - 6, loopY); lab('to fetch', ox + 10, loopY - 5, 6);
+        // the target: the pc and the immediate of the decoded word into an adder, its sum into the mux
+        adder(cx, ry, r, ['', '']);
+        wire(end + 9, cy, end + 9, ry - 0.55 * r);
+        rect(end - 30, ry - 6, 24, 12, soft); outline(end - 30, ry - 6, 24, 12); put('imm', end - 18, ry, 6);
+        stub(end - 6, ry + 0.55 * r, cx - r - 7, ry + 0.55 * r);
+        wire(cx + r + 7, ry, end + 43, ry, end + 43, my + mh * 0.75, mx - 7, my + mh * 0.75);
+        put('tgt', cx, ry + r + 5, 5.5);
+        // the select: taken = bany and any lane active (jmp always takes it)
+        g.circle(selX, ry, 6).fill({ color: soft }).stroke({ width: 1.2, color: line }); put('&', selX, ry, 7);
+        wire(selX, ry - 6, selX, my + mh * 0.89);
+        stub(selX + 6, ry - 2.5, selX + 14, ry - 2.5); stub(selX + 6, ry + 2.5, selX + 14, ry + 2.5);
+        lab('bany', selX + 17, ry - 4, 6); lab('any lane', selX + 17, ry + 5, 6);
       }
       break;
     }
@@ -215,6 +255,18 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
         fieldRects(r.x, r.y, r.w, r.h).forEach((fr) => rect(fr.x + 0.6, fr.y, fr.w - 1.2, fr.h, soft));
       });
       if (f.gutter && f.rows.length > 1) wire(x + f.gutter - 3, f.rows[0]!.y + f.rows[0]!.h / 2, x + f.gutter - 3, f.rows[f.rows.length - 1]!.y + f.rows[0]!.h / 2);
+      if (f.side) {
+        // the address of the word: the kernel's base plus the pc, out to the card memory; the word comes back into the first row
+        const s = f.side, cy = s.y + s.h / 2, r = 7, cx = s.x + 52, rowEnd = f.rows[0]!.x + f.rows[0]!.w;
+        lab('pc', s.x + 6, cy - 0.55 * r, 6); stub(s.x + 20, cy - 0.55 * r, cx - r - 7, cy - 0.55 * r);
+        rect(s.x, cy + 0.55 * r - 3.5, 30, 7, solid); put('base', s.x + 15, cy + 0.55 * r, 5);
+        stub(s.x + 30, cy + 0.55 * r, cx - r - 7, cy + 0.55 * r);
+        adder(cx, cy, r, ['', '']);
+        stub(cx + r + 7, cy, s.x + 98, cy);
+        rect(s.x + 98, s.y, 32, s.h, soft); outline(s.x + 98, s.y, 32, s.h); put('addr', s.x + 114, cy, 6);
+        stub(s.x + 130, cy, s.x + s.w, cy); lab('mem', s.x + s.w - 20, cy - 6, 5.5);
+        wire(s.x + s.w, f.rows[0]!.y + f.rows[0]!.h + 3, rowEnd + 4, f.rows[0]!.y + f.rows[0]!.h + 3, rowEnd + 4, f.rows[0]!.y + f.rows[0]!.h / 2, rowEnd, f.rows[0]!.y + f.rows[0]!.h / 2);
+      }
       break;
     }
     case 'decode': {
@@ -242,11 +294,14 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       const rows = b.grid?.rows ?? 1, cols = b.grid?.cols ?? 8, picker = w >= 160, gut = w >= 90 ? 30 : 12, headH = h >= 30 ? 8 : 0;
       const sw = (picker ? w * 0.62 : w) - gut, cw = sw / cols, rh = Math.min(34, (h - headH) / rows);
       if (headH && cw >= 9) for (let k = 0; k < cols; k++) put(`v${k}`, x + gut + (k + 0.5) * cw, y + 4, 5.5);
+      if (headH && picker) put('ready', x + gut + sw + 5, y + 4, 5.5);
       for (let r = 0; r < rows; r++) {
         const ry = y + headH + r * rh;
         lab(gut >= 30 ? `warp ${r}` : `w${r}`, x, ry + rh / 2, 6);
         for (let k = 0; k < cols; k++) rect(x + gut + k * cw + 0.5, ry + 1, cw - 1, rh - 2, soft);
-        g.circle(x + gut + sw + 5, ry + rh / 2, 2).fill({ color: line, alpha: r === 0 ? 0.95 : 0.5 }); // the warp's ready line
+        // the warp's ready line: a gate that is true when none of the registers the next instruction reads is still pending
+        g.circle(x + gut + sw + 5, ry + rh / 2, 3).fill({ color: soft }).stroke({ width: 1, color: line, alpha: r === 0 ? 1 : 0.6 });
+        stub(x + gut + sw, ry + rh / 2, x + gut + sw + 2, ry + rh / 2);
         poly([x - 7, ry + rh / 2 - 3, x - 1, ry + rh / 2, x - 7, ry + rh / 2 + 3], r === 0 ? solid : soft); // the pointer
       }
       if (picker) {
@@ -254,6 +309,7 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
         mux(mx, my, mw, mh, Array(rows).fill(''));
         for (let r = 0; r < rows; r++) wire(x + gut + sw + 7, y + headH + r * rh + rh / 2, xm, y + headH + r * rh + rh / 2, xm, my + mh * ((r + 0.5) / rows), mx - 7, my + mh * ((r + 0.5) / rows));
         put('rr', mx + mw * 0.5, my + mh / 2, 7);
+        if (x + w - (mx + mw + 7) >= 30) put('issue', mx + mw + 7 + (x + w - (mx + mw + 7)) / 2, my + mh / 2, 6);
       }
       break;
     }
@@ -294,20 +350,55 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       break;
     }
     case 'regfile': {
-      // the register array, each row a register, with its read and write ports
-      const cols = b.grid?.cols ?? 1;
+      // the register array, each row a register: a row decoder on the left raises the word line of the register the decoded word names, and under
+      // every lane's column the two operand latches (A and B) take what the read ports bring; the results come back in on the write port
+      const cols = b.grid?.cols ?? 1, rows = b.grid?.rows ?? 0, ins = cellInset(b), c0 = cells[0], cz = cells[cells.length - 1];
       cells.forEach((r, k) => rect(r.x, r.y, r.w, r.h, Math.floor(k / cols) % 2 ? soft : solid));
-      for (let k = 0; k < (b.grid?.rows ?? 0); k++) { const c0 = cells[k * cols]; if (c0 && c0.h >= 7) put(`v${k}`, c0.x + 9, c0.y + c0.h / 2, Math.min(7, c0.h * 0.8)); }
-      stub(x - 6, y + h * 0.3, x, y + h * 0.3);
-      stub(x - 6, y + h * 0.7, x, y + h * 0.7);
+      for (let k = 0; k < rows; k++) { const rc = cells[k * cols]; if (rc && rc.h >= 7) put(`v${k}`, rc.x + 9, rc.y + rc.h / 2, Math.min(7, rc.h * 0.8)); }
+      if (c0 && cz) {
+        const top = c0.y, bot = cz.y + cz.h;
+        if (ins.l) {
+          const dw = ins.l - 5;
+          rect(x, top, dw, bot - top, soft); outline(x, top, dw, bot - top);
+          for (let k = 0; k < rows; k++) { const rc = cells[k * cols]!, my = rc.y + rc.h / 2; stub(x + dw, my, rc.x, my); g.circle(x + dw - 3, my, 1.4).fill({ color: line }); }
+          stub(x - 7, (top + bot) / 2, x, (top + bot) / 2);
+        }
+        if (ins.b) {
+          const ly = bot + 5;
+          for (let k = 0; k < cols; k++) {
+            const cc = cells[k]!;
+            stub(cc.x + cc.w / 2, bot, cc.x + cc.w / 2, ly);
+            rect(cc.x + 1, ly, cc.w - 2, 7, solid); rect(cc.x + 1, ly + 10, cc.w - 2, 7, soft);
+          }
+          lab('A', x + 3, ly + 3.5, 6); lab('B', x + 3, ly + 13.5, 6);
+        }
+      }
+      if (!ins.l) { stub(x - 6, y + h * 0.3, x, y + h * 0.3); stub(x - 6, y + h * 0.7, x, y + h * 0.7); }
       stub(x + w, y + h / 2, x + w + 6, y + h / 2);
       break;
     }
     case 'lanes': {
-      // an ALU in every lane: the notched trapezoid, its lane number and the operation it is given
+      // an ALU in every lane: the notched trapezoid, its lane number and the operation it is given; a roomy cell opens up: the operands run down a bus that
+      // taps every unit (add, logic, shift, compare, multiply, min/max), the units' results meet in a mux the op field selects, and the latch holds the result
       cells.forEach((r, k) => {
         poly(aluPoly(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3));
-        if (r.h >= 22 && r.w >= 34) { put('op', r.x + r.w * 0.55, r.y + r.h * 0.5, 6.5); put(`l${k}`, r.x + 12, r.y + r.h - 6, 5.5); }
+        const u = laneUnits(r);
+        if (u) {
+          const top = u.units[0]!, bot = u.units[u.units.length - 1]!, mid = u.notch.y;
+          stub(u.notch.x, mid, u.busX, mid); if (r.h >= 60) put('a b', u.notch.x + 9, mid - 6, 5.5);
+          stub(u.busX, top.y + top.h / 2, u.busX, bot.y + bot.h / 2);
+          u.units.forEach((ur, n) => {
+            const uy = ur.y + ur.h / 2;
+            dot(u.busX, uy); stub(u.busX, uy, ur.x, uy);
+            rect(ur.x, ur.y, ur.w, ur.h, n % 2 ? soft : solid); if (ur.h >= 6) put(ALU_UNITS[n]!, ur.x + ur.w / 2, uy, Math.min(6.5, ur.h * 0.7));
+          });
+          mux(u.mux.x, u.mux.y, u.mux.w, u.mux.h, ALU_UNITS.map(() => ''));
+          const rx = u.mux.x + u.mux.w + 7, ry = u.res.y + u.res.h / 2;
+          stub(rx, u.mux.y + u.mux.h / 2, u.res.x, u.mux.y + u.mux.h / 2);
+          rect(u.res.x, u.res.y, u.res.w, u.res.h, solid); put('res', u.res.x + u.res.w / 2, ry, 6);
+          put('op', u.mux.x + u.mux.w / 2, r.y + r.h * 0.09, 5.5); stub(u.mux.x + u.mux.w / 2, r.y + r.h * 0.125, u.mux.x + u.mux.w / 2, u.mux.y + u.mux.h * 0.11);
+          put(r.h >= 70 ? `lane ${k}` : `l${k}`, r.x + (r.h >= 70 ? 22 : 12), r.y + r.h * 0.92, 5.5);
+        } else if (r.h >= 22 && r.w >= 34) { put('op', r.x + r.w * 0.55, r.y + r.h * 0.5, 6.5); put(`l${k}`, r.x + 12, r.y + r.h - 6, 5.5); }
       });
       break;
     }
@@ -316,6 +407,20 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       const m = maskParts(b.rect, b.grid?.cols ?? 8);
       m.bits.forEach((r, k) => rect(r.x, r.y, r.w, r.h, k % 2 ? soft : solid));
       m.slots.forEach((r) => { g.rect(r.x, r.y, r.w, r.h).stroke({ width: 1.2, color: line }); });
+      // beside the stack: push/pop, which saves the mask on a divergent branch and takes it back (its wire runs up into the strip), and with more room the
+      // compare of the `mset` ops, whose result becomes the new mask
+      const sEnd = m.stack.x + m.stack.w, room = x + w - sEnd - 16, sy = m.stack.y, sh = m.stack.h, up = (px: number) => { stub(px, sy - 1, px, m.strip.y + m.strip.h); dot(px, m.strip.y + m.strip.h); };
+      if (room >= 60 && sh >= 8 && sy - (m.strip.y + m.strip.h) >= 4) {
+        const uw = Math.min(64, room * (room >= 150 ? 0.4 : 0.8)), ux = sEnd + 14;
+        stub(sEnd, sy + sh / 2, ux, sy + sh / 2);
+        rect(ux, sy - 1, uw, sh + 2, soft); outline(ux, sy - 1, uw, sh + 2); put('push · pop', ux + uw / 2, sy + sh / 2, 6);
+        up(ux + uw / 2);
+        if (room >= 150) {
+          const cx2 = ux + uw + 22, cw = Math.min(64, x + w - cx2 - 4);
+          rect(cx2, sy - 1, cw, sh + 2, soft); outline(cx2, sy - 1, cw, sh + 2); put('mset cmp', cx2 + cw / 2, sy + sh / 2, 6);
+          up(cx2 + cw / 2);
+        }
+      }
       break;
     }
     case 'coalescer': {
@@ -344,18 +449,23 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       }
       // the lanes' requests come in on a column of request cells, merge onto a bus and queue at the bank they address; a picker takes the oldest of each
       // queue and a comparator spots two lanes on one bank
-      const foot = h > 130 ? 44 : 0, region = h - foot - 4, pitch = Math.min(56, region / nb), busX = x + 20, sh = Math.min(14, pitch - 14), qx = x + 30;
+      const foot = h > 130 ? 44 : 0, region = h - foot - 4, few = nb <= 2, pitch = Math.min(few ? 120 : 56, region / nb), busX = x + 20, sh = Math.min(few ? 34 : 14, pitch - 14), qx = x + 30;
       const sw = Math.max(5, (w * 0.5 - 30) / 4), n = 8, rq = Math.min(14, region / n - 3);
       for (let k = 0; k < n; k++) {
         const ry = y + 4 + ((k + 0.5) * region) / n;
         rect(x + 2, ry - rq / 2, 10, rq, k % 3 === 0 ? solid : soft); stub(x + 12, ry, busX, ry);
+        if (rq >= 8) put(`${k}`, x + 7, ry, 5);
       }
       stub(busX, y + 4 + 0.5 * region / n, busX, y + 4 + (n - 0.5) * region / n);
       for (let k = 0; k < nb; k++) {
         const ry = y + 4 + k * pitch + pitch / 2 + (region - nb * pitch) / 2;
         lab(`b${k}`, qx, ry - sh / 2 - 5, 6);
         stub(busX, ry, qx, ry); dot(busX, ry);
-        for (let j = 0; j < 4; j++) rect(qx + j * (sw + 1), ry - sh / 2, sw, sh, j === 0 ? solid : soft);
+        for (let j = 0; j < 4; j++) {
+          rect(qx + j * (sw + 1), ry - sh / 2, sw, sh, j === 0 ? solid : soft);
+          if (sh >= 18 && sw >= 14) { put(`l${j}`, qx + j * (sw + 1) + sw / 2, ry - 4, 5.5); rect(qx + j * (sw + 1) + 2, ry + sh / 2 - 8, (sw - 4) * (1 - j * 0.22), 3, line); }
+        }
+        if (sh >= 18) lab('oldest', qx, ry + sh / 2 + 7, 5.5);
         const px = qx + 4 * (sw + 1) + 7;
         stub(qx + 4 * (sw + 1), ry, px - 5, ry);
         g.circle(px, ry, 5).fill({ color: soft }).stroke({ width: 1.2, color: line });
@@ -377,18 +487,55 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
         const horizontal = r.w >= r.h, head = horizontal ? 0 : Math.min(9, r.h * 0.08), foot = horizontal ? 0 : Math.min(8, r.h * 0.07);
         if (head >= 5) { rect(r.x + 1.5, r.y + 1.5, r.w - 3, head - 2, solid); put(`b${k}`, r.x + r.w / 2, r.y + head / 2 + 0.5, Math.min(6, head - 1.5)); }
         if (foot >= 4) for (let j = 0; j < 4; j++) rect(r.x + 1.5 + (j * (r.w - 3)) / 4, r.y + r.h - foot - 0.5, (r.w - 3) / 4 - 1, foot - 1, solid);
+        if (foot >= 6 && r.w >= 70) put('sense amps', r.x + r.w / 2, r.y + r.h - foot / 2 - 1, 5.5);
         const by = r.y + head, bh = r.h - head - foot, n = Math.max(1, Math.floor(bh / 6));
         if (horizontal) { const m = Math.max(1, Math.floor(r.w / 6)); for (let j = 1; j < m; j++) stub(r.x + (j * r.w) / m, r.y + 1.5, r.x + (j * r.w) / m, r.y + r.h - 1.5); }
-        else for (let j = 1; j < n; j++) stub(r.x + 1.5, by + (j * bh) / n, r.x + r.w - 1.5, by + (j * bh) / n);
+        else {
+          // a tall array: the row decoder down its left side raises one word line, the others run across to the right
+          const dec = r.h >= 90 && r.w >= 60 ? 10 : 0;
+          if (dec) { rect(r.x + 1.5, by + 1, dec - 2, bh - 2, solid); outline(r.x + 1.5, by + 1, dec - 2, bh - 2); put('dec', r.x + 1.5 + (dec - 2) / 2, by + 8, 5); }
+          for (let j = 1; j < n; j++) stub(r.x + 1.5 + dec, by + (j * bh) / n, r.x + r.w - 1.5, by + (j * bh) / n);
+          // and the bit lines down the columns, where the sense amplifiers read them
+          const bl = Math.max(2, Math.floor((r.w - dec) / 14));
+          if (bh > 40) for (let j = 1; j < bl; j++) { const bx = r.x + 1.5 + dec + (j * (r.w - 3 - dec)) / bl; g.moveTo(bx, by + 2).lineTo(bx, by + bh - 2); }
+          g.stroke({ width: 0.8, color: line, alpha: 0.28 });
+        }
       });
       break;
     }
     case 'l1':
     case 'l2': {
-      // a line is its valid bit and tag beside its data
+      // a line is its valid bit and tag beside its data; the index part of the address runs into a decoder that picks the line, the tag part is compared with the line's tag,
+      // and a match (a hit) lets the line's data through
+      const ins = cellInset(b), cols = b.grid?.cols ?? 1, c0 = cells[0], cz = cells[cells.length - 1];
       for (const r of cells) {
         rect(r.x, r.y, r.w * 0.3, r.h, solid); rect(r.x + r.w * 0.3 + 1, r.y, r.w * 0.7 - 1, r.h, soft);
         if (r.h >= 6 && r.w >= 12) g.circle(r.x + 2.5, r.y + r.h / 2, 1).fill({ color: line });
+        // the words of the line, along the longer side of its data
+        const dx = r.x + r.w * 0.3 + 1, dw = r.w * 0.7 - 1;
+        if (Math.max(dw, r.h) >= 24) for (let j = 1; j < 4; j++) { if (dw >= r.h) stub(dx + (j * dw) / 4, r.y + 1, dx + (j * dw) / 4, r.y + r.h - 1); else stub(dx + 1, r.y + (j * r.h) / 4, dx + dw - 1, r.y + (j * r.h) / 4); }
+      }
+      if (c0 && cz) {
+        const top = c0.y, bot = cz.y + cz.h;
+        if (ins.l) {
+          const dw = ins.l - 4;
+          rect(x, top, dw, bot - top, soft); outline(x, top, dw, bot - top);
+          for (let k = 0; k * cols < cells.length; k++) { const rc = cells[k * cols]!, my = rc.y + rc.h / 2; stub(x + dw, my, rc.x, my); }
+          stub(x - 6, (top + bot) / 2, x, (top + bot) / 2);
+        }
+        if (ins.b) {
+          const fy = bot + 5, fh = ins.b - 8, cy = fy + fh / 2, wide = w >= 200, cx = x + ins.l + (wide ? 70 : 38), r = 7;
+          lab('tag', x + ins.l, cy, 6); stub(x + ins.l + 15, cy, cx - r, cy);
+          g.circle(cx, cy, r).fill({ color: soft }).stroke({ width: 1.3, color: line }); put('=?', cx, cy, 6);
+          stub(cx + r, cy, cx + r + 8, cy);
+          rect(cx + r + 8, cy - 6, 26, 12, soft); outline(cx + r + 8, cy - 6, 26, 12); put('hit', cx + r + 21, cy, 6);
+          if (wide) {
+            const mx = x + w * 0.66, mw = 16, mh = fh;
+            stub(cx + r + 34, cy, mx - 7, cy);
+            mux(mx, cy - mh / 2, mw, mh, ['']);
+            lab('data', mx + mw + 10, cy, 6);
+          }
+        }
       }
       break;
     }

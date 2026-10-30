@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { specsOfKind } from '../../sim/board/specs';
 import type { Theme } from '../theme';
-import { gpuEncode, gpuInstr } from '../../sim/isa/gpu';
-import { decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, hasGpuSymbol, pcArea } from './gpuglyph';
+import { gpuEncode, gpuInstr, GPU_OPS } from '../../sim/isa/gpu';
+import { ALU_UNITS, aluUnitOf, decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, hasGpuSymbol, laneUnits, pcArea } from './gpuglyph';
 import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './gpuplan';
-import { gpuPlan } from './gpuplans';
+import { cellInset, gpuCells, gpuPlan } from './gpuplans';
 
 const T: Theme = {
   dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',
@@ -84,6 +84,49 @@ describe('gpu block symbols', () => {
         }
       }
     }
+  });
+
+  it('a roomy lane cell opens up into the units of its ALU, inside the cell, and every ALU op goes through one of them', () => {
+    const cell = { x: 10, y: 20, w: 155, h: 130 }, u = laneUnits(cell)!;
+    expect(u.units).toHaveLength(ALU_UNITS.length);
+    for (const [k, r] of u.units.entries()) {
+      expect(r.x, `unit ${k}`).toBeGreaterThan(u.busX);
+      expect(r.x + r.w, `unit ${k}`).toBeLessThan(u.mux.x);
+      expect(r.y).toBeGreaterThanOrEqual(cell.y);
+      expect(r.y + r.h).toBeLessThanOrEqual(cell.y + cell.h);
+      if (k) expect(r.y, `unit ${k}`).toBeGreaterThanOrEqual(u.units[k - 1]!.y + u.units[k - 1]!.h);
+    }
+    expect(u.res.x + u.res.w).toBeLessThanOrEqual(cell.x + cell.w);
+    expect(laneUnits({ x: 0, y: 0, w: 38, h: 22 })).toBeNull();
+    const control = ['mpush', 'mpop', 'melse', 'bar', 'bany', 'jmp', 'halt'];
+    for (const o of GPU_OPS) expect(aluUnitOf(o.name) >= 0, o.name).toBe(!control.includes(o.name));
+    expect([aluUnitOf('vadd'), aluUnitOf('vandi'), aluUnitOf('vsrai'), aluUnitOf('msetlt'), aluUnitOf('vmul'), aluUnitOf('vmin')]).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('the register file and the caches keep their cells beside their decoder and under their latches or compare, inside the symbol area', () => {
+    let seen = 0;
+    for (const { id, plan } of plans) {
+      for (const b of plan.blocks.filter((x) => x.kind === 'regfile' || x.kind === 'l1' || x.kind === 'l2')) {
+        const a = gpuGlyphArea(b)!, ins = cellInset(b), cells = gpuCells(b);
+        expect(cells.length, `${id} ${b.id}`).toBe(b.grid!.count);
+        for (const c of cells) {
+          expect(c.x, `${id} ${b.id}`).toBeGreaterThanOrEqual(a.x + ins.l - 0.5);
+          expect(c.x + c.w, `${id} ${b.id}`).toBeLessThanOrEqual(a.x + a.w + 0.5);
+          expect(c.y + c.h, `${id} ${b.id}`).toBeLessThanOrEqual(a.y + a.h - ins.b + 0.5);
+        }
+        seen++;
+      }
+    }
+    expect(seen).toBeGreaterThan(4);
+    expect(plans.some(({ plan }) => plan.blocks.some((x) => x.kind === 'regfile' && cellInset(x).b > 0))).toBe(true);
+  });
+
+  it('a wide fetch keeps a side panel for the address, clear of its word rows', () => {
+    const wide = fetchGeom({ x: 0, y: 0, w: 419, h: 59 }), narrow = fetchGeom({ x: 0, y: 0, w: 233, h: 116 });
+    expect(wide.side).not.toBeNull();
+    for (const r of wide.rows) expect(r.x + r.w).toBeLessThanOrEqual(wide.side!.x);
+    expect(wide.side!.x + wide.side!.w).toBeLessThanOrEqual(419);
+    expect(narrow.side).toBeNull();
   });
 
   it('the decoder of a roomy block fans its fields out: units under the fields, the control lines under a bus', () => {
