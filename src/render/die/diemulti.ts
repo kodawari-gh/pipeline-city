@@ -225,12 +225,29 @@ export class DieView {
       const cells = lead.cells, cn = Math.max(1, cells.length), tx = q.x + q.w * 0.07, tw = q.w * 0.86, cg = tw * 0.012;
       const cw = (tw - cg * (cn - 1)) / cn, ch = Math.min(q.h * 0.1, cw * 0.8), cy = q.y + q.h * 0.58;
       box(g, tx - cg * 2, cy - ch * 0.35, tw + cg * 4, ch * 1.7 + (lead.fill > 0 ? ch * 0.35 : 0), rad, { fill: T.bg, fa: 0.55, stroke: T.line, lw: 1.5, sa: 0.5 });
+      // the captions say what the picture is: a cell lights in the colour of the instruction in that stage (dark: a bubble), the bars are rates
+      const fs = Math.max(12, q.h * 0.042), cap = (text: string, x: number, y: number, color: string, right = false) => {
+        const t = new Text({ text, style: { fontFamily: MONO, fontSize: fs, fontWeight: '600', fill: color, letterSpacing: 1 }, resolution: 2 });
+        t.anchor.set(right ? 1 : 0, 0); t.position.set(x, y);
+        if (asleep(lead)) t.alpha = 0.5;
+        wash.texts.addChild(t);
+      };
+      const inorder = this.plan?.arch === 'inorder' && cn === 5, stageNames = ['F', 'D', 'X', 'M', 'W'];
+      cap(inorder ? 'PIPELINE  FETCH > WRITE-BACK' : 'EXECUTION UNITS', tx, cy - ch * 0.35 - fs * 1.5, T.mute);
       cells.forEach((cls, i) => {
         const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls], x = tx + i * (cw + cg);
         box(g, x, cy, cw, ch, ch * 0.18, { fill: c, fa: cls === null ? 0.18 : 0.9 });
         if (cls !== null) box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
+        if (inorder) {
+          const t = new Text({ text: stageNames[i]!, style: { fontFamily: MONO, fontSize: ch * 0.55, fontWeight: '700', fill: cls === null ? T.mute : '#0b0d12' }, resolution: 2 });
+          t.anchor.set(0.5, 0.5); t.position.set(x + cw / 2, cy + ch / 2); t.alpha = cls === null ? 0.5 : 0.8;
+          wash.texts.addChild(t);
+        }
       });
-      if (lead.fill > 0) { g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 }); g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul }); }
+      if (lead.fill > 0) {
+        g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 }); g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul });
+        cap('REORDER BUFFER ' + Math.round(lead.fill * 100) + '%', tx + tw, cy + ch * 1.25 + ch * 0.3, T.mul, true);
+      }
       // the rate bar: the instructions per cycle in the core's colour (of the tile's width), the cycles lost to stalls in red from the other end
       const bw = tw, by = q.y + q.h * 0.8, bh = Math.max(5, q.h * 0.035), lanes = Math.max(1, cs?.tiles[w.hw]?.width ?? 1);
       box(g, tx, by, bw, bh, bh / 2, { fill: T.line, fa: 0.3 });
@@ -239,13 +256,11 @@ export class DieView {
         const sw = bw * Math.min(1, lead.stall);
         if (sw > bh) box(g, tx + bw - sw, by, sw, bh, bh / 2, { fill: T.br, fa: 0.85 });
       }
-      const rate = new Text({ text: 'IPC ' + lead.ipc.toFixed(2) + '   STALL ' + Math.round(lead.stall * 100) + '%', style: { fontFamily: MONO, fontSize: Math.max(14, q.h * 0.05), fontWeight: '600', fill: T.mute, letterSpacing: 1 }, resolution: 2 });
-      rate.anchor.set(0, 0); rate.position.set(tx, by + bh * 1.6);
-      if (asleep(lead)) rate.alpha = 0.5;
-      wash.texts.addChild(rate);
+      cap('IPC ' + lead.ipc.toFixed(2) + ' (work done per cycle)', tx, by + bh * 1.6, lead.color);
+      cap('STALLED ' + Math.round(lead.stall * 100) + '%', tx + tw, by + bh * 1.6 + fs * 1.4, T.br, true);
       // the core badges and the border stay when the wash has faded: a core you zoomed into still says which it is
       const lw = Math.max(2, q.w * 0.004);
-      b.rect(q.x, q.y, q.w, q.h).stroke({ color: lead.color, width: lw, alpha: asleep(lead) ? 0.35 : 0.9 });
+      b.roundRect(q.x, q.y, q.w, q.h, rad).stroke({ color: lead.color, width: lw, alpha: asleep(lead) ? 0.35 : 0.9 });
       const bs = Math.max(16, Math.min(56, q.h * 0.07)), bwid = bs * 2.1, gap = bs * 0.2;
       w.models.forEach((m, i) => {
         const bx = q.x + lw + i * (bwid + gap), byy = q.y + lw;
@@ -254,7 +269,7 @@ export class DieView {
         t.anchor.set(0.5, 0.5); t.position.set(bx + bwid / 2, byy + bs * 0.6);
         wash.tagTexts.addChild(t);
       });
-      if (w.selected) box(r, q.x, q.y, q.w, q.h, 6, { stroke: T.ink, lw: Math.max(3, q.w * 0.008), sa: 0.9 });
+      if (w.selected) { const o = lw * 2.5; box(r, q.x - o, q.y - o, q.w + 2 * o, q.h + 2 * o, rad + o, { stroke: T.ink, lw: lw * 1.2, sa: 0.85 }); }
     }
     this.washes.forEach((_, k) => this.wearWash(k));
   }
