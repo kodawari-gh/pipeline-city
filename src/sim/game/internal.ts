@@ -38,6 +38,8 @@ export interface Key extends Job {
    * Saved only on a key that holds its result: a job that is mid-run at a save starts over after the load and stamps it again.
    */
   ranAt?: number;
+  /** The game was loaded while the machine held this job (not saved): the counters restarted at the load, so its window and `ranAt` are re-stamped when it runs and cover only the time since. */
+  reloaded?: true;
   /** The engine's counters when the job first ran (not saved): the job log reports the change by the time it finishes. */
   c0?: number[];
   /** What the counters changed by from the job being taken to its result landing (set when `doneAt` is). */

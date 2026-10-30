@@ -156,6 +156,7 @@ export function restoreSave(this: Game, s: SaveV4): void {
     if (s.net) {
       this.offersQ.set(s.net.offers.map((k) => this.rebuild(k)));
       this.spool = s.net.spool.map((k) => this.rebuild(k));
+      for (const k of this.spool) k.reloaded = true;
     }
     if (s.plugged) {
       const p = s.plugged;
@@ -167,6 +168,7 @@ export function restoreSave(this: Game, s: SaveV4): void {
       if (p.done && p.ranAt !== undefined) key.ranAt = p.ranAt;
       key.result = p.result;
       key.retired = p.retired ?? (legacyRetired && !p.done);
+      key.reloaded = true;
       this.plugged = key;
       this.pchKey = { id: key.id, program: generate(key.template, key.seed, { row: JOB_ROW, scale: key.scale, hosted: true, gpu: this.gpuTarget(), npu: this.npuTarget() }).program, done: key.done, result: key.result };
       this.pch.plug(this.pchKey);

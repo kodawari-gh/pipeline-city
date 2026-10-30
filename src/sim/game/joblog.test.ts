@@ -171,6 +171,92 @@ describe("a job that was in the spool when the game was saved", () => {
   });
 });
 
+describe("a job on the machine when the game was saved and loaded", () => {
+  const offer = (g: Game, template: string, scale = 1) => (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(template, scale, undefined, true);
+  const reload = (g: Game): Game => Game.fromSave(JSON.parse(JSON.stringify(g.toSave())));
+
+  it("words the reading as counters since the reload, or says there are none", () => {
+    const e = entry({ reloaded: true, win: win({ stallCache: 500 }) });
+    expect(verdictOf(e)).toMatchObject({ kind: "memory" });
+    expect(verdictOf(e).text).toContain("since the reload");
+    expect(verdictOf(entry({ win: win({ stallCache: 500 }) })).text).not.toContain("reload");
+    expect(verdictOf(entry({ reloaded: true, win: undefined })).hint).toContain("reloaded");
+    expect(liveVerdict({ arrivalTick: 0, deadlineTick: 100, startedAt: 0, reloaded: true, live: win({ stallCache: 500 }) }, 50)!.text).toContain("since the reload");
+  });
+
+  it("the plugged key keeps when it was taken; its run is counted since the reload and the log says so", () => {
+    const g = rig("ssd1", { keys: [{ template: "cli.scan", scale: 4 }] });
+    g.powerButton();
+    for (let t = 0; t < 400 && g.currentPhase() !== "idle-os"; t++) g.advanceBaseTick();
+    g.plugKey(g.trayKeyIds()[0]!);
+    for (let t = 0; t < 600 && g.snapshot().plugged?.stage !== "running"; t++) g.advanceBaseTick();
+    expect(g.snapshot().plugged!.stage).toBe("running");
+    const saved = g.toSave();
+    const back = reload(g);
+    const k = back.snapshot().plugged!;
+    expect(k.reloaded).toBe(true);
+    expect(back.toSave().plugged!.pluggedAt).toBe(saved.plugged!.pluggedAt);
+    expect(k.ranAt).toBeUndefined(); // it starts over: stamped again when the kernel runs it
+    back.powerButton();
+    for (let t = 0; t < 6000 && back.completed < 1; t++) back.advanceBaseTick();
+    const e = back.snapshot().jobLog![0]!;
+    expect(e).toMatchObject({ outcome: "done", reloaded: true, start: saved.plugged!.pluggedAt, arrival: saved.plugged!.arrival });
+    expect(phasesOf(e).wait).toBe(saved.plugged!.pluggedAt - saved.plugged!.arrival);
+    expect(e.ran!).toBeGreaterThan(saved.baseTick); // the run began after the reload
+    expect(e.win!.cycles).toBeGreaterThan(0);
+    expect(e.win!.retired).toBeGreaterThan(0);
+    expect(reload(back).snapshot().jobLog![0]).toEqual(e); // the flag is saved with the entry
+  });
+
+  it("without an OS a reloaded key is stamped when the machine first runs it, and its window is since then", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [{ template: "cli.scan", scale: 4 }], firmwareBoost: 1 } });
+    g.money = 1e6;
+    const op = new Operator(g, 0);
+    for (let t = 0; t < 5000 && !(g.snapshot().plugged && g.currentPhase() === "running"); t++) { g.advanceBaseTick(); op.step(); }
+    expect(g.snapshot().plugged).not.toBeNull();
+    const saved = g.toSave();
+    const back = reload(g);
+    expect(back.snapshot().plugged!.reloaded).toBe(true);
+    back.powerButton();
+    const op2 = new Operator(back, 0);
+    for (let t = 0; t < 8000 && back.completed < 1; t++) { back.advanceBaseTick(); op2.step(); }
+    const e = back.snapshot().jobLog![0]!;
+    expect(e).toMatchObject({ reloaded: true, start: saved.plugged!.pluggedAt });
+    expect(e.ran!).toBeGreaterThanOrEqual(saved.baseTick);
+    expect(e.win!.cycles).toBeGreaterThan(0);
+  });
+
+  it("a spooled job keeps its taking too, and a job that never reloaded has no flag", () => {
+    const g = netRig("ssd1", { keys: [] });
+    offer(g, "cli.scan", 4);
+    offer(g, "cli.log");
+    for (let t = 0; t < 3000 && g.toSave().net!.spool.length < 1; t++) g.advanceBaseTick();
+    const saved = g.toSave();
+    expect(saved.net!.spool.length).toBeGreaterThan(0);
+    const back = reload(g);
+    const spooled = back.snapshot().net!.spooled;
+    expect(spooled.map((k) => [k.id, k.startedAt])).toEqual(saved.net!.spool.map((k) => [k.id, k.pluggedAt]));
+    for (const k of spooled) expect(k.reloaded).toBe(true);
+    back.powerButton();
+    for (let t = 0; t < 8000 && back.completed < 2; t++) back.advanceBaseTick();
+    const ids = saved.net!.spool.map((k) => k.id);
+    const log = back.snapshot().jobLog!.filter((e) => ids.includes(e.id));
+    expect(log).toHaveLength(ids.length);
+    for (const e of log) {
+      const was = saved.net!.spool.find((k) => k.id === e.id)!;
+      expect(e).toMatchObject({ reloaded: true, start: was.pluggedAt });
+      expect(e.win!.cycles).toBeGreaterThan(0);
+      expect(e.ran!).toBeGreaterThan(saved.baseTick);
+    }
+    const fresh = rig("ssd1", { keys: [{ template: "cli.log" }] });
+    fresh.powerButton();
+    for (let t = 0; t < 400 && fresh.currentPhase() !== "idle-os"; t++) fresh.advanceBaseTick();
+    fresh.plugKey(fresh.trayKeyIds()[0]!);
+    for (let t = 0; t < 600 && fresh.completed < 1; t++) fresh.advanceBaseTick();
+    expect(fresh.snapshot().jobLog![0]!.reloaded).toBeUndefined();
+  });
+});
+
 describe("a job queued behind another under an OS", () => {
   const offer = (g: Game, template: string, scale = 1) => (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(template, scale, undefined, true);
 

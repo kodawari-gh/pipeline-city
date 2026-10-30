@@ -46,6 +46,8 @@ export interface JobLogEntry {
   os: number;
   /** The job's work ran on a graphics card (the host only spun on its status), so the window's CPU stalls are not the job's. Absent on older saves. */
   gpu?: true;
+  /** The game was loaded while this job was on the machine: `win` counts only since the reload (the counters restart), and there is none if the result was already in. */
+  reloaded?: true;
   /** Absent for jobs that never ran, and when the machine rebooted mid-job. */
   win?: JobWindow;
 }
@@ -86,7 +88,7 @@ export function phasesOf(e: JobLogEntry): Phases {
 }
 
 /** A job still on the machine, as the key snapshot shows it (docs/JOBS.md "On the machine now"). */
-export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; ranAt?: number; finishedAt?: number; live?: JobWindow; gpu?: true }
+export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; ranAt?: number; finishedAt?: number; live?: JobWindow; gpu?: true; reloaded?: true }
 
 /** Where a job's time has gone so far: waiting for the machine, queued in it, running on it, and (once the result is written) the result waiting to be collected. */
 export function livePhases(k: LiveShape, now: number): Phases {
@@ -117,8 +119,13 @@ export interface Verdict {
 const roundPhases = (p: Phases): Phases => ({ wait: Math.round(p.wait), queue: Math.round(p.queue), run: Math.round(p.run), collect: Math.round(p.collect), total: Math.round(p.total) });
 const pc = (x: number) => `${Math.round(x * 100)}%`;
 
-/** A plain reading of a log entry: the largest phase, and for a run, what the machine spent its cycles on. */
+/** A plain reading of a log entry: the largest phase, and for a run, what the machine spent its cycles on. A reloaded job says its counters are since the reload. */
 export function verdictOf(e: JobLogEntry): Verdict {
+  const v = readingOf(e);
+  return e.reloaded && v.where === "run" && v.kind !== "card" && e.win ? { ...v, text: `${v.text} (counters since the reload)` } : v;
+}
+
+function readingOf(e: JobLogEntry): Verdict {
   if (e.outcome === "expired") return { where: "wait", kind: "lost", tag: "Taken back", text: "A client took it back at its deadline: the machine could not run it.", hint: "Look at what it needs in the almanac (OS, drive, RAM, network) and add that." };
   if (e.outcome === "declined") return { where: "none", kind: "lost", tag: "Declined", text: "You declined it.", hint: "Declining costs a little reputation outside the sandbox." };
   const p = roundPhases(phasesOf(e));
@@ -138,7 +145,7 @@ export function verdictOf(e: JobLogEntry): Verdict {
     hint: "More lanes, a faster card clock or more card memory shorten the run; the CPU's stalls do not apply here.",
   };
   const w = e.win;
-  if (!w || w.cycles <= 0) return { where: "run", kind: "none", tag: "Ran", text: `It ran ${p.run}s.`, hint: "No counters for this run (the machine restarted during it)." };
+  if (!w || w.cycles <= 0) return { where: "run", kind: "none", tag: "Ran", text: `It ran ${p.run}s.`, hint: e.reloaded ? "No counters for this run: the game was reloaded during it." : "No counters for this run (the machine restarted during it)." };
   const stalls: Array<[number, string, string, VerdictKind, string]> = [
     [w.stallCache, "waiting on memory (cache misses)", "More cache, faster RAM, or a CPU with a better cache; the almanac shows how much the job leans on memory.", "memory", "Memory-bound"],
     [w.stallFlush, "throwing away mispredicted work", "A CPU with a better branch predictor; the almanac shows how many branches the job has.", "branch", "Branchy"],
@@ -161,7 +168,7 @@ export function liveVerdict(k: LiveShape, now: number): Verdict | null {
   const w = k.live;
   if (!w || w.cycles < 200) return null;
   const run = Math.max(1, livePhases(k, now).run);
-  const v = verdictOf({ id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: 0, finish: run, end: run, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(k.gpu ? { gpu: true as const } : {}), win: w });
+  const v = verdictOf({ id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: 0, finish: run, end: run, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(k.gpu ? { gpu: true as const } : {}), ...(k.reloaded ? { reloaded: true as const } : {}), win: w });
   return v.kind === "none" || v.kind === "queue" || v.kind === "collect" || v.kind === "lost" ? null : v;
 }
 

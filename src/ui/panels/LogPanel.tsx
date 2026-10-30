@@ -170,7 +170,7 @@ function Detail({ e }: { e: JobLogEntry }) {
         <JobSprite id={e.type} />
         <div>
           <h3>{nameOf(e.type)} <span class="mute">#{e.id}</span></h3>
-          <div class="jl-cap"><Tag v={v} />{how && <span class="jl-pay"><Icon name="dollar" size={11} /> {how.slice(1)}</span>}{e.late && e.outcome === 'done' && <span class="jl-tag k-queue"><Icon name="warn" size={11} /> Late</span>}</div>
+          <div class="jl-cap"><Tag v={v} />{how && <span class="jl-pay"><Icon name="dollar" size={11} /> {how.slice(1)}</span>}{e.late && e.outcome === 'done' && <span class="jl-tag k-queue"><Icon name="warn" size={11} /> Late</span>}{e.reloaded && <span class="jl-tag k-none" title={w ? 'The game was loaded while this job was on the machine: the counters below are since the reload.' : 'The game was loaded while this job was on the machine, so there are no counters for it.'}><Icon name="disk" size={11} /> {w ? 'Counters since reload' : 'Reloaded'}</span>}</div>
         </div>
         <AlmanacLink type={e.type} />
         <button class="link" onClick={() => { picked.value = null; }}>Overview</button>

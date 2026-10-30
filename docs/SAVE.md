@@ -18,7 +18,7 @@ Powered state and phase (the game always loads **powered off**), disk contents a
 
 The machine loads powered off with the phase `off`, wherever it was. A **plugged key stays plugged**:
 
-- a job in progress (the key does not hold a result) **restarts from boot** at the next power-on: the ROM runs POST, finds the key in its one look at the port, loads it and runs it from the first instruction (the same as a hard power-off); `attempts`, `arrival` and `pluggedAt` are kept, so turnaround still counts from arrival;
+- a job in progress (the key does not hold a result) **restarts from boot** at the next power-on: the ROM runs POST, finds the key in its one look at the port, loads it and runs it from the first instruction (the same as a hard power-off); `attempts`, `arrival` and `pluggedAt` are kept, so turnaround still counts from arrival; the job log marks the run `reloaded` and counts its counters only from the restart (nothing new is saved for it: `ranAt` and the counters are re-stamped, see docs/JOBS.md "The log");
 - a finished key (`done`, with its `result`) stays finished: at power-on the ROM goes straight to `JOB DONE` (halted) and removing the key pays out;
 - the machine is always off after a load: a plugged key plus a power press is the whole no-OS flow.
 

@@ -45,6 +45,7 @@ export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
   key.pluggedAt = this.baseTick;
   key.c0 = this.countersNow();
   // Without an OS the plug is the job's start; with one it runs when the kernel begins it (`stampRan`).
+  delete key.reloaded;
   if (this.os) delete key.ranAt;
   else key.ranAt = this.baseTick;
   this.plugged = key;
@@ -215,10 +216,19 @@ export function ranOf(this: Game, k: Key): number {
 /**
  * Per base tick, under an OS: a job the kernel has just begun gets `ranAt`, and its counter window restarts there, so the run
  * excludes the ingest and the queue wait. Only the first time (a re-ingest after a reboot keeps it). The jobs are the plugged key
- * and the spool; a job that starts and ends inside one tick is never seen running and keeps the older reading.
+ * and the spool; a job that starts and ends inside one tick is never seen running and keeps the older reading. A job reloaded from a
+ * save is stamped here too (its counters restarted at the load), so its window covers only the run since.
  */
 export function stampRan(this: Game): void {
-  if (!this.os) return;
+  if (!this.os) {
+    // A key reloaded in the port: the machine boots cold and loads it, so the run (and its counters) start over at the first tick it is on.
+    const k = this.plugged;
+    if (k?.reloaded && !k.done && k.ranAt === undefined) {
+      k.ranAt = this.baseTick;
+      k.c0 = this.countersNow();
+    }
+    return;
+  }
   for (const j of this.kernelJobs()) {
     if (j.state !== JobState.Running) continue;
     const k = this.plugged?.id === j.key ? this.plugged : this.spool.find((x) => x.id === j.key);
@@ -260,6 +270,7 @@ export function addLog(this: Game, k: Key, outcome: JobOutcome, pay: number, lat
     start: done ? this.startOf(k) : this.baseTick, ...(done && k.ranAt !== undefined ? { ran: Math.max(this.startOf(k), k.ranAt) } : {}), finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
     deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
     ...(done && this.onCard(k) ? { gpu: true as const } : {}),
+    ...(done && k.reloaded ? { reloaded: true as const } : {}),
     ...(done && k.win ? { win: { ...k.win } } : {}),
   });
   if (this.jobLog.length > JOB_LOG_CAP) this.jobLog.splice(0, this.jobLog.length - JOB_LOG_CAP);

@@ -238,6 +238,8 @@ export interface KeySnap {
   startedAt?: number;
   /** The tick the job first ran (the kernel began it); `startedAt` to here is the queue. Absent while queued and for older saves. */
   ranAt?: number;
+  /** The game was loaded while the machine held this job: `live` counts only since the reload. */
+  reloaded?: true;
   /** The tick the result was written, once it is. */
   finishedAt?: number;
   /** While it runs: what the engine has counted since the machine took it (the job log's window, still open). */

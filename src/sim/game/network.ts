@@ -144,7 +144,8 @@ export function runTransfers(this: Game): void {
     this.offersQ.take(next.id);
     next.pluggedAt = this.baseTick;
     next.c0 = this.countersNow();
-    delete next.ranAt; // a returned offer starts over: it runs when the kernel begins it
+    delete next.ranAt;
+    delete next.reloaded; // a returned offer starts over: it runs when the kernel begins it
     const z = jobSizes(next.cls, next.type, next.scale);
     this.downloads.push({ key: next, totalMB: z.downMB, doneMB: 0 });
   }
