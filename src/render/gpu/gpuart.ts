@@ -99,11 +99,8 @@ export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
     }
   }
   for (const l of plan.links) {
-    const c = T[GPU_LINK_COLOR[l.kind]], a = l.pts[0]!, z = l.pts[l.pts.length - 1]!, p = l.pts[l.pts.length - 2] ?? a;
-    wg.rect(a[0] - 2.5, a[1] - 2.5, 5, 5).fill({ color: c });
-    // an arrowhead where the link ends, pointing the way it carries
-    const dx = Math.sign(z[0] - p[0]), dy = Math.sign(z[1] - p[1]), w = 4 + l.lanes;
-    wg.poly([z[0], z[1], z[0] - dx * 7 - dy * w, z[1] - dy * 7 - dx * w, z[0] - dx * 7 + dy * w, z[1] - dy * 7 + dx * w]).fill({ color: c });
+    const c = T[GPU_LINK_COLOR[l.kind]];
+    for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!]) wg.rect(p[0] - 2.5, p[1] - 2.5, 5, 5).fill({ color: c }); // solder pads at both ends, as on the CPU die
   }
   const cg = new Graphics();
   cells.addChild(cg);
