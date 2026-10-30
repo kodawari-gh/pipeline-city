@@ -3,14 +3,14 @@ import { TIER_GEO } from './boardlayout';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
-  BIOS_CHAIN, BUS_ROLE, KEY_PORT, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
   type Hop,
 } from './busmap';
 
 const near = (p: [number, number], r: Rect, d = 80) => p[0] >= r.x - d && p[0] <= r.x + r.w + d && p[1] >= r.y - d && p[1] <= r.y + r.h + d;
 const first = (l: Lane) => l.pts[0]!, last = (l: Lane) => l.pts[l.pts.length - 1]!;
 const ALL_CHAINS: Record<string, Hop[]> = {
-  bios: BIOS_CHAIN, power: POWER_ON_CHAIN, volt: VOLTAGE_CHAIN, code: POST_CODE_CHAIN, video: VIDEO_CHAIN,
+  bios: BIOS_CHAIN, cooler: COOLER_CHAIN, power: POWER_ON_CHAIN, volt: VOLTAGE_CHAIN, code: POST_CODE_CHAIN, video: VIDEO_CHAIN,
   keyRead: keyChain(false), keyWrite: keyChain(true), netDown: boardNetChain(true), netUp: boardNetChain(false),
   sata: driveChain('sata0', false), m2: driveChain('m20', true), cpuCard: slotChain('pcie0', true), chipCard: slotChain('pcie1', false),
 };
@@ -88,6 +88,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     expect(near(first(lane('svid')), g.pwm)).toBe(true);
     expect(near(last(lane('svid')), PKG, 120)).toBe(true);
     expect(near(first(lane('pwmc')), g.pwm)).toBe(true); // the first pwmc is the CPU's regulator
+    expect(resolve(map, COOLER_CHAIN).map((l) => l.bus)).toEqual(['fanc']);
+    expect(near(first(lane('fanc')), g.hub)).toBe(true); // the first fan lead is the CPU_FAN header's, from the I/O hub
     expect(resolve(map, POST_CODE_CHAIN).map((l) => l.bus)).toEqual(g.dbg ? ['dmi', 'dbg'] : ['dmi']);
     if (g.dbg) expect(near(first(lane('dbg')), g.chip, 140)).toBe(true);
   });

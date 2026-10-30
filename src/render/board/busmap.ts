@@ -13,9 +13,9 @@ export type BusRole = 'data' | 'control' | 'power' | 'dark';
 export const BUS_ROLE: Record<BusKind, BusRole> = {
   mem: 'data', nvme: 'data', dmi: 'data', pcie: 'data', sata: 'data', usb: 'data', video: 'data',
   lan: 'data', phyl: 'data',
-  spi: 'control', lpc: 'control', hdr: 'control', svid: 'control', pwmc: 'control', dbg: 'control',
+  spi: 'control', lpc: 'control', hdr: 'control', svid: 'control', pwmc: 'control', dbg: 'control', fanc: 'control',
   pwr12: 'power', pwrcpu: 'power', vcore: 'power', vdimm: 'power',
-  dp: 'dark', audio: 'dark', hda: 'dark', rtc: 'dark', clk: 'dark', rgb: 'dark', fanc: 'dark', pwrpcie: 'dark',
+  dp: 'dark', audio: 'dark', hda: 'dark', rtc: 'dark', clk: 'dark', rgb: 'dark', pwrpcie: 'dark',
 };
 
 /** Buses that carry messages. */
@@ -86,6 +86,8 @@ export const BIOS_CHAIN: Hop[] = [{ bus: 'spi', dir: 1 }, { bus: 'dmi', dir: -1 
 export const POWER_ON_CHAIN: Hop[] = [{ bus: 'hdr', dir: -1 }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
 /** The CPU asks the regulator for a voltage (SVID), the controller drives its phases (PWM). The CPU's controller is the first `pwmc`. */
 export const VOLTAGE_CHAIN: Hop[] = [{ bus: 'svid', dir: -1 }, { bus: 'pwmc', dir: 1 }];
+/** POST asks the cooler: the I/O hub's lanes to the CPU_FAN header (the first `fanc`; the heatsink fans' leads stay quiet). */
+export const COOLER_CHAIN: Hop[] = [{ bus: 'fanc', dir: 1 }];
 /** A POST code: CPU -> chipset (DMI), chipset -> debug display. */
 export const POST_CODE_CHAIN: Hop[] = [{ bus: 'dmi', dir: 1 }, { bus: 'dbg', dir: 1 }];
 /** The picture leaves the CPU's video lanes for the HDMI port. */
