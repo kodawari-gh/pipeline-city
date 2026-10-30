@@ -513,9 +513,9 @@ export class Live {
 
   /** Per-snapshot update. `s` may be null before the sim has started. */
   /** The CPU reached for a RAM address (a fetch, a load, a store): that cell of the sticks lights in the colour of the instruction. */
-  touchRam(kind: string, addr: number, _instructionColor: string): void {
-    // RAM only cares whether it is read (a fetch or a load) or written (a store), not which instruction asked
-    this.ram.touch(kind, addr, kind === 'store' ? this.T.br : this.T.alu);
+  touchRam(kind: string, addr: number, _instructionColor: string, core?: number): void {
+    // RAM only cares whether it is read (a fetch or a load) or written (a store), not which instruction asked; on a multicore die it also hears which core
+    this.ram.touch(kind, addr, kind === 'store' ? this.T.br : this.T.alu, core);
     const idx = this.ram.stickOf(addr);
     if (idx >= 0) this.triggerMem(idx, this.gt, kind === 'store' ? 1 : -1); // the stick that holds the address answers (or is written)
     else this.touchDevice(kind, addr);

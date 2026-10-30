@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepGpu, stepTick, viewCore } from '../../game/store';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub } from '../../game/scrub';
 import { memoryTable, sizeText } from '../../render/board/ramlayout';
+import { CoreRateTracker } from '../../render/die/corestats';
 import { tileModels } from '../../render/die/coretiles';
 import { isDark } from '../../render/theme';
 import { gpuListing } from '../../sim/game/gpucode';
@@ -34,6 +35,8 @@ const GPU_GROUPS: { id: GpuGroup; label: string; title: string }[] = [
 ];
 
 const buffer = new TraceBuffer(500);
+/** Per-core rates between the snapshots (a render without a new snapshot leaves them as they are). */
+const coreRates = new CoreRateTracker();
 const gpuShown = signal<Set<GpuGroup>>(new Set<GpuGroup>(['launch', 'mask', 'mem', 'reg', 'sched']));
 /** The card's side shows the kernel in its memory instead of the steps. */
 const kernelShown = signal(false);
@@ -67,7 +70,7 @@ export function TracePanel() {
   const range = scrubRange.value, at = scrubShown.value, paused = speed.value === 0;
   const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
   const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
-  const tiles = s?.cores ? tileModels(s.cores, isDark()) : [];
+  const tiles = s?.cores ? tileModels(s.cores, isDark(), coreRates.update(s.cores.stats)) : [];
   const cards = s?.gpus ?? [], target = scrubTarget.value, card = target === 'cpu' ? undefined : cards.find((c) => `gpu:${c.slot}` === target);
   if (target !== 'cpu' && !card && cards.length === 0) selectScrub('cpu'); // the card is gone
   const gOn = gpuShown.value;
@@ -85,10 +88,12 @@ export function TracePanel() {
       {tiles.length > 0 && (
         <div class="trace-cores" role="group" aria-label="Core shown in the detail">
           {tiles.map((t) => (
-            <button key={t.core} class={`tcore${t.parked && !t.tint ? ' idle' : ''}`} aria-pressed={t.selected} style={t.tint ? { borderColor: t.tint, background: `color-mix(in srgb, ${t.tint} 22%, transparent)` } : undefined}
-              title={`Show core ${t.core} in the die detail (hardware core ${t.hw})`} onClick={() => viewCore(t.core)}>
+            <button key={t.core} class={`tcore${t.parked && !t.tint ? ' idle' : ''}`} aria-pressed={t.selected}
+              style={{ '--core': t.color, ...(t.tint ? { borderTopColor: t.tint, borderRightColor: t.tint, borderBottomColor: t.tint, background: `color-mix(in srgb, ${t.tint} 22%, transparent)` } : {}) }}
+              title={`Show core ${t.core} in the die detail (hardware core ${t.hw}). ${t.ipc.toFixed(2)} instructions per cycle, ${Math.round(t.stall * 100)}% of the cycles lost to stalls.`} onClick={() => viewCore(t.core)}>
               <b>{t.label}</b> <span class="mute">{t.sub}</span>
               <span class="tcells" aria-hidden="true">{t.cells.map((c, i) => <i key={i} class={`tc-${c ?? 'none'}`} />)}</span>
+              <span class="trate mute">{t.parked && !t.tint ? 'zz' : `${t.ipc.toFixed(2)} IPC · ${Math.round(t.stall * 100)}% stall`}</span>
             </button>
           ))}
         </div>

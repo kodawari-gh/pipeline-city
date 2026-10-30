@@ -31,7 +31,8 @@ const CYCLE_MS = 1000 / CYCLES_PER_SEC;
 const WIPE_MS = 320;
 
 /** What the memory sticks should show: the CPU asked RAM for an address (a fetch, a load, a store), `at` is game time in ms. */
-export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number }
+/** A reach for RAM. `core` is the logical core that made it, on a multicore die (diemulti.ts adds it). */
+export interface MemoryTouch { kind: 'fetch' | 'load' | 'store'; addr: number; cls: OpClass; at: number; core?: number }
 
 /** The scale a chip has in a block: it fits inside it. */
 const fitOf = (r: Rect) => Math.max(0.3, Math.min(1, (r.w - 12) / CHIP_W, (r.h - 22) / CHIP_H));

@@ -85,6 +85,11 @@ describe("the paged OS on a dual core", { timeout: 60_000 }, () => {
     expect(c1.engine!.cycle).toBeGreaterThan(100); // core 1 really ran the first job
     expect(c1.intc.taken).toBe(1); // woken by the IPI once; afterwards it parks and wakes by polling
     expect(c1.intc.parked).toBe(true);
+    const cores = g.snapshot().cores!; // the die's tiles: the counters of each hardware core ride along
+    expect(cores.stats).toHaveLength(cores.tiles.length);
+    expect(cores.stats![1]!.retired).toBeGreaterThan(0);
+    expect(cores.stats![1]!.cycles).toBeGreaterThanOrEqual(cores.stats![1]!.retired / 2);
+    expect(cores.stats![0]!.stalls).toBeGreaterThanOrEqual(0);
   });
 
   it("two jobs together finish sooner than one after the other on a single core", () => {

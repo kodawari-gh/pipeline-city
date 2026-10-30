@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoresSnap, PipeSnap } from '../../sim/game/pipesnap';
-import { pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
+import { coreColor, pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
 
 const stage = (op: string) => ({ kind: op ? 1 : 0, id: op ? 1 : -1, op, text: op, cause: 0, stalled: false });
 const inorder = (...ops: string[]): PipeSnap => ({ width: 1, stages: ops.map(stage) });
@@ -30,7 +30,27 @@ describe('core tiles', () => {
     const t = tileModels(snap(), true)[2]!;
     expect(t.tint).toBeNull();
     expect(t.cells.every((c) => c === null)).toBe(true);
-    expect(t.sub).toBe('idle');
+    expect(t.sub).toBe('parked');
+  });
+
+  it('gives every core its own colour, the same whatever runs on it, and a different one from its neighbours', () => {
+    const t = tileModels(snap(), true);
+    expect(new Set(t.map((x) => x.color)).size).toBe(3);
+    expect(t[0]!.color).toMatch(/^#[0-9a-f]{6}$/);
+    expect(coreColor(0, false)).not.toBe(coreColor(0, true));
+    const many = Array.from({ length: 8 }, (_, k) => coreColor(k, true));
+    expect(new Set(many).size).toBe(8);
+    const other = snap();
+    other.live[0] = { ...other.live[0]!, job: 8192, thread: 3 };
+    expect(tileModels(other, true)[0]!.color).toBe(t[0]!.color);
+  });
+
+  it('carries the rates of its hardware core, none for a parked idle core', () => {
+    const t = tileModels(snap(), true, [{ ipc: 0.8, stall: 0.25, l2Wait: 0 }, { ipc: 1.5, stall: 0, l2Wait: 0 }]);
+    expect([t[0]!.ipc, t[0]!.stall]).toEqual([0.8, 0.25]);
+    expect(t[1]!.ipc).toBe(1.5);
+    expect([t[2]!.ipc, t[2]!.stall]).toEqual([0, 0]);
+    expect(tileModels(snap(), true)[0]!.ipc).toBe(0);
   });
 
   it('tints a thread by its job and its number: one family per job, a different one for another job', () => {

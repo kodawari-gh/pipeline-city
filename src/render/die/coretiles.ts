@@ -5,6 +5,7 @@
 import type { CoresSnap, PipeSnap } from '../../sim/game/pipesnap';
 import { SlotKind } from '../../sim/engines/view';
 import { opClass, type OpClass } from './diemotion';
+import type { CoreRate } from './corestats';
 
 /** One cell of a tile's pipeline: the class of the instruction in it, or null when nothing is. */
 export type TileCell = OpClass | null;
@@ -19,6 +20,11 @@ export interface TileModel {
   thread: number;
   /** The thread's tint (#rrggbb), or null when no job runs here. */
   tint: string | null;
+  /** The core's own colour (#rrggbb): the same on the die, the RAM bubbles and the Trace panel, whatever runs on it. */
+  color: string;
+  /** Instructions per cycle and the share of cycles lost to stalls of its hardware core (0 until two readings are in). */
+  ipc: number;
+  stall: number;
   /** The hardware core's pipeline: the stages, or for the out-of-order engine the four units. */
   cells: TileCell[];
   /** How full the reorder buffer is, 0..1 (0 for the in-order engines). */
@@ -44,6 +50,15 @@ export function threadTint(job: number, thread: number, dark: boolean): string {
   return hsl(h, 0.7, dark ? 0.5 + 0.18 * step : 0.32 + 0.2 * step);
 }
 
+/**
+ * The colour of core `core`: spaced round the hue circle by the golden angle so the first cores are far apart, and the same whatever runs on it
+ * (the job's hue is the wash's: `threadTint`).
+ */
+export function coreColor(core: number, dark: boolean): string {
+  const h = (0.58 + core * 0.381966) % 1;
+  return hsl(h, 0.78, dark ? 0.62 : 0.42);
+}
+
 /** The cells of one pipeline snapshot. */
 export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: number } {
   if (!p) return { cells: [], fill: 0 };
@@ -53,17 +68,18 @@ export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: n
   return { cells: p.stages.map((s) => (s.kind === SlotKind.Instr && s.op ? opClass(s.op) : null)), fill: 0 };
 }
 
-/** The tiles of a multicore snapshot, in core order. */
-export function tileModels(c: CoresSnap, dark: boolean): TileModel[] {
+/** The tiles of a multicore snapshot, in core order. `rates` are the hardware cores' rates (corestats.ts), by hardware core. */
+export function tileModels(c: CoresSnap, dark: boolean, rates: readonly CoreRate[] = []): TileModel[] {
   return c.live.map((l) => {
     const { cells, fill } = pipeCells(c.tiles[l.hw]);
-    const running = l.job !== 0;
+    const running = l.job !== 0, asleep = l.parked && !running, r = rates[l.hw];
     return {
       core: l.core, hw: l.hw, parked: l.parked, selected: l.core === c.selected, job: l.job, thread: l.thread,
       tint: running ? threadTint(l.job, l.thread, dark) : null,
-      cells: l.parked && !running ? cells.map(() => null) : cells, fill,
+      color: coreColor(l.core, dark), ipc: asleep ? 0 : r?.ipc ?? 0, stall: asleep ? 0 : r?.stall ?? 0,
+      cells: asleep ? cells.map(() => null) : cells, fill,
       label: 'C' + l.core,
-      sub: running ? 'T' + l.thread : l.parked ? 'idle' : 'kernel',
+      sub: running ? 'T' + l.thread : l.parked ? 'parked' : 'kernel',
     };
   });
 }
@@ -78,8 +94,8 @@ export function tileRect(k: number, n: number, w: number, gap: number, maxW: num
 export interface WashModel { hw: number; selected: boolean; models: TileModel[] }
 
 /** The logical cores grouped by hardware core, in tile order. */
-export function washModels(c: CoresSnap, dark: boolean): WashModel[] {
-  const all = tileModels(c, dark), out: WashModel[] = [];
+export function washModels(c: CoresSnap, dark: boolean, rates: readonly CoreRate[] = []): WashModel[] {
+  const all = tileModels(c, dark, rates), out: WashModel[] = [];
   for (const m of all) {
     let w = out.find((x) => x.hw === m.hw);
     if (!w) { w = { hw: m.hw, selected: false, models: [] }; out.push(w); }

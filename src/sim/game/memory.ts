@@ -1,12 +1,12 @@
 // Game feature: what the memory is doing. The RAM map and its regions, page tables, the pages a job claims, bit flips,
 // memory faults and the health panel's checks. Every export is a `Game` method (see game.ts).
 
-import type { PipelineEngine } from "../engines";
+import { Counter, type PipelineEngine } from "../engines";
 import { JobState, KDATA_BASE, KSLOT_BYTES, PAGED_HEAP, PAGED_TABLES } from "../isa/memmap";
 import { FMAP, FRAME_END, FRAME_FIRST, KBUMP, KFAULTS, PCB, PCBS, RESERVED_FRAME } from "../os";
 import type { Game } from "./game";
 import type { KernelJob } from "./internal";
-import { pipeSnapOf, ramMapOf, type CoreLive, type CoresSnap, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
+import { pipeSnapOf, ramMapOf, type CoreLive, type CoreStats, type CoresSnap, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "./pipesnap";
 import { protectedPage, ramRegionsOf, type RamContext, type RamRegion } from "./ramregions";
 import type { HealthItem } from "./types";
 import { walkTable } from "./vmmap";
@@ -117,6 +117,14 @@ export function runningOn(this: Game, cores: number): { job: number; thread: num
   return out;
 }
 
+/** One hardware core's cumulative counters for the die's tiles (zeros without a view). */
+function coreStatsOf(e: PipelineEngine): CoreStats {
+  const c = e.view?.counters;
+  if (!c) return { cycles: 0, retired: 0, stalls: 0, l2Wait: 0, coherence: 0 };
+  const stalls = c[Counter.StallLoad]! + c[Counter.StallData]! + c[Counter.StallFlush]! + c[Counter.StallStruct]! + c[Counter.StallCache]! + c[Counter.StallL2Port]! + c[Counter.StallSwitch]!;
+  return { cycles: c[Counter.Cycles]!, retired: c[Counter.Retired]!, stalls, l2Wait: c[Counter.StallL2Port]!, coherence: c[Counter.CoherenceMisses]! };
+}
+
 /** Every logical core for the die's tiles (null with one core): the hardware core's pipeline, whether the core sleeps, and the job thread on it. Every tile carries its trace and stored state, so the die runs each core live. */
 export function coresSnap(this: Game): CoresSnap | null {
   const cores = this.machine.cores;
@@ -126,7 +134,7 @@ export function coresSnap(this: Game): CoresSnap | null {
   const run = this.runningOn(cores.length);
   const live: CoreLive[] = cores.map((c, k) => ({ core: k, hw: hw[k]!, parked: c.intc.parked, job: run[k]!.job, thread: run[k]!.thread }));
   const tiles = engines.map((e) => (e.view ? this.pipeSnap(e) : { width: 1, stages: [] }));
-  return { selected: sel, live, tiles };
+  return { selected: sel, live, tiles, stats: engines.map(coreStatsOf) };
 }
 
 /** A cosmic ray: at the economy's rate a bit flips in memory the running job uses. ECC memory corrects it; plain memory keeps it. */

@@ -4,6 +4,8 @@ import type { RamRegion } from '../../sim/game/ramregions';
 import { label, mix } from '../ink';
 import { opClass, type OpClass } from '../die/diemotion';
 import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
+import { coreColor } from '../die/coretiles';
+import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from './layout';
 import type { Theme } from '../theme';
 
@@ -12,13 +14,14 @@ import type { Theme } from '../theme';
 // regions are outlined, each stick shows how full it is, and a magnifier beside the address the CPU touches last reads the memory as text:
 // the instructions of the code, the words of the data. Cells are drawn only when the memory changes, so the view costs next to nothing.
 
-const TOUCH_MS = 700, MAX_TOUCHES = 8;
+const TOUCH_MS = 700, MAX_TOUCHES = 8, MAX_CORE_TOUCHES = 48, MAX_BUBBLES = 6;
 // the same zoom levels as the CPU die (dieview.ts setZoom: wires 0.7, cells 0.8, texts 0.85, subtexts 1.2): below them the traces are the picture
 const SHOW_Z = 0.7, OUTLINE_Z = 0.8, BAND_Z = 0.85, LENS_Z = 1.2;
 const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
-interface Touch { addr: number; kind: string; color: string; t: number }
+/** `core`: the logical core that reached for the address, on a multicore die (a single core has none: the cell lights, no bubble). */
+interface Touch { addr: number; kind: string; color: string; t: number; core?: number }
 
 interface ChipView { slot: ChipSlot }
 
@@ -71,6 +74,9 @@ export class RamView {
   private readonly outG = new Graphics();
   private readonly names = new Container();
   private readonly touchG = new Graphics();
+  /** The labels of the bubbles (pooled: a bubble's text is set while it lives). */
+  private readonly bubbleLayer = new Container();
+  private bubbleTexts: Text[] = [];
   private lensAt: { x: number; y: number } | null = null;
   private readonly lensG = new Graphics();
   /** Where the magnifier's thread meets it (world). */
@@ -88,7 +94,7 @@ export class RamView {
 
   constructor() {
     this.lens.addChild(this.lensG);
-    this.root.addChild(this.back, this.outG, this.names, this.touchG, this.lens);
+    this.root.addChild(this.back, this.outG, this.names, this.touchG, this.bubbleLayer, this.lens);
     this.root.visible = false;
   }
 
@@ -97,6 +103,8 @@ export class RamView {
     this.T = T;
     this.rects = rects;
     this.destroyChips();
+    for (const t of this.bubbleTexts) t.destroy();
+    this.bubbleTexts = [];
     for (const t of [...this.regionTexts, ...this.stickTexts, ...this.lensRowsT, ...(this.lensTitle ? [this.lensTitle] : []), ...(this.lensTag ? [this.lensTag] : []), ...(this.lensNote ? [this.lensNote] : []), ...this.lensKey]) t.destroy();
     this.regionTexts = []; this.stickTexts = []; this.lensRowsT = []; this.lensTitle = null; this.lensTag = null; this.lensNote = null; this.lensKey = []; this.lensSig = ''; this.outSig = '';
     this.back.clear(); this.outG.clear(); this.touchG.clear(); this.lensG.clear(); this.lens.visible = false;
@@ -137,10 +145,10 @@ export class RamView {
   }
 
   /** The CPU reached for a RAM address (a fetch, a load, a store): that spot lights in the colour of the instruction. */
-  touch(kind: string, addr: number, color: string): void {
-    const t = { addr, kind, color, t: performance.now() };
+  touch(kind: string, addr: number, color: string, core?: number): void {
+    const t: Touch = { addr, kind, color, t: performance.now(), core };
     this.touches.push(t);
-    if (this.touches.length > MAX_TOUCHES) this.touches.shift();
+    if (this.touches.length > (core === undefined ? MAX_TOUCHES : MAX_CORE_TOUCHES)) this.touches.shift();
     this.lastTouch = t;
   }
 
@@ -313,14 +321,14 @@ export class RamView {
   /** The pages the CPU touched in the last moments: the cell is outlined in the colour of the instruction and fades; the last one is joined to the magnifier. */
   private drawTouches(wall: number): void {
     if (this.touches.length === 0) {
-      if (this.touchDrawn) { this.touchG.clear(); this.touchDrawn = false; }
+      if (this.touchDrawn) { this.touchG.clear(); this.hideBubbleTexts(0); this.touchDrawn = false; }
       return;
     }
     const g = this.touchG;
     g.clear();
     this.touchDrawn = true;
     const z = this.zoom;
-    for (const t of this.touches) {
+    for (const t of this.touches.slice(-MAX_TOUCHES)) {
       const c = this.chipOf(t.addr);
       if (!c) continue;
       const a = 1 - (wall - t.t) / TOUCH_MS;
@@ -330,6 +338,62 @@ export class RamView {
         g.moveTo(sp.x + sp.sx / 2, sp.y + sp.sy).lineTo(this.lensAt.x, this.lensAt.y).stroke({ width: Math.max(0.4, 1.1 / z), color: t.color, alpha: 0.7 * a });
       }
     }
+    this.drawBubbles(g, wall);
+  }
+
+  /**
+   * One bubble per resource (a region of RAM) the cores reached for in the last moments, above the spot of its newest touch: ringed in the colour of
+   * each core on it (a split ring when several), a red outer ring when more than one core shares it, bigger for writes. Past the band zoom it says
+   * which cores and which resource.
+   */
+  private drawBubbles(g: Graphics, wall: number): void {
+    const T = this.T, m = this.map;
+    const ct = this.touches.filter((t) => t.core !== undefined);
+    if (!T || !m || ct.length === 0) { this.hideBubbleTexts(0); return; }
+    const bubbles = bubblesOf(ct.map((t) => ({ addr: t.addr, core: t.core!, write: t.kind === 'store', t: t.t })), m.regions, MAX_BUBBLES);
+    const z = this.zoom, r0 = 7 / z, text = z >= BAND_Z;
+    let used = 0;
+    for (const b of bubbles) {
+      const c = this.chipOf(b.addr);
+      if (!c) continue;
+      const sp = this.spot(c, b.addr);
+      const a = Math.max(0.3, 1 - (wall - b.t) / TOUCH_MS);
+      const r = r0 * (1 + Math.min(3, b.writes) * 0.12), cx = sp.x + sp.sx / 2, cy = sp.y - r * 1.7;
+      g.moveTo(cx, cy + r).lineTo(cx, sp.y).stroke({ width: Math.max(0.3, 1 / z), color: T.ink, alpha: 0.5 * a });
+      g.circle(cx, cy, r).fill({ color: T.die, alpha: 0.92 * a });
+      const n = b.cores.length, lw = 2.4 / z;
+      if (n === 1) g.circle(cx, cy, r).stroke({ width: lw, color: coreColor(b.cores[0]!.core, T.dark), alpha: a });
+      else {
+        b.cores.forEach((k, j) => {
+          const a0 = -Math.PI / 2 + (j * 2 * Math.PI) / n, a1 = a0 + (2 * Math.PI) / n - 0.14;
+          g.moveTo(cx + r * Math.cos(a0), cy + r * Math.sin(a0)).arc(cx, cy, r, a0, a1).stroke({ width: lw, color: coreColor(k.core, T.dark), alpha: a });
+        });
+      }
+      if (b.contended) g.circle(cx, cy, r * 1.4).stroke({ width: Math.max(0.3, 1.2 / z), color: T.br, alpha: 0.85 * a });
+      if (!text) continue;
+      const t = this.bubbleText(used++);
+      t.text = `${coresText(b.cores)}  ${b.label}`;
+      t.style.fill = T.ink;
+      t.scale.set(1 / z);
+      t.position.set(cx + r * 1.7, cy);
+      t.alpha = a;
+      t.visible = true;
+    }
+    this.hideBubbleTexts(used);
+  }
+
+  private bubbleText(i: number): Text {
+    let t = this.bubbleTexts[i];
+    if (!t) {
+      t = label('', 0, 0, 9, this.T!.ink, { minPx: 4, weight: '700' });
+      this.bubbleLayer.addChild(t);
+      this.bubbleTexts[i] = t;
+    }
+    return t;
+  }
+
+  private hideBubbleTexts(from: number): void {
+    for (let i = from; i < this.bubbleTexts.length; i++) this.bubbleTexts[i]!.visible = false;
   }
 
   /** The magnifier: the words around the address the CPU touched last, as code (the instructions) or data (words and text). */

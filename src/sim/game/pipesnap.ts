@@ -76,12 +76,26 @@ export interface CoreLive {
   thread: number;
 }
 
+/** A hardware core's cumulative counters since the machine started: the main thread turns two readings into rates (render/die/corestats.ts). */
+export interface CoreStats {
+  cycles: number;
+  retired: number;
+  /** Cycles lost to every kind of stall (hazards, flushes, cache misses, the shared L2 port, thread switches). */
+  stalls: number;
+  /** Of them, the cycles waited for the shared L2 port: the cost of the other cores. */
+  l2Wait: number;
+  /** This core's L1 misses on a line another core's store dropped. */
+  coherence: number;
+}
+
 /** What a multicore die shows: every logical core, a pipeline snapshot per hardware core (the selected one has the stored state too), and the core the detailed view follows. */
 export interface CoresSnap {
   selected: number;
   live: CoreLive[];
   /** Per hardware core: stage occupants or the out-of-order structures, and the recent cycles. */
   tiles: PipeSnap[];
+  /** Per hardware core, like `tiles`: its counters. */
+  stats?: CoreStats[];
 }
 
 export interface PipeSnap {
