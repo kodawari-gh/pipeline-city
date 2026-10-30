@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../game/hover';
 import { highlight } from '../../game/interaction';
 import {
-  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, togglePause,
+  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, togglePause, zoomSlowdown,
 } from '../../game/store';
 import { SPEEDS } from '../../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from '../logic';
@@ -101,7 +101,10 @@ function PauseKey() {
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
-  return speed.value === 0 && !popupPause.value ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
+  if (speed.value === 0) return !popupPause.value ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Paused <span class="mute">Space to resume</span></div> : null;
+  const slow = zoomSlowdown.value;
+  // zoomed in, the machine is shown in slow motion so a block can be followed: say so, and how to get the full pace back
+  return slow < 0.97 ? <div class="pausepill" role="status"><Icon name="clock" size={13} /> Slow motion {Math.round(slow * 100)}% <span class="mute">zoomed in, zoom out for full pace</span></div> : null;
 }
 
 /**

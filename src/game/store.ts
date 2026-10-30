@@ -9,6 +9,8 @@ export const DEFAULT_SPEED: Speed = 4;
 export const speed = signal<Speed>(DEFAULT_SPEED);
 /** The last running speed: what a resume goes back to, and what the speed control shows while paused. */
 export const lastRunSpeed = signal<Speed>(DEFAULT_SPEED);
+/** The share of its pace the world animation runs at while the camera is zoomed in (1: full pace; render/lod.ts `zoomSlow`). The HUD explains it when it is below 1. */
+export const zoomSlowdown = signal(1);
 export const lastError = signal<string | null>(null);
 /** The report of the sim's last crash (it paused itself); the HUD shows it until it is dismissed (docs/ARCHITECTURE.md "Crash report"). */
 export const crash = signal<CrashReport | null>(null);

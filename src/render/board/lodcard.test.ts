@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Container } from 'pixi.js';
-import { REF_SIZE } from '../lod';
 import { cardCandidates, cardText } from './lodcard';
 import { RectCache } from './lodrect';
 
 /** A card `w` wide at (x, y). */
-const node = (x: number, y: number, w = REF_SIZE): Container => ({ x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) }) as unknown as Container;
+const node = (x: number, y: number, w = 100): Container => ({ x, y, getLocalBounds: () => ({ x: 0, y: 0, width: w, height: 100 }) }) as unknown as Container;
 const view = { x: 0, y: 0, w: 4000, h: 3000 };
 
 describe('cardCandidates', () => {
-  const cards = [{ slot: 'a', root: node(1300, 1400) }, { slot: 'b', root: node(50000, 5000) }];
+  const cards = [{ slot: 'a', root: node(1950, 1450) }, { slot: 'b', root: node(50000, 5000) }];
   it('lists only cards in view, with their id', () => {
     const out = cardCandidates('gpu', cards, new RectCache(), view, 1.6, 1.5);
     expect(out.map((c) => c.id)).toEqual(['gpu:a']);
@@ -18,20 +17,17 @@ describe('cardCandidates', () => {
   it('lists none below the detail zoom', () => {
     expect(cardCandidates('gpu', cards, new RectCache(), view, 1, 1.5)).toEqual([]);
   });
-});
-
-describe('the same ladder for every size', () => {
-  it('a card twice as wide reaches the detail stage at half the camera zoom', () => {
-    const wide = [{ slot: 'w', root: node(1000, 1400, 2 * REF_SIZE) }], base = [{ slot: 'b', root: node(1300, 1400) }];
-    expect(cardCandidates('gpu', wide, new RectCache(), view, 0.8, 1.5)).toHaveLength(1);
-    expect(cardCandidates('gpu', base, new RectCache(), view, 0.8, 1.5)).toHaveLength(0);
-    expect(cardCandidates('gpu', base, new RectCache(), view, 1.6, 1.5)).toHaveLength(1);
+  it('does not care how big a card is: only the zoom and its distance from the centre', () => {
+    const small = [{ slot: 's', root: node(1950, 1450, 100) }], wide = [{ slot: 'w', root: node(1000, 1450, 2000) }];
+    for (const z of [1, 1.6]) {
+      expect(cardCandidates('gpu', small, new RectCache(), view, z, 1.5)).toHaveLength(cardCandidates('gpu', wide, new RectCache(), view, z, 1.5).length);
+    }
   });
 });
 
 describe('distance from the centre', () => {
   it('a card at the edge reaches the detail stage later than one at the centre', () => {
-    const near = [{ slot: 'a', root: node(1300, 1400) }], far = [{ slot: 'b', root: node(3800, 2900) }];
+    const near = [{ slot: 'a', root: node(1950, 1450) }], far = [{ slot: 'b', root: node(3800, 2900) }];
     expect(cardCandidates('gpu', near, new RectCache(), view, 1.6, 1.5)).toHaveLength(1);
     expect(cardCandidates('gpu', far, new RectCache(), view, 1.6, 1.5)).toHaveLength(0);
     expect(cardCandidates('gpu', far, new RectCache(), view, 5, 1.5)).toHaveLength(1);

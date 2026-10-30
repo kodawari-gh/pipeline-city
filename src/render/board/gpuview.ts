@@ -211,7 +211,7 @@ export class GpuView {
     this.now += (paused ? wdt : dt) * 1000;
     const T = this.T;
     for (const c of this.cards) {
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       this.seen = z;
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view

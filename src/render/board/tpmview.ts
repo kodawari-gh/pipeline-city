@@ -131,7 +131,7 @@ export class TpmView {
       m.player.advance(step);
       const show = m.player.show(this.now);
       this.lockBadge(T, m, show);
-      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       m.root.visible = on;
       m.badge.alpha = m.cover.alpha = 1 - fade;
       m.die.alpha = fade;

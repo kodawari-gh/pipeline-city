@@ -23,28 +23,20 @@ export const SHOWN = 0.01;
 /** World rectangle. */
 export interface LodRect { x: number; y: number; w: number; h: number }
 
-/** The width, in world units, of the device the ladder below is written for (the CPU die): a device of that width reaches a stage at the stage's camera zoom. */
-export const REF_SIZE = 1420;
-
 /**
- * The one base ladder every device shares: `fade` is the band a lid, shroud or cover fades over, `text` / `detail` are where the names and
- * the counters start (each fades in over `TEXT_BAND`), `hover` is where the insides start to take hits. Values are camera zoom for a device
- * `REF_SIZE` wide; any other device reads them through `seenZoom`, so it reaches a stage when it looks as big on screen.
+ * The one base ladder every device shares, in camera zoom: `fade` is the band a lid, shroud or cover fades over, `text` / `detail` are where the
+ * names and the counters start (each fades in over `TEXT_BAND`), `hover` is where the insides start to take hits. A device reads it through
+ * `seenZoom`, so the only things that move a device along it are the camera zoom and its distance from the view centre, never its size.
  */
 export const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
 
 /** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.35 of it, so its stages start later than at the centre. */
 export const FAR_ZOOM = 0.35;
 
-/** The zoom a device of world width `size` is read at: the camera zoom in terms of the ladder, less the further it is from the view centre (`focus` 1 keeps all). */
-export const seenZoom = (zoom: number, size: number, focus = 1): number => zoom * (size / REF_SIZE) * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
+/** The zoom a device is read at: the camera zoom, less the further it is from the view centre (`focus` 1 keeps all of it). */
+export const seenZoom = (zoom: number, focus = 1): number => zoom * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
 
-/** The camera zoom at which a device of world width `size` (at the view centre) reaches `stage` of the ladder: for hover gates, which read the camera. */
-export const zoomAt = (stage: number, size: number): number => (stage * REF_SIZE) / size;
-
-/**
- * The stages, in zoom for a `REF_SIZE` device (see `BASE_LOD`). Each device adds its own extra stages after the base ones.
- */
+/** The stages, in camera zoom (see `BASE_LOD`). Each device adds its own extra stages after the base ones. */
 export const DEVICE_LOD = {
   die: { ...BASE_LOD, packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: BASE_LOD.text, dataTexts: 0.85, subs: 1.2 },
   /** The cooler fades out over its band as the die fades in. */
@@ -91,17 +83,16 @@ export class LodClock {
   get settled(): boolean { return this.zs === this.target; }
 }
 
-/** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners, and its world width. */
-export interface Placement { onScreen: boolean; focus: number; size: number }
+/** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners. */
+export interface Placement { onScreen: boolean; focus: number }
 
 export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
   const px = view.w * pad, py = view.h * pad;
   const onScreen = rect.x < view.x + view.w + px && rect.x + rect.w > view.x - px && rect.y < view.y + view.h + py && rect.y + rect.h > view.y - py;
-  // the distance from the view centre to the device's nearest edge (0 while the centre is over it): a die that fills the view is in focus wherever it is held
-  const cx = view.x + view.w / 2, cy = view.y + view.h / 2;
-  const dx = Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)), dy = Math.max(rect.y - cy, 0, cy - (rect.y + rect.h));
+  // the distance from the view centre to the middle of the device, in half-diagonals of the view
+  const dx = rect.x + rect.w / 2 - (view.x + view.w / 2), dy = rect.y + rect.h / 2 - (view.y + view.h / 2);
   const d = Math.hypot(dx, dy) / (Math.hypot(view.w, view.h) / 2 || 1);
-  return { onScreen, focus: onScreen ? 1 - smooth(0, 0.8, d) : 0, size: rect.w };
+  return { onScreen, focus: onScreen ? 1 - smooth(0, 0.8, d) : 0 };
 }
 
 /** A device that wants its top tier this frame, and how close to the focus it is. */
@@ -152,4 +143,19 @@ export class ZoomSwitch {
     if (this.on) this.warm = true;
     return this.on;
   }
+}
+
+/** Zoom where the replay starts to slow (the names of the base ladder are readable), and where it is slowest (the camera's closest). */
+export const SLOW_FROM = BASE_LOD.text, SLOW_TO = 6;
+/** The slowest the replay crawls, in seconds per cycle, at the closest zoom. */
+export const DEEP_CYCLE_S = 0.5;
+
+/**
+ * The share of its pace the visual clock runs at, from 1 (zoomed out) down to the pace of `DEEP_CYCLE_S` seconds per cycle when fully zoomed in, so
+ * a block can be followed by eye. Smooth in log zoom. `cyclesPerSec`: the replay's normal pace (a pace already slower than the floor is left alone).
+ */
+export function zoomSlow(zoom: number, cyclesPerSec: number): number {
+  const floor = Math.min(1, 1 / DEEP_CYCLE_S / cyclesPerSec);
+  const t = smooth(Math.log(SLOW_FROM), Math.log(SLOW_TO), Math.log(Math.max(zoom, 1e-6)));
+  return 1 - (1 - floor) * t;
 }

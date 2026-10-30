@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
 import { hover, powerLens, viewInset, type Inset } from '../../game/hover';
 import { cameraRev, dragging, highlight } from '../../game/interaction';
-import { snapshot, speed } from '../../game/store';
+import { snapshot, speed, zoomSlowdown } from '../../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../../sim/board/specs';
 import type { StorageSnap } from '../../sim/game/game';
 import type { Snapshot } from '../../sim/protocol';
@@ -36,7 +36,8 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
-import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomAt } from '../lod';
+import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow } from '../lod';
+import { CYCLES_PER_SEC } from '../die/diemotion';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../room/room';
@@ -435,7 +436,7 @@ export async function mountBoard(host: HTMLElement) {
     live.setView(view);
     const dp = deviceLod(DIE, view), cp = deviceLod(COOLER, view);
     dieInView = dp.onScreen; coolerInView = cp.onScreen;
-    dieSeen = seenZoom(lod.zs, dp.size, dp.focus); coolerSeen = seenZoom(lod.zs, cp.size, cp.focus);
+    dieSeen = seenZoom(lod.zs, dp.focus); coolerSeen = seenZoom(lod.zs, cp.focus);
     roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
     roomView?.setFocus(focusAt(view, CASE));
   };
@@ -670,7 +671,7 @@ export async function mountBoard(host: HTMLElement) {
           npuCards.push({ slot: d.slot, visual: spec.visual, origin });
           for (const part of npuParts(npuGeo(spec.visual))) {
             const id = `${d.slot}.${part.id}`, pr = moveRect(part.rect, origin);
-            npuHits.push({ id, rect: pr, min: zoomAt(part.fine ? Z_NPU_FINE : part.inner ? Z_NPU : Z_NPU_LID, r.w) });
+            npuHits.push({ id, rect: pr, min: part.fine ? Z_NPU_FINE : part.inner ? Z_NPU : Z_NPU_LID });
             scene.rects.set(id, pr);
             scene.interactive.add(id);
           }
@@ -680,7 +681,7 @@ export async function mountBoard(host: HTMLElement) {
           gpuCards.push({ slot: d.slot, visual: spec.visual, origin });
           for (const part of gpuParts(gpuPlan(spec.visual))) {
             const id = `${d.slot}.${part.id}`, pr = moveRect(part.rect, origin);
-            gpuHits.push({ id, rect: pr, min: zoomAt(part.inner ? Z_GPU : Z_GPU_FAN, r.w) });
+            gpuHits.push({ id, rect: pr, min: part.inner ? Z_GPU : Z_GPU_FAN });
             scene.rects.set(id, pr);
             scene.interactive.add(id);
           }
@@ -697,7 +698,7 @@ export async function mountBoard(host: HTMLElement) {
           tpmModules.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) });
           for (const part of tpmParts(geo)) {
             const id = `${d.slot}.${part.id}`;
-            tpmHits.push({ id, rect: part.rect, min: zoomAt(part.inner ? Z_TPM : Z_TPM_LID, r.w) });
+            tpmHits.push({ id, rect: part.rect, min: part.inner ? Z_TPM : Z_TPM_LID });
             scene.rects.set(id, part.rect);
             scene.interactive.add(id);
           }
@@ -1289,7 +1290,10 @@ export async function mountBoard(host: HTMLElement) {
     const now = performance.now();
     const dt = tk.deltaMS / 1000;
     // game time: advances only while the sim runs (pause = speed 0 stops it), so every world animation freezes with it
-    const gdt = dt * timeScale();
+    // zoomed in, the world runs slower so a block can be followed (lod.ts `zoomSlow`); the HUD says so (zoomSlowdown) unless the game is paused
+    const slow = zoomSlow(lod.zs, CYCLES_PER_SEC), running = speed.peek() > 0, note = running ? Math.round(slow * 100) / 100 : 1;
+    if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
+    const gdt = dt * timeScale() * slow;
     gt += gdt * 1000;
     if (pendingInset && !camera.gesturing && !interact.busy) { const i = pendingInset; pendingInset = null; applyInset(i); }
     camera.update(now);

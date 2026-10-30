@@ -69,7 +69,7 @@ export class RamView {
   private touches: Touch[] = [];
   private lastTouch: Touch | null = null;
   private zoom = 1;
-  /** The zoom the sticks are seen at (lod.ts `seenZoom`: their size and distance from the centre); the stages read it, the line widths read `zoom`. */
+  /** The zoom the sticks are seen at (lod.ts `seenZoom`: less the further from the centre); the stages read it, the line widths read `zoom`. */
   private seen = 1;
   private touchDrawn = false;
   private imgVersion = 0;
@@ -207,12 +207,12 @@ export class RamView {
     return !view || !r || deviceLod({ x: r.x - LENS_W, y: r.y - LENS_H, w: r.w + 2 * LENS_W, h: r.h + 2 * LENS_H }, view).onScreen;
   }
 
-  /** The zoom the sticks are seen at: the camera zoom in terms of the shared ladder, by their size and distance from the view centre. */
+  /** The zoom the sticks are seen at: the camera zoom, less the further the sticks are from the view centre. */
   private seenIn(view?: LodRect): number {
     const r = this.bounds();
     if (!view || !r) return this.zoom;
     const p = deviceLod(r, view);
-    return seenZoom(this.zoom, p.size, p.focus);
+    return seenZoom(this.zoom, p.focus);
   }
 
   /** The box around all the chips of the sticks, or null with none. */

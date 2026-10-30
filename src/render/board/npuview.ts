@@ -164,7 +164,7 @@ export class NpuCardView {
       const base = c.player.show(this.now), fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
       if (c.touch && fresh <= 0) c.touch = null;
       const show = base && c.touch ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } } : base;
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       c.root.visible = on;
       c.cover.alpha = 1 - fade;
       c.die.alpha = fade;

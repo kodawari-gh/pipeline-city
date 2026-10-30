@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_LOD, DEVICE_LOD, FAR_ZOOM, LodClock, REF_SIZE, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomAt } from './lod';
+import { BASE_LOD, DEVICE_LOD, FAR_ZOOM, LodClock, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomSlow } from './lod';
 
 describe('smooth', () => {
   it('runs 0..1 over the band and clamps', () => {
@@ -83,17 +83,34 @@ describe('LodClock', () => {
 });
 
 describe('the shared ladder', () => {
-  it('reads a device by its width: twice as wide reaches a stage at half the zoom', () => {
-    expect(seenZoom(0.5, 2 * REF_SIZE)).toBeCloseTo(seenZoom(1, REF_SIZE));
-    expect(zoomAt(BASE_LOD.text, 2 * REF_SIZE)).toBeCloseTo(BASE_LOD.text / 2);
+  it('reads every device at the camera zoom while it is at the centre, whatever its size', () => {
+    expect(seenZoom(0.8)).toBeCloseTo(0.8);
+    expect(seenZoom(0.8, 1)).toBeCloseTo(0.8);
   });
   it('reads a device further from the centre at a lower zoom', () => {
-    expect(seenZoom(1, REF_SIZE, 0)).toBeCloseTo(FAR_ZOOM);
-    expect(seenZoom(1, REF_SIZE, 1)).toBeCloseTo(1);
+    expect(seenZoom(1, 0)).toBeCloseTo(FAR_ZOOM);
+    expect(seenZoom(1, 0.5)).toBeGreaterThan(FAR_ZOOM);
+    expect(seenZoom(1, 0.5)).toBeLessThan(1);
   });
-  it('keeps a device that holds the view centre in full focus however large it is', () => {
+  it('gives a big and a small device the same focus at the same distance from the centre', () => {
     const view = { x: 0, y: 0, w: 1000, h: 600 };
-    expect(deviceLod({ x: -2000, y: -2000, w: 4000, h: 4000 }, view).focus).toBe(1);
+    const small = deviceLod({ x: 780, y: 280, w: 40, h: 40 }, view).focus, big = deviceLod({ x: 500, y: 100, w: 600, h: 400 }, view).focus;
+    expect(small).toBeCloseTo(big, 5);
+  });
+});
+
+describe('zoomSlow', () => {
+  it('runs at full pace when zoomed out and crawls to 0.5 s per cycle at the closest zoom', () => {
+    expect(zoomSlow(0.2, 4.5)).toBe(1);
+    expect(zoomSlow(6, 4.5)).toBeCloseTo(2 / 4.5);
+  });
+  it('slows steadily as the camera comes in', () => {
+    const a = zoomSlow(1, 4.5), b = zoomSlow(2, 4.5), c = zoomSlow(4, 4.5);
+    expect(a).toBeGreaterThan(b);
+    expect(b).toBeGreaterThan(c);
+  });
+  it('leaves a replay that is already slower than the floor alone', () => {
+    expect(zoomSlow(6, 1)).toBe(1);
   });
 });
 

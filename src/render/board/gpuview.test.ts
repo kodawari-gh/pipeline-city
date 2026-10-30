@@ -72,7 +72,7 @@ describe('GPU view', () => {
     setLayoutTier(3, 3);
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
-    v.setZoom(1);
+    v.setZoom(6); // deep enough that even a card off the centre of the view is past the counters stage
     v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: false } as never]);
     const card = v.root.children[0] as Container;
     const near = { x: -200, y: -200, w: 1000, h: 600 }, far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
