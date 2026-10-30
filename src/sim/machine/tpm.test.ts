@@ -184,6 +184,67 @@ describe("TPM protected mode", () => {
     expect(tpm.takeViolation()).toBe(true);
   });
 
+  it("in a paged space the range is virtual: the guard allows the job's frames, not the identity physical addresses; measure reads through the table", () => {
+    const m = new Machine({ ramSize: 16 * 1024, seed: 1 });
+    const tpm = new TpmPort(m.bus, m.ram, m.prng);
+    m.addDevice(tpm);
+    m.clock.setRate("tpm", { mul: 1, div: 1 });
+    tpm.configure(TPM1);
+    const L1 = 0x100, L2 = 0x200, RWX = 7;
+    const pte = (frame: number) => ((frame << 8) | RWX) >>> 0;
+    m.bus.store32(L1, ((L2 >> 8) << 8) | 1); // level 1 entry 0 -> the level 2 table
+    const map = (vpn: number, frame: number) => m.bus.store32(L2 + 4 * (vpn & 63), pte(frame));
+    map(0x10, 0x20); // virtual 0x1000 -> physical 0x2000
+    map(0x11, 0x28); // virtual 0x1100 -> physical 0x2800 (not adjacent)
+    const mmu = m.cores[0]!.mmu;
+    mmu.table = L1;
+    mmu.enabled = true;
+    const run = (cmd: number, a0 = 0, a1 = 0) => {
+      m.bus.store32(R(TPM_REG.ARG0), a0);
+      m.bus.store32(R(TPM_REG.ARG1), a1);
+      m.bus.store32(R(TPM_REG.CMD), cmd);
+      while (m.bus.load32(R(TPM_REG.STATUS)) & TpmStatus.Busy) m.advanceBaseTick();
+    };
+    // measure through the table: the words sit in the job's frames
+    const words = [3, 1, 4, 1, 5];
+    words.forEach((w, k) => m.bus.store32(0x2000 + 4 * k, w));
+    run(TpmCmd.Measure, 0x1000, words.length);
+    expect(m.bus.load32(R(TPM_REG.RESULT))).toBe(wordHash(words));
+    // protect three pages; the third is not mapped yet
+    run(TpmCmd.Protect, 0x1000, 192);
+    expect(tpm.view()!.range).toEqual({ lo: 0x1000, hi: 0x1300 }); // the view keeps the virtual range
+    m.bus.guardOn = true;
+    m.bus.stallCycles = 0;
+    m.bus.load8(0x2000);
+    m.bus.load32(0x20fc);
+    m.bus.load8(0x2800);
+    m.bus.store32(0x28fc, 1);
+    expect(m.bus.stallCycles).toBe(4 * 2);
+    expect(tpm.takeViolation()).toBe(false);
+    // the identity physical addresses and the gap between the frames are outside
+    for (const pa of [0x1000, 0x1100, 0x2400]) {
+      expect(m.bus.load8(pa)).toBe(0);
+      expect(tpm.takeViolation()).toBe(true);
+    }
+    // a page mapped after Protect is accepted
+    m.bus.guardOn = false; // the OS writes the table, unguarded
+    map(0x12, 0x30);
+    m.bus.guardOn = true;
+    m.bus.store32(0x3000, 9);
+    expect(tpm.takeViolation()).toBe(false);
+    expect(m.ram[0x3000]).toBe(9);
+    // translation off: a physical range, as before
+    m.bus.guardOn = false;
+    run(TpmCmd.Unprotect);
+    mmu.enabled = false;
+    run(TpmCmd.Protect, 0x1000, 64);
+    m.bus.guardOn = true;
+    m.bus.load8(0x1000);
+    expect(tpm.takeViolation()).toBe(false);
+    m.bus.load8(0x2000);
+    expect(tpm.takeViolation()).toBe(true);
+  });
+
   it("refuses RAM access outside the range: reads give 0, writes are dropped, and the job is marked for death", () => {
     const r = protectedRig();
     r.m.bus.guardOn = true;

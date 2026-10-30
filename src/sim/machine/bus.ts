@@ -14,6 +14,8 @@ export class Bus {
   guardOn = false;
   /** The address space of the core making the access in progress: its page table while translation is on, else -1 (physical: the kernel, or a machine without an MMU). Set by the machine. */
   spaceOf: ((core: number) => number) | null = null;
+  /** The physical address `core`'s page table gives virtual address `va` (no side effects), or -1 when unmapped. Set by the machine; the TPM resolves its protected range through it. */
+  translate: ((core: number, va: number) => number) | null = null;
   /** The address space the guard belongs to: the one that asked for protected mode. The other cores' accesses (the kernel, other programs) are not its business. */
   guardSpace = -1;
   /** Extra cycles the guard has charged since the machine last collected them. */

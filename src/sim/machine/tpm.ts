@@ -103,6 +103,10 @@ export class TpmPort implements Device {
   private violated = false;
   /** The address space that wrote the command now running: protected mode guards that one only (`Bus.guardSpace`). */
   private cmdSpace = -1;
+  /** The core that wrote it: its page table resolves the command's virtual addresses. */
+  private cmdCore = 0;
+  /** Paged space: the physical frame numbers the virtual `range` maps to (null: the range is physical). */
+  private frames: Set<number> | null = null;
   /** The RAM address of the last refused access (for the tests and the log). */
   lastViolation = -1;
   /** Totals since power-on, for the stats and the tests. */
@@ -180,13 +184,17 @@ export class TpmPort implements Device {
 
   private leaveProtected(): void {
     this.range = null;
+    this.frames = null;
     if (this.bus?.guard === this.guard) this.bus.guard = null;
   }
 
   private readonly guard = (addr: number): number => {
     const r = this.range;
     if (!r) return 0;
-    if (addr >= r.lo && addr < r.hi) {
+    // paged: the range is virtual, so test the frame; on a miss look again once, a page may have been mapped since Protect
+    // (the access comes from the guarded space, so the core serving it has the job's table)
+    const inside = this.frames ? this.frames.has(addr >>> 8) || this.resolve(this.bus!.core).has(addr >>> 8) : addr >= r.lo && addr < r.hi;
+    if (inside) {
       this.guardedAccesses++;
       return this.cfg?.surcharge ?? 0;
     }
@@ -230,6 +238,7 @@ export class TpmPort implements Device {
     this.fault = TpmFault.None;
     this.cmd = cmd;
     this.cmdSpace = this.bus?.space() ?? -1;
+    this.cmdCore = this.bus?.core ?? 0;
     this.commands++;
     if (this.instant) {
       this.execute();
@@ -272,6 +281,8 @@ export class TpmPort implements Device {
       }
       case TpmCmd.Protect:
         this.range = { lo: this.arg0, hi: this.arg0 + 4 * this.arg1 };
+        this.frames = null;
+        if (this.cmdSpace !== -1 && this.bus?.translate) this.resolve(this.cmdCore);
         if (!this.instant && this.bus) { this.bus.guardSpace = this.cmdSpace; this.bus.guard = this.guard; }
         return 1;
       default: // Unprotect
@@ -280,7 +291,27 @@ export class TpmPort implements Device {
     }
   }
 
+  /** Resolve the virtual range page by page through `core`'s table into the physical frames it covers (unmapped pages are skipped), and keep the set. Page granular. */
+  private resolve(core: number): Set<number> {
+    const r = this.range!, frames = new Set<number>();
+    for (let va = r.lo & ~255; va < r.hi; va += 256) {
+      const pa = this.bus!.translate?.(core, va) ?? -1;
+      if (pa >= 0) frames.add(pa >>> 8);
+    }
+    this.frames = frames;
+    return frames;
+  }
+
+  /** One word of RAM at `addr`: virtual through the command's page table in a paged space (an unmapped word reads 0), else physical. */
   private wordAt(addr: number): number {
+    if (this.cmdSpace !== -1 && this.bus?.translate) {
+      const pa = this.bus.translate(this.cmdCore, addr);
+      return pa < 0 ? 0 : this.physWord(pa);
+    }
+    return this.physWord(addr);
+  }
+
+  private physWord(addr: number): number {
     return (this.ram[addr]! | (this.ram[addr + 1]! << 8) | (this.ram[addr + 2]! << 16) | (this.ram[addr + 3]! << 24)) >>> 0;
   }
 
