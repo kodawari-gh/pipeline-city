@@ -125,6 +125,16 @@ describe("buying and installing storage and the OS", () => {
     expect(g.uninstall(drive.id).ok).toBe(true);
   });
 
+  it("the filesystem ledger shows the boot image and the spool area, and uninstall clears it", () => {
+    const g = rig("hdd0");
+    const fs = g.snapshot().storage[0]!.fs;
+    expect(fs.runs[0]).toMatchObject({ start: 0, kind: "os", filled: true });
+    expect(fs.runs.some((r) => r.kind === "spool" && !r.filled)).toBe(true);
+    expect(fs.byKind.os).toBe(12 * 4); // 12 KiB in 256-byte blocks
+    g.uninstallOs();
+    expect(g.snapshot().storage[0]!.fs.runs).toEqual([{ start: 0, len: 96 * 4, kind: "free", file: 0, filled: false }]);
+  });
+
   it("OS install and removal only happen while the machine is off", () => {
     const g = rig("hdd0", { os: false });
     const os = g.purchase("os1") as { invId: string };

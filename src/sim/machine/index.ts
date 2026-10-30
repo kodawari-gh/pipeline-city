@@ -9,6 +9,7 @@ export * from "./refEngine";
 export * from "./core";
 export * from "./machine";
 export * from "./storage";
+export * from "./fs";
 export * from "./gpu";
 export * from "./tpm";
 export * from "./npu";

@@ -26,7 +26,7 @@ const oldDone = () => oldUpTo(15);
 const drive = (o: Partial<StorageSnap> = {}): StorageSnap => ({
   deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
   usedBytes: 0, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 720, blockTicks: 72, bytesPerSecond: 3600,
-  hasOs: false, ...o,
+  hasOs: false, fs: { runs: [], fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } }, ...o,
 });
 const osOn = (o: Partial<OsSnap> = {}): OsSnap => ({
   spec: 'os1', tier: 1, name: 'Resident OS 1.0', deviceId: 'dev-hdd', slot: 'sata0', programSlots: 1, queueSlots: 4,

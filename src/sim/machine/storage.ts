@@ -7,6 +7,7 @@
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from "../isa/memmap";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
+import { DiskFs } from "./fs";
 
 /** What is physically in the drive: bytes plus the access statistics. */
 export class Disk {
@@ -21,10 +22,26 @@ export class Disk {
   busyTicks = 0;
   commands = 0;
 
+  /** Which files own which blocks (docs/OS.md). The media always has it; only an OS allocates on it. */
+  readonly fs: DiskFs;
+
   constructor(readonly capacityBytes: number, readonly latencyTicks: number, readonly blockTicks: number) {
     this.blocks = Math.floor(capacityBytes / BLOCK_BYTES);
     this.data = new Uint8Array(this.blocks * BLOCK_BYTES);
     this.used = new Uint8Array(this.blocks);
+    this.fs = new DiskFs(this);
+  }
+
+  isUsed(b: number): boolean {
+    return this.used[b] === 1;
+  }
+
+  /** Mark a block as holding no data any more. */
+  release(b: number): void {
+    if (this.used[b]) {
+      this.used[b] = 0;
+      this.usedBlocks--;
+    }
   }
 
   /** Mark blocks as occupied (capacity the OS or its files take) without counting traffic. */
@@ -44,6 +61,7 @@ export class Disk {
     this.data.fill(0);
     this.used.fill(0);
     this.usedBlocks = 0;
+    this.fs.clear();
   }
 
   get usedBytes(): number {

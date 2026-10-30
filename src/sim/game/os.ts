@@ -52,8 +52,11 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   const osBlocks = Math.ceil(os.diskBytes / BLOCK_BYTES);
   const queueSlots = queueSlotsFor(os, disk.capacityBytes - disk.usedBytes - os.diskBytes, BLOCK_BYTES);
   if (queueSlots < 1) throw new Error("save: the OS does not fit its drive");
+  disk.fs.clear();
   disk.poke(0, this.osBootImage(os, queueSlots));
   disk.reserve(0, osBlocks);
+  disk.fs.create("os", "os", osBlocks, { at: 0 });
+  disk.fs.create("os", "spool", queueSlots * SPOOL_BLOCKS_PER_JOB, { at: osBlocks, soft: true });
   if (count) disk.bytesWritten += os.diskBytes;
   this.os = { spec: os, deviceId, queueSlots };
 }
@@ -149,6 +152,7 @@ export function storageSnaps(this: Game): StorageSnap[] {
       busy: !!port?.isBusy && port.media === disk, latencyTicks: s.latencyTicks, blockTicks: s.blockTicks,
       bytesPerSecond: Math.round((clk * this.cfg.cpuCyclesPerClock * BLOCK_BYTES) / s.blockTicks),
       hasOs: this.os?.deviceId === d.id,
+      fs: { runs: disk.fs.runs(), fragmentation: disk.fs.fragmentation(), byKind: disk.fs.usage().byKind },
     };
   });
 }

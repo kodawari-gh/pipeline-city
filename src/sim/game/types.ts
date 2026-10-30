@@ -2,6 +2,7 @@
 // game.ts re-exports all of it, so `import { Snapshot } from "./game"` keeps working.
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
+import type { FileKind, FsRun } from "../machine/fs";
 import type { GpuView } from "../machine/gpu";
 import type { NpuView } from "../machine/npu";
 import type { TpmView } from "../machine/tpm";
@@ -295,6 +296,8 @@ export interface StorageSnap {
   bytesPerSecond: number;
   /** The OS lives on this device. */
   hasOs: boolean;
+  /** What the blocks hold, as runs in LBA order (docs/OS.md, filesystem). */
+  fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number> };
 }
 
 /** One line of the health panel. */

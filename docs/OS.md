@@ -20,6 +20,12 @@ Timing is simulated in the drive's **own clock domain** (named after the slot): 
 
 Power and heat: the drive's `idleW/loadW` count against the PSU rated load at install time and in the thermal model (load follows port activity). **SATA power/data rule (kept simple):** a SATA drive only needs a free `sata` slot and PSU watts; there is no separate connector count. NVMe needs the `m2` slot (ATX+ board). A burnt drive drops off the bus; if it holds the OS the machine goes to `error`.
 
+## The filesystem ledger (`src/sim/machine/fs.ts`)
+
+Every `Disk` has a `fs` (`DiskFs`): which files own which blocks. It is the media layer, so it exists with or without an OS, and the art reads it (`StorageSnap.fs.runs`). A file has an owner (`os` or a client id), a kind (`os`, `spool`, `program`, `dataset`, `meta`) and extents. `create(..., {at})` takes a fixed range (boot image, spool area); without `at` it allocates first-fit and may split over runs, so free space fragments. A `soft` file (the spool) owns its blocks, but the `used` bitmap fills only as the kernel writes. Blocks written outside any file show as `meta`. `format()` clears the ledger.
+
+Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not use the ledger; `formatOs` records the boot image and the spool area. Planned (see the plan in the repo history): filesystem tiers per OS tier, a boot scan with mount states, wear, and dataset contracts.
+
 ## The OS ladder
 
 `OS_SPECS` in `src/sim/os/specs.ts` is data: `{id, tier, name, description, price, minRamBytes, diskBytes, programSlots, queueSlots, later?}`.
