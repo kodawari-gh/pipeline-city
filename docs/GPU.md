@@ -1,6 +1,6 @@
 # The GPU: engines, memory path and card view
 
-Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **design approved 2026-10-30; building.** Built: the engine contract and the `simd` engine (`src/sim/gpu`, T129). The tasks that build the rest are T129 to T145 in [`TODO.md`](TODO.md). Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view will copy).
+Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **design approved 2026-10-30; building.** Built: the engine contract, the `simd` and `warp` engines and the memory system (`src/sim/gpu`, T129 to T132); blur3 over 64 elements: 1198 cycles on the unit, 991 on the two-warp SM. The tasks that build the rest are T129 to T145 in [`TODO.md`](TODO.md). Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view will copy).
 
 ## Why
 
@@ -89,6 +89,10 @@ The lanes are split into warps of `lanes / warps` lanes. **Each warp has its own
 | `vst` | 1 issue slot + `rounds`; write-through to L1 and L2 |
 | `bar` | warp waits until the SM's warps arrive |
 | `halt` | warp done; the launch ends when every warp is done and the pipeline is empty |
+| fill, drain | the first issue is in cycle 2 (fetch, decode), the card is done 2 cycles after the last issue (execute, write-back); `WARP_FILL`, `WARP_DRAIN` in `gpu/warp.ts` |
+| taken `bany` / `jmp` | the warp cannot issue for 2 more cycles (`WARP_BRANCH_PENALTY`); a branch that falls through costs nothing |
+| register hazard | an instruction that reads or writes a register a load has not returned waits (scoreboard); ALU results are forwarded, so ALU work never waits |
+| memory unit | busy for the rounds of a `vld` / `vst`; a second memory instruction waits, ALU work does not |
 
 Open numbers for the balance pass: `globalLatency` 6, `l1Hit` 2, `l2Hit` 4, `lineWords` 8, `l1Lines` 16, `l2Lines` 64.
 

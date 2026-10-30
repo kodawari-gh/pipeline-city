@@ -21,6 +21,10 @@ export interface GpuRefConfig {
   memBytes: number;
   /** Memory banks; word `w` lives in bank `w % banks`. */
   banks: number;
+  /** Card memory to run on instead of a private one (the warps of an SM share it); `memBytes` is then ignored. */
+  mem?: Uint32Array;
+  /** What `lane` gives lane 0 (a warp's first lane number on the card), default 0. */
+  laneBase?: number;
 }
 
 /** Distinct addresses each bank has to serve for one access, `banks` entries (bank = word % banks). */
@@ -91,15 +95,19 @@ export class GpuRef {
   idleLaneSlots = 0;
   /** The instruction the last `step()` ran (null before the first). */
   lastStep: GpuStep | null = null;
+  /** Byte addresses the active lanes of the last vld / vst touched (empty for other instructions). */
+  lastAddrs: number[] = [];
+  private readonly laneBase: number;
 
   private readonly all: number;
 
   constructor(cfg: GpuRefConfig) {
     if (!Number.isInteger(cfg.lanes) || cfg.lanes < 1 || cfg.lanes > 32) throw new RangeError(`bad lane count ${cfg.lanes}`);
-    if (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4) throw new RangeError(`bad card memory size ${cfg.memBytes}`);
+    if (!cfg.mem && (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4)) throw new RangeError(`bad card memory size ${cfg.memBytes}`);
     this.lanes = cfg.lanes;
     this.banks = Math.max(1, cfg.banks);
-    this.mem = new Uint32Array(cfg.memBytes / 4);
+    this.mem = cfg.mem ?? new Uint32Array(cfg.memBytes / 4);
+    this.laneBase = cfg.laneBase ?? 0;
     this.regs = Array.from({ length: GPU_REG_COUNT }, () => new Int32Array(cfg.lanes));
     this.all = cfg.lanes === 32 ? 0xffffffff : (1 << cfg.lanes) - 1;
     this.reset();
@@ -114,6 +122,7 @@ export class GpuRef {
     this.halted = false;
     this.cycles = this.instructions = this.conflictCycles = this.idleLaneSlots = 0;
     this.lastStep = null;
+    this.lastAddrs = [];
   }
 
   /** Copy words into card memory at a byte address. */
@@ -140,6 +149,7 @@ export class GpuRef {
     if (this.halted) return;
     const i = this.fetch();
     const word = this.mem[this.pc / 4]!;
+    this.lastAddrs = [];
     const startCycle = this.cycles;
     const R = this.regs;
     const L = this.lanes;
@@ -187,7 +197,7 @@ export class GpuRef {
       case "vsrli": alu((a, b) => a >>> b, "imm"); break;
       case "vsrai": alu((a, b) => a >> b, "imm"); break;
       case "vli": for (let l = 0; l < L; l++) if (active(l)) R[i.rd]![l] = i.imm; break;
-      case "lane": for (let l = 0; l < L; l++) if (active(l)) R[i.rd]![l] = l; break;
+      case "lane": for (let l = 0; l < L; l++) if (active(l)) R[i.rd]![l] = l + this.laneBase; break;
       case "vld":
       case "vst": {
         const addrs: number[] = [];
@@ -198,6 +208,7 @@ export class GpuRef {
           if (i.name === "vld") R[i.rd]![l] = this.mem[a >>> 2]! | 0;
           else this.mem[a >>> 2] = R[i.rs2]![l]! >>> 0;
         }
+        this.lastAddrs = addrs;
         banks = bankLoad(addrs, this.banks);
         cost = Math.max(1, ...banks);
         this.conflictCycles += cost - 1;

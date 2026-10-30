@@ -15,8 +15,35 @@ export interface SimdConfig {
   banks: number;
 }
 
-/** One card's microarchitecture as plain data, so a spec or a save can hold it. The warp and multi-SM kinds join with their engines. */
-export type GpuConfig = SimdConfig;
+/** An SM with `warps` warps of `lanes / warps` lanes, a scoreboard, a round-robin scheduler and a coalescing memory path (gpu2). */
+export interface WarpConfig {
+  kind: "warp";
+  /** Lanes on the card, 1..32; a multiple of `warps`. */
+  lanes: number;
+  warps: number;
+  memBytes: number;
+  banks: number;
+  /** Words per line the coalescer groups lanes into (a power of two). */
+  lineWords: number;
+  /** Cycles from the last memory round of a load to its result. */
+  globalLatency: number;
+}
+
+/** One card's microarchitecture as plain data, so a spec or a save can hold it. The multi-SM kind joins with its engine. */
+export type GpuConfig = SimdConfig | WarpConfig;
+
+/** A warp as the view shows it: where it is, its mask and stack, and whether it can issue (docs/GPU.md section 6). */
+export interface GpuWarpView {
+  pc: number;
+  mask: number;
+  stack: number[];
+  state: "ready" | "wait-mem" | "barrier" | "done";
+}
+
+/** One streaming multiprocessor: its warps. The unpipelined unit is one SM with one warp. */
+export interface GpuSmView {
+  warps: GpuWarpView[];
+}
 
 export interface GpuEngine {
   readonly lanes: number;
@@ -40,6 +67,8 @@ export interface GpuEngine {
   readonly idleLaneSlots: number;
   /** Registers zero, `activeLanes` lanes active, pc and counters back at the start. Memory is left as it is. */
   reset(pc?: number, activeLanes?: number): void;
+  /** SMs and warps for the view; engines without warps leave it out and the port shows one SM with one warp. */
+  smViews?(): GpuSmView[];
   /** Run ONE card cycle. Returns the instruction issued in it, or null when the cycle was spent waiting. Throws `GpuFault` on a kernel fault. */
   step(): GpuStep | null;
 }

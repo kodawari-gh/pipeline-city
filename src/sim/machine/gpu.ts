@@ -8,7 +8,7 @@
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
 import { GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
-import { createGpu, sameGpuConfig, type GpuConfig, type GpuEngine } from "../gpu";
+import { createGpu, sameGpuConfig, type GpuConfig, type GpuEngine, type GpuSmView } from "../gpu";
 import { GpuFault, type GpuStep } from "../ref/gpuref";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
@@ -18,18 +18,7 @@ type Phase = "idle" | "in" | "run" | "out";
 /** Instructions of the last launch a card remembers for its view (the die view replays them at its own pace). */
 export const GPU_TRACE_STEPS = 64;
 
-/** A warp as the view shows it: where it is, its mask and stack, and whether it can issue (docs/GPU.md section 6). */
-export interface GpuWarpView {
-  pc: number;
-  mask: number;
-  stack: number[];
-  state: "ready" | "wait-mem" | "barrier" | "done";
-}
-
-/** One streaming multiprocessor: its warps. The unpipelined unit is one SM with one warp. */
-export interface GpuSmView {
-  warps: GpuWarpView[];
-}
+export type { GpuSmView, GpuWarpView } from "../gpu";
 
 /** What a card shows from the outside: its shape, where the launch is, and the last instructions it ran (docs/ACCEL.md "Art as built"). */
 export interface GpuView {
@@ -117,7 +106,7 @@ export class GpuPort implements Device {
       trace: this.trace.map((s) => ({ ...s, banks: s.banks && [...s.banks] })),
       launches: this.launches,
       stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
-      sms: [{ warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? "done" : "ready" }] }],
+      sms: core.smViews?.() ?? [{ warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? "done" : "ready" }] }],
       error: this.error,
       frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
     };
