@@ -5,7 +5,7 @@ import type { OsSpec } from "../os";
 import type { PchKey } from "../pch";
 import { levelRows, type LevelRowSnap, type Need } from "./levels";
 import type { JobWindow } from "./joblog";
-import type { LinkState } from "./types";
+import type { LinkState, MountPhase } from "./types";
 import type { Job } from "./work";
 
 /** The memory array the machine is built with: the most a paged OS manages (its 20-bit virtual space). */
@@ -87,6 +87,9 @@ export interface InstalledOs {
   deviceId: string;
   queueSlots: number;
 }
+
+/** The OS's boot probe of one drive: the scan, then (for a `dirty` drive) the repair, in base ticks. `left` counts down to 0. */
+export interface DriveMount { phase: MountPhase; scanTicks: number; repairTicks: number; left: number }
 
 /** A row of the kernel's job table (read from RAM). */
 export interface KernelJob { slot: number; state: number; key: number; len: number; seq: number }

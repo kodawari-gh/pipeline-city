@@ -41,7 +41,7 @@ import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "./economy";
 import * as hardware from "./hardware";
 import {
   MACHINE_RAM_BYTES, SANDBOX_LEVEL, LOG_CAP,
-  type InstalledOs, type InvItem, type Key, type Link, type NetKey, type Transfer,
+  type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type NetKey, type Transfer,
 } from "./internal";
 import type { DexRecord } from "./jobdex";
 import type { JobLogEntry } from "./joblog";
@@ -132,6 +132,8 @@ export class Game {
   autoEjectWait = 0;
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
   bootDelay = 0;
+  /** The OS's boot probe of each drive on the bus (not saved): base ticks of scan and repair left, `os.ts` `startMountScan`. */
+  readonly mounts = new Map<string, DriveMount>();
   /** Each clock domain's rate before the cpuCyclesPerClock and boost scaling (what `applyRates` set). */
   readonly rateDomains: readonly string[] = ["cpu", "display", "tpm", ...STORAGE_PORTS, ...GPU_PORTS, ...NPU_PORTS];
   readonly baseRates = new Map<string, { mul: number; div: number }>();

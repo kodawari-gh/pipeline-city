@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BLOCK_BYTES } from "../isa/memmap";
-import { Disk } from "./storage";
+import { BLOCK_BYTES, STORAGE_REG } from "../isa/memmap";
+import { canHold, JOURNAL_BLOCKS, mountCost } from "./fs";
+import { Disk, StoragePort } from "./storage";
 
-const disk = (blocks = 64) => new Disk(blocks * BLOCK_BYTES, 10, 2);
+/** A formatted drive (`clean`): the ledger tests allocate datasets on it. */
+const disk = (blocks = 64) => {
+  const d = new Disk(blocks * BLOCK_BYTES, 10, 2);
+  d.mount = "clean";
+  return d;
+};
 
 describe("DiskFs", () => {
   it("starts as one free run", () => {
@@ -64,11 +70,75 @@ describe("DiskFs", () => {
     d.format();
     expect(d.fs.list()).toEqual([]);
     expect(d.usedBlocks).toBe(0);
+    expect(d.mount).toBe("unformatted");
   });
 
   it("shows blocks written outside any file as meta", () => {
     const d = disk();
     d.markUsed(3);
     expect(d.fs.runs().find((r) => r.start === 3)).toMatchObject({ kind: "meta", len: 1 });
+  });
+});
+
+describe("mount state and tiers", () => {
+  it("a blank drive is unformatted and holds nothing; only a clean drive accepts datasets", () => {
+    const d = new Disk(64 * BLOCK_BYTES, 10, 2);
+    expect(d.mount).toBe("unformatted");
+    expect(canHold(d, "dataset")).toBe(false);
+    expect(canHold(d, "spool")).toBe(false);
+    expect(d.fs.create("a", "dataset", 4)).toBeNull();
+    d.mount = "clean";
+    expect(canHold(d, "dataset")).toBe(true);
+    for (const m of ["dirty", "damaged"] as const) {
+      d.mount = m;
+      expect(canHold(d, "dataset")).toBe(false);
+      expect(canHold(d, "spool")).toBe(true);
+      expect(d.fs.create("a", "dataset", 4)).toBeNull();
+    }
+  });
+
+  it("scan cost grows with the used blocks and the drive's block time", () => {
+    const d = disk(256);
+    d.fs.create("os", "os", 8, { at: 0 });
+    const small = mountCost(d, false).scan;
+    d.fs.create("a", "dataset", 200);
+    expect(mountCost(d, false).scan).toBeGreaterThan(small);
+    const slow = new Disk(256 * BLOCK_BYTES, 10, 20);
+    slow.reserve(0, 200);
+    const fast = new Disk(256 * BLOCK_BYTES, 10, 2);
+    fast.reserve(0, 200);
+    expect(mountCost(slow, false).scan).toBeGreaterThan(mountCost(fast, false).scan);
+  });
+
+  it("repair is a full pass without a journal and a short replay with one", () => {
+    const d = disk(256);
+    d.fs.create("a", "dataset", 200);
+    const full = mountCost(d, false).repair;
+    const replay = mountCost(d, true).repair;
+    expect(full).toBe(200 * 2);
+    expect(replay).toBe(JOURNAL_BLOCKS * 2 + 10);
+    expect(replay).toBeLessThan(full);
+  });
+
+  it("a write in flight when the power goes leaves the drive dirty, an idle drive stays clean", () => {
+    const d = disk();
+    const port = new StoragePort("sata0", 0);
+    port.attach(d);
+    port.cutPower();
+    expect(d.mount).toBe("clean");
+    port.write(STORAGE_REG.LBA, 5);
+    port.write(STORAGE_REG.CMD, 2);
+    expect(port.isBusy).toBe(true);
+    port.cutPower();
+    expect(d.mount).toBe("dirty");
+  });
+
+  it("a read in flight does not dirty the drive", () => {
+    const d = disk();
+    const port = new StoragePort("sata0", 0);
+    port.attach(d);
+    port.write(STORAGE_REG.CMD, 1);
+    port.cutPower();
+    expect(d.mount).toBe("clean");
   });
 });

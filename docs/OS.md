@@ -24,7 +24,17 @@ Power and heat: the drive's `idleW/loadW` count against the PSU rated load at in
 
 Every `Disk` has a `fs` (`DiskFs`): which files own which blocks. It is the media layer, so it exists with or without an OS, and the art reads it (`StorageSnap.fs.runs`). A file has an owner (`os` or a client id), a kind (`os`, `spool`, `program`, `dataset`, `meta`) and extents. `create(..., {at})` takes a fixed range (boot image, spool area); without `at` it allocates first-fit and may split over runs, so free space fragments. A `soft` file (the spool) owns its blocks, but the `used` bitmap fills only as the kernel writes. Blocks written outside any file show as `meta`. `format()` clears the ledger.
 
-Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not use the ledger; `formatOs` records the boot image and the spool area. Planned (see the plan in the repo history): filesystem tiers per OS tier, a boot scan with mount states, wear, and dataset contracts.
+Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not use the ledger; `formatOs` records the boot image and the spool area. Planned (see the plan in the repo history): wear and dataset contracts.
+
+### Filesystem tiers and mount states
+
+`OsSpec.fsTier` follows the OS tier: `os1` 1 (fixed boot and spool only, no datasets), `os2` 2 (allocation, datasets allowed, no journal), `os3` 3 (journal), `os4` 4 (checksums and mirrored volumes; used later).
+
+`Disk.mount` is the superblock verdict and stays with the drive: `clean`, `dirty`, `damaged`, `unformatted`. A new or formatted-away drive is `unformatted`; `formatOs` sets `clean`. A power cut (power button, crash reboot, drive dropping off the bus) while the `StoragePort` has a write in flight (`cutPower`) sets `dirty`. Nothing sets `damaged` yet (wear phase).
+
+The OS side is runtime state on `Game.mounts` (`unmounted`, `scanning`, `repairing`, `mounted`), not saved. After POST, `startMountScan` probes every drive on the bus. The CPU waits for the slowest drive (`mountTicksLeft`). `mountCost` (`fs.ts`) gives device ticks: scan = one bitmap block per `SCAN_SPAN` (64) used blocks times `blockTicks`, plus `latencyTicks` for each extra data run; a `dirty` drive adds a repair pass: every used block (tier 1-2) or `JOURNAL_BLOCKS` plus one seek (tier 3+). Base ticks = device ticks / `cpuCyclesPerClock`. A finished repair sets `clean`; a power cut during it keeps `dirty`. Unformatted drives stay `unmounted`. Without an OS nothing mounts. The kernel asm does not change.
+
+Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `DiskFs.create` enforces it. `Game.driveCanHold(deviceId, kind)` adds: the OS is up with the drive mounted, and `fsTier >= 2` for datasets. `StorageSnap.mount` carries `{ state, phase, progress }`. The scan shows as the "posting" phase for now.
 
 ## The OS ladder
 

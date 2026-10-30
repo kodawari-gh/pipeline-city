@@ -7,7 +7,7 @@
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from "../isa/memmap";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
-import { DiskFs } from "./fs";
+import { DiskFs, type MountState } from "./fs";
 
 /** What is physically in the drive: bytes plus the access statistics. */
 export class Disk {
@@ -24,6 +24,8 @@ export class Disk {
 
   /** Which files own which blocks (docs/OS.md). The media always has it; only an OS allocates on it. */
   readonly fs: DiskFs;
+  /** The superblock's verdict. Stays with the drive; `formatOs` sets `clean`, a power cut during a write sets `dirty`. */
+  mount: MountState = "unformatted";
 
   constructor(readonly capacityBytes: number, readonly latencyTicks: number, readonly blockTicks: number) {
     this.blocks = Math.floor(capacityBytes / BLOCK_BYTES);
@@ -62,6 +64,7 @@ export class Disk {
     this.used.fill(0);
     this.usedBlocks = 0;
     this.fs.clear();
+    this.mount = "unformatted";
   }
 
   get usedBytes(): number {
@@ -99,8 +102,14 @@ export class StoragePort implements Device {
   /** Attach (or remove) the drive. Forgets any command in flight. */
   attach(media: Disk | null): void {
     if (media === this.media) return;
+    this.cutPower();
     this.media = media;
     this.reset();
+  }
+
+  /** The power went (or the drive dropped off the bus) with a write in flight: the torn write leaves the drive `dirty`. */
+  cutPower(): void {
+    if (this.busy > 0 && this.cmd === 2 && this.media?.mount === "clean") this.media.mount = "dirty";
   }
 
   /** Power-on reset: no command in flight, head position forgotten. */

@@ -26,6 +26,8 @@ export function powerButton(this: Game): Result<{ powered: boolean }> {
     this.powered = false;
     this.postError = null;
     this.machine.engine = null;
+    for (const p of this.ports) p.cutPower(); // a write in flight tears: the drive is dirty
+    this.mounts.clear();
     this.pch.powerOff();
     this.machine.display.clear();
     this.thermal.powerCycle();
@@ -72,7 +74,7 @@ export function coldBoot(this: Game): void {
   this.syncGpus();
   this.syncNpus();
   this.syncTpm();
-  for (const p of this.ports) p.reset();
+  for (const p of this.ports) { p.cutPower(); p.reset(); } // a crash reboot tears a write in flight too
   for (const p of this.gpus) p.reset();
   for (const p of this.npus) p.reset();
   this.tpm.reset();
@@ -83,6 +85,7 @@ export function coldBoot(this: Game): void {
   this.pch.flashTicks = boot ? this.cfg.usbFlashTicks : 0;
   if (boot && this.pchKey) this.pch.plug(this.pchKey); // the plugged key enumerates again
   this.bootRead0 = boot?.media?.bytesRead ?? 0;
+  this.startMountScan(); // the OS probes the drives once POST is over (see advanceBaseTick)
   this.syncRates(false);
   applyEngine(this.board, this.machine, ROM_IMAGE);
   if (this.progress.firstKeyEjected && this.plugged && !this.plugged.done) this.progress.firstManualCycle = true;
@@ -215,7 +218,7 @@ export function cycleNow(this: Game): number { return this.machine.engine?.cycle
 export function stepCycles(this: Game, cycles: number): number {
   const e = this.machine.engine;
   const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
-  if (!e || !this.powered || this.postError || this.bootDelay > 0 || this.fault()) return 0;
+  if (!e || !this.powered || this.postError || this.bootDelay > 0 || this.mountTicksLeft() > 0 || this.fault()) return 0;
   const start = e.cycle, target = start + n;
   for (let guard = 0; e.cycle < target && !e.halted && guard < 4_000_000; guard++) this.machine.clock.advance(1);
   this.trackPages();
@@ -234,9 +237,12 @@ export function advanceBaseTick(this: Game): void {
   // "error" from the press on, so the UI chip does not wait.
   if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) this.showPostError();
   const running = this.powered && !this.postError && !this.fault();
-  const delayed = running && this.bootDelay > 0; // PSU power-good, fans, BIOS init: the CPU is not executing yet
-  if (delayed) this.bootDelay--;
-  else if (running) {
+  // PSU power-good, fans, BIOS init, then the OS's boot probe of the drives: the CPU is not executing yet
+  const delayed = running && (this.bootDelay > 0 || this.mountTicksLeft() > 0);
+  if (delayed) {
+    if (this.bootDelay > 0) this.bootDelay--;
+    else this.mountTick();
+  } else if (running) {
     this.pch.usbTick();
     this.machine.advanceBaseTick();
     this.trackPages();

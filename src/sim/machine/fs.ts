@@ -8,6 +8,32 @@ import type { Disk } from "./storage";
 export type FileKind = "os" | "spool" | "program" | "dataset" | "meta";
 export const FILE_KINDS: readonly FileKind[] = ["os", "spool", "program", "dataset", "meta"];
 
+/** What the drive's superblock says. `dirty`: a write was cut by a power loss. `damaged`: bad blocks hit metadata. `unformatted`: no filesystem. */
+export type MountState = "clean" | "dirty" | "damaged" | "unformatted";
+
+/** Whether the media accepts a file of this kind. Datasets need a `clean` drive; the OS tier check is the game's (`Game.driveCanHold`). */
+export function canHold(disk: Disk, kind: FileKind): boolean {
+  return kind === "dataset" ? disk.mount === "clean" : disk.mount !== "unformatted";
+}
+
+/** Journal blocks an `os3`+ filesystem replays after a power cut. */
+export const JOURNAL_BLOCKS = 4;
+/** One bitmap block describes this many data blocks, so a scan reads `used / SCAN_SPAN` blocks. */
+export const SCAN_SPAN = 64;
+
+/**
+ * Device ticks of a boot probe: `scan` reads the allocation metadata (plus a seek for every extra run of data), `repair`
+ * is the extra work a `dirty` drive needs: a full pass over the used blocks, or a short journal replay.
+ */
+export function mountCost(disk: Disk, journaled: boolean): { scan: number; repair: number } {
+  const used = disk.usedBlocks;
+  const dataRuns = disk.fs.runs().filter((r) => r.kind !== "free" && r.filled).length;
+  const seeks = Math.max(0, dataRuns - 1) * disk.latencyTicks;
+  const scan = used === 0 ? 0 : Math.ceil(used / SCAN_SPAN) * disk.blockTicks + seeks;
+  const repair = journaled ? JOURNAL_BLOCKS * disk.blockTicks + disk.latencyTicks : used * disk.blockTicks + seeks;
+  return { scan, repair };
+}
+
 export interface Extent { first: number; len: number }
 
 export interface FsFile {
@@ -65,7 +91,7 @@ export class DiskFs {
    * takes the free blocks first-fit and may split over several extents (null if the drive is too full).
    */
   create(owner: string, kind: FileKind, blocks: number, opts: { at?: number; soft?: boolean } = {}): FsFile | null {
-    if (blocks < 1) return null;
+    if (blocks < 1 || (kind === "dataset" && !canHold(this.disk, kind))) return null;
     const extents: Extent[] = [];
     if (opts.at !== undefined) {
       const first = opts.at;

@@ -2,7 +2,7 @@
 // game.ts re-exports all of it, so `import { Snapshot } from "./game"` keeps working.
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
-import type { FileKind, FsRun } from "../machine/fs";
+import type { FileKind, FsRun, MountState } from "../machine/fs";
 import type { GpuView } from "../machine/gpu";
 import type { NpuView } from "../machine/npu";
 import type { TpmView } from "../machine/tpm";
@@ -298,7 +298,12 @@ export interface StorageSnap {
   hasOs: boolean;
   /** What the blocks hold, as runs in LBA order (docs/OS.md, filesystem). */
   fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number> };
+  /** The drive's superblock verdict (stays with the drive), the OS's mount phase for it this boot, and the scan or repair progress (0..1). */
+  mount: { state: MountState; phase: MountPhase; progress: number };
 }
+
+/** The OS's view of a drive this boot: `unmounted` (no OS up, or the drive is unformatted), then `scanning`, `repairing` and `mounted`. */
+export type MountPhase = "unmounted" | "scanning" | "repairing" | "mounted";
 
 /** One line of the health panel. */
 export interface HealthItem { level: "ok" | "warn" | "bad"; text: string }

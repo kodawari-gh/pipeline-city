@@ -3,6 +3,7 @@
 
 import { deviceSpec, type InstalledDevice, type StorageSpec } from "../board";
 import { BLOCK_BYTES, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase } from "../isa/memmap";
+import { canHold, mountCost, type FileKind, type MountState } from "../machine/fs";
 import { bootImage, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import type { Game } from "./game";
 import type { InvItem, KernelJob } from "./internal";
@@ -53,6 +54,7 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   const queueSlots = queueSlotsFor(os, disk.capacityBytes - disk.usedBytes - os.diskBytes, BLOCK_BYTES);
   if (queueSlots < 1) throw new Error("save: the OS does not fit its drive");
   disk.fs.clear();
+  disk.mount = "clean";
   disk.poke(0, this.osBootImage(os, queueSlots));
   disk.reserve(0, osBlocks);
   disk.fs.create("os", "os", osBlocks, { at: 0 });
@@ -140,6 +142,69 @@ export function returnSpool(this: Game): void {
   this.spool = [];
 }
 
+/**
+ * The OS probes every drive on the bus at boot (after POST). Each drive gets a scan, and a `dirty` one a repair pass
+ * (a full pass on filesystem tier 1 and 2, a short journal replay from tier 3). The probes run in parallel, so the CPU
+ * waits for the slowest. An unformatted drive stays unmounted. Returns the base ticks to wait. No OS: nothing mounts.
+ */
+export function startMountScan(this: Game): number {
+  this.mounts.clear();
+  const os = this.osPort() ? this.os : null;
+  if (!os) return 0;
+  const perTick = this.cfg.cpuCyclesPerClock;
+  let longest = 0;
+  for (const port of this.ports) {
+    const disk = port.media;
+    const dev = this.board.devices.find((d) => d.slot === port.name && d.id && this.disks.get(d.id) === disk);
+    if (!disk || !dev) continue;
+    if (disk.mount === "unformatted") {
+      this.mounts.set(dev.id, { phase: "unmounted", scanTicks: 0, repairTicks: 0, left: 0 });
+      continue;
+    }
+    const cost = mountCost(disk, os.spec.fsTier >= 3);
+    const scanTicks = Math.ceil(cost.scan / perTick);
+    const repairTicks = disk.mount === "dirty" ? Math.ceil(cost.repair / perTick) : 0;
+    const left = scanTicks + repairTicks;
+    this.mounts.set(dev.id, { phase: left > 0 ? "scanning" : "mounted", scanTicks, repairTicks, left });
+    longest = Math.max(longest, left);
+  }
+  return longest;
+}
+
+/** One base tick of the boot probe: the scans count down, a repaired drive turns `clean`. */
+export function mountTick(this: Game): void {
+  for (const [id, m] of this.mounts) {
+    if (m.left <= 0) continue;
+    m.left--;
+    m.phase = m.left > m.repairTicks ? "scanning" : m.left > 0 ? "repairing" : "mounted";
+    if (m.left === 0 && m.repairTicks > 0) {
+      const disk = this.disks.get(id);
+      if (disk?.mount === "dirty") disk.mount = "clean";
+    }
+  }
+}
+
+/** Base ticks of boot probe still to run (the CPU waits for them). */
+export function mountTicksLeft(this: Game): number {
+  let n = 0;
+  for (const m of this.mounts.values()) n = Math.max(n, m.left);
+  return n;
+}
+
+/** The OS has the drive mounted. */
+export function isMounted(this: Game, deviceId: string): boolean {
+  return this.powered && this.mounts.get(deviceId)?.phase === "mounted";
+}
+
+/** Whether a file of `kind` may go on this drive now: the OS is up with the drive mounted, the superblock is `clean` for a dataset, and the OS's filesystem tier allows datasets (tier 2+). */
+export function driveCanHold(this: Game, deviceId: string, kind: FileKind): boolean {
+  const disk = this.disks.get(deviceId);
+  const os = this.os;
+  if (!disk || !os || !this.isMounted(deviceId)) return false;
+  if (kind === "dataset" && os.spec.fsTier < 2) return false;
+  return canHold(disk, kind);
+}
+
 export function storageSnaps(this: Game): StorageSnap[] {
   return this.board.devices.filter((d) => deviceSpec(d).kind === "storage").map((d) => {
     const s = deviceSpec(d) as StorageSpec;
@@ -153,8 +218,16 @@ export function storageSnaps(this: Game): StorageSnap[] {
       bytesPerSecond: Math.round((clk * this.cfg.cpuCyclesPerClock * BLOCK_BYTES) / s.blockTicks),
       hasOs: this.os?.deviceId === d.id,
       fs: { runs: disk.fs.runs(), fragmentation: disk.fs.fragmentation(), byKind: disk.fs.usage().byKind },
+      mount: this.mountSnap(d.id, disk.mount),
     };
   });
+}
+
+export function mountSnap(this: Game, deviceId: string, state: MountState): StorageSnap["mount"] {
+  const m = this.powered ? this.mounts.get(deviceId) : undefined;
+  if (!m) return { state, phase: "unmounted", progress: 0 };
+  const total = m.scanTicks + m.repairTicks;
+  return { state, phase: m.phase, progress: total > 0 ? 1 - m.left / total : 1 };
 }
 
 export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {

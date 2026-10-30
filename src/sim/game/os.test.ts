@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KERNEL_BASE } from "../isa/memmap";
+import { KERNEL_BASE, STORAGE_REG } from "../isa/memmap";
 import { BOOT_BLOCKS, KERNEL_IMAGE } from "../os";
 import { Game, type Phase } from "./game";
 import { Operator } from "./operator";
@@ -385,6 +385,94 @@ describe("the bot still plays the legacy flow with a drive installed", () => {
     const op = new Operator(g, 1);
     for (let t = 0; t < 200; t++) { g.advanceBaseTick(); op.step(); }
     expect(g.completed).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("the boot scan and mount states", () => {
+  const diskOf = (g: Game) => [...g.disks.values()][0]!;
+  const devId = (g: Game) => [...g.disks.keys()][0]!;
+  const tornWrite = (g: Game): void => {
+    const port = g.ports.find((p) => p.media)!;
+    port.write(STORAGE_REG.LBA, 300);
+    port.write(STORAGE_REG.CMD, 2);
+  };
+
+  it("the scan delay grows with the used blocks", () => {
+    const empty = rig("hdd0");
+    empty.powerButton();
+    const base = empty.mountTicksLeft();
+    const full = rig("hdd0");
+    diskOf(full).reserve(120, 200);
+    full.powerButton();
+    expect(full.mountTicksLeft()).toBeGreaterThan(base);
+    runUntil(full, "idle-os", 3000);
+    expect(full.snapshot().storage[0]!.mount).toMatchObject({ state: "clean", phase: "mounted", progress: 1 });
+  });
+
+  it("a power cut during a write leaves the drive dirty; the boot repair pass clears it", () => {
+    const g = rig("hdd0");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    expect(diskOf(g).mount).toBe("clean");
+    tornWrite(g);
+    g.powerButton();
+    expect(diskOf(g).mount).toBe("dirty");
+    expect(g.snapshot().storage[0]!.mount).toMatchObject({ state: "dirty", phase: "unmounted" });
+    const clean = rig("hdd0");
+    clean.powerButton();
+    g.powerButton();
+    expect(g.mountTicksLeft()).toBeGreaterThan(clean.mountTicksLeft());
+    ticks(g, 1);
+    expect(g.snapshot().storage[0]!.mount.phase).toMatch(/scanning|repairing/);
+    expect(g.driveCanHold(devId(g), "program")).toBe(false);
+    runUntil(g, "idle-os");
+    expect(diskOf(g).mount).toBe("clean");
+    expect(g.snapshot().storage[0]!.mount.phase).toBe("mounted");
+  });
+
+  it("a power cut while the drive repairs keeps it dirty", () => {
+    const g = rig("hdd0");
+    diskOf(g).mount = "dirty";
+    g.powerButton();
+    expect(g.mountTicksLeft()).toBeGreaterThan(1);
+    ticks(g, 2);
+    g.powerButton();
+    expect(diskOf(g).mount).toBe("dirty");
+  });
+
+  it("without an OS no drive is mounted", () => {
+    const g = rig("hdd0", { os: false });
+    g.powerButton();
+    ticks(g, 30);
+    expect(g.snapshot().storage[0]!.mount).toMatchObject({ state: "unformatted", phase: "unmounted" });
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false);
+  });
+
+  it("datasets need a mounted clean drive and a tier-2 filesystem; unformatted drives stay unmounted", () => {
+    const g = rig("hdd0");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    expect(g.driveCanHold(devId(g), "spool")).toBe(true);
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false); // os1: fixed boot and spool only
+    expect(g.os!.spec.fsTier).toBe(1);
+    g.os!.spec = { ...g.os!.spec, fsTier: 2 };
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(true);
+    diskOf(g).mount = "damaged";
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false);
+    g.powerButton();
+    expect(g.driveCanHold(devId(g), "spool")).toBe(false); // off: nothing is mounted
+  });
+
+  it("a tier-3 filesystem replays a journal; a lower tier passes over every used block", () => {
+    const boot = (fsTier: number) => {
+      const g = rig("hdd0");
+      g.os!.spec = { ...g.os!.spec, fsTier };
+      diskOf(g).reserve(120, 200);
+      diskOf(g).mount = "dirty";
+      g.powerButton();
+      return g.mountTicksLeft();
+    };
+    expect(boot(3)).toBeLessThan(boot(2));
   });
 });
 
