@@ -121,7 +121,7 @@ A CPU "engine" is the pipeline logic (unpipelined, in-order, 2-wide, out-of-orde
 
 The **GPU runs its own simplified ISA**, using the same assembler framework as the CPU with a second instruction set, and kernels come from the same template system. A "render frame" scenario emits CPU code that prepares and launches a GPU kernel, plus the kernel itself. The CPU hands work over through MMIO (a command descriptor) and polls for completion.
 
-GPU model for milestone 2: a handful of lanes (8 to 32) in lockstep with a tiny memory of its own. Enough to show SIMD, divergence and memory-bound behaviour. NPU/TPU are not designed yet. Note this roughly doubles the emulation scope, which was a deliberate choice.
+GPU model: 8 to 32 lanes with a banked memory of its own, as three engines (a lockstep SIMD unit, a two-warp pipelined SM, a two-SM card with caches) that show SIMD, divergence, latency hiding and memory-bound behaviour; see [`GPU.md`](GPU.md). The NPU and TPM are in [`ACCEL.md`](ACCEL.md). Note this roughly doubles the emulation scope, which was a deliberate choice.
 
 ## Snapshots and threading
 

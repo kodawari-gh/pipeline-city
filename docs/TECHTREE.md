@@ -84,8 +84,8 @@ A separate device on the network side of the NIC: more clients and a better upli
 | 3 | Preemptive: timer interrupt, up to four programs at once | 64K RAM, 48K free, a CPU with an MMU | built |
 | 4 | Multicore: programs spread over several CPU cores | | planned (data entry exists, locked) |
 
-## GPU (planned)
-A PCIe card running its own ISA (see ARCHITECTURE.md "Accelerators"). Tiers by lanes and memory. Requires: a PCIe slot, a PSU with a PCIe power connector and the watts, a cooler headroom, an OS that can launch its kernels (cooperative or better), and a display tier for graphics jobs.
+## GPU (built; engine ladder in design, see GPU.md)
+A PCIe card running its own ISA (see ARCHITECTURE.md "Accelerators" and GPU.md). Tiers by lanes, memory and microarchitecture. Requires: a PCIe slot, a PSU with a PCIe power connector and the watts, a cooler headroom, an OS that can launch its kernels (cooperative or better), and a display tier for graphics jobs.
 
 ## Network phase design notes (decided, not built)
 

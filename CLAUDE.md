@@ -13,7 +13,7 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 
 ## Docs: read one, by topic, only when needed
 - Cross-layer work only: `docs/ARCHITECTURE.md`.
-- render, board, room -> `RENDER.md` (hub with a topic table to `render/{interact,live,board,case,net}.md` and `render/room/{room,shell,light}.md`), `BOARD.md` | die, CPU -> `DIE.md`, `CPU.md` | UI, panels -> `UI.md` | economy, loop -> `GAME.md` | jobs -> `JOBS.md`, `GEN.md` | levels, unlocks -> `PROGRESSION.md` | network -> `NETWORK.md`, `NETSTACK.md` | OS, kernel -> `OS.md` | saves -> `SAVE.md` | accelerators -> `ACCEL.md` | assembly, install -> `ASSEMBLY.md`
+- render, board, room -> `RENDER.md` (hub with a topic table to `render/{interact,live,board,case,net}.md` and `render/room/{room,shell,light}.md`), `BOARD.md` | die, CPU -> `DIE.md`, `CPU.md` | UI, panels -> `UI.md` | economy, loop -> `GAME.md` | jobs -> `JOBS.md`, `GEN.md` | levels, unlocks -> `PROGRESSION.md` | network -> `NETWORK.md`, `NETSTACK.md` | OS, kernel -> `OS.md` | saves -> `SAVE.md` | accelerators -> `ACCEL.md` | GPU engines, card view -> `GPU.md` | assembly, install -> `ASSEMBLY.md`
 - Docs over ~20 KB (`render/interact`, `NETWORK`, `PROGRESSION`, `UI`, `ASSEMBLY`): Grep `^## ` for the headings, then Read only that section. Never read them whole.
 
 ## Rules
