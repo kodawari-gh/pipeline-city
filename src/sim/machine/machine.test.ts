@@ -149,6 +149,18 @@ describe("Machine", () => {
     expect(e.cycle).toBe(ticks);
   });
 
+  it("a CPU swapped from 4 cores to 1 serves core 0, not the last core of the old CPU", () => {
+    // Crash 2026-10-30: bus.core stayed 3 after the swap, so the display's rowShift read cores[3] (undefined).
+    const m = new Machine({ cores: 4 });
+    m.bus.serve(3, m.cores[3]!.mpu);
+    m.setCores(1);
+    const e = new RefEngine();
+    m.attach(e, assemble(HELLO).program);
+    for (let i = 0; i < 1000 && !e.halted; i++) m.advanceBaseTick();
+    expect(m.bus.core).toBe(0);
+    expect(m.display.text()).toBe("Hello");
+  });
+
   it("overclocking the CPU shortens wall time and is deterministic", () => {
     const prog = assemble(HELLO).program;
     const run = (rate: { mul: number; div: number }): number => {

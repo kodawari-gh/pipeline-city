@@ -50,6 +50,8 @@ export interface CrashReport {
   /** The TPM's protected mode: when on, the range it guards and the address space (page table, -1 = physical) it guards it for. */
   tpm: { protected: boolean; range: { lo: number; hi: number } | null; space: number; guardedAccesses: number; lastViolation: number } | null;
   os: { id: string; name: string; tier: number } | null;
+  /** The machine's core bookkeeping: `busCore` outside `0..cores-1` is a stale index left by a CPU swap or a core-count change. */
+  machine: { cores: number; hardwareCores: number; busCore: number; engines: string[] } | null;
   /** The installed parts, as `slot: spec`. */
   parts: string[];
   cores: CrashCore[];
@@ -105,6 +107,14 @@ export function describePc(pc: number, regions: ReadonlyArray<{ name: string; lo
 
 const REG_ROWS = 4;
 
+/** Appended to the text so a pasted report carries its own instructions. */
+export const DEBUG_PROMPT = [
+  '--- for Claude ---',
+  'Debug this crash: find the root cause from the stack and the state above (check the "machine" line for stale core indexes, the "recent events" for what changed just before, ',
+  'and the parts list for the CPU/OS combination). Fix the cause, not the symptom. Then add a regression test next to the code you fixed that reproduces this exact case ',
+  '(same part swap / core count / sequence from the events), confirm it fails without the fix and passes with it. Run only the touched tests and npm run typecheck, then commit.',
+].join(' ');
+
 function coreText(c: CrashCore): string[] {
   const out = [`core ${c.core}: pc=${c.pc === null ? '?' : h(c.pc)}${c.pcPa !== null && c.pcPa !== c.pc ? ` (pa ${h(c.pcPa)})` : ''} epc=${h(c.epc)} cause=${c.cause} vector=${h(c.vector)} mask=${h(c.mask)} pending=${h(c.pending)} timer=${c.timerInterval} mpu=${c.mpu ? 'on' : 'off'} mmu=${c.mmu ? `on table=${h(c.mmuTable)}` : 'off'}`];
   for (let i = 0; i < c.regs.length; i += REG_ROWS) out.push('  ' + c.regs.slice(i, i + REG_ROWS).map((v, j) => `r${i + j}=${hex(v, 8)}`).join(' '));
@@ -118,6 +128,7 @@ export function crashText(r: Omit<CrashReport, 'text'>): string {
   L.push(`error: ${r.error.name}: ${r.error.message}`);
   L.push(`tick ${r.tick}, phase ${r.phase}, cycles ${r.cycles}, faulting core ${r.faultCore}`);
   if (r.tpm) L.push(`tpm: ${r.tpm.protected && r.tpm.range ? `protected ${h(r.tpm.range.lo)}-${h(r.tpm.range.hi)} for space ${r.tpm.space}` : 'not protected'}, ${r.tpm.guardedAccesses} guarded accesses, last violation ${r.tpm.lastViolation < 0 ? 'none' : h(r.tpm.lastViolation)}`);
+  if (r.machine) L.push(`machine: ${r.machine.cores} logical cores (${r.machine.hardwareCores} hardware), bus serving core ${r.machine.busCore}${r.machine.busCore < 0 || r.machine.busCore >= r.machine.cores ? '  <-- OUT OF RANGE: stale core index (CPU swap or core-count change?)' : ''}, engines [${r.machine.engines.join(', ')}]`);
   L.push(`os: ${r.os ? `${r.os.name} (${r.os.id}, tier ${r.os.tier})` : 'none'}`);
   L.push(`parts: ${r.parts.join(', ') || 'none'}`);
   L.push(`keys: plugged ${r.keys.plugged ?? 'none'}, spool [${r.keys.spool.join(', ')}], tray ${r.keys.tray}`);
@@ -127,6 +138,7 @@ export function crashText(r: Omit<CrashReport, 'text'>): string {
   for (const w of r.windows) L.push('', `${w.label}:`, w.hex);
   L.push('', 'recent events:', ...r.events.map((e) => `  [${e.tick}] ${e.kind}: ${e.text}`));
   if (r.error.stack) L.push('', 'stack:', r.error.stack);
+  L.push('', DEBUG_PROMPT);
   return L.join('\n');
 }
 
@@ -136,7 +148,7 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
   const error = { name: e.name, message: e.message, ...(e.stack ? { stack: e.stack } : {}) };
   const base = { version: 1 as const, at: new Date().toISOString(), error };
   if (!g) {
-    const part = { ...base, headline: `The simulation failed to start: ${e.message}`, tick: 0, phase: 'none', cycles: 0, fault: { pc: null, where: 'no game' }, faultCore: 0, tpm: null, os: null, parts: [], cores: [], jobs: [], keys: { plugged: null, spool: [], tray: 0 }, regions: [], windows: [], events: [] };
+    const part = { ...base, headline: `The simulation failed to start: ${e.message}`, tick: 0, phase: 'none', cycles: 0, fault: { pc: null, where: 'no game' }, faultCore: 0, machine: null, tpm: null, os: null, parts: [], cores: [], jobs: [], keys: { plugged: null, spool: [], tray: 0 }, regions: [], windows: [], events: [] };
     return { ...part, text: crashText(part) };
   }
   const ram = g.machine.ram;
@@ -169,6 +181,7 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
     cycles: section(() => g.cycleNow(), 0),
     fault: { pc, where },
     faultCore: g.machine.bus.core,
+    machine: section(() => ({ cores: g.machine.cores.length, hardwareCores: g.machine.hardwareCores(), busCore: g.machine.bus.core, engines: g.machine.cores.map((c) => c.engine?.constructor.name ?? 'none') }), null),
     tpm: section(() => {
       const v = g.tpm.view();
       return v ? { protected: v.range !== null, range: v.range, space: g.machine.bus.guardSpace, guardedAccesses: v.guardedAccesses, lastViolation: v.lastViolation } : null;

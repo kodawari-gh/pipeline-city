@@ -46,6 +46,12 @@ describe('a crash report from a running game', () => {
     expect(r.faultCore).toBe(g.machine.bus.core);
     expect(r.text).toContain('faulting core');
     expect(r.text).toContain(r.os!.name);
+    expect(r.machine).toMatchObject({ cores: g.machine.cores.length, busCore: g.machine.bus.core });
+    expect(r.text).toContain('machine: ');
+    expect(r.text).not.toContain('OUT OF RANGE');
+    expect(r.text).toContain('regression test');
+    g.machine.bus.core = 7; // a stale index, as after a CPU swap
+    expect(crashReport(g, FAULT).text).toContain('OUT OF RANGE');
     expect(JSON.parse(JSON.stringify(r))).toEqual(r); // plain data: it crosses the worker boundary and downloads as JSON
     expect(() => parseSave(JSON.parse(JSON.stringify(r.save)))).not.toThrow();
   });
