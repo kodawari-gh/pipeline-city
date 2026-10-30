@@ -6,6 +6,7 @@ import { box, disc, label, lgrad, mix } from '../ink';
 import { IO_PORTS } from './boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './pins';
 import { tuneBump } from './match';
+import { pchLedHousing } from './pchlive';
 import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
 import { makePalette, type Palette, type Theme } from '../theme';
 import {
@@ -239,6 +240,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
         g.rect(q.x + 70, q.y + q.h - 38, q.w - 140, 8).fill({ color: T.br, alpha: 0.55 });
       }
     }
+    pchLedHousing(g, q); // (the activity LED lights in live.ts)
     // decoupling under the chipset (the DMI lanes are above it, the SATA lanes east of it)
     if (!geo.dbg) smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85); // (the top board's debug display hangs there)
     labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, tier === 0 ? 70 : 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));

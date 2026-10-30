@@ -6,7 +6,7 @@ import type { KeyActivity } from '../sim/game/game';
 import { blades } from './board/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from './board/drives';
-import { BD, BR, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './board/layout';
+import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from './board/layout';
 import { monitorView, screenMode, standbyLook, type MonitorInput } from './room/monitor';
 import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
@@ -21,6 +21,7 @@ import { BusFlow, slice } from './board/busflow';
 import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 import { TierBudget, type LodRect } from './lod';
+import { HIT_MS, chipLegOf, drawPch, ledOf, type ChipLeg, type LegHit } from './board/pchlive';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }
@@ -92,6 +93,9 @@ export class Live {
   private lastDrive: string | null = null;
   /** Game time until which a message is on a path that crosses the chipset (it glows for that long). */
   private pchUntil = -1e9;
+  /** The legs of the chipset that packets reach or leave, with the game time each flashes at; and the leg each lane lands on (found once). */
+  private pchHits: LegHit[] = [];
+  private legOf = new WeakMap<Lane, ChipLeg | null>();
   /** What the last snapshot showed, to tell a change from a state: power, the CPU's clock and throttle, the boot progress. */
   private wasPowered: boolean | null = null;
   private lastClock = 0;
@@ -487,7 +491,7 @@ export class Live {
 
   /**
    * Send one message now: its hops one after the other, each on its own lanes, then the video cable if it goes on to the monitor. At most one
-   * per `gap` ms for a `key`. The chipset (PCH) glows for as long as a message is on a path that crosses it.
+   * per `gap` ms for a `key`. The legs of the chipset (PCH) that the message reaches or leaves flash, and its edge glows for as long as a message is on a path that crosses it.
    */
   private fire(key: string, c: Chain, now: number, gap: number) {
     if (!this.liveOn || (this.quiet && !c.force) || now < (this.chainAt.get(key) ?? -1e9)) return;
@@ -497,10 +501,25 @@ export class Live {
     if (c.drive) { const d = { lanes: [c.drive.lane], dir: c.drive.dir, w: 10, color: this.T.mul }; if (c.drive.before) segs.unshift(d); else segs.push(d); }
     if (c.mem !== undefined) { const m = this.memLit.get(c.mem); if (m) segs.push({ lanes: m.lanes, dir: 1, w: m.bus.w, color: m.color }); }
     let delay = 0;
-    for (const s of segs) delay += this.busFlow.send(s.lanes, s.dir, s.color, now, s.w, delay);
-    if (c.pong) for (const s of [...segs].reverse()) delay += this.busFlow.send(s.lanes, -s.dir, s.color, now, s.w, delay);
+    const go = (s: { lanes: Lane[]; w: number; color: string }, dir: number) => {
+      const dur = this.busFlow.send(s.lanes, dir, s.color, now, s.w, delay);
+      this.hitLegs(s.lanes, dir, s.color, now + delay, dur);
+      delay += dur;
+    };
+    for (const s of segs) go(s, s.dir);
+    if (c.pong) for (const s of [...segs].reverse()) go(s, -s.dir);
     if (c.cable && this.videoLane && this.connected.has('video')) this.extFlow.send([this.videoLane], 1, this.T.st, now, this.videoW, delay);
     if (legs.some((l) => CHIPSET_BUSES.includes(l.bus))) this.pchUntil = Math.max(this.pchUntil, now + delay);
+  }
+
+  /** A packet runs `lanes` from game time `start` for `dur` ms: each lane that lands on a leg of the chipset flashes it as the packet arrives there or leaves from it. */
+  private hitLegs(lanes: Lane[], dir: number, color: string, start: number, dur: number) {
+    for (const l of lanes) {
+      let leg = this.legOf.get(l);
+      if (leg === undefined) { leg = chipLegOf(BR.chip, l); this.legOf.set(l, leg); }
+      if (leg) this.pchHits.push({ x: leg.x, y: leg.y, side: leg.side, color, at: leg.arrives === (dir < 0 ? -1 : 1) ? start + dur : start });
+    }
+    if (this.pchHits.length > 160) this.pchHits.splice(0, this.pchHits.length - 160);
   }
 
   /** Send one memory message now (at most one per `gap` ms on this stick's bundle). */
@@ -859,7 +878,7 @@ export class Live {
     void s;
   }
 
-  /** PCH glow and scan bars (interior), USB activity LED, monitor power LED, thin boot progress bar (external). */
+  /** PCH leg flashes, edge glow and LED (interior), USB activity LED, monitor power LED, thin boot progress bar (external). */
   private drawBoot(now: number, dt: number) {
     const T = this.T, g = this.bootG, ph = this.bootPhase;
     // the chipset works only while a message is on a path through it (BIOS at POST, a SATA drive, a card on its slots, the power switch)
@@ -867,19 +886,16 @@ export class Live {
     if (!this.powered) this.pchLevel = 0; // a hard power-off is dark on the next frame
     else this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
     const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
-    // PCH: outline glow plus a row of activity bars that scan while it works
-    const c = BR.chip, lv = this.pchLevel;
-    if (this.interior && (lv > 0.01 || this.pchDrawn)) {
-      g.clear();
-      this.pchDrawn = lv > 0.01;
-      if (lv > 0.01) {
-        for (let i = 0; i < 3; i++) { const e = 8 + i * 16; box(g, c.x - e, c.y - e, c.w + 2 * e, c.h + 2 * e, 26 + e, { stroke: T.mul, lw: 14, sa: 0.55 * lv * (1 - i / 3) }); }
-        const n = 9, bw = (c.w - 100) / n;
-        for (let i = 0; i < n; i++) {
-          const k = (Math.sin(now * 0.012 + i * 0.9) + 1) / 2;
-          g.rect(c.x + 50 + i * bw + 6, c.y + c.h - 120 - 110 * k, bw - 12, 30 + 110 * k).fill({ color: T.mul, alpha: (0.25 + 0.55 * k) * lv });
-        }
+    // PCH: the legs a packet reaches or leaves flash, the package edge and heat sink warm while traffic crosses it, and the corner LED shows its state
+    const lv = this.pchLevel;
+    if (this.interior) {
+      this.pchHits = this.powered ? this.pchHits.filter((h) => now < h.at + HIT_MS) : [];
+      const led = ledOf(this.powered, ph, this.keyActivity, now), drawn = led !== null || lv > 0.01 || this.pchHits.length > 0;
+      if (drawn || this.pchDrawn) {
+        g.clear();
+        drawPch(g, T, BR.chip, { tier: GEO.tier, level: lv, hits: this.pchHits, led, now });
       }
+      this.pchDrawn = drawn;
     }
     const e = this.extG;
     e.clear();
