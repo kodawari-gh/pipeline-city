@@ -10,8 +10,8 @@ import type { Rect } from './layout';
 // `cpuplan` for the die: the tooltip test enumerates the ids from here, so a part cannot be drawn without a description.
 
 /** The PCB: a fan band over the die, a margin all round, the host side and the power plugs at the ends. */
-const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 110, FAN_W = 600, DIE_Y = 118;
-const CARD_H = 660;
+const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 130, FAN_W = 900, DIE_Y = 138;
+const CARD_H = 600;
 
 /** Card size by the spec's `visual` key; the card is centred on its slot's rail. */
 export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, GPU_DIE[gpuPlanInput(s.gpu!).kind].w + 2 * MARGIN + SHROUD_X + TAIL]));

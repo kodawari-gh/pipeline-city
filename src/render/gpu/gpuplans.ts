@@ -8,9 +8,9 @@ import type { GpuBlock, GpuBlockKind, GpuLinkKind, GpuPlan, GpuPlanInput } from 
 
 /** The die's size by kind: the card is tall enough for the labels and symbols to read (docs/GPU.md section 7). */
 export const GPU_DIE: Record<GpuPlanInput['kind'], { w: number; h: number }> = {
-  simd: { w: 2300, h: 520 },
-  warp: { w: 2800, h: 520 },
-  multi: { w: 3400, h: 520 },
+  simd: { w: 2300, h: 440 },
+  warp: { w: 2800, h: 440 },
+  multi: { w: 3400, h: 440 },
 };
 
 /** The cell rectangles of a block's grid (die coordinates, row by row), under the block's name; the same area as `gridExact` was asked for in `make`. */
