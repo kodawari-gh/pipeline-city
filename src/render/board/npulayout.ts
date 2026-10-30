@@ -4,6 +4,7 @@ import { NPU_TILES } from '../../sim/isa/memmap';
 import { arrayGeom, descGeom, npuGlyphArea, tilesGeom } from '../npu/npuglyph';
 import type { NpuPlan, NpuPlanInput } from '../npu/npuplan';
 import { npuDie, npuPlan } from '../npu/npuplans';
+import { CARD_H } from './gpulayout';
 import type { Rect } from './layout';
 
 // The AI card in its PCIe slot (docs/ACCEL.md "NPU internal view"), in card-local units: (0, 0) is the PCB's north-west corner, like `gpulayout`. The die
@@ -12,7 +13,9 @@ import type { Rect } from './layout';
 // row of the descriptor queue, each multiply-accumulate cell of the array (`mac<row>x<col>`), and the lid.
 
 /** Where the die starts on the card, and the tail behind it (power lead, heatsink). */
-const DIE_AT = { x: 160, y: 60 }, TAIL = 100, BOTTOM = 40, LID_PAD = 8;
+const DIE_AT = { x: 160, y: 50 }, TAIL = 100, LID_PAD = 8;
+/** What is left under the die so the card is as tall as a graphics card (gpulayout `CARD_H`): they share a slot height, so cards stack. */
+const BOTTOM = CARD_H - DIE_AT.y - npuDie(4).h;
 
 /** The plan input of a card from its spec's `visual` key (`npu-1`, `npu-2`). */
 export function npuInputOf(visual: string): NpuPlanInput {

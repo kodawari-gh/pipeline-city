@@ -9,8 +9,8 @@ import type { NpuBlock, NpuBlockKind, NpuLinkKind, NpuPlan, NpuPlanInput } from 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
 export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
 
-/** The die grows with the array: wide enough for the cells to read at a zoom, and as tall. */
-export const npuDie = (grid: number): { w: number; h: number } => ({ w: 840 + grid * 100, h: 400 + grid * 40 });
+/** The die grows with the array in width only: a card has the height of a graphics card (board/gpulayout `CARD_H`), so a bigger array is a longer die, not a taller one. */
+export const npuDie = (grid: number): { w: number; h: number } => ({ w: 840 + grid * 100, h: 500 });
 
 type K = NpuBlockKind;
 type N = Node<K>;

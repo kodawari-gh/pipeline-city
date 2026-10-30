@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { geoOf } from './boardlayout';
 import { BD, NIC_BRACKET_X, nicY, type Rect } from './layout';
 import { box, disc, label, mix } from '../ink';
-import { gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from './gpulayout';
+import { CARD_TOP, gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from './gpulayout';
 import { EdgeFan, edgeFan } from '../room/case';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
 import { padlock } from '../tpm/tpmglyph';
@@ -20,9 +20,8 @@ import type { Theme } from '../theme';
 export const CARD_LEN: Record<string, number> = { ...GPU_LEN, ...NPU_LEN };
 const CARD_H: Record<string, number> = { ...GPU_H, ...NPU_H };
 
-/** How far a card's north edge is above its slot's rail: a graphics card hangs mostly below the rail (away from the CPU), the rest sit centred. */
-const GPU_TOP = 150;
-const cardTop = (visual: string): number => (visual.startsWith('gpu') ? GPU_TOP : (CARD_H[visual] ?? 200) / 2);
+/** How far a card's north edge is above its slot's rail: a graphics card and an AI card hang mostly below the rail (away from the CPU), the rest sit centred. */
+const cardTop = (visual: string): number => (visual.startsWith('gpu') || visual.startsWith('npu') ? CARD_TOP : (CARD_H[visual] ?? 200) / 2);
 
 /** The board-space rectangle of a card in PCIe slot `i`: what a click or hover on it hits. */
 export const cardRect = (i: number, visual: string): Rect => {
@@ -123,7 +122,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     if (visual === 'npu-2') box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
-    root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 32, 34, T.alu, { head: true, a: 0.9 }));
+    root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 24, 28, T.alu, { head: true, a: 0.9 }));
     if (!live) {
       const cover = npuCover(T, geo);
       cover.position.set(x0, top);

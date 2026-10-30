@@ -11,9 +11,11 @@ import type { Rect } from './layout';
 
 /** The PCB: a fan band over the die, a margin all round, the host side and the power plugs at the ends. */
 const SHROUD_X = 150, TAIL = 180, MARGIN = 12, FAN_Y = 4, FAN_H = 130, FAN_W = 900, DIE_Y = 138;
-const CARD_H = 600;
+/** The height every accelerator card has (a GPU and an NPU alike), and how far its north edge is above its slot's rail: a card hangs mostly below the rail,
+ * away from the CPU, so cards in neighbouring slots (700 apart) never overlap and a stack of them lines up. */
+export const CARD_H = 600, CARD_TOP = 150;
 
-/** Card size by the spec's `visual` key; the card is centred on its slot's rail. */
+/** Card size by the spec's `visual` key; the card hangs from its slot's rail (`CARD_TOP`). */
 export const GPU_LEN: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, GPU_DIE[gpuPlanInput(s.gpu!).kind].w + 2 * MARGIN + SHROUD_X + TAIL]));
 export const GPU_H: Record<string, number> = Object.fromEntries(specsOfKind('gpu').map((s) => [s.visual, CARD_H]));
 
