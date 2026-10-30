@@ -66,6 +66,7 @@ export function snapshot(this: Game): Snapshot {
     ...(cores ? { cores } : {}),
     ram: this.powered ? this.ramSnap(jobs) : null,
     ...(this.powered && this.gpus.some((p) => p.present) ? { gpus: this.gpuSnaps() } : {}),
+    ...(this.powered && this.tpm.present ? { tpm: this.tpm.view()! } : {}),
     display: this.powered && live ? this.machine.display.text() : "",
     counters,
     completed: this.completed,

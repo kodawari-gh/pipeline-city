@@ -10,9 +10,9 @@ import type { GpuLink, GpuPlan } from './gpuplan';
 export interface Hop { link: GpuLink; reverse: boolean }
 
 /** The shortest chain of links from block `from` to block `to`, following the links' directions (null when there is none). */
-export function pathBetween(links: readonly GpuLink[], from: string, to: string): GpuLink[] | null {
+export function pathBetween<L extends { from: string; to: string }>(links: readonly L[], from: string, to: string): L[] | null {
   if (from === to) return [];
-  const prev = new Map<string, GpuLink>(), seen = new Set<string>([from]);
+  const prev = new Map<string, L>(), seen = new Set<string>([from]);
   let frontier = [from];
   while (frontier.length) {
     const next: string[] = [];
@@ -22,7 +22,7 @@ export function pathBetween(links: readonly GpuLink[], from: string, to: string)
         seen.add(l.to);
         prev.set(l.to, l);
         if (l.to === to) {
-          const out: GpuLink[] = [];
+          const out: L[] = [];
           for (let k = to; k !== from; k = prev.get(k)!.from) out.unshift(prev.get(k)!);
           return out;
         }

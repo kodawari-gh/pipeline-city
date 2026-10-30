@@ -5,6 +5,8 @@ import { box, disc, label, mix } from '../ink';
 import { gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from './gpulayout';
 import { EdgeFan, edgeFan } from '../room/case';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
+import { padlock } from '../tpm/tpmglyph';
+import { tpmGeo } from './tpmlayout';
 import type { Theme } from '../theme';
 
 // The accelerator parts (docs/ACCEL.md "Picker and board art"): graphics and AI cards in a PCIe slot, and the TPM module on the board's
@@ -111,21 +113,37 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
 export interface HeaderBox { x: number; y: number; cols: number; rows: number }
 export const headerRect = (h: HeaderBox): Rect => ({ x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 });
 
-/** The TPM module standing on its header: a small daughterboard with the secure chip (and a shield on the better one). */
-export function tpmArt(T: Theme, visual: string, h: HeaderBox): Container {
+/**
+ * The lid over the module's die, in board space: a dark plate with the module's name etched in it. The board's view (`TpmView`, tpmview.ts) fades it
+ * away when zoomed in, like a card's shroud, and the die shows through; a shop tile has it as a still picture. The better module has a metal frame.
+ */
+export function tpmCover(T: Theme, visual: string, band: Rect): Container {
+  const root = new Container(), g = new Graphics(), two = visual === 'tpm-2';
+  root.addChild(g);
+  box(g, band.x, band.y, band.w, band.h, 6, { fill: T.dark ? '#0b101c' : '#1d2536', stroke: two ? T.alu : T.line, lw: two ? 4 : 3 });
+  if (two) box(g, band.x + 6, band.y + 6, band.w - 12, band.h - 12, 4, { stroke: mix(T.alu, '#000000', 0.4), lw: 1.5, sa: 0.8 });
+  disc(g, band.x + 14, band.y + 14, 4.5, { fill: T.alu, fa: 0.85 });
+  // the lock the module is named for
+  padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), T.dark ? '#0b101c' : '#1d2536');
+  root.addChild(label('SECURE MODULE', band.x + 34, band.y + band.h * 0.34, 22, T.ink, { head: true, a: 0.9 }));
+  root.addChild(label(two ? 'TPM 2 · SHIELDED' : 'TPM 1', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
+  root.addChild(label('PIPELINE CITY', band.x + 34, band.y + band.h * 0.82, 10, T.mute, { a: 0.7 }));
+  return root;
+}
+
+/** The TPM module standing on its header: a small daughterboard under a lid. `live`: on the board, where the view (tpmview.ts) draws the lid and the die. */
+export function tpmArt(T: Theme, visual: string, h: HeaderBox, live = false): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
-  const r = headerRect(h), pad = 16, two = visual === 'tpm-2';
+  const r = headerRect(h), geo = tpmGeo(visual, r), p = geo.pcb;
   const pcb = T.dark ? '#1f3b2e' : '#6faa86';
-  box(g, r.x + 8, r.y + 12, r.w, r.h + 40, 8, { fill: '#000000', fa: 0.3 });
-  box(g, r.x - pad, r.y - pad - 30, r.w + 2 * pad, r.h + 2 * pad + 30, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
-  const chip = { x: r.x + r.w * 0.18, y: r.y - 6, w: r.w * 0.5, h: r.h * 0.62 };
-  box(g, chip.x, chip.y, chip.w, chip.h, 6, { fill: '#0a0f1a', stroke: two ? T.alu : T.line, lw: 3 });
-  disc(g, chip.x + 14, chip.y + 14, 5, { fill: T.alu, fa: 0.8 });
-  if (two) box(g, r.x + r.w * 0.72, r.y + 4, r.w * 0.18, r.h * 0.4, 4, { fill: mix(pcb, '#ffffff', 0.25), stroke: T.line, lw: 2 });
+  box(g, p.x + 24, p.y + 58, p.w, p.h - 18, 8, { fill: '#000000', fa: 0.3 });
+  box(g, p.x, p.y, p.w, p.h, 8, { fill: pcb, stroke: T.alu, lw: 4, sa: 0.6 });
+  box(g, geo.band.x - 3, geo.band.y - 3, geo.band.w + 6, geo.band.h + 6, 7, { fill: mix(pcb, '#000000', 0.45) });
   for (let k = 0; k < h.cols; k++) g.rect(r.x + 18 + k * 52, r.y + r.h - 12, 16, 22);
   g.fill({ color: T.pin, alpha: 0.9 });
-  root.addChild(label('TPM', r.x - pad + 12, r.y - pad - 26, 26, T.alu, { head: true, a: 0.9 }));
+  root.addChild(label('TPM', p.x + 12, p.y + 4, 26, T.alu, { head: true, a: 0.9 }));
+  if (!live) root.addChild(tpmCover(T, visual, geo.band));
   return root;
 }
 

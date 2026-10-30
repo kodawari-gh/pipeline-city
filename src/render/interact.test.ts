@@ -14,3 +14,12 @@ describe('a click on a part of a graphics card', () => {
     expect(deviceOfPart('pcie3.lane0', devices)).toBe('pcie3.lane0');
   });
 });
+
+describe('a click on a part of the secure module', () => {
+  it('is a click on the module in its header slot', () => {
+    const devs = [{ id: 'dev-tpm', slot: 'tpm0' }, ...devices];
+    for (const id of ['tpm0.regs', 'tpm0.hash', 'tpm0.lid']) expect(deviceOfPart(id, devs), id).toBe('dev-tpm');
+    expect(deviceOfPart('tpm1.regs', devs)).toBe('tpm1.regs');
+    expect(deviceOfPart('tpm0', devs)).toBe('tpm0');
+  });
+});

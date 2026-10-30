@@ -34,6 +34,48 @@ export function wordHash(words: Iterable<number>): number {
 
 type Phase = "idle" | "in" | "work" | "out";
 
+/** Commands kept in the log the board view replays. */
+export const TPM_LOG = 8;
+/** Sealed values the view lists. */
+export const TPM_KEYS_SHOWN = 8;
+
+/** One finished (or refused) command, for the view. `ticks` is the module's work time (0 when it was refused at the door). */
+export interface TpmLogEntry { seq: number; cmd: number; arg0: number; arg1: number; result: number; fault: number; ticks: number }
+
+/** What the module shows from the outside (docs/ACCEL.md "TPM"): where a command is, the registers, protected mode, the sealed values and the last commands. */
+export interface TpmView {
+  phase: Phase;
+  cmd: number;
+  arg0: number;
+  arg1: number;
+  result: number;
+  fault: number;
+  busy: boolean;
+  error: boolean;
+  done: boolean;
+  /** Ticks left in this phase of the command and how long the phase is. */
+  wait: number;
+  span: number;
+  /** Protected mode: the RAM byte range [lo, hi) the job may touch, or null. */
+  range: { lo: number; hi: number } | null;
+  /** Words hashed so far and the running hash, while a `measure` is in its work phase (else 0). */
+  hashed: number;
+  partial: number;
+  /** The sealed values, oldest first (at most TPM_KEYS_SHOWN). */
+  sealed: { handle: number; value: number }[];
+  /** The last commands, oldest first. */
+  log: TpmLogEntry[];
+  commands: number;
+  measuredWords: number;
+  guardedAccesses: number;
+  lastViolation: number;
+  measureTicks: number;
+  attestTicks: number;
+  surcharge: number;
+  /** The RAM the guard's ruler stands for, in bytes. */
+  ramBytes: number;
+}
+
 export class TpmPort implements Device {
   readonly name = "tpm";
   readonly base = TPM_BASE;
@@ -44,6 +86,11 @@ export class TpmPort implements Device {
   private cfg: TpmConfig | null = null;
   private phase: Phase = "idle";
   private wait = 0;
+  private span = 0;
+  private worked = 0;
+  private measured: number[] = [];
+  private seq = 0;
+  private log: TpmLogEntry[] = [];
   private cmd = 0;
   private arg0 = 0;
   private arg1 = 0;
@@ -77,11 +124,37 @@ export class TpmPort implements Device {
   /** Power-on reset: no command in flight, protected mode off. Sealed values survive (they live in the module). */
   reset(): void {
     this.phase = "idle";
-    this.wait = 0;
+    this.wait = this.span = this.worked = 0;
+    this.measured = [];
+    this.log = [];
     this.cmd = this.arg0 = this.arg1 = this.result = 0;
     this.fault = TpmFault.None;
     this.done = this.error = this.violated = false;
     this.leaveProtected();
+  }
+
+  /** The module as the board view draws it, or null without a module. */
+  view(): TpmView | null {
+    const cfg = this.cfg;
+    if (!cfg) return null;
+    const work = this.phase === "work" && this.cmd === TpmCmd.Measure;
+    // the hash so far: the words the module has read at `measureTicks` a word
+    const hashed = work ? Math.min(this.measured.length, Math.floor((this.span - this.wait) / Math.max(1, cfg.measureTicks))) : 0;
+    return {
+      phase: this.phase, cmd: this.cmd, arg0: this.arg0, arg1: this.arg1, result: this.result, fault: this.fault,
+      busy: this.phase !== "idle", error: this.error, done: this.done, wait: this.wait, span: this.span,
+      range: this.range ? { ...this.range } : null,
+      hashed, partial: hashed > 0 ? wordHash(this.measured.slice(0, hashed)) : 0,
+      sealed: [...this.sealed].slice(-TPM_KEYS_SHOWN).map(([handle, value]) => ({ handle, value })),
+      log: this.log.map((e) => ({ ...e })),
+      commands: this.commands, measuredWords: this.measuredWords, guardedAccesses: this.guardedAccesses, lastViolation: this.lastViolation,
+      measureTicks: cfg.measureTicks, attestTicks: cfg.attestTicks, surcharge: cfg.surcharge, ramBytes: this.ram.length,
+    };
+  }
+
+  private note(ticks: number, cmd = this.cmd): void {
+    this.log.push({ seq: ++this.seq, cmd, arg0: this.arg0, arg1: this.arg1, result: this.result, fault: this.fault, ticks });
+    if (this.log.length > TPM_LOG) this.log.shift();
   }
 
   get present(): boolean {
@@ -146,10 +219,10 @@ export class TpmPort implements Device {
   }
 
   private start(cmd: number): void {
-    if (!this.cfg || this.phase !== "idle" || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect) return this.refuse(TpmFault.BadCommand);
+    if (!this.cfg || this.phase !== "idle" || cmd < TpmCmd.Measure || cmd > TpmCmd.Unprotect) return this.refuse(TpmFault.BadCommand, cmd);
     if (cmd === TpmCmd.Measure || cmd === TpmCmd.Protect) {
       const bytes = this.arg1 * 4;
-      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length) return this.refuse(TpmFault.BadRange);
+      if (this.arg0 % 4 !== 0 || this.arg1 === 0 || this.arg0 + bytes > this.ram.length) return this.refuse(TpmFault.BadRange, cmd);
     }
     this.error = this.done = false;
     this.fault = TpmFault.None;
@@ -161,12 +234,13 @@ export class TpmPort implements Device {
       return;
     }
     this.phase = "in";
-    this.wait = TPM_HOP_TICKS;
+    this.wait = this.span = TPM_HOP_TICKS;
   }
 
-  private refuse(code: number): void {
+  private refuse(code: number, cmd: number): void {
     this.error = true;
     this.fault = code;
+    if (this.cfg && !this.instant) this.note(0, cmd);
   }
 
   /** The command's effect. Returns the module ticks it takes. */
@@ -177,6 +251,7 @@ export class TpmPort implements Device {
         const words: number[] = [];
         for (let k = 0; k < this.arg1; k++) words.push(this.wordAt(this.arg0 + 4 * k));
         this.result = wordHash(words);
+        this.measured = words;
         this.measuredWords += this.arg1;
         return cfg.measureTicks * this.arg1;
       }
@@ -188,7 +263,7 @@ export class TpmPort implements Device {
         return TPM_SEAL_TICKS;
       case TpmCmd.Unseal: {
         const v = this.sealed.get(this.arg0);
-        if (v === undefined) this.refuse(TpmFault.NoSuchKey);
+        if (v === undefined) { this.error = true; this.fault = TpmFault.NoSuchKey; }
         else this.result = v;
         return TPM_SEAL_TICKS;
       }
@@ -210,20 +285,23 @@ export class TpmPort implements Device {
     switch (this.phase) {
       case "in":
         if (--this.wait <= 0) {
-          this.wait = Math.max(1, this.execute());
+          this.worked = this.execute();
+          this.wait = this.span = Math.max(1, this.worked);
           this.phase = "work";
         }
         break;
       case "work":
         if (--this.wait <= 0) {
           this.phase = "out";
-          this.wait = TPM_HOP_TICKS;
+          this.wait = this.span = TPM_HOP_TICKS;
         }
         break;
       case "out":
         if (--this.wait <= 0) {
           this.phase = "idle";
           this.done = true;
+          this.wait = this.span = 0;
+          this.note(this.worked);
         }
         break;
     }

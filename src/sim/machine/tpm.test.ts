@@ -199,3 +199,46 @@ describe("the reference interpreter's fake TPM (instant)", () => {
     expect(word(TPM_REG.RESULT)).toBe(wordHash([1, 2, 3]));
   });
 });
+
+describe("the module's view", () => {
+  it("has none without a module, and logs each command with its work time and result", () => {
+    expect(rig(null).tpm.view()).toBeNull();
+    const { m, tpm, run, result } = rig();
+    [5, 6, 7].forEach((w, k) => m.bus.store32(0x1000 + 4 * k, w));
+    run(TpmCmd.Measure, 0x1000, 3);
+    run(TpmCmd.Seal, 9, 1234);
+    const v = tpm.view()!;
+    expect(v.log.map((e) => e.cmd)).toEqual([TpmCmd.Measure, TpmCmd.Seal]);
+    expect(v.log[0]).toMatchObject({ seq: 1, arg0: 0x1000, arg1: 3, result: wordHash([5, 6, 7]), ticks: 12, fault: TpmFault.None });
+    expect(v.log[1]!.ticks).toBe(TPM_SEAL_TICKS);
+    expect(v.sealed).toEqual([{ handle: 9, value: 1234 }]);
+    expect(result()).toBe(wordHash([5, 6, 7]));
+    expect(v.busy).toBe(false);
+  });
+
+  it("shows the running hash while a measure is in its work phase", () => {
+    const { m, tpm } = rig();
+    const words = [11, 22, 33, 44];
+    words.forEach((w, k) => m.bus.store32(0x1000 + 4 * k, w));
+    m.bus.store32(R(TPM_REG.ARG0), 0x1000);
+    m.bus.store32(R(TPM_REG.ARG1), words.length);
+    m.bus.store32(R(TPM_REG.CMD), TpmCmd.Measure);
+    for (let n = 0; n < TPM_HOP_TICKS + 9; n++) m.advanceBaseTick(); // two words (8 ticks) into the work
+    const v = tpm.view()!;
+    expect(v.phase).toBe("work");
+    expect(v.hashed).toBe(2);
+    expect(v.partial).toBe(wordHash(words.slice(0, 2)));
+    expect(v.span).toBe(16);
+  });
+
+  it("reports protected mode with its range, and logs a refused command with its fault", () => {
+    const { tpm, run } = rig();
+    run(TpmCmd.Protect, 0x2000, 16);
+    expect(tpm.view()!.range).toEqual({ lo: 0x2000, hi: 0x2040 });
+    run(TpmCmd.Measure, 0x2002, 4); // not word aligned: refused at the door
+    const last = tpm.view()!.log.at(-1)!;
+    expect(last).toMatchObject({ cmd: TpmCmd.Measure, fault: TpmFault.BadRange, ticks: 0 });
+    run(TpmCmd.Unprotect);
+    expect(tpm.view()!.range).toBeNull();
+  });
+});

@@ -4,6 +4,7 @@ import { BOARD_TIERS, CASE_TIERS, getSpec, type CpuSpec, type DeviceKind, type D
 import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { describeGpuId } from './panels/gpudesc';
+import { describeTpmId } from './panels/tpmdesc';
 import { BANDWIDTH_NERD, describeNet } from './panels/netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
@@ -351,6 +352,8 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   if (net) return net;
   const gpu = describeGpuId(id, s);
   if (gpu) return gpu;
+  const tpm = describeTpmId(id, s);
+  if (tpm) return tpm;
   if (s) {
     if (id === 'os' && s.os) {
       const host = s.storage.find((x) => x.hasOs);

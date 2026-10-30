@@ -3,6 +3,7 @@
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
 import type { GpuView } from "../machine/gpu";
+import type { TpmView } from "../machine/tpm";
 import type { Binding } from "../net";
 import type { DexSnap } from "./jobdex";
 import type { JobLogEntry, JobWindow } from "./joblog";
@@ -393,6 +394,8 @@ export interface Snapshot {
   ram?: RamMap | null;
   /** The installed graphics cards' insides (lanes, mask, banks, the last instructions), while the machine is on; absent without a card. */
   gpus?: GpuSnap[];
+  /** The secure module's insides (registers, protected mode, sealed values, the last commands), while the machine is on; absent without a module. */
+  tpm?: TpmView;
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */
   display: string;
   /** Engine counters since power-on, by name (all zero when no engine). */
