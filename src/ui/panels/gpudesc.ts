@@ -152,7 +152,9 @@ export function describeGpuId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'sm': return {
       title: `Streaming multiprocessor${sm !== undefined ? ` ${sm}` : ` ${n}`}`,
-      plain: "One of the card's compute cores: its own front end, warps, registers, lanes and path to memory. The SMs split the lanes of a launch between them and run side by side.",
+      plain: sms > 1
+        ? "One of the card's compute cores: its own front end, warps, registers, lanes and path to memory. The SMs split the lanes of a launch between them and run side by side."
+        : "The card's one compute core: its front end, warps, registers, lanes and path to memory. A bigger card has several of these side by side.",
       nerd: `${sms} SMs | ${warps} warps and ${lanes && sms ? lanes / sms : 'N'} lanes each`,
     };
     default: return {

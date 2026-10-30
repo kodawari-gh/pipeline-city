@@ -108,7 +108,9 @@ function build(i: GpuPlanInput): { tree: N; specs: WireSpec<GpuLinkKind>[] } {
   if (i.sms === 1) {
     const sm = i.kind === 'simd' ? simdSm(i) : warpSm(i, '', false);
     specs.push([`launch-${sm.entry}`, 'launch', 'launch', sm.entry, 1], ...sm.specs, [`${sm.exit}-dram`, 'mem', sm.exit, 'dram', 3]);
-    return { tree: row<K>([west, { ...sm.tree, f: 56 }, dram], { f: 1 }), specs: wires(specs) };
+    // the one SM is framed like each SM of a multi-SM card (id `sm0`; its blocks keep their plain ids)
+    const frame = { id: 'sm0', kind: 'sm' as const, label: i.kind === 'simd' ? 'SIMD UNIT' : 'SM 0', sub: `${plural(i.warps, 'warp')} · ${plural(i.lanes, 'lane')}` };
+    return { tree: row<K>([west, { ...(sm.tree as Extract<N, { dir: string }>), frame, pad: 8, title: 22, f: 56 }, dram], { f: 1 }), specs: wires(specs) };
   }
   const frames: N[] = [];
   for (let k = 0; k < i.sms; k++) {

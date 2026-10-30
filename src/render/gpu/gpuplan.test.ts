@@ -118,6 +118,15 @@ describe('gpu floorplans', () => {
     expect(plan.blocks.find((b) => b.id === 'l2')?.grid?.count).toBe(64);
   });
 
+  it('the single SM of the smaller cards is framed too, with its blocks keeping their plain ids', () => {
+    for (const s of specsOfKind('gpu').filter((x) => x.gpu!.kind !== 'multi')) {
+      const plan = gpuPlan(gpuPlanInput(s.gpu!));
+      expect(plan.blocks.filter((b) => b.kind === 'sm').map((b) => b.id), s.id).toEqual(['sm0']);
+      expect(plan.blocks.find((b) => b.id === 'lanes')?.parent, s.id).toBe('sm0');
+      expect(plan.blocks.find((b) => b.id === 'lanes')?.sm, s.id).toBe(0);
+    }
+  });
+
   it('the plan follows the config: lanes, banks, warps and caches change the cells', () => {
     const a = gpuPlan(base), b = gpuPlan({ ...base, lanes: 32, banks: 4, warps: 4 });
     expect(a.blocks.find((x) => x.kind === 'banks')?.grid?.count).toBe(2);
