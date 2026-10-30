@@ -164,7 +164,7 @@ export class Machine {
   /** One CPU cycle: every core in turn (index order, rotating with a shared L2), so the same save gives the same cycles. */
   stepCpu(): void {
     const cores = this.cores;
-    if (cores.length === 1) { this.stepCore(cores[0]!); return; }
+    if (cores.length === 1) { this.bus.serve(0, cores[0]!.mpu); this.stepCore(cores[0]!); return; } // serve: a swapped-in CPU must not inherit the old core index
     // With a shared L2 the cores that miss in the same cycle are served one per cycle in rotation, starting at cycle % cores: the step order rotates so no core is starved.
     const mem = this.mem, n = cores.length, first = mem ? mem.now % n : 0;
     for (let i = 0; i < n; i++) {
