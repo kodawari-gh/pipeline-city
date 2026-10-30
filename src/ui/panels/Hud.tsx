@@ -50,7 +50,7 @@ function SpeedControl() {
       <button class="icon pp" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
         <Icon name={v === 0 ? 'play' : 'pause'} size={14} />
       </button>
-      <button class={`icon zs ${zoomSlowOn.value ? 'on' : ''}`} aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
+      <button class="icon zs" aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
         title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
         <Icon name="gauge" size={14} />
       </button>

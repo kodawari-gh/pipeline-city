@@ -20,6 +20,7 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - The old prototype `legacy/` is not in this tree; it lives on the `legacy-archive` branch (`git show legacy-archive:legacy/<file>` only if asked). Never read `dist/` or `package-lock.json`.
 - Work list: `docs/TODO.md` (tagged, bite-size tasks), run by the separate `prompt-system` repo; do not add runner scripts here.
 - Other sessions share the working tree: new files and small edits, stage explicit paths only (never `git add -A`).
+- Rendering or UI work (anything under `src/render`, `src/ui`, CSS): look at it before calling it done. Run `npm run shot -- <out.png> [--view cpu|board|x,y,z] [--clip hud]` (`tools/shot.mjs`: headless Chrome on the real GPU, never software GL, it prints the GL renderer and stops on SwiftShader), then Read the png and fix what looks wrong; save shots in the scratchpad, not the repo. Tests and typecheck do not show an invisible icon, overlapping layers or a cheap look. If you cannot get a screenshot, say so plainly in the report instead of claiming it works.
 - Use Edit, never rewrite a file from a script. UI sizes are relative units (`src/ui/scaling.test.ts` stays green).
 - Always commit your work when a task is done (explicit paths only, after the touched tests and `npm run typecheck` pass); do not leave it uncommitted for the user to ask.
 - Commit subject <= 72 chars, body <= 3 lines. Final report: 3 lines max, no recap of the diff.

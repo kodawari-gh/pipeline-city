@@ -81,8 +81,8 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 /* Pause/play and the speed: collapsed to the play state and the current speed, the rest open on hover, focus or tap. */
 .speedctl { display: inline-flex; align-items: center; gap: 0.3rem; }
 .speedctl .pp, .speedctl .zs { padding: 0.2rem 0.4rem; line-height: 0; }
-.speedctl .zs:not(.on) { opacity: 0.45; }
-.speedctl .zs.on { color: var(--accent, currentColor); }
+.speedctl .zs[aria-pressed=false] { opacity: 0.5; }
+.speedctl .zs[aria-pressed=true] { color: var(--accent); border-color: var(--accent); }
 .speedctl .speeds > button:not(.on) { display: none; }
 .speedctl:hover .speeds > button, .speedctl:focus-within .speeds > button, .speedctl.open .speeds > button { display: inline-block; animation: fade-in .15s ease both; }
 .hud-center { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
