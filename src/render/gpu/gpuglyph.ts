@@ -1,17 +1,20 @@
 import type { Graphics } from 'pixi.js';
-import type { Rect } from '../die/cpuplan';
-import { WORD_FIELDS, CONTROL_LINES, type Put } from '../die/blockart';
+import type { Block, Rect } from '../die/cpuplan';
+import { aluPoly, CONTROL_LINES, glyph, glyphKit, slotsOf, type LiveGlyph, type Put } from '../die/blockart';
 import { mix } from '../ink';
 import { GPU_FRAME } from '../../sim/isa/memmap';
 import { KERNEL_LAYOUT } from '../../sim/gen/gpukernels';
+import { gpuDecode, gpuDisassemble, GPU_SPEC_BY_NAME } from '../../sim/isa/gpu';
+import type { GpuStep } from '../../sim/ref/gpuref';
 import type { Theme } from '../theme';
 import type { GpuBlock, GpuBlockKind } from './gpuplan';
 import { gpuCells, maskParts } from './gpuplans';
 
-// What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the symbol an engineer would draw, drawn like
-// the CPU die's (die/blockart.ts) so the two read as one family. The lane ALUs are the notched trapezoid, a warp is a card with its program
-// counter, mask and stack, the scheduler a scoreboard with a pointer, the coalescer lanes funnelling into lines, the arbiter a multiplexer in
-// front of the banks, a cache line a tag beside its data. Pure drawing into a Graphics (and a callback for the few labels).
+// What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the symbol an engineer would draw, drawn with the
+// CPU die's own tools (`glyphKit`, `aluPoly`, and for the program counter, the fetch and the decoder the very symbols of die/blockart.ts), so the
+// two read as one family. The lane ALUs are the notched trapezoid, a warp is a card with its program counter, mask and stack, the scheduler a
+// scoreboard with a pointer, the coalescer lanes funnelling into lines, the arbiter a multiplexer in front of the banks, a cache line a tag
+// beside its data. Pure drawing into a Graphics (and a callback for the few labels).
 
 /** The block kinds with a symbol: every kind of a plan but the SM frame, which is only a frame. */
 export const GPU_GLYPH_KINDS: Record<GpuBlockKind, boolean> = {
@@ -29,14 +32,6 @@ export function gpuGlyphArea(b: Pick<GpuBlock, 'kind' | 'rect'>): Rect | null {
   return a.w > 8 && a.h > 6 ? a : null;
 }
 
-/** The control lines a decoder block raises: name and the line's end points (block coordinates), the ones the live layer lights for the instruction on show. */
-export function gpuDecodeLines(b: Pick<GpuBlock, 'kind' | 'rect'>): { name: string; x0: number; x1: number; y: number }[] {
-  const a = gpuGlyphArea(b);
-  if (!a) return [];
-  const wh = Math.min(18, a.h * 0.3), n = CONTROL_LINES.length, step = Math.min(14, (a.h - wh - 6) / n);
-  return CONTROL_LINES.map((name, k) => ({ name, x0: a.x, x1: a.x + a.w * 0.35, y: a.y + wh + 8 + k * step + step / 2 }));
-}
-
 /** Which control lines an instruction raises: the ALU or memory unit it goes to, a register write, a branch or mask change, an immediate, a system operation. */
 export function gpuControlLines(s: { name: string; kind: string; dest: number | null }): Set<string> {
   const out = new Set<string>();
@@ -49,37 +44,65 @@ export function gpuControlLines(s: { name: string; kind: string; dest: number | 
   return out;
 }
 
+/** The block as the CPU die's symbols take it (the shared kinds `pc`, `fetch`, `decode` read only its id, kind, label and rectangle). */
+const asCpuBlock = (b: Pick<GpuBlock, 'id' | 'kind' | 'label' | 'sub' | 'rect' | 'grid'>) => b as unknown as Pick<Block, 'id' | 'kind' | 'label' | 'sub' | 'rect' | 'grid'>;
+
+/** The five slots of the decoder's word strip for a GPU instruction (op, rd, rs1, rs2, imm), '' where the format has none. */
+export function gpuSlotValues(word: number): string[] {
+  const i = gpuDecode(word);
+  if (!i) return ['?', '', '', '', ''];
+  const f = GPU_SPEC_BY_NAME.get(i.name)!.fmt, v = (n: number) => `v${n}`;
+  return [i.name, f === 'R' || f === 'I' || f === 'D' ? v(i.rd) : '', f === 'R' || f === 'I' || f === 'S' || f === 'M' ? v(i.rs1) : '', f === 'R' || f === 'S' || f === 'M' ? v(i.rs2) : '', f === 'I' || f === 'S' || f === 'O' ? String(i.imm) : ''];
+}
+
+/** Indices into CONTROL_LINES the instruction raises. */
+export const gpuControlIndices = (s: { name: string; kind: string; dest: number | null }): number[] => {
+  const set = gpuControlLines(s);
+  return CONTROL_LINES.flatMap((n, k) => (set.has(n) ? [k] : []));
+};
+
+/** What the symbols of the shared kinds show for the instruction on show (the program counter's digits, the word fetched, the decoded word and the lines it raises), on the CPU's geometry (`slotsOf`). `prog` is how far the instruction has got into the block (0..1), as on the CPU die. */
+export function gpuGlyphLive(b: Pick<GpuBlock, 'id' | 'kind' | 'label' | 'sub' | 'rect'>, a: Rect, step: GpuStep | null, prog = 1): LiveGlyph {
+  const out: LiveGlyph = { texts: [], lit: [] };
+  if (!step) return out;
+  const s = slotsOf(asCpuBlock(b), a), wipe = (r: Rect): Rect => ({ ...r, w: r.w * prog });
+  switch (b.kind) {
+    case 'pc':
+      if (s.digits) { const hex = (step.pc >>> 0).toString(16).padStart(8, '0'); s.digits.forEach((r, k) => out.texts.push({ rect: r, top: hex[k]!, bottom: '' })); }
+      break;
+    case 'fetch':
+      if (s.words?.[0]) {
+        out.lit.push({ rect: wipe(s.words[0]), color: 'alu', a: 0.92 });
+        if (prog > 0.55) out.texts.push({ rect: s.words[0], top: step.word !== undefined ? gpuDisassemble(step.word) : step.name, bottom: '' });
+      }
+      break;
+    case 'decode':
+      if (s.word && s.lines) {
+        out.lit.push({ rect: wipe(s.word), color: 'alu', a: 0.92 });
+        if (prog > 0.55 && s.fields && step.word !== undefined) gpuSlotValues(step.word).forEach((v, n) => { if (v) out.texts.push({ rect: s.fields![n]!, top: v, bottom: '' }); });
+        gpuControlIndices(step).forEach((n, j) => { if (prog > 0.45 + 0.1 * j) out.lit.push({ rect: s.lines![n]!, color: 'br', a: 0.6 }); });
+      }
+      break;
+    default: break;
+  }
+  return out;
+}
+
 /** Draw the symbol of block `b` into `g`; `put` adds a label. */
 export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put): void {
   const a = gpuGlyphArea(b);
   if (!a) return;
-  const solid = mix(T.die, c, 0.42), soft = mix(T.die, c, 0.2), line = mix(T.die, c, 0.85);
+  if (b.kind === 'pc' || b.kind === 'fetch' || b.kind === 'decode') { glyph(g, T, asCpuBlock(b), a, c, put); return; } // the CPU die's own symbols
+  const kit = glyphKit(g, T, c, put);
+  const { solid, soft, line, rect, stub, poly, mux } = kit;
   const { x, y, w, h } = a;
-  const rect = (rx: number, ry: number, rw: number, rh: number, f = solid) => { g.roundRect(rx, ry, rw, rh, 1.5).fill({ color: f }); };
-  const stub = (x0: number, y0: number, x1: number, y1: number) => { g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 1.2, color: line }); };
-  const poly = (pts: number[], f = soft) => { g.poly(pts).fill({ color: f }).stroke({ width: 1.3, color: line }); };
-  const word = (wx: number, wy: number, ww: number, wh: number) => {
-    const total = WORD_FIELDS.reduce((s, f) => s + f.bits, 0);
-    let fx = wx;
-    WORD_FIELDS.forEach((f, k) => {
-      const fw = (ww * f.bits) / total;
-      rect(fx + 0.6, wy, fw - 1.2, wh, k % 2 ? solid : soft);
-      if (wh >= 8 && fw > 12) put(f.name, fx + fw / 2, wy + wh / 2, Math.min(7, wh * 0.7));
-      fx += fw;
-    });
-  };
   const cells = gpuCells(b);
 
   switch (b.kind) {
     case 'pcie': {
-      // differential pairs running into the die, a chevron on each saying which way it carries
-      const n = Math.max(2, Math.min(16, Math.floor(h / 7)));
-      for (let k = 0; k < n; k++) {
-        const ly = y + ((k + 0.5) * h) / n;
-        stub(x, ly, x + w, ly);
-        const cx = x + w * 0.55;
-        g.moveTo(cx - 3, ly - 2.5).lineTo(cx, ly).lineTo(cx - 3, ly + 2.5).stroke({ width: 1.1, color: line });
-      }
+      // the lanes of the link into the die, a pair of cells each (the CPU's PCIe block is a strip of the same cells)
+      const n = Math.max(2, Math.min(16, Math.floor(h / 9)));
+      for (let k = 0; k < n; k++) { const ly = y + ((k + 0.5) * h) / n - 3; rect(x, ly, w * 0.46, 6, soft); rect(x + w * 0.54, ly, w * 0.46, 6, solid); }
       break;
     }
     case 'launch': {
@@ -88,34 +111,6 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       for (let k = 0; k < rows; k++) rect(x, y + k * (rh + 3), w * 0.68, rh, k % 2 ? solid : soft);
       rect(x + w * 0.76, y, w * 0.24, rh * 2 + 3, solid);
       if (rh >= 8 && w > 60) put('go', x + w * 0.88, y + rh + 1.5, Math.min(8, rh));
-      break;
-    }
-    case 'pc': {
-      const gap = 3, dw = (w - 7 * gap) / 8, dh = Math.min(h, 22);
-      for (let k = 0; k < 8; k++) {
-        const dx = x + k * (dw + gap);
-        rect(dx, y + (h - dh) / 2, dw, dh);
-        for (let j = 0; j < 4; j++) g.rect(dx + 1.5 + j * ((dw - 3) / 4), y + (h - dh) / 2 + dh - 3.5, Math.max(1, (dw - 3) / 4 - 1), 2).fill({ color: line });
-      }
-      break;
-    }
-    case 'fetch': {
-      // the word read from the program, on its way to the decoder
-      const wh = Math.min(18, h * 0.4);
-      word(x, y + h * 0.15, w, wh);
-      stub(x + w / 2, y + h * 0.15 + wh, x + w / 2, y + h * 0.15 + wh + 14);
-      poly([x + w / 2 - 4, y + h * 0.15 + wh + 10, x + w / 2 + 4, y + h * 0.15 + wh + 10, x + w / 2, y + h * 0.15 + wh + 17], solid);
-      break;
-    }
-    case 'decode': {
-      // the fields of the word and the control lines it raises
-      const wh = Math.min(18, h * 0.3);
-      word(x, y, w, wh);
-      const step = Math.min(14, (h - wh - 6) / CONTROL_LINES.length);
-      for (const l of gpuDecodeLines(b)) {
-        stub(l.x0, l.y, l.x1, l.y);
-        if (step >= 7) put(l.name, l.x1 + 8 + l.name.length * 2, l.y, Math.min(7, step * 0.8));
-      }
       break;
     }
     case 'sched': {
@@ -150,10 +145,7 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
     }
     case 'lanes': {
       // an ALU in every lane: the notched trapezoid
-      for (const r of cells) {
-        const { x: lx, y: ly, w: lw, h: lh } = r;
-        poly([lx + 1.5, ly + 1.5, lx + lw * 0.42, ly + 1.5, lx + lw * 0.5, ly + lh * 0.3, lx + lw * 0.58, ly + 1.5, lx + lw - 1.5, ly + 1.5, lx + lw * 0.82, ly + lh - 1.5, lx + lw * 0.18, ly + lh - 1.5]);
-      }
+      for (const r of cells) poly(aluPoly(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3));
       break;
     }
     case 'mask': {
@@ -177,9 +169,8 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
     case 'arbiter': {
       // requests in, a multiplexer, one access per bank out
       const ins = 4, outs = Math.max(1, b.grid?.count ?? 2), mw = Math.min(w * 0.4, 30), mx = x + w * 0.4, mh = Math.min(h, 60), my = y + (h - mh) / 2;
-      poly([mx, my, mx + mw, my + mh * 0.22, mx + mw, my + mh * 0.78, mx, my + mh]);
-      for (let k = 0; k < ins; k++) stub(x, my + mh * ((k + 0.5) / ins), mx, my + mh * ((k + 0.5) / ins));
-      for (let k = 0; k < Math.min(outs, 6); k++) stub(mx + mw, my + mh * ((k + 0.5) / Math.min(outs, 6)), x + w, my + mh * ((k + 0.5) / Math.min(outs, 6)));
+      mux(mx, my, mw, mh, Array(ins).fill(''));
+      for (let k = 0; k < Math.min(outs, 6); k++) stub(mx + mw + 7, my + mh / 2, x + w, my + mh * ((k + 0.5) / Math.min(outs, 6)));
       break;
     }
     case 'banks': {

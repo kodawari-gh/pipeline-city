@@ -10,18 +10,18 @@ export const GLYPH_KINDS: ReadonlySet<BlockKind> = new Set<BlockKind>(['pc', 'pc
 /** Whether a block is drawn as a symbol (the dispatch stage is a queue by kind but a set of lanes by look). */
 export const isGlyph = (b: Block): boolean => GLYPH_KINDS.has(b.kind) || b.id === 'disp';
 /** The lanes a dispatch stage passes at once ("4 a cycle"). */
-export const laneCount = (b: Block): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
+export const laneCount = (b: Pick<Block, 'sub'>): number => Number(/^(\d+)/.exec(b.sub ?? '')?.[1] ?? 2);
 /** The number of words a fetch block reads at once ("FETCH × 4"). */
-export const fetchWidth = (b: Block): number => Number(/×\s*(\d+)/.exec(b.label)?.[1] ?? 1);
+export const fetchWidth = (b: Pick<Block, 'label'>): number => Number(/×\s*(\d+)/.exec(b.label)?.[1] ?? 1);
 
 /** A narrow tall block (a queue, a latch) carries its name rotated along its left side. */
-export const isTall = (b: Block): boolean => {
+export const isTall = (b: { kind: string; rect: Rect; label: string }): boolean => {
   const r = b.rect;
   return b.kind === 'latch' || (r.w < 56 && r.h > r.w * 2.2) || (r.w <= 110 && r.h >= r.w * 2.4 && b.label.length * 8.5 > r.w - 14);
 };
 
 /** A decoder in a narrow column (the two lanes of the 2-wide die) draws its word standing up. */
-export const isVertical = (b: Block): boolean => b.kind === 'decode' && isTall(b);
+export const isVertical = (b: { kind: string; rect: Rect; label: string }): boolean => b.kind === 'decode' && isTall(b);
 /** Whether a block draws a symbol: the symbol kinds, except the narrow ones (a queue, a latch), and the decoder in a column. */
 export const hasSymbol = (b: Block): boolean => isGlyph(b) && (!isTall(b) || isVertical(b) || b.kind === 'latch');
 

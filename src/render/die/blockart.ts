@@ -22,10 +22,9 @@ export const WORD_FIELDS: readonly { name: string; bits: number }[] = [
 /** The control lines the decoder raises, in the order they are drawn. */
 export const CONTROL_LINES: readonly string[] = ['alu', 'mem', 'wr', 'br', 'imm', 'sys'];
 
-/** Draw the symbol of block `b` into `g`; `put` adds a label. */
-export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: Put): void {
+/** The drawing tools of the symbols (rectangles, stubs, polygons, multiplexers, adders, instruction words) in the colours of a block of accent `c`; the GPU card's symbols (gpu/gpuglyph.ts) use them too. */
+export function glyphKit(g: Graphics, T: Theme, c: string, put: Put) {
   const solid = mix(T.die, c, 0.42), soft = mix(T.die, c, 0.2), line = mix(T.die, c, 0.85);
-  const { x, y, w, h } = a;
   const rect = (rx: number, ry: number, rw: number, rh: number, f = solid) => { g.roundRect(rx, ry, rw, rh, 1.5).fill({ color: f }); };
   const stub = (x0: number, y0: number, x1: number, y1: number) => { g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 1.2, color: line }); };
   const poly = (pts: number[], f = soft) => { g.poly(pts).fill({ color: f }).stroke({ width: 1.3, color: line }); };
@@ -40,7 +39,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
     ins.forEach((t, k) => { const iy = cy + (k - (ins.length - 1) / 2) * r * 1.1; stub(cx - r - 7, iy, cx - r * 0.8, iy); if (t) put(t, cx - r - 3, iy - 4, 6); });
     stub(cx + r, cy, cx + r + 7, cy);
   };
-  /** A word as its fields in proportion, `n` bits wide in `bw`. */
+  /** A word as its fields in proportion. */
   const word = (wx: number, wy: number, ww: number, wh: number, names = true) => {
     const total = WORD_FIELDS.reduce((s, f) => s + f.bits, 0);
     let fx = wx;
@@ -51,6 +50,28 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
       fx += fw;
     });
   };
+  return { solid, soft, line, rect, stub, poly, mux, adder, word };
+}
+
+/** The notched trapezoid of an ALU (operands in on the left, the result out on the right), in a box. */
+export const aluPoly = (ax: number, ay: number, aw: number, ah: number): number[] =>
+  [ax, ay, ax + aw, ay + ah * 0.22, ax + aw, ay + ah * 0.78, ax, ay + ah, ax, ay + ah * 0.62, ax + aw * 0.14, ay + ah / 2, ax, ay + ah * 0.38];
+
+/** The program counter: eight hex digits, four bits each (the live digits go over them, `slotsOf`). */
+export function pcDigits(g: Graphics, kit: ReturnType<typeof glyphKit>, a: Rect): void {
+  const { x, y, w, h } = a, gap = 3, dw = (w - 7 * gap) / 8, dh = Math.min(h, 22);
+  for (let k = 0; k < 8; k++) {
+    const dx = x + k * (dw + gap);
+    kit.rect(dx, y + (h - dh) / 2, dw, dh);
+    for (let j = 0; j < 4; j++) g.rect(dx + 1.5 + j * ((dw - 3) / 4), y + (h - dh) / 2 + dh - 3.5, Math.max(1, (dw - 3) / 4 - 1), 2).fill({ color: kit.line });
+  }
+}
+
+/** Draw the symbol of block `b` into `g`; `put` adds a label. */
+export function glyph(g: Graphics, T: Theme, b: Pick<Block, 'id' | 'kind' | 'label' | 'sub' | 'rect' | 'grid'>, a: Rect, c: string, put: Put): void {
+  const kit = glyphKit(g, T, c, put);
+  const { solid, soft, line, rect, stub, poly, mux, adder, word } = kit;
+  const { x, y, w, h } = a;
 
   if (b.id === 'disp') {
     // the lanes that leave for the scheduler this cycle
@@ -60,13 +81,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
   }
   switch (b.kind) {
     case 'pc': {
-      // eight hex digits, four bits each
-      const gap = 3, dw = (w - 7 * gap) / 8, dh = Math.min(h, 22);
-      for (let k = 0; k < 8; k++) {
-        const dx = x + k * (dw + gap);
-        rect(dx, y + (h - dh) / 2, dw, dh);
-        for (let j = 0; j < 4; j++) g.rect(dx + 1.5 + j * ((dw - 3) / 4), y + (h - dh) / 2 + dh - 3.5, Math.max(1, (dw - 3) / 4 - 1), 2).fill({ color: line });
-      }
+      pcDigits(g, kit, a);
       break;
     }
     case 'nextpc': {
@@ -113,7 +128,7 @@ export function glyph(g: Graphics, T: Theme, b: Block, a: Rect, c: string, put: 
     case 'alu': {
       // the notched trapezoid: operands A and B in, the operation in on top, the result out
       const ah = Math.min(h, 56), ay = y + (h - ah) / 2, aw = Math.min(w * 0.5, 88), ax = x + w * 0.2;
-      poly([ax, ay, ax + aw, ay + ah * 0.22, ax + aw, ay + ah * 0.78, ax, ay + ah, ax, ay + ah * 0.62, ax + aw * 0.14, ay + ah / 2, ax, ay + ah * 0.38]);
+      poly(aluPoly(ax, ay, aw, ah));
       // the operands arrive on one bus (the pin the wires run into) that feeds A and B
       stub(ax - 18, ay + ah * 0.2, ax, ay + ah * 0.2); put('A', ax - 9, ay + ah * 0.2 - 5, 6);
       stub(ax - 18, ay + ah * 0.8, ax, ay + ah * 0.8); put('B', ax - 9, ay + ah * 0.8 + 5, 6);
@@ -243,7 +258,7 @@ export function controlsOf(op: string): number[] {
 }
 
 /** The rectangles inside a symbol where live text goes (the same geometry `glyph` draws). */
-export function slotsOf(b: Block, a: Rect): { digits?: Rect[]; words?: Rect[]; word?: Rect; fields?: Rect[]; lines?: Rect[]; op?: Rect; operands?: Rect; out?: Rect } {
+export function slotsOf(b: Pick<Block, 'id' | 'kind' | 'label' | 'sub' | 'rect'>, a: Rect): { digits?: Rect[]; words?: Rect[]; word?: Rect; fields?: Rect[]; lines?: Rect[]; op?: Rect; operands?: Rect; out?: Rect } {
   const { x, y, w, h } = a;
   if (b.id === 'disp') { const n = laneCount(b), gap = 4, sw = (w - (n - 1) * gap) / n, sh = Math.min(16, h); return { words: Array.from({ length: n }, (_, k) => ({ x: x + k * (sw + gap), y: y + (h - sh) / 2, w: sw, h: sh })) }; }
   switch (b.kind) {

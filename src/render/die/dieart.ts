@@ -1,11 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import { dashed, label, mix } from '../ink';
-import type { Block, BlockKind, CpuPlan, Link, LinkKind, Pt, Rect } from './cpuplan';
+import type { Block, BlockKind, CpuPlan, Grid, Link, LinkKind, Pt, Rect } from './cpuplan';
 import type { Theme } from '../theme';
 import type { CpuSpec } from '../../sim/board/specs';
 import { planInput } from './cpuplan';
 import { cpuPlan } from './cpuplans';
-import { glyph, glyphArea } from './blockart';
+import { glyph, glyphArea, type Put } from './blockart';
 import { hasSymbol, isTall } from './glyphgeom';
 export { isTall };
 
@@ -33,8 +33,12 @@ const PAD_SIDE: Partial<Record<BlockKind, 'N' | 'S' | 'E' | 'W'>> = { power: 'N'
 
 export const colorOf = (T: Theme, k: Key): string => T[k];
 
+/** What the art needs of a block and a link, so a CPU die and a GPU card are drawn by the same code (`planFar`, `planNear`). */
+export interface PlanBlock { id: string; kind: string; label: string; sub?: string; rect: Rect; grid?: Grid }
+export interface PlanLink { id: string; kind: string; pts: Pt[]; lanes: number }
+
 /** The cell rectangles of a block's grid (die coordinates, in entry order, row by row), under the block's name (beside it for a tall block). */
-export function cellRects(b: Block): Rect[] {
+export function cellRects(b: PlanBlock): Rect[] {
   const g = b.grid;
   if (!g) return [];
   const r = b.rect;
@@ -69,7 +73,7 @@ export function offsetPts(pts: Pt[], o: number): Pt[] {
 export const LANE_GAP = 3.2;
 
 /** The traces of a link: one polyline per lane. */
-export function laneLines(l: Link): Pt[][] {
+export function laneLines(l: Pick<PlanLink, 'pts' | 'lanes'>): Pt[][] {
   const out: Pt[][] = [];
   for (let k = 0; k < l.lanes; k++) out.push(offsetPts(l.pts, (k - (l.lanes - 1) / 2) * LANE_GAP));
   return out;
@@ -77,27 +81,30 @@ export function laneLines(l: Link): Pt[][] {
 
 const tint = (T: Theme, c: string, t: number) => mix(T.die, c, t);
 
-/** Blocks, stage frames and bond pads: the far view of the die. */
-export function dieFar(g: Graphics, T: Theme, plan: CpuPlan): void {
-  const D = plan.die;
-  for (const b of plan.blocks.filter((x) => x.zone === 'edge' && PAD_SIDE[x.kind])) {
-    const side = PAD_SIDE[b.kind]!, r = b.rect, c = T[KIND_COLOR[b.kind]];
-    const n = side === 'N' || side === 'S' ? Math.floor((r.w - 20) / 12) : Math.floor((r.h - 20) / 12);
-    for (let k = 0; k < n; k++) {
-      const x = side === 'N' || side === 'S' ? r.x + 10 + k * 12 : side === 'W' ? D.x + 9 : D.x + D.w - 15;
-      const y = side === 'W' || side === 'E' ? r.y + 10 + k * 12 : side === 'N' ? D.y + 9 : D.y + D.h - 15;
-      g.rect(x, y, 6, 6);
-    }
-    g.fill({ color: c, alpha: 0.8 });
-  }
-  for (const b of plan.blocks) {
-    if (b.kind !== 'stage') continue;
+/** How a kind of plan is drawn: its colours, which blocks are frames, which show a symbol instead of cells (the CPU die and the GPU card each give theirs). */
+export interface PlanStyle<B extends PlanBlock, L extends PlanLink> {
+  color(T: Theme, b: B): string;
+  linkColor(T: Theme, l: L): string;
+  /** Links drawn dashed (an event, not a stream). */
+  dashed?(l: L): boolean;
+  /** A frame (a pipeline stage, an SM): drawn behind its children, with a title. */
+  frame(b: B): boolean;
+  /** The area of the block's symbol, or null when it shows cells. */
+  symbol(b: B): Rect | null;
+  draw(g: Graphics, T: Theme, b: B, a: Rect, c: string, put: Put): void;
+  cells(b: B): Rect[];
+}
+
+/** The frames, then the blocks over them, each tinted in its colour with a rim line: the part of the far view the CPU die and the GPU card share. */
+export function planFar<B extends PlanBlock, L extends PlanLink>(g: Graphics, T: Theme, blocks: readonly B[], style: PlanStyle<B, L>): void {
+  for (const b of blocks) {
+    if (!style.frame(b)) continue;
     const r = b.rect;
     g.roundRect(r.x, r.y, r.w, r.h, 5).fill({ color: mix(T.die, T.ink, 0.08) }).stroke({ width: 1.2, color: T.line });
   }
-  for (const b of plan.blocks) {
-    if (b.kind === 'stage') continue;
-    const r = b.rect, c = T[KIND_COLOR[b.kind]];
+  for (const b of blocks) {
+    if (style.frame(b)) continue;
+    const r = b.rect, c = style.color(T, b);
     g.roundRect(r.x, r.y, r.w, r.h, 3).fill({ color: tint(T, c, 0.1) }).stroke({ width: 1.6, color: c });
   }
 }
@@ -114,35 +121,36 @@ export interface DieArt {
   subs: Container;
 }
 
-/** Traces, cell arrays and names of a plan. */
-export function dieNear(T: Theme, plan: CpuPlan): DieArt {
+/** Traces, cell arrays, symbols and names of a plan, drawn by `style`. */
+export function planNear<B extends PlanBlock, L extends PlanLink>(T: Theme, plan: { blocks: readonly B[]; links: readonly L[] }, style: PlanStyle<B, L>): DieArt {
   const root = new Container(), wires = new Container(), cells = new Container(), names = new Container(), subs = new Container();
   root.addChild(wires, cells, names, subs);
   const wg = new Graphics();
   wires.addChild(wg);
   for (const l of plan.links) {
-    const c = T[LINK_COLOR[l.kind]];
+    const c = style.linkColor(T, l);
     for (const line of laneLines(l)) {
-      if (EVENT_LINK.has(l.kind)) dashed(wg, line, 7, 4); else { wg.moveTo(line[0]![0], line[0]![1]); for (let i = 1; i < line.length; i++) wg.lineTo(line[i]![0], line[i]![1]); }
+      if (style.dashed?.(l)) dashed(wg, line, 7, 4); else { wg.moveTo(line[0]![0], line[0]![1]); for (let i = 1; i < line.length; i++) wg.lineTo(line[i]![0], line[i]![1]); }
       wg.stroke({ width: 1.3, color: c, alpha: 0.85, join: 'round' });
     }
   }
   for (const l of plan.links) {
-    const c = T[LINK_COLOR[l.kind]];
+    const c = style.linkColor(T, l);
     for (const p of [l.pts[0]!, l.pts[l.pts.length - 1]!]) wg.rect(p[0] - 2.5, p[1] - 2.5, 5, 5).fill({ color: c });
   }
   const cg = new Graphics();
   cells.addChild(cg);
   for (const b of plan.blocks) {
-    const c = T[KIND_COLOR[b.kind]];
-    const ga = hasSymbol(b) ? glyphArea(b) : null;
-    if (ga) glyph(cg, T, b, ga, c, (t, x, y, size) => subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })));
+    const c = style.color(T, b);
+    const ga = style.symbol(b);
+    if (ga) style.draw(cg, T, b, ga, c, (t, x, y, size) => subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })));
     else {
-      for (const r of cellRects(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
+      for (const r of style.cells(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
       if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
     }
-    if (b.kind === 'stage') {
+    if (style.frame(b)) {
       names.addChild(label(b.label, b.rect.x + 8, b.rect.y + 12, 11, T.mute, { weight: '600', a: 0.9 }));
+      if (b.sub) names.addChild(label(b.sub, b.rect.x + 8 + b.label.length * 8 + 10, b.rect.y + 12, 9, T.mute, { a: 0.8 }));
       continue;
     }
     const r = b.rect;
@@ -158,6 +166,36 @@ export function dieNear(T: Theme, plan: CpuPlan): DieArt {
   }
   return { root, wires, cells, names, subs };
 }
+
+/** How the CPU die is drawn. */
+export const CPU_STYLE: PlanStyle<Block, Link> = {
+  color: (T, b) => T[KIND_COLOR[b.kind]],
+  linkColor: (T, l) => T[LINK_COLOR[l.kind]],
+  dashed: (l) => EVENT_LINK.has(l.kind),
+  frame: (b) => b.kind === 'stage',
+  symbol: (b) => (hasSymbol(b) ? glyphArea(b) : null),
+  draw: glyph,
+  cells: cellRects,
+};
+
+/** Blocks, stage frames and bond pads: the far view of the die. */
+export function dieFar(g: Graphics, T: Theme, plan: CpuPlan): void {
+  const D = plan.die;
+  for (const b of plan.blocks.filter((x) => x.zone === 'edge' && PAD_SIDE[x.kind])) {
+    const side = PAD_SIDE[b.kind]!, r = b.rect, c = T[KIND_COLOR[b.kind]];
+    const n = side === 'N' || side === 'S' ? Math.floor((r.w - 20) / 12) : Math.floor((r.h - 20) / 12);
+    for (let k = 0; k < n; k++) {
+      const x = side === 'N' || side === 'S' ? r.x + 10 + k * 12 : side === 'W' ? D.x + 9 : D.x + D.w - 15;
+      const y = side === 'W' || side === 'E' ? r.y + 10 + k * 12 : side === 'N' ? D.y + 9 : D.y + D.h - 15;
+      g.rect(x, y, 6, 6);
+    }
+    g.fill({ color: c, alpha: 0.8 });
+  }
+  planFar(g, T, plan.blocks, CPU_STYLE);
+}
+
+/** Traces, cell arrays and names of a CPU plan. */
+export const dieNear = (T: Theme, plan: CpuPlan): DieArt => planNear(T, plan, CPU_STYLE);
 
 /** The floorplan of a CPU spec (cached by its input). */
 export const planOf = (spec: CpuSpec): CpuPlan => cpuPlan(planInput(spec.engine, { ...(spec.mmu ? { tlbEntries: spec.mmu.tlb } : {}), ...(spec.cores && spec.cores > 1 ? { cores: spec.cores } : {}) }));
