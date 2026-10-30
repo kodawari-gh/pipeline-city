@@ -5,7 +5,7 @@ import { specsOfKind } from '../../sim/board/specs';
 import type { Pt, Rect } from '../die/cpuplan';
 import { leaf, routeWires, row, placeTree } from '../die/cpufloor';
 import { gpuPlanInput, type GpuBlock, type GpuPlan, type GpuPlanInput } from './gpuplan';
-import { GPU_DIE, gpuPlan } from './gpuplans';
+import { DIE_MARGIN, GPU_DIE, gpuPlan } from './gpuplans';
 
 const inside = (a: Rect, o: Rect): boolean => a.x >= o.x && a.y >= o.y && a.x + a.w <= o.x + o.w && a.y + a.h <= o.y + o.h;
 const apart = (a: Rect, c: Rect): boolean => a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y;
@@ -95,7 +95,11 @@ describe('gpu floorplans', () => {
     it('uses most of the die', () => {
       const frames = new Set(plan.blocks.map((b) => b.parent).filter(Boolean));
       const area = plan.blocks.filter((b) => !frames.has(b.id) && b.kind !== 'sm').reduce((n, b) => n + b.rect.w * b.rect.h, 0);
-      expect(area / ((plan.die.w - 48) * (plan.die.h - 48))).toBeGreaterThan(0.7);
+      expect(area / ((plan.die.w - 2 * DIE_MARGIN.x) * (plan.die.h - DIE_MARGIN.top - DIE_MARGIN.bottom))).toBeGreaterThan(0.7);
+    });
+    it('leaves the south margin for the title strip and knows the card memory size', () => {
+      for (const b of plan.blocks) expect(b.rect.y + b.rect.h, b.id).toBeLessThanOrEqual(plan.die.h - DIE_MARGIN.bottom + 0.5);
+      expect(plan.blocks.find((b) => b.id === 'dram')?.bytes).toBe(input.memBytes);
     });
   });
 

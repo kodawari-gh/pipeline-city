@@ -6,7 +6,7 @@ vi.mock('../ink', async (orig) => ({ ...(await orig<typeof import('../ink')>()),
 
 import { specsOfKind } from '../../sim/board/specs';
 import type { Theme } from '../theme';
-import { gpuFar, gpuLaneLines, gpuNear, GPU_KIND_COLOR, GPU_LINK_COLOR } from './gpuart';
+import { gpuAccent, gpuFar, gpuLaneLines, gpuNear, gpuTitle, GPU_KIND_COLOR, GPU_LEGEND, GPU_LINK_COLOR } from './gpuart';
 import { gpuPlanInput } from './gpuplan';
 import { gpuPlan } from './gpuplans';
 
@@ -40,5 +40,12 @@ describe('gpu die art', () => {
         expect(gpuLaneLines(l)).toHaveLength(l.lanes);
       }
     }
+  });
+
+  it('each tier has its own rim colour and title, and every legend colour is a theme colour', () => {
+    const plans = specsOfKind('gpu').map((sp) => gpuPlan(gpuPlanInput(sp.gpu!)));
+    expect(new Set(plans.map((p) => gpuAccent(T, p))).size).toBe(plans.length);
+    expect(new Set(plans.map((p) => gpuTitle(p))).size).toBe(plans.length);
+    for (const e of GPU_LEGEND) expect(T[e.key], e.text).toMatch(/^#/);
   });
 });

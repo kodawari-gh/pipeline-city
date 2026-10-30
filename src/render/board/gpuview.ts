@@ -8,6 +8,7 @@ import { EdgeFan } from '../room/case';
 import { gpuCover } from './accelart';
 import type { Pt } from '../die/cpuplan';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
+import { gpuControlLines, gpuDecodeLines } from '../gpu/gpuglyph';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import type { Rect } from './layout';
 import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } from '../gpu/gpuplayer';
@@ -77,6 +78,7 @@ interface CardView {
   decText: Text;
   linkText: Text;
   ctrText: Text;
+  memText: Text;
   player: GpuPlayer;
   tick: GpuTick;
   snap: GpuSnap | undefined;
@@ -122,17 +124,18 @@ export class GpuView {
     subs.addChild(near.subs);
     inner.addChild(names, subs);
     const low = (r: Rect, lines: number, size: number): number => r.y + r.h - 8 - lines * (size + 3);
-    const pcText = label('', plan.pc.x + 7, low(plan.pc, 2, 11), 11, T.ink, { head: true, a: 0.95, minPx: 4 });
+    const pcText = label('', plan.pc.x + plan.pc.w - 7, plan.pc.y + 14, 10, T.ink, { head: true, a: 0.95, anchor: [1, 0.5], minPx: 4 });
     const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, { head: true, a: 0.95, minPx: 4 });
     const ctrText = label('', plan.mem.x + 7, low(plan.mem, 4, 10), 10, T.mute, { a: 0.9, minPx: 4 });
-    const decText = label('', plan.decode.x + 7, low(plan.decode, 1, 11), 11, T.ink, { head: true, a: 0.95, minPx: 4 });
-    inner.addChild(pcText, decText, linkText, ctrText);
+    const decText = label('', plan.decode.x + plan.decode.w - 7, plan.decode.y + 14, 10, T.ink, { head: true, a: 0.95, anchor: [1, 0.5], minPx: 4 });
+    const memText = label('', plan.mem.x + plan.mem.w - 7, plan.mem.y + 12, 10, T.ink, { head: true, a: 0.95, anchor: [1, 0.5], minPx: 4 });
+    inner.addChild(pcText, decText, linkText, ctrText, memText);
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
     root.addChild(inner, cover, ...fans.map((f) => f.fan));
     this.root.addChild(root);
-    return { slot: c.slot, plan, root, inner, dyn, cover, fans, wires: near.wires, cells: near.cells, names, subs, pcText, decText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '' };
+    return { slot: c.slot, plan, root, inner, dyn, cover, fans, wires: near.wires, cells: near.cells, names, subs, pcText, decText, linkText, ctrText, memText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '' };
   }
 
   setZoom(z: number): void {
@@ -178,7 +181,7 @@ export class GpuView {
       if (!c.inner.visible) continue;
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
       c.names.visible = c.pcText.visible = c.decText.visible = c.linkText.visible = showText;
-      c.subs.visible = c.ctrText.visible = showDetail;
+      c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === c.sig) continue;
@@ -238,6 +241,14 @@ export class GpuView {
       }
       g.rect(p.mem.x, p.mem.y, p.mem.w, p.mem.h).fill({ color: col, alpha: 0.12 * pulse });
     }
+    // the decoders: the control lines the instruction on show raises light up
+    for (const b of p.blocks) {
+      if (b.kind !== 'decode') continue;
+      const st = smStep(b.sm ?? 0);
+      if (!st || !on) continue;
+      const raised = gpuControlLines(st);
+      for (const l of gpuDecodeLines(b)) if (raised.has(l.name)) g.moveTo(l.x0, l.y).lineTo(l.x1, l.y).stroke({ width: 3, color: kindColor(T, st.kind), alpha: 0.9 * pulse + 0.1 });
+    }
     // the warps: a chip each, lit by the instruction it holds (its mask as a bar) and outlined while it is the one issuing
     for (const w of p.warpCells) {
       const wt = t.warps.find((x) => x.sm === w.sm && x.warp === w.warp), r = w.rect;
@@ -254,8 +265,11 @@ export class GpuView {
         if (!st) continue;
         const memory = st.kind === 'ld' || st.kind === 'st';
         if (l.kind === 'launch' || (l.kind === 'mem' && !memory) || (l.kind === 'data' && st.kind === 'sys')) continue;
-        const pt = along(l.pts, smTick(sm ? Number(sm) : 0)?.progress ?? t.progress);
-        g.circle(pt[0], pt[1], 4).fill({ color: l.kind === 'mem' && bad ? T.bad : kindColor(T, st.kind), alpha: 0.95 });
+        const f = smTick(sm ? Number(sm) : 0)?.progress ?? t.progress, colr = l.kind === 'mem' && bad ? T.bad : kindColor(T, st.kind);
+        // a comet: the packet and a fading tail behind it along the same wire
+        for (let k = 4; k >= 1; k--) { const q = along(l.pts, Math.max(0, f - k * 0.035)); g.circle(q[0], q[1], 4 - k * 0.6).fill({ color: colr, alpha: 0.5 - k * 0.1 }); }
+        const pt = along(l.pts, f);
+        g.circle(pt[0], pt[1], 4.5).fill({ color: colr, alpha: 0.95 }).circle(pt[0], pt[1], 8).fill({ color: colr, alpha: 0.18 });
       }
     }
     // the PCIe link: lit while a launch crosses it
@@ -271,9 +285,10 @@ export class GpuView {
     }
     // the texts
     c.linkText.text = s ? `PCIe ${PHASE_TEXT[s.phase]}` : 'PCIe';
+    const ms = smStep(0), accesses = ms?.banks ? ms.banks.reduce((n, v) => n + v, 0) : 0;
+    c.memText.text = s && mem && ms ? `${ms.name} · ${accesses} access${accesses === 1 ? '' : 'es'}${bad ? ` · ${ms.cost} cycles` : ''}` : '';
     c.decText.text = s && step ? `${step.name}${step.dest !== null ? ` v${step.dest}` : ''}${step.sm !== undefined ? `  sm${step.sm}.w${step.warp ?? 0}` : ''}` : '';
-    c.pcText.text = s ? `pc 0x${(step?.pc ?? s.pc).toString(16).padStart(3, '0')}
-${stepText(t, p.lanes)}` : '';
+    c.pcText.text = s ? `pc 0x${(step?.pc ?? s.pc).toString(16).padStart(3, '0')} · ${stepText(t, p.lanes).replace(/\s+/g, ' ')}` : '';
     c.ctrText.text = s ? `${s.launches} launches
 ${s.stats.instructions} instr
 ${s.stats.idleLaneSlots} idle lane slots

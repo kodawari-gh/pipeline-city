@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { specsOfKind } from '../../sim/board/specs';
 import type { Theme } from '../theme';
-import { gpuGlyph, gpuGlyphArea, GPU_GLYPH_KINDS, hasGpuSymbol } from './gpuglyph';
+import { gpuControlLines, gpuDecodeLines, gpuGlyph, gpuGlyphArea, GPU_GLYPH_KINDS, hasGpuSymbol } from './gpuglyph';
 import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './gpuplan';
 import { gpuPlan } from './gpuplans';
 
@@ -42,5 +42,16 @@ describe('gpu block symbols', () => {
     const g = new Graphics();
     gpuGlyph(g, T, b, '#0af', () => undefined);
     expect(instr(g)).toBe(0);
+  });
+
+  it('a decoder has its control lines inside it, and an instruction raises the lines it needs', () => {
+    const b: GpuBlock = { id: 'decode', kind: 'decode', label: 'DECODE', rect: { x: 100, y: 50, w: 200, h: 150 } };
+    const lines = gpuDecodeLines(b), a = gpuGlyphArea(b)!;
+    expect(lines.map((l) => l.name)).toEqual(['alu', 'mem', 'wr', 'br', 'imm', 'sys']);
+    for (const l of lines) { expect(l.y).toBeGreaterThan(a.y); expect(l.y).toBeLessThan(a.y + a.h); expect(l.x1).toBeGreaterThan(l.x0); }
+    expect([...gpuControlLines({ name: 'vaddi', kind: 'alu', dest: 2 })].sort()).toEqual(['alu', 'imm', 'wr']);
+    expect([...gpuControlLines({ name: 'vld', kind: 'ld', dest: 3 })].sort()).toEqual(['imm', 'mem', 'wr']);
+    expect([...gpuControlLines({ name: 'halt', kind: 'sys', dest: null })]).toEqual(['sys']);
+    expect(gpuDecodeLines({ kind: 'lanes', rect: { x: 0, y: 0, w: 5, h: 5 } })).toEqual([]);
   });
 });

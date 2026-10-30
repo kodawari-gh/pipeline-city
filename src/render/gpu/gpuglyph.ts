@@ -2,6 +2,8 @@ import type { Graphics } from 'pixi.js';
 import type { Rect } from '../die/cpuplan';
 import { WORD_FIELDS, CONTROL_LINES, type Put } from '../die/blockart';
 import { mix } from '../ink';
+import { GPU_FRAME } from '../../sim/isa/memmap';
+import { KERNEL_LAYOUT } from '../../sim/gen/gpukernels';
 import type { Theme } from '../theme';
 import type { GpuBlock, GpuBlockKind } from './gpuplan';
 import { gpuCells, maskParts } from './gpuplans';
@@ -20,11 +22,31 @@ export const GPU_GLYPH_KINDS: Record<GpuBlockKind, boolean> = {
 export const hasGpuSymbol = (b: GpuBlock): boolean => GPU_GLYPH_KINDS[b.kind];
 
 /** The area a symbol may use: the block under its name (the area the cell grids fill), or null when the block is too small. */
-export function gpuGlyphArea(b: GpuBlock): Rect | null {
-  if (!hasGpuSymbol(b)) return null;
+export function gpuGlyphArea(b: Pick<GpuBlock, 'kind' | 'rect'>): Rect | null {
+  if (!GPU_GLYPH_KINDS[b.kind]) return null;
   const r = b.rect, head = r.h >= 70 ? 44 : r.h * 0.55;
   const a = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: r.y + r.h - 6 - (r.y + head) };
   return a.w > 8 && a.h > 6 ? a : null;
+}
+
+/** The control lines a decoder block raises: name and the line's end points (block coordinates), the ones the live layer lights for the instruction on show. */
+export function gpuDecodeLines(b: Pick<GpuBlock, 'kind' | 'rect'>): { name: string; x0: number; x1: number; y: number }[] {
+  const a = gpuGlyphArea(b);
+  if (!a) return [];
+  const wh = Math.min(18, a.h * 0.3), n = CONTROL_LINES.length, step = Math.min(14, (a.h - wh - 6) / n);
+  return CONTROL_LINES.map((name, k) => ({ name, x0: a.x, x1: a.x + a.w * 0.35, y: a.y + wh + 8 + k * step + step / 2 }));
+}
+
+/** Which control lines an instruction raises: the ALU or memory unit it goes to, a register write, a branch or mask change, an immediate, a system operation. */
+export function gpuControlLines(s: { name: string; kind: string; dest: number | null }): Set<string> {
+  const out = new Set<string>();
+  if (s.kind === 'alu') out.add('alu');
+  if (s.kind === 'ld' || s.kind === 'st') out.add('mem');
+  if (s.dest !== null) out.add('wr');
+  if (s.kind === 'br' || s.kind === 'mask') out.add('br');
+  if (/i$/.test(s.name) || s.name === 'vli' || s.kind === 'ld' || s.kind === 'st') out.add('imm');
+  if (s.kind === 'sys') out.add('sys');
+  return out;
 }
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. */
@@ -89,18 +111,18 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
       // the fields of the word and the control lines it raises
       const wh = Math.min(18, h * 0.3);
       word(x, y, w, wh);
-      const n = CONTROL_LINES.length, step = Math.min(14, (h - wh - 6) / n);
-      CONTROL_LINES.forEach((t, k) => {
-        const ly = y + wh + 8 + k * step + step / 2;
-        stub(x, ly, x + w * 0.35, ly);
-        if (step >= 7) put(t, x + w * 0.35 + 8 + t.length * 2, ly, Math.min(7, step * 0.8));
-      });
+      const step = Math.min(14, (h - wh - 6) / CONTROL_LINES.length);
+      for (const l of gpuDecodeLines(b)) {
+        stub(l.x0, l.y, l.x1, l.y);
+        if (step >= 7) put(l.name, l.x1 + 8 + l.name.length * 2, l.y, Math.min(7, step * 0.8));
+      }
       break;
     }
     case 'sched': {
       // the scoreboard (a bit per register and warp) and the pointer that picks the next warp
       cells.forEach((r, k) => rect(r.x, r.y, r.w, r.h, k % 8 === 0 ? solid : soft));
       const rows = b.grid?.rows ?? 1, rh = h / rows;
+      for (let k = 0; k < rows && rh >= 9; k++) put(`warp ${k}`, x + 20, y + k * rh + rh / 2, Math.min(7, rh * 0.5));
       for (let k = 0; k < rows; k++) poly([x - 7, y + k * rh + rh / 2 - 3, x - 1, y + k * rh + rh / 2, x - 7, y + k * rh + rh / 2 + 3], k === 0 ? solid : soft);
       break;
     }
@@ -110,6 +132,7 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
         rect(r.x, r.y, r.w, r.h, soft);
         const px = r.x + 3, pw = r.w - 6, rh = Math.max(2, (r.h - 8) / 6);
         rect(px, r.y + 3, pw * 0.7, rh, solid);
+        if (r.h >= 34 && pw >= 70) { put('pc', px + pw * 0.85, r.y + 3 + rh / 2, Math.min(7, rh)); put('mask', px + pw * 0.5, r.y + 5 + rh * 1.5, Math.min(7, rh)); put('stack', px + pw * 0.5, r.y + 7 + rh * 3, Math.min(7, rh)); }
         for (let k = 0; k < 8; k++) rect(px + (k * pw) / 8, r.y + 5 + rh, Math.max(1, pw / 8 - 1), rh, k < 6 ? solid : soft);
         for (let k = 0; k < 3; k++) rect(px, r.y + 7 + rh * (2 + k) + k, pw * (0.9 - 0.2 * k), rh, soft);
       });
@@ -118,6 +141,8 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
     case 'regfile': {
       // the register array, each row a register, with its read and write ports
       cells.forEach((r, k) => rect(r.x, r.y, r.w, r.h, Math.floor(k / (b.grid?.cols ?? 1)) % 2 ? soft : solid));
+      // a register's name on its row (v0..v7)
+      for (let k = 0; k < (b.grid?.rows ?? 0); k++) { const c0 = cells[k * (b.grid?.cols ?? 1)]; if (c0 && c0.h >= 7) put(`v${k}`, c0.x + 9, c0.y + c0.h / 2, Math.min(7, c0.h * 0.8)); }
       stub(x - 6, y + h * 0.3, x, y + h * 0.3);
       stub(x - 6, y + h * 0.7, x, y + h * 0.7);
       stub(x + w, y + h / 2, x + w + 6, y + h / 2);
@@ -177,9 +202,22 @@ export function gpuGlyph(g: Graphics, T: Theme, b: GpuBlock, c: string, put: Put
     }
     case 'dram': {
       // the card's memory: rows of words
-      const cw = 9, cols = Math.min(48, Math.floor(w / cw)), rows = Math.min(14, Math.floor(h / cw));
+      const cw = 9, cols = Math.min(64, Math.floor(w / cw)), rows = Math.min(40, Math.floor(h / cw));
       for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) g.rect(x + k * cw + 1, y + r * cw + 1, cw - 2, cw - 2);
       g.fill({ color: soft });
+      // the map of the memory: the kernel code, its two parameter words, the picture the card draws (docs/GPU.md section 2), as bands over the rows
+      if (b.bytes && rows >= 4) {
+        const total = cols * rows, cell = (a: number) => Math.min(total, Math.max(0, Math.round((a / b.bytes!) * total)));
+        const bands: { from: number; to: number; name: string; fill: string }[] = [
+          { from: 0, to: KERNEL_LAYOUT.param, name: 'code', fill: solid }, { from: KERNEL_LAYOUT.param, to: GPU_FRAME.at, name: 'args', fill: line }, { from: GPU_FRAME.at, to: GPU_FRAME.at + GPU_FRAME.words * 4, name: 'frame', fill: mix(T.die, T.st, 0.7) },
+        ];
+        for (const bd of bands) {
+          const a = cell(bd.from), z = Math.max(a + 1, cell(bd.to));
+          for (let k = a; k < Math.min(z, total); k++) g.rect(x + (k % cols) * cw + 1, y + Math.floor(k / cols) * cw + 1, cw - 2, cw - 2).fill({ color: bd.fill, alpha: 0.9 });
+          const r0 = Math.floor(a / cols);
+          if (cols * cw > 90 && r0 < rows - 1) put(bd.name, x + (a % cols) * cw + 18, y + r0 * cw + cw / 2 + 0.5, 7);
+        }
+      }
       break;
     }
     case 'sm':

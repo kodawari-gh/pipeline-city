@@ -6,6 +6,9 @@ import { gridExact, type Rect } from '../die/cpuplan';
 import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../die/cpufloor';
 import type { GpuBlock, GpuBlockKind, GpuLinkKind, GpuPlan, GpuPlanInput } from './gpuplan';
 
+/** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */
+export const DIE_MARGIN = { x: 24, top: 24, bottom: 40 };
+
 /** The die's size by kind: the card is tall enough for the labels and symbols to read (docs/GPU.md section 7). */
 export const GPU_DIE: Record<GpuPlanInput['kind'], { w: number; h: number }> = {
   simd: { w: 2300, h: 440 },
@@ -40,14 +43,17 @@ interface Built { tree: N; specs: W[]; /** The block the launch registers feed, 
 /** gpu1: one unpipelined unit, one bank, no coalescer, no cache. */
 function simdSm(i: GpuPlanInput): Built {
   const lanes = i.lanes;
+  // the front end is a column (the program counter, the fetch, the decoder) like the CPU's IF and ID stages: wide blocks, not tall empty ones
   const tree = row<K>([
-    L('pc', 'pc', 'PC', { sub: 'program counter', f: 8 }),
-    L('fetch', 'fetch', 'FETCH', { f: 9 }),
-    L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 10 }),
-    L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 12 }),
-    col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 13 }),
+    col<K>([
+      L('pc', 'pc', 'PC', { sub: 'program counter', f: 26 }),
+      L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 34 }),
+      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 40 }),
+    ], { f: 16 }),
+    L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 13 }),
+    col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 17 }),
     L('arb', 'arbiter', 'BANK ARB', { sub: plural(i.banks, 'bank'), f: 6 }),
-    L('banks', 'banks', 'BANKS', { shape: [1, i.banks], f: 7 }),
+    L('banks', 'banks', 'BANKS', { shape: [1, i.banks], f: 9 }),
   ], { f: 1 });
   const specs: W[] = [
     ['pc-fetch', 'control', 'pc', 'fetch', 1], ['fetch-decode', 'control', 'fetch', 'decode', 2], ['decode-regs', 'control', 'decode', 'regs', 2],
@@ -131,7 +137,7 @@ export const MASK_SLOTS = 8;
 
 /** The mask strip (one bit per lane) and the stack slots in the lower part of a mask block (die coordinates). */
 export function maskParts(r: Rect, bits: number): { strip: Rect; bits: Rect[]; stack: Rect; slots: Rect[] } {
-  const head = Math.min(44, r.h * 0.4), body = r.h - head - 6, bh = Math.max(4, body * 0.4), sh = Math.max(4, Math.min(16, body * 0.4));
+  const head = Math.min(44, Math.max(24, r.h * 0.4)), body = r.h - head - 6, bh = Math.max(4, body * 0.4), sh = Math.max(4, Math.min(16, body * 0.4));
   const strip: Rect = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: bh }, bw = strip.w / bits;
   const sw = Math.min(16, (r.w - 16) / MASK_SLOTS - 3), y = r.y + head + bh + Math.max(2, body * 0.12);
   return {
@@ -150,8 +156,11 @@ export function gpuPlan(i: GpuPlanInput, size: { w: number; h: number } = GPU_DI
   const die = { x: 0, y: 0, w: size.w, h: size.h };
   const { tree, specs } = build(i);
   const blocks: GpuBlock[] = [];
-  placeTree<K, GpuBlock>(tree, { x: 24, y: 24, w: size.w - 48, h: size.h - 48 }, blocks, (s, r, parent) => make(s, r, parent));
+  const M = DIE_MARGIN;
+  placeTree<K, GpuBlock>(tree, { x: M.x, y: M.top, w: size.w - 2 * M.x, h: size.h - M.top - M.bottom }, blocks, (s, r, parent) => make(s, r, parent));
   const byId = new Map(blocks.map((b) => [b.id, b]));
+  const dram = byId.get('dram');
+  if (dram) dram.bytes = i.memBytes;
   for (const b of blocks) if (b.parent && b.sm === undefined) b.sm = byId.get(b.parent)?.sm;
   const plan: GpuPlan = { input: i, die, blocks, links: routeWires(die, blocks, specs, undefined, 'gpuplan') };
   cache.set(key, plan);

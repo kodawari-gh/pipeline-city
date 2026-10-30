@@ -29,6 +29,8 @@ export interface GpuBlock {
   parent?: string;
   /** The SM it belongs to (0 on a card with one). */
   sm?: number;
+  /** The card memory's size in bytes (on the `dram` block). */
+  bytes?: number;
 }
 
 export type GpuLinkKind = 'data' | 'control' | 'mem' | 'launch';
