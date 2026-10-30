@@ -16,7 +16,7 @@ import { PlanView, type MemoryTouch } from './dieview';
 import { DEVICE_LOD, deviceLod, seenZoom, smooth, type LodRect } from '../lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
-const WASH_FROM = 0.9, WASH_TO = 1.4;
+const WASH_FROM = 0.45, WASH_TO = 0.75;
 
 export class DieView {
   readonly root = new Container();
@@ -206,29 +206,43 @@ export class DieView {
       if (!tile) continue;
       const q = tile.rect, n = w.models.length, lead = w.models[0]!, wash = this.washAt(w.hw), g = wash.g, b = wash.badge, r = wash.ring;
       const asleep = (m: typeof lead) => m.parked && !m.tint;
+      // the tile as a recessed panel in the die's own style: a tinted bed, a hairline frame, one column per logical core under a small header
+      const inset = Math.max(6, q.w * 0.012), pw = q.w - 2 * inset, ph = q.h - 2 * inset, rad = Math.max(4, q.w * 0.012);
+      box(g, q.x + inset, q.y + inset, pw, ph, rad, { fill: mix(T.die, T.bg, 0.35), fa: 1 });
       w.models.forEach((m, i) => {
-        // the logical cores of a hardware core share its tile: side by side, each in its own thread's tint
-        const x = q.x + (q.w * i) / n, ww = q.w / n;
-        g.rect(x, q.y, ww, q.h).fill({ color: mix(T.die, m.tint ?? T.line, m.tint ? 0.55 : 0.18) });
-        const fs = Math.max(30, Math.min(120, q.h * 0.2 / (n > 2 ? 1.4 : 1)));
-        const t = new Text({ text: m.label + '\n' + (asleep(m) ? 'zz ' : '') + m.sub, style: { fontFamily: MONO, fontSize: fs, fontWeight: '700', fill: m.tint ? T.ink : T.mute, align: 'center' }, resolution: 2 });
-        t.anchor.set(0.5, 0.5); t.position.set(x + ww / 2, q.y + q.h * 0.3);
-        if (asleep(m)) t.alpha = 0.6;
-        wash.texts.addChild(t);
+        const x = q.x + inset + (pw * i) / n, ww = pw / n;
+        box(g, x + inset * 0.5, q.y + inset * 1.5, ww - inset, ph - inset, rad, { fill: m.tint ?? T.line, fa: m.tint ? 0.2 : 0.07, stroke: m.tint ?? T.line, lw: Math.max(1.5, q.w * 0.0035), sa: m.tint ? 0.55 : 0.25 });
+        if (i > 0) g.rect(x - 0.5, q.y + inset * 3, 1.5, ph * 0.5).fill({ color: T.line, alpha: 0.5 });
+        const big = Math.max(24, Math.min(64, q.h * 0.13 / (n > 2 ? 1.4 : 1)));
+        const head = new Text({ text: m.label, style: { fontFamily: MONO, fontSize: big, fontWeight: '700', fill: m.tint ? T.ink : T.mute, letterSpacing: big * 0.06 }, resolution: 2 });
+        head.anchor.set(0.5, 0.5); head.position.set(x + ww / 2, q.y + q.h * 0.2);
+        const sub = new Text({ text: (asleep(m) ? 'zz ' : '') + m.sub, style: { fontFamily: MONO, fontSize: big * 0.46, fontWeight: '600', fill: T.mute, letterSpacing: big * 0.05 }, resolution: 2 });
+        sub.anchor.set(0.5, 0.5); sub.position.set(x + ww / 2, q.y + q.h * 0.2 + big * 0.85);
+        if (asleep(m)) { head.alpha = 0.6; sub.alpha = 0.6; }
+        wash.texts.addChild(head, sub);
       });
-      const cells = lead.cells, cn = Math.max(1, cells.length), cw = (q.w * 0.84) / cn, ch = Math.min(q.h * 0.14, cw * 0.9), cy = q.y + q.h * 0.66;
+      // the pipeline: a recessed track with a cell per stage (or unit), the reorder buffer fill under it
+      const cells = lead.cells, cn = Math.max(1, cells.length), tx = q.x + q.w * 0.07, tw = q.w * 0.86, cg = tw * 0.012;
+      const cw = (tw - cg * (cn - 1)) / cn, ch = Math.min(q.h * 0.1, cw * 0.8), cy = q.y + q.h * 0.58;
+      box(g, tx - cg * 2, cy - ch * 0.35, tw + cg * 4, ch * 1.7 + (lead.fill > 0 ? ch * 0.35 : 0), rad, { fill: T.bg, fa: 0.55, stroke: T.line, lw: 1.5, sa: 0.5 });
       cells.forEach((cls, i) => {
-        const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls];
-        g.roundRect(q.x + q.w * 0.08 + i * cw + cw * 0.06, cy, cw * 0.88, ch, ch * 0.2).fill({ color: c, alpha: cls === null ? 0.3 : 1 });
+        const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls], x = tx + i * (cw + cg);
+        box(g, x, cy, cw, ch, ch * 0.18, { fill: c, fa: cls === null ? 0.18 : 0.9 });
+        if (cls !== null) box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
       });
-      if (lead.fill > 0) g.rect(q.x + q.w * 0.08, cy + ch * 1.3, q.w * 0.84 * lead.fill, ch * 0.2).fill({ color: T.mul });
+      if (lead.fill > 0) { g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 }); g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul }); }
       // the rate bar: the instructions per cycle in the core's colour (of the tile's width), the cycles lost to stalls in red from the other end
-      const bw = q.w * 0.84, by = cy + ch * 1.7, bh = ch * 0.28, lanes = Math.max(1, cs?.tiles[w.hw]?.width ?? 1);
-      g.rect(q.x + q.w * 0.08, by, bw, bh).fill({ color: T.line, alpha: 0.3 });
+      const bw = tw, by = q.y + q.h * 0.8, bh = Math.max(5, q.h * 0.035), lanes = Math.max(1, cs?.tiles[w.hw]?.width ?? 1);
+      box(g, tx, by, bw, bh, bh / 2, { fill: T.line, fa: 0.3 });
       if (!asleep(lead)) {
-        g.rect(q.x + q.w * 0.08, by, bw * Math.min(1, lead.ipc / lanes), bh).fill({ color: lead.color });
-        g.rect(q.x + q.w * 0.08 + bw * (1 - Math.min(1, lead.stall)), by, bw * Math.min(1, lead.stall), bh).fill({ color: T.br, alpha: 0.8 });
+        box(g, tx, by, Math.max(bh, bw * Math.min(1, lead.ipc / lanes)), bh, bh / 2, { fill: lead.color, fa: 1 });
+        const sw = bw * Math.min(1, lead.stall);
+        if (sw > bh) box(g, tx + bw - sw, by, sw, bh, bh / 2, { fill: T.br, fa: 0.85 });
       }
+      const rate = new Text({ text: 'IPC ' + lead.ipc.toFixed(2) + '   STALL ' + Math.round(lead.stall * 100) + '%', style: { fontFamily: MONO, fontSize: Math.max(14, q.h * 0.05), fontWeight: '600', fill: T.mute, letterSpacing: 1 }, resolution: 2 });
+      rate.anchor.set(0, 0); rate.position.set(tx, by + bh * 1.6);
+      if (asleep(lead)) rate.alpha = 0.5;
+      wash.texts.addChild(rate);
       // the core badges and the border stay when the wash has faded: a core you zoomed into still says which it is
       const lw = Math.max(2, q.w * 0.004);
       b.rect(q.x, q.y, q.w, q.h).stroke({ color: lead.color, width: lw, alpha: asleep(lead) ? 0.35 : 0.9 });
