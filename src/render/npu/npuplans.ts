@@ -38,6 +38,7 @@ function build(i: NpuPlanInput): { tree: N; specs: WireSpec<NpuLinkKind>[] } {
   ], { f: 1 });
   const specs: W[] = [
     ['host-ctl', 'host', 'host', 'ctl', 2],
+    ['host-mem', 'host', 'host', 'cardmem', 3],
     ['ctl-desc', 'control', 'ctl', 'desc', 2],
     ['desc-mem', 'mem', 'desc', 'cardmem', 2],
     ['desc-tiles', 'control', 'desc', 'tiles', 1],

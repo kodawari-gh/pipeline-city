@@ -3,8 +3,8 @@ import type { Rect } from '../die/cpuplan';
 import { glyphKit, type Put } from '../die/blockart';
 import type { Theme } from '../theme';
 import type { NpuBlock } from './npuplan';
-import { GPU_HOP_TICKS, NPU_TILES, NpuOp } from '../../sim/isa/memmap';
-import { NPU_LIST_SHOWN } from '../../sim/machine/npu';
+import { GPU_HOP_TICKS, NPU_DESC_WORDS, NPU_NO_BIAS, NPU_TILES, NpuOp } from '../../sim/isa/memmap';
+import { NPU_CELL_WORDS, NPU_LIST_SHOWN } from '../../sim/machine/npu';
 
 // What is inside a block of the AI card's die (docs/ACCEL.md "NPU internal view", docs/DIE.md "Inside the blocks"): the schematic an engineer would draw
 // for the part, drawn with the CPU die's own tools (`glyphKit`) so the two read as one family. The link is a ladder of lanes, the control block the
@@ -101,23 +101,70 @@ export function postGeom(a: Rect, K: number) {
   return { h, cy, inRow: row(a.x, a.w * 0.28), add: { cx: a.x + a.w * 0.38, cy, r: Math.min(9, h / 2) }, relu: R(a.x + a.w * 0.46, cy - h / 2, a.w * 0.16, h), outRow: row(a.x + a.w * 0.72, a.w * 0.28) };
 }
 
-/** Card memory: a ruler over all of it, the readout of what a step reads and writes, and the line for the descriptor list. */
-export function memGeom(a: Rect) {
-  const ruler = R(a.x, a.y + 14, a.w, 18);
-  return { ruler, rd: R(a.x, ruler.y + 28, a.w / 2 - 4, 16), wr: R(a.x + a.w / 2 + 4, ruler.y + 28, a.w / 2 - 4, 16), note: R(a.x, ruler.y + 50, a.w, 16) };
+/**
+ * Card memory as a map, like the RAM sticks' (docs/DIE.md "Memory"): one square cell per `NPU_CELL_WORDS` words (a 4 x 4 tile), coloured by what lives there
+ * and as strong as it is full, with the readout of what a step reads and writes and the key of the colours under it.
+ */
+export function memGeom(a: Rect, memBytes: number) {
+  const n = Math.max(1, Math.ceil(memBytes / 4 / NPU_CELL_WORDS)), foot = 44, y0 = a.y + 12, h = Math.max(24, a.h - 12 - foot);
+  const cols = Math.max(1, Math.min(n, Math.round(Math.sqrt((n * a.w) / h)))), rows = Math.ceil(n / cols), cw = a.w / cols, ch = Math.min(h / rows, cw * 1.25);
+  const cells = Array.from({ length: n }, (_, i) => R(a.x + (i % cols) * cw + 0.6, y0 + Math.floor(i / cols) * ch + 0.6, cw - 1.2, ch - 1.2));
+  const map = R(a.x, y0, a.w, rows * ch), ty = map.y + map.h + 4;
+  return { cols, rows, cells, map, rd: R(a.x, ty, a.w / 2 - 4, 14), wr: R(a.x + a.w / 2 + 4, ty, a.w / 2 - 4, 14), key: R(a.x, ty + 18, a.w, 12) };
 }
 
-/** The window a byte range cuts out of the ruler (card memory is `mem` bytes). */
-export function memWindow(ruler: Rect, lo: number, hi: number, mem: number): Rect {
-  const x0 = ruler.x + (Math.max(0, Math.min(mem, lo)) / mem) * ruler.w, x1 = ruler.x + (Math.max(0, Math.min(mem, hi)) / mem) * ruler.w;
-  return R(x0, ruler.y, Math.max(2, x1 - x0), ruler.h);
+/** The cells `[first, last]` a byte range of card memory covers (clamped to the map). */
+export function cellsOfRange(lo: number, hi: number, memBytes: number): [number, number] {
+  const n = Math.max(1, Math.ceil(memBytes / 4 / NPU_CELL_WORDS)), bytes = NPU_CELL_WORDS * 4;
+  return [Math.max(0, Math.min(n - 1, Math.floor(lo / bytes))), Math.max(0, Math.min(n - 1, Math.ceil(hi / bytes) - 1))];
+}
+
+/** What a stretch of card memory is for, by the descriptors that name it. */
+export interface NpuRegion { lo: number; hi: number; kind: 'w' | 'x' | 'out' | 'bias' | 'list' }
+/** The colour of each kind of region, and its name in the key (the order is the order in the key, and the priority where regions overlap). */
+export const REGION_KINDS: { kind: NpuRegion['kind']; color: 'ld' | 'alu' | 'st' | 'mul' | 'br'; name: string }[] = [
+  { kind: 'list', color: 'br', name: 'list' }, { kind: 'w', color: 'ld', name: 'weights' }, { kind: 'bias', color: 'mul', name: 'bias' },
+  { kind: 'out', color: 'st', name: 'result' }, { kind: 'x', color: 'alu', name: 'data' },
+];
+
+/** A descriptor as the region finder reads it (the list of the card, or a logged step of a replay). */
+export interface RegionEntry { op: number; a: number; b: number; layer?: { w: number; x: number; out: number; bias: number; n: number } }
+
+/**
+ * The regions the descriptors name, for the key of card memory: the list itself, and for each dense layer its weights, its biases, its inputs (the first layer's,
+ * and the buffers between layers) and its result (the last layer's). A tile load names data, a store a result, a bias its row.
+ */
+export function regionsOf(entries: readonly RegionEntry[], K: number, descAt: number, count: number): NpuRegion[] {
+  const out: NpuRegion[] = [], tile = K * K * 4;
+  if (count > 0) out.push({ lo: descAt, hi: descAt + count * NPU_DESC_WORDS * 4, kind: 'list' });
+  const layers = entries.filter((e) => e.op === NpuOp.Layer && e.layer && e.layer.n > 0);
+  entries.forEach((e) => {
+    if (e.op === NpuOp.Load) out.push({ lo: e.b, hi: e.b + tile, kind: 'x' });
+    else if (e.op === NpuOp.Store) out.push({ lo: e.b, hi: e.b + tile, kind: 'out' });
+    else if (e.op === NpuOp.Bias) out.push({ lo: e.b, hi: e.b + K * 4, kind: 'bias' });
+  });
+  layers.forEach((e, l) => {
+    const y = e.layer!, sz = y.n * y.n * 4;
+    out.push({ lo: y.w, hi: y.w + sz, kind: 'w' });
+    if (y.bias !== NPU_NO_BIAS) out.push({ lo: y.bias, hi: y.bias + y.n * 4, kind: 'bias' });
+    if (l === 0) out.push({ lo: y.x, hi: y.x + sz, kind: 'x' });
+    out.push({ lo: y.out, hi: y.out + sz, kind: l === layers.length - 1 ? 'out' : 'x' });
+  });
+  return out;
+}
+
+/** The kind of region a cell of card memory belongs to (the first by the order of `REGION_KINDS`), or null. */
+export function cellKind(i: number, regions: readonly NpuRegion[]): NpuRegion['kind'] | null {
+  const bytes = NPU_CELL_WORDS * 4, lo = i * bytes, hi = lo + bytes;
+  for (const k of REGION_KINDS) if (regions.some((r) => r.kind === k.kind && r.lo < hi && r.hi > lo)) return k.kind;
+  return null;
 }
 
 // ---------------------------------------------------------------- the static symbols
 
 /** Draw the symbol of block `b` into `g`; `put` adds a label. `K` is the array size. */
-export function npuGlyph(g: Graphics, T: Theme, b: NpuBlock, c: string, put: Put, K: number): void {
-  const a = npuGlyphArea(b);
+export function npuGlyph(g: Graphics, T: Theme, b: NpuBlock, c: string, put: Put, opt: { grid: number; memBytes: number }): void {
+  const a = npuGlyphArea(b), K = opt.grid;
   if (!a) return;
   const kit = glyphKit(g, T, c, put);
   const { solid, soft, line, rect, stub } = kit;
@@ -197,12 +244,14 @@ export function npuGlyph(g: Graphics, T: Theme, b: NpuBlock, c: string, put: Put
       break;
     }
     case 'cardmem': {
-      const q = memGeom(a);
-      rect(q.ruler.x, q.ruler.y, q.ruler.w, q.ruler.h, soft); outline(q.ruler);
-      for (let k = 1; k < 16; k++) stub(q.ruler.x + (q.ruler.w * k) / 16, q.ruler.y + q.ruler.h - 5, q.ruler.x + (q.ruler.w * k) / 16, q.ruler.y + q.ruler.h);
-      lab('card memory, first byte to last', a.x, a.y + 5, 7.5);
-      for (const r of [q.rd, q.wr]) { rect(r.x, r.y, r.w, r.h, soft); outline(r); }
-      outline(q.note);
+      const q = memGeom(a, opt.memBytes);
+      for (const r of q.cells) g.rect(r.x, r.y, r.w, r.h).fill({ color: soft });
+      outline(q.map);
+      lab(`card memory, a cell per ${NPU_CELL_WORDS} words`, a.x, a.y + 5, 7.5);
+      // the readout of what is read and written (the RAM sticks' key: a cyan outline reads, a magenta one writes), then the key of the colours
+      [[q.rd, T.alu], [q.wr, T.br]].forEach(([r, col]) => { const rr = r as Rect; rect(rr.x, rr.y, rr.w, rr.h, soft); outline(rr); g.roundRect(rr.x + 3, rr.y + 3, 9, rr.h - 6, 1.5).stroke({ width: 1.5, color: col as string }); });
+      let kx = q.key.x;
+      for (const k of REGION_KINDS) { g.roundRect(kx, q.key.y + 2, 8, 8, 2).fill({ color: T[k.color] }); lab(k.name, kx + 11, q.key.y + 6, 7); kx += 11 + k.name.length * 4.6 + 12; }
       break;
     }
     default: break;
@@ -248,14 +297,34 @@ export interface NpuShow {
   error: boolean;
   done: boolean;
   fault: number;
+  /** How full each cell of card memory is (0..1), and what the descriptors say the stretches of it are for. */
+  fill: number[];
+  regions: NpuRegion[];
+  /** The CPU's latest access through the card's window (live only; null when none is recent). */
+  touch: NpuTouch | null;
   /** A launch replayed after it finished (the registers are its), not the card's state now. */
   replay: boolean;
   /** The clock the motion runs on (ms). */
   ms: number;
 }
 
-export type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad';
-export interface NpuLiveItem { rect: Rect; color: LiveKey; a: number }
+/** What the CPU just did through the card's window: a word of card memory or a register, read or written. */
+export interface NpuTouch {
+  store: boolean;
+  /** The row of the control block's registers it hit (`ctlRowOf`), or -1 for card memory. */
+  reg: number;
+  /** The byte range of card memory it covered (several accesses in a row are merged). */
+  lo: number;
+  hi: number;
+  /** 1 when it just happened, fading to 0. */
+  fresh: number;
+}
+
+/** The row of the control block a register offset belongs to (0 status and command, 1 desc, 2 count, 3 cycles, 4 fault, 5 grid and memory size). */
+export const ctlRowOf = (off: number): number => ({ 0x00: 0, 0x04: 0, 0x08: 1, 0x0c: 2, 0x10: 5, 0x14: 5, 0x1c: 3, 0x20: 4 } as Record<number, number>)[off & ~3] ?? 0;
+
+export type LiveKey = 'alu' | 'mul' | 'ld' | 'st' | 'br' | 'bad' | 'mute';
+export interface NpuLiveItem { rect: Rect; color: LiveKey; a: number; /** Drawn as an outline (an access), not a fill. */ ring?: boolean }
 export interface NpuLiveText { rect: Rect; top: string; ink?: boolean; small?: boolean; fit?: number }
 export interface NpuLive { texts: NpuLiveText[]; lit: NpuLiveItem[] }
 
@@ -288,20 +357,26 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
       const q = hostGeom(a);
       q.pins.forEach((p, k) => {
         if (p.name === 'clk') p.cells.forEach((r, j) => { if ((j + Math.floor(s.ms / 160)) % 2 === 0) out.lit.push({ rect: r, color: 'alu', a: s.busy ? 0.7 : 0.28 }); });
-        else if (moving) {
-          // the launch comes in on the transmit lanes of the host, the answer goes out on the receive ones
-          const mine = s.phase === 'in' ? p.name.startsWith('tx') : p.name.startsWith('rx');
-          if (mine) p.cells.forEach((r, j) => { const jj = s.phase === 'in' ? j : 9 - j; if (Math.floor(wave(s.ms, jj + k) * 3) === 2) out.lit.push({ rect: r, color: 'mul', a: 0.8 }); });
+        else {
+          // the launch comes in on the transmit lanes of the host, the answer goes out on the receive ones; so does a word the CPU just wrote or read
+          const dir = moving ? (s.phase === 'in' ? 'in' : 'out') : s.touch && s.touch.fresh > 0.05 ? (s.touch.store ? 'in' : 'out') : null;
+          const mine = dir === 'in' ? p.name.startsWith('tx') : dir === 'out' ? p.name.startsWith('rx') : false;
+          if (mine) p.cells.forEach((r, j) => { const jj = dir === 'in' ? j : 9 - j; if (Math.floor(wave(s.ms, jj + k) * 3) === 2) out.lit.push({ rect: r, color: 'mul', a: 0.8 }); });
         }
       });
       if (moving) out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
-      out.texts.push({ rect: q.note, top: s.phase === 'in' ? 'launch in' : s.phase === 'out' ? 'answer out' : s.busy ? 'working' : 'idle', small: true, ink: true, fit: 12 });
+      out.texts.push({
+        rect: q.note, small: true, ink: true, fit: 12,
+        top: s.phase === 'in' ? 'launch in' : s.phase === 'out' ? 'answer out' : s.busy ? 'working' : s.touch && s.touch.fresh > 0.05 ? (s.touch.store ? 'cpu writes' : 'cpu reads') : 'idle',
+      });
       break;
     }
     case 'ctl': {
       const rows = ctlGeom(a), word = [0, s.descAt, s.count, s.cycles, s.fault, K];
       const on = [s.busy, s.error, s.done, true];
       rows[0]!.chips.forEach((r, j) => { if (on[j]) out.lit.push({ rect: r, color: j === 1 ? 'bad' : 'st', a: 0.7 }); });
+      // the register the CPU just wrote or read lights (the command and the status share the first row)
+      if (s.touch && s.touch.reg >= 0 && s.touch.fresh > 0.05) out.lit.push({ rect: rows[s.touch.reg]!.value, color: s.touch.store ? 'br' : 'alu', a: 0.55 * s.touch.fresh, ring: false });
       rows.forEach((row, k) => {
         if (k === 0) return;
         if (s.phase === 'in' && k <= 2) out.lit.push({ rect: row.value, color: 'st', a: 0.25 + 0.2 * wave(s.ms, k) });
@@ -389,15 +464,31 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
       break;
     }
     case 'cardmem': {
-      const q = memGeom(a);
-      if (s.count > 0) out.lit.push({ rect: memWindow(q.ruler, s.descAt, s.descAt + s.count * 16, s.memBytes), color: 'br', a: 0.3 });
-      let rd = 0, wr = 0;
+      const q = memGeom(a, s.memBytes);
+      // every cell tinted by what lives there and as strong as it is full; a stretch the descriptors name but nothing has filled yet shows faintly
+      q.cells.forEach((r, i) => {
+        const f = s.fill[i] ?? 0, kind = cellKind(i, s.regions), color = kind ? REGION_KINDS.find((k) => k.kind === kind)!.color : 'mute';
+        const al = f > 0 ? 0.14 + 0.55 * f : kind ? 0.07 : 0;
+        if (al > 0) out.lit.push({ rect: r, color, a: al });
+      });
+      // the accesses: the card's own (the step on show) and the CPU's through the window, outlined as the RAM sticks do (a read cyan, a write magenta)
+      let rd = 0, wr = 0, who = '';
+      const ring = (lo: number, hi: number, store: boolean, k: number) => {
+        const [c0, c1] = cellsOfRange(lo, hi, s.memBytes);
+        for (let c = c0; c <= c1; c++) out.lit.push({ rect: q.cells[c]!, color: store ? 'br' : 'alu', a: Math.min(1, 0.55 + 0.4 * k), ring: true });
+      };
       if (running && st) {
-        for (const [lo, hi] of st.reads) { out.lit.push({ rect: memWindow(q.ruler, lo, hi, s.memBytes), color: 'ld', a: 0.5 + 0.3 * wave(s.ms, 0) }); rd += hi - lo; }
-        for (const [lo, hi] of st.writes) { out.lit.push({ rect: memWindow(q.ruler, lo, hi, s.memBytes), color: 'st', a: 0.5 + 0.3 * wave(s.ms, 1) }); wr += hi - lo; }
+        for (const [lo, hi] of st.reads) { ring(lo, hi, false, wave(s.ms, 0)); rd += hi - lo; }
+        for (const [lo, hi] of st.writes) { ring(lo, hi, true, wave(s.ms, 1)); wr += hi - lo; }
+        who = 'card';
       }
-      out.texts.push({ rect: q.rd, top: `read ${rd} B`, small: true, ink: rd > 0, fit: 12 }, { rect: q.wr, top: `write ${wr} B`, small: true, ink: wr > 0, fit: 12 });
-      out.texts.push({ rect: q.note, top: s.count > 0 ? `list at 0x${hex(s.descAt, 4)}, ${s.count * 16} B` : `${Math.round(s.memBytes / 1024)}K, cleared at power-on`, small: true, ink: true, fit: 28 });
+      if (s.touch && s.touch.reg < 0 && s.touch.fresh > 0.05) {
+        ring(s.touch.lo, s.touch.hi, s.touch.store, s.touch.fresh);
+        if (s.touch.store) wr += s.touch.hi - s.touch.lo; else rd += s.touch.hi - s.touch.lo;
+        who = who ? 'card + cpu' : 'cpu';
+      }
+      const label = (n: number, verb: string) => (n > 0 ? `${who} ${verb} ${n} B` : verb);
+      out.texts.push({ rect: { ...q.rd, x: q.rd.x + 14, w: q.rd.w - 14 }, top: label(rd, 'reads'), small: true, ink: rd > 0, fit: 20 }, { rect: { ...q.wr, x: q.wr.x + 14, w: q.wr.w - 14 }, top: label(wr, 'writes'), small: true, ink: wr > 0, fit: 20 });
       break;
     }
     default: break;

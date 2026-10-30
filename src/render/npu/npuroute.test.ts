@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { NpuOp } from '../../sim/isa/memmap';
 import { npuPlan } from './npuplans';
-import { npuRoute } from './npuroute';
+import { npuHostRoute, npuRoute } from './npuroute';
 
 const plan = npuPlan({ grid: 4, memBytes: 8192, lanes: 4 });
 const ids = (op: number, phase: 'in' | 'run' | 'out') => npuRoute(plan, op, phase).map((h) => `${h.reverse ? '<' : ''}${h.link.id}`);
+
+describe('the way the CPU reaches the card', () => {
+  const host = (a: Parameters<typeof npuHostRoute>[1]) => npuHostRoute(plan, a).map((h) => `${h.reverse ? '<' : ''}${h.link.id}`);
+  it('copies into card memory over the link and the host-mem wire, and reads it back the other way', () => {
+    expect(host('mem-write')).toEqual(['host-mem']);
+    expect(host('mem-read')).toEqual(['<host-mem']);
+  });
+  it('writes and polls the registers over the link to the control block', () => {
+    expect(host('reg-write')).toEqual(['host-ctl']);
+    expect(host('reg-read')).toEqual(['<host-ctl']);
+  });
+});
 
 describe('the way a launch goes through the card', () => {
   it('comes in over the link to the registers and the descriptor queue, and the answer goes back the same way', () => {

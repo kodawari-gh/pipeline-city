@@ -6,7 +6,7 @@ import type { NpuStep } from '../../sim/machine/npu';
 /** A 4 x 4 card's view; override what a test needs. */
 export const sampleView = (o: Partial<NpuSnap> = {}): NpuSnap => ({
   slot: 'pcie1', phase: 'idle', busy: false, error: false, done: false, fault: 0, grid: 4, memBytes: 8192, descAt: 0x1000, count: 0, cycles: 0, wait: 0, span: 0,
-  run: 0, index: -1, stepWait: 0, stepSpan: 0, list: [], tiles: [false, false, false, false], acc: new Array<number>(16).fill(0), launches: 0, descriptors: 0, log: [], ...o,
+  run: 0, index: -1, stepWait: 0, stepSpan: 0, list: [], fill: new Array<number>(128).fill(0), hostWrites: 0, hostReads: 0, lastWrite: -1, lastRead: -1, tiles: [false, false, false, false], acc: new Array<number>(16).fill(0), launches: 0, descriptors: 0, log: [], ...o,
 });
 
 /** One logged step of launch `run`; override what a test needs. */

@@ -114,7 +114,7 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
     };
     case 'cardmem': return {
       title: 'Card memory',
-      plain: 'The card\'s own memory. The CPU copies the weights, the activations and the descriptor list in with plain stores before a launch and reads the result out after it. The ruler is all of it; amber is what the step on show reads, green what it writes, pink the descriptor list.',
+      plain: 'The card\'s own memory, one square per 64 bytes, drawn like the RAM view: the brighter a square, the fuller it is. The CPU copies the activations, the weights, the biases and the descriptor list in with plain stores, one word at a time, before a launch, and reads the result out the same way after it. Pink is the descriptor list, amber weights, violet biases, green results, cyan data. A magenta outline is a write, a cyan outline a read; the card\'s own reads and writes while a step runs and the CPU\'s copies across the bus both show here.',
       nerd: memK ? `${memK}K | cleared at power-on${v && v.count > 0 ? ` | list at ${hex(v.descAt)}, ${v.count * 16} bytes` : ''}` : 'cleared at power-on',
     };
     default: return null;

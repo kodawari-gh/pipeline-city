@@ -1,6 +1,6 @@
-import { GpuFaultCode, NpuOp } from '../../sim/isa/memmap';
+import { GpuFaultCode, NPU_NO_BIAS, NpuOp } from '../../sim/isa/memmap';
 import type { NpuStep, NpuView } from '../../sim/machine/npu';
-import type { NpuShow, NpuStepShow } from './npuglyph';
+import { regionsOf, type NpuShow, type NpuStepShow, type RegionEntry } from './npuglyph';
 
 // What the card view shows each frame (`NpuShow`): the snapshot as it is while a launch is in flight, and otherwise a slow-motion replay of the launches that
 // finished since the last look (a descriptor takes a handful of card ticks, a launch a few dozen, far less than a frame of the game, so without the
@@ -31,9 +31,16 @@ export function liveShow(v: NpuView, ms: number): NpuShow {
     list: v.list.map((d) => ({ op: d.op, a: d.a, b: d.b })), index: v.index,
     step: e ? stepShow(e, v.phase === 'run' ? 1 - v.stepWait / Math.max(1, v.stepSpan) : 1) : null,
     acc: v.acc, prevAcc: e ? accBefore(v.log, v.run, v.index, K2) : v.acc, tiles: v.tiles, cycles: v.cycles,
-    busy: v.busy, error: v.error, done: v.done, fault: v.fault, replay: false, ms,
+    busy: v.busy, error: v.error, done: v.done, fault: v.fault, fill: v.fill, regions: regionsOf(v.list, v.grid, v.descAt, v.count), touch: null, replay: false, ms,
   };
 }
+
+/** A logged step as the region finder reads it: a layer's parameters come from the byte ranges the card logged for it (the block, the weights, the inputs, the biases; the result written). */
+const entryOf = (e: NpuStep): RegionEntry => {
+  const w = e.writes[0], n = w ? Math.round(Math.sqrt((w[1] - w[0]) / 4)) : 0;
+  const layer = e.op === NpuOp.Layer && w && e.reads.length >= 3 ? { w: e.reads[1]![0], x: e.reads[2]![0], out: w[0], bias: e.reads[3]?.[0] ?? NPU_NO_BIAS, n } : undefined;
+  return { op: e.op, a: e.a, b: e.b, ...(layer ? { layer } : {}) };
+};
 
 /** The length of a launch's replay (ms). */
 export const replayLength = (steps: readonly NpuStep[]): number => 2 * REPLAY_HOP_MS + steps.reduce((n, e) => n + replayStepMs(e), 0);
@@ -41,7 +48,7 @@ export const replayLength = (steps: readonly NpuStep[]): number => 2 * REPLAY_HO
 /** A finished launch (its steps, in order) `t` ms into its replay. */
 export function replayShow(steps: readonly NpuStep[], v: NpuView, t: number, ms: number): NpuShow {
   const K = v.grid, K2 = K * K, total = steps.reduce((n, e) => n + replayStepMs(e), 0), first = steps[0]!, last = steps[steps.length - 1]!;
-  const base = { ...liveShow(v, ms), grid: K, replay: true, busy: true, count: first.count, list: steps.map((e) => ({ op: e.op, a: e.a, b: e.b })) };
+  const base = { ...liveShow(v, ms), grid: K, replay: true, busy: true, count: first.count, list: steps.map((e) => ({ op: e.op, a: e.a, b: e.b })), regions: regionsOf(steps.map(entryOf), K, v.descAt, first.count) };
   const zeros = new Array<number>(K2).fill(0);
   if (t < REPLAY_HOP_MS) return { ...base, phase: 'in', progress: unit(t / REPLAY_HOP_MS), index: -1, step: null, acc: zeros, prevAcc: zeros, tiles: [false, false, false, false], cycles: 0, done: false, error: false, fault: 0 };
   let at = t - REPLAY_HOP_MS, cycles = 0;

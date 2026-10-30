@@ -57,4 +57,27 @@ describe('the AI card view', () => {
     expect(() => { for (let i = 0; i < 30; i++) v.frame(0.016, true); }).not.toThrow();
     expect(NpuOp.Layer).toBe(7);
   });
+
+  it('shows the CPU reaching into the card: a packet on the wire it takes, one per kind of access at a time, gone when the touch fades', () => {
+    setLayoutTier(3, 3);
+    const v = new NpuCardView();
+    v.setScene(T, [{ slot: 'pcie1', visual: 'npu-1', origin: { x: 0, y: 0 } }]);
+    v.setZoom(1);
+    v.update([sampleView({})]);
+    v.frame(0.016, true);
+    const packets = () => (v as unknown as { cards: { packets: unknown[]; touch: unknown }[] }).cards[0]!.packets.length;
+    const touched = () => (v as unknown as { cards: { touch: unknown }[] }).cards[0]!.touch !== null;
+    v.touch('pcie9', true, 0x1000); // not a card of the scene
+    expect(touched()).toBe(false);
+    v.touch('pcie1', true, 0x1000); // a word copied in
+    expect(touched()).toBe(true);
+    expect(packets()).toBe(1);
+    v.touch('pcie1', true, 0x1004); // the next word of the copy: the same stretch, no new packet this soon
+    expect(packets()).toBe(1);
+    v.touch('pcie1', false, 0x10); // STATUS polled: another wire
+    expect(packets()).toBe(2);
+    for (let i = 0; i < 100; i++) v.frame(0.05, true);
+    expect(touched()).toBe(false);
+    expect(packets()).toBe(0);
+  });
 });

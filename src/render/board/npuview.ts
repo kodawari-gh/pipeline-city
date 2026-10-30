@@ -1,14 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import type { NpuSnap } from '../../sim/game/types';
-import { NpuOp } from '../../sim/isa/memmap';
+import { NPU_MEM, NpuOp } from '../../sim/isa/memmap';
 import { box } from '../ink';
 import type { Theme } from '../theme';
 import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../die/diepulse';
 import type { Pt, Rect } from '../die/cpuplan';
 import { npuFar, npuNear, NPU_KIND_COLOR } from '../npu/npuart';
-import { npuGlyphArea, npuLive, type NpuShow } from '../npu/npuglyph';
+import { ctlRowOf, npuGlyphArea, npuLive, type NpuShow } from '../npu/npuglyph';
 import { NpuPlayer, REPLAY_HOP_MS, replayStepMs } from '../npu/npuplayer';
-import { npuRoute } from '../npu/npuroute';
+import { npuHostRoute, npuRoute, type HostAccess } from '../npu/npuroute';
 import type { NpuBlock } from '../npu/npuplan';
 import { npuCover } from './accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
@@ -55,9 +55,15 @@ interface CardView {
   /** The glyph areas of the blocks, in die units. */
   areas: { b: NpuBlock; a: Rect }[];
   player: NpuPlayer;
+  /** The CPU's latest access through the window, and when each kind last sent a packet along the wires (replay clock, ms). */
+  touch: { store: boolean; reg: number; lo: number; hi: number; at: number } | null;
+  sentAt: Map<string, number>;
   /** The look last drawn while the card sits idle, so a still card costs nothing. */
   sig: string;
 }
+
+/** How long a CPU access stays lit in the die (ms), the least gap between two packets of the same kind, and the longest stretch of card memory shown as one access (bytes). */
+const TOUCH_MS = 900, HOST_GAP_MS = 140, TOUCH_SPAN = 256;
 
 export class NpuCardView {
   readonly root = new Container();
@@ -96,8 +102,38 @@ export class NpuCardView {
     const areas = plan.blocks.flatMap((b) => { const a = npuGlyphArea(b); return a ? [{ b, a }] : []; });
     return {
       slot: s.slot, geo, root, die, cover, glowG, litG, texts, trailG, packetG, names: near.names, subs: near.subs, cellTexts: new Map(), packets: [], trails: new Map(),
-      glow: new Map(), sent: '', areas, player: new NpuPlayer(), sig: '',
+      glow: new Map(), sent: '', areas, player: new NpuPlayer(), touch: null, sentAt: new Map(), sig: '',
     };
+  }
+
+  /**
+   * The CPU reached into a card's window (it moves every word itself, there is no DMA): a word of card memory (the weights going in, the result coming out)
+   * or a register (DESC, COUNT, CMD written, STATUS polled). Told by the board's live layer for each access the die replays. The access lights its place in
+   * the die, and a packet runs the wire it takes inside the card (npu/npuroute.ts `npuHostRoute`).
+   */
+  touch(slot: string, store: boolean, off: number): void {
+    const c = this.cards.find((x) => x.slot === slot), T = this.T;
+    if (!c || !T) return;
+    const now = this.now, t = c.touch, mem = off >= NPU_MEM;
+    if (mem) {
+      const lo = (off - NPU_MEM) & ~3, hi = lo + 4;
+      // accesses in a row of one kind, close together, are one stretch (a copy loop); only the newest stretch of it stays lit
+      if (t && t.reg < 0 && t.store === store && now - t.at < 400 && lo <= t.hi + 64 && hi >= t.lo - 64) {
+        const top = Math.max(t.hi, hi);
+        c.touch = { store, reg: -1, lo: Math.max(Math.min(t.lo, lo), top - TOUCH_SPAN), hi: top, at: now };
+      } else c.touch = { store, reg: -1, lo, hi, at: now };
+    } else c.touch = { store, reg: ctlRowOf(off), lo: 0, hi: 0, at: now };
+    c.sig = ''; // an idle card redraws
+    const access: HostAccess = `${mem ? 'mem' : 'reg'}-${store ? 'write' : 'read'}`;
+    // (nothing is sent while the die is not drawn, or packets would pile up unseen)
+    if (!c.die.visible || c.packets.length > 40 || now - (c.sentAt.get(access) ?? -1e9) < HOST_GAP_MS) return;
+    c.sentAt.set(access, now);
+    for (const h of npuHostRoute(c.geo.plan, access)) {
+      const o = { id: h.link.id, lanes: h.link.lanes, pts: h.link.pts as Pt[] };
+      const { packet, trail } = packetOn(o, h.reverse, now, 260, store ? T.br : T.alu);
+      c.packets.push(packet);
+      c.trails.set(h.link.id, trail);
+    }
   }
 
   setZoom(z: number): void {
@@ -121,7 +157,9 @@ export class NpuCardView {
     const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
     for (const c of this.cards) {
       c.player.advance(step);
-      const show = c.player.show(this.now);
+      const base = c.player.show(this.now), fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
+      if (c.touch && fresh <= 0) c.touch = null;
+      const show = base && c.touch ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } } : base;
       c.cover.alpha = 1 - fade;
       c.die.alpha = fade;
       c.die.visible = fade > 0.02;
@@ -130,8 +168,8 @@ export class NpuCardView {
       c.names.visible = c.texts.visible = showText;
       c.subs.visible = showDetail;
       // an idle card only needs a redraw when something it shows changes (the clock lane blinks every 160 ms)
-      const still = !show || (show.phase === 'idle' && c.packets.length === 0 && c.trails.size === 0 && c.glow.size === 0);
-      const sig = still ? `${show ? `${show.cycles}|${show.count}|${show.done ? 1 : 0}${show.error ? 1 : 0}|${show.tiles.map((t) => (t ? 1 : 0)).join('')}|${show.acc.reduce((n, x) => (n * 31 + x) | 0, 7)}` : '-'}|${Math.floor(this.now / 160)}|${showText ? 1 : 0}${showDetail ? 1 : 0}` : '';
+      const still = !show || (show.phase === 'idle' && !c.touch && c.packets.length === 0 && c.trails.size === 0 && c.glow.size === 0);
+      const sig = still ? `${show ? `${show.cycles}|${show.count}|${show.done ? 1 : 0}${show.error ? 1 : 0}|${show.tiles.map((t) => (t ? 1 : 0)).join('')}|${show.acc.reduce((n, x) => (n * 31 + x) | 0, 7)}|${show.fill.reduce((n, x) => (n * 31 + Math.round(x * 16)) | 0, 5)}` : '-'}|${Math.floor(this.now / 160)}|${showText ? 1 : 0}${showDetail ? 1 : 0}` : '';
       if (still && sig === c.sig) continue;
       c.sig = sig;
       this.animate(T, c, show);
@@ -188,11 +226,11 @@ export class NpuCardView {
     const want = this.active(show), kind = (id: string) => c.geo.plan.blocks.find((b) => b.id === id)!.kind;
     for (const [id, k] of want) c.glow.set(id, { v: Math.min(1, (c.glow.get(id)?.v ?? 0) + 0.25 * k), color: T[NPU_KIND_COLOR[kind(id)]] });
     for (const [id, g] of c.glow) if (!want.has(id)) { g.v *= 0.9; if (g.v < 0.02) c.glow.delete(id); }
-    const lit: { rect: Rect; color: string; a: number }[] = [], used = new Set<string>();
+    const lit: { rect: Rect; color: string; a: number; ring: boolean }[] = [], used = new Set<string>();
     if (show) {
       for (const { b, a } of c.areas) {
         const live = npuLive(b, a, show);
-        for (const l of live.lit) if (l.a > 0) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
+        for (const l of live.lit) if (l.a > 0) lit.push({ rect: l.rect, color: T[l.color], a: l.a, ring: !!l.ring });
         let ct = c.cellTexts.get(b.id);
         if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }
         used.add(b.id);
@@ -209,7 +247,7 @@ export class NpuCardView {
       if (b) box(gg, b.rect.x, b.rect.y, b.rect.w, b.rect.h, 3, { fill: g.color, fa: 0.14 * g.v, stroke: g.color, lw: 2.5, sa: 0.55 * g.v });
     }
     c.litG.clear();
-    for (const l of lit) box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, { fill: l.color, fa: l.a });
+    for (const l of lit) box(c.litG, l.rect.x, l.rect.y, l.rect.w, l.rect.h, 1.5, l.ring ? { stroke: l.color, lw: 1.5, sa: l.a } : { fill: l.color, fa: l.a });
     drawTrails(c.trailG, c.trails, now, 1);
     c.packets = drawPackets(c.packetG, c.packets, now, 1, T.ink);
   }

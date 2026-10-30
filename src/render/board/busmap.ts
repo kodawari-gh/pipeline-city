@@ -123,6 +123,13 @@ export function deviceAt(addr: number): DeviceHit | null {
   return null;
 }
 
+/** An access to an AI card's window: the PCIe slot of the card and the offset in the window (registers below `NPU_MEM`, card memory from it), or null for any other address. */
+export function npuAccess(addr: number): { slot: string; off: number } | null {
+  const a = addr >>> 0;
+  if (a < NPU_BASE || a >= NPU_BASE + NPU_PORTS.length * NPU_STRIDE) return null;
+  return { slot: 'pcie' + Math.floor((a - NPU_BASE) / NPU_STRIDE), off: (a - NPU_BASE) % NPU_STRIDE };
+}
+
 /** The CPU reads or writes one of the chipset's registers (the boot phase, the key's id...): over DMI. */
 export const chipsetChain = (write: boolean): Hop[] => [{ bus: 'dmi', dir: write ? 1 : -1 }];
 /** The TPM stands on a pin header off the I/O controller's trunk, which is on the chipset's LPC lanes: DMI, LPC, the header trunk. */

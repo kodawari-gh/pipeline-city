@@ -123,7 +123,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     if (visual === 'npu-2') box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
-    root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 10, 34, T.alu, { head: true, a: 0.9 }));
+    root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 32, 34, T.alu, { head: true, a: 0.9 }));
     if (!live) {
       const cover = npuCover(T, geo);
       cover.position.set(x0, top);

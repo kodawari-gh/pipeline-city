@@ -33,6 +33,18 @@ export class NpuFault extends Error {
 /** Descriptors the view lists from the card's list, and steps kept in the log the board view replays. */
 export const NPU_LIST_SHOWN = 8;
 export const NPU_LOG = 16;
+/** Words of card memory one entry of `NpuView.fill` covers: a 4 x 4 tile, the smallest unit the card moves. */
+export const NPU_CELL_WORDS = 16;
+
+/** The parameter block of a Layer descriptor, read out of card memory: where the weights, the activations in and out and the biases lie, the matrix size and whether relu follows. */
+export interface NpuLayerBlock { w: number; x: number; out: number; bias: number; n: number; relu: number }
+
+/** How full card memory is, cell by cell: the share of words that are not zero in each `NPU_CELL_WORDS`. */
+function fillMap(mem: Uint32Array): number[] {
+  const out: number[] = new Array(Math.ceil(mem.length / NPU_CELL_WORDS)).fill(0);
+  for (let k = 0; k < mem.length; k++) if (mem[k] !== 0) out[(k / NPU_CELL_WORDS) | 0]!++;
+  return out.map((n) => n / NPU_CELL_WORDS);
+}
 
 /** One descriptor the card ran (or faulted on), for the view: what it was, what it cost, the card memory it read and wrote (byte ranges) and the accumulator after it. */
 export interface NpuStep {
@@ -72,7 +84,14 @@ export interface NpuView {
   stepWait: number;
   stepSpan: number;
   /** The first NPU_LIST_SHOWN descriptors of the list, as the card memory holds them now (empty when the registers point nowhere). */
-  list: { op: number; a: number; b: number; c: number }[];
+  list: { op: number; a: number; b: number; c: number; /** For a Layer descriptor whose block lies in card memory. */ layer?: NpuLayerBlock }[];
+  /** A map of card memory, `NPU_CELL_WORDS` words a cell: 0 empty to 1 full. */
+  fill: number[];
+  /** Words the CPU has written into and read out of card memory through its window since power-on, and the card-memory byte address of the last of each (-1: none yet). */
+  hostWrites: number;
+  hostReads: number;
+  lastWrite: number;
+  lastRead: number;
   /** Which tile registers have been loaded this launch, and the accumulator now (grid x grid, row-major). */
   tiles: boolean[];
   acc: number[];
@@ -263,6 +282,10 @@ export class NpuPort implements Device {
   private seq = 0;
   private curCost = 0;
   private log: NpuStep[] = [];
+  private hostWrites = 0;
+  private hostReads = 0;
+  private lastWrite = -1;
+  private lastRead = -1;
   /** Set while a run is in flight, cleared by `takeActivity`. */
   active = false;
   launches = 0;
@@ -292,6 +315,8 @@ export class NpuPort implements Device {
     this.active = false;
     this.curCost = 0;
     this.log = [];
+    this.hostWrites = this.hostReads = 0;
+    this.lastWrite = this.lastRead = -1;
   }
 
   /** The card as the board view draws it, or null without a card. */
@@ -303,7 +328,13 @@ export class NpuPort implements Device {
     if (this.count > 0 && this.descAt % 4 === 0 && base + this.count * NPU_DESC_WORDS <= core.mem.length) {
       for (let k = 0; k < Math.min(this.count, NPU_LIST_SHOWN); k++) {
         const w = base + k * NPU_DESC_WORDS;
-        list.push({ op: core.mem[w]!, a: core.mem[w + 1]! | 0, b: core.mem[w + 2]!, c: core.mem[w + 3]! });
+        const d: NpuView["list"][number] = { op: core.mem[w]!, a: core.mem[w + 1]! | 0, b: core.mem[w + 2]!, c: core.mem[w + 3]! };
+        const blk = d.op === NpuOp.Layer ? d.a : -1;
+        if (blk >= 0 && blk % 4 === 0 && blk / 4 + NPU_LAYER_WORDS <= core.mem.length) {
+          const f = (j: number): number => core.mem[blk / 4 + j]!;
+          d.layer = { w: f(0), x: f(1), out: f(2), bias: f(3), n: f(4), relu: f(5) };
+        }
+        list.push(d);
       }
     }
     const inRun = this.phase === "run" || this.phase === "out";
@@ -311,7 +342,8 @@ export class NpuPort implements Device {
       phase: this.phase, busy: this.phase !== "idle", error: this.error, done: this.done, fault: this.fault, grid: cfg.grid, memBytes: cfg.memBytes,
       descAt: this.descAt, count: this.count, cycles: this.cycles, wait: this.wait, span: this.phase === "in" || this.phase === "out" ? GPU_HOP_TICKS : 0,
       run: this.launches, index: inRun ? this.next - 1 : -1, stepWait: this.phase === "run" ? this.stall + 1 : 0, stepSpan: this.curCost,
-      list, tiles: [...core.loaded], acc: core.accNow(), launches: this.launches, descriptors: this.descriptors, log: this.log.map((e) => ({ ...e, reads: e.reads.map((r): [number, number] => [...r]), writes: e.writes.map((r): [number, number] => [...r]), acc: [...e.acc] })),
+      list, fill: fillMap(core.mem), hostWrites: this.hostWrites, hostReads: this.hostReads, lastWrite: this.lastWrite, lastRead: this.lastRead,
+      tiles: [...core.loaded], acc: core.accNow(), launches: this.launches, descriptors: this.descriptors, log: this.log.map((e) => ({ ...e, reads: e.reads.map((r): [number, number] => [...r]), writes: e.writes.map((r): [number, number] => [...r]), acc: [...e.acc] })),
     };
   }
 
@@ -342,6 +374,7 @@ export class NpuPort implements Device {
     const core = this.core;
     if (off >= NPU_MEM) {
       const o = off - NPU_MEM;
+      if (core && o < core.mem.length * 4 && (o & 3) === 0) { this.hostReads++; this.lastRead = o; }
       return core && o < core.mem.length * 4 ? (core.mem[o >>> 2]! >>> (8 * (o & 3))) & 0xff : 0;
     }
     let w = 0;
@@ -364,6 +397,7 @@ export class NpuPort implements Device {
     if (off >= NPU_MEM) {
       const o = off - NPU_MEM;
       if (core && o < core.mem.length * 4) {
+        if ((o & 3) === 0) { this.hostWrites++; this.lastWrite = o; }
         const sh = 8 * (o & 3);
         core.mem[o >>> 2] = ((core.mem[o >>> 2]! & ~(0xff << sh)) | ((val & 0xff) << sh)) >>> 0;
       }

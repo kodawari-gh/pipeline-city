@@ -18,7 +18,7 @@ import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHo
 import { FrameView, ScreenView } from './room/screenview';
 import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import { BusFlow, slice } from './board/busflow';
-import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
+import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -540,6 +540,8 @@ export class Live {
     if (hit.kind !== 'drive' && hit.kind !== 'card') return; // (the units on the CPU's die: board.ts pokes the die view)
     if (!this.installed.has(hit.slot)) return; // (nothing there to answer)
     if (hit.kind === 'drive') this.lastDrive = hit.slot;
+    const npu = hit.kind === 'card' ? npuAccess(addr) : null;
+    if (npu) this.npu.touch(npu.slot, write, npu.off); // inside the card too: the word goes to its memory or its registers
     this.fire('dev:' + hit.slot, hit.kind === 'drive' ? this.driveMsg(hit.slot, write) : { hops: slotChain(hit.slot, write) }, now, MIN_GAP);
   }
 

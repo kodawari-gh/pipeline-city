@@ -6,7 +6,7 @@ import { TIER_GEO } from './boardlayout';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
-  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, chipsetChain, deviceAt, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, chipsetChain, deviceAt, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
   type Hop,
 } from './busmap';
 
@@ -17,6 +17,15 @@ const ALL_CHAINS: Record<string, Hop[]> = {
   keyRead: keyChain(false), keyWrite: keyChain(true), netDown: boardNetChain(true), netUp: boardNetChain(false),
   sata: driveChain('sata0', false), m2: driveChain('m20', true), cpuCard: slotChain('pcie0', true), chipCard: slotChain('pcie1', false),
 };
+
+describe('npuAccess', () => {
+  it('names the slot and the offset of an access to a card window, and nothing else', () => {
+    expect(npuAccess(NPU_BASE + 3 * NPU_STRIDE + 0x1008)).toEqual({ slot: 'pcie3', off: 0x1008 });
+    expect(npuAccess(NPU_BASE + 0x10)).toEqual({ slot: 'pcie0', off: 0x10 });
+    expect(npuAccess(GPU_BASE)).toBeNull();
+    expect(npuAccess(NPU_BASE + NPU_PORTS.length * NPU_STRIDE)).toBeNull();
+  });
+});
 
 describe('deviceAt', () => {
   it('finds the drive, card or key a bus address belongs to, and nothing for RAM', () => {

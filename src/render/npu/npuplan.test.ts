@@ -53,7 +53,7 @@ describe('the AI card floorplans', () => {
     it(`${name}: blocks tile the die and every wire routes square through the gutters`, () => expect(check(plan)).toEqual([]));
     it(`${name}: carries every part the sim models`, () => {
       expect(plan.blocks.map((b) => b.id).sort()).toEqual(['array', 'cardmem', 'ctl', 'desc', 'host', 'post', 'tiles']);
-      expect(plan.links.length).toBe(9);
+      expect(plan.links.length).toBe(10);
     });
     it(`${name}: the blocks fill the die inside its margins`, () => {
       const die = npuDie(plan.input.grid), area = plan.blocks.reduce((n, b) => n + b.rect.w * b.rect.h, 0), room = (die.w - 2 * DIE_MARGIN.x) * (die.h - DIE_MARGIN.top - DIE_MARGIN.bottom);

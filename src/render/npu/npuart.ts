@@ -26,13 +26,13 @@ export const NPU_LEGEND: { text: string; key: Key }[] = [
 
 /** How the card is drawn: the CPU die's art (`planFar`, `planNear`) with the card's colours and symbols. */
 export function npuStyle(plan: NpuPlan): PlanStyle<NpuBlock, NpuLink> {
-  const K = plan.input.grid;
+  const opt = { grid: plan.input.grid, memBytes: plan.input.memBytes };
   return {
     color: (T, b) => T[NPU_KIND_COLOR[b.kind]],
     linkColor: (T, l) => T[NPU_LINK_COLOR[l.kind]],
     frame: () => false,
     symbol: (b) => npuGlyphArea(b),
-    draw: (g, T, b, _a, c, put) => npuGlyph(g, T, b, c, put, K),
+    draw: (g, T, b, _a, c, put) => npuGlyph(g, T, b, c, put, opt),
     cells: () => [],
   };
 }

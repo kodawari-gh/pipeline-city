@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GPU_HOP_TICKS, GpuFaultCode, GpuStatus, NPU_BASE, NPU_DESC_WORDS, NPU_MEM, NPU_NO_BIAS, NPU_PORTS, NPU_REG, NPU_STRIDE, NpuOp } from "../isa/memmap";
 import { Machine } from "./machine";
-import { NPU_LOG, NpuCore, NpuPort } from "./npu";
+import { NPU_CELL_WORDS, NPU_LOG, NpuCore, NpuPort } from "./npu";
 
 const R = (r: number) => NPU_BASE + r;
 
@@ -262,6 +262,38 @@ describe("the card's view", () => {
     const f = port.view()!;
     expect(f).toMatchObject({ error: true, fault: GpuFaultCode.Kernel });
     expect(f.log.at(-1)).toMatchObject({ op: NpuOp.Load, fault: true, cost: 0 });
+  });
+
+  it("counts the words the CPU moves through the window, remembers where the last of each went, and maps how full card memory is", () => {
+    const { port, put, get, m, go } = rig(4, 8192);
+    expect(port.view()).toMatchObject({ hostWrites: 0, hostReads: 0, lastWrite: -1, lastRead: -1 });
+    expect(port.view()!.fill).toHaveLength(8192 / 4 / NPU_CELL_WORDS);
+    expect(port.view()!.fill.every((f) => f === 0)).toBe(true);
+    put(0x40, Array.from({ length: 16 }, (_, k) => k + 1)); // exactly one cell: bytes 0x40 .. 0x80
+    put(0x80, [7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); // one word of the next
+    expect(port.view()).toMatchObject({ hostWrites: 32, lastWrite: 0x80 + 15 * 4 });
+    const f = port.view()!.fill;
+    expect(f[1]).toBe(1);
+    expect(f[2]).toBeCloseTo(1 / 16);
+    expect(f[0]).toBe(0);
+    get(0x40, 3);
+    expect(port.view()).toMatchObject({ hostReads: 3, lastRead: 0x48 });
+    m.bus.store32(R(NPU_REG.DESC), 4096); // the registers are not card memory
+    expect(port.view()!.hostWrites).toBe(32);
+    go([D.relu()]);
+    port.reset();
+    expect(port.view()).toMatchObject({ hostWrites: 0, hostReads: 0, lastWrite: -1 });
+  });
+
+  it("reads the parameter block of a Layer descriptor out of card memory", () => {
+    const { port, put, m } = rig(4, 16384);
+    put(0xa00, [0x0, 0x400, 0x800, 0x900, 8, 1]);
+    put(4096, [NpuOp.Layer, 0xa00, 0, 0, NpuOp.Relu, 0, 0, 0]);
+    m.bus.store32(R(NPU_REG.DESC), 4096);
+    m.bus.store32(R(NPU_REG.COUNT), 2);
+    const l = port.view()!.list;
+    expect(l[0]!.layer).toEqual({ w: 0, x: 0x400, out: 0x800, bias: 0x900, n: 8, relu: 1 });
+    expect(l[1]!.layer).toBeUndefined();
   });
 
   it("keeps the last steps only, and a Layer lists the blocks of card memory it reads and writes", () => {
