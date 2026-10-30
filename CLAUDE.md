@@ -23,3 +23,5 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - Use Edit, never rewrite a file from a script. UI sizes are relative units (`src/ui/scaling.test.ts` stays green).
 - Always commit your work when a task is done (explicit paths only, after the touched tests and `npm run typecheck` pass); do not leave it uncommitted for the user to ask.
 - Commit subject <= 72 chars, body <= 3 lines. Final report: 3 lines max, no recap of the diff.
+- Style: Simplified Technical English (ASD-STE100). Short active sentences, one idea each, no filler.
+- No text between tool calls. Speak only to report a blocker, ask a needed question, or give the final report. Give longer explanations only when asked.
