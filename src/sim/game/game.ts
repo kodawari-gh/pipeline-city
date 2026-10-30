@@ -151,9 +151,9 @@ export class Game {
   recentUnlocks: ItemInfo[] = [];
   /** Sandbox: the rules level (patience, payout, demand, mix) is pinned here instead of following the score. */
   sandboxLevel = SANDBOX_LEVEL;
-  /** Sandbox: job classes switched off for the natural arrivals (spawnKey still adds any). Not saved, like the pinned level. */
+  /** Sandbox: job classes switched off for the natural arrivals (spawnKey still adds any). Saved (docs/SAVE.md "sandbox"). */
   sandboxOff = new Set<JobClassId>();
-  /** Sandbox: kinds of job (job dex ids) switched off for the natural arrivals, on top of `sandboxOff`. Not saved. */
+  /** Sandbox: kinds of job (job dex ids) switched off for the natural arrivals, on top of `sandboxOff`. Saved. */
   sandboxKindsOff = new Set<string>();
 
   /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */

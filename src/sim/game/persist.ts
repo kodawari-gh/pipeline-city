@@ -8,9 +8,9 @@ import { getOsSpec } from "../os";
 import { SANDBOX_MONEY } from "./economy";
 import type { Game } from "./game";
 import type { Key } from "./internal";
-import type { DexRecord } from "./jobdex";
+import { JOB_DEX, type DexRecord } from "./jobdex";
 import { JOB_LOG_CAP, type JobLogEntry } from "./joblog";
-import { levelFor } from "./levels";
+import { JOB_CLASSES, levelFor, type JobClassId } from "./levels";
 import { SAVE_VERSION, type SavedKey, type SavedNet, type SavedPlugged, type SaveV4 } from "./save";
 
 /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
@@ -40,7 +40,9 @@ export function toSave(this: Game): SaveV4 {
     progress: { ...this.progress },
     os: this.os && { spec: this.os.spec.id, deviceId: this.os.deviceId },
     firstBootTick: this.firstBootTick,
-    ...(this.sandbox ? { sandbox: true } : {}),
+    ...(this.sandbox ? { sandbox: true, sandboxLevel: this.sandboxLevel } : {}),
+    ...(this.sandbox && this.sandboxOff.size ? { sandboxOff: [...this.sandboxOff] } : {}),
+    ...(this.sandbox && this.sandboxKindsOff.size ? { sandboxKindsOff: [...this.sandboxKindsOff] } : {}),
     clientBase: this.clientBase,
     level: this.lvl,
     levelTicks: Object.fromEntries(Object.entries(this.levelTicks).map(([k, v]) => [k, v])),
@@ -81,6 +83,13 @@ export function restoreSave(this: Game, s: SaveV4): void {
   }
   this.machine.prng.setState(s.prngState);
   this.money = this.sandbox ? SANDBOX_MONEY : s.money;
+  if (this.sandbox) {
+    // the sandbox's own edits: the pinned level and what is switched off (an id that no longer exists is dropped)
+    if (s.sandboxLevel !== undefined) this.sandboxLevel = s.sandboxLevel;
+    const classes = new Set<string>(JOB_CLASSES.map((c) => c.id)), kinds = new Set(JOB_DEX.filter((e) => !e.planned).map((e) => e.id));
+    this.sandboxOff = new Set((s.sandboxOff ?? []).filter((id) => classes.has(id)) as JobClassId[]);
+    this.sandboxKindsOff = new Set((s.sandboxKindsOff ?? []).filter((id) => kinds.has(id)));
+  }
   this.baseTick = s.baseTick;
   this.nextKeyId = s.nextKeyId;
   this.completed = s.completed;

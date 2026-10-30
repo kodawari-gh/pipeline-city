@@ -146,6 +146,33 @@ describe("sandbox save", () => {
     const c = new Game({ seed: 1 });
     expect(Game.fromSave(JSON.parse(JSON.stringify(c.toSave()))).sandbox).toBe(false);
   });
+  it("keeps the pinned level and the classes and kinds switched off, so one workload can be tested again and again", () => {
+    const g = sb({ preassembled: true });
+    g.setLevel(14);
+    g.setJobClasses(["cli", "web"]);
+    g.setJobKinds(["fib", "mandel"]);
+    const save = JSON.parse(JSON.stringify(g.toSave()));
+    expect(save).toMatchObject({ sandboxLevel: 14, sandboxOff: ["cli", "web"], sandboxKindsOff: ["fib", "mandel"] });
+    const g2 = Game.fromSave(parseSave(save), { baseDemandPerTick: 0 });
+    const s = g2.snapshot().level;
+    expect(s).toMatchObject({ level: 14, sandbox: true });
+    expect([...s.classesOff].sort()).toEqual(["cli", "web"]);
+    expect([...s.kindsOff].sort()).toEqual(["fib", "mandel"]);
+    // a game that changed nothing writes the level only, and an id that no longer exists is dropped
+    const plain = JSON.parse(JSON.stringify(sb({ preassembled: true }).toSave()));
+    expect(plain.sandboxLevel).toBe(8);
+    expect(plain).not.toHaveProperty("sandboxOff");
+    expect(plain).not.toHaveProperty("sandboxKindsOff");
+    const old = Game.fromSave(parseSave({ ...save, sandboxOff: ["cli", "gone"], sandboxKindsOff: ["gone"] }), { baseDemandPerTick: 0 });
+    expect(old.snapshot().level.classesOff).toEqual(["cli"]);
+    expect(old.snapshot().level.kindsOff).toEqual([]);
+    expect(() => parseSave({ ...save, sandboxLevel: 99 })).toThrow(/sandboxLevel/);
+    expect(() => parseSave({ ...save, sandboxOff: "cli" })).toThrow(/sandboxOff/);
+    // a campaign game ignores them
+    const c = new Game({ seed: 1 }), cs = JSON.parse(JSON.stringify(c.toSave()));
+    expect(cs).not.toHaveProperty("sandboxLevel");
+    expect(Game.fromSave(parseSave({ ...cs, sandboxLevel: 14, sandboxOff: ["cli"] })).snapshot().level).toMatchObject({ sandbox: false, classesOff: [] });
+  });
   it("is deterministic", () => {
     const run = () => {
       const g = sb({ preassembled: true, seed: 9 });

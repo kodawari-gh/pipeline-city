@@ -152,6 +152,14 @@ export interface SaveV4 {
   firstBootTick?: number | null;
   /** Sandbox game (docs/SANDBOX.md). Optional and additive: absent means a campaign game; written only when true. */
   sandbox?: boolean;
+  /**
+   * The sandbox's own edits (docs/SANDBOX.md), so a test setup survives a reload: the pinned rules level, the job classes and the kinds of job switched
+   * off for the natural arrivals. Optional and additive, written only by a sandbox game (the two lists only when not empty); ignored in a campaign.
+   * Ids that no longer exist are dropped on load.
+   */
+  sandboxLevel?: number;
+  sandboxOff?: string[];
+  sandboxKindsOff?: string[];
   /** The guided tutorial's per-viewer state (skipped, acks...), attached by the UI so a loaded save resumes it. Opaque to the sim; sanitised by the UI. */
   tutorial?: unknown;
   /**
@@ -325,6 +333,10 @@ export function parseSave(input: unknown): SaveV4 {
   }
   if (s.firstBootTick !== undefined && s.firstBootTick !== null && !isNat(s.firstBootTick)) throw new Error('save: "firstBootTick" must be a non-negative integer or null');
   if (s.sandbox !== undefined && typeof s.sandbox !== "boolean") throw new Error('save: "sandbox" must be a boolean');
+  if (s.sandboxLevel !== undefined && (!isNat(s.sandboxLevel) || s.sandboxLevel < 1 || s.sandboxLevel > MAX_LEVEL)) throw new Error(`save: "sandboxLevel" must be a whole number from 1 to ${MAX_LEVEL}`);
+  for (const k of ["sandboxOff", "sandboxKindsOff"] as const) {
+    if (s[k] !== undefined && (!Array.isArray(s[k]) || (s[k] as unknown[]).some((x) => typeof x !== "string"))) throw new Error(`save: "${k}" must be a list of ids`);
+  }
   for (const k of ["clientBase"] as const) {
     if (s[k] !== undefined && (typeof s[k] !== "number" || !Number.isFinite(s[k]) || (s[k] as number) < 0)) throw new Error(`save: "${k}" must be a finite number >= 0`);
   }
