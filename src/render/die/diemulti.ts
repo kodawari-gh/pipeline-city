@@ -118,12 +118,14 @@ export class DieView {
    */
   setZoom(z: number, seen = z, view: LodRect | null = this.view) {
     this.z = z; this.zSeen = seen; this.view = view;
-    const [c0, c1] = DEVICE_LOD.die.core, coreView = smooth(c0, c1, seen);
+    // each tile's zoom by its own distance from the view centre; the core view starts from the best-placed one, so zooming on a core off the middle of the die still gets there
+    const seenOf = this.cores.map((c) => (view ? seenZoom(z, deviceLod(c.tile.rect, view).focus) : seen));
+    const [c0, c1] = DEVICE_LOD.die.core, coreView = smooth(c0, c1, Math.max(seen, ...seenOf));
     this.shared.setZoom(z, seen);
     this.shared.root.alpha = 1 - coreView;
     this.shared.root.visible = coreView < 0.99;
     this.cores.forEach((c, k) => {
-      const s = view ? seenZoom(z, deviceLod(c.tile.rect, view).focus) : seen;
+      const s = seenOf[k]!;
       c.view.setZoom(z * c.tile.scale, s * c.tile.scale);
       const a = 1 - smooth(WASH_FROM, WASH_TO, s * c.tile.scale);
       this.washA[k] = a;
