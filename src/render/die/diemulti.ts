@@ -261,14 +261,6 @@ export class DieView {
       // the core badges and the border stay when the wash has faded: a core you zoomed into still says which it is
       const lw = Math.max(2, q.w * 0.004);
       b.roundRect(q.x, q.y, q.w, q.h, rad).stroke({ color: lead.color, width: lw, alpha: asleep(lead) ? 0.35 : 0.9 });
-      const bs = Math.max(16, Math.min(56, q.h * 0.07)), bwid = bs * 2.1, gap = bs * 0.2;
-      w.models.forEach((m, i) => {
-        const bx = q.x + lw + i * (bwid + gap), byy = q.y + lw;
-        b.roundRect(bx, byy, bwid, bs * 1.2, bs * 0.25).fill({ color: m.color, alpha: asleep(m) ? 0.45 : 1 });
-        const t = new Text({ text: m.label, style: { fontFamily: MONO, fontSize: bs, fontWeight: '700', fill: T.dark ? '#0b0d12' : '#ffffff' }, resolution: 2 });
-        t.anchor.set(0.5, 0.5); t.position.set(bx + bwid / 2, byy + bs * 0.6);
-        wash.tagTexts.addChild(t);
-      });
       if (w.selected) { const o = lw * 2.5; box(r, q.x - o, q.y - o, q.w + 2 * o, q.h + 2 * o, rad + o, { stroke: T.ink, lw: lw * 1.2, sa: 0.85 }); }
     }
     this.washes.forEach((_, k) => this.wearWash(k));
