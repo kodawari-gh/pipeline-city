@@ -103,3 +103,21 @@ describe('GPU replay', () => {
     expect(p.seek(9, 0).length).toBe(2); // beyond the history: the oldest
   });
 });
+
+describe('GPU scrubbing a stepped card', () => {
+  it('after stepping 1 and then 10 cycles the scrubber reaches the earlier cycle', () => {
+    const p = new GpuPlayer();
+    const run = (n: number) => Array.from({ length: n }, (_, k) => step(k * 4, { startCycle: k }));
+    p.feed(snap(run(1)));
+    expect(p.span).toBe(1);
+    p.feed(snap(run(11)));
+    expect(p.span).toBe(11);
+    const early = p.seek(0, 1), late = p.seek(0, 11);
+    expect(early.cycle).toBe(1);
+    expect(early.step?.pc).toBe(4);
+    expect(late.step?.pc).toBe(40);
+    expect(p.scrubbed).toBe(true);
+    p.resume();
+    expect(p.scrubbed).toBe(false);
+  });
+});

@@ -1,5 +1,6 @@
 import { Container, Graphics, type Text } from 'pixi.js';
 import type { DeviceSnap, GpuSnap } from '../../sim/game/types';
+import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '../../game/scrub';
 import type { GpuStepKind } from '../../sim/ref/gpuref';
 import { label, mix } from '../ink';
 import type { Theme } from '../theme';
@@ -162,7 +163,15 @@ export class GpuView {
         f.turns += (target - f.turns) * Math.min(1, dt * 1.2);
         f.fan.spin(f.turns * dt * BLADES_PER_TURN, Math.min(1, f.turns / FAN_FULL));
       }
-      c.tick = c.player.advance(dt);
+      // a paused game can be scrubbed: the Trace panel names a cycle of this card's last instructions and the card shows the machine at it
+      const mine = scrubTarget.peek() === `gpu:${c.slot}`, cur = mine ? scrubCursor.peek() : null;
+      if (cur !== null) c.tick = c.player.seek(0, cur);
+      else { if (c.player.scrubbed) c.player.resume(); c.tick = c.player.advance(dt); }
+      if (mine) {
+        const hi = Math.floor(c.player.span), old = scrubRange.peek(), sh = Math.round(c.player.cycle);
+        if (!old || old.lo !== 0 || old.hi !== hi) scrubRange.value = hi > 0 ? { lo: 0, hi } : null;
+        if (sh !== scrubShown.peek()) scrubShown.value = sh;
+      }
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;

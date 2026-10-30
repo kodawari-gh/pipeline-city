@@ -2,6 +2,7 @@
 // groups of a snapshot's stored state), lines out, so the panel only keeps and shows them.
 
 import { Ev, Which } from '../../sim/engines/common';
+import type { GpuStep } from '../../sim/ref/gpuref';
 import { RowOutcome } from '../../sim/engines/dram';
 import { FAULT_CAUSE_LINE, IRQ, VmFault } from '../../sim/isa/memmap';
 
@@ -80,4 +81,36 @@ export class TraceBuffer {
   }
 
   clear(): void { this.lines = []; this.keys = []; this.seen.clear(); this.last = -1; }
+}
+
+// A graphics card's side of the panel: its last instructions (the snapshot's `trace`, at most 64) as lines, in the groups the card has.
+
+export type GpuGroup = 'launch' | 'mask' | 'mem' | 'reg' | 'sched';
+
+/** `cycle` counts from the first instruction of the window: the cycle the card view's scrubber takes. */
+export interface GpuLine { cycle: number; group: GpuGroup; text: string }
+
+const GROUP_OF: Record<GpuStep['kind'], GpuGroup> = { sys: 'launch', mask: 'mask', br: 'mask', ld: 'mem', st: 'mem', alu: 'reg' };
+const STALL_TEXT = { bank: 'bank conflict', mem: 'waiting for memory', barrier: 'waiting at the barrier' } as const;
+const lanesOn = (m: number) => { let n = 0; for (let v = m >>> 0; v; v &= v - 1) n++; return n; };
+
+/** The window's instructions as lines: one per instruction, plus a scheduling line when the warp or SM changes or the instruction stalls. */
+export function gpuLines(trace: readonly GpuStep[], launches = 0): GpuLine[] {
+  const out: GpuLine[] = [];
+  if (trace.length === 0) return out;
+  const timed = trace.every((s) => s.startCycle !== undefined), base = timed ? trace[0]!.startCycle! : 0;
+  let at = 0, prev: GpuStep | null = null;
+  out.push({ cycle: 0, group: 'launch', text: `launch ${launches}: kernel at ${hex(trace[0]!.pc * 4)}` });
+  for (const s of trace) {
+    const cycle = timed ? Math.max(0, s.startCycle! - base) : at;
+    const where = s.sm !== undefined || s.warp !== undefined ? `SM ${s.sm ?? 0} warp ${s.warp ?? 0}: ` : '';
+    const mask = s.maskAfter !== undefined && s.maskAfter !== s.mask ? `, mask ${hex(s.mask, 2)} -> ${hex(s.maskAfter, 2)}` : `, ${lanesOn(s.mask)} lanes`;
+    if (prev && (prev.sm !== s.sm || prev.warp !== s.warp)) out.push({ cycle, group: 'sched', text: `scheduler issues ${where.slice(0, -2)}` });
+    const addr = s.banks ? ` (${s.banks.filter((b) => b > 0).length} banks, busiest ${Math.max(...s.banks)})` : '';
+    out.push({ cycle, group: GROUP_OF[s.kind], text: `${where}${hex(s.pc * 4)} ${s.name}${s.dest !== null ? ` -> v${s.dest}` : ''}${mask}${addr}${s.cost > 1 ? `, ${s.cost} cycles` : ''}` });
+    if (s.stall) out.push({ cycle, group: 'sched', text: `${where}stalled: ${STALL_TEXT[s.stall]} (${s.cost} cycles)` });
+    at += Math.max(1, s.cost);
+    prev = s;
+  }
+  return out;
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Ev } from '../../sim/engines/common';
 import { RowOutcome } from '../../sim/engines/dram';
-import { decodeEvent, decodeEvents, TraceBuffer } from './trace';
+import type { GpuStep } from '../../sim/ref/gpuref';
+import { decodeEvent, decodeEvents, gpuLines, TraceBuffer } from './trace';
 
 describe('trace decoding', () => {
   it('says what the OS and the MMU did in words', () => {
@@ -36,5 +37,22 @@ describe('trace decoding', () => {
     const b = new TraceBuffer(3);
     for (let i = 0; i < 6; i++) b.add([i, Ev.Iret, i, 0, 0, 0]);
     expect(b.lines.map((l) => l.cycle)).toEqual([3, 4, 5]);
+  });
+});
+
+describe('card trace lines', () => {
+  const st = (pc: number, o: Partial<GpuStep> = {}): GpuStep => ({ pc, name: 'vadd', kind: 'alu', mask: 0xff, cost: 1, banks: null, dest: 1, ...o });
+  it('groups a window into launch, mask, mem, reg and sched lines on the window clock', () => {
+    const lines = gpuLines([
+      st(0, { startCycle: 5, sm: 0, warp: 0 }),
+      st(1, { startCycle: 6, sm: 0, warp: 1, name: 'vld', kind: 'ld', cost: 3, banks: [2, 0], stall: 'bank' }),
+      st(2, { startCycle: 9, sm: 0, warp: 1, name: 'mpush', kind: 'mask', mask: 0xff, maskAfter: 0x0f }),
+      st(3, { startCycle: 10, sm: 0, warp: 1, name: 'halt', kind: 'sys' }),
+    ], 2);
+    expect(lines[0]).toMatchObject({ cycle: 0, group: 'launch' });
+    expect(lines.map((l) => l.group)).toEqual(['launch', 'reg', 'sched', 'mem', 'sched', 'mask', 'launch']);
+    expect(lines.find((l) => l.group === 'mem')).toMatchObject({ cycle: 1 });
+    expect(lines.find((l) => l.group === 'mask')!.text).toContain('0xff -> 0x0f');
+    expect(gpuLines([])).toEqual([]);
   });
 });

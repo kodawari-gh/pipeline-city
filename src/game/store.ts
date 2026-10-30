@@ -115,6 +115,8 @@ export const setJobKinds = (off: string[]) => send({ type: 'setJobKinds', off })
 /** While paused: run the machine a number of CPU cycles, or one whole base tick (the Trace panel's step buttons). */
 export const stepCycles = (cycles: number) => send({ type: 'step', cycles });
 export const stepTick = () => send({ type: 'stepTick' });
+/** While paused: tick the card in a PCIe slot for a number of its cycles. */
+export const stepGpu = (slot: string, cycles: number) => send({ type: 'stepGpu', slot, cycles });
 export function setSpeed(s: Speed) {
   speed.value = s;
   if (s !== 0) lastRunSpeed.value = s;

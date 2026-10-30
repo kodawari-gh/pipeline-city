@@ -2,13 +2,13 @@
 // with step buttons for the paused machine. Meant for watching what the OS and the CPU do, and for spotting what looks wrong (docs/render/live.md "Following the machine").
 import { signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { setSpeed, snapshot, speed, stepCycles, stepTick, viewCore } from '../../game/store';
-import { scrubCursor, scrubRange, scrubShown } from '../../game/scrub';
+import { setSpeed, snapshot, speed, stepCycles, stepGpu, stepTick, viewCore } from '../../game/store';
+import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub } from '../../game/scrub';
 import { memoryTable, sizeText } from '../../render/board/ramlayout';
 import { tileModels } from '../../render/die/coretiles';
 import { isDark } from '../../render/theme';
 import { Icon } from '../kit/Icons';
-import { TraceBuffer, type TraceGroup } from './trace';
+import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
 
 export const traceOpen = signal(false);
 export const toggleTrace = () => { traceOpen.value = !traceOpen.value; };
@@ -23,12 +23,26 @@ const GROUPS: { id: TraceGroup; label: string; title: string }[] = [
   { id: 'pred', label: 'Pred', title: 'Branch predictor updates' },
 ];
 
+const GPU_GROUPS: { id: GpuGroup; label: string; title: string }[] = [
+  { id: 'launch', label: 'Launch', title: 'The launch and the end of the kernel' },
+  { id: 'mask', label: 'Mask', title: 'Mask changes and branches' },
+  { id: 'mem', label: 'Mem', title: 'Loads and stores, with their bank loads' },
+  { id: 'reg', label: 'Reg', title: 'Arithmetic that writes a vector register' },
+  { id: 'sched', label: 'Sched', title: 'Which warp the scheduler issues, and stalls' },
+];
+
 const buffer = new TraceBuffer(500);
+const gpuShown = signal<Set<GpuGroup>>(new Set<GpuGroup>(['launch', 'mask', 'mem', 'reg', 'sched']));
 const shown = signal<Set<TraceGroup>>(new Set<TraceGroup>(['os', 'tlb', 'dram']));
 const rev = signal(0);
 
 /** Pause, then run the machine (the sim only steps a paused game). */
-const stepBy = (cycles: number) => { if (speed.value !== 0) setSpeed(0); scrubCursor.value = null; stepCycles(cycles); };
+const stepBy = (cycles: number) => {
+  if (speed.value !== 0) setSpeed(0);
+  scrubCursor.value = null;
+  const t = scrubTarget.peek();
+  if (t === 'cpu') stepCycles(cycles); else stepGpu(t.slice(4), cycles);
+};
 const stepOneTick = () => { if (speed.value !== 0) setSpeed(0); scrubCursor.value = null; stepTick(); };
 /** Move the paused die to a cycle of its history (clamped to what it holds). */
 const goTo = (c: number) => { const r = scrubRange.peek(); if (!r) return; scrubCursor.value = Math.max(r.lo, Math.min(r.hi, Math.round(c))); };
@@ -50,7 +64,12 @@ export function TracePanel() {
   const mt = s?.ram ? memoryTable(s.ram.regions, s.ram.bytes) : null;
   const progs = (s?.os?.queue ?? []).filter((j) => j.state === 'running').map((j) => { const p = mt?.procs.find((x) => x.owner === j.keyId); return { label: j.label, image: p?.image ?? 0, claimed: p?.claimed ?? 0 }; });
   const tiles = s?.cores ? tileModels(s.cores, isDark()) : [];
+  const cards = s?.gpus ?? [], target = scrubTarget.value, card = target === 'cpu' ? undefined : cards.find((c) => `gpu:${c.slot}` === target);
+  if (target !== 'cpu' && !card && cards.length === 0) selectScrub('cpu'); // the card is gone
+  const gOn = gpuShown.value;
+  const gLines = card ? gpuLines(card.trace, card.launches).filter((l) => gOn.has(l.group)) : [];
   const lines = buffer.lines.filter((l) => on.has(l.group));
+  const gToggle = (g: GpuGroup) => { const n = new Set(gOn); if (n.has(g)) n.delete(g); else n.add(g); gpuShown.value = n; };
   const toggle = (g: TraceGroup) => { const n = new Set(on); if (n.has(g)) n.delete(g); else n.add(g); shown.value = n; };
   return (
     <aside class="dock tracedock" aria-label="Trace">
@@ -69,6 +88,12 @@ export function TracePanel() {
           ))}
         </div>
       )}
+      {cards.length > 0 && (
+        <div class="trace-cores" role="group" aria-label="What the steps and the scrubber move">
+          <button class="tcore" aria-pressed={!card} title="Step and scrub the CPU die" onClick={() => selectScrub('cpu')}><b>CPU</b></button>
+          {cards.map((c) => <button key={c.slot} class="tcore" aria-pressed={card?.slot === c.slot} title={`Step and scrub the card in ${c.slot} (${c.lanes} lanes)`} onClick={() => selectScrub(`gpu:${c.slot}`)}><b>{c.slot}</b> <span class="mute">{c.phase}</span></button>)}
+        </div>
+      )}
       <div class="trace-steps" role="group" aria-label="Step the paused machine">
         <button title="Run one CPU cycle (pauses the game first)" onClick={() => stepBy(1)}>+1 cycle</button>
         <button title="Run 10 CPU cycles" onClick={() => stepBy(10)}>+10</button>
@@ -81,9 +106,20 @@ export function TracePanel() {
           <button title="One cycle back" disabled={at <= range.lo} onClick={() => goTo(at - 1)}>&#9664;</button>
           <input type="range" aria-label="Cycle" min={range.lo} max={range.hi} value={at < 0 ? range.hi : at} onInput={(e) => goTo(Number((e.currentTarget as HTMLInputElement).value))} />
           <button title="One cycle forward" disabled={at >= range.hi} onClick={() => goTo(at + 1)}>&#9654;</button>
-          <span class="mute">die at cycle {at}</span>
+          <span class="mute">{card ? `${card.slot} at cycle ${at}` : `die at cycle ${at}`}</span>
         </div>
       )}
+      {card ? (
+        <>
+          <div class="trace-filter" role="group" aria-label="Show">
+            {GPU_GROUPS.map((g) => <button key={g.id} class={gOn.has(g.id) ? 'on' : ''} aria-pressed={gOn.has(g.id)} title={g.title} onClick={() => gToggle(g.id)}>{g.label}</button>)}
+          </div>
+          <div class="trace-lines">
+            {gLines.length === 0 && <div class="mute">Nothing yet. The card has not run a kernel since power-on.</div>}
+            {gLines.map((l, i) => <div key={i} class={`tl tl-${l.group}${paused && l.cycle === at ? ' now' : ''}`} title={paused ? 'Show the card at this cycle' : undefined} onClick={paused ? () => goTo(l.cycle) : undefined}><span class="tc">{l.cycle}</span> {l.text}</div>)}
+          </div>
+        </>
+      ) : <>
       <div class="trace-filter" role="group" aria-label="Show">
         {GROUPS.map((g) => <button key={g.id} class={on.has(g.id) ? 'on' : ''} aria-pressed={on.has(g.id)} title={g.title} onClick={() => toggle(g.id)}>{g.label}</button>)}
       </div>
@@ -91,6 +127,7 @@ export function TracePanel() {
         {lines.length === 0 && <div class="mute">Nothing yet. Pause and step, or run: events appear as the CPU does them.</div>}
         {lines.map((l, i) => <div key={i} class={`tl tl-${l.group}${paused && l.cycle === at ? ' now' : ''}`} title={paused ? 'Show the die at this cycle' : undefined} onClick={paused ? () => goTo(l.cycle) : undefined}><span class="tc">{l.cycle}</span> {l.text}</div>)}
       </div>
+      </>}
     </aside>
   );
 }

@@ -99,11 +99,16 @@ export class GpuPlayer {
 
   /** Windows that can be sought back into (the one on show last). */
   get windows(): number { return this.past.length; }
+  /** Cycles in the newest window (what `seek(0, c)` can reach: 0..span). */
+  get span(): number { const last = this.pending ?? this.past[this.past.length - 1]; return last ? timeline(last).total : 0; }
+  /** The cycle the replay is at now. */
+  get cycle(): number { return this.t; }
   /** True while the replay is held on a sought cycle. */
   get scrubbed(): boolean { return this.frozen; }
 
   /** Hold the replay at `cycle` of the window `back` windows before the newest (0 = the newest), and return the machine there. */
   seek(back: number, cycle = 0): GpuTick {
+    if (this.pending) { this.keep(this.pending); this.pending = null; } // the newest window is the one to look into
     const steps = this.past[this.past.length - 1 - Math.max(0, Math.min(back, this.past.length - 1))];
     if (!steps) return IDLE;
     const tl = timeline(steps);

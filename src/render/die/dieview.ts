@@ -2,7 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { disassemble } from '../../sim/isa';
 import { Ev } from '../../sim/engines/common';
 import type { PipeSnap } from '../../sim/game/pipesnap';
-import { scrubCursor, scrubRange, scrubShown } from '../../game/scrub';
+import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '../../game/scrub';
 import type { Block, CpuPlan, Rect } from './cpuplan';
 import { cellRects, isTall, dieNear, type DieArt } from './dieart';
 import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
@@ -216,12 +216,12 @@ export class PlanView {
     if (!plan || !player) return;
     const T = this.T;
     // a paused game can be scrubbed: the Trace panel names a cycle and the die shows the machine at it
-    const cur = paused ? scrubCursor.peek() : null;
+    const cur = paused && scrubTarget.peek() === 'cpu' ? scrubCursor.peek() : null;
     if (cur !== null && cur !== player.shown() && player.seek(cur)) { this.packets = []; this.trails.clear(); this.cellSig = ''; this.glyphSig = '#'; }
     const fr = player.update(now, paused);
     const rg = player.range(), sh = player.shown();
     const old = scrubRange.peek();
-    if (this.scrubLead) {
+    if (this.scrubLead && scrubTarget.peek() === 'cpu') {
       if ((rg?.lo ?? -1) !== (old?.lo ?? -1) || (rg?.hi ?? -1) !== (old?.hi ?? -1)) scrubRange.value = rg;
       if (sh !== scrubShown.peek()) scrubShown.value = sh;
     }

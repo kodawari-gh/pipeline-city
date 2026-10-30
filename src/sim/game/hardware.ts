@@ -85,6 +85,19 @@ export function gpuSnaps(this: Game): GpuSnap[] {
   return out;
 }
 
+/**
+ * Debug stepping of one card (the paused game's "step" buttons for a card): tick the card in slot `slot` for `cycles` of its own ticks (a tick is one card
+ * cycle on the pipelined engines), stopping when it goes idle. The card's trace (the last 64 instructions) then ends at the cycle reached. Returns the ticks run.
+ */
+export function stepGpu(this: Game, slot: string, cycles: number): number {
+  const port = this.gpus.find((p) => p.name === slot);
+  if (!port || !port.present || !this.powered || this.postError || this.fault()) return 0;
+  const n = Math.max(1, Math.min(100000, Math.floor(cycles)));
+  let ran = 0;
+  while (ran < n && port.isBusy) { port.tick(); ran++; }
+  return ran;
+}
+
 /** The working graphics card the video cable is plugged into (the GPU in slot `this.video`), or null when it goes to the board, or that card is gone or burnt. */
 export function videoCard(this: Game): InstalledDevice | null {
   if (this.video === "board") return null;

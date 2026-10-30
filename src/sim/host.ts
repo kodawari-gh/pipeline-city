@@ -37,6 +37,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
         return [];
       case 'step': { const ran = g.stepCycles(msg.cycles); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(ran) }]; }
       case 'stepTick': { const c0 = g.cycleNow(); g.advanceBaseTick(); return [{ type: 'snapshot', snapshot: g.snapshotAfterStep(g.cycleNow() - c0) }]; }
+      case 'stepGpu': g.stepGpu(msg.slot, msg.cycles); return [{ type: 'snapshot', snapshot: g.snapshot() }];
       case 'viewCore': g.setViewCore(msg.core); return [{ type: 'snapshot', snapshot: g.snapshot() }];
       case 'spawnKey': return refusable(g, 'spawnKey', g.spawnKey(msg.template, msg.scale));
       case 'clearQueue': return refusable(g, 'clearQueue', g.clearQueue());

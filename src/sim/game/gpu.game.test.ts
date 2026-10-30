@@ -91,3 +91,30 @@ describe("a gpu job in the machine", () => {
     expect(gpu.ticks).toBeLessThan(cpu.ticks);
   }, 120_000);
 });
+
+describe("stepping a paused card", () => {
+  it("ticks the card by 1 and then 10 cycles, and the card's trace grows to the cycle reached", () => {
+    const g = maxed();
+    g.install(buy(g, "gpu1"));
+    g.connectCable("pcie");
+    expect(g.powerButton().ok).toBe(true);
+    const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
+    const base = GPU_BASE + Number(slot.slice(4)) * GPU_STRIDE;
+    const bus = g.machine.bus;
+    const loop = ["lane v1", ...Array(40).fill("vaddi v1, v1, 1"), "halt"].join("\n");
+    assembleGpu(loop).program.forEach((w, k) => bus.store32(base + GPU_MEM + 4 * k, w));
+    bus.store32(base + GPU_REG.CMD, 1);
+    const card = () => g.snapshot().gpus!.find((x) => x.slot === slot)!;
+    expect(g.stepGpu("pcie9", 5)).toBe(0); // no such card
+    // through the hop onto the card, then instructions
+    let ran = 0;
+    while (card().phase !== "run") ran += g.stepGpu(slot, 1);
+    expect(ran).toBeGreaterThan(0);
+    expect(card().trace).toHaveLength(0);
+    expect(g.stepGpu(slot, 1)).toBe(1);
+    expect(card().trace).toHaveLength(1);
+    expect(g.stepGpu(slot, 10)).toBe(10);
+    expect(card().trace).toHaveLength(11);
+    expect(card().stats.cycles).toBe(11);
+  });
+});
