@@ -490,6 +490,12 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .modal .pplain { font-size: 0.85rem; color: var(--ink); opacity: .92; }
 .modal .pactions { margin-top: 0.6rem; justify-content: flex-end; }
 .modal button { font-size: 0.8rem; padding: 0.35rem 0.8rem; }
+/* The crash screen (CrashPanel.tsx): the headline, a few chips, and the whole report in a scrolling block on request. */
+.modal.crash { width: min(100%, 44rem); max-height: 100%; overflow: hidden; }
+.crash-head { position: relative; display: flex; align-items: center; padding-right: 2rem; }
+.crash-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
+.crash-line { margin: 0; font: 600 0.8rem var(--mono); color: var(--bad); overflow-wrap: anywhere; }
+.crash-text { margin: 0; min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; padding: 0.5rem 0.6rem; font: 0.68rem/1.35 var(--mono); border: 1px solid var(--glass-line); border-radius: 0.4rem; white-space: pre; user-select: text; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(0.6rem) scale(.97); } to { opacity: 1; transform: none; } }
 

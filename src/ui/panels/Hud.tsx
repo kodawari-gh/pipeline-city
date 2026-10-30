@@ -25,6 +25,7 @@ import { TutorialCard } from '../tutorial/TutorialCard';
 import { toggleTrace, TracePanel, traceOpen } from './TracePanel';
 import { AlmanacPanel } from './AlmanacPanel';
 import { LogPanel } from './LogPanel';
+import { CrashPanel } from './CrashPanel';
 import {
   netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from '../state';
@@ -269,6 +270,7 @@ export function Hud() {
       <TracePanel />
       <AlmanacPanel />
       <LogPanel />
+      <CrashPanel />
       <Tooltip />
       <LevelUpModal />
       <div class="stack">

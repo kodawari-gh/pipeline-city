@@ -129,6 +129,12 @@ GPU model: 8 to 32 lanes with a banked memory of its own, as three engines (a lo
 - The renderer tells the worker which machine is focused. That machine streams detailed state, and others send a few summary numbers per tick, so cost stays bounded as the fleet grows.
 - No SharedArrayBuffer for now (needs cross-origin isolation headers, awkward on static hosting).
 
+## Crash report
+
+An illegal instruction, a bad address or any other throw inside the sim (`RangeError` from an engine, a bug in a feature file) used to escape the worker's tick and repeat every 100 ms until the tab was closed. Now `advance` and `handleMessage` (`src/sim/host.ts`) catch it, pause the sim (`speed` 0) and build a `CrashReport` (`src/sim/crash.ts`, `recordCrash`); the worker posts it once (`takeCrash`) as `{ type: 'crash' }`, and the store's `crash` signal shows `CrashPanel` (`src/ui/panels/CrashPanel.tsx`).
+
+The report is plain data: the error and stack, the tick, phase and cycles, the OS and parts, each core's pc, registers and interrupt, protection and MMU state, the kernel job table, where the keys are, the RAM regions (`Game.ramRegions`), hex windows (around the address, the kernel vectors, the job table), the last 40 game events and the game itself as a save taken right after the crash (`save`, mid-tick: load it to replay). `fault.where` says what lives at the address ("past the end of the kernel", "outside RAM"); `text` is the same as plain text for pasting. The panel offers Copy report, Download report (`pipeline-city-crash-<tick>.json`) and Download save. Every section is built on its own, so one that throws never loses the rest; with no game the report is just the error. `crash.test.ts` covers the pieces, a report from a booted game and the host's pause-and-post-once.
+
 ## Pacing and first decision
 
 At 1 tick/s the first request should take **about 20 to 40 seconds** on the starting unpipelined CPU, roughly 20 to 40 instructions of generated CLI program. Faster hardware shrinks that sharply. The first purchase is a visible **CPU vs RAM trade-off**: with limited money the player picks a faster clock or more RAM/cache, and the first workload's profile makes each pay off differently.

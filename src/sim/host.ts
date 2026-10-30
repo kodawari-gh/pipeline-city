@@ -3,6 +3,7 @@
 
 import { Game } from './game/game';
 import { CAMPAIGN_POWER_RATE, CAMPAIGN_START_MONEY } from './game/economy';
+import { crashReport, type CrashReport } from './crash';
 import type { FromSim, Speed, ToSim } from './protocol';
 
 export interface HostState {
@@ -10,16 +11,36 @@ export interface HostState {
   speed: Speed;
   /** Fractional base ticks owed (elapsed time x speed not yet simulated). */
   owed: number;
+  /** A crash report not yet posted (`takeCrash`). */
+  crash: CrashReport | null;
 }
 
 /** Catch-up cap per call. The worker calls every 100 ms, so this is far above what 64x needs (6.4 ticks per call). */
 export const MAX_TICKS_PER_FRAME = 128;
 
 export function newHost(): HostState {
-  return { game: null, speed: 1, owed: 0 };
+  return { game: null, speed: 1, owed: 0, crash: null };
 }
 
-/** Apply one message; returns the replies to post. Never throws. */
+/** The sim threw: pause it, and keep a report of the state it died in for `takeCrash`. A throw while one is waiting is its echo and is dropped. */
+export function recordCrash(state: HostState, e: unknown): void {
+  state.speed = 0;
+  if (state.crash) return;
+  try {
+    state.crash = crashReport(state.game, e);
+  } catch {
+    state.crash = crashReport(null, e);
+  }
+}
+
+/** The crash message to post, once, or nothing. */
+export function takeCrash(state: HostState): FromSim[] {
+  const report = state.crash;
+  state.crash = null;
+  return report ? [{ type: 'crash', report }] : [];
+}
+
+/** Apply one message; returns the replies to post. Never throws; a throw inside the sim also pauses it and adds a `crash` reply. */
 export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
   try {
     if (msg.type === 'init') {
@@ -67,7 +88,9 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
         return [{ type: 'saved', save: g.toSave() }];
     }
   } catch (e) {
-    return [{ type: 'error', message: (e as Error).message }];
+    // A refused action returns a reason; a throw after the game started is a bug or a machine fault, so keep the state it died in.
+    if (state.game && msg.type !== 'init') recordCrash(state, e);
+    return [{ type: 'error', message: (e as Error).message }, ...takeCrash(state)];
   }
 }
 
@@ -91,6 +114,10 @@ export function advance(state: HostState, elapsedMs: number, maxTicks = MAX_TICK
   const n = Math.min(Math.floor(state.owed), maxTicks);
   state.owed -= n;
   if (state.owed >= 1) state.owed -= Math.floor(state.owed); // drop the backlog beyond the cap
-  for (let i = 0; i < n; i++) g.advanceBaseTick();
+  try {
+    for (let i = 0; i < n; i++) g.advanceBaseTick();
+  } catch (e) {
+    recordCrash(state, e); // paused now: the worker posts the report instead of throwing again every 100 ms
+  }
   return n;
 }

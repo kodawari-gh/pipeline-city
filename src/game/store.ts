@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals';
 import { parseSave } from '../sim/game/save';
-import type { FromSim, SaveV1, Snapshot, Speed, ToSim } from '../sim/protocol';
+import type { CrashReport, FromSim, SaveV1, Snapshot, Speed, ToSim } from '../sim/protocol';
 
 /** Latest sim snapshot (null until the sim has started). */
 export const snapshot = signal<Snapshot | null>(null);
@@ -10,6 +10,8 @@ export const speed = signal<Speed>(DEFAULT_SPEED);
 /** The last running speed: what a resume goes back to, and what the speed control shows while paused. */
 export const lastRunSpeed = signal<Speed>(DEFAULT_SPEED);
 export const lastError = signal<string | null>(null);
+/** The report of the sim's last crash (it paused itself); the HUD shows it until it is dismissed (docs/ARCHITECTURE.md "Crash report"). */
+export const crash = signal<CrashReport | null>(null);
 /** An autosave found on startup; the HUD offers it before the sim starts. */
 export const autosaveOffer = signal<SaveV1 | null>(null);
 
@@ -36,6 +38,7 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
   saveWaiters = [];
   snapshot.value = null;
   lastError.value = null;
+  crash.value = null;
   autosaveOffer.value = null;
   speed.value = DEFAULT_SPEED;
   const w = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
@@ -45,7 +48,10 @@ export function startSim(save: SaveV1 | null, opts: { sandbox?: boolean; preasse
     const m = e.data;
     if (m.type === 'snapshot') snapshot.value = m.snapshot;
     else if (m.type === 'error') lastError.value = m.message;
-    else if (m.type === 'saved') {
+    else if (m.type === 'crash') {
+      crash.value = m.report;
+      speed.value = 0; // the sim paused itself
+    } else if (m.type === 'saved') {
       const waiters = saveWaiters;
       saveWaiters = [];
       const save = saveHooks.attach(m.save);
@@ -129,19 +135,31 @@ export function togglePause() {
   else setSpeed(0);
 }
 
+function download(name: string, text: string) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Download the current game as pipeline-city-<tick>.json. */
 export function exportSave() {
-  requestSave((save) => {
-    const blob = new Blob([JSON.stringify(save, null, 1)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pipeline-city-${save.baseTick}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
+  requestSave((save) => download(`pipeline-city-${save.baseTick}.json`, JSON.stringify(save, null, 1)));
+}
+
+/** Download the crash report (with the game as it was, so it can be loaded and replayed) as pipeline-city-crash-<tick>.json. */
+export function exportCrash(r: CrashReport) {
+  download(`pipeline-city-crash-${r.tick}.json`, JSON.stringify(r, null, 1));
+}
+
+/** Download only the game from a crash report, as a normal save file. */
+export function exportCrashSave(r: CrashReport) {
+  if (r.save) download(`pipeline-city-${r.tick}.json`, JSON.stringify(r.save, null, 1));
 }
 
 /** Read a save file, validate it, and restart the sim from it. Errors go to `lastError`. */

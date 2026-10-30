@@ -3,8 +3,9 @@
 
 import type { Snapshot } from './game/game';
 import type { SaveV4 } from './game/save';
+import type { CrashReport } from './crash';
 
-export type { Snapshot, SaveV4 };
+export type { Snapshot, SaveV4, CrashReport };
 /** The current save shape (older versions are migrated on load). The old name is kept for the main thread. */
 export type SaveV1 = SaveV4;
 
@@ -66,4 +67,6 @@ export type FromSim =
   | { type: 'ready' }
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'saved'; save: SaveV1 }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  /** The sim threw while running: it is paused, and the report says where and why (docs/ARCHITECTURE.md "Crash report"). */
+  | { type: 'crash'; report: CrashReport };
