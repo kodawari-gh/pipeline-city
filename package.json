@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "prod": "npm run build && vite preview --open",
     "test": "vitest run",
     "test:q": "vitest run --reporter=dot",
     "bench:speed": "node tools/bench-speed.mjs",

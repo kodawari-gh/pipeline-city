@@ -3,7 +3,7 @@
 Incremental game about building computing hardware. TypeScript, Vite, PixiJS (board), Preact + signals (UI), simulation in a Web Worker.
 
 ## Commands
-- `npm run dev` | `npm run typecheck` | `npm run build`
+- `npm run dev` | `npm run typecheck` | `npm run build` | `npm run prod` (build, then serve the optimized game and open it)
 - While working run only what you touched: `npx vitest run <path>`. Full `npm run test:q` (quiet) only before a push; plain `npm test` only to debug a failure.
 
 ## Where to look
