@@ -16,14 +16,18 @@ import type { Theme } from '../theme';
 export const CARD_LEN: Record<string, number> = { ...GPU_LEN, 'npu-1': 1500, 'npu-2': 1900 };
 const CARD_H: Record<string, number> = { ...GPU_H, 'npu-1': 196, 'npu-2': 214 };
 
+/** How far a card's north edge is above its slot's rail: a graphics card hangs mostly below the rail (away from the CPU), the rest sit centred. */
+const GPU_TOP = 150;
+const cardTop = (visual: string): number => (visual.startsWith('gpu') ? GPU_TOP : (CARD_H[visual] ?? 200) / 2);
+
 /** The board-space rectangle of a card in PCIe slot `i`: what a click or hover on it hits. */
 export const cardRect = (i: number, visual: string): Rect => {
   const h = CARD_H[visual] ?? 200;
-  return { x: NIC_BRACKET_X, y: nicY(i) - h / 2, w: (CARD_LEN[visual] ?? 1500) + (BD.x - NIC_BRACKET_X), h };
+  return { x: NIC_BRACKET_X, y: nicY(i) - cardTop(visual), w: (CARD_LEN[visual] ?? 1500) + (BD.x - NIC_BRACKET_X), h };
 };
 
 /** Where a card's north-west PCB corner is in board space (the origin of its `gpuPlan`). */
-export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({ x: BD.x, y: nicY(i) - (CARD_H[visual] ?? 200) / 2 });
+export const cardOrigin = (i: number, visual: string): { x: number; y: number } => ({ x: BD.x, y: nicY(i) - cardTop(visual) });
 
 /** The shroud plate over the die, in card-local units: dark with the heatsink's fins running across it. The view fades it away when zoomed in. */
 export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
@@ -45,24 +49,24 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
   const root = new Container(), g = new Graphics();
   root.addChild(g);
   const isGpu = visual.startsWith('gpu');
-  const L = CARD_LEN[visual] ?? 1500, H = CARD_H[visual] ?? 200, y = nicY(i), x0 = BD.x;
+  const L = CARD_LEN[visual] ?? 1500, H = CARD_H[visual] ?? 200, y = nicY(i), x0 = BD.x, top = y - cardTop(visual);
   const pcb = isGpu ? (T.dark ? '#1b2236' : '#3a4560') : (T.dark ? '#2a1d46' : '#6e5aa8');
-  box(g, x0 + 10, y - H / 2 + 16, L, H, 14, { fill: '#000000', fa: 0.3 });
-  box(g, x0, y - H / 2, L, H, 14, { fill: pcb, stroke: T.alu, lw: 6, sa: 0.55 });
+  box(g, x0 + 10, top + 16, L, H, 14, { fill: '#000000', fa: 0.3 });
+  box(g, x0, top, L, H, 14, { fill: pcb, stroke: T.alu, lw: 6, sa: 0.55 });
   // gold edge fingers over the slot
   for (let k = 0; k < 18; k++) g.rect(-2830 + k * 34, y - 14, 18, 28);
   g.fill({ color: T.pin, alpha: 0.85 });
   if (isGpu) {
     // the shroud frame, a row of fans along the top edge in their bezels, an accent stripe, the power plug blocks on the end
-    const p = gpuPlan(visual), o = { x: x0, y: y - H / 2 };
+    const p = gpuPlan(visual), o = { x: x0, y: top };
     box(g, o.x + p.shroud.x, o.y + p.shroud.y, p.shroud.w, p.shroud.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: T.line, lw: 4 });
     for (const f of p.fans) edgeFan(g, T, moveRect(f, o), false, '#1d2536', mix(T.alu, T.bg, 0.4)); // the case fans' look, edge-on
     g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
-    box(g, x0 + L - 150, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 });
-    if (visual === 'gpu-3') box(g, x0 + L - 290, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the second lead
+    box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 });
+    if (visual === 'gpu-3') box(g, x0 + L - 290, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the second lead
     // bracket with the display outputs
-    box(g, NIC_BRACKET_X, y - H / 2 - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
+    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
     if (!live) {
       // a still picture (shop tile): the cover and the blades drawn in
@@ -76,7 +80,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
         root.addChild(fan);
       }
     }
-    root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, y - H / 2 + 142, 30, T.alu, { head: true, a: 0.9 }));
+    root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, top + 142, 30, T.alu, { head: true, a: 0.9 }));
   } else {
     // the matrix unit: a die with its grid of multiply-accumulate cells, a heatsink on the bigger card
     const K = visual === 'npu-2' ? 8 : 4, die = 150 + K * 14, cx = x0 + 420, c0 = { x: cx - die / 2, y: y - die / 2 };
@@ -84,18 +88,18 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     const cell = (die - 36) / K;
     for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) g.rect(c0.x + 18 + a * cell + 2, c0.y + 18 + b * cell + 2, cell - 4, cell - 4);
     g.fill({ color: T.alu, alpha: 0.55 });
-    for (let k = 0; k < 4; k++) { g.rect(x0 + 760 + k * 60, y - H / 2 + 24, 30, 54); g.rect(x0 + 760 + k * 60, y + H / 2 - 78, 30, 54); }
+    for (let k = 0; k < 4; k++) { g.rect(x0 + 760 + k * 60, top + 24, 30, 54); g.rect(x0 + 760 + k * 60, y + H / 2 - 78, 30, 54); }
     g.fill({ color: mix(pcb, '#000000', 0.45) });
     if (visual === 'npu-2') {
       const hs = { x: x0 + 1060, y: y - 80, w: 640, h: 160 }, metal = T.dark ? '#7d89a4' : '#b9c3d8';
       box(g, hs.x, hs.y, hs.w, hs.h, 8, { fill: metal, stroke: T.line, lw: 4 });
       for (let x = hs.x + 22; x < hs.x + hs.w - 14; x += 26) g.moveTo(x, hs.y + 10).lineTo(x, hs.y + hs.h - 10);
       g.stroke({ width: 7, color: '#000000', alpha: 0.28 });
-      box(g, x0 + L - 150, y - H / 2 - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
+      box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
     }
-    box(g, NIC_BRACKET_X, y - H / 2 - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
+    box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
-    root.addChild(label(`NPU ${K}x${K}`, x0 + 60, y - H / 2 + 10, 34, T.alu, { head: true, a: 0.9 }));
+    root.addChild(label(`NPU ${K}x${K}`, x0 + 60, top + 10, 34, T.alu, { head: true, a: 0.9 }));
   }
   return root;
 }
