@@ -196,6 +196,7 @@ export class DieView {
 
   frame(now: number, paused = false, draw = true) {
     if (this.cores.length === 0) { this.shared.frame(now, paused, draw); return; }
+    this.shared.frameUncore(now, draw && this.shared.root.visible);
     for (const c of this.cores) c.view.frame(now, paused, draw && c.view.root.visible);
   }
 

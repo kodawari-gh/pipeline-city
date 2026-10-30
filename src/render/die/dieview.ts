@@ -218,6 +218,12 @@ export class PlanView {
   /** A core's access reached an outer unit (told by board.ts from the address): its block shows it. */
   touchUnit(unit: UncoreUnit, write: boolean, now: number, addr = 0) { this.uncore.touch(unit, write, now, addr); }
 
+  /** Paint the outer blocks only: what a multicore die's shared part does each frame (its replay has nothing to play; the tiles hold the cores). */
+  frameUncore(now: number, draw = true) {
+    this.uncoreG.clear();
+    if (draw && this.plan && this.uncoreG.visible) this.uncore.draw(this.uncoreG, this.plan.blocks, this.T, now);
+  }
+
   /** The machine's readings for the outer blocks (power, temperature, clock, coherence counters). */
   setUncore(input: UncoreInput | null, now: number) { this.uncore.set(input, now); }
 
