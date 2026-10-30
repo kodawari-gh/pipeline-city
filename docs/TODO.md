@@ -1,12 +1,12 @@
 # TODO
 
-Source of truth for the task runner in the separate `prompt-system` repo.
+Source of truth for tasks in this repository.
 
 ## Rules for every task
 
 - One task = one commit, touching only the paths listed in `Files`. Stage with `git add <paths>`, never `git add -A`.
 - `npm test` and `npm run build` must both pass before the commit. If they cannot, change nothing and say why in one line.
-- Read the task's `Docs`, not the whole repo. Do not read `legacy/`.
+- Read the task's `Docs`, not the whole repo.
 - UI code: every size is relative (rem, em, %, clamp). `src/ui/scaling.test.ts` must stay green.
 - Use the Edit tool, never rewrite a file from a script.
 - When done, delete the task's line.
@@ -21,12 +21,8 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Open now
 
-## GPU architecture (design: `docs/GPU.md`; one task = one commit; order is the ID order except R-tasks that say otherwise)
-
-
 ## Design notes (no code)
 
-- [ ] T86 [auto] {opus} OS tiers 2 and 3 design note. Cover cooperative multitasking (`os2`, level 8) and preemptive concurrency (`os3`, level 13), the program-slot count as a data field the kernel respects, the tick cost of a context switch, kernel changes, and a task split. Files: `docs/OS.md` (new section). Docs: `docs/OS.md`, `docs/PROGRESSION.md`. Done when: an "OS tiers 2 and 3" section exists, covers those points and ends with a task split for the owner to approve.
 - [ ] T87 [auto] {opus} Fast model and offline catch-up design note. Cover what is calibrated and how it is keyed (including installed accelerators and their clocks), when a cache entry is invalidated, how offline catch-up is computed and capped, and a task split. Files: `docs/SAVE.md` (new section). Docs: `docs/SAVE.md`, `docs/ACCEL.md`. Done when: a "Fast model" section exists, covers those points and ends with a task split for the owner to approve.
 
 ## Deferred until the UI pass is done (owner)
@@ -44,8 +40,5 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Later features (do not start without the owner)
 
-- [ ] T50 [owner] Make the `hpc` job class runnable (needs multicore, T53).
-- [ ] T52 [owner] OS tiers 2 and 3 (after T86).
-- [ ] T53 [owner] Multicore (after T85).
 - [ ] T54 [owner] Fast model and offline catch-up (after T87).
 - [ ] T55 [owner] World map, many datacenters, a second machine, Wi-Fi, a router UPS. Not designed.
