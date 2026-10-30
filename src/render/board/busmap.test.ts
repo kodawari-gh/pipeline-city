@@ -7,7 +7,7 @@ import { headerPin } from './pins';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
-  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, chipsetChain, deviceAt, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
   type Hop,
 } from './busmap';
 
@@ -25,6 +25,14 @@ describe('npuAccess', () => {
     expect(npuAccess(NPU_BASE + 0x10)).toEqual({ slot: 'pcie0', off: 0x10 });
     expect(npuAccess(GPU_BASE)).toBeNull();
     expect(npuAccess(NPU_BASE + NPU_PORTS.length * NPU_STRIDE)).toBeNull();
+  });
+});
+
+describe('hasTpm', () => {
+  it('finds the secure module by its kind: its slot is numbered (tpm0), never the bare name', () => {
+    expect(hasTpm([{ kind: 'cpu' }, { kind: 'tpm' }])).toBe(true);
+    expect(hasTpm([{ kind: 'cpu' }, { kind: 'gpu' }])).toBe(false);
+    expect(hasTpm([])).toBe(false);
   });
 });
 

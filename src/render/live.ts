@@ -18,7 +18,7 @@ import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHo
 import { FrameView, ScreenView } from './room/screenview';
 import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import { BusFlow, slice } from './board/busflow';
-import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
+import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 import { TierBudget, type LodRect } from './lod';
 
@@ -83,6 +83,7 @@ export class Live {
   private probes: Chain[] = [];
   /** The slots with a part in them and whether a real key is in the USB port, for the CPU's accesses to device windows (`touchDevice`). */
   private installed = new Set<string>();
+  private tpmFitted = false;
   private keyIn = false;
   /** The video cable's PC end is on the board's HDMI port (not on a card). */
   private boardVideo = true;
@@ -480,7 +481,7 @@ export class Live {
     for (const idx of this.memLit.keys()) out.push({ hops: [], mem: idx, force, pong: true });
     for (const st of s.storage ?? []) out.push({ ...this.driveMsg(st.slot, true), force, pong: true });
     for (const d of s.devices) if (/^pcie\d+$/.test(d.slot)) out.push({ hops: slotChain(d.slot, true), force, pong: true });
-    if (this.installed.has('tpm')) out.push({ hops: tpmChain(true), force, pong: true }); // the secure module on its header
+    if (this.tpmFitted) out.push({ hops: tpmChain(true), force, pong: true }); // the secure module on its header
     return out;
   }
 
@@ -538,7 +539,7 @@ export class Live {
     const now = this.gt, write = kind === 'store';
     if (hit.kind === 'key') { if (this.keyIn) this.fire('dev:key', { hops: keyChain(write) }, now, MIN_GAP); return; }
     if (hit.kind === 'chipset') { this.fire('dev:pch', { hops: chipsetChain(write) }, now, MIN_GAP); return; }
-    if (hit.kind === 'tpm') { if (this.installed.has('tpm')) this.fire('dev:tpm', { hops: tpmChain(write) }, now, MIN_GAP); return; }
+    if (hit.kind === 'tpm') { if (this.tpmFitted) this.fire('dev:tpm', { hops: tpmChain(write) }, now, MIN_GAP); return; }
     if (hit.kind === 'display') { // text for the screen leaves the CPU's video lanes for the HDMI port (not when the cable is on a card: the card's picture comes from the card)
       if (this.monitorLive && this.boardVideo) this.fire('video', { hops: VIDEO_CHAIN, cable: true }, now, 250);
       return;
@@ -593,6 +594,7 @@ export class Live {
     }
     this.snap = s;
     this.installed = new Set([...s.devices.map((d) => d.slot), ...(s.storage ?? []).map((d) => d.slot)]);
+    this.tpmFitted = hasTpm(s.devices);
     this.keyIn = !!s.plugged;
     this.boardVideo = (s.videoPort ?? 'board') === 'board';
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;

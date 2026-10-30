@@ -133,6 +133,9 @@ export function npuAccess(addr: number): { slot: string; off: number } | null {
 
 /** The CPU reads or writes one of the chipset's registers (the boot phase, the key's id...): over DMI. */
 export const chipsetChain = (write: boolean): Hop[] => [{ bus: 'dmi', dir: write ? 1 : -1 }];
+/** A secure module is fitted. Its slot is numbered like every other (`tpm0`, from `${type}${k}` in sim/board/board.ts), so it is found by kind, never by the name `tpm`. */
+export const hasTpm = (devices: readonly { kind: string }[]): boolean => devices.some((d) => d.kind === 'tpm');
+
 /** The TPM stands on a pin header off the I/O controller's trunk, which is on the chipset's LPC lanes: DMI, LPC, the header trunk. */
 export const tpmChain = (write: boolean): Hop[] => write
   ? [{ bus: 'dmi', dir: 1 }, { bus: 'lpc', dir: -1 }, { bus: 'hdr', dir: 1, pick: { header: 'TPM' } }]
