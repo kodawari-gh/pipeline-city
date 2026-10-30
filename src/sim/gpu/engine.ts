@@ -65,6 +65,16 @@ export interface GpuSmView {
   warps: GpuWarpView[];
 }
 
+/** One cache as the view shows it: the line held in each slot with the words it holds (they are read from card memory, which a write-through cache always matches), null where a slot is empty. */
+export interface GpuCacheView {
+  level: "L1" | "L2";
+  /** The SM an L1 belongs to (the L2 is the card's). */
+  sm?: number;
+  /** Words per line. */
+  lineWords: number;
+  lines: ({ line: number; words: number[] } | null)[];
+}
+
 export interface GpuEngine {
   readonly lanes: number;
   readonly banks: number;
@@ -89,6 +99,8 @@ export interface GpuEngine {
   reset(pc?: number, activeLanes?: number): void;
   /** SMs and warps for the view; engines without warps leave it out and the port shows one SM with one warp. */
   smViews?(): GpuSmView[];
+  /** The caches (one L1 per SM, the shared L2) with what they hold; engines without caches leave it out. */
+  cacheViews?(): GpuCacheView[];
   /** Run ONE card cycle. Returns the instruction issued in it, or null when the cycle was spent waiting. Throws `GpuFault` on a kernel fault. */
   step(): GpuStep | null;
 }

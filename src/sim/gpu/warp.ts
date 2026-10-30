@@ -14,7 +14,8 @@
 
 import { GPU_OPS, gpuDecode, type GpuInstr } from "../isa/gpu";
 import { GpuRef, type GpuStep } from "../ref/gpuref";
-import type { GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from "./engine";
+import type { DataCache } from "../engines/common";
+import type { GpuCacheView, GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from "./engine";
 import { GpuMemSystem, type GpuMemConfig } from "./memsys";
 
 /** Cycles before the first issue (fetch and decode of the first instruction) and after the last (execute, write-back). */
@@ -257,6 +258,17 @@ export class SmEngine implements GpuEngine {
 
   smViews(): GpuSmView[] {
     return this.cores.map((c) => c.views());
+  }
+
+  cacheViews(): GpuCacheView[] {
+    const { lineWords } = this.memsys.cfg, out: GpuCacheView[] = [];
+    const of = (level: GpuCacheView["level"], c: DataCache, sm?: number): GpuCacheView => ({
+      level, ...(sm === undefined ? {} : { sm }), lineWords,
+      lines: c.dump().map((line) => (line < 0 ? null : { line, words: Array.from(this.mem.subarray(line * lineWords, (line + 1) * lineWords)) })),
+    });
+    this.memsys.l1.forEach((c, k) => { if (c) out.push(of("L1", c, k)); });
+    if (this.memsys.l2) out.push(of("L2", this.memsys.l2));
+    return out;
   }
 
   step(): GpuStep | null {

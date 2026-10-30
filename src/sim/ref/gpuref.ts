@@ -66,7 +66,22 @@ export interface GpuStep {
   warp?: number;
   /** Why it took more than one cycle: a memory bank conflict, else null. */
   stall?: GpuStall | null;
+  /** What a vld / vst touched in card memory, for the card's memory popups. */
+  mem?: GpuMemTouch;
 }
+
+/** The words a vld / vst moved, as the card memory held them when it ran. */
+export interface GpuMemTouch {
+  /** Byte address and word moved for each active lane (same order). */
+  addrs: number[];
+  data: number[];
+  /** The words of memory around the first address (`GPU_AROUND` of them from byte address `at`), after the instruction. */
+  at: number;
+  around: number[];
+}
+
+/** Words of card memory a popup shows around the address an instruction touched. */
+export const GPU_AROUND = 9;
 
 /** Why an instruction (or a warp) lost cycles: memory bank conflicts, a pending load, a barrier. */
 export type GpuStall = "bank" | "mem" | "barrier";
@@ -157,6 +172,7 @@ export class GpuRef {
     const active = (l: number): boolean => ((mask >>> l) & 1) === 1;
     let cost = 1;
     let banks: number[] | null = null;
+    let touch: GpuMemTouch | undefined;
     let next = this.pc + 4;
 
     const alu = (f: (a: number, b: number) => number, bFrom: "reg" | "imm"): void => {
@@ -209,6 +225,11 @@ export class GpuRef {
           else this.mem[a >>> 2] = R[i.rs2]![l]! >>> 0;
         }
         this.lastAddrs = addrs;
+        if (addrs.length > 0) {
+          const first = Math.max(0, Math.min(((addrs[0]! >>> 2) - (GPU_AROUND >> 1)), this.mem.length - GPU_AROUND));
+          const data = addrs.map((a) => this.mem[a >>> 2]! | 0);
+          touch = { addrs: [...addrs], data, at: first * 4, around: Array.from(this.mem.subarray(first, first + GPU_AROUND)) };
+        }
         banks = bankLoad(addrs, this.banks);
         cost = Math.max(1, ...banks);
         this.conflictCycles += cost - 1;
@@ -232,7 +253,7 @@ export class GpuRef {
     this.idleLaneSlots += L - this.popcount(mask);
     const kind = stepKind(i.name);
     this.lastStep = { pc: this.pc, name: i.name, kind, mask, cost, banks, dest: kind === "alu" || kind === "ld" ? i.rd : null,
-      word, maskAfter: this.mask, stackDepth: this.stack.length, startCycle, sm: 0, warp: 0, stall: cost > 1 ? "bank" : null };
+      word, maskAfter: this.mask, stackDepth: this.stack.length, startCycle, sm: 0, warp: 0, stall: cost > 1 ? "bank" : null, ...(touch ? { mem: touch } : {}) };
     this.cycles += cost;
     this.instructions++;
     this.pc = next;

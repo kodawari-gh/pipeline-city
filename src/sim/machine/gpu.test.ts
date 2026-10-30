@@ -5,7 +5,7 @@ import {
 } from "../isa/memmap";
 import { GpuRef } from "../ref/gpuref";
 import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, type GpuKernelName } from "../gen/gpukernels";
-import { getSpec } from "../board/specs";
+import { getSpec, type CardSpec } from "../board/specs";
 import { GpuPort } from "./gpu";
 import { Machine } from "./machine";
 
@@ -248,5 +248,42 @@ describe("the kernel a card can show", () => {
     expect(r.port.view()!.code).toEqual(Array.from(program));
     r.go();
     expect(r.port.view()!.code).toEqual(Array.from(program));
+  });
+});
+
+describe("GPU memory popups' data", () => {
+  it("a load or store step names the addresses and words it moved, and the words around the first", () => {
+    const r = runKernel("blur3", 8, 16);
+    const v = r.port.view()!;
+    const ld = v.trace.find((s) => s.name === "vld" && s.mem)!;
+    expect(ld.mem!.addrs.length).toBeGreaterThan(0);
+    expect(ld.mem!.data).toHaveLength(ld.mem!.addrs.length);
+    expect(ld.mem!.around).toHaveLength(9);
+    const first = ld.mem!.addrs[0]!;
+    expect(ld.mem!.around[(first - ld.mem!.at) / 4]).toBe(ld.mem!.data[0]! >>> 0);
+    expect(v.trace.find((s) => s.name !== "vld" && s.name !== "vst")!.mem).toBeUndefined();
+  });
+
+  it("a card with caches lists the lines each holds with their words from card memory", () => {
+    const cfg = (getSpec("gpu3") as CardSpec).gpu!;
+    const m = new Machine({ ramSize: 4096 });
+    const port = new GpuPort("pcie0", 0);
+    m.addDevice(port);
+    m.clock.setRate("pcie0", { mul: 1, div: 1 });
+    port.configure(cfg);
+    const p = { lanes: cfg.lanes, len: cfg.lanes * 2, phase: 5, level: 3 };
+    const put = (at: number, words: ArrayLike<number>) => { for (let k = 0; k < words.length; k++) m.bus.store32(GPU_BASE + GPU_MEM + at + 4 * k, words[k]!); };
+    put(KERNEL_LAYOUT.code, assembleGpu(gpuKernelSource("blur3", p)).program);
+    put(KERNEL_LAYOUT.param, [p.phase, p.level]);
+    m.bus.store32(R(GPU_REG.KERNEL), 0);
+    m.bus.store32(R(GPU_REG.LANES), 0);
+    m.bus.store32(R(GPU_REG.CMD), 1);
+    while (m.bus.load32(R(GPU_REG.STATUS)) & GpuStatus.Busy) m.advanceBaseTick();
+    const caches = port.view()!.caches!;
+    expect(caches.map((c) => c.level)).toEqual(["L1", "L1", "L2"]);
+    const l2 = caches[2]!;
+    const held = l2.lines.filter((l) => l !== null);
+    expect(held.length).toBeGreaterThan(0);
+    for (const l of held) expect(l.words).toEqual(Array.from(port.memory!.subarray(l.line * l.words.length, (l.line + 1) * l.words.length)));
   });
 });

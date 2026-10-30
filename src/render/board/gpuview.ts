@@ -15,6 +15,8 @@ import { CYCLES_PER_SEC } from '../die/diemotion';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import type { Rect } from './layout';
 import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu/gpuplayer';
+import { gpuLenses, type GpuLens } from '../gpu/gpulens';
+import { GpuLensView, LENS_Z } from './gpulensview';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -104,6 +106,10 @@ interface CardView {
   ctrText: Text;
   memText: Text;
   player: GpuPlayer;
+  /** The memory popups beside the parts an instruction touched, and what they were last made from. */
+  lens: GpuLensView;
+  lensKey: string;
+  lensMade: GpuLens[];
   tick: GpuTick;
   snap: GpuSnap | undefined;
   tempC: number;
@@ -160,11 +166,12 @@ export class GpuView {
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
-    root.addChild(inner, cover, ...fans.map((f) => f.fan));
+    const lens = new GpuLensView();
+    root.addChild(inner, cover, ...fans.map((f) => f.fan), lens.root);
     this.root.addChild(root);
     return {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
-      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(),
+      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens, lensKey: '', lensMade: [],
       tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '',
     };
   }
@@ -213,17 +220,39 @@ export class GpuView {
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;
-      if (!c.inner.visible) continue;
+      if (!c.inner.visible) { c.lens.hide(); continue; }
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
       this.animate(T, c, cur !== null);
+      this.popups(T, c);
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === c.sig) continue;
       c.sig = sig;
       this.draw(T, c);
     }
+  }
+
+  /** The memory popups: made again when the instruction on show, the card's contents or the zoom change, drawn only when zoomed in. */
+  private popups(T: Theme, c: CardView): void {
+    const s = c.snap, t = c.tick;
+    if (!s || this.zoom < LENS_Z) { c.lens.hide(); return; }
+    const key = `${t.index}|${s.launches}|${s.stats.cycles}|${s.phase}|${t.sms.map((x) => `${x.sm}:${x.index}`).join(',')}`;
+    const step = t.sms.find((x) => x.step)?.step ?? t.step;
+    const lenses: GpuLens[] = [];
+    if (key !== c.lensKey) {
+      c.lensKey = key;
+      const input = c.plan.die.input;
+      const groups = t.sms.length > 0 ? t.sms.map((x) => x.sm) : [0];
+      for (const sm of groups) {
+        const blocks = c.plan.blocks.filter((b) => (b.sm ?? 0) === sm).map((b) => ({ id: b.id, kind: b.kind, sm: b.sm }));
+        lenses.push(...gpuLenses(blocks, s, t.sms.find((x) => x.sm === sm)?.step ?? step, input.lineWords, input.banks));
+      }
+      c.lensMade = lenses;
+    }
+    const rects = new Map(c.plan.blocks.map((b) => [b.id, b.rect] as const));
+    c.lens.set(T, c.lensMade, rects, c.plan.body, this.zoom, step ? kindColor(T, step.kind) : T.alu);
   }
 
   /** A hop of a route as a link in card coordinates, for the packets. */
