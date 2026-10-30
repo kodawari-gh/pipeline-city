@@ -34,6 +34,8 @@ export interface JobLogEntry {
   /** Base ticks: the client's key arrived, the machine took it (key plugged, or the download began), the result landed, the client collected it. */
   arrival: number;
   start: number;
+  /** The tick the job first ran (the kernel began it, or the plug without an OS): `start` to here is the queue phase. Absent on older saves and when the run was never seen. */
+  ran?: number;
   finish: number;
   end: number;
   deadline: number;
@@ -68,26 +70,33 @@ export function windowOf(before: readonly number[] | undefined, after: readonly 
 }
 
 
-export interface Phases { wait: number; run: number; collect: number; total: number }
+export interface Phases { wait: number; queue: number; run: number; collect: number; total: number }
 
-/** Where a finished job's time went: waiting for the machine, running on it, and the result waiting to be collected. */
+/**
+ * Where a finished job's time went: waiting for the machine to take it, queued inside the machine (USB or download ingest, spool, the
+ * kernel queue: from taken until it first ran), running, and the result waiting to be collected. An entry without `ran` (an older save)
+ * has no queue phase: its run reads from the machine taking the job, as it always did.
+ */
 export function phasesOf(e: JobLogEntry): Phases {
-  if (e.outcome !== "done") return { wait: Math.max(0, e.end - e.arrival), run: 0, collect: 0, total: Math.max(0, e.end - e.arrival) };
-  const wait = Math.max(0, e.start - e.arrival), run = Math.max(0, e.finish - e.start), collect = Math.max(0, e.end - e.finish);
-  return { wait, run, collect, total: wait + run + collect };
+  if (e.outcome !== "done") return { wait: Math.max(0, e.end - e.arrival), queue: 0, run: 0, collect: 0, total: Math.max(0, e.end - e.arrival) };
+  const wait = Math.max(0, e.start - e.arrival), collect = Math.max(0, e.end - e.finish);
+  const ran = e.ran === undefined ? e.start : Math.min(Math.max(e.start, e.ran), Math.max(e.start, e.finish));
+  const queue = ran - e.start, run = Math.max(0, e.finish - ran);
+  return { wait, queue, run, collect, total: wait + queue + run + collect };
 }
 
 /** A job still on the machine, as the key snapshot shows it (docs/JOBS.md "On the machine now"). */
-export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; finishedAt?: number; live?: JobWindow; gpu?: true }
+export interface LiveShape { arrivalTick: number; deadlineTick: number; startedAt?: number; ranAt?: number; finishedAt?: number; live?: JobWindow; gpu?: true }
 
-/** Where a job's time has gone so far: waiting for the machine, running on it, and (once the result is written) the result waiting to be collected. */
+/** Where a job's time has gone so far: waiting for the machine, queued in it, running on it, and (once the result is written) the result waiting to be collected. */
 export function livePhases(k: LiveShape, now: number): Phases {
   const at = Math.max(k.arrivalTick, now);
-  if (k.startedAt === undefined) return { wait: at - k.arrivalTick, run: 0, collect: 0, total: at - k.arrivalTick };
+  if (k.startedAt === undefined) return { wait: at - k.arrivalTick, queue: 0, run: 0, collect: 0, total: at - k.arrivalTick };
   const start = Math.min(Math.max(k.arrivalTick, k.startedAt), at);
   const fin = k.finishedAt === undefined ? at : Math.min(Math.max(start, k.finishedAt), at);
-  const wait = start - k.arrivalTick, run = fin - start, collect = at - fin;
-  return { wait, run, collect, total: wait + run + collect };
+  const ran = k.ranAt === undefined ? start : Math.min(Math.max(start, k.ranAt), fin);
+  const wait = start - k.arrivalTick, queue = ran - start, run = fin - ran, collect = at - fin;
+  return { wait, queue, run, collect, total: wait + queue + run + collect };
 }
 
 /** What held a job up, in one word the UI can colour and draw an icon for. */
@@ -105,7 +114,7 @@ export interface Verdict {
   hint: string;
 }
 
-const roundPhases = (p: Phases): Phases => ({ wait: Math.round(p.wait), run: Math.round(p.run), collect: Math.round(p.collect), total: Math.round(p.total) });
+const roundPhases = (p: Phases): Phases => ({ wait: Math.round(p.wait), queue: Math.round(p.queue), run: Math.round(p.run), collect: Math.round(p.collect), total: Math.round(p.total) });
 const pc = (x: number) => `${Math.round(x * 100)}%`;
 
 /** A plain reading of a log entry: the largest phase, and for a run, what the machine spent its cycles on. */
@@ -114,11 +123,14 @@ export function verdictOf(e: JobLogEntry): Verdict {
   if (e.outcome === "declined") return { where: "none", kind: "lost", tag: "Declined", text: "You declined it.", hint: "Declining costs a little reputation outside the sandbox." };
   const p = roundPhases(phasesOf(e));
   if (p.total <= 0) return { where: "none", kind: "none", tag: "Quick", text: "Too quick to tell.", hint: "" };
-  const top = (["wait", "run", "collect"] as const).reduce((a, b) => (p[b] > p[a] ? b : a), "wait");
-  const share = p[top] / p.total;
+  // Not yet running, before the machine took it or inside it, is one thing to the player: the job was held up.
+  const held = p.wait + p.queue;
+  const v = { held, run: p.run, collect: p.collect };
+  const top = (["held", "run", "collect"] as const).reduce((a, b) => (v[b] > v[a] ? b : a), "held");
+  const share = v[top] / p.total;
   if (top === "collect" && share > 0.4) return { where: "collect", kind: "collect", tag: "Result sat", text: `The result sat ${p.collect}s waiting to be collected (${pc(share)} of the time).`, hint: "Take the key out as soon as the machine shows the result; the key's auto-eject does it for you." };
-  if (top === "wait" && share > 0.4) return {
-    where: "wait", kind: "queue", tag: "Queue", text: `It waited ${p.wait}s for the machine (${pc(share)} of the time).`,
+  if (top === "held" && share > 0.4) return {
+    where: "wait", kind: "queue", tag: "Queue", text: `It waited ${held}s for the machine${p.queue > 0 ? ` (${p.queue}s of it in the machine's queue)` : ""} (${pc(share)} of the time).`,
     hint: "The machine was busy or off: a faster CPU shortens each job, an OS runs several at once, and a network plan feeds it without keys.",
   };
   if (e.gpu) return {
@@ -154,14 +166,14 @@ export function liveVerdict(k: LiveShape, now: number): Verdict | null {
 }
 
 /** Totals over a list of entries for the summary line. */
-export interface LogSummary { done: number; expired: number; declined: number; wait: number; run: number; collect: number; late: number; slowest: JobLogEntry | null }
+export interface LogSummary { done: number; expired: number; declined: number; wait: number; queue: number; run: number; collect: number; late: number; slowest: JobLogEntry | null }
 
 export function summarise(list: readonly JobLogEntry[]): LogSummary {
-  const s: LogSummary = { done: 0, expired: 0, declined: 0, wait: 0, run: 0, collect: 0, late: 0, slowest: null };
+  const s: LogSummary = { done: 0, expired: 0, declined: 0, wait: 0, queue: 0, run: 0, collect: 0, late: 0, slowest: null };
   for (const e of list) {
     if (e.outcome !== "done") { s[e.outcome]++; continue; }
     const p = phasesOf(e);
-    s.done++; s.wait += p.wait; s.run += p.run; s.collect += p.collect;
+    s.done++; s.wait += p.wait; s.queue += p.queue; s.run += p.run; s.collect += p.collect;
     if (e.late) s.late++;
     if (!s.slowest || p.total > phasesOf(s.slowest).total) s.slowest = e;
   }
@@ -180,16 +192,16 @@ export function stallShares(w: JobWindow): Array<{ key: string; label: string; s
 }
 
 /** A group of jobs seen from far away: the average split of their time, the counters of their runs added up, and one reading of it. */
-export interface Agg { n: number; late: number; wait: number; run: number; collect: number; win?: JobWindow; verdict: Verdict }
+export interface Agg { n: number; late: number; wait: number; queue: number; run: number; collect: number; win?: JobWindow; verdict: Verdict }
 
 export function aggregate(list: readonly JobLogEntry[]): Agg {
   const done = list.filter((e) => e.outcome === "done");
   const n = done.length;
-  let wait = 0, run = 0, collect = 0, late = 0;
+  let wait = 0, queue = 0, run = 0, collect = 0, late = 0;
   let win: JobWindow | undefined;
   for (const e of done) {
     const p = phasesOf(e);
-    wait += p.wait; run += p.run; collect += p.collect;
+    wait += p.wait; queue += p.queue; run += p.run; collect += p.collect;
     if (e.late) late++;
     if (e.win && !e.gpu) { // a card job's window is the host spinning: it would pollute the CPU stall bars
       win ??= { cycles: 0, retired: 0, stallLoad: 0, stallData: 0, stallFlush: 0, stallStruct: 0, stallCache: 0, cacheHits: 0, cacheMisses: 0, tlbMisses: 0, pageFaults: 0 };
@@ -197,8 +209,9 @@ export function aggregate(list: readonly JobLogEntry[]): Agg {
     }
   }
   const m = Math.max(1, n);
-  const avg = { wait: wait / m, run: run / m, collect: collect / m };
-  const typical: JobLogEntry = { id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: avg.wait, finish: avg.wait + avg.run, end: avg.wait + avg.run + avg.collect, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(n > 0 && done.every((e) => e.gpu) ? { gpu: true as const } : {}), ...(win ? { win } : {}) };
+  const avg = { wait: wait / m, queue: queue / m, run: run / m, collect: collect / m };
+  const ranAt = avg.wait + avg.queue;
+  const typical: JobLogEntry = { id: 0, type: "", scale: 1, outcome: "done", arrival: 0, start: avg.wait, ran: ranAt, finish: ranAt + avg.run, end: ranAt + avg.run + avg.collect, deadline: 0, payout: 0, late: false, attempts: 1, os: 0, ...(n > 0 && done.every((e) => e.gpu) ? { gpu: true as const } : {}), ...(win ? { win } : {}) };
   return { n, late, ...avg, ...(win ? { win } : {}), verdict: n ? verdictOf(typical) : { where: "none", kind: "none", tag: "None", text: "No finished job yet.", hint: "" } };
 }
 
@@ -209,6 +222,6 @@ export function byKind(list: readonly JobLogEntry[]): KindAgg[] {
   return [...new Set(list.map((e) => e.type))].map((type) => {
     const of = list.filter((e) => e.type === type);
     const a = aggregate(of);
-    return { ...a, type, spent: (a.wait + a.run + a.collect) * a.n, lost: of.filter((e) => e.outcome !== "done").length };
+    return { ...a, type, spent: (a.wait + a.queue + a.run + a.collect) * a.n, lost: of.filter((e) => e.outcome !== "done").length };
   }).sort((a, b) => b.spent - a.spent || b.lost - a.lost);
 }

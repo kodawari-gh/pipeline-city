@@ -32,7 +32,13 @@ export interface Key extends Job {
   pluggedAt: number;
   done: boolean;
   doneAt: number;
-  /** The engine's counters when the machine took the job (not saved): the job log reports the change by the time it finishes. */
+  /**
+   * The tick the job first ran: the kernel began it (`stampRan`), or the plug when there is no OS. `pluggedAt` to here is queue, USB or
+   * download ingest and spool; from here to `doneAt` is the run. Absent until then and for keys from older saves (the run then reads from `pluggedAt`).
+   * Saved only on a key that holds its result: a job that is mid-run at a save starts over after the load and stamps it again.
+   */
+  ranAt?: number;
+  /** The engine's counters when the job first ran (not saved): the job log reports the change by the time it finishes. */
   c0?: number[];
   /** What the counters changed by from the job being taken to its result landing (set when `doneAt` is). */
   win?: JobWindow;

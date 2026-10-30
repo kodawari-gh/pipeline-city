@@ -17,7 +17,7 @@ import { SAVE_VERSION, type SavedKey, type SavedNet, type SavedPlugged, type Sav
 export function toSave(this: Game): SaveV4 {
   const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired, ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}) });
   const p = this.plugged;
-  const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result };
+  const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result, ...(p.done && p.ranAt !== undefined ? { ranAt: p.ranAt } : {}) };
   return {
     version: SAVE_VERSION,
     seed: this.seed,
@@ -164,6 +164,7 @@ export function restoreSave(this: Game, s: SaveV4): void {
       key.pluggedAt = p.pluggedAt;
       key.done = p.done;
       key.doneAt = p.doneAt;
+      if (p.done && p.ranAt !== undefined) key.ranAt = p.ranAt;
       key.result = p.result;
       key.retired = p.retired ?? (legacyRetired && !p.done);
       this.plugged = key;

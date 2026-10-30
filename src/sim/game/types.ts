@@ -236,6 +236,8 @@ export interface KeySnap {
   slaTick?: number;
   /** The tick the machine took the job (key plugged, download begun); absent while it is still in the tray or on offer. */
   startedAt?: number;
+  /** The tick the job first ran (the kernel began it); `startedAt` to here is the queue. Absent while queued and for older saves. */
+  ranAt?: number;
   /** The tick the result was written, once it is. */
   finishedAt?: number;
   /** While it runs: what the engine has counted since the machine took it (the job log's window, still open). */

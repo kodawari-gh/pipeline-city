@@ -242,6 +242,7 @@ export function advanceBaseTick(this: Game): void {
     this.trackPages();
     this.checkFaults();
     this.memoryFlips();
+    this.stampRan();
     this.afterMachine();
     this.autoEject();
   }

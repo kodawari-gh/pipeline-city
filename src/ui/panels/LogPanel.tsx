@@ -23,8 +23,9 @@ const nameOf = (type: string) => dexEntry(type)?.name ?? type;
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 const PHASES = [
-  ['wait', 'Waiting', 'clock', 'The time from the job arriving until the machine took it: a busy machine, a power-off, a download'],
-  ['run', 'Running', 'bolt', 'The time from the machine taking the job until its result was written'],
+  ['wait', 'Waiting', 'clock', 'The time from the job arriving until the machine took it: a power-off, a busy port, a waiting offer'],
+  ['queue', 'Queued', 'disk', 'The time from the machine taking the job (USB or download, the spool, the OS queue) until it first ran; absent without an OS'],
+  ['run', 'Running', 'bolt', 'The time from the job first running until its result was written'],
   ['collect', 'Collecting', 'box', 'The time from the result being written until the client had it'],
 ] as const satisfies ReadonlyArray<readonly [keyof Phases, string, IconName, string]>;
 
@@ -41,7 +42,7 @@ function Tag({ v }: { v: Verdict }) {
 function PhaseBar({ p, max }: { p: Phases; max: number }) {
   const w = (n: number) => `${(n / Math.max(1, max)) * 100}%`;
   return (
-    <span class="jl-bar" role="img" aria-label={`waiting ${Math.round(p.wait)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s`}>
+    <span class="jl-bar" role="img" aria-label={`waiting ${Math.round(p.wait)}s, queued ${Math.round(p.queue)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s`}>
       {PHASES.map(([k]) => p[k] > 0 && <i key={k} class={`jl-${k}`} style={{ width: w(p[k]) }} />)}
     </span>
   );
@@ -119,9 +120,9 @@ function Stalls({ a }: { a: Agg }) {
 
 function Macro({ list }: { list: JobLogEntry[] }) {
   const all = aggregate(list), kinds = byKind(list);
-  const maxAvg = Math.max(1, ...kinds.map((k) => k.wait + k.run + k.collect));
+  const maxAvg = Math.max(1, ...kinds.map((k) => k.wait + k.queue + k.run + k.collect));
   if (all.n === 0) return <p class="mute jl-empty"><Icon name="clock" size={14} /> Nothing finished yet.</p>;
-  const avg: Phases = { wait: all.wait, run: all.run, collect: all.collect, total: all.wait + all.run + all.collect };
+  const avg: Phases = { wait: all.wait, queue: all.queue, run: all.run, collect: all.collect, total: all.wait + all.queue + all.run + all.collect };
   return (
     <div class="jl-macro">
       <div class="jl-top">
@@ -140,7 +141,7 @@ function Macro({ list }: { list: JobLogEntry[] }) {
       <h4>By kind of job</h4>
       <div class="jl-kinds">
         {kinds.map((k) => {
-          const t: Phases = { wait: k.wait, run: k.run, collect: k.collect, total: k.wait + k.run + k.collect };
+          const t: Phases = { wait: k.wait, queue: k.queue, run: k.run, collect: k.collect, total: k.wait + k.queue + k.run + k.collect };
           return (
             <div key={k.type} class="jl-kind">
               <JobSprite id={k.type} silhouette={k.n === 0} />
@@ -175,7 +176,7 @@ function Detail({ e }: { e: JobLogEntry }) {
         <button class="link" onClick={() => { picked.value = null; }}>Overview</button>
       </div>
       {e.outcome === 'done' && <><Donut p={p} /><PhaseStats p={p} /></>}
-      {w && w.cycles > 0 && !e.gpu && <Stalls a={{ n: 1, late: 0, wait: p.wait, run: p.run, collect: p.collect, win: w, verdict: v }} />}
+      {w && w.cycles > 0 && !e.gpu && <Stalls a={{ n: 1, late: 0, wait: p.wait, queue: p.queue, run: p.run, collect: p.collect, win: w, verdict: v }} />}
     </div>
   );
 }
@@ -215,7 +216,7 @@ function NowRow({ k, s }: { k: KeySnap; s: Snapshot }) {
       <span class={`jl-tag k-${k.runnable ? fam : 'lost'}`} title={k.runnable ? undefined : `It cannot run yet: it needs ${k.missing.join(', ')}. The client takes it back at its deadline.`}>
         <Icon name={k.runnable ? icon : 'lock'} size={11} /> {k.runnable ? word : 'Cannot run'}{k.runnable ? more : ''}
       </span>
-      <span class={`jl-bar jl-live ${late ? 'late' : ''}`} role="img" aria-label={`waiting ${Math.round(p.wait)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s of ${Math.round(span)}s`}>
+      <span class={`jl-bar jl-live ${late ? 'late' : ''}`} role="img" aria-label={`waiting ${Math.round(p.wait)}s, queued ${Math.round(p.queue)}s, running ${Math.round(p.run)}s, collecting ${Math.round(p.collect)}s of ${Math.round(span)}s`}>
         {PHASES.map(([n]) => p[n] > 0 && <i key={n} class={`jl-${n}`} style={{ width: w(p[n]) }} />)}
         <u title="Deadline" style={{ left: w(k.deadlineTick - k.arrivalTick) }} />
       </span>

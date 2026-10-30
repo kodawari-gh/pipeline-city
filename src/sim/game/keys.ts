@@ -44,6 +44,9 @@ export function plugKey(this: Game, keyId: number): Result<{ key: number }> {
   }
   key.pluggedAt = this.baseTick;
   key.c0 = this.countersNow();
+  // Without an OS the plug is the job's start; with one it runs when the kernel begins it (`stampRan`).
+  if (this.os) delete key.ranAt;
+  else key.ranAt = this.baseTick;
   this.plugged = key;
   this.pchKey = { id: key.id, program, done: key.done, result: key.result };
   this.pch.plug(this.pchKey);
@@ -103,7 +106,7 @@ export function deliver(this: Game, key: Key, how: string): number {
   this.avgTurnaround += this.cfg.emaAlpha * (turnaround - this.avgTurnaround);
   this.addClientBase(this.reputation());
   this.lastCompleted = {
-    id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - this.startOf(key), late,
+    id: key.id, template: key.template, payout: pay, turnaround, execTicks: key.doneAt - this.ranOf(key), late,
     attempts: key.attempts, completedAt: this.baseTick,
   };
   this.dexDone(key);
@@ -204,6 +207,27 @@ export function startOf(this: Game, k: Key): number {
   return Math.max(k.pluggedAt, k.arrival);
 }
 
+/** The tick the job began to run (`ranAt`); a key that was never seen running (an older save) falls back to when the machine took it. */
+export function ranOf(this: Game, k: Key): number {
+  return Math.max(this.startOf(k), k.ranAt ?? 0);
+}
+
+/**
+ * Per base tick, under an OS: a job the kernel has just begun gets `ranAt`, and its counter window restarts there, so the run
+ * excludes the ingest and the queue wait. Only the first time (a re-ingest after a reboot keeps it). The jobs are the plugged key
+ * and the spool; a job that starts and ends inside one tick is never seen running and keeps the older reading.
+ */
+export function stampRan(this: Game): void {
+  if (!this.os) return;
+  for (const j of this.kernelJobs()) {
+    if (j.state !== JobState.Running) continue;
+    const k = this.plugged?.id === j.key ? this.plugged : this.spool.find((x) => x.id === j.key);
+    if (!k || k.ranAt !== undefined || k.done) continue;
+    k.ranAt = this.baseTick;
+    k.c0 = this.countersNow();
+  }
+}
+
 export function countersNow(this: Game): number[] | undefined {
   const eng = this.machine.engine as PipelineEngine | null;
   return eng?.view ? Array.from(eng.view.counters).slice(0, COUNTER_NAMES.length) : undefined;
@@ -233,7 +257,7 @@ export function addLog(this: Game, k: Key, outcome: JobOutcome, pay: number, lat
   const done = outcome === "done";
   this.jobLog.push({
     id: k.id, type: k.type, scale: k.scale, outcome, arrival: k.arrival,
-    start: done ? this.startOf(k) : this.baseTick, finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
+    start: done ? this.startOf(k) : this.baseTick, ...(done && k.ranAt !== undefined ? { ran: Math.max(this.startOf(k), k.ranAt) } : {}), finish: done ? k.doneAt : this.baseTick, end: this.baseTick,
     deadline: k.deadline, payout: pay, late, attempts: k.attempts, os: this.os?.spec.tier ?? 0,
     ...(done && this.onCard(k) ? { gpu: true as const } : {}),
     ...(done && k.win ? { win: { ...k.win } } : {}),
@@ -249,7 +273,7 @@ export function dexDone(this: Game, k: Key): void {
   this.dexSeen(k);
   const r = this.dex[k.type];
   if (!r) return;
-  const ticks = Math.max(1, k.doneAt - this.startOf(k));
+  const ticks = Math.max(1, k.doneAt - this.ranOf(k)); // the fastest run is the machine's, not the queue's luck
   r.runs++;
   r.best = r.best === 0 ? ticks : Math.min(r.best, ticks);
 }

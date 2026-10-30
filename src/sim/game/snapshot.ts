@@ -219,6 +219,7 @@ export function keySnap(this: Game, k: Key, jobs: KernelJob[]): KeySnap {
     payoutEstimate: this.estimate(k), attempts: k.attempts, done: k.done, result: k.result,
     ...(this.slaOf(k) !== null ? { slaTick: k.arrival + this.slaOf(k)! } : {}),
     ...(stage !== "tray" && stage !== "offer" ? { startedAt: this.startOf(k) } : {}),
+    ...(stage !== "tray" && stage !== "offer" && k.ranAt !== undefined ? { ranAt: Math.max(this.startOf(k), k.ranAt) } : {}),
     ...(k.done ? { finishedAt: k.doneAt } : {}),
     ...(stage === "running" ? this.liveOf(k) : {}),
   };

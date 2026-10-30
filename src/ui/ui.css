@@ -969,10 +969,11 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .jl-filter button { padding: 0.12rem 0.5rem; font-size: 0.7rem; color: var(--mute); }
 .jl-filter button.on { color: var(--ink); background: var(--glass-line); border-color: var(--ink); }
 .jl-wait { background: var(--warn); }
+.jl-queue { background: color-mix(in srgb, var(--warn) 55%, #000); }
 .jl-run { background: var(--accent); }
 .jl-collect { background: #8b7cf6; }
-.jl-donut .seg.jl-wait { background: none; stroke: var(--warn); } .jl-donut .seg.jl-run { background: none; stroke: var(--accent); } .jl-donut .seg.jl-collect { background: none; stroke: #8b7cf6; }
-.dot.jl-wait, .dot.jl-run, .dot.jl-collect { border-radius: 50%; }
+.jl-donut .seg.jl-queue { background: none; stroke: color-mix(in srgb, var(--warn) 55%, #000); } .jl-donut .seg.jl-wait { background: none; stroke: var(--warn); } .jl-donut .seg.jl-run { background: none; stroke: var(--accent); } .jl-donut .seg.jl-collect { background: none; stroke: #8b7cf6; }
+.dot.jl-wait, .dot.jl-queue, .dot.jl-run, .dot.jl-collect { border-radius: 50%; }
 
 /* the list of recent jobs */
 .jl-list { display: flex; flex-direction: column; gap: 0.2rem; overflow-y: auto; scrollbar-width: thin; min-height: 0; flex: 1; }
@@ -1001,13 +1002,14 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .jl-donut .trk { fill: none; stroke: var(--glass-line); stroke-width: 4; }
 .jl-donut .seg { fill: none; stroke-width: 4; stroke-linecap: butt; }
 .jl-donut b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 1rem var(--mono); }
-.jl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.jl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.5rem; }
 .jl-stat { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 0.4rem; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--glass-line); border-left-width: 0.2rem; }
 .jl-stat .ic { grid-row: span 3; align-self: center; }
 .jl-stat b { font: 700 1.3rem var(--mono); } .jl-stat b small { font-size: 0.7rem; color: var(--mute); }
 .jl-stat .nm { font-size: 0.66rem; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); }
 .jl-stat .tm { font: 0.7rem var(--mono); color: var(--mute); }
 .jl-waitc { border-left-color: var(--warn); } .jl-waitc .ic { color: var(--warn); }
+.jl-queuec { border-left-color: color-mix(in srgb, var(--warn) 55%, #000); } .jl-queuec .ic { color: color-mix(in srgb, var(--warn) 55%, #000); }
 .jl-runc { border-left-color: var(--accent); } .jl-runc .ic { color: var(--accent); }
 .jl-collectc { border-left-color: #8b7cf6; } .jl-collectc .ic { color: #8b7cf6; }
 

@@ -3,6 +3,7 @@ import { Game } from "./game";
 import { ECONOMY } from "./economy";
 import { COUNTER_NAMES } from "../engines/view";
 import { aggregate, byKind, JOB_LOG_CAP, livePhases, liveVerdict, phasesOf, stallShares, summarise, verdictOf, windowOf, type JobLogEntry, type JobWindow } from "./joblog";
+import { Operator } from "./operator";
 import { netRig, rig } from "./testkit";
 
 ECONOMY.levelGating = false;
@@ -15,8 +16,20 @@ const entry = (o: Partial<JobLogEntry> = {}): JobLogEntry => ({
 
 describe("job log pieces", () => {
   it("splits the time into waiting, running and collecting", () => {
-    expect(phasesOf(entry())).toEqual({ wait: 10, run: 30, collect: 5, total: 45 });
-    expect(phasesOf(entry({ outcome: "expired", end: 90 }))).toEqual({ wait: 90, run: 0, collect: 0, total: 90 });
+    expect(phasesOf(entry())).toEqual({ wait: 10, queue: 0, run: 30, collect: 5, total: 45 });
+    expect(phasesOf(entry({ outcome: "expired", end: 90 }))).toEqual({ wait: 90, queue: 0, run: 0, collect: 0, total: 90 });
+  });
+
+  it("cuts the machine's time into queue and run when the job's first run is known", () => {
+    expect(phasesOf(entry({ ran: 25 }))).toEqual({ wait: 10, queue: 15, run: 15, collect: 5, total: 45 });
+    expect(phasesOf(entry({ ran: 10 }))).toEqual(phasesOf(entry())); // ran at once: the same as no queue
+    expect(phasesOf(entry({ ran: 99 }))).toMatchObject({ queue: 30, run: 0 }); // a run stamped past the result is held to it
+    expect(phasesOf(entry({ ran: 3 }))).toMatchObject({ wait: 10, queue: 0, run: 30 }); // and one before the start to the start
+    // a long queue is held up, not a slow run
+    expect(verdictOf(entry({ start: 5, ran: 90, finish: 100, end: 102 }))).toMatchObject({ where: "wait", kind: "queue" });
+    expect(verdictOf(entry({ start: 5, ran: 90, finish: 100, end: 102 })).text).toContain("queue");
+    expect(summarise([entry({ ran: 25 })])).toMatchObject({ wait: 10, queue: 15, run: 15 });
+    expect(aggregate([entry({ ran: 25 })])).toMatchObject({ wait: 10, queue: 15, run: 15, collect: 5 });
   });
 
   it("reads a window out of two counter readings, and gives none when the counters went back", () => {
@@ -109,10 +122,12 @@ describe("jobs on the machine now", () => {
   const live = { arrivalTick: 100, deadlineTick: 400 };
 
   it("cuts a job's time so far into waiting, running and collecting", () => {
-    expect(livePhases(live, 130)).toEqual({ wait: 30, run: 0, collect: 0, total: 30 });
-    expect(livePhases({ ...live, startedAt: 120 }, 150)).toEqual({ wait: 20, run: 30, collect: 0, total: 50 });
-    expect(livePhases({ ...live, startedAt: 120, finishedAt: 140 }, 150)).toEqual({ wait: 20, run: 20, collect: 10, total: 50 });
+    expect(livePhases(live, 130)).toEqual({ wait: 30, queue: 0, run: 0, collect: 0, total: 30 });
+    expect(livePhases({ ...live, startedAt: 120 }, 150)).toEqual({ wait: 20, queue: 0, run: 30, collect: 0, total: 50 });
+    expect(livePhases({ ...live, startedAt: 120, finishedAt: 140 }, 150)).toEqual({ wait: 20, queue: 0, run: 20, collect: 10, total: 50 });
     expect(livePhases({ ...live, startedAt: 0 }, 150).wait).toBe(0); // a start before the arrival reads as no wait
+    expect(livePhases({ ...live, startedAt: 120, ranAt: 135 }, 150)).toEqual({ wait: 20, queue: 15, run: 15, collect: 0, total: 50 });
+    expect(livePhases({ ...live, startedAt: 120, ranAt: 135, finishedAt: 140 }, 150)).toEqual({ wait: 20, queue: 15, run: 5, collect: 10, total: 50 });
   });
 
   it("reads a running job from its cycles so far, and says nothing before there are enough", () => {
@@ -153,6 +168,59 @@ describe("a job that was in the spool when the game was saved", () => {
     for (const k of spooled) expect(k.pluggedAt ?? 0).toBeGreaterThan(0);
     const back = Game.fromSave(JSON.parse(JSON.stringify(saved)));
     expect(back.toSave().net!.spool.map((k) => k.pluggedAt)).toEqual(spooled.map((k) => k.pluggedAt));
+  });
+});
+
+describe("a job queued behind another under an OS", () => {
+  const offer = (g: Game, template: string, scale = 1) => (g as unknown as { enqueue(t: string, s: number, c: string | undefined, n: boolean): boolean }).enqueue(template, scale, undefined, true);
+
+  it("runs from when the kernel began it: the queue wait is its own phase, and the counter window starts there", () => {
+    const g = netRig("ssd1", { keys: [] });
+    offer(g, "cli.scan", 4); // a long one first; the next is offered once it runs, so it waits behind it
+    for (let t = 0; t < 1500 && !g.snapshot().os!.queue.some((j) => j.state === "running"); t++) g.advanceBaseTick();
+    offer(g, "cli.log");
+    for (let t = 0; t < 3000 && g.completed < 2; t++) g.advanceBaseTick();
+    const log = g.snapshot().jobLog!;
+    expect(log).toHaveLength(2);
+    const [first, second] = [...log].sort((a, b) => a.ran! - b.ran!) as [JobLogEntry, JobLogEntry]; // in the order the kernel ran them
+    for (const e of log) {
+      expect(e.ran).toBeDefined();
+      expect(e.start).toBeLessThanOrEqual(e.ran!);
+      expect(e.ran!).toBeLessThanOrEqual(e.finish);
+    }
+    // the second was already on the machine while the first ran, and only began once the first was done
+    expect(second.start).toBeLessThan(first.finish);
+    expect(second.ran!).toBeGreaterThanOrEqual(first.finish);
+    const p = phasesOf(second);
+    expect(p.queue).toBeGreaterThan(0);
+    expect(p.run).toBe(second.finish - second.ran!);
+    expect(p.run).toBeLessThan(second.finish - second.start); // the queue wait is not in the run
+    expect(p.total).toBe(second.end - second.arrival);
+    // its counters cover its own run, not the first job's: the window is far smaller than the scan's
+    expect(second.win!.cycles).toBeGreaterThan(0);
+    expect(first.type).toBe("scan");
+    expect(second.win!.cycles).toBeLessThan(first.win!.cycles);
+  });
+
+  it("with no OS the plug is the start of the run, so the log has no queue", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [{ template: "cli.log" }], firmwareBoost: 1 } });
+    g.money = 1e6;
+    const op = new Operator(g, 0);
+    for (let t = 0; t < 5000 && g.completed === 0; t++) { g.advanceBaseTick(); op.step(); }
+    const e = g.snapshot().jobLog![0]!;
+    expect(e.ran).toBe(e.start);
+    expect(phasesOf(e).queue).toBe(0);
+  });
+
+  it("a key that holds its result keeps when it ran across a save", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: { baseDemandPerTick: 0, startQueue: [{ template: "cli.log" }], firmwareBoost: 1, autoEjectTicks: 0 } });
+    g.money = 1e6;
+    const op = new Operator(g, 0);
+    for (let t = 0; t < 5000 && !g.pluggedKey()?.done; t++) { g.advanceBaseTick(); op.step(); }
+    const saved = g.toSave();
+    expect(saved.plugged!.done).toBe(true);
+    expect(saved.plugged!.ranAt).toBeGreaterThan(0);
+    expect(Game.fromSave(JSON.parse(JSON.stringify(saved))).toSave().plugged!.ranAt).toBe(saved.plugged!.ranAt);
   });
 });
 

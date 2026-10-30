@@ -36,6 +36,8 @@ export interface SavedPlugged extends SavedKey {
   done: boolean;
   /** Tick the result was written (0 if not done). */
   doneAt: number;
+  /** Tick the job first ran, kept only once the key holds its result (a job mid-run at a save starts over on load). Optional and additive: absent reads as the plug. */
+  ranAt?: number;
   result: string;
 }
 
@@ -390,6 +392,7 @@ export function parseSave(input: unknown): SaveV4 {
     if (!isNat(c.attempts) || !isNat(c.pluggedAt) || !isNat(c.doneAt) || typeof c.done !== "boolean" || typeof c.result !== "string") {
       throw new Error('save: "plugged" needs attempts, pluggedAt, doneAt, done and result');
     }
+    if (c.ranAt !== undefined && !isNat(c.ranAt)) throw new Error('save: "plugged" ranAt must be a tick');
   }
   if (s.os !== null) {
     const o = s.os;
