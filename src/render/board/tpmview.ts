@@ -11,6 +11,7 @@ import { tpmRoute } from '../tpm/tpmroute';
 import type { TpmBlock } from '../tpm/tpmplan';
 import { tpmCover } from './accelart';
 import { tpmGeo, type TpmGeo } from './tpmlayout';
+import { DEVICE_LOD, smooth } from '../lod';
 
 // The secure module of the board, alive (docs/ACCEL.md "TPM"). Seen from afar it is the lid of a small daughterboard, with a padlock closed on it while
 // protected mode is on. Zoomed in, the lid fades away like a card's shroud and the die shows through, drawn in the CPU die's style (tpm/tpmart.ts): the
@@ -20,14 +21,9 @@ import { tpmGeo, type TpmGeo } from './tpmlayout';
 
 // Zoom levels (board scale: the die is only a few hundred board units across, so they sit above the cards'): the lid fades 1.0 -> 1.8, the traces and
 // symbols come with it, the names at 2.2, the second lines at 3.4.
-const FADE_FROM = 1.0, FADE_TO = 1.8, TEXT_Z = 2.2, DETAIL_Z = 3.4;
+const [FADE_FROM, FADE_TO] = DEVICE_LOD.tpm.fade, TEXT_Z = DEVICE_LOD.tpm.text, DETAIL_Z = DEVICE_LOD.tpm.detail;
 /** How long a hop of a live command's packet takes (ms): the module's own phases are far shorter than a frame. */
 const LIVE_HOP_MS = 420;
-
-const smooth = (a: number, b: number, x: number): number => {
-  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 export interface TpmScene { slot: string; visual: string; hdr: Rect }
 

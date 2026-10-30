@@ -18,6 +18,7 @@ import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu
 import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from '../gpu/gpumem';
 import { GpuLensView } from './gpulensview';
 import type { GpuBlock } from '../gpu/gpuplan';
+import { DEVICE_LOD, smooth } from '../lod';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -30,7 +31,7 @@ import type { GpuBlock } from '../gpu/gpuplan';
 // Zoom levels (board scale; the card is large, up to 3800 units, so they sit below the die's): the cover fades 0.16 -> 0.28, the traces and cells
 // are there with it, the names come at 0.3, the second lines and the counters at 0.6.
 const MEM_KINDS = new Set<GpuBlock['kind']>(['dram', 'banks', 'l1', 'l2', 'regfile']);
-const FADE_FROM = 0.16, FADE_TO = 0.28, TEXT_Z = 0.3, DETAIL_Z = 0.6;
+const [FADE_FROM, FADE_TO] = DEVICE_LOD.gpu.fade, TEXT_Z = DEVICE_LOD.gpu.text, DETAIL_Z = DEVICE_LOD.gpu.detail;
 /** Fan speed in turns per second: idle (just powered, cold), and at the card's throttle point. */
 const FAN_IDLE = 0.5, FAN_FULL = 3.5;
 /** Seen edge-on a turn is some blade spacings sliding past (the case fans do the same, a little slower). */
@@ -50,11 +51,6 @@ export function along(pts: Pt[], f: number): Pt {
   }
   return pts[0]!;
 }
-
-const smooth = (a: number, b: number, x: number): number => {
-  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 /** How fast a card's fans turn (turns per second): from cold to hot, a little faster under load, faster again once throttled. */
 export function fanTurns(tempC: number, busy: boolean, throttled: boolean): number {

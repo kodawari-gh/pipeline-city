@@ -36,6 +36,7 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
+import { DEVICE_LOD, LodClock, ZoomSwitch, smooth } from '../lod';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../room/room';
@@ -50,23 +51,23 @@ interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) th
   /** A backdrop (the board, the case): it answers only where nothing else is, near or on. */ base?: boolean;
   /** False: the hover ring is not traced along the silhouette (a cable's ring stays on its plug, the part that is grabbed). */ ring?: false }
 
-const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+// The zoom bands live in one table (lod.ts `DEVICE_LOD`), shared with the views; the hover gates below read it too.
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
-const Z_DIE = 0.45;
-/** A graphics card's insides (lanes, banks, registers) hover from the zoom where its shroud starts to fade (gpuview.ts); its fans from further out. */
-const Z_GPU = 0.3, Z_GPU_FAN = 0.2;
+const Z_DIE = DEVICE_LOD.die.hover;
+/** A graphics card's insides (lanes, banks, registers) hover from where its shroud is gone (gpuview.ts); its fans from further out. */
+const Z_GPU = DEVICE_LOD.gpu.hover, Z_GPU_FAN = DEVICE_LOD.gpu.fan;
 /** A secure module's insides hover from the zoom where its lid starts to fade (tpmview.ts); the lid itself from afar. */
-const Z_TPM = 1.0, Z_TPM_LID = 0.2;
+const Z_TPM = DEVICE_LOD.tpm.hover, Z_TPM_LID = DEVICE_LOD.tpm.lid;
 /** An AI card's insides hover from the zoom where its lid starts to fade (npuview.ts), the cells of the array, the tiles and the rows of the queue from where their numbers show; the lid from afar. */
-const Z_NPU = 0.4, Z_NPU_FINE = 0.7, Z_NPU_LID = 0.15;
+const Z_NPU = DEVICE_LOD.npu.hover, Z_NPU_FINE = DEVICE_LOD.npu.fine, Z_NPU_LID = DEVICE_LOD.npu.lid;
 /** Below this zoom the baked board texture replaces the vector board. */
-const Z_BAKE = 0.2;
+const Z_BAKE = DEVICE_LOD.bake.board;
 const BAKE_RES = 0.4;
 /** Below this zoom the static devices, PSU, monitor and cables are one baked texture too. */
-const Z_BAKE_DEV = 0.14;
+const Z_BAKE_DEV = DEVICE_LOD.bake.devices;
 const DEV_BAKE_RES = 0.25;
 /** Below this zoom the tray and power plate chrome (boxes, labels) is one baked texture. */
-const Z_BAKE_PROPS = 0.2;
+const Z_BAKE_PROPS = DEVICE_LOD.bake.props;
 const propsFrame = () => new Rectangle(TRAY.x - 100, TRAY.y - 100, TRAY.w + 200, TRAY.h + 200);
 
 /**
@@ -400,18 +401,24 @@ export async function mountBoard(host: HTMLElement) {
   let extA = 0;
   /** 0..1: the interior is being revealed regardless of zoom (dragging a part or cable, highlighting an internal id). */
   let reveal = 0;
+  /** The zoom every LoD decision reads: the camera's, followed once per frame in log space (lod.ts), so a wheel flick crosses a threshold over a few frames. */
+  const lod = new LodClock(camera.z);
+  /** Camera changes (a wheel event, a pan, a flight step) only mark this; `lodFrame` applies them once per frame. */
+  let lodDirty = true;
+  /** The bakes, with a dead band: a wobble around a threshold never swaps or re-bakes. */
+  const bakeBoard = new ZoomSwitch(Z_BAKE), bakeDev = new ZoomSwitch(Z_BAKE_DEV), bakeProps = new ZoomSwitch(Z_BAKE_PROPS);
   const applyLod = () => {
     const f = fits.z > 0 ? fits.z : 0.1;
-    extA = smooth(LOD.fadeFrom, LOD.fadeTo, camera.z / f) * (1 - reveal);
+    extA = smooth(LOD.fadeFrom, LOD.fadeTo, lod.zs / f) * (1 - reveal);
     exteriorCover = extA;
     exteriorLayer.alpha = extA;
     if (glassSheen) glassSheen.alpha = 0.3 + 0.7 * extA;
     exteriorLayer.visible = extA > 0.004;
     // the glass side of the exterior is see-through, so the interior (baked far out) is always drawn; only its live work stops far out
     interior.visible = true;
-    live.setInterior(camera.z / f >= LOD.liveFrom);
+    live.setInterior(lod.zs / f >= LOD.liveFrom);
     // the monitor is one cached texture far out
-    const want = camera.z < Z_BAKE_DEV;
+    const want = bakeDev.on;
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
@@ -422,34 +429,35 @@ export async function mountBoard(host: HTMLElement) {
     roomView?.setFocus(focusAt(view, CASE));
   };
   const onZoom = () => {
-    const z = camera.z;
+    const z = lod.zs;
+    bakeBoard.update(z); bakeDev.update(z); bakeProps.update(z);
     applyLod();
     syncRoom();
-    const labelsOn = z > 0.12, partLabels = z > 0.22;
+    const labelsOn = z > DEVICE_LOD.labels.board, partLabels = z > DEVICE_LOD.labels.parts;
     if (boardArt) boardArt.labels.visible = labelsOn;
-    const baked = !!boardBake && z < Z_BAKE;
+    const baked = !!boardBake && bakeBoard.on;
     if (boardBake) boardBake.visible = baked;
     if (boardArt) boardArt.root.visible = !baked;
-    const dbaked = !!deviceBake && z < Z_BAKE_DEV;
+    const dbaked = !!deviceBake && bakeDev.on;
     if (caseBake) caseBake.visible = dbaked;
     if (caseVec) caseVec.visible = !dbaked;
     if (deviceBake) deviceBake.visible = dbaked;
     deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
-    coolerLayer.alpha = 1 - smooth(0.3, 0.5, z);
+    coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
     coolerLayer.visible = coolerLayer.alpha > 0.01;
-    die.root.alpha = smooth(0.42, 0.58, z);
+    die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z);
     die.root.visible = die.root.alpha > 0.01;
     die.setZoom(z);
     for (const pb of propBakes) {
-      const want = z < Z_BAKE_PROPS;
+      const want = bakeProps.on;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
     }
-    chromeLayer.visible = !chromeBake || z >= Z_BAKE_PROPS;
-    chromeBakeLayer.visible = !!chromeBake && z < Z_BAKE_PROPS;
+    chromeLayer.visible = !chromeBake || !bakeProps.on;
+    chromeBakeLayer.visible = !!chromeBake && bakeProps.on;
     live.setZoom(z);
   };
-  camera.onChange = onZoom;
+  camera.onChange = () => { lodDirty = true; };
 
   const slotRectOf = (id: string): Rect | null => {
     const type = id.replace(/\d+$/, ''), idx = Number(/\d+$/.exec(id)?.[0] ?? 0);
@@ -1092,13 +1100,14 @@ export async function mountBoard(host: HTMLElement) {
     change();
     fits = overviewFit(camera);
     camera.minZ = capZoom(camera, fits);
-    if (was) camera.set(fits); else camera.apply();
+    if (was) { camera.set(fits); lod.snap(camera.z); } else camera.apply();
   };
   camera.resize(app.screen.width, app.screen.height);
   camera.snapInset({ ...viewInset.peek() });
   camera.bounds = roomBox();
   fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
   camera.set(fits);
+  lod.snap(camera.z);
   app.renderer.on('resize', () => reframe(() => camera.resize(app.screen.width, app.screen.height)));
   // UI inset (viewInset): the new value is taken in the frame loop, and only when no gesture or part drag is running, so the
   // view never re-frames under the pointer. At the overview the board glides to its new fit; elsewhere the view centre
@@ -1171,6 +1180,9 @@ export async function mountBoard(host: HTMLElement) {
     return false;
   };
   const lodFrame = (dt: number) => {
+    // one LoD pass per frame, however many camera events came in; it runs while the smoothed zoom is still catching up
+    const moving = lod.update(dt, camera.z);
+    if (lodDirty || moving) { lodDirty = false; onZoom(); }
     const target = needsInterior() ? 1 : 0;
     if (reveal !== target) {
       reveal += (target - reveal) * (1 - Math.exp(-dt * 9));
@@ -1307,6 +1319,6 @@ export async function mountBoard(host: HTMLElement) {
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
   });
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { die, live, net, camera, hitAt, hitList: () => allHits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape, ring: h.ring })), app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible }) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { die, live, net, camera, hitAt, hitList: () => allHits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape, ring: h.ring })), app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible, z: camera.z, zs: lod.zs, bakes: { board: bakeBoard.on, devices: bakeDev.on, props: bakeProps.on } }) };
   return app;
 }

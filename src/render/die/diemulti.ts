@@ -13,10 +13,10 @@ import { splitPlan, type CoreTile } from './coreplan';
 import { CoreRateTracker, type CoreRate } from './corestats';
 import { washModels } from './coretiles';
 import { PlanView, type MemoryTouch } from './dieview';
+import { smooth } from '../lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
 const WASH_FROM = 0.3, WASH_TO = 0.6;
-const smooth = (a: number, b: number, v: number) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export class DieView {
   readonly root = new Container();

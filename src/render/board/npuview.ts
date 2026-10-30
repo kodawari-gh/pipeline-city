@@ -12,6 +12,7 @@ import { npuHostRoute, npuRoute, type HostAccess } from '../npu/npuroute';
 import type { NpuBlock } from '../npu/npuplan';
 import { npuCover } from './accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
+import { DEVICE_LOD, smooth } from '../lod';
 
 // The AI cards of the board, alive (docs/ACCEL.md "NPU internal view"). Seen from afar a card is a lid over its die. Zoomed in, the lid fades away like a
 // graphics card's shroud and the die shows through, drawn in the CPU die's style (npu/npuart.ts): the control registers with the words the CPU wrote, the
@@ -21,14 +22,9 @@ import { npuGeo, type NpuGeo } from './npulayout';
 
 // Zoom levels (board scale; the die is 1200 to 1600 units across): the lid fades 0.4 -> 0.7, the traces and symbols come with it, the names at 0.75, the
 // second lines and the sums in the cells at 1.5.
-const FADE_FROM = 0.4, FADE_TO = 0.7, TEXT_Z = 0.75, DETAIL_Z = 1.5;
+const [FADE_FROM, FADE_TO] = DEVICE_LOD.npu.fade, TEXT_Z = DEVICE_LOD.npu.text, DETAIL_Z = DEVICE_LOD.npu.detail;
 /** How long a hop of a live launch's packet takes (ms): the card's own phases are far shorter than a frame. */
 const LIVE_HOP_MS = 420;
-
-const smooth = (a: number, b: number, x: number): number => {
-  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 export interface NpuScene { slot: string; visual: string; origin: { x: number; y: number } }
 
