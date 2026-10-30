@@ -26,6 +26,26 @@ describe("an NPU in the machine", () => {
     expect(g.machine.bus.load32(NPU_BASE + k * 0x10000 + NPU_REG.STATUS)).toBe(0);
   });
 
+  it("the snapshot lists the card's insides (keyed by its PCIe slot) only while the machine is on, and its log shows the descriptors an inference ran", () => {
+    const g = maxed();
+    g.install(buy(g, "npu1"));
+    const slot = g.board.devices.find((d) => d.spec === "npu1")!.slot;
+    expect(g.snapshot().npus).toBeUndefined(); // installed but off
+    expect(g.powerButton().ok).toBe(true);
+    g.advanceBaseTick();
+    expect(g.snapshot().npus).toMatchObject([{ slot, grid: 4, memBytes: 8192, phase: "idle", launches: 0, log: [] }]);
+    g.clearQueue();
+    expect(g.spawnKey("npu").ok).toBe(true);
+    const op = new Operator(g, 1);
+    for (let n = 0; g.completed < 1 && n < 200_000; n++) { g.advanceBaseTick(); op.step(); }
+    expect(g.completed).toBe(1);
+    const card = g.snapshot().npus![0]!;
+    expect(card.launches).toBeGreaterThan(0);
+    expect(card.log.length).toBeGreaterThan(1);
+    expect(card.log.at(-1)).toMatchObject({ run: card.launches, fault: false });
+    expect(card.log.every((e) => e.acc.length === 16)).toBe(true);
+  }, 30_000);
+
   /** Serve one `npu` class job with the bot using whichever cards are fitted; returns the ticks. */
   function serve(fit: (g: Game) => void) {
     const g = maxed();

@@ -12,6 +12,7 @@ import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
 import { GpuView, type GpuCardScene } from './board/gpuview';
 import { TpmView, type TpmScene } from './board/tpmview';
+import { NpuCardView, type NpuScene } from './board/npuview';
 import { memoryTable, sizeText } from './board/ramlayout';
 import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from './room/screenmodel';
 import { FrameView, ScreenView } from './room/screenview';
@@ -134,6 +135,8 @@ export class Live {
   private gpu = new GpuView();
   /** The secure module: its lid fades into the die at zoom, and commands run along the die's wires (board/tpmview.ts). */
   private tpm = new TpmView();
+  /** The AI cards: their lid fades into the die at zoom, and descriptors run along the die's wires (board/npuview.ts). */
+  private npu = new NpuCardView();
   private dimmIdx: number[] = [];
   private ramSig = '';
   /** Wall time (ms) of the last memory-bus event: the DRAM flash fades by wall time (see `memAt` for the game-time trigger). */
@@ -253,11 +256,11 @@ export class Live {
   /** (Re)build live objects for a scene. Called when the theme or the installed set changes. */
   setScene(
     T: Theme, targets: GlowTarget[], buses: Bus[], cables: Cable[], fans: { c: Container; kind: string }[], dramChips: Rect[], dimms: number[],
-    flags: { psu: boolean; display: boolean; gfx?: boolean }, drives: DriveHook[] = [], gpuCards: GpuCardScene[] = [], tpmModules: TpmScene[] = [],
+    flags: { psu: boolean; display: boolean; gfx?: boolean }, drives: DriveHook[] = [], gpuCards: GpuCardScene[] = [], tpmModules: TpmScene[] = [], npuCards: NpuScene[] = [],
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.busFlow.g, this.extFlow.g, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.tpm.root, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.busFlow.g, this.extFlow.g, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.tpm.root, this.npu.root, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.busFlow.clear(); this.extFlow.clear();
@@ -273,6 +276,7 @@ export class Live {
     this.ram.setScene(T, dramChips);
     this.gpu.setScene(T, gpuCards);
     this.tpm.setScene(T, tpmModules);
+    this.npu.setScene(T, npuCards);
     for (const t of targets) {
       const g = new Graphics(), dim = new Graphics();
       if (this.additive) g.blendMode = 'add';
@@ -334,7 +338,7 @@ export class Live {
     }
     this.drives.clear();
     for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, sig: '', burnt: false });
-    this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.tpm.root, this.dramFlash);
+    this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.tpm.root, this.npu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
@@ -404,7 +408,7 @@ export class Live {
   /** The OS badge on the host drive (null: no OS). The dot animates on the game clock in `frame`. */
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
-  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); this.tpm.setZoom(z); }
+  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); this.tpm.setZoom(z); this.npu.setZoom(z); }
   /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
   setInterior(on: boolean) { this.interior = on; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
@@ -548,6 +552,7 @@ export class Live {
     this.ram.setMap(s?.ram ?? null);
     this.gpu.update(s?.gpus, s?.devices);
     this.tpm.update(s?.tpm);
+    this.npu.update(s?.npus);
     const T = this.T;
     if (!s) return;
     const cpu = s.devices.find((d) => d.kind === 'cpu');
@@ -1149,6 +1154,7 @@ export class Live {
     this.ram.frame(inner);
     this.gpu.frame(dt, inner, paused);
     this.tpm.frame(dt, inner, paused);
+    this.npu.frame(dt, inner, paused);
     // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)
     this.dramFlash.clear();
   }

@@ -3,6 +3,7 @@
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
 import type { GpuView } from "../machine/gpu";
+import type { NpuView } from "../machine/npu";
 import type { TpmView } from "../machine/tpm";
 import type { Binding } from "../net";
 import type { DexSnap } from "./jobdex";
@@ -358,6 +359,8 @@ export interface GameEvent {
 
 /** One graphics card as the view draws it: its PCIe slot (`pcie0`..) and what `GpuPort.view()` reports. */
 export type GpuSnap = GpuView & { slot: string };
+/** An AI card's insides and the PCIe slot it stands in. */
+export type NpuSnap = NpuView & { slot: string };
 
 export interface Snapshot {
   money: number;
@@ -394,6 +397,8 @@ export interface Snapshot {
   ram?: RamMap | null;
   /** The installed graphics cards' insides (lanes, mask, banks, the last instructions), while the machine is on; absent without a card. */
   gpus?: GpuSnap[];
+  /** The installed AI cards' insides (registers, descriptor list, tiles, accumulator, the last steps), while the machine is on; absent without a card. */
+  npus?: NpuSnap[];
   /** The secure module's insides (registers, protected mode, sealed values, the last commands), while the machine is on; absent without a module. */
   tpm?: TpmView;
   /** What the monitor shows (POST text, the job's output, REMOVE KEY, ...). Empty when off or no monitor is connected. */

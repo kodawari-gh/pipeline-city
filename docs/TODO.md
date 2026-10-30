@@ -21,8 +21,6 @@ Line format (the script matches `^- \[ \] <ID> `): `- [ ] ID [tag] Title. Files:
 
 ## Open now
 
-- NPU internal view animated from sim state (MAC grid with the descriptor list; the TPM is built, see ACCEL.md "TPM internal view", the GPU is covered by T129 to T145 below), and hover ids for each cell. Files: `src/render/board/devices.ts`, `src/render/interact.ts`, `src/ui/kit/Hover.tsx`. Docs: `docs/render/interact.md` ids. Test pattern: `src/ui/logic.test.ts`. Done when: a test shows every new render id has a tooltip.
-
 ## GPU architecture (design: `docs/GPU.md`; one task = one commit; order is the ID order except R-tasks that say otherwise)
 
 

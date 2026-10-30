@@ -5,6 +5,7 @@ import type { DeviceSnap, Snapshot } from '../sim/game/game';
 import { getOsSpec } from '../sim/os';
 import { describeGpuId } from './panels/gpudesc';
 import { describeTpmId } from './panels/tpmdesc';
+import { describeNpuId } from './panels/npudesc';
 import { BANDWIDTH_NERD, describeNet } from './panels/netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
@@ -350,6 +351,8 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   if (fanCable) return fanCable;
   const net = describeNet(id, s);
   if (net) return net;
+  const npu = describeNpuId(id, s);
+  if (npu) return npu;
   const gpu = describeGpuId(id, s);
   if (gpu) return gpu;
   const tpm = describeTpmId(id, s);

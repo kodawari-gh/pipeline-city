@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GPU_HOP_TICKS, GpuFaultCode, GpuStatus, NPU_BASE, NPU_DESC_WORDS, NPU_MEM, NPU_NO_BIAS, NPU_PORTS, NPU_REG, NPU_STRIDE, NpuOp } from "../isa/memmap";
 import { Machine } from "./machine";
-import { NpuCore, NpuPort } from "./npu";
+import { NPU_LOG, NpuCore, NpuPort } from "./npu";
 
 const R = (r: number) => NPU_BASE + r;
 
@@ -217,5 +217,61 @@ describe("NPU on the bus", () => {
     expect(r.get(0, 3)).toEqual([0, 0, 0]);
     r.port.configure(null);
     expect(r.status()).toBe(0);
+  });
+});
+
+describe("the card's view", () => {
+  it("has none without a card; lists the descriptors, logs each step with the memory it touched and the accumulator after it", () => {
+    expect(new NpuPort("npu0", 0).view()).toBeNull();
+    const { port, put, go } = rig(4);
+    put(0, Array.from({ length: 16 }, (_, k) => k + 1));
+    put(0x100, Array.from({ length: 16 }, (_, k) => (k % 5 === 0 ? 1 : 0)));
+    go([D.load(0, 0), D.load(1, 0x100), D.matmul(0, 1), D.store(0x200)]);
+    const v = port.view()!;
+    expect(v).toMatchObject({ phase: "idle", busy: false, done: true, grid: 4, count: 4, run: 1, index: -1, launches: 1, descriptors: 4 });
+    expect(v.list.map((d) => d.op)).toEqual([NpuOp.Load, NpuOp.Load, NpuOp.Matmul, NpuOp.Store]);
+    expect(v.log.map((e) => [e.run, e.index, e.op, e.cost, e.fault])).toEqual([[1, 0, 1, 5, false], [1, 1, 1, 5, false], [1, 2, 2, 14, false], [1, 3, 6, 5, false]]);
+    expect(v.log[0]!.reads).toEqual([[0, 64]]);
+    expect(v.log[3]!.writes).toEqual([[0x200, 0x240]]);
+    expect(v.log[1]!.acc.every((x) => x === 0)).toBe(true);
+    expect(v.log[2]!.acc).toEqual(mul(Array.from({ length: 16 }, (_, k) => k + 1), Array.from({ length: 16 }, (_, k) => (k % 5 === 0 ? 1 : 0)), 4));
+    expect(v.acc).toEqual(v.log[3]!.acc);
+    expect(v.tiles).toEqual([true, true, false, false]);
+  });
+
+  it("shows the descriptor on show with the ticks left in it while a run is in flight, and logs a faulting step", () => {
+    const { m, port, put } = rig(4);
+    put(4096, [NpuOp.Relu, 0, 0, 0, NpuOp.Matmul, 0, 1, 0]);
+    m.bus.store32(R(NPU_REG.DESC), 4096);
+    m.bus.store32(R(NPU_REG.COUNT), 2);
+    m.bus.store32(R(NPU_REG.CMD), 1);
+    expect(port.view()).toMatchObject({ phase: "in", index: -1, span: GPU_HOP_TICKS });
+    for (let n = 0; n < GPU_HOP_TICKS + 1; n++) m.advanceBaseTick(); // the hop, then the relu's first tick
+    expect(port.view()).toMatchObject({ phase: "run", index: 0, stepSpan: 2, stepWait: 2 });
+    for (let n = 0; n < 3; n++) m.advanceBaseTick();
+    expect(port.view()).toMatchObject({ phase: "run", index: 1, stepSpan: 14 });
+    for (let n = 0; n < 40; n++) m.advanceBaseTick();
+    const v = port.view()!;
+    expect(v.phase).toBe("idle");
+    port.reset();
+    put(4096, [NpuOp.Load, 0, 8160, 0]);
+    m.bus.store32(R(NPU_REG.DESC), 4096);
+    m.bus.store32(R(NPU_REG.COUNT), 1);
+    m.bus.store32(R(NPU_REG.CMD), 1);
+    for (let n = 0; n < 40; n++) m.advanceBaseTick();
+    const f = port.view()!;
+    expect(f).toMatchObject({ error: true, fault: GpuFaultCode.Kernel });
+    expect(f.log.at(-1)).toMatchObject({ op: NpuOp.Load, fault: true, cost: 0 });
+  });
+
+  it("keeps the last steps only, and a Layer lists the blocks of card memory it reads and writes", () => {
+    const { port, put, go } = rig(4, 16384);
+    put(0xa00, [0x0, 0x400, 0x800, 0x900, 8, 1]);
+    go([[NpuOp.Layer, 0xa00, 0]]);
+    expect(port.view()!.log[0]).toMatchObject({ reads: [[0xa00, 0xa18], [0, 256], [0x400, 0x500], [0x900, 0x920]], writes: [[0x800, 0x900]] });
+    for (let k = 0; k < 6; k++) go(Array.from({ length: 4 }, () => D.relu()));
+    const v = port.view()!;
+    expect(v.log.length).toBe(NPU_LOG);
+    expect(v.log.at(-1)!.run).toBe(7);
   });
 });

@@ -7,6 +7,7 @@ import { EdgeFan, edgeFan } from '../room/case';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
 import { padlock } from '../tpm/tpmglyph';
 import { tpmGeo } from './tpmlayout';
+import { NPU_H, NPU_LEN, npuGeo, type NpuGeo } from './npulayout';
 import type { Theme } from '../theme';
 
 // The accelerator parts (docs/ACCEL.md "Picker and board art"): graphics and AI cards in a PCIe slot, and the TPM module on the board's
@@ -16,8 +17,8 @@ import type { Theme } from '../theme';
 // away when zoomed in, so a card drawn for the board (`live`) leaves both out, and a card drawn for a shop tile has them as a still picture.
 
 /** Card length by the spec's `visual` key. */
-export const CARD_LEN: Record<string, number> = { ...GPU_LEN, 'npu-1': 1500, 'npu-2': 1900 };
-const CARD_H: Record<string, number> = { ...GPU_H, 'npu-1': 196, 'npu-2': 214 };
+export const CARD_LEN: Record<string, number> = { ...GPU_LEN, ...NPU_LEN };
+const CARD_H: Record<string, number> = { ...GPU_H, ...NPU_H };
 
 /** How far a card's north edge is above its slot's rail: a graphics card hangs mostly below the rail (away from the CPU), the rest sit centred. */
 const GPU_TOP = 150;
@@ -47,7 +48,34 @@ export function gpuCover(g: Graphics, T: Theme, p: GpuPlan): Graphics {
   return g;
 }
 
-/** A GPU or NPU card on slot `i`, `visual` = the spec's key (`gpu-1`...`npu-2`). `live`: a GPU on the board, whose blades and cover the `GpuView` draws. */
+/**
+ * The lid over an AI card's die, in card-local units: a dark plate with fins running across it, the array's grid etched in it and the card's name. The board's
+ * view (`NpuCardView`, npuview.ts) fades it away when zoomed in and the die shows through; a shop tile has it as a still picture. The better card has a
+ * metal frame and a heatsink's wider fins.
+ */
+export function npuCover(T: Theme, geo: NpuGeo): Container {
+  const root = new Container(), g = new Graphics(), r = geo.lid, two = geo.visual === 'npu-2', K = geo.grid;
+  root.addChild(g);
+  box(g, r.x, r.y, r.w, r.h, 10, { fill: T.dark ? '#0d1220' : '#1d2536', stroke: two ? T.alu : T.line, lw: two ? 6 : 4 });
+  const fin = T.dark ? '#7d89a4' : '#b9c3d8', step = two ? 34 : 26;
+  for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x, r.y + 14).lineTo(x, r.y + r.h - 14);
+  g.stroke({ width: two ? 14 : 8, color: fin, alpha: two ? 0.3 : 0.18 });
+  for (let x = r.x + 30; x < r.x + r.w - 20; x += step) g.moveTo(x + step * 0.4, r.y + 14).lineTo(x + step * 0.4, r.y + r.h - 14);
+  g.stroke({ width: 3, color: '#000000', alpha: 0.35 });
+  // the array's grid etched in the lid
+  const size = Math.min(r.h * 0.6, 340), cell = size / K, gx = r.x + r.w * 0.6, gy = r.y + (r.h - size) / 2;
+  box(g, gx - 14, gy - 14, size + 28, size + 28, 8, { fill: '#05070c', fa: 0.7, stroke: T.alu, lw: 3, sa: 0.8 });
+  for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) g.rect(gx + b * cell + 2, gy + a * cell + 2, cell - 4, cell - 4);
+  g.fill({ color: T.alu, alpha: 0.5 });
+  disc(g, r.x + 22, r.y + 22, 6, { fill: T.alu, fa: 0.85 });
+  disc(g, r.x + r.w - 22, r.y + 22, 6, { fill: T.alu, fa: 0.85 });
+  root.addChild(label('AI CARD', r.x + 44, r.y + r.h * 0.3, 44, T.ink, { head: true, a: 0.9 }));
+  root.addChild(label(`NPU ${K} x ${K}${two ? ' · SHIELDED' : ''}`, r.x + 44, r.y + r.h * 0.5, 28, two ? T.alu : T.mute, { head: true, a: 0.9 }));
+  root.addChild(label('PIPELINE CITY', r.x + 44, r.y + r.h * 0.68, 16, T.mute, { a: 0.7 }));
+  return root;
+}
+
+/** A GPU or NPU card on slot `i`, `visual` = the spec's key (`gpu-1`...`npu-2`). `live`: a card on the board, whose blades and cover (a GPU) or whose lid and die (an NPU) the views draw. */
 export function cardArt(T: Theme, visual: string, i: number, live = false): Container {
   const root = new Container(), g = new Graphics();
   root.addChild(g);
@@ -87,24 +115,20 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     }
     root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, top + 142, 30, T.alu, { head: true, a: 0.9 }));
   } else {
-    // the matrix unit: a die with its grid of multiply-accumulate cells, a heatsink on the bigger card
-    const K = visual === 'npu-2' ? 8 : 4, die = 150 + K * 14, cx = x0 + 420, c0 = { x: cx - die / 2, y: y - die / 2 };
-    box(g, c0.x, c0.y, die, die, 10, { fill: '#0a0f1a', stroke: T.alu, lw: 4, sa: 0.9 });
-    const cell = (die - 36) / K;
-    for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) g.rect(c0.x + 18 + a * cell + 2, c0.y + 18 + b * cell + 2, cell - 4, cell - 4);
-    g.fill({ color: T.alu, alpha: 0.55 });
-    for (let k = 0; k < 4; k++) { g.rect(x0 + 760 + k * 60, top + 24, 30, 54); g.rect(x0 + 760 + k * 60, y + H / 2 - 78, 30, 54); }
+    // the matrix unit: its die lies under a lid (npuCover; the board's view fades it away and draws the die), the bigger card has a power lead
+    const geo = npuGeo(visual), K = geo.grid, d = geo.die;
+    for (let k = 0; k < 4; k++) { g.rect(x0 + 40 + k * 34, top + 12, 18, 30); g.rect(x0 + 40 + k * 34, top + H - 42, 18, 30); }
     g.fill({ color: mix(pcb, '#000000', 0.45) });
-    if (visual === 'npu-2') {
-      const hs = { x: x0 + 1060, y: y - 80, w: 640, h: 160 }, metal = T.dark ? '#7d89a4' : '#b9c3d8';
-      box(g, hs.x, hs.y, hs.w, hs.h, 8, { fill: metal, stroke: T.line, lw: 4 });
-      for (let x = hs.x + 22; x < hs.x + hs.w - 14; x += 26) g.moveTo(x, hs.y + 10).lineTo(x, hs.y + hs.h - 10);
-      g.stroke({ width: 7, color: '#000000', alpha: 0.28 });
-      box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
-    }
+    box(g, x0 + d.x - 12, top + d.y - 12, d.w + 24, d.h + 24, 12, { fill: mix(pcb, '#000000', 0.5) });
+    if (visual === 'npu-2') box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
-    root.addChild(label(`NPU ${K}x${K}`, x0 + 60, top + 10, 34, T.alu, { head: true, a: 0.9 }));
+    root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 10, 34, T.alu, { head: true, a: 0.9 }));
+    if (!live) {
+      const cover = npuCover(T, geo);
+      cover.position.set(x0, top);
+      root.addChild(cover);
+    }
   }
   return root;
 }

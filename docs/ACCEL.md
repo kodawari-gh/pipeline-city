@@ -99,8 +99,8 @@ Every size in UI code relative (rem, em, %), as UI.md requires. Needed art:
 
 - **Shop / picker tiles** (illustrated, greyed with `Level N` until reached): `gpu1`, `gpu2`, `gpu3` (cards of growing length, 1 / 2 / 3 fans, the last with a power lead pair), `npu1`, `npu2` (low-profile card, a grid motif on the shroud), `tpm1`, `tpm2` (a small daughterboard with one chip), `psu3`, `display1`.
 - **Board view:** a card occupying a `pcie` slot (long cards overhang the next slot visually but not logically), the `pcie` cable drawn from the PSU to the card's top edge with plug / unplug like the other cables, the `tpm` header as a small pin row near the PCH (empty and filled states).
-- **Internal views** (zoom on a device, animated from sim state): GPU = built, see GPU.md section 7; NPU = the K x K MAC grid with data pulsing right and down, the descriptor list with the current step; TPM = built, see "TPM internal view" below.
-- **Hover ids:** each lane / bank / MAC cell / TPM stage gets a hover id under the existing render/interact.md scheme.
+- **Internal views** (zoom on a device, animated from sim state): GPU = built, see GPU.md section 7; NPU = built, see "NPU internal view" below; TPM = built, see "TPM internal view" below.
+- **Hover ids:** each lane / bank / MAC cell / TPM stage gets a hover id under the existing render/interact.md scheme (all built).
 
 ## TPM internal view (as built)
 
@@ -118,6 +118,24 @@ The module is drawn like the CPU die and the GPU card: a tiled floorplan (`rende
 | `guard` | a ruler over RAM with the protected window on it, lo / hi, the two comparators and the gate, ALLOW and TRAP, the surcharge, the padlock |
 
 Data: `Snapshot.tpm` is `TpmPort.view()` (phase, registers, protected range, sealed values, running hash, the last 8 commands). A command takes a few dozen module ticks, far less than a frame, so `tpm/tpmplayer.ts` replays each command that finished since the last look in slow motion (about 1.2 s plus the work), from the log entry: it knows the command, arguments, answer and work time, never the words of a hash, so a replay shows the count of words but not the running hash. A command in flight in the module itself is shown live. The route a command takes is `tpm/tpmroute.ts`. Tests: `tpm/tpmplan.test.ts` (tiling, every wire routes, the tiers differ), `tpmroute.test.ts`, `tpmplayer.test.ts`, `board/tpmlayout.test.ts`, `ui/panels/tpmdesc.test.ts` (every id has a description), `sim/machine/tpm.test.ts` "the module's view". The old plan of a lock badge on the RAM sticks is dropped (owner): protected mode shows on the module only.
+
+## NPU internal view (as built)
+
+Built like the TPM's: a tiled floorplan of the die (`render/npu/npuplans.ts`, the layout engine and router of `die/cpufloor.ts`), `planFar` / `planNear` of `die/dieart.ts` in the card's colours (`npu/npuart.ts`), a symbol in each block (`npu/npuglyph.ts`, the CPU die's `glyphKit`), pulses on the routed wires, a hover id per part. Seen from afar the card is a lid over its die (`accelart.ts` `npuCover`: fins, the array's grid etched in it; a metal frame on `npu2`); zoomed in (lid fades 0.4 to 0.7, names from 0.75, second lines and the sums in the cells from 1.5) the die shows through. The die grows with the array (`npuDie`: 1240 x 560 for 4 x 4, 1640 x 720 for 8 x 8) and the card with it (`board/npulayout.ts`: 1500 x 660 and 1900 x 820 board units, the die 160 units in from the bracket).
+
+| Block (`pcie<k>.<id>`) | What it shows |
+|---|---|
+| `host` | the PCIe lanes (clk, tx0, tx1, rx0, rx1): bits marching in on the transmit lanes while a launch crosses, out on the receive ones for the answer, the hop meter |
+| `ctl` | the registers the CPU writes: status chips (BSY ERR DNE PRS), desc, count, cycles, fault, grid; the fault by name |
+| `desc` | the first 8 descriptors of the list as the card memory holds them (index, operation, operands), the row being run lit with a bar of its ticks, the finished rows green |
+| `tiles` | the four tile registers as K x K cells, lit once loaded, filling row by row during a load, glowing purple when a product reads them |
+| `array` | K x K multiply-accumulate cells with the sum each holds. A product sends a wavefront down the diagonals: the cells on it are bright, the activation rows come in from the west and the weight columns from the north, the stubs east and south pulse, the cells behind stay dim, and a cell shows the old sum until the wave has passed it. A layer repeats the sweep once per T x T tile; relu flashes the negative sums, bias lights row by row, a store sweeps the rows out |
+| `post` | the bias adder, the max(0, x) unit and the rows of K values in and out |
+| `cardmem` | a ruler over card memory: amber windows are what the step on show reads, green what it writes, pink the descriptor list, with the byte counts |
+
+Hover ids besides the blocks: `mac<r>x<c>` (each cell), `tile<t>`, `entry<n>` (each row of the queue), `lid`. They carry no GPU kind name (`regs`, `pcie`, `mem` are GPU ids), so `describeId` can route by shape.
+
+Data: `Snapshot.npus` is `NpuPort.view()` per card (`slot` = the PCIe slot): phase, registers, the descriptor on show with the ticks left in it, the first 8 descriptors read out of card memory, the tiles loaded, the accumulator, and the last 16 steps (`NpuStep`: run, index, op, operands, cost, fault, the card-memory byte ranges it read and wrote, the accumulator after it). A launch takes a few dozen card ticks, less than a frame, so `npu/npuplayer.ts` replays each launch that finished since the last look in slow motion (a hop of 0.5 s, a descriptor about 0.4 to 1.7 s by its cost), from the logged steps: it is the picture the card showed, only slower, sums included. A launch in flight in the card itself is shown live and is not replayed after. The wires a descriptor runs are `npu/npuroute.ts` (the fetch from card memory first, then the datapath of its operation). Tests: `npu/npuplan.test.ts` (tiling, every wire routes), `npuroute.test.ts`, `npuplayer.test.ts`, `npuglyph.test.ts` (the live symbols), `board/npulayout.test.ts`, `board/npuview.test.ts`, `ui/panels/npudesc.test.ts` (every id has a description), `sim/machine/npu.test.ts` "the card's view".
 
 ## Out of scope for this phase
 
@@ -139,7 +157,7 @@ Each line is meant as one TODO entry, in dependency order:
 10. **Fast-model keys:** accelerators in the hardware hash, per-class invalidation. Test: swapping a GPU keeps `cli` entries.
 11. **Board art** [visual]: card in slot, `pcie` cable, `tpm` header (empty / filled).
 12. **Picker art** [visual]: tiles for all accelerator tiers, `psu3`, `display1`.
-13. **Internal views** [visual]: GPU built (GPU.md); TPM built (above); NPU grid not yet; hover ids.
+13. **Internal views** [visual]: GPU built (GPU.md); TPM built (above); NPU built (above); hover ids built.
 14. **Later tiers:** `gpu2`, `gpu3` built as engines (GPU.md); `npu2`, `tpm2` as data.
 
 Open points for the owner: the NPU as descriptor-driven rather than a third ISA (recommended, for scope) (decided: yes); the case-heat coupling (decided: it stays); no gpu or npu job is gated by hardware or paid less without the card (decided, T67).

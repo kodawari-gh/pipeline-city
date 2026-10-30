@@ -6,7 +6,7 @@ import type { GpuTarget, NpuTarget } from "../gen";
 import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from "../isa/memmap";
 import { Disk, type StoragePort } from "../machine";
 import type { Game } from "./game";
-import type { GpuSnap } from "./types";
+import type { GpuSnap, NpuSnap } from "./types";
 
 /** The drive's media for an installed storage device (created blank the first time). */
 export function diskFor(this: Game, d: InstalledDevice): Disk {
@@ -85,6 +85,16 @@ export function gpuSnaps(this: Game): GpuSnap[] {
     const v = port.view();
     if (v) out.push({ ...v, slot: port.name });
   }
+  return out;
+}
+
+/** The insides of every AI card on the bus, for the snapshot (the board view draws the MAC array and the descriptor list from it); `slot` is the PCIe slot of the card. */
+export function npuSnaps(this: Game): NpuSnap[] {
+  const out: NpuSnap[] = [];
+  this.npus.forEach((port, k) => {
+    const v = port.view();
+    if (v) out.push({ ...v, slot: `pcie${k}` });
+  });
   return out;
 }
 
