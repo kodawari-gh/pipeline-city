@@ -58,6 +58,10 @@ export interface GpuPlan {
   regs: Rect;
   regRows: Rect[];
   regSets: RegSet[];
+  /** Lanes of one SM, SM 0's decoder, and one cell per warp of every SM (none on the unpipelined unit). */
+  perSm: number;
+  decode: Rect;
+  warpCells: { sm: number; warp: number; rect: Rect }[];
   /** The memory banks of SM 0, and the card memory. */
   bankBars: Rect[];
   mem: Rect;
@@ -96,7 +100,7 @@ export function gpuPlan(visual: string): GpuPlan {
   const origin = { x: SHROUD_X + MARGIN, y: DIE_Y }, body: Rect = { x: origin.x, y: origin.y, w: die.die.w, h: die.die.h };
   const mv = (r: Rect): Rect => ({ x: r.x + origin.x, y: r.y + origin.y, w: r.w, h: r.h });
   const get = (id: string): GpuBlock => die.blocks.find((b) => b.id === id)!;
-  const per = lanes / input.sms, laneCells: Rect[] = [], maskBits: Rect[] = [], regSets: RegSet[] = [];
+  const per = lanes / input.sms, laneCells: Rect[] = [], maskBits: Rect[] = [], regSets: RegSet[] = [], warpCells: GpuPlan['warpCells'] = [];
   let first: { lanes: Rect; regs: Rect; mask: ReturnType<typeof maskParts>; pc: Rect; banks: Rect[] } | null = null;
   for (let k = 0; k < input.sms; k++) {
     const p = input.sms > 1 ? `sm${k}.` : '', lb = get(`${p}lanes`), rb = get(`${p}regs`), mb = get(`${p}mask`);
@@ -108,6 +112,8 @@ export function gpuPlan(visual: string): GpuPlan {
       return mv({ x: a.x, y: a.y, w: z.x + z.w - a.x, h: a.h });
     });
     regSets.push({ lane0: k * per, cols: per, rows });
+    const wb = die.blocks.find((b) => b.id === `${p}warps`);
+    if (wb) gpuCells(wb).forEach((r, warp) => warpCells.push({ sm: k, warp, rect: mv(r) }));
     if (!first) {
       const bb = die.blocks.find((b) => b.id === `${p}banks`) ?? get(`${p}arb`);
       first = { lanes: mv(lb.rect), regs: mv(rb.rect), mask: { ...m, strip: mv(m.strip), stack: mv(m.stack), slots: m.slots.map(mv) }, pc: mv((die.blocks.find((b) => b.id === 'pc') ?? get(`${p}fetch`)).rect), banks: gpuCells(bb).map(mv) };
@@ -118,7 +124,7 @@ export function gpuPlan(visual: string): GpuPlan {
     visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin,
     links: die.links.map((l) => ({ id: l.id, kind: l.kind, lanes: l.lanes, pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]) })),
     link: mv(get('pcie').rect), pc: f.pc, laneCells, lanesBlock: f.lanes, mask: f.mask.strip, maskBits, maskStack: f.mask.stack, maskSlots: f.mask.slots,
-    regs: f.regs, regRows: regSets[0]!.rows, regSets, bankBars: f.banks, mem: mv(get('dram').rect),
+    regs: f.regs, regRows: regSets[0]!.rows, regSets, perSm: per, decode: mv(get(input.sms > 1 ? 'sm0.decode' : 'decode').rect), warpCells, bankBars: f.banks, mem: mv(get('dram').rect),
   };
   cache.set(visual, plan);
   return plan;

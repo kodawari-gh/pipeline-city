@@ -68,3 +68,29 @@ describe('GPU view', () => {
     expect(v.root.visible).toBe(false);
   });
 });
+
+describe('along', () => {
+  it('finds the point a fraction of the way along a polyline, clamped to its ends', async () => {
+    const { along } = await import('./gpuview');
+    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10]];
+    expect(along(pts, 0)).toEqual([0, 0]);
+    expect(along(pts, 0.25)).toEqual([5, 0]);
+    expect(along(pts, 0.75)).toEqual([10, 5]);
+    expect(along(pts, 2)).toEqual([10, 10]);
+  });
+});
+
+describe('GPU view on a multi-SM card', () => {
+  it('draws each SM under its own instruction without error', () => {
+    setLayoutTier(3, 3);
+    const v = new GpuView();
+    v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-3', origin: { x: 0, y: 0 } }]);
+    v.setZoom(1);
+    const trace = [
+      { pc: 0, name: 'vld', kind: 'ld' as const, mask: 0xff, cost: 4, banks: [2, 1, 1, 0], dest: 2, startCycle: 0, sm: 0, warp: 0 },
+      { pc: 0, name: 'vadd', kind: 'alu' as const, mask: 0x0f, cost: 1, banks: null, dest: 3, startCycle: 1, sm: 1, warp: 1 },
+    ];
+    v.update([snap({ lanes: 32, banks: 4, trace })], [{ slot: 'pcie0', tempC: 50, throttle: false } as never]);
+    for (let i = 0; i < 30; i++) expect(() => v.frame(1 / 30, true)).not.toThrow();
+  });
+});

@@ -5,10 +5,11 @@ import { label, mix } from '../ink';
 import type { Theme } from '../theme';
 import { EdgeFan } from '../room/case';
 import { gpuCover } from './accelart';
+import type { Pt } from '../die/cpuplan';
 import { gpuFar, gpuNear } from '../gpu/gpuart';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import type { Rect } from './layout';
-import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } from './gpumotion';
+import { bankState, conflicted, GpuPlayer, laneActive, stepText, type GpuTick } from '../gpu/gpuplayer';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -23,6 +24,19 @@ const FADE_FROM = 0.16, FADE_TO = 0.28, TEXT_Z = 0.3, DETAIL_Z = 0.6;
 const FAN_IDLE = 0.5, FAN_FULL = 3.5;
 /** Seen edge-on a turn is some blade spacings sliding past (the case fans do the same, a little slower). */
 const BLADES_PER_TURN = 1.6;
+
+/** The point a fraction `f` of the way along a polyline (by length). */
+export function along(pts: Pt[], f: number): Pt {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += Math.abs(pts[i]![0] - pts[i - 1]![0]) + Math.abs(pts[i]![1] - pts[i - 1]![1]);
+  let d = Math.max(0, Math.min(1, f)) * len;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!, b = pts[i]!, seg = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+    if (d <= seg || i === pts.length - 1) { const u = seg === 0 ? 0 : Math.min(1, d / seg); return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; }
+    d -= seg;
+  }
+  return pts[0]!;
+}
 
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -59,6 +73,7 @@ interface CardView {
   names: Container;
   subs: Container;
   pcText: Text;
+  decText: Text;
   linkText: Text;
   ctrText: Text;
   player: GpuPlayer;
@@ -109,13 +124,14 @@ export class GpuView {
     const pcText = label('', plan.pc.x + 7, low(plan.pc, 2, 11), 11, T.ink, { head: true, a: 0.95, minPx: 4 });
     const linkText = label('PCIe', plan.link.x + 7, low(plan.link, 1, 12), 12, T.mute, { head: true, a: 0.95, minPx: 4 });
     const ctrText = label('', plan.mem.x + 7, low(plan.mem, 4, 10), 10, T.mute, { a: 0.9, minPx: 4 });
-    inner.addChild(pcText, linkText, ctrText);
+    const decText = label('', plan.decode.x + 7, low(plan.decode, 1, 11), 11, T.ink, { head: true, a: 0.95, minPx: 4 });
+    inner.addChild(pcText, decText, linkText, ctrText);
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
     root.addChild(inner, cover, ...fans.map((f) => f.fan));
     this.root.addChild(root);
-    return { slot: c.slot, plan, root, inner, dyn, cover, fans, wires: near.wires, cells: near.cells, names, subs, pcText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false }, snap: undefined, tempC: 25, throttled: false, sig: '' };
+    return { slot: c.slot, plan, root, inner, dyn, cover, fans, wires: near.wires, cells: near.cells, names, subs, pcText, decText, linkText, ctrText, player: new GpuPlayer(), tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '' };
   }
 
   setZoom(z: number): void {
@@ -152,7 +168,7 @@ export class GpuView {
       c.inner.visible = fade > 0.02;
       if (!c.inner.visible) continue;
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
-      c.names.visible = c.pcText.visible = c.linkText.visible = showText;
+      c.names.visible = c.pcText.visible = c.decText.visible = c.linkText.visible = showText;
       c.subs.visible = c.ctrText.visible = showDetail;
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
@@ -168,15 +184,17 @@ export class GpuView {
     const col = step ? kindColor(T, step.kind) : T.alu, pulse = 1 - t.progress * 0.6;
     const on = !!s && s.phase !== 'idle' || t.playing;
     // lanes: lit under the mask, dark when the mask turned them off
+    const smTick = (sm: number) => t.sms.find((x) => x.sm === sm), smStep = (sm: number) => smTick(sm)?.step ?? step;
+    const laneOn = (k: number): boolean => { const st = smStep(Math.floor(k / p.perSm)); return st ? ((st.mask >>> (k % p.perSm)) & 1) === 1 : true; };
     p.laneCells.forEach((r, k) => {
-      const act = laneActive(t, k);
+      const act = laneOn(k);
       if (!s) g.rect(r.x, r.y, r.w, r.h).fill({ color: T.line, alpha: 0.18 });
       else if (act) g.rect(r.x, r.y, r.w, r.h).fill({ color: col, alpha: on ? 0.28 + 0.55 * pulse : 0.2 }).stroke({ width: 2, color: col, alpha: on ? 0.8 : 0.35 });
       else g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.55 }).stroke({ width: 1.5, color: T.line, alpha: 0.5 });
     });
     // the execution mask, one bit per lane
     p.maskBits.forEach((r, k) => {
-      const act = laneActive(t, k);
+      const act = laneOn(k);
       g.rect(r.x, r.y, r.w, r.h).fill({ color: act && s ? T.alu : '#000000', alpha: act && s ? 0.75 : 0.45 });
     });
     // the mask stack: slots filled to the card's current depth
@@ -189,10 +207,11 @@ export class GpuView {
       if (step && step.dest === ri) g.rect(row.x, row.y, row.w, row.h).fill({ color: col, alpha: 0.55 * pulse }).stroke({ width: 1.5, color: col, alpha: 0.9 });
     });
     // the banks: the addresses queued on each, served one round at a time
-    const mem = step?.kind === 'ld' || step?.kind === 'st';
-    const bad = conflicted(t);
+    const t0: GpuTick = { ...t, step: smStep(0), round: smTick(0)?.round ?? t.round };
+    const mem = t0.step?.kind === 'ld' || t0.step?.kind === 'st';
+    const bad = conflicted(t0);
     p.bankBars.forEach((r, b) => {
-      const { queued, served } = bankState(t, b), along = r.w >= r.h, len = (along ? r.w : r.h) - 4, segL = len / 8;
+      const { queued, served } = bankState(t0, b), along = r.w >= r.h, len = (along ? r.w : r.h) - 4, segL = len / 8;
       for (let k = 0; k < Math.min(queued, 8); k++) {
         const f = { color: k < served ? col : T.line, alpha: k < served ? 0.9 : 0.5 };
         if (along) g.rect(r.x + 2 + k * segL + 1, r.y + 1, segL - 2, r.h - 2).fill(f);
@@ -210,6 +229,26 @@ export class GpuView {
       }
       g.rect(p.mem.x, p.mem.y, p.mem.w, p.mem.h).fill({ color: col, alpha: 0.12 * pulse });
     }
+    // the warps: a chip each, lit by the instruction it holds (its mask as a bar) and outlined while it is the one issuing
+    for (const w of p.warpCells) {
+      const wt = t.warps.find((x) => x.sm === w.sm && x.warp === w.warp), r = w.rect;
+      if (!wt) { g.rect(r.x, r.y, r.w, r.h).fill({ color: '#000000', alpha: 0.3 }); continue; }
+      let on = 0;
+      for (let k = 0; k < p.perSm; k++) if ((wt.mask >>> k) & 1) on++;
+      g.rect(r.x + 2, r.y + r.h - 6, (r.w - 4) * (on / p.perSm), 4).fill({ color: T.alu, alpha: 0.85 });
+      if (wt.busy) g.rect(r.x, r.y, r.w, r.h).stroke({ width: 2, color: wt.index === t.index ? col : T.mul, alpha: 0.9 });
+    }
+    // the instruction flows along the routed links: control wires carry it down the front end, data wires into the lanes, memory wires out
+    if (on && step) {
+      for (const l of p.links) {
+        const sm = /^sm(\d+)\./.exec(l.id)?.[1], st = smStep(sm ? Number(sm) : 0);
+        if (!st) continue;
+        const memory = st.kind === 'ld' || st.kind === 'st';
+        if (l.kind === 'launch' || (l.kind === 'mem' && !memory) || (l.kind === 'data' && st.kind === 'sys')) continue;
+        const pt = along(l.pts, smTick(sm ? Number(sm) : 0)?.progress ?? t.progress);
+        g.circle(pt[0], pt[1], 4).fill({ color: l.kind === 'mem' && bad ? T.bad : kindColor(T, st.kind), alpha: 0.95 });
+      }
+    }
     // the PCIe link: lit while a launch crosses it
     const hop = s?.phase === 'in' || s?.phase === 'out';
     if (hop) {
@@ -223,6 +262,7 @@ export class GpuView {
     }
     // the texts
     c.linkText.text = s ? `PCIe ${PHASE_TEXT[s.phase]}` : 'PCIe';
+    c.decText.text = s && step ? `${step.name}${step.dest !== null ? ` v${step.dest}` : ''}${step.sm !== undefined ? `  sm${step.sm}.w${step.warp ?? 0}` : ''}` : '';
     c.pcText.text = s ? `pc 0x${(step?.pc ?? s.pc).toString(16).padStart(3, '0')}
 ${stepText(t, p.lanes)}` : '';
     c.ctrText.text = s ? `${s.launches} launches
