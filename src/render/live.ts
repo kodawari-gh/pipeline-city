@@ -15,7 +15,7 @@ import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHo
 import { FrameView, ScreenView } from './room/screenview';
 import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import { BusFlow, slice } from './board/busflow';
-import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
+import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, deviceAt, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -77,6 +77,9 @@ export class Live {
   private chainAt = new Map<string, number>();
   /** The pings of a POST in progress, sent one per `PROBE_MS` in turn by `frame` (empty outside POST). */
   private probes: Chain[] = [];
+  /** The slots with a part in them and whether a real key is in the USB port, for the CPU's accesses to device windows (`touchDevice`). */
+  private installed = new Set<string>();
+  private keyIn = false;
   /** Game time until which a message is on a path that crosses the chipset (it glows for that long). */
   private pchUntil = -1e9;
   /** What the last snapshot showed, to tell a change from a state: power, the CPU's clock and throttle, the boot progress. */
@@ -486,6 +489,21 @@ export class Live {
     this.ram.touch(kind, addr, kind === 'store' ? this.T.br : this.T.alu);
     const idx = this.ram.stickOf(addr);
     if (idx >= 0) this.triggerMem(idx, this.gt, kind === 'store' ? 1 : -1); // the stick that holds the address answers (or is written)
+    else this.touchDevice(kind, addr);
+  }
+
+  /**
+   * The CPU reached into a device's window (every device but RAM is memory-mapped and the CPU moves each word itself, no DMA): a load
+   * reads it (a block from a drive, the key's program, a card's status), a store writes it (a command, a block to a drive, the kernel
+   * and data into a card). That access is a message on the device's path, so a copy shows as the stream of words it is.
+   */
+  private touchDevice(kind: string, addr: number) {
+    const hit = deviceAt(addr);
+    if (!hit) return;
+    const now = this.gt, write = kind === 'store';
+    if (hit.kind === 'key') { if (this.keyIn) this.fire('dev:key', { hops: keyChain(write) }, now, MIN_GAP); return; }
+    if (!this.installed.has(hit.slot)) return; // (nothing there to answer)
+    this.fire('dev:' + hit.slot, hit.kind === 'drive' ? this.driveMsg(hit.slot, write) : { hops: slotChain(hit.slot, write) }, now, MIN_GAP);
   }
 
   update(s: Snapshot | null, now: number) {
@@ -526,6 +544,8 @@ export class Live {
       // (RAM traffic lights the bundle of the stick the address is on: `touchRam`, fed by the die's own fetches, loads and stores)
       if (missed || LOADS.has(op) && !!mem && mem.stalled || STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); }
     }
+    this.installed = new Set([...s.devices.map((d) => d.slot), ...(s.storage ?? []).map((d) => d.slot)]);
+    this.keyIn = !!s.plugged;
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;
     // Every message goes where the copper goes (board/busmap.ts): the key's data over the hub's uplink and its port only, a SATA drive over its
     // port and DMI, an M.2 straight to the CPU, a card over its slot (and DMI when the slot is the chipset's), the BIOS over SPI and DMI.

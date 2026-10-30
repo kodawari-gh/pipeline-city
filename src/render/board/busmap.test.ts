@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE } from '../../sim/isa/memmap';
 import { TIER_GEO } from './boardlayout';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
-  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, KEY_PORT, deviceAt, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
   type Hop,
 } from './busmap';
 
@@ -14,6 +15,21 @@ const ALL_CHAINS: Record<string, Hop[]> = {
   keyRead: keyChain(false), keyWrite: keyChain(true), netDown: boardNetChain(true), netUp: boardNetChain(false),
   sata: driveChain('sata0', false), m2: driveChain('m20', true), cpuCard: slotChain('pcie0', true), chipCard: slotChain('pcie1', false),
 };
+
+describe('deviceAt', () => {
+  it('finds the drive, card or key a bus address belongs to, and nothing for RAM', () => {
+    expect(deviceAt(STORAGE_BASE)).toEqual({ kind: 'drive', slot: 'sata0' });
+    expect(deviceAt(STORAGE_BASE + STORAGE_STRIDE * 2 + STORAGE_BUF + 8)).toEqual({ kind: 'drive', slot: 'm20' }); // a word of port 2's block buffer
+    STORAGE_PORTS.forEach((slot, k) => expect(deviceAt(STORAGE_BASE + k * STORAGE_STRIDE + 4)).toEqual({ kind: 'drive', slot }));
+    expect(deviceAt(STORAGE_BASE + STORAGE_PORTS.length * STORAGE_STRIDE)).toBeNull();
+    GPU_PORTS.forEach((slot, k) => expect(deviceAt(GPU_BASE + k * GPU_STRIDE + 0x1_0000)).toEqual({ kind: 'card', slot })); // card memory, behind the registers
+    expect(deviceAt(PCH_BASE + PCH_KEY_WINDOW + 4)).toEqual({ kind: 'key' });
+    expect(deviceAt(PCH_BASE + PCH_RESULT_WINDOW)).toEqual({ kind: 'key' });
+    expect(deviceAt(PCH_BASE + 0x28)).toBeNull(); // the chipset's registers
+    expect(deviceAt(0x1000)).toBeNull();
+    expect(deviceAt(0xc100)).toBeNull();
+  });
+});
 
 describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier) => {
   const setup = () => {

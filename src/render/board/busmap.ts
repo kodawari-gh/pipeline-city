@@ -1,6 +1,7 @@
 // Which traces carry what. Pure geometry and tables: the role of every bus of the board, and the chains of hops a message takes (a SATA read goes
 // port -> chipset -> CPU), each hop naming the lanes it runs on. `live.ts` decides when a message happens; this decides where it goes.
 
+import { GPU_BASE, GPU_PORTS, GPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE } from '../../sim/isa/memmap';
 import type { Bus, BusKind, Lane } from './routes';
 
 /**
@@ -92,6 +93,18 @@ export const COOLER_CHAIN: Hop[] = [{ bus: 'fanc', dir: 1 }];
 export const POST_CODE_CHAIN: Hop[] = [{ bus: 'dmi', dir: 1 }, { bus: 'dbg', dir: 1 }];
 /** The picture leaves the CPU's video lanes for the HDMI port. */
 export const VIDEO_CHAIN: Hop[] = [{ bus: 'video', dir: 1 }];
+
+/** The part a bus address belongs to (everything but RAM is memory-mapped, and the CPU moves every word itself: there is no DMA). */
+export type DeviceHit = { kind: 'drive' | 'card'; slot: string } | { kind: 'key' };
+
+/** The device whose window holds `addr`: a drive's registers and block buffer, a card's registers and memory, the plugged key's program and result words; null for RAM and the rest. */
+export function deviceAt(addr: number): DeviceHit | null {
+  const a = addr >>> 0, within = (base: number, size: number) => a >= base && a < base + size;
+  if (within(STORAGE_BASE, STORAGE_PORTS.length * STORAGE_STRIDE)) return { kind: 'drive', slot: STORAGE_PORTS[Math.floor((a - STORAGE_BASE) / STORAGE_STRIDE)]! };
+  if (within(GPU_BASE, GPU_PORTS.length * GPU_STRIDE)) return { kind: 'card', slot: GPU_PORTS[Math.floor((a - GPU_BASE) / GPU_STRIDE)]! };
+  if (within(PCH_BASE + PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE) || within(PCH_BASE + PCH_RESULT_WINDOW, PCH_RESULT_WORDS * 4)) return { kind: 'key' };
+  return null;
+}
 
 /** The slot number of a drive or card slot id, or -1. */
 export const slotIndex = (slot: string): number => { const m = /(\d+)$/.exec(slot); return m ? Number(m[1]) : -1; };
