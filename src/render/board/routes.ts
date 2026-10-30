@@ -130,8 +130,6 @@ export function bundle(centre: Pt[], n: number, spacing: number, c = 120): Pt[][
 
 export type BusKind = 'mem' | 'nvme' | 'dmi' | 'pcie' | 'sata' | 'usb' | 'video' | 'dp' | 'svid' | 'pwmc' | 'spi' | 'hdr' | 'rtc' | 'pwr12' | 'pwrcpu' | 'vcore' | 'vdimm' | 'audio' | 'lan' | 'hda' | 'phyl' | 'lpc' | 'dbg' | 'rgb' | 'fanc' | 'pwrpcie' | 'clk';
 
-/** Buses that are only there to be seen: they never light. */
-export const DECOR_BUSES: readonly BusKind[] = ['audio', 'lan', 'dp', 'svid', 'pwmc', 'spi', 'hdr', 'rtc', 'hda', 'phyl', 'lpc', 'dbg', 'rgb', 'fanc', 'pwrpcie', 'clk'];
 /** Buses that may dive under what they cross (a via at each end of the hop), in rank order: a lane of a later bus hops over a lane of an earlier one. */
 export const HOP_BUSES: readonly BusKind[] = ['pwmc', 'hda', 'phyl', 'lpc', 'rgb', 'fanc', 'pwrpcie'];
 

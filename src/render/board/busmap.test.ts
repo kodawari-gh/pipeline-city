@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import { TIER_GEO } from './boardlayout';
+import { GEO, PKG, setLayoutTier, type Rect } from './layout';
+import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
+import {
+  BIOS_CHAIN, BUS_ROLE, KEY_PORT, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, isMessageBus, keyChain, lanesOf, resolve, slotChain,
+  type Hop,
+} from './busmap';
+
+const near = (p: [number, number], r: Rect, d = 80) => p[0] >= r.x - d && p[0] <= r.x + r.w + d && p[1] >= r.y - d && p[1] <= r.y + r.h + d;
+const first = (l: Lane) => l.pts[0]!, last = (l: Lane) => l.pts[l.pts.length - 1]!;
+const ALL_CHAINS: Record<string, Hop[]> = {
+  bios: BIOS_CHAIN, power: POWER_ON_CHAIN, volt: VOLTAGE_CHAIN, code: POST_CODE_CHAIN, video: VIDEO_CHAIN,
+  keyRead: keyChain(false), keyWrite: keyChain(true), netDown: boardNetChain(true), netUp: boardNetChain(false),
+  sata: driveChain('sata0', false), m2: driveChain('m20', true), cpuCard: slotChain('pcie0', true), chipCard: slotChain('pcie1', false),
+};
+
+describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier) => {
+  const setup = () => {
+    setLayoutTier(tier);
+    const buses = buildBuses(), map = new Map<BusKind, Bus>();
+    for (const b of buses) if (!map.has(b.id)) map.set(b.id, b);
+    return { g: GEO, buses, map };
+  };
+
+  it('classifies every bus the board has, and only message buses appear in a chain', () => {
+    const { buses } = setup();
+    for (const b of buses) expect(BUS_ROLE[b.id], b.id).toBeDefined();
+    for (const [name, hops] of Object.entries(ALL_CHAINS)) for (const h of hops) expect(isMessageBus(h.bus), `${name}: ${h.bus}`).toBe(true);
+  });
+
+  it('sends a key over the hub uplink and its own port only', () => {
+    const { g, map } = setup();
+    const usb = map.get('usb')!;
+    expect(usb.groups!.length).toBe(1 + g.usb);
+    const read = resolve(map, keyChain(false));
+    expect(read.map((l) => l.lanes)).toEqual([lanesOf(usb, { usbPort: KEY_PORT }), lanesOf(usb, 'uplink')]);
+    expect(lanesOf(usb, 'uplink').length).toBe(4);
+    expect(lanesOf(usb, { usbPort: KEY_PORT }).length).toBe(2);
+    expect(resolve(map, keyChain(false)).some((l) => l.bus === 'dmi')).toBe(false);
+    // the lanes run CPU -> hub, then hub -> port: a read goes the other way along both
+    expect(near(first(usb.groups![0]![0]!), PKG)).toBe(true);
+    expect(near(last(usb.groups![0]![0]!), g.hub)).toBe(true);
+    expect(near(first(usb.groups![1]![0]!), g.hub)).toBe(true);
+    expect(lanesOf(usb, { usbPort: g.usb })).toEqual([]); // no such port
+  });
+
+  it('puts a SATA drive on its port and DMI, an M.2 straight on the CPU', () => {
+    const { g, map } = setup();
+    g.sata.forEach((_, i) => {
+      const legs = resolve(map, driveChain('sata' + i, false));
+      expect(legs.map((l) => l.bus)).toEqual(['sata', 'dmi']);
+      expect(legs.map((l) => l.dir)).toEqual([-1, -1]);
+      expect(legs[0]!.lanes.length).toBe(3);
+      expect(near(first(legs[0]!.lanes[0]!), g.chip)).toBe(true); // the port's lanes start at the chipset
+      expect(resolve(map, driveChain('sata' + i, true)).map((l) => l.bus)).toEqual(['dmi', 'sata']);
+    });
+    g.m2.forEach((_, i) => {
+      const legs = resolve(map, driveChain('m2' + i, true));
+      expect(legs.map((l) => l.bus)).toEqual(['nvme']);
+      expect(legs[0]!.lanes.length).toBeGreaterThan(0);
+      expect(near(first(legs[0]!.lanes[0]!), PKG, 120)).toBe(true);
+    });
+    expect(resolve(map, driveChain('sata' + g.sata.length, false)).map((l) => l.bus)).not.toContain('sata'); // a port the board lacks has no lanes to light
+    expect(driveChain('cpu', false)).toEqual([]);
+  });
+
+  it('puts a card in the first slot on the CPU, in the others on the chipset and DMI', () => {
+    const { g, map } = setup();
+    g.pcie.forEach((_, k) => {
+      const legs = resolve(map, slotChain('pcie' + k, false));
+      expect(legs.map((l) => l.bus)).toEqual(k === 0 ? ['pcie'] : ['pcie', 'dmi']);
+      expect(legs[0]!.lanes.length).toBe(k === 0 ? 12 : 4);
+      expect(near(first(legs[0]!.lanes[0]!), k === 0 ? PKG : g.chip, 120)).toBe(true);
+    });
+  });
+
+  it('routes the control chains from the part that speaks to the part that listens', () => {
+    const { g, map } = setup();
+    const lane = (id: BusKind, n = 0) => map.get(id)!.lanes[n]!;
+    expect(resolve(map, BIOS_CHAIN).map((l) => l.bus)).toEqual(['spi', 'dmi']);
+    expect(near(first(lane('spi')), g.bios)).toBe(true);
+    expect(near(last(lane('spi')), g.chip)).toBe(true);
+    expect(resolve(map, POWER_ON_CHAIN).map((l) => l.bus)).toEqual(['hdr', 'lpc', 'dmi']);
+    expect(near(first(lane('lpc')), g.sio)).toBe(true);
+    expect(near(first(lane('hdr')), g.sio, 140)).toBe(true);
+    expect(resolve(map, VOLTAGE_CHAIN).map((l) => l.bus)).toEqual(['svid', 'pwmc']);
+    expect(near(first(lane('svid')), g.pwm)).toBe(true);
+    expect(near(last(lane('svid')), PKG, 120)).toBe(true);
+    expect(near(first(lane('pwmc')), g.pwm)).toBe(true); // the first pwmc is the CPU's regulator
+    expect(resolve(map, POST_CODE_CHAIN).map((l) => l.bus)).toEqual(g.dbg ? ['dmi', 'dbg'] : ['dmi']);
+    if (g.dbg) expect(near(first(lane('dbg')), g.chip, 140)).toBe(true);
+  });
+
+  it('routes the board ethernet through the PHY and the hub, where the board has a jack', () => {
+    const { g, map } = setup();
+    const down = resolve(map, boardNetChain(true));
+    expect(down.map((l) => l.bus)).toEqual(g.phy ? ['lan', 'phyl', 'usb'] : ['usb']);
+    if (g.phy) {
+      expect(near(first(map.get('lan')!.lanes[0]!), g.phy)).toBe(true); // jack lanes run PHY -> jack, so a download runs them backwards
+      expect(near(first(map.get('phyl')!.lanes[0]!), g.phy)).toBe(true);
+      expect(near(last(map.get('phyl')!.lanes[0]!), g.hub)).toBe(true);
+    }
+  });
+});

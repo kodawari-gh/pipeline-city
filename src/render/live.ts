@@ -13,8 +13,9 @@ import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
 import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from './room/screenmodel';
 import { FrameView, ScreenView } from './room/screenview';
-import { DECOR_BUSES, mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
+import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
 import { BusFlow, slice } from './board/busflow';
+import { BIOS_CHAIN, BUS_ROLE, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
@@ -22,14 +23,20 @@ export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect
 
 interface Glow { t: GlowTarget; g: Graphics; dim: Graphics; base: number; level: number }
 /**
- * A bus. A data bus (`power` false) has no overlay: a message is a packet on its lanes (`BusFlow`), sent once per event or, while `stream` is
- * set (re-armed by every snapshot of a phase that moves data), every `STREAM_GAP` ms. A power bus glows (`g`, strength `level`, target `hold`).
+ * A power bus glows (`g`, strength `level`, target `hold`) in proportion to current; a memory bundle (one per stick, `memLit`) sends a packet
+ * per access, or every `STREAM_GAP` ms while `stream` is set (re-armed by each snapshot of a phase that moves data). Every other bus is a
+ * `Chain` (below), found through `busmap.ts`.
  */
 interface Lit { bus: Bus; /** The lanes that light (the main run plus the branches of the installed DIMMs). */ lanes: Lane[]; g: Graphics | null; level: number; hold: number; dir: number; color: string; power: boolean; stream: boolean; nextAt: number }
+/**
+ * A message between parts: the hops it takes in order (each on its own lanes, the next starting when the last arrives), and optionally the
+ * drive's cable lane before (a read) or after (a write) them, or the video cable after them. `force`: it also runs while the screen is black.
+ */
+interface Chain { hops: Hop[]; force?: boolean; drive?: { lane: Lane; before: boolean; dir: 1 | -1 }; cable?: boolean }
 /** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
 export interface DriveHook { slot: string; kind: DriveKind; g: Graphics; lane: Lane | null }
 interface DriveLive extends DriveHook {
-  busyUntil: number; stream: boolean; nextAt: number; speed: number; spin: number; head: number; led: number; dir: number; sig: string; burnt: boolean;
+  busyUntil: number; speed: number; spin: number; head: number; led: number; sig: string; burnt: boolean;
 }
 interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
@@ -45,6 +52,8 @@ const STORES = new Set(['sw', 'sb']);
 /** Game ms between packets on a bus that streams (a boot phase, a busy drive), and the least between two one-off messages on a bus. */
 const STREAM_GAP = 240;
 const MIN_GAP = 100;
+/** The buses that end on the chipset: a message on one of them makes the chipset glow. */
+const CHIPSET_BUSES: readonly BusKind[] = ['dmi', 'sata', 'spi', 'lpc', 'dbg'];
 
 /**
  * Everything that changes with the sim. The board is dim by default; a bus only lights when the snapshot shows real
@@ -60,6 +69,17 @@ export class Live {
   /** Packets on the board's data buses (in `root`) and on the video cable outside the case (in `ext`), and the video cable's lit stretch. */
   private busFlow: BusFlow;
   private extFlow: BusFlow;
+  /** The message buses of the board (the first of each kind), the chains that stream right now (re-armed by every snapshot) and when each may send again. */
+  private flowBuses = new Map<BusKind, Bus>();
+  private streams = new Map<string, Chain>();
+  private chainAt = new Map<string, number>();
+  /** Game time until which a message is on a path that crosses the chipset (it glows for that long). */
+  private pchUntil = -1e9;
+  /** What the last snapshot showed, to tell a change from a state: power, the CPU's clock and throttle, the boot progress. */
+  private wasPowered: boolean | null = null;
+  private lastClock = 0;
+  private lastThrottle = 1;
+  private lastProgress = 0;
   private videoLane: Lane | null = null;
   private videoW = 10;
   /** The machine moves no data now (off, tripped, dead, halted, error, cold-boot wait): no new packet starts. */
@@ -107,7 +127,6 @@ export class Live {
   private lastCycles = 0;
   private lastStall = 0;
   private lastText = '';
-  private lastReq = -1;
   private cpuHeat = 0;
   private clockRatio = 1;
   private shownText = '\u0000';
@@ -243,20 +262,15 @@ export class Live {
       this.root.addChild(g, dim);
       this.glows.set(t.id, { t, g, dim, base: 0, level: 0 });
     }
-    const colorOf = (id: BusKind): string => {
-      switch (id) {
-        case 'mem': return T.alu;
-        case 'nvme': case 'dmi': case 'sata': case 'usb': return T.mul;
-        case 'video': return T.st;
-        case 'pcie': return T.br;
-        default: return T.ld;
-      }
-    };
+    const colorOf = (id: BusKind) => this.busColor(id);
     let nDots = 0;
+    this.flowBuses.clear();
     for (const bus of buses) {
       if ((bus.id === 'video') && !flags.display) continue;
-      if (DECOR_BUSES.includes(bus.id)) continue; // decoration: never lit
-      const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
+      const role = BUS_ROLE[bus.id];
+      if (role === 'dark') continue; // nothing moves on it in the game
+      if (role !== 'power' && bus.id !== 'mem') { if (!this.flowBuses.has(bus.id)) this.flowBuses.set(bus.id, bus); continue; } // (a message bus: `busmap` picks its lanes)
+      const power = role === 'power';
       if (bus.id === 'mem') {
         for (const t of bus.taps ?? []) {
           const idx = Number(t.key.slice(4));
@@ -302,7 +316,7 @@ export class Live {
       this.cables.push({ cable, g, level: 0, target: 0, color });
     }
     this.drives.clear();
-    for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, stream: false, nextAt: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, dir: 1, sig: '', burnt: false });
+    for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, sig: '', burnt: false });
     this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
@@ -380,46 +394,58 @@ export class Live {
   setConnected(c: Set<CableKind>) { this.connected = c; }
   setPlugged(p: boolean) { this.plugged = p; }
 
-  /** A bus moves data for as long as the phase does: it sends a packet every `STREAM_GAP` ms (re-armed by every snapshot of the phase, so it stops with it). */
-  private flow(id: BusKind, _now: number, dir: number) {
-    if (id === 'mem') { for (const l of this.memLit.values()) { l.stream = true; l.dir = dir; } return; }
-    const l = this.lit.get(id);
-    if (!l) return;
-    l.stream = true;
-    l.dir = dir;
+  /** The colour of a bus's packets: memory cyan, the storage / chipset / USB buses violet, video green, PCIe the branch colour, the control buses amber. */
+  private busColor(id: BusKind): string {
+    const T = this.T;
+    switch (id) {
+      case 'mem': return T.alu;
+      case 'nvme': case 'dmi': case 'sata': case 'usb': case 'lan': case 'phyl': return T.mul;
+      case 'video': return T.st;
+      case 'pcie': return T.br;
+      default: return T.ld;
+    }
   }
 
-  /** A drive moves data: the bus (and SATA cable) that serves its slot streams. `busy` also keeps the platter / LEDs going. */
-  private driveFlow(slot: string, now: number, toDrive: boolean, busy = false) {
-    const m2 = slot.startsWith('m2');
-    this.flow(m2 ? 'nvme' : 'sata', now, toDrive ? 1 : -1);
-    const dr = this.drives.get(slot);
-    if (!dr) return;
-    dr.stream = true;
-    if (busy) dr.busyUntil = Math.max(dr.busyUntil, now + 900);
-    dr.dir = toDrive ? -1 : 1; // the cable lane runs drive -> board
+  /** The memory bus moves data for as long as the phase does: it sends a packet every `STREAM_GAP` ms (re-armed by every snapshot of the phase, so it stops with it). */
+  private flowMem(dir: number) {
+    for (const l of this.memLit.values()) { l.stream = true; l.dir = dir; }
   }
 
-  /** Send one message on a bus now (at most one per `gap` ms on it). The video bus carries it on to the cable when it arrives. */
+  /** A message that goes on for as long as the snapshots say so (a boot phase, a busy drive, a transfer): sent every `STREAM_GAP` ms by `frame`. */
+  private arm(key: string, c: Chain) { this.streams.set(key, c); }
+
+  /** A drive moves data: its slot's chain streams, with the drive's own cable lane (SATA, which runs drive -> board) before a read or after a write. */
+  private armDrive(slot: string, toDrive: boolean) {
+    const lane = this.drives.get(slot)?.lane;
+    this.arm('drive:' + slot, { hops: driveChain(slot, toDrive), drive: lane ? { lane, before: !toDrive, dir: toDrive ? -1 : 1 } : undefined });
+  }
+
+  /**
+   * Send one message now: its hops one after the other, each on its own lanes, then the video cable if it goes on to the monitor. At most one
+   * per `gap` ms for a `key`. The chipset (PCH) glows for as long as a message is on a path that crosses it.
+   */
+  private fire(key: string, c: Chain, now: number, gap: number) {
+    if (!this.liveOn || (this.quiet && !c.force) || now < (this.chainAt.get(key) ?? -1e9)) return;
+    this.chainAt.set(key, now + gap);
+    const legs = resolve(this.flowBuses, c.hops);
+    const segs = legs.map((l) => ({ lanes: l.lanes, dir: l.dir, w: l.w, color: this.busColor(l.bus) }));
+    if (c.drive) { const d = { lanes: [c.drive.lane], dir: c.drive.dir, w: 10, color: this.T.mul }; if (c.drive.before) segs.unshift(d); else segs.push(d); }
+    let delay = 0;
+    for (const s of segs) delay += this.busFlow.send(s.lanes, s.dir, s.color, now, s.w, delay);
+    if (c.cable && this.videoLane && this.connected.has('video')) this.extFlow.send([this.videoLane], 1, this.T.st, now, this.videoW, delay);
+    if (legs.some((l) => CHIPSET_BUSES.includes(l.bus))) this.pchUntil = Math.max(this.pchUntil, now + delay);
+  }
+
+  /** Send one memory message now (at most one per `gap` ms on this stick's bundle). */
   private send(l: Lit, now: number, gap: number) {
     if (this.quiet || !this.liveOn || now < l.nextAt) return;
     l.nextAt = now + gap;
-    const dur = this.busFlow.send(l.lanes, l.dir, l.color, now, l.bus.w);
-    if (l.bus.id === 'video' && this.videoLane && this.connected.has('video')) this.extFlow.send([this.videoLane], 1, l.color, now, this.videoW, dur);
+    this.busFlow.send(l.lanes, l.dir, l.color, now, l.bus.w);
   }
 
   /** One message between the CPU and one stick. */
   private triggerMem(idx: number, now: number, dir: number) {
     const l = this.memLit.get(idx);
-    if (!l) return;
-    l.dir = dir;
-    this.send(l, now, MIN_GAP);
-  }
-
-  /** One message on a bus (an event: a request handed over or finished, a new line on the screen). */
-  private trigger(id: BusKind, now: number, dir = 1) {
-    if (id === 'mem') { for (const idx of this.memLit.keys()) this.triggerMem(idx, now, dir); return; }
-    const l = this.lit.get(id);
     if (!l) return;
     l.dir = dir;
     this.send(l, now, MIN_GAP);
@@ -457,8 +483,8 @@ export class Live {
     this.coldWait = coldWait;
     this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
     this.quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
-    for (const l of [...this.lit.values(), ...this.memLit.values()]) l.stream = false; // the phase below arms the buses that move data now
-    for (const dr of this.drives.values()) dr.stream = false;
+    for (const l of this.memLit.values()) l.stream = false; // the phase below arms what moves data now
+    this.streams.clear();
 
     // ---- activity: only real traffic lights a bus ----
     const c = s.counters, misses = c.cacheMisses ?? 0, stall = c.stallCache ?? 0, cycles = c.cycles ?? 0;
@@ -471,39 +497,52 @@ export class Live {
       // (RAM traffic lights the bundle of the stick the address is on: `touchRam`, fed by the die's own fetches, loads and stores)
       if (missed || LOADS.has(op) && !!mem && mem.stalled || STORES.has(op)) { this.memAt = now; this.memWall = performance.now(); }
     }
-    const reqId = s.request?.id ?? -1;
-    if (reqId !== this.lastReq) {
-      if (reqId >= 0) this.trigger('dmi', now, -1); // program handed to the CPU
-      else if (this.lastReq >= 0) this.trigger('dmi', now, 1); // request finished
-      this.lastReq = reqId;
-    }
-    const shown = s.display || '';
-    if (shown !== this.lastText) {
-      if (shown && s.monitorLive) { this.trigger('video', now, 1); this.trigger('dmi', now, 1); }
-      this.lastText = shown;
-    }
-    // boot: data moves USB port <-> PCH <-> CPU <-> RAM along the real buses (only in the phases that move data)
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;
+    // Every message goes where the copper goes (board/busmap.ts): the key's data over the hub's uplink and its port only, a SATA drive over its
+    // port and DMI, an M.2 straight to the CPU, a card over its slot (and DMI when the slot is the chipset's), the BIOS over SPI and DMI.
     if (s.powered) {
-      if (s.phase === 'posting') { if (!coldWait) this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1); }
-      else if (s.phase === 'loading') { this.flow('usb', now, -1); this.flow('dmi', now, -1); this.flow('mem', now, 1); }
-      else if (s.phase === 'writing') { this.flow('mem', now, -1); this.flow('dmi', now, 1); this.flow('usb', now, 1); }
+      if (s.phase === 'posting') this.arm('bios', { hops: BIOS_CHAIN, force: true }); // POST reads the BIOS, also while the screen is still black
+      else if (s.phase === 'loading') { this.arm('key', { hops: keyChain(false) }); this.flowMem(1); }
+      else if (s.phase === 'writing') { this.arm('key', { hops: keyChain(true) }); this.flowMem(-1); }
       else if (s.phase === 'booting-os' || s.phase === 'ingesting' || s.phase === 'flashing') {
-        // OS flows on the real routes. Drive side: booting reads the kernel (drive -> RAM/CPU), ingesting writes the key's job to the
-        // spool (key -> drive), flashing reads the result back (drive -> key).
-        const toDrive = s.phase === 'ingesting';
+        // Drive side: booting reads the kernel (drive -> RAM/CPU), ingesting writes the key's job to the spool (key -> drive), flashing reads the result back (drive -> key).
         const bootSlot = s.os?.slot ?? s.storage.find((d) => d.hasOs)?.slot ?? null;
-            if (bootSlot) this.driveFlow(bootSlot, now, toDrive);
-        if (s.phase === 'booting-os') { this.flow('dmi', now, -1); this.flow('mem', now, 1); }
-        else if (s.phase === 'ingesting') { this.flow('usb', now, -1); this.flow('dmi', now, -1); }
-        else { this.flow('dmi', now, 1); this.flow('usb', now, 1); }
+        if (bootSlot) this.armDrive(bootSlot, s.phase === 'ingesting');
+        if (s.phase === 'booting-os') this.flowMem(1);
+        else this.arm('key', { hops: keyChain(s.phase === 'flashing') });
       }
     }
     // storage activity: the platter / LEDs / bus light only while the drive reports busy (held a moment so snapshots do not flicker)
     for (const st of s.storage ?? []) {
       const dr = this.drives.get(st.slot);
-      if (dr) { dr.burnt = st.burnt; if (st.busy && s.powered) this.driveFlow(st.slot, now, s.phase === 'ingesting', true); }
+      if (dr) { dr.burnt = st.burnt; if (st.busy && s.powered) { dr.busyUntil = Math.max(dr.busyUntil, now + 900); this.armDrive(st.slot, s.phase === 'ingesting'); } }
     }
+    // the picture: a new line on the screen leaves the CPU's video lanes for the HDMI port (or, with the cable on a card, leaves the card)
+    const shown = s.display || '';
+    if (shown !== this.lastText) {
+      if (shown && s.monitorLive) this.fire('video', { hops: (s.videoPort ?? 'board') === 'board' ? VIDEO_CHAIN : [], cable: true }, now, MIN_GAP);
+      if (s.phase === 'posting' && s.bootProgress !== this.lastProgress) this.fire('postcode', { hops: POST_CODE_CHAIN }, now, MIN_GAP); // a POST step: the code on the debug display
+      this.lastText = shown;
+    }
+    this.lastProgress = s.bootProgress;
+    // cards on the PCIe slots: the host copies in (phase "in"), the card computes inside (no traffic on the slot), the result is copied out ("out")
+    for (const g of s.gpus ?? []) {
+      if (g.phase === 'in' || g.phase === 'out') this.arm('gpu:' + g.slot, { hops: slotChain(g.slot, g.phase === 'in') });
+      if (g.phase === 'run' && g.slot === s.videoPort) this.arm('gpuvideo', { hops: [], cable: true }); // the card is drawing the picture the cable carries
+    }
+    // the network: transfers run over the board's jack (PHY, hub, uplink) or the NIC card's slot, toward the CPU for a download
+    const net = s.net, down = net?.transfers.some((t) => t.dir === 'down') ?? false, up = net?.transfers.some((t) => t.dir === 'up') ?? false;
+    if (net && (down || up) && (net.state === 'link-up' || net.state === 'saturated')) {
+      const nic = net.port.kind === 'nic' ? s.devices.find((d) => d.id === net.port.deviceId) : undefined;
+      for (const [dir, on] of [['down', down], ['up', up]] as const) {
+        if (on) this.arm('net:' + dir, { hops: nic ? slotChain(nic.slot, dir === 'up') : net.port.kind === 'board' ? boardNetChain(dir === 'down') : [] });
+      }
+    }
+    // power-on: the switch is read and the CPU asks for its voltage; a change of clock or throttle asks again
+    if (this.wasPowered === false && s.powered) { this.fire('power', { hops: POWER_ON_CHAIN, force: true }, now, 0); this.fire('volt', { hops: VOLTAGE_CHAIN, force: true }, now, 0); }
+    this.wasPowered = s.powered;
+    if (cpu && s.powered && (Math.abs(cpu.effectiveClock - this.lastClock) > 0.01 * Math.max(1, this.lastClock) || Math.abs(cpu.throttle - this.lastThrottle) > 0.01)) this.fire('volt', { hops: VOLTAGE_CHAIN }, now, 900);
+    this.lastClock = cpu?.effectiveClock ?? 0; this.lastThrottle = cpu?.throttle ?? 1;
     this.keyActivity = s.keyActivity ?? 'none';
     this.updateGpuFrame(s);
     this.updateOsScreen(s, now);
@@ -516,8 +555,9 @@ export class Live {
     if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
     else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); this.flashRam = !!fault?.text.includes('memory VRM'); }
     if (this.quiet) {
-      for (const l of [...this.lit.values(), ...this.memLit.values()]) l.stream = false;
-      for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.stream = false; }
+      for (const l of this.memLit.values()) l.stream = false;
+      for (const [k, c] of this.streams) if (!this.liveOn || !c.force) this.streams.delete(k); // (only the BIOS reads while the screen is black)
+      for (const dr of this.drives.values()) dr.busyUntil = -1e9;
       this.memAt = -1e9; this.memWall = -1e9;
     }
 
@@ -722,7 +762,8 @@ export class Live {
   /** PCH glow and scan bars (interior), USB activity LED, monitor power LED, thin boot progress bar (external). */
   private drawBoot(now: number, dt: number) {
     const T = this.T, g = this.bootG, ph = this.bootPhase;
-    const busy = this.powered && !this.coldWait && (ph === 'posting' || ph === 'loading' || ph === 'writing');
+    // the chipset works only while a message is on a path through it (BIOS at POST, a SATA drive, a card on its slots, the power switch)
+    const busy = this.powered && this.liveOn && this.pchUntil > now;
     if (!this.powered) this.pchLevel = 0; // a hard power-off is dark on the next frame
     else this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
     const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
@@ -980,6 +1021,7 @@ export class Live {
       if (l.power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g!.alpha = l.level * 0.55; continue; } // current, not messages: glows in proportion
       if (l.stream) this.send(l, now, STREAM_GAP);
     }
+    for (const [key, c] of this.streams) this.fire(key, c, now, STREAM_GAP);
     for (const lc of this.cables) {
       if (!inner) continue;
       if (!this.liveOn) { lc.level = 0; lc.g.alpha = 0; continue; }
@@ -1009,10 +1051,6 @@ export class Live {
       const sig = `${Math.round(dr.spin * 20)}|${Math.round(dr.head * 40)}|${Math.round(dr.led * 10)}|${dr.burnt}`;
       if (inner && sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
       this.diskLevel = Math.max(this.diskLevel, dr.led);
-      if (dr.lane && inner && dr.stream && this.liveOn && !this.quiet && now >= dr.nextAt) {
-        dr.nextAt = now + STREAM_GAP;
-        this.busFlow.send([dr.lane], dr.dir, T.mul, now, 10);
-      }
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
     this.busFlow.frame(now, this.zoom, inner);
