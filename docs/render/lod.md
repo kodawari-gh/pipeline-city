@@ -5,7 +5,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
 |---|---|---|---|
 | GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
-| CPU die (multicore: each core tile by its own distance) | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
+| CPU die (multicore: each core tile by its own distance; deeper than `DEVICE_LOD.die.core` 2 to 2.8 only the core under the view centre shows, the shared part and the other tiles fade out) | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
 | RAM view | yes | yes (sticks plus magnifier margin); shown empty while the machine is off | no |
 | PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
 | Cooler | fade only | yes (layer hidden) | no |

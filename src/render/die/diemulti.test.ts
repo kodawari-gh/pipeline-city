@@ -35,7 +35,7 @@ describe('multicore die LoD', () => {
     }
     d.setZoom(0.05, 0.05, view);
     expect(tiles(d).every((c) => !c.view.root.visible)).toBe(true);
-    d.setZoom(6, 6, view);
+    d.setZoom(1.9, 1.9, null); // no view: every tile reads the die's zoom, and the core view has not started
     expect(tiles(d).every((c) => c.view.root.visible && c.view.root.alpha === 1)).toBe(true);
   });
 
@@ -48,5 +48,18 @@ describe('multicore die LoD', () => {
     d.setZoom(1.2, 1.2, view);
     const alphas = tiles(d).map((c) => c.view.root.alpha);
     expect(alphas[0]).toBeGreaterThan(alphas[alphas.length - 1]!);
+  });
+
+  it('shows only the core under the view centre in the deep core view', () => {
+    const d = make();
+    const r = tiles(d)[0]!.tile.rect;
+    const view = { x: r.x + r.w / 2 - 100, y: r.y + r.h / 2 - 75, w: 200, h: 150 };
+    d.setZoom(6, 6, view);
+    const t = tiles(d);
+    expect(t[0]!.view.root.visible).toBe(true);
+    expect(t.slice(1).every((c) => !c.view.root.visible)).toBe(true);
+    expect((d as unknown as { shared: { root: Container } }).shared.root.visible).toBe(false);
+    d.setZoom(1, 1, view);
+    expect((d as unknown as { shared: { root: Container } }).shared.root.visible).toBe(true);
   });
 });

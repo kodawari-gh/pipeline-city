@@ -38,7 +38,8 @@ export const seenZoom = (zoom: number, focus = 1): number => zoom * (FAR_ZOOM + 
 
 /** The stages, in camera zoom (see `BASE_LOD`). Each device adds its own extra stages after the base ones. */
 export const DEVICE_LOD = {
-  die: { ...BASE_LOD, packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: BASE_LOD.text, dataTexts: 0.85, subs: 1.2 },
+  /** `core`: a multicore die deeper than this shows only the core tile at the centre of the view (the others and the shared part fade out). */
+  die: { ...BASE_LOD, core: [2, 2.8], packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: BASE_LOD.text, dataTexts: 0.85, subs: 1.2 },
   /** The cooler fades out over its band as the die fades in. */
   cooler: { fade: [0.3, 0.5] },
   gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
