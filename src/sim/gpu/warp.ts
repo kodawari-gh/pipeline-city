@@ -1,21 +1,21 @@
-// The `warp` engine (gpu2, docs/GPU.md section 4): one SM whose lanes are split into warps. Every warp has its own pc, execution mask, mask
-// stack and registers (a `GpuRef` of its lanes on the shared card memory, so the instruction semantics are the reference interpreter's);
-// this class adds the timing around them:
+// The SM engines (docs/GPU.md section 4): `warp` (gpu2) is one SM whose lanes are split into warps, `multi` (gpu3) is several of them on one
+// card with caches (multi.ts). Every warp has its own pc, execution mask, mask stack and registers (a `GpuRef` of its lanes on the shared card
+// memory, so the instruction semantics are the reference interpreter's); `SmCore` adds the timing around them:
 //
-//   issue      one instruction per cycle, from the next ready warp after the one that issued last (round robin)
+//   issue      one instruction per cycle per SM, from the next ready warp after the one that issued last (round robin)
 //   pipeline   fetch, decode, issue, execute, memory / write-back. An instruction issued in cycle t was fetched in t-2, decoded in t-1,
 //              executes in t+1 and writes back in t+2; the first issue is in cycle FILL and the card is done DRAIN cycles after the last
 //   scoreboard a load marks its destination pending until its data is back; an instruction that reads or writes a pending register waits
 //              (ALU results are forwarded, so ALU work never stalls); only that warp waits, the others keep issuing
-//   memory     the coalescer and bank arbiter (memsys.ts) turn the lanes' addresses into rounds and a latency; the memory unit is busy
-//              for the rounds, so a second memory instruction waits for it
+//   memory     the coalescer and bank arbiter (memsys.ts) turn the lanes' addresses into rounds and a latency; the SM's memory unit is
+//              busy for the rounds, so a second memory instruction of the SM waits for it
 //   branches   a taken branch is known at execute: the warp cannot issue for BRANCH_PENALTY cycles (another warp fills them)
-//   bar        a warp that issues `bar` waits until every warp that is not done has reached it
+//   bar        a warp that issues `bar` waits until every warp of its SM that is not done has reached it
 
 import { GPU_OPS, gpuDecode, type GpuInstr } from "../isa/gpu";
 import { GpuRef, type GpuStep } from "../ref/gpuref";
 import type { GpuEngine, GpuSmView, GpuWarpView, WarpConfig } from "./engine";
-import { GpuMemSystem } from "./memsys";
+import { GpuMemSystem, type GpuMemConfig } from "./memsys";
 
 /** Cycles before the first issue (fetch and decode of the first instruction) and after the last (execute, write-back). */
 export const WARP_FILL = 2;
@@ -57,62 +57,33 @@ const popcount = (m: number): number => {
   return n;
 };
 
-export class WarpEngine implements GpuEngine {
-  readonly lanes: number;
-  readonly banks: number;
-  readonly mem: Uint32Array;
-  readonly warps: number;
-  readonly warpLanes: number;
-  readonly memsys: GpuMemSystem;
-  private readonly w: Warp[];
-  private readonly regsOut: Int32Array[];
-  private last = -1;
-  private memFree = 0;
-  private drainAt = 0;
-  private started = false;
-  cycles = 0;
+/** One streaming multiprocessor: its warps, scheduler and memory unit. */
+export class SmCore {
+  readonly warps: Warp[];
+  /** Instructions issued by each warp, and the SM's other counters (the engine adds them up). */
+  readonly issued: number[];
   instructions = 0;
   conflictCycles = 0;
   idleLaneSlots = 0;
-  /** Cycles in which no warp could issue (the pipeline had a bubble). */
   stallCycles = 0;
-  /** Instructions issued by each warp. */
-  issued: number[];
+  drainAt = 0;
+  private last = -1;
+  private memFree = 0;
 
-  constructor(cfg: WarpConfig) {
-    if (!Number.isInteger(cfg.warps) || cfg.warps < 1 || cfg.lanes % cfg.warps !== 0) throw new RangeError(`${cfg.lanes} lanes do not split into ${cfg.warps} warps`);
-    this.lanes = cfg.lanes;
-    this.banks = Math.max(1, cfg.banks);
-    this.warps = cfg.warps;
-    this.warpLanes = cfg.lanes / cfg.warps;
-    this.mem = new Uint32Array(cfg.memBytes / 4);
-    this.memsys = new GpuMemSystem({ banks: this.banks, lineWords: cfg.lineWords, globalLatency: cfg.globalLatency });
-    this.w = Array.from({ length: cfg.warps }, (_, k) => ({
-      ref: new GpuRef({ lanes: this.warpLanes, memBytes: cfg.memBytes, banks: this.banks, mem: this.mem, laneBase: k * this.warpLanes }),
+  constructor(readonly index: number, readonly mem: Uint32Array, readonly memsys: GpuMemSystem, readonly nWarps: number, readonly warpLanes: number, laneBase: number, banks: number) {
+    this.warps = Array.from({ length: nWarps }, (_, k) => ({
+      ref: new GpuRef({ lanes: warpLanes, memBytes: mem.length * 4, banks, mem, laneBase: laneBase + k * warpLanes }),
       state: "done" as State, nextIssue: 0, pending: new Array<number>(8).fill(0), blocked: null,
     }));
-    this.regsOut = Array.from({ length: this.w[0]!.ref.regs.length }, () => new Int32Array(cfg.lanes));
-    this.issued = new Array<number>(cfg.warps).fill(0);
-    this.reset();
+    this.issued = new Array<number>(nWarps).fill(0);
   }
 
-  get regs(): Int32Array[] {
-    this.w.forEach((wp, k) => wp.ref.regs.forEach((r, n) => this.regsOut[n]!.set(r, k * this.warpLanes)));
-    return this.regsOut;
-  }
-  /** The warps' masks side by side (warp k in bits k*W..). */
-  get mask(): number {
-    return this.w.reduce((m, wp, k) => (m | (wp.ref.mask << (k * this.warpLanes))) >>> 0, 0);
-  }
-  get stack(): readonly number[] {
-    const depth = Math.max(...this.w.map((wp) => wp.ref.stack.length));
-    return Array.from({ length: depth }, (_, d) => this.w.reduce((m, wp, k) => (m | ((wp.ref.stack[d] ?? 0) << (k * this.warpLanes))) >>> 0, 0));
-  }
-  get pc(): number { return this.w[Math.max(0, this.last)]!.ref.pc; }
-  get halted(): boolean { return this.started && this.w.every((x) => x.state === "done") && this.cycles >= this.drainAt; }
+  get lanes(): number { return this.nWarps * this.warpLanes; }
+  get done(): boolean { return this.warps.every((x) => x.state === "done"); }
 
-  reset(pc = 0, activeLanes = this.lanes): void {
-    this.w.forEach((wp, k) => {
+  /** `activeLanes` = the launch's lanes that fall on this SM. */
+  reset(pc: number, activeLanes: number): void {
+    this.warps.forEach((wp, k) => {
       const n = Math.max(0, Math.min(this.warpLanes, activeLanes - k * this.warpLanes));
       wp.ref.reset(pc, n);
       wp.state = n > 0 ? "ready" : "done";
@@ -120,21 +91,20 @@ export class WarpEngine implements GpuEngine {
       wp.pending.fill(0);
       wp.blocked = null;
     });
-    this.memsys.invalidate();
     this.last = -1;
     this.memFree = 0;
     this.drainAt = 0;
-    this.started = true;
-    this.cycles = this.instructions = this.conflictCycles = this.idleLaneSlots = this.stallCycles = 0;
+    this.instructions = this.conflictCycles = this.idleLaneSlots = this.stallCycles = 0;
     this.issued.fill(0);
   }
 
-  smViews(): GpuSmView[] {
-    const views: GpuWarpView[] = this.w.map((wp) => ({
-      pc: wp.ref.pc, mask: wp.ref.mask, stack: [...wp.ref.stack],
-      state: wp.state === "done" ? "done" : wp.state === "barrier" ? "barrier" : wp.blocked === "mem" ? "wait-mem" : "ready",
-    }));
-    return [{ warps: views }];
+  views(): GpuSmView {
+    return {
+      warps: this.warps.map((wp): GpuWarpView => ({
+        pc: wp.ref.pc, mask: wp.ref.mask, stack: [...wp.ref.stack],
+        state: wp.state === "done" ? "done" : wp.state === "barrier" ? "barrier" : wp.blocked === "mem" ? "wait-mem" : "ready",
+      })),
+    };
   }
 
   private peek(wp: Warp): GpuInstr | null {
@@ -158,19 +128,18 @@ export class WarpEngine implements GpuEngine {
     return true;
   }
 
-  step(): GpuStep | null {
-    if (this.halted) return null;
-    const cycle = this.cycles++;
+  /** Run card cycle `cycle` on this SM. Returns the instruction issued, or null. */
+  step(cycle: number): GpuStep | null {
     let pick = -1;
-    for (let n = 1; n <= this.warps; n++) {
-      const k = (this.last + n + this.warps) % this.warps;
-      if (this.ready(this.w[k]!, cycle)) { pick = k; break; }
+    for (let n = 1; n <= this.nWarps; n++) {
+      const k = (this.last + n + this.nWarps) % this.nWarps;
+      if (this.ready(this.warps[k]!, cycle)) { pick = k; break; }
     }
     if (pick < 0) {
-      if (this.w.some((x) => x.state !== "done")) this.stallCycles++;
+      if (!this.done) this.stallCycles++;
       return null;
     }
-    const wp = this.w[pick]!, ref = wp.ref;
+    const wp = this.warps[pick]!, ref = wp.ref;
     const before = ref.pc;
     const i = this.peek(wp);
     ref.step();
@@ -183,7 +152,7 @@ export class WarpEngine implements GpuEngine {
     let cost = 1, banks: number[] | null = null, stall: GpuStep["stall"] = null;
 
     if (i && (s.name === "vld" || s.name === "vst")) {
-      const acc = s.name === "vld" ? this.memsys.load(0, ref.lastAddrs, cycle) : this.memsys.store(ref.lastAddrs);
+      const acc = s.name === "vld" ? this.memsys.load(this.index, ref.lastAddrs, cycle) : this.memsys.store(ref.lastAddrs);
       cost = acc.rounds;
       banks = acc.perBank;
       this.memFree = cycle + acc.rounds;
@@ -198,13 +167,118 @@ export class WarpEngine implements GpuEngine {
       wp.state = "done";
     }
     this.release(cycle);
-    return { ...s, cost, banks, stall, startCycle: cycle, sm: 0, warp: pick, stackDepth: ref.stack.length, maskAfter: ref.mask };
+    return { ...s, cost, banks, stall, startCycle: cycle, sm: this.index, warp: pick, stackDepth: ref.stack.length, maskAfter: ref.mask };
   }
 
   /** Let the warps go once every warp that is not done waits at the barrier. */
   private release(cycle: number): void {
-    const live = this.w.filter((x) => x.state !== "done");
+    const live = this.warps.filter((x) => x.state !== "done");
     if (live.length === 0 || !live.every((x) => x.state === "barrier")) return;
     for (const x of live) { x.state = "ready"; x.nextIssue = cycle + 1; }
   }
+}
+
+/** The shape every SM engine is built from. */
+export interface SmEngineShape {
+  sms: number;
+  warps: number;
+  lanes: number;
+  memBytes: number;
+  banks: number;
+  mem: Omit<GpuMemConfig, "banks" | "sms">;
+}
+
+/** One or more SMs on one card memory, stepped together one cycle at a time (SM 0 first). */
+export class SmEngine implements GpuEngine {
+  readonly lanes: number;
+  readonly banks: number;
+  readonly mem: Uint32Array;
+  readonly memsys: GpuMemSystem;
+  readonly cores: SmCore[];
+  /** Instructions issued in the last cycle, one per SM that issued. */
+  issuedNow: GpuStep[] = [];
+  cycles = 0;
+  private readonly all: Warp[];
+  private readonly regsOut: Int32Array[];
+  private last = 0;
+  private started = false;
+
+  constructor(shape: SmEngineShape) {
+    const { sms, warps, lanes } = shape;
+    if (!Number.isInteger(warps) || warps < 1 || !Number.isInteger(sms) || sms < 1 || lanes % (sms * warps) !== 0) throw new RangeError(`${lanes} lanes do not split into ${sms} SMs of ${warps} warps`);
+    this.lanes = lanes;
+    this.banks = Math.max(1, shape.banks);
+    this.mem = new Uint32Array(shape.memBytes / 4);
+    this.memsys = new GpuMemSystem({ ...shape.mem, banks: this.banks, sms });
+    const warpLanes = lanes / (sms * warps);
+    this.cores = Array.from({ length: sms }, (_, k) => new SmCore(k, this.mem, this.memsys, warps, warpLanes, k * warps * warpLanes, this.banks));
+    this.all = this.cores.flatMap((c) => c.warps);
+    this.regsOut = Array.from({ length: this.all[0]!.ref.regs.length }, () => new Int32Array(lanes));
+    this.reset();
+  }
+
+  get warps(): number { return this.cores[0]!.nWarps; }
+  get warpLanes(): number { return this.cores[0]!.warpLanes; }
+  get instructions(): number { return this.cores.reduce((n, c) => n + c.instructions, 0); }
+  get conflictCycles(): number { return this.cores.reduce((n, c) => n + c.conflictCycles, 0); }
+  get idleLaneSlots(): number { return this.cores.reduce((n, c) => n + c.idleLaneSlots, 0); }
+  /** Cycles in which an SM had live warps and issued nothing (summed over SMs). */
+  get stallCycles(): number { return this.cores.reduce((n, c) => n + c.stallCycles, 0); }
+
+  get regs(): Int32Array[] {
+    const wl = this.warpLanes;
+    this.all.forEach((wp, k) => wp.ref.regs.forEach((r, n) => this.regsOut[n]!.set(r, k * wl)));
+    return this.regsOut;
+  }
+  /** The warps' masks side by side (warp k of the card in bits k*warpLanes..). */
+  get mask(): number {
+    const wl = this.warpLanes;
+    return this.all.reduce((m, wp, k) => (m | (wp.ref.mask << (k * wl))) >>> 0, 0);
+  }
+  get stack(): readonly number[] {
+    const wl = this.warpLanes;
+    const depth = Math.max(...this.all.map((wp) => wp.ref.stack.length));
+    return Array.from({ length: depth }, (_, d) => this.all.reduce((m, wp, k) => (m | ((wp.ref.stack[d] ?? 0) << (k * wl))) >>> 0, 0));
+  }
+  get pc(): number { return this.all[this.last]!.ref.pc; }
+  get halted(): boolean {
+    return this.started && this.cores.every((c) => c.done) && this.cycles >= Math.max(...this.cores.map((c) => c.drainAt));
+  }
+
+  reset(pc = 0, activeLanes = this.lanes): void {
+    const per = this.cores[0]!.lanes;
+    this.cores.forEach((c, k) => c.reset(pc, Math.max(0, Math.min(per, activeLanes - k * per))));
+    this.memsys.invalidate();
+    this.cycles = 0;
+    this.last = 0;
+    this.issuedNow = [];
+    this.started = true;
+  }
+
+  smViews(): GpuSmView[] {
+    return this.cores.map((c) => c.views());
+  }
+
+  step(): GpuStep | null {
+    this.issuedNow = [];
+    if (this.halted) return null;
+    const cycle = this.cycles++;
+    for (const c of this.cores) {
+      const s = c.step(cycle);
+      if (s) {
+        this.issuedNow.push(s);
+        this.last = c.index * c.nWarps + (s.warp ?? 0);
+      }
+    }
+    return this.issuedNow[0] ?? null;
+  }
+}
+
+/** gpu2: one SM, no caches. */
+export class WarpEngine extends SmEngine {
+  constructor(cfg: WarpConfig) {
+    super({ sms: 1, warps: cfg.warps, lanes: cfg.lanes, memBytes: cfg.memBytes, banks: cfg.banks, mem: { lineWords: cfg.lineWords, globalLatency: cfg.globalLatency } });
+  }
+  /** Instructions issued by each warp. */
+  get issued(): number[] { return this.cores[0]!.issued; }
 }

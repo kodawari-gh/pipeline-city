@@ -29,8 +29,28 @@ export interface WarpConfig {
   globalLatency: number;
 }
 
-/** One card's microarchitecture as plain data, so a spec or a save can hold it. The multi-SM kind joins with its engine. */
-export type GpuConfig = SimdConfig | WarpConfig;
+/** `sms` SMs of `warps` warps each, a per-SM L1 and one L2 shared by the card (gpu3). Launch lanes are dealt to the SMs in order. */
+export interface MultiConfig {
+  kind: "multi";
+  /** Lanes on the card, 1..32; a multiple of `sms * warps`. */
+  lanes: number;
+  sms: number;
+  warps: number;
+  memBytes: number;
+  /** Banks per SM. */
+  banks: number;
+  lineWords: number;
+  globalLatency: number;
+  /** L1 lines per SM and the cycles an L1 hit takes. */
+  l1Lines: number;
+  l1Hit: number;
+  /** Shared L2 lines and the cycles an L2 hit takes. */
+  l2Lines: number;
+  l2Hit: number;
+}
+
+/** One card's microarchitecture as plain data, so a spec or a save can hold it. */
+export type GpuConfig = SimdConfig | WarpConfig | MultiConfig;
 
 /** A warp as the view shows it: where it is, its mask and stack, and whether it can issue (docs/GPU.md section 6). */
 export interface GpuWarpView {
