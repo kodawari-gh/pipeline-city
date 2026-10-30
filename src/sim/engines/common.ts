@@ -689,6 +689,7 @@ export abstract class EngineBase implements PipelineEngine {
         else { c[Counter.CacheMisses]!++; st |= St.Missing; p.wait[s] = this.missCost(addr); }
       } else {
         p.res[s] = this.load(op, addr); // device access: uncached
+        this.logMem(0, addr, p.res[s]!); // logged with the value read (a device register can have side effects, so it is read once)
       }
       p.state[s] = st;
     }

@@ -534,6 +534,7 @@ export class OooEngine extends EngineBase {
       // Device / faulting access: only when it is the oldest instruction of its thread, so it is never speculative.
       if (k !== 0) { this.why = SchedWhy.Head; return -1; }
       p.res[s] = this.load(op, addr);
+      this.logMem(0, addr, p.res[s]!); // (the board shows what the CPU reads from a device: a block from a drive, the key, a status)
       return HIT_LAT;
     }
     let fwd = -1;
