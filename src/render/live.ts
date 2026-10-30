@@ -13,18 +13,23 @@ import { GpuView, type GpuCardScene } from './board/gpuview';
 import { memoryTable, sizeText } from './board/ramlayout';
 import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from './room/screenmodel';
 import { FrameView, ScreenView } from './room/screenview';
-import { DECOR_BUSES, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
+import { DECOR_BUSES, mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from './board/routes';
+import { BusFlow, slice } from './board/busflow';
 import type { Theme } from './theme';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }
 
 interface Glow { t: GlowTarget; g: Graphics; dim: Graphics; base: number; level: number }
-interface Lit { bus: Bus; /** The lanes that light (the main run plus the branches of the installed DIMMs). */ lanes: Lane[]; g: Graphics; level: number; hold: number; dir: number; color: string; alwaysOn: boolean; pulses: number }
+/**
+ * A bus. A data bus (`power` false) has no overlay: a message is a packet on its lanes (`BusFlow`), sent once per event or, while `stream` is
+ * set (re-armed by every snapshot of a phase that moves data), every `STREAM_GAP` ms. A power bus glows (`g`, strength `level`, target `hold`).
+ */
+interface Lit { bus: Bus; /** The lanes that light (the main run plus the branches of the installed DIMMs). */ lanes: Lane[]; g: Graphics | null; level: number; hold: number; dir: number; color: string; power: boolean; stream: boolean; nextAt: number }
 /** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
 export interface DriveHook { slot: string; kind: DriveKind; g: Graphics; lane: Lane | null }
 interface DriveLive extends DriveHook {
-  glow: Graphics; busyUntil: number; flowUntil: number; speed: number; spin: number; head: number; led: number; level: number; dir: number; sig: string; burnt: boolean;
+  busyUntil: number; stream: boolean; nextAt: number; speed: number; spin: number; head: number; led: number; dir: number; sig: string; burnt: boolean;
 }
 interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
@@ -37,8 +42,9 @@ const OS_ROWS = 10, OS_FONT = 118, OS_LINE = 150, OS_COLS = 42;
 const LOADS = new Set(['lw', 'lb', 'lbu']);
 const STORES = new Set(['sw', 'sb']);
 
-/** Time a bus stays lit after an event (ms). */
-const HOLD: Partial<Record<BusKind, number>> = { mem: 900, nvme: 1600, dmi: 1300, video: 1100, usb: 1000, sata: 1000, pcie: 1000 };
+/** Game ms between packets on a bus that streams (a boot phase, a busy drive), and the least between two one-off messages on a bus. */
+const STREAM_GAP = 240;
+const MIN_GAP = 100;
 
 /**
  * Everything that changes with the sim. The board is dim by default; a bus only lights when the snapshot shows real
@@ -51,7 +57,13 @@ export class Live {
   /** External things that stay at any zoom: the monitor screen content, the USB port LED, the monitor LED, the video cable glow. */
   readonly ext = new Container();
   private extG = new Graphics();
-  private extDots: Sprite[] = [];
+  /** Packets on the board's data buses (in `root`) and on the video cable outside the case (in `ext`), and the video cable's lit stretch. */
+  private busFlow: BusFlow;
+  private extFlow: BusFlow;
+  private videoLane: Lane | null = null;
+  private videoW = 10;
+  /** The machine moves no data now (off, tripped, dead, halted, error, cold-boot wait): no new packet starts. */
+  private quiet = true;
   private interior = true;
   private pchDrawn = false;
   /** The VRM: per-phase glow, power-good light, crash flash (vrmG); the dead-board dimming and scorch (deadG). */
@@ -165,6 +177,8 @@ export class Live {
   private coldWait = false;
 
   constructor(renderer: Renderer, private additive: boolean) {
+    this.busFlow = new BusFlow(additive);
+    this.extFlow = new BusFlow(additive);
     const dg = new Graphics().circle(0, 0, 16).fill({ color: '#ffffff' });
     this.dotTex = renderer.generateTexture(dg);
     dg.destroy();
@@ -208,10 +222,11 @@ export class Live {
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.busFlow.g, this.extFlow.g, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
-    this.extDots = [];
+    this.busFlow.clear(); this.extFlow.clear();
+    this.videoLane = null;
     this.root.addChild(this.deadG);
     this.deadDrawn = false;
     this.glows.clear(); this.lit.clear(); this.memLit.clear(); this.cables = [];
@@ -242,34 +257,33 @@ export class Live {
       if ((bus.id === 'video') && !flags.display) continue;
       if (DECOR_BUSES.includes(bus.id)) continue; // decoration: never lit
       const power = bus.id === 'pwr12' || bus.id === 'pwrcpu' || bus.id === 'vdimm' || bus.id === 'vcore';
-      const g = new Graphics();
-      if (this.additive) g.blendMode = 'add';
       if (bus.id === 'mem') {
         for (const t of bus.taps ?? []) {
           const idx = Number(t.key.slice(4));
           if (!dimms.includes(idx)) continue;
-          const mg = new Graphics();
-          if (this.additive) mg.blendMode = 'add';
-          for (const l of t.lanes) { mg.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) mg.lineTo(l.pts[i]![0], l.pts[i]![1]); }
-          mg.stroke({ width: bus.w * 1.15, color: colorOf('mem'), alpha: 1, cap: 'round', join: 'round' });
-          mg.alpha = 0;
-          this.root.addChild(mg);
-          const pulses = t.lanes.reduce((a, l) => a + Math.max(1, Math.min(3, Math.round(l.len / 900))), 0);
-          nDots += pulses;
-          this.memLit.set(idx, { bus, lanes: t.lanes, g: mg, level: 0, hold: 0, dir: 1, color: colorOf('mem'), alwaysOn: false, pulses });
+          this.memLit.set(idx, { bus, lanes: t.lanes, g: null, level: 0, hold: 0, dir: 1, color: colorOf('mem'), power: false, stream: false, nextAt: -1e9 });
         }
         continue;
       }
       const lanes = bus.lanes.concat(bus.taps ? bus.taps.filter((t) => dimms.includes(Number(t.key.slice(4)))).flatMap((t) => t.lanes) : []);
-      for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
-      g.stroke({ width: bus.w * (power ? 0.7 : 1.15), color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
-      g.alpha = 0;
-      this.root.addChild(g);
-      const pulses = power ? 0 : lanes.reduce((a, l) => a + Math.max(1, Math.min(3, Math.round(l.len / 900))), 0);
-      nDots += pulses;
-      this.lit.set(bus.id, { bus, lanes, g, level: 0, hold: 0, dir: 1, color: colorOf(bus.id), alwaysOn: false, pulses });
+      let g: Graphics | null = null;
+      if (power) {
+        g = new Graphics();
+        if (this.additive) g.blendMode = 'add';
+        for (const l of lanes) { g.moveTo(l.pts[0]![0], l.pts[0]![1]); for (let i = 1; i < l.pts.length; i++) g.lineTo(l.pts[i]![0], l.pts[i]![1]); }
+        g.stroke({ width: bus.w * 0.7, color: colorOf(bus.id), alpha: 1, cap: 'round', join: 'round' });
+        g.alpha = 0;
+        this.root.addChild(g);
+      }
+      this.lit.set(bus.id, { bus, lanes, g, level: 0, hold: 0, dir: 1, color: colorOf(bus.id), power, stream: false, nextAt: -1e9 });
     }
     for (const cable of cables) {
+      if (cable.kind === 'video') { // the video cable outside the case carries packets (`extFlow`), without its plugs
+        const cut = slice(cable.path, 50, cable.path.len - 50);
+        if (cut.length > 1) this.videoLane = mkLane(cut);
+        this.videoW = cable.w * 0.34;
+        continue;
+      }
       const g = new Graphics();
       if (this.additive) g.blendMode = 'add';
       // the glow stops where the plugs begin (plugs are drawn under the live layer)
@@ -280,28 +294,16 @@ export class Live {
       });
       g.moveTo(pts[0]![0], pts[0]![1]);
       for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
-      const color = cable.kind === 'video' ? T.st : cable.kind === 'atx' ? T.ld : cable.kind === 'cpu' ? T.alu : T.br;
+      const color = cable.kind === 'atx' ? T.ld : cable.kind === 'cpu' ? T.alu : T.br;
       g.stroke({ width: cable.w * 0.34, color, alpha: 1, cap: 'butt', join: 'round' });
       g.alpha = 0;
-      // the video cable runs outside the case: its glow and pulses live in the always-visible layer
-      if (cable.kind === 'video') this.ext.addChild(g); else { this.root.addChild(g); nDots += 3; }
+      this.root.addChild(g);
+      nDots += 3;
       this.cables.push({ cable, g, level: 0, target: 0, color });
     }
     this.drives.clear();
-    for (const d of drives) {
-      const glow = new Graphics();
-      if (this.additive) glow.blendMode = 'add';
-      if (d.lane) {
-        glow.moveTo(d.lane.pts[0]![0], d.lane.pts[0]![1]);
-        for (let i = 1; i < d.lane.pts.length; i++) glow.lineTo(d.lane.pts[i]![0], d.lane.pts[i]![1]);
-        glow.stroke({ width: 12, color: T.mul, alpha: 1, cap: 'round', join: 'round' });
-        nDots += 4;
-      }
-      glow.alpha = 0;
-      this.root.addChild(glow);
-      this.drives.set(d.slot, { ...d, glow, busyUntil: -1e9, flowUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, level: 0, dir: 1, sig: '', burnt: false });
-    }
-    this.root.addChild(this.ram.root, this.gpu.root, this.dramFlash);
+    for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, stream: false, nextAt: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, dir: 1, sig: '', burnt: false });
+    this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
@@ -313,17 +315,12 @@ export class Live {
     this.badgeText.anchor.set(0, 0.5);
     this.root.addChild(this.vrmG, this.badgeG, this.badgeText);
     this.root.addChild(this.bootG, this.gauge, this.badge, this.panelFan, ...Object.values(this.psuTexts));
-    if (cables.some((c) => c.kind === 'video')) for (let i = 0; i < 3; i++) {
-      const sp = new Sprite(this.dotTex);
-      sp.anchor.set(0.5); sp.visible = false;
-      this.extDots.push(sp); this.ext.addChild(sp);
-    }
     // the screen's contents are laid out at the design size inside a container scaled onto the (bigger) monitor
     this.scr.removeChildren();
     this.buildStandby(T);
     this.scr.addChild(this.standby, this.screenText, this.osG, ...this.osRowsFor(), this.dash, this.frameV, this.noSignal);
     this.scr.position.set(SCREEN.x, SCREEN.y); this.scr.scale.set(MONITOR_K);
-    this.ext.addChild(this.extG, this.scr);
+    this.ext.addChild(this.extFlow.g, this.extG, this.scr);
     const showPsu = flags.psu;
     for (const t of Object.values(this.psuTexts)) t.visible = showPsu;
     this.panelFan.visible = showPsu;
@@ -383,40 +380,49 @@ export class Live {
   setConnected(c: Set<CableKind>) { this.connected = c; }
   setPlugged(p: boolean) { this.plugged = p; }
 
-  /** Keep a bus lit for a boot phase (re-armed on every snapshot, so it fades about 1.6 s after the phase ends). */
-  private flow(id: BusKind, now: number, dir: number) {
-    if (id === 'mem') { for (const l of this.memLit.values()) { l.hold = Math.max(l.hold, now + 1700); l.dir = dir; } return; }
+  /** A bus moves data for as long as the phase does: it sends a packet every `STREAM_GAP` ms (re-armed by every snapshot of the phase, so it stops with it). */
+  private flow(id: BusKind, _now: number, dir: number) {
+    if (id === 'mem') { for (const l of this.memLit.values()) { l.stream = true; l.dir = dir; } return; }
     const l = this.lit.get(id);
     if (!l) return;
-    l.hold = Math.max(l.hold, now + 1700);
+    l.stream = true;
     l.dir = dir;
   }
 
-  /** Light the bus (and SATA cable) that serves a drive slot. `busy` also keeps the platter / LEDs going. */
+  /** A drive moves data: the bus (and SATA cable) that serves its slot streams. `busy` also keeps the platter / LEDs going. */
   private driveFlow(slot: string, now: number, toDrive: boolean, busy = false) {
     const m2 = slot.startsWith('m2');
-    this.trigger(m2 ? 'nvme' : 'sata', now, toDrive ? 1 : -1);
+    this.flow(m2 ? 'nvme' : 'sata', now, toDrive ? 1 : -1);
     const dr = this.drives.get(slot);
     if (!dr) return;
-    dr.flowUntil = Math.max(dr.flowUntil, now + 1500);
+    dr.stream = true;
     if (busy) dr.busyUntil = Math.max(dr.busyUntil, now + 900);
     dr.dir = toDrive ? -1 : 1; // the cable lane runs drive -> board
   }
 
-  /** Light the memory bundle of one stick. */
+  /** Send one message on a bus now (at most one per `gap` ms on it). The video bus carries it on to the cable when it arrives. */
+  private send(l: Lit, now: number, gap: number) {
+    if (this.quiet || !this.liveOn || now < l.nextAt) return;
+    l.nextAt = now + gap;
+    const dur = this.busFlow.send(l.lanes, l.dir, l.color, now, l.bus.w);
+    if (l.bus.id === 'video' && this.videoLane && this.connected.has('video')) this.extFlow.send([this.videoLane], 1, l.color, now, this.videoW, dur);
+  }
+
+  /** One message between the CPU and one stick. */
   private triggerMem(idx: number, now: number, dir: number) {
     const l = this.memLit.get(idx);
     if (!l) return;
-    l.hold = now + (HOLD.mem ?? 900);
     l.dir = dir;
+    this.send(l, now, MIN_GAP);
   }
 
+  /** One message on a bus (an event: a request handed over or finished, a new line on the screen). */
   private trigger(id: BusKind, now: number, dir = 1) {
     if (id === 'mem') { for (const idx of this.memLit.keys()) this.triggerMem(idx, now, dir); return; }
     const l = this.lit.get(id);
     if (!l) return;
-    l.hold = now + (HOLD[id] ?? 1000);
     l.dir = dir;
+    this.send(l, now, MIN_GAP);
   }
 
   /** Per-snapshot update. `s` may be null before the sim has started. */
@@ -444,6 +450,16 @@ export class Live {
     this.clockRatio = cpu && spec?.clock ? clamp(cpu.effectiveClock / spec.clock.base, 0.25, 3) : 1;
     this.cpuHeat = cpu ? clamp((cpu.tempC - 35) / 55) : 0;
 
+    // power: a switched off, tripped or dead machine is dead (no fans, lights or current). A halted or error machine is still ON:
+    // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so no packet starts.
+    // The cold-boot wait (posting, before the first POST line: no progress yet) is the CPU idling: nothing is read yet.
+    const coldWait = s.phase === 'posting' && !(s.bootProgress > 0);
+    this.coldWait = coldWait;
+    this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
+    this.quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
+    for (const l of [...this.lit.values(), ...this.memLit.values()]) l.stream = false; // the phase below arms the buses that move data now
+    for (const dr of this.drives.values()) dr.stream = false;
+
     // ---- activity: only real traffic lights a bus ----
     const c = s.counters, misses = c.cacheMisses ?? 0, stall = c.stallCache ?? 0, cycles = c.cycles ?? 0;
     if (cycles < this.lastCycles) { this.lastMisses = 0; this.lastStall = 0; } // a new attempt
@@ -468,9 +484,6 @@ export class Live {
     }
     // boot: data moves USB port <-> PCH <-> CPU <-> RAM along the real buses (only in the phases that move data)
     this.bootPhase = s.phase; this.bootProgress = s.bootProgress; this.monitorLive = s.monitorLive; this.monitorPowered = s.monitorPowered !== false; this.powered = s.powered;
-    // the cold-boot wait (posting, before the first POST line: no progress yet) is the CPU idling: nothing is read yet
-    const coldWait = s.phase === 'posting' && !(s.bootProgress > 0);
-    this.coldWait = coldWait;
     if (s.powered) {
       if (s.phase === 'posting') { if (!coldWait) this.flow('dmi', now, Math.floor(now / 1100) % 2 ? 1 : -1); }
       else if (s.phase === 'loading') { this.flow('usb', now, -1); this.flow('dmi', now, -1); this.flow('mem', now, 1); }
@@ -502,13 +515,9 @@ export class Live {
     const fkey = fault ? `${fault.tick}|${fault.text}` : '';
     if (this.lastFault === null) this.lastFault = fkey; // the first snapshot only records what is already in the log
     else if (fkey !== this.lastFault) { this.lastFault = fkey; this.vrmFlashAt = performance.now(); this.flashRam = !!fault?.text.includes('memory VRM'); }
-    // power: a switched off, tripped or dead machine is dead (no fans, lights or current). A halted or error machine is still ON:
-    // its fans, lights and power conductors run, but no data moves (no buses, drive activity or USB LED), so those go quiet here.
-    this.liveOn = s.powered && !s.power.off && !s.power.tripped && !s.board?.burnt;
-    const quiet = !this.liveOn || s.phase === 'halted' || s.phase === 'error' || coldWait;
-    if (quiet) {
-      for (const l of [...this.lit.values(), ...this.memLit.values()]) if (l.pulses > 0) l.hold = 0;
-      for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.flowUntil = -1e9; }
+    if (this.quiet) {
+      for (const l of [...this.lit.values(), ...this.memLit.values()]) l.stream = false;
+      for (const dr of this.drives.values()) { dr.busyUntil = -1e9; dr.stream = false; }
       this.memAt = -1e9; this.memWall = -1e9;
     }
 
@@ -528,8 +537,7 @@ export class Live {
     };
     for (const [id, v] of Object.entries(lv) as [BusKind, number][]) { const l = this.lit.get(id); if (l) l.hold = v; }
     for (const lc of this.cables) {
-      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : lc.cable.kind === 'pcie' ? 0
-        : (this.lit.get('video')?.hold ?? 0) > now ? 1 : 0;
+      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : 0;
       if (!this.connected.has(lc.cable.kind)) lc.target = 0;
     }
 
@@ -965,48 +973,32 @@ export class Live {
     const T = this.T;
     const r = Math.max(9, 2.4 / this.zoom) / 16;
     let k = 0;
-    const put = (p: [number, number], col: string, a: number, scale = 1) => {
-      const sp = this.dots[k++];
-      if (!sp) return;
-      sp.visible = a > 0.02;
-      sp.position.set(p[0], p[1]);
-      sp.tint = col; sp.alpha = a; sp.scale.set(r * scale);
-    };
+    // data buses: a packet per message (events send theirs where they happen); a streaming bus sends the next one when the last has gone
+    if (!this.liveOn) { this.busFlow.clear(); this.extFlow.clear(); } // off, tripped or dead: no packet or glow on the next frame
     for (const l of inner ? [...this.lit.values(), ...this.memLit.values()] : []) {
-      const power = l.pulses === 0;
-      if (!this.liveOn) { l.level = 0; l.g.alpha = 0; continue; } // off, tripped or dead: no glow or pulses on the next frame
-      if (power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g.alpha = l.level * 0.55; continue; }
-      const on = l.hold > now;
-      l.level += ((on ? 1 : 0) - l.level) * Math.min(1, dt * (on ? 9 : 2.2));
-      l.g.alpha = l.level * 0.5;
-      if (l.level < 0.03) continue;
-      const speed = (l.bus.id === 'mem' ? 2.4 : 1.4) * l.dir;
-      for (const lane of l.lanes) {
-        const n = Math.max(1, Math.min(3, Math.round(lane.len / 900)));
-        for (let j = 0; j < n; j++) put(pointAt(lane, this.phase * speed + lane.ph + (j * lane.len) / n), l.color, 0.95 * l.level);
-      }
+      if (!this.liveOn) { l.level = 0; if (l.g) l.g.alpha = 0; continue; }
+      if (l.power) { l.level += (l.hold - l.level) * Math.min(1, dt * 3); l.g!.alpha = l.level * 0.55; continue; } // current, not messages: glows in proportion
+      if (l.stream) this.send(l, now, STREAM_GAP);
     }
     for (const lc of this.cables) {
-      const video = lc.cable.kind === 'video';
-      if (!video && !inner) continue;
-      if (!this.liveOn) { lc.level = 0; lc.g.alpha = 0; if (video) for (const sp of this.extDots) sp.visible = false; continue; }
+      if (!inner) continue;
+      if (!this.liveOn) { lc.level = 0; lc.g.alpha = 0; continue; }
       lc.level += (lc.target - lc.level) * Math.min(1, dt * 2.5);
       lc.g.alpha = lc.level * 0.55;
-      if (video) for (const sp of this.extDots) sp.visible = false;
       if (lc.level < 0.03) continue;
-      const lane = lc.cable.path, dir = video ? 1 : -1;
+      const lane = lc.cable.path;
       for (let j = 0; j < 3; j++) {
-        const pt = pointAt(lane, this.phase * 0.9 * dir + (j * lane.len) / 3);
-        const sp = video ? this.extDots[j] : this.dots[k++];
+        const pt = pointAt(lane, this.phase * -0.9 + (j * lane.len) / 3);
+        const sp = this.dots[k++];
         if (!sp) continue;
         sp.visible = true; sp.position.set(pt[0], pt[1]); sp.tint = lc.color; sp.alpha = 0.85 * lc.level; sp.scale.set(r * 1.4);
       }
     }
-    // drives: platter / head / LED only while busy; SATA cable pulses while data moves
+    // drives: platter / head / LED only while busy; the SATA cable sends packets while data moves
     this.diskLevel = 0;
     for (const dr of this.drives.values()) {
-      if (!this.liveOn) { dr.speed = 0; dr.head = 0; dr.led = 0; dr.level = 0; } // off, tripped or dead: platter, arm, LED and cable are still at once
-      const lit = dr.busyUntil > now, flow = dr.flowUntil > now || lit;
+      if (!this.liveOn) { dr.speed = 0; dr.head = 0; dr.led = 0; } // off, tripped or dead: platter, arm and LED are still at once
+      const lit = dr.busyUntil > now;
       dr.speed += ((lit ? 16 : 0) - dr.speed) * Math.min(1, dt * (lit ? 4 : 2.5));
       if (!lit && dr.speed < 0.05) dr.speed = 0;
       dr.spin += dr.speed * dt;
@@ -1017,13 +1009,14 @@ export class Live {
       const sig = `${Math.round(dr.spin * 20)}|${Math.round(dr.head * 40)}|${Math.round(dr.led * 10)}|${dr.burnt}`;
       if (inner && sig !== dr.sig) { dr.sig = sig; drawDriveLive(dr.g, this.T, dr.kind, dr.slot, { spin: dr.spin, head: dr.head, led: dr.led, burnt: dr.burnt }); }
       this.diskLevel = Math.max(this.diskLevel, dr.led);
-      if (dr.lane && inner) {
-        dr.level += ((flow ? 1 : 0) - dr.level) * Math.min(1, dt * (flow ? 9 : 2.2));
-        dr.glow.alpha = dr.level * 0.5;
-        if (dr.level > 0.03) for (let j = 0; j < 4; j++) put(pointAt(dr.lane, this.phase * 1.4 * dr.dir + (j * dr.lane.len) / 4), T.mul, 0.95 * dr.level);
+      if (dr.lane && inner && dr.stream && this.liveOn && !this.quiet && now >= dr.nextAt) {
+        dr.nextAt = now + STREAM_GAP;
+        this.busFlow.send([dr.lane], dr.dir, T.mul, now, 10);
       }
     }
     while (k < this.dots.length) this.dots[k++]!.visible = false;
+    this.busFlow.frame(now, this.zoom, inner);
+    this.extFlow.frame(now, this.zoom, true);
     this.drawOsBar(now);
     if (inner) { this.drawBadge(now); this.drawVrm(now); }
 
