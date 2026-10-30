@@ -50,7 +50,22 @@ export interface GpuStep {
   banks: number[] | null;
   /** The vector register the instruction writes (ALU work and loads), else null. */
   dest: number | null;
+  /** The fields below are set by the engines; fixtures may leave them out. The raw instruction word. */
+  word?: number;
+  /** The execution mask after the instruction, and the mask stack depth after it. */
+  maskAfter?: number;
+  stackDepth?: number;
+  /** The card cycle the instruction issued in (cycles elapsed since the launch started running). */
+  startCycle?: number;
+  /** Which SM and warp ran it (0, 0 on the unpipelined unit). */
+  sm?: number;
+  warp?: number;
+  /** Why it took more than one cycle: a memory bank conflict, else null. */
+  stall?: GpuStall | null;
 }
+
+/** Why an instruction (or a warp) lost cycles: memory bank conflicts, a pending load, a barrier. */
+export type GpuStall = "bank" | "mem" | "barrier";
 
 const MASK_OPS = new Set(["mseteq", "msetne", "msetlt", "msetge", "mpush", "melse", "mpop"]);
 const stepKind = (name: string): GpuStepKind =>
@@ -124,6 +139,8 @@ export class GpuRef {
   step(): void {
     if (this.halted) return;
     const i = this.fetch();
+    const word = this.mem[this.pc / 4]!;
+    const startCycle = this.cycles;
     const R = this.regs;
     const L = this.lanes;
     const mask = this.mask;
@@ -203,7 +220,8 @@ export class GpuRef {
     }
     this.idleLaneSlots += L - this.popcount(mask);
     const kind = stepKind(i.name);
-    this.lastStep = { pc: this.pc, name: i.name, kind, mask, cost, banks, dest: kind === "alu" || kind === "ld" ? i.rd : null };
+    this.lastStep = { pc: this.pc, name: i.name, kind, mask, cost, banks, dest: kind === "alu" || kind === "ld" ? i.rd : null,
+      word, maskAfter: this.mask, stackDepth: this.stack.length, startCycle, sm: 0, warp: 0, stall: cost > 1 ? "bank" : null };
     this.cycles += cost;
     this.instructions++;
     this.pc = next;

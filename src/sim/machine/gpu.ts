@@ -15,8 +15,21 @@ import type { Device } from "./device";
 
 type Phase = "idle" | "in" | "run" | "out";
 
-/** Instructions of the last launch a card remembers for its view (the die view's window is 24 cycles too). */
-export const GPU_TRACE_STEPS = 24;
+/** Instructions of the last launch a card remembers for its view (the die view replays them at its own pace). */
+export const GPU_TRACE_STEPS = 64;
+
+/** A warp as the view shows it: where it is, its mask and stack, and whether it can issue (docs/GPU.md section 6). */
+export interface GpuWarpView {
+  pc: number;
+  mask: number;
+  stack: number[];
+  state: "ready" | "wait-mem" | "barrier" | "done";
+}
+
+/** One streaming multiprocessor: its warps. The unpipelined unit is one SM with one warp. */
+export interface GpuSmView {
+  warps: GpuWarpView[];
+}
 
 /** What a card shows from the outside: its shape, where the launch is, and the last instructions it ran (docs/ACCEL.md "Art as built"). */
 export interface GpuView {
@@ -36,6 +49,8 @@ export interface GpuView {
   launches: number;
   /** Counters of the current / last launch. */
   stats: { instructions: number; idleLaneSlots: number; conflictCycles: number; cycles: number };
+  /** SMs and their warps (the unpipelined unit: one of each). */
+  sms?: GpuSmView[];
   /** Set when the last launch ended in a fault. */
   error: boolean;
   /** What a display on this card's port shows: the output region of card memory (`GPU_FRAME`), as words; empty before the first launch of this power-on. */
@@ -102,6 +117,7 @@ export class GpuPort implements Device {
       trace: this.trace.map((s) => ({ ...s, banks: s.banks && [...s.banks] })),
       launches: this.launches,
       stats: { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles, cycles: core.cycles },
+      sms: [{ warps: [{ pc: core.pc, mask: core.mask, stack: [...core.stack], state: core.halted ? "done" : "ready" }] }],
       error: this.error,
       frame: this.launches > 0 ? Array.from(core.mem.subarray(GPU_FRAME.at >>> 2, (GPU_FRAME.at >>> 2) + GPU_FRAME.words)) : [],
     };

@@ -197,19 +197,19 @@ describe("GPU card on the bus", () => {
     expect(r.port.takeActivity()).toBe(false);
   });
 
-  it("view() shows the last instructions of a launch (at most 24), clears them at the next launch, and is null without a card", () => {
+  it("view() shows the last instructions of a launch (at most 64), clears them at the next launch, and is null without a card", () => {
     const r = rig(8, 4);
     expect(r.port.view()).toMatchObject({ lanes: 8, banks: 4, memBytes: 8192, phase: "idle", trace: [], regs: [], launches: 0 });
-    r.put(0, assembleGpu(`${"vli v1, 1\n".repeat(30)}lane v2\nvslli v3, v2, 4\nvld v4, 1024(v3)\nhalt`).program);
+    r.put(0, assembleGpu(`${"vli v1, 1\n".repeat(70)}lane v2\nvslli v3, v2, 4\nvld v4, 1024(v3)\nhalt`).program);
     r.go();
     const v = r.port.view()!;
     expect(v.launches).toBe(1);
-    expect(v.trace).toHaveLength(24);
+    expect(v.trace).toHaveLength(64);
     expect(v.trace.at(-1)).toMatchObject({ name: "halt", kind: "sys" });
     expect(v.trace.at(-2)).toMatchObject({ name: "vld", kind: "ld", banks: [8, 0, 0, 0] });
     expect(v.regs).toHaveLength(8);
     expect(v.regs[2]).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    expect(v.stats).toMatchObject({ instructions: 34, conflictCycles: 7 });
+    expect(v.stats).toMatchObject({ instructions: 74, conflictCycles: 7 });
     // a second launch starts a fresh window
     r.m.bus.store32(R(GPU_REG.CMD), 1);
     expect(r.port.view()!.trace).toEqual([]);

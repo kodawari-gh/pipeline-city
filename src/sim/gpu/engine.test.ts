@@ -11,8 +11,8 @@ const kernel = assembleGpu(`
   lane v1
   vslli v1, v1, 3
   vli v2, 7
-  vst v2, 0(v1)
-  vld v3, 0(v1)
+  vst v2, 1024(v1)
+  vld v3, 1024(v1)
   halt
 `).program;
 
@@ -61,5 +61,28 @@ describe("config identity", () => {
     expect(port.memory).not.toBe(mem);
     port.configure(null);
     expect(port.present).toBe(false);
+  });
+});
+
+describe("step record", () => {
+  it("carries the word, the mask and stack after, the issue cycle and why a step was slow", () => {
+    const eng = createGpu(cfg);
+    eng.mem.set(kernel);
+    eng.reset();
+    const steps = [];
+    while (!eng.halted) { const s = eng.step(); if (s) steps.push(s); }
+    expect(steps.map((s) => s.name)).toEqual(["lane", "vslli", "vli", "vst", "vld", "halt"]);
+    expect(steps[0]).toMatchObject({ word: kernel[0], maskAfter: 0xff, stackDepth: 0, startCycle: 0, sm: 0, warp: 0, stall: null });
+    expect(steps[1]!.startCycle).toBe(1);
+    const st = steps[3]!;
+    expect(st.stall).toBe("bank");
+    expect(steps[4]!.startCycle).toBe(st.startCycle! + st.cost);
+  });
+
+  it("a port shows one SM with one warp and keeps up to 64 steps", () => {
+    const port = new GpuPort("pcie0", 0);
+    port.configure(cfg);
+    const v = port.view()!;
+    expect(v.sms).toEqual([{ warps: [{ pc: 0, mask: 0xff, stack: [], state: "ready" }] }]);
   });
 });
