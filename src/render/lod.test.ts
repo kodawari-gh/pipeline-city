@@ -100,18 +100,26 @@ describe('the shared ladder', () => {
 });
 
 describe('zoomSlow', () => {
-  it('runs at full pace when zoomed out and crawls to 0.5 s per cycle from zoom 1 up', () => {
-    expect(zoomSlow(0.25, 4.5)).toBe(1);
-    expect(zoomSlow(1, 4.5)).toBeCloseTo(2 / 4.5);
-    expect(zoomSlow(6, 4.5)).toBeCloseTo(2 / 4.5);
+  it('runs at the game pace when zoomed out', () => {
+    expect(zoomSlow(0.25, 4.5, 1)).toBe(1);
+    expect(zoomSlow(0.25, 4.5, 2)).toBe(2);
+  });
+  it('crawls to one second per cycle from zoom 1 up, at any game speed', () => {
+    for (const scale of [1, 2, 3]) {
+      expect(zoomSlow(1, 4.5, scale)).toBeCloseTo(1 / 4.5);
+      expect(zoomSlow(6, 4.5, scale)).toBeCloseTo(1 / 4.5);
+    }
   });
   it('slows steadily as the camera comes in', () => {
-    const a = zoomSlow(0.4, 4.5), b = zoomSlow(0.6, 4.5), c = zoomSlow(0.9, 4.5);
+    const a = zoomSlow(0.4, 4.5, 2), b = zoomSlow(0.6, 4.5, 2), c = zoomSlow(0.9, 4.5, 2);
     expect(a).toBeGreaterThan(b);
     expect(b).toBeGreaterThan(c);
   });
+  it('keeps a paused game paused', () => {
+    expect(zoomSlow(6, 4.5, 0)).toBe(0);
+  });
   it('leaves a replay that is already slower than the floor alone', () => {
-    expect(zoomSlow(6, 1)).toBe(1);
+    expect(zoomSlow(6, 0.5, 1)).toBe(1);
   });
 });
 

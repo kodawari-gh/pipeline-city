@@ -147,15 +147,16 @@ export class ZoomSwitch {
 
 /** Zoom where the replay starts to slow (the die starts to read as a machine, well before the names), and from where it is slowest. */
 export const SLOW_FROM = 0.3, SLOW_TO = 1;
-/** The slowest the replay crawls, in seconds per cycle, at the closest zoom. */
-export const DEEP_CYCLE_S = 0.5;
+/** The slowest the replay crawls, in seconds per cycle, from `SLOW_TO` up: at any game speed. */
+export const DEEP_CYCLE_S = 1;
 
 /**
- * The share of its pace the visual clock runs at, from 1 (zoomed out) down to the pace of `DEEP_CYCLE_S` seconds per cycle when fully zoomed in, so
- * a block can be followed by eye. Smooth in log zoom. `cyclesPerSec`: the replay's normal pace (a pace already slower than the floor is left alone).
+ * The multiplier of the visual clock. `scale` is what the game speed gives (0 paused); zoomed out the clock runs at `scale`, and zooming in eases it
+ * (smooth in log zoom) down to one cycle per `DEEP_CYCLE_S` seconds whatever the game speed, so a block can be followed by eye. `cyclesPerSec` is the
+ * replay's normal pace; a pace already slower than the floor is left alone, and a paused game stays paused.
  */
-export function zoomSlow(zoom: number, cyclesPerSec: number): number {
-  const floor = Math.min(1, 1 / DEEP_CYCLE_S / cyclesPerSec);
+export function zoomSlow(zoom: number, cyclesPerSec: number, scale = 1): number {
+  const floor = Math.min(scale, 1 / DEEP_CYCLE_S / cyclesPerSec);
   const t = smooth(Math.log(SLOW_FROM), Math.log(SLOW_TO), Math.log(Math.max(zoom, 1e-6)));
-  return 1 - (1 - floor) * t;
+  return scale + (floor - scale) * t;
 }

@@ -1291,9 +1291,9 @@ export async function mountBoard(host: HTMLElement) {
     const dt = tk.deltaMS / 1000;
     // game time: advances only while the sim runs (pause = speed 0 stops it), so every world animation freezes with it
     // zoomed in, the world runs slower so a block can be followed (lod.ts `zoomSlow`); the HUD says so (zoomSlowdown) unless the game is paused
-    const slow = zoomSlow(lod.zs, CYCLES_PER_SEC), running = speed.peek() > 0, note = running ? Math.round(slow * 100) / 100 : 1;
+    const scale = timeScale(), pace = zoomSlow(lod.zs, CYCLES_PER_SEC, scale), note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
     if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
-    const gdt = dt * timeScale() * slow;
+    const gdt = dt * pace;
     gt += gdt * 1000;
     if (pendingInset && !camera.gesturing && !interact.busy) { const i = pendingInset; pendingInset = null; applyInset(i); }
     camera.update(now);
