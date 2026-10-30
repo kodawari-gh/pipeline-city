@@ -14,7 +14,7 @@ export class GpuFault extends Error {
   }
 }
 
-export interface GpuConfig {
+export interface GpuRefConfig {
   /** Lanes that run in lockstep, 1..32. */
   lanes: number;
   /** Card memory in bytes (a multiple of 4). Kernel code and data share it. */
@@ -79,7 +79,7 @@ export class GpuRef {
 
   private readonly all: number;
 
-  constructor(cfg: GpuConfig) {
+  constructor(cfg: GpuRefConfig) {
     if (!Number.isInteger(cfg.lanes) || cfg.lanes < 1 || cfg.lanes > 32) throw new RangeError(`bad lane count ${cfg.lanes}`);
     if (cfg.memBytes % 4 !== 0 || cfg.memBytes < 4) throw new RangeError(`bad card memory size ${cfg.memBytes}`);
     this.lanes = cfg.lanes;

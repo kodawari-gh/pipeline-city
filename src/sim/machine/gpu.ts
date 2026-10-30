@@ -8,7 +8,8 @@
 // device steps that core, so it matches it by construction and the tests check the cycle counts against known runs.
 
 import { GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "../isa/memmap";
-import { GpuFault, GpuRef, type GpuConfig, type GpuStep } from "../ref/gpuref";
+import { createGpu, sameGpuConfig, type GpuConfig, type GpuEngine } from "../gpu";
+import { GpuFault, type GpuStep } from "../ref/gpuref";
 import type { Rate } from "./clock";
 import type { Device } from "./device";
 
@@ -48,10 +49,9 @@ export class GpuPort implements Device {
   readonly clock: Rate = { mul: 0, div: 1 };
 
   private cfg: GpuConfig | null = null;
-  private core: GpuRef | null = null;
+  private core: GpuEngine | null = null;
   private phase: Phase = "idle";
   private wait = 0;
-  private stall = 0;
   private kernel = 0;
   private lanes = 0;
   private done = false;
@@ -73,10 +73,9 @@ export class GpuPort implements Device {
 
   /** Put a card in the slot (or take it out with null). A different card is a fresh one; the same config leaves the state alone. */
   configure(cfg: GpuConfig | null): void {
-    const same = cfg && this.cfg && cfg.lanes === this.cfg.lanes && cfg.memBytes === this.cfg.memBytes && cfg.banks === this.cfg.banks;
-    if (same || (!cfg && !this.cfg)) return;
+    if (sameGpuConfig(cfg, this.cfg)) return;
     this.cfg = cfg;
-    this.core = cfg ? new GpuRef(cfg) : null;
+    this.core = cfg ? createGpu(cfg) : null;
     this.reset();
   }
 
@@ -84,7 +83,7 @@ export class GpuPort implements Device {
   reset(): void {
     this.core?.mem.fill(0);
     this.phase = "idle";
-    this.wait = this.stall = 0;
+    this.wait = 0;
     this.kernel = this.lanes = 0;
     this.done = this.error = false;
     this.fault = GpuFaultCode.None;
@@ -189,18 +188,14 @@ export class GpuPort implements Device {
       case "in":
         if (--this.wait <= 0) {
           core.reset(this.kernel, this.lanes === 0 ? core.lanes : this.lanes);
-          this.stall = 0;
           this.phase = "run";
         }
         break;
       case "run": {
-        if (this.stall > 0) { this.stall--; break; }
-        const before = core.cycles;
         try {
-          core.step();
-          this.stall = core.cycles - before - 1;
-          if (core.lastStep) {
-            this.trace.push(core.lastStep);
+          const issued = core.step();
+          if (issued) {
+            this.trace.push(issued);
             if (this.trace.length > GPU_TRACE_STEPS) this.trace.shift();
           }
         } catch (e) {
@@ -222,7 +217,7 @@ export class GpuPort implements Device {
     }
   }
 
-  private finish(core: GpuRef): void {
+  private finish(core: GpuEngine): void {
     this.lastCycles = core.cycles;
     this.kernelCycles += core.cycles;
     this.lastStats = { instructions: core.instructions, idleLaneSlots: core.idleLaneSlots, conflictCycles: core.conflictCycles };

@@ -1,6 +1,6 @@
 # The GPU: engines, memory path and card view
 
-Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **design, to be approved by the owner (T128).** Only `gpu1`'s model (the `simd` engine below) is built; it is what `GpuRef` does now. The tasks that build the rest are T129 to T145 in [`TODO.md`](TODO.md). Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view will copy).
+Code today: `src/sim/machine/gpu.ts` (`GpuPort`), `src/sim/ref/gpuref.ts` (`GpuRef`), `src/sim/isa/gpu.ts` (ISA), `src/sim/asm/gpu.ts`, `src/sim/gen/gpupicture.ts` (kernels), `src/render/board/gpu*.ts` (card view). Status: **design approved 2026-10-30; building.** Built: the engine contract and the `simd` engine (`src/sim/gpu`, T129). The tasks that build the rest are T129 to T145 in [`TODO.md`](TODO.md). Background: [`ACCEL.md`](ACCEL.md) (device rules, ISA as built, picture jobs, the NPU and TPM), [`CPU.md`](CPU.md) and [`ENGINES.md`](ENGINES.md) (the model this note copies), [`DIE.md`](DIE.md) (the floorplan model the card view will copy).
 
 ## Why
 
