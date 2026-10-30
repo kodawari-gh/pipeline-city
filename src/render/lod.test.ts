@@ -117,15 +117,6 @@ describe('TierBudget', () => {
     b.assign([{ id: 'a', focus: 1 }, { id: 'b', focus: 1 }]);
     expect([...b.assign([{ id: 'b', focus: 1 }])]).toEqual(['b']);
   });
-  it('admits one rise per frame', () => {
-    const b = new TierBudget();
-    b.beginFrame();
-    expect(b.admitRise('a')).toBe(true);
-    expect(b.admitRise('b')).toBe(false);
-    expect(b.admitRise('a')).toBe(true);
-    b.beginFrame();
-    expect(b.admitRise('b')).toBe(true);
-  });
 });
 
 describe('ZoomSwitch', () => {

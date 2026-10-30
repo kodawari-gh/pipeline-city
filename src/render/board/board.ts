@@ -36,7 +36,7 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
-import { DEVICE_LOD, LodClock, ZoomSwitch, smooth } from '../lod';
+import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, smooth } from '../lod';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../room/room';
@@ -421,10 +421,14 @@ export async function mountBoard(host: HTMLElement) {
     const want = bakeDev.on;
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
+  /** The die is not drawn while the view is elsewhere on the board (its replay and the sticks it feeds keep running). */
+  let dieInView = true;
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
   const syncRoom = () => {
     const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
     const view = { x: left, y: top, w: camera.w / z, h: camera.h / z };
+    live.setView(view);
+    dieInView = deviceLod(DIE, view).onScreen;
     roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
     roomView?.setFocus(focusAt(view, CASE));
   };
@@ -447,7 +451,7 @@ export async function mountBoard(host: HTMLElement) {
     coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
     coolerLayer.visible = coolerLayer.alpha > 0.01;
     die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z);
-    die.root.visible = die.root.alpha > 0.01;
+    die.root.visible = die.root.alpha > 0.01 && dieInView;
     die.setZoom(z);
     for (const pb of propBakes) {
       const want = bakeProps.on;

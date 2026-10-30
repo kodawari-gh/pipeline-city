@@ -12,7 +12,8 @@ import { npuHostRoute, npuRoute, type HostAccess } from '../npu/npuroute';
 import type { NpuBlock } from '../npu/npuplan';
 import { npuCover } from './accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
-import { DEVICE_LOD, smooth } from '../lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { RectCache } from './lodrect';
 
 // The AI cards of the board, alive (docs/ACCEL.md "NPU internal view"). Seen from afar a card is a lid over its die. Zoomed in, the lid fades away like a
 // graphics card's shroud and the die shows through, drawn in the CPU die's style (npu/npuart.ts): the control registers with the words the CPU wrote, the
@@ -66,6 +67,7 @@ export class NpuCardView {
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
+  private readonly rects = new RectCache();
   /** The replay's own clock (ms): packets and lights run on it. */
   private now = 0;
   private lastWall = 0;
@@ -141,8 +143,16 @@ export class NpuCardView {
     for (const c of this.cards) c.player.feed(npus?.find((x) => x.slot === c.slot));
   }
 
-  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). */
-  frame(dt: number, inner: boolean, paused = false): void {
+  /** The cards in view that want their counters, for the detail budget (live.ts). */
+  candidates(view: LodRect): Candidate[] {
+    if (this.zoom < DETAIL_Z) return [];
+    const out: Candidate[] = [];
+    for (const c of this.cards) { const p = this.rects.place(c, c.root, view); if (p.onScreen) out.push({ id: `npu:${c.slot}`, focus: p.focus }); }
+    return out;
+  }
+
+  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a card out of view is not drawn. */
+  frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
     // a paused game has no game time, but a replay still plays: it runs on the wall clock then
@@ -156,13 +166,17 @@ export class NpuCardView {
       const base = c.player.show(this.now), fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
       if (c.touch && fresh <= 0) c.touch = null;
       const show = base && c.touch ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } } : base;
+      const on = this.rects.place(c, c.root, lod?.view).onScreen;
+      c.root.visible = on;
       c.cover.alpha = 1 - fade;
       c.die.alpha = fade;
       c.die.visible = fade > 0.02;
-      if (!c.die.visible) continue;
-      const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
+      if (!c.die.visible || !on) continue;
+      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`npu:${c.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
       c.names.visible = c.texts.visible = showText;
+      c.names.alpha = c.texts.alpha = ta;
       c.subs.visible = showDetail;
+      c.subs.alpha = da;
       // an idle card only needs a redraw when something it shows changes (the clock lane blinks every 160 ms)
       const still = !show || (show.phase === 'idle' && !c.touch && c.packets.length === 0 && c.trails.size === 0 && c.glow.size === 0);
       const sig = still ? `${show ? `${show.cycles}|${show.count}|${show.done ? 1 : 0}${show.error ? 1 : 0}|${show.tiles.map((t) => (t ? 1 : 0)).join('')}|${show.acc.reduce((n, x) => (n * 31 + x) | 0, 7)}|${show.fill.reduce((n, x) => (n * 31 + Math.round(x * 16)) | 0, 5)}` : '-'}|${Math.floor(this.now / 160)}|${showText ? 1 : 0}${showDetail ? 1 : 0}` : '';

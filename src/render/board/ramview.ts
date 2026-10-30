@@ -8,6 +8,7 @@ import { coreColor } from '../die/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from './layout';
 import type { Theme } from '../theme';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '../lod';
 
 // The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a grid of cells, one per 256-byte page (a block of the drive):
 // the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the strength is how full the page is. Zoomed in, the
@@ -15,8 +16,8 @@ import type { Theme } from '../theme';
 // the instructions of the code, the words of the data. Cells are drawn only when the memory changes, so the view costs next to nothing.
 
 const TOUCH_MS = 700, MAX_TOUCHES = 8, MAX_CORE_TOUCHES = 48, MAX_BUBBLES = 6;
-// the same zoom levels as the CPU die (dieview.ts setZoom: wires 0.7, cells 0.8, texts 0.85, subtexts 1.2): below them the traces are the picture
-const SHOW_Z = 0.7, OUTLINE_Z = 0.8, BAND_Z = 0.85, LENS_Z = 1.2;
+// the zoom levels are in lod.ts (`DEVICE_LOD.ram`): below `show` the traces are the picture, the view fades in over it
+const SHOW_Z = DEVICE_LOD.ram.show, OUTLINE_Z = DEVICE_LOD.ram.outline, BAND_Z = DEVICE_LOD.ram.band, LENS_Z = DEVICE_LOD.ram.lens;
 const LENS_ROWS = 9, LENS_W = 310, LINE = 11, NOTE_LINES = 2, LENS_H = 16 + LENS_ROWS * LINE + 8 + NOTE_LINES * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
@@ -175,8 +176,10 @@ export class RamView {
 
   /** Per frame (`inner`: the interior of the board shows, not the exterior covering it). */
   frame(inner: boolean, wall = performance.now()): void {
-    const show = inner && !!this.map && this.chips.length > 0 && this.zoom >= SHOW_Z;
+    const fade = bandAlpha(this.zoom, onBand(SHOW_Z));
+    const show = inner && !!this.map && this.chips.length > 0 && fade > SHOWN;
     this.root.visible = show;
+    this.root.alpha = fade;
     if (!show) return;
     this.touches = this.touches.filter((t) => wall - t.t < TOUCH_MS);
     this.drawOutlines();
@@ -215,14 +218,15 @@ export class RamView {
   private drawOutlines(): void {
     const m = this.map, T = this.T;
     if (!m || !T) return;
-    const z = this.zoom;
-    const sig = `${this.regionSig}|${Math.round(z * 4)}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
+    // line widths follow the zoom in quarter-octave steps (about 19 %): a redraw per step, not one per tenth of a zoom while the wheel turns
+    const q = Math.round(Math.log2(this.zoom) * 4), z = 2 ** (q / 4);
+    const sig = `${this.regionSig}|${q}|${OUTLINE_Z <= this.zoom ? 1 : 0}${BAND_Z <= this.zoom ? 1 : 0}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
     if (sig === this.outSig) return;
     this.outSig = sig;
     const g = this.outG;
     g.clear();
     let nt = 0, ns = 0;
-    const outlines = z >= OUTLINE_Z, bands = z >= BAND_Z;
+    const outlines = this.zoom >= OUTLINE_Z, bands = this.zoom >= BAND_Z;
     for (const t of this.regionTexts) t.visible = false;
     for (const t of this.stickTexts) t.visible = false;
     const tint = 1;
@@ -399,8 +403,9 @@ export class RamView {
   /** The magnifier: the words around the address the CPU touched last, as code (the instructions) or data (words and text). */
   private drawLens(wall: number): void {
     const T = this.T, m = this.map;
-    const show = !!T && !!m && this.zoom >= LENS_Z;
+    const fade = bandAlpha(this.zoom, onBand(LENS_Z)), show = !!T && !!m && fade > SHOWN;
     this.lens.visible = show;
+    this.lens.alpha = fade;
     if (!show || !T || !m) return;
     const app = m.regions.find((r) => r.kind === 'app');
     const focus = this.lastTouch && wall - this.lastTouch.t < 9000 ? this.lastTouch : null;

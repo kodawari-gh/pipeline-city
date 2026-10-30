@@ -4,12 +4,13 @@ import type { Theme } from '../theme';
 import type { OpClass } from '../../sim/game/jobcode';
 import { LENS_ROWS, type GpuLens } from '../gpu/gpumem';
 import type { Rect } from './layout';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '../lod';
 
 // The magnifier on a graphics card's memory, the RAM's (ramview.ts drawLens) for the card: beside the cell the last load or store touched, nine rows
 // (address, word, the instruction or the number, a class pill for code), a note naming the region, the instruction in flight beside the title, and a thin
 // line from the panel to the cell. The card's other memory parts show their data in place (gpumem.ts); this is the one reading aid, like the RAM's.
 
-export const LENS_Z = 1.2;
+export const LENS_Z = DEVICE_LOD.gpu.lens;
 export const LENS_W = 310, LINE = 11, LENS_H = 16 + LENS_ROWS * LINE + 8 + 2 * 9 + 14;
 const CLASS_KEY: [OpClass, string][] = [['alu', 'ALU'], ['ld', 'LOAD'], ['st', 'STORE'], ['mul', 'MUL'], ['br', 'BRANCH'], ['sys', 'SYSTEM']];
 
@@ -41,7 +42,9 @@ export class GpuLensView {
    * other side is the card's edge, and the fans above have room. `fresh` is false once the instruction has moved on (the frame goes dimmer). `color` is the instruction's colour.
    */
   set(T: Theme, lens: GpuLens | null, cell: Rect, block: Rect, zoom: number, color: string, fresh: boolean): void {
-    this.root.visible = !!lens && zoom >= LENS_Z;
+    const fade = bandAlpha(zoom, onBand(LENS_Z));
+    this.root.visible = !!lens && fade > SHOWN;
+    this.root.alpha = fade;
     if (!this.root.visible || !lens) return;
     const k = Math.min(1.05, 1.75 / zoom), w = LENS_W * k, h = LENS_H * k, gap = 6 + 8 / zoom;
     const cx = block.x + block.w / 2, x = cx - w / 2, y = block.y - gap - h;

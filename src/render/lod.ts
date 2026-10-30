@@ -84,17 +84,21 @@ export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
   return { onScreen, focus: onScreen ? 1 - smooth(0.2, 1.1, d) : 0 };
 }
 
+/** A device that wants its top tier this frame, and how close to the focus it is. */
+export interface Candidate { id: string; focus: number }
+
+/** What a card view is told each frame: the world rectangle in view, and the devices that may show their top tier. */
+export interface CardLod { view: LodRect; top: ReadonlySet<string> }
+
 /**
  * Which devices may sit in their top tier. At most `max` at once, the ones nearest the focus; a holder keeps its slot until a challenger
  * leads it by more than `margin`, so two cards at equal distance do not swap on every frame. A tier that is not wanted is dropped at once.
- * `admitRise` lets one tier rise (the expensive redraw) per frame: the caller asks in priority order.
  */
 export class TierBudget {
   private top = new Set<string>();
-  private risen = new Set<string>();
-  constructor(private max = 2, private margin = 0.15, private risesPerFrame = 1) {}
+  constructor(private max = 2, private margin = 0.15) {}
 
-  assign(wants: readonly { id: string; focus: number }[]): ReadonlySet<string> {
+  assign(wants: readonly Candidate[]): ReadonlySet<string> {
     const focus = new Map(wants.map((w) => [w.id, w.focus]));
     for (const id of this.top) if (!focus.has(id)) this.top.delete(id);
     const order = [...wants].sort((a, b) => b.focus - a.focus);
@@ -106,15 +110,6 @@ export class TierBudget {
       if (w.focus > f + this.margin) { this.top.delete(weakest); this.top.add(w.id); }
     }
     return this.top;
-  }
-
-  beginFrame(): void { this.risen.clear(); }
-
-  admitRise(id: string): boolean {
-    if (this.risen.has(id)) return true;
-    if (this.risen.size >= this.risesPerFrame) return false;
-    this.risen.add(id);
-    return true;
   }
 }
 

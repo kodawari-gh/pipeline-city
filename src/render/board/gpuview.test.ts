@@ -67,6 +67,26 @@ describe('GPU view', () => {
     v.frame(1 / 30, false);
     expect(v.root.visible).toBe(false);
   });
+
+  it('draws a card only while it is in view, and offers it for the detail budget only then', () => {
+    setLayoutTier(3, 3);
+    const v = new GpuView();
+    v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
+    v.setZoom(1);
+    v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: false } as never]);
+    const card = v.root.children[0] as Container;
+    const near = { x: -200, y: -200, w: 1000, h: 600 }, far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
+    v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });
+    expect(card.visible).toBe(true);
+    expect(v.candidates(near).map((c) => c.id)).toEqual(['gpu:pcie0']);
+    expect(v.candidates(far)).toEqual([]);
+    v.frame(1 / 30, true, false, { view: far, top: new Set() });
+    expect(card.visible).toBe(false);
+    v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });
+    expect(card.visible).toBe(true); // back in view
+    v.setZoom(0.1);
+    expect(v.candidates(near)).toEqual([]); // too far out for counters
+  });
 });
 
 describe('along', () => {

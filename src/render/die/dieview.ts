@@ -13,6 +13,7 @@ import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { readsOf } from './tokentext';
 import { idColor, pcText, writesOf } from './tokentext';
 import type { Theme } from '../theme';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '../lod';
 
 // The CPU die in motion (docs/DIE.md "Motion" and "What is stored"). It draws the near layer of the die (traces, cell arrays, names;
 // `dieart.ts`) faded in by zoom, and plays back the engine's recent cycles in slow motion (`diemotion.ts`):
@@ -162,21 +163,22 @@ export class PlanView {
 
   private dropChips() { this.dots.clear(); this.tailG.clear(); }
 
-  /** Levels of detail: the die is a lit machine from far out (wires, cell arrays, symbols, pulses from about 0.3), texts from 0.8, the second line of a block from 1.2. */
+  /** Levels of detail (lod.ts `DEVICE_LOD.die`): the die is a lit machine from far out (wires, cell arrays, symbols, pulses from about 0.3), texts from 0.8, the second line of a block from 1.2. Each layer fades in over a short band instead of popping. */
   setZoom(z: number) {
     this.z = z;
     if (!this.art) return;
-    this.art.wires.visible = z >= 0.25;
-    this.art.cells.visible = z >= 0.3;
-    this.cellLive.visible = z >= 0.3;
-    this.glyphG.visible = z >= 0.3;
-    this.dataG.visible = z >= 0.3;
-    this.texts.visible = z >= 0.8;
-    this.dataTexts.visible = z >= 0.85;
-    this.art.subs.visible = z >= 1.2;
-    this.packetG.visible = z >= 0.2;
-    this.trailG.visible = z >= 0.2;
-    this.legend.visible = z >= 0.5;
+    const L = DEVICE_LOD.die, fade = (n: { visible: boolean; alpha: number }, z0: number) => { const a = bandAlpha(z, onBand(z0)); n.alpha = a; n.visible = a > SHOWN; };
+    fade(this.art.wires, L.wires);
+    fade(this.art.cells, L.cells);
+    fade(this.cellLive, L.cells);
+    fade(this.glyphG, L.cells);
+    fade(this.dataG, L.cells);
+    fade(this.texts, L.texts);
+    fade(this.dataTexts, L.dataTexts);
+    fade(this.art.subs, L.subs);
+    fade(this.packetG, L.packets);
+    fade(this.trailG, L.packets);
+    fade(this.legend, L.legend);
   }
 
   /** A new snapshot of this plan's pipeline: its trace and stored state join the replay; nothing is drawn here (frame() draws). */

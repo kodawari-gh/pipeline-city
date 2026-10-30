@@ -11,7 +11,8 @@ import { tpmRoute } from '../tpm/tpmroute';
 import type { TpmBlock } from '../tpm/tpmplan';
 import { tpmCover } from './accelart';
 import { tpmGeo, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, smooth } from '../lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { RectCache } from './lodrect';
 
 // The secure module of the board, alive (docs/ACCEL.md "TPM"). Seen from afar it is the lid of a small daughterboard, with a padlock closed on it while
 // protected mode is on. Zoomed in, the lid fades away like a card's shroud and the die shows through, drawn in the CPU die's style (tpm/tpmart.ts): the
@@ -63,6 +64,7 @@ export class TpmView {
   private T: Theme | null = null;
   private modules: ModuleView[] = [];
   private zoom = 1;
+  private readonly rects = new RectCache();
   /** The replay's own clock (ms): packets and lights run on it. */
   private now = 0;
   private lastWall = 0;
@@ -109,8 +111,16 @@ export class TpmView {
     for (const m of this.modules) m.player.feed(tpm);
   }
 
-  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). */
-  frame(dt: number, inner: boolean, paused = false): void {
+  /** The modules in view that want their counters, for the detail budget (live.ts). */
+  candidates(view: LodRect): Candidate[] {
+    if (this.zoom < DETAIL_Z) return [];
+    const out: Candidate[] = [];
+    for (const m of this.modules) { const p = this.rects.place(m, m.root, view); if (p.onScreen) out.push({ id: `tpm:${m.slot}`, focus: p.focus }); }
+    return out;
+  }
+
+  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a module out of view is not drawn. */
+  frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
     this.root.visible = inner && this.modules.length > 0;
     if (!this.root.visible || !this.T) return;
     // a paused game has no game time, but a replay still plays: it runs on the wall clock then
@@ -123,13 +133,17 @@ export class TpmView {
       m.player.advance(step);
       const show = m.player.show(this.now);
       this.lockBadge(T, m, show);
+      const on = this.rects.place(m, m.root, lod?.view).onScreen;
+      m.root.visible = on;
       m.badge.alpha = m.cover.alpha = 1 - fade;
       m.die.alpha = fade;
       m.die.visible = fade > 0.02;
-      if (!m.die.visible) continue;
-      const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
+      if (!m.die.visible || !on) continue;
+      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`tpm:${m.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
       m.names.visible = m.texts.visible = showText;
+      m.names.alpha = m.texts.alpha = ta;
       m.subs.visible = showDetail;
+      m.subs.alpha = da;
       this.animate(T, m, show);
       const sig = `${show ? `${show.phase}|${Math.round(show.progress * 40)}|${show.cmd}|${show.hashed}|${show.result}|${show.fault}|${show.range ? `${show.range.lo}-${show.range.hi}` : '-'}|${show.sealed.length}|${show.guardedAccesses}|${show.done ? 1 : 0}` : '-'}|${Math.floor(this.now / (show?.busy ? 70 : 160))}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
       if (sig === m.sig) continue;

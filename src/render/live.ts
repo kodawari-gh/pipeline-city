@@ -20,6 +20,7 @@ import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type Ca
 import { BusFlow, slice } from './board/busflow';
 import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from './board/busmap';
 import type { Theme } from './theme';
+import { TierBudget, type LodRect } from './lod';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }
@@ -150,6 +151,8 @@ export class Live {
   private clockRatio = 1;
   private shownText = '\u0000';
   private zoom = 0.1;
+  private view: LodRect | null = null;
+  private readonly detail = new TierBudget(2);
   private hasPsu = false;
   private psuTemp = 25;
   private psuRatio = 0;
@@ -409,6 +412,8 @@ export class Live {
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
   setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); this.tpm.setZoom(z); this.npu.setZoom(z); }
+  /** The world rectangle the camera shows (board.ts `onZoom`): cards out of it are not drawn. */
+  setView(v: LodRect) { this.view = v; }
   /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
   setInterior(on: boolean) { this.interior = on; }
   /** Which cables are plugged in right now (an unplugged cable shows no glow or pulses). */
@@ -1153,10 +1158,13 @@ export class Live {
 
     this.drawBoot(now, dt);
 
+    // the cards: those out of view are not drawn, and at most two show their counters, the ones nearest the centre (lod.ts `TierBudget`)
+    const v = this.view;
+    const lod = inner && v ? { view: v, top: this.detail.assign([...this.gpu.candidates(v), ...this.npu.candidates(v), ...this.tpm.candidates(v)]) } : undefined;
     this.ram.frame(inner);
-    this.gpu.frame(dt, inner, paused);
-    this.tpm.frame(dt, inner, paused);
-    this.npu.frame(dt, inner, paused);
+    this.gpu.frame(dt, inner, paused, lod);
+    this.tpm.frame(dt, inner, paused, lod);
+    this.npu.frame(dt, inner, paused, lod);
     // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)
     this.dramFlash.clear();
   }

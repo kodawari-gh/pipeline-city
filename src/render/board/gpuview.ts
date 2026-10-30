@@ -18,7 +18,8 @@ import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu
 import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from '../gpu/gpumem';
 import { GpuLensView } from './gpulensview';
 import type { GpuBlock } from '../gpu/gpuplan';
-import { DEVICE_LOD, smooth } from '../lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { RectCache } from './lodrect';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle
@@ -120,6 +121,7 @@ export class GpuView {
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
+  private readonly rects = new RectCache();
   /** The replay's own clock (ms): packets and glows run on it. */
   private now = 0;
   private lastWall = 0;
@@ -191,8 +193,16 @@ export class GpuView {
     }
   }
 
-  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). */
-  frame(dt: number, inner: boolean, paused = false): void {
+  /** The cards in view that want their counters, for the detail budget (live.ts). */
+  candidates(view: LodRect): Candidate[] {
+    if (this.zoom < DETAIL_Z) return [];
+    const out: Candidate[] = [];
+    for (const c of this.cards) { const p = this.rects.place(c, c.root, view); if (p.onScreen) out.push({ id: `gpu:${c.slot}`, focus: p.focus }); }
+    return out;
+  }
+
+  /** Per frame. `inner` is false while the case's exterior covers the board (nothing to draw). `lod`: the view, and who may show counters; a card out of view is not drawn (its fans stop with it). */
+  frame(dt: number, inner: boolean, paused = false, lod?: CardLod): void {
     this.root.visible = inner && this.cards.length > 0;
     if (!this.root.visible || !this.T) return;
     // a paused game has no game time, but a card that is stepped still has to move: its packets and lights run on the wall clock then
@@ -201,9 +211,11 @@ export class GpuView {
     this.now += (paused ? wdt : dt) * 1000;
     const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
     for (const c of this.cards) {
-      // the fans: always on, whatever the zoom
+      const on = this.rects.place(c, c.root, lod?.view).onScreen;
+      c.root.visible = on;
+      // the fans: on whatever the zoom, while the card is in view
       const target = c.snap ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) : 0;
-      for (const f of c.fans) {
+      for (const f of on ? c.fans : []) {
         f.turns += (target - f.turns) * Math.min(1, dt * 1.2);
         f.fan.spin(f.turns * dt * BLADES_PER_TURN, Math.min(1, f.turns / FAN_FULL));
       }
@@ -219,10 +231,13 @@ export class GpuView {
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;
-      if (!c.inner.visible) { c.lens.hide(); continue; }
-      const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
+      if (!c.inner.visible || !on) { c.lens.hide(); continue; }
+      // names and counters fade in over a short band (no pop); a redraw is only asked for when one starts to show
+      const ta = bandAlpha(this.zoom, onBand(TEXT_Z)), da = !lod || lod.top.has(`gpu:${c.slot}`) ? bandAlpha(this.zoom, onBand(DETAIL_Z)) : 0, showText = ta > SHOWN, showDetail = da > SHOWN;
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
+      c.names.alpha = c.linkText.alpha = c.texts.alpha = ta;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
+      c.subs.alpha = c.ctrText.alpha = c.memText.alpha = da;
       this.animate(T, c, cur !== null);
       const t = c.tick, s = c.snap;
       const sig = `${t.index}|${t.round}|${Math.round(t.progress * 6)}|${t.step?.mask ?? -1}|${s?.phase ?? '-'}|${s?.stack.length ?? 0}|${s ? s.stats.cycles : -1}|${s?.launches ?? 0}|${showText ? 1 : 0}${showDetail ? 1 : 0}`;
