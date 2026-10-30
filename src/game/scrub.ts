@@ -5,6 +5,8 @@ import { signal } from '@preact/signals';
 /** What the scrubber moves: the CPU die (`cpu`) or the card in a PCIe slot (`gpu:pcie0`...). The cursor, range and shown cycle below belong to it. */
 export type ScrubTarget = 'cpu' | `gpu:${string}`;
 export const scrubTarget = signal<ScrubTarget>('cpu');
+/** Whether the Trace panel is open (the die marks the core it follows only then). */
+export const traceOpen = signal(false);
 /** Move the scrubber to another target: the old cursor, range and shown cycle mean nothing there. */
 export function selectScrub(t: ScrubTarget): void {
   if (scrubTarget.peek() === t) return;

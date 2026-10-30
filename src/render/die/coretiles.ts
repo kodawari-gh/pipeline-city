@@ -2,7 +2,8 @@
 // core's pipeline as a row of cells in the colours of the instructions in it. Pure: the snapshot in, a model out; `dieview.ts` draws it above the die and the
 // Trace panel draws the same model as its core selector.
 
-import type { CoresSnap, PipeSnap } from '../../sim/game/pipesnap';
+import type { CoresSnap, OooSnap, PipeSnap } from '../../sim/game/pipesnap';
+import { CommitStall, DispatchStall, FetchStall } from '../../sim/engines/view';
 import { SlotKind } from '../../sim/engines/view';
 import { opClass, type OpClass } from './diemotion';
 import type { CoreRate } from './corestats';
@@ -29,6 +30,8 @@ export interface TileModel {
   cells: TileCell[];
   /** How full the reorder buffer is, 0..1 (0 for the in-order engines). */
   fill: number;
+  /** The out-of-order core's structures (null for the in-order engines). */
+  ooo: OooStages | null;
   /** "C3", and under it "fft T3" style text for the panel. */
   label: string;
   sub: string;
@@ -59,6 +62,40 @@ export function coreColor(core: number, dark: boolean): string {
   return hsl(h, 0.78, dark ? 0.62 : 0.42);
 }
 
+/** One structure of the out-of-order engine as a gauge: `used` of `cap` slots (each the class of the instruction in it, `done` when it has finished), and why it made no progress this cycle. */
+export interface OooGauge { name: string; used: number; cap: number; slots: { cls: TileCell; done: boolean }[]; stall: string | null }
+
+/** An execution unit: the class of the instruction in it and how far through its latency it is (0..1). */
+export interface OooUnit { name: string; cls: TileCell; progress: number }
+
+/** What an out-of-order core is doing, per structure: the front end, the scheduler, the reorder buffer and the units. */
+export interface OooStages { gauges: OooGauge[]; units: OooUnit[] }
+
+const FETCH_WHY: Record<number, string> = { [FetchStall.QueueFull]: 'queue full', [FetchStall.Stopped]: 'stopped', [FetchStall.ICache]: 'I-cache miss' };
+const DISPATCH_WHY: Record<number, string> = { [DispatchStall.Empty]: 'starved', [DispatchStall.RobFull]: 'ROB full', [DispatchStall.SchedFull]: 'sched full' };
+const COMMIT_WHY: Record<number, string> = { [CommitStall.Empty]: 'nothing to retire', [CommitStall.HeadPending]: 'head waiting' };
+const UNIT_NAMES = ['ALU0', 'ALU1', 'MUL', 'LSU'];
+
+const clsOf = (op: string): TileCell => (op ? opClass(op) : null);
+
+/** The usage of each structure of an out-of-order core's snapshot, for the tile: used slots by instruction class, the stall cause, the units' progress. */
+export function oooStages(o: OooSnap): OooStages {
+  const [fs, ds, cs] = o.stall;
+  const fetchCap = Math.max(o.fetchQ.length, o.fetchCap ?? o.fetchQ.length, 1);
+  const decoded = o.decode.filter((op) => op !== '');
+  const sched = o.sched.filter((s) => s.op !== '');
+  const rob = o.rob.filter((s) => s.op !== '');
+  return {
+    gauges: [
+      { name: 'FETCH', used: o.fetchQ.length, cap: fetchCap, slots: o.fetchQ.map((op) => ({ cls: clsOf(op), done: false })), stall: FETCH_WHY[fs] ?? null },
+      { name: 'DECODE', used: decoded.length, cap: Math.max(1, o.decode.length), slots: decoded.map((op) => ({ cls: clsOf(op), done: false })), stall: DISPATCH_WHY[ds] ?? null },
+      { name: 'SCHED', used: sched.length, cap: Math.max(1, o.sched.length), slots: sched.map((s) => ({ cls: clsOf(s.op), done: false })), stall: null },
+      { name: 'ROB', used: rob.length, cap: Math.max(1, o.rob.length), slots: rob.map((s) => ({ cls: clsOf(s.op), done: s.state >= 3 })), stall: COMMIT_WHY[cs] ?? null },
+    ],
+    units: o.units.map((u, k) => ({ name: UNIT_NAMES[k] ?? 'U' + k, cls: clsOf(u.op), progress: u.op && u.total > 0 ? Math.min(1, (u.total - u.left) / u.total) : 0 })),
+  };
+}
+
 /** The cells of one pipeline snapshot. */
 export function pipeCells(p: PipeSnap | undefined): { cells: TileCell[]; fill: number } {
   if (!p) return { cells: [], fill: 0 };
@@ -77,7 +114,7 @@ export function tileModels(c: CoresSnap, dark: boolean, rates: readonly CoreRate
       core: l.core, hw: l.hw, parked: l.parked, selected: l.core === c.selected, job: l.job, thread: l.thread,
       tint: running ? threadTint(l.job, l.thread, dark) : null,
       color: coreColor(l.core, dark), ipc: asleep ? 0 : r?.ipc ?? 0, stall: asleep ? 0 : r?.stall ?? 0,
-      cells: asleep ? cells.map(() => null) : cells, fill,
+      cells: asleep ? cells.map(() => null) : cells, fill, ooo: c.tiles[l.hw]?.ooo && !asleep ? oooStages(c.tiles[l.hw]!.ooo!) : null,
       label: 'C' + l.core,
       sub: running ? 'T' + l.thread : l.parked ? 'parked' : 'kernel',
     };

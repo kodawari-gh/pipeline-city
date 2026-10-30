@@ -5,6 +5,7 @@
 
 import { Container, Graphics, Text } from 'pixi.js';
 import type { CoresSnap } from '../../sim/game/pipesnap';
+import type { OooStages, TileCell } from './coretiles';
 import type { Snapshot } from '../../sim/protocol';
 import { box, MONO, mix } from '../ink';
 import type { Theme } from '../theme';
@@ -13,6 +14,8 @@ import { splitPlan, type CoreTile } from './coreplan';
 import { CoreRateTracker, type CoreRate } from './corestats';
 import { washModels } from './coretiles';
 import { PlanView, type MemoryTouch } from './dieview';
+import { traceOpen } from '../../game/scrub';
+import { effect } from '@preact/signals';
 import { DEVICE_LOD, deviceLod, seenZoom, smooth, type LodRect } from '../lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
@@ -32,6 +35,7 @@ export class DieView {
   private washes: { box: Container; g: Graphics; texts: Container; tag: Container; badge: Graphics; tagTexts: Container; ring: Graphics }[] = [];
   /** How much of itself each tile keeps in the core view (1: all; a tile away from the centre of the view fades out when only the core in focus should show). */
   private keep: number[] = [];
+  private ringOn = false;
   /** How much of its wash each tile still wears (1: all). */
   private washA: number[] = [];
   private view: LodRect | null = null;
@@ -46,6 +50,8 @@ export class DieView {
 
   constructor() {
     this.root.addChild(this.shared.root, this.tilesAt, this.washLayer, this.tagLayer);
+    // the ring marks the core the Trace panel follows: it shows only while the panel is open
+    effect(() => { const on = traceOpen.value; for (const w of this.washes) w.ring.visible = on; this.ringOn = on; });
   }
 
   /** Told every time a core reaches out to RAM, for the memory sticks (set by board.ts). */
@@ -154,6 +160,7 @@ export class DieView {
       const tag = new Container(), badge = new Graphics(), tagTexts = new Container(), ring = new Graphics();
       tag.addChild(badge, tagTexts, ring);
       this.tagLayer.addChild(tag);
+      ring.visible = this.ringOn;
       w = this.washes[k] = { box, g, texts, tag, badge, tagTexts, ring };
     }
     return w;
@@ -187,12 +194,53 @@ export class DieView {
     for (const c of this.cores) c.view.frame(now, paused, draw && c.view.root.visible);
   }
 
+  /**
+   * An out-of-order core as the usage of each structure: a row per structure (fetch queue, decode, scheduler, reorder buffer), a slot per entry in the
+   * colour of the instruction in it (a finished reorder-buffer entry bright, a waiting one dim), the occupancy and the reason it is stuck at the end of
+   * the row; under them the four units, each filling as its instruction goes through its latency.
+   */
+  private drawOoo(wash: { g: Graphics; texts: Container }, o: OooStages, q: LodRect, tx: number, tw: number, T: Theme, rad: number, asleep: boolean): void {
+    const g = wash.g, row = q.h * 0.072, fs = Math.max(9, row * 0.62), labelW = tw * 0.2, barX = tx + labelW, tagW = tw * 0.27, barW = tw - labelW - tagW;
+    const txt = (text: string, x: number, y: number, color: string, right = false, alpha = 1) => {
+      const t = new Text({ text, style: { fontFamily: MONO, fontSize: fs, fontWeight: '600', fill: color, letterSpacing: 0.5 }, resolution: 2 });
+      t.anchor.set(right ? 1 : 0, 0.5); t.position.set(x, y); t.alpha = asleep ? alpha * 0.5 : alpha;
+      wash.texts.addChild(t);
+    };
+    const colour = (cls: TileCell) => (cls === null ? T.mute : cls === 'sys' ? T.mute : T[cls]);
+    let y = q.y + q.h * 0.4;
+    box(g, tx - 4, y - row * 0.2, tw + 8, row * 5.5, rad, { fill: T.bg, fa: 0.5, stroke: T.line, lw: 1.5, sa: 0.5 });
+    for (const gau of o.gauges) {
+      const h = row * 0.62, cy = y + row * 0.5;
+      txt(gau.name, tx + 6, cy, T.mute);
+      box(g, barX, cy - h / 2, barW, h, h * 0.25, { fill: T.line, fa: 0.25 });
+      const n = gau.cap <= 24 ? gau.cap : 0;
+      if (n > 0) {
+        const sw = barW / n;
+        gau.slots.slice(0, n).forEach((s, i) => box(g, barX + i * sw + 1, cy - h / 2 + 1, Math.max(1, sw - 2), h - 2, 2, { fill: colour(s.cls), fa: s.done ? 0.95 : 0.55 }));
+      } else {
+        g.roundRect(barX, cy - h / 2, barW * Math.min(1, gau.used / gau.cap), h, h * 0.25).fill({ color: T.mul, alpha: 0.7 });
+      }
+      txt(gau.used + '/' + gau.cap, barX + barW + 6, cy, gau.used >= gau.cap ? T.br : T.ink, false, 0.9);
+      if (gau.stall) txt(gau.stall, tx + tw, cy, T.br, true);
+      y += row;
+    }
+    // the units: a cell each, filling as the instruction works through its latency
+    const uw = tw / o.units.length;
+    o.units.forEach((u, i) => {
+      const x = tx + i * uw, w = uw - 6, h = row * 0.62, cy = y + row * 0.3;
+      box(g, x, cy - h / 2, w, h, h * 0.25, { fill: T.line, fa: 0.25 });
+      if (u.cls !== null) box(g, x, cy - h / 2, Math.max(h * 0.5, w * Math.max(0.12, u.progress)), h, h * 0.25, { fill: colour(u.cls), fa: 0.9 });
+      txt(u.name, x + 5, cy, u.cls === null ? T.mute : '#0b0d12', false, u.cls === null ? 0.7 : 0.9);
+    });
+  }
+
   /** The tint, the logical cores and the pipeline cells over each tile (redrawn when one of them changes). */
   private drawWash(cs: CoresSnap | undefined) {
     const T = this.T;
     const ws = cs ? washModels(cs, T.dark, this.rate) : [];
     const q8 = (v: number) => Math.round(v * 8);
     const sig = ws.map((w) => w.hw + (w.selected ? '*' : '') + w.models.map((m) => [m.tint, m.parked ? 1 : 0, m.sub].join(':')).join('/') + w.models[0]!.cells.join('.') + Math.round(w.models[0]!.fill * 8)
+      + (w.models[0]!.ooo ? w.models[0]!.ooo.gauges.map((x) => x.used + (x.stall ?? '') + x.slots.map((c) => (c.cls ?? '-') + (c.done ? 1 : 0)).join('')).join(',') + w.models[0]!.ooo.units.map((u) => (u.cls ?? '-') + q8(u.progress)).join('') : '')
       + '~' + q8(w.models[0]!.ipc) + ':' + q8(w.models[0]!.stall) + (T.dark ? 'd' : 'l')).join('|');
     if (sig === this.sig) return;
     this.sig = sig;
@@ -224,7 +272,7 @@ export class DieView {
       // the pipeline: a recessed track with a cell per stage (or unit), the reorder buffer fill under it
       const cells = lead.cells, cn = Math.max(1, cells.length), tx = q.x + q.w * 0.07, tw = q.w * 0.86, cg = tw * 0.012;
       const cw = (tw - cg * (cn - 1)) / cn, ch = Math.min(q.h * 0.1, cw * 0.8), cy = q.y + q.h * 0.58;
-      box(g, tx - cg * 2, cy - ch * 0.35, tw + cg * 4, ch * 1.7 + (lead.fill > 0 ? ch * 0.35 : 0), rad, { fill: T.bg, fa: 0.55, stroke: T.line, lw: 1.5, sa: 0.5 });
+      if (!lead.ooo) box(g, tx - cg * 2, cy - ch * 0.35, tw + cg * 4, ch * 1.7 + (lead.fill > 0 ? ch * 0.35 : 0), rad, { fill: T.bg, fa: 0.55, stroke: T.line, lw: 1.5, sa: 0.5 });
       // the captions say what the picture is: a cell lights in the colour of the instruction in that stage (dark: a bubble), the bars are rates
       const fs = Math.max(12, q.h * 0.042), cap = (text: string, x: number, y: number, color: string, right = false) => {
         const t = new Text({ text, style: { fontFamily: MONO, fontSize: fs, fontWeight: '600', fill: color, letterSpacing: 1 }, resolution: 2 });
@@ -232,21 +280,24 @@ export class DieView {
         if (asleep(lead)) t.alpha = 0.5;
         wash.texts.addChild(t);
       };
-      const inorder = this.plan?.arch === 'inorder' && cn === 5, stageNames = ['F', 'D', 'X', 'M', 'W'];
-      cap(inorder ? 'PIPELINE  FETCH > WRITE-BACK' : 'EXECUTION UNITS', tx, cy - ch * 0.35 - fs * 1.5, T.mute);
-      cells.forEach((cls, i) => {
-        const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls], x = tx + i * (cw + cg);
-        box(g, x, cy, cw, ch, ch * 0.18, { fill: c, fa: cls === null ? 0.18 : 0.9 });
-        if (cls !== null) box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
-        if (inorder) {
-          const t = new Text({ text: stageNames[i]!, style: { fontFamily: MONO, fontSize: ch * 0.55, fontWeight: '700', fill: cls === null ? T.mute : '#0b0d12' }, resolution: 2 });
-          t.anchor.set(0.5, 0.5); t.position.set(x + cw / 2, cy + ch / 2); t.alpha = cls === null ? 0.5 : 0.8;
-          wash.texts.addChild(t);
+      if (lead.ooo) this.drawOoo(wash, lead.ooo, q, tx, tw, T, rad, asleep(lead));
+      else {
+        const inorder = this.plan?.arch === 'inorder' && cn === 5, stageNames = ['F', 'D', 'X', 'M', 'W'];
+        cap(inorder ? 'PIPELINE  FETCH > WRITE-BACK' : 'EXECUTION UNITS', tx, cy - ch * 0.35 - fs * 1.5, T.mute);
+        cells.forEach((cls, i) => {
+          const c = cls === null ? T.line : cls === 'sys' ? T.mute : T[cls], x = tx + i * (cw + cg);
+          box(g, x, cy, cw, ch, ch * 0.18, { fill: c, fa: cls === null ? 0.18 : 0.9 });
+          if (cls !== null) box(g, x, cy, cw, ch, ch * 0.18, { stroke: T.ink, lw: 1.2, sa: 0.18 });
+          if (inorder) {
+            const t = new Text({ text: stageNames[i]!, style: { fontFamily: MONO, fontSize: ch * 0.55, fontWeight: '700', fill: cls === null ? T.mute : '#0b0d12' }, resolution: 2 });
+            t.anchor.set(0.5, 0.5); t.position.set(x + cw / 2, cy + ch / 2); t.alpha = cls === null ? 0.5 : 0.8;
+            wash.texts.addChild(t);
+          }
+        });
+        if (lead.fill > 0) {
+          g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 }); g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul });
+          cap('REORDER BUFFER ' + Math.round(lead.fill * 100) + '%', tx + tw, cy + ch * 1.25 + ch * 0.3, T.mul, true);
         }
-      });
-      if (lead.fill > 0) {
-        g.rect(tx, cy + ch * 1.25, tw, ch * 0.18).fill({ color: T.line, alpha: 0.3 }); g.rect(tx, cy + ch * 1.25, tw * lead.fill, ch * 0.18).fill({ color: T.mul });
-        cap('REORDER BUFFER ' + Math.round(lead.fill * 100) + '%', tx + tw, cy + ch * 1.25 + ch * 0.3, T.mul, true);
       }
       // the rate bar: the instructions per cycle in the core's colour (of the tile's width), the cycles lost to stalls in red from the other end
       const bw = tw, by = q.y + q.h * 0.8, bh = Math.max(5, q.h * 0.035), lanes = Math.max(1, cs?.tiles[w.hw]?.width ?? 1);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoresSnap, PipeSnap } from '../../sim/game/pipesnap';
-import { coreColor, pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
+import { coreColor, oooStages, pipeCells, threadTint, tileModels, tileRect, washModels } from './coretiles';
 
 const stage = (op: string) => ({ kind: op ? 1 : 0, id: op ? 1 : -1, op, text: op, cause: 0, stalled: false });
 const inorder = (...ops: string[]): PipeSnap => ({ width: 1, stages: ops.map(stage) });
@@ -88,5 +88,30 @@ describe('washModels', () => {
   it('groups the logical cores by the hardware core they share, in tile order, and marks the tile of the selected core', () => {
     const w = washModels(snap(), true);
     expect(w.map((x) => [x.hw, x.models.map((m) => m.core), x.selected])).toEqual([[0, [0, 2], false], [1, [1], true]]);
+  });
+});
+
+describe('oooStages', () => {
+  const o = {
+    fetchQ: ['add', 'ld'], decode: ['add', ''], rob: [{ op: 'add', state: 3 }, { op: 'ld', state: 1 }, { op: '', state: 0 }, { op: '', state: 0 }],
+    robHead: 0, robCount: 2, sched: [{ op: 'ld', state: 2 }, { op: '', state: 0 }], units: [{ op: 'add', left: 1, total: 4 }, { op: '', left: 0, total: 0 }, { op: '', left: 0, total: 0 }, { op: 'ld', left: 0, total: 3 }],
+    fetchCap: 8, stall: [1, 0, 2] as [number, number, number],
+  };
+  it('counts what each structure holds against its size', () => {
+    const s = oooStages(o);
+    expect(s.gauges.map((g) => [g.name, g.used, g.cap])).toEqual([['FETCH', 2, 8], ['DECODE', 1, 2], ['SCHED', 1, 2], ['ROB', 2, 4]]);
+  });
+  it('names why the front end and commit are stuck', () => {
+    const s = oooStages(o);
+    expect(s.gauges[0]!.stall).toBe('queue full');
+    expect(s.gauges[1]!.stall).toBeNull();
+    expect(s.gauges[3]!.stall).toBe('head waiting');
+  });
+  it('marks finished reorder-buffer entries and the progress of each unit', () => {
+    const s = oooStages(o);
+    expect(s.gauges[3]!.slots.map((x) => x.done)).toEqual([true, false]);
+    expect(s.units[0]!.progress).toBeCloseTo(0.75);
+    expect(s.units[1]!.cls).toBeNull();
+    expect(s.units[3]!.progress).toBe(1);
   });
 });

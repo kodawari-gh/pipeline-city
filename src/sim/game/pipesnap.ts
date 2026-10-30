@@ -24,6 +24,8 @@ export interface OooSnap {
   sched: OooSlot[];
   /** ALU0 ALU1 MUL LSU: op "" when idle; `left` of `total` cycles to go. */
   units: { op: string; left: number; total: number }[];
+  /** The fetch queue's capacity (a thread's share on an SMT core). */
+  fetchCap?: number;
   /** Why fetch, dispatch and commit made no progress this cycle (0 = fine). */
   stall: [number, number, number];
 }
@@ -199,7 +201,7 @@ function oooOf(v: OooView): OooSnap {
   for (let k = 0; k < v.schedSize; k++) sched.push({ op: opOf(t, v.schedId[k]!), state: v.schedWhy[k]! });
   const units: OooSnap["units"] = [];
   for (let k = 0; k < v.unitId.length; k++) units.push({ op: opOf(t, v.unitId[k]!), left: v.unitLeft[k]!, total: v.unitTotal[k]! });
-  return { fetchQ, decode, rob, robHead: occ[5]!, robCount: occ[2]!, sched, units, stall: [v.stall[0]!, v.stall[1]!, v.stall[2]!] };
+  return { fetchQ, decode, rob, robHead: occ[5]!, robCount: occ[2]!, sched, units, fetchCap: v.fetchCap, stall: [v.stall[0]!, v.stall[1]!, v.stall[2]!] };
 }
 
 /** The recent cycles of an engine's timeline ring. */

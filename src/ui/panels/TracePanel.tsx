@@ -4,7 +4,7 @@ import { signal } from '@preact/signals';
 import { Fragment } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { setSpeed, snapshot, speed, stepCycles, stepGpu, stepTick, viewCore } from '../../game/store';
-import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub } from '../../game/scrub';
+import { scrubCursor, scrubRange, scrubShown, scrubTarget, selectScrub, traceOpen } from '../../game/scrub';
 import { memoryTable, sizeText } from '../../render/board/ramlayout';
 import { CoreRateTracker } from '../../render/die/corestats';
 import { tileModels } from '../../render/die/coretiles';
@@ -13,7 +13,7 @@ import { gpuListing } from '../../sim/game/gpucode';
 import { Icon } from '../kit/Icons';
 import { gpuLines, TraceBuffer, type GpuGroup, type TraceGroup } from './trace';
 
-export const traceOpen = signal(false);
+export { traceOpen };
 export const toggleTrace = () => { traceOpen.value = !traceOpen.value; };
 
 const GROUPS: { id: TraceGroup; label: string; title: string }[] = [
