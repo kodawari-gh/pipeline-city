@@ -6,7 +6,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 |---|---|---|---|
 | GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
 | CPU die | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
-| RAM view | yes | yes (sticks plus magnifier margin) | no |
+| RAM view | yes | yes (sticks plus magnifier margin); shown empty while the machine is off | no |
 | PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
 | Cooler | fade only | yes (layer hidden) | no |
 | Other board parts | global bakes and labels | no | no |
@@ -17,10 +17,10 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | Piece | What it does |
 |---|---|
 | `LodClock` | the zoom every LoD decision reads (`zs`). It follows `camera.z` once per frame in log space (about 80 ms), so a wheel flick crosses a threshold over a few frames. The camera itself is untouched. `board.ts` owns it (`lod`), `snap` on a jump (`camera.set`) |
-| `DEVICE_LOD` | the one table of zoom bands: die, cooler, gpu, npu, tpm, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
+| `DEVICE_LOD` | the table of stages (the base ladder plus each device's extras): die, cooler, gpu, npu, tpm, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
 | `smooth`, `bandAlpha`, `onBand` | one smoothstep; a layer that turns on at `z0` fades in over `z0` to `z0 * 1.15` (`TEXT_BAND`) and is hidden below `SHOWN` (0.01) alpha |
-| `deviceLod(rect, view)` | where a device is: `onScreen` (view plus 10 % margin) and `focus` (1 at the view centre, falling to 0) |
-| `focusZoom(zoom, focus)` | the zoom a device is read at: `zoom * (0.6 + 0.4 * focus)`, so the further from the view centre, the later its names and counters start (cards: `cardText` / `cardCandidates` in `board/lodcard.ts`). The cover/die fade is not shifted, only the text and counter layers. The die, RAM and PCH do not use it yet |
+| `deviceLod(rect, view)` | where a device is: `onScreen` (view plus 10 % margin), `focus` (1 while the view centre is over the device, falling to 0 toward the corners; measured to its nearest edge, so a die that fills the view stays in focus) and `size` (its world width) |
+| `BASE_LOD`, `seenZoom`, `zoomAt` | the one ladder every device shares (fade, text, detail, hover), written for a device `REF_SIZE` (1420, the CPU die) wide. `seenZoom(zoom, size, focus)` = `zoom * size/REF_SIZE * (0.6 + 0.4 * focus)`: a device reaches a stage when it looks as big on screen as the ladder says, and later the further it is from the view centre. `zoomAt(stage, size)` is the camera zoom for a hover gate. Die, cooler, GPU, NPU, TPM and RAM all read it; extra stages (die wires/cells/subs, GPU lens, NPU fine, ...) stay per device |
 | `TierBudget` | at most 2 devices show their counters at once (cards: GPU, NPU, TPM), the ones nearest the centre; a holder keeps its slot unless a challenger leads by 0.15. Drops are immediate |
 | `ZoomSwitch` | a bake switch with a dead band (8 %): `on` below the threshold, plus a `warm` ring (15 % above it) |
 

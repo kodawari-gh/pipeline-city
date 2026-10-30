@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEVICE_LOD, LodClock, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, smooth } from './lod';
+import { BASE_LOD, DEVICE_LOD, FAR_ZOOM, LodClock, REF_SIZE, TierBudget, ZoomSwitch, bandAlpha, deviceLod, onBand, seenZoom, smooth, zoomAt } from './lod';
 
 describe('smooth', () => {
   it('runs 0..1 over the band and clamps', () => {
@@ -79,6 +79,21 @@ describe('LodClock', () => {
     expect(c.zs).toBe(3);
     expect(c.settled).toBe(true);
     expect(c.update(1 / 60, 3)).toBe(false);
+  });
+});
+
+describe('the shared ladder', () => {
+  it('reads a device by its width: twice as wide reaches a stage at half the zoom', () => {
+    expect(seenZoom(0.5, 2 * REF_SIZE)).toBeCloseTo(seenZoom(1, REF_SIZE));
+    expect(zoomAt(BASE_LOD.text, 2 * REF_SIZE)).toBeCloseTo(BASE_LOD.text / 2);
+  });
+  it('reads a device further from the centre at a lower zoom', () => {
+    expect(seenZoom(1, REF_SIZE, 0)).toBeCloseTo(FAR_ZOOM);
+    expect(seenZoom(1, REF_SIZE, 1)).toBeCloseTo(1);
+  });
+  it('keeps a device that holds the view centre in full focus however large it is', () => {
+    const view = { x: 0, y: 0, w: 1000, h: 600 };
+    expect(deviceLod({ x: -2000, y: -2000, w: 4000, h: 4000 }, view).focus).toBe(1);
   });
 });
 

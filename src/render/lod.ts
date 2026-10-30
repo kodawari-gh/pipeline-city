@@ -23,18 +23,36 @@ export const SHOWN = 0.01;
 /** World rectangle. */
 export interface LodRect { x: number; y: number; w: number; h: number }
 
+/** The width, in world units, of the device the ladder below is written for (the CPU die): a device of that width reaches a stage at the stage's camera zoom. */
+export const REF_SIZE = 1420;
+
 /**
- * The zoom bands, in absolute camera zoom (as the views always had them). `fade` is the band a lid, shroud or cover fades over;
- * `text` / `detail` are where the names and the counters start (each fades in over `TEXT_BAND`); `hover` is where the insides start to take hits.
+ * The one base ladder every device shares: `fade` is the band a lid, shroud or cover fades over, `text` / `detail` are where the names and
+ * the counters start (each fades in over `TEXT_BAND`), `hover` is where the insides start to take hits. Values are camera zoom for a device
+ * `REF_SIZE` wide; any other device reads them through `seenZoom`, so it reaches a stage when it looks as big on screen.
+ */
+export const BASE_LOD = { fade: [0.4, 0.6], text: 0.8, detail: 1.5, hover: 0.45 } as const;
+
+/** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.6 of it, so its stages start later than at the centre. */
+export const FAR_ZOOM = 0.6;
+
+/** The zoom a device of world width `size` is read at: the camera zoom in terms of the ladder, less the further it is from the view centre (`focus` 1 keeps all). */
+export const seenZoom = (zoom: number, size: number, focus = 1): number => zoom * (size / REF_SIZE) * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
+
+/** The camera zoom at which a device of world width `size` (at the view centre) reaches `stage` of the ladder: for hover gates, which read the camera. */
+export const zoomAt = (stage: number, size: number): number => (stage * REF_SIZE) / size;
+
+/**
+ * The stages, in zoom for a `REF_SIZE` device (see `BASE_LOD`). Each device adds its own extra stages after the base ones.
  */
 export const DEVICE_LOD = {
-  die: { fade: [0.42, 0.58], hover: 0.45, packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: 0.8, dataTexts: 0.85, subs: 1.2 },
+  die: { ...BASE_LOD, packets: 0.2, wires: 0.25, cells: 0.3, legend: 0.5, texts: BASE_LOD.text, dataTexts: 0.85, subs: 1.2 },
   /** The cooler fades out over its band as the die fades in. */
   cooler: { fade: [0.3, 0.5] },
-  gpu: { fade: [0.16, 0.28], text: 0.3, detail: 0.6, hover: 0.3, fan: 0.2, lens: 1.2 },
-  npu: { fade: [0.4, 0.7], text: 0.75, detail: 1.5, hover: 0.4, fine: 0.7, lid: 0.15 },
-  tpm: { fade: [1.0, 1.8], text: 2.2, detail: 3.4, hover: 1.0, lid: 0.2 },
-  ram: { show: 0.7, outline: 0.8, band: 0.85, lens: 1.2 },
+  gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
+  npu: { ...BASE_LOD, fine: 0.75, lid: 0.15 },
+  tpm: { ...BASE_LOD, lid: 0.1 },
+  ram: { show: BASE_LOD.fade[0], outline: BASE_LOD.text, band: BASE_LOD.text, lens: BASE_LOD.detail },
   labels: { board: 0.12, parts: 0.22 },
   /** Below these zooms the static art is one baked texture. */
   bake: { board: 0.2, devices: 0.14, props: 0.2 },
@@ -73,22 +91,18 @@ export class LodClock {
   get settled(): boolean { return this.zs === this.target; }
 }
 
-/** Where a device is relative to the view: `onScreen` (with a margin) and `focus` 1 at the view centre falling to 0 near the corners. */
-export interface Placement { onScreen: boolean; focus: number }
+/** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners, and its world width. */
+export interface Placement { onScreen: boolean; focus: number; size: number }
 
 export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
   const px = view.w * pad, py = view.h * pad;
   const onScreen = rect.x < view.x + view.w + px && rect.x + rect.w > view.x - px && rect.y < view.y + view.h + py && rect.y + rect.h > view.y - py;
-  const dx = rect.x + rect.w / 2 - (view.x + view.w / 2), dy = rect.y + rect.h / 2 - (view.y + view.h / 2);
+  // the distance from the view centre to the device's nearest edge (0 while the centre is over it): a die that fills the view is in focus wherever it is held
+  const cx = view.x + view.w / 2, cy = view.y + view.h / 2;
+  const dx = Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)), dy = Math.max(rect.y - cy, 0, cy - (rect.y + rect.h));
   const d = Math.hypot(dx, dy) / (Math.hypot(view.w, view.h) / 2 || 1);
-  return { onScreen, focus: onScreen ? 1 - smooth(0.2, 1.1, d) : 0 };
+  return { onScreen, focus: onScreen ? 1 - smooth(0.2, 1.1, d) : 0, size: rect.w };
 }
-
-/** How much of the zoom a device at the edge of the view (focus 0) keeps: it reads at 0.6 of the zoom, so its names and counters start later than at the centre. */
-export const FAR_ZOOM = 0.6;
-
-/** The zoom a device is drawn at: the camera zoom, less the further it is from the centre of the view (`focus` 1 keeps all of it). */
-export const focusZoom = (zoom: number, focus: number): number => zoom * (FAR_ZOOM + (1 - FAR_ZOOM) * focus);
 
 /** A device that wants its top tier this frame, and how close to the focus it is. */
 export interface Candidate { id: string; focus: number }

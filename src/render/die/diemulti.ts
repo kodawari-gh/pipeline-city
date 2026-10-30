@@ -37,6 +37,7 @@ export class DieView {
   private logical: number[] = [];
   private sig = '';
   private z = 1;
+  private zSeen = 1;
   private plan: CpuPlan | null = null;
 
   constructor() {
@@ -74,7 +75,7 @@ export class DieView {
     this.plan = plan;
     this.dropCores();
     const sp = splitPlan(plan);
-    if (!sp) { this.shared.setPlan(T, plan); this.shared.scrubLead = true; this.setZoom(this.z); return; }
+    if (!sp) { this.shared.setPlan(T, plan); this.shared.scrubLead = true; this.setZoom(this.z, this.zSeen); return; }
     this.shared.scrubLead = false;
     this.shared.setPlan(T, sp.shared);
     for (const tile of sp.tiles) {
@@ -87,7 +88,7 @@ export class DieView {
       this.cores.push({ view, tile });
       view.onMemory = this.tileMem(this.cores.length - 1);
     }
-    this.setZoom(this.z);
+    this.setZoom(this.z, this.zSeen);
   }
 
   clear() {
@@ -106,12 +107,12 @@ export class DieView {
     this.sig = '';
   }
 
-  setZoom(z: number) {
-    this.z = z;
-    this.shared.setZoom(z);
-    for (const c of this.cores) c.view.setZoom(z * c.tile.scale);
+  setZoom(z: number, seen = z) {
+    this.z = z; this.zSeen = seen;
+    this.shared.setZoom(z, seen);
+    for (const c of this.cores) c.view.setZoom(z * c.tile.scale, seen * c.tile.scale);
     // the wash fades out as the tile's own zoom reaches the point where its insides read
-    const e = this.cores[0] ? z * this.cores[0].tile.scale : 1;
+    const e = this.cores[0] ? seen * this.cores[0].tile.scale : 1;
     const a = 1 - smooth(WASH_FROM, WASH_TO, e);
     this.wash.alpha = a; this.washTexts.alpha = a;
     this.wash.visible = this.washTexts.visible = a > 0.01;

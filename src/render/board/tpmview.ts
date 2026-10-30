@@ -11,7 +11,7 @@ import { tpmRoute } from '../tpm/tpmroute';
 import type { TpmBlock } from '../tpm/tpmplan';
 import { tpmCover } from './accelart';
 import { tpmGeo, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
 import { cardCandidates, cardText } from './lodcard';
 
@@ -126,18 +126,18 @@ export class TpmView {
     this.lastWall = wall;
     const step = (paused ? wdt : dt) * 1000;
     this.now += step;
-    const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
+    const T = this.T;
     for (const m of this.modules) {
       m.player.advance(step);
       const show = m.player.show(this.now);
       this.lockBadge(T, m, show);
-      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen;
+      const pl = this.rects.place(m, m.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       m.root.visible = on;
       m.badge.alpha = m.cover.alpha = 1 - fade;
       m.die.alpha = fade;
       m.die.visible = fade > 0.02;
       if (!m.die.visible || !on) continue;
-      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `tpm:${m.slot}`, TEXT_Z, DETAIL_Z, pl.focus);
+      const { ta, da, showText, showDetail } = cardText(z, lod, `tpm:${m.slot}`, TEXT_Z, DETAIL_Z);
       m.names.visible = m.texts.visible = showText;
       m.names.alpha = m.texts.alpha = ta;
       m.subs.visible = showDetail;

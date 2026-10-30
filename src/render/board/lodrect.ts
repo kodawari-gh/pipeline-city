@@ -1,5 +1,5 @@
 import type { Container } from 'pixi.js';
-import { deviceLod, type LodRect, type Placement } from '../lod';
+import { REF_SIZE, deviceLod, type LodRect, type Placement } from '../lod';
 
 /**
  * The world rectangle of each card or module, found once from the node's bounds (not free to ask) and kept until the node is gone.
@@ -22,6 +22,6 @@ export class RectCache {
   /** Where the node is against `view`. Without a view, or while its size is unknown, it counts as on screen (nothing is skipped on a guess). */
   place(key: object, node: Container, view?: LodRect): Placement {
     const r = view ? this.of(key, node) : null;
-    return r && view ? deviceLod(r, view) : { onScreen: true, focus: 0 };
+    return r && view ? deviceLod(r, view) : { onScreen: true, focus: 1, size: REF_SIZE };
   }
 }

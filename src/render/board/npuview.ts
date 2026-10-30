@@ -12,7 +12,7 @@ import { npuHostRoute, npuRoute, type HostAccess } from '../npu/npuroute';
 import type { NpuBlock } from '../npu/npuplan';
 import { npuCover } from './accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
-import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
 import { cardCandidates, cardText } from './lodcard';
 
@@ -158,19 +158,19 @@ export class NpuCardView {
     this.lastWall = wall;
     const step = (paused ? wdt : dt) * 1000;
     this.now += step;
-    const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
+    const T = this.T;
     for (const c of this.cards) {
       c.player.advance(step);
       const base = c.player.show(this.now), fresh = c.touch ? 1 - (this.now - c.touch.at) / TOUCH_MS : 0;
       if (c.touch && fresh <= 0) c.touch = null;
       const show = base && c.touch ? { ...base, touch: { store: c.touch.store, reg: c.touch.reg, lo: c.touch.lo, hi: c.touch.hi, fresh } } : base;
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen;
+      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
       c.root.visible = on;
       c.cover.alpha = 1 - fade;
       c.die.alpha = fade;
       c.die.visible = fade > 0.02;
       if (!c.die.visible || !on) continue;
-      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `npu:${c.slot}`, TEXT_Z, DETAIL_Z, pl.focus);
+      const { ta, da, showText, showDetail } = cardText(z, lod, `npu:${c.slot}`, TEXT_Z, DETAIL_Z);
       c.names.visible = c.texts.visible = showText;
       c.names.alpha = c.texts.alpha = ta;
       c.subs.visible = showDetail;

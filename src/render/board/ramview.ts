@@ -8,7 +8,7 @@ import { coreColor } from '../die/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from './layout';
 import type { Theme } from '../theme';
-import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, type LodRect } from '../lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, seenZoom, type LodRect } from '../lod';
 
 // The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a grid of cells, one per 256-byte page (a block of the drive):
 // the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the strength is how full the page is. Zoomed in, the
@@ -62,12 +62,15 @@ export class RamView {
   private sticks: Stick[] = [];
   private rects: Rect[] = [];
   private map: RamMap | null = null;
+  private idle: RamMap | null = null;
   private prev: Uint8Array | null = null;
   private regionSig = '';
   private own: Uint8Array = new Uint8Array(0);
   private touches: Touch[] = [];
   private lastTouch: Touch | null = null;
   private zoom = 1;
+  /** The zoom the sticks are seen at (lod.ts `seenZoom`: their size and distance from the centre); the stages read it, the line widths read `zoom`. */
+  private seen = 1;
   private touchDrawn = false;
   private imgVersion = 0;
 
@@ -142,7 +145,7 @@ export class RamView {
   }
 
   setZoom(z: number): void {
-    this.zoom = z;
+    this.zoom = z; this.seen = z;
   }
 
   /** The CPU reached for a RAM address (a fetch, a load, a store): that spot lights in the colour of the instruction. */
@@ -155,7 +158,9 @@ export class RamView {
 
   /** A new RAM map from a snapshot (null: the machine is off). */
   setMap(m: RamMap | null): void {
-    if (!m || !m.image) { this.map = null; this.prev = null; this.root.visible = false; return; }
+    // the machine is off (no snapshot of its memory): the sticks still show, empty, at the size they hold
+    if (!m || !m.image) m = this.idleMap();
+    if (!m) { this.map = null; this.prev = null; this.root.visible = false; return; }
     const sizeChanged = !this.map || this.map.bytes !== m.bytes;
     this.map = m;
     if (sizeChanged || this.chips.length === 0) { this.prev = null; this.layout(); }
@@ -168,6 +173,14 @@ export class RamView {
     this.prev = m.image;
   }
 
+  /** A map of blank memory the size of the installed sticks (null: no sticks). Kept while the size is the same, so an idle machine redraws nothing. */
+  private idleMap(): RamMap | null {
+    const bytes = this.sticks.reduce((n, s) => n + s.bytes, 0);
+    if (bytes <= 0) return null;
+    if (this.idle?.bytes !== bytes) this.idle = { bytes, filled: [], code: [], regions: [], image: new Uint8Array(bytes) };
+    return this.idle;
+  }
+
   private recolor(regions: RamRegion[]): void {
     if (!this.T) return;
     this.own = ownerMap(regions, this.map?.image.length ?? 0);
@@ -176,7 +189,8 @@ export class RamView {
 
   /** Per frame (`inner`: the interior of the board shows, not the exterior covering it). */
   frame(inner: boolean, wall = performance.now(), view?: LodRect): void {
-    const fade = bandAlpha(this.zoom, onBand(SHOW_Z));
+    this.seen = this.seenIn(view);
+    const fade = bandAlpha(this.seen, onBand(SHOW_Z));
     const show = inner && !!this.map && this.chips.length > 0 && fade > SHOWN && this.inView(view);
     this.root.visible = show;
     this.root.alpha = fade;
@@ -189,10 +203,24 @@ export class RamView {
 
   /** Whether the sticks (and the magnifier beside a touched spot) are in `view`; without a view, or sticks, nothing is skipped on a guess. */
   private inView(view?: LodRect): boolean {
-    if (!view || this.rects.length === 0) return true;
+    const r = this.bounds();
+    return !view || !r || deviceLod({ x: r.x - LENS_W, y: r.y - LENS_H, w: r.w + 2 * LENS_W, h: r.h + 2 * LENS_H }, view).onScreen;
+  }
+
+  /** The zoom the sticks are seen at: the camera zoom in terms of the shared ladder, by their size and distance from the view centre. */
+  private seenIn(view?: LodRect): number {
+    const r = this.bounds();
+    if (!view || !r) return this.zoom;
+    const p = deviceLod(r, view);
+    return seenZoom(this.zoom, p.size, p.focus);
+  }
+
+  /** The box around all the chips of the sticks, or null with none. */
+  private bounds(): LodRect | null {
+    if (this.rects.length === 0) return null;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const r of this.rects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
-    return deviceLod({ x: x0 - LENS_W, y: y0 - LENS_H, w: x1 - x0 + 2 * LENS_W, h: y1 - y0 + 2 * LENS_H }, view).onScreen;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
 
   /** The slot number of the stick that holds `addr` (-1: none). */
@@ -228,13 +256,13 @@ export class RamView {
     if (!m || !T) return;
     // line widths follow the zoom in quarter-octave steps (about 19 %): a redraw per step, not one per tenth of a zoom while the wheel turns
     const q = Math.round(Math.log2(this.zoom) * 4), z = 2 ** (q / 4);
-    const sig = `${this.regionSig}|${q}|${OUTLINE_Z <= this.zoom ? 1 : 0}${BAND_Z <= this.zoom ? 1 : 0}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
+    const sig = `${this.regionSig}|${q}|${OUTLINE_Z <= this.seen ? 1 : 0}${BAND_Z <= this.seen ? 1 : 0}|${this.imgVersion}|${T.dark}|${m.dram?.open.join(',') ?? ''}|${vmSig(m)}`;
     if (sig === this.outSig) return;
     this.outSig = sig;
     const g = this.outG;
     g.clear();
     let nt = 0, ns = 0;
-    const outlines = this.zoom >= OUTLINE_Z, bands = this.zoom >= BAND_Z;
+    const outlines = this.seen >= OUTLINE_Z, bands = this.seen >= BAND_Z;
     for (const t of this.regionTexts) t.visible = false;
     for (const t of this.stickTexts) t.visible = false;
     const tint = 1;
@@ -363,7 +391,7 @@ export class RamView {
     const ct = this.touches.filter((t) => t.core !== undefined);
     if (!T || !m || ct.length === 0) { this.hideBubbleTexts(0); return; }
     const bubbles = bubblesOf(ct.map((t) => ({ addr: t.addr, core: t.core!, write: t.kind === 'store', t: t.t })), m.regions, MAX_BUBBLES);
-    const z = this.zoom, r0 = 7 / z, text = z >= BAND_Z;
+    const z = this.zoom, r0 = 7 / z, text = this.seen >= BAND_Z;
     let used = 0;
     for (const b of bubbles) {
       const c = this.chipOf(b.addr);
@@ -411,7 +439,7 @@ export class RamView {
   /** The magnifier: the words around the address the CPU touched last, as code (the instructions) or data (words and text). */
   private drawLens(wall: number): void {
     const T = this.T, m = this.map;
-    const fade = bandAlpha(this.zoom, onBand(LENS_Z)), show = !!T && !!m && fade > SHOWN;
+    const fade = bandAlpha(this.seen, onBand(LENS_Z)), show = !!T && !!m && fade > SHOWN;
     this.lens.visible = show;
     this.lens.alpha = fade;
     if (!show || !T || !m) return;

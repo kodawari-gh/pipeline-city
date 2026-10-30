@@ -36,7 +36,7 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
-import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, smooth } from '../lod';
+import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomAt } from '../lod';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../room/room';
@@ -427,14 +427,15 @@ export async function mountBoard(host: HTMLElement) {
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
   /** The die is not drawn while the view is elsewhere on the board (its replay and the sticks it feeds keep running). */
-  let dieInView = true, coolerInView = true;
+  let dieInView = true, coolerInView = true, dieSeen = 1, coolerSeen = 1;
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
   const syncRoom = () => {
     const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
     const view = { x: left, y: top, w: camera.w / z, h: camera.h / z };
     live.setView(view);
-    dieInView = deviceLod(DIE, view).onScreen;
-    coolerInView = deviceLod(COOLER, view).onScreen;
+    const dp = deviceLod(DIE, view), cp = deviceLod(COOLER, view);
+    dieInView = dp.onScreen; coolerInView = cp.onScreen;
+    dieSeen = seenZoom(lod.zs, dp.size, dp.focus); coolerSeen = seenZoom(lod.zs, cp.size, cp.focus);
     roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
     roomView?.setFocus(focusAt(view, CASE));
   };
@@ -454,11 +455,11 @@ export async function mountBoard(host: HTMLElement) {
     if (deviceBake) stageBake(deviceBake, bakeDev);
     deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
-    coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
+    coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], coolerSeen);
     coolerLayer.visible = coolerLayer.alpha > 0.01 && coolerInView;
-    die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z);
+    die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], dieSeen);
     die.root.visible = die.root.alpha > 0.01 && dieInView;
-    die.setZoom(z);
+    die.setZoom(z, dieSeen);
     for (const pb of propBakes) {
       const want = bakeProps.warm;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
@@ -669,7 +670,7 @@ export async function mountBoard(host: HTMLElement) {
           npuCards.push({ slot: d.slot, visual: spec.visual, origin });
           for (const part of npuParts(npuGeo(spec.visual))) {
             const id = `${d.slot}.${part.id}`, pr = moveRect(part.rect, origin);
-            npuHits.push({ id, rect: pr, min: part.fine ? Z_NPU_FINE : part.inner ? Z_NPU : Z_NPU_LID });
+            npuHits.push({ id, rect: pr, min: zoomAt(part.fine ? Z_NPU_FINE : part.inner ? Z_NPU : Z_NPU_LID, r.w) });
             scene.rects.set(id, pr);
             scene.interactive.add(id);
           }
@@ -679,7 +680,7 @@ export async function mountBoard(host: HTMLElement) {
           gpuCards.push({ slot: d.slot, visual: spec.visual, origin });
           for (const part of gpuParts(gpuPlan(spec.visual))) {
             const id = `${d.slot}.${part.id}`, pr = moveRect(part.rect, origin);
-            gpuHits.push({ id, rect: pr, min: part.inner ? Z_GPU : Z_GPU_FAN });
+            gpuHits.push({ id, rect: pr, min: zoomAt(part.inner ? Z_GPU : Z_GPU_FAN, r.w) });
             scene.rects.set(id, pr);
             scene.interactive.add(id);
           }
@@ -696,7 +697,7 @@ export async function mountBoard(host: HTMLElement) {
           tpmModules.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) });
           for (const part of tpmParts(geo)) {
             const id = `${d.slot}.${part.id}`;
-            tpmHits.push({ id, rect: part.rect, min: part.inner ? Z_TPM : Z_TPM_LID });
+            tpmHits.push({ id, rect: part.rect, min: zoomAt(part.inner ? Z_TPM : Z_TPM_LID, r.w) });
             scene.rects.set(id, part.rect);
             scene.interactive.add(id);
           }

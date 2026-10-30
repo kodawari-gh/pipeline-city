@@ -18,7 +18,7 @@ import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu
 import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from '../gpu/gpumem';
 import { GpuLensView } from './gpulensview';
 import type { GpuBlock } from '../gpu/gpuplan';
-import { DEVICE_LOD, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { RectCache } from './lodrect';
 import { cardCandidates, cardText } from './lodcard';
 
@@ -122,6 +122,8 @@ export class GpuView {
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
+  /** The zoom the card being drawn is seen at (by its size and its distance from the centre): the view of its memory lens reads it. */
+  private seen = 1;
   private readonly rects = new RectCache();
   /** The replay's own clock (ms): packets and glows run on it. */
   private now = 0;
@@ -207,9 +209,10 @@ export class GpuView {
     const wall = performance.now(), wdt = Math.min(0.1, Math.max(0, (wall - this.lastWall) / 1000));
     this.lastWall = wall;
     this.now += (paused ? wdt : dt) * 1000;
-    const T = this.T, fade = smooth(FADE_FROM, FADE_TO, this.zoom);
+    const T = this.T;
     for (const c of this.cards) {
-      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen;
+      const pl = this.rects.place(c, c.root, lod?.view), on = pl.onScreen, z = seenZoom(this.zoom, pl.size, pl.focus), fade = smooth(FADE_FROM, FADE_TO, z);
+      this.seen = z;
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view
       const target = c.snap ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) : 0;
@@ -231,7 +234,7 @@ export class GpuView {
       c.inner.visible = fade > 0.02;
       if (!c.inner.visible || !on) { c.lens.hide(); continue; }
       // names and counters fade in over a short band (no pop); a redraw is only asked for when one starts to show
-      const { ta, da, showText, showDetail } = cardText(this.zoom, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z, pl.focus);
+      const { ta, da, showText, showDetail } = cardText(z, lod, `gpu:${c.slot}`, TEXT_Z, DETAIL_Z);
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.names.alpha = c.linkText.alpha = c.texts.alpha = ta;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
@@ -343,7 +346,7 @@ export class GpuView {
         if (b.kind === 'dram') {
           // the one magnifier: the words around the address the last load or store touched, beside its cell
           const ms = step?.mem ? step : memStepOf(null), lens = gpuLensRows(ms);
-          if (lens && ms && b.bytes) c.lens.set(T, lens, dramCellRect(a, b.bytes, lens.addr), b.rect, this.zoom, kindColor(T, ms.kind), ms === step);
+          if (lens && ms && b.bytes) c.lens.set(T, lens, dramCellRect(a, b.bytes, lens.addr), b.rect, this.seen, kindColor(T, ms.kind), ms === step);
           else c.lens.hide();
         }
         for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });

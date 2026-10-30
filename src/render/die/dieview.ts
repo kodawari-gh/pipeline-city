@@ -88,6 +88,8 @@ export class PlanView {
   private regRead: number[] = [];
   private running = false;
   private z = 1;
+  /** The zoom the die is seen at (lod.ts `seenZoom`): the layers fade on it, the line widths on `z`. */
+  private zSeen = 1;
   private cellSig = '';
   private dataSig = '';
   /** Told every time the CPU reaches out to RAM, for the memory sticks (set by board.ts). */
@@ -122,7 +124,7 @@ export class PlanView {
     this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
     this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
     this.buildLegend(T, plan);
-    this.setZoom(this.z);
+    this.setZoom(this.z, this.zSeen);
   }
 
   /** The colour key under the die: what each colour of chip, packet and lit wire means. */
@@ -164,10 +166,10 @@ export class PlanView {
   private dropChips() { this.dots.clear(); this.tailG.clear(); }
 
   /** Levels of detail (lod.ts `DEVICE_LOD.die`): the die is a lit machine from far out (wires, cell arrays, symbols, pulses from about 0.3), texts from 0.8, the second line of a block from 1.2. Each layer fades in over a short band instead of popping. */
-  setZoom(z: number) {
-    this.z = z;
+  setZoom(z: number, seen = z) {
+    this.z = z; this.zSeen = seen;
     if (!this.art) return;
-    const L = DEVICE_LOD.die, fade = (n: { visible: boolean; alpha: number }, z0: number) => { const a = bandAlpha(z, onBand(z0)); n.alpha = a; n.visible = a > SHOWN; };
+    const L = DEVICE_LOD.die, fade = (n: { visible: boolean; alpha: number }, z0: number) => { const a = bandAlpha(seen, onBand(z0)); n.alpha = a; n.visible = a > SHOWN; };
     fade(this.art.wires, L.wires);
     fade(this.art.cells, L.cells);
     fade(this.cellLive, L.cells);
