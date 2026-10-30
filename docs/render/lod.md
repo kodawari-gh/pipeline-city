@@ -5,10 +5,10 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
 |---|---|---|---|
 | GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
-| CPU die | yes | root hidden only; `die.frame` still runs | no (it has no counter tier to budget) |
+| CPU die | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
 | RAM view | yes | yes (sticks plus magnifier margin) | no |
 | PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
-| Cooler | fade only | no | no |
+| Cooler | fade only | yes (layer hidden) | no |
 | Other board parts | global bakes and labels | no | no |
 
 `anchorOf` (`board.ts`) and `anyVisible` (`interact.ts`) have their own on-screen tests: they place popups and hit-test, they are not LoD.
@@ -27,7 +27,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 - `camera.onChange` only marks `lodDirty`. `lodFrame` (before `live.frame`) calls `lod.update(dt, camera.z)` and, while the clock moves or the camera changed, `onZoom()` once, whatever the number of wheel events.
 - `onZoom` reads `lod.zs`: exterior crossfade and `live.setInterior` (`LOD.*` times the fit zoom), cooler and die alpha, labels, `die.setZoom`, `live.setZoom`, and the bakes through three `ZoomSwitch` (board 0.2, devices 0.14, props 0.2). It also tells `live.setView(view)` the world rectangle on screen.
 - Detail layers fade (alpha band) instead of popping: the die's layers (`dieview.setZoom`), the card names and counters (`gpuview`, `npuview`, `tpmview`), the RAM view, both magnifiers.
-- Location: a card out of view is hidden and not drawn (`RectCache` in `board/lodrect.ts`, its rect found once from its bounds). Its replay keeps advancing (the sim side is untouched). The die root is hidden when the die is out of view; the die's frame still runs, since it feeds the RAM view and the interrupt hook. A card gets its counters only if it is in `live.ts`'s `TierBudget` top set.
+- Location: a card out of view is hidden and not drawn (`RectCache` in `board/lodrect.ts`, its rect found once from its bounds). Its replay keeps advancing (the sim side is untouched). The die root is hidden when the die is out of view (or faded out, or the exterior covers the board) and its frame then only runs the replay, since that feeds the RAM view and the interrupt hook; the drawing resumes from fresh signatures when it is back. A card gets its counters only if it is in `live.ts`'s `TierBudget` top set.
 - Bakes: baked sprites are drawn at 1 % in the warm ring so their texture is uploaded before the swap (`stageBake`); the cached layers (monitor, props) are made in the warm ring too; the room bake (`room.ts setView`) has an 8 % dead band. The one-off bake itself still costs a frame, it is moved off the swap, not removed.
 - Text: see "Text sharpness" in [live.md](live.md): the resolution step has hysteresis and a new step is applied 250 texts a frame; the label size rule runs once per frame, not per input event (`Camera.apply(defer)`).
 - RAM outlines redraw per quarter octave of zoom (about 19 %), not per 0.25 of zoom.

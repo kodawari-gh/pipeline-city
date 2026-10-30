@@ -129,9 +129,9 @@ export class DieView {
     this.drawWash(cs);
   }
 
-  frame(now: number, paused = false) {
-    if (this.cores.length === 0) { this.shared.frame(now, paused); return; }
-    for (const c of this.cores) c.view.frame(now, paused);
+  frame(now: number, paused = false, draw = true) {
+    if (this.cores.length === 0) { this.shared.frame(now, paused, draw); return; }
+    for (const c of this.cores) c.view.frame(now, paused, draw);
   }
 
   /** The tint, the logical cores and the pipeline cells over each tile (redrawn when one of them changes). */

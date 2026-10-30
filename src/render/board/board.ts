@@ -427,13 +427,14 @@ export async function mountBoard(host: HTMLElement) {
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
   /** The die is not drawn while the view is elsewhere on the board (its replay and the sticks it feeds keep running). */
-  let dieInView = true;
+  let dieInView = true, coolerInView = true;
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
   const syncRoom = () => {
     const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
     const view = { x: left, y: top, w: camera.w / z, h: camera.h / z };
     live.setView(view);
     dieInView = deviceLod(DIE, view).onScreen;
+    coolerInView = deviceLod(COOLER, view).onScreen;
     roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
     roomView?.setFocus(focusAt(view, CASE));
   };
@@ -454,7 +455,7 @@ export async function mountBoard(host: HTMLElement) {
     deviceLayer.visible = !dbaked;
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z);
-    coolerLayer.visible = coolerLayer.alpha > 0.01;
+    coolerLayer.visible = coolerLayer.alpha > 0.01 && coolerInView;
     die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z);
     die.root.visible = die.root.alpha > 0.01 && dieInView;
     die.setZoom(z);
@@ -1294,7 +1295,7 @@ export async function mountBoard(host: HTMLElement) {
     lodFrame(dt);
     live.frame(gdt, gt, speed.peek() <= 0);
     roomView?.frame(gt, tk.deltaMS);
-    die.frame(gt, speed.peek() <= 0);
+    die.frame(gt, speed.peek() <= 0, die.root.visible && interior.visible);
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
     syncCords(lastSnap);

@@ -228,8 +228,8 @@ export class PlanView {
     drawPulse(this.tailG, this.dots, seen, { key: st.key, x: st.wx ?? st.x, y: st.wy ?? st.y, moving, e: st.e, alpha: st.alpha, core: st.flushed ? T.bad : this.colorOf(opClass(st.op)), halo: idColor(st.id, T.dark) });
   }
 
-  /** Draw one frame at game time `now` (ms). */
-  frame(now: number, paused = false) {
+  /** Draw one frame at game time `now` (ms). `draw` false (the die is out of view or faded out): the replay still runs and feeds the sticks and the interrupt hook, but nothing is drawn. */
+  frame(now: number, paused = false, draw = true) {
     const plan = this.motion, player = this.player;
     if (!plan || !player) return;
     const T = this.T;
@@ -281,6 +281,14 @@ export class PlanView {
       this.flash.clock = now;
       const l = plan.links.find((x) => x.id === 'clk-core');
       if (l) this.send([{ link: l, reverse: false, delay: 0, color: 'mute' }], now, 'sys');
+    }
+
+    if (!draw) {
+      // what was drawn is dropped and the signatures reset, so the first frame back in view draws everything fresh
+      this.dropChips(); this.glow.clear(); this.packets = []; this.trails.clear();
+      this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.packetG.clear(); this.trailG.clear();
+      this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
+      return;
     }
 
     // the instructions: pulses between blocks, and everything inside the blocks (glyphs, cells, glow)
