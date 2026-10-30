@@ -222,7 +222,7 @@ export function stripModeOf(s: Snapshot | null): StripMode {
   if (!s.powered) return 'off';
   const ph = s.phase;
   if (ph === 'halted') return 'halt';
-  return ph === 'posting' || ph === 'loading' || ph === 'running' || ph === 'writing' || ph === 'booting-os' || ph === 'ingesting' || ph === 'running-os' || ph === 'flashing' ? 'work' : 'idle';
+  return ph === 'posting' || ph === 'mounting' || ph === 'loading' || ph === 'running' || ph === 'writing' || ph === 'booting-os' || ph === 'ingesting' || ph === 'running-os' || ph === 'flashing' ? 'work' : 'idle';
 }
 
 /**

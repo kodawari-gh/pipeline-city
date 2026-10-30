@@ -52,7 +52,7 @@ export function ledOf(powered: boolean, phase: string, keyActivity: string, now:
   if (phase === 'error') return { tone: 'bad', on: true, a: 1 };
   if (keyActivity === 'enumerating') return { tone: 'ld', on: Math.floor(now / 450) % 2 === 0, a: 1 };
   if (keyActivity === 'ingesting' || keyActivity === 'flashing' || phase === 'loading' || phase === 'writing') return { tone: 'st', on: Math.floor(now / 130) % 2 === 0, a: 1 };
-  if (phase === 'posting' || phase === 'booting-os') return { tone: 'ld', on: true, a: 1 };
+  if (phase === 'posting' || phase === 'mounting' || phase === 'booting-os') return { tone: 'ld', on: true, a: 1 };
   if (phase === 'halted') return { tone: 'st', on: true, a: 0.5 };
   return { tone: 'st', on: true, a: 1 };
 }

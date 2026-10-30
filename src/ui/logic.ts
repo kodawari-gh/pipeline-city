@@ -474,6 +474,10 @@ function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel 
   switch (s.phase) {
     case 'off': return { text: 'Off', title: s.noPowerReason ?? 'The machine is off.', level: 'idle' };
     case 'posting': return { text: 'POST', title: 'Power-on self-test: the chipset checks the parts.', level: 'ok' };
+    case 'mounting': {
+      const pct = Math.round(Math.min(1, Math.max(0, s.bootProgress / 0.4)) * 100);
+      return { text: `Checking drives ${pct}%`, title: 'The OS scans every drive for errors before it boots. A full or dirty drive takes longer; a slow drive takes longer still.', level: 'ok' };
+    }
     case 'waiting-for-key': return { text: 'Waiting for key', title: 'Plug a client key into the USB port.', level: 'warn' };
     case 'halted':
       return s.haltReason === 'no-boot-media'

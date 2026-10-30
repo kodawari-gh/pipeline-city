@@ -81,6 +81,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'declineKey': return refusable(g, 'declineKey', g.declineKey(msg.keyId));
       case 'declineJob': return refusable(g, 'declineJob', g.declineJob(msg.id));
       case 'uninstallOs': return refusable(g, 'uninstallOs', g.uninstallOs());
+      case 'formatDrive': return refusable(g, 'formatDrive', g.formatDrive(msg.deviceId, msg.confirm));
       case 'powerCycle':
         g.powerCycle();
         return [{ type: 'snapshot', snapshot: g.snapshot() }];

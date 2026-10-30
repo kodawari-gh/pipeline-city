@@ -2,7 +2,7 @@ import { effect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../game/hover';
 import { cameraRev, highlight } from '../../game/interaction';
-import { ejectKey, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstall, uninstallOs } from '../../game/store';
+import { ejectKey, formatDrive, plugKey, powerButton, powerCycle, purchase, setCpuClock, setRamClock, snapshot, uninstall, uninstallOs } from '../../game/store';
 import { getSpec, type CpuSpec, type RamSpec } from '../../sim/board/specs';
 import type { Snapshot } from '../../sim/game/game';
 import { getOsSpec } from '../../sim/os';
@@ -317,14 +317,19 @@ function Action({ a }: { a: PickerAction }) {
         setArmed(false);
         uninstallOs();
         break;
+      case 'formatDrive':
+        if (!armed) { setArmed(true); return; }
+        setArmed(false);
+        if (a.deviceId) formatDrive(a.deviceId, true);
+        break;
     }
   };
-  const label = a.id === 'uninstallOs' && armed ? 'Really uninstall? The drive is wiped' : a.label;
+  const label = armed && a.id === 'uninstallOs' ? 'Really uninstall? The drive is wiped' : armed && a.id === 'formatDrive' ? 'Really format? The drive is wiped' : a.label;
   return (
     <button
-      class={a.primary || (a.id === 'uninstallOs' && armed) ? 'primary' : ''}
+      class={a.primary || armed ? 'primary' : ''}
       disabled={!!a.why}
-      title={a.why ?? (a.id === 'uninstallOs' ? 'Takes the OS off its drive and back into your inventory. The drive is wiped.' : a.id === 'uninstall' ? 'Takes it out of the machine and into your inventory (a processor takes its cooler along).' : undefined)}
+      title={a.why ?? (a.id === 'formatDrive' ? 'Writes a fresh filesystem on the drive. Everything on it is lost, datasets too.' : a.id === 'uninstallOs' ? 'Takes the OS off its drive and back into your inventory. The drive is wiped.' : a.id === 'uninstall' ? 'Takes it out of the machine and into your inventory (a processor takes its cooler along).' : undefined)}
       onClick={run}
     >
       {label}

@@ -34,7 +34,9 @@ Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not u
 
 The OS side is runtime state on `Game.mounts` (`unmounted`, `scanning`, `repairing`, `mounted`), not saved. After POST, `startMountScan` probes every drive on the bus. The CPU waits for the slowest drive (`mountTicksLeft`). `mountCost` (`fs.ts`) gives device ticks: scan = one bitmap block per `SCAN_SPAN` (64) used blocks times `blockTicks`, plus `latencyTicks` for each extra data run; a `dirty` drive adds a repair pass: every used block (tier 1-2) or `JOURNAL_BLOCKS` plus one seek (tier 3+). Base ticks = device ticks / `cpuCyclesPerClock`. A finished repair sets `clean`; a power cut during it keeps `dirty`. Unformatted drives stay `unmounted`. Without an OS nothing mounts. The kernel asm does not change.
 
-Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `DiskFs.create` enforces it. `Game.driveCanHold(deviceId, kind)` adds: the OS is up with the drive mounted, and `fsTier >= 2` for datasets. `StorageSnap.mount` carries `{ state, phase, progress }`. The scan shows as the "posting" phase for now.
+Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `DiskFs.create` enforces it. `Game.driveCanHold(deviceId, kind)` adds: the OS is up with the drive mounted, and `fsTier >= 2` for datasets. `StorageSnap.mount` carries `{ state, phase, progress }`. While the probe runs the machine phase is `mounting` (after POST, before `booting-os`; `bootProgress` 0..0.4 follows the slowest drive; the HUD chip reads "Checking drives").
+
+**Format.** `Game.formatDrive(deviceId, confirm)` (message `formatDrive`) writes a fresh filesystem on a data drive: the ledger is wiped and the drive turns `clean`, so the next boot mounts it. `formatBlock` gives the refusal: the machine must be off, an OS with `fsTier >= 2` must be installed, and the drive must not hold the OS. A drive with datasets needs `confirm` (the picker's second press). The format is instant, like an install; it has no time cost yet. `StorageSnap.format` carries `{ why, datasets }` for the picker's "Format drive" action.
 
 ## The OS ladder
 

@@ -461,7 +461,7 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;
     case 'osIngest':
       if (!s.powered) return 'The machine is off. Press the power button first.';
-      if (s.phase === 'booting-os' || s.phase === 'posting') return 'The OS is still starting. A key plugged in meanwhile is picked up when it is idle.';
+      if (s.phase === 'booting-os' || s.phase === 'posting' || s.phase === 'mounting') return 'The OS is still starting. A key plugged in meanwhile is picked up when it is idle.';
       return s.tray.length || s.plugged ? null : 'No key yet. A client key will arrive in the tray soon.';
     case 'osPaid':
       return s.phase === 'error' ? s.phaseReason : null;

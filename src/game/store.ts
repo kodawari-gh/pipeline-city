@@ -118,6 +118,8 @@ export const declineKey = (keyId: number) => send({ type: 'declineKey', keyId })
 export const declineJob = (id: number) => send({ type: 'declineJob', id });
 /** Take the OS off its drive (back to the inventory). Only while the machine is off. */
 export const uninstallOs = () => send({ type: 'uninstallOs' });
+/** Format a data drive (off only, OS tier 2+); `confirm` accepts losing its datasets. */
+export const formatDrive = (deviceId: string, confirm = false) => send({ type: 'formatDrive', deviceId, confirm });
 // Sandbox tools (docs/SANDBOX.md): the sim refuses them outside a sandbox game.
 export const spawnKey = (template: string, scale?: number) => send({ type: 'spawnKey', template, scale });
 export const clearQueue = () => send({ type: 'clearQueue' });

@@ -6,7 +6,7 @@ import { BLOCK_BYTES, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH
 import { canHold, mountCost, type FileKind, type MountState } from "../machine/fs";
 import { bootImage, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import type { Game } from "./game";
-import type { InvItem, KernelJob } from "./internal";
+import type { DriveMount, InvItem, KernelJob } from "./internal";
 import type { KeyActivity, OsJobSnap, OsSnap, Result, StorageSnap } from "./types";
 
 /** Why the OS cannot go on this drive, or null. */
@@ -61,6 +61,31 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   disk.fs.create("os", "spool", queueSlots * SPOOL_BLOCKS_PER_JOB, { at: osBlocks, soft: true });
   if (count) disk.bytesWritten += os.diskBytes;
   this.os = { spec: os, deviceId, queueSlots };
+}
+
+/** Why this drive cannot be formatted now, or null. Formatting needs an OS with allocation (filesystem tier 2+), a data drive and a powered-off machine. */
+export function formatBlock(this: Game, deviceId: string): string | null {
+  const dev = this.board.devices.find((d) => d.id === deviceId);
+  if (!dev || deviceSpec(dev).kind !== "storage") return "no such drive";
+  if (dev.burnt) return `${deviceSpec(dev).name} is burnt out`;
+  if (this.powered) return "power the machine off first";
+  if (!this.os) return "needs an OS that can format drives: Paged OS 2.0 or better";
+  if (this.os.spec.fsTier < 2) return `${this.os.spec.name} cannot format drives: Paged OS 2.0 or better`;
+  if (this.os.deviceId === deviceId) return "this drive holds the OS: uninstall the OS to wipe it";
+  return null;
+}
+
+/** Format a data drive with the OS's filesystem: the ledger is wiped and the drive turns `clean`. Datasets on it are lost, so they need `confirm`. */
+export function formatDrive(this: Game, deviceId: string, confirm = false): Result<{ wiped: number }> {
+  const why = this.formatBlock(deviceId);
+  if (why) return { ok: false, reason: why };
+  const disk = this.disks.get(deviceId) ?? this.diskFor(this.board.devices.find((d) => d.id === deviceId)!);
+  const wiped = disk.fs.list("dataset").length;
+  if (wiped > 0 && !confirm) return { ok: false, reason: `${wiped} dataset${wiped === 1 ? "" : "s"} on this drive would be lost: confirm to format` };
+  disk.format();
+  disk.mount = "clean";
+  this.note("install", `${deviceSpec(this.board.devices.find((d) => d.id === deviceId)!).name} formatted`);
+  return { ok: true, wiped };
 }
 
 /** Programs the OS runs at once on this machine: the paged OS uses a second core when the CPU has one, the preemptive OS up to two programs per logical core (docs/MULTICORE.md), every other tier its own number. */
@@ -191,6 +216,13 @@ export function mountTicksLeft(this: Game): number {
   return n;
 }
 
+/** Progress (0..1) of the slowest drive still being probed. */
+export function mountProgress(this: Game): number {
+  let slowest: DriveMount | null = null;
+  for (const m of this.mounts.values()) if (m.left > (slowest?.left ?? 0)) slowest = m;
+  return slowest ? 1 - slowest.left / (slowest.scanTicks + slowest.repairTicks) : 1;
+}
+
 /** The OS has the drive mounted. */
 export function isMounted(this: Game, deviceId: string): boolean {
   return this.powered && this.mounts.get(deviceId)?.phase === "mounted";
@@ -219,6 +251,7 @@ export function storageSnaps(this: Game): StorageSnap[] {
       hasOs: this.os?.deviceId === d.id,
       fs: { runs: disk.fs.runs(), fragmentation: disk.fs.fragmentation(), byKind: disk.fs.usage().byKind },
       mount: this.mountSnap(d.id, disk.mount),
+      format: { why: this.formatBlock(d.id), datasets: disk.fs.list("dataset").length },
     };
   });
 }

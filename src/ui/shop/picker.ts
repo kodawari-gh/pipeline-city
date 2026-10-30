@@ -28,7 +28,7 @@ export type IconName = 'bolt' | 'flame' | 'clock' | 'dollar' | 'memory' | 'cpu' 
 export interface PickerLine { level: Level | 'info'; text: string }
 
 export interface PickerAction {
-  id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstall' | 'uninstallOs';
+  id: 'power' | 'powerCycle' | 'plug' | 'eject' | 'uninstall' | 'uninstallOs' | 'formatDrive';
   label: string;
   keyId?: number;
   /** `uninstall`: the installed device to take out (`router` for the router spot). */
@@ -775,6 +775,13 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
           level: full ? 'warn' : 'info',
           text: `Used ${Math.round(st.usedBytes / 1024)}K of ${Math.round(st.capacityBytes / 1024)}K${st.hasOs ? '. Holds the operating system.' : '.'}`,
         });
+        if (st.mount.state !== 'clean') {
+          lines.push({
+            level: st.mount.state === 'unformatted' ? 'info' : 'warn',
+            text: st.mount.state === 'unformatted' ? 'Not formatted: the OS cannot use it.' : st.mount.state === 'dirty' ? 'Dirty: a write was cut by a power loss. The OS repairs it at the next boot.' : 'Damaged: some data is lost.',
+          });
+        }
+        if (!st.hasOs && !dev.burnt) actions.push({ id: 'formatDrive', deviceId: dev.id, label: 'Format drive', why: st.format.why ?? undefined });
       }
     }
     // The OS: its section shows on the OS badge and on the drive that hosts it; uninstall lives there too.

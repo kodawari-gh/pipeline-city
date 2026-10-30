@@ -34,7 +34,7 @@ export class Operator {
     if (!g.powered) return this.act(() => { g.powerButton(); });
     // The OS keeps the key until the result is written, then it pops out by itself: the bot only plugs the next one.
     if (plugged) return void (this.wait = 0);
-    if (g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting") {
+    if (g.trayKeyIds().length > 0 && g.currentPhase() !== "booting-os" && g.currentPhase() !== "posting" && g.currentPhase() !== "mounting") {
       return this.act(() => { g.plugKey(g.trayKeyIds()[0]!); });
     }
     this.wait = 0;

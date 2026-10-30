@@ -50,6 +50,8 @@ export type ToSim =
   | { type: 'declineJob'; id: number }
   // Storage and the OS (docs/OS.md). Installing a drive or an OS uses `install` (an OS takes the storage slot id as slotId).
   | { type: 'uninstallOs' }
+  /** Format a data drive with the OS's filesystem (off only); `confirm` accepts losing datasets. */
+  | { type: 'formatDrive'; deviceId: string; confirm?: boolean }
   | { type: 'requestSave' }
   // Sandbox tools (docs/SANDBOX.md): refused with a reason outside a sandbox game. Each replies with a snapshot.
   | { type: 'spawnKey'; template: string; scale?: number }

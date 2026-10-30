@@ -463,6 +463,67 @@ describe("the boot scan and mount states", () => {
     expect(g.driveCanHold(devId(g), "spool")).toBe(false); // off: nothing is mounted
   });
 
+  it("the machine is in the mounting phase while the OS probes the drives, then boots", () => {
+    const g = rig("hdd0");
+    diskOf(g).reserve(120, 200);
+    g.powerButton();
+    const seen = new Set<Phase>();
+    for (let i = 0; i < 3000 && g.currentPhase() !== "idle-os"; i++) { g.advanceBaseTick(); seen.add(g.currentPhase()); }
+    expect(seen.has("mounting")).toBe(true);
+    expect(g.currentPhase()).toBe("idle-os");
+  });
+
+  describe("formatting a data drive", () => {
+    const withSecond = (fsTier: number): Game => {
+      const g = rig("hdd0");
+      if (g.powered) g.powerButton();
+      g.os!.spec = { ...g.os!.spec, fsTier };
+      const b = g.purchase("ssd1") as { invId: string };
+      expect(g.install(b.invId).ok).toBe(true);
+      return g;
+    };
+    const second = (g: Game): string => g.snapshot().storage.find((s) => !s.hasOs)!.deviceId;
+
+    it("a blank second drive is unformatted and stays unmounted; formatting makes it clean and mounted at the next boot", () => {
+      const g = withSecond(2);
+      const id = second(g);
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount.state).toBe("unformatted");
+      g.powerButton();
+      runUntil(g, "idle-os");
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount.phase).toBe("unmounted");
+      expect(g.formatDrive(id)).toMatchObject({ ok: false, reason: "power the machine off first" });
+      g.powerButton();
+      expect(g.formatDrive(id)).toMatchObject({ ok: true, wiped: 0 });
+      g.powerButton();
+      runUntil(g, "idle-os");
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount).toMatchObject({ state: "clean", phase: "mounted" });
+      expect(g.driveCanHold(id, "dataset")).toBe(true);
+    });
+
+    it("needs an OS with filesystem tier 2, and never formats the OS drive", () => {
+      const g = withSecond(1);
+      expect(g.formatDrive(second(g)).ok).toBe(false);
+      expect(g.snapshot().storage.find((s) => !s.hasOs)!.format.why).toMatch(/Paged OS 2.0/);
+      const g2 = withSecond(2);
+      expect(g2.formatDrive(g2.os!.deviceId)).toMatchObject({ ok: false });
+      const none = rig("hdd0", { os: false });
+      if (none.powered) none.powerButton();
+      expect(none.formatDrive([...none.disks.keys()][0] ?? "x").ok).toBe(false);
+    });
+
+    it("datasets on the drive need a confirm, then they are lost", () => {
+      const g = withSecond(2);
+      const id = second(g);
+      g.formatDrive(id);
+      expect(g.disks.get(id)!.fs.create("c1", "dataset", 8)).not.toBeNull();
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.format.datasets).toBe(1);
+      expect(g.formatDrive(id)).toMatchObject({ ok: false });
+      expect(g.disks.get(id)!.fs.list("dataset")).toHaveLength(1);
+      expect(g.formatDrive(id, true)).toMatchObject({ ok: true, wiped: 1 });
+      expect(g.disks.get(id)!.fs.list("dataset")).toHaveLength(0);
+    });
+  });
+
   it("a tier-3 filesystem replays a journal; a lower tier passes over every used block", () => {
     const boot = (fsTier: number) => {
       const g = rig("hdd0");

@@ -885,7 +885,7 @@ export class Live {
     const busy = this.powered && this.liveOn && this.pchUntil > now;
     if (!this.powered) this.pchLevel = 0; // a hard power-off is dark on the next frame
     else this.pchLevel += ((busy ? 1 : 0) - this.pchLevel) * Math.min(1, dt * (busy ? 8 : 2.5));
-    const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'loading' || ph === 'booting-os');
+    const showBar = this.hasDisplay && this.monitorLive && this.powered && (ph === 'posting' || ph === 'mounting' || ph === 'loading' || ph === 'booting-os');
     // PCH: the legs a packet reaches or leaves flash, the package edge and heat sink warm while traffic crosses it, and the corner LED shows its state
     const lv = this.pchLevel;
     if (this.interior) {

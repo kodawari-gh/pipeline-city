@@ -110,6 +110,7 @@ export function showPostError(this: Game): void {
 export function currentPhase(this: Game): Phase {
   if (!this.powered) return "off";
   if (this.postError || this.fault()) return "error";
+  if (this.bootDelay <= 0 && this.mountTicksLeft() > 0) return "mounting"; // the OS probes the drives after POST
   switch (this.pch.phase) {
     case PchPhase.Waiting: return "waiting-for-key";
     case PchPhase.Loading: return "loading";
@@ -130,6 +131,7 @@ export function currentPhase(this: Game): Phase {
 export function bootProgress(this: Game, phase: Phase): number {
   switch (phase) {
     case "posting": return (this.pch.progress / 4) * 0.4;
+    case "mounting": return 0.4 * this.mountProgress();
     case "waiting-for-key": return 0.4;
     case "halted": return this.pch.phase === PchPhase.Halted ? 1 : 0.4;
     case "loading": return 0.4 + 0.6 * Math.min(1, this.pch.wordsRead / Math.max(1, this.pchKey?.program.length ?? 1));

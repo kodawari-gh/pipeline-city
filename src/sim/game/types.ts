@@ -151,7 +151,7 @@ export interface PurchaseSnap {
  */
 export type Phase =
   | "waiting-for-key" | "done-remove-key"
-  | "off" | "posting" | "loading" | "running" | "writing" | "halted" | "error"
+  | "off" | "posting" | "mounting" | "loading" | "running" | "writing" | "halted" | "error"
   | "booting-os" | "idle-os" | "ingesting" | "running-os" | "flashing";
 
 /** Where a key's job stands. Legacy (no OS) keys are "tray", then "done" once the ROM wrote the result. */
@@ -300,6 +300,8 @@ export interface StorageSnap {
   fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number> };
   /** The drive's superblock verdict (stays with the drive), the OS's mount phase for it this boot, and the scan or repair progress (0..1). */
   mount: { state: MountState; phase: MountPhase; progress: number };
+  /** Formatting this drive: why it cannot be done now (null = it can), and how many datasets a format would lose. */
+  format: { why: string | null; datasets: number };
 }
 
 /** The OS's view of a drive this boot: `unmounted` (no OS up, or the drive is unformatted), then `scanning`, `repairing` and `mounted`. */
