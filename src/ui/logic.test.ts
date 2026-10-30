@@ -271,6 +271,10 @@ describe('graphics card ids', () => {
     expect(describeId('pcie0.maskstack', s)!.nerd).toBe('depth 1 of 8');
     expect(describeId('pcie0.lane99')).not.toBeNull(); // any lane number reads as a lane; the board only writes the ones that exist
     expect(describeId('pcie0.unknown', s)).toBeNull();
+    expect(describeId('pcie0.sm1.lanes')!.nerd).toMatch(/SM 1/);
+    expect(describeId('pcie0.warp3')!.title).toBe('Warp 3');
+    expect(describeId('pcie0.l2')!.title).toBe('L2 cache');
+    expect(isGpuId('pcie0.sm1.nonsense')).toBe(false);
     expect(isGpuId('pcie2.mem')).toBe(true);
     expect(isGpuId('pcie2')).toBe(false);
   });

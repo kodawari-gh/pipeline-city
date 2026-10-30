@@ -39,6 +39,8 @@ export interface GpuPlan {
   /** The die's plan (die coordinates) and where its north-west corner is on the card. */
   die: DiePlan;
   origin: { x: number; y: number };
+  /** Every block of the die, card-local: the hover table's parts (`id` is the plan's block id, `sm0.lanes` on a multi-SM card). */
+  blocks: { id: string; kind: GpuBlock['kind']; rect: Rect; sm: number | undefined }[];
   /** The routed links, moved to card-local points. */
   links: { id: string; kind: GpuLinkKind; pts: Pt[]; lanes: number }[];
   /** PCIe link block, on the die's west edge. */
@@ -122,6 +124,7 @@ export function gpuPlan(visual: string): GpuPlan {
   const f = first!;
   const plan: GpuPlan = {
     visual, lanes, banks, memBytes, w, h, shroud, body, fans, die, origin,
+    blocks: die.blocks.map((b) => ({ id: b.id, kind: b.kind, rect: mv(b.rect), sm: b.sm })),
     links: die.links.map((l) => ({ id: l.id, kind: l.kind, lanes: l.lanes, pts: l.pts.map((p): Pt => [p[0] + origin.x, p[1] + origin.y]) })),
     link: mv(get('pcie').rect), pc: f.pc, laneCells, lanesBlock: f.lanes, mask: f.mask.strip, maskBits, maskStack: f.mask.stack, maskSlots: f.mask.slots,
     regs: f.regs, regRows: regSets[0]!.rows, regSets, perSm: per, decode: mv(get(input.sms > 1 ? 'sm0.decode' : 'decode').rect), warpCells, bankBars: f.banks, mem: mv(get('dram').rect),
@@ -133,18 +136,18 @@ export function gpuPlan(visual: string): GpuPlan {
 /** A hoverable part: the id without its slot (`lane3`; the full id is `pcie1.lane3`), its card-local rectangle, and whether it is a part of the zoomed-in view (the fans are seen from afar). */
 export interface GpuPart { id: string; rect: Rect; inner: boolean }
 
-/** Every part with an id, most specific first (the first hit wins), so the lanes come before the shroud they sit on. */
+/** Every part with an id, most specific first (the first hit wins): the fans, a lane, a bank, a warp, the mask stack, then each block of the die by its plan id
+ * (`pcie`, `fetch`, `regs`, `sm0.lanes`...), the SM frames, and the shroud last. */
 export function gpuParts(p: GpuPlan): GpuPart[] {
   const out: GpuPart[] = [];
   p.fans.forEach((f, k) => out.push({ id: `fan${k}`, rect: f, inner: false }));
   p.laneCells.forEach((r, k) => out.push({ id: `lane${k}`, rect: r, inner: true }));
   p.bankBars.forEach((r, k) => out.push({ id: `bank${k}`, rect: r, inner: true }));
-  out.push({ id: 'regs', rect: p.regs, inner: true });
+  const per = p.warpCells.filter((w) => w.sm === 0).length;
+  p.warpCells.forEach((w) => out.push({ id: `warp${w.sm * per + w.warp}`, rect: w.rect, inner: true }));
   out.push({ id: 'maskstack', rect: p.maskStack, inner: true });
-  out.push({ id: 'mask', rect: p.mask, inner: true });
-  out.push({ id: 'pc', rect: p.pc, inner: true });
-  out.push({ id: 'mem', rect: p.mem, inner: true });
-  out.push({ id: 'link', rect: p.link, inner: true });
+  for (const b of p.blocks.filter((x) => x.kind !== 'sm')) out.push({ id: b.id, rect: b.rect, inner: true });
+  for (const b of p.blocks.filter((x) => x.kind === 'sm')) out.push({ id: b.id, rect: b.rect, inner: true });
   out.push({ id: 'fins', rect: p.shroud, inner: true });
   return out;
 }

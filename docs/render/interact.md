@@ -43,7 +43,7 @@ World units are pixels at zoom 1; the CPU socket is the origin. `cam {x, y, z}` 
 | `dimm0`..`dimm7`, `pcie0`..`pcie3` | up to eight DIMM and four PCIe slots, a tier has the first ones |
 | `bay` | the drive cage (cells are `sata0` .. `sata7`) |
 | `sata0` .. `sata7`, `m20` .. `m22` | the drive cell / M.2 slot, empty or filled; an installed drive is also hoverable by its device id |
-| `pcie<k>.fan<n>`, `.lane<n>`, `.bank<n>`, `.regs`, `.mask`, `.maskstack`, `.pc`, `.mem`, `.link`, `.fins` | the parts of the graphics card in PCIe slot `k` (ids from `gpuParts`, `board/gpulayout.ts`; fans hover from zoom 0.2, the rest from 0.3, tried before the card). Words: `describeGpuId` (`ui/panels/gpudesc.ts`). A click on one opens the card itself (`deviceOfPart`) |
+| `pcie<k>.fan<n>`, `.lane<n>`, `.bank<n>`, `.warp<n>`, `.maskstack`, `.fins`, and every block of the card's floorplan by its plan id (`.pcie`, `.launch`, `.pc`, `.fetch`, `.decode`, `.sched`, `.warps`, `.regs`, `.lanes`, `.mask`, `.coal`, `.arb`, `.banks`, `.l1`, `.l2`, `.dram`; on a multi-SM card `.sm0.fetch`... and the frames `.sm0`) | the parts of the graphics card in PCIe slot `k` (ids from `gpuParts`, `board/gpulayout.ts`; fans hover from zoom 0.2, the rest from 0.3, tried before the card). Words: `describeGpuId` (`ui/panels/gpudesc.ts`). A click on one opens the card itself (`deviceOfPart`) |
 | `os` | the OS badge on the drive that hosts the OS (exists only while an OS is installed); the monitor screen is display only |
 | `psu.readout` | the PSU's live panel |
 | `tray` | the key tray |
