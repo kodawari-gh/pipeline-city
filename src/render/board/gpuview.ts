@@ -15,7 +15,8 @@ import { CYCLES_PER_SEC } from '../die/diemotion';
 import { gpuPlan, type GpuPlan } from './gpulayout';
 import type { Rect } from './layout';
 import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from '../gpu/gpuplayer';
-import { dramFill, gpuMemLive } from '../gpu/gpumem';
+import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from '../gpu/gpumem';
+import { GpuLensView } from './gpulensview';
 import type { GpuBlock } from '../gpu/gpuplan';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
@@ -109,6 +110,8 @@ interface CardView {
   player: GpuPlayer;
   /** The memory parts of the die (card memory, banks, caches, registers) in card coordinates, with their cell grids. */
   memParts: GpuBlock[];
+  /** The magnifier on card memory, like the RAM's. */
+  lens: GpuLensView;
   tick: GpuTick;
   snap: GpuSnap | undefined;
   tempC: number;
@@ -165,11 +168,12 @@ export class GpuView {
 
     const cover = gpuCover(new Graphics(), T, plan);
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
-    root.addChild(inner, cover, ...fans.map((f) => f.fan));
+    const lens = new GpuLensView();
+    root.addChild(inner, cover, ...fans.map((f) => f.fan), lens.root);
     this.root.addChild(root);
     return {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
-      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(),
+      cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens,
       memParts: plan.die.blocks.filter((b) => MEM_KINDS.has(b.kind)).map((b) => ({ ...b, rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h } })),
       tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '',
     };
@@ -219,7 +223,7 @@ export class GpuView {
       c.cover.alpha = 1 - fade;
       c.inner.alpha = fade;
       c.inner.visible = fade > 0.02;
-      if (!c.inner.visible) continue;
+      if (!c.inner.visible) { c.lens.hide(); continue; }
       const showText = this.zoom >= TEXT_Z, showDetail = this.zoom >= DETAIL_Z;
       c.names.visible = c.linkText.visible = c.texts.visible = showText;
       c.subs.visible = c.ctrText.visible = c.memText.visible = showDetail;
@@ -313,6 +317,7 @@ export class GpuView {
       ct.hideFrom(live.texts.length);
     }
     // the memory parts: what the instruction moves through them, in them
+    if (!s) c.lens.hide();
     if (s) {
       const sms = t.sms.length > 0 ? t.sms : [];
       const memStepOf = (sm: number | null): GpuStep | null => [...s.trace].reverse().find((x) => x.mem && (sm === null || (x.sm ?? 0) === sm)) ?? null;
@@ -326,6 +331,12 @@ export class GpuView {
           step, memStep: step?.mem ? step : memStepOf(shared ? null : sm), sm, perSm: plan.perSm, banks: plan.die.input.banks, lineWords: plan.die.input.lineWords,
           cache: b.kind === 'l1' ? s.caches?.find((x) => x.level === 'L1' && (x.sm ?? 0) === sm) : b.kind === 'l2' ? s.caches?.find((x) => x.level === 'L2') : undefined, round: tk?.round ?? 0,
         });
+        if (b.kind === 'dram') {
+          // the one magnifier: the words around the address the last load or store touched, beside its cell
+          const ms = step?.mem ? step : memStepOf(null), lens = gpuLensRows(ms);
+          if (lens && ms && b.bytes) c.lens.set(T, lens, dramCellRect(a, b.bytes, lens.addr), b.rect, this.zoom, kindColor(T, ms.kind), ms === step);
+          else c.lens.hide();
+        }
         for (const l of live.lit) lit.push({ rect: l.rect, color: T[l.color], a: l.a });
         let ct = c.cellTexts.get(b.id);
         if (!ct) { ct = new CellTexts(c.texts); c.cellTexts.set(b.id, ct); }

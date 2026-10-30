@@ -9,6 +9,8 @@ import { GPU_CODE, GPU_FRAME } from '../../sim/isa/memmap';
 import { KERNEL_LAYOUT } from '../../sim/gen/gpukernels';
 import type { GpuCacheView } from '../../sim/gpu/engine';
 import type { GpuStep } from '../../sim/ref/gpuref';
+import { gpuOpClass } from '../../sim/game/gpucode';
+import type { OpClass } from '../../sim/game/jobcode';
 import type { LiveGlyph } from '../die/blockart';
 import type { Rect } from '../die/cpuplan';
 import type { GpuBlock } from './gpuplan';
@@ -54,6 +56,36 @@ export function dramFill(a: Rect, bytes: number, fill: readonly number[] | undef
     out.push({ rect: { x: a.x + (k % g.cols) * g.cw + 1, y: a.y + Math.floor(k / g.cols) * g.cw + 1, w: g.cw - 2, h: g.cw - 2 }, color: REGION_COLOR[gpuRegion(lo)], a: 0.2 + 0.7 * f });
   }
   return out;
+}
+
+/** The cell of the memory map that holds byte address `addr` of a card memory of `bytes`. */
+export function dramCellRect(a: Rect, bytes: number, addr: number): Rect {
+  const g = dramGeom(a), k = Math.max(0, Math.min(g.total - 1, Math.floor((addr / bytes) * g.total)));
+  return { x: a.x + (k % g.cols) * g.cw + 1, y: a.y + Math.floor(k / g.cols) * g.cw + 1, w: g.cw - 2, h: g.cw - 2 };
+}
+
+/** Words the card memory's magnifier shows. */
+export const LENS_ROWS = 9;
+
+export interface GpuLensRow { addr: number; hex: string; text: string; /** The class pill of an instruction, null for data. */ cls: OpClass | null; /** An address the instruction touched. */ current: boolean }
+export interface GpuLens { title: string; /** The instruction in flight and the address it went to. */ tag: string; rows: GpuLensRow[]; note: string; /** The first address touched, and the kind of access. */ addr: number; kind: GpuStep['kind'] }
+
+const REGION_NAME: Record<ReturnType<typeof gpuRegion>, string> = { code: 'kernel code', args: 'launch arguments', frame: 'output frame', work: 'work memory' };
+
+/**
+ * What the magnifier on card memory reads, like the RAM's (ramview.ts): the words around the address a load or store touched, code as the instruction with
+ * its class, data as the number, the touched words marked, the region named. Null for a step that touched nothing.
+ */
+export function gpuLensRows(step: GpuStep | null): GpuLens | null {
+  const m = step?.mem;
+  if (!step || !m || m.addrs.length === 0) return null;
+  const touched = new Set(m.addrs), first = m.addrs[0]!;
+  const rows = m.around.map((w, k): GpuLensRow => {
+    const addr = m.at + 4 * k, code = addr < GPU_CODE.words * 4 && w !== 0, text = code ? gpuDisassemble(w) : w === 0 ? '' : String(w | 0);
+    return { addr, hex: (w >>> 0).toString(16).padStart(8, '0'), text, cls: code ? gpuOpClass(text.split(' ')[0]!) : null, current: touched.has(addr) };
+  });
+  const n = m.addrs.length, ins = step.word !== undefined ? gpuDisassemble(step.word) : step.name;
+  return { title: 'Card memory', tag: `${ins}  @0x${first.toString(16).padStart(4, '0')}`, rows, note: `${REGION_NAME[gpuRegion(first)]} · ${n} lane access${n === 1 ? '' : 'es'}`, addr: first, kind: step.kind };
 }
 
 /** A bank's array: the rows (or, for a wide one, the columns) its words fall into. */

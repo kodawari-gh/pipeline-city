@@ -9,7 +9,7 @@ import { Machine } from '../../sim/machine/machine';
 import type { GpuStep } from '../../sim/ref/gpuref';
 import { gpuPlan } from '../board/gpulayout';
 import { gpuGlyphArea } from './gpuglyph';
-import { bankGeom, dramFill, dramGeom, gpuMemLive, gpuRegion, type MemCtx } from './gpumem';
+import { bankGeom, dramCellRect, dramFill, dramGeom, gpuLensRows, gpuMemLive, gpuRegion, type MemCtx } from './gpumem';
 import { gpuCells } from './gpuplans';
 
 const blockOf = (visual: string, kind: string) => gpuPlan(visual).die.blocks.find((b) => b.kind === kind)!;
@@ -54,6 +54,36 @@ describe('card memory', () => {
     expect(kept.texts).toHaveLength(9);
     expect(Math.max(...kept.lit.map((l) => l.a))).toBeLessThan(Math.max(...fresh.lit.map((l) => l.a)));
     expect(gpuMemLive(b, a, ctx({ step: later, memStep: null })).texts).toHaveLength(0);
+  });
+});
+
+describe('the magnifier on card memory', () => {
+  it('reads the words around the touched address, the touched ones marked, the region named', () => {
+    const s = load([2048, 2052, 2056], [12, 15, 17]);
+    const lens = gpuLensRows(s)!;
+    expect(lens.rows).toHaveLength(9);
+    expect(lens.tag).toBe('vld v3, 0(v2)  @0x0800');
+    expect(lens.note).toBe('output frame · 3 lane accesses');
+    expect(lens.rows.filter((r) => r.current).map((r) => r.addr)).toEqual([2048, 2052, 2056]);
+    expect(lens.rows[1]).toMatchObject({ addr: 2044, hex: '0000000c', text: '12', cls: null });
+    expect(gpuLensRows({ ...s, mem: undefined })).toBeNull();
+    expect(gpuLensRows(null)).toBeNull();
+  });
+
+  it('code reads as its instruction with a class pill', () => {
+    const s = load([8], [0]);
+    s.mem!.at = 0;
+    s.mem!.around = [0, gpuEncode(gpuInstr('vld', { rd: 1, rs1: 2, imm: 4 })), gpuEncode(gpuInstr('vmul', { rd: 1, rs1: 1, rs2: 2 })), gpuEncode(gpuInstr('vst', { rs1: 2, rs2: 1, imm: 8 })), 0, 0, 0, 0, 0];
+    const rows = gpuLensRows(s)!.rows;
+    expect(rows.map((r) => r.text.split(' ')[0])).toEqual(['', 'vld', 'vmul', 'vst', '', '', '', '', '']);
+    expect(rows.map((r) => r.cls)).toEqual([null, 'ld', 'mul', 'st', null, null, null, null, null]);
+    expect(gpuLensRows(s)!.note).toMatch(/^kernel code/);
+  });
+
+  it('the thread line ends in the cell of the map the address falls in', () => {
+    const b = blockOf('gpu-2', 'dram'), a = areaOf(b), g = dramGeom(a);
+    const r = dramCellRect(a, b.bytes!, 2048), k = Math.floor((2048 / b.bytes!) * g.total);
+    expect(r).toEqual({ x: a.x + (k % g.cols) * g.cw + 1, y: a.y + Math.floor(k / g.cols) * g.cw + 1, w: g.cw - 2, h: g.cw - 2 });
   });
 });
 

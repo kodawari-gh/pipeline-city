@@ -43,7 +43,7 @@ describe('GPU view', () => {
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     expect(v.root.visible).toBe(true);
     const card = v.root.children[0] as Container;
-    const fans = card.children.slice(2); // inner, cover, then one spinner per fan
+    const fans = card.children.slice(2, -1); // inner, cover, then one spinner per fan
     expect(fans).toHaveLength(2);
     v.setZoom(1);
     v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: false } as never]);
