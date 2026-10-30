@@ -260,3 +260,7 @@ Pure logic in `levelui.ts` (+ `levelui.test.ts`), views in `Levels.tsx`, `Jobs.t
 On a multicore CPU `TracePanel.tsx` shows one button per logical core above the step buttons (label, `T<n>` of the job thread or idle/kernel, the hardware core's pipeline as small cells, tinted like the die tiles via `tileModels`). `aria-pressed` marks the selected core; a click sends `viewCore(k)` and the trace and scrubber follow that core's hardware core; the die shows every core live whatever is selected (docs/DIE.md "Core tiles").
 
 With a graphics card installed the same row also has a **CPU** button and one per card (`pcie0`...): it sets the scrub target. For a card the step buttons send `stepGpu(slot, n)`, the scrubber moves the card view, and the lines are the card's last instructions (`gpuLines`, `trace.ts`) in the groups Launch, Mask, Mem, Reg and Sched (a line click seeks to its cycle).
+
+## Picker: graphics cards
+
+A graphics card compares SMs, warps per SM, lanes, L2 cache (words in K, 0 without one), clock, card memory and power (`statsOf`, `picker.ts`); each stat's tooltip is in `STAT_HELP` (`shop/stathelp.ts`). The shop tile and the shelf thumb draw the die (`gpuFar`, `gpuNear`) under the fans, not the shroud plate.

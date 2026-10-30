@@ -14,6 +14,7 @@ import { hardwareWarn, jackPort, netStateLines, netStats, nicLines, nicStats } f
 import { cannotRunText, deadlineInfo, isNextLevelLock, lockOf, lockTooltip, moreOffer, unlockedFirst, type JobView, type LevelLock, type MoreOffer } from '../panels/levelui';
 import { JOB_TYPES } from '../regions';
 import { boardCards, cpuVrmWarning, liquidVrmNote, ramVrmWarning, vrmLines, vrmReadout, type BoardCard, type VrmReadout } from './vrm';
+import type { GpuConfig } from '../../sim/gpu';
 
 /** The storage block size (bytes), as in the sim's storage device. */
 const BLOCK_BYTES = 256;
@@ -275,7 +276,10 @@ export function statsOf(specId: string): Stat[] {
     ];
     case 'nic': return nicStats(spec);
     case 'gpu': return [
+      { key: 'sms', label: 'SMs', icon: 'cpu', value: gpuSms(spec.gpu), unit: '', higherIsBetter: true },
+      { key: 'warps', label: 'Warps per SM', icon: 'cpu', value: gpuWarps(spec.gpu), unit: '', higherIsBetter: true },
       { key: 'lanes', label: 'Lanes', icon: 'cpu', value: spec.gpu?.lanes ?? 0, unit: '', higherIsBetter: true },
+      { key: 'l2', label: 'L2 cache', icon: 'memory', value: gpuL2Words(spec.gpu) / 1024, unit: 'K', higherIsBetter: true },
       { key: 'cardclk', label: 'Clock', icon: 'clock', value: spec.clock?.base ?? 0, unit: 'x', higherIsBetter: true },
       { key: 'cardmem', label: 'Card memory', icon: 'memory', value: (spec.gpu?.memBytes ?? 0) / 1024, unit: 'K', higherIsBetter: true },
       { key: 'power', label: 'Power', icon: 'bolt', value: spec.loadW, unit: 'W', higherIsBetter: false },
@@ -294,6 +298,12 @@ export function statsOf(specId: string): Stat[] {
     ];
   }
 }
+
+type GpuShape = GpuConfig | undefined;
+const gpuSms = (g: GpuShape): number => (g && 'sms' in g ? g.sms : 1);
+const gpuWarps = (g: GpuShape): number => (g && 'warps' in g ? g.warps : 1);
+/** The shared L2 in words (0 on a card without one). */
+const gpuL2Words = (g: GpuShape): number => (g && 'l2Lines' in g ? g.l2Lines * g.lineWords : 0);
 
 /** Bar length for one stat: 1 for the best part of its kind, less for the rest (0..1). */
 export function goodness(kind: PickerKind, key: string, value: number, higherIsBetter: boolean): number {
@@ -389,7 +399,7 @@ export function specBrief(spec: DeviceSpec): string {
     case 'vrm-sink': return `${spec.coolingPerC} W/C cooling for the VRM`;
     case 'ram-sink': return `${spec.coolingPerC} W/C cooling for the memory VRM`;
     case 'nic': return `${spec.mbps} Mbit network card`;
-    case 'gpu': return `${spec.gpu?.lanes ?? 0} lanes, ${(spec.gpu?.memBytes ?? 0) / 1024}K, ${spec.loadW} W`;
+    case 'gpu': return `${gpuSms(spec.gpu)} SM${gpuSms(spec.gpu) === 1 ? '' : 's'}, ${spec.gpu?.lanes ?? 0} lanes, ${(spec.gpu?.memBytes ?? 0) / 1024}K, ${spec.loadW} W`;
     case 'npu': return `${spec.npu?.grid ?? 0}x${spec.npu?.grid ?? 0} cells, ${(spec.npu?.memBytes ?? 0) / 1024}K, ${spec.loadW} W`;
     case 'tpm': return `secure module, ${spec.loadW} W`;
   }

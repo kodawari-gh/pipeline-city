@@ -10,6 +10,8 @@ import type { Phase } from '../sim/game/game';
 import { dev, key, snap } from './testdata';
 import { gpuIds } from '../render/board/gpulayout';
 import { isGpuId } from './panels/gpudesc';
+import { statsOf } from './shop/picker';
+import { STAT_HELP } from './shop/stathelp';
 import { cpuPlan } from '../render/die/cpuplans';
 import type { PlanInput } from '../render/die/cpuplan';
 
@@ -337,5 +339,20 @@ describe('billChip', () => {
   it('warns while a bill is unpaid and goes red when the wall is cut', () => {
     expect(billChip(snap({ baseTick: 700, bill: { ...bill, unpaid: 3, cutTick: 760 } }))).toEqual({ text: '$3 due, cut in 1m 00s', level: 'warn' });
     expect(billChip(snap({ bill: { ...bill, unpaid: 3, cutTick: 760, cut: true } }))).toEqual({ text: 'CUT $3', level: 'bad' });
+  });
+});
+
+describe('graphics card stats in the picker', () => {
+  const val = (id: string, key: string) => statsOf(id).find((x) => x.key === key)!.value;
+  it('compares SMs, warps, lanes, L2, memory, clock and power, each with a tooltip', () => {
+    for (const id of ['gpu1', 'gpu2', 'gpu3']) {
+      const keys = statsOf(id).map((x) => x.key);
+      expect(keys, id).toEqual(['sms', 'warps', 'lanes', 'l2', 'cardclk', 'cardmem', 'power']);
+      for (const k of keys) expect(STAT_HELP[k], `${id} ${k}`).toBeTruthy();
+    }
+    expect([1, 2, 3].map((n) => val('gpu' + n, 'sms'))).toEqual([1, 1, 2]);
+    expect([1, 2, 3].map((n) => val('gpu' + n, 'warps'))).toEqual([1, 2, 2]);
+    expect(val('gpu1', 'l2')).toBe(0);
+    expect(val('gpu3', 'l2')).toBeGreaterThan(0);
   });
 });

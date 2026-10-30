@@ -46,7 +46,7 @@ describe('accelerator art', () => {
     setLayoutTier(3, 3);
     for (const [v, fans] of [['gpu-1', 1], ['gpu-2', 2], ['gpu-3', 3]] as const) {
       const live = cardArt(DARK, v, 1, true), still = cardArt(DARK, v, 1);
-      expect(still.children.length - live.children.length, v).toBe(1 + fans); // the cover plus one blade set per fan
+      expect(still.children.length - live.children.length, v).toBe(2 + fans); // the die and its traces, plus one blade set per fan
       const o = cardOrigin(1, v), r = cardRect(1, v);
       expect(o.y).toBe(r.y); // the plan's origin is the card's top-left corner
       expect(gpuPlan(v).fans).toHaveLength(fans);

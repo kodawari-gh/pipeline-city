@@ -21,6 +21,7 @@ import { openMilestones } from '../state';
 import { PartArt } from './PartArt';
 import { anchorOf } from '../tutorial/anchor';
 import { dockPlacement, placePopup, type Rect, type Side } from './place';
+import { STAT_HELP } from './stathelp';
 
 const shortName = (name: string) => name.split(' (')[0]!;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -89,31 +90,6 @@ export function Rung({ step, picked, onPick }: { step: LadderStep; picked: boole
     </div>
   );
 }
-
-/** What each compared stat means, in plain words for a newcomer (keyed by CompareRow.key). */
-const STAT_HELP: Record<string, string> = {
-  board: 'The biggest motherboard this case can hold. A bigger board has more slots and a stronger power regulator.',
-  dimm: 'How many memory sticks the board can hold. More sticks means more memory for bigger jobs.',
-  slots: 'Total places for parts on the board.',
-  programs: 'How many programs the OS can run at the same time. More means more jobs done in parallel.',
-  queue: 'How many jobs can wait in line for the OS. A longer queue means fewer jobs turned away.',
-  memory: 'Memory the OS needs fitted before it will run. Lower is easier to meet.',
-  disk: 'Drive space the OS takes up when installed. Lower leaves more room for jobs.',
-  speed: 'How much work the processor gets done each second (clock speed times how clever its design is). Higher finishes jobs sooner.',
-  power: 'Electricity it draws while working. Lower is better: it costs less and leaves room on the power supply.',
-  size: 'How much it can hold. More lets bigger jobs fit.',
-  latency: 'How long one read takes, in ticks. Lower is better: the processor waits less.',
-  watts: 'The most power the supply can deliver. Everything you fit must add up to less than this.',
-  cooling: 'Heat carried away for each degree it is hotter than the room. Higher keeps parts cooler, so they throttle less.',
-  lanes: 'How many things the card does at the same instant, all following the same instructions. More lanes means big batches finish sooner.',
-  cardclk: 'How fast the card runs compared with a processor at its stock clock. Higher means every step of its work takes less time.',
-  cardmem: 'The memory on the card itself. The work and its data are copied in first, so bigger jobs need more.',
-  cells: 'How many multiply-and-add cells the matrix unit has. More cells means each layer of a network finishes in fewer steps.',
-  measure: 'How long the module takes to check each word of memory. Lower is better: a secure job starts sooner.',
-  attest: 'How long the module takes to sign a statement about what is running. Lower is better.',
-  surcharge: 'Extra processor cycles every memory access costs while a secure job runs (the encryption). Lower is better.',
-  throughput: 'How many bytes per second it moves once a read has started. Higher loads and saves faster.',
-};
 
 /** Before/after bars: grey is the current part, coloured is the option; the delta is coloured by whether it is better. */
 export function Compare({ rows, option }: { rows: CompareRow[]; option: string }) {

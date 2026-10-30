@@ -4,6 +4,7 @@ import { BD, NIC_BRACKET_X, nicY, type Rect } from './layout';
 import { box, disc, label, mix } from '../ink';
 import { gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from './gpulayout';
 import { EdgeFan, edgeFan } from '../room/case';
+import { gpuFar, gpuNear } from '../gpu/gpuart';
 import type { Theme } from '../theme';
 
 // The accelerator parts (docs/ACCEL.md "Picker and board art"): graphics and AI cards in a PCIe slot, and the TPM module on the board's
@@ -70,10 +71,12 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
     if (!live) {
       // a still picture (shop tile): the cover and the blades drawn in
-      const cover = new Graphics();
-      gpuCover(cover, T, p);
-      cover.position.set(o.x, o.y);
-      root.addChild(cover);
+      // the die itself under the fans (the board's view fades the shroud away to this), the shroud only as the frame
+      const die = new Graphics(), near = gpuNear(T, p.die);
+      gpuFar(die, T, p.die);
+      die.position.set(o.x + p.origin.x, o.y + p.origin.y);
+      near.root.position.set(o.x + p.origin.x, o.y + p.origin.y);
+      root.addChild(die, near.root);
       for (const f of p.fans) {
         const fan = new EdgeFan(moveRect(f, o), T);
         fan.spin(0, 0.3);
