@@ -3,7 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../game/hover';
 import { highlight } from '../../game/interaction';
 import {
-  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, togglePause, zoomSlowdown,
+  autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
 } from '../../game/store';
 import { SPEEDS } from '../../sim/protocol';
 import { fmtMoney, fmtNum, fmtTicks, isOsActivity, statusChip } from '../logic';
@@ -49,6 +49,10 @@ function SpeedControl() {
     <div class={`speedctl ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
       <button class="icon pp" aria-label={v === 0 ? 'Resume' : 'Pause'} title={v === 0 ? 'Resume (Space)' : 'Pause (Space)'} aria-pressed={v === 0} onClick={togglePause}>
         <Icon name={v === 0 ? 'play' : 'pause'} size={14} />
+      </button>
+      <button class={`icon zs ${zoomSlowOn.value ? 'on' : ''}`} aria-label="Slow down when zoomed in" aria-pressed={zoomSlowOn.value}
+        title={zoomSlowOn.value ? 'Slow motion when zoomed in: on (click to turn off)' : 'Slow motion when zoomed in: off (click to turn on)'} onClick={toggleZoomSlow}>
+        <Icon name="gauge" size={14} />
       </button>
       <div class="seg speeds" role="group" aria-label="Speed" onClick={() => setOpen(true)}>
         {SPEEDS.filter((x) => x !== 0).map((x) => (

@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
 import { hover, powerLens, viewInset, type Inset } from '../../game/hover';
 import { cameraRev, dragging, highlight } from '../../game/interaction';
-import { snapshot, speed, zoomSlowdown } from '../../game/store';
+import { snapshot, speed, zoomSlowOn, zoomSlowdown } from '../../game/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../../sim/board/specs';
 import type { StorageSnap } from '../../sim/game/game';
 import type { Snapshot } from '../../sim/protocol';
@@ -1299,7 +1299,7 @@ export async function mountBoard(host: HTMLElement) {
     const dt = tk.deltaMS / 1000;
     // game time: advances only while the sim runs (pause = speed 0 stops it), so every world animation freezes with it
     // zoomed in, the world runs slower so a block can be followed (lod.ts `zoomSlow`); the HUD says so (zoomSlowdown) unless the game is paused
-    const scale = timeScale(), pace = zoomSlow(lod.zs, CYCLES_PER_SEC, scale), note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
+    const scale = timeScale(), pace = zoomSlowOn.peek() ? zoomSlow(lod.zs, CYCLES_PER_SEC, scale) : scale, note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
     if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
     const gdt = dt * pace;
     gt += gdt * 1000;

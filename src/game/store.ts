@@ -11,6 +11,14 @@ export const speed = signal<Speed>(DEFAULT_SPEED);
 export const lastRunSpeed = signal<Speed>(DEFAULT_SPEED);
 /** The share of its pace the world animation runs at while the camera is zoomed in (1: full pace; render/lod.ts `zoomSlow`). The HUD explains it when it is below 1. */
 export const zoomSlowdown = signal(1);
+const ZOOM_SLOW_KEY = 'pipeline-city.zoomSlow';
+const readZoomSlow = (): boolean => { try { return localStorage.getItem(ZOOM_SLOW_KEY) !== 'off'; } catch { return true; } };
+/** Whether zooming in slows the world (default on; kept per viewer). The HUD button next to the speed toggles it. */
+export const zoomSlowOn = signal(readZoomSlow());
+export function toggleZoomSlow(): void {
+  zoomSlowOn.value = !zoomSlowOn.value;
+  try { localStorage.setItem(ZOOM_SLOW_KEY, zoomSlowOn.value ? 'on' : 'off'); } catch { /* storage blocked: the choice lasts for the session */ }
+}
 export const lastError = signal<string | null>(null);
 /** The report of the sim's last crash (it paused itself); the HUD shows it until it is dismissed (docs/ARCHITECTURE.md "Crash report"). */
 export const crash = signal<CrashReport | null>(null);
