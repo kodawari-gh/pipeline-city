@@ -1,7 +1,7 @@
 import { specsOfKind } from '../../sim/board/specs';
 import type { Pt } from '../die/cpuplan';
 import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from '../gpu/gpuplan';
-import { gpuCells, GPU_DIE, gpuPlan as dieOf } from '../gpu/gpuplans';
+import { gpuCells, GPU_DIE, gpuPlan as dieOf, maskParts } from '../gpu/gpuplans';
 import type { Rect } from './layout';
 
 // The floorplan of a graphics card (docs/GPU.md section 7), in card-local units: (0, 0) is the PCB's north-west corner. The die's insides come
@@ -79,19 +79,6 @@ export function gpuShape(visual: string): { lanes: number; banks: number; memByt
 
 /** Cooling fans a GPU shows along its top edge: one, two, three by tier. */
 export const gpuFanCount = (visual: string): number => Number(/(\d)$/.exec(visual)?.[1] ?? 1);
-
-const SLOTS = 8;
-
-/** The mask strip (one bit per lane) and the stack slots in the lower part of a mask block (die coordinates). */
-function maskParts(r: Rect, bits: number): { strip: Rect; bits: Rect[]; stack: Rect; slots: Rect[] } {
-  const head = Math.min(44, r.h * 0.4), body = r.h - head - 6, bh = Math.max(4, body * 0.4), sh = Math.max(4, Math.min(16, body * 0.4));
-  const strip: Rect = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: bh }, bw = strip.w / bits;
-  const sw = Math.min(16, (r.w - 16) / SLOTS - 3), y = r.y + head + bh + Math.max(2, body * 0.12);
-  return {
-    strip, bits: Array.from({ length: bits }, (_, k) => ({ x: strip.x + k * bw, y: strip.y, w: bw - 1, h: bh })),
-    stack: { x: r.x + 8, y, w: SLOTS * (sw + 3) - 3, h: sh }, slots: Array.from({ length: SLOTS }, (_, k) => ({ x: r.x + 8 + k * (sw + 3), y, w: sw, h: sh })),
-  };
-}
 
 const cache = new Map<string, GpuPlan>();
 

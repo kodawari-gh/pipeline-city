@@ -4,6 +4,7 @@ import type { Theme } from '../theme';
 import type { Pt } from '../die/cpuplan';
 import { LANE_GAP, offsetPts } from '../die/dieart';
 import type { GpuBlockKind, GpuLink, GpuLinkKind, GpuPlan } from './gpuplan';
+import { gpuGlyph, gpuGlyphArea } from './gpuglyph';
 import { gpuCells } from './gpuplans';
 
 // The static art of a GPU card's die, drawn from a `GpuPlan` in the CPU die's style (die/dieart.ts, docs/DIE.md): macro blocks tinted in their
@@ -83,8 +84,11 @@ export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
   cells.addChild(cg);
   for (const b of plan.blocks) {
     const c = T[GPU_KIND_COLOR[b.kind]];
-    for (const r of gpuCells(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
-    if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
+    if (gpuGlyphArea(b)) gpuGlyph(cg, T, b, c, (t, x, y, size) => subs.addChild(label(t, x, y, size, T.ink, { anchor: [0.5, 0.5], a: 0.85 })));
+    else {
+      for (const r of gpuCells(b)) cg.roundRect(r.x, r.y, r.w, r.h, 1.5);
+      if (b.grid) cg.fill({ color: mix(T.die, c, 0.38) });
+    }
     const r = b.rect;
     if (b.kind === 'sm') {
       names.addChild(label(b.label, r.x + 8, r.y + 12, 13, T.mute, { weight: '600', a: 0.9 }));

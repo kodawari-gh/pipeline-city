@@ -126,6 +126,20 @@ function make(s: Spec<K>, r: GpuBlock['rect'], parent: string | undefined): GpuB
   return b;
 }
 
+/** Stack slots of an execution mask. */
+export const MASK_SLOTS = 8;
+
+/** The mask strip (one bit per lane) and the stack slots in the lower part of a mask block (die coordinates). */
+export function maskParts(r: Rect, bits: number): { strip: Rect; bits: Rect[]; stack: Rect; slots: Rect[] } {
+  const head = Math.min(44, r.h * 0.4), body = r.h - head - 6, bh = Math.max(4, body * 0.4), sh = Math.max(4, Math.min(16, body * 0.4));
+  const strip: Rect = { x: r.x + 8, y: r.y + head, w: r.w - 16, h: bh }, bw = strip.w / bits;
+  const sw = Math.min(16, (r.w - 16) / MASK_SLOTS - 3), y = r.y + head + bh + Math.max(2, body * 0.12);
+  return {
+    strip, bits: Array.from({ length: bits }, (_, k) => ({ x: strip.x + k * bw, y: strip.y, w: bw - 1, h: bh })),
+    stack: { x: r.x + 8, y, w: MASK_SLOTS * (sw + 3) - 3, h: sh }, slots: Array.from({ length: MASK_SLOTS }, (_, k) => ({ x: r.x + 8 + k * (sw + 3), y, w: sw, h: sh })),
+  };
+}
+
 const cache = new Map<string, GpuPlan>();
 
 /** The floorplan of a card (cached by its input). */
