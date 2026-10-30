@@ -77,6 +77,8 @@ export class Machine {
     for (const c of this.cores) c.mmu.onSpace = (table) => c.engine?.note?.(10, table, 0, 0); // Ev.Space
     for (const e of this.perCore) this.addDevice(e.dev);
     this.bus.mpu = this.mpu;
+    // Protected mode (the TPM) guards the address space that asked for it: its page table while translation is on, else physical (-1).
+    this.bus.spaceOf = (k) => { const m = this.cores[k]!.mmu; return m.enabled ? m.table : -1; };
     // Registered after devices, so devices tick before the CPU within the same sub-tick.
     this.clock.addDomain("cpu", cfg.cpuRate ?? { mul: 1, div: 1 }, () => this.stepCpu());
   }

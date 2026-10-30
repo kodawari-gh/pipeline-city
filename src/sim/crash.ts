@@ -10,6 +10,8 @@ export interface CrashCore {
   core: number;
   /** The next instruction the engine fetches, or null when the engine has none. */
   pc: number | null;
+  /** The physical address the pc translates to now (translation on), or null. A pc in the kernel that does not map to itself is a stale or wrong table. */
+  pcPa: number | null;
   regs: number[];
   epc: number;
   cause: number;
@@ -43,6 +45,10 @@ export interface CrashReport {
   cycles: number;
   /** The address the error names, or core 0's pc, and what lives there. */
   fault: { pc: number | null; where: string };
+  /** The core the machine was stepping when it threw (the one that faulted). */
+  faultCore: number;
+  /** The TPM's protected mode: when on, the range it guards and the address space (page table, -1 = physical) it guards it for. */
+  tpm: { protected: boolean; range: { lo: number; hi: number } | null; space: number; guardedAccesses: number; lastViolation: number } | null;
   os: { id: string; name: string; tier: number } | null;
   /** The installed parts, as `slot: spec`. */
   parts: string[];
@@ -100,7 +106,7 @@ export function describePc(pc: number, regions: ReadonlyArray<{ name: string; lo
 const REG_ROWS = 4;
 
 function coreText(c: CrashCore): string[] {
-  const out = [`core ${c.core}: pc=${c.pc === null ? '?' : h(c.pc)} epc=${h(c.epc)} cause=${c.cause} vector=${h(c.vector)} mask=${h(c.mask)} pending=${h(c.pending)} timer=${c.timerInterval} mpu=${c.mpu ? 'on' : 'off'} mmu=${c.mmu ? `on table=${h(c.mmuTable)}` : 'off'}`];
+  const out = [`core ${c.core}: pc=${c.pc === null ? '?' : h(c.pc)}${c.pcPa !== null && c.pcPa !== c.pc ? ` (pa ${h(c.pcPa)})` : ''} epc=${h(c.epc)} cause=${c.cause} vector=${h(c.vector)} mask=${h(c.mask)} pending=${h(c.pending)} timer=${c.timerInterval} mpu=${c.mpu ? 'on' : 'off'} mmu=${c.mmu ? `on table=${h(c.mmuTable)}` : 'off'}`];
   for (let i = 0; i < c.regs.length; i += REG_ROWS) out.push('  ' + c.regs.slice(i, i + REG_ROWS).map((v, j) => `r${i + j}=${hex(v, 8)}`).join(' '));
   return out;
 }
@@ -110,7 +116,8 @@ export function crashText(r: Omit<CrashReport, 'text'>): string {
   const L: string[] = [];
   L.push(`CRASH ${r.at}`, r.headline, '');
   L.push(`error: ${r.error.name}: ${r.error.message}`);
-  L.push(`tick ${r.tick}, phase ${r.phase}, cycles ${r.cycles}`);
+  L.push(`tick ${r.tick}, phase ${r.phase}, cycles ${r.cycles}, faulting core ${r.faultCore}`);
+  if (r.tpm) L.push(`tpm: ${r.tpm.protected && r.tpm.range ? `protected ${h(r.tpm.range.lo)}-${h(r.tpm.range.hi)} for space ${r.tpm.space}` : 'not protected'}, ${r.tpm.guardedAccesses} guarded accesses, last violation ${r.tpm.lastViolation < 0 ? 'none' : h(r.tpm.lastViolation)}`);
   L.push(`os: ${r.os ? `${r.os.name} (${r.os.id}, tier ${r.os.tier})` : 'none'}`);
   L.push(`parts: ${r.parts.join(', ') || 'none'}`);
   L.push(`keys: plugged ${r.keys.plugged ?? 'none'}, spool [${r.keys.spool.join(', ')}], tray ${r.keys.tray}`);
@@ -129,13 +136,14 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
   const error = { name: e.name, message: e.message, ...(e.stack ? { stack: e.stack } : {}) };
   const base = { version: 1 as const, at: new Date().toISOString(), error };
   if (!g) {
-    const part = { ...base, headline: `The simulation failed to start: ${e.message}`, tick: 0, phase: 'none', cycles: 0, fault: { pc: null, where: 'no game' }, os: null, parts: [], cores: [], jobs: [], keys: { plugged: null, spool: [], tray: 0 }, regions: [], windows: [], events: [] };
+    const part = { ...base, headline: `The simulation failed to start: ${e.message}`, tick: 0, phase: 'none', cycles: 0, fault: { pc: null, where: 'no game' }, faultCore: 0, tpm: null, os: null, parts: [], cores: [], jobs: [], keys: { plugged: null, spool: [], tray: 0 }, regions: [], windows: [], events: [] };
     return { ...part, text: crashText(part) };
   }
   const ram = g.machine.ram;
   const cores = section<CrashCore[]>(() => g.machine.cores.map((c, k) => ({
     core: k,
     pc: c.engine ? c.engine.pc : null,
+    pcPa: c.engine && c.mmu.enabled ? (() => { const pa = c.mmu.peek(c.engine.pc); return pa < 0 ? null : pa; })() : null,
     regs: Array.from(c.regs, (v) => v >>> 0),
     epc: c.intc.epc, cause: c.intc.cause, vector: c.intc.vector, mask: c.intc.mask, pending: c.intc.pending,
     timerInterval: c.timer.interval, mpu: c.mpu.enabled, mmu: c.mmu.enabled, mmuTable: c.mmu.table,
@@ -160,6 +168,11 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
     phase: section(() => String(g.currentPhase()), 'unknown'),
     cycles: section(() => g.cycleNow(), 0),
     fault: { pc, where },
+    faultCore: g.machine.bus.core,
+    tpm: section(() => {
+      const v = g.tpm.view();
+      return v ? { protected: v.range !== null, range: v.range, space: g.machine.bus.guardSpace, guardedAccesses: v.guardedAccesses, lastViolation: v.lastViolation } : null;
+    }, null),
     os,
     parts: section(() => g.board.devices.map((d) => `${d.slot}: ${d.spec}`), []),
     cores,

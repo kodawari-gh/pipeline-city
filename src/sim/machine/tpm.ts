@@ -101,6 +101,8 @@ export class TpmPort implements Device {
   private readonly sealed = new Map<number, number>();
   private range: { lo: number; hi: number } | null = null;
   private violated = false;
+  /** The address space that wrote the command now running: protected mode guards that one only (`Bus.guardSpace`). */
+  private cmdSpace = -1;
   /** The RAM address of the last refused access (for the tests and the log). */
   lastViolation = -1;
   /** Totals since power-on, for the stats and the tests. */
@@ -227,6 +229,7 @@ export class TpmPort implements Device {
     this.error = this.done = false;
     this.fault = TpmFault.None;
     this.cmd = cmd;
+    this.cmdSpace = this.bus?.space() ?? -1;
     this.commands++;
     if (this.instant) {
       this.execute();
@@ -269,7 +272,7 @@ export class TpmPort implements Device {
       }
       case TpmCmd.Protect:
         this.range = { lo: this.arg0, hi: this.arg0 + 4 * this.arg1 };
-        if (!this.instant && this.bus) this.bus.guard = this.guard;
+        if (!this.instant && this.bus) { this.bus.guardSpace = this.cmdSpace; this.bus.guard = this.guard; }
         return 1;
       default: // Unprotect
         this.leaveProtected();

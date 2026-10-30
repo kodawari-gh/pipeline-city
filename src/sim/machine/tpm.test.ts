@@ -147,6 +147,43 @@ describe("TPM protected mode", () => {
     expect(better.m.bus.stallCycles).toBe(1);
   });
 
+  it("guards only the address space that asked for it: the kernel and other programs on other cores read RAM freely", () => {
+    // A multicore machine: core 0 runs the secure job in its own address space; the others run the kernel (translation off) and another job.
+    const m = new Machine({ ramSize: 16 * 1024, seed: 1, cores: 3 });
+    const tpm = new TpmPort(m.bus, m.ram, m.prng);
+    m.addDevice(tpm);
+    m.clock.setRate("tpm", { mul: 1, div: 1 });
+    tpm.configure(TPM1);
+    const as = (k: number, table: number | null) => { // serve core k, in the address space `table` (null: translation off)
+      const c = m.cores[k]!;
+      c.mmu.enabled = table !== null;
+      c.mmu.table = table ?? 0;
+      m.bus.serve(k, c.mpu);
+    };
+    as(0, 0x1000);
+    m.bus.store32(R(TPM_REG.ARG0), 0x1000);
+    m.bus.store32(R(TPM_REG.ARG1), 64);
+    m.bus.store32(R(TPM_REG.CMD), TpmCmd.Protect);
+    while (m.bus.load32(R(TPM_REG.STATUS)) & TpmStatus.Busy) m.advanceBaseTick();
+    m.bus.guardOn = true;
+    m.ram[0x2000] = 0xaa;
+    m.bus.stallCycles = 0;
+    // another core with translation off (the kernel), and another program's space: no refusal, no surcharge, no violation
+    for (const space of [null, 0x2000]) {
+      as(1, space);
+      expect(m.bus.load8(0x2000)).toBe(0xaa);
+      m.bus.load32(0x1000);
+      m.bus.store32(0x2004, 7);
+      expect(m.ram[0x2004]).toBe(7);
+    }
+    expect(m.bus.stallCycles).toBe(0);
+    expect(tpm.takeViolation()).toBe(false);
+    // the protected program itself, on any core (the OS may move it), is still guarded
+    as(2, 0x1000);
+    expect(m.bus.load8(0x2000)).toBe(0);
+    expect(tpm.takeViolation()).toBe(true);
+  });
+
   it("refuses RAM access outside the range: reads give 0, writes are dropped, and the job is marked for death", () => {
     const r = protectedRig();
     r.m.bus.guardOn = true;

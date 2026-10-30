@@ -43,6 +43,8 @@ describe('a crash report from a running game', () => {
     expect(r.cores[0]!.regs).toHaveLength(REG_COUNT);
     expect(r.windows.map((w) => w.base)).toContain(0xe000);
     expect(r.text).toContain('core 0:');
+    expect(r.faultCore).toBe(g.machine.bus.core);
+    expect(r.text).toContain('faulting core');
     expect(r.text).toContain(r.os!.name);
     expect(JSON.parse(JSON.stringify(r))).toEqual(r); // plain data: it crosses the worker boundary and downloads as JSON
     expect(() => parseSave(JSON.parse(JSON.stringify(r.save)))).not.toThrow();

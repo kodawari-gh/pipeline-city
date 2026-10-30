@@ -12,6 +12,10 @@ export class Bus {
   guard: ((addr: number, write: boolean) => number) | null = null;
   /** True only while the CPU is executing (the machine sets it around the engine's step): the game's own peeks at RAM and the devices' DMA-free reads are never guarded. */
   guardOn = false;
+  /** The address space of the core making the access in progress: its page table while translation is on, else -1 (physical: the kernel, or a machine without an MMU). Set by the machine. */
+  spaceOf: ((core: number) => number) | null = null;
+  /** The address space the guard belongs to: the one that asked for protected mode. The other cores' accesses (the kernel, other programs) are not its business. */
+  guardSpace = -1;
   /** Extra cycles the guard has charged since the machine last collected them. */
   stallCycles = 0;
   /** One flag per 256-byte page of RAM, set by every store the CPU (or the kernel) does; the game reads and clears it to see which pages a program claims. */
@@ -52,8 +56,14 @@ export class Bus {
     throw new RangeError(`${kind} unmapped address 0x${addr.toString(16)}`);
   }
 
-  /** Run the guard for a RAM access: true if it may go ahead. */
+  /** The address space of the core being served (see `spaceOf`). */
+  space(): number {
+    return this.spaceOf ? this.spaceOf(this.core) : -1;
+  }
+
+  /** Run the guard for a RAM access: true if it may go ahead. An access from another address space is not guarded: on a multicore machine the kernel and the other jobs run on during one job's protected mode. */
   private allowed(addr: number, write: boolean): boolean {
+    if (this.space() !== this.guardSpace) return true;
     const c = this.guard!(addr, write);
     if (c < 0) return false;
     this.stallCycles += c;
