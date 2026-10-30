@@ -46,9 +46,9 @@ function simdSm(i: GpuPlanInput): Built {
   // the front end is a column (the program counter, the fetch, the decoder) like the CPU's IF and ID stages: wide blocks, not tall empty ones
   const tree = row<K>([
     col<K>([
-      L('pc', 'pc', 'PC', { sub: 'program counter', f: 26 }),
+      L('pc', 'pc', 'PC', { sub: 'program counter', f: 30 }),
       L('fetch', 'fetch', 'FETCH', { sub: 'reads the kernel', f: 34 }),
-      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 40 }),
+      L('decode', 'decode', 'DECODE', { sub: 'op, vregs, imm', f: 36 }),
     ], { f: 16 }),
     L('regs', 'regfile', 'VECTOR REGISTERS', { sub: `8 x ${lanes} lanes`, shape: [lanes, 8], f: 13 }),
     col<K>([L('lanes', 'lanes', 'LANE ALUs', { sub: plural(lanes, 'lane'), cells: lanes, f: 60 }), L('mask', 'mask', 'EXEC MASK', { sub: 'stack 8 deep', shape: [lanes, 1], f: 24 })], { f: 17 }),

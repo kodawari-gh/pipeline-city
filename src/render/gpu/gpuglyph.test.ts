@@ -3,7 +3,7 @@ import { Graphics } from 'pixi.js';
 import { specsOfKind } from '../../sim/board/specs';
 import type { Theme } from '../theme';
 import { gpuEncode, gpuInstr } from '../../sim/isa/gpu';
-import { gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, hasGpuSymbol } from './gpuglyph';
+import { decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, hasGpuSymbol, pcArea } from './gpuglyph';
 import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './gpuplan';
 import { gpuPlan } from './gpuplans';
 
@@ -68,5 +68,30 @@ describe('gpu block symbols', () => {
     const fetch: GpuBlock = { id: 'fetch', kind: 'fetch', label: 'FETCH', rect: { x: 0, y: 0, w: 300, h: 80 } };
     expect(gpuGlyphLive(fetch, gpuGlyphArea(fetch)!, step).texts[0]!.top).toBe('vaddi v2, v1, 7');
     expect(gpuGlyphLive(dec, gpuGlyphArea(dec)!, null)).toEqual({ texts: [], lit: [] });
+  });
+
+  it('the decoder, the fetch and the program counter keep their live slots inside their area, on every tier', () => {
+    for (const { id, plan } of plans) {
+      for (const b of plan.blocks.filter((x) => x.kind === 'decode' || x.kind === 'fetch' || x.kind === 'pc')) {
+        const a = gpuGlyphArea(b)!, inside = (r: { x: number; y: number; w: number; h: number }) => r.x >= a.x - 0.5 && r.y >= a.y - 0.5 && r.x + r.w <= a.x + a.w + 0.5 && r.y + r.h <= a.y + a.h + 0.5;
+        if (b.kind === 'pc') expect(pcArea(a).h, id).toBeLessThanOrEqual(22);
+        if (b.kind === 'fetch') { const f = fetchGeom(a); expect(f.rows.length, `${id} ${b.id}`).toBeGreaterThan(0); f.rows.forEach((r) => expect(inside(r), `${id} ${b.id} row`).toBe(true)); }
+        if (b.kind === 'decode') {
+          const d = decodeGeom(a);
+          expect(d.lines.length, id).toBe(6);
+          for (const r of [d.word, ...d.fields, ...d.lines, ...(d.rich ? [...d.sel, d.ctl, d.sext] : [])]) expect(inside(r), `${id} ${b.id}`).toBe(true);
+          if (d.rich) expect(d.lines[0]!.y, id).toBeGreaterThan(d.sel[0]!.y + d.sel[0]!.h);
+        }
+      }
+    }
+  });
+
+  it('the decoder of a roomy block fans its fields out: units under the fields, the control lines under a bus', () => {
+    const d = decodeGeom({ x: 0, y: 0, w: 220, h: 80 });
+    expect(d.rich).toBe(true);
+    expect(d.sel).toHaveLength(3);
+    expect(d.busY).toBeGreaterThan(d.sel[0]!.y + d.sel[0]!.h);
+    expect(d.busY).toBeLessThan(d.lines[0]!.y);
+    expect(decodeGeom({ x: 0, y: 0, w: 220, h: 30 }).rich).toBe(false);
   });
 });
