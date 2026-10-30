@@ -109,9 +109,9 @@ interface Spec {
 
 const SPECS: Spec[] = [
   { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5800, 3900), x0: 1480, phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(540, 1000, 460, 460), pciewY: null },
-  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4700), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(430, 1500, 540, 540), pciewY: 1000 },
+  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4800), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(430, 1500, 540, 540), pciewY: 1000 },
   // the first M.2 sits east of the CPU (a straight run from its east edge), the second below it
-  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 5400), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 1775, 600, 600), pciewY: 1000 },
+  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 6060), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600), pciewY: 1000 },
   // the second DIMM row takes the space east of the CPU, so the M.2 stack starts below it
   { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
 ];
@@ -120,8 +120,8 @@ const SPECS: Spec[] = [
  * (they are tuned to it), so every tier's rails take these by slot order, and the lane widths (`BOARD_TIERS[].pcieWidths`, which only ever
  * fall going down) are told by the label. */
 const PCIE_RAIL_LEN = [3300, 2600, 1800, 1000];
-/** The PCIe slot rails of a tier, an even 360 apart. */
-const PCIE_Y0 = 1030, PCIE_PITCH = 360;
+/** The PCIe slot rails of a tier, an even 700 apart (the cards are 640 high, docs/GPU.md section 7). */
+const PCIE_Y0 = 1100, PCIE_PITCH = 700;
 const pcieRails = (tier: number): Rect[] => BOARD_TIERS[tier]!.pcieWidths.map((_, i) => R(-2850, PCIE_Y0 + i * PCIE_PITCH, PCIE_RAIL_LEN[i]!, 60));
 
 function build(s: Spec): TierGeo {

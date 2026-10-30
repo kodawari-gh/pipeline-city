@@ -85,12 +85,12 @@ export function caseBack(T: Theme): Container {
 
 /**
  * The front intake fans, seen edge-on (the side panel looks along the board, so a front fan is a thin vertical module: its frame, the
- * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. One module per ~1600
+ * ring of blade tips and a light strip), in front of the drive cage, and the perforated front panel beyond them. One module per ~1800
  * units of height.
  */
 export function frontFanRects(): Rect[] {
   const BD = CASE_BD, gl = CASE_GLASS, east = gl.x + gl.w, y0 = BD.y, y1 = BD.y + BD.h;
-  const n = Math.max(1, Math.round((y1 - y0 + 100) / 1700)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
+  const n = Math.max(1, Math.round((y1 - y0 + 100) / 1800)), gap = 100, h = (y1 - y0 - (n - 1) * gap) / n;
   const w = FAN_W, x = east - 170 - 20 - w;
   return Array.from({ length: n }, (_, k) => ({ x, y: y0 + k * (h + gap), w, h }));
 }
