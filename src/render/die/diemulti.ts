@@ -13,7 +13,7 @@ import { splitPlan, type CoreTile } from './coreplan';
 import { CoreRateTracker, type CoreRate } from './corestats';
 import { washModels } from './coretiles';
 import { PlanView, type MemoryTouch } from './dieview';
-import { smooth } from '../lod';
+import { deviceLod, seenZoom, smooth, type LodRect } from '../lod';
 
 /** The tile's insides take over from the wash between these zooms of the tile (the die's zoom times the tile's scale). */
 const WASH_FROM = 0.3, WASH_TO = 0.6;
@@ -25,9 +25,13 @@ export class DieView {
   private shared = new PlanView();
   private cores: { view: PlanView; tile: CoreTile }[] = [];
   private tilesAt = new Container();
-  private wash = new Graphics();
+  /** The wash of each tile (its own container, so a tile far from the centre of the view fades by its own distance). */
+  private washLayer = new Container();
+  private washes: { box: Container; g: Graphics; texts: Container }[] = [];
+  /** How much of its wash each tile still wears (1: all). */
+  private washA: number[] = [];
+  private view: LodRect | null = null;
   private ring = new Graphics();
-  private washTexts = new Container();
   /** The core badges and borders: they stay when the wash has faded, so a core you zoomed into still says which it is. */
   private badges = new Graphics();
   private badgeTexts = new Container();
@@ -41,7 +45,7 @@ export class DieView {
   private plan: CpuPlan | null = null;
 
   constructor() {
-    this.root.addChild(this.shared.root, this.tilesAt, this.wash, this.washTexts, this.badges, this.badgeTexts, this.ring);
+    this.root.addChild(this.shared.root, this.tilesAt, this.washLayer, this.badges, this.badgeTexts, this.ring);
   }
 
   /** Told every time a core reaches out to RAM, for the memory sticks (set by board.ts). */
@@ -75,7 +79,7 @@ export class DieView {
     this.plan = plan;
     this.dropCores();
     const sp = splitPlan(plan);
-    if (!sp) { this.shared.setPlan(T, plan); this.shared.scrubLead = true; this.setZoom(this.z, this.zSeen); return; }
+    if (!sp) { this.shared.setPlan(T, plan); this.shared.scrubLead = true; this.setZoom(this.z, this.zSeen, this.view); return; }
     this.shared.scrubLead = false;
     this.shared.setPlan(T, sp.shared);
     for (const tile of sp.tiles) {
@@ -88,7 +92,7 @@ export class DieView {
       this.cores.push({ view, tile });
       view.onMemory = this.tileMem(this.cores.length - 1);
     }
-    this.setZoom(this.z, this.zSeen);
+    this.setZoom(this.z, this.zSeen, this.view);
   }
 
   clear() {
@@ -100,22 +104,51 @@ export class DieView {
   private dropCores() {
     for (const c of this.cores) { c.view.clear(); c.view.root.destroy({ children: true }); }
     this.cores = [];
-    this.wash.clear(); this.ring.clear(); this.badges.clear();
-    for (const t of this.washTexts.removeChildren()) t.destroy();
+    for (const w of this.washes) w.box.destroy({ children: true });
+    this.washes = []; this.washA = [];
+    this.ring.clear(); this.badges.clear();
     for (const t of this.badgeTexts.removeChildren()) t.destroy();
     this.rateOf = new CoreRateTracker(); this.rate = [];
     this.sig = '';
   }
 
-  setZoom(z: number, seen = z) {
-    this.z = z; this.zSeen = seen;
+  /**
+   * `seen` is the zoom of the die as a whole (the shared part reads it). With the `view`, each core tile reads the zoom by its own distance from
+   * the view centre, and its wash and its insides trade places on it: the insides show only as the wash goes (and are not drawn while it covers
+   * them), so the two never overlap.
+   */
+  setZoom(z: number, seen = z, view: LodRect | null = this.view) {
+    this.z = z; this.zSeen = seen; this.view = view;
     this.shared.setZoom(z, seen);
-    for (const c of this.cores) c.view.setZoom(z * c.tile.scale, seen * c.tile.scale);
-    // the wash fades out as the tile's own zoom reaches the point where its insides read
-    const e = this.cores[0] ? seen * this.cores[0].tile.scale : 1;
-    const a = 1 - smooth(WASH_FROM, WASH_TO, e);
-    this.wash.alpha = a; this.washTexts.alpha = a;
-    this.wash.visible = this.washTexts.visible = a > 0.01;
+    this.cores.forEach((c, k) => {
+      const s = view ? seenZoom(z, deviceLod(c.tile.rect, view).focus) : seen;
+      c.view.setZoom(z * c.tile.scale, s * c.tile.scale);
+      const a = 1 - smooth(WASH_FROM, WASH_TO, s * c.tile.scale);
+      this.washA[k] = a;
+      c.view.root.alpha = 1 - a;
+      c.view.root.visible = a < 0.99;
+      this.wearWash(k);
+    });
+  }
+
+  /** The wash of tile `k`, made when first drawn. */
+  private washAt(k: number) {
+    let w = this.washes[k];
+    if (!w) {
+      const box = new Container(), g = new Graphics(), texts = new Container();
+      box.addChild(g, texts);
+      this.washLayer.addChild(box);
+      w = this.washes[k] = { box, g, texts };
+    }
+    return w;
+  }
+
+  /** Apply how much wash tile `k` wears: the tint fades with it, the big labels and cells faster, so they are gone before the insides read. */
+  private wearWash(k: number): void {
+    const w = this.washes[k], a = this.washA[k] ?? 1;
+    if (!w) return;
+    w.g.alpha = a; w.texts.alpha = a * a;
+    w.box.visible = a > 0.01;
   }
 
   /** A new snapshot: each core tile's replay gets its hardware core's cycles (a single-core die gets `pipe`). */
@@ -132,7 +165,7 @@ export class DieView {
 
   frame(now: number, paused = false, draw = true) {
     if (this.cores.length === 0) { this.shared.frame(now, paused, draw); return; }
-    for (const c of this.cores) c.view.frame(now, paused, draw);
+    for (const c of this.cores) c.view.frame(now, paused, draw && c.view.root.visible);
   }
 
   /** The tint, the logical cores and the pipeline cells over each tile (redrawn when one of them changes). */
@@ -144,14 +177,14 @@ export class DieView {
       + '~' + q8(w.models[0]!.ipc) + ':' + q8(w.models[0]!.stall) + (T.dark ? 'd' : 'l')).join('|');
     if (sig === this.sig) return;
     this.sig = sig;
-    const g = this.wash, r = this.ring, b = this.badges;
-    g.clear(); r.clear(); b.clear();
-    for (const t of this.washTexts.removeChildren()) t.destroy();
+    const r = this.ring, b = this.badges;
+    r.clear(); b.clear();
+    for (const x of this.washes) { x.g.clear(); for (const t of x.texts.removeChildren()) t.destroy(); }
     for (const t of this.badgeTexts.removeChildren()) t.destroy();
     for (const w of ws) {
       const tile = this.cores[w.hw]?.tile;
       if (!tile) continue;
-      const q = tile.rect, n = w.models.length, lead = w.models[0]!;
+      const q = tile.rect, n = w.models.length, lead = w.models[0]!, wash = this.washAt(w.hw), g = wash.g;
       const asleep = (m: typeof lead) => m.parked && !m.tint;
       w.models.forEach((m, i) => {
         // the logical cores of a hardware core share its tile: side by side, each in its own thread's tint
@@ -161,7 +194,7 @@ export class DieView {
         const t = new Text({ text: m.label + '\n' + (asleep(m) ? 'zz ' : '') + m.sub, style: { fontFamily: MONO, fontSize: fs, fontWeight: '700', fill: m.tint ? T.ink : T.mute, align: 'center' }, resolution: 2 });
         t.anchor.set(0.5, 0.5); t.position.set(x + ww / 2, q.y + q.h * 0.3);
         if (asleep(m)) t.alpha = 0.6;
-        this.washTexts.addChild(t);
+        wash.texts.addChild(t);
       });
       const cells = lead.cells, cn = Math.max(1, cells.length), cw = (q.w * 0.84) / cn, ch = Math.min(q.h * 0.14, cw * 0.9), cy = q.y + q.h * 0.66;
       cells.forEach((cls, i) => {
@@ -189,5 +222,6 @@ export class DieView {
       });
       if (w.selected) box(r, q.x, q.y, q.w, q.h, 6, { stroke: T.ink, lw: Math.max(3, q.w * 0.008), sa: 0.9 });
     }
+    this.washes.forEach((_, k) => this.wearWash(k));
   }
 }

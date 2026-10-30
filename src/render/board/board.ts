@@ -36,7 +36,7 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../room/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './routes';
 import { Live, type DriveHook, type GlowTarget } from '../live';
-import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow } from '../lod';
+import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow, type LodRect } from '../lod';
 import { CYCLES_PER_SEC } from '../die/diemotion';
 import { DieView } from '../die/diemulti';
 import { planOf } from '../die/dieart';
@@ -428,7 +428,7 @@ export async function mountBoard(host: HTMLElement) {
     if (want !== monitorCached) { monitorCached = want; monitorLayer.cacheAsTexture(want ? { resolution: 0.4, antialias: true } : false); }
   };
   /** The die is not drawn while the view is elsewhere on the board (its replay and the sticks it feeds keep running). */
-  let dieInView = true, coolerInView = true, dieSeen = 1, coolerSeen = 1;
+  let dieInView = true, coolerInView = true, dieSeen = 1, coolerSeen = 1, dieView: LodRect | null = null;
   // the room bakes its static art far out, and is not drawn at all while the view lies inside the case
   const syncRoom = () => {
     const z = camera.z, left = camera.x - camera.cx / z, top = camera.y - camera.cy / z;
@@ -437,6 +437,7 @@ export async function mountBoard(host: HTMLElement) {
     const dp = deviceLod(DIE, view), cp = deviceLod(COOLER, view);
     dieInView = dp.onScreen; coolerInView = cp.onScreen;
     dieSeen = seenZoom(lod.zs, dp.focus); coolerSeen = seenZoom(lod.zs, cp.focus);
+    dieView = view;
     roomView?.setView(view, z, app.renderer.resolution, interior.visible && extA < 0.004 ? CASE : null);
     roomView?.setFocus(focusAt(view, CASE));
   };
@@ -460,7 +461,7 @@ export async function mountBoard(host: HTMLElement) {
     coolerLayer.visible = coolerLayer.alpha > 0.01 && coolerInView;
     die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], dieSeen);
     die.root.visible = die.root.alpha > 0.01 && dieInView;
-    die.setZoom(z, dieSeen);
+    die.setZoom(z, dieSeen, dieView);
     for (const pb of propBakes) {
       const want = bakeProps.warm;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
