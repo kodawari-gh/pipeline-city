@@ -147,6 +147,8 @@ export interface Bus {
   groups?: Lane[][];
   /** Differential pairs: each lane is drawn as two tight strands (the fast serial buses). */
   pair?: boolean;
+  /** The header trunk, by header: the trunk lane and that header's own tap (not length-matched, so not `groups`). */
+  heads?: { name: string; lanes: Lane[] }[];
 }
 
 /** How far a lane runs straight into its pad after the last bend of a fan-out. */
@@ -390,7 +392,8 @@ export function buildBuses(): Bus[] {
     const yb = Math.max(g.hdrY + 128 + 36, leg[1] + 30), pins = row.map((h) => headerPin(h.x, h.y, 0, h.rows - 1));
     const lanes: Lane[] = [mkLane(chamfer([leg, [leg[0], yb], [Math.min(...pins.map((q) => q[0])), yb]], 24), 31)];
     pins.forEach((q, i) => lanes.push(mkLane([[q[0], yb], q], i * 13 + 5)));
-    buses.push({ id: 'hdr', w: 8, lanes });
+    // a message to one header runs the trunk and that header's tap only (`heads`), not every header's tap
+    buses.push({ id: 'hdr', w: 8, lanes, heads: row.map((h, i) => ({ name: h.name, lanes: [lanes[0]!, lanes[1 + i]!] })) });
   }
 
   // the I/O hub's links: the Ethernet PHY's four middle east legs and the audio codec's go down to the hub's north legs, the PHY's to the

@@ -471,7 +471,7 @@ export class Live {
   }
 
   /**
-   * What POST pings, one after the other: the BIOS, the CPU's voltage, the cooler, every stick of RAM, every drive and every card on a slot
+   * What POST pings, one after the other: the BIOS, the CPU's voltage, the cooler, every stick of RAM, every drive, every card on a slot and the secure module
    * (each a message out and its reply back, so a part that is not there is never pinged and a failed POST shows what it found).
    */
   private postProbes(s: Snapshot): Chain[] {
@@ -480,6 +480,7 @@ export class Live {
     for (const idx of this.memLit.keys()) out.push({ hops: [], mem: idx, force, pong: true });
     for (const st of s.storage ?? []) out.push({ ...this.driveMsg(st.slot, true), force, pong: true });
     for (const d of s.devices) if (/^pcie\d+$/.test(d.slot)) out.push({ hops: slotChain(d.slot, true), force, pong: true });
+    if (this.installed.has('tpm')) out.push({ hops: tpmChain(true), force, pong: true }); // the secure module on its header
     return out;
   }
 

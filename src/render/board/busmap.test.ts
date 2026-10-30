@@ -3,6 +3,7 @@ import {
   DISPLAY_BASE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, MMU_BASE, MPU_BASE, NPU_BASE, TIMER_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, PCH_KEY_WINDOW, PCH_RESULT_WINDOW, STORAGE_BASE, STORAGE_BUF, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE,
 } from '../../sim/isa/memmap';
 import { TIER_GEO } from './boardlayout';
+import { headerPin } from './pins';
 import { GEO, PKG, setLayoutTier, type Rect } from './layout';
 import { buildBuses, type Bus, type BusKind, type Lane } from './routes';
 import {
@@ -122,13 +123,36 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     expect(near(first(lane('svid')), g.pwm)).toBe(true);
     expect(near(last(lane('svid')), PKG, 120)).toBe(true);
     expect(near(first(lane('pwmc')), g.pwm)).toBe(true); // the first pwmc is the CPU's regulator
-    expect(resolve(map, tpmChain(true)).map((l) => l.bus)).toEqual(['dmi', 'lpc', 'hdr']);
+    expect(resolve(map, tpmChain(true)).map((l) => l.bus)).toEqual(g.hdrs.some((h) => h.name === 'TPM') ? ['dmi', 'lpc', 'hdr'] : ['dmi', 'lpc']);
     expect(resolve(map, chipsetChain(false)).map((l) => l.bus)).toEqual(['dmi']);
     expect(BUS_ROLE.pwrpcie).toBe('power');
     expect(resolve(map, COOLER_CHAIN).map((l) => l.bus)).toEqual(['fanc']);
     expect(near(first(lane('fanc')), g.hub)).toBe(true); // the first fan lead is the CPU_FAN header's, from the I/O hub
     expect(resolve(map, POST_CODE_CHAIN).map((l) => l.bus)).toEqual(g.dbg ? ['dmi', 'dbg'] : ['dmi']);
     if (g.dbg) expect(near(first(lane('dbg')), g.chip, 140)).toBe(true);
+  });
+
+  it('lights the header trunk and one header\'s own tap, not every header', () => {
+    const { g, map } = setup();
+    const hdr = map.get('hdr')!;
+    expect(hdr.heads!.map((h) => h.name)).toEqual(g.hdrs.filter((h) => !['CLR_CMOS', 'CPU_FAN', 'VRM_FAN', 'RAM_FAN'].includes(h.name)).map((h) => h.name));
+    for (const h of hdr.heads!) {
+      expect(h.lanes.length, h.name).toBe(2);
+      expect(h.lanes[0], `${h.name} runs the trunk`).toBe(hdr.lanes[0]);
+      const hd = g.hdrs.find((q) => q.name === h.name)!, pin = headerPin(hd.x, hd.y, 0, hd.rows - 1), e = last(h.lanes[1]!);
+      expect(Math.hypot(e[0] - pin[0], e[1] - pin[1]), `${h.name}'s tap ends on its pin`).toBeLessThan(1);
+    }
+    // the power switch is read on the front-panel header, the module on its own: neither lights the other headers' taps
+    const power = resolve(map, POWER_ON_CHAIN)[0]!, tpm = resolve(map, tpmChain(false))[0];
+    expect(power.bus).toBe('hdr');
+    expect(power.lanes).toEqual(hdr.heads!.find((h) => h.name === 'F_PANEL')!.lanes);
+    expect(power.lanes.length).toBeLessThan(hdr.lanes.length > 2 ? hdr.lanes.length : 3);
+    if (g.hdrs.some((h) => h.name === 'TPM')) {
+      expect(tpm!.bus).toBe('hdr');
+      expect(tpm!.lanes).toEqual(hdr.heads!.find((h) => h.name === 'TPM')!.lanes);
+      expect(tpm!.lanes).not.toContain(hdr.heads!.find((h) => h.name === 'F_PANEL')!.lanes[1]);
+    } else expect(tpm?.bus).not.toBe('hdr'); // no header, nothing to light
+    expect(lanesOf(hdr, { header: 'NOPE' })).toEqual([]);
   });
 
   it('routes the board ethernet through the PHY and the hub, where the board has a jack', () => {

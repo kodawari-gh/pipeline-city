@@ -25,8 +25,8 @@ export const BUS_ROLE: Record<BusKind, BusRole> = {
 /** Buses that carry messages. */
 export const isMessageBus = (id: BusKind): boolean => BUS_ROLE[id] === 'data' || BUS_ROLE[id] === 'control';
 
-/** Which lanes of a bus a hop runs on: all of them, one group (one M.2, one SATA port, one slot), the USB uplink, or one USB port's pair. */
-export type Pick = 'all' | { group: number } | 'uplink' | { usbPort: number };
+/** Which lanes of a bus a hop runs on: all of them, one group (one M.2, one SATA port, one slot), the USB uplink, one USB port's pair, or one pin header (its tap and the trunk). */
+export type Pick = 'all' | { group: number } | 'uplink' | { usbPort: number } | { header: string };
 
 /** One leg of a message: `dir` 1 runs along the bus's lanes as routed (first end to second), -1 the other way. */
 export interface Hop { bus: BusKind; dir: 1 | -1; pick?: Pick }
@@ -36,6 +36,7 @@ export function lanesOf(bus: Bus, pick: Pick = 'all'): Lane[] {
   if (pick === 'all') return bus.lanes;
   if (pick === 'uplink') return bus.groups?.[0] ?? [];
   if ('group' in pick) return bus.groups?.[pick.group] ?? [];
+  if ('header' in pick) return bus.heads?.find((h) => h.name === pick.header)?.lanes ?? []; // (a board without that header has no lanes to light)
   return bus.groups?.[1 + pick.usbPort] ?? []; // (group 0 of the USB bus is the uplink, then one pair per port)
 }
 
@@ -86,8 +87,8 @@ export const boardNetChain = (down: boolean): Hop[] => down
 
 /** POST reads the BIOS: flash -> chipset (SPI), chipset -> CPU (DMI). */
 export const BIOS_CHAIN: Hop[] = [{ bus: 'spi', dir: 1 }, { bus: 'dmi', dir: -1 }];
-/** The power switch is read: pin header -> I/O controller (the trunk), -> chipset (LPC), -> CPU (DMI). */
-export const POWER_ON_CHAIN: Hop[] = [{ bus: 'hdr', dir: -1 }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
+/** The power switch is read: the front-panel header -> I/O controller (the trunk), -> chipset (LPC), -> CPU (DMI). */
+export const POWER_ON_CHAIN: Hop[] = [{ bus: 'hdr', dir: -1, pick: { header: 'F_PANEL' } }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
 /** The CPU asks the regulator for a voltage (SVID), the controller drives its phases (PWM). The CPU's controller is the first `pwmc`. */
 export const VOLTAGE_CHAIN: Hop[] = [{ bus: 'svid', dir: -1 }, { bus: 'pwmc', dir: 1 }];
 /** POST asks the cooler: the I/O hub's lanes to the CPU_FAN header (the first `fanc`; the heatsink fans' leads stay quiet). */
@@ -134,8 +135,8 @@ export function npuAccess(addr: number): { slot: string; off: number } | null {
 export const chipsetChain = (write: boolean): Hop[] => [{ bus: 'dmi', dir: write ? 1 : -1 }];
 /** The TPM stands on a pin header off the I/O controller's trunk, which is on the chipset's LPC lanes: DMI, LPC, the header trunk. */
 export const tpmChain = (write: boolean): Hop[] => write
-  ? [{ bus: 'dmi', dir: 1 }, { bus: 'lpc', dir: -1 }, { bus: 'hdr', dir: 1 }]
-  : [{ bus: 'hdr', dir: -1 }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
+  ? [{ bus: 'dmi', dir: 1 }, { bus: 'lpc', dir: -1 }, { bus: 'hdr', dir: 1, pick: { header: 'TPM' } }]
+  : [{ bus: 'hdr', dir: -1, pick: { header: 'TPM' } }, { bus: 'lpc', dir: 1 }, { bus: 'dmi', dir: -1 }];
 
 /** The slot number of a drive or card slot id, or -1. */
 export const slotIndex = (slot: string): number => { const m = /(\d+)$/.exec(slot); return m ? Number(m[1]) : -1; };
