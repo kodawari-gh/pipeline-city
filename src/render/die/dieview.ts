@@ -9,6 +9,7 @@ import { cellRects, isTall, dieNear, type DieArt } from './dieart';
 import { CellTexts, drawPackets, drawPulse, drawTrails, packetOn, type Dot, type Packet, type Trail } from './diepulse';
 import { CYCLES_PER_SEC, opClass, packetsFor, Player, regsRead, type CacheView, type ChipState, type OpClass, type PacketPlan, type StoreEvent, type StoreReplay } from './diemotion';
 import { box, MONO, mix } from '../ink';
+import { UncoreFx, type UncoreInput, type UncoreUnit } from './uncore';
 import { controlsOf, glyphArea, glyphLive, hasSymbol } from './blockart';
 import { readsOf } from './tokentext';
 import { idColor, pcText, writesOf } from './tokentext';
@@ -59,6 +60,9 @@ export class PlanView {
   private motion: CpuPlan | null = null;
   private art: DieArt | null = null;
   private glowG = new Graphics();
+  /** The outer blocks alive (uncore.ts). */
+  private uncoreG = new Graphics();
+  private uncore = new UncoreFx();
   private dataG = new Graphics();
   private dataTexts = new Container();
   private cellLive = new Graphics();
@@ -99,7 +103,7 @@ export class PlanView {
   T!: Theme;
 
   constructor() {
-    this.root.addChild(this.glowG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.legend);
+    this.root.addChild(this.glowG, this.uncoreG, this.dataG, this.dataTexts, this.cellLive, this.glyphG, this.texts, this.trailG, this.packetG, this.tailG, this.legend);
   }
 
   /**
@@ -121,6 +125,7 @@ export class PlanView {
     this.packets = [];
     this.trails.clear();
     this.glow.clear();
+    this.uncore.clear(); this.uncoreG.clear();
     this.regWrite = []; this.regRead = []; this.slotTime.clear(); this.sysAt.clear(); this.tlbKind.clear();
     this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
     this.buildLegend(T, plan);
@@ -179,6 +184,7 @@ export class PlanView {
     fade(this.dataTexts, L.dataTexts);
     fade(this.art.subs, L.subs);
     fade(this.packetG, L.packets);
+    fade(this.uncoreG, L.packets);
     fade(this.trailG, L.packets);
     fade(this.legend, L.legend);
   }
@@ -208,6 +214,12 @@ export class PlanView {
     const link = plan.links.find((l) => l.id === 'fab-' + unit);
     if (link) this.send([{ link, reverse: !write, delay: 0, color: 'inst' }], now, 'ld');
   }
+
+  /** A core's access reached an outer unit (told by board.ts from the address): its block shows it. */
+  touchUnit(unit: UncoreUnit, write: boolean, now: number, addr = 0) { this.uncore.touch(unit, write, now, addr); }
+
+  /** The machine's readings for the outer blocks (power, temperature, clock, coherence counters). */
+  setUncore(input: UncoreInput | null, now: number) { this.uncore.set(input, now); }
 
   private send(pk: PacketPlan[], now: number, cls: OpClass) {
     const T = this.T;
@@ -288,7 +300,7 @@ export class PlanView {
     if (!draw) {
       // what was drawn is dropped and the signatures reset, so the first frame back in view draws everything fresh
       this.dropChips(); this.glow.clear(); this.packets = []; this.trails.clear();
-      this.glowG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.packetG.clear(); this.trailG.clear();
+      this.glowG.clear(); this.uncoreG.clear(); this.dataG.clear(); this.cellLive.clear(); this.glyphG.clear(); this.packetG.clear(); this.trailG.clear();
       this.cellSig = ''; this.dataSig = ''; this.glyphSig = '#';
       return;
     }
@@ -326,6 +338,8 @@ export class PlanView {
     hot(plan.blocks.find((b) => b.kind === 'clock'), fl(this.flash.clock, CYCLE_MS * 0.9) * 0.9, T.mute, 2);
     if (fl(this.flash.flush, 900) > 0) hot(plan.blocks.find((b) => b.kind === 'fetch'), fl(this.flash.flush, 900), T.bad, 3);
 
+    this.uncoreG.clear();
+    if (this.uncoreG.visible) this.uncore.draw(this.uncoreG, this.plan!.blocks, this.T, now);
     this.cells(player);
     this.glyphs(player);
     this.storage(fr.store, now);

@@ -14,6 +14,7 @@ import { splitPlan, type CoreTile } from './coreplan';
 import { CoreRateTracker, type CoreRate } from './corestats';
 import { washModels } from './coretiles';
 import { PlanView, type MemoryTouch } from './dieview';
+import { uncoreInput, type UncoreUnit } from './uncore';
 import { traceOpen } from '../../game/scrub';
 import { effect } from '@preact/signals';
 import { DEVICE_LOD, deviceLod, seenZoom, smooth, type LodRect } from '../lod';
@@ -79,6 +80,9 @@ export class DieView {
 
   /** A load or store reached a register of a unit on the die (the interrupt controller, timer, MPU, MMU): its block and wire light (the units are shared by the cores). */
   poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number) { this.shared.poke(unit, write, now); }
+
+  /** A core's access reached an outer unit of the die (the memory controller, the shared L2, PCIe, USB, the display): its block shows it. */
+  touchUnit(unit: UncoreUnit, write: boolean, now: number, addr = 0) { this.shared.touchUnit(unit, write, now, addr); }
 
   setPlan(T: Theme, plan: CpuPlan) {
     this.T = T;
@@ -178,7 +182,8 @@ export class DieView {
   }
 
   /** A new snapshot: each core tile's replay gets its hardware core's cycles (a single-core die gets `pipe`). */
-  update(s: Snapshot | null, _simple: boolean, _now: number) {
+  update(s: Snapshot | null, _simple: boolean, now: number) {
+    this.shared.setUncore(uncoreInput(s), now);
     if (this.cores.length === 0) { this.shared.update(s?.pipe ?? null); return; }
     const cs = s?.cores;
     const sel = cs ? cs.live[cs.selected]?.hw ?? 0 : 0;

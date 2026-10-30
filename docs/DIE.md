@@ -121,3 +121,21 @@ At the CPU die's zoom levels (cells 0.8x, keys 0.85x, details 1.2x; below 0.7x t
 
 ## The TLB
 A CPU with an MMU (docs/VM.md) has a `tlb` block between the register file and the D-cache: one cell per entry, showing the virtual page and the frame it maps to (state at the snapshot), with links `fetch-tlb` and `lsu-tlb` (translate) and `tlb-walk` to the L2 or the system bus. `PlanInput.tlbEntries` (from `CpuSpec.mmu.tlb`) switches it on; the unpipelined CPU has none.
+
+## Uncore (`uncore.ts`)
+
+The blocks around the cores are alive on every CPU (single and multicore). `board.ts` tells the die where each core access goes (`DieView.touchUnit`: RAM goes through the shared L2 and the memory controller, a drive to the NVMe lanes, a card to PCIe, the chipset and TPM to DMI, the key to USB, the screen to the display) and `DieView.update` hands it the snapshot's readings (`uncoreInput`). `UncoreFx` keeps the recent hits and paints one effect per block over the art, from zoom 0.2 like the packets:
+
+| Block | What it shows |
+|---|---|
+| Memory controller | the lane (of six) an access takes lights and a head runs out to the DIMM bus: cyan read, pink write; a busy bar |
+| Shared L2 | the line an access lands on flashes; a **coherence** miss (another core's store dropped a line, `CoreStats.coherence`) sweeps a red bar and rings the block; a wait on the port (`l2Wait`) tints its frame. The L2 sees every access here, not only L1 misses |
+| PCIe / NVMe / DMI | 12 + 3 + 6 lanes: an access lights two or three lanes of its group with a head running along them |
+| System bus | a glow with marching ticks while any unit is busy |
+| USB, Display | the lane the key takes blinks; the video pairs light in turn and a scan line sweeps while the screen is written |
+| Power | the six VRM phases light with the load and take turns, flash red when the breaker trips, dark when off |
+| Thermal | a bar from cool to hot with the CPU temperature, a red pulse on the frame while it throttles |
+| Clock / PLL | a ring and a dot whose pace follows the CPU clock |
+| Timer | a sweep bar for the counter running |
+
+The interrupt controller, timer, MPU and MMU keep their register-access flashes (`poke`).
