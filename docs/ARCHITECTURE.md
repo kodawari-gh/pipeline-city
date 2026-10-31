@@ -19,41 +19,43 @@ Status: POC. Decisions below are current, not final. The old prototype was `lega
 ## Layers
 
 ```
-src/sim      pure TS, runs in the worker. No DOM, no Pixi, no Preact imports.
-src/game     main-thread state: owns the worker, signals, save/load, upgrades
-src/render   Pixi board; reads snapshots, never touches sim internals
-src/ui       Preact panels; reads signals from src/game
+src/features/<f>/sim     pure TS, runs in the worker. No DOM, no Pixi, no Preact imports.
+src/features/<f>/render  Pixi views; read snapshots, never touch sim internals
+src/features/<f>/ui      Preact panels; read signals from src/app
+src/worker               worker entry, thread protocol, the Game root
+src/app                  main-thread state: owns the worker, signals, save/load
+src/core/{sim,render,ui} code shared by several features
 ```
 
-Folders: `src/render/` holds the shared helpers (camera, theme, ink, shape, live, interact, capture) and three groups: `die/` (the CPU die view), `board/` (the board, its parts, wiring, RAM view) and `room/` (the desk, wall, props, light). `src/ui/` holds `panels/` (log, jobs, levels, trace, network, HUD), `shop/` (shop, picker, parts, placement), `tutorial/` and `kit/` (icons, meter, sprite, hover), with the shared state, logic and `ui.css` at its root. A test sits next to the file it covers.
+Features: `cpu gpu npu tpm memory storage network os board economy jobs tutorial room sandbox`. Each feature folder holds its `sim/`, `render/` and `ui/` parts and its doc. A test sits next to the file it covers. `src/architecture.test.ts` checks the layer rules.
 
-Data flows one way: the worker posts `Snapshot`s (see `src/sim/protocol.ts`), `src/game` puts them in signals, and render/ui read the signals. Player actions go back as `ToSim` messages. The protocol file is the only thing shared across the thread boundary.
+Data flows one way: the worker posts `Snapshot`s (see `src/worker/protocol.ts`), `src/app` puts them in signals, and render/ui read the signals. Player actions go back as `ToSim` messages. The protocol file is the only thing shared across the thread boundary.
 
 ## Simulation
 
 - **Toy ISA, toy hardware that "kinda makes sense".** No real ISA or emulator. The ISA grows as programs need it.
 - **Every job is a real program** run on the simulated machine. Workload types: CPU-heavy, memory-bound, GPU-bound, IO-bound, NPU/TPU-bound, needs a secure environment / TPM.
 - **Devices on a bus, memory-mapped I/O.** Programs reach a CLI monitor, a GPU-driven display and disk through loads and stores to device address ranges. Bus traffic and contention are visible on the board. Tiered memory comes later.
-- **Final ISA spec: [`docs/ISA.md`](ISA.md).**
-- **Machine, bus, clocks and engine interface: [`docs/MACHINE.md`](MACHINE.md). How the CPU is driven, what it sees, and interrupts: [`docs/CPU.md`](CPU.md).**
-- **Timed engines (unpipelined, 5-stage in-order), options, observability view: [`docs/ENGINES.md`](ENGINES.md).**
-- **Device specs, board slots, power and thermal: [`docs/BOARD.md`](BOARD.md).**
-- **Program generator (kernels, templates, seeds): [`docs/GEN.md`](GEN.md).**
-- **Game loop, economy, snapshot shape, pacing: [`docs/GAME.md`](GAME.md).**
-- **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`docs/SANDBOX.md`](SANDBOX.md).**
-- **Save format, versioning, worker protocol: [`docs/SAVE.md`](SAVE.md).**
+- **Final ISA spec: [`src/features/cpu/ISA.md`](ISA.md).**
+- **Machine, bus, clocks and engine interface: [`src/core/MACHINE.md`](MACHINE.md). How the CPU is driven, what it sees, and interrupts: [`src/features/cpu/CPU.md`](CPU.md).**
+- **Timed engines (unpipelined, 5-stage in-order), options, observability view: [`src/features/cpu/ENGINES.md`](ENGINES.md).**
+- **Device specs, board slots, power and thermal: [`src/features/board/BOARD.md`](BOARD.md).**
+- **Program generator (kernels, templates, seeds): [`src/features/jobs/GEN.md`](GEN.md).**
+- **Game loop, economy, snapshot shape, pacing: [`src/features/economy/GAME.md`](GAME.md).**
+- **Sandbox mode (free money, every tier, sandbox tools, 64x, the New game dialog): [`src/features/sandbox/SANDBOX.md`](SANDBOX.md).**
+- **Save format, versioning, worker protocol: [`src/worker/SAVE.md`](SAVE.md).**
 - **Board rendering, camera, hover ids: [`docs/RENDER.md`](RENDER.md) (hub and topic table), [`docs/render/interact.md`](render/interact.md). UI panels and CSS variables: [`docs/UI.md`](UI.md).**
-- **Assembly, inventory, boot loop, USB-key queue, progress flags: [`docs/ASSEMBLY.md`](ASSEMBLY.md).**
-- **Storage, OS v1 (resident kernel, key ingest and output step): [`docs/OS.md`](OS.md). Planned tech ladders for every device: [`docs/TECHTREE.md`](TECHTREE.md).**
-- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`docs/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`docs/NETWORK.md`](NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`docs/NETSTACK.md`](NETSTACK.md).**
+- **Assembly, inventory, boot loop, USB-key queue, progress flags: [`src/features/cpu/ASSEMBLY.md`](ASSEMBLY.md).**
+- **Storage, OS v1 (resident kernel, key ingest and output step): [`src/features/os/OS.md`](OS.md). Planned tech ladders for every device: [`src/features/economy/TECHTREE.md`](TECHTREE.md).**
+- **Designed, not built: player level, client base, unlock ladder and level-driven patience: [`src/features/economy/PROGRESSION.md`](PROGRESSION.md). Network phase (NIC, router, cable, ISP, network work source): [`src/features/network/NETWORK.md`](NETWORK.md). Next version of the network (interrupt-driven NIC, DMA, a simplified TCP with loss and retries): [`src/features/network/NETSTACK.md`](NETSTACK.md).**
 - **Hover/selected ids, drag and drop, camera helpers: see [`docs/render/interact.md`](render/interact.md).**
 - **32-bit words, 16 general registers.** Instruction formats are **RISC-V-like (R/I/S/B/U/J)**, which with 16 registers is close to RV32E in shape. It is still a toy ISA with its own opcodes, not RISC-V compatible.
 - **Constants:** a LUI-style upper-immediate op plus ADDI, with assembler pseudo-instructions (`li`, `la`) that expand to the real pair when needed.
 - **Control flow:** PC-relative branches that compare two registers, plus JAL/JALR for calls. Position-independent code lets generated kernels be composed and relocated freely.
 - **Calls:** a link register and a stack pointer register with a minimal convention, so stack traffic is real and visible in the memory view and kernels compose as functions.
-- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. **Interrupts exist** (a controller on the bus, `iret`, taken between instructions on every engine: [`docs/CPU.md`](CPU.md)); **DMA** is designed for the NIC ([`docs/NETSTACK.md`](NETSTACK.md)) and not built.
+- **Device access is plain loads and stores** to memory-mapped ranges. Control registers (status, command, data) are addresses, and programs poll a status register to wait. Device latency is visible. **Interrupts exist** (a controller on the bus, `iret`, taken between instructions on every engine: [`src/features/cpu/CPU.md`](CPU.md)); **DMA** is designed for the NIC ([`src/features/network/NETSTACK.md`](NETSTACK.md)) and not built.
 - **Instructions are encoded words in memory.** The assembler emits binary, the CPU fetches through the I-cache and decodes in ID, so fetch traffic, I-cache misses and shared-memory-port structural hazards are real.
-- **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/sim/board/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2`, `cpu4` `ooo` (ROB 8, 4-wide commit; ROB 16/32 deferred). cpu3/cpu4 price/power are placeholders.
+- **Engines** (ported from legacy): unpipelined, 5-stage in-order, 2-wide in-order, out-of-order. CPU specs (`src/features/board/sim/specs.ts`) wire the first three: `cpu0` unpipelined, `cpu1`/`cpu2` in-order, `cpu3` `inorder2`, `cpu4` `ooo` (ROB 8, 4-wide commit; ROB 16/32 deferred). cpu3/cpu4 price/power are placeholders.
 - **Deterministic.** Same save + seed gives the same run. Tests rely on this.
 
 ### Fidelity tiers
@@ -88,7 +90,7 @@ Players can overclock or underclock each supported device. The ladder is: more c
 - **Devices are declarative specs** (data, not classes): slot and bus type, power draw, heat, clock range, per-tier stats, and visual hooks. The sim and the renderer read the same record, so adding a device is mostly adding data.
 - **The board is fixed with typed slots and ports that fill up** (DIMM, PCIe, SATA, USB, power connectors). A device only fits a matching free slot, and the PSU needs a matching connector and enough watts. Board and PSU tiers are part of the tree.
 - **Each device has a stylised-but-recognisable internal view** showing its real structure in simplified form (pipeline, DRAM banks and rows, GPU SMs, disk platter or flash channels), animated from sim state.
-- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template. Design: [`docs/MULTICORE.md`](MULTICORE.md).
+- **Multicore:** cores have private L1 and share L2/RAM through a simplified invalidate-on-write coherence rule. Sharing causes visible contention. Programs can be single-threaded or split by a template. Design: [`src/features/cpu/MULTICORE.md`](MULTICORE.md).
 - **Security:** secure workloads need a TPM or secure enclave device to be accepted, and run in a protected mode with real, visible cycle costs (attestation steps, encrypted memory traffic, extra latency).
 
 ## Progression
@@ -109,7 +111,7 @@ Macro board level, and currently missing from the prototype. The PSU has a watta
 
 ## Programs
 
-Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (`src/sim/asm`). Programs are **generated and composable**: a library of small kernels (loop, memcpy, hash, parse, matmul, poll a device, ...) is combined by scenario templates ("web request", "GPU render / HPC", "multiprocessor simulation", "secure execution") with seeded parameters such as size, memory footprint and device calls. Output is real assembly, deterministic per seed, and must make sense: it should visibly do something on the devices it touches.
+Authored as text `.asm` for the toy ISA, assembled by a tiny in-repo assembler (`src/features/cpu/sim/asm`). Programs are **generated and composable**: a library of small kernels (loop, memcpy, hash, parse, matmul, poll a device, ...) is combined by scenario templates ("web request", "GPU render / HPC", "multiprocessor simulation", "secure execution") with seeded parameters such as size, memory footprint and device calls. Output is real assembly, deterministic per seed, and must make sense: it should visibly do something on the devices it touches.
 
 ## Sim internals
 
@@ -131,7 +133,7 @@ GPU model: 8 to 32 lanes with a banked memory of its own, as three engines (a lo
 
 ## Crash report
 
-An illegal instruction, a bad address or any other throw inside the sim (`RangeError` from an engine, a bug in a feature file) used to escape the worker's tick and repeat every 100 ms until the tab was closed. Now `advance` and `handleMessage` (`src/sim/host.ts`) catch it, pause the sim (`speed` 0) and build a `CrashReport` (`src/sim/crash.ts`, `recordCrash`); the worker posts it once (`takeCrash`) as `{ type: 'crash' }`, and the store's `crash` signal shows `CrashPanel` (`src/ui/panels/CrashPanel.tsx`).
+An illegal instruction, a bad address or any other throw inside the sim (`RangeError` from an engine, a bug in a feature file) used to escape the worker's tick and repeat every 100 ms until the tab was closed. Now `advance` and `handleMessage` (`src/worker/host.ts`) catch it, pause the sim (`speed` 0) and build a `CrashReport` (`src/worker/crash.ts`, `recordCrash`); the worker posts it once (`takeCrash`) as `{ type: 'crash' }`, and the store's `crash` signal shows `CrashPanel` (`src/core/ui/CrashPanel.tsx`).
 
 The report is plain data: the error and stack, the tick, phase and cycles, the core that faulted (`faultCore`), the TPM's protected-mode state, the OS and parts, each core's pc, registers and interrupt, protection and MMU state, the kernel job table, where the keys are, the RAM regions (`Game.ramRegions`), hex windows (around the address, the kernel vectors, the job table), the last 40 game events and the game itself as a save taken right after the crash (`save`, mid-tick: load it to replay). `fault.where` says what lives at the address ("past the end of the kernel", "outside RAM"); `text` is the same as plain text for pasting. The panel offers Copy report, Download report (`pipeline-city-crash-<tick>.json`) and Download save. Every section is built on its own, so one that throws never loses the rest; with no game the report is just the error. `crash.test.ts` covers the pieces, a report from a booted game and the host's pause-and-post-once.
 

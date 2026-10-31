@@ -1,6 +1,6 @@
 # Board rendering (PixiJS)
 
-Code: `src/render/` (`board/`, `die/`, `room/` and a few files at the top; the file tables give bare names). Entry point `mountBoard(host)` in `board.ts` (called from `main.tsx`). It reads `snapshot` and `speed` from `src/game/store` and writes `hover` / `selected` in `src/game/hover`. It never touches sim internals; the only sim import is the declarative spec table (`getSpec`, `BOARD_TIERS`) for the `visual` key and slot counts.
+Code: `src/core/render/` (shared helpers) and `src/features/*/render/` (the file tables give bare names). Entry point `mountBoard(host)` in `board.ts` (called from `src/app/main.tsx`). It reads `snapshot` and `speed` from `src/app/store` and writes `hover` / `selected` in `src/app/hover`. It never touches sim internals; the only sim import is the declarative spec table (`getSpec`, `BOARD_TIERS`) for the `visual` key and slot counts.
 
 This file is the hub: world layout, layers, theme, snapshot fields, known gaps and the last verification. Read the area file for the topic, not all of them:
 
@@ -11,9 +11,9 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | orderly routing, pin map, board tiers, cases and the VRM | [`render/board.md`](render/board.md) |
 | the case, the bay and the OS screen, far-zoom exterior (LOD), installed devices, rear I/O, PSU face | [`render/case.md`](render/case.md) |
 | router, wall plate, ethernet cable, NIC cards | [`render/net.md`](render/net.md) |
-| the room: desk props, key rack and mail, USB keys, wall cords, power lens | [`render/room/room.md`](render/room/room.md) |
-| the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](render/room/shell.md) |
-| the window, game-time clock, time of day, the room's light | [`render/room/light.md`](render/room/light.md) |
+| the room: desk props, key rack and mail, USB keys, wall cords, power lens | [`render/room/room.md`](../src/features/room/room.md) |
+| the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
+| the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |
 | zoom bands of every device, smoothed zoom, off-screen skipping, bake switches | [`render/lod.md`](render/lod.md) |
 | the CPU die and the memory map | [`DIE.md`](DIE.md) |
 
@@ -39,7 +39,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
                               [ PSU shroud, full width, readout panel, output sockets ]
 ```
 
-The CPU socket is the origin. West of the board: the **monitor** (a 24 inch: scaled `MONITOR_K` 3.0x, about as wide as the case is deep, its east edge `MONITOR_EAST` 2,300 west of the case's rear wall; it stands on its foot on the desk, so it **follows the desk top**, that is the case tier: `MONITOR`, `SCREEN`, the video socket and the router shelf are live bindings set by `setLayoutTier`), the **key rack** (`TRAY`: two rails of hooks with the USB sticks hanging on lanyards) on the wall above it, above it the router shelf (scaled 1.45x). The ISP's wall plate is under the desk by the power socket. There is no crate in the world: the inventory is an HTML menu (`src/ui`) that starts part drags with `beginPartDrag`. The board's size and everything under and around it depends on the tier (see "Board tiers, cases and the VRM" in [render/board.md](render/board.md)): the board's west edge is always x -3400 and its top is tier-dependent; the PSU shroud sits `250` below its south edge, the drive bay east of the shroud. `WORLD` in `layout.ts` is the content box the overview fits: tight, from the monitor on the west to the case's east wall, from the router shelf (above the monitor) to the feet; it changes with the case, and the camera glides to the new overview when the case (or board tier) changes. The overview uses `OVERVIEW_MARGIN` (0.96); the device bake uses `WORLD` as its frame. On a board: rear I/O on the west edge (HDMI at the height of the video cable), the USB hub controller between I/O and CPU, the VRM row north of the CPU, the chipset south-east of the CPU (below the memory, east of the slots' ends), the DIMMs east, the memory VRM above them, PCIe slots south, M.2 south-east, the 24-pin and SATA ports on the east edge, the 8-pin on the top edge.
+The CPU socket is the origin. West of the board: the **monitor** (a 24 inch: scaled `MONITOR_K` 3.0x, about as wide as the case is deep, its east edge `MONITOR_EAST` 2,300 west of the case's rear wall; it stands on its foot on the desk, so it **follows the desk top**, that is the case tier: `MONITOR`, `SCREEN`, the video socket and the router shelf are live bindings set by `setLayoutTier`), the **key rack** (`TRAY`: two rails of hooks with the USB sticks hanging on lanyards) on the wall above it, above it the router shelf (scaled 1.45x). The ISP's wall plate is under the desk by the power socket. There is no crate in the world: the inventory is an HTML menu (`src/core/ui`) that starts part drags with `beginPartDrag`. The board's size and everything under and around it depends on the tier (see "Board tiers, cases and the VRM" in [render/board.md](render/board.md)): the board's west edge is always x -3400 and its top is tier-dependent; the PSU shroud sits `250` below its south edge, the drive bay east of the shroud. `WORLD` in `layout.ts` is the content box the overview fits: tight, from the monitor on the west to the case's east wall, from the router shelf (above the monitor) to the feet; it changes with the case, and the camera glides to the new overview when the case (or board tier) changes. The overview uses `OVERVIEW_MARGIN` (0.96); the device bake uses `WORLD` as its frame. On a board: rear I/O on the west edge (HDMI at the height of the video cable), the USB hub controller between I/O and CPU, the VRM row north of the CPU, the chipset south-east of the CPU (below the memory, east of the slots' ends), the DIMMs east, the memory VRM above them, PCIe slots south, M.2 south-east, the 24-pin and SATA ports on the east edge, the 8-pin on the top edge.
 
 ## Layers (bottom to top)
 
@@ -65,11 +65,11 @@ Working parts (CPU, DIMMs, cooler, PSU, monitor, the cables) use the full theme 
 
 `boardTier` (new), `devices[]` (`id, spec, kind, slot` (new), `burnt, effectiveClock, tempC, powerW, throttle, unstable`), `power` (`totalW, budgetW, tripped, off`), `request` (an id change means a program load), `display` (monitor text; a change lights the video path), `counters` (`cycles`, `cacheMisses`, `stallCache` for RAM traffic), `pipe` (MEM stage op for stores).
 
-New in `Snapshot` (`src/sim/game/types.ts`, additive, existing consumers untouched):
+New in `Snapshot` (`src/worker/game/types.ts`, additive, existing consumers untouched):
 
 - `boardTier: number`
 - `DeviceSnap.slot: string` (e.g. `dimm1`)
-- `pipe: null | PipeSnap` (`src/sim/game/pipesnap.ts`): `{ width, stages: StageSnap[width * 5] (index stage * width + lane; empty for the out-of-order engine), ooo?: OooSnap }`. `StageSnap = { kind (0 empty, 1 instruction, 2 bubble), id (dynamic instruction id, -1 for none), op (mnemonic), text (full disassembly), cause (bubble cause: 0 none, 1 load, 2 data, 3 flush, 4 struct), stalled }`. Null when no request is running. Built from `engine.view` (stage arrays plus the timeline word for the mnemonic). `OooSnap` = `{ fetchQ (mnemonics, oldest first), decode (per lane), rob (the physical ring: op + RobState), robHead, robCount, sched (op + SchedWhy per slot), units (ALU0 ALU1 MUL LSU: op, left, total), stall [fetch, dispatch, commit] }`; about 1 KB.
+- `pipe: null | PipeSnap` (`src/features/cpu/sim/pipesnap.ts`): `{ width, stages: StageSnap[width * 5] (index stage * width + lane; empty for the out-of-order engine), ooo?: OooSnap }`. `StageSnap = { kind (0 empty, 1 instruction, 2 bubble), id (dynamic instruction id, -1 for none), op (mnemonic), text (full disassembly), cause (bubble cause: 0 none, 1 load, 2 data, 3 flush, 4 struct), stalled }`. Null when no request is running. Built from `engine.view` (stage arrays plus the timeline word for the mnemonic). `OooSnap` = `{ fetchQ (mnemonics, oldest first), decode (per lane), rob (the physical ring: op + RobState), robHead, robCount, sched (op + SchedWhy per slot), units (ALU0 ALU1 MUL LSU: op, left, total), stall [fetch, dispatch, commit] }`; about 1 KB.
 
 ## Live state mapping
 

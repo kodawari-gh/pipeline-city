@@ -1,6 +1,6 @@
 # Rendering: network props
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/render/room/net.ts`, `room/netvis.ts`. The network itself: [`NETWORK.md`](../NETWORK.md).
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/network/render/net.ts`, `room/netvis.ts`. The network itself: [`NETWORK.md`](../NETWORK.md).
 
 ## Files
 
@@ -10,7 +10,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/re
 
 ## Network (router, wall plate, ethernet cable, NIC cards)
 
-Code: `src/render/room/net.ts` (`NetView`, `routerArt`, `nicArt`), geometry in `layout.ts` (`ROUTER_SPOT`, `WALL_PLATE`, `LAN_TRUNK_X`, `nicJack`, `nicRect`), the plug drag in `interact.ts` (`beginLan`, `scene.lan`), wiring in `board.ts` (`syncNet`). Data: `snapshot.net`, `cables[id=lan]`, `devices[kind=nic]`, inventory kinds `router` and `nic`. Nothing here changes the overview fit: the router shelf and the wall plate sit above the monitor, inside the existing `WORLD` box (the case did not shrink).
+Code: `src/features/network/render/net.ts` (`NetView`, `routerArt`, `nicArt`), geometry in `layout.ts` (`ROUTER_SPOT`, `WALL_PLATE`, `LAN_TRUNK_X`, `nicJack`, `nicRect`), the plug drag in `interact.ts` (`beginLan`, `scene.lan`), wiring in `board.ts` (`syncNet`). Data: `snapshot.net`, `cables[id=lan]`, `devices[kind=nic]`, inventory kinds `router` and `nic`. Nothing here changes the overview fit: the router shelf and the wall plate sit above the monitor, inside the existing `WORLD` box (the case did not shrink).
 
 **Ids** (hover, `selected`, `highlight`, `flyTo`, `anchorOf`, `hasTarget`; all of them are external: hit and visible at far zoom, they never open the interior):
 

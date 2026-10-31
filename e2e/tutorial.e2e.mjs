@@ -65,11 +65,11 @@ let shotN = 0;
 const stepShot = (id, tag = '') => shot(`${String(++shotN).padStart(2, '0')}-${id}${tag}`);
 const problems = [];
 const center = (a) => ({ x: a.x + a.w / 2, y: a.y + a.h / 2 });
-const snap = () => p.evaluate(async () => JSON.parse(JSON.stringify((await import('/src/game/store.ts')).snapshot.value)));
-const anchor = (id) => p.evaluate(async (id) => (await import('/src/ui/tutorial/anchor.ts')).anchorOf(id), id);
+const snap = () => p.evaluate(async () => JSON.parse(JSON.stringify((await import('/src/app/store.ts')).snapshot.value)));
+const anchor = (id) => p.evaluate(async (id) => (await import('/src/features/tutorial/ui/anchor.ts')).anchorOf(id), id);
 const stepId = () => p.evaluate(() => document.querySelector('aside.tut')?.getAttribute('data-step') ?? null);
-const dragging = () => p.evaluate(async () => (await import('/src/game/interaction.ts')).dragging.value);
-const setSpeed = (n) => p.evaluate(async (n) => (await import('/src/game/store.ts')).setSpeed(n), n);
+const dragging = () => p.evaluate(async () => (await import('/src/app/interaction.ts')).dragging.value);
+const setSpeed = (n) => p.evaluate(async (n) => (await import('/src/app/store.ts')).setSpeed(n), n);
 
 async function dragTo(from, to) {
   await p.mouse.move(from.x, from.y); await p.mouse.down();
@@ -120,9 +120,9 @@ async function waitTyped(ms = 7000) {
 /** What the player sees for this step must be this step's: card, text, highlights, no stacked popups. */
 async function validateStep(id) {
   // Hold the game: the state under test must not move while the text types and the camera flies. A step that already holds it (an explain-only step) stays held.
-  const was = await p.evaluate(async () => (await import('/src/game/store.ts')).speed.value);
+  const was = await p.evaluate(async () => (await import('/src/app/store.ts')).speed.value);
   // Held the way the game holds itself for a popup (not a player pause), so the screenshots show what a player sees: no "Paused" pill.
-  const hold = (open) => p.evaluate(async (o) => (await import('/src/ui/state.ts')).pauseForTutorialPopup(o), open);
+  const hold = (open) => p.evaluate(async (o) => (await import('/src/core/ui/state.ts')).pauseForTutorialPopup(o), open);
   if (was !== 0) await hold(true);
   try { await validateHeld(id); } finally { if (was !== 0) await hold(false); }
 }
@@ -131,10 +131,10 @@ async function validateHeld(id) {
   await p.waitForTimeout(1200); // the camera flight to the target
   if (await p.$('.lvl-card')) return; // a level-up popup is read first; the card waits behind it
   const out = await p.evaluate(async (id) => {
-    const { STEPS } = await import('/src/ui/tutorial/tutorial.ts');
-    const { snapshot } = await import('/src/game/store.ts');
-    const { highlight, dragging } = await import('/src/game/interaction.ts');
-    const { anchorOf } = await import('/src/ui/tutorial/anchor.ts');
+    const { STEPS } = await import('/src/features/tutorial/ui/tutorial.ts');
+    const { snapshot } = await import('/src/app/store.ts');
+    const { highlight, dragging } = await import('/src/app/interaction.ts');
+    const { anchorOf } = await import('/src/features/tutorial/ui/anchor.ts');
     const step = STEPS.find((x) => x.id === id);
     // A short step can be over before it is checked (the first job takes a few seconds): then there is nothing to compare.
     if (document.querySelector('aside.tut')?.getAttribute('data-step') !== id) return ['__moved'];
@@ -190,7 +190,7 @@ async function buyGlowing(openId) {
   await p.waitForTimeout(500);
   const btn = await p.$('.rung.pulse button.buy');
   if (!btn) {
-    log('  no glowing buy tile after clicking', openId, 'picker open:', !!(await p.$('aside.picker')), 'rungs:', JSON.stringify(await p.$$eval('.rung', (e) => e.map((x) => `${x.getAttribute('data-buy')}:${x.className.replace('rung ', '')}`))), 'highlight:', JSON.stringify(await p.evaluate(async () => (await import('/src/game/interaction.ts')).highlight.value)));
+    log('  no glowing buy tile after clicking', openId, 'picker open:', !!(await p.$('aside.picker')), 'rungs:', JSON.stringify(await p.$$eval('.rung', (e) => e.map((x) => `${x.getAttribute('data-buy')}:${x.className.replace('rung ', '')}`))), 'highlight:', JSON.stringify(await p.evaluate(async () => (await import('/src/app/interaction.ts')).highlight.value)));
     await shot('no-buy-tile');
     await p.keyboard.press('Escape');
     return false;

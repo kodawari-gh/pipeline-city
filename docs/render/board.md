@@ -1,6 +1,6 @@
 # Rendering: board art, routing, tiers and VRM
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/render/board/` (`routes.ts`, `pins.ts`, `match.ts`, `boardlayout.ts`, `boardArt.ts`, `boardParts.ts`).
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/board/render/` (`routes.ts`, `pins.ts`, `match.ts`, `boardlayout.ts`, `boardArt.ts`, `boardParts.ts`).
 
 ## Files
 
@@ -64,7 +64,7 @@ PSU cables (`buildCables`): sleeved, braided look, rounded corners, plug at both
 
 The **tray** carries a brass standoff at every mounting hole of every form factor the case takes (`standoffs()`: the union of the holes of boards up to the case's tier), and every board's holes carry a screw (washer, pan head, cross slot), so a small board in a big case sits on its own studs and the unused ones show beyond its edge.
 
-A socket a tier lacks is **not drawn** (no ghost sockets). `src/render/board/boardlayout.test.ts` pins the geometry to the sim's slot and phase counts, keeps parts on the board and off each other, checks the memory bundles never cross, that every bus ends on a footprint and every plug sits on its connector. **The layout is global state**: `setLayoutTier(tier, caseTier)` (called first in `build()` and, saved and restored, by `thumbs.ts`) reassigns the live bindings (`BD`, `BR`, `PSU`, `CASE`, `WORLD`, ...). Never copy one into a module-level constant.
+A socket a tier lacks is **not drawn** (no ghost sockets). `src/features/board/render/boardlayout.test.ts` pins the geometry to the sim's slot and phase counts, keeps parts on the board and off each other, checks the memory bundles never cross, that every bus ends on a footprint and every plug sits on its connector. **The layout is global state**: `setLayoutTier(tier, caseTier)` (called first in `build()` and, saved and restored, by `thumbs.ts`) reassigns the live bindings (`BD`, `BR`, `PSU`, `CASE`, `WORLD`, ...). Never copy one into a module-level constant.
 
 **How the copper is laid** (every run ends on a footprint, with pads drawn at the lane ends):
 - **Memory** is point-to-point: one 6-lane bundle per DIMM from the CPU's east edge to the pad row of its socket, stacked in a staircase (the nearest DIMM takes the band nearest its pads) so nothing crosses. Row 0 pads face down, row 1 (tier 3) pads face up. Lit per installed DIMM by RAM traffic.
@@ -77,7 +77,7 @@ A socket a tier lacks is **not drawn** (no ghost sockets). `src/render/board/boa
 - **Heatsinks** (`vrmSinkArt`) cover the power-stage strip (`VRM_SINK`, `RAM_SINK`).
 - **Tier skin** (`SKINS` in `boardArt.ts`): PCB colour (Starter grey-green, Basic blue, Mainstream teal, Enthusiast violet), trim lines, PCH heat sink style, PCIe armour from tier 2.
 
-**Cases** are purchasable (docs/BOARD.md "Cases"): `snapshot.caseTier` picks the case, `snapshot.boardTier` the board in it. The case is as big as the biggest board it holds (`CASE_BD`): the motherboard tray (perforated, cable cut-outs), the cable gutter and the edge-on **front fans** follow the case; a smaller board sits in the top-left of a bigger case. The PSU shroud, the drive bay, the case walls, the power button and `WORLD` move with it, and the camera glides to the new overview when it changes. Looks per case (`CASE_LOOK`): name on the top panel, vent count, an accent line on the big ones. A case item is dropped on the case itself (`freeSlots ["case"]`, like `["board"]` for a board); the case is the world id `case`.
+**Cases** are purchasable (src/features/board/BOARD.md "Cases"): `snapshot.caseTier` picks the case, `snapshot.boardTier` the board in it. The case is as big as the biggest board it holds (`CASE_BD`): the motherboard tray (perforated, cable cut-outs), the cable gutter and the edge-on **front fans** follow the case; a smaller board sits in the top-left of a bigger case. The PSU shroud, the drive bay, the case walls, the power button and `WORLD` move with it, and the camera glides to the new overview when it changes. Looks per case (`CASE_LOOK`): name on the top panel, vent count, an accent line on the big ones. A case item is dropped on the case itself (`freeSlots ["case"]`, like `["board"]` for a board); the case is the world id `case`.
 - SATA ports are on the board's east edge (mouth east); each drive cable runs east, under the PSU cables, then down the lane between the PSU and the bay (`SATA_LINK.col`) into its cell. The two cables never cross each other; both pass under the three PSU cables in the gutter (drawn beneath them).
 
 **Scale.** The monitor is drawn at its design size (3300 x 1995) and scaled by `MONITOR_K` (3.0) around `MONITOR`; its screen text and OS screen live in a container in design units (`SCREEN_D`) scaled the same way (`Live.scr`). The router and the wall plate are drawn at design size around the shelf corner and scaled by `NET_K` (1.45); the helpers in `net.ts` (`routerRect`, `lanX`, `wanX`, `sockLed`) give the scaled world positions.

@@ -1,0 +1,556 @@
+import { describe, expect, it } from "vitest";
+import { KERNEL_BASE, STORAGE_REG } from "@/core/sim/memmap";
+import { BOOT_BLOCKS, KERNEL_IMAGE } from ".";
+import { Game, type Phase } from "@/worker/game/game";
+import { Operator } from "../../economy/sim/operator";
+
+import { econ, rig, type Keys } from "@/worker/game/testkit";
+import { ECONOMY } from "../../economy/sim/economy";
+
+// These tests are about hardware, not player levels: every item is buyable (levels have their own tests in levels.test.ts).
+ECONOMY.levelGating = false;
+ECONOMY.caseGating = false;
+
+const ticks = (g: Game, n: number): void => { for (let i = 0; i < n; i++) g.advanceBaseTick(); };
+
+function runUntil(g: Game, phase: Phase, max = 3000): number {
+  let t = 0;
+  while (g.currentPhase() !== phase && t < max) { g.advanceBaseTick(); t++; }
+  expect(g.currentPhase()).toBe(phase);
+  return t;
+}
+
+/** Tick until `done()` holds, at most `max` ticks; returns the ticks taken. */
+function until(g: Game, done: () => boolean, max = 3000): number {
+  let t = 0;
+  while (!done() && t < max) { g.advanceBaseTick(); t++; }
+  expect(done()).toBe(true);
+  return t;
+}
+
+const stageOfPlugged = (g: Game) => g.snapshot().plugged?.stage;
+
+/** Plug `keyId` and wait until the OS has ingested it (queued or beyond). The key stays in: the OS works on it. */
+function ingest(g: Game, keyId: number): number {
+  expect(g.plugKey(keyId).ok).toBe(true);
+  return until(g, () => ["queued", "running", "result", "flashing", "done"].includes(stageOfPlugged(g) ?? ""));
+}
+
+/** Plug `keyId` and wait until the key has popped out by itself and paid. Returns the payout. */
+function serve(g: Game, keyId: number): number {
+  const before = g.completed;
+  expect(g.plugKey(keyId).ok).toBe(true);
+  until(g, () => g.completed === before + 1 && g.pluggedKey() === null, 4000);
+  return g.lastCompleted!.payout;
+}
+
+describe("buying and installing storage and the OS", () => {
+  it("storage is bought and installed into typed SATA / M.2 slots", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: econ() });
+    g.money = 100000;
+    const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id)!;
+    expect(by("hdd0")).toMatchObject({ kind: "storage", price: 40 });
+    expect(by("hdd0").blocked).toBeUndefined();
+    // the shop sells an M.2 drive to a board without the slot; the spare says it has nowhere to go
+    expect(by("nvme2").blocked).toBeUndefined();
+    const nv = g.purchase("nvme2") as { invId: string };
+    expect(g.snapshot().inventory.find((i) => i.id === nv.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/m2/) });
+    const b = g.purchase("hdd0");
+    expect(b.ok).toBe(true);
+    // and a drive you own stays on sale: as many as you like, whatever the slots
+    expect(g.purchase("hdd0").ok).toBe(true);
+    expect(g.snapshot().inventory.filter((i) => i.spec === "hdd0")).toHaveLength(2);
+    const inv = g.snapshot().inventory.find((i) => i.spec === "hdd0")!;
+    expect(inv).toMatchObject({ kind: "storage", freeSlots: ["sata0", "sata1"], installable: true }); // the machine is on: swapInstall cycles the power
+    g.powerButton();
+    expect(g.install(inv.id)).toMatchObject({ ok: true, slot: "sata0" });
+    expect(g.progress.storageInstalled).toBe(true);
+    expect(g.snapshot().storage).toMatchObject([{ slot: "sata0", spec: "hdd0", capacityBytes: 96 * 1024, usedBytes: 0, hasOs: false }]);
+    // the SATA power rule is the PSU budget: the drive's load counts against the rated load
+    expect(g.powered).toBe(false);
+    expect(g.snapshot().devices.find((d) => d.kind === "storage")).toBeDefined();
+  });
+
+  it("the M.2 slot comes with the ATX+ board, and only an NVMe drive fits it", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: econ() });
+    g.money = 100000;
+    g.powerButton();
+    for (const id of ["board1", "board2"]) g.install((g.purchase(id) as { invId: string }).invId);
+    expect(g.snapshot().slots.filter((s) => s.type === "m2")).toHaveLength(2);
+    const nv = g.purchase("nvme2") as { invId: string };
+    const ssd = g.purchase("ssd1") as { invId: string };
+    const snap = g.snapshot().inventory;
+    expect(snap.find((i) => i.id === nv.invId)!.freeSlots).toEqual(["m20", "m21"]);
+    expect(snap.find((i) => i.id === ssd.invId)!.freeSlots).toEqual(["sata0", "sata1", "sata2", "sata3"]);
+    expect(g.install(nv.invId, "sata0")).toMatchObject({ ok: false });
+    expect(g.install(nv.invId)).toMatchObject({ ok: true, slot: "m20" });
+  });
+
+  it("an OS needs a drive, enough RAM and free space; later tiers are locked entries", () => {
+    const g = new Game({ seed: 1, preassembled: true, economy: econ() });
+    g.money = 100000;
+    const by = (id: string) => g.snapshot().purchases.find((p) => p.id === id)!;
+    const spare = (id: string) => g.snapshot().inventory.find((i) => i.id === id)!;
+    expect(by("os1").blocked).toBeUndefined(); // for sale; the spare says what it still needs
+    const os = g.purchase("os1") as { invId: string };
+    expect(spare(os.invId)).toMatchObject({ installable: false, reason: expect.stringMatching(/storage/) });
+    expect(by("os2").later).toBeUndefined(); // the paged OS is for sale (it needs a CPU with an MMU to install)
+    expect(by("os3").later).toBeUndefined(); // the preemptive OS is for sale too
+    expect(by("os4").later).toBeUndefined(); // and so is the multicore one
+    g.powerButton();
+    g.install((g.purchase("hdd0") as { invId: string }).invId);
+    expect(spare(os.invId).reason).toMatch(/RAM/); // 16K installed, the OS wants 32K
+    g.uninstall(g.board.devices.find((d) => d.spec === "ram0")!.id);
+    g.install((g.purchase("ram1") as { invId: string }).invId);
+    expect(spare(os.invId).reason).toBeUndefined();
+    const item = spare(os.invId);
+    expect(item).toMatchObject({ kind: "os", freeSlots: ["sata0"], installable: true });
+    expect(g.install(os.invId, "dimm0")).toMatchObject({ ok: false, reason: expect.stringMatching(/no storage drive/) });
+    expect(g.install(os.invId, "sata0")).toMatchObject({ ok: true, slot: "sata0" });
+    const s = g.snapshot();
+    expect(s.os).toMatchObject({ spec: "os1", slot: "sata0", programSlots: 1, queueSlots: 4, up: false, queue: [] });
+    expect(s.progress).toMatchObject({ storageInstalled: true, osInstalled: true });
+    expect(s.storage[0]).toMatchObject({ hasOs: true, usedBytes: 12 * 1024, bytesWritten: 12 * 1024 });
+    expect(s.inventory.some((i) => i.kind === "os")).toBe(false); // the OS item was consumed
+  });
+
+  it("refuses to remove the drive that holds the OS; uninstallOs gives the OS back and wipes the drive", () => {
+    const g = rig("hdd0");
+    const drive = g.board.devices.find((d) => d.spec === "hdd0")!;
+    expect(g.uninstall(drive.id)).toMatchObject({ ok: false, reason: expect.stringMatching(/uninstall the OS first/) });
+    expect(g.uninstallOs()).toMatchObject({ ok: true });
+    expect(g.snapshot().os).toBeNull();
+    expect(g.snapshot().inventory.filter((i) => i.kind === "os").map((i) => i.spec)).toEqual(["os1"]);
+    expect(g.snapshot().storage[0]).toMatchObject({ usedBytes: 0, hasOs: false });
+    expect(g.uninstall(drive.id).ok).toBe(true);
+  });
+
+  it("the filesystem ledger shows the boot image and the spool area, and uninstall clears it", () => {
+    const g = rig("hdd0");
+    const fs = g.snapshot().storage[0]!.fs;
+    expect(fs.runs[0]).toMatchObject({ start: 0, kind: "os", filled: true });
+    expect(fs.runs.some((r) => r.kind === "spool" && !r.filled)).toBe(true);
+    expect(fs.byKind.os).toBe(12 * 4); // 12 KiB in 256-byte blocks
+    g.uninstallOs();
+    expect(g.snapshot().storage[0]!.fs.runs).toEqual([{ start: 0, len: 96 * 4, kind: "free", file: 0, filled: false }]);
+  });
+
+  it("OS install and removal only happen while the machine is off", () => {
+    const g = rig("hdd0", { os: false });
+    const os = g.purchase("os1") as { invId: string };
+    g.powerButton();
+    expect(g.install(os.invId)).toMatchObject({ ok: false, reason: "power the machine off first" });
+    g.powerButton();
+    expect(g.install(os.invId).ok).toBe(true);
+    g.powerButton();
+    expect(g.uninstallOs()).toMatchObject({ ok: false });
+  });
+});
+
+describe("booting the OS from storage", () => {
+  it("the ROM loads the kernel from the drive with real reads, then the kernel idles", () => {
+    const g = rig("ssd1");
+    g.powerButton();
+    expect(g.pch.bootDev).not.toBe(0);
+    runUntil(g, "idle-os");
+    const words = Array.from(KERNEL_IMAGE);
+    const ram = g.machine.ram;
+    const dv = new DataView(ram.buffer);
+    expect(words.every((w, i) => dv.getUint32(KERNEL_BASE + 4 * i, true) === w)).toBe(true);
+    const st = g.snapshot().storage[0]!;
+    expect(st.bytesRead).toBe(BOOT_BLOCKS * 256);
+    expect(g.snapshot().os!.up).toBe(true);
+    ticks(g, 5); // let the slow monitor catch up
+    expect(g.snapshot().display).toMatch(/OS READY/);
+  });
+
+  it("boot time depends on the storage tier: NVMe < SATA SSD < HDD (same CPU, same RAM)", () => {
+    // raw drive speed: the firmware boost would squeeze all three into a few seconds, so it is off for this comparison
+    const boot = (s: "hdd0" | "ssd1" | "nvme2") => {
+      const g = rig(s, { economy: { osBootBoost: 1, firmwareBoost: 1 } });
+      g.powerButton();
+      return runUntil(g, "idle-os");
+    };
+    const [hdd, ssd, nvme] = [boot("hdd0"), boot("ssd1"), boot("nvme2")];
+    expect(nvme).toBeLessThan(ssd);
+    expect(ssd).toBeLessThan(hdd);
+    expect(hdd - nvme).toBeGreaterThanOrEqual(10); // the HDD's seek and slow blocks are visible in seconds
+  });
+
+  it("boot time also depends on the CPU", () => {
+    const boot = (cpu: string) => {
+      const g = rig("ssd1", { cpu });
+      g.powerButton();
+      return runUntil(g, "idle-os");
+    };
+    expect(boot("cpu2")).toBeLessThan(boot("cpu1"));
+  });
+
+  it("an installed drive without an OS changes nothing: the manual boot-per-key flow still runs", () => {
+    const g = rig("hdd0", { os: false });
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    g.powerButton();
+    expect(g.pch.bootDev).toBe(0);
+    runUntil(g, "halted", 4000);
+    expect(g.snapshot().haltReason).toBe("job-done");
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: true });
+    expect(g.currentPhase()).toBe("halted"); // no auto-reboot
+    expect(g.progress.firstOsJob).toBe(false);
+  });
+
+  it("an OS machine powered on with a key already plugged notices it at idle and serves it", () => {
+    const g = rig("ssd1");
+    const id = g.trayKeyIds()[0]!;
+    expect(g.plugKey(id).ok).toBe(true); // machine is off
+    g.powerButton();
+    runUntil(g, "idle-os");
+    until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
+    expect(g.snapshot().progress.firstOsJob).toBe(true);
+  });
+});
+
+describe("the OS takes keys, queues, runs and delivers", () => {
+  it("ingest, run, flash, deliver: the key stays in, then pops out by itself and pays", () => {
+    const g = rig("ssd1");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const id = g.trayKeyIds()[0]!;
+    const money0 = g.money;
+    expect(g.plugKey(id).ok).toBe(true);
+    // USB latency: the key first enumerates, then the kernel ingests it (key LED activity)
+    expect(g.snapshot().keyActivity).toBe("enumerating");
+    const seen = new Set<string>();
+    until(g, () => { seen.add(g.snapshot().keyActivity); return stageOfPlugged(g) === "queued" || stageOfPlugged(g) === "running" || stageOfPlugged(g) === "result"; });
+    expect(seen).toContain("enumerating");
+    expect(seen).toContain("ingesting");
+    // the OS has the job: the key cannot be pulled and is not held; it is still the plugged key
+    expect(g.ejectKey()).toMatchObject({ ok: false, reason: expect.stringMatching(/OS is working/) });
+    let s = g.snapshot();
+    expect(s.tray).toHaveLength(0);
+    expect(s.plugged?.id).toBe(id);
+    expect(s.os!.queue).toHaveLength(1);
+    until(g, () => g.completed === 1 && g.pluggedKey() === null, 4000);
+    s = g.snapshot();
+    const payout = s.lastCompleted!.payout;
+    expect(payout).toBeGreaterThan(0);
+    expect(g.money).toBe(money0 + payout);
+    expect(s).toMatchObject({ completed: 1, plugged: null });
+    expect(s.os!.queue).toEqual([]); // the slot was freed by the delivery
+    expect(s.lastCompleted).toMatchObject({ id, payout });
+    expect(s.progress.firstOsJob).toBe(true);
+    expect(g.powered).toBe(true); // an OS machine stays on
+  });
+
+  it("the machine boots once: no POST between jobs", () => {
+    const g = new Game({ seed: 3, preassembled: true, economy: econ([{ template: "cli.log" }, { template: "cli.log" }, { template: "cli.checksum" }]) });
+    const h = rig("ssd1", { keys: [{ template: "cli.log" }, { template: "cli.log" }, { template: "cli.checksum" }] });
+    expect(g.powered).toBe(true);
+    h.powerButton();
+    runUntil(h, "idle-os");
+    const phases = new Set<Phase>();
+    for (const id of [...h.trayKeyIds()]) {
+      serve(h, id);
+      for (let i = 0; i < 20; i++) { h.advanceBaseTick(); phases.add(h.currentPhase()); }
+    }
+    expect(h.completed).toBe(3);
+    expect(phases.has("posting")).toBe(false);
+    expect(phases.has("booting-os")).toBe(false);
+    expect(phases.has("waiting-for-key")).toBe(false);
+    expect(h.powered).toBe(true);
+  });
+
+  it("ingest time depends on the storage tier (the job is written to the spool)", () => {
+    const t = (s: "hdd0" | "nvme2") => {
+      const g = rig(s);
+      g.powerButton();
+      runUntil(g, "idle-os");
+      const id = g.trayKeyIds()[0]!;
+      g.plugKey(id);
+      const start = g.baseTick;
+      until(g, () => ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""));
+      const st = g.snapshot().storage[0]!;
+      const w = st.cmds.find((c) => c.op === "w")!; // (the ingest takes a few base ticks, too few to tell the tiers apart by the clock alone)
+      return { took: g.baseTick - start, cost: w.seek + w.xfer, written: st.bytesWritten };
+    };
+    const hdd = t("hdd0");
+    const nvme = t("nvme2");
+    expect(nvme.took).toBeLessThanOrEqual(hdd.took);
+    expect(nvme.cost).toBeLessThan(hdd.cost);
+    expect(hdd.written).toBeGreaterThan(12 * 1024); // the OS install plus the spooled job
+  });
+
+  it("a key pulled while the machine is off goes back to the tray; nothing is queued or held, and it can be served later", () => {
+    const g = rig("hdd0");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const id = g.trayKeyIds()[0]!;
+    g.plugKey(id);
+    until(g, () => g.snapshot().phase === "ingesting");
+    g.powerButton(); // the plug is pulled with the power: the OS and its table are gone
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
+    expect(g.snapshot().tray.map((k) => k.id)).toEqual([id]); // back in the tray, not held
+    g.powerButton();
+    runUntil(g, "idle-os");
+    ticks(g, 60);
+    expect(g.snapshot().os!.queue).toEqual([]);
+    expect(serve(g, id)).toBeGreaterThan(0);
+  });
+
+  it("runs one program at a time, in the order the keys are plugged", () => {
+    const keys: Keys = Array.from({ length: 4 }, () => ({ template: "cli.log" }));
+    const g = rig("hdd0", { cpu: "cpu2", keys });
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const ids = g.trayKeyIds();
+    expect(g.snapshot().os!.programSlots).toBe(1);
+    let maxRunning = 0;
+    const order: number[] = [];
+    for (const id of ids) {
+      g.plugKey(id);
+      until(g, () => {
+        const q = g.snapshot().os!.queue;
+        maxRunning = Math.max(maxRunning, q.filter((j) => j.state === "running").length);
+        const r = q.find((j) => j.state === "running");
+        if (r && order[order.length - 1] !== r.keyId) order.push(r.keyId);
+        return g.pluggedKey() === null;
+      }, 4000);
+    }
+    expect(g.completed).toBe(4);
+    expect(maxRunning).toBe(1);
+    expect(order).toEqual(ids);
+  });
+
+  it("power loss while the OS has the key: the key is pulled with the plug, goes back to the tray and the job runs again later", () => {
+    const g = rig("ssd1");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const id = g.trayKeyIds()[0]!;
+    ingest(g, id);
+    g.powerButton();
+    expect(g.ejectKey()).toMatchObject({ ok: true, done: false });
+    const s = g.snapshot();
+    expect(s.tray.map((k) => k.id)).toContain(id);
+    g.powerButton();
+    runUntil(g, "idle-os");
+    expect(serve(g, id)).toBeGreaterThan(0);
+  });
+
+  it("is deterministic: the same seed and the same script give the same game", () => {
+    const run = (): string => {
+      const g = rig("ssd1", { seed: 11, keys: [{ template: "cli.log" }, { template: "cli.checksum" }] });
+      g.powerButton();
+      runUntil(g, "idle-os");
+      for (const id of [...g.trayKeyIds()]) serve(g, id);
+      ticks(g, 30);
+      return JSON.stringify([g.snapshot(), g.toSave()]);
+    };
+    expect(run()).toBe(run());
+  });
+});
+
+describe("save v3 with an OS", () => {
+  it("round-trips the installed OS; the loaded machine boots it again", () => {
+    const g = rig("ssd1");
+    const save = JSON.parse(JSON.stringify(g.toSave()));
+    expect(save).toMatchObject({ version: 4, os: { spec: "os1" } });
+    const l = Game.fromSave(save, econ());
+    expect(l.snapshot().os).toMatchObject({ spec: "os1", slot: "sata0" });
+    expect(l.snapshot().storage[0]).toMatchObject({ hasOs: true, usedBytes: 12 * 1024 });
+    expect(JSON.parse(JSON.stringify(l.toSave()))).toEqual(save);
+    l.powerButton();
+    runUntil(l, "idle-os");
+    expect(serve(l, l.trayKeyIds()[0]!)).toBeGreaterThan(0);
+  });
+
+  it("rejects a save whose OS names a missing drive or an unknown OS", () => {
+    const save = JSON.parse(JSON.stringify(rig("ssd1").toSave()));
+    expect(() => Game.fromSave({ ...save, os: { spec: "os1", deviceId: "nope" } })).toThrow(/storage device/);
+    expect(() => Game.fromSave({ ...save, os: { spec: "os9", deviceId: "dev1" } })).toThrow(/unknown OS/);
+    expect(() => Game.fromSave({ ...save, os: { spec: "os4", deviceId: save.os.deviceId } })).toThrow(/does not fit/); // the OS 4 image needs more room than this rig's drive has
+  });
+
+  it("a key the OS is working on is saved as the plugged key", () => {
+    const g = rig("ssd1");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const id = g.trayKeyIds()[0]!;
+    ingest(g, id);
+    const save = g.toSave();
+    expect(save.plugged?.id).toBe(id);
+    expect(save.tray.map((k) => k.id)).not.toContain(id);
+  });
+});
+
+describe("the bot still plays the legacy flow with a drive installed", () => {
+  it("earns money with a drive and no OS", () => {
+    const g = rig("ssd1", { os: false, keys: [{ template: "cli.log" }] });
+    g.powerButton();
+    const op = new Operator(g, 1);
+    for (let t = 0; t < 200; t++) { g.advanceBaseTick(); op.step(); }
+    expect(g.completed).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("the boot scan and mount states", () => {
+  const diskOf = (g: Game) => [...g.disks.values()][0]!;
+  const devId = (g: Game) => [...g.disks.keys()][0]!;
+  const tornWrite = (g: Game): void => {
+    const port = g.ports.find((p) => p.media)!;
+    port.write(STORAGE_REG.LBA, 300);
+    port.write(STORAGE_REG.CMD, 2);
+  };
+
+  it("the scan delay grows with the used blocks", () => {
+    const empty = rig("hdd0");
+    empty.powerButton();
+    const base = empty.mountTicksLeft();
+    const full = rig("hdd0");
+    diskOf(full).reserve(120, 200);
+    full.powerButton();
+    expect(full.mountTicksLeft()).toBeGreaterThan(base);
+    runUntil(full, "idle-os", 3000);
+    expect(full.snapshot().storage[0]!.mount).toMatchObject({ state: "clean", phase: "mounted", progress: 1 });
+  });
+
+  it("a power cut during a write leaves the drive dirty; the boot repair pass clears it", () => {
+    const g = rig("hdd0");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    expect(diskOf(g).mount).toBe("clean");
+    tornWrite(g);
+    g.powerButton();
+    expect(diskOf(g).mount).toBe("dirty");
+    expect(g.snapshot().storage[0]!.mount).toMatchObject({ state: "dirty", phase: "unmounted" });
+    const clean = rig("hdd0");
+    clean.powerButton();
+    g.powerButton();
+    expect(g.mountTicksLeft()).toBeGreaterThan(clean.mountTicksLeft());
+    ticks(g, 1);
+    expect(g.snapshot().storage[0]!.mount.phase).toMatch(/scanning|repairing/);
+    expect(g.driveCanHold(devId(g), "program")).toBe(false);
+    runUntil(g, "idle-os");
+    expect(diskOf(g).mount).toBe("clean");
+    expect(g.snapshot().storage[0]!.mount.phase).toBe("mounted");
+  });
+
+  it("a power cut while the drive repairs keeps it dirty", () => {
+    const g = rig("hdd0");
+    diskOf(g).mount = "dirty";
+    g.powerButton();
+    expect(g.mountTicksLeft()).toBeGreaterThan(1);
+    ticks(g, 2);
+    g.powerButton();
+    expect(diskOf(g).mount).toBe("dirty");
+  });
+
+  it("without an OS no drive is mounted", () => {
+    const g = rig("hdd0", { os: false });
+    g.powerButton();
+    ticks(g, 30);
+    expect(g.snapshot().storage[0]!.mount).toMatchObject({ state: "unformatted", phase: "unmounted" });
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false);
+  });
+
+  it("datasets need a mounted clean drive and a tier-2 filesystem; unformatted drives stay unmounted", () => {
+    const g = rig("hdd0");
+    g.powerButton();
+    runUntil(g, "idle-os");
+    expect(g.driveCanHold(devId(g), "spool")).toBe(true);
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false); // os1: fixed boot and spool only
+    expect(g.os!.spec.fsTier).toBe(1);
+    g.os!.spec = { ...g.os!.spec, fsTier: 2 };
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(true);
+    diskOf(g).mount = "damaged";
+    expect(g.driveCanHold(devId(g), "dataset")).toBe(false);
+    g.powerButton();
+    expect(g.driveCanHold(devId(g), "spool")).toBe(false); // off: nothing is mounted
+  });
+
+  it("the machine is in the mounting phase while the OS probes the drives, then boots", () => {
+    const g = rig("hdd0");
+    diskOf(g).reserve(120, 200);
+    g.powerButton();
+    const seen = new Set<Phase>();
+    for (let i = 0; i < 3000 && g.currentPhase() !== "idle-os"; i++) { g.advanceBaseTick(); seen.add(g.currentPhase()); }
+    expect(seen.has("mounting")).toBe(true);
+    expect(g.currentPhase()).toBe("idle-os");
+  });
+
+  describe("formatting a data drive", () => {
+    const withSecond = (fsTier: number): Game => {
+      const g = rig("hdd0");
+      if (g.powered) g.powerButton();
+      g.os!.spec = { ...g.os!.spec, fsTier };
+      const b = g.purchase("ssd1") as { invId: string };
+      expect(g.install(b.invId).ok).toBe(true);
+      return g;
+    };
+    const second = (g: Game): string => g.snapshot().storage.find((s) => !s.hasOs)!.deviceId;
+
+    it("a blank second drive is unformatted and stays unmounted; formatting makes it clean and mounted at the next boot", () => {
+      const g = withSecond(2);
+      const id = second(g);
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount.state).toBe("unformatted");
+      g.powerButton();
+      runUntil(g, "idle-os");
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount.phase).toBe("unmounted");
+      expect(g.formatDrive(id)).toMatchObject({ ok: false, reason: "power the machine off first" });
+      g.powerButton();
+      expect(g.formatDrive(id)).toMatchObject({ ok: true, wiped: 0 });
+      g.powerButton();
+      runUntil(g, "idle-os");
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.mount).toMatchObject({ state: "clean", phase: "mounted" });
+      expect(g.driveCanHold(id, "dataset")).toBe(true);
+    });
+
+    it("needs an OS with filesystem tier 2, and never formats the OS drive", () => {
+      const g = withSecond(1);
+      expect(g.formatDrive(second(g)).ok).toBe(false);
+      expect(g.snapshot().storage.find((s) => !s.hasOs)!.format.why).toMatch(/Paged OS 2.0/);
+      const g2 = withSecond(2);
+      expect(g2.formatDrive(g2.os!.deviceId)).toMatchObject({ ok: false });
+      const none = rig("hdd0", { os: false });
+      if (none.powered) none.powerButton();
+      expect(none.formatDrive([...none.disks.keys()][0] ?? "x").ok).toBe(false);
+    });
+
+    it("datasets on the drive need a confirm, then they are lost", () => {
+      const g = withSecond(2);
+      const id = second(g);
+      g.formatDrive(id);
+      expect(g.disks.get(id)!.fs.create("c1", "dataset", 8)).not.toBeNull();
+      expect(g.snapshot().storage.find((s) => s.deviceId === id)!.format.datasets).toBe(1);
+      expect(g.formatDrive(id)).toMatchObject({ ok: false });
+      expect(g.disks.get(id)!.fs.list("dataset")).toHaveLength(1);
+      expect(g.formatDrive(id, true)).toMatchObject({ ok: true, wiped: 1 });
+      expect(g.disks.get(id)!.fs.list("dataset")).toHaveLength(0);
+    });
+  });
+
+  it("a tier-3 filesystem replays a journal; a lower tier passes over every used block", () => {
+    const boot = (fsTier: number) => {
+      const g = rig("hdd0");
+      g.os!.spec = { ...g.os!.spec, fsTier };
+      diskOf(g).reserve(120, 200);
+      diskOf(g).mount = "dirty";
+      g.powerButton();
+      return g.mountTicksLeft();
+    };
+    expect(boot(3)).toBeLessThan(boot(2));
+  });
+});
+
+describe("quick OS boot", () => {
+  it("the OS is up within about 10 s of the power button on every drive tier, and a faster drive is never slower", () => {
+    const boot = (s: "hdd0" | "ssd1" | "nvme2") => {
+      const g = rig(s);
+      g.powerButton();
+      return runUntil(g, "idle-os");
+    };
+    const [hdd, ssd, nvme] = [boot("hdd0"), boot("ssd1"), boot("nvme2")];
+    expect(hdd).toBeLessThanOrEqual(10);
+    expect(nvme).toBeLessThanOrEqual(hdd);
+    expect(nvme).toBeLessThanOrEqual(ssd);
+    expect(ssd).toBeLessThanOrEqual(hdd);
+  });
+});
