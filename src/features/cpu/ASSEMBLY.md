@@ -1,6 +1,6 @@
 # Assembly, boot and USB keys
 
-Code: `src/features/board/sim/parts.ts`, `machine.ts`, `keys.ts` (the API below; `game.ts` holds the state), `src/features/board/sim/cables.ts` (cables, boot check), `src/features/board/sim/pch/` (PCH device and boot ROM), `src/features/jobs/sim/work.ts` (the key tray), `src/features/economy/sim/operator.ts` (a bot player for tests). No DOM imports. The worker protocol and store functions that carry these calls are at the end.
+Code: `src/features/board/sim/game/parts.ts`, `machine.ts`, `keys.ts` (the API below; `game.ts` holds the state), `src/features/board/sim/cables.ts` (cables, boot check), `src/features/board/sim/pch/` (PCH device and boot ROM), `src/features/jobs/sim/work.ts` (the key tray), `src/features/economy/sim/operator.ts` (a bot player for tests). No DOM imports. The worker protocol and store functions that carry these calls are at the end.
 
 ## The loop in one paragraph
 

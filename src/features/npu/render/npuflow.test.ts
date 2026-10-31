@@ -10,9 +10,9 @@ import { NPU_BASE, NPU_MEM, NPU_REG, NPU_STRIDE } from '@/core/sim/memmap';
 import { roundUp16 } from '../../gpu/sim/kernels';
 import { makeNetwork, npuProgram } from '../sim/kernels';
 import { Prng } from '@/core/sim/prng';
-import { buildBuses, type Bus, type BusKind } from '../../board/render/routes';
-import { deviceAt, npuAccess, resolve, slotChain } from '../../board/render/busmap';
-import { GEO, setLayoutTier } from '../../board/render/layout';
+import { buildBuses, type Bus, type BusKind } from '../../board/render/wiring/routes';
+import { deviceAt, npuAccess, resolve, slotChain } from '../../board/render/wiring/busmap';
+import { GEO, setLayoutTier } from '../../board/render/layout/layout';
 
 interface Access { store: boolean; reg: boolean; off: number; word: number }
 

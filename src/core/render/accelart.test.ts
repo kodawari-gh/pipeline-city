@@ -7,7 +7,7 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 import { specsOfKind } from '../../features/board/sim/specs';
 import { cardArt, cardOrigin, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
 import { CARD_H, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
-import { setLayoutTier } from '../../features/board/render/layout';
+import { setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
 
 const DARK: Theme = {

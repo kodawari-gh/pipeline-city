@@ -1,13 +1,13 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng } from './layout';
-import { shieldSheet } from './ports';
+import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng } from './layout/layout';
+import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
-import { IO_PORTS } from './boardlayout';
-import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './pins';
-import { tuneBump } from './match';
-import { pchLedHousing } from './pchlive';
-import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './routes';
+import { IO_PORTS } from './layout/boardlayout';
+import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './layout/pins';
+import { tuneBump } from './layout/match';
+import { pchLedHousing } from './wiring/pchlive';
+import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './wiring/routes';
 import { makePalette, type Palette, type Theme } from '@/core/render/theme';
 import {
   cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieRelease, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,

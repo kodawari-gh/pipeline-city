@@ -4,7 +4,7 @@
 // plus "cli" which picks a family from the seed). To add a scenario (web request, GPU render, secure execution, ...):
 // write a TemplateFn, add it to TEMPLATES below, and document it in docs/GEN.md. Nothing else needs to change.
 
-import { assembleGpu } from "@/features/gpu/sim/asm";
+import { assembleGpu } from "@/features/gpu/sim/isa/asm";
 import { Prng } from "@/core/sim/prng";
 import { DISPLAY_COLS, DISPLAY_ROWS, GPU_MEM, GPU_REG, NPU_MEM, NPU_REG, TpmCmd } from "@/core/sim/memmap";
 import * as K from "./kernels";

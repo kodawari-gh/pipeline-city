@@ -2,7 +2,7 @@
 // the edge of the blocks it names and runs square through the gutters, and the two tiers differ.
 import { describe, expect, it } from 'vitest';
 import { specsOfKind } from '../../board/sim/specs';
-import type { Pt, Rect } from '../../cpu/render/cpuplan';
+import type { Pt, Rect } from '../../cpu/render/core/cpuplan';
 import type { NpuPlan } from './npuplan';
 import { DIE_MARGIN, npuDie, npuPlan } from './npuplans';
 import { npuInputOf } from './npulayout';

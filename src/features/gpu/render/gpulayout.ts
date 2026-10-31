@@ -1,8 +1,8 @@
 import { specsOfKind } from '../../board/sim/specs';
-import type { Pt } from '../../cpu/render/cpuplan';
-import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from './gpuplan';
-import { gpuCells, GPU_DIE, gpuPlan as dieOf, maskParts } from './gpuplans';
-import type { Rect } from '../../board/render/layout';
+import type { Pt } from '../../cpu/render/core/cpuplan';
+import { gpuPlanInput, type GpuBlock, type GpuLinkKind, type GpuPlan as DiePlan, type GpuPlanInput } from './plan/gpuplan';
+import { gpuCells, GPU_DIE, gpuPlan as dieOf, maskParts } from './plan/gpuplans';
+import type { Rect } from '../../board/render/layout/layout';
 
 // The floorplan of a graphics card (docs/GPU.md section 7), in card-local units: (0, 0) is the PCB's north-west corner. The die's insides come
 // from `gpu/gpuplans.ts` (the same slicing layout and router as the CPU die) and are moved under the fans; this file lays the card round it

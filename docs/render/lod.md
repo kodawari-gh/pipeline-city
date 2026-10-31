@@ -1,6 +1,6 @@
 # Level of detail (zoom and location)
 
-One module, `src/core/render/lod.ts` (pure, no Pixi), holds the zoom bands and the location rule every piece of hardware reads. Tests: `lod.test.ts`. Not every chip uses every part:
+One module, `src/core/render/lod/lod.ts` (pure, no Pixi), holds the zoom bands and the location rule every piece of hardware reads. Tests: `lod.test.ts`. Not every chip uses every part:
 
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
 |---|---|---|---|

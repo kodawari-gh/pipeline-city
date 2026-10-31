@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { specsOfKind } from '../../board/sim/specs';
 import type { Theme } from '@/core/render/theme';
-import { gpuEncode, gpuInstr, GPU_OPS } from '../sim/isa';
+import { gpuEncode, gpuInstr, GPU_OPS } from '../sim/isa/isa';
 import { ALU_UNITS, aluUnitOf, decodeGeom, fetchGeom, gpuControlIndices, gpuControlLines, gpuGlyph, gpuGlyphArea, gpuGlyphLive, gpuSlotValues, GPU_GLYPH_KINDS, gpuHostLive, hasGpuSymbol, laneUnits, launchGeom, pcArea, pcieGeom } from './gpuglyph';
-import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './gpuplan';
-import { cellInset, gpuCells, gpuPlan } from './gpuplans';
+import { gpuPlanInput, type GpuBlock, type GpuBlockKind } from './plan/gpuplan';
+import { cellInset, gpuCells, gpuPlan } from './plan/gpuplans';
 
 const T: Theme = {
   dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',

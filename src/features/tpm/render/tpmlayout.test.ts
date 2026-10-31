@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { specsOfKind } from '../../board/sim/specs';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { blockRect, tpmGeo, tpmIds, tpmParts, tpmPlanOf } from './tpmlayout';
-import { setLayoutTier, type Rect } from '../../board/render/layout';
+import { setLayoutTier, type Rect } from '../../board/render/layout/layout';
 
 const inside = (r: Rect, o: Rect): boolean => r.x >= o.x - 0.01 && r.y >= o.y - 0.01 && r.x + r.w <= o.x + o.w + 0.01 && r.y + r.h <= o.y + o.h + 0.01;
 

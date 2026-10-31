@@ -1,8 +1,8 @@
 import { Graphics } from 'pixi.js';
 import { mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/dieart';
-import { cellRects } from '../../cpu/render/dieart';
+import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import { cellRects } from '../../cpu/render/die/dieart';
 import type { DiskBlock, DiskLink, DiskPlan } from './diskfloor';
 import { flatGrid, headTrack, platterCell, queueLanes, type Cell } from './diskplan';
 import type { DriveKind } from './drives';

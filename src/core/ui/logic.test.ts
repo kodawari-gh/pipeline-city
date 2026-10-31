@@ -12,8 +12,8 @@ import { gpuIds } from '../../features/gpu/render/gpulayout';
 import { isGpuId } from '../../features/gpu/ui/gpudesc';
 import { statsOf } from '../../features/economy/ui/picker';
 import { STAT_HELP } from '../../features/economy/ui/stathelp';
-import { cpuPlan } from '../../features/cpu/render/cpuplans';
-import type { PlanInput } from '../../features/cpu/render/cpuplan';
+import { cpuPlan } from '../../features/cpu/render/core/cpuplans';
+import type { PlanInput } from '../../features/cpu/render/core/cpuplan';
 
 /** One floorplan per architecture and optional part: the ids the die writes. */
 const DIE_INPUTS: PlanInput[] = [

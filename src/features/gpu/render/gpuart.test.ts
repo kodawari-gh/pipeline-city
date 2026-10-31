@@ -7,8 +7,8 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 import { specsOfKind } from '../../board/sim/specs';
 import type { Theme } from '@/core/render/theme';
 import { gpuAccent, gpuFar, gpuLaneLines, gpuNear, gpuTitle, GPU_KIND_COLOR, GPU_LEGEND, GPU_LINK_COLOR } from './gpuart';
-import { gpuPlanInput } from './gpuplan';
-import { gpuPlan } from './gpuplans';
+import { gpuPlanInput } from './plan/gpuplan';
+import { gpuPlan } from './plan/gpuplans';
 
 const T: Theme = {
   dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',

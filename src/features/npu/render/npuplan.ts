@@ -4,7 +4,7 @@
 // is a tiled floorplan: the blocks fill the die edge to edge, separated by gutters the wires run in. Block and link shapes match `cpuplan.ts`
 // structurally, so the layout engine and the router (die/cpufloor.ts) place and route it too.
 
-import type { Grid, Pt, Rect } from '../../cpu/render/cpuplan';
+import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 
 export type NpuBlockKind =
   // the host side: the PCIe link, and the registers the CPU writes

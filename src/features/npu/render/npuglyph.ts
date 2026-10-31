@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
-import type { Rect } from '../../cpu/render/cpuplan';
-import { glyphKit, type Put } from '../../cpu/render/blockart';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import { glyphKit, type Put } from '../../cpu/render/die/blockart';
 import type { Theme } from '@/core/render/theme';
 import type { NpuBlock } from './npuplan';
 import { GPU_HOP_TICKS, NPU_DESC_WORDS, NPU_NO_BIAS, NPU_TILES, NpuOp } from '@/core/sim/memmap';

@@ -1,15 +1,15 @@
 import type { Graphics } from 'pixi.js';
-import type { Block, Rect } from '../../cpu/render/cpuplan';
-import { aluPoly, CONTROL_LINES, glyphKit, pcDigits, slotsOf, WORD_FIELDS, type LiveGlyph, type Put } from '../../cpu/render/blockart';
+import type { Block, Rect } from '../../cpu/render/core/cpuplan';
+import { aluPoly, CONTROL_LINES, glyphKit, pcDigits, slotsOf, WORD_FIELDS, type LiveGlyph, type Put } from '../../cpu/render/die/blockart';
 import { mix } from '@/core/render/ink';
 import { GPU_FRAME } from '@/core/sim/memmap';
 import { KERNEL_LAYOUT } from '../sim/kernels';
-import { gpuDecode, gpuDisassemble, GPU_SPEC_BY_NAME } from '../sim/isa';
-import type { GpuStep } from '../sim/ref';
+import { gpuDecode, gpuDisassemble, GPU_SPEC_BY_NAME } from '../sim/isa/isa';
+import type { GpuStep } from '../sim/isa/ref';
 import type { Theme } from '@/core/render/theme';
-import type { GpuBlock, GpuBlockKind } from './gpuplan';
+import type { GpuBlock, GpuBlockKind } from './plan/gpuplan';
 import { dramGeom } from './gpumem';
-import { cellInset, gpuCells, maskParts } from './gpuplans';
+import { cellInset, gpuCells, maskParts } from './plan/gpuplans';
 
 // What is inside a block of a GPU card (docs/DIE.md "Inside the blocks", docs/GPU.md section 7): the schematic an engineer would draw for the part,
 // drawn with the CPU die's own tools (`glyphKit`, `aluPoly`, `pcDigits`, the word strip) so the two read as one family, and wired inside: the

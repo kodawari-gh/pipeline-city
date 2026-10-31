@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { assembleGpu } from '../sim/asm';
+import { assembleGpu } from '../sim/isa/asm';
 import { getSpec, type CardSpec } from '../../board/sim/specs';
 import { gpuKernelSource, KERNEL_LAYOUT } from '../sim/kernels';
-import { gpuEncode, gpuInstr } from '../sim/isa';
+import { gpuEncode, gpuInstr } from '../sim/isa/isa';
 import { GPU_BASE, GPU_MEM, GPU_REG, GpuStatus } from '@/core/sim/memmap';
 import { GpuPort } from '../sim/port';
 import { Machine } from '@/core/sim/machine';
-import type { GpuStep } from '../sim/ref';
+import type { GpuStep } from '../sim/isa/ref';
 import { gpuPlan } from './gpulayout';
 import { gpuGlyphArea } from './gpuglyph';
 import { bankGeom, dramCellRect, dramFill, dramGeom, gpuLensRows, gpuMemLive, gpuRegion, type MemCtx } from './gpumem';
-import { gpuCells } from './gpuplans';
+import { gpuCells } from './plan/gpuplans';
 
 const blockOf = (visual: string, kind: string) => gpuPlan(visual).die.blocks.find((b) => b.kind === kind)!;
 const areaOf = (b: ReturnType<typeof blockOf>) => gpuGlyphArea({ kind: b.kind, rect: b.rect })!;

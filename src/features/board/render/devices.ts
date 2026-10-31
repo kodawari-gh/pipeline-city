@@ -3,12 +3,12 @@ import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
   DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
   type Rect,
-} from './layout';
+} from './layout/layout';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
-import { dieFar, planOf } from '../../cpu/render/dieart';
-import { SINK_FAN_R, sinkFanAt } from './pins';
-import { hdmiPlug, rj45Plug } from './ports';
-import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './routes';
+import { dieFar, planOf } from '../../cpu/render/die/dieart';
+import { SINK_FAN_R, sinkFanAt } from './layout/pins';
+import { hdmiPlug, rj45Plug } from './layout/ports';
+import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.

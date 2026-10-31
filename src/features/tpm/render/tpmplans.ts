@@ -2,8 +2,8 @@
 // chipset is in the west, the six registers next to it; the sequencer sits under the registers and drives the engines in the middle column (the hash,
 // the quote engine, the sealed storage); the bus master and the range guard are in the east, where the module meets the memory bus.
 
-import type { Rect } from '../../cpu/render/cpuplan';
-import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../../cpu/render/cpufloor';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../../cpu/render/core/cpufloor';
 import type { TpmBlock, TpmBlockKind, TpmLinkKind, TpmPlan, TpmPlanInput } from './tpmplan';
 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */

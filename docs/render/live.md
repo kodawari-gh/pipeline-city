@@ -1,6 +1,6 @@
 # Rendering: live state (activity, boot, power-off, performance, tracing)
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/core/render/live.ts`, `src/features/memory/render/ramview.ts`, `src/features/gpu/render/gpuview.ts`, `src/features/storage/render/diskview.ts`, `src/features/tpm/render/tpmview.ts`, `src/features/npu/render/npuview.ts`, `src/features/cpu/render/dieview.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/core/render/live.ts`, `src/features/memory/render/ramview.ts`, `src/features/gpu/render/gpuview.ts`, `src/features/storage/render/diskview.ts`, `src/features/tpm/render/tpmview.ts`, `src/features/npu/render/npuview.ts`, `src/features/cpu/render/die/dieview.ts`.
 
 ## Files
 

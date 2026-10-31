@@ -2,7 +2,7 @@ import { specsOfKind } from '../../board/sim/specs';
 import { TPM_KEYS_SHOWN } from '../sim/tpm';
 import { tpmPlanInput, type TpmBlock, type TpmPlan } from './tpmplan';
 import { TPM_DIE, tpmPlan } from './tpmplans';
-import type { Rect } from '../../board/render/layout';
+import type { Rect } from '../../board/render/layout/layout';
 
 // The secure module on its header (docs/ACCEL.md "TPM"), in board space. The daughterboard stands on the header; its die lies under a lid and fills
 // the band between the module's name and its pins. The die's own plan (`tpm/tpmplans.ts`) is drawn in die units and scaled into the band. Like

@@ -3,8 +3,8 @@ import type { NpuSnap } from '@/worker/game/types';
 import { NPU_MEM, NpuOp } from '@/core/sim/memmap';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/diepulse';
-import type { Pt, Rect } from '../../cpu/render/cpuplan';
+import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
+import type { Pt, Rect } from '../../cpu/render/core/cpuplan';
 import { npuFar, npuNear, NPU_KIND_COLOR } from './npuart';
 import { ctlRowOf, npuGlyphArea, npuLive, type NpuShow } from './npuglyph';
 import { NpuPlayer, REPLAY_HOP_MS, replayStepMs } from './npuplayer';
@@ -12,9 +12,9 @@ import { npuHostRoute, npuRoute, type HostAccess } from './npuroute';
 import type { NpuBlock } from './npuplan';
 import { npuCover } from '@/core/render/accelart';
 import { npuGeo, type NpuGeo } from './npulayout';
-import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod';
-import { RectCache } from '@/core/render/lodrect';
-import { cardCandidates, cardText } from '@/core/render/lodcard';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
+import { RectCache } from '@/core/render/lod/lodrect';
+import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // The AI cards of the board, alive (docs/ACCEL.md "NPU internal view"). Seen from afar a card is a lid over its die. Zoomed in, the lid fades away like a
 // graphics card's shroud and the die shows through, drawn in the CPU die's style (npu/npuart.ts): the control registers with the words the CPU wrote, the

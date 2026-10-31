@@ -2,10 +2,10 @@
 // into card memory, so the listing of the CPU program only shows it as data. Here the kernel is assembled for a card of some lane count and run once on the
 // reference card, counting how often each instruction ran. Pure: no sim state, nothing is changed by looking.
 
-import { assembleGpu } from "./asm";
+import { assembleGpu } from "./isa/asm";
 import { frameParams, framesOf, GPU_TASK_KERNELS, gpuKernelSource, KERNEL_LAYOUT, PICTURE_LEN, type GpuKernelName } from "./kernels";
-import { gpuDecode, gpuDisassemble } from "./isa";
-import { GpuRef } from "./ref";
+import { gpuDecode, gpuDisassemble } from "./isa/isa";
+import { GpuRef } from "./isa/ref";
 import type { CodeLine, OpClass } from "../../jobs/sim/jobcode";
 
 /** The kernel a job template runs on the card (`gpu.blur3` -> `blur3`), or null for a job that has none. */

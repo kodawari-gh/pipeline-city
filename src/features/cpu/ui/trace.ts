@@ -2,7 +2,7 @@
 // groups of a snapshot's stored state), lines out, so the panel only keeps and shows them.
 
 import { Ev, Which } from '../sim/engines/common';
-import type { GpuStep } from '../../gpu/sim/ref';
+import type { GpuStep } from '../../gpu/sim/isa/ref';
 import { RowOutcome } from '../../memory/sim/dram';
 import { FAULT_CAUSE_LINE, IRQ, VmFault } from '@/core/sim/memmap';
 

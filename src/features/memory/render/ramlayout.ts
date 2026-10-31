@@ -3,7 +3,7 @@
 
 import { disassemble } from '../../cpu/sim/isa';
 import type { RamRegion } from '../sim/ramregions';
-import type { Rect } from '../../board/render/layout';
+import type { Rect } from '../../board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
 import { mix } from '@/core/render/ink';
 

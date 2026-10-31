@@ -3,14 +3,14 @@ import type { StorageSnap } from '@/worker/game/types';
 import { box, label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import { DiskPlay } from './diskplay';
-import type { Rect } from '../../cpu/render/cpuplan';
-import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
 import { accentOf, diskStatic, drawArch, drawBar, drawMap, type ArchLive, type DataCtx } from './diskart';
 import { diskPlan, type DiskPlan } from './diskfloor';
 import { cellsOf, counterRows, CELL_BLOCKS, dimmed, headTrack, ownerSlot, type Cell } from './diskplan';
 import type { DriveKind } from './drives';
-import { RectCache } from '@/core/render/lodrect';
-import { cardCandidates, cardText } from '@/core/render/lodcard';
+import { RectCache } from '@/core/render/lod/lodrect';
+import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // The drives of the board with their insides (docs/render/lod.md, docs/OS.md "The filesystem ledger"). Zoomed out the casing shows (drives.ts) with a fill bar
 // on it. Zoomed in the casing fades to a cutaway drawn in the CPU die's style: the capacity map, one cell per block group coloured by what it holds (OS,

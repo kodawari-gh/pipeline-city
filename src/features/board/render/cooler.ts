@@ -1,10 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec } from '../sim/specs';
-import { COOLER, type Rect } from './layout';
+import { COOLER, type Rect } from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
-import { EdgeFan, type FanMount } from '../../room/render/case';
+import { EdgeFan, type FanMount } from '../../room/render/desk/case';
 import { blades, type Part } from './devices';
-import { roundedPath } from './routes';
+import { roundedPath } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // The CPU cooler (docs/render/board.md "Cooler"): three looks on the same mounting plate (`COOLER`), which is the hit area, the empty-slot

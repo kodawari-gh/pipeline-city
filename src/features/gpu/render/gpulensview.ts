@@ -3,8 +3,8 @@ import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import type { OpClass } from '../../jobs/sim/jobcode';
 import { LENS_ROWS, type GpuLens } from './gpumem';
-import type { Rect } from '../../board/render/layout';
-import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod';
+import type { Rect } from '../../board/render/layout/layout';
+import { DEVICE_LOD, SHOWN, bandAlpha, onBand } from '@/core/render/lod/lod';
 
 // The magnifier on a graphics card's memory, the RAM's (ramview.ts drawLens) for the card: beside the cell the last load or store touched, nine rows
 // (address, word, the instruction or the number, a class pill for code), a note naming the region, the instruction in flight beside the title, and a thin

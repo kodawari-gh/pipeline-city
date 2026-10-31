@@ -2,8 +2,8 @@
 // are in the west; next to them the descriptor queue over card memory; the datapath fills the rest, top to bottom the way the data goes: the tile
 // registers feed the array of multiply-accumulate cells, which drains south into the bias and relu stage that writes back to card memory.
 
-import type { Rect } from '../../cpu/render/cpuplan';
-import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../../cpu/render/cpufloor';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import { col, leaf, placeTree, routeWires, row, type Node, type Spec, type WireSpec } from '../../cpu/render/core/cpufloor';
 import type { NpuBlock, NpuBlockKind, NpuLinkKind, NpuPlan, NpuPlanInput } from './npuplan';
 
 /** Margins round the blocks: the bond pads run in them, and the south one carries the title and the legend. */

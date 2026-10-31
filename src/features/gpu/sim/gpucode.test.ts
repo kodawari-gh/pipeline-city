@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { GPU_OPS } from "./isa";
-import { GPU_GROUP_ORDER, GPU_OP_DOC } from "./isadoc";
+import { GPU_OPS } from "./isa/isa";
+import { GPU_GROUP_ORDER, GPU_OP_DOC } from "./isa/isadoc";
 import { GPU_TASK_KERNELS, KERNEL_LAYOUT } from "./kernels";
 import { GPU_CODE } from "@/core/sim/memmap";
 import { gpuKernelOf, gpuKernelProfile, gpuListing, gpuOpClass } from "./gpucode";

@@ -5,7 +5,7 @@
 // the router (die/cpufloor.ts) place and route it too.
 
 import type { TpmConfig } from '../sim/tpm';
-import type { Grid, Pt, Rect } from '../../cpu/render/cpuplan';
+import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 
 export type TpmBlockKind =
   // the header side: the link to the chipset and the six registers the CPU sees

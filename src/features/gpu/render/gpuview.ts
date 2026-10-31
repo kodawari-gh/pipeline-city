@@ -1,26 +1,26 @@
 import { Container, Graphics, type Text } from 'pixi.js';
 import type { DeviceSnap, GpuSnap } from '@/worker/game/types';
 import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
-import type { GpuStep, GpuStepKind } from '../sim/ref';
+import type { GpuStep, GpuStepKind } from '../sim/isa/ref';
 import { box, label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { EdgeFan } from '../../room/render/case';
+import { EdgeFan } from '../../room/render/desk/case';
 import { gpuCover } from '@/core/render/accelart';
-import type { Pt } from '../../cpu/render/cpuplan';
+import type { Pt } from '../../cpu/render/core/cpuplan';
 import { gpuFar, gpuNear } from './gpuart';
 import { aluUnitOf, gpuGlyphArea, gpuGlyphLive, gpuHostLive, laneUnits } from './gpuglyph';
-import { gpuRoute, launchRoute, type Hop } from './gpuroute';
-import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/diepulse';
-import { CYCLES_PER_SEC } from '../../cpu/render/diemotion';
+import { gpuRoute, launchRoute, type Hop } from './plan/gpuroute';
+import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
+import { CYCLES_PER_SEC } from '../../cpu/render/die/diemotion';
 import { gpuPlan, type GpuPlan } from './gpulayout';
-import type { Rect } from '../../board/render/layout';
-import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from './gpuplayer';
+import type { Rect } from '../../board/render/layout/layout';
+import { bankState, conflicted, GpuPlayer, stepText, type GpuTick } from './plan/gpuplayer';
 import { dramCellRect, dramFill, gpuLensRows, gpuMemLive } from './gpumem';
 import { GpuLensView } from './gpulensview';
-import type { GpuBlock } from './gpuplan';
-import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod';
-import { RectCache } from '@/core/render/lodrect';
-import { cardCandidates, cardText } from '@/core/render/lodcard';
+import type { GpuBlock } from './plan/gpuplan';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
+import { RectCache } from '@/core/render/lod/lodrect';
+import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // The graphics cards of the board, alive (docs/ACCEL.md "Art as built"). Along the top edge the fans spin, at a speed that follows the card's
 // temperature and load. Zoomed in, the shroud fades away like an x-ray and the die shows through: the lanes lit by the execution mask (the idle

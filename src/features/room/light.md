@@ -1,6 +1,6 @@
 # Rendering: the room's window, time of day and light
 
-Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/skyline.ts`, `room/light.ts`, `room/room.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md); see also [`render/room/room.md`](room.md) and [`render/room/shell.md`](shell.md). Code: `src/features/room/render/shell/skyline.ts`, `room/light.ts`, `room/room.ts`.
 
 ## Files
 

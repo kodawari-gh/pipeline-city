@@ -2,8 +2,8 @@ import { Container, Graphics } from 'pixi.js';
 import type { TpmView as TpmSnap } from '../sim/tpm';
 import { box } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/diepulse';
-import type { Pt, Rect } from '../../cpu/render/cpuplan';
+import { CellTexts, drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
+import type { Pt, Rect } from '../../cpu/render/core/cpuplan';
 import { tpmFar, tpmNear, TPM_KIND_COLOR } from './tpmart';
 import { ENGINE_OF, guardGeom, padlock, tpmGlyphArea, tpmLive, type TpmShow } from './tpmglyph';
 import { TpmPlayer, REPLAY_HOP_MS } from './tpmplayer';
@@ -11,9 +11,9 @@ import { tpmRoute } from './tpmroute';
 import type { TpmBlock } from './tpmplan';
 import { tpmCover } from '@/core/render/accelart';
 import { tpmGeo, type TpmGeo } from './tpmlayout';
-import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod';
-import { RectCache } from '@/core/render/lodrect';
-import { cardCandidates, cardText } from '@/core/render/lodcard';
+import { DEVICE_LOD, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
+import { RectCache } from '@/core/render/lod/lodrect';
+import { cardCandidates, cardText } from '@/core/render/lod/lodcard';
 
 // The secure module of the board, alive (docs/ACCEL.md "TPM"). Seen from afar it is the lid of a small daughterboard, with a padlock closed on it while
 // protected mode is on. Zoomed in, the lid fades away like a card's shroud and the die shows through, drawn in the CPU die's style (tpm/tpmart.ts): the

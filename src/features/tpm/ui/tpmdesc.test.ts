@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TpmView } from '../sim/tpm';
 import { headerRect, tpmHeader } from '@/core/render/accelart';
-import { setLayoutTier } from '../../board/render/layout';
+import { setLayoutTier } from '../../board/render/layout/layout';
 import { tpmIds } from '../render/tpmlayout';
 import { describeId } from '@/core/ui/logic';
 import { dev, snap } from '@/core/ui/testdata';

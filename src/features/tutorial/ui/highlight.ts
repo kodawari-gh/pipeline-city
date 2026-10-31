@@ -3,7 +3,7 @@
 
 import { opClassOf, type OpClass } from '../../jobs/sim/jobcode';
 import { gpuOpClass } from '../../gpu/sim/gpucode';
-import { GPU_SPEC_BY_NAME } from '../../gpu/sim/isa';
+import { GPU_SPEC_BY_NAME } from '../../gpu/sim/isa/isa';
 
 export type Lang = 'asm' | 'gpu' | 'cpp' | 'python';
 

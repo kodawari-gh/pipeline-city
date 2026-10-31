@@ -39,7 +39,7 @@ import { Pch, type PchKey } from "../../features/board/sim/pch";
 import * as bill from "../../features/economy/sim/bill";
 import * as clients from "../../features/economy/sim/clients";
 import { ECONOMY, SANDBOX_MONEY, type EconomyConfig } from "../../features/economy/sim/economy";
-import * as hardware from "../../features/board/sim/hardware";
+import * as hardware from "../../features/board/sim/game/hardware";
 import {
   MACHINE_RAM_BYTES, SANDBOX_LEVEL, LOG_CAP,
   type DriveMount, type InstalledOs, type InvItem, type Key, type Link, type NetKey, type Transfer,
@@ -51,11 +51,11 @@ import type { Contract, ContractOffer } from "../../features/economy/sim/contrac
 import { newContractRng } from "../../features/economy/sim/contracts";
 import * as keys from "../../features/economy/sim/keys";
 import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from "../../features/economy/sim/levels";
-import * as machine from "../../features/board/sim/machine";
+import * as machine from "../../features/board/sim/game/machine";
 import * as memory from "../../features/memory/sim/memory";
 import * as network from "../../features/network/sim/network";
 import * as os from "../../features/os/sim/os";
-import * as parts from "../../features/board/sim/parts";
+import * as parts from "../../features/board/sim/game/parts";
 import * as persist from "./persist";
 import { TRACE_CYCLES } from "../../features/cpu/sim/pipesnap";
 import * as sandbox from "../../features/sandbox/sim/sandbox";

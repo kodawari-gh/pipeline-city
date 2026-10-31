@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assembleGpu } from "./asm";
+import { assembleGpu } from "./isa/asm";
 import {
   GPU_BASE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_PORTS, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus,
 } from "@/core/sim/memmap";
-import { GpuRef } from "./ref";
+import { GpuRef } from "./isa/ref";
 import { gpuKernelExpected, gpuKernelSource, KERNEL_LAYOUT, type GpuKernelName } from "./kernels";
 import { getSpec, type CardSpec } from "../../board/sim/specs";
 import { GpuPort } from "./port";

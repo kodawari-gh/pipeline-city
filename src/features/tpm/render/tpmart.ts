@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/dieart';
+import { planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
 import type { TpmBlock, TpmBlockKind, TpmLink, TpmLinkKind, TpmPlan } from './tpmplan';
 import { tpmGlyph, tpmGlyphArea } from './tpmglyph';
 import { DIE_MARGIN } from './tpmplans';

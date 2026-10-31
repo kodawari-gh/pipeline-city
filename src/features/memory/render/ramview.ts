@@ -2,13 +2,13 @@ import { Container, Graphics, Text } from 'pixi.js';
 import type { RamMap } from '../../cpu/sim/pipesnap';
 import type { RamRegion } from '../sim/ramregions';
 import { label, mix } from '@/core/render/ink';
-import { opClass, type OpClass } from '../../cpu/render/diemotion';
+import { opClass, type OpClass } from '../../cpu/render/die/diemotion';
 import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
-import { coreColor } from '../../cpu/render/coretiles';
+import { coreColor } from '../../cpu/render/core/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
-import type { Rect } from '../../board/render/layout';
+import type { Rect } from '../../board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
-import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, seenZoom, type LodRect } from '@/core/render/lod';
+import { DEVICE_LOD, SHOWN, bandAlpha, deviceLod, onBand, seenZoom, type LodRect } from '@/core/render/lod/lod';
 
 // The memory sticks as a map of RAM (docs/DIE.md "Memory"). Every DRAM chip is a grid of cells, one per 256-byte page (a block of the drive):
 // the colour is the owner (the boot ROM grey, the OS pale, each program by its type), the strength is how full the page is. Zoomed in, the

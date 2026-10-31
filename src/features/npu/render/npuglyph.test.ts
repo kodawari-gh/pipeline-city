@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NpuOp } from '@/core/sim/memmap';
-import type { Rect } from '../../cpu/render/cpuplan';
+import type { Rect } from '../../cpu/render/core/cpuplan';
 import { arrayGeom, cellKind, cellsOfRange, ctlGeom, ctlRowOf, descGeom, hostGeom, memGeom, npuGlyphArea, npuLive, operand, regionsOf, wavefront, type NpuShow } from './npuglyph';
 import { npuPlan } from './npuplans';
 

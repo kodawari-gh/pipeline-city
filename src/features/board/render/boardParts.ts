@@ -1,9 +1,9 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from '@/core/render/ink';
-import { WALL_T, type Rect } from './layout';
-import { IO_X } from './boardlayout';
-import { portProfile } from './ports';
-import { HDR_PITCH, LEG_PITCH, legsOf, m2Contacts, pciePadMax, pciePadX, type IoPort } from './pins';
+import { WALL_T, type Rect } from './layout/layout';
+import { IO_X } from './layout/boardlayout';
+import { portProfile } from './layout/ports';
+import { HDR_PITCH, LEG_PITCH, legsOf, m2Contacts, pciePadMax, pciePadX, type IoPort } from './layout/pins';
 import type { Palette, Theme } from '@/core/render/theme';
 
 // Drawers for the static components of a motherboard. Everything draws in world coordinates onto one Graphics (`Ctx.g`), the text goes

@@ -1,2 +1,2 @@
 export * from "./assemble";
-export * from "@/features/gpu/sim/asm";
+export * from "@/features/gpu/sim/isa/asm";

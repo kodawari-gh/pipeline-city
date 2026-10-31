@@ -1,10 +1,10 @@
 import { Graphics } from 'pixi.js';
 import { label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { laneLines, planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/dieart';
-import type { GpuBlock, GpuBlockKind, GpuLink, GpuLinkKind, GpuPlan } from './gpuplan';
+import { laneLines, planFar, planNear, type DieArt, type PlanStyle } from '../../cpu/render/die/dieart';
+import type { GpuBlock, GpuBlockKind, GpuLink, GpuLinkKind, GpuPlan } from './plan/gpuplan';
 import { gpuGlyph, gpuGlyphArea } from './gpuglyph';
-import { DIE_MARGIN, gpuCells } from './gpuplans';
+import { DIE_MARGIN, gpuCells } from './plan/gpuplans';
 
 // The static art of a GPU card's die, drawn from a `GpuPlan` in the CPU die's style (die/dieart.ts, docs/DIE.md): macro blocks tinted in their
 // kind's colour with a rim line, dense cell arrays, trace bundles ending in solder pads, bond pads on the host edge, names and second lines.

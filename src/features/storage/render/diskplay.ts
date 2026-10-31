@@ -1,8 +1,8 @@
 import type { Graphics } from 'pixi.js';
 import type { StorageCmd } from '../sim/storage';
 import { mix } from '@/core/render/ink';
-import { cellRects } from '../../cpu/render/dieart';
-import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/diepulse';
+import { cellRects } from '../../cpu/render/die/dieart';
+import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../../cpu/render/die/diepulse';
 import type { Theme } from '@/core/render/theme';
 import { accentOf } from './diskart';
 import type { DiskPlan } from './diskfloor';

@@ -7,7 +7,7 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 import type { GpuSnap } from '@/worker/game/types';
 import type { Theme } from '@/core/render/theme';
 import { fanTurns, GpuView, kindColor, PHASE_TEXT } from './gpuview';
-import { setLayoutTier } from '../../board/render/layout';
+import { setLayoutTier } from '../../board/render/layout/layout';
 
 const T: Theme = {
   dark: true, bg: '#04060f', board: '#081628', trace: '#1e4270', sub: '#0d1636', die: '#111b46', pin: '#d4af5f', tile: '#18245c',

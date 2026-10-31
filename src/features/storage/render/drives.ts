@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from '@/core/render/ink';
-import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layout';
+import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
 
 // Drive art. Static casing (`driveArt`) plus the parts that move while the drive is busy (`drawDriveLive`: HDD platter and

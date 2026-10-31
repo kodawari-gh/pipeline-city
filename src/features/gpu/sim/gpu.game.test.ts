@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembleGpu } from "./asm";
+import { assembleGpu } from "./isa/asm";
 import { GPU_BASE, GPU_MEM, GPU_REG, GPU_STRIDE, GpuStatus } from "@/core/sim/memmap";
 import { Operator } from "../../economy/sim/operator";
 import { econ } from "@/worker/game/testkit";

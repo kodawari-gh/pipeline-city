@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { specsOfKind } from '../../board/sim/specs';
 import { gpuFanCount, gpuIds, gpuParts, gpuPlan, GPU_H, GPU_LEN, moveRect } from './gpulayout';
-import type { Rect } from '../../board/render/layout';
+import type { Rect } from '../../board/render/layout/layout';
 
 const inside = (r: Rect, o: Rect): boolean => r.x >= o.x - 0.01 && r.y >= o.y - 0.01 && r.x + r.w <= o.x + o.w + 0.01 && r.y + r.h <= o.y + o.h + 0.01;
 const overlap = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;

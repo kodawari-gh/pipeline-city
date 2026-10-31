@@ -4,17 +4,17 @@
 // beside it; a cache lists the lines it holds, tag and words, and the line an access hit lights up; the register file prints the values of the lanes the
 // instruction reads and writes in the rows it names. Pure geometry and data, no Pixi: `gpuMemLive` is what the view draws over the symbols, the tests read it.
 
-import { gpuDecode, gpuDisassemble } from '../sim/isa';
+import { gpuDecode, gpuDisassemble } from '../sim/isa/isa';
 import { GPU_CODE, GPU_FRAME } from '@/core/sim/memmap';
 import { KERNEL_LAYOUT } from '../sim/kernels';
-import type { GpuCacheView } from '../sim/engine';
-import type { GpuStep } from '../sim/ref';
+import type { GpuCacheView } from '../sim/engine/engine';
+import type { GpuStep } from '../sim/isa/ref';
 import { gpuOpClass } from '../sim/gpucode';
 import type { OpClass } from '../../jobs/sim/jobcode';
-import type { LiveGlyph } from '../../cpu/render/blockart';
-import type { Rect } from '../../cpu/render/cpuplan';
-import type { GpuBlock } from './gpuplan';
-import { gpuCells } from './gpuplans';
+import type { LiveGlyph } from '../../cpu/render/die/blockart';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import type { GpuBlock } from './plan/gpuplan';
+import { gpuCells } from './plan/gpuplans';
 
 /** Words of card memory one entry of `GpuView.fill` covers (machine/gpu.ts `GPU_FILL_WORDS`). */
 const FILL_WORDS = 4;

@@ -7,11 +7,11 @@ import type { LanJack, LanScene, SceneInfo } from '@/core/render/interact';
 import {
   BD, CABLE_ROW_Y, DESK_SLAB, DESK_Y, ETH0_MOUTH, ETH0_RECT, ISP_ROW_Y, LAN_TRUNK_X, MONITOR, WALL_Y, nicJack, nicRect, nicY, NIC_BRACKET_X, NIC_LEN, PLUG_L, PLUG_W, ROUTER_EAST, ROUTER_SPOT, SHELF_Y,
   NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,
-} from '../../board/render/layout';
-import { IO_X } from '../../board/render/boardlayout';
-import { portProfile } from '../../board/render/ports';
+} from '../../board/render/layout/layout';
+import { IO_X } from '../../board/render/layout/boardlayout';
+import { portProfile } from '../../board/render/layout/ports';
 import { netPropsVisible } from './netvis';
-import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from '../../board/render/routes';
+import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
 import type { Shape } from '@/core/render/shape';
 

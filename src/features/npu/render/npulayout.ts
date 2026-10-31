@@ -5,7 +5,7 @@ import { arrayGeom, descGeom, npuGlyphArea, tilesGeom } from './npuglyph';
 import type { NpuPlan, NpuPlanInput } from './npuplan';
 import { npuDie, npuPlan } from './npuplans';
 import { CARD_H } from '../../gpu/render/gpulayout';
-import type { Rect } from '../../board/render/layout';
+import type { Rect } from '../../board/render/layout/layout';
 
 // The AI card in its PCIe slot (docs/ACCEL.md "NPU internal view"), in card-local units: (0, 0) is the PCB's north-west corner, like `gpulayout`. The die
 // (its plan is `npu/npuplans.ts`, drawn 1 : 1) lies under a lid at the card's offset; the PCB reaches west over the slot's bracket and east over the tail.

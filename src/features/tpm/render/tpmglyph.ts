@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
-import type { Rect } from '../../cpu/render/cpuplan';
-import { glyphKit, type Put } from '../../cpu/render/blockart';
+import type { Rect } from '../../cpu/render/core/cpuplan';
+import { glyphKit, type Put } from '../../cpu/render/die/blockart';
 import type { Theme } from '@/core/render/theme';
 import type { TpmBlock } from './tpmplan';
 

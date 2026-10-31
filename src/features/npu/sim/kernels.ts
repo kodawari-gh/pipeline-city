@@ -2,7 +2,7 @@
 // and three ways to run it: as NPU descriptors, as a GPU kernel launched once per layer, or as a CPU loop. All three compute the same
 // numbers; `networkExpected` is the plain-JS answer. Matrices are int32, row-major unless a function says tile-major.
 
-import { assembleGpu } from "../../gpu/sim/asm";
+import { assembleGpu } from "../../gpu/sim/isa/asm";
 import { NPU_DESC_WORDS, NPU_LAYER_WORDS, NpuOp } from "@/core/sim/memmap";
 import { Prng } from "@/core/sim/prng";
 import type { Kernel } from "../../jobs/sim/gen/kernels";

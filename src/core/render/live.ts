@@ -6,23 +6,23 @@ import type { KeyActivity } from '../../worker/game/game';
 import { blades } from '../../features/board/render/devices';
 import { HEAD, box, label, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from '../../features/storage/render/drives';
-import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout';
-import { monitorView, screenMode, standbyLook, type MonitorInput } from '../../features/room/render/monitor';
-import { EdgeFan } from '../../features/room/render/case';
+import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout/layout';
+import { monitorView, screenMode, standbyLook, type MonitorInput } from '../../features/room/render/desk/monitor';
+import { EdgeFan } from '../../features/room/render/desk/case';
 import { RamView } from '../../features/memory/render/ramview';
 import { GpuView, type GpuCardScene } from '../../features/gpu/render/gpuview';
 import { DiskView } from '../../features/storage/render/diskview';
 import { TpmView, type TpmScene } from '../../features/tpm/render/tpmview';
 import { NpuCardView, type NpuScene } from '../../features/npu/render/npuview';
 import { memoryTable, sizeText } from '../../features/memory/render/ramlayout';
-import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from '../../features/room/render/screenmodel';
-import { FrameView, ScreenView } from '../../features/room/render/screenview';
-import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from '../../features/board/render/routes';
-import { BusFlow, slice } from '../../features/board/render/busflow';
-import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from '../../features/board/render/busmap';
+import { dashModel, frameModel, holdFrame, IPC_SAMPLES, ipcBetween, type FrameHold, type FrameModel } from '../../features/room/render/desk/screenmodel';
+import { FrameView, ScreenView } from '../../features/room/render/desk/screenview';
+import { mkLane, pointAt, type Lane, type Bus, type BusKind, type Cable, type CableKind } from '../../features/board/render/wiring/routes';
+import { BusFlow, slice } from '../../features/board/render/wiring/busflow';
+import { BIOS_CHAIN, BUS_ROLE, COOLER_CHAIN, chipsetChain, deviceAt, hasTpm, npuAccess, tpmChain, POST_CODE_CHAIN, POWER_ON_CHAIN, VIDEO_CHAIN, VOLTAGE_CHAIN, boardNetChain, driveChain, keyChain, resolve, slotChain, type Hop } from '../../features/board/render/wiring/busmap';
 import type { Theme } from './theme';
-import { TierBudget, deviceLod, type LodRect } from './lod';
-import { HIT_MS, chipLegOf, drawPch, ledOf, type ChipLeg, type LegHit } from '../../features/board/render/pchlive';
+import { TierBudget, deviceLod, type LodRect } from './lod/lod';
+import { HIT_MS, chipLegOf, drawPch, ledOf, type ChipLeg, type LegHit } from '../../features/board/render/wiring/pchlive';
 
 /** Per-device rectangle the glow is drawn around, keyed by device id (set by the scene). */
 export interface GlowTarget { id: string; kind: string; spec: string; rect: Rect }

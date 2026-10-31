@@ -4,12 +4,12 @@
 import { signal } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { gpuPicture } from '../sim/gen';
-import { frameColor, pictureOf } from '../../room/render/screenmodel';
+import { frameColor, pictureOf } from '../../room/render/desk/screenmodel';
 import { snapshot } from '@/app/store';
 import { DEX_GROUPS, dexEntry, dexGroup, JOB_DEX, needChips, dexNeeds, dexNumber, taskLevel, type DexEntry, type DexGroup, type DexSnap } from '../sim/jobdex';
 import { CODE_SOURCE, HIGH_LEVEL, mixShares, OP_CLASSES, profileOf, reliance, type CodeLine, type CodeProfile, type OpClass } from '../sim/jobcode';
 import { gpuKernelOf, gpuKernelProfile, type GpuKernelProfile } from '../../gpu/sim/gpucode';
-import { GPU_GROUP_NAME, GPU_GROUP_ORDER, GPU_OP_DOC } from '../../gpu/sim/isadoc';
+import { GPU_GROUP_NAME, GPU_GROUP_ORDER, GPU_OP_DOC } from '../../gpu/sim/isa/isadoc';
 import { highlightLines, type Lang, type Tok } from '../../tutorial/ui/highlight';
 import { Icon } from '@/core/ui/kit/Icons';
 import { fmtTicks } from '@/core/ui/logic';

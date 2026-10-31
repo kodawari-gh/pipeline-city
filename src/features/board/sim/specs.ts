@@ -2,7 +2,7 @@
 // BALANCE IS A PLACEHOLDER: every number here is a round, plausible guess to be tuned by playing.
 
 import type { EngineConfig } from "../../cpu/sim/engines";
-import type { GpuConfig } from "../../gpu/sim/engine";
+import type { GpuConfig } from "../../gpu/sim/engine/engine";
 
 /** Typed slots / ports on a board. A device only fits a free slot of its own type. */
 export type SlotType = "cpu" | "dimm" | "pcie" | "sata" | "m2" | "usb" | "cooler" | "display" | "atx" | "atx-plus" | "vrm-sink" | "ram-sink" | "tpm" | "radiator";

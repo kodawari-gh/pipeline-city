@@ -3,7 +3,7 @@
 // optional cell grid, links as orthogonal polylines with lanes) so `diskart.ts` can draw them with the die's own art (`planFar`, `planNear`).
 // The data in the cells is `diskplan.ts`. Tested in diskfloor.test.ts.
 
-import type { Grid, Pt, Rect } from '../../cpu/render/cpuplan';
+import type { Grid, Pt, Rect } from '../../cpu/render/core/cpuplan';
 import { ARCH, dieSlices, platterOf, type DieSlice } from './diskplan';
 import type { DriveKind } from './drives';
 

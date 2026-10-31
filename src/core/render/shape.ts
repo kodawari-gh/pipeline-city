@@ -1,4 +1,4 @@
-import type { Rect } from '../../features/board/render/layout';
+import type { Rect } from '../../features/board/render/layout/layout';
 
 // What the pointer can pick: the silhouette of a thing, not its bounding box. A `Shape` answers "how far is this point from the thing" (0 on it), so a hit test can
 // be exact where the thing is big and forgiving where it is small or thin, and it can trace the thing's outline for the hover ring. Shapes come from a rectangle,

@@ -7,7 +7,7 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 import { NpuOp } from '@/core/sim/memmap';
 import { sampleRun, sampleView } from './npusample';
 import type { Theme } from '@/core/render/theme';
-import { setLayoutTier } from '../../board/render/layout';
+import { setLayoutTier } from '../../board/render/layout/layout';
 import { NpuCardView } from './npuview';
 
 const T: Theme = {
