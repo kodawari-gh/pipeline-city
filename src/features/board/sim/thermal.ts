@@ -108,6 +108,10 @@ export interface FanPower {
 }
 /** The default for a model with no cables to look at: every part's fan turns, no case fans counted, and a liquid loop runs the fitted radiator (if any) at full fan. */
 export const FANS_ON: FanPower = { cpu: true, vrm: true, ram: true, caseFans: 0 };
+/** What a clocked part draws, W: its idle draw scaled by the clock ratio `r` (clock over base), plus the load share that grows with r cubed. Used by the model and by compat.ts. */
+export function clockPowerW(spec: { idleW: number; loadW: number }, r: number, load: number): number {
+  return spec.idleW * r + (spec.loadW - spec.idleW) * load * r * r * r;
+}
 /** W per degree C the cooling block moves from the CPU into the coolant (the pump must run). */
 export const LOOP_BLOCK_K = 60;
 /** The block's exchange is worked out in this many steps per tick: it is stiff (a light CPU, a strong block), one step would overshoot. */
@@ -226,7 +230,7 @@ export class ThermalModel {
       }
       const clk = (d.clock ?? spec.clock.base) * therm.get(d.id)! * (spec.kind === "cpu" ? vrmThrottle : spec.kind === "ram" ? ramThrottle : 1) * psuFactor;
       const r = clk / spec.clock.base;
-      return { w: spec.idleW * r + (spec.loadW - spec.idleW) * load(d) * r * r * r, clk };
+      return { w: clockPowerW(spec, r, load(d)), clk };
     };
 
     // The VRM between PSU and CPU: the CPU's power at this PSU factor, the current it needs, and what the VRM wastes.

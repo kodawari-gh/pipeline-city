@@ -1,5 +1,5 @@
 import { REG_SP } from "../../features/cpu/sim/isa/isa";
-import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "./memmap";
+import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, SMT_LOAD_SHARE, STATUS_BASE, STATUS_SIZE } from "./memmap";
 import type { MemSystem } from "../../features/memory/sim/memsys";
 import { Bus } from "./hw/bus";
 import { ClockScheduler, type Rate } from "./hw/clock";
@@ -139,7 +139,7 @@ export class Machine {
       if (!e || e.halted || !this.isPrimary(c)) continue;
       const ts = e.threads ?? [c];
       const live = ts.filter((t) => !t.intc.parked).length;
-      if (live > 0) n += 1 + 0.15 * (live - 1);
+      if (live > 0) n += 1 + SMT_LOAD_SHARE * (live - 1);
     }
     return n;
   }

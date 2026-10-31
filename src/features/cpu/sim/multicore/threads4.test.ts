@@ -8,6 +8,7 @@ import { JT_BASE } from "@/features/os/sim";
 import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, kernelImageFor, KERNEL_IMAGE_PRE_SMP, KERNEL_IMAGE_THR, PCB, PCBS, RESERVED_FRAME, SPOOL_BLOCKS_PER_JOB } from "@/features/os/sim";
 import { ECONOMY } from "@/features/economy/sim/economy";
 import { Game } from "@/worker/game/game";
+import { checkCompat, compatProblems, setClock } from "@/features/board/sim";
 import { econ } from "@/worker/game/testkit";
 
 ECONOMY.levelGating = false;
@@ -50,6 +51,11 @@ function machine(cpu: string): Game {
     const r = g.install(b.invId);
     if (!r.ok) throw new Error(`install ${id}: ${r.reason}`);
   }
+  // the board must be able to feed the CPU it carries (compat.ts): an overloaded regulator crashes the machine under load, and a job then never finishes.
+  // A CPU that draws more than its board's regulator gives runs at the clock the check says is safe.
+  for (const i of checkCompat(g.board)) if (i.id === "vrm-overload" && i.fix && i.part) setClock(g.board, i.part, i.fix.clock);
+  const bad = compatProblems(g.board).filter((i) => i.severity === "error" || /^(ram-)?vrm-|^psu-|^pcie-/.test(i.id));
+  if (bad.length) throw new Error(`the rig does not work together: ${bad.map((i) => i.message).join(" ")}`);
   return g;
 }
 

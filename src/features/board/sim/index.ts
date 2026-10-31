@@ -3,3 +3,4 @@ export * from "./board";
 export * from "./thermal";
 export * from "./apply";
 export * from "./cables";
+export * from "./compat";

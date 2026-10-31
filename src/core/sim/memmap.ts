@@ -186,6 +186,9 @@ export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48, T
 export const MAX_THREADS_PER_JOB = 8;
 export const threadStackTop = (k: number): number => (k === 0 ? 0x10000 : 0x80000 + k * 0x1000);
 /** Job slot states. */
+/** What each extra live thread of a core adds to the load the chip draws (the first thread counts 1): two threads on a core draw 1.15x. `Machine.busyCores` and the compatibility checks use it. */
+export const SMT_LOAD_SHARE = 0.15;
+
 export const JobState = { Free: 0, Queued: 2, Running: 3, Result: 4 } as const;
 
 // ---- Memory protection unit (docs/OS.md "Memory protection"). Word registers, offsets from MPU_BASE.
