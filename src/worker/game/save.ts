@@ -1,7 +1,7 @@
 // Save format: versioned plain JSON, config only (no pipeline, registers or RAM). See docs/SAVE.md.
 // No DOM imports; used by the worker and by the main thread (to validate imports).
 
-import { boardFromJson, CABLE_IDS, getSpec, isFanCable, type BoardJson, type Cables } from "../../features/board/sim";
+import { boardFromJson, CABLE_IDS, PCIE_LEADS, getSpec, isFanCable, type BoardJson, type Cables } from "../../features/board/sim";
 import { getOsSpec } from "../../features/os/sim";
 import { offerPrice } from "../../features/economy/sim/economy";
 import { TEMPLATES } from "../../features/jobs/sim/gen";
@@ -286,7 +286,7 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
       board: s.board,
       inventory: s.pending.map((spec, i) => ({ id: `inv${i + 1}`, spec })),
       nextInvId: s.pending.length + 1,
-      cables: { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true, pcie: false },
+      cables: { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true, pcie: false, pcie2: false, pcie3: false, pcie4: false },
       tray: keys,
       plugged: null,
       tripped: s.tripped,
@@ -348,7 +348,11 @@ export function parseSave(input: unknown): SaveV4 {
   // Saves from before the network: the ethernet cable is unplugged and the network milestones are not reached.
   if (isObj(s.cables) && typeof (s.cables as Record<string, unknown>).lan !== "boolean") s.cables = { ...s.cables, lan: false };
   // Saves from before the accelerators have no PCIe power lead: it is unplugged (additive, no version bump, like the ethernet cable).
-  if (isObj(s.cables) && (s.cables as Record<string, unknown>).pcie === undefined) s.cables = { ...s.cables, pcie: false };
+  // the PCIe leads came later (pcie first, pcie2..4 with the lead model): a save without them has them unplugged
+  if (isObj(s.cables)) {
+    const cables = s.cables as Record<string, unknown>;
+    for (const id of PCIE_LEADS) if (cables[id] === undefined) s.cables = { ...(s.cables as object), [id]: false };
+  }
   if (isObj(s.progress)) {
     const p = { ...s.progress } as Record<string, unknown>;
     for (const k of PROGRESS_KEYS) if (typeof p[k] !== "boolean" && NEW_FLAGS.includes(k)) p[k] = false;

@@ -2,7 +2,7 @@
 // The card opens only when the renderer selects something (`selected`). Parts are placed by dragging from the
 // inventory tray (or the world); the card offers purchases (into the inventory), the clock, power and job actions.
 
-import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type CardSpec, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '@/features/board/sim/specs';
+import { AMBIENT_C, BOARD_TIERS, CASE_TIERS, cardLeads, getSpec, specsOfKind, type CardSpec, type CoolerSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '@/features/board/sim/specs';
 import { ECONOMY } from '../../sim/economy';
 import { cpuProfile } from '@/features/cpu/sim/cpuprofile';
 import type { DeviceSnap, KeySnap, Snapshot } from '@/worker/game/game';
@@ -833,11 +833,12 @@ export function pickerFor(id: string | null, s: Snapshot | null): PickerModel | 
     // Accelerator cards: the PCIe power lead they ask for, the secure module's header, and what each is for.
     if ((kind === 'gpu' || kind === 'npu') && dev && !dev.burnt) {
       const spec = getSpec(dev.spec) as CardSpec | undefined;
-      if (spec?.needsPcieCable) {
-        const lead = s.cables.find((c) => c.id === 'pcie');
-        lines.push(lead?.connected
-          ? { level: 'info', text: 'Power lead plugged in.' }
-          : { level: 'bad', text: 'Needs the PCIe power lead from the PSU: plug it in with the machine off, or the machine will not start.' });
+      const n = spec ? cardLeads(spec) : 0;
+      if (n > 0) {
+        const plugged = ['pcie', 'pcie2', 'pcie3', 'pcie4'].filter((id) => s.cables.find((c) => c.id === id)?.connected).length;
+        lines.push(plugged >= n
+          ? { level: 'info', text: `PCIe power: ${n} lead${n === 1 ? '' : 's'} needed, plugged in.` }
+          : { level: 'bad', text: `Needs ${n} PCIe power lead${n === 1 ? '' : 's'} from the PSU: plug ${n === 1 ? 'it' : 'them'} in with the machine off, or the machine will not start.` });
       }
     }
     if (kind === 'tpm' && emptySocket) lines.push({ level: 'info', text: 'Drop a secure module here: secure jobs need one, and it slows memory a little while they run.' });

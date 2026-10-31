@@ -5,7 +5,7 @@ import {
   applyEngine, applyRates, boardFromJson, boardSlots, boardToJson, createBoard, engineConfigFor, install, installedPsu,
   machineConfigFor, setClock, ThermalModel, uninstall, upgradeBoard, type Board,
 } from "./index";
-import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, type DeviceSpec } from "./specs";
+import { BOARD_TIERS, DEVICE_SPECS, PCIE_SLOT_W, cardLeads, type DeviceSpec } from "./specs";
 
 function ok<T extends { ok: boolean }>(r: T): T {
   expect(r.ok).toBe(true);
@@ -353,20 +353,28 @@ describe("accelerator slots", () => {
     expect(leads).toEqual([0, 0, 1]);
   });
 
-  it("a card above the slot's power refuses without needsPcieCable, and installs with it", () => {
-    fake({ ...base, id: "gpuHot", kind: "gpu", name: "Hot card", loadW: PCIE_SLOT_W + 5, needsPcieCable: false });
-    fake({ ...base, id: "gpuCabled", kind: "gpu", name: "Cabled card", loadW: PCIE_SLOT_W + 5, needsPcieCable: true });
-    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: PCIE_SLOT_W, needsPcieCable: false });
-    const b = createBoard(2);
-    const r = install(b, "gpuHot");
+  it("a card above the slot's power needs PCIe leads: refused on Starter, counted against the PSU leads", () => {
+    fake({ ...base, id: "gpuHot", kind: "gpu", name: "Hot card", loadW: PCIE_SLOT_W + 5 });
+    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: PCIE_SLOT_W });
+    expect(cardLeads({ loadW: PCIE_SLOT_W })).toBe(0);
+    expect(cardLeads({ loadW: PCIE_SLOT_W + 5 })).toBe(1);
+    expect(cardLeads({ loadW: PCIE_SLOT_W + 76 })).toBe(2);
+    const start = createBoard(0);
+    const r = install(start, "gpuHot");
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.reason).toContain("PCIe power cable");
-    ok(install(b, "gpuCabled"));
+    expect(!r.ok && r.reason).toContain("no PCIe power connector");
+    ok(install(start, "npuSlot"));
+    const b = createBoard(2);
+    ok(install(b, "psu2")); // one lead
+    ok(install(b, "gpuHot"));
+    const two = install(b, "gpuHot");
+    expect(two.ok).toBe(false);
+    expect(!two.ok && two.reason).toContain("2 PCIe power leads but the PSU has 1");
     ok(install(b, "npuSlot"));
   });
 
   it("cards compete with NIC cards for the PCIe slots", () => {
-    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: 15, needsPcieCable: false });
+    fake({ ...base, id: "npuSlot", kind: "npu", name: "Slot-powered card", loadW: 15 });
     const b = createBoard(1); // Basic: two PCIe slots
     ok(install(b, "nic1"));
     ok(install(b, "npuSlot"));

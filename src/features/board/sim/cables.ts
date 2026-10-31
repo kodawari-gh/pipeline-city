@@ -3,11 +3,16 @@
 // removing that part unplugs it. The `pcie` lead also needs the PSU to have one (`pcieLeads`). The two cords from the wall (`pcmains`, `monmains`) are the exception:
 // they need no part and stay plugged when parts are swapped.
 
-import { deviceSpec, findDevices, installedPsu, type Board, type Result } from "./board";
-import { caseMounts, type DeviceKind, type VrmSinkSpec } from "./specs";
+import { deviceSpec, findDevices, installedPsu, pcieLeadsNeeded, type Board, type InstalledDevice, type Result } from "./board";
+import { cardLeads, caseMounts, type DeviceKind, type VrmSinkSpec } from "./specs";
 
-/** The cables every machine has. A case fan's cable has the id `fan:<mount>` (`caseMounts`): those depend on the case. */
-export type StaticCableId = "atx" | "cpu" | "video" | "lan" | "pcmains" | "monmains" | "pcie" | "cpufan" | "vrmfan" | "ramfan" | "sysfan";
+/** The cables every machine has. A case fan's cable has the id `fan:<mount>` (`caseMounts`): those depend on the case. `pcie` to `pcie4` are the PSU's PCIe power leads, one cable each. */
+export type StaticCableId = "atx" | "cpu" | "video" | "lan" | "pcmains" | "monmains" | PcieLeadId | "cpufan" | "vrmfan" | "ramfan" | "sysfan";
+export type PcieLeadId = "pcie" | "pcie2" | "pcie3" | "pcie4";
+/** The PCIe lead cables in the order they are used (the first is `pcie`, as in older saves). */
+export const PCIE_LEADS: readonly PcieLeadId[] = ["pcie", "pcie2", "pcie3", "pcie4"];
+/** Which lead (1-based) a cable id is, or 0 if it is no PCIe lead. */
+export const pcieLeadNo = (id: string): number => PCIE_LEADS.indexOf(id as PcieLeadId) + 1;
 export type CableId = StaticCableId | `fan:${string}`;
 
 export interface CableSpec {
@@ -20,10 +25,15 @@ export interface CableSpec {
   plain: string;
 }
 
+const PCIE_PLAIN = "Extra 75 W from the PSU to a graphics or AI card. A card that draws more than its slot gives asks for one lead per 75 W; the PSU has a fixed number of leads.";
+
 export const CABLES: readonly CableSpec[] = [
   { id: "atx", name: "24-pin ATX power", from: "psu", plain: "Main power from the PSU to the board." },
   { id: "cpu", name: "8-pin CPU power", from: "psu", plain: "Extra power from the PSU to the CPU socket." },
-  { id: "pcie", name: "PCIe power lead", from: "psu", plain: "Extra power from the PSU to a graphics or AI card. Only PSUs with a PCIe lead have one, and only a card that needs it asks for it." },
+  { id: "pcie", name: "PCIe power lead 1", from: "psu", plain: PCIE_PLAIN },
+  { id: "pcie2", name: "PCIe power lead 2", from: "psu", plain: PCIE_PLAIN },
+  { id: "pcie3", name: "PCIe power lead 3", from: "psu", plain: PCIE_PLAIN },
+  { id: "pcie4", name: "PCIe power lead 4", from: "psu", plain: PCIE_PLAIN },
   { id: "video", name: "Video cable", from: "display", plain: "Board display output to the monitor." },
   { id: "pcmains", name: "PC power cord", from: "wall", plain: "From the case's power inlet to the wall socket. Without it the PSU has no power at all. Can be plugged or pulled at any time (pulling it cuts the power)." },
   { id: "monmains", name: "Monitor power cord", from: "wall", plain: "From the monitor to the wall socket. Without it the screen stays dark. Can be plugged or pulled at any time." },
@@ -55,10 +65,10 @@ export function cablesOf(board: Board): CableSpec[] {
 /** Is this a fan's cable (CPU, VRM, RAM, the hub or a case fan)? A new part's fan cable starts unplugged. */
 export const isFanCable = (id: string): boolean => id === "cpufan" || id === "vrmfan" || id === "ramfan" || id === "sysfan" || id.startsWith("fan:");
 
-export const noCables = (): Cables => ({ atx: false, cpu: false, video: false, lan: false, pcmains: false, monmains: false, pcie: false, cpufan: false, vrmfan: false, ramfan: false, sysfan: false });
+export const noCables = (): Cables => ({ atx: false, cpu: false, video: false, lan: false, pcmains: false, monmains: false, pcie: false, pcie2: false, pcie3: false, pcie4: false, cpufan: false, vrmfan: false, ramfan: false, sysfan: false });
 /** Everything plugged that has something to plug into (with a `board`, the fans of the parts and the case it has). */
 export const allCables = (board?: Board): Cables => {
-  const c: Cables = { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true, pcie: false, cpufan: true, vrmfan: !board, ramfan: !board, sysfan: true };
+  const c: Cables = { atx: true, cpu: true, video: true, lan: false, pcmains: true, monmains: true, pcie: false, pcie2: false, pcie3: false, pcie4: false, cpufan: true, vrmfan: !board, ramfan: !board, sysfan: true };
   if (board) for (const s of cablesOf(board)) if (isFanCable(s.id)) c[s.id] = cableBlocked(board, s.id) === null;
   return c;
 };
@@ -87,25 +97,45 @@ export function cableBlocked(board: Board, id: CableId): string | null {
   }
   if (c.id === "cpufan") return findDevices(board, "cooler").length === 0 ? "no CPU cooler installed for the CPU fan cable" : null;
   if (findDevices(board, c.from).length === 0) return `no ${c.from === "display" ? "monitor" : c.from.toUpperCase()} installed for the ${c.name} cable`;
-  if (c.id === "pcie" && (installedPsu(board)?.spec.pcieLeads ?? 0) < 1) return "this PSU has no PCIe power lead";
+  const lead = pcieLeadNo(c.id);
+  if (lead > 0) {
+    const have = installedPsu(board)?.spec.pcieLeads ?? 0;
+    if (have < lead) return have === 0 ? "this PSU has no PCIe power lead" : `this PSU has only ${have} PCIe power lead${have === 1 ? "" : "s"}`;
+  }
   return null;
 }
 
-/** Does a part installed now need this cable? Every cable but `pcie` and the fans' always does (the machine is not complete without it); `pcie` only for a card that wants the lead, a fan's only while the fan is there. */
+/** Does a part installed now need this cable? Every cable but the PCIe leads and the fans' always does (the machine is not complete without it); lead N only while the cards take N leads or more, a fan's only while the fan is there. */
 export function cableNeeded(board: Board, id: CableId): boolean {
-  if (id === "pcie") return needyCards(board).length > 0;
+  const lead = pcieLeadNo(id);
+  if (lead > 0) return lead <= pcieLeadsNeeded(board);
   if (isFanCable(id)) return cableBlocked(board, id) === null;
   return true;
 }
 
-/** Working cards whose spec asks for the PCIe power lead. */
-function needyCards(board: Board): Board["devices"] {
-  return board.devices.filter((d) => {
-    if (d.burnt) return false;
-    const s = deviceSpec(d);
-    return (s.kind === "gpu" || s.kind === "npu") && s.needsPcieCable;
-  });
+/** How many PCIe power leads are plugged. */
+export const pcieLeadsPlugged = (cables: Cables): number => PCIE_LEADS.filter((id) => cables[id]).length;
+
+/** Leads this card needs: those of the cards before it (by slot) and its own, so the leads fill the cards in slot order. Returns [first, last] lead numbers, 1-based; first > last for a card on slot power only. */
+function leadRange(board: Board, dev: InstalledDevice): [number, number] {
+  let used = 0;
+  const cards = board.devices.filter((d) => !d.burnt && (deviceSpec(d).kind === "gpu" || deviceSpec(d).kind === "npu")).sort((a, b) => a.slot.localeCompare(b.slot));
+  for (const d of cards) {
+    const n = cardLeads(deviceSpec(d));
+    if (d === dev) return [used + 1, used + n];
+    used += n;
+  }
+  return [1, 0];
 }
+
+/** Lead cable ids (`pcie`...) that feed this card, in the order of the leads used. */
+export const cardLeadIds = (board: Board, dev: InstalledDevice): PcieLeadId[] => {
+  const [a, b] = leadRange(board, dev);
+  return PCIE_LEADS.slice(a - 1, Math.max(a - 1, b));
+};
+
+/** Is the card fully fed: slot power only, or all its leads plugged? An unfed card does not start. */
+export const cardPowered = (board: Board, cables: Cables, dev: InstalledDevice): boolean => cardLeadIds(board, dev).every((id) => cables[id]);
 
 export function connectCable(board: Board, cables: Cables, id: string): Result<{ cable: CableId }> {
   const c = spec(id, board);
@@ -164,6 +194,9 @@ export function bootCheck(board: Board, cables: Cables): BootCheck {
   else if (!cables.cpufan) post = { reason: "the CPU fan cable is not connected: plug it into the CPU_FAN header", short: "NO CPU FAN" };
   else if (!cables.cpu) post = { reason: "the 8-pin CPU power cable is not connected", short: "NO CPU POWER" };
   else if (ram.length === 0) post = { reason: "no working RAM installed", short: "NO RAM" };
-  else if (!cables.pcie && needyCards(board).length > 0) post = { reason: "a card needs the PCIe power lead and it is not connected", short: "GPU power cable" };
+  else if (PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).some((id) => !cables[id])) {
+    const missing = PCIE_LEADS.slice(0, pcieLeadsNeeded(board)).filter((id) => !cables[id]).length;
+    post = { reason: `a card needs PCIe power and ${missing} lead${missing === 1 ? " is" : "s are"} not connected`, short: "GPU power cable" };
+  }
   return { noPower, post };
 }

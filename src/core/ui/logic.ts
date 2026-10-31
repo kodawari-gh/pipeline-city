@@ -1,6 +1,6 @@
 // Pure UI logic: formatting, stats helpers, hint triggers, device descriptions, HUD status text. No DOM, no signals.
 
-import { BOARD_TIERS, CASE_TIERS, getSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../../features/board/sim/specs';
+import { BOARD_TIERS, CASE_TIERS, cardLeads, getSpec, type CpuSpec, type DeviceKind, type DeviceSpec } from '../../features/board/sim/specs';
 import type { DeviceSnap, Snapshot } from '../../worker/game/game';
 import { getOsSpec } from '../../features/os/sim';
 import { describeGpuId } from '../../features/gpu/ui/gpudesc';
@@ -9,7 +9,10 @@ import { describeNpuId } from '../../features/npu/ui/npudesc';
 import { BANDWIDTH_NERD, describeNet } from '../../features/network/ui/netdesc';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
-export const fmtMoney = (n: number) => '$' + Math.floor(n).toLocaleString('en-US');
+/** A card's PCIe power in a spec line: slot power only, or its lead count. */
+const leadText = (n: number): string => (n === 0 ? 'slot power only' : `${n} PCIe power lead${n === 1 ? '' : 's'}`);
+
+export const fmtMoney =(n: number) => '$' + Math.floor(n).toLocaleString('en-US');
 
 export function fmtNum(n: number, digits = 1): string {
   return Number.isFinite(n) ? n.toFixed(digits) : '-';
@@ -197,8 +200,8 @@ export function describeSpec(spec: DeviceSpec): Description {
   if (spec.kind === 'psu') bits.push(`${spec.watts} W`, `${spec.pcieLeads} PCIe lead${spec.pcieLeads === 1 ? '' : 's'}`);
   if (spec.kind === 'storage') bits.push(`${spec.capacityBytes / 1024}K`, `${spec.slot === 'm2' ? 'M.2' : 'SATA'}`, `seek ${spec.latencyTicks} ticks, block ${spec.blockTicks}`);
   if (spec.kind === 'cooler') bits.push(`${spec.coolingPerC} W/C`);
-  if (spec.kind === 'gpu' && spec.gpu) bits.push(`${spec.gpu.lanes} lanes`, `${spec.gpu.memBytes / 1024}K card memory in ${spec.gpu.banks} bank${spec.gpu.banks === 1 ? '' : 's'}`, spec.needsPcieCable ? `PCIe power lead${(spec.pcieLeads ?? 1) > 1 ? `s x${spec.pcieLeads}` : ''}` : 'slot power only');
-  if (spec.kind === 'npu' && spec.npu) bits.push(`${spec.npu.grid}x${spec.npu.grid} cells`, `${spec.npu.memBytes / 1024}K card memory`, spec.needsPcieCable ? 'PCIe power lead' : 'slot power only');
+  if (spec.kind === 'gpu' && spec.gpu) bits.push(`${spec.gpu.lanes} lanes`, `${spec.gpu.memBytes / 1024}K card memory in ${spec.gpu.banks} bank${spec.gpu.banks === 1 ? '' : 's'}`, leadText(cardLeads(spec)));
+  if (spec.kind === 'npu' && spec.npu) bits.push(`${spec.npu.grid}x${spec.npu.grid} cells`, `${spec.npu.memBytes / 1024}K card memory`, leadText(cardLeads(spec)));
   if (spec.kind === 'tpm' && spec.tpm) bits.push(`measures at ${spec.tpm.measureTicks} ticks per word`, `attests in ${spec.tpm.attestTicks} ticks`, `+${spec.tpm.surcharge} cycles per memory access while protected`);
   if (spec.kind === 'nic') bits.push(`${spec.mbps} Mbit/s`, `throttle ${spec.thermal.throttleC} C, unstable ${spec.thermal.unstableC} C`);
   if (spec.clock) bits.push(`clock ${spec.clock.min}-${spec.clock.max} (base ${spec.clock.base})`);

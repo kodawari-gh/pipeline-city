@@ -1,7 +1,7 @@
 // Game feature: the installed hardware as the machine's bus sees it. Drives and their media, the GPU, NPU and TPM ports, ECC,
 // the MMU, the OS's boot port, and the memory the sticks add up to. Every export is a `Game` method (see game.ts).
 
-import { deviceSpec, findDevices, type CardSpec, type CpuSpec, type InstalledDevice, type RamSpec, type StorageSpec, type TpmSpec } from "..";
+import { cardPowered, deviceSpec, findDevices, type CardSpec, type CpuSpec, type InstalledDevice, type RamSpec, type StorageSpec, type TpmSpec } from "..";
 import type { GpuTarget, NpuTarget } from "@/features/jobs/sim/gen";
 import { GPU_BASE, GPU_PORTS, GPU_STRIDE, NPU_BASE, NPU_STRIDE } from "@/core/sim/memmap";
 import { Disk, type StoragePort } from "@/core/sim";
@@ -64,7 +64,7 @@ export function gpuTarget(this: Game): GpuTarget | undefined {
   const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "gpu");
   const spec = d && (deviceSpec(d) as CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
-  if (!spec?.gpu || k < 0 || (spec.needsPcieCable && !this.cables.pcie)) return undefined;
+  if (!d || !spec?.gpu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
   return { base: GPU_BASE + k * GPU_STRIDE, lanes: spec.gpu.lanes, memBytes: spec.gpu.memBytes };
 }
 
@@ -73,7 +73,7 @@ export function npuTarget(this: Game): NpuTarget | undefined {
   const d = this.board.devices.find((x) => !x.burnt && deviceSpec(x).kind === "npu");
   const spec = d && (deviceSpec(d) as CardSpec);
   const k = d ? GPU_PORTS.indexOf(d.slot) : -1;
-  if (!spec?.npu || k < 0 || (spec.needsPcieCable && !this.cables.pcie)) return undefined;
+  if (!d || !spec?.npu || k < 0 || !cardPowered(this.board, this.cables, d)) return undefined;
   return { base: NPU_BASE + k * NPU_STRIDE, grid: spec.npu.grid, memBytes: spec.npu.memBytes };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allCables, bootCheck, cableBlocked, cableNeeded, cablesOf, caseMounts, connectCable, createBoard, disconnectCable, install, noCables, pruneCables, uninstall, type Board, type Cables } from "./index";
+import { allCables, bootCheck, cableBlocked, cardLeadIds, cardPowered, cableNeeded, cablesOf, caseMounts, connectCable, createBoard, disconnectCable, install, noCables, pruneCables, uninstall, type Board, type Cables } from "./index";
 
 const ok = <T extends { ok: boolean }>(r: T): T => { expect(r.ok).toBe(true); return r; };
 
@@ -45,15 +45,18 @@ describe("pcie power lead", () => {
     expect(cables.pcie).toBe(false);
   });
 
-  it("is needed only by a card that asks for it", () => {
+  it("is needed only by a card that draws more than its slot gives, one lead per 75 W", () => {
     expect(cableNeeded(rig("psu3"), "pcie")).toBe(false);
     expect(cableNeeded(rig("psu3", ["npu1"]), "pcie")).toBe(false); // slot-powered
-    expect(cableNeeded(rig("psu3", ["gpu1"]), "pcie")).toBe(true);
+    expect(cableNeeded(rig("psu3", ["gpu1"]), "pcie")).toBe(false); // 40 W: slot power
+    expect(cableNeeded(rig("psu3", ["gpu2"]), "pcie")).toBe(true);
+    expect(cableNeeded(rig("psu3", ["gpu2"]), "pcie2")).toBe(false);
+    expect(cableNeeded(rig("psu4", ["gpu3"]), "pcie2")).toBe(true); // 180 W: two leads
     expect(cableNeeded(rig("psu3"), "atx")).toBe(true);
   });
 
   it("a GPU without its lead fails POST with 'GPU power cable', not noPower", () => {
-    const b = rig("psu3", ["gpu1"]);
+    const b = rig("psu3", ["gpu2"]);
     const cables = basics();
     const chk = bootCheck(b, cables);
     expect(chk.noPower).toBeNull();
@@ -126,5 +129,17 @@ describe("fan cables", () => {
     const c = allCables(b);
     expect(c.cpufan && c.sysfan && c.vrmfan && c["fan:rear"] && c["fan:top2"]).toBe(true);
     expect(c.ramfan).toBe(false); // no RAM VRM heatsink with a fan
+  });
+
+  it("leads fill the cards in slot order, and a card runs only with all its own leads", () => {
+    const b = rig("psu4", ["gpu3", "gpu2"]);
+    const [big, small] = [b.devices.find((d) => d.spec === "gpu3")!, b.devices.find((d) => d.spec === "gpu2")!];
+    const first = [big, small].sort((a, c) => a.slot.localeCompare(c.slot))[0]!;
+    expect(cardLeadIds(b, first)).toHaveLength(first === big ? 2 : 1);
+    const cables = noCables();
+    expect(cardPowered(b, cables, big)).toBe(false);
+    for (const id of ["pcie", "pcie2", "pcie3"] as const) ok(connectCable(b, cables, id));
+    expect(cardPowered(b, cables, big) && cardPowered(b, cables, small)).toBe(true);
+    expect(cableBlocked(rig("psu2"), "pcie2")).toBe("this PSU has only 1 PCIe power lead");
   });
 });

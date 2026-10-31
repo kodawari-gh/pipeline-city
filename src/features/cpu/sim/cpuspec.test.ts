@@ -52,8 +52,8 @@ describe("cpu4 (ooo, ROB 8, 4-wide commit)", () => {
 describe("accelerator specs (docs/ACCEL.md tables)", () => {
   it("tpm1, gpu1, npu1 and psu3 are real parts with the table's numbers, no longer planned", () => {
     expect(getSpec("tpm1")).toMatchObject({ kind: "tpm", slot: "tpm", idleW: 0.2, loadW: 0.5 });
-    expect(getSpec("gpu1")).toMatchObject({ kind: "gpu", slot: "pcie", idleW: 4, loadW: 40, needsPcieCable: true, clock: { base: 2 } });
-    expect(getSpec("npu1")).toMatchObject({ kind: "npu", slot: "pcie", idleW: 2, loadW: 15, needsPcieCable: false });
+    expect(getSpec("gpu1")).toMatchObject({ kind: "gpu", slot: "pcie", idleW: 4, loadW: 40, clock: { base: 2 } });
+    expect(getSpec("npu1")).toMatchObject({ kind: "npu", slot: "pcie", idleW: 2, loadW: 15 });
     expect(getSpec("psu3")).toMatchObject({ kind: "psu", slot: "atx-plus", watts: 500, pcieLeads: 2 });
     for (const id of ["tpm1", "gpu1", "npu1", "psu3", "display1"]) expect(isPlannedItem(id)).toBe(false);
   });
@@ -66,9 +66,9 @@ describe("accelerator specs (docs/ACCEL.md tables)", () => {
 
   it("the later tiers follow the ACCEL.md tables", () => {
     expect(getSpec("gpu2")).toMatchObject({ clock: { base: 3 }, idleW: 8, loadW: 90, gpu: { kind: "warp", warps: 2, lanes: 16, memBytes: 32768, banks: 2 } });
-    expect(getSpec("gpu3")).toMatchObject({ clock: { base: 4 }, idleW: 12, loadW: 180, pcieLeads: 2, gpu: { kind: "multi", sms: 2, warps: 2, lanes: 32, memBytes: 65536, banks: 4 } });
-    expect(getSpec("npu2")).toMatchObject({ idleW: 5, loadW: 45, needsPcieCable: true, npu: { grid: 8 } });
-    expect(getSpec("npu1")).toMatchObject({ needsPcieCable: false, npu: { grid: 4 } });
+    expect(getSpec("gpu3")).toMatchObject({ clock: { base: 4 }, idleW: 12, loadW: 180, gpu: { kind: "multi", sms: 2, warps: 2, lanes: 32, memBytes: 65536, banks: 4 } });
+    expect(getSpec("npu2")).toMatchObject({ idleW: 5, loadW: 45, npu: { grid: 8 } });
+    expect(getSpec("npu1")).toMatchObject({ npu: { grid: 4 } });
     expect(getSpec("tpm2")).toMatchObject({ tpm: { measureTicks: 1, attestTicks: 20, surcharge: 1 } });
     expect(getSpec("tpm1")).toMatchObject({ tpm: { measureTicks: 4, attestTicks: 60, surcharge: 2 } });
     expect(getSpec("psu4")).toMatchObject({ watts: 1000, pcieLeads: 4 });
@@ -79,9 +79,9 @@ describe("accelerator specs (docs/ACCEL.md tables)", () => {
     expect(install(small, "psu2").ok).toBe(true); // one lead
     const r = install(small, "gpu3");
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.reason).toMatch(/needs 2 PCIe power leads/);
+    expect(!r.ok && r.reason).toMatch(/2 PCIe power leads but the PSU has 1/);
     const big = createBoard(3);
-    for (const id of ["psu3", "gpu3", "gpu2", "gpu1"]) expect(install(big, id).ok, id).toBe(true);
+    for (const id of ["psu4", "gpu3", "gpu2", "gpu1"]) expect(install(big, id).ok, id).toBe(true);
   });
 
   it("each installs on an Enthusiast board with the 500 W supply", () => {

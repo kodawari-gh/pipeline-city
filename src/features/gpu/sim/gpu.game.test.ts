@@ -33,13 +33,13 @@ describe("a GPU in the machine", () => {
 
   it("without its PCIe lead the machine will not POST; with it, a launch runs and the card shows load", () => {
     const g = maxed();
-    g.install(buy(g, "gpu1"));
+    g.install(buy(g, "gpu2"));
     expect(g.snapshot().cables.find((c) => c.id === "pcie")).toMatchObject({ connected: false });
-    expect(g.snapshot().postBlocker).toMatch(/PCIe power lead/);
+    expect(g.snapshot().postBlocker).toMatch(/PCIe power/);
     expect(g.connectCable("pcie")).toMatchObject({ ok: true });
     expect(g.snapshot().postBlocker).toBeNull();
     expect(g.powerButton().ok).toBe(true);
-    const slot = g.board.devices.find((d) => d.spec === "gpu1")!.slot;
+    const slot = g.board.devices.find((d) => d.spec === "gpu2")!.slot;
     const base = GPU_BASE + Number(slot.slice(4)) * GPU_STRIDE;
     const bus = g.machine.bus;
     assembleGpu("lane v1\nvaddi v1, v1, 100\nlane v2\nvslli v2, v2, 2\nvst v1, 1024(v2)\nhalt").program.forEach((w, k) => bus.store32(base + GPU_MEM + 4 * k, w));
@@ -50,8 +50,8 @@ describe("a GPU in the machine", () => {
     expect([0, 1, 7].map((k) => bus.load32(base + GPU_MEM + 1024 + 4 * k))).toEqual([100, 101, 107]);
     // the snapshot carries the card's insides: shape, slot, and the instructions the launch ran
     const card = g.snapshot().gpus?.find((x) => x.slot === slot);
-    expect(card).toMatchObject({ lanes: 8, phase: "idle", launches: 1 });
-    expect(card!.trace.map((s) => s.name)).toEqual(["lane", "vaddi", "lane", "vslli", "vst", "halt"]);
+    expect(card).toMatchObject({ lanes: 16, phase: "idle", launches: 1 });
+    expect(card!.trace.map((s) => s.name)).toEqual(expect.arrayContaining(["lane", "vaddi", "vslli", "vst", "halt"])); // gpu2 is a two-warp card: its trace interleaves the warps
   });
 
   it("the snapshot lists a card only while the machine is on", () => {
