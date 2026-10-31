@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
-import { airflowLens, hover, powerLens, viewInset, type Inset } from '@/app/hover';
+import { airflowLens, hover, INERT_REGIONS, powerLens, viewInset, type Inset } from '@/app/hover';
 import { cameraRev, dragging, highlight } from '@/app/interaction';
 import { snapshot, speed, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/specs';
@@ -1215,7 +1215,8 @@ export async function mountBoard(host: HTMLElement) {
   camera.onHover = (p) => {
     if (interact.busy) { if (hover.peek()) hover.value = null; return; }
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
-    const id = hitAt(p.x, p.y);
+    const hit = hitAt(p.x, p.y);
+    const id = hit && INERT_REGIONS.has(hit) ? null : hit;
     interact.setHover(id);
     if (id) hover.value = { id, x: p.x, y: p.y };
     else if (hover.peek()) hover.value = null;

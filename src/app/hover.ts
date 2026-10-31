@@ -19,3 +19,6 @@ airflowLens.subscribe((v) => { if (v) powerLens.value = false; });
 
 // Set by the UI when a board element is clicked (render writes, ui reads).
 export const selected = signal<string | null>(null);
+
+/** Board scenery and fixed sockets the player cannot act on: no hover ring, no tooltip, no card. */
+export const INERT_REGIONS: ReadonlySet<string> = new Set(['pcie', 'chipset', 'io', 'm2', 'sata', 'bat', 'audio', 'hex', 'qr']);

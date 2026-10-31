@@ -7,6 +7,7 @@ import { describeGpuId } from '../../features/gpu/ui/gpudesc';
 import { describeTpmId } from '../../features/tpm/ui/tpmdesc';
 import { describeNpuId } from '../../features/npu/ui/npudesc';
 import { BANDWIDTH_NERD, describeNet } from '../../features/network/ui/netdesc';
+import { INERT_REGIONS } from '../../app/hover';
 import { JOB_TYPES, REGIONS, type Description } from './regions';
 
 /** A card's PCIe power in a spec line: slot power only, or its lead count. */
@@ -437,9 +438,6 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
   }
   return INERT_REGIONS.has(id) ? null : REGIONS[id] ?? null;
 }
-
-/** Board scenery and fixed sockets the player cannot act on: no tooltip, no card. */
-const INERT_REGIONS = new Set(['pcie', 'chipset', 'io', 'm2', 'sata', 'bat', 'audio', 'hex', 'qr']);
 
 // ---- HUD status text ----
 

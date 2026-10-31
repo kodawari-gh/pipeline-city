@@ -226,7 +226,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
             <div class="inv-gname">&nbsp;</div>
             <div class="tile"><div class="tart" /><span class="tname">&nbsp;</span><span class="tmeta" /></div>
           </div>
-          <span class="inv-msg">No spare parts. Click a part on the board to buy an upgrade.</span>
+          <span class="inv-msg">No spare parts. Buy one in the shop.</span>
         </div>
       ) : (
         <div class="inv-groups">
