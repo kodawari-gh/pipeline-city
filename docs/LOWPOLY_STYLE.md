@@ -4,6 +4,10 @@
 
 Pipeline City's low-poly 3D renders computing hardware with **precision, clarity, and geometric beauty**. The style balances technical accuracy (recognizable shapes) with stylization (clean angles, minimal tris).
 
+## Look decision (owner, 2026-10-31)
+
+**Stylised warm, not strict low-poly.** The target is the owner's reference image: a warm wood-slat wall, a desk with drawers, a drum lamp, a sunny or night city window, a wall clock, a rug, a glass-side RGB PC. Keep the triangle budgets below, but use soft edges (rounded boxes with few segments), warm light (sky fill, sun or moon through the window, the lamp's spot), soft shadows and ACES tone mapping. Where this guide asks for sharp edges, flat shading or neutral white light, the decision wins. The state looks (emissive overlays, outline) stay as written.
+
 ## Inspiration
 
 - **Poly Haven** low-poly models (clean topology, clear silhouettes)

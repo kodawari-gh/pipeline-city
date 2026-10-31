@@ -39,6 +39,17 @@ Worker (sim)           Main thread (render)
 4. **Shaders**: Simple flat/smooth shading, outline post-process, color-by-state
 5. **UI integration**: Keep Preact UI, render 3D to canvas, overlay HTML panels
 
+## Status (2026-10-31)
+
+The owner chose **room first** and the **stylised warm** look (see `LOWPOLY_STYLE.md` "Look decision"). The 3D renderer runs behind a flag; Pixi stays the default.
+
+- **Turn it on**: `?3d` in the address, or `VITE_3D_GRAPHICS=1` at build time (`src/app/main.tsx`; the Three.js code loads only then). Screenshot: `npm run shot -- out.png --3d [--view room|board|cpu]`.
+- **Shared code** `src/core/render/three/`: `init` (renderer, ACES tone mapping, shadows), `camera` (pure orbit maths: target, yaw, pitch, view height, fov; a narrow fov reads nearly orthographic, so the ortho/perspective blend is a fov tween), `materials` (palette, `partLook` state looks, `PartSkin` eases them), `geometry` (boxes over layout rects, soft boxes, tubes, instancing, canvas textures), `pick` (raycast to the 2D hover ids), `post` (outline pass, output pass).
+- **Room** `src/features/room/render/three/`: `room3d.ts` (wood-slat wall, window with sky, city and blind, desk and drawers, monitor with the live screen text, keyboard, mouse, mug, drum lamp, wall clock, rug, key rack with the tray keys, router shelf, letterbox, wall plates; sun or moon by the game hour, lamp spot, screen glow), `roomplan.ts` (pure: depths, slat runs, daylight).
+- **Machine** `src/features/board/render/three/`: `machine3d.ts` (glass-side case, board with its sockets, every part kind as primitives, case fans with RGB rings, ATX / CPU / video cables, wall cords, the plugged key; state looks and fan spin from the snapshot), `board3d.ts` (the mount: rebuilds on snapshot changes, camera input, picking, the same `hover` / `selected` signals and quick actions as `Interact.click`, outline on hover, selection and tutorial targets).
+- **Input**: drag pans, right drag or shift drag orbits, the wheel zooms at the pointer, F the CPU, B the board, R the room.
+- **Not ported yet**: dragging parts, cables and keys (install from the inventory needs the 2D view), the die view and the GPU / NPU / TPM insides, the power and airflow lenses, the mail animations, PCIe power leads, LOD and instancing beyond the repeated parts, baked textures and glTF models.
+
 ## Phased Approach
 
 ### Phase 1: Foundation (this branch)

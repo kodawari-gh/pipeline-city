@@ -5,6 +5,7 @@
 //   --clip hud            only the top bar (the pause / speed / slow-motion controls)
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
+//   --3d                  the Three.js renderer (opens the game with `?3d`); --view also takes `room` there
 //   env: PORT (5199), CHROME_PATH (default: the installed Chrome), SOFTWARE=1
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -43,7 +44,7 @@ try {
   const p = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
-  await p.goto(url);
+  await p.goto(args.includes('--3d') ? url + '?3d' : url);
   await p.waitForTimeout(1500);
   const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   console.log('GL renderer:', renderer);
@@ -57,6 +58,7 @@ try {
   if (PROD && (view === 'cpu' || view === 'board')) await p.keyboard.press(view === 'cpu' ? 'f' : 'b');
   else if (view === 'cpu') await p.evaluate(() => window.__board.flyToCpu());
   else if (view === 'board') await p.evaluate(() => window.__board.flyToBoard());
+  else if (view === 'room') await p.evaluate(() => window.__board.flyToRoom?.());
   else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
   for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
@@ -71,3 +73,6 @@ try {
 } finally {
   await browser.close();
 }
+// a dev server this run started keeps node alive: stop it, or the tool never returns
+stop();
+process.exit();
