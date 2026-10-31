@@ -79,6 +79,15 @@ describe('the airflow lens model', () => {
     for (const t of m.tags.filter((x) => x.id.startsWith('z.'))) expect(t.tempC, t.id).toBeTypeOf('number');
   });
 
+  it('a front radiator warms the air that comes in through it, by its coolant; a stopped loop does not', () => {
+    const model = (loop: NonNullable<ReturnType<typeof boardSnap>['loop']>) => {
+      const i = running(60, [], { board: boardSnap({ loop }) }), front = i.mounts.filter((m) => m.side === 'front');
+      return airflowModel({ ...i, radiator: { side: 'front', ids: front.map((m) => m.id), rect: front[0]!.rect } }).lanes.find((l) => l.id === 'rad-front')!;
+    };
+    expect(model({ coolantC: 55, rejectW: 90, side: 'front', flow: 1, hotC: 58, coldC: 52 }).intakeHeat).toBeGreaterThan(0.5);
+    expect(model({ coolantC: 55, rejectW: 0, side: 'front', flow: 0, hotC: 55, coldC: 55 }).intakeHeat).toBeUndefined();
+  });
+
   it('a part in an area the sim says is poorly ventilated is named on the lens, with the area\'s air; a well-ventilated one is not', () => {
     const air = (flow: number) => ['north', 'cards', 'bay'].map((id) => ({ id, flow, fans: 3, riseC: 0 }));
     const poor = airflowModel(running(60, [], { board: boardSnap({ air: air(0.4) as never }) })), good = airflowModel(running(60, [], { board: boardSnap({ air: air(1) as never }) }));

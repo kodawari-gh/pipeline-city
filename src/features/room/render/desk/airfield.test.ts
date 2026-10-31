@@ -43,6 +43,15 @@ describe('the air field', () => {
     expect(f.parts.some((p) => !p.inb && p.x < box.x + box.w)).toBe(true); // those that crossed are in the field
   });
 
+  it('an intake that is warm (a radiator in front) lets warm air in: cold outside, warm once through the fan', () => {
+    const f = new AirField(), i = input([{ ...inlet(), warm: 0.8 }, exhaust()]);
+    for (let k = 0; k < 600; k++) f.step(1 / 30, i);
+    const far = f.parts.filter((p) => p.inb && p.x > box.x + box.w + 1200), through = f.parts.filter((p) => !p.inb && p.x > 6500 && p.x < 7700);
+    for (const p of far) expect(p.heat).toBe(0);
+    expect(through.length).toBeGreaterThan(0);
+    expect(Math.max(...through.map((p) => p.heat))).toBeGreaterThan(0.5);
+  });
+
   it('with no exhaust nothing is drawn out: the air through the middle of the case is slower than with one, and nothing is absorbed', () => {
     const withOut = new AirField(), without = new AirField();
     withOut.step(0.01, input([inlet(), exhaust()]));

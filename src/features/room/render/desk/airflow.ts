@@ -32,6 +32,8 @@ export interface AirLane {
   id: string; pts: Pt[]; intake: boolean; state: AirState;
   /** 0..1: how hard it blows (fan count on a radiator, a passive grille is weak). Used where no fan speed is known (`fanIds` empty). */
   strength: number;
+  /** An intake whose air is already warm as it comes in (0..1): a front radiator warms the air it takes through itself. */
+  intakeHeat?: number;
   /** The fans that drive it, by `fanBank` id: the lens blows as hard as their real speed (a fan that coasts down still blows). */
   fanIds: string[];
   /** A component's own fan (cooler, card, sink, PSU), not one of the case's. */
@@ -223,6 +225,9 @@ export function airflowModel(i: AirIn): AirModel {
   for (const m of mounts) if (m.state === 'dead' && running) tags.push({ id: `dead.${m.id}`, at: [mid(m.rect)[0], m.rect.y + m.rect.h + 260], text: 'FAN OFF', tone: 'warn', anchor: 'c' });
   // the liquid loop: what the radiator gives to the air and how warm the coolant is (a front radiator warms the case with it, a top one blows it out)
   const loop = s.board?.loop, radMount = loop ? mounts.find((m) => m.id === `rad-${loop.side}`) : undefined;
+  // a front radiator breathes room air and gives its heat to it: the air that comes in through it is warm, as warm as the water that heats it
+  const radLane = loop?.side === 'front' ? lanes.find((l) => l.id === 'rad-front') : undefined;
+  if (radLane && loop && running && loop.flow > 0.05) radLane.intakeHeat = Math.min(0.85, Math.max(0, (loop.coolantC - AMBIENT_C) / 40));
   if (loop && radMount && running) {
     tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.flow < 0.05 ? ' · PUMP OFF' : ` · IN ${deg(loop.hotC)} OUT ${deg(loop.coldC)}`}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c', tempC: loop.coolantC });
   }
@@ -393,7 +398,7 @@ export class AirflowLens {
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
     }
     // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
-    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l) }));
+    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l), ...(l.intakeHeat ? { warm: l.intakeHeat } : {}) }));
     this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flat: zn.flat, flow: zn.flow, riseC: zn.riseC })) });
     for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
     for (const p of this.field.parts) {

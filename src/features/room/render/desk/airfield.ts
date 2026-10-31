@@ -8,7 +8,9 @@ export type Pt = [number, number];
 export interface Box { x: number; y: number; w: number; h: number }
 
 /** A fan as the field sees it: `in` blows air into the case from `span`, `out` draws it out, `local` (a cooler, a card) stirs the air where it stands. */
-export interface FieldPort { id: string; kind: 'in' | 'out' | 'local'; pt: Pt; span: Box; /** 0 (still) to 1 (full): the fan's real speed. */ level: number }
+export interface FieldPort { id: string; kind: 'in' | 'out' | 'local'; pt: Pt; span: Box; /** 0 (still) to 1 (full): the fan's real speed. */ level: number;
+  /** An intake whose air is already warm as it comes in (0..1, the particle's heat): a front radiator warms the air it passes it through. */
+  warm?: number }
 export interface FieldZone {
   rects: Box[]; /** 0 (cool) to 1 (at its limit). */ heat: number;
   /** The sim's ventilation of the area the part sits in, 0 to 1 (unset: 1). Air near a poorly ventilated part crawls and lingers. */
@@ -24,7 +26,9 @@ export interface Particle { x: number; y: number; vx: number; vy: number; heat: 
   /** Where it has been, oldest first (the head is not in it): the trail the lens draws. Its length follows the particle's speed. */
   trail?: Pt[];
   /** Air still outside the case, drawn in by an intake fan: it flies straight at its fan (a unit direction and a speed) until it crosses the wall, then the field takes it. */
-  inb?: { dx: number; dy: number; sp: number; /** the fan's point: past it (the way it flies) the field takes the air over */ to: Pt };
+  inb?: { dx: number; dy: number; sp: number; /** the fan's point: past it (the way it flies) the field takes the air over */ to: Pt;
+    /** The heat the air has once through the fan: it warms over the last stretch of the way in. */
+    warm: number };
 }
 
 /** Flux of a full-speed fan (world units squared per second): about 900 units a second at 1500 units from it. */
@@ -36,6 +40,8 @@ const MAX_SPEED = 2400;
 export const SPAWN_PER_S = 2.4, MAX_PARTICLES = 150;
 const LIFE_S = 22;
 /** How far outside the case an intake's air starts, and how fast it is drawn in (world units, and units a second at full fan). */
+/** The last stretch of the way in over which air passing a warm radiator takes its heat (world units). */
+const INTAKE_WARM_RUN = 700;
 export const INTAKE_REACH = { min: 900, max: 1800 }, INTAKE_SPEED = 1100;
 /** The trail: a point is kept every `TRAIL_STEP` world units of path, and the trail is as long as the particle travels in `TRAIL_SECONDS` (at most `TRAIL_MAX`). */
 export const TRAIL_STEP = 40, TRAIL_SECONDS = 0.18, TRAIL_MAX = 320;
@@ -128,7 +134,7 @@ export class AirField {
           // the air comes from outside: it starts beyond the wall the fan is in and is drawn straight in through it
           const { dx, dy } = outward(box, s), d = INTAKE_REACH.min + Math.random() * (INTAKE_REACH.max - INTAKE_REACH.min), lane = dx !== 0 ? s.y + r * s.h : s.x + r * s.w;
           const x = dx !== 0 ? (dx > 0 ? s.x + s.w : s.x) + dx * d : lane, y = dx !== 0 ? lane : (dy > 0 ? s.y + s.h : s.y) + dy * d;
-          this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: p.pt } });
+          this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: p.pt, warm: p.warm ?? 0 } });
           continue;
         }
         const x = p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.pt[1] + (Math.random() - 0.5) * s.h * 0.5; // a part's own fan stirs the air where it stands
@@ -145,6 +151,8 @@ export class AirField {
         const ox = p.x, oy = p.y;
         p.vx = p.inb.dx * p.inb.sp; p.vy = p.inb.dy * p.inb.sp;
         p.x += p.vx * dt; p.y += p.vy * dt;
+        const left = -((p.x - p.inb.to[0]) * p.inb.dx + (p.y - p.inb.to[1]) * p.inb.dy); // the way still to go to the fan
+        p.heat = p.inb.warm * Math.max(0, Math.min(1, 1 - left / INTAKE_WARM_RUN));
         growTrail(p, ox, oy);
         if ((p.x - p.inb.to[0]) * p.inb.dx + (p.y - p.inb.to[1]) * p.inb.dy > 60) delete p.inb; // through the fan: the field has it from here
         else if (p.age > LIFE_S) this.parts.splice(i, 1);
