@@ -86,6 +86,8 @@ export interface InstalledOs {
   spec: OsSpec;
   deviceId: string;
   queueSlots: number;
+  /** Of `queueSlots`, the ones whose spool area sits on the OS drive (the rest are on other data drives, see `layoutSpool`). */
+  homeSlots: number;
 }
 
 /** The OS's boot probe of one drive: the scan, then (for a `dirty` drive) the repair, in base ticks. `left` counts down to 0. */

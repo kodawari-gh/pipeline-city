@@ -15,7 +15,7 @@
 import { assemble } from "../asm";
 import {
   BLOCK_BYTES, DISPLAY_BASE, JOB_ROW, KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT, KSLOT_BYTES, MAX_THREADS_PER_JOB, OS_HEADER, OS_HEADER_BASE,
-  INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_PVEC, KERNEL_SECONDARY, KERNEL_TIMER, KERNEL_TVEC, KERNEL_VEC_CORES, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
+  INTC_BASE, INTC_REG, IRQ, KERNEL_PAGEFAULT, KERNEL_PAGEFAULT1, KERNEL_PVEC, KERNEL_SECONDARY, KERNEL_TIMER, KERNEL_TVEC, KERNEL_VEC_CORES, MMU_BASE, TIMER_BASE, TIMER_REG, MMU_REG, MPU_BASE, MPU_REG, OS_MAGIC, OS_SPOOL_MAP, SPOOL_PORT_SHIFT, STORAGE_BASE, STORAGE_STRIDE, PAGED_HEAP, PAGED_SHIFT, PAGED_TABLES, PAGED_TABLES_BYTES, PCH_BASE, PCH_KEY_WINDOW, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PchPhase, USER_BASE,
 } from "../isa/memmap";
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
@@ -679,6 +679,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     `  lw a1, ${KSLOT.LBA}(t0)`,
     "  add a1, a1, s2",
     "  mv a0, s1",
+    "  call spool_port",
     "  call blk_read",
     "  addi s2, s2, 1",
     `  lw t0, ${K + 8}(zero)`,
@@ -1212,8 +1213,9 @@ function secondary(kendPage: number): string[] {
     `  addi s2, s2, ${BLOCK_BYTES - 1}`,
     "  srli s2, s2, 8",
     `  li a2, ${USER_BASE + ARENA1_SHIFT}`, // the program is loaded where core 1's table will map it
+    "  mv a0, s1", // (the drive is the same for every block of the program: blk_read keeps a0)
+    "  call spool_port",
     "kload1:",
-    "  mv a0, s1",
     "  call blk_read",
     "  addi a1, a1, 1",
     `  addi a2, a2, ${BLOCK_BYTES}`,
@@ -1556,8 +1558,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   `  addi s2, s2, ${BLOCK_BYTES - 1}`,
   "  srli s2, s2, 8", // blocks to read
   `  li a2, ${paged ? USER_BASE + PAGED_SHIFT : USER_BASE}`, // OS 2: the program is loaded where its page table will map it
+  "  mv a0, s1", // (the drive is the same for every block of the program: blk_read keeps a0)
+  ...(paged || pre ? ["  call spool_port"] : []), // (the resident OS spools on its own drive only)
   "kload:",
-  "  mv a0, s1",
   "  call blk_read",
   "  addi a1, a1, 1",
   `  addi a2, a2, ${BLOCK_BYTES}`,
@@ -1683,9 +1686,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   `  li t0, ${KD}`,
   "  sub t0, a2, t0",
   "  srli t0, t0, 6", // slot index
-  "  mul t0, t0, t1",
-  `  lw t1, ${H("SPOOL_LBA")}(s3)`,
-  "  add a1, t0, t1", // first spool block of this slot
+  "  slli t0, t0, 2",
+  "  add t0, t0, s3",
+  `  lw a1, ${4 * OS_SPOOL_MAP}(t0)`, // first spool block of this slot (the top byte names its drive)
   `  li t0, ${ILBA}`,
   "  sw a1, 0(t0)",
   ...setPhase(PchPhase.OsIngest),
@@ -1693,8 +1696,9 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   ...status("INGESTING", "a3"),
   "  mv s3, t4",
   `  li a2, ${PCH_BASE + PCH_KEY_WINDOW}`,
+  "  mv a0, s1", // (the drive is the same for every block of the job: blk_write keeps a0)
+  ...(paged || pre ? ["  call spool_port"] : []),
   "kicopy:",
-  "  mv a0, s1",
   "  call blk_write",
   "  addi a1, a1, 1",
   `  addi a2, a2, ${BLOCK_BYTES}`,
@@ -1725,6 +1729,20 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   `  sw t2, ${KSLOT.STATE}(a0)`, // queued
   "kiout:",
   "  jalr zero, s2, 0",
+
+  // ---- spool_port: a0 = the OS drive's port, a1 = a spool block -> a0 = the port of the drive the block's top byte names (0: the OS drive) ----
+  ...(paged || pre ? [
+    "spool_port:",
+    `  srli t0, a1, ${SPOOL_PORT_SHIFT}`,
+    "  beq t0, zero, spret",
+    "  addi t0, t0, -1",
+    `  li t1, ${STORAGE_STRIDE}`,
+    "  mul t0, t0, t1",
+    `  li t1, ${STORAGE_BASE}`,
+    "  add a0, t0, t1",
+    "spret:",
+    "  ret",
+  ] : []),
 
   // ---- find_slot: a0 = key id -> a0 = the slot holding it, or 0 ----
   "find_slot:",
@@ -1818,6 +1836,8 @@ export interface BootParams {
   /** First block of the job spool and the blocks each queue slot gets. */
   spoolLba: number;
   spoolBlocks: number;
+  /** The first spool block of each queue slot, drive tag in the top byte (see `OS_SPOOL_MAP`). Absent: the slots follow one another from `spoolLba` on the OS drive. */
+  spoolMap?: number[];
   tier: number;
   /** The multicore image: OS 2 hands jobs to core 1, OS 3 schedules programs on every logical core. */
   smp?: boolean;
@@ -1838,6 +1858,7 @@ export function bootImage(p: BootParams): Uint8Array {
     SPOOL_LBA: p.spoolLba, SPOOL_BLOCKS: p.spoolBlocks, TIER: p.tier,
   };
   for (const k of Object.keys(OS_HEADER) as (keyof typeof OS_HEADER)[]) w.setUint32(4 * OS_HEADER[k], header[k] >>> 0, true);
+  for (let i = 0; i < KDATA_SLOTS; i++) w.setUint32(4 * (OS_SPOOL_MAP + i), (p.spoolMap?.[i] ?? p.spoolLba + i * p.spoolBlocks) >>> 0, true);
   image.forEach((word, i) => w.setUint32(BLOCK_BYTES + 4 * i, word, true));
   return out;
 }

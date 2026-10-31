@@ -166,6 +166,12 @@ export const PAGED_TABLES_BYTES = 0x400;
 /** Header words: magic, total blocks (header + kernel), queue slots, program slots, spool start block, spool blocks per job, OS tier. */
 export const OS_MAGIC = 0x3153_564f;
 export const OS_HEADER = { MAGIC: 0, TOTAL_BLOCKS: 1, QUEUE_SLOTS: 2, PROGRAM_SLOTS: 3, SPOOL_LBA: 4, SPOOL_BLOCKS: 5, TIER: 6 } as const;
+/**
+ * The spool map in the header: one word per queue slot (from word `OS_SPOOL_MAP`), the slot's first spool block. The top byte names the drive:
+ * 0 is the OS drive, k > 0 is storage port k - 1 (`STORAGE_PORTS` order). The drive ignores that byte in its LBA register (`SPOOL_PORT_SHIFT`).
+ */
+export const OS_SPOOL_MAP = 8;
+export const SPOOL_PORT_SHIFT = 24;
 /** Kernel job table in RAM: KDATA_SLOTS slots of KSLOT_BYTES; see docs/OS.md. */
 export const KDATA_BASE = 0xe000;
 export const KDATA_SLOTS = 8;

@@ -2,9 +2,9 @@
 // storage snapshots. Every export is a `Game` method (see game.ts).
 
 import { deviceSpec, type InstalledDevice, type StorageSpec } from "../board";
-import { BLOCK_BYTES, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase } from "../isa/memmap";
+import { BLOCK_BYTES, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "../isa/memmap";
 import { canHold, mountCost, type FileKind, type MountState } from "../machine/fs";
-import { bootImage, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
+import { bootImage, MAX_QUEUE_SLOTS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from "../os";
 import type { Game } from "./game";
 import type { DriveMount, InvItem, KernelJob } from "./internal";
 import type { KeyActivity, OsJobSnap, OsSnap, Result, StorageSnap } from "./types";
@@ -57,12 +57,50 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   if (queueSlots < 1) throw new Error("save: the OS does not fit its drive");
   disk.fs.clear();
   disk.mount = "clean";
-  disk.poke(0, this.osBootImage(os, queueSlots));
   disk.reserve(0, osBlocks);
   disk.fs.create("os", "os", osBlocks, { at: 0 });
   disk.fs.create("os", "spool", queueSlots * SPOOL_BLOCKS_PER_JOB, { at: osBlocks, soft: true });
   if (count) disk.bytesWritten += os.diskBytes;
-  this.os = { spec: os, deviceId, queueSlots };
+  this.os = { spec: os, deviceId, queueSlots, homeSlots: queueSlots };
+  // A new install adds the spool areas on the other drives now. A save load waits for power-on: the other drives' ledgers are not back yet.
+  disk.poke(0, this.osBootImage(os, count ? this.layoutSpool() : Array.from({ length: queueSlots }, (_, i) => osBlocks + i * SPOOL_BLOCKS_PER_JOB)));
+}
+
+/**
+ * Where the queue slots' spool areas are: first the OS drive's own (`homeSlots`), then, from the paged OS on (filesystem tier 2), the free room of the other
+ * data drives, fastest first, up to the tier's slots. A small OS drive no longer caps the queue. The old spool areas on the other drives are dropped and
+ * made again, so a drive that was added, wiped, burnt or left dirty is taken into account. Returns the spool map of the boot header and sets `queueSlots`.
+ */
+export function layoutSpool(this: Game): number[] {
+  const os = this.os!;
+  const home = this.board.devices.find((d) => d.id === os.deviceId)!;
+  const first = Math.ceil(os.spec.diskBytes / BLOCK_BYTES);
+  const map: number[] = [];
+  for (let i = 0; i < os.homeSlots; i++) map.push(first + i * SPOOL_BLOCKS_PER_JOB);
+  const others = this.board.devices.filter((d) => d.id !== home.id && deviceSpec(d).kind === "storage");
+  for (const d of others) {
+    const fs = this.disks.get(d.id)?.fs;
+    if (fs) for (const f of fs.list("spool")) fs.remove(f.id);
+  }
+  const cap = Math.min(os.spec.queueSlots, MAX_QUEUE_SLOTS);
+  if (os.spec.fsTier >= 2) {
+    for (const d of others.filter((x) => !x.burnt && !(deviceSpec(x) as StorageSpec).mirror).sort((a, b) => deviceSpec(b).tier - deviceSpec(a).tier)) {
+      const disk = this.diskFor(d);
+      const port = STORAGE_PORTS.indexOf(d.slot);
+      if (disk.mount !== "clean" || port < 0) continue;
+      let n = Math.min(cap - map.length, Math.floor((disk.capacityBytes - disk.usedBytes) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES)));
+      for (; n > 0; n--) { // one run of blocks, so the slots follow one another
+        const f = disk.fs.create("os", "spool", n * SPOOL_BLOCKS_PER_JOB, { soft: true });
+        if (f && f.extents.length === 1) {
+          for (let i = 0; i < n; i++) map.push((port + 1) * 2 ** SPOOL_PORT_SHIFT + f.extents[0]!.first + i * SPOOL_BLOCKS_PER_JOB);
+          break;
+        }
+        if (f) disk.fs.remove(f.id);
+      }
+    }
+  }
+  os.queueSlots = map.length;
+  return map;
 }
 
 /** Why this drive cannot be formatted now, or null. Formatting needs an OS with allocation (filesystem tier 2+), a data drive and a powered-off machine. */
@@ -102,16 +140,16 @@ export function osSmp(this: Game, tier: number): boolean {
 }
 
 /** The boot area of `os` as this machine needs it (the paged OS has a multicore kernel for a CPU with two cores or more). */
-export function osBootImage(this: Game, os: OsSpec, queueSlots: number): Uint8Array {
-  return bootImage({ queueSlots, programSlots: this.osProgramSlots(os), spoolLba: Math.ceil(os.diskBytes / BLOCK_BYTES), spoolBlocks: SPOOL_BLOCKS_PER_JOB, tier: os.tier, smp: this.osSmp(os.tier) });
+export function osBootImage(this: Game, os: OsSpec, spoolMap: number[]): Uint8Array {
+  return bootImage({ queueSlots: spoolMap.length, programSlots: this.osProgramSlots(os), spoolLba: Math.ceil(os.diskBytes / BLOCK_BYTES), spoolBlocks: SPOOL_BLOCKS_PER_JOB, spoolMap, tier: os.tier, smp: this.osSmp(os.tier) });
 }
 
-/** Write the boot area again, so the kernel on the drive matches the CPU (the player may swap the CPU after installing the OS). Only while off. */
+/** Write the boot area again, so the kernel on the drive matches the CPU and the spool areas match the drives (the player may swap either after installing the OS). Only while off. */
 export function refreshBootImage(this: Game): void {
   const os = this.os;
   const dev = os && this.board.devices.find((d) => d.id === os.deviceId);
   if (!os || !dev || dev.burnt || os.spec.tier < 2) return;
-  this.diskFor(dev).poke(0, this.osBootImage(os.spec, os.queueSlots));
+  this.diskFor(dev).poke(0, this.osBootImage(os.spec, this.layoutSpool()));
 }
 
 /** Take the OS off its drive (back to the inventory; the drive is wiped). Only while off. */
@@ -120,6 +158,7 @@ export function uninstallOs(this: Game): Result<{ invId: string }> {
   const os = this.os;
   if (!os) return { ok: false, reason: "no OS is installed" };
   this.disks.get(os.deviceId)?.format();
+  for (const [id, disk] of this.disks) if (id !== os.deviceId) for (const f of disk.fs.list("spool")) disk.fs.remove(f.id); // (the spool areas on the other drives)
   this.os = null;
   this.returnSpool();
   const invId = `inv${this.nextInvId++}`;

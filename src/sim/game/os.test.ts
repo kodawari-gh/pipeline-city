@@ -268,11 +268,14 @@ describe("the OS takes keys, queues, runs and delivers", () => {
       g.plugKey(id);
       const start = g.baseTick;
       until(g, () => ["queued", "running", "result"].includes(stageOfPlugged(g) ?? ""));
-      return { took: g.baseTick - start, written: g.snapshot().storage[0]!.bytesWritten };
+      const st = g.snapshot().storage[0]!;
+      const w = st.cmds.find((c) => c.op === "w")!; // (the ingest takes a few base ticks, too few to tell the tiers apart by the clock alone)
+      return { took: g.baseTick - start, cost: w.seek + w.xfer, written: st.bytesWritten };
     };
     const hdd = t("hdd0");
     const nvme = t("nvme2");
-    expect(nvme.took).toBeLessThan(hdd.took);
+    expect(nvme.took).toBeLessThanOrEqual(hdd.took);
+    expect(nvme.cost).toBeLessThan(hdd.cost);
     expect(hdd.written).toBeGreaterThan(12 * 1024); // the OS install plus the spooled job
   });
 

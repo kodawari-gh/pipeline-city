@@ -309,7 +309,8 @@ export class StoragePort implements Device {
   }
 
   private get lba(): number {
-    return (this.regs[STORAGE_REG.LBA]! | (this.regs[STORAGE_REG.LBA + 1]! << 8) | (this.regs[STORAGE_REG.LBA + 2]! << 16) | (this.regs[STORAGE_REG.LBA + 3]! << 24)) >>> 0;
+    // (the top byte is the kernel's drive tag for a spool block, not part of the address)
+    return this.regs[STORAGE_REG.LBA]! | (this.regs[STORAGE_REG.LBA + 1]! << 8) | (this.regs[STORAGE_REG.LBA + 2]! << 16);
   }
 
   read(off: number): number {
