@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec } from '../sim/specs';
-import { COOLER, type Rect } from './layout/layout';
+import { BR, COOLER, type Rect } from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
 import { EdgeFan, type FanMount } from '../../room/render/desk/props/case';
 import { blades, type Part } from './devices';
@@ -192,9 +192,10 @@ export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
     const [la, lb] = pw[0] < a[0] ? [yLow, yHigh] : [yHigh, yLow];
     return [smooth([a, up(a), [a[0], la], [pw[0], la], lead(pw), pw]), smooth([b, up(b), [b[0], lb], [pe[0], lb], lead(pe), pe])];
   }
-  // the front's barbs face west: the west tube takes the upper lane to the northern barb, the east one the lower lane to the other
-  const xa = t0[0] - 300, xb = t0[0] - 150;
-  return [smooth([a, up(a), [a[0], yHigh], [xa, yHigh], [xa, t0[1]], lead(t0), t0]), smooth([b, up(b), [b[0], yLow], [xb, yLow], [xb, t1[1]], lead(t1), t1])];
+  // the front's barbs face west, far across the board: the tubes run along their lanes under the regulator, cross the memory sockets low, then climb the free strip
+  // between the M.2 sockets and the ATX plug and land level on their barbs. The upper lane turns first (nearer the sockets) and takes the northern barb, so the pair nests.
+  const m2 = BR.m2, gap = BR.atx.x - (m2.x + m2.w), xa = m2.x + m2.w + gap * 0.02, xb = m2.x + m2.w + gap * 0.3, mid = (y0: number, y1: number): number => (y0 + y1) / 2;
+  return [smooth([a, up(a), [a[0], yHigh], [xa, yHigh], [xa, mid(yHigh, t0[1])], [xa, t0[1]], lead(t0), t0]), smooth([b, up(b), [b[0], yLow], [xb, yLow], [xb, mid(yLow, t1[1])], [xb, t1[1]], lead(t1), t1])];
 }
 
 const COLD_WATER = '#3fa9ff', HOT_WATER = '#ff6a3d';
