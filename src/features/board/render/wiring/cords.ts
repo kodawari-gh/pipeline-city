@@ -4,7 +4,7 @@ import { drape, hangCable, paintCable, paintClip, type Clip, startFall, stepFall
 import type { CordScene, SceneInfo } from '@/core/render/interact';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import { deskGeo } from '@/features/room/render/shell/persp';
-import { plugPoly } from '@/features/room/render/shell/swiss';
+import { HOLES, facePoly, plugPoly } from '@/features/room/render/shell/swiss';
 import type { Theme } from '@/core/render/theme';
 
 // The two cords from the wall: the PC's (from the inlet in the case's rear wall) and the monitor's (built into it). Each ends in a plug that
@@ -175,13 +175,28 @@ export class CordsView {
   private plug(g: Graphics, at: Pt, T: Theme, seated: boolean) {
     const [x, y] = at, body = T.dark ? '#141a26' : '#262d3a', rim = T.dark ? '#5b6a94' : '#6b7794';
     const lift = seated ? 0 : 1; // a plug that is out stands a little proud: a longer shadow
-    // a Swiss plug (type J) seen from its back: a flat top, corners at mid height and a chamfered bottom (the outlet's outline), a collar, finger grooves and the boot the cord enters
-    const body2 = T.dark ? '#d6dae6' : '#f2f3f7', shade = T.dark ? '#aab1c4' : '#d3d7e2';
-    g.poly(plugPoly(x + 14 + 10 * lift, y + 20 + 16 * lift)).fill({ color: '#000000', alpha: 0.3 });
-    g.poly(plugPoly(x, y)).fill({ color: body2 }).stroke({ width: 7, color: shade, alpha: 0.95 });
-    g.poly(plugPoly(x, y + 4)).stroke({ width: 4, color: '#ffffff', alpha: 0.5 });
-    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.roundRect(x + sx * 168 - 7, y - 80 + k * 80, 14, 48, 7).fill({ color: shade, alpha: 0.8 });
-    g.circle(x, y + 20, 46).fill({ color: shade, alpha: 0.7 }).stroke({ width: 4, color: '#ffffff', alpha: 0.4 }); // the fixing screw
-    g.roundRect(x - 90, y - 330, 180, 130, 36).fill({ color: body2 }).stroke({ width: 6, color: shade, alpha: 0.9 }); // the boot
+    // a Swiss plug (type J), white (`swiss.ts`). Seated, it is seen from behind: the cap with the cord boot at its top (the screw that holds the cover) over the pin face
+    // that fills the outlet's recess. Out (lying, hanging, in the hand) it shows its pin face: the shield with three round pins, a black sleeve at the base of each and a bright tip.
+    const white = T.dark ? '#dcdde2' : '#f4f3ee', shade = T.dark ? '#a9adba' : '#cfd0d6';
+    if (seated) {
+      g.poly(plugPoly(x + 14, y + 20)).fill({ color: '#000000', alpha: 0.3 });
+      g.poly(plugPoly(x, y)).fill({ color: white }).stroke({ width: 6, color: shade, alpha: 0.95 });
+      g.poly(plugPoly(x, y - 6)).stroke({ width: 3, color: '#ffffff', alpha: 0.6 });
+      g.poly(facePoly(x, y)).stroke({ width: 3, color: shade, alpha: 0.7 }); // where the cap meets the pin face
+      g.circle(x, y - 150, 24).fill({ color: shade }).stroke({ width: 3, color: '#ffffff', alpha: 0.5 }); // the cover screw
+      g.moveTo(x - 14, y - 150).lineTo(x + 14, y - 150).stroke({ width: 4, color: '#5b6272', alpha: 0.9 });
+    } else {
+      g.poly(facePoly(x + 24, y + 36)).fill({ color: '#000000', alpha: 0.3 });
+      g.poly(plugPoly(x, y)).fill({ color: shade, alpha: 0.9 }); // the cap seen from the side, behind the face
+      g.poly(facePoly(x, y)).fill({ color: white }).stroke({ width: 5, color: shade, alpha: 0.95 });
+      g.poly(facePoly(x, y - 4)).stroke({ width: 3, color: '#ffffff', alpha: 0.6 });
+      for (const [dx, dy] of HOLES) {
+        g.circle(x + dx + 6, y + dy + 9, 24).fill({ color: '#000000', alpha: 0.3 });
+        g.circle(x + dx, y + dy, 24).fill({ color: '#16181f' }); // the insulating sleeve
+        g.circle(x + dx, y + dy, 13).fill({ color: '#c9ced8' }).stroke({ width: 2, color: '#7e8594' });
+        g.circle(x + dx - 4, y + dy - 5, 5).fill({ color: '#ffffff', alpha: 0.9 });
+      }
+    }
+    g.roundRect(x - 90, y - 340, 180, 120, 36).fill({ color: white }).stroke({ width: 6, color: shade, alpha: 0.9 }); // the boot the cord enters
   }
 }
