@@ -163,15 +163,25 @@ export function rj45Plug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
   const m = metalOf(T), L = local(p), body = T.dark ? '#aeb9d6' : '#dfe6f3';
   const [sx, sy, sw, sh] = L.rect(0, -p.w / 2, p.l, p.w / 2);
   box(g, sx + 5, sy + 9, sw, sh, 10, { fill: '#000000', fa: shadowA(T) * 0.7 });
-  lit(g, T, L, 0, -p.w / 2, p.l * 0.62, p.w / 2, 8, mix(body, T.bg, 0.45), m.rim);
-  for (let k = 0; k < 8; k++) {                                                                                       // the eight blades, seen through the clear body
-    const v = -p.w * 0.38 + k * (p.w * 0.76 / 7), a = L.at(6, v), b = L.at(p.l * 0.34, v);
+  const clear = mix(body, T.bg, 0.2), hw = p.w / 2;
+  lit(g, T, L, 0, -hw, p.l * 0.64, hw, 8, clear, m.rim);
+  const [cx, cy, cw, ch] = L.rect(p.l * 0.34, -hw + 10, p.l * 0.62, hw - 10);                                          // the dark cavity where the wires end
+  g.rect(cx, cy, cw, ch).fill({ color: '#000000', alpha: 0.22 });
+  for (let k = 0; k < 8; k++) {                                                                                       // the eight gold blades, then the wire ends
+    const v = -hw * 0.76 + k * (hw * 1.52 / 7), a = L.at(6, v), b = L.at(p.l * 0.34, v), d = L.at(p.l * 0.5, v);
+    g.moveTo(a[0], a[1]).lineTo(b[0], b[1]);
+    g.circle(d[0], d[1], 3.5);
+  }
+  g.stroke({ width: 5, color: T.pin, alpha: 0.95 });
+  g.poly(L.poly([[p.l * 0.64, -hw], [p.l * 0.6, -hw - 9], [p.l * 0.24, -hw - 15], [p.l * 0.14, -hw - 15], [p.l * 0.14, -hw - 7], [p.l * 0.5, -hw]]))
+    .fill({ color: clear }).stroke({ width: 3, color: m.rim, alpha: 0.85 });                                           // the latch: a lever rising from the back, its hook near the nose
+  const cable = p.w * 0.4;
+  g.poly(L.poly([[p.l * 0.62, -hw * 0.9], [p.l, -cable / 2], [p.l, cable / 2], [p.l * 0.62, hw * 0.9]])).fill({ color: sleeveOf(T) }).stroke({ width: 4, color: accent, alpha: 0.9 }); // the strain-relief boot, tapering onto the cable
+  for (let k = 0; k < 3; k++) {
+    const u = p.l * (0.7 + k * 0.08), half = hw * 0.9 + (cable / 2 - hw * 0.9) * ((u / p.l - 0.62) / 0.38) - 6, a = L.at(u, -half), b = L.at(u, half);
     g.moveTo(a[0], a[1]).lineTo(b[0], b[1]);
   }
-  g.stroke({ width: 4, color: T.pin, alpha: 0.85 });
-  const [kx, ky, kw, kh] = L.rect(p.l * 0.16, -p.w / 2 - 8, p.l * 0.5, -p.w / 2);                                      // the latch clip on top
-  box(g, kx, ky, kw, kh, 3, { fill: mix(body, T.bg, 0.45), stroke: m.rim, lw: 3, sa: 0.8 });
-  lit(g, T, L, p.l * 0.6, -p.w * 0.46, p.l, p.w * 0.46, 10, sleeveOf(T), accent, 0.9);              // the boot (the sleeve's colour)
+  g.stroke({ width: 3, color: '#ffffff', alpha: 0.16 });
 }
 
 /** The socket in the monitor's flank that the HDMI plug enters: a metal stub standing out of the bezel, its opening facing east. */
