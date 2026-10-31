@@ -42,7 +42,7 @@ function Graph({ id, level, big }: { id: string; level: string; big?: boolean })
 
 function Tile({ r, on, onPick }: { r: ResRow; on: boolean; onPick: () => void }) {
   return (
-    <button class={`os-tile ${r.level}${on ? ' on' : ''}`} onClick={onPick} aria-pressed={on}>
+    <button class={`os-tile ${r.level}${on ? ' sel' : ''}`} onClick={onPick} aria-current={on}>
       <Graph id={r.id} level={r.level} />
       <span class="os-tile-txt">
         <b><Icon name={r.icon} size={11} /> {r.label}</b>
@@ -180,38 +180,25 @@ export function OsModal() {
   if (!open || !s) return null;
   const rows = resourceRows(s);
   sample(rows);
-  const cpu = rows.find((r) => r.id === 'cpu');
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeOs(); }}>
       <div class="card almanac ospanel" role="dialog" aria-modal="true" aria-label="Operating system">
-        <aside class="os-side">
-          <div class="os-brand"><Icon name="cpu" size={20} /><span>{s.os ? s.os.name : 'No OS'}</span></div>
+        <header class="alm-head">
+          <span class="alm-title"><Icon name="cpu" size={16} /> {s.os ? s.os.name : 'Operating system'}</span>
           <div class="os-tabs" role="tablist">
             {TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} class={`os-nav${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
-                <Icon name={t.icon} size={14} /> {t.label}
-              </button>
+              <button key={t.id} role="tab" aria-selected={tab === t.id} class={`chip ${tab === t.id ? 'ok' : 'idle'}`} onClick={() => setTab(t.id)}>{t.label}</button>
             ))}
           </div>
-          <div class="os-status">
-            <span class={`os-led ${s.powered ? 'on' : ''}`} /> {s.powered ? 'Running' : 'Powered off'}
-            {cpu && <div class="mono">{cpu.text}</div>}
-            {s.os && <div class="mono">Tier {s.os.tier}</div>}
-          </div>
-        </aside>
-        <section class="os-content">
-          <header class="os-top">
-            <h2>{TABS.find((t) => t.id === tab)!.label}</h2>
-            <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
-          </header>
-          <div class="os-body">
-            {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}
-            {s.os && tab === 'monitor' && <Monitor />}
-            {s.os && tab === 'procs' && <Procs />}
-            {s.os && tab === 'spool' && <Spool />}
-            {s.os && tab === 'apps' && <Apps />}
-          </div>
-        </section>
+          <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
+        </header>
+        <div class="os-body">
+          {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}
+          {s.os && tab === 'monitor' && <Monitor />}
+          {s.os && tab === 'procs' && <Procs />}
+          {s.os && tab === 'spool' && <Spool />}
+          {s.os && tab === 'apps' && <Apps />}
+        </div>
       </div>
     </div>
   );
