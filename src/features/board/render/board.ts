@@ -53,7 +53,7 @@ import { initThumbs } from './thumbs';
 interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) that also hit. */ more?: Rect[]; /** Only hit when the zoom is within [min, max]. */ min?: number; max?: number; /** Only hit while this holds. */ cond?: () => boolean; /** Only hit while the exterior case covers the interior. */ extOnly?: boolean;
   /** The silhouette (the lamp, a key, the power button): the pointer picks what is drawn, not the box round it. */ shape?: Shape;
   /** A backdrop (the board, the case): it answers only where nothing else is, near or on. */ base?: boolean;
-  /** False: the hover ring is not traced along the silhouette (a cable's ring stays on its plug, the part that is grabbed). */ ring?: false }
+  /** False: the hover ring is not traced along the silhouette. */ ring?: false }
 
 // The zoom bands live in one table (lod.ts `DEVICE_LOD`), shared with the views; the hover gates below read it too.
 /** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
@@ -938,14 +938,14 @@ export async function mountBoard(host: HTMLElement) {
         (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const rs = laneRects(c.path, c.w / 2 + 10);
         const parts = [...rs, plugRect(c.a), plugRect(c.b)];
-        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1), ring: false }));
+        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1) }));
       } else if (state === 'loose') {
         const p = looseCableArt(T, c);
         (c.kind === 'video' ? cableExtLayer : cableLayer).addChild(p.root);
         const pad = (r: Rect, e = 30): Rect => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
         const rs = laneRects(lo.path, c.w * 0.31 + 10);
         const parts = [pad(rest), ...rs, plugRect(c.kind === 'video' ? c.b : c.a)];
-        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1), ring: false }));
+        cableHits.push(partHit('cable.' + c.kind, p.root, unionRect(parts), { more: parts.slice(1) }));
       }
     }
     live.setConnected(connectedKinds);
