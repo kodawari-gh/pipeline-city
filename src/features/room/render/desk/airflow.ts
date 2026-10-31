@@ -170,7 +170,9 @@ export function airflowModel(i: AirIn): AirModel {
 interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number }
 
 /** Particles a lane carries, by its length, and the cap over the whole view. */
-const SPACING = 230, MAX_PARTS = 360;
+const SPACING = 170, MAX_PARTS = 340, MAX_EMBERS = 90;
+/** A stable pseudo-random number in 0..1 for a seed (so a particle keeps its own speed, offset and size). */
+const rnd = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 /** World units per second the air travels. */
 export const airSpeed = (strength: number) => 700 + 1500 * strength;
 
@@ -219,6 +221,13 @@ export class AirflowLens {
     for (const mt of m.mounts) {
       const dead = mt.state === 'dead', pulse = dead ? 0.5 + 0.4 * Math.sin(now / 160) : 1;
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(3), color: dead ? T.bad : airColor(0), alpha: (mt.state === 'idle' ? 0.35 : 0.9) * pulse });
+      if (mt.state !== 'on') continue;
+      // pressure waves: rings that leave a turning fan, three at a time
+      const [fx, fy] = mid(mt.rect), reach = Math.max(mt.rect.w, mt.rect.h) * 0.7;
+      for (let k = 0; k < 3; k++) {
+        const ph = (this.t * 0.9 + k / 3) % 1;
+        g.circle(fx, fy, 80 + reach * ph).stroke({ width: px(2), color: airColor(0), alpha: 0.5 * (1 - ph) * (1 - ph) });
+      }
     }
     // the air: streaks along each lane, cool where it comes in and warmer after every part it passes
     let budget = MAX_PARTS;
@@ -230,18 +239,52 @@ export class AirflowLens {
       if (faint || ln.len < 10) continue;
       const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.4 + 0.6 * l.strength))));
       budget -= n;
-      const run = airSpeed(l.strength) * this.t;
+      const run = airSpeed(l.strength) * this.t, li = m.lanes.indexOf(l);
       for (let k = 0; k < n; k++) {
-        const d = (k * ln.len) / n + run;
+        // every particle has its own speed, lane offset and size, so the stream is a living bundle, not a row of dots
+        const r1 = rnd(k + li * 131), r2 = rnd(k + li * 131 + 7), r3 = rnd(k + li * 131 + 13);
+        const sp = 0.7 + 0.6 * r1;
+        const d = (k * ln.len) / n + run * sp;
         const u = (((d % ln.len) + ln.len) % ln.len) / ln.len;
         const heat = laneHeat(l, u);
-        const [x, y] = pointAt(ln, d), [x2, y2] = pointAt(ln, d - 160);
-        // turbulence: the hotter the air, the more it wanders
-        const wob = (0.25 + heat) * 70 * Math.sin(d / 190 + k * 2.3), nx = y2 - y, ny = x - x2, nl = Math.hypot(nx, ny) || 1;
-        const ox = (nx / nl) * wob, oy = (ny / nl) * wob;
-        const fade = Math.min(1, u * 8, (1 - u) * 8);
-        g.moveTo(x2 + ox, y2 + oy).lineTo(x + ox, y + oy).stroke({ width: px(2.5) + heat * px(1.5), color: airColor(heat), alpha: 0.85 * fade, cap: 'round' });
-        g.circle(x + ox, y + oy, px(2.2) + heat * px(1.2)).fill({ color: '#ffffff', alpha: 0.7 * fade });
+        const [x, y] = pointAt(ln, d), [x2, y2] = pointAt(ln, d - 60);
+        const tx = x - x2, ty = y - y2, tl = Math.hypot(tx, ty) || 1, nx = -ty / tl, ny = tx / tl;
+        // spread across the lane (wider where the air is hot), plus a wandering weave
+        const spread = (r2 - 0.5) * 2 * (150 + 150 * heat) * (0.4 + Math.min(u * 4, 1) * 0.6);
+        const wob = (0.25 + heat) * 70 * Math.sin(d / 190 + k * 2.3) + spread;
+        let ox = nx * wob, oy = ny * wob;
+        // eddies: air near a hot part is pulled round it
+        for (const zn of m.zones) {
+          if (zn.heat < 0.1) continue;
+          const [zx, zy] = mid(zn.rect), R = Math.min(Math.max(zn.rect.w, zn.rect.h) * 0.5 + 800, 1900), dx = x - zx, dy = y - zy, dist = Math.hypot(dx, dy) || 1;
+          if (dist >= R) continue;
+          const s = (1 - dist / R) ** 2 * zn.heat;
+          ox += (-dy / dist) * s * 320 + (dx / dist) * s * 160; oy += (dx / dist) * s * 320 + (dy / dist) * s * 160;
+        }
+        const fade = Math.min(1, u * 8, (1 - u) * 8), col = airColor(heat), lw = px(1.6 + 1.6 * r3) + heat * px(1.2), len = 90 + 120 * sp;
+        // a trail that fades behind the head
+        let px0 = x + ox, py0 = y + oy;
+        for (let s = 1; s <= 3; s++) {
+          const [tx2, ty2] = pointAt(ln, d - (len * s) / 3);
+          const qx = tx2 + ox * (1 - s * 0.12), qy = ty2 + oy * (1 - s * 0.12);
+          g.moveTo(px0, py0).lineTo(qx, qy).stroke({ width: lw * (1 - (s - 1) * 0.25), color: col, alpha: 0.95 * fade * (1.15 - s * 0.28), cap: 'round' });
+          px0 = qx; py0 = qy;
+        }
+        // a bright head; some twinkle
+        const tw = r3 > 0.8 ? 0.6 + 0.4 * Math.sin(now / 90 + k * 5) : 1;
+        g.circle(x + ox, y + oy, lw * (0.55 + r3 * 0.4)).fill({ color: '#ffffff', alpha: 0.8 * fade * tw });
+      }
+    }
+    // embers: hot parts shed warm motes that rise, drift and fade
+    let eb = MAX_EMBERS;
+    for (const zn of m.zones) {
+      if (zn.heat < 0.12 || zn.id === 'psu') continue;
+      const n = Math.min(eb, Math.ceil(zn.heat * 14)); eb -= n;
+      const [zx, zy] = mid(zn.rect);
+      for (let k = 0; k < n; k++) {
+        const r1 = rnd(k * 3 + zx), r2 = rnd(k * 5 + zy), life = 2.2 + 2 * r1, ph = ((this.t / life + k / n + r2) % 1 + 1) % 1;
+        const x = zx + (r2 - 0.5) * zn.rect.w * 0.9 + Math.sin(this.t * 1.6 + k) * 90 * ph, y = zy - ph * (500 + 900 * zn.heat) + (r1 - 0.5) * zn.rect.h * 0.4;
+        g.circle(x, y, px(1.4 + 1.8 * r1) * (1 - ph * 0.5)).fill({ color: airColor(Math.min(1, zn.heat + 0.2)), alpha: 0.7 * Math.sin(Math.PI * ph) });
       }
     }
     this.tags(m.tags, z);

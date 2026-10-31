@@ -38,7 +38,7 @@ A switch (the bolt button in the bottom bar, or the **P** key; `powerLens` in `s
 - Lanes: front fans take air in, the top and rear fans blow it out. A dead fan (cable out, or the hub's `sysfan` out) keeps its lane in red. A radiator replaces the fans of its side with one lane, strength by the fans plugged. A Mini's rear grille is a weak lane.
 - Heat: each part kind is a haze zone, blue to amber to red (`heatOf`: 30 C to 85 C). A lane picks up the heat of each zone it passes (`laneHeat`), so air leaving a hot CPU is warmer. Hot air wobbles more.
 - Warnings: `NO FAN TURNS`, `NO EXHAUST`, `NO INTAKE`, `FAN OFF`, and `MACHINE OFF` (no particles). `CASE +x C` uses the sim's 0.05 C per card watt.
-- Particles are pooled streaks along `mkLane`, advanced on game time (the pause stops them), at most 360.
+- Particles are streaks along `mkLane`, advanced on game time (the pause stops them), at most 340. Each has its own speed, lane offset and size (`rnd`), a fading three-part trail and a bright head (some twinkle). Air near a hot part is swirled round it (eddies). Hot parts shed rising embers (at most 90). A turning fan sends out three pressure rings.
 
 ## USB keys
 
