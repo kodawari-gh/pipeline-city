@@ -72,6 +72,8 @@ export interface CordScene {
 
 /** The two wall cords may be pulled while the machine runs; the fans' cables only while it is off. */
 export const isWallCord = (kind: string) => kind === 'pcmains' || kind === 'monmains';
+/** Cables that change while the machine runs (mirrors `hotPluggable` in the board sim): video, fans and the wall cords. The PSU cables do not. */
+export const isHotCable = (kind: string) => kind === 'video' || kind === 'lan' || isWallCord(kind) || /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(kind);
 
 export interface SceneInfo {
   /** Id to world rect, for outlines, highlight rings and flyTo. */
@@ -373,9 +375,10 @@ export class Interact {
     const s = this.snap();
     if (!s) return false;
     if (s.powered) { this.toast('Power the machine off first: parts only come out while it is off.', cx, cy); return false; }
-    if (s.os?.deviceId === dev.id) { this.toast('The OS is on this drive: uninstall the OS first.', cx, cy); return false; }
     const d = this.start('part', dev.id, cx, cy);
     d.dev = dev.id; d.home = [d.wx, d.wy]; d.overInv = false;
+    // it can be lifted, but not put away: the hint says why, and the drop sends it back with the reason
+    d.why = s.os?.deviceId === dev.id ? 'The OS is on this drive: uninstall the OS first' : null;
     dragging.value = { kind: 'part', id: dev.id, fromBoard: true };
     this.setGhost(partIcon(this.T, dev.kind, dev.spec), 1);
     return true;
@@ -402,7 +405,7 @@ export class Interact {
   private beginCable(ci: CableInfo, cx: number, cy: number): boolean {
     const s = this.snap();
     if (!s) return false;
-    if (s.powered) { this.toast('Power the machine off first: cables only change while it is off.', cx, cy); return false; }
+    if (s.powered && !isHotCable(ci.kind)) { this.toast('Power the machine off first: the PSU cables carry live power.', cx, cy); return false; }
     const d = this.start('cable', 'cable.' + ci.kind, cx, cy);
     d.cable = ci;
     if (ci.state === 'connected') {
@@ -417,7 +420,7 @@ export class Interact {
 
   /** Pick up a wall cord's plug (from where it lies, or out of the wall: that pulls the cord, which works while the PC runs, and cuts its power). */
   private beginCord(c: CordScene, cx: number, cy: number): boolean {
-    if (!isWallCord(c.kind) && this.snap()?.powered) { this.toast('Power the machine off first: cables only change while it is off.', cx, cy); return false; }
+    if (!isHotCable(c.kind) && this.snap()?.powered) { this.toast('Power the machine off first: the PSU cables carry live power.', cx, cy); return false; }
     const d = this.start('cable', 'cable.' + c.kind, cx, cy);
     const at: Pt = c.connected ? c.outlet : c.centre;
     d.cord = c.kind; d.off = [at[0] - d.wx, at[1] - d.wy]; d.at = at;
@@ -536,7 +539,8 @@ export class Interact {
     };
     overInventory.value = false;
     if (d.dev) {
-      if (!cancelled && d.overInv) {
+      if (!cancelled && d.overInv && d.why) { this.toast(d.why, cx, cy); flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy); }
+      else if (!cancelled && d.overInv) {
         this.act(cx, cy);
         uninstall(d.dev);
         flash('fade', gx, gy);
@@ -732,7 +736,7 @@ export class Interact {
       this.ghost.scale.set(sc);
       this.ghost.rotation = 0;
       this.ghost.alpha = 0.92;
-      this.note(d.overInv ? 'Let go to put it in the inventory' : 'Drop on the inventory to unmount it', d.cx, d.cy, d.overInv ? T.st : T.mute);
+      this.note(d.why && d.overInv ? d.why : d.overInv ? 'Let go to put it in the inventory' : 'Drop on the inventory to unmount it', d.cx, d.cy, d.why && d.overInv ? T.bad : d.overInv ? T.st : T.mute);
     } else if (d.kind === 'part') {
       const ok = !d.why;
       for (const [id, r] of [...this.scene.slots, ['board', BD] as [string, Rect], ['case', CASE] as [string, Rect]]) {

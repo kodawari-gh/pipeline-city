@@ -345,11 +345,11 @@ export async function mountBoard(host: HTMLElement) {
    * own space (the position it has now is taken off the rect), a little beyond the rect so a bracket or a fin that sticks out is part of it; `threshold` is the alpha that
    * counts (a cable's soft shadow is under it).
    */
-  const liveShape = (art: Container, rect: Rect, threshold = 90): Shape => {
+  const liveShape = (art: Container, rect: Rect, threshold = 90, maxCells?: number, minCell?: number): Shape => {
     // the art's own placement (it may be drawn small and scaled up, like the monitor) is taken off the rect to read it and put back on the shape
     const k = art.scale.x, ox = art.position.x - k * art.pivot.x, oy = art.position.y - k * art.pivot.y, m = 40 / k;
     const local: Rect = { x: (rect.x - ox) / k - m, y: (rect.y - oy) / k - m, w: rect.w / k + 2 * m, h: rect.h / k + 2 * m };
-    return lazyShape(rect, () => { const s = captureShape(app.renderer, art, local, { threshold }); return s ? (ox || oy || k !== 1 ? movedShape(s, ox, oy, k) : s) : rectShape(rect); });
+    return lazyShape(rect, () => { const s = captureShape(app.renderer, art, local, { threshold, ...(maxCells ? { maxCells } : {}), ...(minCell ? { minCell } : {}) }); return s ? (ox || oy || k !== 1 ? movedShape(s, ox, oy, k) : s) : rectShape(rect); });
   };
   /** A hit for a piece of art: its rect, and its silhouette read from the art itself (`extra`: the zoom range, the ring, and so on). Every part, drive, monitor and cable registers through this. */
   const partHit = (id: string, art: Container, rect: Rect, extra: Partial<Hit> = {}): Hit => ({ id, rect, shape: liveShape(art, rect), ...extra });
@@ -733,7 +733,7 @@ export async function mountBoard(host: HTMLElement) {
         const p = monitorArt(T, true, spec.visual === 'monitor-gfx');
         monitorLayer.addChild(p.root);
         targets.push({ id: d.id, kind: 'display', spec: d.spec, rect: MONITOR });
-        deviceHits.push(partHit('monitor', p.root, MONITOR));
+        deviceHits.push({ ...partHit('monitor', p.root, MONITOR), shape: liveShape(p.root, MONITOR, 90, 2400, 1) }); // big and smooth-cornered: a finer grid keeps its ring from stepping
         scene.rects.set(d.id, MONITOR); scene.rects.set('monitor', MONITOR);
         scene.interactive.add('monitor');
         hasDisplay = true;
@@ -844,6 +844,7 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('tray', TRAY); // highlight only (the tutorial points at it): the tray is not clickable
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
     scene.rects.set('case', CASE); scene.interactive.add('case');
+    scene.interactive.add('board'); // the motherboard rings along its edge when the pointer is on bare board (its click opens the board card)
 
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
     if (hasPsu) mainHits.push({ id: 'psu.readout', rect: PSU_PANEL });
