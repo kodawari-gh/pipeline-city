@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_QUEUE_SLOTS, OS_SPECS } from ".";
+import { getOsSpec, MAX_QUEUE_SLOTS, OS_SPECS, tableSlots } from ".";
 import { ECONOMY } from "../../economy/sim/economy";
 import type { Game } from "@/worker/game/game";
 import { rig } from "@/worker/game/testkit";
@@ -10,10 +10,10 @@ ECONOMY.caseGating = false;
 const until = (g: Game, done: () => boolean, max = 6000): void => { for (let t = 0; t < max && !done(); t++) g.advanceBaseTick(); expect(done()).toBe(true); };
 
 /** The paged OS on an SSD, plus a second drive, formatted clean: the OS machine with room for the spool elsewhere. */
-function twoDrives(os = "os2"): Game {
+function twoDrives(os = "os2", ram = "ram2"): Game {
   const g = rig("ssd1", { cpu: "cpu2", os: false, keys: [{ template: "cli.log" }, { template: "cli.log" }] });
   for (const d of g.board.devices.filter((x) => x.spec.startsWith("ram"))) g.uninstall(d.id);
-  for (const id of ["ram2", os, "hdd0"]) {
+  for (const id of [ram, os, "hdd0"]) {
     const b = g.purchase(id);
     if (!b.ok) throw new Error(b.reason);
     const r = g.install(b.invId);
@@ -68,7 +68,7 @@ describe("the OS menu's spool settings", () => {
     g.powerButton();
     until(g, () => g.currentPhase() === "idle-os");
     expect(g.snapshot().os!.queueSlots).toBe(3);
-    expect(g.snapshot().os!.config).toMatchObject({ spoolWanted: 3, spoolMax: 8 });
+    expect(g.snapshot().os!.config).toMatchObject({ spoolWanted: 3, spoolMax: 16 });
     expect(g.setSpoolSlots(0).ok).toBe(false);
   });
 
@@ -111,5 +111,25 @@ describe("the disk allocation page", () => {
     expect(g.snapshot().os!.queueSlots).toBeLessThanOrEqual(MAX_QUEUE_SLOTS);
     expect(g.setSpoolAlloc(hdd.id, -1).ok).toBe(false);
     expect(g.setSpoolAlloc(hdd.id, null).ok).toBe(true);
+  });
+});
+
+describe("the queue beyond the old limit", () => {
+  it("the job table of a tier with a frame map holds more slots than 16, so only the drives and RAM limit the queue", () => {
+    expect(tableSlots(getOsSpec("os2")!)).toBe(16);
+    expect(tableSlots(getOsSpec("os3")!)).toBeGreaterThan(16);
+    expect(tableSlots(getOsSpec("os4")!)).toBe(MAX_QUEUE_SLOTS);
+  });
+
+  it("a queue of 20 slots on an OS 3 machine boots, and a job spooled in a slot past the 16th runs and is delivered", () => {
+    const g = twoDrives("os3", "ram4");
+    const hdd = g.board.devices.find((d) => d.spec === "hdd0")!;
+    g.os!.homeSlots = 0;
+    expect(g.setSpoolAlloc(hdd.id, 20).ok).toBe(true);
+    g.powerButton();
+    until(g, () => g.currentPhase() === "idle-os");
+    expect(g.snapshot().os!.queueSlots).toBe(20);
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    until(g, () => g.completed === 1 && g.pluggedKey() === null);
   });
 });

@@ -20,8 +20,11 @@ import {
 import { ROW, status } from "./asmtext";
 import { BLK_READ, BLK_WRITE } from "./blockasm";
 
-const KD = KDATA_BASE;
-const TABLE_END = KD + KDATA_SLOTS * KSLOT_BYTES;
+/** Where the job table is and where it ends for the kernel being built: the tiers with a frame map (OS 3 and up) keep it above the frame map (`JT_BASE`), the others at `KDATA_BASE`. `kernelSource` sets them. */
+let KD = KDATA_BASE;
+let JT_END = KDATA_BASE + KDATA_SLOTS * KSLOT_BYTES;
+/** The kernel's scratch words follow the 16-slot block at `KDATA_BASE` on every tier, whatever the table's own place. */
+const TABLE_END = KDATA_BASE + KDATA_SLOTS * KSLOT_BYTES;
 /** Scratch words after the slot table. */
 const SEQ = TABLE_END; // job sequence counter
 const CUR = TABLE_END + 4; // slot of the running job
@@ -103,8 +106,16 @@ export const FRAME_END = MAX_FRAMES;
 /** The kernel's own address space (identity, all of RAM: a level 1 table and up to 64 level 2 tables) follows the frame map. */
 export const KTBL = FMAP + 4 * MAX_FRAMES;
 export const KTBL_BYTES = 0x100 + 0x100 * 64;
-/** Frames 0xb0 up to here belong to the OS (its tables, the frame map and the kernel table). */
-export const OS_FRAMES_END = (KTBL + KTBL_BYTES + 255) >> 8;
+/**
+ * The job table of the OS tiers with a frame map (OS 3 and up) sits above the kernel's address space, with room for the most slots the boot header's spool map holds:
+ * `JT_SLOTS` x `KSLOT_BYTES` of RAM, 64 bytes a slot, so the queue is limited by the drives' room and by this RAM, not by the OS tier. The queue length (header) says how many are used.
+ */
+export const JT_BASE = KTBL + KTBL_BYTES;
+export const JT_SLOTS = 56;
+/** Frames 0xb0 up to here belong to the OS (its tables, the frame map, the kernel table and the job table). */
+export const OS_FRAMES_END = (JT_BASE + JT_SLOTS * KSLOT_BYTES + 255) >> 8;
+/** Where the job table is and how many slots it has, by OS tier. */
+export const jobTableFor = (tier: number): { base: number; slots: number } => (tier >= 3 ? { base: JT_BASE, slots: JT_SLOTS } : { base: KDATA_BASE, slots: KDATA_SLOTS });
 /** The RAM OS 3 needs so that its tables fit and programs have room. */
 export const OS3_MIN_BYTES = 256 * 1024;
 /** Interrupt-free stack of the code that ends a job. */
@@ -115,6 +126,8 @@ export const SLICE_CYCLES = 5000;
 export const SLICE_CYCLES_THR = 20000;
 /** Where the end of the kernel's data is, by OS tier. */
 export const kdataEndFor = (tier: number, smp = false): number => (tier >= 3 ? (smp ? KDATA_END_PRE_SMP : KDATA_END_PRE) : smp && tier === 2 ? KDATA_END_SMP : KDATA_END);
+/** The end of the job table in use: `base` (holding the table's start) + the queue length of the header x 64 bytes. Only the slots the spool map covers are ever used. */
+const jtEnd = (end: string, base: string): string[] => [`  li ${end}, ${OS_HEADER_BASE + 4 * OS_HEADER.QUEUE_SLOTS}`, `  lw ${end}, 0(${end})`, `  slli ${end}, ${end}, 6`, `  add ${end}, ${end}, ${base}`];
 const H = (k: keyof typeof OS_HEADER): number => 4 * OS_HEADER[k];
 
 const setPhase = (p: number): string[] => [`  li t0, ${p}`, `  sw t0, ${PCH_REG.PHASE}(s0)`];
@@ -506,7 +519,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     // kcnt: a0 = jobs running (clobbers t0-t3)
     "kcnt:",
     `  li t0, ${KD}`,
-    `  li t1, ${TABLE_END}`,
+    ...jtEnd("t1", "t0"),
     "  li a0, 0",
     "kc1:",
     `  lw t2, ${KSLOT.STATE}(t0)`,
@@ -1326,6 +1339,9 @@ function secondary(kendPage: number): string[] {
 
 /** The kernel's source: `paged` is OS 2, which gives each program an address space (docs/VM.md) instead of guarding the OS with the memory protection unit. */
 export function kernelSource(paged: boolean, pre = false, smp = false, thr = false): string {
+  const jt = jobTableFor(pre ? 3 : 1);
+  KD = jt.base;
+  JT_END = jt.base + jt.slots * KSLOT_BYTES;
   const TBL = PAGED_TABLES, KEND = pre ? (smp ? KDATA_END_PRE_SMP : KDATA_END_PRE) : smp ? KDATA_END_SMP : KDATA_END, KEND_PAGE = (KEND + 255) & ~255;
   const smp2 = smp && !pre; // core 1 of the multicore OS 2
   return [
@@ -1344,12 +1360,13 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   "kmain:",
   "  li sp, 65536",
   `  li s0, ${PCH_BASE}`,
-  `  li t0, ${KD}`,
+  `  li t0, ${KDATA_BASE}`,
   `  li t1, ${KEND}`,
   "kzero:",
   "  sw zero, 0(t0)",
   "  addi t0, t0, 4",
   "  bne t0, t1, kzero",
+  ...(pre ? [`  li t0, ${KD}`, `  li t1, ${JT_END}`, "kzjt:", "  sw zero, 0(t0)", "  addi t0, t0, 4", "  bne t0, t1, kzjt"] : []),
   ...(pre ? [
     // how many frames the machine has (the PCH knows the installed RAM), at most the 20-bit virtual space
     `  lw t0, ${PCH_REG.RAM_KB}(s0)`,
@@ -1512,7 +1529,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   "  li t1, 0", // best slot
   "  li t2, 2147483647", // its sequence number
   "  li t3, 0", // jobs running
-  `  li t4, ${TABLE_END}`,
+  ...jtEnd("t4", "t0"),
   "rscan:",
   `  lw a1, ${KSLOT.STATE}(t0)`,
   "  li a2, 3",
@@ -1652,7 +1669,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   "kingest:",
   "  mv s2, ra",
   `  li t0, ${KD}`,
-  `  li t4, ${TABLE_END}`,
+  ...jtEnd("t4", "t0"), // only the slots the spool map covers
   "  li a1, 0", // slots in use
   "  li a2, 0", // first free slot
   "kiscan:",
@@ -1747,7 +1764,7 @@ export function kernelSource(paged: boolean, pre = false, smp = false, thr = fal
   // ---- find_slot: a0 = key id -> a0 = the slot holding it, or 0 ----
   "find_slot:",
   `  li t0, ${KD}`,
-  `  li t1, ${TABLE_END}`,
+  ...jtEnd("t1", "t0"),
   "fs1:",
   `  lw t2, ${KSLOT.STATE}(t0)`,
   "  beq t2, zero, fs2",
@@ -1826,7 +1843,7 @@ if (assembledSmp.symbols.get("k_sec_vec") !== KERNEL_SECONDARY - KERNEL_BASE || 
 if (assembledPre.symbols.get("k_timer_vec") !== 16 || assembledPreSmp.symbols.get("k_timer_vec") !== 16) throw new Error("kernel: k_timer_vec must be at KERNEL_BASE + 16");
 if (assembledPreSmp.symbols.get("k_sec_vec") !== KERNEL_SECONDARY - KERNEL_BASE || assembledPreSmp.symbols.get("k_tvec0") !== KERNEL_TVEC - KERNEL_BASE || assembledPreSmp.symbols.get("k_pvec0") !== KERNEL_PVEC - KERNEL_BASE) throw new Error("kernel: the multicore OS 3 vectors are at KERNEL_SECONDARY, KERNEL_TVEC and KERNEL_PVEC");
 if (KERNEL_BASE !== OS_HEADER_BASE + BLOCK_BYTES) throw new Error("kernel must follow the header block");
-if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length, KERNEL_IMAGE_SMP.length, KERNEL_IMAGE_PRE_SMP.length, KERNEL_IMAGE_THR.length) * 4 > KD) throw new Error("kernel overlaps its data");
+if (KERNEL_BASE + Math.max(KERNEL_IMAGE.length, KERNEL_IMAGE_PAGED.length, KERNEL_IMAGE_PRE.length, KERNEL_IMAGE_SMP.length, KERNEL_IMAGE_PRE_SMP.length, KERNEL_IMAGE_THR.length) * 4 > KDATA_BASE) throw new Error("kernel overlaps its data");
 
 export interface BootParams {
   /** Jobs the queue may hold (already bounded by the OS tier and the disk space). */
@@ -1858,7 +1875,7 @@ export function bootImage(p: BootParams): Uint8Array {
     SPOOL_LBA: p.spoolLba, SPOOL_BLOCKS: p.spoolBlocks, TIER: p.tier,
   };
   for (const k of Object.keys(OS_HEADER) as (keyof typeof OS_HEADER)[]) w.setUint32(4 * OS_HEADER[k], header[k] >>> 0, true);
-  for (let i = 0; i < KDATA_SLOTS; i++) w.setUint32(4 * (OS_SPOOL_MAP + i), (p.spoolMap?.[i] ?? p.spoolLba + i * p.spoolBlocks) >>> 0, true);
+  for (let i = 0; i < JT_SLOTS; i++) w.setUint32(4 * (OS_SPOOL_MAP + i), (p.spoolMap?.[i] ?? p.spoolLba + i * p.spoolBlocks) >>> 0, true);
   image.forEach((word, i) => w.setUint32(BLOCK_BYTES + 4 * i, word, true));
   return out;
 }

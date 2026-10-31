@@ -418,6 +418,8 @@ export interface OsSnap {
     /** Most queue slots wanted (null: as many as the OS allows) and the most this OS allows. */
     spoolWanted: number | null;
     spoolMax: number;
+    /** The slots the automatic setting uses (the OS tier's default); `spoolMax` is the most the job table holds. */
+    spoolAuto?: number;
     drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
   };
 }

@@ -2,9 +2,9 @@
 // storage snapshots. Every export is a `Game` method (see game.ts).
 
 import { deviceSpec, type InstalledDevice, type StorageSpec } from "../../board/sim";
-import { BLOCK_BYTES, JobState, KDATA_BASE, KDATA_SLOTS, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "@/core/sim/memmap";
+import { BLOCK_BYTES, JobState, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS, PchPhase, SPOOL_PORT_SHIFT, STORAGE_PORTS } from "@/core/sim/memmap";
 import { canHold, mountCost, type FileKind, type MountState } from "../../storage/sim/fs";
-import { bootImage, MAX_QUEUE_SLOTS, queueSlotsFor, SPOOL_BLOCKS_PER_JOB, type OsSpec } from ".";
+import { bootImage, jobTableFor, queueSlotsFor, tableSlots, SPOOL_BLOCKS_PER_JOB, type OsSpec } from ".";
 import type { Game } from "@/worker/game/game";
 import type { DriveMount, InvItem, KernelJob } from "@/worker/game/internal";
 import type { KeyActivity, OsJobSnap, OsSnap, Result, StorageSnap } from "@/worker/game/types";
@@ -79,10 +79,10 @@ export function spoolDriveWhy(this: Game, d: InstalledDevice, menuOff = true): s
   return null;
 }
 
-/** The most queue slots now: what the OS allows, or less when the OS menu asks for fewer. */
+/** The most queue slots now: the tier's default, or what the OS menu asks for (up to the job table). */
 export function spoolTarget(this: Game): number {
-  const cap = Math.min(this.os!.spec.queueSlots, MAX_QUEUE_SLOTS);
-  return Math.max(1, Math.min(cap, this.osCfg.spoolSlots ?? cap));
+  const os = this.os!.spec;
+  return Math.max(1, Math.min(tableSlots(os), this.osCfg.spoolSlots ?? os.queueSlots));
 }
 
 /**
@@ -97,7 +97,7 @@ export function layoutSpool(this: Game): number[] {
   const first = Math.ceil(os.spec.diskBytes / BLOCK_BYTES);
   const target = this.spoolTarget();
   const map: number[] = [];
-  const cap = Math.min(os.spec.queueSlots, MAX_QUEUE_SLOTS);
+  const cap = tableSlots(os.spec);
   const alloc = this.osCfg.spoolAlloc;
   // A drive with an explicit allocation (disk allocation page) gets exactly that many slots, up to what fits and the kernel's table; the others share what the target leaves.
   const homeN = this.spoolDriveWhy(home) ? 0 : Math.min(os.homeSlots, alloc[home.id] ?? target, cap);
@@ -134,7 +134,7 @@ export function layoutSpool(this: Game): number[] {
 export function setSpoolSlots(this: Game, slots: number | null): Result<{ slots: number | null }> {
   if (!this.os) return { ok: false, reason: "no OS is installed" };
   if (slots !== null && (!Number.isInteger(slots) || slots < 1)) return { ok: false, reason: "at least one queue slot" };
-  this.osCfg.spoolSlots = slots === null || slots >= Math.min(this.os.spec.queueSlots, MAX_QUEUE_SLOTS) ? null : slots;
+  this.osCfg.spoolSlots = slots === null || slots === this.os.spec.queueSlots ? null : Math.min(slots, tableSlots(this.os.spec));
   if (!this.powered) this.refreshBootImage();
   return { ok: true, slots: this.osCfg.spoolSlots };
 }
@@ -245,8 +245,9 @@ export function kernelJobs(this: Game): KernelJob[] {
   if (!this.powered || !this.pch.osMode || this.postError) return [];
   const bus = this.machine.bus;
   const out: KernelJob[] = [];
-  for (let i = 0; i < KDATA_SLOTS; i++) {
-    const at = KDATA_BASE + i * KSLOT_BYTES;
+  const tab = jobTableFor(this.os!.spec.tier);
+  for (let i = 0; i < tab.slots; i++) {
+    const at = tab.base + i * KSLOT_BYTES;
     const state = bus.load32(at + KSLOT.STATE);
     if (state === JobState.Free) continue;
     out.push({ slot: i, state, key: bus.load32(at + KSLOT.KEY), len: bus.load32(at + KSLOT.LEN), seq: bus.load32(at + KSLOT.SEQ) });
@@ -259,7 +260,7 @@ export function kernelResult(this: Game, slot: number): string {
   const bus = this.machine.bus;
   let s = "";
   for (let i = 0; i < PCH_RESULT_WORDS * 4; i++) {
-    const b = bus.load8(KDATA_BASE + slot * KSLOT_BYTES + KSLOT.RESULT + i);
+    const b = bus.load8(jobTableFor(this.os!.spec.tier).base + slot * KSLOT_BYTES + KSLOT.RESULT + i);
     if (b === 0) break;
     s += String.fromCharCode(b);
   }
@@ -267,7 +268,7 @@ export function kernelResult(this: Game, slot: number): string {
 }
 
 export function freeKernelSlot(this: Game, keyId: number): void {
-  for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(KDATA_BASE + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
+  for (const j of this.kernelJobs()) if (j.key === keyId) this.machine.bus.store32(jobTableFor(this.os!.spec.tier).base + j.slot * KSLOT_BYTES + KSLOT.STATE, JobState.Free);
 }
 
 /** The OS is gone: its spooled jobs go back to the offers unserved. */
@@ -448,7 +449,7 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
     spoolFull: spool.full,
     config: {
       spoolWanted: this.osCfg.spoolSlots,
-      spoolMax: Math.min(os.spec.queueSlots, MAX_QUEUE_SLOTS),
+      spoolMax: tableSlots(os.spec), spoolAuto: os.spec.queueSlots,
       drives: this.board.devices.filter((d) => deviceSpec(d).kind === "storage").map((d) => ({
         deviceId: d.id, slot: d.slot, name: deviceSpec(d).name, tier: deviceSpec(d).tier, home: d.id === os.deviceId,
         on: !this.osCfg.spoolOff.includes(d.id), why: this.spoolDriveWhy(d, false),

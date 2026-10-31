@@ -1,4 +1,4 @@
-import { KDATA_SLOTS } from "@/core/sim/memmap";
+import { JT_SLOTS, jobTableFor } from "./kernel";
 // The OS ladder, as data. An OS is a purchasable item that is INSTALLED onto a storage device (not into a board slot):
 // it occupies capacity there and needs a minimum amount of RAM. Only 'single-task resident' (os1) is implemented; the
 // later tiers are listed so the shop can show them locked, and so the kernel's seam (`programSlots`, always 1 for v1)
@@ -50,11 +50,13 @@ export function getOsSpec(id: string): OsSpec | undefined {
 
 /** Blocks reserved for each queued job's program on disk (4 KiB; generated programs are far smaller). */
 export const SPOOL_BLOCKS_PER_JOB = 16;
-/** The kernel's job table has this many slots, so no queue is longer. */
-export { KDATA_SLOTS as MAX_QUEUE_SLOTS } from "@/core/sim/memmap";
+/** The most slots any kernel's job table has (the boot header's spool map holds that many). */
+export const MAX_QUEUE_SLOTS = JT_SLOTS;
+/** The slots the job table of OS `os` has (16, or more with a frame map: 64 bytes of RAM each): no queue is longer. */
+export const tableSlots = (os: OsSpec): number => jobTableFor(os.tier).slots;
 
-/** The queue bound: the OS tier's field, further limited by the spool space left on the storage device. */
+/** The queue bound on the OS drive: what its free space holds, up to the job table. */
 export function queueSlotsFor(os: OsSpec, freeBytesAfterInstall: number, blockBytes: number): number {
   const byDisk = Math.floor(freeBytesAfterInstall / (SPOOL_BLOCKS_PER_JOB * blockBytes));
-  return Math.max(0, Math.min(os.queueSlots, byDisk, KDATA_SLOTS));
+  return Math.max(0, Math.min(byDisk, tableSlots(os)));
 }

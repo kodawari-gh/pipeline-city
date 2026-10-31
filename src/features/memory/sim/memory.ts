@@ -2,8 +2,8 @@
 // memory faults and the health panel's checks. Every export is a `Game` method (see game.ts).
 
 import { Counter, type PipelineEngine } from "../../cpu/sim/engines";
-import { JobState, KDATA_BASE, KSLOT_BYTES, PAGED_HEAP, PAGED_TABLES } from "@/core/sim/memmap";
-import { FMAP, FRAME_END, FRAME_FIRST, KBUMP, KFAULTS, PCB, PCBS, RESERVED_FRAME } from "../../os/sim";
+import { JobState, KSLOT_BYTES, PAGED_HEAP, PAGED_TABLES } from "@/core/sim/memmap";
+import { jobTableFor, FMAP, FRAME_END, FRAME_FIRST, KBUMP, KFAULTS, PCB, PCBS, RESERVED_FRAME } from "../../os/sim";
 import type { Game } from "@/worker/game/game";
 import type { KernelJob } from "@/worker/game/internal";
 import { pipeSnapOf, ramMapOf, type CoreLive, type CoreStats, type CoresSnap, type PipeSnap, type RamMap, type VmSnap, type VSpaceSnap } from "../../cpu/sim/pipesnap";
@@ -33,7 +33,7 @@ export function vmSnap(this: Game, jobs: KernelJob[]): VmSnap | null {
     if (j.state !== JobState.Running) continue;
     // OS 4: a threaded job has one context per thread, not one per slot: the contexts that belong to the slot (their PCB.SLOT is its record address) share the table
     let ctx = j.slot;
-    if (tier >= 4) for (let c = 0; c < 8; c++) if (bus.load32(PCBS + c * PCB.BYTES + PCB.SLOT) === KDATA_BASE + j.slot * KSLOT_BYTES) { ctx = c; break; }
+    if (tier >= 4) for (let c = 0; c < 8; c++) if (bus.load32(PCBS + c * PCB.BYTES + PCB.SLOT) === jobTableFor(tier).base + j.slot * KSLOT_BYTES) { ctx = c; break; }
     const table = tier >= 3 ? bus.load32(PCBS + ctx * PCB.BYTES + PCB.TABLE) : PAGED_TABLES;
     const w = walkTable(this.machine.ram, table);
     if (w.pages.length) spaces.push({ ...label(j), table, pages: w.pages.flatMap((p) => [p.vpn, p.frame, p.flags]), tables: w.tables });

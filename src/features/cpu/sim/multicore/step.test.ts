@@ -13,12 +13,14 @@ describe("stepping the paused machine", () => {
     for (let i = 0; i < 40 && g.currentPhase() !== "idle-os"; i++) g.advanceBaseTick();
     const e = g.machine.engine!;
     const c0 = e.cycle;
-    expect(g.stepCycles(1)).toBe(1);
-    expect(e.cycle).toBe(c0 + 1);
+    const one = g.stepCycles(1); // (a load in the kernel's idle loop takes two cycles)
+    expect(one).toBeGreaterThanOrEqual(1);
+    expect(one).toBeLessThan(3);
+    expect(e.cycle).toBe(c0 + one);
     const n = g.stepCycles(250); // (an instruction that takes several cycles is not cut: it may end a cycle or two past the ask)
     expect(n).toBeGreaterThanOrEqual(250);
     expect(n).toBeLessThan(255);
-    expect(e.cycle).toBe(c0 + 1 + n);
+    expect(e.cycle).toBe(c0 + one + n);
   });
 
   it("stepping whole ticks and then cycles gives the same machine as running ticks", () => {

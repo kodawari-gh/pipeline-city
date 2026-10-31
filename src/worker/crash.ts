@@ -3,7 +3,8 @@
 
 import type { Game } from './game/game';
 import type { GameEvent } from './game/types';
-import { KDATA_BASE, KDATA_SLOTS, KERNEL_BASE, KSLOT_BYTES } from '../core/sim/memmap';
+import { KERNEL_BASE, KSLOT_BYTES } from '../core/sim/memmap';
+import { jobTableFor } from '../features/os/sim/kernel';
 import type { SaveV1 } from './protocol';
 
 export interface CrashCore {
@@ -172,7 +173,8 @@ export function crashReport(g: Game | null, err: unknown): CrashReport {
     windows.push({ label: `RAM around the address (${h(lo)})`, base: lo, hex: wordsHex(ram, lo, 64) });
   }
   windows.push({ label: `Kernel entry and vectors (${h(KERNEL_BASE)})`, base: KERNEL_BASE, hex: wordsHex(ram, KERNEL_BASE, 32) });
-  windows.push({ label: `Kernel job table (${h(KDATA_BASE)})`, base: KDATA_BASE, hex: wordsHex(ram, KDATA_BASE, (KDATA_SLOTS * KSLOT_BYTES) / 4) });
+  const tab = jobTableFor(os?.tier ?? 1);
+  windows.push({ label: `Kernel job table (${h(tab.base)})`, base: tab.base, hex: wordsHex(ram, tab.base, (Math.min(tab.slots, 16) * KSLOT_BYTES) / 4) });
   const part = {
     ...base,
     headline: `${e.name}: ${e.message}. ${where.charAt(0).toUpperCase()}${where.slice(1)}.`,

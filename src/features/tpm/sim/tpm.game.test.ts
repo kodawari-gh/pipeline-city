@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KSLOT, KSLOT_BYTES, TPM_BASE, TPM_REG, TpmStatus } from "@/core/sim/memmap";
+import { BLOCK_BYTES, JOB_ROW, JobState, KSLOT, KSLOT_BYTES, TPM_BASE, TPM_REG, TpmStatus } from "@/core/sim/memmap";
+import { JT_BASE } from "@/features/os/sim";
 import { getOsSpec, SPOOL_BLOCKS_PER_JOB } from "../../os/sim";
 import { Game } from "@/worker/game/game";
 import { Operator } from "../../economy/sim/operator";
@@ -99,7 +100,7 @@ describe("protected mode under the paged OS", { timeout: 600_000 }, () => {
     const dv = new DataView(g.machine.ram.buffer);
     const jobs = ["cli.log", "cli.calc", "secure.sign", "secure.sign"].map((t, k) => generate(t, 5 + k, { row: JOB_ROW, scale: 1, hosted: true }));
     jobs.forEach(({ program }, k) => {
-      const lba = spool + k * SPOOL_BLOCKS_PER_JOB, at = KDATA_BASE + k * KSLOT_BYTES;
+      const lba = spool + k * SPOOL_BLOCKS_PER_JOB, at = JT_BASE + k * KSLOT_BYTES;
       disk.poke(lba, new Uint8Array(program.buffer, program.byteOffset, program.length * 4));
       dv.setUint32(at + KSLOT.KEY, 100 + k, true);
       dv.setUint32(at + KSLOT.LEN, program.length, true);
@@ -107,7 +108,7 @@ describe("protected mode under the paged OS", { timeout: 600_000 }, () => {
       dv.setUint32(at + KSLOT.SEQ, k + 1, true);
       dv.setUint32(at + KSLOT.STATE, JobState.Queued, true);
     });
-    const states = (): number[] => jobs.map((_, k) => dv.getUint32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, true));
+    const states = (): number[] => jobs.map((_, k) => dv.getUint32(JT_BASE + k * KSLOT_BYTES + KSLOT.STATE, true));
     let shifted = false;
     for (let t = 0; t < 60_000 && !states().every((s) => s === JobState.Result); t++) {
       tick();

@@ -3,7 +3,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { assemble } from "../asm";
 import { generate, TEMPLATES } from "@/features/jobs/sim/gen";
 import { parSum } from "@/features/jobs/sim/gen/threadtest";
-import { BLOCK_BYTES, JOB_ROW, JobState, KDATA_BASE, KERNEL_BASE, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS } from "@/core/sim/memmap";
+import { BLOCK_BYTES, JOB_ROW, JobState, KERNEL_BASE, KSLOT, KSLOT_BYTES, PCH_RESULT_WORDS } from "@/core/sim/memmap";
+import { JT_BASE } from "@/features/os/sim";
 import { FMAP, FRAME_END, FRAME_FIRST, getOsSpec, kernelImageFor, KERNEL_IMAGE_PRE_SMP, KERNEL_IMAGE_THR, PCB, PCBS, RESERVED_FRAME, SPOOL_BLOCKS_PER_JOB } from "@/features/os/sim";
 import { ECONOMY } from "@/features/economy/sim/economy";
 import { Game } from "@/worker/game/game";
@@ -58,7 +59,7 @@ function submit(g: Game, programs: Uint32Array[]) {
   const spool = Math.ceil(getOsSpec("os4")!.diskBytes / BLOCK_BYTES);
   const dv = new DataView(g.machine.ram.buffer);
   programs.forEach((program, k) => {
-    const lba = spool + k * SPOOL_BLOCKS_PER_JOB, at = KDATA_BASE + k * KSLOT_BYTES;
+    const lba = spool + k * SPOOL_BLOCKS_PER_JOB, at = JT_BASE + k * KSLOT_BYTES;
     disk.poke(lba, new Uint8Array(program.buffer, program.byteOffset, program.length * 4));
     dv.setUint32(at + KSLOT.KEY, 100 + k, true);
     dv.setUint32(at + KSLOT.LEN, program.length, true);
@@ -66,11 +67,11 @@ function submit(g: Game, programs: Uint32Array[]) {
     dv.setUint32(at + KSLOT.SEQ, k + 1, true);
     dv.setUint32(at + KSLOT.STATE, JobState.Queued, true);
   });
-  return { dv, states: () => programs.map((_, k) => dv.getUint32(KDATA_BASE + k * KSLOT_BYTES + KSLOT.STATE, true)) };
+  return { dv, states: () => programs.map((_, k) => dv.getUint32(JT_BASE + k * KSLOT_BYTES + KSLOT.STATE, true)) };
 }
 
 const resultText = (dv: DataView, k: number): string => {
-  const at = KDATA_BASE + k * KSLOT_BYTES + KSLOT.RESULT;
+  const at = JT_BASE + k * KSLOT_BYTES + KSLOT.RESULT;
   return Array.from({ length: PCH_RESULT_WORDS * 4 }, (_, i) => dv.getUint8(at + i)).map((c) => (c ? String.fromCharCode(c) : " ")).join("").trim();
 };
 const lastLine = (text: string): string => text.split("\n").filter((l) => l.trim()).pop()!.trim();

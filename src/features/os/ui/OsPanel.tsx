@@ -159,7 +159,7 @@ function Disks() {
     <>
       <section class="os-wide">
         <div class="kv"><span>spool slots in use</span><b>{m.total}/{m.cap}</b></div>
-        <div class="mute sub">Each slot holds one job waiting on a drive and takes {fmtBytes(m.slotBytes)}. A higher OS tier allows more slots. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
+        <div class="mute sub">Each slot holds one job waiting on a drive and takes {fmtBytes(m.slotBytes)} of disk and 64 B of RAM for the OS job table. The job table of this OS holds {m.cap} slots at most. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
       </section>
       {m.drives.map((d) => <DriveCard key={d.deviceId} d={d} slotBytes={m.slotBytes} room={room} />)}
     </>
