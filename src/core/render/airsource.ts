@@ -25,6 +25,8 @@ export interface AirFan {
   rotor?: { x: number; y: number; r: number; blades: number };
   edge?: Box[];
   path?: [number, number][];
+  /** The part is drawn but moves no air (a loop's pump moves coolant): no stream from it. */
+  noStream?: boolean;
 }
 
 export interface AirCtx {

@@ -50,15 +50,18 @@ describe('the airflow lens model', () => {
     for (const l of local) expect(l.pts.length).toBeGreaterThan(1);
     expect(m.tags.some((t) => t.text.startsWith('GPU '))).toBe(true);
     const len = (l: (typeof local)[number]) => l.pts.slice(1).reduce((a, p, k) => a + Math.hypot(p[0] - l.pts[k]![0], p[1] - l.pts[k]![1]), 0);
-    for (const l of local.filter((x) => x.fanIds[0] !== 'psu' && x.fanIds[0] !== 'vrm')) expect(len(l)).toBeLessThanOrEqual(1950);
+    for (const l of local.filter((x) => x.fanIds[0] !== 'psu' && x.fanIds[0] !== 'vrm' && x.fanIds[0] !== 'cooler')) expect(len(l)).toBeLessThanOrEqual(1950);
     // a heatsink fan blows along its fins toward the rear exhaust: a stream of its own that runs west, from the fan to the rear wall
     const vrm = local.find((l) => l.fanIds[0] === 'vrm')!;
     expect(vrm.channel).toBe(true);
     expect(vrm.pts[vrm.pts.length - 1]![0]).toBeLessThan(vrm.pts[0]![0]);
-    // what the lens draws for each: the cooler and the sink are face-on rotors, the card's are edge-on strips along its top
+    // what the lens draws for each: the tower cooler's fan and the sink's are edge-on slabs (they blow along their fins), the card's are edge-on strips along its top
     const art = (id: string) => m.fanArt.find((f) => f.id === id)!;
-    expect(art('cooler').rotor).toMatchObject({ blades: 9 }); // the tower cooler's fan
-    expect(art('vrm').rotor).toBeDefined();
+    expect(art('cooler').edge!.length).toBe(1);
+    expect(art('vrm').edge!.length).toBe(1);
+    const cooler = local.find((l) => l.fanIds[0] === 'cooler')!; // the tower blows west through its fins, toward the rear exhaust
+    expect(cooler.channel).toBe(true);
+    expect(cooler.pts[cooler.pts.length - 1]![0]).toBeLessThan(cooler.pts[0]![0]);
     expect(art('gpu:pcie0').edge!.length).toBeGreaterThan(0);
     // the PSU draws air from under the case and blows it out the rear: its lane starts below the case, ends west of the rear wall
     const psu = local.find((l) => l.fanIds[0] === 'psu')!;

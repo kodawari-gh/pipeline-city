@@ -9,7 +9,7 @@ import type { Theme } from '@/core/render/theme';
 
 // The CPU cooler (docs/render/board.md "Cooler"): three looks on the same mounting plate (`COOLER`), which is the hit area, the empty-slot
 // outline and where the fan cable plugs in. The stock cooler is a round aluminium heatsink with radial vanes and a small fan; the tower is
-// two fin stacks with copper heat pipes either side of a big fan; the liquid loop (an AIO) is a pump head with a ring light, its two tubes
+// a fin stack (rails along east-west) with copper heat pipes and an edge-on fan on its east end, blowing west through the fins; the liquid loop (an AIO) is a pump head with a ring light, its two tubes
 // running to the radiator the player bolted on a fan mount of the case (front or top, spanning every fan of that side; seen edge-on like the case fans, `radiatorArt`). The
 // fan, or on the loop the pump's impeller, is the `fan` child the live layer spins; the radiator's fan is an `EdgeFan` it drives the same way.
 
@@ -163,13 +163,15 @@ export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
   return [[a, [a[0], yHigh], [xa, yHigh], [xa, t0[1]], t0], [b, [b[0], yLow], [xb, yLow], [xb, t1[1]], t1]];
 }
 
-/** The fan (or the loop's pump impeller) of each kind of cooler: its blade length and count. The art and the airflow lens both read these. */
-export const COOLER_FANS = { stock: { r: 300, blades: 7 }, tower: { r: 400, blades: 9 }, liquid: { r: 360, blades: 5 } } as const;
+/** The round fan (or the loop's pump impeller) of the stock cooler and the loop: its blade length and count. The art and the airflow lens both read these. */
+export const COOLER_FANS = { stock: { r: 300, blades: 7 }, liquid: { r: 360, blades: 5 } } as const;
 
-/** Where a cooler's fan sits and how big it is (`visual` is the cooler spec's: `cooler-tower`, `cooler-liquid`, else the stock one). The tower's is in its square frame, off the plate's middle. */
+/** The tower's fan, seen edge-on: a slab on the east end of the cooler, as tall as its fins (it blows west through them). */
+export const towerFanRect = (): Rect => ({ x: COOLER.x + COOLER.w - 40 - 170, y: COOLER.y + 50, w: 170, h: COOLER.h - 160 });
+
+/** Where a round cooler's fan sits and how big it is (`visual` is the cooler spec's: `cooler-liquid` the pump, else the stock one; the tower's is `towerFanRect`). */
 export function coolerFanAt(visual: string): { x: number; y: number; r: number; blades: number } {
   const c = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2;
-  if (visual === 'cooler-tower') return { x: cx, y: c.y + 50 + 450, ...COOLER_FANS.tower };
   return { x: cx, y: cy, ...(visual === 'cooler-liquid' ? COOLER_FANS.liquid : COOLER_FANS.stock) };
 }
 
@@ -187,7 +189,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   g.roundRect(c.x, c.y, c.w, c.h, 60).fill(lgrad(mix(m.metal, '#ffffff', T.dark ? 0.08 : 0.25), mix(m.lo, '#000000', T.dark ? 0.2 : 0.05), [1, 1])).stroke({ width: 10, color: mix(T.line, accent, 0.6) });
   g.rect(c.x + 60, c.y + 12, c.w - 120, 8).fill(lit);
 
-  let fr: number, nBlades: number, bezel: number, fanAt: Pt = [cx, cy];
+  let fr = 0, nBlades = 0, bezel = 0, fanAt: Pt = [cx, cy];
   if (kind === 'stock') {
     // an aluminium heatsink: a ring of radial vanes round a small fan
     const R = 630;
@@ -201,29 +203,27 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
     disc(g, cx, cy, bezel, { fill: T.sub, stroke: m.metal, lw: 12 });
     for (const [x, y] of [[c.x + 100, c.y + 100], [c.x + c.w - 100, c.y + 100], [c.x + 100, c.y + c.h - 100], [c.x + c.w - 100, c.y + c.h - 100]] as const) screw(g, T, x, y, 34); // push pins
   } else if (kind === 'tower') {
-    // a stack of fins either side of the fan, copper heat pipes running through them, a base along the south edge
-    fr = COOLER_FANS.tower.r; nBlades = COOLER_FANS.tower.blades; bezel = 440;
-    const sw = 260, top = c.y + 50, h = c.h - 150;
-    for (const x of [c.x + 40, c.x + c.w - 40 - sw]) {
-      g.roundRect(x, top, sw, h, 16).fill(lgrad(m.hi, m.lo, [1, 0])).stroke({ width: 5, color: mix(T.line, m.metal, 0.5) });
-      for (let y = top + 18; y < top + h - 10; y += 24) g.moveTo(x + 8, y).lineTo(x + sw - 8, y);
-      g.stroke({ width: 6, color: '#000000', alpha: 0.3 });
-      for (let y = top + 18; y < top + h - 10; y += 24) g.moveTo(x + 8, y + 7).lineTo(x + sw - 8, y + 7);
-      g.stroke({ width: 2, color: '#ffffff', alpha: T.dark ? 0.2 : 0.5 });
-      for (let k = 0; k < 3; k++) {
-        const px = x + sw * (0.22 + k * 0.28);
-        g.moveTo(px, top + 20).lineTo(px, c.y + c.h - 40).stroke({ width: 30, color: copper(T), cap: 'round' });
-        g.moveTo(px - 6, top + 26).lineTo(px - 6, c.y + c.h - 50).stroke({ width: 7, color: '#ffffff', alpha: T.dark ? 0.28 : 0.5, cap: 'round' });
-      }
+    // a stack of fins with copper heat pipes standing through them, the fan on its east end, edge-on, blowing west along the fin channels
+    const slab = towerFanRect(), fin = { x: c.x + 40, y: c.y + 50, w: slab.x - 24 - (c.x + 40), h: c.h - 160 };
+    g.roundRect(fin.x, fin.y, fin.w, fin.h, 16).fill(m.lo).stroke({ width: 5, color: mix(T.line, m.metal, 0.5) });
+    const pitch = 40, rail = 22;
+    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) g.roundRect(fin.x + 12, y, fin.w - 24, rail, 6);
+    g.fill(lgrad(m.hi, m.metal, [0, 1]));
+    for (let y = fin.y + 14; y + rail < fin.y + fin.h - 8; y += pitch) g.moveTo(fin.x + 20, y + 4).lineTo(fin.x + fin.w - 20, y + 4);
+    g.stroke({ width: 3, color: '#ffffff', alpha: T.dark ? 0.2 : 0.5 });
+    for (let k = 0; k < 3; k++) {
+      const px = fin.x + fin.w * (0.2 + k * 0.28);
+      g.moveTo(px, fin.y + 24).lineTo(px, fin.y + fin.h - 24).stroke({ width: 30, color: copper(T), cap: 'round' });
+      g.moveTo(px - 6, fin.y + 30).lineTo(px - 6, fin.y + fin.h - 30).stroke({ width: 7, color: '#ffffff', alpha: T.dark ? 0.28 : 0.5, cap: 'round' });
     }
     box(g, c.x + 30, c.y + c.h - 100, c.w - 60, 70, 20, { fill: m.metal, stroke: mix(T.line, m.metal, 0.5), lw: 5 });
     g.rect(c.x + 70, c.y + c.h - 94, c.w - 140, 6).fill(lit);
-    // the fan in its square frame
-    const fw = 900, fx = cx - fw / 2, fy = c.y + 50;
-    box(g, fx + 10, fy + 16, fw, fw, 56, { fill: '#000000', fa: 0.3 });
-    box(g, fx, fy, fw, fw, 56, { fill: T.sub, stroke: accent, lw: 8, sa: 0.9 });
-    for (const [x, y] of [[fx + 56, fy + 56], [fx + fw - 56, fy + 56], [fx + 56, fy + fw - 56], [fx + fw - 56, fy + fw - 56]] as const) screw(g, T, x, y, 22);
-    fanAt = [cx, fy + fw / 2]; // the fan sits in the frame's middle, not the plate's
+    // the fan's frame; the blades (an `EdgeFan`, as on the case's fans) slide along it
+    box(g, slab.x + 10, slab.y + 16, slab.w, slab.h, 30, { fill: '#000000', fa: 0.3 });
+    box(g, slab.x, slab.y, slab.w, slab.h, 30, { fill: T.sub, stroke: accent, lw: 8, sa: 0.9 });
+    const edge = new EdgeFan(slab, T);
+    root.addChild(edge);
+    return { root, fan: edge };
   } else {
     // a pump head on a bracket: a brushed ring, a glass dome with the ring light round the impeller, the two tube ports on top
     fr = COOLER_FANS.liquid.r; nBlades = COOLER_FANS.liquid.blades; bezel = 400;
@@ -249,7 +249,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   const [fx0, fy0] = fanAt;
   fan.position.set(fx0, fy0);
   const fg = new Graphics();
-  if (kind === 'tower') disc(g, fx0, fy0, bezel, { fill: T.dot, stroke: T.line, lw: 7 }); else if (kind === 'stock') disc(g, cx, cy, bezel - 24, { fill: T.dot });
+  if (kind === 'stock') disc(g, cx, cy, bezel - 24, { fill: T.dot });
   disc(fg, 0, 0, fr + 24, { fill: kind === 'liquid' ? T.dot : mix(T.dot, '#000000', 0.2) });
   blades(fg, nBlades, kind === 'liquid' ? 70 : 54, fr, kind === 'liquid' ? mix(T.tile, accent, 0.25) : T.tile, accent, 4);
   fan.addChild(fg);

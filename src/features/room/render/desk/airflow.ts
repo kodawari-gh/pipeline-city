@@ -185,6 +185,7 @@ export function airflowModel(i: AirIn): AirModel {
   // the fans of the components (cooler, graphics cards, sinks, PSU): a short stream from each toward the nearest way out of the case
   const outlets: Pt[] = [[rearX + 80, rearY], ...i.mounts.filter((m) => m.side === 'top').map((m): Pt => [mid(m.rect)[0], m.rect.y + m.rect.h])];
   for (const f of localFans) {
+    if (f.noStream) continue;
     const from = f.rotor ? [f.rotor.x, f.rotor.y] as Pt : mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));
     // a part that knows its own way (the PSU: in from below, out the rear) says so; the rest blow a short stream toward the nearest way out
     const pts = f.path ? roundedPath(f.path as Pt[], 300, 60) : clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
