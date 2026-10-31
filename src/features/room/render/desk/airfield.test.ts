@@ -33,6 +33,16 @@ describe('the air field', () => {
     expect(Math.max(...f.parts.map((p) => p.age))).toBeLessThan(22);
   });
 
+  it('intake air starts outside the case and is drawn in through the fan, then the field takes it', () => {
+    const f = new AirField(), i = input([inlet(), exhaust()]);
+    for (let k = 0; k < 300 && !f.parts.some((p) => p.inb); k++) f.step(1 / 30, i); // the first drop of air outside
+    const outside = f.parts.filter((p) => p.inb);
+    expect(outside.length).toBeGreaterThan(0);
+    for (const p of outside) { expect(p.x).toBeGreaterThan(box.x + box.w); expect(p.vx).toBeLessThan(0); } // east of the front wall, flying west into it
+    run(f, i, 20);
+    expect(f.parts.some((p) => !p.inb && p.x < box.x + box.w)).toBe(true); // those that crossed are in the field
+  });
+
   it('with no exhaust nothing is drawn out: the air through the middle of the case is slower than with one, and nothing is absorbed', () => {
     const withOut = new AirField(), without = new AirField();
     withOut.step(0.01, input([inlet(), exhaust()]));

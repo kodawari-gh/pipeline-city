@@ -22,7 +22,9 @@ export interface FieldIn { box: Box; ports: FieldPort[]; zones: FieldZone[] }
 
 export interface Particle { x: number; y: number; vx: number; vy: number; heat: number; age: number; /** a personal speed factor, 0.75 to 1.25 */ k: number; seed: number;
   /** Where it has been, oldest first (the head is not in it): the trail the lens draws. Its length follows the particle's speed. */
-  trail?: Pt[]
+  trail?: Pt[];
+  /** Air still outside the case, drawn in by an intake fan: it flies straight at its fan (a unit direction and a speed) until it crosses the wall, then the field takes it. */
+  inb?: { dx: number; dy: number; sp: number; /** the fan's point: past it (the way it flies) the field takes the air over */ to: Pt };
 }
 
 /** Flux of a full-speed fan (world units squared per second): about 900 units a second at 1500 units from it. */
@@ -31,8 +33,10 @@ const Q_FAN = 8.5e6;
 const CORE = 320;
 const MAX_SPEED = 2400;
 /** Particles a fan at full speed releases per second, and the most the field carries. */
-export const SPAWN_PER_S = 2.4, MAX_PARTICLES = 110;
+export const SPAWN_PER_S = 2.4, MAX_PARTICLES = 150;
 const LIFE_S = 22;
+/** How far outside the case an intake's air starts, and how fast it is drawn in (world units, and units a second at full fan). */
+export const INTAKE_REACH = { min: 900, max: 1800 }, INTAKE_SPEED = 1100;
 /** The trail: a point is kept every `TRAIL_STEP` world units of path, and the trail is as long as the particle travels in `TRAIL_SECONDS` (at most `TRAIL_MAX`). */
 export const TRAIL_STEP = 40, TRAIL_SECONDS = 0.18, TRAIL_MAX = 320;
 
@@ -56,6 +60,11 @@ const REACH = 420, HEAT_RATE = 1.8;
 const CRAWL_MIN = 0.3, RISE_FULL_C = 12;
 
 const rectDist = (r: Box, x: number, y: number) => Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
+/** The way out of the case through the wall a fan's box `s` is nearest to: a unit step in x or y. */
+function outward(box: Box, s: Box): { dx: number; dy: number } {
+  const cx = s.x + s.w / 2, cy = s.y + s.h / 2, l = cx - box.x, r = box.x + box.w - cx, t = cy - box.y, b = box.y + box.h - cy, m = Math.min(l, r, t, b);
+  return m === l ? { dx: -1, dy: 0 } : m === r ? { dx: 1, dy: 0 } : m === t ? { dx: 0, dy: -1 } : { dx: 0, dy: 1 };
+}
 const inside = (r: Box, x: number, y: number, m = 0) => x > r.x - m && x < r.x + r.w + m && y > r.y - m && y < r.y + r.h + m;
 
 export class AirField {
@@ -110,12 +119,19 @@ export class AirField {
     // release: each fan that blows puts particles in at its own rate, across its width
     for (const p of ports) {
       if (p.kind === 'out' || p.level <= 0.02) continue;
-      const rate = SPAWN_PER_S * p.level ** 0.7 * (p.kind === 'local' ? 0.5 : 1), a = (this.acc.get(p.id) ?? 0) + rate * dt;
+      const rate = SPAWN_PER_S * p.level ** 0.7 * (p.kind === 'local' ? 0.5 : 1.6), a = (this.acc.get(p.id) ?? 0) + rate * dt;
       let n = Math.floor(a);
       this.acc.set(p.id, a - n);
       while (n-- > 0 && this.parts.length < MAX_PARTICLES) {
         const s = p.span, r = Math.random();
-        const x = p.kind === 'in' ? s.x + Math.random() * s.w * 0.4 : p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.kind === 'in' ? s.y + r * s.h : p.pt[1] + (Math.random() - 0.5) * s.h * 0.5;
+        if (p.kind === 'in') {
+          // the air comes from outside: it starts beyond the wall the fan is in and is drawn straight in through it
+          const { dx, dy } = outward(box, s), d = INTAKE_REACH.min + Math.random() * (INTAKE_REACH.max - INTAKE_REACH.min), lane = dx !== 0 ? s.y + r * s.h : s.x + r * s.w;
+          const x = dx !== 0 ? (dx > 0 ? s.x + s.w : s.x) + dx * d : lane, y = dx !== 0 ? lane : (dy > 0 ? s.y + s.h : s.y) + dy * d;
+          this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: p.pt } });
+          continue;
+        }
+        const x = p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.pt[1] + (Math.random() - 0.5) * s.h * 0.5; // a part's own fan stirs the air where it stands
         if (zones.some((z) => !z.flat && z.rects.some((q) => inside(q, x, y, 30)))) continue;
         this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++ });
       }
@@ -124,6 +140,16 @@ export class AirField {
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i]!;
       p.age += dt;
+      if (p.inb) {
+        // still outside: straight at the fan; inside the walls the field takes over
+        const ox = p.x, oy = p.y;
+        p.vx = p.inb.dx * p.inb.sp; p.vy = p.inb.dy * p.inb.sp;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        growTrail(p, ox, oy);
+        if ((p.x - p.inb.to[0]) * p.inb.dx + (p.y - p.inb.to[1]) * p.inb.dy > 60) delete p.inb; // through the fan: the field has it from here
+        else if (p.age > LIFE_S) this.parts.splice(i, 1);
+        continue;
+      }
       this.velocity(p.x, p.y, v);
       // a little turbulence, more where the air is hot
       const w = 90 * (0.3 + p.heat), ph = this.t * 1.1 + p.seed * 2.3;
