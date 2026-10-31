@@ -44,7 +44,15 @@ const CEIL_ABOVE = 2700;
  * centre on the desk top (x east, y up is negative); `reach` is the hood's length from the arm's end to its mouth, `hood` its half width at the mouth.
  */
 const SIDE = 1, LAMP_D = { x: 0.766 * SIDE, y: 0.643 };
-const LAMP = { pivot: { x: 0, y: -300 }, elbow: { x: -1300 * SIDE, y: -3900 }, head: { x: 1400 * SIDE, y: -7600 }, reach: 1500, hood: 760, neck: 180, base: 1100 };
+const LAMP = { pivot: { x: 0, y: -300 }, elbow: { x: -1300 * SIDE, y: -3900 }, head: { x: 1400 * SIDE, y: -7600 }, reach: 1500, hood: 760, neck: 180, base: 1100, open: 320, bulb: 225 };
+/** The hood's opening, an ellipse round the mouth (`LAMP.hood` across, `LAMP.open` along the axis: we see into it a little), scaled by `k`. */
+const lampOpening = (mo: { x: number; y: number }, k = 1) => {
+  const out: number[] = [], nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE;
+  for (let i = 0; i < 40; i++) { const a = (i * Math.PI * 2) / 40, u = LAMP.hood * k * Math.cos(a), v = LAMP.open * k * Math.sin(a); out.push(mo.x + nx * u + LAMP_D.x * v, mo.y + ny * u + LAMP_D.y * v); }
+  return out;
+};
+/** Where the bulb sits in the opening: a little back from the mouth, toward the neck. */
+const lampBulb = (mo: { x: number; y: number }) => ({ x: mo.x - LAMP_D.x * 40, y: mo.y - LAMP_D.y * 40 });
 
 /** Y of the desk's top surface: the case stands on it, so it follows the case (a taller case sits lower on the desk). */
 export const deskY = () => DESK_Y;
@@ -251,7 +259,7 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   // a drum: straight sides between two heights with its front arc at the bottom, shaded round (a lit streak on the left, darker toward the right)
   const edge = mix(L.metalLo, '#000000', 0.45);
   const cyl = (yt: number, yb: number, r: number, col: string) => {
-    const arc = (c0: number, c1: number) => { const out: number[] = [], a0 = Math.acos(c0), a1 = Math.acos(c1); for (let k = 0; k <= 10; k++) { const a = a0 + ((a1 - a0) * k) / 10; out.push(lx + r * Math.cos(a), yb + r * MUG.e * Math.sin(a)); } return out; };
+    const arc = (c0: number, c1: number) => { const out: number[] = [], a0 = Math.acos(c0), a1 = Math.acos(c1); for (let k = 0; k <= 32; k++) { const a = a0 + ((a1 - a0) * k) / 32; out.push(lx + r * Math.cos(a), yb + r * MUG.e * Math.sin(a)); } return out; };
     f.poly([lx - r, yt, lx + r, yt, ...arc(1, -1)]).fill({ color: col }).stroke({ width: 7, color: edge, alpha: 0.9 });
     for (const [c, al] of [[0.3, 0.1], [0.62, 0.1], [0.88, 0.12]] as const) f.poly([lx + r * c, yt, lx + r, yt, ...arc(1, c)]).fill({ color: '#000000', alpha: al });
     f.poly([lx - r * 0.9, yt, lx - r * 0.7, yt, ...arc(-0.7, -0.9)]).fill({ color: '#ffffff', alpha: 0.2 });
@@ -274,24 +282,19 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   };
   arm(p0, el); arm(el, hd);
   // the joints: a dark ring, a round knuckle with a lit upper left, a hub with a screw slot
-  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) {
+  const joint = (px2: number, py2: number) => {
     f.circle(px2, py2, 196).fill({ color: edge });
     f.circle(px2, py2, 180).fill({ color: L.metalLo });
     f.circle(px2, py2, 150).fill({ color: L.metal });
     f.circle(px2 - 34, py2 - 38, 92).fill({ color: '#ffffff', alpha: 0.16 });
     f.circle(px2, py2, 70).fill({ color: L.metalLo }).stroke({ width: 8, color: edge });
     f.moveTo(px2 - 42, py2 + 20).lineTo(px2 + 42, py2 - 20).stroke({ width: 12, color: edge, cap: 'round' });
-  }
-  // the hood: a cone from a collar on the arm's end to a wide mouth, shaded in strips round its axis (lit along the top), a rim, a lit opening
+  };
+  joint(p0.x, p0.y); joint(el.x, el.y);
+  // the hood: a cone from a collar on the arm's end to a wide mouth, shaded in strips round its axis (lit along the top), then the opening whole on top of it, with the bulb inside
   const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck, dx = LAMP_D.x, dy = LAMP_D.y;
   const HOOD_LO = '#27486b', HOOD = '#3f6a9a', STRIPS = 14;
   const at = (u: number, t: number) => [hd.x + nx * nk * u + (mo.x - hd.x) * t - nx * (nk * u) * t + nx * hw * u * t, hd.y + ny * nk * u + (mo.y - hd.y) * t - ny * (nk * u) * t + ny * hw * u * t] as const;
-  // the opening: an ellipse whose long axis is the mouth's width (we see it a little from the side)
-  const opening: number[] = [];
-  for (let k = 0; k < 24; k++) { const a = (k * Math.PI * 2) / 24; opening.push(mo.x + nx * hw * Math.cos(a) + dx * hw * 0.3 * Math.sin(a), mo.y + ny * hw * Math.cos(a) + dy * hw * 0.3 * Math.sin(a)); }
-  f.poly(opening).fill({ color: mix(HOOD_LO, '#000000', 0.35) });
-  f.ellipse(mo.x - dx * 60, mo.y - dy * 60, 330, 330).fill({ color: '#b9b7a6' }).stroke({ width: 8, color: '#6f6f68' });
-  f.ellipse(mo.x - dx * 60 - 90, mo.y - dy * 60 - 90, 110, 110).fill({ color: '#ffffff', alpha: 0.35 });
   for (let i = 0; i < STRIPS; i++) {
     const u0 = -1 + (2 * i) / STRIPS, u1 = -1 + (2 * (i + 1)) / STRIPS, c = mix('#6f9fd0', HOOD_LO, Math.min(1, ((i + 0.5) / STRIPS) ** 0.8));
     const p = [at(u0, 0), at(u0, 1), at(u1, 1), at(u1, 0)];
@@ -300,18 +303,16 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   const sp = [at(-0.78, 0.1), at(-0.78, 1), at(-0.62, 1), at(-0.62, 0.1)];
   f.poly(sp.flatMap((q) => [q[0], q[1]])).fill({ color: '#ffffff', alpha: 0.25 });
   f.poly(hood0(hd, mo, nx, ny, nk, hw)).stroke({ width: 9, color: HOOD_LO, join: 'round' });
-  // the rim at the mouth, front half of the opening
-  const front: number[] = [];
-  for (let k = 0; k <= 12; k++) { const a = (k * Math.PI) / 12; front.push(mo.x + nx * hw * Math.cos(a) + dx * hw * 0.3 * Math.sin(a), mo.y + ny * hw * Math.cos(a) + dy * hw * 0.3 * Math.sin(a)); }
-  f.moveTo(front[0]!, front[1]!);
-  for (let i = 2; i < front.length; i += 2) f.lineTo(front[i]!, front[i + 1]!);
-  f.stroke({ width: 16, color: mix(HOOD, '#ffffff', 0.35) });
-  f.poly(opening).stroke({ width: 7, color: HOOD_LO });
-  // the collar where the hood meets the arm
-  f.poly([hd.x + nx * (nk + 40) - dx * 40, hd.y + ny * (nk + 40) - dy * 40, hd.x + nx * (nk + 40) + dx * 70, hd.y + ny * (nk + 40) + dy * 70, hd.x - nx * (nk + 40) + dx * 70, hd.y - ny * (nk + 40) + dy * 70, hd.x - nx * (nk + 40) - dx * 40, hd.y - ny * (nk + 40) - dy * 40]).fill({ color: L.metalLo }).stroke({ width: 7, color: edge });
-  f.circle(hd.x, hd.y, 150).fill({ color: L.metal }).stroke({ width: 8, color: edge });
-  f.circle(hd.x - 30, hd.y - 34, 84).fill({ color: '#ffffff', alpha: 0.16 });
-  f.circle(hd.x, hd.y, 58).fill({ color: L.metalLo }).stroke({ width: 7, color: edge });
+  // the opening: the dark inside, a lighter wall round the far side, the unlit bulb (the live glow lights these), a lit lip all round
+  const bu = lampBulb(mo);
+  f.poly(lampOpening(mo)).fill({ color: mix(HOOD_LO, '#000000', 0.35) });
+  f.poly(lampOpening({ x: mo.x - dx * 50, y: mo.y - dy * 50 }, 0.8)).fill({ color: mix(HOOD_LO, '#000000', 0.6) });
+  f.circle(bu.x, bu.y, LAMP.bulb).fill({ color: '#b9b7a6' }).stroke({ width: 8, color: '#6f6f68' });
+  f.circle(bu.x - 60, bu.y - 60, 70).fill({ color: '#ffffff', alpha: 0.35 });
+  f.poly(lampOpening(mo)).stroke({ width: 18, color: mix(HOOD, '#ffffff', 0.35), join: 'round' });
+  // the collar: a band round the neck, and the head joint on top of it
+  f.poly([hd.x + nx * (nk + 60), hd.y + ny * (nk + 60), hd.x + nx * (nk + 60) + dx * 130, hd.y + ny * (nk + 60) + dy * 130, hd.x - nx * (nk + 60) + dx * 130, hd.y - ny * (nk + 60) + dy * 130, hd.x - nx * (nk + 60), hd.y - ny * (nk + 60)]).fill({ color: L.metalLo }).stroke({ width: 7, color: edge });
+  joint(hd.x, hd.y);
 }
 
 /** The hood's outline: the neck's two ends and the mouth's two ends. */
@@ -508,8 +509,10 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
   // the lamp: the hood's rim and the lit side of the arms
   const lx = geo.lamp.x, p0 = { x: lx, y: ys - 300 }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y }, hd = geo.lamp.head, mo = geo.lamp.mouth;
   const nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
-  g.poly([hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk]).stroke({ width: w2, color: hi, alpha: 0.7 });
-  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), ax = -dy / l, ay = dx / l; g.moveTo(a.x - ax * 75, a.y - ay * 75).lineTo(b.x - ax * 75, b.y - ay * 75).stroke({ width: w2, color: hi, alpha: 0.6 }); };
+  // (only the hood's upper side, from past the collar to the mouth: no line across the opening or the joint)
+  const t0 = 0.15, tx = hd.x - nx * nk + (mo.x - nx * hw - hd.x + nx * nk) * t0, ty = hd.y - ny * nk + (mo.y - ny * hw - hd.y + ny * nk) * t0;
+  g.moveTo(tx, ty).lineTo(mo.x - nx * hw, mo.y - ny * hw).stroke({ width: w2, color: hi, alpha: 0.7, cap: 'round' });
+  const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => { const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, ax = -uy, ay = ux, c = 210; g.moveTo(a.x + ux * c - ax * 75, a.y + uy * c - ay * 75).lineTo(b.x - ux * c - ax * 75, b.y - uy * c - ay * 75).stroke({ width: w2, color: hi, alpha: 0.6 }); };
   arm(p0, el); arm(el, hd);
   return g;
 }
@@ -733,9 +736,11 @@ export class RoomView {
     const I = on * (d ? 0.4 + 0.6 * night : 0.2 + 0.5 * night);
     if (I < 0.01) return;
     const mo = geo.lamp.mouth;
-    // the bulb in the hood's mouth (the light it gives, the pool and the cone, is the light layer's)
-    g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 560).fill({ color: '#ffd68a', alpha: 0.22 * I });
-    g.circle(mo.x - LAMP_D.x * 60, mo.y - LAMP_D.y * 60, 300).fill({ color: '#fff2c8', alpha: 0.95 * Math.min(1, I * 1.5) });
+    // the bulb in the hood's opening and the inside it lights, all inside the lip (the light it gives, the pool and the cone, is the light layer's)
+    const bu = lampBulb(mo);
+    g.poly(lampOpening(mo, 0.96)).fill({ color: '#ffd68a', alpha: 0.6 * Math.min(1, I * 1.5) });
+    g.circle(bu.x, bu.y, LAMP.bulb + 45).fill({ color: '#fff0c0', alpha: 0.5 * Math.min(1, I * 1.5) });
+    g.circle(bu.x, bu.y, LAMP.bulb).fill({ color: '#fff8e0', alpha: 0.97 * Math.min(1, I * 1.5) });
   }
 
   private drawClock(h: number, gt: number) {
