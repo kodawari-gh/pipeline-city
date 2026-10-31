@@ -4,7 +4,6 @@ import { COOLER, type Rect } from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
 import { EdgeFan, type FanMount } from '../../room/render/desk/props/case';
 import { blades, type Part } from './devices';
-import { roundedPath } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 import { loopBank } from '@/core/render/fanmotor';
 
@@ -16,8 +15,8 @@ import { loopBank } from '@/core/render/fanmotor';
 
 type Pt = [number, number];
 
-/** The loop's tubes: the sleeve's width and the bend radius (the corners take as much of their legs as they can, so the loop sweeps instead of turning square). */
-const TUBE_W = 92, TUBE_BEND = 520;
+/** The loop's tubes: the sleeve's width. */
+const TUBE_W = 92;
 
 /** The brushed-metal ramp the heatsinks use (the VRM sink's tones). */
 const metals = (T: Theme) => ({ metal: T.dark ? '#3b4663' : '#b7c1d3', hi: T.dark ? '#56628a' : '#dde4f0', lo: T.dark ? '#222a41' : '#8d99b1' });
@@ -32,7 +31,7 @@ function screw(g: Graphics, T: Theme, x: number, y: number, r = 28): void {
 
 /** A rubber tube along `pts` (rounded corners): a drop shadow, the sleeve, a tinted core, a braid and a lit streak. */
 function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
-  const path = roundedPath(pts, TUBE_BEND);
+  const path = pts;
   const stroke = (dx: number, dy: number, w: number, color: string, alpha: number) => {
     g.moveTo(path[0]![0] + dx, path[0]![1] + dy);
     for (const p of path.slice(1)) g.lineTo(p[0] + dx, p[1] + dy);
@@ -162,19 +161,40 @@ export function radiatorArt(T: Theme, f: RadiatorFit, grade: 1 | 2 | 3 = 2, coun
 }
 
 /**
- * The two tubes from the pump's ports (`a` west, `b` east, both on top of the head) to the radiator's, nested so they do not cross: they rise to a
- * lane of their own, run along it to the side the radiator is on, then go on to its barbs (up through the case's top, or down a channel beside a side mount).
+ * A smooth curve along the corners of `ctrl` (a clamped uniform cubic B-spline): it leaves the first point along the first leg, arrives along the last one, and cuts every
+ * corner into a sweep that stays inside the polyline, so a route laid round obstacles keeps clear of them.
+ */
+function smooth(ctrl: Pt[], per = 14): Pt[] {
+  const p = [ctrl[0]!, ctrl[0]!, ...ctrl, ctrl[ctrl.length - 1]!, ctrl[ctrl.length - 1]!], out: Pt[] = [];
+  for (let i = 0; i + 3 < p.length; i++) {
+    for (let k = i === 0 ? 0 : 1; k <= per; k++) {
+      const t = k / per, t2 = t * t, t3 = t2 * t;
+      const b0 = (1 - t) ** 3 / 6, b1 = (3 * t3 - 6 * t2 + 4) / 6, b2 = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, b3 = t3 / 6;
+      out.push([b0 * p[i]![0] + b1 * p[i + 1]![0] + b2 * p[i + 2]![0] + b3 * p[i + 3]![0], b0 * p[i]![1] + b1 * p[i + 1]![1] + b2 * p[i + 2]![1] + b3 * p[i + 3]![1]]);
+    }
+  }
+  out[0] = ctrl[0]!; out[out.length - 1] = ctrl[ctrl.length - 1]!; // exactly the ends, not their float shadow
+  return out;
+}
+
+/**
+ * The two tubes from the pump's ports (`a` west, `b` east, both on top of the head) to the radiator's barbs, nested so they do not cross: they rise to a lane of their
+ * own, run along it to the side the radiator is on, then go on to its barbs (up through the case's top, or down a channel beside a side mount). The corners are
+ * smoothed into sweeping curves (`smooth`); a route is a dense list of points along the curve, starting at its port and ending at its barb's tip.
  */
 export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
-  const yLow = -880, yHigh = -1010, ports = radiatorPorts(f), [t0, t1] = ports.tips;
+  const yLow = -880, yHigh = -1010, ports = radiatorPorts(f), [t0, t1] = ports.tips, run: Pt = [-ports.inward[0], -ports.inward[1]];
+  // a straight lead-in over the barb, so every tube meets it square
+  const lead = (t: Pt): Pt => [t[0] - run[0] * 340, t[1] - run[1] * 340];
+  const up = (p: Pt): Pt => [p[0], p[1] - 240];
   if (f.mount.side === 'top') {
     const [pw, pe] = t0[0] <= t1[0] ? [t0, t1] : [t1, t0];
-    if (pw[0] < a[0]) return [[a, [a[0], yLow], [pw[0], yLow], pw], [b, [b[0], yHigh], [pe[0], yHigh], pe]];
-    return [[a, [a[0], yHigh], [pw[0], yHigh], pw], [b, [b[0], yLow], [pe[0], yLow], pe]];
+    const [la, lb] = pw[0] < a[0] ? [yLow, yHigh] : [yHigh, yLow];
+    return [smooth([a, up(a), [a[0], la], [pw[0], la], lead(pw), pw]), smooth([b, up(b), [b[0], lb], [pe[0], lb], lead(pe), pe])];
   }
   // the front's barbs face west: the west tube takes the upper lane to the northern barb, the east one the lower lane to the other
   const xa = t0[0] - 300, xb = t0[0] - 150;
-  return [[a, [a[0], yHigh], [xa, yHigh], [xa, t0[1]], t0], [b, [b[0], yLow], [xb, yLow], [xb, t1[1]], t1]];
+  return [smooth([a, up(a), [a[0], yHigh], [xa, yHigh], [xa, t0[1]], lead(t0), t0]), smooth([b, up(b), [b[0], yLow], [xb, yLow], [xb, t1[1]], lead(t1), t1])];
 }
 
 const COLD_WATER = '#3fa9ff', HOT_WATER = '#ff6a3d';
@@ -194,7 +214,7 @@ export class CoolantFlow extends Container {
     super();
     this.addChild(this.g);
     this.paths = routes.map((r, i) => {
-      const pts = roundedPath(r, TUBE_BEND), at = [0];
+      const pts = r, at = [0];
       for (let k = 1; k < pts.length; k++) at.push(at[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
       return { pts, at, len: at[at.length - 1]!, hot: i === 0 };
     });
