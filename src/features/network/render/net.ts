@@ -183,7 +183,7 @@ export function nicArt(T: Theme, visual: string, i: number): Container {
 
 /** LED wells of a NIC jack (link, activity). */
 const nicLeds = (i: number): Pt2[] => { const j = nicJack(i); return [{ x: j.x + 50, y: j.y + j.h + 30 }, { x: j.x + 112, y: j.y + j.h + 30 }]; };
-const eth0Leds = (): Pt2[] => [{ x: ETH0_MOUTH.x + 70, y: -1394 }, { x: ETH0_MOUTH.x + 150, y: -1394 }];
+const eth0Leds = (): Pt2[] => [{ x: ETH0_MOUTH.x + 50, y: -1468 }, { x: ETH0_MOUTH.x + 112, y: -1468 }];
 interface Pt2 { x: number; y: number }
 
 /** Exterior rear plate: the cut-outs and LED wells of the NIC jacks (the board's own jack is drawn by exterior.ts). */

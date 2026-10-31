@@ -277,8 +277,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     IO_PORTS.filter((p) => p.kind === 'usb').forEach((p, i) => { if (i < feat.usbPorts) labels.addChild(label(`USB ${i + 1}`, p.x + p.w / 2 - 40, p.y + 30, 24, P.silkHi, { anchor: [0.5, 0.5], a: 0.6 })); });
     const eth = IO_PORTS.find((p) => p.id === 'eth')!;
     if (feat.ethernetMbps > 0) {
-      for (const lx of [eth.x + 70, eth.x + 150]) disc(g, lx, eth.y + eth.h / 2 + 36, 13, { fill: P.dark, stroke: P.edge, lw: 3 }); // link / activity wells, lit live (net.ts)
-      labels.addChild(label(feat.ethernetMbps >= 1000 ? 'ETH 1G' : `ETH ${feat.ethernetMbps}M`, eth.x + 200, eth.y + eth.h / 2 + 36, 28, P.silkHi, { anchor: [0, 0.5] }));
+      for (const lx of [eth.x + 50, eth.x + 112]) disc(g, lx, eth.y + eth.h / 2 + 30, 11, { fill: P.dark, stroke: P.edge, lw: 3 }); // link / activity wells, lit live (net.ts)
+      labels.addChild(label(feat.ethernetMbps >= 1000 ? 'ETH 1G' : `ETH ${feat.ethernetMbps}M`, eth.x + 150, eth.y + eth.h / 2 + 30, 28, P.silkHi, { anchor: [0, 0.5] }));
     } else labels.addChild(label('ETH · none', eth.x + 40, eth.y, 30, P.silk, { anchor: [0, 0.5], a: 0.6 }));
     lbl('REAR I/O', q.x + 6, q.y - 36);
   }

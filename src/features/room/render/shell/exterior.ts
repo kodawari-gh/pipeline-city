@@ -170,6 +170,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   g.roundRect(np.x, np.y, np.w, np.h, 36).fill(lgrad(mix(c.mid, c.hi, 0.5), mix(c.mid, c.lo, 0.4))).stroke({ width: 5, color: c.edge, alpha: 0.7 });
   bevel(g, np.x + 6, np.y + 6, np.w - 12, np.h - 12, 30, T, 0.8);
   g.rect(np.x + 80, np.y + np.h - 150, np.w - 160, 8).fill({ color: acc, alpha: 0.8 });
+  skyline(g, T, np, acc, c.shade);
   // dark bodies carry light lettering with a shadow under it, light bodies a pressed dark one with a lit edge under it
   const press = d ? '#b4c0e4' : '#25304a';
   root.addChild(label('PIPELINE CITY', np.x + np.w / 2, np.y + 256, 230, d ? '#000000' : '#ffffff', { head: true, anchor: [0.5, 0.5], a: d ? 0.45 : 0.55 }));
@@ -180,10 +181,100 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   const STRIP = stripRect();
   for (let k = 0; k < Math.floor((STRIP.y1 - STRIP.y0 - 260) / 215) + 1; k++) box(g, STRIP.x + 62, STRIP.y0 + 260 + k * 215, 16, 120, 8, { fill: c.cut, fa: 0.8 });
   box(g, STRIP.x - 6, STRIP.y0 - 6, STRIP.w + 12, STRIP.y1 - STRIP.y0 + 12, 12, { fill: c.cut, stroke: c.edge, lw: 3, sa: 0.5 });
+  traces(g, T, win, bz, acc, st.rgb);
+  hazard(g, T, { x: ci.x + 40, y: lowY + lowH - 54, w: mesh.x - ci.x - 80 }, trim ?? acc);
+  stickers(root, T, { x: mesh.x + mesh.w + 60, y: np.y - 120, w: np.x - (mesh.x + mesh.w + 60) + np.w, h: np.h + 240 }, acc);
   return root;
 }
 
 const tones = exteriorTones;
+
+/** A tiny deterministic generator, so the art is the same on every build and in every test. */
+function rng(seed: number) {
+  let s = seed >>> 0 || 1;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+
+/** The city: an etched skyline on the badge plate (towers with lit windows, a chimney, a crane), under the name. */
+function skyline(g: Graphics, T: Theme, np: Rect, acc: string, shade: string) {
+  const r = rng(7 + LAYOUT_CASE), base = np.y + np.h - 128, x1 = np.x + np.w - 80;
+  let x = np.x + 80;
+  while (x < x1 - 60) {
+    const w = Math.min(x1 - x, 90 + Math.floor(r() * 150)), h = 70 + Math.floor(r() * r() * 330);
+    g.rect(x, base - h, w, h).fill({ color: shade, alpha: T.dark ? 0.55 : 0.3 });
+    g.rect(x, base - h, w, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.35 });
+    if (r() < 0.25) g.rect(x + w * 0.4, base - h - 50, w * 0.12, 50).fill({ color: shade, alpha: T.dark ? 0.55 : 0.3 });
+    for (let wy = base - h + 26; wy < base - 24; wy += 34) for (let wx = x + 16; wx < x + w - 24; wx += 32) if (r() < 0.38) g.rect(wx, wy, 14, 18).fill({ color: acc, alpha: 0.75 });
+    x += w + 14;
+  }
+  // a tower crane on the tallest side
+  const cx = np.x + np.w * 0.78;
+  g.moveTo(cx, base - 40).lineTo(cx, base - 420).moveTo(cx - 150, base - 420).lineTo(cx + 260, base - 420).moveTo(cx + 230, base - 420).lineTo(cx + 230, base - 340).stroke({ width: 7, color: shade, alpha: T.dark ? 0.6 : 0.4 });
+  g.circle(cx - 150, base - 420, 9).fill({ color: acc, alpha: 0.9 });
+}
+
+/** Circuit traces that run out of the glass bezel's corners across the body, with solder pads on their ends: the machine's veins. */
+function traces(g: Graphics, T: Theme, win: Rect, bz: number, acc: string, glow: boolean) {
+  const r = rng(11 + LAYOUT_CASE), a = glow ? 0.7 : 0.4;
+  const run = (x: number, y: number, sx: number, sy: number, n: number) => {
+    let px = x, py = y;
+    g.moveTo(px, py);
+    for (let k = 0; k < n; k++) {
+      const len = 90 + Math.floor(r() * 150), diag = r() < 0.5;
+      px += sx * len; py += diag ? sy * len * 0.6 : 0;
+      g.lineTo(px, py);
+      if (!diag) { py += sy * (50 + r() * 90); g.lineTo(px, py); }
+    }
+    g.stroke({ width: 9, color: acc, alpha: a, cap: 'round', join: 'round' });
+    g.circle(px, py, 20).fill({ color: acc, alpha: a }).stroke({ width: 5, color: '#000000', alpha: 0.35 });
+    g.circle(px, py, 7).fill({ color: '#000000', alpha: 0.6 });
+  };
+  const x0 = win.x - bz, x1 = win.x + win.w + bz, y1 = win.y + win.h + bz;
+  run(x0 + 120, y1 + 4, -1, 1, 3);
+  run(x0 + 230, y1 + 4, -1, 1, 2);
+  run(x1 - 120, win.y - bz - 4, 1, -1, 2);
+  run(x1 - 230, y1 + 4, 1, 1, 2);
+}
+
+/** A hazard stripe (diagonal bars in the trim colour on a dark band), the way a workshop marks a danger. */
+function hazard(g: Graphics, T: Theme, b: { x: number; y: number; w: number }, col: string) {
+  const h = 34;
+  if (b.w < 200) return;
+  g.roundRect(b.x, b.y, b.w, h, 8).fill({ color: '#000000', alpha: T.dark ? 0.55 : 0.4 });
+  for (let x = b.x; x < b.x + b.w - 40; x += 60) g.poly([x, b.y + h, x + 24, b.y + h, x + 24 + 24, b.y, x + 24, b.y].map((v, i) => (i % 2 ? v : Math.min(v, b.x + b.w)))).fill({ color: col, alpha: 0.75 });
+}
+
+/** A few stickers stuck on the PSU compartment, a little crooked: a chip mascot, a warning, a bug crossed out and a version tag. */
+function stickers(root: Container, T: Theme, b: Rect, acc: string) {
+  const r = rng(23 + LAYOUT_CASE), ink = '#10162a', paper = [T.alu, T.ld, '#f2f4fb', T.br];
+  const one = (fx: number, kind: number) => {
+    const s = new Container(), g = new Graphics(), u = Math.min(b.h * 0.2, 260);
+    s.position.set(b.x + b.w * fx, b.y + b.h * (0.2 + 0.5 * r())); s.rotation = (r() - 0.5) * 0.35;
+    const col = paper[kind % paper.length]!;
+    g.roundRect(-u * 0.5 + 8, -u * 0.5 + 12, u, u, u * 0.18).fill({ color: '#000000', alpha: 0.3 });
+    g.roundRect(-u * 0.5, -u * 0.5, u, u, u * 0.18).fill(col).stroke({ width: 5, color: '#ffffff', alpha: 0.7 });
+    if (kind === 0) { // a chip with eyes
+      g.roundRect(-u * 0.26, -u * 0.22, u * 0.52, u * 0.44, 10).fill(ink);
+      for (const sx of [-1, 1]) { g.circle(sx * u * 0.1, -u * 0.04, u * 0.07).fill('#ffffff'); g.circle(sx * u * 0.1 + 3, -u * 0.03, u * 0.03).fill(ink); g.moveTo(sx * u * 0.26, -u * 0.12).lineTo(sx * u * 0.36, -u * 0.12).moveTo(sx * u * 0.26, u * 0.1).lineTo(sx * u * 0.36, u * 0.1).stroke({ width: 8, color: ink, cap: 'round' }); }
+      g.moveTo(-u * 0.09, u * 0.1).quadraticCurveTo(0, u * 0.18, u * 0.09, u * 0.1).stroke({ width: 6, color: '#ffffff', cap: 'round' });
+    } else if (kind === 1) { // a warning triangle
+      g.poly([0, -u * 0.34, u * 0.36, u * 0.28, -u * 0.36, u * 0.28]).fill(ink);
+      g.rect(-5, -u * 0.12, 10, u * 0.22).fill(col); g.circle(0, u * 0.17, 7).fill(col);
+    } else if (kind === 2) { // a bug, crossed out
+      g.ellipse(0, 0, u * 0.14, u * 0.2).fill(ink);
+      for (const sy of [-1, 0, 1]) for (const sx of [-1, 1]) g.moveTo(sx * u * 0.12, sy * u * 0.1).lineTo(sx * u * 0.3, sy * u * 0.17).stroke({ width: 6, color: ink, cap: 'round' });
+      g.moveTo(-u * 0.34, -u * 0.34).lineTo(u * 0.34, u * 0.34).stroke({ width: 12, color: '#d23b3b', cap: 'round' });
+    } else { // a pipeline mark: rising bars
+      for (let k = 0; k < 4; k++) g.rect(-u * 0.3 + k * u * 0.16, u * 0.26 - (0.14 + k * 0.1) * u, u * 0.11, (0.14 + k * 0.1) * u).fill(ink);
+    }
+    s.addChild(g);
+    root.addChild(s);
+  };
+  if (b.w < 600) return;
+  one(0.1, 0); one(0.5, 1); one(0.9, 2); void acc;
+  if (b.w > 1500) one(0.3, 3);
+}
+
 
 /**
  * The rear panel from outside, in the same side profile as inside the case (ports.ts): the wall's sheet at the case's west edge and

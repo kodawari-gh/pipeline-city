@@ -93,7 +93,7 @@ export const IO_PORTS: IoPort[] = [
   { id: 'line-out', kind: 'jack', x: IO_X + 30, y: -1928, w: 200, h: 70, tone: 'st' },
   { id: 'line-in', kind: 'jack', x: IO_X + 30, y: -1850, w: 200, h: 70, tone: 'br' },
   { id: 'mic', kind: 'jack', x: IO_X + 30, y: -1772, w: 200, h: 70, tone: 'ld' },
-  { id: 'eth', kind: 'rj45', x: IO_X + 30, y: -1560, w: 330, h: 260 },
+  { id: 'eth', kind: 'rj45', x: IO_X + 10, y: -1560, w: 170, h: 124 },
   { id: 'hdmi', kind: 'hdmi', x: IO_X, y: -1150, w: 240, h: 120 },
   { id: 'dp', kind: 'dp', x: IO_X, y: -930, w: 240, h: 120 },
   ...[0, 1, 2, 3].map((i): IoPort => ({ id: `usb${i}`, kind: 'usb', x: IO_X + 18, y: i * 130, w: 290, h: 108, tone: 'alu' })),

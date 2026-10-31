@@ -241,8 +241,8 @@ export let ISP_ROW_Y = 0;
 /** Vertical run of the ethernet cable in the gap between the monitor and the case (west of the PC's power plug and cord; a plugged key is drawn over it). */
 export const LAN_TRUNK_X = -4560;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
-export const ETH0_MOUTH = { x: IO_X + 30, y: -1560 };
-export const ETH0_RECT: Rect = { x: IO_X + 30, y: -1690, w: 330, h: 260 };
+export const ETH0_MOUTH = { x: IO_X + 10, y: -1560 };
+export const ETH0_RECT: Rect = { x: IO_X + 10, y: -1622, w: 170, h: 124 };
 export const PLUG_L = 200, PLUG_W = 100;
 /** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
 export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
