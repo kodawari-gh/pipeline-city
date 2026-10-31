@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'preact/hooks';
-import { setSpoolDrive, setSpoolSlots, snapshot } from '@/app/store';
+import { setSpoolAlloc, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
 import { closeOs, osOpen } from '@/core/ui/state';
 import type { IconName } from '../../economy/ui/shop/picker';
-import { bottleneck, resourceRows, spoolModel, type ResRow } from './osui';
+import { allocModel, bottleneck, fmtBytes, resourceRows, type AllocDrive, type ResRow } from './osui';
 
-type Tab = 'monitor' | 'procs' | 'spool' | 'apps';
+type Tab = 'monitor' | 'procs' | 'disks' | 'apps';
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'monitor', label: 'Performance', icon: 'cpu' },
   { id: 'procs', label: 'Processes', icon: 'slot' },
-  { id: 'spool', label: 'Spool', icon: 'disk' },
+  { id: 'disks', label: 'Disk allocation', icon: 'disk' },
   { id: 'apps', label: 'Apps', icon: 'bolt' },
 ];
 
@@ -116,41 +116,52 @@ function Procs() {
   );
 }
 
-/** How many queue slots the OS keeps, and which drives hold them. */
-function Spool() {
+function DriveCard({ d, slotBytes, room }: { d: AllocDrive; slotBytes: number; room: number }) {
+  const share = (v: number) => `${d.capacity > 0 ? (v / d.capacity) * 100 : 0}%`;
+  // The slider tops out at what fits on the drive and what the kernel table still has room for.
+  const top = Math.max(d.slots, Math.min(d.max, d.slots + room));
+  return (
+    <div class={`os-alloc${d.why ? ' off' : ''}`} title={d.why ?? undefined}>
+      <div class="kv"><span><Icon name="disk" size={12} /> {d.label}</span><b>{fmtBytes(d.capacity)}</b></div>
+      <div class="os-diskbar" role="img" aria-label={`${d.label}: system ${fmtBytes(d.osBytes)}, files ${fmtBytes(d.usedBytes)}, spool ${fmtBytes(d.spoolBytes)}, free ${fmtBytes(d.freeBytes)}`}>
+        <i class="sys" style={{ width: share(d.osBytes) }} />
+        <i class="files" style={{ width: share(d.usedBytes) }} />
+        <i class="spool" style={{ width: share(d.spoolBytes) }} />
+      </div>
+      <div class="os-legend">
+        {d.osBytes > 0 && <span><i class="sys" />system {fmtBytes(d.osBytes)}</span>}
+        <span><i class="files" />files {fmtBytes(d.usedBytes)}</span>
+        <span><i class="spool" />spool {fmtBytes(d.spoolBytes)}</span>
+        <span><i class="free" />free {fmtBytes(d.freeBytes)}</span>
+      </div>
+      {d.why
+        ? <div class="mute sub">{d.why}</div>
+        : (
+          <label class="scale-row" title={`Each slot keeps one waiting job and takes ${fmtBytes(slotBytes)}.`}>
+            <span>spool slots</span>
+            <input type="range" min={0} max={top} step={1} value={Math.min(d.alloc ?? d.slots, top)} disabled={top === 0} aria-label={`Spool slots on ${d.label}`}
+              onInput={(e) => setSpoolAlloc(d.deviceId, Number(e.currentTarget.value))} />
+            <b class="value">{d.alloc === null ? `auto (${d.slots})` : d.alloc}</b>
+          </label>
+        )}
+      {!d.why && d.alloc !== null && <div class="os-actions"><button class="chip idle" onClick={() => setSpoolAlloc(d.deviceId, null)}>Automatic</button></div>}
+    </div>
+  );
+}
+
+/** Disk allocation: how each drive's space splits between the system, your files and spool slots for waiting jobs. */
+function Disks() {
   const s = snapshot.value;
-  const m = s ? spoolModel(s) : null;
-  if (!m) return <section><div class="mute sub">Install an OS to set up its job queue.</div></section>;
+  const m = s ? allocModel(s) : null;
+  if (!m) return <section><div class="mute sub">Install an OS to allocate disk space.</div></section>;
+  const room = Math.max(0, m.cap - m.total);
   return (
     <>
-      <section>
-        <h3 title="Each slot holds one job waiting on a drive. A full spool stops new downloads.">Queue slots</h3>
-        <div class="kv"><span>in use</span><b>{m.used}/{m.slots}</b></div>
-        <label class="scale-row" title="The most jobs the OS keeps waiting. Most it allows: see the tier.">
-          <span>wanted</span>
-          <input type="range" min={1} max={m.max} step={1} value={m.wanted} aria-label="Queue slots wanted"
-            onInput={(e) => setSpoolSlots(Number(e.currentTarget.value))} />
-          <b class="value">{m.auto ? `all ${m.max}` : m.wanted}</b>
-        </label>
-        <div class="os-actions">
-          <button class="chip idle" disabled={m.auto} onClick={() => setSpoolSlots(null)}>Use the most ({m.max})</button>
-        </div>
-        <div class="mute sub">A higher OS tier allows more slots. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
+      <section class="os-wide">
+        <div class="kv"><span>spool slots in use</span><b>{m.total}/{m.cap}</b></div>
+        <div class="mute sub">Each slot holds one job waiting on a drive and takes {fmtBytes(m.slotBytes)}. A higher OS tier allows more slots. {m.pending ? 'The machine is on: changes apply at the next power-on.' : 'Changes apply now.'}</div>
       </section>
-      <section>
-        <h3 title="Slots fill the OS drive first, then the other drives, fastest first.">Drives</h3>
-        {m.drives.map((d) => (
-          <div class="os-drive" key={d.deviceId} title={d.why ?? undefined}>
-            <label class="kv">
-              <span>
-                <input type="checkbox" checked={d.on} disabled={!d.canToggle} onChange={(e) => setSpoolDrive(d.deviceId, e.currentTarget.checked)} /> {d.label}{d.home ? ' (OS)' : ''}
-              </span>
-              <b>{d.slots} slot{d.slots === 1 ? '' : 's'}</b>
-            </label>
-            <div class="mute sub">{d.why ?? d.freeText}</div>
-          </div>
-        ))}
-      </section>
+      {m.drives.map((d) => <DriveCard key={d.deviceId} d={d} slotBytes={m.slotBytes} room={room} />)}
     </>
   );
 }
@@ -196,7 +207,7 @@ export function OsModal() {
           {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}
           {s.os && tab === 'monitor' && <Monitor />}
           {s.os && tab === 'procs' && <Procs />}
-          {s.os && tab === 'spool' && <Spool />}
+          {s.os && tab === 'disks' && <Disks />}
           {s.os && tab === 'apps' && <Apps />}
         </div>
       </div>

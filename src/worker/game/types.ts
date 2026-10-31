@@ -418,7 +418,7 @@ export interface OsSnap {
     /** Most queue slots wanted (null: as many as the OS allows) and the most this OS allows. */
     spoolWanted: number | null;
     spoolMax: number;
-    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number }[];
+    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
   };
 }
 

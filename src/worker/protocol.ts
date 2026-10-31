@@ -55,6 +55,7 @@ export type ToSim =
   /** OS menu: the most queue slots wanted (null: as many as the OS allows), and whether a drive may hold spool slots. Both apply at the next power-on. */
   | { type: 'setSpoolSlots'; slots: number | null }
   | { type: 'setSpoolDrive'; deviceId: string; on: boolean }
+  | { type: 'setSpoolAlloc'; deviceId: string; slots: number | null }
   /** Accept a cloud-storage contract offer (docs/JOBS.md "Contracts"); `deviceId` picks the drive, else the slowest that qualifies. Ignoring just removes the offer. */
   | { type: 'acceptContract'; offerId: number; deviceId?: string }
   | { type: 'ignoreContract'; offerId: number }

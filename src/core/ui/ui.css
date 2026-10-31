@@ -713,6 +713,16 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .os-dot.running { background: var(--ok); box-shadow: 0 0 0.4rem var(--ok); }
 .os-dot.result { background: var(--accent); }
 .os-empty, .os-foot { padding: 0.6rem 0.7rem; font-size: 0.7rem; color: var(--mute); }
+.os-body > section.os-wide { grid-column: 1 / -1; }
+.os-alloc { border: 1px solid var(--glass-line); border-radius: 0.5rem; padding: 0.5rem 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; background: var(--glass-hi); }
+.os-alloc.off { opacity: .6; }
+.os-diskbar { display: flex; height: 0.9rem; border-radius: 0.25rem; overflow: hidden; background: var(--dot); border: 1px solid var(--glass-line); }
+.os-diskbar i { display: block; height: 100%; }
+.os-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 0.8rem; font-size: 0.66rem; color: var(--mute); font-family: var(--mono); }
+.os-legend i { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 0.12rem; margin-right: 0.3rem; background: var(--dot); }
+.os-diskbar .sys, .os-legend .sys { background: var(--warn); }
+.os-diskbar .files, .os-legend .files { background: var(--mute); }
+.os-diskbar .spool, .os-legend .spool { background: var(--accent); }
 .os-actions { display: flex; gap: 0.3rem; padding: 0.2rem 0.45rem; }
 .os-drive { padding: 0.25rem 0; }
 .os-drive input { accent-color: var(--accent); }

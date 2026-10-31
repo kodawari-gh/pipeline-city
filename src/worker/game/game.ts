@@ -199,7 +199,7 @@ export class Game {
   /** Jobs written to the spool on the drive, in ingest order (survive power loss). */
   spool: Key[] = [];
   /** The OS menu's spool settings (docs/OS.md "OS menu"): most queue slots wanted (null: as many as the OS allows) and the drives that hold none. Saved. */
-  osCfg: { spoolSlots: number | null; spoolOff: string[] } = { spoolSlots: null, spoolOff: [] };
+  osCfg: { spoolSlots: number | null; spoolOff: string[]; spoolAlloc: Record<string, number> } = { spoolSlots: null, spoolOff: [], spoolAlloc: {} };
   /** Where the queue slots are now: per drive, how many (set by `layoutSpool` at power-on). Not saved. */
   spoolPlan: { deviceId: string; slots: number }[] = [];
   uploads: Transfer[] = [];

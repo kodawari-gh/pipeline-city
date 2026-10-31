@@ -89,3 +89,27 @@ describe("the OS menu's spool settings", () => {
     expect(Math.max(...OS_SPECS.map((o) => o.queueSlots))).toBeLessThanOrEqual(MAX_QUEUE_SLOTS);
   });
 });
+
+describe("the disk allocation page", () => {
+  it("a drive holds exactly the slots asked for, and the rest follows the others", () => {
+    const g = twoDrives();
+    const [ssd, hdd] = ["ssd1", "hdd0"].map((s) => g.board.devices.find((d) => d.spec === s)!);
+    expect(g.setSpoolAlloc(hdd!.id, 3).ok).toBe(true);
+    expect(g.setSpoolAlloc(ssd!.id, 2).ok).toBe(true);
+    const drives = g.snapshot().os!.config!.drives;
+    expect(drives.find((d) => d.deviceId === hdd!.id)!.slots).toBe(3);
+    expect(drives.find((d) => d.deviceId === ssd!.id)!.slots).toBe(2);
+    expect(g.snapshot().os!.queueSlots).toBe(5);
+  });
+
+  it("an allocation beyond the room is cut to what fits, and a bad value is refused", () => {
+    const g = twoDrives();
+    const hdd = g.board.devices.find((d) => d.spec === "hdd0")!;
+    expect(g.setSpoolAlloc(hdd.id, 99).ok).toBe(true);
+    const d = g.snapshot().os!.config!.drives.find((x) => x.deviceId === hdd.id)!;
+    expect(d.slots).toBeLessThanOrEqual(d.maxSlots);
+    expect(g.snapshot().os!.queueSlots).toBeLessThanOrEqual(MAX_QUEUE_SLOTS);
+    expect(g.setSpoolAlloc(hdd.id, -1).ok).toBe(false);
+    expect(g.setSpoolAlloc(hdd.id, null).ok).toBe(true);
+  });
+});

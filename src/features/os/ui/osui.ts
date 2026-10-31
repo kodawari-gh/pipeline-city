@@ -194,3 +194,47 @@ export function spoolModel(s: Snapshot): SpoolModel | null {
     })),
   };
 }
+
+// ---------- disk allocation ----------
+
+export interface AllocDrive {
+  deviceId: string;
+  label: string;
+  home: boolean;
+  /** Bytes of the bar: the OS image, the other files, the spool slots, the free rest (they add up to `capacity`). */
+  capacity: number;
+  osBytes: number;
+  usedBytes: number;
+  spoolBytes: number;
+  freeBytes: number;
+  /** Spool slots this drive holds now, the most it could hold, and the allocation asked for (null: automatic). */
+  slots: number;
+  max: number;
+  alloc: number | null;
+  /** Why the drive cannot hold spool, or null. */
+  why: string | null;
+}
+export interface AllocModel {
+  drives: AllocDrive[];
+  slotBytes: number;
+  /** Slots in use by all drives and the most the kernel table allows. */
+  total: number;
+  cap: number;
+  pending: boolean;
+}
+
+export function allocModel(s: Snapshot): AllocModel | null {
+  const os = s.os;
+  if (!os?.config) return null;
+  const slotBytes = os.spool.slotBytes;
+  const drives = os.config.drives.map((d): AllocDrive => {
+    const spoolBytes = d.slots * slotBytes;
+    const other = Math.max(0, d.usedBytes - d.osBytes);
+    return {
+      deviceId: d.deviceId, label: `${d.name} (${d.slot})${d.home ? ' (OS)' : ''}`, home: d.home, capacity: d.capacityBytes,
+      osBytes: d.osBytes, usedBytes: other, spoolBytes, freeBytes: Math.max(0, d.capacityBytes - d.osBytes - other - spoolBytes),
+      slots: d.slots, max: d.maxSlots, alloc: d.alloc, why: d.why,
+    };
+  });
+  return { drives, slotBytes, total: drives.reduce((a, d) => a + d.slots, 0), cap: os.config.spoolMax, pending: s.powered };
+}
