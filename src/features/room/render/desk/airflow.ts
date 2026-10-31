@@ -54,6 +54,8 @@ export interface AirZone {
   /** The hover id of each rect (a device id), whose silhouette the glow traces; empty where the rects are all there is. */
   ids: (string | null)[];
   heat: number; tempC: number;
+  /** A flat part: the air passes over it (`AirHeat.flat`). */
+  flat?: boolean;
   /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
   flow?: number; riseC?: number;
 }
@@ -143,7 +145,7 @@ export function airflowModel(i: AirIn): AirModel {
       const x0 = Math.min(...h.rects.map((r) => r.x)), y0 = Math.min(...h.rects.map((r) => r.y));
       const x1 = Math.max(...h.rects.map((r) => r.x + r.w)), y1 = Math.max(...h.rects.map((r) => r.y + r.h));
       const area = areaOf(h.id), air = area && running ? s.board?.air?.find((a) => a.id === area) : undefined;
-      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, ids: h.ids ?? [], heat: h.heat, tempC: h.tempC, flow: air?.flow, riseC: air?.riseC });
+      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, ids: h.ids ?? [], heat: h.heat, tempC: h.tempC, flat: h.flat, flow: air?.flow, riseC: air?.riseC });
     }
     localFans.push(...(src.fans?.(ctx) ?? []));
   }
@@ -357,12 +359,16 @@ export class AirflowLens {
     }
     // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
     const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l) }));
-    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flow: zn.flow, riseC: zn.riseC })) });
+    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flat: zn.flat, flow: zn.flow, riseC: zn.riseC })) });
     for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
     for (const p of this.field.parts) {
-      const sp = Math.hypot(p.vx, p.vy), tl = Math.min(170, sp * 0.14), k = tl / (sp || 1);
       const fade = Math.min(1, p.age * 2, (LIFE - p.age) * 0.5), col = airColor(p.heat), lw = px(1.5 + 0.8 * (p.k - 0.75) * 2) + p.heat * px(0.8);
-      g.moveTo(p.x - p.vx * k, p.y - p.vy * k).lineTo(p.x, p.y).stroke({ width: lw, color: col, alpha: 0.5 * fade, cap: 'round' });
+      // the trail is the path the particle really took (it bends round the parts and with the flow), as long as its speed makes it, fading toward the tail
+      const pts = [...(p.trail ?? []), [p.x, p.y] as Pt], n = pts.length - 1;
+      for (let k = 0; k < n; k++) {
+        const a = pts[k]!, b = pts[k + 1]!;
+        g.moveTo(a[0], a[1]).lineTo(b[0], b[1]).stroke({ width: lw * (0.5 + 0.5 * (k + 1) / n), color: col, alpha: 0.5 * fade * ((k + 1) / n), cap: 'round', join: 'round' });
+      }
       g.circle(p.x, p.y, lw * 0.7).fill({ color: '#ffffff', alpha: 0.55 * fade });
     }
     // a stream of its own (the PSU's: in from below, through its shroud, out the rear): particles follow the lane, warmer after every part it passes

@@ -13,12 +13,17 @@ export interface FieldZone {
   rects: Box[]; /** 0 (cool) to 1 (at its limit). */ heat: number;
   /** The sim's ventilation of the area the part sits in, 0 to 1 (unset: 1). Air near a poorly ventilated part crawls and lingers. */
   flow?: number;
+  /** A flat part is no obstacle: particles are released and fly over it, and it still warms the air. */
+  flat?: boolean;
   /** How much warmer than the room the sim's air of that area is, C (unset: 0). Air there never runs cooler than that. */
   riseC?: number;
 }
 export interface FieldIn { box: Box; ports: FieldPort[]; zones: FieldZone[] }
 
-export interface Particle { x: number; y: number; vx: number; vy: number; heat: number; age: number; /** a personal speed factor, 0.75 to 1.25 */ k: number; seed: number }
+export interface Particle { x: number; y: number; vx: number; vy: number; heat: number; age: number; /** a personal speed factor, 0.75 to 1.25 */ k: number; seed: number;
+  /** Where it has been, oldest first (the head is not in it): the trail the lens draws. Its length follows the particle's speed. */
+  trail?: Pt[]
+}
 
 /** Flux of a full-speed fan (world units squared per second): about 900 units a second at 1500 units from it. */
 const Q_FAN = 8.5e6;
@@ -28,6 +33,23 @@ const MAX_SPEED = 2400;
 /** Particles a fan at full speed releases per second, and the most the field carries. */
 export const SPAWN_PER_S = 2.4, MAX_PARTICLES = 110;
 const LIFE_S = 22;
+/** The trail: a point is kept every `TRAIL_STEP` world units of path, and the trail is as long as the particle travels in `TRAIL_SECONDS` (at most `TRAIL_MAX`). */
+export const TRAIL_STEP = 40, TRAIL_SECONDS = 0.18, TRAIL_MAX = 320;
+
+/** The length a trail has for a speed (world units per second). */
+export const trailLength = (speed: number) => Math.min(TRAIL_MAX, speed * TRAIL_SECONDS);
+
+/** Record the new position of a particle in its trail, and cut the trail to the length its speed gives. */
+export function growTrail(p: Particle, fromX: number, fromY: number) {
+  const t = (p.trail ??= []), last = t[t.length - 1];
+  if (!last || Math.hypot(fromX - last[0], fromY - last[1]) >= TRAIL_STEP) t.push([fromX, fromY]);
+  const max = trailLength(Math.hypot(p.vx, p.vy));
+  let len = 0, x = p.x, y = p.y;
+  for (let i = t.length - 1; i >= 0; i--) {
+    len += Math.hypot(t[i]![0] - x, t[i]![1] - y); x = t[i]![0]; y = t[i]![1];
+    if (len > max) { t.splice(0, i); break; }
+  }
+}
 /** How far from a part the air feels its heat, and how fast it takes it up (per second). */
 const REACH = 420, HEAT_RATE = 1.8;
 /** Share of its speed air keeps next to a part whose area has no air moving (the sim's flow 0), and the rise in C that counts as a full 1 of heat. */
@@ -94,7 +116,7 @@ export class AirField {
       while (n-- > 0 && this.parts.length < MAX_PARTICLES) {
         const s = p.span, r = Math.random();
         const x = p.kind === 'in' ? s.x + Math.random() * s.w * 0.4 : p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.kind === 'in' ? s.y + r * s.h : p.pt[1] + (Math.random() - 0.5) * s.h * 0.5;
-        if (zones.some((z) => z.rects.some((q) => inside(q, x, y, 30)))) continue;
+        if (zones.some((z) => !z.flat && z.rects.some((q) => inside(q, x, y, 30)))) continue;
         this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++ });
       }
     }
@@ -106,9 +128,10 @@ export class AirField {
       // a little turbulence, more where the air is hot
       const w = 90 * (0.3 + p.heat), ph = this.t * 1.1 + p.seed * 2.3;
       p.vx = v[0] * p.k + Math.sin(ph + p.y * 0.002) * w; p.vy = v[1] * p.k + Math.cos(ph * 0.9 + p.x * 0.002) * w;
+      const ox = p.x, oy = p.y;
       p.x += p.vx * dt; p.y += p.vy * dt;
       // the parts are in the way: air goes round them
-      for (const z of zones) for (const r of z.rects) {
+      for (const z of zones) if (!z.flat) for (const r of z.rects) {
         if (!inside(r, p.x, p.y, 30)) continue;
         const l = p.x - (r.x - 30), rr = r.x + r.w + 30 - p.x, tp = p.y - (r.y - 30), bt = r.y + r.h + 30 - p.y, m = Math.min(l, rr, tp, bt);
         if (m === l) p.x = r.x - 30; else if (m === rr) p.x = r.x + r.w + 30; else if (m === tp) p.y = r.y - 30; else p.y = r.y + r.h + 30;
@@ -126,6 +149,7 @@ export class AirField {
         if (z.heat > h) h += (z.heat - h) * Math.min(1, dt * HEAT_RATE * near);
       }
       p.heat = Math.max(floor, h * Math.exp(-dt * 0.04));
+      growTrail(p, ox, oy);
       // it leaves through an exhaust, or is gone when it has wandered too long or out of the case
       const gone = p.age > LIFE_S || outs.some((o) => rectDist(o.span, p.x, p.y) < 150 + (o.span.w > 600 || o.span.h > 600 ? 0 : 100)) || !inside(box, p.x, p.y, 900);
       if (gone) this.parts.splice(i, 1);

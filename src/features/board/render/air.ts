@@ -21,7 +21,7 @@ export const boardAir: AirSource = {
     for (const [id, label, v, phases] of [['vrm', 'VRM', c.s.board?.vrm, GEO.vrmPhases], ['rvrm', 'MEM VRM', c.s.board?.ramVrm, GEO.dPhases]] as const) {
       if (!v) continue;
       const rects = phases.slice(0, v.phases);
-      if (rects.length) out.push({ id, label, rects, tempC: v.tempC, heat: c.live ? clampHeat((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0 });
+      if (rects.length) out.push({ id, label, rects, flat: true, tempC: v.tempC, heat: c.live ? clampHeat((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0 });
     }
     return out;
   },

@@ -7,6 +7,6 @@ import { COOLER } from '@/features/board/render/layout/layout';
 export const cpuAir: AirSource = {
   id: 'cpu',
   kinds: ['cpu', 'cooler'],
-  heat: (c) => deviceHeat(['cpu'], 'cpu', 'CPU', c),
+  heat: (c) => deviceHeat(['cpu'], 'cpu', 'CPU', c, true),
   fans: (c) => c.s.devices.filter((d) => d.kind === 'cooler').map((d) => ({ id: 'cooler', rect: COOLER, rotor: coolerFanAt(getSpec(d.spec)?.visual ?? '') })),
 };

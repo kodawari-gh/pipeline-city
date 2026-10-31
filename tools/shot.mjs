@@ -60,6 +60,8 @@ try {
   else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
   for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
+  // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
+  for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
   await p.waitForTimeout(Number(flag('wait', 2500)));
   const clip = flag('clip', '') === 'hud' ? { x: 0, y: 0, width: W, height: 90 } : undefined;
   await p.screenshot({ path: out, ...(clip ? { clip } : {}) });
