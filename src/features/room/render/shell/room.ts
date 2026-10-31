@@ -143,11 +143,12 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(roomState));
 export function roomClick(id: string): boolean {
   if (id === 'lamp') roomState.lamp = !roomState.lamp;
   else if (id === 'blind') roomState.blind = !roomState.blind;
+  else if (id === 'clock') return true; // scenery that only answers the pointer: it has a ring and a tip, no state
   else return false;
   save();
   return true;
 }
-export const ROOM_IDS = ['lamp', 'blind'] as const;
+export const ROOM_IDS = ['lamp', 'blind', 'clock'] as const;
 export const isRoomId = (id: string) => (ROOM_IDS as readonly string[]).includes(id);
 
 // ---- time of day: one day is `DAY_S` seconds of game time, and the first view is the evening ----
@@ -523,7 +524,7 @@ export function beamsAt(geo: RoomGeo, h: number, blind: number): Beam[] {
 
 /** A rectangle that answers a click, with the tooltip words. */
 /** `shape` is the thing's silhouette (what the pointer picks and the hover ring follows); without one the rectangle is. */
-export interface RoomHit { id: 'lamp' | 'blind'; rect: Rect; shape?: Shape }
+export interface RoomHit { id: 'lamp' | 'blind' | 'clock'; rect: Rect; shape?: Shape }
 
 /** The lamp's silhouette (base, arms, joints, hood) read from its own art: the box round it is mostly wall, and reaches over the monitor. Built when the pointer first comes near. */
 export function lampShape(renderer: Renderer, T: Theme, geo: RoomGeo): Shape {
@@ -595,7 +596,7 @@ export class RoomView {
     this.root.addChild(this.glow, this.clockG);
     this.steam = new Steam(geo.mug, geo.ys - MUG.h + 30, T.dark);
     this.over.addChild(this.steam);
-    this.hits = [{ id: 'lamp', rect: geo.lamp.rect, shape: renderer ? lampShape(renderer, T, geo) : undefined }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }];
+    this.hits = [{ id: 'lamp', rect: geo.lamp.rect, shape: renderer ? lampShape(renderer, T, geo) : undefined }, { id: 'blind', rect: { x: w.x, y: w.y, w: w.w, h: w.h } }, { id: 'clock', rect: geo.clock }];
     this.frame(0, 0, true);
   }
 

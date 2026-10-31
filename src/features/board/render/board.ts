@@ -89,7 +89,7 @@ const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'm
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
   || id === 'router' || id === 'wall' || id === 'cable.lan' || id === 'cable.pcmains' || id === 'cable.monmains' || id === 'socket' || /^eth\d+$/.test(id)
   // the room's props (the lamp and the blind) answer a click at any zoom
-  || id === 'lamp' || id === 'blind';
+  || id === 'lamp' || id === 'blind' || id === 'clock';
 
 /** The routed cables of the current board tier (geometry only): rebuilt with the scene. */
 let ALL_CABLES = buildCables();

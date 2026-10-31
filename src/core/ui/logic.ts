@@ -338,8 +338,9 @@ function describeOs(id: string): Description | null {
 }
 
 /** Words for the room's clickable props (the lamp and the window blind: scenery, `src/render/room/room.ts`). */
-const ROOM_TIPS: Record<'lamp' | 'blind', { title: string; plain: string }> = {
+const ROOM_TIPS: Record<'lamp' | 'blind' | 'clock', { title: string; plain: string }> = {
   lamp: { title: 'Desk lamp', plain: 'Click to switch it on or off. It does nothing for the machine, but the room is cosier with it.' },
+  clock: { title: 'Wall clock', plain: 'The time of day in the room.' },
   blind: { title: 'Window blind', plain: 'Click to pull the blind down or up. Outside, the day goes round while the machine runs.' },
 };
 
@@ -349,7 +350,7 @@ const ROOM_TIPS: Record<'lamp' | 'blind', { title: string; plain: string }> = {
  */
 export function describeId(id: string, s?: Snapshot | null): Description | null {
   // the room's props (the lamp and the window blind) are scenery that answers a click
-  if (id === 'lamp' || id === 'blind') return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
+  if (id === 'lamp' || id === 'blind' || id === 'clock') return { ...ROOM_TIPS[id], nerd: 'scenery: no effect on the machine' };
   const fanCable = describeFanCable(id, s);
   if (fanCable) return fanCable;
   const net = describeNet(id, s);

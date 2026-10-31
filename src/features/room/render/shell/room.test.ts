@@ -252,11 +252,11 @@ describe('the clickable props', () => {
 });
 
 describe.each([0, 1, 2, 3])('RoomView at case tier %i', (t) => {
-  it.each([DARK, LIGHT])('builds in either theme, exposes its two hits and runs through a day', (T) => {
+  it.each([DARK, LIGHT])('builds in either theme, exposes its three hits and runs through a day', (T) => {
     setLayoutTier(t, t);
     const v = new RoomView(T);
     expect(v.root.children.length).toBeGreaterThan(3);
-    expect(v.hits.map((h) => h.id).sort()).toEqual(['blind', 'lamp']);
+    expect(v.hits.map((h) => h.id).sort()).toEqual(['blind', 'clock', 'lamp']);
     for (const h of v.hits) expect(inside(h.rect, roomBox(v.geo))).toBe(true);
     for (let k = 0; k < 24; k++) v.frame(k * (DAY_S * 1000) / 24, 16);
     roomState.blind = true; roomState.lamp = false;
