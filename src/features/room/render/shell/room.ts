@@ -420,7 +420,7 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   // the desk mat, the keyboard and the mouse, in front of the monitor's foot (`peripherals.ts`: turned a few degrees, on the desk top in perspective; drawn on the over layer, above the monitor)
   const mcx = MONITOR.x + MONITOR.w / 2;
   drawMat(o, T, D, mcx); drawKeyboard(o, T, L, D, mcx); drawMouse(o, T, L, D, mcx);
-  // the mug in the gap between the monitor and the case (`mug.ts`: seen from a little above, a coaster, a tapered body with a band of little towers, a handle, the coffee; the steam is live)
+  // the mug in the gap between the monitor and the case (`mug.ts`: seen from a little above, a coaster, a tapered body with a chip die printed on it, a handle, the coffee; the steam is live)
   const mx = geo.mug;
   drawMug(o, T.dark, mx, ys, L.cork);
   // the lamp at the desk's very west end: a weighted base, a lower arm that leans back, an elbow, an upper arm forward over the desk and the hood (the glow is live)
