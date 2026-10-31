@@ -2,7 +2,7 @@ import { Container, Graphics, type Text } from 'pixi.js';
 import type { StorageSnap } from '../../sim/game/types';
 import { box, label, mix } from '../ink';
 import type { Theme } from '../theme';
-import { DiskMotion } from './disklive';
+import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../die/diepulse';
 import type { Rect } from '../die/cpuplan';
 import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { accentOf, diskStatic, drawArch, drawBar, drawMap, type ArchLive, type DataCtx } from './diskart';
@@ -19,10 +19,11 @@ import { cardCandidates, cardText } from './lodcard';
 // and, for the drives nearest the view centre (the shared counter budget), the extent list, a legend by owner, the wear and the queue. A drive that is not
 // mounted shows its data dimmed; a burnt one shows every dataset lost. Data moves as packets along the links while the drive is busy.
 
-const hashOf = (id: string): number => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 97; return h; };
 const [FADE_FROM, FADE_TO] = DEVICE_LOD.disk.fade, TEXT_Z = DEVICE_LOD.disk.text, DETAIL_Z = DEVICE_LOD.disk.detail, ARCH_Z = DEVICE_LOD.disk.arch;
 /** Ticks the head arm takes to ease to a new track (a time constant, in seconds). */
 const HEAD_EASE = 0.12;
+/** How often a busy drive sends another packet (ms), and how long one takes along a link. */
+const PACKET_EVERY_MS = 520, PACKET_MS = 380;
 const TEXT_LINES = 26;
 
 export interface DiskScene { slot: string; deviceId: string; kind: DriveKind; body: Rect }
@@ -52,9 +53,9 @@ interface DriveView {
   snap: StorageSnap | null;
   cells: Cell[];
   head: number;
-  /** The motion of the cutaway: the spin, the sweeps, the cursors and the packets (disklive.ts). */
-  motion: DiskMotion;
-  liveG: Graphics;
+  packets: Packet[];
+  trails: Map<string, Trail>;
+  nextPacket: number;
   sig: string;
   panelSig: string;
 }
@@ -87,8 +88,7 @@ export class DiskView {
     // an invisible rectangle gives the node its bounds (the LoD places it by them)
     const hit = new Graphics().rect(0, 0, w, h).fill({ color: '#000000', alpha: 0 });
     const mapG = new Graphics(), dataG = new Graphics(), trailG = new Graphics(), packetG = new Graphics(), bar = new Graphics(), panel = new Container(), panelG = new Graphics();
-    const liveG = new Graphics();
-    arch.addChild(art.blocks, art.near.wires, dataG, liveG, trailG, packetG, art.near.names, art.near.subs);
+    arch.addChild(art.blocks, art.near.wires, dataG, trailG, packetG, art.near.names, art.near.subs);
     cut.addChild(art.far, mapG, arch);
     panel.addChild(panelG);
     const texts: Text[] = [];
@@ -102,7 +102,7 @@ export class DiskView {
     this.root.addChild(root);
     return {
       slot: s.slot, deviceId: s.deviceId, kind: s.kind, body: s.body, plan, root, bar, cut, mapG, arch, dataG, trailG, packetG, names: art.near.names, subs: art.near.subs, panel, panelG, texts,
-      snap: null, cells: [], head: 0, motion: new DiskMotion(hashOf(s.deviceId)), liveG, sig: '', panelSig: '',
+      snap: null, cells: [], head: 0, packets: [], trails: new Map(), nextPacket: 0, sig: '', panelSig: '',
     };
   }
 
@@ -112,10 +112,7 @@ export class DiskView {
 
   /** The newest storage snapshots. */
   update(storage: readonly StorageSnap[] | undefined): void {
-    for (const d of this.drives) {
-      d.snap = storage?.find((s) => s.deviceId === d.deviceId) ?? null;
-      if (d.snap) d.motion.note(d.snap);
-    }
+    for (const d of this.drives) d.snap = storage?.find((s) => s.deviceId === d.deviceId) ?? null;
   }
 
   /** The drives in view that want their counters, for the detail budget (live.ts). */
@@ -152,7 +149,7 @@ export class DiskView {
       d.subs.alpha = da * arch;
       d.panel.visible = showDetail;
       d.panel.alpha = da;
-      this.redraw(T, d, s, wdt, showDetail, arch > 0.02);
+      this.redraw(T, d, s, dt, showDetail, arch > 0.02);
     }
   }
 
@@ -174,7 +171,7 @@ export class DiskView {
       drawArch(d.dataG, T, d.kind, d.plan, d.cells, x, live);
       if (s.burnt) this.cross(T, d);
     }
-    if (archOn) { d.motion.step(dt); d.motion.draw(d.liveG, d.trailG, d.packetG, T, d.kind, d.plan, s, d.head); }
+    if (archOn) this.flow(T, d, s);
     if (detail) this.counters(T, d, s);
   }
 
@@ -182,6 +179,27 @@ export class DiskView {
   private cross(T: Theme, d: DriveView): void {
     const { w, h } = d.plan;
     d.mapG.moveTo(w * 0.2, h * 0.2).lineTo(w * 0.8, h * 0.8).moveTo(w * 0.8, h * 0.2).lineTo(w * 0.2, h * 0.8).stroke({ width: h * 0.04, color: T.bad, alpha: 0.85, cap: 'round' });
+  }
+
+  /** Data packets along the links while the drive is busy: from the host to the controller, then to the die (or the preamp) the command is on. */
+  private flow(T: Theme, d: DriveView, s: StorageSnap): void {
+    if (!s.busy) { d.packets = []; d.trails.clear(); }
+    else if (this.now >= d.nextPacket) {
+      d.nextPacket = this.now + PACKET_EVERY_MS;
+      const cell = Math.min(d.cells.length - 1, Math.floor(s.headLba / CELL_BLOCKS)), accent = accentOf(T, d.kind);
+      const hops = d.plan.platter ? ['iface-ctrl', 'ctrl-pre'] : ['iface-ctrl', d.plan.dies.length ? `ch${d.plan.dies.findIndex((x) => cell >= x.slice.first && cell < x.slice.first + x.slice.count)}` : ''];
+      hops.forEach((id, i) => {
+        const l = d.plan.links.find((x) => x.id === id) ?? (id.startsWith('ch') ? d.plan.links.find((x) => x.id === id.replace(/^ch(\d+)$/, (_m, n: string) => (Number(n) >= 4 ? `ch${Number(n) - 4}b` : `ch${n}`))) : undefined);
+        if (!l) return;
+        const { packet, trail } = packetOn({ id: l.id, lanes: l.lanes, pts: l.pts }, false, this.now + i * PACKET_MS * 0.7, PACKET_MS, i === 0 ? T.alu : accent);
+        d.packets.push(packet);
+        d.trails.set(l.id, trail);
+      });
+    }
+    d.trailG.clear();
+    d.packetG.clear();
+    drawTrails(d.trailG, d.trails, this.now, 1);
+    d.packets = drawPackets(d.packetG, d.packets, this.now, 1, T.ink);
   }
 
   /** The counter tier: the extent list, the legend by owner, the wear and the queue. */
