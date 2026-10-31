@@ -272,13 +272,15 @@ export class EdgeFan extends Container {
     const { x, y, w, h } = this.r, g = this.g, T = this.T, vertical = this.vertical, L = vertical ? h : w, S = vertical ? w : h, m = Math.min(70, S * 0.26);
     this.key = `${level.toFixed(2)}`;
     g.clear();
-    for (let t = 90 - BLADE + this.phase; t < L - 70; t += BLADE) {
-      if (t < 60) continue;
+    const pad = Math.min(60, L * 0.14); // the end margin: a short slab (a heatsink's fan) keeps blades and rails, they do not vanish
+    for (let t = pad + 30 - BLADE + this.phase; t < L - pad - 10; t += BLADE) {
+      if (t < pad) continue;
       if (vertical) g.moveTo(x + m, y + t + 22).lineTo(x + w - m, y + t - 22);
       else g.moveTo(x + t + 22, y + m).lineTo(x + t - 22, y + h - m);
     }
     g.stroke({ width: 10, color: T.mute, alpha: 0.22 + 0.18 * level, cap: 'round' });
-    if (vertical) g.rect(x + 20, y + 70, 8, h - 140).rect(x + w - 28, y + 70, 8, h - 140); else g.rect(x + 70, y + 20, w - 140, 8).rect(x + 70, y + h - 28, w - 140, 8);
+    const e = pad + 10;
+    if (vertical) g.rect(x + 20, y + e, 8, h - 2 * e).rect(x + w - 28, y + e, 8, h - 2 * e); else g.rect(x + e, y + 20, w - 2 * e, 8).rect(x + e, y + h - 28, w - 2 * e, 8);
     g.fill({ color: T.alu, alpha: 0.16 + 0.6 * level });
   }
 }

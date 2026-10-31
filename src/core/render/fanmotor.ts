@@ -40,6 +40,14 @@ export class FanMotor {
   }
 }
 
+/** The liquid loop's water now (`board.loop` of the snapshot, written by live.ts): the board's coolant overlay reads it. Null with no loop. */
+export interface LoopWater { coolantC: number; hotC: number; coldC: number; flow: number }
+let water: LoopWater | null = null;
+export const loopBank = {
+  set(w: LoopWater | null) { water = w; },
+  get(): LoopWater | null { return water; },
+};
+
 const speeds = new Map<string, number>();
 /** The speed each fan has right now, by id (`case:front0`, `cooler`, `radiator:top1`, `vrm`, `ramvrm`, `psu`, `gpu:pcie0`). Written by the views that own the fans. */
 export const fanBank = {

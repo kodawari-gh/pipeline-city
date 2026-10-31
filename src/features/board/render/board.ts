@@ -647,6 +647,7 @@ export async function mountBoard(host: HTMLElement) {
         const p = coolerArt(T, spec as CoolerSpec, radFit);
         coolerLayer.addChild(p.root); parts.push(p);
         if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
+        if (p.flow) fans.push({ c: p.flow, kind: 'cooler' }); // the water runs as fast as the pump turns
         coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'radiator') {

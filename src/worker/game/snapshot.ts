@@ -190,7 +190,7 @@ export function boardSnap(this: Game): BoardSnap {
     vrmSink: sink ? this.deviceSnap(sink) : null,
     ramVrm: rail(t.ramVrm, rv, ramSink),
     ramSink: ramSink ? this.deviceSnap(ramSink) : null,
-    loop: this.thermal.loopSide ? { coolantC: this.thermal.loopC, rejectW: this.thermal.loopRejectW, side: this.thermal.loopSide } : null,
+    loop: this.thermal.loopSide ? { coolantC: this.thermal.loopC, rejectW: this.thermal.loopRejectW, side: this.thermal.loopSide, flow: this.thermal.loopFlow, hotC: this.thermal.loopHotC, coldC: this.thermal.loopColdC } : null,
     air: AIR_ZONES.map((id) => ({ id, flow: this.thermal.air[id].flow, fans: this.thermal.air[id].fans, riseC: this.thermal.air[id].riseC })),
   };
 }

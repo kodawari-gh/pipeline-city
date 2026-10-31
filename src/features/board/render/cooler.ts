@@ -6,6 +6,7 @@ import { EdgeFan, type FanMount } from '../../room/render/desk/props/case';
 import { blades, type Part } from './devices';
 import { roundedPath } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
+import { loopBank } from '@/core/render/fanmotor';
 
 // The CPU cooler (docs/render/board.md "Cooler"): three looks on the same mounting plate (`COOLER`), which is the hit area, the empty-slot
 // outline and where the fan cable plugs in. The stock cooler is a round aluminium heatsink with radial vanes and a small fan; the tower is
@@ -163,6 +164,59 @@ export function tubeRoutes(f: RadiatorFit, a: Pt, b: Pt): [Pt[], Pt[]] {
   return [[a, [a[0], yHigh], [xa, yHigh], [xa, t0[1]], t0], [b, [b[0], yLow], [xb, yLow], [xb, t1[1]], t1]];
 }
 
+const COLD_WATER = '#3fa9ff', HOT_WATER = '#ff6a3d';
+/** The colour of water at `c` degrees: blue at the room temperature, orange at 70. */
+export const waterColor = (c: number): string => mix(COLD_WATER, HOT_WATER, Math.max(0, Math.min(1, (c - 25) / 45)));
+
+/**
+ * The water in a loop's two tubes, over the sleeves: a tint of the water's temperature (`loopBank`: the hot tube leaves the pump for the radiator, the cold one
+ * comes back) and drops that travel along them, as fast as the pump turns. The live layer drives it like a fan (`spin`, fed the pump's speed).
+ */
+export class CoolantFlow extends Container {
+  private g = new Graphics();
+  private phase = 0;
+  private paths: { pts: Pt[]; at: number[]; len: number; hot: boolean }[];
+  constructor(routes: [Pt[], Pt[]]) {
+    super();
+    this.addChild(this.g);
+    this.paths = routes.map((r, i) => {
+      const pts = roundedPath(r, 170), at = [0];
+      for (let k = 1; k < pts.length; k++) at.push(at[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
+      return { pts, at, len: at[at.length - 1]!, hot: i === 0 };
+    });
+    this.draw();
+  }
+  spin(d: number) {
+    this.phase += d * 140;
+    this.draw();
+  }
+  /** The point `s` along a path. */
+  private pointAt(p: { pts: Pt[]; at: number[]; len: number }, s: number): Pt {
+    let k = 1;
+    while (k < p.at.length - 1 && p.at[k]! < s) k++;
+    const a = p.pts[k - 1]!, b = p.pts[k]!, span = (p.at[k]! - p.at[k - 1]!) || 1, t = Math.max(0, Math.min(1, (s - p.at[k - 1]!) / span));
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+  private draw() {
+    const g = this.g, w = loopBank.get();
+    g.clear();
+    for (const p of this.paths) {
+      if (p.len < 1) continue;
+      const col = waterColor(w ? (p.hot ? w.hotC : w.coldC) : 25);
+      g.moveTo(p.pts[0]![0], p.pts[0]![1]);
+      for (const q of p.pts.slice(1)) g.lineTo(q[0], q[1]);
+      g.stroke({ width: 36, color: col, alpha: w && w.flow > 0.05 ? 0.6 : 0.3, join: 'round', cap: 'round' });
+      if (!w || w.flow < 0.05) continue;
+      // drops: the hot tube runs from the pump to the radiator, the cold one the other way
+      const gap = 230, n = Math.max(1, Math.floor(p.len / gap)), loopLen = n * gap;
+      for (let k = 0; k < n; k++) {
+        const s = ((((this.phase + k * gap) % loopLen) + loopLen) % loopLen) / loopLen * p.len, [x, y] = this.pointAt(p, p.hot ? s : p.len - s);
+        g.circle(x, y, 13).fill({ color: mix(col, '#ffffff', 0.45), alpha: 0.9 });
+      }
+    }
+  }
+}
+
 /** The round fan (or the loop's pump impeller) of the stock cooler and the loop: its blade length and count. The art and the airflow lens both read these. */
 export const COOLER_FANS = { stock: { r: 300, blades: 7 }, liquid: { r: 360, blades: 5 } } as const;
 
@@ -189,7 +243,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   g.roundRect(c.x, c.y, c.w, c.h, 60).fill(lgrad(mix(m.metal, '#ffffff', T.dark ? 0.08 : 0.25), mix(m.lo, '#000000', T.dark ? 0.2 : 0.05), [1, 1])).stroke({ width: 10, color: mix(T.line, accent, 0.6) });
   g.rect(c.x + 60, c.y + 12, c.w - 120, 8).fill(lit);
 
-  let fr = 0, nBlades = 0, bezel = 0, fanAt: Pt = [cx, cy];
+  let fr = 0, nBlades = 0, bezel = 0, fanAt: Pt = [cx, cy], flow: CoolantFlow | undefined;
   if (kind === 'stock') {
     // an aluminium heatsink: a ring of radial vanes round a small fan
     const R = 630;
@@ -234,6 +288,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
       const [ta, tb] = tubeRoutes(rad, [cx - 120, -520], [cx + 120, -520]);
       tube(g, T, ta, accent);
       tube(g, T, tb, accent);
+      flow = new CoolantFlow([ta, tb]);
     }
     disc(g, cx + 12, cy + 20, 548, { fill: '#000000', fa: 0.35 });
     g.circle(cx, cy, 548).fill(rgrad(m.hi, m.lo, [0.38, 0.32], 0.75)).stroke({ width: 8, color: accent, alpha: 0.8 });
@@ -262,7 +317,8 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   disc(hub, 0, 0, 22, { fill: accent });
   if (kind === 'liquid') hub.ellipse(-150, -190, 240, 90).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.22 });
   root.addChild(hub);
-  return { root, fan };
+  if (flow) root.addChild(flow);
+  return { root, fan, ...(flow ? { flow } : {}) };
 }
 
 /** A picture of the part for a shop tile: the cooler alone, or for the loop the pump with its tubes and a radiator above it. */

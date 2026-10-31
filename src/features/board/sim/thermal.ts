@@ -118,6 +118,11 @@ export const LOOP_BLOCK_K = 60;
 const LOOP_SUBSTEPS = 12;
 /** Joules per degree C of the coolant in the loop (one base tick = 1 s): it warms up and cools down slowly. */
 export const LOOP_MASS = 120;
+/** W per degree C the water carries at full flow (flow x specific heat): the heat the block hands over divided by this is how much the water warms crossing it. */
+export const LOOP_FLOW_CP = 30;
+/** How fast the flow follows the pump (share of the gap per tick) and the most the water warms crossing the block, C. */
+const LOOP_FLOW_EASE = 0.4;
+const LOOP_MAX_RISE_C = 30;
 /** W per degree C each turning case fan adds to every part's own cooling (airflow through the case). */
 export const CASE_FAN_K = 0.01;/** A heatsink with a fan whose fan is not plugged in still works as fins: this share of its cooling is left. */
 export const UNFANNED_SHARE = 0.5;
@@ -134,6 +139,11 @@ export class ThermalModel {
   loopC = AMBIENT_C;
   /** Heat the radiator gives to the air now, W (last tick). */
   loopRejectW = 0;
+  /** The pump's flow, 0 (still) to 1 (full): it eases toward the pump's state (the cable in, the machine on). */
+  loopFlow = 0;
+  /** The water going from the block to the radiator and the water coming back from it (C); both sit at the room temperature with no loop. */
+  loopHotC = AMBIENT_C;
+  loopColdC = AMBIENT_C;
   /** Which side of the case the radiator that does it is on (null: no loop or no radiator). */
   loopSide: "front" | "top" | null = null;
   /** The case's air by area, last tick (airflow.ts). */
@@ -160,6 +170,9 @@ export class ThermalModel {
     this.ramVrm = freshVrm();
     this.loopC = AMBIENT_C;
     this.loopRejectW = 0;
+    this.loopFlow = 0;
+    this.loopHotC = AMBIENT_C;
+    this.loopColdC = AMBIENT_C;
     this.power = { ...this.power, tripped: false };
   }
 
@@ -321,14 +334,22 @@ export class ThermalModel {
       if (st.stress >= DAMAGE_TICKS && !d.burnt) d.burnt = true;
     }
     // the coolant: what the block brought in less what the radiator gave away
+    let blockW = 0;
     if (loop) {
       for (let sub = 0; sub < LOOP_SUBSTEPS; sub++) for (const c of cpus) {
         const q = (blockK * (c.st.tempC - this.loopC)) / LOOP_SUBSTEPS;
         c.st.tempC -= q / c.mass;
         this.loopC += q / LOOP_MASS;
+        blockW += q;
       }
       this.loopC -= rejectW / LOOP_MASS;
     } else this.loopC = AMBIENT_C;
+    // the water's way round: the pump's flow eases up and down with its power; the heat the block hands over this tick warms the water that crosses it, so
+    // the hot leg (block to radiator) and the cold leg (radiator to block) sit either side of the bulk coolant by half the rise each (heat / (flow x CP))
+    this.loopFlow = loop ? this.loopFlow + ((pumping ? 1 : 0) - this.loopFlow) * LOOP_FLOW_EASE : 0;
+    const carried = Math.max(0, blockW), rise = this.loopFlow > 0.05 ? Math.min(LOOP_MAX_RISE_C, carried / (LOOP_FLOW_CP * this.loopFlow)) : 0;
+    this.loopHotC = loop ? this.loopC + rise / 2 : AMBIENT_C;
+    this.loopColdC = loop ? this.loopC - rise / 2 : AMBIENT_C;
     this.loopRejectW = rejectW;
     this.loopSide = loop && radFit ? radSide : null;
     // both regulators sit in the north area, with the processor and the memory

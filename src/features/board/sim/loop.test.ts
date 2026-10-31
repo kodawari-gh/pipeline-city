@@ -62,6 +62,26 @@ describe("the liquid loop", () => {
     expect(t.th.loopSide).toBe("top");
   });
 
+  it("the water leaves the block hotter than it comes back from the radiator, and the pump's flow follows its power", () => {
+    const b = rig("rad2"), { th } = settle(b, fansOf(b, 3), 600);
+    expect(th.loopFlow).toBeGreaterThan(0.95);
+    expect(th.loopHotC).toBeGreaterThan(th.loopColdC);
+    expect(th.loopC).toBeGreaterThan(th.loopColdC);
+    expect(th.loopC).toBeLessThan(th.loopHotC);
+    const off = settle(rig("rad2"), fansOf(b, 3, false), 60);
+    expect(off.th.loopFlow).toBeLessThan(0.05); // no pump cable: nothing moves, both legs sit at the bulk
+    expect(off.th.loopHotC).toBeCloseTo(off.th.loopColdC, 6);
+    const slow = new ThermalModel(new Prng(1));
+    slow.step(b, { cpu: 1 }, true, fansOf(b, 3));
+    expect(slow.loopFlow).toBeGreaterThan(0.3); // it eases up from still: not full on the first tick
+    expect(slow.loopFlow).toBeLessThan(0.6);
+  });
+
+  it("a weak radiator leaves the returning water hotter than a strong one", () => {
+    const slim = rig("rad1"), thick = rig("rad2");
+    expect(settle(slim, fansOf(slim, 3)).th.loopColdC).toBeGreaterThan(settle(thick, fansOf(thick, 3)).th.loopColdC);
+  });
+
   it("an air cooler has no coolant and no loop; the machine switched off lets the coolant cool down", () => {
     const b = createBoard(2);
     for (const s of ["cpu1", "ram0", "display0", "cooler1", "psu2"]) expect(install(b, s).ok).toBe(true);

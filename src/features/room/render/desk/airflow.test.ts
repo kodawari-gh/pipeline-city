@@ -78,7 +78,7 @@ describe('the airflow lens model', () => {
   });
 
   it('a liquid loop names the radiator heat and the coolant, and says a front radiator warms the case', () => {
-    const base = running(60, [], { board: boardSnap({ loop: { coolantC: 41, rejectW: 120, side: 'front' } }) });
+    const base = running(60, [], { board: boardSnap({ loop: { coolantC: 41, rejectW: 120, side: 'front', flow: 1, hotC: 46, coldC: 36 } }) });
     base.radiator = { side: 'front', ids: base.mounts.filter((m) => m.side === 'front').map((m) => m.id), rect: base.mounts.find((m) => m.side === 'front')!.rect };
     const tag = airflowModel(base).tags.find((t) => t.id === 'loop');
     expect(tag?.text).toContain('RAD 120 W');

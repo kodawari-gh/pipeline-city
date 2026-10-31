@@ -220,7 +220,7 @@ export function airflowModel(i: AirIn): AirModel {
   // the liquid loop: what the radiator gives to the air and how warm the coolant is (a front radiator warms the case with it, a top one blows it out)
   const loop = s.board?.loop, radMount = loop ? mounts.find((m) => m.id === `rad-${loop.side}`) : undefined;
   if (loop && radMount && running) {
-    tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c' });
+    tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.flow < 0.05 ? ' · PUMP OFF' : ` · IN ${deg(loop.hotC)} OUT ${deg(loop.coldC)}`}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c' });
   }
   for (const z of zones) {
     if (z.id === 'psu') continue;
