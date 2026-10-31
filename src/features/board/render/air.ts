@@ -1,8 +1,8 @@
 import { clampHeat, type AirFan, type AirHeat, type AirSource } from '@/core/render/airsource';
 import { getSpec } from '../sim/specs';
-import { CASE, GEO, PSU, PSU_FAN, RAM_SINK, REAR_FAN, VRM_SINK } from './layout/layout';
+import { CASE, GEO, PSU, PSU_UNIT, RAM_SINK, REAR_FAN, VRM_SINK } from './layout/layout';
 import { sinkFanAt } from './layout/pins';
-import { sinkFanRect } from './devices';
+import { psuFanRect, sinkFanRect } from './devices';
 
 /**
  * The board and what hangs on it: the PSU (heat from its load: the sim has no PSU heat), the two voltage regulators (one shape per fitted phase,
@@ -30,8 +30,10 @@ export const boardAir: AirSource = {
     const out: AirFan[] = [];
     if (c.s.devices.some((d) => d.kind === 'psu')) {
       // the PSU draws air from under the case, through its shroud, and blows it out the rear (west) wall's grille
-      const f = PSU_FAN, below = CASE.y + CASE.h + 700, exit = REAR_FAN.x - 700;
-      out.push({ id: 'psu', rect: PSU, rotor: { x: f.x, y: f.y, r: f.r, blades: 7 }, path: [[f.x, below], [f.x, f.y], [f.x - 500, f.y], [exit + 400, f.y], [exit, f.y]] });
+      // the case is seen from the side: the fan sits in the PSU's bottom face, so it shows edge-on (a slab along the floor), not as a round face
+      const below = CASE.y + CASE.h + 700, exit = REAR_FAN.x - 700;
+      const slab = psuFanRect(), fx = slab.x + slab.w / 2, y = PSU_UNIT.y + PSU_UNIT.h * 0.55;
+      out.push({ id: 'psu', rect: PSU, edge: [slab], path: [[fx, below], [fx, slab.y + slab.h], [fx, y], [fx - 500, y], [exit + 400, y], [exit, y]] });
     }
     for (const [id, kind, rect] of [['vrm', 'vrm-sink', VRM_SINK], ['ramvrm', 'ram-sink', RAM_SINK]] as const) {
       const d = c.s.devices.find((x) => x.kind === kind);

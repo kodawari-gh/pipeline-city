@@ -4,6 +4,7 @@ import {
   DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
   type Rect,
 } from './layout/layout';
+import { EdgeFan } from '../../room/render/desk/props/case';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
 import { sinkFanAt } from './layout/pins';
@@ -207,6 +208,9 @@ const SINK_BLADE = 34;
 // (the cooler and the AIO's radiator are in cooler.ts)
 
 // ---------------------------------------------------------------- PSU (below the board)
+/** The PSU fan seen edge-on: a slab in the unit's bottom face (it draws air up from under the case). */
+export const psuFanRect = (): Rect => ({ x: PSU_UNIT.x + 300, y: PSU_UNIT.y + PSU_UNIT.h - 190, w: 2 * PSU_FAN.r, h: 110 });
+
 /**
  * The power supply as the case holds it: the PSU unit at the east end (fan grill, label with the rated watts, the output sockets on its
  * top edge, the power switch), and beside it, along the rest of the bottom, the shroud that hides the cables: vents, a brand stripe
@@ -254,26 +258,15 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   box(g, u.x, u.y, u.w, u.h, 40, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
   g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
   for (const sx of [u.x + 56, u.x + u.w - 56]) for (const sy of [u.y + 56, u.y + u.h - 56]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.5 });
-  // fan grill (blades spin underneath the static grill)
-  const fc = PSU_FAN;
-  disc(g, fc.x, fc.y, fc.r + 70, { fill: T.die, stroke: T.line, lw: 9 });
-  const fan = new Container();
-  fan.position.set(fc.x, fc.y);
-  const fg = new Graphics();
-  disc(fg, 0, 0, fc.r + 20, { fill: T.dot });
-  blades(fg, 7, 60, fc.r, T.tile, accent, 5);
-  fan.addChild(fg);
+  // the intake fan: it sits in the unit's bottom face, so this side view shows it edge-on (a housing along the floor); the blades slide along it
+  const slab = psuFanRect();
+  box(g, slab.x - 20, slab.y - 20, slab.w + 40, slab.h + 40, 24, { fill: T.die, stroke: T.line, lw: 8 });
+  box(g, slab.x, slab.y, slab.w, slab.h, 16, { fill: T.dot, stroke: accent, lw: 5, sa: 0.7 });
+  const fan = new EdgeFan(slab, T);
   root.addChild(fan);
-  const grill = new Graphics();
-  grill.position.set(fc.x, fc.y);
-  for (const rr of [120, 220, 320, 420]) grill.circle(0, 0, rr);
-  grill.stroke({ width: 7, color: T.mute, alpha: 0.5 });
-  for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; grill.moveTo(Math.cos(a) * 70, Math.sin(a) * 70).lineTo(Math.cos(a) * 440, Math.sin(a) * 440); }
-  grill.stroke({ width: 5, color: T.mute, alpha: 0.35 });
-  disc(grill, 0, 0, 70, { fill: T.tile, stroke: accent, lw: 7 });
-  disc(grill, 0, 0, 22, { fill: accent });
-  const over = new Container();
-  over.addChild(grill);
+  // the rest of the unit above it is closed metal: a few slits on its upper half, and the intake arrows below
+  for (let k = 0; k < 5; k++) g.moveTo(u.x + 330, u.y + 110 + k * 60).lineTo(u.x + 1130, u.y + 110 + k * 60);
+  g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.6 });
   // label plate: model and rated capacity, and the efficiency badge
   {
     const l = PSU_LABEL;
@@ -287,9 +280,6 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
     disc(g, l.x + l.w - 110, l.y + 640, 62, { stroke: accent, lw: 6, sa: 0.8 });
     labels.addChild(label('80+', l.x + l.w - 110, l.y + 640, 40, accent, { head: true, anchor: [0.5, 0.5] }));
   }
-  // vent slots along the unit's bottom edge
-  for (let k = 0; k < 6; k++) g.moveTo(u.x + 140 + k * 40, u.y + u.h - 150).lineTo(u.x + 140 + k * 40, u.y + u.h - 70);
-  g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
   // output sockets on the top edge: where the cables plug in
   const sockets: Array<readonly [number, number, string]> = [...PSU_PORTS.pcie.slice(0, spec.pcieLeads).map((x, k) => [x, 76, `P${k + 1}`] as const), [PSU_PORTS.atx, 170, 'ATX 24'], [PSU_PORTS.cpu, 130, 'CPU 8']];
   for (const [x, w, name] of sockets) {
@@ -303,7 +293,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   g.rect(u.x + 148, u.y + u.h - 222, 74, 74).fill({ color: T.mute, alpha: 0.6 });
   labels.addChild(label('I/O', u.x + 185, u.y + u.h - 66, 32, T.mute, { anchor: [0.5, 0.5] }));
   root.addChild(labels);
-  return { root, fan, over };
+  return { root, fan };
 }
 
 /**
