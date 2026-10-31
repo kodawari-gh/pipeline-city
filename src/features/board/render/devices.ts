@@ -1,14 +1,15 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
-  DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER,
+  DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
   type Rect,
 } from './layout/layout';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
 import { sinkFanAt } from './layout/pins';
 import { hdmiPlug, rj45Plug } from './layout/ports';
-import { isPcieKind, looseCable, movablePlug, offsetLine, type Cable, type Plug } from './wiring/routes';
+import { isPcieKind, looseCable, movablePlug, type Cable, type Plug } from './wiring/routes';
+import { paintCable, paintTie, tiePoints } from '@/core/render/cable';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -447,52 +448,34 @@ export function drawPlug(g: Graphics, T: Theme, p: Plug, accent: string, host: b
   g.rect(bx, by, horiz ? 26 : r.w, horiz ? r.h : 26).fill({ color: accent, alpha: 0.85 });
 }
 
-/** A fat sleeved cable with plugs at both ends. Static; the glow lives in Live. */
+/** A fat sleeved cable with plugs at both ends, tied along its run. Static; the glow lives in Live. */
 export function cableArt(T: Theme, c: Cable): Part {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const pts = c.path.pts, w = c.w, accent = ACCENT(T, c.kind);
-  const sleeve = T.dark ? '#171d29' : '#2a313d';
-  const line = (list: [number, number][]) => { g.moveTo(list[0]![0], list[0]![1]); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0], list[i]![1]); };
-  // drop shadow, sleeve, braid, highlight
-  line(pts.map(([x, y]) => [x + 10, y + 14] as [number, number]));
-  g.stroke({ width: w + 8, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-  const outside = c.kind === 'video' && T.dark; // the video cable runs over the wall: a pale rim keeps it readable on the dark slats
-  if (outside) { line(pts); g.stroke({ width: w * 2, color: '#8fa3d6', alpha: 0.1, cap: 'round', join: 'round' }); line(pts); g.stroke({ width: w * 1.4, color: '#8fa3d6', alpha: 0.2, cap: 'round', join: 'round' }); }
-  line(pts); g.stroke({ width: w, color: outside ? '#2a3554' : sleeve, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: accent, alpha: 0.12, cap: 'round', join: 'round' });
-  // braid: short diagonal ticks across the sleeve
-  for (let i = 2; i < pts.length - 2; i += 2) {
-    const a = pts[i - 1]!, b = pts[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
-    const nx = -dy / l, ny = dx / l, tx = dx / l, ty = dy / l, h = w * 0.46;
-    g.moveTo(pts[i]![0] + nx * h - tx * w * 0.16, pts[i]![1] + ny * h - ty * w * 0.16).lineTo(pts[i]![0] - nx * h + tx * w * 0.16, pts[i]![1] - ny * h + ty * w * 0.16);
+  const pts = c.path.pts, w = c.w, accent = ACCENT(T, c.kind), wall = c.kind === 'video';
+  paintCable(g, T, pts, { w, accent, wall, braid: !wall });
+  if (!wall) {
+    // the ties: one round every lead at the same heights in the gutter, one at the turn along the top, one on a long run
+    const x = c.a.x, top = Math.min(...pts.map((p) => p[1]));
+    for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) paintTie(g, T, [x, y], [0, 1], w, accent);
+    for (const t of tiePoints(pts.filter((p) => p[1] <= top + 1), 1800, 500)) paintTie(g, T, t.at, t.dir, w, accent);
   }
-  g.stroke({ width: Math.max(3, w * 0.05), color: '#ffffff', alpha: T.dark ? 0.1 : 0.14 });
-  line(offsetLine(pts, -w * 0.24)); g.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.1 : 0.16, cap: 'round', join: 'round' });
-  line(offsetLine(pts, w * 0.3)); g.stroke({ width: w * 0.1, color: '#000000', alpha: 0.22, cap: 'round', join: 'round' });
-  const shape = c.kind === 'video' ? 'hdmi' : 'power';
-  drawPlug(g, T, c.a, accent, c.kind === 'video', shape);
-  if (c.kind !== 'video') drawPlug(g, T, c.b, accent, true, shape); // (the video cable's other end is inside the monitor)
+  const shape = wall ? 'hdmi' : 'power';
+  drawPlug(g, T, c.a, accent, wall, shape);
+  if (!wall) drawPlug(g, T, c.b, accent, true, shape); // (the video cable's other end is inside the monitor)
   return { root };
 }
 
-/** An unplugged cable: a short stub from the PSU socket / monitor port ending in a loose plug lying at rest. */
+/** An unplugged cable: the lead hanging from its socket (or the monitor's cable) and its plug lying loose, on the roof of the PSU. */
 export function looseCableArt(T: Theme, c: Cable): Part {
   const root = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const lo = looseCable(c), pts = lo.path.pts, w = c.w * (c.kind === 'video' ? 1 : 0.62), accent = ACCENT(T, c.kind);
-  const sleeve = T.dark ? '#171d29' : '#2a313d';
-  const line = (list: [number, number][]) => { g.moveTo(list[0]![0], list[0]![1]); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0], list[i]![1]); };
-  line(pts.map(([x, y]) => [x + 8, y + 12] as [number, number]));
-  g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-  const outside = c.kind === 'video' && T.dark;
-  if (outside) { line(pts); g.stroke({ width: w * 2, color: '#8fa3d6', alpha: 0.1, cap: 'round', join: 'round' }); line(pts); g.stroke({ width: w * 1.4, color: '#8fa3d6', alpha: 0.2, cap: 'round', join: 'round' }); }
-  line(pts); g.stroke({ width: w, color: outside ? '#2a3554' : sleeve, cap: 'round', join: 'round' });
-  line(pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
-  const shape = c.kind === 'video' ? 'hdmi' : 'power';
-  if (c.kind !== 'video') drawPlug(g, T, c.a, accent, false, shape); // (a video cable comes out of the monitor: no plug there)
+  const lo = looseCable(c), wall = c.kind === 'video', w = c.w * (wall ? 1 : 0.62), accent = ACCENT(T, c.kind);
+  paintCable(g, T, lo.path.pts, { w, accent, wall, braid: !wall });
+  const shape = wall ? 'hdmi' : 'power';
+  if (!wall) drawPlug(g, T, c.a, accent, false, shape); // (a video cable comes out of the monitor: no plug there)
   drawPlug(g, T, lo.plug, accent, true, shape);
   void movablePlug;
   return { root };

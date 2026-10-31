@@ -10,6 +10,7 @@ import { BD, CASE, PLUG_L, PLUG_W, type Rect } from '../../features/board/render
 import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from '../../features/room/render/desk/props/props';
 import { roomClick } from '../../features/room/render/shell/room';
 import type { Shape } from './shape';
+import { paintCable } from './cable';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from '../../features/board/render/wiring/routes';
 import type { Theme } from './theme';
 
@@ -753,11 +754,7 @@ export class Interact {
       }
       const end: Pt = [tip[0] + Math.cos(ang) * PLUG_L, tip[1] + Math.sin(ang) * PLUG_L];
       const pts = rubberBand(lan.anchor, lan.anchorDir, end);
-      const sleeve = T.dark ? '#171d29' : '#2a313d';
-      const line = (list: Pt[], dx = 0, dy = 0) => { g.moveTo(list[0]![0] + dx, list[0]![1] + dy); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0] + dx, list[i]![1] + dy); };
-      line(pts, 8, 12); g.stroke({ width: 44, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-      line(pts); g.stroke({ width: 38, color: sleeve, cap: 'round', join: 'round' });
-      line(pts); g.stroke({ width: 11, color: accent, alpha: 0.5, cap: 'round', join: 'round' });
+      paintCable(g, T, pts, { w: 38, accent, wall: true });
       this.ghost.position.set(tip[0], tip[1]);
       this.ghost.rotation = ang;
       this.ghost.scale.set(1);
@@ -785,11 +782,7 @@ export class Interact {
       const end: Pt = [tip[0] + Math.cos(ang) * l, tip[1] + Math.sin(ang) * l];
       const pts = rubberBand(lo.anchor, lo.anchorDir, end);
       const w = cab.w * (ci.kind === 'video' ? 1 : 0.62);
-      const sleeve = T.dark ? '#171d29' : '#2a313d';
-      const line = (list: Pt[], dx = 0, dy = 0) => { g.moveTo(list[0]![0] + dx, list[0]![1] + dy); for (let i = 1; i < list.length; i++) g.lineTo(list[i]![0] + dx, list[i]![1] + dy); };
-      line(pts, 8, 12); g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-      line(pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
-      line(pts); g.stroke({ width: w, color: accent, alpha: 0.16, cap: 'round', join: 'round' });
+      paintCable(g, T, pts, { w, accent, wall: ci.kind === 'video', braid: ci.kind !== 'video' });
       // the fixed plug at the PSU socket / monitor port
       const fixed: Plug = ci.kind === 'video' ? cab.b : cab.a;
       if (ci.kind !== 'video') drawPlug(g, T, fixed, accent, false, 'power'); // (a video cable is built into the monitor: nothing to draw there)

@@ -111,6 +111,8 @@ export let PSU_PORTS: { pcie: number[]; atx: number; cpu: number } = { pcie: [35
 /** The PSU's four PCIe sockets are this far apart; the PSU draws as many as its spec has leads (`PsuSpec.pcieLeads`). */
 export const PCIE_PORT_PITCH = 90;
 export let PORT_Y = PSU.y;
+/** The heights (world y) of the ties round the PSU leads where they climb the gutter together: they line up across the leads, and the cable duct's clips sit under them. */
+export const gutterTieYs = () => [PORT_Y - 760, PORT_Y - 1640, PORT_Y - 2520];
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
 /** The monitor is drawn and laid out at its design size (3300 x 1995, screen 3120 x 1755) and scaled by this factor: a 24 inch monitor (about as wide as the case is deep) next to the case. */

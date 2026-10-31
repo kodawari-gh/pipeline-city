@@ -3,13 +3,14 @@ import { box, disc, label, lgrad, mix, rgrad } from '@/core/render/ink';
 import { TIER_GEO, geoOf } from '@/features/board/render/layout/boardlayout';
 import {
   BAY, BAY_CELLS, BR, CASE_BD, CASE, COOLER, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, FAN_HUB, FAN_SLOT, FAN_W, GEO, HUB_POWER_Y, LAYOUT_CASE, LAYOUT_TIER, PC_POWER, POWER_BTN, POWER_LEAD_X, PSU, REAR_FAN, REAR_FAN_FITTED, SATA_LINK, TOP_FANS, WALL_T,
-  sataPort, type Rect,
+  sataPort, gutterTieYs, PORT_Y, PSU_PORTS, type Rect,
 } from '@/features/board/render/layout/layout';
 import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
 import { sinkFanAt } from '@/features/board/render/layout/pins';
 import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
+import { paintCable, paintTie, sleeveOf, tiePoints } from '@/core/render/cable';
 
 // The PC case: a thin low-contrast chassis around the board and the PSU, a quiet glass side, the top panel (brand, vents,
 // status lights, the power button sits on it) and the SATA drive cage with the cables that serve it. Everything here is static
@@ -70,6 +71,7 @@ export function caseBack(T: Theme): Container {
     const gx = BD.x + BD.w;
     box(g, gx + 20, -1750, 70, 1500, 35, { fill: cav, stroke: edge, lw: 4, sa: 0.6 });
     for (const [x, y] of standoffs()) standoff(g, T, x, y, wall, edge);
+    cableDuct(g, T, cav, wall, edge);
   }
   frontFans(g, T, cav, wall, edge);
   rearWall(g, T, cav, wall, edge);
@@ -81,6 +83,25 @@ export function caseBack(T: Theme): Container {
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   void POWER_BTN; void LAYOUT_TIER;
   return root;
+}
+
+/**
+ * The cable duct beside the board: a channel up the gutter from the PSU's sockets to the top edge, a lane for the PSU leads (visual only: a plate
+ * of the tray's tone, a rail down each side) with a clip base at every height the leads are tied (`gutterTieYs`: the ties are drawn over the leads).
+ * Its top turns west as a gutter along the top of the case where the 8-pin lead runs.
+ */
+function cableDuct(g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
+  const xs = [...PSU_PORTS.pcie, PSU_PORTS.atx, PSU_PORTS.cpu], x0 = Math.min(...xs) - 150, x1 = Math.max(...xs) + 150, y0 = GEO.bd.y - 250, y1 = PORT_Y - 30;
+  const tone = mix(cav, wall, T.dark ? 0.22 : 0.4);
+  box(g, x0 + 10, y0 + 16, x1 - x0, y1 - y0, 40, { fill: '#000000', fa: T.dark ? 0.26 : 0.1 });
+  box(g, x0, y0, x1 - x0, y1 - y0, 40, { fill: tone, stroke: edge, lw: 5, sa: 0.6 });
+  for (const rx of [x0 + 26, x1 - 38]) g.rect(rx, y0 + 40, 12, y1 - y0 - 80).fill({ color: edge, alpha: 0.5 });
+  // the clip bases: a plate across the duct with its screws, under each tie
+  for (const y of gutterTieYs()) {
+    if (y < y0 + 200 || y > y1 - 300) continue;
+    box(g, x0 + 20, y - 34, x1 - x0 - 40, 68, 14, { fill: mix(tone, '#000000', 0.25), stroke: edge, lw: 4, sa: 0.7 });
+    for (const sx of [x0 + 60, x1 - 60]) disc(g, sx, y, 14, { fill: mix(wall, T.bg, 0.5), stroke: edge, lw: 3, sa: 0.7 });
+  }
 }
 
 /**
@@ -152,11 +173,11 @@ const plugTone = (T: Theme) => (T.dark ? '#1b2230' : '#2c3442');
 
 /** The fan hub on the case floor, the stubs of the fans' cables and the hub's cables up into the slot in the tray. */
 function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: string, edge: string) {
-  const h = FAN_HUB, sl = FAN_SLOT, sleeve = sleeveOf(T), pcb = mix(cav, wall, 0.25);
+  const h = FAN_HUB, sl = FAN_SLOT, pcb = mix(cav, wall, 0.25);
   // the fans' cable stubs: a plug on the fan, a short sleeve into the gap, where it goes behind the tray
   for (const f of fanStubs()) {
     const x1 = f.x + f.dx * 74, y1 = f.y + f.dy * 74;
-    g.moveTo(f.x, f.y).lineTo(x1, y1).stroke({ width: 22, color: sleeve, cap: 'round' });
+    paintCable(g, T, [[f.x, f.y], [x1, y1]], { w: 22, accent: T.mul });
     const pw = f.dx ? 40 : 48, ph = f.dx ? 48 : 40;
     box(g, f.x - (f.dx ? 6 : pw / 2), f.y - (f.dy ? 6 : ph / 2), pw, ph, 6, { fill: plugTone(T), stroke: T.mul, lw: 3, sa: 0.8 });
     disc(g, x1 + f.dx * 8, y1 + f.dy * 8, 12, { fill: '#05070b', stroke: edge, lw: 3, sa: 0.7 });
@@ -185,8 +206,7 @@ function fanHub(root: Container, g: Graphics, T: Theme, cav: string, wall: strin
   for (let k = 0; k < 4; k++) g.rect(h.x + 52 + k * 20, h.y + 22, 10, 16);
   g.fill({ color: T.pin, alpha: 0.7 });
   const py = HUB_POWER_Y, x0 = PSU.x + PSU.w;
-  g.moveTo(x0 + 6, py).lineTo(h.x - 20, py).stroke({ width: 30, color: sleeve, cap: 'round' });
-  g.moveTo(x0 + 6, py).lineTo(h.x - 20, py).stroke({ width: 30, color: T.ld, alpha: 0.16, cap: 'round' });
+  paintCable(g, T, [[x0 + 6, py], [h.x - 20, py]], { w: 30, accent: T.ld });
   box(g, x0 - 14, py - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // the PSU's second socket
   box(g, h.x - 56, py - 50, 64, 100, 8, { fill: plugTone(T), stroke: T.ld, lw: 4, sa: 0.85 });
   // the lighting side: three addressable-LED outputs along the bottom edge and a USB header, a few passives round the controller
@@ -433,7 +453,7 @@ export function plugBox(g: Graphics, T: Theme, x: number, y: number, w: number, 
   box(g, x, y, w, h, 8, { fill: T.dark ? '#1b2230' : '#2c3442', stroke: accent, lw: 4, sa: 0.85 });
 }
 
-export const sleeveOf = (T: Theme) => (T.dark ? '#171d29' : '#2a313d');
+export { sleeveOf };
 export const lineOf = (g: Graphics, list: Pt[]) => { g.moveTo(list[0]![0], list[0]![1]); for (let k = 1; k < list.length; k++) g.lineTo(list[k]![0], list[k]![1]); };
 
 /** The data cable for the drive in cage cell i: the sleeve, the plug on the drive and the plug in the board's port. Sits under the PSU cables. */
@@ -442,11 +462,8 @@ export function sataLinkArt(T: Theme, i: number): Container {
   const g = new Graphics();
   root.addChild(g);
   const c = BAY_CELLS[i]!, lane = sataCablePath(i), pts = lane.pts, w = SATA_CABLE_W, L = SATA_LINK[i]!;
-  const sleeve = sleeveOf(T);
-  lineOf(g, pts.map(([x, y]) => [x + 7, y + 10] as Pt)); g.stroke({ width: w + 6, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
-  lineOf(g, pts); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
-  lineOf(g, pts); g.stroke({ width: w, color: T.mul, alpha: 0.2, cap: 'round', join: 'round' });
-  lineOf(g, pts); g.stroke({ width: w * 0.2, color: '#ffffff', alpha: T.dark ? 0.08 : 0.14, cap: 'round', join: 'round' });
+  paintCable(g, T, pts, { w, accent: T.mul });
+  for (const t of tiePoints(pts, 1700, 500)) paintTie(g, T, t.at, t.dir, w, T.mul);
   plugBox(g, T, c.x - 82, c.y + L.plug - 34, 76, 68, T.mul); // drive end
   const e = pts[pts.length - 1]!;
   plugBox(g, T, e[0] - 86, e[1] - 36, 86, 72, T.mul); // board end (plugs west into the port)
@@ -462,18 +479,16 @@ export function sataPowerArt(T: Theme, cells: number[]): Container {
   if (!cells.length) return root;
   const g = new Graphics();
   root.addChild(g);
-  const sleeve = sleeveOf(T), k = driveScale(), x0 = PSU.x + PSU.w, ys = PSU.y + PSU.h / 2, X = POWER_LEAD_X;
+  const k = driveScale(), x0 = PSU.x + PSU.w, ys = PSU.y + PSU.h / 2, X = POWER_LEAD_X;
   const py = (i: number) => BAY_CELLS[i]!.y + 359 * k;
   const top = Math.min(...cells.map(py));
   const trunk: Pt[] = [[x0, ys], [X, ys], [X, top]];
   const path = roundedPath(trunk, 60, 30);
-  lineOf(g, path.map(([x, y]) => [x + 6, y + 9] as Pt)); g.stroke({ width: 44, color: '#000000', alpha: 0.26, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 38, color: sleeve, cap: 'round', join: 'round' });
-  lineOf(g, path); g.stroke({ width: 38, color: T.ld, alpha: 0.16, cap: 'round', join: 'round' });
+  paintCable(g, T, path, { w: 38, accent: T.ld });
+  for (const t of tiePoints(path, 1500, 400)) paintTie(g, T, t.at, t.dir, 38, T.ld);
   for (const i of cells) {
     const c = BAY_CELLS[i]!, y = py(i);
-    lineOf(g, [[X, y], [c.x - 78, y]]); g.stroke({ width: 30, color: sleeve, cap: 'round' });
-    lineOf(g, [[X, y], [c.x - 78, y]]); g.stroke({ width: 30, color: T.ld, alpha: 0.16, cap: 'round' });
+    paintCable(g, T, [[X, y], [c.x - 78, y]], { w: 30, accent: T.ld });
     plugBox(g, T, c.x - 86, y - 56, 80, 112, T.ld);
   }
   box(g, x0 - 14, ys - 46, 36, 92, 8, { fill: '#05070b', stroke: T.ld, lw: 4, sa: 0.6 }); // socket on the PSU's east face

@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { MONITOR_POWER, PC_CORD_X, PC_POWER, type Rect } from '../layout/layout';
 import { roundedPath } from './routes';
+import { hangCable, paintCable, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { CordScene, SceneInfo } from '@/core/render/interact';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import type { Theme } from '@/core/render/theme';
@@ -48,6 +49,23 @@ export function cordRoute(plan: CordPlan, at: Pt): Pt[] {
   return [...plan.route, [at[0], at[1] - CORD_END]];
 }
 
+/** How long the loose part of a cord is: from where its run ends to its plug at rest, with slack (it hangs between them, and a plug that falls swings on it). */
+export const cordSlack = (plan: CordPlan) => {
+  const a = plan.route[plan.route.length - 1]!, b: Pt = [plan.rest[0], plan.rest[1] - CORD_END];
+  return Math.hypot(b[0] - a[0], b[1] - a[1]) * 1.15 + 260;
+};
+
+/**
+ * The cord's drawn path with its plug centred at `at`: seated, the plan's route straight down into the boot; otherwise the route's run, then the
+ * rest of the cord hanging from where the run ends to the boot, as long as `cordSlack` says.
+ */
+export function cordPath(plan: CordPlan, at: Pt, seated: boolean): Pt[] {
+  if (seated) return roundedPath(cordRoute(plan, at), 170);
+  const head = roundedPath(plan.route, 170), n = head.length, a = head[n - 1]!, b = head[n - 2] ?? a, l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+  const boot: Pt = [at[0], at[1] - CORD_END];
+  return [...head, ...hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 }).slice(1)];
+}
+
 export interface CordHit { id: string; rect: Rect }
 
 export class CordsView {
@@ -61,6 +79,9 @@ export class CordsView {
   private T!: Theme;
   private plan: Record<CordKind, CordPlan> | null = null;
   private key = '';
+  /** Plugs let go in the air fall and swing on their cord until they lie at rest. */
+  private falls = new Map<CordKind, Fall>();
+  private prevHeld: { kind: CordKind; at: Pt } | null = null;
   private last: { connected: Record<CordKind, boolean>; held: { kind: CordKind; at: Pt } | null } | null = null;
   /** Changes whenever a cord's state or a plug's place does (the power lens rebuilds its model on it). */
   get stateKey() { return this.key; }
@@ -68,7 +89,18 @@ export class CordsView {
   constructor() { this.behind.addChild(this.gb); this.root.addChild(this.gf); }
 
   /** A new room (theme, case tier): the plan is rebuilt and everything redrawn. */
-  setRoom(T: Theme, geo: RoomGeo) { this.T = T; this.plan = cordPlan(geo); this.key = ''; }
+  setRoom(T: Theme, geo: RoomGeo) { this.T = T; this.plan = cordPlan(geo); this.key = ''; this.falls.clear(); this.prevHeld = null; }
+
+  /** Advance the plugs that fell out of the hand (call every frame; it redraws only while one moves). */
+  tick(dt: number) {
+    if (!this.falls.size || !this.plan || !this.last) return;
+    for (const [k, f] of this.falls) {
+      const pl = this.plan[k];
+      stepFall(f, dt, pl.route[pl.route.length - 1]!, cordSlack(pl) + CORD_END, pl.rest);
+      if (f.done) this.falls.delete(k);
+    }
+    this.draw(this.last.connected, this.last.held);
+  }
 
   /**
    * Draw the cords for this state and fill the shared scene (`scene.cords`, the `socket` and the cord rects). `connected` is what the
@@ -77,7 +109,10 @@ export class CordsView {
   sync(connected: Record<CordKind, boolean>, held: { kind: CordKind; at: Pt } | null, scene: SceneInfo, plate: Rect): boolean {
     const plan = this.plan;
     if (!plan) return false;
-    const key = CORD_KINDS.map((k) => (held?.kind === k ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : connected[k] ? 'c' : 'l')).join('|');
+    if (this.prevHeld && this.prevHeld.kind !== held?.kind && !connected[this.prevHeld.kind]) this.falls.set(this.prevHeld.kind, startFall(this.prevHeld.at));
+    for (const k of CORD_KINDS) if (connected[k] || held?.kind === k) this.falls.delete(k);
+    this.prevHeld = held ? { kind: held.kind, at: [held.at[0], held.at[1]] } : null;
+    const key = this.falls.size + '|' + CORD_KINDS.map((k) => (held?.kind === k ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : connected[k] ? 'c' : 'l')).join('|');
     scene.rects.set('socket', plate);
     scene.cords = CORD_KINDS.map((k) => {
       const pl = plan[k], isHeld = held?.kind === k, at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : pl.rest;
@@ -105,20 +140,15 @@ export class CordsView {
     const plan = this.plan!, T = this.T, gb = this.gb, gf = this.gf;
     gb.clear(); gf.clear();
     for (const k of CORD_KINDS) {
-      const pl = plan[k], isHeld = held?.kind === k, at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : pl.rest;
-      this.cord(isHeld ? gf : gb, cordRoute(pl, at), T);
-      this.plug(gf, at, T, connected[k] && !isHeld);
+      const pl = plan[k], isHeld = held?.kind === k, fall = this.falls.get(k), seated = connected[k] && !isHeld;
+      const at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : fall ? fall.p : pl.rest;
+      this.cord(isHeld ? gf : gb, cordPath(pl, at, seated), T);
+      this.plug(gf, at, T, seated);
     }
   }
 
-  private cord(g: Graphics, route: Pt[], T: Theme, w = 70) {
-    const rim = T.dark ? '#7d8bb0' : '#8d99b4', sleeve = T.dark ? '#0a0d15' : '#232a38';
-    const pts = roundedPath(route, 170);
-    const line = (dx = 0, dy = 0) => { g.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
-    line(10, 14); g.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-    line(); g.stroke({ width: w + 10, color: rim, alpha: T.dark ? 0.32 : 0.0, cap: 'round', join: 'round' });
-    line(); g.stroke({ width: w, color: sleeve, cap: 'round', join: 'round' });
-    line(-w * 0.22, 0); g.stroke({ width: w * 0.12, color: '#ffffff', alpha: T.dark ? 0.16 : 0.12, cap: 'round', join: 'round' });
+  private cord(g: Graphics, pts: Pt[], T: Theme, w = 70) {
+    paintCable(g, T, pts, { w, accent: T.mute, wall: true });
   }
 
   /** The wall plug seen from its back: the same drawing the baked room used to carry (a body with grip ridges and the boot the cord enters). */

@@ -1,3 +1,4 @@
+import { hangCable } from '@/core/render/cable';
 import { DIMM_H0, ioPort, type TierGeo } from '../layout/boardlayout';
 import { serpentine, type SerpOpts } from '../layout/match';
 import {
@@ -687,28 +688,26 @@ export function looseCable(c: Cable): Loose {
     const route: Pt[] = [[sx, sy], [sx, VIDEO_RUN_Y], [-3880, VIDEO_RUN_Y], [-3880, y], [-3580 - 220 + 8, y]];
     return { path: mkLane(roundedPath(route, 90)), plug, anchor: [sx, sy], anchorDir: [0, 1] };
   }
-  const x = c.a.x;
-  const w = Math.round(movablePlug(c).w * LOOSE_SCALE), l = 150;
-  const top = c.kind === 'atx' ? 1800 : c.kind === 'cpu' ? 2200 : 1450;
-  const plug: Plug = { x, y: top, dx: 0, dy: 1, w, l, pins: movablePlug(c).pins };
-  const route: Pt[] = [[x, PORT_Y - 130 + 20], [x, top + l - 6]];
-  return { path: mkLane(roundedPath(route, 1)), plug, anchor: [x, PORT_Y - 130 + 20], anchorDir: [0, -1] };
+  // the lead leaves its socket upward, arcs over and falls onto the roof of the PSU: the plug stands there on its pin face (the cable leaving
+  // it upward), the plugs side by side west of the sockets in the order of `LOOSE_ORDER`; the cable lies along the roof where it has slack
+  const x = c.a.x, w = looseWidth(c.kind, movablePlug(c).w), l = 150;
+  let px = PSU_PORTS.pcie[0]! - 200;
+  for (const k of LOOSE_ORDER) { const kw = looseWidth(k, k === 'atx' ? GEO.atx.h - 60 : k === 'cpu' ? GEO.cpw.w - 60 : 96); px -= kw / 2; if (k === c.kind) break; px -= kw / 2 + 40; }
+  const py = PORT_Y - LOOSE_FLOOR;
+  const plug: Plug = { x: px, y: py, dx: 0, dy: -1, w, l, pins: movablePlug(c).pins };
+  const anchor: Pt = [x, PORT_Y - 130 + 20], end: Pt = [px, py - l + 8];
+  const d = Math.hypot(end[0] - anchor[0], end[1] - anchor[1]);
+  return { path: mkLane(hangCable(anchor, [0, -1], end, { len: d * 1.18 + 160, stub: 110, n: 40, floor: PORT_Y - LOOSE_FLOOR - c.w * 0.31 })), plug, anchor, anchorDir: [0, -1] };
 }
 
-/** Sag cubic from the fixed end to the pointer, sampled; the cable the player stretches while dragging a plug. */
-export function rubberBand(anchor: Pt, anchorDir: Pt, tip: Pt, steps = 28): Pt[] {
-  const dx = tip[0] - anchor[0], dy = tip[1] - anchor[1], d = Math.hypot(dx, dy);
-  const lead = Math.min(520, d * 0.45 + 80);
-  const p1: Pt = [anchor[0] + anchorDir[0] * lead, anchor[1] + anchorDir[1] * lead];
-  const sag = Math.min(260, d * 0.12);
-  const p2: Pt = [tip[0] - dx * 0.22, tip[1] - dy * 0.22 + sag];
-  const out: Pt[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, u = 1 - t;
-    out.push([
-      u * u * u * anchor[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * tip[0],
-      u * u * u * anchor[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * tip[1],
-    ]);
-  }
-  return out;
+/** A loose plug's width: its seated plug's, scaled (`LOOSE_SCALE`). */
+const looseWidth = (_k: CableKind, seated: number) => Math.round(seated * LOOSE_SCALE);
+
+/** The roof of the PSU is where a loose lead lies: its plug's clearance above it, and the left to right order of the plugs on it (nearest the sockets first). */
+const LOOSE_FLOOR = 6;
+export const LOOSE_ORDER: readonly CableKind[] = ['cpu', 'atx', 'pcie', 'pcie2', 'pcie3', 'pcie4'];
+
+/** The cable from its fixed end to a plug at `tip`, hanging under gravity (`hangCable`: a stub, then a catenary); the cable the player stretches while dragging a plug. */
+export function rubberBand(anchor: Pt, anchorDir: Pt, tip: Pt, steps = 28, len?: number): Pt[] {
+  return hangCable(anchor, anchorDir, tip, { n: steps, ...(len ? { len } : {}) });
 }

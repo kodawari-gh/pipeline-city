@@ -13,6 +13,7 @@ import { portProfile } from '../../board/render/layout/ports';
 import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
+import { hangCable, paintCable } from '@/core/render/cable';
 import type { Shape } from '@/core/render/shape';
 
 // The network props (docs/render/net.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
@@ -191,8 +192,6 @@ export function nicPlateLeds(i: number): Pt2[] { return nicLeds(i); }
 // ---------------------------------------------------------------- the view
 
 type LanState = 'connected' | 'loose' | 'held';
-/** The sleeve of a cable that runs over the wall in the dark theme, and the pale rim round it. */
-const SLEEVE_DARK = '#2a3554', RIM_DARK = '#8fa3d6';
 type Light = [string | null, number];
 
 export interface NetHit { id: string; rect: Rect; more?: Rect[]; shape?: Shape }
@@ -293,13 +292,8 @@ export class NetView {
     this.art.addChild(wallBox);
     reg('wall', WALL_PLATE);
 
-    const cable = (pts: Pt[], w: number, col: string, a = 1, gg: Graphics = g) => {
-      const line = (dx = 0, dy = 0) => { gg.moveTo(pts[0]![0] + dx, pts[0]![1] + dy); for (let i = 1; i < pts.length; i++) gg.lineTo(pts[i]![0] + dx, pts[i]![1] + dy); };
-      line(8, 12); gg.stroke({ width: w + 6, color: '#000000', alpha: 0.28, cap: 'round', join: 'round' });
-      if (T.dark) { line(); gg.stroke({ width: w * 2, color: RIM_DARK, alpha: 0.1 * a, cap: 'round', join: 'round' }); line(); gg.stroke({ width: w * 1.4, color: RIM_DARK, alpha: 0.2 * a, cap: 'round', join: 'round' }); } // a cable over the dark wall: a pale halo keeps it readable
-      line(); gg.stroke({ width: w, color: T.dark ? SLEEVE_DARK : '#2a313d', cap: 'round', join: 'round', alpha: a });
-      line(); gg.stroke({ width: w * 0.28, color: col, alpha: 0.5 * a, cap: 'round', join: 'round' });
-    };
+    // (the cables run over the wall: `paintCable` with the wall look, the same sleeve as the PC's mains cords and the video cable)
+    const cable = (pts: Pt[], w: number, col: string, gg: Graphics = g) => paintCable(gg, T, pts, { w, accent: col, wall: true });
 
     // the ISP line: from the wall jack under the desk down a little, along, and up behind the desk, the riser and the monitor to the router's WAN socket
     // (a thin lead; the body is in `behind`, under the desk and the monitor, the plugs here)
@@ -309,7 +303,7 @@ export class NetView {
       this.isp = mkLane(roundedPath(route, 120));
       const gb = new Graphics();
       this.behind.addChild(gb);
-      cable(this.isp.pts, 26, T.mute, 1, gb);
+      cable(this.isp.pts, 26, T.mute, gb);
       drawPlug(g, T, { x: wx, y: WALL_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
       drawPlug(g, T, { x: rx, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
     }
@@ -318,7 +312,8 @@ export class NetView {
     if (this.router) {
       const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y + PLUG_L - 10];
       drawPlug(g, T, { x: lx, y: SHELF_Y, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false, 'rj45');
-      const restPlug: Plug = { x: ROUTER_EAST + 320, y: CABLE_ROW_Y + 60, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
+      // at rest the plug hangs from its cable by its own weight (pins down), a little east of the router
+      const restPlug: Plug = { x: ROUTER_EAST + 320, y: CABLE_ROW_Y + 60 + 760 + PLUG_L, dx: 0, dy: -1, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
       let plug: Rect = plugRect(restPlug), seated: Pt | null = null;
       const jack = lanState === 'connected' ? jacks.find((j) => j.id === portId) : undefined;
       if (lanState === 'connected' && jack) {
@@ -332,8 +327,8 @@ export class NetView {
         const more = laneRects(this.lan, 36);
         this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more });
       } else if (lanState === 'loose') {
-        const route: Pt[] = [tail, [lx, CABLE_ROW_Y + 60], [restPlug.x - restPlug.l + 8, CABLE_ROW_Y + 60]];
-        const stub = mkLane(roundedPath(route, 70));
+        const end: Pt = [restPlug.x, restPlug.y - restPlug.l + 8], d = Math.hypot(end[0] - tail[0], end[1] - tail[1]);
+        const stub = mkLane(hangCable(tail, [0, 1], end, { len: d * 1.15 + 200, stub: 70, n: 36 }));
         cable(stub.pts, 38, accent);
         drawPlug(g, T, restPlug, accent, false, 'rj45');
         this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more: laneRects(stub, 36) });

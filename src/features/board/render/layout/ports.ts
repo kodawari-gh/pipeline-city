@@ -7,6 +7,7 @@
 
 import type { Graphics } from 'pixi.js';
 import { box, mix } from '@/core/render/ink';
+import { sleeveOf } from '@/core/render/cable';
 import type { IoPort } from './pins';
 import type { Theme } from '@/core/render/theme';
 
@@ -170,7 +171,7 @@ export function rj45Plug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
   g.stroke({ width: 4, color: T.pin, alpha: 0.85 });
   const [kx, ky, kw, kh] = L.rect(p.l * 0.16, -p.w / 2 - 8, p.l * 0.5, -p.w / 2);                                      // the latch clip on top
   box(g, kx, ky, kw, kh, 3, { fill: mix(body, T.bg, 0.45), stroke: m.rim, lw: 3, sa: 0.8 });
-  lit(g, T, L, p.l * 0.6, -p.w * 0.46, p.l, p.w * 0.46, 10, T.dark ? '#171d29' : '#2a313d', accent, 0.9);              // the boot
+  lit(g, T, L, p.l * 0.6, -p.w * 0.46, p.l, p.w * 0.46, 10, sleeveOf(T), accent, 0.9);              // the boot (the sleeve's colour)
 }
 
 /** The socket in the monitor's flank that the HDMI plug enters: a metal stub standing out of the bezel, its opening facing east. */
