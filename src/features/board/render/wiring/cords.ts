@@ -4,6 +4,7 @@ import { drape, hangCable, paintCable, paintClip, type Clip, startFall, stepFall
 import type { CordScene, SceneInfo } from '@/core/render/interact';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import { deskGeo } from '@/features/room/render/shell/persp';
+import { plugPoly } from '@/features/room/render/shell/swiss';
 import type { Theme } from '@/core/render/theme';
 
 // The two cords from the wall: the PC's (from the inlet in the case's rear wall) and the monitor's (built into it). Each ends in a plug that
@@ -174,13 +175,13 @@ export class CordsView {
   private plug(g: Graphics, at: Pt, T: Theme, seated: boolean) {
     const [x, y] = at, body = T.dark ? '#141a26' : '#262d3a', rim = T.dark ? '#5b6a94' : '#6b7794';
     const lift = seated ? 0 : 1; // a plug that is out stands a little proud: a longer shadow
-    // a Swiss plug (type J) seen from its back: a rounded body (nearly a circle at the corners) with a collar, two finger grooves and the boot the cord enters
-    g.roundRect(x - 260 + 14 + 10 * lift, y - 270 + 20 + 16 * lift, 520, 540, 200).fill({ color: '#000000', alpha: 0.3 });
-    g.roundRect(x - 260, y - 270, 520, 540, 200).fill({ color: body }).stroke({ width: 8, color: rim, alpha: 0.8 });
-    g.roundRect(x - 205, y - 215, 410, 430, 150).stroke({ width: 5, color: rim, alpha: 0.4 }); // the collar
-    g.roundRect(x - 150, y - 235, 300, 56, 28).fill({ color: '#ffffff', alpha: T.dark ? 0.09 : 0.22 }); // the lit top
-    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.roundRect(x + sx * 218 - 8, y - 100 + k * 90, 16, 54, 8).fill({ color: '#ffffff', alpha: 0.1 });
-    g.circle(x, y + 20, 70).fill({ color: '#ffffff', alpha: 0.05 }).stroke({ width: 4, color: rim, alpha: 0.35 });
-    g.roundRect(x - 90, y - 330, 180, 90, 30).fill({ color: body }).stroke({ width: 6, color: rim, alpha: 0.6 }); // the boot
+    // a Swiss plug (type J) seen from its back: a flat top, corners at mid height and a chamfered bottom (the outlet's outline), a collar, finger grooves and the boot the cord enters
+    const body2 = T.dark ? '#d6dae6' : '#f2f3f7', shade = T.dark ? '#aab1c4' : '#d3d7e2';
+    g.poly(plugPoly(x + 14 + 10 * lift, y + 20 + 16 * lift)).fill({ color: '#000000', alpha: 0.3 });
+    g.poly(plugPoly(x, y)).fill({ color: body2 }).stroke({ width: 7, color: shade, alpha: 0.95 });
+    g.poly(plugPoly(x, y + 4)).stroke({ width: 4, color: '#ffffff', alpha: 0.5 });
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.roundRect(x + sx * 168 - 7, y - 80 + k * 80, 14, 48, 7).fill({ color: shade, alpha: 0.8 });
+    g.circle(x, y + 20, 46).fill({ color: shade, alpha: 0.7 }).stroke({ width: 4, color: '#ffffff', alpha: 0.4 }); // the fixing screw
+    g.roundRect(x - 90, y - 330, 180, 130, 36).fill({ color: body2 }).stroke({ width: 6, color: shade, alpha: 0.9 }); // the boot
   }
 }

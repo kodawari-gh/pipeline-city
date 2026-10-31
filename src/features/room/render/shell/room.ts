@@ -12,6 +12,7 @@ import { captureShape } from '@/core/render/capture';
 import { drawPlant, drawRug } from './decor';
 import { drawKeyboard, drawMat, drawMouse, KEYBOARD, keyboardPlacer } from '../desk/peripherals';
 import { drawDesk, drawDeskShadow, drawUnderDesk } from '../desk/desk';
+import { HOLES, recessPoly } from './swiss';
 import { deskGeo, roomPersp, S_FRONT, spreadX, spreadY, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from '@/core/render/shape';
 import {
@@ -216,23 +217,20 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
   // the PC: the plug in the rear wall's inlet; the cord leaves its tail, turns down and falls straight to its outlet (the plate is set so that the outlet is right under it)
   const pcPlug = { x: PC_POWER.x - 6, y: PC_POWER.y, dx: -1, dy: 0, w: 190, l: 330 };
   acPlug(back, T, pcPlug); // (the cord itself, and the plugs in the wall, are live: `cords.ts`)
-  // the socket: a plate with two outlets
-  const plate = T.dark ? '#7b86a8' : '#f4f6fb', edge = T.dark ? '#b3bddb' : '#a8b3cc';
-  front.roundRect(p.x + 14, p.y + 20, p.w, p.h, 50).fill({ color: '#000000', alpha: 0.3 });
-  front.roundRect(p.x, p.y, p.w, p.h, 50).fill({ color: plate }).stroke({ width: 8, color: edge, alpha: 0.8 });
-  front.roundRect(p.x + 24, p.y + 20, p.w - 48, 50, 24).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.5 });
-  // Swiss (type J) outlets: a rounded-square recess the plug's body sits in, with a bevel
+  // the socket: two Swiss outlets, each on a square white plate with rounded corners, a round collar and the shield-shaped recess with its three round holes and the fixing screw
+  const plate = T.dark ? '#c3c9d8' : '#f6f7fa', edge = T.dark ? '#e3e7f1' : '#c3c9d6', hollow = T.dark ? '#a8afc1' : '#e4e7ee', hole = '#1b1f2a';
   for (const o of [s.mon, s.pc]) {
-    front.roundRect(o.x - 296, o.y - 306, 592, 612, 215).fill({ color: mix(plate, '#000000', 0.18) }).stroke({ width: 6, color: edge, alpha: 0.5 });
-    front.roundRect(o.x - 270, o.y - 280, 540, 560, 195).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.12 : 0.5 });
-  }
-  for (const sx of [p.x + 70, p.x + p.w - 70]) { front.circle(sx, p.y + p.h / 2, 24).fill({ color: mix(plate, '#000000', 0.3) }); front.moveTo(sx - 14, p.y + p.h / 2).lineTo(sx + 14, p.y + p.h / 2).stroke({ width: 5, color: edge, alpha: 0.7 }); }
-  // each outlet's three round holes (line and neutral side by side, the earth hole below between them): the plug (cords.ts) covers them while it is in
-  for (const o of [s.mon, s.pc]) {
-    for (const [dx, dy] of [[-95, -50], [95, -50], [0, 110]] as const) {
-      front.circle(o.x + dx, o.y + dy, 40).fill({ color: mix(plate, '#000000', 0.7) }).stroke({ width: 6, color: edge, alpha: 0.55 });
-      front.circle(o.x + dx - 8, o.y + dy - 10, 14).fill({ color: '#000000', alpha: 0.35 });
-    }
+    const q = 310;
+    front.roundRect(o.x - q + 14, o.y - q + 22, 2 * q, 2 * q, 110).fill({ color: '#000000', alpha: 0.3 });
+    front.roundRect(o.x - q, o.y - q, 2 * q, 2 * q, 110).fill({ color: plate }).stroke({ width: 6, color: edge, alpha: 0.9 });
+    front.roundRect(o.x - q + 20, o.y - q + 14, 2 * q - 40, 40, 20).fill({ color: '#ffffff', alpha: T.dark ? 0.25 : 0.6 });
+    front.circle(o.x + 8, o.y + 12, 275).fill({ color: '#000000', alpha: 0.14 }); // the collar's shadow
+    front.circle(o.x, o.y, 275).fill({ color: mix(plate, '#ffffff', 0.25) }).stroke({ width: 5, color: edge, alpha: 0.8 });
+    front.poly(recessPoly(o.x, o.y, 1.22)).fill({ color: hollow }).stroke({ width: 6, color: mix(hollow, '#000000', 0.3), alpha: 0.7 });
+    front.poly(recessPoly(o.x, o.y - 8, 1.1)).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.18 : 0.6 });
+    for (const [dx, dy] of HOLES) { front.circle(o.x + dx * 1.22, o.y + dy * 1.22, 31).fill({ color: hole }); front.circle(o.x + dx * 1.22 - 7, o.y + dy * 1.22 - 9, 10).fill({ color: '#000000', alpha: 0.4 }); }
+    front.circle(o.x, o.y - 86, 30).fill({ color: mix(plate, '#8a93a8', 0.6) }).stroke({ width: 4, color: edge, alpha: 0.8 }); // the fixing screw
+    front.moveTo(o.x - 17, o.y - 86).lineTo(o.x + 17, o.y - 86).moveTo(o.x, o.y - 103).lineTo(o.x, o.y - 69).stroke({ width: 4, color: '#4a5266', alpha: 0.8 });
   }
   void m;
 }
@@ -435,7 +433,7 @@ function rimArt(T: Theme, geo: RoomGeo): Graphics {
   edge(MONITOR, 330, 0.85); edge(CASE, 120, 0.85); edge(geo.clock, 90, 0.7); edge(OUTBOX, 40, 0.6);
   for (let row = 0; row < TRAY_ROWS; row++) edge({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 30, 0.6);
   edge({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 0, 0.6);
-  edge({ x: geo.socket.plate.x, y: geo.socket.plate.y, w: geo.socket.plate.w, h: geo.socket.plate.h }, 50, 0.5);
+  for (const o of [geo.socket.mon, geo.socket.pc]) edge({ x: o.x - 310, y: o.y - 310, w: 620, h: 620 }, 110, 0.5); // (each Swiss outlet has its own square plate)
   const kp = keyboardPlacer(deskGeo(geo.persp, ys, geo.floor), MONITOR.x + MONITOR.w / 2), ka = kp(-KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h), kb2 = kp(KEYBOARD.w / 2, KEYBOARD.d / 2, KEYBOARD.h);
   g.moveTo(ka[0], ka[1]).lineTo(kb2[0], kb2[1]).stroke({ width: w1, color: hi, alpha: 0.7 }); // the keyboard's top-front edge
   const D = deskGeo(geo.persp, ys, geo.floor);
