@@ -11,6 +11,7 @@ Part of the renderer docs; the hub is [`RENDER.md`](../../../docs/RENDER.md). Th
 | `mail.ts` | a new key's arrival (the letter that flies in, opens and gives up its key, the key carried to its hook: pure poses and the letter's art) and the sway of the hanging keys (a damped pendulum, `swayStep`, plus a slow breath, `swayAngle`) |
 | `cords.ts` | the two cords from the wall (the PC's and the monitor's): `cordPlan` / `cordRoute` / `plugRect` (pure, `cords.test.ts`) and `CordsView` (draws the cords and their plugs, fills `scene.cords`); see "The wall cords" |
 | `lens.ts` | the power lens: `lensModel` (pure: what flows where, the watts, what is missing; `lens.test.ts`) and `PowerLens` (dims the room, draws the flows, dots, rings and tags); see "The power lens" |
+| `airflow.ts` | the airflow lens: `airflowModel` (pure: one lane per case fan, heat zones, warnings; `airflow.test.ts`) and `AirflowLens` (dims the room, draws the haze and the air particles); see "The airflow lens" |
 
 ## The room
 
@@ -30,6 +31,14 @@ The PC and the monitor each have a power cord that must be plugged into the wall
 ## The power lens
 
 A switch (the bolt button in the bottom bar, or the **P** key; `powerLens` in `src/app/hover.ts`) that dims the room (`PowerLens.dim`, 0.76 dark / 0.6 light) and lights the electrical map over it, above everything but the interaction layer. `lensModel` (pure) turns the snapshot into **flows** (source to sink: each cord, the PSU's `atx` and `cpu` cables, the SATA lead with a branch to every drive, the fan hub's lead, and one run per part kind from the board's main connector, the CPU's from its own cable), their **watts**, **tags** (`WALL 54 W`, `LOAD 54 W / 250 W`, `MONITOR 1.2 W`, one per part kind) and **marks** (rings at the plugs and at a cable connector that is open). What the wall gives the PC is `power.totalW` less the monitor, the monitor's cord carries the monitor's own draw (`devices[].powerW`), and the cables split the rest, so **the flows add up** (tested). A line is thicker and its dots faster with more watts (`flowWidth`, `flowSpeed`); the dots run on game time, so they stop with the pause. **Amber is power flowing**, a faint amber a linked run with nothing to carry (machine off), and **red, pulsing** a run that needs linking and is not (a cord out, the 24-pin or the 8-pin out) with a warning beside it (`PLUG THE PC IN`, `NO MAIN POWER`). Words are a constant 13 px on a dark plate whatever the zoom. The model is rebuilt only when the snapshot or a plug changes. The energy the wall has given the machine (`Snapshot.energy.wh`) is metered for the power bill (`src/features/economy/GAME.md` "The power bill"). The lens itself shows no bill; a wall cut for an unpaid bill leaves the machine off, so the lens shows the idle map. The lens is not measured on a real GPU.
+
+## The airflow lens
+`airflowLens` (`app/hover.ts`, A key or the fan button) dims the room like the power lens; the two exclude each other. Built in `board.ts` (`airFrame`), rebuilt only when the snapshot changes.
+- The sim has no airflow model (`board/sim/thermal.ts` is lumped), so the lanes are drawn from what the snapshot has: the fan cables (`fan:<mount>`, `sysfan`), the device temperatures and the PSU load. Phase 2 may expose fan speed and `caseRiseC` from the sim.
+- Lanes: front fans take air in, the top and rear fans blow it out. A dead fan (cable out, or the hub's `sysfan` out) keeps its lane in red. A radiator replaces the fans of its side with one lane, strength by the fans plugged. A Mini's rear grille is a weak lane.
+- Heat: each part kind is a haze zone, blue to amber to red (`heatOf`: 30 C to 85 C). A lane picks up the heat of each zone it passes (`laneHeat`), so air leaving a hot CPU is warmer. Hot air wobbles more.
+- Warnings: `NO FAN TURNS`, `NO EXHAUST`, `NO INTAKE`, `FAN OFF`, and `MACHINE OFF` (no particles). `CASE +x C` uses the sim's 0.05 C per card watt.
+- Particles are pooled streaks along `mkLane`, advanced on game time (the pause stops them), at most 360.
 
 ## USB keys
 

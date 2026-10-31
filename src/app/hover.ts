@@ -12,6 +12,10 @@ export const viewInset = signal<Inset>({ top: 0, right: 0, bottom: 0, left: 0 })
 
 // The power lens (docs/render/room/room.md "The power lens"): the UI's button and the P key write it, the renderer draws it.
 export const powerLens = signal(false);
+// The airflow lens (room.md "The airflow lens"): the A key and the fan button write it. It shares the screen with the power lens, so the two exclude each other.
+export const airflowLens = signal(false);
+powerLens.subscribe((v) => { if (v) airflowLens.value = false; });
+airflowLens.subscribe((v) => { if (v) powerLens.value = false; });
 
 // Set by the UI when a board element is clicked (render writes, ui reads).
 export const selected = signal<string | null>(null);

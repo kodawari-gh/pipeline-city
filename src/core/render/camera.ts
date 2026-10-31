@@ -147,7 +147,7 @@ export class Camera {
   onClick: (cx: number, cy: number) => void = () => {};
   /** Hover move (client coords), or null when the pointer leaves or starts dragging. */
   onHover: (p: { x: number; y: number } | null) => void = () => {};
-  onKey: ((k: 'cpu' | 'board' | 'lens') => void) | null = null;
+  onKey: ((k: 'cpu' | 'board' | 'lens' | 'airflow') => void) | null = null;
   /** Pointer down (client coords): return a Grab to own the gesture (no panning, no click), or null to pan as usual. */
   onGrab: (cx: number, cy: number, e: PointerEvent) => Grab | null = () => null;
   private grab: { id: number; g: Grab } | null = null;
@@ -385,5 +385,6 @@ export class Camera {
     if (e.key === 'f' || e.key === 'F') this.onKey?.('cpu');
     else if (e.key === 'b' || e.key === 'B') this.onKey?.('board');
     else if (e.key === 'p' || e.key === 'P') this.onKey?.('lens');
+    else if (e.key === 'a' || e.key === 'A') this.onKey?.('airflow');
   };
 }

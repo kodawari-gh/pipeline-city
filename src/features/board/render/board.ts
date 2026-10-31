@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
-import { hover, powerLens, viewInset, type Inset } from '@/app/hover';
+import { airflowLens, hover, powerLens, viewInset, type Inset } from '@/app/hover';
 import { cameraRev, dragging, highlight } from '@/app/interaction';
 import { snapshot, speed, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { BOARD_TIERS, getSpec, type CoolerSpec, type CpuSpec, type PsuSpec, type RamSpec } from '../sim/specs';
@@ -17,6 +17,7 @@ import { CordsView, type CordKind } from './wiring/cords';
 import { FanCordsView } from './wiring/fancords';
 import { isFanCable } from '../sim/cables';
 import { PowerLens, lensModel } from '../../room/render/desk/lens';
+import { AirflowLens, airflowModel } from '../../room/render/desk/airflow';
 import { NetView, nicArt } from '../../network/render/net';
 import { deviceAt } from './wiring/busmap';
 import { cardArt, cardOrigin, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
@@ -29,7 +30,7 @@ import type { GpuCardScene } from '../../gpu/render/gpuview';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../../room/render/shell/exterior';
 import { box, clear, dashed, label } from '@/core/render/ink';
 import {
-  BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
@@ -191,6 +192,8 @@ export async function mountBoard(host: HTMLElement) {
   const fanCords = new FanCordsView();
   /** The power lens: the room dimmed and the electrical map lit over it (`powerLens`). */
   const lens = new PowerLens();
+  /** The airflow lens: the room dimmed and the air of the case drawn over it (`airflowLens`). */
+  const airLens = new AirflowLens();
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();
@@ -255,7 +258,7 @@ export async function mountBoard(host: HTMLElement) {
   let mailSlow = 1; // dev only: window.__board.mailSlow(0.1) plays the arrivals in slow motion
   const outLedG = new Graphics();
   const mailBack = new Container(), mailMid = new Container(), mailFront = new Container(); // the letters: the inside of the envelope under the keys, a finished key on its way into one, its pocket and flap over them
-  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, cords.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, lens.root, interact.fx);
+  world.addChild(roomLayer, interior, exteriorLayer, monitorLayer, cableExtLayer, roomOverLayer, net.root, cords.root, chromeBakeLayer, chromeLayer, mailBack, mailMid, propsLayer, lightLayer, mailFront, outLedG, keyFx, live.ext, lens.root, airLens.root, interact.fx);
   app.stage.addChild(world, interact.hud);
 
   let boardArt: BoardArt | null = null;
@@ -986,6 +989,25 @@ export async function mountBoard(host: HTMLElement) {
     lens.frame(on, { x: camera.x, y: camera.y, z: camera.z, cx: camera.cx, cy: camera.cy, w: camera.w, h: camera.h }, gdt, performance.now());
   };
 
+  // ---- the airflow lens (airflow.ts): rebuilt when the snapshot changes, only while it is on ----
+  let airKey: unknown = null;
+  const airFrame = (gdt: number) => {
+    const on = airflowLens.peek() && !!lastSnap && !!roomView;
+    if (on) {
+      if (airKey !== lastSnap) {
+        airKey = lastSnap;
+        airLens.setTheme(T);
+        const dev = lastSnap!.devices.find((d) => d.kind === 'radiator');
+        const span = dev ? radiatorSpan(dev.slot === 'rad-front' ? 'front' : 'top') : null;
+        airLens.setModel(airflowModel({
+          s: lastSnap!, mounts: fanMounts(), radiator: span ? { side: span.side as 'front' | 'top', ids: span.ids, rect: span.rect } : null,
+          rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots: scene.slots, psu: PSU,
+        }));
+      }
+    } else airKey = null;
+    airLens.frame(on, { x: camera.x, y: camera.y, z: camera.z, cx: camera.cx, cy: camera.cy, w: camera.w, h: camera.h }, gdt, performance.now());
+  };
+
   // ---- props: tray, power button, the key in the USB port ----
   /** The timers of the keys on the rack and in the port follow the sim's ticks (the sticks themselves are rebuilt only when something else changes). */
   const refreshTimers = (s: Snapshot | null) => {
@@ -1145,7 +1167,7 @@ export async function mountBoard(host: HTMLElement) {
     fits = overviewFit(camera); camera.minZ = capZoom(camera, fits);
     if (toOverview) camera.flyTo(fits, 450); else camera.apply();
   };
-  camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : k === 'lens' ? (powerLens.value = !powerLens.value) : flyToBoard());
+  camera.onKey = (k) => (k === 'cpu' ? flyToCpu() : k === 'lens' ? (powerLens.value = !powerLens.value) : k === 'airflow' ? (airflowLens.value = !airflowLens.value) : flyToBoard());
 
   // ---- hit testing: hover and click write the shared signals ----
   // A target is what is drawn (its silhouette), and a small or thin one is grown on screen to a size a finger or a mouse can find (`pick`, shape.ts)
@@ -1313,6 +1335,7 @@ export async function mountBoard(host: HTMLElement) {
     syncNet(lastSnap);
     syncCords(lastSnap);
     lensFrame(gdt);
+    airFrame(gdt);
     net.frame(gt, gdt);
     // the remove cue on a finished key: game clock, scaled up as the camera moves out so it stays readable
     const cueK = Math.min(2.6, Math.max(1, fits.z / Math.max(1e-6, camera.z)));

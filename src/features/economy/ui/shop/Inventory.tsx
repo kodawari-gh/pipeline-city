@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '@/worker/game/game';
-import { powerLens, selected } from '@/app/hover';
+import { airflowLens, powerLens, selected } from '@/app/hover';
 import { dragging, highlight } from '@/app/interaction';
 import { sell } from '@/app/store';
 import { SELL_RATE } from '../../sim/economy';
@@ -59,6 +59,17 @@ function LensButton() {
   );
 }
 
+/** The airflow lens switch: dims the room and shows how air crosses the case and where it heats up (the A key does the same). */
+function AirflowButton() {
+  const on = airflowLens.value;
+  return (
+    <button class={`invbtn ${on ? 'on' : ''}`} data-hud="airflow" aria-pressed={on} aria-label="Airflow lens" title="Airflow lens (A): see how air crosses the case and where it heats up" onClick={() => { airflowLens.value = !airflowLens.value; }}>
+      <Icon name="fan" size={14} />
+      <span class="hide-narrow">Airflow</span>
+    </button>
+  );
+}
+
 /** The almanac button: every kind of job, what it needs, its code and how to do it better. */
 function AlmanacButton() {
   const open = almanacOpen.value;
@@ -95,7 +106,7 @@ function OsButton({ s }: { s: Snapshot }) {
 
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /><LogButton /><OsButton s={s} /></div>;
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AirflowButton /><AlmanacButton /><LogButton /><OsButton s={s} /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
