@@ -8,7 +8,10 @@ export const CASE_Z = 2200, CASE_D = 4200, BOARD_Z = CASE_Z + 260;
 export const MONITOR_Z = 3200;
 export const ROOM_D = 26000;
 
-export const SLAT_W = 430, SLAT_PITCH = 560;
+/** The wall's slats: thin and dense, like an acoustic panel wall. */
+export const SLAT_W = 170, SLAT_PITCH = 250;
+/** The 3D room's clock starts in the early afternoon (the reference look is a sunny day). */
+export const START_HOUR_3D = 14.2;
 
 export interface Run { x: number; y0: number; y1: number }
 

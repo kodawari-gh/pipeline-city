@@ -49,6 +49,15 @@ export function face(r: RectLike, z: number, m: Material): Mesh {
   return o;
 }
 
+/** A straight rod from world point a to b (a lamp arm, a pipe run). */
+export function rod(a: readonly [number, number, number], b: readonly [number, number, number], r: number, m: Material, sides = 10): Mesh {
+  const va = new Vector3(...a), vb = new Vector3(...b), len = va.distanceTo(vb);
+  const o = new Mesh(new CylinderGeometry(r, r, len, sides), m);
+  o.position.copy(va).add(vb).multiplyScalar(0.5);
+  o.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), vb.sub(va).normalize());
+  return place(o);
+}
+
 /** A tube through 3D points (a cable, a lamp arm): a smooth curve, few sides. */
 export function tube(points: readonly (readonly [number, number, number])[], radius: number, m: Material, sides = 7): Mesh {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])), false, 'centripetal');

@@ -1,11 +1,11 @@
 // The machine in 3D (docs/GRAPHICS_3D_OVERHAUL.md, phases 2 to 4): the glass-side case, the motherboard with its sockets, every installed part, the
 // case fans with their RGB rings, the power cables and the wall cords. Primitive shapes over the 2D layout (`layout.ts`, y flipped), z out of the
 // wall. Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
-import { Color, CylinderGeometry, Group, Mesh, MeshStandardMaterial, PointLight, TorusGeometry, BoxGeometry, type Object3D } from 'three';
+import { Color, CylinderGeometry, Group, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, TorusGeometry, BoxGeometry, type Object3D } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { getSpec } from '@/features/board/sim/specs';
 import { cardRect, tpmRect } from '@/core/render/accelart';
-import { drum, instanced, place, rectBox, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
+import { drum, instanced, paint, place, rectBox, rod, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { driveBody, driveKindOf } from '@/features/storage/render/drives';
@@ -23,6 +23,25 @@ const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
+/** A dark matte board with faint copper traces and silk-screen marks (the reference's black PCB under neon). */
+function pcbTex() {
+  return paint(1024, 1024, (c, w, h) => {
+    c.fillStyle = '#1b1e23'; c.fillRect(0, 0, w, h);
+    let s = 9;
+    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    c.lineWidth = 2;
+    for (let i = 0; i < 160; i++) {
+      c.strokeStyle = rnd() < 0.8 ? 'rgba(80,170,160,0.13)' : 'rgba(200,170,90,0.14)';
+      let x = rnd() * w, y = rnd() * h;
+      c.beginPath(); c.moveTo(x, y);
+      for (let k = 0; k < 3; k++) { if (rnd() < 0.5) x += (rnd() - 0.5) * 300; else y += (rnd() - 0.5) * 300; c.lineTo(x, y); }
+      c.stroke();
+    }
+    c.fillStyle = 'rgba(220,225,230,0.18)';
+    for (let i = 0; i < 40; i++) c.fillRect(rnd() * w, rnd() * h, 8 + rnd() * 30, 3);
+  });
+}
+
 /** What forces a rebuild: the tier, the parts and where they sit, the cables that are plugged, the keys in the port. */
 export function machineKey(s: Snapshot | null): string {
   if (!s) return 'none';
@@ -34,7 +53,7 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
   return { powered: s.powered && !s.power.tripped, active: s.powered && RUNNING.has(s.phase), burnt: d.burnt, throttled: d.throttle < 0.999, tempC: d.tempC };
 }
 
-interface Fan { rotor: Object3D; axis: 'x' | 'y' | 'z'; speed: number; needs: string | null; ring: MeshStandardMaterial | null }
+interface Fan { rotor: Object3D; axis: 'x' | 'y' | 'z'; speed: number; needs: string | null; ring: MeshStandardMaterial | null; /** A light that keeps its own colour (the coolant, the pipes) instead of cycling. */ fixed?: number }
 
 export class Machine3D {
   readonly root = new Group();
@@ -70,15 +89,33 @@ export class Machine3D {
     shell.add(rectBox({ x: CASE.x, y: CASE.y, w: WALL_T, h: CASE.h }, CASE_Z, FRONT, chassis));
     const fe = CASE_GLASS.x + CASE_GLASS.w;
     shell.add(softBox({ x: fe, y: CASE.y, w: CASE.x + CASE.w - fe, h: CASE.h }, CASE_Z, FRONT, mat(0x1c1d21, { roughness: 0.7 }), 50));
-    // the shroud over the power supply, open where the unit sits
-    shell.add(rectBox({ x: PSU.x, y: PSU.y, w: PSU_UNIT.x - PSU.x, h: PSU.h }, CASE_Z + 70, FRONT - 60, chassis));
+    // the shroud over the power supply: a solid box with the name printed on its face (the reference's "PIPELINE CITY"), the unit's end tagged as the PSU
+    const print = paint(1024, 160, (c, w, h) => {
+      c.fillStyle = '#26282d'; c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, w, 6);
+      c.fillStyle = '#c9ced6'; c.font = '600 54px system-ui, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'center'; c.fillText('PIPELINE CITY', w * 0.5, h / 2); c.textAlign = 'left';
+      c.strokeStyle = '#8b929c'; c.lineWidth = 3; c.strokeRect(w * 0.9, h * 0.32, 70, 50);
+      c.fillStyle = '#8b929c'; c.font = '600 20px system-ui, sans-serif'; c.fillText('TIER', w * 0.9 + 9, h / 2);
+    });
+    const shroud = mat(0x26282d, { roughness: 0.45, metalness: 0.3 });
+    shell.add(rectBox(PSU, CASE_Z + 70, FRONT - 70, shroud));
+    const printFace = new Mesh(new PlaneGeometry(PSU.w, PSU.h), mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }));
+    printFace.position.set(PSU.x + PSU.w / 2, -(PSU.y + PSU.h / 2), FRONT - 68);
+    shell.add(printFace);
+    this.root.add(tag(rectBox({ x: PSU_UNIT.x, y: PSU.y + 60, w: PSU_UNIT.w - 60, h: PSU.h - 120 }, FRONT - 80, FRONT - 66, mat(0x000000, { transparent: true, opacity: 0 })), 'psu'));
+    // RGB light strips along the inside of the top and the front: they glow with the fans
+    for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
+      const m = mat(0x111111, { emissive: new Color(PALETTE.rgb), emissiveIntensity: 0 });
+      this.root.add(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
+      this.fans.push({ rotor: new Group(), axis: 'z', speed: 0, needs: null, ring: m });
+    }
     for (const fx of [CASE.x + 600, CASE.x + CASE.w - 900]) for (const fz of [CASE_Z + 400, FRONT - 700]) shell.add(softBox({ x: fx, y: CASE.y + CASE.h, w: 300, h: FOOT }, fz, fz + 300, inner, 30));
     // the drive cage and the fan hub
     shell.add(rectBox(BAY, CASE_Z + 70, CASE_Z + 2600, mat(0x2b2d33, { roughness: 0.5, metalness: 0.4 })));
     shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, inner));
     this.root.add(shell);
     // the side glass: a faint tint, never in the way of a click
-    const glass = rectBox(CASE_GLASS, FRONT - 30, FRONT, new MeshStandardMaterial({ color: 0xa8c4d6, transparent: true, opacity: 0.1, roughness: 0.05, depthWrite: false }));
+    const glass = rectBox(CASE_GLASS, FRONT - 30, FRONT, new MeshStandardMaterial({ color: 0x9fb4c4, transparent: true, opacity: 0.12, roughness: 0.02, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
     glass.castShadow = false;
     this.root.add(seeThrough(glass));
     // the power button and the LEDs on the top panel
@@ -128,7 +165,7 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ board
   private buildBoard(s: Snapshot | null) {
-    const pcb = mat(PALETTE.pcb, { roughness: 0.6 }), slot = mat(PALETTE.slot, { roughness: 0.5 }), alu = mat(PALETTE.alu, { metalness: 0.7, roughness: 0.35 });
+    const pcb = mat(0xffffff, { map: pcbTex(), roughness: 0.55 }), slot = mat(PALETTE.slot, { roughness: 0.5 }), alu = mat(PALETTE.alu, { metalness: 0.7, roughness: 0.35 });
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const emptyTag = <T extends Object3D>(o: T, id: string): T => (filled.has(id) ? o : tag(o, id));
     this.root.add(rectBox(BD, BOARD_Z - 60, BOARD_Z, pcb));
@@ -174,7 +211,7 @@ export class Machine3D {
         const fins = mat(liquid ? 0x1f2024 : PALETTE.alu, { metalness: liquid ? 0.2 : 0.7, roughness: 0.35 });
         g.add(softBox(grow(COOLER, -120), BOARD_Z + 260, BOARD_Z + 420, alu, 30));
         const top = BOARD_Z + (liquid ? 900 : tower ? 2600 : 1100);
-        if (liquid) g.add(drum(COOLER.x + COOLER.w / 2, COOLER.y + COOLER.h / 2, BOARD_Z + 420, top, COOLER.w * 0.32, fins, 32));
+        if (liquid) this.buildLoop(g, top);
         else {
           const n = tower ? 22 : 10, pitch = COOLER.h / n;
           g.add(instanced(new BoxGeometry(COOLER.w, pitch * 0.35, top - BOARD_Z - 420), fins, Array.from({ length: n }, (_, k) => ({ x: COOLER.x + COOLER.w / 2, y: -(COOLER.y + pitch * (k + 0.5)), z: (BOARD_Z + 420 + top) / 2 }))));
@@ -215,7 +252,6 @@ export class Machine3D {
       case 'psu': {
         const body = mat(PALETTE.psu, { metalness: 0.4, roughness: 0.45 });
         g.add(softBox(PSU_UNIT, CASE_Z + 70, FRONT - 60, body, 40));
-        this.buildPartFan(g, PSU_FAN.x, PSU_FAN.y, FRONT - 40, PSU_FAN.r);
         tag(g, 'psu');
         this.skin(d.id, body);
         break;
@@ -241,6 +277,41 @@ export class Machine3D {
       default: return; // the display is the room's (Room3D shows it)
     }
     this.root.add(g);
+  }
+
+  /**
+   * The liquid loop (the reference's showcase): an acrylic pump block on the CPU with a glowing core, a reservoir tube standing by the front fans,
+   * and rigid pipes in neon colours from the block up to the top radiator and down to the reservoir. The coolant glows with the fans.
+   */
+  private buildLoop(g: Group, top: number) {
+    const cx = COOLER.x + COOLER.w / 2, cy = -(COOLER.y + COOLER.h / 2), zc = (BOARD_Z + 420 + top) / 2;
+    const acrylic = new MeshStandardMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1 });
+    const block = place(new Mesh(new BoxGeometry(COOLER.w * 0.7, COOLER.h * 0.7, top - BOARD_Z - 420), acrylic), false);
+    block.position.set(cx, cy, zc);
+    const coreM = mat(0x0b2a33, { emissive: new Color(0x31e0ff), emissiveIntensity: 0 });
+    const core = place(new Mesh(new CylinderGeometry(COOLER.w * 0.22, COOLER.w * 0.22, top - BOARD_Z - 520, 24), coreM));
+    core.rotation.x = Math.PI / 2; core.position.set(cx, cy, zc);
+    g.add(core, seeThrough(block));
+    this.fans.push({ rotor: new Group(), axis: 'z', speed: 0, needs: null, ring: coreM, fixed: 0x31e0ff });
+    const zp = BOARD_Z + 1500;
+    const pipe = (pts: [number, number][], color: number) => {
+      const m = mat(0x111111, { emissive: new Color(color), emissiveIntensity: 0, roughness: 0.2 });
+      for (let k = 0; k + 1 < pts.length; k++) g.add(rod([pts[k]![0], -pts[k]![1], zp], [pts[k + 1]![0], -pts[k + 1]![1], zp], 110, m, 14));
+      for (const p of pts) { const j = place(new Mesh(new CylinderGeometry(105, 105, 200, 12), mat(0xb8bdc4, { metalness: 0.8, roughness: 0.25 }))); j.rotation.x = Math.PI / 2; j.position.set(p[0], -p[1], zp); g.add(j); }
+      this.fans.push({ rotor: new Group(), axis: 'z', speed: 0, needs: null, ring: m, fixed: color });
+    };
+    const topY = CASE_GLASS.y + 450, east = CASE_GLASS.x + CASE_GLASS.w - 700, resX = east - 300, resTop = BD.y + 400, resBot = BD.y + BD.h * 0.55;
+    pipe([[cx + COOLER.w * 0.25, COOLER.y], [cx + COOLER.w * 0.25, topY], [east, topY]], 0x3cff9a);
+    pipe([[cx - COOLER.w * 0.25, COOLER.y + COOLER.h], [cx - COOLER.w * 0.25, resBot + 300], [resX, resBot + 300], [resX, resBot]], 0x31e0ff);
+    pipe([[COOLER.x, cy * -1], [BD.x + 500, -cy], [BD.x + 500, resBot + 700], [resX - 400, resBot + 700]], 0xb06bff);
+    // the reservoir: a clear tube with glowing coolant
+    const res = place(new Mesh(new CylinderGeometry(330, 330, resBot - resTop, 24), acrylic), false);
+    res.position.set(resX, -(resTop + resBot) / 2, zp);
+    const liquidM = mat(0x0b2a33, { emissive: new Color(0x31e0ff), emissiveIntensity: 0, transparent: false });
+    const liquid = place(new Mesh(new CylinderGeometry(290, 290, (resBot - resTop) * 0.75, 24), liquidM));
+    liquid.position.set(resX, -(resBot - (resBot - resTop) * 0.375), zp);
+    g.add(liquid, seeThrough(res));
+    this.fans.push({ rotor: new Group(), axis: 'z', speed: 0, needs: null, ring: liquidM, fixed: 0x31e0ff });
   }
 
   /** A part's own fan facing the glass (the cooler's, the PSU's): a hub and seven blades turning round z. */
@@ -288,13 +359,13 @@ export class Machine3D {
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);
     this.hue = (this.hue + dt * 0.05) % 1;
-    const rgb = new Color().setHSL(this.hue, 0.85, 0.55);
+    const rgb = new Color().setHSL(this.hue, 1, 0.5);
     for (const f of this.fans) {
       const want = live && (!f.needs || !!s?.cables.some((c) => c.id === f.needs && c.connected)) ? 1 : 0;
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       if (f.axis === 'z') f.rotor.rotation.z -= a; else f.rotor.rotation.x -= a;
-      if (f.ring) { f.ring.emissive.copy(rgb); f.ring.emissiveIntensity = 0.9 * f.speed; }
+      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.fixed === undefined ? 2.2 : 2.8) * f.speed; }
     }
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live ? 0.9 : 0;

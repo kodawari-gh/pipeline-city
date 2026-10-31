@@ -13,12 +13,12 @@ import { disposeTree } from '@/core/render/three/geometry';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
-import { hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
+import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Machine3D, machineKey } from './machine3d';
 
-const ROOM_ANGLE = { yaw: 0.16, pitch: 0.1, fov: 30 };
+const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
 
 export function mountBoard3d(host: HTMLElement) {
@@ -54,11 +54,12 @@ export function mountBoard3d(host: HTMLElement) {
 
   // ---- camera ----
   const aspect = () => W / H;
+  // the reference's framing: front on, a little from above, the window to the drawers, the clock to the rug
   const roomRect = (): Box => {
-    const g = room!.geo, x0 = g.lamp.rect.x - 600, y0 = Math.min(TRAY.y, ROUTER_SPOT.y) - 700;
-    return { x: x0, y: y0, w: CASE.x + CASE.w + 1600 - x0, h: g.ys + 1800 - y0 };
+    const g = room!.geo, x0 = g.window.x - 900, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, g.window.y) - 900;
+    return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 900 - x0, h: g.floor + 3200 - y0 };
   };
-  const overview = (): OrbitView => fitRect(roomRect(), CASE_Z + CASE_D / 2, aspect(), ROOM_ANGLE, 0.98);
+  const overview = (): OrbitView => fitRect(roomRect(), 5000, aspect(), ROOM_ANGLE, 0.9);
   const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
   const cpuView = (): OrbitView => fitRect({ x: DIE.x - 200, y: DIE.y - 200, w: DIE.w + 400, h: DIE.h + 400 }, BOARD_Z + 200, aspect(), FLAT, 0.9);
   let view = overview(), goal = view;
@@ -145,7 +146,7 @@ export function mountBoard3d(host: HTMLElement) {
   }).observe(host);
 
   // ---- the frame ----
-  let gt = 0, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
+  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
@@ -154,7 +155,7 @@ export function mountBoard3d(host: HTMLElement) {
     view = stepView(view, goal, dt);
     applyView(camera, view, aspect());
     const display = !!s?.devices.some((d) => d.kind === 'display');
-    room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered && !!s?.powered, live: !!s?.monitorLive && !!s.monitorPowered, text: s?.display ?? '' } }, dt);
+    room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
     machine?.frame(s, dt);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek()].filter((x): x is string => !!x));
