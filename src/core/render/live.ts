@@ -1131,7 +1131,8 @@ export class Live {
     for (const f of this.fans) {
       f.speed = f.motor.step(dt, f.target); // eases up from still and coasts down to still (fanmotor.ts); a fan that may not turn has target 0
       fanBank.set(f.kind, f.speed);
-      if (f.c instanceof EdgeFan) f.c.spin(f.speed * dt * 0.8, Math.min(1, f.speed / 5)); // a case fan seen edge-on: the blades slide along it
+      const edge = f.c as { spin?: (d: number, level: number) => void };
+      if (f.c instanceof EdgeFan || typeof edge.spin === 'function') edge.spin!.call(f.c, f.speed * dt * 0.8, Math.min(1, f.speed / 5)); // a fan seen edge-on (a case fan, a sink's): the blades slide along it
       else f.c.rotation += f.speed * dt;
     }
     const psuFan = this.fans.find((f) => f.kind === 'psu');

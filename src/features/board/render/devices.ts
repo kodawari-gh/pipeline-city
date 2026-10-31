@@ -6,7 +6,7 @@ import {
 } from './layout/layout';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
-import { SINK_FAN_R, sinkFanAt } from './layout/pins';
+import { sinkFanAt } from './layout/pins';
 import { hdmiPlug, rj45Plug } from './layout/ports';
 import { isPcieKind, looseCable, movablePlug, offsetLine, type Cable, type Plug } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
@@ -140,41 +140,68 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Par
   root.addChild(g);
   const r = rect, big = visual === 'vrm-sink-big', withFan = visual === 'vrm-sink-fan';
   const metal = T.dark ? '#3b4663' : '#b7c1d3', metalHi = T.dark ? '#56628a' : '#dde4f0', metalLo = T.dark ? '#222a41' : '#8d99b1';
-  const fanR = SINK_FAN_R, { x: fanCx, y: fanCy } = sinkFanAt(r);
-  const finW = withFan ? fanCx - fanR - 40 - r.x : r.w;
+  const slab = sinkFanRect(r);
+  const finW = withFan ? slab.x - 14 - r.x : r.w;
   // base plate and drop shadow
   box(g, r.x + 8, r.y + 12, r.w, r.h, 18, { fill: '#000000', fa: 0.3 });
   box(g, r.x, r.y, r.w, r.h, 18, { fill: metalLo, stroke: mix(T.line, metal, 0.5), lw: 6 });
-  // fins: thin and many (passive), fewer and taller with a lit top edge (big), a shorter block when a fan sits beside it
-  const pitch = big ? 34 : 20, finH = r.h - (big ? 26 : 40);
-  for (let x = r.x + 20; x < r.x + finW - 14; x += pitch) {
-    g.rect(x, r.y + (r.h - finH) / 2, big ? 20 : 11, finH);
-  }
+  // fins: long rails along the sink (east to west), stacked across it, so the fan's air runs down the channels between them: many thin ones (passive), fewer thick ones (big)
+  const n = big ? 5 : 7, pitch = (r.h - 30) / n, rail = pitch * (big ? 0.62 : 0.5);
+  for (let k = 0; k < n; k++) g.rect(r.x + 16, r.y + 15 + k * pitch + (pitch - rail) / 2, finW - 16, rail);
   g.fill({ color: metal });
-  for (let x = r.x + 20; x < r.x + finW - 14; x += pitch) g.rect(x, r.y + (r.h - finH) / 2, big ? 6 : 3, finH);
+  for (let k = 0; k < n; k++) g.rect(r.x + 16, r.y + 15 + k * pitch + (pitch - rail) / 2, finW - 16, Math.max(3, rail * 0.3));
   g.fill({ color: metalHi, alpha: 0.7 });
-  g.rect(r.x + 14, r.y + 8, finW - 28, 6).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.45 });
   if (big) {
-    // a heat pipe running along the sink
-    g.moveTo(r.x + 10, r.y + r.h * 0.5).lineTo(r.x + finW - 10, r.y + r.h * 0.5).stroke({ width: 22, color: T.pin, alpha: 0.85, cap: 'round' });
-    g.moveTo(r.x + 10, r.y + r.h * 0.5 - 5).lineTo(r.x + finW - 10, r.y + r.h * 0.5 - 5).stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
+    // a heat pipe standing across the rails
+    const px = r.x + finW * 0.3;
+    g.moveTo(px, r.y + 8).lineTo(px, r.y + r.h - 8).stroke({ width: 22, color: T.pin, alpha: 0.85, cap: 'round' });
+    g.moveTo(px - 5, r.y + 8).lineTo(px - 5, r.y + r.h - 8).stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
   }
   let fan: Container | undefined;
   if (withFan) {
-    // a small fan beside the fins: housing, blades that spin, hub
-    disc(g, fanCx, fanCy, fanR + 18, { fill: T.sub, stroke: T.line, lw: 7 });
-    fan = new Container();
-    fan.position.set(fanCx, fanCy);
-    const fg = new Graphics();
-    disc(fg, 0, 0, fanR + 4, { fill: T.dot });
-    blades(fg, 5, 12, fanR, T.tile, T.alu, 3);
-    fan.addChild(fg);
-    const hub = new Graphics();
-    disc(hub, fanCx, fanCy, 14, { fill: T.tile, stroke: T.alu, lw: 4 });
-    return { root, fan, over: hub };
+    // a small fan on the east end, seen edge-on: its frame, with blades that slide along it when it turns
+    box(g, slab.x, slab.y, slab.w, slab.h, 10, { fill: T.sub, stroke: T.line, lw: 6 });
+    fan = new SinkFan(slab, T);
+    return { root, fan };
   }
   return { root };
 }
+
+/** The sink fan's rectangle on its heatsink: a slab at the east end, as deep as it is thin, as tall as the sink (it blows west, along the fins). */
+export const sinkFanRect = (r: Rect): Rect => {
+  const c = sinkFanAt(r);
+  return { x: c.x - 40, y: r.y + 8, w: 80, h: r.h - 16 };
+};
+
+/** A heatsink's fan seen edge-on (the look of the case fans, `EdgeFan`): slanted blades slide along the slab; `spin` advances them and sets the light. */
+export class SinkFan extends Container {
+  private g = new Graphics();
+  private phase = 0;
+  private key = '';
+  constructor(private r: Rect, private T: Theme) {
+    super();
+    this.addChild(this.g);
+    this.draw(0);
+  }
+  spin(d: number, level: number) {
+    this.phase = (this.phase + d * SINK_BLADE) % SINK_BLADE;
+    if (d === 0 && level.toFixed(2) === this.key) return;
+    this.draw(level);
+  }
+  private draw(level: number) {
+    const { x, y, w, h } = this.r, g = this.g, T = this.T, m = 14;
+    this.key = level.toFixed(2);
+    g.clear();
+    g.rect(x + m, y + m, w - 2 * m, h - 2 * m).fill({ color: T.dot });
+    for (let t = m + 10 - SINK_BLADE + this.phase; t < h - m - 10; t += SINK_BLADE) {
+      if (t < m + 10) continue;
+      g.moveTo(x + m + 4, y + t + 10).lineTo(x + w - m - 4, y + t - 10);
+    }
+    g.stroke({ width: 8, color: T.mute, alpha: 0.3 + 0.3 * level, cap: 'round' });
+    g.rect(x + m, y + m, w - 2 * m, 5).rect(x + m, y + h - m - 5, w - 2 * m, 5).fill({ color: T.alu, alpha: 0.16 + 0.6 * level });
+  }
+}
+const SINK_BLADE = 34;
 
 // (the cooler and the AIO's radiator are in cooler.ts)
 

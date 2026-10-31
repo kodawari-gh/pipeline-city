@@ -99,9 +99,9 @@ export const cellTop = (b: Rect, dx: number): Pt => [b.x + b.w / 2 + dx, b.y + b
 export const cellSide = (b: Rect, dy: number, west: boolean): Pt => [b.x + b.w / 2 + (west ? -1 : 1) * (Math.sqrt((b.w / 2) ** 2 - dy * dy) - 6), b.y + b.h / 2 + dy];
 
 // ---- heatsink fans, power ties, crystals ----
-/** A heatsink's fan (housing radius `r`) at the east end of its sink. */
+/** A heatsink's fan, seen edge-on: a slab centred at `x`, half the sink's height (`r`) tall, at the east end of its sink. */
 export const SINK_FAN_R = 70;
-export const sinkFanAt = (r: Rect): { x: number; y: number; r: number } => ({ x: r.x + r.w - SINK_FAN_R - 34, y: r.y + r.h / 2, r: SINK_FAN_R + 18 });
+export const sinkFanAt = (r: Rect): { x: number; y: number; r: number } => ({ x: r.x + r.w - 70, y: r.y + r.h / 2, r: r.h / 2 + 3 });
 /** Where a slot's supply ties into the board's plane: a patch of copper with vias east of its latch end (a short stub from the slot's tab runs to it: east for the slots after the first, down for the x16 slot, whose east side is the chipset's and the lanes'). */
 export const slotTie = (r: Rect, i: number): Rect => (i === 0 ? { x: r.x + r.w - 170, y: r.y + r.h + 70, w: 110, h: 48 } : { x: r.x + r.w + 50, y: r.y + r.h / 2 - 24, w: 110, h: 48 });
 /** The same for an M.2 socket: a patch in the housing's top-left corner. */
