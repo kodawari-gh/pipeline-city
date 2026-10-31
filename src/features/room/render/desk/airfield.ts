@@ -1,14 +1,21 @@
 // The air of the case as a flow field, not as fixed lanes. Every intake fan is a source and every exhaust fan a sink of a 2D potential flow; the case's walls
 // are mirrors (a source has an image across each wall), so the air fills the whole box, bends toward the exhausts, runs fast near a fan and slowly in the
 // corners far from one. Particles are carried by it, go round the parts, take up the heat of every part they pass and leave through an exhaust.
-// Pure (no Pixi): `AirField` is stepped by the lens and tested. The sim has no airflow (thermal.ts is lumped), so this is a picture of where the air would go.
+// Pure (no Pixi): `AirField` is stepped by the lens and tested. The flow itself is a picture of where the air would go; the zones carry the sim's own numbers
+// for their area (board/sim/airflow.ts): where the sim says the air barely moves, the particles crawl and stay warm; where the cards heat it, they carry that heat.
 
 export type Pt = [number, number];
 export interface Box { x: number; y: number; w: number; h: number }
 
 /** A fan as the field sees it: `in` blows air into the case from `span`, `out` draws it out, `local` (a cooler, a card) stirs the air where it stands. */
 export interface FieldPort { id: string; kind: 'in' | 'out' | 'local'; pt: Pt; span: Box; /** 0 (still) to 1 (full): the fan's real speed. */ level: number }
-export interface FieldZone { rects: Box[]; /** 0 (cool) to 1 (at its limit). */ heat: number }
+export interface FieldZone {
+  rects: Box[]; /** 0 (cool) to 1 (at its limit). */ heat: number;
+  /** The sim's ventilation of the area the part sits in, 0 to 1 (unset: 1). Air near a poorly ventilated part crawls and lingers. */
+  flow?: number;
+  /** How much warmer than the room the sim's air of that area is, C (unset: 0). Air there never runs cooler than that. */
+  riseC?: number;
+}
 export interface FieldIn { box: Box; ports: FieldPort[]; zones: FieldZone[] }
 
 export interface Particle { x: number; y: number; vx: number; vy: number; heat: number; age: number; /** a personal speed factor, 0.75 to 1.25 */ k: number; seed: number }
@@ -23,6 +30,8 @@ export const SPAWN_PER_S = 2.4, MAX_PARTICLES = 110;
 const LIFE_S = 22;
 /** How far from a part the air feels its heat, and how fast it takes it up (per second). */
 const REACH = 420, HEAT_RATE = 1.8;
+/** Share of its speed air keeps next to a part whose area has no air moving (the sim's flow 0), and the rise in C that counts as a full 1 of heat. */
+const CRAWL_MIN = 0.3, RISE_FULL_C = 12;
 
 const rectDist = (r: Box, x: number, y: number) => Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
 const inside = (r: Box, x: number, y: number, m = 0) => x > r.x - m && x < r.x + r.w + m && y > r.y - m && y < r.y + r.h + m;
@@ -104,15 +113,19 @@ export class AirField {
         const l = p.x - (r.x - 30), rr = r.x + r.w + 30 - p.x, tp = p.y - (r.y - 30), bt = r.y + r.h + 30 - p.y, m = Math.min(l, rr, tp, bt);
         if (m === l) p.x = r.x - 30; else if (m === rr) p.x = r.x + r.w + 30; else if (m === tp) p.y = r.y - 30; else p.y = r.y + r.h + 30;
       }
-      // it takes up the heat of the parts it passes, and loses a little to the rest of the case
-      let h = p.heat;
+      // it takes up the heat of the parts it passes, and loses a little to the rest of the case; next to a part the sim says is poorly ventilated it
+      // crawls, and the air there is as warm as the sim's air of that area
+      let h = p.heat, floor = 0;
       for (const z of zones) {
-        if (z.heat <= h) continue;
         let d = Infinity;
         for (const r of z.rects) d = Math.min(d, rectDist(r, p.x, p.y));
-        if (d < REACH) h += (z.heat - h) * Math.min(1, dt * HEAT_RATE * (1 - d / REACH));
+        if (d >= REACH) continue;
+        const near = 1 - d / REACH, flow = z.flow ?? 1;
+        if (flow < 1) { const slow = 1 - near * (1 - flow) * (1 - CRAWL_MIN); p.x -= p.vx * dt * (1 - slow); p.y -= p.vy * dt * (1 - slow); }
+        if (z.riseC) floor = Math.max(floor, Math.min(1, z.riseC / RISE_FULL_C) * near);
+        if (z.heat > h) h += (z.heat - h) * Math.min(1, dt * HEAT_RATE * near);
       }
-      p.heat = h * Math.exp(-dt * 0.04);
+      p.heat = Math.max(floor, h * Math.exp(-dt * 0.04));
       // it leaves through an exhaust, or is gone when it has wandered too long or out of the case
       const gone = p.age > LIFE_S || outs.some((o) => rectDist(o.span, p.x, p.y) < 150 + (o.span.w > 600 || o.span.h > 600 ? 0 : 100)) || !inside(box, p.x, p.y, 900);
       if (gone) this.parts.splice(i, 1);

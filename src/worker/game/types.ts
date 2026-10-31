@@ -66,6 +66,8 @@ export interface DeviceSnap {
   powerW: number;
   throttle: number;
   unstable: boolean;
+  /** 0 to 1: how fast the card's own fans turn (graphics and neural cards; the sim's, from the card's heat). */
+  fan: number;
 }
 
 /** The board VRM's live state (docs/VRM.md). */

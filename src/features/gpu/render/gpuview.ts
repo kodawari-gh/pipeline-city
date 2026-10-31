@@ -63,10 +63,9 @@ export function along(pts: Pt[], f: number): Pt {
   return pts[0]!;
 }
 
-/** How fast a card's fans turn (turns per second): from cold to hot, a little faster under load, faster again once throttled. */
-export function fanTurns(tempC: number, busy: boolean, throttled: boolean): number {
-  const heat = Math.max(0, Math.min(1, (tempC - 28) / 45));
-  return FAN_IDLE + (FAN_FULL - FAN_IDLE) * heat + (busy ? 0.6 : 0) + (throttled ? 0.5 : 0);
+/** How fast a card's fans turn (turns per second): the sim's fan speed (0 to 1, from the card's heat, zero-RPM when cool), a little faster under load. */
+export function fanTurns(fan: number, busy: boolean): number {
+  return fan <= 0 ? 0 : FAN_IDLE + (FAN_FULL - FAN_IDLE) * Math.min(1, fan) + (busy ? 0.6 : 0);
 }
 
 /** The colour of an instruction kind (the die's colours: ALU cyan, load amber, store green, branch pink). */
@@ -121,8 +120,8 @@ interface CardView {
   lens: GpuLensView;
   tick: GpuTick;
   snap: GpuSnap | undefined;
-  tempC: number;
-  throttled: boolean;
+  /** The sim's fan speed of the card, 0 to 1. */
+  fan: number;
   /** Whether the card may turn its fans: the machine runs and the card is fitted, not burnt and drawing power. */
   spin: boolean;
   sig: string;
@@ -187,7 +186,7 @@ export class GpuView {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
       cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens,
       memParts: plan.die.blocks.filter((b) => MEM_KINDS.has(b.kind)).map((b) => ({ ...b, rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h } })),
-      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, spin: false, sig: '',
+      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, fan: 0, spin: false, sig: '',
     };
   }
 
@@ -202,8 +201,7 @@ export class GpuView {
       c.snap = g;
       c.player.feed(g);
       const d = devices?.find((x) => x.slot === c.slot);
-      c.tempC = d?.tempC ?? 25;
-      c.throttled = (d?.throttle ?? 1) < 1;
+      c.fan = d?.fan ?? 0;
       c.spin = cardSpins(live, d);
     }
   }
@@ -228,7 +226,7 @@ export class GpuView {
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view
       // (the motors run for every card, in view or not, so the speed other views read (the airflow lens) is always the card's real one)
-      const target = c.snap && c.spin ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) * TURNS_TO_SPEED : 0;
+      const target = c.snap && c.spin ? fanTurns(c.fan, c.snap.phase !== 'idle') * TURNS_TO_SPEED : 0;
       let speed = 0;
       for (const f of c.fans) {
         speed = f.motor.step(dt, target);

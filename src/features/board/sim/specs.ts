@@ -25,6 +25,8 @@ export interface ClockRange { min: number; base: number; max: number }
 export interface ThermalSpec {
   /** Passive heat loss to the case, W per degree C above ambient. */
   passive: number;
+  /** A card's own fans (graphics, neural): extra W per degree C at full fan speed. The speed follows the card's heat (`cardFan`, thermal.ts). */
+  fanPerC?: number;
   /** Thermal mass: joules per degree C (one base tick = 1 s). */
   mass: number;
   /** Above this the clock is throttled. */
@@ -345,20 +347,20 @@ const specList: DeviceSpec[] = [
 
   // Accelerators (docs/ACCEL.md). Prices are orders of magnitude only; the card's own cooler is folded into `passive`.
   { id: "gpu1", kind: "gpu", tier: 1, name: "GPU 8 lanes", slot: "pcie", pcieWidth: 8, price: 1500, idleW: 4, loadW: 40, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
+    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 1, fanPerC: 0.5, mass: 40, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-1",
     gpu: { kind: "simd", lanes: 8, memBytes: 16 * 1024, banks: 1 } },
   // Later tiers (docs/ACCEL.md tables): more lanes, memory and banks, a faster clock. gpu3 needs both PCIe leads of a big PSU.
   { id: "gpu2", kind: "gpu", tier: 2, name: "GPU 16 lanes", slot: "pcie", pcieWidth: 16, price: 5000, idleW: 8, loadW: 90, heatFactor: 1,
-    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
+    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 2, fanPerC: 1, mass: 60, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-2",
     gpu: { kind: "warp", lanes: 16, warps: 2, memBytes: 32 * 1024, banks: 2, lineWords: 8, globalLatency: 6 } },
   { id: "gpu3", kind: "gpu", tier: 3, name: "GPU 32 lanes", slot: "pcie", pcieWidth: 32, price: 15000, idleW: 12, loadW: 180, heatFactor: 1,
-    clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
+    clock: { min: 2, base: 4, max: 6 }, thermal: { passive: 4, fanPerC: 2, mass: 90, throttleC: 80, unstableC: 95, damageC: 110 }, visual: "gpu-3",
     gpu: { kind: "multi", lanes: 32, sms: 2, warps: 2, memBytes: 64 * 1024, banks: 4, lineWords: 8, globalLatency: 6, l1Lines: 16, l1Hit: 2, l2Lines: 64, l2Hit: 4 } },
   { id: "npu1", kind: "npu", tier: 1, name: "NPU 4x4", slot: "pcie", pcieWidth: 4, price: 2500, idleW: 2, loadW: 15, heatFactor: 1,
-    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.4, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1",
+    clock: { min: 1, base: 2, max: 3 }, thermal: { passive: 0.4, fanPerC: 0.2, mass: 25, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-1",
     npu: { grid: 4, memBytes: 8 * 1024 } },
   { id: "npu2", kind: "npu", tier: 2, name: "NPU 8x8", slot: "pcie", pcieWidth: 8, price: 10000, idleW: 5, loadW: 45, heatFactor: 1,
-    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 1.2, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-2",
+    clock: { min: 1.5, base: 3, max: 4.5 }, thermal: { passive: 1.2, fanPerC: 0.6, mass: 40, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "npu-2",
     npu: { grid: 8, memBytes: 32 * 1024 } },
   { id: "tpm1", kind: "tpm", tier: 1, name: "Secure module", slot: "tpm", price: 400, idleW: 0.2, loadW: 0.5, heatFactor: 1,
     thermal: { passive: 0.2, mass: 5, throttleC: 90, unstableC: 105, damageC: 120 }, visual: "tpm-1",

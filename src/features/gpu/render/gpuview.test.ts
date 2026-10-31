@@ -23,12 +23,11 @@ const snap = (o: Partial<GpuSnap> = {}): GpuSnap => ({
 });
 
 describe('GPU view', () => {
-  it('turns the fans faster as the card heats up, with load and when throttled', () => {
-    expect(fanTurns(25, false, false)).toBeLessThan(fanTurns(60, false, false));
-    expect(fanTurns(60, false, false)).toBeLessThan(fanTurns(90, false, false));
-    expect(fanTurns(90, false, false)).toBeLessThan(fanTurns(90, true, false));
-    expect(fanTurns(90, true, false)).toBeLessThan(fanTurns(90, true, true));
-    expect(fanTurns(25, false, false)).toBeGreaterThan(0);
+  it('turns the fans with the sim fan speed, faster under load, and not at all at zero', () => {
+    expect(fanTurns(0, true)).toBe(0);
+    expect(fanTurns(0.2, false)).toBeLessThan(fanTurns(0.6, false));
+    expect(fanTurns(0.6, false)).toBeLessThan(fanTurns(1, false));
+    expect(fanTurns(0.6, false)).toBeLessThan(fanTurns(0.6, true));
   });
 
   it('a card spins its fans only while the machine runs and the card is fitted, unburnt and drawing power', () => {
@@ -45,7 +44,7 @@ describe('GPU view', () => {
     fanBank.clear();
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
-    const dev = [{ slot: 'pcie0', tempC: 70, throttle: 1, burnt: false, powerW: 40 } as never];
+    const dev = [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never];
     v.update([snap()], dev, false);
     for (let i = 0; i < 30; i++) v.frame(1 / 30, true);
     expect(fanBank.get('gpu:pcie0')).toBe(0); // the PC is off: still
@@ -80,7 +79,7 @@ describe('GPU view', () => {
     const fans = card.children.slice(2, -1); // inner, cover, then one spinner per fan
     expect(fans).toHaveLength(2);
     v.setZoom(1);
-    v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: 1, burnt: false, powerW: 40 } as never]);
+    v.update([snap()], [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never]);
     const offset = (f: unknown) => (f as { offset: number }).offset;
     const before = fans.map(offset);
     for (let i = 0; i < 30; i++) v.frame(1 / 30, true);
@@ -107,7 +106,7 @@ describe('GPU view', () => {
     const v = new GpuView();
     v.setScene(T, [{ slot: 'pcie0', visual: 'gpu-2', origin: { x: 0, y: 0 } }]);
     v.setZoom(6); // deep enough that even a card off the centre of the view is past the counters stage
-    v.update([snap()], [{ slot: 'pcie0', tempC: 70, throttle: 1, burnt: false, powerW: 40 } as never]);
+    v.update([snap()], [{ slot: 'pcie0', tempC: 70, fan: 0.7, throttle: 1, burnt: false, powerW: 40 } as never]);
     const card = v.root.children[0] as Container;
     const near = { x: -200, y: -200, w: 1000, h: 600 }, far = { x: 1e6, y: 1e6, w: 1000, h: 600 };
     v.frame(1 / 30, true, false, { view: near, top: new Set(['gpu:pcie0']) });

@@ -46,6 +46,15 @@ export interface DeviceThermal {
   stress: number;
   /** Chance errorRoll() returns true this tick (0 when stable). */
   errProb: number;
+  /** 0 to 1: how fast the card's own fans turn (graphics and neural cards; 0 for every other part). */
+  fan: number;
+}
+
+/** A card's fans stay still below this temperature (zero-RPM mode), C, and reach full speed at the card's throttle limit. */
+export const CARD_FAN_START_C = 40;
+/** How fast a card's own fans turn, 0 to 1, from its temperature: still when cool, full at its throttle limit. */
+export function cardFan(tempC: number, throttleC: number): number {
+  return Math.max(0, Math.min(1, (tempC - CARD_FAN_START_C) / (throttleC - CARD_FAN_START_C)));
 }
 
 /** The board VRM's live state (temperature restarts at ambient on load; the burnt flag is Board.burnt). */
@@ -81,7 +90,9 @@ export interface PowerReport {
 
 /** Degrees C the case air warms for every watt a GPU or NPU card draws (docs/ACCEL.md "Case heat"): a 180 W card warms the other parts by 9. */
 export const CASE_HEAT_C_PER_W = 0.05;
-const isCard = (kind: DeviceKind): boolean => kind === "gpu" || kind === "npu";
+/** The share of its fans' cooling a card keeps in a case with no air moving in its area (they only stir the trapped air). */
+const CARD_FAN_AIR_MIN = 0.4;
+const isCard =(kind: DeviceKind): boolean => kind === "gpu" || kind === "npu";
 
 export type Loads = Partial<Record<DeviceKind, number>>;
 
@@ -121,6 +132,7 @@ export class ThermalModel {
   coolAll(): void {
     for (const st of this.devices.values()) {
       st.tempC = AMBIENT_C;
+      st.fan = 0;
       st.stress = 0;
       st.unstable = false;
       st.errProb = 0;
@@ -261,7 +273,10 @@ export class ThermalModel {
       drawn += p.w;
       const heat = p.w * spec.heatFactor;
       const around = airOf(spec.kind);
-      const k = spec.thermal.passive + around.k + (spec.kind === "cpu" ? coolerK : 0);
+      // a card's own fans follow its last temperature; they push the card's air, so a starved case (area "cards") makes them less effective
+      st.fan = effLive && !d.burnt && spec.thermal.fanPerC ? cardFan(st.tempC, spec.thermal.throttleC) : 0;
+      const cardAir = isCard(spec.kind) ? CARD_FAN_AIR_MIN + (1 - CARD_FAN_AIR_MIN) * air.cards.flow : 1;
+      const k = spec.thermal.passive + around.k + (spec.kind === "cpu" ? coolerK : 0) + st.fan * (spec.thermal.fanPerC ?? 0) * cardAir;
       st.powerW = p.w;
       st.heatW = heat;
       st.tempC += (heat - k * (st.tempC - (AMBIENT_C + (isCard(spec.kind) ? 0 : around.rise)))) / spec.thermal.mass;
@@ -303,7 +318,7 @@ export class ThermalModel {
   private ensure(d: InstalledDevice): DeviceThermal {
     let s = this.devices.get(d.id);
     if (!s) {
-      s = { tempC: AMBIENT_C, powerW: 0, heatW: 0, effClock: 0, throttle: 1, unstable: false, stress: 0, errProb: 0 };
+      s = { tempC: AMBIENT_C, powerW: 0, heatW: 0, effClock: 0, throttle: 1, unstable: false, stress: 0, errProb: 0, fan: 0 };
       this.devices.set(d.id, s);
     }
     return s;

@@ -7,7 +7,7 @@ import { levelRows } from '../../features/economy/sim/levels';
 
 export const dev = (o: Partial<DeviceSnap> = {}): DeviceSnap => ({
   id: 'dev1', spec: 'cpu0', kind: 'cpu', name: 'Tiny-1 (unpipelined)', burnt: false, requestedClock: 1, effectiveClock: 1,
-  tempC: 30, powerW: 5, throttle: 1, unstable: false, slot: 'cpu0', ...o,
+  tempC: 30, powerW: 5, throttle: 1, unstable: false, fan: 0, slot: 'cpu0', ...o,
 });
 
 export const key = (o: Partial<KeySnap> = {}): KeySnap => ({
@@ -72,7 +72,7 @@ export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<V
 export const NO_PROGRESS = newProgress(false);
 export const ALL_PROGRESS = newProgress(true);
 
-export const STOCK_COOLER: DeviceSnap = { id: 'dev-cooler', spec: 'cooler0', kind: 'cooler', name: 'Stock heatsink', burnt: false, requestedClock: null, effectiveClock: 1, tempC: 25, powerW: 0, throttle: 1, unstable: false, slot: 'cooler0' };
+export const STOCK_COOLER: DeviceSnap = { id: 'dev-cooler', spec: 'cooler0', kind: 'cooler', name: 'Stock heatsink', burnt: false, requestedClock: null, effectiveClock: 1, tempC: 25, powerW: 0, throttle: 1, unstable: false, fan: 0, slot: 'cooler0' };
 
 /** A fresh game: nothing installed, nothing connected, no keys yet. */
 export function snap(o: Partial<Snapshot> = {}): Snapshot {

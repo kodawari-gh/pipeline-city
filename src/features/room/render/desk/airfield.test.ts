@@ -72,4 +72,19 @@ describe('the air field', () => {
     f.step(0, input([inlet(), exhaust()]));
     expect(f.parts.map((p) => [p.x, p.y])).toEqual(at);
   });
+
+  it("reads the sim's air of an area: next to a part in a poorly ventilated area the air crawls and stays warm", () => {
+    const part = { x: 3500, y: 2500, w: 600, h: 600 };
+    const mk = (flow: number, riseC: number): FieldIn => ({ box, ports: [inlet(), exhaust()], zones: [{ rects: [part], heat: 0, flow, riseC }] });
+    const probe = (i: FieldIn) => {
+      const f = new AirField(); f.step(0.01, i);
+      const p = { x: 3300, y: 2800, vx: 0, vy: 0, heat: 0, age: 0, k: 1, seed: 0 }; f.parts.push(p);
+      f.step(1 / 30, i);
+      return p;
+    };
+    const free = probe(mk(1, 0)), trapped = probe(mk(0, 9));
+    expect(Math.hypot(trapped.x - 3300, trapped.y - 2800)).toBeLessThan(Math.hypot(free.x - 3300, free.y - 2800));
+    expect(free.heat).toBe(0);
+    expect(trapped.heat).toBeGreaterThan(0.3);
+  });
 });

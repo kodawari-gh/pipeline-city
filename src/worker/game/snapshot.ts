@@ -165,6 +165,7 @@ export function deviceSnap(this: Game, d: InstalledDevice): DeviceSnap {
     powerW: t?.powerW ?? 0,
     throttle: t?.throttle ?? 1,
     unstable: t?.unstable ?? false,
+    fan: t?.fan ?? 0,
   };
 }
 

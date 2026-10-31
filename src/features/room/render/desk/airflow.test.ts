@@ -70,6 +70,14 @@ describe('the airflow lens model', () => {
     expect(good.tags.find((t) => t.id === 'z.cpu')!.text).not.toContain('AIR');
   });
 
+  it('the zones carry the air of their area from the sim into the field (flow and the cards warming it); a machine that is off carries none', () => {
+    const air = ['north', 'cards', 'bay'].map((id) => ({ id, flow: 0.4, fans: 3, riseC: 6 }));
+    const m = airflowModel(running(60, [], { board: boardSnap({ air: air as never }) }));
+    expect(m.zones.find((z) => z.id === 'cpu')).toMatchObject({ flow: 0.4, riseC: 6 });
+    const off = airflowModel(running(60, [], { powered: false, board: boardSnap({ air: air as never }) }));
+    expect(off.zones.find((z) => z.id === 'cpu')!.flow).toBeUndefined();
+  });
+
   it('a heat zone carries the hover id of each part, so the lens can trace its silhouette', () => {
     const m = airflowModel(running(60));
     const cpu = m.zones.find((z) => z.id === 'cpu')!;

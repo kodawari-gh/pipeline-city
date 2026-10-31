@@ -18,7 +18,7 @@ import type { Theme } from '@/core/render/theme';
 // The airflow lens: one switch that dims the room and shows how the case breathes. Air comes in at the front fans, crosses the board, picks up
 // the heat of every part it passes and leaves at the rear and top fans. Particles run along the lanes: faster with more fans, warmer where the
 // parts are hot. A dead fan, or a case that only takes in or only blows out, shows in red. The model is pure (`airflowModel`, tested);
-// `AirflowLens` only draws it. The sim has no airflow model (thermal.ts is lumped): the lanes are drawn from the fans' cables and the temperatures.
+// `AirflowLens` only draws it. The lanes are drawn from the fans' cables and the temperatures; the field reads the sim's air of each area (`s.board.air`, board/sim/airflow.ts) for the zone each part sits in.
 
 export type Pt = [number, number];
 export type AirState = 'on' | 'idle' | 'dead';
@@ -54,6 +54,8 @@ export interface AirZone {
   /** The hover id of each rect (a device id), whose silhouette the glow traces; empty where the rects are all there is. */
   ids: (string | null)[];
   heat: number; tempC: number;
+  /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
+  flow?: number; riseC?: number;
 }
 export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r' }
 export interface AirModel {
@@ -140,7 +142,8 @@ export function airflowModel(i: AirIn): AirModel {
       if (!h.rects.length) continue;
       const x0 = Math.min(...h.rects.map((r) => r.x)), y0 = Math.min(...h.rects.map((r) => r.y));
       const x1 = Math.max(...h.rects.map((r) => r.x + r.w)), y1 = Math.max(...h.rects.map((r) => r.y + r.h));
-      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, ids: h.ids ?? [], heat: h.heat, tempC: h.tempC });
+      const area = areaOf(h.id), air = area && running ? s.board?.air?.find((a) => a.id === area) : undefined;
+      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, ids: h.ids ?? [], heat: h.heat, tempC: h.tempC, flow: air?.flow, riseC: air?.riseC });
     }
     localFans.push(...(src.fans?.(ctx) ?? []));
   }
@@ -214,7 +217,7 @@ export function airflowModel(i: AirIn): AirModel {
   for (const z of zones) {
     if (z.id === 'psu') continue;
     // the area's air as the sim works it out (board/sim/airflow.ts): how well it is ventilated, named when it is poor
-    const area = areaOf(z.id), flow = area && running ? s.board?.air?.find((a) => a.id === area)?.flow : undefined;
+    const flow = z.flow;
     const poor = flow !== undefined && flow < POOR_AIR;
     tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}${poor ? ` · AIR ${Math.round(flow * 100)}%` : ''}`, tone: z.heat > 0.8 || poor ? 'warn' : 'heat', anchor: 'c' });
   }
@@ -354,7 +357,7 @@ export class AirflowLens {
     }
     // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
     const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l) }));
-    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat })) });
+    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flow: zn.flow, riseC: zn.riseC })) });
     for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
     for (const p of this.field.parts) {
       const sp = Math.hypot(p.vx, p.vy), tl = Math.min(170, sp * 0.14), k = tl / (sp || 1);
