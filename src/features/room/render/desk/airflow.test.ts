@@ -6,9 +6,10 @@ vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/
 
 import type { Snapshot } from '@/worker/protocol';
 import { boardSnap, dev, snap } from '@/core/ui/testdata';
-import type { Rect } from '@/features/board/render/layout/layout';
-import { airColor, airSpeed, airflowModel, laneHeat, type AirIn, type AirMount } from './airflow';
-import { CASE_GLASS, PSU, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';
+import { airColor, airSpeed, airflowModel, clipPath, laneHeat, type AirIn, type AirMount } from './airflow';
+import { AIR_SOURCES, OUTSIDE_THE_CASE } from './airsources';
+import { DEVICE_SPECS } from '@/features/board/sim/specs';
+import { CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';
 import { fanMounts } from '@/features/room/render/desk/props/case';
 import { emptyScene } from '@/core/render/interact';
 
@@ -25,16 +26,43 @@ function running(cpuC = 40, unplug: string[] = [], over: Partial<Snapshot> = {})
   });
   const slots = emptyScene().slots;
   slots.set('cpu0', { x: CASE_GLASS.x + CASE_GLASS.w * 0.4, y: CASE_GLASS.y + CASE_GLASS.h * 0.4, w: 500, h: 500 });
-  return { s, mounts, radiator: null, rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots, psu: PSU };
+  return { s, mounts, radiator: null, rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots, sources: AIR_SOURCES };
 }
+const caseLanes = (m: ReturnType<typeof airflowModel>) => m.lanes.filter((l) => !l.local);
 
 describe('the airflow lens model', () => {
-  it('one lane per fan, the front ones taking air in and the rest blowing it out', () => {
+  it('one lane per case fan, the front ones taking air in and the rest blowing it out', () => {
     const m = airflowModel(running());
     const mounts = fanMounts();
-    expect(m.lanes.length).toBe(mounts.length);
-    for (const l of m.lanes) expect(l.intake).toBe(l.id.startsWith('front'));
-    expect(m.lanes.every((l) => l.state === 'on')).toBe(true);
+    expect(caseLanes(m).length).toBe(mounts.length);
+    for (const l of caseLanes(m)) expect(l.intake).toBe(l.id.startsWith('front'));
+    expect(caseLanes(m).every((l) => l.state === 'on')).toBe(true);
+    expect(caseLanes(m).every((l) => l.fanIds.length === 1 && l.fanIds[0]!.startsWith('case:'))).toBe(true);
+  });
+
+  it('the components bring their own fans: a stream for a cooler, a card, a sink and the PSU, tied to the fan id the view spins', () => {
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', slot: 'cooler0' }),
+      dev({ id: 'gpu', kind: 'gpu', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', slot: 'vrm-sink0' })] });
+    i.slots.set('pcie0', { x: CASE_GLASS.x + 3000, y: CASE_GLASS.y + 1500, w: 3000, h: 900 });
+    const m = airflowModel(i), local = m.lanes.filter((l) => l.local);
+    expect(local.map((l) => l.fanIds[0]).sort()).toEqual(['cooler', 'gpu:pcie0', 'psu', 'vrm']);
+    for (const l of local) expect(l.pts.length).toBeGreaterThan(1);
+    expect(m.tags.some((t) => t.text.startsWith('GPU '))).toBe(true);
+    const len = (l: (typeof local)[number]) => l.pts.slice(1).reduce((a, p, k) => a + Math.hypot(p[0] - l.pts[k]![0], p[1] - l.pts[k]![1]), 0);
+    for (const l of local) expect(len(l)).toBeLessThanOrEqual(1950);
+  });
+
+  it('clipPath cuts a path at a length', () => {
+    const p = clipPath([[0, 0], [1000, 0], [1000, 1000]], 1500);
+    expect(p[p.length - 1]).toEqual([1000, 500]);
+    expect(clipPath([[0, 0], [100, 0]], 500)).toEqual([[0, 0], [100, 0]]);
+  });
+
+  it('every part kind with thermals has an air source (or sits outside the case): a new one must write its own', () => {
+    const claimed = new Set(AIR_SOURCES.flatMap((s) => s.kinds));
+    const withThermals = new Set(Object.values(DEVICE_SPECS).filter((sp) => 'thermal' in sp && sp.thermal).map((sp) => sp.kind));
+    expect(withThermals.size).toBeGreaterThan(5);
+    for (const kind of withThermals) expect(claimed.has(kind) || OUTSIDE_THE_CASE.includes(kind), `no air source for '${kind}'`).toBe(true);
   });
 
   it('an unplugged fan keeps its lane, dead, with no strength and a warning', () => {
@@ -46,7 +74,7 @@ describe('the airflow lens model', () => {
 
   it('the hub unplugged kills every case fan', () => {
     const m = airflowModel(running(40, ['sysfan']));
-    expect(m.lanes.every((l) => l.state === 'dead')).toBe(true);
+    expect(caseLanes(m).every((l) => l.state === 'dead')).toBe(true);
     expect(m.tags.some((t) => t.id === 'none')).toBe(true);
   });
 
@@ -68,15 +96,14 @@ describe('the airflow lens model', () => {
 
   it('the VRMs glow too: a zone per regulator, one shape per phase, hot against its own throttle point', () => {
     const i = running(40, [], { board: boardSnap({ vrm: { tempC: 80 } }) });
-    const phase = (n: number): Rect[] => Array.from({ length: n }, (_, k) => ({ x: k * 300, y: 0, w: 250, h: 400 }));
-    const m = airflowModel({ ...i, vrmShapes: phase(4), ramVrmShapes: phase(2) });
+    const m = airflowModel(i);
     const v = m.zones.find((z) => z.id === 'vrm')!, r = m.zones.find((z) => z.id === 'rvrm')!;
-    expect(v.rects).toHaveLength(4);
-    expect(r.rects).toHaveLength(2);
+    expect(v.rects).toHaveLength(i.s.board.vrm.phases);
+    expect(r.rects).toHaveLength(i.s.board.ramVrm.phases);
     expect(v.heat).toBeGreaterThan(r.heat);
     expect(m.tags.some((t) => t.text.startsWith('VRM '))).toBe(true);
     expect(m.tags.some((t) => t.text.startsWith('MEM VRM '))).toBe(true);
-    expect(airflowModel({ ...i }).zones.some((z) => z.id === 'vrm')).toBe(false);
+    expect(airflowModel({ ...i, sources: [] }).zones).toHaveLength(0); // the lens knows no part by itself
   });
 
   it('a machine that is off moves no air', () => {

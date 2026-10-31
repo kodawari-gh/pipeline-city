@@ -5,6 +5,7 @@ import type { GpuStep, GpuStepKind } from '../sim/isa/ref';
 import { box, label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
 import { EdgeFan } from '../../room/render/desk/props/case';
+import { FanMotor, fanBank } from '../../../core/render/fanmotor';
 import { gpuCover } from '@/core/render/accelart';
 import type { Pt } from '../../cpu/render/core/cpuplan';
 import { gpuFar, gpuNear } from './gpuart';
@@ -40,6 +41,14 @@ const FAN_IDLE = 0.5, FAN_FULL = 3.5;
 const BLADES_PER_TURN = 1.6;
 /** Milliseconds one card cycle lasts in the replay, and how long an instruction takes to settle into a block's symbol. */
 const CYCLE_MS = 1000 / CYCLES_PER_SEC, WIPE_MS = 320;
+
+/** `live.ts` fan speed units per turn per second (an edge-on fan slides 0.8 blade lengths per unit; a card's turn is `BLADES_PER_TURN` of them). */
+const TURNS_TO_SPEED = BLADES_PER_TURN / 0.8;
+
+/** A card's fans may turn only while the machine runs and the card is fitted, not burnt and drawing power (a dead or unpowered card is still). */
+export function cardSpins(live: boolean, d: { burnt: boolean; powerW: number } | undefined): boolean {
+  return live && !!d && !d.burnt && d.powerW > 0.05;
+}
 
 /** The point a fraction `f` of the way along a polyline (by length). */
 export function along(pts: Pt[], f: number): Pt {
@@ -97,7 +106,7 @@ interface CardView {
   /** The shape of the animation last drawn, so a still card costs nothing. */
   animating: boolean;
   cover: Graphics;
-  fans: { fan: EdgeFan; turns: number }[];
+  fans: { fan: EdgeFan; motor: FanMotor }[];
   wires: Container;
   cells: Container;
   names: Container;
@@ -114,6 +123,8 @@ interface CardView {
   snap: GpuSnap | undefined;
   tempC: number;
   throttled: boolean;
+  /** Whether the card may turn its fans: the machine runs and the card is fitted, not burnt and drawing power. */
+  spin: boolean;
   sig: string;
 }
 
@@ -168,7 +179,7 @@ export class GpuView {
     inner.addChild(linkText, ctrText, memText);
 
     const cover = gpuCover(new Graphics(), T, plan);
-    const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), turns: 0 })); // the case fans' edge-on look, blades sliding along the module
+    const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), motor: new FanMotor(fanBank.get(`gpu:${c.slot}`)) })); // the case fans' edge-on look, blades sliding along the module
     const lens = new GpuLensView();
     root.addChild(inner, cover, ...fans.map((f) => f.fan), lens.root);
     this.root.addChild(root);
@@ -176,7 +187,7 @@ export class GpuView {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,
       cover, fans, wires: near.wires, cells: near.cells, names, subs, linkText, ctrText, memText, player: new GpuPlayer(), lens,
       memParts: plan.die.blocks.filter((b) => MEM_KINDS.has(b.kind)).map((b) => ({ ...b, rect: { x: b.rect.x + plan.origin.x, y: b.rect.y + plan.origin.y, w: b.rect.w, h: b.rect.h } })),
-      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, sig: '',
+      tick: { step: null, index: -1, length: 0, progress: 0, round: 0, playing: false, cycle: 0, sms: [], warps: [] }, snap: undefined, tempC: 25, throttled: false, spin: false, sig: '',
     };
   }
 
@@ -185,14 +196,15 @@ export class GpuView {
   }
 
   /** The newest snapshot: each card's insides, and the devices for the temperatures that drive the fans. */
-  update(gpus: GpuSnap[] | undefined, devices: DeviceSnap[] | undefined): void {
+  update(gpus: GpuSnap[] | undefined, devices: DeviceSnap[] | undefined, live = true): void {
     for (const c of this.cards) {
       const g = gpus?.find((x) => x.slot === c.slot);
       c.snap = g;
       c.player.feed(g);
       const d = devices?.find((x) => x.slot === c.slot);
       c.tempC = d?.tempC ?? 25;
-      c.throttled = !!d?.throttle;
+      c.throttled = (d?.throttle ?? 1) < 1;
+      c.spin = cardSpins(live, d);
     }
   }
 
@@ -215,11 +227,14 @@ export class GpuView {
       this.seen = z;
       c.root.visible = on;
       // the fans: on whatever the zoom, while the card is in view
-      const target = c.snap ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) : 0;
-      for (const f of on ? c.fans : []) {
-        f.turns += (target - f.turns) * Math.min(1, dt * 1.2);
-        f.fan.spin(f.turns * dt * BLADES_PER_TURN, Math.min(1, f.turns / FAN_FULL));
+      // (the motors run for every card, in view or not, so the speed other views read (the airflow lens) is always the card's real one)
+      const target = c.snap && c.spin ? fanTurns(c.tempC, c.snap.phase !== 'idle', c.throttled) * TURNS_TO_SPEED : 0;
+      let speed = 0;
+      for (const f of c.fans) {
+        speed = f.motor.step(dt, target);
+        if (on) f.fan.spin(speed * dt * 0.8, Math.min(1, speed / (FAN_FULL * TURNS_TO_SPEED)));
       }
+      fanBank.set(`gpu:${c.slot}`, speed);
       // a paused game can be scrubbed: the Trace panel names a cycle of this card's last instructions and the card shows the machine at it
       const mine = scrubTarget.peek() === `gpu:${c.slot}`, cur = mine ? scrubCursor.peek() : null;
       if (cur !== null) c.tick = c.player.seek(0, cur);

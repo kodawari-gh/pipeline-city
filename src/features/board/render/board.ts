@@ -18,6 +18,7 @@ import { FanCordsView } from './wiring/fancords';
 import { isFanCable } from '../sim/cables';
 import { PowerLens, lensModel } from '../../room/render/desk/lens';
 import { AirflowLens, airflowModel } from '../../room/render/desk/airflow';
+import { AIR_SOURCES } from '../../room/render/desk/airsources';
 import { NetView, nicArt } from '../../network/render/net';
 import { deviceAt } from './wiring/busmap';
 import { cardArt, cardOrigin, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
@@ -30,7 +31,7 @@ import type { GpuCardScene } from '../../gpu/render/gpuview';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../../room/render/shell/exterior';
 import { box, clear, dashed, label } from '@/core/render/ink';
 import {
-  BAY, BD, CASE_GLASS, GEO, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
@@ -1001,8 +1002,7 @@ export async function mountBoard(host: HTMLElement) {
         const span = dev ? radiatorSpan(dev.slot === 'rad-front' ? 'front' : 'top') : null;
         airLens.setModel(airflowModel({
           s: lastSnap!, mounts: fanMounts(), radiator: span ? { side: span.side as 'front' | 'top', ids: span.ids, rect: span.rect } : null,
-          rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots: scene.slots, psu: PSU,
-          vrmShapes: GEO.vrmPhases.slice(0, lastSnap!.board?.vrm.phases ?? 0), ramVrmShapes: GEO.dPhases.slice(0, lastSnap!.board?.ramVrm.phases ?? 0),
+          rearFitted: REAR_FAN_FITTED, rear: REAR_FAN, glass: CASE_GLASS, slots: scene.slots, sources: AIR_SOURCES,
         }));
       }
     } else airKey = null;

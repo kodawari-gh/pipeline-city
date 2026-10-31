@@ -5,6 +5,8 @@ import type { Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
 import { EdgeFan } from './props/case';
+import { fanBank } from '@/core/render/fanmotor';
+import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
 import type { Theme } from '@/core/render/theme';
 
 // The airflow lens: one switch that dims the room and shows how the case breathes. Air comes in at the front fans, crosses the board, picks up
@@ -21,14 +23,18 @@ export interface AirMount { id: string; side: 'front' | 'top' | 'rear'; rect: Re
 /** One stream of air through a fan mount. `intake` air starts outside and goes in; the rest starts in the case and leaves. */
 export interface AirLane {
   id: string; pts: Pt[]; intake: boolean; state: AirState;
-  /** 0..1: how hard it blows (fan count on a radiator, a passive grille is weak). */
+  /** 0..1: how hard it blows (fan count on a radiator, a passive grille is weak). Used where no fan speed is known (`fanIds` empty). */
   strength: number;
+  /** The fans that drive it, by `fanBank` id: the lens blows as hard as their real speed (a fan that coasts down still blows). */
+  fanIds: string[];
+  /** A component's own fan (cooler, card, sink, PSU), not one of the case's. */
+  local?: boolean;
   /** Heat the air takes up along the lane: at `u` (0..1 of its length) it gains `heat` (0..1). */
   picks: { u: number; heat: number }[];
 }
 /** A part that warms the air: a haze over its rect. `heat` 0 (cool) to 1 (at the limit). */
 export interface AirZone {
-  id: string;
+  id: string; label: string;
   /** The box round the whole zone (where the air picks its heat up, where the tag sits). */
   rect: Rect;
   /** The shapes the glow follows: one rect per part (every stick of RAM, every phase of a VRM). */
@@ -36,7 +42,7 @@ export interface AirZone {
   heat: number; tempC: number;
 }
 export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r' }
-export interface AirModel { lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState }[] }
+export interface AirModel { lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[] }
 
 export interface AirIn {
   s: Snapshot;
@@ -51,10 +57,8 @@ export interface AirIn {
   glass: Rect;
   /** Slot id to its world rect. */
   slots: Map<string, Rect>;
-  psu: Rect;
-  /** The phase blocks of the CPU VRM and of the memory VRM on the board (`GEO.vrmPhases`, `GEO.dPhases`, the fitted ones). */
-  vrmShapes?: Rect[];
-  ramVrmShapes?: Rect[];
+  /** What each component adds: its heat and its fans (`AIR_SOURCES`). */
+  sources: AirSource[];
 }
 
 const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
@@ -63,12 +67,20 @@ const deg = (t: number) => `${Math.round(t)}°C`;
 /** Case heat per watt of the cards, as the sim (`CASE_HEAT_C_PER_W`). */
 export const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
-const HOT_KINDS: Record<string, string> = { cpu: 'CPU', ram: 'RAM', gpu: 'GPU', npu: 'NPU', tpm: 'TPM', storage: 'DRIVE', nic: 'NIC' };
-/** The words on a zone's tag: the part kinds, plus the two voltage regulators of the board. */
-const NAMES: Record<string, string> = { ...HOT_KINDS, vrm: 'VRM', rvrm: 'MEM VRM' };
+/** How far a component's own fan blows (world units) before its air joins the case's. */
+const LOCAL_REACH = 1900;
 
-/** How hot a part is, 0 (cool) to 1 (at the point where it throttles). */
-export const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
+/** The first `max` world units of a path. */
+export function clipPath(pts: Pt[], max: number): Pt[] {
+  const out: Pt[] = [pts[0]!];
+  let run = 0;
+  for (let k = 1; k < pts.length; k++) {
+    const a = pts[k - 1]!, b = pts[k]!, d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (run + d >= max) { const f = d ? (max - run) / d : 0; out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]); return out; }
+    out.push(b); run += d;
+  }
+  return out;
+}
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const hex = (n: number) => Math.round(n).toString(16).padStart(2, '0');
@@ -93,32 +105,18 @@ export function airflowModel(i: AirIn): AirModel {
   const cable = (id: string) => s.cables.find((c) => c.id === id)?.connected ?? true;
   const hub = cable('sysfan');
 
-  // the heat zones: the parts of one kind together, hot at the hottest
-  const groups = new Map<string, { rects: Rect[]; t: number; w: number }>();
-  for (const d of s.devices) {
-    if (!HOT_KINDS[d.kind]) continue;
-    const r = i.slots.get(d.slot);
-    if (!r) continue;
-    const g = groups.get(d.kind) ?? { rects: [], t: 0, w: 0 };
-    g.rects.push(r); g.t = Math.max(g.t, d.tempC); g.w += d.powerW;
-    groups.set(d.kind, g);
-  }
+  // the heat zones and the local fans come from the components themselves (`AIR_SOURCES`): this model knows no part
+  const ctx: AirCtx = { s, slots: i.slots, live: running && !s.power.tripped };
   const zones: AirZone[] = [];
-  for (const [kind, g] of groups) {
-    const x0 = Math.min(...g.rects.map((r) => r.x)), y0 = Math.min(...g.rects.map((r) => r.y));
-    const x1 = Math.max(...g.rects.map((r) => r.x + r.w)), y1 = Math.max(...g.rects.map((r) => r.y + r.h));
-    zones.push({ id: kind, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: g.rects, heat: running ? heatOf(g.t) : 0, tempC: g.t });
-  }
-  if (s.devices.some((d) => d.kind === 'psu')) {
-    const load = running ? clamp01(s.power.totalW / Math.max(1, s.power.budgetW)) : 0;
-    zones.push({ id: 'psu', rect: i.psu, rects: [i.psu], heat: load * 0.6, tempC: 30 + load * 33 });
-  }
-  // the board's two voltage regulators: hot against their own throttle point (the sim's `VrmSnap`)
-  for (const [id, v, shapes] of [['vrm', s.board?.vrm, i.vrmShapes], ['rvrm', s.board?.ramVrm, i.ramVrmShapes]] as const) {
-    if (!v || !shapes?.length) continue;
-    const x0 = Math.min(...shapes.map((r) => r.x)), y0 = Math.min(...shapes.map((r) => r.y));
-    const x1 = Math.max(...shapes.map((r) => r.x + r.w)), y1 = Math.max(...shapes.map((r) => r.y + r.h));
-    zones.push({ id, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: [...shapes], heat: running ? clamp01((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0, tempC: v.tempC });
+  const localFans: AirFan[] = [];
+  for (const src of i.sources) {
+    for (const h of src.heat?.(ctx) ?? []) {
+      if (!h.rects.length) continue;
+      const x0 = Math.min(...h.rects.map((r) => r.x)), y0 = Math.min(...h.rects.map((r) => r.y));
+      const x1 = Math.max(...h.rects.map((r) => r.x + r.w)), y1 = Math.max(...h.rects.map((r) => r.y + r.h));
+      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, heat: h.heat, tempC: h.tempC });
+    }
+    localFans.push(...(src.fans?.(ctx) ?? []));
   }
 
   // one lane per fan that turns (or should): a dead fan keeps its lane, in red
@@ -136,21 +134,28 @@ export function airflowModel(i: AirIn): AirModel {
     } else {
       pts = roundedPath([[inX + 1400, rearY], [rearX + 80, rearY], exitW], 400, 60);
     }
-    return { id, pts, intake, state: !on ? 'dead' : running ? 'on' : 'idle', strength: on ? strength : 0, picks: [] };
+    return { id, pts, intake, state: !on ? 'dead' : running ? 'on' : 'idle', strength: on ? strength : 0, fanIds: [], picks: [] };
   };
   for (const m of i.mounts) {
     if (radIds.has(m.id)) continue;
     const on = hub && cable(`fan:${m.id}`);
-    lanes.push(make(m.id, m.side, m.rect, on, 1));
-    mounts.push({ id: m.id, rect: m.rect, state: !on ? 'dead' : running ? 'on' : 'idle' });
+    lanes.push({ ...make(m.id, m.side, m.rect, on, 1), fanIds: [`case:${m.id}`] });
+    mounts.push({ id: m.id, rect: m.rect, state: !on ? 'dead' : running ? 'on' : 'idle', fanIds: [`case:${m.id}`] });
   }
   if (!i.rearFitted) { // a grille only: air leaves it by pressure, weakly
     lanes.push(make('rear', 'rear', i.rear, true, 0.3));
   }
   if (i.radiator && i.radiator.ids.length) {
-    const r = i.radiator, share = hub ? r.ids.filter((id) => cable(`fan:${id}`)).length / r.ids.length : 0;
-    lanes.push(make(`rad-${r.side}`, r.side, r.rect, share > 0, 0.4 + 0.6 * share));
-    mounts.push({ id: `rad-${r.side}`, rect: r.rect, state: share <= 0 ? 'dead' : running ? 'on' : 'idle' });
+    const r = i.radiator, share = hub ? r.ids.filter((id) => cable(`fan:${id}`)).length / r.ids.length : 0, fanIds = r.ids.map((id) => `radiator:${id}`);
+    lanes.push({ ...make(`rad-${r.side}`, r.side, r.rect, share > 0, 0.4 + 0.6 * share), fanIds });
+    mounts.push({ id: `rad-${r.side}`, rect: r.rect, state: share <= 0 ? 'dead' : running ? 'on' : 'idle', fanIds });
+  }
+  // the fans of the components (cooler, graphics cards, sinks, PSU): a short stream from each toward the nearest way out of the case
+  const outlets: Pt[] = [[rearX + 80, rearY], ...i.mounts.filter((m) => m.side === 'top').map((m): Pt => [mid(m.rect)[0], m.rect.y + m.rect.h])];
+  for (const f of localFans) {
+    const from = mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));
+    const pts = clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
+    if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [] });
   }
 
   // the heat each lane takes up: every zone it passes within reach, at the place it passes closest
@@ -168,7 +173,7 @@ export function airflowModel(i: AirIn): AirModel {
   }
 
   // the words
-  const on = lanes.filter((l) => l.state === 'on');
+  const on = lanes.filter((l) => l.state === 'on' && !l.local);
   const inN = on.filter((l) => l.intake).length, outN = on.filter((l) => !l.intake).length;
   const gl = i.glass, cx = gl.x + gl.w / 2;
   if (!running) tags.push({ id: 'off', at: [cx, gl.y + gl.h * 0.08], text: 'MACHINE OFF: NO AIR MOVES', tone: 'dim', anchor: 'c' });
@@ -178,7 +183,7 @@ export function airflowModel(i: AirIn): AirModel {
   for (const m of mounts) if (m.state === 'dead' && running) tags.push({ id: `dead.${m.id}`, at: [mid(m.rect)[0], m.rect.y + m.rect.h + 260], text: 'FAN OFF', tone: 'warn', anchor: 'c' });
   for (const z of zones) {
     if (z.id === 'psu') continue;
-    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${NAMES[z.id]} ${deg(z.tempC)}`, tone: z.heat > 0.8 ? 'warn' : 'heat', anchor: 'c' });
+    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}`, tone: z.heat > 0.8 ? 'warn' : 'heat', anchor: 'c' });
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
@@ -201,7 +206,9 @@ export class AirflowLens {
   private dim = new Graphics();
   /** The case fans seen edge-on (the same art as the live case, `EdgeFan`), redrawn above the dimming so they stay readable. */
   private fanBox = new Container();
-  private fans: { id: string; f: EdgeFan; state: AirState }[] = [];
+  private fans: { id: string; f: EdgeFan; state: AirState; fanIds: string[] }[] = [];
+  /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
+  private runs = new Map<string, number>();
   private g = new Graphics();
   private pills = new Graphics();
   private labels = new Container();
@@ -221,10 +228,17 @@ export class AirflowLens {
     if (m) for (const l of m.lanes) this.lanes.set(l.id, mkLane(l.pts));
     for (const o of this.fans) o.f.destroy();
     this.fans = [];
-    if (m) for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state }); }
+    if (m) for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state, fanIds: mt.fanIds }); }
   }
 
   get visible() { return this.root.visible; }
+
+  /** 0 (still) to 1 (full speed): how hard a lane blows now, by the real speed of the fans that drive it. */
+  private level(l: AirLane): number {
+    if (l.state === 'dead') return 0;
+    if (!l.fanIds.length) return l.state === 'on' ? l.strength : 0;
+    return l.fanIds.reduce((a, id) => a + fanBank.level(id), 0) / l.fanIds.length;
+  }
 
   /** `dt` in seconds of game time, so the air stops with the pause. */
   frame(on: boolean, v: View, dt: number, now: number) {
@@ -254,7 +268,10 @@ export class AirflowLens {
       }
     }
     // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame
-    for (const o of this.fans) o.f.spin(o.state === 'on' ? 3.2 * dt : 0, o.state === 'on' ? 0.9 : 0.15);
+    for (const o of this.fans) {
+      const speed = o.state === 'dead' ? 0 : o.fanIds.reduce((a, id) => a + fanBank.get(id), 0) / Math.max(1, o.fanIds.length); // the real fan's speed, so it coasts like the real one
+      o.f.spin(speed * dt * 0.8, Math.min(1, speed / 5));
+    }
     for (const mt of m.mounts) {
       const dead = mt.state === 'dead';
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
@@ -263,13 +280,17 @@ export class AirflowLens {
     let budget = MAX_PARTS;
     for (const l of m.lanes) {
       const ln = this.lanes.get(l.id)!;
-      const faint = l.state !== 'on';
-      this.path(g, l.pts);
-      g.stroke({ width: px(2), color: l.state === 'dead' ? T.bad : airColor(0), alpha: l.state === 'dead' ? 0.3 : faint ? 0.1 : 0.08, cap: 'round', join: 'round' });
+      const lvl = this.level(l), faint = lvl < 0.03;
+      if (!l.local || !faint) {
+        this.path(g, l.pts);
+        g.stroke({ width: px(2), color: l.state === 'dead' ? T.bad : airColor(0), alpha: l.state === 'dead' ? 0.3 : faint ? 0.1 : 0.08, cap: 'round', join: 'round' });
+      }
       if (faint || ln.len < 10) continue;
-      const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.4 + 0.6 * l.strength))));
+      const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.15 + 0.85 * lvl) * (l.local ? 0.6 : 1))));
       budget -= n;
-      const run = airSpeed(l.strength) * this.t, li = m.lanes.indexOf(l);
+      // the air covers distance by the lane's fan speed: it ramps up and dies away with the fans (a coasting fan still blows a little)
+      this.runs.set(l.id, (this.runs.get(l.id) ?? 0) + airSpeed(lvl) * dt);
+      const run = this.runs.get(l.id)!, li = m.lanes.indexOf(l);
       for (let k = 0; k < n; k++) {
         // every particle has its own speed, lane offset and size, so the stream is a living bundle, not a row of dots
         const r1 = rnd(k + li * 131), r2 = rnd(k + li * 131 + 7), r3 = rnd(k + li * 131 + 13);
