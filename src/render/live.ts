@@ -11,6 +11,7 @@ import { monitorView, screenMode, standbyLook, type MonitorInput } from './room/
 import { EdgeFan } from './room/case';
 import { RamView } from './board/ramview';
 import { GpuView, type GpuCardScene } from './board/gpuview';
+import { DiskView } from './board/diskview';
 import { TpmView, type TpmScene } from './board/tpmview';
 import { NpuCardView, type NpuScene } from './board/npuview';
 import { memoryTable, sizeText } from './board/ramlayout';
@@ -39,7 +40,7 @@ interface Lit { bus: Bus; /** The lanes that light (the main run plus the branch
  */
 interface Chain { hops: Hop[]; force?: boolean; drive?: { lane: Lane; before: boolean; dir: 1 | -1 }; cable?: boolean; /** One stick's bundle after the hops (CPU to stick). */ mem?: number; /** The reply: the same legs again, back to front and the other way (a ping). */ pong?: boolean }
 /** An installed drive: where its moving parts are drawn, its SATA data cable lane (SATA only) and its activity state. */
-export interface DriveHook { slot: string; kind: DriveKind; g: Graphics; lane: Lane | null }
+export interface DriveHook { slot: string; deviceId: string; kind: DriveKind; body: { x: number; y: number; w: number; h: number }; g: Graphics; lane: Lane | null }
 interface DriveLive extends DriveHook {
   busyUntil: number; speed: number; spin: number; head: number; led: number; sig: string; burnt: boolean;
 }
@@ -139,6 +140,8 @@ export class Live {
   private ram = new RamView();
   /** The graphics cards: spinning fans and the lanes, registers and banks under the shroud (board/gpuview.ts). */
   private gpu = new GpuView();
+  /** The drives' insides: capacity map, architecture, counters (board/diskview.ts). */
+  private disk = new DiskView();
   /** The secure module: its lid fades into the die at zoom, and commands run along the die's wires (board/tpmview.ts). */
   private tpm = new TpmView();
   /** The AI cards: their lid fades into the die at zoom, and descriptors run along the die's wires (board/npuview.ts). */
@@ -268,7 +271,7 @@ export class Live {
   ) {
     this.T = T;
     this.placePsuTexts();
-    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.busFlow.g, this.extFlow.g, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.tpm.root, this.npu.root, this.panelFan, ...Object.values(this.psuTexts)]);
+    const keep = new Set<unknown>([this.scr, this.vrmG, this.deadG, this.badgeG, this.badgeText, this.badge, this.screenText, this.noSignal, this.osG, ...this.osRows, this.bootG, this.extG, this.busFlow.g, this.extFlow.g, this.gauge, this.dramFlash, this.ram.root, this.gpu.root, this.disk.root, this.tpm.root, this.npu.root, this.panelFan, ...Object.values(this.psuTexts)]);
     for (const ch of this.root.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     for (const ch of this.ext.removeChildren()) if (!keep.has(ch)) ch.destroy({ children: true });
     this.busFlow.clear(); this.extFlow.clear();
@@ -283,6 +286,7 @@ export class Live {
     this.dimmIdx = dimms;
     this.ram.setScene(T, dramChips);
     this.gpu.setScene(T, gpuCards);
+    this.disk.setScene(T, drives.map((d) => ({ slot: d.slot, deviceId: d.deviceId, kind: d.kind, body: d.body })));
     this.tpm.setScene(T, tpmModules);
     this.npu.setScene(T, npuCards);
     for (const t of targets) {
@@ -346,7 +350,7 @@ export class Live {
     }
     this.drives.clear();
     for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, sig: '', burnt: false });
-    this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.tpm.root, this.npu.root, this.dramFlash);
+    this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.disk.root, this.tpm.root, this.npu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
       s.anchor.set(0.5);
@@ -416,7 +420,7 @@ export class Live {
   /** The OS badge on the host drive (null: no OS). The dot animates on the game clock in `frame`. */
   setOsBadge(r: Rect | null, phase: Snapshot['phase'] | 'off') { this.badgeRect = r; this.badgePhase = phase; }
 
-  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); this.tpm.setZoom(z); this.npu.setZoom(z); }
+  setZoom(z: number) { this.zoom = z; this.ram.setZoom(z); this.gpu.setZoom(z); this.disk.setZoom(z); this.tpm.setZoom(z); this.npu.setZoom(z); }
   /** The world rectangle the camera shows (board.ts `onZoom`): cards out of it are not drawn. */
   setView(v: LodRect) { this.view = v; }
   /** False while the exterior covers the interior: the per-frame interior work (buses, pulses, drive art, PSU panel) is skipped. */
@@ -579,6 +583,7 @@ export class Live {
     }
     this.ram.setMap(s?.ram ?? null);
     this.gpu.update(s?.gpus, s?.devices);
+    this.disk.update(s?.storage);
     this.tpm.update(s?.tpm);
     this.npu.update(s?.npus);
     const T = this.T;
@@ -1183,9 +1188,10 @@ export class Live {
 
     // the cards: those out of view are not drawn, and at most two show their counters, the ones nearest the centre (lod.ts `TierBudget`)
     const v = this.view;
-    const lod = inner && v ? { view: v, top: this.detail.assign([...this.gpu.candidates(v), ...this.npu.candidates(v), ...this.tpm.candidates(v)]) } : undefined;
+    const lod = inner && v ? { view: v, top: this.detail.assign([...this.gpu.candidates(v), ...this.disk.candidates(v), ...this.npu.candidates(v), ...this.tpm.candidates(v)]) } : undefined;
     this.ram.frame(inner, undefined, v ?? undefined);
     this.gpu.frame(dt, inner, paused, lod);
+    this.disk.frame(dt, inner, paused, lod);
     this.tpm.frame(dt, inner, paused, lod);
     this.npu.frame(dt, inner, paused, lod);
     // (the chips no longer flash at random: the memory map lights the line the CPU touches, and only that stick's bus lights)

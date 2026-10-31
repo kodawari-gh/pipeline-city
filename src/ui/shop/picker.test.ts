@@ -281,7 +281,8 @@ describe('the OS section (the OS badge and the drive that hosts it)', () => {
   const hdd: StorageSnap = {
     deviceId: 'dev-hdd', slot: 'sata0', spec: 'hdd0', name: 'HDD 96K', burnt: false, capacityBytes: 96 * 1024,
     usedBytes: 12 * 1024, bytesRead: 0, bytesWritten: 0, busy: false, latencyTicks: 720, blockTicks: 72, bytesPerSecond: 3600, hasOs: true,
-    fs: { runs: [], fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } },
+    fs: { runs: [], fragmentation: 0, byKind: { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 }, files: [] },
+    wear: [], headLba: 0,
     wearPct: 0, badGroups: 0, lostBlocks: 0, queueDepth: 2, queued: 0, mirror: false,
     mount: { state: 'clean', phase: 'mounted', progress: 1 }, format: { why: 'this drive holds the OS', datasets: 0 },
   };

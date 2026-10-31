@@ -131,6 +131,17 @@ export class Disk {
     if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate)) this.failGroup(g);
   }
 
+  /** Wear of each group as a percent of its endurance, whole numbers (the worse member of a mirror). For the art. */
+  wearGroups(): number[] {
+    const out: number[] = [];
+    for (let g = 0; g < this.groups; g++) {
+      const own = Math.round(Math.min(1, this.wear[g]! / this.limitOf(g)) * 100);
+      const other = this.twin ? Math.round(Math.min(1, this.twin.wear[g]! / this.twin.limitOf(g)) * 100) : 0;
+      out.push(this.bad[g] || this.twin?.bad[g] ? 100 : Math.max(own, other));
+    }
+    return out;
+  }
+
   /** The media's logical state for a save: wear counters (only the groups that took writes), the bad groups, and the mechanical-fault stream. No bytes. */
   mediaState(): DiskMediaState {
     const wear: [number, number][] = [];
@@ -262,6 +273,11 @@ export class StoragePort implements Device {
 
   get isBusy(): boolean {
     return this.busy > 0;
+  }
+
+  /** The block the head rests on (the last block a command moved). */
+  get headLba(): number {
+    return this.head;
   }
 
   /** Requests ahead of a new one: the ones queued at the drive plus the command on the bus. */

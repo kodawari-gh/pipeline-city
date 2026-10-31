@@ -297,7 +297,11 @@ export interface StorageSnap {
   /** The OS lives on this device. */
   hasOs: boolean;
   /** What the blocks hold, as runs in LBA order (docs/OS.md, filesystem). */
-  fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number> };
+  fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number>; files: { id: number; owner: string; kind: FileKind; lost: boolean }[] };
+  /** Wear of each 8-block group, percent of its endurance (the worse member of a mirror). */
+  wear: number[];
+  /** The block the head (or the last command) rests on: the HDD art seeks to it. */
+  headLba: number;
   /** Wear 0..100 (writes against endurance), bad 8-block groups (both members of a mirror), and blocks of files whose data is lost. */
   wearPct: number;
   badGroups: number;

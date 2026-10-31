@@ -777,7 +777,7 @@ export async function mountBoard(host: HTMLElement) {
       if (builtOnce && !driveSlotsSeen.has(sd.slot)) slides.push({ node, t0: now0 });
       const idx = slotIndex(sd.slot);
       if (kind !== 'ssd-nvme') sataLayer.addChild(sataLinkArt(T, idx));
-      hooks.push({ slot: sd.slot, kind, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx) });
+      hooks.push({ slot: sd.slot, deviceId: sd.id, kind, body, g: lg, lane: kind === 'ssd-nvme' ? null : sataCablePath(idx) });
       scene.rects.set(sd.id, body); scene.interactive.add(sd.id);
       deviceHits.push(partHit(sd.id, node, body));
     }
