@@ -1,5 +1,5 @@
 // Headless game loop: one Machine + Board + ThermalModel + PCH + USB key tray + economy.
-// Deterministic: all randomness comes from the machine PRNG. No DOM. See docs/GAME.md and docs/ASSEMBLY.md.
+// Deterministic: all randomness comes from the machine PRNG. No DOM. See src/features/economy/GAME.md and src/features/cpu/ASSEMBLY.md.
 //
 // The player builds the machine (install parts from the inventory, connect cables) and serves clients one USB key at a
 // time. Without an OS: plug a key while the machine is off, press power; after POST the ROM looks at the USB port once,

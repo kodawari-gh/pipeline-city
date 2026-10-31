@@ -7,6 +7,7 @@ Incremental game about building computing hardware. TypeScript, Vite, PixiJS (bo
 - While working run only what you touched: `npx vitest run <path>`. Full `npm run test:q` (quiet) only before a push; plain `npm test` only to debug a failure.
 
 ## Where to look
+- Start with `docs/MAP.md` (architecture overview). To find code, use the `cocoindex-code` MCP search (`mcp__cocoindex-code__search`) before Grep or Glob.
 - Feature-first: `src/features/<f>/{sim,render,ui}` + the feature doc, for `cpu gpu npu tpm memory storage network os board economy jobs tutorial room sandbox`. Read `src/features/CLAUDE.md`.
 - `src/worker` sim entry, `protocol.ts` and the `Game` state (`worker/game/game.ts`; its methods live in `features/*/sim`, see its header: Grep for the method). `src/app` main-thread state, signals, save/load. `src/core/{sim,render,ui}` shared code.
 - `sim/` code is pure TS, no DOM/Pixi/Preact (`src/architecture.test.ts` checks it).
