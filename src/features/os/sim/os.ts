@@ -484,6 +484,7 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
         slots: this.spoolPlan.find((p) => p.deviceId === d.id)?.slots ?? (d.id === os.deviceId ? os.homeSlots : 0),
         freeBytes: this.diskFor(d).capacityBytes - this.diskFor(d).usedBytes,
         alloc: this.osCfg.spoolAlloc[d.id] ?? null, maxSlots: this.spoolDriveMax(d),
+        needsFormat: d.id !== os.deviceId && this.diskFor(d).mount !== "clean" && !d.burnt, formatWhy: this.formatBlock(d.id),
         reserveBytes: this.osCfg.dataReserve[d.id] === undefined ? null : this.osCfg.dataReserve[d.id]! * BLOCK_BYTES, dataBytes: this.datasetBlocks(d.id) * BLOCK_BYTES,
         capacityBytes: this.diskFor(d).capacityBytes, usedBytes: this.diskFor(d).usedBytes, osBytes: d.id === os.deviceId ? os.spec.diskBytes : 0,
       })),

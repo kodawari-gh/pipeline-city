@@ -217,6 +217,9 @@ export interface AllocDrive {
   alloc: number | null;
   /** Why the drive cannot hold spool, or null. */
   why: string | null;
+  /** The drive is not formatted for the OS (it holds nothing yet), and why it cannot be formatted right now (null: it can). */
+  needsFormat: boolean;
+  formatWhy: string | null;
 }
 export interface AllocModel {
   drives: AllocDrive[];
@@ -239,7 +242,7 @@ export function allocModel(s: Snapshot): AllocModel | null {
       deviceId: d.deviceId, label: `${d.name} (${d.slot})${d.home ? ' (OS)' : ''}`, home: d.home, capacity: d.capacityBytes,
       osBytes: d.osBytes, usedBytes: other, spoolBytes, dataBytes: d.dataBytes, reserveBytes: d.reserveBytes, reserveFree,
       freeBytes: Math.max(0, d.capacityBytes - d.osBytes - other - d.dataBytes - reserveFree - spoolBytes),
-      slots: d.slots, max: d.maxSlots, alloc: d.alloc, why: d.why,
+      slots: d.slots, max: d.maxSlots, alloc: d.alloc, why: d.why, needsFormat: d.needsFormat, formatWhy: d.formatWhy,
     };
   });
   return { drives, slotBytes, total: drives.reduce((a, d) => a + d.slots, 0), cap: os.config.spoolMax, pending: s.powered };

@@ -94,6 +94,17 @@ export interface VrmSnap {
   sinkDeviceId: string | null;
 }
 
+/** The air of one area of the case (board/sim/airflow.ts): `north` (processor, memory, regulators), `cards` (the PCIe cards), `bay` (the drives). */
+export interface AirZoneSnap {
+  id: "north" | "cards" | "bay";
+  /** 0 to 1: how well the area is ventilated against the case with every fan turning (1 = as designed; 0 = no air moves). */
+  flow: number;
+  /** Case-fan equivalents cooling the area (CASE_FAN_K W/C each, to every part in it). */
+  fans: number;
+  /** How much warmer the area's air is than the room, from the cards, C. */
+  riseC: number;
+}
+
 /** The motherboard: tier, features, only the slots it has, the VRM and its heatsink. */
 export interface BoardSnap {
   tier: number;
@@ -111,6 +122,8 @@ export interface BoardSnap {
   /** The memory regulator and its heatsink (same shape; its load is the DIMMs' current over 1.2 V). */
   ramVrm: VrmSnap;
   ramSink: DeviceSnap | null;
+  /** The case's air by area, last tick. */
+  air: AirZoneSnap[];
 }
 
 /** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */
@@ -420,7 +433,7 @@ export interface OsSnap {
     spoolMax: number;
     /** The slots the automatic setting uses (the OS tier's default); `spoolMax` is the most the job table holds. */
     spoolAuto?: number;
-    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; reserveBytes: number | null; dataBytes: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
+    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; needsFormat: boolean; formatWhy: string | null; reserveBytes: number | null; dataBytes: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
   };
 }
 

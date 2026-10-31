@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { setDataReserve, setSpoolAlloc, snapshot } from '@/app/store';
+import { formatDrive, setDataReserve, setSpoolAlloc, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
 import { closeOs, osOpen } from '@/core/ui/state';
@@ -146,7 +146,17 @@ function DriveCard({ d, slotBytes, room }: { d: AllocDrive; slotBytes: number; r
         <span><i class="free" />free {fmtBytes(d.freeBytes)}</span>
       </div>
       {d.why
-        ? <div class="mute sub">{d.why}</div>
+        ? (
+          <>
+            <div class="mute sub">{d.needsFormat ? 'This drive is not formatted yet, so the OS cannot put a spool or datasets on it. Formatting wipes it.' : d.why}</div>
+            {d.needsFormat && (
+              <div class="os-actions">
+                <button class="chip ok" disabled={!!d.formatWhy} title={d.formatWhy ?? 'Format this drive for the OS'} onClick={() => formatDrive(d.deviceId)}>Format drive</button>
+                {d.formatWhy && <span class="mute sub">{d.formatWhy}</span>}
+              </div>
+            )}
+          </>
+        )
         : (
           <label class="scale-row" title={`Each slot keeps one waiting job and takes ${fmtBytes(slotBytes)}.`}>
             <span>spool slots</span>
