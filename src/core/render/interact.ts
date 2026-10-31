@@ -252,6 +252,8 @@ export class Interact {
     const s = this.snap();
     // a part of a graphics card (`pcie1.lane3`, `pcie1.fan0`) hovers on its own but a click opens the card itself
     if (s) id = deviceOfPart(id, s.devices);
+    // an empty socket is only a drop target: no card
+    if (s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = null; return; }
     // The power button and a key do their thing at once: no card pops up over the action. A tripped or failed machine still
     // opens the power card, because that is where its way out (power cycle) and its reason are.
     const direct = id === 'power' ? !(s?.power.tripped || s?.phase === 'error') : id.startsWith('key:');

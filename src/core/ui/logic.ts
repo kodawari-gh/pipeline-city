@@ -220,7 +220,7 @@ const SLOT_PLAIN: Record<string, string> = {
   'atx-plus': 'power supply bay (ATX+): drag a big power supply here',
   cooler: 'cooler mount: mounts on the CPU',
   display: 'monitor port: drag a monitor here',
-  pcie: 'expansion slot (PCIe): drag a network card here',
+  pcie: 'expansion slot (PCIe): drag a card here',
   sata: 'drive bay (SATA): drag a drive here',
   m2: 'M.2 slot (fast NVMe drives): drag a drive here',
   usb: 'USB port',
