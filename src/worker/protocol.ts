@@ -32,6 +32,8 @@ export type ToSim =
   /** Buy a part: it goes to the inventory, not into the machine. */
   | { type: 'purchase'; id: string }
   | { type: 'sell'; invId: string }
+  /** Take a part out of the queue of installs waiting for the running job (all of them without `invId`). */
+  | { type: 'cancelSwap'; invId?: string }
   | { type: 'setCpuClock'; clock: number }
   | { type: 'setRamClock'; deviceId: string; clock: number }
   | { type: 'powerCycle' }

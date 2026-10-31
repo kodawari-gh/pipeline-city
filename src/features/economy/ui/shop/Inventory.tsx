@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '@/worker/game/game';
 import { airflowLens, powerLens, selected } from '@/app/hover';
 import { dragging, highlight, overInventory } from '@/app/interaction';
-import { sell } from '@/app/store';
+import { cancelSwap, sell } from '@/app/store';
 import { SELL_RATE } from '../../sim/economy';
 import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from '@/core/ui/logic';
 import { Icon } from '@/core/ui/kit/Icons';
@@ -110,7 +110,7 @@ export function InventoryBar({ s }: { s: Snapshot }) {
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */
-function Tile({ st, pulse, queued, active, onHover }: { st: Stack<InventorySnap>; pulse: boolean; queued?: number; active: boolean; onHover: (id: string | null) => void }) {
+function Tile({ st, pulse, queued, queuedId, active, onHover }: { st: Stack<InventorySnap>; pulse: boolean; queued?: number; queuedId?: string; active: boolean; onHover: (id: string | null) => void }) {
   const it = st.rep;
   const n = st.items.length;
   const why = it.installable ? undefined : it.reason ?? 'Nothing to fit it to right now';
@@ -138,7 +138,11 @@ function Tile({ st, pulse, queued, active, onHover }: { st: Stack<InventorySnap>
         }
       }}
     >
-      {!!queued && <span class="tqueue" aria-label={`Queued ${queued}: loads when the job is done`}>{queued === 1 ? 'NEXT' : `#${queued}`}</span>}
+      {!!queued && (
+        <button class="tqueue" aria-label={`Queued ${queued}: loads when the job is done. Press to cancel`} title="Queued: loads when the job is done. Press to cancel."
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); cancelSwap(queuedId); }}>{queued === 1 ? 'NEXT' : `#${queued}`} ✕</button>
+      )}
       <div class="tart"><PartArt id={it.spec} size={112} /></div>
       <span class="tname">{shortName(it.name)}</span>
       <span class="tmeta">{tier !== null && <span class="ttier">Tier {tier}</span>}</span>
@@ -231,7 +235,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
               <div class="inv-gname" title={kindLabel(g.k)}><Icon name={kindIcon(g.k)} size={12} /> {kindLabel(g.k)}</div>
               <div class="inv-tiles">
                 {stackItems(g.items).map((st) => (
-                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`))} queued={st.items.some((x) => s.pendingSwaps.some((p) => p.invId === x.id)) ? Math.min(...st.items.map((x) => s.pendingSwaps.findIndex((p) => p.invId === x.id)).filter((k) => k >= 0)) + 1 : 0} active={st.items.some((x) => sel === `inv:${x.id}`)} onHover={onHover} />
+                  <Tile key={st.spec} st={st} pulse={st.items.some((x) => hl.has(`inv:${x.id}`))} queued={st.items.some((x) => s.pendingSwaps.some((p) => p.invId === x.id)) ? Math.min(...st.items.map((x) => s.pendingSwaps.findIndex((p) => p.invId === x.id)).filter((k) => k >= 0)) + 1 : 0} queuedId={s.pendingSwaps.find((p) => st.items.some((x) => x.id === p.invId))?.invId} active={st.items.some((x) => sel === `inv:${x.id}`)} onHover={onHover} />
                 ))}
               </div>
             </div>

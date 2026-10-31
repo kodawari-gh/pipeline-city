@@ -427,7 +427,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 /* A part queued behind the running job: lit in the accent colour with a sweeping bar and a NEXT tag, so it reads as "about to load". */
 .tile.queued { border-color: var(--accent); box-shadow: 0 0 0 0.12rem color-mix(in srgb, var(--accent) 35%, transparent), 0 0 1rem color-mix(in srgb, var(--accent) 45%, transparent); overflow: hidden; animation: tile-queued 1.6s ease-in-out infinite; }
 .tile.queued::after { content: ""; position: absolute; left: 0; bottom: 0; height: 0.25rem; width: 40%; background: var(--accent); animation: tile-sweep 1.4s ease-in-out infinite; }
-.tile .tqueue { position: absolute; top: 0.4rem; right: 0.4rem; font: 700 0.65rem var(--mono); letter-spacing: .08em; padding: 0 0.4rem; border-radius: 99rem; background: var(--accent); color: var(--on); line-height: 1.05rem; z-index: 1; }
+.tile .tqueue { position: absolute; top: 0.4rem; right: 0.4rem; font: 700 0.65rem var(--mono); letter-spacing: .08em; padding: 0 0.4rem; border-radius: 99rem; background: var(--accent); color: var(--on); line-height: 1.05rem; z-index: 1; border: 0; cursor: pointer; }
+.tile .tqueue:hover { background: var(--warn); }
 @keyframes tile-queued { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.2rem); } }
 @keyframes tile-sweep { 0% { left: -40%; } 100% { left: 100%; } }
 .tile.dim { opacity: .6; cursor: default; }

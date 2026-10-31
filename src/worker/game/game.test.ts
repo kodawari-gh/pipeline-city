@@ -257,6 +257,24 @@ describe("purchases go to the inventory", () => {
     expect(g.powered).toBe(true);
   });
 
+  it("a queued swap can be cancelled one by one or all at once; the part stays in the inventory", () => {
+    const g = new Game({ seed: 1, preassembled: true });
+    g.money = 1e6;
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    const cpu = (g.purchase("cpu1") as { invId: string }).invId;
+    const ram = (g.purchase("ram1") as { invId: string }).invId;
+    g.swapInstall(cpu);
+    g.swapInstall(ram);
+    expect(g.cancelSwap(cpu)).toMatchObject({ ok: true, cancelled: 1 });
+    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toEqual([ram]);
+    expect(g.cancelSwap()).toMatchObject({ ok: true, cancelled: 1 });
+    expect(g.cancelSwap()).toMatchObject({ ok: false });
+    for (let i = 0; i < 4000 && g.jobInFlight(); i++) g.advanceBaseTick();
+    expect(cpuOf(g).spec).toBe("cpu0");
+    expect(g.snapshot().inventory.map((i) => i.id)).toEqual(expect.arrayContaining([cpu, ram]));
+  });
+
   it("the snapshot lists purchases with price, affordability and board refusals", () => {
     const g = new Game({ seed: 1, preassembled: true });
     g.money = 150;

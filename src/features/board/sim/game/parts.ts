@@ -128,6 +128,16 @@ export function swapInstall(this: Game, invId: string, slotId?: string): Result<
   return this.swapNow(invId, slotId, snap.name);
 }
 
+/** Take one queued install out of the queue (all of them without an id). The part stays in the inventory. */
+export function cancelSwap(this: Game, invId?: string): Result<{ cancelled: number }> {
+  const before = this.pendingSwaps.length;
+  this.pendingSwaps = invId === undefined ? [] : this.pendingSwaps.filter((p) => p.invId !== invId);
+  const cancelled = before - this.pendingSwaps.length;
+  if (!cancelled) return { ok: false, reason: "no queued install to cancel" };
+  this.note("install", cancelled === 1 ? "queued install cancelled" : `${cancelled} queued installs cancelled`);
+  return { ok: true, cancelled };
+}
+
 /** A job the machine would lose (or hold up) if it powered off now. */
 export function jobInFlight(this: Game): boolean {
   if (this.netKey) return true;

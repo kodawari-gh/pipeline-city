@@ -69,6 +69,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'setJobKinds': return refusable(g, 'setJobKinds', g.setJobKinds(msg.off));
       case 'purchase': return refusable(g, 'purchase ' + msg.id, g.purchase(msg.id));
       case 'sell': return refusable(g, 'sell', g.sell(msg.invId));
+      case 'cancelSwap': return refusable(g, 'cancelSwap', g.cancelSwap(msg.invId));
       case 'setCpuClock': return refusable(g, 'setCpuClock', g.setCpuClock(msg.clock));
       case 'setRamClock': return refusable(g, 'setRamClock', g.setRamClock(msg.deviceId, msg.clock));
       case 'install': return refusable(g, 'install', g.swapInstall(msg.invId, msg.slotId));
