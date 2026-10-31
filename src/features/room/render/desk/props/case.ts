@@ -9,7 +9,7 @@ import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
 import { sinkFanAt } from '@/features/board/render/layout/pins';
 import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
-import { CASE_KIND, WINDOW_CUTS, caseWindow, hexes, isCut, outline, pillar, showPillars, type CaseKind } from '@/features/room/render/shell/casedecor';
+import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, hexes, isCut, outline, pillar, showPillars, type CaseKind } from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';
 import { paintCable, paintTie, sleeveOf, tiePoints } from '@/core/render/cable';
 
@@ -53,8 +53,9 @@ export function caseBack(T: Theme): Container {
   // feet
   for (const fx of [c.x + 300, c.x + c.w - 700]) box(g, fx, c.y + c.h - 30, 400, 130, 30, { fill: mix(wall, T.bg, 0.4), stroke: edge, lw: 6, sa: 0.7 });
   // soft shadow and body
-  box(g, c.x + 20, c.y + 34, c.w, c.h, 110, { fill: '#000000', fa: T.dark ? 0.3 : 0.12 });
-  box(g, c.x, c.y, c.w, c.h, 110, { fill: wall, stroke: edge, lw: 10, sa: 0.9 });
+  const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // the showcase's body is chamfered, inside as outside
+  outline(g, c.x + 20, c.y + 34, c.w, c.h, 110, bc).fill({ color: '#000000', alpha: T.dark ? 0.3 : 0.12 });
+  outline(g, c.x, c.y, c.w, c.h, 110, bc).fill(wall).stroke({ width: 10, color: edge, alpha: 0.9 });
   // top panel
   g.rect(p.x + 40, p.y + p.h - 4, p.w - 80, 8).fill({ color: edge, alpha: 0.7 });
   g.rect(p.x + 40, p.y + 8, p.w - 80, 5).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.5 });
