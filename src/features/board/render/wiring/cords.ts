@@ -1,7 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { MONITOR_POWER, PC_CORD_X, PC_POWER, type Rect } from '../layout/layout';
-import { roundedPath } from './routes';
-import { hangCable, paintCable, startFall, stepFall, type Fall } from '@/core/render/cable';
+import { drape, hangCable, paintCable, paintClip, type Clip, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { CordScene, SceneInfo } from '@/core/render/interact';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import type { Theme } from '@/core/render/theme';
@@ -59,11 +58,20 @@ export const cordSlack = (plan: CordPlan) => {
  * The cord's drawn path with its plug centred at `at`: seated, the plan's route straight down into the boot; otherwise the route's run, then the
  * rest of the cord hanging from where the run ends to the boot, as long as `cordSlack` says.
  */
-export function cordPath(plan: CordPlan, at: Pt, seated: boolean): Pt[] {
-  if (seated) return roundedPath(cordRoute(plan, at), 170);
-  const head = roundedPath(plan.route, 170), n = head.length, a = head[n - 1]!, b = head[n - 2] ?? a, l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+export function cordPath(plan: CordPlan, at: Pt, seated: boolean): Pt[] { return cordDrape(plan, at, seated).path; }
+
+/** A clip at the middle of every long straight run of a route (not on the first or the last 400 units): where the cord is pinned to the wall. */
+const runClips = (route: Pt[], min = 1500): Pt[] => route.slice(1).flatMap((q, i): Pt[] => {
+  const p = route[i]!, l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  return l >= min ? [[(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as Pt] : [];
+});
+
+/** The cord as `cordPath` draws it, and the wall clips that hold it: every corner is a round bend, a long run is clipped and sags a little between clips. */
+export function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]; clips: Clip[] } {
+  if (seated) { const r = cordRoute(plan, at); return drape(r, { radius: 450, sag: 0.04, clips: runClips(r) }); }
+  const head = drape(plan.route, { radius: 450, sag: 0.04, clips: runClips(plan.route) }), n = head.path.length, a = head.path[n - 1]!, b = head.path[n - 2] ?? a, l = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
   const boot: Pt = [at[0], at[1] - CORD_END];
-  return [...head, ...hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 }).slice(1)];
+  return { path: [...head.path, ...hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 }).slice(1)], clips: head.clips };
 }
 
 export interface CordHit { id: string; rect: Rect }
@@ -142,7 +150,9 @@ export class CordsView {
     for (const k of CORD_KINDS) {
       const pl = plan[k], isHeld = held?.kind === k, fall = this.falls.get(k), seated = connected[k] && !isHeld;
       const at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : fall ? fall.p : pl.rest;
-      this.cord(isHeld ? gf : gb, cordPath(pl, at, seated), T);
+      const d = cordDrape(pl, at, seated), body = isHeld ? gf : gb;
+      this.cord(body, d.path, T);
+      for (const c of d.clips) paintClip(body, T, c.at, c.dir, 70);
       this.plug(gf, at, T, seated);
     }
   }
