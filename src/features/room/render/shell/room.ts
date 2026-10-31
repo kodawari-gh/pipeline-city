@@ -255,23 +255,66 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   f.rect(lx - rx2, ys - 328, rx2 * 2, 130).fill({ color: L.metal });
   f.ellipse(lx, ys - 328, rx2, ry2).fill({ color: mix(L.metal, '#ffffff', 0.15) }).stroke({ width: 6, color: L.metalLo });
   f.rect(lx - rx2 + 40, ys - 322, 50, 120).fill({ color: '#ffffff', alpha: 0.2 });
-  // an arm: a rod and, beside it, the thin rod of the parallel linkage (the spring)
+  f.rect(lx + rx2 * 0.55, ys - 322, rx2 * 0.45, 120).fill({ color: '#000000', alpha: 0.14 });
+  f.rect(lx + rx * 0.55, ys - 208, rx * 0.45, 200).fill({ color: '#000000', alpha: 0.16 });
+  f.ellipse(lx, ys - 18, rx, ry).stroke({ width: 8, color: mix(L.metalLo, '#000000', 0.5), alpha: 0.8 });
+  f.ellipse(lx - rx2 * 0.2, ys - 334, rx2 * 0.6, ry2 * 0.5).fill({ color: '#ffffff', alpha: 0.16 });
+  // an arm: a rod with a dark outline, a lit edge and a shaded edge, and beside it the parallel linkage: a thin rod with spring coils and two pins
+  const edge = mix(L.metalLo, '#000000', 0.45);
   const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx2 = -dy / l, ny2 = dx / l;
-    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 160, color: L.metalLo, cap: 'round' });
-    f.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 86, color: L.metal, cap: 'round' });
-    f.moveTo(a.x - nx2 * 22, a.y - ny2 * 22).lineTo(b.x - nx2 * 22, b.y - ny2 * 22).stroke({ width: 16, color: '#ffffff', alpha: 0.22, cap: 'round' });
-    f.moveTo(a.x + nx2 * 230, a.y + ny2 * 230).lineTo(b.x + nx2 * 230, b.y + ny2 * 230).stroke({ width: 44, color: L.metalLo, cap: 'round' });
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, nx2 = -uy, ny2 = ux;
+    const line = (o: number, w: number, color: string, alpha = 1) => f.moveTo(a.x + nx2 * o, a.y + ny2 * o).lineTo(b.x + nx2 * o, b.y + ny2 * o).stroke({ width: w, color, alpha, cap: 'round' });
+    // the linkage first (behind the rod)
+    line(230, 56, edge, 0.8); line(230, 40, L.metalLo); line(222, 12, '#ffffff', 0.25);
+    for (let t = 120; t < l - 120; t += 64) f.moveTo(a.x + ux * t + nx2 * 206, a.y + uy * t + ny2 * 206).lineTo(a.x + ux * (t + 30) + nx2 * 254, a.y + uy * (t + 30) + ny2 * 254).stroke({ width: 8, color: edge, alpha: 0.55, cap: 'round' });
+    for (const q of [a, b]) f.circle(q.x + nx2 * 230, q.y + ny2 * 230, 42).fill({ color: L.metal }).stroke({ width: 7, color: edge });
+    // the rod
+    line(0, 176, edge); line(0, 160, L.metalLo); line(0, 118, L.metal); line(0, 56, mix(L.metal, '#ffffff', 0.25));
+    line(-34, 14, '#ffffff', 0.45); line(46, 26, '#000000', 0.16);
   };
   arm(p0, el); arm(el, hd);
-  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) { f.circle(px2, py2, 170).fill({ color: L.metal }).stroke({ width: 8, color: L.metalLo }); f.circle(px2, py2, 58).fill({ color: L.metalLo }); }
-  // the hood: a cone from the arm's end to a wide mouth, a rim, a lit stripe along its top
-  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck;
-  const hood = [hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk];
-  f.poly(hood).fill({ color: '#3f6a9a' }).stroke({ width: 9, color: '#27486b' });
-  f.poly([hd.x - nx * nk, hd.y - ny * nk, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw * 0.86 - LAMP_D.x * 90, mo.y - ny * hw * 0.86 - LAMP_D.y * 90, hd.x - nx * nk * 0.8, hd.y - ny * nk * 0.8]).fill({ color: '#ffffff', alpha: 0.2 });
-  f.poly([mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, mo.x - nx * hw - LAMP_D.x * 80, mo.y - ny * hw - LAMP_D.y * 80, mo.x + nx * hw - LAMP_D.x * 80, mo.y + ny * hw - LAMP_D.y * 80]).fill({ color: '#27486b' });
+  // the joints: a dark ring, a round knuckle with a lit upper left, a hub with a screw slot
+  for (const [px2, py2] of [[p0.x, p0.y], [el.x, el.y], [hd.x, hd.y]] as const) {
+    f.circle(px2, py2, 196).fill({ color: edge });
+    f.circle(px2, py2, 180).fill({ color: L.metalLo });
+    f.circle(px2, py2, 150).fill({ color: L.metal });
+    f.circle(px2 - 34, py2 - 38, 92).fill({ color: '#ffffff', alpha: 0.16 });
+    f.circle(px2, py2, 70).fill({ color: L.metalLo }).stroke({ width: 8, color: edge });
+    f.moveTo(px2 - 42, py2 + 20).lineTo(px2 + 42, py2 - 20).stroke({ width: 12, color: edge, cap: 'round' });
+  }
+  // the hood: a cone from a collar on the arm's end to a wide mouth, shaded in strips round its axis (lit along the top), a rim, a lit opening
+  const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck, dx = LAMP_D.x, dy = LAMP_D.y;
+  const HOOD_LO = '#27486b', HOOD = '#3f6a9a', STRIPS = 8;
+  const at = (u: number, t: number) => [hd.x + nx * nk * u + (mo.x - hd.x) * t - nx * (nk * u) * t + nx * hw * u * t, hd.y + ny * nk * u + (mo.y - hd.y) * t - ny * (nk * u) * t + ny * hw * u * t] as const;
+  // the opening: an ellipse whose long axis is the mouth's width (we see it a little from the side)
+  const opening: number[] = [];
+  for (let k = 0; k < 24; k++) { const a = (k * Math.PI * 2) / 24; opening.push(mo.x + nx * hw * Math.cos(a) + dx * hw * 0.3 * Math.sin(a), mo.y + ny * hw * Math.cos(a) + dy * hw * 0.3 * Math.sin(a)); }
+  f.poly(opening).fill({ color: mix('#ffd68a', HOOD, 0.25) });
+  for (let i = 0; i < STRIPS; i++) {
+    const u0 = -1 + (2 * i) / STRIPS, u1 = -1 + (2 * (i + 1)) / STRIPS, c = mix('#6f9fd0', HOOD_LO, Math.min(1, ((i + 0.5) / STRIPS) ** 0.8));
+    const p = [at(u0, 0), at(u0, 1), at(u1, 1), at(u1, 0)];
+    f.poly(p.flatMap((q) => [q[0], q[1]])).fill({ color: c });
+  }
+  const sp = [at(-0.78, 0.1), at(-0.78, 1), at(-0.62, 1), at(-0.62, 0.1)];
+  f.poly(sp.flatMap((q) => [q[0], q[1]])).fill({ color: '#ffffff', alpha: 0.25 });
+  f.poly(hood0(hd, mo, nx, ny, nk, hw)).stroke({ width: 9, color: HOOD_LO, join: 'round' });
+  // the rim at the mouth, front half of the opening
+  const front: number[] = [];
+  for (let k = 0; k <= 12; k++) { const a = (k * Math.PI) / 12; front.push(mo.x + nx * hw * Math.cos(a) + dx * hw * 0.3 * Math.sin(a), mo.y + ny * hw * Math.cos(a) + dy * hw * 0.3 * Math.sin(a)); }
+  f.moveTo(front[0]!, front[1]!);
+  for (let i = 2; i < front.length; i += 2) f.lineTo(front[i]!, front[i + 1]!);
+  f.stroke({ width: 16, color: mix(HOOD, '#ffffff', 0.35) });
+  f.poly(opening).stroke({ width: 7, color: HOOD_LO });
+  // the collar where the hood meets the arm
+  f.poly([hd.x + nx * (nk + 40) - dx * 40, hd.y + ny * (nk + 40) - dy * 40, hd.x + nx * (nk + 40) + dx * 70, hd.y + ny * (nk + 40) + dy * 70, hd.x - nx * (nk + 40) + dx * 70, hd.y - ny * (nk + 40) + dy * 70, hd.x - nx * (nk + 40) - dx * 40, hd.y - ny * (nk + 40) - dy * 40]).fill({ color: L.metalLo }).stroke({ width: 7, color: edge });
+  f.circle(hd.x, hd.y, 150).fill({ color: L.metal }).stroke({ width: 8, color: edge });
+  f.circle(hd.x - 30, hd.y - 34, 84).fill({ color: '#ffffff', alpha: 0.16 });
+  f.circle(hd.x, hd.y, 58).fill({ color: L.metalLo }).stroke({ width: 7, color: edge });
 }
+
+/** The hood's outline: the neck's two ends and the mouth's two ends. */
+const hood0 = (hd: { x: number; y: number }, mo: { x: number; y: number }, nx: number, ny: number, nk: number, hw: number) =>
+  [hd.x + nx * nk, hd.y + ny * nk, mo.x + nx * hw, mo.y + ny * hw, mo.x - nx * hw, mo.y - ny * hw, hd.x - nx * nk, hd.y - ny * nk];
 
 /** The scenery: wall, window frame, shelf, clock face, desk, shelf unit, the wall socket and the cords, and what stands on the desk. */
 function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container; over: Container; bakes: Container[] } {
