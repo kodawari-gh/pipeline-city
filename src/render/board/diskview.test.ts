@@ -43,15 +43,15 @@ describe('the drive view', () => {
     const [, bar, cut] = (v.root.children[0] as Container).children as [Container, Container, Container];
     const arch = cut.children[2] as Container;
     const lod = { view, top: new Set<string>() };
-    v.setZoom(0.2);
+    v.setZoom(0.1);
     v.frame(0.016, true, false, lod);
     expect(bar.visible).toBe(true);
     expect(cut.visible).toBe(false);
-    v.setZoom(0.9);
+    v.setZoom(0.45);
     v.frame(0.016, true, false, lod);
     expect(cut.visible).toBe(true);
     expect(arch.alpha).toBeCloseTo(0, 1);
-    v.setZoom(2);
+    v.setZoom(1.5);
     v.frame(0.016, true, false, lod);
     expect(arch.alpha).toBeGreaterThan(0.9);
   });
