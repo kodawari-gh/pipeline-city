@@ -4,7 +4,7 @@ import { TIER_GEO } from './boardlayout';
 import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
-import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
+import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
 import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, atx12vSlots, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { IO_PORTS, ioPort } from './boardlayout';
 import { plugRect } from '../devices';
@@ -265,6 +265,24 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       const A = groups[i]!, B = groups[j]!;
       if (A.id === B.id) continue;
       for (const c of crossings(A.l, B.l)) expect(covered(A.l, c.s) || covered(B.l, c.t), `${A.id} crosses ${B.id} without diving under it`).toBe(true);
+    }
+  });
+
+  it('puts no hop via on a trace of another bus', () => {
+    sockets();
+    const buses = buildBuses(), lanesOf = (b: Bus) => b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []);
+    const sd = (p: [number, number], a: [number, number], b: [number, number]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+      return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+    };
+    for (const b of buses) for (const l of lanesOf(b)) for (const [a, z] of l.hops ?? []) for (const s of [a, z]) {
+      const p = pointAt(l, s), vr = Math.max(11, b.w * 0.6);
+      for (const o of buses) {
+        if (o === b) continue;
+        for (const m of lanesOf(o)) for (const part of visibleParts(m)) for (let i = 1; i < part.length; i++) {
+          expect(sd(p, part[i - 1]!, part[i]!), `${b.id} via at ${Math.round(p[0])},${Math.round(p[1])} on ${o.id}`).toBeGreaterThan(vr + o.w / 2 - 2);
+        }
+      }
     }
   });
 

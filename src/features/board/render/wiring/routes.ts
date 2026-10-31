@@ -232,8 +232,14 @@ function addHops(buses: Bus[]) {
     const cuts: [number, number][] = [];
     for (const o of all) {
       if (o.l === l || o.b === b || (rank(o.b.id) >= 0 && rank(o.b.id) > rank(b.id))) continue;
-      const r = o.b.w / 2 + 20;
-      for (const c of crossings(l, o.l)) cuts.push([c.s - r, c.s + r]);
+      // clear of the crossed trace and of the via ring, measured along the lane: a slanted crossing needs a longer hop
+      const r0 = o.b.w / 2 + Math.max(11, b.w * 0.6) + 20;
+      for (const c of crossings(l, o.l)) {
+        const p = pointAt(l, c.s - 1), q = pointAt(l, c.s + 1), u = pointAt(o.l, c.t - 1), v = pointAt(o.l, c.t + 1);
+        const sin = Math.abs((q[0] - p[0]) * (v[1] - u[1]) - (q[1] - p[1]) * (v[0] - u[0])) / ((Math.hypot(q[0] - p[0], q[1] - p[1]) * Math.hypot(v[0] - u[0], v[1] - u[1])) || 1);
+        const r = r0 / Math.max(0.5, sin);
+        cuts.push([c.s - r, c.s + r]);
+      }
     }
     cuts.sort((x, y) => x[0] - y[0]);
     const hops: [number, number][] = [];
@@ -502,13 +508,15 @@ export function buildBuses(): Bus[] {
   // PSU's leads plug into the cards themselves. Lane 0 is that run; the others branch off it at a trunk just west of the M.2 housings: one
   // per further slot (west along the gap above its card, then down into its power patch) and one per M.2 socket (into its patch), in that order
   if (g.pcie[0]) {
-    const a = atx12vSlots(g.atx), f = pcieFeed(g.pcie[0]), xs = f[0] + 90, xv = g.atx.x - 40, yc = f[1] + 35, xt = 1100;
-    const lanes: Lane[] = [mkLane(chamfer([a, [xv, a[1]], [xv, yc], [xs, yc], [xs, f[1]], f], 70), 0)];
+    const a = atx12vSlots(g.atx), f = pcieFeed(g.pcie[0]), xv = g.atx.x - 40, xt = 1100;
+    // the run west leaves the slot's level, but not through the chipset or the SATA lanes: where the chipset stands at that level it passes above it
+    const yc0 = f[1] + 35, over = yc0 >= g.chip.y && yc0 <= g.chip.y + g.chip.h, yc = over ? g.chip.y - 60 : yc0, xs = f[0] + (over ? 45 : 90);
+    const lanes: Lane[] = [mkLane(chamfer([a, [xv, a[1]], [xv, yc], [xs, yc], [xs, f[1]], f], over ? 24 : 70), 0)];
     const trunk: Pt[] = [a, [xv, a[1]], [xv, yc], [xt, yc]];
     g.pcie.forEach((r, k) => {
       if (k === 0) return;
-      const t = slotTie(r, k), yh = Math.min(r.y - 260, g.chip.y - 60), tx = t.x + t.w / 2;
-      lanes.push(mkLane(chamfer([...trunk, [xt, yh], [tx, yh], [tx, t.y]], 70), k * 17));
+      const t = slotTie(r, k), yh = Math.min(r.y - 300, g.chip.y - 60), tx = t.x + t.w / 2;
+      lanes.push(mkLane(chamfer([...trunk, [xt, yh], [tx, yh], [tx, t.y]], 30), k * 17));
     });
     g.m2.forEach((m, k) => { const t = m2Tie(m); lanes.push(mkLane(chamfer([...trunk, [xt, t.y + t.h / 2], [t.x, t.y + t.h / 2]], 70), (g.pcie.length + k) * 17)); });
     buses.push({ id: 'pwrpcie', w: 22, lanes });
