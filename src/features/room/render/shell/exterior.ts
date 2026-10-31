@@ -62,7 +62,7 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, T: Theme
  * Full: graphite with an aluminium frame, square corners and an RGB light line under the glass.
  */
 interface CaseStyle { mixTo: string; k: number; accent: (T: Theme) => string; trim: (T: Theme) => string | null; rad: number; rgb: boolean; brushed: boolean }
-const SILVER = '#c9d1de';
+const SILVER = '#3c4048'; // the showcase's anodised metal: dark graphite, not bright silver
 const STYLES: CaseStyle[] = [
   // a budget OEM tower: painted cream steel, square corners, a solid side with one vent patch, no window
   { mixTo: '#e6dfc4', k: 0.72, accent: (T) => T.ld, trim: () => null, rad: 28, rgb: false, brushed: false },
@@ -71,7 +71,7 @@ const STYLES: CaseStyle[] = [
   // a gaming case: dark, angular, slanted vents, a cut-corner window, multi-zone RGB and a lit logo plate
   { mixTo: '#1b2030', k: 0.5, accent: (T) => T.mul, trim: () => null, rad: 56, rgb: true, brushed: false },
   // a showcase frame: black body, silver anodised pillars and rails, black corner brackets, a hex mesh and a light bar
-  { mixTo: '#05070b', k: 0.5, accent: (T) => T.br, trim: () => SILVER, rad: 36, rgb: true, brushed: true },
+  { mixTo: '#030304', k: 0.6, accent: (T) => T.br, trim: () => SILVER, rad: 36, rgb: true, brushed: true },
 ];
 const styleOf = (): CaseStyle & { kind: CaseKind } => ({ ...(STYLES[LAYOUT_CASE] ?? STYLES[2]!), kind: CASE_KIND[LAYOUT_CASE] ?? 'gamer' });
 
@@ -171,7 +171,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   if (kind === 'oem') solidSide(g, T, c, { x: ci.x, y: gl.y, w: ci.w, h: gl.h }, win);
   else {
     // the showcase's bezel is dark graphite (the frame), edged by a thin silver trim line; the gaming one is blue-black, the others plain steel
-    const bezelFill = kind === 'show' ? lgrad('#1c212b', '#07090d') : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
+    const bezelFill = kind === 'show' ? lgrad('#15171c', '#030304') : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
     if (kind !== 'matte') outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts).fill(bezelFill).stroke({ width: 6, color: c.edge, alpha: 0.6 });
     if (kind === 'show') chamferFrame(g, { x: win.x - bz + 4, y: win.y - bz + 4, w: win.w + 2 * bz - 8, h: win.h + 2 * bz - 8 }, growCuts(cuts!, bz - 6), d, 0.9);
     else if (kind !== 'matte') bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 20, T, 0.8);
@@ -218,7 +218,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     const off = 90;
     for (const [bx, by, dx, dy, cut] of [[c0.x + 16, c0.y + 16, 1, 1, CASE_CUTS.show[0]], [c0.x + c0.w - 16, c0.y + 16, -1, 1, CASE_CUTS.show[1]], [c0.x + 16, c0.y + c0.h - 16, 1, -1, CASE_CUTS.show[3]], [c0.x + c0.w - 16, c0.y + c0.h - 16, -1, -1, CASE_CUTS.show[2]]] as const) {
       const ax = bx + dx * cut, ay = by, bx2 = bx, by2 = by + dy * cut, ox = dx * off, oy = dy * off;
-      top.poly([ax, ay, bx2, by2, bx2 + ox, by2 + oy * 0.6, ax + ox * 0.6, ay + oy]).fill(lgrad('#222833', '#07090d')).stroke({ width: 5, color: SILVER, alpha: 0.55 });
+      top.poly([ax, ay, bx2, by2, bx2 + ox, by2 + oy * 0.6, ax + ox * 0.6, ay + oy]).fill(lgrad('#14161a', '#030304')).stroke({ width: 5, color: SILVER, alpha: 0.55 });
       screw(top, (ax + bx2) / 2 + ox * 0.55, (ay + by2) / 2 + oy * 0.55, 22, mix(SILVER, '#000000', 0.5), c.edge);
     }
   }
@@ -228,7 +228,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
 
   // PSU compartment: a brushed panel with a perforated intake (the drive cage is inside, behind the glass)
   const lowY = gl.y + gl.h, lowH = ci.y + ci.h - lowY;
-  const lowFill = kind === 'show' ? lgrad(mix(SILVER, c.hi, 0.35), mix(SILVER, c.lo, 0.55)) : kind === 'gamer' ? lgrad('#232936', '#0a0c11') : lgrad(c.mid, c.lo);
+  const lowFill = kind === 'show' ? lgrad(mix(SILVER, c.hi, 0.1), mix(SILVER, '#000000', 0.55)) : kind === 'gamer' ? lgrad('#232936', '#0a0c11') : lgrad(c.mid, c.lo);
   if (kind !== 'matte') g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lowFill).stroke({ width: 6, color: c.edge, alpha: 0.5 });
   if (st.brushed) brush(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, T, 40);
   if (kind !== 'matte') bevel(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 30, T, 0.7); // the matte side is one sheet: no seam under the window
@@ -293,7 +293,7 @@ function badge(root: Container, g: Graphics, T: Theme, c: Tones, kind: CaseKind,
     const w = 900, lean = 120;
     for (const k of [0, 1] as const) {
       const x = right - (2 - k) * w - (1 - k) * 120, y = r.y + 140, h = r.h - 280;
-      g.poly([x + lean, y, x + w, y, x + w - lean, y + h, x, y + h]).fill(lgrad('#20252f', '#080a0f')).stroke({ width: 7, color: SILVER, alpha: 0.8 });
+      g.poly([x + lean, y, x + w, y, x + w - lean, y + h, x, y + h]).fill(lgrad('#16181d', '#030304')).stroke({ width: 7, color: SILVER, alpha: 0.8 });
       g.poly([x + lean + 30, y + 24, x + w - 30, y + 24]).stroke({ width: 5, color: acc, alpha: 0.9 });
       if (k === 0) logoMark(g, x + w / 2 - 90, cy - 110, 180, '#eef1f9', acc);
       else text('PC-4', x + w / 2, cy, 150, '#eef1f9', 0.95);

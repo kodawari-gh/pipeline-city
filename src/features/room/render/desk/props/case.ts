@@ -38,7 +38,7 @@ export function caseInterior(T: Theme, kind: CaseKind) {
     case 'oem': return { wall: mix(wall, '#d9d0b0', 0.7), cav: mix(cav, '#9c9575', 0.55), edge: mix(edge, '#6b6548', 0.6) };
     case 'matte': return { wall: mix(wall, '#0a0b0e', 0.6), cav: mix(cav, '#000000', 0.45), edge: mix(edge, '#2a2d36', 0.4) };
     case 'gamer': return { wall: mix(wall, '#1b2236', 0.5), cav: mix(cav, '#0a0f1c', 0.5), edge: mix(edge, '#4b5a8a', 0.35) };
-    default: return { wall: mix(wall, '#05070b', 0.5), cav: mix(cav, '#000000', 0.4), edge: mix(edge, '#7a859c', 0.4) };
+    default: return { wall: mix(wall, '#040405', 0.6), cav: mix(cav, '#000000', 0.5), edge: mix(edge, '#4a4d56', 0.5) };
   }
 }
 
@@ -104,7 +104,7 @@ export function caseBack(T: Theme): Container {
   topFans(g, T, cav, wall, edge);
   fanHub(root, g, T, cav, wall, edge);
   if (kind === 'show') { // the silver pillars either side of the glass, as on the outside (`exterior.ts`)
-    const hi = '#c9d1de', lo = mix('#c9d1de', cav, 0.55), acc = T.br;
+    const hi = '#444851', lo = mix('#444851', cav, 0.55), acc = T.br;
     for (const r of showPillars(caseWindow(kind))) {
       pillar(g, r, hi, lo, edge);
       const px = r.x + r.w / 2 + r.w * 0.2, sh = r.h - 520; // the same lit slot as outside
