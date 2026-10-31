@@ -9,7 +9,7 @@ import {
   NET_K, WALL_JACK, WALL_PLATE, WALL_T, type Rect,
 } from '../../board/render/layout/layout';
 import { IO_X } from '../../board/render/layout/boardlayout';
-import { portProfile } from '../../board/render/layout/ports';
+import { portProfile, rj45PlugEnd } from '../../board/render/layout/ports';
 import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, runClipYs, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
@@ -20,8 +20,6 @@ import type { Shape } from '@/core/render/shape';
 // ethernet cable (router to the board jack or a NIC jack), the NIC cards, the link LEDs and the traffic pulses. Everything the
 // player sees of the network that is not inside a part lives in `NetView.root` (an external layer: it is drawn at any zoom).
 
-/** How far a plug's nose goes up into a socket that opens at the bottom edge (the router's, the wall plate's). */
-const SEAT = 90;
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const vgrad = (top: string, bot: string) => new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: top }, { offset: 1, color: bot }], textureSpace: 'local' });
 
@@ -48,6 +46,9 @@ const designRect = (visual: string): Rect => { const g = geom(visual); return { 
 export const routerRect = (visual: string): Rect => { const d = designRect(visual); return { x: tx(d.x), y: ty(d.y), w: d.w * NET_K, h: d.h * NET_K }; };
 const pitch = (visual: string) => Math.min(150, (geom(visual).w - 420) / geom(visual).nLan);
 const SOCK_H = 84;
+/** World width of a router socket, and how far below the socket's middle an end-on plug (0.78 of that width) lets its cable out. */
+const sockW = (visual: string) => Math.min(110, pitch(visual) - 22) * NET_K;
+const endDrop = (sock: number) => sock * 0.78 * 0.74 * 0.6;
 /** Design x of LAN socket k (0 is the rightmost, the one the cable uses) and of the WAN socket. */
 const dLanX = (visual: string, k = 0) => ROUTER_EAST - 150 - k * pitch(visual);
 const dWanX = (visual: string) => designRect(visual).x + 150;
@@ -292,6 +293,8 @@ export class NetView {
     this.hits.push({ id: 'router', rect: rr, shape: routerBox && this.silhouette ? this.silhouette(routerBox, rr) : undefined });
     const wallBox = wallArt(T, net?.isp ?? null);
     this.art.addChild(wallBox);
+    const top = new Graphics(); // over the router and the wall plate: the plugs seated in their sockets and the cable's first stretch
+    this.art.addChild(top);
     reg('wall', WALL_PLATE);
 
     // (the cables run over the wall: `paintCable` with the wall look, the same sleeve as the PC's mains cords and the video cable)
@@ -300,7 +303,7 @@ export class NetView {
     // the ISP line: from the wall jack under the desk down a little, along, and up behind the desk, the riser and the monitor to the router's WAN socket
     // (a thin lead; the body is in `behind`, under the desk and the monitor, the plugs here)
     if (this.router && net?.isp) {
-      const wx = WALL_JACK.x, rx = wanX(this.router.visual), y1w = WALL_Y - SEAT + PLUG_L - 10, y1r = SHELF_Y - SEAT + PLUG_L - 10;
+      const wx = WALL_JACK.x, rx = wanX(this.router.visual), y1w = WALL_Y - SOCK_H * NET_K / 2 + endDrop(110 * NET_K), y1r = SHELF_Y - SOCK_H * NET_K / 2 + endDrop(sockW(this.router.visual));
       const route: Pt[] = [[wx, y1w], [wx, ISP_ROW_Y], [rx, ISP_ROW_Y], [rx, y1r]];
       const d = drape(route, { radius: 420, clips: [...runClipYs(ISP_ROW_Y, y1r).map((cy) => [rx, cy] as Pt), [(wx + rx) / 2, ISP_ROW_Y]] });
       this.isp = mkLane(d.path);
@@ -308,14 +311,17 @@ export class NetView {
       this.behind.addChild(gb);
       cable(this.isp.pts, 26, T.mute, gb);
       for (const c of d.clips) paintClip(gb, T, c.at, c.dir, 26);
-      drawPlug(g, T, { x: wx, y: WALL_Y - SEAT, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
-      drawPlug(g, T, { x: rx, y: SHELF_Y - SEAT, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
+      for (const [px, py, pw] of [[wx, WALL_Y, 110 * NET_K], [rx, SHELF_Y, sockW(this.router.visual)]] as const) {
+        top.moveTo(px, py - SOCK_H * NET_K / 2).lineTo(px, py + 40).stroke({ width: 26, color: T.mute, cap: 'round' });
+        rj45PlugEnd(top, T, px, py - SOCK_H * NET_K / 2, pw * 0.78, T.mute);
+      }
     }
 
     // the ethernet cable: its router end is always seated; the PC end is on a jack (connected), at rest (loose) or in the hand (held)
     if (this.router) {
-      const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y - SEAT + PLUG_L - 10];
-      drawPlug(g, T, { x: lx, y: SHELF_Y - SEAT, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false, 'rj45');
+      const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y - SOCK_H * NET_K / 2 + endDrop(sockW(this.router.visual))];
+      top.moveTo(lx, tail[1]).lineTo(lx, SHELF_Y + 40).stroke({ width: 38, color: accent, cap: 'round' });
+      rj45PlugEnd(top, T, lx, SHELF_Y - SOCK_H * NET_K / 2, sockW(this.router.visual) * 0.78, accent);
       // at rest the plug hangs from its cable by its own weight (pins down), a little east of the router
       const restPlug: Plug = { x: ROUTER_EAST + 680, y: CABLE_ROW_Y + 60 + 760 + PLUG_L, dx: 0, dy: -1, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
       let plug: Rect = plugRect(restPlug), seated: Pt | null = null;
@@ -345,7 +351,7 @@ export class NetView {
         this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more: laneRects(stub, 36) });
       }
       reg('cable.lan', plug);
-      scene.lan = { connected: lanState === 'connected' && !!jack, held: lanState === 'held', plug, anchor: [lx, SHELF_Y - SEAT + PLUG_L - 10], anchorDir: [0, 1], seated, jacks, port: jack?.id ?? null };
+      scene.lan = { connected: lanState === 'connected' && !!jack, held: lanState === 'held', plug, anchor: tail, anchorDir: [0, 1], seated, jacks, port: jack?.id ?? null };
     }
     for (const j of jacks) { reg(j.id, j.rect); this.hits.push({ id: j.id, rect: j.rect }); }
     this.hits.push({ id: 'wall', rect: WALL_PLATE, shape: this.silhouette ? this.silhouette(wallBox, WALL_PLATE) : undefined });

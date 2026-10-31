@@ -184,6 +184,21 @@ export function rj45Plug(g: Graphics, T: Theme, p: PlugPose, accent: string) {
   g.stroke({ width: 3, color: '#ffffff', alpha: 0.16 });
 }
 
+/**
+ * An RJ45 plug seen from behind, seated in a socket that faces the viewer (the router's, the wall plate's): the clear body round the boot, the
+ * latch bump on top and the cable leaving the boot downwards. (x, y) is the middle of the socket; returns the y where the cable leaves.
+ */
+export function rj45PlugEnd(g: Graphics, T: Theme, x: number, y: number, w: number, accent: string): number {
+  const m = metalOf(T), h = w * 0.74, x0 = x - w / 2, y0 = y - h / 2, clear = mix(T.dark ? '#aeb9d6' : '#dfe6f3', T.bg, 0.2), boot = sleeveOf(T);
+  box(g, x0 + 5, y0 + 9, w, h, 12, { fill: '#000000', fa: shadowA(T) * 0.8 });
+  box(g, x - w * 0.2, y0 - 9, w * 0.4, 14, 4, { fill: clear, stroke: m.rim, lw: 3, sa: 0.8 });                          // the latch bump
+  box(g, x0, y0, w, h, 12, { fill: clear, stroke: m.rim, lw: 4, sa: 0.85 });                                           // the clear body
+  box(g, x0 + w * 0.1, y0 + h * 0.14, w * 0.8, h * 0.72, 10, { fill: boot, stroke: accent, lw: 4, sa: 0.9 });          // the boot
+  g.rect(x0 + w * 0.16, y0 + h * 0.2, w * 0.68, Math.max(3, h * 0.1)).fill({ color: '#ffffff', alpha: T.dark ? 0.1 : 0.3 });
+  box(g, x - w * 0.19, y0 + h * 0.8, w * 0.38, h * 0.32, 8, { fill: boot, stroke: accent, lw: 3, sa: 0.8 });           // the cable's strain relief
+  return y0 + h * 1.1;
+}
+
 /** The socket in the monitor's flank that the HDMI plug enters: a metal stub standing out of the bezel, its opening facing east. */
 export function monitorSocket(g: Graphics, T: Theme, x: number, y: number, w: number, h: number) {
   const m = metalOf(T), cc = 14;
