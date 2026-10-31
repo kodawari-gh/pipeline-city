@@ -638,6 +638,7 @@ export async function mountBoard(host: HTMLElement) {
         const p = psuArt(T, spec as PsuSpec);
         deviceLayer.addChild(p.root); parts.push(p);
         if (p.fan) { fans.push({ c: p.fan, kind: 'psu' }); fanLayer.addChild(p.fan); }
+        if (p.rearFan) { fans.push({ c: p.rearFan, kind: 'psurear' }); fanLayer.addChild(p.rearFan); }
         if (p.over) fanLayer.addChild(p.over);
         deviceHits.push(partHit('psu', p.root, PSU));
         scene.rects.set(d.id, PSU); scene.rects.set('psu', PSU);

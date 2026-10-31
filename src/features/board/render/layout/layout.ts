@@ -216,6 +216,8 @@ export const sataPort = (i: number): Rect => GEO.sata[i] ?? EMPTY;
 export const USB_PORT: Rect = { x: IO_X + 18, y: -54, w: 290, h: 108 };
 /** The PC's mains inlet on the rear wall, at the PSU's end (mouth facing west; `y` follows the PSU, so the case tier). */
 export let PC_POWER = { x: IO_X, y: 2550 };
+/** The PSU's own exhaust fan in the rear wall, seen edge-on, at the PSU compartment: the Micro, Mid and Full carry one (the Mini does not), the mains inlet sits below it. */
+export let PSU_REAR_FAN: Rect | null = null;
 /** HDMI socket on the rear I/O panel (the video plug goes here). */
 export const HDMI_PORT: Rect = { x: IO_X, y: VIDEO_Y - 60, w: 240, h: 120 };
 
@@ -293,7 +295,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const psuEast = east + 600 + GUTTER_EXTRA, psuW = psuEast + 3400;
   PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
-  PC_POWER = { x: IO_X, y: PSU.y + 560 };
+  PSU_REAR_FAN = cg.tier >= 1 ? { x: IO_X + 14, y: PSU.y + 40, w: WALL_T - 28, h: 700 } : null;
+  PC_POWER = { x: IO_X, y: PSU.y + (PSU_REAR_FAN ? 1010 : 560) };
   // the unit sits at the east end under the cable sockets; the shroud (readout panel at its west end, then the vents) fills the rest
   PSU_UNIT = { x: psuEast - 2500, y: PSU.y, w: 2500, h: PSU.h };
   PSU_FAN = { x: PSU_UNIT.x + 640, y: PSU.y + 550, r: 430 };

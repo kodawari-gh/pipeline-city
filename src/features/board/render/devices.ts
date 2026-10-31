@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
   DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
-  LAYOUT_CASE, type Rect,
+  LAYOUT_CASE, PSU_REAR_FAN, type Rect,
 } from './layout/layout';
 import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
 import { EdgeFan } from '../../room/render/desk/props/case';
@@ -25,6 +25,8 @@ export interface Part {
   labels?: Container;
   /** A child that board.ts rotates for fans (kept above the baked far-LOD texture). */
   fan?: Container;
+  /** A second fan the PSU spins in the case's rear wall (the PSU's exhaust). */
+  rearFan?: Container;
   /** Static art that must stay above `fan` (e.g. the PSU grill). */
   over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */
@@ -267,12 +269,21 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   box(g, u.x, u.y, u.w, u.h, 40, { fill: body, stroke: accent, lw: 10, sa: 0.9 });
   g.rect(u.x + 30, u.y + 16, u.w - 60, 14).fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.3 });
   for (const sx of [u.x + 56, u.x + u.w - 56]) for (const sy of [u.y + 56, u.y + u.h - 56]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.5 });
-  // the intake fan: it sits in the unit's bottom face, so this side view shows it edge-on (a housing along the floor); the blades slide along it
+  // the intake fan: it sits in the unit's bottom face, so this side view shows it edge-on (a housing along the floor); the blades slide along it.
+  // The two cheapest PSUs are passive: a plain vent slit there instead.
   const slab = psuFanRect();
-  box(g, slab.x - 20, slab.y - 20, slab.w + 40, slab.h + 40, 24, { fill: T.die, stroke: T.line, lw: 8 });
-  box(g, slab.x, slab.y, slab.w, slab.h, 16, { fill: T.dot, stroke: accent, lw: 5, sa: 0.7 });
-  const fan = new EdgeFan(slab, T);
-  root.addChild(fan);
+  let fan: EdgeFan | undefined, rearFan: EdgeFan | undefined;
+  if (spec.fan) {
+    box(g, slab.x - 20, slab.y - 20, slab.w + 40, slab.h + 40, 24, { fill: T.die, stroke: T.line, lw: 8 });
+    box(g, slab.x, slab.y, slab.w, slab.h, 16, { fill: T.dot, stroke: accent, lw: 5, sa: 0.7 });
+    fan = new EdgeFan(slab, T);
+    root.addChild(fan);
+    // the exhaust fan in the rear wall (the cases above the Mini)
+    if (PSU_REAR_FAN) { rearFan = new EdgeFan(PSU_REAR_FAN, T); root.addChild(rearFan); }
+  } else {
+    for (let k = 0; k < 6; k++) g.moveTo(slab.x + 60, slab.y + k * 18).lineTo(slab.x + slab.w - 60, slab.y + k * 18);
+    g.stroke({ width: 8, color: T.dark ? '#02040a' : mix(body, '#000000', 0.4), cap: 'round', alpha: 0.7 });
+  }
   // the rest of the unit above it is closed metal: a few slits on its upper half, and the intake arrows below
   for (let k = 0; k < 5; k++) g.moveTo(u.x + 330, u.y + 110 + k * 60).lineTo(u.x + 1130, u.y + 110 + k * 60);
   g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.6 });
@@ -301,7 +312,7 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   g.rect(u.x + 148, u.y + u.h - 222, 74, 74).fill({ color: T.mute, alpha: 0.6 });
   labels.addChild(label('I/O', u.x + 185, u.y + u.h - 66, 32, T.mute, { anchor: [0.5, 0.5] }));
   root.addChild(labels);
-  return { root, fan };
+  return { root, fan, rearFan };
 }
 
 /**

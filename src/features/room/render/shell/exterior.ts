@@ -3,7 +3,7 @@ import type { Snapshot } from '@/worker/protocol';
 import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
 import { CASE_KIND, bracket, caseWindow, hexes, holes, logoMark, outline, pillar, screw, slots, type CaseKind, type Cuts } from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';
@@ -121,8 +121,8 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T, kind === 'matte' ? 0.4 : kind === 'oem' ? 0.3 : 1);
 
   // top panel: a recessed plate with an accent hairline, the brand, a row of vents and the light window for the status LEDs
-  g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-  g.rect(p.x + 70, p.y + 44, p.w - 140, 10).fill({ color: '#000000', alpha: d ? 0.3 : 0.12 });
+  if (kind !== 'matte') g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+  if (kind !== 'matte') g.rect(p.x + 70, p.y + 44, p.w - 140, 10).fill({ color: '#000000', alpha: d ? 0.3 : 0.12 });
   if (kind !== 'oem' && kind !== 'matte') g.rect(p.x + 90, p.y + p.h - 34, p.w - 180, 5).fill({ color: acc, alpha: 0.5 });
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   if (kind === 'gamer') { slots(g, { x: -2250, y: p.y + 110, w: nv * 78, h: 200 }, nv, 70); g.fill({ color: c.cut }); }
@@ -139,10 +139,11 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
 
   // rear I/O plate (west): a panel with the external connectors cut into it
   const io = { x: c0.x + 30, y: ci.y, w: BR.io.x + BR.io.w + 60 - (c0.x + 30), h: gl.h };
-  g.roundRect(io.x, io.y, io.w, io.h, 30).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 });
-  brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, T, 40);
+  if (kind !== 'matte') { g.roundRect(io.x, io.y, io.w, io.h, 30).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.7 }); brush(g, io.x + 10, io.y + 10, io.w - 20, io.h - 20, T, 40); }
   rearIo(g, T, o);
   root.addChild(label('REAR I/O', io.x + 24, io.y + 70, 56, dim, { head: true, a: 0.6 }));
+  // the PSU's exhaust grille (the cases above the Mini)
+  if (PSU_REAR_FAN) for (let k = 0; k < 7; k++) box(g, io.x + 40, PSU_REAR_FAN.y + 50 + k * 90, 120, 26, 13, { fill: c.cut, fa: 0.75 });
   // the rear fan, the expansion slot covers and the top fans are inside: only their vents show on the plate
   for (let k = 0; k < Math.min(5, Math.floor((REAR_FAN.h - 40) / 70)); k++) box(g, io.x + 40, REAR_FAN.y + 60 + k * 70, 120, 26, 13, { fill: c.cut, fa: 0.75 });
 
@@ -158,7 +159,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   if (kind === 'oem') solidSide(g, T, c, { x: ci.x, y: gl.y, w: ci.w, h: gl.h }, win);
   else {
     const bezelFill = kind === 'show' ? lgrad(mix(SILVER, c.hi, 0.4), mix(SILVER, c.lo, 0.5)) : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
-    outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts).fill(bezelFill).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+    if (kind !== 'matte') outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts).fill(bezelFill).stroke({ width: 6, color: c.edge, alpha: 0.6 });
     if (kind !== 'matte') bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 20, T, 0.8);
     outline(g, win.x - 16, win.y - 16, win.w + 32, win.h + 32, wr + 12, cuts && (cuts.map((v) => (v ? v + 10 : 0)) as Cuts)).fill(c.shade);
     const hole = new Graphics();
@@ -199,10 +200,9 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   // PSU compartment: a brushed panel with a perforated intake (the drive cage is inside, behind the glass)
   const lowY = gl.y + gl.h, lowH = ci.y + ci.h - lowY;
   const lowFill = kind === 'show' ? lgrad(mix(SILVER, c.hi, 0.35), mix(SILVER, c.lo, 0.55)) : kind === 'gamer' ? lgrad('#232936', '#0a0c11') : lgrad(c.mid, c.lo);
-  g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lowFill).stroke({ width: 6, color: c.edge, alpha: 0.5 });
+  if (kind !== 'matte') g.roundRect(ci.x, lowY, ci.w, lowH, 36).fill(lowFill).stroke({ width: 6, color: c.edge, alpha: 0.5 });
   if (st.brushed) brush(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, T, 40);
-  bevel(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 30, T, kind === 'matte' ? 0.35 : 0.7);
-  if (kind === 'matte') g.rect(ci.x + 30, lowY + 2, ci.w - 60, 6).fill({ color: '#000000', alpha: 0.5 }); // the seam under the window
+  if (kind !== 'matte') bevel(g, ci.x + 10, lowY + 10, ci.w - 20, lowH - 20, 30, T, 0.7); // the matte side is one sheet: no seam under the window
   const mesh = { x: PSU.x + 120, y: PSU.y + 60, w: 3300, h: PSU.h - 120 };
   box(g, mesh.x, mesh.y, mesh.w, mesh.h, 40, { fill: oem ? mix(c.lo, '#000000', 0.25) : c.cut, stroke: c.edge, lw: 5, sa: 0.6 });
   if (kind === 'show') hexes(g, { x: mesh.x + 40, y: mesh.y + 40, w: mesh.w - 80, h: mesh.h - 80 }, 46, 10);

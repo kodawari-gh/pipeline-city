@@ -107,6 +107,8 @@ export interface PsuSpec extends SpecBase {
   watts: number;
   /** PCIe power leads the PSU has (the `pcie` cable of docs/ACCEL.md): 0 for the small ones. */
   pcieLeads: number;
+  /** Whether the PSU has a fan: the two cheapest are passive (fan-less) units. */
+  fan: boolean;
 }
 
 export interface CoolerSpec extends SpecBase {
@@ -283,19 +285,19 @@ const specList: DeviceSpec[] = [
     sizeBytes: 256 * 1024, latency: 4, banks: 32, bankGroups: 8, rowBytes: 256, tCL: 2, tRCD: 3, tRP: 2, burst: 1, ecc: true },
 
   { id: "psu0", kind: "psu", tier: 0, name: "PSU 40 W", slot: "atx", price: 0, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0 },
+    thermal: inertThermal, visual: "psu-basic", watts: 40, pcieLeads: 0, fan: false },
   { id: "psu1", kind: "psu", tier: 1, name: "PSU 100 W", slot: "atx", price: 60, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-mid", watts: 100, pcieLeads: 0 },
+    thermal: inertThermal, visual: "psu-mid", watts: 100, pcieLeads: 0, fan: false },
   { id: "psu2", kind: "psu", tier: 2, name: "PSU 250 W (ATX+)", slot: "atx-plus", price: 250, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 250, pcieLeads: 1 },
+    thermal: inertThermal, visual: "psu-big", watts: 250, pcieLeads: 1, fan: true },
 
   // 500 W with two PCIe leads (docs/ACCEL.md). Placeholder price.
   { id: "psu3", kind: "psu", tier: 3, name: "PSU 500 W (ATX+)", slot: "atx-plus", price: 900, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 500, pcieLeads: 2 },
+    thermal: inertThermal, visual: "psu-big", watts: 500, pcieLeads: 2, fan: true },
 
   // 1 kW with four PCIe leads. Placeholder price.
   { id: "psu4", kind: "psu", tier: 4, name: "PSU 1 kW (ATX+)", slot: "atx-plus", price: 2400, idleW: 0, loadW: 0, heatFactor: 0,
-    thermal: inertThermal, visual: "psu-big", watts: 1000, pcieLeads: 4 },
+    thermal: inertThermal, visual: "psu-big", watts: 1000, pcieLeads: 4, fan: true },
 
   { id: "cooler0", kind: "cooler", tier: 0, name: "Stock heatsink", slot: "cooler", price: 0, idleW: 0, loadW: 1, heatFactor: 0,
     thermal: inertThermal, visual: "cooler-stock", coolingPerC: 0.35, vrmAirPerC: 0.05 },

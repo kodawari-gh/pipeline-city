@@ -20,7 +20,7 @@ function running(cpuC = 40, unplug: string[] = [], over: Partial<Snapshot> = {})
   const ids = ['sysfan', ...mounts.map((m) => `fan:${m.id}`)];
   const s = snap({
     powered: true, power: { vrmLossW: 2, totalW: 54, budgetW: 250, psuFactor: 1, off: false, tripped: false },
-    devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0', powerW: 0 }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0', powerW: 13, tempC: cpuC })],
+    devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0', powerW: 0 }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0', powerW: 13, tempC: cpuC })],
     cables: ids.map((id) => ({ id, name: id, connected: !unplug.includes(id) })) as Snapshot['cables'],
     ...over,
   });
@@ -41,7 +41,7 @@ describe('the airflow lens model', () => {
   });
 
   it('the components bring their own fans: a stream for a cooler, a card, a sink and the PSU, tied to the fan id the view spins', () => {
-    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' }),
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' }),
       dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', spec: 'vsink2', slot: 'vrm-sink0' }), dev({ id: 'vs2', kind: 'ram-sink', spec: 'rsink0', slot: 'ram-sink0' })] });
     i.slots.set('pcie0', { x: CASE_GLASS.x + 3000, y: CASE_GLASS.y + 1500, w: 3000, h: 900 });
     const m = airflowModel(i), local = m.lanes.filter((l) => l.local);
@@ -160,8 +160,14 @@ describe('the airflow lens model', () => {
     expect(zh.heat).toBeGreaterThan(zc.heat);
   });
 
+  it('a fan-less PSU (psu0, psu1) makes no stream of its own', () => {
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu1', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] });
+    const local = airflowModel(i).lanes.filter((l) => l.local);
+    expect(local.map((l) => l.fanIds[0])).not.toContain('psu');
+  });
+
   it('each fan is a port of the field: the front ones blow in at their edge, the rest draw out from their middle, a PSU channel keeps its own lane', () => {
-    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] });
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', spec: 'psu2', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] });
     const m = airflowModel(i);
     for (const l of caseLanes(m)) {
       expect(l.kind).toBe(l.intake ? 'in' : 'out');

@@ -748,8 +748,7 @@ export class Live {
         continue;
       }
       if (d.kind === 'psu') {
-        const f = this.fans.find((x) => x.kind === 'psu');
-        if (f) f.target = !this.liveOn ? 0 : 1 + 8 * clamp(ratio);
+        for (const f of this.fans) if (f.kind === 'psu' || f.kind === 'psurear') f.target = !this.liveOn ? 0 : 1 + 8 * clamp(ratio);
         continue;
       }
       if (!gl) continue;
@@ -1143,7 +1142,7 @@ export class Live {
       const target = this.psuOff ? 25 : 25 + 34 * Math.pow(clamp(this.psuRatio, 0, 1.4), 1.5);
       this.psuTemp += (target - this.psuTemp) * Math.min(1, dt * 0.25);
       const rpm = psuFan && psuFan.speed > 0.05 ? Math.round((500 + (psuFan.speed / 9) * 2300) / 10) * 10 : 0;
-      const txt = rpm === 0 ? 'STOPPED' : `${rpm} rpm`;
+      const txt = !psuFan ? 'NO FAN' : rpm === 0 ? 'STOPPED' : `${rpm} rpm`;
       if (this.psuTexts.rpm.text !== txt) this.psuTexts.rpm.text = txt;
       const tc = Math.round(this.psuTemp), tt = `${tc}°C`;
       if (this.psuTexts.temp.text !== tt) { const T = this.T; const c = tc >= 70 ? T.bad : tc >= 55 ? T.ld : T.st; this.psuTexts.temp.text = tt; this.psuTexts.temp.style.fill = c; }

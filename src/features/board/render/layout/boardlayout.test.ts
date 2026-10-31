@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS } from '../../sim/specs';
 import { TIER_GEO } from './boardlayout';
-import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
+import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, PSU_REAR_FAN, PC_POWER, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
@@ -494,5 +494,20 @@ describe.each(TIER_GEO.map((g) => g.tier))('tier %i: the far board texture', (ti
     expect(inside(GEO.io, f)).toBe(true);
     for (const p of IO_PORTS) expect(inside({ x: p.x, y: p.y - p.h / 2, w: p.w, h: p.h }, f), `port ${p.id}`).toBe(true);
     expect(f.x).toBeLessThanOrEqual(CASE.x);                   // out to the case's west wall, where the plate stands
+  });
+});
+
+describe('the PSU exhaust fan in the rear wall', () => {
+  it('the Micro, Mid and Full carry one above the mains inlet, the Mini none', () => {
+    for (const tier of [0, 1, 2, 3]) {
+      setLayoutTier(tier, tier);
+      if (tier === 0) { expect(PSU_REAR_FAN).toBeNull(); continue; }
+      const f = PSU_REAR_FAN!;
+      expect(f.y).toBeGreaterThanOrEqual(PSU.y);
+      expect(f.y + f.h, 'the inlet is below the fan').toBeLessThan(PC_POWER.y - 100);
+      expect(PC_POWER.y).toBeLessThan(CASE.y + CASE.h);
+      expect(f.y + f.h, 'clear of the rear fan above').toBeLessThan(PSU.y + PSU.h);
+    }
+    setLayoutTier(2, 2);
   });
 });
