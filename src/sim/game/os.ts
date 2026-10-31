@@ -299,7 +299,7 @@ export function storageSnaps(this: Game): StorageSnap[] {
       bytesPerSecond: Math.round((clk * this.cfg.cpuCyclesPerClock * BLOCK_BYTES) / s.blockTicks),
       hasOs: this.os?.deviceId === d.id,
       fs: { runs: disk.fs.runs(), fragmentation: disk.fs.fragmentation(), byKind: disk.fs.usage().byKind, files: disk.fs.list().map((f) => ({ id: f.id, owner: f.owner, kind: f.kind, lost: f.lost })) },
-      wear: disk.wearGroups(), headLba: port?.media === disk ? port.headLba : 0,
+      wear: disk.wearGroups(), headLba: port?.media === disk ? port.headLba : 0, cmds: port?.media === disk ? port.cmds.slice() : [],
       wearPct: Math.round(disk.wearPct * 10) / 10, badGroups: disk.badGroups + (disk.twin?.badGroups ?? 0), lostBlocks: disk.fs.lostBlocks(),
       queueDepth: disk.queueDepth, queued: port ? port.queueLoad() : 0, mirror: !!disk.twin,
       mount: this.mountSnap(d.id, disk.mount),

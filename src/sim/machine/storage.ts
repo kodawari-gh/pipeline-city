@@ -224,6 +224,22 @@ export class Disk {
   }
 }
 
+/** One command the port ran, for the art to replay (docs/render/live.md, the drive views): what, where, and what it cost. */
+export interface StorageCmd {
+  /** Counts up for ever: the view replays the commands it has not seen. */
+  seq: number;
+  op: "r" | "w";
+  lba: number;
+  /** Ticks of seek (0 when the block follows the last one) and of transfer. */
+  seek: number;
+  xfer: number;
+  /** Requests waiting at the drive when it started. */
+  queued: number;
+}
+
+/** Commands the port keeps for the art. */
+const CMD_LOG = 16;
+
 export class StoragePort implements Device {
   readonly size = STORAGE_STRIDE;
   readonly base: number;
@@ -240,6 +256,8 @@ export class StoragePort implements Device {
   private lastLba = -2;
   /** Where the head rests (the last block moved). */
   private head = 0;
+  private readonly log: StorageCmd[] = [];
+  private seq = 0;
   /** Set by every command, cleared by `takeActivity` (the game reads it for the thermal load and the LED). */
   active = false;
 
@@ -273,6 +291,11 @@ export class StoragePort implements Device {
 
   get isBusy(): boolean {
     return this.busy > 0;
+  }
+
+  /** The last commands, oldest first. */
+  get cmds(): readonly StorageCmd[] {
+    return this.log;
   }
 
   /** The block the head rests on (the last block a command moved). */
@@ -324,8 +347,10 @@ export class StoragePort implements Device {
     this.cmd = cmd;
     this.active = true;
     if (cmd === 2) this.latch.set(this.buf);
-    const seq = lba === this.lastLba + 1;
-    this.busy = (seq ? 0 : m.seekTicks(this.head, lba)) + m.blockTicks;
+    const seq = lba === this.lastLba + 1, seek = seq ? 0 : m.seekTicks(this.head, lba);
+    this.busy = seek + m.blockTicks;
+    this.log.push({ seq: ++this.seq, op: cmd === 2 ? "w" : "r", lba, seek, xfer: m.blockTicks, queued: this.queueLoad() - 1 });
+    if (this.log.length > CMD_LOG) this.log.shift();
     m.commands++;
   }
 

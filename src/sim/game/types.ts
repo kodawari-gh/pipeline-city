@@ -3,6 +3,7 @@
 
 import type { BoardFeatures, CableId, DeviceKind, SlotType } from "../board";
 import type { FileKind, FsRun, MountState } from "../machine/fs";
+import type { StorageCmd } from "../machine/storage";
 import type { GpuView } from "../machine/gpu";
 import type { NpuView } from "../machine/npu";
 import type { TpmView } from "../machine/tpm";
@@ -302,6 +303,8 @@ export interface StorageSnap {
   wear: number[];
   /** The block the head (or the last command) rests on: the HDD art seeks to it. */
   headLba: number;
+  /** The last commands the drive ran, oldest first: the art replays them (what, where, the seek and transfer ticks). */
+  cmds: StorageCmd[];
   /** Wear 0..100 (writes against endurance), bad 8-block groups (both members of a mirror), and blocks of files whose data is lost. */
   wearPct: number;
   badGroups: number;

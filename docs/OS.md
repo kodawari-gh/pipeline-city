@@ -44,6 +44,7 @@ Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `
 All numbers are placeholders (`specs.ts`).
 
 - **Wear.** `StorageSpec.enduranceBlocks` is the writes one 8-block group (`GROUP_BLOCKS`) takes. Each group varies by +-20% from the drive's seed (`Disk.limitOf`). `StoragePort` calls `Disk.noteWrite(lba)` for every write. Past its limit, a group turns bad (`failGroup`). There is no wear levelling, so a hot group wears out first. `hdd0` 40000 (and a rare mechanical fault, `mechBadRate`, per write), `ssd1` 6000, `nvme2` 20000. A `format()` keeps wear and bad groups: they are the media's.
+- **Command log.** `StoragePort.cmds` keeps the last 16 commands (`StorageCmd`: seq, op, lba, seek and transfer ticks, queued). `StorageSnap.cmds` carries them; the drive views replay them (docs/render/live.md).
 - **Lost data.** Bad blocks lose the extents on them: the file stays in the ledger with `lost: true` (until removed). Runs show `lost` for such files and `bad` for bad free blocks; a bad group is never allocated. A lost `os` or `meta` file (or a used block outside any file) sets the mount state `damaged`; a lost spool or dataset does not.
 - **Burn.** `syncStorage` marks every dataset on a burnt drive lost (`DiskFs.loseKind`).
 - **Seek by distance.** `seekByDistance` (the HDD) scales the seek by the LBA distance from the head (`Disk.seekTicks`, 0.3x to 1.7x of `latencyTicks`). A sequential block still skips it. SSD and NVMe stay flat.

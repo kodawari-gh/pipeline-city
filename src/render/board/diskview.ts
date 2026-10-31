@@ -2,7 +2,7 @@ import { Container, Graphics, type Text } from 'pixi.js';
 import type { StorageSnap } from '../../sim/game/types';
 import { box, label, mix } from '../ink';
 import type { Theme } from '../theme';
-import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../die/diepulse';
+import { DiskPlay } from './diskplay';
 import type { Rect } from '../die/cpuplan';
 import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '../lod';
 import { accentOf, diskStatic, drawArch, drawBar, drawMap, type ArchLive, type DataCtx } from './diskart';
@@ -17,13 +17,9 @@ import { cardCandidates, cardText } from './lodcard';
 // spool, programs, each client's datasets, lost, bad, free); deeper the architecture of the tier (a platter and a head arm that seeks to the block in use;
 // a controller with one channel to four NAND dies; an NVMe with four channels to eight dies and queue lanes) with the wear of each group shaded on the dies;
 // and, for the drives nearest the view centre (the shared counter budget), the extent list, a legend by owner, the wear and the queue. A drive that is not
-// mounted shows its data dimmed; a burnt one shows every dataset lost. Data moves as packets along the links while the drive is busy.
+// mounted shows its data dimmed; a burnt one shows every dataset lost. What the drive's commands make it do is replayed step by step: packets along the links, the blocks and the die cell at work, the arm seeking (diskplayer.ts).
 
 const [FADE_FROM, FADE_TO] = DEVICE_LOD.disk.fade, TEXT_Z = DEVICE_LOD.disk.text, DETAIL_Z = DEVICE_LOD.disk.detail, ARCH_Z = DEVICE_LOD.disk.arch;
-/** Ticks the head arm takes to ease to a new track (a time constant, in seconds). */
-const HEAD_EASE = 0.12;
-/** How often a busy drive sends another packet (ms), and how long one takes along a link. */
-const PACKET_EVERY_MS = 520, PACKET_MS = 380;
 const TEXT_LINES = 26;
 
 export interface DiskScene { slot: string; deviceId: string; kind: DriveKind; body: Rect }
@@ -52,10 +48,9 @@ interface DriveView {
   texts: Text[];
   snap: StorageSnap | null;
   cells: Cell[];
-  head: number;
-  packets: Packet[];
-  trails: Map<string, Trail>;
-  nextPacket: number;
+  /** What the drive's commands make it do, replayed step by step (diskplay.ts, diskplayer.ts). */
+  play: DiskPlay;
+  liveG: Graphics;
   sig: string;
   panelSig: string;
 }
@@ -88,7 +83,8 @@ export class DiskView {
     // an invisible rectangle gives the node its bounds (the LoD places it by them)
     const hit = new Graphics().rect(0, 0, w, h).fill({ color: '#000000', alpha: 0 });
     const mapG = new Graphics(), dataG = new Graphics(), trailG = new Graphics(), packetG = new Graphics(), bar = new Graphics(), panel = new Container(), panelG = new Graphics();
-    arch.addChild(art.blocks, art.near.wires, dataG, trailG, packetG, art.near.names, art.near.subs);
+    const liveG = new Graphics();
+    arch.addChild(art.blocks, art.near.wires, dataG, liveG, trailG, packetG, art.near.names, art.near.subs);
     cut.addChild(art.far, mapG, arch);
     panel.addChild(panelG);
     const texts: Text[] = [];
@@ -102,7 +98,7 @@ export class DiskView {
     this.root.addChild(root);
     return {
       slot: s.slot, deviceId: s.deviceId, kind: s.kind, body: s.body, plan, root, bar, cut, mapG, arch, dataG, trailG, packetG, names: art.near.names, subs: art.near.subs, panel, panelG, texts,
-      snap: null, cells: [], head: 0, packets: [], trails: new Map(), nextPacket: 0, sig: '', panelSig: '',
+      snap: null, cells: [], play: new DiskPlay(), liveG, sig: '', panelSig: '',
     };
   }
 
@@ -112,7 +108,10 @@ export class DiskView {
 
   /** The newest storage snapshots. */
   update(storage: readonly StorageSnap[] | undefined): void {
-    for (const d of this.drives) d.snap = storage?.find((s) => s.deviceId === d.deviceId) ?? null;
+    for (const d of this.drives) {
+      d.snap = storage?.find((s) => s.deviceId === d.deviceId) ?? null;
+      if (d.snap) d.play.ingest(d.kind, d.plan, d.snap.cmds, d.snap.capacityBytes / 256, d.snap.headLba);
+    }
   }
 
   /** The drives in view that want their counters, for the detail budget (live.ts). */
@@ -149,29 +148,26 @@ export class DiskView {
       d.subs.alpha = da * arch;
       d.panel.visible = showDetail;
       d.panel.alpha = da;
-      this.redraw(T, d, s, dt, showDetail, arch > 0.02);
+      this.redraw(T, d, s, step, showDetail, arch > 0.02);
     }
   }
 
-  private redraw(T: Theme, d: DriveView, s: StorageSnap, dt: number, detail: boolean, archOn: boolean): void {
-    const track = d.plan.platter ? headTrack(s.headLba, s.capacityBytes / 256, d.plan.platter.tracks) : 0;
-    // the arm eases to its track
-    const target = track, k = Math.min(1, dt / HEAD_EASE);
-    d.head += (target - d.head) * k;
-    if (Math.abs(target - d.head) < 0.02) d.head = target;
+  private redraw(T: Theme, d: DriveView, s: StorageSnap, stepMs: number, detail: boolean, archOn: boolean): void {
+    // the arm is where the commands put it
+    const head = d.play.track;
     const dim = dimmed(s), runsSig = s.fs.runs.reduce((n, r) => (n * 31 + r.start * 7 + r.len * 3 + r.file + (r.filled ? 1 : 0) + r.kind.length) >>> 0, 17);
-    const sig = `${runsSig}|${s.usedBytes}|${s.wearPct}|${s.badGroups}|${s.lostBlocks}|${s.burnt ? 1 : 0}|${dim ? 1 : 0}|${s.wear.length}|${Math.round(d.head * 20)}|${s.queued}|${s.busy ? 1 : 0}|${archOn ? 1 : 0}`;
+    const sig = `${runsSig}|${s.usedBytes}|${s.wearPct}|${s.badGroups}|${s.lostBlocks}|${s.burnt ? 1 : 0}|${dim ? 1 : 0}|${s.wear.length}|${Math.round(head * 20)}|${s.queued}|${s.busy ? 1 : 0}|${archOn ? 1 : 0}`;
     const x: DataCtx = { owners: new Map(s.fs.files.filter((f) => f.kind === 'dataset').map((f) => [f.id, ownerSlot(f.owner)])), dim, burnt: s.burnt };
     if (sig !== d.sig) {
       d.sig = sig;
       d.cells = cellsOf(s.fs.runs, s.capacityBytes / 256, s.wear);
-      const live: ArchLive = { headLba: s.headLba, totalBlocks: s.capacityBytes / 256, track: d.head, queued: s.queued, depth: s.queueDepth, busy: s.busy };
+      const live: ArchLive = { headLba: s.headLba, totalBlocks: s.capacityBytes / 256, track: head, queued: s.queued, depth: s.queueDepth, busy: s.busy };
       drawBar(d.bar, T, d.body.w, d.body.h, s.usedBytes, s.capacityBytes, s.burnt);
       drawMap(d.mapG, T, d.kind, d.plan, d.cells, x);
       drawArch(d.dataG, T, d.kind, d.plan, d.cells, x, live);
       if (s.burnt) this.cross(T, d);
     }
-    if (archOn) this.flow(T, d, s);
+    if (archOn || d.play.busy) d.play.frame(stepMs, T, d.kind, d.plan, d.liveG, d.trailG, d.packetG);
     if (detail) this.counters(T, d, s);
   }
 
@@ -181,31 +177,10 @@ export class DiskView {
     d.mapG.moveTo(w * 0.2, h * 0.2).lineTo(w * 0.8, h * 0.8).moveTo(w * 0.8, h * 0.2).lineTo(w * 0.2, h * 0.8).stroke({ width: h * 0.04, color: T.bad, alpha: 0.85, cap: 'round' });
   }
 
-  /** Data packets along the links while the drive is busy: from the host to the controller, then to the die (or the preamp) the command is on. */
-  private flow(T: Theme, d: DriveView, s: StorageSnap): void {
-    if (!s.busy) { d.packets = []; d.trails.clear(); }
-    else if (this.now >= d.nextPacket) {
-      d.nextPacket = this.now + PACKET_EVERY_MS;
-      const cell = Math.min(d.cells.length - 1, Math.floor(s.headLba / CELL_BLOCKS)), accent = accentOf(T, d.kind);
-      const hops = d.plan.platter ? ['iface-ctrl', 'ctrl-pre'] : ['iface-ctrl', d.plan.dies.length ? `ch${d.plan.dies.findIndex((x) => cell >= x.slice.first && cell < x.slice.first + x.slice.count)}` : ''];
-      hops.forEach((id, i) => {
-        const l = d.plan.links.find((x) => x.id === id) ?? (id.startsWith('ch') ? d.plan.links.find((x) => x.id === id.replace(/^ch(\d+)$/, (_m, n: string) => (Number(n) >= 4 ? `ch${Number(n) - 4}b` : `ch${n}`))) : undefined);
-        if (!l) return;
-        const { packet, trail } = packetOn({ id: l.id, lanes: l.lanes, pts: l.pts }, false, this.now + i * PACKET_MS * 0.7, PACKET_MS, i === 0 ? T.alu : accent);
-        d.packets.push(packet);
-        d.trails.set(l.id, trail);
-      });
-    }
-    d.trailG.clear();
-    d.packetG.clear();
-    drawTrails(d.trailG, d.trails, this.now, 1);
-    d.packets = drawPackets(d.packetG, d.packets, this.now, 1, T.ink);
-  }
-
   /** The counter tier: the extent list, the legend by owner, the wear and the queue. */
   private counters(T: Theme, d: DriveView, s: StorageSnap): void {
-    const r = counterRows(s, 7), { w, h } = d.plan;
-    const sig = JSON.stringify(r) + (s.burnt ? 'b' : '');
+    const r = counterRows(s, 5), { w, h } = d.plan;
+    const now = d.play.label(), sig = JSON.stringify(r) + (s.burnt ? 'b' : '') + now;
     if (sig === d.panelSig) return;
     d.panelSig = sig;
     const g = d.panelG, fs = Math.max(8, h * 0.05), lh = fs * 1.55, x0 = w * 0.05, x1 = w * 0.54;
@@ -232,19 +207,20 @@ export class DiskView {
       const owned = [T.ld, T.br, mix(T.ld, T.bad, 0.5), mix(T.alu, T.mul, 0.5)];
       return kind === 'os' ? T.alu : kind === 'spool' ? T.st : kind === 'program' ? T.mul : kind === 'meta' ? T.mute : kind === 'lost' ? mix(T.bad, T.bg, 0.5) : kind === 'bad' ? T.bad : kind === 'free' ? mix(T.die, T.ink, 0.2) : owned[slot]!;
     };
-    r.legend.slice(0, 7).forEach((l, i) => {
+    r.legend.slice(0, 5).forEach((l, i) => {
       const y = h * 0.2 + lh * (i + 1);
       g.roundRect(x1, y - fs * 0.4, fs * 0.8, fs * 0.8, 2).fill({ color: col(l.kind, l.slot) });
       put(`${l.label}  ${l.blocks}`, x1 + fs * 1.2, y, T.ink, fs, 0.95);
     });
     // the wear and the queue along the bottom
-    const by = h * 0.78, bw = w * 0.3;
+    const by = h * 0.7, bw = w * 0.3;
     put(r.wear.text, x0, by, T.mute, fs);
     g.roundRect(x0 + fs * 6, by - fs * 0.3, bw, fs * 0.6, fs * 0.3).fill({ color: '#000000', alpha: 0.45 });
     g.roundRect(x0 + fs * 6, by - fs * 0.3, Math.max(fs * 0.6, (bw * r.wear.pct) / 100), fs * 0.6, fs * 0.3).fill({ color: r.wear.pct > 60 ? T.bad : T.ld });
     put(r.queue.text, x0, by + lh, T.mute, fs);
     for (let q = 0; q < r.queue.lanes; q++) g.roundRect(x0 + fs * 6 + (q * bw) / r.queue.lanes, by + lh - fs * 0.3, bw / r.queue.lanes - 2, fs * 0.6, 2).fill({ color: q < r.queue.lit ? T.st : mix(T.die, T.st, 0.15) });
     put(r.health, x0, by + lh * 2.2, s.lostBlocks > 0 || s.badGroups > 0 ? T.ld : T.mute, fs * 0.9);
+    put(now || 'idle', x0, by + lh * 3.4, now ? T.ink : T.mute, fs * 0.95);
     for (; n < d.texts.length; n++) d.texts[n]!.visible = false;
   }
 }

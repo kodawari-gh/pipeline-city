@@ -176,3 +176,24 @@ describe("seek by distance and wear on the bus", () => {
     expect(port.queueLoad()).toBe(3);
   });
 });
+
+describe("the command log for the art", () => {
+  it("records each command with its op, block, seek and transfer, and numbers them", () => {
+    const { port, read } = rig(5, 3);
+    read(4);
+    read(5);
+    read(9);
+    const c = port.cmds;
+    expect(c.map((x) => [x.op, x.lba])).toEqual([["r", 4], ["r", 5], ["r", 9]]);
+    expect(c.map((x) => x.seq)).toEqual([1, 2, 3]);
+    expect(c[1]!.seek).toBe(0); // the next block in line needs no seek
+    expect(c[0]!.xfer).toBe(3);
+  });
+
+  it("keeps only the newest commands", () => {
+    const { port, read } = rig(1, 1, 64);
+    for (let i = 0; i < 40; i++) read(i);
+    expect(port.cmds).toHaveLength(16);
+    expect(port.cmds[15]!.seq).toBe(40);
+  });
+});

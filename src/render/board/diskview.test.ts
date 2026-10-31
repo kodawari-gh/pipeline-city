@@ -18,7 +18,7 @@ const snap = (o: Partial<StorageSnap> = {}): StorageSnap => ({
   deviceId: 'd1', slot: 'sata0', spec: 'ssd1', name: 'SSD', burnt: false, capacityBytes: 16 * 1024, usedBytes: 4096, bytesRead: 0, bytesWritten: 0, busy: false,
   latencyTicks: 10, blockTicks: 2, bytesPerSecond: 1000, hasOs: true,
   fs: { runs: [{ start: 0, len: 16, kind: 'os', file: 1, filled: true }, { start: 16, len: 48, kind: 'free', file: 0, filled: false }], fragmentation: 0, byKind: { os: 16, spool: 0, program: 0, dataset: 0, meta: 0 }, files: [{ id: 1, owner: 'os', kind: 'os', lost: false }] },
-  wear: [], headLba: 0, wearPct: 0, badGroups: 0, lostBlocks: 0, queueDepth: 4, queued: 0, mirror: false,
+  wear: [], headLba: 0, cmds: [], wearPct: 0, badGroups: 0, lostBlocks: 0, queueDepth: 4, queued: 0, mirror: false,
   mount: { state: 'clean', phase: 'mounted', progress: 1 }, format: null,
   ...o,
 } as StorageSnap);
