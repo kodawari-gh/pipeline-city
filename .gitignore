@@ -4,3 +4,4 @@ node_modules/
 __pycache__/
 dist/
 e2e/shots/
+.cocoindex_code/
