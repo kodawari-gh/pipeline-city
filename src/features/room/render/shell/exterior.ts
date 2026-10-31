@@ -215,8 +215,8 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
       top.roundRect(px - 4, py + 280, 8, sh - 40, 4).fill(acc);
     }
     // the corners are machined plates along each chamfer, with a screw each (instead of the plain brackets of the other cases)
-    const cut = CASE_CUTS[kind][0], off = 90;
-    for (const [bx, by, dx, dy] of [[c0.x + 16, c0.y + 16, 1, 1], [c0.x + c0.w - 16, c0.y + 16, -1, 1], [c0.x + 16, c0.y + c0.h - 16, 1, -1], [c0.x + c0.w - 16, c0.y + c0.h - 16, -1, -1]] as const) {
+    const off = 90;
+    for (const [bx, by, dx, dy, cut] of [[c0.x + 16, c0.y + 16, 1, 1, CASE_CUTS.show[0]], [c0.x + c0.w - 16, c0.y + 16, -1, 1, CASE_CUTS.show[1]], [c0.x + 16, c0.y + c0.h - 16, 1, -1, CASE_CUTS.show[3]], [c0.x + c0.w - 16, c0.y + c0.h - 16, -1, -1, CASE_CUTS.show[2]]] as const) {
       const ax = bx + dx * cut, ay = by, bx2 = bx, by2 = by + dy * cut, ox = dx * off, oy = dy * off;
       top.poly([ax, ay, bx2, by2, bx2 + ox, by2 + oy * 0.6, ax + ox * 0.6, ay + oy]).fill(lgrad('#222833', '#07090d')).stroke({ width: 5, color: SILVER, alpha: 0.55 });
       screw(top, (ax + bx2) / 2 + ox * 0.55, (ay + by2) / 2 + oy * 0.55, 22, mix(SILVER, '#000000', 0.5), c.edge);

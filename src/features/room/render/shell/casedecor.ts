@@ -35,7 +35,7 @@ export function cutRect(x: number, y: number, w: number, h: number, [tl, tr, br,
 
 const SQUARE: Cuts = [0, 0, 0, 0];
 /** The corner cuts of each kind's body: only the showcase is machined with chamfered corners (the rest are rounded boxes). */
-export const CASE_CUTS: Record<CaseKind, Cuts> = { oem: SQUARE, matte: SQUARE, gamer: SQUARE, show: [620, 620, 620, 620] };
+export const CASE_CUTS: Record<CaseKind, Cuts> = { oem: SQUARE, matte: SQUARE, gamer: SQUARE, show: [400, 400, 250, 250] };
 /** The corner cuts of each kind's window: the gaming case has one cut corner, the showcase four. The outside and the glass sheen inside both read them. */
 export const WINDOW_CUTS: Record<CaseKind, Cuts> = { oem: SQUARE, matte: SQUARE, gamer: [0, 460, 0, 0], show: [420, 420, 420, 420] };
 

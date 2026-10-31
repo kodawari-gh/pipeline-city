@@ -16,8 +16,12 @@ import { COLLAR_R, HOLES, PLATE_Q, SCREW, recessPoly } from './swiss';
 import { deskGeo, roomPersp, S_FRONT, spreadX, spreadY, type Persp } from './persp';
 import { lazyShape, rectShape, type Shape } from '@/core/render/shape';
 import {
-  CASE, CASE_IN, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, PC_POWER, OUTBOX, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
+  CASE, CASE_IN, LAYOUT_CASE, SCREEN, DESK_SLAB, DESK_UNDER, DESK_Y, FLOOR_Y, FOOT, MONITOR, PC_POWER, OUTBOX, POWER_PLATE, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, type Rect,
 } from '@/features/board/render/layout/layout';
+import { CASE_CUTS, CASE_KIND, cutRect, growCuts, isCut, type Cuts } from './casedecor';
+
+/** The corner cuts of the case in the room (the showcase has chamfered corners), or none. Its shadow and its rim light follow them. */
+const caseCuts = (): Cuts | undefined => { const c = CASE_CUTS[CASE_KIND[LAYOUT_CASE] ?? 'gamer']; return isCut(c) ? c : undefined; };
 import type { Theme } from '@/core/render/theme';
 
 // The room the machine lives in (docs/render/room/room.md "The room"): a bedroom wall, a long desk and what stands on it, seen from the front
@@ -290,12 +294,16 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
   const dusk = T.dark ? L.wallLo : '#4a3a30', dk = T.dark ? 1 : 0.4, D = deskGeo(geo.persp, ys, geo.floor);
   for (let k = 0; k < 24; k++) g.rect(-90000, D.yBack - 1700 + k * 71, 180000, 75).fill({ color: dusk, alpha: 0.5 * dk * ((k + 1) / 24) ** 2.2 });
   // what hangs on the wall and stands before it throws a soft shadow east and down (the lamp and the window are west and above): under all of it
-  const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60) => {
+  const cast = (r: Rect, dx: number, dy: number, spread: number, a: number, rad = 60, cuts?: Cuts) => {
     const n = 16; // enough nested rects that no ring shows
-    for (let k = 0; k < n; k++) { const e = spread * (1 - k / (n - 1)); g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e).fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / n }); }
+    for (let k = 0; k < n; k++) {
+      const e = spread * (1 - k / (n - 1));
+      if (cuts) g.poly(cutRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, growCuts(cuts, e))); else g.roundRect(r.x + dx - e, r.y + dy - e, r.w + 2 * e, r.h + 2 * e, rad + e);
+      g.fill({ color: '#000000', alpha: (a * (T.dark ? 1 : 0.6)) / n });
+    }
   };
   cast(MONITOR, 520, 420, 460, 0.42, 300);
-  cast(CASE, 560, 420, 500, 0.42, 120);
+  cast(CASE, 560, 420, 500, 0.42, 120, caseCuts());
   cast(geo.clock, 150, 230, 150, 0.5, 90);
   cast(OUTBOX, 130, 200, 130, 0.45, 40);
   for (let row = 0; row < TRAY_ROWS; row++) cast({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 140, 210, 140, 0.45, 30);
@@ -427,12 +435,20 @@ function sceneryArt(T: Theme, geo: RoomGeo): { back: Container; front: Container
  */
 function rimArt(T: Theme, geo: RoomGeo): Graphics {
   const g = new Graphics(), ys = geo.ys, col = T.dark ? '#e0b060' : '#a8803a', hi = mix(col, '#ffffff', 0.35), w1 = 16, w2 = 11;
-  const edge = (r: Rect, rad: number, a = 0.8) => {
+  const edge = (r: Rect, rad: number, a = 0.8, cuts?: Cuts) => {
+    if (cuts) { // a chamfered box: the hairline follows the cut corners (the top, the cut top west corner and the west side are lit)
+      const [tl, tr, , bl] = cuts;
+      g.poly(cutRect(r.x, r.y, r.w, r.h, cuts)).stroke({ width: w2 * 0.6, color: col, alpha: a * 0.35 });
+      g.moveTo(r.x + tl, r.y).lineTo(r.x + r.w - tr, r.y).stroke({ width: w1, color: hi, alpha: a });
+      g.moveTo(r.x, r.y + tl).lineTo(r.x + tl, r.y).stroke({ width: w2, color: hi, alpha: a * 0.85 });
+      g.moveTo(r.x, r.y + tl).lineTo(r.x, r.y + r.h - bl).stroke({ width: w2, color: col, alpha: a * 0.7 });
+      return;
+    }
     g.roundRect(r.x, r.y, r.w, r.h, rad).stroke({ width: w2 * 0.6, color: col, alpha: a * 0.35 });
     g.moveTo(r.x + rad, r.y).lineTo(r.x + r.w - rad, r.y).stroke({ width: w1, color: hi, alpha: a });
     g.moveTo(r.x, r.y + rad).lineTo(r.x, r.y + r.h - rad).stroke({ width: w2, color: col, alpha: a * 0.7 });
   };
-  edge(MONITOR, 330, 0.85); edge(CASE, 120, 0.85); edge(geo.clock, 90, 0.7); edge(OUTBOX, 40, 0.6);
+  edge(MONITOR, 330, 0.85); edge(CASE, 120, 0.85, caseCuts()); edge(geo.clock, 90, 0.7); edge(OUTBOX, 40, 0.6);
   for (let row = 0; row < TRAY_ROWS; row++) edge({ x: geo.keyRack.x, y: geo.keyRack.y + row * ROW_DROP, w: geo.keyRack.w, h: 360 }, 30, 0.6);
   edge({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 420, h: 170 }, 0, 0.6);
   for (const o of [geo.socket.mon, geo.socket.pc]) edge({ x: o.x - PLATE_Q, y: o.y - PLATE_Q, w: 2 * PLATE_Q, h: 2 * PLATE_Q }, 70, 0.5); // (each Swiss outlet has its own square plate)
