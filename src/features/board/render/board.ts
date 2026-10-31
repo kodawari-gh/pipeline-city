@@ -195,6 +195,7 @@ export async function mountBoard(host: HTMLElement) {
   const lens = new PowerLens();
   /** The airflow lens: the room dimmed and the air of the case drawn over it (`airflowLens`). */
   const airLens = new AirflowLens();
+  airLens.shapeOf = (id) => interact.scene.shapes.get(id);
   /** The monitor (external: stays at any zoom) and the far-zoom exterior case. */
   const monitorLayer = new Container();
   const interior = new Container();

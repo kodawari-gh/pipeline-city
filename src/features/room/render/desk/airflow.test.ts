@@ -41,15 +41,32 @@ describe('the airflow lens model', () => {
   });
 
   it('the components bring their own fans: a stream for a cooler, a card, a sink and the PSU, tied to the fan id the view spins', () => {
-    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', slot: 'cooler0' }),
-      dev({ id: 'gpu', kind: 'gpu', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', slot: 'vrm-sink0' })] });
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' }), dev({ id: 'cool', kind: 'cooler', spec: 'cooler1', slot: 'cooler0' }),
+      dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 }), dev({ id: 'vs', kind: 'vrm-sink', spec: 'vsink2', slot: 'vrm-sink0' }), dev({ id: 'vs2', kind: 'ram-sink', spec: 'rsink0', slot: 'ram-sink0' })] });
     i.slots.set('pcie0', { x: CASE_GLASS.x + 3000, y: CASE_GLASS.y + 1500, w: 3000, h: 900 });
     const m = airflowModel(i), local = m.lanes.filter((l) => l.local);
+    // a passive sink (rsink0) has no fan; the fan sink, the cooler, the card and the PSU do
     expect(local.map((l) => l.fanIds[0]).sort()).toEqual(['cooler', 'gpu:pcie0', 'psu', 'vrm']);
     for (const l of local) expect(l.pts.length).toBeGreaterThan(1);
     expect(m.tags.some((t) => t.text.startsWith('GPU '))).toBe(true);
     const len = (l: (typeof local)[number]) => l.pts.slice(1).reduce((a, p, k) => a + Math.hypot(p[0] - l.pts[k]![0], p[1] - l.pts[k]![1]), 0);
-    for (const l of local) expect(len(l)).toBeLessThanOrEqual(1950);
+    for (const l of local.filter((x) => x.fanIds[0] !== 'psu')) expect(len(l)).toBeLessThanOrEqual(1950);
+    // what the lens draws for each: the cooler and the sink are face-on rotors, the card's are edge-on strips along its top
+    const art = (id: string) => m.fanArt.find((f) => f.id === id)!;
+    expect(art('cooler').rotor).toMatchObject({ blades: 9 }); // the tower cooler's fan
+    expect(art('vrm').rotor).toBeDefined();
+    expect(art('gpu:pcie0').edge!.length).toBeGreaterThan(0);
+    // the PSU draws air from under the case and blows it out the rear: its lane starts below the case, ends west of the rear wall
+    const psu = local.find((l) => l.fanIds[0] === 'psu')!;
+    expect(psu.pts[0]![1]).toBeGreaterThan(psu.pts[Math.floor(psu.pts.length / 2)]![1]);
+    expect(psu.pts[psu.pts.length - 1]![0]).toBeLessThan(REAR_FAN.x);
+  });
+
+  it('a heat zone carries the hover id of each part, so the lens can trace its silhouette', () => {
+    const m = airflowModel(running(60));
+    const cpu = m.zones.find((z) => z.id === 'cpu')!;
+    expect(cpu.ids).toEqual(['cpu']);
+    expect(m.zones.find((z) => z.id === 'vrm')?.ids ?? []).toEqual([]); // the VRM phases are board art with no hit of their own: their rects
   });
 
   it('clipPath cuts a path at a length', () => {

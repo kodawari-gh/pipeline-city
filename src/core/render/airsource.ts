@@ -6,11 +6,24 @@ import type { Snapshot } from '@/worker/protocol';
 
 export interface Box { x: number; y: number; w: number; h: number }
 
-/** A part that warms the air. The glow follows `rects` (one per part, e.g. every stick of RAM); `heat` is 0 (cool) to 1 (at its limit). */
-export interface AirHeat { id: string; label: string; rects: Box[]; tempC: number; heat: number }
+/**
+ * A part that warms the air. The glow follows the part's own silhouette: `ids[k]` is the hover id of `rects[k]` (its device id), whose `Shape` (read from
+ * the art, `scene.shapes`) the lens traces; with no id or no shape yet the rect is the fallback. `heat` is 0 (cool) to 1 (at its limit).
+ */
+export interface AirHeat { id: string; label: string; rects: Box[]; ids?: (string | null)[]; tempC: number; heat: number }
 
-/** A fan that is not one of the case's: the lens draws a stream from it, as strong as its real speed (`fanBank`, by `id`). */
-export interface AirFan { id: string; rect: Box }
+/**
+ * A fan that is not one of the case's. The lens draws it (`rotor`: a round fan seen face on; `edge`: strips seen edge-on, like the case fans) and a
+ * stream from it, as strong as its real speed (`fanBank`, by `id`). The stream goes along `path` when the part knows where its air comes from and goes
+ * (the PSU draws from below the case and blows out the rear), else a short one toward the nearest way out of the case.
+ */
+export interface AirFan {
+  id: string;
+  rect: Box;
+  rotor?: { x: number; y: number; r: number; blades: number };
+  edge?: Box[];
+  path?: [number, number][];
+}
 
 export interface AirCtx {
   s: Snapshot;
@@ -36,14 +49,14 @@ export const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
 
 /** The usual source of heat: the devices of some kinds, grouped as one zone (all the RAM sticks together), hot at the hottest. */
 export function deviceHeat(kinds: string[], id: string, label: string, c: AirCtx): AirHeat[] {
-  const rects: Box[] = [];
+  const rects: Box[] = [], ids: string[] = [];
   let tempC = 0;
   for (const d of c.s.devices) {
     if (!kinds.includes(d.kind)) continue;
     const r = c.slots.get(d.slot);
     if (!r) continue;
-    rects.push(r);
+    rects.push(r); ids.push(d.id);
     tempC = Math.max(tempC, d.tempC);
   }
-  return rects.length ? [{ id, label, rects, tempC, heat: c.live ? heatOf(tempC) : 0 }] : [];
+  return rects.length ? [{ id, label, rects, ids, tempC, heat: c.live ? heatOf(tempC) : 0 }] : [];
 }

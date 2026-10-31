@@ -6,6 +6,8 @@ import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
 import { EdgeFan } from './props/case';
 import { fanBank } from '@/core/render/fanmotor';
+import { blades } from '@/features/board/render/devices';
+import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
 import type { Theme } from '@/core/render/theme';
 
@@ -39,10 +41,16 @@ export interface AirZone {
   rect: Rect;
   /** The shapes the glow follows: one rect per part (every stick of RAM, every phase of a VRM). */
   rects: Rect[];
+  /** The hover id of each rect (a device id), whose silhouette the glow traces; empty where the rects are all there is. */
+  ids: (string | null)[];
   heat: number; tempC: number;
 }
 export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r' }
-export interface AirModel { lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[] }
+export interface AirModel {
+  lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
+  /** The components' own fans, to draw (rotors and edge-on strips). */
+  fanArt: AirFan[];
+}
 
 export interface AirIn {
   s: Snapshot;
@@ -69,6 +77,8 @@ export const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
 /** How far a component's own fan blows (world units) before its air joins the case's. */
 const LOCAL_REACH = 1900;
+/** How far the halo of a glow reaches at most (the silhouettes keep a margin of `SHAPE_PAD`, 280). */
+const HALO_MAX = 250;
 
 /** The first `max` world units of a path. */
 export function clipPath(pts: Pt[], max: number): Pt[] {
@@ -114,7 +124,7 @@ export function airflowModel(i: AirIn): AirModel {
       if (!h.rects.length) continue;
       const x0 = Math.min(...h.rects.map((r) => r.x)), y0 = Math.min(...h.rects.map((r) => r.y));
       const x1 = Math.max(...h.rects.map((r) => r.x + r.w)), y1 = Math.max(...h.rects.map((r) => r.y + r.h));
-      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, heat: h.heat, tempC: h.tempC });
+      zones.push({ id: h.id, label: h.label, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: h.rects, ids: h.ids ?? [], heat: h.heat, tempC: h.tempC });
     }
     localFans.push(...(src.fans?.(ctx) ?? []));
   }
@@ -153,8 +163,9 @@ export function airflowModel(i: AirIn): AirModel {
   // the fans of the components (cooler, graphics cards, sinks, PSU): a short stream from each toward the nearest way out of the case
   const outlets: Pt[] = [[rearX + 80, rearY], ...i.mounts.filter((m) => m.side === 'top').map((m): Pt => [mid(m.rect)[0], m.rect.y + m.rect.h])];
   for (const f of localFans) {
-    const from = mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));
-    const pts = clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
+    const from = f.rotor ? [f.rotor.x, f.rotor.y] as Pt : mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));
+    // a part that knows its own way (the PSU: in from below, out the rear) says so; the rest blow a short stream toward the nearest way out
+    const pts = f.path ? roundedPath(f.path as Pt[], 300, 60) : clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
     if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [] });
   }
 
@@ -187,7 +198,7 @@ export function airflowModel(i: AirIn): AirModel {
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
-  return { lanes, zones, tags, mounts };
+  return { lanes, zones, tags, mounts, fanArt: localFans };
 }
 
 // ---------------------------------------------------------------- drawing
@@ -207,6 +218,7 @@ export class AirflowLens {
   /** The case fans seen edge-on (the same art as the live case, `EdgeFan`), redrawn above the dimming so they stay readable. */
   private fanBox = new Container();
   private fans: { id: string; f: EdgeFan; state: AirState; fanIds: string[] }[] = [];
+  private rotors: { fanId: string; g: Graphics }[] = [];
   /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
   private runs = new Map<string, number>();
   private g = new Graphics();
@@ -226,9 +238,48 @@ export class AirflowLens {
     this.model = m;
     this.lanes.clear();
     if (m) for (const l of m.lanes) this.lanes.set(l.id, mkLane(l.pts));
-    for (const o of this.fans) o.f.destroy();
-    this.fans = [];
-    if (m) for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state, fanIds: mt.fanIds }); }
+    for (const c of this.fanBox.removeChildren()) c.destroy({ children: true });
+    this.fans = []; this.rotors = [];
+    if (!m) return;
+    for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state, fanIds: mt.fanIds }); }
+    // the fans of the components: strips seen edge-on (a graphics card's), and round ones seen face on (a cooler's, a sink's, the PSU's)
+    for (const fa of m.fanArt) {
+      for (const r of fa.edge ?? []) { const f = new EdgeFan(r, this.T); this.fanBox.addChild(f); this.fans.push({ id: fa.id, f, state: 'on', fanIds: [fa.id] }); }
+      if (fa.rotor) {
+        const { x, y, r, blades: n } = fa.rotor, T = this.T, rg = new Graphics();
+        rg.circle(0, 0, r * 1.14).fill({ color: T.sub, alpha: 0.9 }).stroke({ width: Math.max(4, r * 0.03), color: airColor(0), alpha: 0.7 });
+        blades(rg, n, Math.max(12, r * 0.16), r, T.tile, T.alu, Math.max(3, r * 0.02));
+        rg.circle(0, 0, Math.max(10, r * 0.12)).fill({ color: T.tile }).stroke({ width: Math.max(3, r * 0.02), color: T.alu });
+        rg.position.set(x, y);
+        this.fanBox.addChild(rg);
+        this.rotors.push({ fanId: fa.id, g: rg });
+      }
+    }
+  }
+
+  /** Where a part's silhouette comes from: its hover id to the `Shape` read from its art (`scene.shapes`); the glow falls back to the rect without one. */
+  shapeOf: ((id: string) => Shape | undefined) | null = null;
+  private rings = new WeakMap<Shape, Map<number, number[][] | null>>();
+
+  /** The polygons (flat x, y lists) `e` outside the silhouette (cached: a silhouette never changes), or null for a plain rect. */
+  private outlineOf(shape: Shape | undefined, e: number): number[][] | null {
+    if (!shape) return null;
+    let by = this.rings.get(shape);
+    if (!by) this.rings.set(shape, (by = new Map()));
+    if (!by.has(e)) by.set(e, shape.outline(Math.max(0.5, e))?.map((p) => p.flat()) ?? null);
+    return by.get(e) ?? null;
+  }
+
+  private fillAt(g: Graphics, shape: Shape | undefined, r: Rect, e: number, fill: { color: string; alpha: number }) {
+    const polys = this.outlineOf(shape, e);
+    if (polys) for (const p of polys) g.poly(p).fill(fill);
+    else g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(e + Math.min(r.w, r.h) * 0.12, (Math.min(r.w, r.h) + 2 * e) / 2)).fill(fill);
+  }
+
+  private trace(g: Graphics, shape: Shape | undefined, r: Rect, e: number, stroke: { width: number; color: string; alpha: number }) {
+    const polys = this.outlineOf(shape, e);
+    if (polys) for (const p of polys) g.poly(p).stroke({ ...stroke, join: 'round' });
+    else g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(r.w, r.h) * 0.12).stroke(stroke);
   }
 
   get visible() { return this.root.visible; }
@@ -254,24 +305,25 @@ export class AirflowLens {
     // a VRM phase small and square), redder as it nears its limit, with a hot rim on the part itself
     for (const zn of m.zones) {
       const col = airColor(zn.heat), pulse = 1 + 0.08 * Math.sin(now / 420 + zn.rect.x * 0.01);
-      if (zn.heat < 0.05) { // a cool part: just its outline, so every part that can heat up is on the map
-        for (const r of zn.rects) g.roundRect(r.x, r.y, r.w, r.h, Math.min(r.w, r.h) * 0.12).stroke({ width: px(1.2), color: col, alpha: 0.4 });
-        continue;
-      }
-      for (const r of zn.rects) {
-        const base = Math.min(r.w, r.h), pad = Math.max(45, Math.min(base * 0.45, 170)) * pulse;
-        for (let k = 5; k >= 1; k--) {
-          const e = pad * k * 0.7;
-          g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(e + base * 0.12, (Math.min(r.w, r.h) + 2 * e) / 2)).fill({ color: col, alpha: (0.035 + 0.05 * zn.heat) * (1 - (k - 1) * 0.12) });
+      zn.rects.forEach((r, k) => {
+        const shape = this.shapeOf?.(zn.ids[k] ?? '');
+        if (zn.heat < 0.05) { // a cool part: just its outline, so every part that can heat up is on the map
+          this.trace(g, shape, r, 0, { width: px(1.2), color: col, alpha: 0.4 });
+          return;
         }
-        g.roundRect(r.x, r.y, r.w, r.h, base * 0.12).fill({ color: col, alpha: 0.12 + 0.28 * zn.heat }).stroke({ width: px(1.6), color: col, alpha: 0.35 + 0.5 * zn.heat });
-      }
+        // soft halos grown from the part's own outline, the outermost first, then the part's tint and a hot rim
+        const base = Math.min(r.w, r.h), pad = Math.max(45, Math.min(base * 0.45, 170)) * pulse;
+        for (let i = 5; i >= 1; i--) this.fillAt(g, shape, r, Math.min(HALO_MAX, pad * i * 0.7), { color: col, alpha: (0.035 + 0.05 * zn.heat) * (1 - (i - 1) * 0.12) });
+        this.fillAt(g, shape, r, 0, { color: col, alpha: 0.12 + 0.28 * zn.heat });
+        this.trace(g, shape, r, 0, { width: px(1.6), color: col, alpha: 0.35 + 0.5 * zn.heat });
+      });
     }
-    // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame
+    // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame. The face-on rotors turn the same way.
     for (const o of this.fans) {
       const speed = o.state === 'dead' ? 0 : o.fanIds.reduce((a, id) => a + fanBank.get(id), 0) / Math.max(1, o.fanIds.length); // the real fan's speed, so it coasts like the real one
       o.f.spin(speed * dt * 0.8, Math.min(1, speed / 5));
     }
+    for (const o of this.rotors) o.g.rotation += fanBank.get(o.fanId) * dt;
     for (const mt of m.mounts) {
       const dead = mt.state === 'dead';
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
