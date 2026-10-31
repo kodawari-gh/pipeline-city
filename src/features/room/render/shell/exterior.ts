@@ -5,7 +5,7 @@ import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layou
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
-import { bracket, hexes, holes, logoMark, outline, pillar, screw, slots, type Cuts } from './casedecor';
+import { CASE_KIND, bracket, caseWindow, hexes, holes, logoMark, outline, pillar, screw, slots, type CaseKind, type Cuts } from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';
 import type { Theme } from '@/core/render/theme';
 
@@ -56,20 +56,19 @@ function brush(g: Graphics, x: number, y: number, w: number, h: number, T: Theme
  * Mini: a pale aluminium shell, soft corners, amber light. Micro: matte black, cyan. Mid: gunmetal with brass trim, violet.
  * Full: graphite with an aluminium frame, square corners and an RGB light line under the glass.
  */
-type CaseKind = 'oem' | 'matte' | 'gamer' | 'show';
-interface CaseStyle { kind: CaseKind; mixTo: string; k: number; accent: (T: Theme) => string; trim: (T: Theme) => string | null; rad: number; rgb: boolean; brushed: boolean }
+interface CaseStyle { mixTo: string; k: number; accent: (T: Theme) => string; trim: (T: Theme) => string | null; rad: number; rgb: boolean; brushed: boolean }
 const SILVER = '#c9d1de';
 const STYLES: CaseStyle[] = [
   // a budget OEM tower: painted cream steel, square corners, a solid side with one vent patch, no window
-  { kind: 'oem', mixTo: '#e6dfc4', k: 0.72, accent: (T) => T.ld, trim: () => null, rad: 28, rgb: false, brushed: false },
+  { mixTo: '#e6dfc4', k: 0.72, accent: (T) => T.ld, trim: () => null, rad: 28, rgb: false, brushed: false },
   // a matte black mid-tower: powder coat, a tinted window over the upper part, one small logo
-  { kind: 'matte', mixTo: '#0b0c10', k: 0.72, accent: (T) => T.mute, trim: () => null, rad: 70, rgb: false, brushed: false },
+  { mixTo: '#0b0c10', k: 0.72, accent: (T) => T.mute, trim: () => null, rad: 70, rgb: false, brushed: false },
   // a gaming case: dark, angular, slanted vents, a cut-corner window, multi-zone RGB and a lit logo plate
-  { kind: 'gamer', mixTo: '#1b2030', k: 0.5, accent: (T) => T.mul, trim: () => null, rad: 56, rgb: true, brushed: false },
+  { mixTo: '#1b2030', k: 0.5, accent: (T) => T.mul, trim: () => null, rad: 56, rgb: true, brushed: false },
   // a showcase frame: black body, silver anodised pillars and rails, black corner brackets, a hex mesh and a light bar
-  { kind: 'show', mixTo: '#05070b', k: 0.5, accent: (T) => T.br, trim: () => SILVER, rad: 36, rgb: true, brushed: true },
+  { mixTo: '#05070b', k: 0.5, accent: (T) => T.br, trim: () => SILVER, rad: 36, rgb: true, brushed: true },
 ];
-const styleOf = (): CaseStyle => STYLES[LAYOUT_CASE] ?? STYLES[2]!;
+const styleOf = (): CaseStyle & { kind: CaseKind } => ({ ...(STYLES[LAYOUT_CASE] ?? STYLES[2]!), kind: CASE_KIND[LAYOUT_CASE] ?? 'gamer' });
 
 /** The body tones of the current tier: the shared steel tones mixed toward the tier's colour. */
 function bodyTones(T: Theme, st: CaseStyle) {
@@ -146,8 +145,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   // with a thin smoked pane over it, so the real interior shows through at every zoom
   // The window differs by case: none on the OEM tower (a solid side with a vent patch), the upper part on the matte case, a cut corner on the
   // gaming case, a full height pane between two pillars on the showcase.
-  const wx0 = BR.io.x + BR.io.w + 110, wx1 = gl.x + gl.w - 56 - (kind === 'show' ? 110 : 0);
-  const win = { x: wx0, y: gl.y + 56, w: wx1 - wx0, h: (gl.h - 112) * (kind === 'matte' ? 0.74 : 1) };
+  const win = caseWindow(kind);
   const bz = kind === 'matte' ? 22 : kind === 'gamer' ? 30 : 44, wr = kind === 'show' ? 24 : 50;
   const cuts: Cuts | undefined = kind === 'gamer' ? [0, 460, 0, 0] : undefined;
   const bcuts: Cuts | undefined = cuts && (cuts.map((v) => (v ? v + bz * 0.6 : 0)) as Cuts);

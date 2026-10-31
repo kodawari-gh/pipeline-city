@@ -1,6 +1,19 @@
 import { Graphics } from 'pixi.js';
 import { disc, lgrad, mix } from '@/core/render/ink';
-import type { Rect } from '@/features/board/render/layout/layout';
+import { BR, CASE_GLASS, type Rect } from '@/features/board/render/layout/layout';
+
+export type CaseKind = 'oem' | 'matte' | 'gamer' | 'show';
+/** The look of each case tier, Mini to Full. The outside (exterior.ts) and the inside (desk/props/case.ts) both read it, so they cannot drift. */
+export const CASE_KIND: readonly CaseKind[] = ['oem', 'matte', 'gamer', 'show'];
+
+/**
+ * The glass window of a case, in world units, the same for the outside (the hole in the body) and the inside (the glass sheen): none on the
+ * OEM tower's solid side (the box is its whole side), the upper part on the matte case, all of it between the pillars on the showcase.
+ */
+export function caseWindow(kind: CaseKind): Rect {
+  const gl = CASE_GLASS, x0 = BR.io.x + BR.io.w + 110, x1 = gl.x + gl.w - 56 - (kind === 'show' ? 110 : 0);
+  return { x: x0, y: gl.y + 56, w: x1 - x0, h: (gl.h - 112) * (kind === 'matte' ? 0.74 : 1) };
+}
 
 // Drawing helpers for the PC case exteriors (exterior.ts): the shapes that make one tier look like a real case of its kind. Static art,
 // drawn once into the baked exterior texture. Sizes are world units: a case is about 9000 wide and is seen at about 0.06 px per unit, so a
