@@ -102,13 +102,24 @@ describe('the airflow lens model', () => {
     expect(r.mounts.length).toBeGreaterThan(0);
   });
 
-  it('a hot CPU makes a hot zone, and the air that passes it carries the heat downstream', () => {
+  it('a hot CPU makes a hot zone (the air that passes it takes the heat up in the field: airfield.test.ts)', () => {
     const cool = airflowModel(running(32)), hot = airflowModel(running(88));
     const zc = cool.zones.find((z) => z.id === 'cpu')!, zh = hot.zones.find((z) => z.id === 'cpu')!;
     expect(zh.heat).toBeGreaterThan(zc.heat);
-    const gain = (m: typeof hot) => Math.max(...m.lanes.map((l) => laneHeat(l, 1)));
-    expect(gain(hot)).toBeGreaterThan(gain(cool));
-    for (const l of hot.lanes) expect(laneHeat(l, 0)).toBeLessThanOrEqual(laneHeat(l, 1));
+  });
+
+  it('each fan is a port of the field: the front ones blow in at their edge, the rest draw out from their middle, a PSU channel keeps its own lane', () => {
+    const i = running(40, [], { devices: [dev({ id: 'psu', kind: 'psu', slot: 'atx0' }), dev({ id: 'cpu', kind: 'cpu', slot: 'cpu0' })] });
+    const m = airflowModel(i);
+    for (const l of caseLanes(m)) {
+      expect(l.kind).toBe(l.intake ? 'in' : 'out');
+      expect(l.span.w * l.span.h).toBeGreaterThan(0);
+    }
+    expect(m.box).toEqual(CASE_GLASS);
+    const psu = m.lanes.find((l) => l.fanIds[0] === 'psu')!;
+    expect(psu.channel).toBe(true);
+    expect(psu.kind).toBe('local');
+    expect(m.lanes.filter((l) => l.channel)).toHaveLength(1);
   });
 
   it('the VRMs glow too: a zone per regulator, one shape per phase, hot against its own throttle point', () => {

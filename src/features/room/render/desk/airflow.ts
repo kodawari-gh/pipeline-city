@@ -7,10 +7,12 @@ import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render
 import { EdgeFan } from './props/case';
 import { fanBank } from '@/core/render/fanmotor';
 import { blades } from '@/features/board/render/devices';
+import { AirField, type FieldPort } from './airfield';
 import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
 import type { Theme } from '@/core/render/theme';
 
+// (The case's air itself is `AirField` in airfield.ts: a flow field the particles ride; the lanes here say which fan is a source or a sink.)
 // The airflow lens: one switch that dims the room and shows how the case breathes. Air comes in at the front fans, crosses the board, picks up
 // the heat of every part it passes and leaves at the rear and top fans. Particles run along the lanes: faster with more fans, warmer where the
 // parts are hot. A dead fan, or a case that only takes in or only blows out, shows in red. The model is pure (`airflowModel`, tested);
@@ -31,7 +33,13 @@ export interface AirLane {
   fanIds: string[];
   /** A component's own fan (cooler, card, sink, PSU), not one of the case's. */
   local?: boolean;
-  /** Heat the air takes up along the lane: at `u` (0..1 of its length) it gains `heat` (0..1). */
+  /** How the fan acts in the case's air (`AirField`): `in` blows air in at `span`, `out` draws it out, `local` stirs it where it stands. */
+  kind: 'in' | 'out' | 'local';
+  /** Where its flow enters or leaves, and the fan's box (where particles are released or absorbed). */
+  port: Pt; span: Rect;
+  /** A stream of its own, apart from the case's air (the PSU's: in from below, through its shroud, out the rear): particles follow `pts`. */
+  channel?: boolean;
+  /** Channels only: the heat the air takes up along the lane: at `u` (0..1 of its length) it gains `heat` (0..1). */
   picks: { u: number; heat: number }[];
 }
 /** A part that warms the air: a haze over its rect. `heat` 0 (cool) to 1 (at the limit). */
@@ -50,6 +58,8 @@ export interface AirModel {
   lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
   /** The components' own fans, to draw (rotors and edge-on strips). */
   fanArt: AirFan[];
+  /** The inside of the case: the walls the air's field mirrors on. */
+  box: Rect;
 }
 
 export interface AirIn {
@@ -144,7 +154,8 @@ export function airflowModel(i: AirIn): AirModel {
     } else {
       pts = roundedPath([[inX + 1400, rearY], [rearX + 80, rearY], exitW], 400, 60);
     }
-    return { id, pts, intake, state: !on ? 'dead' : running ? 'on' : 'idle', strength: on ? strength : 0, fanIds: [], picks: [] };
+    // an intake's air enters just inside its fan; an exhaust draws from the fan's middle
+    return { id, pts, intake, kind: intake ? 'in' : 'out', port: intake ? [rect.x, cy] : [cx, cy], span: rect, state: !on ? 'dead' : running ? 'on' : 'idle', strength: on ? strength : 0, fanIds: [], picks: [] };
   };
   for (const m of i.mounts) {
     if (radIds.has(m.id)) continue;
@@ -166,11 +177,13 @@ export function airflowModel(i: AirIn): AirModel {
     const from = f.rotor ? [f.rotor.x, f.rotor.y] as Pt : mid(f.rect), to = outlets.reduce((a, b) => (Math.hypot(b[0] - from[0], b[1] - from[1]) < Math.hypot(a[0] - from[0], a[1] - from[1]) ? b : a));
     // a part that knows its own way (the PSU: in from below, out the rear) says so; the rest blow a short stream toward the nearest way out
     const pts = f.path ? roundedPath(f.path as Pt[], 300, 60) : clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
-    if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [] });
+    const span = f.rotor ? { x: f.rotor.x - f.rotor.r, y: f.rotor.y - f.rotor.r, w: 2 * f.rotor.r, h: 2 * f.rotor.r } : f.rect;
+    if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, kind: 'local', port: from, span, channel: !!f.path, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [] });
   }
 
-  // the heat each lane takes up: every zone it passes within reach, at the place it passes closest
+  // the heat a channel's air takes up: every zone it passes within reach, at the place it passes closest (the case's air is carried by the field, which does this per particle)
   for (const l of lanes) {
+    if (!l.channel) continue;
     const ln = mkLane(l.pts);
     for (const z of zones) {
       const [zx, zy] = mid(z.rect), reach = Math.max(z.rect.w, z.rect.h) / 2 + REACH;
@@ -198,7 +211,7 @@ export function airflowModel(i: AirIn): AirModel {
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
-  return { lanes, zones, tags, mounts, fanArt: localFans };
+  return { lanes, zones, tags, mounts, fanArt: localFans, box: i.glass };
 }
 
 // ---------------------------------------------------------------- drawing
@@ -206,7 +219,7 @@ export function airflowModel(i: AirIn): AirModel {
 interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number }
 
 /** Particles a lane carries, by its length, and the cap over the whole view. */
-const SPACING = 330, MAX_PARTS = 170, MAX_EMBERS = 36;
+const SPACING = 330, MAX_PARTS = 40, MAX_EMBERS = 24, LIFE = 22;
 /** A stable pseudo-random number in 0..1 for a seed (so a particle keeps its own speed, offset and size). */
 const rnd = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 /** World units per second the air travels. */
@@ -221,6 +234,8 @@ export class AirflowLens {
   private rotors: { fanId: string; g: Graphics }[] = [];
   /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
   private runs = new Map<string, number>();
+  /** The air of the case: a flow field and the particles it carries. */
+  private field = new AirField();
   private g = new Graphics();
   private pills = new Graphics();
   private labels = new Container();
@@ -328,17 +343,25 @@ export class AirflowLens {
       const dead = mt.state === 'dead';
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
     }
-    // the air: streaks along each lane, cool where it comes in and warmer after every part it passes
+    // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
+    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l) }));
+    this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat })) });
+    for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
+    for (const p of this.field.parts) {
+      const sp = Math.hypot(p.vx, p.vy), tl = Math.min(170, sp * 0.14), k = tl / (sp || 1);
+      const fade = Math.min(1, p.age * 2, (LIFE - p.age) * 0.5), col = airColor(p.heat), lw = px(1.5 + 0.8 * (p.k - 0.75) * 2) + p.heat * px(0.8);
+      g.moveTo(p.x - p.vx * k, p.y - p.vy * k).lineTo(p.x, p.y).stroke({ width: lw, color: col, alpha: 0.5 * fade, cap: 'round' });
+      g.circle(p.x, p.y, lw * 0.7).fill({ color: '#ffffff', alpha: 0.55 * fade });
+    }
+    // a stream of its own (the PSU's: in from below, through its shroud, out the rear): particles follow the lane, warmer after every part it passes
     let budget = MAX_PARTS;
     for (const l of m.lanes) {
+      if (!l.channel) continue;
       const ln = this.lanes.get(l.id)!;
       const lvl = this.level(l), faint = lvl < 0.03;
-      if (!l.local || !faint) {
-        this.path(g, l.pts);
-        g.stroke({ width: px(2), color: l.state === 'dead' ? T.bad : airColor(0), alpha: l.state === 'dead' ? 0.3 : faint ? 0.1 : 0.08, cap: 'round', join: 'round' });
-      }
+      if (!faint) { this.path(g, l.pts); g.stroke({ width: px(2), color: airColor(0), alpha: 0.08, cap: 'round', join: 'round' }); }
       if (faint || ln.len < 10) continue;
-      const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.15 + 0.85 * lvl) * (l.local ? 0.6 : 1))));
+      const n = Math.min(budget, Math.max(2, Math.round((ln.len / SPACING) * (0.15 + 0.85 * lvl) * 0.6)));
       budget -= n;
       // the air covers distance by the lane's fan speed: it ramps up and dies away with the fans (a coasting fan still blows a little)
       this.runs.set(l.id, (this.runs.get(l.id) ?? 0) + airSpeed(lvl) * dt);

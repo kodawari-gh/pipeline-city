@@ -1,0 +1,75 @@
+import { describe, expect, it } from 'vitest';
+import { AirField, MAX_PARTICLES, type FieldIn, type FieldPort } from './airfield';
+
+const box = { x: 0, y: 0, w: 8000, h: 6000 };
+const inlet = (level = 1): FieldPort => ({ id: 'front0', kind: 'in', pt: [7800, 3000], span: { x: 7700, y: 1500, w: 260, h: 3000 }, level });
+const exhaust = (level = 1): FieldPort => ({ id: 'rear', kind: 'out', pt: [0, 900], span: { x: -100, y: 300, w: 170, h: 1200 }, level });
+const input = (ports: FieldPort[], heat = 0): FieldIn => ({ box, ports, zones: [{ rects: [{ x: 3500, y: 2500, w: 600, h: 600 }], heat }, { rects: [{ x: 600, y: 5000, w: 900, h: 200 }], heat: 0 }] });
+
+const run = (f: AirField, i: FieldIn, seconds: number) => { for (let t = 0; t < seconds; t += 1 / 30) f.step(1 / 30, i); };
+
+describe('the air field', () => {
+  it('air runs from the intake toward the exhaust', () => {
+    const f = new AirField();
+    f.step(0.01, input([inlet(), exhaust()]));
+    const v = f.velocity(4000, 2000);
+    expect(v[0]).toBeLessThan(0); // west
+    expect(v[1]).toBeLessThan(0); // and up, toward the rear exhaust
+  });
+
+  it('the far corners are not dead: a part in the corner away from every fan still has moving air, only slower than the middle', () => {
+    const f = new AirField();
+    f.step(0.01, input([inlet(), exhaust()]));
+    const corner = f.speedAt(1000, 5100), mid = f.speedAt(4000, 2000);
+    expect(corner).toBeGreaterThan(30);
+    expect(corner).toBeLessThan(mid);
+  });
+
+  it('particles are released at an intake and leave through the exhaust, so the field stays bounded and nobody lingers', () => {
+    const f = new AirField(), i = input([inlet(), exhaust()]);
+    run(f, i, 90);
+    expect(f.parts.length).toBeGreaterThan(5);
+    expect(f.parts.length).toBeLessThanOrEqual(MAX_PARTICLES);
+    expect(Math.max(...f.parts.map((p) => p.age))).toBeLessThan(22);
+  });
+
+  it('with no exhaust nothing is drawn out: the air through the middle of the case is slower than with one, and nothing is absorbed', () => {
+    const withOut = new AirField(), without = new AirField();
+    withOut.step(0.01, input([inlet(), exhaust()]));
+    without.step(0.01, input([inlet()]));
+    expect(without.speedAt(3000, 1500)).toBeLessThan(withOut.speedAt(3000, 1500));
+    // and a particle sitting at the rear opening is not removed when there is no sink there
+    without.parts.push({ x: 60, y: 900, vx: 0, vy: 0, heat: 0, age: 1, k: 1, seed: 1 });
+    without.step(1 / 30, input([inlet()]));
+    expect(without.parts.some((p) => p.x < 400)).toBe(true);
+  });
+
+  it('air picks up the heat of a hot part it passes; with a cool part it stays cool', () => {
+    const peak = (heat: number) => {
+      const f = new AirField(), i = input([inlet(), exhaust()], heat);
+      let top = 0;
+      for (let t = 0; t < 90; t += 1 / 30) { f.step(1 / 30, i); for (const p of f.parts) top = Math.max(top, p.heat); }
+      return top;
+    };
+    expect(peak(0.9)).toBeGreaterThan(0.15);
+    expect(peak(0)).toBeLessThan(0.01);
+  });
+
+  it('air goes round a part, never through it', () => {
+    const f = new AirField(), i = input([inlet(), exhaust()], 0.5), r = i.zones[0]!.rects[0]!;
+    for (let t = 0; t < 60; t += 1 / 30) {
+      f.step(1 / 30, i);
+      for (const p of f.parts) expect(p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h).toBe(false);
+    }
+  });
+
+  it('a fan that is still releases nothing, and a paused game (dt 0) holds every particle', () => {
+    const f = new AirField();
+    run(f, input([inlet(0), exhaust(0)]), 5);
+    expect(f.parts).toHaveLength(0);
+    run(f, input([inlet(), exhaust()]), 10);
+    const at = f.parts.map((p) => [p.x, p.y]);
+    f.step(0, input([inlet(), exhaust()]));
+    expect(f.parts.map((p) => [p.x, p.y])).toEqual(at);
+  });
+});
