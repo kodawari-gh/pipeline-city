@@ -8,6 +8,7 @@ import { COUNTER_NAMES, Counter, type PipelineEngine } from "../../features/cpu/
 import { PchPhase, JobState } from "../../core/sim/memmap";
 import { catalog, postTicks } from "../../features/economy/sim/economy";
 import type { Game } from "./game";
+import { AIR_ZONES } from "../../features/board/sim/airflow";
 import { LEVEL_ROWS, type Key, type KernelJob } from "./internal";
 import { dexState, JOB_DEX } from "../../features/jobs/sim/jobdex";
 import { describeNeed, levelDef, MAX_LEVEL, needsMet } from "../../features/economy/sim/levels";
@@ -188,6 +189,7 @@ export function boardSnap(this: Game): BoardSnap {
     vrmSink: sink ? this.deviceSnap(sink) : null,
     ramVrm: rail(t.ramVrm, rv, ramSink),
     ramSink: ramSink ? this.deviceSnap(ramSink) : null,
+    air: AIR_ZONES.map((id) => ({ id, flow: this.thermal.air[id].flow, fans: this.thermal.air[id].fans, riseC: this.thermal.air[id].riseC })),
   };
 }
 

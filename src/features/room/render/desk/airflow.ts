@@ -7,6 +7,8 @@ import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render
 import { EdgeFan } from './props/case';
 import { fanBank } from '@/core/render/fanmotor';
 import { blades } from '@/features/board/render/devices';
+import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
+import type { DeviceKind } from '@/features/board/sim/specs';
 import { AirField, type FieldPort } from './airfield';
 import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
@@ -85,6 +87,10 @@ const deg = (t: number) => `${Math.round(t)}°C`;
 /** Case heat per watt of the cards, as the sim (`CASE_HEAT_C_PER_W`). */
 export const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
+/** An area with less than this share of its designed airflow is named on the lens. */
+const POOR_AIR = 0.7;
+/** The sim's airflow area of a heat zone: the zone ids are the device kinds, and the two regulators sit in the north area with the processor. */
+const areaOf = (zoneId: string): AirZoneId | null => (zoneId === 'vrm' || zoneId === 'rvrm' ? 'north' : zoneOf(zoneId as DeviceKind));
 /** How far a component's own fan blows (world units) before its air joins the case's. */
 const LOCAL_REACH = 1900;
 /** How far the halo of a glow reaches at most (the silhouettes keep a margin of `SHAPE_PAD`, 280). */
@@ -207,7 +213,10 @@ export function airflowModel(i: AirIn): AirModel {
   for (const m of mounts) if (m.state === 'dead' && running) tags.push({ id: `dead.${m.id}`, at: [mid(m.rect)[0], m.rect.y + m.rect.h + 260], text: 'FAN OFF', tone: 'warn', anchor: 'c' });
   for (const z of zones) {
     if (z.id === 'psu') continue;
-    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}`, tone: z.heat > 0.8 ? 'warn' : 'heat', anchor: 'c' });
+    // the area's air as the sim works it out (board/sim/airflow.ts): how well it is ventilated, named when it is poor
+    const area = areaOf(z.id), flow = area && running ? s.board?.air?.find((a) => a.id === area)?.flow : undefined;
+    const poor = flow !== undefined && flow < POOR_AIR;
+    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}${poor ? ` · AIR ${Math.round(flow * 100)}%` : ''}`, tone: z.heat > 0.8 || poor ? 'warn' : 'heat', anchor: 'c' });
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });

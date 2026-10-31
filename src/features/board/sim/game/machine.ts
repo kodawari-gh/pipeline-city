@@ -174,7 +174,8 @@ export function fanPower(this: Game): FanPower {
   const mounts = caseMounts(this.board.caseTier).filter((m) => !rad?.mounts.includes(m));
   const turning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]).length / rad.mounts.length : 0;
   const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * turning) : 0;
-  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: hub ? mounts.filter((m) => c[`fan:${m}`]).length : 0, loopK };
+  const spinning = hub ? mounts.filter((m) => c[`fan:${m}`]) : [];
+  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: spinning.length, mounts: spinning, loopK };
 }
 
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */

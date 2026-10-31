@@ -62,6 +62,14 @@ describe('the airflow lens model', () => {
     expect(psu.pts[psu.pts.length - 1]![0]).toBeLessThan(REAR_FAN.x);
   });
 
+  it('a part in an area the sim says is poorly ventilated is named on the lens, with the area\'s air; a well-ventilated one is not', () => {
+    const air = (flow: number) => ['north', 'cards', 'bay'].map((id) => ({ id, flow, fans: 3, riseC: 0 }));
+    const poor = airflowModel(running(60, [], { board: boardSnap({ air: air(0.4) as never }) })), good = airflowModel(running(60, [], { board: boardSnap({ air: air(1) as never }) }));
+    expect(poor.tags.find((t) => t.id === 'z.cpu')).toMatchObject({ text: expect.stringContaining('AIR 40%'), tone: 'warn' });
+    expect(poor.tags.find((t) => t.id === 'z.vrm')!.text).toContain('AIR 40%'); // the regulators are in the north area
+    expect(good.tags.find((t) => t.id === 'z.cpu')!.text).not.toContain('AIR');
+  });
+
   it('a heat zone carries the hover id of each part, so the lens can trace its silhouette', () => {
     const m = airflowModel(running(60));
     const cpu = m.zones.find((z) => z.id === 'cpu')!;
