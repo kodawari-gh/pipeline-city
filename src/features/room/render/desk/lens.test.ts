@@ -8,7 +8,7 @@ import type { Snapshot } from '@/worker/protocol';
 import { dev, snap } from '@/core/ui/testdata';
 import { flowSpeed, flowWidth, lensModel, type LensCord, type LensIn } from './lens';
 import { PSU, setLayoutTier } from '@/features/board/render/layout/layout';
-import { buildCables } from '@/features/board/render/wiring/routes';
+import { buildBuses, buildCables } from '@/features/board/render/wiring/routes';
 import { emptyScene } from '@/core/render/interact';
 
 const cord = (kind: LensCord['kind'], connected: boolean): LensCord => ({ kind, connected, plugAt: connected ? [1000, 9000] : [1400, 11000], route: [[0, 0], [100, 100], [1000, 8000]], outlet: [1000, 9000] });
@@ -29,7 +29,7 @@ function running(over: Partial<Snapshot> = {}, cordsOn = { pc: true, mon: true }
   });
   const slots = emptyScene().slots;
   slots.set('cpu0', { x: 0, y: 0, w: 500, h: 500 }); slots.set('dimm0', { x: 800, y: 0, w: 100, h: 600 });
-  return { s, cords: [cord('pcmains', cordsOn.pc), cord('monmains', cordsOn.mon)], cables: buildCables(), slots, monitor: { x: -9000, y: 2000, w: 6000, h: 4000 } };
+  return { s, cords: [cord('pcmains', cordsOn.pc), cord('monmains', cordsOn.mon)], cables: buildCables(), buses: buildBuses(), slots, monitor: { x: -9000, y: 2000, w: 6000, h: 4000 } };
 }
 
 const flow = (m: ReturnType<typeof lensModel>, id: string) => m.flows.find((f) => f.id === id);

@@ -6,7 +6,7 @@ import { getSpec } from '@/features/board/sim/specs';
 import { atx12vSlots, pcieFeed } from '@/features/board/render/layout/pins';
 import { BAY_CELLS, FAN_HUB, GEO, HUB_POWER_Y, PC_POWER, POWER_LEAD_X, PSU, type Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
-import { mkLane, pointAt, roundedPath, type Cable, type Lane } from '@/features/board/render/wiring/routes';
+import { mkLane, pointAt, roundedPath, type Bus, type BusKind, type Cable, type Lane } from '@/features/board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // The power lens: one switch that dims the room and lights the electrical map on top of it. Where power has to be linked (the two cords at the
@@ -31,6 +31,8 @@ export interface LensIn {
   cords: LensCord[];
   /** The PSU's cables to the board (`buildCables`): `atx`, `cpu` and one `pcie`.. lead for each card socket that takes one. */
   cables: Cable[];
+  /** The board's traces (`buildBuses`, the art's own): the power runs of the lens follow them. */
+  buses: Bus[];
   /** Slot id to its world rect (`scene.slots`). */
   slots: Map<string, Rect>;
   monitor: Rect;
@@ -113,16 +115,40 @@ export function lensModel(i: LensIn): LensModel {
   }
   for (const [kind, g] of groups) {
     const x0 = Math.min(...g.rects.map((r) => r.x)), y0 = Math.min(...g.rects.map((r) => r.y)), x1 = Math.max(...g.rects.map((r) => r.x + r.w)), y1 = Math.max(...g.rects.map((r) => r.y + r.h));
-    const from = (kind === 'cpu' ? board.get('cpu') : board.get('atx')) ?? null;
-    if (from && hasPsu && (kind === 'gpu' || kind === 'npu' || kind === 'nic')) {
-      // a card in a PCIe slot is fed over the slot rail, the way the board runs it: from the 24-pin down the strip beside it, then west to the slot's tab and along the slot
+    const strip = (r: Rect): Pt[] => { const a = atx12vSlots(GEO.atx), xv = GEO.atx.x - 40, cy = r.y + r.h / 2; return roundedPath([a, [xv, a[1]], [xv, cy], [r.x + r.w / 2, cy]], 60, 30) as Pt[]; };
+    const bus = (id: BusKind) => i.buses.find((b) => b.id === id);
+    const push = (id: string, pts: Pt[], w: number, branch = false) => flows.push({ id, pts, watts: w, state: state(true, w), ...(branch ? { branch } : {}) });
+    if (!hasPsu) {
+      // no PSU: nothing flows
+    } else if (kind === 'cpu') {
+      // the 8-pin's pins onto the input rail, then each phase's output down into the package
+      const rail = bus('pwrcpu'), core = bus('vcore');
+      rail?.lanes.forEach((l, k) => push(`trace.pwrcpu.${k}`, l.pts as Pt[], k === 0 ? g.w : g.w / 4, k > 0));
+      core?.lanes.forEach((l, k) => push(`trace.vcore.${k}`, l.pts as Pt[], g.w / core.lanes.length, true));
+    } else if (kind === 'ram') {
+      // the 24-pin's 12 V to the memory regulator, its output along the DIMM sockets, and a drop into every stick
+      const feed = bus('pwr12'), out = bus('vdimm');
+      feed?.lanes.forEach((l, k) => push(`trace.pwr12.${k}`, l.pts as Pt[], g.w));
+      out?.lanes.forEach((l, k) => push(`trace.vdimm.${k}`, l.pts as Pt[], g.w / out.lanes.length * 2));
+      for (const d of s.devices) {
+        const tap = d.kind === 'ram' ? out?.taps?.find((t) => t.key === d.slot) : undefined;
+        if (tap) push(`trace.vdimm.${d.slot}`, tap.lanes[0]!.pts as Pt[], on ? d.powerW : 0, true);
+      }
+    } else if (kind === 'gpu' || kind === 'nic' || kind === 'npu') {
+      // a card in a PCIe slot: the slot rail's trace from the 24-pin to the x16 slot's tab (`pwrpcie`), and on along the slot; the other slots ride the strip beside the connector
       for (const d of s.devices) {
         const k = d.kind === kind ? Number(/^pcie(\d+)$/.exec(d.slot)?.[1] ?? -1) : -1, rail = GEO.pcie[k];
         if (!rail) continue;
-        const a = atx12vSlots(GEO.atx), f = pcieFeed(rail), xv = GEO.atx.x - 40, own = cards.find((c) => c.slot === d.slot), w = own ? own.w / (assignLeads([own]).length + 1) : on ? d.powerW : 0;
-        flows.push({ id: `feed.${d.slot}`, pts: roundedPath([a, [xv, a[1]], [xv, f[1]], [rail.x + rail.w / 2, f[1]]], 60, 30) as Pt[], watts: w, state: state(true, w), branch: true });
+        const own = cards.find((c) => c.slot === d.slot), w = own ? own.w / (assignLeads([own]).length + 1) : on ? d.powerW : 0, f = pcieFeed(rail);
+        const trace = k === 0 ? bus('pwrpcie')?.lanes[0] : undefined;
+        const pts = trace ? [...(trace.pts as Pt[]), [rail.x + rail.w / 2, f[1]] as Pt] : strip({ ...rail, y: f[1] - rail.h / 2 });
+        push(`feed.${d.slot}`, pts, w, true);
       }
-    } else if (from && hasPsu && kind !== 'cooler') flows.push({ id: `feed.${kind}`, pts: [from, [(x0 + x1) / 2, (y0 + y1) / 2]], watts: g.w, state: state(true, g.w), branch: true });
+    } else if (kind !== 'cooler') {
+      // a part with no trace of its own (a drive, a heatsink's fan): over the strip beside the 24-pin to the part
+      const x0 = Math.min(...g.rects.map((q) => q.x)), y0 = Math.min(...g.rects.map((q) => q.y)), x1 = Math.max(...g.rects.map((q) => q.x + q.w)), y1 = Math.max(...g.rects.map((q) => q.y + q.h));
+      push(`feed.${kind}`, strip({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }), g.w, true);
+    }
     if (g.w >= 0.05) tags.push({ id: `dev.${kind}`, at: [(x0 + x1) / 2, kind === 'cooler' ? y1 + 120 : y0 - 120], text: `${names[kind] ?? kind.toUpperCase()} ${watts(g.w)}`, tone: 'watts', anchor: 'c' });
   }
   return { flows, tags, marks };

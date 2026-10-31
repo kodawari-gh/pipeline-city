@@ -994,7 +994,7 @@ export async function mountBoard(host: HTMLElement) {
       if (!lensKey || (lensKey as unknown[])[0] !== k[0] || (lensKey as unknown[])[1] !== k[1]) {
         lensKey = k;
         lens.setTheme(T);
-        lens.setModel(lensModel({ s: lastSnap!, cords: cords.lensCords(), cables: ALL_CABLES, slots: scene.slots, monitor: scene.rects.get('monitor') ?? MONITOR }));
+        lens.setModel(lensModel({ s: lastSnap!, cords: cords.lensCords(), cables: ALL_CABLES, buses: boardArt?.buses ?? [], slots: scene.slots, monitor: scene.rects.get('monitor') ?? MONITOR }));
       }
     } else lensKey = null;
     lens.frame(on, { x: camera.x, y: camera.y, z: camera.z, cx: camera.cx, cy: camera.cy, w: camera.w, h: camera.h }, gdt, performance.now());
