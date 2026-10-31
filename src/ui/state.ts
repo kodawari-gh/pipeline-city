@@ -62,6 +62,10 @@ effect(() => { document.documentElement.classList.toggle('paused', speed.value =
 
 export const statsOpen = signal(false);
 export const netOpen = signal(false);
+/** The OS window (a modal like the almanac and the log): the resource monitor, the spool settings and (work in progress) apps. Opened from the bottom bar, the HUD chip and the menu. */
+export const osOpen = signal(false);
+export const toggleOs = () => { osOpen.value = !osOpen.value; };
+export const closeOs = () => { osOpen.value = false; };
 // The two drawers dock on the same side: opening one closes the other.
 export const toggleStats = () => { statsOpen.value = !statsOpen.value; if (statsOpen.value) netOpen.value = false; };
 /** The network panel (opened from the HUD chip once a router exists). */

@@ -174,7 +174,7 @@ export const OS_SPOOL_MAP = 8;
 export const SPOOL_PORT_SHIFT = 24;
 /** Kernel job table in RAM: KDATA_SLOTS slots of KSLOT_BYTES; see docs/OS.md. */
 export const KDATA_BASE = 0xe000;
-export const KDATA_SLOTS = 8;
+export const KDATA_SLOTS = 16;
 export const KSLOT_BYTES = 64;
 /** Slot word offsets (bytes). */
 export const KSLOT = { STATE: 0, KEY: 4, LEN: 8, LBA: 12, RESULT: 16, SEQ: 48, THREADS: 52, LIVE: 56, DEAD: 60 } as const;

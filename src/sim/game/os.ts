@@ -66,41 +66,86 @@ export function formatOs(this: Game, os: OsSpec, deviceId: string, count = true)
   disk.poke(0, this.osBootImage(os, count ? this.layoutSpool() : Array.from({ length: queueSlots }, (_, i) => osBlocks + i * SPOOL_BLOCKS_PER_JOB)));
 }
 
+/** Why drive `d` holds no spool slot beyond the OS drive's own, or null when it may. `menuOff`: also refuse a drive the OS menu turned off (the layout does; the menu shows the other reasons only). */
+export function spoolDriveWhy(this: Game, d: InstalledDevice, menuOff = true): string | null {
+  const os = this.os!, s = deviceSpec(d) as StorageSpec;
+  if (menuOff && this.osCfg.spoolOff.includes(d.id)) return "turned off in the OS menu";
+  if (d.burnt) return `${s.name} is burnt out`;
+  if (d.id === os.deviceId) return null;
+  if (os.spec.fsTier < 2) return `${os.spec.name} spools on its own drive only`;
+  if (s.mirror) return "a RAID module holds data volumes only";
+  const disk = this.diskFor(d);
+  if (disk.mount !== "clean" || STORAGE_PORTS.indexOf(d.slot) < 0) return "not formatted clean";
+  return null;
+}
+
+/** The most queue slots now: what the OS allows, or less when the OS menu asks for fewer. */
+export function spoolTarget(this: Game): number {
+  const cap = Math.min(this.os!.spec.queueSlots, MAX_QUEUE_SLOTS);
+  return Math.max(1, Math.min(cap, this.osCfg.spoolSlots ?? cap));
+}
+
 /**
  * Where the queue slots' spool areas are: first the OS drive's own (`homeSlots`), then, from the paged OS on (filesystem tier 2), the free room of the other
- * data drives, fastest first, up to the tier's slots. A small OS drive no longer caps the queue. The old spool areas on the other drives are dropped and
- * made again, so a drive that was added, wiped, burnt or left dirty is taken into account. Returns the spool map of the boot header and sets `queueSlots`.
+ * data drives, fastest first, up to the wanted slots (`spoolTarget`). A small OS drive no longer caps the queue. A drive the OS menu turned off holds none.
+ * The old spool areas on the other drives are dropped and made again, so a drive that was added, wiped, burnt or left dirty is taken into account.
+ * Returns the spool map of the boot header and sets `queueSlots` and `spoolPlan`.
  */
 export function layoutSpool(this: Game): number[] {
   const os = this.os!;
   const home = this.board.devices.find((d) => d.id === os.deviceId)!;
   const first = Math.ceil(os.spec.diskBytes / BLOCK_BYTES);
+  const target = this.spoolTarget();
   const map: number[] = [];
-  for (let i = 0; i < os.homeSlots; i++) map.push(first + i * SPOOL_BLOCKS_PER_JOB);
+  const homeN = this.spoolDriveWhy(home) ? 0 : Math.min(os.homeSlots, target);
+  for (let i = 0; i < homeN; i++) map.push(first + i * SPOOL_BLOCKS_PER_JOB);
+  this.spoolPlan = [{ deviceId: home.id, slots: homeN }];
   const others = this.board.devices.filter((d) => d.id !== home.id && deviceSpec(d).kind === "storage");
   for (const d of others) {
     const fs = this.disks.get(d.id)?.fs;
     if (fs) for (const f of fs.list("spool")) fs.remove(f.id);
   }
-  const cap = Math.min(os.spec.queueSlots, MAX_QUEUE_SLOTS);
-  if (os.spec.fsTier >= 2) {
-    for (const d of others.filter((x) => !x.burnt && !(deviceSpec(x) as StorageSpec).mirror).sort((a, b) => deviceSpec(b).tier - deviceSpec(a).tier)) {
-      const disk = this.diskFor(d);
-      const port = STORAGE_PORTS.indexOf(d.slot);
-      if (disk.mount !== "clean" || port < 0) continue;
-      let n = Math.min(cap - map.length, Math.floor((disk.capacityBytes - disk.usedBytes) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES)));
-      for (; n > 0; n--) { // one run of blocks, so the slots follow one another
-        const f = disk.fs.create("os", "spool", n * SPOOL_BLOCKS_PER_JOB, { soft: true });
-        if (f && f.extents.length === 1) {
-          for (let i = 0; i < n; i++) map.push((port + 1) * 2 ** SPOOL_PORT_SHIFT + f.extents[0]!.first + i * SPOOL_BLOCKS_PER_JOB);
-          break;
-        }
-        if (f) disk.fs.remove(f.id);
+  for (const d of others.filter((x) => !this.spoolDriveWhy(x)).sort((a, b) => deviceSpec(b).tier - deviceSpec(a).tier)) {
+    const disk = this.diskFor(d);
+    const port = STORAGE_PORTS.indexOf(d.slot);
+    let n = Math.min(target - map.length, Math.floor((disk.capacityBytes - disk.usedBytes) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES)));
+    for (; n > 0; n--) { // one run of blocks, so the slots follow one another
+      const f = disk.fs.create("os", "spool", n * SPOOL_BLOCKS_PER_JOB, { soft: true });
+      if (f && f.extents.length === 1) {
+        for (let i = 0; i < n; i++) map.push((port + 1) * 2 ** SPOOL_PORT_SHIFT + f.extents[0]!.first + i * SPOOL_BLOCKS_PER_JOB);
+        this.spoolPlan.push({ deviceId: d.id, slots: n });
+        break;
       }
+      if (f) disk.fs.remove(f.id);
     }
+  }
+  if (map.length === 0) { // never none: the OS drive keeps one slot
+    map.push(first);
+    this.spoolPlan[0]!.slots = 1;
   }
   os.queueSlots = map.length;
   return map;
+}
+
+/** OS menu: the most queue slots wanted (null: as many as the OS allows). Takes effect at the next power-on (at once while off). */
+export function setSpoolSlots(this: Game, slots: number | null): Result<{ slots: number | null }> {
+  if (!this.os) return { ok: false, reason: "no OS is installed" };
+  if (slots !== null && (!Number.isInteger(slots) || slots < 1)) return { ok: false, reason: "at least one queue slot" };
+  this.osCfg.spoolSlots = slots === null || slots >= Math.min(this.os.spec.queueSlots, MAX_QUEUE_SLOTS) ? null : slots;
+  if (!this.powered) this.refreshBootImage();
+  return { ok: true, slots: this.osCfg.spoolSlots };
+}
+
+/** OS menu: let a drive hold spool slots or not. Takes effect at the next power-on (at once while off). */
+export function setSpoolDrive(this: Game, deviceId: string, on: boolean): Result<{ on: boolean }> {
+  if (!this.os) return { ok: false, reason: "no OS is installed" };
+  const d = this.board.devices.find((x) => x.id === deviceId);
+  if (!d || deviceSpec(d).kind !== "storage") return { ok: false, reason: "no such drive" };
+  const off = new Set(this.osCfg.spoolOff);
+  if (on) off.delete(deviceId); else off.add(deviceId);
+  this.osCfg.spoolOff = [...off];
+  if (!this.powered) this.refreshBootImage();
+  return { ok: true, on };
 }
 
 /** Why this drive cannot be formatted now, or null. Formatting needs an OS with allocation (filesystem tier 2+), a data drive and a powered-off machine. */
@@ -148,7 +193,7 @@ export function osBootImage(this: Game, os: OsSpec, spoolMap: number[]): Uint8Ar
 export function refreshBootImage(this: Game): void {
   const os = this.os;
   const dev = os && this.board.devices.find((d) => d.id === os.deviceId);
-  if (!os || !dev || dev.burnt || os.spec.tier < 2) return;
+  if (!os || !dev || dev.burnt) return;
   this.diskFor(dev).poke(0, this.osBootImage(os.spec, this.layoutSpool()));
 }
 
@@ -378,6 +423,16 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
     runningKeyId: running?.key ?? null,
     spool,
     spoolFull: spool.full,
+    config: {
+      spoolWanted: this.osCfg.spoolSlots,
+      spoolMax: Math.min(os.spec.queueSlots, MAX_QUEUE_SLOTS),
+      drives: this.board.devices.filter((d) => deviceSpec(d).kind === "storage").map((d) => ({
+        deviceId: d.id, slot: d.slot, name: deviceSpec(d).name, tier: deviceSpec(d).tier, home: d.id === os.deviceId,
+        on: !this.osCfg.spoolOff.includes(d.id), why: this.spoolDriveWhy(d, false),
+        slots: this.spoolPlan.find((p) => p.deviceId === d.id)?.slots ?? (d.id === os.deviceId ? os.homeSlots : 0),
+        freeBytes: this.diskFor(d).capacityBytes - this.diskFor(d).usedBytes,
+      })),
+    },
   };
 }
 

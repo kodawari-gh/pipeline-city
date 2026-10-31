@@ -657,6 +657,22 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .netpanel .chip b { font-family: var(--mono); }
 .netpanel .kv.warn, .netpanel b.warn { color: var(--warn); }
 .netpanel .sub { font-size: 0.667rem; margin: 0.133rem 0; }
+/* OS window (a modal on the almanac frame): tabs in the header, then a scrolling body; the resource rows tile in columns */
+.almanac.ospanel { width: min(100%, 64rem); height: auto; max-height: min(100%, 44rem); }
+.ospanel .alm-head { flex-wrap: wrap; }
+.ospanel .sub { font-size: 0.7rem; margin: 0.133rem 0; }
+.os-tabs { display: flex; gap: 0.3rem; margin-right: auto; }
+.os-body { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0.8rem 1.4rem; align-content: start; }
+.os-body > section { min-width: 0; }
+.os-body > section.os-wide { grid-column: 1 / -1; }
+.os-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 0.2rem 1.4rem; }
+.os-res { padding: 0.35rem 0; border-bottom: 1px solid var(--glass-line); }
+.os-res .kv b { font-family: var(--mono); font-size: 0.72rem; }
+.os-advice { font-size: 0.7rem; margin: 0.133rem 0; color: var(--warn); }
+.os-advice.bad { color: var(--bad); }
+.os-actions { display: flex; gap: 0.3rem; padding: 0.2rem 0.45rem; }
+.os-drive { padding: 0.25rem 0; }
+.os-drive input { accent-color: var(--accent); }
 .netpanel .sla { font-size: 0.667rem; color: var(--ok); font-family: var(--mono); }
 .netpanel .sla.warn { color: var(--warn); }
 .netpanel b.limit { font-size: 0.667rem; font-family: var(--mono); }

@@ -14,6 +14,7 @@ import { InventoryBar, InventoryPanel } from '../shop/Inventory';
 import { PickerCard } from '../shop/PickerCard';
 import { Stats } from './Stats';
 import { NetDock } from './NetPanel';
+import { OsModal } from './OsPanel';
 import { Tooltip } from '../kit/Hover';
 import { Notice, Toasts } from './Toasts';
 import { NewGameDialog, openNewGame } from './NewGame';
@@ -27,7 +28,7 @@ import { AlmanacPanel } from './AlmanacPanel';
 import { LogPanel } from './LogPanel';
 import { CrashPanel } from './CrashPanel';
 import {
-  netOpen, openMilestones, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  netOpen, openMilestones, osOpen, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from '../state';
 import { currentStep } from '../tutorial/tutorial';
 
@@ -190,6 +191,16 @@ function NetChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
   );
 }
 
+/** OS chip: appears once an OS is installed. Opens the OS panel (resource monitor, spool settings). */
+function OsChipButton({ s }: { s: NonNullable<typeof snapshot.value> }) {
+  if (!s.os) return null;
+  return (
+    <button class="chip idle" title="The operating system: resource monitor, job queue and apps" aria-pressed={osOpen.value} onClick={toggleOs}>
+      <Icon name="layers" size={12} /> OS {s.os.spool.used}/{s.os.spool.slots}
+    </button>
+  );
+}
+
 /** Secondary actions: stats, save files, tutorial, hints and a new game. Kept out of the bar. */
 function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
   const [open, setOpen] = useState(false);
@@ -203,6 +214,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
       {open && (
         <div class="card menu-pop" role="menu">
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
+          <button role="menuitem" onClick={() => { toggleOs(); close(); }} title="Resource monitor, job queue and apps of the operating system"><Icon name="layers" size={13} /> {osOpen.value ? 'Hide OS' : 'OS'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
@@ -251,6 +263,7 @@ export function Hud() {
         <PowerBill s={s} />
         <PhaseChip s={s} />
         <NetChipButton s={s} />
+        <OsChipButton s={s} />
         {s.sandbox && <SandboxTools s={s} />}
         {s.sandbox && <SandboxJobs s={s} />}
         </div>
@@ -274,6 +287,7 @@ export function Hud() {
         </aside>
       )}
       <NetDock />
+      <OsModal />
       <TracePanel />
       <AlmanacPanel />
       <LogPanel />

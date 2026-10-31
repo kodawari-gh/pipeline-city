@@ -120,6 +120,10 @@ export const declineJob = (id: number) => send({ type: 'declineJob', id });
 export const uninstallOs = () => send({ type: 'uninstallOs' });
 /** Format a data drive (off only, OS tier 2+); `confirm` accepts losing its datasets. */
 export const formatDrive = (deviceId: string, confirm = false) => send({ type: 'formatDrive', deviceId, confirm });
+/** OS menu: the most queue slots wanted (null: as many as the OS allows). Applies at the next power-on. */
+export const setSpoolSlots = (slots: number | null) => send({ type: 'setSpoolSlots', slots });
+/** OS menu: let a drive hold spool slots or not. Applies at the next power-on. */
+export const setSpoolDrive = (deviceId: string, on: boolean) => send({ type: 'setSpoolDrive', deviceId, on });
 /** Accept a cloud-storage contract offer from the job log (optionally on a chosen drive), or turn it down (it just goes away). */
 export const acceptContract = (offerId: number, deviceId?: string) => send({ type: 'acceptContract', offerId, deviceId });
 export const ignoreContract = (offerId: number) => send({ type: 'ignoreContract', offerId });

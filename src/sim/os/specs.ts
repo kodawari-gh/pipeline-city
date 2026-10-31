@@ -1,3 +1,4 @@
+import { KDATA_SLOTS } from "../isa/memmap";
 // The OS ladder, as data. An OS is a purchasable item that is INSTALLED onto a storage device (not into a board slot):
 // it occupies capacity there and needs a minimum amount of RAM. Only 'single-task resident' (os1) is implemented; the
 // later tiers are listed so the shop can show them locked, and so the kernel's seam (`programSlots`, always 1 for v1)
@@ -36,10 +37,10 @@ export const OS_SPECS: readonly OsSpec[] = [
     programSlots: 1, queueSlots: 8, fsTier: 2, needsMmu: true, visual: "os-coop",
     description: "Virtual memory: every program runs in its own address space, claims memory as it touches it and cannot reach the OS. Needs a CPU with an MMU. Programs run one at a time." },
   { id: "os3", tier: 3, name: "Preemptive OS 3.0", price: 2000, minRamBytes: 256 * 1024, diskBytes: 48 * 1024,
-    programSlots: 4, queueSlots: 8, fsTier: 3, needsMmu: true, visual: "os-preempt",
+    programSlots: 4, queueSlots: 12, fsTier: 3, needsMmu: true, visual: "os-preempt",
     description: "Preemptive scheduling: a timer interrupt shares the CPU between up to four programs, each in its own address space. Needs a CPU with an MMU and 256K of RAM." },
   { id: "os4", tier: 4, name: "Multicore OS 4.0", price: 6000, minRamBytes: 256 * 1024, diskBytes: 96 * 1024,
-    programSlots: 8, queueSlots: 8, fsTier: 4, needsMmu: true, visual: "os-smp",
+    programSlots: 8, queueSlots: 16, fsTier: 4, needsMmu: true, visual: "os-smp",
     description: "Preemptive scheduling on every logical core, and threaded programs: one program on several cores at once, with the threads kept on the cores they ran on. Needs a CPU with an MMU and 256K of RAM." },
 ];
 
@@ -55,5 +56,5 @@ export { KDATA_SLOTS as MAX_QUEUE_SLOTS } from "../isa/memmap";
 /** The queue bound: the OS tier's field, further limited by the spool space left on the storage device. */
 export function queueSlotsFor(os: OsSpec, freeBytesAfterInstall: number, blockBytes: number): number {
   const byDisk = Math.floor(freeBytesAfterInstall / (SPOOL_BLOCKS_PER_JOB * blockBytes));
-  return Math.max(0, Math.min(os.queueSlots, byDisk, 8));
+  return Math.max(0, Math.min(os.queueSlots, byDisk, KDATA_SLOTS));
 }

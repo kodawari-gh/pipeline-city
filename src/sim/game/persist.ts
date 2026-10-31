@@ -58,6 +58,7 @@ export function toSave(this: Game): SaveV4 {
       ? { contracts: { nextId: this.nextContractId, rng: this.contractRng.getState(), offers: JSON.parse(JSON.stringify(this.contractOffers)) as ContractOffer[], active: JSON.parse(JSON.stringify(this.contracts)) as Contract[] } }
       : {}),
     ...(this.video !== "board" ? { video: this.video } : {}),
+    ...(this.osCfg.spoolSlots !== null || this.osCfg.spoolOff.length ? { osConfig: { ...(this.osCfg.spoolSlots !== null ? { spoolSlots: this.osCfg.spoolSlots } : {}), ...(this.osCfg.spoolOff.length ? { spoolOff: [...this.osCfg.spoolOff] } : {}) } } : {}),
     ...(this.sandbox ? {} : {
       bill: {
         wh: this.wattTicks / 3600, billedWh: this.billedWh, nextTick: this.nextBillTick, unpaid: this.unpaid, unpaidSince: this.unpaidSince,
@@ -207,6 +208,7 @@ export function restoreSave(this: Game, s: SaveV4): void {
   this.video = typeof s.video === "string" ? s.video : "board";
   if (this.video !== "board" && !this.videoCard()) { this.video = "board"; this.cables.video = false; }
   this.log = [];
+  this.osCfg = { spoolSlots: typeof s.osConfig?.spoolSlots === "number" ? s.osConfig.spoolSlots : null, spoolOff: Array.isArray(s.osConfig?.spoolOff) ? [...s.osConfig.spoolOff] : [] };
   if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
   if (s.disks) this.restoreDisks(s.disks);
   if (s.contracts) this.restoreContracts(s.contracts);

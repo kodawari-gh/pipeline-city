@@ -413,6 +413,13 @@ export interface OsSnap {
   spool: { slotBytes: number; slots: number; used: number; freeBytes: number; full: boolean };
   /** The spool is full (same as `spool.full`, as a chip field). Optional and additive: absent means false. */
   spoolFull?: boolean;
+  /** The OS menu: the spool settings and, per drive, whether it may hold spool slots, why not, and how many it holds now (docs/OS.md "OS menu"). Optional and additive. */
+  config?: {
+    /** Most queue slots wanted (null: as many as the OS allows) and the most this OS allows. */
+    spoolWanted: number | null;
+    spoolMax: number;
+    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number }[];
+  };
 }
 
 /** The power bill: a flat rate on the energy the wall gave the machine, issued every period and paid by itself from the money. */

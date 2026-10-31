@@ -12,7 +12,7 @@ import { StatCard } from './StatCard';
 import { kindIcon, kindLabel, tierOfSpec } from './shopdata';
 import { almanacOpen, toggleAlmanac } from '../panels/AlmanacPanel';
 import { logOpen, toggleLog } from '../panels/LogPanel';
-import { fitTarget, inventoryKind, inventoryOpen, shopOpen, toggleInventory, toggleShop } from '../state';
+import { fitTarget, inventoryKind, inventoryOpen, osOpen, shopOpen, toggleInventory, toggleOs, toggleShop } from '../state';
 import { beginPartDrag } from '../worldDrag';
 
 const shortName = (name: string) => name.split(' (')[0]!;
@@ -81,9 +81,21 @@ function LogButton() {
   );
 }
 
+/** The OS button (once an OS is installed): resource monitor, job queue and apps. */
+function OsButton({ s }: { s: Snapshot }) {
+  if (!s.os) return null;
+  const open = osOpen.value;
+  return (
+    <button class={`invbtn ${open ? 'on' : ''}`} data-hud="os" aria-pressed={open} aria-label="Operating system" title="Operating system: resource monitor, job queue and apps" onClick={toggleOs}>
+      <Icon name="cpu" size={14} />
+      <span class="hide-narrow">OS</span>
+    </button>
+  );
+}
+
 /** The bottom bar: the inventory button sits where the shelf opens, so the button and its shelf are never far apart. */
 export function InventoryBar({ s }: { s: Snapshot }) {
-  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /><LogButton /></div>;
+  return <div class="invbar"><InventoryButton s={s} /><ShopButton /><LensButton /><AlmanacButton /><LogButton /><OsButton s={s} /></div>;
 }
 
 /** One spare part, or a stack of identical ones (count badge): big illustration, short name, tier. Pressing it starts a drag; clicking it selects it for the picker. */

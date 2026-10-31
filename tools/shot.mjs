@@ -58,6 +58,8 @@ try {
   else if (view === 'cpu') await p.evaluate(() => window.__board.flyToCpu());
   else if (view === 'board') await p.evaluate(() => window.__board.flyToBoard());
   else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
+  // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
+  for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
   await p.waitForTimeout(Number(flag('wait', 2500)));
   const clip = flag('clip', '') === 'hud' ? { x: 0, y: 0, width: W, height: 90 } : undefined;
   await p.screenshot({ path: out, ...(clip ? { clip } : {}) });
