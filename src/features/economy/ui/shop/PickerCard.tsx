@@ -429,35 +429,6 @@ function Body({ m, s, content }: { m: PickerModel; s: Snapshot; content: { curre
       {m.vrm && (m.kind === 'cpu' || m.kind === 'ram') && <VrmBlock v={m.vrm} s={s} />}
       {optWarn && <div class="pline warn">{optName}: {optWarn}</div>}
       {m.osSection && <OsBlock sec={m.osSection} picked={option} onPick={setPicked} />}
-      {m.shelf && m.shelf.length > 0 && (
-        <section class="pblock" aria-label="Operating systems">
-          <h3 title="Installs onto a drive. The machine boots from it, so it does not reboot for every job."><Icon name="cpu" size={11} /> Operating systems</h3>
-          <div class="rungs">
-            {m.shelf.map((r) => (
-              <Rung key={r.specId} step={r} picked={r.specId === option} onPick={(id) => setPicked(id)} />
-            ))}
-          </div>
-        </section>
-      )}
-      {m.boardCards && (
-        <section class="pblock" aria-label="Motherboards">
-          <h3 title="A bigger board needs the machine off. Everything you own moves over, and the VRM is the strength bar.">Motherboards</h3>
-          <div class="bcards">
-            {m.boardCards.map((c) => <BoardCardView key={c.id} c={c} />)}
-          </div>
-        </section>
-      )}
-      {m.ladder.length > 0 && !m.boardCards && (
-        <section class="pblock">
-          <h3>Upgrades</h3>
-          <div class="rungs">
-            {m.ladder.map((r) => (
-              <Rung key={r.specId} step={r} picked={r.specId === option} onPick={(id) => setPicked(id)} />
-            ))}
-          </div>
-          {option && m.current !== option && <Compare rows={rows} option={option} />}
-        </section>
-      )}
       {m.actions.length > 0 && (
         <div class="pactions">
           {m.actions.map((a) => <Action key={a.id + (a.keyId ?? '')} a={a} />)}

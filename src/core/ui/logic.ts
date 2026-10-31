@@ -435,8 +435,11 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
       nerd: `tier ${bt.tier} | slots: ${slots} | ${net}, ${f.usbPorts} USB, ${f.displayPorts} display | VRM ${bt.vrm.phases} x ${bt.vrm.ampsPerPhase} A`,
     };
   }
-  return REGIONS[id] ?? null;
+  return INERT_REGIONS.has(id) ? null : REGIONS[id] ?? null;
 }
+
+/** Board scenery and fixed sockets the player cannot act on: no tooltip, no card. */
+const INERT_REGIONS = new Set(['pcie', 'chipset', 'io', 'm2', 'sata', 'bat', 'audio', 'hex', 'qr']);
 
 // ---- HUD status text ----
 

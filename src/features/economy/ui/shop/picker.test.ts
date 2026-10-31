@@ -174,7 +174,7 @@ describe('picker contents per id', () => {
   });
 
   it('region ids give an info card', () => {
-    for (const id of ['vrm', 'vrm2', 'pcie', 'chipset', 'io', 'atx', 'cpw', 'm2', 'sata', 'bat', 'audio']) {
+    for (const id of ['vrm', 'vrm2', 'atx', 'cpw']) {
       const m = pickerFor(id, snap());
       expect(m, id).not.toBeNull();
       expect(m!.kind).toBe('info');

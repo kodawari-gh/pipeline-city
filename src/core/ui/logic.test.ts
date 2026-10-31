@@ -217,7 +217,7 @@ describe('descriptions', () => {
     const s = snap({ tray: [key({ id: 4 })] });
     const ids = [
       'crate', 'tray', 'usb', 'power', 'monitor', 'psu', 'cable.atx', 'cable.cpu', 'cable.video', 'key:4', 'inv:inv1',
-      'vrm', 'vrm2', 'pcie', 'chipset', 'io', 'atx', 'cpw', 'm2', 'sata', 'bat', 'audio', 'psu.readout',
+      'vrm', 'vrm2', 'atx', 'cpw', 'psu.readout',
       'board',
       // the die: one id per kind of block, from every architecture's floorplan (the renderer's hit ids)
       ...DIE_INPUTS.flatMap((i) => cpuPlan(i).blocks.filter((b) => b.kind !== 'stage').map((b) => 'cpu.' + b.kind)),
