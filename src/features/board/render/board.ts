@@ -646,9 +646,7 @@ export async function mountBoard(host: HTMLElement) {
       } else if (spec.kind === 'cooler') {
         const p = coolerArt(T, spec as CoolerSpec, radFit);
         coolerLayer.addChild(p.root); parts.push(p);
-        if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });
-        if (p.flow) fans.push({ c: p.flow, kind: 'cooler' }); // the water runs as fast as the pump turns
-        coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
+        if (p.fan) fans.push({ c: p.fan, kind: 'cooler' });        coolerHit = partHit(d.id, p.root, COOLER, { max: Z_DIE });
         scene.rects.set(d.id, COOLER);
       } else if (spec.kind === 'radiator') {
         // bolted along the side the player chose; each of its fans runs on its mount's fan cable
@@ -1346,6 +1344,7 @@ export async function mountBoard(host: HTMLElement) {
     syncCables(lastSnap); // optimistic cable state expires on its own
     syncNet(lastSnap);
     syncCords(lastSnap);
+    cords.tick(dt); fanCords.tick(dt);
     lensFrame(gdt);
     airFrame(gdt);
     net.frame(gt, gdt);

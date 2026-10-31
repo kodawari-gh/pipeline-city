@@ -1,10 +1,11 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { currentTextResolution } from '@/core/render/camera';
-import type { Rect } from '@/features/board/render/layout/layout';
+import { COOLER, type Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
-import { EdgeFan } from './props/case';
+import { EdgeFan, radiatorSpan } from './props/case';
+import { CoolantFlow, radiatorFit, tubeRoutes } from '@/features/board/render/cooler';
 import { fanBank } from '@/core/render/fanmotor';
 import { blades } from '@/features/board/render/devices';
 import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
@@ -64,6 +65,8 @@ export interface AirModel {
   lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
   /** The components' own fans, to draw (rotors and edge-on strips). */
   fanArt: AirFan[];
+  /** The loop's two tubes (the hot one first), in world points: the lens shows the water in them. Null with no loop or no radiator. */
+  loopTubes: [Pt[], Pt[]] | null;
   /** The inside of the case: the walls the air's field mirrors on. */
   box: Rect;
 }
@@ -231,7 +234,10 @@ export function airflowModel(i: AirIn): AirModel {
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
-  return { lanes, zones, tags, mounts, fanArt: localFans, box: i.glass };
+  // the loop's tubes, as the board lays them (pump ports on top of the cooler's head to the radiator's barbs)
+  const span = loop ? radiatorSpan(loop.side) : null, px = COOLER.x + COOLER.w / 2;
+  const loopTubes = span ? tubeRoutes(radiatorFit(span, px), [px - 120, -520], [px + 120, -520]) : null;
+  return { lanes, zones, tags, mounts, fanArt: localFans, loopTubes, box: i.glass };
 }
 
 // ---------------------------------------------------------------- drawing
@@ -252,6 +258,8 @@ export class AirflowLens {
   private fanBox = new Container();
   private fans: { id: string; f: EdgeFan; state: AirState; fanIds: string[] }[] = [];
   private rotors: { fanId: string; g: Graphics }[] = [];
+  /** The water in the loop's tubes (only the lens shows it), driven by the pump's speed. */
+  private flow: CoolantFlow | null = null;
   /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
   private runs = new Map<string, number>();
   /** The air of the case: a flow field and the particles it carries. */
@@ -274,7 +282,7 @@ export class AirflowLens {
     this.lanes.clear();
     if (m) for (const l of m.lanes) this.lanes.set(l.id, mkLane(l.pts));
     for (const c of this.fanBox.removeChildren()) c.destroy({ children: true });
-    this.fans = []; this.rotors = [];
+    this.fans = []; this.rotors = []; this.flow = null;
     if (!m) return;
     for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state, fanIds: mt.fanIds }); }
     // the fans of the components: strips seen edge-on (a graphics card's), and round ones seen face on (a cooler's, a sink's, the PSU's)
@@ -290,6 +298,7 @@ export class AirflowLens {
         this.rotors.push({ fanId: fa.id, g: rg });
       }
     }
+    if (m.loopTubes) { this.flow = new CoolantFlow(m.loopTubes); this.fanBox.addChild(this.flow); }
   }
 
   /** Where a part's silhouette comes from: its hover id to the `Shape` read from its art (`scene.shapes`); the glow falls back to the rect without one. */
@@ -359,6 +368,7 @@ export class AirflowLens {
       o.f.spin(speed * dt * 0.8, Math.min(1, speed / 5));
     }
     for (const o of this.rotors) o.g.rotation += fanBank.get(o.fanId) * dt;
+    this.flow?.spin(fanBank.get('cooler') * dt * 0.8);
     for (const mt of m.mounts) {
       const dead = mt.state === 'dead';
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });

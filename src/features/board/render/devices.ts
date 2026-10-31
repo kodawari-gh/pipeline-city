@@ -22,8 +22,6 @@ export interface Part {
   labels?: Container;
   /** A child that board.ts rotates for fans (kept above the baked far-LOD texture). */
   fan?: Container;
-  /** The water in a loop's tubes: driven like a fan (`spin`) by the pump's speed, same `kind` as the pump. */
-  flow?: Container;
   /** Static art that must stay above `fan` (e.g. the PSU grill). */
   over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */

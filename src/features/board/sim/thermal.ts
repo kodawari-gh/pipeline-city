@@ -119,7 +119,7 @@ const LOOP_SUBSTEPS = 12;
 /** Joules per degree C of the coolant in the loop (one base tick = 1 s): it warms up and cools down slowly. */
 export const LOOP_MASS = 120;
 /** W per degree C the water carries at full flow (flow x specific heat): the heat the block hands over divided by this is how much the water warms crossing it. */
-export const LOOP_FLOW_CP = 30;
+export const LOOP_FLOW_CP = 15;
 /** How fast the flow follows the pump (share of the gap per tick) and the most the water warms crossing the block, C. */
 const LOOP_FLOW_EASE = 0.4;
 const LOOP_MAX_RISE_C = 30;
