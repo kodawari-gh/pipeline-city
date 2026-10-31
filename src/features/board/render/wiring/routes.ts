@@ -4,7 +4,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from '../layout/layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from '../layout/pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -499,10 +499,19 @@ export function buildBuses(): Bus[] {
   }
   // the slot supply: the 24-pin's lowest 12 V pin, west to the strip beside the connector, down that strip to the x16 slot's level, west under the
   // sockets and lanes it meets (it dives under them) and up into the tab at the slot's latch end. The cards' aux power does not come this way: the
-  // PSU's leads plug into the cards themselves.
+  // PSU's leads plug into the cards themselves. Lane 0 is that run; the others branch off it at a trunk just west of the M.2 housings: one
+  // per further slot (west along the gap above its card, then down into its power patch) and one per M.2 socket (into its patch), in that order
   if (g.pcie[0]) {
-    const a = atx12vSlots(g.atx), f = pcieFeed(g.pcie[0]), xs = f[0] + 90, xv = g.atx.x - 40, yc = f[1] + 35;
-    buses.push({ id: 'pwrpcie', w: 22, lanes: [mkLane(chamfer([a, [xv, a[1]], [xv, yc], [xs, yc], [xs, f[1]], f], 70), 0)] });
+    const a = atx12vSlots(g.atx), f = pcieFeed(g.pcie[0]), xs = f[0] + 90, xv = g.atx.x - 40, yc = f[1] + 35, xt = 1100;
+    const lanes: Lane[] = [mkLane(chamfer([a, [xv, a[1]], [xv, yc], [xs, yc], [xs, f[1]], f], 70), 0)];
+    const trunk: Pt[] = [a, [xv, a[1]], [xv, yc], [xt, yc]];
+    g.pcie.forEach((r, k) => {
+      if (k === 0) return;
+      const t = slotTie(r, k), yh = Math.min(r.y - 260, g.chip.y - 60), tx = t.x + t.w / 2;
+      lanes.push(mkLane(chamfer([...trunk, [xt, yh], [tx, yh], [tx, t.y]], 70), k * 17));
+    });
+    g.m2.forEach((m, k) => { const t = m2Tie(m); lanes.push(mkLane(chamfer([...trunk, [xt, t.y + t.h / 2], [t.x, t.y + t.h / 2]], 70), (g.pcie.length + k) * 17)); });
+    buses.push({ id: 'pwrpcie', w: 22, lanes });
   }
   // audio: the codec's west legs (the 1st, 4th and 7th) straight to the pads behind the three jacks; ethernet: the PHY's four middle
   // legs straight to the pads behind the RJ45 (decoration: they never light)

@@ -216,6 +216,11 @@ export function airflowModel(i: AirIn): AirModel {
   else if (outN === 0) tags.push({ id: 'noexit', at: [cx, gl.y + gl.h * 0.08], text: 'NO EXHAUST: HOT AIR STAYS IN', tone: 'warn', anchor: 'c' });
   else if (inN === 0) tags.push({ id: 'noin', at: [cx, gl.y + gl.h * 0.08], text: 'NO INTAKE: THE CASE STARVES', tone: 'warn', anchor: 'c' });
   for (const m of mounts) if (m.state === 'dead' && running) tags.push({ id: `dead.${m.id}`, at: [mid(m.rect)[0], m.rect.y + m.rect.h + 260], text: 'FAN OFF', tone: 'warn', anchor: 'c' });
+  // the liquid loop: what the radiator gives to the air and how warm the coolant is (a front radiator warms the case with it, a top one blows it out)
+  const loop = s.board?.loop, radMount = loop ? mounts.find((m) => m.id === `rad-${loop.side}`) : undefined;
+  if (loop && radMount && running) {
+    tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c' });
+  }
   for (const z of zones) {
     if (z.id === 'psu') continue;
     // the area's air as the sim works it out (board/sim/airflow.ts): how well it is ventilated, named when it is poor

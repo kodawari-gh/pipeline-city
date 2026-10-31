@@ -6,7 +6,7 @@ import { SINK_FAN_R, sinkFanAt } from './layout/pins';
 /**
  * The board and what hangs on it: the PSU (heat from its load: the sim has no PSU heat), the two voltage regulators (one shape per fitted phase,
  * hot against their own throttle point), and the fans of the PSU and of the two regulators' heatsinks (`psu`, `vrm`, `ramvrm` in `fanBank`,
- * spun by live.ts). The case fans and the radiator's are the case's streams in the airflow model itself.
+ * spun by live.ts; a heatsink fan blows along its fins toward the rear exhaust). The case fans and the radiator's are the case's streams in the airflow model itself.
  */
 export const boardAir: AirSource = {
   id: 'board',
@@ -36,7 +36,9 @@ export const boardAir: AirSource = {
       const d = c.s.devices.find((x) => x.kind === kind);
       if (!d || !(getSpec(d.spec) as { fan?: boolean } | undefined)?.fan) continue; // a passive sink has no fan
       const at = sinkFanAt(rect);
-      out.push({ id, rect, rotor: { x: at.x, y: at.y, r: SINK_FAN_R, blades: 5 } });
+      // the fan pulls case air in at the east end of the fins and pushes it west ALONG them, toward the rear exhaust (not out of the picture, not onto the processor)
+      const exit = REAR_FAN.x - 700, exitY = REAR_FAN.y + REAR_FAN.h / 2;
+      out.push({ id, rect, rotor: { x: at.x, y: at.y, r: SINK_FAN_R, blades: 5 }, path: [[at.x, at.y], [rect.x - 60, at.y], [exit + 500, exitY], [exit, exitY]] });
     }
     return out;
   },

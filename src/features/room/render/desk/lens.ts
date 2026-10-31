@@ -108,7 +108,7 @@ export function lensModel(i: LensIn): LensModel {
   for (const d of s.devices) {
     if (d.kind === 'psu' || d.kind === 'display' || sataSlots.has(d.slot)) continue;
     const r = i.slots.get(d.slot);
-    if (!r) continue;
+    if (!r || r.x > GEO.bd.x + GEO.bd.w || r.x + r.w < GEO.bd.x || r.y > GEO.bd.y + GEO.bd.h || r.y + r.h < GEO.bd.y) continue; // (a part off the board, like the router, has no feed)
     const g = groups.get(d.kind) ?? { w: 0, rects: [] };
     g.w += on ? d.powerW : 0; g.rects.push(r);
     groups.set(d.kind, g);
@@ -140,9 +140,17 @@ export function lensModel(i: LensIn): LensModel {
         const k = d.kind === kind ? Number(/^pcie(\d+)$/.exec(d.slot)?.[1] ?? -1) : -1, rail = GEO.pcie[k];
         if (!rail) continue;
         const own = cards.find((c) => c.slot === d.slot), w = own ? own.w / (assignLeads([own]).length + 1) : on ? d.powerW : 0, f = pcieFeed(rail);
-        const trace = k === 0 ? bus('pwrpcie')?.lanes[0] : undefined;
-        const pts = trace ? [...(trace.pts as Pt[]), [rail.x + rail.w / 2, f[1]] as Pt] : strip({ ...rail, y: f[1] - rail.h / 2 });
+        const trace = bus('pwrpcie')?.lanes[k];
+        const pts = trace ? (k === 0 ? [...(trace.pts as Pt[]), [rail.x + rail.w / 2, f[1]] as Pt] : (trace.pts as Pt[])) : strip({ ...rail, y: f[1] - rail.h / 2 });
         push(`feed.${d.slot}`, pts, w, true);
+      }
+    } else if (kind === 'storage' && s.devices.some((d) => d.kind === 'storage' && /^m2\d+$/.test(d.slot))) {
+      // an M.2 drive: the branch trace into its socket's power patch (`pwrpcie`, after the slots'), the lens's own run if the board has none
+      for (const d of s.devices) {
+        if (d.kind !== 'storage' || sataSlots.has(d.slot)) continue;
+        const k = Number(/^m2(\d+)$/.exec(d.slot)?.[1] ?? -1), lane = k >= 0 ? bus('pwrpcie')?.lanes[GEO.pcie.length + k] : undefined, r = i.slots.get(d.slot);
+        if (lane) push(`feed.${d.slot}`, lane.pts as Pt[], on ? d.powerW : 0, true);
+        else if (r) push(`feed.${d.slot}`, strip(r), on ? d.powerW : 0, true);
       }
     } else if (kind !== 'cooler') {
       // a part with no trace of its own (a drive, a heatsink's fan): over the strip beside the 24-pin to the part

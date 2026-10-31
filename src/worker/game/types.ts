@@ -126,6 +126,8 @@ export interface BoardSnap {
   ramSink: DeviceSnap | null;
   /** The case's air by area, last tick. */
   air: AirZoneSnap[];
+  /** The liquid loop (a liquid cooler with a radiator): the coolant's temperature, the heat the radiator gives to the air now (W) and its side of the case. Null with no loop. */
+  loop: { coolantC: number; rejectW: number; side: "front" | "top" } | null;
 }
 
 /** One pipeline stage occupant (IF ID EX MEM WB), for the renderer. See docs/RENDER.md. */

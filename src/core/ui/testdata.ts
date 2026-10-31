@@ -64,6 +64,7 @@ export function boardSnap(o: Omit<Partial<BoardSnap>, 'vrm'> & { vrm?: Partial<V
       damageC: t.ramVrm.damageC, sinkDeviceId: null,
     },
     ramSink: null,
+    loop: null,
     air: (['north', 'cards', 'bay'] as const).map((id) => ({ id, flow: 1, fans: 0, riseC: 0 })),
     ...rest,
   };

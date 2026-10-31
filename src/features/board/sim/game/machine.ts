@@ -175,7 +175,9 @@ export function fanPower(this: Game): FanPower {
   const turning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]).length / rad.mounts.length : 0;
   const loopK = radSpec && !rad!.dev.burnt ? radSpec.coolingPerC * (UNFANNED_SHARE + (1 - UNFANNED_SHARE) * turning) : 0;
   const spinning = hub ? mounts.filter((m) => c[`fan:${m}`]) : [];
-  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: spinning.length, mounts: spinning, loopK };
+  // the radiator's own fans move air through the case too (they count for the areas' air, not as case fans)
+  const radSpinning = rad && hub ? rad.mounts.filter((m) => c[`fan:${m}`]) : [];
+  return { cpu: !!c.cpufan, vrm: !!c.vrmfan, ram: !!c.ramfan, caseFans: spinning.length, mounts: [...spinning, ...radSpinning], loopK, ...(rad ? { radSide: rad.side } : {}) };
 }
 
 /** The machine's draw on the wall this tick (the parts' draw; a monitor whose cord is out takes nothing) added to the energy meter. */

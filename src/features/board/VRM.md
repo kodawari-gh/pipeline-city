@@ -16,7 +16,7 @@ Why **several phases**: the CPU's current is split between them, and the control
 
 **Component quality** decides two things: **efficiency** (how much power is wasted as heat in the VRM) and **ripple** (how much the voltage wobbles around its target). Cheap parts waste more and wobble more.
 
-**Cooling**: the heat produced by the MOSFETs has to go somewhere. A finned **heatsink** on them, and airflow over it (a CPU air cooler's fan blows across the area; a liquid cooler does not, which is why liquid-cooled builds often add a small fan for the VRM), carry it away.
+**Cooling**: the heat produced by the MOSFETs has to go somewhere. A finned **heatsink** on them, and airflow over it (a CPU air cooler's fan blows across the area; a liquid cooler does not, which is why liquid-cooled builds often add a small fan for the VRM), carry it away. A heatsink fan blows ALONG the fins, west toward the rear exhaust (it pulls case air in at the east end): the lens shows that stream (`board/render/air.ts`), not air out of the picture.
 
 ## How a VRM fails
 

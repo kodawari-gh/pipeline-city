@@ -50,7 +50,11 @@ describe('the airflow lens model', () => {
     for (const l of local) expect(l.pts.length).toBeGreaterThan(1);
     expect(m.tags.some((t) => t.text.startsWith('GPU '))).toBe(true);
     const len = (l: (typeof local)[number]) => l.pts.slice(1).reduce((a, p, k) => a + Math.hypot(p[0] - l.pts[k]![0], p[1] - l.pts[k]![1]), 0);
-    for (const l of local.filter((x) => x.fanIds[0] !== 'psu')) expect(len(l)).toBeLessThanOrEqual(1950);
+    for (const l of local.filter((x) => x.fanIds[0] !== 'psu' && x.fanIds[0] !== 'vrm')) expect(len(l)).toBeLessThanOrEqual(1950);
+    // a heatsink fan blows along its fins toward the rear exhaust: a stream of its own that runs west, from the fan to the rear wall
+    const vrm = local.find((l) => l.fanIds[0] === 'vrm')!;
+    expect(vrm.channel).toBe(true);
+    expect(vrm.pts[vrm.pts.length - 1]![0]).toBeLessThan(vrm.pts[0]![0]);
     // what the lens draws for each: the cooler and the sink are face-on rotors, the card's are edge-on strips along its top
     const art = (id: string) => m.fanArt.find((f) => f.id === id)!;
     expect(art('cooler').rotor).toMatchObject({ blades: 9 }); // the tower cooler's fan
@@ -68,6 +72,16 @@ describe('the airflow lens model', () => {
     expect(poor.tags.find((t) => t.id === 'z.cpu')).toMatchObject({ text: expect.stringContaining('AIR 40%'), tone: 'warn' });
     expect(poor.tags.find((t) => t.id === 'z.vrm')!.text).toContain('AIR 40%'); // the regulators are in the north area
     expect(good.tags.find((t) => t.id === 'z.cpu')!.text).not.toContain('AIR');
+  });
+
+  it('a liquid loop names the radiator heat and the coolant, and says a front radiator warms the case', () => {
+    const base = running(60, [], { board: boardSnap({ loop: { coolantC: 41, rejectW: 120, side: 'front' } }) });
+    base.radiator = { side: 'front', ids: base.mounts.filter((m) => m.side === 'front').map((m) => m.id), rect: base.mounts.find((m) => m.side === 'front')!.rect };
+    const tag = airflowModel(base).tags.find((t) => t.id === 'loop');
+    expect(tag?.text).toContain('RAD 120 W');
+    expect(tag?.text).toContain('COOLANT 41');
+    expect(tag?.text).toContain('WARMS THE CASE');
+    expect(airflowModel(running(60)).tags.find((t) => t.id === 'loop')).toBeUndefined();
   });
 
   it('the zones carry the air of their area from the sim into the field (flow and the cards warming it); a machine that is off carries none', () => {
