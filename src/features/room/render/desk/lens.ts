@@ -1,7 +1,10 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { currentTextResolution } from '@/core/render/camera';
-import { BAY_CELLS, FAN_HUB, HUB_POWER_Y, PC_POWER, POWER_LEAD_X, PSU, type Rect } from '@/features/board/render/layout/layout';
+import { assignLeads } from '@/features/board/sim/cables';
+import { getSpec } from '@/features/board/sim/specs';
+import { atx12vSlots, pcieFeed } from '@/features/board/render/layout/pins';
+import { BAY_CELLS, FAN_HUB, GEO, HUB_POWER_Y, PC_POWER, POWER_LEAD_X, PSU, type Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Cable, type Lane } from '@/features/board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
@@ -26,7 +29,7 @@ export interface LensCord { kind: 'pcmains' | 'monmains'; connected: boolean; /*
 export interface LensIn {
   s: Snapshot;
   cords: LensCord[];
-  /** The PSU's cables to the board (`buildCables`): `atx`, `cpu` (and `pcie` when the board has the connector). */
+  /** The PSU's cables to the board (`buildCables`): `atx`, `cpu` and one `pcie`.. lead for each card socket that takes one. */
   cables: Cable[];
   /** Slot id to its world rect (`scene.slots`). */
   slots: Map<string, Rect>;
@@ -46,7 +49,10 @@ export function lensModel(i: LensIn): LensModel {
   const monW = sum(dev(['display'])), cpuW = sum(dev(['cpu'])), sataSlots = new Set(s.storage.filter((d) => d.slot.startsWith('sata')).map((d) => d.slot));
   const sataW = sum(s.devices.filter((d) => sataSlots.has(d.slot)).map((d) => (on ? d.powerW : 0)));
   const pcW = on ? Math.max(0, s.power.totalW - monW) : 0;
-  const atxW = Math.max(0, pcW - cpuW - sataW);
+  // the PCIe leads: a card takes its draw in equal shares from the slot and each of its leads, the rest of the board's draw comes over the 24-pin
+  const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)?.loadW ?? 0, w: on ? d.powerW : 0 }));
+  const leadW = new Map(assignLeads(cards).map((l) => { const c = cards.find((q) => q.slot === l.slot)!; return [l.lead as string, c.w / (assignLeads([c]).length + 1)] as const; }));
+  const atxW = Math.max(0, pcW - cpuW - sataW - sum([...leadW.values()]));
   const hasPsu = s.devices.some((d) => d.kind === 'psu');
   const conn = (id: string) => !!s.cables.find((c) => c.id === id)?.connected;
   const state = (connected: boolean, w: number): FlowState => (!connected ? 'missing' : w > 0.05 ? 'on' : 'idle');
@@ -66,14 +72,15 @@ export function lensModel(i: LensIn): LensModel {
   // the PSU's cables to the board
   const board = new Map<string, Pt>();
   for (const cb of i.cables) {
-    if (cb.kind !== 'atx' && cb.kind !== 'cpu') continue;
-    const w = cb.kind === 'atx' ? atxW : cpuW, connected = conn(cb.kind), end = cb.path.pts[cb.path.pts.length - 1]!;
-    board.set(cb.kind, end);
+    const lead = cb.kind.startsWith('pcie');
+    if (cb.kind !== 'atx' && cb.kind !== 'cpu' && !lead) continue;
+    const w = cb.kind === 'atx' ? atxW : cb.kind === 'cpu' ? cpuW : leadW.get(cb.kind) ?? 0, connected = conn(cb.kind), end = cb.path.pts[cb.path.pts.length - 1]!;
+    if (!lead) board.set(cb.kind, end);
     if (!hasPsu) continue;
     flows.push({ id: cb.kind, pts: cb.path.pts, watts: connected ? w : 0, state: state(connected, w) });
     if (!connected) {
       marks.push({ id: `${cb.kind}.mark`, at: end, r: 260, tone: 'warn' });
-      tags.push({ id: `${cb.kind}.warn`, at: [end[0], end[1] + 360], text: cb.kind === 'atx' ? 'NO MAIN POWER' : 'NO CPU POWER', tone: 'warn', anchor: 'c' });
+      tags.push({ id: `${cb.kind}.warn`, at: [end[0], end[1] + (lead ? -260 : 360)], text: cb.kind === 'atx' ? 'NO MAIN POWER' : lead ? 'NO CARD POWER' : 'NO CPU POWER', tone: 'warn', anchor: 'c' });
     }
   }
   if (hasPsu) tags.push({ id: 'psu', at: [PSU.x + PSU.w - 120, PSU.y + 130], text: `LOAD ${watts(on ? s.power.totalW : 0)} / ${Math.round(s.power.budgetW)} W`, tone: s.power.tripped ? 'warn' : 'watts', anchor: 'r' });
@@ -107,7 +114,15 @@ export function lensModel(i: LensIn): LensModel {
   for (const [kind, g] of groups) {
     const x0 = Math.min(...g.rects.map((r) => r.x)), y0 = Math.min(...g.rects.map((r) => r.y)), x1 = Math.max(...g.rects.map((r) => r.x + r.w)), y1 = Math.max(...g.rects.map((r) => r.y + r.h));
     const from = (kind === 'cpu' ? board.get('cpu') : board.get('atx')) ?? null;
-    if (from && hasPsu && kind !== 'cooler') flows.push({ id: `feed.${kind}`, pts: [from, [(x0 + x1) / 2, (y0 + y1) / 2]], watts: g.w, state: state(true, g.w), branch: true });
+    if (from && hasPsu && (kind === 'gpu' || kind === 'npu' || kind === 'nic')) {
+      // a card in a PCIe slot is fed over the slot rail, the way the board runs it: from the 24-pin down the strip beside it, then west to the slot's tab and along the slot
+      for (const d of s.devices) {
+        const k = d.kind === kind ? Number(/^pcie(\d+)$/.exec(d.slot)?.[1] ?? -1) : -1, rail = GEO.pcie[k];
+        if (!rail) continue;
+        const a = atx12vSlots(GEO.atx), f = pcieFeed(rail), xv = GEO.atx.x - 40, own = cards.find((c) => c.slot === d.slot), w = own ? own.w / (assignLeads([own]).length + 1) : on ? d.powerW : 0;
+        flows.push({ id: `feed.${d.slot}`, pts: roundedPath([a, [xv, a[1]], [xv, f[1]], [rail.x + rail.w / 2, f[1]]], 60, 30) as Pt[], watts: w, state: state(true, w), branch: true });
+      }
+    } else if (from && hasPsu && kind !== 'cooler') flows.push({ id: `feed.${kind}`, pts: [from, [(x0 + x1) / 2, (y0 + y1) / 2]], watts: g.w, state: state(true, g.w), branch: true });
     if (g.w >= 0.05) tags.push({ id: `dev.${kind}`, at: [(x0 + x1) / 2, kind === 'cooler' ? y1 + 120 : y0 - 120], text: `${names[kind] ?? kind.toUpperCase()} ${watts(g.w)}`, tone: 'watts', anchor: 'c' });
   }
   return { flows, tags, marks };

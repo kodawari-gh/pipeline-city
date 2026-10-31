@@ -110,10 +110,10 @@ export const m2Tie = (m: Rect): Rect => ({ x: m.x + 14, y: m.y + 12, w: 100, h: 
 export const xtalPads = (r: Rect, edge: 'n' | 's', half = 10): Pt[] => [-half, half].map((d) => [r.x + r.w / 2 + d, edge === 'n' ? r.y : r.y + r.h] as Pt);
 
 // ---- power connectors ----
-/** The PCIe slot's power tab at its latch end (the 12 V feed of a slot that takes the 6-pin). */
+/** The PCIe slot's power tab at its latch end (the 12 V feed of a slot). */
 export const pcieFeed = (r: Rect): Pt => [r.x + r.w + 10, r.y + r.h / 2];
-/** Where the 6-pin connector's 12 V rail leaves it: the middle of its west side. */
-export const pcieAux = (r: Rect): Pt => [r.x - 6, r.y + r.h / 2];
+/** The ATX connector's lowest 12 V pin on its west column: the slot rail `pwrpcie` leaves from here. */
+export const atx12vSlots = (r: Rect): Pt => [r.x + 75, r.y + r.h - 66];
 /** The four 12 V pins of the CPU's 8-pin connector (the first row of cavities, mouth up): the traces start on the connector's south side. */
 export function cpuPowerPins(r: Rect): Pt[] {
   const pitch = (r.w - 80) / 4;

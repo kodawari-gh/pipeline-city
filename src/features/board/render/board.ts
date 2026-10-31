@@ -15,13 +15,13 @@ import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, type RadiatorFit } 
 import { Interact, isWallCord, type CableInfo, type SceneInfo } from '@/core/render/interact';
 import { CordsView, type CordKind } from './wiring/cords';
 import { FanCordsView } from './wiring/fancords';
-import { isFanCable } from '../sim/cables';
+import { assignLeads, isFanCable } from '../sim/cables';
 import { PowerLens, lensModel } from '../../room/render/desk/lens';
 import { AirflowLens, airflowModel } from '../../room/render/desk/airflow';
 import { AIR_SOURCES } from '../../room/render/desk/airsources';
 import { NetView, nicArt } from '../../network/render/net';
 import { deviceAt } from './wiring/busmap';
-import { cardArt, cardOrigin, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { PLUG_BLOCK, cardArt, cardOrigin, cardPlugs, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { tpmGeo, tpmParts } from '../../tpm/render/tpmlayout';
 import type { TpmScene } from '../../tpm/render/tpmview';
 import { npuGeo, npuParts } from '../../npu/render/npulayout';
@@ -36,7 +36,7 @@ import {
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
-import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './wiring/routes';
+import { buildCables, isPcieKind, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind, type PcieTarget } from './wiring/routes';
 import { Live, type DriveHook, type GlowTarget } from '@/core/render/live';
 import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow, type LodRect } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '../../cpu/render/die/diemotion';
@@ -93,9 +93,10 @@ const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'm
 
 /** The routed cables of the current board tier (geometry only): rebuilt with the scene. */
 let ALL_CABLES = buildCables();
+let PCIE_KEY = '';
 
 /** The matching board connector for each cable (drop target); follows the tier. */
-const connectorOf = (k: CableKind): Rect => (k === 'atx' ? BR.atx : k === 'cpu' ? BR.cpw : k === 'pcie' ? BR.pciew : HDMI_PORT);
+const connectorOf = (c: Cable): Rect => (c.kind === 'atx' ? BR.atx : c.kind === 'cpu' ? BR.cpw : isPcieKind(c.kind) ? { x: c.b.x - PLUG_BLOCK.w / 2, y: c.b.y - 20 - PLUG_BLOCK.up, w: PLUG_BLOCK.w, h: PLUG_BLOCK.h } : HDMI_PORT);
 
 /** View used by the camera keys and exported helpers. */
 let cameraRef: Camera | null = null;
@@ -505,9 +506,19 @@ export async function mountBoard(host: HTMLElement) {
     `${T.dark}|${s?.boardTier ?? 0}|${s?.caseTier ?? 0}|${s ? s.devices.map((d) => `${d.spec}@${d.slot}`).join(',') : ''}|${s?.videoPort ?? 'board'}`;
 
   /** The cables to draw: the video cable's PC end is in the board's HDMI port, or in a graphics card's display port (`Snapshot.videoPort`). */
-  const cablesOf = (s: Snapshot | null, hasPsu: boolean, hasDisplay: boolean, needsPcie: boolean): Cable[] => {
+  /** Where each PCIe lead the snapshot lists plugs in: the sim deals the leads to the working cards in slot order (`assignLeads`), a socket each. */
+  const pcieTargets = (s: Snapshot | null): PcieTarget[] => {
+    const cards = (s?.devices ?? []).filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
+    return assignLeads(cards).filter((l) => s?.cables.some((c) => c.id === l.lead)).map((l) => {
+      const card = cards.find((c) => c.slot === l.slot)!, o = cardOrigin(Number(/\d+$/.exec(l.slot)?.[0] ?? 0), card.visual);
+      return { kind: l.lead, x: o.x + (cardPlugs(card.visual)[l.plug] ?? 0), top: o.y, plug: l.plug };
+    });
+  };
+  const cablesOf = (s: Snapshot | null, hasPsu: boolean, hasDisplay: boolean): Cable[] => {
     const m = /^pcie(\d+)$/.exec(s?.videoPort ?? '');
-    return ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu && (c.kind !== 'pcie' || needsPcie)))
+    const targets = pcieTargets(s), key = JSON.stringify(targets) + LAYOUT_TIER + '|' + LAYOUT_CASE;
+    if (key !== PCIE_KEY) { PCIE_KEY = key; ALL_CABLES = buildCables(targets); }
+    return ALL_CABLES.filter((c) => (c.kind === 'video' ? hasDisplay : hasPsu))
       .map((c) => (c.kind === 'video' && m && s?.cables.find((x) => x.id === 'video')?.connected ? videoCableAt(nicY(Number(m[1]))) : c));
   };
   /** The graphics cards' display ports the video cable could go into (a graphics display only; a burnt card is no port). */
@@ -547,7 +558,7 @@ export async function mountBoard(host: HTMLElement) {
     cords.setRoom(T, roomView.geo);
     fanCords.setRoom(T);
     camera.bounds = roomBox(roomView.geo);
-    ALL_CABLES = buildCables();
+    ALL_CABLES = buildCables(); PCIE_KEY = '';
     boardArt = buildBoard(T, tier);
     boardLayer.addChild(boardArt.root);
     boardArt.labels.visible = false;
@@ -876,8 +887,7 @@ export async function mountBoard(host: HTMLElement) {
       extDrives = storageDevs.filter((d) => slotKind.get(d.slot) !== 'ssd-nvme').map((d) => ({ slot: d.slot }));
     }
 
-    const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie'); // listed only while a card needs the lead (or it is plugged)
-    const cables = cablesOf(s, hasPsu, hasDisplay, needsPcie);
+    const cables = cablesOf(s, hasPsu, hasDisplay);
     live.setScene(T, targets, boardArt.buses, cables, fans, dram, dimms, { psu: hasPsu, display: hasDisplay, gfx: gfxDisplay }, hooks, gpuCards, tpmModules, npuCards);
     sceneKey = keyOf(s);
     cableKey = ''; propsKey = '';
@@ -899,8 +909,7 @@ export async function mountBoard(host: HTMLElement) {
   function syncCables(s: Snapshot | null, force = false) {
     const now = performance.now();
     const hasPsu = !!s?.devices.some((d) => d.kind === 'psu'), hasDisplay = !!s?.devices.some((d) => d.kind === 'display');
-    const needsPcie = (s?.cables ?? []).some((c) => c.id === 'pcie');
-    const cables = cablesOf(s, hasPsu, hasDisplay, needsPcie);
+    const cables = cablesOf(s, hasPsu, hasDisplay);
     const alts = videoAlts(s);
     const states = cables.map((c) => {
       const snapC = s?.cables.find((x) => x.id === c.kind);
@@ -914,12 +923,12 @@ export async function mountBoard(host: HTMLElement) {
     clear(cableLayer); clear(cableExtLayer);
     cableHits = [];
     scene.cables.clear();
-    for (const k of ['atx', 'cpu', 'video', 'pcie'] as const) { scene.interactive.delete('cable.' + k); scene.rects.delete('cable.' + k); }
+    for (const k of ['atx', 'cpu', 'video', 'pcie', 'pcie2', 'pcie3', 'pcie4'] as const) { scene.interactive.delete('cable.' + k); scene.rects.delete('cable.' + k); }
     const connectedKinds = new Set<CableKind>();
     for (const { c, state } of states) {
       const lo = looseCable(c);
       const seated = plugRect(movablePlug(c)), rest = plugRect(lo.plug);
-      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: connectorOf(c.kind), state, ...(c.kind === 'video' ? { alts } : {}) };
+      const info: CableInfo = { kind: c.kind, cable: c, loose: lo, plug: state === 'connected' ? seated : rest, connector: connectorOf(c), state, ...(c.kind === 'video' ? { alts } : {}) };
       scene.cables.set(c.kind, info);
       scene.interactive.add('cable.' + c.kind);
       scene.rects.set('cable.' + c.kind, info.plug);

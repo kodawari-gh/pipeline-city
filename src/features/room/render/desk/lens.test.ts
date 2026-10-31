@@ -45,6 +45,23 @@ describe('the power lens model', () => {
     expect(w('atx') + w('cpu') + w('sata')).toBeCloseTo(w('pcmains'), 6); // what the wall gives the PC is what the cables hand on
   });
 
+  it('a card takes its watts from the slot and its PCIe lead in equal shares; the card is fed along the slot rail and the lead is its own flow', () => {
+    const i = running();
+    const s = { ...i.s, devices: [...i.s.devices, dev({ id: 'gpu', kind: 'gpu', spec: 'gpu2', slot: 'pcie0', powerW: 60 })], cables: [...i.s.cables, { id: 'pcie', name: 'PCIe 1', connected: true }] as Snapshot['cables'] };
+    const cables = buildCables([{ kind: 'pcie', x: -1500, top: 980, plug: 0 }]);
+    i.slots.set('pcie0', { x: -2850, y: 1100, w: 3300, h: 60 });
+    const m = lensModel({ ...i, s, cables });
+    expect(flow(m, 'pcie')).toMatchObject({ state: 'on', watts: 30 });
+    const feed = flow(m, 'feed.pcie0')!;
+    expect(feed.watts).toBe(30);
+    expect(feed.pts.length, 'a routed rail, not a straight line').toBeGreaterThan(3);
+    const w = (id: string) => flow(m, id)!.watts;
+    expect(w('atx') + w('cpu') + w('sata') + w('pcie')).toBeCloseTo(w('pcmains'), 6); // the lead's watts leave the 24-pin's share
+    const open = lensModel({ ...i, s: { ...s, cables: s.cables.map((c) => (c.id === 'pcie' ? { ...c, connected: false } : c)) }, cables });
+    expect(flow(open, 'pcie')).toMatchObject({ state: 'missing', watts: 0 });
+    expect(open.tags.some((t) => t.tone === 'warn' && /CARD POWER/.test(t.text))).toBe(true);
+  });
+
   it('the PC cord runs wall to machine: it ends in the PSU bay', () => {
     const f = flow(lensModel(running()), 'pcmains')!;
     expect(f.pts[0]).toEqual([1000, 8000]); // the plug end first

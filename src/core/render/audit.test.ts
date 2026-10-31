@@ -56,7 +56,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i wiring', (tier) => {
     for (const [name, r] of must) expect(wired(r), `${name} has a trace`).toBe(true);
     // the PSU's cables seat on the board's power connectors
     for (const cable of buildCables()) {
-      const want = cable.kind === 'atx' ? g.atx : cable.kind === 'cpu' ? g.cpw : cable.kind === 'pcie' ? g.pciew : null;
+      const want = cable.kind === 'atx' ? g.atx : cable.kind === 'cpu' ? g.cpw : null; // (a PCIe lead plugs into its card, not the board)
       if (want) { const pr = plugRect(cable.b); expect(pr.x < want.x + want.w && pr.x + pr.w > want.x && pr.y < want.y + want.h && pr.y + pr.h > want.y, `${cable.kind} plug on its connector`).toBe(true); }
     }
   });

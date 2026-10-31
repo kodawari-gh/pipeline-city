@@ -8,7 +8,7 @@ import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
 import { SINK_FAN_R, sinkFanAt } from './layout/pins';
 import { hdmiPlug, rj45Plug } from './layout/ports';
-import { looseCable, movablePlug, offsetLine, type Cable, type Plug } from './wiring/routes';
+import { isPcieKind, looseCable, movablePlug, offsetLine, type Cable, type Plug } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -263,7 +263,8 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   for (let k = 0; k < 6; k++) g.moveTo(u.x + 140 + k * 40, u.y + u.h - 150).lineTo(u.x + 140 + k * 40, u.y + u.h - 70);
   g.stroke({ width: 14, color: T.dark ? '#02040a' : mix(body, '#000000', 0.35), cap: 'round', alpha: 0.7 });
   // output sockets on the top edge: where the cables plug in
-  for (const [x, w, name] of [[PSU_PORTS.pcie, 130, 'PCIe'], [PSU_PORTS.atx, 170, 'ATX 24'], [PSU_PORTS.cpu, 130, 'CPU 8']] as const) {
+  const sockets: Array<readonly [number, number, string]> = [...PSU_PORTS.pcie.slice(0, spec.pcieLeads).map((x, k) => [x, 76, `P${k + 1}`] as const), [PSU_PORTS.atx, 170, 'ATX 24'], [PSU_PORTS.cpu, 130, 'CPU 8']];
+  for (const [x, w, name] of sockets) {
     box(g, x - w / 2, PORT_Y - 4, w, 90, 14, { fill: '#05070b', stroke: accent, lw: 5, sa: 0.7 });
     for (let k = 0; k < Math.floor((w - 40) / 26); k++) g.rect(x - w / 2 + 24 + k * 26, PORT_Y + 18, 14, 38);
     g.fill({ color: T.pin, alpha: 0.7 });
@@ -373,7 +374,7 @@ export function monitorArt(T: Theme, on: boolean, gfx = false): Part {
 }
 
 // ---------------------------------------------------------------- cables (PSU to board, board to monitor)
-export const ACCENT = (T: Theme, k: Cable['kind']) => (k === 'atx' ? T.ld : k === 'cpu' ? T.alu : k === 'pcie' ? T.br : T.st);
+export const ACCENT = (T: Theme, k: Cable['kind']) => (k === 'atx' ? T.ld : k === 'cpu' ? T.alu : isPcieKind(k) ? T.br : T.st);
 
 export function plugRect(p: Plug): Rect {
   return p.dx !== 0

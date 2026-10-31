@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, Text, Texture, type Renderer } from 'pixi.js';
-import { getSpec } from '../../features/board/sim/specs';
+import { assignLeads, getSpec } from '../../features/board/sim';
 import { IRQ } from '../sim/memmap';
 import type { Snapshot } from '../../worker/protocol';
 import type { KeyActivity } from '../../worker/game/game';
@@ -704,13 +704,20 @@ export class Live {
     const level = (w: number) => (flow && s.power.budgetW > 0 ? clamp(Math.sqrt(w / s.power.budgetW) * 1.15) : 0);
     const cpuW = cpu?.powerW ?? 0;
     const ramW = s.devices.filter((d) => d.kind === 'ram').reduce((a, d) => a + d.powerW, 0);
-    const cardW = s.devices.filter((d) => /^pcie\d+$/.test(d.slot)).reduce((a, d) => a + d.powerW, 0); // what the cards in the slots draw, through the 6-pin
+    const cardW = s.devices.filter((d) => /^pcie\d+$/.test(d.slot)).reduce((a, d) => a + d.powerW, 0); // what the cards in the slots draw: the slot rail's glow
+    // each PCIe lead carries an equal share of its card's draw with the slot (a card with two leads: a third each)
+    const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt);
+    const leadW = new Map<string, number>();
+    for (const l of assignLeads(cards.map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)?.loadW ?? 0 })))) {
+      const d = cards.find((c) => c.slot === l.slot)!, n = assignLeads([{ slot: d.slot, loadW: getSpec(d.spec)?.loadW ?? 0 }]).length;
+      leadW.set(l.lead, d.powerW / (n + 1));
+    }
     const lv: Partial<Record<BusKind, number>> = {
       pwrcpu: level(cpuW), vcore: level(cpuW), pwr12: level(s.power.totalW * 0.55), vdimm: level(ramW + 0.5), pwrpcie: level(cardW),
     };
     for (const [id, v] of Object.entries(lv) as [BusKind, number][]) { const l = this.lit.get(id); if (l) l.hold = v; }
     for (const lc of this.cables) {
-      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : level(cardW);
+      lc.target = lc.cable.kind === 'cpu' ? level(cpuW) : lc.cable.kind === 'atx' ? level(s.power.totalW * 0.6) : level(leadW.get(lc.cable.kind) ?? 0);
       if (!this.connected.has(lc.cable.kind)) lc.target = 0;
     }
 

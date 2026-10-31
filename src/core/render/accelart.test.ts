@@ -4,8 +4,8 @@ import { Container, Graphics } from 'pixi.js';
 // Text needs a canvas, which the tests do not have: labels are empty containers here (as in art.test.ts).
 vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), label: () => new Container() }));
 
-import { specsOfKind } from '../../features/board/sim/specs';
-import { cardArt, cardOrigin, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
+import { cardLeads, specsOfKind } from '../../features/board/sim/specs';
+import { PLUG_BLOCK, cardArt, cardOrigin, cardPlugs, cardRect, CARD_LEN, gpuCover, headerRect, tpmArt, tpmHeader, tpmRect } from './accelart';
 import { CARD_H, gpuPlan, GPU_H } from '../../features/gpu/render/gpulayout';
 import { setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
@@ -53,7 +53,15 @@ describe('accelerator art', () => {
     // a Graphics holds every fan as circle paths: the bigger card has more instructions to draw
     const size = (v: string) => (cardArt(DARK, v, 0).children[0] as unknown as { context: { instructions: unknown[] } }).context.instructions.length;
     expect(size('gpu-3')).toBeGreaterThan(size('gpu-1'));
-    expect(size('npu-2')).toBeGreaterThan(size('npu-1'));
+    expect(size('npu-2')).toBeGreaterThanOrEqual(size('npu-1')); // (no power socket on either: both run on slot power)
+  });
+
+  it('a card has one power socket for each PCIe lead it takes, on its own length', () => {
+    for (const s of [...specsOfKind('gpu'), ...specsOfKind('npu')]) {
+      const plugs = cardPlugs(s.visual);
+      expect(plugs, s.id).toHaveLength(cardLeads(s));
+      for (const x of plugs) expect(x > 0 && x + PLUG_BLOCK.w / 2 < CARD_LEN[s.visual]!, `${s.id} socket on the card`).toBe(true);
+    }
   });
 
   it('a GPU on the board leaves its cover and blades to the view; a still picture draws them in', () => {

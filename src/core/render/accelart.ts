@@ -23,6 +23,13 @@ const CARD_H: Record<string, number> = { ...GPU_H, ...NPU_H };
 /** How far a card's north edge is above its slot's rail: a graphics card and an AI card hang mostly below the rail (away from the CPU), the rest sit centred. */
 const cardTop = (visual: string): number => (visual.startsWith('gpu') || visual.startsWith('npu') ? CARD_TOP : (CARD_H[visual] ?? 200) / 2);
 
+/** Where a card's power sockets sit: the x of each socket's centre from the card's west edge, and the y of its top from the card's north edge. One per PCIe lead the card takes (`cardLeads`). */
+export const cardPlugs = (visual: string): number[] => {
+  const L = CARD_LEN[visual] ?? 1500;
+  return visual === 'gpu-3' ? [L - 90, L - 230] : visual === 'gpu-2' ? [L - 90] : [];
+};
+export const PLUG_BLOCK = { w: 120, h: 44, up: 10 };
+
 /** The board-space rectangle of a card in PCIe slot `i`: what a click or hover on it hits. */
 export const cardRect = (i: number, visual: string): Rect => {
   const h = CARD_H[visual] ?? 200;
@@ -93,8 +100,7 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     for (const f of p.fans) edgeFan(g, T, moveRect(f, o), false, '#1d2536', mix(T.alu, T.bg, 0.4)); // the case fans' look, edge-on
     g.rect(o.x + p.shroud.x + 14, o.y + p.shroud.y + p.shroud.h - 10, p.shroud.w - 28, 6);
     g.fill({ color: T.alu, alpha: 0.9 });
-    box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 });
-    if (visual === 'gpu-3') box(g, x0 + L - 290, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the second lead
+    for (const px of cardPlugs(visual)) box(g, x0 + px - PLUG_BLOCK.w / 2, top - PLUG_BLOCK.up, PLUG_BLOCK.w, PLUG_BLOCK.h, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // the power sockets: a lead plugs in here
     // bracket with the display outputs
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     for (let k = 0; k < 3; k++) box(g, NIC_BRACKET_X - 54, y - 70 + k * 52, 54, 34, 4, { fill: '#05070c', stroke: T.line, lw: 3 });
@@ -114,12 +120,11 @@ export function cardArt(T: Theme, visual: string, i: number, live = false): Cont
     }
     root.addChild(label(visual.toUpperCase().replace('-', ' '), x0 + 18, top + 142, 30, T.alu, { head: true, a: 0.9 }));
   } else {
-    // the matrix unit: its die lies under a lid (npuCover; the board's view fades it away and draws the die), the bigger card has a power lead
+    // the matrix unit: its die lies under a lid (npuCover; the board's view fades it away and draws the die); it runs on slot power
     const geo = npuGeo(visual), K = geo.grid, d = geo.die;
     for (let k = 0; k < 4; k++) { g.rect(x0 + 40 + k * 34, top + 12, 18, 30); g.rect(x0 + 40 + k * 34, top + H - 42, 18, 30); }
     g.fill({ color: mix(pcb, '#000000', 0.45) });
     box(g, x0 + d.x - 12, top + d.y - 12, d.w + 24, d.h + 24, 12, { fill: mix(pcb, '#000000', 0.5) });
-    if (visual === 'npu-2') box(g, x0 + L - 150, top - 10, 120, 44, 6, { fill: '#05070c', stroke: T.line, lw: 3 }); // its power lead
     box(g, NIC_BRACKET_X, top - 10, 30, H + 20, 4, { fill: T.dark ? '#aab4c9' : '#d6dce8', stroke: T.line, lw: 4 });
     disc(g, NIC_BRACKET_X - 20, y, 11, { fill: '#05070c', stroke: T.line, lw: 3, sa: 0.7 });
     root.addChild(label(`NPU ${K}x${K}`, x0 + 200, top + 24, 28, T.alu, { head: true, a: 0.9 }));

@@ -181,7 +181,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, skin.armor > 0, i === 0));
   // every other slot's supply ties into the board's plane: a tab at its latch end, a stub to a patch of copper stitched with vias
   geo.pcie.forEach((r, i) => {
-    if (i === 0 && geo.pciew) return;
+    if (i === 0) return; // the x16 slot's supply arrives on the rail `pwrpcie` from the 24-pin
     const f = pcieFeed(r), t = slotTie(r, i), down = i === 0, tx = t.x + t.w / 2;
     // the tab: at the latch end, or (the x16 slot, whose east side is the lanes') on its bottom edge above the patch
     const tab = down ? { x: tx - 16, y: r.y + r.h - 14, w: 32, h: 28 } : { x: f[0] - 22, y: f[1] - 14, w: 32, h: 28 };
@@ -192,8 +192,8 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.fill({ color: P.via, alpha: 0.7 });
     box(g, tab.x, tab.y, tab.w, tab.h, 6, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 3, sa: 0.8 });
   });
-  // the x16 slot's 12 V tab at its latch end, where the 6-pin's rail arrives
-  if (geo.pciew && geo.pcie[0]) { const f = pcieFeed(geo.pcie[0]); box(g, f[0] - 22, f[1] - 18, 44, 36, 8, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 4, sa: 0.8 }); }
+  // the x16 slot's 12 V tab at its latch end, where the rail from the 24-pin arrives
+  if (geo.pcie[0]) { const f = pcieFeed(geo.pcie[0]); box(g, f[0] - 22, f[1] - 18, 44, 36, 8, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 4, sa: 0.8 }); }
   geo.pcie.forEach((r) => pcieRelease(c, r)); // after the power tabs: the button stands above them
 
   // ---- M.2: the connector at the west end, a standoff for the stick's far end ----
@@ -258,7 +258,6 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   // filter capacitors beside the 24-pin
   for (let k = 0; k < (tier === 0 ? 2 : 3); k++) cap(c, geo.atx.x - 140, geo.atx.y + 330 + k * 190, 62);
   powerConn(c, geo.cpw, 4, 2, 'CPU 8-PIN', 'n', 1, [geo.cpw.x, geo.cpw.y + geo.cpw.h + 44, 0]);
-  if (geo.pciew) powerConn(c, geo.pciew, 2, 3, 'PCIe 6-PIN', 'e', 0.55);
 
   // ---- battery ----
   {

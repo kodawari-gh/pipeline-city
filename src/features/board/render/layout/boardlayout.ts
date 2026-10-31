@@ -44,8 +44,6 @@ export interface TierGeo {
   bat: Rect;
   /** 8-pin CPU power connector (top edge, mouth up) and the 24-pin (east edge, mouth east). */
   cpw: Rect; atx: Rect;
-  /** PCIe auxiliary power (east edge) only when the board has PCIe slots. */
-  pciew: Rect | null;
   // ---- CPU VRM: a row of phase blocks above the CPU, a PWM controller at its west end ----
   vrm: Rect; pwm: Rect; vrmPhases: Rect[]; vrmSink: Rect; vrmLed: Pt;
   /** Where the 8-pin's power enters the input rail, and the rail's y. */
@@ -104,16 +102,16 @@ export const ioPort = (id: string): IoPort => IO_PORTS.find((p) => p.id === id)!
 
 interface Spec {
   tier: number; form: string; bd: Rect; x0: number; phases: number; dphases: number; dimms: number; pcie: number; m2Y: number[]; sata: number;
-  usb: number; dp: boolean; west: { slots: number[]; bios: number; sio: number }; chip: Rect; pciewY: number | null; /** vertical pitch of the SATA ports (the top board packs eight) */ satap?: number;
+  usb: number; dp: boolean; west: { slots: number[]; bios: number; sio: number }; chip: Rect; /** vertical pitch of the SATA ports (the top board packs eight) */ satap?: number;
 }
 
 const SPECS: Spec[] = [
-  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5800, 3900), x0: 1480, phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(540, 1000, 460, 460), pciewY: null },
-  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4800), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(430, 1500, 540, 540), pciewY: 1000 },
+  { tier: 0, form: 'mini-ITX', bd: R(-3400, -2150, 5800, 3900), x0: 1480, phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(540, 1000, 460, 460) },
+  { tier: 1, form: 'micro-ATX', bd: R(-3400, -2350, 5800, 4800), x0: 1450, phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(430, 1500, 540, 540) },
   // the first M.2 sits east of the CPU (a straight run from its east edge), the second below it
-  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 6060), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600), pciewY: 1000 },
+  { tier: 2, form: 'ATX', bd: R(-3400, -2500, 6800, 6060), x0: 1450, phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [560, 1100], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600) },
   // the second DIMM row takes the space east of the CPU, so the M.2 stack starts below it
-  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), pciewY: 1000 },
+  { tier: 3, form: 'E-ATX', bd: R(-3400, -2500, 6800, 6700), x0: 1450, phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1650, 2050, 2450], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700) },
 ];
 
 /** Rail lengths going down the board, widest slot first. The lengths stop before the M.2 area; the first one ends east of the CPU's x16 lanes
@@ -204,7 +202,6 @@ function build(s: Spec): TierGeo {
     phy: s.tier >= 1 ? R(-2300, -1690, 220, 260) : null, // eight legs: the jack's four pads sit on the middle ones
     bat,
     cpw, atx,
-    pciew: s.pciewY === null ? null : R(east - 300, s.pciewY, 300, 330),
     vrm, pwm, vrmPhases, vrmSink, vrmLed: { x: pwm.x + 105, y: pwm.y - 62 },
     vrmRailY: -1752,
     dvrm, dPhases, dSink, vdimmY, dRailY: dy - 70,

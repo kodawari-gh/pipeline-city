@@ -4,8 +4,8 @@ import { TIER_GEO } from './boardlayout';
 import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_FAN, REAR_FAN_FITTED, TOP_FANS, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, VENTS, BAY, BAY_CELLS, SATA_LINK, BD, CASE, CASE_GLASS, GEO, PKG, HDMI_PORT, PORT_Y, PSU, SOCKET_E, WORLD, setLayoutTier, type Rect } from './layout';
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
-import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane } from '../wiring/routes';
-import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, pcieAux, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
+import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
+import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, atx12vSlots, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { IO_PORTS, ioPort } from './boardlayout';
 import { plugRect } from '../devices';
 
@@ -50,7 +50,6 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
     g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
     for (const h of g.hdrs) parts.push([`hdr_${h.name}`, { x: h.x, y: h.y, w: h.cols * 52 + 24, h: h.rows * 52 + 24 }]);
-    if (g.pciew) parts.push(['pciew', g.pciew]);
     if (g.phy) parts.push(['phy', g.phy]);
     if (g.hex) parts.push(['hex', g.hex]);
     if (g.qr) parts.push(['qr', g.qr]);
@@ -231,8 +230,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(clk.lanes.length).toBe(4);
     clk.lanes.slice(0, 2).forEach((l, k) => { hit(l.pts[0]!, xtalPads(g.xtalCpu, 'n'), 'cpu clock starts on a crystal pad'); hit(end(l), pkgPads(PKG, 's', xtalPads(g.xtalCpu, 'n')[0]![0] + 10, 2), `cpu clock ${k} ends on a package pin`); });
     clk.lanes.slice(2).forEach((l) => { hit(l.pts[0]!, xtalPads(g.xtalPch, 's', 13), 'chipset clock starts on a crystal pad'); hit(end(l), legsOf(g.chip, 'n'), 'chipset clock ends on a north leg'); });
-    if (g.pciew && g.pcie[0]) { const l = ids('pwrpcie')[0]!.lanes[0]!; hit(l.pts[0]!, [pcieAux(g.pciew)], 'the rail leaves the 6-pin'); hit(end(l), [pcieFeed(g.pcie[0])], 'the rail ends on the x16 slot tab'); }
-    else expect(ids('pwrpcie').length).toBe(0);
+    { const l = ids('pwrpcie')[0]!.lanes[0]!; hit(l.pts[0]!, [atx12vSlots(g.atx)], 'the slot rail leaves the 24-pin'); hit(end(l), [pcieFeed(g.pcie[0]!)], 'the rail ends on the x16 slot tab'); }
     // the top board's debug display and RGB strip
     if (g.dbg) for (const l of ids('dbg')[0]!.lanes) { hit(l.pts[0]!, legsOf(g.chip, 's'), 'dbg starts on a chipset leg'); expect(end(l)[1]).toBeCloseTo(g.dbg.y, 5); expect(end(l)[0] > g.dbg.x && end(l)[0] < g.dbg.x + g.dbg.w).toBe(true); }
     else expect(ids('dbg').length).toBe(0);
@@ -348,7 +346,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.pcie.forEach((r, i) => parts.push([`pcie${i}`, r]));
     g.sata.forEach((r, i) => parts.push([`sata${i}`, r]));
     g.m2.forEach((r, i) => parts.push([`m2_${i}`, r]));
-    for (const [n, r] of [['pciew', g.pciew], ['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
+    for (const [n, r] of [['phy', g.phy], ['hex', g.hex], ['qr', g.qr]] as const) if (r) parts.push([n, r]);
     g.holes.forEach(([hx, hy], i) => {
       const p: [number, number] = [hx, hy];
       for (const [name, r] of parts) expect(rectDist(p, r), `hole ${i} vs ${name}`).toBeGreaterThan(R);
@@ -362,13 +360,30 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('seats every cable plug on its connector', () => {
     const g = sockets();
     const cables = buildCables();
-    const conn: Record<string, Rect | null> = { atx: g.atx, cpu: g.cpw, pcie: g.pciew, video: { x: HDMI_PORT.x - 20, y: HDMI_PORT.y - 20, w: HDMI_PORT.w + 40, h: HDMI_PORT.h + 40 } };
+    const conn: Record<string, Rect | null> = { atx: g.atx, cpu: g.cpw, video: { x: HDMI_PORT.x - 20, y: HDMI_PORT.y - 20, w: HDMI_PORT.w + 40, h: HDMI_PORT.h + 40 } };
     for (const c of cables) {
       const want = conn[c.kind];
       expect(want, `${c.kind} has a connector on this board`).toBeTruthy();
       expect(overlap(plugRect(movablePlug(c)), want!), `${c.kind} plug sits on its connector`).toBe(true);
     }
-    expect(cables.some((c) => c.kind === 'pcie')).toBe(!!g.pciew);
+    expect(cables.some((c) => c.kind.startsWith('pcie')), 'no card, no PCIe lead').toBe(false);
+  });
+
+  it('plugs every PCIe lead into a power socket of its card, on its own PSU socket, with no two leads crossing', () => {
+    sockets();
+    // a two-socket card in slot 0 and a one-socket card in slot 1: leads 1, 2 and 3
+    const targets: PcieTarget[] = [
+      { kind: 'pcie', x: -3400 + 2000, top: 980, plug: 0 }, { kind: 'pcie2', x: -3400 + 1860, top: 980, plug: 1 }, { kind: 'pcie3', x: -3400 + 1500, top: 1680, plug: 0 },
+    ];
+    const cables = buildCables(targets).filter((c) => c.kind.startsWith('pcie'));
+    expect(cables.map((c) => c.kind).sort()).toEqual(['pcie', 'pcie2', 'pcie3']);
+    for (const c of cables) {
+      const t = targets.find((q) => q.kind === c.kind)!, pr = plugRect(c.b);
+      expect(pr.x < t.x && pr.x + pr.w > t.x && Math.abs(c.b.y - (t.top + 20)) < 1, `${c.kind} plug sits on its card socket`).toBe(true);
+      expect(PSU_PORTS.pcie.some((x) => x === c.a.x), `${c.kind} leaves a PSU socket`).toBe(true);
+    }
+    expect(new Set(cables.map((c) => c.a.x)).size, 'one PSU socket each').toBe(cables.length);
+    for (let i = 0; i < cables.length; i++) for (let j = i + 1; j < cables.length; j++) expect(lanesCross(cables[i]!.path, cables[j]!.path), `leads ${i} and ${j} cross`).toBe(false);
   });
 
   it('puts a drive-cage cell, with a short cable that crosses no other, for every SATA port', () => {
@@ -390,7 +405,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
   it('lays the PSU out: the unit under the cable sockets, the shroud with the readout and the vents beside it, nothing overlapping', () => {
     sockets();
     expect(inside(PSU_UNIT, PSU)).toBe(true);
-    for (const x of [PSU_PORTS.pcie, PSU_PORTS.atx, PSU_PORTS.cpu]) expect(x > PSU_UNIT.x && x < PSU_UNIT.x + PSU_UNIT.w, 'socket on the unit').toBe(true);
+    for (const x of [...PSU_PORTS.pcie, PSU_PORTS.atx, PSU_PORTS.cpu]) expect(x > PSU_UNIT.x && x < PSU_UNIT.x + PSU_UNIT.w, 'socket on the unit').toBe(true);
     const fan = { x: PSU_FAN.x - PSU_FAN.r - 70, y: PSU_FAN.y - PSU_FAN.r - 70, w: 2 * PSU_FAN.r + 140, h: 2 * PSU_FAN.r + 140 };
     for (const [n, r] of [['fan', fan], ['label', PSU_LABEL]] as const) expect(inside(r, PSU_UNIT), `${n} on the unit`).toBe(true);
     expect(overlap(fan, PSU_LABEL), 'fan and label').toBe(false);

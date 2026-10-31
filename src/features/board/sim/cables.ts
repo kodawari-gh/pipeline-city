@@ -116,22 +116,25 @@ export function cableNeeded(board: Board, id: CableId): boolean {
 /** How many PCIe power leads are plugged. */
 export const pcieLeadsPlugged = (cables: Cables): number => PCIE_LEADS.filter((id) => cables[id]).length;
 
-/** Leads this card needs: those of the cards before it (by slot) and its own, so the leads fill the cards in slot order. Returns [first, last] lead numbers, 1-based; first > last for a card on slot power only. */
-function leadRange(board: Board, dev: InstalledDevice): [number, number] {
-  let used = 0;
-  const cards = board.devices.filter((d) => !d.burnt && (deviceSpec(d).kind === "gpu" || deviceSpec(d).kind === "npu")).sort((a, b) => a.slot.localeCompare(b.slot));
-  for (const d of cards) {
-    const n = cardLeads(deviceSpec(d));
-    if (d === dev) return [used + 1, used + n];
-    used += n;
+/** One PCIe lead and the card socket it plugs into: the card's slot and which of its sockets (0 = the first). */
+export interface LeadPlug { lead: PcieLeadId; slot: string; plug: number }
+
+/** Deal the leads out to the working cards in slot order, each card taking `cardLeads` of them. The render and the sim share this, so a lead goes to the socket the board shows. */
+export function assignLeads(cards: readonly { slot: string; loadW: number }[]): LeadPlug[] {
+  const out: LeadPlug[] = [];
+  for (const c of [...cards].sort((a, b) => a.slot.localeCompare(b.slot))) {
+    for (let k = 0; k < cardLeads(c); k++) {
+      const lead = PCIE_LEADS[out.length];
+      if (lead) out.push({ lead, slot: c.slot, plug: k });
+    }
   }
-  return [1, 0];
+  return out;
 }
 
 /** Lead cable ids (`pcie`...) that feed this card, in the order of the leads used. */
 export const cardLeadIds = (board: Board, dev: InstalledDevice): PcieLeadId[] => {
-  const [a, b] = leadRange(board, dev);
-  return PCIE_LEADS.slice(a - 1, Math.max(a - 1, b));
+  const cards = board.devices.filter((d) => !d.burnt && (deviceSpec(d).kind === "gpu" || deviceSpec(d).kind === "npu")).map((d) => ({ slot: d.slot, loadW: deviceSpec(d).loadW }));
+  return assignLeads(cards).filter((l) => l.slot === dev.slot).map((l) => l.lead);
 };
 
 /** Is the card fully fed: slot power only, or all its leads plugged? An unfed card does not start. */
@@ -161,7 +164,7 @@ export function pruneCables(board: Board, cables: Cables): CableId[] {
   const off: CableId[] = [];
   for (const c of cablesOf(board)) {
     if (c.from === "router" || c.from === "wall" || c.from === "case") continue;
-    if (cables[c.id] && cableBlocked(board, c.id)) {
+    if (cables[c.id] && (cableBlocked(board, c.id) || (pcieLeadNo(c.id) > pcieLeadsNeeded(board)))) { // (a lead no card takes any more comes off too)
       cables[c.id] = false;
       off.push(c.id);
     }

@@ -43,7 +43,7 @@ const bound = (rs: Rect[]): Rect => {
   return { x: x0, y: y0, w: Math.max(...rs.map((r) => r.x + r.w)) - x0, h: Math.max(...rs.map((r) => r.y + r.h)) - y0 };
 };
 
-export type RegionId = 'vrm' | 'dvrm' | 'pcie' | 'chip' | 'io' | 'atx' | 'cpw' | 'pciew' | 'm2' | 'sata' | 'hex' | 'qr' | 'audio' | 'bat';
+export type RegionId = 'vrm' | 'dvrm' | 'pcie' | 'chip' | 'io' | 'atx' | 'cpw' | 'm2' | 'sata' | 'hex' | 'qr' | 'audio' | 'bat';
 
 /** The tier's geometry (every rect of the board). */
 export let GEO: TierGeo = geoOf(2);
@@ -58,7 +58,7 @@ export let CASE_BD: Rect = GEO.bd;
 
 function regionsOf(g: TierGeo): Record<RegionId, Rect> {
   return {
-    vrm: g.vrm, dvrm: g.dvrm, pcie: bound(g.pcie), chip: g.chip, io: g.io, atx: g.atx, cpw: g.cpw, pciew: g.pciew ?? EMPTY,
+    vrm: g.vrm, dvrm: g.dvrm, pcie: bound(g.pcie), chip: g.chip, io: g.io, atx: g.atx, cpw: g.cpw,
     m2: bound(g.m2), sata: bound(g.sata), hex: g.hex ?? EMPTY, qr: g.qr ?? EMPTY, audio: g.codec, bat: g.bat,
   };
 }
@@ -92,6 +92,8 @@ export { DRAM_BH, DRAM_BW };
 
 // ---- PSU (below the board, full width plus the cable gutter) ----
 export let GUTTER_X = 3400;
+/** The cable gutter is this much wider than it was with one PCIe socket: room for four PCIe leads next to the 24-pin and the 8-pin. */
+const GUTTER_EXTRA = 330;
 /** The lower compartment (PSU, drive bay, cables) moves with the board's height: this is the shift from the ATX board's. */
 export let SHIFT_Y = 0;
 export let PSU: Rect = { x: -3400, y: 2750, w: 7400, h: 1100 };
@@ -105,7 +107,9 @@ export let PSU_PANEL: Rect = { x: 1120, y: 2890, w: 2200, h: 820 };
 export let PSU_UNIT: Rect = { x: 1500, y: 2750, w: 2500, h: 1100 };
 export let VENTS: Rect = { x: -1750, y: 2880, w: 1500, h: 840 };
 /** Output sockets along the PSU's top edge, by cable (x of the socket centre). Inner-to-outer order avoids cable crossings. */
-export let PSU_PORTS: { pcie: number; atx: number; cpu: number } = { pcie: 3520, atx: 3680, cpu: 3830 };
+export let PSU_PORTS: { pcie: number[]; atx: number; cpu: number } = { pcie: [3510, 3600, 3690, 3780], atx: 3920, cpu: 4070 };
+/** The PSU's four PCIe sockets are this far apart; the PSU draws as many as its spec has leads (`PsuSpec.pcieLeads`). */
+export const PCIE_PORT_PITCH = 90;
 export let PORT_Y = PSU.y;
 
 // ---- monitor (west of the board, big, 16:9 screen) ----
@@ -282,8 +286,9 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   const east = cg.bd.x + cg.bd.w, south = cg.bd.y + cg.bd.h, dy = south - 2500;
   SHIFT_Y = dy;
   GUTTER_X = east;
-  PSU_PORTS = { pcie: east + 120, atx: east + 280, cpu: east + 430 };
-  const psuEast = east + 600, psuW = psuEast + 3400;
+  // four PCIe sockets (90 apart, innermost first), then the 24-pin and the 8-pin; the gutter is wide enough for all six cables
+  PSU_PORTS = { pcie: [0, 1, 2, 3].map((k) => east + 110 + k * PCIE_PORT_PITCH), atx: east + 540, cpu: east + 690 };
+  const psuEast = east + 600 + GUTTER_EXTRA, psuW = psuEast + 3400;
   PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
   PC_POWER = { x: IO_X, y: PSU.y + 560 };
@@ -294,14 +299,14 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   PSU_PANEL = { x: PSU.x + 170, y: PSU.y + 140, w: 2200, h: 820 };
   VENTS = { x: PSU_PANEL.x + PSU_PANEL.w + 150, y: PSU.y + 130, w: Math.max(0, PSU_UNIT.x - 70 - 150 - (PSU_PANEL.x + PSU_PANEL.w + 150)), h: 840 };
   // the cage: as many cells as the biggest board the case holds has SATA ports, bottom-aligned with that board
-  const cells = CASE_BAYS[cg.tier] ?? cg.sata.length, cageX = east + 800, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
+  const cells = CASE_BAYS[cg.tier] ?? cg.sata.length, cageX = east + 800 + GUTTER_EXTRA, y0 = south - 100 - (cells - 1) * CELL_PITCH - CELL_H;
   BAY_CELLS = Array.from({ length: cells }, (_, i) => ({ x: cageX, y: y0 + i * CELL_PITCH, w: CELL_W, h: CELL_H }));
   BAY = { x: cageX - 160, y: y0 - 110, w: CELL_W + 240, h: (cells - 1) * CELL_PITCH + CELL_H + 190 };
   POWER_LEAD_X = cageX - 130;
-  FAN_HUB = { x: east + 780, y: south + 470, w: 1400, h: 780 };
+  FAN_HUB = { x: east + 780 + GUTTER_EXTRA, y: south + 470, w: 1400, h: 780 };
   FAN_SLOT = { x: FAN_HUB.x + 60, y: FAN_HUB.y - 230, w: FAN_HUB.w - 120, h: 70 };
   HUB_POWER_Y = south + 760;
-  SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + i * 22 }));
+  SATA_LINK = BAY_CELLS.map((_, i) => ({ plug: 202, col: east + 510 + GUTTER_EXTRA + i * 22 }));
   // the front fans stand in front of the cage, the perforated front panel closes the glass
   const glassEast = cageX + CELL_W + 70 + FAN_W + 20 + 170;
   const ce = glassEast + 160, caseW = ce - IO_X, top = cg.bd.y - (cg.tier === 0 ? 350 : 500) - 400, bottom = south + 1750; // the head room above the board: the top fans' and the 8-pin cable's

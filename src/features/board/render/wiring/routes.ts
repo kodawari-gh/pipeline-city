@@ -4,7 +4,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from '../layout/layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, pcieAux, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, pcieFeed, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from '../layout/pins';
 
 export { MEM_LANES, MEM_SPACING, SATA_LANES };
@@ -497,11 +497,12 @@ export function buildBuses(): Bus[] {
     });
     buses.push(bus);
   }
-  // the PCIe 6-pin's 12 V rail: west from the connector (under the sockets and lanes it meets: it dives under the lanes), up to the x16 slot's
-  // level and into the tab at the slot's latch end
-  if (g.pciew && g.pcie[0]) {
-    const a = pcieAux(g.pciew), f = pcieFeed(g.pcie[0]), xs = f[0] + 90;
-    buses.push({ id: 'pwrpcie', w: 22, lanes: [mkLane(chamfer([a, [xs, a[1]], [xs, f[1]], f], 70), 0)] });
+  // the slot supply: the 24-pin's lowest 12 V pin, west to the strip beside the connector, down that strip to the x16 slot's level, west under the
+  // sockets and lanes it meets (it dives under them) and up into the tab at the slot's latch end. The cards' aux power does not come this way: the
+  // PSU's leads plug into the cards themselves.
+  if (g.pcie[0]) {
+    const a = atx12vSlots(g.atx), f = pcieFeed(g.pcie[0]), xs = f[0] + 90, xv = g.atx.x - 40, yc = f[1] + 35;
+    buses.push({ id: 'pwrpcie', w: 22, lanes: [mkLane(chamfer([a, [xv, a[1]], [xv, yc], [xs, yc], [xs, f[1]], f], 70), 0)] });
   }
   // audio: the codec's west legs (the 1st, 4th and 7th) straight to the pads behind the three jacks; ethernet: the PHY's four middle
   // legs straight to the pads behind the RJ45 (decoration: they never light)
@@ -531,7 +532,14 @@ export function buildBuses(): Bus[] {
 
 // ---------------------------------------------------------------- cables (PSU to board, board to monitor)
 
-export type CableKind = 'atx' | 'cpu' | 'pcie' | 'video';
+/** The PSU's PCIe leads are the cables `pcie`, `pcie2`, `pcie3` and `pcie4` (the sim's `PCIE_LEADS`): each plugs into one power socket of a card. */
+export type PcieKind = 'pcie' | 'pcie2' | 'pcie3' | 'pcie4';
+export type CableKind = 'atx' | 'cpu' | PcieKind | 'video';
+export const PCIE_KINDS: readonly PcieKind[] = ['pcie', 'pcie2', 'pcie3', 'pcie4'];
+export const isPcieKind = (k: string): k is PcieKind => (PCIE_KINDS as readonly string[]).includes(k);
+
+/** Where a PCIe lead plugs in: the card's power socket (`x` its centre), the card's north edge (`top`), and which socket of the card it is (`plug`, 0 = the first). */
+export interface PcieTarget { kind: PcieKind; x: number; top: number; plug: number }
 
 export interface Cable {
   kind: CableKind;
@@ -572,11 +580,11 @@ export function roundedPath(pts: Pt[], r: number, step = 24): Pt[] {
 }
 
 /**
- * The three PSU cables and the video cable. `pcie` is only drawn when a PCIe device needs it (and only on boards with the connector).
- * The 24-pin and the PCIe cable rise through the cable gutter and turn west into the east-edge connectors; the 8-pin cable keeps
+ * The PSU cables and the video cable. A PCIe lead is only drawn for a card socket that takes one (`pcie`: the cards' sockets, in lead order).
+ * The 24-pin cable rises through the cable gutter and turns west into the east-edge connector; the 8-pin cable keeps
  * rising to the top of the case, runs west over the board (the way a real build routes it) and drops onto the connector at the top edge.
  */
-export function buildCables(): Cable[] {
+export function buildCables(pcie: readonly PcieTarget[] = []): Cable[] {
   const psuPlugH = 150;
   const mkc = (kind: CableKind, route: Pt[], w: number, a: Plug, b: Plug, r: number): Cable => ({ kind, path: mkLane(roundedPath(route, r)), w, a, b });
   const plugV = (x: number, y: number, w: number, pins: [number, number]): Plug => ({ x, y, dx: 0, dy: -1, w, l: psuPlugH, pins });
@@ -594,11 +602,16 @@ export function buildCables(): Cable[] {
     out.push(mkc('cpu', [[x, PORT_Y - psuPlugH + 20], [x, yTop], [cx, yTop], [cx, plugBottom - plugL + 24]], 84, plugV(x, PORT_Y, 110, [4, 2]),
       { x: cx, y: plugBottom, dx: 0, dy: -1, w: g.cpw.w - 60, l: plugL, pins: [4, 2] }, 150));
   }
-  // PCIe 6-pin (only when something in a PCIe slot wants it)
-  if (g.pciew) {
-    const x = PSU_PORTS.pcie, y = g.pciew.y + g.pciew.h / 2, plugX = g.pciew.x + 100;
-    out.push(mkc('pcie', [[x, PORT_Y - psuPlugH + 20], [x, y], [plugX + 240, y]], 84, plugV(x, PORT_Y, 110, [3, 2]),
-      { x: plugX, y, dx: 1, dy: 0, w: g.pciew.h - 40, l: 270, pins: [3, 2] }, 190));
+  // PCIe leads: up the gutter, west over the board at a level above the card's socket (the card's second socket one step higher, so its lead
+  // clears the first), down onto the socket (the plug's cable leaves upward). The PSU's sockets are dealt out from the innermost to the lowest
+  // run first, so no lead has to cross another's rise.
+  {
+    const run = (t: PcieTarget) => t.top - 150 - 110 * t.plug, byRun = [...pcie].sort((p, q) => run(q) - run(p));
+    byRun.forEach((t, k) => {
+      const x = PSU_PORTS.pcie[k] ?? PSU_PORTS.pcie[PSU_PORTS.pcie.length - 1]!, y = run(t), plugBottom = t.top + 20, plugL = 240;
+      out.push(mkc(t.kind, [[x, PORT_Y - psuPlugH + 20], [x, y], [t.x, y], [t.x, plugBottom - plugL + 24]], 58, plugV(x, PORT_Y, 74, [3, 2]),
+        { x: t.x, y: plugBottom, dx: 0, dy: -1, w: 96, l: plugL, pins: [3, 2] }, 120));
+    });
   }
   out.push(videoCableAt(VIDEO_Y));
   return out;

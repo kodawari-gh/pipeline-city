@@ -5,7 +5,7 @@ import {
   boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
   findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts, slotFitsWidth, slotRefusal,
-  pcieLeadsNeeded, PCIE_LEADS, specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
+  specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
   type Board, type CableId, type DeviceKind, type DisplaySpec, type InstalledDevice,
 } from "..";
 import { getRouterSpec, ISP_SPECS, ROUTER_SPECS, routerByTier, type RouterSpec } from "@/features/network/sim";
@@ -223,8 +223,6 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
   const r = boardConnect(this.board, this.cables, cable);
   if (!r.ok) return r;
   if (cable === "video") this.video = to;
-  // The board shows one PCIe cable (the PSU's harness): plugging it connects every lead the cards need, as far as the PSU has them.
-  if (cable === "pcie") for (const id of PCIE_LEADS.slice(1, pcieLeadsNeeded(this.board))) boardConnect(this.board, this.cables, id);
   const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress | undefined;
   if (flag) this.progress[flag] = true;
   if (wall) {
@@ -268,7 +266,6 @@ export function disconnectCable(this: Game, cable: string): Result<{ cable: Cabl
   const r = boardDisconnect(this.cables, cable, this.board);
   if (!r.ok) return r;
   if (r.cable === "video") this.video = "board";
-  if (cable === "pcie") for (const id of PCIE_LEADS.slice(1)) this.cables[id] = false; // the whole harness comes out
   this.note("cable", `${cableName(r.cable)} disconnected`);
   if (wall) this.machine.display.connected = this.monitorLive();
   // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
