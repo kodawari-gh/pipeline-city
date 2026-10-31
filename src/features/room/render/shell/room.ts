@@ -248,29 +248,29 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   const lx = geo.lamp.x, hd = geo.lamp.head, p0 = { x: lx + LAMP.pivot.x, y: ys + LAMP.pivot.y }, el = { x: lx + LAMP.elbow.x, y: ys + LAMP.elbow.y };
   // the base: a weighted disc seen from above (its rim and top are ellipses squashed like the mug's) with a hub the arm pivots on
   const rx = LAMP.base, ry = rx * MUG.e, rx2 = rx - 200, ry2 = rx2 * MUG.e;
-  f.ellipse(lx, ys - 8, rx, ry).fill({ color: L.metalLo });
-  f.rect(lx - rx, ys - 208, rx * 2, 200).fill({ color: L.metalLo });
-  f.rect(lx - rx + 40, ys - 208, 70, 200).fill({ color: '#ffffff', alpha: 0.14 });
-  f.ellipse(lx, ys - 208, rx, ry).fill({ color: mix(L.metal, L.metalLo, 0.35) }).stroke({ width: 7, color: L.metal });
-  f.rect(lx - rx2, ys - 328, rx2 * 2, 130).fill({ color: L.metal });
-  f.ellipse(lx, ys - 328, rx2, ry2).fill({ color: mix(L.metal, '#ffffff', 0.15) }).stroke({ width: 6, color: L.metalLo });
-  f.rect(lx - rx2 + 40, ys - 322, 50, 120).fill({ color: '#ffffff', alpha: 0.2 });
-  f.rect(lx + rx2 * 0.55, ys - 322, rx2 * 0.45, 120).fill({ color: '#000000', alpha: 0.14 });
-  f.rect(lx + rx * 0.55, ys - 208, rx * 0.45, 200).fill({ color: '#000000', alpha: 0.16 });
-  f.ellipse(lx, ys - 18, rx, ry).stroke({ width: 8, color: mix(L.metalLo, '#000000', 0.5), alpha: 0.8 });
-  f.ellipse(lx - rx2 * 0.2, ys - 334, rx2 * 0.6, ry2 * 0.5).fill({ color: '#ffffff', alpha: 0.16 });
-  // an arm: a rod with a dark outline, a lit edge and a shaded edge, and beside it the parallel linkage: a thin rod with spring coils and two pins
+  // a drum: straight sides between two heights with its front arc at the bottom, shaded round (a lit streak on the left, darker toward the right)
   const edge = mix(L.metalLo, '#000000', 0.45);
+  const cyl = (yt: number, yb: number, r: number, col: string) => {
+    const arc = (c0: number, c1: number) => { const out: number[] = [], a0 = Math.acos(c0), a1 = Math.acos(c1); for (let k = 0; k <= 10; k++) { const a = a0 + ((a1 - a0) * k) / 10; out.push(lx + r * Math.cos(a), yb + r * MUG.e * Math.sin(a)); } return out; };
+    f.poly([lx - r, yt, lx + r, yt, ...arc(1, -1)]).fill({ color: col }).stroke({ width: 7, color: edge, alpha: 0.9 });
+    for (const [c, al] of [[0.3, 0.1], [0.62, 0.1], [0.88, 0.12]] as const) f.poly([lx + r * c, yt, lx + r, yt, ...arc(1, c)]).fill({ color: '#000000', alpha: al });
+    f.poly([lx - r * 0.9, yt, lx - r * 0.7, yt, ...arc(-0.7, -0.9)]).fill({ color: '#ffffff', alpha: 0.2 });
+  };
+  cyl(ys - 208, ys - 8, rx, L.metalLo);
+  f.ellipse(lx, ys - 208, rx, ry).fill({ color: mix(L.metal, L.metalLo, 0.35) }).stroke({ width: 7, color: mix(L.metal, '#ffffff', 0.2) });
+  cyl(ys - 328, ys - 208, rx2, L.metal);
+  f.ellipse(lx, ys - 328, rx2, ry2).fill({ color: mix(L.metal, '#ffffff', 0.18) }).stroke({ width: 6, color: mix(L.metal, '#ffffff', 0.35) });
+  f.ellipse(lx - rx2 * 0.25, ys - 330, rx2 * 0.5, ry2 * 0.5).fill({ color: '#ffffff', alpha: 0.14 });
+  // an arm: a rod with a dark outline, a lit edge and a shaded edge, and beside it the parallel linkage: a thin plain rod with a pin at each end
   const arm = (a: { x: number; y: number }, b: { x: number; y: number }) => {
     const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, nx2 = -uy, ny2 = ux;
     const line = (o: number, w: number, color: string, alpha = 1) => f.moveTo(a.x + nx2 * o, a.y + ny2 * o).lineTo(b.x + nx2 * o, b.y + ny2 * o).stroke({ width: w, color, alpha, cap: 'round' });
     // the linkage first (behind the rod)
-    line(230, 56, edge, 0.8); line(230, 40, L.metalLo); line(222, 12, '#ffffff', 0.25);
-    for (let t = 120; t < l - 120; t += 64) f.moveTo(a.x + ux * t + nx2 * 206, a.y + uy * t + ny2 * 206).lineTo(a.x + ux * (t + 30) + nx2 * 254, a.y + uy * (t + 30) + ny2 * 254).stroke({ width: 8, color: edge, alpha: 0.55, cap: 'round' });
-    for (const q of [a, b]) f.circle(q.x + nx2 * 230, q.y + ny2 * 230, 42).fill({ color: L.metal }).stroke({ width: 7, color: edge });
+    line(230, 46, edge); line(230, 32, L.metalLo); line(223, 8, '#ffffff', 0.3);
+    for (const q of [a, b]) f.circle(q.x + nx2 * 230, q.y + ny2 * 230, 46).fill({ color: L.metal }).stroke({ width: 7, color: edge });
     // the rod
     line(0, 176, edge); line(0, 160, L.metalLo); line(0, 118, L.metal); line(0, 56, mix(L.metal, '#ffffff', 0.25));
-    line(-34, 14, '#ffffff', 0.45); line(46, 26, '#000000', 0.16);
+    line(-30, 16, '#ffffff', 0.4); line(-66, 8, '#dfe7ff', 0.4); line(48, 28, '#000000', 0.18);
   };
   arm(p0, el); arm(el, hd);
   // the joints: a dark ring, a round knuckle with a lit upper left, a hub with a screw slot
@@ -284,16 +284,18 @@ export function drawLamp(f: Graphics, L: Look, geo: RoomGeo) {
   }
   // the hood: a cone from a collar on the arm's end to a wide mouth, shaded in strips round its axis (lit along the top), a rim, a lit opening
   const mo = geo.lamp.mouth, nx = -LAMP_D.y * SIDE, ny = LAMP_D.x * SIDE, hw = LAMP.hood, nk = LAMP.neck, dx = LAMP_D.x, dy = LAMP_D.y;
-  const HOOD_LO = '#27486b', HOOD = '#3f6a9a', STRIPS = 8;
+  const HOOD_LO = '#27486b', HOOD = '#3f6a9a', STRIPS = 14;
   const at = (u: number, t: number) => [hd.x + nx * nk * u + (mo.x - hd.x) * t - nx * (nk * u) * t + nx * hw * u * t, hd.y + ny * nk * u + (mo.y - hd.y) * t - ny * (nk * u) * t + ny * hw * u * t] as const;
   // the opening: an ellipse whose long axis is the mouth's width (we see it a little from the side)
   const opening: number[] = [];
   for (let k = 0; k < 24; k++) { const a = (k * Math.PI * 2) / 24; opening.push(mo.x + nx * hw * Math.cos(a) + dx * hw * 0.3 * Math.sin(a), mo.y + ny * hw * Math.cos(a) + dy * hw * 0.3 * Math.sin(a)); }
-  f.poly(opening).fill({ color: mix('#ffd68a', HOOD, 0.25) });
+  f.poly(opening).fill({ color: mix(HOOD_LO, '#000000', 0.35) });
+  f.ellipse(mo.x - dx * 60, mo.y - dy * 60, 330, 330).fill({ color: '#b9b7a6' }).stroke({ width: 8, color: '#6f6f68' });
+  f.ellipse(mo.x - dx * 60 - 90, mo.y - dy * 60 - 90, 110, 110).fill({ color: '#ffffff', alpha: 0.35 });
   for (let i = 0; i < STRIPS; i++) {
     const u0 = -1 + (2 * i) / STRIPS, u1 = -1 + (2 * (i + 1)) / STRIPS, c = mix('#6f9fd0', HOOD_LO, Math.min(1, ((i + 0.5) / STRIPS) ** 0.8));
     const p = [at(u0, 0), at(u0, 1), at(u1, 1), at(u1, 0)];
-    f.poly(p.flatMap((q) => [q[0], q[1]])).fill({ color: c });
+    f.poly(p.flatMap((q) => [q[0], q[1]])).fill({ color: c }).stroke({ width: 3, color: c });
   }
   const sp = [at(-0.78, 0.1), at(-0.78, 1), at(-0.62, 1), at(-0.62, 0.1)];
   f.poly(sp.flatMap((q) => [q[0], q[1]])).fill({ color: '#ffffff', alpha: 0.25 });
