@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { hover, selected } from '../../app/hover';
 import { dragging, highlight, overInventory } from '../../app/interaction';
-import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot, uninstall } from '../../app/store';
+import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot, uninstall, uninstallOs } from '../../app/store';
 import type { Snapshot } from '../../worker/protocol';
 import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from '../../features/board/render/devices';
@@ -137,7 +137,7 @@ export class Interact {
     /** Current pointer (client) and world position. */
     cx: number; cy: number; wx: number; wy: number;
     /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
-    /** part lifted off the board: the installed device, and whether the pointer is over the inventory shelf */ dev?: string; overInv?: boolean;
+    /** part lifted off the board: the installed device, whether the pointer is over the inventory shelf, and whether it hosts the OS */ dev?: string; overInv?: boolean; osDrive?: boolean;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
     /** cable */ cable?: CableInfo; snapped?: boolean; /** the video plug over a graphics card's port (its alt) */ alt?: NonNullable<CableInfo['alts']>[number] | null; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
     /** a wall cord: which, where the plug's centre is relative to the pointer, and where the plug is now */ cord?: CordScene['kind']; off?: Pt; at?: Pt;
@@ -377,8 +377,8 @@ export class Interact {
     if (s.powered) { this.toast('Power the machine off first: parts only come out while it is off.', cx, cy); return false; }
     const d = this.start('part', dev.id, cx, cy);
     d.dev = dev.id; d.home = [d.wx, d.wy]; d.overInv = false;
-    // it can be lifted, but not put away: the hint says why, and the drop sends it back with the reason
-    d.why = s.os?.deviceId === dev.id ? 'The OS is on this drive: uninstall the OS first' : null;
+    // the drive that holds the OS: putting it away takes the OS out first (the OS goes back to the inventory, the drive is wiped)
+    d.osDrive = s.os?.deviceId === dev.id;
     dragging.value = { kind: 'part', id: dev.id, fromBoard: true };
     this.setGhost(partIcon(this.T, dev.kind, dev.spec), 1);
     return true;
@@ -539,9 +539,9 @@ export class Interact {
     };
     overInventory.value = false;
     if (d.dev) {
-      if (!cancelled && d.overInv && d.why) { this.toast(d.why, cx, cy); flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy); }
-      else if (!cancelled && d.overInv) {
+      if (!cancelled && d.overInv) {
         this.act(cx, cy);
+        if (d.osDrive) uninstallOs();
         uninstall(d.dev);
         flash('fade', gx, gy);
       } else flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy);
@@ -736,7 +736,7 @@ export class Interact {
       this.ghost.scale.set(sc);
       this.ghost.rotation = 0;
       this.ghost.alpha = 0.92;
-      this.note(d.why && d.overInv ? d.why : d.overInv ? 'Let go to put it in the inventory' : 'Drop on the inventory to unmount it', d.cx, d.cy, d.why && d.overInv ? T.bad : d.overInv ? T.st : T.mute);
+      this.note(d.overInv ? (d.osDrive ? 'Let go to remove the OS (it returns to the inventory) and the drive' : 'Let go to put it in the inventory') : 'Drop on the inventory to unmount it', d.cx, d.cy, d.overInv ? T.st : T.mute);
     } else if (d.kind === 'part') {
       const ok = !d.why;
       for (const [id, r] of [...this.scene.slots, ['board', BD] as [string, Rect], ['case', CASE] as [string, Rect]]) {
