@@ -42,6 +42,21 @@ const LIFE_S = 22;
 /** How far outside the case an intake's air starts, and how fast it is drawn in (world units, and units a second at full fan). */
 /** The last stretch of the way in over which air passing a warm radiator takes its heat (world units). */
 const INTAKE_WARM_RUN = 700;
+/**
+ * How far inside the wall an intake's air is released. A source on the wall is its own mirror image: the wall can only let air run along it, so the air of a front
+ * fan would split up and down the wall. And one point for a fan as tall as the case sends the air entering off its middle straight up or down. So an intake is a
+ * line of sources across its fan, this far inside: the air goes into the case, level, across the whole width of the fan.
+ */
+export const INTAKE_DEPTH = 800, INTAKE_STEP = 450;
+/** Where an intake's air is released into the field: points across its fan, moved in from the wall it is in. A fan of any other kind is its one point. */
+export function sourcesOf(box: Box, p: FieldPort): Pt[] {
+  if (p.kind !== 'in') return [p.pt];
+  const { dx, dy } = outward(box, p.span), s = p.span, along = dx !== 0 ? s.h : s.w, n = Math.max(1, Math.min(10, Math.round(along / INTAKE_STEP)));
+  return Array.from({ length: n }, (_, k): Pt => {
+    const u = (k + 0.5) / n;
+    return dx !== 0 ? [p.pt[0] - dx * INTAKE_DEPTH, s.y + u * s.h] : [s.x + u * s.w, p.pt[1] - dy * INTAKE_DEPTH];
+  });
+}
 export const INTAKE_REACH = { min: 900, max: 1800 }, INTAKE_SPEED = 1100;
 /** The trail: a point is kept every `TRAIL_STEP` world units of path, and the trail is as long as the particle travels in `TRAIL_SECONDS` (at most `TRAIL_MAX`). */
 export const TRAIL_STEP = 40, TRAIL_SECONDS = 0.18, TRAIL_MAX = 320;
@@ -87,7 +102,7 @@ export class AirField {
     const into = src.reduce((a, p) => a + Q_FAN * p.level * (p.kind === 'local' ? 0.18 : 1), 0), outOf = snk.reduce((a, p) => a + Q_FAN * p.level, 0);
     const scale = outOf > 0 ? into / outOf : 0;
     this.strengths = [
-      ...src.map((p) => ({ x: p.pt[0], y: p.pt[1], q: Q_FAN * p.level * (p.kind === 'local' ? 0.18 : 1) })),
+      ...src.flatMap((p) => { const at = sourcesOf(input.box, p); return at.map((q) => ({ x: q[0], y: q[1], q: (Q_FAN * p.level * (p.kind === 'local' ? 0.18 : 1)) / at.length })); }),
       ...snk.map((p) => ({ x: p.pt[0], y: p.pt[1], q: -Q_FAN * p.level * scale })),
     ];
     this.in_ = input;
@@ -134,7 +149,7 @@ export class AirField {
           // the air comes from outside: it starts beyond the wall the fan is in and is drawn straight in through it
           const { dx, dy } = outward(box, s), d = INTAKE_REACH.min + Math.random() * (INTAKE_REACH.max - INTAKE_REACH.min), lane = dx !== 0 ? s.y + r * s.h : s.x + r * s.w;
           const x = dx !== 0 ? (dx > 0 ? s.x + s.w : s.x) + dx * d : lane, y = dx !== 0 ? lane : (dy > 0 ? s.y + s.h : s.y) + dy * d;
-          this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: p.pt, warm: p.warm ?? 0 } });
+          this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: (dx !== 0 ? [p.pt[0] - dx * INTAKE_DEPTH, lane] : [lane, p.pt[1] - dy * INTAKE_DEPTH]) as Pt, warm: p.warm ?? 0 } });
           continue;
         }
         const x = p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.pt[1] + (Math.random() - 0.5) * s.h * 0.5; // a part's own fan stirs the air where it stands

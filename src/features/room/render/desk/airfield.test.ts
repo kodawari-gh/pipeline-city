@@ -46,10 +46,21 @@ describe('the air field', () => {
   it('an intake that is warm (a radiator in front) lets warm air in: cold outside, warm once through the fan', () => {
     const f = new AirField(), i = input([{ ...inlet(), warm: 0.8 }, exhaust()]);
     for (let k = 0; k < 600; k++) f.step(1 / 30, i);
-    const far = f.parts.filter((p) => p.inb && p.x > box.x + box.w + 1200), through = f.parts.filter((p) => !p.inb && p.x > 6500 && p.x < 7700);
+    const far = f.parts.filter((p) => p.inb && p.x > box.x + box.w + 1200), through = f.parts.filter((p) => !p.inb && p.x > 4500);
     for (const p of far) expect(p.heat).toBe(0);
     expect(through.length).toBeGreaterThan(0);
     expect(Math.max(...through.map((p) => p.heat))).toBeGreaterThan(0.5);
+  });
+
+  it('air that has come in through a tall front fan goes into the case across its whole height, not up and down along the wall', () => {
+    const tall: FieldPort = { ...inlet(), span: { x: 7700, y: 300, w: 260, h: 5400 } }, f = new AirField(); // a radiator or a bank of fans: the whole height of the front
+    const top: FieldPort = { id: 'top0', kind: 'out', pt: [3000, 0], span: { x: 2500, y: -100, w: 1000, h: 170 }, level: 1 };
+    f.step(0.01, input([tall, exhaust(), top]));
+    for (const y of [900, 1800, 3000, 4200, 5100]) {
+      const [vx, vy] = f.velocity(7000, y); // 800 inside the wall
+      expect(vx, `y ${y}`).toBeLessThan(0); // west, into the case
+      expect(Math.abs(vy), `y ${y}`).toBeLessThan(0.6 * Math.abs(vx)); // within about 30 degrees of straight in
+    }
   });
 
   it('with no exhaust nothing is drawn out: the air through the middle of the case is slower than with one, and nothing is absorbed', () => {
