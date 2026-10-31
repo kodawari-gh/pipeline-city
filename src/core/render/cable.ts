@@ -261,15 +261,21 @@ export function drape(route: Pt[], o: DrapeOpts = {}): { path: Pt[]; clips: Clip
   const path = roundedPath(route, o.radius ?? 520, step);
   const pinAt = (w: Pt) => { let k = 0, best = Infinity; path.forEach((p, i) => { const d = Math.hypot(p[0] - w[0], p[1] - w[1]); if (d < best) { best = d; k = i; } }); return k; };
   const idx = [0, ...(o.clips ?? []).map(pinAt), path.length - 1].sort((a, b) => a - b);
-  const sag = o.sag ?? 0.05;
+  const sag = o.sag ?? 0.05, orig = path.map((p) => [p[0], p[1]] as Pt);
   for (let s = 0; s + 1 < idx.length; s++) {
     const i0 = idx[s]!, i1 = idx[s + 1]!;
     if (i1 - i0 < 2) continue;
     const span = Math.hypot(path[i1]![0] - path[i0]![0], path[i1]![1] - path[i0]![1]);
+    // how level the cable is at each point, from the untouched line over a wide window and then averaged, so the sag eases in and out round a bend
+    const level: number[] = [];
+    for (let i = i0; i <= i1; i++) {
+      const a = orig[Math.max(i0, i - 6)]!, b = orig[Math.min(i1, i + 6)]!, dx = b[0] - a[0], dy = b[1] - a[1];
+      level.push(dx * dx / (dx * dx + dy * dy || 1));
+    }
+    const eased = level.map((_, k) => { let sum = 0, n = 0; for (let j = Math.max(0, k - 8); j <= Math.min(level.length - 1, k + 8); j++) { sum += level[j]!; n++; } return (sum / n) ** 2; });
     for (let i = i0 + 1; i < i1; i++) {
-      const a = path[i - 1]!, b = path[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, level = (dx / l) ** 2, u = (i - i0) / (i1 - i0);
-      const y = path[i]![1] + sag * span * 4 * u * (1 - u) * level;
-      path[i] = [path[i]![0], o.floor === undefined ? y : Math.min(y, o.floor)];
+      const u = (i - i0) / (i1 - i0), y = orig[i]![1] + sag * span * 4 * u * (1 - u) * eased[i - i0]!;
+      path[i] = [orig[i]![0], o.floor === undefined ? y : Math.min(y, o.floor)];
     }
   }
   const clips: Clip[] = idx.slice(1, -1).map((i) => { const a = path[Math.max(0, i - 1)]!, b = path[Math.min(path.length - 1, i + 1)]!; return { at: path[i]!, dir: [b[0] - a[0], b[1] - a[1]] as Pt }; });
