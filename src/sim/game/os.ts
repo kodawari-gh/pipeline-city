@@ -16,8 +16,10 @@ export function osBlock(this: Game, os: OsSpec, d: InstalledDevice): string | nu
   const ram = this.installedRamBytes();
   if (ram < os.minRamBytes) return `${os.name} needs ${os.minRamBytes / 1024}K of RAM, only ${ram / 1024}K installed`;
   if (os.needsMmu && !this.cpuHasMmu()) return `${os.name} needs a CPU with an MMU (virtual memory): Tiny-5F or better`;
+  if ((s as StorageSpec).mirror) return `${os.name} cannot boot from a RAID module: it holds data volumes only`;
   const disk = this.diskFor(d);
   const need = os.diskBytes + SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES;
+  if (disk.hasLostBlocks(0, Math.ceil(need / BLOCK_BYTES))) return `${s.name} has bad blocks where ${os.name} must go`;
   const free = disk.capacityBytes - disk.usedBytes;
   if (free < need) return `${os.name} needs ${need / 1024}K free on ${s.name}, only ${Math.floor(free / 1024)}K free`;
   return null;
@@ -186,6 +188,10 @@ export function startMountScan(this: Game): number {
       this.mounts.set(dev.id, { phase: "unmounted", scanTicks: 0, repairTicks: 0, left: 0 });
       continue;
     }
+    if (disk.twin && os.spec.fsTier < 4) {
+      this.mounts.set(dev.id, { phase: "unmounted", scanTicks: 0, repairTicks: 0, left: 0 });
+      continue;
+    }
     const cost = mountCost(disk, os.spec.fsTier >= 3);
     const scanTicks = Math.ceil(cost.scan / perTick);
     const repairTicks = disk.mount === "dirty" ? Math.ceil(cost.repair / perTick) : 0;
@@ -234,7 +240,29 @@ export function driveCanHold(this: Game, deviceId: string, kind: FileKind): bool
   const os = this.os;
   if (!disk || !os || !this.isMounted(deviceId)) return false;
   if (kind === "dataset" && os.spec.fsTier < 2) return false;
+  if (disk.twin && os.spec.fsTier < 4) return false;
   return canHold(disk, kind);
+}
+
+/** The OS is up: the machine is on, booted into the kernel and past POST. */
+export function osUp(this: Game): boolean {
+  return !!this.os && this.powered && this.pch.osMode && !this.postError;
+}
+
+/**
+ * Whether a read of file `fileId` on drive `deviceId` can be served now. No when the drive is burnt or off the bus, the
+ * OS is down, the drive is not mounted, the data is lost, or the drive queue is deeper than its `queueDepth`.
+ */
+export function canServe(this: Game, deviceId: string, fileId: number): boolean {
+  const dev = this.board.devices.find((d) => d.id === deviceId);
+  const disk = this.disks.get(deviceId);
+  if (!dev || !disk || dev.burnt) return false;
+  const port = this.ports.find((p) => p.name === dev.slot);
+  if (!port || port.media !== disk) return false;
+  if (!this.osUp() || !this.isMounted(deviceId)) return false;
+  const f = disk.fs.file(fileId);
+  if (!f || f.lost) return false;
+  return port.queueLoad() <= disk.queueDepth;
 }
 
 export function storageSnaps(this: Game): StorageSnap[] {
@@ -250,6 +278,8 @@ export function storageSnaps(this: Game): StorageSnap[] {
       bytesPerSecond: Math.round((clk * this.cfg.cpuCyclesPerClock * BLOCK_BYTES) / s.blockTicks),
       hasOs: this.os?.deviceId === d.id,
       fs: { runs: disk.fs.runs(), fragmentation: disk.fs.fragmentation(), byKind: disk.fs.usage().byKind },
+      wearPct: Math.round(disk.wearPct * 10) / 10, badGroups: disk.badGroups + (disk.twin?.badGroups ?? 0), lostBlocks: disk.fs.lostBlocks(),
+      queueDepth: disk.queueDepth, queued: port ? port.queueLoad() : 0, mirror: !!disk.twin,
       mount: this.mountSnap(d.id, disk.mount),
       format: { why: this.formatBlock(d.id), datasets: disk.fs.list("dataset").length },
     };

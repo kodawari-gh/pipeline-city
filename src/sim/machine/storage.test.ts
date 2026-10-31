@@ -123,3 +123,56 @@ describe("storage tiers", () => {
     expect(first[0]! / first[2]!).toBeGreaterThan(20); // HDD seek is the dominant cost
   });
 });
+
+describe("seek by distance and wear on the bus", () => {
+  /** A port with a drive whose seek scales with the LBA distance. */
+  function spin(opts: ConstructorParameters<typeof Disk>[3] = { seekByDistance: true }) {
+    const m = new Machine({ ramSize: 4096 });
+    const port = new StoragePort("sata0", 0);
+    m.addDevice(port);
+    m.clock.setRate("sata0", { mul: 1, div: 1 });
+    const disk = new Disk(256 * BLOCK_BYTES, 100, 4, opts);
+    port.attach(disk);
+    const cmd = (c: number, lba: number): number => {
+      m.bus.store32(STORAGE_BASE + STORAGE_REG.LBA, lba);
+      m.bus.store32(STORAGE_BASE + STORAGE_REG.CMD, c);
+      let n = 0;
+      while (m.bus.load32(STORAGE_BASE + STORAGE_REG.STATUS) & StorageStatus.Busy) { m.advanceBaseTick(); n++; }
+      return n;
+    };
+    return { port, disk, read: (lba: number) => cmd(1, lba), write: (lba: number) => cmd(2, lba) };
+  }
+
+  it("a far jump costs more than a short one; a sequential block still skips the seek", () => {
+    const { read } = spin();
+    read(0);
+    const near = read(5);
+    read(0);
+    const far = read(250);
+    expect(far).toBeGreaterThan(near);
+    expect(read(251)).toBe(4); // sequential: transfer only
+  });
+
+  it("a flat drive keeps one latency for any distance", () => {
+    const { read } = spin({});
+    read(0);
+    const near = read(5);
+    read(0);
+    expect(read(250)).toBe(near);
+  });
+
+  it("a write wears its group on the media; reads do not", () => {
+    const { disk, read, write } = spin({ enduranceBlocks: 3, seed: 2 });
+    read(9);
+    expect(disk.wear[1]).toBe(0);
+    for (let i = 0; i < 40; i++) write(9);
+    expect(disk.isBad(9)).toBe(true);
+  });
+
+  it("reports the queue ahead of a new request: the drive queue plus the command in flight", () => {
+    const { port, disk } = spin();
+    expect(port.queueLoad()).toBe(0);
+    disk.queued = 3;
+    expect(port.queueLoad()).toBe(3);
+  });
+});

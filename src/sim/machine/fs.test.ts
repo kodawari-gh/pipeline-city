@@ -142,3 +142,140 @@ describe("mount state and tiers", () => {
     expect(d.mount).toBe("clean");
   });
 });
+
+describe("wear and bad blocks", () => {
+  const worn = (opts: ConstructorParameters<typeof Disk>[3] = {}) => {
+    const d = new Disk(64 * BLOCK_BYTES, 10, 2, { enduranceBlocks: 10, seed: 3, ...opts });
+    d.mount = "clean";
+    return d;
+  };
+
+  it("counts writes per 8-block group and turns a group bad past its endurance", () => {
+    const d = worn();
+    expect(d.groups).toBe(8);
+    for (let i = 0; i < 5; i++) d.noteWrite(9);
+    expect(d.wear[1]).toBe(5);
+    expect(d.wear[0]).toBe(0);
+    expect(d.badGroups).toBe(0);
+    expect(d.wearPct).toBeGreaterThan(0);
+    for (let i = 0; i < 20; i++) d.noteWrite(9);
+    expect(d.badGroups).toBe(1);
+    expect(d.isBad(8)).toBe(true);
+    expect(d.isBad(16)).toBe(false);
+    expect(d.wear[1]).toBeLessThanOrEqual(12); // a bad group stops counting
+  });
+
+  it("each group has its own endurance, +-20% around the spec", () => {
+    const d = worn({ enduranceBlocks: 1000 });
+    const limits = Array.from({ length: d.groups }, (_, g) => d.limitOf(g));
+    for (const l of limits) { expect(l).toBeGreaterThanOrEqual(800); expect(l).toBeLessThanOrEqual(1200); }
+    expect(new Set(limits).size).toBeGreaterThan(1);
+  });
+
+  it("a bad group loses the extents on it: the file keeps its record with a lost flag", () => {
+    const d = worn();
+    const a = d.fs.create("c1", "dataset", 8, { at: 0 })!;
+    const b = d.fs.create("c2", "dataset", 8, { at: 8 })!;
+    d.failGroup(1);
+    expect(a.lost).toBe(false);
+    expect(b.lost).toBe(true);
+    expect(d.fs.lostBlocks()).toBe(8);
+    expect(d.fs.usage().lostBlocks).toBe(8);
+    const kinds = d.fs.runs().map((r) => r.kind);
+    expect(kinds.slice(0, 2)).toEqual(["dataset", "lost"]);
+    expect(d.mount).toBe("clean"); // datasets are not metadata
+  });
+
+  it("a bad block under free space shows as bad and is not allocated", () => {
+    const d = worn();
+    d.failGroup(2);
+    expect(d.fs.runs().find((r) => r.kind === "bad")).toMatchObject({ start: 16, len: 8 });
+    const f = d.fs.create("c", "dataset", 64 - 8)!;
+    expect(f).not.toBeNull();
+    expect(f.extents.some((e) => e.first <= 16 && e.first + e.len > 16)).toBe(false);
+    expect(d.fs.create("c", "dataset", 1)).toBeNull(); // full: the bad group is not free
+    expect(d.fs.create("c", "dataset", 4, { at: 16 })).toBeNull();
+  });
+
+  it("a bad block under the OS or metadata damages the filesystem", () => {
+    const d = worn();
+    d.fs.create("os", "os", 8, { at: 0 });
+    d.failGroup(0);
+    expect(d.mount).toBe("damaged");
+    const e = worn();
+    e.fs.create("os", "spool", 8, { at: 0, soft: true });
+    e.failGroup(0);
+    expect(e.mount).toBe("clean"); // spool loss is only a lost file
+  });
+
+  it("a format wipes the ledger but the media stays worn and bad", () => {
+    const d = worn();
+    d.fs.create("c", "dataset", 8, { at: 8 });
+    d.noteWrite(0);
+    d.failGroup(1);
+    d.format();
+    expect(d.fs.list()).toHaveLength(0);
+    expect(d.badGroups).toBe(1);
+    expect(d.isBad(8)).toBe(true);
+    expect(d.wear[0]).toBe(1);
+  });
+
+  it("loseKind marks every file of a kind lost (a burnt drive)", () => {
+    const d = worn();
+    d.fs.create("a", "dataset", 4);
+    d.fs.create("b", "dataset", 4);
+    d.fs.create("os", "os", 4);
+    expect(d.fs.loseKind("dataset")).toBe(2);
+    expect(d.fs.list("dataset").every((f) => f.lost)).toBe(true);
+    expect(d.fs.list("os")[0]!.lost).toBe(false);
+    expect(d.fs.loseKind("dataset")).toBe(0);
+  });
+
+  it("a rare mechanical fault can fail a group early (spinning disk), repeatably for one seed", () => {
+    const bad = (seed: number) => {
+      const d = new Disk(64 * BLOCK_BYTES, 10, 2, { mechBadRate: 0.05, seed });
+      for (let i = 0; i < 400; i++) d.noteWrite(i % 64);
+      return d.badGroups;
+    };
+    expect(bad(5)).toBeGreaterThan(0);
+    expect(bad(5)).toBe(bad(5));
+    const none = new Disk(64 * BLOCK_BYTES, 10, 2, { seed: 5 });
+    for (let i = 0; i < 400; i++) none.noteWrite(i % 64);
+    expect(none.badGroups).toBe(0);
+  });
+
+  describe("a mirrored module", () => {
+    const mirror = () => {
+      const d = new Disk(64 * BLOCK_BYTES, 10, 2, { enduranceBlocks: 10, seed: 3, mirror: true });
+      d.mount = "clean";
+      return d;
+    };
+
+    it("survives the loss of one member's group, and loses data when both fail", () => {
+      const d = mirror();
+      const f = d.fs.create("c", "dataset", 8, { at: 0 })!;
+      d.failGroup(0);
+      expect(f.lost).toBe(false);
+      expect(d.blockLost(0)).toBe(false);
+      expect(d.fs.runs()[0]!.kind).toBe("dataset");
+      d.twin!.failGroup(0);
+      expect(f.lost).toBe(true);
+      expect(d.fs.runs()[0]!.kind).toBe("lost");
+    });
+
+    it("writes wear both members", () => {
+      const d = mirror();
+      d.noteWrite(3);
+      expect(d.wear[0]).toBe(1);
+      expect(d.twin!.wear[0]).toBe(1);
+    });
+
+    it("a format wipes both members' ledgers", () => {
+      const d = mirror();
+      d.fs.create("c", "dataset", 4);
+      d.format();
+      expect(d.fs.list()).toHaveLength(0);
+      expect(d.mount).toBe("unformatted");
+    });
+  });
+});

@@ -169,7 +169,7 @@ export const ECONOMY: EconomyConfig = {
   payBase: 20,
   usbEnumTicks: 3,
   usbFlashTicks: 2,
-  coldBoot: { base: 1, perKiB: 0.05, kiBCap: 3, perStick: 0.5, max: 8, init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25 } },
+  coldBoot: { base: 1, perKiB: 0.05, kiBCap: 3, perStick: 0.5, max: 8, init: { cpu: 0.5, display: 0.5, hdd0: 1, ssd1: 0.5, nvme2: 0.25, raid2: 0.25 } },
   firmwareBoost: 12,
   osBootBoost: 48,
   autoEjectTicks: 3,

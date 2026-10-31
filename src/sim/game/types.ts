@@ -298,6 +298,14 @@ export interface StorageSnap {
   hasOs: boolean;
   /** What the blocks hold, as runs in LBA order (docs/OS.md, filesystem). */
   fs: { runs: FsRun[]; fragmentation: number; byKind: Record<FileKind, number> };
+  /** Wear 0..100 (writes against endurance), bad 8-block groups (both members of a mirror), and blocks of files whose data is lost. */
+  wearPct: number;
+  badGroups: number;
+  lostBlocks: number;
+  /** Requests the drive queue holds before reads miss, how many are ahead now, and whether this is a mirrored (RAID 1) module. */
+  queueDepth: number;
+  queued: number;
+  mirror: boolean;
   /** The drive's superblock verdict (stays with the drive), the OS's mount phase for it this boot, and the scan or repair progress (0..1). */
   mount: { state: MountState; phase: MountPhase; progress: number };
   /** Formatting this drive: why it cannot be done now (null = it can), and how many datasets a format would lose. */

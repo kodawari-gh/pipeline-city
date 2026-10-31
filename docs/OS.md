@@ -24,19 +24,32 @@ Power and heat: the drive's `idleW/loadW` count against the PSU rated load at in
 
 Every `Disk` has a `fs` (`DiskFs`): which files own which blocks. It is the media layer, so it exists with or without an OS, and the art reads it (`StorageSnap.fs.runs`). A file has an owner (`os` or a client id), a kind (`os`, `spool`, `program`, `dataset`, `meta`) and extents. `create(..., {at})` takes a fixed range (boot image, spool area); without `at` it allocates first-fit and may split over runs, so free space fragments. A `soft` file (the spool) owns its blocks, but the `used` bitmap fills only as the kernel writes. Blocks written outside any file show as `meta`. `format()` clears the ledger.
 
-Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not use the ledger; `formatOs` records the boot image and the spool area. Planned (see the plan in the repo history): wear and dataset contracts.
+Only an OS may allocate on a drive. The kernel asm keeps raw LBAs and does not use the ledger; `formatOs` records the boot image and the spool area. Wear, bad blocks and the RAID mirror are below.
 
 ### Filesystem tiers and mount states
 
 `OsSpec.fsTier` follows the OS tier: `os1` 1 (fixed boot and spool only, no datasets), `os2` 2 (allocation, datasets allowed, no journal), `os3` 3 (journal), `os4` 4 (checksums and mirrored volumes; used later).
 
-`Disk.mount` is the superblock verdict and stays with the drive: `clean`, `dirty`, `damaged`, `unformatted`. A new or formatted-away drive is `unformatted`; `formatOs` sets `clean`. A power cut (power button, crash reboot, drive dropping off the bus) while the `StoragePort` has a write in flight (`cutPower`) sets `dirty`. Nothing sets `damaged` yet (wear phase).
+`Disk.mount` is the superblock verdict and stays with the drive: `clean`, `dirty`, `damaged`, `unformatted`. A new or formatted-away drive is `unformatted`; `formatOs` sets `clean`. A power cut (power button, crash reboot, drive dropping off the bus) while the `StoragePort` has a write in flight (`cutPower`) sets `dirty`. A lost `os` or `meta` block sets `damaged` (see wear, below).
 
 The OS side is runtime state on `Game.mounts` (`unmounted`, `scanning`, `repairing`, `mounted`), not saved. After POST, `startMountScan` probes every drive on the bus. The CPU waits for the slowest drive (`mountTicksLeft`). `mountCost` (`fs.ts`) gives device ticks: scan = one bitmap block per `SCAN_SPAN` (64) used blocks times `blockTicks`, plus `latencyTicks` for each extra data run; a `dirty` drive adds a repair pass: every used block (tier 1-2) or `JOURNAL_BLOCKS` plus one seek (tier 3+). Base ticks = device ticks / `cpuCyclesPerClock`. A finished repair sets `clean`; a power cut during it keeps `dirty`. Unformatted drives stay `unmounted`. Without an OS nothing mounts. The kernel asm does not change.
 
 Gate: `canHold(disk, kind)` (media) lets a dataset in only on a `clean` drive; `DiskFs.create` enforces it. `Game.driveCanHold(deviceId, kind)` adds: the OS is up with the drive mounted, and `fsTier >= 2` for datasets. `StorageSnap.mount` carries `{ state, phase, progress }`. While the probe runs the machine phase is `mounting` (after POST, before `booting-os`; `bootProgress` 0..0.4 follows the slowest drive; the HUD chip reads "Checking drives").
 
 **Format.** `Game.formatDrive(deviceId, confirm)` (message `formatDrive`) writes a fresh filesystem on a data drive: the ledger is wiped and the drive turns `clean`, so the next boot mounts it. `formatBlock` gives the refusal: the machine must be off, an OS with `fsTier >= 2` must be installed, and the drive must not hold the OS. A drive with datasets needs `confirm` (the picker's second press). The format is instant, like an install; it has no time cost yet. `StorageSnap.format` carries `{ why, datasets }` for the picker's "Format drive" action.
+
+
+### Wear, bad blocks, burn, unservable data, RAID mirror
+
+All numbers are placeholders (`specs.ts`).
+
+- **Wear.** `StorageSpec.enduranceBlocks` is the writes one 8-block group (`GROUP_BLOCKS`) takes. Each group varies by +-20% from the drive's seed (`Disk.limitOf`). `StoragePort` calls `Disk.noteWrite(lba)` for every write. Past its limit, a group turns bad (`failGroup`). There is no wear levelling, so a hot group wears out first. `hdd0` 40000 (and a rare mechanical fault, `mechBadRate`, per write), `ssd1` 6000, `nvme2` 20000. A `format()` keeps wear and bad groups: they are the media's.
+- **Lost data.** Bad blocks lose the extents on them: the file stays in the ledger with `lost: true` (until removed). Runs show `lost` for such files and `bad` for bad free blocks; a bad group is never allocated. A lost `os` or `meta` file (or a used block outside any file) sets the mount state `damaged`; a lost spool or dataset does not.
+- **Burn.** `syncStorage` marks every dataset on a burnt drive lost (`DiskFs.loseKind`).
+- **Seek by distance.** `seekByDistance` (the HDD) scales the seek by the LBA distance from the head (`Disk.seekTicks`, 0.3x to 1.7x of `latencyTicks`). A sequential block still skips it. SSD and NVMe stay flat.
+- **Unservable.** `Game.canServe(deviceId, fileId)` is false when the drive is burnt or off the bus, the OS is down, the drive is not mounted, the file is gone or lost, or the queue ahead (`StoragePort.queueLoad()` = `Disk.queued` + the command on the bus) is above `StorageSpec.queueDepth` (`hdd0` 2, `ssd1` 4, `nvme2` 16).
+- **RAID mirror (`raid2`, level 16).** A storage module with two member drives (`Disk.twin`). Every write wears both. A block is lost only when it is bad on both members, so one member can fail. A burnt module loses everything. It needs `fsTier` 4 to mount (`os4`), holds data only (not the OS) and shows the same ledger.
+- **Snapshot.** `StorageSnap` adds `wearPct` (the most worn group, 0..100), `badGroups`, `lostBlocks`, `queueDepth`, `queued`, `mirror`.
 
 ## The OS ladder
 

@@ -147,6 +147,16 @@ export interface StorageSpec extends SpecBase {
   capacityBytes: number;
   latencyTicks: number;
   blockTicks: number;
+  /** Writes one 8-block group takes before it turns bad (docs/OS.md, wear). Placeholder numbers. */
+  enduranceBlocks: number;
+  /** Requests the drive queue holds before reads miss their time. */
+  queueDepth: number;
+  /** A seek costs time by LBA distance (a spinning disk). */
+  seekByDistance?: boolean;
+  /** Chance per write of a mechanical bad sector (a spinning disk). */
+  mechBadRate?: number;
+  /** A module with two member drives that every write goes to (RAID 1): needs a filesystem tier 4 OS, survives the loss of one member's blocks. */
+  mirror?: boolean;
 }
 
 /** A PCIe network card (docs/NETWORK.md). Its jack replaces the onboard one for the cable plugged into it; load watts follow the traffic. */
@@ -313,13 +323,16 @@ const specList: DeviceSpec[] = [
 
   { id: "hdd0", kind: "storage", tier: 0, name: "HDD 96K", slot: "sata", price: 40, idleW: 1, loadW: 4, heatFactor: 1,
     clock: { min: 0.5, base: 1, max: 1.25 }, thermal: storageThermal, visual: "hdd",
-    capacityBytes: 96 * 1024, latencyTicks: 720, blockTicks: 72 },
+    capacityBytes: 96 * 1024, latencyTicks: 720, blockTicks: 72, enduranceBlocks: 40000, queueDepth: 2, seekByDistance: true, mechBadRate: 0.0002 },
   { id: "ssd1", kind: "storage", tier: 1, name: "SATA SSD 64K", slot: "sata", price: 150, idleW: 0.5, loadW: 2.5, heatFactor: 1,
     clock: { min: 1, base: 2, max: 3 }, thermal: storageThermal, visual: "ssd-sata",
-    capacityBytes: 64 * 1024, latencyTicks: 72, blockTicks: 36 },
+    capacityBytes: 64 * 1024, latencyTicks: 72, blockTicks: 36, enduranceBlocks: 6000, queueDepth: 4 },
   { id: "nvme2", kind: "storage", tier: 2, name: "NVMe SSD 128K", slot: "m2", price: 400, idleW: 1, loadW: 6, heatFactor: 1,
     clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
-    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14 },
+    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14, enduranceBlocks: 20000, queueDepth: 16 },
+  { id: "raid2", kind: "storage", tier: 3, name: "RAID 1 2x NVMe 128K", slot: "m2", price: 1200, idleW: 2, loadW: 11, heatFactor: 1,
+    clock: { min: 2, base: 4, max: 6 }, thermal: storageThermal, visual: "ssd-nvme",
+    capacityBytes: 128 * 1024, latencyTicks: 14, blockTicks: 14, enduranceBlocks: 20000, queueDepth: 16, mirror: true },
 
   { id: "nic1", kind: "nic", tier: 1, name: "GbE card", slot: "pcie", pcieWidth: 4, price: 120, idleW: 1.5, loadW: 3.5, heatFactor: 1,
     thermal: { passive: 0.3, mass: 20, throttleC: 75, unstableC: 90, damageC: 105 }, visual: "nic-gbe", mbps: 1000 },

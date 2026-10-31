@@ -35,7 +35,9 @@ export function buildMaxRig(this: Game): void {
   for (const kind of ["psu", "cpu", "cooler", "vrm-sink", "ram-sink"] as const) put(top(kind));
   put(top("radiator"), "rad-top");
   for (let i = 0; i < (slots.dimm ?? 0); i++) put(top("ram"), `dimm${i}`);
-  for (let i = 0; i < (slots.m2 ?? 0); i++) put(top("storage"), `m2${i}`);
+  // the top plain drive: a RAID module cannot hold the OS
+  const bootDrive = specsOfKind("storage").filter((s) => !s.mirror).pop()!.id;
+  for (let i = 0; i < (slots.m2 ?? 0); i++) put(bootDrive, `m2${i}`);
   put(top("nic"));
   const os = [...OS_SPECS].reverse().find((o) => !o.later);
   if (os) put(os.id);

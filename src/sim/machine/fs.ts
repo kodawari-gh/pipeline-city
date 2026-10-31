@@ -27,7 +27,7 @@ export const SCAN_SPAN = 64;
  */
 export function mountCost(disk: Disk, journaled: boolean): { scan: number; repair: number } {
   const used = disk.usedBlocks;
-  const dataRuns = disk.fs.runs().filter((r) => r.kind !== "free" && r.filled).length;
+  const dataRuns = disk.fs.runs().filter((r) => r.kind !== "free" && r.kind !== "bad" && r.kind !== "lost" && r.filled).length;
   const seeks = Math.max(0, dataRuns - 1) * disk.latencyTicks;
   const scan = used === 0 ? 0 : Math.ceil(used / SCAN_SPAN) * disk.blockTicks + seeks;
   const repair = journaled ? JOURNAL_BLOCKS * disk.blockTicks + disk.latencyTicks : used * disk.blockTicks + seeks;
@@ -44,14 +44,16 @@ export interface FsFile {
   extents: Extent[];
   /** Owns its blocks, but the `used` bitmap fills as they are written. */
   soft: boolean;
+  /** The data is gone: bad blocks under it, or the drive burnt. The record stays in the ledger until it is removed. */
+  lost: boolean;
 }
 
 /** One run of blocks for the art: a file kind (or free), whether the blocks hold data, and the file it belongs to. */
 export interface FsRun {
   start: number;
   len: number;
-  kind: FileKind | "free";
-  /** 0 when free. */
+  kind: FileKind | "free" | "bad" | "lost";
+  /** 0 when free or bad. */
   file: number;
   /** The blocks hold data (always true except for the empty part of a soft file and for free runs). */
   filled: boolean;
@@ -62,6 +64,8 @@ export interface FsUsage {
   usedBlocks: number;
   freeBlocks: number;
   byKind: Record<FileKind, number>;
+  /** Blocks of files whose data is gone. */
+  lostBlocks: number;
 }
 
 export class DiskFs {
@@ -83,7 +87,7 @@ export class DiskFs {
 
   /** A block no file owns and nothing was written to. */
   private isFree(b: number): boolean {
-    return this.owner[b] === 0 && !this.disk.isUsed(b);
+    return this.owner[b] === 0 && !this.disk.isUsed(b) && !this.disk.blockLost(b);
   }
 
   /**
@@ -95,7 +99,7 @@ export class DiskFs {
     const extents: Extent[] = [];
     if (opts.at !== undefined) {
       const first = opts.at;
-      if (first < 0 || first + blocks > this.disk.blocks) return null;
+      if (first < 0 || first + blocks > this.disk.blocks || this.disk.hasLostBlocks(first, blocks)) return null;
       for (let b = first; b < first + blocks; b++) if (this.owner[b] !== 0 || (!opts.soft && this.disk.isUsed(b) && kind !== "os")) return null;
       extents.push({ first, len: blocks });
     } else {
@@ -110,7 +114,7 @@ export class DiskFs {
       }
       if (need > 0) return null;
     }
-    const f: FsFile = { id: this.nextId++, owner, kind, extents, soft: !!opts.soft };
+    const f: FsFile = { id: this.nextId++, owner, kind, extents, soft: !!opts.soft, lost: false };
     this.files.set(f.id, f);
     for (const e of extents) {
       for (let b = e.first; b < e.first + e.len; b++) this.owner[b] = f.id;
@@ -154,7 +158,33 @@ export class DiskFs {
     const byKind = { os: 0, spool: 0, program: 0, dataset: 0, meta: 0 } satisfies Record<FileKind, number>;
     for (const f of this.files.values()) byKind[f.kind] += this.filledBlocks(f);
     const total = this.disk.blocks;
-    return { totalBlocks: total, usedBlocks: this.disk.usedBlocks, freeBlocks: total - this.disk.usedBlocks, byKind };
+    return { totalBlocks: total, usedBlocks: this.disk.usedBlocks, freeBlocks: total - this.disk.usedBlocks, byKind, lostBlocks: this.lostBlocks() };
+  }
+
+  /** Blocks of files whose data is gone. */
+  lostBlocks(): number {
+    let n = 0;
+    for (const f of this.files.values()) if (f.lost) for (const e of f.extents) n += e.len;
+    return n;
+  }
+
+  /** The blocks `first..first+len` may have lost their data: mark the files on them lost. A lost OS or metadata block damages the filesystem. */
+  loseBlocks(first: number, len: number): void {
+    for (let b = first; b < Math.min(this.disk.blocks, first + len); b++) {
+      if (!this.disk.blockLost(b)) continue;
+      const f = this.owner[b] ? this.files.get(this.owner[b]!) : undefined;
+      if (f) {
+        f.lost = true;
+        if ((f.kind === "os" || f.kind === "meta") && this.disk.mount !== "unformatted") this.disk.mount = "damaged";
+      } else if (this.disk.isUsed(b) && this.disk.mount !== "unformatted") this.disk.mount = "damaged";
+    }
+  }
+
+  /** Mark every file of `kind` lost (the drive burnt). Returns how many were newly lost. */
+  loseKind(kind: FileKind): number {
+    let n = 0;
+    for (const f of this.files.values()) if (f.kind === kind && !f.lost) { f.lost = true; n++; }
+    return n;
   }
 
   /** Every block of the drive as runs, in LBA order, for the art. Blocks written outside any file read as "meta". */
@@ -170,7 +200,9 @@ export class DiskFs {
       const id = this.owner[b]!;
       const f = id ? this.files.get(id) : undefined;
       const used = this.disk.isUsed(b);
-      if (f) push(b, f.kind, f.id, f.soft ? used : true);
+      if (f?.lost) push(b, "lost", f.id, true);
+      else if (this.disk.blockLost(b)) push(b, "bad", 0, false);
+      else if (f) push(b, f.kind, f.id, f.soft ? used : true);
       else if (used) push(b, "meta", 0, true);
       else push(b, "free", 0, false);
     }

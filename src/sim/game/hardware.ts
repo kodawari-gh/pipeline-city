@@ -13,14 +13,25 @@ export function diskFor(this: Game, d: InstalledDevice): Disk {
   let disk = this.disks.get(d.id);
   if (!disk) {
     const s = deviceSpec(d) as StorageSpec;
-    disk = new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks);
+    disk = new Disk(s.capacityBytes, s.latencyTicks, s.blockTicks, {
+      enduranceBlocks: s.enduranceBlocks, queueDepth: s.queueDepth, seekByDistance: s.seekByDistance, mechBadRate: s.mechBadRate, mirror: s.mirror,
+      seed: hashSeed(d.id),
+    });
     this.disks.set(d.id, disk);
   }
   return disk;
 }
 
-/** Attach each working drive to its port (a burnt or removed drive drops off the bus). */
+/** A stable seed from a device id, so a drive wears and fails the same way after a save and load. */
+function hashSeed(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Attach each working drive to its port (a burnt or removed drive drops off the bus). A burnt drive loses every dataset on it. */
 export function syncStorage(this: Game): void {
+  for (const d of this.board.devices) if (d.burnt && deviceSpec(d).kind === "storage") this.disks.get(d.id)?.fs.loseKind("dataset");
   for (const port of this.ports) {
     const d = this.board.devices.find((x) => x.slot === port.name && deviceSpec(x).kind === "storage" && !x.burnt);
     port.attach(d ? this.diskFor(d) : null);

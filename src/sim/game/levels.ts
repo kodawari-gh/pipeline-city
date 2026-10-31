@@ -172,7 +172,6 @@ export const START_CRATE: readonly string[] = ["cpu0", "ram0", "psu0", "cooler0"
 /** Items in the unlock table that have no spec in the catalog yet: listed (milestone screen), never purchasable. */
 export const PLANNED_ITEMS: Readonly<Record<string, { name: string; kind: string }>> = { fan1: { name: "Case fans", kind: "fan" },
   board4: { name: "Server board", kind: "board" },
-  raid2: { name: "RAID of two NVMe", kind: "raid" },
 };
 
 export const isPlannedItem = (id: string): boolean => id in PLANNED_ITEMS;

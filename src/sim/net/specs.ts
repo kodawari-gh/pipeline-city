@@ -31,7 +31,7 @@ export const routerByTier = (tier: number): RouterSpec | undefined => ROUTER_SPE
 export const ispByTier = (tier: number): IspSpec | undefined => ISP_SPECS.find((r) => r.tier === tier);
 
 /** How fast the OS drive takes the spool writes (game MB scale Mbit/s), by storage spec id. */
-export const DISK_NET_MBPS: Readonly<Record<string, number>> = { hdd0: 80, ssd1: 400, nvme2: 2000 };
+export const DISK_NET_MBPS: Readonly<Record<string, number>> = { hdd0: 80, ssd1: 400, nvme2: 2000, raid2: 2000 };
 
 /** Download / upload size (game MB) of a job: by class id; plain `cli` depends on the template type (checksum is bigger). */
 /** What each kind of network job moves (game MB): the request that arrives and the answer that goes back. A kind's plan tier follows from these: its slower leg takes about 25 ticks on a Basic DSL, so bigger ones want Cable (tier 2) or Fibre (tier 3). */
