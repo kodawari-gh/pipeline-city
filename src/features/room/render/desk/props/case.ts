@@ -282,6 +282,8 @@ export class EdgeFan extends Container {
   private get vertical() { return this.r.h > this.r.w; }
   /** How far the blades have slid along the fan (0 up to one blade spacing). */
   get offset() { return this.phase; }
+  /** Put the blades back where they were (a rebuilt view keeps its fans' motion). */
+  set offset(v: number) { this.phase = ((v % BLADE) + BLADE) % BLADE; this.draw(0); }
   /** Advance by `d` blade-lengths per frame's worth of spin and set the light level (0 = off, 1 = full). */
   spin(d: number, level: number) {
     this.phase = (this.phase + d * BLADE) % BLADE;

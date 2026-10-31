@@ -36,7 +36,7 @@ function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
   const stroke = (dx: number, dy: number, w: number, color: string, alpha: number) => {
     g.moveTo(path[0]![0] + dx, path[0]![1] + dy);
     for (const p of path.slice(1)) g.lineTo(p[0] + dx, p[1] + dy);
-    g.stroke({ width: w, color, alpha, join: 'round', cap: 'round' });
+    g.stroke({ width: w, color, alpha, join: 'round', cap: 'butt' });
   };
   stroke(10, 18, TUBE_W + 2, '#000000', T.dark ? 0.32 : 0.16);
   stroke(0, 0, TUBE_W, T.dark ? '#0c1226' : '#3a4561', 1);
@@ -44,6 +44,16 @@ function tube(g: Graphics, T: Theme, pts: Pt[], tint: string): void {
   dashed(g, path, 5, 9);
   g.stroke({ width: TUBE_W * 0.93, color: '#ffffff', alpha: 0.07 });
   stroke(-TUBE_W * 0.15, -TUBE_W * 0.15, 11, '#ffffff', T.dark ? 0.2 : 0.4);
+  // a hose clamp a little in from each end: it hides the cut of the sleeve and holds it on the barb
+  const m = metals(T), clamp = (p: Pt, q: Pt) => {
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, ux = (q[0] - p[0]) / l, uy = (q[1] - p[1]) / l, cx = p[0] + ux * 34, cy = p[1] + uy * 34, nx = -uy * (TUBE_W / 2 - 2), ny = ux * (TUBE_W / 2 - 2);
+    g.moveTo(cx - nx + 6, cy - ny + 10).lineTo(cx + nx + 6, cy + ny + 10).stroke({ width: 30, color: '#000000', alpha: 0.3, cap: 'round' });
+    g.moveTo(cx - nx, cy - ny).lineTo(cx + nx, cy + ny).stroke({ width: 30, color: m.metal, cap: 'round' });
+    g.moveTo(cx - nx, cy - ny).lineTo(cx + nx, cy + ny).stroke({ width: 10, color: m.hi, alpha: 0.9, cap: 'round' });
+    g.moveTo(cx - nx * 0.6, cy - ny * 0.6).lineTo(cx - nx * 0.6 + ux * 3, cy - ny * 0.6 + uy * 3).stroke({ width: 8, color: '#000000', alpha: 0.5, cap: 'round' });
+  };
+  clamp(path[0]!, path[1]!);
+  clamp(path[path.length - 1]!, path[path.length - 2]!);
 }
 
 /** A tube fitting: a collar with a lip at its far end. `dir` is the way it points from the part (-1 north, 1 south), `y` where it leaves it. */
@@ -177,7 +187,8 @@ export const waterColor = (c: number): string => mix(COLD_WATER, HOT_WATER, Math
  */
 export class CoolantFlow extends Container {
   private g = new Graphics();
-  private phase = 0;
+  /** How far the drops have travelled (kept across a rebuild, so the water never jumps back). */
+  phase = 0;
   private paths: { pts: Pt[]; at: number[]; len: number; hot: boolean }[];
   constructor(routes: [Pt[], Pt[]]) {
     super();
