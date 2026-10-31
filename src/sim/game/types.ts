@@ -312,6 +312,62 @@ export interface StorageSnap {
   format: { why: string | null; datasets: number };
 }
 
+/** An open contract offer, with where it would go (or why it cannot go anywhere). */
+export interface ContractOfferSnap {
+  id: number;
+  kind: string;
+  name: string;
+  client: string;
+  hot: boolean;
+  bytes: number;
+  duration: number;
+  readEvery: number;
+  /** Lowest storage tier of the drive that may hold it. */
+  minDriveTier: number;
+  /** Dollars per tick held on a plain drive and on mirrored storage; the fee per missed read; the penalty if the data is lost. */
+  rate: number;
+  mirrorRate: number;
+  fee: number;
+  penalty: number;
+  /** Ticks until it goes away. */
+  expiresIn: number;
+  canAccept: boolean;
+  why: string | null;
+  /** The drive it would go on if accepted now. */
+  deviceId: string | null;
+  /** Every drive and whether it could hold it (null = yes). */
+  drives: { deviceId: string; name: string; why: string | null }[];
+}
+
+/** A contract running: the dataset on its drive, its health, the next read and the income. */
+export interface ContractSnap {
+  id: number;
+  kind: string;
+  name: string;
+  client: string;
+  hot: boolean;
+  deviceId: string;
+  drive: string;
+  bytes: number;
+  mirrored: boolean;
+  duration: number;
+  /** Ticks left to hold. */
+  left: number;
+  /** `ok`: reads can be served now. `unservable`: the OS is down, the drive is not mounted or its queue is full. `lost`: the data is gone. */
+  health: "ok" | "unservable" | "lost";
+  /** Ticks until the next read request, and the reads waiting for the drive. */
+  nextRead: number;
+  pending: number;
+  served: number;
+  missed: number;
+  maxMisses: number;
+  rate: number;
+  earned: number;
+  fees: number;
+}
+
+export interface ContractsSnap { open: boolean; offers: ContractOfferSnap[]; active: ContractSnap[] }
+
 /** The OS's view of a drive this boot: `unmounted` (no OS up, or the drive is unformatted), then `scanning`, `repairing` and `mounted`. */
 export type MountPhase = "unmounted" | "scanning" | "repairing" | "mounted";
 
@@ -445,6 +501,8 @@ export interface Snapshot {
   dex?: DexSnap[];
   /** The job log: the last jobs that ended, oldest first, with where their time went (docs/JOBS.md "The log"). */
   jobLog?: JobLogEntry[];
+  /** Cloud-storage contracts: the open offers and the running contracts (docs/JOBS.md "Contracts"). */
+  contracts?: ContractsSnap;
   dropped: number;
   lastCompleted: CompletedInfo | null;
   avgTurnaround: number;

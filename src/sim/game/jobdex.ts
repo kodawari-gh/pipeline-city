@@ -42,6 +42,8 @@ export interface DexEntry {
   tips: Tip[];
   /** Not built yet: shown, never unlocked. */
   planned?: boolean;
+  /** A cloud-storage contract (src/sim/game/contracts.ts), not a program: it has no generator template and never arrives as a key. */
+  contract?: true;
 }
 
 /** A group of kinds of job, shown as one collapsible section with its own colour. */
@@ -54,6 +56,7 @@ export const DEX_GROUPS: readonly DexGroup[] = [
   { id: "trust", name: "Trust", color: "#ef5b7b", ids: ["secure", "verify", "measure", "encrypt", "vault", "rotate", "attest"] },
   { id: "accel", name: "Accelerators", color: "#8b7cf6", ids: ["vadd", "saxpy", "thresh", "blur3", "poly", "mandel", "sphere", "perceptron", "npu", "deep"] },
   { id: "hpc", name: "High-performance", color: "#f2c14e", ids: ["hpc-reduce", "hpc-matmul", "hpc-nbody", "hpc-montecarlo", "hpc-sort", "hpc-bfs", "hpc-fft"] },
+  { id: "cloud", name: "Cloud storage", color: "#3be3ff", ids: ["cloud.archive", "cloud.hot"] },
 ];
 
 export const JOB_DEX: readonly DexEntry[] = [
@@ -402,6 +405,23 @@ export const JOB_DEX: readonly DexEntry[] = [
       { part: "npu", short: "NPU, GPU, then CPU", text: "The program takes the best path it finds. Each step down is much slower at the same pay: about nine times for the NPU against the CPU on six layers." },
       { part: "gpu", short: "A launch per layer", text: "On a GPU every layer is a separate launch, with the copy and the wait that come with it: an NPU runs all six from one list of descriptors." },
       { part: "npu", short: "Grid fits the batch", text: "An NPU grid has to divide the batch size and its memory has to hold all six layers of weights, or the job falls through to the next path." },
+    ] },
+  { id: "cloud.archive", name: "Cold archive", cls: "cloud", template: "cloud.archive", contract: true, needs: [{ kind: "fs", min: 2 }],
+    blurb: "A client leaves a dataset with you for a long time and reads it back now and then. It pays for every tick you hold it.",
+    stresses: ["a drive with free space", "an OS that allocates files", "the drive staying mounted"], footprint: "a file on the drive, no memory",
+    tips: [
+      { part: "os", short: "Needs OS 2", text: "Only an OS with a filesystem that allocates (Paged OS 2.0 or better) can store a client's file: format a data drive, then accept the offer." },
+      { part: "drive", short: "An HDD will do", text: "Reads are rare and slow ones are fine: the cheap HDD holds an archive as well as an SSD. Its seeks cost time, but a read has a long deadline." },
+      { part: "drive", short: "Keep it mounted", text: "A read is served only while the OS is up with the drive mounted. A powered-off machine misses every read in that time: each one is a fee, and too many breach the contract." },
+      { part: "drive", short: "Wear and loss", text: "A burnt drive or bad blocks lose the dataset: a penalty and lost reputation. Mirrored storage (the RAID module, OS 4) pays a bonus and survives one member failing." },
+    ] },
+  { id: "cloud.hot", name: "Hot storage", cls: "cloud", template: "cloud.hot", contract: true, needs: [{ kind: "fs", min: 2 }, { kind: "storage", minTier: 1 }],
+    blurb: "A smaller dataset that is read often and must answer quickly. It pays more per tick, and a missed read costs more.",
+    stresses: ["an SSD or better", "queue depth", "the drive staying mounted"], footprint: "a file on the drive, no memory",
+    tips: [
+      { part: "drive", short: "An SSD or better", text: "Reads come every few ticks with a short deadline: a hard disk seeks too slowly. A SATA SSD or an NVMe drive holds it." },
+      { part: "drive", short: "A deep queue", text: "A drive serves one read at a time and refuses new ones when its queue is deeper than its depth. The NVMe queue is much deeper than the SATA one: put several hot contracts on it." },
+      { part: "drive", short: "Mirror it", text: "Hot data pays the mirrored bonus too: a RAID module (OS 4) keeps it if one member's blocks go bad." },
     ] },
   { id: "hpc-reduce", name: "Parallel sum", cls: "hpc", template: "hpc.reduce", level: 14, scale: 8, needs: [{ kind: "cores", min: 2 }, { kind: "os", min: 4 }],
     blurb: "Add up a long list of numbers: each of two threads takes half and the two halves are added at the end.",

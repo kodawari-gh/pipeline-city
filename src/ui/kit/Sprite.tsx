@@ -41,7 +41,7 @@ export const PART_ICON: Record<TipPart, IconName> = {
 export function needIcon(kind: string): IconName {
   switch (kind) {
     case 'os': return 'layers';
-    case 'storage': return 'disk';
+    case 'storage': case 'fs': return 'disk';
     case 'net': return 'net';
     case 'tpm': return 'slot';
     case 'ecc': return 'memory';

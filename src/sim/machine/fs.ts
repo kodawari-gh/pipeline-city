@@ -161,6 +161,13 @@ export class DiskFs {
     return { totalBlocks: total, usedBlocks: this.disk.usedBlocks, freeBlocks: total - this.disk.usedBlocks, byKind, lostBlocks: this.lostBlocks() };
   }
 
+  /** Blocks a new file could take now: owned by no file, never written, not lost. */
+  freeBlocks(): number {
+    let n = 0;
+    for (let b = 0; b < this.disk.blocks; b++) if (this.isFree(b)) n++;
+    return n;
+  }
+
   /** Blocks of files whose data is gone. */
   lostBlocks(): number {
     let n = 0;
@@ -178,6 +185,14 @@ export class DiskFs {
         if ((f.kind === "os" || f.kind === "meta") && this.disk.mount !== "unformatted") this.disk.mount = "damaged";
       } else if (this.disk.isUsed(b) && this.disk.mount !== "unformatted") this.disk.mount = "damaged";
     }
+  }
+
+  /** Mark one file lost. */
+  lose(id: number): boolean {
+    const f = this.files.get(id);
+    if (!f || f.lost) return false;
+    f.lost = true;
+    return true;
   }
 
   /** Mark every file of `kind` lost (the drive burnt). Returns how many were newly lost. */

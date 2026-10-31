@@ -254,15 +254,36 @@ export function osUp(this: Game): boolean {
  * OS is down, the drive is not mounted, the data is lost, or the drive queue is deeper than its `queueDepth`.
  */
 export function canServe(this: Game, deviceId: string, fileId: number): boolean {
+  if (!this.driveUp(deviceId)) return false;
+  const disk = this.disks.get(deviceId)!;
+  const f = disk.fs.file(fileId);
+  if (!f || f.lost) return false;
+  const port = this.ports.find((p) => p.media === disk)!;
+  return port.queueLoad() <= disk.queueDepth;
+}
+
+/** The drive can serve at all: not burnt, on the bus, the OS up and the drive mounted. */
+export function driveUp(this: Game, deviceId: string): boolean {
   const dev = this.board.devices.find((d) => d.id === deviceId);
   const disk = this.disks.get(deviceId);
   if (!dev || !disk || dev.burnt) return false;
   const port = this.ports.find((p) => p.name === dev.slot);
   if (!port || port.media !== disk) return false;
-  if (!this.osUp() || !this.isMounted(deviceId)) return false;
-  const f = disk.fs.file(fileId);
-  if (!f || f.lost) return false;
-  return port.queueLoad() <= disk.queueDepth;
+  return this.osUp() && this.isMounted(deviceId);
+}
+
+/** What the OS offers to data jobs now: its filesystem tier and the most free bytes on a drive that can hold a dataset (zero when the OS is down or no drive is mounted clean). */
+export function fsCaps(this: Game): { fsTier: number; dataFreeBytes: number } {
+  const os = this.os;
+  if (!os || !this.osUp()) return { fsTier: 0, dataFreeBytes: 0 };
+  let free = 0;
+  let any = false;
+  for (const d of this.board.devices) {
+    if (deviceSpec(d).kind !== "storage" || !this.driveCanHold(d.id, "dataset")) continue;
+    any = true;
+    free = Math.max(free, this.disks.get(d.id)!.fs.freeBlocks() * BLOCK_BYTES);
+  }
+  return { fsTier: any ? os.spec.fsTier : 0, dataFreeBytes: free };
 }
 
 export function storageSnaps(this: Game): StorageSnap[] {

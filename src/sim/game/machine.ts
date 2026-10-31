@@ -235,6 +235,7 @@ export function advanceBaseTick(this: Game): void {
   this.applyPendingSwap();
   this.arrivals();
   this.expireKeys();
+  this.contractTick();
   // A failed POST: the cold-boot wait runs first (the monitor is black), then the error text appears. The phase is
   // "error" from the press on, so the UI chip does not wait.
   if (this.powered && this.postError && this.bootDelay > 0 && --this.bootDelay === 0) this.showPostError();

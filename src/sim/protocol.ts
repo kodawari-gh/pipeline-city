@@ -52,6 +52,9 @@ export type ToSim =
   | { type: 'uninstallOs' }
   /** Format a data drive with the OS's filesystem (off only); `confirm` accepts losing datasets. */
   | { type: 'formatDrive'; deviceId: string; confirm?: boolean }
+  /** Accept a cloud-storage contract offer (docs/JOBS.md "Contracts"); `deviceId` picks the drive, else the slowest that qualifies. Ignoring just removes the offer. */
+  | { type: 'acceptContract'; offerId: number; deviceId?: string }
+  | { type: 'ignoreContract'; offerId: number }
   | { type: 'requestSave' }
   // Sandbox tools (docs/SANDBOX.md): refused with a reason outside a sandbox game. Each replies with a snapshot.
   | { type: 'spawnKey'; template: string; scale?: number }

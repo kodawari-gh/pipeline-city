@@ -4,7 +4,7 @@ import { JOB_DEX } from "./jobdex";
 
 describe("the code view of a job", () => {
   it("every playable almanac entry has a program to read and a C++ and a Python version", () => {
-    for (const e of JOB_DEX.filter((x) => !x.planned)) {
+    for (const e of JOB_DEX.filter((x) => !x.planned && !x.contract)) {
       expect(CODE_SOURCE[e.id], e.id).toBeDefined();
       expect(HIGH_LEVEL[e.id]!.cpp.length, e.id).toBeGreaterThan(80);
       expect(HIGH_LEVEL[e.id]!.python.length, e.id).toBeGreaterThan(60);

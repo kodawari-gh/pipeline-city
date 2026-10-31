@@ -120,6 +120,9 @@ export const declineJob = (id: number) => send({ type: 'declineJob', id });
 export const uninstallOs = () => send({ type: 'uninstallOs' });
 /** Format a data drive (off only, OS tier 2+); `confirm` accepts losing its datasets. */
 export const formatDrive = (deviceId: string, confirm = false) => send({ type: 'formatDrive', deviceId, confirm });
+/** Accept a cloud-storage contract offer from the job log (optionally on a chosen drive), or turn it down (it just goes away). */
+export const acceptContract = (offerId: number, deviceId?: string) => send({ type: 'acceptContract', offerId, deviceId });
+export const ignoreContract = (offerId: number) => send({ type: 'ignoreContract', offerId });
 // Sandbox tools (docs/SANDBOX.md): the sim refuses them outside a sandbox game.
 export const spawnKey = (template: string, scale?: number) => send({ type: 'spawnKey', template, scale });
 export const clearQueue = () => send({ type: 'clearQueue' });

@@ -143,6 +143,7 @@ The **Log** button in the bottom bar (beside Almanac; a modal, Esc closes it) (`
 | done | the client has the result (`deliver`: key collected, or the result uploaded) |
 | expired | a client took back a job the machine could not run, at its deadline |
 | declined | the player declined it (`declineKey`) |
+| completed, lost, breached | a cloud-storage contract ended (see "Contracts" below); these entries carry `contract` and are not jobs |
 
 A done job's time is cut in four, in base ticks (seconds): **waiting** (key arrival until the machine took it: the key plugged, or the download started), **queued** (taken until it first ran: USB or download ingest, the spool and the kernel queue; `Key.ranAt`, stamped by `stampRan` in `keys.ts` the first tick the kernel job is Running, and at the plug when there is no OS, so there is no queue then), **running** (`ranAt` until the result was written: `doneAt`) and **collecting** (result written until the client had it). A job that never ran has only the wait. `JobLogEntry.ran` is `ranAt` (absent on older saves, and when a job began and ended inside one tick and was never seen running): the entry then has no queue phase and its run reads from the taking, as before. `ranAt` is saved only on a plugged key that holds its result; a job that is mid-run at a save starts over after the load and is stamped again. The verdict counts waiting and queued together as *Queue*.
 
@@ -166,6 +167,20 @@ The short list beside it is the recent jobs: the sprite, the name, the phase bar
 `joblog.test.ts` covers the phases (with and without the queue), a job queued behind another under an OS, the counter window, the readings, the summary, the per-kind aggregation, and a game that logs a finished job (with a window and a save round trip) and a declined one.
 
 Not built: the log is not written to disk beyond the save (the last 60 only), a job's page faults are the machine's during the run (not its own when several run), and the readings are text rather than a chart over time.
+
+## Contracts (cloud-storage, opt-in)
+The **Contracts** section at the top of the Log (`src/ui/panels/ContractsSection.tsx`, logic in `contractui.ts`) is the only opt-in work. A client offers to leave a dataset on the player's drive for a number of ticks. Nothing arrives in the USB tray or the network queue. The player accepts or ignores each offer. An ignored or unanswered offer just goes away (it lives `offerTtl` ticks): no money, no reputation. Contracts do not exist in the sandbox (its money is constant).
+
+Model: `src/sim/game/contracts.ts` (pure: kinds, `rollTerms`, the seeded read schedule, `datasetBytes`). Game methods: `src/sim/game/cloud.ts` (`contractTick`, `acceptContract`, `ignoreContract`, `contractPlan`, `contractsSnap`). The class is `cloud` in `JOB_CLASSES` (`contract: true`, first level 4, the level after the SATA SSD; never in the arrival mix) with two almanac entries: `cloud.archive` (needs `{ kind: "fs", min: 2 }`, an HDD will do) and `cloud.hot` (also `storage` tier 1: SATA SSD or better, smaller data, short read deadline).
+
+- **Need `fs`.** `{ kind: "fs", min, freeBytes? }` is met when the OS is up with a drive mounted clean and its `fsTier >= min`, and a drive has `freeBytes` free. `Caps.fsTier` and `Caps.dataFreeBytes` come from `Game.fsCaps()` (`os.ts`); both are 0 when the machine is off.
+- **Accept.** Needs the OS up, `fsTier >= 2`, a mounted `clean` drive of the right tier (`minDriveTier`) with free blocks. Without a `deviceId` it takes the slowest qualifying drive (the fast ones stay free). The dataset is a `dataset` file in the drive's ledger (`DiskFs`), owner `c<offer id>`. A mirror module needs `fsTier` 4. Each drive's reason is in the offer snapshot.
+- **Hold.** Every tick the drive is up (OS up, mounted, on the bus) pays `rate` = `holdPay` (`economy.ts`): per KiB per tick, times `hotMul` for hot data, times `1 + mirrorBonus` on mirrored storage, times the level's pay multiplier. Whole dollars are paid as they add up.
+- **Reads.** Request times come from the contract's own seeded stream (0.5 to 1.5 times `readEvery`). A request is served when `canServe` holds (drive up, data intact, queue not above `queueDepth`); it then waits for the drive (a drive serves one read per tick, `readTicks` of work, in order) and must finish within `readDeadline`. A read that cannot be served or misses its deadline costs `readFee` (hot costs more). Reads count in `Disk.queued`, so many contracts on a shallow HDD queue refuse reads; NVMe holds many more.
+- **Outcomes** (`JobOutcome`, `JobLogEntry.contract`): `completed` (held to the end: bonus `completeBonus` of the earnings, a client-base point), `lost` (the data is gone: bad blocks, burnt or removed drive: `lossPenalty`, reputation as one expired job), `breached` (more than `maxMisses` reads missed: half the penalty, half the reputation hit). Money never goes below 0. Mirrored data survives one member failing. The log entry has id `1000000 + contract id`, `type` the contract kind and `payout` the net money; contract entries are left out of the job overview and shown in the Contracts section.
+- **Unservable, not lost.** A powered-off machine, a missing OS or an unmounted drive misses reads (fees, and a breach if it goes on) but never loses data.
+
+Tests: `contracts.test.ts` (model, offers, accept gates, hold, reads, unservable, loss, mirror, snapshot), `contractui.test.ts` (cards). All numbers are placeholders in `ECONOMY.contracts`.
 
 ## Reading the code
 The page of a job that has been met shows its program on the main page (`src/ui/panels/AlmanacPanel.tsx`, data in `src/sim/game/jobcode.ts`, colouring in `src/ui/tutorial/highlight.ts`):

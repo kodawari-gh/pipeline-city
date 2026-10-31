@@ -100,7 +100,7 @@ export function capsWith(this: Game, netOk: boolean): Caps {
   const storage = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "storage");
   const tpms = this.board.devices.filter((d) => !d.burnt && deviceSpec(d).kind === "tpm");
   const tpm = tpms.length > 0;
-  return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
+  return { ...NO_CAPS, net: netOk, netTier: netOk ? this.ispTier : 0, tpm, tpmTier: tpm ? Math.max(...tpms.map((d) => deviceSpec(d).tier)) : 0, ecc: this.eccInstalled(), osTier: this.os?.spec.tier ?? 0, ramBytes: this.installedRamBytes(), ...this.fsCaps(), storageTier: storage.length ? Math.max(...storage.map((d) => deviceSpec(d).tier)) : -1 };
 }
 
 export function runnable(this: Game, k: Key, caps = this.caps()): boolean {

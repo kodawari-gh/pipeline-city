@@ -11,9 +11,11 @@ import { getOsSpec } from "../os";
 /** What a job needs from the machine to run. Met when the device is installed and working when the job would be picked. */
 export type Need =
   | { kind: "os"; min: number } | { kind: "storage"; minTier: number } | { kind: "net"; minTier?: number }
-  | { kind: "tpm"; minTier?: number } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number } | { kind: "ram"; minBytes: number };
+  | { kind: "tpm"; minTier?: number } | { kind: "ecc" } | { kind: "gpu"; minTier: number } | { kind: "npu" } | { kind: "cores"; min: number } | { kind: "ram"; minBytes: number }
+  /** A mounted, clean drive under an OS whose filesystem tier is at least `min`, with `freeBytes` free on it (docs/OS.md, contracts). */
+  | { kind: "fs"; min: number; freeBytes?: number };
 
-export type JobClassId = "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc";
+export type JobClassId = "cli" | "scan" | "db" | "web" | "secure" | "gpu" | "npu" | "hpc" | "cloud";
 
 export interface JobClassDef {
   id: JobClassId;
@@ -36,6 +38,8 @@ export interface JobClassDef {
    * pay falls in a line to the late factor at the deadline. Scaled by the level's patience like the deadline. Absent: no SLA.
    */
   slaTicks?: number;
+  /** Opt-in contracts (src/sim/game/contracts.ts): never arrives as a key, never in the mix. The player accepts offers from the log. */
+  contract?: true;
 }
 
 export const JOB_CLASSES: readonly JobClassDef[] = [
@@ -53,6 +57,8 @@ export const JOB_CLASSES: readonly JobClassDef[] = [
   { id: "npu", template: "npu.infer", scale: 4, payMul: 4, needs: [], firstLevel: 12, rampTicks: 600, heavy: true },
   // The high-performance compute jobs (src/sim/gen/tasks.hpc.ts): threaded programs, so they need the multicore OS 4 and as many logical cores as the kind has threads (2, 4 or 8; the kinds say which).
   { id: "hpc", template: "hpc.reduce", scale: 8, payMul: 5, needs: [{ kind: "cores", min: 2 }, { kind: "os", min: 4 }], firstLevel: 14, rampTicks: 600, heavy: true },
+  // Cloud-storage contracts (docs/JOBS.md "Contracts"): opt-in offers from the first level after the SATA SSD (level 3). They hold a client's dataset on a drive, so they need a filesystem that allocates (os2+).
+  { id: "cloud", template: "cli.log", scale: 1, payMul: 1, needs: [{ kind: "fs", min: 2 }], firstLevel: 4, rampTicks: 0, heavy: false, contract: true },
 ];
 
 export function jobClass(id: string): JobClassDef | undefined {
@@ -82,9 +88,12 @@ export interface Caps {
   cores: number;
   /** Installed RAM, in bytes. */
   ramBytes: number;
+  /** Filesystem tier of the OS when it is up and a drive is mounted clean under it (0 otherwise), and the most free bytes on such a drive. */
+  fsTier: number;
+  dataFreeBytes: number;
 }
 
-export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, netTier: 0, tpm: false, tpmTier: 0, ecc: false, gpuTier: 0, npu: false, cores: 1, ramBytes: 0 };
+export const NO_CAPS: Caps = { osTier: 0, storageTier: -1, net: false, netTier: 0, tpm: false, tpmTier: 0, ecc: false, gpuTier: 0, npu: false, cores: 1, ramBytes: 0, fsTier: 0, dataFreeBytes: 0 };
 
 /** Short chip text (`NEEDS GPU`) and the long phrase for a refusal. */
 export function describeNeed(n: Need): { short: string; long: string } {
@@ -98,6 +107,7 @@ export function describeNeed(n: Need): { short: string; long: string } {
     case "npu": return { short: "NPU", long: "an NPU" };
     case "cores": return { short: "CORES", long: "a multicore CPU" };
     case "ram": return { short: `${n.minBytes / 1024}K RAM`, long: `${n.minBytes / 1024}K of RAM` };
+    case "fs": return { short: "FS", long: (n.min >= 4 ? "an OS with mirrored volumes (Multicore OS 4.0)" : "an OS that allocates files (Paged OS 2.0 or better)") + " up with a mounted, formatted drive" + (n.freeBytes ? ` with ${Math.ceil(n.freeBytes / 1024)}K free` : "") };
   }
 }
 
@@ -112,6 +122,7 @@ function needOk(n: Need, c: Caps): boolean {
     case "npu": return c.npu;
     case "cores": return c.cores >= n.min;
     case "ram": return c.ramBytes >= n.minBytes;
+    case "fs": return c.fsTier >= n.min && c.dataFreeBytes >= (n.freeBytes ?? 0);
   }
 }
 

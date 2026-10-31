@@ -81,7 +81,7 @@ describe('milestone list', () => {
     expect(rows[2]!.newJobs).toEqual([]); // plain work until the network opens
     // the classes come first, then the kinds of job that arrive after their class did (docs/JOBS.md "The catalogue")
     expect(rows[4]!.newJobs.map((j) => j.id)).toEqual(['scan', 'db', 'gcd', 'popcount', 'dns', 'form']);
-    expect(rows[3]!.newJobs.map((j) => j.label)).toEqual(['Web', 'Fibonacci', 'Reverse text']);
+    expect(rows[3]!.newJobs.map((j) => j.label)).toEqual(['Web', 'Cloud storage', 'Fibonacci', 'Reverse text']);
     expect(rows[0]!.patience).toBeNull();
     expect(rows[1]!.patience).toBe('same');
     expect(rows[2]!.patience).toBe('stricter');

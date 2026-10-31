@@ -12,6 +12,8 @@ import { Icon } from '../kit/Icons';
 import type { IconName } from '../shop/picker';
 import { fmtMoney, fmtNum, fmtTicks } from '../logic';
 import { JobSprite } from '../kit/Sprite';
+import { ContractsSection } from './ContractsSection';
+import { splitLog } from './contractui';
 
 export const logOpen = signal(false);
 export const toggleLog = () => { logOpen.value = !logOpen.value; };
@@ -248,7 +250,7 @@ export function LogPanel() {
   }, [open]);
   if (!open) return null;
   const snap = snapshot.value;
-  const all = snap?.jobLog ?? [];
+  const { jobs: all, contracts: finishedContracts } = splitLog(snap?.jobLog ?? []);
   const live = snap ? inFlight(snap) : [];
   const rows = [...all].sort(order.value === 'slow' ? (a, b) => phasesOf(b).total - phasesOf(a).total : (a, b) => b.end - a.end || b.id - a.id);
   const maxTotal = Math.max(1, ...all.map((e) => phasesOf(e).total));
@@ -262,6 +264,7 @@ export function LogPanel() {
           <span class="jl-key">{PHASES.map(([k, name]) => <span key={k}><i class={`dot jl-${k}`} /> {name}</span>)}</span>
           <button class="close" aria-label="Close job log" title="Close (Esc)" onClick={closeLog}><Icon name="close" size={12} /></button>
         </header>
+        {snap?.contracts && <ContractsSection contracts={snap.contracts} finished={finishedContracts} />}
         {snap && live.length > 0 && <Now list={live} s={snap} />}
         {all.length === 0 ? (
           <p class="mute jl-empty">No job has ended yet.</p>

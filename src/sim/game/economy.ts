@@ -146,6 +146,8 @@ export interface EconomyConfig {
   billPeriodTicks: number;
   /** Base ticks an unpaid bill waits before the power company cuts the wall (it is paid by itself the moment the money is there). */
   billGraceTicks: number;
+  /** Cloud-storage contracts (docs/JOBS.md "Contracts"). All numbers are placeholders. */
+  contracts: ContractEconomy;
 }
 
 export const ECONOMY: EconomyConfig = {
@@ -181,7 +183,49 @@ export const ECONOMY: EconomyConfig = {
   powerRatePerWh: 0,
   billPeriodTicks: 600,
   billGraceTicks: 120,
+  contracts: {
+    offerEvery: 240, offerCap: 3, offerTtl: 1500,
+    holdPerKiBTick: 0.012, hotMul: 2.5, mirrorBonus: 0.5, completeBonus: 0.15,
+    readFee: 6, lossPenaltyPerKiB: 12, breachShare: 0.5, lossRepUnits: 1, breachRepUnits: 0.5,
+  },
 };
+
+/** The money side of cloud-storage contracts, in dollars at level 1 (the level's pay multiplier scales it). */
+export interface ContractEconomy {
+  /** Base ticks between rolls for a new offer, the open offers kept at most, and how long an unanswered offer stays (it then goes away, never a penalty). */
+  offerEvery: number;
+  offerCap: number;
+  offerTtl: number;
+  /** Dollars per KiB held per tick, the multiplier for a hot (SSD) contract, the extra for data held on mirrored storage, and the bonus at the end as a share of what was earned. */
+  holdPerKiBTick: number;
+  hotMul: number;
+  mirrorBonus: number;
+  completeBonus: number;
+  /** Fee for a read that was not served (a hot contract pays `hotMul` times more), and the loss penalty per KiB of lost data. */
+  readFee: number;
+  lossPenaltyPerKiB: number;
+  /** The share of the loss penalty a breach costs, and the reputation each costs in units of a client giving up (an expired key is 1). */
+  breachShare: number;
+  lossRepUnits: number;
+  breachRepUnits: number;
+}
+
+/** Dollars per tick for holding `kib` KiB for a client: more for a hot contract, a bonus for mirrored storage, scaled by the level (`levelPay`). */
+export function holdPay(cfg: EconomyConfig, kib: number, hot: boolean, mirrored: boolean, levelPay = 1): number {
+  const c = cfg.contracts;
+  return kib * c.holdPerKiBTick * (hot ? c.hotMul : 1) * (mirrored ? 1 + c.mirrorBonus : 1) * levelPay;
+}
+
+/** Dollars a missed read costs. */
+export function readFee(cfg: EconomyConfig, hot: boolean, levelPay = 1): number {
+  return Math.round(cfg.contracts.readFee * (hot ? cfg.contracts.hotMul : 1) * levelPay);
+}
+
+/** Dollars lost data costs (a breach pays `breachShare` of it). */
+export function lossPenalty(cfg: EconomyConfig, kib: number, levelPay = 1, breach = false): number {
+  const c = cfg.contracts;
+  return Math.round(kib * c.lossPenaltyPerKiB * levelPay * (breach ? c.breachShare : 1));
+}
 
 /**
  * POST time of the machine as built: `base + min(kiBCap, perKiB * RAM KiB) + perStick * sticks + init of every working

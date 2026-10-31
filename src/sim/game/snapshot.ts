@@ -78,6 +78,7 @@ export function snapshot(this: Game): Snapshot {
     health: this.health(),
     dex: JOB_DEX.map((e) => { const r = this.dex[e.id]; return { id: e.id, state: dexState(e, r), runs: r?.runs ?? 0, best: r?.best ?? 0, seenTick: r?.seen ?? 0 }; }),
     jobLog: this.jobLog.map((e) => ({ ...e })),
+    contracts: this.contractsSnap(),
     bitFlips: this.bitFlips,
     dropped: this.dropped,
     lastCompleted: this.lastCompleted && { ...this.lastCompleted },

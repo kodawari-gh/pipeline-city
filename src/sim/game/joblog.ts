@@ -6,7 +6,25 @@ import { COUNTER_NAMES } from "../engines/view";
 const COUNTER_INDEX = new Map<string, number>(COUNTER_NAMES.map((n, i) => [n, i]));
 
 /** How a job ended. */
-export type JobOutcome = "done" | "expired" | "declined";
+/**
+ * How a job ended. A cloud-storage contract (docs/JOBS.md "Contracts") ends as `completed` (held to its end), `lost` (its data was lost) or
+ * `breached` (too many reads missed).
+ */
+export type JobOutcome = "done" | "expired" | "declined" | "lost" | "breached" | "completed";
+
+/** What a contract log entry adds: who, where, how it went. `type` is the contract kind (`cloud.archive`, `cloud.hot`), `payout` the net money. */
+export interface ContractLogInfo {
+  client: string;
+  /** Name of the drive that held the data. */
+  drive: string;
+  blocks: number;
+  mirrored: boolean;
+  served: number;
+  missed: number;
+  /** Hold pay and bonus, and the fees and penalty paid (all dollars). */
+  earned: number;
+  fees: number;
+}
 
 /** What the engine counted between the job being taken and its result landing. It is the whole machine, so with several programs running it is shared. */
 export interface JobWindow {
@@ -50,6 +68,8 @@ export interface JobLogEntry {
   reloaded?: true;
   /** Absent for jobs that never ran, and when the machine rebooted mid-job. */
   win?: JobWindow;
+  /** Set on a contract entry (outcome `completed`, `lost` or `breached`). The job fields then read: arrival = accepted, finish = the contract end, end = settled. */
+  contract?: ContractLogInfo;
 }
 
 /** How many entries the game keeps and sends. */
@@ -126,6 +146,9 @@ export function verdictOf(e: JobLogEntry): Verdict {
 }
 
 function readingOf(e: JobLogEntry): Verdict {
+  if (e.outcome === "completed") return { where: "none", kind: "none", tag: "Held", text: "The contract ran to its end with the data intact.", hint: "Mirrored storage pays a bonus." };
+  if (e.outcome === "lost") return { where: "none", kind: "lost", tag: "Data lost", text: "The data was lost: a drive burnt or its blocks went bad.", hint: "A RAID mirror survives the loss of one member; watch the wear of the drive." };
+  if (e.outcome === "breached") return { where: "none", kind: "lost", tag: "Breached", text: "Too many reads were missed: the OS was down, the drive was not mounted or the queue was full.", hint: "Keep the OS up with the drive mounted, and a deeper queue (NVMe) for busy contracts." };
   if (e.outcome === "expired") return { where: "wait", kind: "lost", tag: "Taken back", text: "A client took it back at its deadline: the machine could not run it.", hint: "Look at what it needs in the almanac (OS, drive, RAM, network) and add that." };
   if (e.outcome === "declined") return { where: "none", kind: "lost", tag: "Declined", text: "You declined it.", hint: "Declining costs a little reputation outside the sandbox." };
   const p = roundPhases(phasesOf(e));
@@ -178,7 +201,8 @@ export interface LogSummary { done: number; expired: number; declined: number; w
 export function summarise(list: readonly JobLogEntry[]): LogSummary {
   const s: LogSummary = { done: 0, expired: 0, declined: 0, wait: 0, queue: 0, run: 0, collect: 0, late: 0, slowest: null };
   for (const e of list) {
-    if (e.outcome !== "done") { s[e.outcome]++; continue; }
+    if (e.contract) continue; // contracts are counted by the contracts panel
+    if (e.outcome !== "done") { if (e.outcome === "expired" || e.outcome === "declined") s[e.outcome]++; continue; }
     const p = phasesOf(e);
     s.done++; s.wait += p.wait; s.queue += p.queue; s.run += p.run; s.collect += p.collect;
     if (e.late) s.late++;
@@ -225,7 +249,8 @@ export function aggregate(list: readonly JobLogEntry[]): Agg {
 /** The same, per kind of job, with the kinds that took the most total time first; `lost` counts jobs of the kind that were taken back or declined. */
 export interface KindAgg extends Agg { type: string; spent: number; lost: number }
 
-export function byKind(list: readonly JobLogEntry[]): KindAgg[] {
+export function byKind(all: readonly JobLogEntry[]): KindAgg[] {
+  const list = all.filter((e) => !e.contract);
   return [...new Set(list.map((e) => e.type))].map((type) => {
     const of = list.filter((e) => e.type === type);
     const a = aggregate(of);

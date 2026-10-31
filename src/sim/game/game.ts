@@ -23,6 +23,7 @@
 //   os         the OS on its drive, the kernel's job table, OS and storage snapshots
 //   memory     RAM map and regions, page tracking, bit flips, faults, the health panel
 //   network    link state, transfers, the NIC feed into the kernel, the network snapshot
+//   cloud      cloud-storage contracts: offers, accept and ignore, the hold, the reads, the end (model in contracts.ts)
 //   snapshot   the snapshot the worker posts every tick
 //   persist    the save and its restore
 
@@ -45,6 +46,9 @@ import {
 } from "./internal";
 import type { DexRecord } from "./jobdex";
 import type { JobLogEntry } from "./joblog";
+import * as cloud from "./cloud";
+import type { Contract, ContractOffer } from "./contracts";
+import { newContractRng } from "./contracts";
 import * as keys from "./keys";
 import { LEVELS, MAX_LEVEL, type ItemInfo, type JobClassId } from "./levels";
 import * as machine from "./machine";
@@ -66,7 +70,7 @@ export type { GameOptions };
 
 /** The feature files' exports, which `Game` has as methods. */
 type Features = typeof parts & typeof shop & typeof sandbox & typeof machine & typeof bill & typeof keys & typeof clients
-  & typeof hardware & typeof os & typeof memory & typeof network & typeof snapshot & typeof persist;
+  & typeof hardware & typeof os & typeof memory & typeof network & typeof snapshot & typeof persist & typeof cloud;
 export interface Game extends Features {}
 
 // The fields below are the state the feature files share, so none is private.
@@ -160,6 +164,11 @@ export class Game {
 
   /** The job log: the last jobs that ended, oldest first (docs/JOBS.md "The log"). */
   jobLog: JobLogEntry[] = [];
+  /** Cloud-storage contracts (cloud.ts): the open offers, the accepted ones, the next id (offers and contracts share it) and the stream that rolls offers. Saved. */
+  contractOffers: ContractOffer[] = [];
+  contracts: Contract[] = [];
+  nextContractId = 1;
+  contractRng = newContractRng(0);
   /** The job almanac's record per kind of job (docs/JOBS.md). */
   dex: Record<string, DexRecord> = {};
 
@@ -199,6 +208,7 @@ export class Game {
 
   constructor(opts: GameOptions) {
     this.seed = opts.seed >>> 0;
+    this.contractRng = newContractRng(this.seed);
     this.cfg = { ...ECONOMY, ...opts.economy };
     this.sandbox = !!opts.sandbox;
     if (this.sandbox) { this.cables.pcmains = true; this.cables.monmains = true; } // a sandbox machine is plugged into the wall from the start
@@ -272,5 +282,5 @@ export class Game {
 
 Object.assign(
   Game.prototype,
-  parts, shop, sandbox, machine, bill, keys, clients, hardware, os, memory, network, snapshot, persist,
+  parts, shop, sandbox, machine, bill, keys, clients, hardware, os, memory, network, snapshot, persist, cloud,
 );
