@@ -3,6 +3,7 @@ import { MONITOR_POWER, PC_CORD_X, PC_POWER, type Rect } from '../layout/layout'
 import { drape, hangCable, paintCable, paintClip, type Clip, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { CordScene, SceneInfo } from '@/core/render/interact';
 import type { RoomGeo } from '@/features/room/render/shell/room';
+import { deskGeo } from '@/features/room/render/shell/persp';
 import type { Theme } from '@/core/render/theme';
 
 // The two cords from the wall: the PC's (from the inlet in the case's rear wall) and the monitor's (built into it). Each ends in a plug that
@@ -30,16 +31,18 @@ export interface CordPlan {
   outlet: Pt;
   /** Where the plug lies when it is not in the wall. */
   rest: Pt;
+  /** Below this y (under the desk, by the socket) the cord is drawn over the wall socket's plate, not behind it: it hangs in front of the wall and the plug is in front of the plate. */
+  frontY: number;
 }
 
 /** The two cords of a room: the pure geometry (tested). */
 export function cordPlan(geo: RoomGeo): Record<CordKind, CordPlan> {
   const s = geo.socket, p = s.plate, jog = p.y - 330;
-  const pcStart: Pt = [PC_POWER.x - 6 - 330 + 10, PC_POWER.y];
+  const pcStart: Pt = [PC_POWER.x - 6 - 330 + 10, PC_POWER.y], frontY = Math.max(p.y - 1300, deskGeo(geo.persp, geo.ys, geo.floor).yBottom);
   const mon = MONITOR_POWER;
   return {
-    pcmains: { kind: 'pcmains', route: [pcStart, [PC_CORD_X, PC_POWER.y]], outlet: [s.pc.x, s.pc.y], rest: [s.pc.x + 380, p.y + p.h + 1050] },
-    monmains: { kind: 'monmains', route: [[mon.x, mon.y - 200], [mon.x, jog], [s.mon.x, jog]], outlet: [s.mon.x, s.mon.y], rest: [s.mon.x - 380, p.y + p.h + 1050] },
+    pcmains: { kind: 'pcmains', route: [pcStart, [PC_CORD_X, PC_POWER.y]], outlet: [s.pc.x, s.pc.y], rest: [s.pc.x + 380, p.y + p.h + 1050], frontY },
+    monmains: { kind: 'monmains', route: [[mon.x, mon.y - 200], [mon.x, jog], [s.mon.x, jog]], outlet: [s.mon.x, s.mon.y], rest: [s.mon.x - 380, p.y + p.h + 1050], frontY },
   };
 }
 
@@ -84,6 +87,9 @@ export class CordsView {
   hits: CordHit[] = [];
   private gb = new Graphics();
   private gf = new Graphics();
+  /** The stretch of a seated cord by the socket, over the wall socket's plate but cut off at the desk's lower edge (the cord comes out from under the desk). */
+  private gm = new Graphics();
+  private mask = new Graphics();
   private T!: Theme;
   private plan: Record<CordKind, CordPlan> | null = null;
   private key = '';
@@ -94,10 +100,10 @@ export class CordsView {
   /** Changes whenever a cord's state or a plug's place does (the power lens rebuilds its model on it). */
   get stateKey() { return this.key; }
 
-  constructor() { this.behind.addChild(this.gb); this.root.addChild(this.gf); }
+  constructor() { this.behind.addChild(this.gb); this.root.addChild(this.gm, this.mask, this.gf); this.gm.mask = this.mask; }
 
   /** A new room (theme, case tier): the plan is rebuilt and everything redrawn. */
-  setRoom(T: Theme, geo: RoomGeo) { this.T = T; this.plan = cordPlan(geo); this.key = ''; this.falls.clear(); this.prevHeld = null; }
+  setRoom(T: Theme, geo: RoomGeo) { this.T = T; this.plan = cordPlan(geo); this.key = ''; this.mask.clear().rect(-1e6, this.plan.pcmains.frontY, 2e6, 1e6).fill({ color: '#ffffff' }); this.falls.clear(); this.prevHeld = null; }
 
   /** Advance the plugs that fell out of the hand (call every frame; it redraws only while one moves). */
   tick(dt: number) {
@@ -146,29 +152,35 @@ export class CordsView {
 
   private draw(connected: Record<CordKind, boolean>, held: { kind: CordKind; at: Pt } | null) {
     const plan = this.plan!, T = this.T, gb = this.gb, gf = this.gf;
-    gb.clear(); gf.clear();
+    gb.clear(); gf.clear(); this.gm.clear();
     for (const k of CORD_KINDS) {
       const pl = plan[k], isHeld = held?.kind === k, fall = this.falls.get(k), seated = connected[k] && !isHeld;
       const at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : fall ? fall.p : pl.rest;
       const d = cordDrape(pl, at, seated), body = isHeld ? gf : gb;
+      // the stretch by the socket is drawn over the plate (the plug is in front of it, so is the cord that leaves it); the rest runs behind the desk
+      const cut = d.path.findIndex((q) => q[1] >= pl.frontY - 300);
       this.cord(body, d.path, T);
-      for (const c of d.clips) paintClip(body, T, c.at, c.dir, 70);
+      if (!isHeld && cut > 0) this.cord(this.gm, d.path.slice(cut - 1), T);
+      for (const c of d.clips) paintClip(c.at[1] >= pl.frontY ? this.gm : body, T, c.at, c.dir, 70);
       this.plug(gf, at, T, seated);
     }
   }
 
-  private cord(g: Graphics, pts: Pt[], T: Theme, w = 70) {
-    paintCable(g, T, pts, { w, accent: T.mute, wall: true });
+  private cord(g: Graphics, pts: Pt[], T: Theme, w = 70, outer = true) {
+    paintCable(g, T, pts, { w, accent: T.mute, wall: true, shadow: outer, halo: outer });
   }
 
   /** The wall plug seen from its back: the same drawing the baked room used to carry (a body with grip ridges and the boot the cord enters). */
   private plug(g: Graphics, at: Pt, T: Theme, seated: boolean) {
     const [x, y] = at, body = T.dark ? '#141a26' : '#262d3a', rim = T.dark ? '#5b6a94' : '#6b7794';
     const lift = seated ? 0 : 1; // a plug that is out stands a little proud: a longer shadow
-    g.roundRect(x - 270 + 14 + 10 * lift, y - 280 + 20 + 16 * lift, 540, 560, 70).fill({ color: '#000000', alpha: 0.3 });
-    g.roundRect(x - 270, y - 280, 540, 560, 70).fill({ color: body }).stroke({ width: 8, color: rim, alpha: 0.8 });
-    g.roundRect(x - 220, y - 240, 440, 70, 30).fill({ color: '#ffffff', alpha: T.dark ? 0.08 : 0.2 });
-    for (let k = 0; k < 4; k++) g.rect(x - 200, y - 80 + k * 90, 400, 18).fill({ color: '#ffffff', alpha: 0.08 });
+    // a Swiss plug (type J) seen from its back: a rounded body (nearly a circle at the corners) with a collar, two finger grooves and the boot the cord enters
+    g.roundRect(x - 260 + 14 + 10 * lift, y - 270 + 20 + 16 * lift, 520, 540, 200).fill({ color: '#000000', alpha: 0.3 });
+    g.roundRect(x - 260, y - 270, 520, 540, 200).fill({ color: body }).stroke({ width: 8, color: rim, alpha: 0.8 });
+    g.roundRect(x - 205, y - 215, 410, 430, 150).stroke({ width: 5, color: rim, alpha: 0.4 }); // the collar
+    g.roundRect(x - 150, y - 235, 300, 56, 28).fill({ color: '#ffffff', alpha: T.dark ? 0.09 : 0.22 }); // the lit top
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.roundRect(x + sx * 218 - 8, y - 100 + k * 90, 16, 54, 8).fill({ color: '#ffffff', alpha: 0.1 });
+    g.circle(x, y + 20, 70).fill({ color: '#ffffff', alpha: 0.05 }).stroke({ width: 4, color: rim, alpha: 0.35 });
     g.roundRect(x - 90, y - 330, 180, 90, 30).fill({ color: body }).stroke({ width: 6, color: rim, alpha: 0.6 }); // the boot
   }
 }

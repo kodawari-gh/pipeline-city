@@ -221,12 +221,18 @@ function powerArt(T: Theme, geo: RoomGeo, back: Graphics, front: Graphics) {
   front.roundRect(p.x + 14, p.y + 20, p.w, p.h, 50).fill({ color: '#000000', alpha: 0.3 });
   front.roundRect(p.x, p.y, p.w, p.h, 50).fill({ color: plate }).stroke({ width: 8, color: edge, alpha: 0.8 });
   front.roundRect(p.x + 24, p.y + 20, p.w - 48, 50, 24).fill({ color: '#ffffff', alpha: T.dark ? 0.12 : 0.5 });
-  for (const o of [s.mon, s.pc]) front.circle(o.x, o.y, 300).fill({ color: mix(plate, '#000000', 0.18) }).stroke({ width: 6, color: edge, alpha: 0.5 });
-  for (const sx of [p.x + 70, p.x + p.w - 70]) { front.circle(sx, p.y + p.h / 2, 24).fill({ color: mix(plate, '#000000', 0.3) }); front.moveTo(sx - 14, p.y + p.h / 2).lineTo(sx + 14, p.y + p.h / 2).stroke({ width: 5, color: edge, alpha: 0.7 }); }
-  // each outlet's pins and earth: the plug (cords.ts) covers them while it is in
+  // Swiss (type J) outlets: a rounded-square recess the plug's body sits in, with a bevel
   for (const o of [s.mon, s.pc]) {
-    for (const dx of [-110, 110]) front.roundRect(o.x + dx - 24, o.y - 70, 48, 140, 14).fill({ color: mix(plate, '#000000', 0.55) });
-    front.circle(o.x, o.y + 150, 30).fill({ color: mix(plate, '#000000', 0.55) });
+    front.roundRect(o.x - 296, o.y - 306, 592, 612, 215).fill({ color: mix(plate, '#000000', 0.18) }).stroke({ width: 6, color: edge, alpha: 0.5 });
+    front.roundRect(o.x - 270, o.y - 280, 540, 560, 195).stroke({ width: 4, color: '#ffffff', alpha: T.dark ? 0.12 : 0.5 });
+  }
+  for (const sx of [p.x + 70, p.x + p.w - 70]) { front.circle(sx, p.y + p.h / 2, 24).fill({ color: mix(plate, '#000000', 0.3) }); front.moveTo(sx - 14, p.y + p.h / 2).lineTo(sx + 14, p.y + p.h / 2).stroke({ width: 5, color: edge, alpha: 0.7 }); }
+  // each outlet's three round holes (line and neutral side by side, the earth hole below between them): the plug (cords.ts) covers them while it is in
+  for (const o of [s.mon, s.pc]) {
+    for (const [dx, dy] of [[-95, -50], [95, -50], [0, 110]] as const) {
+      front.circle(o.x + dx, o.y + dy, 40).fill({ color: mix(plate, '#000000', 0.7) }).stroke({ width: 6, color: edge, alpha: 0.55 });
+      front.circle(o.x + dx - 8, o.y + dy - 10, 14).fill({ color: '#000000', alpha: 0.35 });
+    }
   }
   void m;
 }

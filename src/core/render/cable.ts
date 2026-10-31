@@ -23,6 +23,8 @@ export interface CableLook {
   braid?: boolean;
   /** Draw the shadow (default true); a cable that lies on top of its own shadow layer turns it off. */
   shadow?: boolean;
+  /** Draw the pale halo of a wall cable (default true); off where the cable is drawn again over itself. */
+  halo?: boolean;
 }
 
 const trace = (g: Graphics, pts: readonly Pt[], dx = 0, dy = 0) => {
@@ -43,7 +45,7 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
   if (pts.length < 2) return;
   const { w, accent } = look, wall = !!look.wall;
   if (look.shadow !== false) { trace(g, pts, w * 0.14, w * 0.2); g.stroke({ width: w + Math.max(4, w * 0.08), color: '#000000', alpha: 0.28, cap: 'round', join: 'round' }); }
-  if (wall && T.dark) {
+  if (wall && T.dark && look.halo !== false) {
     trace(g, pts); g.stroke({ width: w * 2.2, color: HALO, alpha: 0.12, cap: 'round', join: 'round' });
     trace(g, pts); g.stroke({ width: w * 1.5, color: HALO, alpha: 0.28, cap: 'round', join: 'round' });
   }

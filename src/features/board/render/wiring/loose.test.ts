@@ -6,6 +6,7 @@ import { cordPath, cordPlan, cordRoute, cordSlack } from './cords';
 import { CORD_END } from './cords';
 import { fanCordPlans, cordLen } from './fancords';
 import { pathLen } from '@/core/render/cable';
+import { roomGeo } from '@/features/room/render/shell/room';
 
 describe('loose cables lie where they would', () => {
   it('every loose PSU lead lies on the roof of the PSU: its plug stands on it, no plug overlaps another, the cable never goes below the roof', () => {
@@ -32,7 +33,7 @@ describe('loose cables lie where they would', () => {
   });
 
   it('a wall cord seated runs straight into its boot; out, it keeps its run and hangs to the plug', () => {
-    const geo = { socket: { plate: { x: 0, y: 4000, w: 1600, h: 900 }, pc: { x: 400, y: 4400 }, mon: { x: 1200, y: 4400 } } } as unknown as Parameters<typeof cordPlan>[0];
+    const geo = roomGeo();
     const plan = cordPlan(geo).pcmains;
     expect(cordPath(plan, plan.outlet, true).length).toBeGreaterThan(plan.route.length);
     const out = cordPath(plan, plan.rest, false), boot = [plan.rest[0], plan.rest[1] - CORD_END];
