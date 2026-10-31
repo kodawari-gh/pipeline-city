@@ -317,7 +317,7 @@ export class Interact {
       return this.pending(cx, cy, id, () => this.beginCable(ci, cx, cy));
     }
     if (id.startsWith('key:')) return this.pending(cx, cy, id, () => this.beginKey(Number(id.slice(4)), cx, cy));
-    const dev = this.deviceFor(id, s);
+    const dev = this.deviceFor(id === 'psu.readout' ? 'psu' : deviceOfPart(id, s.devices), s);
     if (dev) return this.pending(cx, cy, id, () => this.beginDevice(dev, cx, cy));
     return null;
   }

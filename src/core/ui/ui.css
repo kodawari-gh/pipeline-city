@@ -401,8 +401,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 }
 .inv.away { transform: translateY(calc(100% + 1.5rem)); opacity: 0; pointer-events: none; }
 /* A part lifted off the board: the shelf is the place to drop it. */
-.inv.drop { outline: 0.15rem dashed var(--accent); outline-offset: -0.15rem; border-radius: 1rem; }
-.inv.drop.over { outline-style: solid; background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+.inv.drop { outline: 0.15rem dashed var(--accent); outline-offset: -0.15rem; border-radius: 1rem; background: color-mix(in srgb, var(--panel) 35%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; } /* see-through: the part in the hand shows over the shelf */
+.inv.drop.over { outline-style: solid; background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .inv-head { position: relative; display: flex; align-items: baseline; gap: 0.7rem; padding-right: 2rem; margin-bottom: 0.45rem; }
 .inv-title { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
 .inv-title b { font-family: var(--mono); color: var(--accent); }
