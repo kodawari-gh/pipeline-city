@@ -4,7 +4,7 @@ import { scrubCursor, scrubRange, scrubShown, scrubTarget } from '@/app/scrub';
 import type { GpuStep, GpuStepKind } from '../sim/isa/ref';
 import { box, label, mix } from '@/core/render/ink';
 import type { Theme } from '@/core/render/theme';
-import { EdgeFan } from '../../room/render/desk/case';
+import { EdgeFan } from '../../room/render/desk/props/case';
 import { gpuCover } from '@/core/render/accelart';
 import type { Pt } from '../../cpu/render/core/cpuplan';
 import { gpuFar, gpuNear } from './gpuart';

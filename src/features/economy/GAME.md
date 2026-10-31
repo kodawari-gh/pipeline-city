@@ -69,7 +69,7 @@ A spare in the inventory can be sold (`sell(invId)`, message `sell`): the player
 
 ## The power bill
 
-Code: `src/features/economy/sim/bill.ts` (`billTick`, called first in `advanceBaseTick`); UI: `src/features/economy/ui/PowerBill.tsx`, `billChip` in `src/core/ui/logic.ts`. Owner decisions (T127): a **flat rate**, **periodic and auto-paid**, an unpaid bill **cuts the wall**, the HUD shows **a line plus a detail popover**.
+Code: `src/features/economy/sim/bill.ts` (`billTick`, called first in `advanceBaseTick`); UI: `src/features/economy/ui/progress/PowerBill.tsx`, `billChip` in `src/core/ui/logic.ts`. Owner decisions (T127): a **flat rate**, **periodic and auto-paid**, an unpaid bill **cuts the wall**, the HUD shows **a line plus a detail popover**.
 
 - **Rate**: `EconomyConfig.powerRatePerWh` dollars per Wh of `Snapshot.energy.wh` (one game tick counts as one second, so the rate is a game-scale placeholder: `CAMPAIGN_POWER_RATE` 0.15, about $2 for a 54 W machine per period). The default is **0 = no bill**, which keeps the tests and bots as they were; `host.ts` gives a new or loaded campaign the rate. The sandbox never has a bill.
 - **Issue**: the clock starts at the first tick after the first power-on; every `billPeriodTicks` (600 = 10 game minutes) the energy since the last bill becomes a bill of `ceil(Wh x rate)` whole dollars (nothing if the machine drew nothing).

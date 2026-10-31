@@ -1,6 +1,6 @@
 # Rendering: case, bay, OS screen, level of detail, installed devices
 
-Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/room/render/desk/case.ts`, `room/exterior.ts`, `board/devices.ts`, `board/drives.ts`, `board/accelart.ts`, `board/ports.ts`.
+Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/features/room/render/desk/props/case.ts`, `room/exterior.ts`, `board/devices.ts`, `board/drives.ts`, `board/accelart.ts`, `board/ports.ts`.
 
 ## Files
 

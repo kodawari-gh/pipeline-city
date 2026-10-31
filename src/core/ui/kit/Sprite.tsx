@@ -2,7 +2,7 @@
 // (docs/JOBS.md "The sprite"). The almanac and the log use it as the job's face; a job that is not met yet is a dark silhouette of the same shape.
 import { CODE_SOURCE, profileOf, spriteOf, type Sprite } from '@/features/jobs/sim/jobcode';
 import type { TipPart } from '@/features/jobs/sim/jobdex';
-import type { IconName } from '@/features/economy/ui/picker';
+import type { IconName } from '@/features/economy/ui/shop/picker';
 
 const cache = new Map<string, Sprite | null>();
 

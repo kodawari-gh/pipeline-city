@@ -8,7 +8,7 @@ import type { StorageSnap } from '@/worker/game/game';
 import type { Snapshot } from '@/worker/protocol';
 import { buildBoard, type BoardArt } from './boardArt';
 import { Camera, type FlyOpts, type View } from '@/core/render/camera';
-import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/case';
+import { EdgeFan, bayArt, caseBack, caseGlass, caseShade, emptyCellHint, fanMounts, radiatorSpan, sataCablePath, sataLinkArt, sataPowerArt } from '../../room/render/desk/props/case';
 import { driveArt, driveBody, driveKindOf, osBadgeRect, slotIndex, slotRect, type DriveKind } from '../../storage/render/drives';
 import { cableArt, cpuArt, looseCableArt, monitorArt, plugRect, psuArt, ramArt, SCREEN_BG, vrmSinkArt, type Part } from './devices';
 import { coolerArt, radiatorArt, radiatorFit, radiatorGrade, type RadiatorFit } from './cooler';
@@ -32,8 +32,8 @@ import {
   BAY, BD, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
   LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
-import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/mail';
-import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props';
+import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
+import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
 import { buildCables, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind } from './wiring/routes';
 import { Live, type DriveHook, type GlowTarget } from '@/core/render/live';
 import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow, type LodRect } from '@/core/render/lod/lod';

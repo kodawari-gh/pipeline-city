@@ -7,7 +7,7 @@ import {
   RAM_BASE, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE,
 } from "@/core/sim/memmap";
 
-import type { Device } from "@/core/sim/device";
+import type { Device } from "@/core/sim/hw/device";
 import { Prng } from "@/core/sim/prng";
 import { TpmPort } from "@/features/tpm/sim/tpm";
 

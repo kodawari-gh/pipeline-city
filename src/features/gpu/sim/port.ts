@@ -10,8 +10,8 @@
 import { GPU_BASE, GPU_CODE, GPU_FRAME, GPU_HOP_TICKS, GPU_MEM, GPU_REG, GPU_STRIDE, GpuFaultCode, GpuStatus } from "@/core/sim/memmap";
 import { createGpu, sameGpuConfig, type GpuCacheView, type GpuConfig, type GpuEngine, type GpuSmView } from ".";
 import { GpuFault, type GpuStep } from "./isa/ref";
-import type { Rate } from "@/core/sim/clock";
-import type { Device } from "@/core/sim/device";
+import type { Rate } from "@/core/sim/hw/clock";
+import type { Device } from "@/core/sim/hw/device";
 
 type Phase = "idle" | "in" | "run" | "out";
 

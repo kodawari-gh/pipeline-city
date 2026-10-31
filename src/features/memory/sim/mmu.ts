@@ -11,7 +11,7 @@
 // A CPU without an MMU has `tlbEntries` 0: the unit is on the bus but cannot be switched on.
 
 import { MMU_BASE, MMU_REG, MMU_SIZE, DEVICE_BASE, PteBit, VmFault } from "@/core/sim/memmap";
-import type { Device } from "@/core/sim/device";
+import type { Device } from "@/core/sim/hw/device";
 
 export const VA_BITS = 20;
 export const PAGE_BYTES = 256;

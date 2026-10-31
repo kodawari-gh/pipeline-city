@@ -3,7 +3,7 @@
 import { createEngine, type EngineConfig } from "../../cpu/sim/engines";
 import { GPU_PORTS, KERNEL_SECONDARY, NPU_PORTS, STORAGE_PORTS } from "@/core/sim/memmap";
 import type { Machine, MachineConfig } from "@/core/sim/machine";
-import type { Rate } from "@/core/sim/clock";
+import type { Rate } from "@/core/sim/hw/clock";
 import { deviceSpec, findDevices, type Board, type InstalledDevice } from "./board";
 import type { CpuSpec, DisplaySpec, RamSpec } from "./specs";
 import type { ThermalModel } from "./thermal";

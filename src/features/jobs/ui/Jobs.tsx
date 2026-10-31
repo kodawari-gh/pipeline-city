@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { declineJob, declineKey, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
-import { DECLINE_ARM_MS, declineStep, declineWords, deadlineInfo, needChips, type JobView } from '../../economy/ui/levelui';
+import { DECLINE_ARM_MS, declineStep, declineWords, deadlineInfo, needChips, type JobView } from '../../economy/ui/progress/levelui';
 import { fmtTicks } from '@/core/ui/logic';
 
 // Job needs, the deadline of an unrunnable job and the Decline button (docs/PROGRESSION.md "Declining"). Used by the key

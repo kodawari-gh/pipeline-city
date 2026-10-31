@@ -3,7 +3,7 @@
 
 import { OPS, SPEC_BY_NAME } from "../isa/isa";
 import { DEVICE_BASE, FAULT_CAUSE_LINE } from "@/core/sim/memmap";
-import type { Bus } from "@/core/sim/bus";
+import type { Bus } from "@/core/sim/hw/bus";
 import type { Core } from "../core";
 import type { Engine } from "@/core/sim/engine";
 import type { Machine } from "@/core/sim/machine";

@@ -7,7 +7,7 @@ import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from '../../features/board/render/devices';
 import { box, MONO, mix } from './ink';
 import { BD, CASE, PLUG_L, PLUG_W, type Rect } from '../../features/board/render/layout/layout';
-import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from '../../features/room/render/desk/props';
+import { keyStick, partIcon, ICON, KEY_LEN, KEY_LEN_PLUGGED, type PropObj } from '../../features/room/render/desk/props/props';
 import { roomClick } from '../../features/room/render/shell/room';
 import type { Shape } from './shape';
 import { movablePlug, rubberBand, type Cable, type CableKind, type Loose, type Plug, type Pt } from '../../features/board/render/wiring/routes';

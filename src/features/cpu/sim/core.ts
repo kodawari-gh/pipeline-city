@@ -3,13 +3,13 @@
 // unless it is built with more; the fields of core 0 are also on the Machine itself (`machine.regs`, `machine.intc`, ...).
 
 import { REG_COUNT } from "./isa/isa";
-import type { Bus } from "@/core/sim/bus";
-import type { Device } from "@/core/sim/device";
+import type { Bus } from "@/core/sim/hw/bus";
+import type { Device } from "@/core/sim/hw/device";
 import type { Engine } from "@/core/sim/engine";
-import { Intc, type IntcHub } from "@/core/sim/intc";
+import { Intc, type IntcHub } from "@/core/sim/hw/intc";
 import { Mmu } from "../../memory/sim/mmu";
 import { Mpu } from "../../memory/sim/mpu";
-import { Timer } from "@/core/sim/timer";
+import { Timer } from "@/core/sim/hw/timer";
 
 export class Core {
   readonly regs = new Int32Array(REG_COUNT);

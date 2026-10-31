@@ -4,8 +4,8 @@
 import {
   PCH_BASE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_REG, PCH_RESULT_WINDOW, PCH_RESULT_WORDS, PCH_SIZE, PchPhase,
 } from "@/core/sim/memmap";
-import type { Device } from "@/core/sim/device";
-import type { Display } from "@/core/sim/display";
+import type { Device } from "@/core/sim/hw/device";
+import type { Display } from "@/core/sim/hw/display";
 
 /** A USB key as the controller sees it: the program to load and the result the ROM wrote back. */
 export interface PchKey {

@@ -8,7 +8,7 @@ import {
   CASE, DESK_SLAB, FLOOR_Y, ISP_ROW_Y, MON_STAND, MONITOR, MONITOR_EAST, MONITOR_K, MONITOR_POWER, PC_CORD_X, PC_POWER, POWER_PLATE, HOOK_PITCH, LANYARD, ROUTER_SPOT, ROW_DROP, SHELF_Y, TRAY, TRAY_COLS, TRAY_ROWS, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, WALL_JACK, WALL_PLATE, WALL_Y, WORLD, setLayoutTier,
 } from '@/features/board/render/layout/layout';
 import { buildCables } from '@/features/board/render/wiring/routes';
-import { trayHook, trayKeyCentre } from '../desk/props';
+import { trayHook, trayKeyCentre } from '../desk/props/props';
 import { DAY_S, DESK, FOOT, ROOM_BAKE_RES, RoomView, roomBakeFits, roomBakeRect, roomHidden, START_HOUR, bodiesAt, deskY, duskAt, hourAt, isRoomId, lightsAt, nightAt, roomClick, roomDebug, roomBox, roomGeo, roomState, shaftSpan, skyAt } from './room';
 import type { Rect } from '@/features/board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';

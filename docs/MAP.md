@@ -8,7 +8,7 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
 - Start with `limit: 5`. Filter with `paths: ["src/features/gpu/*"]` or `languages`.
 - Use Grep only for an exact symbol, such as a `Game` method name.
 
-## The three layers
+## The layers
 ```
  main thread                                   web worker
  ┌─────────────────────────────────────┐       ┌───────────────────────────────┐
@@ -19,49 +19,46 @@ Use the `cocoindex-code` MCP tool (`mcp__cocoindex-code__search`) before Grep or
  └─────────────────────────────────────┘Snapshot└───────────────────────────────┘
 ```
 - `sim` code is pure TypeScript with no DOM, Pixi or Preact. It runs only in the worker.
-- `src/worker/protocol.ts` is the only code shared across the thread boundary: `ToSim` (actions in), `Snapshot` (state out, once per tick).
+- `src/worker/protocol.ts` is the only code shared across the thread boundary: `ToSim` in, `Snapshot` out (once per tick).
 - `render` and `ui` read the snapshot through signals in `src/app/store.ts`. They never touch sim internals.
-- Rules are checked by `src/architecture.test.ts`.
+- `src/architecture.test.ts` checks the rules. Keep folders small: split above about 10 source files.
 
-## Top-level folders
+## Shared folders
 | Folder | Holds |
 |---|---|
-| `src/app` | `main.tsx` entry, `store.ts` (owns the worker, signals, save/load), `hover`, `interaction`, `scrub` |
-| `src/worker` | worker entry, `host.ts`, `protocol.ts`, `crash.ts`; `game/` is the `Game` state, snapshot and save/restore (`SAVE.md`) |
-| `src/core/sim` | the machine model every feature shares: `Machine`, bus, clock, interrupts (`intc`), timer, PRNG, display, `Engine` base (`MACHINE.md`) |
-| `src/core/render` | Pixi helpers: camera, theme, `ink` (text), shape, LOD, `live.ts` (per-frame binding of snapshot to views), `interact.ts` (drag and click) |
-| `src/core/ui` | `Hud`, toasts, `ui.css`, `kit/` (icons, meter, sprite), shared UI state |
-| `src/features/<f>` | one folder per feature, see below |
-| `docs/` | cross-cutting docs: `ARCHITECTURE.md`, `RENDER.md` (+ `render/`), `UI.md`, `TODO.md` |
+| `app/` | `main.tsx` entry, `store.ts` (owns the worker, signals, save/load), hover, interaction, scrub |
+| `worker/` | worker entry, `host`, `protocol`, `crash`; `game/` is the `Game` state, snapshot, save (`SAVE.md`) |
+| `core/sim/` | machine model: `machine`, `engine` base, `memmap`, `prng`; `hw/` bus, device, interrupts, timer, clock, display (`MACHINE.md`) |
+| `core/render/` | Pixi helpers: camera, theme, ink, shape, `live` (snapshot to views), `interact` (drag, click); `lod/` level of detail |
+| `core/ui/` | `Hud`, state, logic, `ui.css`; `panels/` log, crash, stats, toasts, new game; `kit/` icons, meter, sprite |
+| `docs/` | `ARCHITECTURE`, `RENDER` (+ `render/`), `UI`, `TODO`, this file |
 
-## Features
-Each has `sim/`, `render/`, `ui/` as needed, and its doc at the folder root.
-
-| Feature | What it is | Doc |
+## Features (`src/features/<f>/`, doc at the folder root)
+| Feature | What it is | Subfolders |
 |---|---|---|
-| `cpu` | toy ISA, assembler, reference interpreter, 4 timed engines (unpipelined, in-order, out-of-order), cores and threads, die view, trace panel | `CPU.md`, `ISA.md`, `ENGINES.md`, `ASSEMBLY.md`, `DIE.md`, `MULTICORE.md` |
-| `gpu` | SIMD/warp engine, GPU ISA and kernels, card view | `GPU.md`, `ACCEL.md` |
-| `npu`, `tpm` | NPU and TPM devices, kernels, card views | (see `GPU.md`, `ACCEL.md`) |
-| `memory` | RAM sticks, DRAM timing, MMU/MPU, paging, bit flips, RAM view | `RAM.md`, `VM.md` |
-| `storage` | drives, file system, disk views | |
-| `network` | NIC, link, transfers, network panel, wall cords | `NETWORK.md`, `NETSTACK.md` |
-| `os` | kernel (toy assembly), job table, spool, OS window | `OS.md` |
-| `board` | board tiers, parts, cables, VRM, thermal, PCH, board art and routing | `BOARD.md`, `VRM.md` |
-| `economy` | money, shop, prices, levels, contracts, power bill, clients, reputation | `GAME.md`, `PROGRESSION.md`, `TECHTREE.md` |
-| `jobs` | job generator (kernels + templates, seeded), job dex, job log, almanac | `JOBS.md`, `GEN.md` |
-| `room` | desk, wall, monitor, props, light, time of day | `room.md`, `shell.md`, `light.md` |
-| `sandbox` | sandbox tools and the speed benchmark | `SANDBOX.md` |
-| `tutorial` | tutorial steps, anchors, highlight | |
+| `cpu` | toy ISA, assembler, reference interpreter, timed engines, cores, threads, die view (`CPU`, `ISA`, `ENGINES`, `ASSEMBLY`, `DIE`, `MULTICORE`) | `sim/{isa,asm,ref,engines/{smp,timing},multicore}` `render/{die,core}` `ui` |
+| `gpu` | SIMD and warp engine, GPU ISA, kernels, card view (`GPU`, `ACCEL`) | `sim/{isa,engine}` `render/plan` `ui` |
+| `npu`, `tpm` | NPU and TPM devices, kernels, card views | `sim` `render` `ui` |
+| `memory` | RAM sticks, DRAM timing, MMU and MPU, paging, bit flips (`RAM`, `VM`) | `sim` `render` |
+| `storage` | drives, file system, disk views | `sim` `render` |
+| `network` | NIC, link, transfers, network panel (`NETWORK`, `NETSTACK`) | `sim` `render` `ui` |
+| `os` | kernel in toy assembly, job table, spool, OS window (`OS`) | `sim` `ui` |
+| `board` | board tiers, parts, cables, VRM, thermal, PCH, board art (`BOARD`, `VRM`) | `sim/{game,pch}` `render/{layout,wiring}` `ui` |
+| `economy` | money, shop, levels, contracts, power bill, clients (`GAME`, `PROGRESSION`, `TECHTREE`) | `sim` `ui/{shop,progress}` |
+| `jobs` | seeded job generator, job dex, job log, almanac (`JOBS`, `GEN`) | `sim/gen` `ui` |
+| `room` | desk, wall, monitor, props, light (`room`, `shell`, `light`) | `render/{shell,desk/props}` |
+| `sandbox` | sandbox tools, speed benchmark (`SANDBOX`) | `sim` `ui` |
+| `tutorial` | tutorial steps, anchors, highlight | `ui` |
 
 ## How the pieces fit
 1. **The player builds a machine.** Parts live in `board`. `board/sim/apply.ts` wires the board into a `core/sim` `Machine`.
-2. **Jobs are real programs.** `jobs/sim/gen` builds assembly per seed. A client key carries it. The machine (or the OS kernel) runs it on the chosen `cpu` engine, and the result pays through `economy`.
-3. **`Game` is the state.** `worker/game/game.ts` holds it. Its methods are plain functions in `features/*/sim` written `function x(this: Game, ...)`, mixed in at the bottom of `game.ts`. Grep the method name to find the owner.
-4. **Each tick** the worker posts a `Snapshot`. `app/store.ts` puts it in signals. `core/render/live.ts` feeds the Pixi views, and Preact panels re-render.
-5. **Player input** goes back as `ToSim` messages (`store.ts` to `worker.ts` to a `Game` method).
+2. **Jobs are real programs.** `jobs/sim/gen` builds assembly per seed. A client key carries it. The machine (or the OS kernel) runs it on a `cpu` engine. The result pays through `economy`.
+3. **`Game` is the state.** `worker/game/game.ts` holds it. Its methods are plain functions in `features/*/sim` written `function x(this: Game, ...)`. Grep the method name to find the owner.
+4. **Each tick** the worker posts a `Snapshot`. `app/store.ts` puts it in signals. `core/render/live.ts` feeds the Pixi views and Preact panels re-render.
+5. **Player input** goes back as `ToSim` messages (`store.ts`, then `worker.ts`, then a `Game` method).
 
 ## Known debt
-`core/` still imports `features/` in about 82 places, mainly `core/render/live.ts`, `core/render/interact.ts`, `core/sim/machine.ts` and `core/ui/Hud.tsx`. They are composition roots. `architecture.test.ts` lets the count only fall.
+`core/` imports `features/` in about 80 places: `core/render/live.ts`, `interact.ts`, `core/sim/machine.ts`, `core/ui/Hud.tsx` are composition roots. `architecture.test.ts` lets the count only fall.
 
 ## Commands and tests
-See `CLAUDE.md`. A test sits next to the file it covers; run `npx vitest run <path>`.
+See `CLAUDE.md`. A test sits next to the file it covers: `npx vitest run <path>`.

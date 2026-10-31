@@ -4,7 +4,7 @@ import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
-import { CASE_LOOK } from '../desk/case';
+import { CASE_LOOK } from '../desk/props/case';
 import type { DriveKind } from '@/features/storage/render/drives';
 import type { Theme } from '@/core/render/theme';
 

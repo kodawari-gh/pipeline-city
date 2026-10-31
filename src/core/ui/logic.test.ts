@@ -10,8 +10,8 @@ import type { Phase } from '../../worker/game/game';
 import { dev, key, snap } from './testdata';
 import { gpuIds } from '../../features/gpu/render/gpulayout';
 import { isGpuId } from '../../features/gpu/ui/gpudesc';
-import { statsOf } from '../../features/economy/ui/picker';
-import { STAT_HELP } from '../../features/economy/ui/stathelp';
+import { statsOf } from '../../features/economy/ui/shop/picker';
+import { STAT_HELP } from '../../features/economy/ui/shop/stathelp';
 import { cpuPlan } from '../../features/cpu/render/core/cpuplans';
 import type { PlanInput } from '../../features/cpu/render/core/cpuplan';
 

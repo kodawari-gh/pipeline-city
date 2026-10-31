@@ -8,7 +8,7 @@ import { HEAD, box, label, mix, MONO } from './ink';
 import { drawDriveLive, type DriveKind } from '../../features/storage/render/drives';
 import { BD, BR, GEO, dramPhase, MONITOR, MONITOR_K, PKG, PSU_PANEL, RAM_SINK, SCREEN, SCREEN_D, USB_PORT, VRM_LED, VRM_SINK, vrmPhase, type Rect } from '../../features/board/render/layout/layout';
 import { monitorView, screenMode, standbyLook, type MonitorInput } from '../../features/room/render/desk/monitor';
-import { EdgeFan } from '../../features/room/render/desk/case';
+import { EdgeFan } from '../../features/room/render/desk/props/case';
 import { RamView } from '../../features/memory/render/ramview';
 import { GpuView, type GpuCardScene } from '../../features/gpu/render/gpuview';
 import { DiskView } from '../../features/storage/render/diskview';

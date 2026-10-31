@@ -5,7 +5,7 @@ vi.mock('./ink', async (orig) => ({ ...(await orig<typeof import('./ink')>()), l
 
 import { BOARD_TIERS } from '../../features/board/sim/specs';
 import { IO_PORTS, TIER_GEO } from '../../features/board/render/layout/boardlayout';
-import { standoffs } from '../../features/room/render/desk/case';
+import { standoffs } from '../../features/room/render/desk/props/case';
 import { CASE_BD, GEO, PKG, SOCKET_E, setLayoutTier, type Rect } from '../../features/board/render/layout/layout';
 import { buildBuses, buildCables, type Lane } from '../../features/board/render/wiring/routes';
 import { plugRect } from '../../features/board/render/devices';

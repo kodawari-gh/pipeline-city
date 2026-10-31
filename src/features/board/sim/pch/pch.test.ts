@@ -3,7 +3,7 @@ import { Game } from "@/worker/game/game";
 import { generate, runReference } from "@/features/jobs/sim/gen";
 import { disassemble } from "@/features/cpu/sim/isa";
 import { JOB_ROW, PCH_BASE, PCH_REG, PchPhase, ROM_DONE_VECTOR, USER_BASE } from "@/core/sim/memmap";
-import { Display } from "@/core/sim/display";
+import { Display } from "@/core/sim/hw/display";
 import { Pch } from "./pch";
 import { ROM_IMAGE, ROM_SYMBOLS } from "./rom";
 

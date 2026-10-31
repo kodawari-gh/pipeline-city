@@ -4,7 +4,7 @@
 import { BOARD_TIERS, getSpec, type RamSpec, type VrmSinkSpec } from '../sim/specs';
 import { currentDemand, loadRatio, ramDemand, VRM_OVERLOAD } from '../sim/vrm';
 import type { Snapshot } from '@/worker/game/game';
-import { isNextLevelLock, lockOf, lockTooltip, moreOffer, type LevelLock, type MoreOffer } from '../../economy/ui/levelui';
+import { isNextLevelLock, lockOf, lockTooltip, moreOffer, type LevelLock, type MoreOffer } from '../../economy/ui/progress/levelui';
 import { fmtMoney, type Level } from '@/core/ui/logic';
 
 /** Above this share of the phases' rating the VRM is "working hard" (the efficiency curve starts to fall here). */

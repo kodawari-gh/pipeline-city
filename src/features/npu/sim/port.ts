@@ -13,8 +13,8 @@
 import {
   GPU_HOP_TICKS, GpuFaultCode, GpuStatus, NPU_BASE, NPU_LAYER_WORDS, NPU_NO_BIAS, NPU_DESC_WORDS, NPU_MEM, NPU_REG, NPU_STRIDE, NPU_TILES, NpuOp,
 } from "@/core/sim/memmap";
-import type { Rate } from "@/core/sim/clock";
-import type { Device } from "@/core/sim/device";
+import type { Rate } from "@/core/sim/hw/clock";
+import type { Device } from "@/core/sim/hw/device";
 
 export interface NpuConfig {
   /** The array is `grid` x `grid` cells. */

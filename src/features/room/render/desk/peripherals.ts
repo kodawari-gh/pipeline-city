@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import { mix } from '@/core/render/ink';
-import { MUG } from './mug';
+import { MUG } from './props/mug';
 import type { DeskGeo } from '../shell/persp';
 import type { Theme } from '@/core/render/theme';
 

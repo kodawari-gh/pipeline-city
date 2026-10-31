@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { CoolerSpec } from '../sim/specs';
 import { COOLER, type Rect } from './layout/layout';
 import { box, dashed, disc, lgrad, mix, rgrad } from '@/core/render/ink';
-import { EdgeFan, type FanMount } from '../../room/render/desk/case';
+import { EdgeFan, type FanMount } from '../../room/render/desk/props/case';
 import { blades, type Part } from './devices';
 import { roundedPath } from './wiring/routes';
 import type { Theme } from '@/core/render/theme';

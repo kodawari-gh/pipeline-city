@@ -9,7 +9,7 @@ vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()
 
 import { BOARD_TIERS } from '../../features/board/sim/specs';
 import { buildBoard } from '../../features/board/render/boardArt';
-import { bayArt, caseBack, caseGlass, sataCablePath, sataLinkArt, sataPowerArt } from '../../features/room/render/desk/case';
+import { bayArt, caseBack, caseGlass, sataCablePath, sataLinkArt, sataPowerArt } from '../../features/room/render/desk/props/case';
 import { BAY_CELLS, setLayoutTier } from '../../features/board/render/layout/layout';
 import type { Theme } from './theme';
 

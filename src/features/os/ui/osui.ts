@@ -5,7 +5,7 @@
 import type { Snapshot } from '@/worker/game/game';
 import { fmtMbit, limiterLadder, linkUsable } from '../../network/ui/netui';
 import type { Level } from '@/core/ui/logic';
-import type { IconName } from '../../economy/ui/picker';
+import type { IconName } from '../../economy/ui/shop/picker';
 
 export type ResId = 'cpu' | 'vrm' | 'ram' | 'psu' | 'queue' | 'net' | `disk:${string}`;
 

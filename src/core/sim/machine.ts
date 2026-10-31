@@ -1,13 +1,13 @@
 import { REG_SP } from "../../features/cpu/sim/isa/isa";
 import { IRQ, KERNEL_FAULT, RAM_DEFAULT_SIZE, STATUS_BASE, STATUS_SIZE } from "./memmap";
 import type { MemSystem } from "../../features/memory/sim/memsys";
-import { Bus } from "./bus";
-import { ClockScheduler, type Rate } from "./clock";
+import { Bus } from "./hw/bus";
+import { ClockScheduler, type Rate } from "./hw/clock";
 import { BankedDevice, Core } from "../../features/cpu/sim/core";
-import { RamDevice, type Device } from "./device";
-import { Display } from "./display";
+import { RamDevice, type Device } from "./hw/device";
+import { Display } from "./hw/display";
 import type { Engine } from "./engine";
-import { IntcHub } from "./intc";
+import { IntcHub } from "./hw/intc";
 import { Prng } from "./prng";
 
 export interface MachineConfig {

@@ -7,7 +7,7 @@ import { effect, signal } from '@preact/signals';
 import { selected } from '../../app/hover';
 import { saveHooks, snapshot, speed, togglePause } from '../../app/store';
 import type { Snapshot } from '../../worker/protocol';
-import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/levelui';
+import { celebrationFor, reconcileSeen, type Celebration } from '../../features/economy/ui/progress/levelui';
 import { fillToasts, fitFilterFor, fitsFilter, newHints, totalStalls, type Hint } from './logic';
 import { currentStep, INITIAL_TUTORIAL, resumeState, tutorialForSave, type TutorialState } from '../../features/tutorial/ui/tutorial';
 

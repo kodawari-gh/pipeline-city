@@ -8,7 +8,7 @@ vi.mock('pixi.js', async (orig) => ({ ...(await orig<typeof import('pixi.js')>()
 
 import { specsOfKind, type CoolerSpec } from '../sim/specs';
 import { coolerArt, coolerKitArt, radiatorArt, radiatorFit, radiatorPorts, tubeRoutes } from './cooler';
-import { radiatorSpan } from '../../room/render/desk/case';
+import { radiatorSpan } from '../../room/render/desk/props/case';
 import { CASE_IN, COOLER, setLayoutTier } from './layout/layout';
 import type { Theme } from '@/core/render/theme';
 

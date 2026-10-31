@@ -15,7 +15,7 @@ import type { Dragging } from '@/app/interaction';
 import type { Snapshot } from '@/worker/game/game';
 import type { Progress } from '@/worker/game/save';
 import { fmtMoney } from '@/core/ui/logic';
-import { levelBar } from '../../economy/ui/levelui';
+import { levelBar } from '../../economy/ui/progress/levelui';
 
 export interface ReplayBase { completed: number; owned: number }
 export interface TutorialState {

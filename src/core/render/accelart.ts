@@ -3,7 +3,7 @@ import { geoOf } from '../../features/board/render/layout/boardlayout';
 import { BD, NIC_BRACKET_X, nicY, type Rect } from '../../features/board/render/layout/layout';
 import { box, disc, label, mix } from './ink';
 import { CARD_TOP, gpuPlan, GPU_H, GPU_LEN, moveRect, type GpuPlan } from '../../features/gpu/render/gpulayout';
-import { EdgeFan, edgeFan } from '../../features/room/render/desk/case';
+import { EdgeFan, edgeFan } from '../../features/room/render/desk/props/case';
 import { gpuFar, gpuNear } from '../../features/gpu/render/gpuart';
 import { padlock } from '../../features/tpm/render/tpmglyph';
 import { tpmGeo } from '../../features/tpm/render/tpmlayout';

@@ -7,7 +7,7 @@ import type { KeySnap, LinkState, Snapshot, TransferSnap } from '@/worker/game/g
 import { bandwidth, DISK_NET_MBPS, getIspSpec, getRouterSpec, NET, type Binding } from '../sim/specs';
 import { fmtMbit, jackPort, nicsInOrder } from './netdesc';
 import { fmtMoney, fmtTicks, type ChipLevel } from '@/core/ui/logic';
-import type { IconName, PickerLine, Stat } from '../../economy/ui/picker';
+import type { IconName, PickerLine, Stat } from '../../economy/ui/shop/picker';
 
 export { fmtMbit } from './netdesc';
 

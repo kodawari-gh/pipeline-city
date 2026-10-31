@@ -1,4 +1,4 @@
-import type { IconName } from '@/features/economy/ui/picker';
+import type { IconName } from '@/features/economy/ui/shop/picker';
 import { rem } from './units';
 
 // Tiny stroke icons (16 px grid, currentColor). Used instead of sentences: bolt for power, flame for heat, clock for

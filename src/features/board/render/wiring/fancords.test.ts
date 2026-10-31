@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { caseMounts } from '../../sim/specs';
-import { fanMounts, hubHeaders } from '@/features/room/render/desk/case';
+import { fanMounts, hubHeaders } from '@/features/room/render/desk/props/case';
 import { fanCordPlans } from './fancords';
 import { setLayoutTier } from '../layout/layout';
 

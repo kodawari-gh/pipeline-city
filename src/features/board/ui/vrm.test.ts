@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BOARD_TIERS, getSpec } from '../sim/specs';
 import type { InventorySnap, PurchaseSnap, SlotSnap } from '@/worker/game/game';
 import { describeId, statusChip, VRM_IDS } from '@/core/ui/logic';
-import { compareRows, ladderFor, pickerFor, statsOf } from '../../economy/ui/picker';
+import { compareRows, ladderFor, pickerFor, statsOf } from '../../economy/ui/shop/picker';
 import { boardSnap, dev, EMPTY_SLOTS, PURCHASES, snap } from '@/core/ui/testdata';
 import {
   boardCards, cpuVrmWarning, LIQUID_VRM_NOTE, liquidVrmNote, plannedBoardTier, vrmLines, vrmReadout, vrmZone,

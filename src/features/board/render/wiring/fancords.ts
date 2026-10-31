@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CordScene, SceneInfo } from '@/core/render/interact';
-import { fanMounts, hubHeaders, lineOf, plugBox, sleeveOf } from '@/features/room/render/desk/case';
+import { fanMounts, hubHeaders, lineOf, plugBox, sleeveOf } from '@/features/room/render/desk/props/case';
 import type { Theme } from '@/core/render/theme';
 import { CASE_BD, COOLER, FAN_HUB, FAN_SLOT, GEO, type Rect } from '../layout/layout';
 import { sinkFanAt } from '../layout/pins';

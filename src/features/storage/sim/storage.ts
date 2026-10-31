@@ -5,8 +5,8 @@
 // the buffer window are in src/sim/isa/memmap.ts; see docs/BOARD.md.
 
 import { BLOCK_BYTES, STORAGE_BASE, STORAGE_BUF, STORAGE_REG, STORAGE_STRIDE, StorageStatus } from "@/core/sim/memmap";
-import type { Rate } from "@/core/sim/clock";
-import type { Device } from "@/core/sim/device";
+import type { Rate } from "@/core/sim/hw/clock";
+import type { Device } from "@/core/sim/hw/device";
 import { DiskFs, type MountState } from "./fs";
 import { Prng } from "@/core/sim/prng";
 

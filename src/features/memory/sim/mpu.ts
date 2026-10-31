@@ -3,7 +3,7 @@
 // which ends the job (the OS kills the process; the machine goes on). Off by default, and off whenever the kernel itself is running.
 
 import { MPU_BASE, MPU_REG, MPU_SIZE } from "@/core/sim/memmap";
-import type { Device } from "@/core/sim/device";
+import type { Device } from "@/core/sim/hw/device";
 
 export class Mpu implements Device {
   readonly name = "mpu";

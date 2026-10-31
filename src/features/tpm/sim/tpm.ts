@@ -11,9 +11,9 @@
 //   Unprotect  leave protected mode
 
 import { TPM_BASE, TPM_HOP_TICKS, TPM_REG, TPM_SEAL_TICKS, TPM_SIZE, TpmCmd, TpmFault, TpmStatus } from "@/core/sim/memmap";
-import type { Bus } from "@/core/sim/bus";
-import type { Rate } from "@/core/sim/clock";
-import type { Device } from "@/core/sim/device";
+import type { Bus } from "@/core/sim/hw/bus";
+import type { Rate } from "@/core/sim/hw/clock";
+import type { Device } from "@/core/sim/hw/device";
 import type { Prng } from "@/core/sim/prng";
 
 export interface TpmConfig {

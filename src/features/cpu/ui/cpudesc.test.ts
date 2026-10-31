@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getSpec, specsOfKind } from '../../board/sim/specs';
 import { cpuFeatures, describeSpec } from '@/core/ui/logic';
-import { specBrief } from '../../economy/ui/picker';
+import { specBrief } from '../../economy/ui/shop/picker';
 
 describe('CPU descriptions', () => {
   it('every CPU says what its engine is and what it has', () => {
