@@ -420,7 +420,7 @@ export interface OsSnap {
     spoolMax: number;
     /** The slots the automatic setting uses (the OS tier's default); `spoolMax` is the most the job table holds. */
     spoolAuto?: number;
-    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
+    drives: { deviceId: string; slot: string; name: string; tier: number; home: boolean; on: boolean; why: string | null; slots: number; freeBytes: number; alloc: number | null; maxSlots: number; reserveBytes: number | null; dataBytes: number; capacityBytes: number; usedBytes: number; osBytes: number }[];
   };
 }
 

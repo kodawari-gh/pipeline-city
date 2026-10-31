@@ -111,7 +111,7 @@ export function layoutSpool(this: Game): number[] {
   for (const d of others.filter((x) => !this.spoolDriveWhy(x)).sort((a, b) => deviceSpec(b).tier - deviceSpec(a).tier)) {
     const disk = this.diskFor(d);
     const port = STORAGE_PORTS.indexOf(d.slot);
-    let n = Math.min(alloc[d.id] !== undefined ? Math.min(alloc[d.id]!, cap - map.length) : target - map.length, Math.floor((disk.capacityBytes - disk.usedBytes) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES)));
+    let n = Math.min(alloc[d.id] !== undefined ? Math.min(alloc[d.id]!, cap - map.length) : target - map.length, Math.floor(Math.max(0, disk.capacityBytes - disk.usedBytes - this.reserveLeft(d.id) * BLOCK_BYTES) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES)));
     for (; n > 0; n--) { // one run of blocks, so the slots follow one another
       const f = disk.fs.create("os", "spool", n * SPOOL_BLOCKS_PER_JOB, { soft: true });
       if (f && f.extents.length === 1) {
@@ -150,13 +150,41 @@ export function setSpoolAlloc(this: Game, deviceId: string, slots: number | null
   return { ok: true, slots };
 }
 
+/** Blocks of datasets (cloud contracts) on drive `id`. */
+export function datasetBlocks(this: Game, id: string): number {
+  return (this.disks.get(id)?.fs.list("dataset") ?? []).reduce((a, f) => a + f.extents.reduce((n, e) => n + e.len, 0), 0);
+}
+
+/** Blocks reserved for datasets on drive `id` and not filled yet: the spool may not take them. */
+export function reserveLeft(this: Game, id: string): number {
+  const r = this.osCfg.dataReserve[id];
+  return r === undefined ? 0 : Math.max(0, r - this.datasetBlocks(id));
+}
+
+/** Disk allocation page: room reserved on drive `deviceId` for contract datasets (null: no reserve, datasets and spool share the free room). Cloud contracts use only this much on a drive that has a reserve. */
+export function setDataReserve(this: Game, deviceId: string, blocks: number | null): Result<{ blocks: number | null }> {
+  if (!this.os) return { ok: false, reason: "no OS is installed" };
+  const d = this.board.devices.find((x) => x.id === deviceId);
+  if (!d || deviceSpec(d).kind !== "storage") return { ok: false, reason: "no such drive" };
+  if (blocks === null) delete this.osCfg.dataReserve[deviceId];
+  else {
+    if (!Number.isInteger(blocks) || blocks < 0) return { ok: false, reason: "the reserve must be a whole number of blocks, 0 or more" };
+    const disk = this.diskFor(d);
+    const room = Math.floor((disk.capacityBytes - disk.usedBytes) / BLOCK_BYTES) + this.datasetBlocks(deviceId);
+    if (blocks > room) return { ok: false, reason: "the drive has no room for that reserve" };
+    this.osCfg.dataReserve[deviceId] = blocks;
+  }
+  if (!this.powered) this.refreshBootImage();
+  return { ok: true, blocks };
+}
+
 /** The most spool slots drive `d` can hold: its own room (the OS drive) or its free space (others), 0 when it may not. */
 export function spoolDriveMax(this: Game, d: InstalledDevice): number {
   const os = this.os!;
   if (this.spoolDriveWhy(d, false)) return 0;
   if (d.id === os.deviceId) return os.homeSlots;
   const disk = this.diskFor(d);
-  return Math.floor((disk.capacityBytes - disk.usedBytes) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES));
+  return Math.floor(Math.max(0, disk.capacityBytes - disk.usedBytes - this.reserveLeft(d.id) * BLOCK_BYTES) / (SPOOL_BLOCKS_PER_JOB * BLOCK_BYTES));
 }
 
 /** OS menu: let a drive hold spool slots or not. Takes effect at the next power-on (at once while off). */
@@ -456,6 +484,7 @@ export function osSnap(this: Game, jobs: KernelJob[]): OsSnap | null {
         slots: this.spoolPlan.find((p) => p.deviceId === d.id)?.slots ?? (d.id === os.deviceId ? os.homeSlots : 0),
         freeBytes: this.diskFor(d).capacityBytes - this.diskFor(d).usedBytes,
         alloc: this.osCfg.spoolAlloc[d.id] ?? null, maxSlots: this.spoolDriveMax(d),
+        reserveBytes: this.osCfg.dataReserve[d.id] === undefined ? null : this.osCfg.dataReserve[d.id]! * BLOCK_BYTES, dataBytes: this.datasetBlocks(d.id) * BLOCK_BYTES,
         capacityBytes: this.diskFor(d).capacityBytes, usedBytes: this.diskFor(d).usedBytes, osBytes: d.id === os.deviceId ? os.spec.diskBytes : 0,
       })),
     },

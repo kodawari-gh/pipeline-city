@@ -414,3 +414,24 @@ describe("the fs need and the caps", () => {
     for (let lvl = 1; lvl <= 18; lvl++) expect(jobMix(lvl, 1, {}, 0).some(([c]) => c.id === "cloud")).toBe(false);
   });
 });
+
+describe("the dataset reserve of the disk allocation page", () => {
+  it("a drive with a reserve takes datasets only up to it, and the spool leaves the reserve alone", () => {
+    const { g, id } = cloudRig("ssd1");
+    g.powerButton(); // off: the reserve applies at once
+    const before = g.spoolDriveMax(g.board.devices.find((d) => d.id === id)!);
+    expect(g.setDataReserve(id, 40).ok).toBe(true);
+    expect(g.spoolDriveMax(g.board.devices.find((d) => d.id === id)!)).toBeLessThan(before);
+    expect(g.setDataReserve(id, 1e9).ok).toBe(false);
+    g.powerButton();
+    runUntil(g, "idle-os");
+    const big = offer(g, { blocks: 41 });
+    expect(g.contractPlan(big, id).why).toMatch(/reserves 40 blocks/);
+    const ok = offer(g, { blocks: 16 });
+    expect(g.acceptContract(ok.id, id).ok).toBe(true);
+    const cfg = g.snapshot().os!.config!.drives.find((d) => d.deviceId === id)!;
+    expect(cfg.reserveBytes).toBe(40 * BLOCK_BYTES);
+    expect(cfg.dataBytes).toBe(16 * BLOCK_BYTES);
+    expect(g.setDataReserve(id, null).ok).toBe(true);
+  });
+});

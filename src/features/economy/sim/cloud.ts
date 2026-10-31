@@ -30,6 +30,8 @@ export function contractDriveWhy(this: Game, offer: ContractOffer, d: InstalledD
   if (!this.driveUp(d.id)) return `${s.name} is not mounted`;
   if (!this.driveCanHold(d.id, "dataset")) return `${s.name} is not formatted clean`;
   if (s.tier < offer.minDriveTier) return `it needs a SATA SSD or better, ${s.name} is too slow`;
+  const reserve = this.osCfg.dataReserve[d.id];
+  if (reserve !== undefined && this.datasetBlocks(d.id) + offer.blocks > reserve) return `${s.name} reserves ${reserve} blocks for datasets and ${this.datasetBlocks(d.id)} are in use: raise the reserve in the OS window`;
   const free = this.disks.get(d.id)!.fs.freeBlocks();
   if (free < offer.blocks) return `${s.name} has ${free} free blocks, the dataset needs ${offer.blocks}`;
   return null;

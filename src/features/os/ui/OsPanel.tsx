@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { setSpoolAlloc, snapshot } from '@/app/store';
+import { setDataReserve, setSpoolAlloc, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
 import { closeOs, osOpen } from '@/core/ui/state';
@@ -116,22 +116,33 @@ function Procs() {
   );
 }
 
+/** The reserve slider's step in blocks: 16 blocks (4 KiB), the size of one spool slot. */
+const RESERVE_STEP = 16;
+
 function DriveCard({ d, slotBytes, room }: { d: AllocDrive; slotBytes: number; room: number }) {
   const share = (v: number) => `${d.capacity > 0 ? (v / d.capacity) * 100 : 0}%`;
   // The slider tops out at what fits on the drive and what the kernel table still has room for.
   const top = Math.max(d.slots, Math.min(d.max, d.slots + room));
+  // The reserve slider moves in steps of one spool slot's size, up to what the drive has free besides the reserve itself.
+  const stepBytes = RESERVE_STEP * 256;
+  const reserveSteps = Math.round((d.reserveBytes ?? 0) / stepBytes);
+  const reserveTop = Math.max(reserveSteps, Math.floor((d.freeBytes + d.reserveFree + d.dataBytes) / stepBytes));
   return (
     <div class={`os-alloc${d.why ? ' off' : ''}`} title={d.why ?? undefined}>
       <div class="kv"><span><Icon name="disk" size={12} /> {d.label}</span><b>{fmtBytes(d.capacity)}</b></div>
-      <div class="os-diskbar" role="img" aria-label={`${d.label}: system ${fmtBytes(d.osBytes)}, files ${fmtBytes(d.usedBytes)}, spool ${fmtBytes(d.spoolBytes)}, free ${fmtBytes(d.freeBytes)}`}>
+      <div class="os-diskbar" role="img" aria-label={`${d.label}: system ${fmtBytes(d.osBytes)}, files ${fmtBytes(d.usedBytes)}, spool ${fmtBytes(d.spoolBytes)}, datasets ${fmtBytes(d.dataBytes)}, free ${fmtBytes(d.freeBytes)}`}>
         <i class="sys" style={{ width: share(d.osBytes) }} />
         <i class="files" style={{ width: share(d.usedBytes) }} />
         <i class="spool" style={{ width: share(d.spoolBytes) }} />
+        <i class="data" style={{ width: share(d.dataBytes) }} />
+        <i class="rsv" style={{ width: share(d.reserveFree) }} />
       </div>
       <div class="os-legend">
         {d.osBytes > 0 && <span><i class="sys" />system {fmtBytes(d.osBytes)}</span>}
         <span><i class="files" />files {fmtBytes(d.usedBytes)}</span>
         <span><i class="spool" />spool {fmtBytes(d.spoolBytes)}</span>
+        <span><i class="data" />datasets {fmtBytes(d.dataBytes)}</span>
+        {d.reserveBytes !== null && <span><i class="rsv" />reserved {fmtBytes(d.reserveFree)}</span>}
         <span><i class="free" />free {fmtBytes(d.freeBytes)}</span>
       </div>
       {d.why
@@ -144,6 +155,15 @@ function DriveCard({ d, slotBytes, room }: { d: AllocDrive; slotBytes: number; r
             <b class="value">{d.alloc === null ? `auto (${d.slots})` : d.alloc}</b>
           </label>
         )}
+      {!d.why && (
+        <label class="scale-row" title="Room kept for the datasets of cloud contracts. The spool cannot use it. With no reserve, datasets and spool share the free room.">
+          <span>dataset reserve</span>
+          <input type="range" min={0} max={reserveTop} step={1} value={Math.min(reserveSteps, reserveTop)} aria-label={`Dataset reserve on ${d.label}`}
+            onInput={(e) => setDataReserve(d.deviceId, Number(e.currentTarget.value) * RESERVE_STEP)} />
+          <b class="value">{d.reserveBytes === null ? 'none' : fmtBytes(d.reserveBytes)}</b>
+        </label>
+      )}
+      {!d.why && d.reserveBytes !== null && <div class="os-actions"><button class="chip idle" onClick={() => setDataReserve(d.deviceId, null)}>No reserve</button></div>}
       {!d.why && d.alloc !== null && <div class="os-actions"><button class="chip idle" onClick={() => setSpoolAlloc(d.deviceId, null)}>Automatic</button></div>}
     </div>
   );

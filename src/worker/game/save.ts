@@ -191,7 +191,7 @@ export interface SaveV4 {
   /** Cloud-storage contracts: the open offers, the running contracts and the stream that rolls offers (docs/JOBS.md "Contracts"). Optional and additive, no version bump. */
   contracts?: SavedContracts;
   /** The OS menu settings: most queue slots wanted and the drives that hold no spool (docs/OS.md "OS menu"). Optional and additive, no version bump: absent means automatic. */
-  osConfig?: { spoolSlots?: number; spoolOff?: string[]; spoolAlloc?: Record<string, number> };
+  osConfig?: { spoolSlots?: number; spoolOff?: string[]; spoolAlloc?: Record<string, number>; dataReserve?: Record<string, number> };
   /** The energy meter and the power bill (docs/GAME.md "The power bill"). Optional and additive, no version bump: absent means a fresh meter and no bill yet. */
   bill?: SavedBill;
 }

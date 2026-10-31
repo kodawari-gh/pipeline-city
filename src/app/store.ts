@@ -123,6 +123,7 @@ export const formatDrive = (deviceId: string, confirm = false) => send({ type: '
 /** OS menu: the most queue slots wanted (null: as many as the OS allows). Applies at the next power-on. */
 export const setSpoolSlots = (slots: number | null) => send({ type: 'setSpoolSlots', slots });
 /** OS menu: let a drive hold spool slots or not. Applies at the next power-on. */
+export const setDataReserve = (deviceId: string, blocks: number | null) => send({ type: 'setDataReserve', deviceId, blocks });
 export const setSpoolAlloc = (deviceId: string, slots: number | null) => send({ type: 'setSpoolAlloc', deviceId, slots });
 export const setSpoolDrive = (deviceId: string, on: boolean) => send({ type: 'setSpoolDrive', deviceId, on });
 /** Accept a cloud-storage contract offer from the job log (optionally on a chosen drive), or turn it down (it just goes away). */

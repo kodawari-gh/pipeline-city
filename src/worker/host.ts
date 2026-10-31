@@ -83,6 +83,7 @@ export function handleMessage(state: HostState, msg: ToSim): FromSim[] {
       case 'uninstallOs': return refusable(g, 'uninstallOs', g.uninstallOs());
       case 'formatDrive': return refusable(g, 'formatDrive', g.formatDrive(msg.deviceId, msg.confirm));
       case 'setSpoolSlots': return refusable(g, 'setSpoolSlots', g.setSpoolSlots(msg.slots));
+      case 'setDataReserve': return refusable(g, 'setDataReserve', g.setDataReserve(msg.deviceId, msg.blocks));
       case 'setSpoolAlloc': return refusable(g, 'setSpoolAlloc', g.setSpoolAlloc(msg.deviceId, msg.slots));
       case 'setSpoolDrive': return refusable(g, 'setSpoolDrive', g.setSpoolDrive(msg.deviceId, msg.on));
       case 'acceptContract': return refusable(g, 'acceptContract', g.acceptContract(msg.offerId, msg.deviceId));

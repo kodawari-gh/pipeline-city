@@ -206,6 +206,10 @@ export interface AllocDrive {
   osBytes: number;
   usedBytes: number;
   spoolBytes: number;
+  /** Datasets of cloud contracts, and the room reserved for them beyond what they fill (the reserve is null when there is none). */
+  dataBytes: number;
+  reserveBytes: number | null;
+  reserveFree: number;
   freeBytes: number;
   /** Spool slots this drive holds now, the most it could hold, and the allocation asked for (null: automatic). */
   slots: number;
@@ -229,10 +233,12 @@ export function allocModel(s: Snapshot): AllocModel | null {
   const slotBytes = os.spool.slotBytes;
   const drives = os.config.drives.map((d): AllocDrive => {
     const spoolBytes = d.slots * slotBytes;
-    const other = Math.max(0, d.usedBytes - d.osBytes);
+    const other = Math.max(0, d.usedBytes - d.osBytes - d.dataBytes);
+    const reserveFree = d.reserveBytes === null ? 0 : Math.max(0, d.reserveBytes - d.dataBytes);
     return {
       deviceId: d.deviceId, label: `${d.name} (${d.slot})${d.home ? ' (OS)' : ''}`, home: d.home, capacity: d.capacityBytes,
-      osBytes: d.osBytes, usedBytes: other, spoolBytes, freeBytes: Math.max(0, d.capacityBytes - d.osBytes - other - spoolBytes),
+      osBytes: d.osBytes, usedBytes: other, spoolBytes, dataBytes: d.dataBytes, reserveBytes: d.reserveBytes, reserveFree,
+      freeBytes: Math.max(0, d.capacityBytes - d.osBytes - other - d.dataBytes - reserveFree - spoolBytes),
       slots: d.slots, max: d.maxSlots, alloc: d.alloc, why: d.why,
     };
   });

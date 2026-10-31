@@ -723,6 +723,8 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .os-diskbar .sys, .os-legend .sys { background: var(--warn); }
 .os-diskbar .files, .os-legend .files { background: var(--mute); }
 .os-diskbar .spool, .os-legend .spool { background: var(--accent); }
+.os-diskbar .data, .os-legend .data { background: var(--ok); }
+.os-diskbar .rsv, .os-legend .rsv { background: repeating-linear-gradient(45deg, var(--ok) 0 0.2rem, transparent 0.2rem 0.4rem); }
 .os-actions { display: flex; gap: 0.3rem; padding: 0.2rem 0.45rem; }
 .os-drive { padding: 0.25rem 0; }
 .os-drive input { accent-color: var(--accent); }

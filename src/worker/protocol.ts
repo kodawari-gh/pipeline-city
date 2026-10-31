@@ -56,6 +56,7 @@ export type ToSim =
   | { type: 'setSpoolSlots'; slots: number | null }
   | { type: 'setSpoolDrive'; deviceId: string; on: boolean }
   | { type: 'setSpoolAlloc'; deviceId: string; slots: number | null }
+  | { type: 'setDataReserve'; deviceId: string; blocks: number | null }
   /** Accept a cloud-storage contract offer (docs/JOBS.md "Contracts"); `deviceId` picks the drive, else the slowest that qualifies. Ignoring just removes the offer. */
   | { type: 'acceptContract'; offerId: number; deviceId?: string }
   | { type: 'ignoreContract'; offerId: number }
