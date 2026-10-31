@@ -69,6 +69,16 @@ describe('the airflow lens model', () => {
     expect(psu.pts[psu.pts.length - 1]![0]).toBeLessThan(REAR_FAN.x);
   });
 
+  it('the lens reads the room, the case air and the PSU, and every part that has a temperature carries it for the trend arrow', () => {
+    const m = airflowModel(running(60, []));
+    const tag = (id: string) => m.tags.find((t) => t.id === id);
+    expect(tag('g.room')!.text).toContain('ROOM 25');
+    expect(tag('g.room')!.tempC).toBeUndefined(); // the room does not move: no arrow
+    expect(tag('g.case')!.tempC).toBeGreaterThanOrEqual(25);
+    expect(tag('g.psu')!.tempC).toBeGreaterThan(25);
+    for (const t of m.tags.filter((x) => x.id.startsWith('z.'))) expect(t.tempC, t.id).toBeTypeOf('number');
+  });
+
   it('a part in an area the sim says is poorly ventilated is named on the lens, with the area\'s air; a well-ventilated one is not', () => {
     const air = (flow: number) => ['north', 'cards', 'bay'].map((id) => ({ id, flow, fans: 3, riseC: 0 }));
     const poor = airflowModel(running(60, [], { board: boardSnap({ air: air(0.4) as never }) })), good = airflowModel(running(60, [], { board: boardSnap({ air: air(1) as never }) }));

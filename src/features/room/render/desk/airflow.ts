@@ -9,7 +9,7 @@ import { CoolantFlow, radiatorFit, tubeRoutes } from '@/features/board/render/co
 import { fanBank } from '@/core/render/fanmotor';
 import { blades } from '@/features/board/render/devices';
 import { zoneOf, type AirZoneId } from '@/features/board/sim/airflow';
-import type { DeviceKind } from '@/features/board/sim/specs';
+import { AMBIENT_C, type DeviceKind } from '@/features/board/sim/specs';
 import { AirField, type FieldPort } from './airfield';
 import type { Shape } from '@/core/render/shape';
 import type { AirCtx, AirFan, AirSource } from '@/core/render/airsource';
@@ -60,7 +60,8 @@ export interface AirZone {
   /** The sim's air of the area the zone sits in (`s.board.air`): 0 to 1 ventilation, and how much warmer than the room the cards make it, C. Unset while the machine is off. */
   flow?: number; riseC?: number;
 }
-export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r' }
+/** A word on the lens. `tempC`: the temperature the tag shows, if it shows one: the view follows it and adds a small arrow when it climbs or falls (`TREND_C_PER_S`). */
+export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r'; tempC?: number }
 export interface AirModel {
   lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState; fanIds: string[] }[];
   /** The components' own fans, to draw (rotors and edge-on strips). */
@@ -223,14 +224,20 @@ export function airflowModel(i: AirIn): AirModel {
   // the liquid loop: what the radiator gives to the air and how warm the coolant is (a front radiator warms the case with it, a top one blows it out)
   const loop = s.board?.loop, radMount = loop ? mounts.find((m) => m.id === `rad-${loop.side}`) : undefined;
   if (loop && radMount && running) {
-    tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.flow < 0.05 ? ' · PUMP OFF' : ` · IN ${deg(loop.hotC)} OUT ${deg(loop.coldC)}`}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c' });
+    tags.push({ id: 'loop', at: [mid(radMount.rect)[0], radMount.rect.y + radMount.rect.h + 260], text: `RAD ${loop.rejectW.toFixed(0)} W · COOLANT ${deg(loop.coolantC)}${loop.flow < 0.05 ? ' · PUMP OFF' : ` · IN ${deg(loop.hotC)} OUT ${deg(loop.coldC)}`}${loop.side === 'front' ? ' · WARMS THE CASE' : ''}`, tone: loop.coolantC > 55 ? 'warn' : 'heat', anchor: 'c', tempC: loop.coolantC });
   }
+  // the temperatures at a glance: the room (the sim's constant), the air of the case (the room plus how much the areas' air is warmed) and the PSU's own case
+  const rises = s.board?.air.map((a) => a.riseC) ?? [], caseC = AMBIENT_C + (rises.length ? rises.reduce((a, b) => a + b, 0) / rises.length : 0), psuZone = zones.find((z) => z.id === 'psu');
+  const gy = gl.y - 190; // above the glass, clear of the top fans and radiator
+  tags.push({ id: 'g.room', at: [gl.x + gl.w * 0.16, gy], text: `ROOM ${deg(AMBIENT_C)}`, tone: 'dim', anchor: 'c' });
+  tags.push({ id: 'g.case', at: [gl.x + gl.w * 0.5, gy], text: `CASE AIR ${deg(caseC)}`, tone: caseC > AMBIENT_C + 12 ? 'warn' : 'heat', anchor: 'c', tempC: caseC });
+  if (psuZone) tags.push({ id: 'g.psu', at: [gl.x + gl.w * 0.84, gy], text: `PSU CASE ${deg(psuZone.tempC)}`, tone: psuZone.heat > 0.8 ? 'warn' : 'heat', anchor: 'c', tempC: psuZone.tempC });
   for (const z of zones) {
     if (z.id === 'psu') continue;
     // the area's air as the sim works it out (board/sim/airflow.ts): how well it is ventilated, named when it is poor
     const flow = z.flow;
     const poor = flow !== undefined && flow < POOR_AIR;
-    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}${poor ? ` · AIR ${Math.round(flow * 100)}%` : ''}`, tone: z.heat > 0.8 || poor ? 'warn' : 'heat', anchor: 'c' });
+    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${z.label} ${deg(z.tempC)}${poor ? ` · AIR ${Math.round(flow * 100)}%` : ''}`, tone: z.heat > 0.8 || poor ? 'warn' : 'heat', anchor: 'c', tempC: z.tempC });
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
@@ -247,6 +254,8 @@ interface View { x: number; y: number; z: number; cx: number; cy: number; w: num
 /** Particles a lane carries, by its length, and the cap over the whole view. */
 /** Segments of a stream particle's trail. */
 const TRAIL = 4;
+/** A temperature that moves faster than this (C per game second, smoothed) gets an arrow on its tag. */
+export const TREND_C_PER_S = 0.03;
 const SPACING = 330, MAX_PARTS = 40, MAX_EMBERS = 24, LIFE = 22;
 /** A stable pseudo-random number in 0..1 for a seed (so a particle keeps its own speed, offset and size). */
 const rnd = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -262,6 +271,8 @@ export class AirflowLens {
   private rotors: { fanId: string; g: Graphics }[] = [];
   /** The water in the loop's tubes (only the lens shows it), driven by the pump's speed. */
   private flow: CoolantFlow | null = null;
+  /** What each temperature tag did last: its value, when it changed (game seconds) and its smoothed slope, C per second. */
+  private trends = new Map<string, { v: number; t: number; slope: number }>();
   /** How far each lane's air has travelled (world units): it advances by the lane's fan speed each frame, so it never jumps when a fan changes speed. */
   private runs = new Map<string, number>();
   /** The air of the case: a flow field and the particles it carries. */
@@ -451,6 +462,17 @@ export class AirflowLens {
   }
 
   /** The words, a constant 13 px on screen whatever the zoom; Texts are pooled. */
+  /** 1 while a temperature climbs, -1 while it falls, 0 when it holds (the sim ticks once a second, so the slope is smoothed over the last few ticks). */
+  private trendOf(id: string, v: number): number {
+    const st = this.trends.get(id);
+    if (!st) { this.trends.set(id, { v, t: this.t, slope: 0 }); return 0; }
+    if (v !== st.v && this.t > st.t) {
+      st.slope = st.slope * 0.8 + ((v - st.v) / (this.t - st.t)) * 0.2;
+      st.v = v; st.t = this.t;
+    }
+    return st.slope > TREND_C_PER_S ? 1 : st.slope < -TREND_C_PER_S ? -1 : 0;
+  }
+
   private tags(tags: AirTag[], z: number) {
     const T = this.T, pad = 5 / z;
     this.pills.clear();
@@ -467,7 +489,13 @@ export class AirflowLens {
       t.position.set(tag.at[0], tag.at[1]);
       t.visible = true;
       const w = t.width, h = t.height, x0 = tag.at[0] - (tag.anchor === 'l' ? 0 : tag.anchor === 'r' ? w : w / 2);
-      this.pills.roundRect(x0 - pad, tag.at[1] - h / 2 - pad * 0.4, w + 2 * pad, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
+      const trend = tag.tempC === undefined ? 0 : this.trendOf(tag.id, tag.tempC), ax = trend ? 15 / z : 0;
+      this.pills.roundRect(x0 - pad, tag.at[1] - h / 2 - pad * 0.4, w + 2 * pad + ax, h + pad * 0.8, 5 / z).fill({ color: '#04060f', alpha: 0.78 });
+      if (trend) {
+        // a small triangle at the end of the pill: up and warm while it climbs, down and cool while it falls
+        const cx = x0 + w + pad + 3 / z, cy = tag.at[1], r = 5 / z, up = trend > 0;
+        this.pills.poly(up ? [cx, cy - r, cx - r, cy + r * 0.8, cx + r, cy + r * 0.8] : [cx, cy + r, cx - r, cy - r * 0.8, cx + r, cy - r * 0.8]).fill({ color: up ? '#ff7a4a' : '#6fd8ff' });
+      }
     });
     for (let i = tags.length; i < this.pool.length; i++) this.pool[i]!.visible = false;
   }
