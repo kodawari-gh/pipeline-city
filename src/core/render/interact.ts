@@ -666,7 +666,7 @@ export class Interact {
         const trace = this.scene.shapes.get(id)?.outline(Math.max(e, lw * 0.9));
         if (trace) for (const poly of trace) { g.poly(poly.flatMap(([x, y]) => [x, y - lift]), true).stroke({ width: lw, color: T.alu, alpha: 0.55 * a, join: 'round' }); }
         else if (r) {
-          const rr = Math.min(60, 20 + e);
+          const rr = e; // a rectangle grown by e has corners of radius e: the true offset, so the ring hugs the edge
           box(g, r.x - e, r.y - e - lift, r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.55 * a });
         }
       }
