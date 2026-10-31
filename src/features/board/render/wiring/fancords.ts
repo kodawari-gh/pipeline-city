@@ -5,6 +5,7 @@ import { paintCable, startFall, stepFall, type Fall } from '@/core/render/cable'
 import type { Theme } from '@/core/render/theme';
 import { CASE_BD, COOLER, FAN_HUB, FAN_SLOT, GEO, type Rect } from '../layout/layout';
 import { sinkFanAt } from '../layout/pins';
+import { cordShape, type Shape } from '@/core/render/shape';
 import { roundedPath, rubberBand, type Pt } from './routes';
 
 // The fans' cables (docs/render/board.md "Fan cables"): the CPU cooler's, the two heatsink fans', the fan hub's control cable and one cable per
@@ -82,11 +83,13 @@ export const cordLen = (p: FanCordPlan) => Math.hypot(p.rest[0] - p.anchor[0], p
 /** The grab rect of a plug whose centre is at `at`. */
 const plugRectAt = (pl: FanCordPlan, at: Pt): Rect => ({ x: at[0] - pl.plug.w / 2 - 30, y: at[1] - pl.plug.h / 2 - 30, w: pl.plug.w + 60, h: pl.plug.h + 60 });
 
-export interface FanCordHit { id: string; rect: Rect }
+export interface FanCordHit { id: string; rect: Rect; shape?: Shape }
 
 export class FanCordsView {
   readonly root = new Container();
   hits: FanCordHit[] = [];
+  /** Each cord's silhouette (the cord and its plug), made as it is drawn. */
+  private shapes = new Map<string, Shape>();
   private gc = new Graphics();
   private gp = new Container();
   private T!: Theme;
@@ -131,11 +134,12 @@ export class FanCordsView {
       const isHeld = held?.kind === p.id, connected = !!present.get(p.id) && !isHeld, at: Pt = isHeld ? held!.at : connected ? p.seat : p.rest;
       return { kind: p.id, connected, held: isHeld, plug: plugRectAt(p, at), centre: at, outlet: p.seat, outletRect: { x: p.header.x - 20, y: p.header.y - 20, w: p.header.w + 40, h: p.header.h + 40 }, rest: p.rest, seatR: p.seatR };
     });
-    this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug }));
+    this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
     const key = this.T.dark + '|' + this.falls.size + '|' + list.map((p) => (held?.kind === p.id ? `h${Math.round(held.at[0])},${Math.round(held.at[1])}` : present.get(p.id) ? 'c' : 'l') + p.id).join('|');
     if (key === this.key && !force) return { cords, redrew: false };
     this.key = key;
     this.draw(list, present, held);
+    this.hits = cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
     return { cords, redrew: true };
   }
 
@@ -148,6 +152,7 @@ export class FanCordsView {
       const at: Pt = isHeld ? held!.at : connected ? p.seat : fall ? fall.p : p.rest;
       const path = connected ? roundedPath(p.route, 70, 30) : rubberBand(p.anchor, p.anchorDir, at, 36, cordLen(p));
       paintCable(g, T, path, { w: p.width, accent: T.mul });
+      this.shapes.set('cable.' + p.id, cordShape(path, p.width, { x: at[0] - p.plug.w / 2, y: at[1] - p.plug.h / 2, w: p.plug.w, h: p.plug.h }));
       if (p.endPlug) plugBox(g, T, p.endPlug.x, p.endPlug.y, p.endPlug.w, p.endPlug.h, T.mul);
       // the plug on the header end: square on its seat, tilted where it lies or hangs in the hand
       const pg = new Graphics();

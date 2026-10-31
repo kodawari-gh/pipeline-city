@@ -14,7 +14,7 @@ import { netPropsVisible } from './netvis';
 import { laneRects, mkLane, pointAt, runClipYs, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
 import { drape, hangCable, paintClip, paintCable } from '@/core/render/cable';
-import type { Shape } from '@/core/render/shape';
+import { cordShape, type Shape } from '@/core/render/shape';
 
 // The network props (docs/render/net.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
 // ethernet cable (router to the board jack or a NIC jack), the NIC cards, the link LEDs and the traffic pulses. Everything the
@@ -342,13 +342,13 @@ export class NetView {
         drawPlug(g, T, pl, accent, false, 'rj45');
         plug = plugRect(pl); seated = [mx, my];
         const more = laneRects(this.lan, 36);
-        this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more });
+        this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more, shape: cordShape(this.lan.pts, 38, plug) });
       } else if (lanState === 'loose') {
         const end: Pt = [restPlug.x, restPlug.y - restPlug.l + 8], d = Math.hypot(end[0] - tail[0], end[1] - tail[1]);
         const stub = mkLane(hangCable(tail, [0, 1], end, { len: d * 1.15 + 200, stub: 70, n: 36 }));
         cable(stub.pts, 38, accent);
         drawPlug(g, T, restPlug, accent, false, 'rj45');
-        this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more: laneRects(stub, 36) });
+        this.hits.push({ id: 'cable.lan', rect: pad(plug, 30), more: laneRects(stub, 36), shape: cordShape(stub.pts, 38, plug) });
       }
       reg('cable.lan', plug);
       scene.lan = { connected: lanState === 'connected' && !!jack, held: lanState === 'held', plug, anchor: tail, anchorDir: [0, 1], seated, jacks, port: jack?.id ?? null };

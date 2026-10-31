@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { MONITOR_POWER, PC_CORD_X, PC_POWER, type Rect } from '../layout/layout';
 import { drape, hangCable, paintCable, paintClip, type Clip, startFall, stepFall, type Fall } from '@/core/render/cable';
 import type { CordScene, SceneInfo } from '@/core/render/interact';
+import { cordShape, type Shape } from '@/core/render/shape';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import { deskGeo } from '@/features/room/render/shell/persp';
 import { HOLES, facePoly, plugPoly } from '@/features/room/render/shell/swiss';
@@ -78,7 +79,7 @@ export function cordDrape(plan: CordPlan, at: Pt, seated: boolean): { path: Pt[]
   return { path: [...head.path, ...hangCable(a, [(a[0] - b[0]) / l, (a[1] - b[1]) / l], boot, { len: cordSlack(plan), stub: 160, n: 36 }).slice(1)], clips: head.clips };
 }
 
-export interface CordHit { id: string; rect: Rect }
+export interface CordHit { id: string; rect: Rect; shape?: Shape }
 
 export class CordsView {
   /** The cords' bodies: board.ts puts this in the room's back layer (the desk covers them). */
@@ -86,6 +87,8 @@ export class CordsView {
   /** The plugs, and the cord in the hand: above the room. */
   readonly root = new Container();
   hits: CordHit[] = [];
+  /** Each cord's silhouette (the cord and its plug), made as it is drawn. */
+  private shapes = new Map<string, Shape>();
   private gb = new Graphics();
   private gf = new Graphics();
   /** The stretch of a seated cord by the socket, over the wall socket's plate but cut off at the desk's lower edge (the cord comes out from under the desk). */
@@ -133,11 +136,12 @@ export class CordsView {
       const pl = plan[k], isHeld = held?.kind === k, at: Pt = isHeld ? held!.at : connected[k] ? pl.outlet : pl.rest;
       return { kind: k, connected: connected[k] && !isHeld, held: isHeld, plug: plugRect(at), centre: at, outlet: pl.outlet, outletRect: { x: pl.outlet[0] - 300, y: pl.outlet[1] - 300, w: 600, h: 600 }, rest: pl.rest, seatR: SEAT_R } satisfies CordScene;
     });
-    this.hits = scene.cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug }));
+    this.hits = scene.cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
     this.last = { connected: { ...connected }, held };
     if (key === this.key) return false;
     this.key = key;
     this.draw(connected, held);
+    this.hits = scene.cords.map((c) => ({ id: 'cable.' + c.kind, rect: c.plug, shape: this.shapes.get('cable.' + c.kind) }));
     return true;
   }
 
@@ -161,6 +165,7 @@ export class CordsView {
       // the stretch by the socket is drawn over the plate (the plug is in front of it, so is the cord that leaves it); the rest runs behind the desk
       const cut = d.path.findIndex((q) => q[1] >= pl.frontY - 300);
       this.cord(body, d.path, T);
+      this.shapes.set('cable.' + k, cordShape(d.path, 70, plugRect(at)));
       if (!isHeld && cut > 0) this.cord(this.gm, d.path.slice(cut - 1), T);
       for (const c of d.clips) paintClip(c.at[1] >= pl.frontY ? this.gm : body, T, c.at, c.dir, 70);
       this.plug(gf, at, T, seated);

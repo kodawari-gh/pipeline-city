@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { discShape, fieldShape, lazyShape, movedShape, pick, pickReach, rectShape, rectsShape, SHAPE_PAD, type Pickable, type Shape } from './shape';
+import { cordShape, discShape, fieldShape, lazyShape, movedShape, pick, pickReach, rectShape, rectsShape, SHAPE_PAD, type Pickable, type Shape } from './shape';
 
 /** RGBA pixels (w by h) with alpha 255 where `on(x, y)` says so. */
 const pixels = (w: number, h: number, on: (x: number, y: number) => boolean) => {
@@ -194,5 +194,19 @@ describe('picking', () => {
     const lamp: Pickable = { id: 'lamp', rect: { x: 0, y: 0, w: 4000, h: 4000 }, shape: L };
     expect(pick([lamp, back], 750, 1500, 0.1)).toBe('lamp');
     expect(pick([lamp, back], 2500, 1500, 0.1)).toBe('back');
+  });
+});
+
+describe('pathShape / cordShape', () => {
+  it('is 0 on the cord, grows off it, and the ring runs round the cord and its plug', () => {
+    const s = cordShape([[0, 0], [1000, 0]], 100, { x: 1000, y: -150, w: 300, h: 300 });
+    expect(s.dist(500, 0)).toBe(0);
+    expect(s.dist(500, 50)).toBe(0);
+    expect(s.dist(500, 150)).toBeCloseTo(100, 0);
+    expect(s.dist(1150, 0)).toBe(0);
+    const ring = s.outline(20)!;
+    expect(ring).toHaveLength(1);
+    // every ring point sits about 20 off the silhouette
+    for (const [x, y] of ring[0]!) expect(Math.abs(s.dist(x, y) - 20)).toBeLessThan(25);
   });
 });

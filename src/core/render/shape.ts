@@ -52,6 +52,58 @@ export function discShape(cx: number, cy: number, r: number): Shape {
   };
 }
 
+/**
+ * A cable: a polyline `pts` swept by a half width `hw[i]` at each point (the cord is thin, the plug at its end is wider). The ring is the swept band grown by `e`
+ * (offset along each point's normal, with a round cap at both ends), so it runs along the cable's own edge round the bends.
+ */
+export function pathShape(pts: readonly Pt[], hw: readonly number[]): Shape {
+  const n = pts.length;
+  const w = (i: number) => hw[Math.min(i, hw.length - 1)] ?? 0;
+  const pad = Math.max(...hw, 0);
+  const x0 = Math.min(...pts.map((p) => p[0])) - pad, y0 = Math.min(...pts.map((p) => p[1])) - pad;
+  const x1 = Math.max(...pts.map((p) => p[0])) + pad, y1 = Math.max(...pts.map((p) => p[1])) + pad;
+  const dist = (x: number, y: number) => {
+    let best = Infinity;
+    for (let i = 0; i + 1 < n; i++) {
+      const [ax, ay] = pts[i]!, [bx, by] = pts[i + 1]!, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t = l2 ? clamp01(((x - ax) * dx + (y - ay) * dy) / l2) : 0;
+      const d = Math.hypot(x - (ax + dx * t), y - (ay + dy * t)) - (w(i) + (w(i + 1) - w(i)) * t);
+      if (d < best) best = d;
+    }
+    return n === 1 ? Math.hypot(x - pts[0]![0], y - pts[0]![1]) - w(0) : Math.max(0, best);
+  };
+  return {
+    bounds: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 },
+    thickness: Math.max(1, Math.min(...hw) * 2),
+    dist,
+    outline: (e) => {
+      if (n < 2) return null;
+      const nrm = (i: number): Pt => {
+        const a = pts[Math.max(0, i - 1)]!, b = pts[Math.min(n - 1, i + 1)]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+        return [-dy / l, dx / l];
+      };
+      const left: Pt[] = [], right: Pt[] = [];
+      for (let i = 0; i < n; i++) { const [nx, ny] = nrm(i), r = w(i) + e, [px, py] = pts[i]!; left.push([px + nx * r, py + ny * r]); right.push([px - nx * r, py - ny * r]); }
+      const cap = (i: number, base: number): Pt[] => {
+        const [nx, ny] = nrm(i), r = w(i) + e, [px, py] = pts[i]!, a0 = Math.atan2(ny, nx) + base, out: Pt[] = [];
+        for (let k = 1; k < 8; k++) { const a = a0 - Math.PI * (k / 8); out.push([px + Math.cos(a) * r, py + Math.sin(a) * r]); }
+        return out;
+      };
+      // left side forward, the cap round the last point, the right side back, the cap round the first
+      return [[...left, ...cap(n - 1, 0), ...right.reverse(), ...cap(0, Math.PI)]];
+    },
+  };
+}
+/** A cord and the plug at its end: the cord swept by `cw` / 2, then the plug's own box (a capsule along its long side, joined to the cord's end). */
+export function cordShape(path: readonly Pt[], cw: number, plug: Rect): Shape {
+  const cx = plug.x + plug.w / 2, cy = plug.y + plug.h / 2, r = Math.min(plug.w, plug.h) / 2, tall = plug.h >= plug.w, k = Math.abs(plug.h - plug.w) / 2;
+  const a: Pt = tall ? [cx, cy - k] : [cx - k, cy], b: Pt = tall ? [cx, cy + k] : [cx + k, cy];
+  const [da, db] = [a, b].map((q) => Math.hypot(q[0] - path[path.length - 1]![0], q[1] - path[path.length - 1]![1]));
+  const [first, second] = da! <= db! ? [a, b] : [b, a];
+  return pathShape([...path, first, second], [...path.map(() => cw / 2), r, r]);
+}
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
 /** The same shape placed by x' = k x + dx, y' = k y + dy (`k` 1 is a plain move: one silhouette read from one key serves every key; art drawn small and scaled up into place has k above 1). */
 export function movedShape(s: Shape, dx: number, dy: number, k = 1): Shape {
   const b = s.bounds;

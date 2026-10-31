@@ -388,7 +388,7 @@ export async function mountBoard(host: HTMLElement) {
   const mergeHits = () => {
     allHits = [...propHits, ...netHits, ...cordHits, ...cableHits, ...mainHits, ...roomHits];
     scene.shapes.clear();
-    for (const h of allHits) if (h.shape && h.ring !== false && !scene.shapes.has(h.id)) scene.shapes.set(h.id, h.shape);
+    for (const h of allHits) if (h.shape && h.ring !== false && (!scene.shapes.has(h.id) || h.id.startsWith('cable.'))) scene.shapes.set(h.id, h.shape);
     warmShapes();
   };
   // The silhouettes are read from the art the first time the pointer comes near (`lazyShape`, a few milliseconds each); so that the first hover never hitches, they are
@@ -977,9 +977,9 @@ export async function mountBoard(host: HTMLElement) {
     for (const c of s?.cables ?? []) if (isFanCable(c.id)) present.set(c.id, interact.cableStateOf(c.id, c.connected, now));
     const fan = fanCords.sync(present, cordHeld && !isWallCord(cordHeld.kind) ? cordHeld : null, force);
     scene.cords = [...scene.cords, ...fan.cords];
-    for (const c of fan.cords) { scene.interactive.add('cable.' + c.kind); scene.rects.set('cable.' + c.kind, c.plug); }
+    for (const c of scene.cords) { scene.interactive.add('cable.' + c.kind); scene.rects.set('cable.' + c.kind, c.plug); }
     if (wallRedrew || fan.redrew || force) {
-      cordHits = [...cords.hits, ...fanCords.hits].map((h) => ({ id: h.id, rect: h.rect }));
+      cordHits = [...cords.hits, ...fanCords.hits].map((h) => ({ id: h.id, rect: h.rect, shape: h.shape }));
       sceneDirty = true;
       mergeHits();
     }
