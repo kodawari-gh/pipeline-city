@@ -4,6 +4,7 @@ import { currentTextResolution } from '@/core/render/camera';
 import type { Rect } from '@/features/board/render/layout/layout';
 import { MONO } from '@/core/render/ink';
 import { mkLane, pointAt, roundedPath, type Lane } from '@/features/board/render/wiring/routes';
+import { EdgeFan } from './props/case';
 import type { Theme } from '@/core/render/theme';
 
 // The airflow lens: one switch that dims the room and shows how the case breathes. Air comes in at the front fans, crosses the board, picks up
@@ -170,7 +171,7 @@ export function airflowModel(i: AirIn): AirModel {
 interface View { x: number; y: number; z: number; cx: number; cy: number; w: number; h: number }
 
 /** Particles a lane carries, by its length, and the cap over the whole view. */
-const SPACING = 170, MAX_PARTS = 340, MAX_EMBERS = 90;
+const SPACING = 330, MAX_PARTS = 170, MAX_EMBERS = 36;
 /** A stable pseudo-random number in 0..1 for a seed (so a particle keeps its own speed, offset and size). */
 const rnd = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 /** World units per second the air travels. */
@@ -179,6 +180,9 @@ export const airSpeed = (strength: number) => 700 + 1500 * strength;
 export class AirflowLens {
   readonly root = new Container();
   private dim = new Graphics();
+  /** The case fans seen edge-on (the same art as the live case, `EdgeFan`), redrawn above the dimming so they stay readable. */
+  private fanBox = new Container();
+  private fans: { id: string; f: EdgeFan; state: AirState }[] = [];
   private g = new Graphics();
   private pills = new Graphics();
   private labels = new Container();
@@ -188,7 +192,7 @@ export class AirflowLens {
   model: AirModel | null = null;
   private T!: Theme;
 
-  constructor() { this.root.addChild(this.dim, this.g, this.pills, this.labels); this.root.visible = false; }
+  constructor() { this.root.addChild(this.dim, this.fanBox, this.g, this.pills, this.labels); this.root.visible = false; }
 
   setTheme(T: Theme) { this.T = T; }
 
@@ -196,6 +200,9 @@ export class AirflowLens {
     this.model = m;
     this.lanes.clear();
     if (m) for (const l of m.lanes) this.lanes.set(l.id, mkLane(l.pts));
+    for (const o of this.fans) o.f.destroy();
+    this.fans = [];
+    if (m) for (const mt of m.mounts) { const f = new EdgeFan(mt.rect, this.T); this.fanBox.addChild(f); this.fans.push({ id: mt.id, f, state: mt.state }); }
   }
 
   get visible() { return this.root.visible; }
@@ -217,17 +224,11 @@ export class AirflowLens {
       const rx = Math.min(zn.rect.w * 0.5 + 250, 1800), ry = Math.min(zn.rect.h * 0.5 + 250, 1800);
       for (let k = 3; k >= 1; k--) g.ellipse(x, y, rx * (0.5 + k * 0.35) * pulse, ry * (0.5 + k * 0.35) * pulse).fill({ color: col, alpha: 0.07 + 0.05 * zn.heat });
     }
-    // the fans: a ring in the colour of their state
+    // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame
+    for (const o of this.fans) o.f.spin(o.state === 'on' ? 3.2 * dt : 0, o.state === 'on' ? 0.9 : 0.15);
     for (const mt of m.mounts) {
-      const dead = mt.state === 'dead', pulse = dead ? 0.5 + 0.4 * Math.sin(now / 160) : 1;
-      g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(3), color: dead ? T.bad : airColor(0), alpha: (mt.state === 'idle' ? 0.35 : 0.9) * pulse });
-      if (mt.state !== 'on') continue;
-      // pressure waves: rings that leave a turning fan, three at a time
-      const [fx, fy] = mid(mt.rect), reach = Math.max(mt.rect.w, mt.rect.h) * 0.7;
-      for (let k = 0; k < 3; k++) {
-        const ph = (this.t * 0.9 + k / 3) % 1;
-        g.circle(fx, fy, 80 + reach * ph).stroke({ width: px(2), color: airColor(0), alpha: 0.5 * (1 - ph) * (1 - ph) });
-      }
+      const dead = mt.state === 'dead';
+      g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
     }
     // the air: streaks along each lane, cool where it comes in and warmer after every part it passes
     let budget = MAX_PARTS;
@@ -250,8 +251,8 @@ export class AirflowLens {
         const [x, y] = pointAt(ln, d), [x2, y2] = pointAt(ln, d - 60);
         const tx = x - x2, ty = y - y2, tl = Math.hypot(tx, ty) || 1, nx = -ty / tl, ny = tx / tl;
         // spread across the lane (wider where the air is hot), plus a wandering weave
-        const spread = (r2 - 0.5) * 2 * (150 + 150 * heat) * (0.4 + Math.min(u * 4, 1) * 0.6);
-        const wob = (0.25 + heat) * 70 * Math.sin(d / 190 + k * 2.3) + spread;
+        const spread = (r2 - 0.5) * 2 * (480 + 280 * heat) * (1 - 0.5 * u * u * u);
+        const wob = (0.1 + 0.4 * heat) * 60 * Math.sin(d / 420 + k * 2.3) + spread;
         let ox = nx * wob, oy = ny * wob;
         // eddies: air near a hot part is pulled round it
         for (const zn of m.zones) {
@@ -259,20 +260,13 @@ export class AirflowLens {
           const [zx, zy] = mid(zn.rect), R = Math.min(Math.max(zn.rect.w, zn.rect.h) * 0.5 + 800, 1900), dx = x - zx, dy = y - zy, dist = Math.hypot(dx, dy) || 1;
           if (dist >= R) continue;
           const s = (1 - dist / R) ** 2 * zn.heat;
-          ox += (-dy / dist) * s * 320 + (dx / dist) * s * 160; oy += (dx / dist) * s * 320 + (dy / dist) * s * 160;
+          ox += (-dy / dist) * s * 160 + (dx / dist) * s * 90; oy += (dx / dist) * s * 160 + (dy / dist) * s * 90;
         }
-        const fade = Math.min(1, u * 8, (1 - u) * 8), col = airColor(heat), lw = px(1.6 + 1.6 * r3) + heat * px(1.2), len = 90 + 120 * sp;
-        // a trail that fades behind the head
-        let px0 = x + ox, py0 = y + oy;
-        for (let s = 1; s <= 3; s++) {
-          const [tx2, ty2] = pointAt(ln, d - (len * s) / 3);
-          const qx = tx2 + ox * (1 - s * 0.12), qy = ty2 + oy * (1 - s * 0.12);
-          g.moveTo(px0, py0).lineTo(qx, qy).stroke({ width: lw * (1 - (s - 1) * 0.25), color: col, alpha: 0.95 * fade * (1.15 - s * 0.28), cap: 'round' });
-          px0 = qx; py0 = qy;
-        }
-        // a bright head; some twinkle
-        const tw = r3 > 0.8 ? 0.6 + 0.4 * Math.sin(now / 90 + k * 5) : 1;
-        g.circle(x + ox, y + oy, lw * (0.55 + r3 * 0.4)).fill({ color: '#ffffff', alpha: 0.8 * fade * tw });
+        const fade = Math.min(1, u * 8, (1 - u) * 8), col = airColor(heat), lw = px(1.5 + 1.2 * r3) + heat * px(0.8), len = 70 + 90 * sp;
+        // one short soft streak and a small head: calm, spread wide
+        const [tx2, ty2] = pointAt(ln, d - len);
+        g.moveTo(tx2 + ox * 0.9, ty2 + oy * 0.9).lineTo(x + ox, y + oy).stroke({ width: lw, color: col, alpha: 0.5 * fade, cap: 'round' });
+        g.circle(x + ox, y + oy, lw * 0.7).fill({ color: '#ffffff', alpha: 0.55 * fade });
       }
     }
     // embers: hot parts shed warm motes that rise, drift and fade
