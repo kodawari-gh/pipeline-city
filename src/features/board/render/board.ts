@@ -838,6 +838,8 @@ export async function mountBoard(host: HTMLElement) {
     }
     scene.rects.set('board', BD); scene.rects.set('chipset', BR.chip); scene.interactive.add('chipset');
     scene.rects.set('vrm', BR.vrm); scene.interactive.add('vrm');
+    // the named regions (battery, audio, M.2 area...) have tips like any part, so they get the ring too
+    for (const r of REGIONS) { scene.rects.set(r.id, r.rect); scene.interactive.add(r.id); }
     scene.rects.set('usb', USB_PORT); scene.interactive.add('usb'); scene.usb = USB_PORT;
     scene.rects.set('tray', TRAY); // highlight only (the tutorial points at it): the tray is not clickable
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
