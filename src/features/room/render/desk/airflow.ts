@@ -27,7 +27,14 @@ export interface AirLane {
   picks: { u: number; heat: number }[];
 }
 /** A part that warms the air: a haze over its rect. `heat` 0 (cool) to 1 (at the limit). */
-export interface AirZone { id: string; rect: Rect; heat: number; tempC: number }
+export interface AirZone {
+  id: string;
+  /** The box round the whole zone (where the air picks its heat up, where the tag sits). */
+  rect: Rect;
+  /** The shapes the glow follows: one rect per part (every stick of RAM, every phase of a VRM). */
+  rects: Rect[];
+  heat: number; tempC: number;
+}
 export interface AirTag { id: string; at: Pt; text: string; tone: 'heat' | 'warn' | 'dim'; anchor: 'c' | 'l' | 'r' }
 export interface AirModel { lanes: AirLane[]; zones: AirZone[]; tags: AirTag[]; mounts: { id: string; rect: Rect; state: AirState }[] }
 
@@ -45,6 +52,9 @@ export interface AirIn {
   /** Slot id to its world rect. */
   slots: Map<string, Rect>;
   psu: Rect;
+  /** The phase blocks of the CPU VRM and of the memory VRM on the board (`GEO.vrmPhases`, `GEO.dPhases`, the fitted ones). */
+  vrmShapes?: Rect[];
+  ramVrmShapes?: Rect[];
 }
 
 const mid = (r: Rect): Pt => [r.x + r.w / 2, r.y + r.h / 2];
@@ -54,6 +64,8 @@ const deg = (t: number) => `${Math.round(t)}°C`;
 export const CASE_HEAT_C_PER_W = 0.05;
 const REACH = 900;
 const HOT_KINDS: Record<string, string> = { cpu: 'CPU', ram: 'RAM', gpu: 'GPU', npu: 'NPU', tpm: 'TPM', storage: 'DRIVE', nic: 'NIC' };
+/** The words on a zone's tag: the part kinds, plus the two voltage regulators of the board. */
+const NAMES: Record<string, string> = { ...HOT_KINDS, vrm: 'VRM', rvrm: 'MEM VRM' };
 
 /** How hot a part is, 0 (cool) to 1 (at the point where it throttles). */
 export const heatOf = (tempC: number) => clamp01((tempC - 30) / 55);
@@ -95,11 +107,18 @@ export function airflowModel(i: AirIn): AirModel {
   for (const [kind, g] of groups) {
     const x0 = Math.min(...g.rects.map((r) => r.x)), y0 = Math.min(...g.rects.map((r) => r.y));
     const x1 = Math.max(...g.rects.map((r) => r.x + r.w)), y1 = Math.max(...g.rects.map((r) => r.y + r.h));
-    zones.push({ id: kind, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, heat: running ? heatOf(g.t) : 0, tempC: g.t });
+    zones.push({ id: kind, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: g.rects, heat: running ? heatOf(g.t) : 0, tempC: g.t });
   }
   if (s.devices.some((d) => d.kind === 'psu')) {
     const load = running ? clamp01(s.power.totalW / Math.max(1, s.power.budgetW)) : 0;
-    zones.push({ id: 'psu', rect: i.psu, heat: load * 0.6, tempC: 30 + load * 33 });
+    zones.push({ id: 'psu', rect: i.psu, rects: [i.psu], heat: load * 0.6, tempC: 30 + load * 33 });
+  }
+  // the board's two voltage regulators: hot against their own throttle point (the sim's `VrmSnap`)
+  for (const [id, v, shapes] of [['vrm', s.board?.vrm, i.vrmShapes], ['rvrm', s.board?.ramVrm, i.ramVrmShapes]] as const) {
+    if (!v || !shapes?.length) continue;
+    const x0 = Math.min(...shapes.map((r) => r.x)), y0 = Math.min(...shapes.map((r) => r.y));
+    const x1 = Math.max(...shapes.map((r) => r.x + r.w)), y1 = Math.max(...shapes.map((r) => r.y + r.h));
+    zones.push({ id, rect: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, rects: [...shapes], heat: running ? clamp01((v.tempC - 30) / Math.max(10, v.throttleC - 30)) : 0, tempC: v.tempC });
   }
 
   // one lane per fan that turns (or should): a dead fan keeps its lane, in red
@@ -159,7 +178,7 @@ export function airflowModel(i: AirIn): AirModel {
   for (const m of mounts) if (m.state === 'dead' && running) tags.push({ id: `dead.${m.id}`, at: [mid(m.rect)[0], m.rect.y + m.rect.h + 260], text: 'FAN OFF', tone: 'warn', anchor: 'c' });
   for (const z of zones) {
     if (z.id === 'psu') continue;
-    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${HOT_KINDS[z.id]} ${deg(z.tempC)}`, tone: z.heat > 0.8 ? 'warn' : 'heat', anchor: 'c' });
+    tags.push({ id: `z.${z.id}`, at: [z.rect.x + z.rect.w / 2, z.rect.y - 150], text: `${NAMES[z.id]} ${deg(z.tempC)}`, tone: z.heat > 0.8 ? 'warn' : 'heat', anchor: 'c' });
   }
   const cardW = s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'npu').reduce((a, d) => a + (running ? d.powerW : 0), 0);
   if (cardW > 0) tags.push({ id: 'case', at: [cx, gl.y + gl.h * 0.97], text: `CASE +${(cardW * CASE_HEAT_C_PER_W).toFixed(1)}°C FROM CARDS`, tone: 'heat', anchor: 'c' });
@@ -217,12 +236,22 @@ export class AirflowLens {
     this.dim.clear().rect(left, top, w, h).fill({ color: T.dark ? '#02040a' : '#10182b', alpha: T.dark ? 0.78 : 0.62 });
     g.clear();
 
-    // the haze over every warm part: three soft rings, redder as it nears its limit
+    // the glow of every warm part follows its own outline: soft rounded halos grow out of the part's rect (a stick of RAM glows long and thin,
+    // a VRM phase small and square), redder as it nears its limit, with a hot rim on the part itself
     for (const zn of m.zones) {
-      if (zn.heat < 0.02) continue;
-      const [x, y] = mid(zn.rect), col = airColor(zn.heat), pulse = 1 + 0.06 * Math.sin(now / 420 + x);
-      const rx = Math.min(zn.rect.w * 0.5 + 250, 1800), ry = Math.min(zn.rect.h * 0.5 + 250, 1800);
-      for (let k = 3; k >= 1; k--) g.ellipse(x, y, rx * (0.5 + k * 0.35) * pulse, ry * (0.5 + k * 0.35) * pulse).fill({ color: col, alpha: 0.07 + 0.05 * zn.heat });
+      const col = airColor(zn.heat), pulse = 1 + 0.08 * Math.sin(now / 420 + zn.rect.x * 0.01);
+      if (zn.heat < 0.05) { // a cool part: just its outline, so every part that can heat up is on the map
+        for (const r of zn.rects) g.roundRect(r.x, r.y, r.w, r.h, Math.min(r.w, r.h) * 0.12).stroke({ width: px(1.2), color: col, alpha: 0.4 });
+        continue;
+      }
+      for (const r of zn.rects) {
+        const base = Math.min(r.w, r.h), pad = Math.max(45, Math.min(base * 0.45, 170)) * pulse;
+        for (let k = 5; k >= 1; k--) {
+          const e = pad * k * 0.7;
+          g.roundRect(r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, Math.min(e + base * 0.12, (Math.min(r.w, r.h) + 2 * e) / 2)).fill({ color: col, alpha: (0.035 + 0.05 * zn.heat) * (1 - (k - 1) * 0.12) });
+        }
+        g.roundRect(r.x, r.y, r.w, r.h, base * 0.12).fill({ color: col, alpha: 0.12 + 0.28 * zn.heat }).stroke({ width: px(1.6), color: col, alpha: 0.35 + 0.5 * zn.heat });
+      }
     }
     // the fans: the edge-on view, blades sliding when it turns; a dead fan gets a pulsing red frame
     for (const o of this.fans) o.f.spin(o.state === 'on' ? 3.2 * dt : 0, o.state === 'on' ? 0.9 : 0.15);

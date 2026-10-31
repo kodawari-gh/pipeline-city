@@ -5,7 +5,8 @@ import { Container } from 'pixi.js';
 vi.mock('@/core/render/ink', async (orig) => ({ ...(await orig<typeof import('@/core/render/ink')>()), label: () => new Container() }));
 
 import type { Snapshot } from '@/worker/protocol';
-import { dev, snap } from '@/core/ui/testdata';
+import { boardSnap, dev, snap } from '@/core/ui/testdata';
+import type { Rect } from '@/features/board/render/layout/layout';
 import { airColor, airSpeed, airflowModel, laneHeat, type AirIn, type AirMount } from './airflow';
 import { CASE_GLASS, PSU, REAR_FAN, REAR_FAN_FITTED, setLayoutTier } from '@/features/board/render/layout/layout';
 import { fanMounts } from '@/features/room/render/desk/props/case';
@@ -63,6 +64,19 @@ describe('the airflow lens model', () => {
     const gain = (m: typeof hot) => Math.max(...m.lanes.map((l) => laneHeat(l, 1)));
     expect(gain(hot)).toBeGreaterThan(gain(cool));
     for (const l of hot.lanes) expect(laneHeat(l, 0)).toBeLessThanOrEqual(laneHeat(l, 1));
+  });
+
+  it('the VRMs glow too: a zone per regulator, one shape per phase, hot against its own throttle point', () => {
+    const i = running(40, [], { board: boardSnap({ vrm: { tempC: 80 } }) });
+    const phase = (n: number): Rect[] => Array.from({ length: n }, (_, k) => ({ x: k * 300, y: 0, w: 250, h: 400 }));
+    const m = airflowModel({ ...i, vrmShapes: phase(4), ramVrmShapes: phase(2) });
+    const v = m.zones.find((z) => z.id === 'vrm')!, r = m.zones.find((z) => z.id === 'rvrm')!;
+    expect(v.rects).toHaveLength(4);
+    expect(r.rects).toHaveLength(2);
+    expect(v.heat).toBeGreaterThan(r.heat);
+    expect(m.tags.some((t) => t.text.startsWith('VRM '))).toBe(true);
+    expect(m.tags.some((t) => t.text.startsWith('MEM VRM '))).toBe(true);
+    expect(airflowModel({ ...i }).zones.some((z) => z.id === 'vrm')).toBe(false);
   });
 
   it('a machine that is off moves no air', () => {
