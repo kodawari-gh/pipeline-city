@@ -3,9 +3,9 @@ import type { Snapshot } from '@/worker/protocol';
 import { IO_PORTS, IO_X } from '@/features/board/render/layout/boardlayout';
 import { acInlet, portProfile, shieldSheet } from '@/features/board/render/layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
-import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
+import { BAY_CELLS, BR, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, LAYOUT_CASE, PC_POWER, PSU, PSU_REAR_FAN, REAR_FAN, TOP_FANS, WALL_T, gpuPort, nicJack, nicY, type Rect } from '@/features/board/render/layout/layout';
 import { CASE_LOOK } from '../desk/props/case';
-import { CASE_KIND, bracket, caseWindow, hexes, holes, logoMark, outline, pillar, screw, slots, type CaseKind, type Cuts } from './casedecor';
+import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, showPillars, caseWindow, chamferFrame, cutRect, fanWindow, glowPoly, growCuts, hexes, holes, isCut, logoMark, outline, pillar, screw, slots, type CaseKind, type Cuts } from './casedecor';
 import type { DriveKind } from '@/features/storage/render/drives';
 import type { Theme } from '@/core/render/theme';
 
@@ -47,8 +47,13 @@ export function exteriorTones(T: Theme) {
 }
 
 /** Fine horizontal hairlines that read as brushed metal. */
-function brush(g: Graphics, x: number, y: number, w: number, h: number, T: Theme, step = 34) {
-  for (let yy = y + step / 2, k = 0; yy < y + h; yy += step, k++) g.moveTo(x, yy).lineTo(x + w, yy).stroke({ width: 5, color: k % 2 ? '#ffffff' : '#000000', alpha: T.dark ? 0.028 : 0.05 });
+function brush(g: Graphics, x: number, y: number, w: number, h: number, T: Theme, step = 34, cuts?: Cuts) {
+  const [tl, tr, br, bl] = cuts ?? [0, 0, 0, 0];
+  for (let yy = y + step / 2, k = 0; yy < y + h; yy += step, k++) {
+    // a cut corner shortens the line where the corner has been cut away
+    const x0 = x + Math.max(0, tl - (yy - y), bl - (y + h - yy)), x1 = x + w - Math.max(0, tr - (yy - y), br - (y + h - yy));
+    if (x1 > x0) g.moveTo(x0, yy).lineTo(x1, yy).stroke({ width: 5, color: k % 2 ? '#ffffff' : '#000000', alpha: T.dark ? 0.028 : 0.05 });
+  }
 }
 
 /**
@@ -105,28 +110,35 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     if (kind === 'gamer' || kind === 'show') { // angled feet that splay out under the case
       g.poly([fx + 40, fy, fx + fw - 40, fy, fx + fw + 120, fy + 170, fx - 120, fy + 170]).fill(lgrad('#2b303b', '#0a0c11')).stroke({ width: 6, color: c.edge, alpha: 0.5 });
       g.rect(fx + 60, fy + 6, fw - 120, 5).fill({ color: '#ffffff', alpha: d ? 0.1 : 0.3 });
+      if (kind === 'show') g.poly([fx - 101, fy + 150, fx + fw + 101, fy + 150, fx + fw + 120, fy + 170, fx - 120, fy + 170]).fill(lgrad(SILVER, mix(SILVER, '#000000', 0.55))); // a silver foot plate
     } else {
       box(g, fx, fy, fw, kind === 'oem' ? 130 : 150, kind === 'oem' ? 65 : 30, { fill: kind === 'oem' ? '#cfc8b0' : c.shade, stroke: c.edge, lw: 6, sa: 0.5 });
       g.rect(fx + 30, fy, fw - 60, 5).fill({ color: '#ffffff', alpha: d ? 0.08 : 0.3 });
     }
     if (st.rgb) g.rect(fx + 20, c0.y + c0.h + 100, fw - 40, 8).fill({ color: acc, alpha: 0.55 });
   }
-  box(g, c0.x + 24, c0.y + 40, c0.w, c0.h, R, { fill: '#000000', fa: d ? 0.4 : 0.16 });
+  const bc = isCut(CASE_CUTS[kind]) ? CASE_CUTS[kind] : undefined; // the showcase is machined with chamfered corners, the others are rounded boxes
+  outline(g, c0.x + 24, c0.y + 40, c0.w, c0.h, R, bc).fill({ color: '#000000', alpha: d ? 0.4 : 0.16 });
   box(g, c0.x + 60, c0.y + c0.h + 40, c0.w - 80, 120, 60, { fill: '#000000', fa: d ? 0.22 : 0.1 });
+  if (bc) for (const grow of [90, 45]) outline(g, c0.x - grow, c0.y - grow, c0.w + 2 * grow, c0.h + 2 * grow, R + grow, growCuts(bc, grow)).fill({ color: acc, alpha: d ? 0.05 : 0.025 }); // its light spills onto the wall
 
   // body: brushed metal lit from the top left, with a bevelled rim and a soft light band down the side
-  g.roundRect(c0.x, c0.y, c0.w, c0.h, R).fill(lgrad(c.hi, c.lo, [0.25, 1])).stroke({ width: 12, color: c.edge, alpha: 0.9 });
-  g.roundRect(c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10).fill(lgrad(d ? '#ffffff12' : '#ffffff30', '#ffffff00', [1, 0.2]));
-  if (st.brushed) brush(g, c0.x + 40, c0.y + 40, c0.w - 80, c0.h - 80, T);
-  bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T, kind === 'matte' ? 0.4 : kind === 'oem' ? 0.3 : 1);
+  outline(g, c0.x, c0.y, c0.w, c0.h, R, bc).fill(lgrad(c.hi, c.lo, [0.25, 1])).stroke({ width: 12, color: c.edge, alpha: 0.9, join: 'miter' });
+  outline(g, c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10, bc && growCuts(bc, -8)).fill(lgrad(d ? '#ffffff12' : '#ffffff30', '#ffffff00', [1, 0.2]));
+  if (st.brushed) brush(g, c0.x + 40, c0.y + 40, c0.w - 80, c0.h - 80, T, 34, bc && growCuts(bc, -26));
+  if (bc) chamferFrame(g, { x: c0.x + 16, y: c0.y + 16, w: c0.w - 32, h: c0.h - 32 }, growCuts(bc, -10), d);
+  else bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T, kind === 'matte' ? 0.4 : kind === 'oem' ? 0.3 : 1);
 
   // top panel: a recessed plate with an accent hairline, the brand, a row of vents and the light window for the status LEDs
-  if (kind !== 'matte') g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-  if (kind !== 'matte') g.rect(p.x + 70, p.y + 44, p.w - 140, 10).fill({ color: '#000000', alpha: d ? 0.3 : 0.12 });
-  if (kind !== 'oem' && kind !== 'matte') g.rect(p.x + 90, p.y + p.h - 34, p.w - 180, 5).fill({ color: acc, alpha: 0.5 });
+  const pi = bc ? 410 : 36; // the chamfered corners cut into the panel's ends
+  if (kind !== 'matte') g.roundRect(p.x + pi, p.y + 36, p.w - 2 * pi, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
+  if (kind !== 'matte') g.rect(p.x + pi + 34, p.y + 44, p.w - 2 * pi - 68, 10).fill({ color: '#000000', alpha: d ? 0.3 : 0.12 });
+  if (kind !== 'oem' && kind !== 'matte') g.rect(p.x + pi + 54, p.y + p.h - 34, p.w - 2 * pi - 108, 5).fill({ color: acc, alpha: 0.5 });
   const nv = CASE_LOOK[LAYOUT_CASE]?.vents ?? 16;
   if (kind === 'gamer') { slots(g, { x: -2250, y: p.y + 110, w: nv * 78, h: 200 }, nv, 70); g.fill({ color: c.cut }); }
-  else for (let k = 0; k < nv; k++) box(g, -2250 + k * 78, p.y + 120, 30, 190, 15, { fill: c.cut });
+  else if (kind === 'show') { // the top fans glow through the rail, one lit window each (the ring fans of a showcase)
+    for (const f of TOP_FANS) fanWindow(g, { x: f.x + 130, y: p.y + 110, w: f.w - 260, h: 210 }, acc, SILVER);
+  } else for (let k = 0; k < nv; k++) box(g, -2250 + k * 78, p.y + 120, 30, 190, 15, { fill: c.cut });
   if (kind === 'gamer') { // an angled mesh cap in the top front corner
     const cx = c0.x + c0.w - 20, cw = 380;
     g.poly([cx - cw, c0.y + 20, cx, c0.y + 20, cx, c0.y + 20 + cw * 0.8]).fill(lgrad('#1c212c', '#07090d')).stroke({ width: 5, color: c.edge, alpha: 0.6 });
@@ -153,15 +165,18 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   // gaming case, a full height pane between two pillars on the showcase.
   const win = caseWindow(kind);
   const bz = kind === 'matte' ? 22 : kind === 'gamer' ? 30 : 44, wr = kind === 'show' ? 24 : 50;
-  const cuts: Cuts | undefined = kind === 'gamer' ? [0, 460, 0, 0] : undefined;
+  const cuts: Cuts | undefined = isCut(WINDOW_CUTS[kind]) ? WINDOW_CUTS[kind] : undefined;
   const bcuts: Cuts | undefined = cuts && (cuts.map((v) => (v ? v + bz * 0.6 : 0)) as Cuts);
   const top = new Graphics();
   if (kind === 'oem') solidSide(g, T, c, { x: ci.x, y: gl.y, w: ci.w, h: gl.h }, win);
   else {
-    const bezelFill = kind === 'show' ? lgrad(mix(SILVER, c.hi, 0.4), mix(SILVER, c.lo, 0.5)) : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
+    // the showcase's bezel is dark graphite (the frame), edged by a thin silver trim line; the gaming one is blue-black, the others plain steel
+    const bezelFill = kind === 'show' ? lgrad('#1c212b', '#07090d') : kind === 'gamer' ? lgrad('#222834', '#07090d') : lgrad(c.mid, c.lo);
     if (kind !== 'matte') outline(g, win.x - bz, win.y - bz, win.w + 2 * bz, win.h + 2 * bz, wr + 26, bcuts).fill(bezelFill).stroke({ width: 6, color: c.edge, alpha: 0.6 });
-    if (kind !== 'matte') bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 20, T, 0.8);
+    if (kind === 'show') chamferFrame(g, { x: win.x - bz + 4, y: win.y - bz + 4, w: win.w + 2 * bz - 8, h: win.h + 2 * bz - 8 }, growCuts(cuts!, bz - 6), d, 0.9);
+    else if (kind !== 'matte') bevel(g, win.x - bz + 4, win.y - bz + 4, win.w + 2 * bz - 8, win.h + 2 * bz - 8, 20, T, 0.8);
     outline(g, win.x - 16, win.y - 16, win.w + 32, win.h + 32, wr + 12, cuts && (cuts.map((v) => (v ? v + 10 : 0)) as Cuts)).fill(c.shade);
+    if (kind === 'show') outline(g, win.x - 11, win.y - 11, win.w + 22, win.h + 22, wr + 8, growCuts(cuts!, 8)).stroke({ width: 9, color: SILVER, alpha: 0.95 });
     const hole = new Graphics();
     hole.blendMode = 'erase';
     outline(hole, win.x, win.y, win.w, win.h, wr, cuts).fill('#000000');
@@ -181,17 +196,31 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     hue.forEach((h, k) => { top.roundRect(lx0 + (k * lw) / hue.length, ly - 30, lw / hue.length, 60, 30).fill({ color: h, alpha: 0.12 }); });
     hue.forEach((h, k) => { top.roundRect(lx0 + (k * lw) / hue.length, ly, lw / hue.length + 1, 10, 5).fill(h); });
   } else if (kind === 'show') {
-    const ly = win.y + win.h - 54, lx0 = win.x + 120, lw = win.w - 240;
-    top.roundRect(lx0, ly - 24, lw, 56, 28).fill(lgrad(acc + '00', acc + '40', [0, 1]));
+    // an edge light runs round the whole glass, inside the trim, and pools along the bottom (the showcase is lit like the reference, all round)
+    glowPoly(top, cutRect(win.x + 26, win.y + 26, win.w - 52, win.h - 52, growCuts(cuts!, -15)), acc, 6, d ? 1 : 0.6);
+    const ly = win.y + win.h - 70, lx0 = win.x + 300, lw = win.w - 600;
+    top.roundRect(lx0, ly - 120, lw, 150, 75).fill(lgrad(acc + '00', acc + '38', [0, 1]));
     top.roundRect(lx0, ly, lw, 10, 5).fill(lgrad(acc, T.alu, [1, 0]));
   }
   if (kind === 'show') { // silver pillars on both sides of the glass (the west one over the end of the I/O plate), rails above and below
-    const py = gl.y + 12, ph = gl.h - 24, hi = mix(SILVER, c.hi, 0.35), lo = mix(SILVER, c.lo, 0.6);
-    pillar(top, { x: win.x - bz - 150, y: py, w: 130, h: ph }, hi, lo, c.edge);
-    pillar(top, { x: win.x + win.w + bz + 20, y: py, w: 150, h: ph }, hi, lo, c.edge);
-    top.rect(win.x - bz - 20, py, win.w + 2 * bz + 40, 44).fill(lgrad(hi, lo)).stroke({ width: 5, color: c.edge, alpha: 0.8 });
-    top.rect(win.x - bz - 20, py + ph - 44, win.w + 2 * bz + 40, 44).fill(lgrad(hi, lo)).stroke({ width: 5, color: c.edge, alpha: 0.8 });
-    for (const [bx, by, dx, dy] of [[c0.x + 16, c0.y + 16, 1, 1], [c0.x + c0.w - 16, c0.y + 16, -1, 1], [c0.x + 16, c0.y + c0.h - 16, 1, -1], [c0.x + c0.w - 16, c0.y + c0.h - 16, -1, -1]] as const) bracket(top, bx, by, dx, dy, 300, '#0b0d12', c.edge);
+    const hi = mix(SILVER, c.hi, 0.35), lo = mix(SILVER, c.lo, 0.6), pil = showPillars(win, bz), py = pil[0].y, ph = pil[0].h;
+    for (const r of pil) pillar(top, r, hi, lo, c.edge);
+    top.rect(win.x - bz - 20, py, win.w + 2 * bz + 40, 130).fill(lgrad(hi, lo)).stroke({ width: 5, color: c.edge, alpha: 0.8 });
+    top.rect(win.x - bz - 20, py + ph - 130, win.w + 2 * bz + 40, 130).fill(lgrad(hi, lo)).stroke({ width: 5, color: c.edge, alpha: 0.8 });
+    // a recessed light slot down each pillar (the pillars are lit, as the frame's uprights are in the reference)
+    for (const r of pil) {
+      const px = r.x + r.w / 2 + r.w * 0.2, sh = ph - 520;
+      top.roundRect(px - 24, py + 260, 48, sh, 24).fill({ color: acc, alpha: 0.18 });
+      top.roundRect(px - 8, py + 270, 16, sh - 20, 8).fill({ color: '#04060a' }).stroke({ width: 3, color: SILVER, alpha: 0.5 });
+      top.roundRect(px - 4, py + 280, 8, sh - 40, 4).fill(acc);
+    }
+    // the corners are machined plates along each chamfer, with a screw each (instead of the plain brackets of the other cases)
+    const cut = CASE_CUTS[kind][0], off = 90;
+    for (const [bx, by, dx, dy] of [[c0.x + 16, c0.y + 16, 1, 1], [c0.x + c0.w - 16, c0.y + 16, -1, 1], [c0.x + 16, c0.y + c0.h - 16, 1, -1], [c0.x + c0.w - 16, c0.y + c0.h - 16, -1, -1]] as const) {
+      const ax = bx + dx * cut, ay = by, bx2 = bx, by2 = by + dy * cut, ox = dx * off, oy = dy * off;
+      top.poly([ax, ay, bx2, by2, bx2 + ox, by2 + oy * 0.6, ax + ox * 0.6, ay + oy]).fill(lgrad('#222833', '#07090d')).stroke({ width: 5, color: SILVER, alpha: 0.55 });
+      screw(top, (ax + bx2) / 2 + ox * 0.55, (ay + by2) / 2 + oy * 0.55, 22, mix(SILVER, '#000000', 0.5), c.edge);
+    }
   }
   if (kind !== 'oem' && kind !== 'matte' && kind !== 'gamer') {
     for (const [x, y] of [[win.x - 6, win.y + 70], [win.x + win.w + 6, win.y + 70], [win.x - 6, win.y + win.h - 70], [win.x + win.w + 6, win.y + win.h - 70]] as const) screw(top, x, y, 26, mix(c.hi, c.lo, 0.3), c.edge);

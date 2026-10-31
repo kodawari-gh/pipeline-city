@@ -9,7 +9,7 @@ import { driveScale } from '@/features/storage/render/drives';
 import { acInlet } from '@/features/board/render/layout/ports';
 import { sinkFanAt } from '@/features/board/render/layout/pins';
 import { mkLane, roundedPath, type Lane, type Pt } from '@/features/board/render/wiring/routes';
-import { CASE_KIND, caseWindow, hexes, pillar, type CaseKind } from '@/features/room/render/shell/casedecor';
+import { CASE_KIND, WINDOW_CUTS, caseWindow, hexes, isCut, outline, pillar, showPillars, type CaseKind } from '@/features/room/render/shell/casedecor';
 import type { Theme } from '@/core/render/theme';
 import { paintCable, paintTie, sleeveOf, tiePoints } from '@/core/render/cable';
 
@@ -103,9 +103,14 @@ export function caseBack(T: Theme): Container {
   topFans(g, T, cav, wall, edge);
   fanHub(root, g, T, cav, wall, edge);
   if (kind === 'show') { // the silver pillars either side of the glass, as on the outside (`exterior.ts`)
-    const win = caseWindow(kind), gl = CASE_GLASS, py = gl.y + 12, ph = gl.h - 24, hi = '#c9d1de', lo = mix('#c9d1de', cav, 0.55);
-    pillar(g, { x: win.x - 44 - 150, y: py, w: 130, h: ph }, hi, lo, edge);
-    pillar(g, { x: win.x + win.w + 44 + 20, y: py, w: 150, h: ph }, hi, lo, edge);
+    const hi = '#c9d1de', lo = mix('#c9d1de', cav, 0.55), acc = T.br;
+    for (const r of showPillars(caseWindow(kind))) {
+      pillar(g, r, hi, lo, edge);
+      const px = r.x + r.w / 2 + r.w * 0.2, sh = r.h - 520; // the same lit slot as outside
+      g.roundRect(px - 24, r.y + 260, 48, sh, 24).fill({ color: acc, alpha: 0.18 });
+      g.roundRect(px - 8, r.y + 270, 16, sh - 20, 8).fill({ color: '#04060a' }).stroke({ width: 3, color: hi, alpha: 0.5 });
+      g.roundRect(px - 4, r.y + 280, 8, sh - 40, 4).fill(acc);
+    }
   }
   // labels
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
@@ -407,7 +412,10 @@ export function caseGlass(T: Theme): Container {
   if (kind === 'matte') g.roundRect(win.x, win.y, win.w, win.h, 50).fill({ color: '#000000', alpha: T.dark ? 0.2 : 0.14 }); // the tint
   const band = (x0: number, x1: number) => g.poly([r.x + x0, r.y + 6, r.x + x1, r.y + 6, r.x + x1 - 1500, r.y + r.h - 6, r.x + x0 - 1500, r.y + r.h - 6]).fill({ color: '#ffffff', alpha: a });
   for (const [a, b] of [[2600, 3300], [3700, 3860], [6900, 7500]] as const) if (b - 1500 < r.w - 200) band(a, Math.min(b, r.w + 1500 - 200));
-  box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
+  if (kind === 'show' && isCut(WINDOW_CUTS.show)) { // the glass has the cut corners of the outside window
+    const cuts = WINDOW_CUTS.show;
+    outline(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, [cuts[0] - 8, cuts[1] - 8, cuts[2] - 8, cuts[3] - 8]).stroke({ width: 5, color: '#ffffff', alpha: T.dark ? 0.07 : 0.4 });
+  } else box(g, r.x + 14, r.y + 14, r.w - 28, r.h - 28, 26, { stroke: '#ffffff', lw: 5, sa: T.dark ? 0.07 : 0.4 });
   // corner screws
   for (const [x, y] of [[r.x - 80, r.y + 60], [r.x + r.w + 80, r.y + 60], [r.x - 80, r.y + r.h - 60], [r.x + r.w + 80, r.y + r.h - 60]] as const) {
     disc(g, x, y, 24, { fill: mix(wallTone(T), T.bg, 0.4), stroke: edgeTone(T), lw: 4, sa: 0.7 });
@@ -437,7 +445,10 @@ export function caseShade(T: Theme): Container {
     const glow = new Graphics();
     if (kind === 'gamer') {
       glow.roundRect(r.x, r.y + r.h * 0.6, r.w, r.h * 0.4, 30).fill(lgrad('#a04dff00', '#a04dff', [0, 1]));
-    } else glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(T.br + '00', T.br, [1, 0]));
+    } else {
+      glow.roundRect(r.x + r.w * 0.7, r.y, r.w * 0.3, r.h, 30).fill(lgrad(T.br + '00', T.br, [1, 0]));
+      glow.roundRect(r.x, r.y, r.w, r.h * 0.22, 30).fill(lgrad(T.br, T.br + '00')); // the top rail's fans light the inside from above
+    }
     glow.alpha = T.dark ? 0.1 : 0.06;
     root.addChild(glow);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CASE_KIND, caseWindow, cutRect } from './casedecor';
+import { CASE_CUTS, CASE_KIND, WINDOW_CUTS, caseWindow, cutRect, growCuts, isCut, showPillars } from './casedecor';
 
 describe('case decoration shapes', () => {
   it('a square corner list gives the four corners', () => {
@@ -14,6 +14,25 @@ describe('case decoration shapes', () => {
       expect(p[i + 1]).toBeGreaterThanOrEqual(20); expect(p[i + 1]).toBeLessThanOrEqual(80);
     }
     expect(p.slice(2, 6)).toEqual([80, 20, 110, 50]);
+  });
+});
+
+describe('the showcase shapes', () => {
+  it('only the showcase body has chamfered corners', () => {
+    expect(CASE_KIND.filter((k) => isCut(CASE_CUTS[k]))).toEqual(['show']);
+  });
+
+  it('the showcase window cuts fit inside the window, and its pillars flank the window without touching it', () => {
+    const win = caseWindow('show');
+    for (const c of WINDOW_CUTS.show) expect(c * 2).toBeLessThan(Math.min(win.w, win.h));
+    const [west, east] = showPillars(win);
+    expect(west.x + west.w).toBeLessThanOrEqual(win.x);
+    expect(east.x).toBeGreaterThanOrEqual(win.x + win.w);
+  });
+
+  it('growing a cut keeps a square corner square', () => {
+    expect(growCuts([0, 100, 0, 50], 10)).toEqual([0, 110, 0, 60]);
+    expect(growCuts([0, 5, 0, 0], -20)).toEqual([0, 0, 0, 0]);
   });
 });
 
