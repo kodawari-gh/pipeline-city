@@ -93,11 +93,11 @@ const LOCK3 = KSCR_SMP + 64;
 export const KMIGR = LOCK3 + 4;
 export const KDATA_END_PRE_SMP = KMIGR + 4;
 /**
- * Frame map (OS 3): one word per physical frame, 0 = free, else (kind << 4) | (job slot + 1): kind 0 a program's image, 1 its own memory, 2 its page tables;
+ * Frame map (OS 3): one word per physical frame, 0 = free, else (kind << 8) | (job slot + 1): kind 0 a program's image, 1 its own memory, 2 its page tables;
  * `RESERVED_FRAME` is the OS's own (the tables, the map itself, frames beyond the installed RAM). It sits above 64K, so OS 3 needs RAM that reaches `OS3_MIN_BYTES`.
  */
 export const FMAP = 0x10000;
-export const RESERVED_FRAME = 0xf0;
+export const RESERVED_FRAME = 0xf00;
 export const FRAME_FIRST = 16;
 export const FRAME_END = MAX_FRAMES;
 /** The kernel's own address space (identity, all of RAM: a level 1 table and up to 64 level 2 tables) follows the frame map. */
@@ -473,7 +473,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
       "kfoe:",
       "kfo1:",
       "  lw t4, 0(t2)",
-      "  andi t4, t4, 15",
+      "  andi t4, t4, 255",
       "  bne t4, t1, kfo2",
       "  sw zero, 0(t2)",
       "kfo2:",
@@ -491,7 +491,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
       `  li t3, ${FMAP_LAST}`,
       "kfo1:",
       "  lw t4, 0(t2)",
-      "  andi t4, t4, 15",
+      "  andi t4, t4, 255",
       "  bne t4, t1, kfo2",
       "  sw zero, 0(t2)",
       "kfo2:",
@@ -593,7 +593,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     "  li s2, 0",
     "kst_t:",
     `  lw a0, ${K + 12}(zero)`,
-    "  addi a0, a0, 32",
+    "  addi a0, a0, 512",
     "  call kalloc",
     "  beq a0, zero, kst_fail",
     "  slli t0, s2, 2",
@@ -868,7 +868,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     "  lw t2, 0(t4)",
     "  andi t2, t2, 1",
     "  bne t2, zero, kphave",
-    "  addi a0, t3, 33", // a level 2 table: owner id, kind 2
+    "  addi a0, t3, 513", // a level 2 table: owner id, kind 2
     thr ? "  call kalloc_nl" : "  call kalloc",
     thr ? "  beq a0, zero, kpku" : "  beq a0, zero, kpkill",
     "  slli t3, a0, 8",
@@ -893,7 +893,7 @@ function preemptive(kendPage: number, smp = false, thr = false): string[] {
     `  sw t0, ${pf(40)}`,
     ...(thr ? ["  lw t3, 0(t0)", "  andi t3, t3, 1", "  bne t3, zero, kpout"] : []), // another thread mapped this page while this one waited for the lock
     `  lw t3, ${pf(28)}`,
-    "  addi a0, t3, 17", // the page itself: owner id, kind 1: the program's own memory
+    "  addi a0, t3, 257", // the page itself: owner id, kind 1: the program's own memory
     thr ? "  call kalloc_nl" : "  call kalloc",
     thr ? "  beq a0, zero, kpku" : "  beq a0, zero, kpkill",
     "  slli t3, a0, 8",

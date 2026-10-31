@@ -32,7 +32,7 @@ export interface RamContext {
   job: null | { key: number; label: string; type: string; words: number };
   /** Pages (256 bytes each, by page number) the running program has written to outside its image and the OS: memory it claimed. */
   work?: number[];
-  /** The preemptive OS: its frame map, one word per frame from frame 0 (0 free, else kind << 4 | job slot + 1) and the programs by job slot. Replaces `job` and `work`. */
+  /** The preemptive OS: its frame map, one word per frame from frame 0 (0 free, else kind << 8 | job slot + 1) and the programs by job slot. Replaces `job` and `work`. */
   frames?: number[];
   procs?: ({ key: number; label: string; type: string } | undefined)[];
 }
@@ -75,7 +75,7 @@ export function ramRegionsOf(ram: Uint8Array, ctx: RamContext): RamRegion[] {
       if (w === 0 || w === RESERVED_FRAME) { f++; continue; }
       let g = f;
       while (g + 1 < e && ctx.frames[g + 1] === w) g++;
-      const kind = w >> 4, slot = (w & 15) - 1, p = ctx.procs?.[slot];
+      const kind = w >> 8, slot = (w & 255) - 1, p = ctx.procs?.[slot];
       const who = p ? p.label : `program ${slot + 1}`;
       if (kind === 2) add({ id: `ptab-${slot}-${n++}`, kind: "osdata", name: `Page tables ${who}`, note: "The page tables of a running program: one level 1 table and the level 2 tables it points to.", lo: f * 256, hi: (g + 1) * 256 });
       else if (kind === 1) add({ id: `work-${slot}-${n++}`, kind: "work", name: `${who} data`, note: "Memory the program claimed while running: its stack and the data it writes.", lo: f * 256, hi: (g + 1) * 256, owner: p?.key, type: p?.type });

@@ -197,7 +197,7 @@ export function health(this: Game): HealthItem[] {
       if (w === 0) continue;
       if (w === RESERVED_FRAME) { reserved++; continue; }
       used++;
-      const j = jobs.find((x) => x.slot === (w & 15) - 1);
+      const j = jobs.find((x) => x.slot === (w & 255) - 1);
       if (!j || (j.state !== JobState.Running && j.state !== JobState.Queued)) leaked++;
     }
     this.leakSeen = leaked > 0 ? this.leakSeen + 1 : 0;
