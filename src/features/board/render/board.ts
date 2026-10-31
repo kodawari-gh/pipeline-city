@@ -46,7 +46,7 @@ import { planOf } from '../../cpu/render/die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../../room/render/shell/room';
 import { focusAt } from '../../room/render/shell/light';
 import { captureShape } from '@/core/render/capture';
-import { lazyShape, movedShape, pick, rectShape, unionRect, type Shape } from '@/core/render/shape';
+import { lazyShape, movedShape, pick, rectDist, rectShape, unionRect, type Shape } from '@/core/render/shape';
 import { onThemeChange, readTheme, type Theme } from '@/core/render/theme';
 import { initThumbs } from './thumbs';
 
@@ -89,7 +89,7 @@ const isExternalId = (id: string) => id === 'power' || id === 'usb' || id === 'm
   // the network props are external: the router, the wall plate, the ethernet cable and the jacks on the rear plate
   || id === 'router' || id === 'wall' || id === 'cable.lan' || id === 'cable.pcmains' || id === 'cable.monmains' || id === 'socket' || /^eth\d+$/.test(id)
   // the room's props (the lamp and the blind) answer a click at any zoom
-  || id === 'lamp' || id === 'blind' || id === 'clock';
+  || id === 'lamp' || id === 'blind' || id === 'clock' || id === 'mail';
 
 /** The routed cables of the current board tier (geometry only): rebuilt with the scene. */
 let ALL_CABLES = buildCables();
@@ -385,8 +385,25 @@ export async function mountBoard(host: HTMLElement) {
   let powerState: PowerState = { powered: false, down: false, error: false, blocked: false };
   let netHits: Hit[] = [];
   let cordHits: Hit[] = [];
+  /** The letter in flight (a client's key arriving, or a finished one leaving): where it is this frame, or null. It follows the pointer's ring and tip like any prop. */
+  let mailRect: Rect | null = null;
+  const mailHit: Hit = {
+    id: 'mail', get rect() { return mailRect ?? { x: 0, y: 0, w: 0, h: 0 }; }, cond: () => !!mailRect,
+    shape: {
+      get bounds() { return mailRect ?? { x: 0, y: 0, w: 0, h: 0 }; },
+      dist: (x, y) => (mailRect ? rectDist(mailRect, x, y) : Infinity),
+      // the envelope is tilted as it flies: the ring is its own turned box, grown by `e` (each corner pushed out along its diagonal)
+      outline: (e) => {
+        const q = mailQuad;
+        if (!q) return null;
+        const cx = (q[0]![0] + q[2]![0]) / 2, cy = (q[0]![1] + q[2]![1]) / 2;
+        return [q.map(([x, y]): [number, number] => { const dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy) || 1; return [x + (dx / l) * e * 1.2, y + (dy / l) * e * 1.2]; })];
+      },
+    },
+  };
+  let mailQuad: [number, number][] | null = null;
   const mergeHits = () => {
-    allHits = [...propHits, ...netHits, ...cordHits, ...cableHits, ...mainHits, ...roomHits];
+    allHits = [mailHit, ...propHits, ...netHits, ...cordHits, ...cableHits, ...mainHits, ...roomHits];
     scene.shapes.clear();
     for (const h of allHits) if (h.shape && h.ring !== false && (!scene.shapes.has(h.id) || h.id.startsWith('cable.'))) scene.shapes.set(h.id, h.shape);
     warmShapes();
@@ -844,6 +861,7 @@ export async function mountBoard(host: HTMLElement) {
     scene.rects.set('tray', TRAY); // highlight only (the tutorial points at it): the tray is not clickable
     scene.rects.set('bay', BAY); scene.interactive.add('bay');
     scene.rects.set('case', CASE); scene.interactive.add('case');
+    scene.interactive.add('mail');
     scene.interactive.add('board'); // the motherboard rings along its edge when the pointer is on bare board (its click opens the board card)
 
     mainHits = [{ id: 'os', get rect() { return osRect; }, cond: () => !!lastSnap?.os }, ...dieHits];
@@ -1327,6 +1345,24 @@ export async function mountBoard(host: HTMLElement) {
       swayStep(st, gdt);
       o.swing.rotation = swayAngle(st, gtMs);
     }
+    // the letter in flight, for the ring and the tip: its envelope's box in world space
+    const flyer = mails.find((m) => m.letter)?.letter ?? outs.find((m) => m.letter)?.letter ?? null;
+    let box: Rect | null = null;
+    if (flyer) for (const c of [flyer.back, flyer.front]) {
+      if (!c.visible || !c.parent) continue;
+      const bb = c.getBounds();
+      if (bb.width <= 0 || bb.height <= 0) continue;
+      const p0 = world.toLocal({ x: bb.x, y: bb.y }), p1 = world.toLocal({ x: bb.x + bb.width, y: bb.y + bb.height });
+      const rr: Rect = { x: p0.x, y: p0.y, w: p1.x - p0.x, h: p1.y - p0.y };
+      box = box ? unionRect([box, rr]) : rr;
+    }
+    mailRect = box;
+    mailQuad = null;
+    if (flyer && box && flyer.back.parent) {
+      const lb = flyer.back.getLocalBounds(), toW = (x: number, y: number): [number, number] => { const g = flyer.back.toGlobal({ x, y }), w = world.toLocal(g); return [w.x, w.y]; };
+      if (lb.width > 0) mailQuad = [toW(lb.x, lb.y), toW(lb.x + lb.width, lb.y), toW(lb.x + lb.width, lb.y + lb.height), toW(lb.x, lb.y + lb.height)];
+    }
+    if (box) scene.rects.set('mail', box); else scene.rects.delete('mail');
   };
 
   // ---- frame loop ----

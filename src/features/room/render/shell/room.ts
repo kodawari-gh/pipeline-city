@@ -143,7 +143,7 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(roomState));
 export function roomClick(id: string): boolean {
   if (id === 'lamp') roomState.lamp = !roomState.lamp;
   else if (id === 'blind') roomState.blind = !roomState.blind;
-  else if (id === 'clock') return true; // scenery that only answers the pointer: it has a ring and a tip, no state
+  else if (id === 'clock' || id === 'mail') return true; // scenery that only answers the pointer: it has a ring and a tip, no state
   else return false;
   save();
   return true;
