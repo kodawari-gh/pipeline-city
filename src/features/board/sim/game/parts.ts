@@ -2,7 +2,7 @@
 // snapshot, clocks, and the sandbox's maximum rig. Every export is a `Game` method (see game.ts).
 
 import {
-  boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, CASE_TIERS, cableBlocked, caseFor, caseHolds,
+  boardFromJson, boardSlots, boardToJson, BOARD_TIERS, cableName, cablesOf, cableNeeded, hotPluggable, isFanCable, CASE_TIERS, cableBlocked, caseFor, caseHolds,
   connectCable as boardConnect, deviceSpec, disconnectCable as boardDisconnect,
   findDevices, freeSlots, getSpec, install as boardInstall, pruneCables, setClock, slotAccepts, slotFitsWidth, slotRefusal,
   specsOfKind, uninstall as boardUninstall, upgradeBoard, upgradeCase,
@@ -211,7 +211,7 @@ export function uninstall(this: Game, deviceId: string): Result<{ invId: string 
 export function connectCable(this: Game, cable: string, port?: string): Result<{ cable: CableId }> {
   if (cable === "lan") return this.connectLan(port);
   const wall = cable === "pcmains" || cable === "monmains";
-  if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
+  if (this.powered && !hotPluggable(cable)) return { ok: false, reason: "power the machine off first: the PSU cables carry live power" };
   // The video cable goes to the board's HDMI port, or to a display port on a GPU's bracket (graphics display only).
   const to = cable === "video" ? (port ?? "board") : "board";
   if (to !== "board") {
@@ -225,10 +225,9 @@ export function connectCable(this: Game, cable: string, port?: string): Result<{
   if (cable === "video") this.video = to;
   const flag = ({ atx: "atxConnected", cpu: "cpuPowerConnected", video: "videoConnected" } as Record<string, string>)[r.cable] as keyof Progress | undefined;
   if (flag) this.progress[flag] = true;
-  if (wall) {
-    this.machine.display.connected = this.monitorLive();
-    if (this.cables.pcmains && this.cables.monmains) this.progress.mainsConnected = true;
-  }
+  if (wall || cable === "video") this.machine.display.connected = this.monitorLive();
+  if (wall && this.cables.pcmains && this.cables.monmains) this.progress.mainsConnected = true;
+  if (this.powered && isFanCable(cable)) this.syncRates(true); // a fan plugged on a running machine spins up at once
   this.note("cable", `${cableName(r.cable)} connected`);
   return r;
 }
@@ -262,12 +261,13 @@ export function disconnectCable(this: Game, cable: string): Result<{ cable: Cabl
     return { ok: true, cable: "lan" };
   }
   const wall = cable === "pcmains" || cable === "monmains";
-  if (this.powered && !wall) return { ok: false, reason: "power the machine off first" };
+  if (this.powered && !hotPluggable(cable)) return { ok: false, reason: "power the machine off first: the PSU cables carry live power" };
   const r = boardDisconnect(this.cables, cable, this.board);
   if (!r.ok) return r;
   if (r.cable === "video") this.video = "board";
   this.note("cable", `${cableName(r.cable)} disconnected`);
-  if (wall) this.machine.display.connected = this.monitorLive();
+  if (wall || cable === "video") this.machine.display.connected = this.monitorLive();
+  if (this.powered && isFanCable(cable)) this.syncRates(true); // a fan pulled on a running machine stops: the parts heat up
   // pulling the PC's cord on a running machine cuts its power: the same hard power-off as the button
   if (r.cable === "pcmains" && this.powered) {
     this.powerButton();

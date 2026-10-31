@@ -120,7 +120,7 @@ export function snapshot(this: Game): Snapshot {
     haltReason: phase !== "halted" ? null : this.pch.phase === PchPhase.Halted ? "job-done" : "no-boot-media",
     keyIgnored: this.keyIgnored(),
     autoEject: this.cfg.autoEjectTicks > 0,
-    pendingSwap: this.pendingSwap && { invId: this.pendingSwap.invId, slotId: this.pendingSwap.slotId ?? null },
+    pendingSwap: this.pendingSwap && this.pendingSwapSnap(this.pendingSwap),
     postFailed: !!this.postError,
     patience: {
       mul: this.patience(), targetTurnaround: this.targetTurnaround(), deadlineTicks: this.deadlineTicks(),
@@ -167,6 +167,14 @@ export function deviceSnap(this: Game, d: InstalledDevice): DeviceSnap {
     unstable: t?.unstable ?? false,
     fan: t?.fan ?? 0,
   };
+}
+
+/** The queued install, with the slot it will take and the part that leaves it (what the board greys out). */
+export function pendingSwapSnap(this: Game, p: { invId: string; slotId?: string }): NonNullable<Snapshot["pendingSwap"]> {
+  const inv = this.inventorySnap().find((i) => i.id === p.invId);
+  const target = p.slotId ?? inv?.freeSlots[0] ?? inv?.swapSlots[0] ?? null;
+  const replacesId = target ? this.board.devices.find((d) => d.slot === target)?.id ?? null : null;
+  return { invId: p.invId, slotId: p.slotId ?? null, target, replacesId };
 }
 
 export function slotSnaps(this: Game): SlotSnap[] {

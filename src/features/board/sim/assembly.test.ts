@@ -102,8 +102,8 @@ describe("install, uninstall and cables", () => {
     const g = assembled();
     expect(g.powerButton()).toMatchObject({ ok: true, powered: true });
     const dev = g.snapshot().devices.find((d) => d.kind === "ram")!;
-    for (const r of [g.uninstall(dev.id), g.connectCable("video"), g.disconnectCable("video")]) {
-      expect(r).toMatchObject({ ok: false, reason: "power the machine off first" });
+    for (const r of [g.uninstall(dev.id), g.connectCable("atx"), g.disconnectCable("atx")]) {
+      expect(r).toMatchObject({ ok: false, reason: expect.stringContaining("power the machine off first") });
     }
     g.money = 1e6;
     const inv = (g.purchase("ram1") as { invId: string }).invId;
@@ -204,12 +204,23 @@ describe("power button and POST errors", () => {
     g.disconnectCable("cpu");
     g.powerButton();
     expect(g.currentPhase()).toBe("error");
-    expect(g.connectCable("cpu")).toMatchObject({ ok: false, reason: "power the machine off first" });
+    expect(g.connectCable("cpu")).toMatchObject({ ok: false, reason: expect.stringContaining("power the machine off first") });
     g.powerButton();
     expect(g.currentPhase()).toBe("off");
     g.connectCable("cpu");
     g.powerButton();
     expect(g.currentPhase()).toBe("posting");
+  });
+
+  it("the PSU cables stay put on a running machine; video, fan and wall cables change", () => {
+    const g = assembled();
+    g.powerButton();
+    for (const id of ["atx", "cpu"]) expect(g.disconnectCable(id)).toMatchObject({ ok: false });
+    expect(g.disconnectCable("video")).toMatchObject({ ok: true });
+    expect(g.connectCable("video")).toMatchObject({ ok: true });
+    expect(g.disconnectCable("cpufan")).toMatchObject({ ok: true });
+    expect(g.connectCable("cpufan")).toMatchObject({ ok: true });
+    expect(g.snapshot().powered).toBe(true);
   });
 
   it("without a monitor cable the machine still boots, but nothing is displayed", () => {

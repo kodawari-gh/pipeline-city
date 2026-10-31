@@ -707,6 +707,9 @@ export class Interact {
       }
     }
 
+    // ---- an install queued behind the running job ----
+    if (s?.pendingSwap && !d) this.drawPendingSwap(s.pendingSwap, gt, lw);
+
     // ---- tutorial highlights ----
     this.drawHighlights(now, lw);
 
@@ -720,6 +723,32 @@ export class Interact {
 
     // ---- optimistic cable state expires ----
     void s;
+  }
+
+  /**
+   * A part is queued to replace the installed one when the job ends: the old part is greyed out under a veil (it is about to leave, and the
+   * machine keeps running it until the job is done), and its slot gets a dashed ring and a turning arc that say "the new part goes here next".
+   */
+  private drawPendingSwap(p: NonNullable<Snapshot['pendingSwap']>, gt: number, lw: number) {
+    const T = this.T, g = this.g;
+    const slot = p.target;
+    if (!slot) return;
+    const r = this.scene.rects.get(p.replacesId ?? '') ?? this.scene.slots.get(slot) ?? (slot === 'board' ? BD : slot === 'case' ? CASE : undefined);
+    if (!r) return;
+    const beat = 0.5 + 0.5 * Math.sin(gt * 0.005);
+    if (p.replacesId) {
+      const trace = this.scene.shapes.get(p.replacesId)?.outline(4);
+      const veil = { color: T.dark ? '#0b0e14' : '#dfe3ea', alpha: T.dark ? 0.6 : 0.68 };
+      if (trace) for (const poly of trace) g.poly(poly.flatMap(([x, y]) => [x, y]), true).fill(veil);
+      else box(g, r.x, r.y, r.w, r.h, 16, { fill: veil.color, fa: veil.alpha });
+    }
+    const e = 14 + 8 * beat;
+    box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30, { stroke: T.st, lw: lw * 1.5, sa: 0.45 + 0.45 * beat });
+    box(g, r.x - e, r.y - e, r.w + 2 * e, r.h + 2 * e, 30, { fill: T.st, fa: 0.07 * beat });
+    // a spinner in the middle: the swap is waiting, not lost
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2, rad = Math.max(Math.min(r.w, r.h) * 0.2, 14 * lw / 3), a0 = gt * 0.004;
+    g.moveTo(cx + rad * Math.cos(a0), cy + rad * Math.sin(a0)).arc(cx, cy, rad, a0, a0 + 4.2).stroke({ width: lw * 1.8, color: T.st, alpha: 0.9, cap: 'round' });
+    g.moveTo(cx + rad * 1.6, cy).arc(cx, cy, rad * 1.6, 0, Math.PI * 2).stroke({ width: lw * 0.6, color: T.st, alpha: 0.25 });
   }
 
   private drawDrag(d: NonNullable<Interact['drag']>, now: number, lw: number, s: Snapshot) {

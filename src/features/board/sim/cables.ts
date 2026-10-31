@@ -25,16 +25,16 @@ export interface CableSpec {
   plain: string;
 }
 
-const PCIE_PLAIN = "Extra 75 W from the PSU to a graphics or AI card. A card that draws more than its slot gives asks for one lead per 75 W; the PSU has a fixed number of leads.";
+const PCIE_PLAIN = "Extra 75 W from the PSU to a graphics or AI card. A card that draws more than its slot gives asks for one lead per 75 W; the PSU has a fixed number of leads. Power the machine off before you touch it.";
 
 export const CABLES: readonly CableSpec[] = [
-  { id: "atx", name: "24-pin ATX power", from: "psu", plain: "Main power from the PSU to the board." },
-  { id: "cpu", name: "8-pin CPU power", from: "psu", plain: "Extra power from the PSU to the CPU socket." },
+  { id: "atx", name: "24-pin ATX power", from: "psu", plain: "Main power from the PSU to the board. Power the machine off before you touch it." },
+  { id: "cpu", name: "8-pin CPU power", from: "psu", plain: "Extra power from the PSU to the CPU socket. Power the machine off before you touch it." },
   { id: "pcie", name: "PCIe power lead 1", from: "psu", plain: PCIE_PLAIN },
   { id: "pcie2", name: "PCIe power lead 2", from: "psu", plain: PCIE_PLAIN },
   { id: "pcie3", name: "PCIe power lead 3", from: "psu", plain: PCIE_PLAIN },
   { id: "pcie4", name: "PCIe power lead 4", from: "psu", plain: PCIE_PLAIN },
-  { id: "video", name: "Video cable", from: "display", plain: "Board display output to the monitor." },
+  { id: "video", name: "Video cable", from: "display", plain: "Board display output to the monitor. Can be plugged or pulled while the machine runs (the screen goes dark, the jobs go on)." },
   { id: "pcmains", name: "PC power cord", from: "wall", plain: "From the case's power inlet to the wall socket. Without it the PSU has no power at all. Can be plugged or pulled at any time (pulling it cuts the power)." },
   { id: "monmains", name: "Monitor power cord", from: "wall", plain: "From the monitor to the wall socket. Without it the screen stays dark. Can be plugged or pulled at any time." },
   { id: "cpufan", name: "CPU fan cable", from: "cooler", plain: "The CPU cooler's fan (or the loop's pump) to the CPU_FAN header. The CPU needs it: without it the board stops at POST and the cooler does not turn." },
@@ -74,6 +74,12 @@ export const allCables = (board?: Board): Cables => {
 };
 /** The cords from the wall: the ones a saved game from before them is given as plugged (nobody is locked out of a machine that used to run). */
 export const WALL_CABLES: readonly CableId[] = ["pcmains", "monmains"];
+
+/**
+ * Can this cable be plugged or pulled while the machine runs? Yes for the ethernet cable, the video cable, every fan cable and the two wall cords
+ * (a pulled PC cord cuts the power). No for the PSU's cables (24-pin, 8-pin CPU, PCIe leads): pulling a live power rail would crash or fry the parts.
+ */
+export const hotPluggable = (id: string): boolean => id === "lan" || id === "video" || id === "pcmains" || id === "monmains" || isFanCable(id);
 
 /** The cable called `id`: a fixed one, or a fan mount's (of `board`'s case when given, any mount otherwise). */
 function spec(id: string, board?: Board): CableSpec | undefined {

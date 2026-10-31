@@ -603,7 +603,7 @@ export interface Snapshot {
   /** True when a finished key ejects and pays by itself (always, unless a test turns it off): the UI says so instead of "remove the key". */
   autoEject: boolean;
   /** An install queued behind the running job: it happens (power off, install, power on) as soon as the job is done. */
-  pendingSwap: { invId: string; slotId: string | null } | null;
+  pendingSwap: { invId: string; slotId: string | null; /** The slot the part will take (the asked one, else the first free, else the first it swaps into). */ target: string | null; /** The installed part it replaces (null: an empty slot, a board or a case). */ replacesId: string | null } | null;
   /** The last power-on ended in a POST error (phase "error", `phaseReason` says which part). */
   postFailed: boolean;
   /** Client patience right now: the level's multiplier (docs/PROGRESSION.md). `sinceFirstBoot` is informational. */
