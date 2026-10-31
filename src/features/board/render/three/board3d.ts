@@ -17,7 +17,7 @@ import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/t
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Machine3D, machineKey } from './machine3d';
-import { BakeQueue } from '@/core/render/three/artlod';
+import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -35,6 +35,7 @@ export function mountBoard3d(host: HTMLElement) {
   // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
   const bakes = new BakeQueue();
   startBaker();
+  setArtEnvironment(scene.environment);
 
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';

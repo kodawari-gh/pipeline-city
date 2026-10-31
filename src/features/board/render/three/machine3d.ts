@@ -4,7 +4,7 @@
 // parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
-import { Color, CylinderGeometry, Frustum, Group, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, TorusGeometry, BoxGeometry, Vector3, type Material, type Object3D, type PerspectiveCamera } from 'three';
+import { Color, CylinderGeometry, DoubleSide, Frustum, Group, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, TorusGeometry, BoxGeometry, Vector3, type Material, type Object3D, type PerspectiveCamera } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
@@ -12,8 +12,8 @@ import { cardArt, cardOrigin, cardRect, gpuCover, headerRect, tpmArt, tpmHeader,
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
-import { ArtSurface, fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
-import { disposeTree, drum, instanced, paint, place, rectBox, rod, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
+import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
+import { disposeTree, drum, fanFrame, fanRotor, instanced, paint, place, rectBox, rod, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
@@ -28,9 +28,11 @@ import {
   PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, nicRect,
 } from '../layout/layout';
 import { buildBoard } from '../boardArt';
-import { cpuArt, ramArt, vrmSinkArt } from '../devices';
+import type { Solid } from '../boardParts';
+import { cpuArt, ramArt, sinkFanRect, vrmSinkArt } from '../devices';
 import { buildCables } from '../wiring/routes';
 import { ArtBaker } from './bake';
+import { buildSolids } from './solids3d';
 
 const FRONT = CASE_Z + CASE_D;
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
@@ -39,8 +41,6 @@ const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
 /** Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units high). */
 const LV_BOARD = [0.2, 0.8, 2.4], LV_RAISED = [0.6, 2.4], LV_PART = [0.4, 1.4, 3], LV_DIE = [0.5, 1.6, 4.5];
-/** How much the baked art lights itself inside the dim case. */
-const ART_GLOW = 0.1;
 
 /** What forces a rebuild: the tier, the parts and where they sit, the cables that are plugged, the keys in the port. */
 export function machineKey(s: Snapshot | null): string {
@@ -142,32 +142,38 @@ export class Machine3D {
 
   private buildCaseFan(id: string, side: 'front' | 'top' | 'rear', r: RectLike) {
     const g = tag(new Group(), 'case:' + id);
-    const cz = CASE_Z + CASE_D / 2, axis: 'x' | 'y' = side === 'top' ? 'y' : 'x';
+    const axis: 'x' | 'y' = side === 'top' ? 'y' : 'x';
     const d = Math.min(axis === 'x' ? r.h : r.w, CASE_D - 600) * 0.92, depth = axis === 'x' ? r.w : r.h;
-    const frame = mat(0x1d1e22, { roughness: 0.6 });
-    const cx = r.x + r.w / 2, cy = -(r.y + r.h / 2);
-    const box = place(new Mesh(axis === 'x' ? new BoxGeometry(depth, d, d) : new BoxGeometry(d, depth, d), frame));
-    box.position.set(cx, cy, cz);
-    g.add(box);
-    const ringM = mat(0x111111, { emissive: new Color(PALETTE.rgb), emissiveIntensity: 0 });
-    const ring = new Mesh(new TorusGeometry(d * 0.44, d * 0.03, 8, 40), ringM);
-    const rotor = new Group();
-    const bladeM = mat(0x2c2e34, { roughness: 0.5 });
-    rotor.add(new Mesh(new CylinderGeometry(d * 0.12, d * 0.12, depth * 1.05, 16), bladeM));
-    for (let k = 0; k < 7; k++) {
-      const b = new Mesh(new BoxGeometry(depth * 0.25, d * 0.36, d * 0.11), bladeM);
-      b.position.y = d * 0.22; b.rotation.y = 0.5;
-      const arm = new Group(); arm.rotation.x = (k / 7) * Math.PI * 2; arm.add(b);
-      rotor.add(arm);
-    }
-    // the rotor is built round x: turn it to face along its axis
+    // built round z (the fan's own axis), then turned: z to world x (front, rear) or world y (top)
     const holder = new Group();
-    if (axis === 'y') { holder.rotation.z = Math.PI / 2; ring.rotation.x = Math.PI / 2; } else ring.rotation.y = Math.PI / 2;
-    holder.position.set(cx, cy, cz); ring.position.set(cx + (axis === 'x' ? depth * 0.52 * (side === 'front' ? -1 : 1) : 0), cy + (axis === 'y' ? -depth * 0.52 : 0), cz);
+    holder.position.set(r.x + r.w / 2, -(r.y + r.h / 2), CASE_Z + CASE_D / 2);
+    if (axis === 'x') holder.rotation.y = Math.PI / 2; else holder.rotation.x = -Math.PI / 2;
+    holder.add(place(new Mesh(fanFrame(d, depth), mat(0x1d1e22, { roughness: 0.6 }))));
+    this.motor(holder, d * 0.47, depth);
+    const rotor = fanRotor(d * 0.46, 9, mat(0x2c2e34, { roughness: 0.45, side: DoubleSide }), mat(0x24262c, { roughness: 0.4 }));
     holder.add(rotor);
-    g.add(holder, seeThrough(ring));
-    this.fans.push({ rotor, axis: 'x', speed: 0, needs: 'fan:' + id, ring: ringM });
+    // the RGB ring on the face toward the inside of the case
+    const ringM = mat(0x111111, { emissive: new Color(PALETTE.rgb), emissiveIntensity: 0 });
+    const ring = new Mesh(new TorusGeometry(d * 0.47, d * 0.022, 8, 48), ringM);
+    ring.position.z = (axis === 'x' && side === 'front' ? -1 : axis === 'y' ? -1 : 1) * depth * 0.5;
+    holder.add(seeThrough(ring));
+    g.add(holder);
+    this.fans.push({ rotor, axis: 'z', speed: 0, needs: 'fan:' + id, ring: ringM });
     this.root.add(g);
+  }
+
+  /** A fan's motor mount behind its rotor (local to a fan built round z): a hub plate on three struts to the frame. */
+  private motor(holder: Group, r: number, depth: number) {
+    const m = mat(0x1a1b1f, { roughness: 0.55 }), z = -depth * 0.42;
+    const hub = place(new Mesh(new CylinderGeometry(r * 0.32, r * 0.32, depth * 0.16, 24).rotateX(Math.PI / 2), m));
+    hub.position.z = z;
+    holder.add(hub);
+    for (let k = 0; k < 3; k++) {
+      const s = place(new Mesh(new BoxGeometry(r * 0.72, r * 0.05, depth * 0.1), m)), a = (k / 3) * Math.PI * 2 + 0.5;
+      s.position.set(Math.cos(a) * r * 0.66, Math.sin(a) * r * 0.66, z);
+      s.rotation.z = a;
+      holder.add(s);
+    }
   }
 
   // ------------------------------------------------------------------ art
@@ -178,8 +184,8 @@ export class Machine3D {
   }
 
   /** A flat face at depth `z` over `r` that wears the art of `b`. */
-  private surface(parent: Object3D, b: ArtBaker, r: RectLike, z: number, levels: readonly number[], glow = ART_GLOW): ArtSurface {
-    const s = new ArtSurface(r, z, b.bake, this.q, { levels, glow });
+  private surface(parent: Object3D, b: ArtBaker, r: RectLike, z: number, levels: readonly number[], finish: Finish = FINISH.board): ArtSurface {
+    const s = new ArtSurface(r, z, b.bake, this.q, { levels, finish });
     this.surfaces.push(s);
     parent.add(s.root);
     return s;
@@ -204,8 +210,10 @@ export class Machine3D {
     const T = this.T, slot = mat(0x1a1d24, { roughness: 0.5 }), alu = mat(PALETTE.alu, { metalness: 0.7, roughness: 0.35 }), chip = mat(0x14161b, { roughness: 0.5 });
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const emptyId = (id: string) => (filled.has(id) ? undefined : id);
-    // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in
-    const art = this.baker(() => buildBoard(T, GEO.tier).root);
+    // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in; while it draws, the
+    // drawers report the parts they could stand up (`Solid`)
+    const solids: Solid[] = [];
+    const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root);
     this.root.add(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(0x0a1222, { roughness: 0.6 })));
     this.surface(this.root, art, BD, BOARD_Z, LV_BOARD);
     this.root.add(tag(rectBox(GEO.io, BOARD_Z, BOARD_Z + 1300, mat(0x8d939b, { metalness: 0.6, roughness: 0.4 })), 'io'));
@@ -219,15 +227,20 @@ export class Machine3D {
     this.raised(this.root, art, GEO.atx, BOARD_Z, BOARD_Z + 240, slot, 'atx');
     this.raised(this.root, art, GEO.cpw, BOARD_Z, BOARD_Z + 240, slot, 'cpw');
     this.root.add(tag(drum(GEO.bat.x + GEO.bat.w / 2, GEO.bat.y + GEO.bat.h / 2, BOARD_Z, BOARD_Z + 60, Math.min(GEO.bat.w, GEO.bat.h) / 2, alu, 20), 'bat'));
-    const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2');
-    for (const r of GEO.vrmPhases) this.raised(vrm, art, r, BOARD_Z, BOARD_Z + 180, chip);
-    for (const r of GEO.dPhases) this.raised(vrm2, art, r, BOARD_Z, BOARD_Z + 180, chip);
+    // the regulators: each phase's choke and power stage stand up with their own drawing on top, its capacitors and passives are solids (below)
+    const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2b2f38, { metalness: 0.35, roughness: 0.45 });
+    const inside = (rs: readonly RectLike[], x: number, y: number) => rs.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    for (const p of solids) if (p.kind === 'choke' || p.kind === 'stage') {
+      const at = inside(GEO.vrmPhases, p.x, p.y) ? vrm : inside(GEO.dPhases, p.x, p.y) ? vrm2 : this.root;
+      this.raised(at, art, { x: p.x - p.w / 2, y: p.y - p.h / 2, w: p.w, h: p.h }, BOARD_Z, BOARD_Z + (p.kind === 'choke' ? 150 : 40), p.kind === 'choke' ? choke : chip);
+    }
     this.root.add(vrm, vrm2);
-    // the small parts (controllers, crystals, headers, SATA ports) stand up only up close; far out the flat drawing is enough
+    // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + 70, chip);
     for (const h of GEO.hdrs) this.raised(small, art, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
     for (const r of GEO.sata) this.raised(small, art, r, BOARD_Z, BOARD_Z + 150, slot);
+    small.add(buildSolids(solids, !filled.has('cpu0')));
     this.root.add(small);
     this.reveal(BD, BOARD_Z, (z) => { small.visible = z > DEVICE_LOD.labels.board; });
   }
@@ -254,7 +267,7 @@ export class Machine3D {
           c.addChild(gg, dieNear(T, plan).root);
           return c;
         });
-        const die = this.surface(g, dieArt, DIE, BOARD_Z + 152, LV_DIE, 0.12);
+        const die = this.surface(g, dieArt, DIE, BOARD_Z + 152, LV_DIE, FINISH.die);
         // the lid fades away over the die view's band, and the die shows through
         const ihsM = mat(0xb8bcc2, { metalness: 0.8, roughness: 0.3 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
         g.add(ihs);
@@ -302,7 +315,7 @@ export class Machine3D {
         // `gpuCover` and two or three fans, fades away over the 2D band, as the board's GPU view fades its cover
         const i = idx(d.slot), r = cardRect(i, visual), o = cardOrigin(i, visual), p = gpuPlan(visual), sr = moveRect(p.shroud, o);
         g.add(rectBox(r, BOARD_Z + 200, BOARD_Z + 260, mat(0x1b2236, { roughness: 0.6 })));
-        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 260, LV_PART, 0.3);
+        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 260, LV_PART, FINISH.card);
         const shroud = new Group(), shroudM = mat(0x2a2d35, { metalness: 0.4, roughness: 0.35 });
         shroud.add(softBox(sr, BOARD_Z + 260, BOARD_Z + 1100, shroudM, 40));
         this.surface(shroud, this.baker(() => { const gg = gpuCover(new Graphics(), T, p); gg.position.set(o.x, o.y); return gg; }), sr, BOARD_Z + 1100, LV_RAISED);
@@ -318,7 +331,7 @@ export class Machine3D {
       case 'npu': {
         const i = idx(d.slot), r = cardRect(i, visual);
         g.add(rectBox(r, BOARD_Z + 200, BOARD_Z + 420, mat(0x24352f, { roughness: 0.5 })));
-        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 420, LV_PART, 0.3);
+        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 420, LV_PART, FINISH.card);
         break;
       }
       case 'nic': {
@@ -354,15 +367,27 @@ export class Machine3D {
         break;
       }
       case 'vrm-sink': case 'ram-sink': {
-        const r = spec.kind === 'vrm-sink' ? VRM_SINK : RAM_SINK;
-        const art = this.baker(() => {
-          const p = vrmSinkArt(T, visual, r), c = new Container();
-          c.addChild(p.root);
-          if (p.fan) c.addChild(p.fan);
-          if (p.over) c.addChild(p.over);
-          return c;
-        });
-        this.raised(g, art, r, BOARD_Z + 180, BOARD_Z + 600, alu);
+        // the drawing's own fin rails stand up off a base plate (taller and fewer on the big sink), its heat pipe arches over them, its fan blows along them
+        const r = spec.kind === 'vrm-sink' ? VRM_SINK : RAM_SINK, p = vrmSinkArt(T, visual, r), big = visual === 'vrm-sink-big';
+        p.root.destroy({ children: true }); p.fan?.destroy({ children: true });
+        const base = BOARD_Z + 180, top = BOARD_Z + (big ? 720 : 560), fin = mat(0x9aa4b4, { metalness: 0.75, roughness: 0.32 });
+        g.add(softBox(r, base, base + 70, mat(0x6d7686, { metalness: 0.7, roughness: 0.4 }), 18));
+        g.add(instanced(new BoxGeometry(1, 1, 1), fin, (p.fins ?? []).map((f) => ({ x: f.x + f.w / 2, y: -(f.y + f.h / 2), z: (base + 70 + top) / 2, sx: f.w, sy: Math.max(10, f.h * 0.42), sz: top - base - 70 }))));
+        if (p.pipe) {
+          const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xc98a52, { metalness: 0.9, roughness: 0.28 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
+          g.add(rod([px, ya, base + 40], [px, ya, top + 30], 15, cu, 12), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, 12), rod([px, yb, top + 30], [px, yb, base + 40], 15, cu, 12));
+        }
+        if (visual === 'vrm-sink-fan') {
+          // the fan at the east end, its axis along the rails
+          const f = sinkFanRect(r), holder = new Group(), d = Math.min(f.h, top - base) * 0.95;
+          holder.position.set(f.x + f.w / 2, -(f.y + f.h / 2), (base + top) / 2);
+          holder.rotation.y = Math.PI / 2;
+          holder.add(place(new Mesh(fanFrame(d, f.w), mat(0x1d1e22, { roughness: 0.6 }))));
+          const rotor = fanRotor(d * 0.45, 7, mat(0x2c2e34, { roughness: 0.45, side: DoubleSide }), mat(0x24262c, { roughness: 0.4 }));
+          holder.add(rotor);
+          g.add(holder);
+          this.fans.push({ rotor, axis: 'z', speed: 0, needs: null, ring: null });
+        }
         break;
       }
       case 'radiator': {
@@ -411,19 +436,18 @@ export class Machine3D {
   }
 
   /** A part's own fan facing the glass (the cooler's, the PSU's): a hub and seven blades turning round z. */
+  /** A part's own fan facing the glass (the cooler's, a card's): a round shroud, the motor on its struts and a curved-blade rotor. */
   private buildPartFan(g: Group, x: number, y: number, z: number, r: number) {
-    const frame = mat(0x1d1e22, { roughness: 0.6 }), blade = mat(0x2c2e34, { roughness: 0.5 });
-    g.add(drum(x, y, z - 140, z - 20, r * 1.04, frame, 28));
-    const rotor = new Group();
-    rotor.add(new Mesh(new CylinderGeometry(r * 0.25, r * 0.25, 60, 16).rotateX(Math.PI / 2), blade));
-    for (let k = 0; k < 7; k++) {
-      const b = new Mesh(new BoxGeometry(r * 0.32, r * 0.7, 20), blade);
-      b.position.y = r * 0.55; b.rotation.y = 0.45;
-      const arm = new Group(); arm.rotation.z = (k / 7) * Math.PI * 2; arm.add(b);
-      rotor.add(arm);
-    }
-    rotor.position.set(x, -y, z);
-    g.add(rotor);
+    const holder = new Group(), depth = Math.min(160, r * 0.4);
+    holder.position.set(x, -y, z - depth / 2);
+    const shroud = place(new Mesh(new CylinderGeometry(r * 1.04, r * 1.04, depth, 48, 1, true).rotateX(Math.PI / 2), mat(0x1d1e22, { roughness: 0.55, side: DoubleSide })));
+    const lip = place(new Mesh(new TorusGeometry(r * 1.04, depth * 0.08, 8, 48), mat(0x2a2c31, { roughness: 0.4, metalness: 0.3 })));
+    lip.position.z = depth / 2;
+    holder.add(shroud, lip);
+    this.motor(holder, r, depth);
+    const rotor = fanRotor(r * 0.98, r > 300 ? 9 : 7, mat(0x2c2e34, { roughness: 0.45, side: DoubleSide }), mat(0x24262c, { roughness: 0.4 }));
+    holder.add(rotor);
+    g.add(holder);
     this.fans.push({ rotor, axis: 'z', speed: 0, needs: null, ring: null });
   }
 

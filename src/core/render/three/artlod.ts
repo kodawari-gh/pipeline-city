@@ -3,7 +3,7 @@
 // each higher level splits the surface into tiles of at most `TILE_PX` and bakes only the tiles in view, when the camera comes close enough to
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
 // The baking itself is the caller's (`Bake`): this file knows only three.
-import { Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3, type Material, type Object3D, type PerspectiveCamera } from 'three';
+import { Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3, type Material, type Object3D, type PerspectiveCamera, type Texture } from 'three';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -93,10 +93,89 @@ export function shown(o: Object3D): boolean {
 export interface SurfaceOpts {
   /** Texture pixels per layout unit of each level, rising. */
   levels: readonly number[];
-  roughness?: number;
-  metalness?: number;
-  /** How much the art lights itself, so a dark board still reads inside a dim case. */
-  glow?: number;
+  finish?: Finish;
+}
+
+/**
+ * How a sheet of art is finished (`artMaterial`). The material maps come from the art's own colours, per pixel in the shader, so every level and
+ * tile gets them for free: warm colours (the gold pins, the copper, the plated pads) turn to metal, pale grey ink (silkscreen, names) is matte, the
+ * rest has the solder mask's gloss, and the brightness is a height (traces, pads and ink stand off the mask and catch the light at their edges).
+ */
+export interface Finish {
+  /** Roughness of the plain surface (the mask). */
+  gloss: number;
+  /** How far warm colours turn to metal (0 to 1). */
+  metal: number;
+  /** Bump strength of the brightness as a height. */
+  bump: number;
+  /** How much the art lights itself, so a dark board still reads inside a dim case (metal never glows). */
+  glow: number;
+  /** Strength of the metal's reflections. */
+  shine: number;
+}
+
+export const FINISH = {
+  /** A board or a card: glossy mask, gold and copper, raised traces. */
+  board: { gloss: 0.3, metal: 1, bump: 2.2, glow: 0.05, shine: 1.5 },
+  /** A card: its board with the die drawn on it, between the two. */
+  card: { gloss: 0.36, metal: 0.7, bump: 1.6, glow: 0.1, shine: 1.4 },
+  /** A die: the floorplan's colours stay readable; only the bond pads and wires shine a little. */
+  die: { gloss: 0.42, metal: 0.4, bump: 1.2, glow: 0.12, shine: 1.2 },
+} satisfies Record<string, Finish>;
+
+let artEnv: Texture | null = null;
+/** The environment the art reflects (the scene's): set once, before the first surface bakes. */
+export function setArtEnvironment(t: Texture | null): void { artEnv = t; }
+
+/** The finish's shader helpers: the colour tests read an sRGB-ish value (hue, saturation, brightness the way the art was drawn); the height is the brightness. */
+const ART_GLSL = /* glsl */`
+uniform float artGloss;
+uniform float artMetal;
+uniform float artShine;
+float artMetalK = 0.0;
+vec3 artSrgb(vec3 c) { return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
+float artHeight(vec4 t) { return dot(artSrgb(t.rgb), vec3(0.299, 0.587, 0.114)) * step(0.4, t.a); }
+`;
+
+/** The material of a sheet of art: `map` is the art, the finish comes from its colours (see `Finish`). */
+export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
+  const m = new MeshStandardMaterial({
+    map, bumpMap: map, bumpScale: f.bump, roughness: 1, metalness: 0, alphaTest: 0.4,
+    emissive: f.glow ? 0xffffff : 0x000000, emissiveMap: f.glow ? map : null, emissiveIntensity: f.glow,
+    envMap: artEnv, envMapIntensity: 1,
+    // each level sits a hair above the one under it
+    polygonOffset: true, polygonOffsetFactor: -1 - level, polygonOffsetUnits: -2 - 2 * level,
+  });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.artGloss = { value: f.gloss };
+    sh.uniforms.artMetal = { value: f.metal };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <bumpmap_pars_fragment>', `${ART_GLSL}\n#include <bumpmap_pars_fragment>`)
+      // the height is the brightness, not the red channel
+      .replace(/texture2D\( bumpMap, ([^)]+) \)\.x/g, 'artHeight( texture2D( bumpMap, $1 ) )')
+      // far out a screen pixel covers many texels: the relief fades out there (it would only shimmer), and is whole from one texel per pixel in
+      .replace('return vec2( dBx, dBy );', 'float tpp = length( dSTdx * vec2( textureSize( bumpMap, 0 ) ) ) + 1e-4;\n\t\treturn vec2( dBx, dBy ) * clamp( 1.5 / tpp - 0.5, 0.0, 1.0 );')
+      .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+      {
+        vec3 s = artSrgb(diffuseColor.rgb);
+        float mx = max(s.r, max(s.g, s.b)), mn = min(s.r, min(s.g, s.b)), sat = mx > 0.0 ? (mx - mn) / mx : 0.0;
+        // gold, copper, amber: red over blue, green close behind red (magenta and red are not metal), and bright enough
+        float warm = smoothstep(0.02, 0.12, s.r - s.b) * (1.0 - smoothstep(0.25, 0.45, s.r - s.g)) * smoothstep(0.12, 0.3, mx);
+        artMetalK = warm * artMetal;
+        float ink = (1.0 - smoothstep(0.1, 0.35, sat)) * smoothstep(0.3, 0.6, mx);
+        metalnessFactor = artMetalK;
+        roughnessFactor = mix(mix(artGloss, 0.62, ink), 0.38, artMetalK);
+      }`)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - artMetalK;')
+      // the environment lifts the mask little (it stays dark and glossy) and the metal a lot (gold and copper read as metal, not paint)
+      // (capped under the bloom's threshold: a field of gold pins seen face-on would glow like a lamp)
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\niblIrradiance *= 0.45;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) );')
+      // a lamp's highlight would wash the whole mask grey when it faces the camera: the mask keeps a faint sheen, the metal its glint
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);');
+    sh.uniforms.artShine = { value: f.shine };
+  };
+  m.customProgramCacheKey = () => 'art-finish';
+  return m;
 }
 
 interface Tile { rect: Rect; mesh: Mesh | null; queued: boolean; box: Box3 }
@@ -139,14 +218,7 @@ export class ArtSurface {
     const tex = new CanvasTexture(cv);
     tex.colorSpace = SRGBColorSpace;
     tex.anisotropy = 8;
-    const glow = this.o.glow ?? 0;
-    const m = new MeshStandardMaterial({
-      map: tex, roughness: this.o.roughness ?? 0.6, metalness: this.o.metalness ?? 0.05, alphaTest: 0.4,
-      emissive: glow ? 0xffffff : 0x000000, emissiveMap: glow ? tex : null, emissiveIntensity: glow,
-      // each level sits a hair above the one under it
-      polygonOffset: true, polygonOffsetFactor: -1 - level, polygonOffsetUnits: -2 - 2 * level,
-    });
-    const mesh = new Mesh(new PlaneGeometry(r.w, r.h), m);
+    const mesh = new Mesh(new PlaneGeometry(r.w, r.h), artMaterial(tex, this.o.finish ?? FINISH.board, level));
     mesh.position.set(r.x + r.w / 2, -(r.y + r.h / 2), this.z + 0.5);
     mesh.receiveShadow = true;
     if (this.opacity < 1) fadeTree(mesh, this.opacity);

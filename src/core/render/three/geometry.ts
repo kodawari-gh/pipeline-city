@@ -1,7 +1,7 @@
 // Mesh builders of the 3D scene. The layout is 2D with y down (`layout.ts`): a rect of it plus a depth range is a box in the world, x east, y up, z out of the wall.
 import {
-  BoxGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, InstancedMesh, Mesh, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, TubeGeometry, Vector3,
-  type BufferGeometry, type Material, type Texture,
+  BoxGeometry, BufferGeometry, CanvasTexture, CatmullRomCurve3, CylinderGeometry, DynamicDrawUsage, ExtrudeGeometry, Float32BufferAttribute, Group, InstancedMesh, Mesh, Object3D, Path, PlaneGeometry,
+  RepeatWrapping, SRGBColorSpace, Shape, SphereGeometry, TubeGeometry, Vector3, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -84,6 +84,64 @@ export function instanced(g: BufferGeometry, m: Material, items: readonly { x: n
   });
   o.instanceMatrix.needsUpdate = true;
   return place(o);
+}
+
+/**
+ * One fan blade round the z axis, from radius `r0` to `r1`: a thin plate whose chord runs along the turn, tilted out of the plane by its pitch
+ * (steep at the root, flatter at the tip), swept forward toward a rounded tip and cupped across the chord. One surface: draw it double-sided.
+ */
+export function fanBlade(r0: number, r1: number, chord: number, o: { sweep?: number; pitch?: number; cup?: number; seg?: number } = {}): BufferGeometry {
+  const seg = o.seg ?? 10, sweep = o.sweep ?? 0.5, pitch = o.pitch ?? 0.6, cup = o.cup ?? 0.12, across = 5;
+  const pos: number[] = [], idx: number[] = [];
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg, R = r0 + (r1 - r0) * t, th = sweep * t * t, p = pitch * (1 - 0.45 * t);
+    const c = chord * (0.75 + 0.5 * t) * Math.sqrt(Math.max(0.08, 1 - (Math.max(0, t - 0.75) / 0.25) ** 2));
+    const ux = Math.cos(th), uy = Math.sin(th);
+    for (let j = 0; j < across; j++) {
+      const s = j / (across - 1) - 0.5, along = s * c, lift = cup * c * (0.25 - s * s);
+      pos.push(R * ux - uy * along * Math.cos(p), R * uy + ux * along * Math.cos(p), along * Math.sin(p) + lift);
+    }
+  }
+  for (let i = 0; i < seg; i++) for (let j = 0; j < across - 1; j++) {
+    const a = i * across + j, c = a + across;
+    idx.push(a, c, a + 1, a + 1, c, c + 1);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** A fan's rotor round the z axis (radius `r`, `n` blades): a domed hub with a badge ring and curved blades. It spins by its `rotation.z`. */
+export function fanRotor(r: number, n: number, blade: Material, hub: Material): Group {
+  const rotor = new Group(), hr = r * 0.3;
+  const hubM = new Mesh(new CylinderGeometry(hr, hr, r * 0.22, 28).rotateX(Math.PI / 2), hub);
+  const dome = new Mesh(new SphereGeometry(hr, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.35), hub);
+  dome.position.z = r * 0.11;
+  rotor.add(place(hubM), place(dome));
+  const g = fanBlade(hr * 0.92, r * 0.97, r * 0.62);
+  for (let k = 0; k < n; k++) {
+    const b = place(new Mesh(g, blade));
+    b.rotation.z = (k / n) * Math.PI * 2;
+    rotor.add(b);
+  }
+  return rotor;
+}
+
+/** A square fan frame `d` wide and `depth` deep round the z axis (centred): a round throat and a screw hole in each corner. */
+export function fanFrame(d: number, depth: number): BufferGeometry {
+  const h = d / 2, s = new Shape();
+  s.moveTo(-h, -h).lineTo(h, -h).lineTo(h, h).lineTo(-h, h).closePath();
+  const throat = new Path();
+  throat.absarc(0, 0, d * 0.47, 0, Math.PI * 2, true);
+  s.holes.push(throat);
+  for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+    const p = new Path();
+    p.absarc(x * d * 0.43, y * d * 0.43, d * 0.03, 0, Math.PI * 2, true);
+    s.holes.push(p);
+  }
+  return new ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelSize: d * 0.01, bevelThickness: d * 0.01, bevelSegments: 1, curveSegments: 40 }).translate(0, 0, -depth / 2);
 }
 
 /** A texture painted on a canvas, or null where no canvas exists (the tests run without a DOM). */

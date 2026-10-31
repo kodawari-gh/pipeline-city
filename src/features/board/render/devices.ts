@@ -31,6 +31,9 @@ export interface Part {
   over?: Container;
   /** Sub-rects (world coords) that can flash, e.g. DRAM chips. */
   chips?: Rect[];
+  /** A heat sink's fin rails and heat pipe as drawn (world coords), for the 3D view to stand up. */
+  fins?: Rect[];
+  pipe?: Rect;
 }
 
 /** Draw `n` fan blades around the origin of `g` (blade length r1, root radius r0). */
@@ -151,13 +154,16 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Par
   box(g, r.x, r.y, r.w, r.h, 18, { fill: metalLo, stroke: mix(T.line, metal, 0.5), lw: 6 });
   // fins: long rails along the sink (east to west), stacked across it, so the fan's air runs down the channels between them: many thin ones (passive), fewer thick ones (big)
   const n = big ? 5 : 7, pitch = (r.h - 30) / n, rail = pitch * (big ? 0.62 : 0.5);
-  for (let k = 0; k < n; k++) g.rect(r.x + 16, r.y + 15 + k * pitch + (pitch - rail) / 2, finW - 16, rail);
+  const fins: Rect[] = Array.from({ length: n }, (_, k) => ({ x: r.x + 16, y: r.y + 15 + k * pitch + (pitch - rail) / 2, w: finW - 16, h: rail }));
+  for (const f of fins) g.rect(f.x, f.y, f.w, f.h);
   g.fill({ color: metal });
   for (let k = 0; k < n; k++) g.rect(r.x + 16, r.y + 15 + k * pitch + (pitch - rail) / 2, finW - 16, Math.max(3, rail * 0.3));
   g.fill({ color: metalHi, alpha: 0.7 });
+  let pipe: Rect | undefined;
   if (big) {
     // a heat pipe standing across the rails
     const px = r.x + finW * 0.3;
+    pipe = { x: px - 11, y: r.y + 8, w: 22, h: r.h - 16 };
     g.moveTo(px, r.y + 8).lineTo(px, r.y + r.h - 8).stroke({ width: 22, color: T.pin, alpha: 0.85, cap: 'round' });
     g.moveTo(px - 5, r.y + 8).lineTo(px - 5, r.y + r.h - 8).stroke({ width: 6, color: '#ffffff', alpha: 0.3, cap: 'round' });
   }
@@ -166,9 +172,9 @@ export function vrmSinkArt(T: Theme, visual: string, rect: Rect = VRM_SINK): Par
     // a small fan on the east end, seen edge-on: its frame, with blades that slide along it when it turns
     box(g, slab.x, slab.y, slab.w, slab.h, 10, { fill: T.sub, stroke: T.line, lw: 6 });
     fan = new SinkFan(slab, T);
-    return { root, fan };
+    return { root, fan, fins };
   }
-  return { root };
+  return { root, fins, ...(pipe ? { pipe } : {}) };
 }
 
 /** The sink fan's rectangle on its heatsink: a slab at the east end, as deep as it is thin, as tall as the sink (it blows west, along the fins). */

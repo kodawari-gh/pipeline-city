@@ -67,7 +67,7 @@ const SKINS: Skin[] = [
  * (CPU, DIMMs, cooler, PSU, monitor) are drawn by devices.ts at full contrast; everything here is mixed toward the
  * board colour. Routing is deliberate (routes.ts); there is no random scatter. Every run of copper ends on a footprint.
  */
-export function buildBoard(T: Theme, tier: number): BoardArt {
+export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardArt {
   const geo = GEO; // the layout is set by the caller (`setLayoutTier`) before the scene is built
   const rand = rng(BOARD_SEED);
   const P = makePalette(T);
@@ -85,7 +85,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
   const labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const c: Ctx = { g, labels, T, P, tier };
+  const c: Ctx = { g, labels, T, P, tier, ...(solid ? { solid } : {}) };
   const lbl = (t: string, x: number, y: number, s = 38, a = 1) => labels.addChild(label(t, x, y, s, P.silk, { a }));
   const south = BD.y + BD.h;
 
@@ -296,7 +296,7 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
       disc(g, x, y, 28, { fill: P.panel });
       g.moveTo(x - 15, y).lineTo(x + 15, y).moveTo(x, y - 15).lineTo(x, y + 15).stroke({ width: 5, color: T.pin, alpha: 0.7 });
     }
-    for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) g.rect(x, y, 14, 14);
+    for (let x = k.x + 90; x < k.x + k.w - 80; x += 36) for (let y = k.y + 90; y < k.y + k.h - 80; y += 36) { g.rect(x, y, 14, 14); c.solid?.({ kind: 'lga', x: x + 7, y: y + 7, s: 12 }); }
     g.fill({ color: T.pin, alpha: 0.25 });
     // the socket's contact rows round the edge, where the package's pins land (and the lanes leave from: `pkgPads`)
     for (let r = 0; r < 3; r++) {

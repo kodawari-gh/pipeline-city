@@ -10,7 +10,17 @@ import type { Palette, Theme } from '@/core/render/theme';
 // to `Ctx.labels` (hidden when zoomed out). Passive parts use the palette (mixed toward the board colour), nothing here glows: the live
 // layer lights the buses and the VRM from the same rects.
 
-export interface Ctx { g: Graphics; labels: Container; T: Theme; P: Palette; tier: number }
+export interface Ctx {
+  g: Graphics; labels: Container; T: Theme; P: Palette; tier: number;
+  /** Told about every part a drawer could stand up in 3D (the 3D view builds them from it; the 2D board leaves it unset). */
+  solid?: (s: Solid) => void;
+}
+
+/** A part as the drawing placed it (world units, its centre), for the 3D view: a capacitor can, an SMD passive, a chip leg, a header pin, a choke, a power stage. */
+export type Solid =
+  | { kind: 'cap'; x: number; y: number; r: number }
+  | { kind: 'smd' | 'leg' | 'choke' | 'stage'; x: number; y: number; w: number; h: number }
+  | { kind: 'pin' | 'lga'; x: number; y: number; s: number };
 
 /** A soft drop shadow under a part that stands off the board. */
 export function shadow(c: Ctx, x: number, y: number, w: number, h: number, r: number, off = 12, a = 0.28) {
@@ -61,13 +71,14 @@ export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?:
 
 /** Queue the legs of a chip on all four sides (n each, or as many as fit when 0), at the pin-map positions; the caller fills. */
 export function legRects(c: Ctx, r: Rect, n: number, pitch = LEG_PITCH) {
-  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) c.g.rect(x - 5, y - 10, 10, 20);
-  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) c.g.rect(x - 10, y - 5, 20, 10);
+  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 5, y - 10, 10, 20); c.solid?.({ kind: 'leg', x, y, w: 10, h: 20 }); }
+  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 10, y - 5, 20, 10); c.solid?.({ kind: 'leg', x, y, w: 20, h: 10 }); }
 }
 
 /** An electrolytic or polymer capacitor seen from above: a can with a polarity band and a vent cross. */
 export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
   const { g, P, T } = c;
+  c.solid?.({ kind: 'cap', x, y, r });
   disc(g, x + 6, y + 9, r, { fill: '#000000', fa: T.dark ? 0.3 : 0.15 });
   disc(g, x, y, r, { fill: P.panel, stroke: accent ?? P.via, lw: 5, sa: 0.75 });
   disc(g, x, y, r * 0.66, { fill: mix(P.panel, '#ffffff', T.dark ? 0.06 : 0.25), stroke: P.edge, lw: 3, sa: 0.8 });
@@ -78,6 +89,7 @@ export function cap(c: Ctx, x: number, y: number, r: number, accent?: string) {
 /** A power inductor (metal-alloy choke): block, bevel, a winding cut across it. */
 export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
   const { g, P, T } = c;
+  c.solid?.({ kind: 'choke', x: x + w / 2, y: y + h / 2, w, h });
   shadow(c, x, y, w, h, 14, 12, 0.32);
   box(g, x, y, w, h, 14, { fill: mix(P.dark, P.panel, 0.2), stroke: P.edge, lw: 5 });
   box(g, x + 12, y + 12, w - 24, h - 24, 8, { fill: mix(P.dark, P.panel, 0.45), stroke: P.copper, lw: 6, sa: 0.7 });
@@ -88,6 +100,7 @@ export function choke(c: Ctx, x: number, y: number, w: number, h: number) {
 /** A DrMOS power stage: a square package with a heat pad and legs on three sides. */
 export function powerStage(c: Ctx, x: number, y: number, s: number) {
   const { g, P, T } = c;
+  c.solid?.({ kind: 'stage', x: x + s / 2, y: y + s / 2, w: s, h: s });
   for (let i = 0; i < 7; i++) {
     const t = (i + 0.7) * (s / 7.4);
     g.rect(x - 16, y + t, 18, 11).rect(x + s - 2, y + t, 18, 11).rect(x + t, y + s - 2, 11, 18);
@@ -102,7 +115,7 @@ export function powerStage(c: Ctx, x: number, y: number, s: number) {
 /** A strip of small SMD passives (capacitors, resistors) in a line. */
 export function smd(c: Ctx, x: number, y: number, n: number, dx: number, dy: number, w = 30, h = 18, a = 0.9) {
   const { g, P } = c;
-  for (let i = 0; i < n; i++) g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h);
+  for (let i = 0; i < n; i++) { g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w, h); c.solid?.({ kind: 'smd', x: x + i * dx, y: y + i * dy, w, h }); }
   g.fill({ color: P.panel, alpha: a });
   for (let i = 0; i < n; i++) g.rect(x + i * dx - w / 2, y + i * dy - h / 2, w * 0.24, h).rect(x + i * dx + w / 2 - w * 0.24, y + i * dy - h / 2, w * 0.24, h);
   g.fill({ color: P.via, alpha: 0.65 });
@@ -233,7 +246,7 @@ export function powerConn(c: Ctx, r: Rect, cols: number, rows: number, name: str
 export function header(c: Ctx, x: number, y: number, cols: number, rows: number, name: string) {
   const { g, P } = c, pitch = HDR_PITCH, w = cols * pitch + 24, h = rows * pitch + 24;
   box(g, x, y, w, h, 8, { fill: P.dark, stroke: P.edge, lw: 4 });
-  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28);
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) { g.rect(x + 12 + i * pitch + 10, y + 12 + j * pitch + 10, 28, 28); c.solid?.({ kind: 'pin', x: x + 12 + i * pitch + 24, y: y + 12 + j * pitch + 24, s: 12 }); }
   g.fill({ color: c.T.pin, alpha: 0.75 });
   g.poly([x + 4, y - 12, x + 22, y - 12, x + 4, y - 30]).fill({ color: P.silkHi, alpha: 0.6 });
   c.labels.addChild(label(name, x, y - 46, 28, P.silk, { anchor: [0, 0.5] }));
