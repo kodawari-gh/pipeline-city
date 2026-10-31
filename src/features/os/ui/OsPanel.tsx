@@ -3,42 +3,116 @@ import { setSpoolDrive, setSpoolSlots, snapshot } from '@/app/store';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Meter } from '@/core/ui/kit/Meter';
 import { closeOs, osOpen } from '@/core/ui/state';
+import type { IconName } from '../../economy/ui/shop/picker';
 import { bottleneck, resourceRows, spoolModel, type ResRow } from './osui';
 
-type Tab = 'monitor' | 'spool' | 'apps';
-const TABS: { id: Tab; label: string }[] = [{ id: 'monitor', label: 'Resources' }, { id: 'spool', label: 'Spool' }, { id: 'apps', label: 'Apps' }];
+type Tab = 'monitor' | 'procs' | 'spool' | 'apps';
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: 'monitor', label: 'Performance', icon: 'cpu' },
+  { id: 'procs', label: 'Processes', icon: 'slot' },
+  { id: 'spool', label: 'Spool', icon: 'disk' },
+  { id: 'apps', label: 'Apps', icon: 'bolt' },
+];
 
-function Row({ r }: { r: ResRow }) {
+const HISTORY = 60;
+/** Rolling load history per resource, sampled while the window is open (the graphs of a task manager). */
+const history = new Map<string, number[]>();
+function sample(rows: ResRow[]) {
+  for (const r of rows) {
+    const h = history.get(r.id) ?? new Array<number>(HISTORY).fill(0);
+    h.push(r.load ?? 0);
+    if (h.length > HISTORY) h.shift();
+    history.set(r.id, h);
+  }
+}
+
+/** A filled line graph of the last samples; `big` draws grid lines. */
+function Graph({ id, level, big }: { id: string; level: string; big?: boolean }) {
+  const h = history.get(id) ?? [];
+  const pts = h.map((v, i) => `${((i + (HISTORY - h.length)) / (HISTORY - 1)) * 100},${(1 - Math.min(1, Math.max(0, v))) * 100}`);
+  const line = pts.join(' ');
   return (
-    <div class={`os-res ${r.level}`} title={r.advice}>
-      <div class="kv"><span><Icon name={r.icon} size={12} /> {r.label}</span><b>{r.text}</b></div>
+    <svg class={`os-graph ${level}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {big && [25, 50, 75].map((y) => <line key={y} x1="0" x2="100" y1={y} y2={y} class="grid" vector-effect="non-scaling-stroke" />)}
+      {pts.length > 1 && <polygon points={`${pts[0]!.split(',')[0]},100 ${line} 100,100`} class="area" />}
+      {pts.length > 1 && <polyline points={line} class="ln" vector-effect="non-scaling-stroke" />}
+    </svg>
+  );
+}
+
+function Tile({ r, on, onPick }: { r: ResRow; on: boolean; onPick: () => void }) {
+  return (
+    <button class={`os-tile ${r.level}${on ? ' on' : ''}`} onClick={onPick} aria-pressed={on}>
+      <Graph id={r.id} level={r.level} />
+      <span class="os-tile-txt">
+        <b><Icon name={r.icon} size={11} /> {r.label}</b>
+        <span>{r.text}</span>
+      </span>
+    </button>
+  );
+}
+
+function Detail({ r }: { r: ResRow }) {
+  return (
+    <div class={`os-detail ${r.level}`}>
+      <div class="os-detail-head">
+        <span class="os-detail-name"><Icon name={r.icon} size={18} /> {r.label}</span>
+        <b class="os-big">{r.load !== null ? `${Math.round(r.load * 100)}%` : r.text}</b>
+      </div>
+      <div class="os-chart"><Graph id={r.id} level={r.level} big /></div>
+      <div class="os-axis"><span>60 s ago</span><span>now</span></div>
       {r.load !== null && <Meter value={r.load} level={r.level} label={r.label} text={r.text} />}
-      <div class="mute sub">{r.detail}</div>
+      <div class="os-stats"><b>{r.text}</b><span>{r.detail}</span></div>
       {r.advice && <div class={`os-advice ${r.level}`}>{r.advice}</div>}
     </div>
   );
 }
 
-/** The resource monitor: every part of the machine in one list, and the worst one named at the top. */
+/** The performance tab: graph tiles on the left, the chosen part in full on the right. */
 function Monitor() {
   const s = snapshot.value;
+  const [pick, setPick] = useState<string>('cpu');
   if (!s) return null;
   const rows = resourceRows(s);
   const b = bottleneck(rows);
+  const cur = rows.find((r) => r.id === pick) ?? rows[0];
   return (
-    <>
-      <section class="os-wide">
-        <h3>Bottleneck</h3>
-        {b
-          ? <div class={`chip ${b.level}`} title={b.text}>{b.label}</div>
-          : <div class="chip ok">Nothing holds the machine back</div>}
-        {b && <div class="mute sub">{b.text}</div>}
-      </section>
-      <section class="os-wide">
-        <h3>Machine</h3>
-        <div class="os-grid">{rows.map((r) => <Row key={r.id} r={r} />)}</div>
-      </section>
-    </>
+    <div class="os-perf">
+      <div class="os-tiles">
+        {rows.map((r) => <Tile key={r.id} r={r} on={r === cur} onPick={() => setPick(r.id)} />)}
+      </div>
+      <div class="os-main">
+        <div class={`os-banner ${b ? b.level : 'ok'}`}>
+          <span class="os-pulse" />
+          <b>{b ? `Bottleneck: ${b.label}` : 'Nothing holds the machine back'}</b>
+          {b && <span>{b.text}</span>}
+        </div>
+        {cur && <Detail r={cur} />}
+      </div>
+    </div>
+  );
+}
+
+const STATE_LABEL = { running: 'Running', queued: 'Waiting', result: 'Done' } as const;
+
+/** The job queue as a process table. */
+function Procs() {
+  const os = snapshot.value?.os;
+  if (!os) return null;
+  return (
+    <div class="os-table">
+      <div class="os-tr os-th"><span>Job</span><span>State</span><span>Slot</span><span>Ahead</span></div>
+      {os.queue.length === 0 && <div class="os-empty">No jobs. The queue is empty.</div>}
+      {os.queue.map((q) => (
+        <div key={`${q.slot}:${q.keyId}`} class={`os-tr ${q.state}`}>
+          <span class="os-job">{q.label}</span>
+          <span><i class={`os-dot ${q.state}`} /> {STATE_LABEL[q.state]}</span>
+          <span class="mono">{q.slot}</span>
+          <span class="mono">{q.ahead >= 0 ? q.ahead : '-'}</span>
+        </div>
+      ))}
+      <div class="os-foot">{os.spool.used}/{os.spool.slots} queue slots | {os.programSlots} program slots</div>
+    </div>
   );
 }
 
@@ -92,36 +166,52 @@ function Apps() {
   );
 }
 
-/** The OS window: a modal like the almanac and the job log. */
+/** The OS window: a task-manager shell with a sidebar of sections. */
 export function OsModal() {
   const open = osOpen.value;
   const [tab, setTab] = useState<Tab>('monitor');
+  const s = snapshot.value;
   useEffect(() => {
     if (!open) return;
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') closeOs(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
-  const s = snapshot.value;
   if (!open || !s) return null;
+  const rows = resourceRows(s);
+  sample(rows);
+  const cpu = rows.find((r) => r.id === 'cpu');
   return (
     <div class="modal-back almanac-back" onClick={(ev) => { if (ev.target === ev.currentTarget) closeOs(); }}>
       <div class="card almanac ospanel" role="dialog" aria-modal="true" aria-label="Operating system">
-        <header class="alm-head">
-          <span class="alm-title"><Icon name="cpu" size={16} /> {s.os ? s.os.name : 'Operating system'}</span>
+        <aside class="os-side">
+          <div class="os-brand"><Icon name="cpu" size={20} /><span>{s.os ? s.os.name : 'No OS'}</span></div>
           <div class="os-tabs" role="tablist">
             {TABS.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} class={`chip ${tab === t.id ? 'ok' : 'idle'}`} onClick={() => setTab(t.id)}>{t.label}</button>
+              <button key={t.id} role="tab" aria-selected={tab === t.id} class={`os-nav${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
+                <Icon name={t.icon} size={14} /> {t.label}
+              </button>
             ))}
           </div>
-          <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
-        </header>
-        <div class="os-body">
-          {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}
-          {s.os && tab === 'monitor' && <Monitor />}
-          {s.os && tab === 'spool' && <Spool />}
-          {s.os && tab === 'apps' && <Apps />}
-        </div>
+          <div class="os-status">
+            <span class={`os-led ${s.powered ? 'on' : ''}`} /> {s.powered ? 'Running' : 'Powered off'}
+            {cpu && <div class="mono">{cpu.text}</div>}
+            {s.os && <div class="mono">Tier {s.os.tier}</div>}
+          </div>
+        </aside>
+        <section class="os-content">
+          <header class="os-top">
+            <h2>{TABS.find((t) => t.id === tab)!.label}</h2>
+            <button class="close" aria-label="Close OS window" title="Close (Esc)" onClick={closeOs}><Icon name="close" size={12} /></button>
+          </header>
+          <div class="os-body">
+            {!s.os && <section><div class="mute sub">No OS is installed. Buy one in the shop and install it on a drive.</div></section>}
+            {s.os && tab === 'monitor' && <Monitor />}
+            {s.os && tab === 'procs' && <Procs />}
+            {s.os && tab === 'spool' && <Spool />}
+            {s.os && tab === 'apps' && <Apps />}
+          </div>
+        </section>
       </div>
     </div>
   );
