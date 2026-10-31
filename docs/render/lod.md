@@ -5,6 +5,7 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | Chip | Zoom bands | Out-of-view cull (`deviceLod`) | Focus / `TierBudget` |
 |---|---|---|---|
 | GPU, NPU, TPM cards | yes | yes | yes (shared by `board/lodcard.ts`) |
+| Disks (HDD, SATA SSD, NVMe: `board/diskview.ts`) | yes (`DEVICE_LOD.disk`: casing to capacity map over `fade`, architecture from `arch` 1.2, counter tier from `detail`) | yes | yes (the extent list, legend, wear and queue) |
 | CPU die (multicore: each core tile by its own distance; deeper than `DEVICE_LOD.die.core` 3 to 4 only the core under the view centre shows, the shared part and the other tiles fade out) | yes | root hidden, and `die.frame(.., draw)` draws nothing while hidden (the replay still runs: it feeds the sticks and the interrupt hook) | no (it has no counter tier to budget) |
 | RAM view | yes | yes (sticks plus magnifier margin); shown empty while the machine is off | no |
 | PCH / chipset | no | yes (not redrawn; level and leg hits keep running) | no |
@@ -17,12 +18,12 @@ One module, `src/render/lod.ts` (pure, no Pixi), holds the zoom bands and the lo
 | Piece | What it does |
 |---|---|
 | `LodClock` | the zoom every LoD decision reads (`zs`). It follows `camera.z` once per frame in log space (about 80 ms), so a wheel flick crosses a threshold over a few frames. The camera itself is untouched. `board.ts` owns it (`lod`), `snap` on a jump (`camera.set`) |
-| `DEVICE_LOD` | the table of stages (the base ladder plus each device's extras): die, cooler, gpu, npu, tpm, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
+| `DEVICE_LOD` | the table of stages (the base ladder plus each device's extras): die, cooler, gpu, npu, tpm, disk, ram, labels, bakes. The views and the hover gates in `board.ts` (`Z_DIE`, `Z_GPU`, ...) read it. Values are absolute camera zoom; the case exterior (`LOD` in `board.ts`) stays in multiples of the fit zoom |
 | `smooth`, `bandAlpha`, `onBand` | one smoothstep; a layer that turns on at `z0` fades in over `z0` to `z0 * 1.15` (`TEXT_BAND`) and is hidden below `SHOWN` (0.01) alpha |
 | `deviceLod(rect, view)` | where a device is: `onScreen` (view plus 10 % margin) and `focus` (1 where the middle of the device is at the view centre, falling to 0 by 0.8 of the half-diagonal of the view) |
 | `BASE_LOD`, `seenZoom` | the one ladder every device shares (fade 0.4 to 0.6, names 0.8, counters 1.5, hover 0.45), in camera zoom. `seenZoom(zoom, focus)` = `zoom * (0.35 + 0.65 * focus)`: the only things that move a device along the ladder are the camera zoom and its distance from the view centre, never its size. Die, cooler, GPU, NPU, TPM and RAM all read it; extra stages (die wires/cells/subs, GPU lens, NPU fine, ...) stay per device |
 | `zoomSlow(zoom, cyclesPerSec, scale)` | the multiplier of the visual clock: the game speed `scale` below zoom 0.3, easing (log zoom) to one cycle per second from zoom 1 up whatever the game speed (paused stays paused). `board.ts` uses it as the game clock and sets `zoomSlowdown` (store) to the share of the chosen speed left, which the HUD shows as a "Slow motion" pill (like Paused) while it is below 0.97 and the game is running |
-| `TierBudget` | at most 2 devices show their counters at once (cards: GPU, NPU, TPM), the ones nearest the centre; a holder keeps its slot unless a challenger leads by 0.15. Drops are immediate |
+| `TierBudget` | at most 2 devices show their counters at once (cards and disks: GPU, NPU, TPM, disk), the ones nearest the centre; a holder keeps its slot unless a challenger leads by 0.15. Drops are immediate |
 | `ZoomSwitch` | a bake switch with a dead band (8 %): `on` below the threshold, plus a `warm` ring (15 % above it) |
 
 ## How it runs (per frame, `board.ts`)

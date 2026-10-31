@@ -21,13 +21,19 @@ describe('DEVICE_LOD', () => {
     }
   });
   it('lets the insides take hits only once the lid has started to fade', () => {
-    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.die]) expect(d.hover).toBeGreaterThanOrEqual(d.fade[0]);
+    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk, DEVICE_LOD.die]) expect(d.hover).toBeGreaterThanOrEqual(d.fade[0]);
   });
   it('shows names before counters on every card', () => {
-    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm]) {
+    for (const d of [DEVICE_LOD.gpu, DEVICE_LOD.npu, DEVICE_LOD.tpm, DEVICE_LOD.disk]) {
       expect(d.text).toBeGreaterThan(d.fade[0]);
       expect(d.detail).toBeGreaterThan(d.text);
     }
+  });
+  it('puts the disk architecture between its names and its counters', () => {
+    const d = DEVICE_LOD.disk;
+    expect(d.arch).toBeGreaterThan(d.text);
+    expect(d.arch).toBeLessThan(d.detail);
+    expect(d.arch).toBeGreaterThan(d.fade[1]);
   });
   it('fades a layer in over its band', () => {
     const b = onBand(0.8);

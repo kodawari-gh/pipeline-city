@@ -45,6 +45,8 @@ export const DEVICE_LOD = {
   gpu: { ...BASE_LOD, fan: 0.3, lens: 3 },
   npu: { ...BASE_LOD, fine: 0.75, lid: 0.15 },
   tpm: { ...BASE_LOD, lid: 0.1 },
+  /** The casing fades to the cutaway over `fade` (the capacity map); the architecture (controller, dies, head arm) fades in over the band from `arch`; the extent list, legend, wear and queue are the counter tier (`detail`, under the `TierBudget`). A drive is the size of a card, so the bands are the base ladder's. */
+  disk: { ...BASE_LOD, arch: 1.2 },
   ram: { show: BASE_LOD.fade[0], outline: BASE_LOD.text, band: BASE_LOD.text, lens: BASE_LOD.detail },
   labels: { board: 0.12, parts: 0.22 },
   /** Below these zooms the static art is one baked texture. */
