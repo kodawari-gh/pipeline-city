@@ -9,7 +9,7 @@ import { dieFar, planOf } from '../../cpu/render/die/dieart';
 import { sinkFanAt } from './layout/pins';
 import { hdmiPlug, rj45Plug } from './layout/ports';
 import { isPcieKind, looseCable, movablePlug, type Cable, type Plug } from './wiring/routes';
-import { paintCable, paintTie, tiePoints } from '@/core/render/cable';
+import { paintCable, paintClip, paintTie, tiePoints } from '@/core/render/cable';
 import type { Theme } from '@/core/render/theme';
 
 // Static art for installed devices. Everything is drawn in world coordinates unless noted.
@@ -461,6 +461,7 @@ export function cableArt(T: Theme, c: Cable): Part {
     for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) paintTie(g, T, [x, y], [0, 1], w, accent);
     for (const t of tiePoints(pts.filter((p) => p[1] <= top + 1), 1800, 500)) paintTie(g, T, t.at, t.dir, w, accent);
   }
+  for (const k of c.clips ?? []) paintClip(g, T, k.at, k.dir, w);
   const shape = wall ? 'hdmi' : 'power';
   drawPlug(g, T, c.a, accent, wall, shape);
   if (!wall) drawPlug(g, T, c.b, accent, true, shape); // (the video cable's other end is inside the monitor)

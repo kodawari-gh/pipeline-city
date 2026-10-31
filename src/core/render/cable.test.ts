@@ -76,7 +76,7 @@ describe('cable physics', () => {
     const files: string[] = [];
     const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = `${d}${e.name}`; if (e.isDirectory()) walk(`${p}/`); else if (/\.ts$/.test(e.name) && !/^cable\.(test\.)?ts$/.test(e.name)) files.push(p); } };
     walk(SRC);
-    const bad = files.filter((f) => /#171d29|#2a313d|#2a3554|#8fa3d6/i.test(fs.readFileSync(f, 'utf8')));
+    const bad = files.filter((f) => /#171d29|#2a313d|#36457a|#8fa3d6/i.test(fs.readFileSync(f, 'utf8')));
     expect(bad).toEqual([]);
   });
 });

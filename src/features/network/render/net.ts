@@ -11,9 +11,9 @@ import {
 import { IO_X } from '../../board/render/layout/boardlayout';
 import { portProfile } from '../../board/render/layout/ports';
 import { netPropsVisible } from './netvis';
-import { laneRects, mkLane, pointAt, roundedPath, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
+import { laneRects, mkLane, pointAt, runClipYs, type Lane, type Plug, type Pt } from '../../board/render/wiring/routes';
 import type { Theme } from '@/core/render/theme';
-import { hangCable, paintCable } from '@/core/render/cable';
+import { drape, hangCable, paintClip, paintCable } from '@/core/render/cable';
 import type { Shape } from '@/core/render/shape';
 
 // The network props (docs/render/net.md "Network"): the router on its shelf above the monitor, the wall plate with the ISP line, the
@@ -300,10 +300,12 @@ export class NetView {
     if (this.router && net?.isp) {
       const wx = WALL_JACK.x, rx = wanX(this.router.visual), y1w = WALL_Y + PLUG_L - 10, y1r = SHELF_Y + PLUG_L - 10;
       const route: Pt[] = [[wx, y1w], [wx, ISP_ROW_Y], [rx, ISP_ROW_Y], [rx, y1r]];
-      this.isp = mkLane(roundedPath(route, 120));
+      const d = drape(route, { radius: 420, clips: [...runClipYs(ISP_ROW_Y, y1r).map((cy) => [rx, cy] as Pt), [(wx + rx) / 2, ISP_ROW_Y]] });
+      this.isp = mkLane(d.path);
       const gb = new Graphics();
       this.behind.addChild(gb);
       cable(this.isp.pts, 26, T.mute, gb);
+      for (const c of d.clips) paintClip(gb, T, c.at, c.dir, 26);
       drawPlug(g, T, { x: wx, y: WALL_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
       drawPlug(g, T, { x: rx, y: SHELF_Y, dx: 0, dy: 1, w: 80, l: PLUG_L, pins: [1, 1] }, T.mute, false, 'rj45');
     }
@@ -313,14 +315,21 @@ export class NetView {
       const lx = lanX(this.router.visual), tail: Pt = [lx, SHELF_Y + PLUG_L - 10];
       drawPlug(g, T, { x: lx, y: SHELF_Y, dx: 0, dy: 1, w: PLUG_W, l: PLUG_L, pins: [1, 1] }, accent, false, 'rj45');
       // at rest the plug hangs from its cable by its own weight (pins down), a little east of the router
-      const restPlug: Plug = { x: ROUTER_EAST + 320, y: CABLE_ROW_Y + 60 + 760 + PLUG_L, dx: 0, dy: -1, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
+      const restPlug: Plug = { x: ROUTER_EAST + 680, y: CABLE_ROW_Y + 60 + 760 + PLUG_L, dx: 0, dy: -1, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
       let plug: Rect = plugRect(restPlug), seated: Pt | null = null;
       const jack = lanState === 'connected' ? jacks.find((j) => j.id === portId) : undefined;
       if (lanState === 'connected' && jack) {
         const [mx, my] = jack.mouth;
-        const route: Pt[] = [tail, [lx, CABLE_ROW_Y + 60], [LAN_TRUNK_X, CABLE_ROW_Y + 60], [LAN_TRUNK_X, my], [mx - PLUG_L + 8, my]];
-        this.lan = mkLane(roundedPath(route, 100));
+        // out of the router and down a little, a sweeping bend east along the wall (clipped, it sags a little between the clips), down the trunk
+        // (clipped) and a bend into the jack: no corner without a bend, no straight run without a clip
+        const row = SHELF_Y + 400, route: Pt[] = [tail, [lx, row], [LAN_TRUNK_X, row], [LAN_TRUNK_X, my], [mx - PLUG_L + 8, my]];
+        const d = drape(route, {
+          radius: 340,
+          clips: [[lx + (LAN_TRUNK_X - lx) * 0.33, row], [lx + (LAN_TRUNK_X - lx) * 0.67, row], ...runClipYs(row, my).map((cy) => [LAN_TRUNK_X, cy] as Pt)],
+        });
+        this.lan = mkLane(d.path);
         cable(this.lan.pts, 38, accent);
+        for (const c of d.clips) paintClip(g, T, c.at, c.dir, 38);
         const pl: Plug = { x: mx, y: my, dx: -1, dy: 0, w: PLUG_W, l: PLUG_L, pins: [1, 1] };
         drawPlug(g, T, pl, accent, false, 'rj45');
         plug = plugRect(pl); seated = [mx, my];

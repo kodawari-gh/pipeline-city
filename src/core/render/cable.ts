@@ -9,7 +9,7 @@ import type { Theme } from './theme';
 export type Pt = [number, number];
 
 /** The sleeve colour. Over the wall (dark theme) it is paler, with a halo, so it stays readable on the dark slats. */
-export const sleeveOf = (T: Theme, wall = false) => (wall && T.dark ? '#2a3554' : T.dark ? '#171d29' : '#2a313d');
+export const sleeveOf = (T: Theme, wall = false) => (wall && T.dark ? '#36457a' : T.dark ? '#171d29' : '#2a313d');
 const HALO = '#8fa3d6';
 
 export interface CableLook {
@@ -44,8 +44,8 @@ export function paintCable(g: Graphics, T: Theme, pts: readonly Pt[], look: Cabl
   const { w, accent } = look, wall = !!look.wall;
   if (look.shadow !== false) { trace(g, pts, w * 0.14, w * 0.2); g.stroke({ width: w + Math.max(4, w * 0.08), color: '#000000', alpha: 0.28, cap: 'round', join: 'round' }); }
   if (wall && T.dark) {
-    trace(g, pts); g.stroke({ width: w * 2, color: HALO, alpha: 0.1, cap: 'round', join: 'round' });
-    trace(g, pts); g.stroke({ width: w * 1.4, color: HALO, alpha: 0.2, cap: 'round', join: 'round' });
+    trace(g, pts); g.stroke({ width: w * 2.2, color: HALO, alpha: 0.12, cap: 'round', join: 'round' });
+    trace(g, pts); g.stroke({ width: w * 1.5, color: HALO, alpha: 0.28, cap: 'round', join: 'round' });
   }
   trace(g, pts); g.stroke({ width: w, color: sleeveOf(T, wall), cap: 'round', join: 'round' });
   trace(g, pts); g.stroke({ width: w, color: accent, alpha: 0.14, cap: 'round', join: 'round' });
@@ -206,4 +206,82 @@ export function tiePoints(pts: readonly Pt[], every = 1500, margin = 260): { at:
     s += d;
   }
   return out;
+}
+
+// ---------------------------------------------------------------- draping along a wall
+
+/** Round the corners of a rectilinear route with radius r (clamped to half of each run), sampled densely (step ~ 24). */
+export function roundedPath(pts: readonly Pt[], r: number, step = 24): Pt[] {
+  const out: Pt[] = [pts[0]!];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1]!, p = pts[i]!, b = pts[i + 1]!;
+    const l1 = Math.hypot(p[0] - a[0], p[1] - a[1]), l2 = Math.hypot(b[0] - p[0], b[1] - p[1]);
+    const k = Math.min(r, l1 / 2, l2 / 2);
+    const s: Pt = [p[0] + ((a[0] - p[0]) / l1) * k, p[1] + ((a[1] - p[1]) / l1) * k];
+    const e: Pt = [p[0] + ((b[0] - p[0]) / l2) * k, p[1] + ((b[1] - p[1]) / l2) * k];
+    const n = Math.max(4, Math.ceil((Math.PI * k * 0.5) / step));
+    for (let j = 0; j <= n; j++) {
+      const t = j / n, u = 1 - t;
+      out.push([u * u * s[0] + 2 * u * t * p[0] + t * t * e[0], u * u * s[1] + 2 * u * t * p[1] + t * t * e[1]]);
+    }
+  }
+  out.push(pts[pts.length - 1]!);
+  // resample straight runs so glow pulses and braid ticks have points to land on
+  const dense: Pt[] = [out[0]!];
+  for (let i = 1; i < out.length; i++) {
+    const a = out[i - 1]!, b = out[i]!, d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / step));
+    for (let j = 1; j <= n; j++) dense.push([a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]);
+  }
+  return dense;
+}
+
+
+export interface Clip { at: Pt; dir: Pt }
+
+export interface DrapeOpts {
+  /** Radius of the bends (clamped to half of each run). */
+  radius?: number;
+  /** How far a level run sags between its clips, as a fraction of the span between them. */
+  sag?: number;
+  /** A surface the cable lies on (screen y): nothing sags below it. */
+  floor?: number;
+  step?: number;
+  /** Where the cable is pinned to the wall (points near its run, not at the corners): the sag is per span between them, and a clip is drawn there. */
+  clips?: Pt[];
+}
+
+/**
+ * A cable that runs along a wall through the waypoints of `route`: its corners are cut into sweeping bends, and every interior waypoint is a clip
+ * that pins it to the wall (the cable passes through it). Between two clips a level run hangs in a shallow sag; a plumb run stays plumb. Returns the
+ * dense centre line and the clips (with the cable's direction there). No angular corner is left unless a clip is there to justify it.
+ */
+export function drape(route: Pt[], o: DrapeOpts = {}): { path: Pt[]; clips: Clip[] } {
+  const step = o.step ?? 24;
+  // a corner is cut into a bend; the clip sits on the cable at the nearest point to its waypoint
+  const path = roundedPath(route, o.radius ?? 520, step);
+  const pinAt = (w: Pt) => { let k = 0, best = Infinity; path.forEach((p, i) => { const d = Math.hypot(p[0] - w[0], p[1] - w[1]); if (d < best) { best = d; k = i; } }); return k; };
+  const idx = [0, ...(o.clips ?? []).map(pinAt), path.length - 1].sort((a, b) => a - b);
+  const sag = o.sag ?? 0.05;
+  for (let s = 0; s + 1 < idx.length; s++) {
+    const i0 = idx[s]!, i1 = idx[s + 1]!;
+    if (i1 - i0 < 2) continue;
+    const span = Math.hypot(path[i1]![0] - path[i0]![0], path[i1]![1] - path[i0]![1]);
+    for (let i = i0 + 1; i < i1; i++) {
+      const a = path[i - 1]!, b = path[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, level = (dx / l) ** 2, u = (i - i0) / (i1 - i0);
+      const y = path[i]![1] + sag * span * 4 * u * (1 - u) * level;
+      path[i] = [path[i]![0], o.floor === undefined ? y : Math.min(y, o.floor)];
+    }
+  }
+  const clips: Clip[] = idx.slice(1, -1).map((i) => { const a = path[Math.max(0, i - 1)]!, b = path[Math.min(path.length - 1, i + 1)]!; return { at: path[i]!, dir: [b[0] - a[0], b[1] - a[1]] as Pt }; });
+  return { path, clips };
+}
+
+/** A cable clip screwed to the wall round a cable of width `w` at `at`: a saddle (a plate with a screw, a lit edge, a shadow). */
+export function paintClip(g: Graphics, T: Theme, at: Pt, dir: Pt, w: number) {
+  const l = Math.hypot(dir[0], dir[1]) || 1, tx = dir[0] / l, ty = dir[1] / l, nx = -ty, ny = tx, h = w * 0.78 + 10, t = Math.max(10, w * 0.32);
+  const q = (ox: number, oy: number, hh: number, tt: number) => g.poly([at[0] + ox + nx * hh - tx * tt, at[1] + oy + ny * hh - ty * tt, at[0] + ox + nx * hh + tx * tt, at[1] + oy + ny * hh + ty * tt, at[0] + ox - nx * hh + tx * tt, at[1] + oy - ny * hh + ty * tt, at[0] + ox - nx * hh - tx * tt, at[1] + oy - ny * hh - ty * tt]);
+  q(w * 0.1, w * 0.16, h, t); g.fill({ color: '#000000', alpha: 0.28 });
+  q(0, 0, h, t); g.fill({ color: T.dark ? '#7c8db8' : '#7d889f' });
+  q(-t * 0.25, 0, h, t * 0.3); g.fill({ color: '#ffffff', alpha: T.dark ? 0.2 : 0.3 });
+  g.circle(at[0] + nx * h * 0.82, at[1] + ny * h * 0.82, Math.max(4, w * 0.09)).circle(at[0] - nx * h * 0.82, at[1] - ny * h * 0.82, Math.max(4, w * 0.09)).fill({ color: T.dark ? '#10151f' : '#4a5468' });
 }

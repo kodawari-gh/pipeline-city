@@ -1,4 +1,4 @@
-import { hangCable } from '@/core/render/cable';
+import { drape, hangCable, roundedPath, type Clip } from '@/core/render/cable';
 import { DIMM_H0, ioPort, type TierGeo } from '../layout/boardlayout';
 import { serpentine, type SerpOpts } from '../layout/match';
 import {
@@ -559,8 +559,18 @@ export const isPcieKind = (k: string): k is PcieKind => (PCIE_KINDS as readonly 
 /** Where a PCIe lead plugs in: the card's power socket (`x` its centre), the card's north edge (`top`), and which socket of the card it is (`plug`, 0 = the first). */
 export interface PcieTarget { kind: PcieKind; x: number; top: number; plug: number }
 
+/** The heights of the wall clips along a vertical run from `y0` to `y1` (world y): one about every 1500 units, clear of the bends at both ends. */
+export const runClipYs = (y0: number, y1: number, every = 1500, margin = 650) => {
+  const a = Math.min(y0, y1) + margin, b = Math.max(y0, y1) - margin;
+  if (b <= a) return [];
+  const n = Math.max(1, Math.round((b - a) / every));
+  return Array.from({ length: n }, (_, k) => Math.round(a + ((b - a) * (k + 0.5)) / n));
+};
+
 export interface Cable {
   kind: CableKind;
+  /** The wall clips that pin the cable (cables that run over the wall only). */
+  clips?: Clip[];
   /** Cable centre line, dense and rounded (use for drawing, glow and hit rects). */
   path: Lane;
   /** Sleeve width. */
@@ -572,30 +582,7 @@ export interface Cable {
 
 export interface Plug { x: number; y: number; /** Direction the cable leaves the plug, unit axis vector. */ dx: number; dy: number; w: number; l: number; pins: [number, number] }
 
-/** Round the corners of a rectilinear route with radius r, sampled densely (step ~ 24). */
-export function roundedPath(pts: Pt[], r: number, step = 24): Pt[] {
-  const out: Pt[] = [pts[0]!];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const a = pts[i - 1]!, p = pts[i]!, b = pts[i + 1]!;
-    const l1 = Math.hypot(p[0] - a[0], p[1] - a[1]), l2 = Math.hypot(b[0] - p[0], b[1] - p[1]);
-    const k = Math.min(r, l1 / 2, l2 / 2);
-    const s: Pt = [p[0] + ((a[0] - p[0]) / l1) * k, p[1] + ((a[1] - p[1]) / l1) * k];
-    const e: Pt = [p[0] + ((b[0] - p[0]) / l2) * k, p[1] + ((b[1] - p[1]) / l2) * k];
-    const n = Math.max(4, Math.ceil((Math.PI * k * 0.5) / step));
-    for (let j = 0; j <= n; j++) {
-      const t = j / n, u = 1 - t;
-      out.push([u * u * s[0] + 2 * u * t * p[0] + t * t * e[0], u * u * s[1] + 2 * u * t * p[1] + t * t * e[1]]);
-    }
-  }
-  out.push(pts[pts.length - 1]!);
-  // resample straight runs so glow pulses and braid ticks have points to land on
-  const dense: Pt[] = [out[0]!];
-  for (let i = 1; i < out.length; i++) {
-    const a = out[i - 1]!, b = out[i]!, d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / step));
-    for (let j = 1; j <= n; j++) dense.push([a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]);
-  }
-  return dense;
-}
+export { roundedPath } from '@/core/render/cable';
 
 /**
  * The PSU cables and the video cable. A PCIe lead is only drawn for a card socket that takes one (`pcie`: the cards' sockets, in lead order).
@@ -642,7 +629,12 @@ export function buildCables(pcie: readonly PcieTarget[] = []): Cable[] {
  */
 export function videoCableAt(y: number): Cable {
   const x0 = BR.io.x, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y, l = 220;
-  return { kind: 'video', path: mkLane(roundedPath([[x0 - 200, y], [VIDEO_TRUNK_X, y], [VIDEO_TRUNK_X, VIDEO_RUN_Y], [sx, VIDEO_RUN_Y], [sx, sy + CABLE_HIDE]], 150)), w: 76,
+  // out of the port, a sweeping bend down the trunk (clipped to the wall with the ethernet cable), along the back edge of the desk (where it lies), and up
+  // behind the bezel (clipped once on the way up): every bend is round, and a straight run is where a clip holds it
+  const { path, clips } = drape([[x0 - 200, y], [VIDEO_TRUNK_X, y], [VIDEO_TRUNK_X, VIDEO_RUN_Y], [sx, VIDEO_RUN_Y], [sx, sy + CABLE_HIDE]], {
+    radius: 420, floor: VIDEO_RUN_Y, clips: [...runClipYs(y, VIDEO_RUN_Y).map((cy) => [VIDEO_TRUNK_X, cy] as Pt), [sx, (VIDEO_RUN_Y + sy) / 2]],
+  });
+  return { kind: 'video', path: mkLane(path), clips, w: 76,
     a: { x: x0, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] }, b: { x: sx, y: sy, dx: 0, dy: 1, w: 130, l, pins: [1, 1] } };
 }
 
@@ -682,11 +674,11 @@ export const LOOSE_SCALE = 0.54;
 /** Where an unplugged cable's loose plug rests: the PSU cables in the gutter by the PSU, the HDMI cable near the monitor. */
 export function looseCable(c: Cable): Loose {
   if (c.kind === 'video') {
-    const y = VIDEO_Y + 420, sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y + CABLE_HIDE;
+    // the cable still comes out of the monitor (it is built in), hangs down behind it and lies along the back edge of the desk, the plug at its end
+    const sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y + CABLE_HIDE, y = VIDEO_RUN_Y - 65 - 4;
     const plug: Plug = { x: -3580, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] };
-    // the cable still comes out of the monitor (it is built in); the loose end lies in the gap by the rear wall
-    const route: Pt[] = [[sx, sy], [sx, VIDEO_RUN_Y], [-3880, VIDEO_RUN_Y], [-3880, y], [-3580 - 220 + 8, y]];
-    return { path: mkLane(roundedPath(route, 90)), plug, anchor: [sx, sy], anchorDir: [0, 1] };
+    const end: Pt = [plug.x - plug.l + 8, y], d = Math.hypot(end[0] - sx, end[1] - sy);
+    return { path: mkLane(hangCable([sx, sy], [0, 1], end, { len: d * 1.1 + 500, stub: 160, n: 48, floor: VIDEO_RUN_Y - 38 })), plug, anchor: [sx, sy], anchorDir: [0, 1] };
   }
   // the lead leaves its socket upward, arcs over and falls onto the roof of the PSU: the plug stands there on its pin face (the cable leaving
   // it upward), the plugs side by side west of the sockets in the order of `LOOSE_ORDER`; the cable lies along the roof where it has slack
