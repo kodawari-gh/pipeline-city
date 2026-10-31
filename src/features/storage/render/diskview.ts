@@ -5,7 +5,7 @@ import type { Theme } from '@/core/render/theme';
 import { DiskPlay } from './diskplay';
 import type { Rect } from '../../cpu/render/core/cpuplan';
 import { DEVICE_LOD, bandAlpha, onBand, seenZoom, smooth, type Candidate, type CardLod, type LodRect } from '@/core/render/lod/lod';
-import { accentOf, diskStatic, drawArch, drawBar, drawMap, type ArchLive, type DataCtx } from './diskart';
+import { accentOf, diskStatic, drawArch, drawBar, drawMap, drawSpin, type ArchLive, type DataCtx } from './diskart';
 import { diskPlan, type DiskPlan } from './diskfloor';
 import { cellsOf, counterRows, CELL_BLOCKS, dimmed, headTrack, ownerSlot, type Cell } from './diskplan';
 import type { DriveKind } from './drives';
@@ -36,6 +36,9 @@ interface DriveView {
   /** The cutaway: the die-style floor and blocks, the capacity map, then the architecture over it. */
   cut: Container;
   mapG: Graphics;
+  /** The platter's turning (a hard disk only) and the angle it has turned to. */
+  spinG: Graphics;
+  spin: number;
   arch: Container;
   dataG: Graphics;
   trailG: Graphics;
@@ -85,7 +88,8 @@ export class DiskView {
     const mapG = new Graphics(), dataG = new Graphics(), trailG = new Graphics(), packetG = new Graphics(), bar = new Graphics(), panel = new Container(), panelG = new Graphics();
     const liveG = new Graphics();
     arch.addChild(art.blocks, art.near.wires, dataG, liveG, trailG, packetG, art.near.names, art.near.subs);
-    cut.addChild(art.far, mapG, arch);
+    const spinG = new Graphics();
+    cut.addChild(art.far, mapG, spinG, arch);
     panel.addChild(panelG);
     const texts: Text[] = [];
     for (let i = 0; i < TEXT_LINES; i++) {
@@ -97,7 +101,7 @@ export class DiskView {
     root.addChild(hit, bar, cut, panel);
     this.root.addChild(root);
     return {
-      slot: s.slot, deviceId: s.deviceId, kind: s.kind, body: s.body, plan, root, bar, cut, mapG, arch, dataG, trailG, packetG, names: art.near.names, subs: art.near.subs, panel, panelG, texts,
+      slot: s.slot, deviceId: s.deviceId, kind: s.kind, body: s.body, plan, root, bar, cut, mapG, spinG, spin: 0, arch, dataG, trailG, packetG, names: art.near.names, subs: art.near.subs, panel, panelG, texts,
       snap: null, cells: [], play: new DiskPlay(), liveG, sig: '', panelSig: '',
     };
   }
@@ -166,6 +170,11 @@ export class DiskView {
       drawMap(d.mapG, T, d.kind, d.plan, d.cells, x);
       drawArch(d.dataG, T, d.kind, d.plan, d.cells, x, live);
       if (s.burnt) this.cross(T, d);
+    }
+    if (d.plan.platter) {
+      // a hard disk that is on keeps turning, faster while it works
+      d.spin += (s.busy ? 9 : s.burnt ? 0 : 2) * (stepMs / 1000);
+      drawSpin(d.spinG, T, d.plan, d.spin, s.busy);
     }
     if (archOn || d.play.busy) d.play.frame(stepMs, T, d.kind, d.plan, d.liveG, d.trailG, d.packetG);
     if (detail) this.counters(T, d, s);

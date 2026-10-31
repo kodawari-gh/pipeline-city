@@ -1184,8 +1184,9 @@ export class Live {
     for (const dr of this.drives.values()) {
       if (!this.liveOn) { dr.speed = 0; dr.head = 0; dr.led = 0; } // off, tripped or dead: platter, arm and LED are still at once
       const lit = dr.busyUntil > now;
-      dr.speed += ((lit ? 16 : 0) - dr.speed) * Math.min(1, dt * (lit ? 4 : 2.5));
-      if (!lit && dr.speed < 0.05) dr.speed = 0;
+      const idle = dr.kind === 'hdd' && this.liveOn ? 4 : 0; // a powered hard disk keeps turning between commands
+      dr.speed += ((lit ? 16 : idle) - dr.speed) * Math.min(1, dt * (lit ? 4 : 2.5));
+      if (!lit && !idle && dr.speed < 0.05) dr.speed = 0;
       dr.spin += dr.speed * dt;
       dr.head += ((lit ? 0.5 + 0.5 * Math.sin(now * 0.009 + 1) : 0) - dr.head) * Math.min(1, dt * 6);
       const lt = lit ? (dr.kind === 'hdd' ? 0.65 + 0.35 * Math.sin(now * 0.03) : Math.floor(now / 80) % 2 ? 1 : 0.15) : 0;

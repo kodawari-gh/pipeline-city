@@ -6,7 +6,7 @@ import { drawPackets, drawTrails, packetOn, type Packet, type Trail } from '../.
 import type { Theme } from '@/core/render/theme';
 import { accentOf } from './diskart';
 import type { DiskPlan } from './diskfloor';
-import { queueLanes } from './diskplan';
+import { armTip, queueLanes } from './diskplan';
 import { DiskPlayer, dieOf, platterTarget, stepAt, turnLeft, type Script } from './diskplayer';
 import type { DriveKind } from './drives';
 
@@ -108,7 +108,7 @@ export class DiskPlay {
     const pl = plan.platter!, a = plan.arm!, tg = platterTarget(plan, s);
     if (!tg) return;
     const ring = (pl.R * 0.86) / pl.tracks, r1 = pl.R * 0.97 - tg.track * ring, r0 = r1 - ring * 0.9;
-    const a0 = (tg.sector / pl.sectors) * TAU - Math.PI / 2, a1 = ((tg.sector + 1) / pl.sectors) * TAU - Math.PI / 2 - 0.02, headAng = Math.atan2(a.py - pl.cy, a.px - pl.cx);
+    const a0 = (tg.sector / pl.sectors) * TAU - Math.PI / 2, a1 = ((tg.sector + 1) / pl.sectors) * TAU - Math.PI / 2 - 0.02, tip = armTip(a.px, a.py, a.len, pl.cx, pl.cy, pl.R * 0.97 - tg.track * ring - ring * 0.45), headAng = Math.atan2(tip.y - pl.cy, tip.x - pl.cx);
     const cellPoly = (fillA: number): number[] => {
       const pts: number[] = [], to = a0 + (a1 - a0) * fillA;
       for (let k = 0; k <= 4; k++) { const an = a0 + ((to - a0) * k) / 4; pts.push(pl.cx + Math.cos(an) * r1, pl.cy + Math.sin(an) * r1); }
@@ -128,8 +128,7 @@ export class DiskPlay {
       g.poly(cellPoly(1)).fill({ color: mix(T.die, color, 0.25), alpha: 0.9 });
       g.poly(cellPoly(Math.max(0.05, p))).fill({ color, alpha: 0.95 });
       const mid = (a0 + a1) / 2, rm = (r0 + r1) / 2, ex = pl.cx + Math.cos(mid) * rm, ey = pl.cy + Math.sin(mid) * rm;
-      const hr = pl.R * 0.97 - tg.track * ring - ring * 0.45, hx = pl.cx + Math.cos(headAng) * hr, hy = pl.cy + Math.sin(headAng) * hr;
-      g.moveTo(hx, hy).lineTo(ex, ey).stroke({ width: Math.max(1, plan.h * 0.005), color, alpha: 0.85 });
+      g.moveTo(tip.x, tip.y).lineTo(ex, ey).stroke({ width: Math.max(1, plan.h * 0.005), color, alpha: 0.85 });
     } else if (step === 'return' || step === 'cmd' || step === 'lookup') {
       g.poly(cellPoly(1)).stroke({ width: Math.max(1, plan.h * 0.004), color, alpha: step === 'return' ? 0.55 : 0.3 });
     }

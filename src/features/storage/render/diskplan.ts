@@ -188,3 +188,15 @@ export function counterRows(s: StorageSnap, maxExtents: number): CounterRows {
 
 /** Whether the data shows dimmed: the drive is not mounted (the OS is down, or it is unformatted). A burnt drive shows everything lost instead. */
 export const dimmed = (s: Pick<StorageSnap, 'mount' | 'burnt'>): boolean => !s.burnt && s.mount.phase !== 'mounted';
+
+/**
+ * Where the tip of a head arm of fixed length `len`, pivoting at (px, py), meets the ring of radius `r` round the platter's centre (cx, cy). The arm swings on
+ * an arc, so its length never changes; a ring out of its reach is clamped to the nearest one it can reach. Of the two meeting points the one on the left of the
+ * line from the pivot to the centre is taken, so the tip moves smoothly with `r`.
+ */
+export function armTip(px: number, py: number, len: number, cx: number, cy: number, r: number): { x: number; y: number } {
+  const dx = cx - px, dy = cy - py, D = Math.hypot(dx, dy) || 1;
+  const rr = Math.min(D + len, Math.max(Math.abs(D - len) + 1e-6, r));
+  const a = (len * len - rr * rr + D * D) / (2 * D), h = Math.sqrt(Math.max(0, len * len - a * a)), ux = dx / D, uy = dy / D;
+  return { x: px + ux * a + uy * h, y: py + uy * a - ux * h };
+}

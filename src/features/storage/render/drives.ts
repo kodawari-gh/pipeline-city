@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { box, disc, label, mix } from '@/core/render/ink';
 import { BAY_CELLS, CELL_W, M2_SLOTS, type Rect } from '../../board/render/layout/layout';
 import type { Theme } from '@/core/render/theme';
+import { armTip } from './diskplan';
 
 // Drive art. Static casing (`driveArt`) plus the parts that move while the drive is busy (`drawDriveLive`: HDD platter and
 // head arm, activity LEDs), redrawn by Live from the game clock. All geometry is in world units.
@@ -124,25 +125,29 @@ export function drawDriveLive(g: Graphics, T: Theme, kind: DriveKind, slot: stri
   g.position.set(cell?.x ?? 0, cell?.y ?? 0); g.scale.set(sata ? driveScale() : 1);
   const b = sata ? bodyLocal(kind) : driveBody(kind, slot);
   if (kind === 'hdd') {
-    const cx = b.x + 235, cy = b.y + 222, R = 190;
-    // platter disc with a few rings and two spokes so the rotation reads
-    disc(g, cx, cy, R, { fill: T.dark ? '#1b2333' : '#98a3b6', stroke: T.alu, lw: 3, sa: 0.35 });
-    for (const rr of [150, 105, 62]) g.circle(cx, cy, rr);
-    g.stroke({ width: 3, color: T.alu, alpha: 0.22 });
+    const cx = b.x + 235, cy = b.y + 222, R = 190, rim = mix(T.line, T.alu, 0.5);
+    // the platter: a mirror disc whose sheen wedges, clamp screws and index mark turn with `spin`, so the turning shows even at speed
+    disc(g, cx, cy, R, { fill: T.dark ? '#1b2333' : '#98a3b6', stroke: rim, lw: 4 });
+    for (const rr of [172, 140, 108, 80]) g.circle(cx, cy, rr);
+    g.stroke({ width: 2, color: T.alu, alpha: 0.2 });
     for (let k = 0; k < 2; k++) {
-      const a = st.spin + k * Math.PI;
-      g.moveTo(cx + Math.cos(a) * 36, cy + Math.sin(a) * 36).lineTo(cx + Math.cos(a) * (R - 14), cy + Math.sin(a) * (R - 14));
+      const a0 = st.spin * 1 + k * Math.PI;
+      g.moveTo(cx, cy).arc(cx, cy, R - 4, a0 - 0.28, a0 + 0.28).closePath().fill({ color: '#ffffff', alpha: T.dark ? 0.07 : 0.2 });
+      g.moveTo(cx, cy).arc(cx, cy, R - 4, a0 + 0.9 - 0.08, a0 + 0.9 + 0.08).closePath().fill({ color: '#ffffff', alpha: T.dark ? 0.04 : 0.12 });
     }
-    g.stroke({ width: 10, color: T.alu, alpha: 0.5, cap: 'round' });
-    disc(g, cx, cy, 30, { fill: metalHi(T), stroke: T.line, lw: 4 });
-    // head arm: pivot bottom-right of the platter, swings across it while busy, parks at the rim otherwise
-    const px = b.x + 395, py = b.y + 400, len = 330;
-    const ang = Math.PI * (1.12 + 0.22 * st.head);
-    const ex = px + Math.cos(ang) * len, ey = py + Math.sin(ang) * len;
-    g.moveTo(px, py).lineTo(ex, ey).stroke({ width: 22, color: mix(T.mute, T.ink, 0.3), cap: 'round', alpha: 0.95 });
-    g.moveTo(px, py).lineTo(ex, ey).stroke({ width: 6, color: '#ffffff', alpha: 0.18, cap: 'round' });
+    disc(g, cx, cy, 56, { fill: mix(T.dark ? '#1b2333' : '#98a3b6', T.ink, 0.12), stroke: T.line, lw: 3 }); // the clamp ring
+    for (let k = 0; k < 6; k++) { const a = st.spin + (k * Math.PI) / 3; disc(g, cx + Math.cos(a) * 42, cy + Math.sin(a) * 42, k === 0 ? 7 : 5, { fill: k === 0 ? T.ld : metalHi(T), stroke: T.line, lw: 1.5 }); }
+    disc(g, cx, cy, 16, { fill: metal(T), stroke: T.line, lw: 3 });
+    // the head arm swings on an arc: a fixed length on its pivot, so the tip runs the rings from the rim (parked) in towards the hub
+    const px = b.x + 410, py = b.y + 398, len = Math.hypot(cx - px, cy - py) - 40;
+    const tip = armTip(px, py, len, cx, cy, 182 - 128 * st.head), ux = (tip.x - px) / len, uy = (tip.y - py) / len, nx = -uy, ny = ux;
+    // the voice coil on the far side of the pivot
+    g.poly([px + nx * 20 - ux * 12, py + ny * 20 - uy * 12, px + nx * 30 - ux * 74, py + ny * 30 - uy * 74, px - nx * 30 - ux * 74, py - ny * 30 - uy * 74, px - nx * 20 - ux * 12, py - ny * 20 - uy * 12]).fill({ color: mix(T.ld, '#000000', 0.35) }).stroke({ width: 3, color: T.ld, alpha: 0.7 });
+    g.poly([px + nx * 17, py + ny * 17, tip.x + nx * 5, tip.y + ny * 5, tip.x - nx * 5, tip.y - ny * 5, px - nx * 17, py - ny * 17]).fill({ color: mix(T.mute, T.ink, 0.35), alpha: 0.97 }).stroke({ width: 3, color: mix(T.line, T.ink, 0.3) });
+    g.moveTo(px, py).lineTo(tip.x, tip.y).stroke({ width: 4, color: '#ffffff', alpha: 0.16 });
+    g.poly([tip.x + nx * 11, tip.y + ny * 11, tip.x + ux * 20 + nx * 8, tip.y + uy * 20 + ny * 8, tip.x + ux * 20 - nx * 8, tip.y + uy * 20 - ny * 8, tip.x - nx * 11, tip.y - ny * 11]).fill({ color: st.led > 0.02 ? T.ld : mix(T.mute, T.ink, 0.4) }); // the head slider
     disc(g, px, py, 24, { fill: metalHi(T), stroke: T.line, lw: 4 });
-    disc(g, ex, ey, 12, { fill: T.ld });
+    disc(g, px, py, 8, { fill: metal(T), stroke: T.line, lw: 2 });
     led(g, T, b.x + b.w - 36, b.y + b.h - 78, st);
   } else if (kind === 'ssd-sata') {
     led(g, T, b.x + b.w - 44, b.y + b.h - 44, st);

@@ -41,7 +41,7 @@ describe('the drive view', () => {
     v.setScene(T, [{ slot: 'sata0', deviceId: 'd1', kind: 'ssd-sata', body }]);
     v.update([snap()]);
     const [, bar, cut] = (v.root.children[0] as Container).children as [Container, Container, Container];
-    const arch = cut.children[2] as Container;
+    const arch = cut.children[cut.children.length - 1] as Container;
     const lod = { view, top: new Set<string>() };
     v.setZoom(0.1);
     v.frame(0.016, true, false, lod);

@@ -25,6 +25,9 @@ export interface DiskPlan {
   arm?: { px: number; py: number; len: number };
 }
 
+/** The head arm: fixed length, long enough to reach the innermost ring of the platter from its pivot. */
+const armOf = (px: number, py: number, cx: number, cy: number, R: number): { px: number; py: number; len: number } => ({ px, py, len: Math.max(R * 1.05, Math.hypot(cx - px, cy - py) - R * 0.1) });
+
 const rect = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h });
 const midY = (r: Rect): number => r.y + r.h / 2;
 
@@ -43,7 +46,7 @@ export function diskPlan(kind: DriveKind, w: number, h: number, cells: number): 
       { id: 'iface-ctrl', kind: 'host', from: 'iface', to: 'ctrl', pts: [[iface.x + iface.w / 2, iface.y + iface.h], [iface.x + iface.w / 2, ctrl.y]], lanes: 2 },
       { id: 'ctrl-pre', kind: 'data', from: 'ctrl', to: 'pre', pts: [[ctrl.x + ctrl.w / 2, ctrl.y + ctrl.h], [ctrl.x + ctrl.w / 2, pre.y]], lanes: 2 },
     );
-    return { w, h, blocks, links, dies, platter: { cx, cy, R: R0, hub: R0 * 0.16, tracks, sectors }, arm: { px: w * 0.74, py: h * 0.86, len: R0 * 1.12 } };
+    return { w, h, blocks, links, dies, platter: { cx, cy, R: R0, hub: R0 * 0.16, tracks, sectors }, arm: armOf(w * 0.715, h * 0.9, cx, cy, R0) };
   }
   const nvme = kind === 'ssd-nvme', a = ARCH[kind];
   const iface = nvme ? rect(w * 0.02, h * 0.4, w * 0.09, h * 0.2) : rect(w * 0.03, h * 0.38, w * 0.1, h * 0.24);

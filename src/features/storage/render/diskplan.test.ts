@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FsRun } from '../sim/fs';
-import { ARCH, cellsOf, CELL_BLOCKS, counterRows, dieSlices, dimmed, extentRows, flatGrid, headTrack, legendOf, ownerSlot, platterCell, platterOf, queueLanes } from './diskplan';
+import { ARCH, armTip, cellsOf, CELL_BLOCKS, counterRows, dieSlices, dimmed, extentRows, flatGrid, headTrack, legendOf, ownerSlot, platterCell, platterOf, queueLanes } from './diskplan';
 
 const run = (start: number, len: number, kind: FsRun['kind'], file = 0, filled = true): FsRun => ({ start, len, kind, file, filled });
 const files = [
@@ -154,5 +154,19 @@ describe('the counter tier rows', () => {
   it('shows a burnt drive as burnt, and the progress of a scan', () => {
     expect(counterRows({ ...s, burnt: true }, 1).state).toBe('BURNT');
     expect(counterRows({ ...s, mount: { state: 'dirty', phase: 'scanning', progress: 0.5 } } as never, 1).state).toBe('dirty · scanning 50%');
+  });
+});
+
+describe('armTip', () => {
+  it('keeps the arm length on every ring it can reach', () => {
+    for (const r of [2.2, 3.5, 5, 6.5]) {
+      const t = armTip(10, 9, 7, 3, 4, r);
+      expect(Math.hypot(t.x - 10, t.y - 9)).toBeCloseTo(7, 6);
+      expect(Math.hypot(t.x - 3, t.y - 4)).toBeCloseTo(r, 6);
+    }
+  });
+  it('clamps a ring out of reach to the nearest one the arm has', () => {
+    const t = armTip(10, 9, 7, 3, 4, 0.1);
+    expect(Math.hypot(t.x - 10, t.y - 9)).toBeCloseTo(7, 4);
   });
 });
