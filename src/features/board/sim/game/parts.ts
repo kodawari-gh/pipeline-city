@@ -103,7 +103,7 @@ export function install(this: Game, invId: string, slotId?: string): Result<{ de
 /**
  * The player's install: no manual power cycling. Off: install. On and idle: power off, install, power back on (a
  * refusal to boot is reported). On and working a job: queue the swap, it happens the moment the job is done
- * (`pendingSwap` in the snapshot). `install` stays the strict, powered-off primitive.
+ * (`pendingSwaps` in the snapshot; several can wait, each for its own slot, and they share one power cycle). `install` stays the strict, powered-off primitive.
  */
 export function swapInstall(this: Game, invId: string, slotId?: string): Result<{ pending: boolean }> {
   const item = this.inventory.find((i) => i.id === invId);
@@ -115,7 +115,13 @@ export function swapInstall(this: Game, invId: string, slotId?: string): Result<
   const snap = this.inventorySnap().find((i) => i.id === invId)!;
   if (!snap.installable) return { ok: false, reason: snap.reason ?? "nowhere to put this" };
   if (this.jobInFlight()) {
-    this.pendingSwap = { invId, slotId };
+    if (this.pendingSwaps.some((p) => p.invId === invId)) return { ok: false, reason: `${snap.name} is already waiting to be fitted` };
+    // pick the slot now, so two queued parts never aim at the same one
+    const taken = new Set(this.pendingSwaps.map((p) => p.slotId));
+    const slot = slotId ?? [...snap.freeSlots, ...snap.swapSlots].find((s) => !taken.has(s));
+    if (!slot) return { ok: false, reason: "every slot this part fits is already taken by a queued part" };
+    if (taken.has(slot)) return { ok: false, reason: `another queued part is already waiting for ${slot}` };
+    this.pendingSwaps.push({ invId, slotId: slot });
     this.note("install", `${snap.name} will be swapped in as soon as the job is done`);
     return { ok: true, pending: true };
   }
@@ -131,28 +137,44 @@ export function jobInFlight(this: Game): boolean {
 
 /** Power off (paying a finished key first), install, and power back on when it was on. */
 export function swapNow(this: Game, invId: string, slotId: string | undefined, name: string): Result<{ pending: boolean }> {
+  const r = this.swapMany([{ invId, slotId, name }]);
+  return r.ok ? { ok: true, pending: false } : r;
+}
+
+/** Power off once (paying a finished key first), install every part in turn, and power back on once if the machine was on. A part that no longer fits is skipped and noted. */
+export function swapMany(this: Game, items: { invId: string; slotId?: string; name: string }[]): Result<{ fitted: number }> {
   if (this.plugged?.done) this.ejectKey();
   const wasOn = this.powered;
   if (wasOn) this.powerButton();
-  const r = this.install(invId, slotId);
-  if (!r.ok) {
+  let fitted = 0, why = "";
+  for (const it of items) {
+    const r = this.install(it.invId, it.slotId);
+    if (r.ok) fitted++;
+    else { why = r.reason; if (items.length > 1) this.note("fault", `${it.name} could not be fitted: ${r.reason}`); }
+  }
+  if (!fitted) {
     if (wasOn) this.powerButton();
-    return r;
+    return { ok: false, reason: why || "nothing to fit" };
   }
   if (wasOn) {
     const on = this.powerButton();
-    if (!on.ok) return { ok: false, reason: `${name} installed, but the machine cannot start: ${on.reason}` };
+    if (!on.ok) return { ok: false, reason: `${items.map((i) => i.name).join(", ")} installed, but the machine cannot start: ${on.reason}` };
   }
-  return { ok: true, pending: false };
+  return { ok: true, fitted };
 }
 
 export function applyPendingSwap(this: Game): void {
-  const p = this.pendingSwap;
-  if (!p || this.jobInFlight()) return;
-  this.pendingSwap = null;
-  const snap = this.inventorySnap().find((i) => i.id === p.invId);
-  if (!snap || !snap.installable) { this.note("install", "the queued swap was dropped: it no longer fits"); return; }
-  const r = this.swapNow(p.invId, p.slotId, snap.name);
+  if (!this.pendingSwaps.length || this.jobInFlight()) return;
+  const queue = this.pendingSwaps;
+  this.pendingSwaps = [];
+  const items: { invId: string; slotId: string; name: string }[] = [];
+  for (const p of queue) {
+    const snap = this.inventorySnap().find((i) => i.id === p.invId);
+    if (!snap || !snap.installable) this.note("install", "a queued swap was dropped: it no longer fits");
+    else items.push({ invId: p.invId, slotId: p.slotId, name: snap.name });
+  }
+  if (!items.length) return;
+  const r = this.swapMany(items);
   if (!r.ok) this.note("fault", r.reason);
 }
 

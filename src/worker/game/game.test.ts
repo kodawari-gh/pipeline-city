@@ -218,7 +218,7 @@ describe("purchases go to the inventory", () => {
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: false });
     expect(cpuOf(g).spec).toBe("cpu1");
     expect(g.powered).toBe(true);
-    expect(g.snapshot().pendingSwap).toBeNull();
+    expect(g.snapshot().pendingSwaps).toEqual([]);
   });
 
   it("swapInstall during a job waits for the job, then swaps and restarts", () => {
@@ -228,13 +228,33 @@ describe("purchases go to the inventory", () => {
     expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
     const id = (g.purchase("cpu1") as { invId: string }).invId;
     expect(g.swapInstall(id)).toMatchObject({ ok: true, pending: true });
-    expect(g.snapshot().pendingSwap).toMatchObject({ invId: id });
+    expect(g.snapshot().pendingSwaps).toMatchObject([{ invId: id }]);
     expect(cpuOf(g).spec).toBe("cpu0"); // not yet: the job is still on
     for (let i = 0; i < 4000 && cpuOf(g).spec === "cpu0"; i++) g.advanceBaseTick();
     expect(g.completed).toBe(1); // the job finished and paid first
     expect(cpuOf(g).spec).toBe("cpu1");
     expect(g.powered).toBe(true);
-    expect(g.snapshot().pendingSwap).toBeNull();
+    expect(g.snapshot().pendingSwaps).toEqual([]);
+  });
+
+  it("several swaps can wait behind one job, each for its own slot, and share one power cycle", () => {
+    const g = new Game({ seed: 1, preassembled: true });
+    g.money = 1e6;
+    for (let i = 0; i < 400 && g.trayKeyIds().length === 0; i++) g.advanceBaseTick();
+    expect(g.plugKey(g.trayKeyIds()[0]!).ok).toBe(true);
+    const cpu = (g.purchase("cpu1") as { invId: string }).invId;
+    const cpuB = (g.purchase("cpu1") as { invId: string }).invId;
+    const ram = (g.purchase("ram1") as { invId: string }).invId;
+    expect(g.swapInstall(cpu)).toMatchObject({ ok: true, pending: true });
+    expect(g.swapInstall(cpu)).toMatchObject({ ok: false }); // already queued
+    expect(g.swapInstall(cpuB)).toMatchObject({ ok: false }); // the only CPU socket is taken by the first
+    expect(g.swapInstall(ram)).toMatchObject({ ok: true, pending: true });
+    expect(g.snapshot().pendingSwaps.map((p) => p.invId)).toEqual([cpu, ram]);
+    for (let i = 0; i < 4000 && cpuOf(g).spec === "cpu0"; i++) g.advanceBaseTick();
+    expect(cpuOf(g).spec).toBe("cpu1");
+    expect(g.snapshot().devices.some((d) => d.spec === "ram1")).toBe(true);
+    expect(g.snapshot().pendingSwaps).toEqual([]);
+    expect(g.powered).toBe(true);
   });
 
   it("the snapshot lists purchases with price, affordability and board refusals", () => {

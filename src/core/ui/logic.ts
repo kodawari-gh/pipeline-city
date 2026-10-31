@@ -458,9 +458,10 @@ export function billChip(s: Snapshot): { text: string; level: ChipLevel } | null
 /** Short machine status for the HUD chip. */
 export function statusChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {
   const c = baseChip(s);
-  if (!s.pendingSwap) return c;
-  const name = s.inventory.find((i) => i.id === s.pendingSwap!.invId)?.name ?? 'the new part';
-  return { text: `${c.text} · swap next`, title: `${c.title} ${name} is queued: the machine powers off, swaps it in and starts again the moment this job is done.`, level: 'warn' };
+  const q = s.pendingSwaps;
+  if (!q.length) return c;
+  const names = q.map((p) => s.inventory.find((i) => i.id === p.invId)?.name ?? 'the new part').join(', ');
+  return { text: `${c.text} · swap next${q.length > 1 ? ` (${q.length})` : ''}`, title: `${c.title} ${names} ${q.length > 1 ? 'are' : 'is'} queued: the machine powers off, swaps ${q.length > 1 ? 'them' : 'it'} in and starts again the moment this job is done.`, level: 'warn' };
 }
 
 function baseChip(s: Snapshot): { text: string; title: string; level: ChipLevel } {

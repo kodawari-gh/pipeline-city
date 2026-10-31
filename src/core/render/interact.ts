@@ -708,7 +708,7 @@ export class Interact {
     }
 
     // ---- an install queued behind the running job ----
-    if (s?.pendingSwap && !d) this.drawPendingSwap(s.pendingSwap, gt, lw);
+    if (s && !d) for (const p of s.pendingSwaps) this.drawPendingSwap(p, gt, lw);
 
     // ---- tutorial highlights ----
     this.drawHighlights(now, lw);
@@ -729,10 +729,9 @@ export class Interact {
    * A part is queued to replace the installed one when the job ends: the old part is greyed out under a veil (it is about to leave, and the
    * machine keeps running it until the job is done), and its slot gets a dashed ring and a turning arc that say "the new part goes here next".
    */
-  private drawPendingSwap(p: NonNullable<Snapshot['pendingSwap']>, gt: number, lw: number) {
+  private drawPendingSwap(p: Snapshot['pendingSwaps'][number], gt: number, lw: number) {
     const T = this.T, g = this.g;
     const slot = p.target;
-    if (!slot) return;
     const r = this.scene.rects.get(p.replacesId ?? '') ?? this.scene.slots.get(slot) ?? (slot === 'board' ? BD : slot === 'case' ? CASE : undefined);
     if (!r) return;
     const beat = 0.5 + 0.5 * Math.sin(gt * 0.005);

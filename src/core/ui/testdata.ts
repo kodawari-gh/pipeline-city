@@ -94,7 +94,7 @@ export function snap(o: Partial<Snapshot> = {}): Snapshot {
     ] as Snapshot['cables'],
     tray: [], plugged: null, progress: NO_PROGRESS, log: [],
     storage: [], os: null, keyActivity: 'none',
-    haltReason: null, keyIgnored: false, postFailed: false, sandbox: false,
+    haltReason: null, keyIgnored: false, pendingSwaps: [], postFailed: false, sandbox: false,
     patience: { mul: 3, targetTurnaround: 180, deadlineTicks: 540, sinceFirstBoot: 0 },
     level: { level: 1, name: 'Garage Bench', clientBase: 0, floor: 0, next: 4, progress: 0, patienceMul: 4, payMul: 1, demandMul: 1, leveledUpAt: null, recentlyUnlocked: [], upcoming: levelRows(), sandbox: false },
     expired: 0, declined: 0, postTicks: 30,

@@ -81,7 +81,7 @@ export const pendingUpgrade = (s: Snapshot, i: Snapshot['inventory'][number]): b
   return have.length === 0 || Math.max(...have.map((d) => getSpec(d.spec)?.tier ?? -1)) < spec.tier;
 };
 /** A part swap is queued behind a running job: the player has done their bit, so point at the work instead of the shelf. */
-const whileSwapQueued = (targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => (s.pendingSwap ? ['monitor'] : targets(s));
+const whileSwapQueued = (targets: (s: Snapshot) => string[]) => (s: Snapshot): string[] => (s.pendingSwaps.length ? ['monitor'] : targets(s));
 /** The shop tile to buy, pulsed inside the picker (`buy:<spec id>`): the cheapest processor on offer for the spend step. */
 const cpuUpgrades = (s: Snapshot) => {
   const have = Math.max(-1, ...s.devices.filter((d) => d.kind === 'cpu' && !d.burnt).map((d) => getSpec(d.spec)?.tier ?? -1));
@@ -433,11 +433,11 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return `Need ${fmtMoney(cheapest - s.money)} more. Finish another job to earn it.`;
     }
     case 'fit':
-      return s.pendingSwap ? SWAP_WAIT : null;
+      return s.pendingSwaps.length ? SWAP_WAIT : null;
     case 'fitRam':
-      return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'ram');
-    case 'fitBoard': return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'board');
-    case 'fitCase': return s.pendingSwap ? SWAP_WAIT : itemReason(s, 'case');
+      return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'ram');
+    case 'fitBoard': return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'board');
+    case 'fitCase': return s.pendingSwaps.length ? SWAP_WAIT : itemReason(s, 'case');
     case 'placeRouter': return itemReason(s, 'router');
     case 'plugLan': return s.cables.find((c) => c.id === 'lan')?.blocked ?? null;
     case 'linkUp': if (!s.powered) return 'The machine is off: press the power button, the OS brings the link up once it is running.'; return s.net.state === 'link-up' || s.net.state === 'saturated' ? null : `Waiting for the link: ${s.net.reason}`;
@@ -453,9 +453,9 @@ export function stepProblem(s: Snapshot, step: StepDef): string | null {
       return p.affordable ? null : `Need ${fmtMoney(p.price - s.money)} more.`;
     }
     case 'drive':
-      return s.pendingSwap ? SWAP_WAIT : (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
+      return s.pendingSwaps.length ? SWAP_WAIT : (invOf(s, 'storage').length ? itemReason(s, 'storage') : 'No drive in the inventory. Buy one first.');
     case 'os':
-      return s.pendingSwap ? SWAP_WAIT : (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
+      return s.pendingSwaps.length ? SWAP_WAIT : (invOf(s, 'os').length ? itemReason(s, 'os') : 'No operating system in the inventory. Buy one first.');
     case 'bootOs':
       if (!s.powered) return 'The machine is off. Press the power button to boot from the drive.';
       return s.phase === 'error' ? s.phaseReason : s.noPowerReason ?? s.postBlocker;

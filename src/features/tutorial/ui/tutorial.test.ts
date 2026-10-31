@@ -453,8 +453,8 @@ describe('stepProblem: why a step is stuck, in the sim\'s own words', () => {
   });
 
   it('a part swap queued behind a running job is explained as waiting, and the pointer moves to the work', () => {
-    const queued = { invId: 'inv5', slotId: null, target: 'sata0', replacesId: null };
-    const s = afterSpend({ powered: true, pendingSwap: queued, inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
+    const queued = { invId: 'inv5', target: 'sata0', replacesId: null };
+    const s = afterSpend({ powered: true, pendingSwaps: [queued], inventory: [invItem('storage', 'hdd0', 'inv5', ['sata0'])] });
     for (const id of ['fit', 'drive', 'os'] as const) {
       expect(stepProblem(s, step(id))).toMatch(/^Waiting for the running job/);
       expect(step(id).targets(s)).toEqual(['monitor']);

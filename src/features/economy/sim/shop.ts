@@ -54,7 +54,7 @@ export function sell(this: Game, invId: string): Result<{ money: number }> {
   if (this.sandbox) return { ok: false, reason: "the sandbox has no money: nothing to sell for" };
   const it = this.inventory.find((i) => i.id === invId);
   if (!it) return { ok: false, reason: `no inventory item "${invId}"` };
-  if (this.pendingSwap?.invId === invId) return { ok: false, reason: "this part is waiting to be fitted: wait for the swap" };
+  if (this.pendingSwaps.some((p) => p.invId === invId)) return { ok: false, reason: "this part is waiting to be fitted: wait for the swap" };
   const value = sellValue(it.spec);
   const name = this.inventorySnap().find((i) => i.id === invId)?.name ?? it.spec;
   this.inventory = this.inventory.filter((i) => i.id !== invId);

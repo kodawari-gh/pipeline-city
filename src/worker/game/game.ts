@@ -131,7 +131,7 @@ export class Game {
   /** Base tick of the first real power-on (the client patience schedule runs from here), or null before it. */
   firstBootTick: number | null = null;
   /** An install waiting for the running job to finish (not saved). */
-  pendingSwap: { invId: string; slotId?: string } | null = null;
+  pendingSwaps: { invId: string; slotId: string }[] = [];
   /** Ticks the finished key has sat in the port since the halt (auto-eject, see `autoEject`). */
   autoEjectWait = 0;
   /** Base ticks of cold-boot hardware delay left before the CPU starts (the machine is powered but not running yet). */
