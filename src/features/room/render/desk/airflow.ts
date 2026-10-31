@@ -34,6 +34,8 @@ export interface AirLane {
   strength: number;
   /** An intake whose air is already warm as it comes in (0..1): a front radiator warms the air it takes through itself. */
   intakeHeat?: number;
+  /** A fan that blows down onto a heatsink: its air leaves all round it, from a ring of this radius (`AirFan.ring`). */
+  ring?: number;
   /** The fans that drive it, by `fanBank` id: the lens blows as hard as their real speed (a fan that coasts down still blows). */
   fanIds: string[];
   /** A component's own fan (cooler, card, sink, PSU), not one of the case's. */
@@ -196,7 +198,7 @@ export function airflowModel(i: AirIn): AirModel {
     // a part that knows its own way (the PSU: in from below, out the rear) says so; the rest blow a short stream toward the nearest way out
     const pts = f.path ? roundedPath(f.path as Pt[], 300, 60) : clipPath(roundedPath([from, [(from[0] + to[0]) / 2, from[1]], to], 300, 60), LOCAL_REACH);
     const span = f.rotor ? { x: f.rotor.x - f.rotor.r, y: f.rotor.y - f.rotor.r, w: 2 * f.rotor.r, h: 2 * f.rotor.r } : f.rect;
-    if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, kind: 'local', port: from, span, channel: !!f.path, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [] });
+    if (pts.length > 1) lanes.push({ id: `fan.${f.id}`, pts, intake: false, kind: 'local', port: from, span, channel: !!f.path, state: running ? 'on' : 'idle', strength: 1, fanIds: [f.id], local: true, picks: [], ...(f.ring ? { ring: f.ring } : {}) });
   }
 
   // the heat a channel's air takes up: every zone it passes within reach, at the place it passes closest (the case's air is carried by the field, which does this per particle)
@@ -398,7 +400,7 @@ export class AirflowLens {
       g.roundRect(mt.rect.x, mt.rect.y, mt.rect.w, mt.rect.h, 40).stroke({ width: px(dead ? 3 : 1.5), color: dead ? T.bad : airColor(0), alpha: dead ? 0.5 + 0.4 * Math.sin(now / 160) : mt.state === 'on' ? 0.45 : 0.2 });
     }
     // the case's air: a flow field from the intakes to the exhausts, carrying particles round the parts (airfield.ts); a dead fan keeps a red line
-    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l), ...(l.intakeHeat ? { warm: l.intakeHeat } : {}) }));
+    const ports = m.lanes.filter((l) => !l.channel).map((l): FieldPort => ({ id: l.id, kind: l.kind, pt: l.port, span: l.span, level: this.level(l), ...(l.intakeHeat ? { warm: l.intakeHeat } : {}), ...(l.ring ? { ring: l.ring } : {}) }));
     this.field.step(dt, { box: m.box, ports, zones: m.zones.filter((zn) => zn.id !== 'psu').map((zn) => ({ rects: zn.rects, heat: zn.heat, flat: zn.flat, flow: zn.flow, riseC: zn.riseC })) });
     for (const l of m.lanes) if (l.state === 'dead') { this.path(g, l.pts); g.stroke({ width: px(2), color: T.bad, alpha: 0.3, cap: 'round', join: 'round' }); }
     for (const p of this.field.parts) {

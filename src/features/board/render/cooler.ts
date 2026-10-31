@@ -252,6 +252,9 @@ export class CoolantFlow extends Container {
   }
 }
 
+/** The radius of the stock cooler's ring of vanes: the fan blows down into them and the air leaves sideways at this distance. */
+export const STOCK_VANES_R = 630;
+
 /** The round fan (or the loop's pump impeller) of the stock cooler and the loop: its blade length and count. The art and the airflow lens both read these. */
 export const COOLER_FANS = { stock: { r: 300, blades: 7 }, liquid: { r: 360, blades: 5 } } as const;
 
@@ -281,7 +284,7 @@ export function coolerArt(T: Theme, spec: CoolerSpec, rad: RadiatorFit | null = 
   let fr = 0, nBlades = 0, bezel = 0, fanAt: Pt = [cx, cy];
   if (kind === 'stock') {
     // an aluminium heatsink: a ring of radial vanes round a small fan
-    const R = 630;
+    const R = STOCK_VANES_R;
     fr = COOLER_FANS.stock.r; nBlades = COOLER_FANS.stock.blades; bezel = 350;
     disc(g, cx + 8, cy + 14, R, { fill: '#000000', fa: 0.3 });
     disc(g, cx, cy, R, { fill: m.lo, stroke: mix(T.line, m.metal, 0.5), lw: 8 });

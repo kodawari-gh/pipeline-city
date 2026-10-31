@@ -63,6 +63,20 @@ describe('the air field', () => {
     }
   });
 
+  it('a fan that blows down onto a heatsink (the stock cooler) puts its air out all round, from a ring', () => {
+    const fan: FieldPort = { id: 'cooler', kind: 'local', pt: [4000, 3000], span: { x: 3400, y: 2400, w: 1200, h: 1200 }, level: 1, ring: 630 };
+    const f = new AirField(), i = input([inlet(), exhaust(), fan]);
+    const seen: { a: number; r: number; out: number }[] = [];
+    for (let k = 0; k < 300; k++) {
+      f.step(1 / 30, i);
+      for (const p of f.parts) if (p.inb && Math.hypot(p.x - 4000, p.y - 3000) < 5000 && p.age < 0.1) seen.push({ a: Math.atan2(p.y - 3000, p.x - 4000), r: Math.hypot(p.x - 4000, p.y - 3000), out: p.vx * (p.x - 4000) + p.vy * (p.y - 3000) });
+    }
+    const ring = seen.filter((p) => p.r < 700);
+    expect(ring.length).toBeGreaterThan(10);
+    for (const p of ring) { expect(p.r).toBeGreaterThan(600); expect(p.out).toBeGreaterThan(0); } // starts on the ring, moving outward
+    expect(Math.max(...ring.map((p) => p.a)) - Math.min(...ring.map((p) => p.a))).toBeGreaterThan(3); // and all round it
+  });
+
   it('with no exhaust nothing is drawn out: the air through the middle of the case is slower than with one, and nothing is absorbed', () => {
     const withOut = new AirField(), without = new AirField();
     withOut.step(0.01, input([inlet(), exhaust()]));

@@ -27,6 +27,8 @@ export interface AirFan {
   path?: [number, number][];
   /** The part is drawn but moves no air (a loop's pump moves coolant): no stream from it. */
   noStream?: boolean;
+  /** A fan that blows down onto a heatsink (the stock cooler's): its air leaves sideways all round, as a ring of this radius round the rotor. */
+  ring?: number;
 }
 
 export interface AirCtx {

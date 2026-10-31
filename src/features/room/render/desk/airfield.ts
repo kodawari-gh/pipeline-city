@@ -10,7 +10,9 @@ export interface Box { x: number; y: number; w: number; h: number }
 /** A fan as the field sees it: `in` blows air into the case from `span`, `out` draws it out, `local` (a cooler, a card) stirs the air where it stands. */
 export interface FieldPort { id: string; kind: 'in' | 'out' | 'local'; pt: Pt; span: Box; /** 0 (still) to 1 (full): the fan's real speed. */ level: number;
   /** An intake whose air is already warm as it comes in (0..1, the particle's heat): a front radiator warms the air it passes it through. */
-  warm?: number }
+  warm?: number;
+  /** A fan that blows down onto a heatsink: it releases its air all round, from a ring of this radius about `pt`, outward. */
+  ring?: number }
 export interface FieldZone {
   rects: Box[]; /** 0 (cool) to 1 (at its limit). */ heat: number;
   /** The sim's ventilation of the area the part sits in, 0 to 1 (unset: 1). Air near a poorly ventilated part crawls and lingers. */
@@ -57,6 +59,8 @@ export function sourcesOf(box: Box, p: FieldPort): Pt[] {
     return dx !== 0 ? [p.pt[0] - dx * INTAKE_DEPTH, s.y + u * s.h] : [s.x + u * s.w, p.pt[1] - dy * INTAKE_DEPTH];
   });
 }
+/** The stock cooler's ring: how fast its air leaves the vanes, and how far straight out before the field takes it (world units). */
+const RING_SPEED = 520, RING_RUN = 650;
 export const INTAKE_REACH = { min: 900, max: 1800 }, INTAKE_SPEED = 1100;
 /** The trail: a point is kept every `TRAIL_STEP` world units of path, and the trail is as long as the particle travels in `TRAIL_SECONDS` (at most `TRAIL_MAX`). */
 export const TRAIL_STEP = 40, TRAIL_SECONDS = 0.18, TRAIL_MAX = 320;
@@ -140,7 +144,7 @@ export class AirField {
     // release: each fan that blows puts particles in at its own rate, across its width
     for (const p of ports) {
       if (p.kind === 'out' || p.level <= 0.02) continue;
-      const rate = SPAWN_PER_S * p.level ** 0.7 * (p.kind === 'local' ? 0.5 : 1.6), a = (this.acc.get(p.id) ?? 0) + rate * dt;
+      const rate = SPAWN_PER_S * p.level ** 0.7 * (p.ring ? 4 : p.kind === 'local' ? 0.5 : 1.6), a = (this.acc.get(p.id) ?? 0) + rate * dt;
       let n = Math.floor(a);
       this.acc.set(p.id, a - n);
       while (n-- > 0 && this.parts.length < MAX_PARTICLES) {
@@ -150,6 +154,12 @@ export class AirField {
           const { dx, dy } = outward(box, s), d = INTAKE_REACH.min + Math.random() * (INTAKE_REACH.max - INTAKE_REACH.min), lane = dx !== 0 ? s.y + r * s.h : s.x + r * s.w;
           const x = dx !== 0 ? (dx > 0 ? s.x + s.w : s.x) + dx * d : lane, y = dx !== 0 ? lane : (dy > 0 ? s.y + s.h : s.y) + dy * d;
           this.parts.push({ x, y, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx: -dx, dy: -dy, sp: INTAKE_SPEED * (0.5 + 0.5 * p.level) * (0.85 + 0.3 * Math.random()), to: (dx !== 0 ? [p.pt[0] - dx * INTAKE_DEPTH, lane] : [lane, p.pt[1] - dy * INTAKE_DEPTH]) as Pt, warm: p.warm ?? 0 } });
+          continue;
+        }
+        if (p.ring) {
+          // blown down into the vanes and out sideways: the air starts on the ring and goes straight out, then the field takes it
+          const a = Math.random() * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+          this.parts.push({ x: p.pt[0] + dx * p.ring, y: p.pt[1] + dy * p.ring, vx: 0, vy: 0, heat: 0, age: 0, k: 0.75 + 0.5 * Math.random(), seed: this.n++, inb: { dx, dy, sp: RING_SPEED * (0.8 + 0.4 * Math.random()), to: [p.pt[0] + dx * (p.ring + RING_RUN), p.pt[1] + dy * (p.ring + RING_RUN)], warm: 0 } });
           continue;
         }
         const x = p.pt[0] + (Math.random() - 0.5) * s.w * 0.5, y = p.pt[1] + (Math.random() - 0.5) * s.h * 0.5; // a part's own fan stirs the air where it stands
