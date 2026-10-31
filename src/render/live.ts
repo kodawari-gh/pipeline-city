@@ -43,6 +43,8 @@ interface Chain { hops: Hop[]; force?: boolean; drive?: { lane: Lane; before: bo
 export interface DriveHook { slot: string; deviceId: string; kind: DriveKind; body: { x: number; y: number; w: number; h: number }; g: Graphics; lane: Lane | null }
 interface DriveLive extends DriveHook {
   busyUntil: number; speed: number; spin: number; head: number; led: number; sig: string; burnt: boolean;
+  /** Byte counters of the last snapshot, and the held direction of the last data moved (true: a write). */
+  read: number; wrote: number; ioUntil: number; ioWrite: boolean;
 }
 interface LitCable { cable: Cable; g: Graphics; level: number; target: number; color: string }
 
@@ -349,7 +351,7 @@ export class Live {
       this.cables.push({ cable, g, level: 0, target: 0, color });
     }
     this.drives.clear();
-    for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, sig: '', burnt: false });
+    for (const d of drives) this.drives.set(d.slot, { ...d, busyUntil: -1e9, speed: 0, spin: 0.6, head: 0, led: 0, sig: '', burnt: false, read: -1, wrote: -1, ioUntil: -1e9, ioWrite: false });
     this.root.addChild(this.busFlow.g, this.ram.root, this.gpu.root, this.disk.root, this.tpm.root, this.npu.root, this.dramFlash);
     for (let i = 0; i < nDots; i++) {
       const s = new Sprite(this.dotTex);
@@ -641,7 +643,13 @@ export class Live {
     // storage activity: the platter / LEDs / bus light only while the drive reports busy (held a moment so snapshots do not flicker)
     for (const st of s.storage ?? []) {
       const dr = this.drives.get(st.slot);
-      if (dr) { dr.burnt = st.burnt; if (st.busy && s.powered) { dr.busyUntil = Math.max(dr.busyUntil, now + 900); this.armDrive(st.slot, s.phase === 'ingesting'); } }
+      if (!dr) continue;
+      dr.burnt = st.burnt;
+      // data moved since the last snapshot (file-system writes and reads do not always show as a busy port): hold its direction for a moment
+      if (dr.read >= 0 && (st.bytesRead > dr.read || st.bytesWritten > dr.wrote)) { dr.ioUntil = now + 900; dr.ioWrite = st.bytesWritten > dr.wrote; }
+      dr.read = st.bytesRead; dr.wrote = st.bytesWritten;
+      if (s.powered && !this.quiet && dr.ioUntil > now) { dr.busyUntil = Math.max(dr.busyUntil, now + 900); this.armDrive(st.slot, dr.ioWrite); }
+      else if (st.busy && s.powered) { dr.busyUntil = Math.max(dr.busyUntil, now + 900); this.armDrive(st.slot, s.phase === 'ingesting'); }
     }
     // the picture: a new line on the screen leaves the CPU's video lanes for the HDMI port (or, with the cable on a card, leaves the card)
     const shown = s.display || '';
