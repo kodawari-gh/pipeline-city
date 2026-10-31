@@ -29,5 +29,11 @@ const ray = new Raycaster(), at = new Vector2();
 export function pick(roots: readonly Object3D[], camera: Camera, nx: number, ny: number): Object3D | null {
   at.set(nx, ny);
   ray.setFromCamera(at, camera);
-  return ray.intersectObjects(roots as Object3D[], true)[0]?.object ?? null;
+  // a ray meets hidden objects too (a faded cooler, a shroud): skip them
+  return ray.intersectObjects(roots as Object3D[], true).find((h) => shown(h.object))?.object ?? null;
+}
+
+function shown(o: Object3D): boolean {
+  for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+  return true;
 }

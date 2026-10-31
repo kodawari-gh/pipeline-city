@@ -29,6 +29,9 @@ export function isDark(): boolean {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
 }
 
+/** A built-in palette without the CSS overrides (the 3D world's baked art always uses the dark one: the reference's black board under neon). */
+export const builtinTheme = (dark: boolean): Theme => ({ dark, ...(dark ? DARK : LIGHT) });
+
 export function readTheme(): Theme {
   const dark = isDark();
   const base = dark ? DARK : LIGHT;

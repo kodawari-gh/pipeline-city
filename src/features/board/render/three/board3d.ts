@@ -17,6 +17,11 @@ import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/t
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Machine3D, machineKey } from './machine3d';
+import { BakeQueue } from '@/core/render/three/artlod';
+import { cardOrigin } from '@/core/render/accelart';
+import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
+import { getSpec } from '@/features/board/sim/specs';
+import { startBaker } from './bake';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
@@ -27,6 +32,9 @@ export function mountBoard3d(host: HTMLElement) {
   const { scene, camera, renderer, canvas } = ctx;
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
+  // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
+  const bakes = new BakeQueue();
+  startBaker();
 
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
@@ -44,8 +52,8 @@ export function mountBoard3d(host: HTMLElement) {
     const mk = machineKey(s);
     if (mk !== machKey || !machine) {
       machKey = mk;
-      if (machine) { scene.remove(machine.root); disposeTree(machine.root); }
-      machine = new Machine3D(s, room.geo);
+      if (machine) { scene.remove(machine.root); machine.dispose(); }
+      machine = new Machine3D(s, room.geo, bakes);
       scene.add(machine.root);
     }
     room.setKeys(s?.tray ?? []);
@@ -61,12 +69,23 @@ export function mountBoard3d(host: HTMLElement) {
   };
   const overview = (): OrbitView => fitRect(roomRect(), 5000, aspect(), ROOM_ANGLE, 0.9);
   const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
-  const cpuView = (): OrbitView => fitRect({ x: DIE.x - 200, y: DIE.y - 200, w: DIE.w + 400, h: DIE.h + 400 }, BOARD_Z + 200, aspect(), FLAT, 0.9);
+  // close enough that the cooler and the lid have faded (`DEVICE_LOD.die.fade`) and the die's names read
+  const cpuView = (): OrbitView => fitRect(DIE, BOARD_Z + 200, aspect(), FLAT, 0.95);
   let view = overview(), goal = view;
   const flyTo = (v: OrbitView) => { goal = clampView(v); };
   const flyToRoom = () => flyTo(overview());
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
+  /** The first graphics card's die, framed close enough that the shroud has faded (`DEVICE_LOD.gpu.fade`) and the blocks read. */
+  const flyToGpu = () => {
+    const d = snapshot.peek()?.devices.find((x) => x.kind === 'gpu');
+    const visual = d ? (getSpec(d.spec) as { visual?: string } | undefined)?.visual : undefined;
+    if (!d || !visual) return;
+    const b = moveRect(gpuPlan(visual).body, cardOrigin(Number(/\d+$/.exec(d.slot)?.[0] ?? 0), visual));
+    // a long card's die is a row of SMs: frame its height, at its first third
+    const h = b.h + 160, w = Math.min(b.w + 160, h * aspect());
+    flyTo(fitRect({ x: b.x - 80, y: b.y - 80, w, h }, BOARD_Z + 300, aspect(), FLAT, 0.95));
+  };
 
   // ---- pointer: drag pans, right drag (or shift) orbits, the wheel zooms at the pointer, a click picks ----
   const ndc = (e: { clientX: number; clientY: number }) => {
@@ -133,7 +152,7 @@ export function mountBoard3d(host: HTMLElement) {
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key.toLowerCase();
-    if (k === 'f') flyToCpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom();
+    if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom();
   };
   window.addEventListener('keydown', onKey);
 
@@ -154,6 +173,8 @@ export function mountBoard3d(host: HTMLElement) {
     const s = snapshot.peek();
     view = stepView(view, goal, dt);
     applyView(camera, view, aspect());
+    machine?.lod(camera, H);
+    bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
     machine?.frame(s, dt);
@@ -171,7 +192,8 @@ export function mountBoard3d(host: HTMLElement) {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, flyToCpu, flyToBoard, flyToRoom, view: () => view,
+    three: true, scene, renderer, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
+    orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z }); } },
   };
