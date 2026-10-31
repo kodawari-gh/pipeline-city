@@ -3,6 +3,7 @@
 // A file is a list of extents. Fixed regions (the boot image, the spool area) are created `at` an LBA; a `soft` file
 // owns its blocks but marks the Disk's `used` bitmap only as they are written (the spool). Pure TS, see docs/OS.md.
 
+import { BLOCK_BYTES } from "../isa/memmap";
 import type { Disk } from "./storage";
 
 export type FileKind = "os" | "spool" | "program" | "dataset" | "meta";
@@ -46,6 +47,19 @@ export interface FsFile {
   soft: boolean;
   /** The data is gone: bad blocks under it, or the drive burnt. The record stays in the ledger until it is removed. */
   lost: boolean;
+  /** Seeds the content of a dataset, so a save keeps the seed and not the bytes. */
+  seed?: number;
+}
+
+/** A file as a save keeps it: logical records only, extents as `[first, len]`. */
+export interface FsFileRecord {
+  id: number;
+  owner: string;
+  kind: FileKind;
+  extents: [number, number][];
+  soft?: true;
+  lost?: true;
+  seed?: number;
 }
 
 /** One run of blocks for the art: a file kind (or free), whether the blocks hold data, and the file it belongs to. */
@@ -94,7 +108,7 @@ export class DiskFs {
    * Make a file of `blocks` blocks. With `at` it takes exactly that range (null if any block is taken). Without it, it
    * takes the free blocks first-fit and may split over several extents (null if the drive is too full).
    */
-  create(owner: string, kind: FileKind, blocks: number, opts: { at?: number; soft?: boolean } = {}): FsFile | null {
+  create(owner: string, kind: FileKind, blocks: number, opts: { at?: number; soft?: boolean; seed?: number } = {}): FsFile | null {
     if (blocks < 1 || (kind === "dataset" && !canHold(this.disk, kind))) return null;
     const extents: Extent[] = [];
     if (opts.at !== undefined) {
@@ -114,13 +128,88 @@ export class DiskFs {
       }
       if (need > 0) return null;
     }
-    const f: FsFile = { id: this.nextId++, owner, kind, extents, soft: !!opts.soft, lost: false };
+    const f: FsFile = { id: this.nextId++, owner, kind, extents, soft: !!opts.soft, lost: false, ...(opts.seed !== undefined ? { seed: opts.seed } : {}) };
     this.files.set(f.id, f);
     for (const e of extents) {
       for (let b = e.first; b < e.first + e.len; b++) this.owner[b] = f.id;
       if (!f.soft) this.disk.reserve(e.first, e.len);
     }
     return f;
+  }
+
+  /** Write `bytes` into the file's blocks in order, as many as fit (no bus traffic: the media layer). Returns the bytes written. */
+  write(id: number, bytes: Uint8Array): number {
+    const f = this.files.get(id);
+    if (!f || f.lost) return 0;
+    let at = 0;
+    for (const e of f.extents) {
+      const n = Math.min(bytes.length - at, e.len * BLOCK_BYTES);
+      if (n <= 0) break;
+      this.disk.data.set(bytes.subarray(at, at + n), e.first * BLOCK_BYTES);
+      at += n;
+    }
+    return at;
+  }
+
+  /** The bytes of a file, in extent order (null when it is gone or lost). */
+  read(id: number): Uint8Array | null {
+    const f = this.files.get(id);
+    if (!f || f.lost) return null;
+    const out = new Uint8Array(f.extents.reduce((n, e) => n + e.len, 0) * BLOCK_BYTES);
+    let at = 0;
+    for (const e of f.extents) {
+      out.set(this.disk.data.subarray(e.first * BLOCK_BYTES, (e.first + e.len) * BLOCK_BYTES), at);
+      at += e.len * BLOCK_BYTES;
+    }
+    return out;
+  }
+
+  /** The ledger as logical records for a save (no bytes), in file id order. */
+  records(): FsFileRecord[] {
+    return [...this.files.values()].sort((a, b) => a.id - b.id).map((f) => ({
+      id: f.id, owner: f.owner, kind: f.kind, extents: f.extents.map((e): [number, number] => [e.first, e.len]),
+      ...(f.soft ? { soft: true as const } : {}), ...(f.lost ? { lost: true as const } : {}), ...(f.seed !== undefined ? { seed: f.seed } : {}),
+    }));
+  }
+
+  /** Runs `[first, len]` of blocks that hold data but are not covered by a file that reserves its blocks: the written part of soft files and stray writes. */
+  writtenOutsideFiles(): [number, number][] {
+    const out: [number, number][] = [];
+    for (let b = 0; b < this.disk.blocks; b++) {
+      if (!this.disk.isUsed(b)) continue;
+      const f = this.owner[b] ? this.files.get(this.owner[b]!) : undefined;
+      if (f && !f.soft) continue;
+      const last = out[out.length - 1];
+      if (last && last[0] + last[1] === b) last[1]++;
+      else out.push([b, 1]);
+    }
+    return out;
+  }
+
+  /**
+   * Put saved records back into this ledger and mark the `used` bitmap from them (a file that reserves its blocks marks them all; `written`
+   * marks the blocks of soft files and stray writes). A record whose blocks are taken, out of range or on a different kind of the same id is
+   * skipped. Returns how many files were restored.
+   */
+  restore(records: readonly FsFileRecord[], written: readonly [number, number][] = []): number {
+    let n = 0;
+    for (const r of records) {
+      const extents = r.extents.map(([first, len]): Extent => ({ first, len }));
+      const ok = r.id >= 1 && !this.files.has(r.id) && extents.length > 0
+        && extents.every((e) => Number.isInteger(e.first) && Number.isInteger(e.len) && e.len >= 1 && e.first >= 0 && e.first + e.len <= this.disk.blocks)
+        && extents.every((e) => { for (let b = e.first; b < e.first + e.len; b++) if (this.owner[b] !== 0) return false; return true; });
+      if (!ok) continue;
+      const f: FsFile = { id: r.id, owner: r.owner, kind: r.kind, extents, soft: !!r.soft, lost: !!r.lost, ...(r.seed !== undefined ? { seed: r.seed } : {}) };
+      this.files.set(f.id, f);
+      for (const e of extents) {
+        for (let b = e.first; b < e.first + e.len; b++) this.owner[b] = f.id;
+        if (!f.soft) this.disk.reserve(e.first, e.len);
+      }
+      this.nextId = Math.max(this.nextId, f.id + 1);
+      n++;
+    }
+    for (const [first, len] of written) this.disk.reserve(first, len);
+    return n;
   }
 
   /** Delete a file and free its blocks. */

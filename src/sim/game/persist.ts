@@ -1,21 +1,23 @@
 // Game feature: the save. Writing the game's state out and putting a parsed save back into a fresh game (docs/SAVE.md).
 // Every export is a `Game` method (see game.ts).
 
-import { allCables, boardFromJson, boardToJson, cablesOf, fittedRadiator, isFanCable, legacyRadiatorSlots, radiatorSlot, sideMounts } from "../board";
+import { allCables, boardFromJson, boardToJson, cablesOf, deviceSpec, fittedRadiator, isFanCable, legacyRadiatorSlots, radiatorSlot, sideMounts } from "../board";
 import { generate } from "../gen";
 import { JOB_ROW } from "../isa/memmap";
 import { getOsSpec } from "../os";
 import { SANDBOX_MONEY } from "./economy";
+import { datasetBytes, type Contract, type ContractOffer } from "./contracts";
 import type { Game } from "./game";
 import type { Key } from "./internal";
 import { JOB_DEX, type DexRecord } from "./jobdex";
 import { JOB_LOG_CAP, type JobLogEntry } from "./joblog";
 import { JOB_CLASSES, levelFor, type JobClassId } from "./levels";
-import { SAVE_VERSION, type SavedKey, type SavedNet, type SavedPlugged, type SaveV4 } from "./save";
+import { SAVE_VERSION, type SavedDisk, type SavedKey, type SavedNet, type SavedPlugged, type SaveV4 } from "./save";
 
 /** Config-only save (no pipeline, registers or RAM). See docs/SAVE.md. */
 export function toSave(this: Game): SaveV4 {
   const sk = (k: Key): SavedKey => ({ id: k.id, template: k.template, seed: k.seed, scale: k.scale, arrival: k.arrival, deadline: k.deadline, cls: k.cls, retired: k.retired, ...(k.pluggedAt ? { pluggedAt: k.pluggedAt } : {}) });
+  const disks = this.savedDisks();
   const p = this.plugged;
   const plugged: SavedPlugged | null = p && { ...sk(p), attempts: p.attempts, pluggedAt: p.pluggedAt, done: p.done, doneAt: p.doneAt, result: p.result, ...(p.done && p.ranAt !== undefined ? { ranAt: p.ranAt } : {}) };
   return {
@@ -51,6 +53,10 @@ export function toSave(this: Game): SaveV4 {
     ...(Object.keys(this.dex).length ? { jobDex: JSON.parse(JSON.stringify(this.dex)) as Record<string, DexRecord> } : {}),
     ...(this.jobLog.length ? { jobLog: JSON.parse(JSON.stringify(this.jobLog)) as JobLogEntry[] } : {}),
     net: this.savedNet(sk),
+    ...(disks.length ? { disks } : {}),
+    ...(this.contracts.length || this.contractOffers.length || this.nextContractId > 1
+      ? { contracts: { nextId: this.nextContractId, rng: this.contractRng.getState(), offers: JSON.parse(JSON.stringify(this.contractOffers)) as ContractOffer[], active: JSON.parse(JSON.stringify(this.contracts)) as Contract[] } }
+      : {}),
     ...(this.video !== "board" ? { video: this.video } : {}),
     ...(this.sandbox ? {} : {
       bill: {
@@ -59,6 +65,59 @@ export function toSave(this: Game): SaveV4 {
       },
     }),
   };
+}
+
+/**
+ * The drives as logical records (docs/SAVE.md "Disks"): each ledger file, the blocks written outside files, the mount flag, the wear and bad groups
+ * of the media (and of a mirror's second member). Never bytes. A drive that holds nothing and never wore is left out.
+ */
+export function savedDisks(this: Game): SavedDisk[] {
+  const out: SavedDisk[] = [];
+  for (const d of this.board.devices) {
+    if (deviceSpec(d).kind !== "storage") continue;
+    const disk = this.disks.get(d.id);
+    if (!disk) continue;
+    const media = disk.mediaState();
+    const twin = disk.twin?.mediaState();
+    const files = disk.fs.records();
+    const worn = media.wear.length > 0 || media.bad.length > 0 || (twin && (twin.wear.length > 0 || twin.bad.length > 0));
+    if (disk.mount === "unformatted" && files.length === 0 && !worn) continue;
+    const written = disk.fs.writtenOutsideFiles();
+    out.push({ deviceId: d.id, mount: disk.mount, files, ...(written.length ? { written } : {}), media, ...(twin ? { twin } : {}) });
+  }
+  return out;
+}
+
+/**
+ * Put the saved drives back: the media state (wear, bad groups), the ledger and the `used` bitmap are rebuilt from the records and a dataset's bytes are
+ * regenerated from its seed. The OS drive's boot image and spool region were just recreated by `formatOs`, so its own `os` and `spool` records are skipped
+ * (and its spool's written blocks, which the machine rebuilds). A record that no longer fits is dropped.
+ */
+export function restoreDisks(this: Game, list: readonly SavedDisk[]): void {
+  for (const sd of list) {
+    const dev = this.board.devices.find((d) => d.id === sd.deviceId);
+    if (!dev || deviceSpec(dev).kind !== "storage") continue;
+    const disk = this.diskFor(dev);
+    const isOs = this.os?.deviceId === dev.id;
+    disk.restoreMedia(sd.media);
+    if (sd.twin && disk.twin) disk.twin.restoreMedia(sd.twin);
+    const files = isOs ? sd.files.filter((f) => f.kind !== "os" && f.kind !== "spool") : sd.files;
+    disk.fs.restore(files, isOs ? [] : sd.written ?? []);
+    for (const f of disk.fs.list("dataset")) {
+      if (f.seed !== undefined && !f.lost) disk.fs.write(f.id, datasetBytes(f.seed, f.extents.reduce((n, e) => n + e.len, 0)));
+    }
+    if (sd.mount !== "unformatted") disk.mount = sd.mount;
+  }
+}
+
+/** The contracts block of the save, back into the game: offers, running contracts, the id counter and the offers' stream. */
+export function restoreContracts(this: Game, c: NonNullable<SaveV4["contracts"]>): void {
+  this.nextContractId = c.nextId;
+  this.contractRng.setState(c.rng);
+  this.contractOffers = JSON.parse(JSON.stringify(c.offers)) as ContractOffer[];
+  this.contracts = JSON.parse(JSON.stringify(c.active)) as Contract[];
+  // A reload loses the drive queue: reads waiting for the drive are requested again.
+  for (const k of this.contracts) k.pending = [];
 }
 
 /** The network block of the save: plan, router, cable, offers (downloads in flight restart as offers) and the spool. */
@@ -149,6 +208,8 @@ export function restoreSave(this: Game, s: SaveV4): void {
   if (this.video !== "board" && !this.videoCard()) { this.video = "board"; this.cables.video = false; }
   this.log = [];
   if (s.os) this.formatOs(getOsSpec(s.os.spec)!, s.os.deviceId, false);
+  if (s.disks) this.restoreDisks(s.disks);
+  if (s.contracts) this.restoreContracts(s.contracts);
   // A save from before the retired flag, whose link had been up: its USB keys are retired (the rule of the link's return).
   const legacyRetired = s.net?.networkLinked === true;
   try {

@@ -6,7 +6,7 @@ import { deviceSpec, type InstalledDevice, type StorageSpec } from "../board";
 import { BLOCK_BYTES } from "../isa/memmap";
 import { Prng } from "../machine/prng";
 import {
-  CONTRACT_KINDS, CONTRACT_LOG_BASE, contractKind, kibOf, nextReadGap, rollTerms, type Contract, type ContractOffer,
+  CONTRACT_KINDS, CONTRACT_LOG_BASE, contractKind, datasetBytes, kibOf, nextReadGap, rollTerms, type Contract, type ContractOffer,
 } from "./contracts";
 import { holdPay, lossPenalty, readFee } from "./economy";
 import type { Game } from "./game";
@@ -61,8 +61,9 @@ export function acceptContract(this: Game, offerId: number, deviceId?: string): 
   if (!plan.deviceId) return { ok: false, reason: plan.why ?? "no drive can hold it" };
   const dev = this.board.devices.find((d) => d.id === plan.deviceId)!;
   const disk = this.disks.get(dev.id)!;
-  const file = disk.fs.create(`c${offer.id}`, "dataset", offer.blocks);
+  const file = disk.fs.create(`c${offer.id}`, "dataset", offer.blocks, { seed: offer.seed });
   if (!file) return { ok: false, reason: "the drive has no room for the dataset" };
+  disk.fs.write(file.id, datasetBytes(offer.seed, offer.blocks));
   const kind = contractKind(offer.kind)!;
   const mirrored = !!disk.twin;
   const rng = new Prng(offer.seed);

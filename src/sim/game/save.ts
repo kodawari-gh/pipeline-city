@@ -6,6 +6,9 @@ import { getOsSpec } from "../os";
 import { offerPrice } from "./economy";
 import { TEMPLATES } from "../gen";
 import { jobClass, MAX_LEVEL } from "./levels";
+import { FILE_KINDS, type FsFileRecord, type MountState } from "../machine/fs";
+import type { DiskMediaState } from "../machine/storage";
+import { CONTRACT_KINDS, type Contract, type ContractOffer } from "./contracts";
 
 export const SAVE_VERSION = 4;
 
@@ -183,8 +186,34 @@ export interface SaveV4 {
   jobDex?: Record<string, { seen: number; runs: number; best: number }>;
   /** The job log: the last jobs that ended and where their time went (docs/JOBS.md "The log"). Optional and additive, no version bump. */
   jobLog?: import("./joblog").JobLogEntry[];
+  /** Each drive's logical state: the ledger of files, wear, bad groups and the mount flag (docs/SAVE.md "Disks"). Optional and additive, no version bump: absent means blank drives (the OS drive's boot and spool regions are recreated). */
+  disks?: SavedDisk[];
+  /** Cloud-storage contracts: the open offers, the running contracts and the stream that rolls offers (docs/JOBS.md "Contracts"). Optional and additive, no version bump. */
+  contracts?: SavedContracts;
   /** The energy meter and the power bill (docs/GAME.md "The power bill"). Optional and additive, no version bump: absent means a fresh meter and no bill yet. */
   bill?: SavedBill;
+}
+
+/** One drive as a save keeps it: records only, never bytes (a dataset's bytes are regenerated from its seed). */
+export interface SavedDisk {
+  /** The installed storage device. */
+  deviceId: string;
+  /** The superblock's verdict: `dirty` (power cut during a write) and `damaged` survive a save. */
+  mount: MountState;
+  files: FsFileRecord[];
+  /** Blocks that hold data outside the files that reserve their blocks (written spool blocks, stray writes), as `[first, len]`. */
+  written?: [number, number][];
+  media: DiskMediaState;
+  /** The second member of a mirrored module. */
+  twin?: DiskMediaState;
+}
+
+export interface SavedContracts {
+  nextId: number;
+  /** The offers' PRNG state. */
+  rng: number;
+  offers: ContractOffer[];
+  active: Contract[];
 }
 
 /** The meter (Wh, all time) and the bill's state; `nextTick` and `unpaidSince` are base ticks. */
@@ -412,12 +441,72 @@ export function parseSave(input: unknown): SaveV4 {
       throw new Error('save: "bill" must be the meter and the bill\'s state');
     }
   }
+  if (s.disks !== undefined) {
+    if (!Array.isArray(s.disks)) throw new Error('save: "disks" must be a list');
+    const devices = (s.board as unknown as BoardJson).devices;
+    s.disks.forEach((d, i) => checkDisk(d, `disks[${i}]`, devices));
+  }
+  if (s.contracts !== undefined) checkContracts(s.contracts);
   if (s.lastCompleted !== null && !isObj(s.lastCompleted)) throw new Error('save: "lastCompleted" must be an object or null');
   return s as unknown as SaveV4;
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isNat = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
+
+const MOUNTS: readonly string[] = ["clean", "dirty", "damaged", "unformatted"];
+const isPairList = (x: unknown): x is [number, number][] => Array.isArray(x) && x.every((p) => Array.isArray(p) && p.length === 2 && isNat(p[0]) && isNat(p[1]));
+
+function checkMedia(m: unknown, where: string): void {
+  if (!isObj(m) || !isPairList(m.wear) || !Array.isArray(m.bad) || !m.bad.every(isNat) || !isNat(m.rng) || m.rng > 0xffffffff) throw new Error(`save: ${where} must be {wear, bad, rng}`);
+}
+
+function checkDisk(d: unknown, where: string, devices: readonly { id: string; spec: string }[]): void {
+  if (!isObj(d)) throw new Error(`save: ${where} must be an object`);
+  const dev = devices.find((x) => x.id === d.deviceId);
+  if (!dev || getSpec(dev.spec)?.kind !== "storage") throw new Error(`save: ${where}.deviceId must name an installed storage device`);
+  if (typeof d.mount !== "string" || !MOUNTS.includes(d.mount)) throw new Error(`save: ${where}.mount is not a mount state`);
+  if (!Array.isArray(d.files)) throw new Error(`save: ${where}.files must be a list`);
+  d.files.forEach((f, i) => {
+    const w = `${where}.files[${i}]`;
+    if (!isObj(f) || !isNat(f.id) || f.id < 1 || typeof f.owner !== "string" || typeof f.kind !== "string" || !(FILE_KINDS as readonly string[]).includes(f.kind) || !isPairList(f.extents) || f.extents.length === 0) {
+      throw new Error(`save: ${w} must be {id, owner, kind, extents}`);
+    }
+    for (const k of ["soft", "lost"] as const) if (f[k] !== undefined && f[k] !== true) throw new Error(`save: ${w}.${k} must be true when present`);
+    if (f.seed !== undefined && !isNat(f.seed)) throw new Error(`save: ${w}.seed must be a non-negative integer`);
+  });
+  if (d.written !== undefined && !isPairList(d.written)) throw new Error(`save: ${where}.written must be a list of [first, len]`);
+  checkMedia(d.media, `${where}.media`);
+  if (d.twin !== undefined) checkMedia(d.twin, `${where}.twin`);
+}
+
+function checkTerms(c: Record<string, unknown>, where: string): void {
+  if (typeof c.kind !== "string" || !CONTRACT_KINDS.some((k) => k.id === c.kind)) throw new Error(`save: ${where}.kind is not a contract kind`);
+  if (typeof c.client !== "string") throw new Error(`save: ${where}.client must be a string`);
+  for (const k of ["seed", "blocks", "duration", "readEvery", "readDeadline", "readTicks", "minDriveTier", "maxMisses"]) {
+    if (!isNat(c[k])) throw new Error(`save: ${where}.${k} must be a non-negative integer`);
+  }
+  if ((c.blocks as number) < 1 || (c.duration as number) < 1 || (c.readEvery as number) < 1) throw new Error(`save: ${where} has empty terms`);
+  if (typeof c.levelPay !== "number" || !Number.isFinite(c.levelPay) || c.levelPay <= 0) throw new Error(`save: ${where}.levelPay must be a positive number`);
+}
+
+function checkContracts(c: unknown): void {
+  if (!isObj(c) || !isNat(c.nextId) || c.nextId < 1 || !isNat(c.rng) || c.rng > 0xffffffff || !Array.isArray(c.offers) || !Array.isArray(c.active)) throw new Error('save: "contracts" must be {nextId, rng, offers, active}');
+  c.offers.forEach((o, i) => {
+    if (!isObj(o) || !isNat(o.id) || !isNat(o.offeredAt) || !isNat(o.expiresAt)) throw new Error(`save: contracts.offers[${i}] must be an offer`);
+    checkTerms(o, `contracts.offers[${i}]`);
+  });
+  c.active.forEach((a, i) => {
+    const w = `contracts.active[${i}]`;
+    if (!isObj(a) || !isNat(a.id) || typeof a.deviceId !== "string" || typeof a.drive !== "string" || !isNat(a.fileId) || !isNat(a.startedAt) || !isNat(a.endsAt) || typeof a.mirrored !== "boolean"
+      || typeof a.rate !== "number" || !Number.isFinite(a.rate) || a.rate < 0 || typeof a.owed !== "number" || !Number.isFinite(a.owed) || !isNat(a.rng) || a.rng > 0xffffffff || !isNat(a.nextRead)
+      || !isNat(a.served) || !isNat(a.missed) || !isNat(a.earned) || !isNat(a.fees) || !Array.isArray(a.pending)
+      || a.pending.some((p) => !isObj(p) || !isNat(p.due) || !isNat(p.left))) {
+      throw new Error(`save: ${w} must be a running contract`);
+    }
+    checkTerms(a, w);
+  });
+}
 
 function checkKey(r: unknown, where: string): void {
   if (!isObj(r)) throw new Error(`save: ${where} must be an object`);

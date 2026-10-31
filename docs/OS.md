@@ -49,6 +49,7 @@ All numbers are placeholders (`specs.ts`).
 - **Seek by distance.** `seekByDistance` (the HDD) scales the seek by the LBA distance from the head (`Disk.seekTicks`, 0.3x to 1.7x of `latencyTicks`). A sequential block still skips it. SSD and NVMe stay flat.
 - **Unservable.** `Game.canServe(deviceId, fileId)` is false when the drive is burnt or off the bus, the OS is down, the drive is not mounted, the file is gone or lost, or the queue ahead (`StoragePort.queueLoad()` = `Disk.queued` + the command on the bus) is above `StorageSpec.queueDepth` (`hdd0` 2, `ssd1` 4, `nvme2` 16).
 - **RAID mirror (`raid2`, level 16).** A storage module with two member drives (`Disk.twin`). Every write wears both. A block is lost only when it is bad on both members, so one member can fail. A burnt module loses everything. It needs `fsTier` 4 to mount (`os4`), holds data only (not the OS) and shows the same ledger.
+- **Records and save.** `DiskFs.records()` and `restore()` move the ledger as logical records (no bytes); `write` and `read` move a file's bytes through its extents without bus traffic; a dataset keeps a `seed` its bytes are regenerated from. See [`SAVE.md`](SAVE.md) "Disks and contracts".
 - **Snapshot.** `StorageSnap` adds `wearPct` (the most worn group, 0..100), `badGroups`, `lostBlocks`, `queueDepth`, `queued`, `mirror`.
 
 ## The OS ladder

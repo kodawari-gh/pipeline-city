@@ -13,6 +13,9 @@ import { Prng } from "./prng";
 /** Blocks per wear group: the wear counters and the bad-block marks are kept per group. */
 export const GROUP_BLOCKS = 8;
 
+/** What a save keeps of the physical media: wear per group (sparse `[group, writes]`), bad groups and the mechanical-fault stream's state. */
+export interface DiskMediaState { wear: [number, number][]; bad: number[]; rng: number }
+
 export interface DiskOpts {
   /** Writes one 8-block group takes before it turns bad (each group varies by up to 20% around it). Default: never wears out. */
   enduranceBlocks?: number;
@@ -126,6 +129,27 @@ export class Disk {
     if (this.bad[g]) return;
     this.wear[g]!++;
     if (this.wear[g]! >= this.limitOf(g) || (this.mechBadRate > 0 && this.rng.next() < this.mechBadRate)) this.failGroup(g);
+  }
+
+  /** The media's logical state for a save: wear counters (only the groups that took writes), the bad groups, and the mechanical-fault stream. No bytes. */
+  mediaState(): DiskMediaState {
+    const wear: [number, number][] = [];
+    const bad: number[] = [];
+    for (let g = 0; g < this.groups; g++) {
+      if (this.wear[g]) wear.push([g, this.wear[g]!]);
+      if (this.bad[g]) bad.push(g);
+    }
+    return { wear, bad, rng: this.rng.getState() };
+  }
+
+  /** Put a saved media state back (on a fresh disk). Groups out of range are ignored. It does not touch the ledger: lost files are saved as records. */
+  restoreMedia(s: DiskMediaState): void {
+    this.wear.fill(0);
+    this.bad.fill(0);
+    this.badGroups = 0;
+    for (const [g, n] of s.wear) if (g >= 0 && g < this.groups) this.wear[g] = n;
+    for (const g of s.bad) if (g >= 0 && g < this.groups && !this.bad[g]) { this.bad[g] = 1; this.badGroups++; }
+    this.rng.setState(s.rng);
   }
 
   /** Turn a group bad. The files with data on lost blocks are marked lost; a bad block under the OS or metadata damages the filesystem. */
