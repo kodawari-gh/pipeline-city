@@ -10,8 +10,11 @@ import { signal } from '@preact/signals';
 export const highlight = signal<string[]>([]);
 
 /** What the player is dragging right now. Render WRITES, UI may read (e.g. to hide the shop). */
-export interface Dragging { kind: 'part' | 'cable' | 'key'; id: string }
+export interface Dragging { kind: 'part' | 'cable' | 'key'; id: string; /** A part lifted off the board (installed device `id`): the shelf stays open as the place to drop it and unmount it. */ fromBoard?: boolean }
 export const dragging = signal<Dragging | null>(null);
+
+/** The pointer of a part lifted off the board is over the inventory shelf (a drop there unmounts it). Render WRITES, UI reads. */
+export const overInventory = signal(false);
 
 /**
  * Bumped by the renderer (at most once per frame, only when something changed): the camera panned, zoomed, flew or was

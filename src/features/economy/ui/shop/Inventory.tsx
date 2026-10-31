@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { InventorySnap, Snapshot } from '@/worker/game/game';
 import { airflowLens, powerLens, selected } from '@/app/hover';
-import { dragging, highlight } from '@/app/interaction';
+import { dragging, highlight, overInventory } from '@/app/interaction';
 import { sell } from '@/app/store';
 import { SELL_RATE } from '../../sim/economy';
 import { describeId, fitFilterFor, fitsFilter, inventoryGroups, stackItems, type Stack } from '@/core/ui/logic';
@@ -171,8 +171,11 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
     else timer.current = window.setTimeout(() => setHover(id), HOVER_MS);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  const lifted = !!dragging.value?.fromBoard;
+  // a part lifted off the board is dropped on the shelf: it opens, and stays in view
+  useEffect(() => { if (lifted) inventoryOpen.value = true; }, [lifted]);
   if (!inventoryOpen.value) return null;
-  const away = dragging.value?.kind === 'part';
+  const away = dragging.value?.kind === 'part' && !lifted;
   const hl = new Set(highlight.value);
   const sel = selected.value;
   const n = s.inventory.length;
@@ -186,7 +189,7 @@ export function InventoryPanel({ s }: { s: Snapshot }) {
   const infoId = hover ?? (sel?.startsWith('inv:') ? sel.slice(4) : null);
   const info = infoId ? s.inventory.find((x) => x.id === infoId) : undefined;
   return (
-    <section class={`inv ${away ? 'away' : ''}`} aria-label="Inventory">
+    <section class={`inv ${away ? 'away' : ''} ${lifted ? 'drop' : ''} ${lifted && overInventory.value ? 'over' : ''}`} aria-label="Inventory">
       {info && !away && (
         <aside class="card inv-info" aria-label={`${info.name} stats`}>
           <StatCard s={s} specId={info.spec} fit={{ ok: info.installable, text: info.installable ? 'Fits: drag it onto a socket' : info.reason ?? 'Nothing to fit it to right now' }} />

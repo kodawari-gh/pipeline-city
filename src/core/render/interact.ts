@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { hover, selected } from '../../app/hover';
-import { dragging, highlight } from '../../app/interaction';
-import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot } from '../../app/store';
+import { dragging, highlight, overInventory } from '../../app/interaction';
+import { connectCable, disconnectCable, ejectKey, install, lastError, plugKey, powerButton, snapshot, uninstall } from '../../app/store';
 import type { Snapshot } from '../../worker/protocol';
 import type { Camera, FlyOpts, Grab } from './camera';
 import { drawPlug, ACCENT } from '../../features/board/render/devices';
@@ -135,6 +135,7 @@ export class Interact {
     /** Current pointer (client) and world position. */
     cx: number; cy: number; wx: number; wy: number;
     /** part: where the drag began (world), for the snap back when there is no prop to return to */ home?: Pt;
+    /** part lifted off the board: the installed device, and whether the pointer is over the inventory shelf */ dev?: string; overInv?: boolean;
     /** part */ validFree?: Set<string>; validSwap?: Set<string>; over?: string | null; why?: string | null;
     /** cable */ cable?: CableInfo; snapped?: boolean; /** the video plug over a graphics card's port (its alt) */ alt?: NonNullable<CableInfo['alts']>[number] | null; /** the ethernet plug and the jack it is over */ lan?: boolean; jack?: LanJack | null;
     /** a wall cord: which, where the plug's centre is relative to the pointer, and where the plug is now */ cord?: CordScene['kind']; off?: Pt; at?: Pt;
@@ -316,7 +317,15 @@ export class Interact {
       return this.pending(cx, cy, id, () => this.beginCable(ci, cx, cy));
     }
     if (id.startsWith('key:')) return this.pending(cx, cy, id, () => this.beginKey(Number(id.slice(4)), cx, cy));
+    const dev = this.deviceFor(id, s);
+    if (dev) return this.pending(cx, cy, id, () => this.beginDevice(dev, cx, cy));
     return null;
+  }
+
+  /** The installed device a hit id stands for (its own id, its slot, or the stable `psu` / `monitor`), or null. */
+  private deviceFor(id: string, s: Snapshot): Snapshot['devices'][number] | null {
+    const kind = id === 'psu' ? 'psu' : id === 'monitor' ? 'display' : null;
+    return s.devices.find((d) => d.id === id || d.slot === id || (kind !== null && d.kind === kind)) ?? null;
   }
 
   /** Common drag gesture: a press that moves less than DRAG_PX is a click. */
@@ -356,6 +365,19 @@ export class Interact {
     d.why = it.installable ? null : (it.reason ?? 'Nowhere to put this right now');
     this.setGhost(partIcon(this.T, it.kind, it.spec), 1);
     d.home = [d.wx, d.wy];
+    return true;
+  }
+
+  /** Lift an installed part off the board. Dropped on the inventory shelf it is unmounted; anywhere else it goes back. */
+  private beginDevice(dev: Snapshot['devices'][number], cx: number, cy: number): boolean {
+    const s = this.snap();
+    if (!s) return false;
+    if (s.powered) { this.toast('Power the machine off first: parts only come out while it is off.', cx, cy); return false; }
+    if (s.os?.deviceId === dev.id) { this.toast('The OS is on this drive: uninstall the OS first.', cx, cy); return false; }
+    const d = this.start('part', dev.id, cx, cy);
+    d.dev = dev.id; d.home = [d.wx, d.wy]; d.overInv = false;
+    dragging.value = { kind: 'part', id: dev.id, fromBoard: true };
+    this.setGhost(partIcon(this.T, dev.kind, dev.spec), 1);
     return true;
   }
 
@@ -461,7 +483,10 @@ export class Interact {
     if (!d) return;
     d.cx = cx; d.cy = cy;
     [d.wx, d.wy] = this.world(cx, cy);
-    if (d.kind === 'part') d.over = this.slotAt(d.wx, d.wy, d);
+    if (d.dev) {
+      d.overInv = !!document.elementFromPoint(cx, cy)?.closest('.inv');
+      overInventory.value = d.overInv;
+    } else if (d.kind === 'part') d.over = this.slotAt(d.wx, d.wy, d);
     if (d.kind === 'cable' && d.cable) {
       d.alt = d.cable.alts?.find((a) => inside(a.rect, d.wx, d.wy, 130)) ?? null;
       d.snapped = !!d.alt || inside(d.cable.connector, d.wx, d.wy, d.cable.kind === 'video' ? 160 : 260);
@@ -509,7 +534,14 @@ export class Interact {
       this.fx.addChild(c);
       this.back.push({ c, fx: gx, fy: gy, tx, ty, t0: performance.now(), to });
     };
-    if (d.kind === 'part') {
+    overInventory.value = false;
+    if (d.dev) {
+      if (!cancelled && d.overInv) {
+        this.act(cx, cy);
+        uninstall(d.dev);
+        flash('fade', gx, gy);
+      } else flash('return', d.home ? d.home[0] : gx, d.home ? d.home[1] : gy);
+    } else if (d.kind === 'part') {
       const it = s?.inventory.find((x) => x.id === d.id);
       if (!cancelled && s && it && d.over && !d.why) {
         const whole = d.over === 'board' || d.over === 'case'; // a board or a case goes onto the whole thing, not a socket
@@ -689,7 +721,19 @@ export class Interact {
   private drawDrag(d: NonNullable<Interact['drag']>, now: number, lw: number, s: Snapshot) {
     const T = this.T, g = this.g, z = this.camera.z;
     const pulse = 0.5 + 0.5 * Math.sin(now * 0.008);
-    if (d.kind === 'part') {
+    if (d.dev) {
+      // the held part: traced along its own silhouette where it sits, and a hint for where to let go
+      const trace = this.scene.shapes.get(d.dev)?.outline(Math.max(8, lw));
+      const r = this.scene.rects.get(d.dev);
+      if (trace) for (const poly of trace) g.poly(poly.flatMap(([x, y]) => [x, y]), true).stroke({ width: lw * 1.4, color: T.alu, alpha: 0.35 + 0.35 * pulse, join: 'round' });
+      else if (r) box(g, r.x - 8, r.y - 8, r.w + 16, r.h + 16, 30, { stroke: T.alu, lw: lw * 1.4, sa: 0.35 + 0.35 * pulse });
+      const sc = clamp(120 / (ICON * z), 0.35, 4);
+      this.ghost.position.set(d.wx, d.wy);
+      this.ghost.scale.set(sc);
+      this.ghost.rotation = 0;
+      this.ghost.alpha = 0.92;
+      this.note(d.overInv ? 'Let go to put it in the inventory' : 'Drop on the inventory to unmount it', d.cx, d.cy, d.overInv ? T.st : T.mute);
+    } else if (d.kind === 'part') {
       const ok = !d.why;
       for (const [id, r] of [...this.scene.slots, ['board', BD] as [string, Rect], ['case', CASE] as [string, Rect]]) {
         if ((id === 'board' || id === 'case') && !d.validFree?.has(id)) continue;
