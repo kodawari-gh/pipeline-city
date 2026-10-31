@@ -84,6 +84,5 @@ export function gpuNear(T: Theme, plan: GpuPlan): GpuArt {
     names.addChild(label(e.text, lx + 13, sy, 9, T.mute, { a: 0.85 }));
     lx += 13 + e.text.length * 6.2 + 16;
   }
-  names.addChild(label('PIPELINE CITY · REV A', D.x + D.w - DIE_MARGIN.x, sy, 10, T.mute, { a: 0.75, anchor: [1, 0.5] }));
   return art;
 }

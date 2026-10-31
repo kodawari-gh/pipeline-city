@@ -2,8 +2,9 @@ import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
   DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
-  type Rect,
+  LAYOUT_CASE, type Rect,
 } from './layout/layout';
+import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
 import { EdgeFan } from '../../room/render/desk/props/case';
 import { box, dashed, disc, label, mix } from '@/core/render/ink';
 import { dieFar, planOf } from '../../cpu/render/die/dieart';
@@ -79,7 +80,6 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   // the floorplan of this CPU's architecture (docs/DIE.md): blocks, stage frames and bond pads; the detail is the die view's (dieview.ts)
   dieFar(g, T, planOf(spec));
   labels.addChild(label(spec.name, k.x + 170, k.y + k.h - 148, 34, T.mute, { a: 0.75, weight: '700' }));
-  labels.addChild(label('PIPELINE CITY · REV A', k.x + k.w - 170, k.y + k.h - 148, 20, T.mute, { a: 0.75, anchor: [1, 0.5] }));
   root.addChild(labels);
   return { root, labels };
 }
@@ -223,24 +223,33 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
   const r = PSU, u = PSU_UNIT;
   const accent = spec.visual === 'psu-big' ? T.br : spec.visual === 'psu-mid' ? T.alu : T.pin;
   const body = T.dark ? mix(T.sub, T.tile, 0.45) : mix(T.sub, T.tile, 0.3);
-  const shroud = T.dark ? mix(T.sub, T.bg, 0.35) : mix(T.sub, T.tile, 0.15);
+  const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer';
+  // the shroud is part of the case: cream pressed steel in the OEM tower, black in the matte case, charcoal with an RGB strip in the
+  // gaming case, a dark plate with a silver rim and a honeycomb in the showcase
+  const shroud = { oem: mix(T.sub, '#d9d2b6', 0.8), matte: mix(T.sub, '#07080b', 0.85), gamer: mix(T.sub, '#171c2a', 0.75), show: mix(T.sub, '#06080c', 0.85) }[kind];
+  const rim = kind === 'oem' ? mix('#9a9373', shroud, 0.2) : kind === 'show' ? '#c9d1de' : kind === 'gamer' ? T.mul : mix(shroud, '#ffffff', 0.12);
   const sh = { x: r.x, y: r.y + 24, w: u.x - 70 - r.x, h: r.h - 48 };
 
-  // the shroud: a long plate over the cables, a lit top edge, a perforated vent field, a brand stripe, the readout panel on it
-  box(g, sh.x + 8, sh.y + 14, sh.w, sh.h, 50, { fill: '#000000', fa: 0.22 });
-  box(g, sh.x, sh.y, sh.w, sh.h, 50, { fill: shroud, stroke: T.line, lw: 8, sa: 0.9 });
-  g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.28 });
-  g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
-  for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: T.line, stroke: T.mute, lw: 4, sa: 0.4 });
+  // the shroud: a long plate over the cables, a lit top edge, a perforated vent field, the readout panel on it
+  box(g, sh.x + 8, sh.y + 14, sh.w, sh.h, 50, { fill: '#000000', fa: kind === 'oem' ? 0.12 : 0.22 });
+  if (kind === 'gamer') g.poly([sh.x + 160, sh.y, sh.x + sh.w, sh.y, sh.x + sh.w, sh.y + sh.h, sh.x, sh.y + sh.h, sh.x, sh.y + 160]).fill(shroud).stroke({ width: 8, color: rim, alpha: 0.9 });
+  else box(g, sh.x, sh.y, sh.w, sh.h, kind === 'oem' ? 20 : 50, { fill: shroud, stroke: rim, lw: kind === 'show' ? 12 : 8, sa: 0.9 });
+  if (kind !== 'oem') g.rect(sh.x + 30, sh.y + 16, sh.w - 60, 12).fill({ color: '#ffffff', alpha: T.dark ? 0.06 : 0.28 });
+  if (kind === 'gamer') for (const [k, col] of ['#ff4d6d', '#ffb84d', '#7dff4d', '#4dd2ff', '#6a4dff', '#ff4dd2'].entries()) g.rect(sh.x + 200 + (k * (sh.w - 400)) / 6, sh.y + sh.h - 30, (sh.w - 400) / 6 + 1, 8).fill(col);
+  else if (kind === 'show') g.rect(sh.x + 60, sh.y + sh.h - 30, sh.w - 120, 8).fill({ color: accent, alpha: 0.6 });
+  for (const sx of [sh.x + 60, sh.x + sh.w - 60]) for (const sy of [sh.y + 60, sh.y + sh.h - 60]) disc(g, sx, sy, 18, { fill: kind === 'show' ? '#c9d1de' : kind === 'oem' ? '#b7b08f' : T.line, stroke: T.mute, lw: 4, sa: 0.4 });
   {
     const v = VENTS;
     if (v.w >= 300) {
-      box(g, v.x, v.y, v.w, v.h, 24, { fill: T.dark ? '#02040a' : mix(shroud, '#000000', 0.4), fa: 0.55, stroke: T.line, lw: 4, sa: 0.5 });
-      for (let y = v.y + 50; y < v.y + v.h - 30; y += 56) for (let x = v.x + 50 + (Math.round((y - v.y) / 56) % 2) * 28; x < v.x + v.w - 30; x += 56) g.circle(x, y, 13);
-      g.fill({ color: T.dark ? '#000000' : mix(shroud, '#000000', 0.55), alpha: 0.8 });
+      const dark = kind === 'oem' ? mix(shroud, '#000000', 0.35) : T.dark ? '#02040a' : mix(shroud, '#000000', 0.4);
+      box(g, v.x, v.y, v.w, v.h, 24, { fill: dark, fa: kind === 'oem' ? 0.5 : 0.55, stroke: rim, lw: 4, sa: 0.5 });
+      if (kind === 'show') hexes(g, { x: v.x + 30, y: v.y + 30, w: v.w - 60, h: v.h - 60 }, 36, 8);
+      else if (kind === 'gamer') slots(g, { x: v.x + 40, y: v.y + 50, w: v.w - 100, h: v.h - 100 }, Math.max(4, Math.floor(v.w / 110)), 60);
+      else if (kind === 'matte') for (let y = v.y + 70; y < v.y + v.h - 50; y += 90) g.roundRect(v.x + 60, y, v.w - 120, 26, 13);
+      else for (let y = v.y + 50; y < v.y + v.h - 30; y += 56) for (let x = v.x + 50 + (Math.round((y - v.y) / 56) % 2) * 28; x < v.x + v.w - 30; x += 56) g.circle(x, y, 13);
+      g.fill({ color: T.dark || kind === 'oem' ? '#000000' : mix(shroud, '#000000', 0.55), alpha: 0.8 });
     }
   }
-  labels.addChild(label('PIPELINE CITY', sh.x + sh.w - 70, sh.y + 58, 40, T.mute, { head: true, anchor: [1, 0.5], a: 0.75 }));
   // readout panel frame (live content is drawn by Live)
   {
     const p = PSU_PANEL;
@@ -272,7 +281,6 @@ export function psuArt(T: Theme, spec: PsuSpec): Part {
     const l = PSU_LABEL;
     box(g, l.x, l.y, l.w, l.h, 22, { fill: T.die, stroke: T.line, lw: 5 });
     g.rect(l.x + 36, l.y + 128, l.w - 72, 6).fill({ color: accent, alpha: 0.8 });
-    labels.addChild(label('PIPELINE CITY', l.x + 40, l.y + 62, 48, T.ink, { head: true, a: 0.85 }));
     labels.addChild(label(spec.name.replace(/ \(.*$/, ''), l.x + 40, l.y + 176, 36, T.mute));
     labels.addChild(label(`${spec.watts}`, l.x + 40, l.y + 380, 240, accent, { head: true, anchor: [0, 0.5] }));
     labels.addChild(label('WATTS', l.x + l.w - 44, l.y + 470, 62, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
@@ -325,7 +333,6 @@ export function psuBoxArt(T: Theme, spec: PsuSpec): Container {
   const l = { x: 1250, y: 150, w: 740, h: 640 };
   box(g, l.x, l.y, l.w, l.h, 30, { fill: T.die, stroke: T.line, lw: 6 });
   g.rect(l.x + 40, l.y + 120, l.w - 80, 7).fill({ color: accent, alpha: 0.85 });
-  root.addChild(label('PIPELINE CITY', l.x + 40, l.y + 66, 54, T.ink, { head: true, a: 0.85 }));
   root.addChild(label(`${spec.watts}`, l.x + 40, l.y + 330, 250, accent, { head: true, anchor: [0, 0.5] }));
   root.addChild(label('WATTS', l.x + l.w - 40, l.y + 560, 70, T.mute, { head: true, anchor: [1, 0.5], a: 0.9 }));
   // vents and the output sockets along the bottom edge

@@ -108,7 +108,6 @@ export function caseBack(T: Theme): Container {
     pillar(g, { x: win.x + win.w + 44 + 20, y: py, w: 150, h: ph }, hi, lo, edge);
   }
   // labels
-  root.addChild(label(`PIPELINE CITY · ${look.tag}`, -3500, p.y + 200, 90, T.ink, { head: true, a: 0.32 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, T.mute, { anchor: [0.5, 0.5], a: 0.85 }));
   void POWER_BTN; void LAYOUT_TIER;

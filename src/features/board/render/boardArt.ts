@@ -374,7 +374,6 @@ export function buildBoard(T: Theme, tier: number): BoardArt {
     g.fill({ color: P.silkHi, alpha: 0.5 });
   }
   // the bottom silkscreen sits above the trim lines (south - 150 and below), clear of the header row and the holes
-  labels.addChild(label('PIPELINE CITY', -800, south - 250, 90, P.silk, { head: true, a: 0.5 }));
   if (skin.trim >= 2) lbl('OVERCLOCK READY', -800, south - 195, 36, 0.6);
   lbl(`MB-${tier + 1}000 · ${(tierSpec?.name ?? 'BOARD').toUpperCase()} · ${geo.form.toUpperCase()} · REV A`, Math.min(1300, BD.x + BD.w - 1150), south - 215, 40, 0.8);
 

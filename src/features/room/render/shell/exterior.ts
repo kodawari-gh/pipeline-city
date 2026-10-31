@@ -73,6 +73,12 @@ const styleOf = (): CaseStyle & { kind: CaseKind } => ({ ...(STYLES[LAYOUT_CASE]
 /** The body tones of the current tier: the shared steel tones mixed toward the tier's colour. */
 function bodyTones(T: Theme, st: CaseStyle) {
   const c = exteriorTones(T), m = (v: string) => mix(v, st.mixTo, st.k);
+  // the painted OEM tower is cream to its edges: its own palette, nothing of the steel's dark grey left in it
+  if (st.k >= 0.72 && st.mixTo === '#e6dfc4') {
+    const dk = T.dark ? 0.1 : 0;
+    const s = (v: string) => mix(v, '#000000', dk);
+    return { ...c, hi: s('#ebe4cb'), mid: s('#ddd6bb'), lo: s('#c6bfa2'), edge: s('#9a9373'), shade: s('#6f6a52'), cut: s('#8a8468') };
+  }
   return { ...c, hi: m(c.hi), mid: m(c.mid), lo: m(c.lo), edge: mix(c.edge, st.mixTo, st.k * 0.6), cut: mix(c.cut, '#000000', 0.2) };
 }
 
@@ -112,7 +118,7 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
   g.roundRect(c0.x, c0.y, c0.w, c0.h, R).fill(lgrad(c.hi, c.lo, [0.25, 1])).stroke({ width: 12, color: c.edge, alpha: 0.9 });
   g.roundRect(c0.x + 14, c0.y + 14, c0.w - 28, c0.h - 28, R - 10).fill(lgrad(d ? '#ffffff12' : '#ffffff30', '#ffffff00', [1, 0.2]));
   if (st.brushed) brush(g, c0.x + 40, c0.y + 40, c0.w - 80, c0.h - 80, T);
-  bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T, kind === 'matte' ? 0.4 : 1);
+  bevel(g, c0.x + 16, c0.y + 16, c0.w - 32, c0.h - 32, R - 10, T, kind === 'matte' ? 0.4 : kind === 'oem' ? 0.3 : 1);
 
   // top panel: a recessed plate with an accent hairline, the brand, a row of vents and the light window for the status LEDs
   g.roundRect(p.x + 36, p.y + 36, p.w - 72, p.h - 52, 40).fill(lgrad(c.mid, c.lo)).stroke({ width: 6, color: c.edge, alpha: 0.6 });
@@ -128,7 +134,6 @@ export function exteriorArt(T: Theme, o: ExteriorOpts): Container {
     g.stroke({ width: 14, color: '#000000', alpha: 0.7 });
   }
   box(g, CASE_LEDS.disk - 120, p.y + 70, CASE_LEDS.err - CASE_LEDS.disk + 240, 250, 40, { fill: c.cut, stroke: c.edge, lw: 5, sa: 0.5 });
-  root.addChild(label(`PIPELINE CITY · ${CASE_LOOK[LAYOUT_CASE]?.tag ?? ''}`, st.kind === 'show' ? c0.x + 380 : -3560, p.y + 205, 92, ink, { head: true, a: 0.55 }));
   root.addChild(label('DISK', CASE_LEDS.disk, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
   for (const [t, x] of [['ON', CASE_LEDS.on], ['OFF', CASE_LEDS.off], ['ERR', CASE_LEDS.err]] as const) root.addChild(label(t, x, p.y + 340, 34, dim, { anchor: [0.5, 0.5], a: 0.9 }));
 
@@ -241,30 +246,28 @@ function badge(root: Container, g: Graphics, T: Theme, c: Tones, kind: CaseKind,
   const d = T.dark, press = kind === 'oem' ? '#4a4636' : d ? '#b4c0e4' : '#25304a', lit = d ? '#000000' : '#ffffff';
   const text = (s: string, x: number, y: number, size: number, col: string, a = 0.85) => root.addChild(label(s, x, y, size, col, { head: true, anchor: [0.5, 0.5], a }));
   const right = r.x + r.w, cy = r.y + r.h / 2;
-  if (kind === 'oem') { // a stuck-on label plate
-    const w = Math.min(1900, r.w), x = right - w, h = 330;
+  // one quiet mark per case, the logo and no more: a label, a debossed print, a lit plate, a name plate
+  if (kind === 'oem') {
+    const w = 700, x = right - w, h = 300;
     g.roundRect(x, cy - h / 2, w, h, 16).fill(mix(c.hi, c.lo, 0.45)).stroke({ width: 5, color: c.edge, alpha: 0.7 });
-    text('PIPELINE CITY', x + w / 2, cy - 40, 110, press, 0.8);
-    text('MODEL PC-1', x + w / 2, cy + 80, 56, press, 0.6);
-  } else if (kind === 'matte') { // debossed: a dark line under a lit one
-    const x = right - 700;
-    for (const [dy, col, a] of [[5, lit, 0.35], [0, '#000000', 0.55]] as const) text('PIPELINE CITY', x, cy + dy, 90, col, a);
-    logoMark(g, x - 840, cy - 60, 100, '#000000', '#000000');
+    logoMark(g, x + w / 2 - 150, cy - 90, 120, press, press);
+    text('PC-1', x + w / 2 + 130, cy + 10, 90, press, 0.7);
+  } else if (kind === 'matte') { // debossed: a dark print under a lit one
+    for (const [dy, col] of [[5, lit], [0, '#000000']] as const) logoMark(g, right - 300, cy - 60 + dy, 100, col, col);
   } else if (kind === 'gamer') { // a dark plate with its own light
-    const w = Math.min(2300, r.w), x = right - w, h = 420, y = cy - h / 2;
+    const w = 1100, x = right - w, h = 380, y = cy - h / 2;
     g.roundRect(x - 14, y - 14, w + 28, h + 28, 40).fill({ color: acc, alpha: 0.16 });
     g.roundRect(x, y, w, h, 28).fill(lgrad('#171b25', '#07090d')).stroke({ width: 10, color: acc, alpha: 0.95 });
-    logoMark(g, x + 140, y + 90, 200, '#e8ecf8', acc);
-    text('PIPELINE CITY', x + w / 2 + 230, y + h * 0.42, 130, '#f0f3fc', 0.95);
-    text('TIER 3 PREMIUM', x + w / 2 + 230, y + h * 0.78, 56, acc, 0.95);
-  } else { // two angled plates, a hex mesh between them is already drawn by the intake
-    const w = Math.min(1900, (r.w - 120) / 2), lean = 120;
-    for (const [k, s1, s2] of [[0, 'PIPELINE', 'CITY'], [1, 'PC-4', 'SHOWCASE']] as const) {
-      const x = right - (2 - k) * w - (1 - k) * 120 + 0, y = r.y + 140, h = r.h - 280;
+    logoMark(g, x + w / 2 - 330, y + 70, 200, '#e8ecf8', acc);
+    text('TIER 3', x + w / 2 + 170, y + h / 2, 130, '#f0f3fc', 0.95);
+  } else { // two angled plates
+    const w = 900, lean = 120;
+    for (const k of [0, 1] as const) {
+      const x = right - (2 - k) * w - (1 - k) * 120, y = r.y + 140, h = r.h - 280;
       g.poly([x + lean, y, x + w, y, x + w - lean, y + h, x, y + h]).fill(lgrad('#20252f', '#080a0f')).stroke({ width: 7, color: SILVER, alpha: 0.8 });
       g.poly([x + lean + 30, y + 24, x + w - 30, y + 24]).stroke({ width: 5, color: acc, alpha: 0.9 });
-      text(s1, x + w / 2, cy - 60, 130, '#eef1f9', 0.95);
-      text(s2, x + w / 2, cy + 90, 70, acc, 0.9);
+      if (k === 0) logoMark(g, x + w / 2 - 90, cy - 110, 180, '#eef1f9', acc);
+      else text('PC-4', x + w / 2, cy, 150, '#eef1f9', 0.95);
     }
   }
 }

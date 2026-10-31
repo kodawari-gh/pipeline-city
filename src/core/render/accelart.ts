@@ -77,7 +77,6 @@ export function npuCover(T: Theme, geo: NpuGeo): Container {
   disc(g, r.x + r.w - 22, r.y + 22, 6, { fill: T.alu, fa: 0.85 });
   root.addChild(label('AI CARD', r.x + 44, r.y + r.h * 0.3, 44, T.ink, { head: true, a: 0.9 }));
   root.addChild(label(`NPU ${K} x ${K}${two ? ' · SHIELDED' : ''}`, r.x + 44, r.y + r.h * 0.5, 28, two ? T.alu : T.mute, { head: true, a: 0.9 }));
-  root.addChild(label('PIPELINE CITY', r.x + 44, r.y + r.h * 0.68, 16, T.mute, { a: 0.7 }));
   return root;
 }
 
@@ -155,7 +154,6 @@ export function tpmCover(T: Theme, visual: string, band: Rect): Container {
   padlock(g, band.x + band.w - 40, band.y + band.h / 2 + 4, 30, true, two ? T.alu : mix(T.ink, T.bg, 0.5), T.dark ? '#0b101c' : '#1d2536');
   root.addChild(label('SECURE MODULE', band.x + 34, band.y + band.h * 0.34, 22, T.ink, { head: true, a: 0.9 }));
   root.addChild(label(two ? 'TPM 2 · SHIELDED' : 'TPM 1', band.x + 34, band.y + band.h * 0.62, 16, two ? T.alu : T.mute, { head: true, a: 0.9 }));
-  root.addChild(label('PIPELINE CITY', band.x + 34, band.y + band.h * 0.82, 10, T.mute, { a: 0.7 }));
   return root;
 }
 
