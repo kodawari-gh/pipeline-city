@@ -4,7 +4,8 @@
 // parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
-// Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
+// Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only the cables (`cablesKey`, `setCables`). Between rebuilds `frame`
+// only moves the fans and eases the state looks.
 import {
   Box3, Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
   type PerspectiveCamera,
@@ -88,10 +89,16 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
  */
 const LV_BOARD = [0.2, 0.8, 2.4, 7], LV_RAISED = [0.6, 2.4, 7], LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
 
-/** What forces a rebuild: the tier, the parts and where they sit, the cables that are plugged, the keys in the port. */
+/** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`cablesKey`). */
 export function machineKey(s: Snapshot | null): string {
   if (!s) return 'none';
-  return [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(','), s.cables.filter((c) => c.connected).map((c) => c.id).join(','), s.plugged?.id ?? ''].join('|');
+  return [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')].join('|');
+}
+
+/** What rebuilds the cables (`Machine3D.setCables`): the cables there and which are plugged, the key in the port. */
+export function cablesKey(s: Snapshot | null): string {
+  if (!s) return 'none';
+  return [s.cables.map((c) => c.id + (c.connected ? '+' : '-')).join(','), s.plugged?.id ?? ''].join('|');
 }
 
 /** A device's state for its look. */
@@ -130,6 +137,12 @@ export class Machine3D {
   private readonly plan = basementPlan();
   /** The parts the cables go round (their boxes, `caseEnv`); `userData` says which a cable may start in (`cooler`, `sink`, `radiator`). */
   private obstacles: Object3D[] = [];
+  /** Their boxes, taken once as the parts stand (up close a card swings down flat: the cables still go round it standing). */
+  private solids = new Map<Object3D, RopeSolid>();
+  /** The cables, the cords out of the case and the key in the port: a plug in or out rebuilds only these (`setCables`). */
+  private wires = new Group();
+  /** Stop the cards fading the last build's PCIe leads. */
+  private unfade: (() => void)[] = [];
   /** The CPU cooler's group: the loop's hoses join it (they fade with it). */
   private cooler: Group | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
@@ -160,8 +173,15 @@ export class Machine3D {
         const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
         this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true);
       }
-      this.buildCables(s, geo);
-      if (s.plugged) this.buildPluggedKey(s.plugged.id);
+      this.root.updateMatrixWorld(true);
+      for (const o of this.obstacles) {
+        const b = new Box3().setFromObject(o);
+        if (!b.isEmpty()) this.solids.set(o, { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+      }
+      // the loop's hoses: stiff braided hoses arcing from the pump's ports to the radiator's barbs
+      if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
+      this.root.add(this.wires);
+      this.setCables(s, geo);
     }
     this.rgb.position.set(BD.x + BD.w / 2, -(BD.y + BD.h / 2), FRONT - 900);
     // a soft white fill inside the case, so the board reads through the glass with the machine off
@@ -544,10 +564,7 @@ export class Machine3D {
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
     const solids: RopeSolid[] = [box(BD, CASE_Z, BOARD_Z), box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT)];
     if (this.ram) solids.push(box(this.ram, BOARD_Z, BOARD_Z + 380));
-    for (const o of this.obstacles) if (!skip.includes(o)) {
-      const b = new Box3().setFromObject(o);
-      if (!b.isEmpty()) solids.push({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
-    }
+    for (const [o, b] of this.solids) if (!skip.includes(o)) solids.push(b);
     return {
       planes: [{ n: [0, 0, 1], d: TRAY_Z }, { n: [0, 0, -1], d: -(FRONT - 50) }, { n: [0, -1, 0], d: CASE_IN.y }, { n: [1, 0, 0], d: CASE_IN.x }, { n: [-1, 0, 0], d: -(CASE_IN.x + CASE_IN.w) }],
       solids,
@@ -563,30 +580,29 @@ export class Machine3D {
    */
   private buildCables(s: Snapshot, geo: RoomGeo) {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
-    this.root.updateMatrixWorld(true);
     const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T);
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
     if (has('atx')) {
       const r = GEO.atx, slot = { x: gx + 200, y: r.y + r.h / 2 - 340, w: 60, h: 680 }, g = tag(new Group(), 'cable.atx');
-      this.root.add(grommet(slot, this.grommets));
+      this.wires.add(grommet(slot, this.grommets));
       if (on('atx')) {
         const p = atxPlug(r, ACCENT(T, 'atx')), ends = fromSlot(slot, 12);
         g.add(p.root);
         p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('atx'), env, { slack: 1.06, extra: 50 + i * 4, stiff: 0.7, n: 20, lead: 90 })));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1500, lead('atx', 64), env, () => loosePlug(r.h - 48, 150, 230, ACCENT(T, 'atx'))));
-      this.root.add(g);
+      this.wires.add(g);
     }
     // ---- the CPU's 8-pin: from a slot in the tray over the board's top edge, down into the socket from the glass side
     if (has('cpu')) {
       const r = GEO.cpw, slot = { x: r.x - 60, y: BD.y - 270, w: r.w + 120, h: 60 }, g = tag(new Group(), 'cable.cpu');
-      this.root.add(grommet(slot, this.grommets));
+      this.wires.add(grommet(slot, this.grommets));
       if (on('cpu')) {
         const p = epsPlug(r, ACCENT(T, 'cpu')), ends = fromSlot(slot, 4);
         g.add(p.root);
         p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('cpu'), env, { slack: 1.04, extra: 80, stiff: 0.75, n: 20, lead: 110 })));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1200, lead('cpu', 44), env, () => loosePlug(r.w - 16, r.h - 16, 200, ACCENT(T, 'cpu'))));
-      this.root.add(g);
+      this.wires.add(g);
     }
     // ---- the PCIe leads: each from its own grommet in the gutter up into a card's top edge, or loose
     const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
@@ -595,19 +611,19 @@ export class Machine3D {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 150 + k * 110, y: sy, w: 60, h: 220 };
       const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie');
-      this.root.add(grommet(slot, this.grommets));
+      this.wires.add(grommet(slot, this.grommets));
       if (c.connected && sock) {
         const top = sock.z + 170, ends = fromSlot(slot, 4);
         g.add(standingPlug(sock, accent, top));
         for (let i = 0; i < 4; i++) g.add(hung({ at: [sock.x - 42 + i * 28, -sock.y, top + 2], dir: [0, 0, 1] }, ends[i]!, lead(c.id, 20), env, { slack: 1.1, extra: 300, stiff: 0.55, n: 24 }));
-        card!.alsoFade(g);
+        this.unfade.push(card!.alsoFade(g));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1300, lead(c.id, 40), env, () => loosePlug(116, 104, 200, accent)));
-      this.root.add(g);
+      this.wires.add(g);
     });
     // ---- SATA: each drive's data cable from its port on the board's edge into a slot in the gutter; at the drive, its data and power cables
     // leave the sockets on its end and go back through the cage
     const sataSlot = GEO.sata.length ? { x: gx - 30, y: GEO.sata[0]!.y - 60, w: 60, h: GEO.sata[GEO.sata.length - 1]!.y + GEO.sata[GEO.sata.length - 1]!.h - GEO.sata[0]!.y + 120 } : null;
-    if (sataSlot) this.root.add(grommet(sataSlot, this.grommets));
+    if (sataSlot) this.wires.add(grommet(sataSlot, this.grommets));
     const sataEnds = sataSlot ? fromSlot(sataSlot, GEO.sata.length) : [], red: Look = { r: 15, base: '#b3262f', accent: null }, black: Look = { r: 19, base: '#16171b', accent: null };
     for (const d of s.devices) {
       if (d.kind !== 'storage' || !d.slot.startsWith('sata')) continue;
@@ -618,11 +634,11 @@ export class Machine3D {
         const back: RopeEnd = { at: [sock[0] - 260, -(this.plan.floor - 60), cageBack(this.plan) + 30 + dz], dir: [0, 0, 1] };
         g.add(hung({ at: sock, dir: [-1, 0, 0] }, back, look, { planes: [], solids: [] }, { slack: 1.2, extra: 100, stiff: 0.6, n: 16 }));
       }
-      this.root.add(g);
+      this.wires.add(g);
     }
     // ---- the fans' cords: from the fan to its header; the case fans' from the slot in the tray over the hub to the hub's headers
     const fanLook: Look = { r: 11, base: '#14161c', accent: T.mul }, hubSlot = grommet(FAN_SLOT, this.grommets);
-    this.root.add(hubSlot);
+    this.wires.add(hubSlot);
     const hubEnds = fromSlot(FAN_SLOT, hubHeaders().length + 1);
     for (const p of fanCordPlans()) {
       if (!has(p.id)) continue;
@@ -645,7 +661,7 @@ export class Machine3D {
         if (p.id === 'sysfan') {
           // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
           const hole = { x: p.seat[0] - 40, y: BD.y + BD.h + 70, w: 80, h: 60 };
-          this.root.add(grommet(hole, this.grommets));
+          this.wires.add(grommet(hole, this.grommets));
           const h = fanPlug(p.header, T.mul);
           if (plugged) g.add(h.root, hung(h.end, fromSlot(hole, 1)[0]!, fanLook, fenv, { slack: 1.25, extra: 120, n: 16 }), hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }));
           else g.add(dangling(fromSlot(hole, 1)[0]!, 500, fanLook, fenv, loose));
@@ -654,10 +670,8 @@ export class Machine3D {
           g.add(h.root, hung(h.end, anchor, fanLook, fenv, { slack: 1.3, extra: 160, n: 20 }));
         } else g.add(dangling(anchor, 700, fanLook, fenv, loose));
       }
-      this.root.add(g);
+      this.wires.add(g);
     }
-    // ---- the loop's hoses: stiff braided hoses arcing from the pump's ports to the radiator's barbs
-    if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
     this.buildRoomCords(s, geo);
   }
 
@@ -677,13 +691,13 @@ export class Machine3D {
     const plug = (x: number, y: number, z: number, l: number) => softBox({ x: x - l, y: y - 60, w: l, h: 120 }, z - 70, z + 70, mat(0x1b1c20, { roughness: 0.5 }), 16);
     // the desk's grommet the mains cords drop through, behind the case's west side
     const dg = { x: CASE.x - 900, z: 1300 };
-    this.root.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
+    this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
     if (has('video')) {
       const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520, a: RopeEnd = { at: [CASE.x - 150, -y, z], dir: [-1, 0, 0] };
       g.add(plug(CASE.x, y, z, 150));
       if (on('video')) g.add(hung(a, { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, video, room, { slack: 1.12, extra: 400, stiff: 0.45, n: 34 }));
       else g.add(dangling(a, 2600, video, room, () => loosePlug(90, 60, 140, '#3a3d44')));
-      this.root.add(g);
+      this.wires.add(g);
     }
     const mains = (id: string, from: RopeEnd, socket: { x: number; y: number }, dx: number) => {
       if (!has(id)) return;
@@ -693,10 +707,10 @@ export class Machine3D {
         g.add(hung({ at: below, dir: [0, -1, 0] }, { at: [socket.x, -socket.y, 120], dir: [0, 0, 1] }, cord, { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }], solids: [] }, { slack: 1.1, extra: 500, stiff: 0.4, n: 24 }));
         g.add(softBox({ x: socket.x - 70, y: socket.y - 90, w: 140, h: 180 }, 40, 220, mat(0x1b1c20, { roughness: 0.5 }), 20));
       } else g.add(dangling(from, 2200, cord, room, () => loosePlug(140, 90, 180, '#3a3d44')));
-      this.root.add(g);
+      this.wires.add(g);
     };
     const inlet = mainsInlet(this.plan);
-    if (has('pcmains')) this.root.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
+    if (has('pcmains')) this.wires.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
     mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
     mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
   }
@@ -705,7 +719,17 @@ export class Machine3D {
     const g = tag(new Group(), 'key:' + id), y = USB_PORT.y + USB_PORT.h / 2, z = BOARD_Z + 600;
     g.add(rectBox({ x: USB_PORT.x - 760, y: y - 115, w: 560, h: 230 }, z - 60, z + 60, mat(0x2a2d34, { roughness: 0.45 })));
     g.add(rectBox({ x: USB_PORT.x - 200, y: y - 60, w: 200, h: 120 }, z - 40, z + 40, mat(0xb9bec6, { metalness: 0.7, roughness: 0.3 })));
-    this.root.add(g);
+    this.wires.add(g);
+  }
+
+  /** Build the cables and the key again (a plug in or out): the parts stay as they are. */
+  setCables(s: Snapshot, geo: RoomGeo): void {
+    for (const u of this.unfade) u();
+    this.unfade = [];
+    disposeTree(this.wires);
+    this.wires.clear();
+    this.buildCables(s, geo);
+    if (s.plugged) this.buildPluggedKey(s.plugged.id);
   }
 
   // ------------------------------------------------------------------ live

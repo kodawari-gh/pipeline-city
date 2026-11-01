@@ -22,7 +22,7 @@ import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/t
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
-import { Machine3D, machineKey } from './machine3d';
+import { Machine3D, cablesKey, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
@@ -60,7 +60,7 @@ export function mountBoard3d(host: HTMLElement) {
   const lens = new Lens3D(scene);
   const fx = new Particles3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
-  let roomKey = '', machKey = '';
+  let roomKey = '', machKey = '', cabKey = '';
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
   const rebuild = () => {
@@ -77,12 +77,16 @@ export function mountBoard3d(host: HTMLElement) {
       scene.add(room.root);
       machKey = '';
     }
-    const mk = machineKey(s);
+    const mk = machineKey(s), ck = cablesKey(s);
     if (mk !== machKey || !machine) {
-      machKey = mk;
+      machKey = mk; cabKey = ck;
       if (machine) { scene.remove(machine.root); machine.dispose(); }
       machine = new Machine3D(s, room.geo, bakes, chips);
       scene.add(machine.root);
+    } else if (ck !== cabKey && s) {
+      // a plug in or out: only the cables hang again
+      cabKey = ck;
+      machine.setCables(s, room.geo);
     }
     chips.update(s);
     room.setKeys(s?.tray ?? []);
