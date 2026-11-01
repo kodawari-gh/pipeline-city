@@ -221,11 +221,16 @@ export class Room3D {
     R.add(this.screenLight);
   }
 
-  /** The keys on the rack: a white stick on its lanyard per hook. */
+  /** The keys that have been on the rack (a key not in it is new mail), and the new ones still on their way from the mailbox. */
+  private known: Set<number> | null = null;
+  private arrivals: { g: Group; t: number; dx: number; dy: number }[] = [];
+
+  /** The keys on the rack: a white stick on its lanyard per hook. A key that arrives drops in from the mailbox. */
   setKeys(tray: readonly KeySnap[]): void {
     const key = tray.map((k) => `${k.id}:${k.type}:${k.label}`).join(',');
     if (key === this.keysKey) return;
     this.keysKey = key;
+    this.arrivals = [];
     for (const c of [...this.keys.children]) { this.keys.remove(c); disposeTree(c, true); }
     tray.slice(0, 10).forEach((k, i) => {
       const hook = trayHook(i), c = trayKeyCentre(i), g = tag(new Group(), 'key:' + k.id), col = new Color(lanyardColour(k)).getHex();
@@ -242,11 +247,24 @@ export class Room3D {
       if (label) { const f = new Mesh(new PlaneGeometry(KEY_W - 40, KEY_LEN - 60), mat(0xffffff, { map: label, roughness: 0.4 })); f.position.set(c.x, -c.y, 402); g.add(f); }
       g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9bec6, { metalness: 0.8, roughness: 0.3 })));
       g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), 6));
+      if (this.known && !this.known.has(k.id)) {
+        const dx = OUTBOX.x + OUTBOX.w / 2 - c.x, dy = OUTBOX.y - c.y;
+        g.position.set(dx, -dy, 0);
+        this.arrivals.push({ g, t: 0, dx, dy });
+      }
       this.keys.add(g);
     });
+    this.known = new Set(tray.map((k) => k.id));
   }
 
   frame(f: RoomFrame, dt: number): void {
+    // the mail: a new key flies from the mailbox to its hook in an arc
+    for (const a of this.arrivals) {
+      a.t = Math.min(1, a.t + dt / 1.4);
+      const k = 1 - Math.pow(1 - a.t, 3), rest = 1 - k;
+      a.g.position.set(a.dx * rest, -a.dy * rest, 500 * Math.sin(Math.PI * k));
+    }
+    this.arrivals = this.arrivals.filter((a) => a.t < 1);
     const day = daylight(f.hour), night = 1 - day;
     const hk = Math.round(f.hour * 20);
     if (hk !== this.skyKey) {
