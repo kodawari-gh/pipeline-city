@@ -1,7 +1,7 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
-// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Not ported yet: dragging parts and
-// cables, the clicks on a die's blocks, the lenses.
+// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts drag in and out (`drag3d.ts`).
+// Not ported yet: dragging cables and keys, the clicks on a die's blocks, the lenses.
 import { effect } from '@preact/signals';
 import type { Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
@@ -27,6 +27,9 @@ import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
 import { startBaker } from './bake';
+import { Drag3D, deviceOf } from './drag3d';
+import { setPartDragHandler } from '@/core/ui/worldDrag';
+import type { DeviceSnap } from '@/worker/game/types';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
@@ -107,18 +110,29 @@ export function mountBoard3d(host: HTMLElement) {
     if (machine) out.push(machine.root);
     return out;
   };
-  const idAt = (e: PointerEvent): string | null => {
+  const idAt = (e: { clientX: number; clientY: number }): string | null => {
     const { nx, ny } = ndc(e), id = idOf(pick(roots(), camera, nx, ny));
     return id && !INERT_REGIONS.has(id) ? id : null;
   };
-  let drag: { x: number; y: number; moved: number; orbit: boolean } | null = null;
+  // parts dragged in from the inventory or lifted off the board (drag3d.ts)
+  const lift = new Drag3D((cx, cy) => idAt({ clientX: cx, clientY: cy }), canvas);
+  setPartDragHandler((invId, e) => lift.beginPart(invId, e));
+  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit: e.button === 2 || e.shiftKey };
+    const orbit = e.button === 2 || e.shiftKey, dev = !orbit && e.button === 0 ? deviceOf(idAt(e), snapshot.peek()) : null;
+    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}) };
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (lift.busy) return;
     if (drag) {
+      // a press on an installed part that moves lifts the part instead of panning
+      if (drag.dev) {
+        const far = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6;
+        if (far) { const dev = drag.dev; drag = null; canvas.releasePointerCapture(e.pointerId); lift.beginDevice(dev, e); }
+        return;
+      }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
       if (drag.orbit) goal = orbitBy(goal, -dx * 0.004, dy * 0.004);
@@ -194,7 +208,7 @@ export function mountBoard3d(host: HTMLElement) {
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
     machine?.frame(s, dt);
     // the outline: the hovered part, the selected one and the tutorial's targets
-    const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek()].filter((x): x is string => !!x));
+    const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));
     const picked: Object3D[] = [];
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
