@@ -169,6 +169,15 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
  */
 export function dimmSocket(c: Ctx, r: Rect, flip: boolean, n: number) {
   const { g, P } = c;
+  if (c.solid) {
+    // the 3D view builds the housing, the stick stands in it (ram3d.ts): only what is on the board stays, the solder rows and the pad bar
+    const cx = r.x + r.w / 2, dataY = flip ? r.y : r.y + r.h - 62;
+    for (let k = 0; k < Math.floor((r.h - 40) / 22); k++) g.rect(cx - 50, r.y + 20 + k * 22, 10, 12).rect(cx + 40, r.y + 20 + k * 22, 10, 12);
+    g.fill({ color: P.via, alpha: 0.7 });
+    box(g, r.x + 14, dataY, r.w - 28, 62, 6, { fill: P.dark, stroke: P.edge, lw: 3, sa: 0.8 });
+    c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+    return;
+  }
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
   box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: P.edge, lw: 6 });
   const cx = r.x + r.w / 2;

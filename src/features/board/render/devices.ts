@@ -94,13 +94,19 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
  * A DIMM stick in local coordinates; caller positions it at (DIMM_X(i), DIMM_Y(i)). Row 0 sticks (dimm0..3) have their pins at the
  * bottom, row 1 sticks (dimm4..7) are drawn upside down (pins at the top) so the pins face the memory bus between the rows.
  */
+/** A stick's accent colour by its `visual` (the 2D stripes, the 3D spreader). */
+export const ramAccent = (T: Theme, visual: string): string =>
+  ({ 'dimm-ecc': T.st, 'dimm-ddr5ecc': T.st, 'dimm-lowlat': T.ld, 'dimm-ddr5': T.ld, 'dimm-ddr3': T.mul, 'dimm-fast': T.br } as Record<string, string>)[visual] ?? T.alu;
+
+/** Each generation's key notch sits in a different place, so a stick fits only its own slot: the pin (of 24) where the pin row has its gap. */
+export const ramNotch = (visual: string): number =>
+  ({ 'dimm-basic': 6, 'dimm-fast': 8, 'dimm-ddr3': 10, 'dimm-lowlat': 12, 'dimm-ecc': 12, 'dimm-ddr5': 14, 'dimm-ddr5ecc': 14 } as Record<string, number>)[visual] ?? 12;
+
 export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
-  const accent = ({ 'dimm-ecc': T.st, 'dimm-ddr5ecc': T.st, 'dimm-lowlat': T.ld, 'dimm-ddr5': T.ld, 'dimm-ddr3': T.mul, 'dimm-fast': T.br } as Record<string, string>)[spec.visual] ?? T.alu;
-  // each generation's key notch sits in a different place, so a stick fits only its own slot: the pin row has a gap there
-  const notch = ({ 'dimm-basic': 6, 'dimm-fast': 8, 'dimm-ddr3': 10, 'dimm-lowlat': 12, 'dimm-ecc': 12, 'dimm-ddr5': 14, 'dimm-ddr5ecc': 14 } as Record<string, number>)[spec.visual] ?? 12;
+  const accent = ramAccent(T, spec.visual), notch = ramNotch(spec.visual);
   const ddr5 = spec.visual === 'dimm-ddr5' || spec.visual === 'dimm-ddr5ecc';
   const fy = (y: number, h = 0) => (flip ? DIMM_H - y - h : y);
   box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });

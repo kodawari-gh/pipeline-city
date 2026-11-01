@@ -34,13 +34,14 @@ import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
 import { radiatorFit, radiatorGrade } from '../cooler';
-import { ACCENT, cpuArt, ramArt, sinkFanRect, vrmSinkArt } from '../devices';
+import { ACCENT, cpuArt, sinkFanRect, vrmSinkArt } from '../devices';
 import { buildCables, isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
 import { FAN_MAX, FAN_ZC, coolerModel, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { band, braidedTube, plug3d } from './cables3d';
 import { gpuCooler } from './gpu3d';
+import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
 const FRONT = CASE_Z + CASE_D;
@@ -48,6 +49,12 @@ const FRONT = CASE_Z + CASE_D;
 const CAGE_Z = CASE_Z + 2300;
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
+const union = (a: RectLike, b: RectLike): RectLike => {
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+};
+/** The RAM band (`DEVICE_LOD.ram.show` on): the camera leans over its first part, the spreaders fade over the second. */
+const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
 /**
@@ -85,6 +92,8 @@ export class Machine3D {
   private frustum = new Frustum();
   /** The radiator bolted on a side of the case (it takes that side's fan mounts) and the loop's tubes run to. */
   private rad: (RadiatorAt & { span: FanMount & { ids: string[] } }) | null = null;
+  /** The installed sticks' bank: the camera leans over it up close (`lean`). */
+  private ram: RectLike | null = null;
 
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue) {
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
@@ -240,12 +249,18 @@ export class Machine3D {
     this.root.add(io);
     // the sockets and connectors stand up off it, each topped with its own drawing
     this.raised(this.root, art, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, slot, emptyId('cpu0'));
-    GEO.dimm.forEach((d, i) => this.raised(this.root, art, d.rect, BOARD_Z, BOARD_Z + 110, slot, emptyId(`dimm${i}`)));
+    // the memory sockets are modelled (`dimmSlot`): the stick stands in the groove; an empty one is picked by an unseen box over its 2D rect
+    const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+    const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
+    GEO.dimm.forEach((d, i) => {
+      const id = emptyId(`dimm${i}`), s = dimmSlot(d.rect, !!id);
+      this.root.add(id ? tag(s.housing, id) : s.housing, s.latches);
+      if (id) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, id);
+    });
     PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
     M2_SLOTS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 30, chip, emptyId(`m2${i}`)));
     // an empty bay is picked by an unseen plate over its mouth
-    const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
-    BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) { const o = tag(rectBox(r, CASE_Z + 2600, CASE_Z + 2620, unseen), `sata${i}`); o.castShadow = o.receiveShadow = false; this.root.add(o); } });
+    BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) pickBox(r, CASE_Z + 2600, CASE_Z + 2620, `sata${i}`); });
     this.raised(this.root, art, GEO.chip, BOARD_Z, BOARD_Z + 220, alu, 'chipset');
     this.raised(this.root, art, GEO.atx, BOARD_Z, BOARD_Z + 240, slot, 'atx');
     this.raised(this.root, art, GEO.cpw, BOARD_Z, BOARD_Z + 240, slot, 'cpw');
@@ -259,7 +274,7 @@ export class Machine3D {
       this.raised(at, art, { x: p.x - p.w / 2, y: p.y - p.h / 2, w: p.w, h: p.h }, BOARD_Z, BOARD_Z + (ch ? 150 : 40), ch ? choke : chip, undefined, LV_RAISED, ch ? 14 : 6);
     }
     this.root.add(vrm, vrm2);
-    this.buildSlots(filled);
+    this.buildSlots();
     // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
@@ -271,23 +286,11 @@ export class Machine3D {
   }
 
   /**
-   * The hardware round the sockets that the flat drawing cannot show: a latch at each end of every memory socket (closed on a stick, open on an
-   * empty socket), a steel armour round each PCIe slot with its retention latch at the far end, and the CPU socket's load frame and lever.
+   * The hardware round the sockets that the flat drawing cannot show (the memory sockets' latches are `dimmSlot`'s): a steel armour round each
+   * PCIe slot with its retention latch at the far end, and the CPU socket's load frame and lever.
    */
-  private buildSlots(filled: ReadonlySet<string>) {
+  private buildSlots() {
     const latchM = mat(0x30364a, { roughness: 0.5 }), steel = mat(0x5d636d, { metalness: 0.7, roughness: 0.45 });
-    GEO.dimm.forEach((d, i) => {
-      const r = d.rect, open = filled.has(`dimm${i}`) ? 0 : 0.42;
-      for (const end of [-1, 1] as const) {
-        // a lever on a pivot at the socket's end: its hook reaches over the stick's end when closed
-        const pivot = new Group(), w = r.w * 0.72;
-        pivot.position.set(r.x + r.w / 2, -(end < 0 ? r.y : r.y + r.h), BOARD_Z);
-        pivot.rotation.x = end * open;
-        const arm = rectBox({ x: -w / 2, y: end < 0 ? -40 : 0, w, h: 40 }, 0, 345, latchM), hook = rectBox({ x: -w / 2, y: end < 0 ? 0 : -24, w, h: 24 }, 315, 345, latchM);
-        pivot.add(arm, hook);
-        this.root.add(pivot);
-      }
-    });
     PCIE_RAILS.forEach((r) => {
       // the armour: a thin steel wall round the slot's sides, a little proud of it; the latch stands at the east end
       const t = 10, z0 = BOARD_Z + 10, z1 = BOARD_Z + 152;
@@ -350,24 +353,16 @@ export class Machine3D {
         break;
       }
       case 'ram': {
-        const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, flip = GEO.dimm[i]?.flip ?? false;
-        let chips: RectLike[] = [];
-        const art = this.baker(() => { const p = ramArt(T, spec as RamSpec, flip); p.root.position.set(r.x, r.y); chips = p.chips ?? []; return p.root; });
-        // the stick in the 2D stick's navy (`T.sub`), its edges rounded like a spreader's
-        const spreader = mat(0x161f3d, { metalness: 0.5, roughness: 0.35 });
-        g.add(softBox(r, BOARD_Z + 110, BOARD_Z + 330, spreader, 10));
-        this.surface(g, art, r, BOARD_Z + 330, LV_PART);
-        // the art's two accent stripes stand up as frosted light bars that glow with the fans
-        const strip = glowMat(PALETTE.rgb, 0x2c2752);
-        for (const x of [14, 144]) g.add(seeThrough(softBox({ x: r.x + x, y: r.y + 50, w: 12, h: DIMM_H - 100 }, BOARD_Z + 320, BOARD_Z + 362, strip, 5)));
-        this.spin(light(strip));
-        // up close the DRAM chips stand off the stick, each with its own drawing on top
-        const near = new Group();
-        for (const c of chips) this.raised(near, art, { x: r.x + c.x, y: r.y + c.y, w: c.w, h: c.h }, BOARD_Z + 330, BOARD_Z + 375, side);
-        g.add(near);
-        this.reveal(r, BOARD_Z + 330, (z) => { near.visible = z > DEVICE_LOD.ram.show; });
-        this.skin(d.id, spreader);
-        break;
+        // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
+        const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, rs = spec as RamSpec;
+        const st = ramStick(T, rs.visual, !!rs.ecc, r, GEO.dimm[i]?.flip ?? false);
+        g.add(st.root);
+        for (const s of st.spins) this.spin(s);
+        this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));
+        this.root.add(g, tag(st.hit, d.id));
+        this.ram = this.ram ? union(this.ram, r) : r;
+        this.skin(d.id, ...st.skin);
+        return;
       }
       case 'gpu': {
         // the card's PCB wears the shop picture's art (the die with its floorplan, the edge fans, the bracket); the cooler over the die (`gpuCooler`)
@@ -514,7 +509,7 @@ export class Machine3D {
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down
       const a = f.speed * 18 * dt;
       f.rotor.rotation.z -= a;
-      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.fixed === undefined ? 2.2 : 2.8) * f.speed; }
+      if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 2.2 : 2.8)) * f.speed; }
     }
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live ? 0.9 : 0;
@@ -533,6 +528,16 @@ export class Machine3D {
       r.apply(seenZoom(screenPx(cam.position.distanceTo(r.at), cam.fov, H), focus));
     }
     for (const s of this.surfaces) s.update(cam, this.frustum, H, dpr, now);
+  }
+
+  /**
+   * The yaw the camera adds to read what stands at the view's target (layout x, y) at this zoom: the stick faces stand edge-on to the glass, so
+   * over the RAM bank, in the RAM band, the camera leans to see them in a row. 0 elsewhere.
+   */
+  lean(x: number, y: number, zoom: number): number {
+    const r = this.ram && grow(this.ram, 260);
+    if (!r || x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) return 0;
+    return RAM_LEAN * smooth(RAM_IN[0], RAM_IN[1], zoom);
   }
 
   /** Take it down: the meshes, the texture tiles, the bake jobs and the 2D art behind them. */

@@ -17,6 +17,7 @@ import { BOARD_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Machine3D, machineKey } from './machine3d';
+import { RAM_LEAN } from './ram3d';
 import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -166,14 +167,16 @@ export function mountBoard3d(host: HTMLElement) {
   }).observe(host);
 
   // ---- the frame ----
-  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
+  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     gt += dt * 1000 * speed.value;
     const s = snapshot.peek();
     view = stepView(view, goal, dt);
-    applyView(camera, view, aspect());
+    // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
+    lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
+    applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
     machine?.lod(camera, H);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');

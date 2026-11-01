@@ -5,11 +5,15 @@ import { fanFrame, fanRotor, place, type RectLike } from '@/core/render/three/ge
 import { PALETTE, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 
-/** What the live frame drives: a rotor it spins round its local z, a light that follows the fans, the cable the fan needs to run. `fixed`: the light keeps this colour instead of cycling. */
-export interface Spin { rotor: Object3D; ring: MeshStandardMaterial | null; needs: string | null; fixed?: number }
+/**
+ * What the live frame drives: a rotor it spins round its local z, a light that follows the fans, the cable the fan needs to run. `fixed`: the
+ * light keeps this colour instead of cycling; `gain`: its full brightness (a wide diffuser glows softer than a thin ring).
+ */
+export interface Spin { rotor: Object3D; ring: MeshStandardMaterial | null; needs: string | null; fixed?: number; gain?: number }
 
 /** A light alone (a strip, a ring): it follows the fans but has nothing to spin. */
-export const light = (ring: MeshStandardMaterial, fixed?: number): Spin => ({ rotor: new Group(), ring, needs: null, ...(fixed === undefined ? {} : { fixed }) });
+export const light = (ring: MeshStandardMaterial, fixed?: number, gain?: number): Spin =>
+  ({ rotor: new Group(), ring, needs: null, ...(fixed === undefined ? {} : { fixed }), ...(gain === undefined ? {} : { gain }) });
 
 /** An emissive part that is dark until the machine runs. `base`: the colour it shows switched off. */
 export const glowMat = (color: number, base = 0x111111): MeshStandardMaterial => mat(base, { emissive: new Color(color), emissiveIntensity: 0, roughness: 0.4 });
