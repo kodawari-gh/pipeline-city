@@ -5,6 +5,7 @@ import {
   DISPLAY_BASE, DISPLAY_SIZE, GPU_BASE, GPU_PORTS, GPU_STRIDE, INTC_BASE, INTC_SIZE, MMU_BASE, MMU_SIZE, MPU_BASE, MPU_SIZE, NPU_BASE, NPU_PORTS, NPU_STRIDE, PCH_BASE, TIMER_BASE, TIMER_SIZE, PCH_KEY_WINDOW, PCH_KEY_WINDOW_SIZE, PCH_RESULT_WINDOW, PCH_RESULT_WORDS,
   STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE, TPM_SIZE,
 } from '@/core/sim/memmap';
+import type { UncoreUnit } from '@/features/cpu/render/die/uncore';
 import type { Bus, BusKind, Lane } from './routes';
 
 /**
@@ -122,6 +123,27 @@ export function deviceAt(addr: number): DeviceHit | null {
   if (within(MPU_BASE, MPU_SIZE)) return { kind: 'mpu' };
   if (within(MMU_BASE, MMU_SIZE)) return { kind: 'mmu' };
   return null;
+}
+
+/** The outer unit of the CPU's die an access to a device leaves through. */
+const DIE_UNIT: Partial<Record<DeviceHit['kind'], UncoreUnit>> = { drive: 'nvme', card: 'pcie', chipset: 'dmi', tpm: 'dmi', key: 'usb', display: 'display' };
+
+/** The die view's side of a core's access (`DieView`, 2D and 3D). */
+export interface DieTouch {
+  poke(unit: 'intc' | 'timer' | 'mpu' | 'mmu', write: boolean, now: number): void;
+  touchUnit(unit: UncoreUnit, write: boolean, now: number, addr?: number): void;
+}
+
+/**
+ * Show on the die where a core's access goes once it leaves the cores: RAM through the shared L2 and the memory controller, a device through its
+ * own outer unit; a unit on the die itself (interrupt controller, timer, MPU, MMU) lights its block and wire. Gives the device the address is in.
+ */
+export function routeOnDie(die: DieTouch, addr: number, write: boolean, now: number): DeviceHit | null {
+  const hit = deviceAt(addr), unit = hit ? DIE_UNIT[hit.kind] : undefined;
+  if (hit && (hit.kind === 'intc' || hit.kind === 'timer' || hit.kind === 'mpu' || hit.kind === 'mmu')) die.poke(hit.kind, write, now);
+  if (!hit) { die.touchUnit('l2', write, now, addr); die.touchUnit('mc', write, now, addr); }
+  else if (unit) die.touchUnit(unit, write, now, addr);
+  return hit;
 }
 
 /** An access to an AI card's window: the PCIe slot of the card and the offset in the window (registers below `NPU_MEM`, card memory from it), or null for any other address. */

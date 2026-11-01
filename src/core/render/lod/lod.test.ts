@@ -145,6 +145,11 @@ describe('deviceLod', () => {
     expect(edge).toBeGreaterThanOrEqual(0);
     expect(deviceLod({ x: 3000, y: 0, w: 10, h: 10 }, view).focus).toBe(0);
   });
+  it('reads a long device where the view is on it when asked (`near`)', () => {
+    const card = { x: -200, y: 250, w: 3800, h: 100 };
+    expect(deviceLod(card, view).focus).toBe(0); // its middle is far off to the right
+    expect(deviceLod(card, view, 0.1, true).focus).toBe(1);
+  });
 });
 
 describe('TierBudget', () => {

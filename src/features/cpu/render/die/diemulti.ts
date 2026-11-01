@@ -49,7 +49,10 @@ export class DieView {
   private zSeen = 1;
   private plan: CpuPlan | null = null;
 
-  constructor() {
+  /** `bare`: the 3D view's (three/chips3d.ts): the near layer's still art and the colour key are not drawn (the die's baked face has them). */
+  constructor(private readonly bare = false) {
+    this.shared.still = !bare;
+    this.shared.legendOn = !bare;
     this.root.addChild(this.shared.root, this.tilesAt, this.washLayer, this.tagLayer);
     // the ring marks the core the Trace panel follows: it shows only while the panel is open
     effect(() => { const on = traceOpen.value; for (const w of this.washes) w.ring.visible = on; this.ringOn = on; });
@@ -95,6 +98,7 @@ export class DieView {
     for (const tile of sp.tiles) {
       const view = new PlanView();
       view.legendOn = false;
+      view.still = !this.bare;
       view.scrubLead = false;
       view.onInterrupt = this.irq;
       view.setPlan(T, tile.plan, tile.motion);

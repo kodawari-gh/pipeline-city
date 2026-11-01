@@ -89,11 +89,13 @@ export class LodClock {
 /** Where a device is relative to the view: `onScreen` (with a margin), `focus` 1 where the view centre is on the device falling to 0 near the corners. */
 export interface Placement { onScreen: boolean; focus: number }
 
-export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1): Placement {
+/** `near`: the focus is read at the device's point nearest the view centre, not at its middle (3D: a long card is read where the view is on it). */
+export function deviceLod(rect: LodRect, view: LodRect, pad = 0.1, near = false): Placement {
   const px = view.w * pad, py = view.h * pad;
   const onScreen = rect.x < view.x + view.w + px && rect.x + rect.w > view.x - px && rect.y < view.y + view.h + py && rect.y + rect.h > view.y - py;
-  // the distance from the view centre to the middle of the device, in half-diagonals of the view
-  const dx = rect.x + rect.w / 2 - (view.x + view.w / 2), dy = rect.y + rect.h / 2 - (view.y + view.h / 2);
+  // the distance from the view centre to the middle of the device (or its nearest point), in half-diagonals of the view
+  const cx = view.x + view.w / 2, cy = view.y + view.h / 2;
+  const dx = near ? Math.max(rect.x - cx, 0, cx - (rect.x + rect.w)) : rect.x + rect.w / 2 - cx, dy = near ? Math.max(rect.y - cy, 0, cy - (rect.y + rect.h)) : rect.y + rect.h / 2 - cy;
   const d = Math.hypot(dx, dy) / (Math.hypot(view.w, view.h) / 2 || 1);
   return { onScreen, focus: onScreen ? 1 - smooth(0, 0.8, d) : 0 };
 }
@@ -152,6 +154,9 @@ export class ZoomSwitch {
 export const SLOW_FROM = 0.3, SLOW_TO = 1;
 /** The slowest the replay crawls, in seconds per cycle, from `SLOW_TO` up: at any game speed. */
 export const DEEP_CYCLE_S = 1;
+
+/** What the game speed gives the visual clock (`zoomSlow`'s `scale`): 0 paused, then 1, 2 or 3 (the fast speeds would only blur the replay). */
+export const worldPace = (speed: number): number => (speed <= 0 ? 0 : speed >= 16 ? 3 : speed >= 4 ? 2 : 1);
 
 /**
  * The multiplier of the visual clock. `scale` is what the game speed gives (0 paused); zoomed out the clock runs at `scale`, and zooming in eases it

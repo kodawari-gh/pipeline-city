@@ -20,7 +20,7 @@ import { PowerLens, lensModel } from '../../room/render/desk/lens';
 import { AirflowLens, airflowModel } from '../../room/render/desk/airflow';
 import { AIR_SOURCES } from '../../room/render/desk/airsources';
 import { NetView, nicArt } from '../../network/render/net';
-import { deviceAt } from './wiring/busmap';
+import { routeOnDie } from './wiring/busmap';
 import { PLUG_BLOCK, cardArt, cardOrigin, cardPlugs, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { tpmGeo, tpmParts } from '../../tpm/render/tpmlayout';
 import type { TpmScene } from '../../tpm/render/tpmview';
@@ -38,9 +38,8 @@ import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAI
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
 import { buildCables, isPcieKind, laneRects, looseCable, movablePlug, videoCableAt, type Cable, type CableKind, type PcieTarget } from './wiring/routes';
 import { Live, type DriveHook, type GlowTarget } from '@/core/render/live';
-import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, zoomSlow, type LodRect } from '@/core/render/lod/lod';
+import { DEVICE_LOD, LodClock, ZoomSwitch, deviceLod, seenZoom, smooth, worldPace, zoomSlow, type LodRect } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '../../cpu/render/die/diemotion';
-import type { UncoreUnit } from '../../cpu/render/die/uncore';
 import { DieView } from '../../cpu/render/die/diemulti';
 import { planOf } from '../../cpu/render/die/dieart';
 import { RoomView, roomBox, roomDebug, roomState, type RoomHit } from '../../room/render/shell/room';
@@ -211,17 +210,10 @@ export async function mountBoard(host: HTMLElement) {
   let chromeBake: Sprite | null = null;
   /** Hover-animated props: vector art close up, one small baked sprite far out. */
   let propBakes: { vec: Container; cached: boolean }[] = [];
-  /** The outer unit of the die a device's accesses cross. */
-  const UNIT_OF: Record<string, UncoreUnit | undefined> = { drive: 'nvme', card: 'pcie', chipset: 'dmi', tpm: 'dmi', key: 'usb', display: 'display' };
   const die = new DieView();
   die.onMemory = (e) => {
     live.touchRam(e.kind, e.addr, T[e.cls === 'sys' ? 'mute' : e.cls], e.core);
-    const hit = deviceAt(e.addr); // the units on the die itself (interrupt controller, timer, MPU, MMU) light on the die, not on the board
-    if (hit && (hit.kind === 'intc' || hit.kind === 'timer' || hit.kind === 'mpu' || hit.kind === 'mmu')) die.poke(hit.kind, e.kind === 'store', gt);
-    // where the access goes once it leaves the cores: RAM through the shared L2 and the memory controller, a device through its own lanes
-    const write = e.kind === 'store', unit = hit ? UNIT_OF[hit.kind] : undefined;
-    if (!hit) { die.touchUnit('l2', write, gt, e.addr); die.touchUnit('mc', write, gt, e.addr); }
-    else if (unit) die.touchUnit(unit, write, gt, e.addr);
+    routeOnDie(die, e.addr, e.kind === 'store', gt);
   };
   die.onInterrupt = (line) => live.touchIrq(line);
   const live = new Live(app.renderer, T.dark);
@@ -377,7 +369,7 @@ export async function mountBoard(host: HTMLElement) {
   let lastSnap: Snapshot | null = null;
   /** Game clock (ms): drives fans, bus pulses, LED blinks, chip tweens and every other sim-driven animation. */
   let gt = 0;
-  const timeScale = () => { const sp = speed.peek(); return sp <= 0 ? 0 : sp >= 16 ? 3 : sp >= 4 ? 2 : 1; };
+  const timeScale = () => worldPace(speed.peek());
   let fits: View = { x: 0, y: 0, z: 0.15 };
   let held: CableKind | null = null;
   let propsArt: PropsArt[] = [];

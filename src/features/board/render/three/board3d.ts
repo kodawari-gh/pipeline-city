@@ -1,9 +1,12 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
-// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. Not ported yet: dragging parts and cables, the die view, the lenses.
+// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Not ported yet: dragging parts and
+// cables, the clicks on a die's blocks, the lenses.
 import { effect } from '@preact/signals';
 import type { Object3D } from 'three';
-import { snapshot, speed, powerButton, plugKey, ejectKey } from '@/app/store';
+import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
+import { worldPace, zoomSlow } from '@/core/render/lod/lod';
+import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 import { hover, selected, INERT_REGIONS } from '@/app/hover';
 import { highlight } from '@/app/interaction';
 import { readTheme, onThemeChange } from '@/core/render/theme';
@@ -16,6 +19,7 @@ import { Room3D } from '@/features/room/render/three/room3d';
 import { BOARD_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
+import { Chips3D } from './chips3d';
 import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
@@ -38,6 +42,8 @@ export function mountBoard3d(host: HTMLElement) {
   startBaker();
   setArtEnvironment(scene.environment);
 
+  // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
+  const chips = new Chips3D();
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
   const rebuild = () => {
@@ -55,9 +61,10 @@ export function mountBoard3d(host: HTMLElement) {
     if (mk !== machKey || !machine) {
       machKey = mk;
       if (machine) { scene.remove(machine.root); machine.dispose(); }
-      machine = new Machine3D(s, room.geo, bakes);
+      machine = new Machine3D(s, room.geo, bakes, chips);
       scene.add(machine.root);
     }
+    chips.update(s);
     room.setKeys(s?.tray ?? []);
   };
   rebuild();
@@ -178,6 +185,10 @@ export function mountBoard3d(host: HTMLElement) {
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
     applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
     machine?.lod(camera, H);
+    // the dies' replay: at the game's pace, slower as the camera comes in so a block can be followed (as board.ts); the HUD says so
+    const scale = worldPace(speed.peek()), pace = zoomSlowOn.peek() ? zoomSlow(H / view.height, CYCLES_PER_SEC, scale) : scale, note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
+    if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
+    chips.frame(camera, H, dt * pace, speed.peek() <= 0);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
@@ -196,7 +207,7 @@ export function mountBoard3d(host: HTMLElement) {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
+    three: true, scene, renderer, chips, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
     orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z }); } },

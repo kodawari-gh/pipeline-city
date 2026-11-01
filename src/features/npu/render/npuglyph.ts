@@ -365,8 +365,9 @@ export function npuLive(b: Pick<NpuBlock, 'kind' | 'rect'>, a: Rect, s: NpuShow)
         }
       });
       if (moving) out.lit.push({ rect: { ...q.meter, w: q.meter.w * s.progress }, color: 'mul', a: 0.75 });
+      // (on the right of the note's line: its left half says how long a hop takes)
       out.texts.push({
-        rect: q.note, small: true, ink: true, fit: 12,
+        rect: { ...q.note, x: q.note.x + q.note.w * 0.5, w: q.note.w * 0.5 }, small: true, ink: true, fit: 12,
         top: s.phase === 'in' ? 'launch in' : s.phase === 'out' ? 'answer out' : s.busy ? 'working' : s.touch && s.touch.fresh > 0.05 ? (s.touch.store ? 'cpu writes' : 'cpu reads') : 'idle',
       });
       break;

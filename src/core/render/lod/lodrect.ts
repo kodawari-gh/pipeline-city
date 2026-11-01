@@ -8,6 +8,9 @@ import { deviceLod, type LodRect, type Placement } from './lod';
 export class RectCache {
   private rects = new WeakMap<object, LodRect>();
 
+  /** `near`: read the focus at the node's point nearest the view centre (`deviceLod`). */
+  constructor(private readonly near = false) {}
+
   of(key: object, node: Container): LodRect | null {
     let r = this.rects.get(key);
     if (!r) {
@@ -22,6 +25,6 @@ export class RectCache {
   /** Where the node is against `view`. Without a view, or while its size is unknown, it counts as on screen (nothing is skipped on a guess). */
   place(key: object, node: Container, view?: LodRect): Placement {
     const r = view ? this.of(key, node) : null;
-    return r && view ? deviceLod(r, view) : { onScreen: true, focus: 1 };
+    return r && view ? deviceLod(r, view, undefined, this.near) : { onScreen: true, focus: 1 };
   }
 }

@@ -3,6 +3,7 @@
 // The faces wear the 2D renderer's own art (`ArtSurface` + `ArtBaker`): the board from `buildBoard`, each part from its art function, raised
 // parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
+// The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
 // Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
 import {
   Box3, Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
@@ -11,16 +12,19 @@ import {
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
-import { cardArt, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { cardArt, cardOrigin, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
-import { builtinTheme } from '@/core/render/theme';
+import { builtinTheme, type Theme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
 import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
+import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
+import { npuFar, npuNear } from '@/features/npu/render/npuart';
+import { npuGeo } from '@/features/npu/render/npulayout';
 import { nicArt } from '@/features/network/render/net';
 import { driveArt, driveBody, driveKindOf, drawDriveLive, slotRect } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
@@ -42,6 +46,7 @@ import { FAN_MAX, FAN_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { card3d, slotCover, type Card3D } from './card3d';
+import type { Chips3D } from './chips3d';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
 import {
   TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
@@ -113,7 +118,9 @@ export class Machine3D {
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
 
-  constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue) {
+  /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. */
+  constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null) {
+    chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
     this.buildCase();
@@ -348,6 +355,7 @@ export class Machine3D {
           return c;
         });
         const die = this.surface(g, dieArt, DIE, BOARD_Z + 152, LV_DIE, FINISH.die);
+        this.chips?.face(die.root, 'die', DIE, BOARD_Z + 154);
         // the lid fades away over the die view's band, and the die shows through
         const ihsM = mat(0xb8bcc2, { metalness: 0.8, roughness: 0.3 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
         g.add(ihs);
@@ -380,11 +388,15 @@ export class Machine3D {
         return;
       }
       case 'gpu': case 'npu': case 'nic': {
-        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's and the NPU's the
-        // shop picture's art (the die with its floorplan), the NIC's its board art
+        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's the shop
+        // picture's art (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its board art; the dies run on it
         const i = idx(d.slot), kind = spec.kind;
-        const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : cardArt(T, visual, i, false)));
-        const c = card3d(kind, visual, i, (parent, r, z) => this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root);
+        const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : kind === 'npu' ? npuFace(T, visual, i) : cardArt(T, visual, i, false)));
+        const c = card3d(kind, visual, i, (parent, r, z) => {
+          const face = this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
+          if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2);
+          return face;
+        });
         this.model(g, c);
         // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
@@ -687,6 +699,25 @@ export class Machine3D {
     this.ramMap?.dispose();
     disposeTree(this.root);
   }
+}
+
+/** Where a card's die runs (`Chips3D`): the GPU's body, the AI card's die, a little grown (the GPU's memory magnifier stands by its cell). */
+function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
+  const o = cardOrigin(i, visual);
+  return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
+}
+
+/**
+ * An AI card's face: the board's card with its die and every name and no lid (standing, the blower is the lid), as the 2D shows the card once its
+ * lid has faded; the die runs over it (`Chips3D`).
+ */
+function npuFace(T: Theme, visual: string, i: number): Container {
+  const root = cardArt(T, visual, i, true), geo = npuGeo(visual), o = cardOrigin(i, visual), die = new Container(), plate = new Graphics();
+  die.position.set(o.x + geo.origin.x, o.y + geo.origin.y);
+  npuFar(plate, T, geo.plan);
+  die.addChild(plate, npuNear(T, geo.plan).root);
+  root.addChild(die);
+  return root;
 }
 
 const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3();

@@ -134,12 +134,18 @@ export class GpuView {
   private zoom = 1;
   /** The zoom the card being drawn is seen at (by its size and its distance from the centre): the view of its memory lens reads it. */
   private seen = 1;
-  private readonly rects = new RectCache();
+  private readonly rects: RectCache;
   /** The replay's own clock (ms): packets and glows run on it. */
   private now = 0;
   private lastWall = 0;
 
-  constructor() {
+  /**
+   * `bare`: the 3D view's (three/chips3d.ts): only what moves is drawn. The still die and its names are the card's baked face there, the shroud and
+   * the fans its model; they stay in the tree, not drawn, so the card's rect (`RectCache`) is the same. A card is read where the view is on it, as
+   * the 3D card's swing.
+   */
+  constructor(private readonly bare = false) {
+    this.rects = new RectCache(bare);
     this.root.visible = false;
   }
 
@@ -181,6 +187,7 @@ export class GpuView {
     const fans = plan.fans.map((f) => ({ fan: new EdgeFan(f, T), motor: new FanMotor(fanBank.get(`gpu:${c.slot}`)) })); // the case fans' edge-on look, blades sliding along the module
     const lens = new GpuLensView();
     root.addChild(inner, cover, ...fans.map((f) => f.fan), lens.root);
+    if (this.bare) for (const n of [art, names, subs, cover, ...fans.map((f) => f.fan)]) n.renderable = false;
     this.root.addChild(root);
     return {
       slot: c.slot, plan, root, inner, dyn, glowG, litG, texts, trailG, packetG, cellTexts: new Map(), packets: [], trails: new Map(), flights: [], glow: new Map(), sent: new Map(), born: new Map(), animating: false,

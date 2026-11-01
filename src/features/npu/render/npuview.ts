@@ -68,12 +68,17 @@ export class NpuCardView {
   private T: Theme | null = null;
   private cards: CardView[] = [];
   private zoom = 1;
-  private readonly rects = new RectCache();
+  private readonly rects: RectCache;
   /** The replay's own clock (ms): packets and lights run on it. */
   private now = 0;
   private lastWall = 0;
 
-  constructor() {
+  /**
+   * `bare`: the 3D view's (three/chips3d.ts): only what moves is drawn; the still die and its names are the card's baked face there, the blower its
+   * lid. A card is read where the view is on it, as the 3D card's swing.
+   */
+  constructor(private readonly bare = false) {
+    this.rects = new RectCache(bare);
     this.root.visible = false;
   }
 
@@ -97,6 +102,7 @@ export class NpuCardView {
     die.addChild(glowG, litG, texts, trailG, packetG, near.names, near.subs);
     const cover = npuCover(T, geo);
     root.addChild(die, cover);
+    if (this.bare) for (const n of [plate, near.wires, near.cells, near.names, near.subs, cover]) n.renderable = false;
     this.root.addChild(root);
     const areas = plan.blocks.flatMap((b) => { const a = npuGlyphArea(b); return a ? [{ b, a }] : []; });
     return {

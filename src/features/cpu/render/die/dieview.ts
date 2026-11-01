@@ -55,6 +55,8 @@ export class PlanView {
   legendOn = true;
   /** Whether this view tells the Trace panel's scrubber what it can show (on a multicore die only the selected core's view does). */
   scrubLead = true;
+  /** Draw the near layer's still art (off in 3D: the die's baked face has it, three/chips3d.ts). */
+  still = true;
   private plan: CpuPlan | null = null;
   /** What the replay moves on: the plan, or for a core tile also the shared blocks and the wires out to them. */
   private motion: CpuPlan | null = null;
@@ -119,6 +121,7 @@ export class PlanView {
     this.cellTexts.clear();
     this.art?.root.destroy({ children: true });
     this.art = dieNear(T, plan);
+    this.art.root.renderable = this.still;
     this.root.addChildAt(this.art.root, 0);
     this.byId = new Map(motion.blocks.map((b) => [b.id, b]));
     this.player = new Player(motion);
