@@ -16,12 +16,12 @@ import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
-import { disposeTree, drum, instanced, paint, place, rectBox, rod, rounded, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, instanced, paint, place, rectBox, rod, rounded, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import { nicArt } from '@/features/network/render/net';
-import { driveArt, driveBody, driveKindOf, driveScale, drawDriveLive } from '@/features/storage/render/drives';
+import { driveArt, driveBody, driveKindOf, driveScale, drawDriveLive, slotRect } from '@/features/storage/render/drives';
 import { bayArt, fanMounts, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_D, CASE_Z, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
@@ -40,6 +40,7 @@ import { FAN_MAX, FAN_ZC, coolerModel, radiatorModel, type Model, type RadiatorA
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { band, braidedTube, plug3d, standingPlug } from './cables3d';
 import { card3d, slotCover, type Card3D } from './card3d';
+import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
@@ -233,7 +234,7 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ board
   private buildBoard(s: Snapshot | null) {
-    const T = this.T, slot = mat(0x1a1d24, { roughness: 0.5 }), alu = mat(PALETTE.alu, { metalness: 0.7, roughness: 0.35 }), chip = mat(0x14161b, { roughness: 0.5 });
+    const T = this.T, slot = mat(0x1a1d24, { roughness: 0.5 }), chip = mat(0x14161b, { roughness: 0.5 });
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const emptyId = (id: string) => (filled.has(id) ? undefined : id);
     // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in; while it draws, the
@@ -264,13 +265,20 @@ export class Machine3D {
     PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
     // the back wall's slot covers, where no card's bracket stands
     PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotCover(i)); });
-    M2_SLOTS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 30, chip, emptyId(`m2${i}`)));
+    // an M.2 slot is its connector at the west end and a standoff at the east end, the stick lies between them (`nvmeStick`)
+    M2_SLOTS.forEach((m, i) => {
+      const id = emptyId(`m2${i}`);
+      this.raised(this.root, art, { x: m.x + 8, y: m.y + 70, w: 120, h: m.h - 140 }, BOARD_Z, BOARD_Z + 70, chip, id, LV_RAISED, 6);
+      this.root.add(m2Standoff(m));
+      if (id) pickBox(m, BOARD_Z, BOARD_Z + 40, id);
+    });
     // an empty bay is picked by an unseen plate over its mouth
     BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) pickBox(r, CASE_Z + 2600, CASE_Z + 2620, `sata${i}`); });
-    this.raised(this.root, art, GEO.chip, BOARD_Z, BOARD_Z + 220, alu, 'chipset');
+    const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
+    this.root.add(tag(chipset(GEO.chip, GEO.tier, raise), 'chipset'));
     this.raised(this.root, art, GEO.atx, BOARD_Z, BOARD_Z + 240, slot, 'atx');
     this.raised(this.root, art, GEO.cpw, BOARD_Z, BOARD_Z + 240, slot, 'cpw');
-    this.root.add(tag(drum(GEO.bat.x + GEO.bat.w / 2, GEO.bat.y + GEO.bat.h / 2, BOARD_Z, BOARD_Z + 60, Math.min(GEO.bat.w, GEO.bat.h) / 2, alu, 20), 'bat'));
+    this.root.add(tag(coinCell(GEO.bat), 'bat'));
     // the regulators: each phase's choke and power stage stand up with their own drawing on top, its capacitors and passives are solids (below)
     const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2b2f38, { metalness: 0.35, roughness: 0.45 });
     const inside = (rs: readonly RectLike[], x: number, y: number) => rs.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
@@ -330,7 +338,7 @@ export class Machine3D {
     if (!spec) return;
     const visual = (spec as { visual?: string }).visual ?? '';
     const g = tag(new Group(), d.id);
-    const T = this.T, side = mat(0x14161b, { roughness: 0.5 });
+    const T = this.T;
     switch (spec.kind) {
       case 'cpu': {
         // the package wears `cpuArt` (pins, capacitors, the die's far floorplan); the die above it wears the die view's floorplan with every name
@@ -385,8 +393,9 @@ export class Machine3D {
         break;
       }
       case 'tpm': {
-        const r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier);
-        if (r && h) this.raised(g, this.baker(() => tpmArt(T, visual, h)), r, BOARD_Z, BOARD_Z + 200, side);
+        // the module on its header: a female connector over the pins, the module's PCB on it
+        const r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier), art = h && this.baker(() => tpmArt(T, visual, h));
+        if (r && h && art) tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel = 0) => this.raised(parent, art, rr, z0, z1, s, undefined, LV_RAISED, bevel));
         break;
       }
       case 'psu': {
@@ -398,17 +407,15 @@ export class Machine3D {
       }
       case 'storage': {
         const kind = driveKindOf(visual), b = driveBody(kind, d.slot);
-        const nvme = kind === 'ssd-nvme', hdd = kind === 'hdd';
-        const m = mat(hdd ? 0x8f949b : 0x2d3035, { metalness: hdd ? 0.7 : 0.2, roughness: 0.35 });
         const art = this.baker(() => {
           const c = new Container(), live = new Graphics();
           drawDriveLive(live, T, kind, d.slot, { spin: 0.4, head: 0.35, led: 0, burnt: false });
           c.addChild(driveArt(T, kind, d.slot, spec.name, `${Math.round(((spec as { capacityBytes?: number }).capacityBytes ?? 0) / 1024)}K`), live);
           return c;
         });
-        // an M.2 card lies on its socket; a SATA drive lies on its bay's rails, as thick as a real one for its face
-        this.raised(g, art, b, nvme ? BOARD_Z + 30 : CAGE_Z + 24, nvme ? BOARD_Z + 90 : CAGE_Z + 24 + (hdd ? 190 : 80), m, undefined, LV_RAISED, nvme ? 0 : 12);
-        this.skin(d.id, m);
+        // an M.2 stick lies on its socket and standoff; a SATA drive lies on its bay's rails, its body as a real one's
+        const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
+        this.skin(d.id, kind === 'ssd-nvme' ? nvmeStick(g, slotRect(d.slot), b, raise) : sataDrive(g, kind === 'hdd', b, CAGE_Z + 24, raise));
         break;
       }
       case 'vrm-sink': case 'ram-sink': {

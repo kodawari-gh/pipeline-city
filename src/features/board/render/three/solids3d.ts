@@ -41,6 +41,7 @@ function canTop() {
 export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Group {
   const out = new Group();
   const caps: Item[] = [], capTops: Item[] = [], bands: Item[] = [], bodies: Item[] = [], ends: Item[] = [], legs: Item[] = [], pins: Item[] = [], lga: Item[] = [];
+  const washers: Item[] = [], heads: Item[] = [];
   for (const s of solids) {
     const y = -s.y;
     switch (s.kind) {
@@ -61,6 +62,12 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Gro
       case 'leg': legs.push({ x: s.x, y, z: BOARD_Z, sx: 1, sy: 1, sz: 1, rz: LEG_TURN[s.side] }); break;
       case 'pin': pins.push({ x: s.x, y, z: BOARD_Z + 140, sx: s.s, sy: s.s, sz: 280 }); break;
       case 'lga': if (socketEmpty) lga.push({ x: s.x, y, z: BOARD_Z + 76, sx: s.s, sy: s.s, sz: 12 }); break;
+      case 'screw': {
+        // the mounting screw over its standoff: a washer and a pan head with its cross slot
+        washers.push({ x: s.x, y, z: BOARD_Z + 5, sx: s.r * 0.78, sy: s.r * 0.78, sz: 10 });
+        heads.push({ x: s.x, y, z: BOARD_Z + 22, sx: s.r * 0.58, sy: s.r * 0.58, sz: 24 });
+        break;
+      }
       default: break; // chokes and power stages are raised with their own art (machine3d.ts)
     }
   }
@@ -76,5 +83,19 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Gro
   add(legs, gullWing(8), tinned);
   add(pins, box, gold);
   add(lga, box, gold);
+  add(washers, can, mat(0x6c7480, { metalness: 0.8, roughness: 0.4 }));
+  const side = mat(0x9aa3ae, { metalness: 0.85, roughness: 0.32 });
+  add(heads, new CylinderGeometry(1, 1, 1, 24).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: screwTop(), metalness: 0.8, roughness: 0.35 }), side] as unknown as ReturnType<typeof mat>);
   return out;
+}
+
+/** A pan head's top: a lit dome with its cross slot. */
+function screwTop() {
+  return paint(64, 64, (c, w, h) => {
+    const g = c.createRadialGradient(w * 0.38, h * 0.35, 2, w / 2, h / 2, w / 2);
+    g.addColorStop(0, '#d5dbe3'); g.addColorStop(1, '#6f7884');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(20,24,30,0.8)'; c.lineWidth = 7; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(w * 0.24, h / 2); c.lineTo(w * 0.76, h / 2); c.moveTo(w / 2, h * 0.24); c.lineTo(w / 2, h * 0.76); c.stroke();
+  });
 }

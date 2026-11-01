@@ -21,7 +21,8 @@ export type Solid =
   | { kind: 'cap'; x: number; y: number; r: number }
   | { kind: 'smd' | 'choke' | 'stage'; x: number; y: number; w: number; h: number }
   | { kind: 'leg'; x: number; y: number; w: number; h: number; /** The chip's side it leaves from (its point is on that edge). */ side: 'n' | 's' | 'w' | 'e' }
-  | { kind: 'pin' | 'lga'; x: number; y: number; s: number };
+  | { kind: 'pin' | 'lga'; x: number; y: number; s: number }
+  | { kind: 'screw'; x: number; y: number; r: number };
 
 /** A soft drop shadow under a part that stands off the board. */
 export function shadow(c: Ctx, x: number, y: number, w: number, h: number, r: number, off = 12, a = 0.28) {
@@ -44,6 +45,7 @@ export function row(c: Ctx, x: number, y: number, n: number, dx: number, dy: num
 /** A mounting hole with its screw: a copper-ringed pad, the washer, a pan head with a cross slot (it threads into the case's standoff below). */
 export function hole(c: Ctx, x: number, y: number, r = 74) {
   const { g, P, T } = c;
+  c.solid?.({ kind: 'screw', x, y, r });
   disc(g, x, y, r + 34, { fill: P.board }); // the keepout: bare board round the screw, whatever was drawn under it
   disc(g, x, y, r, { fill: P.panel, stroke: P.edge, lw: 8 });
   disc(g, x, y, r + 26, { stroke: P.silk, lw: 4, sa: 0.35 });
