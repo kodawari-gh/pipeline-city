@@ -108,13 +108,13 @@ describe.each(TIER_GEO.map((g) => g.tier))('traffic on the tier %i board', (tier
     expect(driveChain('cpu', false)).toEqual([]);
   });
 
-  it('puts a card in the first slot on the CPU, in the others on the chipset and DMI', () => {
+  it('puts a card in a x8 or wider slot on the CPU, in a x4 slot on the chipset and DMI, on all the pairs of its slot', () => {
     const { g, map } = setup();
     g.pcie.forEach((_, k) => {
-      const legs = resolve(map, slotChain('pcie' + k, false));
-      expect(legs.map((l) => l.bus)).toEqual(k === 0 ? ['pcie'] : ['pcie', 'dmi']);
-      expect(legs[0]!.lanes.length).toBe(k === 0 ? 12 : 4);
-      expect(near(first(legs[0]!.lanes[0]!), k === 0 ? PKG : g.chip, 120)).toBe(true);
+      const legs = resolve(map, slotChain('pcie' + k, false)), { pairs, cpu } = g.pcieLinks[k]!;
+      expect(legs.map((l) => l.bus)).toEqual(cpu ? ['pcie'] : ['pcie', 'dmi']);
+      expect(legs[0]!.lanes.length).toBe(pairs);
+      expect(near(first(legs[0]!.lanes[0]!), cpu ? PKG : g.chip, 120)).toBe(true);
     });
   });
 

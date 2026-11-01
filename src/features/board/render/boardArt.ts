@@ -1,10 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
-import { BOARD_TIERS } from '../sim/specs';
+import { BOARD_TIERS, pcieLabel } from '../sim/specs';
 import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
-import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './layout/pins';
+import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotLanding, slotTie, xtalPads } from './layout/pins';
 import { tuneBump } from './layout/match';
 import { pchLedHousing } from './wiring/pchlive';
 import { skinOf, slotArmour } from './skins';
@@ -44,6 +44,7 @@ export function strokeLane(g: Graphics, l: Lane, pair = 0) {
 function drawPads(g: Graphics, lanes: { l: Lane; w: number }[], color: string) {
   for (const { l, w } of lanes) {
     for (const end of [0, 1]) {
+      if (end === 0 && (l.hops?.[0]?.[0] ?? 99) < 20) continue; // (a lane that dives at its pin has no pad on the surface)
       const n = l.pts.length, a = end === 0 ? l.pts[1]! : l.pts[n - 2]!, p = end === 0 ? l.pts[0]! : l.pts[n - 1]!;
       const dx = p[0] - a[0], dy = p[1] - a[1], d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
       const L = 34, W = w;
@@ -178,7 +179,15 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
   geo.dimm.forEach((d, i) => dimmSocket(c, d.rect, i));
 
   // ---- PCIe slots ----
-  geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, slotArmour(geo.tier, i), i === 0));
+  geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe ${pcieLabel(BOARD_TIERS[geo.tier]!.pcieWidths[i]!)}${i === 0 ? ' · GPU' : ''}`, slotArmour(geo.tier, i), i === 0));
+  // the send pairs' coupling capacitors: a row of tiny pairs of parts across their traces, just short of the slot (the CPU's slots only)
+  geo.pcie.forEach((r, i) => {
+    if (!geo.pcieLinks[i]!.cpu) return;
+    for (const q of slotLanding(r, geo.pcieLinks[i]!.pairs, 'n')) if (!q.far) for (const dx of [-3.2, 3.2]) {
+      g.rect(q.x + dx - 2.6, r.y - 84, 5.2, 16).fill({ color: '#a98f6c' });
+      g.rect(q.x + dx - 2.6, r.y - 84, 5.2, 3.5).rect(q.x + dx - 2.6, r.y - 71.5, 5.2, 3.5).fill({ color: '#d6d9dc' });
+    }
+  });
   // every other slot's supply ties into the board's plane: a tab at its latch end, a stub to a patch of copper stitched with vias
   geo.pcie.forEach((r, i) => {
     if (i === 0) return; // the x16 slot's supply arrives on the rail `pwrpcie` from the 24-pin

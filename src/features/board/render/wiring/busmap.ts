@@ -6,6 +6,7 @@ import {
   STORAGE_BASE, STORAGE_PORTS, STORAGE_STRIDE, TPM_BASE, TPM_SIZE,
 } from '@/core/sim/memmap';
 import type { UncoreUnit } from '@/features/cpu/render/die/uncore';
+import { GEO } from '../layout/layout';
 import type { Bus, BusKind, Lane } from './routes';
 
 /**
@@ -72,13 +73,13 @@ export function driveChain(slot: string, toDrive: boolean): Hop[] {
   return toDrive ? [{ bus: 'dmi', dir: 1 }, { bus: 'sata', dir: 1, pick: group }] : [{ bus: 'sata', dir: -1, pick: group }, { bus: 'dmi', dir: -1 }];
 }
 
-/** A card in a PCIe slot (`pcie<k>`) and the CPU talk. The first slot is the CPU's own x16; the others hang off the chipset, so cross DMI. */
+/** A card in a PCIe slot (`pcie<k>`) and the CPU talk. The CPU feeds the x8 and wider slots itself; a x4 slot hangs off the chipset, so its messages cross DMI. */
 export function slotChain(slot: string, toCard: boolean): Hop[] {
   const m = /^pcie(\d+)$/.exec(slot);
   if (!m) return [];
-  const k = Number(m[1]), group = { group: k }, d = toCard ? 1 : -1;
-  if (k === 0) return [{ bus: 'pcie', dir: d, pick: group }];
-  return toCard ? [{ bus: 'dmi', dir: 1 }, { bus: 'pcie', dir: 1, pick: group }] : [{ bus: 'pcie', dir: -1, pick: group }, { bus: 'dmi', dir: -1 }];
+  const pick = { header: slot }, d = toCard ? 1 : -1;
+  if (GEO.pcieLinks[Number(m[1])]?.cpu ?? true) return [{ bus: 'pcie', dir: d, pick }];
+  return toCard ? [{ bus: 'dmi', dir: 1 }, { bus: 'pcie', dir: 1, pick }] : [{ bus: 'pcie', dir: -1, pick }, { bus: 'dmi', dir: -1 }];
 }
 
 /** The board's own ethernet: jack, PHY, the I/O hub, its uplink to the CPU (the jack's lanes run PHY -> jack, the PHY's PHY -> hub). `down`: toward the CPU. */

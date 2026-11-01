@@ -1,6 +1,6 @@
 // Board model: pure data plus validation. A Board is plain JSON-serialisable data.
 
-import { BOARD_TIERS, CASE_TIERS, PCIE_POWER_MIN_TIER, PCIE_SLOT_W, cardLeads, caseMounts, getSpec, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
+import { BOARD_TIERS, CASE_TIERS, PCIE_POWER_MIN_TIER, PCIE_SLOT_W, cardLeads, caseMounts, getSpec, pcieLabel, type DeviceSpec, type PsuSpec, type SlotType } from "./specs";
 
 export interface InstalledDevice {
   /** Instance id, unique within the board (e.g. "dev3"). */
@@ -120,7 +120,7 @@ export const slotFitsWidth = (slot: SlotInfo, spec: DeviceSpec): boolean => slot
 /** Why `spec` does not go into `slot`, or null if it does. */
 export function slotRefusal(slot: SlotInfo, spec: DeviceSpec): string | null {
   if (!slotAccepts(slot.type, spec.slot)) return `${spec.name} needs a ${spec.slot} slot, "${slot.id}" is ${slot.type}`;
-  if (!slotFitsWidth(slot, spec)) return `${spec.name} needs a x${spec.pcieWidth} slot, "${slot.id}" is only x${slot.width}`;
+  if (!slotFitsWidth(slot, spec)) return `${spec.name} needs a ${pcieLabel(spec.pcieWidth ?? 1)} slot, "${slot.id}" is only ${pcieLabel(slot.width ?? 1)}`;
   return null;
 }
 
@@ -183,7 +183,7 @@ export function install(board: Board, specId: string, slotId?: string): Result<{
       return {
         ok: false,
         reason: total === 0 ? `this board has no ${spec.slot} slot for ${spec.name}`
-          : wide === 0 ? `no ${spec.slot} slot on this board is wide enough for ${spec.name} (needs x${spec.pcieWidth}, the widest is x${Math.max(...all.map((s) => s.width ?? 0))})`
+          : wide === 0 ? `no ${spec.slot} slot on this board is wide enough for ${spec.name} (needs ${pcieLabel(spec.pcieWidth ?? 1)}, the widest is ${pcieLabel(Math.max(...all.map((s) => s.width ?? 0)))})`
           : `no free ${spec.slot} slot for ${spec.name} (${wide} of ${wide} used)`,
       };
     }

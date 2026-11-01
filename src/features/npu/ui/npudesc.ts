@@ -2,7 +2,7 @@
 // register, each row of the descriptor queue and each multiply-accumulate cell of the array. An id is the card's slot and the part: `pcie1.array`,
 // `pcie1.mac2x3`. Pure. It imports nothing from logic.ts (logic.ts imports this).
 
-import { getSpec, type CardSpec } from '../../board/sim/specs';
+import { getSpec, pcieLabel, type CardSpec } from '../../board/sim/specs';
 import type { Snapshot } from '@/worker/game/game';
 import { GPU_HOP_TICKS, NpuOp } from '@/core/sim/memmap';
 import type { Description } from '@/core/ui/regions';
@@ -83,7 +83,7 @@ export function describeNpuId(id: string, s?: Snapshot | null): Description | nu
     case 'host': return {
       title: 'PCIe link',
       plain: 'The card\'s connection to the machine through its slot. A launch crosses it on the way in and the answer on the way out, and it lights up while that happens. The CPU also fills card memory through it, before the launch.',
-      nerd: `${GPU_HOP_TICKS} card ticks each way${spec?.pcieWidth ? ` | x${spec.pcieWidth}` : ''}${v ? ` | now ${now}` : ''}`,
+      nerd: `${GPU_HOP_TICKS} card ticks each way${spec?.pcieWidth ? ` | ${pcieLabel(spec.pcieWidth)}` : ''}${v ? ` | now ${now}` : ''}`,
     };
     case 'ctl': return {
       title: 'Control registers',

@@ -38,8 +38,10 @@ export interface TierGeo {
   usb: number; dp: boolean;
   /** The BIOS flash, west of the chipset on a straight SPI link (four lanes from its east legs to the chipset's west legs). */
   bios: Rect;
-  /** First leg (index on the chipset's west side) of the four lanes to each PCIe slot after the first (slots 1, 2, ...), of the BIOS and of the I/O controller's link. */
+  /** First leg (index on the chipset's west side) of the lanes to each slot the chipset feeds, of the BIOS and of the I/O controller's link. */
   west: { slots: number[]; bios: number; sio: number };
+  /** Each PCIe slot's wiring: its pairs (a real slot's two per lane, so 32 on a x16 connector) and whether the CPU feeds it (x8 and wider; the chipset has the legs for no more than a x4). */
+  pcieLinks: { pairs: number; cpu: boolean }[];
   /** x of the DMI column that leaves the CPU's south edge: the middle of the chipset's north side. */
   dmiX: number;
   codec: Rect;
@@ -119,9 +121,9 @@ interface Spec {
 // (every board's west edge is `BD_X`; the M.2 stack sits under the memory bank, above the chipset)
 const SPECS: Spec[] = [
   { tier: 0, form: 'mini-ITX', bd: R(BD_X, -2150, 4700, 4000), phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(180, 1140, 400, 400), bank: { x: 1100, top: 920, span: 1500 } },
-  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1000, span: 1800 } },
-  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
-  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
+  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [0], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1000, span: 1800 } },
+  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [7], bios: 1, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
+  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [10], bios: 5, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
 ];
 
 /** Rail lengths going down the board, widest slot first (a real x16 slot's 89 mm, then shorter): every slot ends west of the CPU's DMI lanes,
@@ -206,10 +208,11 @@ function build(s: Spec): TierGeo {
   ];
   if (s.tier >= 1) holes.push([bd.x + 150 + Math.round((east - bd.x - 300) * 0.28), south - 150], [cpw.x - 220, bd.y + 150]); // the top one stays west of the 8-pin
   if (s.tier >= 2) holes.push([east - 150, 1520]);
-  if (s.tier >= 3) holes.push([bd.x + 150, 1200], [east - 150, 2300], [-800, 1450]);
+  if (s.tier >= 3) holes.push([bd.x + 150, 1200], [east - 150, 2300], [-1500, 1450]);
   return {
     tier: s.tier, form: s.form, bd,
     io: IO_PLATE,
+    pcieLinks: BOARD_TIERS[s.tier]!.pcieWidths.map((w) => ({ pairs: 2 * Math.min(w, 16), cpu: w >= 8 })),
     chip: s.chip, dmiX: legRun(s.chip, 'n', 6).reduce((a, p) => a + p[0], 0) / 6,
     hub: HUB, // 8 legs a side, 26 apart, centred on y 0: the CPU's four lanes on the east side, two per port on the west
     usb: s.usb, dp: s.dp,
@@ -232,7 +235,7 @@ function build(s: Spec): TierGeo {
     dpwm, dpwmWest,
     sio, hdrs,
     // the crystals: the CPU's under its socket (west of the x16 lanes), the chipset's above its last north legs (east of the DMI lanes)
-    xtalCpu: R(-600, 650, 100, 56),
+    xtalCpu: R(-640, 650, 100, 56),
     xtalPch: R(legsOf(s.chip, 'n').at(-2)![0] + 13 - 50, s.chip.y - 150, 100, 56),
     // the top board: a two-digit debug display under the chipset (fed from its south legs) and an RGB strip along the bottom edge
     dbg: s.tier >= 3 ? R(legRun(s.chip, 's', 4, -7)[0]![0] + 39 - 150, s.chip.y + s.chip.h + 110, 300, 170) : null,

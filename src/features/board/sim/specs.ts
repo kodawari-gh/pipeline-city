@@ -380,6 +380,9 @@ const specList: DeviceSpec[] = [
 
 export const DEVICE_SPECS: Readonly<Record<string, DeviceSpec>> = Object.fromEntries(specList.map((s) => [s.id, s]));
 
+/** A slot's width as a player reads it: no real slot is wider than x16, so the sim's 32 is a x16 connector at twice the rate. */
+export const pcieLabel = (width: number): string => (width > 16 ? 'x16 Gen5' : `x${width}`);
+
 export function getSpec(id: string): DeviceSpec | undefined {
   return DEVICE_SPECS[id];
 }
@@ -421,7 +424,7 @@ export interface BoardTierSpec {
   /** Price to buy it (also the price of a replacement of the same tier when the board is burnt). */
   price: number;
   slots: Partial<Record<SlotType, number>>;
-  /** Lane width of each `pcie` slot, in slot order (`pcie0`, `pcie1`, ...): a card fits a slot at least as wide as its `pcieWidth`. */
+  /** Lane width of each `pcie` slot, in slot order (`pcie0`, `pcie1`, ...): a card fits a slot at least as wide as its `pcieWidth`. 32 is the bandwidth of 32 lanes: a real x16 connector at twice the rate (`pcieLabel`). */
   pcieWidths: number[];
   features: BoardFeatures;
   /** The CPU core regulator. */

@@ -116,7 +116,15 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       expect((near(p0, socket, 6) && near(p1, g.hub, 14)) || (near(p0, g.hub, 14) && near(p1, g.io, 14)), 'usb lane ends on its footprints').toBe(true);
     }
     expect(by('usb')!.lanes.length).toBe(4 + 2 * g.usb);
-    if (g.pcie[0]) { const b = by('pcie')!; expect(b.lanes.length).toBe(12 + 4 * (g.pcie.length - 1)); for (const l of b.lanes.slice(0, 12)) expect(near(l.pts[0]!, socket, 14) && near(l.pts[l.pts.length - 1]!, g.pcie[0], 14), 'x16 lane ends on its footprints').toBe(true); b.lanes.slice(12).forEach((l, i) => expect(near(l.pts[0]!, g.chip, 14) && near(l.pts[l.pts.length - 1]!, g.pcie[1 + Math.floor(i / 4)]!, 14), 'chipset slot lane ends on its footprints').toBe(true)); }
+    if (g.pcie[0]) {
+      const b = by('pcie')!;
+      g.pcie.forEach((r, k) => {
+        const { pairs, cpu } = g.pcieLinks[k]!, lanes = b.heads!.find((h) => h.name === 'pcie' + k)!.lanes;
+        expect(pairs, 'two pairs a lane').toBe(2 * Math.min(spec.pcieWidths[k]!, 16));
+        expect(lanes.length, `slot ${k} has all its pairs`).toBe(pairs);
+        for (const l of lanes) expect(near(l.pts[0]!, cpu ? socket : g.chip, 14) && near(l.pts[l.pts.length - 1]!, r, 14), `slot ${k} lane ends on its footprints`).toBe(true);
+      });
+    }
     const nv = by('nvme');
     expect(nv?.lanes.length ?? 0).toBe(g.m2.length * NVME_LANES);
     for (const l of nv?.lanes ?? []) expect(near(l.pts[0]!, socket, 6) && g.m2.some((m) => near(l.pts[l.pts.length - 1]!, m, 14)), 'nvme lane ends on a connector').toBe(true);
@@ -132,8 +140,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const g = sockets();
     const shrink = (r: Rect, d: number): Rect => ({ x: r.x + d, y: r.y + d, w: r.w - 2 * d, h: r.h - 2 * d });
     const hits = (l: Lane, r: Rect) => {
-      for (let i = 1; i < l.pts.length; i++) {
-        const a = l.pts[i - 1]!, b = l.pts[i]!;
+      for (const part of visibleParts(l)) for (let i = 1; i < part.length; i++) { // (where a lane dives it is on an inner layer)
+        const a = part[i - 1]!, b = part[i]!;
         const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
         if (x1 > r.x && x0 < r.x + r.w && y1 > r.y && y0 < r.y + r.h) return true;
       }
@@ -167,7 +175,11 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const legsN = legsOf(g.chip, 'n');
     for (const l of by('dmi')!.lanes) hit(end(l), legsN, 'dmi lane ends on a leg');
     for (const l of by('sata')!.lanes) { hit(end(l), g.sata.flatMap((p) => sataPads(p)), 'sata lane ends on a port pad'); hit(l.pts[0]!, legsOf(g.chip, 'e'), 'sata lane starts on a leg'); }
-    if (g.pcie[0]) by('pcie')!.lanes.forEach((l, i) => hit(end(l), i < 12 ? pciePads(g.pcie[0]!, 12, 'n') : pciePads(g.pcie[1 + Math.floor((i - 12) / 4)]!, 4, 's'), 'pcie lane ends on a slot pad'));
+    g.pcie.forEach((r, k) => {
+      const n = g.pcieLinks[k]!.pairs / 2, lanes = by('pcie')!.heads!.find((h) => h.name === 'pcie' + k)!.lanes, north = pciePads(r, n, 'n'), south = pciePads(r, n, 's');
+      for (const l of lanes) hit(end(l), [...north, ...south], 'pcie lane ends on a slot pad');
+      for (const side of [north, south]) for (const p of side) expect(lanes.filter((l) => Math.hypot(end(l)[0] - p[0], end(l)[1] - p[1]) < 0.6).length, 'each pad takes one pair').toBe(1);
+    });
     const hubW = legsOf(g.hub, 'w'), hubE = legsOf(g.hub, 'e');
     for (const l of by('usb')!.lanes) {
       const a = l.pts[0]!, b = end(l);
@@ -186,18 +198,18 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     hit(by('pwr12')!.lanes[0]!.pts[0]!, [atx12v(g.atx)], 'pwr12 starts on the 24-pin');
   });
 
-  it('starts every lane that leaves the CPU on a pin of its package (the outer row, on the 20 grid), each pin used once', () => {
-    sockets();
+  it('starts every lane that leaves the CPU on a pin of its package (one of its three rows, on the 20 grid), each pin used once', () => {
+    const g = sockets();
     const onPin = (p: [number, number]) => {
       const gx = (p[0] - (PKG.x + 70)) / 20, gy = (p[1] - (PKG.y + 70)) / 20, whole = (v: number) => Math.abs(v - Math.round(v)) < 0.03;
-      return (Math.abs(p[0] - (PKG.x + PKG.w - 24)) < 0.6 && whole(gy)) || (Math.abs(p[0] - (PKG.x + 24)) < 0.6 && whole(gy))
-        || (Math.abs(p[1] - (PKG.y + PKG.h - 24)) < 0.6 && whole(gx)) || (Math.abs(p[1] - (PKG.y + 24)) < 0.6 && whole(gx));
+      return [24, 44, 64].some((o) => (Math.abs(p[0] - (PKG.x + PKG.w - o)) < 0.6 && whole(gy)) || (Math.abs(p[0] - (PKG.x + o)) < 0.6 && whole(gy))
+        || (Math.abs(p[1] - (PKG.y + PKG.h - o)) < 0.6 && whole(gx)) || (Math.abs(p[1] - (PKG.y + o)) < 0.6 && whole(gx)));
     };
     const starts: string[] = [];
     for (const b of buildBuses()) {
       if (b.id === 'mem') for (const t of b.taps!) for (const l of t.lanes) { expect(onPin(l.pts[0]!), 'mem lane on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
       else if (b.id === 'nvme' || b.id === 'dmi' || b.id === 'video' || b.id === 'dp' || b.id === 'svid') for (const l of b.lanes) { expect(onPin(b.id === 'svid' ? l.pts[l.pts.length - 1]! : l.pts[0]!), `${b.id} lane on a pin`).toBe(true); starts.push(l.pts[b.id === 'svid' ? l.pts.length - 1 : 0]!.join()); }
-      else if (b.id === 'pcie') for (const l of b.lanes.slice(0, 12)) { expect(onPin(l.pts[0]!), 'x16 lane on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
+      else if (b.id === 'pcie') g.pcieLinks.forEach((c, k) => { if (c.cpu) for (const l of b.heads!.find((h) => h.name === 'pcie' + k)!.lanes) { expect(onPin(l.pts[0]!), 'pcie lane on a pin').toBe(true); starts.push(l.pts[0]!.join()); } });
       else if (b.id === 'usb') for (const l of b.lanes.slice(0, 4)) { expect(onPin(l.pts[0]!), 'usb uplink on a pin').toBe(true); starts.push(l.pts[0]!.join()); }
     }
     expect(new Set(starts).size, 'no two lanes on one pin').toBe(starts.length);
@@ -290,9 +302,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
       const p = pointAt(l, s), vr = Math.max(11, b.w * 0.6);
       for (const o of buses) {
         if (o === b) continue;
-        for (const m of lanesOf(o)) for (const part of visibleParts(m)) for (let i = 1; i < part.length; i++) {
-          expect(sd(p, part[i - 1]!, part[i]!), `${b.id} via at ${Math.round(p[0])},${Math.round(p[1])} on ${o.id}`).toBeGreaterThan(vr + o.w / 2 - 2);
-        }
+        let near = Infinity; // (one check a via and bus: the zigzags make for thousands of segments)
+        for (const m of lanesOf(o)) for (const part of visibleParts(m)) for (let i = 1; i < part.length; i++) near = Math.min(near, sd(p, part[i - 1]!, part[i]!));
+        expect(near, `${b.id} via at ${Math.round(p[0])},${Math.round(p[1])} on ${o.id}`).toBeGreaterThan(vr + o.w / 2 - 2);
       }
     }
   });
@@ -380,7 +392,9 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     g.holes.forEach(([hx, hy], i) => {
       const p: [number, number] = [hx, hy];
       for (const [name, r] of parts) expect(rectDist(p, r), `hole ${i} vs ${name}`).toBeGreaterThan(R);
-      for (const l of lanes) for (let k = 1; k < l.pts.length; k++) expect(segDist(p, l.pts[k - 1]!, l.pts[k]!), `hole ${i} vs a lane`).toBeGreaterThan(R);
+      let near = Infinity;
+      for (const l of lanes) for (let k = 1; k < l.pts.length; k++) near = Math.min(near, segDist(p, l.pts[k - 1]!, l.pts[k]!));
+      expect(near, `hole ${i} vs a lane`).toBeGreaterThan(R);
       g.holes.forEach(([ox, oy], j) => { if (j > i) expect(Math.hypot(ox - hx, oy - hy), `holes ${i} and ${j}`).toBeGreaterThan(2 * R); });
       // the screw stays on the board
       expect(inside({ x: hx - 66, y: hy - 66, w: 132, h: 132 }, g.bd)).toBe(true);
@@ -470,8 +484,8 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (const [n, r] of patches) {
       expect(inside(r, g.bd), `${n} tie on the board`).toBe(true);
       const grown = { x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 28 };
-      for (const l of lanes) for (let i = 1; i < l.pts.length; i++) {
-        const a = l.pts[i - 1]!, b = l.pts[i]!, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+      for (const l of lanes) for (const part of visibleParts(l)) for (let i = 1; i < part.length; i++) {
+        const a = part[i - 1]!, b = part[i]!, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
         if (n.startsWith('slot')) expect(x1 > grown.x && x0 < grown.x + grown.w && y1 > grown.y && y0 < grown.y + grown.h, `${n}'s tie meets a lane`).toBe(false);
       }
     }

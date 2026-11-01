@@ -15,6 +15,8 @@ export const FADE_MS = 320;
 /** Length of the packet's bright head along the trace (world units). */
 const HEAD = 150;
 const MAX_RUNS = 80;
+/** A message lights at most this many lanes of a wide link (a x16 slot has 32): every frame strokes each lit lane four times. */
+const MAX_LIT = 16;
 
 /** One message on a set of parallel lanes. `dir` 1 runs from each lane's first point to its last, -1 the other way. */
 interface Run { lanes: Lane[]; dir: 1 | -1; color: string; w: number; t0: number; dur: number }
@@ -61,8 +63,8 @@ export class BusFlow {
   /** Start a message on `lanes` at game time `now` (+ `delay`). Returns how long the trip takes, so a next hop can start when this one ends. */
   send(lanes: Lane[], dir: number, color: string, now: number, w: number, delay = 0): number {
     const longest = lanes.reduce((m, l) => Math.max(m, l.len), 0);
-    const dur = Math.max(MIN_MS, Math.min(MAX_MS, longest / SIGNAL_SPEED));
-    this.runs.push({ lanes, dir: dir < 0 ? -1 : 1, color, w, t0: now + delay, dur });
+    const dur = Math.max(MIN_MS, Math.min(MAX_MS, longest / SIGNAL_SPEED)), every = Math.ceil(lanes.length / MAX_LIT);
+    this.runs.push({ lanes: every > 1 ? lanes.filter((_, i) => (i + 1) % every === 0) : lanes, dir: dir < 0 ? -1 : 1, color, w, t0: now + delay, dur });
     if (this.runs.length > MAX_RUNS) this.runs.shift();
     return dur;
   }

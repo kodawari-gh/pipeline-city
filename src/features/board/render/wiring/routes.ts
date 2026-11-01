@@ -5,7 +5,7 @@ import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from '../layout/layout';
 import {
-  LEG_PITCH, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPinX, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPinX, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, sataPads, slotLanding,
 } from '../layout/pins';
 
 export { MEM_SPACING, SATA_LANES };
@@ -204,18 +204,22 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
 });
 
 /**
- * The columns that leave the south edge of the package, west to east: the CPU's clock (from its crystal), PCIe x16 (lands on the first slot),
- * DMI (steps east onto the chipset's north legs), then one NVMe column per M.2 (the lowest M.2 in the westmost column, so none crosses
- * another). Every PCIe slot ends before the DMI column.
+ * The columns that leave the south edge of the package, west to east: the CPU's clock (from its crystal), the PCIe pins (32 pairs, on the outer row for the first
+ * slot, on the inner rows for the others the CPU feeds), DMI (steps east onto the chipset's north legs), then one NVMe column per M.2 (the lowest M.2 in the
+ * westmost column, so none crosses another). Every PCIe slot ends before the DMI column.
  */
-export const PCIE_X = -250, DMI_X = 80, NVME_DX = 90;
+export const PCIE_X = -210, DMI_X = 240, NVME_DX = 90;
+/** The y where the first slot's lanes step west toward its pads, and the first of the lanes that dive for a slot further down; how far short of a slot a lane comes up (a second row is `PCIE_STAGGER` further). */
+const PCIE_STEP_Y = 730, PCIE_DIVE_Y = 600, PCIE_UP = 200, PCIE_STAGGER = 40;
+/** How far short of a slot a lane dives on its way under it, and how far past the slot it turns back. */
+const SLOT_DIVE = 36, SLOT_PAST = 40;
 /** The package's west edge, north to south: the SVID lanes (from the regulator's controller), the display lanes (their run, and the x where
  * they climb to the rear I/O), the USB lanes (on the CPU's centre line, to the hub). */
 export const SVID_Y = -420, VIDEO_Y0 = -300, VIDEO_RAMP_X = -1500;
 /** How far in from the package's corners the core-voltage runs land on its north edge. */
 const VCORE_IN = 90;
 /** x of NVMe column `j` (0 the westmost), on its own pads of the package's south edge. */
-export const nvmeX = (j: number) => 270 + NVME_DX * j;
+export const nvmeX = (j: number) => 340 + NVME_DX * j;
 /** x where the memory rail ends: past the bank's last socket and past the last phase's output, so every output lands on the rail. */
 export const vdimmEnd = (g: TierGeo) => {
   const last = g.dimm[g.dimm.length - 1]!;
@@ -238,6 +242,7 @@ function addHops(buses: Bus[]) {
       // clear of the crossed trace and of the via ring, measured along the lane: a slanted crossing needs a longer hop
       const r0 = o.b.w / 2 + Math.max(11, b.w * 0.6) + 20;
       for (const c of crossings(l, o.l)) {
+        if (o.l.hops?.some(([a, z]) => c.t > a && c.t < z)) continue; // (that lane is on an inner layer there)
         const p = pointAt(l, c.s - 1), q = pointAt(l, c.s + 1), u = pointAt(o.l, c.t - 1), v = pointAt(o.l, c.t + 1);
         const sin = Math.abs((q[0] - p[0]) * (v[1] - u[1]) - (q[1] - p[1]) * (v[0] - u[0])) / ((Math.hypot(q[0] - p[0], q[1] - p[1]) * Math.hypot(v[0] - u[0], v[1] - u[1])) || 1);
         const r = r0 / Math.max(0.5, sin);
@@ -300,6 +305,58 @@ function memBus(g: TierGeo, qx: number): Bus {
   return bus;
 }
 
+/** A lane that came down column `x` runs on past a slot's far edge `y` (`dir` its heading), turns back on four 45 degree legs and comes onto the pad `dx` along. */
+function underSlot(x: number, y: number, dir: 1 | -1, dx: number, pad: Pt): Pt[] {
+  const s = Math.sign(dx), a = Math.abs(dx) * 0.3, b = Math.abs(dx) * 0.4, y1 = y + dir * SLOT_PAST;
+  return [[x, y1], [x + s * a, y1 + dir * a], [x + s * (a + b), y1 + dir * a], [x + dx, y1], pad];
+}
+
+/** The arc length of a lane at its point `i`. */
+const arcTo = (l: Lane, i: number) => l.seg.slice(0, i).reduce((a, d) => a + d, 0);
+
+/**
+ * PCIe: every slot has its real pairs (`pcieLinks`), half landing on the side of the slot they come from, half on the other, as send and receive do. A slot the
+ * CPU feeds gets them from the package's south pins, the first slot's on the outer row. They run down in a band 20 apart and step west onto their pads; those
+ * for the far side dive just short of the slot, pass under it and come up beyond it. A slot further down lies behind the ones above it: its lanes dive at the
+ * CPU, on inner rows, and come up in staggered rows of vias above it. A x4 slot's lanes leave the chipset's west legs, run west under the slots and turn onto it.
+ */
+function pcieBus(g: TierGeo): Bus {
+  const lanes: Lane[] = [], groups: Lane[][] = [], heads: { name: string; lanes: Lane[] }[] = [];
+  let row = 0, west = 0;
+  g.pcie.forEach((r, k) => {
+    const { pairs, cpu } = g.pcieLinks[k]!, own: Lane[] = [], far: Lane[] = [];
+    if (cpu) {
+      const land = slotLanding(r, pairs, 'n'), pins = pkgPads(PKG, 's', PCIE_X, pairs, 1, row), farY = r.y + r.h;
+      land.forEach((q, i) => {
+        const pin = pins[i]!, y1 = row ? PCIE_DIVE_Y : PCIE_STEP_Y, up = r.y - PCIE_UP - (i % 2 ? PCIE_STAGGER : 0);
+        const pts: Pt[] = [pin, [pin[0], y1], [q.x, y1 + Math.abs(pin[0] - q.x)]];
+        if (row) pts.push([q.x, up]);
+        const at = pts.length - 1;
+        if (q.far) pts.push([q.x, r.y - SLOT_DIVE], ...underSlot(q.x, farY, 1, q.dx, q.pad));
+        else pts.push(q.pad);
+        const l = mkLane(pts, lanes.length * 37), hops: [number, number][] = row ? [[6, arcTo(l, at)]] : [];
+        if (q.far) hops.push([arcTo(l, at + 1), arcTo(l, pts.length - 2)]);
+        if (hops.length) l.hops = hops;
+        lanes.push(l); own.push(l); if (q.far) far.push(l);
+      });
+      row++;
+    } else {
+      const legs = legsFrom(g.chip, 'w', g.west.slots[west++]!, pairs), yc = mean(legs, 1), near = yc > r.y + r.h / 2 ? 's' : 'n', dir = near === 's' ? -1 : 1;
+      const land = slotLanding(r, pairs, near), ny = near === 's' ? r.y + r.h : r.y, fy = near === 's' ? r.y : r.y + r.h, xl = mean(land.map((q): Pt => [q.x, ny]), 0);
+      for (const pts of bundleOn([[legs[0]![0], yc], [xl, yc], [xl, ny]], pairs, LEG_PITCH, 60, { from: legs, to: land.map((q): Pt => [q.x, ny]), match: { w: 9, flare: 30, axis: 'h', side: 'low' } })) {
+        const end = pts[pts.length - 1]!, q = land.find((p) => Math.abs(p.x - end[0]) < 0.5)!;
+        if (!q.far) { const l = mkLane(pts, lanes.length * 37); lanes.push(l); own.push(l); continue; }
+        const l = mkLane([...pts, ...underSlot(q.x, fy, dir as 1 | -1, q.dx, q.pad)], lanes.length * 37);
+        l.hops = [[arcTo(l, pts.length - 1) - SLOT_DIVE, arcTo(l, l.pts.length - 2)]];
+        lanes.push(l); own.push(l); far.push(l);
+      }
+    }
+    groups.push(own.filter((l) => !far.includes(l)), far);
+    heads.push({ name: 'pcie' + k, lanes: own });
+  });
+  return { id: 'pcie', w: 9, pad: 12, lanes, groups, heads };
+}
+
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
  * Every lane ends on a pin that the part's art draws (`pins.ts`): the CPU socket's escape pads at one end, a pad bar on a socket, a leg
@@ -332,20 +389,8 @@ export function buildBuses(): Bus[] {
     buses.push(mk('dmi', route, DMI_LANES, LEG_PITCH, 9, 0, { from: pkgPads(PKG, 's', DMI_X, DMI_LANES), to: legs, match: { w: 9, flare: 32, side: 'low', margin: 20 } }));
   }
 
-  // PCIe x16: CPU south edge down onto the pads on the first slot's north edge (the lanes open from 20 to 40 apart on 45 degree legs)
-  if (g.pcie[0]) {
-    const r = g.pcie[0], pads = pciePads(r, 12, 'n');
-    buses.push(mk('pcie', [[PCIE_X, qy], [PCIE_X, r.y]], 12, 40, 9, 120, { from: pkgPads(PKG, 's', PCIE_X, 12, 2), to: pads }));
-  }
-
-  // the chipset's own PCIe lanes: four to each slot after the first, from a run of the chipset's west legs, west under the slots, then up
-  // (or, for a slot level with the legs, down) onto the pads on the slot's south edge near its latch end. The slots end one after the
-  // other going down the board, so each group's rise clears the shorter slots below it; the group that rises first runs highest.
-  g.pcie.slice(1).forEach((r, k) => {
-    const legs = legsFrom(g.chip, 'w', g.west.slots[k]!, 4), pads = pciePads(r, 4, 's'), yc = mean(legs, 1), xl = mean(pads, 0);
-    const bus = buses.find((b) => b.id === 'pcie')!;
-    for (const pts of bundleOn([[legs[0]![0], yc], [xl, yc], [xl, pads[0]![1]]], 4, LEG_PITCH, 100, { from: legs, to: pads, match: { w: 9, flare: 40 } })) bus.lanes.push(mkLane(pts, bus.lanes.length * 37));
-  });
+  // PCIe: every slot's pairs (`pcieBus`)
+  if (g.pcie[0]) buses.push(pcieBus(g));
 
   // USB: four lanes from the CPU's west edge to the hub's east legs; from its west legs two lanes per port fan out (all the same way)
   // to the pads on the shield plate, level with each port
@@ -494,7 +539,8 @@ export function buildBuses(): Bus[] {
   // the reference crystals: the CPU's (two lanes up onto pins of its south row) and the chipset's (two lanes down onto its last north legs, east of the DMI lanes)
   {
     const cp = xtalPads(g.xtalCpu, 'n'), cpins = pkgPads(PKG, 's', mean(cp, 0), 2), pp = xtalPads(g.xtalPch, 's', 13), pl = legsOf(g.chip, 'n').slice(-2);
-    buses.push({ id: 'clk', w: 8, lanes: [...cp.map((p, k) => mkLane([p, cpins[k]!], k * 17)), ...pp.map((p, k) => mkLane([p, pl[k]!], k * 17 + 9))] });
+    const up = (p: Pt, q: Pt): Pt[] => [p, [p[0], p[1] - 12], [q[0], p[1] - 12 - Math.abs(q[0] - p[0])], q]; // (the crystal stands west of the PCIe pins: one 45 degree step onto its own)
+    buses.push({ id: 'clk', w: 8, lanes: [...cp.map((p, k) => mkLane(up(p, cpins[k]!), k * 17)), ...pp.map((p, k) => mkLane([p, pl[k]!], k * 17 + 9))] });
   }
 
   // ---- power ----
@@ -571,7 +617,6 @@ export function buildBuses(): Bus[] {
   for (const b of buses) {
     if (b.id === 'mem') b.groups = [b.taps!.flatMap((t) => t.lanes)];
     else if (b.id === 'nvme') b.groups = cut(b, g.m2.map(() => NVME_LANES));
-    else if (b.id === 'pcie') b.groups = cut(b, [12, ...g.pcie.slice(1).map(() => 4)]);
     else if (b.id === 'sata') b.groups = cut(b, g.sata.map(() => SATA_LANES));
     else if (b.id === 'usb') b.groups = cut(b, [4, ...Array.from({ length: g.usb }, () => 2)]);
     else if (['dmi', 'video', 'dp', 'lan'].includes(b.id)) b.groups = [b.lanes];

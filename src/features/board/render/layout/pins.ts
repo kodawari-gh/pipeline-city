@@ -8,17 +8,17 @@ export type Side = 'n' | 's' | 'e' | 'w';
 
 // ---- the CPU package's pins: three rows round its edge (see `cpuArt` in devices.ts), 20 apart, the outer row 24 inside the edge ----
 export const PKG_PIN = 20, PKG_ROW = 24;
-/** `n` pads of the package's outer pin row on one side, `step` pins apart, centred on `at` (a y for the east and west sides, an x for north and south). */
-export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1): Pt[] {
+/** `n` pads of one of the package's pin rows (`row` 0 the outer one) on one side, `step` pins apart, centred on `at` (a y for the east and west sides, an x for north and south). */
+export function pkgPads(pkg: Rect, side: Side, at: number, n: number, step = 1, row = 0): Pt[] {
   const across = side === 'n' || side === 's', base = (across ? pkg.x : pkg.y) + 70, last = Math.floor(((across ? pkg.w : pkg.h) - 140) / PKG_PIN);
-  const first = Math.max(0, Math.min(last - (n - 1) * step, Math.round((at - ((n - 1) * step * PKG_PIN) / 2 - base) / PKG_PIN)));
+  const first = Math.max(0, Math.min(last - (n - 1) * step, Math.round((at - ((n - 1) * step * PKG_PIN) / 2 - base) / PKG_PIN))), inset = PKG_ROW + row * PKG_PIN;
   return Array.from({ length: n }, (_, i) => {
     const c = base + PKG_PIN * (first + i * step);
     switch (side) {
-      case 'e': return [pkg.x + pkg.w - PKG_ROW, c] as Pt;
-      case 'w': return [pkg.x + PKG_ROW, c] as Pt;
-      case 'n': return [c, pkg.y + PKG_ROW] as Pt;
-      default: return [c, pkg.y + pkg.h - PKG_ROW] as Pt;
+      case 'e': return [pkg.x + pkg.w - inset, c] as Pt;
+      case 'w': return [pkg.x + inset, c] as Pt;
+      case 'n': return [c, pkg.y + inset] as Pt;
+      default: return [c, pkg.y + pkg.h - inset] as Pt;
     }
   });
 }
@@ -77,6 +77,15 @@ export function pciePads(r: Rect, n: number, side: 'n' | 's', back = 0): Pt[] {
   return Array.from({ length: n }, (_, j) => [pciePadX(r, last - (n - 1) + j) + (side === 's' ? 20 : 0), side === 'n' ? r.y : r.y + r.h] as Pt);
 }
 
+/**
+ * Where a slot's `n` pairs come in, west to east, 20 apart, from its north or south side: half land on the pads of that side; the others (`far`, a real slot's
+ * other direction) run on under the slot and come back onto the far side's pads from outside, `dx` along.
+ */
+export function slotLanding(r: Rect, n: number, near: 'n' | 's'): { x: number; pad: Pt; far: boolean; dx: number }[] {
+  const a = pciePads(r, n / 2, near), b = pciePads(r, n / 2, near === 'n' ? 's' : 'n'), dx = near === 'n' ? 40 : -40;
+  return a.flatMap((p, j) => [{ x: p[0], pad: p, far: false, dx: 0 }, { x: b[j]![0] - dx, pad: b[j]!, far: true, dx }]).sort((p, q) => p.x - q.x);
+}
+
 // ---- M.2 sockets: nine contacts at the west end, 22 apart, centred; the three signal lanes use the middle ones ----
 export const M2_PITCH = 22, M2_CONTACTS = 9;
 /** All eight contacts of a socket (x is where the pad sits, just inside the housing's west edge). */
@@ -84,6 +93,7 @@ export function m2Contacts(m: Rect): Pt[] {
   return Array.from({ length: M2_CONTACTS }, (_, k) => [m.x + 40, m.y + m.h / 2 + (k - (M2_CONTACTS - 1) / 2) * M2_PITCH] as Pt);
 }
 export const m2Pads = (m: Rect): Pt[] => m2Contacts(m).slice(3, 6);
+
 
 // ---- SATA ports: three signal pads on the west edge, 26 apart ----
 export const SATA_LANES = 3, SATA_PAD = 26;

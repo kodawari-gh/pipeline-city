@@ -392,14 +392,14 @@ describe("PCIe slot widths", () => {
     }
   });
 
-  it("the 32 lane GPU only fits the top board's x32 slot", () => {
+  it("the 32 lane GPU only fits the top board's x16 Gen5 slot", () => {
     for (const tier of [0, 1, 2]) {
       const r = install(createBoard(tier), "gpu3");
       expect(r.ok).toBe(false);
-      expect((r as { reason: string }).reason).toMatch(/wide enough|needs a x32/);
+      expect((r as { reason: string }).reason).toMatch(/wide enough|needs a x16 Gen5/);
     }
     const b = createBoard(3);
-    expect(install(b, "gpu3", "pcie1")).toMatchObject({ ok: false, reason: expect.stringContaining("x32") });
+    expect(install(b, "gpu3", "pcie1")).toMatchObject({ ok: false, reason: expect.stringContaining("x16 Gen5") });
     expect(placed(b, "gpu3")).toBe("pcie0");
   });
 
