@@ -67,6 +67,15 @@ try {
   // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
   for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
   await p.waitForTimeout(Number(flag('wait', 2500)));
+  // --fps: count animation frames for 3 s and print the mean frame rate and the slowest frame (the 3D target is 60 FPS)
+  if (args.includes('--fps')) {
+    const r = await p.evaluate(() => new Promise((done) => {
+      let n = 0, worst = 0, t0 = performance.now(), prev = t0;
+      const f = (t) => { n++; worst = Math.max(worst, t - prev); prev = t; if (t - t0 < 3000) requestAnimationFrame(f); else done({ fps: Math.round((n / (t - t0)) * 10000) / 10, worstMs: Math.round(worst) }); };
+      requestAnimationFrame(f);
+    }));
+    console.log(`FPS ${r.fps} (slowest frame ${r.worstMs} ms)`);
+  }
   const clip = flag('clip', '') === 'hud' ? { x: 0, y: 0, width: W, height: 90 } : undefined;
   await p.screenshot({ path: out, ...(clip ? { clip } : {}) });
   console.log('saved', out, errors.length ? `(page errors: ${errors.slice(0, 3).join(' | ')})` : '');

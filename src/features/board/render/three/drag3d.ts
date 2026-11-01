@@ -2,13 +2,18 @@
 // part back to the inventory shelf. The ghost and the messages are DOM, the targets are outlined by board3d.ts. Cables and keys are not ported yet.
 import { dragging, overInventory } from '@/app/interaction';
 import { hover } from '@/app/hover';
-import { install, snapshot, uninstall, uninstallOs } from '@/app/store';
+import { connectCable, disconnectCable, ejectKey, install, plugKey, snapshot, uninstall, uninstallOs } from '@/app/store';
 import type { Snapshot } from '@/worker/protocol';
 
 type Dev = Snapshot['devices'][number];
 
-interface Part { invId: string; name: string; free: Set<string>; swap: Set<string>; why: string | null; dev?: undefined }
-interface Lifted { dev: Dev; name: string; osDrive: boolean; invId?: undefined }
+interface Part { invId: string; name: string; free: Set<string>; swap: Set<string>; why: string | null; dev?: undefined; cable?: undefined; key?: undefined }
+interface Lifted { dev: Dev; name: string; osDrive: boolean; invId?: undefined; cable?: undefined; key?: undefined }
+interface Cord { cable: string; name: string; dev?: undefined; invId?: undefined; key?: undefined }
+interface Key { key: number; plugged: boolean; why: string | null; name: string; dev?: undefined; invId?: undefined; cable?: undefined }
+
+const hot = (k: string) => k === 'video' || k === 'lan' || k === 'pcmains' || k === 'monmains' || /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(k);
+const NO_EJECT = new Set(['loading', 'running', 'writing']);
 
 /** The installed device an id of the 3D scene stands for (its own id, or the stable `psu` / `monitor`), or null. */
 export function deviceOf(id: string | null, s: Snapshot | null): Dev | null {
@@ -18,13 +23,13 @@ export function deviceOf(id: string | null, s: Snapshot | null): Dev | null {
 }
 
 export class Drag3D {
-  private cur: (Part | Lifted) & { over: string | null } | null = null;
+  private cur: (Part | Lifted | Cord | Key) & { over: string | null } | null = null;
   private ghost: HTMLDivElement | null = null;
   private note: HTMLDivElement | null = null;
   private noteT = 0;
 
   /** @param idAt the id of the scene object under a client point (null: none) */
-  constructor(private idAt: (cx: number, cy: number) => string | null, private canvas: HTMLCanvasElement) {}
+  constructor(private idAt: (cx: number, cy: number) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean) {}
 
   get busy() { return !!this.cur; }
 
@@ -32,7 +37,8 @@ export class Drag3D {
   targets(): string[] {
     const c = this.cur, s = snapshot.peek();
     if (!c || !s) return [];
-    if (c.dev) return [];
+    if (c.dev || c.cable !== undefined) return [];
+    if (c.key !== undefined) return c.why ? [] : ['usb'];
     const out: string[] = [];
     if (!c.why) for (const slot of [...c.free, ...c.swap]) out.push(s.devices.find((d) => d.slot === slot)?.id ?? slot);
     return out;
@@ -55,6 +61,34 @@ export class Drag3D {
     this.cur = { dev, name: dev.name ?? dev.spec, osDrive: s.os?.deviceId === dev.id, over: null };
     dragging.value = { kind: 'part', id: dev.id, fromBoard: true };
     overInventory.value = false;
+    this.run(e.pointerId, e.clientX, e.clientY, null);
+    return true;
+  }
+
+  /** Pick up a cable: a plugged one comes out at once (as in 2D), a loose one is dropped on the machine to plug in. */
+  beginCable(kind: string, e: PointerEvent): boolean {
+    const s = snapshot.peek();
+    if (this.cur || !s) return false;
+    if (s.powered && !hot(kind)) { this.toast('Power the machine off first: the PSU cables carry live power.', e.clientX, e.clientY); return false; }
+    if (s.cables.find((c) => c.id === kind)?.connected) disconnectCable(kind);
+    this.cur = { cable: kind, name: `cable ${kind}`, over: null };
+    dragging.value = { kind: 'cable', id: 'cable.' + kind };
+    this.run(e.pointerId, e.clientX, e.clientY, null);
+    return true;
+  }
+
+  /** Pick up a key: from the tray to the USB port, or the plugged one away from it. */
+  beginKey(keyId: number, e: PointerEvent): boolean {
+    const s = snapshot.peek();
+    if (this.cur || !s) return false;
+    const plugged = s.plugged?.id === keyId;
+    if (plugged) {
+      const why = s.os && s.plugged && !s.plugged.done && s.plugged.stage !== 'tray' ? 'The OS is working on it. The key pops out by itself.'
+        : NO_EJECT.has(s.phase) ? 'The job is still running. The key pops out by itself when it is done.' : null;
+      if (why) { this.toast(why, e.clientX, e.clientY); return false; }
+    }
+    this.cur = { key: keyId, plugged, why: !plugged && s.plugged ? 'A key is already in the USB port' : null, name: 'USB key', over: null };
+    dragging.value = { kind: 'key', id: 'key:' + keyId };
     this.run(e.pointerId, e.clientX, e.clientY, null);
     return true;
   }
@@ -110,6 +144,8 @@ export class Drag3D {
       return;
     }
     const id = this.inside(cx, cy) ? this.idAt(cx, cy) : null;
+    if (c.cable !== undefined) { c.over = id && this.inMachine(id) ? id : null; this.setGhost(c.name, !!c.over); return; }
+    if (c.key !== undefined) { c.over = id === 'usb' || id === 'key:' + c.key ? 'usb' : null; this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why); return; }
     c.over = this.target(c, id);
     this.setGhost(c.why && id ? c.why : c.name, !!c.over);
   }
@@ -136,6 +172,18 @@ export class Drag3D {
         if (c.osDrive) uninstallOs();
         uninstall(c.dev.id);
       }
+      return;
+    }
+    if (c.cable !== undefined) {
+      const id = !cancelled && this.inside(cx, cy) ? this.idAt(cx, cy) : null;
+      if (id && this.inMachine(id)) connectCable(c.cable);
+      else if (!cancelled && id && snapshot.peek()?.cables.find((x) => x.id === c.cable)?.connected === false) this.toast('Drop the plug on the machine.', cx, cy);
+      return;
+    }
+    if (c.key !== undefined) {
+      const onPort = !cancelled && this.inside(cx, cy) && this.idAt(cx, cy) === 'usb';
+      if (!c.plugged && onPort) { if (c.why) this.toast(c.why, cx, cy); else plugKey(c.key); }
+      else if (c.plugged && !cancelled && this.inside(cx, cy) && !onPort && this.idAt(cx, cy) !== 'key:' + c.key) ejectKey();
       return;
     }
     if (cancelled || !this.inside(cx, cy)) return;

@@ -259,6 +259,8 @@ export class Machine3D {
     // the memory sockets are modelled (`dimmSlot`): the stick stands in the groove; an empty one is picked by an unseen box over its 2D rect
     const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
+    // the USB port: an unseen box in front of the cover, where a key is dropped
+    pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
     GEO.dimm.forEach((d, i) => {
       const id = emptyId(`dimm${i}`), s = dimmSlot(d.rect, !!id);
       this.root.add(id ? tag(s.housing, id) : s.housing, s.latches);

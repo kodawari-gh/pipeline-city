@@ -1,7 +1,7 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
-// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts drag in and out (`drag3d.ts`).
-// Not ported yet: dragging cables and keys, the clicks on a die's blocks, the lenses.
+// signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
+// Not ported yet: the clicks on a die's blocks, the lenses.
 import { effect } from '@preact/signals';
 import type { Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
@@ -115,22 +115,31 @@ export function mountBoard3d(host: HTMLElement) {
     return id && !INERT_REGIONS.has(id) ? id : null;
   };
   // parts dragged in from the inventory or lifted off the board (drag3d.ts)
-  const lift = new Drag3D((cx, cy) => idAt({ clientX: cx, clientY: cy }), canvas);
+  const lift = new Drag3D((cx, cy) => idAt({ clientX: cx, clientY: cy }), canvas, (id) => !!machine && !!findById(machine.root, id));
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
-  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap } | null = null;
+  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
-    const orbit = e.button === 2 || e.shiftKey, dev = !orbit && e.button === 0 ? deviceOf(idAt(e), snapshot.peek()) : null;
-    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}) };
+    const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e) : null;
+    // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
+    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : undefined, dev = id && !grab ? deviceOf(id, snapshot.peek()) : null;
+    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}), ...(grab ? { grab } : {}) };
   });
   canvas.addEventListener('pointermove', (e) => {
     if (lift.busy) return;
     if (drag) {
       // a press on an installed part that moves lifts the part instead of panning
-      if (drag.dev) {
+      if (drag.dev || drag.grab) {
         const far = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6;
-        if (far) { const dev = drag.dev; drag = null; canvas.releasePointerCapture(e.pointerId); lift.beginDevice(dev, e); }
+        if (far) {
+          const { dev, grab } = drag;
+          drag = null;
+          canvas.releasePointerCapture(e.pointerId);
+          if (dev) lift.beginDevice(dev, e);
+          else if (grab!.startsWith('key:')) lift.beginKey(Number(grab!.slice(4)), e);
+          else lift.beginCable(grab!.slice(6), e);
+        }
         return;
       }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
