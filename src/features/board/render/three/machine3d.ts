@@ -5,48 +5,52 @@
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
 import {
-  Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PlaneGeometry, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
+  Box3, Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
   type PerspectiveCamera,
 } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import { BOARD_TIERS, getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
 import { cardArt, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
-import { disposeTree, instanced, paint, place, rectBox, rod, rounded, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import type { RopeEnd, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import { nicArt } from '@/features/network/render/net';
-import { driveArt, driveBody, driveKindOf, driveScale, drawDriveLive, slotRect } from '@/features/storage/render/drives';
-import { bayArt, fanMounts, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
-import { BOARD_Z, CASE_D, CASE_Z, MONITOR_Z } from '@/features/room/render/three/roomplan';
+import { driveArt, driveBody, driveKindOf, drawDriveLive, slotRect } from '@/features/storage/render/drives';
+import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
+import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
-  BAY, BAY_CELLS, BD, CASE, CASE_GLASS, CASE_LEDS, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FOOT, GEO, M2_SLOTS, MONITOR_POWER,
-  PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, PORT_Y, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, gutterTieYs,
+  BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
+  MONITOR_POWER, PCIE_RAILS, PKG, POWER_BTN, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK, WALL_T,
 } from '../layout/layout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
 import { radiatorFit, radiatorGrade } from '../cooler';
 import { ACCENT, cpuArt, sinkFanRect, vrmSinkArt } from '../devices';
-import { buildCables, isPcieKind } from '../wiring/routes';
+import { fanCordPlans } from '../wiring/fancords';
+import { isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
-import { FAN_MAX, FAN_ZC, coolerModel, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
+import { FAN_MAX, FAN_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
-import { band, braidedTube, plug3d, standingPlug } from './cables3d';
+import { standingPlug } from './cables3d';
 import { card3d, slotCover, type Card3D } from './card3d';
+import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
+import {
+  TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
+} from './wires3d';
 import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
 const FRONT = CASE_Z + CASE_D;
-/** The drive cage's back plate: the bays are shallow, near the glass. */
-const CAGE_Z = CASE_Z + 2300;
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const union = (a: RectLike, b: RectLike): RectLike => {
@@ -96,12 +100,19 @@ export class Machine3D {
   private ram: RectLike | null = null;
   /** The cards by slot: their power leads plug into the top edge and fade with the cooler. */
   private cards = new Map<string, Card3D>();
+  /** The basement under the shroud: the power supply, the drive cage and its bays (`basementPlan`). */
+  private readonly plan = basementPlan();
+  /** The parts the cables go round (their boxes, `caseEnv`); `userData` says which a cable may start in (`cooler`, `sink`, `radiator`). */
+  private obstacles: Object3D[] = [];
+  /** The CPU cooler's group: the loop's hoses join it (they fade with it). */
+  private cooler: Group | null = null;
+  /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
+  private driveSockets = new Map<string, { data: V3; power: V3 }>();
 
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue) {
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
     this.buildCase();
-    this.buildCage(s);
     this.buildBoard(s);
     if (s) {
       for (const d of s.devices) this.buildDevice(d);
@@ -126,20 +137,9 @@ export class Machine3D {
     shell.add(rectBox({ x: CASE.x, y: CASE.y, w: WALL_T, h: CASE.h }, CASE_Z, FRONT, chassis));
     const fe = CASE_GLASS.x + CASE_GLASS.w;
     shell.add(softBox({ x: fe, y: CASE.y, w: CASE.x + CASE.w - fe, h: CASE.h }, CASE_Z, FRONT, mat(0x1c1d21, { roughness: 0.7 }), 50));
-    // the shroud over the power supply: a solid box with the name printed on its face (the reference's "PIPELINE CITY"), the unit's end tagged as the PSU
-    const print = paint(1024, 160, (c, w, h) => {
-      c.fillStyle = '#26282d'; c.fillRect(0, 0, w, h);
-      c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, w, 6);
-      c.fillStyle = '#c9ced6'; c.font = '600 54px system-ui, sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'center'; c.fillText('PIPELINE CITY', w * 0.5, h / 2); c.textAlign = 'left';
-      c.strokeStyle = '#8b929c'; c.lineWidth = 3; c.strokeRect(w * 0.9, h * 0.32, 70, 50);
-      c.fillStyle = '#8b929c'; c.font = '600 20px system-ui, sans-serif'; c.fillText('TIER', w * 0.9 + 9, h / 2);
-    });
-    const shroud = mat(0x26282d, { roughness: 0.45, metalness: 0.3 });
-    shell.add(rectBox(PSU, CASE_Z + 70, FRONT - 70, shroud));
-    const printFace = new Mesh(new PlaneGeometry(PSU.w, PSU.h), mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }));
-    printFace.position.set(PSU.x + PSU.w / 2, -(PSU.y + PSU.h / 2), FRONT - 68);
-    shell.add(printFace);
-    this.root.add(tag(rectBox({ x: PSU_UNIT.x, y: PSU.y + 60, w: PSU_UNIT.w - 60, h: PSU.h - 120 }, FRONT - 80, FRONT - 66, mat(0x000000, { transparent: true, opacity: 0 })), 'psu'));
+    // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
+    // stepped cage the drives stand in (`basement3d.ts`)
+    shell.add(shroud(this.plan), cage(this.plan));
     // RGB light strips along the inside of the top and the front: they glow with the fans
     for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
       const m = glowMat(PALETTE.rgb);
@@ -147,7 +147,7 @@ export class Machine3D {
       this.spin(light(m));
     }
     for (const fx of [CASE.x + 600, CASE.x + CASE.w - 900]) for (const fz of [CASE_Z + 400, FRONT - 700]) shell.add(softBox({ x: fx, y: CASE.y + CASE.h, w: 300, h: FOOT }, fz, fz + 300, inner, 30));
-    // the fan hub (the drive cage is `buildCage`)
+    // the fan hub
     shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, inner));
     this.root.add(shell);
     // the side glass: a faint tint, never in the way of a click
@@ -174,20 +174,6 @@ export class Machine3D {
       this.root.add(tag(f.root, 'case:' + m.id));
       this.spin(f.spin);
     }
-  }
-
-  /**
-   * The drive cage, after the 2D cage (`bayArt`): a shallow cage near the glass, its back plate wearing the 2D drawing (the recesses, the labels,
-   * the live bays' corners), the uprights and the top and bottom plates standing off it, and the two guide rails of each bay the drives sit on.
-   */
-  private buildCage(s: Snapshot | null) {
-    const b = BAY, k = driveScale(), metal = mat(0x2b2f3a, { metalness: 0.5, roughness: 0.45 }), rail = mat(0x3a4152, { metalness: 0.6, roughness: 0.4 });
-    const g = tag(new Group(), 'case');
-    g.add(rectBox(b, CASE_Z + 70, CAGE_Z - 40, mat(0x101217, { roughness: 0.8 })), rectBox(b, CAGE_Z - 40, CAGE_Z, metal));
-    this.surface(g, this.baker(() => bayArt(this.T, BOARD_TIERS[s?.boardTier ?? 0]?.slots.sata ?? 0)), b, CAGE_Z, LV_RAISED);
-    for (const r of [{ x: b.x + 12, y: b.y + 20, w: 28, h: b.h - 40 }, { x: b.x + b.w - 40, y: b.y + 20, w: 28, h: b.h - 40 }, { x: b.x, y: b.y, w: b.w, h: 24 }, { x: b.x, y: b.y + b.h - 24, w: b.w, h: 24 }]) g.add(rectBox(r, CAGE_Z, CASE_Z + 2600, metal));
-    for (const c of BAY_CELLS) for (const ry of [c.y + 10, c.y + c.h - 18]) g.add(rectBox({ x: c.x + 40 * k, y: ry, w: c.w - 60 * k, h: 8 }, CAGE_Z, CAGE_Z + 240, rail));
-    this.root.add(g);
   }
 
   /** Let the live frame drive a fan or a light. */
@@ -273,11 +259,12 @@ export class Machine3D {
       if (id) pickBox(m, BOARD_Z, BOARD_Z + 40, id);
     });
     // an empty bay is picked by an unseen plate over its mouth
-    BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) pickBox(r, CASE_Z + 2600, CASE_Z + 2620, `sata${i}`); });
+    for (const b of this.plan.bays) if (!filled.has(`sata${b.slot}`)) this.root.add(tag(bayHit(b), `sata${b.slot}`));
     const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
     this.root.add(tag(chipset(GEO.chip, GEO.tier, raise), 'chipset'));
-    this.raised(this.root, art, GEO.atx, BOARD_Z, BOARD_Z + 240, slot, 'atx');
-    this.raised(this.root, art, GEO.cpw, BOARD_Z, BOARD_Z + 240, slot, 'cpw');
+    // the power sockets, modelled with their cavities (wires3d.ts): the 24-pin's mouth faces east, the CPU's 8-pin faces the glass
+    this.root.add(tag(atxSocket(GEO.atx), 'atx'), tag(epsSocket(GEO.cpw), 'cpw'));
+    for (const r of GEO.sata) this.root.add(sataPort(r));
     this.root.add(tag(coinCell(GEO.bat), 'bat'));
     // the regulators: each phase's choke and power stage stand up with their own drawing on top, its capacitors and passives are solids (below)
     const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2b2f38, { metalness: 0.35, roughness: 0.45 });
@@ -293,7 +280,6 @@ export class Machine3D {
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
     for (const h of GEO.hdrs) this.raised(small, art, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
-    for (const r of GEO.sata) this.raised(small, art, r, BOARD_Z, BOARD_Z + 150, slot);
     small.add(buildSolids(solids, !filled.has('cpu0')));
     this.root.add(small);
     this.reveal(BD, BOARD_Z, (z) => { small.visible = z > DEVICE_LOD.labels.board; });
@@ -363,9 +349,12 @@ export class Machine3D {
       case 'cooler': {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
-        const m = this.model(g, coolerModel(visual, this.rad));
+        const m = this.model(g, coolerModel(visual));
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);
+        this.obstacles.push(m.root);
+        m.root.userData.cooler = true;
+        this.cooler = g;
         break;
       }
       case 'ram': {
@@ -387,6 +376,9 @@ export class Machine3D {
         const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : cardArt(T, visual, i, false)));
         const c = card3d(kind, visual, i, (parent, r, z) => this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root);
         this.model(g, c);
+        // standing until the camera says otherwise: the cables go round it standing
+        c.pose(0);
+        this.obstacles.push(c.root);
         this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
         this.cards.set(d.slot, c);
         this.softSkin(d.id, ...c.skin);
@@ -399,10 +391,11 @@ export class Machine3D {
         break;
       }
       case 'psu': {
-        const body = mat(PALETTE.psu, { metalness: 0.4, roughness: 0.45 });
-        g.add(softBox(PSU_UNIT, CASE_Z + 70, FRONT - 60, body, 40));
+        // at the basement's back corner, by its mains inlet (`psuUnit`); the shroud's panel over it answers the click
+        const u = psuUnit(this.plan);
+        g.add(u.root);
         tag(g, 'psu');
-        this.softSkin(d.id, body);
+        this.softSkin(d.id, u.body);
         break;
       }
       case 'storage': {
@@ -413,15 +406,26 @@ export class Machine3D {
           c.addChild(driveArt(T, kind, d.slot, spec.name, `${Math.round(((spec as { capacityBytes?: number }).capacityBytes ?? 0) / 1024)}K`), live);
           return c;
         });
-        // an M.2 stick lies on its socket and standoff; a SATA drive lies on its bay's rails, its body as a real one's
+        // an M.2 stick lies on its socket and standoff; a SATA drive is built at its 2D body and moved into its bay in the basement's cage
         const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
-        this.skin(d.id, kind === 'ssd-nvme' ? nvmeStick(g, slotRect(d.slot), b, raise) : sataDrive(g, kind === 'hdd', b, CAGE_Z + 24, raise));
+        if (kind === 'ssd-nvme') { this.skin(d.id, nvmeStick(g, slotRect(d.slot), b, raise)); break; }
+        const bay = this.plan.bays[idx(d.slot)], drive = new Group();
+        this.skin(d.id, sataDrive(drive, kind === 'hdd', b, 0, raise));
+        if (bay) {
+          const placed = intoBay(drive, b, driveDepth(kind), bay), k = bay.k, mid = driveDepth(kind) * 0.42;
+          g.add(placed);
+          // the sockets on its west end (`sataDrive`): power over data
+          const w = (y: number): V3 => [placed.position.x + k * (b.x - 22), placed.position.y - k * (b.y + b.h * y), placed.position.z + k * mid];
+          this.driveSockets.set(d.slot, { power: w(0.35), data: w(0.68) });
+        }
         break;
       }
       case 'vrm-sink': case 'ram-sink': {
         // the drawing's own fin rails stand up off a base plate (taller and fewer on the big sink), its heat pipe arches over them, its fan blows along them
         const r = spec.kind === 'vrm-sink' ? VRM_SINK : RAM_SINK, p = vrmSinkArt(T, visual, r), big = visual === 'vrm-sink-big';
         p.root.destroy({ children: true }); p.fan?.destroy({ children: true });
+        g.userData.sink = true;
+        this.obstacles.push(g);
         // the 2D sink's metal ramp (`vrmSinkArt`): a darker base plate, lighter rails with rounded edges that catch the light
         const base = BOARD_Z + 180, top = BOARD_Z + (big ? 720 : 560), fin = mat(0x8590b5, { metalness: 0.75, roughness: 0.3 });
         g.add(softBox(r, base, base + 70, mat(0x4a5578, { metalness: 0.7, roughness: 0.38 }), 18));
@@ -442,7 +446,7 @@ export class Machine3D {
       }
       case 'radiator': {
         // bolted along the side the player chose, over that side's fan mounts; each of its fans runs on its mount's cable
-        if (this.rad) this.model(g, radiatorModel(this.rad.fit, radiatorGrade(visual), this.rad.span.ids));
+        if (this.rad) { const m = this.model(g, radiatorModel(this.rad.fit, radiatorGrade(visual), this.rad.span.ids)); m.root.userData.radiator = true; this.obstacles.push(m.root); }
         break;
       }
       default: return; // the display is the room's (Room3D shows it)
@@ -451,50 +455,166 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ cables
+  /** What the cables inside the case keep clear of: the tray, the glass, the top, the shroud, the board, and the parts that stand in their way. */
+  private caseEnv(skip: readonly Object3D[] = []): Env {
+    const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
+    const solids: RopeSolid[] = [box(BD, CASE_Z, BOARD_Z), box({ x: CASE_IN.x, y: this.plan.top, w: this.plan.east - CASE_IN.x, h: this.plan.floor - this.plan.top }, CASE_Z, FRONT)];
+    if (this.ram) solids.push(box(this.ram, BOARD_Z, BOARD_Z + 380));
+    for (const o of this.obstacles) if (!skip.includes(o)) {
+      const b = new Box3().setFromObject(o);
+      if (!b.isEmpty()) solids.push({ min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+    }
+    return {
+      planes: [{ n: [0, 0, 1], d: TRAY_Z }, { n: [0, 0, -1], d: -(FRONT - 50) }, { n: [0, -1, 0], d: CASE_IN.y }, { n: [1, 0, 0], d: CASE_IN.x }, { n: [-1, 0, 0], d: -(CASE_IN.x + CASE_IN.w) }],
+      solids,
+    };
+  }
+
   /**
-   * The cables that are plugged in. The PSU leads follow the 2D routes (`buildCables`, with the PCIe leads dealt to the cards as the sim deals
-   * them, `assignLeads`) as braided sleeves in their accent, at a depth of their own (the PCIe leads over the cards' sockets), with a plug at
-   * the PSU and one on the socket, and the ties in the gutter. The video cable leaves the case toward the monitor.
+   * The cables, as real cables hanging under their weight (wires3d.ts): each power lead comes out of a grommet in the tray beside its socket (its
+   * run from the power supply is behind the tray) as a comb of sleeved strands into its plug, or hangs loose with the plug at its end when it is
+   * out. The PCIe leads (dealt to the cards as the sim deals them, `assignLeads`) plug into the cards' top edges; each drive's SATA cable runs
+   * from its port into the gutter; the fans' cords run to their headers and the hub; the loop's hoses arc to the radiator. Out of the case the
+   * video cable drapes over the desk to the monitor, the mains cords drop through the desk's grommet to the wall socket.
    */
   private buildCables(s: Snapshot, geo: RoomGeo) {
-    const on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
-    const sleeve = mat(0x1b1c20, { roughness: 0.8 }), tie = mat(0x0d0f14, { roughness: 0.6 });
+    const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
+    this.root.updateMatrixWorld(true);
+    const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = '#171d29';
+    const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
+    // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
+    if (has('atx')) {
+      const r = GEO.atx, slot = { x: gx + 200, y: r.y + r.h / 2 - 340, w: 60, h: 680 }, g = tag(new Group(), 'cable.atx');
+      this.root.add(grommet(slot));
+      if (on('atx')) {
+        const p = atxPlug(r, ACCENT(T, 'atx')), ends = fromSlot(slot, 12);
+        g.add(p.root);
+        p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('atx'), env, { slack: 1.06, extra: 50 + i * 4, stiff: 0.7, n: 20, lead: 90 })));
+      } else g.add(dangling(fromSlot(slot, 1)[0]!, 1500, lead('atx', 64), env, () => loosePlug(r.h - 48, 150, 230, ACCENT(T, 'atx'))));
+      this.root.add(g);
+    }
+    // ---- the CPU's 8-pin: from a slot in the tray over the board's top edge, down into the socket from the glass side
+    if (has('cpu')) {
+      const r = GEO.cpw, slot = { x: r.x - 60, y: BD.y - 270, w: r.w + 120, h: 60 }, g = tag(new Group(), 'cable.cpu');
+      this.root.add(grommet(slot));
+      if (on('cpu')) {
+        const p = epsPlug(r, ACCENT(T, 'cpu')), ends = fromSlot(slot, 4);
+        g.add(p.root);
+        p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('cpu'), env, { slack: 1.04, extra: 80, stiff: 0.75, n: 20, lead: 110 })));
+      } else g.add(dangling(fromSlot(slot, 1)[0]!, 1200, lead('cpu', 44), env, () => loosePlug(r.w - 16, r.h - 16, 200, ACCENT(T, 'cpu'))));
+      this.root.add(g);
+    }
+    // ---- the PCIe leads: each from its own grommet in the gutter up into a card's top edge, or loose
     const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
-    // a PCIe lead plugs into the standing card's top edge: its route ends over the socket, the plug stands on it
-    const leads = assignLeads(cards).filter((l) => on(l.lead)).map((l) => ({ ...l, at: this.cards.get(l.slot)?.sockets[l.plug] }));
-    const targets = leads.map((l) => ({ kind: l.lead, x: l.at?.x ?? 0, top: (l.at?.y ?? 0) + 196, plug: l.plug }));
-    for (const c of buildCables(targets)) {
-      if (!on(c.kind)) continue;
-      if (c.kind === 'video') {
-        const pts = thin(c.path.pts, 6), n = pts.length - 1;
-        const z = (k: number) => BOARD_Z + 700 + (MONITOR_Z - 500 - BOARD_Z - 700) * Math.min(1, (k / n) * 1.6);
-        this.root.add(tag(tube(pts.map((p, k) => [p[0], -p[1], z(k)] as const), c.w * 0.45, sleeve), 'cable.video'));
-        continue;
-      }
-      // the run's depth, and where the plug sits on the board end: in the top of the board's connector; a PCIe lead leaves the PSU low, climbs
-      // over the cards and comes down onto its socket on the card's top edge
-      const pcie = isPcieKind(c.kind), lead0 = pcie ? leads.find((l) => l.lead === c.kind) : undefined, accent = ACCENT(this.T, c.kind);
-      const zb = lead0?.at ? lead0.at.z + 170 : BOARD_Z + 300, zr = lead0?.at ? zb + 260 : BOARD_Z + 430, z0 = pcie ? BOARD_Z + 430 : zr;
-      const pts = thin(c.path.pts, 3), at = [0];
-      for (let k = 1; k < pts.length; k++) at.push(at[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
-      const len = at[at.length - 1]!, ease = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
-      const depth = (s: number) => { const z = z0 + (zr - z0) * ease(s / 900); return z + (zb - z) * ease((s - (len - 420)) / 320); };
-      const lead = braidedTube(pts.map((p, k) => new Vector3(p[0], -p[1], depth(at[k]!))), c.w * 0.45, '#171d29', accent);
-      const g = tag(new Group(), 'cable.' + c.kind);
-      // the card's end: the plug stands on the socket, its cable leaving toward the glass
-      const end = lead0?.at ? standingPlug(lead0.at, accent, zb) : plug3d(c.b, accent, zb - 90, zb + 90);
-      g.add(lead.mesh, plug3d(c.a, accent, z0 - 70, z0 + 70), end);
-      if (lead0) this.cards.get(lead0.slot)?.alsoFade(g);
-      const top = Math.min(...c.path.pts.map((p) => p[1]));
-      for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) {
-        const k = pts.findIndex((p) => p[1] <= y);
-        if (k >= 0) g.add(band(lead.curve, at[k]!, c.w * 0.45 + 8, 40, tie));
+    const deals = assignLeads(cards);
+    s.cables.filter((c) => isPcieKind(c.id)).forEach((c, k) => {
+      const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
+      const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 150 + k * 110, y: sy, w: 60, h: 220 };
+      const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie');
+      this.root.add(grommet(slot));
+      if (c.connected && sock) {
+        const top = sock.z + 170, ends = fromSlot(slot, 4);
+        g.add(standingPlug(sock, accent, top));
+        for (let i = 0; i < 4; i++) g.add(hung({ at: [sock.x - 42 + i * 28, -sock.y, top + 2], dir: [0, 0, 1] }, ends[i]!, lead(c.id, 20), env, { slack: 1.1, extra: 300, stiff: 0.55, n: 24 }));
+        card!.alsoFade(g);
+      } else g.add(dangling(fromSlot(slot, 1)[0]!, 1300, lead(c.id, 40), env, () => loosePlug(116, 104, 200, accent)));
+      this.root.add(g);
+    });
+    // ---- SATA: each drive's data cable from its port on the board's edge into a slot in the gutter; at the drive, its data and power cables
+    // leave the sockets on its end and go back through the cage
+    const sataSlot = GEO.sata.length ? { x: gx - 30, y: GEO.sata[0]!.y - 60, w: 60, h: GEO.sata[GEO.sata.length - 1]!.y + GEO.sata[GEO.sata.length - 1]!.h - GEO.sata[0]!.y + 120 } : null;
+    if (sataSlot) this.root.add(grommet(sataSlot));
+    const sataEnds = sataSlot ? fromSlot(sataSlot, GEO.sata.length) : [], red: Look = { r: 15, base: '#b3262f', accent: null }, black: Look = { r: 19, base: '#16171b', accent: null };
+    for (const d of s.devices) {
+      if (d.kind !== 'storage' || !d.slot.startsWith('sata')) continue;
+      const i = idx(d.slot), port = GEO.sata[i], g = tag(new Group(), d.id);
+      if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, red, env, { slack: 1.15, extra: 140, stiff: 0.7, n: 18 })); }
+      const drive = this.driveSockets.get(d.slot);
+      if (drive) for (const [sock, look, dz] of [[drive.data, red, 0], [drive.power, black, 60]] as const) {
+        const back: RopeEnd = { at: [sock[0] - 260, -(this.plan.floor - 60), cageBack(this.plan) + 30 + dz], dir: [0, 0, 1] };
+        g.add(hung({ at: sock, dir: [-1, 0, 0] }, back, look, { planes: [], solids: [] }, { slack: 1.2, extra: 100, stiff: 0.6, n: 16 }));
       }
       this.root.add(g);
     }
-    const cord = mat(0x18181b, { roughness: 0.7 });
-    if (on('pcmains')) this.root.add(tag(tube([[PC_POWER.x, -PC_POWER.y, CASE_Z + 1400], [PC_CORD_X, -PC_POWER.y, CASE_Z + 1200], [PC_CORD_X, -(geo.ys + 1200), 900], [geo.socket.pc.x, -geo.socket.pc.y, 180]], 45, cord), 'cable.pcmains'));
-    if (on('monmains')) this.root.add(tag(tube([[MONITOR_POWER.x, -MONITOR_POWER.y, MONITOR_Z - 300], [MONITOR_POWER.x, -(geo.ys - 200), MONITOR_Z - 900], [MONITOR_POWER.x - 300, -(geo.ys + 1200), 900], [geo.socket.mon.x, -geo.socket.mon.y, 180]], 45, cord), 'cable.monmains'));
+    // ---- the fans' cords: from the fan to its header; the case fans' from the slot in the tray over the hub to the hub's headers
+    const fanLook: Look = { r: 11, base: '#14161c', accent: T.mul }, hubSlot = grommet(FAN_SLOT);
+    this.root.add(hubSlot);
+    const hubEnds = fromSlot(FAN_SLOT, hubHeaders().length + 1);
+    for (const p of fanCordPlans()) {
+      if (!has(p.id)) continue;
+      const g = tag(new Group(), 'cable.' + p.id), plugged = on(p.id);
+      const loose = () => loosePlug(p.plug.w - 12, p.plug.h - 12, 120, T.mul);
+      if (p.id.startsWith('fan:')) {
+        // the hub's header on its top edge, the cord down to it from the slot
+        const hx = p.seat[0], from = hubEnds[1 + hubHeaders().findIndex((h) => h.x === hx)] ?? hubEnds[0]!;
+        if (plugged) {
+          g.add(rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 180, CASE_Z + 300, mat(0x1b2230, { roughness: 0.5 })));
+          g.add(hung(from, { at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }, fanLook, env, { slack: 1.2, extra: 80, n: 14 }));
+        } else g.add(dangling(from, 420, fanLook, env, loose));
+      } else {
+        // the fan's end: the cooler's west side, a heatsink fan's housing, the hub's input
+        const anchor: RopeEnd = p.id === 'cpufan' ? { at: at(p.anchor[0], p.anchor[1], BOARD_Z + 460), dir: [-1, 0, 0] }
+          : p.id === 'sysfan' ? { at: at(FAN_HUB.x + 90, FAN_HUB.y - 60, CASE_Z + 240), dir: [0, 1, 0] }
+          : { at: at(p.anchor[0], p.anchor[1] - 20, BOARD_Z + 430), dir: [0, 1, 0] };
+        const skip = p.id === 'cpufan' ? this.obstacles.filter((o) => o.userData.cooler) : this.obstacles.filter((o) => o.userData.sink);
+        const fenv = this.caseEnv(skip);
+        if (p.id === 'sysfan') {
+          // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
+          const hole = { x: p.seat[0] - 40, y: BD.y + BD.h + 70, w: 80, h: 60 };
+          this.root.add(grommet(hole));
+          const h = fanPlug(p.header, T.mul);
+          if (plugged) g.add(h.root, hung(h.end, fromSlot(hole, 1)[0]!, fanLook, fenv, { slack: 1.25, extra: 120, n: 16 }), hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }));
+          else g.add(dangling(fromSlot(hole, 1)[0]!, 500, fanLook, fenv, loose));
+        } else if (plugged) {
+          const h = fanPlug(p.header, T.mul);
+          g.add(h.root, hung(h.end, anchor, fanLook, fenv, { slack: 1.3, extra: 160, n: 20 }));
+        } else g.add(dangling(anchor, 700, fanLook, fenv, loose));
+      }
+      this.root.add(g);
+    }
+    // ---- the loop's hoses: stiff braided hoses arcing from the pump's ports to the radiator's barbs
+    if (this.cooler && this.rad) for (const [a, b] of hoseEnds(this.rad)) this.cooler.add(hose(a, b, this.caseEnv(this.obstacles.filter((o) => o.userData.cooler || o.userData.radiator))));
+    this.buildRoomCords(s, geo);
+  }
+
+  /**
+   * The cords out of the case, over the room: the video cable drapes from the board's HDMI port over the desk into the monitor's back; the mains
+   * cords (the PC's from the PSU's inlet in the case's rear wall, the monitor's from its back) drop through the desk's grommet to the wall
+   * socket. A cord that is out lies loose from its device.
+   */
+  private buildRoomCords(s: Snapshot, geo: RoomGeo) {
+    const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
+    const deskTop = -geo.ys, under = -(geo.ys + DESK_TOP), m = MONITOR, mz = MONITOR_Z;
+    const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
+    const caseBox = box({ x: CASE.x, y: CASE.y, w: CASE.w, h: CASE.h + FOOT }, CASE_Z, FRONT);
+    const monitor = [box(m, mz, mz + 180), box({ x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 }, mz - 380, mz)];
+    const room: Env = { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: 40 }], solids: [caseBox, ...monitor] };
+    const cord: Look = { r: 40, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
+    const plug = (x: number, y: number, z: number, l: number) => softBox({ x: x - l, y: y - 60, w: l, h: 120 }, z - 70, z + 70, mat(0x1b1c20, { roughness: 0.5 }), 16);
+    // the desk's grommet the mains cords drop through, behind the case's west side
+    const dg = { x: CASE.x - 900, z: 1300 };
+    this.root.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
+    if (has('video')) {
+      const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520, a: RopeEnd = { at: [CASE.x - 150, -y, z], dir: [-1, 0, 0] };
+      g.add(plug(CASE.x, y, z, 150));
+      if (on('video')) g.add(hung(a, { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, video, room, { slack: 1.12, extra: 400, stiff: 0.45, n: 34 }));
+      else g.add(dangling(a, 2600, video, room, () => loosePlug(90, 60, 140, '#3a3d44')));
+      this.root.add(g);
+    }
+    const mains = (id: string, from: RopeEnd, socket: { x: number; y: number }, dx: number) => {
+      if (!has(id)) return;
+      const g = tag(new Group(), 'cable.' + id), hole: V3 = [dg.x + dx, deskTop + 10, dg.z], below: V3 = [dg.x + dx, under - 10, dg.z];
+      if (on(id)) {
+        g.add(hung(from, { at: hole, dir: [0, 1, 0] }, cord, room, { slack: 1.1, extra: 500, stiff: 0.4, n: 30 }));
+        g.add(hung({ at: below, dir: [0, -1, 0] }, { at: [socket.x, -socket.y, 120], dir: [0, 0, 1] }, cord, { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }], solids: [] }, { slack: 1.1, extra: 500, stiff: 0.4, n: 24 }));
+        g.add(softBox({ x: socket.x - 70, y: socket.y - 90, w: 140, h: 180 }, 40, 220, mat(0x1b1c20, { roughness: 0.5 }), 20));
+      } else g.add(dangling(from, 2200, cord, room, () => loosePlug(140, 90, 180, '#3a3d44')));
+      this.root.add(g);
+    };
+    const inlet = mainsInlet(this.plan);
+    if (has('pcmains')) this.root.add(plug(CASE.x - 26, -inlet[1], inlet[2], 180));
+    mains('pcmains', { at: [inlet[0] - 180, inlet[1], inlet[2]], dir: [-1, 0, 0] }, geo.socket.pc, 60);
+    mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
   }
 
   private buildPluggedKey(id: number) {

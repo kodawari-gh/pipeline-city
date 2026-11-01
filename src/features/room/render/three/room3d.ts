@@ -7,17 +7,17 @@ import {
   SpotLight, type Texture,
 } from 'three';
 import type { KeySnap } from '@/worker/game/types';
-import { CASE, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
+import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
+import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, instanced, paint, place, rectBox, softBox, tube } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, city, keyboard, lamp, mouse, mug, plant, skyTexture, steam, type Lamp, type Mug, type Screen } from './props3d';
-import { DESK_D, MONITOR_Z, SLAT_W, daylight, slatRuns, wallAround } from './roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, DESK_D, DESK_TOP, MONITOR_Z, SLAT_W, daylight, slatRuns, wallAround } from './roomplan';
 
 const KEY_W = 230;
-const DESK_TOP = 360;
 
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -184,8 +184,13 @@ export class Room3D {
     router.add(softBox({ x: ROUTER_SPOT.x, y: ROUTER_SPOT.y, w: ROUTER_SPOT.w, h: 120 }, 300, 1400, mat(0xb9bec4, { roughness: 0.4 }), 40));
     for (let k = 0; k < 4; k++) router.add(drum(ROUTER_SPOT.x + 400 + k * 260, ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6, 1400, 1420, 36, mat(0x111111, { emissive: new Color(0x58e08a), emissiveIntensity: 1.5 }), 8));
     R.add(router);
-    // the LAN lead: from the router along the wall into the top of the case
-    R.add(tag(tube([[ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 700], [ROUTER_SPOT.x + ROUTER_SPOT.w + 700, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 300], [CASE.x - 500, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 250], [CASE.x - 500, -(CASE.y + 900), 600], [CASE.x - 80, -(CASE.y + 1100), 1600]], 45, mat(0x8cc3e0, { roughness: 0.5 })), 'cable.lan'));
+    // the LAN lead: from the router's port it hangs along the wall into the network port on the case's rear panel (`hung`, a cable under its weight)
+    const lan = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300;
+    lan.add(softBox({ x: CASE.x - 150, y: ly - 50, w: 150, h: 100 }, lz - 60, lz + 60, mat(0x8cc3e0, { roughness: 0.5 }), 14));
+    lan.add(hung({ at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] }, { at: [CASE.x - 150, -ly, lz], dir: [-1, 0, 0] },
+      { r: 40, base: '#8cc3e0', accent: null }, { planes: [{ n: [0, 0, 1], d: 40 }, { n: [0, 1, 0], d: -ys }], solids: [{ min: [CASE.x, -(CASE.y + CASE.h), CASE_Z], max: [CASE.x + CASE.w, -CASE.y, CASE_Z + CASE_D] }] },
+      { slack: 1.1, extra: 600, stiff: 0.35, n: 30 }));
+    R.add(lan);
     const box = tag(new Group(), 'mail');
     box.add(softBox(OUTBOX, 0, 700, mat(0xb8342c, { roughness: 0.45 }), 70));
     box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, dark));

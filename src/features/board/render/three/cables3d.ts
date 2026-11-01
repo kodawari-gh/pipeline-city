@@ -1,12 +1,10 @@
 // Braided sleeves and plugs in 3D, after the 2D cable look (`paintCable`, `cableArt`, docs/render/board.md "Cable look and physics"): a dark
-// sleeve woven with strands of the lead's accent, a plug at each end (a dark moulded body, the accent band where the cable leaves it), the ties
-// round the leads in the gutter. The PSU leads and the loop's tubes both use them.
+// sleeve woven with strands of the lead's accent, a plug body (a dark moulding, the accent collar where the cable leaves it), the clamps round a
+// hose. The power leads, the fans' cords and the loop's hoses use them (wires3d.ts hangs them).
 import { CatmullRomCurve3, CylinderGeometry, Group, Mesh, TubeGeometry, Vector3, type MeshStandardMaterial, type Texture } from 'three';
 import { mix } from '@/core/render/ink';
 import { paint, place, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { plugRect } from '../devices';
-import type { Plug } from '../wiring/routes';
 
 const hex = (c: string): number => parseInt(c.slice(1), 16);
 const braids = new Map<string, Texture | null>();
@@ -45,19 +43,14 @@ export function band(curve: CatmullRomCurve3, s: number, r: number, len: number,
   return o;
 }
 
-/** A plug standing on a socket whose mouth faces the glass (a card's top edge): its body from the mouth at (x, y, z) up to `top`, the accent band at the top where the cable leaves. */
-export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
-  const g = new Group(), r = { x: at.x - 58, y: at.y - 52, w: 116, h: 104 };
-  g.add(softBox(r, at.z - 4, top - 20, mat(0x1b2230, { roughness: 0.5 }), 14));
-  g.add(softBox({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, top - 40, top, mat(hex(accent), { roughness: 0.45 }), 10));
+/** A plug's body over a layout rect from depth z0 to z1, the accent collar round it near z1 where the cable leaves, the dark cap over that end. */
+export function plugBody(r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, accent: string): Group {
+  const g = new Group(), dark = mat(0x1b2230, { roughness: 0.5 }), k = Math.min(14, r.w / 4, r.h / 4);
+  g.add(softBox(r, z0, z1 - 34, dark, k));
+  g.add(softBox({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, z1 - 36, z1 - 12, mat(hex(accent), { roughness: 0.45 }), Math.min(8, k)));
+  g.add(softBox(r, z1 - 14, z1, dark, Math.min(6, k)));
   return g;
 }
 
-/** A power plug from depth `z0` to `z1` over its 2D footprint (`plugRect`): the moulded body, and the accent band at the end the cable leaves. */
-export function plug3d(p: Plug, accent: string, z0: number, z1: number): Group {
-  const g = new Group(), r = plugRect(p), b = 26;
-  g.add(softBox(r, z0, z1, mat(0x1b2230, { roughness: 0.5 }), 14));
-  const end = p.dx > 0 ? { x: r.x + r.w - b, y: r.y, w: b, h: r.h } : p.dx < 0 ? { x: r.x, y: r.y, w: b, h: r.h } : p.dy > 0 ? { x: r.x, y: r.y + r.h - b, w: r.w, h: b } : { x: r.x, y: r.y, w: r.w, h: b };
-  g.add(softBox({ x: end.x - 4, y: end.y - 4, w: end.w + 8, h: end.h + 8 }, z0 - 4, z1 + 4, mat(hex(accent), { roughness: 0.45 }), 10));
-  return g;
-}
+/** A plug standing on a socket whose mouth faces the glass (a card's top edge): its body from the mouth at (x, y, z) up to `top`, where the cable leaves. */
+export const standingPlug = (at: { x: number; y: number; z: number }, accent: string, top: number): Group => plugBody({ x: at.x - 58, y: at.y - 52, w: 116, h: 104 }, at.z - 4, top, accent);

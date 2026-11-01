@@ -230,10 +230,16 @@ export class ArtSurface {
     return mesh;
   }
 
-  /** Per frame: the level the camera needs here (from the nearest point of the rect), and the tiles of it that are in view. */
+  /**
+   * Per frame: the level the camera needs here (from the nearest point of the rect), and the tiles of it that are in view. The rect is where the
+   * surface's parents put it (a part moved or turned in 3D carries its 2D art along).
+   */
   update(cam: PerspectiveCamera, frustum: Frustum, H: number, dpr: number, now: number): void {
-    if (!shown(this.root) || !frustum.intersectsBox(this.box)) return;
-    const d = this.box.distanceToPoint(cam.position);
+    if (!shown(this.root)) return;
+    this.root.updateWorldMatrix(true, false);
+    const m = this.root.matrixWorld, box = AT_BOX.copy(this.box).applyMatrix4(m), tile = (t: Tile) => AT_TILE.copy(t.box).applyMatrix4(m);
+    if (!frustum.intersectsBox(box)) return;
+    const d = box.distanceToPoint(cam.position);
     let want = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
     if (want < this.want) {
       if (!this.lowSince) this.lowSince = now;
@@ -241,11 +247,11 @@ export class ArtSurface {
     } else this.lowSince = 0;
     this.want = want;
     this.request(0, 0, -1e9 + d);
-    if (want > 0) this.tiles[want]!.forEach((t, k) => { if (frustum.intersectsBox(t.box)) this.request(want, k, want * 1e6 + t.box.distanceToPoint(cam.position)); });
+    if (want > 0) this.tiles[want]!.forEach((t, k) => { if (frustum.intersectsBox(tile(t))) this.request(want, k, want * 1e6 + AT_TILE.distanceToPoint(cam.position)); });
     for (let l = want + 1; l < this.tiles.length; l++) this.free(l);
     // a pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback)
     for (let l = 1; l <= want; l++) for (const t of this.tiles[l]!) {
-      if (frustum.intersectsBox(t.box)) t.seen = now;
+      if (frustum.intersectsBox(tile(t))) t.seen = now;
       else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
     }
   }
@@ -275,6 +281,9 @@ export class ArtSurface {
     for (let l = 0; l < this.tiles.length; l++) this.free(l);
   }
 }
+
+/** The surface's and a tile's box where its parents put them (`update`). */
+const AT_BOX = new Box3(), AT_TILE = new Box3();
 
 function disposeMesh(m: Mesh) {
   m.geometry.dispose();

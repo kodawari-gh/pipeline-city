@@ -1,16 +1,17 @@
 // The CPU cooler and the loop's radiator in 3D, after the 2D art (`cooler.ts`, docs/render/board.md "Cooler"): the same three looks on the same
 // mounting plate (`COOLER`), stood up off the board. The stock cooler is a round heatsink of radial vanes under a small fan; the tower a stack of fin
 // plates with copper heat pipes arching through them and a fan on its east end that blows west along the fins; the loop a pump head (a brushed ring,
-// a ring light round the impeller under a glass dome) whose two sleeved tubes follow the 2D routes (`tubeRoutes`) to the radiator's barbs, high
-// enough to pass over the parts on the way. The radiator (`radiatorModel`) is the 2D slab stood up across the case: an end tank at each end, a core
-// of fin plates on the outboard side and one fan per mount it covers on the inboard side.
+// a ring light round the impeller under a glass dome) whose two stiff braided hoses arc to the radiator's barbs (`hose`, hung round the parts in
+// their way). The radiator (`radiatorModel`) is the 2D slab stood up across the case: an end tank at each end, a core of fin plates on the
+// outboard side and one fan per mount it covers on the inboard side.
 import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry, Vector3, type Texture } from 'three';
 import { drum, fanRotor, instanced, paint, place, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
+import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { COOLER } from '../layout/layout';
-import { COOLER_FANS, STOCK_VANES_R, TANK, TUBE_W, frameOf, radiatorPorts, towerFanRect, tubeRoutes, type RadiatorFit } from '../cooler';
+import { COOLER_FANS, STOCK_VANES_R, TANK, TUBE_W, frameOf, radiatorPorts, towerFanRect, type RadiatorFit } from '../cooler';
 import { band, braidedTube } from './cables3d';
 import { caseFan, glowMat, partFan, squareFan, type Spin } from './fans3d';
 
@@ -26,7 +27,6 @@ export interface Model { root: Group; spins: Spin[]; /** The materials that foll
 export interface RadiatorAt { fit: RadiatorFit; count: number }
 
 const alu = (c: number, rough = 0.34) => mat(c, { metalness: 0.75, roughness: rough });
-const sm = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
 const corners = (r: RectLike, e: number): [number, number][] => [[r.x + e, r.y + e], [r.x + r.w - e, r.y + e], [r.x + e, r.y + r.h - e], [r.x + r.w - e, r.y + r.h - e]];
 
 // ------------------------------------------------------------------ painted details
@@ -127,22 +127,25 @@ function tower(g: Group, spins: Spin[]): MeshStandardMaterial {
   return finM;
 }
 
-/** One of the loop's tubes along a 2D route: it leaves the pump at `z0`, climbs to `zc` over the parts, and comes down to its barb at `zb`. */
-function hose(g: Group, route: readonly (readonly [number, number])[], z0: number, zc: number, zb: number) {
-  const at = [0];
-  for (let k = 1; k < route.length; k++) at.push(at[k - 1]! + Math.hypot(route[k]![0] - route[k - 1]![0], route[k]![1] - route[k - 1]![1]));
-  const len = at[at.length - 1]!;
-  const pts = route.map((p, k) => {
-    const s = at[k]!, z = z0 + (zc - z0) * sm(s / 420);
-    return new Vector3(p[0], -p[1], z + (zb - z) * sm((s - (len - 760)) / 600));
-  });
-  // the 2D tube's dark sleeve, woven toward the loop's accent, and a hose clamp a little in from each end
-  const { mesh, curve } = braidedTube(pts, TUBE_W / 2, '#0c1226', '#a68bff'), L = curve.getLength(), clamp = alu(0x6a759a, 0.3);
-  g.add(mesh);
-  for (const s of [130, L - 130]) g.add(band(curve, s, TUBE_W / 2 + 6, 30, clamp));
+/** Where the loop's hoses start and end: out of the pump's two ports (north) and into the radiator's barbs, the nearer port to the nearer barb. */
+export function hoseEnds(rad: RadiatorAt): [RopeEnd, RopeEnd][] {
+  const c = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2, ports = radiatorPorts(rad.fit), zb = barbZ(rad), d: V3 = [ports.inward[0], -ports.inward[1], 0];
+  const pump = [-120, 120].map((sx): RopeEnd => ({ at: [cx + sx, -(cy - 528) + 66, BOARD_Z + 540], dir: [0, 1, 0] }));
+  const barbs = ports.base.map((b): RopeEnd => ({ at: [b[0] + d[0] * 66, -b[1] + d[1] * 66, zb], dir: d })).sort((p, q) => p.at[0] - q.at[0]);
+  return [[pump[0]!, barbs[0]!], [pump[1]!, barbs[1]!]];
 }
 
-function liquid(g: Group, spins: Spin[], rad: RadiatorAt | null): MeshStandardMaterial {
+/** One of the loop's hoses: a stiff braided hose (the 2D tube's dark sleeve woven toward the loop's accent) arcing between its ends, a clamp a little in from each end. */
+export function hose(a: RopeEnd, b: RopeEnd, env: { planes: Plane[]; solids: Solid[] }): Group {
+  const g = new Group(), gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
+  const pts = hang({ a, b, length: gap * 1.12 + 300, r: TUBE_W / 2, stiff: 0.95, n: 30, lead: 160, ...env });
+  const { mesh, curve } = braidedTube(pts.map((p) => new Vector3(p[0], p[1], p[2])), TUBE_W / 2, '#0c1226', '#a68bff'), L = curve.getLength(), clamp = alu(0x6a759a, 0.3);
+  g.add(mesh);
+  for (const s of [130, L - 130]) g.add(band(curve, s, TUBE_W / 2 + 6, 30, clamp));
+  return g;
+}
+
+function liquid(g: Group, spins: Spin[]): MeshStandardMaterial {
   const c = COOLER, cx = c.x + c.w / 2, cy = c.y + c.h / 2, Z = BOARD_Z, R = 548;
   plate(g);
   screws(g, corners(c, 100), Z + 320, 34);
@@ -176,21 +179,16 @@ function liquid(g: Group, spins: Spin[], rad: RadiatorAt | null): MeshStandardMa
   dome.position.set(cx, -cy, Z + 694);
   dome.castShadow = false;
   g.add(seeThrough(dome));
-  // the two ports on the north rim and, with a radiator fitted, the tubes to its barbs
+  // the two ports on the north rim (the hoses to the radiator hang from them once every part is in: `hose`, machine3d.ts)
   const steel = alu(METAL.hi, 0.3), north = new Vector3(0, 1, 0);
   for (const sx of [-120, 120]) fitting(g, new Vector3(cx + sx, -(cy - 528), Z + 540), north, steel);
-  if (rad) {
-    const zb = barbZ(rad), [ta, tb] = tubeRoutes(rad.fit, [cx - 120, -520], [cx + 120, -520]);
-    hose(g, ta, Z + 540, Z + 860, zb);
-    hose(g, tb, Z + 540, Z + 860, zb);
-  }
   return side;
 }
 
-/** The cooler on the CPU, by its spec's `visual`. `rad`: the radiator the loop's tubes run to (only the loop uses it). */
-export function coolerModel(visual: string, rad: RadiatorAt | null): Model {
+/** The cooler on the CPU, by its spec's `visual` (the loop's hoses are `hose`'s). */
+export function coolerModel(visual: string): Model {
   const root = new Group(), spins: Spin[] = [];
-  const m = visual === 'cooler-liquid' ? liquid(root, spins, rad) : visual === 'cooler-tower' ? tower(root, spins) : stock(root, spins);
+  const m = visual === 'cooler-liquid' ? liquid(root, spins) : visual === 'cooler-tower' ? tower(root, spins) : stock(root, spins);
   return { root, spins, skin: [m] };
 }
 

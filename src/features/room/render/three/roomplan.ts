@@ -1,8 +1,8 @@
 // The 3D room's plan (pure): depths and the runs of the wood-slat wall. The x and y of everything come from the 2D layout (`roomGeo`, `layout.ts`), z is the distance out of the back wall.
 import type { Rect } from '@/features/board/render/layout/layout';
 
-/** The desk's depth from the wall (about 650 mm at the monitor's scale). */
-export const DESK_D = 12000;
+/** The desk's depth from the wall (about 650 mm at the monitor's scale), and its top's thickness. */
+export const DESK_D = 12000, DESK_TOP = 360;
 /** The case stands this far from the wall, this deep; the board sits on its far panel. */
 export const CASE_Z = 2200, CASE_D = 4200, BOARD_Z = CASE_Z + 260;
 export const MONITOR_Z = 3200;
