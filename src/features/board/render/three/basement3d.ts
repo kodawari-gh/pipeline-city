@@ -4,6 +4,7 @@
 // file them in); a drive here is the 2D drive (its body and its drawing) moved to its bay.
 import { BoxGeometry, Group, Mesh, PlaneGeometry, type MeshStandardMaterial } from 'three';
 import { instanced, paint, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
+import { decalX, perfMat, type Span } from './casekit3d';
 import { mat } from '@/core/render/three/materials';
 import { tag } from '@/core/render/three/pick';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
@@ -125,7 +126,10 @@ export function psuUnit(p: BasementPlan): { root: Group; body: MeshStandardMater
   for (let k = 0; k < 6; k++) g.add(rectBox({ x: ex, y: u.y + 140 + (k % 3) * 220, w: 14, h: 140 }, u.z0 + 300 + Math.floor(k / 3) * 600, u.z0 + 520 + Math.floor(k / 3) * 600, black));
   // the rear, in the case's back wall: the grille, the inlet and the switch
   const zc = (u.z0 + u.z1) / 2, rear = CASE.x;
-  g.add(rectBox({ x: rear - 8, y: u.y + 60, w: 8, h: u.h - 120 }, u.z0 + 80, u.z1 - 80, mat(0x15161a, { roughness: 0.7 })));
+  g.add(rectBox({ x: rear - 8, y: u.y + 60, w: 8, h: u.h - 120 }, u.z0 + 80, u.z1 - 80, mat(0x07080a, { roughness: 0.8 })));
+  // its exhaust: a honeycomb grille over the plate, beside the inlet
+  const gs: Span = { y0: u.y + 100, y1: u.y + u.h - 100, z0: u.z0 + 120, z1: zc + 60 };
+  g.add(decalX(rear - 10, gs, -1, perfMat('hex', gs.z1 - gs.z0, gs.y1 - gs.y0, 70, 0x5a5f69, { metal: 0.6, rough: 0.4 })));
   g.add(rectBox({ x: rear - 26, y: PC_POWER.y - 70, w: 20, h: 140 }, zc + 150, zc + 400, black));
   g.add(rectBox({ x: rear - 22, y: PC_POWER.y - 60, w: 16, h: 100 }, zc - 260, zc - 120, mat(0x8a1c22, { roughness: 0.5 })));
   return { root: g, body };

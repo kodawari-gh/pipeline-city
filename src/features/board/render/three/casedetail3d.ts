@@ -59,7 +59,7 @@ export function rearWall(f: Frame, boardSlots: number): Group {
   if (fan) holes.push(fan);
   g.add(wallX(x0, x1, { y0: f.yTop, y1: f.yBot, z0: f.z0, z1: f.z1 }, holes, f.body));
   // the slots the board lacks: blank covers behind their openings
-  const cover = mat(0x5d636d, { metalness: 0.7, roughness: 0.45 });
+  const cover = mat(0xa0a6ae, { metalness: 0.55, roughness: 0.4 });
   for (let i = boardSlots; i < slots; i++) g.add(rectBox({ x: NIC_BRACKET_X, y: slotY(i) - 60, w: 24, h: 600 }, SLOT_Z[0] - 50, SLOT_Z[1] + 40, cover));
   // the retention bar along the slot row, a thumbscrew per slot
   if (slots) {
@@ -116,10 +116,11 @@ export function frontWall(f: Frame, spins: Spin[], ex: number): Group {
     g.add(frame, decalX(ex + 8, face, 1, perfMat('hex', face.z1 - face.z0, face.y1 - face.y0, 52, 0x4a4f58, { metal: 0.6, rough: 0.4 })));
   } else if (f.kind === 'matte') {
     // the front plate stands off the body; the air comes in through a perforated gap down each side
-    g.add(softBox({ x: ex, y: f.yTop - 300, w: 30, h: f.yBot + 110 - (f.yTop - 300) }, f.z0 + 130, f.z1 - 130, f.body, 12));
-    for (const [za, zb] of [[f.z0 + 20, f.z0 + 120], [f.z1 - 120, f.z1 - 20]] as const) {
+    g.add(softBox({ x: ex + 30, y: f.yTop - 300, w: 40, h: f.yBot + 110 - (f.yTop - 300) }, f.z0 + 190, f.z1 - 190, f.body, 14));
+    for (const z of [f.z0 + 190, f.z1 - 190]) g.add(boxW(ex, ex + 30, -(f.yBot + 60), -(f.yTop - 240), z - 12, z + 12, black())); // the stand-off brackets' shadow line
+    for (const [za, zb] of [[f.z0 + 30, f.z0 + 180], [f.z1 - 180, f.z1 - 30]] as const) {
       const sp: Span = { y0: f.yTop - 200, y1: f.yBot, z0: za, z1: zb };
-      g.add(decalX(ex + 1, sp, 1, black()), decalX(ex + 3, sp, 1, perfMat('slot', zb - za, sp.y1 - sp.y0, 50, 0x1c1d22, { metal: 0.1, rough: 0.8 })));
+      g.add(decalX(ex + 1, sp, 1, black()), decalX(ex + 3, sp, 1, perfMat('slot', zb - za, sp.y1 - sp.y0, 44, 0x3a3d45, { metal: 0.2, rough: 0.7 })));
     }
   }
   return g;
@@ -144,7 +145,7 @@ const JACK: Record<string, number> = { 'line-out': 0x8fd14f, 'line-in': 0x5aa9e6
  */
 export function ioShield(feat: BoardFeatures, kind: CaseKind): Group {
   const g = tag(new Group(), 'io'), io = BR.io, x = CASE.x, dark = kind === 'gamer' || kind === 'show';
-  g.add(rectBox({ x: x - 8, y: io.y - 40, w: 8, h: io.h + 80 }, BOARD_Z + 130, BOARD_Z + 1000, mat(dark ? 0x17191f : 0xa3a9b1, { metalness: 0.7, roughness: 0.4, ...(dark ? {} : { map: tiled(brushed(), 1, 3) }) })));
+  g.add(rectBox({ x: x - 8, y: io.y - 40, w: 8, h: io.h + 80 }, BOARD_Z + 60, BOARD_Z + 1240, mat(dark ? 0x17191f : 0xa3a9b1, { metalness: 0.7, roughness: 0.4, ...(dark ? {} : { map: tiled(brushed(), 1, 3) }) })));
   const hole = black(), shell = steel(), blue = mat(0x2a6fdc, { roughness: 0.5 });
   for (const p of IO_PORTS) {
     const cy = -(p.y + p.h / 2);

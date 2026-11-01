@@ -32,7 +32,7 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/re
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
+  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
@@ -257,7 +257,8 @@ export class Machine3D {
     tag(this.surface(this.root, art, BD, BOARD_Z, LV_BOARD).root, 'board');
     // the rear I/O cover: a dark moulded shroud, vents across its face, an accent line down its inner edge that glows with the fans
     const io = tag(new Group(), 'io'), ir = GEO.io, line = glowMat(PALETTE.rgb, 0x2a2550);
-    io.add(softBox(ir, BOARD_Z, BOARD_Z + 1300, mat(0x1e2230, { metalness: 0.45, roughness: 0.4 }), 40));
+    // (it starts inside the rear wall: the wall and the I/O shield are the outside)
+    io.add(softBox({ ...ir, x: ir.x + WALL_T, w: ir.w - WALL_T }, BOARD_Z, BOARD_Z + 1300, mat(0x1e2230, { metalness: 0.45, roughness: 0.4 }), 40));
     const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
     for (let y = ir.y + 140; y < ir.y + ir.h - 140; y += 64) vents.push({ x: ir.x + ir.w * 0.42, y: -y, z: BOARD_Z + 1300, sx: ir.w * 0.5, sy: 24, sz: 10 });
     io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07080c, { roughness: 0.7 }), vents));
