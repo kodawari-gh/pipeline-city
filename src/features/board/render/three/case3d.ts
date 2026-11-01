@@ -3,27 +3,25 @@
 // tower (a tinted window over the upper part, a debossed logo, rubber rails), Mid a gaming case (a cut-corner window in a bezel, a mesh cap on
 // the top front corner, slanted vents, multi-zone RGB under the glass, a lit logo plate, splayed feet), Full a chamfered showcase (graphite,
 // silver pillars and rails, a lit edge round the glass, lit slots in the pillars and over the top fans, hex mesh, two name plates).
-// The body (`root`) stays; the outer side panel (`side`: the sheet, its window, trim and lights) fades as the camera comes in (machine3d.ts).
-import {
-  BoxGeometry, CanvasTexture, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, ShapeGeometry, Vector2,
-  type Material, type Texture,
-} from 'three';
-import { drum, instanced, place, post, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+// The body (`root`: top, floor, the rear and front walls, the back sheet, feet, controls) stays; the outer side panel (`side`: the sheet, its
+// window, trim and lights) hangs in `door`, which machine3d.ts swings open (`doorPose`, casedoor.ts). The working details are in casedetail3d.ts.
+import { BoxGeometry, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Shape, ShapeGeometry, Vector2, type Material } from 'three';
+import { drum, instanced, place, post, rectBox, rod, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { builtinTheme, type Theme } from '@/core/render/theme';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { CASE_LOOK } from '@/features/room/render/desk/props/case';
-import { CASE_CUTS, WINDOW_CUTS, caseWindow, isCut, showPillars, type CaseKind, type Cuts } from '@/features/room/render/shell/casedecor';
+import { CASE_CUTS, WINDOW_CUTS, caseWindow, showPillars, type CaseKind, type Cuts } from '@/features/room/render/shell/casedecor';
 import { stripRect, type StripMode } from '@/features/room/render/shell/exterior';
-import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PSU, TOP_FANS, WALL_T } from '../layout/layout';
+import { CASE, CASE_GLASS, CASE_IN, CASE_PANEL, FOOT, LAYOUT_CASE, PCIE_RAILS, PSU, TOP_FANS } from '../layout/layout';
 import { glowMat, light, type Spin } from './fans3d';
+import {
+  FRONT, NONE, SIDE_T, badgeTex, brushed, clipY, decal, decalTop, grain, grow, growCuts, hex, outlinePts, perfMat, perforated, perforation, ring, shapeOf, slab, tiled,
+} from './casekit3d';
+import { controls, drumX, frontWall, hinges, psuFilter, rearWall, trayDetail, type Controls, type Frame } from './casedetail3d';
 
-const FRONT = CASE_Z + CASE_D;
-/** The outer side panel's thickness: it closes the body's open side, its face at `FRONT`. */
-export const SIDE_T = 36;
-const NONE: Cuts = [0, 0, 0, 0];
-const hex = (s: string) => parseInt(s.slice(1, 7), 16);
+export { outlinePts, SIDE_T } from './casekit3d';
 
 /** Each kind's materials and shape: the body's colour and finish, the inside's tone, how round the body is, the glass, the shroud's print. */
 const LOOKS: Record<CaseKind, { body: number; rough: number; metal: number; inner: number; rad: number; glass: { color: number; opacity: number } | null; shroud: { body: number; ink: string }; rgb: boolean }> = {
@@ -42,9 +40,19 @@ const SILVER = { color: 0xa7adb6, metalness: 0.6, roughness: 0.34 };
 export interface CaseModel {
   /** The body, the feet and the front, tagged `case`: always shown. */
   root: Group;
-  /** The outer side panel with its window, trim and lights: it fades as the camera comes in, and never takes a click. */
+  /** The outer side panel with its window, glass, trim and lights (never a hit target but through `hit`). */
   side: Group;
+  /** The panel's pivot on its front edge (x `px`, depth `FRONT`): the opening moves and turns it. */
+  door: Group;
+  px: number;
+  /** The unseen plate over the shut side that a click opens the case by (`case.side`). */
+  hit: Mesh;
+  /** The Mini's thumbscrews in the rear edge of its panel (they turn out before it slides). */
+  screws: Mesh[];
   glass: Mesh | null;
+  /** The power button (`power`) and the lights on the case: on, error, drive activity. */
+  power: Group;
+  leds: Controls['leds'];
   /** The lights that follow the fans (a `Spin` with nothing to turn). */
   spins: Spin[];
   /** The accent strip on the front rim: the live frame colours it by the machine's state (`stripModeOf`). */
@@ -54,114 +62,6 @@ export interface CaseModel {
   /** The inside's tone (the tray) and the shroud's (its print's ink). */
   inner: number;
   shroud: { body: number; ink: string };
-}
-
-/** The outline of a layout rect as world points (y up), clockwise in the layout: a corner with a cut is chamfered at 45 degrees, the others rounded by `r`. */
-export function outlinePts(rc: RectLike, r: number, cuts: Cuts = NONE, seg = 5): Vector2[] {
-  const { x, y, w, h } = rc, rr = Math.max(0, Math.min(r, w / 2, h / 2)), out: Vector2[] = [];
-  const corners: [number, number, number, number][] = [[x, y, 1, 1], [x + w, y, -1, 1], [x + w, y + h, -1, -1], [x, y + h, 1, -1]];
-  corners.forEach(([cx, cy, dx, dy], k) => {
-    const c = cuts[k]!, d = c > 0 ? c : rr, yFirst = k % 2 === 0; // the walk comes into the top left and the bottom right along y
-    const a = yFirst ? [cx, cy + dy * d] : [cx + dx * d, cy], b = yFirst ? [cx + dx * d, cy] : [cx, cy + dy * d];
-    if (d <= 0) { out.push(new Vector2(cx, -cy)); return; }
-    if (c > 0) { out.push(new Vector2(a[0]!, -a[1]!), new Vector2(b[0]!, -b[1]!)); return; }
-    for (let i = 0; i <= seg; i++) {
-      const t = i / seg, u = 1 - t;
-      out.push(new Vector2(u * u * a[0]! + 2 * u * t * cx + t * t * b[0]!, -(u * u * a[1]! + 2 * u * t * cy + t * t * b[1]!)));
-    }
-  });
-  return out;
-}
-
-const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
-const growCuts = (c: Cuts, e: number): Cuts => c.map((v) => (v > 0 ? Math.max(1, v + e * 0.6) : 0)) as Cuts;
-const shapeOf = (pts: Vector2[], holes: Vector2[][] = []): Shape => {
-  const s = new Shape(pts);
-  for (const h of holes) s.holes.push(new Path(h));
-  return s;
-};
-
-/** A flat shape extruded from depth z0 to z1, its edges rounded by `bevel` inside its outline. */
-export function slab(shape: Shape, z0: number, z1: number, m: Material, bevel = 0): Mesh {
-  const b = Math.max(0, Math.min(bevel, (z1 - z0) / 2.2));
-  const g = new ExtrudeGeometry(shape, { depth: z1 - z0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 6 });
-  g.translate(0, 0, z0 + b);
-  return place(new Mesh(g, m));
-}
-
-/** A ring: the outline of `r` grown by `e`, less `r` itself (a bezel, a trim line, a light frame), `z0` to `z1`. */
-function ring(r: RectLike, rad: number, cuts: Cuts, e: number, z0: number, z1: number, m: Material, inset = 0): Mesh {
-  const inner = grow(r, -inset);
-  return slab(shapeOf(outlinePts(grow(r, e), rad + e, isCut(cuts) ? growCuts(cuts, e) : NONE), [outlinePts(inner, Math.max(0, rad - inset), isCut(cuts) ? growCuts(cuts, -inset) : NONE)]), z0, z1, m);
-}
-
-/** A flat textured face over a layout rect at depth z (a decal on the side panel). */
-function decal(r: RectLike, z: number, m: Material): Mesh {
-  const o = new Mesh(new PlaneGeometry(r.w, r.h), m);
-  o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z);
-  o.receiveShadow = true;
-  return o;
-}
-
-// ---------------------------------------------------------------- textures (painted once, shared by every rebuild)
-const TEX = new Map<string, Texture | null>();
-function tex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture | null {
-  if (TEX.has(key)) return TEX.get(key)!;
-  let t: Texture | null = null;
-  if (typeof document !== 'undefined') {
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    draw(cv.getContext('2d')!, w, h);
-    t = new CanvasTexture(cv);
-    t.colorSpace = SRGBColorSpace;
-    t.anisotropy = 8;
-    t.wrapS = t.wrapT = RepeatWrapping;
-  }
-  TEX.set(key, t);
-  return t;
-}
-
-/** A sheet with holes cut through it (white, so the material tints it): round holes in staggered rows, a honeycomb, or a diamond mesh. */
-function perforation(kind: 'round' | 'hex' | 'mesh'): Texture | null {
-  return tex('perf-' + kind, 128, kind === 'mesh' ? 128 : 222, (c, w, h) => {
-    c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h);
-    c.globalCompositeOperation = 'destination-out';
-    c.fillStyle = '#000';
-    if (kind === 'round') for (const [x, y] of [[64, 55], [0, 166], [128, 166]]) { c.beginPath(); c.arc(x!, y!, 25, 0, Math.PI * 2); c.fill(); }
-    else if (kind === 'hex') {
-      const s = 128 / Math.sqrt(3), hs = s - 17;
-      for (const [x, y] of [[64, s * 0.5], [0, s * 2], [128, s * 2], [64, s * 3.5]]) {
-        c.beginPath();
-        for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i * Math.PI) / 3; c.lineTo(x! + Math.cos(a) * hs, y! + Math.sin(a) * hs); }
-        c.fill();
-      }
-    } else for (const [x, y] of [[64, 64], [0, 0], [128, 0], [0, 128], [128, 128]]) { c.beginPath(); c.moveTo(x!, y! - 52); c.lineTo(x! + 52, y!); c.lineTo(x!, y! + 52); c.lineTo(x! - 52, y!); c.fill(); }
-  });
-}
-
-/** A perforated plate over `r` at depth z with a dark backing a little behind it (the holes show the dark), `pitch` units per hole. */
-function perforated(g: Group, r: RectLike, z: number, kind: 'round' | 'hex' | 'mesh', pitch: number, tone: number, o: { metal?: number; rough?: number } = {}): void {
-  const t = perforation(kind)?.clone() ?? null;
-  if (t) { t.needsUpdate = true; t.repeat.set(r.w / pitch, r.h / (pitch * (kind === 'mesh' ? 1 : 1.73))); }
-  g.add(decal(r, z, mat(0x040506, { roughness: 0.9 })));
-  g.add(decal(r, z + 5, mat(tone, { map: t, alphaTest: 0.5, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 })));
-}
-
-/** The pipeline mark (four rising bars on a foot) and a word, painted for a badge: `ink` the bars, `acc` the last bar. */
-function badgeTex(key: string, w: number, h: number, word: string, ink: string, acc: string, bg: string | null, mark = true): Texture | null {
-  return tex('badge-' + key, w, h, (c) => {
-    if (bg) { c.fillStyle = bg; c.fillRect(0, 0, w, h); }
-    const s = h * 0.5, bw = s * 0.17, gap = s * 0.07, x0 = word ? w * 0.12 : (w - 4 * bw - 3 * gap) / 2, y0 = (h - s) / 2;
-    if (mark) {
-      for (let k = 0; k < 4; k++) { const bh = s * (0.34 + k * 0.2); c.fillStyle = k === 3 ? acc : ink; c.fillRect(x0 + k * (bw + gap), y0 + s - bh, bw, bh); }
-      c.fillStyle = ink; c.fillRect(x0 - gap, y0 + s + gap, 4 * bw + 4 * gap, s * 0.07);
-    }
-    if (word) {
-      c.fillStyle = ink; c.textBaseline = 'middle'; c.textAlign = mark ? 'left' : 'center';
-      c.font = `700 ${Math.round(h * 0.36)}px system-ui, sans-serif`;
-      c.fillText(word, mark ? x0 + 4 * bw + 4 * gap + w * 0.06 : w / 2, h / 2 + h * 0.02);
-    }
-  });
 }
 
 /**
@@ -181,18 +81,25 @@ const STRIP_T = builtinTheme(true);
 /** The case of this kind round the current layout (`CASE`, `CASE_IN`, the tier's window): body, feet, front, side panel, glass and lights. */
 export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   const L = LOOKS[kind], C = CASE, P = CASE_PANEL, gl = CASE_GLASS, ci = CASE_IN, bottom = C.y + C.h;
-  const root = tag(new Group(), 'case'), side = new Group(), spins: Spin[] = [];
-  const body = mat(L.body, { roughness: L.rough, metalness: L.metal }), inner = mat(L.inner, { roughness: 0.75, metalness: 0.15 });
+  const root = tag(new Group(), 'case'), side = new Group(), spins: Spin[] = [], ex = C.x + C.w;
+  // painted and powder-coated steel has a fine grain; the showcase's graphite is brushed
+  const finish = kind === 'show' ? { map: tiled(brushed(), 6, 6) } : { bumpMap: tiled(grain(), 24, 24), bumpScale: kind === 'matte' ? 1.4 : 0.6 };
+  const body = mat(L.body, { roughness: L.rough, metalness: L.metal, ...finish }), inner = mat(L.inner, { roughness: 0.75, metalness: 0.15 });
   const dark = mat(0x050608, { roughness: 0.85 });
   const acc = kind === 'gamer' ? hex(T.mul) : kind === 'show' ? hex(T.br) : hex(T.alu);
   const cuts: Cuts = kind === 'gamer' ? [0, GAMER_CAP, 0, 0] : kind === 'show' ? CASE_CUTS.show : NONE;
   const outer = () => outlinePts(C, L.rad, cuts);
   const z1 = FRONT - SIDE_T;
 
-  // the body: a shell round the cavity (top, floor, rear wall, front wall) and the back sheet the tray is on
-  const cavity = { x: C.x + WALL_T, y: C.y + P.h, w: ci.x + ci.w - (C.x + WALL_T), h: bottom - 150 - (C.y + P.h) };
-  root.add(slab(shapeOf(outer(), [outlinePts(cavity, 24)]), CASE_Z + 70, z1, body, 18));
+  // the body: the top and the floor (the outline above and below the cavity), the rear and front walls with their openings, the back sheet
+  const f: Frame = { kind, body, acc, yTop: C.y + P.h, yBot: bottom - 150, z0: CASE_Z + 70, z1 };
+  root.add(slab(shapeOf(clipY(outer(), -f.yTop, 1)), f.z0, z1, body, 18), slab(shapeOf(clipY(outer(), -f.yBot, -1)), f.z0, z1, body, 18));
+  root.add(rearWall(f, PCIE_RAILS.length), frontWall(f, spins, ex), psuFilter(f, ex, bottom), trayDetail(f));
   root.add(slab(shapeOf(outer()), CASE_Z, CASE_Z + 70, inner, 12));
+  const ctl = controls(f, ex, GAMER_CAP);
+  root.add(ctl.root);
+  spins.push(...ctl.spins);
+  if (kind === 'gamer' || kind === 'show') root.add(hinges(ex, f.yTop, f.yBot));
 
   // the outer side panel: one sheet with the window cut out (the Mini's is solid)
   const win = kind === 'oem' ? null : caseWindow(kind), wcuts: Cuts = WINDOW_CUTS[kind], wr = kind === 'show' ? 0 : kind === 'gamer' ? 24 : 50;
@@ -205,6 +112,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), new MeshStandardMaterial({ color: L.glass.color, transparent: true, opacity: L.glass.opacity, roughness: 0.03, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
     glass.position.z = FRONT - SIDE_T / 2;
     glass.castShadow = false;
+    side.add(glass);
     // faint diagonal reflections across the glass (the 2D's), where they fit inside the window
     const sheen = new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: kind === 'matte' ? 0.016 : 0.024, depthWrite: false });
     for (const [x0, w] of [[0.36, 0.08], [0.47, 0.018], [0.86, 0.055]] as const) {
@@ -229,7 +137,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   for (let y = st.y0 + 260; y + 120 < st.y1; y += 215) slotsAt.push({ x: st.x + 70, y: -(y + 60), z: rim + 1, sx: 16, sy: 120, sz: 4 });
   (kind === 'oem' ? root : side).add(instanced(new BoxGeometry(1, 1, 1), dark, slotsAt));
   const strip = glowMat(acc, 0x0b0c10);
-  root.add(seeThrough(rectBox({ x: st.x, y: st.y0, w: st.w, h: st.y1 - st.y0 }, rim - 4, rim + 6, strip)));
+  (kind === 'oem' ? root : side).add(seeThrough(rectBox({ x: st.x, y: st.y0, w: st.w, h: st.y1 - st.y0 }, rim - 4, rim + 6, strip)));
 
   if (kind === 'oem') {
     // a pressed panel over the board's side, a vent patch over the CPU, a screw in each corner, the seam to the PSU bay, a label
@@ -368,20 +276,30 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   if (TOP_FANS.length) {
     const x0 = TOP_FANS[0]!.x - 60, x1 = TOP_FANS[TOP_FANS.length - 1]!.x + TOP_FANS[0]!.w + 60, zc = CASE_Z + CASE_D / 2, w = CASE_D - 900;
     const r = { x: x0, y: 0, w: x1 - x0, h: w }, frame = kind === 'show' ? mat(SILVER.color, { metalness: SILVER.metalness, roughness: SILVER.roughness }) : body;
-    const t = perforation(kind === 'show' ? 'hex' : 'mesh')?.clone() ?? null;
-    if (t) { t.needsUpdate = true; t.repeat.set(r.w / 44, r.h / 44); }
-    const plate = new Mesh(new PlaneGeometry(r.w, r.h), mat(kind === 'show' ? 0x3a3e46 : 0x1a1c22, { map: t, alphaTest: 0.5, metalness: 0.3, roughness: 0.7 }));
-    plate.rotation.x = -Math.PI / 2;
-    plate.position.set(x0 + r.w / 2, -C.y + 3, zc);
-    const back = new Mesh(new PlaneGeometry(r.w, r.h), dark);
-    back.rotation.x = -Math.PI / 2;
-    back.position.set(x0 + r.w / 2, -C.y + 1, zc);
-    root.add(back, plate);
+    // a magnetic mesh: fine nylon on the plain cases (it must not catch the room's warm light), hex steel on the showcase
+    const plate = decalTop(C.y - 3, x0, x1, zc - w / 2, zc + w / 2, kind === 'show'
+      ? perfMat('hex', r.w, r.h, 70, 0x4a4f58, { metal: 0.5, rough: 0.45 }) : perfMat('mesh', r.w, r.h, 40, 0x15171b, { metal: 0.02, rough: 0.95 }));
+    root.add(decalTop(C.y - 1, x0, x1, zc - w / 2, zc + w / 2, dark), plate);
     for (const z of [zc - w / 2 - 30, zc + w / 2 + 30]) root.add(rectBox({ x: x0 - 30, y: C.y - 10, w: r.w + 60, h: 14 }, z - 30, z + 30, frame));
   }
 
+  // the Mini's two thumbscrews hold the rear edge of its panel
+  const screws: Mesh[] = [];
+  if (kind === 'oem') {
+    const knurl = mat(0xb4ad94, { metalness: 0.6, roughness: 0.35 });
+    for (const y of [C.y + 700, bottom - 700]) { const s = drumX(C.x - 24, -y, FRONT - SIDE_T / 2, 44, 48, knurl, 20); screws.push(s); side.add(s); }
+  }
   for (const o of side.children) seeThrough(o);
-  return { root, side, glass, spins, strip, rgb: L.rgb, inner: L.inner, shroud: L.shroud };
+  // a click on the shut side opens the case: an unseen plate over it (machine3d.ts lets rays at it only while the panel is shut)
+  const hit = tag(rectBox(kind === 'oem' ? { ...C, w: C.w - OEM_BEZEL } : C, FRONT, FRONT + 4, mat(0, { transparent: true, opacity: 0, depthWrite: false })), 'case.side');
+  hit.castShadow = hit.receiveShadow = false;
+  side.add(hit);
+  // the panel hangs from its front edge (the Mini's from the edge of its sheet, under the plastic front)
+  const px = kind === 'oem' ? ex - OEM_BEZEL : ex, door = new Group();
+  door.position.set(px, 0, FRONT);
+  side.position.set(-px, 0, -FRONT);
+  door.add(side);
+  return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, inner: L.inner, shroud: L.shroud };
 
   /** Splayed feet along the case's depth (a dark wedge, a lit top line), on a silver plate for the showcase. */
   function feet(g: Group, fw: number, tone: number, plate: Material | null) {

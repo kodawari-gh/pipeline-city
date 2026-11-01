@@ -35,6 +35,9 @@ export class Drag3D {
 
   get busy() { return !!this.cur; }
 
+  /** Does the drag go into the case (a part, or a cable other than the ones out on the desk): the side panel opens for it. */
+  get intoCase() { const c = this.cur; return !!c && c.key === undefined && !(c.cable !== undefined && /^(video|lan|pcmains|monmains)$/.test(c.cable)); }
+
   /** The ids the scene should outline now: every socket the dragged part fits (an occupied one by its device), and the one under the pointer. */
   targets(): string[] {
     const c = this.cur, s = snapshot.peek();

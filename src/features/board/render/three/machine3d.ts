@@ -31,8 +31,8 @@ import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/r
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
-  BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, POWER_BTN, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
+  BD, CASE, CASE_GLASS, CASE_IN, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
+  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
@@ -47,8 +47,10 @@ import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { card3d, slotCover, type Card3D } from './card3d';
 import type { Chips3D } from './chips3d';
-import { caseModel, stripLight } from './case3d';
-import { CASE_KIND } from '@/features/room/render/shell/casedecor';
+import { caseModel, stripLight, type CaseModel } from './case3d';
+import { GROMMETS, ioShield, type GrommetStyle } from './casedetail3d';
+import { DOOR_SECONDS, doorPose } from './casedoor';
+import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
 import {
@@ -73,8 +75,9 @@ const union = (a: RectLike, b: RectLike): RectLike => {
 /** The RAM band (`DEVICE_LOD.ram.show` on): the camera leans over its first part, the spreaders fade over the second. */
 const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
-/** The zoom band over which the case's outer side fades, in parts of the board view's zoom: whole in the case's portrait, gone by the board view. */
-const SIDE_FADE = [0.84, 1.02] as const;
+/** The zoom (in parts of the board view's zoom, seen at the side) under which the side panel shuts again, and over which it opens. */
+const DOOR_ZOOM = [0.82, 0.92] as const;
+const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
 
 /**
  * Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units
@@ -102,7 +105,7 @@ export class Machine3D {
   private rects = new Map<string, RectLike>();
   private fans: Fan[] = [];
   private rgb = new PointLight(0x8b5cff, 0, 9000, 0);
-  private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial } | null = null;
+  private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial } | null = null;
   private hue = 0;
   /** The art is always the dark theme's: the reference's black board under neon. */
   private readonly T = builtinTheme(true);
@@ -128,8 +131,13 @@ export class Machine3D {
   private cooler: Group | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
-  /** The case's outer side and glass: the zoom seen there, how open it is for a drag or a target inside (eased), the alpha last applied. */
-  private side: { root: Group; glass: Mesh | null; zoom: number; board: number; open: number; want: boolean; last: number } | null = null;
+  /**
+   * The case's side panel: how far open (`t`, 0 to 1 along `doorPose`), the zoom seen at the side and the board view's zoom on this screen, whether
+   * the zoom has opened it (with a dead band), the player's last say (null: the zoom decides), a drag or target inside, any drag at all.
+   */
+  private door: { kind: CaseKind; cm: CaseModel; t: number; zoom: number; board: number; zoomOpen: boolean; manual: boolean | null; inside: boolean; busy: boolean } | null = null;
+  /** How the case finishes the cable holes in its tray (`GROMMETS`). */
+  private grommets: GrommetStyle = GROMMETS.gamer;
   /** The case's accent strip on the front rim, and whether the inside has RGB (`caseModel`). */
   private strip: MeshStandardMaterial | null = null;
   private caseRgb = true;
@@ -139,7 +147,7 @@ export class Machine3D {
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
-    this.buildCase();
+    this.buildCase(s);
     this.buildBoard(s);
     if (s) {
       this.rects = slotRects(s);
@@ -160,7 +168,7 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ case
-  private buildCase() {
+  private buildCase(s: Snapshot | null) {
     // the case of this tier, one of four (case3d.ts): its body stays, its outer side panel and glass fade as the camera comes in
     const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer', cm = caseModel(kind, this.T), shell = cm.root;
     this.caseRgb = cm.rgb;
@@ -177,25 +185,14 @@ export class Machine3D {
     }
     // the fan hub
     shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, mat(cm.inner, { roughness: 0.8 })));
-    this.root.add(shell, cm.side);
-    // the outer side and its glass, never in the way of a click: the side goes from the case's portrait in (the interior shows, as the 2D
-    // exterior does), the glass's sheen sooner (from the board view in it would lay a grey haze over the parts); both also open for a drag
-    // or a tutorial target inside (`setOpen`)
-    const glass = cm.glass;
-    if (glass) this.root.add(seeThrough(glass));
-    this.side = { root: cm.side, glass, zoom: 0, board: 0.13, open: 0, want: false, last: -1 };
-    this.reveal(CASE_GLASS, FRONT, (z) => { this.side!.zoom = z; }, true);
-    // the power button and the LEDs on the top panel
-    const btn = place(new Mesh(new CylinderGeometry(POWER_BTN.r * 1.6, POWER_BTN.r * 1.6, 60, 24), mat(0x3a3c42, { metalness: 0.5, roughness: 0.3 })));
-    btn.position.set(POWER_BTN.x, -CASE.y + 30, FRONT - 650);
-    this.root.add(tag(btn, 'power'));
-    const on = mat(0x111111, { emissive: new Color(0x5cff9a), emissiveIntensity: 0 }), err = mat(0x111111, { emissive: new Color(0xff4a5a), emissiveIntensity: 0 });
-    this.leds = { on, err };
-    for (const [x, m] of [[CASE_LEDS.on, on], [CASE_LEDS.err, err]] as const) {
-      const l = new Mesh(new CylinderGeometry(40, 40, 30, 10), m);
-      l.position.set(x, -CASE.y + 20, FRONT - 650);
-      this.root.add(seeThrough(l));
-    }
+    // the board's I/O shield in the rear wall, with the ports the board has
+    shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, kind));
+    this.root.add(shell, cm.door);
+    this.grommets = GROMMETS[kind];
+    // the side panel opens (casedoor.ts) from the board view in, for a drag or a tutorial target inside, or on a click on it (`toggleDoor`)
+    this.door = { kind, cm, t: 0, zoom: 0, board: 0.13, zoomOpen: false, manual: null, inside: false, busy: false };
+    this.reveal(CASE_GLASS, FRONT, (z) => { this.door!.zoom = z; }, true);
+    this.leds = cm.leds;
     // the case fans (the mounts the case has), with an RGB ring; a radiator brings its own fans for the mounts it covers
     for (const m of fanMounts()) {
       if (this.rad?.span.ids.includes(m.id)) continue;
@@ -532,7 +529,7 @@ export class Machine3D {
     // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
     if (has('atx')) {
       const r = GEO.atx, slot = { x: gx + 200, y: r.y + r.h / 2 - 340, w: 60, h: 680 }, g = tag(new Group(), 'cable.atx');
-      this.root.add(grommet(slot));
+      this.root.add(grommet(slot, this.grommets));
       if (on('atx')) {
         const p = atxPlug(r, ACCENT(T, 'atx')), ends = fromSlot(slot, 12);
         g.add(p.root);
@@ -543,7 +540,7 @@ export class Machine3D {
     // ---- the CPU's 8-pin: from a slot in the tray over the board's top edge, down into the socket from the glass side
     if (has('cpu')) {
       const r = GEO.cpw, slot = { x: r.x - 60, y: BD.y - 270, w: r.w + 120, h: 60 }, g = tag(new Group(), 'cable.cpu');
-      this.root.add(grommet(slot));
+      this.root.add(grommet(slot, this.grommets));
       if (on('cpu')) {
         const p = epsPlug(r, ACCENT(T, 'cpu')), ends = fromSlot(slot, 4);
         g.add(p.root);
@@ -558,7 +555,7 @@ export class Machine3D {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
       const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 150 + k * 110, y: sy, w: 60, h: 220 };
       const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie');
-      this.root.add(grommet(slot));
+      this.root.add(grommet(slot, this.grommets));
       if (c.connected && sock) {
         const top = sock.z + 170, ends = fromSlot(slot, 4);
         g.add(standingPlug(sock, accent, top));
@@ -570,7 +567,7 @@ export class Machine3D {
     // ---- SATA: each drive's data cable from its port on the board's edge into a slot in the gutter; at the drive, its data and power cables
     // leave the sockets on its end and go back through the cage
     const sataSlot = GEO.sata.length ? { x: gx - 30, y: GEO.sata[0]!.y - 60, w: 60, h: GEO.sata[GEO.sata.length - 1]!.y + GEO.sata[GEO.sata.length - 1]!.h - GEO.sata[0]!.y + 120 } : null;
-    if (sataSlot) this.root.add(grommet(sataSlot));
+    if (sataSlot) this.root.add(grommet(sataSlot, this.grommets));
     const sataEnds = sataSlot ? fromSlot(sataSlot, GEO.sata.length) : [], red: Look = { r: 15, base: '#b3262f', accent: null }, black: Look = { r: 19, base: '#16171b', accent: null };
     for (const d of s.devices) {
       if (d.kind !== 'storage' || !d.slot.startsWith('sata')) continue;
@@ -584,7 +581,7 @@ export class Machine3D {
       this.root.add(g);
     }
     // ---- the fans' cords: from the fan to its header; the case fans' from the slot in the tray over the hub to the hub's headers
-    const fanLook: Look = { r: 11, base: '#14161c', accent: T.mul }, hubSlot = grommet(FAN_SLOT);
+    const fanLook: Look = { r: 11, base: '#14161c', accent: T.mul }, hubSlot = grommet(FAN_SLOT, this.grommets);
     this.root.add(hubSlot);
     const hubEnds = fromSlot(FAN_SLOT, hubHeaders().length + 1);
     for (const p of fanCordPlans()) {
@@ -608,7 +605,7 @@ export class Machine3D {
         if (p.id === 'sysfan') {
           // under the board's bottom edge into the tray, and out of the hub slot into the hub's input
           const hole = { x: p.seat[0] - 40, y: BD.y + BD.h + 70, w: 80, h: 60 };
-          this.root.add(grommet(hole));
+          this.root.add(grommet(hole, this.grommets));
           const h = fanPlug(p.header, T.mul);
           if (plugged) g.add(h.root, hung(h.end, fromSlot(hole, 1)[0]!, fanLook, fenv, { slack: 1.25, extra: 120, n: 16 }), hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }));
           else g.add(dangling(fromSlot(hole, 1)[0]!, 500, fanLook, fenv, loose));
@@ -689,17 +686,12 @@ export class Machine3D {
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
     if (this.strip) stripLight(this.strip, stripModeOf(s), performance.now());
-    if (this.side) {
-      const sd = this.side;
-      sd.open += ((sd.want ? 1 : 0) - sd.open) * (1 - Math.pow(0.0005, dt)); // about 0.3 s
-      const a = Math.min(1 - smooth(SIDE_FADE[0] * sd.board, SIDE_FADE[1] * sd.board, sd.zoom), 1 - sd.open), q = Math.round(a * 100) / 100;
-      if (q !== sd.last) {
-        sd.last = q;
-        fadeTree(sd.root, q);
-        if (sd.glass) fadeTree(sd.glass, q);
-      }
+    if (this.door) this.swingDoor(dt);
+    if (this.leds) {
+      this.leds.on.emissiveIntensity = live ? 2 : 0;
+      this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0;
+      this.leds.disk.emissiveIntensity = live && s.storage.some((d) => d.busy) && performance.now() % 240 < 150 ? 2.2 : 0;
     }
-    if (this.leds) { this.leds.on.emissiveIntensity = live ? 2 : 0; this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0; }
   }
 
   /**
@@ -711,7 +703,7 @@ export class Machine3D {
     frustumOf(cam, this.frustum);
     cam.getWorldDirection(LOD_DIR);
     // the board view's zoom on this screen (`boardView` in board3d.ts: the inside of the case, fitted at 0.95)
-    if (this.side) this.side.board = (H * 0.95) / Math.max(CASE_IN.h, CASE_IN.w / cam.aspect);
+    if (this.door) this.door.board = (H * 0.95) / Math.max(CASE_IN.h, CASE_IN.w / cam.aspect);
     for (const r of this.reveals) {
       const at = r.area ? nearestOn(r.area, r.at.z, cam.position, LOD_DIR) : r.at;
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
@@ -731,7 +723,29 @@ export class Machine3D {
   }
 
   /** Open the case's outer side whatever the zoom (a part or a cable is dragged, a tutorial target is inside), or let the zoom decide again. */
-  setOpen(open: boolean): void { if (this.side) this.side.want = open; }
+  setOpen(inside: boolean, busy = false): void { if (this.door) { this.door.inside = inside; this.door.busy = busy; } }
+
+  /** Open the side panel if it is shut (or opening), shut it if it is open: the player's say holds until the zoom crosses its band again. */
+  toggleDoor(): void { const d = this.door; if (d) d.manual = !(d.manual ?? (d.zoomOpen || d.inside)); }
+
+  /** Is the side panel open (or opening)? */
+  get doorOpen(): boolean { const d = this.door; return !!d && (d.inside || (d.manual ?? d.zoomOpen)); }
+
+  /**
+   * Move the side panel toward open or shut at its kind's pace and set its pose (`doorPose`). The zoom opens it from the board view in and shuts
+   * it again past a dead band under that, and a new crossing forgets the player's last click. Rays reach the plate that opens it only while it is shut.
+   */
+  private swingDoor(dt: number) {
+    const d = this.door!, cm = d.cm, open = d.zoom > DOOR_ZOOM[1] * d.board, shut = d.zoom < DOOR_ZOOM[0] * d.board;
+    if ((open && !d.zoomOpen) || (shut && d.zoomOpen)) { d.zoomOpen = open; d.manual = null; }
+    const want = this.doorOpen ? 1 : 0, step = dt / DOOR_SECONDS[d.kind];
+    d.t = want > d.t ? Math.min(1, d.t + step) : Math.max(0, d.t - step);
+    const p = doorPose(d.kind, d.t);
+    cm.door.position.set(cm.px - p.slide, 0, FRONT + p.out);
+    cm.door.rotation.y = p.swing;
+    for (const sc of cm.screws) { sc.position.x = CASE.x - 24 - p.screws * 80; sc.rotation.x = p.screws * Math.PI * 8; }
+    cm.hit.raycast = d.t < 0.01 && !d.busy ? HIT : NO_HIT;
+  }
 
   /** Take it down: the meshes, the texture tiles, the bake jobs and the 2D art behind them. */
   dispose(): void {

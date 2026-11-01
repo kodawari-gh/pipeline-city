@@ -55,8 +55,8 @@ export function dangling(a: RopeEnd, length: number, look: Look, env: Env, plug:
 export const loosePlug = (w: number, h: number, l: number, accent: string): Group => plugBody({ x: -w / 2, y: -h / 2, w, h }, -l, 0, accent);
 
 /** A rubber grommet in the tray over a layout rect: the moulded ring and the slit flaps of its membrane. */
-export function grommet(r: RectLike): Group {
-  const g = new Group(), rubber = mat(0x101114, { roughness: 0.75 }), e = 40;
+export function grommet(r: RectLike, style: { tone: number; metal: boolean } = { tone: 0x101114, metal: false }): Group {
+  const g = new Group(), rubber = mat(style.tone, style.metal ? { metalness: 0.75, roughness: 0.3 } : { roughness: 0.75 }), e = 40;
   g.add(softBox({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e }, TRAY_Z - 10, TRAY_Z + 26, rubber, Math.min(40, (r.w + 2 * e) / 2.2, (r.h + 2 * e) / 2.2)));
   g.add(rectBox(r, TRAY_Z + 20, TRAY_Z + 28, mat(0x050506, { roughness: 0.9 })));
   const along = r.h >= r.w, slit = along ? { x: r.x + r.w / 2 - 2, y: r.y + 10, w: 4, h: r.h - 20 } : { x: r.x + 10, y: r.y + r.h / 2 - 2, w: r.w - 20, h: 4 };

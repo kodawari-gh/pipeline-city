@@ -380,6 +380,9 @@ export function describeId(id: string, s?: Snapshot | null): Description | null 
         nerd: `tier ${c.tier} | holds boards up to ${c.form} | the ${BOARD_TIERS[s.boardTier]?.name ?? 'board'} board is fitted`,
       };
     }
+    if (id === 'case.side') {
+      return { title: 'Side panel', plain: 'Click it to open the case and reach the parts inside (O opens and shuts it). It opens by itself when you zoom in to the board.', nerd: `${CASE_TIERS[s.caseTier]?.name ?? 'case'} | side panel` };
+    }
     const slot = s.slots.find((x) => x.id === id);
     if (slot) {
       if (!slot.deviceId) {

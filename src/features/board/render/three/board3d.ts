@@ -36,6 +36,8 @@ import type { DeviceSnap } from '@/worker/game/types';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
+/** The machine's ids that are reached from outside the case (a tutorial target among them leaves the side panel shut). */
+const OUTSIDE = new Set(['case', 'case.side', 'power', 'usb', 'io', 'cable.video', 'cable.lan', 'cable.pcmains', 'cable.monmains']);
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -181,6 +183,8 @@ export function mountBoard3d(host: HTMLElement) {
   const click = (id: string | null) => {
     if (!id) { selected.value = null; return; }
     if (roomClick(id)) { selected.value = null; return; }
+    // the shut side panel: a click opens the case
+    if (id === 'case.side') { machine?.toggleDoor(); selected.value = null; return; }
     const s = snapshot.peek();
     // a part of a graphics card (`pcie1.lane3`) hovers on its own, a click opens the card
     if (s) id = deviceOfPart(id, s.devices);
@@ -198,7 +202,7 @@ export function mountBoard3d(host: HTMLElement) {
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key.toLowerCase();
-    if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value;
+    if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value; else if (k === 'o') machine?.toggleDoor();
   };
   window.addEventListener('keydown', onKey);
 
@@ -240,8 +244,8 @@ export function mountBoard3d(host: HTMLElement) {
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
-    // a drag, or a tutorial target inside the case, opens its outer side from any distance (as the 2D exterior fades)
-    if (machine) { const m = machine; m.setOpen(lift.busy || highlight.peek().some((id) => id !== 'case' && id !== 'power' && !!findById(m.root, id))); }
+    // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
+    if (machine) { const m = machine; m.setOpen(lift.intoCase || highlight.peek().some((id) => !OUTSIDE.has(id) && !id.startsWith('key:') && !!findById(m.root, id)), lift.busy); }
     machine?.frame(s, dt);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));
@@ -278,6 +282,9 @@ export function mountBoard3d(host: HTMLElement) {
     orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
     // the case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's
     previewCase: (c: number | null, b = c ?? 0) => { preview = c === null ? null : { board: b, case: c }; rebuild(); wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`; },
+    // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above
+    lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => { view = goal = clampView({ x, y: -y, z, yaw, pitch, fov: 26, height }); },
+    toggleDoor: () => machine?.toggleDoor(),
     // the whole case from the side, turned by `yaw` and seen from `pitch` above
     caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => { view = goal = fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat

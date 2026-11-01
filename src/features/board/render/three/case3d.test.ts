@@ -15,11 +15,12 @@ describe('the 3D cases', () => {
       const kind = CASE_KIND[t]!, m = caseModel(kind, T), b = new Box3().setFromObject(m.root);
       expect(b.min.x, kind).toBeGreaterThan(CASE.x - 160);
       expect(b.max.x, kind).toBeLessThan(CASE.x + CASE.w + 160);
-      expect(b.max.y, kind).toBeLessThan(-CASE.y + 60);
+      expect(b.max.y, kind).toBeLessThan(-CASE.y + 100); // the controls stand on the top
       expect(b.min.y, kind).toBeCloseTo(-(CASE.y + CASE.h + FOOT), 0); // the feet reach the desk
       expect(b.min.z, kind).toBeGreaterThanOrEqual(CASE_Z - 1);
-      const s = new Box3().setFromObject(m.side);
-      expect(s.min.z, kind).toBeGreaterThanOrEqual(FRONT - SIDE_T - 40);
+      m.door.updateMatrixWorld(true);
+      const s = new Box3().setFromObject(m.door);
+      expect(s.min.z, kind).toBeGreaterThanOrEqual(FRONT - SIDE_T - 60);
       expect(s.max.z, kind).toBeLessThan(FRONT + 80);
     }
   });
@@ -32,12 +33,15 @@ describe('the 3D cases', () => {
       expect(m.rgb, kind).toBe(kind === 'gamer' || kind === 'show');
       expect(m.spins.length > 0, kind).toBe(m.rgb);
       if (m.glass) {
+        m.door.updateMatrixWorld(true);
         const g = new Box3().setFromObject(m.glass as Mesh), w = caseWindow(kind);
         expect(g.min.x, kind).toBeCloseTo(w.x, 0);
         expect(g.max.y, kind).toBeCloseTo(-w.y, 0);
       }
-      // the side panel never takes a click: the parts behind it do
-      m.side.traverse((o) => { if ((o as Mesh).isMesh) expect(o.raycast.length, kind).toBe(0); });
+      // the side panel takes a click only on its unseen plate (it opens the case); the parts behind it take the rest
+      m.side.traverse((o) => { if ((o as Mesh).isMesh && o !== m.hit) expect(o.raycast.length, kind).toBe(0); });
+      expect(m.hit.userData.id, kind).toBe('case.side');
+      expect(m.power.userData.id, kind).toBe('power');
     }
   });
 
