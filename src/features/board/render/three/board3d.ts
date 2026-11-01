@@ -1,13 +1,13 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
-// The die's blocks hover and click (`Chips3D.hitAt`). Not ported yet: the lenses.
+// The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A).
 import { effect } from '@preact/signals';
 import type { Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
-import { hover, selected, INERT_REGIONS } from '@/app/hover';
+import { airflowLens, hover, powerLens, selected, INERT_REGIONS } from '@/app/hover';
 import { highlight } from '@/app/interaction';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
@@ -29,6 +29,7 @@ import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
 import { startBaker } from './bake';
 import { Drag3D, deviceOf } from './drag3d';
+import { Lens3D } from './lens3d';
 import { setPartDragHandler } from '@/core/ui/worldDrag';
 import type { DeviceSnap } from '@/worker/game/types';
 
@@ -48,6 +49,7 @@ export function mountBoard3d(host: HTMLElement) {
 
   // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
   const chips = new Chips3D();
+  const lens = new Lens3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
   const rebuild = () => {
@@ -187,7 +189,7 @@ export function mountBoard3d(host: HTMLElement) {
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key.toLowerCase();
-    if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom();
+    if (k === 'f') flyToCpu(); else if (k === 'g') flyToGpu(); else if (k === 'b') flyToBoard(); else if (k === 'r' || k === 'home') flyToRoom(); else if (k === 'p') powerLens.value = !powerLens.value; else if (k === 'a') airflowLens.value = !airflowLens.value;
   };
   window.addEventListener('keydown', onKey);
 
@@ -215,6 +217,7 @@ export function mountBoard3d(host: HTMLElement) {
     const scale = worldPace(speed.peek()), pace = zoomSlowOn.peek() ? zoomSlow(H / view.height, CYCLES_PER_SEC, scale) : scale, note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
     if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
     chips.frame(camera, H, dt * pace, speed.peek() <= 0);
+    if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()));
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
