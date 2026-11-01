@@ -365,7 +365,7 @@ export class Machine3D {
         // board, so any close look fades them
         const m = this.model(g, coolerModel(visual, this.rad));
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
-        this.skin(d.id, ...m.skin);
+        this.softSkin(d.id, ...m.skin);
         break;
       }
       case 'ram': {
@@ -402,7 +402,7 @@ export class Machine3D {
         const body = mat(PALETTE.psu, { metalness: 0.4, roughness: 0.45 });
         g.add(softBox(PSU_UNIT, CASE_Z + 70, FRONT - 60, body, 40));
         tag(g, 'psu');
-        this.skin(d.id, body);
+        this.softSkin(d.id, body);
         break;
       }
       case 'storage': {
