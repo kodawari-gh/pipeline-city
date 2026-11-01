@@ -353,12 +353,13 @@ export class Machine3D {
         const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, flip = GEO.dimm[i]?.flip ?? false;
         let chips: RectLike[] = [];
         const art = this.baker(() => { const p = ramArt(T, spec as RamSpec, flip); p.root.position.set(r.x, r.y); chips = p.chips ?? []; return p.root; });
-        const spreader = mat(0x2b2e35, { metalness: 0.5, roughness: 0.35 });
-        g.add(rectBox(r, BOARD_Z + 110, BOARD_Z + 330, spreader));
+        // the stick in the 2D stick's navy (`T.sub`), its edges rounded like a spreader's
+        const spreader = mat(0x161f3d, { metalness: 0.5, roughness: 0.35 });
+        g.add(softBox(r, BOARD_Z + 110, BOARD_Z + 330, spreader, 10));
         this.surface(g, art, r, BOARD_Z + 330, LV_PART);
-        // the art's two accent stripes stand up as light bars that glow with the fans
-        const strip = glowMat(PALETTE.rgb);
-        for (const x of [14, 144]) g.add(seeThrough(rectBox({ x: r.x + x, y: r.y + 50, w: 12, h: DIMM_H - 100 }, BOARD_Z + 330, BOARD_Z + 360, strip)));
+        // the art's two accent stripes stand up as frosted light bars that glow with the fans
+        const strip = glowMat(PALETTE.rgb, 0x2c2752);
+        for (const x of [14, 144]) g.add(seeThrough(softBox({ x: r.x + x, y: r.y + 50, w: 12, h: DIMM_H - 100 }, BOARD_Z + 320, BOARD_Z + 362, strip, 5)));
         this.spin(light(strip));
         // up close the DRAM chips stand off the stick, each with its own drawing on top
         const near = new Group();
