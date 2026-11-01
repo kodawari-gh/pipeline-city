@@ -50,8 +50,11 @@ const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
 
-/** Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units high). */
-const LV_BOARD = [0.2, 0.8, 2.4], LV_RAISED = [0.6, 2.4], LV_PART = [0.4, 1.4, 3], LV_DIE = [0.5, 1.6, 4.5];
+/**
+ * Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units
+ * high). The finest is for the closest view (`LIMITS.heightMin`: about 10 screen pixels per unit), where the silkscreen and the die names stay sharp.
+ */
+const LV_BOARD = [0.2, 0.8, 2.4, 7], LV_RAISED = [0.6, 2.4, 7], LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
 
 /** What forces a rebuild: the tier, the parts and where they sit, the cables that are plugged, the keys in the port. */
 export function machineKey(s: Snapshot | null): string {
@@ -140,6 +143,8 @@ export class Machine3D {
     const glass = rectBox(CASE_GLASS, FRONT - 30, FRONT, new MeshStandardMaterial({ color: 0x9fb4c4, transparent: true, opacity: 0.12, roughness: 0.02, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
     glass.castShadow = false;
     this.root.add(seeThrough(glass));
+    // its sheen belongs to the room: from the board view in it would lay a grey haze over the parts, so it fades as the camera comes in
+    this.reveal(CASE_GLASS, FRONT, (z) => fadeTree(glass, 1 - smooth(0.06, 0.16, z)), true);
     // the power button and the LEDs on the top panel
     const btn = place(new Mesh(new CylinderGeometry(POWER_BTN.r * 1.6, POWER_BTN.r * 1.6, 60, 24), mat(0x3a3c42, { metalness: 0.5, roughness: 0.3 })));
     btn.position.set(POWER_BTN.x, -CASE.y + 30, FRONT - 650);

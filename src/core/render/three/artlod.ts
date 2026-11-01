@@ -112,15 +112,17 @@ export interface Finish {
   glow: number;
   /** Strength of the metal's reflections. */
   shine: number;
+  /** How much the lights' diffuse falls on it (1: fully; less keeps a self-lit drawing near its own colours under the case's lamps). */
+  lit: number;
 }
 
 export const FINISH = {
   /** A board or a card: glossy mask, gold and copper, raised traces. */
-  board: { gloss: 0.3, metal: 1, bump: 2.2, glow: 0.05, shine: 1.5 },
+  board: { gloss: 0.3, metal: 1, bump: 2.2, glow: 0.05, shine: 1.5, lit: 1 },
   /** A card: its board with the die drawn on it, between the two. */
-  card: { gloss: 0.36, metal: 0.7, bump: 1.6, glow: 0.1, shine: 1.4 },
-  /** A die: the floorplan's colours stay readable; only the bond pads and wires shine a little. */
-  die: { gloss: 0.42, metal: 0.4, bump: 1.2, glow: 0.12, shine: 1.2 },
+  card: { gloss: 0.36, metal: 0.7, bump: 1.6, glow: 0.1, shine: 1.4, lit: 1 },
+  /** A die: the floorplan's own colours (the 2D die view's dark field and its neon), lit only a little; the bond pads and wires shine. */
+  die: { gloss: 0.42, metal: 0.4, bump: 1.2, glow: 0.4, shine: 1.2, lit: 0.4 },
 } satisfies Record<string, Finish>;
 
 let artEnv: Texture | null = null;
@@ -132,6 +134,7 @@ const ART_GLSL = /* glsl */`
 uniform float artGloss;
 uniform float artMetal;
 uniform float artShine;
+uniform float artLit;
 float artMetalK = 0.0;
 vec3 artSrgb(vec3 c) { return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
 float artHeight(vec4 t) { return dot(artSrgb(t.rgb), vec3(0.299, 0.587, 0.114)) * step(0.4, t.a); }
@@ -171,14 +174,16 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
       // (capped under the bloom's threshold: a field of gold pins seen face-on would glow like a lamp)
       .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\niblIrradiance *= 0.45;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) );')
       // a lamp's highlight would wash the whole mask grey when it faces the camera: the mask keeps a faint sheen, the metal its glint
-      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);');
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);\nreflectedLight.directDiffuse *= artLit;\nreflectedLight.indirectDiffuse *= artLit;');
     sh.uniforms.artShine = { value: f.shine };
+    sh.uniforms.artLit = { value: f.lit };
   };
   m.customProgramCacheKey = () => 'art-finish';
   return m;
 }
 
-interface Tile { rect: Rect; mesh: Mesh | null; queued: boolean; box: Box3 }
+/** When a tile was last in view (ms). */
+interface Tile { rect: Rect; mesh: Mesh | null; queued: boolean; box: Box3; seen: number }
 
 let nextId = 0;
 
@@ -197,7 +202,7 @@ export class ArtSurface {
 
   constructor(readonly rect: Rect, readonly z: number, private bake: Bake, private q: BakeQueue, private o: SurfaceOpts) {
     this.box = new Box3(new Vector3(rect.x, -(rect.y + rect.h), z), new Vector3(rect.x + rect.w, -rect.y, z));
-    this.tiles = o.levels.map((px) => tilesOf(rect, px).map((r) => ({ rect: r, mesh: null, queued: false, box: new Box3(new Vector3(r.x, -(r.y + r.h), z), new Vector3(r.x + r.w, -r.y, z)) })));
+    this.tiles = o.levels.map((px) => tilesOf(rect, px).map((r) => ({ rect: r, mesh: null, queued: false, box: new Box3(new Vector3(r.x, -(r.y + r.h), z), new Vector3(r.x + r.w, -r.y, z)), seen: 0 })));
   }
 
   private request(level: number, k: number, pri: number) {
@@ -238,16 +243,25 @@ export class ArtSurface {
     this.request(0, 0, -1e9 + d);
     if (want > 0) this.tiles[want]!.forEach((t, k) => { if (frustum.intersectsBox(t.box)) this.request(want, k, want * 1e6 + t.box.distanceToPoint(cam.position)); });
     for (let l = want + 1; l < this.tiles.length; l++) this.free(l);
+    // a pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback)
+    for (let l = 1; l <= want; l++) for (const t of this.tiles[l]!) {
+      if (frustum.intersectsBox(t.box)) t.seen = now;
+      else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
+    }
+  }
+
+  private dropTile(t: Tile) {
+    if (!t.mesh) return;
+    this.root.remove(t.mesh);
+    disposeMesh(t.mesh);
+    t.mesh = null;
   }
 
   private free(level: number) {
     this.q.drop(`${this.key}${level}:`);
     for (const t of this.tiles[level]!) {
       t.queued = false;
-      if (!t.mesh) continue;
-      this.root.remove(t.mesh);
-      disposeMesh(t.mesh);
-      t.mesh = null;
+      this.dropTile(t);
     }
   }
 
