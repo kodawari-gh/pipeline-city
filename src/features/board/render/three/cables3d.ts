@@ -45,6 +45,14 @@ export function band(curve: CatmullRomCurve3, s: number, r: number, len: number,
   return o;
 }
 
+/** A plug standing on a socket whose mouth faces the glass (a card's top edge): its body from the mouth at (x, y, z) up to `top`, the accent band at the top where the cable leaves. */
+export function standingPlug(at: { x: number; y: number; z: number }, accent: string, top: number): Group {
+  const g = new Group(), r = { x: at.x - 58, y: at.y - 52, w: 116, h: 104 };
+  g.add(softBox(r, at.z - 4, top - 20, mat(0x1b2230, { roughness: 0.5 }), 14));
+  g.add(softBox({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, top - 40, top, mat(hex(accent), { roughness: 0.45 }), 10));
+  return g;
+}
+
 /** A power plug from depth `z0` to `z1` over its 2D footprint (`plugRect`): the moulded body, and the accent band at the end the cable leaves. */
 export function plug3d(p: Plug, accent: string, z0: number, z1: number): Group {
   const g = new Group(), r = plugRect(p), b = 26;

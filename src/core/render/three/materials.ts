@@ -37,7 +37,10 @@ export function partLook(s: PartState): PartLook {
 export const mat = (color: number, o: MeshStandardMaterialParameters = {}): MeshStandardMaterial =>
   new MeshStandardMaterial({ color, metalness: 0.05, roughness: 0.65, ...o });
 
-/** The materials of one part that follow its state, each eased toward the current look. */
+/**
+ * The materials of one part that follow its state, each eased toward the current look. `gain` scales the glow: a part with wide faces (a card's
+ * shroud, a stick's spreader) glows softer, or the state's colour would cover its own.
+ */
 export class PartSkin {
   private base: Color[];
   private tint = 1;
@@ -46,7 +49,7 @@ export class PartSkin {
   private goal: PartLook = { tint: 1, glow: 0, glowIntensity: 0 };
   private goalGlow = new Color(0);
 
-  constructor(readonly mats: MeshStandardMaterial[]) { this.base = mats.map((m) => m.color.clone()); }
+  constructor(readonly mats: MeshStandardMaterial[], private gain = 1) { this.base = mats.map((m) => m.color.clone()); }
 
   set(state: PartState): void {
     this.goal = partLook(state);
@@ -62,7 +65,7 @@ export class PartSkin {
     this.mats.forEach((m, i) => {
       m.color.copy(this.base[i]!).multiplyScalar(this.tint);
       m.emissive.copy(this.glow);
-      m.emissiveIntensity = this.level;
+      m.emissiveIntensity = this.level * this.gain;
     });
   }
 }

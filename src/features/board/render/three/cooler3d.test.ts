@@ -5,7 +5,6 @@ import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { radiatorFit, radiatorPorts } from '../cooler';
 import { COOLER, setLayoutTier } from '../layout/layout';
 import { FAN_MAX, FAN_ZC, barbZ, coolerModel, radiatorModel } from './cooler3d';
-import { gpuCooler } from './gpu3d';
 
 const rad = (side: 'top' | 'front') => {
   const span = radiatorSpan(side)!;
@@ -46,16 +45,6 @@ describe('the 3D coolers', () => {
     for (const side of ['top', 'front'] as const) {
       const r = rad(side), m = radiatorModel(r.fit, 2, r.span.ids);
       expect(m.spins.map((s) => s.needs), side).toEqual(r.span.ids.map((id) => 'fan:' + id));
-    }
-  });
-
-  it('builds a graphics card\'s cooler with its fans and its accent light, and keeps the bracket apart from what fades', () => {
-    setLayoutTier(3, 3);
-    for (const [visual, fans] of [['gpu-1', 1], ['gpu-2', 2], ['gpu-3', 3]] as const) {
-      const c = gpuCooler(visual, 0);
-      expect(c.spins.filter((s) => s.ring === null).length, visual).toBe(fans);
-      expect(c.spins.filter((s) => s.fixed !== undefined).length, visual).toBe(1);
-      expect(c.card.children.length, visual).toBeGreaterThan(0);
     }
   });
 });

@@ -11,7 +11,7 @@ import {
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
 import { BOARD_TIERS, getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
-import { cardArt, cardOrigin, cardPlugs, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { cardArt, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
@@ -20,7 +20,6 @@ import { disposeTree, drum, instanced, paint, place, rectBox, rod, rounded, soft
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
-import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { nicArt } from '@/features/network/render/net';
 import { driveArt, driveBody, driveKindOf, driveScale, drawDriveLive } from '@/features/storage/render/drives';
 import { bayArt, fanMounts, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
@@ -28,7 +27,7 @@ import { BOARD_Z, CASE_D, CASE_Z, MONITOR_Z } from '@/features/room/render/three
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BAY, BAY_CELLS, BD, CASE, CASE_GLASS, CASE_LEDS, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FOOT, GEO, M2_SLOTS, MONITOR_POWER,
-  PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, PORT_Y, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, gutterTieYs, nicRect,
+  PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, PORT_Y, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, gutterTieYs,
 } from '../layout/layout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
@@ -39,8 +38,8 @@ import { buildCables, isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
 import { FAN_MAX, FAN_ZC, coolerModel, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
-import { band, braidedTube, plug3d } from './cables3d';
-import { gpuCooler } from './gpu3d';
+import { band, braidedTube, plug3d, standingPlug } from './cables3d';
+import { card3d, slotCover, type Card3D } from './card3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
@@ -88,12 +87,14 @@ export class Machine3D {
   private bakers: ArtBaker[] = [];
   private surfaces: ArtSurface[] = [];
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
-  private reveals: { at: Vector3; apply: (z: number) => void; anywhere: boolean }[] = [];
+  private reveals: { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike }[] = [];
   private frustum = new Frustum();
   /** The radiator bolted on a side of the case (it takes that side's fan mounts) and the loop's tubes run to. */
   private rad: (RadiatorAt & { span: FanMount & { ids: string[] } }) | null = null;
   /** The installed sticks' bank: the camera leans over it up close (`lean`). */
   private ram: RectLike | null = null;
+  /** The cards by slot: their power leads plug into the top edge and fade with the cooler. */
+  private cards = new Map<string, Card3D>();
 
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue) {
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
@@ -222,9 +223,12 @@ export class Machine3D {
     return g;
   }
 
-  /** Run `apply` every frame with the zoom seen at the centre of `r` (depth `z`). `anywhere`: the camera zoom there, wherever the view centre is. */
-  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false) {
-    this.reveals.push({ at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z), apply, anywhere });
+  /**
+   * Run `apply` every frame with the zoom seen at the centre of `r` (depth `z`). `anywhere`: the camera zoom there, wherever the view centre is.
+   * `area`: the zoom seen at the point of `r` nearest the view's centre instead (a long card: the view may hold only one end of it).
+   */
+  private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false) {
+    this.reveals.push({ at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z), apply, anywhere, ...(area ? { area: r } : {}) });
   }
 
   // ------------------------------------------------------------------ board
@@ -258,6 +262,8 @@ export class Machine3D {
       if (id) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, id);
     });
     PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
+    // the back wall's slot covers, where no card's bracket stands
+    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotCover(i)); });
     M2_SLOTS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 30, chip, emptyId(`m2${i}`)));
     // an empty bay is picked by an unseen plate over its mouth
     BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) pickBox(r, CASE_Z + 2600, CASE_Z + 2620, `sata${i}`); });
@@ -316,6 +322,8 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ parts
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }
+  /** The same with a soft glow: a part with wide faces keeps its own colours under the state's (`PartSkin` gain). */
+  private softSkin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats, 0.3)); }
 
   private buildDevice(d: DeviceSnap) {
     const spec = getSpec(d.spec);
@@ -361,32 +369,19 @@ export class Machine3D {
         this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));
         this.root.add(g, tag(st.hit, d.id));
         this.ram = this.ram ? union(this.ram, r) : r;
-        this.skin(d.id, ...st.skin);
+        this.softSkin(d.id, ...st.skin);
         return;
       }
-      case 'gpu': {
-        // the card's PCB wears the shop picture's art (the die with its floorplan, the edge fans, the bracket); the cooler over the die (`gpuCooler`)
-        // fades away over the 2D band, as the board's GPU view fades its cover
-        const i = idx(d.slot), r = cardRect(i, visual), sr = moveRect(gpuPlan(visual).shroud, cardOrigin(i, visual));
-        g.add(rectBox(r, BOARD_Z + 200, BOARD_Z + 260, mat(0x1b2236, { roughness: 0.6 })));
-        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 260, LV_PART, FINISH.card);
-        const c = gpuCooler(visual, i);
-        g.add(c.card);
-        this.model(g, { root: c.shroud, spins: c.spins, skin: c.skin });
-        this.reveal(sr, BOARD_Z + 1100, (z) => fadeTree(c.shroud, 1 - smooth(DEVICE_LOD.gpu.fade[0], DEVICE_LOD.gpu.fade[1], z)));
-        this.skin(d.id, ...c.skin);
-        break;
-      }
-      case 'npu': {
-        const i = idx(d.slot), r = cardRect(i, visual);
-        g.add(rectBox(r, BOARD_Z + 200, BOARD_Z + 420, mat(0x24352f, { roughness: 0.5 })));
-        this.surface(g, this.baker(() => cardArt(T, visual, i, false)), r, BOARD_Z + 420, LV_PART, FINISH.card);
-        break;
-      }
-      case 'nic': {
-        const i = idx(d.slot), r = nicRect(i, visual);
-        g.add(rectBox(r, BOARD_Z + 140, BOARD_Z + 300, mat(0x1f5a3a, { roughness: 0.6 })));
-        this.surface(g, this.baker(() => nicArt(T, visual, i)), r, BOARD_Z + 300, LV_RAISED);
+      case 'gpu': case 'npu': case 'nic': {
+        // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's and the NPU's the
+        // shop picture's art (the die with its floorplan), the NIC's its board art
+        const i = idx(d.slot), kind = spec.kind;
+        const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : cardArt(T, visual, i, false)));
+        const c = card3d(kind, visual, i, (parent, r, z) => this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root);
+        this.model(g, c);
+        this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
+        this.cards.set(d.slot, c);
+        this.softSkin(d.id, ...c.skin);
         break;
       }
       case 'tpm': {
@@ -458,10 +453,9 @@ export class Machine3D {
     const on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
     const sleeve = mat(0x1b1c20, { roughness: 0.8 }), tie = mat(0x0d0f14, { roughness: 0.6 });
     const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
-    const targets = assignLeads(cards).filter((l) => on(l.lead)).map((l) => {
-      const card = cards.find((c) => c.slot === l.slot)!, o = cardOrigin(idx(l.slot), card.visual);
-      return { kind: l.lead, x: o.x + (cardPlugs(card.visual)[l.plug] ?? 0), top: o.y, plug: l.plug };
-    });
+    // a PCIe lead plugs into the standing card's top edge: its route ends over the socket, the plug stands on it
+    const leads = assignLeads(cards).filter((l) => on(l.lead)).map((l) => ({ ...l, at: this.cards.get(l.slot)?.sockets[l.plug] }));
+    const targets = leads.map((l) => ({ kind: l.lead, x: l.at?.x ?? 0, top: (l.at?.y ?? 0) + 196, plug: l.plug }));
     for (const c of buildCables(targets)) {
       if (!on(c.kind)) continue;
       if (c.kind === 'video') {
@@ -470,14 +464,20 @@ export class Machine3D {
         this.root.add(tag(tube(pts.map((p, k) => [p[0], -p[1], z(k)] as const), c.w * 0.45, sleeve), 'cable.video'));
         continue;
       }
-      // the run's depth, and where the plug sits on the board end: in the top of the board's connector, or on a card's socket
-      const pcie = isPcieKind(c.kind), zr = BOARD_Z + (pcie ? 960 : 430), zb = BOARD_Z + (pcie ? 910 : 300), accent = ACCENT(this.T, c.kind);
+      // the run's depth, and where the plug sits on the board end: in the top of the board's connector; a PCIe lead leaves the PSU low, climbs
+      // over the cards and comes down onto its socket on the card's top edge
+      const pcie = isPcieKind(c.kind), lead0 = pcie ? leads.find((l) => l.lead === c.kind) : undefined, accent = ACCENT(this.T, c.kind);
+      const zb = lead0?.at ? lead0.at.z + 170 : BOARD_Z + 300, zr = lead0?.at ? zb + 260 : BOARD_Z + 430, z0 = pcie ? BOARD_Z + 430 : zr;
       const pts = thin(c.path.pts, 3), at = [0];
       for (let k = 1; k < pts.length; k++) at.push(at[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
       const len = at[at.length - 1]!, ease = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
-      const lead = braidedTube(pts.map((p, k) => new Vector3(p[0], -p[1], zr + (zb - zr) * ease((at[k]! - (len - 420)) / 320))), c.w * 0.45, '#171d29', accent);
+      const depth = (s: number) => { const z = z0 + (zr - z0) * ease(s / 900); return z + (zb - z) * ease((s - (len - 420)) / 320); };
+      const lead = braidedTube(pts.map((p, k) => new Vector3(p[0], -p[1], depth(at[k]!))), c.w * 0.45, '#171d29', accent);
       const g = tag(new Group(), 'cable.' + c.kind);
-      g.add(lead.mesh, plug3d(c.a, accent, zr - 70, zr + 70), plug3d(c.b, accent, zb - 90, zb + 90));
+      // the card's end: the plug stands on the socket, its cable leaving toward the glass
+      const end = lead0?.at ? standingPlug(lead0.at, accent, zb) : plug3d(c.b, accent, zb - 90, zb + 90);
+      g.add(lead.mesh, plug3d(c.a, accent, z0 - 70, z0 + 70), end);
+      if (lead0) this.cards.get(lead0.slot)?.alsoFade(g);
       const top = Math.min(...c.path.pts.map((p) => p[1]));
       for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) {
         const k = pts.findIndex((p) => p[1] <= y);
@@ -523,9 +523,11 @@ export class Machine3D {
   lod(cam: PerspectiveCamera, H: number): void {
     const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
     frustumOf(cam, this.frustum);
+    cam.getWorldDirection(LOD_DIR);
     for (const r of this.reveals) {
-      const p = LOD_AT.copy(r.at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
-      r.apply(seenZoom(screenPx(cam.position.distanceTo(r.at), cam.fov, H), focus));
+      const at = r.area ? nearestOn(r.area, r.at.z, cam.position, LOD_DIR) : r.at;
+      const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
+      r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
     for (const s of this.surfaces) s.update(cam, this.frustum, H, dpr, now);
   }
@@ -548,4 +550,10 @@ export class Machine3D {
   }
 }
 
-const LOD_AT = new Vector3();
+const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3();
+
+/** Where the view's centre line meets the plane at depth `z`, held inside the layout rect `r`. */
+function nearestOn(r: RectLike, z: number, eye: Vector3, dir: Vector3): Vector3 {
+  const t = Math.abs(dir.z) > 1e-6 ? (z - eye.z) / dir.z : 0, x = eye.x + dir.x * t, y = eye.y + dir.y * t;
+  return NEAREST.set(Math.max(r.x, Math.min(r.x + r.w, x)), Math.max(-(r.y + r.h), Math.min(-r.y, y)), z);
+}
