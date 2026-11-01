@@ -19,7 +19,8 @@ export interface Ctx {
 /** A part as the drawing placed it (world units, its centre), for the 3D view: a capacitor can, an SMD passive, a chip leg, a header pin, a choke, a power stage. */
 export type Solid =
   | { kind: 'cap'; x: number; y: number; r: number }
-  | { kind: 'smd' | 'leg' | 'choke' | 'stage'; x: number; y: number; w: number; h: number }
+  | { kind: 'smd' | 'choke' | 'stage'; x: number; y: number; w: number; h: number }
+  | { kind: 'leg'; x: number; y: number; w: number; h: number; /** The chip's side it leaves from (its point is on that edge). */ side: 'n' | 's' | 'w' | 'e' }
   | { kind: 'pin' | 'lga'; x: number; y: number; s: number };
 
 /** A soft drop shadow under a part that stands off the board. */
@@ -71,8 +72,8 @@ export function chip(c: Ctx, r: Rect, o: { legs?: number; pitch?: number; text?:
 
 /** Queue the legs of a chip on all four sides (n each, or as many as fit when 0), at the pin-map positions; the caller fills. */
 export function legRects(c: Ctx, r: Rect, n: number, pitch = LEG_PITCH) {
-  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 5, y - 10, 10, 20); c.solid?.({ kind: 'leg', x, y, w: 10, h: 20 }); }
-  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 10, y - 5, 20, 10); c.solid?.({ kind: 'leg', x, y, w: 20, h: 10 }); }
+  for (const side of ['n', 's'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 5, y - 10, 10, 20); c.solid?.({ kind: 'leg', x, y, w: 10, h: 20, side }); }
+  for (const side of ['w', 'e'] as const) for (const [x, y] of legsOf(r, side, n || undefined, pitch)) { c.g.rect(x - 10, y - 5, 20, 10); c.solid?.({ kind: 'leg', x, y, w: 20, h: 10, side }); }
 }
 
 /** An electrolytic or polymer capacitor seen from above: a can with a polarity band and a vent cross. */

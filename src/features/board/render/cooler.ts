@@ -16,7 +16,7 @@ import { loopBank } from '@/core/render/fanmotor';
 type Pt = [number, number];
 
 /** The loop's tubes: the sleeve's width. */
-const TUBE_W = 92;
+export const TUBE_W = 92;
 
 /** The brushed-metal ramp the heatsinks use (the VRM sink's tones). */
 const metals = (T: Theme) => ({ metal: T.dark ? '#3b4663' : '#b7c1d3', hi: T.dark ? '#56628a' : '#dde4f0', lo: T.dark ? '#222a41' : '#8d99b1' });
@@ -67,11 +67,12 @@ function fitting(g: Graphics, T: Theme, x: number, y: number, dir: -1 | 1): void
 export interface RadiatorFit { mount: FanMount; end: 'start' | 'end' }
 
 /** A radiator is a slab seen edge-on: `L` long along the mount, `S` across it, `P(u, v)` the world point `u` along it and `v` across it from the outboard face. */
-interface Frame { L: number; S: number; P: (u: number, v: number) => Pt; rect: (u: number, v: number, du: number, dv: number) => Rect; inward: Pt }
+export interface Frame { L: number; S: number; P: (u: number, v: number) => Pt; rect: (u: number, v: number, du: number, dv: number) => Rect; inward: Pt }
 
-const TANK = 200;
+/** A radiator's end tank: its length along the mount. */
+export const TANK = 200;
 
-function frameOf(m: FanMount, end: 'start' | 'end'): Frame {
+export function frameOf(m: FanMount, end: 'start' | 'end'): Frame {
   const r = m.rect, top = m.side === 'top', L = top ? r.w : r.h, S = top ? r.h : r.w, flip = top && end === 'end';
   const at = (u: number, v: number): Pt => {
     const uu = flip ? L - u : u;

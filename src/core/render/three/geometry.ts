@@ -65,6 +65,23 @@ export function tube(points: readonly (readonly [number, number, number])[], rad
   return place(o);
 }
 
+/** A polyline with each inner corner cut by a round of radius `r` (a few points along the arc): a bent pipe for `tube`, tight at its bends. */
+export function rounded(pts: readonly (readonly [number, number, number])[], r: number, per = 5): [number, number, number][] {
+  const v = pts.map((p) => new Vector3(p[0], p[1], p[2])), out: [number, number, number][] = [[pts[0]![0], pts[0]![1], pts[0]![2]]];
+  for (let i = 1; i + 1 < v.length; i++) {
+    const p = v[i]!, a = v[i - 1]!.clone().sub(p), b = v[i + 1]!.clone().sub(p);
+    const k = Math.min(r, a.length() / 2, b.length() / 2), s = p.clone().addScaledVector(a.normalize(), k), e = p.clone().addScaledVector(b.normalize(), k);
+    // a quadratic bend from the cut on the way in to the cut on the way out, the corner as its control point
+    for (let j = 0; j <= per; j++) {
+      const t = j / per, q = s.clone().multiplyScalar((1 - t) ** 2).addScaledVector(p, 2 * t * (1 - t)).addScaledVector(e, t * t);
+      out.push([q.x, q.y, q.z]);
+    }
+  }
+  const l = pts[pts.length - 1]!;
+  out.push([l[0], l[1], l[2]]);
+  return out;
+}
+
 /** Keep every `step`-th point of a long path, always with its two ends: a dense 2D lane becomes a cheap tube. */
 export function thin<T>(pts: readonly T[], step: number): T[] {
   const out = pts.filter((_, i) => i % step === 0);
@@ -72,12 +89,13 @@ export function thin<T>(pts: readonly T[], step: number): T[] {
   return out;
 }
 
-/** Many copies of one geometry in one draw call. `at` gives each copy's position, and optionally its scale. */
-export function instanced(g: BufferGeometry, m: Material, items: readonly { x: number; y: number; z: number; sx?: number; sy?: number; sz?: number }[]): InstancedMesh {
+/** Many copies of one geometry in one draw call. Each item gives its copy's position, and optionally its scale and its turn round z (`rz`). */
+export function instanced(g: BufferGeometry, m: Material, items: readonly { x: number; y: number; z: number; sx?: number; sy?: number; sz?: number; rz?: number }[]): InstancedMesh {
   const o = new InstancedMesh(g, m, items.length), d = new Object3D();
   o.instanceMatrix.setUsage(DynamicDrawUsage);
   items.forEach((it, i) => {
     d.position.set(it.x, it.y, it.z);
+    d.rotation.z = it.rz ?? 0;
     d.scale.set(it.sx ?? 1, it.sy ?? 1, it.sz ?? 1);
     d.updateMatrix();
     o.setMatrixAt(i, d.matrix);
