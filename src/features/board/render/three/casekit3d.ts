@@ -69,10 +69,16 @@ export function ring(r: RectLike, rad: number, cuts: Cuts, e: number, z0: number
 export interface Span { y0: number; y1: number; z0: number; z1: number; r?: number }
 const spanPts = (s: Span) => outlinePts({ x: s.z0, y: s.y0, w: s.z1 - s.z0, h: s.y1 - s.y0 }, s.r ?? 0);
 
-/** A wall across x (from x0 to x1) over the span `s`, with its openings `holes` (the rear wall's slot row and fan, a front's intake). */
-export function wallX(x0: number, x1: number, s: Span, holes: Span[], m: Material, bevel = 0): Mesh {
+/** A point of a wall across x, as `wallX` lays its outlines out: layout `y` and depth `z`. */
+export const wallPt = (y: number, z: number): Vector2 => new Vector2(z, -y);
+
+/**
+ * A wall across x (from x0 to x1) over the span `s`, with its openings `holes` (the rear wall's slot row and fan, a front's intake). A hole is a
+ * span, or any outline of `wallPt` points (a keyed mouth).
+ */
+export function wallX(x0: number, x1: number, s: Span, holes: (Span | Vector2[])[], m: Material, bevel = 0): Mesh {
   const b = Math.max(0, Math.min(bevel, (x1 - x0) / 2.2));
-  const g = new ExtrudeGeometry(shapeOf(spanPts(s), holes.map(spanPts)), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
+  const g = new ExtrudeGeometry(shapeOf(spanPts(s), holes.map((h) => (Array.isArray(h) ? h : spanPts(h)))), { depth: x1 - x0 - 2 * b, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 2, curveSegments: 8 });
   // the shape's (u, v) is the world's (z, y); its extrusion runs to -x after the turn
   g.translate(0, 0, b).rotateY(-Math.PI / 2).translate(x1, 0, 0);
   return place(new Mesh(g, m));

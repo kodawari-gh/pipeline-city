@@ -3,12 +3,13 @@
 // own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column; a lead
 // that is not plugged in hangs loose from its grommet with its plug at the end. The board's power and SATA sockets are modelled with their
 // cavities, the plugs seat in them.
-import { BoxGeometry, CatmullRomCurve3, Group, Mesh, Quaternion, TubeGeometry, Vector3, type Object3D } from 'three';
+import { BoxGeometry, CatmullRomCurve3, Group, Mesh, Quaternion, TubeGeometry, Vector3, type Object3D, type Vector2 } from 'three';
 import { instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
 import { braidedTube, plugBody } from './cables3d';
+import { outlinePts, shapeOf, slab, wallPt, wallX, type Span } from './casekit3d';
 
 /** The tray's face: a grommet sits in it, a lead comes out of it. */
 export const TRAY_Z = CASE_Z + 70;
@@ -66,22 +67,33 @@ export function grommet(r: RectLike, style: { tone: number; metal: boolean } = {
 
 // ------------------------------------------------------------------ sockets and plugs
 const housingM = () => mat(0x1d2028, { roughness: 0.5 });
-
-/** A grid of square cavities on a face: `cols` along a, `rows` along b, as small dark boxes standing in the face. */
-function cavities(g: Group, cells: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[]) {
-  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x050608, { roughness: 0.9 }), cells));
-}
+const darkM = () => mat(0x050608, { roughness: 0.9 });
+const tinM = () => mat(0x7a818b, { metalness: 0.7, roughness: 0.5 });
+/** How deep a socket's mouth plate is: its cavities are holes through it, a contact sleeve stands in each, on a dark floor. */
+const MOUTH = 26;
 
 /**
- * The 24-pin socket on the board's east edge, a right-angle housing over its 2D rect: twelve cavities along it and two rows up its east face
- * (the mouth), the latch ridge over the mouth.
+ * A power socket keys its cavities as a real one does: square and rounded ones in turn (a plug fits one way), each a hole through the mouth
+ * plate with its tinned contact sleeve inside. The rounding of cavity `k`, as a share of its size.
+ */
+const keyed = (k: number): number => (k % 2 ? 0.34 : 0.06);
+
+/**
+ * The 24-pin socket on the board's east edge, a right-angle housing over its 2D rect: its mouth on the east face, two rows of twelve keyed
+ * cavities with a contact in each, the latch ridge over the mouth.
  */
 export function atxSocket(r: RectLike, h = 170): Group {
-  const g = new Group(), cells = [], pitch = (r.h - 60) / 12;
-  g.add(softBox(r, BOARD_Z, BOARD_Z + h, housingM(), 10));
-  for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) cells.push({ x: r.x + r.w + 1, y: -(r.y + 30 + (i + 0.5) * pitch), z: BOARD_Z + h * (0.32 + j * 0.36), sx: 6, sy: pitch * 0.62, sz: h * 0.26 });
-  cavities(g, cells);
-  g.add(rectBox({ x: r.x + r.w - 60, y: r.y + r.h * 0.42, w: 60, h: r.h * 0.16 }, BOARD_Z + h, BOARD_Z + h + 14, housingM()));
+  const g = new Group(), pitch = (r.h - 60) / 12, x1 = r.x + r.w, x0 = x1 - MOUTH, Z = BOARD_Z;
+  g.add(softBox({ ...r, w: r.w - MOUTH }, Z, Z + h, housingM(), 10));
+  const holes: Span[] = [], sleeves: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) {
+    const cy = r.y + 30 + (i + 0.5) * pitch, cz = Z + h * (0.32 + j * 0.36), hy = pitch * 0.31, hz = h * 0.13, s = Math.min(hy, hz) * 2;
+    holes.push({ y0: cy - hy, y1: cy + hy, z0: cz - hz, z1: cz + hz, r: s * keyed(i + j) });
+    sleeves.push({ x: x0 + 6, y: -cy, z: cz, sx: 12, sy: hy * 0.7, sz: hz * 0.7 });
+  }
+  g.add(wallX(x0, x1, { y0: r.y, y1: r.y + r.h, z0: Z, z1: Z + h, r: 10 }, holes, housingM(), 2));
+  g.add(rectBox({ x: x0 - 2, y: r.y + 20, w: 3, h: r.h - 40 }, Z + 16, Z + h - 16, darkM()), instanced(new BoxGeometry(1, 1, 1), tinM(), sleeves));
+  g.add(rectBox({ x: r.x + r.w - 60, y: r.y + r.h * 0.42, w: 60, h: r.h * 0.16 }, Z + h, Z + h + 14, housingM()));
   return g;
 }
 
@@ -96,13 +108,20 @@ export function atxPlug(r: RectLike, accent: string, h = 170): { root: Group; st
   return { root: g, strands };
 }
 
-/** The CPU's 8-pin socket over its 2D rect, standing up off the board: its two rows of four cavities face the glass, the latch on the north side. */
+/** The CPU's 8-pin socket over its 2D rect, standing up off the board: two rows of four keyed cavities face the glass, the latch on the north side. */
 export function epsSocket(r: RectLike, h = 160): Group {
-  const g = new Group(), cells = [];
-  g.add(softBox(r, BOARD_Z, BOARD_Z + h, housingM(), 10));
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) cells.push({ x: r.x + (i + 0.5) * (r.w / 4), y: -(r.y + (j + 0.5) * (r.h / 2)), z: BOARD_Z + h + 1, sx: r.w / 4 * 0.6, sy: r.h / 2 * 0.55, sz: 6 });
-  cavities(g, cells);
-  g.add(rectBox({ x: r.x + r.w * 0.38, y: r.y - 24, w: r.w * 0.24, h: 24 }, BOARD_Z + h * 0.5, BOARD_Z + h, housingM()));
+  const g = new Group(), Z = BOARD_Z, top = Z + h, holes: Vector2[][] = [], sleeves: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+  g.add(softBox(r, Z, top - MOUTH, housingM(), 10));
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+    const cx = r.x + (i + 0.5) * (r.w / 4), cy = r.y + (j + 0.5) * (r.h / 2), w = (r.w / 4) * 0.6, d = (r.h / 2) * 0.58;
+    // (the rounded cavities have their two corners on the latch's side cut)
+    const k = keyed(i + j) > 0.1 ? Math.min(w, d) * 0.3 : 0;
+    holes.push(outlinePts({ x: cx - w / 2, y: cy - d / 2, w, h: d }, 3, k ? [k, k, 0, 0] : [0, 0, 0, 0]));
+    sleeves.push({ x: cx, y: -cy, z: top - MOUTH + 6, sx: w * 0.4, sy: d * 0.4, sz: 12 });
+  }
+  g.add(slab(shapeOf(outlinePts(r, 10), holes), top - MOUTH, top, housingM(), 3));
+  g.add(rectBox({ x: r.x + 10, y: r.y + 10, w: r.w - 20, h: r.h - 20 }, top - MOUTH - 1, top - MOUTH + 1, darkM()), instanced(new BoxGeometry(1, 1, 1), tinM(), sleeves));
+  g.add(rectBox({ x: r.x + r.w * 0.38, y: r.y - 24, w: r.w * 0.24, h: 24 }, Z + h * 0.5, top, housingM()));
   return g;
 }
 
@@ -115,12 +134,19 @@ export function epsPlug(r: RectLike, accent: string, h = 160): { root: Group; st
   return { root: g, strands, top };
 }
 
-/** A right-angle SATA port on the board's east edge: the housing, its L-keyed mouth on the east face. */
+/**
+ * A right-angle SATA port on the board's east edge: the housing, its L-keyed mouth through the east face (the slot and the key's arm at its
+ * north end), the plastic tongue inside with its seven contacts.
+ */
 export function sataPort(r: RectLike): Group {
-  const g = new Group(), h = 100;
-  g.add(softBox(r, BOARD_Z, BOARD_Z + h, housingM(), 8));
-  g.add(rectBox({ x: r.x + r.w - 2, y: r.y + 18, w: 4, h: r.h - 36 }, BOARD_Z + 30, BOARD_Z + 62, mat(0x050608, { roughness: 0.9 })));
-  g.add(rectBox({ x: r.x + r.w - 2, y: r.y + 18, w: 4, h: 22 }, BOARD_Z + 62, BOARD_Z + 76, mat(0x050608, { roughness: 0.9 })));
+  const g = new Group(), h = 100, Z = BOARD_Z, x1 = r.x + r.w, x0 = x1 - MOUTH, ya = r.y + 16, yb = r.y + r.h - 16, arm = r.y + 38;
+  g.add(softBox({ ...r, w: r.w - MOUTH }, Z, Z + h, housingM(), 8));
+  const mouth = [wallPt(ya, Z + 34), wallPt(yb, Z + 34), wallPt(yb, Z + 62), wallPt(arm, Z + 62), wallPt(arm, Z + 80), wallPt(ya, Z + 80)].reverse();
+  g.add(wallX(x0, x1, { y0: r.y, y1: r.y + r.h, z0: Z, z1: Z + h, r: 8 }, [mouth], housingM(), 2));
+  g.add(rectBox({ x: x0 - 2, y: ya - 4, w: 3, h: yb - ya + 8 }, Z + 30, Z + 84, darkM()));
+  g.add(rectBox({ x: x0 - 2, y: r.y + 28, w: MOUTH - 4, h: r.h - 56 }, Z + 40, Z + 52, mat(0x2c3038, { roughness: 0.5 })));
+  const pins = Array.from({ length: 7 }, (_, k) => ({ x: x1 - 15, y: -(r.y + 32 + (k * (r.h - 64)) / 6), z: Z + 53, sx: 16, sy: 4, sz: 2 }));
+  g.add(instanced(new BoxGeometry(1, 1, 1), mat(0xd9b25e, { metalness: 1, roughness: 0.25 }), pins));
   return g;
 }
 

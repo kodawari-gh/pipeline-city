@@ -49,6 +49,7 @@ import { card3d, slotCover, type Card3D } from './card3d';
 import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
 import { GROMMETS, ioShield, type GrommetStyle } from './casedetail3d';
+import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
@@ -470,12 +471,16 @@ export class Machine3D {
         p.root.destroy({ children: true }); p.fan?.destroy({ children: true });
         g.userData.sink = true;
         this.obstacles.push(g);
-        // the 2D sink's metal ramp (`vrmSinkArt`): a darker base plate, lighter rails with rounded edges that catch the light
-        const base = BOARD_Z + 180, top = BOARD_Z + (big ? 720 : 560), fin = mat(0x8590b5, { metalness: 0.75, roughness: 0.3 });
-        g.add(softBox(r, base, base + 70, mat(0x4a5578, { metalness: 0.7, roughness: 0.38 }), 18));
-        for (const f of p.fins ?? []) { const t = Math.max(10, f.h * 0.42); g.add(softBox({ x: f.x, y: f.y + (f.h - t) / 2, w: f.w, h: t }, base + 60, top, fin, 9)); }
+        // as a real regulator sink: a solid anodised block on a thermal pad over the power stages, chamfered at its ends, a brushed plate on its
+        // face toward the socket, the drawing's fin rails (`vrmSinkArt`) machined out of its top (taller and fewer on the big sink)
+        const base = BOARD_Z + 180, body = base + 190, top = BOARD_Z + (big ? 720 : 560);
+        const anod = mat(0x2c3038, { metalness: 0.5, roughness: 0.46, map: tiled(brushed(), 6, 1) });
+        g.add(rectBox({ x: r.x + 14, y: r.y + 14, w: r.w - 28, h: r.h - 28 }, base - 8, base, mat(0x8e98a8, { roughness: 0.85 })));
+        g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), base, body, anod, 8));
+        g.add(rectBox({ x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 }, base + 34, body - 30, mat(0x9aa1ab, { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
+        for (const f of p.fins ?? []) { const t = Math.max(12, f.h * 0.5); g.add(softBox({ x: f.x + 20, y: f.y + (f.h - t) / 2, w: f.w - 40, h: t }, body - 10, top, anod, 6)); }
         if (p.pipe) {
-          const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xc98a52, { metalness: 0.9, roughness: 0.28 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
+          const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xb87a4a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
           g.add(rod([px, ya, base + 40], [px, ya, top + 30], 15, cu, 12), rod([px, ya, top + 30], [px, yb, top + 30], 15, cu, 12), rod([px, yb, top + 30], [px, yb, base + 40], 15, cu, 12));
         }
         if (visual === 'vrm-sink-fan') {

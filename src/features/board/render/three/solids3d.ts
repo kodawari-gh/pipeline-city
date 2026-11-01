@@ -72,10 +72,12 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Gro
     }
   }
   const box = new BoxGeometry(1, 1, 1), can = new CylinderGeometry(1, 1, 1, 22).rotateX(Math.PI / 2);
-  const tinned = mat(0xc9ced6, { metalness: 0.85, roughness: 0.3 }), gold = mat(0xd9b25e, { metalness: 1, roughness: 0.22 });
+  // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
+  const tinned = mat(0xc2c8d0, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };
   add(caps, can, mat(0x1d2433, { roughness: 0.35, metalness: 0.25 }));
-  add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.8, roughness: 0.32 }));
+  // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
+  add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can
   add(bands, new CylinderGeometry(1, 1, 1, 10, 1, true, 2.2, 0.8).rotateX(Math.PI / 2), mat(0xaab4c4, { roughness: 0.4, side: DoubleSide }));
   add(bodies, box, mat(0x8c6c4c, { roughness: 0.55 }));
