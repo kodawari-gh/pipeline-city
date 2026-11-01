@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { CpuSpec, PsuSpec, RamSpec } from '../sim/specs';
 import {
-  DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
+  CPU_S, DIE, DIMM_H, DIMM_W, MONITOR, MONITOR_K, PKG, PORT_Y, PSU, PSU_FAN, PSU_LABEL, PSU_PANEL, PSU_PORTS, PSU_UNIT, SCREEN_D, VENTS, VIDEO_SOCKET, VRM_SINK, MONITOR_POWER, gutterTieYs,
   LAYOUT_CASE, PSU_REAR_FAN, type Rect,
 } from './layout/layout';
 import { CASE_KIND, hexes, slots } from '../../room/render/shell/casedecor';
@@ -73,27 +73,28 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   }
   g.fill({ color: T.pin, alpha: 0.85 });
   g.poly([k.x + 20, k.y + 20, k.x + 62, k.y + 20, k.x + 20, k.y + 62]).fill({ color: T.pin, alpha: 0.85 });
-  // decoupling capacitors
-  for (let x = k.x + 130; x <= k.x + k.w - 130; x += 46) for (const y of [k.y + 118, k.y + k.h - 132]) { g.rect(x, y, 28, 14); }
-  for (let y = k.y + 130; y <= k.y + k.h - 130; y += 46) for (const x of [k.x + 118, k.x + k.w - 132]) { g.rect(x, y, 14, 28); }
+  // decoupling capacitors in a ring between the pad rows and the die
+  const cin = 84, cout = 98;
+  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) for (const y of [k.y + cin, k.y + k.h - cout]) { g.rect(x, y, 28, 14); }
+  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) for (const x of [k.x + cin, k.x + k.w - cout]) { g.rect(x, y, 14, 28); }
   g.fill({ color: T.line });
-  for (let x = k.x + 130; x <= k.x + k.w - 130; x += 46) for (const y of [k.y + 118, k.y + k.h - 132]) { g.rect(x, y, 5, 14); g.rect(x + 23, y, 5, 14); }
-  for (let y = k.y + 130; y <= k.y + k.h - 130; y += 46) for (const x of [k.x + 118, k.x + k.w - 132]) { g.rect(x, y, 14, 5); g.rect(x, y + 23, 14, 5); }
+  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) for (const y of [k.y + cin, k.y + k.h - cout]) { g.rect(x, y, 5, 14); g.rect(x + 23, y, 5, 14); }
+  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) for (const x of [k.x + cin, k.x + k.w - cout]) { g.rect(x, y, 14, 5); g.rect(x, y + 23, 14, 5); }
   g.fill({ color: T.pin });
   // die
-  box(g, d.x, d.y, d.w, d.h, 14, { fill: T.die, stroke: accent, lw: 4 });
-  // the floorplan of this CPU's architecture (docs/DIE.md): blocks, stage frames and bond pads; the detail is the die view's (dieview.ts)
-  dieFar(g, T, planOf(spec));
-  labels.addChild(label(spec.name, k.x + 170, k.y + k.h - 148, 34, T.mute, { a: 0.75, weight: '700' }));
+  box(g, d.x, d.y, d.w, d.h, 10, { fill: T.die, stroke: accent, lw: 3 });
+  // the floorplan of this CPU's architecture (docs/DIE.md): blocks, stage frames and bond pads, in the die's own frame drawn at `CPU_S`; the
+  // detail is the die view's (dieview.ts)
+  const fp = new Graphics();
+  fp.scale.set(CPU_S);
+  root.addChild(fp);
+  dieFar(fp, T, planOf(spec));
+  labels.addChild(label(spec.name, k.x + 110, k.y + k.h - 116, 24, T.mute, { a: 0.75, weight: '700' }));
   root.addChild(labels);
   return { root, labels };
 }
 
 // ---------------------------------------------------------------- RAM
-/**
- * A DIMM stick in local coordinates; caller positions it at (DIMM_X(i), DIMM_Y(i)). Row 0 sticks (dimm0..3) have their pins at the
- * bottom, row 1 sticks (dimm4..7) are drawn upside down (pins at the top) so the pins face the memory bus between the rows.
- */
 /** A stick's accent colour by its `visual` (the 2D stripes, the 3D spreader). */
 export const ramAccent = (T: Theme, visual: string): string =>
   ({ 'dimm-ecc': T.st, 'dimm-ddr5ecc': T.st, 'dimm-lowlat': T.ld, 'dimm-ddr5': T.ld, 'dimm-ddr3': T.mul, 'dimm-fast': T.br } as Record<string, string>)[visual] ?? T.alu;
@@ -102,41 +103,46 @@ export const ramAccent = (T: Theme, visual: string): string =>
 export const ramNotch = (visual: string): number =>
   ({ 'dimm-basic': 6, 'dimm-fast': 8, 'dimm-ddr3': 10, 'dimm-lowlat': 12, 'dimm-ecc': 12, 'dimm-ddr5': 14, 'dimm-ddr5ecc': 14 } as Record<string, number>)[visual] ?? 12;
 
-export function ramArt(T: Theme, spec: RamSpec, flip = false): Part {
+/** The DRAM chips of a stick, in its local frame (the 2D lays it flat, its pins down its west edge): two groups of four along it, the gap
+ * between them for the ECC chip and the DDR5 power chip. The live memory map lands on these (memory/render/ramlayout.ts), the 3D's too. */
+export const RAM_CHIP_W = 116, RAM_CHIP_H = 230, RAM_CHIP_PITCH = 262;
+export const ramChips = (): Rect[] =>
+  Array.from({ length: 8 }, (_, j) => ({ x: 34, y: (j < 4 ? 80 : DIMM_H - 80 - 4 * RAM_CHIP_PITCH + 32) + (j % 4) * RAM_CHIP_PITCH, w: RAM_CHIP_W, h: RAM_CHIP_H }));
+/** The middle of the gap between the stick's two groups of chips (the ECC chip, the DDR5 power chip). */
+const ramGapY = (): number => { const c = ramChips(); return (c[3]!.y + c[3]!.h + c[4]!.y) / 2; };
+
+/** A DIMM stick in local coordinates, laid flat with its gold fingers down its west edge (on its socket's pin column); the caller positions it at (DIMM_X(i), DIMM_Y(i)). */
+export function ramArt(T: Theme, spec: RamSpec): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
   root.addChild(g);
   const accent = ramAccent(T, spec.visual), notch = ramNotch(spec.visual);
   const ddr5 = spec.visual === 'dimm-ddr5' || spec.visual === 'dimm-ddr5ecc';
-  const fy = (y: number, h = 0) => (flip ? DIMM_H - y - h : y);
   box(g, 0, 0, DIMM_W, DIMM_H, 10, { fill: T.sub, stroke: T.line, lw: 6 });
-  box(g, 14, 50, 142, DIMM_H - 100, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
-  const chips: Rect[] = [];
-  for (let j = 0; j < 4; j++) {
-    const cy = fy(84 + j * 128, 112);
-    box(g, 27, cy, 116, 112, 8, { fill: T.tile, stroke: T.line, lw: 5 });
-    chips.push({ x: 27, y: cy, w: 116, h: 112 });
-  }
+  box(g, 22, 40, 134, DIMM_H - 80, 6, { fill: T.die, stroke: accent, lw: 5, sa: 0.9 });
+  const chips = ramChips();
+  for (const c of chips) box(g, c.x, c.y, c.w, c.h, 8, { fill: T.tile, stroke: T.line, lw: 5 });
+  const gy = ramGapY();
   if (spec.ecc) {
-    // the extra chip of an error-correcting stick: the parity bits, a small chip of its own under the data chips
-    const ey = fy(590, 40);
-    box(g, 27, ey, 116, 40, 6, { fill: T.tile, stroke: accent, lw: 4 });
-    for (let k = 0; k < 8; k++) g.rect(36 + k * 13, ey + 10, 8, 20).fill({ color: accent, alpha: 0.55 });
+    // the extra chip of an error-correcting stick: the parity bits, a chip of its own between the two groups
+    box(g, 34, gy - 70, 116, 140, 6, { fill: T.tile, stroke: accent, lw: 4 });
+    for (let k = 0; k < 8; k++) g.rect(43 + k * 13, gy - 20, 8, 40).fill({ color: accent, alpha: 0.55 });
   }
   if (spec.visual !== 'dimm-basic') {
     // heat spreader stripe on the faster sticks
-    g.rect(14, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
-    g.rect(144, 50, 12, DIMM_H - 100).fill({ color: accent, alpha: 0.7 });
+    g.rect(22, 40, 10, DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
+    g.rect(146, 40, 10, DIMM_H - 80).fill({ color: accent, alpha: 0.7 });
   }
   if (ddr5) {
     // DDR5 carries its own power management chip on the stick
-    const py = fy(560, 22);
-    box(g, 100, py, 40, 22, 4, { fill: T.tile, stroke: accent, lw: 3 });
+    box(g, 100, gy + (spec.ecc ? 80 : -11), 40, 22, 4, { fill: T.tile, stroke: accent, lw: 3 });
   }
-  for (let k = 0; k < 24; k++) if (k !== notch && k !== notch + 1) g.rect(22 + k * 5.4, fy(DIMM_H - 58, 50), 3.4, 50);
+  // the gold fingers down the west edge, the key notch where the generation puts it (a fraction of the way along, as on a real stick)
+  const n = 96, step = (DIMM_H - 140) / n, ny = Math.round((notch / 24) * n);
+  for (let k = 0; k < n; k++) if (k < ny - 1 || k > ny + 1) g.rect(2, 70 + k * step, 16, step * 0.62);
   g.fill({ color: T.pin });
-  for (let k = 0; k < 14; k++) g.rect(18 + k * 9.6, fy(24, 14), 8, 14);
-  g.fill({ color: accent, alpha: 0.9 });
+  // the maker's label strip across the north end
+  g.rect(40, 14, 100, 14).fill({ color: accent, alpha: 0.9 });
   root.addChild(labels);
   return { root, labels, chips };
 }

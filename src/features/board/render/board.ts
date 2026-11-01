@@ -31,8 +31,8 @@ import type { GpuCardScene } from '../../gpu/render/gpuview';
 import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../../room/render/shell/exterior';
 import { box, clear, dashed, label } from '@/core/render/ink';
 import {
-  BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, dimmFlip, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
+  BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, CPU_S, DIE, DIMM_H, offBoard, onBoard, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
@@ -55,8 +55,8 @@ interface Hit { id: string; rect: Rect; /** Extra rects (thin cable segments) th
   /** False: the hover ring is not traced along the silhouette. */ ring?: false }
 
 // The zoom bands live in one table (lod.ts `DEVICE_LOD`), shared with the views; the hover gates below read it too.
-/** Zoom above which the die is the thing being looked at (cooler faded, chips shown). */
-const Z_DIE = DEVICE_LOD.die.hover;
+/** Camera zoom above which the die is the thing being looked at (cooler faded, chips shown): the die view's own hover zoom, in its frame. */
+const Z_DIE = DEVICE_LOD.die.hover / CPU_S;
 /** A graphics card's insides (lanes, banks, registers) hover from where its shroud is gone (gpuview.ts); its fans from further out. */
 const Z_GPU = DEVICE_LOD.gpu.hover, Z_GPU_FAN = DEVICE_LOD.gpu.fan;
 /** A secure module's insides hover from the zoom where its lid starts to fade (tpmview.ts); the lid itself from afar. */
@@ -211,6 +211,8 @@ export async function mountBoard(host: HTMLElement) {
   /** Hover-animated props: vector art close up, one small baked sprite far out. */
   let propBakes: { vec: Container; cached: boolean }[] = [];
   const die = new DieView();
+  // the die view draws in the floorplan's frame (`DIE_PLAN`); on the board the die is `CPU_S` of it, about the socket at the origin
+  die.root.scale.set(CPU_S);
   die.onMemory = (e) => {
     live.touchRam(e.kind, e.addr, T[e.cls === 'sys' ? 'mute' : e.cls], e.core);
     routeOnDie(die, e.addr, e.kind === 'store', gt);
@@ -481,9 +483,10 @@ export async function mountBoard(host: HTMLElement) {
     for (const p of parts) if (p.labels) p.labels.visible = partLabels;
     coolerLayer.alpha = 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], coolerSeen);
     coolerLayer.visible = coolerLayer.alpha > 0.01 && coolerInView;
-    die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], dieSeen);
+    // the die is drawn in its own frame at `CPU_S`: it reads the zoom of that frame (its bands are the die view's own)
+    die.root.alpha = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], dieSeen * CPU_S);
     die.root.visible = die.root.alpha > 0.01 && dieInView;
-    die.setZoom(z, dieSeen, dieView);
+    die.setZoom(z * CPU_S, dieSeen * CPU_S, dieView && offBoard(dieView));
     for (const pb of propBakes) {
       const want = bakeProps.warm;
       if (want !== pb.cached) { pb.cached = want; pb.vec.cacheAsTexture(want ? { resolution: 0.5, antialias: true } : false); }
@@ -625,7 +628,7 @@ export async function mountBoard(host: HTMLElement) {
         const plan = planOf(spec as CpuSpec);
         die.setPlan(T, plan);
         // one hover id per kind of block (the lanes of a unit share one): the blocks, not the stage frames behind them
-        dieHits = plan.blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: Z_DIE }));
+        dieHits = plan.blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: onBoard(b.rect), min: Z_DIE }));
         deviceLayer.addChild(p.root); parts.push(p);
         targets.push({ id: d.id, kind: 'cpu', spec: d.spec, rect: { x: PKG.x - 46, y: PKG.y - 46, w: PKG.w + 92, h: PKG.h + 92 } });
         // the package (the CPU) is hit everywhere; the cooler sits over it and is hit first below the die zoom (coolerHit), so
@@ -634,7 +637,7 @@ export async function mountBoard(host: HTMLElement) {
         scene.rects.set(d.id, PKG);
       } else if (spec.kind === 'ram') {
         const idx = Number(/\d+$/.exec(d.slot)?.[0] ?? 0);
-        const p = ramArt(T, spec as RamSpec, dimmFlip(idx));
+        const p = ramArt(T, spec as RamSpec);
         p.root.position.set(DIMM_X(idx), DIMM_Y(idx));
         deviceLayer.addChild(p.root); parts.push(p);
         const r = { x: DIMM_X(idx), y: DIMM_Y(idx), w: DIMM_W, h: DIMM_H };

@@ -49,7 +49,7 @@ The big heap (`HEAP_BASE` 0x10000) is where memory-hungry jobs keep their data (
 `RamSpec.ecc` marks error-correcting sticks (ram3). Memory can suffer a **bit flip** (`EconomyConfig.memoryFlipRate`, the chance per base tick that a bit flips in memory the running job uses; **very low by default (0.00005 a tick: about one flip in five and a half hours of running)**, to be tuned in the balance pass). Plain RAM keeps the flip (the job may crash or answer wrongly; `Snapshot.bitFlips`, logged); ECC RAM corrects it (`Snapshot.eccCorrected`, logged). A **TPM needs ECC**: the module is off the bus unless every working stick is ECC, and `secure` jobs need `{tpm, ecc}` (`Caps.ecc`). Counters are this session's, not saved.
 
 ## Look
-No text on the sticks. A stick's chips are a grid of 256-byte pages (src/features/cpu/DIE.md "Memory"); the open row of every bank is outlined; an ECC stick has a ninth, smaller chip of parity bits in green.
+No text on the sticks. A stick is a real stick's length and carries eight data chips (`CHIPS_PER_STICK`), four either side of its key notch. A chip is a grid of 256-byte pages (src/features/cpu/DIE.md "Memory"); the open row of every bank is outlined; an ECC stick has a ninth, smaller chip of parity bits in green.
 
 ## Larger memory (evaluation, not built)
 The sim array stays 64 KiB. Each RAM tier gets a *scale* (one sim page stands for N real pages); chips become windows onto a sparse virtual space; the OS table and workload footprints are scaled numbers; only touched pages (`Bus.dirty`, regions) are real, everything else is drawn procedurally by level of detail (far: bank and row heat; near: pages). DRAM timing already works on any address, so it needs nothing more.

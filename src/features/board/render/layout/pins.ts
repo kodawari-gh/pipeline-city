@@ -54,15 +54,18 @@ export function legRun(r: Rect, side: Side, k: number, shift = 0, pitch = LEG_PI
   return Array.from({ length: k }, (_, i) => legAt(r, side, first + i, n, pitch));
 }
 
-// ---- DIMM sockets: a pad bar across the data end (row 0: the south end, row 1: the north end) ----
-export const MEM_LANES = 6, MEM_SPACING = 18;
-/** The six data pads of a socket, inside its housing end. */
-export function dimmPads(r: Rect, flip: boolean): Pt[] {
-  const cx = r.x + r.w / 2, y = flip ? r.y + 30 : r.y + r.h - 30;
-  return Array.from({ length: MEM_LANES }, (_, k) => [cx + (k - (MEM_LANES - 1) / 2) * MEM_SPACING, y] as Pt);
+// ---- DIMM sockets: the pins run the socket's length, in a column down its west side (toward the CPU) ----
+/** Lanes per DIMM bundle (on the package's 20 grid, so a bundle runs straight): six, four on the eight-slot board (its bank fills the edge). */
+export const MEM_SPACING = PKG_PIN;
+export const memLanes = (dimms: number): number => (dimms > 4 ? 4 : 6);
+/** The x of a socket's pin column, just west of its housing (the lanes come in from the CPU's side and land on it). */
+export const dimmPinX = (r: Rect): number => r.x + r.w / 2 - 45;
+/** The `n` data pads a bundle lands on, on the socket's pin column, centred on the bundle's run `y`. */
+export function dimmPads(r: Rect, y: number, n: number): Pt[] {
+  return Array.from({ length: n }, (_, k) => [dimmPinX(r), y + (k - (n - 1) / 2) * MEM_SPACING] as Pt);
 }
-/** The memory-voltage pad of a socket, at the far end beside the latch. */
-export const dimmPowerPad = (r: Rect, flip: boolean): Pt => [r.x + 36, flip ? r.y + r.h - 30 : r.y + 30];
+/** The memory-voltage pad of a socket, at its north end beside the latch (the regulator's rail runs along the north ends). */
+export const dimmPowerPad = (r: Rect): Pt => [r.x + 36, r.y + 30];
 
 // ---- PCIe slots: staggered SMT pads along both long edges, 40 apart (every second pin on each side) ----
 export const PCIE_PAD = 40;

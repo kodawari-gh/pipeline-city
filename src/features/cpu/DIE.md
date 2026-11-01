@@ -14,6 +14,8 @@ Every CPU used to share one floorplan (five stage tiles in a row plus filler blo
 
 ## The data model (`cpuplan.ts`)
 
+The die view draws in its own frame (`DIE_PLAN`, 1420 x 1130). On the board it lands at `CPU_S` (0.7) of that, about the origin (`DIE`, `onBoard`, `offBoard` in `layout.ts`): the package keeps a real package's proportion to the board, the blocks and the text keep their coordinates, and both renderers scale the die as a whole, with a deeper maximum zoom.
+
 `cpuPlan(input) -> CpuPlan { arch, cores, die, blocks, links, tiles? }` (in `cpuplans.ts`) in die coordinates (`DIE` from `layout.ts`, 1420 x 1130, centred on the socket). `planInput(engineConfig, extra)` maps a spec's `EngineConfig` plus the feature knobs (`icacheLines`, `ways`, `l2Lines`, `predEntries`, `predBits`, `cores`) to the input, so a new CPU spec renders without drawing code. Plans are cached by input.
 
 - **Block** `{ id, kind, label, sub?, rect, grid?, parent?, stage?, lane?, unit?, zone, core? }`. `grid` = the cells a structure shows, an exact `cols x rows` (`gridExact`: cols * rows = count, so 8 lines are 2 x 4, 16 registers 4 x 4, 64 lines 8 x 8, a prime count one row); datapath units show their 32 bit-slices (`shape [32, 1]`), the memory controller its 6 lanes, PCIe its 21 lanes (12 PCIe, 3 NVMe, 6 DMI, the board's own bus lane counts). `parent` = the stage frame (a pipeline stage's column) the block sits in; `stage` = stage index of a frame (an instruction in that stage lights it); `unit` = the OoO unit (`ALU0 ALU1 MUL LSU`) whose instruction lights the block; `zone` = `edge` (the board-facing ring, shared by cores) or `core`. Block ids are unique per plan; the hover id is per block kind, `cpu.<kind>` (`board.ts` dieHits), so blocks of one kind share a tooltip.

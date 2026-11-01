@@ -22,7 +22,7 @@ import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
 import { TpmView, type TpmScene } from '@/features/tpm/render/tpmview';
 import { tpmGeo, tpmParts } from '@/features/tpm/render/tpmlayout';
 import { headerRect, tpmHeader } from '@/core/render/accelart';
-import { DIE, LAYOUT_TIER } from '../layout/layout';
+import { DIE_PLAN, LAYOUT_TIER } from '../layout/layout';
 import { npuAccess, routeOnDie } from '../wiring/busmap';
 import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
@@ -168,10 +168,12 @@ export class Chips3D {
     this.t += dt * 1000;
     cam.updateMatrixWorld();
     const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    // the die: its zoom, and its tiles' and wash's by the view, as board.ts gives them
+    // the die: its zoom, and its tiles' and wash's by the view, as board.ts gives them, read in the die's own frame (its face's parent is drawn
+    // at `CPU_S` of it)
     const dieFace = this.faces.find((f) => f.kind === 'die');
     if (this.cpu && dieFace) {
-      const v = viewOn(cam, H, dieFace.z), view = v.rect ?? EVERYWHERE, p = deviceLod(DIE, view), seen = seenZoom(v.zoom, p.focus);
+      dieFace.parent.updateWorldMatrix(true, false);
+      const v = viewOn(cam, H, dieFace.z, INV.copy(dieFace.parent.matrixWorld).invert()), view = v.rect ?? EVERYWHERE, p = deviceLod(DIE_PLAN, view), seen = seenZoom(v.zoom, p.focus);
       this.dieAlpha = p.onScreen ? smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], seen) : 0;
       this.die.setZoom(v.zoom, seen, view);
       this.die.frame(this.t, paused, this.dieAlpha > 0.01 && shown(dieFace.parent));

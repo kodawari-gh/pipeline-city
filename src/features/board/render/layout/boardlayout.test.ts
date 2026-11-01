@@ -5,7 +5,7 @@ import { boardBakeFrame, CASE_BD, CASE_IN, FAN_HUB, FAN_SLOT, HUB_POWER_Y, REAR_
 import { fanStubs, frontFanRects, hubHeaders, sataCablePath } from '@/features/room/render/desk/props/case';
 import { m2Tie, slotTie } from './pins';
 import { DRAM_IN_X, DRAM_OUT_X, HOP_BUSES, VRM_OUT_X, buildBuses, buildCables, crossings, pointAt, movablePlug, NVME_LANES, vdimmEnd, visibleParts, type Bus, type Lane, type PcieTarget } from '../wiring/routes';
-import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, atx12vSlots, pcieFeed, dimmPads, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
+import { atx12v, cellTop, pkgPads, xtalPads, cpuPowerPins, cpuStageCtl, atx12vSlots, pcieFeed, dimmPads, dimmPinX, dramStageCtl, headerPin, ioPads, legsOf, m2Pads, pciePads, sataPads } from './pins';
 import { IO_PORTS, ioPort } from './boardlayout';
 import { plugRect } from '../devices';
 
@@ -79,15 +79,14 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const by = (id: Bus['id']) => buses.find((b) => b.id === id);
     const socket = { x: PKG.x - SOCKET_E, y: PKG.y - SOCKET_E, w: PKG.w + 2 * SOCKET_E, h: PKG.h + 2 * SOCKET_E };
     const ends = (lanes: Lane[]) => lanes.flatMap((l) => [l.pts[0]!, l.pts[l.pts.length - 1]!]);
-    // memory: one end on the socket frame, the other on the pad row of its DIMM
+    // memory: one end on the socket frame, the other on the pin column of its DIMM, along the socket's length
     by('mem')!.taps!.forEach((t, i) => {
       for (const l of t.lanes) {
         expect(near(l.pts[0]!, socket, 4)).toBe(true);
-        const d = g.dimm[i]!, padY = d.flip ? g.padY[1] : g.padY[0];
-        const e = l.pts[l.pts.length - 1]!;
-        expect(Math.abs(e[1] - padY), 'the pad bar sits just inside the socket end').toBeLessThan(40);
-        expect(e[0]).toBeGreaterThan(d.rect.x);
-        expect(e[0]).toBeLessThan(d.rect.x + d.rect.w);
+        const d = g.dimm[i]!, e = l.pts[l.pts.length - 1]!;
+        expect(e[0], 'the lane lands on its socket\'s pin column').toBeCloseTo(dimmPinX(d.rect), 5);
+        expect(e[1]).toBeGreaterThan(d.rect.y + 60);
+        expect(e[1]).toBeLessThan(d.rect.y + d.rect.h - 60);
       }
     });
     const lands = (id: Bus['id'], a: Rect, b: Rect, d = 14) => {
@@ -150,7 +149,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const by = (id: Bus['id']) => buses.find((b) => b.id === id);
     const hit = (p: [number, number], pins: [number, number][], what: string) => expect(pins.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.6), `${what} ${p}`).toBe(true);
     const end = (l: Lane) => l.pts[l.pts.length - 1]!;
-    by('mem')!.taps!.forEach((t, i) => { const pads = dimmPads(g.dimm[i]!.rect, g.dimm[i]!.flip); for (const l of t.lanes) hit(end(l), pads, `dimm${i} lane ends on a pad`); });
+    by('mem')!.taps!.forEach((t, i) => { const pads = dimmPads(g.dimm[i]!.rect, g.memY[i]!, g.memLanes); for (const l of t.lanes) hit(end(l), pads, `dimm${i} lane ends on a pad`); });
     const nv = by('nvme');
     if (nv) { const pads = g.m2.flatMap((m) => m2Pads(m)); for (const l of nv.lanes) hit(end(l), pads, 'nvme lane ends on a contact'); }
     const legsN = legsOf(g.chip, 'n');
@@ -325,14 +324,15 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const p12 = by('pwr12').lanes[0]!, rail12 = p12.pts[0]![1];
     expect(rail12).toBeCloseTo(g.dRailY, 5);
     for (const r of g.dPhases) expect(p12.pts[p12.pts.length - 1]![0] <= r.x + DRAM_IN_X + 1 && p12.pts[0]![0] >= r.x + DRAM_IN_X, 'input stub on the 12 V run').toBe(true);
-    // the memory rail: the upper run starts before the first phase's output and ends after the last, every phase's output and every socket's drop lands on a run
+    // the memory rail: it starts before the first phase's output and ends after the last, every phase's output and every socket's drop lands on it
     const vd = by('vdimm'), runs = vd.lanes.slice(0, 2), x0 = Math.min(...runs.map((l) => l.pts[0]![0])), x1 = vdimmEnd(g);
     expect(x0).toBeLessThanOrEqual(g.dimm[0]!.rect.x + 36);
     for (const r of g.dPhases) { const x = r.x + DRAM_OUT_X; expect(x >= x0 && x <= x1, 'phase output on the rail').toBe(true); }
     g.dimm.forEach((d, i) => {
       const t = vd.taps![i]!.lanes[0]!, [cx] = t.pts[0]!, y0 = t.pts[0]![1];
       expect(cx > d.rect.x && cx < d.rect.x + d.rect.w, `socket ${i}'s drop is on the socket`).toBe(true);
-      if (!d.flip) { expect(y0, `socket ${i} drops from the upper rail`).toBeCloseTo(g.vdimmY, 5); expect(cx >= x0 && cx <= x1, `socket ${i} is under the upper rail`).toBe(true); }
+      expect(y0, `socket ${i} drops from the rail`).toBeCloseTo(g.vdimmY, 5);
+      expect(cx >= x0 && cx <= x1, `socket ${i} is under the rail`).toBe(true);
     });
     // the core-voltage supply: the 8-pin's comb rail covers every phase's input stubs; each phase's output stub is inside its block
     const comb = by('pwrcpu').lanes[0]!, railEnd = comb.pts[comb.pts.length - 1]![0];

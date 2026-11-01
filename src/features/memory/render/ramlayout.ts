@@ -15,13 +15,13 @@ export interface ChipSlot { rect: Rect; lo: number; hi: number; tilesX: number; 
 
 export interface Stick { idx: number; bytes: number }
 
-/** Chips per stick (ramArt draws four). */
-export const CHIPS_PER_STICK = 4;
+/** Data chips per stick (ramArt draws eight, as a real stick carries a side). */
+export const CHIPS_PER_STICK = 8;
 
 /**
  * The address range of each chip. The sim's RAM is 64 KiB whatever is installed; the sticks are the physical memory: with more installed than
  * that the extra shows as free, with less the 64 KiB is spread over the chips there are. Sticks hold ascending addresses by slot number.
- * `rects` are the chips in device order, four per stick, as `sticks` lists the sticks; the result is in the same order.
+ * `rects` are the chips in device order, `CHIPS_PER_STICK` per stick, as `sticks` lists the sticks; the result is in the same order.
  */
 export function chipLayout(rects: Rect[], sticks: Stick[], ramBytes: number): ChipSlot[] {
   const n = rects.length;

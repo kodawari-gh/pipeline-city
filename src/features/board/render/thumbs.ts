@@ -134,8 +134,10 @@ function make(id: string, T: Theme): string | null {
     switch (spec.kind) {
       case 'cpu': holder.addChild(cpuArt(T, spec as CpuSpec).root); break;
       case 'ram': {
-        // a stick lies on its side: that is how it is pictured, and it fits the tile
-        const p = ramArt(T, spec as RamSpec, false);
+        // a stick lies on its side: that is how it is pictured, and it fits the tile (its width drawn 3.3 times over, so the picture has a real
+        // stick's proportion, 133 by 31 mm, and not the board's narrow footprint)
+        const p = ramArt(T, spec as RamSpec);
+        p.root.scale.set(3.3, 1);
         p.root.rotation = -Math.PI / 2;
         holder.addChild(p.root);
         break;

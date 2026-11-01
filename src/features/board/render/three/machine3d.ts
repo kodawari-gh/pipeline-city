@@ -31,7 +31,7 @@ import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/r
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
-  BD, CASE, CASE_GLASS, CASE_IN, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
+  BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
   LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
 import { IO_PORTS } from '../layout/boardlayout';
@@ -390,19 +390,25 @@ export class Machine3D {
         const cs = spec as CpuSpec, plan = planOf(cs);
         g.add(rectBox(PKG, BOARD_Z + 70, BOARD_Z + 150, mat(0x111a33, { roughness: 0.6 })));
         this.surface(g, this.baker(() => cpuArt(T, cs).root), PKG, BOARD_Z + 150, LV_PART);
+        // the die in its own frame (`DIE_PLAN`), drawn at `CPU_S` about the socket: its art, its live face and their hits read that frame's
+        // zoom (the faces' views carry their parent's transform, as a card's do)
         const dieArt = this.baker(() => {
           const c = new Container(), gg = new Graphics();
-          box(gg, DIE.x, DIE.y, DIE.w, DIE.h, 14, { fill: T.die });
+          box(gg, DIE_PLAN.x, DIE_PLAN.y, DIE_PLAN.w, DIE_PLAN.h, 14, { fill: T.die });
           dieFar(gg, T, plan);
           c.addChild(gg, dieNear(T, plan).root);
           return c;
         });
-        const die = this.surface(g, dieArt, DIE, BOARD_Z + 152, LV_DIE, FINISH.die);
-        this.chips?.face(die.root, 'die', DIE, BOARD_Z + 154);
-        // the lid fades away over the die view's band, and the die shows through
-        const ihsM = mat(0xb8bcc2, { metalness: 0.8, roughness: 0.3 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
+        const frame = new Group();
+        frame.position.z = BOARD_Z + 150;
+        frame.scale.setScalar(CPU_S);
+        g.add(frame);
+        const die = this.surface(frame, dieArt, DIE_PLAN, 2 / CPU_S, LV_DIE, FINISH.die);
+        this.chips?.face(die.root, 'die', DIE_PLAN, 4 / CPU_S);
+        // the lid (satin nickel, as a real heat spreader) fades away over the die view's band, and the die shows through
+        const ihsM = mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
         g.add(ihs);
-        this.reveal(DIE, BOARD_Z + 200, (z) => { const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z); fadeTree(ihs, 1 - a); die.root.visible = a > 0.01; });
+        this.reveal(DIE, BOARD_Z + 200, (z) => { const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z * CPU_S); fadeTree(ihs, 1 - a); die.root.visible = a > 0.01; });
         this.skin(d.id, ihsM);
         break;
       }
@@ -420,7 +426,7 @@ export class Machine3D {
       case 'ram': {
         // the stick stands in its socket (`ramStick`); its spreader fades in the RAM band, as the camera leans to read the faces (board3d.ts)
         const i = idx(d.slot), r = { x: DIMM_X(i), y: DIMM_Y(i), w: DIMM_W, h: DIMM_H }, rs = spec as RamSpec;
-        const st = ramStick(T, rs.visual, !!rs.ecc, r, GEO.dimm[i]?.flip ?? false);
+        const st = ramStick(T, rs.visual, !!rs.ecc, r);
         g.add(st.root);
         for (const s of st.spins) this.spin(s);
         this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));

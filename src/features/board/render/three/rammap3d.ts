@@ -23,7 +23,7 @@ export class RamMap3D {
   private shown = 0;
   private last = -Infinity;
 
-  /** `sticks` in device order with their four map faces each (`Stick.mapFaces`). */
+  /** `sticks` in device order with their map faces, one per data chip (`Stick.mapFaces`). */
   constructor(private sticks: (Stick & { faces: Mesh[] })[], private T: Theme) {
     for (const s of sticks) for (const mesh of s.faces) this.faces.push({ mesh, canvas: null, tex: null, slot: null });
   }

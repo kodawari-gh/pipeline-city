@@ -8,19 +8,19 @@ const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ x: i * 150, 
 const reg = (o: Partial<RamRegion> & { id: string; kind: RamRegion['kind']; lo: number; hi: number }): RamRegion => ({ name: o.id, note: '', ...o });
 
 describe('which addresses a chip stands for', () => {
-  it('one 64K stick is four chips of 16K; sticks follow their slot numbers', () => {
-    const l = chipLayout(chips(8), [{ idx: 1, bytes: 65536 }, { idx: 0, bytes: 65536 }], 65536);
-    expect(l).toHaveLength(8);
+  it('one 64K stick is eight chips of 8K; sticks follow their slot numbers', () => {
+    const l = chipLayout(chips(16), [{ idx: 1, bytes: 65536 }, { idx: 0, bytes: 65536 }], 65536);
+    expect(l).toHaveLength(16);
     // stick 0 (listed second) holds the lowest addresses, and the memory the sim has (64K) is all in it
-    expect(l[4]!.lo).toBe(0);
-    expect(l[7]!.hi).toBe(65536);
+    expect(l[8]!.lo).toBe(0);
+    expect(l[15]!.hi).toBe(65536);
     expect(l[0]!.lo).toBe(65536);
-    expect(l[7]!.hi - l[4]!.lo).toBe(65536);
-    for (const c of l) expect(c.hi - c.lo).toBe(16384);
+    expect(l[15]!.hi - l[8]!.lo).toBe(65536);
+    for (const c of l) expect(c.hi - c.lo).toBe(8192);
   });
 
   it('chips cut the address space without gaps or overlaps', () => {
-    for (const [n, bytes, ram] of [[4, 16384, 65536], [8, 32768, 65536], [32, 65536, 65536], [12, 16384, 65536]] as const) {
+    for (const [n, bytes, ram] of [[8, 16384, 65536], [16, 32768, 65536], [64, 65536, 65536], [24, 16384, 65536]] as const) {
       const sticks = Array.from({ length: n / CHIPS_PER_STICK }, (_, i) => ({ idx: i, bytes }));
       const l = chipLayout(chips(n), sticks, ram).sort((a, b) => a.lo - b.lo);
       expect(l[0]!.lo).toBe(0);
@@ -31,14 +31,14 @@ describe('which addresses a chip stands for', () => {
   });
 
   it('less memory installed than the sim has: the 64K is spread over the chips there are', () => {
-    const l = chipLayout(chips(4), [{ idx: 0, bytes: 16384 }], 65536);
-    expect(l[3]!.hi).toBe(65536);
+    const l = chipLayout(chips(8), [{ idx: 0, bytes: 16384 }], 65536);
+    expect(l[7]!.hi).toBe(65536);
   });
 
   it('a page is a 16 x 16 tile and the pixel of a byte follows from it', () => {
-    const slot = chipLayout(chips(4), [{ idx: 0, bytes: 65536 }], 65536)[1]!; // 0x4000..0x7fff, 64 pages
+    const slot = chipLayout(chips(8), [{ idx: 0, bytes: 65536 }], 65536)[1]!; // 0x2000..0x3fff, 32 pages
     expect(slot.tilesX).toBe(8);
-    expect(slot.tilesY).toBe(8);
+    expect(slot.tilesY).toBe(4);
     expect(pixelOf(slot, slot.lo)).toEqual({ x: 0, y: 0 });
     expect(pixelOf(slot, slot.lo + 1)).toEqual({ x: 1, y: 0 });
     expect(pixelOf(slot, slot.lo + TILE)).toEqual({ x: 0, y: 1 }); // the next 16 bytes (a cache line) are the next row

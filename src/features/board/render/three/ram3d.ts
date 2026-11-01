@@ -9,17 +9,21 @@ import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import type { Theme } from '@/core/render/theme';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { DIMM_H, DIMM_W } from '../layout/layout';
-import { ramAccent, ramNotch } from '../devices';
+import { DIMM_H } from '../layout/layout';
+import { ramAccent, ramChips, ramNotch } from '../devices';
 import { glowMat, light, type Spin } from './fans3d';
 
 /** The socket: a narrow housing along the stick, `SLOT_H` high; the stick's fingers sink `SINK` into its groove. */
 export const SLOT_W = 76, SLOT_H = 110;
 const TOP = BOARD_Z + SLOT_H, SINK = 40, Z0 = TOP - SINK;
-/** The stick: the PCB's thickness and height (fingers to top edge), a chip's thickness, the gap at each end of the socket (the latches' hooks). */
-const PCB_T = 10, PCB_H = 200, CHIP_T = 8, END = 8;
-/** The latch: how high it stands over the board, the notch its hook takes in the stick's end (height over the PCB's bottom edge, radius). */
-const LATCH_Z = TOP + 72, NOTCH_V = 98, NOTCH_R = 14;
+/**
+ * The stick: the PCB's thickness and height (fingers to top edge: a real stick stands 31 mm to its length's 133 mm; this one 24 mm, so the
+ * leaning camera still reads the chips of the sticks behind the nearest), a chip's thickness, the gap at each end of the socket (the latches'
+ * hooks). The data chips sit in the PCB's upper band, `CHIP_Z0` to `CHIP_Z1` over its bottom edge.
+ */
+const PCB_T = 10, PCB_H = 520, CHIP_T = 8, END = 8, CHIP_Z1 = PCB_H - 54, CHIP_Z0 = CHIP_Z1 - 116;
+/** The latch: the notch its hook takes in the stick's end (height over the PCB's bottom edge, radius), and how high the latch stands. */
+const NOTCH_V = 230, NOTCH_R = 16, LATCH_Z = Z0 + NOTCH_V + 14;
 /** The camera's lean (radians of yaw) to read the stick faces in a row, and the zoom band it comes in over (board3d.ts). */
 export const RAM_LEAN = 0.72;
 
@@ -28,7 +32,7 @@ export const stickLook = (visual: string): StickLook =>
   visual === 'dimm-fast' ? 'low' : visual === 'dimm-ddr3' ? 'fins' : visual === 'dimm-lowlat' || visual === 'dimm-ddr5' ? 'rgb' : 'bare';
 
 /** How high a stick of this look reaches over the board (its spreader or light bar included). */
-export const stickTop = (look: StickLook): number => Z0 + (look === 'rgb' ? 256 : look === 'fins' ? 232 : PCB_H);
+export const stickTop = (look: StickLook): number => Z0 + PCB_H + (look === 'rgb' ? 56 : look === 'fins' ? 32 : 0);
 
 /** A shape drawn in the stick's plane (u along it, v up from the PCB's bottom edge), extruded `t` thick, turned to stand at `x` (its near face) from its south end `y`. */
 function standing(s: Shape, t: number, x: number, y: number, bevel = 0): BufferGeometry {
@@ -54,13 +58,13 @@ function plateShape(look: StickLook, u0: number, u1: number): Shape {
     s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1 - r).quadraticCurveTo(u1, v1, u1 - r, v1).lineTo(u0 + r, v1).quadraticCurveTo(u0, v1, u0, v1 - r).closePath();
   } else if (look === 'fins') {
     // the crown: teeth along the top edge, the gaps between them reaching down past the PCB's edge
-    const v1 = 232, gap = 200, n = Math.floor((u1 - u0) / 46), w = (u1 - u0) / n;
+    const v1 = PCB_H + 32, gap = PCB_H, n = Math.floor((u1 - u0) / 46), w = (u1 - u0) / n;
     s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1);
     for (let k = n - 1; k >= 0; k--) { const a = u0 + k * w; s.lineTo(a + w * 0.62, v1).lineTo(a + w * 0.62, gap).lineTo(a + w * 0.22, gap).lineTo(a + w * 0.22, v1).lineTo(a, v1); }
     s.closePath();
   } else {
     // a chamfered plate, a step down at its middle third where the accent stripe runs
-    const v1 = 212, c = 34;
+    const v1 = PCB_H + 12, c = 34;
     s.moveTo(u0, v0).lineTo(u1, v0).lineTo(u1, v1 - c).lineTo(u1 - c, v1).lineTo(u0 + c, v1).lineTo(u0, v1 - c).closePath();
   }
   return s;
@@ -130,36 +134,39 @@ export interface Stick {
   spreader: Group;
   /** An unseen box over the 2D rect: the thin stick is easy to click from the glass. */
   hit: Mesh;
-  /** The four data chips' faces toward the leaning camera (east), in the 2D chips' order: the live memory map is painted on them (`RamMap3D`). */
+  /** The data chips' faces toward the leaning camera (east), in the 2D chips' order: the live memory map is painted on them (`RamMap3D`). */
   mapFaces: Mesh[];
   spins: Spin[];
   /** The materials that follow the part's state (`PartSkin`). */
   skin: MeshStandardMaterial[];
 }
 
-/** One stick standing in the socket over `r` (row 1 sticks are `flip`ped, their data end north, as in 2D). */
-export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike, flip: boolean): Stick {
+/** One stick standing in the socket over `r`. */
+export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike): Stick {
   const look = stickLook(visual), accent = new Color(ramAccent(T, visual)), cx = r.x + r.w / 2;
   const L = r.h - 2 * END, ys = -(r.y + r.h - END), root = new Group(), spreader = new Group(), spins: Spin[] = [];
-  /** A 2D stick y (0 at its north end, DIMM_H long, before the flip) as a world y. */
-  const wy = (y: number) => -(r.y + (flip ? DIMM_H - y : y));
-  const notchU = (L * (22 + ramNotch(visual) * 5.4)) / DIMM_W;
+  /** A 2D stick y (0 at its north end, DIMM_H long) as a world y. */
+  const wy = (y: number) => -(r.y + y);
+  // the key notch where the 2D stick's finger row has its gap (`ramArt`), measured from the south end
+  const notchU = L - (70 + (ramNotch(visual) / 24) * (DIMM_H - 140) - END);
   // the PCB: green on the bare sticks (the server sticks too), the 2D stick's navy under a spreader
   const green = look === 'bare', pcbColor = green ? '#1d5a3c' : '#1a2448';
   const edge = mat(green ? 0x174a32 : 0x141c38, { roughness: 0.5 });
-  const face = mat(0xffffff, { map: pcbFace(pcbColor, L, flip ? L - notchU : notchU), roughness: 0.45, metalness: 0.1 });
-  root.add(place(new Mesh(standing(pcbShape(L, flip ? L - notchU : notchU), PCB_T, cx - PCB_T / 2, ys), [face, edge])));
-  // the chips on both faces, where the 2D chips are along the stick; an ECC stick has its narrow parity chip, every stick its SPD, a DDR5 its PMIC
-  const chips: { y: number; h: number; z0: number; z1: number }[] = [];
-  for (let j = 0; j < 4; j++) chips.push({ y: 84 + j * 128, h: 112, z0: TOP + 24, z1: TOP + 132 });
-  if (ecc) chips.push({ y: 592, h: 40, z0: TOP + 24, z1: TOP + 132 });
-  if (visual === 'dimm-ddr5' || visual === 'dimm-ddr5ecc') chips.push({ y: ecc ? 640 : 600, h: ecc ? 32 : 46, z0: TOP + 82, z1: TOP + 124 });
-  chips.push({ y: ecc ? 640 : 652, h: 22, z0: TOP + 30, z1: TOP + 52 });
+  const face = mat(0xffffff, { map: pcbFace(pcbColor, L, notchU), roughness: 0.45, metalness: 0.1 });
+  root.add(place(new Mesh(standing(pcbShape(L, notchU), PCB_T, cx - PCB_T / 2, ys), [face, edge])));
+  // the chips on both faces, where the 2D chips are along the stick (`ramChips`); in the gap between the two groups an ECC stick has its parity
+  // chip, a DDR5 its PMIC, every stick its SPD
+  const Zc0 = Z0 + CHIP_Z0, Zc1 = Z0 + CHIP_Z1;
+  const chips: { y: number; h: number; z0: number; z1: number }[] = ramChips().map((c) => ({ y: c.y, h: c.h, z0: Zc0, z1: Zc1 }));
+  const d = ramChips(), gy = (d[3]!.y + d[3]!.h + d[4]!.y) / 2;
+  if (ecc) chips.push({ y: gy - 70, h: 140, z0: Zc0, z1: Zc1 });
+  if (visual === 'dimm-ddr5' || visual === 'dimm-ddr5ecc') chips.push({ y: gy + (ecc ? 80 : -23), h: 46, z0: Zc0 - 120, z1: Zc0 - 70 });
+  chips.push({ y: gy - 11, h: 22, z0: Zc0 - 170, z1: Zc0 - 140 });
   const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x101115, { roughness: 0.6 });
   const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
   root.add(instanced(new BoxGeometry(1, 1, 1), [top, top, side, side, side, side] as unknown as MeshStandardMaterial, items));
   // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
-  const mapFaces = chips.slice(0, 4).map((c) => {
+  const mapFaces = chips.slice(0, d.length).map((c) => {
     const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
     f.position.set(cx + PCB_T / 2 + CHIP_T + 0.6, (wy(c.y) + wy(c.y + c.h)) / 2, (c.z0 + c.z1) / 2);
     f.visible = false;
@@ -182,15 +189,15 @@ export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike, fl
     for (const f of [0.3, 0.7]) spreader.add(rectBox({ x: cx - x0 - t, y: -(ys + L * f) - 10, w: 2 * (x0 + t), h: 20 }, Z0 + PCB_H - 8, Z0 + PCB_H + 4, plateM));
   } else if (look === 'fins') {
     // an accent line along each plate, under the crown
-    for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + u1 - 30), w: 2, h: u1 - u0 - 60 }, Z0 + 170, Z0 + 180, stripe));
+    for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + u1 - 30), w: 2, h: u1 - u0 - 60 }, Z0 + PCB_H - 30, Z0 + PCB_H - 20, stripe));
   } else {
     // the light bar: a dark cap across the plates, a frosted diffuser on it that glows with the fans; an accent line down each plate
-    spreader.add(softBox({ x: cx - x0 - t, y: -(ys + u1 - 20), w: 2 * (x0 + t), h: u1 - u0 - 40 }, Z0 + 204, Z0 + 218, mat(0x15171d, { roughness: 0.5 }), 4));
+    spreader.add(softBox({ x: cx - x0 - t, y: -(ys + u1 - 20), w: 2 * (x0 + t), h: u1 - u0 - 40 }, Z0 + PCB_H + 4, Z0 + PCB_H + 18, mat(0x15171d, { roughness: 0.5 }), 4));
     const bar = glowMat(0xffffff, 0x4a4f5e);
     bar.roughness = 0.85;
-    spreader.add(seeThrough(softBox({ x: cx - x0 - t + 3, y: -(ys + u1 - 26), w: 2 * (x0 + t) - 6, h: u1 - u0 - 52 }, Z0 + 216, Z0 + 256, bar, 10)));
+    spreader.add(seeThrough(softBox({ x: cx - x0 - t + 3, y: -(ys + u1 - 26), w: 2 * (x0 + t) - 6, h: u1 - u0 - 52 }, Z0 + PCB_H + 16, Z0 + PCB_H + 56, bar, 10)));
     spins.push(light(bar, undefined, 0.8));
-    for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + L * 0.66), w: 2, h: L * 0.32 }, Z0 + 120, Z0 + 186, stripe));
+    for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + L * 0.66), w: 2, h: L * 0.32 }, Z0 + PCB_H - 80, Z0 + PCB_H - 14, stripe));
   }
   root.add(spreader);
   return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM], mapFaces };

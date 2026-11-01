@@ -45,7 +45,7 @@ describe('the desk follows the case', () => {
     expect(MONITOR.x + MONITOR.w).toBe(MONITOR_EAST);
     expect(CASE.x - MONITOR_EAST).toBeGreaterThan(2000); // room between them for the mug and the cables
     expect(MONITOR.w / CASE.w).toBeGreaterThan(1.0);
-    expect(MONITOR.w / CASE.w).toBeLessThan(1.2);
+    expect(MONITOR.w / CASE.w).toBeLessThan(1.3); // (the Mini's case is the smallest: a real mini-ITX case is shallower than a 24 inch is wide)
   });
 
   it.each([0, 1, 2, 3])('tier %i: the key rack is two rails of hooks on the wall above the monitor, left of the router, with the 10 sticks hanging clear of the monitor and of each other', (t) => {

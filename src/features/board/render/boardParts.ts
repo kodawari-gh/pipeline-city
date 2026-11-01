@@ -167,37 +167,34 @@ export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
 }
 
 /**
- * A DIMM socket: housing, centre slot with pins and a key. The data end (row 0: south, row 1: north) carries the pad bar the memory
- * lanes land on (`dimmPads`), with no latch; the latch is at the far end, beside the memory-voltage pad.
+ * A DIMM socket: housing, centre slot with a key, and its two rows of solder joints down its length; the memory lanes come in from the CPU's
+ * side and land on the west row (`dimmPinX`, `dimmPads`: the pads themselves are drawn over the lane ends). A latch at each end, the north one
+ * beside the memory-voltage pad.
  */
-export function dimmSocket(c: Ctx, r: Rect, flip: boolean, n: number) {
-  const { g, P } = c;
-  if (c.solid) {
-    // the 3D view builds the housing, the stick stands in it (ram3d.ts): only what is on the board stays, the solder rows and the pad bar
-    const cx = r.x + r.w / 2, dataY = flip ? r.y : r.y + r.h - 62;
-    for (let k = 0; k < Math.floor((r.h - 40) / 22); k++) g.rect(cx - 50, r.y + 20 + k * 22, 10, 12).rect(cx + 40, r.y + 20 + k * 22, 10, 12);
+export function dimmSocket(c: Ctx, r: Rect, n: number) {
+  const { g, P } = c, cx = r.x + r.w / 2, rows = Math.floor((r.h - 40) / 22);
+  const joints = () => {
+    for (let k = 0; k < rows; k++) g.rect(cx - 50, r.y + 20 + k * 22, 10, 12).rect(cx + 40, r.y + 20 + k * 22, 10, 12);
     g.fill({ color: P.via, alpha: 0.7 });
-    box(g, r.x + 14, dataY, r.w - 28, 62, 6, { fill: P.dark, stroke: P.edge, lw: 3, sa: 0.8 });
-    c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+  };
+  if (c.solid) {
+    // the 3D view builds the housing, the stick stands in it (ram3d.ts): only what is on the board stays, the solder rows
+    joints();
+    c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
     return;
   }
   const skin = skinOf(c.tier);
-  shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
-  box(g, r.x, r.y, r.w, r.h, 10, { fill: skin.slot, stroke: P.edge, lw: 6 });
-  const cx = r.x + r.w / 2;
-  const dataY = flip ? r.y : r.y + r.h, dir = flip ? 1 : -1; // from the data end into the housing
-  box(g, cx - 24, r.y + 40, 48, r.h - 80, 6, { fill: P.dark });
-  for (let k = 0; k < Math.floor((r.h - 100) / 22); k++) g.rect(cx - 40, r.y + 50 + k * 22, 9, 12).rect(cx + 31, r.y + 50 + k * 22, 9, 12);
-  g.fill({ color: P.via, alpha: 0.55 });
-  const ky = flip ? r.y + r.h * 0.6 : r.y + r.h * 0.4; // the key: a bar across the slot, off centre
-  g.rect(cx - 26, ky - 6, 52, 12).fill({ color: skin.slot });
-  // the pad bar: a dark strip across the data end the lanes enter (the pads themselves are drawn over the lane ends)
-  box(g, r.x + 14, Math.min(dataY, dataY + dir * 62), r.w - 28, 62, 6, { fill: P.dark, stroke: P.edge, lw: 3, sa: 0.8 });
-  // the latch at the far end, outside the housing, clear of the memory-voltage pad (r.x + 36)
-  const fy = flip ? r.y + r.h - 2 : r.y - 24;
-  box(g, r.x + 70, fy, r.w - 86, 26, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
-  g.rect(r.x + 90, flip ? fy + 8 : fy + 10, r.w - 126, 6).fill({ color: P.silk, alpha: 0.4 });
-  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
+  joints();
+  shadow(c, cx - 38, r.y, 76, r.h, 10, 8, 0.25);
+  box(g, cx - 38, r.y, 76, r.h, 10, { fill: skin.slot, stroke: P.edge, lw: 5 });
+  box(g, cx - 10, r.y + 30, 20, r.h - 60, 4, { fill: P.dark });
+  g.rect(cx - 12, r.y + r.h * 0.4 - 6, 24, 12).fill({ color: skin.slot }); // the key: a bar across the slot, off centre
+  // the latches past each end, the north one clear of the memory-voltage pad (r.x + 36)
+  for (const fy of [r.y - 24, r.y + r.h - 2]) {
+    box(g, cx - 34, fy, 68, 26, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
+    g.rect(cx - 22, fy + 10, 44, 6).fill({ color: P.silk, alpha: 0.4 });
+  }
+  c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
 }
 
 /** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */

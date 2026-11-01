@@ -6,7 +6,8 @@ import type { PerspectiveCamera } from 'three';
 export interface OrbitView { x: number; y: number; z: number; yaw: number; pitch: number; height: number; fov: number }
 export interface Box { x: number; y: number; w: number; h: number }
 
-export const LIMITS = { yaw: 1.1, pitchMin: -0.08, pitchMax: 0.75, heightMin: 90, heightMax: 34000 };
+// (`heightMin`: the die is drawn at 0.7 of its own frame, so the closest view shows 90 of that frame's units)
+export const LIMITS = { yaw: 1.1, pitchMin: -0.08, pitchMax: 0.75, heightMin: 63, heightMax: 34000 };
 /** Share of the gap to the goal that remains after one second. */
 const EASE_LEFT = 0.002;
 

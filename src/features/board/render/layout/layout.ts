@@ -9,7 +9,7 @@
 // that `setLayoutTier(tier)` reassigns. The renderer calls it first thing when it builds a scene, so every importer sees the current
 // tier's rectangles; never copy one of these into a module-level constant.
 
-import { DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
+import { BD_X, DRAM_BH, DRAM_BW, DIMM_H0, DIMM_W0, IO_X, geoOf, type TierGeo } from './boardlayout';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -26,8 +26,19 @@ export function rng(seed: number): () => number {
 export const BOARD_SEED = 1337;
 
 // ---- CPU: package, die, floorplan (centred on the origin) ----
-export const DIE: Rect = { x: -710, y: -565, w: 1420, h: 1130 };
-export const PKG: Rect = { x: -900, y: -755, w: 1800, h: 1510 };
+/**
+ * The die floorplan's own frame (docs/DIE.md): the die view draws its blocks, wires and text in these units. On the board the die is drawn
+ * at `CPU_S` of it (a real package's proportion to the board), about the origin: `DIE` is where it lands.
+ */
+export const DIE_PLAN: Rect = { x: -710, y: -565, w: 1420, h: 1130 };
+export const CPU_S = 0.7;
+/** A rect of the die's frame where it lands on the board. */
+export const onBoard = (r: Rect): Rect => ({ x: r.x * CPU_S, y: r.y * CPU_S, w: r.w * CPU_S, h: r.h * CPU_S });
+/** A rect of the board in the die's frame. */
+export const offBoard = (r: Rect): Rect => ({ x: r.x / CPU_S, y: r.y / CPU_S, w: r.w / CPU_S, h: r.h / CPU_S });
+export const DIE: Rect = onBoard(DIE_PLAN);
+/** The package (its pad rows on the 20 grid, `pkgPads`). */
+export const PKG: Rect = { x: -630, y: -530, w: 1260, h: 1060 };
 /** The cooler plate that sits on the package. */
 export const COOLER: Rect = { x: -790, y: -690, w: 1580, h: 1380 };
 /** Socket frame is PKG grown by this much; buses start at its edge. */
@@ -64,11 +75,10 @@ function regionsOf(g: TierGeo): Record<RegionId, Rect> {
 }
 
 // ---- DIMM, PCIe ----
-/** One DIMM socket (up to 8: two rows of four, a tier fills as many as it has). Row 1 sticks are drawn upside down (pins up). */
+/** One DIMM socket (up to 8, one bank east of the CPU; a tier fills as many as it has). */
 export const DIMM_X = (i: number) => GEO.dimm[i]?.rect.x ?? 0;
 export const DIMM_Y = (i: number) => GEO.dimm[i]?.rect.y ?? 0;
 export const DIMM_W = DIMM_W0, DIMM_H = DIMM_H0;
-export const dimmFlip = (i: number) => !!GEO.dimm[i]?.flip;
 /** M.2 connectors (slots m20, m21, ...), top to bottom. */
 export let M2_SLOTS: Rect[] = GEO.m2;
 /** PCIe slots (x16, x8, x4, x1 looks); a tier has the first ones. */
@@ -96,7 +106,7 @@ export let GUTTER_X = 3400;
 const GUTTER_EXTRA = 330;
 /** The lower compartment (PSU, drive bay, cables) moves with the board's height: this is the shift from the ATX board's. */
 export let SHIFT_Y = 0;
-export let PSU: Rect = { x: -3400, y: 2750, w: 7400, h: 1100 };
+export let PSU: Rect = { x: BD_X, y: 2750, w: 7400, h: 1100 };
 /** Fan grill centre and radius on the PSU face. */
 export let PSU_FAN = { x: -2450, y: 3300, r: 430 };
 /** Label plate (model, capacity). */
@@ -136,7 +146,7 @@ export const VIDEO_Y = -1150;
 export let VIDEO_SOCKET = { x: 0, y: 0 };
 /** The video cable's run under the monitor (y, above its foot) and its vertical run in the gap between the monitor and the case (x). */
 export let VIDEO_RUN_Y = 0;
-export const VIDEO_TRUNK_X = -4130;
+export const VIDEO_TRUNK_X = IO_X - 520;
 /** The monitor's mains inlet, also in its underside, west of the video socket and over the foot's east end (the mouth). */
 export let MONITOR_POWER = { x: 0, y: 0 };
 
@@ -236,24 +246,25 @@ export const PC_CORD_X = IO_X - 476;
 export const POWER_PLATE_W = 1500, PC_OUTLET_AT = 0.72;
 export let POWER_PLATE: Rect = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: 0, w: POWER_PLATE_W, h: 800 };
 /** The ISP's wall plate, under the desk next to the power socket, its jack position (bottom edge, `WALL_Y`) and the y of the ISP cable's turn under the desk (the cable then runs up behind the desk, the riser and the monitor to the router). */
-export let WALL_PLATE: Rect = { x: -6300, y: 0, w: 460 * NET_K, h: 420 * NET_K };
+const WALL_PLATE_X = IO_X - 2690;
+export let WALL_PLATE: Rect = { x: WALL_PLATE_X, y: 0, w: 460 * NET_K, h: 420 * NET_K };
 export let WALL_Y = 0;
 export let WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: 0 };
 export let ISP_ROW_Y = 0;
 /** Vertical run of the ethernet cable in the gap between the monitor and the case (west of the PC's power plug and cord; a plugged key is drawn over it). */
-export const LAN_TRUNK_X = -4560;
+export const LAN_TRUNK_X = IO_X - 950;
 /** Onboard ethernet jack on the rear I/O (mouth faces west) and the plug length of an ethernet plug. */
 export const ETH0_MOUTH = { x: IO_X + 10, y: -1560 };
 export const ETH0_RECT: Rect = { x: IO_X + 10, y: -1622, w: 170, h: 124 };
 export const PLUG_L = 200, PLUG_W = 100;
 /** NIC card geometry: the bracket sits at the board's west edge, the jack pokes out of it (mouth faces west); `i` is the PCIe slot index. */
 export const nicY = (i: number) => PCIE_RAILS[i]!.y + 30;
-export const NIC_BRACKET_X = -3400 - 30;
-export const nicJack = (i: number): Rect => ({ x: -3400 - 200, y: nicY(i) - 62, w: 170, h: 124 });
+export const NIC_BRACKET_X = BD_X - 30;
+export const nicJack = (i: number): Rect => ({ x: BD_X - 200, y: nicY(i) - 62, w: 170, h: 124 });
 /** A graphics card's display port on the rear plate, at the height of its slot (the video cable's plug goes in here instead of the board's HDMI port, `HDMI_PORT`). */
 export const gpuPort = (i: number): Rect => ({ x: HDMI_PORT.x, y: nicY(i) - HDMI_PORT.h / 2, w: HDMI_PORT.w, h: HDMI_PORT.h });
 export const NIC_LEN: Record<string, number> = { 'nic-gbe': 1500, 'nic-10g': 1950, 'nic-40g': 2400 };
-export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: -3400 - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
+export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, y: nicY(i) - 98, w: BD_X - nicJack(i).x + (NIC_LEN[visual] ?? 1500), h: 196 });
 
 /**
  * Everything the camera should see at once (board, PSU, monitor, cables, tray): the content box, tightly. Its
@@ -292,8 +303,8 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   GUTTER_X = east;
   // four PCIe sockets (90 apart, innermost first), then the 24-pin and the 8-pin; the gutter is wide enough for all six cables
   PSU_PORTS = { pcie: [0, 1, 2, 3].map((k) => east + 110 + k * PCIE_PORT_PITCH), atx: east + 540, cpu: east + 690 };
-  const psuEast = east + 600 + GUTTER_EXTRA, psuW = psuEast + 3400;
-  PSU = { x: -3400, y: south + 250, w: psuW, h: 1100 };
+  const psuEast = east + 600 + GUTTER_EXTRA, psuW = psuEast - BD_X;
+  PSU = { x: BD_X, y: south + 250, w: psuW, h: 1100 };
   PORT_Y = PSU.y;
   PSU_REAR_FAN = cg.tier >= 1 ? { x: IO_X + 14, y: PSU.y + 40, w: WALL_T - 28, h: 700 } : null;
   PC_POWER = { x: IO_X, y: PSU.y + (PSU_REAR_FAN ? 1010 : 560) };
@@ -337,7 +348,7 @@ export function setLayoutTier(tier: number, caseTier = tier): void {
   SHELF_Y = MONITOR.y - 700; CABLE_ROW_Y = SHELF_Y + 200;
   ROUTER_SPOT = { x: ROUTER_EAST - 1600 * NET_K, y: SHELF_Y - 420 * NET_K, w: 1600 * NET_K, h: 420 * NET_K };
   POWER_PLATE = { x: PC_CORD_X - POWER_PLATE_W * PC_OUTLET_AT, y: FLOOR_Y - 1750, w: POWER_PLATE_W, h: 800 };
-  WALL_PLATE = { x: -6300, y: FLOOR_Y - 1750, w: 460 * NET_K, h: 420 * NET_K };
+  WALL_PLATE = { x: WALL_PLATE_X, y: FLOOR_Y - 1750, w: 460 * NET_K, h: 420 * NET_K };
   WALL_Y = WALL_PLATE.y + WALL_PLATE.h;
   WALL_JACK = { x: WALL_PLATE.x + WALL_PLATE.w / 2, y: WALL_Y };
   ISP_ROW_Y = WALL_Y + 360;

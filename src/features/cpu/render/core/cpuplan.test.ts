@@ -6,7 +6,7 @@ import { gridExact, planInput, type Block, type CpuPlan, type PlanInput, type Pt
 import { GAP, col, leaf, place, routeLinks, row, spans } from './cpufloor';
 import { cpuPlan } from './cpuplans';
 import { glyphPins } from '../die/glyphgeom';
-import { DIE } from '@/features/board/render/layout/layout';
+import { DIE_PLAN as DIE } from '@/features/board/render/layout/layout';
 
 const CONFIGS: [string, PlanInput][] = [
   ['unpipelined', { arch: 'unpipelined', cacheLines: 8 }],

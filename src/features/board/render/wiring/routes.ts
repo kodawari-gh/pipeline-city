@@ -1,14 +1,14 @@
 import { drape, hangCable, roundedPath, type Clip } from '@/core/render/cable';
-import { DIMM_H0, ioPort, type TierGeo } from '../layout/boardlayout';
+import { IO_X, ioPort, type TierGeo } from '../layout/boardlayout';
 import { serpentine, type SerpOpts } from '../layout/match';
 import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from '../layout/layout';
 import {
-  LEG_PITCH, MEM_LANES, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from '../layout/pins';
 
-export { MEM_LANES, MEM_SPACING, SATA_LANES };
+export { MEM_SPACING, SATA_LANES };
 /** x (from a phase block's left edge) of its output stub, where the core-voltage run starts (CPU VRM, see `vrmPhaseArt`), and the memory regulator's output and input stubs (`dramPhaseArt`). */
 export const VRM_OUT_X = 265, DRAM_OUT_X = 124, DRAM_IN_X = 52;
 
@@ -204,23 +204,25 @@ const mk = (id: BusKind, centre: Pt[], n: number, spacing: number, w: number, c 
 });
 
 /**
- * The columns that leave the south edge of the package, west to east: PCIe x16 (lands on the first slot), DMI (the chipset's north legs),
- * then one NVMe column per M.2 below the CPU (the lowest M.2 in the westmost column, so none crosses another). An M.2 level with the
- * CPU is fed from its east edge. The x16 slot ends before the DMI column.
+ * The columns that leave the south edge of the package, west to east: the CPU's clock (from its crystal), PCIe x16 (lands on the first slot),
+ * DMI (steps east onto the chipset's north legs), then one NVMe column per M.2 (the lowest M.2 in the westmost column, so none crosses
+ * another). Every PCIe slot ends before the DMI column.
  */
-export const PCIE_X = 110, NVME_DX = 130;
-/** x of the first NVMe column of a tier: right of the DMI lanes. */
-/** x where the memory rail's upper run ends: past the last socket of the row and past the last phase's output, so every output lands on the rail. */
+export const PCIE_X = -250, DMI_X = 80, NVME_DX = 90;
+/** The package's west edge, north to south: the SVID lanes (from the regulator's controller), the display lanes (their run, and the x where
+ * they climb to the rear I/O), the USB lanes (on the CPU's centre line, to the hub). */
+export const SVID_Y = -420, VIDEO_Y0 = -300, VIDEO_RAMP_X = -1500;
+/** How far in from the package's corners the core-voltage runs land on its north edge. */
+const VCORE_IN = 90;
+/** x of NVMe column `j` (0 the westmost), on its own pads of the package's south edge. */
+export const nvmeX = (j: number) => 270 + NVME_DX * j;
+/** x where the memory rail ends: past the bank's last socket and past the last phase's output, so every output lands on the rail. */
 export const vdimmEnd = (g: TierGeo) => {
-  const lastRow0 = g.dimm.filter((d) => !d.flip).pop()!;
-  return Math.max(lastRow0.rect.x + lastRow0.rect.w - 20, g.dPhases[g.dPhases.length - 1]!.x + DRAM_OUT_X + 24);
+  const last = g.dimm[g.dimm.length - 1]!;
+  return Math.max(last.rect.x + last.rect.w - 20, g.dPhases[g.dPhases.length - 1]!.x + DRAM_OUT_X + 24);
 };
-/** x where the memory rail's upper run starts: at the first socket's drop (and no later than the first phase's output). */
-export const vdimmStart = (g: TierGeo) => {
-  const d0 = g.dimm.find((d) => !d.flip)!;
-  return Math.min(dimmPowerPad(d0.rect, d0.flip)[0], g.dPhases[0]!.x + DRAM_OUT_X) - 8;
-};
-export const nvmeX0 = (g: TierGeo) => g.dmiX + 107;
+/** x where the memory rail starts: at the first socket's drop (and no later than the first phase's output). */
+export const vdimmStart = (g: TierGeo) => Math.min(dimmPowerPad(g.dimm[0]!.rect)[0], g.dPhases[0]!.x + DRAM_OUT_X) - 8;
 /** Lanes in an NVMe bundle (and their spacing) and in the DMI link. */
 export const NVME_LANES = 3, NVME_SPACING = 22, DMI_LANES = 6;
 
@@ -256,43 +258,40 @@ function addHops(buses: Bus[]) {
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
  * Every lane ends on a pin that the part's art draws (`pins.ts`): the CPU socket's escape pads at one end, a pad bar on a socket, a leg
- * of a chip, a contact of a connector at the other. Memory is point-to-point: one bundle per DIMM, stacked in a staircase (the nearest
- * DIMM takes the lane band closest to its pads), so no two bundles cross. A run changes lane pitch only on a 45 degree leg right
- * before its pins.
+ * of a chip, a contact of a connector at the other. Memory is point-to-point: one bundle per DIMM, straight east from the CPU's east edge to
+ * its socket's pin column, the bundles stacked along the edge, so no two cross (each passes under the nearer sockets, as on a real board).
+ * A run changes lane pitch only on a 45 degree leg right before its pins.
  */
 export function buildBuses(): Bus[] {
   const g = GEO;
   const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E, py = PKG.y - SOCKET_E;
   const buses: Bus[] = [];
 
-  // memory: a bundle per DIMM from the CPU east edge to the pad bar of its socket (row 0's bar is its south end, row 1's its north end)
+  // memory: a bundle per DIMM from the CPU east edge straight to the pin column of its socket
   const mem: Bus = { id: 'mem', w: 9, pad: 13, lanes: [], taps: [] };
   g.dimm.forEach((d, i) => {
-    const pads = dimmPads(d.rect, d.flip), cx = d.rect.x + d.rect.w / 2, y = g.memY[i]!;
-    // the bundle opens out into the free band above its run (below it on the lower row) and its lanes run their serpentines there
-    mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [cx, y], [cx, pads[0]![1]]], MEM_LANES, MEM_SPACING, 70, { from: pkgPads(PKG, 'e', y, MEM_LANES), to: pads, match: { w: 9, flare: 30 } }), i * 11) });
+    const y = g.memY[i]!, pads = dimmPads(d.rect, y, g.memLanes);
+    mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [pads[0]![0], y]], g.memLanes, MEM_SPACING, 0, { from: pkgPads(PKG, 'e', y, g.memLanes), to: pads }), i * 11) });
   });
   buses.push(mem);
 
-  // NVMe: one bundle per M.2 to the middle contacts of its socket
+  // NVMe: one bundle per M.2 (all below the CPU) down a column of its own from the CPU's south edge, east along the M.2's row to the middle
+  // contacts of its socket: the lowest M.2 in the westmost column, so none crosses another
   {
-    const lanes: Lane[] = [];
-    const below = g.m2.filter((m) => m.y + m.h / 2 > qy);
-    g.m2.forEach((m) => {
-      const y = m.y + m.h / 2, k = below.indexOf(m), pads = m2Pads(m), xe = pads[0]![0];
-      const x = nvmeX0(g) + NVME_DX * (below.length - 1 - k);
-      const route: Pt[] = k < 0 ? [[qx, y], [xe, y]] : [[x, qy], [x, y], [xe, y]];
-      for (const pts of bundleOn(route, NVME_LANES, NVME_SPACING, 100, { from: k < 0 ? pkgPads(PKG, 'e', y, NVME_LANES) : pkgPads(PKG, 's', 690 + 60 * (below.length - 1 - k), NVME_LANES), to: pads, match: { w: 10, flare: 36, side: 'high' } })) lanes.push(mkLane(pts, lanes.length * 37));
+    const lanes: Lane[] = [], n = g.m2.length;
+    g.m2.forEach((m, k) => {
+      const y = m.y + m.h / 2, pads = m2Pads(m), x = nvmeX(n - 1 - k);
+      for (const pts of bundleOn([[x, qy], [x, y], [pads[0]![0], y]], NVME_LANES, NVME_SPACING, 100, { from: pkgPads(PKG, 's', x, NVME_LANES), to: pads, match: { w: 10, flare: 36, side: 'high', axis: 'h' } })) lanes.push(mkLane(pts, lanes.length * 37));
     });
     if (lanes.length) buses.push({ id: 'nvme', w: 10, lanes });
   }
 
-  // DMI: CPU south edge straight down onto the chipset's north legs
+  // DMI: CPU south edge down, east of the PCIe slots' ends and west of the NVMe columns, then (under the lowest M.2) one 45 degree step east
+  // onto the chipset's north legs
   {
-    const legs = legRun(g.chip, 'n', DMI_LANES), cx = mean(legs, 0);
-    // (west of the NVMe columns' pads when the board has them: the lanes open out from the pads' 20 to the legs' 26 and keep clear of the columns)
-    const at = g.m2.some((m) => m.y + m.h / 2 > qy) ? Math.min(cx, 590) : Math.min(cx, 780);
-    buses.push(mk('dmi', [[cx, qy], [cx, legs[0]![1]]], DMI_LANES, LEG_PITCH, 9, 120, { from: pkgPads(PKG, 's', at, DMI_LANES), to: legs, match: { w: 9, flare: 32, side: 'low', margin: 20 } }));
+    const legs = legRun(g.chip, 'n', DMI_LANES), cx = mean(legs, 0), ly = legs[0]![1], dx = cx - DMI_X;
+    const route: Pt[] = Math.abs(dx) < 1 ? [[DMI_X, qy], [DMI_X, ly]] : [[DMI_X, qy], [DMI_X, ly - 60 - Math.abs(dx)], [cx, ly - 60], [cx, ly]];
+    buses.push(mk('dmi', route, DMI_LANES, LEG_PITCH, 9, 0, { from: pkgPads(PKG, 's', DMI_X, DMI_LANES), to: legs, match: { w: 9, flare: 32, side: 'low', margin: 20 } }));
   }
 
   // PCIe x16: CPU south edge down onto the pads on the first slot's north edge (the lanes open from 20 to 40 apart on 45 degree legs)
@@ -343,20 +342,20 @@ export function buildBuses(): Bus[] {
   // board has one, runs the same way below it and nests inside: it never lights)
   {
     const hdmi = ioPort('hdmi'), hp = ioPads(hdmi, 4);
-    // a ramp: west along the row, one 45 degree climb to the connector's row, west again (no sideways steps)
-    const xa = -2000, ramp = (y0: number, y1: number, x0: number, pad: Pt): Pt[] => [[px, y0], [x0, y0], [x0 - (y0 - y1), y1], [pad[0], y1]];
-    buses.push(mk('video', ramp(-540, hdmi.y, xa, hp[0]!), 4, LEG_PITCH, 11, 0, { from: pkgPads(PKG, 'w', -540, 4), to: hp, match: { w: 11, flare: 34, axis: 'h' } }));
+    // a ramp: west along the row, one 45 degree climb to the connector's row (west of the regulator's controller and its SVID lanes), west again
+    const xa = VIDEO_RAMP_X, ramp = (y0: number, y1: number, x0: number, pad: Pt): Pt[] => [[px, y0], [x0, y0], [x0 - (y0 - y1), y1], [pad[0], y1]];
+    buses.push(mk('video', ramp(VIDEO_Y0, hdmi.y, xa, hp[0]!), 4, LEG_PITCH, 11, 0, { from: pkgPads(PKG, 'w', VIDEO_Y0, 4), to: hp, match: { w: 11, flare: 34, axis: 'h' } }));
     if (g.dp) {
       const dp = ioPort('dp'), dpp = ioPads(dp, 4);
-      buses.push(mk('dp', ramp(-420, dp.y, xa - 80, dpp[0]!), 4, LEG_PITCH, 11, 0, { from: pkgPads(PKG, 'w', -420, 4), to: dpp, match: { w: 11, flare: 34, axis: 'h' } }));
+      buses.push(mk('dp', ramp(VIDEO_Y0 + 120, dp.y, xa - 80, dpp[0]!), 4, LEG_PITCH, 11, 0, { from: pkgPads(PKG, 'w', VIDEO_Y0 + 120, 4), to: dpp, match: { w: 11, flare: 34, axis: 'h' } }));
     }
   }
 
   // SVID: the CPU's voltage request to the regulator's controller: three lanes from the controller's south legs, down and east onto the
-  // socket's west edge (a controller beside or above the socket lands on its north edge instead). Decoration: it never lights.
+  // socket's west edge, above the display lanes (a controller beside or above the socket lands on its north edge instead). Decoration: it never lights.
   {
     const legs = legRun(g.pwm, 's', 3, 0, LEG_PITCH), cx = mean(legs, 0), ys = legs[0]![1];
-    if (cx < px - 100) buses.push(mk('svid', [[cx, ys], [cx, -664], [px, -664]], 3, LEG_PITCH, 8, 100, { from: legs, to: pkgPads(PKG, 'w', -664, 3) }));
+    if (cx < px - 100) buses.push(mk('svid', [[cx, ys], [cx, SVID_Y], [px, SVID_Y]], 3, LEG_PITCH, 8, 100, { from: legs, to: pkgPads(PKG, 'w', SVID_Y, 3) }));
     else {
       buses.push(mk('svid', [[cx, ys], [cx, py]], 3, LEG_PITCH, 8, 0, { from: legs, to: pkgPads(PKG, 'n', Math.max(cx, px + 130), 3) }));
     }
@@ -454,9 +453,9 @@ export function buildBuses(): Bus[] {
     buses.push(mk('fanc', [[xc, ll[0]![1]], [xc, pp[0]![1]]], 4, LEG_PITCH, 8, 0, { from: ll, to: pp, lead: 40 }));
   }
 
-  // the reference crystals: the CPU's (two lanes up onto pins of its south row) and the chipset's (two lanes down onto its first north legs)
+  // the reference crystals: the CPU's (two lanes up onto pins of its south row) and the chipset's (two lanes down onto its last north legs, east of the DMI lanes)
   {
-    const cp = xtalPads(g.xtalCpu, 'n'), cpins = pkgPads(PKG, 's', mean(cp, 0), 2), pp = xtalPads(g.xtalPch, 's', 13), pl = legsOf(g.chip, 'n').slice(0, 2);
+    const cp = xtalPads(g.xtalCpu, 'n'), cpins = pkgPads(PKG, 's', mean(cp, 0), 2), pp = xtalPads(g.xtalPch, 's', 13), pl = legsOf(g.chip, 'n').slice(-2);
     buses.push({ id: 'clk', w: 8, lanes: [...cp.map((p, k) => mkLane([p, cpins[k]!], k * 17)), ...pp.map((p, k) => mkLane([p, pl[k]!], k * 17 + 9))] });
   }
 
@@ -468,12 +467,13 @@ export function buildBuses(): Bus[] {
     for (let i = 1; i < pins.length; i++) lanes.push(mkLane([[pins[i]![0], y0], [pins[i]![0], ye]], i * 31));
     buses.push({ id: 'pwrcpu', w: 30, lanes });
   }
-  // core voltage: one run per phase from its output stub down into the package edge
+  // core voltage: one run per phase from its output stub down into the package's north edge, the runs spread evenly along the edge (a
+  // phase beyond it steps in on a 45 degree leg that ends just above it, so the runs funnel in without crossing)
   {
-    const lanes: Lane[] = [];
+    const lanes: Lane[] = [], n = g.vrmPhases.length, span = PKG.w - 2 * VCORE_IN;
     g.vrmPhases.forEach((r, i) => {
-      const x = r.x + VRM_OUT_X, lx = Math.max(-820, Math.min(820, x));
-      const dx = Math.abs(x - lx), route: Pt[] = dx < 1 ? [[x, r.y + r.h - 4], [x, py + 8]] : [[x, r.y + r.h - 4], [x, -1080], [lx, -1080 + dx], [lx, py + 8]];
+      const x = r.x + VRM_OUT_X, lx = PKG.x + VCORE_IN + (span * (i + 0.5)) / n, dx = Math.abs(x - lx), yb = py - 40;
+      const route: Pt[] = dx < 1 ? [[x, r.y + r.h - 4], [x, py + 8]] : [[x, r.y + r.h - 4], [x, yb - dx], [lx, yb], [lx, py + 8]];
       lanes.push(mkLane(route, i * 20));
     });
     buses.push({ id: 'vcore', lanes, w: 46 });
@@ -483,24 +483,17 @@ export function buildBuses(): Bus[] {
     const pin = atx12v(g.atx), xw = g.dPhases[0]!.x + DRAM_IN_X;
     buses.push(mk('pwr12', [pin, [xw, pin[1]]], 1, 0, 36, 0));
   }
-  // memory voltage: the regulator's output rail along the pins of the sockets, a drop into every DIMM (and, on the two-row boards,
-  // round the east end to a second rail under the lower row)
+  // memory voltage: the regulator's output rail along the north ends of the sockets, a drop into every DIMM
   {
     const y = g.vdimmY;
-    const xEnd = vdimmEnd(g);
     const lanes: Lane[] = [];
-    for (const pts of bundle([[vdimmStart(g), y], [xEnd, y]], 2, 34, 60)) lanes.push(mkLane(pts, lanes.length * 31));
-    const two = g.dimm.some((d) => d.flip);
-    if (two) {
-      const row1 = g.dimm.filter((d) => d.flip), yb = g.padY[1] + DIMM_H0 + 130, xs = xEnd + 140;
-      for (const pts of bundle([[xEnd - 10, y], [xs, y], [xs, yb], [row1[0]!.rect.x + 20, yb]], 2, 34, 120)) lanes.push(mkLane(pts, lanes.length * 31));
-    }
+    for (const pts of bundle([[vdimmStart(g), y], [vdimmEnd(g), y]], 2, 34, 60)) lanes.push(mkLane(pts, lanes.length * 31));
     // outputs of the phases down to the rail
     g.dPhases.forEach((r, i) => lanes.push(mkLane([[r.x + DRAM_OUT_X, r.y + r.h - 4], [r.x + DRAM_OUT_X, y - 17]], 90 + i * 20)));
     const bus: Bus = { id: 'vdimm', w: 26, lanes, taps: [] };
     g.dimm.forEach((d, i) => {
-      const [cx, ey] = dimmPowerPad(d.rect, d.flip);
-      bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane(d.flip ? [[cx, g.padY[1] + DIMM_H0 + 130], [cx, ey]] : [[cx, y], [cx, ey]], i * 13)] });
+      const [cx, ey] = dimmPowerPad(d.rect);
+      bus.taps!.push({ key: 'dimm' + i, lanes: [mkLane([[cx, y], [cx, ey]], i * 13)] });
     });
     buses.push(bus);
   }
@@ -676,7 +669,7 @@ export function looseCable(c: Cable): Loose {
   if (c.kind === 'video') {
     // the cable still comes out of the monitor (it is built in), hangs down behind it and lies along the back edge of the desk, the plug at its end
     const sx = VIDEO_SOCKET.x, sy = VIDEO_SOCKET.y + CABLE_HIDE, y = VIDEO_RUN_Y - 65 - 4;
-    const plug: Plug = { x: -3580, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] };
+    const plug: Plug = { x: IO_X + 30, y, dx: -1, dy: 0, w: 130, l: 220, pins: [1, 1] };
     const end: Pt = [plug.x - plug.l + 8, y], d = Math.hypot(end[0] - sx, end[1] - sy);
     return { path: mkLane(hangCable([sx, sy], [0, 1], end, { len: d * 1.1 + 500, stub: 160, n: 48, floor: VIDEO_RUN_Y - 38 })), plug, anchor: [sx, sy], anchorDir: [0, 1] };
   }

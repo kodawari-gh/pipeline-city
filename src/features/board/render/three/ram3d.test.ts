@@ -17,7 +17,7 @@ describe('the 3D memory sticks', () => {
     setLayoutTier(3, 3);
     const r = GEO.dimm[0]!.rect, cx = r.x + r.w / 2;
     for (const visual of ['dimm-basic', 'dimm-fast', 'dimm-ddr3', 'dimm-ddr5']) {
-      const s = ramStick(T, visual, false, r, false), b = new Box3().setFromObject(s.root);
+      const s = ramStick(T, visual, false, r), b = new Box3().setFromObject(s.root);
       expect(b.max.x - b.min.x, visual).toBeLessThan(SLOT_W);
       expect(Math.abs((b.min.x + b.max.x) / 2 - cx), visual).toBeLessThan(1);
       expect(b.min.z, visual).toBeLessThan(BOARD_Z + SLOT_H);

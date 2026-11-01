@@ -123,7 +123,8 @@ export function screenRect(r: Rect, v: View, centre: { x: number; y: number }, o
  */
 export class Camera {
   x = 0; y = 0; z = 0.15;
-  minZ = 0.08; maxZ = 6;
+  // (the die is drawn at 0.7 of its own frame, `CPU_S`: the deepest zoom reaches its frame's 6)
+  minZ = 0.08; maxZ = 9;
   /**
    * The world box the view must stay inside (the room): panning and zooming never show beyond it. Where the free area is wider
    * or taller than the box, the box is centred in that direction. `null` leaves the view free.

@@ -7,10 +7,10 @@
 import { type Block, type CpuPlan, type Link, type PlanInput, type Rect } from './cpuplan';
 import { GAP, col, leaf, place, routeLinks, row, spans, type LinkSpec, type Node } from './cpufloor';
 import { dockLink } from '../die/glyphgeom';
-import { DIE } from '@/features/board/render/layout/layout';
+import { DIE_PLAN } from '@/features/board/render/layout/layout';
 
-/** The die's usable area, the width of the edge columns and the height of the north and south bands. */
-const R: Rect = { x: DIE.x + 24, y: DIE.y + 24, w: DIE.w - 48, h: DIE.h - 48 };
+/** The die's usable area (in the floorplan's own frame), the width of the edge columns and the height of the north and south bands. */
+const R: Rect = { x: DIE_PLAN.x + 24, y: DIE_PLAN.y + 24, w: DIE_PLAN.w - 48, h: DIE_PLAN.h - 48 };
 const EDGE = { side: 104, north: 64, south: 84 };
 const CORE: Rect = { x: R.x + EDGE.side + GAP, y: R.y + EDGE.north + GAP, w: R.w - 2 * EDGE.side - 2 * GAP, h: R.h - EDGE.north - EDGE.south - 2 * GAP };
 
@@ -253,7 +253,7 @@ function single(i: PlanInput): CpuPlan {
   const { tree, specs } = i.arch === 'ooo' ? outOfOrder(i) : pipeline(i);
   const blocks: Block[] = [];
   place(ringTree(tree), R, blocks, 'edge');
-  return { arch: i.arch, cores: 1, die: DIE, blocks, links: routeLinks(DIE, blocks, specs) };
+  return { arch: i.arch, cores: 1, die: DIE_PLAN, blocks, links: routeLinks(DIE_PLAN, blocks, specs) };
 }
 
 /** One core of a multicore die: the core's floorplan laid out in a w x h rectangle at the origin, its links routed in it. */
@@ -326,8 +326,8 @@ function multicore(i: PlanInput): CpuPlan {
   }
   for (let k = 0; k < n; k++) outs.push([`c${k}.irq`, 'irq', 'intc', `c${k}.pc`, 1]);
   outs.push(['l2-fab', 'mem', 'l2s', 'fabric', 4, undefined, true], ...edgeLinks([], 'c0.pc', 'c0.fetch').filter((l) => !['irq-pc', 'clk-core'].includes(l[0])));
-  const routed = routeLinks(DIE, blocks, links(outs));
-  return { arch: i.arch, cores: n, die: DIE, blocks, links: [...inner, ...routed], tiles };
+  const routed = routeLinks(DIE_PLAN, blocks, links(outs));
+  return { arch: i.arch, cores: n, die: DIE_PLAN, blocks, links: [...inner, ...routed], tiles };
 }
 
 export function cpuPlan(i: PlanInput): CpuPlan {

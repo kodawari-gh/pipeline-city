@@ -175,7 +175,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
   }
 
   // ---- DIMM sockets ----
-  geo.dimm.forEach((d, i) => dimmSocket(c, d.rect, d.flip, i));
+  geo.dimm.forEach((d, i) => dimmSocket(c, d.rect, i));
 
   // ---- PCIe slots ----
   geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, slotArmour(geo.tier, i), i === 0));
