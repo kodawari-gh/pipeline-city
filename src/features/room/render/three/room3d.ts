@@ -4,7 +4,7 @@
 // y flipped), z is the distance out of the wall. The props live in `props3d.ts`. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, PointLight,
-  SpotLight, type Texture,
+  Shape, ShapeGeometry, SpotLight, type Texture,
 } from 'three';
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
@@ -13,6 +13,7 @@ import { disposeTree, drum, instanced, paint, place, rectBox, softBox, tube } fr
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
+import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, city, keyboard, lamp, mouse, mug, plant, skyTexture, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { BOARD_Z, CASE_D, CASE_Z, DESK_D, DESK_TOP, MONITOR_Z, SLAT_W, daylight, slatRuns, wallAround } from './roomplan';
@@ -221,9 +222,23 @@ export class Room3D {
     R.add(this.screenLight);
   }
 
-  /** The keys that have been on the rack (a key not in it is new mail), and the new ones still on their way from the mailbox. */
+  /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */
   private known: Set<number> | null = null;
-  private arrivals: { g: Group; t: number; dx: number; dy: number }[] = [];
+  private arrivals: { g: Group; env: Group; flap: Mesh; mats: MeshStandardMaterial[]; rest: { x: number; y: number }; t0: number }[] = [];
+
+  /** The envelope: paper, and its flap, which turns about the top edge. */
+  private envelope(): { env: Group; flap: Mesh; mats: MeshStandardMaterial[] } {
+    const paper = mat(0xf1e8d6, { roughness: 0.8 }), darker = mat(0xdccfb4, { roughness: 0.8 }), env = new Group();
+    paper.transparent = darker.transparent = true;
+    paper.side = darker.side = DoubleSide;
+    env.add(softBox({ x: -ENV_W / 2, y: -ENV_H / 2, w: ENV_W, h: ENV_H }, 0, 40, paper, 20));
+    const tri = new Shape();
+    tri.moveTo(-ENV_W / 2, 0).lineTo(ENV_W / 2, 0).lineTo(0, -ENV_H * 0.55).closePath();
+    const flap = new Mesh(new ShapeGeometry(tri), darker);
+    flap.position.set(0, ENV_H / 2, 44);
+    env.add(flap);
+    return { env, flap, mats: [paper, darker] };
+  }
 
   /** The keys on the rack: a white stick on its lanyard per hook. A key that arrives drops in from the mailbox. */
   setKeys(tray: readonly KeySnap[]): void {
@@ -248,9 +263,10 @@ export class Room3D {
       g.add(rectBox({ x: c.x - 70, y: c.y + KEY_LEN / 2, w: 140, h: 190 }, 280, 380, mat(0xb9bec6, { metalness: 0.8, roughness: 0.3 })));
       g.add(tube([[hook.x, -hook.y, 400], [hook.x - 20, -(hook.y + 200), 380], [c.x, -(c.y - KEY_LEN / 2), 340]], 26, mat(col, { roughness: 0.7 }), 6));
       if (this.known && !this.known.has(k.id)) {
-        const dx = OUTBOX.x + OUTBOX.w / 2 - c.x, dy = OUTBOX.y - c.y;
-        g.position.set(dx, -dy, 0);
-        this.arrivals.push({ g, t: 0, dx, dy });
+        const e = this.envelope();
+        g.visible = false;
+        this.keys.add(e.env);
+        this.arrivals.push({ g, env: e.env, flap: e.flap, mats: e.mats, rest: c, t0: -1 });
       }
       this.keys.add(g);
     });
@@ -258,13 +274,23 @@ export class Room3D {
   }
 
   frame(f: RoomFrame, dt: number): void {
-    // the mail: a new key flies from the mailbox to its hook in an arc
+    // the mail, on the game's clock (it stops with the pause)
+    const stage = mailStage();
     for (const a of this.arrivals) {
-      a.t = Math.min(1, a.t + dt / 1.4);
-      const k = 1 - Math.pow(1 - a.t, 3), rest = 1 - k;
-      a.g.position.set(a.dx * rest, -a.dy * rest, 500 * Math.sin(Math.PI * k));
+      if (a.t0 < 0) a.t0 = f.t;
+      const u = (f.t - a.t0) / MAIL_S;
+      if (u >= 1) { a.g.visible = true; a.g.position.set(0, 0, 0); a.g.rotation.z = 0; a.env.visible = false; continue; }
+      const lp = letterPose(Math.max(0, u), stage), kp = keyPose(Math.max(0, u), stage, a.rest);
+      a.env.position.set(lp.x, -lp.y, 330);
+      a.env.rotation.z = -lp.rot;
+      a.flap.scale.y = lp.flap;
+      for (const m of a.mats) m.opacity = lp.alpha;
+      a.env.visible = lp.alpha > 0.01;
+      a.g.visible = kp.phase !== 'wait';
+      // the key hangs from the carried end of its lanyard: it swings as it goes
+      a.g.position.set(kp.x - a.rest.x, -(kp.y - a.rest.y), kp.phase === 'settle' ? 0 : 160);
     }
-    this.arrivals = this.arrivals.filter((a) => a.t < 1);
+    this.arrivals = this.arrivals.filter((a) => (f.t - a.t0) / MAIL_S < 1 || a.t0 < 0);
     const day = daylight(f.hour), night = 1 - day;
     const hk = Math.round(f.hour * 20);
     if (hk !== this.skyKey) {
