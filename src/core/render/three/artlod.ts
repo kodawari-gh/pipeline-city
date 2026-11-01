@@ -33,6 +33,8 @@ export function levelFor(levels: readonly number[], need: number): number {
 
 /** How long a surface keeps a level it no longer needs, so a wheel wobble never re-bakes (ms). */
 const KEEP_MS = 2500;
+/** How long the camera must stay at a level before its tiles bake (ms): a flight or a wheel spin passes the levels between without baking them. */
+const SETTLE_MS = 150;
 
 interface Job { key: string; pri: number; run: () => boolean }
 
@@ -190,13 +192,17 @@ let nextId = 0;
 
 /**
  * A flat rect at depth `z` that wears the art baked by `bake`. It asks for level 0 once it is drawn, and for the tiles of a higher level when the
- * camera needs them; the lower levels stay underneath as the fallback while the tiles bake. Levels above the one needed go after `KEEP_MS`.
+ * camera has needed it for `SETTLE_MS`; the lower levels stay underneath as the fallback while the tiles bake. Levels above the one needed stay
+ * for `KEEP_MS` and bake no new tiles.
  */
 export class ArtSurface {
   readonly root = new Group();
   private readonly key = `art${nextId++}:`;
   private tiles: Tile[][];
-  private want = 0;
+  /** The level the camera needs, since when, and the highest level kept (it is `need` again `KEEP_MS` after the camera went out). */
+  private need = 0;
+  private needSince = 0;
+  private keep = 0;
   private lowSince = 0;
   private opacity = 1;
   private readonly box: Box3;
@@ -240,18 +246,25 @@ export class ArtSurface {
     this.root.updateWorldMatrix(true, false);
     const m = this.root.matrixWorld, box = AT_BOX.copy(this.box).applyMatrix4(m), tile = (t: Tile) => AT_TILE.copy(t.box).applyMatrix4(m);
     if (!frustum.intersectsBox(box)) return;
-    const d = box.distanceToPoint(cam.position);
-    let want = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
-    if (want < this.want) {
-      if (!this.lowSince) this.lowSince = now;
-      if (now - this.lowSince < KEEP_MS) want = this.want;
-    } else this.lowSince = 0;
-    this.want = want;
+    const d = box.distanceToPoint(cam.position), need = levelFor(this.o.levels, screenPx(d, cam.fov, H) * dpr);
+    if (need !== this.need) { this.need = need; this.needSince = now; }
+    if (need >= this.keep) { this.keep = need; this.lowSince = 0; }
+    else if (!this.lowSince) this.lowSince = now;
+    else if (now - this.lowSince > KEEP_MS) { this.keep = need; this.lowSince = 0; }
+    const keep = this.keep, settled = now - this.needSince >= SETTLE_MS, seen = (t: Tile) => frustum.intersectsBox(tile(t));
     this.request(0, 0, -1e9 + d);
-    if (want > 0) this.tiles[want]!.forEach((t, k) => { if (frustum.intersectsBox(tile(t))) this.request(want, k, want * 1e6 + AT_TILE.distanceToPoint(cam.position)); });
-    for (let l = want + 1; l < this.tiles.length; l++) this.free(l);
+    // only the needed level bakes: the jobs of a level the camera passed are dropped
+    for (let l = 1; l < this.tiles.length; l++) if (l !== need || !settled) this.unqueue(l);
+    // under a kept level, a tile bakes only where the kept tiles in view do not cover it (out of a wheel wobble, nothing does)
+    const covered = (t: Tile) => keep > need && this.tiles[keep]!.every((u) => u.mesh || !u.box.intersectsBox(t.box) || !seen(u));
+    if (need > 0 && settled) this.tiles[need]!.forEach((t, k) => {
+      if (!seen(t)) return;
+      const pri = need * 1e6 + AT_TILE.distanceToPoint(cam.position);
+      if (!covered(t)) this.request(need, k, pri);
+    });
+    for (let l = keep + 1; l < this.tiles.length; l++) this.free(l);
     // a pan at a fine level leaves tiles behind: each goes once it has been out of view for a while (level 0 stays: it is the fallback)
-    for (let l = 1; l <= want; l++) for (const t of this.tiles[l]!) {
+    for (let l = 1; l <= keep; l++) for (const t of this.tiles[l]!) {
       if (frustum.intersectsBox(tile(t))) t.seen = now;
       else if (t.mesh && now - t.seen > KEEP_MS) this.dropTile(t);
     }
@@ -264,12 +277,17 @@ export class ArtSurface {
     t.mesh = null;
   }
 
-  private free(level: number) {
+  /** Take back the level's bake jobs that have not run (its baked tiles stay). */
+  private unqueue(level: number) {
+    const ts = this.tiles[level]!;
+    if (!ts.some((t) => t.queued)) return;
     this.q.drop(`${this.key}${level}:`);
-    for (const t of this.tiles[level]!) {
-      t.queued = false;
-      this.dropTile(t);
-    }
+    for (const t of ts) t.queued = false;
+  }
+
+  private free(level: number) {
+    this.unqueue(level);
+    for (const t of this.tiles[level]!) this.dropTile(t);
   }
 
   setOpacity(a: number): void {
