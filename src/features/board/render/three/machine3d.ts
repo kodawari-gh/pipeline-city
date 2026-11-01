@@ -52,6 +52,8 @@ import {
   TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
 } from './wires3d';
 import { sleeveOf } from '@/core/render/cable';
+import { useModel } from '@/core/render/three/gltf';
+import { modelUrl } from './models3d';
 import { slotRects } from './slots3d';
 import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
@@ -91,6 +93,8 @@ type Fan = Spin & { speed: number };
 export class Machine3D {
   readonly root = new Group();
   private skins = new Map<string, PartSkin>();
+  /** The sockets' rects by slot id (a model is fitted to its part's). */
+  private rects = new Map<string, RectLike>();
   private fans: Fan[] = [];
   private rgb = new PointLight(0x8b5cff, 0, 9000, 0);
   private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial } | null = null;
@@ -128,6 +132,7 @@ export class Machine3D {
     this.buildCase();
     this.buildBoard(s);
     if (s) {
+      this.rects = slotRects(s);
       for (const d of s.devices) this.buildDevice(d);
       // the live memory map on the chips: it comes in as the spreaders go, over the whole bank
       if (this.ram && this.ramSticks.length) {
@@ -484,6 +489,9 @@ export class Machine3D {
       }
       default: return; // the display is the room's (Room3D shows it)
     }
+    // a part with a glTF model wears it over its slot's rect in place of the primitives built above
+    const url = modelUrl(visual, spec.kind), fit = url ? this.rects.get(d.slot) : undefined;
+    if (url && fit) useModel(g, url, fit, BOARD_Z, BOARD_Z + 400, [...g.children], () => !!g.parent);
     this.root.add(g);
   }
 
