@@ -5,13 +5,16 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement }
 
+/** The tone mapping's exposure at 100 % brightness (the graphics settings multiply it, `Post.apply`). */
+export const BASE_EXPOSURE = 1.1;
+
 export function createRenderContext(host: HTMLElement, background: string): RenderContext {
   const renderer = new WebGLRenderer({ antialias: false, powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance' }); // the composer's target does the antialiasing
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(host.clientWidth, host.clientHeight);
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = BASE_EXPOSURE;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   host.appendChild(renderer.domElement);

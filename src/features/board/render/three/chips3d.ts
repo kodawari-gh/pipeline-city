@@ -31,6 +31,8 @@ export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
 const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
+/** The live faces at each level of the graphics settings: the least gap between two drawings (ms) and the finest density. Level 2 is the tuned look. */
+export const LIVE_LEVELS = [{ ms: FRAME_MS * 2, px: MAX_PX / 2 }, { ms: FRAME_MS, px: MAX_PX / 2 }, { ms: FRAME_MS, px: MAX_PX }, { ms: FRAME_MS / 2, px: MAX_PX }] as const;
 /** The view when the camera looks past the plane: everything is in it. */
 const EVERYWHERE: LodRect = { x: -1e7, y: -1e7, w: 2e7, h: 2e7 };
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]] as const;
@@ -101,8 +103,8 @@ export class Chips3D {
   /** At most two cards show their counters, the ones nearest the centre (as in 2D). */
   private readonly budget = new TierBudget(2);
   private dieAlpha = 0;
-  /** A weak GPU: the live faces draw at half the density and half the rate (board3d.ts quality steps). */
-  eco = false;
+  /** How often and how finely the faces draw: an entry of `LIVE_LEVELS` (the graphics settings, board3d.ts). */
+  live: { ms: number; px: number } = LIVE_LEVELS[2];
   /** The chips' clock: game ms, eased by the zoom (board3d.ts). */
   private t = 0;
 
@@ -164,10 +166,10 @@ export class Chips3D {
    * Per frame, after the camera and the parts' poses (`Machine3D.lod`): the views' zoom and view from the camera and their replays on by `dt` (game
    * seconds, eased by the zoom), then each face that shows draws the part of it in view.
    */
-  frame(cam: PerspectiveCamera, H: number, dt: number, paused: boolean): void {
+  frame(cam: PerspectiveCamera, H: number, dt: number, paused: boolean, dpr: number): void {
     this.t += dt * 1000;
     cam.updateMatrixWorld();
-    const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const now = performance.now();
     // the die: its zoom, and its tiles' and wash's by the view, as board.ts gives them, read in the die's own frame (its face's parent is drawn
     // at `CPU_S` of it)
     const dieFace = this.faces.find((f) => f.kind === 'die');
@@ -237,11 +239,11 @@ export class Chips3D {
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
     const a = f.kind === 'die' ? this.dieAlpha : 1;
     if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
-    if (now - f.at < (this.eco ? FRAME_MS * 2 : FRAME_MS)) return;
+    if (now - f.at < this.live.ms) return;
     f.parent.updateWorldMatrix(true, false);
     const v = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), crop = liveCrop(f.rect, v.rect);
     if (!crop || v.zoom <= 0) { f.mesh.visible = false; return; }
-    const canvas = (f.canvas ??= document.createElement('canvas')), got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr, this.eco ? MAX_PX / 2 : MAX_PX), canvas);
+    const canvas = (f.canvas ??= document.createElement('canvas')), got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr, this.live.px), canvas);
     if (!got) { f.mesh.visible = false; return; }
     f.at = now;
     const size = `${canvas.width}x${canvas.height}`;

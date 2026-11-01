@@ -68,8 +68,8 @@ export class Lens3D {
     this.both.addChild(this.power.root, this.air.root);
   }
 
-  /** Per frame (after the camera): draw the lens that is on over the view, or hide the plane. `dt` in game seconds. */
-  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, geo: RoomGeo, dt: number): void {
+  /** Per frame (after the camera): draw the lens that is on over the view, or hide the plane. `dt` in game seconds, `dpr` the canvas pixels per CSS pixel. */
+  frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, geo: RoomGeo, dt: number, dpr: number): void {
     const wantPower = powerLens.peek() && !!s, wantAir = airflowLens.peek() && !!s;
     if (!wantPower && !wantAir) { this.mesh.visible = false; this.powerKey = this.airKey = null; return; }
     const snap = s!;
@@ -98,7 +98,7 @@ export class Lens3D {
       }
     } else this.airKey = null;
 
-    const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const now = performance.now();
     this.t += dt;
     cam.updateMatrixWorld();
     const v = viewOn(cam, H, Z), world = { x: -1e5, y: -1e5, w: 2e5, h: 2e5 }, crop = v.zoom > 0 && v.rect ? liveCrop(world, v.rect, 0.05) : null;

@@ -20,6 +20,11 @@ import { BOARD_Z, CASE_D, CASE_Z, DESK_D, DESK_TOP, MONITOR_Z, SLAT_W, daylight,
 
 const KEY_W = 230;
 
+/** The shadow map sizes at each level of the graphics settings (the front key, the sun, the lamp); 0 has no shadows, 3 is the tuned look. */
+const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512], [2048, 1024, 1024], [4096, 2048, 1024], [8192, 4096, 2048]];
+/** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
+const SHADOW_SOFT = [10, 8, 6];
+
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
 
@@ -220,6 +225,19 @@ export class Room3D {
     R.add(this.sun, this.sun.target);
     this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 2500);
     R.add(this.screenLight);
+  }
+
+  /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
+  setShadows(level: number): void {
+    const sizes = SHADOW_LEVELS[level] ?? null;
+    [this.front, this.sun, this.lampLight].forEach((l, i) => {
+      const size = sizes?.[i] ?? 0;
+      l.castShadow = size > 0;
+      if (l.shadow.mapSize.x !== size || !size) { l.shadow.map?.dispose(); l.shadow.map = null; }
+      if (!size) return;
+      l.shadow.mapSize.set(size, size);
+      l.shadow.radius = SHADOW_SOFT[i]! * (size / SHADOW_LEVELS[3]![i]!);
+    });
   }
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */

@@ -37,6 +37,8 @@ export class Particles3D {
   private carry = new Map<string, number>();
   private rects: Map<string, import('../layout/layout').Rect> | null = null;
   private rectsFor: Snapshot | null = null;
+  /** The share of the particles that are born (the graphics settings); 0 draws none. */
+  density = 1;
 
   constructor(scene: Scene) {
     this.geo.setAttribute('position', new BufferAttribute(this.pos, 3));
@@ -64,6 +66,8 @@ export class Particles3D {
 
   /** Per frame, with the snapshot and the game's elapsed seconds (the particles stop with the pause). */
   frame(s: Snapshot | null, dt: number): void {
+    this.pts.visible = this.density > 0;
+    if (!this.pts.visible) return;
     if (s && s !== this.rectsFor) { this.rectsFor = s; this.rects = slotRects(s); }
     // emit
     if (s && dt > 0 && this.rects) {
@@ -94,7 +98,7 @@ export class Particles3D {
 
   /** `n` particles' worth of emission this frame (the fraction carries to the next), spread over the rect. */
   private emit(key: string, n: number, kind: Kind, r: { x: number; y: number; w: number; h: number }): void {
-    let c = (this.carry.get(key) ?? 0) + n;
+    let c = (this.carry.get(key) ?? 0) + n * this.density;
     while (c >= 1) {
       c -= 1;
       this.spawn(kind, r.x + r.w * Math.random(), -(r.y + r.h * Math.random()), BOARD_Z + 700);

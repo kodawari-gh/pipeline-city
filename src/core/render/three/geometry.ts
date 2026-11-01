@@ -7,6 +7,25 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 export interface RectLike { x: number; y: number; w: number; h: number }
 
+/** The anisotropic filtering of every painted or baked texture (the graphics settings; a new texture takes it, `refilter` moves the old ones). */
+export let anisotropy = 8;
+
+/** A new filtering for every canvas texture under `root`. Each is sent to the GPU again, so this is for a settings change, not for a frame. */
+export function refilter(root: Object3D, n: number): void {
+  anisotropy = n;
+  const done = new Set<Texture>();
+  root.traverse((o) => {
+    const m = (o as Mesh).material as Material | Material[] | undefined;
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) for (const v of Object.values(x)) {
+      const t = v as CanvasTexture | null;
+      if (!t?.isCanvasTexture || done.has(t)) continue;
+      done.add(t);
+      t.anisotropy = n;
+      t.needsUpdate = true;
+    }
+  });
+}
+
 export function place<T extends Object3D>(o: T, shadow = true): T {
   if (shadow) { o.castShadow = true; o.receiveShadow = true; }
   return o;
@@ -170,7 +189,7 @@ export function paint(w: number, h: number, draw: (c: CanvasRenderingContext2D, 
   draw(cv.getContext('2d')!, w, h);
   const t = new CanvasTexture(cv);
   t.colorSpace = SRGBColorSpace;
-  t.anisotropy = 8;
+  t.anisotropy = anisotropy;
   if (repeat) { t.wrapS = t.wrapT = RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   return t;
 }

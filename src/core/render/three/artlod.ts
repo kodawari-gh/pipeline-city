@@ -4,6 +4,7 @@
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
 // The baking itself is the caller's (`Bake`): this file knows only three.
 import { Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3, type Material, type Object3D, type PerspectiveCamera, type Texture } from 'three';
+import { anisotropy } from './geometry';
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -222,7 +223,7 @@ export class ArtSurface {
   private mesh(r: Rect, cv: HTMLCanvasElement, level: number): Mesh {
     const tex = new CanvasTexture(cv);
     tex.colorSpace = SRGBColorSpace;
-    tex.anisotropy = 8;
+    tex.anisotropy = anisotropy;
     const mesh = new Mesh(new PlaneGeometry(r.w, r.h), artMaterial(tex, this.o.finish ?? FINISH.board, level));
     mesh.position.set(r.x + r.w / 2, -(r.y + r.h / 2), this.z + 0.5);
     mesh.receiveShadow = true;

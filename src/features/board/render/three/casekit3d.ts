@@ -4,7 +4,7 @@
 import {
   CanvasTexture, ExtrudeGeometry, Mesh, Path, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Shape, Vector2, type Group, type Material, type Texture,
 } from 'three';
-import { place, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, place, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { isCut, type Cuts } from '@/features/room/render/shell/casedecor';
@@ -121,7 +121,7 @@ export function tex(key: string, w: number, h: number, draw: (c: CanvasRendering
     draw(cv.getContext('2d')!, w, h);
     t = new CanvasTexture(cv);
     t.colorSpace = SRGBColorSpace;
-    t.anisotropy = 8;
+    t.anisotropy = anisotropy;
     t.wrapS = t.wrapT = RepeatWrapping;
   }
   TEX.set(key, t);

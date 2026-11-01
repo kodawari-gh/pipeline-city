@@ -27,8 +27,9 @@ import { toggleTrace, TracePanel, traceOpen } from '../../features/cpu/ui/TraceP
 import { AlmanacPanel } from '../../features/jobs/ui/AlmanacPanel';
 import { LogPanel } from './panels/LogPanel';
 import { CrashPanel } from './panels/CrashPanel';
+import { GraphicsDock } from './panels/Graphics';
 import {
-  netOpen, openMilestones, osOpen, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
+  graphicsOpen, netOpen, openMilestones, osOpen, toggleGraphics, toggleOs, popupPause, replayTutorial, resetHints, setUiScale, skipTutorial, statsOpen, theme, toggleNet, toggleStats, toggleTheme, tutorial, uiScale, UI_SCALE_MAX, UI_SCALE_MIN,
 } from './state';
 import { currentStep } from '../../features/tutorial/ui/tutorial';
 
@@ -217,6 +218,7 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
           <button role="menuitem" onClick={() => { toggleOs(); close(); }} title="Resource monitor, job queue and apps of the operating system"><Icon name="layers" size={13} /> {osOpen.value ? 'Hide OS' : 'OS'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
+          <button role="menuitem" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> {graphicsOpen.value ? 'Hide graphics' : 'Graphics'}</button>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
           <label class="menuitem" title="Load a game file">
             <Icon name="import" size={13} /> Import game
@@ -287,6 +289,7 @@ export function Hud() {
         </aside>
       )}
       <NetDock />
+      <GraphicsDock />
       <OsModal />
       <TracePanel />
       <AlmanacPanel />

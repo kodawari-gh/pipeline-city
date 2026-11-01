@@ -5,7 +5,7 @@ import {
   BackSide, CanvasTexture, Color, CylinderGeometry, DodecahedronGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace,
   SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, type Texture, BoxGeometry, ConeGeometry,
 } from 'three';
-import { instanced, paint, place, post, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
+import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 
@@ -70,7 +70,7 @@ export class Monitor {
       this.canvas.width = 1280; this.canvas.height = 720;
       this.tex = new CanvasTexture(this.canvas);
       this.tex.colorSpace = SRGBColorSpace;
-      this.tex.anisotropy = 8;
+      this.tex.anisotropy = anisotropy;
     }
     const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), new MeshBasicMaterial({ map: this.tex, toneMapped: false }));
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);

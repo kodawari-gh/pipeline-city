@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import { effect } from '@preact/signals';
+import { effective, FrameMeter, pixelRatio } from '@/app/graphics';
 import { airflowLens, hover, INERT_REGIONS, powerLens, viewInset, type Inset } from '@/app/hover';
 import { cameraRev, dragging, highlight } from '@/app/interaction';
 import { snapshot, speed, zoomSlowOn, zoomSlowdown } from '@/app/store';
@@ -156,9 +157,16 @@ export async function mountBoard(host: HTMLElement) {
   const app = new Application();
   await app.init({
     resizeTo: host, background: T.bg, antialias: true, autoDensity: true,
-    resolution: Math.min(window.devicePixelRatio || 1, 2),
+    resolution: pixelRatio(effective.peek().scale),
   });
   host.appendChild(app.canvas);
+  // the graphics settings the 2D view has (app/graphics.ts): the render scale and the frame limit
+  effect(() => {
+    const g = effective.value, ratio = pixelRatio(g.scale);
+    app.ticker.maxFPS = g.fps;
+    if (ratio !== app.renderer.resolution) app.renderer.resize(app.screen.width, app.screen.height, ratio);
+  });
+  const meter = new FrameMeter();
   initThumbs(app.renderer);
 
   // ---- scene graph ----
@@ -1413,6 +1421,7 @@ export async function mountBoard(host: HTMLElement) {
     const fr = camera.freeRect();
     const vk = [camera.x, camera.y, camera.z, camera.cx, camera.cy, camera.w, camera.h, fr.x, fr.y, fr.w, fr.h, exteriorCover > 0.5].join('|');
     if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
+    meter.tick(now, app.canvas.width, app.canvas.height);
   });
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = { die, live, net, camera, hitAt, hitList: () => allHits.map((h) => ({ id: h.id, rect: h.rect, more: h.more, shape: h.shape, ring: h.ring })), app, flyToCpu, flyToBoard, flyTo, anchorOf, cameraRev, hover, interact, scene, beginPartDrag, LOD, mailSlow: (k: number) => { mailSlow = k; }, room: { debug: roomDebug, state: roomState }, lod: () => ({ extA, reveal, interior: interior.visible, z: camera.z, zs: lod.zs, bakes: { board: bakeBoard.on, devices: bakeDev.on, props: bakeProps.on } }) };

@@ -11,16 +11,17 @@ import { airflowLens, hover, powerLens, selected, INERT_REGIONS } from '@/app/ho
 import { highlight } from '@/app/interaction';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
+import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { createRenderContext } from '@/core/render/three/init';
 import { applyView, clampView, fitRect, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
-import { disposeTree } from '@/core/render/three/geometry';
+import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { Room3D } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
-import { Chips3D } from './chips3d';
+import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
@@ -38,6 +39,10 @@ const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
 /** The machine's ids that are reached from outside the case (a tutorial target among them leaves the side panel shut). */
 const OUTSIDE = new Set(['case', 'case.side', 'power', 'usb', 'io', 'cable.video', 'cable.lan', 'cable.pcmains', 'cable.monmains']);
+/** The art's density at each level of the graphics settings, as a share of what the screen needs (`ArtSurface.update`); level 2 is the tuned look. */
+const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
+/** The share of the particles at each level of the graphics settings. */
+const PARTICLE_LEVELS = [0, 0.5, 1];
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -68,6 +73,7 @@ export function mountBoard3d(host: HTMLElement) {
       setLayoutTier(tier, caseTier);
       if (room) { scene.remove(room.root); disposeTree(room.root); }
       room = new Room3D();
+      room.setShadows(effective.peek().shadows);
       scene.add(room.root);
       machKey = '';
     }
@@ -212,21 +218,32 @@ export function mountBoard3d(host: HTMLElement) {
   new ResizeObserver(() => {
     W = host.clientWidth; H = Math.max(1, host.clientHeight);
     renderer.setSize(W, H); post.setSize(W, H);
-    if (quality) post.setQuality(quality, renderer, W, H);
   }).observe(host);
+
+  // ---- the graphics settings (app/graphics.ts) ----
+  const applyGraphics = (g: Graphics) => {
+    post.apply(g, renderer, W, H);
+    room?.setShadows(g.shadows);
+    chips.live = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
+    fx.density = PARTICLE_LEVELS[g.particles] ?? 1;
+    if (g.filtering !== anisotropy) refilter(scene, g.filtering);
+  };
+  effect(() => applyGraphics(effective.value));
+  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch();
+  // a new choice of the player's starts the watch over, as a new picture bakes and compiles its way in
+  effect(() => { graphics.value; watch.reset(performance.now()); });
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
-  // a weak GPU: when the frames stay slow, the picture gets cheaper in two steps (no ambient occlusion, then less pixel density) and stays so
-  let quality = 0, slowT = 0;
-  const born = performance.now();
   const frame = (now: number) => {
-    const real = (now - last) / 1000;
-    if (now - born > 5000 && quality < 3 && document.visibilityState === 'visible') {
-      slowT = Math.max(0, slowT + (real > 1 / 30 ? real : -real * 2));
-      if (slowT > 2.5) { slowT = 0; post.setQuality(++quality, renderer, W, H); chips.eco = quality >= 3; }
+    const g = effective.peek();
+    if (!gate.ready(now, g.fps)) { requestAnimationFrame(frame); return; }
+    // a weak GPU: when the frames stay slow, auto-adjust takes the next step down and stays there (`lowered`)
+    if (graphics.peek().auto && document.visibilityState === 'visible' && watch.tick((now - last) / 1000, now, g.fps)) {
+      const step = nextStep(graphics.peek(), autoStep.peek());
+      if (step !== null) autoStep.value = step;
     }
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const dt = Math.min(0.1, (now - last) / 1000), ratio = renderer.getPixelRatio();
     last = now;
     gt += dt * 1000 * speed.value;
     const s = snapshot.peek();
@@ -234,13 +251,13 @@ export function mountBoard3d(host: HTMLElement) {
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
     applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
-    machine?.lod(camera, H);
+    machine?.lod(camera, H, ratio * (TEXTURE_LEVELS[g.textures] ?? 1));
     // the dies' replay: at the game's pace, slower as the camera comes in so a block can be followed (as board.ts); the HUD says so
     const scale = worldPace(speed.peek()), pace = zoomSlowOn.peek() ? zoomSlow(H / view.height, CYCLES_PER_SEC, scale) : scale, note = scale > 0 ? Math.round((pace / scale) * 100) / 100 : 1;
     if (zoomSlowdown.peek() !== note) zoomSlowdown.value = note;
-    chips.frame(camera, H, dt * pace, speed.peek() <= 0);
+    chips.frame(camera, H, dt * pace, speed.peek() <= 0, ratio);
     fx.frame(s, dt * worldPace(speed.peek()));
-    if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()));
+    if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()), ratio);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
@@ -253,6 +270,7 @@ export function mountBoard3d(host: HTMLElement) {
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
     post.render();
+    meter.tick(now, canvas.width, canvas.height);
     // a new case is a new room: frame it again
     const tierNow = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
     if (tierNow !== wasTier) { wasTier = tierNow; flyToRoom(); }
@@ -261,7 +279,9 @@ export function mountBoard3d(host: HTMLElement) {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, chips, quality: () => quality,
+    three: true, scene, renderer, chips, quality: () => autoStep.peek(),
+    // the frame's parts as they stand (tools/bench3d.mjs times them)
+    parts: () => ({ post, machine, room, chips, fx, lens, bakes }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {

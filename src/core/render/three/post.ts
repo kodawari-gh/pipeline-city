@@ -7,6 +7,8 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { pixelRatio, type Graphics } from '@/app/graphics';
+import { BASE_EXPOSURE } from './init';
 
 /** GTAO that skips what light passes through (glass, steam, glow sprites): the stock pass hides only points and lines, so a pane of glass got a dark AO halo. */
 class ClearAO extends GTAOPass {
@@ -20,6 +22,14 @@ class ClearAO extends GTAOPass {
     });
   }
 }
+
+/** What the post chain takes from the graphics settings. */
+export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
+
+/** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
+const AO_LEVELS = [0, 8, 16, 32];
+/** The bloom's strength at each level (0: the pass is off). */
+const BLOOM_LEVELS = [0, 0.3, 0.5];
 
 export class Post {
   private composer: EffectComposer;
@@ -47,15 +57,18 @@ export class Post {
     this.composer.addPass(new OutputPass());
   }
 
-  /**
-   * A cheaper frame for a weak GPU, in steps: 1 drops the ambient occlusion, 2 also draws at 3/4 of the pixel density, 3 also drops the bloom and the
-   * multisampling and draws at 0.6 (`ratio`).
-   */
-  setQuality(level: number, renderer: WebGLRenderer, w: number, h: number): void {
-    this.ao.enabled = level < 1;
-    this.bloom.enabled = level < 3;
-    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (level >= 3 && t.samples) { t.samples = 0; t.dispose(); }
-    const ratio = Math.min(window.devicePixelRatio || 1, 2) * (level >= 3 ? 0.6 : level >= 2 ? 0.75 : 1);
+  /** The graphics settings (`app/graphics.ts`): the passes, the multisampling and the pixels drawn. A new sample count frees the targets, so it costs a frame; the same one costs nothing. */
+  apply(g: PostOptions, renderer: WebGLRenderer, w: number, h: number): void {
+    const ao = AO_LEVELS[g.ao] ?? 0;
+    this.ao.enabled = ao > 0;
+    if (ao) { this.ao.updateGtaoMaterial({ samples: ao }); this.ao.updatePdMaterial({ samples: ao }); }
+    const bloom = BLOOM_LEVELS[g.bloom] ?? 0;
+    this.bloom.enabled = bloom > 0;
+    this.bloom.strength = bloom;
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (t.samples !== g.msaa) { t.samples = g.msaa; t.dispose(); }
+    const ratio = pixelRatio(g.scale);
+    renderer.toneMappingExposure = BASE_EXPOSURE * g.brightness;
+    if (ratio === renderer.getPixelRatio()) return;
     renderer.setPixelRatio(ratio);
     this.composer.setPixelRatio(ratio);
     renderer.setSize(w, h);

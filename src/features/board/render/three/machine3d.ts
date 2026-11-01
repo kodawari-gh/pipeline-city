@@ -738,8 +738,8 @@ export class Machine3D {
    * Level of detail, per frame after the camera moved: each reveal gets the zoom seen at its point (screen pixels per unit there, less toward the
    * edge of the view: `seenZoom`, so the bands are the 2D ones), then each surface asks for the texture tiles it needs.
    */
-  lod(cam: PerspectiveCamera, H: number): void {
-    const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  lod(cam: PerspectiveCamera, H: number, dpr: number): void {
+    const now = performance.now();
     frustumOf(cam, this.frustum);
     cam.getWorldDirection(LOD_DIR);
     // the board view's zoom on this screen (`boardView` in board3d.ts: the inside of the case, fitted at 0.95)
