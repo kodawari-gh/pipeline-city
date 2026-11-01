@@ -67,6 +67,26 @@ export function ownerMap(regions: RamRegion[], length: number): Uint8Array {
   return own;
 }
 
+/**
+ * A chip's pages as cells: for each page that holds anything, the region that owns most of it (index + 1 into the regions, 0: none) and how
+ * strong its cell is (stronger the more of it is owned and the fuller it is). `own` is `ownerMap`'s.
+ */
+export function pageCells(image: Uint8Array, own: Uint8Array, slot: ChipSlot): { page: number; best: number; strength: number }[] {
+  const out: { page: number; best: number; strength: number }[] = [], pages = Math.ceil((slot.hi - slot.lo) / PAGE);
+  for (let p = 0; p < pages; p++) {
+    const a0 = slot.lo + p * PAGE, a1 = Math.min(a0 + PAGE, image.length);
+    let nz = 0, owned = 0, best = 0;
+    const votes = new Map<number, number>();
+    for (let a = a0; a < a1; a++) {
+      if (image[a]) nz++;
+      const o = own[a]!;
+      if (o) { owned++; const v = (votes.get(o) ?? 0) + 1; votes.set(o, v); if (v > (votes.get(best) ?? 0)) best = o; }
+    }
+    if (nz || owned) out.push({ page: p, best, strength: 0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE) });
+  }
+  return out;
+}
+
 /** Where the byte at `addr` is in its chip's picture, in pixels (the picture is `tilesX * TILE` wide): pages in reading order, each a 16 x 16 tile. */
 export function pixelOf(slot: ChipSlot, addr: number): { x: number; y: number } {
   const off = addr - slot.lo, page = Math.floor(off / PAGE), within = off % PAGE;

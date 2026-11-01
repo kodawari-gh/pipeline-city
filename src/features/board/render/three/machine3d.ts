@@ -48,6 +48,7 @@ import {
 } from './wires3d';
 import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
+import { RamMap3D } from './rammap3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
 const FRONT = CASE_Z + CASE_D;
@@ -98,6 +99,9 @@ export class Machine3D {
   private rad: (RadiatorAt & { span: FanMount & { ids: string[] } }) | null = null;
   /** The installed sticks' bank: the camera leans over it up close (`lean`). */
   private ram: RectLike | null = null;
+  /** The sticks (slot, size, the faces of their four data chips) and the live memory map painted on those faces. */
+  private ramSticks: ConstructorParameters<typeof RamMap3D>[0] = [];
+  private ramMap: RamMap3D | null = null;
   /** The cards by slot: their power leads plug into the top edge and fade with the cooler. */
   private cards = new Map<string, Card3D>();
   /** The basement under the shroud: the power supply, the drive cage and its bays (`basementPlan`). */
@@ -116,6 +120,11 @@ export class Machine3D {
     this.buildBoard(s);
     if (s) {
       for (const d of s.devices) this.buildDevice(d);
+      // the live memory map on the chips: it comes in as the spreaders go, over the whole bank
+      if (this.ram && this.ramSticks.length) {
+        const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
+        this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true);
+      }
       this.buildCables(s, geo);
       if (s.plugged) this.buildPluggedKey(s.plugged.id);
     }
@@ -366,6 +375,7 @@ export class Machine3D {
         this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));
         this.root.add(g, tag(st.hit, d.id));
         this.ram = this.ram ? union(this.ram, r) : r;
+        this.ramSticks.push({ idx: i, bytes: rs.sizeBytes, faces: st.mapFaces });
         this.softSkin(d.id, ...st.skin);
         return;
       }
@@ -627,6 +637,7 @@ export class Machine3D {
   // ------------------------------------------------------------------ live
   frame(s: Snapshot | null, dt: number): void {
     const live = !!s && s.powered && !s.power.tripped && !s.board.burnt;
+    this.ramMap?.update(s?.ram ?? null, performance.now());
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);
     this.hue = (this.hue + dt * 0.05) % 1;
@@ -673,6 +684,7 @@ export class Machine3D {
   dispose(): void {
     for (const s of this.surfaces) s.dispose();
     for (const b of this.bakers) b.dispose();
+    this.ramMap?.dispose();
     disposeTree(this.root);
   }
 }

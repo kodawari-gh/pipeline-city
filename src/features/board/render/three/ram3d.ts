@@ -3,7 +3,7 @@
 // look follows the generation (`stickLook`): a bare green stick (SDR and the server ECC sticks), a low clip-on spreader (DDR2), a finned spreader
 // (DDR3), a spreader under a frosted RGB bar (DDR4, DDR5). Up close the spreaders fade to the chips (`DEVICE_LOD.ram`) and the camera leans to
 // see the faces in a row (`RAM_LEAN`, board3d.ts). The chips sit where the 2D chips are along the stick, so the live memory map can land on them.
-import { BoxGeometry, Color, ExtrudeGeometry, Group, Matrix4, Mesh, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
+import { BoxGeometry, Color, ExtrudeGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Shape, type BufferGeometry, type MeshStandardMaterial, type Texture } from 'three';
 import { instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
@@ -130,6 +130,8 @@ export interface Stick {
   spreader: Group;
   /** An unseen box over the 2D rect: the thin stick is easy to click from the glass. */
   hit: Mesh;
+  /** The four data chips' faces toward the leaning camera (east), in the 2D chips' order: the live memory map is painted on them (`RamMap3D`). */
+  mapFaces: Mesh[];
   spins: Spin[];
   /** The materials that follow the part's state (`PartSkin`). */
   skin: MeshStandardMaterial[];
@@ -156,11 +158,19 @@ export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike, fl
   const top = mat(0xffffff, { map: chipFace(), roughness: 0.55 }), side = mat(0x101115, { roughness: 0.6 });
   const items = chips.flatMap((c) => [-1, 1].map((s) => ({ x: cx + s * (PCB_T + CHIP_T) / 2, y: (wy(c.y) + wy(c.y + c.h)) / 2, z: (c.z0 + c.z1) / 2, sx: CHIP_T, sy: c.h, sz: c.z1 - c.z0 })));
   root.add(instanced(new BoxGeometry(1, 1, 1), [top, top, side, side, side, side] as unknown as MeshStandardMaterial, items));
+  // the map faces: a plane just off each data chip's east face, hidden until the map is painted and the camera is close
+  const mapFaces = chips.slice(0, 4).map((c) => {
+    const f = new Mesh(new PlaneGeometry(c.z1 - c.z0 - 8, c.h - 8).rotateY(Math.PI / 2), new MeshBasicMaterial({ transparent: true, toneMapped: false }));
+    f.position.set(cx + PCB_T / 2 + CHIP_T + 0.6, (wy(c.y) + wy(c.y + c.h)) / 2, (c.z0 + c.z1) / 2);
+    f.visible = false;
+    root.add(f);
+    return f;
+  });
   // a row of passives between the fingers and the chips, on both faces
   const caps = [];
   for (let u = 30; u < L - 30; u += 27) for (const s of [-1, 1]) caps.push({ x: cx + s * (PCB_T / 2 + 2), y: ys + u, z: TOP + 11, sx: 4, sy: 12, sz: 7 });
   root.add(instanced(new BoxGeometry(1, 1, 1), mat(0x8c6c4c, { roughness: 0.55 }), caps));
-  if (look === 'bare') return { root, spreader, hit: hitBox(r, look), spins, skin: [edge] };
+  if (look === 'bare') return { root, spreader, hit: hitBox(r, look), spins, skin: [edge], mapFaces };
   // the spreader: a plate over each face, held off the chips; its look by generation
   const t = look === 'low' ? 6 : look === 'fins' ? 10 : 12, x0 = PCB_T / 2 + CHIP_T + 1, u0 = 18, u1 = L - 18;
   const plateM = look === 'low' ? mat(new Color(0xaab2c0).lerp(accent, 0.35).getHex(), { metalness: 0.8, roughness: 0.32 })
@@ -183,7 +193,7 @@ export function ramStick(T: Theme, visual: string, ecc: boolean, r: RectLike, fl
     for (const s of [-1, 1]) spreader.add(rectBox({ x: s < 0 ? cx - x0 - t - 2 : cx + x0 + t, y: -(ys + L * 0.66), w: 2, h: L * 0.32 }, Z0 + 120, Z0 + 186, stripe));
   }
   root.add(spreader);
-  return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM] };
+  return { root, spreader, hit: hitBox(r, look), spins, skin: [plateM], mapFaces };
 }
 
 /** The unseen box a click hits: the whole 2D rect, up to the stick's top. */

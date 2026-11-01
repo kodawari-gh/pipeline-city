@@ -3,7 +3,7 @@ import type { RamMap } from '../../cpu/sim/pipesnap';
 import type { RamRegion } from '../sim/ramregions';
 import { label, mix } from '@/core/render/ink';
 import { opClass, type OpClass } from '../../cpu/render/die/diemotion';
-import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
+import { CHIPS_PER_STICK, PAGE, chipContent, chipLayout, lensRows, ownerMap, pageCells, regionColor, sizeText, spanOutline, type ChipSlot, type Stick } from './ramlayout';
 import { coreColor } from '../../cpu/render/core/coretiles';
 import { bubblesOf, coresText } from './rambubbles';
 import type { Rect } from '../../board/render/layout/layout';
@@ -271,19 +271,10 @@ export class RamView {
       const pages = Math.ceil((c.slot.hi - c.slot.lo) / PAGE);
       // a page is one cell: its owner's colour, stronger the fuller it is
       if (tint > 0.02) {
-        for (let p = 0; p < pages; p++) {
-          const a0 = c.slot.lo + p * PAGE, a1 = Math.min(a0 + PAGE, m.image.length);
-          let nz = 0, owned = 0, best = 0;
-          const votes = new Map<number, number>();
-          for (let a = a0; a < a1; a++) {
-            if (m.image[a]) nz++;
-            const o = this.own[a]!;
-            if (o) { owned++; const v = (votes.get(o) ?? 0) + 1; votes.set(o, v); if (v > (votes.get(best) ?? 0)) best = o; }
-          }
-          if (nz === 0 && owned === 0) continue;
+        for (const { page: p, best, strength } of pageCells(m.image, this.own, c.slot)) {
           const col = best ? regionColor(m.regions[best - 1]!, T) : T.mute;
           const x = cr.x + (p % c.slot.tilesX) * cw, y = cr.y + Math.floor(p / c.slot.tilesX) * ch;
-          g.rect(x + 0.4, y + 0.4, cw - 0.8, ch - 0.8).fill({ color: col, alpha: tint * (0.14 + 0.5 * (owned / PAGE) + 0.36 * (nz / PAGE)) });
+          g.rect(x + 0.4, y + 0.4, cw - 0.8, ch - 0.8).fill({ color: col, alpha: tint * strength });
         }
       }
       // DRAM: pages are rows, interleaved over channels and banks, and the row open in each bank is outlined
