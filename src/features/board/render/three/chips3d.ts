@@ -14,6 +14,8 @@ import { builtinTheme } from '@/core/render/theme';
 import { screenPx, shown, type Rect } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { planOf } from '@/features/cpu/render/die/dieart';
+import { gpuParts, gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
+import { npuGeo, npuParts } from '@/features/npu/render/npulayout';
 import { DieView } from '@/features/cpu/render/die/diemulti';
 import { GpuView, type GpuCardScene } from '@/features/gpu/render/gpuview';
 import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
@@ -71,6 +73,8 @@ interface Face {
   mat: MeshBasicMaterial;
   canvas: HTMLCanvasElement | null;
   tex: CanvasTexture | null;
+  /** The card's slot (a card's face only). */
+  slot?: string;
   /** The canvas size the texture was made for, and when the face was last drawn (ms). */
   size: string;
   at: number;
@@ -86,6 +90,8 @@ export class Chips3D {
   private readonly npu = new NpuCardView(true);
   private faces: Face[] = [];
   private cpu = false;
+  private cpuSpec: CpuSpec | null = null;
+  private cards = new Map<string, { visual: string; origin: { x: number; y: number } }>();
   private snap: Snapshot | null | undefined = undefined;
   /** At most two cards show their counters, the ones nearest the centre (as in 2D). */
   private readonly budget = new TierBudget(2);
@@ -116,6 +122,8 @@ export class Chips3D {
     }
     if (cpu) this.die.setPlan(this.T, planOf(cpu)); else this.die.clear();
     this.cpu = !!cpu;
+    this.cpuSpec = cpu;
+    this.cards = new Map([...gpus, ...npus].map((c) => [c.slot, { visual: c.visual, origin: c.origin }]));
     this.gpu.setScene(this.T, gpus);
     this.npu.setScene(this.T, npus);
     this.snap = undefined;
@@ -123,12 +131,12 @@ export class Chips3D {
   }
 
   /** Show the live layer of the `kind` view on the face `rect` (layout units) at depth `z` under `parent`: it shows, moves and turns with it. */
-  face(parent: Object3D, kind: ChipKind, rect: Rect, z: number): void {
+  face(parent: Object3D, kind: ChipKind, rect: Rect, z: number, slot?: string): void {
     const mat = new MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0 });
     const mesh = seeThrough(new Mesh(new PlaneGeometry(1, 1), mat));
     mesh.visible = false;
     parent.add(mesh);
-    this.faces.push({ kind, parent, rect, z, mesh, mat, canvas: null, tex: null, size: '', at: -Infinity });
+    this.faces.push({ kind, parent, rect, z, mesh, mat, canvas: null, tex: null, size: '', at: -Infinity, ...(slot ? { slot } : {}) });
   }
 
   /** A snapshot: each view's replay gets its part (the 2D's `Live.update` and `DieView.update`). */
@@ -164,6 +172,41 @@ export class Chips3D {
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
     for (const f of this.faces) this.draw(f, cam, H, dpr, now);
+  }
+
+  /**
+   * The id of the part of a die the ray through the screen point (`nx`, `ny`: -1 to 1) meets, when the face shows and the zoom is past the part's
+   * hover zoom (the 2D hits, `board.ts`): `cpu.<block>` on the CPU, `<slot>.<part>` on a card. The smallest rectangle wins. Null: none.
+   */
+  hitAt(cam: PerspectiveCamera, H: number, nx: number, ny: number): string | null {
+    for (const f of this.faces) {
+      if (!f.mesh.visible || f.mat.opacity < 0.5) continue;
+      f.parent.updateWorldMatrix(true, false);
+      const inv = INV.copy(f.parent.matrixWorld).invert();
+      O.copy(cam.position).applyMatrix4(inv);
+      D.set(nx, ny, 0.5).unproject(cam).applyMatrix4(inv).sub(O);
+      const t = (f.z - O.z) / D.z;
+      if (!(t > 0) || !Number.isFinite(t)) continue;
+      const x = O.x + D.x * t, y = -(O.y + D.y * t), zoom = viewOn(cam, H, f.z, inv).zoom;
+      let best: string | null = null, area = Infinity;
+      for (const h of this.partsOf(f)) {
+        if (zoom < h.min || x < h.rect.x || x > h.rect.x + h.rect.w || y < h.rect.y || y > h.rect.y + h.rect.h) continue;
+        if (h.rect.w * h.rect.h < area) { area = h.rect.w * h.rect.h; best = h.id; }
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
+  private partsOf(f: Face): { id: string; rect: Rect; min: number }[] {
+    if (f.kind === 'die') {
+      if (!this.cpuSpec) return [];
+      return planOf(this.cpuSpec).blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: DEVICE_LOD.die.hover }));
+    }
+    const c = f.slot ? this.cards.get(f.slot) : undefined;
+    if (!c) return [];
+    if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
+    return npuParts(npuGeo(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.fine ? DEVICE_LOD.npu.fine : p.inner ? DEVICE_LOD.npu.hover : DEVICE_LOD.npu.lid }));
   }
 
   private viewOf(kind: ChipKind): Container {

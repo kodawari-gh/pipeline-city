@@ -1,7 +1,7 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
-// Not ported yet: the clicks on a die's blocks, the lenses.
+// The die's blocks hover and click (`Chips3D.hitAt`). Not ported yet: the lenses.
 import { effect } from '@preact/signals';
 import type { Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
@@ -9,6 +9,7 @@ import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 import { hover, selected, INERT_REGIONS } from '@/app/hover';
 import { highlight } from '@/app/interaction';
+import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { createRenderContext } from '@/core/render/three/init';
 import { applyView, clampView, fitRect, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
@@ -111,7 +112,7 @@ export function mountBoard3d(host: HTMLElement) {
     return out;
   };
   const idAt = (e: { clientX: number; clientY: number }): string | null => {
-    const { nx, ny } = ndc(e), id = idOf(pick(roots(), camera, nx, ny));
+    const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
     return id && !INERT_REGIONS.has(id) ? id : null;
   };
   // parts dragged in from the inventory or lifted off the board (drag3d.ts)
@@ -170,6 +171,8 @@ export function mountBoard3d(host: HTMLElement) {
     if (!id) { selected.value = null; return; }
     if (roomClick(id)) { selected.value = null; return; }
     const s = snapshot.peek();
+    // a part of a graphics card (`pcie1.lane3`) hovers on its own, a click opens the card
+    if (s) id = deviceOfPart(id, s.devices);
     if (s?.slots.some((x) => x.id === id && !x.deviceId)) { selected.value = null; return; }
     if (id === 'power') { if (!(s?.power.tripped || s?.phase === 'error')) { selected.value = null; powerButton(); return; } }
     if (id.startsWith('key:') && s) {

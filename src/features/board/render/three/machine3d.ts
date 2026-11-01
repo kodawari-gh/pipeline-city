@@ -396,7 +396,7 @@ export class Machine3D {
         const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : kind === 'npu' ? npuFace(T, visual, i) : cardArt(T, visual, i, false)));
         const c = card3d(kind, visual, i, (parent, r, z) => {
           const face = this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
-          if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2);
+          if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot);
           return face;
         });
         this.model(g, c);
