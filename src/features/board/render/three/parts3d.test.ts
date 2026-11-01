@@ -4,7 +4,7 @@ import { softBox, type RectLike } from '@/core/render/three/geometry';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { driveBody } from '@/features/storage/render/drives';
 import { GEO, M2_SLOTS, setLayoutTier } from '../layout/layout';
-import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, type Raise } from './parts3d';
+import { chipset, coinCell, m2Standoff, nvmeStick, PCH_OVER, sataDrive, type Raise } from './parts3d';
 
 /** A `Raise` that only stands the box up (no art in a test), and keeps what it raised. */
 const raiser = () => {
@@ -26,11 +26,18 @@ describe('the 3D board parts', () => {
     expect(box.max.z).toBeLessThan(BOARD_Z + 200);
   });
 
-  it('gives the chipset fins only on the boards whose drawing has them', () => {
+  it('leaves the Starter\'s chipset bare and covers the others, legs and all, with a low heat sink', () => {
     for (const tier of [0, 1, 2, 3]) {
       setLayoutTier(tier, tier);
-      const g = chipset(GEO.chip, tier, raiser().raise), top = new Box3().setFromObject(g).max.z;
-      expect(top - BOARD_Z, `tier ${tier}`).toBeGreaterThan(tier >= 2 ? 200 : 50);
+      const q = GEO.chip, { root, glow } = chipset(q, tier, raiser().raise), b = new Box3().setFromObject(root);
+      // a real chipset sink is low: well under the PCIe cards and the M.2 sticks' neighbours
+      expect(b.max.z - BOARD_Z, `tier ${tier}`).toBeLessThan(260);
+      expect(b.max.z - BOARD_Z, `tier ${tier}`).toBeGreaterThan(tier === 0 ? 40 : 110);
+      // the sink runs on past the package over its legs (they stand 18 out); the bare package does not
+      const over = tier === 0 ? 0 : PCH_OVER;
+      expect(b.min.x, `tier ${tier}`).toBeCloseTo(q.x - over, 0);
+      expect(b.max.x, `tier ${tier}`).toBeCloseTo(q.x + q.w + over, 0);
+      expect(!!glow, `tier ${tier}`).toBe(tier === 3);
     }
   });
 

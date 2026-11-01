@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { BOARD_TIERS } from '../sim/specs';
-import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng } from './layout/layout';
+import { BD, BOARD_SEED, GEO, PKG, SOCKET_E, VIDEO_Y, WALL_T, rng, type Rect } from './layout/layout';
 import { shieldSheet } from './layout/ports';
 import { box, disc, label, lgrad, mix } from '@/core/render/ink';
 import { IO_PORTS } from './layout/boardlayout';
@@ -52,6 +52,11 @@ function drawPads(g: Graphics, lanes: { l: Lane; w: number }[], color: string) {
   }
   g.fill({ color, alpha: 0.9 });
 }
+
+/** The chipset heat sink's raised plateau (Basic and up): a plain plate keeps a wide one, the faceted blocks a smaller one inside their facets. */
+export const pchPlateau = (q: Rect, tier: number): Rect => { const i = tier >= 2 ? 92 : 56; return { x: q.x + i, y: q.y + i, w: q.w - 2 * i, h: q.h - 2 * i }; };
+/** Where the chipset heat sink is held down: two fixings on a diagonal (push pins on the plain plate, spring screws on the faceted blocks). */
+export const pchFixings = (q: Rect, tier: number): [number, number][] => { const i = tier >= 2 ? 52 : 30; return [[q.x + i, q.y + i], [q.x + q.w - i, q.y + q.h - i]]; };
 
 /** How each board tier looks beyond its geometry: the PCB colour, the trim, the armour. */
 interface Skin { tint: [string, string] | null; tintK: number; trim: number; armor: number; name: string }
@@ -214,36 +219,65 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
     labels.addChild(label(geo.m2.length > 1 ? `M.2 NVMe · 2280 · M2_${mi}` : 'M.2 NVMe · 2280', m.x + m.w, m.y - 36, 38, P.silk, { anchor: [1, 0.5] }));
   });
 
-  // ---- chipset (south-east of the CPU, on its SATA ports' rows): QFP legs, a heat sink on the better boards ----
+  // ---- chipset (south-east of the CPU, on its SATA ports' rows): QFP legs; the better boards cover the package with a low heat sink ----
+  // (the 3D builds the sink's body over these drawings: parts3d.ts `chipset`, whose plateau wears `pchPlateau`)
   {
-    const q = geo.chip;
+    const q = geo.chip, cx = q.x + q.w / 2, cy = q.y + q.h / 2;
     shadow(c, q.x, q.y, q.w, q.h, 26, 12, 0.3);
     legRects(c, q, 0);
     g.fill({ color: P.silkHi, alpha: 0.5 });
-    box(g, q.x, q.y, q.w, q.h, 26, { fill: P.panel, stroke: T.mul, lw: 6, sa: 0.5 });
     if (tier === 0) {
-      box(g, q.x + 60, q.y + 60, q.w - 120, q.h - 120, 12, { fill: P.dark, stroke: P.edge, lw: 4 });
-    } else if (tier === 1) {
-      for (let x = q.x + 70; x < q.x + q.w - 50; x += 36) g.moveTo(x, q.y + 50).lineTo(x, q.y + q.h - 50);
-      g.stroke({ width: 8, color: P.edge, alpha: 0.9 });
+      // the bare package: a black moulded body, the pin-1 dimple and the ejector marks, the type laser-etched in pale grey
+      box(g, q.x, q.y, q.w, q.h, 14, { fill: mix(P.dark, '#000000', 0.35), stroke: P.edge, lw: 4, sa: 0.8 });
+      disc(g, q.x + 50, q.y + 50, 16, { fill: '#000000', fa: 0.45 });
+      for (const [ex, ey] of [[q.x + q.w - 70, q.y + q.h - 70], [q.x + 70, q.y + q.h - 70]] as const) disc(g, ex, ey, 26, { fill: '#ffffff', fa: T.dark ? 0.03 : 0.08 });
+      labels.addChild(label('PCH-S1', cx, cy - 34, 52, P.silk, { anchor: [0.5, 0.5], a: 0.42 }), label('2026  K7', cx, cy + 34, 34, P.silk, { anchor: [0.5, 0.5], a: 0.32 }));
     } else {
-      // a finned heat sink: a base plate with a row of fins (alternating tone), a screw in each corner; the top board adds a lit edge
-      box(g, q.x + 14, q.y + 14, q.w - 28, q.h - 28, 16, { fill: mix(P.panel, T.alu, 0.14), stroke: T.mul, lw: 4, sa: 0.5 });
-      for (let x = q.x + 60, k = 0; x < q.x + q.w - 40; x += 40, k++) g.rect(x - 7, q.y + 44, 14, q.h - 88).fill({ color: k % 2 ? P.edge : P.silkHi, alpha: k % 2 ? 0.9 : 0.3 });
-      for (const [sx, sy] of [[q.x + 40, q.y + 40], [q.x + q.w - 40, q.y + 40], [q.x + 40, q.y + q.h - 40], [q.x + q.w - 40, q.y + q.h - 40]] as const) {
-        disc(g, sx, sy, 13, { fill: P.dark, stroke: P.edge, lw: 3 });
-        g.moveTo(sx - 7, sy).lineTo(sx + 7, sy).stroke({ width: 3, color: P.edge, alpha: 0.9 });
+      // the heat sink: its plate covers the package (the 3D plate runs on over the legs, as a real one does); a flat black plate with
+      // machined grooves and two push pins (Basic), a faceted block with a raised brushed plateau and two spring screws (Mainstream, Enthusiast)
+      const pl = pchPlateau(q, tier), facet = tier >= 2;
+      const plate = facet ? (tier === 3 ? '#2a2c33' : '#3a3f48') : '#15171c';
+      if (facet) {
+        const k = 70;
+        g.poly([q.x + k, q.y, q.x + q.w - k, q.y, q.x + q.w, q.y + k, q.x + q.w, q.y + q.h - k, q.x + q.w - k, q.y + q.h, q.x + k, q.y + q.h, q.x, q.y + q.h - k, q.x, q.y + k])
+          .fill({ color: plate }).stroke({ width: 5, color: '#000000', alpha: 0.4, join: 'round' });
+      } else box(g, q.x, q.y, q.w, q.h, 22, { fill: plate, stroke: '#000000', lw: 4, sa: 0.4 });
+      // the plateau (the 3D raises it): machined grooves on the plain plate, brushed streaks and a printed mark on the faceted ones
+      const top = facet ? (tier === 3 ? '#7d838d' : '#5f656f') : '#1c1f25';
+      box(g, pl.x, pl.y, pl.w, pl.h, facet ? 16 : 10, { fill: top, stroke: '#000000', lw: 3, sa: 0.35 });
+      if (facet) {
+        const r = rng(BOARD_SEED + 31);
+        for (let y = pl.y + 10; y < pl.y + pl.h - 8; y += 7) g.moveTo(pl.x + 14 + r() * 30, y).lineTo(pl.x + pl.w - 14 - r() * 30, y);
+        g.stroke({ width: 2, color: '#ffffff', alpha: 0.07 });
+        g.rect(pl.x + 30, pl.y + pl.h - 52, pl.w - 60, 6).fill({ color: '#000000', alpha: 0.35 });
+      } else {
+        for (let y = pl.y + 40; y < pl.y + pl.h - 30; y += 34) g.moveTo(pl.x + 30, y).lineTo(pl.x + pl.w - 30, y);
+        g.stroke({ width: 6, color: '#000000', alpha: 0.5 });
+      }
+      for (const [sx, sy] of pchFixings(q, tier)) {
+        if (facet) {
+          disc(g, sx, sy, 20, { fill: '#9aa3ae', stroke: '#2a2e36', lw: 3 });
+          g.moveTo(sx - 11, sy).lineTo(sx + 11, sy).moveTo(sx, sy - 11).lineTo(sx, sy + 11).stroke({ width: 4, color: '#2a2e36', alpha: 0.9 });
+        } else {
+          disc(g, sx, sy, 18, { fill: '#d9d4c7', stroke: '#8f8a7e', lw: 3 });
+          g.moveTo(sx - 10, sy).lineTo(sx + 10, sy).stroke({ width: 4, color: '#8f8a7e' });
+        }
       }
       if (tier === 3) {
-        g.poly([q.x + 20, q.y + 90, q.x + 90, q.y + 20, q.x + q.w - 20, q.y + 20, q.x + q.w - 20, q.y + q.h - 90, q.x + q.w - 90, q.y + q.h - 20, q.x + 20, q.y + q.h - 20])
-          .stroke({ width: 5, color: T.mul, alpha: 0.45, join: 'round' });
-        g.rect(q.x + 70, q.y + q.h - 38, q.w - 140, 8).fill({ color: T.br, alpha: 0.55 });
+        // the top board's lit edge round the facets and the accent bar under the plateau
+        const k = 76;
+        g.poly([q.x + k, q.y + 6, q.x + q.w - k, q.y + 6, q.x + q.w - 6, q.y + k, q.x + q.w - 6, q.y + q.h - k, q.x + q.w - k, q.y + q.h - 6, q.x + k, q.y + q.h - 6, q.x + 6, q.y + q.h - k, q.x + 6, q.y + k])
+          .stroke({ width: 5, color: T.mul, alpha: 0.5, join: 'round' });
+        g.rect(pl.x + 30, pl.y + pl.h + 18, pl.w - 60, 8).fill({ color: T.br, alpha: 0.6 });
       }
     }
     pchLedHousing(g, q); // (the activity LED lights in live.ts)
     // decoupling under the chipset (the DMI lanes are above it, the SATA lanes east of it)
     if (!geo.dbg) smd(c, q.x + 70, q.y + q.h + 62, Math.floor((q.w - 140) / 62) + 1, 62, 0, 30, 18, 0.85); // (the top board's debug display hangs there)
-    labels.addChild(label('PCH', q.x + q.w / 2, q.y + q.h / 2, tier === 0 ? 70 : 110, T.mul, { head: true, anchor: [0.5, 0.5], a: 0.6 }));
+    if (tier >= 1) {
+      const pl = pchPlateau(q, tier);
+      labels.addChild(label('PCH', pl.x + pl.w / 2, pl.y + pl.h / 2 - (tier >= 2 ? 16 : 0), tier >= 2 ? 84 : 70, tier >= 2 ? '#e8ebf0' : P.silk, { head: true, anchor: [0.5, 0.5], a: tier >= 2 ? 0.55 : 0.4 }));
+    }
   }
   // ---- SATA: ports on the east edge, mouths facing east (the drive cables come from the bay) ----
   // stacked ports share a housing (pairs), the way the real connectors come

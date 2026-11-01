@@ -290,7 +290,9 @@ export class Machine3D {
     // an empty bay is picked by an unseen plate over its mouth
     for (const b of this.plan.bays) if (!filled.has(`sata${b.slot}`)) this.root.add(tag(bayHit(b), `sata${b.slot}`));
     const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
-    this.root.add(tag(chipset(GEO.chip, GEO.tier, raise), 'chipset'));
+    const pch = chipset(GEO.chip, GEO.tier, raise);
+    this.root.add(tag(pch.root, 'chipset'));
+    if (pch.glow) this.spin(light(pch.glow));
     // the power sockets, modelled with their cavities (wires3d.ts): the 24-pin's mouth faces east, the CPU's 8-pin faces the glass
     this.root.add(tag(atxSocket(GEO.atx), 'atx'), tag(epsSocket(GEO.cpw), 'cpw'));
     for (const r of GEO.sata) this.root.add(sataPort(r));

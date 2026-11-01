@@ -1,11 +1,13 @@
 // The board's smaller hardware as real parts (docs/GRAPHICS_3D_OVERHAUL.md "Inside the case"), where the 2D drawing stands for a part seen from
 // above: an NVMe stick on its socket and standoff (a thin PCB, the controller, the finned spreader over the NAND, the screw in its notch), the
-// chipset's finned heat sink, the coin cell in its holder, the TPM module on its header, a SATA drive's cast body with its lid and connectors.
+// chipset under its low heat sink, the coin cell in its holder, the TPM module on its header, a SATA drive's cast body with its lid and connectors.
 // Each top still wears its 2D drawing (`Raise`: machine3d's `raised`), so the 3D parts sit on their pictures.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, type Material, type MeshStandardMaterial, type Texture } from 'three';
 import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
+import { pchFixings, pchPlateau } from '../boardArt';
+import { brushed, grow, NONE, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 
 /** Stand a rect up from depth z0 to z1, its top wearing the 2D drawing of that rect (`bevel` rounds a moulded body). */
 export type Raise = (parent: Group, r: RectLike, z0: number, z1: number, side: Material, bevel?: number) => Group;
@@ -45,20 +47,43 @@ export function nvmeStick(g: Group, m: RectLike, b: RectLike, raise: Raise): Mes
 }
 
 // ------------------------------------------------------------------ chipset
+/** How far the chipset's heat sink runs on past the package, over its legs (the lanes go in under its edge, as real traces do). */
+export const PCH_OVER = 44;
+
 /**
- * The chipset over its 2D rect, by board tier: a bare package (tier 0), a grooved cap (tier 1), a heat sink whose fins stand up where the 2D draws
- * them, a screw in each corner (tier 2 and up). Returns the group (the `chipset` hover id goes on it).
+ * The chipset over its 2D rect, by board tier, as real boards carry it. The Starter's bare moulded package. On the others a low heat sink over
+ * the package and its legs, sitting on a thermal pad: a flat black anodised plate with a grooved plateau held by two push pins (Basic); a faceted
+ * block, chamfered at every corner, with a raised brushed plateau and two spring screws on a diagonal (Mainstream: gunmetal; Enthusiast: graphite
+ * with a silver plateau and a lit strip along its south face). The plateau wears the 2D drawing (`pchPlateau`). `glow`: the strip's material.
  */
-export function chipset(q: RectLike, tier: number, raise: Raise): Group {
-  const g = new Group(), alu = mat(0xc4c8cc, { metalness: 0.7, roughness: 0.35 });
-  if (tier === 0) { raise(g, q, BOARD_Z, BOARD_Z + 60, mat(0x14161b, { roughness: 0.5 }), 10); return g; }
-  if (tier === 1) { raise(g, q, BOARD_Z, BOARD_Z + 160, alu, 18); return g; }
-  raise(g, q, BOARD_Z, BOARD_Z + 140, alu, 18);
-  const lit = mat(0xd9dee6, { metalness: 0.75, roughness: 0.3 }), dark = mat(0x5a6170, { metalness: 0.7, roughness: 0.4 }), fins: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[][] = [[], []];
-  for (let x = q.x + 60, k = 0; x < q.x + q.w - 40; x += 40, k++) fins[k % 2]!.push({ x, y: -(q.y + q.h / 2), z: BOARD_Z + 185, sx: 14, sy: q.h - 88, sz: 90 });
-  g.add(instanced(new BoxGeometry(1, 1, 1), dark, fins[0]!), instanced(new BoxGeometry(1, 1, 1), lit, fins[1]!));
-  for (const [sx, sy] of [[q.x + 40, q.y + 40], [q.x + q.w - 40, q.y + 40], [q.x + 40, q.y + q.h - 40], [q.x + q.w - 40, q.y + q.h - 40]] as const) screw(g, sx, sy, BOARD_Z + 140, 14);
-  return g;
+export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group; glow: MeshStandardMaterial | null } {
+  const g = new Group(), Z = BOARD_Z;
+  if (tier === 0) { raise(g, q, Z, Z + 50, mat(0x0c0d10, { roughness: 0.62 }), 8); return { root: g, glow: null }; }
+  // (the package's legs stand 30 high: the sink's base clears them by a hair, so from any angle its edge hides them)
+  const facet = tier >= 2, s = grow(q, PCH_OVER), pad = Z + 34, top = Z + (facet ? 150 : 112);
+  // the package under it (its sides show in the shadow gap) and the thermal pad's edge
+  g.add(rectBox(q, Z, pad - 4, mat(0x0c0d10, { roughness: 0.6 })), rectBox(grow(q, -16), pad - 4, pad, mat(0x8e98a8, { roughness: 0.85 })));
+  const body = facet
+    ? mat(tier === 3 ? 0x2a2c33 : 0x3a3f48, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 2, 2) })
+    : mat(0x15171c, { metalness: 0.35, roughness: 0.55 });
+  // (the chamfers stay clear of the corner legs' tips: a leg row starts 30 in from the package's corner and its legs reach 22 out)
+  const cut = 64;
+  g.add(slab(shapeOf(outlinePts(s, facet ? 0 : 24, facet ? [cut, cut, cut, cut] : NONE)), pad, top, body, facet ? 10 : 8));
+  const pl = pchPlateau(q, tier);
+  raise(g, pl, top - 4, top + (facet ? 38 : 14), facet ? mat(tier === 3 ? 0x7d838d : 0x5f656f, { metalness: 0.6, roughness: 0.42 }) : body, facet ? 8 : 4);
+  for (const [x, y] of pchFixings(q, tier)) {
+    if (facet) {
+      // a spring screw: the coil round the shank under the head
+      g.add(drum(x, y, top, top + 26, 13, mat(0x8b939e, { metalness: 0.7, roughness: 0.4 }), 14));
+      screw(g, x, y, top + 26, 20);
+    } else g.add(drum(x, y, top, top + 10, 18, mat(0xd9d4c7, { roughness: 0.6 }), 18), drum(x, y, top + 10, top + 18, 11, mat(0xcfc9bb, { roughness: 0.6 }), 14));
+  }
+  let glow: MeshStandardMaterial | null = null;
+  if (tier === 3) {
+    glow = mat(0x1a1430, { emissive: 0x9a7cff, emissiveIntensity: 0.9, roughness: 0.4 });
+    g.add(rectBox({ x: s.x + 110, y: s.y + s.h - 3, w: s.w - 220, h: 8 }, pad + 30, top - 30, glow));
+  }
+  return { root: g, glow };
 }
 
 // ------------------------------------------------------------------ the coin cell
@@ -81,7 +106,8 @@ function cellTop(): Texture | null {
 export function coinCell(r: RectLike): Group {
   const g = new Group(), cx = r.x + r.w / 2, cy = r.y + r.h / 2, R = Math.min(r.w, r.h) / 2;
   g.add(drum(cx, cy, BOARD_Z, BOARD_Z + 26, R + 14, mat(0x1a1d24, { roughness: 0.55 }), 32));
-  const side = mat(0xaab2bc, { metalness: 0.85, roughness: 0.35 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, 40).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.8, roughness: 0.35 }), side]));
+  // (a satin top: a mirror one flares white under the lamp up close)
+  const side = mat(0xaab2bc, { metalness: 0.8, roughness: 0.4 }), cell = place(new Mesh(new CylinderGeometry(R, R, 30, 40).rotateX(Math.PI / 2), [side, mat(0xffffff, { map: cellTop(), metalness: 0.65, roughness: 0.48 }), side]));
   cell.position.set(cx, -cy, BOARD_Z + 34);
   cell.rotation.z = -Math.PI / 2; // the stamp reads across, as the board's text does
   g.add(cell);
