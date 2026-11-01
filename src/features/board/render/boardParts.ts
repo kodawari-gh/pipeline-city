@@ -129,7 +129,7 @@ export function smd(c: Ctx, x: number, y: number, n: number, dx: number, dy: num
 export function stitch(c: Ctx, r: Rect, pitch: number, rad = 6, a = 0.35) {
   const { g, P } = c;
   for (let x = r.x + pitch / 2; x < r.x + r.w; x += pitch) for (let y = r.y + pitch / 2; y < r.y + r.h; y += pitch) g.circle(x, y, rad);
-  g.fill({ color: P.via, alpha: a });
+  g.fill({ color: P.tent, alpha: a });
 }
 
 /** One CPU VRM phase block: input feed, power stage, choke, output capacitors, the traces between them. Flow is top to bottom. */
@@ -139,15 +139,15 @@ export function vrmPhaseArt(c: Ctx, r: Rect, empty: boolean, railY: number) {
   if (empty) return;
   const fx = r.x + 24, fy = r.y + 40, ps = 130;
   // input: a stub from the rail down to the power stage and the input capacitors
-  g.rect(r.x + 60 - 14, railY + 22, 28, fy - railY - 22).fill({ color: P.copper, alpha: 0.85 });
+  g.rect(r.x + 60 - 14, railY + 22, 28, fy - railY - 22).fill({ color: P.pour });
   smd(c, r.x + 232, r.y + 42, 3, 0, 36, 34, 20); // input decoupling
-  g.moveTo(r.x + 232, r.y + 20).lineTo(r.x + 232, railY + 22).stroke({ width: 10, color: P.copper, alpha: 0.7 });
+  g.moveTo(r.x + 232, r.y + 20).lineTo(r.x + 232, railY + 22).stroke({ width: 10, color: P.pour });
   powerStage(c, fx, fy, ps);
   // phase node: power stage to choke, a short fat trace
-  g.rect(r.x + 60 - 20, fy + ps + 2, 40, 40).fill({ color: P.copper, alpha: 0.9 });
+  g.rect(r.x + 60 - 20, fy + ps + 2, 40, 40).fill({ color: P.pour });
   choke(c, r.x + 20, r.y + 214, 160, 150);
   // output: the choke's output goes right and down to the capacitors, then into the plane
-  g.moveTo(r.x + 180, r.y + 290).lineTo(r.x + 265, r.y + 290).lineTo(r.x + 265, r.y + r.h - 4).stroke({ width: 26, color: P.copper, alpha: 0.9, join: 'round', cap: 'butt' });
+  g.moveTo(r.x + 180, r.y + 290).lineTo(r.x + 265, r.y + 290).lineTo(r.x + 265, r.y + r.h - 4).stroke({ width: 26, color: P.pour, join: 'round', cap: 'butt' });
   cap(c, r.x + 265, r.y + 250, 40);
   cap(c, r.x + 265, r.y + 345, 40);
   smd(c, r.x + 30, r.y + 420, 5, 56, 0, 24, 30, 0.8);
@@ -157,13 +157,13 @@ export function vrmPhaseArt(c: Ctx, r: Rect, empty: boolean, railY: number) {
 export function dramPhaseArt(c: Ctx, r: Rect, railY: number) {
   const { g, P } = c;
   box(g, r.x, r.y, r.w, r.h, 14, { fill: P.dark, fa: 0.3, stroke: P.edge, lw: 4, sa: 0.5 });
-  g.rect(r.x + 40, railY + 18, 24, r.y + 30 - railY - 18).fill({ color: P.copper, alpha: 0.85 });
+  g.rect(r.x + 40, railY + 18, 24, r.y + 30 - railY - 18).fill({ color: P.pour });
   powerStage(c, r.x + 14, r.y + 30, 90);
   smd(c, r.x + 128, r.y + 60, 3, 0, 32, 28, 18);
-  g.rect(r.x + 40, r.y + 122, 30, 26).fill({ color: P.copper, alpha: 0.9 });
+  g.rect(r.x + 40, r.y + 122, 30, 26).fill({ color: P.pour });
   choke(c, r.x + 14, r.y + 148, 110, 96);
   cap(c, r.x + 120, r.y + 262, 30);
-  g.moveTo(r.x + 124, r.y + 196).lineTo(r.x + 124, r.y + r.h - 4).stroke({ width: 22, color: P.copper, alpha: 0.9 });
+  g.moveTo(r.x + 124, r.y + 196).lineTo(r.x + 124, r.y + r.h - 4).stroke({ width: 22, color: P.pour });
 }
 
 /**

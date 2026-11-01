@@ -223,7 +223,7 @@ export class Machine3D {
   }
 
   /** A flat face at depth `z` over `r` that wears the art of `b`. */
-  private surface(parent: Object3D, b: ArtBaker, r: RectLike, z: number, levels: readonly number[], finish: Finish = FINISH.board): ArtSurface {
+  private surface(parent: Object3D, b: Pick<ArtBaker, 'bake'>, r: RectLike, z: number, levels: readonly number[], finish: Finish = FINISH.board): ArtSurface {
     const s = new ArtSurface(r, z, b.bake, this.q, { levels, finish });
     this.surfaces.push(s);
     parent.add(s.root);
@@ -256,9 +256,9 @@ export class Machine3D {
     // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in; while it draws, the
     // drawers report the parts they could stand up (`Solid`)
     const solids: Solid[] = [];
-    const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root);
+    const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root), far = this.baker(() => buildBoard(T, GEO.tier, undefined, true).root);
     this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 })), 'board'));
-    tag(this.surface(this.root, art, BD, BOARD_Z, LV_BOARD).root, 'board');
+    tag(this.surface(this.root, { bake: (f, px) => (px < LV_BOARD[1]! ? far : art).bake(f, px) }, BD, BOARD_Z, LV_BOARD).root, 'board'); // (the coarsest level is the far picture: thin traces would be lost)
     // the rear I/O inside the case, by the skin (skins.ts); it starts inside the rear wall (the wall and the I/O shield are the outside)
     const io = tag(new Group(), 'io'), ir = GEO.io, x0 = ir.x + WALL_T;
     if (sk.ioCover === 'bare') {

@@ -9,6 +9,7 @@ import { tuneBump } from './layout/match';
 import { pchLedHousing } from './wiring/pchlive';
 import { skinOf, slotArmour } from './skins';
 import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './wiring/routes';
+import { stitchVias } from './wiring/stitch';
 import { makePalette, type Palette, type Theme } from '@/core/render/theme';
 import {
   cap, chip, dimmSocket, dramPhaseArt, header, hole, ioConnector, legRects, padsAt, pcieRelease, pcieSlot, powerConn, sataPortArt, shadow, smd, stitch, vrmPhaseArt, type Ctx,
@@ -71,8 +72,9 @@ export function boardPalette(T: Theme, tier: number): Palette {
  * The static motherboard, built once per (theme, tier) and never touched per frame. Visual hierarchy: the working parts
  * (CPU, DIMMs, cooler, PSU, monitor) are drawn by devices.ts at full contrast; everything here is mixed toward the
  * board colour. Routing is deliberate (routes.ts); there is no random scatter. Every run of copper ends on a footprint.
+ * `far`: for the far textures (the bake of the whole board, the shop's picture): a thin trace is lost there, so each lane is a wider, softer band of the same tone.
  */
-export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardArt {
+export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid'], far = false): BoardArt {
   const geo = GEO; // the layout is set by the caller (`setLayoutTier`) before the scene is built
   const rand = rng(BOARD_SEED);
   const P = boardPalette(T, tier), skin = skinOf(tier);
@@ -107,22 +109,25 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
   box(g, geo.io.x + 14, geo.io.y + 14, geo.io.w - 28, geo.io.h - 28, 22, { stroke: P.edge, lw: 3, sa: 0.5 });
   shieldSheet(g, T, geo.io.x + 14, geo.io.y + 20, WALL_T - 28, geo.io.h - 40); // the wall's own sheet, in its plane: the ports pass through it
 
+  // ---- the ground plane: the whole board under the mask, a shade off the bare mask (the traces run in clear moats through it) ----
+  g.roundRect(BD.x + 56, BD.y + 56, BD.w - 112, BD.h - 112, 80).fill({ color: P.pour, alpha: 0.3 });
+
   // ---- copper pours: the core voltage plane under the package edge, the memory rail ----
   {
     const ph = geo.vrmPhases, first = ph[0]!, last = ph[ph.length - 1]!, py = PKG.y - SOCKET_E;
     const y0 = first.y + first.h;
     const xl = Math.max(-840, first.x + 30), xr = Math.min(840, last.x + last.w - 30);
     const pour = [first.x + 24, y0, last.x + last.w - 24, y0, xr, py + 4, xl, py + 4];
-    g.poly(pour).fill({ color: P.copper, alpha: 0.2 }).stroke({ width: 6, color: P.copper, alpha: 0.5, join: 'round' });
+    g.poly(pour).fill({ color: P.pour });
     for (let y = y0 + 40; y < py; y += 60) {
       const t = (y - y0) / (py - y0), x0 = pour[0]! + (xl - pour[0]!) * t, x1 = pour[2]! + (xr - pour[2]!) * t;
       for (let x = x0 + 40; x < x1 - 20; x += 60) g.circle(x, y, 5);
     }
-    g.fill({ color: P.via, alpha: 0.4 });
+    g.fill({ color: P.tent, alpha: 0.7 });
     const dp = geo.dPhases;
     const pr = { x: vdimmStart(geo) - 30, y: geo.vdimmY - 56, w: vdimmEnd(geo) + 30 - vdimmStart(geo) + 30, h: 112 };
-    box(g, pr.x, pr.y, pr.w, pr.h, 20, { fill: P.copper, fa: 0.16, stroke: P.copper, lw: 5, sa: 0.4 });
-    stitch(c, pr, 52, 5, 0.35);
+    box(g, pr.x, pr.y, pr.w, pr.h, 20, { fill: P.pour });
+    stitch(c, pr, 52, 5, 0.7);
   }
 
   // ---- the regulators' areas under the copper that feeds them: the mask a shade deeper over the power planes, a silkscreen outline ----
@@ -132,31 +137,38 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
 
   // ---- buses: base strokes (the live layer lights the active ones) and the pads they end on ----
   const buses = buildBuses();
-  const padLanes: { l: Lane; w: number }[] = [];
+  const padLanes: { l: Lane; w: number }[] = [], allLanes: Lane[] = [];
+  const drill = mix(P.board, '#000000', 0.5), round = { cap: 'round', join: 'round' } as const;
   for (const b of buses) {
-    const power = b.id === 'pwr12' || b.id === 'pwrcpu' || b.id === 'vdimm' || b.id === 'vcore' || b.id === 'pwrpcie';
+    const power = b.id === 'pwr12' || b.id === 'pwrcpu' || b.id === 'vdimm' || b.id === 'vcore';
     const all = b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : []);
-    if (power) {
+    allLanes.push(...all);
+    if (b.id === 'pwrpcie') continue; // (the slots' 12 V rail runs on an inner layer: nothing on the surface, the power lens still shows it)
+    if (!power) for (const l of all) padLanes.push({ l, w: b.pad ?? Math.min(b.w * 1.9, 20) });
+    if (far && !power) {
       for (const l of all) strokeLane(g, l);
-      g.stroke({ width: b.w + 10, color: P.edge, alpha: 0.55, cap: 'round', join: 'round' });
-      for (const l of all) strokeLane(g, l);
-      g.stroke({ width: b.w, color: P.copper, alpha: 0.8, cap: 'round', join: 'round' });
-      for (const l of all) strokeLane(g, l);
-      g.stroke({ width: b.w * 0.26, color: '#ffffff', alpha: T.dark ? 0.1 : 0.28, cap: 'round', join: 'round' });
-    } else {
-      const pr = b.pair ? b.w * 0.36 : 0, sw = b.pair ? b.w * 0.52 : b.w; // a pair: two strands, tight
-      for (const l of all) strokeLane(g, l, pr);
-      g.stroke({ width: sw, color: P.trace, alpha: 0.9, cap: 'round', join: 'round' });
-      for (const l of all) strokeLane(g, l, pr);
-      g.stroke({ width: sw * 0.34, color: mix(P.trace, '#ffffff', 0.35), alpha: T.dark ? 0.28 : 0.4, cap: 'round', join: 'round' });
-      for (const l of all) padLanes.push({ l, w: b.pad ?? Math.min(b.w * 1.9, 20) });
+      g.stroke({ width: b.w * 1.2, color: P.trace, alpha: 0.5, ...round });
+      continue;
     }
+    // copper under the mask: each trace in a clear moat through the plane, thin (a pair: two strands, tight), a shade off the mask
+    const pr = power || !b.pair ? 0 : b.w * 0.3, sw = power ? b.w : b.pair ? 2.8 : 4;
+    for (const l of all) strokeLane(g, l, pr);
+    g.stroke({ width: sw + (power ? 14 : 7), color: P.board, ...round });
+    for (const l of all) strokeLane(g, l, pr);
+    g.stroke({ width: sw, color: power ? P.pour : P.trace, ...round });
   }
-  // a via ring at each end of every hop (the lane dives under what it crosses)
-  for (const b of buses) for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) for (const [a, z] of l.hops ?? []) for (const s of [a, z]) {
-    const [x, y] = pointAt(l, s), vr = Math.max(11, b.w * 0.6);
-    g.circle(x, y, vr).fill({ color: P.via, alpha: 0.95 });
-    g.circle(x, y, vr * 0.42).fill({ color: P.board });
+  // a via at each end of every hop (the lane dives under what it crosses), the mask over it; the ground stitching through the free plane
+  for (const b of buses) if (b.id !== 'pwrpcie') for (const l of b.lanes.concat(b.taps ? b.taps.flatMap((t) => t.lanes) : [])) for (const [a, z] of l.hops ?? []) for (const s of [a, z]) {
+    const [x, y] = pointAt(l, s);
+    g.circle(x, y, 8).fill({ color: P.tent });
+    g.circle(x, y, 3.4).fill({ color: drill });
+  }
+  if (!far) {
+    const vias = stitchVias(geo, allLanes);
+    for (const [x, y] of vias) g.circle(x, y, 6);
+    g.fill({ color: P.tent, alpha: 0.5 });
+    for (const [x, y] of vias) g.circle(x, y, 2.4);
+    g.fill({ color: drill });
   }
   // (the pads these lanes end on are drawn last, over the parts: see `drawPads`)
 
@@ -195,10 +207,10 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
     // the tab: at the latch end, or (the x16 slot, whose east side is the lanes') on its bottom edge above the patch
     const tab = down ? { x: tx - 16, y: r.y + r.h - 14, w: 32, h: 28 } : { x: f[0] - 22, y: f[1] - 14, w: 32, h: 28 };
     if (down) g.moveTo(tx, r.y + r.h).lineTo(tx, t.y + 10); else g.moveTo(f[0] - 10, f[1]).lineTo(t.x, f[1]);
-    g.stroke({ width: 18, color: P.copper, alpha: 0.8, cap: 'butt' });
-    box(g, t.x, t.y, t.w, t.h, 8, { fill: P.copper, fa: 0.35, stroke: P.copper, lw: 4, sa: 0.6 });
+    g.stroke({ width: 18, color: P.pour, cap: 'butt' });
+    box(g, t.x, t.y, t.w, t.h, 8, { fill: P.pour });
     for (let k = 0; k < 6; k++) g.circle(t.x + 20 + (k % 3) * 35, t.y + 14 + Math.floor(k / 3) * 22, 5);
-    g.fill({ color: P.via, alpha: 0.7 });
+    g.fill({ color: P.tent });
     box(g, tab.x, tab.y, tab.w, tab.h, 6, { fill: P.copper, fa: 0.9, stroke: P.edge, lw: 3, sa: 0.8 });
   });
   // the x16 slot's 12 V tab at its latch end, where the rail from the 24-pin arrives
@@ -216,9 +228,9 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
     disc(g, m.x + m.w - 70, m.y + m.h / 2, 36, { fill: P.panel, stroke: P.edge, lw: 6 });
     disc(g, m.x + m.w - 70, m.y + m.h / 2, 14, { fill: P.dark });
     const mt = m2Tie(m); // the 3.3 V tie into the plane, in the housing's top-left corner
-    box(g, mt.x, mt.y, mt.w, mt.h, 6, { fill: P.copper, fa: 0.35, stroke: P.copper, lw: 3, sa: 0.6 });
+    box(g, mt.x, mt.y, mt.w, mt.h, 6, { fill: P.pour });
     for (let k = 0; k < 4; k++) g.circle(mt.x + 18 + k * 21, mt.y + mt.h / 2, 5);
-    g.fill({ color: P.via, alpha: 0.7 });
+    g.fill({ color: P.tent });
     labels.addChild(label('3V3', mt.x + mt.w + 16, mt.y + mt.h / 2, 22, P.silk, { anchor: [0, 0.5], a: 0.7 }));
     labels.addChild(label(geo.m2.length > 1 ? `M.2 NVMe · 2280 · M2_${mi}` : 'M.2 NVMe · 2280', m.x + m.w, m.y - 36, 38, P.silk, { anchor: [1, 0.5] }));
   });

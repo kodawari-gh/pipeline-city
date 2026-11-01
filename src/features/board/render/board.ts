@@ -575,7 +575,10 @@ export async function mountBoard(host: HTMLElement) {
     boardLayer.addChild(boardArt.root);
     boardArt.labels.visible = false;
     const bf = boardBakeFrame(BD, BR.io), frame = new Rectangle(bf.x, bf.y, bf.w, bf.h); // the board and its rear I/O plate
-    const tex = app.renderer.generateTexture({ target: boardArt.root, frame, resolution: BAKE_RES, antialias: true });
+    const farArt = buildBoard(T, tier, undefined, true); // (the far picture: thin traces would be lost at this density)
+    farArt.labels.visible = false;
+    const tex = app.renderer.generateTexture({ target: farArt.root, frame, resolution: BAKE_RES, antialias: true });
+    farArt.root.destroy({ children: true });
     boardBake = new Sprite(tex);
     boardBake.position.set(frame.x, frame.y);
     boardLayer.addChild(boardBake);

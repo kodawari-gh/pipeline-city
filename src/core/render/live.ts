@@ -305,6 +305,7 @@ export class Live {
       if ((bus.id === 'video') && !flags.display) continue;
       const role = BUS_ROLE[bus.id];
       if (role === 'dark') continue; // nothing moves on it in the game
+      if (bus.id === 'pwrpcie') continue; // (the slots' 12 V rail runs on an inner layer: no glow on the surface, the power lens shows it)
       if (role !== 'power' && bus.id !== 'mem') { if (!this.flowBuses.has(bus.id)) this.flowBuses.set(bus.id, bus); continue; } // (a message bus: `busmap` picks its lanes)
       const power = role === 'power';
       if (bus.id === 'mem') {

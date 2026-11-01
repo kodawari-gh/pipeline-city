@@ -108,7 +108,7 @@ function make(id: string, T: Theme): string | null {
       const tier = Number(bm[1]);
       if (!BOARD_TIERS[tier]) return null;
       setLayoutTier(tier, tier);
-      const a = buildBoard(T, tier);
+      const a = buildBoard(T, tier, undefined, true);
       a.labels.visible = false;
       return render(a.root, T, frameOf({ x: BD.x, y: BD.y, width: BD.w, height: BD.h }));
     }
