@@ -5,43 +5,47 @@
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // Rebuilt when the parts or the cables change (`machineKey`); between rebuilds `frame` only moves the fans and eases the state looks.
 import {
-  Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PlaneGeometry, PointLight, Shape, Vector3, type Material, type Object3D,
+  Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PlaneGeometry, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
   type PerspectiveCamera,
 } from 'three';
 import { Container, Graphics } from 'pixi.js';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import { getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
-import { cardArt, cardOrigin, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
+import { BOARD_TIERS, getSpec, type CpuSpec, type RamSpec } from '@/features/board/sim/specs';
+import { cardArt, cardOrigin, cardPlugs, cardRect, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { box } from '@/core/render/ink';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
-import { disposeTree, drum, paint, place, rectBox, rod, rounded, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
+import { disposeTree, drum, instanced, paint, place, rectBox, rod, rounded, softBox, thin, tube, type RectLike } from '@/core/render/three/geometry';
 import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { nicArt } from '@/features/network/render/net';
-import { driveArt, driveBody, driveKindOf, drawDriveLive } from '@/features/storage/render/drives';
-import { fanMounts, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
+import { driveArt, driveBody, driveKindOf, driveScale, drawDriveLive } from '@/features/storage/render/drives';
+import { bayArt, fanMounts, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_D, CASE_Z, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BAY, BAY_CELLS, BD, CASE, CASE_GLASS, CASE_LEDS, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FOOT, GEO, M2_SLOTS, MONITOR_POWER,
-  PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, nicRect,
+  PCIE_RAILS, PC_CORD_X, PC_POWER, PKG, PORT_Y, POWER_BTN, PSU, PSU_UNIT, RAM_SINK, SOCKET_E, USB_PORT, VRM_SINK, WALL_T, gutterTieYs, nicRect,
 } from '../layout/layout';
+import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
 import { radiatorFit, radiatorGrade } from '../cooler';
-import { cpuArt, ramArt, sinkFanRect, vrmSinkArt } from '../devices';
-import { buildCables } from '../wiring/routes';
+import { ACCENT, cpuArt, ramArt, sinkFanRect, vrmSinkArt } from '../devices';
+import { buildCables, isPcieKind } from '../wiring/routes';
 import { ArtBaker } from './bake';
 import { FAN_MAX, FAN_ZC, coolerModel, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
+import { band, braidedTube, plug3d } from './cables3d';
 import { gpuCooler } from './gpu3d';
 import { CHIP_H, buildSolids } from './solids3d';
 
 const FRONT = CASE_Z + CASE_D;
+/** The drive cage's back plate: the bays are shallow, near the glass. */
+const CAGE_Z = CASE_Z + 2300;
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
@@ -83,6 +87,7 @@ export class Machine3D {
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
     this.buildCase();
+    this.buildCage(s);
     this.buildBoard(s);
     if (s) {
       for (const d of s.devices) this.buildDevice(d);
@@ -128,8 +133,7 @@ export class Machine3D {
       this.spin(light(m));
     }
     for (const fx of [CASE.x + 600, CASE.x + CASE.w - 900]) for (const fz of [CASE_Z + 400, FRONT - 700]) shell.add(softBox({ x: fx, y: CASE.y + CASE.h, w: 300, h: FOOT }, fz, fz + 300, inner, 30));
-    // the drive cage and the fan hub
-    shell.add(rectBox(BAY, CASE_Z + 70, CASE_Z + 2600, mat(0x2b2d33, { roughness: 0.5, metalness: 0.4 })));
+    // the fan hub (the drive cage is `buildCage`)
     shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, inner));
     this.root.add(shell);
     // the side glass: a faint tint, never in the way of a click
@@ -154,6 +158,20 @@ export class Machine3D {
       this.root.add(tag(f.root, 'case:' + m.id));
       this.spin(f.spin);
     }
+  }
+
+  /**
+   * The drive cage, after the 2D cage (`bayArt`): a shallow cage near the glass, its back plate wearing the 2D drawing (the recesses, the labels,
+   * the live bays' corners), the uprights and the top and bottom plates standing off it, and the two guide rails of each bay the drives sit on.
+   */
+  private buildCage(s: Snapshot | null) {
+    const b = BAY, k = driveScale(), metal = mat(0x2b2f3a, { metalness: 0.5, roughness: 0.45 }), rail = mat(0x3a4152, { metalness: 0.6, roughness: 0.4 });
+    const g = tag(new Group(), 'case');
+    g.add(rectBox(b, CASE_Z + 70, CAGE_Z - 40, mat(0x101217, { roughness: 0.8 })), rectBox(b, CAGE_Z - 40, CAGE_Z, metal));
+    this.surface(g, this.baker(() => bayArt(this.T, BOARD_TIERS[s?.boardTier ?? 0]?.slots.sata ?? 0)), b, CAGE_Z, LV_RAISED);
+    for (const r of [{ x: b.x + 12, y: b.y + 20, w: 28, h: b.h - 40 }, { x: b.x + b.w - 40, y: b.y + 20, w: 28, h: b.h - 40 }, { x: b.x, y: b.y, w: b.w, h: 24 }, { x: b.x, y: b.y + b.h - 24, w: b.w, h: 24 }]) g.add(rectBox(r, CAGE_Z, CASE_Z + 2600, metal));
+    for (const c of BAY_CELLS) for (const ry of [c.y + 10, c.y + c.h - 18]) g.add(rectBox({ x: c.x + 40 * k, y: ry, w: c.w - 60 * k, h: 8 }, CAGE_Z, CAGE_Z + 240, rail));
+    this.root.add(g);
   }
 
   /** Let the live frame drive a fan or a light. */
@@ -206,13 +224,23 @@ export class Machine3D {
     const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root);
     this.root.add(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(0x0a1222, { roughness: 0.6 })));
     this.surface(this.root, art, BD, BOARD_Z, LV_BOARD);
-    this.root.add(tag(rectBox(GEO.io, BOARD_Z, BOARD_Z + 1300, mat(0x8d939b, { metalness: 0.6, roughness: 0.4 })), 'io'));
+    // the rear I/O cover: a dark moulded shroud, vents across its face, an accent line down its inner edge that glows with the fans
+    const io = tag(new Group(), 'io'), ir = GEO.io, line = glowMat(PALETTE.rgb, 0x2a2550);
+    io.add(softBox(ir, BOARD_Z, BOARD_Z + 1300, mat(0x1e2230, { metalness: 0.45, roughness: 0.4 }), 40));
+    const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+    for (let y = ir.y + 140; y < ir.y + ir.h - 140; y += 64) vents.push({ x: ir.x + ir.w * 0.42, y: -y, z: BOARD_Z + 1300, sx: ir.w * 0.5, sy: 24, sz: 10 });
+    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07080c, { roughness: 0.7 }), vents));
+    io.add(seeThrough(rectBox({ x: ir.x + ir.w - 22, y: ir.y + 80, w: 12, h: ir.h - 160 }, BOARD_Z + 1230, BOARD_Z + 1302, line)));
+    this.spin(light(line));
+    this.root.add(io);
     // the sockets and connectors stand up off it, each topped with its own drawing
     this.raised(this.root, art, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, slot, emptyId('cpu0'));
     GEO.dimm.forEach((d, i) => this.raised(this.root, art, d.rect, BOARD_Z, BOARD_Z + 110, slot, emptyId(`dimm${i}`)));
     PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
     M2_SLOTS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 30, chip, emptyId(`m2${i}`)));
-    BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) this.root.add(tag(rectBox(r, CASE_Z + 2600, CASE_Z + 2620, slot), `sata${i}`)); });
+    // an empty bay is picked by an unseen plate over its mouth
+    const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
+    BAY_CELLS.forEach((r, i) => { if (!filled.has(`sata${i}`)) { const o = tag(rectBox(r, CASE_Z + 2600, CASE_Z + 2620, unseen), `sata${i}`); o.castShadow = o.receiveShadow = false; this.root.add(o); } });
     this.raised(this.root, art, GEO.chip, BOARD_Z, BOARD_Z + 220, alu, 'chipset');
     this.raised(this.root, art, GEO.atx, BOARD_Z, BOARD_Z + 240, slot, 'atx');
     this.raised(this.root, art, GEO.cpw, BOARD_Z, BOARD_Z + 240, slot, 'cpw');
@@ -382,7 +410,8 @@ export class Machine3D {
           c.addChild(driveArt(T, kind, d.slot, spec.name, `${Math.round(((spec as { capacityBytes?: number }).capacityBytes ?? 0) / 1024)}K`), live);
           return c;
         });
-        this.raised(g, art, b, nvme ? BOARD_Z + 30 : CASE_Z + 400, nvme ? BOARD_Z + 90 : CASE_Z + (hdd ? 2500 : 1600), m);
+        // an M.2 card lies on its socket; a SATA drive lies on its bay's rails, as thick as a real one for its face
+        this.raised(g, art, b, nvme ? BOARD_Z + 30 : CAGE_Z + 24, nvme ? BOARD_Z + 90 : CAGE_Z + 24 + (hdd ? 190 : 80), m, undefined, LV_RAISED, nvme ? 0 : 12);
         this.skin(d.id, m);
         break;
       }
@@ -419,14 +448,41 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ cables
+  /**
+   * The cables that are plugged in. The PSU leads follow the 2D routes (`buildCables`, with the PCIe leads dealt to the cards as the sim deals
+   * them, `assignLeads`) as braided sleeves in their accent, at a depth of their own (the PCIe leads over the cards' sockets), with a plug at
+   * the PSU and one on the socket, and the ties in the gutter. The video cable leaves the case toward the monitor.
+   */
   private buildCables(s: Snapshot, geo: RoomGeo) {
     const on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
-    const sleeve = mat(0x1b1c20, { roughness: 0.8 });
-    for (const c of buildCables()) {
+    const sleeve = mat(0x1b1c20, { roughness: 0.8 }), tie = mat(0x0d0f14, { roughness: 0.6 });
+    const cards = s.devices.filter((d) => (d.kind === 'gpu' || d.kind === 'npu') && !d.burnt).map((d) => ({ slot: d.slot, loadW: getSpec(d.spec)!.loadW, visual: (getSpec(d.spec) as { visual: string }).visual }));
+    const targets = assignLeads(cards).filter((l) => on(l.lead)).map((l) => {
+      const card = cards.find((c) => c.slot === l.slot)!, o = cardOrigin(idx(l.slot), card.visual);
+      return { kind: l.lead, x: o.x + (cardPlugs(card.visual)[l.plug] ?? 0), top: o.y, plug: l.plug };
+    });
+    for (const c of buildCables(targets)) {
       if (!on(c.kind)) continue;
-      const pts = thin(c.path.pts, 6), n = pts.length - 1;
-      const z = (k: number) => (c.kind === 'video' ? BOARD_Z + 700 + (MONITOR_Z - 500 - BOARD_Z - 700) * Math.min(1, (k / n) * 1.6) : BOARD_Z + 420);
-      this.root.add(tag(tube(pts.map((p, k) => [p[0], -p[1], z(k)] as const), c.w * 0.45, sleeve), 'cable.' + c.kind));
+      if (c.kind === 'video') {
+        const pts = thin(c.path.pts, 6), n = pts.length - 1;
+        const z = (k: number) => BOARD_Z + 700 + (MONITOR_Z - 500 - BOARD_Z - 700) * Math.min(1, (k / n) * 1.6);
+        this.root.add(tag(tube(pts.map((p, k) => [p[0], -p[1], z(k)] as const), c.w * 0.45, sleeve), 'cable.video'));
+        continue;
+      }
+      // the run's depth, and where the plug sits on the board end: in the top of the board's connector, or on a card's socket
+      const pcie = isPcieKind(c.kind), zr = BOARD_Z + (pcie ? 960 : 430), zb = BOARD_Z + (pcie ? 910 : 300), accent = ACCENT(this.T, c.kind);
+      const pts = thin(c.path.pts, 3), at = [0];
+      for (let k = 1; k < pts.length; k++) at.push(at[k - 1]! + Math.hypot(pts[k]![0] - pts[k - 1]![0], pts[k]![1] - pts[k - 1]![1]));
+      const len = at[at.length - 1]!, ease = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
+      const lead = braidedTube(pts.map((p, k) => new Vector3(p[0], -p[1], zr + (zb - zr) * ease((at[k]! - (len - 420)) / 320))), c.w * 0.45, '#171d29', accent);
+      const g = tag(new Group(), 'cable.' + c.kind);
+      g.add(lead.mesh, plug3d(c.a, accent, zr - 70, zr + 70), plug3d(c.b, accent, zb - 90, zb + 90));
+      const top = Math.min(...c.path.pts.map((p) => p[1]));
+      for (const y of gutterTieYs()) if (y > top + 300 && y < PORT_Y - 420) {
+        const k = pts.findIndex((p) => p[1] <= y);
+        if (k >= 0) g.add(band(lead.curve, at[k]!, c.w * 0.45 + 8, 40, tie));
+      }
+      this.root.add(g);
     }
     const cord = mat(0x18181b, { roughness: 0.7 });
     if (on('pcmains')) this.root.add(tag(tube([[PC_POWER.x, -PC_POWER.y, CASE_Z + 1400], [PC_CORD_X, -PC_POWER.y, CASE_Z + 1200], [PC_CORD_X, -(geo.ys + 1200), 900], [geo.socket.pc.x, -geo.socket.pc.y, 180]], 45, cord), 'cable.pcmains'));

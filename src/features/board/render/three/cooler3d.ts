@@ -4,16 +4,14 @@
 // a ring light round the impeller under a glass dome) whose two sleeved tubes follow the 2D routes (`tubeRoutes`) to the radiator's barbs, high
 // enough to pass over the parts on the way. The radiator (`radiatorModel`) is the 2D slab stood up across the case: an end tank at each end, a core
 // of fin plates on the outboard side and one fan per mount it covers on the inboard side.
-import {
-  BoxGeometry, CatmullRomCurve3, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry,
-  TubeGeometry, Vector3, type Texture,
-} from 'three';
+import { BoxGeometry, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, Shape, SphereGeometry, TorusGeometry, Vector3, type Texture } from 'three';
 import { drum, fanRotor, instanced, paint, place, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z, CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
 import { COOLER } from '../layout/layout';
 import { COOLER_FANS, STOCK_VANES_R, TANK, TUBE_W, frameOf, radiatorPorts, towerFanRect, tubeRoutes, type RadiatorFit } from '../cooler';
+import { band, braidedTube } from './cables3d';
 import { caseFan, glowMat, partFan, squareFan, type Spin } from './fans3d';
 
 /** The 2D heatsinks' metal ramp (dark theme `metals`), the heat pipes' copper and each look's accent (`coolerArt`). */
@@ -32,7 +30,7 @@ const sm = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x 
 const corners = (r: RectLike, e: number): [number, number][] => [[r.x + e, r.y + e], [r.x + r.w - e, r.y + e], [r.x + e, r.y + r.h - e], [r.x + r.w - e, r.y + r.h - e]];
 
 // ------------------------------------------------------------------ painted details
-let screwTex: Texture | null = null, brushedTex: Texture | null = null, braidTex: Texture | null = null;
+let screwTex: Texture | null = null, brushedTex: Texture | null = null;
 
 /** A screw head seen from above: a lit dome and its slot. */
 const screwHead = () => screwTex ??= paint(64, 64, (c, w, h) => {
@@ -54,18 +52,6 @@ const brushed = () => brushedTex ??= paint(512, 512, (c, w, h) => {
   c.strokeStyle = 'rgba(0,0,0,0.4)'; c.lineWidth = 3;
   for (const f of [510, 490, 470]) { c.beginPath(); c.arc(w / 2, h / 2, (f / 548) * (w / 2), 0, Math.PI * 2); c.stroke(); }
 });
-
-/** A braided sleeve: two sets of strands crossing (the 2D tube's dark sleeve and its accent-tinted core), tileable. */
-const braid = () => braidTex ??= paint(64, 64, (c, w, h) => {
-  c.fillStyle = '#0c1226'; c.fillRect(0, 0, w, h);
-  c.lineWidth = 9;
-  for (let k = -2; k < 4; k++) {
-    c.strokeStyle = '#46407a'; c.beginPath(); c.moveTo(k * 32 - 32, 0); c.lineTo(k * 32 + 32, h); c.stroke();
-    c.strokeStyle = '#272452'; c.beginPath(); c.moveTo(k * 32 + 32, 0); c.lineTo(k * 32 - 32, h); c.stroke();
-  }
-  c.lineWidth = 1.5; c.strokeStyle = 'rgba(255,255,255,0.14)';
-  for (let k = -2; k < 4; k++) { c.beginPath(); c.moveTo(k * 32 - 34, 0); c.lineTo(k * 32 + 30, h); c.stroke(); }
-}, [1, 1]);
 
 // ------------------------------------------------------------------ small parts
 /** Screws standing on a face at depth `z`, `r` round (the plate's corner screws, the push pins). */
@@ -150,19 +136,10 @@ function hose(g: Group, route: readonly (readonly [number, number])[], z0: numbe
     const s = at[k]!, z = z0 + (zc - z0) * sm(s / 420);
     return new Vector3(p[0], -p[1], z + (zb - z) * sm((s - (len - 760)) / 600));
   });
-  const curve = new CatmullRomCurve3(pts, false, 'centripetal'), L = curve.getLength();
-  const tex = braid()?.clone() ?? null;
-  if (tex) { tex.needsUpdate = true; tex.repeat.set(L / 80, 3); }
-  const sleeve = mat(0xffffff, { map: tex, bumpMap: tex, bumpScale: 1.2, roughness: 0.6 });
-  g.add(place(new Mesh(new TubeGeometry(curve, Math.max(24, pts.length * 2), TUBE_W / 2, 14, false), sleeve)));
-  // a hose clamp a little in from each end
-  const band = alu(0x6a759a, 0.3), up = new Vector3(0, 1, 0);
-  for (const s of [130, L - 130]) {
-    const u = s / L, o = place(new Mesh(new CylinderGeometry(TUBE_W / 2 + 6, TUBE_W / 2 + 6, 30, 20), band));
-    o.position.copy(curve.getPointAt(u));
-    o.quaternion.setFromUnitVectors(up, curve.getTangentAt(u));
-    g.add(o);
-  }
+  // the 2D tube's dark sleeve, woven toward the loop's accent, and a hose clamp a little in from each end
+  const { mesh, curve } = braidedTube(pts, TUBE_W / 2, '#0c1226', '#a68bff'), L = curve.getLength(), clamp = alu(0x6a759a, 0.3);
+  g.add(mesh);
+  for (const s of [130, L - 130]) g.add(band(curve, s, TUBE_W / 2 + 6, 30, clamp));
 }
 
 function liquid(g: Group, spins: Spin[], rad: RadiatorAt | null): MeshStandardMaterial {
