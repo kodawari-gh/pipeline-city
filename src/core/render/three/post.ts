@@ -45,6 +45,16 @@ export class Post {
     this.composer.addPass(new OutputPass());
   }
 
+  /** A cheaper frame for a weak GPU: 1 drops the ambient occlusion, 2 also draws at 3/4 of the pixel density (`ratio`). */
+  setQuality(level: number, renderer: WebGLRenderer, w: number, h: number): void {
+    this.ao.enabled = level < 1;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2) * (level >= 2 ? 0.75 : 1);
+    renderer.setPixelRatio(ratio);
+    this.composer.setPixelRatio(ratio);
+    renderer.setSize(w, h);
+    this.composer.setSize(w, h);
+  }
+
   setOutlined(objects: Object3D[]): void {
     this.outline.selectedObjects = objects;
     this.outline.enabled = objects.length > 0;

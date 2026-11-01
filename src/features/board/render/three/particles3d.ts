@@ -3,7 +3,7 @@
 import { AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, Points, PointsMaterial, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { slotRects } from './lens3d';
+import { slotRects } from './slots3d';
 
 const N = 600;
 const HOT_C = 40, FULL_C = 85;

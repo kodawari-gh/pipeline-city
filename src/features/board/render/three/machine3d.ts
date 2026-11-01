@@ -51,6 +51,8 @@ import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, 
 import {
   TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
 } from './wires3d';
+import { sleeveOf } from '@/core/render/cable';
+import { slotRects } from './slots3d';
 import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
@@ -243,8 +245,8 @@ export class Machine3D {
     // drawers report the parts they could stand up (`Solid`)
     const solids: Solid[] = [];
     const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root);
-    this.root.add(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(0x0a1222, { roughness: 0.6 })));
-    this.surface(this.root, art, BD, BOARD_Z, LV_BOARD);
+    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(0x0a1222, { roughness: 0.6 })), 'board'));
+    tag(this.surface(this.root, art, BD, BOARD_Z, LV_BOARD).root, 'board');
     // the rear I/O cover: a dark moulded shroud, vents across its face, an accent line down its inner edge that glows with the fans
     const io = tag(new Group(), 'io'), ir = GEO.io, line = glowMat(PALETTE.rgb, 0x2a2550);
     io.add(softBox(ir, BOARD_Z, BOARD_Z + 1300, mat(0x1e2230, { metalness: 0.45, roughness: 0.4 }), 40));
@@ -294,6 +296,8 @@ export class Machine3D {
     }
     this.root.add(vrm, vrm2);
     this.buildSlots();
+    // the other empty sockets (the module's header, the cooler's seat, the heatsink pads) are picked by an unseen box over their rect
+    if (s) for (const [id, r] of slotRects(s)) if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(id) && !filled.has(id)) pickBox(r, BOARD_Z, BOARD_Z + 400, id);
     // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
@@ -509,7 +513,7 @@ export class Machine3D {
   private buildCables(s: Snapshot, geo: RoomGeo) {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
     this.root.updateMatrixWorld(true);
-    const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = '#171d29';
+    const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T);
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
     if (has('atx')) {

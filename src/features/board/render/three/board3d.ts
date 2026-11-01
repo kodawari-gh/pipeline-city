@@ -3,7 +3,7 @@
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A).
 import { effect } from '@preact/signals';
-import type { Object3D } from 'three';
+import { Box3, Vector3, type Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
@@ -115,12 +115,13 @@ export function mountBoard3d(host: HTMLElement) {
     if (machine) out.push(machine.root);
     return out;
   };
-  const idAt = (e: { clientX: number; clientY: number }): string | null => {
+  /** The id under a client point; `raw`: the backdrops too (the board, the case), which hover nothing but take a dropped plug. */
+  const idAt = (e: { clientX: number; clientY: number }, raw = false): string | null => {
     const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
-    return id && !INERT_REGIONS.has(id) ? id : null;
+    return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
   };
   // parts dragged in from the inventory or lifted off the board (drag3d.ts)
-  const lift = new Drag3D((cx, cy) => idAt({ clientX: cx, clientY: cy }), canvas, (id) => !!machine && !!findById(machine.root, id));
+  const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.')))); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
   let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -128,7 +129,9 @@ export function mountBoard3d(host: HTMLElement) {
     canvas.setPointerCapture(e.pointerId);
     const orbit = e.button === 2 || e.shiftKey, id = !orbit && e.button === 0 ? idAt(e) : null;
     // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
-    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : undefined, dev = id && !grab ? deviceOf(id, snapshot.peek()) : null;
+    // a plug seated in its socket is the socket to the ray: pulling on the socket pulls its cable
+    const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null, plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
+    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : plugged ? 'cable.' + seated : undefined, dev = id && !grab ? deviceOf(id, snapshot.peek()) : null;
     drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}), ...(grab ? { grab } : {}) };
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -201,11 +204,20 @@ export function mountBoard3d(host: HTMLElement) {
   new ResizeObserver(() => {
     W = host.clientWidth; H = Math.max(1, host.clientHeight);
     renderer.setSize(W, H); post.setSize(W, H);
+    if (quality) post.setQuality(quality, renderer, W, H);
   }).observe(host);
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
+  // a weak GPU: when the frames stay slow, the picture gets cheaper in two steps (no ambient occlusion, then less pixel density) and stays so
+  let quality = 0, slowT = 0;
+  const born = performance.now();
   const frame = (now: number) => {
+    const real = (now - last) / 1000;
+    if (now - born > 5000 && quality < 2 && document.visibilityState === 'visible') {
+      slowT = Math.max(0, slowT + (real > 1 / 30 ? real : -real * 2));
+      if (slowT > 2.5) { slowT = 0; post.setQuality(++quality, renderer, W, H); }
+    }
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     gt += dt * 1000 * speed.value;
@@ -239,7 +251,24 @@ export function mountBoard3d(host: HTMLElement) {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
-    three: true, scene, renderer, chips, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
+    three: true, scene, renderer, chips, quality: () => quality,
+    idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
+    // the client point of an object's middle (tests drive the pointer there)
+    screenOf: (id: string) => {
+      const o = roots().map((r) => findById(r, id)).find(Boolean);
+      if (!o) return null;
+      const r = canvas.getBoundingClientRect(), b = new Box3().setFromObject(o), mid = b.getCenter(new Vector3()).project(camera);
+      const at = (nx: number, ny: number) => ({ x: r.left + ((nx + 1) / 2) * r.width, y: r.top + ((1 - ny) / 2) * r.height });
+      // the middle if the object is there, else a point on it found by a grid of rays over its box
+      const hit = (nx: number, ny: number) => { const p = at(nx, ny), got = idAt({ clientX: p.x, clientY: p.y }); return got === id || (got ?? '').startsWith(id); };
+      if (hit(mid.x, mid.y)) return at(mid.x, mid.y);
+      const lo = new Vector3(b.min.x, b.min.y, b.max.z).project(camera), hi = new Vector3(b.max.x, b.max.y, b.max.z).project(camera);
+      for (let i = 1; i < 24; i++) for (let j = 1; j < 24; j++) {
+        const nx = Math.min(lo.x, hi.x) + (Math.abs(hi.x - lo.x) * i) / 24, ny = Math.min(lo.y, hi.y) + (Math.abs(hi.y - lo.y) * j) / 24;
+        if (nx > -1 && nx < 1 && ny > -1 && ny < 1 && hit(nx, ny)) return at(nx, ny);
+      }
+      return at(mid.x, mid.y);
+    }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
     orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z }); } },

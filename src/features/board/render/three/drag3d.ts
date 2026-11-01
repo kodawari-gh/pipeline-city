@@ -19,7 +19,9 @@ const NO_EJECT = new Set(['loading', 'running', 'writing']);
 export function deviceOf(id: string | null, s: Snapshot | null): Dev | null {
   if (!id || !s) return null;
   const kind = id === 'psu' ? 'psu' : id === 'monitor' ? 'display' : null;
-  return s.devices.find((d) => d.id === id || (kind !== null && d.kind === kind)) ?? null;
+  // a part of a die (`cpu.fetch`, `pcie1.lane3`, `tpm0.hash`) is part of its device
+  const head = id.split('.')[0]!, part = id.includes('.') && !id.startsWith('cable.') ? head : null;
+  return s.devices.find((d) => d.id === id || (kind !== null && d.kind === kind) || (part !== null && (d.slot === part || (part === 'cpu' && d.kind === 'cpu')))) ?? null;
 }
 
 export class Drag3D {
@@ -29,7 +31,7 @@ export class Drag3D {
   private noteT = 0;
 
   /** @param idAt the id of the scene object under a client point (null: none) */
-  constructor(private idAt: (cx: number, cy: number) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean) {}
+  constructor(private idAt: (cx: number, cy: number, raw?: boolean) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean) {}
 
   get busy() { return !!this.cur; }
 
@@ -144,7 +146,7 @@ export class Drag3D {
       return;
     }
     const id = this.inside(cx, cy) ? this.idAt(cx, cy) : null;
-    if (c.cable !== undefined) { c.over = id && this.inMachine(id) ? id : null; this.setGhost(c.name, !!c.over); return; }
+    if (c.cable !== undefined) { const raw = this.idAt(cx, cy, true); c.over = raw && this.inMachine(raw) ? raw : null; this.setGhost(c.name, !!c.over); return; }
     if (c.key !== undefined) { c.over = id === 'usb' || id === 'key:' + c.key ? 'usb' : null; this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why); return; }
     c.over = this.target(c, id);
     this.setGhost(c.why && id ? c.why : c.name, !!c.over);
@@ -155,7 +157,10 @@ export class Drag3D {
     if (c.why || !id) return null;
     const slot = this.slotOf(id);
     if (slot && (c.free.has(slot) || c.swap.has(slot))) return slot;
-    if (id === 'case' || id === 'io') for (const w of ['case', 'board']) if (c.free.has(w)) return w;
+    // the monitor and the power supply stand for their sockets (they are not on the board)
+    const kind = id === 'monitor' ? 'display' : id === 'psu' ? 'atx' : null;
+    if (kind) for (const q of [...c.free, ...c.swap]) if (q.startsWith(kind)) return q;
+    if (id === 'case' || id === 'io' || id === 'board') for (const w of ['case', 'board']) if (c.free.has(w)) return w;
     return null;
   }
 
@@ -175,7 +180,7 @@ export class Drag3D {
       return;
     }
     if (c.cable !== undefined) {
-      const id = !cancelled && this.inside(cx, cy) ? this.idAt(cx, cy) : null;
+      const id = !cancelled && this.inside(cx, cy) ? this.idAt(cx, cy, true) : null;
       if (id && this.inMachine(id)) connectCable(c.cable);
       else if (!cancelled && id && snapshot.peek()?.cables.find((x) => x.id === c.cable)?.connected === false) this.toast('Drop the plug on the machine.', cx, cy);
       return;
