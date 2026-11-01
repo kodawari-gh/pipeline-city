@@ -206,7 +206,7 @@ export class Machine3D {
   }
 
   /** Let the live frame drive a fan or a light. */
-  private spin(s: Spin) { this.fans.push({ ...s, speed: 0 }); }
+  private spin(s: Spin) { s.rotor.userData.spin = true; this.fans.push({ ...s, speed: 0 }); }
 
   /** Add a built model to `g` and let the live frame drive its fans and lights. */
   private model(g: Group, m: Model): Model {
@@ -779,7 +779,7 @@ export class Machine3D {
     const d = this.door!, cm = d.cm, open = d.zoom > DOOR_ZOOM[1] * d.board, shut = d.zoom < DOOR_ZOOM[0] * d.board;
     if ((open && !d.zoomOpen) || (shut && d.zoomOpen)) { d.zoomOpen = open; d.manual = null; }
     const want = this.doorOpen ? 1 : 0, step = dt / DOOR_SECONDS[d.kind];
-    d.t = want > d.t ? Math.min(1, d.t + step) : Math.max(0, d.t - step);
+    d.t = want ? Math.min(1, d.t + step) : Math.max(0, d.t - step); // (at rest it stays: a step back and forth would jiggle it every frame)
     const p = doorPose(d.kind, d.t);
     cm.door.position.set(cm.px - p.slide, 0, FRONT + p.out);
     cm.door.rotation.y = p.swing;

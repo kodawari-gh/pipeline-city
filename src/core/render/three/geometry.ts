@@ -204,6 +204,21 @@ export function shadowBlob(): Texture | null {
   });
 }
 
+/**
+ * A fingerprint of what casts a shadow under `o`: each shown caster's world matrix, weighted and summed. It changes when one moves, turns, shows
+ * or hides, so the shadow maps redraw only then. A spinning part (`userData.spin`, a fan's rotor) is left out: it would change it every frame.
+ */
+export function casterPrint(o: Object3D): number {
+  if (!o.visible || o.userData.spin) return 0;
+  let h = 0;
+  if ((o as Mesh).isMesh && o.castShadow) {
+    const e = o.matrixWorld.elements;
+    h = e[0]! + 2 * e[1]! + 3 * e[2]! + 5 * e[4]! + 7 * e[5]! + 11 * e[6]! + 13 * e[8]! + 17 * e[9]! + 19 * e[10]! + 0.37 * e[12]! + 0.53 * e[13]! + 0.71 * e[14]!;
+  }
+  for (const c of o.children) h += casterPrint(c);
+  return h;
+}
+
 /** Free the geometries and the materials under `root`. Textures shared between rebuilds stay alive unless `textures` is set. */
 export function disposeTree(root: Object3D, textures = false): void {
   root.traverse((o) => {

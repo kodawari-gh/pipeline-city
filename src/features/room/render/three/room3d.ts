@@ -24,6 +24,8 @@ const KEY_W = 230;
 const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512], [2048, 1024, 1024], [4096, 2048, 1024], [8192, 4096, 2048]];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
 const SHADOW_SOFT = [10, 8, 6];
+/** While nothing large moves, one light redraws its shadow map at this pace (ms): a whole round costs one frame's worth, spread out. */
+const SHADOW_TURN_MS = 400;
 
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -233,11 +235,28 @@ export class Room3D {
     [this.front, this.sun, this.lampLight].forEach((l, i) => {
       const size = sizes?.[i] ?? 0;
       l.castShadow = size > 0;
+      l.shadow.autoUpdate = false;
+      l.shadow.needsUpdate = true;
       if (l.shadow.mapSize.x !== size || !size) { l.shadow.map?.dispose(); l.shadow.map = null; }
       if (!size) return;
       l.shadow.mapSize.set(size, size);
       l.shadow.radius = SHADOW_SOFT[i]! * (size / SHADOW_LEVELS[3]![i]!);
     });
+  }
+
+  private shadowTurn = 0;
+  private shadowAt = 0;
+
+  /**
+   * The lights do not move, so a shadow map holds until a caster does. Every map redraws for the next frame when one moved (`casterPrint`), else
+   * one light per turn, so what the fingerprint leaves out (the fans' rotors, instanced parts) catches up.
+   */
+  redrawShadows(moved: boolean, now: number): void {
+    const lights = [this.front, this.sun, this.lampLight];
+    if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
+    if (now - this.shadowAt < SHADOW_TURN_MS) return;
+    this.shadowAt = now;
+    lights[this.shadowTurn++ % lights.length]!.shadow.needsUpdate = true;
   }
 
   /** The keys that have been on the rack (a key not in it is new mail), and the new ones still arriving: a letter drifts in, opens, the key rises out and is carried to its hook (the 2D's `mail.ts` poses). */

@@ -72,7 +72,7 @@ const installProbe = () => {
     r.render = function (...a) { if (rec && a[0] === B.scene) rec.scenes++; return render.apply(this, a); };
     const sm = r.shadowMap, shadow = sm.render;
     sm.render = function (...a) {
-      const lights = a[0]?.length ?? 0;
+      const lights = a[0]?.filter((l) => l.shadow.autoUpdate || l.shadow.needsUpdate).length ?? 0;
       if (!rec || !lights) return shadow.apply(this, a);
       const was = open?.label, t = now();
       mark('shadow');

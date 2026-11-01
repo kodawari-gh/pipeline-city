@@ -66,6 +66,8 @@ try {
   if (flag('eval', '')) await p.evaluate((code) => (0, eval)(`(async () => { ${code} })()`), flag('eval', ''));
   // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
   for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
+  // --hover "x,y": rest the pointer here (screen pixels), e.g. to see a part's outline
+  if (flag('hover', '')) await p.mouse.move(...flag('hover', '').split(',').map(Number));
   await p.waitForTimeout(Number(flag('wait', 2500)));
   // --fps: count animation frames for 3 s and print the mean frame rate and the slowest frame (the 3D target is 60 FPS)
   if (args.includes('--fps')) {
