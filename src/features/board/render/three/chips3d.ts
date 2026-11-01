@@ -65,7 +65,7 @@ export function liveCrop(r: Rect, view: LodRect | null, margin = 0.1): Rect | nu
 }
 
 /** The density to draw a crop at: the screen's (`need`, pixels per unit), no finer than `MAX_PX`, no side over `MAX_SIDE` pixels. */
-export const livePx = (crop: Rect, need: number): number => Math.min(need, MAX_PX, MAX_SIDE / crop.w, MAX_SIDE / crop.h);
+export const livePx = (crop: Rect, need: number, max = MAX_PX): number => Math.min(need, max, MAX_SIDE / crop.w, MAX_SIDE / crop.h);
 
 interface Face {
   kind: ChipKind;
@@ -101,6 +101,8 @@ export class Chips3D {
   /** At most two cards show their counters, the ones nearest the centre (as in 2D). */
   private readonly budget = new TierBudget(2);
   private dieAlpha = 0;
+  /** A weak GPU: the live faces draw at half the density and half the rate (board3d.ts quality steps). */
+  eco = false;
   /** The chips' clock: game ms, eased by the zoom (board3d.ts). */
   private t = 0;
 
@@ -233,11 +235,11 @@ export class Chips3D {
   private draw(f: Face, cam: PerspectiveCamera, H: number, dpr: number, now: number): void {
     const a = f.kind === 'die' ? this.dieAlpha : 1;
     if (a <= 0.01 || !shown(f.parent)) { f.mesh.visible = false; return; }
-    if (now - f.at < FRAME_MS) return;
+    if (now - f.at < (this.eco ? FRAME_MS * 2 : FRAME_MS)) return;
     f.parent.updateWorldMatrix(true, false);
     const v = viewOn(cam, H, f.z, INV.copy(f.parent.matrixWorld).invert()), crop = liveCrop(f.rect, v.rect);
     if (!crop || v.zoom <= 0) { f.mesh.visible = false; return; }
-    const canvas = (f.canvas ??= document.createElement('canvas')), got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr), canvas);
+    const canvas = (f.canvas ??= document.createElement('canvas')), got = drawLive(this.viewOf(f.kind), crop, livePx(crop, v.zoom * dpr, this.eco ? MAX_PX / 2 : MAX_PX), canvas);
     if (!got) { f.mesh.visible = false; return; }
     f.at = now;
     const size = `${canvas.width}x${canvas.height}`;

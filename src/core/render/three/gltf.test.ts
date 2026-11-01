@@ -33,6 +33,15 @@ describe('glTF models', () => {
     expect(box.min.z).toBeCloseTo(10);
   });
 
+  it('fitModel with stretch fills the rect in x and y and keeps the height to the smaller', () => {
+    const o = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
+    fitModel(o, { x: 0, y: 0, w: 100, h: 40 }, 0, 1000, true);
+    const size = new Box3().setFromObject(o).getSize(new Vector3());
+    expect(size.x).toBeCloseTo(100);
+    expect(size.y).toBeCloseTo(40);
+    expect(size.z).toBeCloseTo(40);
+  });
+
   it('the loader reads a model and the fit places it', async () => {
     const gltf = await new GLTFLoader().parseAsync(TRIANGLE, '');
     fitModel(gltf.scene, { x: 10, y: 20, w: 8, h: 8 }, 0, 100);

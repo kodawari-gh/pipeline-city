@@ -1,4 +1,4 @@
-// `node tools/e2e3d.mjs [chromium|firefox|webkit] [--baseline dir] [--url http://localhost:5173]`: drives the 3D game (`?3d`) with the real pointer and checks
+// `node tools/e2e3d.mjs [chromium|firefox|webkit] [--baseline dir] [--url http://localhost:5173] [--lowpower]`: drives the 3D game (`?3d`) with the real pointer and checks
 // the interaction (install a part from the inventory, lift it to the shelf, plug and eject a key, pull a cable and plug it back), prints the frame rate and
 // the GL renderer, and with `--baseline dir` compares the room, board and CPU views with the shots saved there (the first run saves them; a mean
 // difference over 2 % fails). Keep the baselines outside the repo. Needs the dev server (`npm run dev`) and, for firefox / webkit,
@@ -10,10 +10,10 @@ import { chromium, firefox, webkit } from 'playwright-core';
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
 const which = ['firefox', 'webkit'].find((b) => args.includes(b)) ?? 'chromium';
-const url = flag('url', 'http://localhost:5173') + '/?3d';
+const url = flag('url', 'http://localhost:5173') + (args.includes('--lowpower') ? '/?3d&lowpower' : '/?3d'); // --lowpower: the integrated GPU, where there is one
 const baseline = flag('baseline', '');
 const b = which === 'firefox' ? await firefox.launch({ headless: true }) : which === 'webkit' ? await webkit.launch({ headless: true })
-  : await chromium.launch({ headless: true, channel: 'chrome', args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist'] });
+  : await chromium.launch({ headless: true, channel: 'chrome', args: ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist', ...(args.includes('--lowpower') ? ['--force_low_power_gpu'] : [])] });
 const p = await (await b.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
 const errs = [], failed = [];
 p.on('pageerror', (e) => errs.push(e.message));
@@ -28,7 +28,8 @@ await p.waitForTimeout(2500);
 const snap = (f) => p.evaluate(async (f) => { const s = (await import('/src/app/store.ts')).snapshot.value; return eval(f); }, f);
 const at = (id) => p.evaluate((id) => window.__board.screenOf(id), id);
 const view = async (v) => { await p.evaluate((v) => window.__board[v](), v); await p.waitForTimeout(2500); };
-console.log(which, await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); }));
+// the game's own context (which GPU it got), not a new one
+console.log(which, await p.evaluate(() => { const g = window.__board.renderer.getContext(); const e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); }));
 console.log('FPS', await p.evaluate(() => new Promise((done) => { let n = 0; const t0 = performance.now(); const f = (t) => { n++; if (t - t0 < 2000) requestAnimationFrame(f); else done(Math.round((n / (t - t0)) * 10000) / 10); }; requestAnimationFrame(f); })));
 const drag = async (a, z) => {
   await p.mouse.move(a.x, a.y);

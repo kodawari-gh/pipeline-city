@@ -25,6 +25,7 @@ export class Post {
   private composer: EffectComposer;
   private outline: OutlinePass;
   private ao: ClearAO;
+  private bloom: UnrealBloomPass;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     const target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: 4 });
@@ -41,14 +42,20 @@ export class Post {
     this.outline.edgeThickness = 1.5;
     this.outline.enabled = false;
     this.composer.addPass(this.outline);
-    this.composer.addPass(new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2));
+    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
+    this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
   }
 
-  /** A cheaper frame for a weak GPU: 1 drops the ambient occlusion, 2 also draws at 3/4 of the pixel density (`ratio`). */
+  /**
+   * A cheaper frame for a weak GPU, in steps: 1 drops the ambient occlusion, 2 also draws at 3/4 of the pixel density, 3 also drops the bloom and the
+   * multisampling and draws at 0.6 (`ratio`).
+   */
   setQuality(level: number, renderer: WebGLRenderer, w: number, h: number): void {
     this.ao.enabled = level < 1;
-    const ratio = Math.min(window.devicePixelRatio || 1, 2) * (level >= 2 ? 0.75 : 1);
+    this.bloom.enabled = level < 3;
+    for (const t of [this.composer.renderTarget1, this.composer.renderTarget2]) if (level >= 3 && t.samples) { t.samples = 0; t.dispose(); }
+    const ratio = Math.min(window.devicePixelRatio || 1, 2) * (level >= 3 ? 0.6 : level >= 2 ? 0.75 : 1);
     renderer.setPixelRatio(ratio);
     this.composer.setPixelRatio(ratio);
     renderer.setSize(w, h);

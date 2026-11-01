@@ -214,9 +214,9 @@ export function mountBoard3d(host: HTMLElement) {
   const born = performance.now();
   const frame = (now: number) => {
     const real = (now - last) / 1000;
-    if (now - born > 5000 && quality < 2 && document.visibilityState === 'visible') {
+    if (now - born > 5000 && quality < 3 && document.visibilityState === 'visible') {
       slowT = Math.max(0, slowT + (real > 1 / 30 ? real : -real * 2));
-      if (slowT > 2.5) { slowT = 0; post.setQuality(++quality, renderer, W, H); }
+      if (slowT > 2.5) { slowT = 0; post.setQuality(++quality, renderer, W, H); chips.eco = quality >= 3; }
     }
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;

@@ -13,12 +13,16 @@ export function loadModel(url: string): Promise<Object3D | null> {
   return p;
 }
 
-/** Scale `o` evenly to fit the layout rect `r` (x right, y down) and stand it on depth `z0`, no taller than up to `z1`; its middle goes to the rect's middle. */
-export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number): Object3D {
+/**
+ * Scale `o` to fit the layout rect `r` (x right, y down) and stand it on depth `z0`, no taller than up to `z1`; its middle goes to the rect's middle.
+ * Evenly by default; `stretch`: x and y each fill the rect (a part that is only a block, like a heat sink), the height keeps to the smaller of them.
+ */
+export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, stretch = false): Object3D {
   const box = new Box3().setFromObject(o), size = box.getSize(new Vector3()), mid = box.getCenter(new Vector3());
-  const k = Math.min(r.w / (size.x || 1), r.h / (size.y || 1), (z1 - z0) / (size.z || 1));
-  o.scale.multiplyScalar(k);
-  o.position.set(r.x + r.w / 2 - mid.x * k, -(r.y + r.h / 2) - mid.y * k, z0 - box.min.z * k);
+  const kx = r.w / (size.x || 1), ky = r.h / (size.y || 1), kz = Math.min((z1 - z0) / (size.z || 1), stretch ? Math.min(kx, ky) : Infinity);
+  const k = stretch ? new Vector3(kx, ky, kz) : new Vector3().setScalar(Math.min(kx, ky, kz));
+  o.scale.multiply(k);
+  o.position.set(r.x + r.w / 2 - mid.x * k.x, -(r.y + r.h / 2) - mid.y * k.y, z0 - box.min.z * k.z);
   return o;
 }
 
@@ -26,10 +30,10 @@ export function fitModel(o: Object3D, r: { x: number; y: number; w: number; h: n
  * Put the model at `url` on `parent`, fitted to `r`, and hide `replace` (the primitives it stands for) once it has loaded. Does nothing if it fails,
  * or if `parent` was thrown away meanwhile (`alive`).
  */
-export function useModel(parent: Group, url: string, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, replace: Object3D[], alive: () => boolean = () => true): void {
+export function useModel(parent: Group, url: string, r: { x: number; y: number; w: number; h: number }, z0: number, z1: number, replace: Object3D[], alive: () => boolean = () => true, stretch = false): void {
   void loadModel(url).then((m) => {
     if (!m || !alive()) return;
-    parent.add(fitModel(m.clone(true), r, z0, z1));
+    parent.add(fitModel(m.clone(true), r, z0, z1, stretch));
     for (const o of replace) o.visible = false;
   });
 }

@@ -53,7 +53,7 @@ import {
 } from './wires3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
-import { modelUrl } from './models3d';
+import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
 import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
 import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
@@ -490,8 +490,8 @@ export class Machine3D {
       default: return; // the display is the room's (Room3D shows it)
     }
     // a part with a glTF model wears it over its slot's rect in place of the primitives built above
-    const url = modelUrl(visual, spec.kind), fit = url ? this.rects.get(d.slot) : undefined;
-    if (url && fit) useModel(g, url, fit, BOARD_Z, BOARD_Z + 400, [...g.children], () => !!g.parent);
+    const model = modelOf(visual, spec.kind), fit = model ? this.rects.get(d.slot) : undefined;
+    if (model && fit) useModel(g, model.url, fit, BOARD_Z + 180, BOARD_Z + 580, [...g.children], () => !!g.parent, model.stretch);
     this.root.add(g);
   }
 
