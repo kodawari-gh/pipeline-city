@@ -17,7 +17,7 @@ import { disposeTree } from '@/core/render/three/geometry';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D } from './chips3d';
@@ -54,8 +54,12 @@ export function mountBoard3d(host: HTMLElement) {
   const fx = new Particles3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
+  /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
+  let preview: { board: number; case: number } | null = null;
   const rebuild = () => {
-    const s = snapshot.peek(), tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
+    const live = snapshot.peek();
+    const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
+    const tier = s?.boardTier ?? 0, caseTier = Math.max(tier, s?.caseTier ?? tier);
     const rk = `${tier}|${caseTier}`;
     if (rk !== roomKey || !room) {
       roomKey = rk;
@@ -236,6 +240,8 @@ export function mountBoard3d(host: HTMLElement) {
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
+    // a drag, or a tutorial target inside the case, opens its outer side from any distance (as the 2D exterior fades)
+    if (machine) { const m = machine; m.setOpen(lift.busy || highlight.peek().some((id) => id !== 'case' && id !== 'power' && !!findById(m.root, id))); }
     machine?.frame(s, dt);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));
@@ -270,6 +276,10 @@ export function mountBoard3d(host: HTMLElement) {
       return at(mid.x, mid.y);
     }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
     orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
+    // the case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's
+    previewCase: (c: number | null, b = c ?? 0) => { preview = c === null ? null : { board: b, case: c }; rebuild(); wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`; },
+    // the whole case from the side, turned by `yaw` and seen from `pitch` above
+    caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => { view = goal = fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
     camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z }); } },
   };

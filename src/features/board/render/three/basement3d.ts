@@ -50,17 +50,18 @@ export function basementPlan(n = BAY_CELLS.length): BasementPlan {
  * The shroud over the basement: its top, its glass-side panel over the power supply (the case's name printed on it; it answers a click as the
  * PSU), the panel's narrow east end and the shroud's east wall. Over the cage the front is open, the drives show through the glass.
  */
-export function shroud(p: BasementPlan): Group {
-  const g = new Group(), m = mat(0x26282d, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
+export function shroud(p: BasementPlan, look: { body: number; ink: string } = { body: 0x26282d, ink: '#c9ced6' }): Group {
+  const g = new Group(), m = mat(look.body, { roughness: 0.45, metalness: 0.3 }), zb = CASE_Z + 70, zf = FRONT - 70;
+  const bg = `#${look.body.toString(16).padStart(6, '0')}`;
   g.add(rectBox({ x: CASE_IN.x, y: p.top, w: p.east - CASE_IN.x, h: 60 }, zb, zf, m));
   const west = { x: CASE_IN.x, y: p.top, w: p.cage.x - 110 - CASE_IN.x, h: p.floor - p.top };
   const panel = tag(new Group(), 'psu');
   panel.add(rectBox(west, zf - 40, zf, m));
   const W = 1024, H = Math.max(64, Math.round((W * west.h) / west.w));
   const print = paint(W, H, (c) => {
-    c.fillStyle = '#26282d'; c.fillRect(0, 0, W, H);
+    c.fillStyle = bg; c.fillRect(0, 0, W, H);
     c.fillStyle = 'rgba(255,255,255,0.05)'; c.fillRect(0, 0, W, 6);
-    c.fillStyle = '#c9ced6'; c.textBaseline = 'middle'; c.textAlign = 'center';
+    c.fillStyle = look.ink; c.textBaseline = 'middle'; c.textAlign = 'center';
     c.font = `600 ${Math.round(Math.min(H * 0.34, W * 0.1))}px system-ui, sans-serif`; c.fillText('PIPELINE CITY', W / 2, H / 2);
   });
   const face = new Mesh(new PlaneGeometry(west.w, west.h), mat(0xffffff, { map: print, roughness: 0.45, metalness: 0.2 }));

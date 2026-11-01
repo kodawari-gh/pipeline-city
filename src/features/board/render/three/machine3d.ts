@@ -31,8 +31,8 @@ import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/r
 import { BOARD_Z, CASE_D, CASE_Z, DESK_TOP, MONITOR_Z } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
-  BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, CASE_PANEL, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  MONITOR_POWER, PCIE_RAILS, PKG, POWER_BTN, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK, WALL_T,
+  BD, CASE, CASE_GLASS, CASE_IN, CASE_LEDS, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
+  LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, POWER_BTN, RAM_SINK, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
@@ -47,6 +47,9 @@ import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
 import { card3d, slotCover, type Card3D } from './card3d';
 import type { Chips3D } from './chips3d';
+import { caseModel, stripLight } from './case3d';
+import { CASE_KIND } from '@/features/room/render/shell/casedecor';
+import { stripModeOf } from '@/features/room/render/shell/exterior';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
 import {
   TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
@@ -70,6 +73,8 @@ const union = (a: RectLike, b: RectLike): RectLike => {
 /** The RAM band (`DEVICE_LOD.ram.show` on): the camera leans over its first part, the spreaders fade over the second. */
 const RAM_IN = [DEVICE_LOD.ram.show, DEVICE_LOD.ram.show * 1.35] as const, RAM_FADE = [DEVICE_LOD.ram.show * 1.5, DEVICE_LOD.ram.show * 2.1] as const;
 const idx = (slot: string) => Number(/\d+$/.exec(slot)?.[0] ?? 0);
+/** The zoom band over which the case's outer side fades, in parts of the board view's zoom: whole in the case's portrait, gone by the board view. */
+const SIDE_FADE = [0.84, 1.02] as const;
 
 /**
  * Texture densities (pixels per layout unit) of each level: the board, a raised part's top, a part's face, the dies (their names are 9 to 14 units
@@ -123,6 +128,11 @@ export class Machine3D {
   private cooler: Group | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
   private driveSockets = new Map<string, { data: V3; power: V3 }>();
+  /** The case's outer side and glass: the zoom seen there, how open it is for a drag or a target inside (eased), the alpha last applied. */
+  private side: { root: Group; glass: Mesh | null; zoom: number; board: number; open: number; want: boolean; last: number } | null = null;
+  /** The case's accent strip on the front rim, and whether the inside has RGB (`caseModel`). */
+  private strip: MeshStandardMaterial | null = null;
+  private caseRgb = true;
 
   /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. */
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null) {
@@ -151,34 +161,30 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ case
   private buildCase() {
-    const chassis = mat(PALETTE.chassis, { roughness: 0.4, metalness: 0.3 });
-    const inner = mat(0x15161a, { roughness: 0.8 });
-    const shell = tag(new Group(), 'case');
-    shell.add(rectBox(CASE, CASE_Z, CASE_Z + 70, inner));
-    shell.add(softBox(CASE_PANEL, CASE_Z, FRONT, chassis, 50));
-    shell.add(softBox({ x: CASE.x, y: CASE.y + CASE.h - 150, w: CASE.w, h: 150 }, CASE_Z, FRONT, chassis, 40));
-    shell.add(rectBox({ x: CASE.x, y: CASE.y, w: WALL_T, h: CASE.h }, CASE_Z, FRONT, chassis));
-    const fe = CASE_GLASS.x + CASE_GLASS.w;
-    shell.add(softBox({ x: fe, y: CASE.y, w: CASE.x + CASE.w - fe, h: CASE.h }, CASE_Z, FRONT, mat(0x1c1d21, { roughness: 0.7 }), 50));
+    // the case of this tier, one of four (case3d.ts): its body stays, its outer side panel and glass fade as the camera comes in
+    const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer', cm = caseModel(kind, this.T), shell = cm.root;
+    this.caseRgb = cm.rgb;
+    this.strip = cm.strip;
+    for (const s of cm.spins) this.spin(s);
     // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
     // stepped cage the drives stand in (`basement3d.ts`)
-    shell.add(shroud(this.plan), cage(this.plan));
-    // RGB light strips along the inside of the top and the front: they glow with the fans
-    for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
+    shell.add(shroud(this.plan, cm.shroud), cage(this.plan));
+    // light strips along the inside of the top and the front: RGB in the gaming case, a cold white in the showcase, none in the plain cases
+    if (cm.rgb) for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
       const m = glowMat(PALETTE.rgb);
       this.root.add(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
-      this.spin(light(m));
+      this.spin(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
     }
-    for (const fx of [CASE.x + 600, CASE.x + CASE.w - 900]) for (const fz of [CASE_Z + 400, FRONT - 700]) shell.add(softBox({ x: fx, y: CASE.y + CASE.h, w: 300, h: FOOT }, fz, fz + 300, inner, 30));
     // the fan hub
-    shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, inner));
-    this.root.add(shell);
-    // the side glass: a faint tint, never in the way of a click
-    const glass = rectBox(CASE_GLASS, FRONT - 30, FRONT, new MeshStandardMaterial({ color: 0x9fb4c4, transparent: true, opacity: 0.12, roughness: 0.02, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
-    glass.castShadow = false;
-    this.root.add(seeThrough(glass));
-    // its sheen belongs to the room: from the board view in it would lay a grey haze over the parts, so it fades as the camera comes in
-    this.reveal(CASE_GLASS, FRONT, (z) => fadeTree(glass, 1 - smooth(0.06, 0.16, z)), true);
+    shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, mat(cm.inner, { roughness: 0.8 })));
+    this.root.add(shell, cm.side);
+    // the outer side and its glass, never in the way of a click: the side goes from the case's portrait in (the interior shows, as the 2D
+    // exterior does), the glass's sheen sooner (from the board view in it would lay a grey haze over the parts); both also open for a drag
+    // or a tutorial target inside (`setOpen`)
+    const glass = cm.glass;
+    if (glass) this.root.add(seeThrough(glass));
+    this.side = { root: cm.side, glass, zoom: 0, board: 0.13, open: 0, want: false, last: -1 };
+    this.reveal(CASE_GLASS, FRONT, (z) => { this.side!.zoom = z; }, true);
     // the power button and the LEDs on the top panel
     const btn = place(new Mesh(new CylinderGeometry(POWER_BTN.r * 1.6, POWER_BTN.r * 1.6, 60, 24), mat(0x3a3c42, { metalness: 0.5, roughness: 0.3 })));
     btn.position.set(POWER_BTN.x, -CASE.y + 30, FRONT - 650);
@@ -195,7 +201,7 @@ export class Machine3D {
       if (this.rad?.span.ids.includes(m.id)) continue;
       const f = caseFan(m.id, m.side, m.rect, FAN_ZC, FAN_MAX);
       this.root.add(tag(f.root, 'case:' + m.id));
-      this.spin(f.spin);
+      this.spin(cm.rgb ? f.spin : { ...f.spin, gain: 0 }); // the plain cases' fans have no light
     }
   }
 
@@ -681,7 +687,18 @@ export class Machine3D {
       if (f.ring) { if (f.fixed === undefined) f.ring.emissive.copy(rgb); else f.ring.emissive.setHex(f.fixed); f.ring.emissiveIntensity = (f.gain ?? (f.fixed === undefined ? 2.2 : 2.8)) * f.speed; }
     }
     this.rgb.color.copy(rgb);
-    this.rgb.intensity = live ? 0.9 : 0;
+    this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
+    if (this.strip) stripLight(this.strip, stripModeOf(s), performance.now());
+    if (this.side) {
+      const sd = this.side;
+      sd.open += ((sd.want ? 1 : 0) - sd.open) * (1 - Math.pow(0.0005, dt)); // about 0.3 s
+      const a = Math.min(1 - smooth(SIDE_FADE[0] * sd.board, SIDE_FADE[1] * sd.board, sd.zoom), 1 - sd.open), q = Math.round(a * 100) / 100;
+      if (q !== sd.last) {
+        sd.last = q;
+        fadeTree(sd.root, q);
+        if (sd.glass) fadeTree(sd.glass, q);
+      }
+    }
     if (this.leds) { this.leds.on.emissiveIntensity = live ? 2 : 0; this.leds.err.emissiveIntensity = s?.phase === 'error' || s?.power.tripped ? 2 : 0; }
   }
 
@@ -693,6 +710,8 @@ export class Machine3D {
     const now = performance.now(), dpr = Math.min(2, window.devicePixelRatio || 1);
     frustumOf(cam, this.frustum);
     cam.getWorldDirection(LOD_DIR);
+    // the board view's zoom on this screen (`boardView` in board3d.ts: the inside of the case, fitted at 0.95)
+    if (this.side) this.side.board = (H * 0.95) / Math.max(CASE_IN.h, CASE_IN.w / cam.aspect);
     for (const r of this.reveals) {
       const at = r.area ? nearestOn(r.area, r.at.z, cam.position, LOD_DIR) : r.at;
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
@@ -710,6 +729,9 @@ export class Machine3D {
     if (!r || x < r.x || x > r.x + r.w || y < r.y || y > r.y + r.h) return 0;
     return RAM_LEAN * smooth(RAM_IN[0], RAM_IN[1], zoom);
   }
+
+  /** Open the case's outer side whatever the zoom (a part or a cable is dragged, a tutorial target is inside), or let the zoom decide again. */
+  setOpen(open: boolean): void { if (this.side) this.side.want = open; }
 
   /** Take it down: the meshes, the texture tiles, the bake jobs and the 2D art behind them. */
   dispose(): void {
