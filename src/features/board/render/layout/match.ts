@@ -37,10 +37,10 @@ function segsOf(pts: Pt[]): Seg[] {
 const span = (s: Seg): [number, number] => (s.a < s.b ? [s.a, s.b] : [s.b, s.a]);
 
 /** A tooth of height A and bevel b adds 2A - b(8 - 4 sqrt 2) to a lane's length (it is a tooth only for A >= 2b + 2; a smaller one is a plain 45 degree notch). */
-const BEV = 8 - 4 * Math.SQRT2;
+export const BEV = 8 - 4 * Math.SQRT2;
 
 /** The tooth that adds exactly `e` to a lane: its height and bevel. */
-function toothFor(e: number, b0: number, Amax: number): { A: number; b: number } {
+export function toothFor(e: number, b0: number, Amax: number): { A: number; b: number } {
   let b = b0, A = (e + b * BEV) / 2;
   if (A > Amax) { A = Amax; b = (2 * A - e) / BEV; } // (a taller tooth than the room allows: the corners shrink instead)
   if (A >= 2 * b + 2 && b >= 1.5) return { A, b };
@@ -48,6 +48,10 @@ function toothFor(e: number, b0: number, Amax: number): { A: number; b: number }
   const An = e / (2 - BEV / 2);
   return { A: An, b: An / 2 };
 }
+
+/** The points of one tooth at distance `a` along a run: `P` maps a distance along the run and a height over it to the board; its base stands at height `d`, `h` tall, `flat` across its top. */
+export const toothPts = (P: (t: number, q: number) => Pt, a: number, d: number, b: number, h: number, flat: number): Pt[] =>
+  [P(a, d), P(a + b, d + b), P(a + b, d + h - b), P(a + 2 * b, d + h), P(a + 2 * b + flat, d + h), P(a + 3 * b + flat, d + h - b), P(a + 3 * b + flat, d + b), P(a + 4 * b + flat, d)];
 
 /**
  * Make every lane of the bundle as long as the longest. `lines` are the lanes (first end to last), parallel over a straight stretch.
@@ -115,7 +119,7 @@ export function serpentine(lines: Pt[][], o: SerpOpts): Pt[][] {
       const pt = pitchOf(p.b), total = p.m * pt - space;
       for (let j = 0; j < p.m; j++) {
         const a = mid - total / 2 + j * pt, b = p.b, h = p.A;
-        mid2.push(P(a, d), P(a + b, d + b), P(a + b, d + h - b), P(a + 2 * b, d + h), P(a + 2 * b + flat, d + h), P(a + 3 * b + flat, d + h - b), P(a + 3 * b + flat, d + b), P(a + 4 * b + flat, d));
+        mid2.push(...toothPts(P, a, d, b, h, flat));
       }
     }
     if (d > 1e-6) mid2.push(P(t1 - d, d), P(t1, 0));

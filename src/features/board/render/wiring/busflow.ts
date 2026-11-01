@@ -37,6 +37,20 @@ export function slice(lane: Lane, a: number, b: number): Pt[] {
   return out;
 }
 
+/** The parts of arc lengths `a..b` on the surface: where a lane dives (`Lane.hops`) nothing shows. */
+export function surfaced(lane: Lane, a: number, b: number): [number, number][] {
+  const out: [number, number][] = [];
+  let at = a;
+  for (const [h0, h1] of lane.hops ?? []) {
+    if (h1 <= at) continue;
+    if (h0 >= b) break;
+    if (h0 > at) out.push([at, h0]);
+    at = h1;
+  }
+  if (at < b) out.push([at, b]);
+  return out;
+}
+
 /** The packets in flight on one layer. */
 export class BusFlow {
   readonly g = new Graphics();
@@ -73,11 +87,13 @@ export class BusFlow {
         const d = u * lane.len, head = Math.min(HEAD, lane.len * 0.3);
         const paint = (from: number, to: number, width: number, color: string, alpha: number) => {
           // travelled distance `from..to` counts from the lane's start when dir is 1, from its end when dir is -1
-          const pts = r.dir > 0 ? slice(lane, from, to) : slice(lane, lane.len - to, lane.len - from);
-          if (pts.length < 2) return;
-          g.moveTo(pts[0]![0], pts[0]![1]);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
-          g.stroke({ width, color, alpha: alpha * fade, cap: 'round', join: 'round' });
+          for (const [a, b] of r.dir > 0 ? surfaced(lane, from, to) : surfaced(lane, lane.len - to, lane.len - from)) {
+            const pts = slice(lane, a, b);
+            if (pts.length < 2) continue;
+            g.moveTo(pts[0]![0], pts[0]![1]);
+            for (let i = 1; i < pts.length; i++) g.lineTo(pts[i]![0], pts[i]![1]);
+            g.stroke({ width, color, alpha: alpha * fade, cap: 'round', join: 'round' });
+          }
         };
         paint(0, d - 2 * head, w, r.color, 0.22);
         paint(d - 2 * head, d - head, w, r.color, 0.45);

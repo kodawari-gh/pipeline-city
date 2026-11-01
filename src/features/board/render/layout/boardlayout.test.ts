@@ -36,7 +36,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     expect(g.m2.length).toBe(spec.slots.m2 ?? 0);
     expect(g.vrmPhases.length).toBe(spec.vrm.phases);
     expect(g.dPhases.length).toBe(spec.ramVrm.phases);
-    expect(g.memY.length).toBe(g.dimm.length);
+    expect(g.memLand.length).toBe(g.dimm.length);
   });
 
   it('keeps every part on the board and nothing on top of anything else', () => {
@@ -71,6 +71,18 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     for (let i = 0; i < taps.length; i++) for (let j = i + 1; j < taps.length; j++) {
       for (const a of taps[i]!.lanes) for (const b of taps[j]!.lanes) expect(lanesCross(a, b), `dimm${i} and dimm${j} cross`).toBe(false);
     }
+  });
+
+  it('gives every stick its lanes along its length, none of them showing on the surface under a socket before its own', () => {
+    const g = sockets();
+    const mem = buildBuses().find((b) => b.id === 'mem')!;
+    mem.taps!.forEach((t, i) => {
+      const ys = t.lanes.map((l) => l.pts[l.pts.length - 1]![1]);
+      if (ys.length > 1) expect(Math.max(...ys) - Math.min(...ys), `stick ${i}'s lanes spread along it`).toBeGreaterThan(900);
+      for (const l of t.lanes) for (const part of visibleParts(l)) for (const [x] of part) {
+        for (const d of g.dimm.slice(0, i)) expect(x > d.rect.x + 40 && x < d.rect.x + d.rect.w, `stick ${i}'s lane shows on the surface at socket x ${d.rect.x}`).toBe(false);
+      }
+    });
   });
 
   it('ends every signal bus on a footprint', () => {
@@ -149,7 +161,7 @@ describe.each(TIER_GEO.map((g) => g.tier))('board tier %i geometry', (tier) => {
     const by = (id: Bus['id']) => buses.find((b) => b.id === id);
     const hit = (p: [number, number], pins: [number, number][], what: string) => expect(pins.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.6), `${what} ${p}`).toBe(true);
     const end = (l: Lane) => l.pts[l.pts.length - 1]!;
-    by('mem')!.taps!.forEach((t, i) => { const pads = dimmPads(g.dimm[i]!.rect, g.memY[i]!, g.memLanes); for (const l of t.lanes) hit(end(l), pads, `dimm${i} lane ends on a pad`); });
+    by('mem')!.taps!.forEach((t, i) => { const pads = dimmPads(g.dimm[i]!.rect, g.memLand[i]!); for (const l of t.lanes) hit(end(l), pads, `dimm${i} lane ends on a pad`); });
     const nv = by('nvme');
     if (nv) { const pads = g.m2.flatMap((m) => m2Pads(m)); for (const l of nv.lanes) hit(end(l), pads, 'nvme lane ends on a contact'); }
     const legsN = legsOf(g.chip, 'n');

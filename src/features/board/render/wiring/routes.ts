@@ -1,11 +1,11 @@
 import { drape, hangCable, roundedPath, type Clip } from '@/core/render/cable';
 import { IO_X, ioPort, type TierGeo } from '../layout/boardlayout';
-import { serpentine, type SerpOpts } from '../layout/match';
+import { BEV, serpentine, toothFor, toothPts, type SerpOpts } from '../layout/match';
 import {
   BR, GEO, PKG, PORT_Y, PSU_PORTS, SOCKET_E, VIDEO_RUN_Y, VIDEO_SOCKET, VIDEO_TRUNK_X, VIDEO_Y, type Rect,
 } from '../layout/layout';
 import {
-  LEG_PITCH, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPads, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
+  LEG_PITCH, MEM_SPACING, SATA_LANES, atx12v, xtalPads, cellSide, cellTop, atx12vSlots, m2Tie, pcieFeed, slotTie, pkgPads, cpuStageCtl, dramStageCtl, headerPin, legAt, legsFrom, cpuPowerPins, dimmPinX, dimmPowerPad, ioPads, legRun, legsOf, m2Pads, pciePads, sataPads,
 } from '../layout/pins';
 
 export { MEM_SPACING, SATA_LANES };
@@ -255,25 +255,63 @@ function addHops(buses: Bus[]) {
   }
 }
 
+/** How tall a memory lane's teeth may stand (the lane above keeps them lower), the room they leave under that lane, and where they end short of the bank. */
+const MEM_TOOTH_MAX = 70, MEM_CLEAR = 20, MEM_ZIG_END = 34;
+/** A memory lane dives this far west of the bank and comes up this far short of its own pin column. */
+const MEM_DIVE = 18, MEM_RISE = 26;
+
+/**
+ * The memory bus: a tap per stick, a lane in every row. A lane leaves its pin on the CPU's east edge, runs east, climbs or drops at 45 degrees to its height on
+ * the bank and runs east onto its stick's pin column. The lanes fan out without crossing: going up the highest lane bends first, going down the lowest. Every
+ * lane is as long as the longest: a nearer stick's lane makes up the rest in a row of teeth that ends just short of the bank, the zigzags a real board's memory
+ * lanes carry. A lane to a stick behind others dives at the bank and comes up at its own socket: under the sockets it runs on an inner layer.
+ */
+function memBus(g: TierGeo, qx: number): Bus {
+  const X0 = g.dimm[0]!.rect.x, b0 = 5, flat = 6, space = 6, xMin = qx + 30;
+  const all = g.dimm.flatMap((d, i) => g.memLand[i]!.map((y1, r) => {
+    const pad = pkgPads(PKG, 'e', g.memFrom[i]![r]!, 1)[0]!;
+    return { i, r, pad, y0: pad[1], y1, x1: dimmPinX(d.rect), xs: xMin, xe: xMin, base: 0 };
+  }));
+  // the 45 degree legs: parallel, 30 apart along x + y (going up) or x - y (going down), so they keep their distance
+  let c = -Infinity;
+  for (const q of all.filter((q) => q.y1 < q.y0 - 0.5).sort((a, b) => a.y0 - b.y0)) { q.xs = Math.max(xMin, c + 30 - q.y0); c = q.xs + q.y0; }
+  c = -Infinity;
+  for (const q of all.filter((q) => q.y1 > q.y0 + 0.5).sort((a, b) => b.y0 - a.y0)) { q.xs = Math.max(xMin, c + 30 + q.y0); c = q.xs - q.y0; }
+  for (const q of all) { const dy = Math.abs(q.y1 - q.y0); q.xe = q.xs + dy; q.base = q.xs - q.pad[0] + dy * Math.SQRT2 + q.x1 - q.xe; }
+  const longest = Math.max(...all.map((q) => q.base));
+  // from the top of the bank down: a lane's teeth stand in the room under the lane above it
+  const byY = all.slice().sort((a, b) => a.y1 - b.y1);
+  const bus: Bus = { id: 'mem', w: 9, pad: 13, lanes: [], taps: g.dimm.map((_, i) => ({ key: 'dimm' + i, lanes: [] })) };
+  byY.forEach((q, k) => {
+    const pts: Pt[] = [q.pad, [q.xs, q.y0]];
+    if (q.xe > q.xs + 0.5) pts.push([q.xe, q.y1]);
+    const e = longest - q.base, above = byY[k - 1];
+    if (e > 0.4) {
+      const room = Math.min(MEM_TOOTH_MAX, above ? q.y1 - above.y1 - MEM_CLEAR : MEM_TOOTH_MAX);
+      const m = Math.max(1, Math.ceil(e / (2 * room - 1.5 * BEV) - 1e-9)), { A, b } = toothFor(e / m, b0, room), pitch = 4 * b + flat + space;
+      const a0 = X0 - MEM_ZIG_END - (m * pitch - space), P = (t: number, h: number): Pt => [a0 + t, q.y1 - h];
+      for (let j = 0; j < m; j++) pts.push(...toothPts(P, j * pitch, 0, b, A, flat));
+    }
+    pts.push([q.x1, q.y1]);
+    const l = mkLane(pts.filter((p, j) => j === 0 || Math.hypot(p[0] - pts[j - 1]![0], p[1] - pts[j - 1]![1]) > 1e-6), q.r * 37 + q.i * 11);
+    if (q.i > 0) l.hops = [[l.len - (q.x1 - (X0 - MEM_DIVE)), l.len - MEM_RISE]];
+    bus.taps![q.i]!.lanes[q.r] = l;
+  });
+  return bus;
+}
+
 /**
  * Every board bus of the current tier (`GEO`), routed once. Lane order inside a bundle is stable; direction runs CPU outward.
  * Every lane ends on a pin that the part's art draws (`pins.ts`): the CPU socket's escape pads at one end, a pad bar on a socket, a leg
- * of a chip, a contact of a connector at the other. Memory is point-to-point: one bundle per DIMM, straight east from the CPU's east edge to
- * its socket's pin column, the bundles stacked along the edge, so no two cross (each passes under the nearer sockets, as on a real board).
- * A run changes lane pitch only on a 45 degree leg right before its pins.
+ * of a chip, a contact of a connector at the other. A run changes lane pitch only on a 45 degree leg right before its pins.
  */
 export function buildBuses(): Bus[] {
   const g = GEO;
   const px = PKG.x - SOCKET_E, qx = PKG.x + PKG.w + SOCKET_E, qy = PKG.y + PKG.h + SOCKET_E, py = PKG.y - SOCKET_E;
   const buses: Bus[] = [];
 
-  // memory: a bundle per DIMM from the CPU east edge straight to the pin column of its socket
-  const mem: Bus = { id: 'mem', w: 9, pad: 13, lanes: [], taps: [] };
-  g.dimm.forEach((d, i) => {
-    const y = g.memY[i]!, pads = dimmPads(d.rect, y, g.memLanes);
-    mem.taps!.push({ key: 'dimm' + i, lanes: lanesOf(bundleOn([[qx, y], [pads[0]![0], y]], g.memLanes, MEM_SPACING, 0, { from: pkgPads(PKG, 'e', y, g.memLanes), to: pads }), i * 11) });
-  });
-  buses.push(mem);
+  // memory: a lane per stick in every row, fanned out from the CPU's east edge along the sticks (`memBus`)
+  buses.push(memBus(g, qx));
 
   // NVMe: one bundle per M.2 (all below the CPU) down a column of its own from the CPU's south edge, east along the M.2's row to the middle
   // contacts of its socket: the lowest M.2 in the westmost column, so none crosses another
@@ -531,7 +569,7 @@ export function buildBuses(): Bus[] {
   // the groups whose lanes must arrive together
   const cut = (b: Bus, sizes: number[]) => { let k = 0; return sizes.map((n) => b.lanes.slice(k, (k += n))); };
   for (const b of buses) {
-    if (b.id === 'mem') b.groups = b.taps!.map((t) => t.lanes);
+    if (b.id === 'mem') b.groups = [b.taps!.flatMap((t) => t.lanes)];
     else if (b.id === 'nvme') b.groups = cut(b, g.m2.map(() => NVME_LANES));
     else if (b.id === 'pcie') b.groups = cut(b, [12, ...g.pcie.slice(1).map(() => 4)]);
     else if (b.id === 'sata') b.groups = cut(b, g.sata.map(() => SATA_LANES));

@@ -55,15 +55,13 @@ export function legRun(r: Rect, side: Side, k: number, shift = 0, pitch = LEG_PI
 }
 
 // ---- DIMM sockets: the pins run the socket's length, in a column down its west side (toward the CPU) ----
-/** Lanes per DIMM bundle (on the package's 20 grid, so a bundle runs straight): six, four on the eight-slot board (its bank fills the edge). */
+/** The memory lanes leave the package on its 20 grid. Lanes per stick (one in each row along the bank): six, four on the eight-slot board (its bank fills the edge). */
 export const MEM_SPACING = PKG_PIN;
 export const memLanes = (dimms: number): number => (dimms > 4 ? 4 : 6);
 /** The x of a socket's pin column, just west of its housing (the lanes come in from the CPU's side and land on it). */
 export const dimmPinX = (r: Rect): number => r.x + r.w / 2 - 45;
-/** The `n` data pads a bundle lands on, on the socket's pin column, centred on the bundle's run `y`. */
-export function dimmPads(r: Rect, y: number, n: number): Pt[] {
-  return Array.from({ length: n }, (_, k) => [dimmPinX(r), y + (k - (n - 1) / 2) * MEM_SPACING] as Pt);
-}
+/** The data pads a stick's lanes land on, on the socket's pin column, at the heights `ys` (`TierGeo.memLand`). */
+export const dimmPads = (r: Rect, ys: number[]): Pt[] => ys.map((y) => [dimmPinX(r), y] as Pt);
 /** The memory-voltage pad of a socket, at its north end beside the latch (the regulator's rail runs along the north ends). */
 export const dimmPowerPad = (r: Rect): Pt => [r.x + 36, r.y + 30];
 

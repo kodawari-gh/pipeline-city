@@ -17,8 +17,9 @@ import { MEM_SPACING, legRun, legsFrom, legsOf, memLanes, type IoPort } from './
 // and step east onto it under the M.2 stack, the SATA lanes run east along the ports' rows, so no trace crosses a slot. USB comes from
 // the CPU straight to the rear I/O.
 //
-// Memory is point-to-point: every DIMM gets its own bundle from the CPU's east edge, straight east to the pin column of its socket,
-// passing under the nearer sockets as on a real board (see `routes.ts`); `memY` is the y of each bundle's run.
+// Memory is point-to-point: each stick has a lane in every row. The rows stack on the CPU's east edge and fan out along the sticks, as a real
+// board's byte lanes do, so a stick takes its pins along its length (`memFrom` and `memLand`, see `routes.ts`). The lanes of the nearer sticks carry
+// zigzags between the CPU and the bank, so every lane is as long as the longest, and a lane dives to an inner layer under the sockets before its own.
 
 export interface Pt { x: number; y: number }
 export interface HeaderGeo { name: string; x: number; y: number; cols: number; rows: number }
@@ -54,9 +55,9 @@ export interface TierGeo {
   // ---- memory VRM: a short row above the DIMM bank, its output rail runs along the pins of the sockets ----
   dvrm: Rect; dPhases: Rect[]; dSink: Rect; vdimmY: number; dRailY: number;
   dimm: DimmGeo[];
-  /** y of each DIMM's bundle (its straight run from the CPU's east edge to the socket's pin column), index = DIMM. */
-  memY: number[];
-  /** Lanes in each DIMM's bundle (`memLanes`). */
+  /** y of each memory lane on the package's east edge and on its stick's pin column, by stick and row. A row's lanes run side by side; the rows spread along the sticks. */
+  memFrom: number[][]; memLand: number[][];
+  /** Lanes per stick (`memLanes`). */
   memLanes: number;
   pcie: Rect[];
   /** M.2 connectors, top to bottom (slots m20, m21, ...). */
@@ -109,16 +110,18 @@ export const ioPort = (id: string): IoPort => IO_PORTS.find((p) => p.id === id)!
 interface Spec {
   tier: number; form: string; bd: Rect; phases: number; dphases: number; dimms: number; pcie: number; m2Y: number[]; sata: number;
   usb: number; dp: boolean; west: { slots: number[]; bios: number; sio: number }; chip: Rect; /** vertical pitch of the SATA ports (the top board packs eight) */ satap?: number;
+  /** The memory bank: its west edge, its north end under the board's top edge (the 24-pin follows the regulator's rail above it, so 915 keeps that clear of the corner's mounting hole), and how far along the sticks the lanes' rows spread. */
+  bank: { x: number; top: number; span: number };
   /** How far east of centred over the CPU the core regulator's row sits, and how far north of the usual row (the top board's six phases lean toward the memory, clear of the I/O hub's lanes, and stand higher so their runs still funnel onto the package at 45 degrees). */
   vdx?: number; vdy?: number;
 }
 
 // (every board's west edge is `BD_X`; the M.2 stack sits under the memory bank, above the chipset)
 const SPECS: Spec[] = [
-  { tier: 0, form: 'mini-ITX', bd: R(BD_X, -2150, 4700, 4000), phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(180, 1140, 400, 400) },
-  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540) },
-  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600) },
-  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240 },
+  { tier: 0, form: 'mini-ITX', bd: R(BD_X, -2150, 4700, 4000), phases: 2, dphases: 2, dimms: 1, pcie: 1, m2Y: [], sata: 2, usb: 1, dp: false, west: { slots: [], bios: 6, sio: 10 }, chip: R(180, 1140, 400, 400), bank: { x: 1100, top: 920, span: 1500 } },
+  { tier: 1, form: 'micro-ATX', bd: R(BD_X, -2350, 5000, 4800), phases: 3, dphases: 2, dimms: 2, pcie: 2, m2Y: [], sata: 3, usb: 2, dp: false, west: { slots: [5], bios: 11, sio: 15 }, chip: R(330, 1500, 540, 540), bank: { x: 1450, top: 1000, span: 1800 } },
+  { tier: 2, form: 'ATX', bd: R(BD_X, -2500, 6000, 6060), phases: 4, dphases: 3, dimms: 4, pcie: 3, m2Y: [1040, 1490], sata: 4, usb: 3, dp: true, west: { slots: [0, 8], bios: 13, sio: 17 }, chip: R(400, 2430, 600, 600), bank: { x: 1560, top: 1080, span: 1800 } },
+  { tier: 3, form: 'E-ATX', bd: R(BD_X, -2500, 6800, 6700), phases: 6, dphases: 4, dimms: 8, pcie: 4, m2Y: [1350, 1750, 2150], sata: 8, satap: 132, usb: 4, dp: true, west: { slots: [0, 6, 12], bios: 17, sio: 21 }, chip: R(300, 3067, 600, 700), vdx: 200, vdy: 240, bank: { x: 1700, top: 1180, span: 1900 } },
 ];
 
 /** Rail lengths going down the board, widest slot first (a real x16 slot's 89 mm, then shorter): every slot ends west of the CPU's DMI lanes,
@@ -128,9 +131,10 @@ const PCIE_RAIL_LEN = [2030, 1650, 1250, 850];
 /** The PCIe slot rails of a tier, an even 700 apart (the cards are 640 high, docs/GPU.md section 7), from the rear wall's slot row. */
 const PCIE_Y0 = 1100, PCIE_PITCH = 700, PCIE_X0 = IO_X + 760;
 const pcieRails = (tier: number): Rect[] => BOARD_TIERS[tier]!.pcieWidths.map((_, i) => R(PCIE_X0, PCIE_Y0 + i * PCIE_PITCH, PCIE_RAIL_LEN[i]!, 60));
-/** The memory bank's west edge: this far east of the core regulator's east end, and never nearer the socket than `BANK_X_MIN`. Its north end sits
- * `BANK_TOP` under the board's top edge: the 24-pin follows the regulator's rail, and this keeps it clear of the corner's mounting hole. */
-const BANK_GAP = 90, BANK_X_MIN = 900, BANK_TOP = 920;
+/** The memory bank's west edge is at least this far east of the core regulator's east end. */
+const BANK_GAP = 90;
+/** Where the memory lanes leave the socket (its east edge), their tightest pitch at the bank, and the pitch of a lane's zigzag (`routes.ts`). */
+const MEM_X = 676, MEM_MIN = 24, TOOTH = 32;
 
 function build(s: Spec): TierGeo {
   const bd = s.bd, east = bd.x + bd.w, south = bd.y + bd.h;
@@ -140,18 +144,30 @@ function build(s: Spec): TierGeo {
   const pwm = R(vx0 - 390, vy + 110, 210, 210); // (the 120 between it and the first phase and the 60 more carry the controller's lanes to the phases)
   const vrm = R(pwm.x - 90, vy - 100, vx0 + s.phases * VRM_PITCH - (pwm.x - 90) + 20, 650);
   const vrmSink = R(vx0 - 10, vy + 18, s.phases * VRM_PITCH - 20, 170);
-  // ---- memory: one bank of sticks east of the CPU, each the length of a real DIMM, its north end `BANK_TOP` under the board's top edge
-  // (room for the memory regulator above it); every bundle runs straight east from the CPU's east edge, stacked along it ----
-  const lanes = memLanes(s.dimms), bundle = (lanes + 2) * MEM_SPACING, span = s.dimms * bundle - 2 * MEM_SPACING;
-  const X0 = Math.max(BANK_X_MIN, vrm.x + vrm.w + BANK_GAP), top0 = bd.y + BANK_TOP;
-  const dimm: DimmGeo[] = Array.from({ length: s.dimms }, (_, i) => ({ rect: R(X0 + i * DIMM_PITCH, top0, DIMM_W0, DIMM_H0) }));
-  const memY = Array.from({ length: s.dimms }, (_, i) => -span / 2 + i * bundle + ((lanes - 1) * MEM_SPACING) / 2);
+  // ---- memory: one bank of sticks east of the CPU, each the length of a real DIMM, room for the memory regulator above it; the lanes' rows stack on the
+  // CPU's east edge and spread along the sticks ----
+  const lanes = memLanes(s.dimms), n = s.dimms, X0 = Math.max(s.bank.x, vrm.x + vrm.w + BANK_GAP), top0 = bd.y + s.bank.top;
+  const dimm: DimmGeo[] = Array.from({ length: n }, (_, i) => ({ rect: R(X0 + i * DIMM_PITCH, top0, DIMM_W0, DIMM_H0) }));
+  const step = Math.max((n + 2) * MEM_SPACING, 140), mid = top0 + DIMM_H0 / 2, spread = s.bank.span / lanes;
+  // (the rows sit as near the bank's middle as the edge's 460 of pins lets them: the shorter the fan, the more room it leaves the zigzags)
+  const free = 460 - ((lanes - 1) * step + (n - 1) * MEM_SPACING) / 2, lean = Math.max(-free, Math.min(free, mid));
+  const rowOf = (r: number) => r - (lanes - 1) / 2, onPkg = (r: number) => lean + rowOf(r) * step, onBank = (r: number) => mid + rowOf(r) * spread;
+  const memFrom = Array.from({ length: n }, (_, i) => Array.from({ length: lanes }, (_, r) => MEM_SPACING * Math.floor((onPkg(r) + (i - (n - 1) / 2) * MEM_SPACING) / MEM_SPACING + 0.5)));
+  // on the bank a lane keeps room for its zigzag above it: the more length it has to make up and the less room its row's fan leaves, the taller
+  const rise = (r: number) => Math.abs(onBank(r) - onPkg(r)), most = Math.max(...Array.from({ length: lanes }, (_, r) => rise(r)));
+  const memLand = Array.from({ length: n }, () => new Array<number>(lanes).fill(0));
+  for (let r = 0; r < lanes; r++) {
+    const teeth = Math.max(1, Math.floor((X0 - 30 - (MEM_X + 110 + rise(r))) / TOOTH));
+    const tall = (i: number) => ((n - 1 - i) * DIMM_PITCH + 0.41 * (most - rise(r))) / (2 * teeth) + 6;
+    let y = onBank(r) - (Array.from({ length: n }, (_, i) => tall(i)).reduce((a, h) => a + h, 0) + (n - 1) * MEM_MIN) / 2;
+    for (let i = 0; i < n; i++) { y += tall(i); memLand[i]![r] = y; y += MEM_MIN; }
+  }
   // ---- memory VRM above the bank, its rail y just above the sockets' north ends ----
   const vdimmY = top0 - 130;
   const dy = vdimmY - 90 - DRAM_BH;
   const dPhases = Array.from({ length: s.dphases }, (_, i) => R(X0 + 40 + i * DRAM_PITCH, dy, DRAM_BW, DRAM_BH));
   const dvrm = R(X0, dy - 120, s.dphases * DRAM_PITCH + 80, 440);
-  const dpwmWest = s.tier < 1; // the bigger boards' regulators have the CPU's regulator close on their west side: the controller stands east of them
+  const dpwmWest = s.tier < 2; // the bigger boards' regulators have the CPU's regulator close on their west side: the controller stands east of them
   const dpwm = dpwmWest ? R(X0 - 290, dy + 150, 210, 210) : R(dvrm.x + dvrm.w + 40, dy + 150, 210, 210);
   const dSink = R(X0 + 20, dy + 18, s.dphases * DRAM_PITCH + 40, 150);
   // ---- connectors ----
@@ -205,7 +221,7 @@ function build(s: Spec): TierGeo {
     vrm, pwm, vrmPhases, vrmSink, vrmLed: { x: pwm.x + 105, y: pwm.y - 62 },
     vrmRailY: vy - 52,
     dvrm, dPhases, dSink, vdimmY, dRailY: dy - 70,
-    dimm, memY, memLanes: lanes,
+    dimm, memFrom, memLand, memLanes: lanes,
     pcie: pcieRails(s.tier),
     m2: s.m2Y.map((y) => R(1150, y, 1760, 380)),
     sata: sataRects.slice(0, s.sata),
