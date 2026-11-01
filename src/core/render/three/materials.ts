@@ -14,7 +14,8 @@ export const HOT_FROM_C = 42, HOT_FULL_C = 82;
 export interface PartState { powered: boolean; active: boolean; burnt: boolean; throttled: boolean; tempC: number }
 export interface PartLook { /** Multiplies the base colour. */ tint: number; glow: number; glowIntensity: number }
 
-const lerpHex = (a: number, b: number, t: number): number => {
+/** Mix two `0xrrggbb` colours, `t` of the way from `a` to `b`. */
+export const lerpHex = (a: number, b: number, t: number): number => {
   const ch = (s: number) => Math.round(((a >> s) & 255) + (((b >> s) & 255) - ((a >> s) & 255)) * t);
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 };

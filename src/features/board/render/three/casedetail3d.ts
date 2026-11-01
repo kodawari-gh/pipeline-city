@@ -15,7 +15,7 @@ import { geoOf, IO_PORTS } from '../layout/boardlayout';
 import { BR, CASE, CASE_BD, LAYOUT_CASE, NIC_BRACKET_X, PSU, REAR_FAN, REAR_FAN_FITTED, WALL_T } from '../layout/layout';
 import { HINGE_Z, STAND } from './card3d';
 import { FAN_MAX, FAN_ZC } from './cooler3d';
-import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tiled, wallX, type Span } from './casekit3d';
+import { brushed, decalX, FRONT, NONE, outlinePts, perforated, perfMat, ring, shapeOf, slab, tex, tiled, wallPt, wallX, type Span } from './casekit3d';
 import { TRAY_Z } from './wires3d';
 import { glowMat, light, type Spin } from './fans3d';
 
@@ -139,31 +139,116 @@ export function psuFilter(f: Frame, ex: number, bottom: number): Group {
 
 const JACK: Record<string, number> = { 'line-out': 0x8fd14f, 'line-in': 0x5aa9e6, mic: 0xf08cb0 };
 
+/** The rear I/O plate's extent: layout y (the board's I/O strip and a margin) and depth. */
+const plateSpan = (): Span => ({ y0: BR.io.y - 40, y1: BR.io.y + BR.io.h + 40, z0: BOARD_Z + 60, z1: BOARD_Z + 1240 });
+
+/** The USB-A tongue's colour by the board's generation: black USB 2 (Starter, Basic), blue USB 3 (Mainstream), red USB 3.2 (Enthusiast). */
+const USB_TONGUE = [0x16171b, 0x16171b, 0x2a6fdc, 0xc8323c];
+
 /**
- * The board's I/O shield on the outside of the rear wall, with the ports the board has where their plugs go in (`room3d.ts` and `machine3d.ts`
- * aim the LAN lead, the video cable and a key at these): three audio jacks, the network jack with its lights, HDMI and DisplayPort, the USB ports.
+ * The labels printed on a black shield, laid out as `decalX` lays a face across x (the canvas's x is depth, its y the layout y down): the port
+ * names in white beside their mouths.
  */
-export function ioShield(feat: BoardFeatures, kind: CaseKind): Group {
-  const g = tag(new Group(), 'io'), io = BR.io, x = CASE.x, dark = kind === 'gamer' || kind === 'show';
-  g.add(rectBox({ x: x - 8, y: io.y - 40, w: 8, h: io.h + 80 }, BOARD_Z + 60, BOARD_Z + 1240, mat(dark ? 0x17191f : 0xa3a9b1, { metalness: 0.7, roughness: 0.4, ...(dark ? {} : { map: tiled(brushed(), 1, 3) }) })));
-  const hole = black(), shell = steel(), blue = mat(0x2a6fdc, { roughness: 0.5 });
+function shieldPrint(tier: number, feat: BoardFeatures, s: Span) {
+  return tex(`io-print-${tier}-${feat.ethernetMbps > 0 ? 1 : 0}-${feat.usbPorts}-${feat.displayPorts}`, 512, 1024, (c, w, h) => {
+    const u = (z: number) => ((z - s.z0) / (s.z1 - s.z0)) * w, v = (y: number) => ((y - s.y0) / (s.y1 - s.y0)) * h;
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = 'rgba(232,236,242,0.9)'; c.strokeStyle = 'rgba(232,236,242,0.55)'; c.lineWidth = 2;
+    c.font = '700 20px system-ui, sans-serif'; c.textBaseline = 'middle';
+    const at = (t: string, y: number, z: number) => c.fillText(t, u(z), v(y));
+    for (const p of IO_PORTS) {
+      const y = p.y + p.h / 2;
+      if (p.kind === 'jack') at({ 'line-out': 'OUT', 'line-in': 'IN', mic: 'MIC' }[p.id] ?? '', y, BOARD_Z + 350);
+      else if (p.kind === 'rj45' && feat.ethernetMbps > 0) at(feat.ethernetMbps >= 2500 ? '2.5G LAN' : 'LAN', y, BOARD_Z + 400);
+      else if (p.kind === 'hdmi') at('HDMI', y, BOARD_Z + 570);
+      else if (p.kind === 'dp' && feat.displayPorts >= 2) at('DP', y, BOARD_Z + 570);
+      else if (p.kind === 'usb' && Number(p.id.slice(3)) < feat.usbPorts) at(tier >= 3 ? 'USB 3.2' : 'USB 3', y, BOARD_Z + 650);
+    }
+    // a frame line round the port field, as the printed shields carry
+    c.beginPath(); c.roundRect(u(BOARD_Z + 190), v(BR.io.y + 20), u(BOARD_Z + 860) - u(BOARD_Z + 190), v(BR.io.y + BR.io.h - 20) - v(BR.io.y + 20), 10); c.stroke();
+    if (tier >= 2) { at('BIOS', -1290, BOARD_Z + 380); }
+    if (tier >= 3) { at('CLR', -1220, BOARD_Z + 380); at('Wi-Fi', -540, BOARD_Z + 960); at('OPT', -430, BOARD_Z + 330); at('USB-C', -320, BOARD_Z + 640); }
+  });
+}
+
+/**
+ * The board's I/O shield on the outside of the rear wall (the plate that comes with the board), with the ports the board has where their plugs
+ * go in (`room3d.ts` and `machine3d.ts` aim the LAN lead, the video cable and a key at these). By the board's tier (skins.ts): a loose stamped
+ * steel shield on the Starter and Basic (bare steel, a folded rim, an embossed rim round each opening, EMI fingers over the USB and LAN mouths);
+ * an integrated black shield on the better boards, its labels printed in white. The ports as real ones: the audio jacks in their colour rings,
+ * the RJ45 with its latch notch, contacts and two lights, HDMI and DP in their keyed shells, USB-A with the tongue's colour by generation. The
+ * Mainstream adds a BIOS flashback button; the Enthusiast a clear-CMOS button, a USB-C, an optical out and two Wi-Fi antenna jacks (look only).
+ */
+export function ioShield(feat: BoardFeatures, tier: number): Group {
+  const g = tag(new Group(), 'io'), x = CASE.x, Z = BOARD_Z, s = plateSpan(), stamped = tier <= 1;
+  // (stamped sheet is smooth satin steel, not brushed)
+  const plateM = stamped ? mat(0xaeb4bc, { metalness: 0.65, roughness: 0.46 }) : mat(0x15171c, { metalness: 0.35, roughness: 0.5 });
+  g.add(rectBox({ x: x - 8, y: s.y0, w: 8, h: s.y1 - s.y0 }, s.z0, s.z1, plateM));
+  const hole = black(), shell = steel(), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
+  /** An embossed rim round an opening on the stamped plate (world y, depth). */
+  const rim = (y0: number, y1: number, z0: number, z1: number) => { if (stamped) g.add(boxW(x - 11, x - 8, y0 - 14, y1 + 14, z0 - 14, z1 + 14, plateM)); };
+  /** EMI fingers: springy tabs bent out over a mouth's long edges. */
+  const fingers = (y0: number, y1: number, z0: number, z1: number) => {
+    if (!stamped) return;
+    for (const zz of [z0 - 6, z1 + 6]) for (let k = 0; k < 3; k++) { const y = y0 + ((k + 0.5) * (y1 - y0)) / 3; g.add(boxW(x - 15, x - 8, y - 9, y + 9, zz - 3, zz + 3, plateM)); }
+  };
   for (const p of IO_PORTS) {
-    const cy = -(p.y + p.h / 2);
+    const cy = -(p.y + p.h / 2), ly = p.y + p.h / 2;
     if (p.kind === 'jack') {
-      g.add(drumX(x - 12, cy, BOARD_Z + 300, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, BOARD_Z + 300, 17, 8, hole));
+      rim(cy - 34, cy + 34, Z + 266, Z + 334);
+      g.add(drumX(x - 12, cy, Z + 300, 30, 8, mat(JACK[p.id] ?? 0x999999, { roughness: 0.5 })), drumX(x - 14, cy, Z + 300, 17, 8, hole), drumX(x - 13, cy, Z + 300, 9, 6, shell));
     } else if (p.kind === 'rj45') {
       if (feat.ethernetMbps <= 0) continue;
-      g.add(boxW(x - 20, x - 8, cy - 62, cy + 62, BOARD_Z + 220, BOARD_Z + 380, shell), boxW(x - 24, x - 18, cy - 50, cy + 46, BOARD_Z + 232, BOARD_Z + 368, hole));
-      for (const [dz, c] of [[-60, 0x58e08a], [60, 0xffb547]] as const) g.add(boxW(x - 22, x - 18, cy + 44, cy + 58, BOARD_Z + 300 + dz - 10, BOARD_Z + 300 + dz + 10, mat(0x111111, { emissive: c, emissiveIntensity: 0.8 })));
+      rim(cy - 62, cy + 62, Z + 220, Z + 380);
+      g.add(boxW(x - 20, x - 8, cy - 62, cy + 62, Z + 220, Z + 380, shell), boxW(x - 24, x - 18, cy - 50, cy + 46, Z + 232, Z + 368, hole));
+      // the latch notch under the mouth, the eight contacts along its top
+      g.add(boxW(x - 24, x - 18, cy - 62, cy - 48, Z + 276, Z + 324, hole));
+      for (let k = 0; k < 8; k++) g.add(boxW(x - 22, x - 19, cy + 30, cy + 42, Z + 248 + k * 15, Z + 254 + k * 15, gold));
+      for (const [dz, c] of [[-60, 0x58e08a], [60, 0xffb547]] as const) g.add(boxW(x - 22, x - 18, cy + 44, cy + 58, Z + 300 + dz - 10, Z + 300 + dz + 10, mat(0x111111, { emissive: c, emissiveIntensity: 0.8 })));
+      fingers(cy - 62, cy + 62, Z + 220, Z + 380);
     } else if (p.kind === 'hdmi' || p.kind === 'dp') {
       if (p.kind === 'dp' && feat.displayPorts < 2) continue;
-      g.add(boxW(x - 16, x - 8, cy - 58, cy + 58, BOARD_Z + 488, BOARD_Z + 552, shell), boxW(x - 20, x - 14, cy - 50, cy + 50, BOARD_Z + 496, BOARD_Z + 544, hole));
+      // the shell and its keyed mouth (HDMI's two corners cut on its inner side, DP's one), the dark inside and the tongue
+      const k = 16, z0 = Z + 488, z1 = Z + 552, y0 = ly - 58, y1 = ly + 58, a = y0 + 8, b = y1 - 8, c0 = z0 + 8, c1 = z1 - 8;
+      const mouth = p.kind === 'hdmi'
+        ? [wallPt(a + k, c0), wallPt(a, c0 + k), wallPt(a, c1), wallPt(b, c1), wallPt(b, c0 + k), wallPt(b - k, c0)]
+        : [wallPt(a + k, c0), wallPt(a, c0 + k), wallPt(a, c1), wallPt(b, c1), wallPt(b, c0)];
+      rim(cy - 58, cy + 58, z0, z1);
+      g.add(wallX(x - 16, x - 8, { y0, y1, z0, z1 }, [mouth], shell));
+      g.add(boxW(x - 12, x - 8, cy - 50, cy + 50, c0, c1, hole));
+      g.add(boxW(x - 15, x - 10, cy - 40, cy + 40, Z + 514, Z + 526, mat(0x16171b, { roughness: 0.5 })));
     } else if (p.kind === 'usb') {
       if (Number(p.id.slice(3)) >= feat.usbPorts) continue;
-      g.add(boxW(x - 16, x - 8, cy - 56, cy + 56, BOARD_Z + 572, BOARD_Z + 628, shell), boxW(x - 20, x - 14, cy - 48, cy + 48, BOARD_Z + 578, BOARD_Z + 622, hole), boxW(x - 22, x - 18, cy - 40, cy + 40, BOARD_Z + 600, BOARD_Z + 612, blue));
+      rim(cy - 56, cy + 56, Z + 572, Z + 628);
+      g.add(boxW(x - 16, x - 8, cy - 56, cy + 56, Z + 572, Z + 628, shell), boxW(x - 20, x - 14, cy - 48, cy + 48, Z + 578, Z + 622, hole));
+      g.add(boxW(x - 22, x - 18, cy - 40, cy + 40, Z + 600, Z + 612, mat(USB_TONGUE[tier] ?? 0x2a6fdc, { roughness: 0.5 })));
+      for (let k = 0; k < 4; k++) g.add(boxW(x - 23, x - 19, cy - 30 + k * 20 - 4, cy - 30 + k * 20 + 4, Z + 597, Z + 600, gold));
+      fingers(cy - 56, cy + 56, Z + 572, Z + 628);
     }
   }
+  if (stamped) {
+    // the folded rim round the stamped plate
+    for (const [y0, y1, z0, z1] of [[s.y0, s.y1, s.z0, s.z0 + 14], [s.y0, s.y1, s.z1 - 14, s.z1], [s.y0, s.y0 + 14, s.z0, s.z1], [s.y1 - 14, s.y1, s.z0, s.z1]] as const) g.add(boxW(x - 14, x - 8, -y1, -y0, z0, z1, plateM));
+  } else {
+    const print = shieldPrint(tier, feat, s);
+    if (print) g.add(decalX(x - 9, s, -1, mat(0xffffff, { map: print, transparent: true, roughness: 0.6, depthWrite: false })));
+  }
+  // the buttons and the extra jacks of the better boards (look only)
+  const button = (y: number, z: number, ring: number) => g.add(drumX(x - 12, -y, z, 26, 8, mat(ring, { roughness: 0.45 })), drumX(x - 16, -y, z, 18, 10, mat(0x1b1d22, { roughness: 0.5 })));
+  if (tier >= 2) button(-1290, Z + 300, 0x9aa3ae);
+  if (tier >= 3) {
+    button(-1220, Z + 300, 0xc8323c);
+    for (const z of [Z + 900, Z + 1160]) g.add(drumX(x - 30, 620, z, 22, 44, gold, 14), drumX(x - 50, 620, z, 13, 4, hole, 12));
+    g.add(boxW(x - 18, x - 8, 410, 450, Z + 250, Z + 290, mat(0x1b1d22, { roughness: 0.5 })), boxW(x - 20, x - 16, 418, 442, Z + 258, Z + 282, hole));
+    g.add(softBoxW(x - 16, x - 8, 300, 340, Z + 470, Z + 610, shell), softBoxW(x - 20, x - 14, 306, 334, Z + 480, Z + 600, hole));
+  }
   return g;
+}
+
+/** A box across x with its corners rounded in the wall's plane (a USB-C mouth): world y and depth, as `boxW`. */
+function softBoxW(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, m: Material): Mesh {
+  const r = Math.min(y1 - y0, z1 - z0) / 2;
+  return wallX(x0, x1, { y0: -y1, y1: -y0, z0, z1, r }, [], m);
 }
 
 // ---------------------------------------------------------------- the controls on the top

@@ -5,6 +5,7 @@ import { IO_X } from './layout/boardlayout';
 import { portProfile } from './layout/ports';
 import { HDR_PITCH, LEG_PITCH, legsOf, m2Contacts, pciePadMax, pciePadX, type IoPort } from './layout/pins';
 import type { Palette, Theme } from '@/core/render/theme';
+import { skinOf } from './skins';
 
 // Drawers for the static components of a motherboard. Everything draws in world coordinates onto one Graphics (`Ctx.g`), the text goes
 // to `Ctx.labels` (hidden when zoomed out). Passive parts use the palette (mixed toward the board colour), nothing here glows: the live
@@ -180,32 +181,34 @@ export function dimmSocket(c: Ctx, r: Rect, flip: boolean, n: number) {
     c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
     return;
   }
+  const skin = skinOf(c.tier);
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
-  box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: P.edge, lw: 6 });
+  box(g, r.x, r.y, r.w, r.h, 10, { fill: skin.slot, stroke: P.edge, lw: 6 });
   const cx = r.x + r.w / 2;
   const dataY = flip ? r.y : r.y + r.h, dir = flip ? 1 : -1; // from the data end into the housing
   box(g, cx - 24, r.y + 40, 48, r.h - 80, 6, { fill: P.dark });
   for (let k = 0; k < Math.floor((r.h - 100) / 22); k++) g.rect(cx - 40, r.y + 50 + k * 22, 9, 12).rect(cx + 31, r.y + 50 + k * 22, 9, 12);
   g.fill({ color: P.via, alpha: 0.55 });
   const ky = flip ? r.y + r.h * 0.6 : r.y + r.h * 0.4; // the key: a bar across the slot, off centre
-  g.rect(cx - 26, ky - 6, 52, 12).fill({ color: P.sub });
+  g.rect(cx - 26, ky - 6, 52, 12).fill({ color: skin.slot });
   // the pad bar: a dark strip across the data end the lanes enter (the pads themselves are drawn over the lane ends)
   box(g, r.x + 14, Math.min(dataY, dataY + dir * 62), r.w - 28, 62, 6, { fill: P.dark, stroke: P.edge, lw: 3, sa: 0.8 });
   // the latch at the far end, outside the housing, clear of the memory-voltage pad (r.x + 36)
   const fy = flip ? r.y + r.h - 2 : r.y - 24;
-  box(g, r.x + 70, fy, r.w - 86, 26, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
+  box(g, r.x + 70, fy, r.w - 86, 26, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
   g.rect(r.x + 90, flip ? fy + 8 : fy + 10, r.w - 126, 6).fill({ color: P.silk, alpha: 0.4 });
   c.labels.addChild(label('DIMM_' + (n + 1), r.x + r.w, flip ? r.y + r.h + 46 : r.y - 62, 34, c.P.silk, { anchor: [1, 0.5] }));
 }
 
 /** A PCIe slot: housing, slot opening with a key, pins, a retention latch at the end, and the staggered SMT pads along both long edges. */
 export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boolean) {
-  const { g, P } = c;
+  const { g, P } = c, skin = skinOf(c.tier);
   shadow(c, r.x, r.y, r.w, r.h, 10, 8, 0.25);
-  box(g, r.x, r.y, r.w, r.h, 10, { fill: P.sub, stroke: armor ? P.silkHi : P.edge, lw: armor ? 6 : 5, sa: armor ? 0.7 : 1 });
+  // (the steel armour round a slot: a bright rim, as the 3D builds it)
+  box(g, r.x, r.y, r.w, r.h, 10, { fill: skin.slot, stroke: armor ? '#9aa3ae' : P.edge, lw: armor ? 6 : 5, sa: armor ? 0.8 : 1 });
   g.rect(r.x + 40, r.y + 16, r.w - 90, 26).fill({ color: P.dark });
   const keyX = r.x + Math.min(r.w * 0.2, 700);
-  g.rect(keyX, r.y + 12, 18, 34).fill({ color: P.sub });
+  g.rect(keyX, r.y + 12, 18, 34).fill({ color: skin.slot });
   for (let k = 0; k < Math.floor((r.w - 110) / 20); k++) g.rect(r.x + 52 + k * 20 - 4, r.y + 20, 8, 18);
   g.fill({ color: P.via, alpha: 0.5 });
   // the pads: top row every 40 from x + 20, bottom row offset by 20 (the pins alternate sides); lanes land on the top ones
@@ -214,7 +217,7 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
     g.rect(x - 7, r.y - 11, 14, 24).rect(x + 13, r.y + r.h - 13, 14, 24);
   }
   g.fill({ color: P.via, alpha: 0.5 });
-  box(g, r.x + r.w - 6, r.y + 6, 50, r.h - 12, 8, { fill: P.panel, stroke: P.edge, lw: 4 });
+  box(g, r.x + r.w - 6, r.y + 6, 50, r.h - 12, 8, { fill: skin.latch, stroke: P.edge, lw: 4 });
   if (armor) g.rect(r.x + 14, r.y + 4, r.w - 28, 4).fill({ color: '#ffffff', alpha: c.T.dark ? 0.12 : 0.35 });
   c.labels.addChild(label(name, r.x, r.y - 36, big ? 38 : 34, P.silk));
 }
@@ -226,7 +229,7 @@ export function pcieSlot(c: Ctx, r: Rect, name: string, armor: boolean, big: boo
 export function pcieRelease(c: Ctx, r: Rect) {
   const { g, P } = c, bx = r.x + r.w + 2, by = r.y + r.h / 2 - 12, w = 40, h = 52;
   shadow(c, bx, by, w, h, 10, 9, 0.4);
-  box(g, bx, by, w, h, 10, { fill: P.panel, stroke: P.edge, lw: 4 });
+  box(g, bx, by, w, h, 10, { fill: skinOf(c.tier).latch, stroke: P.edge, lw: 4 });
   g.rect(bx + 5, by + 4, w - 10, 5).fill({ color: P.silkHi, alpha: 0.35 }); // the lit top edge
   for (let k = 0; k < 3; k++) g.rect(bx + 9, by + 21 + k * 9, w - 18, 4);
   g.fill({ color: P.silk, alpha: 0.4 });

@@ -7,6 +7,7 @@ import { IO_PORTS } from './layout/boardlayout';
 import { PKG_PIN, PKG_ROW, m2Contacts, m2Tie, pcieFeed, slotTie, xtalPads } from './layout/pins';
 import { tuneBump } from './layout/match';
 import { pchLedHousing } from './wiring/pchlive';
+import { skinOf, slotArmour } from './skins';
 import { buildBuses, mkLane, offsetLine, pointAt, vdimmEnd, vdimmStart, visibleParts, type Bus, type Lane } from './wiring/routes';
 import { makePalette, type Palette, type Theme } from '@/core/render/theme';
 import {
@@ -58,14 +59,12 @@ export const pchPlateau = (q: Rect, tier: number): Rect => { const i = tier >= 2
 /** Where the chipset heat sink is held down: two fixings on a diagonal (push pins on the plain plate, spring screws on the faceted blocks). */
 export const pchFixings = (q: Rect, tier: number): [number, number][] => { const i = tier >= 2 ? 52 : 30; return [[q.x + i, q.y + i], [q.x + q.w - i, q.y + q.h - i]]; };
 
-/** How each board tier looks beyond its geometry: the PCB colour, the trim, the armour. */
-interface Skin { tint: [string, string] | null; tintK: number; trim: number; armor: number; name: string }
-const SKINS: Skin[] = [
-  { name: 'STARTER', tint: ['#46524c', '#b5c4b8'], tintK: 0.22, trim: 0, armor: 0 },
-  { name: 'BASIC', tint: null, tintK: 0, trim: 0, armor: 0 },
-  { name: 'MAINSTREAM', tint: ['#0e4750', '#9ed3d0'], tintK: 0.2, trim: 1, armor: 1 },
-  { name: 'ENTHUSIAST', tint: ['#2a1a52', '#c0b4e6'], tintK: 0.26, trim: 2, armor: 2 },
-];
+/** The board palette of a tier: the theme's, mixed from the skin's solder mask, with the skin's silkscreen ink (skins.ts). */
+export function boardPalette(T: Theme, tier: number): Palette {
+  const skin = skinOf(tier), k = T.dark ? 0 : 1, P = makePalette(T, skin.mask[k]);
+  P.silk = skin.silk[k]; P.silkHi = mix(skin.silk[k], '#ffffff', 0.35);
+  return P;
+}
 
 /**
  * The static motherboard, built once per (theme, tier) and never touched per frame. Visual hierarchy: the working parts
@@ -75,12 +74,7 @@ const SKINS: Skin[] = [
 export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardArt {
   const geo = GEO; // the layout is set by the caller (`setLayoutTier`) before the scene is built
   const rand = rng(BOARD_SEED);
-  const P = makePalette(T);
-  const skin = SKINS[tier] ?? SKINS[1]!;
-  if (skin.tint) {
-    const tint = skin.tint[T.dark ? 0 : 1];
-    P.board = mix(P.board, tint, skin.tintK); P.edge = mix(P.edge, tint, 0.25); P.sub = mix(P.sub, tint, 0.18); P.panel = mix(P.panel, tint, 0.15);
-  }
+  const P = boardPalette(T, tier), skin = skinOf(tier);
   const tierSpec = BOARD_TIERS[tier];
   const feat = tierSpec?.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 };
   const phases = tierSpec?.vrm.phases ?? 2, ramPhases = tierSpec?.ramVrm.phases ?? 2;
@@ -130,9 +124,10 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
     stitch(c, pr, 52, 5, 0.35);
   }
 
-  // ---- the regulators' substrates go under the copper that feeds them ----
-  box(g, geo.vrm.x, geo.vrm.y, geo.vrm.w, geo.vrm.h, 28, { fill: P.sub, stroke: P.edge, lw: 6 });
-  box(g, geo.dvrm.x, geo.dvrm.y, geo.dvrm.w, geo.dvrm.h, 22, { fill: P.sub, stroke: P.edge, lw: 6 });
+  // ---- the regulators' areas under the copper that feeds them: the mask a shade deeper over the power planes, a silkscreen outline ----
+  const zone = mix(P.board, '#000000', 0.22);
+  box(g, geo.vrm.x, geo.vrm.y, geo.vrm.w, geo.vrm.h, 28, { fill: zone, stroke: P.silk, lw: 5, sa: 0.3 });
+  box(g, geo.dvrm.x, geo.dvrm.y, geo.dvrm.w, geo.dvrm.h, 22, { fill: zone, stroke: P.silk, lw: 5, sa: 0.3 });
 
   // ---- buses: base strokes (the live layer lights the active ones) and the pads they end on ----
   const buses = buildBuses();
@@ -183,7 +178,7 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
   geo.dimm.forEach((d, i) => dimmSocket(c, d.rect, d.flip, i));
 
   // ---- PCIe slots ----
-  geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, skin.armor > 0, i === 0));
+  geo.pcie.forEach((r, i) => pcieSlot(c, r, `PCIe x${BOARD_TIERS[geo.tier]!.pcieWidths[i]}${i === 0 ? ' · GPU' : ''}`, slotArmour(geo.tier, i), i === 0));
   // every other slot's supply ties into the board's plane: a tab at its latch end, a stub to a patch of copper stitched with vias
   geo.pcie.forEach((r, i) => {
     if (i === 0) return; // the x16 slot's supply arrives on the rail `pwrpcie` from the 24-pin
@@ -236,14 +231,14 @@ export function buildBoard(T: Theme, tier: number, solid?: Ctx['solid']): BoardA
       // the heat sink: its plate covers the package (the 3D plate runs on over the legs, as a real one does); a flat black plate with
       // machined grooves and two push pins (Basic), a faceted block with a raised brushed plateau and two spring screws (Mainstream, Enthusiast)
       const pl = pchPlateau(q, tier), facet = tier >= 2;
-      const plate = facet ? (tier === 3 ? '#2a2c33' : '#3a3f48') : '#15171c';
+      const plate = skin.sink;
       if (facet) {
         const k = 70;
         g.poly([q.x + k, q.y, q.x + q.w - k, q.y, q.x + q.w, q.y + k, q.x + q.w, q.y + q.h - k, q.x + q.w - k, q.y + q.h, q.x + k, q.y + q.h, q.x, q.y + q.h - k, q.x, q.y + k])
           .fill({ color: plate }).stroke({ width: 5, color: '#000000', alpha: 0.4, join: 'round' });
       } else box(g, q.x, q.y, q.w, q.h, 22, { fill: plate, stroke: '#000000', lw: 4, sa: 0.4 });
       // the plateau (the 3D raises it): machined grooves on the plain plate, brushed streaks and a printed mark on the faceted ones
-      const top = facet ? (tier === 3 ? '#7d838d' : '#5f656f') : '#1c1f25';
+      const top = skin.insert ?? mix(skin.sink, '#ffffff', 0.04);
       box(g, pl.x, pl.y, pl.w, pl.h, facet ? 16 : 10, { fill: top, stroke: '#000000', lw: 3, sa: 0.35 });
       if (facet) {
         const r = rng(BOARD_SEED + 31);

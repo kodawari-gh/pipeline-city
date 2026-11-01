@@ -61,9 +61,26 @@ export interface Palette {
   board: string; edge: string; trace: string; copper: string; via: string; sub: string; dark: string; silk: string; silkHi: string; panel: string;
 }
 
-export function makePalette(T: Theme): Palette {
+/** `mask`: the solder mask's own colour (a board tier's skin); the rest of the palette is mixed from it. */
+export function makePalette(T: Theme, mask?: string): Palette {
   const mix = (a: string, b: string, t: number) => mixHex(a, b, t);
-  const board = T.dark ? mix(T.board, T.bg, 0.3) : mix(mix(T.board, '#ffffff', 0.12), '#c9ddd0', 0.3); // the light board is a calm sage, not a teal wash
+  const board = mask ?? (T.dark ? mix(T.board, T.bg, 0.3) : mix(mix(T.board, '#ffffff', 0.12), '#c9ddd0', 0.3)); // the light board is a calm sage, not a teal wash
+  if (mask) {
+    // a real board's colours: the traces are the mask a shade lighter (copper under it), the parts black plastic whatever the mask
+    const ink = T.dark ? '#0d0f13' : '#1c1f25';
+    return {
+      board,
+      edge: mix(board, '#000000', T.dark ? 0.42 : 0.3),
+      trace: mix(mix(board, '#ffffff', T.dark ? 0.14 : 0.2), T.trace, 0.3),
+      copper: mix(board, T.pin, T.dark ? 0.32 : 0.45),
+      via: mix(board, T.pin, 0.5),
+      sub: mix(ink, board, 0.2),
+      dark: mix(board, '#000000', 0.62),
+      silk: mix(board, T.ink, T.dark ? 0.3 : 0.55),
+      silkHi: mix(board, T.ink, T.dark ? 0.5 : 0.75),
+      panel: mix(ink, board, 0.28),
+    };
+  }
   return {
     board,
     edge: mix(board, T.line, T.dark ? 0.9 : 0.55),

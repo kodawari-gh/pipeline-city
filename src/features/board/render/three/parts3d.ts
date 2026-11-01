@@ -7,6 +7,7 @@ import { drum, instanced, paint, place, rectBox, softBox, type RectLike } from '
 import { mat } from '@/core/render/three/materials';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { pchFixings, pchPlateau } from '../boardArt';
+import { hexNum, skinOf } from '../skins';
 import { brushed, grow, NONE, outlinePts, shapeOf, slab, tiled } from './casekit3d';
 
 /** Stand a rect up from depth z0 to z1, its top wearing the 2D drawing of that rect (`bevel` rounds a moulded body). */
@@ -63,14 +64,14 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
   const facet = tier >= 2, s = grow(q, PCH_OVER), pad = Z + 34, top = Z + (facet ? 150 : 112);
   // the package under it (its sides show in the shadow gap) and the thermal pad's edge
   g.add(rectBox(q, Z, pad - 4, mat(0x0c0d10, { roughness: 0.6 })), rectBox(grow(q, -16), pad - 4, pad, mat(0x8e98a8, { roughness: 0.85 })));
-  const body = facet
-    ? mat(tier === 3 ? 0x2a2c33 : 0x3a3f48, { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 2, 2) })
-    : mat(0x15171c, { metalness: 0.35, roughness: 0.55 });
+  const sk = skinOf(tier), body = facet
+    ? mat(hexNum(sk.sink), { metalness: 0.55, roughness: 0.42, map: tiled(brushed(), 2, 2) })
+    : mat(hexNum(sk.sink), { metalness: 0.35, roughness: 0.55 });
   // (the chamfers stay clear of the corner legs' tips: a leg row starts 30 in from the package's corner and its legs reach 22 out)
   const cut = 64;
   g.add(slab(shapeOf(outlinePts(s, facet ? 0 : 24, facet ? [cut, cut, cut, cut] : NONE)), pad, top, body, facet ? 10 : 8));
   const pl = pchPlateau(q, tier);
-  raise(g, pl, top - 4, top + (facet ? 38 : 14), facet ? mat(tier === 3 ? 0x7d838d : 0x5f656f, { metalness: 0.6, roughness: 0.42 }) : body, facet ? 8 : 4);
+  raise(g, pl, top - 4, top + (facet ? 38 : 14), sk.insert ? mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.42 }) : body, facet ? 8 : 4);
   for (const [x, y] of pchFixings(q, tier)) {
     if (facet) {
       // a spring screw: the coil round the shank under the head
@@ -80,7 +81,7 @@ export function chipset(q: RectLike, tier: number, raise: Raise): { root: Group;
   }
   let glow: MeshStandardMaterial | null = null;
   if (tier === 3) {
-    glow = mat(0x1a1430, { emissive: 0x9a7cff, emissiveIntensity: 0.9, roughness: 0.4 });
+    glow = mat(0x1a1430, { emissive: hexNum(sk.accent), emissiveIntensity: 0.9, roughness: 0.4 });
     g.add(rectBox({ x: s.x + 110, y: s.y + s.h - 3, w: s.w - 220, h: 8 }, pad + 30, top - 30, glow));
   }
   return { root: g, glow };

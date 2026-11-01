@@ -37,8 +37,11 @@ function canTop() {
   });
 }
 
-/** Build the parts the board drawing reported. `socketEmpty`: the CPU socket's contacts show (a CPU covers them). */
-export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Group {
+/**
+ * Build the parts the board drawing reported. `socketEmpty`: the CPU socket's contacts show (a CPU covers them). `capSleeve`: the cheap boards'
+ * electrolytic caps, taller, in a PVC sleeve of this colour; null: the better boards' solid polymer caps, bare aluminium cans (skins.ts).
+ */
+export function buildSolids(solids: readonly Solid[], socketEmpty: boolean, capSleeve: string | null = null): Group {
   const out = new Group();
   const caps: Item[] = [], capTops: Item[] = [], bands: Item[] = [], bodies: Item[] = [], ends: Item[] = [], legs: Item[] = [], pins: Item[] = [], lga: Item[] = [];
   const washers: Item[] = [], heads: Item[] = [];
@@ -46,7 +49,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Gro
     const y = -s.y;
     switch (s.kind) {
       case 'cap': {
-        const h = canHeight(s.r);
+        const h = canHeight(s.r) * (capSleeve ? 1.3 : 1);
         caps.push({ x: s.x, y, z: BOARD_Z + h / 2, sx: s.r, sy: s.r, sz: h });
         capTops.push({ x: s.x, y, z: BOARD_Z + h + 2, sx: s.r * 0.93, sy: s.r * 0.93, sz: 5 });
         bands.push({ x: s.x, y, z: BOARD_Z + h / 2 + 4, sx: s.r * 1.012, sy: s.r * 1.012, sz: h - 10 });
@@ -75,7 +78,7 @@ export function buildSolids(solids: readonly Solid[], socketEmpty: boolean): Gro
   // (satin: the legs and pins sit right under the lamp, mirror metal flares white there)
   const tinned = mat(0xc2c8d0, { metalness: 0.75, roughness: 0.42 }), gold = mat(0xd9b25e, { metalness: 0.9, roughness: 0.34 });
   const add = (items: Item[], g: BufferGeometry, m: ReturnType<typeof mat>) => { if (items.length) out.add(instanced(g, m, items)); };
-  add(caps, can, mat(0x1d2433, { roughness: 0.35, metalness: 0.25 }));
+  add(caps, can, capSleeve ? mat(parseInt(capSleeve.slice(1), 16), { roughness: 0.32 }) : mat(0x7c838d, { metalness: 0.6, roughness: 0.45 }));
   // (satin, as the coin cell's: a mirror top flares white under the lamp up close)
   add(capTops, can, mat(0xffffff, { map: canTop(), metalness: 0.65, roughness: 0.46 }));
   // the polarity stripe printed down the sleeve: a sliver of a slightly larger can

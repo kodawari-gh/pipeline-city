@@ -101,15 +101,15 @@ function chipFace(): Texture | null {
 
 // ------------------------------------------------------------------ the socket
 /** A memory socket over its 2D rect: the housing with its groove, the gold contacts down in it, the key, and a latch at each end (open when empty). */
-export function dimmSlot(r: RectLike, empty: boolean): { housing: Group; latches: Group } {
+export function dimmSlot(r: RectLike, empty: boolean, tone = 0x1a1d24, latchTone = 0x2c3242): { housing: Group; latches: Group } {
   const cx = r.x + r.w / 2, housing = new Group(), latches = new Group();
-  const body = mat(0x1a1d24, { roughness: 0.55 }), dark = mat(0x07080b, { roughness: 0.8 }), gold = mat(0xd9b25e, { metalness: 1, roughness: 0.25 });
+  const body = mat(tone, { roughness: 0.55 }), dark = mat(0x07080b, { roughness: 0.8 }), gold = mat(0xd9b25e, { metalness: 1, roughness: 0.25 });
   housing.add(softBox({ x: cx - SLOT_W / 2, y: r.y, w: SLOT_W, h: r.h }, BOARD_Z, TOP, body, 10));
   housing.add(rectBox({ x: cx - 9, y: r.y + 18, w: 18, h: r.h - 36 }, TOP - 30, TOP + 1, dark));
   for (const s of [-1, 1]) housing.add(rectBox({ x: cx + s * 7 - 2, y: r.y + 24, w: 4, h: r.h - 48 }, TOP - 24, TOP - 6, gold));
   housing.add(rectBox({ x: cx - 9, y: r.y + r.h * 0.42, w: 18, h: 12 }, TOP - 30, TOP - 2, body));
   // the latches: a lever on a pivot at each end of the housing, its hook over the stick's end notch when closed
-  const latchM = mat(0x2c3242, { roughness: 0.5 }), open = empty ? 0.5 : 0;
+  const latchM = mat(latchTone, { roughness: 0.5 }), open = empty ? 0.5 : 0;
   for (const end of [-1, 1] as const) {
     const pivot = new Group(), hy = end < 0 ? r.y : r.y + r.h;
     pivot.position.set(cx, -hy, BOARD_Z);

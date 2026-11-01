@@ -19,7 +19,7 @@ import { builtinTheme, type Theme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
 import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
-import { PALETTE, PartSkin, mat, type PartState } from '@/core/render/three/materials';
+import { PALETTE, PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -34,6 +34,7 @@ import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, DIE, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
   LAYOUT_CASE, MONITOR_POWER, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK,
 } from '../layout/layout';
+import { IO_PORTS } from '../layout/boardlayout';
 import { assignLeads } from '../../sim/cables';
 import { buildBoard } from '../boardArt';
 import type { Solid } from '../boardParts';
@@ -50,6 +51,7 @@ import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
 import { GROMMETS, ioShield, type GrommetStyle } from './casedetail3d';
 import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
+import { hexNum, skinOf, slotArmour } from '../skins';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
@@ -186,8 +188,8 @@ export class Machine3D {
     }
     // the fan hub
     shell.add(rectBox(FAN_HUB, CASE_Z + 70, CASE_Z + 400, mat(cm.inner, { roughness: 0.8 })));
-    // the board's I/O shield in the rear wall, with the ports the board has
-    shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, kind));
+    // the board's I/O shield in the rear wall, with the ports the board has, in the board's style
+    shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, GEO.tier));
     this.root.add(shell, cm.door);
     this.grommets = GROMMETS[kind];
     // the side panel opens (casedoor.ts) from the board view in, for a drag or a tutorial target inside, or on a click on it (`toggleDoor`)
@@ -247,34 +249,57 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ board
   private buildBoard(s: Snapshot | null) {
-    const T = this.T, slot = mat(0x1a1d24, { roughness: 0.5 }), chip = mat(0x14161b, { roughness: 0.5 });
+    // the tier's skin (skins.ts): the slots' plastic, the sinks' finish, the mask the board's edge shows
+    const T = this.T, sk = skinOf(GEO.tier), slot = mat(hexNum(sk.slot), { roughness: 0.5 }), socket = mat(0x1a1d24, { roughness: 0.5 }), chip = mat(0x14161b, { roughness: 0.5 });
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
     const emptyId = (id: string) => (filled.has(id) ? undefined : id);
     // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in; while it draws, the
     // drawers report the parts they could stand up (`Solid`)
     const solids: Solid[] = [];
     const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root);
-    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(0x0a1222, { roughness: 0.6 })), 'board'));
+    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 })), 'board'));
     tag(this.surface(this.root, art, BD, BOARD_Z, LV_BOARD).root, 'board');
-    // the rear I/O cover: a dark moulded shroud, vents across its face, an accent line down its inner edge that glows with the fans
-    const io = tag(new Group(), 'io'), ir = GEO.io, line = glowMat(PALETTE.rgb, 0x2a2550);
-    // (it starts inside the rear wall: the wall and the I/O shield are the outside)
-    io.add(softBox({ ...ir, x: ir.x + WALL_T, w: ir.w - WALL_T }, BOARD_Z, BOARD_Z + 1300, mat(0x1e2230, { metalness: 0.45, roughness: 0.4 }), 40));
-    const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
-    for (let y = ir.y + 140; y < ir.y + ir.h - 140; y += 64) vents.push({ x: ir.x + ir.w * 0.42, y: -y, z: BOARD_Z + 1300, sx: ir.w * 0.5, sy: 24, sz: 10 });
-    io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07080c, { roughness: 0.7 }), vents));
-    io.add(seeThrough(rectBox({ x: ir.x + ir.w - 22, y: ir.y + 80, w: 12, h: ir.h - 160 }, BOARD_Z + 1230, BOARD_Z + 1302, line)));
-    this.spin(light(line));
+    // the rear I/O inside the case, by the skin (skins.ts); it starts inside the rear wall (the wall and the I/O shield are the outside)
+    const io = tag(new Group(), 'io'), ir = GEO.io, x0 = ir.x + WALL_T;
+    if (sk.ioCover === 'bare') {
+      // the Starter's connectors stand bare: steel shells (USB, LAN, video) with their solder tabs, and the black audio block
+      const feat = s?.board.features ?? { ethernetMbps: 0, usbPorts: 1, displayPorts: 1 }, steelM = mat(0x9aa1aa, { metalness: 0.65, roughness: 0.45 }), plastic = mat(0x111215, { roughness: 0.55 });
+      const jacks = IO_PORTS.filter((p) => p.kind === 'jack'), y0 = Math.min(...jacks.map((p) => p.y)), y1 = Math.max(...jacks.map((p) => p.y + p.h));
+      io.add(softBox({ x: x0, y: y0, w: 250 - WALL_T + 30, h: y1 - y0 }, BOARD_Z, BOARD_Z + 360, plastic, 10));
+      for (const p of IO_PORTS) {
+        const h = p.kind === 'rj45' ? 400 : p.kind === 'usb' ? 650 : p.kind === 'hdmi' || p.kind === 'dp' ? 580 : 0;
+        const fitted = p.kind === 'rj45' ? feat.ethernetMbps > 0 : p.kind === 'usb' ? Number(p.id.slice(3)) < feat.usbPorts : p.kind === 'dp' ? feat.displayPorts >= 2 : p.kind === 'hdmi';
+        if (!h || !fitted) continue;
+        const r = { x: x0, y: p.y, w: p.x + p.w - x0, h: p.h };
+        io.add(softBox(r, BOARD_Z, BOARD_Z + h, steelM, 6));
+        for (const ty of [r.y + 10, r.y + r.h - 22]) io.add(rectBox({ x: r.x + r.w - 30, y: ty, w: 24, h: 12 }, BOARD_Z, BOARD_Z + 30, steelM));
+      }
+    } else {
+      // a moulded cover over them, as high as the tallest port stack: plain (Basic: black; Mainstream: a teal line down its inner edge), or
+      // the Enthusiast's armour, a brushed silver plate with chamfered corners on top and a lit line that glows with the fans
+      const armour = sk.ioCover === 'armour', H = BOARD_Z + 720, body = { ...ir, x: x0, w: ir.w - WALL_T };
+      io.add(softBox(body, BOARD_Z, H, mat(hexNum(sk.sink), { metalness: 0.4, roughness: 0.48 }), 30));
+      const vents: { x: number; y: number; z: number; sx: number; sy: number; sz: number }[] = [];
+      for (let y = ir.y + 140; y < ir.y + ir.h * (armour ? 0.3 : 1) - 140; y += 64) vents.push({ x: x0 + body.w * 0.45, y: -y, z: H, sx: body.w * 0.5, sy: 24, sz: 10 });
+      io.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07080c, { roughness: 0.7 }), vents));
+      if (armour) {
+        const plate = { x: x0 + 24, y: ir.y + ir.h * 0.3, w: body.w - 48, h: ir.h * 0.7 - 60 };
+        io.add(slab(shapeOf(outlinePts(plate, 0, [60, 60, 60, 60])), H - 4, H + 26, mat(hexNum(sk.insert ?? '#7d838d'), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 1, 6) }), 6));
+        const line = glowMat(hexNum(sk.accent), 0x2a2550);
+        io.add(seeThrough(rectBox({ x: x0 + body.w - 22, y: ir.y + 80, w: 12, h: ir.h - 160 }, H - 70, H + 2, line)));
+        this.spin(light(line));
+      } else if (sk.accent && GEO.tier >= 2) io.add(rectBox({ x: x0 + body.w - 20, y: ir.y + 120, w: 8, h: ir.h - 240 }, H - 60, H + 1, mat(hexNum(sk.accent), { roughness: 0.4 })));
+    }
     this.root.add(io);
     // the sockets and connectors stand up off it, each topped with its own drawing
-    this.raised(this.root, art, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, slot, emptyId('cpu0'));
+    this.raised(this.root, art, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket, emptyId('cpu0'));
     // the memory sockets are modelled (`dimmSlot`): the stick stands in the groove; an empty one is picked by an unseen box over its 2D rect
     const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
     // the USB port: an unseen box in front of the cover, where a key is dropped
     pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
     GEO.dimm.forEach((d, i) => {
-      const id = emptyId(`dimm${i}`), s = dimmSlot(d.rect, !!id);
+      const id = emptyId(`dimm${i}`), s = dimmSlot(d.rect, !!id, hexNum(sk.slot), hexNum(sk.latch));
       this.root.add(id ? tag(s.housing, id) : s.housing, s.latches);
       if (id) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, id);
     });
@@ -314,21 +339,21 @@ export class Machine3D {
     const small = new Group();
     for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
     for (const h of GEO.hdrs) this.raised(small, art, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
-    small.add(buildSolids(solids, !filled.has('cpu0')));
+    small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
     this.root.add(small);
     this.reveal(BD, BOARD_Z, (z) => { small.visible = z > DEVICE_LOD.labels.board; });
   }
 
   /**
-   * The hardware round the sockets that the flat drawing cannot show (the memory sockets' latches are `dimmSlot`'s): a steel armour round each
-   * PCIe slot with its retention latch at the far end, and the CPU socket's load frame and lever.
+   * The hardware round the sockets that the flat drawing cannot show (the memory sockets' latches are `dimmSlot`'s): a steel armour round the
+   * PCIe slots the skin armours (`slotArmour`), the retention latch at each slot's far end, and the CPU socket's load frame and lever.
    */
   private buildSlots() {
-    const latchM = mat(0x30364a, { roughness: 0.5 }), steel = mat(0x5d636d, { metalness: 0.7, roughness: 0.45 });
-    PCIE_RAILS.forEach((r) => {
-      // the armour: a thin steel wall round the slot's sides, a little proud of it; the latch stands at the east end
+    const sk = skinOf(GEO.tier), latchM = mat(hexNum(sk.latch), { roughness: 0.5 }), steel = mat(0x8a929c, { metalness: 0.75, roughness: 0.38, map: tiled(brushed(), 10, 1) });
+    PCIE_RAILS.forEach((r, i) => {
+      // the armour: a thin steel wall round the slot's sides, a little proud of it, its top edge rolled; the latch stands at the east end
       const t = 10, z0 = BOARD_Z + 10, z1 = BOARD_Z + 152;
-      for (const s of [{ x: r.x - t, y: r.y - t, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y + r.h, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y, w: t, h: r.h }]) this.root.add(rectBox(s, z0, z1, steel));
+      if (slotArmour(GEO.tier, i)) for (const s of [{ x: r.x - t, y: r.y - t, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y + r.h, w: r.w + 2 * t, h: t }, { x: r.x - t, y: r.y, w: t, h: r.h }]) this.root.add(softBox(s, z0, z1, steel, 4));
       this.root.add(softBox({ x: r.x + r.w, y: r.y - 16, w: 70, h: r.h + 32 }, BOARD_Z, BOARD_Z + 190, latchM, 10));
       this.root.add(rectBox({ x: r.x + r.w + 44, y: r.y - 16, w: 26, h: r.h + 32 }, BOARD_Z + 190, BOARD_Z + 240, latchM));
     });
@@ -473,11 +498,12 @@ export class Machine3D {
         this.obstacles.push(g);
         // as a real regulator sink: a solid anodised block on a thermal pad over the power stages, chamfered at its ends, a brushed plate on its
         // face toward the socket, the drawing's fin rails (`vrmSinkArt`) machined out of its top (taller and fewer on the big sink)
-        const base = BOARD_Z + 180, body = base + 190, top = BOARD_Z + (big ? 720 : 560);
-        const anod = mat(0x2c3038, { metalness: 0.5, roughness: 0.46, map: tiled(brushed(), 6, 1) });
+        // (in the board's finish, as the maker would match it: skins.ts)
+        const sk = skinOf(GEO.tier), base = BOARD_Z + 180, body = base + 190, top = BOARD_Z + (big ? 720 : 560);
+        const anod = mat(hexNum(sk.sink), { metalness: 0.5, roughness: 0.46, map: tiled(brushed(), 6, 1) });
         g.add(rectBox({ x: r.x + 14, y: r.y + 14, w: r.w - 28, h: r.h - 28 }, base - 8, base, mat(0x8e98a8, { roughness: 0.85 })));
         g.add(slab(shapeOf(outlinePts(r, 0, [44, 44, 44, 44])), base, body, anod, 8));
-        g.add(rectBox({ x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 }, base + 34, body - 30, mat(0x9aa1ab, { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
+        if (sk.insert) g.add(rectBox({ x: r.x + 60, y: r.y + r.h - 2, w: r.w - 120, h: 6 }, base + 34, body - 30, mat(hexNum(sk.insert), { metalness: 0.6, roughness: 0.38, map: tiled(brushed(), 8, 1) })));
         for (const f of p.fins ?? []) { const t = Math.max(12, f.h * 0.5); g.add(softBox({ x: f.x + 20, y: f.y + (f.h - t) / 2, w: f.w - 40, h: t }, body - 10, top, anod, 6)); }
         if (p.pipe) {
           const px = p.pipe.x + p.pipe.w / 2, cu = mat(0xb87a4a, { metalness: 0.8, roughness: 0.36 }), ya = -(p.pipe.y + 20), yb = -(p.pipe.y + p.pipe.h - 20);
