@@ -577,7 +577,7 @@ export abstract class EngineBase implements PipelineEngine {
    */
   protected fetchInto(s: number, pc: number): void {
     const mmu = this.core.mmu, p = this.pool;
-    if (!mmu.enabled || pc >= DEVICE_BASE) { p.fetch(this.bus, this.ramSize, s, pc); return; }
+    if (!mmu.enabled) { p.fetch(this.bus, this.ramSize, s, pc); return; }
     p.pc[s] = pc; p.fault[s] = 0; p.state[s] = 0; p.wait[s] = 0; p.op[s] = 0; p.word[s] = 0;
     const f = this.translate(pc, false, true);
     if (f) { p.fault[s] = f; p.vaddr[s] = pc; return; }

@@ -303,4 +303,16 @@ describe("faults the OS does not fix", () => {
     expect(nx.mmu.cause).toBe(VmFault.Exec);
     expect(nx.regs[6]).toBe(0x1000);
   });
+
+  // Crash 2026-11-01: a bit flip turned a jump in a job into a jump to 0xffff0010. Device space passed the MMU unchanged, the fetch read zeros and the
+  // illegal instruction threw RangeError, which ended the game instead of killing the job.
+  it.each(ENGINES)("$name: a jump into device space is an execute fault, not a crash", ({ cfg }) => {
+    const m = run(cfg, `
+      li s3, 0xffff0010
+      jalr zero, s3, 0
+      ecall`, () => undefined);
+    expect(m.mmu.cause).toBe(VmFault.Exec);
+    expect(m.regs[6]).toBe(0xffff0010 | 0);
+    expect(m.mmu.faults).toBe(1);
+  });
 });

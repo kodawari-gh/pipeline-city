@@ -107,7 +107,11 @@ export class Mmu implements Device {
     this.hit = true;
     this.walkN = 0;
     this.slot = -1;
-    if (va >= DEVICE_BASE) { this.pa = va; return 0; }
+    if (va >= DEVICE_BASE) {
+      if (exec) return VmFault.Exec; // device space holds no code: a wild jump there is the job's fault, not the machine's
+      this.pa = va;
+      return 0;
+    }
     if (va >>> VA_BITS !== 0) return VmFault.Range;
     const vpn = va >>> 8;
     let flags = 0, frame = 0;
