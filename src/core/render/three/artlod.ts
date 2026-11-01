@@ -3,7 +3,10 @@
 // each higher level splits the surface into tiles of at most `TILE_PX` and bakes only the tiles in view, when the camera comes close enough to
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
 // The baking itself is the caller's (`Bake`): this file knows only three.
-import { Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Vector3, type Material, type Object3D, type PerspectiveCamera, type Texture } from 'three';
+import {
+  Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, NoColorSpace, PlaneGeometry, Vector3, WebGLRenderTarget,
+  type Camera, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+} from 'three';
 import { anisotropy } from './geometry';
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -87,6 +90,32 @@ export function fadeTree(o: Object3D, a: number): void {
   });
 }
 
+/**
+ * Link ahead of need the programs the scene draws with: its parts as they stand, the hidden ones too (the die under its lid), and the see-through
+ * variant of each opaque material under `fades` (`fadeTree` makes it transparent: another program). A program first used in a frame holds that
+ * frame 100 ms or more on ANGLE D3D11; linked here, it links in the background (KHR_parallel_shader_compile). The scene draws into the
+ * composer's target (linear, not tone mapped), so the programs are made for a target too. A fade must hold no light: compiled against the
+ * scene, its own lights would count twice and make programs no frame uses.
+ */
+export function warmPrograms(r: WebGLRenderer, scene: Scene, cam: Camera, fades: Object3D[]): void {
+  const flip = new Set<Material>();
+  for (const f of fades) f.traverse((x) => {
+    const m = (x as Mesh).material as Material | Material[] | undefined;
+    if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
+  });
+  const was = r.getRenderTarget(), rt = new WebGLRenderTarget(1, 1);
+  r.setRenderTarget(rt);
+  try {
+    r.compile(scene, cam);
+    for (const m of flip) { m.transparent = true; m.needsUpdate = true; }
+    for (const f of fades) r.compile(f, cam, scene);
+  } finally {
+    for (const m of flip) { m.transparent = false; m.needsUpdate = true; }
+    r.setRenderTarget(was);
+    rt.dispose();
+  }
+}
+
 /** Is `o` drawn (it and every parent visible)? */
 export function shown(o: Object3D): boolean {
   for (let p: Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
@@ -132,7 +161,10 @@ let artEnv: Texture | null = null;
 /** The environment the art reflects (the scene's): set once, before the first surface bakes. */
 export function setArtEnvironment(t: Texture | null): void { artEnv = t; }
 
-/** The finish's shader helpers: the colour tests read an sRGB-ish value (hue, saturation, brightness the way the art was drawn); the height is the brightness. */
+/**
+ * The finish's shader helpers: the colour tests read an sRGB-ish value (hue, saturation, brightness the way the art was drawn); the height is the
+ * brightness of the texel as drawn (the texture holds the sRGB values: `rawSrgb`).
+ */
 const ART_GLSL = /* glsl */`
 uniform float artGloss;
 uniform float artMetal;
@@ -140,10 +172,24 @@ uniform float artShine;
 uniform float artLit;
 float artMetalK = 0.0;
 vec3 artSrgb(vec3 c) { return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
-float artHeight(vec4 t) { return dot(artSrgb(t.rgb), vec3(0.299, 0.587, 0.114)) * step(0.4, t.a); }
+float artHeight(vec4 t) { return dot(t.rgb, vec3(0.299, 0.587, 0.114)) * step(0.4, t.a); }
 `;
 
-/** The material of a sheet of art: `map` is the art, the finish comes from its colours (see `Finish`). */
+/**
+ * A canvas texture that keeps the canvas's sRGB values as they are (an RGBA8 texture, no colour space), for a material that decodes them in its
+ * shader (`DECODE_SRGB`). A canvas copied into an sRGB texture (SRGB8_ALPHA8) takes the browser's slow path: on ANGLE's D3D11 each 2048 px tile
+ * held the GPU for 200 to 300 ms.
+ */
+export function rawSrgb(cv: HTMLCanvasElement): CanvasTexture {
+  const t = new CanvasTexture(cv);
+  t.colorSpace = NoColorSpace;
+  return t;
+}
+
+/** The defines that decode a `rawSrgb` map (and emissive map) to linear in the shader, as three does for a video. */
+export const DECODE_SRGB = { DECODE_VIDEO_TEXTURE: '', DECODE_VIDEO_TEXTURE_EMISSIVE: '' };
+
+/** The material of a sheet of art: `map` is the art (`rawSrgb`), the finish comes from its colours (see `Finish`). */
 export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
     map, bumpMap: map, bumpScale: f.bump, roughness: 1, metalness: 0, alphaTest: 0.4,
@@ -152,6 +198,7 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
     // each level sits a hair above the one under it
     polygonOffset: true, polygonOffsetFactor: -1 - level, polygonOffsetUnits: -2 - 2 * level,
   });
+  m.defines = { ...DECODE_SRGB };
   m.onBeforeCompile = (sh) => {
     sh.uniforms.artGloss = { value: f.gloss };
     sh.uniforms.artMetal = { value: f.metal };
@@ -227,8 +274,7 @@ export class ArtSurface {
   }
 
   private mesh(r: Rect, cv: HTMLCanvasElement, level: number): Mesh {
-    const tex = new CanvasTexture(cv);
-    tex.colorSpace = SRGBColorSpace;
+    const tex = rawSrgb(cv);
     tex.anisotropy = anisotropy;
     const mesh = new Mesh(new PlaneGeometry(r.w, r.h), artMaterial(tex, this.o.finish ?? FINISH.board, level));
     mesh.position.set(r.x + r.w / 2, -(r.y + r.h / 2), this.z + 0.5);

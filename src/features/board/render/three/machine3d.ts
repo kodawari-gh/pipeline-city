@@ -157,6 +157,8 @@ export class Machine3D {
   /** The case's accent strip on the front rim, and whether the inside has RGB (`caseModel`). */
   private strip: MeshStandardMaterial | null = null;
   private caseRgb = true;
+  /** What fades as the camera comes in (`fadeTree`): the lids, the coolers, the spreaders, the cards (`warmPrograms`). */
+  readonly fades: Object3D[] = [];
 
   /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. */
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null) {
@@ -428,6 +430,7 @@ export class Machine3D {
         // the lid (satin nickel, as a real heat spreader) fades away over the die view's band, and the die shows through
         const ihsM = mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
         g.add(ihs);
+        this.fades.push(ihs);
         this.reveal(DIE, BOARD_Z + 200, (z) => { const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z * CPU_S); fadeTree(ihs, 1 - a); die.root.visible = a > 0.01; });
         this.skin(d.id, ihsM);
         break;
@@ -436,6 +439,7 @@ export class Machine3D {
         // the 2D cooler's look stood up (`coolerModel`); it fades out over the 2D band as the die comes in, and the loop's tubes cross the
         // board, so any close look fades them
         const m = this.model(g, coolerModel(visual));
+        this.fades.push(g);
         this.reveal(COOLER, BOARD_Z + 400, (z) => fadeTree(g, 1 - smooth(DEVICE_LOD.cooler.fade[0], DEVICE_LOD.cooler.fade[1], z)), visual === 'cooler-liquid');
         this.softSkin(d.id, ...m.skin);
         this.obstacles.push(m.root);
@@ -449,6 +453,7 @@ export class Machine3D {
         const st = ramStick(T, rs.visual, !!rs.ecc, r);
         g.add(st.root);
         for (const s of st.spins) this.spin(s);
+        this.fades.push(st.spreader);
         this.reveal(r, BOARD_Z + 200, (z) => fadeTree(st.spreader, 1 - smooth(RAM_FADE[0], RAM_FADE[1], z)));
         this.root.add(g, tag(st.hit, d.id));
         this.ram = this.ram ? union(this.ram, r) : r;
@@ -470,6 +475,7 @@ export class Machine3D {
         // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
         this.obstacles.push(c.root);
+        this.fades.push(c.root);
         this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
         this.cards.set(d.slot, c);
         this.softSkin(d.id, ...c.skin);

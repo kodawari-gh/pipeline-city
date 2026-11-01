@@ -2,7 +2,8 @@
 // each DRAM chip is a window onto the address space (`chipLayout`), a grid of 256-byte pages, each cell in its owner's colour, stronger the fuller
 // the page is (`pageCells`), and the row open in each bank is outlined. Each chip's map is painted on a canvas that textures the chip's east face
 // (`Stick.mapFaces`), the face the camera leans to read; it is painted again only when the memory or its regions change.
-import { CanvasTexture, NearestFilter, SRGBColorSpace, type Mesh, type MeshBasicMaterial } from 'three';
+import { NearestFilter, type CanvasTexture, type Mesh, type MeshBasicMaterial } from 'three';
+import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import type { RamMap } from '@/features/cpu/sim/pipesnap';
 import { PAGE, chipLayout, ownerMap, pageCells, regionColor, type ChipSlot, type Stick } from '@/features/memory/render/ramlayout';
 import { mix } from '@/core/render/ink';
@@ -68,11 +69,12 @@ export class RamMap3D {
         f.tex?.dispose();
         f.canvas = document.createElement('canvas');
         f.canvas.width = w; f.canvas.height = h;
-        f.tex = new CanvasTexture(f.canvas);
-        f.tex.colorSpace = SRGBColorSpace;
+        f.tex = rawSrgb(f.canvas);
         f.tex.magFilter = NearestFilter;
-        (f.mesh.material as MeshBasicMaterial).map = f.tex;
-        (f.mesh.material as MeshBasicMaterial).needsUpdate = true;
+        const m = f.mesh.material as MeshBasicMaterial;
+        m.map = f.tex;
+        m.defines = { ...DECODE_SRGB };
+        m.needsUpdate = true;
       }
     });
   }

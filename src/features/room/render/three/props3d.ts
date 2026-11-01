@@ -2,12 +2,13 @@
 // standby screen, the digital clock, the mug with its steam, the plant on the sill, the keyboard and mouse, and the city seen through the window.
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  BackSide, CanvasTexture, Color, CylinderGeometry, DodecahedronGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SRGBColorSpace,
+  BackSide, Color, CylinderGeometry, DodecahedronGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial,
   SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, type Texture, BoxGeometry, ConeGeometry,
 } from 'three';
 import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
+import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 
 type V3 = [number, number, number];
 
@@ -68,11 +69,10 @@ export class Monitor {
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas');
       this.canvas.width = 1280; this.canvas.height = 720;
-      this.tex = new CanvasTexture(this.canvas);
-      this.tex.colorSpace = SRGBColorSpace;
+      this.tex = rawSrgb(this.canvas);
       this.tex.anisotropy = anisotropy;
     }
-    const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), new MeshBasicMaterial({ map: this.tex, toneMapped: false }));
+    const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), Object.assign(new MeshBasicMaterial({ map: this.tex, toneMapped: false }), { defines: { ...DECODE_SRGB } }));
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);
     R.add(face);
   }
@@ -122,9 +122,9 @@ export class DigitalClock {
     this.root.add(rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x121212, { roughness: 0.3 })));
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas'); this.canvas.width = 512; this.canvas.height = 160;
-      this.tex = new CanvasTexture(this.canvas); this.tex.colorSpace = SRGBColorSpace;
+      this.tex = rawSrgb(this.canvas);
     }
-    const face = new Mesh(new BoxGeometry(r.w - 260, r.h - 260, 2), new MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: this.tex, emissiveIntensity: 1.3 }));
+    const face = new Mesh(new BoxGeometry(r.w - 260, r.h - 260, 2), Object.assign(new MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: this.tex, emissiveIntensity: 1.3 }), { defines: { ...DECODE_SRGB } }));
     face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), 274);
     this.root.add(face);
   }

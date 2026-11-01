@@ -3,13 +3,14 @@
 // stands at the board's depth and covers the view, drawn over everything: seen flat it is the 2D lens, seen from an angle it is a sheet laid over the
 // machine.
 import { Container } from 'pixi.js';
-import { CanvasTexture, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, type PerspectiveCamera, type Scene } from 'three';
+import { Mesh, MeshBasicMaterial, PlaneGeometry, type CanvasTexture, type PerspectiveCamera, type Scene } from 'three';
 import type { Snapshot } from '@/worker/protocol';
 import { assignLeads } from '../../sim/cables';
 import { getSpec } from '../../sim/specs';
 import { airflowLens, powerLens } from '@/app/hover';
 import { cardOrigin, cardPlugs } from '@/core/render/accelart';
 import { builtinTheme } from '@/core/render/theme';
+import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { AIR_SOURCES } from '@/features/room/render/desk/airsources';
 import { AirflowLens, airflowModel } from '@/features/room/render/desk/airflow';
@@ -115,9 +116,9 @@ export class Lens3D {
     const size = `${canvas.width}x${canvas.height}`;
     if (!this.tex || this.size !== size) {
       this.tex?.dispose();
-      this.tex = new CanvasTexture(canvas);
-      this.tex.colorSpace = SRGBColorSpace;
+      this.tex = rawSrgb(canvas);
       this.mat.map = this.tex;
+      this.mat.defines = { ...DECODE_SRGB };
       this.mat.needsUpdate = true;
       this.size = size;
     }

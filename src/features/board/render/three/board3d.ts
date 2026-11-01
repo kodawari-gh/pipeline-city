@@ -24,7 +24,7 @@ import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLay
 import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { Machine3D, cablesKey, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
-import { BakeQueue, setArtEnvironment } from '@/core/render/three/artlod';
+import { BakeQueue, setArtEnvironment, warmPrograms } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -83,6 +83,7 @@ export function mountBoard3d(host: HTMLElement) {
       if (machine) { scene.remove(machine.root); machine.dispose(); }
       machine = new Machine3D(s, room.geo, bakes, chips);
       scene.add(machine.root);
+      warmPrograms(renderer, scene, camera, machine.fades);
     } else if (ck !== cabKey && s) {
       // a plug in or out: only the cables hang again
       cabKey = ck;

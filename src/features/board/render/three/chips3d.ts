@@ -3,7 +3,7 @@
 // art), fed the same snapshots, the same eased clock, and the zoom and view of the camera. Each face shows them on a plane just over its baked art:
 // the part of the face in view, drawn at the screen's density by the offscreen Pixi renderer (`drawLive`) at most 30 times a second, and only
 // while the face shows (the lid has faded, the card has swung down).
-import { CanvasTexture, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Vector3, type Object3D, type PerspectiveCamera } from 'three';
+import { Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3, type CanvasTexture, type Object3D, type PerspectiveCamera } from 'three';
 import type { Container } from 'pixi.js';
 import type { Snapshot } from '@/worker/protocol';
 import { getSpec, type CpuSpec } from '@/features/board/sim/specs';
@@ -11,7 +11,7 @@ import { cardOrigin } from '@/core/render/accelart';
 import { machineLive } from '@/core/render/fanmotor';
 import { DEVICE_LOD, TierBudget, deviceLod, seenZoom, smooth, type LodRect } from '@/core/render/lod/lod';
 import { builtinTheme } from '@/core/render/theme';
-import { screenPx, shown, type Rect } from '@/core/render/three/artlod';
+import { DECODE_SRGB, rawSrgb, screenPx, shown, type Rect } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { planOf } from '@/features/cpu/render/die/dieart';
 import { gpuParts, gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -249,9 +249,9 @@ export class Chips3D {
     const size = `${canvas.width}x${canvas.height}`;
     if (!f.tex || f.size !== size) {
       f.tex?.dispose();
-      f.tex = new CanvasTexture(canvas);
-      f.tex.colorSpace = SRGBColorSpace;
+      f.tex = rawSrgb(canvas);
       f.mat.map = f.tex;
+      f.mat.defines = { ...DECODE_SRGB };
       f.mat.needsUpdate = true;
       f.size = size;
     }
