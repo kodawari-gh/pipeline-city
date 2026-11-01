@@ -19,12 +19,15 @@ import { npuGeo, npuParts } from '@/features/npu/render/npulayout';
 import { DieView } from '@/features/cpu/render/die/diemulti';
 import { GpuView, type GpuCardScene } from '@/features/gpu/render/gpuview';
 import { NpuCardView, type NpuScene } from '@/features/npu/render/npuview';
-import { DIE } from '../layout/layout';
+import { TpmView, type TpmScene } from '@/features/tpm/render/tpmview';
+import { tpmGeo, tpmParts } from '@/features/tpm/render/tpmlayout';
+import { headerRect, tpmHeader } from '@/core/render/accelart';
+import { DIE, LAYOUT_TIER } from '../layout/layout';
 import { npuAccess, routeOnDie } from '../wiring/busmap';
 import { drawLive } from './bake';
 import { HINGE_Z } from './card3d';
 
-export type ChipKind = 'die' | 'gpu' | 'npu';
+export type ChipKind = 'die' | 'gpu' | 'npu' | 'tpm';
 
 /** The finest density a live layer is drawn at (pixels per unit: the dies' finest baked level), its widest side (pixels), its least gap between two drawings (ms). */
 const MAX_PX = 10, MAX_SIDE = 2048, FRAME_MS = 33;
@@ -88,6 +91,8 @@ export class Chips3D {
   private readonly die = new DieView(true);
   private readonly gpu = new GpuView(true);
   private readonly npu = new NpuCardView(true);
+  private readonly tpm = new TpmView();
+  private tpms = new Map<string, { visual: string; hdr: Rect }>();
   private faces: Face[] = [];
   private cpu = false;
   private cpuSpec: CpuSpec | null = null;
@@ -126,6 +131,10 @@ export class Chips3D {
     this.cards = new Map([...gpus, ...npus].map((c) => [c.slot, { visual: c.visual, origin: c.origin }]));
     this.gpu.setScene(this.T, gpus);
     this.npu.setScene(this.T, npus);
+    const hdr = tpmHeader(LAYOUT_TIER), mods: TpmScene[] = [];
+    for (const d of s?.devices ?? []) { const spec = getSpec(d.spec); if (spec?.kind === 'tpm' && hdr) mods.push({ slot: d.slot, visual: spec.visual, hdr: headerRect(hdr) }); }
+    this.tpms = new Map(mods.map((m) => [m.slot, { visual: m.visual, hdr: m.hdr }]));
+    this.tpm.setScene(this.T, mods);
     this.snap = undefined;
     this.update(s);
   }
@@ -146,6 +155,7 @@ export class Chips3D {
     this.die.update(s, false, this.t);
     this.gpu.update(s?.gpus, s?.devices, machineLive(s));
     this.npu.update(s?.npus);
+    this.tpm.update(s?.tpm);
   }
 
   /**
@@ -166,9 +176,11 @@ export class Chips3D {
     }
     // the cards: read where they lie once they have swung down
     const v = viewOn(cam, H, HINGE_Z), view = v.rect ?? EVERYWHERE;
-    const lod = { view, top: this.budget.assign([...this.gpu.candidates(view), ...this.npu.candidates(view)]) };
+    const lod = { view, top: this.budget.assign([...this.gpu.candidates(view), ...this.npu.candidates(view), ...this.tpm.candidates(view)]) };
     this.gpu.setZoom(v.zoom);
     this.npu.setZoom(v.zoom);
+    this.tpm.setZoom(v.zoom);
+    this.tpm.frame(dt, true, paused, lod);
     this.gpu.frame(dt, true, paused, lod);
     this.npu.frame(dt, true, paused, lod);
     for (const f of this.faces) this.draw(f, cam, H, dpr, now);
@@ -203,6 +215,10 @@ export class Chips3D {
       if (!this.cpuSpec) return [];
       return planOf(this.cpuSpec).blocks.filter((b) => b.kind !== 'stage').map((b) => ({ id: 'cpu.' + b.kind, rect: b.rect, min: DEVICE_LOD.die.hover }));
     }
+    if (f.kind === 'tpm') {
+      const m = f.slot ? this.tpms.get(f.slot) : undefined;
+      return m ? tpmParts(tpmGeo(m.visual, m.hdr)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: p.rect, min: p.inner ? DEVICE_LOD.tpm.hover : DEVICE_LOD.tpm.lid })) : [];
+    }
     const c = f.slot ? this.cards.get(f.slot) : undefined;
     if (!c) return [];
     if (f.kind === 'gpu') return gpuParts(gpuPlan(c.visual)).map((p) => ({ id: `${f.slot}.${p.id}`, rect: moveRect(p.rect, c.origin), min: p.inner ? DEVICE_LOD.gpu.hover : DEVICE_LOD.gpu.fan }));
@@ -210,7 +226,7 @@ export class Chips3D {
   }
 
   private viewOf(kind: ChipKind): Container {
-    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : this.npu.root;
+    return kind === 'die' ? this.die.root : kind === 'gpu' ? this.gpu.root : kind === 'tpm' ? this.tpm.root : this.npu.root;
   }
 
   /** Draw a face's live layer: the part of it in view (in its own frame: a card may still be turning), at the screen's density. */

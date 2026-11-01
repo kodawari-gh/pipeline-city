@@ -411,7 +411,12 @@ export class Machine3D {
       case 'tpm': {
         // the module on its header: a female connector over the pins, the module's PCB on it
         const r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier), art = h && this.baker(() => tpmArt(T, visual, h));
-        if (r && h && art) tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel = 0) => this.raised(parent, art, rr, z0, z1, s, undefined, LV_RAISED, bevel));
+        if (r && h && art) tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel = 0) => {
+          const top = this.raised(parent, art, rr, z0, z1, s, undefined, LV_RAISED, bevel);
+          // the module's lid: its die and its commands run on it (chips3d.ts)
+          if (rr === r) this.chips?.face(top, 'tpm', r, z1 + 2, d.slot);
+          return top;
+        });
         break;
       }
       case 'psu': {
