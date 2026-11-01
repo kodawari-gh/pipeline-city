@@ -72,7 +72,7 @@ The owner chose **room first** and the **stylised warm** look (see `LOWPOLY_STYL
 - **glTF** (`core/render/three/gltf.ts`, `models3d.ts`): a part whose `visual` or kind is in `MODEL_FILES` wears the model at `public/models/<file>` fitted to its slot's rect in place of its primitives; a model that fails to load changes nothing. No model is shipped: every part is still built from primitives.
 - **Weak GPUs**: when frames stay slower than 30 FPS (2.5 s of them after the first 5 s) the picture drops the ambient occlusion, then draws at 3/4 density (`Post.setQuality`) and stays so. Software GL (SwiftShader) runs about 1 FPS, so it says nothing of a real weak GPU; none was available.
 - **Checks** (`tools/e2e3d.mjs`): drives the game with the real pointer (install, unmount, key, cable), prints FPS, and compares the room, board and CPU views with baselines kept outside the repo (`--baseline dir`). Passes in Chromium, Firefox and WebKit (headless: 65, 47 and 28 FPS).
-- **glTF art and weak GPUs**: `tools/make-models.mjs` builds `public/models/sink-fins.glb`; the plain VRM heatsink loads it through `MODEL_FILES`. Tested on the AMD integrated GPU (`e2e3d.mjs --lowpower`): quality steps down to level 3 (no AO, no bloom, no MSAA, 0.6 density, eco live faces) and holds about 60 FPS in the room and board, about 35 in the CPU close-up.
+- **glTF art and weak GPUs**: the loader works (`MODEL_FILES` in `models3d.ts`) but no model ships; a test sink looked worse than the 2D art and was removed. Tested on the AMD integrated GPU (`e2e3d.mjs --lowpower`): quality steps down to level 3 (no AO, no bloom, no MSAA, 0.6 density, eco live faces) and holds about 60 FPS in the room and board, about 35 in the CPU close-up.
 
 ## Phased Approach
 
