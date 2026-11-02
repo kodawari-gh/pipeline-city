@@ -13,13 +13,13 @@ import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { createRenderContext } from '@/core/render/three/init';
-import { applyView, clampView, fitRect, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
+import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, WINDOW, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
@@ -98,17 +98,27 @@ export function mountBoard3d(host: HTMLElement) {
 
   // ---- camera ----
   const aspect = () => W / H;
-  // the reference's framing: front on, a little from above, the window to the drawers, the clock to the rug
+  // the reference's framing: front on, a little from above, the window to the drawers, from over the window to the desk's drawers
   const roomRect = (): Box => {
-    const g = room!.geo, x0 = g.window.x - 900, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, g.window.y) - 900;
-    return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 900 - x0, h: g.floor + 3200 - y0 };
+    const g = room!.geo, x0 = WINDOW.x - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, WINDOW.y) - 1200;
+    return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 1200 - x0, h: g.ys + 7000 - y0 };
   };
-  const overview = (): OrbitView => fitRect(roomRect(), 5000, aspect(), ROOM_ANGLE, 0.9);
+  /** A view with its eye in the room (the walls hide all outside it): a goal may narrow its fov back (`restore`), the eased view only widens. */
+  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: -3000, fovBase: ROOM_ANGLE.fov, restore });
+  /** A pan that would push the eye through a wall slides along it (one axis), or stops. */
+  const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
+    for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
+      const p = panBy(v, a, b), k = inRoom(p);
+      if (Math.abs(k.height - p.height) < 1 && Math.hypot(k.x - p.x, k.y - p.y, k.z - p.z) < 1) return k;
+    }
+    return v;
+  };
+  const overview = (): OrbitView => inRoom(fitRect(roomRect(), 5000, aspect(), ROOM_ANGLE, 0.9));
   const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
   // close enough that the cooler and the lid have faded (`DEVICE_LOD.die.fade`) and the die's names read
   const cpuView = (): OrbitView => fitRect(DIE, BOARD_Z + 200, aspect(), FLAT, 0.95);
   let view = overview(), goal = view;
-  const flyTo = (v: OrbitView) => { goal = clampView(v); };
+  const flyTo = (v: OrbitView) => { goal = inRoom(clampView(v)); };
   const flyToRoom = () => flyTo(overview());
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -173,8 +183,12 @@ export function mountBoard3d(host: HTMLElement) {
       }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-      if (drag.orbit) goal = orbitBy(goal, -dx * 0.004, dy * 0.004);
-      else { const k = view.height / H; goal = panBy(goal, -dx * k, dy * k); view = panBy(view, -dx * k, dy * k); }
+      if (drag.orbit) goal = inRoom(orbitBy(goal, -dx * 0.004, dy * 0.004));
+      else {
+        const k = view.height / H, was = goal;
+        goal = panIn(goal, -dx * k, dy * k);
+        view = { ...view, x: view.x + goal.x - was.x, y: view.y + goal.y - was.y, z: view.z + goal.z - was.z };
+      }
       return;
     }
     const id = idAt(e);
@@ -191,7 +205,9 @@ export function mountBoard3d(host: HTMLElement) {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const { nx, ny } = ndc(e);
-    goal = zoomAt(goal, Math.exp(e.deltaY * 0.0012), nx, ny, aspect());
+    // out against the walls the zoom stops: then the point under the pointer moves only as far as the zoom that was allowed
+    const z = zoomAt(goal, Math.exp(e.deltaY * 0.0012), nx, ny, aspect()), c = inRoom(z);
+    goal = c.height < z.height - 1 ? inRoom(zoomAt(goal, c.height / goal.height, nx, ny, aspect())) : c;
   }, { passive: false });
 
   /** The same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power button, a key; anything else opens its card. */
@@ -257,7 +273,7 @@ export function mountBoard3d(host: HTMLElement) {
     last = now;
     gt += dt * 1000 * speed.value;
     const s = snapshot.peek();
-    view = stepView(view, goal, dt);
+    view = inRoom(stepView(view, goal, dt), false);
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
     applyView(camera, Math.abs(lean) < 1e-4 ? view : { ...view, yaw: view.yaw + lean, z: view.z + 170 * (lean / RAM_LEAN) }, aspect());
@@ -314,15 +330,15 @@ export function mountBoard3d(host: HTMLElement) {
       }
       return at(mid.x, mid.y);
     }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
-    orbit: (yaw: number, pitch: number) => { goal = clampView(orbitBy(goal, yaw, pitch)); },
+    orbit: (yaw: number, pitch: number) => { goal = inRoom(orbitBy(goal, yaw, pitch)); },
     // the case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's
     previewCase: (c: number | null, b = c ?? 0) => { preview = c === null ? null : { board: b, case: c }; rebuild(); wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`; },
     // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above
-    lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => { view = goal = clampView({ x, y: -y, z, yaw, pitch, fov: 26, height }); },
+    lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => { view = goal = inRoom(clampView({ x, y: -y, z, yaw, pitch, fov: 26, height })); },
     toggleDoor: () => machine?.toggleDoor(),
     // the whole case from the side, turned by `yaw` and seen from `pitch` above
-    caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => { view = goal = fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin); },
+    caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => { view = goal = inRoom(fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin)); },
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
-    camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z }); } },
+    camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = inRoom(clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z })); } },
   };
 }

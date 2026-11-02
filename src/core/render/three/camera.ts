@@ -27,6 +27,41 @@ export function clampView(v: OrbitView): OrbitView {
   };
 }
 
+/** A box of the world (y up): the eye stays in it (`keepInside`). */
+export interface Room { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number }
+
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+/** How far the eye can go from the target, along its line of sight, before it leaves the room (the target is in it). */
+export function reach(v: OrbitView, r: Room): number {
+  const c = Math.cos(v.pitch), d = [Math.sin(v.yaw) * c, Math.sin(v.pitch), Math.cos(v.yaw) * c], p = [v.x, v.y, v.z];
+  const lo = [r.x0, r.y0, r.z0], hi = [r.x1, r.y1, r.z1];
+  let t = Infinity;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(d[i]!) < 1e-9) continue;
+    t = Math.min(t, ((d[i]! > 0 ? hi[i]! : lo[i]!) - p[i]!) / d[i]!);
+  }
+  return Math.max(0, t);
+}
+
+/**
+ * `v` with its eye inside the room: the walls, the floor and the ceiling then hide all that is outside. The target is first moved into the room
+ * (`z0` may be behind the eye's own limit, `targetZ0`). A room view (a fov of `fovBase` or more) widens its fov up to `fovMax` to keep the
+ * height it shows from closer; past that, or for a narrower view, the height comes down. `restore`: a widened fov goes back toward `fovBase`
+ * when the room allows it (a goal); an eased view never narrows here, so it does not jump.
+ */
+export function keepInside(v: OrbitView, r: Room, o: { targetZ0?: number; fovBase?: number; fovMax?: number; restore?: boolean } = {}): OrbitView {
+  const base = o.fovBase ?? 26, max = o.fovMax ?? 40;
+  const out = { ...v, x: clamp(v.x, r.x0, r.x1), y: clamp(v.y, r.y0, r.y1), z: clamp(v.z, o.targetZ0 ?? r.z0, r.z1) };
+  const far = reach(out, r);
+  if (out.fov >= base - 1e-6) {
+    const need = (2 * Math.atan(out.height / (2 * Math.max(1, far))) * 180) / Math.PI;
+    out.fov = o.restore ? clamp(need, base, max) : clamp(Math.max(need, out.fov), base, Math.max(max, out.fov));
+  }
+  if (distanceOf(out) > far * (1 + 1e-9)) out.height = Math.max(LIMITS.heightMin, 2 * far * Math.tan((out.fov * Math.PI) / 360));
+  return out;
+}
+
 /** The view height that fits a `w` by `h` box on a screen of this aspect, with the margin (1 fills the screen). */
 export const fitHeight = (w: number, h: number, aspect: number, margin = 0.92): number => Math.max(h, w / aspect) / margin;
 

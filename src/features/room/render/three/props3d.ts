@@ -1,5 +1,5 @@
 // The room's props in 3D, modelled on the owner's reference image (docs/LOWPOLY_STYLE.md "Look decision"): the architect lamp, the monitor with its
-// standby screen, the digital clock, the mug with its steam, the plant on the sill, the keyboard and mouse, and the city seen through the window.
+// standby screen, the digital clock, the mug with its steam, the plant on the sill and the keyboard and mouse.
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
   BackSide, Color, CylinderGeometry, DodecahedronGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial,
@@ -211,68 +211,3 @@ export function mouse(x: number, deskY: number, z: number): Mesh {
   m.scale.set(360, 210, 600); m.position.set(x, -deskY + 40, z);
   return m;
 }
-
-// ------------------------------------------------------------------ the view out of the window
-/** A low-poly city behind the window: hills, two rows of towers (the far row hazier), a tall spire tower; windows that light at night. */
-export function city(win: RectLike, horizonY: number): { root: Group; lit: MeshStandardMaterial[] } {
-  const g = new Group(), lit: MeshStandardMaterial[] = [];
-  const winTex = paint(64, 128, (c, w, h) => {
-    c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
-    for (let y = 6; y < h; y += 12) for (let x = 5; x < w; x += 11) if ((x * 7 + y * 13) % 5 < 2) { c.fillStyle = '#ffd890'; c.fillRect(x, y, 6, 7); }
-  });
-  let seed = 5;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const hill = mat(0x86ad78, { roughness: 1, flatShading: true });
-  for (let k = 0; k < 4; k++) {
-    const h = place(new Mesh(new DodecahedronGeometry(4200 + k * 900, 0), hill), false);
-    h.scale.set(1.6, 0.55, 0.6); h.position.set(win.x - 2000 + k * 4200, -horizonY - 600, -14000 - k * 500);
-    g.add(seeThrough(h));
-  }
-  const row = (z: number, base: number, color: number, n: number, hMin: number, hMax: number) => {
-    for (let k = 0; k < n; k++) {
-      const w = 900 + rnd() * 1200, h = hMin + rnd() * (hMax - hMin), x = win.x - 2600 + k * ((win.w + 5200) / n) + rnd() * 400;
-      const m = mat(color, { roughness: 0.9, emissive: new Color(0xffffff), emissiveMap: winTex, emissiveIntensity: 0 });
-      lit.push(m);
-      const b = place(new Mesh(new BoxGeometry(w, h, w * 0.8), m), false);
-      b.position.set(x, -base + h / 2, z);
-      g.add(seeThrough(b));
-    }
-  };
-  row(-11000, horizonY + 300, 0x8796ad, 9, 1400, 3800);
-  row(-7000, horizonY + 600, 0x5f6e86, 7, 700, 2400);
-  // the spire tower: three tiers and a needle
-  const tower = mat(0x6d7b92, { roughness: 0.8, emissive: new Color(0xffffff), emissiveMap: winTex, emissiveIntensity: 0 });
-  lit.push(tower);
-  const tx = win.x + win.w * 0.42;
-  [[1300, 3600], [950, 1900], [600, 1300]].reduce((y, [w, h]) => {
-    const b = place(new Mesh(new BoxGeometry(w!, h!, w!), tower), false);
-    b.position.set(tx, y + h! / 2, -9000); g.add(seeThrough(b));
-    return y + h!;
-  }, -horizonY - 400);
-  const needle = new Mesh(new ConeGeometry(110, 2000, 6), tower);
-  needle.position.set(tx, -horizonY - 400 + 6800 + 1000, -9000);
-  g.add(seeThrough(needle));
-  return { root: g, lit };
-}
-
-/** The sky behind the city: a gradient, the sun (by day) and a few low-poly clouds. */
-export function skyTexture(top: string, hor: string, day: number): Texture | null {
-  return paint(512, 512, (c, w, h) => {
-    const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, top); gr.addColorStop(1, hor);
-    c.fillStyle = gr; c.fillRect(0, 0, w, h);
-    if (day > 0.05) {
-      c.globalAlpha = day;
-      const sx = w * 0.6, sy = h * 0.36;
-      c.fillStyle = 'rgba(255,240,170,0.35)'; c.beginPath(); c.arc(sx, sy, 48, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ffe680'; c.beginPath(); c.arc(sx, sy, 34, 0, Math.PI * 2); c.fill();
-      c.fillStyle = 'rgba(255,255,255,0.92)';
-      for (const [cx, cy, s] of [[0.4, 0.42, 0.45], [0.66, 0.5, 0.35], [0.5, 0.3, 0.3]] as const) {
-        const x = cx * w, y = cy * h, k = 40 * s;
-        c.beginPath(); c.moveTo(x - 2.2 * k, y + k * 0.6); c.lineTo(x - 1.4 * k, y - k * 0.2); c.lineTo(x - 0.4 * k, y - k * 0.8); c.lineTo(x + 0.8 * k, y - k * 0.4);
-        c.lineTo(x + 1.6 * k, y + 0.1 * k); c.lineTo(x + 2.2 * k, y + k * 0.6); c.closePath(); c.fill();
-      }
-      c.globalAlpha = 1;
-    }
-  });
-}
-

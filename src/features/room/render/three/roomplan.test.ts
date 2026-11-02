@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SLAT_W, daylight, slatRuns, wallAround } from './roomplan';
+import { EAST_X, FLOOR_Y, FRONT_Z, SLAT_W, WEST_X, WINDOW, daylight, eyeRoom, slatRuns, sunDir, wallAround } from './roomplan';
 
 const HOLE = { x: 1000, y: 200, w: 1000, h: 400 };
 
@@ -25,5 +25,22 @@ describe('3D room plan', () => {
     expect(daylight(23)).toBe(0);
     expect(daylight(7)).toBeGreaterThan(0);
     expect(daylight(7)).toBeLessThan(1);
+  });
+
+  it('keeps the sun behind the back wall, high at midday and low in the west at dusk', () => {
+    for (const h of [6, 9, 12, 14.2, 18, 20.5]) expect(sunDir(h)[2]).toBeLessThan(0);
+    expect(sunDir(13)[1]).toBeGreaterThan(0.6);
+    expect(sunDir(20.5)[0]).toBeLessThan(0);
+    expect(sunDir(20.5)[1]).toBeLessThan(0.05);
+  });
+
+  it('holds the eye inside the walls, the window and the floor', () => {
+    const r = eyeRoom();
+    expect(r.x0).toBeGreaterThan(WEST_X);
+    expect(r.x1).toBeLessThan(EAST_X);
+    expect(r.y0).toBeGreaterThan(-FLOOR_Y);
+    expect(r.z0).toBeGreaterThan(0);
+    expect(r.z1).toBeLessThan(FRONT_Z);
+    expect(WINDOW.x).toBeGreaterThan(WEST_X);
   });
 });
