@@ -3,12 +3,13 @@
 // own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column; a lead
 // that is not plugged in hangs loose from its grommet with its plug at the end. The board's power and SATA sockets are modelled with their
 // cavities, the plugs seat in them.
-import { BoxGeometry, CatmullRomCurve3, Group, Mesh, Quaternion, TubeGeometry, Vector3, type Object3D, type Vector2 } from 'three';
+import { BoxGeometry, Group, Mesh, Quaternion, Vector3, type Object3D, type Vector2 } from 'three';
 import { instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { hang, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
+import { hang, naturalLength, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
+import { Sleeve } from '@/core/render/three/sleeve';
 import { BOARD_Z, CASE_Z } from '@/features/room/render/three/roomplan';
-import { braidedTube, plugBody } from './cables3d';
+import { plugBody, samplesFor, sleeveMat } from './cables3d';
 import { outlinePts, shapeOf, slab, wallPt, wallX, type Span } from './casekit3d';
 
 /** The tray's face: a grommet sits in it, a lead comes out of it. */
@@ -22,20 +23,29 @@ export interface Look { r: number; base: string; accent: string | null }
 
 const hex = (c: string): number => parseInt(c.slice(1), 16);
 
-/** A cable along settled points. */
-export function cableMesh(pts: readonly V3[], look: Look): Mesh {
-  const v = pts.map((p) => new Vector3(p[0], p[1], p[2]));
-  if (look.accent) return braidedTube(v, look.r, look.base, look.accent).mesh;
-  const curve = new CatmullRomCurve3(v, false, 'centripetal');
-  return place(new Mesh(new TubeGeometry(curve, Math.max(24, pts.length * 3), look.r, 10, false), mat(hex(look.base), { roughness: 0.55 })));
+/** A cable along settled points (several: one strand each, one mesh). */
+export function cableMesh(pts: readonly V3[] | readonly V3[][], look: Look): Mesh {
+  const paths = (Array.isArray(pts[0]![0]) ? pts : [pts]) as readonly V3[][];
+  const sl = new Sleeve(paths.length, look.r, samplesFor(Math.max(...paths.map((p) => p.length))), look.accent ? 14 : 10);
+  sl.update(paths);
+  return place(new Mesh(sl.geometry, sleeveMat(look.base, look.accent)));
 }
 
-/** One cable hung between two ends, `slack` longer than the gap (a factor) plus `extra`. */
-export function hung(a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: { slack?: number; extra?: number; stiff?: number; n?: number; lead?: number } = {}): Mesh {
-  const gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]);
-  const pts = hang({ a, b, length: gap * (o.slack ?? 1.15) + (o.extra ?? 120), r: look.r, stiff: o.stiff ?? 0.5, n: o.n ?? 26, ...env, lead: o.lead ?? look.r * 2.5 });
-  return cableMesh(pts, look);
+/**
+ * How a cable hangs between two ends: `natural` routes it (the smooth curve's length times `slack`, default 1.03: a lead combed into place),
+ * otherwise it is `slack` longer than the gap (a factor) plus `extra` (a cord that drapes).
+ */
+export interface HangOpts { natural?: boolean; handle?: number; slack?: number; extra?: number; stiff?: number; n?: number; lead?: number }
+
+/** The settled points of one cable between two ends (`HangOpts`). */
+export function hangPts(a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts = {}): V3[] {
+  const gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]), handle = o.handle ?? 1;
+  const length = o.natural ? naturalLength(a, b, handle) * (o.slack ?? 1.03) + (o.extra ?? 0) : gap * (o.slack ?? 1.15) + (o.extra ?? 120);
+  return hang({ a, b, length, r: look.r, stiff: o.stiff ?? 0.5, n: o.n ?? 26, ...env, lead: o.lead ?? look.r * 2.5, ...(o.natural ? { sag: 0.25, handle } : {}) });
 }
+
+/** One cable hung between two ends (`HangOpts`). */
+export const hung = (a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts = {}): Mesh => cableMesh(hangPts(a, b, look, env, o), look);
 
 /**
  * A lead that is not plugged in: it hangs from `a` (its grommet, its fan) and the plug lies at its free end, turned along it. `plug` builds the

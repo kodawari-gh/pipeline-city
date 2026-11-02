@@ -58,7 +58,7 @@ import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor
 import { stripModeOf } from '@/features/room/render/shell/exterior';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
 import {
-  TRAY_Z, at, atxPlug, atxSocket, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
+  TRAY_Z, at, atxPlug, atxSocket, cableMesh, dangling, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, loosePlug, sataPlug, sataPort, type Env, type Look,
 } from './wires3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -594,8 +594,7 @@ export class Machine3D {
       this.wires.add(grommet(slot, this.grommets));
       if (on('atx')) {
         const p = atxPlug(r, ACCENT(T, 'atx')), ends = fromSlot(slot, 12);
-        g.add(p.root);
-        p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('atx'), env, { slack: 1.06, extra: 50 + i * 4, stiff: 0.7, n: 20, lead: 90 })));
+        g.add(p.root, cableMesh(p.strands.map((a, i) => hangPts(a, ends[i]!, lead('atx'), env, { natural: true, stiff: 0.7, n: 20, lead: 90 })), lead('atx')));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1500, lead('atx', 64), env, () => loosePlug(r.h - 48, 150, 230, ACCENT(T, 'atx'))));
       this.wires.add(g);
     }
@@ -605,8 +604,7 @@ export class Machine3D {
       this.wires.add(grommet(slot, this.grommets));
       if (on('cpu')) {
         const p = epsPlug(r, ACCENT(T, 'cpu')), ends = fromSlot(slot, 4);
-        g.add(p.root);
-        p.strands.forEach((a, i) => g.add(hung(a, ends[i]!, lead('cpu'), env, { slack: 1.04, extra: 80, stiff: 0.75, n: 20, lead: 110 })));
+        g.add(p.root, cableMesh(p.strands.map((a, i) => hangPts(a, ends[i]!, lead('cpu'), env, { natural: true, stiff: 0.75, n: 22, lead: 110 })), lead('cpu')));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1200, lead('cpu', 44), env, () => loosePlug(r.w - 16, r.h - 16, 200, ACCENT(T, 'cpu'))));
       this.wires.add(g);
     }
@@ -615,13 +613,14 @@ export class Machine3D {
     const deals = assignLeads(cards);
     s.cables.filter((c) => isPcieKind(c.id)).forEach((c, k) => {
       const deal = deals.find((l) => l.lead === c.id), card = deal && this.cards.get(deal.slot), sock = card && deal ? card.sockets[deal.plug] : undefined;
-      const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 150 + k * 110, y: sy, w: 60, h: 220 };
+      // (the slot lies along x, as the plug's pins do: the four strands run side by side and never turn over)
+      const sy = sock ? sock.y + 240 : (PCIE_RAILS[0]?.y ?? 0) + 300 + k * 260, slot = { x: gx + 60 + k * 170, y: sy + (k % 2) * 90, w: 150, h: 60 };
       const g = tag(new Group(), 'cable.' + c.id), accent = ACCENT(T, c.id as 'pcie');
       this.wires.add(grommet(slot, this.grommets));
       if (c.connected && sock) {
         const top = sock.z + 170, ends = fromSlot(slot, 4);
         g.add(standingPlug(sock, accent, top));
-        for (let i = 0; i < 4; i++) g.add(hung({ at: [sock.x - 42 + i * 28, -sock.y, top + 2], dir: [0, 0, 1] }, ends[i]!, lead(c.id, 20), env, { slack: 1.1, extra: 300, stiff: 0.55, n: 24 }));
+        g.add(cableMesh(ends.map((e, i) => hangPts({ at: [sock.x - 42 + i * 28, -sock.y, top + 2], dir: [0, 0, 1] }, e, lead(c.id, 20), env, { natural: true, slack: 1.05, stiff: 0.6, n: 24 })), lead(c.id, 20)));
         this.unfade.push(card!.alsoFade(g));
       } else g.add(dangling(fromSlot(slot, 1)[0]!, 1300, lead(c.id, 40), env, () => loosePlug(116, 104, 200, accent)));
       this.wires.add(g);
@@ -634,7 +633,7 @@ export class Machine3D {
     for (const d of s.devices) {
       if (d.kind !== 'storage' || !d.slot.startsWith('sata')) continue;
       const i = idx(d.slot), port = GEO.sata[i], g = tag(new Group(), d.id);
-      if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, red, env, { slack: 1.15, extra: 140, stiff: 0.7, n: 18 })); }
+      if (port && sataEnds[i]) { const p = sataPlug(port); g.add(p.root, hung(p.end, sataEnds[i]!, red, env, { natural: true, slack: 1.05, stiff: 0.7, n: 18 })); }
       const drive = this.driveSockets.get(d.slot);
       if (drive) for (const [sock, look, dz] of [[drive.data, red, 0], [drive.power, black, 60]] as const) {
         const back: RopeEnd = { at: [sock[0] - 260, -(this.plan.floor - 60), cageBack(this.plan) + 30 + dz], dir: [0, 0, 1] };

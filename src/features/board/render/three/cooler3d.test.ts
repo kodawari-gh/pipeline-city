@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Mesh, TubeGeometry, Vector3 } from 'three';
+import { Box3, type Mesh, Vector3 } from 'three';
 import { radiatorSpan } from '@/features/room/render/desk/props/case';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { radiatorFit, radiatorPorts } from '../cooler';
@@ -30,10 +30,11 @@ describe('the 3D coolers', () => {
       expect(ends.length, side).toBe(2);
       const tips = radiatorPorts(r.fit).tips.map((t) => new Vector3(t[0], -t[1], barbZ(r)));
       for (const [a, b] of ends) {
-        const t = hose(a, b, { planes: [], solids: [] }).children.find((o): o is Mesh => o instanceof Mesh && o.geometry instanceof TubeGeometry)!;
-        const path = (t.geometry as TubeGeometry).parameters.path;
-        expect(path.getPointAt(0).distanceTo(new Vector3(...a.at)), side).toBeLessThan(2);
-        expect(Math.min(...tips.map((p) => p.distanceTo(path.getPointAt(1)))), side).toBeLessThan(40);
+        // the sleeve's first and last rings: their centres are the hose's ends
+        const t = hose(a, b, { planes: [], solids: [] }).children[0] as Mesh, pos = t.geometry.getAttribute('position'), ring = 15;
+        const centre = (first: number) => Array.from({ length: ring - 1 }, (_, j) => new Vector3().fromBufferAttribute(pos, first + j)).reduce((s, p) => s.add(p), new Vector3()).divideScalar(ring - 1);
+        expect(centre(0).distanceTo(new Vector3(...a.at)), side).toBeLessThan(2);
+        expect(Math.min(...tips.map((p) => p.distanceTo(centre(pos.count - ring)))), side).toBeLessThan(40);
       }
       // the barbs sit inside the radiator's depth
       expect(barbZ(r)).toBeGreaterThan(FAN_ZC - FAN_MAX / 2);

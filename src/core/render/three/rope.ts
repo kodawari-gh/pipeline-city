@@ -31,6 +31,10 @@ export interface RopeSpec {
   down?: V3;
   /** How far the straight lead out of each plug runs before the cable may bend (default one segment). */
   lead?: number;
+  /** How much of its weight pulls it (default 1): a lead combed into place holds its arcs, a loose cord sags fully. */
+  sag?: number;
+  /** The start curve's handles, in gaps (default: at least half the length): longer handles round a U-turn out of two parallel plugs. */
+  handle?: number;
 }
 
 const ITER = 420, PASSES = 10;
@@ -65,7 +69,7 @@ function settle(s: RopeSpec): V3[] {
   if (b) { pinTo(n - 1, b.at); pinTo(n - 2, add(b.at, mul(b.dir, lead))); }
   const pinAt = (i: number) => pins.find(([j]) => j === i)![1];
   // start from a smooth curve between the ends (a Hermite curve along the plug directions), or straight out and down from a free end
-  const p = new Float64Array(n * 3), k = Math.max(chord, L * 0.5);
+  const p = new Float64Array(n * 3), k = s.handle !== undefined ? chord * s.handle : Math.max(chord, L * 0.5);
   for (let i = 0; i < n; i++) {
     const t = i / (n - 1);
     if (b) {
@@ -76,7 +80,7 @@ function settle(s: RopeSpec): V3[] {
       for (let j = 0; j < 3; j++) p[i * 3 + j] = a.at[j]! + a.dir[j]! * s1 + down[j]! * s2;
     }
   }
-  const prev = p.slice(), gx = down[0] * seg * 0.012, gy = down[1] * seg * 0.012, gz = down[2] * seg * 0.012;
+  const w = seg * 0.012 * (s.sag ?? 1), prev = p.slice(), gx = down[0] * w, gy = down[1] * w, gz = down[2] * w;
   const pin = () => { for (const [i, q] of pins) for (let j = 0; j < 3; j++) p[i * 3 + j] = prev[i * 3 + j] = q[j]!; };
   // the bend limit: no joint turns more than `maxTurn` (a cable bends round, it never folds), held as a least distance between every other point
   const rest = Array.from({ length: n - 1 }, (_, i) => (pinned[i] && pinned[i + 1] ? dist(pinAt(i), pinAt(i + 1)) : seg));
@@ -150,6 +154,22 @@ function outOf(p: Float64Array, o: number, bx: Solid, r: number): void {
     if (hi - q < gap) { gap = hi - q; best = j; to = hi; }
   }
   p[o + best] = to;
+}
+
+/**
+ * The length a routed cable needs between two ends: the smooth curve that leaves each end along its plug (the Hermite curve `settle` starts
+ * from, its handles `handle` gaps long). A cable this long runs in clean arcs; more slack has to fold somewhere.
+ */
+export function naturalLength(a: RopeEnd, b: RopeEnd, handle = 1, steps = 64): number {
+  const k = dist(a.at, b.at) * handle;
+  let len = 0, prev = a.at;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps, h00 = 2 * t ** 3 - 3 * t ** 2 + 1, h10 = t ** 3 - 2 * t ** 2 + t, h01 = -2 * t ** 3 + 3 * t ** 2, h11 = t ** 3 - t ** 2;
+    const q = [0, 1, 2].map((j) => h00 * a.at[j]! + h10 * a.dir[j]! * k + h01 * b.at[j]! - h11 * b.dir[j]! * k) as V3;
+    len += dist(prev, q);
+    prev = q;
+  }
+  return len;
 }
 
 /** The length of a polyline. */
