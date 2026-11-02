@@ -49,4 +49,11 @@ describe('ShadowCache.scan', () => {
     rotor.rotation.z = 1;
     expect(at(6000)).toBe(false);
   });
+  it('moves a live mesh (its vertices change, its matrix does not) on every scan', () => {
+    const { still, at, movers } = setup();
+    still.userData.live = true;
+    expect(at(6000)).toBe(true);
+    expect(at(6016)).toBe(true);
+    expect(movers()).toEqual([still]);
+  });
 });

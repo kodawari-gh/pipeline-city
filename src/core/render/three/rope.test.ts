@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dist, hang, lengthOf, type V3 } from './rope';
+import { Rope, dist, hang, lengthOf, type V3 } from './rope';
 
 const A: V3 = [0, 0, 0], B: V3 = [1000, 0, 0];
 
@@ -62,5 +62,50 @@ describe('a hanging cable', () => {
     expect(hang(spec)).toEqual(hang(spec));
     // a stiff hose keeps its length too
     expect(Math.abs(lengthOf(hang(spec)) - 1700) / 1700).toBeLessThan(0.05);
+  });
+});
+
+describe('a held cable (a live rope)', () => {
+  const spec = { a: { at: A, dir: [0, 0, 1] as V3 }, b: { at: B, dir: [-1, 0, 0] as V3 }, length: 1500, r: 10, stiff: 0.5, n: 20 };
+
+  it('comes to the same curve as `hang` over the same steps', () => {
+    const rope = new Rope(spec);
+    rope.step(420);
+    expect(rope.points()).toEqual(hang(spec));
+  });
+
+  it('keeps its pins on its ends as they move, and its length', () => {
+    const rope = new Rope(spec, { live: true });
+    for (let f = 1; f <= 60; f++) {
+      const b: V3 = [1000 - f * 8, f * 5, f * 3];
+      rope.setEnds(spec.a, { at: b, dir: [-1, 0, 0] });
+      rope.step(4);
+      const p = rope.points();
+      expect(p[0]).toEqual(A);
+      expect(p[p.length - 1]).toEqual(b);
+    }
+    rope.step(600);
+    expect(Math.abs(lengthOf(rope.points()) - rope.length) / rope.length).toBeLessThan(0.05);
+  });
+
+  it('lets its free end fall below the fixed one, its tip running along the cable', () => {
+    const rope = new Rope(spec, { live: true, start: hang(spec) });
+    rope.setEnds(spec.a, null);
+    expect(rope.resting).toBe(false);
+    rope.step(1000);
+    const tip = rope.tip();
+    expect(tip.at[1]).toBeLessThan(-1000);
+    expect(tip.dir[1]).toBeLessThan(-0.8);
+    expect(dist(tip.at, A)).toBeLessThan(rope.length * 1.02);
+  });
+
+  it('starts from the points it is given', () => {
+    const start = hang(spec), rope = new Rope(spec, { start });
+    expect(rope.points()).toEqual(start);
+    // ends that do not move leave it at rest once it has settled
+    const cord = new Rope({ a: spec.a, b: null, length: 800 });
+    expect(cord.step(2000)).toBe(true);
+    cord.setEnds(spec.a, null);
+    expect(cord.resting).toBe(true);
   });
 });

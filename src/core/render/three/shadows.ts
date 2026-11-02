@@ -47,7 +47,8 @@ export class ShadowCache {
 
   /**
    * After a frame is drawn (every world matrix set): which casters moved, showed or hid. A spinning part (`userData.spin`, a fan's rotor)
-   * is left out: it would move every frame. Returns whether any did, so the maps redraw for the next frame.
+   * is left out: it would move every frame. A mesh whose vertices move under a still matrix (`userData.live`, a held cable) moves on every
+   * scan. Returns whether any did, so the maps redraw for the next frame.
    */
   scan(root: Object3D, now: number): boolean {
     const { seen, next } = this;
@@ -60,7 +61,7 @@ export class ShadowCache {
         const h = printOf(o), was = seen.get(o);
         next.set(o, h);
         if (was === undefined) added++;
-        if (was !== h) fresh.push(o);
+        if (was !== h || o.userData.live) fresh.push(o);
       }
       for (const c of o.children) walk(c);
     };
