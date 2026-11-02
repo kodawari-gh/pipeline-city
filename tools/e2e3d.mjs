@@ -31,12 +31,13 @@ const view = async (v) => { await p.evaluate((v) => window.__board[v](), v); awa
 // the game's own context (which GPU it got), not a new one
 console.log(which, await p.evaluate(() => { const g = window.__board.renderer.getContext(); const e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); }));
 console.log('FPS', await p.evaluate(() => new Promise((done) => { let n = 0; const t0 = performance.now(); const f = (t) => { n++; if (t - t0 < 2000) requestAnimationFrame(f); else done(Math.round((n / (t - t0)) * 10000) / 10); }; requestAnimationFrame(f); })));
-const drag = async (a, z) => {
+const drag = async (a, z, hold = 0) => {
   await p.mouse.move(a.x, a.y);
   await p.mouse.down();
   await p.waitForTimeout(50);
   await p.mouse.move((a.x + z.x) / 2, (a.y + z.y) / 2, { steps: 6 });
   await p.mouse.move(z.x, z.y, { steps: 6 });
+  if (hold) await p.waitForTimeout(hold);
   await p.mouse.up();
   await p.waitForTimeout(1200);
 };
@@ -95,13 +96,16 @@ if (await snap('s.powered')) {
   await p.waitForTimeout(1500);
 }
 await view('flyToBoard');
-const cp = await at('cable.atx');
-if (cp) {
+const cp = await at('cable.atx'), sk = await at('atx');
+if (cp && sk) {
+  // pulled past its latch and let go away from its socket: the plug falls on its cable and stays there
   await drag(cp, { x: 60, y: 450 });
-  check('a cable pulled out and dropped off the machine stays out', (await snap("s.cables.find((c) => c.id === 'atx')?.connected")) === false);
+  await p.waitForTimeout(3000);
+  check('a cable pulled out and dropped off its socket stays out', (await snap("s.cables.find((c) => c.id === 'atx')?.connected")) === false);
+  // picked up again and let go on its socket: it slides in
   const again = await at('cable.atx');
-  if (again) await drag(again, { x: 700, y: 400 });
-  check('a loose cable dropped on the machine plugs in', (await snap("s.cables.find((c) => c.id === 'atx')?.connected")) === true);
+  if (again) await drag(again, sk, 400);
+  check('a loose cable dropped on its socket plugs in', (await snap("s.cables.find((c) => c.id === 'atx')?.connected")) === true);
 }
 check('no page errors', errs.length === 0);
 if (errs.length) console.log(errs.slice(0, 4).join('\n'));

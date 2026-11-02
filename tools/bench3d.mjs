@@ -226,15 +226,16 @@ try {
         if (!c) return;
         await p.mouse.move(c.x, c.y); await p.mouse.down(); await wait(50);
         await trace(3000, circle({ x: W * 0.45, y: H * 0.5 }, 260));
-        await p.mouse.move(60, 450, { steps: 6 }); await p.mouse.up(); await wait(1500);
+        // let go away from the socket: the plug falls on its cable and comes to rest
+        await p.mouse.move(60, 450, { steps: 6 }); await p.mouse.up(); await wait(3500);
       },
     }],
     ['cable plug', {
       run: async () => {
-        const c = await at('cable.atx');
-        if (!c) return;
+        const c = await at('cable.atx'), s = await at('atx');
+        if (!c || !s) return;
         await p.mouse.move(c.x, c.y); await p.mouse.down(); await wait(50);
-        await p.mouse.move(W * 0.4, H * 0.45, { steps: 20 }); await p.mouse.up(); await wait(2000);
+        await p.mouse.move(s.x, s.y, { steps: 20 }); await wait(300); await p.mouse.up(); await wait(2000);
       },
     }],
     ['part lift', {

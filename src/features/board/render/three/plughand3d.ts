@@ -10,7 +10,7 @@ import { Rope, dist, lengthOf, type RopeEnd, type V3 } from '@/core/render/three
 import { Sleeve } from '@/core/render/three/sleeve';
 import type { Snapshot } from '@/worker/protocol';
 import { samplesFor, sleeveMat } from './cables3d';
-import { exitAt, looseState, middle, pivotOf, resample, setPose, type CableRig, type Pose } from './cablerig3d';
+import { exitAt, looseState, middle, pivotOf, resample, setPose, type CableRig, type Pose, type Rest } from './cablerig3d';
 import type { Machine3D } from './machine3d';
 
 /** The spring that carries the plug to the pointer (per second, critically damped). */
@@ -183,7 +183,11 @@ export class PlugHand {
     switch (l.phase) {
       case 'pull': {
         const p = pullOffset(Math.hypot(this.px - this.sx, this.py - this.sy));
-        if (p.popped) { disconnectCable(rig.id); l.phase = 'held'; l.t = 0; this.hold(l, dt, cam); }
+        if (p.popped) {
+          // the loose cable the sim's answer builds (hidden while held) takes the strands as they are, so nothing hangs again
+          this.host.machine()?.rest.set(rig.id, this.restOf(l, l.ropes.reduce((s, r) => s + r.length, 0) / l.ropes.length));
+          disconnectCable(rig.id); l.phase = 'held'; l.t = 0; this.hold(l, dt, cam);
+        }
         else this.slide(l, p.out, 1);
         break;
       }
@@ -220,9 +224,12 @@ export class PlugHand {
         const q = new Quaternion().setFromUnitVectors(out, V(tip.dir).negate().normalize()).multiply(l.pose.q);
         l.pose = { at: T(V(tip.at).sub(V(m.at).sub(V(rig.seat.at)).applyQuaternion(q))), q };
         if (sp.resting || l.t > FALL_MAX_S) {
-          const rest = { pose: { at: [...l.pose.at] as V3, q: l.pose.q.clone() }, length: sp.length }, mc = this.host.machine();
-          if (mc) { mc.rest.set(rig.id, rest); this.host.rebuild(); }
-          this.blendTo(l, looseState(rig, l.exits, rest).strands);
+          // the built cable lies just as the held one does: hand over at once
+          setPose(l.pivot, l.pose);
+          const mc = this.host.machine();
+          if (mc) { mc.rest.set(rig.id, this.restOf(l, sp.length)); this.host.rebuild(); }
+          this.finish();
+          return;
         }
         break;
       }
@@ -289,6 +296,11 @@ export class PlugHand {
     l.phase = 'fall';
     l.t = 0;
     l.vel.set(0, 0, 0);
+  }
+
+  /** The plug's place and its strands as they are now, `length` of cable out. */
+  private restOf(l: Live, length: number): Rest {
+    return { pose: { at: [...l.pose.at], q: l.pose.q.clone() }, length, strands: l.ropes.map((r) => r.points()) };
   }
 
   /** Ease the strands from where they are to the cable Machine3D builds, then hand over to it. */

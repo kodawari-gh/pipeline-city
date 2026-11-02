@@ -10,8 +10,8 @@ import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
 export interface Seat { at: V3; axis: V3 }
 /** A plug's place: its pivot (the mouth's point on the plug) and its turn from the seated pose. Seated is { at: seat.at, q: identity }. */
 export interface Pose { at: V3; q: Quaternion }
-/** A loose plug that came to rest where it was dropped, and how much cable it had pulled out. */
-export interface Rest { pose: Pose; length: number }
+/** A loose plug that came to rest where it was dropped, how much cable it had pulled out, and its strands as they lay (the hand keeps them: nothing hangs again). */
+export interface Rest { pose: Pose; length: number; strands?: V3[][] }
 
 export interface CableRig {
   /** The cable's kind (`atx`, `cpu`, `pcie1`, `cpufan`, `video`, ...). */
@@ -99,7 +99,7 @@ export function looseState(rig: CableRig, exits: readonly RopeEnd[], rest: Rest 
     const d = V(tip).sub(V(prev)).normalize();
     r = { pose: poseOnTip(rig.seat, exits, { at: tip, dir: T(d) }), length: rig.loose };
   }
-  const strands = rig.fixed.map((a, i) => hang({ a, b: exitAt(exits[i]!, rig.seat, r.pose), length: r.length, ...opt }));
+  const strands = r.strands ?? rig.fixed.map((a, i) => hang({ a, b: exitAt(exits[i]!, rig.seat, r.pose), length: r.length, ...opt }));
   return { rest: r, strands };
 }
 
