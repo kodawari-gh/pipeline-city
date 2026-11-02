@@ -14,7 +14,8 @@ import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { createRenderContext } from '@/core/render/three/init';
 import { applyView, clampView, fitRect, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
-import { anisotropy, casterPrint, disposeTree, refilter } from '@/core/render/three/geometry';
+import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
+import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { Room3D } from '@/features/room/render/three/room3d';
@@ -50,6 +51,8 @@ export function mountBoard3d(host: HTMLElement) {
   const { scene, camera, renderer, canvas } = ctx;
   let W = host.clientWidth, H = Math.max(1, host.clientHeight);
   const post = new Post(renderer, scene, camera, W, H);
+  // the shadow maps: a still picture per light, and only what moves drawn again (shadows.ts)
+  const shadows = new ShadowCache(renderer);
   // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
   const bakes = new BakeQueue();
   startBaker();
@@ -74,6 +77,7 @@ export function mountBoard3d(host: HTMLElement) {
       if (room) { scene.remove(room.root); disposeTree(room.root); }
       room = new Room3D();
       room.setShadows(effective.peek().shadows);
+      shadows.reset();
       scene.add(room.root);
       machKey = '';
     }
@@ -229,6 +233,7 @@ export function mountBoard3d(host: HTMLElement) {
   const applyGraphics = (g: Graphics) => {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
+    shadows.reset();
     chips.live = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
     fx.density = PARTICLE_LEVELS[g.particles] ?? 1;
     if (g.filtering !== anisotropy) refilter(scene, g.filtering);
@@ -239,7 +244,7 @@ export function mountBoard3d(host: HTMLElement) {
   effect(() => { graphics.value; watch.reset(performance.now()); });
 
   // ---- the frame ----
-  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0, casters = 0;
+  let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
   const frame = (now: number) => {
     const g = effective.peek();
     if (!gate.ready(now, g.fps)) { requestAnimationFrame(frame); return; }
@@ -275,10 +280,8 @@ export function mountBoard3d(host: HTMLElement) {
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
     post.render();
-    // the shadow maps of the next frame: the draw has just set every world matrix, so the casters' fingerprint is this frame's
-    const print = casterPrint(scene);
-    room?.redrawShadows(print !== casters, now);
-    casters = print;
+    // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
+    room?.redrawShadows(shadows.scan(scene, now), now);
     meter.tick(now, canvas.width, canvas.height);
     // a new case is a new room: frame it again
     const tierNow = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
@@ -290,7 +293,7 @@ export function mountBoard3d(host: HTMLElement) {
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
-    parts: () => ({ post, machine, room, chips, fx, lens, bakes }),
+    parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {

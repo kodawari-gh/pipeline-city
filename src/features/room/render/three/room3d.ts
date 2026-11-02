@@ -248,8 +248,8 @@ export class Room3D {
   private shadowAt = 0;
 
   /**
-   * The lights do not move, so a shadow map holds until a caster does. Every map redraws for the next frame when one moved (`casterPrint`), else
-   * one light per turn, so what the fingerprint leaves out (the fans' rotors, instanced parts) catches up.
+   * The lights do not move, so a shadow map holds until a caster does. Every map redraws for the next frame when one moved (`ShadowCache.scan`,
+   * which then redraws only the movers), else one light per turn, so what the scan leaves out (the fans' rotors, instanced parts) catches up.
    */
   redrawShadows(moved: boolean, now: number): void {
     const lights = [this.front, this.sun, this.lampLight];
