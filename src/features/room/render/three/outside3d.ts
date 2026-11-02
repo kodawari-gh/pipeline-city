@@ -356,7 +356,8 @@ void main() {
   bu.x += sin(time * 0.9 + bu.y * 5.0) * 0.004 * wind;
   if (bu.x > 0.0 && bu.x < 1.0 && bu.y > 0.0 && bu.y < 1.0) {
     vec4 b = texture(tBranch, vec2(bu.x, 1.0 - bu.y));
-    col = mix(col, lin(b.rgb) * light * 0.9, b.a);
+    // at night it is close enough to catch the moon and the room's spill: a dim blue-grey floor keeps its leaves from going black
+    col = mix(col, lin(b.rgb) * (light * 0.9 + vec3(0.16, 0.18, 0.28) * lights), b.a);
   }
   gl_FragColor = vec4(col, 1.0);
 }`;

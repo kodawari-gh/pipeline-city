@@ -76,7 +76,7 @@ export function mountBoard3d(host: HTMLElement) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
       if (room) { scene.remove(room.root); disposeTree(room.root); }
-      room = new Room3D();
+      room = new Room3D(scene.environment);
       room.setShadows(effective.peek().shadows);
       shadows.reset();
       scene.add(room.root);
