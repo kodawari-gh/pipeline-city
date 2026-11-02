@@ -19,7 +19,7 @@ import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
 import { builtinTheme, type Theme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
 import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
-import type { RopeEnd, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
+import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
 import { PALETTE, PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
@@ -589,7 +589,7 @@ export class Machine3D {
    */
   private buildCables(s: Snapshot, geo: RoomGeo) {
     const has = (id: string) => s.cables.some((c) => c.id === id), on = (id: string) => s.cables.some((c) => c.id === id && c.connected);
-    const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T);
+    const env = this.caseEnv(), T = this.T, gx = BD.x + BD.w + 420, base = sleeveOf(T), deck: RopePlane = { n: [0, 0, 1], d: BOARD_Z };
     const lead = (kind: string, r = 24): Look => ({ r, base, accent: ACCENT(T, kind as 'atx') });
     this.rigs.clear();
     // ---- the 24-pin: from a tall slot in the gutter into the right-angle socket on the board's east edge
@@ -600,7 +600,7 @@ export class Machine3D {
       this.addRig(g, {
         id: 'atx', name: 'the 24-pin', target: 'atx', look, env, fixed, model: () => atxPlug(r, accent),
         seat: { at: [r.x + r.w, -(r.y + r.h / 2), BOARD_Z + 85], axis: [1, 0, 0] }, canSeat: true, engage: 140,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), reach: 1500, loose: 1100, n: o.n, stiff: o.stiff, lead: o.lead,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
       }, on('atx'));
       this.wires.add(g);
     }
@@ -612,7 +612,7 @@ export class Machine3D {
       this.addRig(g, {
         id: 'cpu', name: 'the CPU 8-pin', target: 'cpw', look, env, fixed, model: () => epsPlug(r, accent),
         seat: { at: [r.x + r.w / 2, -(r.y + r.h / 2), BOARD_Z + 160], axis: [0, 0, 1] }, canSeat: true, engage: 110,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), reach: 1300, loose: 900, n: o.n, stiff: o.stiff, lead: o.lead,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: o.lead,
       }, on('cpu'));
       this.wires.add(g);
     }
@@ -631,7 +631,7 @@ export class Machine3D {
         id: c.id, name: 'the card\'s power socket', target: (deal && s.devices.find((d) => d.slot === deal.slot)?.id) ?? null, look, env, fixed,
         model: () => ({ root: standingPlug(at, accent, top), strands: [0, 1, 2, 3].map((i): RopeEnd => ({ at: [at.x - 42 + i * 28, -at.y, top + 2], dir: [0, 0, 1] })) }),
         seat: { at: [at.x, -at.y, at.z], axis: [0, 0, 1] }, canSeat: !!sock, engage: 110,
-        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), reach: 1500, loose: 1000, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
+        seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, c.connected, sock ? () => card!.alsoFade(g) : undefined);
       this.wires.add(g);
     });
@@ -658,8 +658,8 @@ export class Machine3D {
     for (const p of fanCordPlans()) {
       if (!has(p.id)) continue;
       const g = tag(new Group(), 'cable.' + p.id), plugged = on(p.id);
-      const cord = (fixed: RopeEnd, e: Env, o: { slack: number; extra: number; n: number }, rest: Pick<CableRig, 'model' | 'seat' | 'engage' | 'reach' | 'loose' | 'extra'>): CableRig => ({
-        id: p.id, name: 'its fan header', target: null, look: fanLook, env: e, fixed: [fixed], canSeat: true,
+      const cord = (fixed: RopeEnd, e: Env, o: { slack: number; extra: number; n: number }, rest: Pick<CableRig, 'model' | 'seat' | 'engage' | 'extra'>): CableRig => ({
+        id: p.id, name: 'its fan header', target: null, look: fanLook, env: e, fixed: [fixed], canSeat: true, deck,
         seated: (ex) => [hangPts(fixed, ex[0]!, fanLook, e, o)], n: o.n, stiff: 0.5, lead: fanLook.r * 2.5, ...rest,
       });
       // a fan's plug on its board header, pushed in from the glass side
@@ -672,7 +672,7 @@ export class Machine3D {
         const hx = p.seat[0], from = hubEnds[1 + hubHeaders().findIndex((h) => h.x === hx)] ?? hubEnds[0]!;
         this.addRig(g, cord(from, env, { slack: 1.2, extra: 80, n: 14 }, {
           model: () => ({ root: rectBox({ x: hx - 34, y: FAN_HUB.y - 70, w: 68, h: 70 }, CASE_Z + 180, CASE_Z + 300, mat(0x1b2230, { roughness: 0.5 })), strands: [{ at: [hx, -(FAN_HUB.y - 70), CASE_Z + 240], dir: [0, 1, 0] }] }),
-          seat: { at: [hx, -FAN_HUB.y, CASE_Z + 240], axis: [0, 1, 0] }, engage: 60, reach: 900, loose: 420,
+          seat: { at: [hx, -FAN_HUB.y, CASE_Z + 240], axis: [0, 1, 0] }, engage: 60,
         }), plugged);
       } else {
         // the fan's end: the cooler's west side, a heatsink fan's housing, the hub's input
@@ -686,9 +686,9 @@ export class Machine3D {
           const hole = { x: p.seat[0] - 40, y: BD.y + BD.h + 70, w: 80, h: 60 };
           this.wires.add(grommet(hole, this.grommets));
           this.addRig(g, cord(fromSlot(hole, 1)[0]!, fenv, { slack: 1.25, extra: 120, n: 16 }, {
-            ...header(), reach: 1100, loose: 500, extra: () => hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }),
+            ...header(), extra: () => hung(hubEnds[0]!, anchor, fanLook, fenv, { slack: 1.2, extra: 80, n: 14 }),
           }), plugged);
-        } else this.addRig(g, cord(anchor, fenv, { slack: 1.3, extra: 160, n: 20 }, { ...header(), reach: 1200, loose: 700 }), plugged);
+        } else this.addRig(g, cord(anchor, fenv, { slack: 1.3, extra: 160, n: 20 }, header()), plugged);
       }
       this.wires.add(g);
     }
@@ -706,7 +706,7 @@ export class Machine3D {
     const box = (r: RectLike, z0: number, z1: number): RopeSolid => ({ min: [r.x, -(r.y + r.h), z0], max: [r.x + r.w, -r.y, z1] });
     const caseBox = box({ x: CASE.x, y: CASE.y, w: CASE.w, h: CASE.h + FOOT }, CASE_Z, FRONT);
     const monitor = [box(m, mz, mz + 180), box({ x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 }, mz - 380, mz)];
-    const room: Env = { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: 40 }], solids: [caseBox, ...monitor] };
+    const room: Env = { planes: [{ n: [0, 1, 0], d: deskTop }, { n: [0, 0, 1], d: 40 }], solids: [caseBox, ...monitor] }, deck = room.planes[0]!;
     const cord: Look = { r: 40, base: '#18181b', accent: null }, video: Look = { r: 34, base: '#1d1f24', accent: null };
     const plug = (x: number, y: number, z: number, l: number) => softBox({ x: x - l, y: y - 60, w: l, h: 120 }, z - 70, z + 70, mat(0x1b1c20, { roughness: 0.5 }), 16);
     // the desk's grommet the mains cords drop through, behind the case's west side
@@ -718,7 +718,7 @@ export class Machine3D {
       g.add(plug(CASE.x, y, z, 150));
       this.addRig(g, {
         id: 'video', name: 'the monitor', target: 'monitor', look: video, env: room, fixed: [a], model: () => straightPlug(seat, 90, 60, 140, '#3a3d44'), seat, canSeat: true, engage: 120,
-        seated: (ex) => [hangPts(a, ex[0]!, video, room, o)], reach: 3200, loose: 2600, n: o.n, stiff: o.stiff, lead: video.r * 2.5,
+        seated: (ex) => [hangPts(a, ex[0]!, video, room, o)], deck, n: o.n, stiff: o.stiff, lead: video.r * 2.5,
       }, on('video'));
       this.wires.add(g);
     }
@@ -730,7 +730,7 @@ export class Machine3D {
       this.addRig(g, {
         id, name: 'the desk grommet', target: null, look: cord, env: room, fixed: [from], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
         engage: hole[1] + 200 - seat.at[1], seated: (ex) => [[...hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, o), ex[0]!.at]],
-        reach: 3000, loose: 2200, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
+        deck, n: o.n, stiff: o.stiff, lead: cord.r * 2.5,
         extra: () => {
           const e = new Group();
           e.add(hung({ at: seat.at, dir: [0, -1, 0] }, { at: [socket.x, -socket.y, 120], dir: [0, 0, 1] }, cord, floor, { slack: 1.1, extra: 500, stiff: 0.4, n: 24 }));

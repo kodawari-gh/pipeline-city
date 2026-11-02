@@ -1,17 +1,18 @@
 // A draggable cable's rig (docs/GRAPHICS_3D_OVERHAUL.md "Cables"): what Machine3D knows of a lead to build it seated or loose, and what the hand
 // (plughand3d.ts) needs to hold it live. Each strand leaves a fixed point (its grommet, its device); the plug model is built in its socket, so
 // any other place of the plug is a pose from there: a pivot at the socket's mouth, moved and turned. One model and one comb of strands serve
-// the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out.
+// the seated cable, the loose one and the held one, so nothing swaps when a plug goes in or out. Each strand has one length, the one it has
+// seated: loose or held, the plug goes only as far as that reaches.
 import { Group, Quaternion, Vector3, type Object3D } from 'three';
-import { hang, type RopeEnd, type V3 } from '@/core/render/three/rope';
+import { dist, hang, lengthOf, type Plane, type RopeEnd, type V3 } from '@/core/render/three/rope';
 import { cableMesh, loosePlug, type Env, type Look } from './wires3d';
 
 /** A socket's mouth and the way a plug pulls out of it (a unit vector). */
 export interface Seat { at: V3; axis: V3 }
 /** A plug's place: its pivot (the mouth's point on the plug) and its turn from the seated pose. Seated is { at: seat.at, q: identity }. */
 export interface Pose { at: V3; q: Quaternion }
-/** A loose plug that came to rest where it was dropped, how much cable it had pulled out, and its strands as they lay (the hand keeps them: nothing hangs again). */
-export interface Rest { pose: Pose; length: number; strands?: V3[][] }
+/** A loose plug that came to rest where it was dropped, and its strands as they lay (the hand keeps them: nothing hangs again). */
+export interface Rest { pose: Pose; strands?: V3[][] }
 
 export interface CableRig {
   /** The cable's kind (`atx`, `cpu`, `pcie1`, `cpufan`, `video`, ...). */
@@ -31,12 +32,11 @@ export interface CableRig {
   canSeat: boolean;
   /** How far the plug goes in: it pops free past this, it lines up this far out of the mouth. */
   engage: number;
-  /** The seated strands (each from its fixed point to its exit), as the static build hangs them. */
+  /** The seated strands (each from its fixed point to its exit), as the static build hangs them: their lengths are the cable's. */
   seated: (exits: RopeEnd[]) => V3[][];
-  /** The most cable that comes out of the grommet (the plug stays this close to the strands' middle). */
-  reach: number;
-  /** How much cable hangs out when it is loose and has no rest pose. */
-  loose: number;
+  /** What a held plug moves over and never goes behind (its inside faces the view): the board's face in the case, not down among the
+   *  grommets on the tray; the desk in the room. A cable that pulls the plug in keeps it at its height over this. */
+  deck: Plane;
   /** The live ropes' points and stiffness, and the straight lead out of each end. */
   n: number;
   stiff: number;
@@ -69,9 +69,9 @@ export function middle(ends: readonly RopeEnd[]): RopeEnd {
   return { at: T(at.divideScalar(Math.max(1, ends.length))), dir: T(dir.lengthSq() ? dir.normalize() : dir.set(0, 0, 1)) };
 }
 
-/** The pose of a plug hanging at a cable's tip: its strands' middle on the tip, the cable leaving it back along the tip's direction. */
-export function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }): Pose {
-  const m = middle(exits), q = new Quaternion().setFromUnitVectors(V(m.dir), V(tip.dir).negate().normalize());
+/** The pose of a plug hanging at a cable's tip: its strands' middle on the tip, the cable leaving it back along the tip's direction (`free` of the turn there, `freedom`). */
+export function poseOnTip(seat: Seat, exits: readonly RopeEnd[], tip: { at: V3; dir: V3 }, free = 1): Pose {
+  const m = middle(exits), q = new Quaternion().slerp(new Quaternion().setFromUnitVectors(V(m.dir), V(tip.dir).negate().normalize()), free);
   return { at: T(V(tip.at).sub(V(m.at).sub(V(seat.at)).applyQuaternion(q))), q };
 }
 
@@ -90,16 +90,84 @@ export function setPose(pivot: Object3D, pose: Pose): void {
   pivot.quaternion.copy(pose.q);
 }
 
-/** A loose cable: at its rest pose, or hanging from its strands' middle `loose` long with the plug at the tip. Each strand runs to its exit. */
+/** Each strand's length: the one it has seated, from its fixed point to its exit. */
+export const lengthsOf = (rig: CableRig, exits: readonly RopeEnd[]): number[] => rig.seated([...exits]).map(lengthOf);
+
+/**
+ * `p` pulled back toward `from` to stay within `reach` of it. With `n` (a unit normal) it keeps its height along `n` and comes in along the plane
+ * square to it: a plug held over the board stays over it, never drawn down toward a grommet behind it.
+ */
+export function withinReach(p: V3, from: V3, reach: number, n?: V3): V3 {
+  const d: V3 = [p[0] - from[0], p[1] - from[1], p[2] - from[2]], h = n ? d[0] * n[0] + d[1] * n[1] + d[2] * n[2] : 0;
+  const u: V3 = n ? [d[0] - n[0] * h, d[1] - n[1] * h, d[2] - n[2] * h] : d, l = Math.hypot(...u), R = Math.sqrt(Math.max(0, reach * reach - h * h));
+  if (l <= R) return p;
+  const k = R / l, o: V3 = n ? [from[0] + n[0] * h, from[1] + n[1] * h, from[2] + n[2] * h] : from;
+  return [o[0] + u[0] * k, o[1] + u[1] * k, o[2] + u[2] * k];
+}
+
+/**
+ * A plug's place `at` (turned `q`) pulled back toward its cable's fixed ends until no strand spans more than `share` of what it has between its
+ * straight leads (`lengths` less a lead at each end): a plug goes only as far as its cable reaches. With `n`, as `withinReach`.
+ */
+export function withinCable(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[], at: V3, q: Quaternion, share = 1, n?: V3): V3 {
+  const p = V(at), seat = V(rig.seat.at), { lead } = rig, b = new Vector3();
+  // rounds until it holds: the strands at a wide comb's far ends pull it opposite ways (a tall grommet slot, a plug turned across it)
+  for (let k = 0; k < 16; k++) {
+    let most = 0;
+    exits.forEach((e, i) => {
+      const f = rig.fixed[i]!, from: V3 = [f.at[0] + f.dir[0] * lead, f.at[1] + f.dir[1] * lead, f.at[2] + f.dir[2] * lead];
+      b.copy(V(e.at)).sub(seat).addScaledVector(V(e.dir), lead).applyQuaternion(q).add(p);
+      const d = V(withinReach(T(b), from, Math.max(0, lengths[i]! - 2 * lead) * share, n)).sub(b);
+      p.add(d);
+      most = Math.max(most, d.length());
+    });
+    if (most < 0.5) break;
+  }
+  return T(p);
+}
+
+/** How far the farthest of some ends is from their middle. */
+function spread(ends: readonly RopeEnd[]): number {
+  const m = middle(ends).at;
+  return Math.max(...ends.map((e) => dist(e.at, m)));
+}
+
+/** How long a loose cable's spine is, from its strands' middle to its plug's: the shortest strand less both ends' spread, so every strand reaches. */
+export function spineLength(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[]): number {
+  return Math.max(rig.lead * 3, Math.min(...lengths) - spread(rig.fixed) - spread(exits) - rig.lead);
+}
+
+/**
+ * How far a plug may turn from its seated turn (0 to 1): all the way on one strand, less on a wide comb, not at all when the comb is as wide as
+ * its strands are long (the 24-pin out of its tall slot beside the socket: turned across the slot, its end strands could not reach).
+ */
+export function freedom(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[]): number {
+  return Math.min(1, Math.max(0, 1 - (spread(rig.fixed) + spread(exits)) / Math.max(1, Math.min(...lengths) - 2 * rig.lead)));
+}
+
+/** What a loose cable's spine hangs in: its walls and parts, and its deck (the plug at its tip lies in front of the board, never in the tray). */
+export const spineEnv = (rig: CableRig): Env => ({ planes: [...rig.env.planes, rig.deck], solids: rig.env.solids });
+
+/** About half a plug's thickness: how far a loose plug's mouth and back keep in front of its deck. */
+const PLUG_HALF = 60;
+
+/** Where a loose plug at `pose` lies: its mouth and its back in front of its deck, and within its cable's reach (at its height over the deck). */
+export function looseAt(rig: CableRig, exits: readonly RopeEnd[], lengths: readonly number[], pose: Pose): V3 {
+  const n = V(rig.deck.n), at = V(pose.at), back = V(middle(exits).at).sub(V(rig.seat.at)).applyQuaternion(pose.q).add(at);
+  at.addScaledVector(n, Math.max(0, PLUG_HALF + rig.deck.d - Math.min(n.dot(at), n.dot(back))));
+  return withinCable(rig, exits, lengths, T(at), pose.q, 1, rig.deck.n);
+}
+
+/** A loose cable: at its rest pose, or hanging from its strands' middle with the plug at the tip. Each strand runs to its exit at its length. */
 export function looseState(rig: CableRig, exits: readonly RopeEnd[], rest: Rest | undefined): { rest: Rest; strands: V3[][] } {
-  const opt = { r: rig.look.r, stiff: rig.stiff, n: rig.n, lead: rig.lead, ...rig.env };
+  const opt = { r: rig.look.r, stiff: rig.stiff, n: rig.n, lead: rig.lead, ...rig.env }, lengths = lengthsOf(rig, exits);
   let r = rest;
   if (!r) {
-    const spine = hang({ a: middle(rig.fixed), b: null, length: rig.loose, ...opt }), tip = spine[spine.length - 1]!, prev = spine[spine.length - 2]!;
-    const d = V(tip).sub(V(prev)).normalize();
-    r = { pose: poseOnTip(rig.seat, exits, { at: tip, dir: T(d) }), length: rig.loose };
+    const spine = hang({ a: middle(rig.fixed), b: null, length: spineLength(rig, exits, lengths), ...opt, ...spineEnv(rig) }), tip = spine[spine.length - 1]!, prev = spine[spine.length - 2]!;
+    const pose = poseOnTip(rig.seat, exits, { at: tip, dir: T(V(tip).sub(V(prev)).normalize()) }, freedom(rig, exits, lengths));
+    r = { pose: { at: looseAt(rig, exits, lengths, pose), q: pose.q } };
   }
-  const strands = r.strands ?? rig.fixed.map((a, i) => hang({ a, b: exitAt(exits[i]!, rig.seat, r.pose), length: r.length, ...opt }));
+  const strands = r.strands ?? rig.fixed.map((a, i) => hang({ a, b: exitAt(exits[i]!, rig.seat, r.pose), length: lengths[i]!, ...opt }));
   return { rest: r, strands };
 }
 

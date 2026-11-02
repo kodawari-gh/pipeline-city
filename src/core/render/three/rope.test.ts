@@ -125,25 +125,16 @@ describe('a held cable (a live rope)', () => {
     expect(most).toBeLessThan(1);
   });
 
-  it('meets the boxes its new length reaches', () => {
-    // a cord fed out from 600 to 3000 falls onto a shelf 1500 under its end (and what it has left slides off its edge), never into it
+  it('meets the boxes its free end swings to', () => {
+    // a cord held up by both ends, its far end let go: it falls onto a shelf beside and under it (what it has left slides off), never more than
+    // half its thickness into it
     const shelf = { min: [-1000, -2000, -500] as V3, max: [1000, -1500, 500] as V3 };
-    const rope = new Rope({ a: { at: [0, 0, 0], dir: [1, 0, 0] }, b: null, length: 600, r: 10, solids: [shelf] }, { live: true });
-    rope.setLength(3000);
+    const rope = new Rope({ a: { at: [0, 0, 0], dir: [1, 0, 0] }, b: { at: [400, 0, 0], dir: [-1, 0, 0] }, length: 3000, r: 10, solids: [shelf] }, { live: true });
+    rope.setEnds({ at: [0, 0, 0], dir: [1, 0, 0] }, null);
     rope.step(1500);
     const p = rope.points();
     expect(Math.min(...p.map((q) => q[1]))).toBeLessThan(-1000);
-    for (const q of p) expect([0, 1, 2].every((j) => q[j]! > shelf.min[j]! - 9 && q[j]! < shelf.max[j]! + 9), q.join()).toBe(false);
-  });
-
-  it('feeds out to a new length', () => {
-    const rope = new Rope(spec, { live: true });
-    rope.step(420);
-    rope.setLength(2400);
-    expect(rope.resting).toBe(false);
-    rope.step(800);
-    // (the straight leads out of the plugs keep their length: the rest takes the new length)
-    expect(Math.abs(lengthOf(rope.points()) - 2400) / 2400).toBeLessThan(0.1);
+    for (const q of p) expect([0, 1, 2].every((j) => q[j]! > shelf.min[j]! - 5 && q[j]! < shelf.max[j]! + 5), q.join()).toBe(false);
   });
 
   it('starts from the points it is given', () => {

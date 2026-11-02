@@ -97,7 +97,7 @@ export class Rope {
 
   /**
    * The rope of `s`, from its start curve or from `start` (n points, a cable already hanging). A `live` rope keeps every box within its length
-   * of `a`, since its other end will move (and again at each new length or end).
+   * of `a`, since its other end will move (and again at each new end).
    */
   constructor(s: RopeSpec, o: { live?: boolean; start?: readonly V3[] } = {}) {
     const n = this.n = Math.max(6, s.n ?? 28), r = this.r = s.r ?? 0, stiff = this.stiff = Math.min(1, Math.max(0, s.stiff ?? 0.3)), down = s.down ?? [0, -1, 0];
@@ -154,17 +154,6 @@ export class Rope {
     const w = this.seg * 0.012 * this.sag, d = this.down;
     this.g = [d[0] * w, d[1] * w, d[2] * w];
     this.rest2 = (this.seg * 1e-4) ** 2;
-  }
-
-  /** A new length (a held cable fed out of its grommet, or pushed back): every segment takes its share, the steps carry the points there. */
-  setLength(L: number): void {
-    L = Math.max(L, 1);
-    if (Math.abs(L - this.length) < 1e-6) return;
-    this.length = L;
-    this.share();
-    if (this.live) this.solids = this.reachable(this.pins[0]![1], L);
-    this.age = 0;
-    this.rested = false;
   }
 
   /** Move the ends (each leaves straight along its direction); `b` null lets that end go free. */
