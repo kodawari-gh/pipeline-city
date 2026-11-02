@@ -24,7 +24,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | `board.ts` | scene graph, scene rebuild, LOD by zoom, hit-testing, snapshot effect, frame loop |
 | `theme.ts` | theme tokens (below) |
 | `layout.ts` | world coordinates (die floorplan, monitor, tray, router shelf) and the **tier-dependent** ones as live bindings (`setLayoutTier(boardTier, caseTier)`: board, DIMMs, VRMs, PSU, bay, case, world box), seeded PRNG, hover regions |
-| `thumbs.ts` | pictures of parts for the shop, inventory and picker: the real art rendered to cached data URLs |
+| `thumbs.ts` | pictures of parts for the shop, inventory and picker: the real art (`thumbart.ts`) rendered in a worker (`thumbs.worker.ts`) to cached image URLs |
 | `cpuplan.ts`, `cpufloor.ts`, `cpuplans.ts` | the **CPU die floorplans as data** (blocks, links, cell grids per architecture; pure geometry, tested), see [`DIE.md`](DIE.md) |
 | `dieart.ts` | the static art of a die from its plan: `dieFar` (blocks, stage frames, bond pads; baked with the CPU by `cpuArt`) and `dieNear` (trace bundles, cell arrays, names) |
 | `dieview.ts` | the die in motion (`DieView`): instruction chips in their blocks per lane and unit, the out-of-order structures as cells coloured by state, event flashes and link pulses, the levels of detail by zoom |
