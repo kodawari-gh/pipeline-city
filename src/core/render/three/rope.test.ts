@@ -99,6 +99,16 @@ describe('a held cable (a live rope)', () => {
     expect(dist(tip.at, A)).toBeLessThan(rope.length * 1.02);
   });
 
+  it('feeds out to a new length', () => {
+    const rope = new Rope(spec, { live: true });
+    rope.step(420);
+    rope.setLength(2400);
+    expect(rope.resting).toBe(false);
+    rope.step(800);
+    // (the straight leads out of the plugs keep their length: the rest takes the new length)
+    expect(Math.abs(lengthOf(rope.points()) - 2400) / 2400).toBeLessThan(0.1);
+  });
+
   it('starts from the points it is given', () => {
     const start = hang(spec), rope = new Rope(spec, { start });
     expect(rope.points()).toEqual(start);

@@ -1,9 +1,9 @@
 // The cables in 3D as real cables (docs/GRAPHICS_3D_OVERHAUL.md "Cables"). The 2D draws each lead along a lane of right angles; here a lead comes
 // out of a rubber grommet in the tray beside its socket (the run from the power supply is behind the tray) and hangs into its plug under its
-// own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column; a lead
-// that is not plugged in hangs loose from its grommet with its plug at the end. The board's power and SATA sockets are modelled with their
-// cavities, the plugs seat in them.
-import { BoxGeometry, Group, Mesh, Quaternion, Vector3, type Object3D, type Vector2 } from 'three';
+// own weight (`hang`, rope.ts), round the parts in its way. A power lead is a comb of individually sleeved strands, one per pin column, and a
+// loose lead is the same comb with its plug at the end (cablerig3d.ts; plughand3d.ts holds it in the player's hand). The board's power and SATA
+// sockets are modelled with their cavities, the plugs seat in them.
+import { BoxGeometry, Group, Mesh, type Vector2 } from 'three';
 import { instanced, place, rectBox, softBox, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { hang, naturalLength, type Plane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
@@ -47,22 +47,7 @@ export function hangPts(a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpt
 /** One cable hung between two ends (`HangOpts`). */
 export const hung = (a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts = {}): Mesh => cableMesh(hangPts(a, b, look, env, o), look);
 
-/**
- * A lead that is not plugged in: it hangs from `a` (its grommet, its fan) and the plug lies at its free end, turned along it. `plug` builds the
- * plug round its own z axis, the cable leaving it at +z.
- */
-export function dangling(a: RopeEnd, length: number, look: Look, env: Env, plug: () => Object3D): Group {
-  const g = new Group(), pts = hang({ a, b: null, length, r: look.r, stiff: 0.5, n: 24, ...env, lead: look.r * 2.5 });
-  g.add(cableMesh(pts, look));
-  const end = pts[pts.length - 1]!, prev = pts[pts.length - 2]!, dir = new Vector3(prev[0] - end[0], prev[1] - end[1], prev[2] - end[2]).normalize();
-  const p = plug();
-  p.quaternion.copy(new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), dir));
-  p.position.set(end[0], end[1], end[2]);
-  g.add(p);
-  return g;
-}
-
-/** A plug body round its own z axis (`dangling`): `w` by `h` across, `l` long, the cable leaving at +z. */
+/** A plug body round its own z axis (`straightPlug`, cablerig3d.ts): `w` by `h` across, `l` long, the cable leaving at +z. */
 export const loosePlug = (w: number, h: number, l: number, accent: string): Group => plugBody({ x: -w / 2, y: -h / 2, w, h }, -l, 0, accent);
 
 /** A rubber grommet in the tray over a layout rect: the moulded ring and the slit flaps of its membrane. */

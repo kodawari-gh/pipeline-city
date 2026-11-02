@@ -31,6 +31,7 @@ import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
 import { startBaker } from './bake';
 import { Drag3D, deviceOf } from './drag3d';
+import { PlugHand } from './plughand3d';
 import { Lens3D } from './lens3d';
 import { Particles3D } from './particles3d';
 import { setPartDragHandler } from '@/core/ui/worldDrag';
@@ -141,8 +142,13 @@ export function mountBoard3d(host: HTMLElement) {
     const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
     return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
   };
-  // parts dragged in from the inventory or lifted off the board (drag3d.ts)
-  const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.')))); // (a die's block is `cpu.fetch`: not an object of its own)
+  // a cable's plug held in the scene (plughand3d.ts), and the parts dragged in from the inventory or lifted off the board (drag3d.ts)
+  const hand = new PlugHand({
+    machine: () => machine, snapshot: () => snapshot.peek(), toast: (t, x, y) => lift.toast(t, x, y),
+    rebuild: () => { const s = snapshot.peek(); if (machine && room && s) machine.setCables(s, room.geo); },
+  }, canvas);
+  scene.add(hand.root);
+  const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
   let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -272,8 +278,11 @@ export function mountBoard3d(host: HTMLElement) {
     const display = !!s?.devices.some((d) => d.kind === 'display');
     room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
-    if (machine) { const m = machine; m.setOpen(lift.intoCase || highlight.peek().some((id) => !OUTSIDE.has(id) && !id.startsWith('key:') && !!findById(m.root, id)), lift.busy); }
+    // (a plug the hand still slides in or lets fall keeps it open too)
+    const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
+    if (machine) { const m = machine; m.setOpen(lift.intoCase || handIn || highlight.peek().some((id) => !OUTSIDE.has(id) && !id.startsWith('key:') && !!findById(m.root, id)), lift.busy || handIn); }
     machine?.frame(s, dt);
+    hand.frame(dt, camera);
     // the outline: the hovered part, the selected one and the tutorial's targets
     const ids = new Set([hover.peek()?.id, selected.peek(), ...highlight.peek(), ...lift.targets()].filter((x): x is string => !!x));
     const picked: Object3D[] = [];

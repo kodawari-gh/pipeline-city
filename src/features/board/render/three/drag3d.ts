@@ -1,15 +1,19 @@
-// Dragging parts in the 3D world (the 2D rules are in docs/render/interact.md, "Interaction"): a part from the inventory onto a socket, and an installed
-// part back to the inventory shelf. The ghost and the messages are DOM, the targets are outlined by board3d.ts. Cables and keys are not ported yet.
+// Dragging parts in the 3D world (the 2D rules are in docs/render/interact.md, "Interaction"): a part from the inventory onto a socket, an installed
+// part back to the inventory shelf, a key to the USB port, a cable's plug in or out of its socket. A cable with a rig is held in the scene by the
+// plug hand (plughand3d.ts: the plug follows the pointer, slides in, pulls out); this keeps the gesture, the label and the messages (DOM). The
+// targets are outlined by board3d.ts.
 import { dragging, overInventory } from '@/app/interaction';
 import { hover } from '@/app/hover';
 import { connectCable, disconnectCable, ejectKey, install, plugKey, snapshot, uninstall, uninstallOs } from '@/app/store';
 import type { Snapshot } from '@/worker/protocol';
+import type { PlugHand } from './plughand3d';
 
 type Dev = Snapshot['devices'][number];
 
 interface Part { invId: string; name: string; free: Set<string>; swap: Set<string>; why: string | null; dev?: undefined; cable?: undefined; key?: undefined }
 interface Lifted { dev: Dev; name: string; osDrive: boolean; invId?: undefined; cable?: undefined; key?: undefined }
-interface Cord { cable: string; name: string; dev?: undefined; invId?: undefined; key?: undefined }
+/** A cable: held by the plug hand (`live`), or (with no rig) taken out at once and dropped on the machine to plug in. */
+interface Cord { cable: string; name: string; live: boolean; dev?: undefined; invId?: undefined; key?: undefined }
 interface Key { key: number; plugged: boolean; why: string | null; name: string; dev?: undefined; invId?: undefined; cable?: undefined }
 
 const hot = (k: string) => k === 'video' || k === 'lan' || k === 'pcmains' || k === 'monmains' || /^(cpufan|vrmfan|ramfan|sysfan|fan:)/.test(k);
@@ -31,7 +35,7 @@ export class Drag3D {
   private noteT = 0;
 
   /** @param idAt the id of the scene object under a client point (null: none) */
-  constructor(private idAt: (cx: number, cy: number, raw?: boolean) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean) {}
+  constructor(private idAt: (cx: number, cy: number, raw?: boolean) => string | null, private canvas: HTMLCanvasElement, private inMachine: (id: string) => boolean, private hand: PlugHand | null = null) {}
 
   get busy() { return !!this.cur; }
 
@@ -42,7 +46,8 @@ export class Drag3D {
   targets(): string[] {
     const c = this.cur, s = snapshot.peek();
     if (!c || !s) return [];
-    if (c.dev || c.cable !== undefined) return [];
+    if (c.cable !== undefined) return c.live ? this.hand!.targets() : [];
+    if (c.dev) return [];
     if (c.key !== undefined) return c.why ? [] : ['usb'];
     const out: string[] = [];
     if (!c.why) for (const slot of [...c.free, ...c.swap]) out.push(s.devices.find((d) => d.slot === slot)?.id ?? slot);
@@ -70,13 +75,14 @@ export class Drag3D {
     return true;
   }
 
-  /** Pick up a cable: a plugged one comes out at once (as in 2D), a loose one is dropped on the machine to plug in. */
+  /** Pick up a cable: the plug hand takes its plug (a plugged one is pulled out); a cable with no rig comes out at once, as in 2D. */
   beginCable(kind: string, e: PointerEvent): boolean {
     const s = snapshot.peek();
     if (this.cur || !s) return false;
     if (s.powered && !hot(kind)) { this.toast('Power the machine off first: the PSU cables carry live power.', e.clientX, e.clientY); return false; }
-    if (s.cables.find((c) => c.id === kind)?.connected) disconnectCable(kind);
-    this.cur = { cable: kind, name: `cable ${kind}`, over: null };
+    const live = !!this.hand?.grab(kind, e.clientX, e.clientY);
+    if (!live && s.cables.find((c) => c.id === kind)?.connected) disconnectCable(kind);
+    this.cur = { cable: kind, name: `cable ${kind}`, live, over: null };
     dragging.value = { kind: 'cable', id: 'cable.' + kind };
     this.run(e.pointerId, e.clientX, e.clientY, null);
     return true;
@@ -149,7 +155,11 @@ export class Drag3D {
       return;
     }
     const id = this.inside(cx, cy) ? this.idAt(cx, cy) : null;
-    if (c.cable !== undefined) { const raw = this.idAt(cx, cy, true); c.over = raw && this.inMachine(raw) ? raw : null; this.setGhost(c.name, !!c.over); return; }
+    if (c.cable !== undefined) {
+      const raw = this.inside(cx, cy) ? this.idAt(cx, cy, true) : null;
+      if (c.live) { this.hand!.move(cx, cy, raw); const l = this.hand!.label(); this.setGhost(l?.text ?? c.name, !!l?.ok); return; }
+      c.over = raw && this.inMachine(raw) ? raw : null; this.setGhost(c.name, !!c.over); return;
+    }
     if (c.key !== undefined) { c.over = id === 'usb' || id === 'key:' + c.key ? 'usb' : null; this.setGhost(c.why && c.over ? c.why : c.name, !!c.over && !c.why); return; }
     c.over = this.target(c, id);
     this.setGhost(c.why && id ? c.why : c.name, !!c.over);
@@ -183,6 +193,7 @@ export class Drag3D {
       return;
     }
     if (c.cable !== undefined) {
+      if (c.live) { this.hand!.release(cx, cy, cancelled); return; }
       const id = !cancelled && this.inside(cx, cy) ? this.idAt(cx, cy, true) : null;
       if (id && this.inMachine(id)) connectCable(c.cable);
       else if (!cancelled && id && snapshot.peek()?.cables.find((x) => x.id === c.cable)?.connected === false) this.toast('Drop the plug on the machine.', cx, cy);
