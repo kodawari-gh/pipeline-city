@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dist, type V3 } from '@/core/render/three/rope';
-import { FAR_PX, POP_PX, SNAP_PX, insertOffset, insertTime, pullOffset, snapWeight, springStep, withinReach } from './plughand3d';
+import { FAR_PX, POP_PX, SNAP_PX, insertOffset, insertTime, keepClear, pullOffset, snapWeight, springStep, withinReach } from './plughand3d';
 
 describe('the hand that holds a plug', () => {
   it('carries the plug to its goal on a spring that does not overshoot, at any frame rate', () => {
@@ -52,5 +52,26 @@ describe('the hand that holds a plug', () => {
     expect(dist(p, from)).toBeCloseTo(500);
     expect(p[0]).toBeCloseTo(100);
     expect(p[2]).toBeCloseTo(800);
+  });
+
+  it('keeps a plug held over the board at its height when its cable pulls it in (never down toward the grommet behind)', () => {
+    // the grommet 300 behind the plane the plug moves on, the plug 1000 out along it
+    const from: V3 = [0, 0, 0], p = withinReach([1000, 0, 300], from, 500, [0, 0, 1]);
+    expect(p[2]).toBeCloseTo(300);
+    expect(dist(p, from)).toBeCloseTo(500);
+    expect(p[0]).toBeCloseTo(400);
+    expect(withinReach([300, 0, 300], from, 500, [0, 0, 1])).toEqual([300, 0, 300]);
+  });
+
+  it('keeps a held plug over the parts it passes and inside the walls', () => {
+    const walls = [{ n: [0, 0, 1] as V3, d: 0 }, { n: [0, 0, -1] as V3, d: -2000 }];
+    const sink = { min: [0, 0, 0] as V3, max: [400, 400, 500] as V3 }, shroud = { min: [-1000, -2000, 0] as V3, max: [1000, -1000, 2000] as V3 };
+    const env = { planes: walls, solids: [sink, shroud] };
+    // over the heatsink: lifted to its top, toward the glass
+    expect(keepClear([200, 200, 300], env, 80)).toEqual([200, 200, 580]);
+    // in the shroud, which runs to the glass: out by its top
+    expect(keepClear([0, -1100, 300], env, 80)).toEqual([0, -920, 300]);
+    // clear of everything: kept off the tray only
+    expect(keepClear([2000, 2000, 20], env, 80)).toEqual([2000, 2000, 80]);
   });
 });

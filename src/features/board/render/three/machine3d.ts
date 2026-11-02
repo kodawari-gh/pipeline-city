@@ -4,7 +4,7 @@
 // parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
-// Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only the cables (`cablesKey`, `setCables`). Between rebuilds `frame`
+// Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
 import {
   Box3, Color, CylinderGeometry, ExtrudeGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
@@ -90,16 +90,10 @@ const HIT = Mesh.prototype.raycast, NO_HIT = () => {};
  */
 const LV_BOARD = [0.2, 0.8, 2.4, 7], LV_RAISED = [0.6, 2.4, 7], LV_PART = [0.4, 1.4, 3, 8], LV_DIE = [0.5, 1.6, 4.5, 10];
 
-/** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`cablesKey`). */
+/** What forces a rebuild: the tier, the parts and where they sit. The cables and the key rebuild only themselves (`Machine3D.syncCables`). */
 export function machineKey(s: Snapshot | null): string {
   if (!s) return 'none';
   return [s.boardTier, s.caseTier, s.devices.map((d) => `${d.spec}@${d.slot}`).join(',')].join('|');
-}
-
-/** What rebuilds the cables (`Machine3D.setCables`): the cables there and which are plugged, the key in the port. */
-export function cablesKey(s: Snapshot | null): string {
-  if (!s) return 'none';
-  return [s.cables.map((c) => c.id + (c.connected ? '+' : '-')).join(','), s.plugged?.id ?? ''].join('|');
 }
 
 /** A device's state for its look. */
@@ -140,13 +134,18 @@ export class Machine3D {
   private obstacles: Object3D[] = [];
   /** Their boxes, taken once as the parts stand (up close a card swings down flat: the cables still go round it standing). */
   private solids = new Map<Object3D, RopeSolid>();
-  /** The cables, the cords out of the case and the key in the port: a plug in or out rebuilds only these (`setCables`). */
+  /** The cables, the cords out of the case and the key in the port: a cable come or gone rebuilds these (`setCables`), a plug in or out only its own cable (`syncCables`). */
   private wires = new Group();
-  /** Stop the cards fading the last build's PCIe leads. */
-  private unfade: (() => void)[] = [];
+  /** Stop a card fading its PCIe lead (by the lead's kind). */
+  private unfade = new Map<string, () => void>();
   /** The draggable cables' rigs by kind, built with the cables; where each loose plug was dropped, kept until the parts change. */
   private rigs = new Map<string, CableRig>();
   readonly rest = new Map<string, Rest>();
+  /** Each rig's tagged group, whether it stands seated, and how its card fades it while it is plugged in. */
+  private built = new Map<string, { g: Group; seated: boolean; fade?: () => () => void }>();
+  /** The cables built (their kinds), and the key in the port. */
+  private cableIds = '';
+  private key: { id: number; g: Group } | null = null;
   /** The CPU cooler's group: the loop's hoses join it (they fade with it). */
   private cooler: Group | null = null;
   /** Each SATA drive's sockets on its end (world points): its data and power cables leave there. */
@@ -633,8 +632,7 @@ export class Machine3D {
         model: () => ({ root: standingPlug(at, accent, top), strands: [0, 1, 2, 3].map((i): RopeEnd => ({ at: [at.x - 42 + i * 28, -at.y, top + 2], dir: [0, 0, 1] })) }),
         seat: { at: [at.x, -at.y, at.z], axis: [0, 0, 1] }, canSeat: !!sock, engage: 110,
         seated: (ex) => ex.map((e, i) => hangPts(fixed[i]!, e, look, env, o)), reach: 1500, loose: 1000, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
-      }, c.connected);
-      if (c.connected && sock) this.unfade.push(card!.alsoFade(g));
+      }, c.connected, sock ? () => card!.alsoFade(g) : undefined);
       this.wires.add(g);
     });
     // ---- SATA: each drive's data cable from its port on the board's edge into a slot in the gutter; at the drive, its data and power cables
@@ -748,30 +746,61 @@ export class Machine3D {
     mains('monmains', { at: [MONITOR_POWER.x, -(MONITOR_POWER.y - 160), mz - 20], dir: [0, -0.6, -0.8] }, geo.socket.mon, -60);
   }
 
-  private buildPluggedKey(id: number) {
+  /** The key in the USB port (`id`), or none: only the key is built again. */
+  private setKey(id: number | null) {
+    if ((this.key?.id ?? null) === id) return;
+    if (this.key) { this.wires.remove(this.key.g); disposeTree(this.key.g); this.key = null; }
+    if (id === null) return;
     const g = tag(new Group(), 'key:' + id), y = USB_PORT.y + USB_PORT.h / 2, z = BOARD_Z + 600;
     g.add(rectBox({ x: USB_PORT.x - 760, y: y - 115, w: 560, h: 230 }, z - 60, z + 60, mat(0x2a2d34, { roughness: 0.45 })));
     g.add(rectBox({ x: USB_PORT.x - 200, y: y - 60, w: 200, h: 120 }, z - 40, z + 40, mat(0xb9bec6, { metalness: 0.7, roughness: 0.3 })));
     this.wires.add(g);
+    this.key = { id, g };
   }
 
-  /** Keep a draggable cable's rig and add its cable as it stands (seated, or loose at its rest pose). */
-  private addRig(g: Group, rig: CableRig, seated: boolean) {
+  /** Keep a draggable cable's rig and add its cable as it stands (seated, or loose at its rest pose). `fade`: its card fades it while it is in. */
+  private addRig(g: Group, rig: CableRig, seated: boolean, fade?: () => () => void) {
     this.rigs.set(rig.id, rig);
-    g.add(rigStatic(rig, seated, this.rest.get(rig.id)));
+    this.built.set(rig.id, { g, seated, fade });
+    this.setCable(rig.id);
   }
 
   /** A draggable cable's rig (plughand3d.ts holds it live), or null. */
   rig(kind: string): CableRig | null { return this.rigs.get(kind) ?? null; }
 
-  /** Build the cables and the key again (a plug in or out): the parts stay as they are. */
+  /** Build one draggable cable again as it stands (`seated`, default as it was; a dropped plug at its rest pose): the others stay as they are. */
+  setCable(kind: string, seated?: boolean): void {
+    const rig = this.rigs.get(kind), b = this.built.get(kind);
+    if (!rig || !b) return;
+    if (seated !== undefined) b.seated = seated;
+    for (const c of [...b.g.children]) if (c.userData.rig) { b.g.remove(c); disposeTree(c); }
+    b.g.add(rigStatic(rig, b.seated, this.rest.get(kind)));
+    this.unfade.get(kind)?.();
+    this.unfade.delete(kind);
+    if (b.seated && b.fade) this.unfade.set(kind, b.fade());
+  }
+
+  /** Build all the cables and the key again: the parts stay as they are. */
   setCables(s: Snapshot, geo: RoomGeo): void {
-    for (const u of this.unfade) u();
-    this.unfade = [];
+    for (const u of this.unfade.values()) u();
+    this.unfade.clear();
+    this.built.clear();
     disposeTree(this.wires);
     this.wires.clear();
+    this.key = null;
+    this.cableIds = s.cables.map((c) => c.id).join(',');
     this.buildCables(s, geo);
-    if (s.plugged) this.buildPluggedKey(s.plugged.id);
+    this.setKey(s.plugged?.id ?? null);
+  }
+
+  /** Bring the cables in line with the sim: a plug in or out builds only its own cable, a key in or out only the key, a cable come or gone all. */
+  syncCables(s: Snapshot, geo: RoomGeo): void {
+    if (s.cables.map((c) => c.id).join(',') !== this.cableIds) { this.setCables(s, geo); return; }
+    for (const c of s.cables) {
+      const b = this.built.get(c.id);
+      if (b && b.seated !== c.connected) this.setCable(c.id, c.connected);
+    }
+    this.setKey(s.plugged?.id ?? null);
   }
 
   // ------------------------------------------------------------------ live

@@ -6,7 +6,7 @@ import { Group, Mesh, Plane, Quaternion, Raycaster, Vector2, Vector3, type Objec
 import { connectCable, disconnectCable } from '@/app/store';
 import { disposeTree, place } from '@/core/render/three/geometry';
 import { findById, seeThrough } from '@/core/render/three/pick';
-import { Rope, dist, lengthOf, type RopeEnd, type V3 } from '@/core/render/three/rope';
+import { Rope, dist, lengthOf, type Plane as RopePlane, type RopeEnd, type Solid, type V3 } from '@/core/render/three/rope';
 import { Sleeve } from '@/core/render/three/sleeve';
 import type { Snapshot } from '@/worker/protocol';
 import { samplesFor, sleeveMat } from './cables3d';
@@ -25,6 +25,11 @@ const INSERT_S = 0.18, CLICK_S = 0.05, RESEAT_S = 0.12, BLEND_S = 0.3, CONFIRM_S
 const STEPS = 4;
 /** How fast slack goes back through the grommet as a held plug comes nearer (units per second). */
 const TUCK = 900;
+/** A view looking into the case at least this squarely (its direction's z) moves a held plug parallel to the board; a flatter one, square to it. */
+const SQUARE_Z = 0.35;
+/** How far a held plug keeps off the parts and the walls (about half a plug), and the share of its cable's reach it may go out to (the rest is
+ *  slack: a cable pulled taut over an edge shakes). */
+const CLEAR = 80, REACH = 0.92;
 
 // ------------------------------------------------------------------ the motion (pure)
 /** One step of a critically damped spring toward `goal`, exact for any dt: the new value and velocity. */
@@ -54,12 +59,47 @@ export function snapWeight(px: number): number {
   return u * u * (3 - 2 * u);
 }
 
-/** `p` pulled back toward `from` to stay within `reach` of it. */
-export function withinReach(p: V3, from: V3, reach: number): V3 {
-  const l = dist(p, from);
-  if (l <= reach) return p;
-  const k = reach / l;
-  return [from[0] + (p[0] - from[0]) * k, from[1] + (p[1] - from[1]) * k, from[2] + (p[2] - from[2]) * k];
+/**
+ * `p` pulled back toward `from` to stay within `reach` of it. With `n` (a unit normal) it keeps its height along `n` and comes in along the plane
+ * square to it: a plug held over the board stays over it, never drawn down toward a grommet behind it.
+ */
+export function withinReach(p: V3, from: V3, reach: number, n?: V3): V3 {
+  const d: V3 = [p[0] - from[0], p[1] - from[1], p[2] - from[2]], h = n ? d[0] * n[0] + d[1] * n[1] + d[2] * n[2] : 0;
+  const u: V3 = n ? [d[0] - n[0] * h, d[1] - n[1] * h, d[2] - n[2] * h] : d, l = Math.hypot(...u), R = Math.sqrt(Math.max(0, reach * reach - h * h));
+  if (l <= R) return p;
+  const k = R / l, o: V3 = n ? [from[0] + n[0] * h, from[1] + n[1] * h, from[2] + n[2] * h] : from;
+  return [o[0] + u[0] * k, o[1] + u[1] * k, o[2] + u[2] * k];
+}
+
+/**
+ * `p` kept `m` clear of the walls and out of the parts (both grown by `m`): over a part (toward the glass, +z) when that is inside the walls, else
+ * out by the nearest side across the view (the shroud, which runs to the glass, puts it on its top).
+ */
+export function keepClear(p: V3, env: { planes?: readonly RopePlane[]; solids?: readonly Solid[] }, m: number): V3 {
+  const q: V3 = [...p], planes = env.planes ?? [];
+  const inside = (x: V3) => planes.every((pl) => x[0] * pl.n[0] + x[1] * pl.n[1] + x[2] * pl.n[2] - pl.d >= m);
+  // a few rounds: a part it is lifted over may stand in another
+  for (let round = 0; round < 4; round++) {
+    let moved = false;
+    for (const s of env.solids ?? []) {
+      if (![0, 1, 2].every((j) => q[j]! > s.min[j]! - m && q[j]! < s.max[j]! + m)) continue;
+      moved = true;
+      if (inside([q[0], q[1], s.max[2] + m])) { q[2] = s.max[2] + m; continue; }
+      let best = 0, gap = Infinity, to = 0;
+      for (const j of [0, 1]) {
+        const lo = s.min[j]! - m, hi = s.max[j]! + m;
+        if (q[j]! - lo < gap) { gap = q[j]! - lo; best = j; to = lo; }
+        if (hi - q[j]! < gap) { gap = hi - q[j]!; best = j; to = hi; }
+      }
+      q[best] = to;
+    }
+    if (!moved) break;
+  }
+  for (const pl of planes) {
+    const e = q[0] * pl.n[0] + q[1] * pl.n[1] + q[2] * pl.n[2] - pl.d - m;
+    if (e < 0) for (let j = 0; j < 3; j++) q[j] = q[j]! - pl.n[j]! * e;
+  }
+  return q;
 }
 
 // ------------------------------------------------------------------ the hand
@@ -89,8 +129,6 @@ interface Live {
 export interface HandHost {
   machine(): Machine3D | null;
   snapshot(): Snapshot | null;
-  /** Build the cables again (a dropped plug came to rest). */
-  rebuild(): void;
   toast(text: string, cx: number, cy: number): void;
 }
 
@@ -227,7 +265,7 @@ export class PlugHand {
           // the built cable lies just as the held one does: hand over at once
           setPose(l.pivot, l.pose);
           const mc = this.host.machine();
-          if (mc) { mc.rest.set(rig.id, this.restOf(l, sp.length)); this.host.rebuild(); }
+          if (mc) { mc.rest.set(rig.id, this.restOf(l, sp.length)); mc.setCable(rig.id); }
           this.finish();
           return;
         }
@@ -249,24 +287,34 @@ export class PlugHand {
   /** The point in front of the socket where a plug lines up before it slides in. */
   private preSeat(rig: CableRig): Vector3 { return V(rig.seat.at).addScaledVector(V(rig.seat.axis), rig.engage); }
 
-  /** Held: the plug on its spring toward the pointer (on the plane through the point in front of the socket, square to the view). */
+  /**
+   * Held: the plug on its spring toward the pointer, on a plane through the point in front of the socket: parallel to the board while the view
+   * looks into the case (a plane square to a slanted view runs behind the board), else square to the view. It stays over the parts it passes.
+   */
   private hold(l: Live, dt: number, cam: PerspectiveCamera) {
     const rig = l.rig, seat = V(rig.seat.at), pre = this.preSeat(rig), r = this.canvas.getBoundingClientRect();
     this.ray.setFromCamera(new Vector2(((this.px - r.left) / r.width) * 2 - 1, -((this.py - r.top) / r.height) * 2 + 1), cam);
-    this.plane.setFromNormalAndCoplanarPoint(cam.getWorldDirection(new Vector3()), rig.canSeat ? pre : V(l.pose.at));
+    const look = cam.getWorldDirection(new Vector3()), nrm = Math.abs(look.z) >= SQUARE_Z ? new Vector3(0, 0, 1) : look;
+    this.plane.setFromNormalAndCoplanarPoint(nrm, rig.canSeat ? pre : V(l.pose.at));
     const goal = this.ray.ray.intersectPlane(this.plane, new Vector3()) ?? V(l.pose.at);
     // how near the pointer is to the socket, on screen
     const sp = pre.clone().project(cam), near = sp.z < 1 ? Math.hypot(this.px - (r.left + ((sp.x + 1) / 2) * r.width), this.py - (r.top + ((1 - sp.y) / 2) * r.height)) : Infinity;
     this.snapped = rig.canSeat && (near <= SNAP_PX || (!!rig.target && this.over === rig.target));
     const w = this.snapped ? 1 : rig.canSeat ? snapWeight(near) : 0;
-    // its turn: hanging along its cable, squared to the socket as it comes near
-    const fixed = V(middle(rig.fixed).at), m = middle(l.exits);
-    const back = fixed.clone().sub(V(l.pose.at)).normalize().add(new Vector3(0, 0.7, 0)).normalize();
+    // its turn: hanging along its cable (which leaves it along the plane toward its grommet, not down through the board), squared to the socket
+    // as it comes near
+    const fixed = V(middle(rig.fixed).at), m = middle(l.exits), toward = fixed.clone().sub(V(l.pose.at)).projectOnPlane(nrm);
+    const back = (toward.lengthSq() > 1 ? toward.normalize() : new Vector3(0, -1, 0)).add(new Vector3(0, 0.7, 0)).normalize();
     const turn = new Quaternion().setFromUnitVectors(V(m.dir), back).slerp(ID, w);
     if (this.snapped) goal.copy(pre);
-    // it goes only as far as its cable reaches
-    const ex = goal.clone().add(V(m.at).sub(seat).applyQuaternion(turn));
-    goal.add(V(withinReach(T(ex), T(fixed), rig.reach)).sub(ex));
+    // it goes only as far as its cable reaches (each strand from its own slot in the grommet: the ones at the far end of a wide comb are the
+    // first to pull taut), along its plane, and over the parts in its way
+    const reach = () => { for (let k = 0; k < 2; k++) l.exits.forEach((e, i) => {
+      const ex = goal.clone().add(V(e.at).sub(seat).applyQuaternion(turn));
+      goal.add(V(withinReach(T(ex), rig.fixed[i]!.at, rig.reach * REACH, T(nrm))).sub(ex));
+    }); };
+    reach();
+    if (!this.snapped) { goal.copy(V(keepClear(T(goal), rig.env, CLEAR))); reach(); }
     const p = l.pose.at;
     for (let j = 0; j < 3; j++) { const [x, v] = springStep(p[j]!, l.vel.getComponent(j), goal.getComponent(j), OMEGA, dt); p[j] = x; l.vel.setComponent(j, v); }
     l.pose.q.slerp(turn, 1 - Math.exp(-dt * 14));

@@ -23,7 +23,7 @@ export interface RopeSpec {
   r?: number;
   /** How many points (more: rounder). */
   n?: number;
-  /** 0 a limp cord, 1 a stiff hose or a fat bundle: how strongly each bend is eased toward a straight line. */
+  /** 0 a limp cord, 1 a stiff hose or a fat bundle: how strongly it holds its bends to even arcs. */
   stiff?: number;
   planes?: Plane[];
   solids?: Solid[];
@@ -37,7 +37,8 @@ export interface RopeSpec {
   handle?: number;
 }
 
-const ITER = 420, PASSES = 10;
+/** The steps `hang` takes, the constraint passes per step, and how far a step of stiffness 1 moves a point down the bending's slope (under 1/8, or it rings). */
+const ITER = 420, PASSES = 10, BEND = 0.1;
 
 /** The cables settled lately, by their spec: a rebuild hangs again only the ones whose ends or surroundings changed. */
 const SETTLED = new Map<string, V3[]>();
@@ -71,6 +72,8 @@ export class Rope {
   length: number;
   private readonly p: Float64Array;
   private readonly prev: Float64Array;
+  /** Each point's turn (`relax`), a scratch buffer. */
+  private readonly kb: Float64Array;
   private readonly pinned: Uint8Array;
   private pins: [number, V3][] = [];
   private rest: number[] = [];
@@ -83,7 +86,10 @@ export class Rope {
   private readonly down: V3;
   private g: V3 = [0, 0, 0];
   private readonly planes: Plane[];
-  private readonly solids: Solid[];
+  /** Every box, and the ones within reach (`reachable`). */
+  private readonly all: Solid[];
+  private solids: Solid[];
+  private readonly live: boolean;
   private rest2 = 0;
   /** Steps since the ends last moved, and whether the points have come to rest since. */
   private age = 0;
@@ -91,7 +97,7 @@ export class Rope {
 
   /**
    * The rope of `s`, from its start curve or from `start` (n points, a cable already hanging). A `live` rope keeps every box within its length
-   * of `a`, since its other end will move.
+   * of `a`, since its other end will move (and again at each new length or end).
    */
   constructor(s: RopeSpec, o: { live?: boolean; start?: readonly V3[] } = {}) {
     const n = this.n = Math.max(6, s.n ?? 28), r = this.r = s.r ?? 0, stiff = this.stiff = Math.min(1, Math.max(0, s.stiff ?? 0.3)), down = s.down ?? [0, -1, 0];
@@ -100,28 +106,47 @@ export class Rope {
     this.down = down;
     const lead = this.lead = Math.min(s.lead ?? seg, L * 0.3);
     this.pinned = new Uint8Array(n);
-    // start from a smooth curve between the ends (a Hermite curve along the plug directions), or straight out and down from a free end
-    const p = this.p = new Float64Array(n * 3), k = s.handle !== undefined ? chord * s.handle : Math.max(chord, L * 0.5);
+    // start from a smooth curve between the leads' ends (a Hermite curve along the plug directions), or straight out and down from a free end
+    const p = this.p = new Float64Array(n * 3);
     if (o.start?.length === n) for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) p[i * 3 + j] = o.start[i]![j]!;
     else for (let i = 0; i < n; i++) {
       const t = i / (n - 1);
       if (b) {
-        const h00 = 2 * t ** 3 - 3 * t ** 2 + 1, h10 = t ** 3 - 2 * t ** 2 + t, h01 = -2 * t ** 3 + 3 * t ** 2, h11 = t ** 3 - t ** 2;
-        for (let j = 0; j < 3; j++) p[i * 3 + j] = h00 * a.at[j]! + h10 * a.dir[j]! * k + h01 * b.at[j]! - h11 * b.dir[j]! * k;
+        const pa = add(a.at, mul(a.dir, lead)), pb = add(b.at, mul(b.dir, lead)), gap = dist(pa, pb), k = s.handle !== undefined ? gap * s.handle : Math.max(gap, L * 0.5);
+        const q = i === 0 ? a.at : i === n - 1 ? b.at : hermite(pa, a.dir, pb, b.dir, k, (i - 1) / (n - 3));
+        for (let j = 0; j < 3; j++) p[i * 3 + j] = q[j]!;
       } else {
         const s1 = Math.min(t * L, lead * 2), s2 = Math.max(0, t * L - lead * 2);
         for (let j = 0; j < 3; j++) p[i * 3 + j] = a.at[j]! + a.dir[j]! * s1 + down[j]! * s2;
       }
     }
     this.prev = p.slice();
+    this.kb = new Float64Array(n * 3);
     this.weigh();
     // the bend limit: no joint turns more than `maxTurn` (a cable bends round, it never folds), held as a least distance between every other point
     this.bend = Math.cos((0.45 + (1 - stiff) * 0.55) / 2);
     // the cable stays within its length of its ends: a box out of that reach (with a margin for the first swings) is never met
-    const c = b && !o.live ? [0, 1, 2].map((j) => (a.at[j]! + b.at[j]!) / 2) : a.at, reach = (b && !o.live ? L / 2 : L) * 1.25 + r;
-    this.solids = (s.solids ?? []).filter((x) => [0, 1, 2].every((j) => x.min[j]! - r < c[j]! + reach && x.max[j]! + r > c[j]! - reach));
+    this.live = !!o.live;
+    this.all = s.solids ?? [];
+    this.solids = b && !o.live ? this.reachable([0, 1, 2].map((j) => (a.at[j]! + b.at[j]!) / 2), L / 2) : this.reachable(a.at, L);
     this.planes = s.planes ?? [];
     this.setEnds(a, b);
+  }
+
+  /** The boxes a cable `reach` long from `c` can meet (with a margin for the first swings). */
+  private reachable(c: readonly number[], reach: number): Solid[] {
+    const r = this.r, k = reach * 1.25 + r;
+    return this.all.filter((x) => [0, 1, 2].every((j) => x.min[j]! - r < c[j]! + k && x.max[j]! + r > c[j]! - k));
+  }
+
+  /** Each free segment's length: its share of what the straight leads out of the plugs leave of the length (the leads are part of it). */
+  private share() {
+    const { n, pinned, length } = this;
+    let fixed = 0, free = 0;
+    for (let i = 0; i + 1 < n; i++) if (pinned[i] && pinned[i + 1]) fixed += this.rest[i]!; else free++;
+    this.seg = Math.max(length - fixed, length * 0.2) / free;
+    this.rest = this.rest.map((x, i) => (pinned[i] && pinned[i + 1] ? x : this.seg));
+    this.weigh();
   }
 
   /** Gravity per step and the rest threshold, from the segment's length. */
@@ -136,9 +161,8 @@ export class Rope {
     L = Math.max(L, 1);
     if (Math.abs(L - this.length) < 1e-6) return;
     this.length = L;
-    this.seg = L / (this.n - 1);
-    this.weigh();
-    this.rest = this.rest.map((x, i) => (this.pinned[i] && this.pinned[i + 1] ? x : this.seg));
+    this.share();
+    if (this.live) this.solids = this.reachable(this.pins[0]![1], L);
     this.age = 0;
     this.rested = false;
   }
@@ -153,7 +177,9 @@ export class Rope {
     pinned.fill(0);
     for (const [i] of pins) pinned[i] = 1;
     this.pins = pins;
-    this.rest = Array.from({ length: n - 1 }, (_, i) => (pinned[i] && pinned[i + 1] ? dist(pins.find(([j]) => j === i)![1], pins.find(([j]) => j === i + 1)![1]) : this.seg));
+    this.rest = Array.from({ length: n - 1 }, (_, i) => (pinned[i] && pinned[i + 1] ? dist(pins.find(([j]) => j === i)![1], pins.find(([j]) => j === i + 1)![1]) : 0));
+    this.share();
+    if (this.live) this.solids = this.reachable(a.at, this.length);
     this.age = 0;
     this.rested = false;
     this.pin();
@@ -200,12 +226,21 @@ export class Rope {
 
   /** The constraints, a few passes: the stiffness, the bend limit, the lengths, what the cable lies on. */
   private relax() {
-    const { n, p, pinned, rest, seg, r, stiff, bend, planes, solids } = this;
+    const { n, p, prev, pinned, rest, seg, r, stiff, bend, planes, solids, kb } = this;
     for (let pass = 0; pass < PASSES; pass++) {
-      // the stiffness: each inner point eased toward the middle of its neighbours (before the lengths, which have the last word)
-      if (stiff > 0) for (let i = 1; i + 1 < n; i++) {
-        if (pinned[i]) continue;
-        for (let j = 0; j < 3; j++) { const o = i * 3 + j; p[o] = p[o]! + ((p[o - 3]! + p[o + 3]!) * 0.5 - p[o]!) * (stiff * 0.35); }
+      // the stiffness: each inner point moved down the slope of the cable's bending (the summed squared turn k = p[i-1] - 2p[i] + p[i+1] at
+      // each point), before the lengths, which have the last word. It spreads a bend into an even arc (an easing toward the neighbours' middle
+      // pulls the cable straight and folds its slack into one tight hook, and it fights the lengths: on a live rope that shakes a stiff bundle)
+      if (stiff > 0) {
+        for (let o = 3; o + 3 < n * 3; o++) kb[o] = p[o - 3]! - 2 * p[o]! + p[o + 3]!;
+        const c = stiff * BEND;
+        for (let i = 1; i + 1 < n; i++) {
+          if (pinned[i]) continue;
+          for (let j = 0; j < 3; j++) {
+            const o = i * 3 + j;
+            p[o] = p[o]! - ((i > 1 ? kb[o - 3]! : 0) - 2 * kb[o]! + (i + 2 < n ? kb[o + 3]! : 0)) * c;
+          }
+        }
       }
       for (let i = 0; i + 2 < n; i++) {
         const o = i * 3, q = o + 6, dx = p[q]! - p[o]!, dy = p[q + 1]! - p[o + 1]!, dz = p[q + 2]! - p[o + 2]!;
@@ -227,47 +262,58 @@ export class Rope {
         p[o] = p[o]! + dx * fa; p[o + 1] = p[o + 1]! + dy * fa; p[o + 2] = p[o + 2]! + dz * fa;
         p[q] = p[q]! - dx * fb; p[q + 1] = p[q + 1]! - dy * fb; p[q + 2] = p[q + 2]! - dz * fb;
       }
-      // what the cable lies on and goes round
+      // what the cable lies on and goes round: a point pushed out keeps no speed into it (it lies there; a bounce off it, pulled back by its
+      // neighbours, shakes a taut cable)
       for (let i = 0; i < n; i++) {
         if (pinned[i]) continue;
         const o = i * 3;
         for (const pl of planes) {
-          const e = p[o]! * pl.n[0] + p[o + 1]! * pl.n[1] + p[o + 2]! * pl.n[2] - pl.d - r;
-          if (e < 0) { p[o] = p[o]! - pl.n[0] * e; p[o + 1] = p[o + 1]! - pl.n[1] * e; p[o + 2] = p[o + 2]! - pl.n[2] * e; }
+          const [x, y, z] = pl.n, e = p[o]! * x + p[o + 1]! * y + p[o + 2]! * z - pl.d - r;
+          if (e >= 0) continue;
+          p[o] = p[o]! - x * e; p[o + 1] = p[o + 1]! - y * e; p[o + 2] = p[o + 2]! - z * e;
+          const v = (p[o]! - prev[o]!) * x + (p[o + 1]! - prev[o + 1]!) * y + (p[o + 2]! - prev[o + 2]!) * z;
+          if (v < 0) { prev[o] = prev[o]! + x * v; prev[o + 1] = prev[o + 1]! + y * v; prev[o + 2] = prev[o + 2]! + z * v; }
         }
-        for (const bx of solids) outOf(p, o, bx, r);
+        for (const bx of solids) outOf(p, prev, o, bx, r);
       }
       this.pin();
     }
   }
 }
 
-/** Push the point at `p[o..o+2]` out of the box (grown by r) through its nearest face. */
-function outOf(p: Float64Array, o: number, bx: Solid, r: number): void {
-  let best = -1, gap = Infinity, to = 0;
+/** Push the point at `p[o..o+2]` out of the box (grown by r) through its nearest face; it keeps no speed into the box (`prev`). */
+function outOf(p: Float64Array, prev: Float64Array, o: number, bx: Solid, r: number): void {
+  let best = -1, gap = Infinity, to = 0, up = false;
   for (let j = 0; j < 3; j++) {
     const lo = bx.min[j]! - r, hi = bx.max[j]! + r, q = p[o + j]!;
     if (q <= lo || q >= hi) return;
-    if (q - lo < gap) { gap = q - lo; best = j; to = lo; }
-    if (hi - q < gap) { gap = hi - q; best = j; to = hi; }
+    if (q - lo < gap) { gap = q - lo; best = j; to = lo; up = false; }
+    if (hi - q < gap) { gap = hi - q; best = j; to = hi; up = true; }
   }
-  p[o + best] = to;
+  const k = o + best;
+  p[k] = to;
+  if (up ? p[k]! < prev[k]! : p[k]! > prev[k]!) prev[k] = p[k]!;
 }
 
 /**
- * The length a routed cable needs between two ends: the smooth curve that leaves each end along its plug (the Hermite curve `settle` starts
- * from, its handles `handle` gaps long). A cable this long runs in clean arcs; more slack has to fold somewhere.
+ * The length a routed cable needs between two ends: the straight `lead` out of each plug and the smooth curve between the leads' ends (the
+ * Hermite curve `settle` starts from, its handles `handle` gaps long). A cable this long runs in clean arcs; more slack has to fold somewhere.
  */
-export function naturalLength(a: RopeEnd, b: RopeEnd, handle = 1, steps = 64): number {
-  const k = dist(a.at, b.at) * handle;
-  let len = 0, prev = a.at;
+export function naturalLength(a: RopeEnd, b: RopeEnd, handle = 1, lead = 0, steps = 64): number {
+  const pa = add(a.at, mul(a.dir, lead)), pb = add(b.at, mul(b.dir, lead)), k = dist(pa, pb) * handle;
+  let len = 2 * lead, prev = pa;
   for (let i = 1; i <= steps; i++) {
-    const t = i / steps, h00 = 2 * t ** 3 - 3 * t ** 2 + 1, h10 = t ** 3 - 2 * t ** 2 + t, h01 = -2 * t ** 3 + 3 * t ** 2, h11 = t ** 3 - t ** 2;
-    const q = [0, 1, 2].map((j) => h00 * a.at[j]! + h10 * a.dir[j]! * k + h01 * b.at[j]! - h11 * b.dir[j]! * k) as V3;
+    const q = hermite(pa, a.dir, pb, b.dir, k, i / steps);
     len += dist(prev, q);
     prev = q;
   }
   return len;
+}
+
+/** The point at `t` on the Hermite curve that leaves `a` along `da` and comes into `b` against `db` (each handle `k` long). */
+function hermite(a: V3, da: V3, b: V3, db: V3, k: number, t: number): V3 {
+  const h00 = 2 * t ** 3 - 3 * t ** 2 + 1, h10 = t ** 3 - 2 * t ** 2 + t, h01 = -2 * t ** 3 + 3 * t ** 2, h11 = t ** 3 - t ** 2;
+  return [0, 1, 2].map((j) => h00 * a[j]! + h10 * da[j]! * k + h01 * b[j]! - h11 * db[j]! * k) as V3;
 }
 
 /** The length of a polyline. */

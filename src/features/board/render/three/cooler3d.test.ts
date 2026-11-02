@@ -30,11 +30,11 @@ describe('the 3D coolers', () => {
       expect(ends.length, side).toBe(2);
       const tips = radiatorPorts(r.fit).tips.map((t) => new Vector3(t[0], -t[1], barbZ(r)));
       for (const [a, b] of ends) {
-        // the sleeve's first and last rings: their centres are the hose's ends
-        const t = hose(a, b, { planes: [], solids: [] }).children[0] as Mesh, pos = t.geometry.getAttribute('position'), ring = 15;
+        // the sleeve's first and last rings (its two caps follow them, a centre and a ring each): their centres are the hose's ends
+        const t = hose(a, b, { planes: [], solids: [] }).children[0] as Mesh, pos = t.geometry.getAttribute('position'), ring = 15, caps = 2 * (ring + 1);
         const centre = (first: number) => Array.from({ length: ring - 1 }, (_, j) => new Vector3().fromBufferAttribute(pos, first + j)).reduce((s, p) => s.add(p), new Vector3()).divideScalar(ring - 1);
         expect(centre(0).distanceTo(new Vector3(...a.at)), side).toBeLessThan(2);
-        expect(Math.min(...tips.map((p) => p.distanceTo(centre(pos.count - ring)))), side).toBeLessThan(40);
+        expect(Math.min(...tips.map((p) => p.distanceTo(centre(pos.count - caps - ring)))), side).toBeLessThan(40);
       }
       // the barbs sit inside the radiator's depth
       expect(barbZ(r)).toBeGreaterThan(FAN_ZC - FAN_MAX / 2);

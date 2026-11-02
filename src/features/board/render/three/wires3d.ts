@@ -39,9 +39,9 @@ export interface HangOpts { natural?: boolean; handle?: number; slack?: number; 
 
 /** The settled points of one cable between two ends (`HangOpts`). */
 export function hangPts(a: RopeEnd, b: RopeEnd, look: Look, env: Env, o: HangOpts = {}): V3[] {
-  const gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]), handle = o.handle ?? 1;
-  const length = o.natural ? naturalLength(a, b, handle) * (o.slack ?? 1.03) + (o.extra ?? 0) : gap * (o.slack ?? 1.15) + (o.extra ?? 120);
-  return hang({ a, b, length, r: look.r, stiff: o.stiff ?? 0.5, n: o.n ?? 26, ...env, lead: o.lead ?? look.r * 2.5, ...(o.natural ? { sag: 0.25, handle } : {}) });
+  const gap = Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]), handle = o.handle ?? 1, lead = o.lead ?? look.r * 2.5;
+  const length = o.natural ? naturalLength(a, b, handle, lead) * (o.slack ?? 1.03) + (o.extra ?? 0) : gap * (o.slack ?? 1.15) + (o.extra ?? 120);
+  return hang({ a, b, length, r: look.r, stiff: o.stiff ?? 0.5, n: o.n ?? 26, ...env, lead, ...(o.natural ? { sag: 0.25, handle } : {}) });
 }
 
 /** One cable hung between two ends (`HangOpts`). */

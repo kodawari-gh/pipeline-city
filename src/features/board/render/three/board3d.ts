@@ -23,7 +23,7 @@ import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D } from '@/features/room/render/t
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
-import { Machine3D, cablesKey, machineKey } from './machine3d';
+import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
 import { BakeQueue, setArtEnvironment, warmPrograms } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
@@ -64,7 +64,7 @@ export function mountBoard3d(host: HTMLElement) {
   const lens = new Lens3D(scene);
   const fx = new Particles3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
-  let roomKey = '', machKey = '', cabKey = '';
+  let roomKey = '', machKey = '';
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
   const rebuild = () => {
@@ -82,18 +82,15 @@ export function mountBoard3d(host: HTMLElement) {
       scene.add(room.root);
       machKey = '';
     }
-    const mk = machineKey(s), ck = cablesKey(s);
+    const mk = machineKey(s);
     if (mk !== machKey || !machine) {
-      machKey = mk; cabKey = ck;
+      machKey = mk;
       if (machine) { scene.remove(machine.root); machine.dispose(); }
       machine = new Machine3D(s, room.geo, bakes, chips);
       scene.add(machine.root);
       warmPrograms(renderer, scene, camera, machine.fades);
-    } else if (ck !== cabKey && s) {
-      // a plug in or out: only the cables hang again
-      cabKey = ck;
-      machine.setCables(s, room.geo);
-    }
+    } else if (s) machine.syncCables(s, room.geo); // a plug in or out: only its cable hangs again
+
     chips.update(s);
     room.setKeys(s?.tray ?? []);
   };
@@ -143,10 +140,7 @@ export function mountBoard3d(host: HTMLElement) {
     return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
   };
   // a cable's plug held in the scene (plughand3d.ts), and the parts dragged in from the inventory or lifted off the board (drag3d.ts)
-  const hand = new PlugHand({
-    machine: () => machine, snapshot: () => snapshot.peek(), toast: (t, x, y) => lift.toast(t, x, y),
-    rebuild: () => { const s = snapshot.peek(); if (machine && room && s) machine.setCables(s, room.geo); },
-  }, canvas);
+  const hand = new PlugHand({ machine: () => machine, snapshot: () => snapshot.peek(), toast: (t, x, y) => lift.toast(t, x, y) }, canvas);
   scene.add(hand.root);
   const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
@@ -302,7 +296,7 @@ export function mountBoard3d(host: HTMLElement) {
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
-    parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows }),
+    parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {
