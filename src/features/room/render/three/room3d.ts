@@ -1,11 +1,11 @@
 // The 3D room: a small, cozy bedroom round the desk (docs/LOWPOLY_STYLE.md "Look decision"). A closed box at real sizes (`roomplan.ts`): warm plaster
-// walls, a slatted wood panel behind the desk, a deep window west of it on a painted world (`outside3d.ts`), oak planks and a wool rug, the bed and
+// walls, a slatted wood panel behind the desk, a deep window west of it onto a street in 3D (`outside/view.ts`), oak planks and a wool rug, the bed and
 // its bedside table east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard,
 // mouse, mug, architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of
 // the desk's things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  SpotLight, type Texture,
+  SpotLight, type PerspectiveCamera, type Texture, type WebGLRenderer,
 } from 'three';
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
@@ -18,7 +18,7 @@ import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/p
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
-import { Outside, outsideMesh } from './outside3d';
+import { OutsideView } from './outside/view';
 import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator } from './furniture3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
@@ -210,7 +210,7 @@ export class Room3D {
   private lampLight = new SpotLight(0xffd29a, 0, 0, 0.6, 0.7, 0);
   private bedLight = new PointLight(0xffb46a, 0, 42000, 1);
   private screenLight = new PointLight(0xa8cfff, 0, 9000, 0);
-  private outside: Outside;
+  private outside: OutsideView;
   private blind = new Mesh();
   private blindK = 0;
   private sunKey = -1;
@@ -313,8 +313,8 @@ export class Room3D {
     });
     const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
-    this.outside = new Outside(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
-    winG.add(outsideMesh(this.outside), glass);
+    this.outside = new OutsideView(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
+    winG.add(this.outside.mesh, glass);
     // the inside sill, over the radiator
     const sillY = W.y + W.h;
     winG.add(softBox({ x: W.x - 700, y: sillY, w: W.w + 1400, h: 380 }, fz0 - 200, 1100, white, 60));
@@ -491,6 +491,7 @@ export class Room3D {
 
   /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
   setShadows(level: number): void {
+    this.outside.setShadows(level);
     const sizes = SHADOW_LEVELS[level] ?? null;
     [this.key, this.sun, this.lampLight].forEach((l, i) => {
       const size = sizes?.[i] ?? 0;
@@ -503,6 +504,12 @@ export class Room3D {
       l.shadow.radius = SHADOW_SOFT[i]! * (size / SHADOW_LEVELS[3]![i]!);
     });
   }
+
+  /** The window's view for this frame's camera (before the frame's draw); `samples`: the scene target's multisampling. */
+  drawOutside(renderer: WebGLRenderer, camera: PerspectiveCamera, samples: number): void { this.outside.draw(renderer, camera, samples); }
+
+  /** Free what is not under the root: the outside's scene and its targets. */
+  dispose(): void { this.outside.dispose(); }
 
   private shadowTurn = 0;
   private shadowAt = 0;

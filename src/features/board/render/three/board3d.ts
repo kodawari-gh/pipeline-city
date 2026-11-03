@@ -84,7 +84,7 @@ export function mountBoard3d(host: HTMLElement) {
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
-      if (room) { scene.remove(room.root); disposeTree(room.root); }
+      if (room) { scene.remove(room.root); disposeTree(room.root); room.dispose(); }
       room = new Room3D(studio);
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
@@ -317,6 +317,7 @@ export function mountBoard3d(host: HTMLElement) {
     ART_LIGHT.value = 1 + (0.12 + 0.88 * daylight(hour) - 1) * k;
     scene.environment = roomLit ? probe.texture : studio;
     scene.environmentIntensity = roomLit ? PROBE_K : 0.35;
+    room?.drawOutside(renderer, camera, g.msaa);
     post.render();
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room) {
