@@ -1,11 +1,11 @@
 // The bedroom's furniture in 3D, round the desk (docs/LOWPOLY_STYLE.md "Look decision": soft edges, warm wood, soft cloth): the bed against the back
 // wall east of the desk, the bedside table and its lamp, the bookcase on the west wall, the radiator under the window, the curtains, the door, the
-// ceiling light, a print over the bed, the shelf on the east wall, plants, a basket and slippers. Every builder takes the room plan (`roomplan.ts`,
+// ceiling light, a print over the bed, the shelf on the east wall, plants. Every builder takes the room plan (`roomplan.ts`,
 // 2D y down; z out of the back wall) and returns world meshes, built as a maker would (rails, fronts, mouldings, seams), each part its own mesh:
 // the room merges the still ones by material (`mergeStatic`). Pure scenery: nothing answers a click.
 import {
-  BackSide, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, IcosahedronGeometry, InstancedMesh, LatheGeometry, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material,
+  BackSide, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh,
+  MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material,
   type Texture,
 } from 'three';
 import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
@@ -230,49 +230,6 @@ export function bed(): Group {
   }
   g.add(instanced(new CylinderGeometry(55, 35, 1, 5), mat(0xa5552f, { roughness: 0.95 }), tassels));
   g.add(floorShadow(cx, (z0 + z1) / 2 + 600, w * 1.25, (z1 - z0) * 1.15, 1, 330));
-  return g;
-}
-
-/** A foot's outline, `len` long (+y to the toe), narrow at the heel, broad at the ball, the big toe's side (`side` -1 left, 1 right) fuller. */
-function footShape(len: number, side: number, k = 1): Shape {
-  const s = new Shape(), n = 36;
-  for (let i = 0; i <= n; i++) {
-    const a = (i / n) * Math.PI * 2, y = -Math.cos(a) * len / 2, t = y / len + 0.5;
-    const hw = (560 + 300 * Math.sin(Math.PI * Math.min(1, t * 1.25)) ** 0.7) * k, x = Math.sin(a) * hw + side * 140 * k * t * t * Math.abs(Math.sin(a));
-    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
-  }
-  return s;
-}
-
-/**
- * A pair of felt mules on the rug beside the bed, a little askew: a foot-shaped rubber sole with a rounded edge, a fleece insole, a domed felt
- * upper over the toe (toward the room) with its opening bound in a soft cuff; the heel open.
- */
-export function slippers(x: number, z: number): Group {
-  const g = new Group(), felt = mat(0xffffff, { map: weave('#8d9096', { knit: true, repeat: [3, 2] }), roughness: 0.98, side: DoubleSide });
-  const sole = mat(0x4b3b30, { roughness: 0.9 }), fleece = mat(0xffffff, { map: weave('#e6dccb', { knit: true, repeat: [2, 4] }), roughness: 1 });
-  const L = 4300, sh = 220;
-  for (const [dx, dz, a, side] of [[0, 0, 0.18, -1], [1900, 500, -0.08, 1]] as const) {
-    const s = new Group();
-    const soleG = new ExtrudeGeometry(footShape(L, side), { depth: sh, bevelEnabled: true, bevelThickness: 70, bevelSize: 70, bevelSegments: 3, curveSegments: 4 });
-    soleG.rotateX(Math.PI / 2); soleG.translate(0, sh + 70, 0);
-    s.add(place(new Mesh(soleG, sole)));
-    // (face up and toe to the room: turned a half round, so drawn for the other foot)
-    const inG = new ShapeGeometry(footShape(L - 260, -side, 0.9));
-    inG.rotateX(-Math.PI / 2); inG.rotateY(Math.PI); inG.translate(0, sh + 150, 0);
-    s.add(place(new Mesh(inG, fleece)));
-    // the upper: a quarter of a squashed sphere, cut across the instep, its back edge bound with a fleece roll
-    const cut = -250, reach = 2200, hw = 790, H = 1050;
-    const up = new SphereGeometry(1, 28, 10, 0, Math.PI, 0, Math.PI / 2);
-    up.scale(hw, H, reach); up.translate(side * 60, sh + 120, cut);
-    s.add(place(new Mesh(up, felt)));
-    const cuff: [number, number, number][] = [];
-    for (let i = 0; i <= 16; i++) { const t = (i / 16) * Math.PI; cuff.push([side * 60 + Math.cos(t) * hw, sh + 120 + Math.sin(t) * H, cut]); }
-    s.add(tube(cuff, 130, fleece, 8));
-    s.position.set(x + dx, -FLOOR_Y, z + dz);
-    s.rotation.y = a;
-    g.add(s);
-  }
   return g;
 }
 
@@ -751,39 +708,6 @@ export function print(r: { x: number; y: number; w: number; h: number }, z: numb
   const face = new Mesh(new PlaneGeometry(r.w - 700, r.h - 700), mat(0xffffff, { map: art, roughness: 0.85 }));
   face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z + 392);
   g.add(face);
-  return g;
-}
-
-/** A crumpled ball of paper: a sphere pushed in and out at random, flat-shaded so its creases catch the light. */
-function crumple(r: number): BufferGeometry {
-  const g = new IcosahedronGeometry(r, 1), p = g.attributes.position!;
-  const bump = new Map<string, number>();
-  for (let i = 0; i < p.count; i++) {
-    // the same corner of the sphere moves the same way on every face that shares it, so the ball stays closed
-    const key = `${Math.round(p.getX(i))},${Math.round(p.getY(i))},${Math.round(p.getZ(i))}`;
-    let k = bump.get(key);
-    if (k === undefined) bump.set(key, (k = 0.72 + rnd() * 0.5));
-    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
-/** A woven basket for paper under the desk: a seagrass weave, a bound rim, a base, crumpled paper in it. */
-export function basket(x: number, z: number): Group {
-  const g = new Group(), h = 5200, fl = FLOOR_Y;
-  const weaveM = mat(0xffffff, { map: weave('#b99568', { knit: true, repeat: [8, 4] }), roughness: 0.9, side: DoubleSide });
-  const m = new Mesh(new CylinderGeometry(1700, 1350, h, 24, 1, true), weaveM);
-  m.position.set(x, -fl + h / 2, z);
-  const rim = new Mesh(new TorusGeometry(1700, 150, 8, 32), mat(0xffffff, { map: weave('#8f6a44', { knit: true, repeat: [12, 1] }), roughness: 0.9 }));
-  rim.rotation.x = Math.PI / 2; rim.position.set(x, -fl + h, z);
-  g.add(place(m), place(rim), post(x, fl, z, 1350, 120, mat(0x7d5c3c, { roughness: 0.95 }), 24));
-  const paperM = mat(0xf1eee7, { roughness: 0.85, flatShading: true });
-  for (const [dx, dy, dz, r] of [[-500, h - 900, 300, 760], [500, h - 1100, -200, 680], [100, h - 500, -600, 600]] as const) {
-    const b = place(new Mesh(crumple(r), paperM));
-    b.position.set(x + dx, -fl + dy, z + dz); b.rotation.set(dx, dy, dz);
-    g.add(b);
-  }
   return g;
 }
 

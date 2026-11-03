@@ -19,7 +19,7 @@ import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/pr
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { Outside, outsideMesh } from './outside3d';
-import { basket, bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator, slippers } from './furniture3d';
+import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator } from './furniture3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
   BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, MONITOR_Z, SLATS_X0, SLATS_X1, SLAT_W, WALL_T, WEST_X, WINDOW,
@@ -310,13 +310,13 @@ export class Room3D {
     R.add(winG);
     R.add(aloe(W.x + W.w - 2600, sillY, -300), radiator(), curtains());
 
-    // ---- the furniture: the bed and its table, the bookcase, the door, the ceiling light, a print over the bed, plants, the basket ----
+    // ---- the furniture: the bed and its table, the bookcase, the door, the ceiling light, a print over the bed, plants ----
     const ns = nightstand();
     this.shade = ns.shade;
     this.bedGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), basket(-15500, 6200), slippers(14500, 30500), eastWall(), this.bedLight);
+    R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
     // ---- the desk: a walnut top, a panel leg at the west end, three drawers at the east end, on the floor ----
