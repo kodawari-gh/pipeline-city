@@ -1,8 +1,8 @@
 // The room's props in 3D, modelled on the owner's reference image (docs/LOWPOLY_STYLE.md "Look decision"): the architect lamp, the monitor with its
-// standby screen, the digital clock, the mug with its steam on a cork coaster, the plant on the sill, the keyboard, the mouse and a notebook.
+// standby screen, the digital clock, the mug with its steam on a cork coaster, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  BackSide, BoxGeometry, CanvasTexture, Color, ConeGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
+  BackSide, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
   SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, type BufferGeometry, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -191,22 +191,6 @@ export function steam(m: Mug, t: number): void {
     p.scale.set(s, s, 1);
     (p.material as SpriteMaterial).opacity = 0.32 * Math.sin(life * Math.PI);
   });
-}
-
-// ------------------------------------------------------------------ plant
-export function plant(x: number, sillY: number, z: number): Group {
-  const g = new Group();
-  g.add(post(x, sillY, z, 260, 420, mat(0xb8643a, { roughness: 0.8 }), 16, 330));
-  g.add(post(x, sillY - 420, z, 300, 60, mat(0xa45632, { roughness: 0.8 }), 16));
-  const leaf = mat(0x4e9a4a, { roughness: 0.6, flatShading: true }), leaf2 = mat(0x3d7f3d, { roughness: 0.6, flatShading: true });
-  for (let k = 0; k < 9; k++) {
-    const a = (k / 9) * Math.PI * 2, tilt = 0.35 + (k % 3) * 0.18, h = 520 + (k % 4) * 110;
-    const l = place(new Mesh(new ConeGeometry(70, h, 4), k % 2 ? leaf : leaf2));
-    l.position.set(x + Math.sin(a) * 110, -(sillY - 480) + h / 2 * Math.cos(tilt), z + Math.cos(a) * 110);
-    l.rotation.set(Math.cos(a) * tilt, 0, -Math.sin(a) * tilt);
-    g.add(l);
-  }
-  return g;
 }
 
 // ------------------------------------------------------------------ keyboard, mouse

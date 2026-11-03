@@ -4,15 +4,16 @@
 // 2D y down; z out of the back wall) and returns world meshes, built as a maker would (rails, fronts, mouldings, seams), each part its own mesh:
 // the room merges the still ones by material (`mergeStatic`). Pure scenery: nothing answers a click.
 import {
-  BoxGeometry, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide, Group, IcosahedronGeometry, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material, type Texture,
+  BackSide, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group, IcosahedronGeometry, InstancedMesh, LatheGeometry, Mesh,
+  MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material,
+  type Texture,
 } from 'three';
 import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
+import { frameLoft, ribbon, taperTube, type ProfilePt } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
+import { pothos, succulent } from './plants3d';
 import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, WEST_X, WINDOW } from './roomplan';
-
-type V3 = [number, number, number];
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -139,7 +140,7 @@ function drape(w: number, h: number, d: number, rumple: number, radius: number, 
 }
 
 /** A soft dark patch on the floor under a thing, `lift` over it (more to lie over the rug): a baked contact shadow. */
-function floorShadow(x: number, z: number, w: number, d: number, k = 1, lift = 140): Mesh {
+export function floorShadow(x: number, z: number, w: number, d: number, k = 1, lift = 140): Mesh {
   const m = new Mesh(new PlaneGeometry(w, d), new MeshBasicMaterial({ map: shadowBlob(), transparent: true, opacity: 0.9 * k, depthWrite: false, color: 0x000000 }));
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, -FLOOR_Y + lift, z);
@@ -217,31 +218,58 @@ export function bed(): Group {
   // the chunky knitted throw across the foot, down both sides to a tasselled edge
   const knit = chunky('#b8653f', [1.9, 0.45]);
   const throwM = mat(0xffffff, { map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 0.97 });
-  const thW = w + 380, thD = 6400, thZ = z1 - 6600, thH = 6200;
+  // (its top over the duvet's highest rumple: the duvet must not poke through it)
+  const thW = w + 380, thD = 6400, thZ = z1 - 6600, thH = 6200, thTop = mTop - 1800;
   const th = place(new Mesh(drape(thW, thH, thD, 140, 1500, 260), throwM));
-  th.position.set(cx, -(mTop - 1500 + thH / 2), thZ);
+  th.position.set(cx, -(thTop + thH / 2), thZ);
   g.add(th);
   const tassels: { x: number; y: number; z: number; sy: number }[] = [];
   for (const side of [-1, 1]) for (let k = 0; k < 26; k++) {
     const tz = thZ - thD / 2 + 300 + (k / 25) * (thD - 600), len = 700 + rnd() * 260;
-    tassels.push({ x: cx + side * (thW / 2 + 60), y: -(mTop - 1500 + thH) - len / 2 + 120 + Math.sin(tz / 1100 + 0.7) * 150, z: tz, sy: len });
+    tassels.push({ x: cx + side * (thW / 2 + 60), y: -(thTop + thH) - len / 2 + 120 + Math.sin(tz / 1100 + 0.7) * 150, z: tz, sy: len });
   }
   g.add(instanced(new CylinderGeometry(55, 35, 1, 5), mat(0xa5552f, { roughness: 0.95 }), tassels));
   g.add(floorShadow(cx, (z0 + z1) / 2 + 600, w * 1.25, (z1 - z0) * 1.15, 1, 330));
   return g;
 }
 
-/** A pair of felt slippers on the rug beside the bed, a little askew. */
+/** A foot's outline, `len` long (+y to the toe), narrow at the heel, broad at the ball, the big toe's side (`side` -1 left, 1 right) fuller. */
+function footShape(len: number, side: number, k = 1): Shape {
+  const s = new Shape(), n = 36;
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2, y = -Math.cos(a) * len / 2, t = y / len + 0.5;
+    const hw = (560 + 300 * Math.sin(Math.PI * Math.min(1, t * 1.25)) ** 0.7) * k, x = Math.sin(a) * hw + side * 140 * k * t * t * Math.abs(Math.sin(a));
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  return s;
+}
+
+/**
+ * A pair of felt mules on the rug beside the bed, a little askew: a foot-shaped rubber sole with a rounded edge, a fleece insole, a domed felt
+ * upper over the toe (toward the room) with its opening bound in a soft cuff; the heel open.
+ */
 export function slippers(x: number, z: number): Group {
-  const g = new Group(), felt = mat(0xffffff, { map: weave('#8d9096', { knit: true, repeat: [2, 4] }), roughness: 0.98 }), sole = mat(0x4b3b30, { roughness: 0.9 });
-  for (const [dx, dz, a] of [[0, 0, 0.18], [1900, 500, -0.08]] as const) {
+  const g = new Group(), felt = mat(0xffffff, { map: weave('#8d9096', { knit: true, repeat: [3, 2] }), roughness: 0.98, side: DoubleSide });
+  const sole = mat(0x4b3b30, { roughness: 0.9 }), fleece = mat(0xffffff, { map: weave('#e6dccb', { knit: true, repeat: [2, 4] }), roughness: 1 });
+  const L = 4300, sh = 220;
+  for (const [dx, dz, a, side] of [[0, 0, 0.18, -1], [1900, 500, -0.08, 1]] as const) {
     const s = new Group();
-    s.add(place(new Mesh(cushion(1500, 260, 4300, 0.5), sole)));
-    // a mule: the upper over the toe (toward the room), the heel open
-    const top = place(new Mesh(cushion(1450, 900, 3000, 1.4), felt));
-    top.position.set(0, 420, 600);
-    s.add(top);
-    s.position.set(x + dx, -FLOOR_Y + 430, z + dz);
+    const soleG = new ExtrudeGeometry(footShape(L, side), { depth: sh, bevelEnabled: true, bevelThickness: 70, bevelSize: 70, bevelSegments: 3, curveSegments: 4 });
+    soleG.rotateX(Math.PI / 2); soleG.translate(0, sh + 70, 0);
+    s.add(place(new Mesh(soleG, sole)));
+    // (face up and toe to the room: turned a half round, so drawn for the other foot)
+    const inG = new ShapeGeometry(footShape(L - 260, -side, 0.9));
+    inG.rotateX(-Math.PI / 2); inG.rotateY(Math.PI); inG.translate(0, sh + 150, 0);
+    s.add(place(new Mesh(inG, fleece)));
+    // the upper: a quarter of a squashed sphere, cut across the instep, its back edge bound with a fleece roll
+    const cut = -250, reach = 2200, hw = 790, H = 1050;
+    const up = new SphereGeometry(1, 28, 10, 0, Math.PI, 0, Math.PI / 2);
+    up.scale(hw, H, reach); up.translate(side * 60, sh + 120, cut);
+    s.add(place(new Mesh(up, felt)));
+    const cuff: [number, number, number][] = [];
+    for (let i = 0; i <= 16; i++) { const t = (i / 16) * Math.PI; cuff.push([side * 60 + Math.cos(t) * hw, sh + 120 + Math.sin(t) * H, cut]); }
+    s.add(tube(cuff, 130, fleece, 8));
+    s.position.set(x + dx, -FLOOR_Y, z + dz);
     s.rotation.y = a;
     g.add(s);
   }
@@ -309,30 +337,35 @@ export function nightstand(): Bedside {
   return { root: g, shade, glow, bulb: [lx, sy - 150, lz] };
 }
 
-/** A small potted succulent standing on the layout point (x, y). */
-function succulent(x: number, y: number, z: number, r: number): Group {
-  const g = new Group();
-  g.add(post(x, y, z, r, r * 1.2, mat(0xe9e4da, { roughness: 0.4 }), 16, r * 1.15));
-  const leaf = mat(0x7fa36b, { roughness: 0.6, flatShading: true });
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2, l = place(new Mesh(new ConeGeometry(r * 0.28, r * 1.1, 5), leaf));
-    l.position.set(x + Math.sin(a) * r * 0.35, -y + r * 1.2 + r * 0.4, z + Math.cos(a) * r * 0.35);
-    l.rotation.set(Math.cos(a) * 0.6, 0, -Math.sin(a) * 0.6);
-    g.add(l);
-  }
-  return g;
-}
-
 // ---------------------------------------------------------------- the bookcase
 /**
- * A book's spine: a pale cloth ground (each book's own colour tints it) with bands near its ends and a title running up it. Three designs:
- * gilt rules and a dark label, broad dark ends and a light label, plain with fine rules.
+ * A book's spine: a pale cloth ground (each book's own colour tints it) with bands near its ends and a title running up it. Five designs:
+ * gilt rules and a dark label, broad dark ends and a light label, plain with fine rules, a paperback (a long dark title, a white logo at its
+ * foot), an old leather binding (raised bands, gilt panels between them).
  */
+const SPINES = 5;
 function spineTex(kind: number): Texture | null {
   return paint(64, 512, (c, w, h) => {
     c.fillStyle = '#d2d2d2'; c.fillRect(0, 0, w, h);
     for (let i = 0; i < 260; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)'; c.fillRect(rnd() * w, rnd() * h, 1, 2 + rnd() * 6); }
     const band = (y: number, t: number, col: string) => { c.fillStyle = col; c.fillRect(0, y, w, t); };
+    if (kind === 3) {
+      band(0, 18, '#f4f4f4');
+      c.fillStyle = '#3a3a3a';
+      for (let y = 60; y < h - 120;) { const lh = 9 + rnd() * 7; c.fillRect(w / 2 - 9, y, 18, lh); y += lh + 3 + (rnd() < 0.12 ? 14 : 0); }
+      c.fillStyle = '#ffffff'; c.fillRect(w / 2 - 12, h - 80, 24, 30);
+      return;
+    }
+    if (kind === 4) {
+      // the raised bands over the cords: each a dark ridge with a lit top; gilt fleurons in the panels, a red title label in the second
+      for (let k = 0; k < 5; k++) { const y = 40 + k * 100; band(y, 14, '#5a5a5a'); band(y, 3, '#f0f0f0'); band(y + 14, 2, '#3a3a3a'); }
+      for (let k = 0; k < 4; k++) {
+        const y = 54 + k * 100;
+        if (k === 1) { c.fillStyle = '#7a2a24'; c.fillRect(8, y + 14, w - 16, 58); c.fillStyle = '#f6e7b0'; for (let x = 14; x < w - 16; x += 6) c.fillRect(x, y + 36, 4, 12); continue; }
+        c.fillStyle = '#f6e7b0'; c.beginPath(); c.arc(w / 2, y + 43, 8, 0, Math.PI * 2); c.fill(); c.fillRect(w / 2 - 18, y + 41, 36, 3);
+      }
+      return;
+    }
     if (kind === 0) { band(30, 7, '#fff'); band(43, 3, '#fff'); band(h - 46, 3, '#fff'); band(h - 37, 7, '#fff'); }
     else if (kind === 1) { band(0, 64, '#6e6e6e'); band(h - 64, 64, '#6e6e6e'); band(64, 3, '#fff'); band(h - 67, 3, '#fff'); }
     else { band(54, 2, '#fff'); band(h - 56, 2, '#fff'); }
@@ -364,7 +397,7 @@ function shelvedBooks(books: readonly Book[]): Group {
     d.position.set(b.x + dx, b.y, b.z); d.rotation.set(b.lean, 0, 0); d.scale.set(sx, sy, sz); d.updateMatrix();
     m.setMatrixAt(i, d.matrix);
   };
-  for (let kind = 0; kind < 3; kind++) {
+  for (let kind = 0; kind < SPINES; kind++) {
     const set = books.filter((b) => b.kind === kind);
     if (!set.length) continue;
     // BoxGeometry's groups: +x (the spine, to the room), -x, +y, -y, +z, -z
@@ -378,41 +411,27 @@ function shelvedBooks(books: readonly Book[]): Group {
   return g;
 }
 
-/** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room. */
-function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {
-  const g = new Group();
-  g.add(post(x, y, z, 900, 1700, mat(0xe3ddd2, { roughness: 0.4 }), 20, 1050));
-  g.add(post(x, y - 1640, z, 980, 60, mat(0x3b2a1e, { roughness: 1 }), 20));
-  const leafG = new IcosahedronGeometry(1, 0), leaves = [mat(0x4f8a3f, { roughness: 0.55, flatShading: true }), mat(0x6aa14d, { roughness: 0.55, flatShading: true }), mat(0x3f7236, { roughness: 0.55, flatShading: true })];
-  const stem = mat(0x557a3a, { roughness: 0.7 });
-  const leaf = (p: V3, a: number, s: number, k: number) => {
-    const l = place(new Mesh(leafG, leaves[k % 3]!));
-    l.scale.set(s, s * 0.14, s * 0.78); l.position.set(...p); l.rotation.set(0.5 * Math.sin(a), a, 0.9 + 0.3 * Math.cos(a * 1.7));
-    g.add(l);
-  };
-  // a tuft in the pot
-  for (let k = 0; k < 9; k++) { const a = k * 2.4; leaf([x + Math.cos(a) * 600, -y + 1900 + (k % 3) * 250, z + Math.sin(a) * 600], a, 560, k); }
-  vines.forEach((v, i) => {
-    const sway = (rnd() - 0.5) * 1600, pts: V3[] = [[x + 500, -y + 1800, z + v.dz * 0.3], [edge + 120, -y + 400, z + v.dz * 0.8], [edge + 260, -y - v.len * 0.45, z + v.dz + sway * 0.5], [edge + 320, -y - v.len, z + v.dz + sway]];
-    g.add(tube(pts, 32, stem, 5));
-    for (let t = 0.12; t < 1; t += 0.085) {
-      const k = Math.min(2, Math.floor(t * 3)), u = t * 3 - k, a = pts[k]!, b = pts[k + 1]!;
-      const p: V3 = [a[0] + (b[0] - a[0]) * u + 180, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u + (Math.round(t * 23) % 2 ? 260 : -260)];
-      leaf(p, t * 9 + i, 430 - t * 140, Math.round(t * 23) + i);
-    }
-  });
-  return g;
-}
-
 /** An oak bookcase on the west wall, facing the room: five shelves of books (upright, leaning, stacked), a plant, a box, bookends, a pothos on top. */
 export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
   const wood = mat(0xffffff, { map: oak('#c9a273', '#8f6743'), roughness: 0.55 });
   const side = 450, shelf = 400;
   g.add(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, wood, 50), softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, wood, 50));
+  // the back: tongue-and-groove boards, a dark V between each pair
   g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0, z1, mat(0xffffff, { map: oak('#b48a5c', '#7d5a3a'), roughness: 0.7 })));
-  // a crown over the top, a little proud of the sides
-  g.add(softBox({ x, y: top - 380, w: w + 160, h: 380 }, z0 - 120, z1 + 120, wood, 60));
+  const groove = mat(0x5e4329, { roughness: 0.8 });
+  for (let gz = z0 + side + 1900; gz < z1 - side - 600; gz += 1900) g.add(rectBox({ x: x + 290, y: top, w: 30, h: fl - top }, gz - 35, gz + 35, groove));
+  // the cornice: a cove flaring out over the sides and the front, a flat fillet over it, its top closed
+  const CORNICE: readonly ProfilePt[] = [[300, 0], [300, 40], [260, 70], [170, 120], [90, 190], [40, 260], [10, 330], [0, 360], [0, 360], [0, 520], [0, 520]];
+  const crown = place(new Mesh(frameLoft(w + 300, z1 - z0 + 600, CORNICE, { cap: true }), wood));
+  crown.geometry.rotateX(-Math.PI / 2);
+  crown.position.set(x + (w + 300) / 2, -top, (z0 + z1) / 2);
+  g.add(crown);
+  // the shelf-pin holes up the inside of each side, two rows (front and back), a pin under each shelf
+  const pins: { x: number; y: number; z: number }[] = [];
+  for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
+  const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
+  g.add(instanced(hole, mat(0x3b2a1b, { roughness: 0.9 }), pins));
   const n = 5, gap = (fl - top - 1400) / n;
   const tones = [0x34506b, 0xa95c40, 0xcfa24c, 0xe6dfcf, 0x758b6b, 0x75363a, 0x45464c, 0xbcae90, 0x648aa6, 0x8a6a4a];
   const books: Book[] = [];
@@ -428,7 +447,7 @@ export function bookcase(): Group {
     while (z < end) {
       const bw = 380 + rnd() * 560, bh = gap * (0.6 + rnd() * 0.3) * (s === n - 1 ? 1.08 : 1), bd = 2900 + rnd() * 1300;
       if (z + bw > end) break;
-      books.push({ x: x + 360 + bd / 2, y: -base + bh / 2, z: z + bw / 2, sx: bd, sy: bh, sz: bw, lean: 0, tone: tones[Math.floor(rnd() * tones.length)]!, kind: Math.floor(rnd() * 3) });
+      books.push({ x: x + 360 + bd / 2, y: -base + bh / 2, z: z + bw / 2, sx: bd, sy: bh, sz: bw, lean: 0, tone: tones[Math.floor(rnd() * tones.length)]!, kind: Math.floor(rnd() * SPINES) });
       z += bw + 15 + (rnd() < 0.12 ? 120 : 0);
       last = bh;
     }
@@ -456,9 +475,10 @@ export function bookcase(): Group {
     }
   }
   g.add(shelvedBooks(books));
-  g.add(softBox({ x: x + 300, y: fl - 1000, w: w - 500, h: 1000 }, z0 + side, z1 - side, wood, 40));
+  // the plinth, set back under the bottom shelf (a shadow line along the floor)
+  g.add(softBox({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, wood, 40));
   // a pothos on the top, trailing over the front edge
-  g.add(pothos(x + w / 2 + 300, top - 380, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
+  g.add(pothos(x + w / 2 + 300, top - 520, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
   g.add(floorShadow(x + w / 2, (z0 + z1) / 2, w * 1.6, (z1 - z0) * 1.1, 0.7));
   return g;
 }
@@ -491,111 +511,222 @@ export function radiator(): Group {
   return g;
 }
 
-/** Sill-length linen curtains drawn back to each side of the window and caught in tie-backs, on an oak rod with round finials. */
+/** Curtain linen: a fine weave with slubs along the weft, the heading tape across its top (the rod's end) and the turned hem across its foot. */
+function curtainTex(base: string): Texture | null {
+  return paint(256, 1024, (c, w, h) => {
+    c.fillStyle = base; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.025 + rnd() * 0.035})`; c.fillRect(i, 0, 1, h); }
+    for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(0,0,0,${0.02 + rnd() * 0.03})`; c.fillRect(0, i, w, 1); }
+    for (let k = 0; k < 220; k++) { c.fillStyle = `rgba(255,255,255,${0.06 + rnd() * 0.07})`; c.fillRect(rnd() * w, rnd() * h, 10 + rnd() * 40, 1); }
+    const stitch = (y: number) => { c.fillStyle = 'rgba(90,70,50,0.35)'; for (let x = 0; x < w; x += 8) c.fillRect(x, y, 5, 1.5); };
+    // the heading tape: a paler band, stitched along both edges, a shadow line under it
+    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(0, 0, w, 40);
+    stitch(6); stitch(34);
+    c.fillStyle = 'rgba(70,50,30,0.16)'; c.fillRect(0, 40, w, 3);
+    // the hem: a doubled band, a little darker, its stitch line
+    c.fillStyle = 'rgba(0,0,0,0.05)'; c.fillRect(0, h - 70, w, 70);
+    c.fillStyle = 'rgba(70,50,30,0.2)'; c.fillRect(0, h - 72, w, 2);
+    stitch(h - 60);
+  }, [3, 1]);
+}
+
+/**
+ * Sill-length linen curtains, drawn back to each side of the window: each panel hangs from rings on an oak rod with turned finials and
+ * brass brackets, its heading pleated into the rings; it sweeps down to a fabric tie-back that cinches it toward the wall and flares out
+ * below it in looser folds to a stitched hem. The folds wander as they fall (no two alike); the lining shows on the back.
+ */
 export function curtains(): Group {
   const g = new Group(), rodY = WINDOW.y - 1900, z = 1500;
   const left = WINDOW.x - 3400, right = WINDOW.x + WINDOW.w + 2300;
   const wood = mat(0xffffff, { map: oak('#a77c52', '#6d4d30'), roughness: 0.5 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
-  const band = mat(0xffffff, { map: weave('#b86a45', { repeat: [4, 1] }), roughness: 0.9 });
   g.add(rod([left - 500, -rodY, z], [right + 500, -rodY, z], 150, wood, 14));
-  for (const fx of [left - 700, right + 700]) {
-    const f = new Mesh(new SphereGeometry(330, 16, 10), wood); f.position.set(fx, -rodY, z); g.add(place(f));
-    // the rod's bracket: a rose on the wall, an arm out to the rod
-    const bx = fx - Math.sign(fx - WINDOW.x - WINDOW.w / 2) * 420;
-    g.add(drum(bx, rodY, 0, 80, 300, brass, 16), rod([bx, -rodY, 0], [bx, -rodY, z], 70, brass, 8));
+  // the finials: a collar, a neck, a ball with a little top
+  const finial = [[0, 0], [230, 0], [240, 60], [180, 120], [170, 240], [300, 330], [330, 470], [280, 620], [160, 700], [90, 760], [60, 800], [0, 810]] as const;
+  for (const [fx, s] of [[left - 500, -1], [right + 500, 1]] as const) {
+    const f = place(new Mesh(new LatheGeometry(finial.map(([r, h]) => new Vector2(r, h)), 20), wood));
+    f.rotation.z = -s * Math.PI / 2; f.position.set(fx, -rodY, z);
+    g.add(f);
+    // the rod's bracket: a rose on the wall, an arm out to a cradle under the rod
+    const bx = fx - s * 900;
+    g.add(drum(bx, rodY - 300, 0, 90, 300, brass, 20), rod([bx, -rodY + 300, 60], [bx, -rodY + 300, z - 120], 70, brass, 8), rod([bx, -rodY + 300, z - 120], [bx, -rodY - 170, z], 60, brass, 8));
+    const cradle = new Mesh(new TorusGeometry(190, 45, 6, 16, Math.PI), brass);
+    cradle.rotation.set(Math.PI, Math.PI / 2, 0); cradle.position.set(bx, -rodY, z);
+    g.add(place(cradle));
   }
-  const cloth = mat(0xffffff, { map: weave('#e4d8c3', { repeat: [3, 6] }), roughness: 0.95, side: DoubleSide });
-  const tieV = 0.6, pinch = 0.42;
-  const panel = (x0: number, x1: number, gather: number) => {
-    const w = x1 - x0, h = WINDOW.y + WINDOW.h + 1300 - rodY, geo = new PlaneGeometry(w, h, 40, 28), p = geo.attributes.position!;
-    const outer = (-gather * w) / 2;
+  const tex = curtainTex('#e4d8c3'), cloth = mat(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
+  const band = mat(0xffffff, { map: weave('#b86a45', { repeat: [8, 1] }), roughness: 0.9, side: DoubleSide });
+  const tieV = 0.6, ringR = 250, top = rodY + ringR + 230, h = WINDOW.y + WINDOW.h + 1300 - top;
+  const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
+  const panel = (x0: number, x1: number, gather: number, seed: number) => {
+    const w = x1 - x0, cx = (x0 + x1) / 2, geo = new PlaneGeometry(w, h, 64, 44), p = geo.attributes.position!;
+    // the wall side, where the cloth gathers; how much of its width the cloth spans at each height (all at the rod, least at the tie)
+    // below the tie it flares out, but stops short of the sill's end
+    const outer = (-gather * w) / 2, reach = (gather > 0 ? WINDOW.x - 700 - x0 : x1 - WINDOW.x - WINDOW.w - 700) - 250, low = Math.min(0.72, reach / w);
+    const span = (v: number) => (v < tieV ? 1 - 0.58 * (v / tieV) ** 1.4 : 0.42 + (low - 0.42) * smooth((v - tieV) / (1 - tieV)) ** 0.8);
+    const fold = (u: number, v: number) => Math.sin(u * 37 + seed + v * 1.6) * 0.6 + Math.sin(u * 61 + seed * 1.7 - v * 2.4) * 0.22 + Math.sin(u * 17 + seed * 2.3 + v * 0.7) * 0.32;
+    const k = w / 3000;
     for (let i = 0; i < p.count; i++) {
-      const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h;
-      // the tie-back gathers the cloth toward the wall side; the folds bunch deeper there and flare loose below it
-      const tie = Math.exp(-(((v - tieV) / (v < tieV ? 0.3 : 0.14)) ** 2)), s = 1 - pinch * tie;
-      const phase = u * Math.PI * 2 * 5.5 + 0.7 * Math.sin(u * 7.3 + 1.1);
-      p.setZ(i, Math.sin(phase) * (260 + 160 * v) * (1 + 0.9 * tie) + Math.sin(u * Math.PI * 2 * 11 + 1) * 60);
-      p.setX(i, outer + (p.getX(i) - outer) * s + gather * Math.max(0, v - tieV) ** 2 * 900);
+      const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h, s = span(v);
+      // deeper folds where the cloth is drawn in and as it falls; squeezed flat in the band; the hem ripples a little
+      const squeeze = 1 - 0.5 * Math.exp(-(((v - tieV) / 0.045) ** 2));
+      p.setZ(i, (230 + 330 * v) * k * (1 + 1.1 * (1 - s)) * squeeze * fold(u, v));
+      p.setX(i, outer + (p.getX(i) - outer) * s);
+      p.setY(i, p.getY(i) + 60 * smooth((v - 0.93) / 0.07) * fold(u, 1));
     }
     geo.computeVertexNormals();
-    const m = place(new Mesh(geo, cloth));
-    const cx = (x0 + x1) / 2;
-    m.position.set(cx, -(rodY + h / 2), z);
-    g.add(m);
-    for (let k = 0; k <= 8; k++) { const r = new Mesh(new CylinderGeometry(140, 140, 50, 12), wood); r.rotation.x = Math.PI / 2; r.position.set(x0 + (k / 8) * w, -rodY, z); g.add(place(r)); }
-    // the tie-back: a terracotta band round the gathered cloth, hooked to a brass knob on the wall beside the window
-    const ty = rodY + tieV * h, hw = (w / 2) * (1 - pinch), bx = cx + outer * pinch, depth = 260 + 160 * tieV;
-    const ring = new TorusGeometry(hw + 120, 120, 6, 28);
-    ring.rotateX(Math.PI / 2); ring.scale(1, 2.2, ((depth * 1.9) / 2 + 200) / (hw + 120));
-    const tieM = place(new Mesh(ring, band));
-    tieM.position.set(bx, -ty, z);
-    g.add(tieM);
-    const hx = cx + outer + -gather * 500;
-    g.add(drum(hx, ty, 0, 60, 240, brass, 16), drum(hx, ty, 60, z - 300, 70, brass, 8));
+    for (const m of [cloth, lining]) { const o = place(new Mesh(geo, m)); o.position.set(cx, -(top + h / 2), z); g.add(o); }
+    // the rings along the rod, each with its hook down into the heading
+    for (let r = 0; r <= 9; r++) {
+      const rx = x0 + 120 + (r / 9) * (w - 240), ring = new Mesh(new TorusGeometry(ringR, 34, 6, 18), wood);
+      ring.rotation.y = Math.PI / 2; ring.position.set(rx, -rodY, z);
+      g.add(place(ring), rod([rx, -rodY - ringR, z], [rx, -top + 60, z + 40], 22, brass, 5));
+    }
+    // the tie-back: a band of terracotta cloth round the bundle at the tie, its two ends hooked over a brass knob on the wall behind it
+    let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      if (Math.abs(0.5 - p.getY(i) / h - tieV) > 0.012) continue;
+      bx0 = Math.min(bx0, p.getX(i)); bx1 = Math.max(bx1, p.getX(i)); bz0 = Math.min(bz0, p.getZ(i)); bz1 = Math.max(bz1, p.getZ(i));
+    }
+    const ty = -(top + tieV * h), hx = cx + (bx0 + bx1) / 2 - gather * 200, mid = (bz0 + bz1) / 2 + z, m = 110;
+    const loop: [number, number, number][] = [
+      [hx - 160, ty + 40, 160], [cx + bx0 - m, ty + 10, z + bz0 - m], [cx + bx0 - m * 1.6, ty - 30, mid], [cx + bx0 - m, ty - 80, z + bz1 + m],
+      [cx + (bx0 + bx1) / 2, ty - 140, z + bz1 + m * 1.7], [cx + bx1 + m, ty - 80, z + bz1 + m], [cx + bx1 + m * 1.6, ty - 30, mid], [cx + bx1 + m, ty + 10, z + bz0 - m], [hx + 160, ty + 40, 160],
+    ];
+    g.add(place(new Mesh(ribbon(loop, 520, { closed: true, segs: 64 }), band)));
+    g.add(drum(hx, -ty, 0, 90, 260, brass, 18), drum(hx, -ty, 90, 360, 90, brass, 10));
+    const knob = new Mesh(new SphereGeometry(170, 14, 10), brass);
+    knob.position.set(hx, ty, 400);
+    g.add(place(knob));
   };
-  panel(left, WINDOW.x - 300, 1);
-  panel(WINDOW.x + WINDOW.w + 300, right, -1);
+  panel(left, WINDOW.x + 500, 1, 0.7);
+  panel(WINDOW.x + WINDOW.w - 500, right, -1, 2.9);
   return g;
 }
 
 // ---------------------------------------------------------------- the door, the ceiling light, the print, the plant
+/** A panel door's raised panel in its opening, from the stiles' face down: the ogee moulding stuck on the edge, a flat margin, the bevel, the field. */
+const PANEL: readonly ProfilePt[] = [
+  [0, 280], [40, 266], [95, 222], [130, 160], [175, 112], [240, 92], [290, 52], [300, 10], [300, 10], [520, 10], [520, 10], [1500, 160], [1500, 160], [1570, 196], [1570, 196],
+];
+/** The architrave's section from its outer edge to the opening: a rounded back band, a cove, a long ramp to a bead on the inner edge. */
+const CASING: readonly ProfilePt[] = [
+  [0, 0], [0, 150], [30, 205], [100, 236], [190, 228], [240, 196], [300, 186], [380, 200], [700, 262], [960, 318], [1060, 350], [1130, 362], [1190, 344], [1240, 290], [1250, 220], [1250, 0],
+];
+
 /**
- * A white panelled door in the west wall near the front: a stepped architrave on plinth blocks, the leaf in its frame with a dark gap round it,
- * two raised and moulded panels, three hinges, a brushed lever on its rose, a keyhole, a rubber stop on the floor, and the light switch beside it.
+ * A white four-panel door in the west wall near the front: a moulded architrave on plinth blocks, the leaf in its frame with a dark gap round
+ * it, stiles, rails and a muntin framing four raised and fielded panels, three hinges with their knuckles, a lever on a stepped rose, a
+ * keyhole escutcheon, an oak threshold, a rubber stop on the floor, and the light switch beside it.
  */
 export function door(): Group {
-  const g = new Group(), { z0, z1, top } = DOOR, fl = FLOOR_Y, white = mat(0xf2f0eb, { roughness: 0.4 }), xs = WEST_X;
+  const g = new Group(), { z0, z1, top } = DOOR, fl = FLOOR_Y, white = mat(0xf2f0eb, { roughness: 0.38 }), xs = WEST_X;
   // (in the wall's plane: y down, z along the wall; x out of the wall into the room)
   const slab = (y0: number, y1: number, za: number, zb: number, x0: number, x1: number, m: Material, r = 40) => softBox({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, za, zb, m, r);
-  // the architrave: a flat casing, a bead stepped proud on its inner edge, plinth blocks at the foot
-  g.add(slab(top - 900, top, z0 - 900, z1 + 900, xs, xs + 300, white, 60));
-  g.add(slab(top, fl, z0 - 900, z0, xs, xs + 300, white, 60), slab(top, fl, z1, z1 + 900, xs, xs + 300, white, 60));
-  g.add(slab(top - 260, top, z0 - 260, z1 + 260, xs, xs + 440, white, 70));
-  g.add(slab(top, fl - 1700, z0 - 260, z0, xs, xs + 440, white, 70), slab(top, fl - 1700, z1, z1 + 260, xs, xs + 440, white, 70));
-  for (const [a, b] of [[z0 - 980, z0], [z1, z1 + 980]] as const) g.add(slab(fl - 1700, fl, a, b, xs, xs + 520, white, 60));
-  // the frame's dark gap round the leaf, the leaf a little in
+  // a loft built facing +z (its width along the wall) turned to face the room, centred on (zc, yc), its back at x
+  const onWall = (geo: BufferGeometry, zc: number, yc: number, x: number, m: Material) => { geo.rotateY(Math.PI / 2); const o = place(new Mesh(geo, m)); o.position.set(x, -yc, zc); return o; };
+  // the architrave: one mitred moulding round the opening (its foot runs on under the floor), on plinth blocks
+  const cw = 1250, aTop = top - cw, aBot = fl + cw + 60;
+  g.add(onWall(frameLoft(z1 - z0 + 2 * cw, aBot - aTop, CASING), (z0 + z1) / 2, (aTop + aBot) / 2, xs, white));
+  for (const [a, b] of [[z0 - cw - 120, z0 + 40], [z1 - 40, z1 + cw + 120]] as const) g.add(slab(fl - 2300, fl, a, b, xs, xs + 440, white, 70));
+  // the frame's dark gap round the leaf
   g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x3a3530, { roughness: 0.9 })));
-  const leaf = mat(0xeeebe4, { roughness: 0.45 });
-  g.add(slab(top + 70, fl - 140, z0 + 70, z1 - 70, xs - 220, xs + 120, leaf, 30));
-  // two raised panels: a moulding round each, a raised field in it
-  for (const [a, b] of [[top + 1800, top + 17000], [top + 19500, fl - 2200]] as const) {
-    g.add(slab(a, b, z0 + 1700, z1 - 1700, xs + 120, xs + 190, white, 30));
-    g.add(slab(a + 260, b - 260, z0 + 1960, z1 - 1960, xs + 120, xs + 160, mat(0xe3e0d9, { roughness: 0.5 }), 20));
-    g.add(slab(a + 700, b - 700, z0 + 2400, z1 - 2400, xs + 120, xs + 250, white, 90));
+  // the leaf: a core slab, the stiles, rails and centre muntin over it, a raised panel in each opening
+  const leaf = mat(0xefece6, { roughness: 0.36 }), lz0 = z0 + 70, lz1 = z1 - 70, ly0 = top + 70, ly1 = fl - 150, face = xs + 200, panelX = face - 280;
+  g.add(slab(ly0, ly1, lz0, lz1, xs - 220, panelX - 10, leaf, 30));
+  const S = 2300, M = 2000, lock = fl - 19000, rails = [[ly0, ly0 + S], [lock - 1800, lock + 1800], [ly1 - 4300, ly1]] as const;
+  g.add(slab(ly0, ly1, lz0, lz0 + S, xs - 220, face, leaf, 30), slab(ly0, ly1, lz1 - S, lz1, xs - 220, face, leaf, 30));
+  for (const [a, b] of rails) g.add(slab(a, b, lz0 + S - 20, lz1 - S + 20, xs - 220, face, leaf, 20));
+  const mz = (z0 + z1) / 2;
+  for (const [a, b] of [[rails[0][1], rails[1][0]], [rails[1][1], rails[2][0]]] as const) {
+    g.add(slab(a - 20, b + 20, mz - M / 2, mz + M / 2, xs - 220, face, leaf, 20));
+    for (const [za, zb] of [[lz0 + S, mz - M / 2], [mz + M / 2, lz1 - S]] as const) g.add(onWall(frameLoft(zb - za, b - a, PANEL, { cap: true }), (za + zb) / 2, (a + b) / 2, panelX, leaf));
   }
-  // three hinges on the far edge: a leaf on the frame, the knuckle with its pin
-  const steel = mat(0xb9bcc0, { metalness: 0.85, roughness: 0.35 }), dark = mat(0x26282b, { roughness: 0.6 });
-  for (const hy of [top + 2600, (top + fl) / 2 - 800, fl - 3600]) {
-    g.add(post(xs + 140, hy + 1100, z1 - 30, 110, 2200, steel, 10));
-    g.add(post(xs + 140, hy - 1100, z1 - 30, 70, 120, steel, 8));
+  // three hinges on the far edge: the knuckle proud of the gap, ball finials on its pin
+  const steel = mat(0xb9bcc0, { metalness: 0.85, roughness: 0.32 }), dark = mat(0x26282b, { roughness: 0.6 });
+  for (const hy of [top + 2900, (top + fl) / 2 - 800, fl - 3900]) {
+    g.add(post(face - 60, hy + 1000, z1 - 20, 125, 2000, steel, 14));
+    for (const [y, s] of [[hy + 1000, -1], [hy - 1000, 1]] as const) { const b = new Mesh(new SphereGeometry(105, 12, 8), steel); b.position.set(face - 60, -y + s * 30, z1 - 20); g.add(place(b)); }
   }
-  // the lever: a round rose, the lever out of it and along the door, its end turned in; the keyhole's rose under it
-  const hy = fl - 19000, hz = z0 + 1500;
-  const rose = (y: number, r: number) => { const o = place(new Mesh(new CylinderGeometry(r, r * 1.05, 140, 24), steel)); o.rotation.z = Math.PI / 2; o.position.set(xs + 190, -y, hz); return o; };
-  g.add(rose(hy, 420), rod([xs + 220, -hy, hz], [xs + 900, -hy, hz], 150, steel, 12), rod([xs + 900, -hy, hz], [xs + 980, -hy, hz + 2100], 130, steel, 12));
-  const tip = new Mesh(new SphereGeometry(150, 12, 8), steel);
-  tip.position.set(xs + 980, -hy, hz + 2100);
-  g.add(place(tip), rose(hy + 1700, 260), slab(hy + 1580, hy + 1840, hz - 40, hz + 40, xs + 250, xs + 265, dark, 10));
+  // the lever: a stepped rose turned on a lathe, the lever out of its neck and along the door, its end swelling and turned in to the leaf
+  const hy = lock, hz = lz0 + 1350;
+  const rose = (y: number, prof: readonly (readonly [number, number])[]) => {
+    const o = place(new Mesh(new LatheGeometry(prof.map(([r, h]) => new Vector2(r, h)), 32), steel));
+    o.rotation.z = -Math.PI / 2; o.position.set(face, -y, hz);
+    return o;
+  };
+  g.add(rose(hy, [[0, 0], [470, 0], [495, 30], [480, 110], [400, 160], [200, 190], [175, 240], [160, 420], [0, 430]]));
+  const lever: [number, number, number][] = [[face + 330, -hy, hz], [face + 820, -hy, hz], [face + 930, -hy, hz + 260], [face + 960, -hy - 30, hz + 1200], [face + 900, -hy - 60, hz + 2150]];
+  g.add(place(new Mesh(taperTube(lever, 140, 165, 14, 40), steel)));
+  const tip = new Mesh(new SphereGeometry(165, 14, 10), steel);
+  tip.scale.set(0.85, 1, 1.2); tip.position.set(...lever[4]!);
+  g.add(place(tip));
+  // the escutcheon under it: a small rose, the key's slot through it
+  g.add(rose(hy + 1700, [[0, 0], [280, 0], [295, 25], [270, 80], [0, 95]]));
+  const slot = place(new Mesh(new CylinderGeometry(60, 60, 30, 12), dark));
+  slot.rotation.z = Math.PI / 2; slot.position.set(face + 95, -(hy + 1660), hz);
+  g.add(slot, slab(hy + 1660, hy + 1840, hz - 30, hz + 30, face + 70, face + 100, dark, 8));
+  // the threshold: an oak strip with its edges eased, across the opening on the floor
+  g.add(softBox({ x: xs - 300, y: fl - 140, w: 900, h: 140 }, z0, z1, mat(0xffffff, { map: oak('#b58a5e', '#7a5737', [4, 1]), roughness: 0.5 }), 50));
   // a rubber stop on the floor where the door swings open
   const stop = post(xs + 12500, fl, z1 - 1200, 380, 900, mat(0x4a4744, { roughness: 0.9 }), 14, 300);
   g.add(stop, post(xs + 12500, fl, z1 - 1200, 460, 80, steel, 14));
-  // the light switch beside the door: a plate, its rocker
-  g.add(slab(fl - 22600, fl - 20600, z1 + 1500, z1 + 2900, xs, xs + 160, white, 50));
-  const rocker = slab(fl - 22000, fl - 21200, z1 + 1950, z1 + 2450, xs + 120, xs + 260, mat(0xe2dfd8, { roughness: 0.5 }), 30);
-  rocker.rotation.z = 0.08;
+  // the light switch beside the door: a bevelled plate, its rocker
+  g.add(onWall(frameLoft(1400, 2000, [[0, 0], [0, 40], [120, 150], [120, 150]], { cap: true }), z1 + 2200, fl - 21600, xs, white));
+  const rocker = slab(fl - 22100, fl - 21100, z1 + 1900, z1 + 2500, xs + 120, xs + 270, mat(0xe8e5de, { roughness: 0.45 }), 40);
+  rocker.rotation.z = 0.06;
   g.add(rocker);
   return g;
 }
 
-/** A flush drum light on the ceiling (y: the ceiling, 2D y down). Its diffuser glows when lit. */
+/**
+ * A semi-flush drum light under a plaster ceiling rose (y: the ceiling, 2D y down): the rose's rings and bead, a canopy and a short stem, a
+ * linen drum held by brass rims and a three-arm spider, a domed diffuser closing its foot. The linen and the diffuser glow when lit.
+ */
 export function ceilingLight(x: number, y: number, z: number): { root: Group; glow: MeshStandardMaterial } {
-  const g = new Group();
-  const glow = mat(0xffffff, { map: weave('#f4eee2', { repeat: [4, 1] }), roughness: 0.9, side: DoubleSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
-  const drumM = new Mesh(new CylinderGeometry(4600, 4600, 2000, 40, 1, true), glow);
-  drumM.position.set(x, -(y + 1400), z);
-  const disc = new Mesh(new CylinderGeometry(4500, 4500, 60, 40), mat(0xf6f1e6, { roughness: 0.6, emissive: new Color(0xffe2b0), emissiveIntensity: 0 }));
-  disc.position.set(x, -(y + 2350), z);
-  g.add(place(drumM, false), place(disc, false), place(post(x, y + 400, z, 1400, 400, mat(0xf3f0ea, { roughness: 0.5 }), 24), false));
+  const g = new Group(), plaster = mat(0xf6f3ec, { roughness: 0.9 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
+  const lathe = (pts: readonly (readonly [number, number])[], m: Material, yTop: number, segs = 40) => {
+    const o = place(new Mesh(new LatheGeometry(pts.map(([r, h]) => new Vector2(r, -h)), segs), m), false);
+    o.position.set(x, -yTop, z);
+    return o;
+  };
+  // the rose: a cove off the ceiling, a bead, a stepped field, a ring of leaves (a scalloped rim), a boss in the middle
+  g.add(lathe([[3300, 0], [3300, 40], [3150, 110], [2950, 150], [2900, 210], [2820, 240], [2740, 210], [2700, 160], [2300, 180], [2000, 230], [1900, 300], [1500, 330], [1100, 330], [1000, 390], [800, 420], [0, 430]], plaster, y, 48));
+  // the ring of leaves, each pointing out from the middle
+  const leaf = new SphereGeometry(260, 8, 6), leaves = new InstancedMesh(leaf, plaster, 24), o = new Object3D();
+  leaf.scale(1, 0.45, 1.6);
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    o.position.set(x + Math.cos(a) * 1700, -(y + 290), z + Math.sin(a) * 1700); o.rotation.set(0, -a + Math.PI / 2, 0); o.updateMatrix();
+    leaves.setMatrixAt(i, o.matrix);
+  }
+  g.add(place(leaves, false));
+  // the canopy and the stem
+  const drop = 1500, top = y + drop, sh = 2000, r = 4400;
+  g.add(lathe([[700, 0], [700, 60], [640, 200], [380, 330], [140, 380], [0, 380]], brass, y + 430, 24));
+  g.add(place(post(x, top, z, 75, drop - 700, brass, 10), false));
+  // the shade: linen, brass rims top and foot, the spider from the top rim to a hub round the stem
+  const glow = mat(0xffffff, { map: weave('#f4eee2', { repeat: [6, 1] }), roughness: 0.9, side: DoubleSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
+  const shade = new Mesh(new CylinderGeometry(r, r, sh, 48, 1, true), glow);
+  shade.position.set(x, -(top + sh / 2), z);
+  g.add(place(shade, false));
+  for (const ry of [top, top + sh]) {
+    const rim = new Mesh(new TorusGeometry(r + 20, 45, 6, 64), brass);
+    rim.rotation.x = Math.PI / 2; rim.position.set(x, -ry, z);
+    g.add(place(rim, false));
+  }
+  const hub = new Mesh(new TorusGeometry(260, 60, 6, 16), brass);
+  hub.rotation.x = Math.PI / 2; hub.position.set(x, -(top + 60), z);
+  g.add(place(hub, false));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.4;
+    g.add(place(rod([x + Math.cos(a) * 300, -(top + 60), z + Math.sin(a) * 300], [x + Math.cos(a) * r, -(top + 20), z + Math.sin(a) * r], 35, brass, 6), false));
+  }
+  // the diffuser: a shallow dome of opal glass across the foot
+  const R = r * 4, cap = Math.asin(r / R), dome = new SphereGeometry(R, 48, 6, 0, Math.PI * 2, 0, cap);
+  dome.translate(0, -R * Math.cos(cap), 0); dome.rotateX(Math.PI);
+  const disc = new Mesh(dome, mat(0xf6f1e6, { roughness: 0.4, emissive: new Color(0xffe2b0), emissiveIntensity: 0, side: DoubleSide }));
+  disc.position.set(x, -(top + sh - 60), z);
+  g.add(place(disc, false));
   return { root: g, glow };
 }
 
@@ -620,29 +751,6 @@ export function print(r: { x: number; y: number; w: number; h: number }, z: numb
   const face = new Mesh(new PlaneGeometry(r.w - 700, r.h - 700), mat(0xffffff, { map: art, roughness: 0.85 }));
   face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z + 392);
   g.add(face);
-  return g;
-}
-
-/** A fiddle-leaf fig in a ribbed pot, standing on the floor at (x, z). */
-export function floorPlant(x: number, z: number): Group {
-  const g = new Group(), fl = FLOOR_Y;
-  const pot = new Mesh(new LatheGeometry([new Vector2(1500, 0), new Vector2(2100, 300), new Vector2(2300, 3600), new Vector2(2450, 4300), new Vector2(2200, 4400), new Vector2(0, 4100)], 28), mat(0xe8e1d4, { roughness: 0.55 }));
-  pot.position.set(x, -fl, z);
-  // a saucer under it, the soil in it
-  g.add(place(pot), post(x, fl, z, 1900, 240, mat(0xd8cfbf, { roughness: 0.5 }), 28, 2050), post(x, fl - 4320, z, 2180, 60, mat(0x3b2a1e, { roughness: 1 }), 24));
-  const trunk = mat(0x6b5240, { roughness: 0.8 });
-  g.add(rod([x, -fl + 4000, z], [x + 300, -fl + 15000, z + 200], 170, trunk, 8), rod([x + 200, -fl + 11000, z + 100], [x - 1600, -fl + 17000, z + 900], 110, trunk, 8));
-  const leafG = new IcosahedronGeometry(1, 1);
-  const tones = [mat(0x4f7d3c, { roughness: 0.5, flatShading: true }), mat(0x5f8f47, { roughness: 0.5, flatShading: true }), mat(0x41693a, { roughness: 0.5, flatShading: true })];
-  for (let k = 0; k < 34; k++) {
-    const t = k / 34, a = k * 2.4, h = -fl + 8000 + t * 11500, r = 1500 + Math.sin(t * Math.PI) * 2600;
-    const leaf = place(new Mesh(leafG, tones[k % 3]!));
-    leaf.scale.set(1500, 160, 1000);
-    leaf.position.set(x + Math.cos(a) * r, h, z + Math.sin(a) * r);
-    leaf.rotation.set(0.4 * Math.sin(a), -a, -0.5 - 0.3 * Math.cos(a * 1.3));
-    g.add(leaf);
-  }
-  g.add(floorShadow(x, z, 7000, 7000, 0.8));
   return g;
 }
 

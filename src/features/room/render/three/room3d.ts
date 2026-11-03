@@ -17,9 +17,10 @@ import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
-import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, plant, steam, type Lamp, type Mug, type Screen } from './props3d';
+import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { Outside, outsideMesh } from './outside3d';
-import { basket, bed, bookcase, ceilingLight, curtains, door, eastWall, floorPlant, nightstand, print, radiator, slippers } from './furniture3d';
+import { basket, bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator, slippers } from './furniture3d';
+import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
   BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, MONITOR_Z, SLATS_X0, SLATS_X1, SLAT_W, WALL_T, WEST_X, WINDOW,
   daylight, slatRuns, sunDir, wallAround,
@@ -98,14 +99,31 @@ function walnutTex(): Texture | null {
   });
 }
 
-/** Plaster: a flat warm paint with a faint mottle (the light shows it, a hand-finished wall). */
+/**
+ * Plaster: a flat warm paint over a hand-trowelled wall. A soft cloud of light and shade (smooth noise over three scales, seamless across the
+ * tile's edges) and a fine roller stipple: no blotch stands out, the light shows it.
+ */
 function plasterTex(base: string, repeat: [number, number]): Texture | null {
-  return paint(256, 256, (c, w, h) => {
+  return paint(512, 512, (c, w, h) => {
     c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let k = 0; k < 600; k++) {
-      c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.012)' : 'rgba(60,40,20,0.01)';
-      c.beginPath(); c.arc(rnd() * w, rnd() * h, 2 + rnd() * 6, 0, Math.PI * 2); c.fill();
+    const img = c.getImageData(0, 0, w, h), d = img.data;
+    // a lattice of random values per scale, wrapped at the tile's edge, blended smoothly between its points
+    const octaves = [[4, 5], [9, 3], [23, 1.6]].map(([n, amp]) => ({ n: n!, amp: amp!, v: Array.from({ length: n! * n! }, () => rnd() * 2 - 1) }));
+    const ease = (t: number) => t * t * (3 - 2 * t);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let s = 0;
+        for (const { n, amp, v } of octaves) {
+          const fx = (x / w) * n, fy = (y / h) * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = ease(fx - ix), ty = ease(fy - iy);
+          const r0 = iy * n, r1 = ((iy + 1) % n) * n, i1 = (ix + 1) % n;
+          s += amp * ((v[r0 + ix]! * (1 - tx) + v[r0 + i1]! * tx) * (1 - ty) + (v[r1 + ix]! * (1 - tx) + v[r1 + i1]! * tx) * ty);
+        }
+        s += (rnd() - 0.5) * 4;
+        const o = (y * w + x) * 4;
+        for (let k = 0; k < 3; k++) d[o + k] = Math.max(0, Math.min(255, d[o + k]! + s));
+      }
     }
+    c.putImageData(img, 0, 0);
   }, repeat);
 }
 
@@ -137,7 +155,7 @@ function planksTex(): Texture | null {
           // a knot: dark heart, rings stretched along the board
           if (rnd() < 0.4) {
             const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0), ky = y0 + ph * (0.3 + rnd() * 0.4);
-            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${70 + k * 14},${42 + k * 9},${22 + k * 6},${0.18 + (4 - k) * 0.12})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
+            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${86 + k * 14},${54 + k * 9},${30 + k * 6},${0.1 + (4 - k) * 0.07})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
           }
           c.restore();
         }
@@ -176,7 +194,7 @@ export class Room3D {
   private keys = new Group();
   private sun = new SpotLight(0xfff0d8, 0, 0, 0.17, 0.35, 0);
   private front = new DirectionalLight(0xfff4e6, 1);
-  private hemi = new HemisphereLight(0xe4ecff, 0x8a6a50, 1);
+  private hemi = new HemisphereLight(0xe4ecff, 0xe2d6c6, 1);
   private windowFill = new SpotLight(0xd4e2ff, 0, 0, 0.95, 1, 0);
   private lampLight = new SpotLight(0xffd29a, 0, 0, 0.6, 0.7, 0);
   private bedLight = new PointLight(0xffb46a, 0, 42000, 1);
@@ -290,11 +308,7 @@ export class Room3D {
     this.blind.position.set(W.x + W.w / 2, -(W.y + 900), -500);
     winG.add(this.blind);
     R.add(winG);
-    const pot = plant(0, 0, 0);
-    pot.scale.setScalar(3.4);
-    pot.position.set(W.x + W.w - 2600, -sillY, -300);
-    R.add(pot);
-    R.add(radiator(), curtains());
+    R.add(aloe(W.x + W.w - 2600, sillY, -300), radiator(), curtains());
 
     // ---- the furniture: the bed and its table, the bookcase, the door, the ceiling light, a print over the bed, plants, the basket ----
     const ns = nightstand();
@@ -302,7 +316,7 @@ export class Room3D {
     this.bedGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(-35500, 30000), basket(-15500, 6200), slippers(14500, 30500), eastWall(), this.bedLight);
+    R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), basket(-15500, 6200), slippers(14500, 30500), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
     // ---- the desk: a walnut top, a panel leg at the west end, three drawers at the east end, on the floor ----
