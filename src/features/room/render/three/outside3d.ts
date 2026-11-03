@@ -2,7 +2,8 @@
 // Flat layers stand at real distances (a branch of the tree outside, the houses across the garden, the town, the towers of the city, the hills), each a
 // canvas painted once (lit windows in a second, packed one), so the parallax is right from anywhere in the room and the camera can never reach them.
 // Above them a sky by the game hour (skyAt's colours, the sun on its path, clouds that drift, the moon and stars at night). A ray that dips under the
-// houses meets the street. Plain flat colours with a baked light from the west, like the room's stylised look (docs/LOWPOLY_STYLE.md).
+// houses meets the ground: the lawn below the house, a street along it with cars parked on its far side (a low layer of their own), the front
+// gardens. Painted colours with a baked light from the west, like the room's stylised look (docs/LOWPOLY_STYLE.md).
 import { ClampToEdgeWrapping, Color, Mesh, PlaneGeometry, RepeatWrapping, ShaderMaterial, Vector3, Vector4, type Texture } from 'three';
 import { anisotropy } from '@/core/render/three/geometry';
 import { rawSrgb } from '@/core/render/three/artlod';
@@ -16,7 +17,8 @@ export const GROUND_Y = -20000 - 8 * M;
 /** A layer: a vertical plane at depth z (world), covering x0..x0+w and yb..yb+h (y up), painted on a px[0] by px[1] canvas; `wrap` repeats it along x. */
 export interface Layer { z: number; x0: number; yb: number; w: number; h: number; px: [number, number]; wrap: boolean }
 export const LAYERS = {
-  branch: { z: -3.2 * M, x0: -110000, yb: -15000, w: 100000, h: 50000, px: [1024, 512], wrap: false },
+  branch: { z: -3.2 * M, x0: -110000, yb: -15000, w: 100000, h: 50000, px: [2048, 1024], wrap: false },
+  cars: { z: -34.3 * M, x0: 0, yb: GROUND_Y, w: 54 * M, h: 2 * M, px: [2048, 128], wrap: true },
   near: { z: -60 * M, x0: 0, yb: GROUND_Y, w: 54 * M, h: 13.5 * M, px: [2048, 512], wrap: true },
   mid: { z: -400 * M, x0: 0, yb: GROUND_Y, w: 270 * M, h: 67.5 * M, px: [2048, 512], wrap: true },
   far: { z: -2000 * M, x0: 0, yb: GROUND_Y - 6 * M, w: 1340 * M, h: 335 * M, px: [2048, 512], wrap: true },
@@ -53,15 +55,39 @@ function glowRect(g: CanvasRenderingContext2D | null, x: number, y: number, w: n
   g.fillRect(x, y, w, h);
 }
 
-/** A tree's crown: overlapping round tufts, darker under and lit from the upper west (the sun's side in the room). */
+/**
+ * A tree's crown: a shaded mass of round tufts, each a gradient from its side lit from the upper west (the sun's side in the room) to its shade,
+ * the lower ones under the upper ones, and leaf dabs round the crown's rim so its edge is ragged, not a row of circles.
+ */
 function crown(c: CanvasRenderingContext2D, x: number, y: number, r: number, tones: readonly [string, string, string]): void {
-  const tufts = Array.from({ length: 9 }, () => ({ dx: (rnd() - 0.5) * r * 1.3, dy: (rnd() - 0.4) * r * 1.1, r: r * (0.45 + rnd() * 0.3) }));
+  const tufts = Array.from({ length: 20 }, () => {
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * r * 0.75;
+    return { x: x + Math.cos(a) * d * 1.15, y: y + Math.sin(a) * d * 0.85, r: r * (0.24 + rnd() * 0.16) };
+  }).sort((a, b) => a.y - b.y);
   c.fillStyle = tones[2];
-  for (const t of tufts) { c.beginPath(); c.arc(x + t.dx + r * 0.08, y + t.dy - r * 0.1, t.r, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = tones[1];
-  for (const t of tufts) { c.beginPath(); c.arc(x + t.dx, y + t.dy, t.r * 0.92, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = tones[0];
-  for (const t of tufts) { if (t.dx > r * 0.25 || t.dy < -r * 0.1) continue; c.beginPath(); c.arc(x + t.dx - t.r * 0.25, y + t.dy + t.r * 0.25, t.r * 0.55, 0, Math.PI * 2); c.fill(); }
+  for (const t of tufts) { c.beginPath(); c.arc(t.x + r * 0.05, t.y - r * 0.06, t.r * 1.1, 0, Math.PI * 2); c.fill(); }
+  // (each tuft ends in the crown's middle tone, not a dark rim: rims would outline every circle; the light falls on the crown's upper west)
+  for (const t of tufts) {
+    const lit = Math.max(0, Math.min(1, 0.5 + ((x - t.x) + (t.y - y)) / (r * 1.6)));
+    const gr = c.createRadialGradient(t.x - t.r * 0.5, t.y + t.r * 0.5, t.r * 0.1, t.x, t.y, t.r * 1.2);
+    gr.addColorStop(0, lit > 0.45 ? tones[0] : tones[1]); gr.addColorStop(0.5 + 0.3 * lit, tones[1]); gr.addColorStop(1, lit > 0.3 ? tones[1] : tones[2]);
+    c.fillStyle = gr; c.beginPath(); c.arc(t.x, t.y, t.r, 0, Math.PI * 2); c.fill();
+  }
+  for (let i = 0; i < 160; i++) {
+    const t = tufts[Math.floor(rnd() * tufts.length)]!, a = rnd() * Math.PI * 2, px = t.x + Math.cos(a) * t.r * 0.98, py = t.y + Math.sin(a) * t.r * 0.98;
+    if (Math.hypot(px - x, py - y) < r * 0.6) continue;
+    c.fillStyle = Math.cos(a) < 0.2 && Math.sin(a) > -0.2 ? tones[0] : tones[1];
+    c.beginPath(); c.arc(px, py, t.r * (0.04 + rnd() * 0.05), 0, Math.PI * 2); c.fill();
+  }
+}
+
+/** A tree's trunk from the ground at `x` up to `top`: tapered, its east side in shade, and two limbs forking into the crown. */
+function trunk(c: CanvasRenderingContext2D, x: number, ground: number, top: number, w: number): void {
+  c.fillStyle = '#5e4636';
+  c.beginPath(); c.moveTo(x - w * 0.6, ground); c.lineTo(x - w * 0.35, top); c.lineTo(x + w * 0.35, top); c.lineTo(x + w * 0.6, ground); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(30,20,15,0.3)'; c.fillRect(x + w * 0.1, ground, w * 0.45, top - ground);
+  c.strokeStyle = '#5e4636'; c.lineWidth = w * 0.4; c.lineCap = 'round';
+  for (const s of [-1, 1]) { c.beginPath(); c.moveTo(x, top - w); c.lineTo(x + s * w * 2.2, top + w * 2.5); c.stroke(); }
 }
 
 /** The houses across the garden (60 m): two- and three-storey houses with pitched roofs and chimneys, gardens with trees, a hedge, street lamps. */
@@ -71,26 +97,35 @@ function paintNear(l: Layer, c: CanvasRenderingContext2D, g: CanvasRenderingCont
   let x = l.x0 + rnd() * 2 * M;
   while (x < l.x0 + l.w) {
     const w = (7 + rnd() * 4) * M, floors = rnd() < 0.4 ? 3 : 2, h = floors * 2.9 * M + 0.6 * M, roof = (2.6 + rnd() * 1.6) * M, gable = rnd() < 0.45;
-    const wall = pick(walls), rf = pick(roofs), hx = x;
+    const wall = pick(walls), rf = pick(roofs), hx = x, brick = wall === '#c98a6b' || wall === '#b8735a';
     wrapped(l, hx, w, (dx) => {
       const X = hx + dx;
       c.fillStyle = wall; c.fillRect(X, G, w, h);
-      // the shaded east side of the facade, the plinth
+      // brick courses or render's faint bands, the shaded east side of the facade, the plinth
+      c.fillStyle = brick ? 'rgba(70,35,25,0.1)' : 'rgba(80,70,60,0.04)';
+      for (let by = G + 0.3 * M; by < G + h; by += brick ? 0.3 * M : 0.9 * M) c.fillRect(X, by, w, 0.04 * M);
       c.fillStyle = 'rgba(40,30,30,0.12)'; c.fillRect(X + w * 0.82, G, w * 0.18, h);
       c.fillStyle = 'rgba(60,50,45,0.25)'; c.fillRect(X, G, w, 0.5 * M);
-      // the roof: a gable end toward us or a slope with its ridge along the street
-      c.fillStyle = rf;
-      c.beginPath();
-      if (gable) { c.moveTo(X - 0.4 * M, G + h); c.lineTo(X + w / 2, G + h + roof); c.lineTo(X + w + 0.4 * M, G + h); }
-      else { c.moveTo(X - 0.5 * M, G + h); c.lineTo(X + 1.6 * M, G + h + roof); c.lineTo(X + w - 1.6 * M, G + h + roof); c.lineTo(X + w + 0.5 * M, G + h); }
-      c.closePath(); c.fill();
+      // the roof: a gable end toward us or a slope with its ridge along the street, its tile courses
+      const roofPath = () => {
+        c.beginPath();
+        if (gable) { c.moveTo(X - 0.4 * M, G + h); c.lineTo(X + w / 2, G + h + roof); c.lineTo(X + w + 0.4 * M, G + h); }
+        else { c.moveTo(X - 0.5 * M, G + h); c.lineTo(X + 1.6 * M, G + h + roof); c.lineTo(X + w - 1.6 * M, G + h + roof); c.lineTo(X + w + 0.5 * M, G + h); }
+        c.closePath();
+      };
+      c.fillStyle = rf; roofPath(); c.fill();
+      c.save(); roofPath(); c.clip();
+      c.fillStyle = 'rgba(30,15,10,0.18)';
+      for (let ty = G + h + 0.3 * M; ty < G + h + roof; ty += 0.32 * M) c.fillRect(X - M, ty, w + 2 * M, 0.06 * M);
+      c.restore();
       c.fillStyle = 'rgba(255,240,220,0.18)';
       c.beginPath();
       if (gable) { c.moveTo(X - 0.4 * M, G + h); c.lineTo(X + w / 2, G + h + roof); c.lineTo(X + w / 2, G + h); }
       else { c.moveTo(X - 0.5 * M, G + h); c.lineTo(X + 1.6 * M, G + h + roof); c.lineTo(X + w / 2, G + h + roof); c.lineTo(X + w / 2, G + h); }
       c.closePath(); c.fill();
-      // the eaves' shadow
+      // the eaves' shadow, the gutter and its downpipe
       c.fillStyle = 'rgba(30,20,20,0.22)'; c.fillRect(X, G + h - 0.35 * M, w, 0.35 * M);
+      c.fillStyle = '#6d6a66'; c.fillRect(X - 0.4 * M, G + h - 0.1 * M, w + 0.8 * M, 0.16 * M); c.fillRect(X + w - 0.4 * M, G, 0.12 * M, h);
       // a chimney
       const chx = X + w * (0.2 + rnd() * 0.5);
       c.fillStyle = '#8d5a46'; c.fillRect(chx, G + h + roof * 0.5, 0.7 * M, roof * 0.75);
@@ -100,16 +135,28 @@ function paintNear(l: Layer, c: CanvasRenderingContext2D, g: CanvasRenderingCont
       for (let f = 0; f < floors; f++) for (let k = 0; k < cols; k++) {
         const wx = X + (k + 0.5) * (w / cols) - 0.55 * M, wy = G + 0.9 * M + f * 2.9 * M, ww = 1.1 * M, wh = 1.4 * M;
         if (f === 0 && k === Math.floor(cols / 2)) {
+          // the front door: its step, a canopy over it
           c.fillStyle = '#5a4136'; c.fillRect(wx, G + 0.5 * M, ww, 2.1 * M);
-          c.fillStyle = '#f2ede4'; c.fillRect(wx - 0.12 * M, G + 2.6 * M, ww + 0.24 * M, 0.14 * M);
+          c.fillStyle = 'rgba(255,240,220,0.12)'; c.fillRect(wx + 0.1 * M, G + 0.6 * M, ww * 0.4, 1.9 * M);
+          c.fillStyle = '#bdb6aa'; c.fillRect(wx - 0.25 * M, G + 0.32 * M, ww + 0.5 * M, 0.2 * M);
+          c.fillStyle = '#4a4440'; c.fillRect(wx - 0.35 * M, G + 2.72 * M, ww + 0.7 * M, 0.18 * M);
+          c.fillStyle = 'rgba(30,20,20,0.25)'; c.fillRect(wx - 0.2 * M, G + 2.5 * M, ww + 0.4 * M, 0.22 * M);
           continue;
         }
         c.fillStyle = '#f4f1ea'; c.fillRect(wx - 0.12 * M, wy - 0.12 * M, ww + 0.24 * M, wh + 0.24 * M);
         const gr = c.createLinearGradient(0, wy, 0, wy + wh);
         gr.addColorStop(0, '#3b4656'); gr.addColorStop(0.55, '#5f7088'); gr.addColorStop(1, '#a9bed2');
         c.fillStyle = gr; c.fillRect(wx, wy, ww, wh);
+        // curtains drawn back in some, the glazing bar, the sill and its shadow
+        if (rnd() < 0.45) {
+          c.fillStyle = pick(['rgba(240,232,215,0.85)', 'rgba(214,196,170,0.85)', 'rgba(180,110,95,0.8)', 'rgba(150,165,185,0.8)']);
+          c.fillRect(wx, wy, ww * 0.2, wh); c.fillRect(wx + ww * 0.8, wy, ww * 0.2, wh);
+        }
         c.fillStyle = '#f4f1ea'; c.fillRect(wx + ww / 2 - 0.05 * M, wy, 0.1 * M, wh);
-        if (rnd() < 0.5) glowRect(g, wx, wy, ww, wh);
+        c.fillStyle = '#e6e1d7'; c.fillRect(wx - 0.22 * M, wy - 0.24 * M, ww + 0.44 * M, 0.14 * M);
+        c.fillStyle = 'rgba(30,20,20,0.15)'; c.fillRect(wx - 0.18 * M, wy - 0.4 * M, ww + 0.36 * M, 0.16 * M);
+        // a lit room shows its glazing bar against the light
+        if (rnd() < 0.5) { glowRect(g, wx, wy, ww, wh, 0.75); g?.clearRect(wx + ww / 2 - 0.05 * M, wy, 0.1 * M, wh); }
       }
     });
     x += w + (2 + rnd() * 5) * M;
@@ -119,7 +166,7 @@ function paintNear(l: Layer, c: CanvasRenderingContext2D, g: CanvasRenderingCont
   for (let k = 0; k < 16; k++) {
     const tx = l.x0 + rnd() * l.w, th = (4 + rnd() * 7) * M, r = (1.6 + rnd() * 2.2) * M, tones = pick(greens);
     wrapped(l, tx - r * 1.4, r * 2.8, (dx) => {
-      c.fillStyle = '#5e4636'; c.fillRect(tx + dx - 0.18 * M, G, 0.36 * M, th - r * 0.6);
+      trunk(c, tx + dx, G, G + th - r * 0.6, 0.36 * M);
       crown(c, tx + dx, G + th, r, tones);
     });
   }
@@ -129,7 +176,12 @@ function paintNear(l: Layer, c: CanvasRenderingContext2D, g: CanvasRenderingCont
     wrapped(l, lx, 1.2 * M, (dx) => {
       c.fillStyle = '#3c4048'; c.fillRect(lx + dx, G, 0.14 * M, 4.2 * M); c.fillRect(lx + dx, G + 4.1 * M, 0.9 * M, 0.12 * M);
       c.fillStyle = '#e9e4d6'; c.fillRect(lx + dx + 0.6 * M, G + 3.85 * M, 0.4 * M, 0.25 * M);
-      if (g) { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(lx + dx + 0.8 * M, G + 3.9 * M, 0.5 * M, 0.3 * M, 0, 0, Math.PI * 2); g.fill(); }
+      if (g) {
+        // the lamp's glow: bright at the bulb, fading into the air round it
+        const gx = lx + dx + 0.8 * M, gy = G + 3.9 * M, gr = g.createRadialGradient(gx, gy, 0, gx, gy, 0.7 * M);
+        gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.2, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(gx, gy, 0.7 * M, 0, Math.PI * 2); g.fill();
+      }
     });
   }
   // a clipped hedge along the street, the nearest thing
@@ -219,29 +271,93 @@ function paintHills(l: Layer, c: CanvasRenderingContext2D): void {
   }
 }
 
-/** A branch of the garden's tree reaching in from the upper west, three metres out: leaves lit on the sun's side. */
+/** The cars parked along the street's far kerb: side views, some facing each way, a shadow under each, their glass catching the sky. */
+function paintCars(l: Layer, c: CanvasRenderingContext2D): void {
+  const G = l.yb, bodies = ['#b8383a', '#e9e6df', '#2f4a6e', '#8c9096', '#2d2f33', '#c8a24a', '#5f7f63', '#dcdad4'];
+  const car = (X: number, len: number, body: string, flip: boolean, tall: number) => {
+    const at = (u: number) => X + (flip ? 1 - u : u) * len, y0 = G + 0.28 * M, belt = G + 0.92 * M, top = G + tall;
+    c.fillStyle = 'rgba(20,20,25,0.5)'; c.fillRect(X + 0.1 * len, G, len * 0.8, 0.2 * M);
+    // the body (a sloped bonnet at the front, the boot's square end), the cabin
+    c.fillStyle = body;
+    c.beginPath(); c.moveTo(at(0.02), y0); c.lineTo(at(0), G + 0.62 * M); c.quadraticCurveTo(at(0.03), belt, at(0.2), belt);
+    c.lineTo(at(0.94), belt + 0.05 * M); c.quadraticCurveTo(at(1), belt, at(1), G + 0.55 * M); c.lineTo(at(0.98), y0); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(at(0.24), belt); c.lineTo(at(0.4), top); c.lineTo(at(0.8), top); c.lineTo(at(0.9), belt); c.closePath(); c.fill();
+    // the glass, dark under the sky it shows in its top; the pillar between the doors
+    const gr = c.createLinearGradient(0, belt, 0, top);
+    gr.addColorStop(0, '#2a3340'); gr.addColorStop(1, '#8fa4bb');
+    c.fillStyle = gr;
+    c.beginPath(); c.moveTo(at(0.28), belt + 0.04 * M); c.lineTo(at(0.415), top - 0.07 * M); c.lineTo(at(0.785), top - 0.07 * M); c.lineTo(at(0.86), belt + 0.04 * M); c.closePath(); c.fill();
+    c.fillStyle = body; c.fillRect(Math.min(at(0.58), at(0.61)), belt, len * 0.03, top - belt);
+    // the shoulder's highlight, the door seams, the sill's shade, the lamps
+    c.fillStyle = 'rgba(255,255,255,0.22)'; c.fillRect(X + 0.04 * len, belt - 0.1 * M, len * 0.9, 0.05 * M);
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    for (const u of [0.32, 0.6]) c.fillRect(at(u), y0 + 0.08 * M, 0.025 * M, belt - y0 - 0.1 * M);
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(X + 0.03 * len, y0, len * 0.94, 0.12 * M);
+    c.fillStyle = '#f3efe2'; c.fillRect(at(0) - (flip ? 0.12 : 0) * M, G + 0.62 * M, 0.12 * M, 0.12 * M);
+    c.fillStyle = '#b02a22'; c.fillRect(at(1) - (flip ? 0 : 0.12) * M, G + 0.64 * M, 0.12 * M, 0.14 * M);
+    // the wheels in their arches
+    for (const u of [0.18, 0.8]) {
+      const wx = at(u);
+      c.fillStyle = 'rgba(0,0,0,0.55)'; c.beginPath(); c.arc(wx, G + 0.33 * M, 0.4 * M, 0, Math.PI); c.fill();
+      c.fillStyle = '#1d1e21'; c.beginPath(); c.arc(wx, G + 0.32 * M, 0.32 * M, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#9da2a8'; c.beginPath(); c.arc(wx, G + 0.32 * M, 0.17 * M, 0, Math.PI * 2); c.fill();
+    }
+  };
+  // (the last car ends short of the seam, so none is cut there)
+  let x = l.x0 + rnd() * 3 * M;
+  while (x < l.x0 + l.w - 5 * M) {
+    const len = (3.9 + rnd() * 0.9) * M, body = pick(bodies), flip = rnd() < 0.5, tall = (1.38 + rnd() * 0.12) * M;
+    car(x, len, body, flip, tall);
+    x += len + (rnd() < 0.25 ? (8 + rnd() * 10) * M : (0.8 + rnd() * 1.5) * M);
+  }
+}
+
+/**
+ * A branch of the garden's tree reaching in from the upper west, three metres out: its limbs lit along their top, side twigs, and clusters of
+ * pointed leaves at their ends, each leaf lit on its upper half; the far leaves are drawn first and darker, so the cluster has depth.
+ */
 function paintBranch(l: Layer, c: CanvasRenderingContext2D): void {
   c.lineCap = 'round';
   const limb = (pts: [number, number][], w0: number, w1: number) => {
     for (let i = 1; i < pts.length; i++) {
-      c.strokeStyle = '#4a3a2e'; c.lineWidth = w0 + (w1 - w0) * (i / pts.length);
+      const lw = w0 + (w1 - w0) * (i / pts.length);
+      c.strokeStyle = '#4a3a2e'; c.lineWidth = lw;
       c.beginPath(); c.moveTo(...pts[i - 1]!); c.lineTo(...pts[i]!); c.stroke();
+      c.strokeStyle = '#6e5a46'; c.lineWidth = lw * 0.3;
+      c.beginPath(); c.moveTo(pts[i - 1]![0], pts[i - 1]![1] + lw * 0.25); c.lineTo(pts[i]![0], pts[i]![1] + lw * 0.25); c.stroke();
     }
   };
   const main: [number, number][] = [[-110000, 30000], [-90000, 26000], [-72000, 21000], [-58000, 17500], [-46000, 16000], [-36000, 17000]];
   limb(main, 1600, 300);
   const twigs: [number, number][][] = [[[-80000, 23500], [-72000, 30000], [-64000, 33000]], [[-62000, 18500], [-56000, 11000], [-50000, 8000]], [[-52000, 16800], [-44000, 22500], [-38000, 24000]]];
   for (const t of twigs) limb(t, 600, 160);
-  const leafAt = (x: number, y: number) => {
-    const a = rnd() * Math.PI * 2, s = 1300 + rnd() * 900, tone = pick(['#6f9a47', '#5c8a3c', '#7ca854', '#4f7b35', '#88b45e']);
-    c.save(); c.translate(x, y); c.rotate(a);
-    c.fillStyle = tone; c.beginPath(); c.ellipse(0, 0, s, s * 0.45, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(230,255,190,0.25)'; c.beginPath(); c.ellipse(-s * 0.2, s * 0.1, s * 0.6, s * 0.2, 0, 0, Math.PI * 2); c.fill();
-    c.restore();
-  };
+  // side twigs out to the leaf clusters
+  const clusters: [number, number][] = [];
   for (const path of [main, ...twigs]) for (let i = 1; i < path.length; i++) {
     const [x0, y0] = path[i - 1]!, [x1, y1] = path[i]!;
-    for (let k = 0; k < 16; k++) { const u = rnd(); leafAt(x0 + (x1 - x0) * u + (rnd() - 0.5) * 6000, y0 + (y1 - y0) * u + (rnd() - 0.4) * 6000); }
+    for (let k = 0; k < 3; k++) {
+      const u = rnd(), bx = x0 + (x1 - x0) * u, by = y0 + (y1 - y0) * u, ex = bx + (rnd() - 0.5) * 7000, ey = by + (rnd() - 0.35) * 6000;
+      limb([[bx, by], [ex, ey]], 260, 90);
+      clusters.push([ex, ey]);
+    }
+  }
+  const leaf = (x: number, y: number, a: number, s: number, body: string, lit: string) => {
+    c.save(); c.translate(x, y); c.rotate(a);
+    const half = (side: number) => { c.moveTo(0, 0); c.bezierCurveTo(s * 0.3, side * s * 0.42, s * 0.75, side * s * 0.3, s, 0); };
+    c.strokeStyle = '#5b5a34'; c.lineWidth = s * 0.05; c.beginPath(); c.moveTo(-s * 0.2, 0); c.lineTo(0, 0); c.stroke();
+    c.fillStyle = body; c.beginPath(); half(1); c.bezierCurveTo(s * 0.75, -s * 0.3, s * 0.3, -s * 0.42, 0, 0); c.fill();
+    // the half that faces up in the world catches the light
+    c.fillStyle = lit; c.beginPath(); half(Math.cos(a) >= 0 ? 1 : -1); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(40,55,20,0.4)'; c.lineWidth = s * 0.035; c.beginPath(); c.moveTo(0, 0); c.lineTo(s * 0.92, 0); c.stroke();
+    c.restore();
+  };
+  const back: [string, string][] = [['#3f6a2c', '#527d38'], ['#365f27', '#4a7433'], ['#446f30', '#5a8740']];
+  const front: [string, string][] = [['#5f8f3f', '#8dbb62'], ['#6c9c47', '#9bc76d'], ['#548638', '#7fb257'], ['#78a851', '#a5cf78']];
+  for (const [tones, n, spread] of [[back, 9, 2600], [front, 8, 1900]] as const) for (const [cx, cy] of clusters) {
+    for (let k = 0; k < n; k++) {
+      const a = rnd() * Math.PI * 2, d = rnd() * spread, [body, lit] = pick(tones);
+      leaf(cx + Math.cos(a) * d * 0.4, cy + Math.sin(a) * d * 0.4, a + (rnd() - 0.5) * 0.8, 1500 + rnd() * 900, body, lit);
+    }
   }
 }
 
@@ -276,23 +392,75 @@ function paintClouds(): HTMLCanvasElement | null {
 // ---------------------------------------------------------------- the shader
 const VERT = /* glsl */ `
 varying vec3 vWorld;
+varying vec2 vUv;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vWorld = w.xyz;
+  vUv = uv;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
 const FRAG = /* glsl */ `
-uniform sampler2D tBranch, tNear, tMid, tFar, tHills, tGlow, tClouds;
-uniform vec4 rBranch, rNear, rMid, rFar, rHills; // x0, yb, w, h
+uniform sampler2D tBranch, tCars, tNear, tMid, tFar, tHills, tGlow, tClouds;
+uniform vec4 rBranch, rCars, rNear, rMid, rFar, rHills; // x0, yb, w, h
 uniform vec4 zLayers;                             // near, mid, far, hills
-uniform float zBranch, groundY, time, day, night, lights, wind;
-uniform vec3 skyTop, skyHor, sunDir, sunCol, moonDir, light, haze;
+uniform float zBranch, zCars, groundY, time, day, night, lights, wind;
+uniform vec3 skyTop, skyHor, sunDir, sunCol, moonDir, light, haze, sheen;
 uniform vec4 hazeK;                               // near, mid, far, hills
 varying vec3 vWorld;
+varying vec2 vUv;
+
+const float METRE = ${M}.0;
 
 vec3 lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 float hash(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(vec3(i, 0.0)), hash(vec3(i + vec2(1.0, 0.0), 0.0)), f.x), mix(hash(vec3(i + vec2(0.0, 1.0), 0.0)), hash(vec3(i + vec2(1.0, 1.0), 0.0)), f.x), f.y);
+}
+/** 0 before the edge e of x, 1 after it, smoothed over w. */
+float after(float x, float e, float w) { return smoothstep(e - w, e + w, x); }
+/** 1 on the lines of a grid of step 1 in x, t wide; they fade out where they get finer than a pixel. */
+float joint(float x, float t) { float w = fwidth(x); return (1.0 - smoothstep(t, t + w, abs(fract(x + 0.5) - 0.5))) * clamp(1.0 - w * 3.0, 0.0, 1.0); }
+
+/**
+ * The ground below the window, m metres out from the house and a along it: paving round the house, the lawn (mown in bands, a gravel path
+ * across it), a pavement of flags, the street (its centre dashes, the gutters, the parked cars' shadows), the far pavement, the front gardens.
+ */
+vec3 ground(float m, float a) {
+  float w = fwidth(m) * 0.8 + 0.01, n = vnoise(vec2(a, m) * 1.3) * 0.55 + vnoise(vec2(a, m) * 6.1) * 0.45;
+  vec3 pave = lin(vec3(0.74, 0.72, 0.68)) * (0.9 + 0.12 * n) * (1.0 - 0.3 * max(joint(a / 0.6, 0.04), joint(m / 0.6, 0.04)));
+  vec3 lawn = lin(vec3(0.48, 0.63, 0.33)) * (0.8 + 0.3 * n) * (1.0 + 0.07 * (step(0.5, fract(m / 5.0)) - 0.5));
+  vec3 path = lin(vec3(0.80, 0.74, 0.62)) * (0.88 + 0.16 * n);
+  vec3 kerb = lin(vec3(0.85, 0.83, 0.79));
+  vec3 walk = lin(vec3(0.72, 0.70, 0.66)) * (0.92 + 0.1 * n) * (1.0 - 0.28 * max(joint(a, 0.025), joint(m, 0.025)));
+  vec3 road = lin(vec3(0.33, 0.34, 0.36)) * (0.82 + 0.25 * n);
+  vec3 garden = lin(vec3(0.42, 0.58, 0.30)) * (0.8 + 0.3 * n);
+  vec3 soil = lin(vec3(0.42, 0.33, 0.25)) * (0.85 + 0.2 * n);
+  vec3 c = pave;
+  c = mix(c, lawn, after(m, 1.6, w));
+  c = mix(c, path, after(m, 12.0, w) - after(m, 13.4, w));
+  c = mix(c, kerb, after(m, 26.0, w));
+  c = mix(c, walk, after(m, 26.3, w));
+  c = mix(c, kerb, after(m, 29.2, w));
+  c = mix(c, road, after(m, 29.45, w));
+  float dash = (after(m, 32.85, w) - after(m, 33.05, w)) * step(fract(a / 9.0), 0.35);
+  c = mix(c, lin(vec3(0.9, 0.89, 0.85)) * (0.85 + 0.15 * n), dash);
+  c *= 1.0 - 0.22 * (after(m, 29.45, w) - after(m, 29.8, w)) - 0.22 * (after(m, 36.2, w) - after(m, 36.55, w));
+  // under a car: its body's row of the cars' layer, blurred by a coarse mip
+  float car = textureLod(tCars, vec2((a * METRE - rCars.x) / rCars.z, 0.35), 4.0).a;
+  c *= 1.0 - 0.5 * car * (after(m, 34.1, w) - after(m, 36.3, w));
+  c = mix(c, kerb, after(m, 36.55, w));
+  c = mix(c, walk, after(m, 36.8, w));
+  c = mix(c, garden, after(m, 39.8, w));
+  // the front gardens: a path up to each house, low hedges between them
+  float yard = after(m, 39.8, w) - after(m, 57.6, w), u = fract(a / 12.5), wa = fwidth(a / 12.5) * 0.8 + 0.002;
+  c = mix(c, path * 0.95, yard * (after(u, 0.46, wa) - after(u, 0.54, wa)));
+  c = mix(c, lin(vec3(0.28, 0.42, 0.2)) * (0.8 + 0.3 * n), yard * (1.0 - after(u, 0.03, wa)));
+  c = mix(c, soil, after(m, 57.6, w));
+  return c;
+}
 
 vec2 uvOn(vec4 r, float z, vec3 o, vec3 d) {
   vec3 p = o + d * ((z - o.z) / d.z);
@@ -303,12 +471,13 @@ vec2 uvOn(vec4 r, float z, vec3 o, vec3 d) {
 vec3 over(vec3 col, sampler2D t, vec4 r, float z, float k, int glow, vec3 o, vec3 d) {
   vec2 uv = uvOn(r, z, o, d);
   if (uv.y < 0.0 || uv.y > 1.0) return col;
-  vec4 a = texture(t, vec2(uv.x, 1.0 - uv.y));
+  // (a canvas texture is flipped on upload: v runs up the layer as y does)
+  vec4 a = texture(t, uv);
   vec3 c = mix(lin(a.rgb) * light, haze, k);
   if (glow >= 0) {
-    vec4 g = texture(tGlow, vec2(uv.x, 1.0 - uv.y));
+    vec4 g = texture(tGlow, uv);
     float e = glow == 0 ? g.r : glow == 1 ? g.g : g.b;
-    c += vec3(1.0, 0.72, 0.42) * e * lights * (glow == 2 ? 1.2 : 1.6);
+    c += vec3(1.0, 0.68, 0.36) * e * lights * (glow == 2 ? 1.2 : glow == 1 ? 1.4 : 0.85);
   }
   return mix(col, c, a.a);
 }
@@ -341,24 +510,23 @@ void main() {
   col = over(col, tFar, rFar, zLayers.z, hazeK.z, 2, o, d);
   col = over(col, tMid, rMid, zLayers.y, hazeK.y, 1, o, d);
   col = over(col, tNear, rNear, zLayers.x, hazeK.x, 0, o, d);
-  // a ray that dips under the houses meets the street and the garden below
-  if (d.y < 0.0) {
-    float tg = (groundY - o.y) / d.y;
-    if (tg < (zLayers.x - o.z) / d.z) {
-      vec3 p = o + d * tg;
-      float lane = smoothstep(0.0, 1.0, abs(fract(p.x / 90000.0) - 0.5) * 2.0);
-      vec3 g = mix(vec3(0.20, 0.30, 0.13), vec3(0.32, 0.31, 0.29), step(0.6, lane)) * (0.85 + 0.15 * hash(floor(p / 6000.0)));
-      col = mix(g * light, haze, hazeK.x);
-    }
-  }
+  // a ray that dips under the houses meets the ground, then the parked cars stand on it (the ground is worked out for every pixel, so its
+  // lines can be smoothed by their size on the screen)
+  float tg = (groundY - o.y) / min(d.y, -1e-5);
+  vec3 p = o + d * tg;
+  vec3 gc = ground(-p.z / METRE, p.x / METRE);
+  if (d.y < 0.0 && tg < (zLayers.x - o.z) / d.z) col = mix(gc * light, haze, hazeK.x * clamp(-p.z / METRE / 40.0, 0.0, 1.5));
+  col = over(col, tCars, rCars, zCars, hazeK.x, -1, o, d);
   // the branch outside, stirred a little by the wind
   vec2 bu = uvOn(rBranch, zBranch, o, d);
   bu.x += sin(time * 0.9 + bu.y * 5.0) * 0.004 * wind;
   if (bu.x > 0.0 && bu.x < 1.0 && bu.y > 0.0 && bu.y < 1.0) {
-    vec4 b = texture(tBranch, vec2(bu.x, 1.0 - bu.y));
+    vec4 b = texture(tBranch, bu);
     // at night it is close enough to catch the moon and the room's spill: a dim blue-grey floor keeps its leaves from going black
-    col = mix(col, lin(b.rgb) * (light * 0.9 + vec3(0.16, 0.18, 0.28) * lights), b.a);
+    col = mix(col, lin(b.rgb) * (light * 0.9 + vec3(0.08, 0.09, 0.14) * lights), b.a);
   }
+  // the glass: a faint sheen, more toward its top and at a grazing look
+  col += sheen * (0.35 + 0.65 * vUv.y) * (0.4 + 3.0 * pow(1.0 - abs(d.z), 3.0));
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -404,14 +572,17 @@ export class Outside {
     };
     const tNear = layer(L.near, paintNear, true), tMid = layer(L.mid, paintMid, true), tFar = layer(L.far, paintFar, true);
     const tHills = layer(L.hills, (l, c) => paintHills(l, c), false), tBranch = layer(L.branch, (l, c) => paintBranch(l, c), false);
+    const tCars = layer(L.cars, (l, c) => paintCars(l, c), false);
     const tGlow = texOf(packGlow(glow), true), tClouds = texOf(paintClouds(), true);
     this.mat = new ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
-        tBranch: { value: tBranch }, tNear: { value: tNear }, tMid: { value: tMid }, tFar: { value: tFar }, tHills: { value: tHills }, tGlow: { value: tGlow }, tClouds: { value: tClouds },
-        rBranch: { value: rect(L.branch) }, rNear: { value: rect(L.near) }, rMid: { value: rect(L.mid) }, rFar: { value: rect(L.far) }, rHills: { value: rect(L.hills) },
-        zLayers: { value: new Vector4(L.near.z, L.mid.z, L.far.z, L.hills.z) }, zBranch: { value: L.branch.z }, groundY: { value: GROUND_Y },
-        time: { value: 0 }, day: { value: 1 }, night: { value: 0 }, lights: { value: 0 }, wind: { value: 1 },
+        tBranch: { value: tBranch }, tCars: { value: tCars }, tNear: { value: tNear }, tMid: { value: tMid }, tFar: { value: tFar }, tHills: { value: tHills },
+        tGlow: { value: tGlow }, tClouds: { value: tClouds },
+        rBranch: { value: rect(L.branch) }, rCars: { value: rect(L.cars) }, rNear: { value: rect(L.near) }, rMid: { value: rect(L.mid) }, rFar: { value: rect(L.far) },
+        rHills: { value: rect(L.hills) },
+        zLayers: { value: new Vector4(L.near.z, L.mid.z, L.far.z, L.hills.z) }, zBranch: { value: L.branch.z }, zCars: { value: L.cars.z }, groundY: { value: GROUND_Y },
+        time: { value: 0 }, day: { value: 1 }, night: { value: 0 }, lights: { value: 0 }, wind: { value: 1 }, sheen: { value: new Color() },
         skyTop: { value: new Color() }, skyHor: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color() },
         moonDir: { value: new Vector3(-0.33, 0.2, -0.92).normalize() }, light: { value: new Color(1, 1, 1) }, haze: { value: new Color() },
         hazeK: { value: new Vector4(0.04, 0.2, 0.5, 0.66) },
@@ -428,7 +599,8 @@ export class Outside {
     const k = Math.round(hour * 30);
     if (k === this.key) return;
     this.key = k;
-    const s = skyAt(hour), day = daylight(hour), night = 1 - day, lift = 1.15 + 0.35 * day;
+    // (lifted only a little: more, and the noon horizon and its haze wash out to white)
+    const s = skyAt(hour), day = daylight(hour), night = 1 - day, lift = 1.1 + 0.15 * day;
     const top = new Color(s.top).multiplyScalar(lift), hor = new Color(s.hor).multiplyScalar(lift);
     u.skyTop!.value.copy(top); u.skyHor!.value.copy(hor);
     u.day!.value = day; u.night!.value = night;
@@ -440,6 +612,8 @@ export class Outside {
     u.sunCol!.value.copy(new Color(0xfff4e0).lerp(new Color(s.hor), low * 0.85)).multiplyScalar(day * 1.4);
     u.light!.value.copy(new Color(0x24304f).multiplyScalar(0.35)).lerp(new Color(0xfff6ea).lerp(new Color(s.hor), low * 0.6).multiplyScalar(1.15), day);
     u.haze!.value.copy(hor).multiplyScalar(0.92);
+    // the glass's sheen: the day's sky on it, at night the warm room behind the viewer
+    u.sheen!.value.setRGB(0.012, 0.013, 0.015).multiplyScalar(day).add(new Color(0x1a120c).multiplyScalar(0.25 * night));
   }
 }
 

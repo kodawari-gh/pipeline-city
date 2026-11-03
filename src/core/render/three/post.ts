@@ -156,8 +156,11 @@ export class Post {
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
     // what is near in depth occludes (the bed's side must not shade the wall a metre behind it); the sparser samples are smoothed over more pixels.
-    this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4, distanceFallOff: 1 - k * 0.6 });
-    this.ao.updatePdMaterial({ radius: 4 + k * 12, rings: 2 + k * 2 });
+    // Uniforms only: the pass rebuilds its shader for a new fall-off (set here straight on the uniform) or a new ring count, and a flight would
+    // rebuild it every frame, slow enough for auto-adjust to drop the AO.
+    this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4 });
+    this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
+    this.ao.updatePdMaterial({ radius: 4 + k * 16 });
   }
 
   setOutlined(objects: Object3D[]): void {
