@@ -2,7 +2,7 @@
 // standby screen, the digital clock, the mug with its steam on a cork coaster, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
   SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector3, type BufferGeometry, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -315,7 +315,9 @@ export function mouse(x: number, deskY: number, z: number): Group {
     const k = MOUSE_LEN / (size.z || 1), base = y0 - 0.1 * sy;
     model.scale.setScalar(k);
     model.position.set(x - mid.x * k, base - box.min.y * k, z - mid.z * k);
-    model.traverse((o) => { if (o instanceof Mesh) place(o); });
+    // one colour: the shell's, in place of the model's own materials; both sides drawn, the file's faces are not all wound one way
+    const skin = shell.clone(); skin.side = DoubleSide;
+    model.traverse((o) => { if (o instanceof Mesh) { o.material = skin; place(o); } });
     g.add(model);
     prim.visible = false;
   });
