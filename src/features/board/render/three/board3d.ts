@@ -298,6 +298,7 @@ export function mountBoard3d(host: HTMLElement) {
     const picked: Object3D[] = [];
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
+    post.setReach(view.height);
     post.render();
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
     room?.redrawShadows(shadows.scan(scene, now), now);

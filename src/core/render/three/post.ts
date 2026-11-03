@@ -104,6 +104,7 @@ export class Post {
   private outline: PickOutline;
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
+  private reach = 900;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     this.composer = new EffectComposer(renderer, new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false }));
@@ -113,8 +114,7 @@ export class Post {
     const depth = this.scene.target.depthTexture!;
     this.ao = new GTAOPass(scene, camera, w, h, { depthTexture: depth }); // no normals given: it works them out from the depth, so it draws no scene
     this.ao.updateGtaoMaterial({ radius: 900, distanceExponent: 1.4, thickness: 600, scale: 1.2 });
-    this.ao.blendIntensity = 0.85;
-    this.composer.addPass(this.ao);
+    this.ao.blendIntensity = 0.85;    this.composer.addPass(this.ao);
     this.outline = new PickOutline(new Vector2(w, h), camera, depth);
     this.outline.visibleEdgeColor.set(0xffff00);
     this.outline.hiddenEdgeColor.set(0x8a7a00);
@@ -144,6 +144,20 @@ export class Post {
     this.composer.setPixelRatio(ratio);
     renderer.setSize(w, h);
     this.composer.setSize(w, h);
+  }
+
+  /**
+   * The occlusion's reach for a view `height` world units tall: a board part's 900 up to the board view, then wider with the view, so a room
+   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out).
+   */
+  setReach(height: number): void {
+    const k = Math.min(1, Math.max(0, (height - 9000) / 20000)), r = Math.round(900 + k * 3100);
+    if (this.reach === r) return;
+    this.reach = r;
+    // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
+    // what is near in depth occludes (the bed's side must not shade the wall a metre behind it); the sparser samples are smoothed over more pixels.
+    this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4, distanceFallOff: 1 - k * 0.6 });
+    this.ao.updatePdMaterial({ radius: 4 + k * 12, rings: 2 + k * 2 });
   }
 
   setOutlined(objects: Object3D[]): void {

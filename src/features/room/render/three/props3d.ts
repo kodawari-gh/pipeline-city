@@ -39,6 +39,12 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const innerM = new Mesh(new CylinderGeometry(296, 812, L, 32, 1, true), inner);
   const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), white));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
+  // the mouth's rolled lip, the head's knob that sets the shade's tilt
+  const lip = place(new Mesh(new TorusGeometry(816, 40, 8, 48), white));
+  lip.rotation.x = Math.PI / 2; lip.position.y = -L;
+  const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, 18), joint));
+  knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
+  shade.add(lip, knob);
   const bulb = mat(0xfff6e0, { emissive: new Color(0xffe2b0), emissiveIntensity: 0 });
   const bulbM = new Mesh(new SphereGeometry(240, 20, 14), bulb);
   bulbM.position.y = -L + 380;

@@ -5,7 +5,7 @@
 // the room merges the still ones by material (`mergeStatic`). Pure scenery: nothing answers a click.
 import {
   BoxGeometry, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide, Group, IcosahedronGeometry, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, TorusGeometry, Vector2, type Material, type Texture,
+  MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material, type Texture,
 } from 'three';
 import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
@@ -94,8 +94,26 @@ export function cushion(w: number, h: number, d: number, puff = 1): BufferGeomet
 }
 
 /**
- * A soft slab of cloth (a duvet, a throw) laid over a box: its edges fall over the sides, its top rumpled a little. `hem` waves the hanging
- * edge (the cloth falls in loose folds, longer here, shorter there) and puffs the sides out a little.
+ * A stuffed pillow: two cloth panels sewn round their edge. Thick and round in the middle, down to a thin welt at the seam; each edge drawn in
+ * between its corners (the stuffing pulls the cloth); the top a little lumpy, `seed` setting where. `w` across (x), `d` deep (z), `h` thick (y).
+ */
+export function pillow(w: number, h: number, d: number, o: { pinch?: number; lumps?: number; seed?: number } = {}): BufferGeometry {
+  const g = new BoxGeometry(2, 2, 2, 24, 2, 18), p = g.attributes.position!;
+  const pinch = o.pinch ?? 0.11, lumps = o.lumps ?? 0.06, s = o.seed ?? 0;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const fill = Math.pow(Math.max(0, (1 - x * x) * (1 - z * z)), 0.3);
+    const lump = 1 + lumps * (Math.sin(x * 2.3 + s) * Math.sin(z * 1.9 + s * 1.7) + 0.5 * Math.sin(x * 4.1 - z * 3.3 + s * 2.3)) * fill;
+    const px = x * (1 - pinch * (1 - z * z)), pz = z * (1 - pinch * (1 - x * x));
+    p.setXYZ(i, (px * w) / 2, (y * (0.14 + 0.86 * fill) * lump * h) / 2, (pz * d) / 2);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A soft slab of cloth (a duvet, a throw) laid over a box: its edges fall over the sides, its top rumpled a little. `hem` folds the hanging
+ * cloth: soft flutes that grow toward the hem (in and out, as cloth hangs), the hem itself only a little uneven.
  */
 function drape(w: number, h: number, d: number, rumple: number, radius: number, hem = 0): BufferGeometry {
   const g = new BoxGeometry(w, h, d, 32, 6, 32), p = g.attributes.position!;
@@ -109,8 +127,8 @@ function drape(w: number, h: number, d: number, rumple: number, radius: number, 
     if (hem && y < h / 2 - radius) {
       const down = Math.min(1, (h / 2 - radius - y) / (h - radius)), along = Math.abs(x) > w / 2 - radius ? z : x;
       const fold = Math.sin(along / 1100 + 0.7) * 0.6 + Math.sin(along / 530 + 2.1) * 0.4;
-      y += hem * fold * down * down;
-      const out = hem * 0.35 * (0.6 + 0.4 * fold) * Math.sin(Math.PI * down);
+      y += hem * 0.2 * fold * down * down;
+      const out = hem * (0.15 + 0.55 * fold * down) * Math.sin(Math.PI * 0.5 * Math.min(1, down * 1.6));
       if (Math.abs(x) > w / 2 - radius) x += Math.sign(x) * out;
       if (Math.abs(z) > d / 2 - radius) z += Math.sign(z) * out;
     }
@@ -138,7 +156,11 @@ export function bed(): Group {
   g.add(softBox({ x, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
   g.add(softBox({ x: x + w - 900, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
   g.add(softBox({ x, y: rail.y, w, h: rail.h }, z1 - 900, z1, wood, 120));
-  for (const [lx, lz] of [[x + 450, z1 - 450], [x + w - 450, z1 - 450], [x + 450, z0 + 2300], [x + w - 450, z0 + 2300]] as const) g.add(post(lx, fl, lz, 220, fl - rail.y - rail.h, wood, 10, 300));
+  // (each leg tapered to a brass cap on the floor)
+  const cap = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
+  for (const [lx, lz] of [[x + 450, z1 - 450], [x + w - 450, z1 - 450], [x + 450, z0 + 2300], [x + w - 450, z0 + 2300]] as const) {
+    g.add(post(lx, fl, lz, 220, fl - rail.y - rail.h, wood, 16, 300), post(lx, fl, lz, 232, 520, cap, 16, 236));
+  }
   // the headboard: an oak base and five upholstered channels, down behind the mattress
   const fabric = mat(0xffffff, { map: weave('#a8ae98', { repeat: [2, 4] }), roughness: 0.95 });
   g.add(softBox({ x: x - 300, y: fl - 21000, w: w + 600, h: 21000 - 2200 }, z0, z0 + 900, wood, 150));
@@ -147,7 +169,8 @@ export function bed(): Group {
   // the slats' rail inside the frame, seen in the gap under the mattress
   g.add(softBox({ x: x + 900, y: rail.y + 900, w: w - 1800, h: 500 }, z0 + 2100, z1 - 900, mat(0x8f6a46, { roughness: 0.7 }), 40));
   // the mattress (its top 10000 over the floor) in its fitted sheet, a piped seam round its top
-  const sheet = mat(0xffffff, { map: weave('#f2efe8'), roughness: 0.9 }), mTop = fl - 10000;
+  // (the whites a little under white, so the light can still model them: a paper white flattens in the sun)
+  const sheet = mat(0xffffff, { map: weave('#e7e2d8'), roughness: 0.9 }), mTop = fl - 10000;
   g.add(softBox({ x: x + 400, y: mTop, w: w - 800, h: 4400 }, z0 + 2200, z1 - 500, sheet, 700));
   // (straight rods and quarter rings: a spline through the corners bows out along the long sides)
   const piping = mat(0xe4ded2, { roughness: 0.85 }), pr = 700, py = -mTop - 320, rx0 = x + 440, rx1 = x + w - 440, rz0 = z0 + 2240, rz1 = z1 - 540;
@@ -166,29 +189,31 @@ export function bed(): Group {
   const dvZ0 = z0 + 12500, dv = place(new Mesh(drape(w - 120, 5600, z1 - dvZ0 + 200, 240, 1500, 420), linen));
   dv.position.set(cx, -(mTop - 1200 + 2800), (dvZ0 + z1) / 2 + 100);
   g.add(dv);
-  const turnTex = weave('#f3eee4', { repeat: [5, 2] });
-  const fold = place(new Mesh(drape(w - 60, 1700, 3200, 110, 800, 160), mat(0xffffff, { map: turnTex, roughness: 0.9 })));
+  const turnTex = weave('#e8e2d5', { repeat: [5, 2] });
+  // (rounded to its full thickness: a soft roll, not a block)
+  const fold = place(new Mesh(drape(w - 60, 1700, 3200, 110, 849, 160), mat(0xffffff, { map: turnTex, roughness: 0.9 })));
   fold.position.set(cx, -(mTop - 850), dvZ0);
   g.add(fold);
   // two oat shams standing against the headboard, two sleeping pillows leaning on them, a mustard cushion in front
+  // (each stands or leans on what is behind it, its bottom on the mattress: a stuffed pillow, its seam a welt round its edge)
   const shamM = mat(0xffffff, { map: weave('#d8d2bf', { repeat: [3, 3] }), roughness: 0.92 });
-  for (const px of [cx - w * 0.245, cx + w * 0.245]) {
-    const p = place(new Mesh(cushion(w * 0.46, 1900, 6600, 0.8), shamM));
-    p.rotation.x = -Math.PI / 2 - 0.2;
-    p.position.set(px, -mTop + 3150, z0 + 3800);
+  const lean = (o: Mesh, x: number, foot: number, z: number, tall: number, a: number, turn = 0) => {
+    o.rotation.set(-Math.PI / 2 - a, turn, 0, 'YXZ');
+    o.position.set(x, -mTop + foot + (tall / 2) * Math.cos(a), z - (tall / 2) * Math.sin(a));
+    g.add(o);
+  };
+  [cx - w * 0.245, cx + w * 0.245].forEach((px, i) => lean(place(new Mesh(pillow(w * 0.46, 2500, 7600, { seed: i * 2.1 }), shamM)), px, 0, z0 + 4700, 7600, 0.2, i ? 0.02 : -0.02));
+  // two sleeping pillows lie in front of them, their backs up on the shams
+  const pillowM = mat(0xffffff, { map: weave('#eae5db', { repeat: [3, 3] }), roughness: 0.9 });
+  for (const [px, rz, seed] of [[cx - w * 0.235, 0.03, 0.7], [cx + w * 0.235, -0.04, 3.3]] as const) {
+    const p = place(new Mesh(pillow(w * 0.43, 3000, 7200, { seed, lumps: 0.08 }), pillowM));
+    p.position.set(px, -mTop + 1950, z0 + 8900);
+    p.rotation.set(0.42, rz, 0);
     g.add(p);
   }
-  const pillowM = mat(0xffffff, { map: weave('#f6f3ec', { repeat: [3, 3] }), roughness: 0.9 });
-  for (const [px, rz] of [[cx - w * 0.235, 0.03], [cx + w * 0.235, -0.04]] as const) {
-    const p = place(new Mesh(cushion(w * 0.43, 2600, 6200), pillowM));
-    p.position.set(px, -mTop + 1700, z0 + 7300);
-    p.rotation.set(-0.42, 0, rz);
-    g.add(p);
-  }
-  const cush = place(new Mesh(cushion(6200, 1800, 5600, 1.2), mat(0xffffff, { map: weave('#d4a24c', { knit: true, repeat: [3, 3] }), roughness: 0.95 })));
-  cush.position.set(cx + 900, -mTop + 2700, z0 + 10200);
-  cush.rotation.set(-0.95, 0.12, 0.08);
-  g.add(cush);
+  // a mustard knit cushion leaning on the right-hand pillow, a little turned
+  lean(place(new Mesh(pillow(7400, 2600, 7400, { pinch: 0.09, seed: 5 }), mat(0xffffff, { map: weave('#d4a24c', { knit: true, repeat: [3, 3] }), roughness: 0.95 }))),
+    cx + w * 0.14, 1550, z0 + 13600, 7400, 1.0, -0.12);
   // the chunky knitted throw across the foot, down both sides to a tasselled edge
   const knit = chunky('#b8653f', [1.9, 0.45]);
   const throwM = mat(0xffffff, { map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 0.97 });
@@ -252,7 +277,9 @@ export function nightstand(): Bedside {
   // the lamp: a round ceramic body, a brass neck, a linen drum
   const lx = cx - 1100, lz = cz - 400, ceramic = mat(0x8fa48c, { roughness: 0.35 });
   const profile = [[0, 0], [900, 0], [1300, 300], [1650, 1000], [1700, 1600], [1450, 2300], [800, 2800], [300, 3000], [250, 3040]] as const;
-  const vase = new Mesh(new LatheGeometry(profile.map(([r, y]) => new Vector2(r, y)), 28), ceramic);
+  // (the profile through a smooth curve, so the belly turns without facets)
+  const curve = new SplineCurve(profile.map(([r, y]) => new Vector2(r, y)));
+  const vase = new Mesh(new LatheGeometry(curve.getPoints(40), 40), ceramic);
   vase.position.set(lx, -top, lz);
   g.add(place(vase));
   g.add(post(lx, top - 3040, lz, 90, 1500, brass, 10));
@@ -327,6 +354,10 @@ interface Book { x: number; y: number; z: number; sx: number; sy: number; sz: nu
  */
 function shelvedBooks(books: readonly Book[]): Group {
   const g = new Group(), box = new BoxGeometry(1, 1, 1), d = new Object3D(), col = new Color();
+  // the cover: its spine (+x) rounded across the book's thickness, as a bound book's back is
+  const cover = new BoxGeometry(1, 1, 1, 1, 1, 8), cp = cover.attributes.position!;
+  for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + 0.035 * (1 - 4 * cp.getZ(i) ** 2));
+  cover.computeVertexNormals();
   const board = mat(0xd2d2d2, { roughness: 0.75 }), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
   const put = (m: InstancedMesh, i: number, b: Book, sx: number, sy: number, sz: number, dx: number) => {
@@ -337,7 +368,7 @@ function shelvedBooks(books: readonly Book[]): Group {
     const set = books.filter((b) => b.kind === kind);
     if (!set.length) continue;
     // BoxGeometry's groups: +x (the spine, to the room), -x, +y, -y, +z, -z
-    const m = new InstancedMesh(box, [mat(0xffffff, { map: spineTex(kind), roughness: 0.7 }), board, hidden, hidden, board, board], set.length);
+    const m = new InstancedMesh(cover, [mat(0xffffff, { map: spineTex(kind), roughness: 0.7 }), board, hidden, hidden, board, board], set.length);
     set.forEach((b, i) => { put(m, i, b, b.sx, b.sy, b.sz, 0); m.setColorAt(i, col.setHex(b.tone)); });
     g.add(place(m));
   }

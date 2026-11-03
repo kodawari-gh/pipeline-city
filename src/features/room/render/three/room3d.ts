@@ -66,6 +66,38 @@ function woodTex(base: string, line: string, o: { planks?: boolean; across?: boo
   }, o.repeat);
 }
 
+/**
+ * Walnut, for the desk: glued boards along the grain (u), each its own tone; a straight grain waved a little, a cathedral (nested arches) in
+ * some boards, fine dark pores; a dark glue line between boards.
+ */
+function walnutTex(): Texture | null {
+  return paint(1024, 512, (c, w, h) => {
+    const n = 5, bh = h / n;
+    for (let b = 0; b < n; b++) {
+      const y0 = b * bh, f = 0.88 + rnd() * 0.22;
+      c.save(); c.beginPath(); c.rect(0, y0, w, bh); c.clip();
+      c.fillStyle = `rgb(${108 * f},${72 * f},${50 * f})`; c.fillRect(0, y0, w, bh);
+      for (let i = 0; i < 26; i++) {
+        const gy = y0 + rnd() * bh, amp = 1 + rnd() * 3;
+        c.strokeStyle = rnd() < 0.75 ? `rgba(46,26,14,${0.14 + rnd() * 0.2})` : `rgba(168,124,88,${0.1 + rnd() * 0.12})`;
+        c.lineWidth = 0.7 + rnd() * 2;
+        c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 32) c.lineTo(x, gy + Math.sin(x / 140 + i) * amp); c.stroke();
+      }
+      if (rnd() < 0.7) {
+        const ax = rnd() * w, ay = y0 + bh * (0.35 + rnd() * 0.3);
+        for (let k = 0; k < 7; k++) {
+          const s = 30 + k * 26, t = bh * (0.08 + k * 0.055);
+          c.strokeStyle = `rgba(42,24,12,${0.3 - k * 0.03})`; c.lineWidth = 1.4 + rnd();
+          c.beginPath(); c.moveTo(ax - s * 4, ay - t); c.quadraticCurveTo(ax + s, ay - t, ax + s * 1.4, ay); c.quadraticCurveTo(ax + s, ay + t, ax - s * 4, ay + t); c.stroke();
+        }
+      }
+      for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(28,15,7,${0.1 + rnd() * 0.15})`; c.fillRect(rnd() * w, y0 + rnd() * bh, 2 + rnd() * 6, 1); }
+      c.restore();
+      c.fillStyle = 'rgba(38,20,10,0.4)'; c.fillRect(0, y0, w, 1);
+    }
+  });
+}
+
 /** Plaster: a flat warm paint with a faint mottle (the light shows it, a hand-finished wall). */
 function plasterTex(base: string, repeat: [number, number]): Texture | null {
   return paint(256, 256, (c, w, h) => {
@@ -167,7 +199,7 @@ export class Room3D {
     this.geo = roomGeo();
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     const white = mat(0xf3f1ec, { roughness: 0.4 });
-    const deskWood = mat(0xffffff, { map: woodTex('#3f2a1e', '#160c06', { across: true }), roughness: 0.55 });
+    const walnut = walnutTex(), deskWood = mat(0xffffff, { map: walnut, bumpMap: walnut, bumpScale: 0.6, roughness: 0.5 });
     const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2c31, { roughness: 0.5 });
     const plaster = mat(0xffffff, { map: plasterTex('#ece5d9', [10, 5]), roughness: 0.92 });
@@ -273,23 +305,31 @@ export class Room3D {
     R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(-35500, 30000), basket(-15500, 6200), slippers(14500, 30500), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
-    // ---- the desk: a thick top, a panel leg at the west end, three drawers at the east end, on the floor ----
-    R.add(softBox({ x: g.desk.x0, y: ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, deskWood, 60));
+    // ---- the desk: a walnut top, a panel leg at the west end, three drawers at the east end, on the floor ----
+    // the top, thickened by an edge band under its front and its ends (the back stays thin over the cords' grommet)
+    const dw = g.desk.x1 - g.desk.x0, band = 460;
+    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, deskWood, 150));
+    R.add(softBox({ x: g.desk.x0 + 20, y: ys + DESK_TOP - 60, w: dw - 40, h: band }, DESK_D - 700, DESK_D - 15, deskWood, 110));
+    for (const x of [g.desk.x0 + 20, g.desk.x1 - 720]) R.add(softBox({ x, y: ys + DESK_TOP - 60, w: 700, h: band }, 400, DESK_D - 15, deskWood, 110));
     R.add(softBox({ x: g.desk.x0 + 250, y: ys + DESK_TOP, w: 500, h: fl - ys - DESK_TOP }, 300, DESK_D - 300, deskWood, 40));
     // a back rail between the leg and the pedestal, under the top
     const ped = { x: g.desk.x1 - 7800, y: ys + DESK_TOP, w: 7500, h: fl - ys - DESK_TOP - 500 };
     R.add(softBox({ x: g.desk.x0 + 750, y: ys + DESK_TOP, w: ped.x - g.desk.x0 - 750, h: 2600 }, 700, 1000, deskWood, 40));
-    // the pedestal: a carcass on a dark plinth, its front a dark recess with three drawer fronts set in it, a gap round each, bar pulls on standoffs
+    // the pedestal: a carcass on a dark plinth, its front a dark recess with three drawer fronts set in it, a gap round each, brass bar pulls on
+    // standoffs, a lock in the top drawer
+    const brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.32 });
     R.add(softBox(ped, 300, DESK_D - 400, deskWood, 40));
     R.add(softBox({ x: ped.x + 300, y: ped.y + ped.h, w: ped.w - 600, h: 500 }, 600, DESK_D - 900, dark, 30));
     R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 300 }, DESK_D - 400, DESK_D - 380, mat(0x140d08, { roughness: 0.9 })));
     const dh = (ped.h - 300 - 2 * 90) / 3;
     for (let k = 0; k < 3; k++) {
       const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
-      R.add(softBox(d, DESK_D - 520, DESK_D - 300, deskWood, 50));
+      R.add(softBox(d, DESK_D - 520, DESK_D - 300, deskWood, 90));
       const py = d.y + Math.min(900, d.h * 0.3), px0 = d.x + d.w / 2 - 1100, px1 = d.x + d.w / 2 + 1100;
-      R.add(drum(px0, py, DESK_D - 300, DESK_D - 120, 50, chrome, 10), drum(px1, py, DESK_D - 300, DESK_D - 120, 50, chrome, 10));
-      R.add(rod([px0 - 200, -py, DESK_D - 100], [px1 + 200, -py, DESK_D - 100], 75, chrome, 12));
+      for (const px of [px0, px1]) R.add(drum(px, py, DESK_D - 300, DESK_D - 280, 130, brass, 16), drum(px, py, DESK_D - 300, DESK_D - 110, 62, brass, 12));
+      R.add(rod([px0 - 260, -py, DESK_D - 95], [px1 + 260, -py, DESK_D - 95], 90, brass, 14));
+      for (const px of [px0 - 260, px1 + 260]) { const cap = new Mesh(new SphereGeometry(90, 12, 8), brass); cap.position.set(px, -py, DESK_D - 95); R.add(place(cap)); }
+      if (k === 0) R.add(drum(d.x + d.w / 2, d.y + d.h - 700, DESK_D - 300, DESK_D - 270, 150, brass, 18), rectBox({ x: d.x + d.w / 2 - 25, y: d.y + d.h - 790, w: 50, h: 180 }, DESK_D - 270, DESK_D - 262, dark));
     }
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, the mug on its coaster, a notebook ----
