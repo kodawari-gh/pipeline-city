@@ -2,11 +2,12 @@
 // standby screen, the digital clock, the mug with its steam on a cork coaster, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  AdditiveBlending, BackSide, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
-  SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, type BufferGeometry, type Texture,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
+  SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector3, type BufferGeometry, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { loadModel } from '@/core/render/three/gltf';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
@@ -276,9 +277,15 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   return g;
 }
 
-/** A soft white mouse on the mat: a palm-high shell on a flat base, a scroll wheel between its two buttons. */
+/** The owner's gaming mouse (`res/computer-mouse.zip`, converted to `public/models/mouse.glb`): its buttons at +x, its palm at -x. */
+const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1800;
+
+/**
+ * A soft white mouse on the mat: the owner's model, scaled to the shell's length and set on its flat base. Until it loads, and when it fails, the
+ * primitive shell stays: a palm-high shell on a flat base, a scroll wheel between its two buttons.
+ */
 export function mouse(x: number, deskY: number, z: number): Group {
-  const g = new Group(), shell = mat(0xe9e8e4, { roughness: 0.35 }), dark = mat(0x2a2d32, { roughness: 0.5 });
+  const g = new Group(), prim = new Group(), shell = mat(0xe9e8e4, { roughness: 0.35 }), dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, 28, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);
@@ -287,17 +294,31 @@ export function mouse(x: number, deskY: number, z: number): Group {
   const sx = 360, sy = 230, sz = 600, y0 = -deskY + 40 + 64;
   const body = place(new Mesh(geo, shell));
   body.scale.set(sx, sy, sz); body.position.set(x, y0, z);
-  g.add(body);
+  prim.add(body);
   const top = (zz: number) => y0 + lift(Math.sqrt(1 - zz * zz), zz) * sy;
   const wheel = place(new Mesh(new CylinderGeometry(72, 72, 64, 16), dark));
   wheel.rotation.z = Math.PI / 2; wheel.position.set(x, top(-0.43) - 32, z - 0.43 * sz);
-  g.add(wheel);
+  prim.add(wheel);
   // the seam between the buttons, before and behind the wheel
   for (const [a, b] of [[-0.08, -0.3], [-0.56, -0.9]] as const) {
     const pts: V3[] = [];
     for (let k = 0; k <= 4; k++) { const zz = a + ((b - a) * k) / 4; pts.push([x, top(zz) + 2, z + zz * sz]); }
-    g.add(tube(pts, 9, dark, 4));
+    prim.add(tube(pts, 9, dark, 4));
   }
+  g.add(prim);
+  // the model: turned so its buttons face the far side (-z) and its palm the room; its length is the 2D mouse's (`MOUSE.l`, 1800), uniformly scaled, its flat base on the mat
+  void loadModel(MOUSE_MODEL).then((m) => {
+    if (!m || !g.parent) return;
+    const model = m.clone(true);
+    model.rotation.y = Math.PI / 2;
+    const box = new Box3().setFromObject(model), size = box.getSize(new Vector3()), mid = box.getCenter(new Vector3());
+    const k = MOUSE_LEN / (size.z || 1), base = y0 - 0.1 * sy;
+    model.scale.setScalar(k);
+    model.position.set(x - mid.x * k, base - box.min.y * k, z - mid.z * k);
+    model.traverse((o) => { if (o instanceof Mesh) place(o); });
+    g.add(model);
+    prim.visible = false;
+  });
   return g;
 }
 
