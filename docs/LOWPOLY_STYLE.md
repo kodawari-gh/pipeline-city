@@ -109,24 +109,12 @@ Emissive: 0x000000 (overridden by state: powered, active, throttled, burnt)
 
 ## Lighting Setup
 
-### Ambient Lighting
+The room is lit from its window, as a real room is (`GRAPHICS_3D_OVERHAUL.md` "Light"):
 
-- **Intensity:** 0.8 (neutral, no harsh shadows)
-- **Color:** #ffffff (neutral white)
-- **Purpose:** Fill, ensure all faces readable
-
-### Directional Light (Sun-like)
-
-- **Position:** (10, 20, 15) normalized
-- **Intensity:** 0.6
-- **Color:** #ffffff
-- **Shadows:** Cast; shadow map 2048×2048 for PCIe slot details
-- **Purpose:** Define form, reduce flatness
-
-### No Point Lights (for now)
-
-- Avoid fan glows or component LEDs until Phase 4
-- Keep render simple; state is conveyed via emissive overlay
+- **Key:** the sky's light and the sun come in by the window only, with shadows. The room falls off away from it.
+- **Bounce:** a light probe of the room is the ambient light and the reflections. No flat fill lights a face from nowhere.
+- **One rule:** in the room view every part takes the same light, the machine and the dies' art too. Only real emitters glow (the screen, the lamps, the RGB), and they light what is near them.
+- **Board view:** the parts take back a studio light, so they read at any hour.
 
 ## Camera & Framing
 

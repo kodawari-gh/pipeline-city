@@ -160,6 +160,11 @@ export const FINISH = {
 let artEnv: Texture | null = null;
 /** The environment the art reflects (the scene's): set once, before the first surface bakes. */
 export function setArtEnvironment(t: Texture | null): void { artEnv = t; }
+/**
+ * How much of that environment's light the art takes, shared by every sheet (one uniform): 1 up close, where it lights the parts to be read;
+ * the room's own level in the room view, so a board behind the glass darkens with the room at night.
+ */
+export const ART_LIGHT = { value: 1 };
 
 /**
  * The finish's shader helpers: the colour tests read an sRGB-ish value (hue, saturation, brightness the way the art was drawn); the height is the
@@ -170,6 +175,7 @@ uniform float artGloss;
 uniform float artMetal;
 uniform float artShine;
 uniform float artLit;
+uniform float artEnvK;
 float artMetalK = 0.0;
 vec3 artSrgb(vec3 c) { return pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
 float artHeight(vec4 t) { return dot(t.rgb, vec3(0.299, 0.587, 0.114)) * step(0.4, t.a); }
@@ -222,11 +228,12 @@ export function artMaterial(map: Texture, f: Finish, level = 0): MeshStandardMat
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - artMetalK;')
       // the environment lifts the mask little (it stays dark and glossy) and the metal a lot (gold and copper read as metal, not paint)
       // (capped under the bloom's threshold: a field of gold pins seen face-on would glow like a lamp)
-      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\niblIrradiance *= 0.45;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) );')
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\niblIrradiance *= 0.45 * artEnvK;\nradiance = min( radiance * mix(0.25, artShine, artMetalK), vec3( 0.8 ) ) * artEnvK;')
       // a lamp's highlight would wash the whole mask grey when it faces the camera: the mask keeps a faint sheen, the metal its glint
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular *= mix(0.3, 0.45, artMetalK);\nreflectedLight.directDiffuse *= artLit;\nreflectedLight.indirectDiffuse *= artLit;');
     sh.uniforms.artShine = { value: f.shine };
     sh.uniforms.artLit = { value: f.lit };
+    sh.uniforms.artEnvK = ART_LIGHT;
   };
   m.customProgramCacheKey = () => 'art-finish';
   return m;

@@ -110,6 +110,12 @@ export class Machine3D {
   private rects = new Map<string, RectLike>();
   private fans: Fan[] = [];
   private rgb = new PointLight(0x8b5cff, 0, 9000, 0);
+  /** The RGB's light out through the glass, on the desk and the wall beside the case: seen from the room only. */
+  private spill = new PointLight(0x8b5cff, 0, 18000, 0);
+  /** A soft white work light inside the case, so the board reads through the glass up close, the machine off or the room dark (`setRoomLight`). */
+  private fill = new PointLight(0xdfe8ff, 0.45, 8000, 0);
+  /** How much the camera is in the room (0 at the board view and closer, 1 at the room's overview): `setRoomLight`. */
+  private roomK = 1;
   private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial } | null = null;
   private hue = 0;
   /** The art is always the dark theme's: the reference's black board under neon. */
@@ -189,10 +195,18 @@ export class Machine3D {
       this.setCables(s, geo);
     }
     this.rgb.position.set(BD.x + BD.w / 2, -(BD.y + BD.h / 2), FRONT - 900);
-    // a soft white fill inside the case, so the board reads through the glass with the machine off
-    const fill = new PointLight(0xdfe8ff, 0.45, 8000, 0);
-    fill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.3), FRONT - 400);
-    this.root.add(this.rgb, fill);
+    this.spill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.7), FRONT + 2500);
+    this.fill.position.set(BD.x + BD.w / 2, -(BD.y + BD.h * 0.3), FRONT - 400);
+    this.root.add(this.rgb, this.spill, this.fill);
+  }
+
+  /**
+   * The room's light on the machine: in the room (`k` 1) the case has only what falls in it (the window, the lamps, its own RGB), as the rest of
+   * the room does; toward the board view (`k` 0) the work light comes up, so the parts read at any hour.
+   */
+  setRoomLight(k: number): void {
+    this.roomK = k;
+    this.fill.intensity = 0.8 * (1 - k);
   }
 
   // ------------------------------------------------------------------ case
@@ -820,6 +834,8 @@ export class Machine3D {
     }
     this.rgb.color.copy(rgb);
     this.rgb.intensity = live && this.caseRgb ? 0.9 : 0;
+    this.spill.color.copy(rgb);
+    this.spill.intensity = this.rgb.intensity * 0.3 * this.roomK;
     if (this.strip) stripLight(this.strip, stripModeOf(s), performance.now());
     if (this.door) this.swingDoor(dt);
     if (this.leds) {

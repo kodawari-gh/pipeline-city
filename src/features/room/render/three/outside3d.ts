@@ -404,7 +404,7 @@ const FRAG = /* glsl */ `
 uniform sampler2D tBranch, tCars, tNear, tMid, tFar, tHills, tGlow, tClouds;
 uniform vec4 rBranch, rCars, rNear, rMid, rFar, rHills; // x0, yb, w, h
 uniform vec4 zLayers;                             // near, mid, far, hills
-uniform float zBranch, zCars, groundY, time, day, night, lights, wind;
+uniform float zBranch, zCars, groundY, time, day, night, lights, wind, gain;
 uniform vec3 skyTop, skyHor, sunDir, sunCol, moonDir, light, haze, sheen;
 uniform vec4 hazeK;                               // near, mid, far, hills
 varying vec3 vWorld;
@@ -525,6 +525,8 @@ void main() {
     // at night it is close enough to catch the moon and the room's spill: a dim blue-grey floor keeps its leaves from going black
     col = mix(col, lin(b.rgb) * (light * 0.9 + vec3(0.08, 0.09, 0.14) * lights), b.a);
   }
+  // daylight outside is far brighter than the room: the view is lifted over the room's whites, so it reads as the light's source and blooms
+  col *= gain;
   // the glass: a faint sheen, more toward its top and at a grazing look
   col += sheen * (0.35 + 0.65 * vUv.y) * (0.4 + 3.0 * pow(1.0 - abs(d.z), 3.0));
   gl_FragColor = vec4(col, 1.0);
@@ -582,7 +584,7 @@ export class Outside {
         rBranch: { value: rect(L.branch) }, rCars: { value: rect(L.cars) }, rNear: { value: rect(L.near) }, rMid: { value: rect(L.mid) }, rFar: { value: rect(L.far) },
         rHills: { value: rect(L.hills) },
         zLayers: { value: new Vector4(L.near.z, L.mid.z, L.far.z, L.hills.z) }, zBranch: { value: L.branch.z }, zCars: { value: L.cars.z }, groundY: { value: GROUND_Y },
-        time: { value: 0 }, day: { value: 1 }, night: { value: 0 }, lights: { value: 0 }, wind: { value: 1 }, sheen: { value: new Color() },
+        time: { value: 0 }, day: { value: 1 }, night: { value: 0 }, lights: { value: 0 }, wind: { value: 1 }, gain: { value: 1 }, sheen: { value: new Color() },
         skyTop: { value: new Color() }, skyHor: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color() },
         moonDir: { value: new Vector3(-0.33, 0.2, -0.92).normalize() }, light: { value: new Color(1, 1, 1) }, haze: { value: new Color() },
         hazeK: { value: new Vector4(0.04, 0.2, 0.5, 0.66) },
@@ -604,6 +606,7 @@ export class Outside {
     const top = new Color(s.top).multiplyScalar(lift), hor = new Color(s.hor).multiplyScalar(lift);
     u.skyTop!.value.copy(top); u.skyHor!.value.copy(hor);
     u.day!.value = day; u.night!.value = night;
+    u.gain!.value = 1 + 0.45 * day;
     u.lights!.value = Math.min(1, Math.max(0, 1.25 - day * 1.6));
     const sd = sunDir(hour);
     u.sunDir!.value.set(sd[0], sd[1], sd[2]);

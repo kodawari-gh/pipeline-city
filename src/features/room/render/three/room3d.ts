@@ -12,7 +12,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, instanced, paint, place, rectBox, rod, softBox, tube } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
-import { mat } from '@/core/render/three/materials';
+import { cloth, mat, varnish } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
@@ -28,10 +28,19 @@ import {
 
 const KEY_W = 230;
 
-/** The shadow map sizes at each level of the graphics settings (the front key, the sun, the lamp); 0 has no shadows, 3 is the tuned look. */
+/** The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp); 0 has no shadows, 3 is the tuned look. */
 const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512], [2048, 1024, 1024], [4096, 2048, 1024], [8192, 4096, 2048]];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
-const SHADOW_SOFT = [10, 5, 6];
+const SHADOW_SOFT = [14, 5, 6];
+/** The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. */
+const KEY_DECAY = 0.8;
+/** The sky light's level is as set at this distance from its source (about the desk's middle). */
+const KEY_REF = 24000;
+/**
+ * The share of the room's own light (the probe, `setProbe`) its materials take as ambient light and reflections. Under 1: one point stands for
+ * the whole room, and a bounce loses some.
+ */
+export const PROBE_K = 1;
 /** While nothing large moves, one light redraws its shadow map at this pace (ms): a whole round costs one frame's worth, spread out. */
 const SHADOW_TURN_MS = 400;
 /** The window's frame sits this far back in its reveal (z of its room face), and the glass a little behind that. */
@@ -193,9 +202,11 @@ export class Room3D {
   readonly geo: RoomGeo;
   private keys = new Group();
   private sun = new SpotLight(0xfff0d8, 0, 0, 0.17, 0.35, 0);
-  private front = new DirectionalLight(0xfff4e6, 1);
+  /** The sky's light through the window: a wide soft spot out behind it, so the wall's shadow lets it in by the opening only. */
+  private key = new SpotLight(0xd4e2ff, 0, 0, 1.05, 0.9, KEY_DECAY);
+  /** A faint light from the viewer's side, for the fronts the window does not see (no shadow). */
+  private fill = new DirectionalLight(0xfff4e6, 0);
   private hemi = new HemisphereLight(0xe4ecff, 0xe2d6c6, 1);
-  private windowFill = new SpotLight(0xd4e2ff, 0, 0, 0.95, 1, 0);
   private lampLight = new SpotLight(0xffd29a, 0, 0, 0.6, 0.7, 0);
   private bedLight = new PointLight(0xffb46a, 0, 42000, 1);
   private screenLight = new PointLight(0xa8cfff, 0, 9000, 0);
@@ -210,14 +221,19 @@ export class Room3D {
   private mug: Mug;
   private shade: MeshStandardMaterial;
   private bedGlow: MeshStandardMaterial;
-  /** The room's materials that take the environment's reflections, dimmed at night. */
+  /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envMats = new Set<MeshStandardMaterial>();
+  private probe = false;
+  /** Where the room's probe sees from (world): over the desk's front, in the room's middle height. */
+  readonly probeAt: [number, number, number];
+  /** What the room's light depends on, coarsely: a new value asks for a new capture of the probe. */
+  lightKey = '';
 
   constructor(env: Texture | null = null) {
     this.geo = roomGeo();
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     const white = mat(0xf3f1ec, { roughness: 0.4 });
-    const walnut = walnutTex(), deskWood = mat(0xffffff, { map: walnut, bumpMap: walnut, bumpScale: 0.6, roughness: 0.5 });
+    const walnut = walnutTex(), deskWood = varnish(0xffffff, { map: walnut, bumpMap: walnut, bumpScale: 0.6, roughness: 0.5 });
     const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2c31, { roughness: 0.5 });
     const plaster = mat(0xffffff, { map: plasterTex('#ece5d9', [10, 5]), roughness: 0.92 });
@@ -268,7 +284,7 @@ export class Room3D {
     floor.receiveShadow = true;
     R.add(floor);
     const pile = rugTex(), rugR = { x: -18000, w: 48000, z0: 14000, z1: 41000 };
-    const rug = softBox({ x: rugR.x, y: fl - 300, w: rugR.w, h: 300 }, rugR.z0, rugR.z1, mat(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
+    const rug = softBox({ x: rugR.x, y: fl - 300, w: rugR.w, h: 300 }, rugR.z0, rugR.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
     rug.castShadow = false;
     R.add(rug);
     const fringe: { x: number; y: number; z: number; sx: number }[] = [];
@@ -422,29 +438,32 @@ export class Room3D {
     for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0xdcd8d0), 20));
     R.add(socket, tag(softBox(WALL_PLATE, 0, 80, white, 30), 'wall'));
 
-    // ---- light: an even fill, a soft key from the front, the sun and the sky through the window, the lamps, the screen ----
+    // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one
+    // side and falls off away from it); the room's bounce is its probe (`setProbe`); a faint fill from the viewer's side, the lamps, the screen ----
     R.add(this.hemi);
     const cx = (g.desk.x0 + g.desk.x1) / 2;
-    this.front.position.set(cx - 6000, deskTop + 16000, DESK_D + 30000);
-    this.front.target.position.set(cx, deskTop, 0);
-    this.front.castShadow = true;
-    this.front.shadow.mapSize.set(4096, 4096);
-    Object.assign(this.front.shadow.camera, { left: -30000, right: 30000, top: 20000, bottom: -20000, near: 1000, far: 90000 });
-    this.front.shadow.bias = -0.0003; this.front.shadow.normalBias = 20; this.front.shadow.radius = 10;
-    R.add(this.front, this.front.target);
+    this.fill.position.set(cx - 6000, deskTop + 16000, DESK_D + 30000);
+    this.fill.target.position.set(cx, deskTop, 0);
+    R.add(this.fill, this.fill.target);
+    const wc = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const;
+    // up and out behind the window, a little west of it: the sky's light comes down through the opening and rakes east over the desk
+    this.key.position.set(wc[0] - 2500, wc[1] + 6000, -WALL_T - 5000);
+    this.key.target.position.set(cx - 4000, deskTop - 2000, DESK_D + 4000);
+    this.key.castShadow = true;
+    this.key.shadow.mapSize.set(4096, 4096);
+    Object.assign(this.key.shadow.camera, { near: 2000, far: 140000 });
+    this.key.shadow.bias = -0.0003; this.key.shadow.normalBias = 20; this.key.shadow.radius = 14;
+    R.add(this.key, this.key.target);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     Object.assign(this.sun.shadow.camera, { near: SUN_D - 30000, far: SUN_D + 90000 });
     this.sun.shadow.bias = -0.0002; this.sun.shadow.normalBias = 30; this.sun.shadow.radius = 5;
     R.add(this.sun, this.sun.target);
-    const wc = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const;
-    this.windowFill.position.set(wc[0], wc[1] + 3000, -WALL_T - 9000);
-    this.windowFill.target.position.set(wc[0] + 3000, wc[1] - 9000, 30000);
-    R.add(this.windowFill, this.windowFill.target);
     this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 2500);
     R.add(this.screenLight);
+    this.probeAt = [cx, deskTop + 3500, DESK_D + 5000];
 
-    // the room's own reflections: the scene's environment, set on each of its materials so the evening can dim them (the machine keeps its own)
+    // the room's own reflections: the studio's environment at first, set on each of its materials so the evening can dim them, then the probe's
     if (env) R.traverse((o) => {
       const m = (o as Mesh).material;
       for (const x of Array.isArray(m) ? m : m ? [m] : []) if ((x as MeshStandardMaterial).isMeshStandardMaterial && !(x as MeshStandardMaterial).envMap) { (x as MeshStandardMaterial).envMap = env; this.envMats.add(x as MeshStandardMaterial); }
@@ -461,10 +480,19 @@ export class Room3D {
     this.sun.shadow.needsUpdate = true;
   }
 
+  /**
+   * The room's own light for its materials' ambient light and reflections, in place of the studio's: a `Probe` of the room, which holds the day
+   * and the night as they fall in it, so it is not dimmed by the hour.
+   */
+  setProbe(t: Texture): void {
+    this.probe = true;
+    for (const m of this.envMats) m.envMap = t;
+  }
+
   /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
   setShadows(level: number): void {
     const sizes = SHADOW_LEVELS[level] ?? null;
-    [this.front, this.sun, this.lampLight].forEach((l, i) => {
+    [this.key, this.sun, this.lampLight].forEach((l, i) => {
       const size = sizes?.[i] ?? 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
@@ -485,7 +513,7 @@ export class Room3D {
    * fans' rotors, instanced parts) catches up.
    */
   redrawShadows(moved: boolean, now: number): void {
-    const lights = [this.front, this.sun, this.lampLight];
+    const lights = [this.key, this.sun, this.lampLight];
     if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
@@ -570,19 +598,21 @@ export class Room3D {
       const s = skyAt(f.hour), low = 1 - Math.min(1, Math.max(0, sunDir(f.hour)[1] / 0.45));
       this.sun.color.set(0xfff2dc).lerp(new Color(s.hor), 0.25 + low * 0.6);
       if (day <= 0) this.sun.color.set(0x8fa6ff);
-      this.windowFill.color.set(s.top).lerp(new Color(0xffffff), 0.55);
+      // the sky's colour, paler; the low sun warms it a little; the night's is the moon's blue
+      this.key.color.set(s.top).lerp(new Color(0xffffff), 0.5).lerp(this.sun.color, 0.2 * low * day).lerp(new Color(0x6f86d8), night);
     }
     this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - Math.pow(0.02, dt));
     const wh = WINDOW.h - 900, bh = Math.max(1, this.blindK * wh);
     this.blind.scale.y = bh; this.blind.position.y = -(WINDOW.y + 900) - bh / 2;
     const open = 1 - this.blindK * 0.85;
-    // at night the room falls to a dim blue moonlight: the lamps, the screen and the machine's own fill carry it
-    this.sun.intensity = (day * 3.2 + night * 0.3) * open;
-    this.windowFill.intensity = (0.08 + day * 0.72) * open;
-    this.front.intensity = 0.07 + day * 0.98;
-    this.hemi.intensity = 0.16 + day * 0.99;
+    // the day comes in by the window, the sky's light and the sun; the rest of the room has what bounces (the probe). At night a dim blue
+    // moonlight: the lamps, the screen and the machine carry the room
+    this.sun.intensity = (day * 4.2 + night * 0.25) * open;
+    this.key.intensity = (0.05 + day * 2.2) * open * KEY_REF ** KEY_DECAY;
+    this.fill.intensity = 0.03 + day * 0.45;
+    this.hemi.intensity = 0.06 + day * 0.45;
     this.hemi.color.set(0x5d6fae).lerp(NOON_SKY, day);
-    const env = 0.35 * (0.16 + 0.84 * day);
+    const env = this.probe ? PROBE_K : 0.35 * (0.16 + 0.84 * day);
     for (const m of this.envMats) m.envMapIntensity = env;
     this.lampLight.intensity = f.lamp ? 1.8 + night * 1.2 : 0;
     this.lamp.bulb.emissiveIntensity = f.lamp ? 3 : 0.05;
@@ -592,7 +622,8 @@ export class Room3D {
     this.bedLight.intensity = bedside * 9000;
     this.shade.emissiveIntensity = bedside * 1.1;
     this.bedGlow.emissiveIntensity = bedside * 4;
-    this.screenLight.intensity = f.screen.powered ? 0.25 + night * 0.4 : 0;
+    this.screenLight.intensity = f.screen.powered ? 0.3 + night * 0.7 : 0;
+    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);
     steam(this.mug, f.t);

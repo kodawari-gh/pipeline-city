@@ -2,7 +2,7 @@
 // standby screen, the digital clock, the mug with its steam on a cork coaster, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  BackSide, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
+  AdditiveBlending, BackSide, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
   SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, type BufferGeometry, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -88,7 +88,13 @@ export class Monitor {
     }
     const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), Object.assign(new MeshBasicMaterial({ map: this.tex, toneMapped: false }), { defines: { ...DECODE_SRGB } }));
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);
-    R.add(face);
+    // the panel's glass: no colour of its own, only what it mirrors (the window, the lamp, the room), added over the picture. The lights'
+    // own glints are left out: the screen's light stands just in front of it and would shine back as a white spot in its middle
+    const glassM = new MeshStandardMaterial({ color: 0x000000, roughness: 0.12, metalness: 0, transparent: true, blending: AdditiveBlending, depthWrite: false });
+    glassM.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.directSpecular = vec3(0.0);'); };
+    const glass = new Mesh(new PlaneGeometry(screen.w, screen.h), glassM);
+    glass.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 186);
+    R.add(face, seeThrough(glass));
   }
 
   set(s: Screen, hour: number): void {

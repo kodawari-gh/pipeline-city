@@ -17,15 +17,16 @@ import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zo
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
-import { Post } from '@/core/render/three/post';
-import { Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, WINDOW, eyeRoom } from '@/features/room/render/three/roomplan';
+import { Post, roomness } from '@/core/render/three/post';
+import { Probe } from '@/core/render/three/probe';
+import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, WINDOW, daylight, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
-import { BakeQueue, setArtEnvironment, warmPrograms } from '@/core/render/three/artlod';
+import { ART_LIGHT, BakeQueue, setArtEnvironment, warmPrograms } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -45,6 +46,8 @@ const OUTSIDE = new Set(['case', 'case.side', 'power', 'usb', 'io', 'cable.video
 const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
 /** The share of the particles at each level of the graphics settings. */
 const PARTICLE_LEVELS = [0, 0.5, 1];
+/** The room's probe is captured again at most this often (ms) while its light changes (the sun moves a step every few seconds). */
+const PROBE_MS = 1500;
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -57,7 +60,13 @@ export function mountBoard3d(host: HTMLElement) {
   // the 2D art baked into textures for the 3D faces (machine3d.ts, bake.ts)
   const bakes = new BakeQueue();
   startBaker();
-  setArtEnvironment(scene.environment);
+  // the studio's light: the board view's, and the room's until its probe is ready
+  const studio = scene.environment;
+  setArtEnvironment(studio);
+  // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
+  // a few times over for a new room, as each capture holds the bounce of the one before
+  const probe = new Probe(200, 400000);
+  let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
 
   // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
   const chips = new Chips3D();
@@ -76,7 +85,9 @@ export function mountBoard3d(host: HTMLElement) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
       if (room) { scene.remove(room.root); disposeTree(room.root); }
-      room = new Room3D(scene.environment);
+      room = new Room3D(studio);
+      probe.at(...room.probeAt);
+      bounces = 3; probed = false;
       room.setShadows(effective.peek().shadows);
       shadows.reset();
       scene.add(room.root);
@@ -285,8 +296,8 @@ export function mountBoard3d(host: HTMLElement) {
     fx.frame(s, dt * worldPace(speed.peek()));
     if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()), ratio);
     bakes.run(6);
-    const display = !!s?.devices.some((d) => d.kind === 'display');
-    room?.frame({ hour: roomDebug.hour ?? hourAt(gt), lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
+    const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
+    room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, t: gt / 1000 }, dt);
     // a drag into the case, or a tutorial target inside it, opens its side panel from any distance (a key, a desk cable or the outside do not)
     // (a plug the hand still slides in or lets fall keeps it open too)
     const handIn = !!hand.kind && !OUTSIDE.has('cable.' + hand.kind);
@@ -299,7 +310,21 @@ export function mountBoard3d(host: HTMLElement) {
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
     post.setReach(view.height);
+    // one light for all in the room: the machine and the dies' art take the room's light there (its probe, the hour's), and their own
+    // studio light back toward the board view, where a part must read at any hour
+    const k = roomness(view.height), roomLit = probe.ready && k > 0.5;
+    machine?.setRoomLight(k);
+    ART_LIGHT.value = 1 + (0.12 + 0.88 * daylight(hour) - 1) * k;
+    scene.environment = roomLit ? probe.texture : studio;
+    scene.environmentIntensity = roomLit ? PROBE_K : 0.35;
     post.render();
+    // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
+    if (room) {
+      const key = `${room.lightKey}|${!!s?.powered}`;
+      if (!probe.busy && (bounces > 0 || (key !== probeKey && now - probeAt > PROBE_MS))) { probe.request(); probeKey = key; probeAt = now; bounces = Math.max(0, bounces - 1); }
+      probe.step(renderer, scene);
+      if (probe.ready && !probed) { room.setProbe(probe.texture); probed = true; }
+    }
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
     room?.redrawShadows(shadows.scan(scene, now), now);
     meter.tick(now, canvas.width, canvas.height);
@@ -313,7 +338,7 @@ export function mountBoard3d(host: HTMLElement) {
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
-    parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand }),
+    parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {

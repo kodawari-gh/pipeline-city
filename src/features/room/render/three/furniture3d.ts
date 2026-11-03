@@ -10,7 +10,7 @@ import {
 } from 'three';
 import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
 import { frameLoft, ribbon, taperTube, type ProfilePt } from '@/core/render/three/loft';
-import { mat } from '@/core/render/three/materials';
+import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { pothos, succulent } from './plants3d';
 import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, WEST_X, WINDOW } from './roomplan';
@@ -163,7 +163,7 @@ export function bed(): Group {
     g.add(post(lx, fl, lz, 220, fl - rail.y - rail.h, wood, 16, 300), post(lx, fl, lz, 232, 520, cap, 16, 236));
   }
   // the headboard: an oak base and five upholstered channels, down behind the mattress
-  const fabric = mat(0xffffff, { map: weave('#a8ae98', { repeat: [2, 4] }), roughness: 0.95 });
+  const fabric = cloth(0xffffff, { map: weave('#a8ae98', { repeat: [2, 4] }), roughness: 0.95 });
   g.add(softBox({ x: x - 300, y: fl - 21000, w: w + 600, h: 21000 - 2200 }, z0, z0 + 900, wood, 150));
   const n = 5, cw = (w + 200) / n;
   for (let k = 0; k < n; k++) g.add(softBox({ x: x - 100 + k * cw + 40, y: fl - 20400, w: cw - 80, h: 11400 }, z0 + 900, z0 + 2100, fabric, 560));
@@ -171,7 +171,7 @@ export function bed(): Group {
   g.add(softBox({ x: x + 900, y: rail.y + 900, w: w - 1800, h: 500 }, z0 + 2100, z1 - 900, mat(0x8f6a46, { roughness: 0.7 }), 40));
   // the mattress (its top 10000 over the floor) in its fitted sheet, a piped seam round its top
   // (the whites a little under white, so the light can still model them: a paper white flattens in the sun)
-  const sheet = mat(0xffffff, { map: weave('#e7e2d8'), roughness: 0.9 }), mTop = fl - 10000;
+  const sheet = cloth(0xffffff, { map: weave('#e7e2d8'), roughness: 0.9 }), mTop = fl - 10000;
   g.add(softBox({ x: x + 400, y: mTop, w: w - 800, h: 4400 }, z0 + 2200, z1 - 500, sheet, 700));
   // (straight rods and quarter rings: a spline through the corners bows out along the long sides)
   const piping = mat(0xe4ded2, { roughness: 0.85 }), pr = 700, py = -mTop - 320, rx0 = x + 440, rx1 = x + w - 440, rz0 = z0 + 2240, rz1 = z1 - 540;
@@ -186,18 +186,18 @@ export function bed(): Group {
   }
   // the duvet: quilted, rumpled, falling over the sides in loose folds, turned back below the pillows
   const quiltTex = quilt('#ebe4d6', 4, [1.4, 1.6]);
-  const linen = mat(0xffffff, { map: quiltTex, bumpMap: quiltTex, bumpScale: 1.6, roughness: 0.92 });
+  const linen = cloth(0xffffff, { map: quiltTex, bumpMap: quiltTex, bumpScale: 1.6, roughness: 0.92 });
   const dvZ0 = z0 + 12500, dv = place(new Mesh(drape(w - 120, 5600, z1 - dvZ0 + 200, 240, 1500, 420), linen));
   dv.position.set(cx, -(mTop - 1200 + 2800), (dvZ0 + z1) / 2 + 100);
   g.add(dv);
   const turnTex = weave('#e8e2d5', { repeat: [5, 2] });
   // (rounded to its full thickness: a soft roll, not a block)
-  const fold = place(new Mesh(drape(w - 60, 1700, 3200, 110, 849, 160), mat(0xffffff, { map: turnTex, roughness: 0.9 })));
+  const fold = place(new Mesh(drape(w - 60, 1700, 3200, 110, 849, 160), cloth(0xffffff, { map: turnTex, roughness: 0.9 })));
   fold.position.set(cx, -(mTop - 850), dvZ0);
   g.add(fold);
   // two oat shams standing against the headboard, two sleeping pillows leaning on them, a mustard cushion in front
   // (each stands or leans on what is behind it, its bottom on the mattress: a stuffed pillow, its seam a welt round its edge)
-  const shamM = mat(0xffffff, { map: weave('#d8d2bf', { repeat: [3, 3] }), roughness: 0.92 });
+  const shamM = cloth(0xffffff,{ map: weave('#d8d2bf', { repeat: [3, 3] }), roughness: 0.92 });
   const lean = (o: Mesh, x: number, foot: number, z: number, tall: number, a: number, turn = 0) => {
     o.rotation.set(-Math.PI / 2 - a, turn, 0, 'YXZ');
     o.position.set(x, -mTop + foot + (tall / 2) * Math.cos(a), z - (tall / 2) * Math.sin(a));
@@ -205,7 +205,7 @@ export function bed(): Group {
   };
   [cx - w * 0.245, cx + w * 0.245].forEach((px, i) => lean(place(new Mesh(pillow(w * 0.46, 2500, 7600, { seed: i * 2.1 }), shamM)), px, 0, z0 + 4700, 7600, 0.2, i ? 0.02 : -0.02));
   // two sleeping pillows lie in front of them, their backs up on the shams
-  const pillowM = mat(0xffffff, { map: weave('#eae5db', { repeat: [3, 3] }), roughness: 0.9 });
+  const pillowM = cloth(0xffffff,{ map: weave('#eae5db', { repeat: [3, 3] }), roughness: 0.9 });
   for (const [px, rz, seed] of [[cx - w * 0.235, 0.03, 0.7], [cx + w * 0.235, -0.04, 3.3]] as const) {
     const p = place(new Mesh(pillow(w * 0.43, 3000, 7200, { seed, lumps: 0.08 }), pillowM));
     p.position.set(px, -mTop + 1950, z0 + 8900);
@@ -213,11 +213,11 @@ export function bed(): Group {
     g.add(p);
   }
   // a mustard knit cushion leaning on the right-hand pillow, a little turned
-  lean(place(new Mesh(pillow(7400, 2600, 7400, { pinch: 0.09, seed: 5 }), mat(0xffffff, { map: weave('#d4a24c', { knit: true, repeat: [3, 3] }), roughness: 0.95 }))),
+  lean(place(new Mesh(pillow(7400, 2600, 7400, { pinch: 0.09, seed: 5 }), cloth(0xffffff,{ map: weave('#d4a24c', { knit: true, repeat: [3, 3] }), roughness: 0.95 }))),
     cx + w * 0.14, 1550, z0 + 13600, 7400, 1.0, -0.12);
   // the chunky knitted throw across the foot, down both sides to a tasselled edge
   const knit = chunky('#b8653f', [1.9, 0.45]);
-  const throwM = mat(0xffffff, { map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 0.97 });
+  const throwM = cloth(0xffffff,{ map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 0.97 });
   // (its top over the duvet's highest rumple: the duvet must not poke through it)
   const thW = w + 380, thD = 6400, thZ = z1 - 6600, thH = 6200, thTop = mTop - 1800;
   const th = place(new Mesh(drape(thW, thH, thD, 140, 1500, 260), throwM));
@@ -510,7 +510,7 @@ export function curtains(): Group {
     cradle.rotation.set(Math.PI, Math.PI / 2, 0); cradle.position.set(bx, -rodY, z);
     g.add(place(cradle));
   }
-  const tex = curtainTex('#e4d8c3'), cloth = mat(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
+  const tex = curtainTex('#e4d8c3'), drapes = cloth(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
   const band = mat(0xffffff, { map: weave('#b86a45', { repeat: [8, 1] }), roughness: 0.9, side: DoubleSide });
   const tieV = 0.6, ringR = 250, top = rodY + ringR + 230, h = WINDOW.y + WINDOW.h + 1300 - top;
   const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
@@ -531,7 +531,7 @@ export function curtains(): Group {
       p.setY(i, p.getY(i) + 60 * smooth((v - 0.93) / 0.07) * fold(u, 1));
     }
     geo.computeVertexNormals();
-    for (const m of [cloth, lining]) { const o = place(new Mesh(geo, m)); o.position.set(cx, -(top + h / 2), z); g.add(o); }
+    for (const m of [drapes, lining]) { const o = place(new Mesh(geo, m)); o.position.set(cx, -(top + h / 2), z); g.add(o); }
     // the rings along the rod, each with its hook down into the heading
     for (let r = 0; r <= 9; r++) {
       const rx = x0 + 120 + (r / 9) * (w - 240), ring = new Mesh(new TorusGeometry(ringR, 34, 6, 18), wood);

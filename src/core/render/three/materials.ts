@@ -1,5 +1,5 @@
 // Palette and state looks of the 3D parts (docs/LOWPOLY_STYLE.md). `partLook` is pure: a part's state in, the colour factor and glow out.
-import { Color, MeshStandardMaterial, type MeshStandardMaterialParameters } from 'three';
+import { Color, MeshPhysicalMaterial, MeshStandardMaterial, type MeshPhysicalMaterialParameters, type MeshStandardMaterialParameters } from 'three';
 
 export const PALETTE = {
   cpu: 0x2a2f4d, gpu: 0x17263f, ram: 0x1f6d45, ssd: 0x2d3035, psu: 0x22242a, pcb: 0x123f3c, alu: 0xc4c8cc, cable: 0x2c2d31,
@@ -37,6 +37,14 @@ export function partLook(s: PartState): PartLook {
 
 export const mat = (color: number, o: MeshStandardMaterialParameters = {}): MeshStandardMaterial =>
   new MeshStandardMaterial({ color, metalness: 0.05, roughness: 0.65, ...o });
+
+/** Cloth (linen, wool, velvet): matte, with the soft sheen a weave catches at a grazing look, which roughness alone cannot give. */
+export const cloth = (color: number, o: MeshPhysicalMaterialParameters = {}): MeshPhysicalMaterial =>
+  new MeshPhysicalMaterial({ color, metalness: 0, roughness: 0.92, sheen: 1, sheenRoughness: 0.6, sheenColor: 0x5a5650, ...o });
+
+/** Varnished wood or lacquer: the base as `mat` under a thin clear coat that mirrors the window and the lamps. */
+export const varnish = (color: number, o: MeshPhysicalMaterialParameters = {}): MeshPhysicalMaterial =>
+  new MeshPhysicalMaterial({ color, metalness: 0.05, roughness: 0.6, clearcoat: 0.55, clearcoatRoughness: 0.2, ...o });
 
 /**
  * The materials of one part that follow its state, each eased toward the current look. `gain` scales the glow: a part with wide faces (a card's

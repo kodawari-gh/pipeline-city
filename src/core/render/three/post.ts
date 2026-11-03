@@ -8,6 +8,7 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { pixelRatio, type Graphics } from '@/app/graphics';
@@ -93,6 +94,31 @@ class PickOutline extends OutlinePass {
 /** What the post chain takes from the graphics settings. */
 export type PostOptions = Pick<Graphics, 'ao' | 'bloom' | 'msaa' | 'scale' | 'brightness'>;
 
+/** How much a view `height` world units tall is a room view: 0 at the board view and closer, 1 from the room's overview out. */
+export const roomness = (height: number): number => Math.min(1, Math.max(0, (height - 9000) / 20000));
+
+/**
+ * The room's look over the picture, in its own light (before the tone mapping): the corners a little darker, as a lens's fall-off, and the
+ * shadows a little warmer. `k` (`roomness`) fades it out toward the board view, where a part must read to the corners.
+ */
+const GRADE = {
+  name: 'Grade',
+  uniforms: { tDiffuse: { value: null }, k: { value: 1 } },
+  vertexShader: /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform float k;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 d = vUv - 0.5;
+      float edge = 1.0 - 0.34 * smoothstep(0.25, 1.0, dot(d, d) * 2.0);
+      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 warm = mix(vec3(1.07, 1.0, 0.9), vec3(1.0), smoothstep(0.0, 0.5, l));
+      gl_FragColor = vec4(c.rgb * mix(vec3(1.0), warm * edge, k), c.a);
+    }`,
+};
+
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
 /** The bloom's strength at each level (0: the pass is off). */
@@ -104,6 +130,7 @@ export class Post {
   private outline: PickOutline;
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
+  private grade = new ShaderPass(GRADE);
   private reach = 900;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
@@ -124,6 +151,7 @@ export class Post {
     this.composer.addPass(this.outline);
     this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
     this.composer.addPass(this.bloom);
+    this.composer.addPass(this.grade);
     this.composer.addPass(new OutputPass());
   }
 
@@ -151,7 +179,8 @@ export class Post {
    * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out).
    */
   setReach(height: number): void {
-    const k = Math.min(1, Math.max(0, (height - 9000) / 20000)), r = Math.round(900 + k * 3100);
+    const k = roomness(height), r = Math.round(900 + k * 3100);
+    this.grade.uniforms.k!.value = k;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
