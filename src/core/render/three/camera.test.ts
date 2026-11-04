@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, keepInside, orbitBy, panBy, reach, stepView, zoomAt, type OrbitView, type Room } from './camera';
+import { LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, keepInside, orbitBy, panBy, reach, sight, stepView, zoomAt, type OrbitView, type Room } from './camera';
 
 const V: OrbitView = { x: 100, y: 200, z: 300, yaw: 0, pitch: 0, height: 1000, fov: 30 };
 
@@ -88,6 +88,60 @@ describe('3D camera', () => {
     it('measures the reach along the line of sight', () => {
       expect(reach({ ...V, x: 0, y: 0, z: 1000 }, R)).toBeCloseTo(7000);
       expect(reach({ ...V, x: 0, y: 0, z: 1000, yaw: Math.PI / 2 }, R)).toBeCloseTo(5000);
+    });
+  });
+
+  describe('kept out of the furniture', () => {
+    const R: Room = { x0: -50000, x1: 50000, y0: -20000, y1: 20000, z0: 0, z1: 60000 };
+    // a cupboard in front of the target, between it and the eye
+    const B: Room = { x0: -2000, x1: 2000, y0: -20000, y1: 0, z0: 10000, z1: 14000 };
+    const near = (v: OrbitView, b: Room, gap: number) => { const e = eyeOf(v); return e.x > b.x0 - gap && e.x < b.x1 + gap && e.y > b.y0 - gap && e.y < b.y1 + gap && e.z > b.z0 - gap && e.z < b.z1 + gap; };
+
+    it('stops the eye short of a block on its line of sight', () => {
+      const v = { ...V, x: 0, y: -5000, z: 2000, height: 20000, fov: 26 };
+      const t = reach(v, R, [B]);
+      expect(t).toBeLessThan(8000);
+      expect(t).toBeGreaterThan(7000);
+      const k = keepInside(v, R, { blocks: [B], restore: true });
+      expect(near(k, B, 149)).toBe(false);
+      expect(distanceOf(k)).toBeLessThanOrEqual(t + 1e-6);
+    });
+
+    it('lets the eye pass over a block it clears, with room for the near plane', () => {
+      const v = { ...V, x: 0, y: 2000, z: 2000, pitch: 0.2, height: 8000, fov: 26 };
+      expect(reach(v, R, [B])).toBeCloseTo(reach(v, R));
+      // a line of sight that grazes the top: the near plane's lower edge would come down to it
+      const graze = { ...v, y: 200, pitch: 0 };
+      expect(reach(graze, R, [B])).toBeLessThan(reach(graze, R));
+    });
+
+    it('lets the eye off a block the target is at, but not into it', () => {
+      // the target on the cupboard's top, the eye above it
+      const top = { ...V, x: 0, y: 0, z: 12000, pitch: 0.4, height: 8000, fov: 26 };
+      expect(sight(top, R, [B])).toEqual([0, reach(top, R)]);
+      // the target just this side of it, or in it: the eye that would go into it goes on through and out of the far side, a close look
+      // backs out
+      for (const z of [9950, 12000]) {
+        const at = { ...V, x: 0, y: -5000, z, height: 1000, fov: 26 }, [n, f] = sight(at, R, [B]);
+        expect(f).toBeCloseTo(reach(at, R));
+        expect(n).toBeGreaterThan(14150 - z);
+        expect(n).toBeLessThan(14150 - z + 400);
+        const k = keepInside(at, R, { blocks: [B] });
+        expect(near(k, B, 149)).toBe(false);
+        expect(eyeOf(k).z).toBeGreaterThan(B.z1);
+        // a view from far off is left as it is
+        expect(keepInside({ ...at, height: 8000 }, R, { blocks: [B] }).height).toBe(8000);
+      }
+      // where the room ends first, it stops short of the face (from inside: it backs out to the wall)
+      const short = { ...R, z1: 13000 }, back = { ...V, x: 0, y: -5000, z: 9950, height: 8000, fov: 26 };
+      expect(sight(back, short, [B])).toEqual([0, expect.closeTo(50)]);
+      expect(sight({ ...back, z: 12000 }, short, [B])).toEqual([1000, 1000]);
+    });
+
+    it('sizes the near plane for a wide room view', () => {
+      // beside a tall block, looking along its face: the wider the fov, the sooner its near plane would reach the face
+      const tall: Room = { ...B, y1: 20000 }, v = { ...V, x: 2400, y: 0, z: 2000, height: 8000, fov: 26 };
+      expect(reach(v, R, [tall], 40)).toBeLessThan(reach(v, R, [tall], 26));
     });
   });
 

@@ -13,14 +13,14 @@ import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { createRenderContext } from '@/core/render/three/init';
-import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView } from '@/core/render/three/camera';
+import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView, type Room } from '@/core/render/three/camera';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
 import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeRoom } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
@@ -74,6 +74,8 @@ export function mountBoard3d(host: HTMLElement) {
   const fx = new Particles3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
+  /** The furniture the eye keeps out of (`eyeBlocks`), for the room as built. */
+  let blocks: Room[] = [];
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
   const rebuild = () => {
@@ -86,6 +88,7 @@ export function mountBoard3d(host: HTMLElement) {
       setLayoutTier(tier, caseTier);
       if (room) { scene.remove(room.root); disposeTree(room.root); room.dispose(); }
       room = new Room3D(studio);
+      blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
       bounces = 3; probed = false;
       room.setShadows(effective.peek().shadows);
@@ -114,9 +117,12 @@ export function mountBoard3d(host: HTMLElement) {
     const g = room!.geo, x0 = WINDOW.x - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, VIEW_TOP) - 1200;
     return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 1200 - x0, h: g.ys + 7000 - y0 };
   };
-  /** A view with its eye in the room (the walls hide all outside it): a goal may narrow its fov back (`restore`), the eased view only widens. */
-  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: -3000, fovBase: ROOM_ANGLE.fov, restore });
-  /** A pan that would push the eye through a wall slides along it (one axis), or stops. */
+  /**
+   * A view with its eye in the room (the walls hide all outside it) and out of the furniture: a goal may narrow its fov back (`restore`), the
+   * eased view only widens.
+   */
+  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: -3000, fovBase: ROOM_ANGLE.fov, restore, blocks });
+  /** A pan that would push the eye through a wall or into the furniture slides along it (one axis), or stops. */
   const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
     for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
       const p = panBy(v, a, b), k = inRoom(p);
@@ -216,9 +222,11 @@ export function mountBoard3d(host: HTMLElement) {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const { nx, ny } = ndc(e);
-    // out against the walls the zoom stops: then the point under the pointer moves only as far as the zoom that was allowed
+    // out against the walls the zoom stops, and in against the furniture: then the point under the pointer moves only as far as the zoom that
+    // was allowed (not at all if no closer look was)
     const z = zoomAt(goal, Math.exp(e.deltaY * 0.0012), nx, ny, aspect()), c = inRoom(z);
-    goal = c.height < z.height - 1 ? inRoom(zoomAt(goal, c.height / goal.height, nx, ny, aspect())) : c;
+    const cut = Math.abs(c.height - z.height) >= 1 && (c.height < z.height || z.height < goal.height);
+    goal = !cut ? c : c.height < z.height || c.height < goal.height ? inRoom(zoomAt(goal, c.height / goal.height, nx, ny, aspect())) : goal;
   }, { passive: false });
 
   /** The same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power button, a key; anything else opens its card. */
