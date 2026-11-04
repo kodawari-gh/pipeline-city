@@ -224,9 +224,12 @@ function capGeo(w: number, d: number, h: number, inset: number): BoxGeometry {
   return g;
 }
 
+/** Where the keyboard's cable ends on the desk (x, z from the keyboard's middle): the grommet that takes it down through the top (`room3d.ts`). */
+export const KEY_LEAD = [-2650, -6100] as const;
+
 /**
  * A 75% mechanical keyboard on the mat: an aluminium case with a raised rim round a dark plate, tapered caps (letters, darker modifiers, terracotta
- * Esc and Enter) with their legends, the board tilted up at the back, its cable off the back to the wall.
+ * Esc and Enter) with their legends, the board tilted up at the back, its cable off the back to the grommet near the wall (`KEY_LEAD`).
  */
 export function keyboard(cx: number, deskY: number, z: number): Group {
   const g = new Group(), board = new Group(), U = KEY_U, W = 15 * U, D = 6.25 * U;
@@ -272,7 +275,7 @@ export function keyboard(cx: number, deskY: number, z: number): Group {
   board.rotation.x = 0.05; board.position.y = 70;
   g.add(board);
   // the cable: out of the back, over the mat's edge, back to the wall west of the monitor's foot
-  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [-2650, -15, -6100]], 45, mat(0x24272c, { roughness: 0.6 }), 6));
+  g.add(tube([[-1800, 160, -D / 2 - rim], [-1950, 35, -D / 2 - 520], [-2450, 30, -1990], [-2560, -15, -2300], [-2620, -15, -3600], [KEY_LEAD[0], -15, KEY_LEAD[1]]], 45, mat(0x24272c, { roughness: 0.6 }), 6));
   g.position.set(cx, -deskY + 40, z);
   return g;
 }

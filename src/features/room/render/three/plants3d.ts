@@ -7,7 +7,7 @@ import { paint, place, post, rod } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { floorShadow } from './furniture3d';
-import { FLOOR_Y, WEST_X } from './roomplan';
+import { FLOOR_Y } from './roomplan';
 
 type V3 = [number, number, number];
 
@@ -196,9 +196,9 @@ export function pothos(x: number, y: number, z: number, edge: number, vines: rea
   g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], mat(0xe3ddd2, { roughness: 0.4 })));
   g.add(post(x, y - 1560, z, 905, 40, soil(), 20));
   const heart = [0, 1, 2].map((k) => leafBlade(1, 0.78, 'heart', { fold: 0.18 + k * 0.08, curl: 0.1 + k * 0.05, wave: 0.2 }));
-  // a tuft out of the pot: leaves on long petioles arching up and out
+  // a tuft out of the pot: leaves on long petioles arching up and out, to the room and the sides, none back into the wall behind it (-x)
   for (let k = 0; k < 11; k++) {
-    const a = k * 2.4, out = new Vector3(Math.cos(a), 0, Math.sin(a)), base = new Vector3(x, -y + 1600, z).addScaledVector(out, 200);
+    const a = 0.6 * ((k * 2.4) % (2 * Math.PI)) - 0.6 * Math.PI, out = new Vector3(Math.cos(a), 0, Math.sin(a)), base = new Vector3(x, -y + 1600, z).addScaledVector(out, 200);
     const tip = base.clone().addScaledVector(out, 500 + (k % 3) * 160).addScaledVector(UP, 700 + (k % 4) * 250);
     g.add(rod([base.x, base.y, base.z], [tip.x, tip.y, tip.z], 28, stem, 5));
     const dir = out.clone().multiplyScalar(0.8).addScaledVector(UP, 0.35 - (k % 3) * 0.2), s = 1400 + rnd() * 400;
@@ -274,4 +274,4 @@ export function mulch(x: number, top: number, z: number, r: number, n: number): 
 }
 
 /** Where the fig stands: a little off the west wall, past the bookcase's end, so its leaves clear both. */
-export const FIG_AT = { x: WEST_X + 5800, z: 31500 } as const;
+export { FIG_AT } from './roomplan';

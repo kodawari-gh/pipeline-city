@@ -1,31 +1,37 @@
-// The 3D room: a lived-in bedroom in a high-rise flat round the desk, modern and plain (white walls, pale oak, black steel). A closed box at real sizes
-// (`roomplan.ts`): an oak-slat panel behind the desk, a deep window west of it onto the city in 3D (`outside/view.ts`), oak planks and a rug, the bed and
-// its bedside table east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard,
-// mouse, mug, architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of
-// the desk's things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
+// The 3D room: a bedroom in a high-rise flat round the desk, modern and minimal, dark to sit with the game's interface (slate walls, smoked oak,
+// black-brown flat-pack furniture, cyan LED light at night; tones in `palette.ts`). A closed box at real sizes (`roomplan.ts`): a smoked-oak slat
+// panel behind the desk, a deep window west of it onto the city in 3D (`outside/view.ts`), oak planks and a rug, the bed and its bedside drawer
+// east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, mug,
+// architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's
+// things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  SpotLight, type Material, type PerspectiveCamera, type Texture, type WebGLRenderer,
+  SpotLight, type Material, type PerspectiveCamera, type RectAreaLight, type Texture, type WebGLRenderer,
 } from 'three';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
 import { hung } from '@/features/board/render/three/wires3d';
-import { disposeTree, drum, instanced, paint, place, rectBox, rod, softBox, tube } from '@/core/render/three/geometry';
+import { disposeTree, drum, instanced, paint, place, post, rectBox, rod, softBox, tube } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
 import { boxEnv, boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
-import { cloth, mat, varnish } from '@/core/render/three/materials';
+import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
-import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
+import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { OutsideView } from './outside/view';
-import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print } from './furniture3d';
+import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, oak, print } from './furniture3d';
 import { deskChair } from './chair3d';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
-  BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, MONITOR_Z, SLATS_X0, SLATS_X1, SLAT_W, WALL_T, WEST_X, WINDOW,
+  CEILING, FELT, LANTERN, OAK, OAK_GRAIN, PLANK, PLANK_GRAIN, RUG_LINE, RUG_WOOL, SLAT, SLAT_GRAIN, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, WALL_BED,
+} from './palette';
+import {
+  BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, LEDGE, MONITOR_Z, PED, RUG, SLATS_X0, SLATS_X1, SLAT_W, TRAY, WALL_T,
+  WEST_X, WINDOW,
   daylight, slatRuns, sunDir, wallAround,
 } from './roomplan';
 
@@ -79,21 +85,8 @@ function woodTex(base: string, line: string, o: { planks?: boolean; across?: boo
   }, o.repeat);
 }
 
-/** Birch ply's edge, for the desk top's front: thin pale layers along it (v across them), each its own tone, a dark glue line between. */
-function plyTex(): Texture | null {
-  return paint(512, 64, (c, w, h) => {
-    const n = 9, lh = h / n;
-    for (let k = 0; k < n; k++) {
-      const f = 0.9 + rnd() * 0.14;
-      c.fillStyle = `rgb(${226 * f},${200 * f},${160 * f})`; c.fillRect(0, k * lh, w, lh);
-      c.fillStyle = 'rgba(120,90,55,0.45)'; c.fillRect(0, k * lh, w, 1);
-    }
-    for (let k = 0; k < 300; k++) { c.fillStyle = `rgba(140,100,60,${0.08 + rnd() * 0.1})`; c.fillRect(rnd() * w, rnd() * h, 4 + rnd() * 14, 1); }
-  }, [8, 1]);
-}
-
 /**
- * Plaster: a flat warm paint over a hand-trowelled wall. A soft cloud of light and shade (smooth noise over three scales, seamless across the
+ * Plaster: a flat paint over a hand-trowelled wall. A soft cloud of light and shade (smooth noise over three scales, seamless across the
  * tile's edges) and a fine roller stipple: no blotch stands out, the light shows it.
  */
 function plasterTex(base: string, repeat: [number, number]): Texture | null {
@@ -121,10 +114,12 @@ function plasterTex(base: string, repeat: [number, number]): Texture | null {
 }
 
 /**
- * Oak floor planks running east-west: each board its own tone and grain, a knot here and there, staggered butt joints, the joints dark with a lit
- * edge (an eased bevel). A tile is eight boards; the board that crosses the tile's edge carries on in the next tile, so no joint lines up.
+ * Smoked oak floor planks running east-west: each board its own tone and grain, a knot here and there, staggered butt joints, the joints dark
+ * with a lit edge (an eased bevel). A tile is eight boards; the board that crosses the tile's edge carries on in the next tile, so no joint
+ * lines up.
  */
 function planksTex(): Texture | null {
+  const [pr, pg, pb] = PLANK;
   return paint(1024, 1024, (c, w, h) => {
     const rows = 8, ph = h / rows;
     for (let r = 0; r < rows; r++) {
@@ -134,46 +129,49 @@ function planksTex(): Texture | null {
       // the boards of this row: between the cuts, and the one through the tile's edge (drawn in two parts, the same board)
       const boards: [number, number][][] = cuts.map((x, k) => (k + 1 < cuts.length ? [[x, cuts[k + 1]!]] : [[x, w], [0, cuts[0]!]]));
       for (const parts of boards) {
-        const f = 0.84 + rnd() * 0.3, warm = rnd() * 14 - 7, seed = seedN;
+        const f = 0.84 + rnd() * 0.3, warm = rnd() * 10 - 5, seed = seedN;
         for (const [x0, x1] of parts) {
           seedN = seed;
           c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, ph); c.clip();
-          c.fillStyle = `rgb(${Math.min(255, 222 * f + warm)},${Math.min(255, 194 * f)},${156 * f - warm})`; c.fillRect(0, y0, w, ph);
+          c.fillStyle = `rgb(${Math.min(255, pr * f + warm)},${Math.min(255, pg * f)},${pb * f - warm})`; c.fillRect(0, y0, w, ph);
           // the grain along the board, waved a little; a few lighter streaks
           for (let i = 0; i < 16; i++) {
             const gy = y0 + rnd() * ph, amp = 2 + rnd() * 5;
-            c.strokeStyle = rnd() < 0.8 ? `rgba(150,112,72,${0.12 + rnd() * 0.16})` : `rgba(255,236,205,${0.1 + rnd() * 0.1})`; c.lineWidth = 0.8 + rnd() * 1.8;
+            c.strokeStyle = rnd() < 0.8 ? `${PLANK_GRAIN}${0.14 + rnd() * 0.18})` : `rgba(255,236,205,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
             c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp); c.stroke();
           }
           // a knot: dark heart, rings stretched along the board
           if (rnd() < 0.4) {
             const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0), ky = y0 + ph * (0.3 + rnd() * 0.4);
-            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${150 + k * 12},${112 + k * 9},${72 + k * 6},${0.05 + (4 - k) * 0.04})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
+            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${40 + k * 12},${26 + k * 9},${16 + k * 6},${0.06 + (4 - k) * 0.05})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
           }
           c.restore();
         }
       }
       // the long joint above the row (dark, then its lit bevel), the butt joints
-      c.fillStyle = 'rgba(110,80,50,0.7)'; c.fillRect(0, y0, w, 3);
-      c.fillStyle = 'rgba(255,238,210,0.22)'; c.fillRect(0, y0 + 3, w, 2);
-      for (const x of cuts) { c.fillStyle = 'rgba(110,80,50,0.65)'; c.fillRect(x - 1, y0, 2.5, ph); }
+      c.fillStyle = 'rgba(22,14,8,0.75)'; c.fillRect(0, y0, w, 3);
+      c.fillStyle = 'rgba(255,238,210,0.1)'; c.fillRect(0, y0 + 3, w, 2);
+      for (const x of cuts) { c.fillStyle = 'rgba(22,14,8,0.7)'; c.fillRect(x - 1, y0, 2.5, ph); }
     }
   }, [2.4, 3.2]);
 }
 
-/** A flat-woven wool rug: oatmeal, a fine herringbone of light and dark rows, a charcoal stripe inside a plain edge; a fleck of pile (its bump too). */
+/** A flat-woven wool rug: charcoal, a fine herringbone of light and dark rows, a pale line inside a plain edge; a fleck of pile (its bump too). */
 function rugTex(): Texture | null {
-  return paint(1024, 576, (c, w, h) => {
-    c.fillStyle = '#dcd8cf'; c.fillRect(0, 0, w, h);
+  return paint(1024, 768, (c, w, h) => {
+    c.fillStyle = RUG_WOOL; c.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 12) for (let y = 0; y < h; y += 6) {
-      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.08)' : 'rgba(60,55,45,0.07)';
+      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)';
       c.fillRect(x, y, 12, 3);
     }
-    for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.05 + rnd() * 0.07})` : `rgba(60,55,45,${0.04 + rnd() * 0.06})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
-    const m = 60;
-    c.strokeStyle = '#3d3e40'; c.lineWidth = 12; c.strokeRect(m, m, w - 2 * m, h - 2 * m);
+    for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.03 + rnd() * 0.05})` : `rgba(0,0,0,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+    const m = 54;
+    c.strokeStyle = RUG_LINE; c.lineWidth = 5; c.strokeRect(m, m, w - 2 * m, h - 2 * m);
   });
 }
+
+/** The area lights' tables (once per page): a `RectAreaLight` lights nothing without them. */
+let areaLights = false;
 
 export interface RoomFrame { hour: number; lamp: boolean; blind: boolean; screen: Screen; t: number }
 
@@ -188,7 +186,7 @@ export class Room3D {
   private fill = new DirectionalLight(0xfff4e6, 0);
   private hemi = new HemisphereLight(0xe4ecff, 0xe2d6c6, 1);
   private lampLight = new SpotLight(0xffd29a, 0, 0, 0.6, 0.7, 0);
-  private bedLight = new PointLight(0xffb46a, 0, 42000, 1);
+  private bedLight = new PointLight(LANTERN, 0, 42000, 1);
   private screenLight = new PointLight(0xa8cfff, 0, 9000, 0);
   private outside: OutsideView;
   private blind = new Mesh();
@@ -200,7 +198,11 @@ export class Room3D {
   private clock: DigitalClock;
   private mug: Mug;
   private shade: MeshStandardMaterial;
-  private bedGlow: MeshStandardMaterial;
+  private bulbGlow: MeshStandardMaterial;
+  /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
+  private ledGlow: MeshStandardMaterial;
+  private ledUnder: RectAreaLight;
+  private ledHalo: RectAreaLight;
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envMats = new Set<MeshStandardMaterial>();
   private probe = false;
@@ -214,33 +216,32 @@ export class Room3D {
   constructor(env: Texture | null = null) {
     this.geo = roomGeo();
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
-    const white = mat(0xf3f1ec, { roughness: 0.4 });
-    const laminate = varnish(0xf3f2ef, { roughness: 0.4, clearcoat: 0.3 }), ply = mat(0xffffff, { map: plyTex(), roughness: 0.6 });
+    if (!areaLights) { RectAreaLightUniformsLib.init(); areaLights = true; }
+    const graphite = mat(0x23262b, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
     const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2c31, { roughness: 0.5 });
-    const plaster = mat(0xffffff, { map: plasterTex('#f1f0ec', [10, 5]), roughness: 0.92 });
-    const greige = mat(0xffffff, { map: plasterTex('#dcd9d2', [6, 5]), roughness: 0.92 });
+    const plaster = mat(0xffffff, { map: plasterTex(WALL, [10, 5]), roughness: 0.92 });
+    const bedWall = mat(0xffffff, { map: plasterTex(WALL_BED, [6, 5]), roughness: 0.92 });
     const W = WINDOW;
 
-    // ---- the back wall: plaster round the window, the slatted panel behind the desk (its slats flush with the plaster), a pale greige wall behind the bed ----
+    // ---- the back wall: plaster round the window, the slatted panel behind the desk (its slats flush with the plaster), a deeper slate wall behind the bed ----
     for (const r of wallAround(WEST_X, SLATS_X0, CEIL_Y, fl, W)) R.add(rectBox(r, -WALL_T, 0, plaster));
     R.add(rectBox({ x: SLATS_X1, y: CEIL_Y, w: BED.x - 3000 - SLATS_X1, h: H }, -WALL_T, 0, plaster));
-    R.add(rectBox({ x: BED.x - 3000, y: CEIL_Y, w: EAST_X - BED.x + 3000, h: H }, -WALL_T, 0, greige));
-    R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(0x18191b, { roughness: 0.95 })));
-    const slatM = mat(0xffffff, { map: woodTex('#d9c4a3', '#a88c66'), roughness: 0.7 });
+    R.add(rectBox({ x: BED.x - 3000, y: CEIL_Y, w: EAST_X - BED.x + 3000, h: H }, -WALL_T, 0, bedWall));
+    R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(FELT, { roughness: 0.95 })));
+    const slatM = mat(0xffffff, { map: woodTex(SLAT, SLAT_GRAIN), roughness: 0.7 });
     const runs = slatRuns(SLATS_X0 + 120, SLATS_X1 - 120, CEIL_Y, fl, { x: 0, y: 0, w: 0, h: 0 });
     R.add(instanced(new BoxGeometry(1, 1, 1), slatM, runs.map((s) => ({ x: s.x + SLAT_W / 2, y: -(s.y0 + s.y1) / 2, z: -70, sx: SLAT_W, sy: s.y1 - s.y0, sz: 140 }))));
-    const trim = mat(0xffffff, { map: woodTex('#d4bd9a', '#a08460'), roughness: 0.6 });
-    for (const x of [SLATS_X0 - 120, SLATS_X1 - 120]) R.add(softBox({ x, y: CEIL_Y, w: 240, h: H }, -160, 80, trim, 40));
+    for (const x of [SLATS_X0 - 120, SLATS_X1 - 120]) R.add(softBox({ x, y: CEIL_Y, w: 240, h: H }, -160, 80, slatM, 40));
 
     // ---- the other walls, the ceiling (they take light, they cast no shadow: the eye is always inside) ----
     const shell = (m: Mesh) => { m.castShadow = false; return m; };
     R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200, plaster)));
     R.add(shell(rectBox({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200, plaster)));
     R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200, plaster)));
-    R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 }, -WALL_T, FRONT_Z + 1200, mat(0xf4f0e8, { roughness: 0.95 }))));
+    R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 }, -WALL_T, FRONT_Z + 1200, mat(CEILING, { roughness: 0.95 }))));
     // a low flush skirting, square-edged, and a shadow gap where the walls meet the ceiling (no cornice); the door breaks the skirting on the west wall
-    const skirt = (r: Rect, z0: number, z1: number, m: Material = white) => R.add(shell(softBox(r, z0, z1, m, 20)));
+    const skirt = (r: Rect, z0: number, z1: number, m: Material = trim) => R.add(shell(softBox(r, z0, z1, m, 20)));
     const SK = 1100, run = (x0: number, x1: number, z0: number, z1: number, out: 'x' | '-x' | 'z' | '-z') => {
       const r = out === 'z' || out === '-z' ? { x: x0, y: fl - SK, w: x1 - x0, h: SK } : out === 'x' ? { x: x0, y: fl - SK, w: 110, h: SK } : { x: x1 - 110, y: fl - SK, w: 110, h: SK };
       skirt(r, out === 'z' ? z0 : out === '-z' ? z1 - 110 : z0, out === 'z' ? z0 + 110 : z1);
@@ -250,27 +251,21 @@ export class Room3D {
     run(WEST_X, WEST_X, DOOR.z1 + 980, FRONT_Z, 'x');
     run(EAST_X, EAST_X, 0, FRONT_Z, '-x');
     run(WEST_X, EAST_X, FRONT_Z, FRONT_Z, '-z');
-    const gap = mat(0x8d8b86, { roughness: 0.9 });
+    const gap = mat(0x16171a, { roughness: 0.9 });
     skirt({ x: WEST_X, y: CEIL_Y, w: EAST_X - WEST_X, h: 220 }, 0, 40, gap);
     skirt({ x: WEST_X, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
     skirt({ x: EAST_X - 40, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
 
-    // ---- the floor: long oak planks; a thick wool rug in front of the bed, fringed at its ends ----
+    // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
     const planks = planksTex();
     const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), mat(0xffffff, { map: planks, bumpMap: planks, bumpScale: 0.9, roughness: 0.36 }));
     floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -fl, FRONT_Z / 2);
     floor.receiveShadow = true;
     R.add(floor);
-    const pile = rugTex(), rugR = { x: -18000, w: 48000, z0: 14000, z1: 41000 };
-    const rug = softBox({ x: rugR.x, y: fl - 300, w: rugR.w, h: 300 }, rugR.z0, rugR.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
+    const pile = rugTex();
+    const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
     rug.castShadow = false;
     R.add(rug);
-    const fringe: { x: number; y: number; z: number; sx: number }[] = [];
-    for (const [x, s] of [[rugR.x, -1], [rugR.x + rugR.w, 1]] as const) for (let z = rugR.z0 + 300; z < rugR.z1 - 300; z += 230) {
-      const len = 700 + rnd() * 300;
-      fringe.push({ x: x + s * len / 2, y: -fl + 25, z: z + rnd() * 60, sx: len });
-    }
-    R.add(instanced(new BoxGeometry(1, 40, 70), mat(0xe6dccb, { roughness: 0.95 }), fringe));
 
     // ---- the window: a tall black aluminium frame set back in its reveal, a fixed pane and a tilt-turn sash, a deep stone ledge, the roller blind ----
     const winG = tag(new Group(), 'blind'), bar = 380, mull = 300, mullX = W.x + W.w * 0.45;
@@ -290,50 +285,56 @@ export class Room3D {
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
     this.outside = new OutsideView(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
     winG.add(this.outside.mesh, glass);
-    // the ledge: a deep slab of pale stone at seat height, on a plain white plinth to the floor (the heating runs under the floor)
-    const sillY = W.y + W.h, stone = mat(0xe4e2dd, { roughness: 0.3 });
-    winG.add(softBox({ x: W.x - 500, y: sillY, w: W.w + 1000, h: 600 }, fz0 - 200, 2600, stone, 60));
-    winG.add(softBox({ x: W.x - 400, y: sillY + 600, w: W.w + 800, h: fl - sillY - 600 }, -WALL_T, 2200, white, 40));
+    // the ledge: a deep slab of dark stone at seat height, on a plain plinth in the trim's tone to the floor (the heating runs under the floor)
+    const sillY = W.y + W.h, stone = mat(STONE, { roughness: 0.3 });
+    winG.add(softBox({ x: LEDGE.x0, y: sillY, w: LEDGE.x1 - LEDGE.x0, h: 600 }, fz0 - 200, LEDGE.z, stone, 60));
+    winG.add(softBox({ x: W.x - 400, y: sillY + 600, w: W.w + 800, h: fl - sillY - 600 }, -WALL_T, LEDGE.z - 400, trim, 40));
     // the roller blind: its cassette at the top of the reveal, its cloth comes down in front of the frame
-    winG.add(softBox({ x: W.x + 150, y: W.y, w: W.w - 300, h: 900 }, -900, -150, white, 120));
-    this.blind = place(new Mesh(new BoxGeometry(W.w - 500, 1, 40), mat(0xffffff, { map: plasterTex('#efe6d4', [2, 4]), roughness: 0.9, side: DoubleSide })));
+    winG.add(softBox({ x: W.x + 150, y: W.y, w: W.w - 300, h: 900 }, -900, -150, mat(0x2a2d33, { roughness: 0.5 }), 120));
+    this.blind = place(new Mesh(new BoxGeometry(W.w - 500, 1, 40), mat(0xffffff, { map: plasterTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide })));
     this.blind.position.set(W.x + W.w / 2, -(W.y + 900), -500);
     winG.add(this.blind);
     R.add(winG);
     R.add(aloe(W.x + W.w - 2600, sillY, 600), curtains());
 
-    // ---- the furniture: the bed and its table, the bookcase, the door, the ceiling light, a print over the bed, plants ----
-    const ns = nightstand();
+    // ---- the furniture: the bed and its LED strips, the bedside drawer and its lantern, the bookcase, the door, the ceiling light, a print over
+    // the bed, plants ----
+    const bd = bed(), ns = nightstand();
+    this.ledGlow = bd.glow; this.ledUnder = bd.under; this.ledHalo = bd.halo;
     this.shade = ns.shade;
-    this.bedGlow = ns.glow;
+    this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
+    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
-    // ---- the desk: a white top, a black steel trestle at the west end, a white drawer unit at the east end, on the floor ----
-    // the top: a slab with a birch-ply edge round it (the layers show on the front)
-    const dw = g.desk.x1 - g.desk.x0;
-    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, laminate, 60));
-    R.add(softBox({ x: g.desk.x0 + 10, y: ys + 40, w: dw - 20, h: DESK_TOP - 80 }, DESK_D - 60, DESK_D + 15, ply, 20));
-    // the trestle: two square legs, a foot and a top rail joining them, in powder-coated steel
-    const steel = mat(0x1c1d20, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1200, legH = fl - ys - DESK_TOP;
-    for (const z of [900, DESK_D - 900]) R.add(softBox({ x: tx - 360, y: ys + DESK_TOP, w: 720, h: legH }, z - 360, z + 360, steel, 50));
-    R.add(softBox({ x: tx - 360, y: fl - 500, w: 720, h: 500 }, 300, DESK_D - 300, steel, 50));
-    R.add(softBox({ x: tx - 360, y: ys + DESK_TOP, w: 720, h: 500 }, 300, DESK_D - 300, steel, 50));
-    // a steel rail along the back, under the top, between the trestle and the drawer unit
-    const ped = { x: g.desk.x1 - 7800, y: ys + DESK_TOP, w: 7500, h: fl - ys - DESK_TOP - 400 };
-    R.add(softBox({ x: tx + 360, y: ys + DESK_TOP, w: ped.x - tx - 360, h: 900 }, 700, 1100, steel, 40));
-    // the drawer unit: a white carcass on a recessed black plinth, three flush fronts with a gap round each, a finger slot under each top edge
-    R.add(softBox(ped, 300, DESK_D - 400, laminate, 40));
-    R.add(softBox({ x: ped.x + 300, y: ped.y + ped.h, w: ped.w - 600, h: 400 }, 600, DESK_D - 900, dark, 30));
-    R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 300 }, DESK_D - 400, DESK_D - 380, mat(0x9a9894, { roughness: 0.9 })));
-    const dh = (ped.h - 300 - 2 * 90) / 3;
-    for (let k = 0; k < 3; k++) {
-      const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
-      R.add(softBox(d, DESK_D - 520, DESK_D - 300, laminate, 50));
-      R.add(rectBox({ x: d.x + d.w / 2 - 1500, y: d.y + 160, w: 3000, h: 260 }, DESK_D - 310, DESK_D - 290, mat(0x55534f, { roughness: 0.9 })));
+    // ---- the desk: an oak-effect top on two round black steel legs at the west end and a black-brown drawer unit at the east end, a cable tray
+    // under its back edge ----
+    const dw = g.desk.x1 - g.desk.x0, legH = fl - ys - DESK_TOP;
+    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, mat(0xffffff, { map: oak(OAK, OAK_GRAIN, [2, 1]), roughness: 0.45 }), 60));
+    // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
+    const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1000;
+    for (const z of [1000, DESK_D - 1000]) {
+      R.add(post(tx, fl - 200, z, 280, legH - 200, steel, 24), post(tx, fl, z, 300, 200, mat(0x111214, { roughness: 0.8 }), 24));
+      R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
+    // the drawer unit: a black-brown carcass from the floor to the top, five fronts with a dark gap round each, a grip cut along each top edge
+    const ped = { x: g.desk.x1 - PED.in, y: ys + DESK_TOP, w: PED.w, h: legH };
+    const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x0c0c0d, { roughness: 0.9 });
+    R.add(softBox(ped, 300, DESK_D - 400, alex, 40));
+    R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot));
+    const dh = (ped.h - 160 - 4 * 90) / 5;
+    for (let k = 0; k < 5; k++) {
+      const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
+      R.add(softBox(d, DESK_D - 520, DESK_D - 300, alex, 50));
+      R.add(rectBox({ x: d.x + d.w / 2 - 1500, y: d.y, w: 3000, h: 220 }, DESK_D - 310, DESK_D - 290, slot));
+    }
+    // the cable tray: a black steel trough hung under the top's back edge (the power strip lies in it, `clutter3d.ts`) on two brackets
+    const t = TRAY, under = ys + DESK_TOP, ty = under + t.drop;
+    for (const [z0, z1] of [[t.z0, t.z0 + 60], [t.z1 - 60, t.z1]] as const) R.add(softBox({ x: t.x0, y: ty, w: t.x1 - t.x0, h: t.h }, z0, z1, steel, 20));
+    R.add(softBox({ x: t.x0, y: ty + t.h - 60, w: t.x1 - t.x0, h: 60 }, t.z0, t.z1, steel, 20));
+    for (const x of [t.x0, t.x1 - 60]) R.add(softBox({ x, y: ty, w: 60, h: t.h }, t.z0, t.z1, steel, 20));
+    for (const x of [t.x0 + 1500, t.x1 - 1500]) R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, the mug on its coaster, a notebook ----
     this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
@@ -348,10 +349,13 @@ export class Room3D {
     });
     R.add(softBox({ x: kx - 5200, y: ys - 40, w: 11200, h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
     R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200), notebook(-16600, ys, 10000, 0.22));
+    // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
+    const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
+    R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, 24), post(grommet.x, under + 300, grommet.z, 300, 300, cap, 20));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
-    // the mess: a backpack, a power strip and its leads, books on the floor and the sill, a delivery box
-    R.add(mess(ped.x));
+    // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the sill
+    R.add(mess(ped.x, under, grommet));
     this.mug = mug(g.mug, ys, MONITOR_Z + 3200);
     R.add(this.mug.root);
 
@@ -411,9 +415,9 @@ export class Room3D {
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, 12), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
     R.add(box);
     const plate = g.socket.plate, socket = tag(new Group(), 'socket');
-    socket.add(softBox(plate, 0, 80, white, 30));
-    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0xdcd8d0), 20));
-    R.add(socket, tag(softBox(WALL_PLATE, 0, 80, white, 30), 'wall'));
+    socket.add(softBox(plate, 0, 80, graphite, 30));
+    for (const o of [g.socket.mon, g.socket.pc]) socket.add(drum(o.x, o.y, 80, 100, 220, mat(0x15161a, { roughness: 0.6 }), 20));
+    R.add(socket, tag(softBox(WALL_PLATE, 0, 80, graphite, 30), 'wall'));
 
     // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one
     // side and falls off away from it); the room's bounce is its probe (`setProbe`); a faint fill from the viewer's side, the lamps, the screen ----
@@ -604,13 +608,17 @@ export class Room3D {
     this.lampLight.intensity = f.lamp ? 1.8 + night * 1.2 : 0;
     this.lamp.bulb.emissiveIntensity = f.lamp ? 3 : 0.05;
     this.lamp.inner.emissiveIntensity = f.lamp ? 0.6 : 0;
-    // the bedside lamp lights itself as the evening comes: a warm pool round the bed, its bulb glowing through the shade
-    const bedside = Math.min(1, Math.max(0, (night - 0.35) / 0.3));
+    // the bedside lantern lights itself as the evening comes: a warm pool round the bed, its bulb glowing through the paper; the bed's LED
+    // strips come on a little before it, a cyan glow on the floor round the bed and on the wall over the headboard
+    const bedside = Math.min(1, Math.max(0, (night - 0.35) / 0.3)), led = Math.min(1, Math.max(0, (night - 0.2) / 0.4));
     this.bedLight.intensity = bedside * 9000;
     this.shade.emissiveIntensity = bedside * 1.1;
-    this.bedGlow.emissiveIntensity = bedside * 4;
+    this.bulbGlow.emissiveIntensity = bedside * 4;
+    this.ledGlow.emissiveIntensity = led * 3;
+    this.ledUnder.intensity = led * 6;
+    this.ledHalo.intensity = led * 10;
     this.screenLight.intensity = f.screen.powered ? 0.3 + night * 0.7 : 0;
-    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}`;
+    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);
     steam(this.mug, f.t);

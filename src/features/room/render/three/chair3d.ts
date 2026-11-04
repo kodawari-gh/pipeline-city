@@ -34,7 +34,7 @@ export function deskChair(x: number, z: number, turn: number): Group {
   const root = new Group(), c = new Group();
   const black = mat(0x1d1f22, { roughness: 0.45 }), steel = mat(0xb9bdc2, { metalness: 0.9, roughness: 0.28 });
   const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
-  const hoodie = cloth(0xffffff, { map: weave('#6d7a5f', { knit: true, repeat: [4, 4] }) });
+  const hoodie = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [4, 4] }) });
 
   // ---- the base: a hub, five legs falling to the castors, each castor two wheels on a swivel ----
   c.add(can(0, 95, 0, 42, 70, black, false, 20));
@@ -100,7 +100,7 @@ export function deskChair(x: number, z: number, turn: number): Group {
   body.castShadow = body.receiveShadow = true;
   drop.add(body);
   // its ribbed hem and the front pocket (the hoodie hangs front out, toward the room)
-  const rib = cloth(0xffffff, { map: weave('#5f6b53', { knit: true, repeat: [12, 1] }) });
+  const rib = cloth(0xffffff, { map: weave('#414a3a', { knit: true, repeat: [12, 1] }) });
   drop.add(slab(-28, 60 + H - 236, 66, 396, 34, 38, rib, 14), slab(-30, 60 + H - 170, 70, 230, 90, 12, hoodie, 5));
   const hood = new Mesh(cushion(300 * MM, 60 * MM, 120 * MM, 1.2), hoodie);
   hood.rotation.set(0.2, 0.15, 0.05);

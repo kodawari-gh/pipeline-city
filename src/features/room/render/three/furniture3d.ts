@@ -1,19 +1,22 @@
-// The bedroom's furniture in 3D, round the desk (soft edges, modern and plain: white, pale oak, black steel, soft cloth): the bed against the back
-// wall east of the desk, the bedside table and its lamp, the bookcase on the west wall, the radiator under the window, the curtains, the door, the
-// ceiling light, a print over the bed, the shelf on the east wall, plants. Every builder takes the room plan (`roomplan.ts`,
-// 2D y down; z out of the back wall) and returns world meshes, built as a maker would (rails, fronts, mouldings, seams), each part its own mesh:
-// the room merges the still ones by material (`mergeStatic`). Pure scenery: nothing answers a click.
+// The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
+// Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night. The bed against the back wall
+// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall, the curtains, the door, the ceiling light, the print
+// over the bed, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
+// (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
+// nothing answers a click.
 import {
-  BackSide, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, SphereGeometry, SplineCurve, TorusGeometry, Vector2, type Material,
-  type Texture,
+  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
+  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, Vector2, type Material, type Texture,
 } from 'three';
-import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
-import { frameLoft, type ProfilePt } from '@/core/render/three/loft';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
+import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
+import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
+import { DUVET, LANTERN, LINEN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN } from './palette';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, CEIL_Y, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, WEST_X, WINDOW } from './roomplan';
+import { BED, BOOKCASE, CEIL_Y, CURTAIN, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -36,38 +39,7 @@ export function weave(base: string, o: { knit?: boolean; repeat?: [number, numbe
   }, o.repeat ?? [6, 6]);
 }
 
-/** A quilted cover: the weave, stitched in squares (`n` a side per tile), each square puffed (lighter in its middle). Also its bump map. */
-function quilt(base: string, n: number, repeat: [number, number]): Texture | null {
-  return paint(512, 512, (c, w, h) => {
-    c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.02 + rnd() * 0.03})`; c.fillRect(i, 0, 1, h); c.fillRect(0, i, w, 1); }
-    const s = w / n;
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const g = c.createRadialGradient((i + 0.5) * s, (j + 0.5) * s, s * 0.05, (i + 0.5) * s, (j + 0.5) * s, s * 0.72);
-      g.addColorStop(0, 'rgba(255,255,255,0.16)'); g.addColorStop(1, 'rgba(60,45,30,0.14)');
-      c.fillStyle = g; c.fillRect(i * s, j * s, s, s);
-    }
-    c.strokeStyle = 'rgba(70,55,40,0.35)'; c.lineWidth = 2; c.setLineDash([7, 5]);
-    for (let k = 0; k <= n; k++) { c.beginPath(); c.moveTo(k * s, 0); c.lineTo(k * s, h); c.stroke(); c.beginPath(); c.moveTo(0, k * s); c.lineTo(w, k * s); c.stroke(); }
-  }, repeat);
-}
-
-/** A chunky knit: rows of fat V stitches, deep shadow between them (for a throw: its colour, and its bump). */
-function chunky(base: string, repeat: [number, number]): Texture | null {
-  return paint(256, 256, (c, w, h) => {
-    c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let y = 0; y < h; y += 16) for (let x = 0; x < w; x += 16) {
-      c.fillStyle = 'rgba(0,0,0,0.28)'; c.fillRect(x + 7, y, 2, 16);
-      for (const [dx, a] of [[4, 0.55], [12, -0.55]] as const) {
-        const g = c.createLinearGradient(x + dx - 4, 0, x + dx + 4, 0);
-        g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(0.5, `rgba(255,255,255,${0.2 + rnd() * 0.06})`); g.addColorStop(1, 'rgba(0,0,0,0.12)');
-        c.fillStyle = g; c.beginPath(); c.ellipse(x + dx, y + 8, 3.6, 7.6, a, 0, Math.PI * 2); c.fill();
-      }
-    }
-  }, repeat);
-}
-
-/** Pale oak: a close straight grain. */
+/** Wood veneer: a close straight grain (pale oak by default). */
 export function oak(base = '#c49a6c', line = '#8a6440', repeat: [number, number] = [1, 1]): Texture | null {
   return paint(256, 256, (c, w, h) => {
     c.fillStyle = base; c.fillRect(0, 0, w, h);
@@ -112,33 +84,6 @@ export function pillow(w: number, h: number, d: number, o: { pinch?: number; lum
   return g;
 }
 
-/**
- * A soft slab of cloth (a duvet, a throw) laid over a box: its edges fall over the sides, its top rumpled a little. `hem` folds the hanging
- * cloth: soft flutes that grow toward the hem (in and out, as cloth hangs), the hem itself only a little uneven.
- */
-function drape(w: number, h: number, d: number, rumple: number, radius: number, hem = 0): BufferGeometry {
-  const g = new BoxGeometry(w, h, d, 32, 6, 32), p = g.attributes.position!;
-  for (let i = 0; i < p.count; i++) {
-    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const ex = Math.max(0, Math.abs(x) - (w / 2 - radius)), ez = Math.max(0, Math.abs(z) - (d / 2 - radius)), ey = Math.max(0, y - (h / 2 - radius));
-    // round the top edges and corners
-    const e = Math.hypot(ex, ez, ey);
-    if (e > radius) { const k = radius / e; x -= Math.sign(x) * ex * (1 - k); z -= Math.sign(z) * ez * (1 - k); y -= ey * (1 - k); }
-    if (y > -h / 2 + 1) y += rumple * (Math.sin(x / 2300 + z / 3100) * 0.6 + Math.sin(z / 1700 - x / 4100) * 0.4) * (y > 0 ? 1 : 0.4);
-    if (hem && y < h / 2 - radius) {
-      const down = Math.min(1, (h / 2 - radius - y) / (h - radius)), along = Math.abs(x) > w / 2 - radius ? z : x;
-      const fold = Math.sin(along / 1100 + 0.7) * 0.6 + Math.sin(along / 530 + 2.1) * 0.4;
-      y += hem * 0.2 * fold * down * down;
-      const out = hem * (0.15 + 0.55 * fold * down) * Math.sin(Math.PI * 0.5 * Math.min(1, down * 1.6));
-      if (Math.abs(x) > w / 2 - radius) x += Math.sign(x) * out;
-      if (Math.abs(z) > d / 2 - radius) z += Math.sign(z) * out;
-    }
-    p.setXYZ(i, x, y, z);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
 /** A soft dark patch on the floor under a thing, `lift` over it (more to lie over the rug): a baked contact shadow. */
 export function floorShadow(x: number, z: number, w: number, d: number, k = 1, lift = 140): Mesh {
   const m = new Mesh(new PlaneGeometry(w, d), new MeshBasicMaterial({ map: shadowBlob(), transparent: true, opacity: 0.9 * k, depthWrite: false, color: 0x000000 }));
@@ -148,155 +93,145 @@ export function floorShadow(x: number, z: number, w: number, d: number, k = 1, l
 }
 
 // ---------------------------------------------------------------- the bed
-/** The bed: an oak frame on short legs, a channel-tufted headboard, the mattress, a rumpled duvet folded back, two pillows, a cushion, a knitted throw. */
-export function bed(): Group {
-  const g = new Group(), { x, w, z0, z1 } = BED, fl = FLOOR_Y, cx = x + w / 2;
-  const wood = mat(0xffffff, { map: oak('#dcc6a2', '#b0946c', [3, 1]), roughness: 0.55 });
-  const rail = { y: fl - 5600, h: 3400 };
-  // the frame: two side rails, the foot rail, four legs
-  g.add(softBox({ x, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
-  g.add(softBox({ x: x + w - 900, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
-  g.add(softBox({ x, y: rail.y, w, h: rail.h }, z1 - 900, z1, wood, 120));
-  // (each leg tapered to a brass cap on the floor)
-  const cap = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
-  for (const [lx, lz] of [[x + 450, z1 - 450], [x + w - 450, z1 - 450], [x + 450, z0 + 2300], [x + w - 450, z0 + 2300]] as const) {
-    g.add(post(lx, fl, lz, 220, fl - rail.y - rail.h, wood, 16, 300), post(lx, fl, lz, 232, 520, cap, 16, 236));
+/** The bed and its night lights: the LED strips' glow, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
+export interface Bed { root: Group; glow: MeshStandardMaterial; under: RectAreaLight; halo: RectAreaLight }
+
+/**
+ * A low platform bed, plain and flat-pack: a thick black-brown top board on a recessed black apron and feet, so it seems to float, an LED
+ * strip under its edge; a flat headboard panel just off the wall, a strip behind its top. Made up as a bed is: the mattress in its fitted
+ * sheet, the duvet over it, turned down below the pillows, falling over the sides and the foot and round the foot's corners, a runner across
+ * it, two pillows stood against the headboard and two in front leant on them. The cloth lies over what is under it, the pillows are set down
+ * and leant back by contact (`bedding3d.ts`): nothing goes into what it lies on.
+ */
+export function bed(): Bed {
+  const g = new Group(), { x, w, z0, z1, head: hd, headTop } = BED, fl = FLOOR_Y, x1 = x + w, cx = x + w / 2;
+  const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN, [3, 1]), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.8 });
+  // the frame (2D y down): the platform's top board down to `under`; the apron, set back `set` from its edges, down to `apron`
+  const plat = fl - 4600, under = fl - 3000, apron = fl - 1100, set = 2200;
+  const headboard = softBox({ x, y: headTop, w, h: under - headTop }, z0, z0 + hd, veneer, 40), platform = softBox({ x, y: plat, w, h: under - plat }, z0 + hd, z1, veneer, 60);
+  headboard.name = 'headboard'; platform.name = 'platform';
+  g.add(headboard, platform);
+  g.add(softBox({ x: x + set, y: under, w: w - 2 * set, h: apron - under }, z0 + hd + 600, z1 - set, black, 30));
+  // its feet under the apron's corners and middles (shorter where they stand on the rug)
+  for (const fx of [x + set + 700, x1 - set - 700]) for (const fz of [z0 + hd + 1300, (z0 + z1) / 2, z1 - set - 700]) {
+    const ground = onRug(fx, fz) ? fl - RUG.h : fl;
+    g.add(softBox({ x: fx - 500, y: apron, w: 1000, h: ground - apron }, fz - 500, fz + 500, black, 30));
   }
-  // the headboard: an oak base and five upholstered channels, down behind the mattress
-  const fabric = cloth(0xffffff, { map: weave('#bdbab3', { repeat: [2, 4] }), roughness: 0.95 });
-  g.add(softBox({ x: x - 300, y: fl - 21000, w: w + 600, h: 21000 - 2200 }, z0, z0 + 900, wood, 150));
-  const n = 5, cw = (w + 200) / n;
-  for (let k = 0; k < n; k++) g.add(softBox({ x: x - 100 + k * cw + 40, y: fl - 20400, w: cw - 80, h: 11400 }, z0 + 900, z0 + 2100, fabric, 560));
-  // the slats' rail inside the frame, seen in the gap under the mattress
-  g.add(softBox({ x: x + 900, y: rail.y + 900, w: w - 1800, h: 500 }, z0 + 2100, z1 - 900, mat(0xb39c7a, { roughness: 0.7 }), 40));
-  // the mattress (its top 10000 over the floor) in its fitted sheet, a piped seam round its top
-  // (the whites a little under white, so the light can still model them: a paper white flattens in the sun)
-  const sheet = cloth(0xffffff, { map: weave('#e7e2d8'), roughness: 0.9 }), mTop = fl - 10000;
-  g.add(softBox({ x: x + 400, y: mTop, w: w - 800, h: 4400 }, z0 + 2200, z1 - 500, sheet, 700));
-  // (straight rods and quarter rings: a spline through the corners bows out along the long sides)
-  const piping = mat(0xe4ded2, { roughness: 0.85 }), pr = 700, py = -mTop - 320, rx0 = x + 440, rx1 = x + w - 440, rz0 = z0 + 2240, rz1 = z1 - 540;
-  g.add(rod([rx0 + pr, py, rz0], [rx1 - pr, py, rz0], 70, piping, 6), rod([rx0 + pr, py, rz1], [rx1 - pr, py, rz1], 70, piping, 6));
-  g.add(rod([rx0, py, rz0 + pr], [rx0, py, rz1 - pr], 70, piping, 6), rod([rx1, py, rz0 + pr], [rx1, py, rz1 - pr], 70, piping, 6));
-  for (const [ax, az, turn] of [[rx1 - pr, rz1 - pr, 0], [rx0 + pr, rz1 - pr, -Math.PI / 2], [rx0 + pr, rz0 + pr, Math.PI], [rx1 - pr, rz0 + pr, Math.PI / 2]] as const) {
-    const arc = new TorusGeometry(pr, 70, 6, 6, Math.PI / 2);
-    arc.rotateX(Math.PI / 2); arc.rotateY(turn);
-    const m = place(new Mesh(arc, piping));
-    m.position.set(ax, py, az);
-    g.add(m);
-  }
-  // the duvet: quilted, rumpled, falling over the sides in loose folds, turned back below the pillows
-  const quiltTex = quilt('#ebe4d6', 4, [1.4, 1.6]);
-  const linen = cloth(0xffffff, { map: quiltTex, bumpMap: quiltTex, bumpScale: 1.6, roughness: 0.92 });
-  const dvZ0 = z0 + 12500, dv = place(new Mesh(drape(w - 120, 5600, z1 - dvZ0 + 200, 240, 1500, 420), linen));
-  dv.position.set(cx, -(mTop - 1200 + 2800), (dvZ0 + z1) / 2 + 100);
-  g.add(dv);
-  const turnTex = weave('#e8e2d5', { repeat: [5, 2] });
-  // (rounded to its full thickness: a soft roll, not a block)
-  const fold = place(new Mesh(drape(w - 60, 1700, 3200, 110, 849, 160), cloth(0xffffff, { map: turnTex, roughness: 0.9 })));
-  fold.position.set(cx, -(mTop - 850), dvZ0);
-  g.add(fold);
-  // two oat shams standing against the headboard, two sleeping pillows leaning on them, a mustard cushion in front
-  // (each stands or leans on what is behind it, its bottom on the mattress: a stuffed pillow, its seam a welt round its edge)
-  const shamM = cloth(0xffffff,{ map: weave('#d8d2bf', { repeat: [3, 3] }), roughness: 0.92 });
-  const lean = (o: Mesh, x: number, foot: number, z: number, tall: number, a: number, turn = 0) => {
-    o.rotation.set(-Math.PI / 2 - a, turn, 0, 'YXZ');
-    o.position.set(x, -mTop + foot + (tall / 2) * Math.cos(a), z - (tall / 2) * Math.sin(a));
+  // the LED strips, round the apron's top under the platform's edge and across the headboard's back near its top; each stands for an area light
+  const glow = mat(0x101416, { roughness: 0.6, emissive: new Color(NEON), emissiveIntensity: 0 });
+  g.add(rectBox({ x: x + set - 40, y: under, w: w - 2 * set + 80, h: 160 }, z0 + hd + 560, z1 - set + 40, glow));
+  g.add(rectBox({ x: x + 600, y: headTop + 300, w: w - 1200, h: 160 }, z0 - 60, z0, glow));
+  const underL = new RectAreaLight(NEON, 0, w - 800, z1 - z0 - hd - 800);
+  underL.position.set(cx, -under - 60, (z0 + hd + z1) / 2);
+  underL.rotation.x = -Math.PI / 2;
+  const halo = new RectAreaLight(NEON, 0, w - 1200, 300);
+  halo.position.set(cx, -(headTop + 380), z0 - 80);
+  g.add(underL, halo);
+
+  // the mattress (its top 9000 over the floor, its edges rounded) in its fitted sheet, set in from the platform's edges
+  const sheet = cloth(0xffffff, { map: weave(SHEET), roughness: 0.92 });
+  const mTop = BED.top, mr = 700, inset = 1100, mx0 = x + inset, mx1 = x1 - inset, mz0 = z0 + hd + 60, mz1 = z1 - inset, mw = mx1 - mx0;
+  const mattress = place(new Mesh(new RoundedBoxGeometry(mw, plat - mTop, mz1 - mz0, 4, mr), sheet));
+  mattress.position.set(cx, -(mTop + plat) / 2, (mz0 + mz1) / 2);
+  g.add(mattress);
+  const form: BedForm = { mx0, mx1, mz0, mz1, top: -mTop, r: mr, x0: x, x1, z1, rim: -plat, base: -under };
+
+  // the duvet: from below the pillows (turned down there: doubled) over the foot, its hem down the platform's edge, thinner toward its edges
+  const cover = new Drape(form, 40, 260), D = cover.dropTo(-(fl - 4000)), A = cover.a + D, V = cover.b + D;
+  const v0 = 14500, band = 3600, T = 620;
+  const tD = (u: number, v: number) => T * (0.45 + 0.55 * smooth(0, 1600, Math.min(A - Math.abs(u), V - v))) * (2 - smooth(v0 + band - 220, v0 + band + 220, v));
+  // a runner across the foot, on the duvet, its hem a little higher: its edges are rows and columns of the duvet's grid too, so it follows the
+  // duvet's own triangles, out along their normals, and never crosses them
+  const Dr = cover.dropTo(-(fl - 4800)), Ar = cover.a + Dr, rv0 = 26500, rv1 = 34500;
+  const grid = (xs: number[], add: number[]) => [...new Set([...xs, ...add])].sort((a, b) => a - b);
+  const us = grid(breaks(-A, A, 500, 260, [[-A, -A + D + 1500], [A - D - 1500, A]]), [-Ar, Ar]);
+  const vs = grid(breaks(v0, V, 500, 240, [[v0, v0 + band + 800], [V - D - 1500, V]]), [rv0, rv1]);
+  const duvet = slab((u, v) => cover.at(u, v), us, vs, tD, 6000, cloth(0xffffff, { map: weave(DUVET, { repeat: [1, 1] }), roughness: 0.9 }));
+  const lift = (u: number, v: number) => tD(u, v) + 50 + 70 * (1 + Math.sin(u / 1300 + v / 900));
+  const runner = slab((u, v) => { const { p, n } = cover.at(u, v), k = lift(u, v); return { p: [p[0] + n[0] * k, p[1] + n[1] * k, p[2] + n[2] * k], n }; },
+    us.filter((u) => Math.abs(u) <= Ar), vs.filter((v) => v >= rv0 && v <= rv1),
+    (u, v) => 260 * (0.6 + 0.4 * smooth(0, 700, Math.min(Ar - Math.abs(u), v - rv0, rv1 - v))), 4000, cloth(0xffffff, { map: weave(RUNNER, { repeat: [1, 1] }), roughness: 0.94 }));
+  duvet.name = 'duvet'; runner.name = 'runner'; mattress.name = 'mattress';
+  g.add(duvet, runner);
+
+  // the pillows: each set down on what is under it and leant back on what is behind it (the headboard, then the pillows behind), pressed in
+  // a little and flattened where it touches; then it holds up those in front
+  const down = new DepthMap(1, 1, [x, 0, z0], [x1, 0, z1], 200).add(bake(mattress)).add(duvet.geometry);
+  const back = new DepthMap(2, 1, [x, -fl, 0], [x1, -headTop, 0], 120).face(z0 + hd, [x, -fl, 0], [x1, -headTop, 0]);
+  const press = { down: 260, back: 320, soft: 140 };
+  const lay = (geo: BufferGeometry, m: Material, at: V3, tilt: number, turn: number, order: 'XYZ' | 'YXZ'): Mesh => {
+    const o = place(new Mesh(geo, m));
+    o.rotation.set(tilt, turn, 0, order);
+    o.position.set(...at);
+    settlePillow(o, down, back, press);
+    o.name = 'pillow';
     g.add(o);
+    return o;
   };
-  [cx - w * 0.245, cx + w * 0.245].forEach((px, i) => lean(place(new Mesh(pillow(w * 0.46, 2500, 7600, { seed: i * 2.1 }), shamM)), px, 0, z0 + 4700, 7600, 0.2, i ? 0.02 : -0.02));
-  // two sleeping pillows lie in front of them, their backs up on the shams
-  const pillowM = cloth(0xffffff,{ map: weave('#eae5db', { repeat: [3, 3] }), roughness: 0.9 });
-  for (const [px, rz, seed] of [[cx - w * 0.235, 0.03, 0.7], [cx + w * 0.235, -0.04, 3.3]] as const) {
-    const p = place(new Mesh(pillow(w * 0.43, 3000, 7200, { seed, lumps: 0.08 }), pillowM));
-    p.position.set(px, -mTop + 1950, z0 + 8900);
-    p.rotation.set(0.42, rz, 0);
-    g.add(p);
-  }
-  // a mustard knit cushion leaning on the right-hand pillow, a little turned
-  lean(place(new Mesh(pillow(7400, 2600, 7400, { pinch: 0.09, seed: 5 }), cloth(0xffffff,{ map: weave('#d4a24c', { knit: true, repeat: [3, 3] }), roughness: 0.95 }))),
-    cx + w * 0.14, 1550, z0 + 13600, 7400, 1.0, -0.12);
-  // the chunky knitted throw across the foot, down both sides to a tasselled edge
-  const knit = chunky('#b8653f', [1.9, 0.45]);
-  const throwM = cloth(0xffffff,{ map: knit, bumpMap: knit, bumpScale: 2.2, roughness: 0.97 });
-  // (its top over the duvet's highest rumple: the duvet must not poke through it)
-  const thW = w + 380, thD = 6400, thZ = z1 - 6600, thH = 6200, thTop = mTop - 1800;
-  const th = place(new Mesh(drape(thW, thH, thD, 140, 1500, 260), throwM));
-  th.position.set(cx, -(thTop + thH / 2), thZ);
-  g.add(th);
-  const tassels: { x: number; y: number; z: number; sy: number }[] = [];
-  for (const side of [-1, 1]) for (let k = 0; k < 26; k++) {
-    const tz = thZ - thD / 2 + 300 + (k / 25) * (thD - 600), len = 700 + rnd() * 260;
-    tassels.push({ x: cx + side * (thW / 2 + 60), y: -(thTop + thH) - len / 2 + 120 + Math.sin(tz / 1100 + 0.7) * 150, z: tz, sy: len });
-  }
-  g.add(instanced(new CylinderGeometry(55, 35, 1, 5), mat(0xa5552f, { roughness: 0.95 }), tassels));
-  g.add(floorShadow(cx, (z0 + z1) / 2 + 600, w * 1.25, (z1 - z0) * 1.15, 1, 330));
-  return g;
+  // two in the duvet's cover stood against the headboard, leaning back; two pale ones lying in front, their backs up on them
+  const sham = cloth(0xffffff, { map: weave(DUVET, { repeat: [3, 3] }), roughness: 0.92 }), pale = cloth(0xffffff, { map: weave(SHEET, { repeat: [3, 3] }), roughness: 0.9 });
+  const shams = [-1, 1].map((s, i) => lay(pillow(mw * 0.48, 2500, 7600, { seed: i * 2.1 }), sham, [cx + s * mw * 0.255, -mTop + 4500, z0 + hd + 3000], -Math.PI / 2 - 0.2, s * 0.02, 'YXZ'));
+  for (const o of shams) back.add(o.geometry);
+  ([[-1, 0.03, 0.7], [1, -0.04, 3.3]] as const).forEach(([s, turn, seed]) => lay(pillow(mw * 0.45, 3000, 7200, { seed, lumps: 0.08 }), pale, [cx + s * mw * 0.245, -mTop + 2500, z0 + hd + 9000], 0.42, turn, 'XYZ'));
+  g.add(floorShadow(cx, (z0 + z1) / 2 + 300, w * 1.05, (z1 - z0) * 1.02, 0.9, 330));
+  return { root: g, glow, under: underL, halo };
 }
 
-// ---------------------------------------------------------------- the bedside table
+// ---------------------------------------------------------------- the bedside drawer
 export interface Bedside { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
 
-/** A white two-drawer bedside chest on black steel legs, a ceramic lamp with a linen shade, books and a small plant. */
+/** Washi paper: long fibres in it, the lantern's bamboo rib a spiral round it (seamless across: each turn climbs one pitch). */
+function washiTex(): Texture | null {
+  return paint(256, 512, (c, w, h) => {
+    c.fillStyle = '#ddd6c6'; c.fillRect(0, 0, w, h);
+    for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(255,255,255,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1, 4 + rnd() * 14); }
+    c.strokeStyle = 'rgba(70,58,44,0.55)'; c.lineWidth = 3;
+    const n = 14;
+    for (let k = -1; k <= n; k++) { c.beginPath(); c.moveTo(0, (k * h) / n); c.lineTo(w, ((k + 1) * h) / n); c.stroke(); }
+  }, [1, 1]);
+}
+
+/** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on thin black legs, a book and a phone. */
 export function nightstand(): Bedside {
-  const g = new Group(), { x, w, z0, z1, top } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
-  const white = mat(0xf2f1ed, { roughness: 0.5 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
-  const gap = mat(0x2b2b2d, { roughness: 0.9 }), steel = mat(0x232426, { metalness: 0.6, roughness: 0.4 });
-  // a flat-pack chest of two drawers in white, floating on slim black steel legs: a plain carcass, flush fronts split by a dark shadow gap, a
-  // thin black bar pull on each, a plinth recess under the carcass
-  const body = { y: top, h: 7200 }, fy = body.y + 220, fh = (body.h - 440 - 60) / 2;
-  g.add(softBox({ x, y: body.y, w, h: body.h }, z0, z1 - 60, white, 50));
-  for (let k = 0; k < 2; k++) {
-    const y = fy + k * (fh + 60);
-    g.add(rectBox({ x: x + 200, y, w: w - 400, h: fh }, z1 - 120, z1 - 40, gap));
-    g.add(softBox({ x: x + 220, y: y + 30, w: w - 440, h: fh - 60 }, z1 - 80, z1, white, 30));
-    const py = y + fh / 2;
-    g.add(rod([cx - 1500, -py, z1 + 120], [cx + 1500, -py, z1 + 120], 90, steel, 8), rod([cx - 1500, -py, z1 + 120], [cx - 1500, -py, z1 - 20], 90, steel, 8), rod([cx + 1500, -py, z1 + 120], [cx + 1500, -py, z1 - 20], 90, steel, 8));
+  const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
+  const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
+  // the box on the wall, the drawer's front nearly flush in it, a dark gap round the front
+  g.add(softBox({ x, y: top, w, h }, z0, z1, veneer, 40));
+  g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x0b0b0c, { roughness: 0.9 })));
+  g.add(softBox({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer, 25));
+  // the lantern: a paper oval, open top and bottom, on three thin black legs; it glows from the bulb inside
+  const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, sr = lamp.r;
+  const paper = washiTex();
+  const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: paper, emissiveIntensity: 0 });
+  const prof: Vector2[] = [];
+  for (let i = 0; i <= 28; i++) { const a = -Math.PI / 2 + (Math.PI * i) / 28; prof.push(new Vector2(Math.max(380, sr * Math.cos(a)), (sh / 2) * (1 + Math.sin(a)))); }
+  const lantern = place(new Mesh(new LatheGeometry(prof, 40), shade));
+  lantern.position.set(lx, -top + legH, lz);
+  g.add(lantern);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.4, c = Math.cos(a), s = Math.sin(a);
+    g.add(rod([lx + c * 1150, -top, lz + s * 1150], [lx + c * 700, -top + legH + 330, lz + s * 700], 34, black, 5));
   }
-  for (const [lx, lz] of [[x + 700, z0 + 700], [x + w - 700, z0 + 700], [x + 700, z1 - 900], [x + w - 700, z1 - 900]] as const) {
-    g.add(post(lx, fl, lz, 150, fl - (body.y + body.h), steel, 4));
-  }
-  // the lamp: a round ceramic body, a brass neck, a linen drum
-  const lx = cx - 1100, lz = cz - 400, ceramic = mat(0xe8e6e1, { roughness: 0.35 });
-  const profile = [[0, 0], [900, 0], [1300, 300], [1650, 1000], [1700, 1600], [1450, 2300], [800, 2800], [300, 3000], [250, 3040]] as const;
-  // (the profile through a smooth curve, so the belly turns without facets)
-  const curve = new SplineCurve(profile.map(([r, y]) => new Vector2(r, y)));
-  const vase = new Mesh(new LatheGeometry(curve.getPoints(40), 40), ceramic);
-  vase.position.set(lx, -top, lz);
-  g.add(place(vase));
-  g.add(post(lx, top - 3040, lz, 90, 1500, brass, 10));
-  const shade = mat(0xffffff, { map: weave('#efe6d2', { repeat: [3, 2] }), roughness: 0.9, side: DoubleSide, emissive: new Color(0xffc27a), emissiveIntensity: 0 });
-  const drumM = new Mesh(new CylinderGeometry(1900, 2300, 2700, 32, 1, true), shade);
-  const sy = -(top - 4500 - 1350);
-  drumM.position.set(lx, sy, lz);
-  g.add(place(drumM));
-  // the shade's wire rings top and bottom, the spider on its neck, the bulb inside (it glows when lit)
-  for (const [r, dy] of [[1900, 1350], [2300, -1350]] as const) { const t = new Mesh(new TorusGeometry(r, 34, 6, 40), brass); t.rotation.x = Math.PI / 2; t.position.set(lx, sy + dy, lz); g.add(place(t, false)); }
-  for (let k = 0; k < 3; k++) { const a = (k / 3) * Math.PI * 2; g.add(rod([lx, sy + 1350, lz], [lx + Math.cos(a) * 1880, sy + 1350, lz + Math.sin(a) * 1880], 22, brass, 4)); }
-  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(0xffc98a), emissiveIntensity: 0 });
-  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow);
-  bulb.position.set(lx, sy - 150, lz);
+  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
+  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow), by = -top + legH + sh / 2;
+  bulb.position.set(lx, by, lz);
   g.add(seeThrough(bulb));
-  // its cord: off the back of the base, over the table's back edge, down to the socket over the skirting
-  const sx = lx + 1200, cord = mat(0xf2efe8, { roughness: 0.6 });
-  g.add(tube([[lx, -top + 60, lz - 1150], [lx + 250, -top + 40, z0 + 500], [lx + 420, -top - 600, z0 + 160], [lx + 700, -(fl - 6000), 150], [sx, -(fl - 3300), 150], [sx, -(fl - 2600), 160]], 45, cord, 6));
-  g.add(softBox({ x: sx - 550, y: fl - 3100, w: 1100, h: 950 }, 0, 90, mat(0xf3f1ec, { roughness: 0.4 }), 30));
-  g.add(drum(sx, fl - 2600, 90, 300, 220, cord, 16));
-  // two books and a small plant
-  g.add(softBox({ x: cx + 900, y: top - 520, w: 3000, h: 520 }, cz - 1500, cz + 2400, mat(0xc5b79a, { roughness: 0.8 }), 40));
-  g.add(softBox({ x: cx + 1100, y: top - 920, w: 2600, h: 400 }, cz - 1200, cz + 2000, mat(0x7d3b32, { roughness: 0.8 }), 40));
-  g.add(softBox({ x: cx + 1180, y: top - 900, w: 2440, h: 360 }, cz + 2000, cz + 2040, mat(0xf1ead9, { roughness: 0.9 }), 10));
-  g.add(succulent(cx + 2700, top, cz - 2700, 650));
-  g.add(floorShadow(cx, cz + 300, w * 1.4, (z1 - z0) * 1.4, 0.8));
-  return { root: g, shade, glow, bulb: [lx, sy - 150, lz] };
+  // a book lying flat, the phone on it, a little turned
+  g.add(softBox({ x: cx + 300, y: top - 420, w: 2900, h: 420 }, cz - 1900, cz + 2100, mat(0xd8d4cc, { roughness: 0.8 }), 40));
+  const phone = softBox({ x: cx + 900, y: top - 550, w: 1400, h: 130 }, cz - 1300, cz + 1500, mat(0x0c0d0f, { roughness: 0.25, metalness: 0.2 }), 60);
+  phone.rotation.y = 0.18;
+  g.add(phone);
+  // (it floats: its shadow on the floor is soft and faint)
+  g.add(floorShadow(cx, cz + 300, w * 1.3, (z1 - z0) * 1.4, 0.3));
+  return { root: g, shade, glow, bulb: [lx, by, lz] };
 }
 
 // ---------------------------------------------------------------- the bookcase
 /**
- * A book's spine: a pale cloth ground (each book's own colour tints it) with bands near its ends and a title running up it. Five designs:
- * gilt rules and a dark label, broad dark ends and a light label, plain with fine rules, a paperback (a long dark title, a white logo at its
- * foot), an old leather binding (raised bands, gilt panels between them).
+ * A book's spine: a pale cloth ground (each book's own colour tints it) with bands near its ends and a title running up it. Four modern designs:
+ * fine rules and a dark label, broad dark ends and a light label, plain with fine rules, a paperback (a long dark title, a white logo at its foot).
  */
-const SPINES = 5;
+const SPINES = 4;
 function spineTex(kind: number): Texture | null {
   return paint(64, 512, (c, w, h) => {
     c.fillStyle = '#d2d2d2'; c.fillRect(0, 0, w, h);
@@ -307,16 +242,6 @@ function spineTex(kind: number): Texture | null {
       c.fillStyle = '#3a3a3a';
       for (let y = 60; y < h - 120;) { const lh = 9 + rnd() * 7; c.fillRect(w / 2 - 9, y, 18, lh); y += lh + 3 + (rnd() < 0.12 ? 14 : 0); }
       c.fillStyle = '#ffffff'; c.fillRect(w / 2 - 12, h - 80, 24, 30);
-      return;
-    }
-    if (kind === 4) {
-      // the raised bands over the cords: each a dark ridge with a lit top; gilt fleurons in the panels, a red title label in the second
-      for (let k = 0; k < 5; k++) { const y = 40 + k * 100; band(y, 14, '#5a5a5a'); band(y, 3, '#f0f0f0'); band(y + 14, 2, '#3a3a3a'); }
-      for (let k = 0; k < 4; k++) {
-        const y = 54 + k * 100;
-        if (k === 1) { c.fillStyle = '#7a2a24'; c.fillRect(8, y + 14, w - 16, 58); c.fillStyle = '#f6e7b0'; for (let x = 14; x < w - 16; x += 6) c.fillRect(x, y + 36, 4, 12); continue; }
-        c.fillStyle = '#f6e7b0'; c.beginPath(); c.arc(w / 2, y + 43, 8, 0, Math.PI * 2); c.fill(); c.fillRect(w / 2 - 18, y + 41, 36, 3);
-      }
       return;
     }
     if (kind === 0) { band(30, 7, '#fff'); band(43, 3, '#fff'); band(h - 46, 3, '#fff'); band(h - 37, 7, '#fff'); }
@@ -364,29 +289,24 @@ function shelvedBooks(books: readonly Book[]): Group {
   return g;
 }
 
-/** An oak bookcase on the west wall, facing the room: five shelves of books (upright, leaning, stacked), a plant, a box, bookends, a pothos on top. */
+/**
+ * A plain flat-pack bookcase in black-brown on the west wall, facing the room: square sides, a flat top flush between them, a plain back, a
+ * set-back plinth; five shelves of books (upright, leaning, stacked), a plant, a box, a bookend, a pothos on top.
+ */
 export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
-  const wood = mat(0xffffff, { map: oak('#f0efeb', '#e3e1db'), roughness: 0.55 });
+  const wood = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 });
   const side = 450, shelf = 400;
   g.add(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, wood, 50), softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, wood, 50));
-  // the back: tongue-and-groove boards, a dark V between each pair
-  g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0, z1, mat(0xffffff, { map: oak('#e8e6e1', '#d8d5ce'), roughness: 0.7 })));
-  const groove = mat(0xcfcdc7, { roughness: 0.8 });
-  for (let gz = z0 + side + 1900; gz < z1 - side - 600; gz += 1900) g.add(rectBox({ x: x + 290, y: top, w: 30, h: fl - top }, gz - 35, gz + 35, groove));
-  // the cornice: a cove flaring out over the sides and the front, a flat fillet over it, its top closed
-  const CORNICE: readonly ProfilePt[] = [[300, 0], [300, 40], [260, 70], [170, 120], [90, 190], [40, 260], [10, 330], [0, 360], [0, 360], [0, 520], [0, 520]];
-  const crown = place(new Mesh(frameLoft(w + 300, z1 - z0 + 600, CORNICE, { cap: true }), wood));
-  crown.geometry.rotateX(-Math.PI / 2);
-  crown.position.set(x + (w + 300) / 2, -top, (z0 + z1) / 2);
-  g.add(crown);
-  // the shelf-pin holes up the inside of each side, two rows (front and back), a pin under each shelf
+  // the back: one plain board in the same finish, between the sides
+  g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, wood));
+  // the shelf-pin holes up the inside of each side, two rows (front and back)
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
   const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
-  g.add(instanced(hole, mat(0x9a9893, { roughness: 0.9 }), pins));
+  g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
   const n = 5, gap = (fl - top - 1400) / n;
-  const tones = [0x34506b, 0xa95c40, 0xcfa24c, 0xe6dfcf, 0x758b6b, 0x75363a, 0x45464c, 0xbcae90, 0x648aa6, 0x8a6a4a];
+  const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x9c3b3b];
   const books: Book[] = [];
   const steel = mat(0x3a3c40, { metalness: 0.6, roughness: 0.4 });
   for (let s = 0; s <= n; s++) {
@@ -424,108 +344,81 @@ export function bookcase(): Group {
     if (s % 2) {
       const tz = z1 - side - 2200;
       if (s === 1) g.add(succulent(xf - 2600, base, tz, 1000));
-      else g.add(softBox({ x: x + 900, y: base - 1800, w: 3800, h: 1800 }, tz - 1600, tz + 1600, mat(0xe7dfd0, { roughness: 0.8 }), 120), softBox({ x: x + 880, y: base - 1880, w: 3840, h: 200 }, tz - 1640, tz + 1640, mat(0xd6cbb6, { roughness: 0.8 }), 60));
+      else g.add(softBox({ x: x + 900, y: base - 1800, w: 3800, h: 1800 }, tz - 1600, tz + 1600, mat(0x1b1c1f, { roughness: 0.6 }), 120), softBox({ x: x + 880, y: base - 1880, w: 3840, h: 200 }, tz - 1640, tz + 1640, mat(0x26272b, { roughness: 0.6 }), 60));
     }
   }
   g.add(shelvedBooks(books));
   // the plinth, set back under the bottom shelf (a shadow line along the floor)
   g.add(softBox({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, wood, 40));
   // a pothos on the top, trailing over the front edge
-  g.add(pothos(x + w / 2 + 300, top - 520, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
+  g.add(pothos(x + w / 2 + 300, top, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
   g.add(floorShadow(x + w / 2, (z0 + z1) / 2, w * 1.6, (z1 - z0) * 1.1, 0.7));
   return g;
 }
 
 // ---------------------------------------------------------------- the window's furnishings
-/** A white panel radiator under the window: vertical flutes, a valve at one end, its pipes into the floor. */
-export function radiator(): Group {
-  const g = new Group(), white = mat(0xf1efea, { roughness: 0.35 }), x0 = WINDOW.x + 700, x1 = WINDOW.x + WINDOW.w - 700;
-  const y0 = FLOOR_Y - 12800, y1 = FLOOR_Y - 2400;
-  g.add(softBox({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 800, 1500, white, 120));
-  const flutes: { x: number; y: number; z: number; sy: number }[] = [];
-  for (let x = x0 + 300; x < x1 - 200; x += 520) flutes.push({ x, y: -(y0 + y1) / 2, z: 1560, sy: (y1 - y0) * 0.86 });
-  g.add(instanced(new CylinderGeometry(150, 150, 1, 10), white, flutes));
-  // the top grille: a cap with slots over the convector fins
-  g.add(softBox({ x: x0 + 200, y: y0 - 60, w: x1 - x0 - 400, h: 260 }, 600, 1600, white, 80));
-  const slots: { x: number; y: number; z: number; sx: number }[] = [];
-  for (let x = x0 + 600; x < x1 - 600; x += 380) slots.push({ x, y: -(y0 - 60) + 5, z: 1100, sx: 1 });
-  g.add(instanced(new BoxGeometry(130, 20, 700), mat(0x3a3a3a, { roughness: 0.8 }), slots));
-  // the thermostatic valve on the flow at the east end (a brass body, a ribbed white head with its dial), a lockshield cap at the west end
-  const pipe = mat(0xdedbd4, { metalness: 0.4, roughness: 0.3 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 }), vx = x1 + 450;
-  g.add(post(vx, FLOOR_Y, 1200, 120, FLOOR_Y - y1 + 300, pipe, 10), rod([x1 - 100, -(y1 - 500), 1200], [vx, -(y1 - 500), 1200], 120, pipe, 10));
-  g.add(post(vx, y1 - 200, 1200, 200, 650, brass, 14));
-  const head: [number, number][] = [[200, 0], [260, 60], [260, 160]];
-  for (let k = 0; k < 7; k++) head.push([300, 200 + k * 90], [272, 245 + k * 90]);
-  head.push([300, 860], [290, 940], [180, 980], [0, 990]);
-  const trv = new Mesh(new LatheGeometry(head.map(([r, y]) => new Vector2(r, y)), 24), white);
-  trv.position.set(vx, -(y1 - 850), 1200);
-  g.add(place(trv), post(vx, y1 - 1834, 1200, 150, 14, mat(0x8a8f96, { roughness: 0.5 }), 20));
-  g.add(post(x0 + 300, FLOOR_Y, 1200, 120, FLOOR_Y - y1, pipe, 10), post(x0 + 300, y1 + 900, 1200, 190, 480, white, 14));
-  return g;
-}
-
-/** Curtain linen: a fine weave with slubs along the weft, the heading tape across its top (the rod's end) and the turned hem across its foot. */
+/** Curtain linen: a fine weave with slubs along the weft, the heading tape across its top (the track's end) and the turned hem across its foot. */
 function curtainTex(base: string): Texture | null {
   return paint(256, 1024, (c, w, h) => {
     c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.025 + rnd() * 0.035})`; c.fillRect(i, 0, 1, h); }
-    for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(0,0,0,${0.02 + rnd() * 0.03})`; c.fillRect(0, i, w, 1); }
-    for (let k = 0; k < 220; k++) { c.fillStyle = `rgba(255,255,255,${0.06 + rnd() * 0.07})`; c.fillRect(rnd() * w, rnd() * h, 10 + rnd() * 40, 1); }
-    const stitch = (y: number) => { c.fillStyle = 'rgba(90,70,50,0.35)'; for (let x = 0; x < w; x += 8) c.fillRect(x, y, 5, 1.5); };
+    for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.04 + rnd() * 0.05})`; c.fillRect(i, 0, 1, h); }
+    for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.04})`; c.fillRect(0, i, w, 1); }
+    for (let k = 0; k < 220; k++) { c.fillStyle = `rgba(255,255,255,${0.04 + rnd() * 0.05})`; c.fillRect(rnd() * w, rnd() * h, 10 + rnd() * 40, 1); }
+    const stitch = (y: number) => { c.fillStyle = 'rgba(0,0,0,0.3)'; for (let x = 0; x < w; x += 8) c.fillRect(x, y, 5, 1.5); };
     // the heading tape: a paler band, stitched along both edges, a shadow line under it
-    c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(0, 0, w, 40);
+    c.fillStyle = 'rgba(255,255,255,0.07)'; c.fillRect(0, 0, w, 40);
     stitch(6); stitch(34);
-    c.fillStyle = 'rgba(70,50,30,0.16)'; c.fillRect(0, 40, w, 3);
+    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(0, 40, w, 3);
     // the hem: a doubled band, a little darker, its stitch line
-    c.fillStyle = 'rgba(0,0,0,0.05)'; c.fillRect(0, h - 70, w, 70);
-    c.fillStyle = 'rgba(70,50,30,0.2)'; c.fillRect(0, h - 72, w, 2);
+    c.fillStyle = 'rgba(0,0,0,0.08)'; c.fillRect(0, h - 70, w, 70);
+    c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(0, h - 72, w, 2);
     stitch(h - 60);
   }, [3, 1]);
 }
 
 /**
- * Sheer floor-length curtains, drawn open to each side of the window: each panel hangs from a slim white track on the ceiling in soft, even
- * wave folds (deep where it is bunched, shallow where it spreads), its hem just clear of the floor. The light comes through the voile.
+ * Floor-length charcoal linen curtains, drawn open to each side of the window: each panel hangs from a slim black track on the ceiling in soft,
+ * even wave folds (a little deeper toward the hem), its hem just clear of the floor. The track stands out from the wall far enough that the
+ * deepest fold clears the window ledge (`CURTAIN`, `LEDGE`).
  */
 export function curtains(): Group {
-  const g = new Group(), z = 1300, top = CEIL_Y + 260, h = FLOOR_Y - 180 - top;
-  const left = WINDOW.x - 3000, right = WINDOW.x + WINDOW.w + 2200;
-  g.add(softBox({ x: left - 300, y: CEIL_Y, w: right - left + 600, h: 260 }, z - 260, z + 260, mat(0xf1f0ec, { roughness: 0.4 }), 40));
-  const voile = cloth(0xffffff, { map: curtainTex('#f4f2ee'), roughness: 0.95, transparent: true, opacity: 0.86, side: DoubleSide, depthWrite: false });
-  const panel = (x0: number, x1: number, seed: number) => {
-    const w = x1 - x0, geo = new PlaneGeometry(w, h, 96, 24), p = geo.attributes.position!;
+  const g = new Group(), { z, x0, x1, x2, x3, wave } = CURTAIN, top = CEIL_Y + 260, h = FLOOR_Y - 180 - top;
+  g.add(softBox({ x: x0 - 300, y: CEIL_Y, w: x3 - x0 + 600, h: 260 }, z - 260, z + 260, mat(STEEL, { roughness: 0.5 }), 40));
+  const linen = cloth(0xffffff, { map: curtainTex(LINEN), roughness: 0.95, side: DoubleSide });
+  const panel = (a: number, b: number, seed: number) => {
+    const w = b - a, geo = new PlaneGeometry(w, h, 96, 24), p = geo.attributes.position!;
     for (let i = 0; i < p.count; i++) {
       const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h;
-      // the wave: an even pleat from the track's carriers, a little drift as it falls, the hem's sway
-      const wave = Math.sin(u * w / 1500 * Math.PI * 2 + seed) * (520 + 120 * v) + Math.sin(u * 9 + v * 2.2 + seed * 1.3) * 140 * v;
-      p.setZ(i, wave);
+      // the wave: an even pleat from the track's carriers, deeper as it falls, the hem's sway: at most 0.98 of `wave` off the track
+      p.setZ(i, Math.sin(((u * w) / 1500) * Math.PI * 2 + seed) * (0.65 + 0.15 * v) * wave + Math.sin(u * 9 + v * 2.2 + seed * 1.3) * 0.18 * v * wave);
     }
     geo.computeVertexNormals();
-    const o = new Mesh(geo, voile);
-    o.position.set((x0 + x1) / 2, -(top + h / 2), z);
+    const o = place(new Mesh(geo, linen));
+    o.position.set((a + b) / 2, -(top + h / 2), z);
     g.add(seeThrough(o));
   };
-  panel(left, WINDOW.x + 1400, 0.7);
-  panel(WINDOW.x + WINDOW.w - 1000, right, 2.9);
+  panel(x0, x1, 0.7);
+  panel(x2, x3, 2.9);
   return g;
 }
 
 // ---------------------------------------------------------------- the door, the ceiling light, the print, the plant
 /**
- * A flush white door in the west wall near the front: a slim square architrave, the plain leaf in its frame with a dark gap round it, hidden
- * hinges, a black lever on a square rose and a small keyhole plate, an oak threshold, a stop on the floor, and a flat light switch beside it.
+ * A flush charcoal door in the west wall near the front: a slim square architrave in the trim's tone, the plain leaf in its frame with a dark
+ * gap round it, hidden hinges, a black lever on a square rose and a small keyhole plate, a black threshold strip, a stop on the floor, and a
+ * flat black light switch beside it.
  */
 export function door(): Group {
-  const g = new Group(), { z0, z1, top } = DOOR, fl = FLOOR_Y, white = mat(0xf2f0eb, { roughness: 0.38 }), xs = WEST_X;
+  const g = new Group(), { z0, z1, top } = DOOR, fl = FLOOR_Y, trim = mat(TRIM, { roughness: 0.45 }), xs = WEST_X;
   // (in the wall's plane: y down, z along the wall; x out of the wall into the room)
   const slab = (y0: number, y1: number, za: number, zb: number, x0: number, x1: number, m: Material, r = 40) => softBox({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, za, zb, m, r);
   // the architrave: three square-edged boards round the opening
   const cw = 900;
-  g.add(slab(top - cw, top, z0 - cw, z1 + cw, xs, xs + 160, white, 20));
-  for (const [a, b] of [[z0 - cw, z0], [z1, z1 + cw]] as const) g.add(slab(top, fl, a, b, xs, xs + 160, white, 20));
+  g.add(slab(top - cw, top, z0 - cw, z1 + cw, xs, xs + 160, trim, 20));
+  for (const [a, b] of [[z0 - cw, z0], [z1, z1 + cw]] as const) g.add(slab(top, fl, a, b, xs, xs + 160, trim, 20));
   // the frame's dark gap round the leaf, the leaf
-  g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x3a3530, { roughness: 0.9 })));
-  const face = xs + 110, leaf = mat(0xefece6, { roughness: 0.42 });
+  g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x0e0f11, { roughness: 0.9 })));
+  const face = xs + 110, leaf = mat(0x2a2e35, { roughness: 0.5 });
   g.add(slab(top + 70, fl - 150, z0 + 70, z1 - 70, xs - 220, face, leaf, 25));
   // the lever: a square rose, a short neck, a straight square-section bar along the door; a keyhole plate under it
   const black = mat(0x1d1e20, { metalness: 0.4, roughness: 0.4 }), dark = mat(0x0d0d0e, { roughness: 0.7 }), hy = fl - 19000, hz = z0 + 1350;
@@ -533,104 +426,95 @@ export function door(): Group {
   g.add(slab(hy - 110, hy + 110, hz - 110, hz + 110, face + 90, face + 620, black, 40));
   g.add(slab(hy - 120, hy + 120, hz - 110, hz + 2300, face + 520, face + 760, black, 60));
   g.add(slab(hy + 1400, hy + 2000, hz - 300, hz + 300, face, face + 70, black, 30), slab(hy + 1600, hy + 1800, hz - 40, hz + 40, face + 70, face + 76, dark, 5));
-  // the threshold: an oak strip with its edges eased, across the opening on the floor
-  g.add(softBox({ x: xs - 300, y: fl - 140, w: 900, h: 140 }, z0, z1, mat(0xffffff, { map: oak('#d8c09c', '#a88c66', [4, 1]), roughness: 0.5 }), 50));
+  // the threshold: a black aluminium strip across the opening on the floor
+  g.add(softBox({ x: xs - 300, y: fl - 120, w: 900, h: 120 }, z0, z1, mat(STEEL, { roughness: 0.4, metalness: 0.5 }), 40));
   // a stop on the floor where the door swings open
   g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, 20), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2b2c2e, { roughness: 0.9 }), 20));
-  // the light switch beside the door: a thin square plate, a wide rocker
-  g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, white, 40));
-  g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0xe8e5de, { roughness: 0.45 }), 40));
+  // the light switch beside the door: a thin square plate in black glass, a wide rocker
+  g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, mat(0x141518, { roughness: 0.2, metalness: 0.1 }), 40));
+  g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0x1d1f23, { roughness: 0.35 }), 40));
   return g;
 }
 
 /**
- * A slim round LED ceiling light (y: the ceiling, 2D y down): a white body off the ceiling on a short shadow line, its opal face; the face
+ * A slim round LED ceiling light (y: the ceiling, 2D y down): a dark body off the ceiling on a short shadow line, its opal face; the face
  * glows when lit.
  */
 export function ceilingLight(x: number, y: number, z: number): { root: Group; glow: MeshStandardMaterial } {
   const g = new Group(), r = 5000;
-  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x9a9893, { roughness: 0.8 }), 64), false));
-  g.add(place(post(x, y + 900, z, r, 650, mat(0xf3f2ef, { roughness: 0.4 }), 64), false));
-  const glow = mat(0xf7f5f0, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
+  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x0e0f11, { roughness: 0.9 }), 64), false));
+  g.add(place(post(x, y + 900, z, r, 650, mat(0x2a2d33, { roughness: 0.5 }), 64), false));
+  const glow = mat(0xcfccc6, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
   g.add(place(post(x, y + 940, z, r - 250, 40, glow, 64), false));
   return { root: g, glow };
 }
 
-/** A framed print over the bed: an oak frame, a white mount, a warm abstract landscape (a sun over layered hills). */
+/** A framed print over the bed: a thin black frame, an ink-wash scene on warm paper (misty ridges, a small vermilion sun, a red seal). */
 export function print(r: { x: number; y: number; w: number; h: number }, z: number): Group {
-  const g = new Group(), wood = mat(0xffffff, { map: oak('#d8c09c', '#a88c66'), roughness: 0.5 });
-  g.add(softBox(r, z, z + 380, wood, 60));
-  const art = paint(512, 384, (c, w, h) => {
-    c.fillStyle = '#f6f2ea'; c.fillRect(0, 0, w, h);
-    const m = 46, iw = w - 2 * m, ih = h - 2 * m;
-    c.save(); c.beginPath(); c.rect(m, m, iw, ih); c.clip();
-    const sky = c.createLinearGradient(0, m, 0, m + ih); sky.addColorStop(0, '#efd9b8'); sky.addColorStop(1, '#f3e6cf');
-    c.fillStyle = sky; c.fillRect(m, m, iw, ih);
-    c.fillStyle = '#d4693f'; c.beginPath(); c.arc(m + iw * 0.62, m + ih * 0.42, ih * 0.2, 0, Math.PI * 2); c.fill();
-    for (const [tone, base, amp, f] of [['#c9a46a', 0.62, 0.08, 1.3], ['#8f9f78', 0.72, 0.07, 2.1], ['#5d7058', 0.84, 0.05, 1.7]] as const) {
-      c.fillStyle = tone; c.beginPath(); c.moveTo(m, m + ih);
-      for (let i = 0; i <= 40; i++) { const u = i / 40; c.lineTo(m + u * iw, m + ih * (base - amp * Math.sin(u * Math.PI * f + base * 9))); }
-      c.lineTo(m + iw, m + ih); c.closePath(); c.fill();
+  const g = new Group();
+  g.add(softBox(r, z, z + 380, mat(0x111214, { roughness: 0.45 }), 30));
+  const art = paint(512, 360, (c, w, h) => {
+    c.fillStyle = '#bdb5a3'; c.fillRect(0, 0, w, h);
+    for (let k = 0; k < 500; k++) { c.fillStyle = `rgba(255,255,255,${0.03 + rnd() * 0.05})`; c.fillRect(rnd() * w, rnd() * h, 1, 3 + rnd() * 8); }
+    c.fillStyle = '#b8432c'; c.beginPath(); c.arc(w * 0.7, h * 0.27, h * 0.065, 0, Math.PI * 2); c.fill();
+    // the ridges, far to near: each darker, its peaks sharp, its foot fading into mist
+    for (const [tone, base, amp, f, ph] of [['118,114,106', 0.5, 0.2, 1.7, 0.4], ['82,80,76', 0.66, 0.17, 2.3, 2.1], ['40,39,38', 0.82, 0.13, 1.3, 4.2]] as const) {
+      const fog = c.createLinearGradient(0, h * (base - amp), 0, h * (base + 0.2));
+      fog.addColorStop(0, `rgba(${tone},0.95)`); fog.addColorStop(1, `rgba(${tone},0)`);
+      c.fillStyle = fog; c.beginPath(); c.moveTo(0, h);
+      for (let i = 0; i <= 96; i++) {
+        const u = i / 96, peak = 0.6 * Math.abs(Math.sin(u * Math.PI * f + ph)) + 0.3 * Math.abs(Math.sin(u * Math.PI * f * 2.7 + ph * 1.7)) + 0.1 * Math.sin(u * 47 + ph);
+        c.lineTo(u * w, h * (base - amp * peak));
+      }
+      c.lineTo(w, h); c.closePath(); c.fill();
     }
-    c.restore();
+    c.fillStyle = '#a8352a'; c.fillRect(w * 0.08, h * 0.8, 12, 16);
   });
-  const face = new Mesh(new PlaneGeometry(r.w - 700, r.h - 700), mat(0xffffff, { map: art, roughness: 0.85 }));
+  const face = new Mesh(new PlaneGeometry(r.w - 500, r.h - 500), mat(0xffffff, { map: art, roughness: 0.85 }));
   face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z + 392);
   g.add(face);
   return g;
 }
 
 /**
- * The east wall's shelf past the bed's foot: a floating oak board with a stack of books, a candle in a jar, a trailing plant and a postcard
- * leant on the wall, and a framed poster above it. The east wall faces -x: this group builds on a back wall (z out of it) and turns to it.
+ * The east wall's shelf past the bed's foot: a thick black-brown floating board with two books, a small speaker with a cyan status light and a
+ * trailing plant, and a framed poster above it (a thin cyan circle on a dark ground). The east wall faces -x: this group builds on a back wall
+ * (z out of it) and turns to it.
  */
 export function eastWall(): Group {
-  const g = new Group(), wall = new Group(), wood = mat(0xffffff, { map: oak('#d8c09c', '#a88c66'), roughness: 0.5 });
+  const g = new Group(), wall = new Group(), wood = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 });
   // (a layout x here runs along the east wall from its back corner: x = the room's z)
-  const sx = 40000, sw = 15000, sy = -3000;
-  wall.add(softBox({ x: sx, y: sy, w: sw, h: 600 }, 0, 3200, wood, 70));
-  const books = [0x45464c, 0xa95c40, 0xe6dfcf] as const;
+  const sx = SHELF.z0, sw = SHELF.z1 - SHELF.z0, sy = SHELF.y, sd = SHELF.d;
+  wall.add(softBox({ x: sx, y: sy, w: sw, h: 900 }, 0, sd, wood, 70));
   let y = sy;
-  books.forEach((c, k) => {
-    const t = 420 + k * 60;
-    wall.add(softBox({ x: sx + 900 + k * 120, y: y - t, w: 4200 - k * 380, h: t }, 300 + k * 80, 2700 - k * 120, mat(c, { roughness: 0.75 }), 40));
+  ([0xd9d6cf, 0x26303d] as const).forEach((c, k) => {
+    const t = 480 - k * 60;
+    wall.add(softBox({ x: sx + 900 + k * 160, y: y - t, w: 4200 - k * 420, h: t }, 400 + k * 90, 3300 - k * 140, mat(c, { roughness: 0.75 }), 40));
     y -= t;
   });
-  // the candle: an amber jar (its wall, its rim), the cream wax in it, the wick
-  const cx = sx + 7400, jarP = [[0, 0], [760, 0], [790, 60], [790, 1650], [740, 1700], [700, 1650], [690, 120], [0, 120]] as const;
-  const jar = new Mesh(new LatheGeometry(jarP.map(([r, h]) => new Vector2(r, h)), 24), mat(0xb27a3e, { roughness: 0.3, metalness: 0.1 }));
-  jar.position.set(cx, -sy, 1500);
-  wall.add(place(jar), post(cx, sy - 120, 1500, 690, 1300, mat(0xf3ead8, { roughness: 0.7 }), 20), post(cx, sy - 1420, 1500, 30, 200, mat(0x222222, { roughness: 1 }), 5));
+  // the speaker: a cylinder in dark fabric, a black top, its status light
+  const cx = sx + 7400, cz = sd / 2;
+  wall.add(post(cx, sy, cz, 760, 2000, cloth(0x2a2b2e, { roughness: 0.95 }), 32), post(cx, sy - 2000, cz, 740, 50, mat(0x111214, { roughness: 0.35 }), 32));
+  wall.add(post(cx, sy - 2050, cz, 150, 10, mat(0x0b1a1d, { roughness: 0.4, emissive: new Color(NEON), emissiveIntensity: 0.8 }), 16));
   // a pothos at the east end: built facing +x, turned so its vines trail over the shelf's front edge
-  const vine = pothos(0, 0, 0, 1700, [{ dz: 300, len: 7000 }, { dz: -500, len: 4200 }]);
+  const vine = pothos(0, 0, 0, sd - 1500, [{ dz: 300, len: 7000 }, { dz: -500, len: 4200 }]);
   vine.rotation.y = -Math.PI / 2;
   vine.position.set(sx + sw - 2400, -sy, 1500);
   wall.add(vine);
-  // a postcard leant on the wall
-  const card = paint(256, 180, (c, w, h) => {
-    c.fillStyle = '#f2ebde'; c.fillRect(0, 0, w, h);
-    c.fillStyle = '#7fa2b8'; c.fillRect(12, 12, w - 24, h * 0.55);
-    c.fillStyle = '#e7d3a6'; c.fillRect(12, 12 + h * 0.55, w - 24, h * 0.45 - 24);
-    c.fillStyle = '#c8643c'; c.beginPath(); c.arc(w * 0.7, h * 0.32, 18, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#2f4f5f'; c.beginPath(); c.moveTo(12, h * 0.67); c.lineTo(w * 0.35, h * 0.42); c.lineTo(w * 0.6, h * 0.67); c.fill();
-  });
-  const pc = new Mesh(new PlaneGeometry(2800, 2000), mat(0xffffff, { map: card, roughness: 0.8, side: DoubleSide }));
-  pc.position.set(sx + 11000, -sy + 1050, 450); pc.rotation.x = -0.18;
-  wall.add(place(pc));
-  // a framed poster above: arches in warm tones
+  // a framed poster above: a thin cyan circle and a fine grid on a dark ground
   const r = { x: sx + 1500, y: -18500, w: 11000, h: 13800 };
-  wall.add(softBox(r, 0, 320, mat(0x2e2a26, { roughness: 0.5 }), 50));
+  wall.add(softBox(r, 0, 320, mat(0x111214, { roughness: 0.45 }), 30));
   const art = paint(384, 480, (c, w, h) => {
-    c.fillStyle = '#f4efe5'; c.fillRect(0, 0, w, h);
-    const m = 40, iw = w - 2 * m, ih = h - 2 * m;
-    c.fillStyle = '#efe2cc'; c.fillRect(m, m, iw, ih);
-    const arch = (x: number, y: number, aw: number, ah: number, col: string) => { c.fillStyle = col; c.beginPath(); c.moveTo(x, y + ah); c.lineTo(x, y + aw / 2); c.arc(x + aw / 2, y + aw / 2, aw / 2, Math.PI, 0); c.lineTo(x + aw, y + ah); c.fill(); };
-    arch(m + iw * 0.1, m + ih * 0.18, iw * 0.8, ih * 0.82, '#d9a76a');
-    arch(m + iw * 0.22, m + ih * 0.32, iw * 0.56, ih * 0.68, '#c8643c');
-    arch(m + iw * 0.34, m + ih * 0.46, iw * 0.32, ih * 0.54, '#7a8f72');
-    c.fillStyle = '#f4efe5'; c.beginPath(); c.arc(m + iw * 0.5, m + ih * 0.12, iw * 0.07, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#16181d'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(120,130,150,0.12)'; c.lineWidth = 1;
+    for (let x = 24; x < w; x += 24) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+    for (let y = 24; y < h; y += 24) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+    c.strokeStyle = '#3be3ff'; c.lineWidth = 3; c.beginPath(); c.arc(w * 0.5, h * 0.42, w * 0.3, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#c8432b'; c.beginPath(); c.arc(w * 0.5 + w * 0.3 * Math.cos(-0.7), h * 0.42 + w * 0.3 * Math.sin(-0.7), 7, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(200,210,225,0.55)';
+    for (let k = 0; k < 4; k++) c.fillRect(w * 0.2, h * 0.8 + k * 9, w * (0.6 - k * 0.12), 3);
   });
-  const face = new Mesh(new PlaneGeometry(r.w - 600, r.h - 600), mat(0xffffff, { map: art, roughness: 0.85 }));
+  const face = new Mesh(new PlaneGeometry(r.w - 500, r.h - 500), mat(0xffffff, { map: art, roughness: 0.6 }));
   face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), 330);
   wall.add(face);
   wall.rotation.y = -Math.PI / 2;
