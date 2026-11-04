@@ -64,8 +64,8 @@ export function mess(ped: number): Group {
   g.add(tube([[sx, -fl + 25 * MM, sz + 27 * MM], [sx - 2500, -fl + 30, sz + 1400], [sx - 6000, -fl + 30, sz + 300], [sx - 9000, -fl + 30, 300], [sx - 9200, -fl + 1500, 160]], 75, white, 6));
 
   // ---- books: a pile on the floor in front of the radiator, two on the sill ----
-  g.add(pile(WINDOW.x + 2600, fl, 6800, [[240, 34, 170, 0x2f4b63, 0.12], [230, 22, 155, 0xd9d4c8, -0.08], [210, 40, 140, 0x8a3b2e, 0.2], [180, 18, 120, 0x2a2a2a, -0.05]]));
-  g.add(pile(WINDOW.x + 1600, WINDOW.y + WINDOW.h, 300, [[200, 24, 135, 0xc9a14a, -0.1], [190, 16, 130, 0x3d5a4a, 0.08]]));
+  g.add(pile(WINDOW.x + 2600, fl, 7600, [[240, 34, 170, 0x2f4b63, 0.12], [230, 22, 155, 0xd9d4c8, -0.08], [210, 40, 140, 0x8a3b2e, 0.2], [180, 18, 120, 0x2a2a2a, -0.05]]));
+  g.add(pile(WINDOW.x + 1800, WINDOW.y + WINDOW.h, 1200, [[200, 24, 135, 0xc9a14a, -0.1], [190, 16, 130, 0x3d5a4a, 0.08]]));
 
   // ---- a flattened delivery box against the bookcase's side, its tape across ----
   const card = mat(0xffffff, { map: weave('#b88e5e', { repeat: [2, 2] }), roughness: 0.9 }), tape = mat(0xcdb58c, { roughness: 0.35 });

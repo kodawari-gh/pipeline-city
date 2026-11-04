@@ -19,7 +19,7 @@ import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/pr
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { OutsideView } from './outside/view';
-import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator } from './furniture3d';
+import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print } from './furniture3d';
 import { deskChair } from './chair3d';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
@@ -273,37 +273,35 @@ export class Room3D {
     }
     R.add(instanced(new BoxGeometry(1, 40, 70), mat(0xe6dccb, { roughness: 0.95 }), fringe));
 
-    // ---- the window: a white casement set back in its reveal, a deep sill, the roller blind, the world outside ----
-    const winG = tag(new Group(), 'blind'), bar = 600, mull = 460, tr = W.y + W.h * 0.27;
-    const fz0 = FRAME_Z - 700, sashZ = FRAME_Z - 150;
+    // ---- the window: a tall black aluminium frame set back in its reveal, a fixed pane and a tilt-turn sash, a deep stone ledge, the roller blind ----
+    const winG = tag(new Group(), 'blind'), bar = 380, mull = 300, mullX = W.x + W.w * 0.45;
+    const fz0 = FRAME_Z - 700, sashZ = FRAME_Z - 150, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.38 });
     const frame: Rect[] = [
       { x: W.x, y: W.y, w: W.w, h: bar }, { x: W.x, y: W.y + W.h - bar, w: W.w, h: bar },
       { x: W.x, y: W.y, w: bar, h: W.h }, { x: W.x + W.w - bar, y: W.y, w: bar, h: W.h },
-      { x: W.x + bar, y: tr - mull / 2, w: W.w - 2 * bar, h: mull },
-      { x: W.x + W.w / 2 - mull / 2, y: tr + mull / 2, w: mull, h: W.y + W.h - bar - tr - mull / 2 },
+      { x: mullX - mull / 2, y: W.y + bar, w: mull, h: W.h - 2 * bar },
     ];
-    for (const r of frame) winG.add(softBox(r, fz0, FRAME_Z, white, 50));
-    // the two casements below the transom, each its own sash with a handle
-    const paneW = (W.w - 2 * bar - mull) / 2, sy = tr + mull / 2, sh = W.y + W.h - bar - sy, sash = 300;
-    [W.x + bar, W.x + bar + paneW + mull].forEach((x, i) => {
-      for (const r of [{ x, y: sy, w: paneW, h: sash }, { x, y: sy + sh - sash, w: paneW, h: sash }, { x, y: sy, w: sash, h: sh }, { x: x + paneW - sash, y: sy, w: sash, h: sh }]) winG.add(softBox(r, sashZ - 500, sashZ, white, 40));
-      const hx = i ? x + sash / 2 : x + paneW - sash / 2;
-      winG.add(softBox({ x: hx - 70, y: sy + sh * 0.5 - 650, w: 140, h: 1300 }, sashZ, sashZ + 180, mat(0xd9d6cf, { metalness: 0.6, roughness: 0.3 }), 50));
-    });
+    for (const r of frame) winG.add(softBox(r, fz0, FRAME_Z, alu, 30));
+    // the tilt-turn sash east of the mullion: a slim frame of its own, its handle on the side away from the hinges
+    const sx0 = mullX + mull / 2, sw = W.x + W.w - bar - sx0, sy0 = W.y + bar, sh = W.h - 2 * bar, sash = 260;
+    for (const r of [{ x: sx0, y: sy0, w: sw, h: sash }, { x: sx0, y: sy0 + sh - sash, w: sw, h: sash }, { x: sx0, y: sy0, w: sash, h: sh }, { x: sx0 + sw - sash, y: sy0, w: sash, h: sh }]) winG.add(softBox(r, sashZ - 400, sashZ, alu, 25));
+    winG.add(softBox({ x: sx0 + 60, y: sy0 + sh * 0.55 - 120, w: 140, h: 240 }, sashZ, sashZ + 120, alu, 40));
+    winG.add(softBox({ x: sx0 + 90, y: sy0 + sh * 0.55 - 100, w: 80, h: 1100 }, sashZ + 120, sashZ + 230, alu, 35));
     const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
     this.outside = new OutsideView(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
     winG.add(this.outside.mesh, glass);
-    // the inside sill, over the radiator
-    const sillY = W.y + W.h;
-    winG.add(softBox({ x: W.x - 700, y: sillY, w: W.w + 1400, h: 380 }, fz0 - 200, 1100, white, 60));
+    // the ledge: a deep slab of pale stone at seat height, on a plain white plinth to the floor (the heating runs under the floor)
+    const sillY = W.y + W.h, stone = mat(0xe4e2dd, { roughness: 0.3 });
+    winG.add(softBox({ x: W.x - 500, y: sillY, w: W.w + 1000, h: 600 }, fz0 - 200, 2600, stone, 60));
+    winG.add(softBox({ x: W.x - 400, y: sillY + 600, w: W.w + 800, h: fl - sillY - 600 }, -WALL_T, 2200, white, 40));
     // the roller blind: its cassette at the top of the reveal, its cloth comes down in front of the frame
     winG.add(softBox({ x: W.x + 150, y: W.y, w: W.w - 300, h: 900 }, -900, -150, white, 120));
     this.blind = place(new Mesh(new BoxGeometry(W.w - 500, 1, 40), mat(0xffffff, { map: plasterTex('#efe6d4', [2, 4]), roughness: 0.9, side: DoubleSide })));
     this.blind.position.set(W.x + W.w / 2, -(W.y + 900), -500);
     winG.add(this.blind);
     R.add(winG);
-    R.add(aloe(W.x + W.w - 2600, sillY, -300), radiator(), curtains());
+    R.add(aloe(W.x + W.w - 2600, sillY, 600), curtains());
 
     // ---- the furniture: the bed and its table, the bookcase, the door, the ceiling light, a print over the bed, plants ----
     const ns = nightstand();

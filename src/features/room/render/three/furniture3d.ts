@@ -13,7 +13,7 @@ import { frameLoft, ribbon, taperTube, type ProfilePt } from '@/core/render/thre
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, WEST_X, WINDOW } from './roomplan';
+import { BED, BOOKCASE, CEIL_Y, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, WEST_X, WINDOW } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -488,75 +488,29 @@ function curtainTex(base: string): Texture | null {
 }
 
 /**
- * Sill-length linen curtains, drawn back to each side of the window: each panel hangs from rings on an oak rod with turned finials and
- * brass brackets, its heading pleated into the rings; it sweeps down to a fabric tie-back that cinches it toward the wall and flares out
- * below it in looser folds to a stitched hem. The folds wander as they fall (no two alike); the lining shows on the back.
+ * Sheer floor-length curtains, drawn open to each side of the window: each panel hangs from a slim white track on the ceiling in soft, even
+ * wave folds (deep where it is bunched, shallow where it spreads), its hem just clear of the floor. The light comes through the voile.
  */
 export function curtains(): Group {
-  const g = new Group(), rodY = WINDOW.y - 1900, z = 1500;
-  const left = WINDOW.x - 3400, right = WINDOW.x + WINDOW.w + 2300;
-  const wood = mat(0xffffff, { map: oak('#2a2b2d', '#1a1b1c'), roughness: 0.45 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
-  g.add(rod([left - 500, -rodY, z], [right + 500, -rodY, z], 150, wood, 14));
-  // the finials: a collar, a neck, a ball with a little top
-  const finial = [[0, 0], [230, 0], [240, 60], [180, 120], [170, 240], [300, 330], [330, 470], [280, 620], [160, 700], [90, 760], [60, 800], [0, 810]] as const;
-  for (const [fx, s] of [[left - 500, -1], [right + 500, 1]] as const) {
-    const f = place(new Mesh(new LatheGeometry(finial.map(([r, h]) => new Vector2(r, h)), 20), wood));
-    f.rotation.z = -s * Math.PI / 2; f.position.set(fx, -rodY, z);
-    g.add(f);
-    // the rod's bracket: a rose on the wall, an arm out to a cradle under the rod
-    const bx = fx - s * 900;
-    g.add(drum(bx, rodY - 300, 0, 90, 300, brass, 20), rod([bx, -rodY + 300, 60], [bx, -rodY + 300, z - 120], 70, brass, 8), rod([bx, -rodY + 300, z - 120], [bx, -rodY - 170, z], 60, brass, 8));
-    const cradle = new Mesh(new TorusGeometry(190, 45, 6, 16, Math.PI), brass);
-    cradle.rotation.set(Math.PI, Math.PI / 2, 0); cradle.position.set(bx, -rodY, z);
-    g.add(place(cradle));
-  }
-  const tex = curtainTex('#f0eeea'), drapes = cloth(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
-  const band = mat(0xffffff, { map: weave('#9a978f', { repeat: [8, 1] }), roughness: 0.9, side: DoubleSide });
-  const tieV = 0.6, ringR = 250, top = rodY + ringR + 230, h = WINDOW.y + WINDOW.h + 1300 - top;
-  const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
-  const panel = (x0: number, x1: number, gather: number, seed: number) => {
-    const w = x1 - x0, cx = (x0 + x1) / 2, geo = new PlaneGeometry(w, h, 64, 44), p = geo.attributes.position!;
-    // the wall side, where the cloth gathers; how much of its width the cloth spans at each height (all at the rod, least at the tie)
-    // below the tie it flares out, but stops short of the sill's end
-    const outer = (-gather * w) / 2, reach = (gather > 0 ? WINDOW.x - 700 - x0 : x1 - WINDOW.x - WINDOW.w - 700) - 250, low = Math.min(0.72, reach / w);
-    const span = (v: number) => (v < tieV ? 1 - 0.58 * (v / tieV) ** 1.4 : 0.42 + (low - 0.42) * smooth((v - tieV) / (1 - tieV)) ** 0.8);
-    const fold = (u: number, v: number) => Math.sin(u * 37 + seed + v * 1.6) * 0.6 + Math.sin(u * 61 + seed * 1.7 - v * 2.4) * 0.22 + Math.sin(u * 17 + seed * 2.3 + v * 0.7) * 0.32;
-    const k = w / 3000;
+  const g = new Group(), z = 1300, top = CEIL_Y + 260, h = FLOOR_Y - 180 - top;
+  const left = WINDOW.x - 3000, right = WINDOW.x + WINDOW.w + 2200;
+  g.add(softBox({ x: left - 300, y: CEIL_Y, w: right - left + 600, h: 260 }, z - 260, z + 260, mat(0xf1f0ec, { roughness: 0.4 }), 40));
+  const voile = cloth(0xffffff, { map: curtainTex('#f4f2ee'), roughness: 0.95, transparent: true, opacity: 0.86, side: DoubleSide, depthWrite: false });
+  const panel = (x0: number, x1: number, seed: number) => {
+    const w = x1 - x0, geo = new PlaneGeometry(w, h, 96, 24), p = geo.attributes.position!;
     for (let i = 0; i < p.count; i++) {
-      const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h, s = span(v);
-      // deeper folds where the cloth is drawn in and as it falls; squeezed flat in the band; the hem ripples a little
-      const squeeze = 1 - 0.5 * Math.exp(-(((v - tieV) / 0.045) ** 2));
-      p.setZ(i, (230 + 330 * v) * k * (1 + 1.1 * (1 - s)) * squeeze * fold(u, v));
-      p.setX(i, outer + (p.getX(i) - outer) * s);
-      p.setY(i, p.getY(i) + 60 * smooth((v - 0.93) / 0.07) * fold(u, 1));
+      const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h;
+      // the wave: an even pleat from the track's carriers, a little drift as it falls, the hem's sway
+      const wave = Math.sin(u * w / 1500 * Math.PI * 2 + seed) * (520 + 120 * v) + Math.sin(u * 9 + v * 2.2 + seed * 1.3) * 140 * v;
+      p.setZ(i, wave);
     }
     geo.computeVertexNormals();
-    for (const m of [drapes, lining]) { const o = place(new Mesh(geo, m)); o.position.set(cx, -(top + h / 2), z); g.add(o); }
-    // the rings along the rod, each with its hook down into the heading
-    for (let r = 0; r <= 9; r++) {
-      const rx = x0 + 120 + (r / 9) * (w - 240), ring = new Mesh(new TorusGeometry(ringR, 34, 6, 18), wood);
-      ring.rotation.y = Math.PI / 2; ring.position.set(rx, -rodY, z);
-      g.add(place(ring), rod([rx, -rodY - ringR, z], [rx, -top + 60, z + 40], 22, brass, 5));
-    }
-    // the tie-back: a band of terracotta cloth round the bundle at the tie, its two ends hooked over a brass knob on the wall behind it
-    let bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity;
-    for (let i = 0; i < p.count; i++) {
-      if (Math.abs(0.5 - p.getY(i) / h - tieV) > 0.012) continue;
-      bx0 = Math.min(bx0, p.getX(i)); bx1 = Math.max(bx1, p.getX(i)); bz0 = Math.min(bz0, p.getZ(i)); bz1 = Math.max(bz1, p.getZ(i));
-    }
-    const ty = -(top + tieV * h), hx = cx + (bx0 + bx1) / 2 - gather * 200, mid = (bz0 + bz1) / 2 + z, m = 110;
-    const loop: [number, number, number][] = [
-      [hx - 160, ty + 40, 160], [cx + bx0 - m, ty + 10, z + bz0 - m], [cx + bx0 - m * 1.6, ty - 30, mid], [cx + bx0 - m, ty - 80, z + bz1 + m],
-      [cx + (bx0 + bx1) / 2, ty - 140, z + bz1 + m * 1.7], [cx + bx1 + m, ty - 80, z + bz1 + m], [cx + bx1 + m * 1.6, ty - 30, mid], [cx + bx1 + m, ty + 10, z + bz0 - m], [hx + 160, ty + 40, 160],
-    ];
-    g.add(place(new Mesh(ribbon(loop, 520, { closed: true, segs: 64 }), band)));
-    g.add(drum(hx, -ty, 0, 90, 260, brass, 18), drum(hx, -ty, 90, 360, 90, brass, 10));
-    const knob = new Mesh(new SphereGeometry(170, 14, 10), brass);
-    knob.position.set(hx, ty, 400);
-    g.add(place(knob));
+    const o = new Mesh(geo, voile);
+    o.position.set((x0 + x1) / 2, -(top + h / 2), z);
+    g.add(seeThrough(o));
   };
-  panel(left, WINDOW.x + 500, 1, 0.7);
-  panel(WINDOW.x + WINDOW.w - 500, right, -1, 2.9);
+  panel(left, WINDOW.x + 1400, 0.7);
+  panel(WINDOW.x + WINDOW.w - 1000, right, 2.9);
   return g;
 }
 

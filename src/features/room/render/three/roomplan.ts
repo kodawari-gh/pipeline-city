@@ -18,9 +18,11 @@ export const START_HOUR_3D = 14.2;
 export const FLOOR_Y = 20000, CEIL_Y = -26800;
 /** The side walls and the wall behind the viewer (the room is 4.8 m wide and 3.7 m deep). */
 export const WEST_X = -40000, EAST_X = 50000, FRONT_Z = 70000;
-/** The back wall's thickness at the window (its reveal), and the window's opening in it (2D y down): a tall casement west of the desk. */
+/** The back wall's thickness at the window (its reveal), and the window's opening in it (2D y down): a tall window west of the desk, from a low ledge (40 cm) almost to the ceiling. */
 export const WALL_T = 2600;
-export const WINDOW: Rect = { x: -32600, y: -14000, w: 11000, h: 17600 };
+export const WINDOW: Rect = { x: -32600, y: CEIL_Y + 700, w: 11000, h: FLOOR_Y - 7480 - (CEIL_Y + 700) };
+/** The top of the room view's framing: the old window head, so the taller window does not pull the camera back. */
+export const VIEW_TOP = -14000;
 /** The slatted accent panel behind the desk; plaster elsewhere. */
 export const SLATS_X0 = -20000, SLATS_X1 = 9000;
 /** The bed's frame (its head on the back wall, east of the desk), the bedside table, the bookcase on the west wall, the door near the front. */

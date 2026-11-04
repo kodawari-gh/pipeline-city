@@ -20,7 +20,7 @@ import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
 import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, WINDOW, daylight, eyeRoom } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
@@ -111,7 +111,7 @@ export function mountBoard3d(host: HTMLElement) {
   const aspect = () => W / H;
   // the reference's framing: front on, a little from above, the window to the drawers, from over the window to the desk's drawers
   const roomRect = (): Box => {
-    const g = room!.geo, x0 = WINDOW.x - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, WINDOW.y) - 1200;
+    const g = room!.geo, x0 = WINDOW.x - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, VIEW_TOP) - 1200;
     return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 1200 - x0, h: g.ys + 7000 - y0 };
   };
   /** A view with its eye in the room (the walls hide all outside it): a goal may narrow its fov back (`restore`), the eased view only widens. */
