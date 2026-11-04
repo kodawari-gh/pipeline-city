@@ -1,5 +1,5 @@
-// The outside's painted textures: canvas pictures that repeat by the metre, each painted once and shared (bricks, render, roof tiles,
-// paving, asphalt, grass, a hedge, bark, a twig of leaves, the rooms behind the panes, a tower's windows). A height picture painted with the
+// The outside's painted textures: canvas pictures that repeat by the metre, each painted once and shared (render, paving, asphalt, grass,
+// bark, a twig of leaves). A height picture painted with the
 // colour gives its normal map, so the low sun rakes over the joints. A map is kept as raw sRGB (`rawSrgb`): its material decodes it
 // (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
 import { CanvasTexture, NoColorSpace, RepeatWrapping, type Texture } from 'three';
@@ -88,28 +88,6 @@ function stains(c: Ctx, w: number, h: number, r: () => number, n: number, rad: r
   }
 }
 
-/** Stretcher-bond brickwork, 8 bricks by 24 courses to 1.8 m: each brick its own shade, a few overburnt, in pale mortar. */
-export function bricks(kind: 'red' | 'buff'): Surface {
-  return surface(512, 512, [1.8, 1.8], 3, (c, hc, S) => {
-    const r = rng(kind === 'red' ? 3 : 5), rows = 24, cols = 8, bh = S / rows, bw = S / cols, j = 3;
-    const base: Rgb = kind === 'red' ? [150, 64, 46] : [186, 156, 108];
-    c.fillStyle = kind === 'red' ? '#b5ab9c' : '#c9c1b0'; c.fillRect(0, 0, S, S);
-    hc.fillStyle = '#383838'; hc.fillRect(0, 0, S, S);
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      const px = x * bw + (y % 2) * (bw / 2) + j / 2, py = y * bh + j / 2;
-      const v = 0.8 + r() * 0.36, burnt = r() < 0.1 ? 0.62 : 1, warm = (r() - 0.5) * 18;
-      const col: Rgb = [base[0] * v * burnt + warm, base[1] * v * burnt, base[2] * v * burnt - warm * 0.4], hv = 190 + r() * 50;
-      for (const ox of [0, -S]) {
-        c.fillStyle = rgb(col); c.fillRect(px + ox, py, bw - j, bh - j);
-        hc.fillStyle = rgb([hv, hv, hv]); hc.fillRect(px + ox, py, bw - j, bh - j);
-      }
-    }
-    stains(c, S, S, r, 18, [30, 110], (q) => [[60, 50, 45], 0.06 + q() * 0.08]);
-    grain(c, S, S, 0.05, 7);
-    grain(hc, S, S, 0.12, 8);
-  });
-}
-
 /** Render (stucco): near white, so a material's colour tints it, with faint weather stains and grain. */
 export function stucco(): Surface {
   return surface(512, 512, [3, 3], 1.4, (c, hc, S) => {
@@ -121,38 +99,6 @@ export function stucco(): Surface {
     hc.fillStyle = '#808080'; hc.fillRect(0, 0, S, S);
     stains(hc, S, S, r, 60, [6, 26], (q) => [q() < 0.5 ? [40, 40, 40] : [220, 220, 220], 0.25]);
     grain(hc, S, S, 0.35, 11);
-  });
-}
-
-/**
- * Roof tiles in courses of 20 cm, 30 cm wide, each lapped over the one above it. A uv's v runs down the slope (the picture's top is the eaves'
- * side): each tile rises to its lower edge, so the normal map steps at every course and the course below lies in its shadow line.
- */
-export function tiles(kind: 'clay' | 'slate' | 'brown'): Surface {
-  return surface(512, 512, [2.4, 2.4], 4, (c, hc, S) => {
-    const r = rng(kind === 'clay' ? 13 : kind === 'slate' ? 14 : 15), rows = 12, cols = 8, th = S / rows, tw = S / cols;
-    const base: Rgb = kind === 'clay' ? [160, 80, 54] : kind === 'slate' ? [74, 78, 86] : [116, 76, 60];
-    c.fillStyle = rgb(base, 0.35); c.fillRect(0, 0, S, S);
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      const px = x * tw + (y % 2) * (tw / 2), py = y * th, v = 0.78 + r() * 0.34, moss = kind !== 'slate' && r() < 0.08;
-      const col: Rgb = moss ? [base[0] * 0.7, base[1] * 0.85 + 12, base[2] * 0.6] : [base[0] * v, base[1] * v, base[2] * v];
-      for (const ox of [0, -S]) {
-        // the exposed tile: lighter toward its lower edge (the picture's top), a dark joint each side
-        const g = c.createLinearGradient(0, py + th, 0, py);
-        g.addColorStop(0, rgb(col, 0.82)); g.addColorStop(0.8, rgb(col, 1.04)); g.addColorStop(1, rgb(col, 0.9));
-        c.fillStyle = g; c.fillRect(px + ox + 1.5, py, tw - 3, th);
-        const hg = hc.createLinearGradient(0, py + th, 0, py);
-        hg.addColorStop(0, '#303030'); hg.addColorStop(0.92, '#e8e8e8'); hg.addColorStop(1, '#c8c8c8');
-        hc.fillStyle = hg; hc.fillRect(px + ox + 1.5, py, tw - 3, th);
-      }
-    }
-    // the shadow each course casts on the one below it (toward the eaves: up the picture)
-    for (let y = 0; y < rows; y++) {
-      const g = c.createLinearGradient(0, y * th, 0, y * th - th * 0.22);
-      g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      c.fillStyle = g; c.fillRect(0, y * th - th * 0.22, S, th * 0.22);
-    }
-    grain(c, S, S, 0.05, 16);
   });
 }
 
@@ -216,23 +162,6 @@ export function grass(): Surface {
   });
 }
 
-/** A clipped hedge: small leaves packed close, darker in their gaps. */
-export function hedge(): Surface {
-  return surface(512, 512, [2, 2], 3, (c, hc, S) => {
-    const r = rng(27);
-    c.fillStyle = '#1d2c15'; c.fillRect(0, 0, S, S);
-    hc.fillStyle = '#202020'; hc.fillRect(0, 0, S, S);
-    for (let i = 0; i < 5200; i++) {
-      const x = r() * S, y = r() * S, a = r() * Math.PI, l = 5 + r() * 6, v = 0.6 + r() * 0.7;
-      wrapped(S, S, x, y, l, (px, py) => {
-        for (const [cc, col] of [[c, rgb([58 * v, 92 * v, 40 * v])], [hc, rgb([120 + v * 100, 120 + v * 100, 120 + v * 100])]] as const) {
-          cc.fillStyle = col; cc.beginPath(); cc.ellipse(px, py, l, l * 0.5, a, 0, Math.PI * 2); cc.fill();
-        }
-      });
-    }
-  });
-}
-
 /** Furrowed bark (u along the trunk, v round it): grey-brown ridges and dark cracks, a few lichen patches. */
 export function bark(): Surface {
   return surface(512, 256, [2.4, 1.2], 4, (c, hc, W, H) => {
@@ -251,25 +180,6 @@ export function bark(): Surface {
     }
     stains(c, W, H, r, 14, [8, 30], (q) => [[150, 160, 120], 0.2 + q() * 0.2]);
     grain(c, W, H, 0.06, 30);
-  });
-}
-
-/** Birch bark: chalk white, ringed with dark lenticels, blacker toward the foot (u along the trunk, its foot at u = 0). */
-export function birch(): Surface {
-  return surface(512, 256, [3, 1.2], 2, (c, hc, W, H) => {
-    const r = rng(31);
-    c.fillStyle = '#e4e1da'; c.fillRect(0, 0, W, H);
-    hc.fillStyle = '#c0c0c0'; hc.fillRect(0, 0, W, H);
-    for (let i = 0; i < 420; i++) {
-      const x = r() * W, y = r() * H, l = 6 + r() * 26, t = 1 + r() * 2.2, foot = 1 - x / W;
-      c.fillStyle = `rgba(30,28,26,${0.45 + r() * 0.4})`;
-      c.fillRect(x, y - l / 2, t + foot * 3, l);
-      hc.fillStyle = 'rgba(40,40,40,0.8)'; hc.fillRect(x, y - l / 2, t, l);
-    }
-    const g = c.createLinearGradient(0, 0, W * 0.25, 0);
-    g.addColorStop(0, 'rgba(40,36,32,0.75)'); g.addColorStop(1, 'rgba(40,36,32,0)');
-    c.fillStyle = g; c.fillRect(0, 0, W * 0.25, H);
-    grain(c, W, H, 0.04, 32);
   });
 }
 
@@ -305,61 +215,4 @@ export function leaves(): Texture | null {
   const t = rawSrgb(cv);
   t.anisotropy = anisotropy;
   return t;
-}
-
-/**
- * The rooms behind the panes, four to a picture (a pane takes one quarter): curtains drawn to each side in their folds, a sheer, a blind,
- * the dim room between. `lit`: the same rooms at night with their lights on (an emissive map: the curtains glow, the room is warm).
- */
-export function rooms(lit: boolean): Texture | null {
-  const a = canvas(512, 512);
-  if (!a) return null;
-  const [cv, c] = a, r = rng(lit ? 35 : 34), Q = 256;
-  const cloth: Rgb[] = [[214, 200, 170], [120, 140, 112], [150, 74, 56], [96, 112, 140]];
-  for (let q = 0; q < 4; q++) {
-    const ox = (q % 2) * Q, oy = Math.floor(q / 2) * Q;
-    // the room: darker low down, a ceiling and a far wall catching a little light (at night, a lamp's warm glow)
-    const g = c.createLinearGradient(0, oy, 0, oy + Q);
-    if (lit) { g.addColorStop(0, '#ffd9a0'); g.addColorStop(0.5, '#d89a58'); g.addColorStop(1, '#5a3a20'); } else { g.addColorStop(0, '#3a3a3e'); g.addColorStop(0.45, '#26262a'); g.addColorStop(1, '#141416'); }
-    c.fillStyle = g; c.fillRect(ox, oy, Q, Q);
-    if (!lit) { c.fillStyle = 'rgba(70,64,58,0.6)'; c.fillRect(ox + Q * 0.35, oy + Q * 0.55, Q * 0.3, Q * 0.2); }
-    const col = cloth[q]!, cw = Q * (0.18 + r() * 0.12);
-    for (const side of [0, 1]) {
-      const x0 = side ? ox + Q - cw : ox;
-      for (let f = 0; f < cw; f += 6) {
-        const v = 0.75 + 0.3 * Math.sin((f / cw) * Math.PI * 5 + side), k = lit ? 1.1 : 0.55;
-        c.fillStyle = rgb(col, v * k);
-        c.fillRect(x0 + f, oy, 6, Q);
-      }
-    }
-    if (q === 1) { c.fillStyle = lit ? 'rgba(255,240,215,0.55)' : 'rgba(225,225,220,0.35)'; c.fillRect(ox, oy + Q * 0.45, Q, Q * 0.55); }
-    if (q === 2) for (let y = 0; y < Q * 0.32; y += 7) { c.fillStyle = lit ? 'rgba(255,226,180,0.9)' : 'rgba(200,196,186,0.8)'; c.fillRect(ox, oy + y, Q, 5); }
-  }
-  const t = rawSrgb(cv);
-  t.anisotropy = anisotropy;
-  return t;
-}
-
-/**
- * A tower's facade, 8 bays by 8 floors to one picture (a bay 2.6 m, a floor 3.4 m): mullions, spandrels and dark glass that holds a little
- * sky. `lit`: the emissive map of the night, some rooms lit warm, some cool, most dark.
- */
-export function towerFace(lit: boolean): Surface {
-  const metres = [20.8, 27.2] as const, a = canvas(256, 256);
-  if (!a) return { map: null, normal: null, metres };
-  const [cv, c] = a, r = rng(lit ? 41 : 40), n = 8, s = 256 / n;
-  c.fillStyle = lit ? '#000' : '#c9c6bf'; c.fillRect(0, 0, 256, 256);
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const px = x * s + 3, py = y * s + 6, w = s - 6, h = s - 12;
-    if (lit) {
-      const on = r() < 0.32, cool = r() < 0.3, v = 0.5 + r() * 0.5;
-      c.fillStyle = on ? (cool ? rgb([190, 215, 255], v) : rgb([255, 205, 140], v)) : '#000';
-    } else {
-      const g = c.createLinearGradient(0, py, 0, py + h);
-      g.addColorStop(0, '#6d7f93'); g.addColorStop(1, '#2c3440');
-      c.fillStyle = g;
-    }
-    c.fillRect(px, py, w, h);
-  }
-  return { map: tex(cv, metres, true), normal: null, metres };
 }

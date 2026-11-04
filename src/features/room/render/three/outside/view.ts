@@ -1,30 +1,30 @@
-// The view out of the room's window: a real street in 3D (`plan.ts`), drawn each frame from where the room's camera stands, moved out to the
-// third floor (`toOutside`), into a target the size of the window on screen. The window's quad shows that picture pixel for pixel, so the
-// perspective is the room camera's own: the garden under the sill, the street, the houses across, the side street to the town and the hills.
-// Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and reflections), the sun with its shadows, the
-// light our own row throws back on the houses across, the lamps and the lit windows at night (the moon's light is the night sky's). Another
-// camera (the room's probe) sees the window as the sky's cube instead.
+// The view out of the room's window: a real city in 3D (`plan.ts`), drawn each frame from where the room's camera stands, moved out to the
+// fifteenth floor (`toOutside`), into a target the size of the window on screen. The window's quad shows that picture pixel for pixel, so the
+// perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue down to the downtown towers, the hills.
+// Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and reflections, so the glass towers mirror
+// it), the sun with its shadows, the light our own tower throws back, the lamps, the cars' lights and the lit windows at night (the moon's
+// light is the night sky's). Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
   Color, CubeCamera, DirectionalLight, Fog, HemisphereLight, Group, HalfFloatType, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
-  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type MeshStandardMaterial, type WebGLRenderer,
+  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type MeshStandardMaterial, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
-import { city } from './city';
-import { house } from './houses';
+import { land } from './city';
 import { disposeKit, makeKit, type Kit } from './kit';
-import { M, houses, toOutside, trees } from './plan';
+import { GRID, M, buildings, toOutside, trees } from './plan';
 import { skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { street } from './street';
+import { facadeMaterial, massGeometry, type FacadeUniforms } from './towers';
 import { plantTrees, type LeafUniforms } from './trees';
 
 /** The sun's shadow map at each level of the graphics settings (0: none). */
 const SHADOW_LEVELS = [0, 1024, 2048, 2048, 4096];
-/** The sun's shadow covers this square round the near streets (m), as seen from the sun. */
-const SHADOW_HALF = 80, SHADOW_AT = new Vector3(-6, 0, -30);
-/** The lamps whose light is drawn (the nearest to where the window looks, down the side street); the rest only glow. */
-const LIT_LAMPS = 8, LAMPS_AT = new Vector3(-9, 0, -38);
+/** The sun's shadow covers this square round the near blocks (m), as seen from the sun. */
+const SHADOW_HALF = 420, SHADOW_AT = new Vector3(GRID.av0, 0, -380);
+/** The lamps whose light is drawn (the nearest to where the window looks, down the avenue); the rest only glow. */
+const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 /** The window's picture over what the room's light makes of it: 1 is the outside's own exposure. */
 const GAIN = 1;
 
@@ -72,7 +72,10 @@ export class OutsideView {
   private moon = new HemisphereLight(0x5a6fa8, 0x1c1e26, 0);
   private lamps: PointLight[] = [];
   private leaf: LeafUniforms;
-  private fog = new Fog(0xffffff, 150, 15000);
+  private facade: FacadeUniforms;
+  private fog = new Fog(0xffffff, 300, 9000);
+  /** Materials of the view's own, outside the kit. */
+  private disposables: Material[] = [];
   private key = -1;
   private sunKey = -1;
   private sunMoved = true;
@@ -90,13 +93,15 @@ export class OutsideView {
     this.mesh.castShadow = this.mesh.receiveShadow = false;
     this.mesh.onBeforeRender = (_r, _s, camera) => { this.quad.uniforms.live!.value = camera === this.live && this.target ? 1 : 0; };
 
-    // the street, the houses, the town: merged by material; the trees, the town's mesh and the land keep their own attributes
-    const k = this.kit = makeKit(), hs = houses(), far = city(k), ts = [...trees(), ...far.trees];
-    const still = new Group(), st = street(k, hs, ts);
-    for (const h of hs) still.add(house(h, k));
-    still.add(st.group, far.group);
+    // the streets merged by material; the buildings in one mesh on their facade's material, the trees and the land in their own
+    const k = this.kit = makeKit(), ts = trees();
+    const still = new Group(), st = street(k, ts);
+    still.add(st.group);
     mergeStatic(still);
-    this.scene.add(still, ...far.extra);
+    const facade = facadeMaterial(), mass = new Mesh(massGeometry(buildings()), facade.mat);
+    mass.castShadow = mass.receiveShadow = true;
+    this.facade = facade.u;
+    this.scene.add(still, mass, land(k));
     const plants = plantTrees(ts, k);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
@@ -108,11 +113,12 @@ export class OutsideView {
     this.envScene.add(skyDome(this.sky, 100));
     this.scene.environment = this.env.texture;
     this.scene.fog = this.fog;
-    for (const m of [k.glass, k.lit, k.carGlass, ...k.car] as MeshStandardMaterial[]) m.envMap = this.env.texture;
+    for (const m of [k.carGlass, ...k.car] as MeshStandardMaterial[]) m.envMap = this.env.texture;
+    this.disposables.push(facade.mat);
 
-    // the lights: the sun (its shadow over the near streets), our row's light thrown back, the lamps the window looks at
-    this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 700;
+    // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
+    this.sun.shadow.camera.near = 10;
+    this.sun.shadow.camera.far = 3200;
     Object.assign(this.sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF });
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
@@ -144,6 +150,7 @@ export class OutsideView {
     const u = this.sky.uniforms as unknown as SkyUniforms;
     u.time.value = t;
     this.leaf.time.value = t;
+    this.facade.time.value = t;
     const key = Math.round(hour * 30);
     if (key === this.key) return;
     this.key = key;
@@ -161,7 +168,7 @@ export class OutsideView {
     u.sunCol.value.copy(sunCol).multiplyScalar(day);
     this.sun.color.copy(sunCol);
     this.sun.intensity = 5.6 * day * up;
-    this.sun.position.set(sd[0], sd[1], sd[2]).multiplyScalar(320).add(SHADOW_AT);
+    this.sun.position.set(sd[0], sd[1], sd[2]).multiplyScalar(1600).add(SHADOW_AT);
     this.bounce.intensity = 0.55 * day * up;
     this.moon.intensity = 0.35 * night;
     this.scene.environmentIntensity = 1;
@@ -171,6 +178,7 @@ export class OutsideView {
     const lights = Math.min(1, Math.max(0, 1.25 - day * 1.6));
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
+    this.facade.night.value = lights;
     const sk = Math.round(hour * 20);
     if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
   }
@@ -245,6 +253,7 @@ export class OutsideView {
     this.sun.shadow.map?.dispose();
     this.scene.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
     this.sky.dispose();
+    for (const m of this.disposables) m.dispose();
     disposeKit(this.kit);
     this.quad.dispose();
   }

@@ -1,12 +1,12 @@
-// The street's trees (`plan.ts` places them): planes along the main street, limes down the side street, a birch in our garden, shrubs in the
-// gardens. A tree is its trunk and limbs, tapered tubes in bark, and its crown, clusters of leaf cards (the twig picture of `leaves`) round
-// its limbs' ends. The cards take the crown's outward normals, so a crown shades as one mass, darker inside and under; the sun behind it shines
-// through its leaves (`leafShader`), and the wind stirs them. All the trees are three meshes: the bark, the birch's bark, the leaves.
+// The street's trees (`plan.ts` places them): planes along the avenues, limes along the streets, planes, limes and shrubs in the parks.
+// A tree is its trunk and limbs, tapered tubes in bark, and its crown, clusters of leaf cards (the twig picture of `leaves`) round its limbs'
+// ends. The cards take the crown's outward normals, so a crown shades as one mass, darker inside and under; the sun behind it shines through
+// its leaves (`leafShader`), and the wind stirs them. All the trees are two meshes: the bark, the leaves.
 import { BufferGeometry, Color, Float32BufferAttribute, Mesh, Vector3, type MeshStandardMaterial } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
-import { CURB, rng, type Tree, type TreeKind } from './plan';
+import { CURB, GRID, rng, type Tree, type TreeKind } from './plan';
 
 type V3 = [number, number, number];
 const add = (a: V3, b: V3, k = 1): V3 => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
@@ -35,7 +35,6 @@ interface Habit {
 const HABIT: Record<TreeKind, Habit> = {
   plane: { bole: 0.3, spread: 0.36, limbs: 5, girth: 0.021, leader: false, card: 1.05, cards: 30, tint: [0.95, 1.0, 0.8] },
   lime: { bole: 0.26, spread: 0.24, limbs: 6, girth: 0.019, leader: true, card: 0.85, cards: 24, tint: [0.86, 1.02, 0.76] },
-  birch: { bole: 0.28, spread: 0.24, limbs: 7, girth: 0.014, leader: true, card: 0.5, cards: 30, tint: [1.02, 1.12, 0.7] },
   shrub: { bole: 0, spread: 0.62, limbs: 0, girth: 0, leader: false, card: 0.6, cards: 14, tint: [0.66, 0.86, 0.62] },
 };
 
@@ -104,8 +103,8 @@ function crown(c: Cards, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint:
   }
 }
 
-/** One tree: its bark into `wood` (or `white`, a birch's), its leaves into the cards. */
-function grow(t: Tree, cards: Cards, wood: BufferGeometry[], white: BufferGeometry[], far: boolean): void {
+/** One tree: its bark into `bark`, its leaves into the cards. */
+function grow(t: Tree, cards: Cards, bark: BufferGeometry[], far: boolean): void {
   const h = HABIT[t.kind], r = rng(t.seed), H = t.h, R = H * h.spread, v = () => 0.94 + r() * 0.12;
   const tint: V3 = [h.tint[0] * v(), h.tint[1] * v(), h.tint[2] * v()];
   if (t.kind === 'shrub') {
@@ -115,7 +114,7 @@ function grow(t: Tree, cards: Cards, wood: BufferGeometry[], white: BufferGeomet
     crown(cards, cl, o, rad, h, tint, H, far, r);
     return;
   }
-  const bark = t.kind === 'birch' ? white : wood, foot: V3 = [t.x, CURB - 0.05, t.z], bole = H * h.bole, r0 = 0.05 + H * h.girth;
+  const foot: V3 = [t.x, CURB - 0.05, t.z], bole = H * h.bole, r0 = 0.05 + H * h.girth;
   const top = add(foot, unit([(r() - 0.5) * 0.12, 1, (r() - 0.5) * 0.12]), bole + 0.05 * H);
   const lead = h.leader ? add(top, unit([(r() - 0.5) * 0.15, 1, (r() - 0.5) * 0.15]), (H - bole) * 0.82) : top;
   bark.push(h.leader ? limb([foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead], r0, 0.035, 10, 16) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 10, 8));
@@ -183,13 +182,12 @@ export function leafShader(m: MeshStandardMaterial): LeafUniforms {
   return u;
 }
 
-/** The trees' meshes (bark, birch bark, leaves; each casts and takes shadows) and their leaves' uniforms. Far from the window they are sparser. */
+/** The trees' meshes (bark, leaves; each casts and takes shadows) and their leaves' uniforms. Far from the window they are sparser. */
 export function plantTrees(list: readonly Tree[], k: Kit): { meshes: Mesh[]; leaf: LeafUniforms } {
-  const cards = new Cards(), wood: BufferGeometry[] = [], white: BufferGeometry[] = [];
-  for (const t of list) grow(t, cards, wood, white, Math.hypot(t.x, t.z) > 90);
+  const cards = new Cards(), wood: BufferGeometry[] = [];
+  for (const t of list) grow(t, cards, wood, Math.hypot(t.x - GRID.av0, t.z) > 160);
   const meshes: Mesh[] = [];
   if (wood.length) meshes.push(new Mesh(mergeGeometries(wood, false)!, k.bark));
-  if (white.length) meshes.push(new Mesh(mergeGeometries(white, false)!, k.birch));
   meshes.push(new Mesh(cards.geometry(), k.leaves));
   for (const m of meshes) m.castShadow = m.receiveShadow = true;
   return { meshes, leaf: leafShader(k.leaves) };

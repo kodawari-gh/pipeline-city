@@ -2,7 +2,7 @@
 // and its wheel arches cut, a glasshouse set in from the body's sides under a roof in the paint, a pillar, mirrors, wheels with rims, lamps,
 // a grille and plates. In a car's own frame x runs along it (its front at +x), y up from the road, z across; `rot` turns it about y.
 import { CylinderGeometry, ExtrudeGeometry, Group, Mesh, Shape, Vector2, type Material } from 'three';
-import { block } from './houses';
+import { block } from './parts';
 import type { Kit } from './kit';
 import { rng, type Car } from './plan';
 

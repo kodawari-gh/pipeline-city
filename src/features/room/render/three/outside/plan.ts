@@ -1,17 +1,18 @@
-// The street outside the room's window (drawn by `view.ts`), in metres: x east, y up from the road, z out of our facade, so the street lies
-// at z < 0. The room is on the third floor, its floor 8 m up: the room's camera, moved here (`toOutside`), looks down over the front garden
-// and the street to the houses across, and along a side street to the town, its towers and the hills. Pure: the sizes and the places.
+// The city outside the room's window (drawn by `view.ts`), in metres: x east, y up from the street, z out of our facade, so the city lies at
+// z < 0. The room is a flat on the fifteenth floor, its floor 45 m up: the room's camera, moved here (`toOutside`), looks over the street
+// below and the roofs of the blocks across, down an avenue to the downtown towers. A grid of streets and avenues, blocks of buildings on
+// lots, taller toward the downtown core. Pure: the sizes and the places.
 import { FLOOR_Y, WALL_T } from '../roomplan';
 
 /** Room units per metre: the room is built at real sizes. */
 export const M = 18700;
-/** The room's floor above the street (m): the third floor. */
-export const FLOOR_UP = 8;
+/** The room's floor above the street (m): the fifteenth floor. */
+export const FLOOR_UP = 45;
 
 /** A room point (world units) in the outside's metres. A direction or a turn is the same in both. */
 export const toOutside = (x: number, y: number, z: number): [number, number, number] => [x / M, (y + FLOOR_Y) / M + FLOOR_UP, (z + WALL_T) / M];
 
-/** A small seeded random source (mulberry32): the same street every time. */
+/** A small seeded random source (mulberry32): the same city every time. */
 export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -23,179 +24,234 @@ export function rng(seed: number): () => number {
   };
 }
 
-/** The main street's lines, front to back (z): our garden wall, our kerb, the far kerb, the back of the far pavement, the facades across. */
-export const Z = { wall: -4.5, kerb: -7.2, kerbFar: -16.8, walkFar: -19.5, front: -26.5 } as const;
-/** The pavements and the gardens stand this high over the road (m). */
-export const CURB = 0.13;
+/** The pavements stand this high over the road (m). */
+export const CURB = 0.15;
 
 /**
- * The side street: its axis leaves the far kerb at `x0` and runs along `dir`, a little west of straight away, so from the room's overview the
- * window looks down it to the town. `kerb`, `walk` and `front` are half-widths: to its kerbs, to the backs of its pavements, to its facades.
+ * The grid. Streets run along x, one every `pz` metres away from us, the first one under our window (our facade is its north side at z = 0);
+ * avenues run along z, away from us, one every `px` metres, one of them (x = `av0`) down the middle of the view. `street` and `avenue` are
+ * the full widths between the facades, `walk` each pavement's width.
  */
-export const SIDE = { x0: -5.1, dir: [-0.2099, -0.9777] as const, kerb: 3, walk: 5.2, front: 8.5, len: 300 } as const;
+export const GRID = { pz: 84, street: 24, px: 150, avenue: 32, av0: -36, walk: 5, rows: 50, cols: 13 } as const;
 
-/** A point of the side street (x, z): `s` metres along it, `t` across it (to the right, walking away from us). */
-export function sidePoint(s: number, t: number): [number, number] {
-  const [ux, uz] = SIDE.dir;
-  return [SIDE.x0 + ux * s - uz * t, Z.kerbFar + uz * s + ux * t];
+/** The middle line (z) of street `j` (0: ours) and the middle line (x) of avenue `i` (0: the one the window looks down). */
+export const streetZ = (j: number): number => -GRID.street / 2 - j * GRID.pz;
+export const avenueX = (i: number): number => GRID.av0 + i * GRID.px;
+
+/** The block between streets j and j + 1 and avenues i and i + 1, to its facades' lines. */
+export function blockRect(i: number, j: number): Rect {
+  return { x0: avenueX(i) + GRID.avenue / 2, x1: avenueX(i + 1) - GRID.avenue / 2, z0: streetZ(j + 1) + GRID.street / 2, z1: streetZ(j) - GRID.street / 2 };
 }
 
-/** The side street's coordinates of a point: how far along it and how far across (the inverse of `sidePoint`). */
-export function sideOf(x: number, z: number): { s: number; t: number } {
-  const [ux, uz] = SIDE.dir, dx = x - SIDE.x0, dz = z - Z.kerbFar;
-  return { s: dx * ux + dz * uz, t: -dx * uz + dz * ux };
+/** A rectangle on the ground (x0 < x1, z0 < z1). */
+export interface Rect { x0: number; x1: number; z0: number; z1: number }
+
+/** Where the downtown's towers crowd: their middle and spread (m). Two cores, the main one straight down the avenue. */
+const CORES = [{ x: -300, z: -3000, r: 650, k: 1 }, { x: 900, z: -3550, r: 500, k: 0.75 }] as const;
+
+/** How downtown a point is (0 out in the city, 1 in the core's middle). */
+export function downtown(x: number, z: number): number {
+  let v = 0;
+  for (const c of CORES) v = Math.max(v, c.k * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (c.r * c.r)));
+  return v;
 }
 
-/** The turn (about y) that faces a thing's front (+z) along a direction (x, z) on the ground. */
-export const facing = (x: number, z: number): number => Math.atan2(x, z);
-/** The side street's turn: a thing turned by it has its -z along the street, away from us. */
-export const SIDE_TURN = facing(-SIDE.dir[0], -SIDE.dir[1]);
+/**
+ * A building's facade: `glass` a curtain wall of tinted glass on slim mullions; `grid` an office's stone grid with deep windows; `brick` a
+ * loft's brick with punched windows; `band` ribbon windows between concrete bands. Each sets the bay's width and the storey's height.
+ */
+export type Style = 'glass' | 'grid' | 'brick' | 'band';
+export const STYLES: Record<Style, { bay: number; storey: number; win: readonly [number, number]; refl: number }> = {
+  glass: { bay: 1.5, storey: 3.9, win: [0.94, 0.84], refl: 0.85 },
+  grid: { bay: 3.0, storey: 3.8, win: [0.62, 0.62], refl: 0.35 },
+  brick: { bay: 3.2, storey: 3.3, win: [0.42, 0.55], refl: 0.15 },
+  band: { bay: 6.0, storey: 3.6, win: [0.97, 0.5], refl: 0.45 },
+};
 
-// ---- the houses ----
+/** One stage of a building: its footprint, from y0 up to y1. A tower is a podium, its shaft set back, a top set back again. */
+export interface Tier extends Rect { y0: number; y1: number }
 
-/** A storey's height and the plinth under the ground floor (m). */
-export const STOREY = 2.85, PLINTH = 0.45;
-/** How many looks of each kind the kit has (`houses.ts`): walls, roof tiles, trims, doors. */
-export const LOOKS = { wall: 7, tiles: 3, trim: 3, door: 5 } as const;
-
-export interface House {
-  /** The middle of the front facade (x, z) and the house's turn about y (0: it faces +z, toward us). */
-  x: number; z: number; rot: number;
-  /** Frontage and depth (m), storeys, the roof's ridge along the street (`side`, gables at the ends) or a gable to the street (`front`), its pitch (rad). */
-  w: number; d: number; floors: number; roof: 'side' | 'front'; pitch: number;
-  /** Looks (indexes into the kit): the walls, the tiles, the trims, the door. */
-  wall: number; tiles: number; trim: number; door: number;
-  /** The door's bay (0: the left one, seen from the street, 1: the right one), a dormer, a chimney, a canopy over the door. */
-  doorBay: 0 | 1; dormer: boolean; chimney: boolean; porch: boolean;
-  /** Near enough to the window for full detail: each pane back in its reveal, panelled doors, dormers. */
-  near: boolean;
+export interface Building {
+  tiers: Tier[];
+  style: Style;
+  /** The walls' colour (the frame round the windows) and the glass's tint, sRGB hex. */
+  frame: number; tint: number;
+  /** A roof crown: a mast with a beacon, a spire, a lit crown, or none. */
+  crown: 'none' | 'mast' | 'spire' | 'lantern';
   seed: number;
 }
 
-/** The eaves' height of a house (m). */
-export const eavesOf = (h: Pick<House, 'floors'>): number => PLINTH + h.floors * STOREY;
+/** The height of a building's top. */
+export const topOf = (b: Building): number => b.tiers[b.tiers.length - 1]!.y1;
 
-/** A rectangle in a facade (x across it from its middle, y up from the ground). */
-export interface Box2 { x0: number; x1: number; y0: number; y1: number }
-export interface Opening extends Box2 { kind: 'window' | 'door' | 'attic' }
+const FRAMES: Record<Style, readonly number[]> = {
+  glass: [0x2c3138, 0x3c434b, 0x8e969e, 0x1e2226],
+  grid: [0xd6d0c4, 0xbcb6aa, 0xe2ded6, 0x9a958c, 0xc7c0b0],
+  brick: [0x8c4a36, 0x9e5a3e, 0x6e3b2e, 0xb08262, 0x7a5040],
+  band: [0xd9d9d4, 0xa8aaa8, 0xc4bfb4, 0x6a6e72],
+};
+const TINTS: Record<Style, readonly number[]> = {
+  glass: [0x5f7f96, 0x4f7c7a, 0x8a7a5c, 0x6c7a8c, 0x3f5a78, 0x7d8b93],
+  grid: [0x3a4450, 0x4a5058, 0x34404a],
+  brick: [0x2a2e33, 0x33373b],
+  band: [0x41566a, 0x3d4a50, 0x55626e],
+};
 
-/** A house's openings in its front facade: two or three bays of windows on each storey, the door in one ground-floor bay, an attic window in a street gable. */
-export function openings(h: House): Opening[] {
-  const n = h.w > 7.6 ? 3 : 2, out: Opening[] = [];
-  for (let f = 0; f < h.floors; f++) for (let i = 0; i < n; i++) {
-    const cx = -h.w / 2 + (h.w * (i + 0.5)) / n, base = PLINTH + f * STOREY;
-    if (f === 0 && i === h.doorBay * (n - 1)) { out.push({ kind: 'door', x0: cx - 0.55, x1: cx + 0.55, y0: PLINTH, y1: PLINTH + 2.5 }); continue; }
-    const ww = n === 3 ? 1.05 : 1.25, wh = f === 0 ? 1.6 : 1.45;
-    out.push({ kind: 'window', x0: cx - ww / 2, x1: cx + ww / 2, y0: base + 0.85, y1: base + 0.85 + wh });
-  }
-  if (h.roof === 'front') { const e = eavesOf(h); out.push({ kind: 'attic', x0: -0.45, x1: 0.45, y0: e + 0.45, y1: e + 1.5 }); }
-  return out;
+/** The tall landmarks, set by hand in the middles of their blocks (i, j): the footprint's half sizes, the height, the crown. */
+const LANDMARKS = [
+  { i: -2, j: 35, hx: 26, hz: 26, h: 440, crown: 'spire' },
+  { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern' },
+  { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast' },
+  { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast' },
+  { i: 1, j: 9, hx: 20, hz: 20, h: 105, crown: 'lantern' },
+] as const;
+
+/** A random entry of a list. */
+const pick = <T>(r: () => number, xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
+
+/** One building on a lot, its height drawn from how downtown the lot is. */
+function building(lot: Rect, r: () => number, forced?: { h: number; crown: Building['crown'] }): Building {
+  // the blocks nearest the window are old and low, so the window sees over them into the city
+  const cx = (lot.x0 + lot.x1) / 2, cz = (lot.z0 + lot.z1) / 2, d = downtown(cx, cz), out = Math.min(1, Math.hypot(cx - GRID.av0, cz) / 900);
+  const tower = forced || r() < 0.035 * out + 0.6 * d;
+  let h = forced?.h ?? (tower ? 50 + r() * 60 * out + d * (60 + r() * 170) : 11 + r() * (14 + 22 * out) + d * 30);
+  // out of the core a tower stays under the line from the window to the sky over the city, so the skyline is the downtown's
+  if (!forced && d < 0.3) h = Math.min(h, 38 + 0.075 * Math.hypot(cx - GRID.av0, cz));
+  const style: Style = tower ? (r() < 0.62 ? 'glass' : r() < 0.6 ? 'grid' : 'band') : r() < 0.45 ? 'brick' : r() < 0.5 ? 'grid' : r() < 0.6 ? 'band' : 'glass';
+  const s = STYLES[style];
+  h = Math.max(s.storey * 3, Math.round(h / s.storey) * s.storey);
+  const tiers: Tier[] = [];
+  const w = lot.x1 - lot.x0, dd = lot.z1 - lot.z0;
+  if (tower && h > 60 && Math.min(w, dd) > 26) {
+    // a podium on the whole lot, the shaft set back from it, a top set back again
+    const pod = s.storey * (2 + Math.floor(r() * 3)), inset = 3 + r() * 4, top = h * (0.72 + r() * 0.15);
+    tiers.push({ ...lot, y0: 0, y1: pod });
+    const shaft = { x0: lot.x0 + inset, x1: lot.x1 - inset, z0: lot.z0 + inset, z1: lot.z1 - inset };
+    tiers.push({ ...shaft, y0: pod, y1: Math.round(top / s.storey) * s.storey });
+    const k = 2 + r() * 3;
+    if (r() < 0.7) tiers.push({ x0: shaft.x0 + k, x1: shaft.x1 - k, z0: shaft.z0 + k, z1: shaft.z1 - k, y0: tiers[1]!.y1, y1: h });
+    else tiers[1]!.y1 = h;
+  } else tiers.push({ ...lot, y0: 0, y1: h });
+  const crown: Building['crown'] = forced?.crown ?? (h > 120 && r() < 0.45 ? 'mast' : h > 150 && r() < 0.3 ? 'lantern' : 'none');
+  return { tiers, style, frame: pick(r, FRAMES[style]), tint: pick(r, TINTS[style]), crown, seed: Math.floor(r() * 1e6) };
 }
 
-/** A wall from x0 to x1 and y0 to y1 cut round its openings (inside it, not overlapping): the pieces left, column by column. */
-export function cutWall(x0: number, x1: number, y0: number, y1: number, holes: readonly Box2[]): Box2[] {
-  const xs = [...new Set([x0, x1, ...holes.flatMap((h) => [h.x0, h.x1])])].filter((x) => x >= x0 && x <= x1).sort((a, b) => a - b);
-  const out: Box2[] = [];
-  for (let i = 0; i + 1 < xs.length; i++) {
-    const a = xs[i]!, b = xs[i + 1]!;
-    if (b - a < 1e-6) continue;
-    let y = y0;
-    for (const h of holes.filter((o) => o.x0 <= a + 1e-6 && o.x1 >= b - 1e-6 && o.y0 < y1 && o.y1 > y0).sort((p, q) => p.y0 - q.y0)) {
-      if (h.y0 > y) out.push({ x0: a, x1: b, y0: y, y1: h.y0 });
-      y = Math.max(y, h.y1);
+/** The blocks that are a park (trees on a lawn), by their (i, j). */
+export const PARKS = [[0, 2], [-3, 6], [2, 9]] as const;
+const isPark = (i: number, j: number): boolean => PARKS.some(([a, b]) => a === i && b === j);
+
+/** Every building of the city, block by block: each block cut into lots across and along, some lots joined for a tower. */
+export function buildings(): Building[] {
+  const r = rng(11), out: Building[] = [];
+  for (let j = 0; j < GRID.rows; j++) for (let i = -GRID.cols; i < GRID.cols; i++) {
+    if (isPark(i, j)) continue;
+    const b = blockRect(i, j), mid: [number, number] = [(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2];
+    // far out the city thins to the edge of the view
+    if (Math.hypot(mid[0] * 0.8, mid[1]) > 4300) continue;
+    const mark = LANDMARKS.find((l) => l.i === i && l.j === j);
+    if (mark) {
+      const [x, z] = mid;
+      out.push(building({ x0: x - mark.hx, x1: x + mark.hx, z0: z - mark.hz, z1: z + mark.hz }, r, { h: mark.h, crown: mark.crown }));
+      // its plaza round it, low wings at the block's ends
+      for (const [x0, x1] of [[b.x0, b.x0 + 18], [b.x1 - 18, b.x1]] as const) out.push(building({ x0, x1, z0: b.z0, z1: b.z1 }, r, { h: 14 + r() * 10, crown: 'none' }));
+      continue;
     }
-    if (y < y1) out.push({ x0: a, x1: b, y0: y, y1 });
+    // lots: two or three rows along z, cut across x in widths of 14 to 40 m; a tower takes a deeper lot
+    const rows = r() < 0.5 ? 2 : 1, depth = (b.z1 - b.z0) / rows;
+    for (let q = 0; q < rows; q++) {
+      const z0 = b.z0 + q * depth, z1 = z0 + depth;
+      for (let x = b.x0; x < b.x1 - 6;) {
+        let w = 14 + r() * 26;
+        if (b.x1 - (x + w) < 12) w = b.x1 - x;
+        out.push(building({ x0: x, x1: x + w, z0, z1 }, r));
+        x += w;
+      }
+    }
   }
   return out;
 }
 
-/** A row of houses: frontages from `from` to `to` along a line (`place` gives a frontage's middle), in pairs and short gaps. */
-function row(out: House[], r: () => number, from: number, to: number, place: (along: number) => { x: number; z: number; rot: number }, near: (along: number) => boolean): void {
-  let a = from;
-  for (;;) {
-    const w = 6.2 + r() * 3.4;
-    if (a + w > to) return;
-    const roof = w < 7.6 && r() < 0.55 ? 'front' : 'side';
-    out.push({
-      ...place(a + w / 2), w, d: 8.5 + r() * 2.5, floors: r() < 0.82 ? 2 : 3, roof, pitch: roof === 'front' ? 0.72 + r() * 0.12 : 0.6 + r() * 0.16,
-      wall: Math.floor(r() * LOOKS.wall), tiles: Math.floor(r() * LOOKS.tiles), trim: Math.floor(r() * LOOKS.trim), door: Math.floor(r() * LOOKS.door),
-      doorBay: r() < 0.5 ? 0 : 1, dormer: roof === 'side' && r() < 0.4, chimney: r() < 0.75, porch: r() < 0.4, near: near(a + w / 2), seed: Math.floor(r() * 1e6),
-    });
-    a += w + (r() < 0.4 ? 0.05 : 0.9 + r() * 2.4);
-  }
-}
+// ---- the street's things ----
 
-/** The houses across the main street and along the side street (ours, behind the window, are never seen). */
-export function houses(): House[] {
-  const r = rng(11), out: House[] = [];
-  const across = (x: number) => ({ x, z: Z.front, rot: 0 });
-  // the side street's facades reach the main street's front line between these two
-  row(out, r, -118, -17.5, across, (x) => Math.abs(x) < 48);
-  row(out, r, 3.5, 118, across, (x) => Math.abs(x) < 48);
-  // along the side street, each facing it: the corner houses' back gardens first
-  const left = (s: number) => { const [x, z] = sidePoint(s, -SIDE.front); return { x, z, rot: facing(-SIDE.dir[1], SIDE.dir[0]) }; };
-  const right = (s: number) => { const [x, z] = sidePoint(s, SIDE.front); return { x, z, rot: facing(SIDE.dir[1], -SIDE.dir[0]) }; };
-  row(out, r, 27, SIDE.len, left, (s) => s < 75);
-  row(out, r, 21, SIDE.len, right, (s) => s < 75);
-  return out;
-}
-
-// ---- the street's furniture and its trees ----
-
-export type TreeKind = 'plane' | 'lime' | 'birch' | 'shrub';
+export type TreeKind = 'plane' | 'lime' | 'shrub';
 export interface Tree { x: number; z: number; kind: TreeKind; h: number; seed: number }
-export interface Lamp { x: number; z: number }
+/** A lamp's place and turn: its arm reaches along (cos rot, -sin rot) over the road. */
+export interface Lamp { x: number; z: number; rot: number }
 export interface Car { x: number; z: number; rot: number; len: number; colour: number; seed: number }
 
-/** The paint colours of the parked cars. */
-export const CAR_COLOURS = [0xb9bdc3, 0x1c2633, 0x7a1d1f, 0xe9e7e2, 0x2e4a3b, 0x17191c, 0x4c6c8e, 0x8c8f93] as const;
+/** The paint colours of the cars. */
+export const CAR_COLOURS = [0xb9bdc3, 0x1c2633, 0x7a1d1f, 0xe9e7e2, 0x2e4a3b, 0x17191c, 0x4c6c8e, 0x8c8f93, 0xd8b23a] as const;
 
-/** The trees: two rows along the main street (none in front of our window's slot of view), a row each side of the side street, a birch in our garden, shrubs in the gardens across. */
+/** How far from the window the street's detail reaches (m): the trees, the lamps, the cars, the road's paint. */
+export const DETAIL = 520;
+const nearby = (x: number, z: number): boolean => Math.hypot(x - GRID.av0, z * 0.7) < DETAIL;
+
+/** The street trees: rows on the avenues' pavements and the streets', and the parks' trees on their lawns. */
 export function trees(): Tree[] {
   const r = rng(23), out: Tree[] = [];
   const add = (x: number, z: number, kind: TreeKind, h: number) => out.push({ x, z, kind, h, seed: Math.floor(r() * 1e6) });
-  for (const x of [-57, -44, -31, -18.5, -8.8, 5.2, 18, 31, 44, 57]) add(x + (r() - 0.5) * 1.2, Z.kerb + 0.75, 'plane', 12 + r() * 3);
-  for (const x of [-61, -48, -35, -22.5, 7.8, 20.5, 33, 46, 59]) add(x + (r() - 0.5) * 1.2, Z.kerbFar - 0.75, 'plane', 11.5 + r() * 3.5);
-  // young limes down the side street, spaced out so the window still sees down it to the town
-  for (let s = 34; s < SIDE.len - 10; s += 26) {
-    const [x, z] = sidePoint(s + (r() - 0.5) * 3, -(SIDE.kerb + 0.8));
-    add(x, z, 'lime', 7.5 + r() * 2);
-    const [x2, z2] = sidePoint(s + 13 + (r() - 0.5) * 3, SIDE.kerb + 0.8);
-    add(x2, z2, 'lime', 7.5 + r() * 2);
+  const kerb = GRID.walk - 1.2;
+  for (let i = -3; i <= 3; i++) for (const side of [-1, 1]) {
+    const x = avenueX(i) + side * (GRID.avenue / 2 - kerb);
+    for (let j = 0; j < GRID.rows; j++) {
+      const z1 = streetZ(j) - GRID.street / 2, z0 = streetZ(j + 1) + GRID.street / 2;
+      for (let z = z1 - 6; z > z0 + 4; z -= 9 + r() * 3) if (nearby(x, z) && r() < 0.85) add(x + (r() - 0.5) * 0.4, z, 'plane', 9 + r() * 4);
+    }
   }
-  add(3.4, -2.4, 'birch', 9.5);
-  for (let x = -60; x < 60; x += 4.5 + r() * 5) {
-    if (x > -19 && x < 4) continue;
-    add(x, Z.front + 1.4 + r() * 3.5, 'shrub', 1.1 + r() * 1.3);
+  for (let j = 1; j < GRID.rows; j++) for (const side of [-1, 1]) {
+    const z = streetZ(j) + side * (GRID.street / 2 - kerb);
+    for (let i = -4; i < 4; i++) {
+      const x0 = avenueX(i) + GRID.avenue / 2, x1 = avenueX(i + 1) - GRID.avenue / 2;
+      for (let x = x0 + 6; x < x1 - 4; x += 10 + r() * 4) if (nearby(x, z) && r() < 0.7) add(x, z + (r() - 0.5) * 0.4, 'lime', 7.5 + r() * 3);
+    }
   }
-  for (let s = 26; s < 140; s += 6 + r() * 8) {
-    const t = (r() < 0.5 ? -1 : 1) * (SIDE.walk + 1 + r() * 2);
-    const [x, z] = sidePoint(s, t);
-    add(x, z, 'shrub', 1 + r() * 1.2);
+  for (const [i, j] of PARKS) {
+    const b = blockRect(i, j);
+    for (let n = 0; n < 70; n++) {
+      const x = b.x0 + 5 + r() * (b.x1 - b.x0 - 10), z = b.z0 + 5 + r() * (b.z1 - b.z0 - 10);
+      add(x, z, r() < 0.2 ? 'shrub' : r() < 0.6 ? 'plane' : 'lime', r() < 0.2 ? 1.5 + r() : 9 + r() * 7);
+    }
   }
   return out;
 }
 
-/** The street lamps: each side of the main street and down one side of the side street. */
+/** The street lamps: along both kerbs of the near avenues and streets, their arms over the road. */
 export function lamps(): Lamp[] {
-  const out: Lamp[] = [];
-  for (const x of [-38, -13.5, 14, 40]) out.push({ x, z: Z.kerb + 0.35 });
-  for (const x of [-50, -25, 24, 51]) out.push({ x, z: Z.kerbFar - 0.35 });
-  for (let s = 16; s < SIDE.len; s += 30) { const [x, z] = sidePoint(s, SIDE.kerb + 0.35); out.push({ x, z }); }
+  const out: Lamp[] = [], kerb = GRID.walk - 0.5;
+  for (let i = -2; i <= 2; i++) for (const side of [-1, 1]) {
+    const x = avenueX(i) + side * (GRID.avenue / 2 - kerb);
+    for (let z = -30; z > -DETAIL * 1.4; z -= 28) if (nearby(x, z) && !onCrossing(x, z)) out.push({ x, z, rot: side > 0 ? Math.PI : 0 });
+  }
+  for (let j = 0; j < 6; j++) for (const side of [-1, 1]) {
+    if (j === 0 && side > 0) continue;
+    const z = streetZ(j) + side * (GRID.street / 2 - kerb);
+    for (let x = -460; x < 400; x += 30) if (nearby(x, z) && !onCrossing(x, z)) out.push({ x, z, rot: side > 0 ? Math.PI / 2 : -Math.PI / 2 });
+  }
   return out;
 }
 
-/** The parked cars: in each parking lane of the main street, and along the side street's left kerb. */
+/** Is a point in a crossing: where an avenue and a street meet, out to their pavements? */
+export function onCrossing(x: number, z: number): boolean {
+  const i = Math.round((x - GRID.av0) / GRID.px), j = Math.round((-z - GRID.street / 2) / GRID.pz);
+  return Math.abs(x - avenueX(i)) < GRID.avenue / 2 + 1 && Math.abs(z - streetZ(j)) < GRID.street / 2 + 1;
+}
+
+/** The cars: traffic in the avenues' lanes (both ways) and the streets', bunched at the lights, some parked by the kerbs. */
 export function cars(): Car[] {
   const r = rng(37), out: Car[] = [];
-  const lane = (xs: readonly number[], z: number) => {
-    for (const x of xs) out.push({ x, z, rot: r() < 0.5 ? 0 : Math.PI, len: 4.1 + r() * 0.6, colour: Math.floor(r() * CAR_COLOURS.length), seed: Math.floor(r() * 1e6) });
+  const put = (x: number, z: number, rot: number) => {
+    if (!nearby(x, z) || onCrossing(x, z)) return;
+    out.push({ x, z, rot, len: 4.1 + r() * 0.7, colour: Math.floor(r() * CAR_COLOURS.length), seed: Math.floor(r() * 1e6) });
   };
-  lane([-37, -31.4, -19.5, 10.5, 16, 33.5], Z.kerb - 1.0);
-  lane([-44, -33, -27.2, 9.5, 21, 26.6, 38.5], Z.kerbFar + 1.0);
-  for (const s of [24, 30, 52, 79, 85, 118, 160, 166, 214, 250]) {
-    const [x, z] = sidePoint(s, -(SIDE.kerb - 1.0));
-    out.push({ x, z, rot: SIDE_TURN + Math.PI / 2 + (r() < 0.5 ? 0 : Math.PI), len: 4.1 + r() * 0.6, colour: Math.floor(r() * CAR_COLOURS.length), seed: Math.floor(r() * 1e6) });
+  const road = GRID.avenue / 2 - GRID.walk, lanes = [-road + 2.2, -road + 5.6, road - 5.6, road - 2.2];
+  for (let i = -2; i <= 2; i++) lanes.forEach((off, li) => {
+    // northbound (away from us) on the east lanes, southbound on the west; the kerb lanes are parking
+    const away = off > 0, park = li === 0 || li === 3;
+    for (let z = -26 - r() * 20; z > -DETAIL * 1.4; z -= park ? 5.6 + r() * 6 : 7 + r() * 22) if (!park || r() < 0.7) put(avenueX(i) + off, z, away ? Math.PI / 2 : -Math.PI / 2);
+  });
+  const sroad = GRID.street / 2 - GRID.walk;
+  for (let j = 0; j < 6; j++) for (const off of [-sroad + 2, sroad - 2]) {
+    for (let x = -460 + r() * 10; x < 400; x += off > 0 ? 6 + r() * 14 : 9 + r() * 25) put(x, streetZ(j) + off, off > 0 ? 0 : Math.PI);
   }
   return out;
 }
