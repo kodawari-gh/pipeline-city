@@ -1,4 +1,4 @@
-// The bedroom's furniture in 3D, round the desk (docs/LOWPOLY_STYLE.md "Look decision": soft edges, warm wood, soft cloth): the bed against the back
+// The bedroom's furniture in 3D, round the desk (soft edges, modern and plain: white, pale oak, black steel, soft cloth): the bed against the back
 // wall east of the desk, the bedside table and its lamp, the bookcase on the west wall, the radiator under the window, the curtains, the door, the
 // ceiling light, a print over the bed, the shelf on the east wall, plants. Every builder takes the room plan (`roomplan.ts`,
 // 2D y down; z out of the back wall) and returns world meshes, built as a maker would (rails, fronts, mouldings, seams), each part its own mesh:
@@ -151,24 +151,24 @@ export function floorShadow(x: number, z: number, w: number, d: number, k = 1, l
 /** The bed: an oak frame on short legs, a channel-tufted headboard, the mattress, a rumpled duvet folded back, two pillows, a cushion, a knitted throw. */
 export function bed(): Group {
   const g = new Group(), { x, w, z0, z1 } = BED, fl = FLOOR_Y, cx = x + w / 2;
-  const wood = mat(0xffffff, { map: oak('#c79d6e', '#8f6743', [3, 1]), roughness: 0.55 });
+  const wood = mat(0xffffff, { map: oak('#dcc6a2', '#b0946c', [3, 1]), roughness: 0.55 });
   const rail = { y: fl - 5600, h: 3400 };
   // the frame: two side rails, the foot rail, four legs
   g.add(softBox({ x, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
   g.add(softBox({ x: x + w - 900, y: rail.y, w: 900, h: rail.h }, z0 + 1800, z1, wood, 120));
   g.add(softBox({ x, y: rail.y, w, h: rail.h }, z1 - 900, z1, wood, 120));
   // (each leg tapered to a brass cap on the floor)
-  const cap = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
+  const cap = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
   for (const [lx, lz] of [[x + 450, z1 - 450], [x + w - 450, z1 - 450], [x + 450, z0 + 2300], [x + w - 450, z0 + 2300]] as const) {
     g.add(post(lx, fl, lz, 220, fl - rail.y - rail.h, wood, 16, 300), post(lx, fl, lz, 232, 520, cap, 16, 236));
   }
   // the headboard: an oak base and five upholstered channels, down behind the mattress
-  const fabric = cloth(0xffffff, { map: weave('#a8ae98', { repeat: [2, 4] }), roughness: 0.95 });
+  const fabric = cloth(0xffffff, { map: weave('#bdbab3', { repeat: [2, 4] }), roughness: 0.95 });
   g.add(softBox({ x: x - 300, y: fl - 21000, w: w + 600, h: 21000 - 2200 }, z0, z0 + 900, wood, 150));
   const n = 5, cw = (w + 200) / n;
   for (let k = 0; k < n; k++) g.add(softBox({ x: x - 100 + k * cw + 40, y: fl - 20400, w: cw - 80, h: 11400 }, z0 + 900, z0 + 2100, fabric, 560));
   // the slats' rail inside the frame, seen in the gap under the mattress
-  g.add(softBox({ x: x + 900, y: rail.y + 900, w: w - 1800, h: 500 }, z0 + 2100, z1 - 900, mat(0x8f6a46, { roughness: 0.7 }), 40));
+  g.add(softBox({ x: x + 900, y: rail.y + 900, w: w - 1800, h: 500 }, z0 + 2100, z1 - 900, mat(0xb39c7a, { roughness: 0.7 }), 40));
   // the mattress (its top 10000 over the floor) in its fitted sheet, a piped seam round its top
   // (the whites a little under white, so the light can still model them: a paper white flattens in the sun)
   const sheet = cloth(0xffffff, { map: weave('#e7e2d8'), roughness: 0.9 }), mTop = fl - 10000;
@@ -239,14 +239,14 @@ export interface Bedside { root: Group; shade: MeshStandardMaterial; glow: MeshS
 /** An oak bedside table on tapered legs (a drawer, an open shelf), a ceramic lamp with a linen shade, books and a small plant. */
 export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
-  const wood = mat(0xffffff, { map: oak(), roughness: 0.55 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
+  const wood = mat(0xffffff, { map: oak('#dcc6a2', '#b0946c'), roughness: 0.55 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
   const body = { y: top, h: 7200 };
   g.add(softBox({ x, y: body.y, w, h: 400 }, z0, z1, wood, 90));
   g.add(softBox({ x, y: body.y + 400, w: 380, h: body.h - 400 }, z0, z1, wood, 40), softBox({ x: x + w - 380, y: body.y + 400, w: 380, h: body.h - 400 }, z0, z1, wood, 40));
   g.add(softBox({ x, y: body.y + body.h - 380, w, h: 380 }, z0, z1, wood, 40));
   g.add(rectBox({ x: x + 380, y: body.y + 400, w: w - 760, h: body.h - 780 }, z0, z0 + 200, wood));
   // the drawer (its box dark in the gap round the front), its knob, and the shelf under it with a book
-  g.add(rectBox({ x: x + 380, y: body.y + 400, w: w - 760, h: 3200 }, z1 - 1400, z1 - 380, mat(0x5a4330, { roughness: 0.8 })));
+  g.add(rectBox({ x: x + 380, y: body.y + 400, w: w - 760, h: 3200 }, z1 - 1400, z1 - 380, mat(0x9b8a72, { roughness: 0.8 })));
   g.add(softBox({ x: x + 460, y: body.y + 520, w: w - 920, h: 2900 }, z1 - 380, z1 - 20, wood, 60));
   const knob = new Mesh(new SphereGeometry(230, 16, 10), brass);
   knob.position.set(cx, -(body.y + 1970), z1 + 120);
@@ -260,7 +260,7 @@ export function nightstand(): Bedside {
     g.add(leg);
   }
   // the lamp: a round ceramic body, a brass neck, a linen drum
-  const lx = cx - 1100, lz = cz - 400, ceramic = mat(0x8fa48c, { roughness: 0.35 });
+  const lx = cx - 1100, lz = cz - 400, ceramic = mat(0xe8e6e1, { roughness: 0.35 });
   const profile = [[0, 0], [900, 0], [1300, 300], [1650, 1000], [1700, 1600], [1450, 2300], [800, 2800], [300, 3000], [250, 3040]] as const;
   // (the profile through a smooth curve, so the belly turns without facets)
   const curve = new SplineCurve(profile.map(([r, y]) => new Vector2(r, y)));
@@ -371,12 +371,12 @@ function shelvedBooks(books: readonly Book[]): Group {
 /** An oak bookcase on the west wall, facing the room: five shelves of books (upright, leaning, stacked), a plant, a box, bookends, a pothos on top. */
 export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
-  const wood = mat(0xffffff, { map: oak('#c9a273', '#8f6743'), roughness: 0.55 });
+  const wood = mat(0xffffff, { map: oak('#f0efeb', '#e3e1db'), roughness: 0.55 });
   const side = 450, shelf = 400;
   g.add(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, wood, 50), softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, wood, 50));
   // the back: tongue-and-groove boards, a dark V between each pair
-  g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0, z1, mat(0xffffff, { map: oak('#b48a5c', '#7d5a3a'), roughness: 0.7 })));
-  const groove = mat(0x5e4329, { roughness: 0.8 });
+  g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0, z1, mat(0xffffff, { map: oak('#e8e6e1', '#d8d5ce'), roughness: 0.7 })));
+  const groove = mat(0xcfcdc7, { roughness: 0.8 });
   for (let gz = z0 + side + 1900; gz < z1 - side - 600; gz += 1900) g.add(rectBox({ x: x + 290, y: top, w: 30, h: fl - top }, gz - 35, gz + 35, groove));
   // the cornice: a cove flaring out over the sides and the front, a flat fillet over it, its top closed
   const CORNICE: readonly ProfilePt[] = [[300, 0], [300, 40], [260, 70], [170, 120], [90, 190], [40, 260], [10, 330], [0, 360], [0, 360], [0, 520], [0, 520]];
@@ -388,7 +388,7 @@ export function bookcase(): Group {
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
   const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
-  g.add(instanced(hole, mat(0x3b2a1b, { roughness: 0.9 }), pins));
+  g.add(instanced(hole, mat(0x9a9893, { roughness: 0.9 }), pins));
   const n = 5, gap = (fl - top - 1400) / n;
   const tones = [0x34506b, 0xa95c40, 0xcfa24c, 0xe6dfcf, 0x758b6b, 0x75363a, 0x45464c, 0xbcae90, 0x648aa6, 0x8a6a4a];
   const books: Book[] = [];
@@ -495,7 +495,7 @@ function curtainTex(base: string): Texture | null {
 export function curtains(): Group {
   const g = new Group(), rodY = WINDOW.y - 1900, z = 1500;
   const left = WINDOW.x - 3400, right = WINDOW.x + WINDOW.w + 2300;
-  const wood = mat(0xffffff, { map: oak('#a77c52', '#6d4d30'), roughness: 0.5 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
+  const wood = mat(0xffffff, { map: oak('#2a2b2d', '#1a1b1c'), roughness: 0.45 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
   g.add(rod([left - 500, -rodY, z], [right + 500, -rodY, z], 150, wood, 14));
   // the finials: a collar, a neck, a ball with a little top
   const finial = [[0, 0], [230, 0], [240, 60], [180, 120], [170, 240], [300, 330], [330, 470], [280, 620], [160, 700], [90, 760], [60, 800], [0, 810]] as const;
@@ -510,8 +510,8 @@ export function curtains(): Group {
     cradle.rotation.set(Math.PI, Math.PI / 2, 0); cradle.position.set(bx, -rodY, z);
     g.add(place(cradle));
   }
-  const tex = curtainTex('#e4d8c3'), drapes = cloth(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
-  const band = mat(0xffffff, { map: weave('#b86a45', { repeat: [8, 1] }), roughness: 0.9, side: DoubleSide });
+  const tex = curtainTex('#f0eeea'), drapes = cloth(0xffffff, { map: tex, roughness: 0.95 }), lining = mat(0xf2ede4, { roughness: 0.95, side: BackSide });
+  const band = mat(0xffffff, { map: weave('#9a978f', { repeat: [8, 1] }), roughness: 0.9, side: DoubleSide });
   const tieV = 0.6, ringR = 250, top = rodY + ringR + 230, h = WINDOW.y + WINDOW.h + 1300 - top;
   const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
   const panel = (x0: number, x1: number, gather: number, seed: number) => {
@@ -623,7 +623,7 @@ export function door(): Group {
   slot.rotation.z = Math.PI / 2; slot.position.set(face + 95, -(hy + 1660), hz);
   g.add(slot, slab(hy + 1660, hy + 1840, hz - 30, hz + 30, face + 70, face + 100, dark, 8));
   // the threshold: an oak strip with its edges eased, across the opening on the floor
-  g.add(softBox({ x: xs - 300, y: fl - 140, w: 900, h: 140 }, z0, z1, mat(0xffffff, { map: oak('#b58a5e', '#7a5737', [4, 1]), roughness: 0.5 }), 50));
+  g.add(softBox({ x: xs - 300, y: fl - 140, w: 900, h: 140 }, z0, z1, mat(0xffffff, { map: oak('#d8c09c', '#a88c66', [4, 1]), roughness: 0.5 }), 50));
   // a rubber stop on the floor where the door swings open
   const stop = post(xs + 12500, fl, z1 - 1200, 380, 900, mat(0x4a4744, { roughness: 0.9 }), 14, 300);
   g.add(stop, post(xs + 12500, fl, z1 - 1200, 460, 80, steel, 14));
@@ -689,7 +689,7 @@ export function ceilingLight(x: number, y: number, z: number): { root: Group; gl
 
 /** A framed print over the bed: an oak frame, a white mount, a warm abstract landscape (a sun over layered hills). */
 export function print(r: { x: number; y: number; w: number; h: number }, z: number): Group {
-  const g = new Group(), wood = mat(0xffffff, { map: oak('#b88c5d', '#7a5737'), roughness: 0.5 });
+  const g = new Group(), wood = mat(0xffffff, { map: oak('#d8c09c', '#a88c66'), roughness: 0.5 });
   g.add(softBox(r, z, z + 380, wood, 60));
   const art = paint(512, 384, (c, w, h) => {
     c.fillStyle = '#f6f2ea'; c.fillRect(0, 0, w, h);
@@ -716,7 +716,7 @@ export function print(r: { x: number; y: number; w: number; h: number }, z: numb
  * leant on the wall, and a framed poster above it. The east wall faces -x: this group builds on a back wall (z out of it) and turns to it.
  */
 export function eastWall(): Group {
-  const g = new Group(), wall = new Group(), wood = mat(0xffffff, { map: oak('#b88c5d', '#7a5737'), roughness: 0.5 });
+  const g = new Group(), wall = new Group(), wood = mat(0xffffff, { map: oak('#d8c09c', '#a88c66'), roughness: 0.5 });
   // (a layout x here runs along the east wall from its back corner: x = the room's z)
   const sx = 40000, sw = 15000, sy = -3000;
   wall.add(softBox({ x: sx, y: sy, w: sw, h: 600 }, 0, 3200, wood, 70));
