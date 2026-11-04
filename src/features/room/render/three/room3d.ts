@@ -1,5 +1,5 @@
-// The 3D room: a small, cozy bedroom round the desk (docs/LOWPOLY_STYLE.md "Look decision"). A closed box at real sizes (`roomplan.ts`): warm plaster
-// walls, a slatted wood panel behind the desk, a deep window west of it onto a street in 3D (`outside/view.ts`), oak planks and a wool rug, the bed and
+// The 3D room: a lived-in bedroom in a high-rise flat round the desk, modern and plain (white walls, pale oak, black steel). A closed box at real sizes
+// (`roomplan.ts`): an oak-slat panel behind the desk, a deep window west of it onto the city in 3D (`outside/view.ts`), oak planks and a rug, the bed and
 // its bedside table east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard,
 // mouse, mug, architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of
 // the desk's things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
@@ -77,36 +77,17 @@ function woodTex(base: string, line: string, o: { planks?: boolean; across?: boo
   }, o.repeat);
 }
 
-/**
- * Walnut, for the desk: glued boards along the grain (u), each its own tone; a straight grain waved a little, a cathedral (nested arches) in
- * some boards, fine dark pores; a dark glue line between boards.
- */
-function walnutTex(): Texture | null {
-  return paint(1024, 512, (c, w, h) => {
-    const n = 5, bh = h / n;
-    for (let b = 0; b < n; b++) {
-      const y0 = b * bh, f = 0.88 + rnd() * 0.22;
-      c.save(); c.beginPath(); c.rect(0, y0, w, bh); c.clip();
-      c.fillStyle = `rgb(${108 * f},${72 * f},${50 * f})`; c.fillRect(0, y0, w, bh);
-      for (let i = 0; i < 26; i++) {
-        const gy = y0 + rnd() * bh, amp = 1 + rnd() * 3;
-        c.strokeStyle = rnd() < 0.75 ? `rgba(46,26,14,${0.14 + rnd() * 0.2})` : `rgba(168,124,88,${0.1 + rnd() * 0.12})`;
-        c.lineWidth = 0.7 + rnd() * 2;
-        c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 32) c.lineTo(x, gy + Math.sin(x / 140 + i) * amp); c.stroke();
-      }
-      if (rnd() < 0.7) {
-        const ax = rnd() * w, ay = y0 + bh * (0.35 + rnd() * 0.3);
-        for (let k = 0; k < 7; k++) {
-          const s = 30 + k * 26, t = bh * (0.08 + k * 0.055);
-          c.strokeStyle = `rgba(42,24,12,${0.3 - k * 0.03})`; c.lineWidth = 1.4 + rnd();
-          c.beginPath(); c.moveTo(ax - s * 4, ay - t); c.quadraticCurveTo(ax + s, ay - t, ax + s * 1.4, ay); c.quadraticCurveTo(ax + s, ay + t, ax - s * 4, ay + t); c.stroke();
-        }
-      }
-      for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(28,15,7,${0.1 + rnd() * 0.15})`; c.fillRect(rnd() * w, y0 + rnd() * bh, 2 + rnd() * 6, 1); }
-      c.restore();
-      c.fillStyle = 'rgba(38,20,10,0.4)'; c.fillRect(0, y0, w, 1);
+/** Birch ply's edge, for the desk top's front: thin pale layers along it (v across them), each its own tone, a dark glue line between. */
+function plyTex(): Texture | null {
+  return paint(512, 64, (c, w, h) => {
+    const n = 9, lh = h / n;
+    for (let k = 0; k < n; k++) {
+      const f = 0.9 + rnd() * 0.14;
+      c.fillStyle = `rgb(${226 * f},${200 * f},${160 * f})`; c.fillRect(0, k * lh, w, lh);
+      c.fillStyle = 'rgba(120,90,55,0.45)'; c.fillRect(0, k * lh, w, 1);
     }
-  });
+    for (let k = 0; k < 300; k++) { c.fillStyle = `rgba(140,100,60,${0.08 + rnd() * 0.1})`; c.fillRect(rnd() * w, rnd() * h, 4 + rnd() * 14, 1); }
+  }, [8, 1]);
 }
 
 /**
@@ -155,11 +136,11 @@ function planksTex(): Texture | null {
         for (const [x0, x1] of parts) {
           seedN = seed;
           c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, ph); c.clip();
-          c.fillStyle = `rgb(${Math.min(255, 185 * f + warm)},${138 * f},${94 * f - warm})`; c.fillRect(0, y0, w, ph);
+          c.fillStyle = `rgb(${Math.min(255, 222 * f + warm)},${Math.min(255, 194 * f)},${156 * f - warm})`; c.fillRect(0, y0, w, ph);
           // the grain along the board, waved a little; a few lighter streaks
           for (let i = 0; i < 16; i++) {
             const gy = y0 + rnd() * ph, amp = 2 + rnd() * 5;
-            c.strokeStyle = rnd() < 0.8 ? `rgba(90,56,30,${0.12 + rnd() * 0.16})` : `rgba(255,236,205,${0.1 + rnd() * 0.1})`; c.lineWidth = 0.8 + rnd() * 1.8;
+            c.strokeStyle = rnd() < 0.8 ? `rgba(150,112,72,${0.12 + rnd() * 0.16})` : `rgba(255,236,205,${0.1 + rnd() * 0.1})`; c.lineWidth = 0.8 + rnd() * 1.8;
             c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp); c.stroke();
           }
           // a knot: dark heart, rings stretched along the board
@@ -171,28 +152,24 @@ function planksTex(): Texture | null {
         }
       }
       // the long joint above the row (dark, then its lit bevel), the butt joints
-      c.fillStyle = 'rgba(48,28,14,0.8)'; c.fillRect(0, y0, w, 3);
+      c.fillStyle = 'rgba(110,80,50,0.7)'; c.fillRect(0, y0, w, 3);
       c.fillStyle = 'rgba(255,238,210,0.22)'; c.fillRect(0, y0 + 3, w, 2);
-      for (const x of cuts) { c.fillStyle = 'rgba(48,28,14,0.75)'; c.fillRect(x - 1, y0, 2.5, ph); }
+      for (const x of cuts) { c.fillStyle = 'rgba(110,80,50,0.65)'; c.fillRect(x - 1, y0, 2.5, ph); }
     }
   }, [2.4, 3.2]);
 }
 
-/** A wool rug: cream, a soft diamond lattice, a terracotta band inside a plain edge; a fleck of pile all over (its bump too). */
+/** A flat-woven wool rug: oatmeal, a fine herringbone of light and dark rows, a charcoal stripe inside a plain edge; a fleck of pile (its bump too). */
 function rugTex(): Texture | null {
   return paint(1024, 576, (c, w, h) => {
-    c.fillStyle = '#e9e0cf'; c.fillRect(0, 0, w, h);
-    for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.06 + rnd() * 0.08})` : `rgba(90,60,30,${0.04 + rnd() * 0.06})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
-    const m = 70;
-    c.save(); c.beginPath(); c.rect(m, m, w - 2 * m, h - 2 * m); c.clip();
-    c.strokeStyle = 'rgba(120,92,64,0.45)'; c.lineWidth = 5;
-    for (let x = -h; x < w + h; x += 72) {
-      c.beginPath(); c.moveTo(x, 0); c.lineTo(x + h, h); c.stroke();
-      c.beginPath(); c.moveTo(x + h, 0); c.lineTo(x, h); c.stroke();
+    c.fillStyle = '#dcd8cf'; c.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 12) for (let y = 0; y < h; y += 6) {
+      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.08)' : 'rgba(60,55,45,0.07)';
+      c.fillRect(x, y, 12, 3);
     }
-    c.restore();
-    c.strokeStyle = '#b8694a'; c.lineWidth = 16; c.strokeRect(m - 24, m - 24, w - 2 * m + 48, h - 2 * m + 48);
-    c.strokeStyle = '#d29a62'; c.lineWidth = 5; c.strokeRect(m - 4, m - 4, w - 2 * m + 8, h - 2 * m + 8);
+    for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.05 + rnd() * 0.07})` : `rgba(60,55,45,${0.04 + rnd() * 0.06})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+    const m = 60;
+    c.strokeStyle = '#3d3e40'; c.lineWidth = 12; c.strokeRect(m, m, w - 2 * m, h - 2 * m);
   });
 }
 
@@ -234,22 +211,22 @@ export class Room3D {
     this.geo = roomGeo();
     const g = this.geo, R = this.root, ys = g.ys, fl = FLOOR_Y, deskTop = -ys, H = fl - CEIL_Y;
     const white = mat(0xf3f1ec, { roughness: 0.4 });
-    const walnut = walnutTex(), deskWood = varnish(0xffffff, { map: walnut, bumpMap: walnut, bumpScale: 0.6, roughness: 0.5 });
+    const laminate = varnish(0xf3f2ef, { roughness: 0.4, clearcoat: 0.3 }), ply = mat(0xffffff, { map: plyTex(), roughness: 0.6 });
     const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2c31, { roughness: 0.5 });
-    const plaster = mat(0xffffff, { map: plasterTex('#ece5d9', [10, 5]), roughness: 0.92 });
-    const sage = mat(0xffffff, { map: plasterTex('#a9b39c', [6, 5]), roughness: 0.92 });
+    const plaster = mat(0xffffff, { map: plasterTex('#f1f0ec', [10, 5]), roughness: 0.92 });
+    const greige = mat(0xffffff, { map: plasterTex('#dcd9d2', [6, 5]), roughness: 0.92 });
     const W = WINDOW;
 
-    // ---- the back wall: plaster round the window, the slatted panel behind the desk (its slats flush with the plaster), a sage wall behind the bed ----
+    // ---- the back wall: plaster round the window, the slatted panel behind the desk (its slats flush with the plaster), a pale greige wall behind the bed ----
     for (const r of wallAround(WEST_X, SLATS_X0, CEIL_Y, fl, W)) R.add(rectBox(r, -WALL_T, 0, plaster));
     R.add(rectBox({ x: SLATS_X1, y: CEIL_Y, w: BED.x - 3000 - SLATS_X1, h: H }, -WALL_T, 0, plaster));
-    R.add(rectBox({ x: BED.x - 3000, y: CEIL_Y, w: EAST_X - BED.x + 3000, h: H }, -WALL_T, 0, sage));
-    R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(0x1a110b, { roughness: 0.95 })));
-    const slatM = mat(0xffffff, { map: woodTex('#3a281d', '#150c06'), roughness: 0.7 });
+    R.add(rectBox({ x: BED.x - 3000, y: CEIL_Y, w: EAST_X - BED.x + 3000, h: H }, -WALL_T, 0, greige));
+    R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(0x18191b, { roughness: 0.95 })));
+    const slatM = mat(0xffffff, { map: woodTex('#d9c4a3', '#a88c66'), roughness: 0.7 });
     const runs = slatRuns(SLATS_X0 + 120, SLATS_X1 - 120, CEIL_Y, fl, { x: 0, y: 0, w: 0, h: 0 });
     R.add(instanced(new BoxGeometry(1, 1, 1), slatM, runs.map((s) => ({ x: s.x + SLAT_W / 2, y: -(s.y0 + s.y1) / 2, z: -70, sx: SLAT_W, sy: s.y1 - s.y0, sz: 140 }))));
-    const trim = mat(0xffffff, { map: woodTex('#5a3d2a', '#24150b'), roughness: 0.6 });
+    const trim = mat(0xffffff, { map: woodTex('#d4bd9a', '#a08460'), roughness: 0.6 });
     for (const x of [SLATS_X0 - 120, SLATS_X1 - 120]) R.add(softBox({ x, y: CEIL_Y, w: 240, h: H }, -160, 80, trim, 40));
 
     // ---- the other walls, the ceiling (they take light, they cast no shadow: the eye is always inside) ----
@@ -336,31 +313,28 @@ export class Room3D {
     R.add(bed(), ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
-    // ---- the desk: a walnut top, a panel leg at the west end, three drawers at the east end, on the floor ----
-    // the top, thickened by an edge band under its front and its ends (the back stays thin over the cords' grommet)
-    const dw = g.desk.x1 - g.desk.x0, band = 460;
-    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, deskWood, 150));
-    R.add(softBox({ x: g.desk.x0 + 20, y: ys + DESK_TOP - 60, w: dw - 40, h: band }, DESK_D - 700, DESK_D - 15, deskWood, 110));
-    for (const x of [g.desk.x0 + 20, g.desk.x1 - 720]) R.add(softBox({ x, y: ys + DESK_TOP - 60, w: 700, h: band }, 400, DESK_D - 15, deskWood, 110));
-    R.add(softBox({ x: g.desk.x0 + 250, y: ys + DESK_TOP, w: 500, h: fl - ys - DESK_TOP }, 300, DESK_D - 300, deskWood, 40));
-    // a back rail between the leg and the pedestal, under the top
-    const ped = { x: g.desk.x1 - 7800, y: ys + DESK_TOP, w: 7500, h: fl - ys - DESK_TOP - 500 };
-    R.add(softBox({ x: g.desk.x0 + 750, y: ys + DESK_TOP, w: ped.x - g.desk.x0 - 750, h: 2600 }, 700, 1000, deskWood, 40));
-    // the pedestal: a carcass on a dark plinth, its front a dark recess with three drawer fronts set in it, a gap round each, brass bar pulls on
-    // standoffs, a lock in the top drawer
-    const brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.32 });
-    R.add(softBox(ped, 300, DESK_D - 400, deskWood, 40));
-    R.add(softBox({ x: ped.x + 300, y: ped.y + ped.h, w: ped.w - 600, h: 500 }, 600, DESK_D - 900, dark, 30));
-    R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 300 }, DESK_D - 400, DESK_D - 380, mat(0x140d08, { roughness: 0.9 })));
+    // ---- the desk: a white top, a black steel trestle at the west end, a white drawer unit at the east end, on the floor ----
+    // the top: a slab with a birch-ply edge round it (the layers show on the front)
+    const dw = g.desk.x1 - g.desk.x0;
+    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, laminate, 60));
+    R.add(softBox({ x: g.desk.x0 + 10, y: ys + 40, w: dw - 20, h: DESK_TOP - 80 }, DESK_D - 60, DESK_D + 15, ply, 20));
+    // the trestle: two square legs, a foot and a top rail joining them, in powder-coated steel
+    const steel = mat(0x1c1d20, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1200, legH = fl - ys - DESK_TOP;
+    for (const z of [900, DESK_D - 900]) R.add(softBox({ x: tx - 360, y: ys + DESK_TOP, w: 720, h: legH }, z - 360, z + 360, steel, 50));
+    R.add(softBox({ x: tx - 360, y: fl - 500, w: 720, h: 500 }, 300, DESK_D - 300, steel, 50));
+    R.add(softBox({ x: tx - 360, y: ys + DESK_TOP, w: 720, h: 500 }, 300, DESK_D - 300, steel, 50));
+    // a steel rail along the back, under the top, between the trestle and the drawer unit
+    const ped = { x: g.desk.x1 - 7800, y: ys + DESK_TOP, w: 7500, h: fl - ys - DESK_TOP - 400 };
+    R.add(softBox({ x: tx + 360, y: ys + DESK_TOP, w: ped.x - tx - 360, h: 900 }, 700, 1100, steel, 40));
+    // the drawer unit: a white carcass on a recessed black plinth, three flush fronts with a gap round each, a finger slot under each top edge
+    R.add(softBox(ped, 300, DESK_D - 400, laminate, 40));
+    R.add(softBox({ x: ped.x + 300, y: ped.y + ped.h, w: ped.w - 600, h: 400 }, 600, DESK_D - 900, dark, 30));
+    R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 300 }, DESK_D - 400, DESK_D - 380, mat(0x9a9894, { roughness: 0.9 })));
     const dh = (ped.h - 300 - 2 * 90) / 3;
     for (let k = 0; k < 3; k++) {
       const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
-      R.add(softBox(d, DESK_D - 520, DESK_D - 300, deskWood, 90));
-      const py = d.y + Math.min(900, d.h * 0.3), px0 = d.x + d.w / 2 - 1100, px1 = d.x + d.w / 2 + 1100;
-      for (const px of [px0, px1]) R.add(drum(px, py, DESK_D - 300, DESK_D - 280, 130, brass, 16), drum(px, py, DESK_D - 300, DESK_D - 110, 62, brass, 12));
-      R.add(rod([px0 - 260, -py, DESK_D - 95], [px1 + 260, -py, DESK_D - 95], 90, brass, 14));
-      for (const px of [px0 - 260, px1 + 260]) { const cap = new Mesh(new SphereGeometry(90, 12, 8), brass); cap.position.set(px, -py, DESK_D - 95); R.add(place(cap)); }
-      if (k === 0) R.add(drum(d.x + d.w / 2, d.y + d.h - 700, DESK_D - 300, DESK_D - 270, 150, brass, 18), rectBox({ x: d.x + d.w / 2 - 25, y: d.y + d.h - 790, w: 50, h: 180 }, DESK_D - 270, DESK_D - 262, dark));
+      R.add(softBox(d, DESK_D - 520, DESK_D - 300, laminate, 50));
+      R.add(rectBox({ x: d.x + d.w / 2 - 1500, y: d.y + 160, w: 3000, h: 260 }, DESK_D - 310, DESK_D - 290, mat(0x55534f, { roughness: 0.9 })));
     }
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, the mug on its coaster, a notebook ----
