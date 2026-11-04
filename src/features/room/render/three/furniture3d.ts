@@ -236,28 +236,24 @@ export function bed(): Group {
 // ---------------------------------------------------------------- the bedside table
 export interface Bedside { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
 
-/** An oak bedside table on tapered legs (a drawer, an open shelf), a ceramic lamp with a linen shade, books and a small plant. */
+/** A white two-drawer bedside chest on black steel legs, a ceramic lamp with a linen shade, books and a small plant. */
 export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
-  const wood = mat(0xffffff, { map: oak('#dcc6a2', '#b0946c'), roughness: 0.55 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
-  const body = { y: top, h: 7200 };
-  g.add(softBox({ x, y: body.y, w, h: 400 }, z0, z1, wood, 90));
-  g.add(softBox({ x, y: body.y + 400, w: 380, h: body.h - 400 }, z0, z1, wood, 40), softBox({ x: x + w - 380, y: body.y + 400, w: 380, h: body.h - 400 }, z0, z1, wood, 40));
-  g.add(softBox({ x, y: body.y + body.h - 380, w, h: 380 }, z0, z1, wood, 40));
-  g.add(rectBox({ x: x + 380, y: body.y + 400, w: w - 760, h: body.h - 780 }, z0, z0 + 200, wood));
-  // the drawer (its box dark in the gap round the front), its knob, and the shelf under it with a book
-  g.add(rectBox({ x: x + 380, y: body.y + 400, w: w - 760, h: 3200 }, z1 - 1400, z1 - 380, mat(0x9b8a72, { roughness: 0.8 })));
-  g.add(softBox({ x: x + 460, y: body.y + 520, w: w - 920, h: 2900 }, z1 - 380, z1 - 20, wood, 60));
-  const knob = new Mesh(new SphereGeometry(230, 16, 10), brass);
-  knob.position.set(cx, -(body.y + 1970), z1 + 120);
-  g.add(place(knob));
-  g.add(rectBox({ x: x + 380, y: body.y + 3600, w: w - 760, h: 260 }, z0 + 200, z1 - 60, wood));
-  g.add(softBox({ x: x + 900, y: body.y + body.h - 380 - 900, w: 4200, h: 900 }, z0 + 1400, z0 + 5800, mat(0x3f5468, { roughness: 0.8 }), 60));
-  for (const [lx, lz] of [[x + 400, z0 + 500], [x + w - 400, z0 + 500], [x + 400, z1 - 500], [x + w - 400, z1 - 500]] as const) {
-    const h = fl - (body.y + body.h);
-    const leg = post(lx, fl, lz, 170, h, wood, 10, 260);
-    leg.rotation.set((lz > cz ? 1 : -1) * 0.07, 0, (lx > cx ? -1 : 1) * 0.07);
-    g.add(leg);
+  const white = mat(0xf2f1ed, { roughness: 0.5 }), brass = mat(0x1d1e20, { metalness: 0.4, roughness: 0.45 });
+  const gap = mat(0x2b2b2d, { roughness: 0.9 }), steel = mat(0x232426, { metalness: 0.6, roughness: 0.4 });
+  // a flat-pack chest of two drawers in white, floating on slim black steel legs: a plain carcass, flush fronts split by a dark shadow gap, a
+  // thin black bar pull on each, a plinth recess under the carcass
+  const body = { y: top, h: 7200 }, fy = body.y + 220, fh = (body.h - 440 - 60) / 2;
+  g.add(softBox({ x, y: body.y, w, h: body.h }, z0, z1 - 60, white, 50));
+  for (let k = 0; k < 2; k++) {
+    const y = fy + k * (fh + 60);
+    g.add(rectBox({ x: x + 200, y, w: w - 400, h: fh }, z1 - 120, z1 - 40, gap));
+    g.add(softBox({ x: x + 220, y: y + 30, w: w - 440, h: fh - 60 }, z1 - 80, z1, white, 30));
+    const py = y + fh / 2;
+    g.add(rod([cx - 1500, -py, z1 + 120], [cx + 1500, -py, z1 + 120], 90, steel, 8), rod([cx - 1500, -py, z1 + 120], [cx - 1500, -py, z1 - 20], 90, steel, 8), rod([cx + 1500, -py, z1 + 120], [cx + 1500, -py, z1 - 20], 90, steel, 8));
+  }
+  for (const [lx, lz] of [[x + 700, z0 + 700], [x + w - 700, z0 + 700], [x + 700, z1 - 900], [x + w - 700, z1 - 900]] as const) {
+    g.add(post(lx, fl, lz, 150, fl - (body.y + body.h), steel, 4));
   }
   // the lamp: a round ceramic body, a brass neck, a linen drum
   const lx = cx - 1100, lz = cz - 400, ceramic = mat(0xe8e6e1, { roughness: 0.35 });
