@@ -9,7 +9,7 @@ import {
   type Texture,
 } from 'three';
 import { drum, instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
-import { frameLoft, ribbon, taperTube, type ProfilePt } from '@/core/render/three/loft';
+import { frameLoft, type ProfilePt } from '@/core/render/three/loft';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { pothos, succulent } from './plants3d';
@@ -515,129 +515,48 @@ export function curtains(): Group {
 }
 
 // ---------------------------------------------------------------- the door, the ceiling light, the print, the plant
-/** A panel door's raised panel in its opening, from the stiles' face down: the ogee moulding stuck on the edge, a flat margin, the bevel, the field. */
-const PANEL: readonly ProfilePt[] = [
-  [0, 280], [40, 266], [95, 222], [130, 160], [175, 112], [240, 92], [290, 52], [300, 10], [300, 10], [520, 10], [520, 10], [1500, 160], [1500, 160], [1570, 196], [1570, 196],
-];
-/** The architrave's section from its outer edge to the opening: a rounded back band, a cove, a long ramp to a bead on the inner edge. */
-const CASING: readonly ProfilePt[] = [
-  [0, 0], [0, 150], [30, 205], [100, 236], [190, 228], [240, 196], [300, 186], [380, 200], [700, 262], [960, 318], [1060, 350], [1130, 362], [1190, 344], [1240, 290], [1250, 220], [1250, 0],
-];
-
 /**
- * A white four-panel door in the west wall near the front: a moulded architrave on plinth blocks, the leaf in its frame with a dark gap round
- * it, stiles, rails and a muntin framing four raised and fielded panels, three hinges with their knuckles, a lever on a stepped rose, a
- * keyhole escutcheon, an oak threshold, a rubber stop on the floor, and the light switch beside it.
+ * A flush white door in the west wall near the front: a slim square architrave, the plain leaf in its frame with a dark gap round it, hidden
+ * hinges, a black lever on a square rose and a small keyhole plate, an oak threshold, a stop on the floor, and a flat light switch beside it.
  */
 export function door(): Group {
   const g = new Group(), { z0, z1, top } = DOOR, fl = FLOOR_Y, white = mat(0xf2f0eb, { roughness: 0.38 }), xs = WEST_X;
   // (in the wall's plane: y down, z along the wall; x out of the wall into the room)
   const slab = (y0: number, y1: number, za: number, zb: number, x0: number, x1: number, m: Material, r = 40) => softBox({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, za, zb, m, r);
-  // a loft built facing +z (its width along the wall) turned to face the room, centred on (zc, yc), its back at x
-  const onWall = (geo: BufferGeometry, zc: number, yc: number, x: number, m: Material) => { geo.rotateY(Math.PI / 2); const o = place(new Mesh(geo, m)); o.position.set(x, -yc, zc); return o; };
-  // the architrave: one mitred moulding round the opening (its foot runs on under the floor), on plinth blocks
-  const cw = 1250, aTop = top - cw, aBot = fl + cw + 60;
-  g.add(onWall(frameLoft(z1 - z0 + 2 * cw, aBot - aTop, CASING), (z0 + z1) / 2, (aTop + aBot) / 2, xs, white));
-  for (const [a, b] of [[z0 - cw - 120, z0 + 40], [z1 - 40, z1 + cw + 120]] as const) g.add(slab(fl - 2300, fl, a, b, xs, xs + 440, white, 70));
-  // the frame's dark gap round the leaf
+  // the architrave: three square-edged boards round the opening
+  const cw = 900;
+  g.add(slab(top - cw, top, z0 - cw, z1 + cw, xs, xs + 160, white, 20));
+  for (const [a, b] of [[z0 - cw, z0], [z1, z1 + cw]] as const) g.add(slab(top, fl, a, b, xs, xs + 160, white, 20));
+  // the frame's dark gap round the leaf, the leaf
   g.add(rectBox({ x: xs - 320, y: top, w: 100, h: fl - top }, z0, z1, mat(0x3a3530, { roughness: 0.9 })));
-  // the leaf: a core slab, the stiles, rails and centre muntin over it, a raised panel in each opening
-  const leaf = mat(0xefece6, { roughness: 0.36 }), lz0 = z0 + 70, lz1 = z1 - 70, ly0 = top + 70, ly1 = fl - 150, face = xs + 200, panelX = face - 280;
-  g.add(slab(ly0, ly1, lz0, lz1, xs - 220, panelX - 10, leaf, 30));
-  const S = 2300, M = 2000, lock = fl - 19000, rails = [[ly0, ly0 + S], [lock - 1800, lock + 1800], [ly1 - 4300, ly1]] as const;
-  g.add(slab(ly0, ly1, lz0, lz0 + S, xs - 220, face, leaf, 30), slab(ly0, ly1, lz1 - S, lz1, xs - 220, face, leaf, 30));
-  for (const [a, b] of rails) g.add(slab(a, b, lz0 + S - 20, lz1 - S + 20, xs - 220, face, leaf, 20));
-  const mz = (z0 + z1) / 2;
-  for (const [a, b] of [[rails[0][1], rails[1][0]], [rails[1][1], rails[2][0]]] as const) {
-    g.add(slab(a - 20, b + 20, mz - M / 2, mz + M / 2, xs - 220, face, leaf, 20));
-    for (const [za, zb] of [[lz0 + S, mz - M / 2], [mz + M / 2, lz1 - S]] as const) g.add(onWall(frameLoft(zb - za, b - a, PANEL, { cap: true }), (za + zb) / 2, (a + b) / 2, panelX, leaf));
-  }
-  // three hinges on the far edge: the knuckle proud of the gap, ball finials on its pin
-  const steel = mat(0xb9bcc0, { metalness: 0.85, roughness: 0.32 }), dark = mat(0x26282b, { roughness: 0.6 });
-  for (const hy of [top + 2900, (top + fl) / 2 - 800, fl - 3900]) {
-    g.add(post(face - 60, hy + 1000, z1 - 20, 125, 2000, steel, 14));
-    for (const [y, s] of [[hy + 1000, -1], [hy - 1000, 1]] as const) { const b = new Mesh(new SphereGeometry(105, 12, 8), steel); b.position.set(face - 60, -y + s * 30, z1 - 20); g.add(place(b)); }
-  }
-  // the lever: a stepped rose turned on a lathe, the lever out of its neck and along the door, its end swelling and turned in to the leaf
-  const hy = lock, hz = lz0 + 1350;
-  const rose = (y: number, prof: readonly (readonly [number, number])[]) => {
-    const o = place(new Mesh(new LatheGeometry(prof.map(([r, h]) => new Vector2(r, h)), 32), steel));
-    o.rotation.z = -Math.PI / 2; o.position.set(face, -y, hz);
-    return o;
-  };
-  g.add(rose(hy, [[0, 0], [470, 0], [495, 30], [480, 110], [400, 160], [200, 190], [175, 240], [160, 420], [0, 430]]));
-  const lever: [number, number, number][] = [[face + 330, -hy, hz], [face + 820, -hy, hz], [face + 930, -hy, hz + 260], [face + 960, -hy - 30, hz + 1200], [face + 900, -hy - 60, hz + 2150]];
-  g.add(place(new Mesh(taperTube(lever, 140, 165, 14, 40), steel)));
-  const tip = new Mesh(new SphereGeometry(165, 14, 10), steel);
-  tip.scale.set(0.85, 1, 1.2); tip.position.set(...lever[4]!);
-  g.add(place(tip));
-  // the escutcheon under it: a small rose, the key's slot through it
-  g.add(rose(hy + 1700, [[0, 0], [280, 0], [295, 25], [270, 80], [0, 95]]));
-  const slot = place(new Mesh(new CylinderGeometry(60, 60, 30, 12), dark));
-  slot.rotation.z = Math.PI / 2; slot.position.set(face + 95, -(hy + 1660), hz);
-  g.add(slot, slab(hy + 1660, hy + 1840, hz - 30, hz + 30, face + 70, face + 100, dark, 8));
+  const face = xs + 110, leaf = mat(0xefece6, { roughness: 0.42 });
+  g.add(slab(top + 70, fl - 150, z0 + 70, z1 - 70, xs - 220, face, leaf, 25));
+  // the lever: a square rose, a short neck, a straight square-section bar along the door; a keyhole plate under it
+  const black = mat(0x1d1e20, { metalness: 0.4, roughness: 0.4 }), dark = mat(0x0d0d0e, { roughness: 0.7 }), hy = fl - 19000, hz = z0 + 1350;
+  g.add(slab(hy - 480, hy + 480, hz - 480, hz + 480, face, face + 90, black, 40));
+  g.add(slab(hy - 110, hy + 110, hz - 110, hz + 110, face + 90, face + 620, black, 40));
+  g.add(slab(hy - 120, hy + 120, hz - 110, hz + 2300, face + 520, face + 760, black, 60));
+  g.add(slab(hy + 1400, hy + 2000, hz - 300, hz + 300, face, face + 70, black, 30), slab(hy + 1600, hy + 1800, hz - 40, hz + 40, face + 70, face + 76, dark, 5));
   // the threshold: an oak strip with its edges eased, across the opening on the floor
   g.add(softBox({ x: xs - 300, y: fl - 140, w: 900, h: 140 }, z0, z1, mat(0xffffff, { map: oak('#d8c09c', '#a88c66', [4, 1]), roughness: 0.5 }), 50));
-  // a rubber stop on the floor where the door swings open
-  const stop = post(xs + 12500, fl, z1 - 1200, 380, 900, mat(0x4a4744, { roughness: 0.9 }), 14, 300);
-  g.add(stop, post(xs + 12500, fl, z1 - 1200, 460, 80, steel, 14));
-  // the light switch beside the door: a bevelled plate, its rocker
-  g.add(onWall(frameLoft(1400, 2000, [[0, 0], [0, 40], [120, 150], [120, 150]], { cap: true }), z1 + 2200, fl - 21600, xs, white));
-  const rocker = slab(fl - 22100, fl - 21100, z1 + 1900, z1 + 2500, xs + 120, xs + 270, mat(0xe8e5de, { roughness: 0.45 }), 40);
-  rocker.rotation.z = 0.06;
-  g.add(rocker);
+  // a stop on the floor where the door swings open
+  g.add(post(xs + 12500, fl, z1 - 1200, 330, 700, black, 20), post(xs + 12500, fl - 700, z1 - 1200, 300, 120, mat(0x2b2c2e, { roughness: 0.9 }), 20));
+  // the light switch beside the door: a thin square plate, a wide rocker
+  g.add(slab(fl - 22300, fl - 20900, z1 + 1500, z1 + 2900, xs, xs + 110, white, 40));
+  g.add(slab(fl - 22100, fl - 21100, z1 + 1700, z1 + 2700, xs + 110, xs + 170, mat(0xe8e5de, { roughness: 0.45 }), 40));
   return g;
 }
 
 /**
- * A semi-flush drum light under a plaster ceiling rose (y: the ceiling, 2D y down): the rose's rings and bead, a canopy and a short stem, a
- * linen drum held by brass rims and a three-arm spider, a domed diffuser closing its foot. The linen and the diffuser glow when lit.
+ * A slim round LED ceiling light (y: the ceiling, 2D y down): a white body off the ceiling on a short shadow line, its opal face; the face
+ * glows when lit.
  */
 export function ceilingLight(x: number, y: number, z: number): { root: Group; glow: MeshStandardMaterial } {
-  const g = new Group(), plaster = mat(0xf6f3ec, { roughness: 0.9 }), brass = mat(0xc9a25a, { metalness: 0.85, roughness: 0.3 });
-  const lathe = (pts: readonly (readonly [number, number])[], m: Material, yTop: number, segs = 40) => {
-    const o = place(new Mesh(new LatheGeometry(pts.map(([r, h]) => new Vector2(r, -h)), segs), m), false);
-    o.position.set(x, -yTop, z);
-    return o;
-  };
-  // the rose: a cove off the ceiling, a bead, a stepped field, a ring of leaves (a scalloped rim), a boss in the middle
-  g.add(lathe([[3300, 0], [3300, 40], [3150, 110], [2950, 150], [2900, 210], [2820, 240], [2740, 210], [2700, 160], [2300, 180], [2000, 230], [1900, 300], [1500, 330], [1100, 330], [1000, 390], [800, 420], [0, 430]], plaster, y, 48));
-  // the ring of leaves, each pointing out from the middle
-  const leaf = new SphereGeometry(260, 8, 6), leaves = new InstancedMesh(leaf, plaster, 24), o = new Object3D();
-  leaf.scale(1, 0.45, 1.6);
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    o.position.set(x + Math.cos(a) * 1700, -(y + 290), z + Math.sin(a) * 1700); o.rotation.set(0, -a + Math.PI / 2, 0); o.updateMatrix();
-    leaves.setMatrixAt(i, o.matrix);
-  }
-  g.add(place(leaves, false));
-  // the canopy and the stem
-  const drop = 1500, top = y + drop, sh = 2000, r = 4400;
-  g.add(lathe([[700, 0], [700, 60], [640, 200], [380, 330], [140, 380], [0, 380]], brass, y + 430, 24));
-  g.add(place(post(x, top, z, 75, drop - 700, brass, 10), false));
-  // the shade: linen, brass rims top and foot, the spider from the top rim to a hub round the stem
-  const glow = mat(0xffffff, { map: weave('#f4eee2', { repeat: [6, 1] }), roughness: 0.9, side: DoubleSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
-  const shade = new Mesh(new CylinderGeometry(r, r, sh, 48, 1, true), glow);
-  shade.position.set(x, -(top + sh / 2), z);
-  g.add(place(shade, false));
-  for (const ry of [top, top + sh]) {
-    const rim = new Mesh(new TorusGeometry(r + 20, 45, 6, 64), brass);
-    rim.rotation.x = Math.PI / 2; rim.position.set(x, -ry, z);
-    g.add(place(rim, false));
-  }
-  const hub = new Mesh(new TorusGeometry(260, 60, 6, 16), brass);
-  hub.rotation.x = Math.PI / 2; hub.position.set(x, -(top + 60), z);
-  g.add(place(hub, false));
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.4;
-    g.add(place(rod([x + Math.cos(a) * 300, -(top + 60), z + Math.sin(a) * 300], [x + Math.cos(a) * r, -(top + 20), z + Math.sin(a) * r], 35, brass, 6), false));
-  }
-  // the diffuser: a shallow dome of opal glass across the foot
-  const R = r * 4, cap = Math.asin(r / R), dome = new SphereGeometry(R, 48, 6, 0, Math.PI * 2, 0, cap);
-  dome.translate(0, -R * Math.cos(cap), 0); dome.rotateX(Math.PI);
-  const disc = new Mesh(dome, mat(0xf6f1e6, { roughness: 0.4, emissive: new Color(0xffe2b0), emissiveIntensity: 0, side: DoubleSide }));
-  disc.position.set(x, -(top + sh - 60), z);
-  g.add(place(disc, false));
+  const g = new Group(), r = 5000;
+  g.add(place(post(x, y + 250, z, r - 300, 250, mat(0x9a9893, { roughness: 0.8 }), 64), false));
+  g.add(place(post(x, y + 900, z, r, 650, mat(0xf3f2ef, { roughness: 0.4 }), 64), false));
+  const glow = mat(0xf7f5f0, { roughness: 0.5, emissive: new Color(0xffe6c4), emissiveIntensity: 0 });
+  g.add(place(post(x, y + 940, z, r - 250, 40, glow, 64), false));
   return { root: g, glow };
 }
 

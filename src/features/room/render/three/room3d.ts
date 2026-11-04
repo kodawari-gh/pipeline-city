@@ -5,7 +5,7 @@
 // the desk's things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  SpotLight, type PerspectiveCamera, type Texture, type WebGLRenderer,
+  SpotLight, type Material, type PerspectiveCamera, type Texture, type WebGLRenderer,
 } from 'three';
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
@@ -147,7 +147,7 @@ function planksTex(): Texture | null {
           // a knot: dark heart, rings stretched along the board
           if (rnd() < 0.4) {
             const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0), ky = y0 + ph * (0.3 + rnd() * 0.4);
-            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${86 + k * 14},${54 + k * 9},${30 + k * 6},${0.1 + (4 - k) * 0.07})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
+            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${150 + k * 12},${112 + k * 9},${72 + k * 6},${0.05 + (4 - k) * 0.04})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
           }
           c.restore();
         }
@@ -236,25 +236,21 @@ export class Room3D {
     R.add(shell(rectBox({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200, plaster)));
     R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200, plaster)));
     R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 }, -WALL_T, FRONT_Z + 1200, mat(0xf4f0e8, { roughness: 0.95 }))));
-    // the skirting (a board, a rounded bead along its top) and a stepped cornice round the room (the door breaks the skirting on the west wall)
-    const skirt = (r: Rect, z0: number, z1: number) => R.add(shell(softBox(r, z0, z1, white, 40)));
-    const SK = 1700, run = (x0: number, x1: number, z0: number, z1: number, out: 'x' | '-x' | 'z' | '-z') => {
-      const deep = (d: number): [Rect, number, number] => out === 'z' ? [{ x: x0, y: 0, w: x1 - x0, h: 0 }, z0, z0 + d] : out === '-z' ? [{ x: x0, y: 0, w: x1 - x0, h: 0 }, z1 - d, z1]
-        : out === 'x' ? [{ x: x0, y: 0, w: d, h: 0 }, z0, z1] : [{ x: x1 - d, y: 0, w: d, h: 0 }, z0, z1];
-      const [b, bz0, bz1] = deep(160), [t, tz0, tz1] = deep(250);
-      skirt({ ...b, y: fl - SK, h: SK }, bz0, bz1);
-      skirt({ ...t, y: fl - SK, h: 240 }, tz0, tz1);
+    // a low flush skirting, square-edged, and a shadow gap where the walls meet the ceiling (no cornice); the door breaks the skirting on the west wall
+    const skirt = (r: Rect, z0: number, z1: number, m: Material = white) => R.add(shell(softBox(r, z0, z1, m, 20)));
+    const SK = 1100, run = (x0: number, x1: number, z0: number, z1: number, out: 'x' | '-x' | 'z' | '-z') => {
+      const r = out === 'z' || out === '-z' ? { x: x0, y: fl - SK, w: x1 - x0, h: SK } : out === 'x' ? { x: x0, y: fl - SK, w: 110, h: SK } : { x: x1 - 110, y: fl - SK, w: 110, h: SK };
+      skirt(r, out === 'z' ? z0 : out === '-z' ? z1 - 110 : z0, out === 'z' ? z0 + 110 : z1);
     };
     run(WEST_X, EAST_X, 0, 0, 'z');
     run(WEST_X, WEST_X, 0, DOOR.z0 - 980, 'x');
     run(WEST_X, WEST_X, DOOR.z1 + 980, FRONT_Z, 'x');
     run(EAST_X, EAST_X, 0, FRONT_Z, '-x');
     run(WEST_X, EAST_X, FRONT_Z, FRONT_Z, '-z');
-    for (const [d, y, h] of [[380, CEIL_Y, 700], [230, CEIL_Y + 700, 260]] as const) {
-      skirt({ x: WEST_X, y, w: EAST_X - WEST_X, h }, 0, d);
-      skirt({ x: WEST_X, y, w: d, h }, 0, FRONT_Z);
-      skirt({ x: EAST_X - d, y, w: d, h }, 0, FRONT_Z);
-    }
+    const gap = mat(0x8d8b86, { roughness: 0.9 });
+    skirt({ x: WEST_X, y: CEIL_Y, w: EAST_X - WEST_X, h: 220 }, 0, 40, gap);
+    skirt({ x: WEST_X, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
+    skirt({ x: EAST_X - 40, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
 
     // ---- the floor: long oak planks; a thick wool rug in front of the bed, fringed at its ends ----
     const planks = planksTex();
