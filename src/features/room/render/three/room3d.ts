@@ -21,6 +21,7 @@ import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, typ
 import { OutsideView } from './outside/view';
 import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator } from './furniture3d';
 import { deskChair } from './chair3d';
+import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
   BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, MONITOR_Z, SLATS_X0, SLATS_X1, SLAT_W, WALL_T, WEST_X, WINDOW,
@@ -352,6 +353,8 @@ export class Room3D {
     R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200), notebook(-16600, ys, 10000, 0.22));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
+    // the mess: a backpack, a power strip and its leads, books on the floor and the sill, a delivery box
+    R.add(mess(ped.x));
     this.mug = mug(g.mug, ys, MONITOR_Z + 3200);
     R.add(this.mug.root);
 
