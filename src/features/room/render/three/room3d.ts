@@ -12,6 +12,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, instanced, paint, place, rectBox, rod, softBox, tube } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
+import { boxEnv, boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat, varnish } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
@@ -203,6 +204,8 @@ export class Room3D {
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envMats = new Set<MeshStandardMaterial>();
   private probe = false;
+  /** The room's box for the probe's reflections (boxenv.ts): on once the probe holds the room. */
+  private box: BoxEnv;
   /** Where the room's probe sees from (world): over the desk's front, in the room's middle height. */
   readonly probeAt: [number, number, number];
   /** What the room's light depends on, coarsely: a new value asks for a new capture of the probe. */
@@ -254,7 +257,7 @@ export class Room3D {
 
     // ---- the floor: long oak planks; a thick wool rug in front of the bed, fringed at its ends ----
     const planks = planksTex();
-    const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), mat(0xffffff, { map: planks, bumpMap: planks, bumpScale: 0.9, roughness: 0.5 }));
+    const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), mat(0xffffff, { map: planks, bumpMap: planks, bumpScale: 0.9, roughness: 0.36 }));
     floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -fl, FRONT_Z / 2);
     floor.receiveShadow = true;
     R.add(floor);
@@ -442,6 +445,8 @@ export class Room3D {
       const m = (o as Mesh).material;
       for (const x of Array.isArray(m) ? m : m ? [m] : []) if ((x as MeshStandardMaterial).isMeshStandardMaterial && !(x as MeshStandardMaterial).envMap) { (x as MeshStandardMaterial).envMap = env; this.envMats.add(x as MeshStandardMaterial); }
     });
+    this.box = boxEnv([WEST_X, -FLOOR_Y, 0], [EAST_X, -CEIL_Y, FRONT_Z], this.probeAt);
+    for (const m of this.envMats) boxProjected(m, this.box);
     // the still scenery in few draws
     mergeStatic(R);
   }
@@ -460,6 +465,7 @@ export class Room3D {
    */
   setProbe(t: Texture): void {
     this.probe = true;
+    this.box.on.value = 1;
     for (const m of this.envMats) m.envMap = t;
   }
 
