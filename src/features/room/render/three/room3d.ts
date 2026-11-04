@@ -20,6 +20,7 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
 import { OutsideView } from './outside/view';
 import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, print, radiator } from './furniture3d';
+import { deskChair } from './chair3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import {
   BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, MONITOR_Z, SLATS_X0, SLATS_X1, SLAT_W, WALL_T, WEST_X, WINDOW,
@@ -375,6 +376,8 @@ export class Room3D {
     });
     R.add(softBox({ x: kx - 5200, y: ys - 40, w: 11200, h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
     R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200), notebook(-16600, ys, 10000, 0.22));
+    // the chair, half under the desk west of the keyboard, turned toward the window as left after use
+    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
     this.mug = mug(g.mug, ys, MONITOR_Z + 3200);
     R.add(this.mug.root);
 
