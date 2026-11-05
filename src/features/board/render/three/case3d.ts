@@ -5,7 +5,7 @@
 // silver pillars and rails, a lit edge round the glass, lit slots in the pillars and over the top fans, hex mesh, two name plates).
 // The body (`root`: top, floor, the rear and front walls, the back sheet, feet, controls) stays; the outer side panel (`side`: the sheet, its
 // window, trim and lights) hangs in `door`, which machine3d.ts swings open (`doorPose`, casedoor.ts). The working details are in casedetail3d.ts.
-import { BoxGeometry, ExtrudeGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Shape, ShapeGeometry, Vector2, type Material } from 'three';
+import { BoxGeometry, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Shape, ShapeGeometry, Vector2, type Material } from 'three';
 import { drum, instanced, place, post, rectBox, rod, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
@@ -114,17 +114,8 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
     glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), new MeshStandardMaterial({ color: L.glass.color, transparent: true, opacity: L.glass.opacity, roughness: 0.03, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
     glass.position.z = FRONT - SIDE_T / 2;
     glass.castShadow = false;
+    // (no painted streaks, as the 2D has: the glass shows the room's own light, the window by day, the lamps and the city at night)
     side.add(glass);
-    // faint diagonal reflections across the glass (the 2D's), where they fit inside the window
-    const sheen = new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: kind === 'matte' ? 0.016 : 0.024, depthWrite: false });
-    for (const [x0, w] of [[0.36, 0.08], [0.47, 0.018], [0.86, 0.055]] as const) {
-      const a = win.x + win.w * x0, b = a + win.w * w, run = win.h * 0.3, y0 = win.y + 60, y1 = win.y + win.h - 60;
-      if (a - run < win.x + 100 || b > win.x + win.w - 100) continue;
-      const q = [[a, y0], [b, y0], [b - run, y1], [a - run, y1]].map(([x, y]) => new Vector2(x!, -y!));
-      const m = new Mesh(new ShapeGeometry(shapeOf(q)), sheen);
-      m.position.z = FRONT - SIDE_T / 2 + 2;
-      side.add(m);
-    }
   }
 
   // the lower panel over the PSU bay: its intake and the maker's badge (east of it, as in 2D)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, type Mesh } from 'three';
+import { Box3, type Material, type Mesh } from 'three';
 import { builtinTheme } from '@/core/render/theme';
 import { CASE_KIND, caseWindow } from '@/features/room/render/shell/casedecor';
 import { CASE_D, CASE_Z } from '@/features/room/render/three/roomplan';
@@ -38,6 +38,8 @@ describe('the 3D cases', () => {
         expect(g.min.x, kind).toBeCloseTo(w.x, 0);
         expect(g.max.y, kind).toBeCloseTo(-w.y, 0);
       }
+      // no painted streaks on the glass: all on the side panel takes the room's light, as the glass does
+      m.side.traverse((o) => { if ((o as Mesh).isMesh && o !== m.hit) expect(((o as Mesh).material as Material).type, kind).not.toBe('MeshBasicMaterial'); });
       // the side panel takes a click only on its unseen plate (it opens the case); the parts behind it take the rest
       m.side.traverse((o) => { if ((o as Mesh).isMesh && o !== m.hit) expect(o.raycast.length, kind).toBe(0); });
       expect(m.hit.userData.id, kind).toBe('case.side');
