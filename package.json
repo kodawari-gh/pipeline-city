@@ -13,6 +13,7 @@
     "bench:speed": "node tools/bench-speed.mjs",
     "bench:3d": "node tools/bench3d.mjs",
     "shot": "node tools/shot.mjs",
+    "bake:cloth": "node tools/bake-cloth.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
   },

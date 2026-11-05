@@ -15,6 +15,7 @@ This file is the hub: world layout, layers, theme, snapshot fields, known gaps a
 | the room's wall, floor, ceiling, desk, perspective, camera cap, baking | [`render/room/shell.md`](../src/features/room/shell.md) |
 | the window, game-time clock, time of day, the room's light | [`render/room/light.md`](../src/features/room/light.md) |
 | zoom bands of every device, smoothed zoom, off-screen skipping, bake switches | [`render/lod.md`](render/lod.md) |
+| 3D room cloth (the hoodie): pattern pieces, the offline cloth solver, how to bake a model | [`render/cloth.md`](render/cloth.md) |
 | the CPU die and the memory map | [`DIE.md`](DIE.md) |
 
 ## Files
