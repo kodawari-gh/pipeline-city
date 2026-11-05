@@ -22,13 +22,14 @@ import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/p
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
-import { OutsideView } from './outside/view';
+import { GLASS_T, OutsideView } from './outside/view';
+import { M } from './outside/plan';
 import { bed, bookcase, ceilingLight, door, eastWall, nightstand, oak, print } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
+import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf } from './palette';
 import {
   BED, BENCH, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
   WALL_T, WEST_X, WINDOW,
@@ -63,8 +64,17 @@ const SUN_D = 90000;
 const PLASTER_TILE = 8000;
 /** The sky's fill colour at noon (the night's is a deep blue). */
 const NOON_SKY = new Color(0xe4ecff);
-/** The share of the day's light the tinted glass holds back at noon (`OutsideView.setTint` darkens the view as much). */
-const TINT_CUT = 0.35;
+/**
+ * The lamps are real lamps: their light falls off as the square of the distance in metres (decay 2, `M` units a metre), a lamp's level is its
+ * lumens over the cone it lights, and a lux on a face is `LUX_K` of the scene's light (the camera's exposure for the room: a task lamp's
+ * 2000 lux pool shows bright, a lantern's 60 lux a metre off dim). `lumens(lm, cone)` is a point or spot light's intensity (`cone` its
+ * half-angle, a whole sphere by default); `nits(cd)` an area light's, for a face that shows `cd` candela a square metre.
+ */
+const LUX_K = 1.4e-3;
+const lumens = (lm: number, cone = Math.PI): number => lm / (2 * Math.PI * (1 - Math.cos(cone))) * M * M * LUX_K;
+const nits = (cd: number): number => cd * LUX_K;
+/** The desk lamp's bulb, the bedside lantern's (a 60 W-equivalent bulb in paper), the screen's mean glow (a dark interface, half its white). */
+const DESK_LM = 500, LANTERN_LM = 800, SCREEN_NITS = 120;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -171,9 +181,10 @@ export class Room3D {
   /** A faint light from the viewer's side, for the fronts the window does not see (no shadow). */
   private fill = new DirectionalLight(0xfff4e6, 0);
   private hemi = new HemisphereLight(0xe4ecff, 0xe2d6c6, 1);
-  private lampLight = new SpotLight(0xffd29a, 0, 0, 0.6, 0.7, 0);
-  private bedLight = new PointLight(LANTERN, 0, 42000, 1);
-  private screenLight = new PointLight(0xa8cfff, 0, 9000, 0);
+  private lampLight = new SpotLight(kelvin(3000), 0, 0, 0.6, 0.7, 2);
+  private bedLight = new PointLight(LANTERN, 0, 0, 2);
+  /** The screen's glow on the keyboard and the desk: an area light on its face, lighting only what is in front of it. */
+  private screenLight = new RectAreaLight(0xa8cfff, 0, 1, 1);
   private outside: OutsideView;
   private blinds: Mesh[] = [];
   private blindK = 0;
@@ -290,7 +301,8 @@ export class Room3D {
     this.bedLight.position.set(...ns.bulb);
     // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly; its paper and its bulb let the light through
     // (they cast no shadow: the paper glows with it, `shade`)
-    this.bedLight.shadow.camera.near = 200; this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
+    // (a light with no cut-off distance keeps its shadow camera's own range: it must reach across the room)
+    Object.assign(this.bedLight.shadow.camera, { near: 200, far: 130000 }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
     ns.root.traverse((o) => { const m = (o as Mesh).material; if (m === ns.shade || m === ns.glow) o.castShadow = false; });
     const top = ceilingLight(4000, CEIL_Y, 30000);
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
@@ -366,6 +378,7 @@ export class Room3D {
     this.lampLight.position.set(mx, my, mz);
     this.lampLight.target.position.set(mx + this.lamp.dir[0] * 4000, deskTop, mz + 2500);
     this.lampLight.castShadow = true; this.lampLight.shadow.mapSize.set(1024, 1024); this.lampLight.shadow.bias = -0.0005; this.lampLight.shadow.radius = 6;
+    Object.assign(this.lampLight.shadow.camera, { near: 200, far: 90000 });
     R.add(this.lampLight, this.lampLight.target);
 
     // ---- on the building's column: the clock over the router on its shelf, the letterbox, the plates ----
@@ -453,7 +466,10 @@ export class Room3D {
     Object.assign(this.sun.shadow.camera, { near: SUN_D - 30000, far: SUN_D + 90000 });
     this.sun.shadow.bias = -0.0002; this.sun.shadow.normalBias = 30; this.sun.shadow.radius = 5;
     R.add(this.sun, this.sun.target);
-    this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 2500);
+    // (on the panel's face, turned to the room: an area light shines along its -z)
+    this.screenLight.width = SCREEN.w; this.screenLight.height = SCREEN.h;
+    this.screenLight.position.set(SCREEN.x + SCREEN.w / 2, -(SCREEN.y + SCREEN.h / 2), MONITOR_Z + 200);
+    this.screenLight.rotation.y = Math.PI;
     R.add(this.screenLight);
     this.probeAt = [cx, deskTop + 3500, DESK_D + 5000];
 
@@ -609,31 +625,32 @@ export class Room3D {
     const open = 1 - this.blindK * 0.85;
     // the day comes in by the window, the sky's light and the sun; the rest of the room has what bounces (the probe). At night a dim blue
     // moonlight: the lamps, the screen and the machine carry the room
-    // (the glass looks north: the sun comes in only low, at the day's two ends, from the side it stands to; the tint takes its share of the sky)
-    const sunIn = smooth(0.02, 0.12, -sunDir(f.hour)[2]), clear = 1 - day * TINT_CUT;
-    this.outside.setTint(day);
-    this.sun.intensity = (day * 4.2 * sunIn + night * 0.25) * open * clear;
+    // (the glass looks north: the sun comes in only low, at the day's two ends, from the side it stands to; the glass takes its share of all
+    // of it, `GLASS_T`, at every hour)
+    const sunIn = smooth(0.02, 0.12, -sunDir(f.hour)[2]);
+    this.sun.intensity = (day * 5.8 * sunIn + night * 0.25) * open * GLASS_T;
     // (at night the lit city's glow through the whole glass wall: a soft blue light over the desk)
-    this.key.intensity = (0.05 + night * 0.7 + day * 2.2) * open * clear * KEY_REF ** KEY_DECAY;
+    this.key.intensity = (0.05 + night * 0.7 + day * 3) * open * GLASS_T * KEY_REF ** KEY_DECAY;
     this.fill.intensity = 0.03 + day * 0.45;
     this.hemi.intensity = 0.06 + day * 0.45;
     this.hemi.color.set(0x5d6fae).lerp(NOON_SKY, day);
     const env = this.probe ? PROBE_K : 0.35 * (0.16 + 0.84 * day);
     this.envs.setStrength(env);
-    this.lampLight.intensity = f.lamp ? 1.8 + night * 1.2 : 0;
+    // (a lamp is as bright by day as by night: the camera does not adapt)
+    this.lampLight.intensity = f.lamp ? lumens(DESK_LM, this.lampLight.angle) : 0;
     this.lamp.bulb.emissiveIntensity = f.lamp ? 3 : 0.05;
     this.lamp.inner.emissiveIntensity = f.lamp ? 0.6 : 0;
     // the bedside lantern lights itself as the evening comes: a warm pool round the bed, its bulb glowing through the paper; the bed's LED
     // strips come on a little before it, a cyan glow on the floor round the bed and on the wall over the headboard
     const bedside = Math.min(1, Math.max(0, (night - 0.35) / 0.3)), led = Math.min(1, Math.max(0, (night - 0.2) / 0.4));
-    this.bedLight.intensity = bedside * 9000;
+    this.bedLight.intensity = bedside * lumens(LANTERN_LM);
     this.shade.emissiveIntensity = bedside * 1.1;
     this.bulbGlow.emissiveIntensity = bedside * 4;
     this.ledGlow.emissiveIntensity = led * 3;
     this.ledUnder.intensity = led * 6;
     this.ledHalo.intensity = led * 10;
     this.deskLed.intensity = led * 18;
-    this.screenLight.intensity = f.screen.powered ? 0.3 + night * 0.7 : 0;
+    this.screenLight.intensity = f.screen.powered ? nits(SCREEN_NITS) : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);

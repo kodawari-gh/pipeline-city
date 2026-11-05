@@ -39,10 +39,10 @@ const SHADOW_HALF = 420, SHADOW_AT = new Vector3(GRID.av0, 0, -380);
 /** The lamps whose light is drawn (the nearest to where the window looks, down the avenue); the rest only glow. */
 const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 /**
- * The glass's tint at noon (`setTint`): smart glass that darkens with the day, so the bright city keeps to the room's exposure, a little cool. At
- * night it is clear (1 is the outside's own exposure).
+ * The glass's share of the light: a neutral grey glass, the same at every hour, so the bright day keeps to the room's exposure and the night
+ * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d.ts`).
  */
-const TINT = new Color(0.42, 0.46, 0.52);
+export const GLASS_T = 0.47;
 /** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
 const CITY_GLOW = new Color(0.062, 0.036, 0.05), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
 /** The low mist at night (`haze.ts`): its colour, lit from below by the streets (linear), and its density at the street (per m). */
@@ -175,7 +175,7 @@ export class OutsideView {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
       uniforms: {
-        tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(1, 1, 1) },
+        tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(GLASS_T, GLASS_T, GLASS_T) },
         tMirror: { value: null }, mirrorOf: { value: new Matrix4() }, mirrorK: { value: 0 }, mirrorPx: { value: new Vector2() }, glassN: { value: new Vector3(0, 0, 1) },
       },
     });
@@ -244,8 +244,6 @@ export class OutsideView {
     this.sunMoved = true;
   }
 
-  /** The glass's tint for the day's light `day` (0 night, 1 day): clear at night, `TINT` at noon. */
-  setTint(day: number): void { (this.quad.uniforms.tint!.value as Color).setRGB(1, 1, 1).lerp(TINT, day); }
 
   /** The hour's sky and light (a few times a game hour), the clouds' drift and the wind every frame. */
   frame(hour: number, t: number): void {
