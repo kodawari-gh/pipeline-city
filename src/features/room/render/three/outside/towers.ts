@@ -1,16 +1,22 @@
 // The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
 // shader (`facadeMaterial`): its windows in bays and storeys on slim mullions, the glass over a room seen in depth (interior mapping) with its
-// blind or curtains, mirroring the sky and the street's far side, the walls in panels and tiles with their joints, slab edges and stains, rooms
-// lit at night (an office in zones along a floor, a home room by room); far away each pattern fades to its average where its scale is under a
-// pixel, so it does not shimmer. The sky's light falls off down a wall toward the street. A flat block near the window has its balconies. On
-// the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its door, plant boxes, water tanks, solar panels,
-// skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant screens, their LED bands, the red beacons
-// blinking at night. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts each in its own light.
+// blind or curtains, mirroring the sky, the street's far side and the city's skyline beyond, with the sun's glare and a pane's flash on it; the
+// walls in panels and tiles with their joints, slab edges and stains. At night its rooms are lit by each building's own habit (whole floors, zones,
+// desks or stacks; a home room by room), gathered in patches, each in its lamp's colour, and some turn on or off as the night goes. Far away each
+// pattern fades to its average where its scale is under a pixel, so it does not shimmer. The sky's light falls off down a wall toward the street.
+// A flat block near the window has its balconies. On the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its
+// door, plant boxes, water tanks, solar panels, skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant
+// screens, their LED bands, the red beacons blinking at night. The tall landmarks wear their own light after dark (a floodlit head, lit edges, a
+// lit crown), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
+// each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
 import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial, Vector3 } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
+import type { SignWash } from './signlight';
 
-/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel, a sign. */
-const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7, Sign = 8 }
+/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel, a sign, a spire in its floodlights. */
+const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7, Sign = 8, Flood = 9 }
+/** How a thin thing (a plain mast, a beacon, a line of LEDs) holds a pixel's width far off: `look` is its middle and this, the axes it grows on. */
+const enum Wide { Across = 1, Up = 2, All = 3 }
 
 /** The towers' LED bands: cyan, warm white, amber (the room's accent families), and how often each is picked. */
 const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
@@ -26,13 +32,18 @@ const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16), TANK_LID = new ConeGeome
 
 type V3 = readonly [number, number, number];
 
-/** The buildings' geometry: each vertex's place, normal, facade uv (m), frame colour, facade look (bay, storey, window share across and up), glass tint, and (seed, kind, reflection). */
+/** The buildings' geometry: each vertex's place, normal, facade uv (m), frame colour, facade look (bay, storey, window share across and up), glass tint, (seed, kind, reflection), and a head's floodlight (colour, and the heights it runs between). */
 class Mass {
-  pos: number[] = []; nor: number[] = []; fuv: number[] = []; col: number[] = []; look: number[] = []; tint: number[] = []; aux: number[] = [];
+  pos: number[] = []; nor: number[] = []; fuv: number[] = []; col: number[] = []; look: number[] = []; tint: number[] = []; aux: number[] = []; wash: number[] = []; washY: number[] = [];
   private c = new Color(); private t = new Color();
   /** The look the next vertices take: its bay is stretched per wall (`box`'s `fit`). */
   lk: [number, number, number, number] = [1, 1, 0, 0];
   private ax: [number, number, number] = [0, Kind.Plain, 0];
+  /** The floodlight on the next vertices: its colour, and from where to where it grows. */
+  fl: [number, number, number] = [0, 0, 0];
+  flY: [number, number] = [0, 0];
+  /** The signs that light the wall they hang on. */
+  washes: SignWash[] = [];
 
   /** What the next vertices are: their frame colour, tint, look, seed, kind and reflection. */
   set(frame: number | Color, tint: number, kind: Kind, seed = 0, look: [number, number, number, number] = [1, 1, 0, 0], refl = 0): this {
@@ -46,7 +57,7 @@ class Mass {
   private vert(p: V3, n: V3, u: number, v: number): void {
     this.pos.push(p[0], p[1], p[2]); this.nor.push(n[0], n[1], n[2]); this.fuv.push(u, v);
     this.col.push(this.c.r, this.c.g, this.c.b); this.tint.push(this.t.r, this.t.g, this.t.b);
-    this.look.push(...this.lk); this.aux.push(...this.ax);
+    this.look.push(...this.lk); this.aux.push(...this.ax); this.wash.push(...this.fl); this.washY.push(...this.flY);
   }
 
   /** A quad a, b, c, d (counter-clockwise seen from its front) and its uvs, as two triangles. */
@@ -102,6 +113,8 @@ class Mass {
     g.setAttribute('look', new Float32BufferAttribute(this.look, 4));
     g.setAttribute('tint', new Float32BufferAttribute(this.tint, 3));
     g.setAttribute('aux', new Float32BufferAttribute(this.aux, 3));
+    g.setAttribute('wash', new Float32BufferAttribute(this.wash, 3));
+    g.setAttribute('washY', new Float32BufferAttribute(this.washY, 2));
     g.computeBoundingSphere();
     return g;
   }
@@ -228,19 +241,36 @@ function crown(m: Mass, b: Building, rand: () => number): void {
   let tip = h + PARAPET;
   if (b.crown === 'mast') {
     const mh = 25 + h * 0.12;
-    m.set(0x9da2a8, 0, Kind.Plain).box(sized(cx, cz, 3, 3), h, h + 6, true);
-    m.box(sized(cx, cz, 1.1, 1.1), h + 6, h + mh, true);
+    if (b.light) m.set(b.light, 0, Kind.Flood, 0, [0, h, 6, 0]);
+    else m.set(0x9da2a8, 0, Kind.Plain);
+    m.box(sized(cx, cz, 3, 3), h, h + 6, true);
+    m.set(0x9da2a8, 0, Kind.Plain, 0, [cx, 0, cz, Wide.Across]).box(sized(cx, cz, 1.1, 1.1), h + 6, h + mh, true);
     tip = h + mh;
+    // a landmark's mast: rings of light up it
+    if (b.light) for (let k = 1; k <= 5; k++) {
+      const y = h + 6 + ((mh - 8) * k) / 5;
+      m.set(b.light, 0, Kind.Led, b.seed % 991, [cx, y + 0.45, cz, Wide.All]).box(sized(cx, cz, 2.2, 2.2), y, y + 0.9, true);
+    }
   } else if (b.crown === 'spire') {
-    const sh = h * 0.22;
-    m.set(new Color(b.frame).lerp(new Color(0xc8ccd0), 0.5), 0, Kind.Plain).shape(new ConeGeometry(w * 0.34, sh, 4).rotateY(Math.PI / 4), cx, h + sh / 2, cz);
+    const sh = h * 0.22, r0 = w * 0.34, cone = new ConeGeometry(r0, sh, 4).rotateY(Math.PI / 4);
+    if (b.light) m.set(b.light, 0, Kind.Flood, 0, [0, h, sh, 0]);
+    else m.set(new Color(b.frame).lerp(new Color(0xc8ccd0), 0.5), 0, Kind.Plain);
+    m.shape(cone, cx, h + sh / 2, cz);
+    // a landmark's spire: a line of light up each edge, its needle lit
+    if (b.light) {
+      m.set(b.light, 0, Kind.Led, b.seed % 991);
+      const c = r0 * Math.SQRT1_2 + 0.1;
+      for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]] as const) rib(m, [cx + sx * c, h, cz + sz * c], [cx, h + sh, cz], [sx, 0, sz], 1.1);
+    }
+    m.lk = [cx, 0, cz, Wide.Across];
     m.box(sized(cx, cz, 0.6, 0.6), h + sh * 0.95, h + sh + 14, false);
     tip = h + sh + 14;
   } else if (b.crown === 'lantern') {
-    // a glass lantern over the roof, its ribs in the frame's colour; lit warm at night
+    // a glass lantern over the roof, its ribs in the frame's colour; lit warm at night, a landmark's the brighter in its own light
     const lh = 10 + rand() * 6, r = inset(t, 2.5);
-    m.set(0xffc98f, 0, Kind.Crown, b.seed, [2.4, h, lh, 0]).box(r, h, h + lh, true);
+    m.set(b.light ?? 0xffc98f, 0, Kind.Crown, b.seed, [2.4, h, lh, b.light ? 1.5 : 0]).box(r, h, h + lh, true);
     m.set(b.frame, 0, Kind.Plain).box(inset(r, -0.3), h + lh, h + lh + 1.2, true);
+    if (b.light) m.set(b.light, 0, Kind.Led, b.seed % 991, [0, h + lh + 0.6, 0, Wide.Up]).box(inset(r, -0.36), h + lh + 0.25, h + lh + 0.95, false);
     tip = h + lh + 1.2;
   } else if (b.style !== 'tile' && h > 70 && rand() < 0.55) {
     const sh = 4 + rand() * 4;
@@ -248,25 +278,70 @@ function crown(m: Mass, b: Building, rand: () => number): void {
     tip = h + sh;
   }
   if (h < 110) return;
-  m.set(0x400808, 0, Kind.Beacon, rand()).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
-  for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand()).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
+  m.set(0x400808, 0, Kind.Beacon, rand(), [cx, tip + 0.6, cz, Wide.All]).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
+  for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand(), [x, h + PARAPET + 0.4, z, Wide.All]).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
 }
 
-/** A modern tower's LEDs: a band round the top of each tier under its parapet; on a few, a strip up each corner of the shaft. */
+/** A thin lit line up a slanted edge from a to b, its face turned out toward `out`. */
+function rib(m: Mass, a: V3, b: V3, out: V3, w: number): void {
+  const t = new Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize(), o = new Vector3(...out).normalize();
+  const n = o.clone().addScaledVector(t, -o.dot(t)).normalize(), u = t.clone().cross(n).multiplyScalar(w / 2);
+  const at = (p: V3, s: number): V3 => [p[0] + u.x * s, p[1] + u.y * s, p[2] + u.z * s], z: [number, number] = [0, 0];
+  m.quad(at(a, -1), at(a, 1), at(b, 1), at(b, -1), [n.x, n.y, n.z], z, z, z, z);
+}
+
+/** A line of LEDs round a tier, under its parapet. */
+function band(m: Mass, t: Tier): void {
+  m.lk = [0, t.y1 - 0.625, 0, Wide.Up];
+  m.box(inset(t, -0.06), t.y1 - 0.9, t.y1 - 0.35, false);
+}
+
+/** A strip of LEDs up a tier's corners. */
+function corners(m: Mass, t: Rect, y0: number, y1: number, w: number): void {
+  for (const [x, z] of [[t.x0, t.z0], [t.x1, t.z0], [t.x1, t.z1], [t.x0, t.z1]] as const) {
+    m.lk = [x, 0, z, Wide.Across];
+    m.box(sized(x, z, w, w), y0, y1, false);
+  }
+}
+
+/** A modern tower's LEDs: a band round the top of each tier under its parapet; on a few, a strip up each corner of the shaft. A landmark has them all, in its own light. */
 function leds(m: Mass, b: Building): void {
   const r = rng(b.seed ^ 0x5bd1);
+  if (b.light) {
+    m.set(b.light, 0, Kind.Led, b.seed % 991);
+    for (const [i, t] of b.tiers.entries()) {
+      band(m, t);
+      if (i > 0) corners(m, t, t.y0, t.y1 - 0.9, 0.5);
+    }
+    return;
+  }
   if (b.style === 'tile' || topOf(b) < 60 || r() > 0.55) return;
   m.set(LEDS[Math.floor(r() * LEDS.length)]!, 0, Kind.Led, b.seed % 991);
-  for (const t of b.tiers) m.box(inset(t, -0.06), t.y1 - 0.9, t.y1 - 0.35, false);
+  for (const t of b.tiers) band(m, t);
   const s = b.tiers[1];
   if (!s || r() > 0.3) return;
-  for (const [x, z] of [[s.x0, s.z0], [s.x1, s.z0], [s.x1, s.z1], [s.x0, s.z1]] as const) m.box(sized(x, z, 0.36, 0.36), s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, false);
+  corners(m, s, s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, 0.36);
 }
 
-/** A sign's board, its glyphs on its south face (and its north one if `both`), its other faces a dark case. `lit`: a lit box with dark glyphs, not neon on a dark board. */
-function board(m: Mass, r: Rect, y0: number, y1: number, colour: number, seed: number, lit: boolean, both: boolean): void {
+/** A tall tower's head in floodlights at night: a landmark's always, in its own light; a few others', fainter. Its colour (linear), and the height it starts from. */
+function headLight(b: Building): { c: [number, number, number]; from: number } | null {
+  const h = topOf(b), r = rng(b.seed ^ 0x3ead), col = (hex: number, k: number): [number, number, number] => { const c = new Color(hex); return [c.r * k, c.g * k, c.b * k]; };
+  if (b.light) return { c: col(b.light, 1.05), from: h * 0.62 };
+  if (h < 130 || b.style === 'tile' || r() > 0.28) return null;
+  return { c: col(LEDS[Math.floor(r() * LEDS.length)]!, 0.5), from: h * (0.78 + r() * 0.12) };
+}
+
+/**
+ * A sign's board, its glyphs on its south face (and its north one if `both`), its other faces a dark case. `lit`: a lit box with dark glyphs, not
+ * neon on a dark board. `on`: the wall it hangs from, which takes its light.
+ */
+function board(m: Mass, r: Rect, y0: number, y1: number, colour: number, seed: number, lit: boolean, both: boolean, on?: { fixed: 'x' | 'z'; at: number; out: number }): void {
   const look: [number, number, number, number] = [r.x1 - r.x0, y1 - y0, y0, lit ? 1 : 0];
   let wall = 0;
+  if (on) {
+    const xs = on.fixed === 'z';
+    m.washes.push({ ...on, mid: xs ? (r.x0 + r.x1) / 2 : (r.z0 + r.z1) / 2, half: xs ? (r.x1 - r.x0) / 2 : (r.z1 - r.z0) / 2, y0, y1, colour, seed, box: lit });
+  }
   m.set(colour, 0, Kind.Sign, seed);
   m.box(r, y0, y1, true, false, () => { m.lk = wall === 0 || (both && wall === 2) ? look : [1, 1, 0, -1]; wall++; });
 }
@@ -281,7 +356,7 @@ function signs(m: Mass, b: Building, away: number): void {
   const colour = (): number => SIGNS[Math.floor(r() * SIGNS.length)]!, seed = (): number => Math.floor(r() * 991) + 0.37;
   if (away < SIGN_TOWER && topOf(b) >= 60 && b.style !== 'tile' && r() < 0.11) {
     const s = b.tiers[Math.min(1, b.tiers.length - 1)]!, w = 3.5 + r() * 3, h = Math.min((s.y1 - s.y0) * 0.7, w * (4 + Math.floor(r() * 6))), x = s.x0 + w + r() * (s.x1 - s.x0 - 2 * w), y1 = s.y1 - 2 - r() * (s.y1 - s.y0 - h - 2);
-    board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false);
+    board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false, { fixed: 'z', at: s.z1, out: 1 });
   }
   if (away > SIGN_FAR || t.y1 < 9) return;
   const onGrid = (v: number, pitch: number): boolean => Math.abs(v / pitch - Math.round(v / pitch)) < 1e-6;
@@ -290,14 +365,14 @@ function signs(m: Mass, b: Building, away: number): void {
     if (!on || r() > 0.5 * share) continue;
     const w = 1.9 + r() * 1, h = tall(w), z = t.z0 + 2 + r() * (t.z1 - t.z0 - 4), near = x + out * 0.2, far = near + out * w;
     if (h < w * 2) continue;
-    board(m, { x0: Math.min(near, far), x1: Math.max(near, far), z0: z - 0.14, z1: z + 0.14 }, y0, y0 + h, colour(), seed(), r() < 0.25, true);
+    board(m, { x0: Math.min(near, far), x1: Math.max(near, far), z0: z - 0.14, z1: z + 0.14 }, y0, y0 + h, colour(), seed(), r() < 0.25, true, { fixed: 'x', at: x, out });
     m.set(0x26282b, 0, Kind.Plain);
     for (const y of [y0 + 0.4, y0 + h - 0.6]) m.box({ x0: Math.min(x, near), x1: Math.max(x, near), z0: z - 0.05, z1: z + 0.05 }, y, y + 0.14, true);
   }
   const south = onGrid(-t.z1 - GRID.street, GRID.pz), width = t.x1 - t.x0;
   if (south && b.tiers.length === 1 && b.style !== 'band' && r() < 0.28 * share) {
     const w = 1.9 + r() * 1, h = tall(w), x = t.x0 + w + r() * (width - 2 * w);
-    if (h >= w * 2) board(m, { x0: x - w / 2, x1: x + w / 2, z0: t.z1 + 0.06, z1: t.z1 + 0.34 }, y0, y0 + h, colour(), seed(), r() < 0.25, false);
+    if (h >= w * 2) board(m, { x0: x - w / 2, x1: x + w / 2, z0: t.z1 + 0.06, z1: t.z1 + 0.34 }, y0, y0 + h, colour(), seed(), r() < 0.25, false, { fixed: 'z', at: t.z1, out: 1 });
   }
   if (south && b.tiers.length === 1 && t.y1 < 45 && width > 9 && r() < 0.18 * share) {
     const w = Math.min(width - 3, 5 + r() * 10), h = Math.max(1.6, w / (3 + Math.floor(r() * 3))), x = t.x0 + 1.5 + w / 2 + r() * (width - 3 - w);
@@ -312,16 +387,20 @@ function signs(m: Mass, b: Building, away: number): void {
   }
 }
 
-/** Every building in one geometry. */
-export function massGeometry(bs: readonly Building[]): BufferGeometry {
+/** Every building in one geometry. `washes` takes the signs that light a wall (`signlight.ts`). */
+export function massGeometry(bs: readonly Building[], washes: SignWash[] = []): BufferGeometry {
   const m = new Mass();
+  m.washes = washes;
   for (const b of bs) {
-    const s = STYLES[b.style], rand = rng(b.seed), away = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1), near = away < CLUTTER;
+    const s = STYLES[b.style], rand = rng(b.seed), away = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1), near = away < CLUTTER, head = headLight(b);
     b.tiers.forEach((t, i) => {
       // the walls: each wall's bays stretched to fit it whole
       const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
       m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
+      if (head) { m.fl = head.c; m.flY = [head.from, topOf(b)]; }
       m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
+      m.fl = [0, 0, 0];
+      m.flY = [0, 0];
       // the parapet round the roof, the gravel inside it
       const frame = new Color(b.frame).multiplyScalar(b.style === 'glass' ? 1 : 0.92);
       m.set(frame, 0, Kind.Plain).box(t, t.y1, t.y1 + PARAPET, false);
@@ -357,12 +436,12 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
   return m.geometry();
 }
 
-/** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons, the sun (direction, colour) and the horizon's colour, for what the glass mirrors and the shadows on a wall. */
-export interface FacadeUniforms { night: { value: number }; time: { value: number }; sun: { value: Vector3 }; sunCol: { value: Color }; hor: { value: Color } }
+/** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons, the sun (direction, colour) and the horizon's colour, for what the glass mirrors and the shadows on a wall; and a picture's pixel in metres for each metre away. */
+export interface FacadeUniforms { night: { value: number }; time: { value: number }; sun: { value: Vector3 }; sunCol: { value: Color }; hor: { value: Color }; pixel: { value: number } }
 
 /** The buildings' material: a standard one whose colour, roughness, metalness and glow the facade's shader paints. */
 export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms } {
-  const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 }, sun: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color(0, 0, 0) }, hor: { value: new Color(0, 0, 0) } };
+  const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 }, sun: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color(0, 0, 0) }, hor: { value: new Color(0, 0, 0) }, pixel: { value: 0 } };
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
@@ -370,9 +449,20 @@ export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms
     sh.uniforms.fSun = u.sun;
     sh.uniforms.fSunCol = u.sunCol;
     sh.uniforms.fHor = u.hor;
+    sh.uniforms.fPixel = u.pixel;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 fuv;\nattribute vec4 look;\nattribute vec3 tint;\nattribute vec3 aux;\nvarying vec2 vFuv;\nflat varying vec4 vLook;\nvarying vec3 vTint;\nflat varying vec3 vAux;\nvarying vec3 vFW;\nvarying vec3 vFN;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFuv = fuv; vLook = look; vTint = tint; vAux = aux;\nvFW = (modelMatrix * vec4(transformed, 1.0)).xyz; vFN = normalize(mat3(modelMatrix) * normal);');
+      .replace('#include <common>', '#include <common>\nattribute vec2 fuv;\nattribute vec4 look;\nattribute vec3 tint;\nattribute vec3 aux;\nattribute vec3 wash;\nattribute vec2 washY;\nuniform float fPixel;\nvarying vec2 vFuv;\nflat varying vec4 vLook;\nvarying vec3 vTint;\nflat varying vec3 vAux;\nflat varying vec3 vWash;\nflat varying vec2 vWashY;\nvarying float vWide;\nvarying vec3 vFW;\nvarying vec3 vFN;')
+      // a thin thing far off holds a whole pixel of the window's (two of the picture's), or it would come and go as the view moves; a lit one dims as it grows
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vFuv = fuv; vLook = look; vTint = tint; vAux = aux; vWash = wash; vWashY = washY; vWide = 1.0;
+int fk = int(aux.y + 0.5);
+if (look.w > 0.5 && (fk == ${Kind.Plain} || fk == ${Kind.Beacon} || fk == ${Kind.Led})) {
+  vec3 wo = transformed - look.xyz, wa = abs(wo), wm = look.w < 1.5 ? vec3(1.0, 0.0, 1.0) : look.w < 2.5 ? vec3(0.0, 1.0, 0.0) : vec3(1.0);
+  vec3 wg = mix(wa, max(wa, vec3(distance(transformed, cameraPosition) * fPixel)), wm);
+  transformed += sign(wo) * (wg - wa);
+  vWide = dot(wa / wg, wm) / dot(wm, wm);
+}
+vFW = (modelMatrix * vec4(transformed, 1.0)).xyz; vFN = normalize(mat3(modelMatrix) * normal);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime;
@@ -382,6 +472,9 @@ varying vec2 vFuv;
 flat varying vec4 vLook;
 varying vec3 vTint;
 flat varying vec3 vAux;
+flat varying vec3 vWash;
+flat varying vec2 vWashY;
+varying float vWide;
 varying vec3 vFW;
 varying vec3 vFN;
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -392,6 +485,34 @@ float fNoise(vec2 p) {
 }
 /** A band from a to b across x, its edges softened by the pixel's width w. */
 float fBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w, x) - smoothstep(b - w, b + w, x); }
+/** How much the rooms in use gather at a place on a wall: in patches up it and along it. */
+float fGather(vec2 p, float seed) { return (0.35 + 1.3 * fNoise(vec2(seed * 3.3, p.y / 34.0))) * (0.55 + 0.9 * fNoise(p / vec2(23.0, 16.0) + seed * 5.1)); }
+/** A lamp's colour by its warmth, from 0 (a cold daylight tube) through a neutral white to 1 (an old warm bulb). */
+vec3 fLampCol(float t) {
+  vec3 c = mix(vec3(0.74, 0.87, 1.0), vec3(1.0, 0.87, 0.68), smoothstep(0.0, 0.5, t));
+  return mix(c, vec3(1.0, 0.62, 0.32), smoothstep(0.5, 1.0, t));
+}
+/**
+ * The city as a pane's ray r sees it past the street's far side: two rows of towers round the horizon, the far one paler in the haze, each its own
+ * height, against the sky; by day the hour's haze on them, one side of each in the sun; at night dark, their lit rooms and now and then a sign.
+ * px: how far r turns over a pixel. Its colour, and how much of the ray it stops.
+ */
+vec4 fCityMirrored(vec3 r, float px) {
+  float az = atan(r.x, r.z), el = r.y;
+  vec4 o = vec4(0.0);
+  for (int k = 0; k < 2; k++) {
+    float fk = 1.0 - float(k), nz = mix(26.0, 47.0, fk), ny = mix(310.0, 520.0, fk), c = az * nz + fk * 3.7, cid = floor(c), cu = c - cid, th = fHash(vec2(cid, 4.1 + fk));
+    float top = mix(0.03 + 0.2 * th * th, 0.012 + 0.085 * th * th * th, fk), a = smoothstep(top + px, top - px, el);
+    a *= mix(smoothstep(0.0, 0.05, cu) * smoothstep(1.0, 0.95, cu), 0.9, smoothstep(0.03, 0.2, px * nz)) * step(0.14, fHash(vec2(cid, 7.7 + fk)));
+    float roomLit = smoothstep(0.42, 0.8, fNoise(vec2(c * 1.7, el * ny * 0.13 + cid))) * (0.12 + 0.5 * fHash(vec2(cid, 2.3)));
+    vec3 wall = fHor * mix(0.2 + 0.25 * th, 0.5 + 0.2 * th, fk) + fSunCol * 0.05 * (1.0 - fk) * smoothstep(0.35, 0.75, cu);
+    vec3 col = wall * (1.0 - 0.5 * fNight) + fLampCol(fHash(vec2(cid, 11.3))) * roomLit * fNight * mix(1.0, 0.6, fk);
+    float sn = fHash(vec2(cid, 23.9));
+    if (sn > 0.9) col += (sn > 0.97 ? vec3(1.0, 0.25, 0.62) : sn > 0.935 ? vec3(0.3, 0.84, 1.0) : vec3(1.0, 0.68, 0.34)) * smoothstep(0.1, 0.0, abs(el - top * (0.55 + 0.3 * sn)) / max(top, 0.01)) * 1.2 * fNight;
+    o = mix(o, vec4(col, 1.0), a);
+  }
+  return o;
+}
 /** How far a point in a sign's glyph's box (0 to 1) is from the nearest stroke: up to three across and three up, each whole or part way. No real letters. */
 float fGlyph(vec2 c, float gh) {
   float d = 9.0;
@@ -428,26 +549,35 @@ if (fKind == 0 || fKind == 6) {
   float mull = smoothstep(0.035 + mpx, 0.035 - mpx, (0.5 - abs(fract(o.x * wm / lite) - 0.5)) * lite);
   mull = mix(mull, 0.07 / lite, smoothstep(0.1, 0.35, mpx / lite)) * m;
   m -= mull;
-  // who is in. Each building has its share of lit rooms: an office is lit in zones of a few bays along a floor (its floors from empty to
-  // full), most bays of a lit zone on; a home room by room, a room one or two bays
-  float share = 0.08 + 0.4 * fHash(vec2(seed * 0.731, 5.3));
-  float zw = home > 0.5 ? 1.0 + step(0.55, fHash(vec2(seed, 8.7))) : 2.0 + floor(5.0 * fHash(vec2(seed, 8.1)));
-  float zone = floor(id.x / zw), cz = smoothstep(0.08, 0.25, fw.x / zw), cr = max(cz, cy);
-  float rf = fHash(vec2(id.y * 0.37 + seed, 2.9)), hz = fHash(vec2(zone * 1.91 + seed, id.y * 0.83 + 4.7));
-  float occ = home > 0.5 ? share : min(1.0, share * 2.6 * rf * rf);
-  float lit = mix(mix(step(hz, occ), occ, cz), share * mix(0.86, 1.0, home), cy);
+  // who is in. Each building has its share of lit rooms and its own habit: an office lit in whole floors, in zones of a few bays, desk by
+  // desk, or in stacks a few floors high; a home room by room. The rooms in use gather in patches up and along a wall. A zone now and then
+  // turns its lights on or off, each on its own slow clock. Far off a zone's ends soften into its neighbours
+  float habit = fHash(vec2(floor(seed) * 0.37, 21.7));
+  float share = 0.06 + 0.42 * fHash(vec2(seed * 0.731, 5.3));
+  float zw = home > 0.5 ? 1.0 + step(0.55, fHash(vec2(seed, 8.7))) : habit < 0.2 ? 7.0 + floor(8.0 * fHash(vec2(seed, 8.1))) : habit < 0.55 ? 2.0 + floor(4.0 * fHash(vec2(seed, 8.1))) : habit < 0.8 ? 1.0 : 2.0 + floor(2.0 * fHash(vec2(seed, 8.1)));
+  float zh = home < 0.5 && habit >= 0.8 ? 3.0 + floor(6.0 * fHash(vec2(seed, 19.3))) : 1.0;
+  float zone = floor(id.x / zw), fl = floor(id.y / zh), cz = smoothstep(0.08, 0.25, fw.x / zw), cv = smoothstep(0.1, 0.35, fw.y / zh), cr = max(cz, cv);
+  float gather = fGather(vFuv, seed), gatherZ = fGather(vec2(zone * zw * vLook.x, fl * zh * vLook.y), seed);
+  float rf = fHash(vec2(fl * 0.37 + seed, 2.9)), zlit, zt = fract(vFuv.x / (vLook.x * zw)), zs = 0.5 * smoothstep(0.04, 0.16, fw.x / zw);
+  float occ = home > 0.5 ? share * gatherZ : min(1.0, share * 2.6 * rf * rf * gatherZ);
+  float swN = floor(fTime / (70.0 + 170.0 * fHash(vec2(zone + seed, fl + 1.7))) + fHash(vec2(fl + seed, zone + 2.3)));
+  zlit = abs(step(fHash(vec2(zone * 1.91 + seed, fl * 0.83 + 4.7)), occ) - step(0.94, fHash(vec2(zone * 3.1 + seed + swN * 0.77, fl * 1.3 + 6.1))));
+  if (zs > 0.0) zlit = mix(zlit, 0.5 * (zlit + step(fHash(vec2((zt < 0.5 ? zone - 1.0 : zone + 1.0) * 1.91 + seed, fl * 0.83 + 4.7)), occ)), smoothstep(zs, 0.0, min(zt, 1.0 - zt)));
+  float lit = mix(mix(zlit, occ, cz), share * gather * mix(0.86, 1.0, home), cv);
   lit *= mix(mix(step(h3, 0.9), 0.9, cx), 1.0, home);
+  // a dark room still shows a little: a corridor's light, an exit sign, a standby lamp
+  lit = max(lit, 0.05);
   // a shop, a few bays wide: open or shut as one, in its own light, most of them warm, some the city's neon
   float sw = 1.0 + floor(3.0 * fHash(vec2(seed, 13.7))), sid = floor(id.x / sw), hs = fHash(vec2(sid + seed * 2.3, 11.3)), sOpen = step(fHash(vec2(sid + seed, 17.1)), 0.8);
   vec3 sCol = hs < 0.5 ? vec3(1.0, 0.8, 0.58) : hs < 0.64 ? vec3(0.3, 0.8, 1.0) : hs < 0.78 ? vec3(1.0, 0.58, 0.2) : hs < 0.92 ? vec3(1.0, 0.32, 0.2) : vec3(1.0, 0.26, 0.64);
   sCol = mix(sCol, vec3(1.0, 0.7, 0.5), cx);
   lit = mix(lit, mix(sOpen, 0.8, cx), shop);
-  // the light: an office's cool white, many warmer, a few a fluorescent green; a home's warm lamp, some paler, a few a screen's blue. A
-  // curtain wall's glass tints it
-  float hc = fHash(vec2(zone + seed * 3.1, id.y + 9.2)), kz = mix(0.75 + 0.4 * fHash(vec2(hc, 3.7)), 1.0, cr);
-  vec3 cool = hc < 0.55 ? vec3(0.62, 0.85, 1.0) : hc < 0.92 ? vec3(1.0, 0.8, 0.55) : vec3(0.6, 1.0, 0.8);
-  vec3 warm = hc < 0.6 ? vec3(1.0, 0.6, 0.3) : hc < 0.9 ? vec3(1.0, 0.74, 0.48) : vec3(0.42, 0.56, 1.0);
-  vec3 lamp = mix(mix(cool, warm, home), mix(vec3(0.76, 0.84, 0.82), vec3(0.94, 0.64, 0.42), home), cr);
+  // the light: each building has its own warmth, an office's from cold to neutral, a home's from neutral to a warm bulb, each zone a little off
+  // it and at its own brightness; a few a fluorescent green or a screen's blue. A curtain wall's glass tints it. Far off, the building's own
+  float hc = fHash(vec2(zone + seed * 3.1, fl + 9.2)), bt = fHash(vec2(floor(seed) * 0.61, 33.1));
+  float kz = mix(0.55 + 0.7 * fHash(vec2(hc, 3.7)), 1.0, cr) * (0.72 + 0.56 * fHash(vec2(floor(seed) * 0.43, 41.9)));
+  vec3 lamp = fLampCol(mix(0.68 * bt, 0.55 + 0.45 * bt, home) + (hc - 0.5) * 0.55 * (1.0 - cr));
+  lamp = mix(lamp, mix(vec3(0.7, 1.0, 0.82), vec3(0.42, 0.56, 1.0), home), step(0.95, hc) * (1.0 - cr));
   lamp = mix(lamp, sCol, shop) * mix(vec3(1.0), vTint / max(max(vTint.r, vTint.g), max(vTint.b, 1e-3)), refl * 0.5 * (1.0 - shop));
   // the room behind the pane in depth (interior mapping): the eye's ray goes on into a box the room's size (its bays wide, a storey high, a
   // few metres deep) and meets its back wall, a side wall, the floor or the ceiling, an office's desks, a home's sofa or its lamp's shade.
@@ -542,6 +672,11 @@ if (fKind == 0 || fKind == 6) {
   fGlow += sCol * fasc * mix(sOpen, 0.8, cx) * 0.7 * fNight;
   fGlow += fr * lamp * lit * 0.06 * fNight * (1.0 - m);
   fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
+  // a tall tower's head in its floodlights: brightest under its crown, fading down the wall, the walls taking more of it than the glass
+  if (vWashY.y > 0.0) {
+    float washK = clamp((vFW.y - vWashY.x) / (vWashY.y - vWashY.x), 0.0, 1.0);
+    fGlow += vWash * washK * washK * mix(1.0, 0.4, m) * fNight;
+  }
   // what the pane mirrors under the sky, where the sky's cube knows nothing: the eye's ray goes on, turned by the glass, to the far side of the
   // street, to a roof line that wanders along it. Under that line it meets the walls across (in shade or in the sun, as they face), their
   // windows, lit at night, or the road. Each pane is a little out of true, so the picture breaks at its edges
@@ -553,14 +688,30 @@ if (fKind == 0 || fKind == 6) {
   float road = 1.0 - smoothstep(-0.4, 0.4, rp.y), pane = mix(fBand(0.18, 0.82, rc2.x, 0.1) * fBand(0.22, 0.78, rc2.y, 0.1), 0.34, cf);
   vec3 across = (fHor * 0.3 + fSunCol * max(dot(fSun, -vFN), 0.0) * 0.26) * (1.0 - 0.3 * pane);
   across += vec3(1.0, 0.76, 0.5) * pane * mix(step(0.74, fHash(floor(rg) + seed)), 0.26, cf) * 0.55 * fNight;
-  vec3 mirrorK = mix(mix(vec3(0.1 + 0.09 * h), vTint, refl * 0.9), vec3(1.0), pow(1.0 - clamp(-dot(fV, vFN), 0.0, 1.0), 5.0));
+  vec3 mirrorK = mix(mix(vec3(0.1 + 0.09 * h), vTint * 1.7, refl * 0.9), vec3(1.0), pow(1.0 - clamp(-dot(fV, vFN), 0.0, 1.0), 5.0));
   fGlow += mirrorK * hit * mix(across, fHor * 0.09, road) * m;
-  fSpec = 1.0 - hit * m;
+  // over that line, the rest of the city, and only then the sky: a coated pane's sky bright by day, dim at night, under the lights it mirrors
+  vec4 cityIn = fCityMirrored(normalize(fR + fTilt * 2.0), max(length(fwidth(fR)), 0.0012));
+  fGlow += mirrorK * (1.0 - hit) * cityIn.a * cityIn.rgb * m;
+  fSpec = (1.0 - max(hit, cityIn.a) * m) * mix(1.0, mix(2.0, 0.7, fNight), refl * m);
+  // the sun on the glass: panes bow a little, so its image spreads to a wide glare over a wall turned toward it, broken pane by pane; a few
+  // panes, opened or set out of true, each flash in turn as the eye or the sun moves
+  float sunFace = smoothstep(0.0, 0.15, dot(vFN, fSun));
+  if (sunFace > 0.0 && refl > 0.2) {
+    float gS = max(dot(reflect(fV, normalize(vFN + (vec3(h, h2, h3) - 0.5) * 0.16 * (1.0 - cf))), fSun), 0.0);
+    float flash = step(0.9, h3) * step(0.6, refl) * pow(abs(fract(h2 * 17.0 + fTime * 0.02 + (cameraPosition.x + cameraPosition.y) * 0.013) * 2.0 - 1.0), 8.0);
+    fGlow += fSunCol * m * sunFace * (refl * (0.16 * pow(gS, 10.0) + 1.2 * pow(gS, 90.0)) + (1.0 - cf) * 3.0 * flash * (0.25 + 0.75 * o.y * o.y));
+  }
 } else if (fKind == 5) {
   // a lit band of LEDs: a thin line by day, a bright one at night
   diffuseColor.rgb = vec3(0.04);
   fRough = 0.3;
-  fGlow = vColor.rgb * (0.12 + fNight * 2.1);
+  fGlow = vColor.rgb * (0.12 + fNight * 2.1) * pow(vWide, 0.6);
+} else if (fKind == 9) {
+  // a spire in its floodlights: pale metal, bright at its foot where they stand, fading up. vLook: from where, how high
+  diffuseColor.rgb = vec3(0.55, 0.58, 0.6);
+  fRough = 0.5;
+  fGlow = vColor.rgb * (0.12 + 1.5 * exp(-3.0 * clamp((vFW.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
 } else if (fKind == 1) {
   // a roof, each of its own make: a pale membrane in lapped sheets, gravel, a sedum garden inside a gravel margin, or dark bitumen with its
   // pavers. Water marks over them all, grime and the sky's shade along the parapet. Vlook: the roof's rect
@@ -605,14 +756,14 @@ if (fKind == 0 || fKind == 6) {
   fAo = max(fAo, 0.72);
 } else if (fKind == 3) {
   diffuseColor.rgb = vColor.rgb;
-  fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * step(0.55, fract(fTime * 0.45 + vAux.x)) * fNight;
+  fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * vWide * step(0.55, fract(fTime * 0.45 + vAux.x)) * fNight;
 } else if (fKind == 4) {
   // a lit lantern: panes on slim ribs, brightest at the foot where its lamps stand, fading up
   vec2 g = vec2(vFuv.x / vLook.x, (vFuv.y - vLook.y) / 3.0), w = fwidth(g), d = abs(fract(g) - 0.5);
   float pane = mix(smoothstep(0.42 + w.x, 0.42 - w.x, d.x) * smoothstep(0.46 + w.y, 0.46 - w.y, d.y), 0.75, smoothstep(0.15, 0.4, max(w.x, w.y)));
   diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
   fRough = 0.15; fMetal = 0.6;
-  fGlow = vColor.rgb * pane * (0.2 + 0.9 * exp(-3.0 * clamp((vFuv.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
+  fGlow = vColor.rgb * pane * (1.0 + vLook.w) * (0.2 + 0.9 * exp(-3.0 * clamp((vFuv.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
 } else if (fKind == 8) {
   // a sign: its glyphs in a stack or a row, neon tubes on a dark board (a white core, a halo on the board), or dark on a lit box. A few
   // stutter, a few glyphs are dead. By day they are paint. Far off, their average. vLook: its size, its foot, lit or not (under 0: its case)

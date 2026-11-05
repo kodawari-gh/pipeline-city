@@ -80,6 +80,8 @@ export interface Building {
   /** A roof crown: a mast with a beacon, a spire, a lit crown, or none. */
   crown: 'none' | 'mast' | 'spire' | 'lantern';
   seed: number;
+  /** A landmark's own light, sRGB hex: at night its head, its edges and its crown are lit in it, so the skyline reads after dark. */
+  light?: number;
 }
 
 /** The height of a building's top. */
@@ -98,12 +100,12 @@ const TINTS: Record<Style, readonly number[]> = {
   band: [0x41566a, 0x3d4a50, 0x55626e],
 };
 
-/** The tall landmarks, set by hand in the middles of their blocks (i, j): the footprint's half sizes, the height, the crown. */
+/** The tall landmarks, set by hand in the middles of their blocks (i, j): the footprint's half sizes, the height, the crown, the light. */
 const LANDMARKS = [
-  { i: -2, j: 35, hx: 26, hz: 26, h: 440, crown: 'spire' },
-  { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern' },
-  { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast' },
-  { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast' },
+  { i: -2, j: 35, hx: 26, hz: 26, h: 440, crown: 'spire', light: 0xffe0b4 },
+  { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern', light: 0xffb062 },
+  { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast', light: 0x6fdcff },
+  { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast', light: 0xff7a52 },
   { i: 1, j: 9, hx: 20, hz: 20, h: 105, crown: 'lantern' },
 ] as const;
 
@@ -111,7 +113,7 @@ const LANDMARKS = [
 const pick = <T>(r: () => number, xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
 
 /** One building on a lot, its height drawn from how downtown the lot is. */
-function building(lot: Rect, r: () => number, forced?: { h: number; crown: Building['crown'] }): Building {
+function building(lot: Rect, r: () => number, forced?: { h: number; crown: Building['crown']; light?: number }): Building {
   // the blocks nearest the window are old and low, so the window sees over them into the city
   const cx = (lot.x0 + lot.x1) / 2, cz = (lot.z0 + lot.z1) / 2, d = downtown(cx, cz), out = Math.min(1, Math.hypot(cx - GRID.av0, cz) / 900);
   const tower = forced || r() < 0.035 * out + 0.6 * d;
@@ -141,7 +143,7 @@ function building(lot: Rect, r: () => number, forced?: { h: number; crown: Build
     } else tiers[1]!.y1 = h;
   } else tiers.push({ ...lot, y0: 0, y1: h });
   const crown: Building['crown'] = forced?.crown ?? (h > 120 && r() < 0.45 ? 'mast' : h > 150 && r() < 0.3 ? 'lantern' : 'none');
-  return { tiers, style, frame: pick(r, FRAMES[style]), tint: pick(r, TINTS[style]), crown, seed: Math.floor(r() * 1e6) };
+  return { tiers, style, frame: pick(r, FRAMES[style]), tint: pick(r, TINTS[style]), crown, seed: Math.floor(r() * 1e6), ...(forced?.light ? { light: forced.light } : {}) };
 }
 
 /** The blocks that are a park (trees on a lawn), by their (i, j). */
@@ -159,7 +161,7 @@ export function buildings(): Building[] {
     const mark = LANDMARKS.find((l) => l.i === i && l.j === j);
     if (mark) {
       const [x, z] = mid;
-      out.push(building({ x0: x - mark.hx, x1: x + mark.hx, z0: z - mark.hz, z1: z + mark.hz }, r, { h: mark.h, crown: mark.crown }));
+      out.push(building({ x0: x - mark.hx, x1: x + mark.hx, z0: z - mark.hz, z1: z + mark.hz }, r, { h: mark.h, crown: mark.crown, ...('light' in mark ? { light: mark.light } : {}) }));
       // its plaza round it, low wings at the block's ends
       for (const [x0, x1] of [[b.x0, b.x0 + 18], [b.x1 - 18, b.x1]] as const) out.push(building({ x0, x1, z0: b.z0, z1: b.z1 }, r, { h: 14 + r() * 10, crown: 'none' }));
       continue;

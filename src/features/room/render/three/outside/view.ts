@@ -3,9 +3,10 @@
 // screen pixel its block's average, so the perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue
 // down to the downtown towers, the hills. Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and
 // reflections, so the glass towers mirror it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at
-// night (the moon's light is the night sky's), the soft glow round every bright thing at night (`glow.ts`), and the haze over it all
-// (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it. As the light goes the room itself shows
-// faintly in the glass (`mirror.ts`), its lit screen and lamps over the dark city.
+// night (the moon's light is the night sky's), each sign's light on its wall (`signlight.ts`), the soft glow round every bright thing at night
+// (`glow.ts`), and the haze over it all, with a lit mist under it at night (`haze.ts`). At the warm hour the air takes the sky's bands. The traffic
+// moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it, steam rises off a few roofs (`steam.ts`). As the light goes the room
+// itself shows faintly in the glass (`mirror.ts`), only its lit screen and lamps over the dark city.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
   Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
@@ -23,7 +24,9 @@ import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
-import { EARTH_SHADOW, EMBER, skyDome, skyMaterial, type SkyUniforms } from './sky';
+import { EARTH_SHADOW, skyDome, skyMaterial, type SkyUniforms } from './sky';
+import { signWashes, type SignWash } from './signlight';
+import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
 import { facadeMaterial, massGeometry, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
@@ -47,7 +50,9 @@ const MIST = new Color(0.105, 0.07, 0.105), MIST_DENSITY = 4e-4;
 /** The sky at full night (linear) overhead and low down, a navy the room's own `skyAt` does not need to be. */
 const NIGHT_TOP = new Color(0.0035, 0.007, 0.032), NIGHT_HOR = new Color(0.011, 0.014, 0.05);
 /** The sun's light low down, where it has crossed the most air. */
-const SUN_LOW = new Color(1, 0.2, 0.045);
+const SUN_LOW = new Color(1, 0.2, 0.045), STEAM_LOW = new Color(0.2, 0.125, 0.1), HOR_CLEAR = new Color(0xc2e7ff), BOUNCE_LATE = new Color(0xffc48f);
+/** The haze toward a low sun: the rose over the ember, so the far towers fade rose in front of the fire on the horizon. */
+const DUSK_ROSE = new Color(0.56, 0.2, 0.25);
 /** The warm hour's share of the sky at an hour, its bands' brightness as the light goes, how bright the haze is against them. */
 const duskShare = (h: number): number => Math.max(smooth(17.2, 18.9, h) * (1 - smooth(20.1, 21.4, h)), smooth(4.7, 5.7, h) * (1 - smooth(6.6, 8, h)));
 const duskLight = (h: number): number => 1 - 0.7 * smooth(19, 20.9, h) - 0.65 * (1 - smooth(4.7, 6, h));
@@ -97,9 +102,9 @@ vec3 inGlass() {
   r += (texture2D(tMirror, u + mirrorPx * vec2(0.5, 1.5)).rgb + texture2D(tMirror, u + mirrorPx * vec2(-0.5, -1.5)).rgb) * 0.12;
   r += (texture2D(tMirror, u + mirrorPx * vec2(1.1, -1.2)).rgb + texture2D(tMirror, u + mirrorPx * vec2(-1.1, 1.2)).rgb) * 0.12;
   r = min(max(r, vec3(0.0)), vec3(CAP));
-  // the room's dark walls would only veil the city: what shows is what the lamps light, and the brightest of it stays a ghost
+  // the room's dim things (its walls, the plant) would only veil the city: what shows is its lamps and screens, and the brightest stays a ghost
   float l = max(max(r.r, r.g), r.b);
-  r = mix(r, vec3(l), 0.35) * l / (l + 0.003);
+  r = mix(r, vec3(l), 0.35) * smoothstep(0.02, 0.14, l);
   float s = 1.0 - abs(dot(normalize(vWorld - cameraPosition), glassN));
   r *= min(0.2, 0.09 + 0.91 * s * s * s * s * s) * mirrorK;
   return r / (1.0 + max(max(r.r, r.g), r.b) / 0.1);
@@ -129,7 +134,7 @@ export class OutsideView {
   private kit: Kit;
   private sky: ShaderMaterial;
   private dome: Mesh;
-  private env = new WebGLCubeRenderTarget(64, { type: HalfFloatType });
+  private env = new WebGLCubeRenderTarget(128, { type: HalfFloatType });
   private envCam = new CubeCamera(0.5, 1000, this.env);
   private envScene = new Scene();
   private envDirty = true;
@@ -140,6 +145,7 @@ export class OutsideView {
   private lamps: PointLight[] = [];
   private leaf: LeafUniforms;
   private facade: FacadeUniforms;
+  private steam: SteamUniforms;
   private haze: HazeUniforms = {
     hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3(0, 1, 0) }, hzDensity: { value: HAZE_DAY }, hzFall: { value: HAZE_FALL },
     hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
@@ -183,10 +189,12 @@ export class OutsideView {
     const still = new Group(), st = street(k, ts);
     still.add(st.group);
     mergeStatic(still);
-    const facade = facadeMaterial(), mass = new Mesh(massGeometry(buildings()), facade.mat);
+    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), mass = new Mesh(massGeometry(blocks, washes), facade.mat), steam = roofSteam(blocks, this.haze);
+    const signLight = signWashes(washes, this.haze, facade.u.night);
     mass.castShadow = mass.receiveShadow = true;
     this.facade = facade.u;
-    this.scene.add(still, mass, land(k));
+    this.steam = steam.u;
+    this.scene.add(still, mass, land(k), steam.mesh, signLight);
     const plants = plantTrees(ts, k);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
@@ -201,7 +209,7 @@ export class OutsideView {
     this.scene.add(this.dome);
     this.envScene.add(skyDome(this.sky, 100));
     this.scene.environment = this.env.texture;
-    this.disposables.push(facade.mat);
+    this.disposables.push(facade.mat, steam.mesh.material as Material, signLight.material as Material);
     // the lamps' pools on the ground, the haze on every material in place of fog
     for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
     for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow]) withCanyon(m);
@@ -253,7 +261,9 @@ export class OutsideView {
     this.envDirty = true;
     const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day, dusk = duskShare(hour), duskK = duskLight(hour);
     const dark = smooth(0.6, 1, night);
-    const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark), hor = new Color(s.hor).multiplyScalar(lift).lerp(NIGHT_HOR, dark);
+    // the room's table warms its horizon for hours round the warm hour; out here the bands see to that, and until they come the air stays clear
+    const clear = smooth(6.4, 8, hour) * (1 - smooth(17.6, 19, hour));
+    const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark), hor = new Color(s.hor).lerp(HOR_CLEAR, clear * 0.9).multiplyScalar(lift).lerp(NIGHT_HOR, dark);
     u.top.value.copy(top);
     u.hor.value.copy(hor);
     u.sunDir.value.set(sd[0], sd[1], sd[2]);
@@ -261,19 +271,22 @@ export class OutsideView {
     u.dusk.value = dusk;
     u.duskK.value = duskK;
     // the sun's light: white overhead, a burning orange low down; gone under the horizon
-    const low = 1 - smooth(0, 0.45, sd[1]), up = smooth(-0.03, 0.12, sd[1]);
+    const low = 1 - smooth(0.1, 0.75, sd[1]), up = smooth(-0.03, 0.12, sd[1]);
     const sunCol = new Color(0xfff4e2).lerp(SUN_LOW, low * 0.85);
     u.sunCol.value.copy(sunCol).multiplyScalar(day);
     this.sun.color.copy(sunCol);
     this.sun.intensity = 5.6 * day * up;
     this.sun.position.set(sd[0], sd[1], sd[2]).multiplyScalar(1600).add(SHADOW_AT);
-    this.bounce.intensity = 0.55 * day * up;
+    // what the sun's side of the city throws back on the walls in its shade: the window sees those all the late afternoon, so more, and warm
+    const late = smooth(14.5, 16.5, hour) * (1 - smooth(18.5, 20, hour));
+    this.bounce.color.set(0xfff1e2).lerp(BOUNCE_LATE, late);
+    this.bounce.intensity = (0.55 + 0.85 * late) * day * up;
     this.moon.intensity = 0.35 * night;
     this.scene.environmentIntensity = 1;
     // the haze: the horizon's colour by day (at the warm hour the sky's own low down, the view's way), the sun's light in it toward the sun, the
     // city's glow at night, the low mist lit by the streets as the lamps come on
     const side = 0.5 - 0.5 * sd[2] / Math.max(Math.hypot(sd[0], sd[2]), 1e-3);
-    const hz = this.haze, warm = new Color().copy(EARTH_SHADOW).lerp(EMBER, side * side).multiplyScalar(duskK * DUSK_HAZE);
+    const hz = this.haze, warm = new Color().copy(EARTH_SHADOW).lerp(DUSK_ROSE, side * side).multiplyScalar(duskK * DUSK_HAZE);
     u.glow.value.copy(CITY_GLOW).multiplyScalar(night);
     hz.hzCol.value.copy(hor).multiplyScalar(0.95).lerp(warm, dusk).add(u.glow.value);
     hz.hzSun.value.copy(sunCol).multiplyScalar(0.45 * day * up);
@@ -293,6 +306,9 @@ export class OutsideView {
     this.facade.sun.value.set(sd[0], sd[1], sd[2]);
     this.facade.sunCol.value.copy(sunCol).multiplyScalar(day * up);
     this.facade.hor.value.copy(hor).lerp(hz.hzCol.value, dusk);
+    // the roofs' steam: the haze's colour with the sun on it, at night the mist's, warm low down from the streets
+    this.steam.stCol.value.copy(hz.hzCol.value).multiplyScalar(1.2).add(new Color().copy(sunCol).multiplyScalar(0.3 * day * up)).lerp(new Color().copy(MIST).multiplyScalar(1.5), lights);
+    this.steam.stLow.value.copy(this.steam.stCol.value).multiplyScalar(0.72).lerp(STEAM_LOW, lights);
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
@@ -346,6 +362,7 @@ export class OutsideView {
     c.far = 20000;
     c.setViewOffset(fw * ss, fh * ss, rx * ss, ry * ss, rw, rh);
     c.updateMatrixWorld();
+    this.facade.pixel.value = (2 * Math.tan((c.fov * Math.PI) / 360)) / c.zoom / (fh * ss);
     this.dome.position.copy(c.position);
     // the traffic on to the frame's clock, each car placed for this eye, the signals lit
     const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;
@@ -370,7 +387,10 @@ export class OutsideView {
     }
     // the room in the glass (it does not see the window's own quad, whose back is to it)
     const qu = this.quad.uniforms, n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
+    // the window itself out of that picture: it samples the picture, and the glass does not mirror what lies past it
+    this.mesh.visible = false;
     const shown = this.mirrorAt > 0 && this.mirror.draw(renderer, room, camera, this.mesh.getWorldPosition(v), n, fw, fh);
+    this.mesh.visible = true;
     qu.mirrorK!.value = shown ? this.mirrorAt : 0;
     if (shown) {
       qu.tMirror!.value = this.mirror.target!.texture;
