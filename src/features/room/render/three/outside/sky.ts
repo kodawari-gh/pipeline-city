@@ -56,8 +56,8 @@ void main() {
   }
   c += sunCol * disc * 24.0 * up;
   // the moon and the stars
-  float cm = max(dot(d, moonDir), 0.0);
-  c += vec3(0.85, 0.9, 1.0) * (smoothstep(0.999975, 0.99999, cm) * 1.4 + pow(cm, 3000.0) * 0.08 + pow(cm, 60.0) * 0.015) * night;
+  float cm = max(dot(d, moonDir), 0.0), face = cm > 0.99997 ? 0.62 + 0.55 * fbm(d.xy * 260.0) : 1.0;
+  c += vec3(0.85, 0.9, 1.0) * (smoothstep(0.999975, 0.99999, cm) * 0.95 * face + pow(cm, 3000.0) * 0.08 + pow(cm, 60.0) * 0.015) * night;
   vec3 sp = d * 380.0, cell = floor(sp);
   float h = hash3(cell);
   if (h > 0.996 && e > 0.04) c += vec3(0.9, 0.94, 1.0) * smoothstep(0.3, 0.0, length(fract(sp) - 0.5)) * night * (0.6 + 0.4 * sin(time * 1.7 + h * 90.0)) * 1.6;

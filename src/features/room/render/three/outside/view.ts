@@ -1,9 +1,10 @@
 // The view out of the room's window: a real city in 3D (`plan.ts`), drawn each frame from where the room's camera stands, moved out to the
-// fifteenth floor (`toOutside`), into a target the size of the window on screen. The window's quad shows that picture pixel for pixel, so the
-// perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue down to the downtown towers, the hills.
-// Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and reflections, so the glass towers mirror
-// it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at night (the moon's light is the night
-// sky's), and the haze over it all (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it.
+// fifteenth floor (`toOutside`), into a supersampled target the size of the window on screen. The window's quad shows that picture, each
+// screen pixel its block's average, so the perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue
+// down to the downtown towers, the hills. Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and
+// reflections, so the glass towers mirror it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at
+// night (the moon's light is the night sky's), the soft glow round every bright thing at night (`glow.ts`), and the haze over it all
+// (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
   Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
@@ -14,6 +15,7 @@ import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
 import { land } from './city';
+import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
@@ -37,6 +39,8 @@ const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
 const TINT = new Color(0.42, 0.46, 0.52);
 /** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
 const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
+/** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
+const GLOW = 0.3;
 
 const QUAD_VERT = /* glsl */`
 varying vec3 vWorld;
@@ -46,16 +50,24 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
+/** The picture is drawn at this many pixels per screen pixel each way (with multisampling on), and the quad averages each block of them. */
+const SUPER = 2;
+
+// the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
-uniform sampler2D tOut;
+uniform sampler2D tOut, tGlow;
 uniform samplerCube tEnv;
 uniform vec2 off, inv;
-uniform float live;
+uniform float live, ss, glowK;
 uniform vec3 tint;
 varying vec3 vWorld;
 const float CAP = 4.0;
 void main() {
-  vec3 c = live > 0.5 ? texture2D(tOut, (gl_FragCoord.xy - off) * inv).rgb : textureCube(tEnv, normalize(vWorld - cameraPosition)).rgb;
+  vec2 uv = (gl_FragCoord.xy - off) * ss * inv;
+  vec3 c = live > 0.5 ? texture2D(tOut, uv).rgb : textureCube(tEnv, normalize(vWorld - cameraPosition)).rgb;
+  // a bad pixel out there must not reach the room's bloom, which would spread it over the whole frame
+  c = min(max(c, vec3(0.0)), vec3(1e3));
+  if (live > 0.5 && glowK > 0.0) c += texture2D(tGlow, uv).rgb * glowK;
   // the sun's glints off cars and panes held to a glow: the room's bloom would spread a pixel of them over the street
   c *= min(1.0, CAP / max(max(c.r, c.g), max(c.b, 1e-4)));
   gl_FragColor = vec4(c * tint, 1.0);
@@ -92,6 +104,7 @@ export class OutsideView {
   private lampLight: LampUniforms = { lampNight: { value: 0 } };
   private fleet: Fleet;
   private signals: Signals;
+  private glow = new CityGlow();
   /** The clock (s) the frame set, and the one the traffic has run to. */
   private clock = 0;
   private ran = -1;
@@ -107,7 +120,7 @@ export class OutsideView {
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
-      uniforms: { tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, tint: { value: new Color(1, 1, 1) } },
+      uniforms: { tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(1, 1, 1) } },
     });
     this.mesh = new Mesh(new PlaneGeometry(w, h), this.quad);
     this.mesh.position.set(cx, cy, z);
@@ -215,8 +228,10 @@ export class OutsideView {
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
+    this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
+    this.quad.uniforms.glowK!.value = GLOW * lights * lights;
     const sk = Math.round(hour * 20);
     if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
   }
@@ -245,14 +260,14 @@ export class OutsideView {
     if (behind) { x0 = y0 = -1; x1 = y1 = 1; nearest = 0; }
     const rx = Math.max(0, Math.floor(((x0 + 1) / 2) * fw) - 2), rr = Math.min(fw, Math.ceil(((x1 + 1) / 2) * fw) + 2);
     const ry = Math.max(0, Math.floor(((1 - y1) / 2) * fh) - 2), rb = Math.min(fh, Math.ceil(((1 - y0) / 2) * fh) + 2);
-    const rw = rr - rx, rh = rb - ry;
-    if (rw < 1 || rh < 1) return;
-    // the picture's target: it only grows, so a flight does not make a new one each frame
+    if (rr - rx < 1 || rb - ry < 1) return;
+    // the picture's target, supersampled (then fewer samples each): it only grows, so a flight does not make a new one each frame
+    const ss = samples > 0 ? SUPER : 1, ms = ss > 1 ? Math.min(samples, 2) : samples, rw = (rr - rx) * ss, rh = (rb - ry) * ss;
     let t = this.target;
-    if (!t || t.width < rw || t.height < rh || t.samples !== samples) {
+    if (!t || t.width < rw || t.height < rh || t.samples !== ms) {
       const w = Math.max(rw, t?.width ?? 0), h = Math.max(rh, t?.height ?? 0);
       t?.dispose();
-      t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples });
+      t = this.target = new WebGLRenderTarget(w, h, { type: HalfFloatType, samples: ms });
       this.quad.uniforms.tOut!.value = t.texture;
     }
     // the camera outside: the room camera's place in metres, its turn, its lens, cropped to the box
@@ -262,7 +277,7 @@ export class OutsideView {
     c.fov = camera.fov; c.aspect = camera.aspect; c.zoom = camera.zoom;
     c.near = Math.min(100, Math.max(0.03, (nearest / M) * 0.95));
     c.far = 20000;
-    c.setViewOffset(fw, fh, rx, ry, rw, rh);
+    c.setViewOffset(fw * ss, fh * ss, rx * ss, ry * ss, rw, rh);
     c.updateMatrixWorld();
     this.dome.position.copy(c.position);
     // the traffic on to the frame's clock, each car placed for this eye, the signals lit
@@ -282,10 +297,15 @@ export class OutsideView {
     renderer.setRenderTarget(t);
     renderer.clear();
     renderer.render(this.scene, c);
+    if (this.quad.uniforms.glowK!.value > 0) {
+      this.glow.run(renderer, t, rw, rh);
+      this.quad.uniforms.tGlow!.value = this.glow.texture;
+    }
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
     this.sunMoved = false;
-    this.quad.uniforms.off!.value.set(rx, fh - ry - rh);
+    this.quad.uniforms.off!.value.set(rx, fh - rb);
+    this.quad.uniforms.ss!.value = ss;
     this.quad.uniforms.inv!.value.set(1 / t.width, 1 / t.height);
     this.live = camera;
   }
@@ -295,6 +315,7 @@ export class OutsideView {
     this.env.dispose();
     this.sun.shadow.map?.dispose();
     this.fleet.dispose();
+    this.glow.dispose();
     this.signals.mesh.dispose();
     (this.signals.mesh.material as Material).dispose();
     this.scene.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });

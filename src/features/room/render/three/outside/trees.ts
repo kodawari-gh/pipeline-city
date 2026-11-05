@@ -148,33 +148,37 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], far: boolean): void
   crown(cards, cl, o, rad, h, tint, H, far, r);
 }
 
-/** The leaves' wind and their light from behind: the clock (s), the sun's direction in the camera's frame, the sunlight they let through. */
-export interface LeafUniforms { time: { value: number }; sunView: { value: Vector3 }; glow: { value: Color } }
+/** The leaves' wind and their light: the clock (s), the sun's direction in the camera's frame, the sunlight they let through, the street's light at night (0 to 1). */
+export interface LeafUniforms { time: { value: number }; sunView: { value: Vector3 }; glow: { value: Color }; night: { value: number } }
 
 /**
  * The leaf material's own shading: the lumps keep the crown's bent normals (the normal map's chunk would take the face's), the wind sways
  * them (more toward the crown's top), and the sun behind them shines through: the side of a crown away from the sun glows green, the more
- * as the eye looks toward the sun; the sun's glint off the leaves is kept faint.
+ * as the eye looks toward the sun; the sun's glint off the leaves is kept faint. At night the street's lamps light a crown from under and
+ * the city's glow its top, so it stays a soft mass and not a black hole in the view.
  */
 export function leafShader(m: MeshStandardMaterial): LeafUniforms {
-  const u: LeafUniforms = { time: { value: 0 }, sunView: { value: new Vector3(0, 1, 0) }, glow: { value: new Color(0, 0, 0) } };
+  const u: LeafUniforms = { time: { value: 0 }, sunView: { value: new Vector3(0, 1, 0) }, glow: { value: new Color(0, 0, 0) }, night: { value: 0 } };
   m.onBeforeCompile = (sh) => {
     sh.uniforms.leafTime = u.time;
     sh.uniforms.leafSun = u.sunView;
     sh.uniforms.leafGlow = u.glow;
+    sh.uniforms.leafNight = u.night;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 wind;\nuniform float leafTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float sway = sin(leafTime * 1.3 + wind.y) * 0.7 + sin(leafTime * 3.1 + wind.y * 2.7) * 0.3;
         transformed += vec3(0.8, 0.2, 0.55) * sway * wind.x;`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 leafSun;\nuniform vec3 leafGlow;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 leafSun;\nuniform vec3 leafGlow;\nuniform float leafNight;')
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);\n  nonPerturbedNormal = normal;')
       // a crown is no mirror: the sun's glint off its cards, seen against the light, would frost it white
       .replace('#include <aomap_fragment>', 'reflectedLight.directSpecular *= 0.15;\n#include <aomap_fragment>')
       .replace('#include <opaque_fragment>', `
         float through = max(0.0, -dot(normal, leafSun)) * (0.3 + 0.7 * pow(max(dot(normalize(-vViewPosition), leafSun), 0.0), 2.0));
         outgoingLight += diffuseColor.rgb * leafGlow * through;
+        float upward = dot(normal, normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0)));
+        outgoingLight += diffuseColor.rgb * leafNight * mix(vec3(0.95, 0.62, 0.38), vec3(0.14, 0.16, 0.26), smoothstep(-0.7, 0.5, upward));
         #include <opaque_fragment>`);
   };
   m.customProgramCacheKey = () => 'outside-leaf';

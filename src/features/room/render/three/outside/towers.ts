@@ -1,7 +1,7 @@
 // The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
-// shader (`facadeMaterial`): its windows in bays and storeys, the glass a mirror of the sky or a dark room with its blind part drawn, the
-// frame each floor a touch different, rooms lit at night (an office floor by floor, a home room by room); far away, where a bay is under a
-// pixel, it fades to the facade's average, so it does not shimmer. A flat block near the window has its balconies. On the roofs: a parapet,
+// shader (`facadeMaterial`): its windows in bays and storeys, the glass a mirror of the sky over a room seen in depth (interior mapping) with
+// its blind or curtains, the frame each floor a touch different, rooms lit at night (an office in zones along a floor, a home room by room);
+// far away each pattern fades to its average where its scale is under a pixel, so it does not shimmer. A flat block near the window has its balconies. On the roofs: a parapet,
 // gravel, a stair and lift bulkhead, plant boxes, a row of air-conditioning units; the towers' masts, spires, lit lanterns and plant screens,
 // their LED bands, the red beacons blinking at night.
 import { BufferGeometry, Color, ConeGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three';
@@ -157,7 +157,7 @@ function crown(m: Mass, b: Building, rand: () => number): void {
   } else if (b.crown === 'lantern') {
     // a glass lantern over the roof, its ribs in the frame's colour; lit warm at night
     const lh = 10 + rand() * 6, r = inset(t, 2.5);
-    m.set(0xffe3b0, 0, Kind.Crown, b.seed).box(r, h, h + lh, true);
+    m.set(0xffc98f, 0, Kind.Crown, b.seed, [2.4, h, lh, 0]).box(r, h, h + lh, true);
     m.set(b.frame, 0, Kind.Plain).box(inset(r, -0.3), h + lh, h + lh + 1.2, true);
     tip = h + lh + 1.2;
   } else if (b.style !== 'tile' && h > 70 && rand() < 0.55) {
@@ -235,15 +235,18 @@ export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms
     sh.uniforms.fNight = u.night;
     sh.uniforms.fTime = u.time;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 fuv;\nattribute vec4 look;\nattribute vec3 tint;\nattribute vec3 aux;\nvarying vec2 vFuv;\nvarying vec4 vLook;\nvarying vec3 vTint;\nvarying vec3 vAux;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFuv = fuv; vLook = look; vTint = tint; vAux = aux;');
+      .replace('#include <common>', '#include <common>\nattribute vec2 fuv;\nattribute vec4 look;\nattribute vec3 tint;\nattribute vec3 aux;\nvarying vec2 vFuv;\nflat varying vec4 vLook;\nvarying vec3 vTint;\nflat varying vec3 vAux;\nvarying vec3 vFW;\nvarying vec3 vFN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFuv = fuv; vLook = look; vTint = tint; vAux = aux;\nvFW = (modelMatrix * vec4(transformed, 1.0)).xyz; vFN = normalize(mat3(modelMatrix) * normal);');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime;
 varying vec2 vFuv;
-varying vec4 vLook;
+// flat: a wall's seed interpolated comes out a hair different from pixel to pixel, and any hash of it a different number, in specks
+flat varying vec4 vLook;
 varying vec3 vTint;
-varying vec3 vAux;
+flat varying vec3 vAux;
+varying vec3 vFW;
+varying vec3 vFN;
 float fHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float fNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -258,56 +261,112 @@ vec3 fGlow = vec3(0.0), fTilt = vec3(0.0);
 int fKind = int(vAux.y + 0.5);
 if (fKind == 0 || fKind == 6) {
   vec2 g = vFuv / vLook.xy, id = floor(g), f = fract(g), fw = fwidth(g);
-  float h = fHash(id + vAux.x), h2 = fHash(id * 1.37 + vAux.x + 7.1), h3 = fHash(id * 2.71 + vAux.x * 0.13 + 3.3);
-  // the ground floor's shop windows are taller and wider, and more of them lit
+  float home = fKind == 6 ? 1.0 : 0.0, seed = vAux.x, refl = vAux.z;
+  float h = fHash(id + seed), h2 = fHash(id * 1.37 + seed + 7.1), h3 = fHash(id * 2.71 + seed * 0.13 + 3.3);
+  // how much of each scale a pixel covers: a bay across, a floor up; the detail in a window (its room, its blind's edge) goes first. Each
+  // pattern fades to its average where its scale is under the pixel, so the far city does not shimmer
+  float cx = smoothstep(0.1, 0.35, fw.x), cy = smoothstep(0.1, 0.35, fw.y), cf = max(cx, cy);
+  float fine = smoothstep(0.05, 0.18, max(fw.x, fw.y));
+  // the window; the ground floor's shop windows are taller and wider, and more of them lit
   float shop = 1.0 - step(0.5, id.y);
   vec2 win = mix(vLook.zw, vec2(0.92, 0.8), shop);
   vec2 lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6), hi = lo + win;
-  vec2 e = smoothstep(lo - fw, lo + fw, f) - smoothstep(hi - fw, hi + fw, f);
-  float far = smoothstep(0.2, 0.6, max(fw.x, fw.y));
-  float m = mix(e.x * e.y, win.x * win.y, far);
-  // the room behind the pane: dark, some blinds part way down, the head of the opening in its reveal's shadow
-  float yy = clamp((f.y - lo.y) / win.y, 0.0, 1.0);
-  float blind = step(0.62, h2) * fract(h2 * 13.7);
-  float bl = mix(step(1.0 - blind, yy), 0.12, far);
-  vec3 room = mix(vec3(0.018, 0.02, 0.024) * (0.6 + 0.9 * h), vec3(0.4, 0.38, 0.34), bl);
-  room *= mix(1.0 - 0.55 * smoothstep(0.82, 1.0, yy), 0.9, far);
-  float refl = vAux.z, deep = 1.0 - smoothstep(0.5, 0.8, refl);
+  vec2 e = mix(smoothstep(lo - fw, lo + fw, f) - smoothstep(hi - fw, hi + fw, f), win, vec2(cx, cy));
+  float m = e.x * e.y;
+  vec2 o = clamp((f - lo) / win, 0.0, 1.0), ow = fw / win;
+  // who is in. Each building has its share of lit rooms: an office is lit in zones of a few bays along a floor (its floors from empty to
+  // full), most bays of a lit zone on; a home room by room, a room one or two bays
+  float share = 0.08 + 0.4 * fHash(vec2(seed * 0.731, 5.3));
+  float zw = home > 0.5 ? 1.0 + step(0.55, fHash(vec2(seed, 8.7))) : 2.0 + floor(5.0 * fHash(vec2(seed, 8.1)));
+  float zone = floor(id.x / zw), cz = smoothstep(0.08, 0.25, fw.x / zw), cr = max(cz, cy);
+  float rf = fHash(vec2(id.y * 0.37 + seed, 2.9)), hz = fHash(vec2(zone * 1.91 + seed, id.y * 0.83 + 4.7));
+  float occ = home > 0.5 ? share : min(1.0, share * 2.6 * rf * rf);
+  float lit = mix(mix(step(hz, occ), occ, cz), share * mix(0.86, 1.0, home), cy);
+  lit *= mix(mix(step(h3, 0.9), 0.9, cx), 1.0, home);
+  lit = mix(lit, mix(step(h3, 0.8), 0.8, cx), shop);
+  // the light: an office's cool white, many warmer, a few a fluorescent green; a home's warm lamp, some paler, a few a screen's blue. A
+  // curtain wall's glass tints it
+  float hc = fHash(vec2(zone + seed * 3.1, id.y + 9.2)), kz = mix(0.75 + 0.4 * fHash(vec2(hc, 3.7)), 1.0, cr);
+  vec3 cool = hc < 0.55 ? vec3(0.62, 0.85, 1.0) : hc < 0.92 ? vec3(1.0, 0.8, 0.55) : vec3(0.6, 1.0, 0.8);
+  vec3 warm = hc < 0.6 ? vec3(1.0, 0.6, 0.3) : hc < 0.9 ? vec3(1.0, 0.74, 0.48) : vec3(0.42, 0.56, 1.0);
+  vec3 lamp = mix(mix(cool, warm, home), mix(vec3(0.76, 0.84, 0.82), vec3(0.94, 0.64, 0.42), home), cr);
+  lamp = mix(lamp, vec3(1.0, 0.82, 0.62), shop) * mix(vec3(1.0), vTint / max(max(vTint.r, vTint.g), max(vTint.b, 1e-3)), refl * 0.5);
+  // the room behind the pane in depth (interior mapping): the eye's ray goes on into a box the room's size (its bays wide, a storey high, a
+  // few metres deep) and meets its back wall, a side wall, the floor or the ceiling, an office's desks, a home's sofa or its lamp's shade.
+  // Its colour by day (dark, lit from the window), its light at night (where the room's lamps put it); far off, their averages
+  float rw = zw * vLook.x, rc = hi.y * vLook.y + 0.12, hr = fHash(vec2(zone + seed, id.y + 0.5));
+  float dep = home > 0.5 ? 3.4 + 1.8 * fHash(vec2(seed, 1.9)) : 7.0 + 5.0 * fHash(vec2(seed, 1.9));
+  vec3 inDay = vec3(0.035);
+  float inLit = mix(0.36, 0.4, home);
+  if (fine < 0.999 && m > 0.0) {
+    vec3 V = normalize(vFW - cameraPosition), rd = vec3(dot(V, vec3(vFN.z, 0.0, -vFN.x)), V.y, max(-dot(V, vFN), 0.02));
+    rd.x = abs(rd.x) < 1e-4 ? 1e-4 : rd.x;
+    rd.y = abs(rd.y) < 1e-4 ? 1e-4 : rd.y;
+    vec3 p = vec3(clamp(vFuv.x - zone * rw, 0.0, rw), clamp(f.y * vLook.y, 0.01, rc - 0.01), 0.0);
+    vec3 tt = (vec3(rd.x > 0.0 ? rw : 0.0, rd.y > 0.0 ? rc : 0.0, dep) - p) / rd;
+    float t = min(min(tt.x, tt.y), tt.z), level = step(tt.y, min(tt.x, tt.z)), alb, L;
+    vec3 q = p + rd * t;
+    if (home < 0.5) {
+      // an office: carpet that dims away from the window's row of lamps, pale walls darker below the desks' line, a ceiling of light panels.
+      // A panel's edge softens with the pixel, more along the depth a low view squeezes
+      float s = 0.04 + fw.x * vLook.x, sz = s + fw.y * vLook.y * rd.z / abs(rd.y);
+      if (level > 0.5 && rd.y > 0.0) {
+        float pnl = smoothstep(0.3 + s, 0.3 - s, abs(fract(q.x / 2.4) - 0.5) * 2.4) * smoothstep(0.6 + sz, 0.6 - sz, abs(fract(q.z / 2.4 + 0.25) - 0.5) * 2.4);
+        alb = 0.7; L = 0.2 + 2.8 * pnl;
+      } else if (level > 0.5) { alb = 0.3; L = 0.75 * (0.55 + 0.45 * exp(-q.z / 5.0)); }
+      else { alb = 0.6; L = 0.55 * (1.0 - 0.45 * smoothstep(1.1, 0.9, q.y)); }
+    } else {
+      // a home: a wooden floor, painted walls, the lamp's shade hanging in the middle, a sofa along the back wall, a picture over it
+      vec3 lp = vec3(rw * (0.3 + 0.4 * hr), rc - 0.55, dep * 0.55), oc = p - lp;
+      float tf = rd.y < 0.0 ? (0.48 - p.y) / rd.y : 1e9;
+      vec3 qd = p + rd * tf;
+      if (tf < t && qd.z > dep - 0.95 && qd.x > rw * 0.2 && qd.x < rw * 0.8) { q = qd; alb = 0.14; }
+      else if (level > 0.5) alb = rd.y > 0.0 ? 0.7 : 0.32;
+      else alb = (0.5 + 0.25 * hr) * (tt.z <= tt.x && abs(q.x - rw * 0.5) < rw * 0.12 && abs(q.y - 1.6) < 0.3 ? 0.4 : 1.0);
+      L = 0.14 + 0.8 / (1.0 + dot(q - lp, q - lp) * 0.3);
+      float b = dot(oc, rd), c = dot(oc, oc) - 0.05;
+      if (b < 0.0 && b * b > c) { alb = 1.0; L = 3.0; }
+    }
+    inDay = mix(inDay, vec3(alb * (0.15 + 0.85 * exp(-q.z / 2.5)) * 0.12), 1.0 - fine);
+    inLit = mix(inLit, alb * L, 1.0 - fine);
+  }
+  // a blind part way down an office's pane; a home's curtains drawn to the sides, a few closed. Fabric: pale by day, glowing with the
+  // room's light at night
+  float drop = step(0.55, h2) * fract(h2 * 13.7), cw = 0.06 + 0.22 * fract(h2 * 7.3), sheer = step(0.84, h2);
+  float cov = home > 0.5
+    ? max(sheer, max(smoothstep(cw + ow.x, cw - ow.x, o.x), smoothstep(1.0 - cw - ow.x, 1.0 - cw + ow.x, o.x)))
+    : step(0.01, drop) * smoothstep(1.0 - drop - ow.y, 1.0 - drop + ow.y, o.y);
+  cov = mix(cov, mix(0.22, 0.44, home), cf) * (1.0 - shop);
+  float fold = mix(home > 0.5 ? 0.82 + 0.18 * sin(o.x * win.x * vLook.x * 22.0) : 0.86 + 0.14 * o.y, 1.0, fine);
+  vec3 room = mix(inDay, mix(vec3(0.42, 0.43, 0.44), vec3(0.62, 0.57, 0.5), home) * fold, cov);
+  float through = mix(inLit, mix(0.3, 0.4, home) * fold, cov);
+  float deep = 1.0 - smoothstep(0.5, 0.8, refl);
   // a punched window sits back in the wall: its reveal's shadow along the head and down one side
   float reveal = max(smoothstep(hi.y - 0.14 * win.y - fw.y, hi.y - 0.14 * win.y + fw.y, f.y), 1.0 - smoothstep(lo.x + 0.07 * win.x - fw.x, lo.x + 0.07 * win.x + fw.x, f.x));
-  vec3 glass = mix(room, vTint, refl) * (1.0 - mix(reveal, 0.1, far) * 0.6 * deep);
+  vec3 glass = mix(room, vTint, refl) * (1.0 - mix(reveal, 0.1, cf) * 0.6 * deep);
   // the frame: each floor a touch different, rain streaks down it, a little grime toward the street
-  vec3 fr = vColor.rgb * (0.92 + 0.14 * fHash(vec2(id.y, vAux.x))) * (0.84 + 0.16 * smoothstep(0.0, 20.0, vFuv.y));
-  fr *= 0.9 + 0.14 * fNoise(vec2(vFuv.x * 0.45, vFuv.y * 0.03 + vAux.x));
-  // a brick front's stone sills and lintels
+  vec3 fr = vColor.rgb * (0.92 + 0.14 * mix(fHash(vec2(id.y, seed)), 0.5, cy)) * (0.84 + 0.16 * smoothstep(0.0, 20.0, vFuv.y));
+  fr *= 0.9 + 0.14 * fNoise(vec2(vFuv.x * 0.45, vFuv.y * 0.03 + seed));
+  // a tiled front's stone sills and lintels
   float trim = 1.0 - step(0.2, refl);
   float sill = fBand(lo.x - 0.04, hi.x + 0.04, f.x, fw.x) * (fBand(lo.y - 0.07, lo.y, f.y, fw.y) + fBand(hi.y, hi.y + 0.08, f.y, fw.y));
-  fr = mix(fr, vec3(0.62, 0.58, 0.51) * (0.9 + 0.2 * h), mix(sill, 0.08, far) * trim * (1.0 - shop));
+  fr = mix(fr, vec3(0.62, 0.58, 0.51) * (0.9 + 0.2 * mix(h, 0.5, cf)), mix(sill, 0.08, cf) * trim * (1.0 - shop));
   diffuseColor.rgb = mix(fr, glass, m);
-  fRough = mix(0.8, 0.05 + 0.12 * h * refl + 0.12 * (1.0 - refl), m);
+  fRough = mix(0.8, 0.05 + 0.12 * mix(h, 0.5, max(cf, fNight)) * refl + 0.12 * (1.0 - refl), m);
   fMetal = mix(0.0, refl * 0.9, m);
-  // a curtain wall's panes each a little out of true, so the sky they mirror breaks up pane by pane
-  fTilt = (vec3(h, h2, h3) - 0.5) * 0.09 * m * refl * (1.0 - far);
-  // lit rooms by night. An office (a curtain wall, a grid, ribbons) is lit floor by floor in a cool white, most of a lit floor's bays on, a
-  // few floors warmer; a home (brick) room by room, warm, a few in a screen's blue. Each building has its own share of lit floors, so the
-  // night city is bright towers among dark ones; far off, across and up, each fades to its average. The shops below are mostly lit
-  float office = fKind == 0 ? 1.0 : 0.0, farX = smoothstep(0.08, 0.35, fw.x), farY = smoothstep(0.08, 0.35, fw.y);
-  float share = 0.06 + 0.36 * fHash(vec2(vAux.x * 0.731, 5.3));
-  float fl = mix(step(fHash(vec2(id.y * 0.37 + vAux.x, 2.9)), share), share, farY);
-  float pw = mix(share * 0.7 + 0.05, mix(0.03, 0.8, fl), office);
-  pw = mix(pw, 0.75, shop);
-  float on = mix(step(h3, pw), pw, farX);
-  vec3 cool = mix(vec3(0.7, 0.84, 1.0), vec3(1.0, 0.88, 0.7), step(0.72, fHash(vec2(id.y, vAux.x + 1.3))));
-  vec3 warm = mix(vec3(1.0, 0.62, 0.32), vec3(0.45, 0.6, 1.0), step(0.9, fract(h3 * 31.3)));
-  vec3 lamp = mix(mix(warm, cool, office), vec3(1.0, 0.8, 0.6), shop) * mix(0.8, 0.62, office);
-  fGlow = lamp * on * m * (1.0 - 0.6 * bl) * mix(0.55 + 0.45 * fract(h3 * 17.1), 0.78, far) * (fNight * 1.4 + 0.03);
-  // the lamps' warm light washing the lowest floors' walls
+  // by day a curtain wall's panes each a little out of true, so the sky they mirror breaks up pane by pane; at night they lie flat, or the
+  // street lamps' glints would scatter over them in specks
+  fTilt = (vec3(h, h2, h3) - 0.5) * 0.09 * m * refl * (1.0 - cf) * (1.0 - fNight);
+  // the night: the lit rooms' light through their glass (a mirror glass lets less through), the frame round a lit window catching a
+  // little of it, the street lamps' warm light washing the lowest floors' walls
+  fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl) * (fNight * 2.6 + 0.02);
+  fGlow += fr * lamp * lit * 0.06 * fNight * (1.0 - m);
   fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
 } else if (fKind == 5) {
   // a lit band of LEDs: a thin line by day, a bright one at night
   diffuseColor.rgb = vec3(0.04);
   fRough = 0.3;
-  fGlow = vColor.rgb * (0.12 + fNight * 3.2);
+  fGlow = vColor.rgb * (0.12 + fNight * 2.1);
 } else if (fKind == 1) {
   diffuseColor.rgb = vColor.rgb * (0.82 + 0.22 * fHash(floor(vFuv * 0.6) + vAux.x));
   fRough = 0.96;
@@ -315,9 +374,12 @@ if (fKind == 0 || fKind == 6) {
   diffuseColor.rgb = vColor.rgb;
   fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * step(0.55, fract(fTime * 0.45 + vAux.x)) * fNight;
 } else if (fKind == 4) {
+  // a lit lantern: panes on slim ribs, brightest at the foot where its lamps stand, fading up
+  vec2 g = vec2(vFuv.x / vLook.x, (vFuv.y - vLook.y) / 3.0), w = fwidth(g), d = abs(fract(g) - 0.5);
+  float pane = mix(smoothstep(0.42 + w.x, 0.42 - w.x, d.x) * smoothstep(0.46 + w.y, 0.46 - w.y, d.y), 0.75, smoothstep(0.15, 0.4, max(w.x, w.y)));
   diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
   fRough = 0.15; fMetal = 0.6;
-  fGlow = vColor.rgb * 0.9 * fNight;
+  fGlow = vColor.rgb * pane * (0.2 + 0.9 * exp(-3.0 * clamp((vFuv.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
 }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fRough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = fMetal;')
