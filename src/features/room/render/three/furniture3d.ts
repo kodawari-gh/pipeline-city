@@ -6,7 +6,7 @@
 // nothing answers a click.
 import {
   BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, Vector2, type Material, type Texture,
+  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, TorusGeometry, Vector2, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
@@ -180,18 +180,41 @@ export function bed(): Bed {
 // ---------------------------------------------------------------- the bedside drawer
 export interface Bedside { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
 
-/** Washi paper: long fibres in it, the lantern's bamboo rib a spiral round it (seamless across: each turn climbs one pitch). */
+/** The lantern's bamboo ribs: rings evenly up its paper (by length along its side). */
+const RIBS = 16;
+/** Washi paper: long fibres in it, the lantern's ribs dark rings round it (they shade the light from inside), a faint paste line at each. */
 function washiTex(): Texture | null {
   return paint(256, 512, (c, w, h) => {
     c.fillStyle = '#ddd6c6'; c.fillRect(0, 0, w, h);
     for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(255,255,255,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1, 4 + rnd() * 14); }
-    c.strokeStyle = 'rgba(70,58,44,0.55)'; c.lineWidth = 3;
-    const n = 14;
-    for (let k = -1; k <= n; k++) { c.beginPath(); c.moveTo(0, (k * h) / n); c.lineTo(w, ((k + 1) * h) / n); c.stroke(); }
+    for (let k = 0; k < 160; k++) { c.fillStyle = `rgba(120,100,70,${0.03 + rnd() * 0.04})`; c.fillRect(rnd() * w, rnd() * h, 1, 6 + rnd() * 20); }
+    for (let k = 0; k <= RIBS; k++) {
+      const y = (k * h) / RIBS;
+      c.fillStyle = 'rgba(150,130,100,0.18)'; c.fillRect(0, y - 6, w, 12);
+      c.fillStyle = 'rgba(62,50,36,0.6)'; c.fillRect(0, y - 1.5, w, 3);
+    }
   }, [1, 1]);
 }
 
-/** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on thin black legs, a book and a phone. */
+/**
+ * The lantern's side, bottom opening to top: a round a little squat (a superellipse, wider than tall, not an egg), resampled evenly along its
+ * length so the ribs fall on the paper's rings; between each two ribs the paper sags a little toward the middle.
+ */
+function lanternProfile(R: number, H: number, rBottom: number, rTop: number): Vector2[] {
+  const e = 2.6, f = (t: number) => new Vector2(R * Math.abs(Math.cos(t)) ** (2 / e), (H / 2) * (1 + Math.sign(Math.sin(t)) * Math.abs(Math.sin(t)) ** (2 / e)));
+  const t0 = -Math.acos((rBottom / R) ** (e / 2)), t1 = Math.acos((rTop / R) ** (e / 2)), fine: Vector2[] = [], len = [0];
+  for (let i = 0; i <= 600; i++) { fine.push(f(t0 + ((t1 - t0) * i) / 600)); if (i) len.push(len[i - 1]! + fine[i]!.distanceTo(fine[i - 1]!)); }
+  const out: Vector2[] = [], n = RIBS * 8, mid = new Vector2(0, H / 2);
+  for (let k = 0, j = 0; k <= n; k++) {
+    const s = (len[600]! * k) / n;
+    while (j < 599 && len[j + 1]! < s) j++;
+    const p = fine[j]!.clone().lerp(fine[j + 1]!, (s - len[j]!) / Math.max(1e-6, len[j + 1]! - len[j]!));
+    out.push(p.sub(mid).multiplyScalar(1 - 0.016 * Math.sin((Math.PI * (k % 8)) / 8)).add(mid));
+  }
+  return out;
+}
+
+/** A floating bedside drawer on the wall (black-brown, one flush push-open front in a shadow line), a paper lantern on a black wire stand, a book and a phone. */
 export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
@@ -199,26 +222,38 @@ export function nightstand(): Bedside {
   g.add(softBox({ x, y: top, w, h }, z0, z1, veneer, 40));
   g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x0b0b0c, { roughness: 0.9 })));
   g.add(softBox({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer, 25));
-  // the lantern: a paper oval, open top and bottom, on three thin black legs; it glows from the bulb inside
-  const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, sr = lamp.r;
+  // the lantern: a paper round on bamboo ribs, open top and bottom (a black wire ring at each), on a wire stand of three legs; it glows from
+  // the bulb inside
+  const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, R = lamp.r, rb = 0.5 * R, rt = 0.42 * R;
   const paper = washiTex();
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: paper, emissiveIntensity: 0 });
-  const prof: Vector2[] = [];
-  for (let i = 0; i <= 28; i++) { const a = -Math.PI / 2 + (Math.PI * i) / 28; prof.push(new Vector2(Math.max(380, sr * Math.cos(a)), (sh / 2) * (1 + Math.sin(a)))); }
-  const lantern = place(new Mesh(new LatheGeometry(prof, 40), shade));
-  lantern.position.set(lx, -top + legH, lz);
+  const prof = lanternProfile(R, sh, rb, rt), y0 = -top + legH;
+  const lantern = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  lantern.position.set(lx, y0, lz);
   g.add(lantern);
+  const yb = y0 + prof[0]!.y, yt = y0 + prof[prof.length - 1]!.y;
+  for (const [r, y] of [[rb, yb], [rt, yt]] as const) {
+    const ring = place(new Mesh(new TorusGeometry(r, 26, 6, 40), black));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(lx, y, lz);
+    g.add(ring);
+  }
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2 + 0.4, c = Math.cos(a), s = Math.sin(a);
-    g.add(rod([lx + c * 1150, -top, lz + s * 1150], [lx + c * 700, -top + legH + 330, lz + s * 700], 34, black, 5));
+    g.add(rod([lx + c * (rb + 260), -top + 20, lz + s * (rb + 260)], [lx + c * rb, yb, lz + s * rb], 24, black, 6));
   }
   const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
-  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow), by = -top + legH + sh / 2;
+  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow), by = y0 + sh / 2;
   bulb.position.set(lx, by, lz);
   g.add(seeThrough(bulb));
-  // a book lying flat, the phone on it, a little turned
-  g.add(softBox({ x: cx + 300, y: top - 420, w: 2900, h: 420 }, cz - 1900, cz + 2100, mat(0xd8d4cc, { roughness: 0.8 }), 40));
-  const phone = softBox({ x: cx + 900, y: top - 550, w: 1400, h: 130 }, cz - 1300, cz + 1500, mat(0x0c0d0f, { roughness: 0.25, metalness: 0.2 }), 60);
+  // a hardcover lying flat (linen boards over a cream page block, its spine east), the phone on it, a little turned
+  const bx0 = cx + 950, bx1 = x + w - 100, bz0 = cz - 1900, bz1 = cz + 2100, bh = 420, linen = cloth(0xffffff, { map: weave('#8d8a80', { repeat: [2, 2] }), roughness: 0.85 });
+  g.add(softBox({ x: bx0, y: top - 55, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20), softBox({ x: bx0, y: top - bh, w: bx1 - bx0, h: 55 }, bz0, bz1, linen, 20));
+  g.add(rectBox({ x: bx0 + 50, y: top - bh + 50, w: bx1 - bx0 - 160, h: bh - 100 }, bz0 + 70, bz1 - 70, mat(0xe9e1cf, { roughness: 0.9 })));
+  g.add(softBox({ x: bx1 - 170, y: top - bh, w: 170, h: bh }, bz0, bz1, linen, 70));
+  const phone = new Group(), alu = mat(0x34363a, { metalness: 0.7, roughness: 0.35 }), glass = mat(0x060708, { roughness: 0.06, metalness: 0.1 });
+  phone.add(softBox({ x: -700, y: -150, w: 1400, h: 150 }, -1425, 1425, alu, 60), softBox({ x: -665, y: -162, w: 1330, h: 24 }, -1390, 1390, glass, 10));
+  phone.position.set(cx + 2200, -(top - bh), cz + 100);
   phone.rotation.y = 0.18;
   g.add(phone);
   // (it floats: its shadow on the floor is soft and faint)

@@ -32,7 +32,7 @@ export const SLATS_X0 = -20000, SLATS_X1 = 9000;
  * end and `lamp.dz` off its middle, `lamp.r` round and `lamp.h` tall), the bookcase on the west wall, the door near the front.
  */
 export const BED = { x: 19500, w: 26500, z0: 500, z1: 38000, head: 600, headTop: FLOOR_Y - 17500, top: FLOOR_Y - 9000 };
-export const NIGHTSTAND = { x: 11400, w: 7200, z0: 0, z1: 6800, top: FLOOR_Y - 9300, h: 3200, lamp: { dx: 2300, dz: -300, r: 1500, h: 4900 } };
+export const NIGHTSTAND = { x: 11400, w: 7200, z0: 0, z1: 6800, top: FLOOR_Y - 9300, h: 3200, lamp: { dx: 2400, dz: -300, r: 1950, h: 3800 } };
 export const BOOKCASE = { x: WEST_X, w: 5600, z0: 8000, z1: 24000, top: FLOOR_Y - 34000 };
 export const DOOR = { z0: 46000, z1: 62000, top: FLOOR_Y - 38500 };
 /** The rug beside the bed, under its west side (clear of the desk chair's castors), and its thickness. */
