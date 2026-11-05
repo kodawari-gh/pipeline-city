@@ -7,7 +7,7 @@
 // A flat block near the window has its balconies. On the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its
 // door, plant boxes, water tanks, solar panels, skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant
 // screens, their LED bands, the red beacons blinking at night. The tall landmarks wear their own light after dark (a floodlit head, lit edges, a
-// lit crown), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
+// lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
 import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial, Vector3 } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
@@ -102,6 +102,27 @@ class Mass {
   shape(g: BufferGeometry, x: number, y: number, z: number): void {
     const s = g.index ? g.toNonIndexed() : g, p = s.attributes.position!, n = s.attributes.normal!;
     for (let i = 0; i < p.count; i++) this.vert([p.getX(i) + x, p.getY(i) + y, p.getZ(i) + z], [n.getX(i), n.getY(i), n.getZ(i)], 0, 0);
+  }
+
+  /**
+   * A skin through rings of corners, each ring turning the way a box's walls do, its faces flat. Each face's u runs along its lower edge, v is the
+   * height. `mids`: each ring's own middle, round which it holds a pixel's width far off.
+   */
+  skin(rings: readonly (readonly V3[])[], mids?: readonly V3[]): void {
+    for (let k = 0; k + 1 < rings.length; k++) {
+      const lo = rings[k]!, hi = rings[k + 1]!;
+      for (let i = 0; i < lo.length; i++) {
+        const j = (i + 1) % lo.length, a = lo[i]!, b = lo[j]!, c = hi[j]!, d = hi[i]!;
+        const n = new Vector3(c[0] - a[0], c[1] - a[1], c[2] - a[2]).cross(new Vector3(d[0] - b[0], d[1] - b[1], d[2] - b[2])).normalize();
+        const nn: V3 = [n.x, n.y, n.z], len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        const at = (p: V3, r: number, u: number): void => {
+          if (mids) this.lk = [mids[r]![0], 0, mids[r]![2], Wide.Across];
+          this.vert(p, nn, u, p[1]);
+        };
+        at(a, k, 0); at(b, k, len); at(c, k + 1, len);
+        at(a, k, 0); at(c, k + 1, len); at(d, k + 1, 0);
+      }
+    }
   }
 
   geometry(): BufferGeometry {
@@ -252,19 +273,7 @@ function crown(m: Mass, b: Building, rand: () => number): void {
       m.set(b.light, 0, Kind.Led, b.seed % 991, [cx, y + 0.45, cz, Wide.All]).box(sized(cx, cz, 2.2, 2.2), y, y + 0.9, true);
     }
   } else if (b.crown === 'spire') {
-    const sh = h * 0.22, r0 = w * 0.34, cone = new ConeGeometry(r0, sh, 4).rotateY(Math.PI / 4);
-    if (b.light) m.set(b.light, 0, Kind.Flood, 0, [0, h, sh, 0]);
-    else m.set(new Color(b.frame).lerp(new Color(0xc8ccd0), 0.5), 0, Kind.Plain);
-    m.shape(cone, cx, h + sh / 2, cz);
-    // a landmark's spire: a line of light up each edge, its needle lit
-    if (b.light) {
-      m.set(b.light, 0, Kind.Led, b.seed % 991);
-      const c = r0 * Math.SQRT1_2 + 0.1;
-      for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]] as const) rib(m, [cx + sx * c, h, cz + sz * c], [cx, h + sh, cz], [sx, 0, sz], 1.1);
-    }
-    m.lk = [cx, 0, cz, Wide.Across];
-    m.box(sized(cx, cz, 0.6, 0.6), h + sh * 0.95, h + sh + 14, false);
-    tip = h + sh + 14;
+    tip = spire(m, b, t, h);
   } else if (b.crown === 'lantern') {
     // a glass lantern over the roof, its ribs in the frame's colour; lit warm at night, a landmark's the brighter in its own light
     const lh = 10 + rand() * 6, r = inset(t, 2.5);
@@ -279,15 +288,75 @@ function crown(m: Mass, b: Building, rand: () => number): void {
   }
   if (h < 110) return;
   m.set(0x400808, 0, Kind.Beacon, rand(), [cx, tip + 0.6, cz, Wide.All]).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
+  // a spire's corners hold its blades
+  if (b.crown === 'spire') return;
   for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand(), [x, h + PARAPET + 0.4, z, Wide.All]).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
 }
 
-/** A thin lit line up a slanted edge from a to b, its face turned out toward `out`. */
-function rib(m: Mass, a: V3, b: V3, out: V3, w: number): void {
-  const t = new Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize(), o = new Vector3(...out).normalize();
-  const n = o.clone().addScaledVector(t, -o.dot(t)).normalize(), u = t.clone().cross(n).multiplyScalar(w / 2);
-  const at = (p: V3, s: number): V3 => [p[0] + u.x * s, p[1] + u.y * s, p[2] + u.z * s], z: [number, number] = [0, 0];
-  m.quad(at(a, -1), at(a, 1), at(b, 1), at(b, -1), [n.x, n.y, n.z], z, z, z, z);
+/** A spire's stages from the foot up: each one's height as a share of the spire's. */
+const STAGES = [0.3, 0.24, 0.19, 0.15, 0.12] as const;
+
+/**
+ * A spire on a tower's top tier, in the tower's own lines: four blades carry its corners up past the roof and lean in; between them eight-sided
+ * stages of glass rise, each slimmer and shorter than the one below, under a thin eave with a line of light; a needle with rings of light tops
+ * them. A stage glows brightest at its foot. Its tip's height.
+ */
+function spire(m: Mass, b: Building, t: Tier, h: number): number {
+  const cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2, w = Math.min(t.x1 - t.x0, t.z1 - t.z0), metal = new Color(b.frame).lerp(new Color(0xc8ccd0), 0.5), seed = b.seed % 991;
+  /** A band of eight sides through these radii and heights, its flats facing the tower's walls. */
+  const lathe = (...profile: readonly (readonly [number, number])[]): void => m.skin(profile.map(([r, y]) => Array.from({ length: 8 }, (_, i): V3 => {
+    const a = -(i + 0.5) * (Math.PI / 4);
+    return [cx + r * Math.cos(a), y, cz + r * Math.sin(a)];
+  })));
+  for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]] as const) blade(m, t, sx, sz, h, h * 0.065, metal, b.light, seed);
+  const sh = h * 0.16;
+  let y = h, r = w * 0.38;
+  for (const share of STAGES) {
+    const y1 = y + sh * share, top = r * 0.87, eave = top + 1.7;
+    if (b.light) m.set(b.light, 0, Kind.Crown, seed, [2.4, y, y1 - y, 1.5]);
+    else m.set(metal, 0, Kind.Plain);
+    lathe([r, y], [top, y1]);
+    // the eave: its soffit, its edge, and its slope in to the next stage
+    const next = top * 0.76;
+    m.set(metal, 0, Kind.Plain);
+    lathe([top, y1], [eave, y1 + 0.5], [eave, y1 + 1.3], [next, y1 + 3]);
+    if (b.light) {
+      m.set(b.light, 0, Kind.Led, seed, [0, y1 + 0.9, 0, Wide.Up]);
+      lathe([eave + 0.08, y1 + 0.5], [eave + 0.08, y1 + 1.3]);
+    }
+    y = y1 + 3;
+    r = next;
+  }
+  // the last slope, the light going on up it; then the needle, fainter, and its rings of light
+  if (b.light) m.set(b.light, 0, Kind.Flood, 0, [0, y - 2, 18, 0]);
+  else m.set(metal, 0, Kind.Plain);
+  lathe([r, y], [1.4, y + 5]);
+  y += 5;
+  const needle = 20;
+  if (b.light) m.set(new Color(b.light).multiplyScalar(0.45), 0, Kind.Led, seed, [cx, 0, cz, Wide.Across], 1);
+  else m.set(metal, 0, Kind.Plain, 0, [cx, 0, cz, Wide.Across]);
+  lathe([1.1, y], [0.3, y + needle]);
+  if (b.light) for (const [k, s] of [[0.12, 2.6], [0.3, 2], [0.48, 1.5]] as const) {
+    const ry = y + needle * k;
+    m.set(b.light, 0, Kind.Led, seed, [cx, ry + 0.4, cz, Wide.All]).box(sized(cx, cz, s, s), ry, ry + 0.8, true);
+  }
+  return y + needle;
+}
+
+/** A blade on a tier's corner (sx, sz: which one) from y0 up `high`, narrowing to a point and leaning a little in toward the spire: metal by day, lit at night. Diamond in section. */
+function blade(m: Mass, t: Tier, sx: number, sz: number, y0: number, high: number, metal: Color, light: number | undefined, seed: number): void {
+  const x = sx > 0 ? t.x1 - 2.4 : t.x0 + 2.4, z = sz > 0 ? t.z1 - 2.4 : t.z0 + 2.4, dx = sx * Math.SQRT1_2, dz = sz * Math.SQRT1_2;
+  const mids: V3[] = [], rings: V3[][] = [];
+  for (const s of [0, 1]) {
+    const pull = 3.5 * s, half = 0.12 + 2.2 * (1 - s);
+    const c: V3 = [x - dx * pull, y0 + high * s, z - dz * pull];
+    const at = (a: number, e: number): V3 => [c[0] + dz * a + dx * e, c[1], c[2] - dx * a + dz * e];
+    mids.push(c);
+    rings.push([at(0, half), at(half, 0), at(0, -half), at(-half, 0)]);
+  }
+  if (light) m.set(new Color(light).multiplyScalar(0.6), 0, Kind.Led, seed, [0, 0, 0, 0], 1);
+  else m.set(metal, 0, Kind.Plain);
+  m.skin(rings, mids);
 }
 
 /** A line of LEDs round a tier, under its parapet. */
@@ -703,8 +772,8 @@ if (fKind == 0 || fKind == 6) {
     fGlow += fSunCol * m * sunFace * (refl * (0.16 * pow(gS, 10.0) + 1.2 * pow(gS, 90.0)) + (1.0 - cf) * 3.0 * flash * (0.25 + 0.75 * o.y * o.y));
   }
 } else if (fKind == 5) {
-  // a lit band of LEDs: a thin line by day, a bright one at night
-  diffuseColor.rgb = vec3(0.04);
+  // a lit band of LEDs: a thin dark line by day, a bright one at night. On a spire's metal (vAux.z) it is that metal by day
+  diffuseColor.rgb = mix(vec3(0.04), vec3(0.55, 0.58, 0.6), vAux.z);
   fRough = 0.3;
   fGlow = vColor.rgb * (0.12 + fNight * 2.1) * pow(vWide, 0.6);
 } else if (fKind == 9) {

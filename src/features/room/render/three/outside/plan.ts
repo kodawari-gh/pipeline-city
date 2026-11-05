@@ -102,7 +102,7 @@ const TINTS: Record<Style, readonly number[]> = {
 
 /** The tall landmarks, set by hand in the middles of their blocks (i, j): the footprint's half sizes, the height, the crown, the light. */
 const LANDMARKS = [
-  { i: -2, j: 35, hx: 26, hz: 26, h: 440, crown: 'spire', light: 0xffe0b4 },
+  { i: -2, j: 35, hx: 26, hz: 26, h: 410, crown: 'spire', light: 0xffe0b4 },
   { i: 0, j: 30, hx: 30, hz: 22, h: 300, crown: 'lantern', light: 0xffb062 },
   { i: -3, j: 39, hx: 24, hz: 26, h: 360, crown: 'mast', light: 0x6fdcff },
   { i: 6, j: 41, hx: 28, hz: 26, h: 290, crown: 'mast', light: 0xff7a52 },
