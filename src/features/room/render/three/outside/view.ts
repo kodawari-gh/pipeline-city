@@ -23,7 +23,7 @@ import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
-import { skyDome, skyMaterial, type SkyUniforms } from './sky';
+import { EARTH_SHADOW, EMBER, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { Signals, street } from './street';
 import { facadeMaterial, massGeometry, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
@@ -41,7 +41,17 @@ const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
  */
 const TINT = new Color(0.42, 0.46, 0.52);
 /** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
-const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
+const CITY_GLOW = new Color(0.062, 0.036, 0.05), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
+/** The low mist at night (`haze.ts`): its colour, lit from below by the streets (linear), and its density at the street (per m). */
+const MIST = new Color(0.105, 0.07, 0.105), MIST_DENSITY = 4e-4;
+/** The sky at full night (linear) overhead and low down, a navy the room's own `skyAt` does not need to be. */
+const NIGHT_TOP = new Color(0.0035, 0.007, 0.032), NIGHT_HOR = new Color(0.011, 0.014, 0.05);
+/** The sun's light low down, where it has crossed the most air. */
+const SUN_LOW = new Color(1, 0.2, 0.045);
+/** The warm hour's share of the sky at an hour, its bands' brightness as the light goes, how bright the haze is against them. */
+const duskShare = (h: number): number => Math.max(smooth(17.2, 18.9, h) * (1 - smooth(20.1, 21.4, h)), smooth(4.7, 5.7, h) * (1 - smooth(6.6, 8, h)));
+const duskLight = (h: number): number => 1 - 0.7 * smooth(19, 20.9, h) - 0.65 * (1 - smooth(4.7, 6, h));
+const DUSK_HAZE = 0.6;
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.3;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
@@ -132,6 +142,7 @@ export class OutsideView {
   private facade: FacadeUniforms;
   private haze: HazeUniforms = {
     hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3(0, 1, 0) }, hzDensity: { value: HAZE_DAY }, hzFall: { value: HAZE_FALL },
+    hzMist: { value: new Color() }, hzMistD: { value: 0 }, hzTime: { value: 0 },
   };
   private traffic = new Traffic();
   private carLight: CarLight = { night: { value: 0 } };
@@ -234,21 +245,24 @@ export class OutsideView {
     u.time.value = t;
     this.leaf.time.value = t;
     this.facade.time.value = t;
+    this.haze.hzTime.value = t;
     this.clock = t;
     const key = Math.round(hour * 30);
     if (key === this.key) return;
     this.key = key;
     this.envDirty = true;
-    const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day;
-    const top = new Color(s.top).multiplyScalar(lift), hor = new Color(s.hor).multiplyScalar(lift);
+    const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day, dusk = duskShare(hour), duskK = duskLight(hour);
+    const dark = smooth(0.6, 1, night);
+    const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark), hor = new Color(s.hor).multiplyScalar(lift).lerp(NIGHT_HOR, dark);
     u.top.value.copy(top);
     u.hor.value.copy(hor);
-    u.ground.value.copy(hor).lerp(new Color(0x4a5242), 0.55).multiplyScalar(0.45);
     u.sunDir.value.set(sd[0], sd[1], sd[2]);
     u.night.value = night;
-    // the sun's light: white overhead, the horizon's warmth low down; gone under the horizon
+    u.dusk.value = dusk;
+    u.duskK.value = duskK;
+    // the sun's light: white overhead, a burning orange low down; gone under the horizon
     const low = 1 - smooth(0, 0.45, sd[1]), up = smooth(-0.03, 0.12, sd[1]);
-    const sunCol = new Color(0xfff4e2).lerp(new Color(s.hor), low * 0.8);
+    const sunCol = new Color(0xfff4e2).lerp(SUN_LOW, low * 0.85);
     u.sunCol.value.copy(sunCol).multiplyScalar(day);
     this.sun.color.copy(sunCol);
     this.sun.intensity = 5.6 * day * up;
@@ -256,13 +270,20 @@ export class OutsideView {
     this.bounce.intensity = 0.55 * day * up;
     this.moon.intensity = 0.35 * night;
     this.scene.environmentIntensity = 1;
-    // the haze: the horizon's colour by day, the sun's light in it toward the sun, the city's glow at night
-    const hz = this.haze;
+    // the haze: the horizon's colour by day (at the warm hour the sky's own low down, the view's way), the sun's light in it toward the sun, the
+    // city's glow at night, the low mist lit by the streets as the lamps come on
+    const side = 0.5 - 0.5 * sd[2] / Math.max(Math.hypot(sd[0], sd[2]), 1e-3);
+    const hz = this.haze, warm = new Color().copy(EARTH_SHADOW).lerp(EMBER, side * side).multiplyScalar(duskK * DUSK_HAZE);
     u.glow.value.copy(CITY_GLOW).multiplyScalar(night);
-    hz.hzCol.value.copy(hor).multiplyScalar(0.95).add(u.glow.value);
+    hz.hzCol.value.copy(hor).multiplyScalar(0.95).lerp(warm, dusk).add(u.glow.value);
     hz.hzSun.value.copy(sunCol).multiplyScalar(0.45 * day * up);
     hz.hzDir.value.set(sd[0], sd[1], sd[2]);
     hz.hzDensity.value = HAZE_DAY + (HAZE_NIGHT - HAZE_DAY) * night;
+    const mist = smooth(0.35, 1, 1.25 - day * 1.6);
+    hz.hzMist.value.copy(MIST);
+    hz.hzMistD.value = MIST_DENSITY * mist;
+    u.mist.value.copy(MIST).multiplyScalar(mist);
+    u.ground.value.copy(hor).lerp(new Color(0x4a5242), 0.55).multiplyScalar(0.45).lerp(hz.hzCol.value, dusk);
     this.leaf.glow.value.copy(sunCol).multiplyScalar(this.sun.intensity * 0.22);
     // the lamps, the cars' lights and the windows come on as the light goes
     const lights = Math.min(1, Math.max(0, 1.25 - day * 1.6));
@@ -271,7 +292,7 @@ export class OutsideView {
     this.facade.night.value = lights;
     this.facade.sun.value.set(sd[0], sd[1], sd[2]);
     this.facade.sunCol.value.copy(sunCol).multiplyScalar(day * up);
-    this.facade.hor.value.copy(hor);
+    this.facade.hor.value.copy(hor).lerp(hz.hzCol.value, dusk);
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
