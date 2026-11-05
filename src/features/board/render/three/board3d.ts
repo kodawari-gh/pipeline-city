@@ -1,11 +1,12 @@
 // The 3D world's mount (docs/GRAPHICS_3D_OVERHAUL.md): behind the flag (`VITE_3D_GRAPHICS=1` or `?3d` in the address, `app/main.tsx`) it replaces the
 // Pixi board. It builds the room and the machine from the snapshot, drives the orbit camera, picks with rays and writes the same hover / selected
 // signals as the 2D renderer, so the HUD's tooltips and cards work unchanged. The dies run as in 2D (`Chips3D`). Parts, cables and keys drag (`drag3d.ts`).
-// The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A).
+// The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
+// at every height (`RoomEnv`); the machine's light fades from the studio's to the probe's as the camera pulls out (`EnvMix`).
 import { effect } from '@preact/signals';
 import { Box3, Vector3, type Object3D } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
-import { worldPace, zoomSlow } from '@/core/render/lod/lod';
+import { smooth, worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
 import { airflowLens, hover, powerLens, selected, INERT_REGIONS } from '@/app/hover';
 import { highlight } from '@/app/interaction';
@@ -19,6 +20,7 @@ import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
+import { EnvMix } from '@/core/render/three/envmix';
 import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
@@ -48,6 +50,8 @@ const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
 const PARTICLE_LEVELS = [0, 0.5, 1];
 /** The room's probe is captured again at most this often (ms) while its light changes (the sun moves a step every few seconds). */
 const PROBE_MS = 1500;
+/** The band of `roomness` over which the scene's light fades from the studio's to the room's probe (`EnvMix`). */
+const ENV_BAND = [0.3, 0.7] as const;
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -61,11 +65,13 @@ export function mountBoard3d(host: HTMLElement) {
   const bakes = new BakeQueue();
   startBaker();
   // the studio's light: the board view's, and the room's until its probe is ready
-  const studio = scene.environment;
+  const studio = scene.environment!;
   setArtEnvironment(studio);
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
   // a few times over for a new room, as each capture holds the bounce of the one before
   const probe = new Probe(200, 400000);
+  // the scene's light (what the machine takes): the studio's and the probe's, blended by the camera's height (envmix.ts)
+  const env = new EnvMix(renderer, studio, scene.environmentIntensity, PROBE_K);
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
 
   // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
@@ -319,20 +325,20 @@ export function mountBoard3d(host: HTMLElement) {
     post.setOutlined(picked);
     post.setReach(view.height);
     // one light for all in the room: the machine and the dies' art take the room's light there (its probe, the hour's), and their own
-    // studio light back toward the board view, where a part must read at any hour
-    const k = roomness(view.height), roomLit = probe.ready && k > 0.5;
+    // studio light back toward the board view, where a part must read at any hour; the two fade over a band of heights, with no switch
+    // (the room's own materials keep its probe at every height: `RoomEnv`)
+    const k = roomness(view.height);
     machine?.setRoomLight(k);
     ART_LIGHT.value = 1 + (0.12 + 0.88 * daylight(hour) - 1) * k;
-    scene.environment = roomLit ? probe.texture : studio;
-    scene.environmentIntensity = roomLit ? PROBE_K : 0.35;
+    env.apply(scene, smooth(ENV_BAND[0], ENV_BAND[1], k));
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room) {
       const key = `${room.lightKey}|${!!s?.powered}`;
       if (!probe.busy && (bounces > 0 || (key !== probeKey && now - probeAt > PROBE_MS))) { probe.request(); probeKey = key; probeAt = now; bounces = Math.max(0, bounces - 1); }
-      probe.step(renderer, scene);
-      if (probe.ready && !probed) { room.setProbe(probe.texture); probed = true; }
+      if (probe.step(renderer, scene)) env.setRoom(probe.texture);
+      if (env.room && !probed) { room.setProbe(env.room); probed = true; }
     }
     // the shadow maps of the next frame: the draw has just set every world matrix, so what the scan sees is this frame's
     room?.redrawShadows(shadows.scan(scene, now), now);
