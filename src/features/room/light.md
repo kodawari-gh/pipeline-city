@@ -18,5 +18,116 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 - **The window and what is outside** (`skyline.ts`, `drawSky` in `room.ts`): the glass is 5,600 wide and runs from just under the key rack's top down to the sill (just above the desk top's height), west of the desk, with a cross bar and two transoms. The sky's gradient, the stars, the sun and the moon on their arcs, the clouds and the aircraft are live (`skyBack`); the skyline's static part (`skyCity`: hills and three rows of towers, the lit windows by the night) is redrawn only when the light has moved on by a step; the flickering windows and the red beacons are live (`skyLive`). Towers grow with the glass's height only up to a quarter (`skylineK`).
 - **Time of day.** `hourAt(gt)`: a day is `DAY_S` (1800) game seconds (half an hour at 1x: 75 seconds an hour; it was 480), the first view is `START_HOUR` (18.6, dusk), so it pauses with the game and runs 16 times faster at 16x. `nightAt` / `duskAt` drive the sky colours (`skyAt`: a table of keyframes), the stars, the sun and the moon on their arcs, the skyline's lit windows and a blinking beacon, the room's light (`light.ts`: dim at night, a little lifted by day in the dark theme, warm at dusk and dawn), the window's light, the lamp's strength, and the **digital wall clock** above the case (four seven-segment digits and a colon that blinks each second of game time, the same hour as the sky; `segDigit`). **The window light follows the sun and the moon** (`bodiesAt`, `lightsAt`): each body above the horizon throws a shaft that leaves the glass (`shaftSpan`, between the two rays from the glass's corners) in the direction it shines from: the sun rises on the left (east) and sets on the right, so the light runs east in the morning, straight down at noon and west in the evening, the lower the body the longer and flatter the shaft (`slant`, units west per unit down) and the warmer the sun's colour; the moon's is cold and weaker. It is strongest at the glass and fades out by the desk, with a flat patch on the desk top where it lands. It is part of the light layer (see Light), so it also lights whatever stands where it falls (the lamp, the monitor's bezel, the keyboard, the mug), and a wide soft pool in the sun's or the moon's colour round the glass lights the west of the room (`windowGlow`: warm and long at sunrise, a cold pale pool at night). The shaft only reaches the monitor for the low sun at the ends of the day (the geometry is unchanged). The dark theme is dim at night and a little brighter by day, the light theme dims more at night. `roomDebug.hour` pins the hour (`window.__board.room.debug.hour` in dev, tests).
 - **Light** (`light.ts`, `RoomView.light`, `lightLayer` in `board.ts`, above the props and below the mail). **Every light is an `Emitter`**: plain data (`emittersOf(LightIn, LightGeo)`: the window, the lamp, the screen, the clock), a list of soft shapes it takes the dark away with (`lit`) and a list it tints with (`tint`; a tint layer with `erase` takes tint away again: the screen over the lamp's warmth), each a `LightShape` (blob, cone, feathered rect, ellipse, polygon) with a strength and a colour, and an optional `clip` (the lamp stays above the desk's front). `LightView` only draws what it is given, so the lights can be changed without touching the drawing: `setGeo(patch)` takes new places for the items they follow (the keyboard, the screen, the lamp's mouth; `RoomView.setLightGeo`), `place(id, dx, dy)` nudges one light from its item (`RoomView.placeLight`), `addLight` / `removeLight` add a light for a new item, and each of these redraws on the next `set`. The monitor's light is soft and flat to what it falls on: the glass (feathered by 45), a big halo on the wall round the bezel, a pool on the desk top in front and a lift over the keyboard (`LightGeo.keyboard` is read from the keyboard's placer), all in a pale green; it is a third as strong by day. One layer lights **everything outside the case**: the monitor, the keyboard, the mug, the props, the wall, the case's shell. It is three small textures (`LIGHT_RES` 0.025 px per world unit over the baked region, redrawn only when `lightKey` changes: night, dusk, the lamp and the screen quantised to a few dozen steps) and rims. The **shade** is the dark of the room (`ambientOf`: a deep blue at night, 0.5 in the dark theme and 0.4 in the light one, none by day) with the lit places **cut out** (blend `erase`): the lamp's **cone** (a fan of 0.74 radians each side of its axis, 19,000 long, clipped at the desk's front: the desk shades what is under it) and its **pool** round the hood, the **screen** (when the machine is on and a display is installed, `RoomView.setScreen`, eased over about 0.4 s) with a halo round it and a patch over the keyboard, the **clock**, and **the inside of the case** (`CASE_IN`: it has its own light, nothing reaches it). The **glow** (blend `screen`, which never over-exposes, on both themes) is what the lights add: the lamp's warm cone, pool, smear along the desk top and reflection on the monitor's glass; the screen's pale green on the keyboard, the desk and a halo on the wall; the clock's orange round it; the sky's lift by day and the warm of the ends of the day (these two are even washes over the whole room, a live Graphics `washG`, not part of the region's texture: on a tall or wide screen the region's edge would show as a change of tone). The window's light is drawn here too (`beamsAt` in `room.ts`: 13 slices stepping down from the glass to the desk, each keeping `fade` of the strength, plus the desk patch, `Beam` in `light.ts`; the sun and the moon pale in `screen` blend; the shafts are a live Graphics (`setBeams`, every frame the sun moves) so they glide, and they are also cut out of the dark texture where they fall, so moonlight shows against the night, with the slant quantised to 1/200 and the strength to 1/200 so the cut-out's edge moves in steps of about 50 units). All of it is cut at the inner rect of the case. Texture edges: the dark is also painted round the region by four plain rectangles of the same colour (a wide or tall screen shows more than the region), and the lamp's pools are capped to the room above the hood so the texture's edge never cuts them. **The focus**: a second dark (`focusAt(view, CASE)`: the share of the view the case covers, 0 at the overview and for a view of the monitor, 1 once the case fills most of it, smooth between) that fades in as an alpha (0.64 at most, drawn once into a texture; only its alpha moves) with the **case, the monitor and the router cut out** with soft edges: zoom in on the machine and the room recedes while the screen and the router stay lit. While the view lies inside the case the room and its light are hidden. **Rims**: `rimArt` draws a thin warm line (brass, a darker bronze in the light theme) along the top and the west side of the lit objects (monitor, case, clock, letterbox, key rack, shelf, socket plate, keyboard, the desk's top edge, the mug's rim, the lamp's hood and arms) above the objects and under the dark, so the night dims them with the rest. **Shadows**: the monitor, the case, the clock, the letterbox, the key rack and the shelf throw soft shadows east and down on the wall (sixteen nested rects each, so no ring shows, baked in the wall art under them: the lamp and the window are west and above). The wall is a little warmer and bluer-violet in the dark theme, and in the light theme cooler (toward the board's mint). Measured in headless Chrome with software GL, 1360x800, a powered machine: the light layer costs about 17 ms at the overview and about 33 ms with the focus on (its three full-screen layers); the room's whole frame is 83 ms at the overview (133 before the light was rebuilt, the old wash and cone being gone). Real GPU not measured.
+- **The 3D room** (`?3d`) has its own light: see "3D room light" below.
 - **Cost.** The lamp's light used to be 30 big circles, 85 percent of the room's frame time in headless software GL; it is now two textures that are redrawn only when the light changes (see Light). The room's live parts are updated in two rates: **every frame** for what must move smoothly and is cheap (the steam's sprites, the window's shaft, which is a live Graphics `LightView.setBeams` redrawn when the sun has moved by a hair, and the lamp, screen and blind easing), and **about 30 times a second** (`gt / 33` in `RoomView.frame`'s key) for the rest (the sky's stars, clouds, aircraft and city, the clock, the light textures when `lightKey` changes); nothing at all while paused with nothing moving. It was 8 times a second for everything (`gt / 120`), which made the steam and the shaft jump; in software GL the two rates cost the same, so the sky's rate was raised too.
+
+## 3D room light
+
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, `EnvMix`), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/LOWPOLY_STYLE.md` "Lighting Setup".
+
+### The owner's call
+
+The light is realistic. No studio map and no work light make the machine read. If the machine is unreadable at night, the room gets more lights: RGB accents, mood light, many lamps. The room is warm and cozy, "almost like an Instagram showroom" (T149, 2026-11-05). This adds to the earlier calls: uniformity above all (one palette, one level of detail, one light), offline bakes over live tricks, performance second.
+
+### What is wrong today (measured)
+
+Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
+
+- 14:00: the sky in the glass is 70 times the wall (L .33 against .0047). The band at the foot of the glass is .36, the wall beside it .0055. The door, the east wall and the bookcase almost vanish.
+- 23:00: the room is black (0 to 1 in sRGB) between the lamps' pools. The city keeps 65% of its day level, so it outshines the room.
+- `fill` (a directional light from the viewer's side) and `hemi` light faces from nowhere. The style guide forbids that.
+- The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass.
+- The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint.
+- Baked AO is only on the chair, the hoodie and the city.
+- The machine reads at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). T149 removes these after the lamps below are in.
+
+### Targets
+
+All measured with `tools/lum.mjs` on `--view room` at 1920x1080, one fixed exposure (`BASE_EXPOSURE`, ACES):
+
+| Hour | Measure | Target | Today |
+|---|---|---|---|
+| 14:00 | sky in the glass / the wall beside the glass | 8 or less | 70 |
+| 14:00 | the wall beside the glass | .04 or more | .0047 |
+| 14:00 | the door, the east wall, the bookcase's face | .012 or more | near 0 |
+| 23:00 | a wall in a lamp's pool | .05 to .15 | island only |
+| 23:00 | the darkest wall between pools | .006 or more (no black) | 0 |
+| 23:00 | the city in the glass / the room's mean | 0.5 or less | above 1 |
+| 23:00 | the city / the city at 14:00 | .25 or less | .65 |
+| 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | studio only |
+
+One exposure at every hour. The lights and the bake meet the targets, not the camera. A curve of exposure by the hour (one stop at most, from a table, never metered live) is the last resort, only if the targets fail after all the tasks below.
+
+### Units and one white balance
+
+- **Real falloff.** Every room light goes to decay 2 (inverse square) in metres: `LIGHT_M` world units to a metre (the room is about 17,000 units to a metre: the bed is 26,500 wide). Powers come from real lamps: a 60 W-equivalent bulb is 800 lm, a paper lantern 300 to 400 lm, an LED strip 300 lm per metre. Today the lights use decay 0 and 1 with hand-set numbers. An offline bake uses inverse square; the live lights must match it, or the bake and the live light disagree.
+- **One white point**, about 4000 K, for the room and the city. A `kelvin(k)` helper in `palette.ts` gives each lamp's colour against that white: 2700 K is a clear amber, 3000 K a soft warm white, the noon sky (about 6500 K) a pale blue. Every lamp takes its colour from `kelvin`. The sky's light (`key`) is the sky's own colour, not "the sky's colour, paler". The city's sun and sky take the same white point, so the day city is a little cool and the lamps are warm, as a photograph of a lit room at dusk shows.
+- **One glass.** The glass has one neutral tint, the same at every hour (transmission about 0.45). The view, the key and the sun take it at every hour: `TINT_CUT` becomes that transmission, and `setTint(day)` goes. The night city then dims by the same share, and the room's mirror in the glass (`mirror.ts`, T159) grows by itself as the outside gets darker than the room.
+
+### The lamps
+
+Warm light is the room's main light at night. Each lamp is a real fixture with a mesh, a glowing part and a light. Only the fixtures with a point or spot light cast shadows (a `RectAreaLight` cannot); the bake gives all of them their bounce.
+
+| Lamp | Where (`roomplan.ts`) | Kind | K | Shadow | State |
+|---|---|---|---|---|---|
+| Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle |
+| Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
+| Floor lantern | west wall, between the bookcase and the fig (about x -37000, z 27500) | point, tall paper column | 2700 | yes: the fig's leaves on the west wall | new |
+| Bookcase shelf lights | under each shelf of the bookcase | strips (area) | 2700 | no | new: the books and the west wall read |
+| Picture light | on the print over the bed | strip (area), down onto the print | 3000 | no | new |
+| Door sconce | west wall, north of the door (z about 43500, eye height) | up and down wash on the plaster | 2700 | no | new: the door and the corner read; the plaster's grain shows (T162) |
+| East shelf light | under the east wall's shelf (`SHELF`) | strip (area) | 2700 | no | new: the east wall and the bed's foot |
+| Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
+
+At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once: the floor lantern and the shelf lights at dusk, the lantern and the sconce as night falls (as the bedside lantern does today). The desk lamp stays on the player's toggle.
+
+### RGB accents
+
+Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
+
+- The bed's strips (under the frame, behind the headboard) and the desk's strip: they exist.
+- A bias light behind the monitor (new): a cyan wash on the column behind it.
+- The case's RGB (`rgb`, `spill` in `machine3d.ts`): its accent colour, its spill through the glass on the desk and the wall.
+
+Accents outside the palette (the case's purple next to the room's cyan) are the owner's call in T170.
+
+### How the case reads at night
+
+Nothing outside the case lights the board but what really comes in through its glass: the desk lamp's cone (aim its edge to graze the glass side), the screen's light, the floor lantern from across the room. Inside, the case has its own real lights:
+
+- A case light strip along the inside top edge, front to back, facing down onto the board (`RectAreaLight`): the accent colour, mixed half toward warm white (many cases ship such a strip). It replaces the work light `fill`.
+- The fans' rings as small lights in the accent colour.
+- The silkscreen and the parts read by these alone (the target above). Then T149 removes `EnvMix`, `ENV_BAND`, the work light and `ART_LIGHT`.
+
+### Offline bakes
+
+The owner prefers offline bakes. The bake gives the bounce (the indirect light); the direct light stays live, with its shadows, so the chair, the keys and the cables still cast and catch light.
+
+- **Light groups.** Light is linear: a bake of each group at unit power, scaled by that group's live power, sums to the bake of them all. The groups: the sky through the glass (one bake, tinted by the hour's sky colour), the sun (a key frame for each hour it comes in: the glass looks north, so only near the day's two ends, about six frames), the city's night glow (the lower part of the glass as an emitter), each lamp, each strip. About 15 bakes.
+- **The tool** (`tools/bake/`): export the room's static meshes (glTF, with a stable name and a geometry hash per mesh) from headless Chrome; make the lightmap UVs; bake each group's indirect light in Blender's Cycles (`blender -b -P bake.py`); write HDR lightmaps to `public/bake/room/`. A geometry hash that does not match at run time (the room's code changed, the bake is old) falls back to the probe for that mesh and warns in dev. Blender on the owner's machine is a new dependency: the owner approves it.
+- **At run time** a `LightmapMix` (the same pattern as `EnvMix`) sums the groups by their live powers into one lightmap, only when `lightKey` changes. A material patch (like `bakedao.ts`) adds it to the static meshes' indirect diffuse. The probe stays for the reflections and for everything that moves.
+- **What replaces `fill` and `hemi`:** the baked bounce on the static meshes, and the room's probe (already there) for what moves. Both lights go when the bake is in. Later, if the moving things need it: a grid of baked probes (spherical harmonics per cell) from the same groups.
+
+### Lightmap UVs
+
+A second UV set (`uv1`) on the large static meshes, packed into one atlas per group: the walls and the column, the ceiling, the floor's planks, the rug, the bench, the desk (top, pedestal, legs), the bed's frame and headboard, the duvet and pillows (they do not move), the nightstand, the bookcase and its books (merged), the door and its frame, the east shelf, the print, the window's frame and bars, the skirting and trim. The UVs come from xatlas (WASM) in the export step, so the bake and the game use the same ones; they are stored in the bake's bundle by mesh name with the hash. Not lightmapped: the chair, the keys, the mail, the cup, the machine and its parts (the game places them), the plants' leaves, the small props on the desk. They take the probe and the vertex AO below.
+
+### AO for the furniture
+
+The lightmap carries the occlusion of the large pieces. The small ones take the chair's vertex AO (`_ao`, `bakedao.ts`): the desk's props (the keyboard, the monitor, the lamp, the clock, the router), the plants, the books if they are not merged into the bookcase's lightmap.
+
+### Task split (for the owner to approve, T154)
+
+In order. Each is one commit; each is checked with shots against the targets.
+
+1. **Units, white point, glass.** `kelvin()` and one white point; every room light to decay 2 in metres from lumens; one constant glass tint for the view and the light; the day look at 14:00 holds, the wall gets lighter.
+2. **The floor lantern** (mesh, glow, point light, shadow).
+3. **The bookcase's shelf lights and the east shelf light.**
+4. **The picture light and the door sconce.**
+5. **The monitor's bias light**; the lamps' evening sequence.
+6. **The case's light strip and fan rings**; the case reads at 23:00 by them and the room. Then T149 (remove the studio blend, the work light, the art's studio light).
+7. **Vertex AO** on the props and the plants.
+8. **The bake tool**: export, xatlas UVs, Cycles bake of each group, HDR output (needs Blender).
+9. **`LightmapMix`** and the material patch; remove `fill` and `hemi`.
+10. **The night city** at its target (with T155), then a last check of every target at 07:00, 14:00, 19:00 and 23:00.
 

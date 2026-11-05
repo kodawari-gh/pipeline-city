@@ -114,7 +114,8 @@ The room is lit from its window, as a real room is (`GRAPHICS_3D_OVERHAUL.md` "L
 - **Key:** the sky's light and the sun come in by the window only, with shadows. The room falls off away from it.
 - **Bounce:** a light probe of the room is the ambient light and the reflections. No flat fill lights a face from nowhere.
 - **One rule:** in the room view every part takes the same light, the machine and the dies' art too. Only real emitters glow (the screen, the lamps, the RGB), and they light what is near them.
-- **Board view:** the parts take back a studio light, so they read at any hour.
+- **Lamps:** at night many warm lamps (2700 to 3000 K) and a few cyan accents light the room, as a cozy lit room in a photograph (the owner, 2026-11-05). The plan: `src/features/room/light.md` "3D room light".
+- **Board view:** the same light as the room. The case's own lights and the room's lamps make the parts read at night; no studio light (T149 removes the one there is now).
 
 ## Camera & Framing
 
