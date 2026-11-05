@@ -325,7 +325,7 @@ export function mountBoard3d(host: HTMLElement) {
     ART_LIGHT.value = 1 + (0.12 + 0.88 * daylight(hour) - 1) * k;
     scene.environment = roomLit ? probe.texture : studio;
     scene.environmentIntensity = roomLit ? PROBE_K : 0.35;
-    room?.drawOutside(renderer, camera, g.msaa);
+    room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room) {

@@ -7,7 +7,7 @@
 // the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Texture, type WebGLRenderer,
+  RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
@@ -491,8 +491,8 @@ export class Room3D {
     });
   }
 
-  /** The window's view for this frame's camera (before the frame's draw); `samples`: the scene target's multisampling. */
-  drawOutside(renderer: WebGLRenderer, camera: PerspectiveCamera, samples: number): void { this.outside.draw(renderer, camera, samples); }
+  /** The window's view for this frame's camera (before the frame's draw); `scene`: the one the room stands in; `samples`: the scene target's multisampling. */
+  drawOutside(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, samples: number): void { this.outside.draw(renderer, scene, camera, samples); }
 
   /** Free what is not under the root: the outside's scene and its targets. */
   dispose(): void { this.outside.dispose(); }

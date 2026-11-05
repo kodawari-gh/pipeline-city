@@ -4,10 +4,11 @@
 // down to the downtown towers, the hills. Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and
 // reflections, so the glass towers mirror it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at
 // night (the moon's light is the night sky's), the soft glow round every bright thing at night (`glow.ts`), and the haze over it all
-// (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it.
+// (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it. As the light goes the room itself shows
+// faintly in the glass (`mirror.ts`), its lit screen and lamps over the dark city.
 // Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
-  Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
+  Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Matrix4, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
@@ -20,6 +21,7 @@ import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
+import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
 import { skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { Signals, street } from './street';
@@ -42,6 +44,8 @@ const TINT = new Color(0.42, 0.46, 0.52);
 const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.3;
+/** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
+const MIRROR = 80, MIRROR_FROM = 0.55;
 /**
  * How far west the sun out here stands of the room's at the same hour (radians). The room's own, nearly behind the window through the
  * afternoon, would light the faces the window sees head on, flat. Turned, it rakes them, one face bright and one in shade, the shadows
@@ -66,13 +70,30 @@ const SUPER = 2;
 
 // the picture's pixel for a screen pixel: at the corner its block's texels share, so the linear filter averages the block in one tap
 const QUAD_FRAG = /* glsl */`
-uniform sampler2D tOut, tGlow;
+uniform sampler2D tOut, tGlow, tMirror;
 uniform samplerCube tEnv;
-uniform vec2 off, inv;
-uniform float live, ss, glowK;
-uniform vec3 tint;
+uniform vec2 off, inv, mirrorPx;
+uniform float live, ss, glowK, mirrorK;
+uniform vec3 tint, glassN;
+uniform mat4 mirrorOf;
 varying vec3 vWorld;
 const float CAP = 4.0;
+/** The room's picture in the glass at this point, blurred a little, as the glass reflects it (little head on, much at a slant). */
+vec3 inGlass() {
+  vec4 q = mirrorOf * vec4(vWorld, 1.0);
+  vec2 u = q.xy / q.w;
+  vec3 r = texture2D(tMirror, u).rgb * 0.28;
+  r += (texture2D(tMirror, u + mirrorPx * vec2(1.6, 0.4)).rgb + texture2D(tMirror, u + mirrorPx * vec2(-1.6, -0.4)).rgb) * 0.12;
+  r += (texture2D(tMirror, u + mirrorPx * vec2(0.5, 1.5)).rgb + texture2D(tMirror, u + mirrorPx * vec2(-0.5, -1.5)).rgb) * 0.12;
+  r += (texture2D(tMirror, u + mirrorPx * vec2(1.1, -1.2)).rgb + texture2D(tMirror, u + mirrorPx * vec2(-1.1, 1.2)).rgb) * 0.12;
+  r = min(max(r, vec3(0.0)), vec3(CAP));
+  // the room's dark walls would only veil the city: what shows is what the lamps light, and the brightest of it stays a ghost
+  float l = max(max(r.r, r.g), r.b);
+  r = mix(r, vec3(l), 0.35) * l / (l + 0.003);
+  float s = 1.0 - abs(dot(normalize(vWorld - cameraPosition), glassN));
+  r *= min(0.2, 0.09 + 0.91 * s * s * s * s * s) * mirrorK;
+  return r / (1.0 + max(max(r.r, r.g), r.b) / 0.1);
+}
 void main() {
   vec2 uv = (gl_FragCoord.xy - off) * ss * inv;
   vec3 c = live > 0.5 ? texture2D(tOut, uv).rgb : textureCube(tEnv, normalize(vWorld - cameraPosition)).rgb;
@@ -81,7 +102,9 @@ void main() {
   if (live > 0.5 && glowK > 0.0) c += texture2D(tGlow, uv).rgb * glowK;
   // the sun's glints off cars and panes held to a glow: the room's bloom would spread a pixel of them over the street
   c *= min(1.0, CAP / max(max(c.r, c.g), max(c.b, 1e-4)));
-  gl_FragColor = vec4(c * tint, 1.0);
+  c *= tint;
+  if (live > 0.5 && mirrorK > 0.0) c += inGlass();
+  gl_FragColor = vec4(c, 1.0);
 }`;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -116,6 +139,9 @@ export class OutsideView {
   private fleet: Fleet;
   private signals: Signals;
   private glow = new CityGlow();
+  private mirror = new GlassMirror();
+  /** How much the room shows in the glass at this hour. */
+  private mirrorAt = 0;
   /** The clock (s) the frame set, and the one the traffic has run to. */
   private clock = 0;
   private ran = -1;
@@ -131,7 +157,10 @@ export class OutsideView {
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
-      uniforms: { tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(1, 1, 1) } },
+      uniforms: {
+        tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, ss: { value: 1 }, tGlow: { value: null }, glowK: { value: 0 }, tint: { value: new Color(1, 1, 1) },
+        tMirror: { value: null }, mirrorOf: { value: new Matrix4() }, mirrorK: { value: 0 }, mirrorPx: { value: new Vector2() }, glassN: { value: new Vector3(0, 0, 1) },
+      },
     });
     this.mesh = new Mesh(new PlaneGeometry(w, h), this.quad);
     this.mesh.position.set(cx, cy, z);
@@ -247,15 +276,17 @@ export class OutsideView {
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
     this.quad.uniforms.glowK!.value = GLOW * lights * lights;
+    this.mirrorAt = MIRROR * smooth(MIRROR_FROM, 1, lights);
     const sk = Math.round(hour * 20);
     if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
   }
 
   /**
    * Draw the view for `camera` (the room's, this frame) into the window's picture: the camera moved outside, cropped to the window's box on
-   * screen. Call it before the frame's own draw. `samples`: the multisampling of the frame's scene target.
+   * screen, and the room in the glass as the light goes. Call it before the frame's own draw. `room`: the scene the window stands in; `samples`:
+   * the multisampling of the frame's scene target.
    */
-  draw(renderer: WebGLRenderer, camera: PerspectiveCamera, samples: number): void {
+  draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
     this.live = null;
     if (!this.mesh.parent) return;
     camera.updateMatrixWorld();
@@ -316,6 +347,15 @@ export class OutsideView {
       this.glow.run(renderer, t, rw, rh);
       this.quad.uniforms.tGlow!.value = this.glow.texture;
     }
+    // the room in the glass (it does not see the window's own quad, whose back is to it)
+    const qu = this.quad.uniforms, n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
+    const shown = this.mirrorAt > 0 && this.mirror.draw(renderer, room, camera, this.mesh.getWorldPosition(v), n, fw, fh);
+    qu.mirrorK!.value = shown ? this.mirrorAt : 0;
+    if (shown) {
+      qu.tMirror!.value = this.mirror.target!.texture;
+      (qu.mirrorOf!.value as Matrix4).copy(this.mirror.uvOf);
+      (qu.mirrorPx!.value as Vector2).set(1 / this.mirror.target!.width, 1 / this.mirror.target!.height);
+    }
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
     this.sunMoved = false;
@@ -331,6 +371,7 @@ export class OutsideView {
     this.sun.shadow.map?.dispose();
     this.fleet.dispose();
     this.glow.dispose();
+    this.mirror.dispose();
     this.signals.mesh.dispose();
     (this.signals.mesh.material as Material).dispose();
     this.scene.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
