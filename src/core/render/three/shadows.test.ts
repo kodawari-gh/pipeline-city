@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, Mesh, Scene, type Object3D, type WebGLRenderer } from 'three';
+import { BoxGeometry, DirectionalLight, Group, Mesh, PointLight, Scene, type Object3D, type WebGLRenderer } from 'three';
 import { ShadowCache } from './shadows';
 
 /** A scene with a panel of two casters, a still caster and a spinning rotor; the cache over a renderer that is only its shadow map. */
@@ -48,6 +48,22 @@ describe('ShadowCache.scan', () => {
     const { rotor, at } = setup();
     rotor.rotation.z = 1;
     expect(at(6000)).toBe(false);
+  });
+  it('redraws a point light\'s cube map whole while things move (the still picture is a flat map)', () => {
+    const scene = new Scene(), m = new Mesh(new BoxGeometry());
+    m.castShadow = true;
+    scene.add(m);
+    const drawn: string[] = [];
+    const cache = new ShadowCache({ shadowMap: { render: (ls: { type: string }[], s: Object3D) => drawn.push(`${ls[0]!.type}:${s === scene}`) } } as unknown as WebGLRenderer);
+    const bulb = new PointLight(), sun = new DirectionalLight();
+    bulb.shadow.autoUpdate = sun.shadow.autoUpdate = false;
+    bulb.shadow.needsUpdate = true;
+    scene.updateMatrixWorld(true); cache.scan(scene, 0);
+    m.position.x = 5;
+    scene.updateMatrixWorld(true);
+    expect(cache.scan(scene, 16)).toBe(true);
+    (cache as unknown as { render: (l: unknown[], s: Object3D, c: unknown) => void }).render([bulb, sun], scene, null);
+    expect(drawn).toEqual(['PointLight:true']);
   });
   it('moves a live mesh (its vertices change, its matrix does not) on every scan', () => {
     const { still, at, movers } = setup();

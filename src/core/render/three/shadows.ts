@@ -104,7 +104,8 @@ export class ShadowCache {
     if (!this.movers.length) { this.draw(lights, scene, camera); return; }
     for (const l of lights) {
       const sh = l.shadow;
-      if (!sh || sh.autoUpdate) this.draw([l], scene, camera);
+      // (a point light's map is a cube of six depth faces: the still picture is one face's copy, so it redraws whole)
+      if (!sh || sh.autoUpdate || (l as { isPointLight?: boolean }).isPointLight) this.draw([l], scene, camera);
       else if (sh.needsUpdate) this.redraw(l, scene, camera);
     }
   }

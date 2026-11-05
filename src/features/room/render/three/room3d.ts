@@ -37,10 +37,13 @@ import {
 
 const KEY_W = 230;
 
-/** The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp); 0 has no shadows, 3 is the tuned look. */
-const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512], [2048, 1024, 1024], [4096, 2048, 1024], [8192, 4096, 2048]];
+/**
+ * The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp, the lantern: a cube of six faces this
+ * size); 0 has no shadows, 3 is the tuned look.
+ */
+const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512, 256], [2048, 1024, 1024, 512], [4096, 2048, 1024, 1024], [8192, 4096, 2048, 2048]];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
-const SHADOW_SOFT = [14, 5, 6];
+const SHADOW_SOFT = [14, 5, 6, 5];
 /** The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. */
 const KEY_DECAY = 0.8;
 /** The sky light's level is as set at this distance from its source (about the desk's middle). */
@@ -283,6 +286,10 @@ export class Room3D {
     this.shade = ns.shade;
     this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
+    // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly; its paper and its bulb let the light through
+    // (they cast no shadow: the paper glows with it, `shade`)
+    this.bedLight.shadow.camera.near = 200; this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
+    ns.root.traverse((o) => { const m = (o as Mesh).material; if (m === ns.shade || m === ns.glow) o.castShadow = false; });
     const top = ceilingLight(4000, CEIL_Y, 30000);
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
@@ -478,7 +485,7 @@ export class Room3D {
   setShadows(level: number): void {
     this.outside.setShadows(level);
     const sizes = SHADOW_LEVELS[level] ?? null;
-    [this.key, this.sun, this.lampLight].forEach((l, i) => {
+    [this.key, this.sun, this.lampLight, this.bedLight].forEach((l, i) => {
       const size = sizes?.[i] ?? 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
@@ -505,7 +512,7 @@ export class Room3D {
    * fans' rotors, instanced parts) catches up.
    */
   redrawShadows(moved: boolean, now: number): void {
-    const lights = [this.key, this.sun, this.lampLight];
+    const lights = [this.key, this.sun, this.lampLight, this.bedLight];
     if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
