@@ -49,6 +49,11 @@ export const RUG = { x0: -8000, x1: 27000, z0: 15000, z1: 41000, h: 300 };
 export const onRug = (x: number, z: number): boolean => x > RUG.x0 && x < RUG.x1 && z > RUG.z0 && z < RUG.z1;
 /** The fig in its pot on the floor by the west wall (its leaves reach about 5000 round it). */
 export const FIG_AT = { x: WEST_X + 5800, z: 31500 } as const;
+/**
+ * The tall paper floor lantern in front of the glass, by the bench and the bookcase's near end (it lights the books' spines from the room's side;
+ * by the fig it would stand in front of the bookcase): its middle, its paper's radius and height, its legs' height (about 1.25 m in all).
+ */
+export const FLOOR_LANTERN = { x: -30500, z: 8400, r: 2300, h: 20600, legs: 2800 } as const;
 /** The low bench along the glass west of the desk (a stone top at seat height, 40 cm): its ends (x), its back and front (z), its top (2D y down). */
 export const BENCH = { x0: WINDOW.x + 1200, x1: -24600, z0: 400, z1: 5600, top: FLOOR_Y - 7480 };
 /** The key stand on the desk west of the monitor: where the rack's west end stands (x) and its hooks' plane (z). */

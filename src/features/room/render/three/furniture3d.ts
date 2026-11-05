@@ -1,6 +1,6 @@
 // The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night. The bed against the back wall
-// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall, the door, the ceiling light, the print
+// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door, the ceiling light, the print
 // over the bed, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
 // (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
 // nothing answers a click.
@@ -16,7 +16,7 @@ import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
 import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN } from './palette';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
+import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -178,23 +178,35 @@ export function bed(): Bed {
 }
 
 // ---------------------------------------------------------------- the bedside drawer
-export interface Bedside { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
+/** A paper lantern: what holds it, its paper (glows with its bulb), its bulb's glow and where the bulb is (the light's place). */
+export interface Lantern { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; bulb: [number, number, number] }
+export type Bedside = Lantern;
 
 /** The lantern's bamboo ribs: rings evenly up its paper (by length along its side). */
 const RIBS = 16;
-/** Washi paper: long fibres in it, the lantern's ribs dark rings round it (they shade the light from inside), a faint paste line at each. */
-function washiTex(): Texture | null {
+/**
+ * Washi paper: long fibres in it, the lantern's ribs dark rings round it (they shade the light from inside), a faint paste line at each. `lit`
+ * (0 at the paper's foot, 1 at its top) darkens it away from the bulb: the glow of a tall lantern, brightest at the bulb's height.
+ */
+function washiTex(lit?: (v: number) => number, r: () => number = rnd): Texture | null {
   return paint(256, 512, (c, w, h) => {
     c.fillStyle = '#ddd6c6'; c.fillRect(0, 0, w, h);
-    for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(255,255,255,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1, 4 + rnd() * 14); }
-    for (let k = 0; k < 160; k++) { c.fillStyle = `rgba(120,100,70,${0.03 + rnd() * 0.04})`; c.fillRect(rnd() * w, rnd() * h, 1, 6 + rnd() * 20); }
+    for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.08})`; c.fillRect(r() * w, r() * h, 1, 4 + r() * 14); }
+    for (let k = 0; k < 160; k++) { c.fillStyle = `rgba(120,100,70,${0.03 + r() * 0.04})`; c.fillRect(r() * w, r() * h, 1, 6 + r() * 20); }
     for (let k = 0; k <= RIBS; k++) {
       const y = (k * h) / RIBS;
       c.fillStyle = 'rgba(150,130,100,0.18)'; c.fillRect(0, y - 6, w, 12);
       c.fillStyle = 'rgba(62,50,36,0.6)'; c.fillRect(0, y - 1.5, w, 3);
     }
+    if (!lit) return;
+    // (the canvas's top is the paper's top)
+    c.globalCompositeOperation = 'multiply';
+    for (let y = 0; y < h; y++) { const k = Math.round(255 * lit(1 - (y + 0.5) / h)); c.fillStyle = `rgb(${k},${k},${k})`; c.fillRect(0, y, w, 1); }
   }, [1, 1]);
 }
+
+/** A seeded random stream of its own, so a new builder leaves the shared one (and every piece after it) as it was. */
+const stream = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 /**
  * The lantern's side, bottom opening to top: a round a little squat (a superellipse, wider than tall, not an egg), resampled evenly along its
@@ -259,6 +271,43 @@ export function nightstand(): Bedside {
   // (it floats: its shadow on the floor is soft and faint)
   g.add(floorShadow(cx, cz + 300, w * 1.3, (z1 - z0) * 1.4, 0.3));
   return { root: g, shade, glow, bulb: [lx, by, lz] };
+}
+
+/**
+ * A tall paper floor lantern (`FLOOR_LANTERN`): a column of the same washi on bamboo rings, a little barrelled, open at the top, on a black
+ * wire foot of three legs; its bulb on a stem up the middle, its paper glowing with it.
+ */
+export function floorLantern(): Lantern {
+  const g = new Group(), { x, z, r: R, h: H, legs } = FLOOR_LANTERN, fl = FLOOR_Y, bulbAt = 0.55;
+  const black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
+  // (the same paper twice, the glow's darker away from the bulb: a tall paper is lit by it unevenly)
+  const paper = washiTex(undefined, stream(29)), lit = washiTex((v) => 0.42 + 0.58 * Math.exp(-(((v - bulbAt) / 0.32) ** 2)), stream(29));
+  const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
+  // the side, bottom to top: fullest at the middle, the paper sagging a little between each two ribs
+  const n = RIBS * 8, prof: Vector2[] = [];
+  for (let k = 0; k <= n; k++) prof.push(new Vector2(R * (0.93 + 0.07 * Math.sin((Math.PI * k) / n)) * (1 - 0.012 * Math.sin((Math.PI * (k % 8)) / 8)), (H * k) / n));
+  const y0 = -fl + legs, r0 = prof[0]!.x, col = place(new Mesh(new LatheGeometry(prof, 48), shade));
+  col.position.set(x, y0, z);
+  g.add(col);
+  for (const [r, y] of [[r0, y0], [prof[n]!.x, y0 + H]] as const) {
+    const ring = place(new Mesh(new TorusGeometry(r, 30, 6, 48), black));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(x, y, z);
+    g.add(ring);
+  }
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.9, c = Math.cos(a), s = Math.sin(a);
+    g.add(rod([x + c * (r0 + 500), -fl + 20, z + s * (r0 + 500)], [x + c * r0, y0, z + s * r0], 30, black, 6));
+  }
+  // a cross of wire in the bottom ring holds the stem; the bulb a little over the middle
+  const by = y0 + H * bulbAt;
+  g.add(rod([x - r0, y0, z], [x + r0, y0, z], 22, black, 4), rod([x, y0, z - r0], [x, y0, z + r0], 22, black, 4), rod([x, y0, z], [x, by - 400, z], 40, black, 6));
+  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(LANTERN), emissiveIntensity: 0 });
+  const bulb = new Mesh(new SphereGeometry(420, 18, 12), glow);
+  bulb.position.set(x, by, z);
+  g.add(seeThrough(bulb));
+  g.add(floorShadow(x, z, R * 2.6, R * 2.6, 0.35));
+  return { root: g, shade, glow, bulb: [x, by, z] };
 }
 
 // ---------------------------------------------------------------- the bookcase

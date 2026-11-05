@@ -75,7 +75,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
 | Arc floor lamp | its base on the rug in front of the case (about z 20000), its arm over the desk's front | spot, dome shade, down and back onto the desk and the case's glass side at about 45 degrees | 3000 | yes | new: the board's main light at night |
-| Floor lantern | west wall, between the bookcase and the fig (about x -37000, z 27500) | point, tall paper column | 2700 | yes: the fig's leaves on the west wall | new |
+| Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
 | Bookcase shelf lights | under each shelf of the bookcase | strips (area) | 2700 | no | new: the books and the west wall read |
 | Picture light | on the print over the bed | strip (area), down onto the print | 3000 | no | new |
 | Door sconce | west wall, north of the door (z about 43500, eye height) | up and down wash on the plaster | 2700 | no | new: the door and the corner read; the plaster's grain shows (T162) |

@@ -24,7 +24,7 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
-import { bed, bookcase, ceilingLight, door, eastWall, nightstand, oak, print } from './furniture3d';
+import { bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, print, type Lantern } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
@@ -39,12 +39,14 @@ import {
 const KEY_W = 230;
 
 /**
- * The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp, the lantern: a cube of six faces this
- * size); 0 has no shadows, 3 is the tuned look.
+ * The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp, the bedside lantern, the floor
+ * lantern: a lantern's is a cube of six faces this size); 0 has no shadows, 3 is the tuned look.
  */
-const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [null, [1024, 1024, 512, 256], [2048, 1024, 1024, 512], [4096, 2048, 1024, 1024], [8192, 4096, 2048, 2048]];
+const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
+  null, [1024, 1024, 512, 256, 256], [2048, 1024, 1024, 512, 512], [4096, 2048, 1024, 1024, 1024], [8192, 4096, 2048, 2048, 2048],
+];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
-const SHADOW_SOFT = [14, 5, 6, 5];
+const SHADOW_SOFT = [14, 5, 6, 5, 5];
 /** The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. */
 const KEY_DECAY = 0.8;
 /** The sky light's level is as set at this distance from its source (about the desk's middle). */
@@ -196,6 +198,9 @@ export class Room3D {
   private cup: Cup;
   private shade: MeshStandardMaterial;
   private bulbGlow: MeshStandardMaterial;
+  /** The tall paper lantern by the bookcase, and its bulb's light (it comes on at dusk). */
+  private floorLamp: Lantern;
+  private floorLight = new PointLight(LANTERN, 0, 0, 2);
   /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
   private ledGlow: MeshStandardMaterial;
   private ledUnder: RectAreaLight;
@@ -299,13 +304,19 @@ export class Room3D {
     this.shade = ns.shade;
     this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
-    // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly; its paper and its bulb let the light through
-    // (they cast no shadow: the paper glows with it, `shade`)
+    // the lantern's shadow: the nightstand, the bed and the pillows in its light, softly
     // (a light with no cut-off distance keeps its shadow camera's own range: it must reach across the room)
     Object.assign(this.bedLight.shadow.camera, { near: 200, far: 130000 }); this.bedLight.shadow.bias = -0.002; this.bedLight.shadow.normalBias = 20;
-    ns.root.traverse((o) => { const m = (o as Mesh).material; if (m === ns.shade || m === ns.glow) o.castShadow = false; });
+    // (a lantern's paper and its bulb let the light through: they cast no shadow, the paper glows with it)
+    const glassy = (l: Lantern) => l.root.traverse((o) => { const m = (o as Mesh).material; if (m === l.shade || m === l.glow) o.castShadow = false; });
+    glassy(ns);
+    // the floor lantern's shadow: the bookcase's end, the fig's leaves on the west wall and the floor
+    this.floorLamp = floorLantern();
+    glassy(this.floorLamp);
+    this.floorLight.position.set(...this.floorLamp.bulb);
+    Object.assign(this.floorLight.shadow.camera, { near: 200, far: 130000 }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
-    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
+    R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
@@ -500,11 +511,14 @@ export class Room3D {
     this.envs.setMap(t);
   }
 
+  /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
+  private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight]; }
+
   /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
   setShadows(level: number): void {
     this.outside.setShadows(level);
     const sizes = SHADOW_LEVELS[level] ?? null;
-    [this.key, this.sun, this.lampLight, this.bedLight].forEach((l, i) => {
+    this.casters.forEach((l, i) => {
       const size = sizes?.[i] ?? 0;
       l.castShadow = size > 0;
       l.shadow.autoUpdate = false;
@@ -531,7 +545,7 @@ export class Room3D {
    * fans' rotors, instanced parts) catches up.
    */
   redrawShadows(moved: boolean, now: number): void {
-    const lights = [this.key, this.sun, this.lampLight, this.bedLight];
+    const lights = this.casters;
     if (moved) { for (const l of lights) l.shadow.needsUpdate = true; return; }
     if (now - this.shadowAt < SHADOW_TURN_MS) return;
     this.shadowAt = now;
@@ -644,6 +658,11 @@ export class Room3D {
     // strips come on a little before it, a cyan glow on the floor round the bed and on the wall over the headboard
     const bedside = Math.min(1, Math.max(0, (night - 0.35) / 0.3)), led = Math.min(1, Math.max(0, (night - 0.2) / 0.4));
     this.bedLight.intensity = bedside * lumens(LANTERN_LM);
+    // the floor lantern comes on first, as the light goes
+    const dusk = Math.min(1, Math.max(0, (night - 0.1) / 0.3));
+    this.floorLight.intensity = dusk * lumens(LANTERN_LM);
+    this.floorLamp.shade.emissiveIntensity = dusk * 1.1;
+    this.floorLamp.glow.emissiveIntensity = dusk * 4;
     this.shade.emissiveIntensity = bedside * 1.1;
     this.bulbGlow.emissiveIntensity = bedside * 4;
     this.ledGlow.emissiveIntensity = led * 3;
@@ -651,7 +670,7 @@ export class Room3D {
     this.ledHalo.intensity = led * 10;
     this.deskLed.intensity = led * 18;
     this.screenLight.intensity = f.screen.powered ? nits(SCREEN_NITS) : 0;
-    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}`;
+    this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);
     steam(this.cup, f.t);
