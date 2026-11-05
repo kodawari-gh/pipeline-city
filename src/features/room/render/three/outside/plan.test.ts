@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FLOOR_Y, WALL_T, WINDOW } from '../roomplan';
-import { FLOOR_UP, GRID, M, STYLES, avenueX, blockRect, buildings, cars, downtown, lamps, onCrossing, streetZ, toOutside, topOf, trees } from './plan';
+import { FLOOR_UP, GRID, M, STYLES, avenueX, blockRect, buildings, downtown, lamps, onCrossing, parked, streetZ, toOutside, topOf, trees } from './plan';
 
 /** Is a point (x, z) on a road or a pavement: in a street's or an avenue's width? */
 const inStreet = (x: number, z: number): boolean => {
@@ -70,8 +70,8 @@ describe('outside plan', () => {
     }
   });
 
-  it('keeps the cars on the roads, clear of the crossings', () => {
-    const cs = cars();
+  it('parks the cars on the roads, clear of the crossings', () => {
+    const cs = parked();
     expect(cs.length).toBeGreaterThan(80);
     for (const c of cs) {
       expect(inStreet(c.x, c.z)).toBe(true);

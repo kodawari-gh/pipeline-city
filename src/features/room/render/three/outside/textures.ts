@@ -1,5 +1,5 @@
 // The outside's painted textures: canvas pictures that repeat by the metre, each painted once and shared (render, paving, asphalt, grass,
-// bark, a twig of leaves). A height picture painted with the
+// bark). A height picture painted with the
 // colour gives its normal map, so the low sun rakes over the joints. A map is kept as raw sRGB (`rawSrgb`): its material decodes it
 // (`DECODE_SRGB`). Without a DOM (the tests) each texture is null.
 import { CanvasTexture, NoColorSpace, RepeatWrapping, type Texture } from 'three';
@@ -181,38 +181,4 @@ export function bark(): Surface {
     stains(c, W, H, r, 14, [8, 30], (q) => [[150, 160, 120], 0.2 + q() * 0.2]);
     grain(c, W, H, 0.06, 30);
   });
-}
-
-/**
- * A twig of leaves on a transparent card: some ninety pointed leaves round short stems, each with its midrib, in middling greens (a tree's
- * colour tints them). Denser in the middle, so a far card, its mipmaps averaged, still holds its shape.
- */
-export function leaves(): Texture | null {
-  const a = canvas(512, 512);
-  if (!a) return null;
-  const [cv, c] = a, r = rng(33), S = 512, C = S / 2;
-  c.strokeStyle = 'rgba(70,58,40,1)'; c.lineWidth = 3;
-  const stems: [number, number][] = [];
-  for (let i = 0; i < 7; i++) {
-    const ang = (i / 7) * Math.PI * 2 + r() * 0.5, len = 120 + r() * 90;
-    const x = C + Math.cos(ang) * len, y = C + Math.sin(ang) * len;
-    c.beginPath(); c.moveTo(C, C); c.quadraticCurveTo(C + Math.cos(ang + 0.4) * len * 0.5, C + Math.sin(ang + 0.4) * len * 0.5, x, y); c.stroke();
-    stems.push([x, y]);
-  }
-  for (let i = 0; i < 95; i++) {
-    const [sx, sy] = stems[i % stems.length]!, t = r();
-    const x = C + (sx - C) * (0.25 + t * 0.85) + (r() - 0.5) * 70, y = C + (sy - C) * (0.25 + t * 0.85) + (r() - 0.5) * 70;
-    const l = 34 + r() * 26, w = l * (0.42 + r() * 0.14), ang = Math.atan2(y - C, x - C) + (r() - 0.5) * 1.6, v = 0.75 + r() * 0.5;
-    c.save(); c.translate(x, y); c.rotate(ang);
-    const g = c.createLinearGradient(-l, 0, l, 0);
-    g.addColorStop(0, rgb([62 * v, 96 * v, 38 * v])); g.addColorStop(1, rgb([88 * v, 126 * v, 52 * v]));
-    c.fillStyle = g;
-    c.beginPath(); c.moveTo(-l, 0); c.quadraticCurveTo(-l * 0.2, -w, l, 0); c.quadraticCurveTo(-l * 0.2, w, -l, 0); c.fill();
-    c.strokeStyle = rgb([120 * v, 150 * v, 80 * v], 1, 0.6); c.lineWidth = 1.5;
-    c.beginPath(); c.moveTo(-l * 0.9, 0); c.lineTo(l * 0.85, 0); c.stroke();
-    c.restore();
-  }
-  const t = rawSrgb(cv);
-  t.anisotropy = anisotropy;
-  return t;
 }

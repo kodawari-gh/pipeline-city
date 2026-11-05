@@ -44,6 +44,8 @@ try {
   const p = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
+  // --console: print the page's console errors and warnings too (a shader that fails to compile is only logged)
+  if (args.includes('--console')) p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 2000)); });
   await p.goto(args.includes('--3d') ? url + '?3d' : url);
   await p.waitForTimeout(1500);
   const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });

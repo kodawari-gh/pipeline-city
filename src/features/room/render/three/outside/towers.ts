@@ -1,13 +1,17 @@
 // The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
 // shader (`facadeMaterial`): its windows in bays and storeys, the glass a mirror of the sky or a dark room with its blind part drawn, the
-// frame each floor a touch different, rooms lit at night; far away, where a bay is under a pixel, it fades to the facade's average, so it
-// does not shimmer. On the roofs: a parapet, gravel, a stair and lift bulkhead, plant boxes, an old block's water tank; the towers' masts,
-// spires and lit crowns, the red beacons blinking at night.
-import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three';
-import { GRID, STYLES, rng, topOf, type Building, type Rect } from './plan';
+// frame each floor a touch different, rooms lit at night (an office floor by floor, a home room by room); far away, where a bay is under a
+// pixel, it fades to the facade's average, so it does not shimmer. A flat block near the window has its balconies. On the roofs: a parapet,
+// gravel, a stair and lift bulkhead, plant boxes, a row of air-conditioning units; the towers' masts, spires, lit lanterns and plant screens,
+// their LED bands, the red beacons blinking at night.
+import { BufferGeometry, Color, ConeGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three';
+import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 
-/** What a vertex is: a facade, a roof, a plain surface, a beacon, a lit crown. */
-const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4 }
+/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room). */
+const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6 }
+
+/** The towers' LED bands: cyan, warm white, amber (the room's accent families), and how often each is picked. */
+const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
 
 /** A parapet's height over its roof (m), and how far from the window a roof gets its plant and tanks. */
 const PARAPET = 1.1, CLUTTER = 900;
@@ -98,7 +102,7 @@ class Mass {
 const inset = (r: Rect, k: number): Rect => ({ x0: r.x0 + k, x1: r.x1 - k, z0: r.z0 + k, z1: r.z1 - k });
 const sized = (x: number, z: number, w: number, d: number): Rect => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
 
-/** What stands on a roof: a bulkhead, plant boxes, a water tank on an old block. */
+/** What stands on a roof: a bulkhead, plant boxes, a row of air-conditioning units on their rail. */
 function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number): void {
   const w = r.x1 - r.x0, d = r.z1 - r.z0;
   if (w < 10 || d < 10) return;
@@ -106,18 +110,34 @@ function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number): 
   const shade = new Color(b.frame).lerp(new Color(0x9a968e), 0.6);
   const [bx, bz] = at(), bw = 4 + rand() * 4, bd = 4 + rand() * 3;
   m.set(shade, 0, Kind.Plain).box(sized(bx, bz, Math.min(bw, w - 4), Math.min(bd, d - 4)), y, y + 3.4 + rand() * 1.5, true);
-  for (let i = 0, n = 1 + Math.floor(rand() * 4); i < n; i++) {
+  for (let i = 0, n = 1 + Math.floor(rand() * 3); i < n; i++) {
     const [x, z] = at(), s = 1.6 + rand() * 1.8;
     m.set(0x8d9196, 0, Kind.Plain).box(sized(x, z, s * 1.4, s), y, y + 1.2 + rand() * 0.8, true);
   }
-  if (b.style === 'brick' && rand() < 0.65) {
-    // a timber water tank on its steel legs, its cone roof
-    const [x, z] = at(), rad = 1.8 + rand() * 0.8, leg = 3 + rand() * 2;
-    m.set(0x4a4744, 0, Kind.Plain);
-    for (const [dx, dz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m.box(sized(x + dx * rad * 0.6, z + dz * rad * 0.6, 0.25, 0.25), y, y + leg, false);
-    m.set(0x6b5844, 0, Kind.Plain).shape(new CylinderGeometry(rad, rad, rad * 2.2, 14), x, y + leg + rad * 1.1, z);
-    m.set(0x4f4740, 0, Kind.Plain).shape(new ConeGeometry(rad * 1.05, rad * 0.8, 14), x, y + leg + rad * 2.6, z);
+  if (rand() < 0.7) {
+    // the outdoor units in a row, pale grey boxes on a dark rail
+    const [x, z] = at(), n = 3 + Math.floor(rand() * 5), run = Math.min(n * 1.25, w - 6);
+    m.set(0x3a3d40, 0, Kind.Plain).box(sized(x, z, run + 0.4, 1.0), y, y + 0.25, true);
+    m.set(0xc7c9c8, 0, Kind.Plain);
+    for (let i = 0; i < n && (i + 1) * 1.25 <= run + 0.01; i++) m.box(sized(x - run / 2 + 0.62 + i * 1.25, z, 0.95, 0.42), y + 0.25, y + 0.95, true);
   }
+}
+
+/** A flat block's balconies on its street side (z1): a slab out from each storey, its front of frosted glass. */
+function balconies(m: Mass, t: Tier, storey: number, b: Building): void {
+  const rail = new Color(0x5d666e).lerp(new Color(b.frame), 0.25), x0 = t.x0 + 0.5, x1 = t.x1 - 0.5;
+  for (let y = t.y0 + storey; y < t.y1 - 0.5; y += storey) {
+    m.set(b.frame, 0, Kind.Plain).box({ x0, x1, z0: t.z1, z1: t.z1 + 1.3 }, y - 0.18, y, true);
+    m.set(rail, 0, Kind.Plain).box({ x0, x1, z0: t.z1 + 1.22, z1: t.z1 + 1.3 }, y, y + 1.05, true);
+  }
+}
+
+/** A tower's screen round its roof's plant: its walls carried on up past the roof, open inside, capped. */
+function screen(m: Mass, t: Tier, h: number, b: Building): void {
+  const c = new Color(b.frame).lerp(new Color(0x8a9096), 0.4);
+  m.set(c, 0, Kind.Plain).box(t, t.y1 + PARAPET, t.y1 + h, false);
+  m.box(inset(t, 0.4), t.y1 + PARAPET, t.y1 + h, false, true);
+  m.set(c.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.4, t.y1 + h);
 }
 
 /** A tower's crown on its top tier: a mast, a spire, a lit lantern; a red beacon at its tip and on the roof's corners. */
@@ -140,10 +160,25 @@ function crown(m: Mass, b: Building, rand: () => number): void {
     m.set(0xffe3b0, 0, Kind.Crown, b.seed).box(r, h, h + lh, true);
     m.set(b.frame, 0, Kind.Plain).box(inset(r, -0.3), h + lh, h + lh + 1.2, true);
     tip = h + lh + 1.2;
+  } else if (b.style !== 'tile' && h > 70 && rand() < 0.55) {
+    const sh = 4 + rand() * 4;
+    screen(m, t, sh, b);
+    tip = h + sh;
   }
   if (h < 110) return;
   m.set(0x400808, 0, Kind.Beacon, rand()).box(sized(cx, cz, 1.2, 1.2), tip, tip + 1.2, true);
   for (const [x, z] of [[t.x0 + 1, t.z0 + 1], [t.x1 - 1, t.z1 - 1], [t.x0 + 1, t.z1 - 1], [t.x1 - 1, t.z0 + 1]] as const) m.set(0x400808, 0, Kind.Beacon, rand()).box(sized(x, z, 0.8, 0.8), h + PARAPET, h + PARAPET + 0.8, true);
+}
+
+/** A modern tower's LEDs: a band round the top of each tier under its parapet; on a few, a strip up each corner of the shaft. */
+function leds(m: Mass, b: Building): void {
+  const r = rng(b.seed ^ 0x5bd1);
+  if (b.style === 'tile' || topOf(b) < 60 || r() > 0.55) return;
+  m.set(LEDS[Math.floor(r() * LEDS.length)]!, 0, Kind.Led, b.seed % 991);
+  for (const t of b.tiers) m.box(inset(t, -0.06), t.y1 - 0.9, t.y1 - 0.35, false);
+  const s = b.tiers[1];
+  if (!s || r() > 0.3) return;
+  for (const [x, z] of [[s.x0, s.z0], [s.x1, s.z0], [s.x1, s.z1], [s.x0, s.z1]] as const) m.box(sized(x, z, 0.36, 0.36), s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, false);
 }
 
 /** Every building in one geometry. */
@@ -153,7 +188,8 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
     const s = STYLES[b.style], rand = rng(b.seed), near = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1) < CLUTTER;
     b.tiers.forEach((t, i) => {
       // the walls: each wall's bays stretched to fit it whole
-      m.set(b.frame, b.tint, Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
+      const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
+      m.set(b.frame, b.tint, home ? Kind.Home : Kind.Facade, (b.seed % 997) + i * 0.37, [s.bay, s.storey, s.win[0], s.win[1]], s.refl);
       m.box(t, t.y0, t.y1, false, false, (len) => { m.lk[0] = len / Math.max(1, Math.round(len / s.bay)); });
       // the parapet round the roof, the gravel inside it
       const frame = new Color(b.frame).multiplyScalar(b.style === 'glass' ? 1 : 0.92);
@@ -161,9 +197,9 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
       m.box(inset(t, 0.3), t.y1, t.y1 + PARAPET, false, true);
       m.set(frame.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.3, t.y1 + PARAPET);
       m.set(0x8a8780, 0, Kind.Roof, b.seed % 991).top(inset(t, 0.3), t.y1);
-      // an old block's stone cornice under its parapet's top and its string course over the shop fronts; a curtain wall's metal cap
-      if (b.style === 'brick' || b.style === 'grid') {
-        const stone = new Color(b.style === 'brick' ? 0xc9c0ae : b.frame).multiplyScalar(b.style === 'brick' ? 1 : 1.06), out = b.style === 'brick' ? 0.45 : 0.25;
+      // an office grid's stone cap under its parapet's top and its string course over the shop fronts; any other's slim metal cap
+      if (b.style === 'grid') {
+        const stone = new Color(b.frame).multiplyScalar(1.06), out = 0.25;
         m.set(stone, 0, Kind.Plain).box(inset(t, -out), t.y1 + PARAPET - 0.75, t.y1 + PARAPET + 0.12, false);
         m.ring(inset(t, -out), out + 0.3, t.y1 + PARAPET + 0.12);
         if (i === 0 && t.y1 > s.storey * 2) {
@@ -174,14 +210,16 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
         m.set(frame.clone().lerp(new Color(0xb4b9be), 0.5), 0, Kind.Plain).box(inset(t, -0.12), t.y1 + PARAPET - 0.25, t.y1 + PARAPET + 0.05, false);
         m.ring(inset(t, -0.12), 0.42, t.y1 + PARAPET + 0.05);
       }
-      // the plant on the roof (on a podium, in the strip in front of the shaft, the side the window sees)
+      // a flat block's balconies; the plant on the roof (on a podium, in the strip in front of the shaft, the side the window sees)
       const next = b.tiers[i + 1];
+      if (near && b.style === 'band' && b.tiers.length === 1) balconies(m, t, s.storey, b);
       if (near) {
         const free = next ? { ...t, z0: next.z1 + 1 } : t;
         if (free.z1 - free.z0 > 10) clutter(m, free, t.y1, b, rand);
       }
     });
     crown(m, b, rand);
+    leds(m, b);
   }
   return m.geometry();
 }
@@ -218,7 +256,7 @@ float fBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w
 float fRough = 0.85, fMetal = 0.0;
 vec3 fGlow = vec3(0.0), fTilt = vec3(0.0);
 int fKind = int(vAux.y + 0.5);
-if (fKind == 0) {
+if (fKind == 0 || fKind == 6) {
   vec2 g = vFuv / vLook.xy, id = floor(g), f = fract(g), fw = fwidth(g);
   float h = fHash(id + vAux.x), h2 = fHash(id * 1.37 + vAux.x + 7.1), h3 = fHash(id * 2.71 + vAux.x * 0.13 + 3.3);
   // the ground floor's shop windows are taller and wider, and more of them lit
@@ -226,7 +264,7 @@ if (fKind == 0) {
   vec2 win = mix(vLook.zw, vec2(0.92, 0.8), shop);
   vec2 lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6), hi = lo + win;
   vec2 e = smoothstep(lo - fw, lo + fw, f) - smoothstep(hi - fw, hi + fw, f);
-  float far = smoothstep(0.3, 0.8, max(fw.x, fw.y));
+  float far = smoothstep(0.2, 0.6, max(fw.x, fw.y));
   float m = mix(e.x * e.y, win.x * win.y, far);
   // the room behind the pane: dark, some blinds part way down, the head of the opening in its reveal's shadow
   float yy = clamp((f.y - lo.y) / win.y, 0.0, 1.0);
@@ -250,11 +288,26 @@ if (fKind == 0) {
   fMetal = mix(0.0, refl * 0.9, m);
   // a curtain wall's panes each a little out of true, so the sky they mirror breaks up pane by pane
   fTilt = (vec3(h, h2, h3) - 0.5) * 0.09 * m * refl * (1.0 - far);
-  // lit rooms by night, warm or cool, each its own brightness
-  float share = 0.32 + 0.4 * shop;
-  float on = mix(step(h3, share), share, far);
-  vec3 lamp = mix(vec3(1.0, 0.7, 0.4), vec3(0.78, 0.86, 1.0), step(0.72, fract(h3 * 31.3)));
-  fGlow = lamp * on * m * (1.0 - 0.6 * bl) * mix(0.45 + 0.55 * fract(h3 * 17.1), 0.72, far) * (fNight * 1.5 + 0.03);
+  // lit rooms by night. An office (a curtain wall, a grid, ribbons) is lit floor by floor in a cool white, most of a lit floor's bays on, a
+  // few floors warmer; a home (brick) room by room, warm, a few in a screen's blue. Each building has its own share of lit floors, so the
+  // night city is bright towers among dark ones; far off, across and up, each fades to its average. The shops below are mostly lit
+  float office = fKind == 0 ? 1.0 : 0.0, farX = smoothstep(0.08, 0.35, fw.x), farY = smoothstep(0.08, 0.35, fw.y);
+  float share = 0.06 + 0.36 * fHash(vec2(vAux.x * 0.731, 5.3));
+  float fl = mix(step(fHash(vec2(id.y * 0.37 + vAux.x, 2.9)), share), share, farY);
+  float pw = mix(share * 0.7 + 0.05, mix(0.03, 0.8, fl), office);
+  pw = mix(pw, 0.75, shop);
+  float on = mix(step(h3, pw), pw, farX);
+  vec3 cool = mix(vec3(0.7, 0.84, 1.0), vec3(1.0, 0.88, 0.7), step(0.72, fHash(vec2(id.y, vAux.x + 1.3))));
+  vec3 warm = mix(vec3(1.0, 0.62, 0.32), vec3(0.45, 0.6, 1.0), step(0.9, fract(h3 * 31.3)));
+  vec3 lamp = mix(mix(warm, cool, office), vec3(1.0, 0.8, 0.6), shop) * mix(0.8, 0.62, office);
+  fGlow = lamp * on * m * (1.0 - 0.6 * bl) * mix(0.55 + 0.45 * fract(h3 * 17.1), 0.78, far) * (fNight * 1.4 + 0.03);
+  // the lamps' warm light washing the lowest floors' walls
+  fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
+} else if (fKind == 5) {
+  // a lit band of LEDs: a thin line by day, a bright one at night
+  diffuseColor.rgb = vec3(0.04);
+  fRough = 0.3;
+  fGlow = vColor.rgb * (0.12 + fNight * 3.2);
 } else if (fKind == 1) {
   diffuseColor.rgb = vColor.rgb * (0.82 + 0.22 * fHash(floor(vFuv * 0.6) + vAux.x));
   fRough = 0.96;

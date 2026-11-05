@@ -2,21 +2,26 @@
 // fifteenth floor (`toOutside`), into a target the size of the window on screen. The window's quad shows that picture pixel for pixel, so the
 // perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue down to the downtown towers, the hills.
 // Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and reflections, so the glass towers mirror
-// it), the sun with its shadows, the light our own tower throws back, the lamps, the cars' lights and the lit windows at night (the moon's
-// light is the night sky's). Another camera (the room's probe) sees the window as the sky's cube instead.
+// it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at night (the moon's light is the night
+// sky's), and the haze over it all (`haze.ts`). The traffic moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it.
+// Another camera (the room's probe) sees the window as the sky's cube instead.
 import {
-  Color, CubeCamera, DirectionalLight, Fog, HemisphereLight, Group, HalfFloatType, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
-  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type MeshStandardMaterial, type WebGLRenderer,
+  Color, CubeCamera, DirectionalLight, HemisphereLight, Group, HalfFloatType, Mesh, PerspectiveCamera, PlaneGeometry, PointLight, Scene, ShaderMaterial,
+  Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
+import { Fleet, type CarLight } from './cars';
 import { land } from './city';
+import { withHaze, type HazeUniforms } from './haze';
 import { disposeKit, makeKit, type Kit } from './kit';
-import { GRID, M, buildings, toOutside, trees } from './plan';
+import { withLampLight, type LampUniforms } from './lamplight';
+import { GRID, M, buildings, parked, toOutside, trees } from './plan';
 import { skyDome, skyMaterial, type SkyUniforms } from './sky';
-import { street } from './street';
+import { Signals, street } from './street';
 import { facadeMaterial, massGeometry, type FacadeUniforms } from './towers';
+import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
 
 /** The sun's shadow map at each level of the graphics settings (0: none). */
@@ -30,6 +35,8 @@ const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
  * night it is clear (1 is the outside's own exposure).
  */
 const TINT = new Color(0.42, 0.46, 0.52);
+/** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
+const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
 
 const QUAD_VERT = /* glsl */`
 varying vec3 vWorld;
@@ -77,7 +84,17 @@ export class OutsideView {
   private lamps: PointLight[] = [];
   private leaf: LeafUniforms;
   private facade: FacadeUniforms;
-  private fog = new Fog(0xffffff, 300, 9000);
+  private haze: HazeUniforms = {
+    hzCol: { value: new Color() }, hzSun: { value: new Color() }, hzDir: { value: new Vector3(0, 1, 0) }, hzDensity: { value: HAZE_DAY }, hzFall: { value: HAZE_FALL },
+  };
+  private traffic = new Traffic();
+  private carLight: CarLight = { night: { value: 0 } };
+  private lampLight: LampUniforms = { lampNight: { value: 0 } };
+  private fleet: Fleet;
+  private signals: Signals;
+  /** The clock (s) the frame set, and the one the traffic has run to. */
+  private clock = 0;
+  private ran = -1;
   /** Materials of the view's own, outside the kit. */
   private disposables: Material[] = [];
   private key = -1;
@@ -109,6 +126,10 @@ export class OutsideView {
     const plants = plantTrees(ts, k);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
+    // the cars, moving and parked, and the signals' lamps
+    this.fleet = new Fleet(this.traffic, parked(), this.carLight, this.haze);
+    this.signals = new Signals(st.signals);
+    this.scene.add(this.fleet.group, this.signals.mesh);
 
     // the sky round the camera, and its small copy the environment sees
     this.sky = skyMaterial();
@@ -116,9 +137,10 @@ export class OutsideView {
     this.scene.add(this.dome);
     this.envScene.add(skyDome(this.sky, 100));
     this.scene.environment = this.env.texture;
-    this.scene.fog = this.fog;
-    for (const m of [k.carGlass, ...k.car] as MeshStandardMaterial[]) m.envMap = this.env.texture;
     this.disposables.push(facade.mat);
+    // the lamps' pools on the ground, the haze on every material in place of fog
+    for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
+    this.scene.traverse((o) => { for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze); });
 
     // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
     this.sun.shadow.camera.near = 10;
@@ -158,6 +180,7 @@ export class OutsideView {
     u.time.value = t;
     this.leaf.time.value = t;
     this.facade.time.value = t;
+    this.clock = t;
     const key = Math.round(hour * 30);
     if (key === this.key) return;
     this.key = key;
@@ -179,13 +202,21 @@ export class OutsideView {
     this.bounce.intensity = 0.55 * day * up;
     this.moon.intensity = 0.35 * night;
     this.scene.environmentIntensity = 1;
-    this.fog.color.copy(hor).multiplyScalar(0.95);
+    // the haze: the horizon's colour by day, the sun's light in it toward the sun, the city's glow at night
+    const hz = this.haze;
+    u.glow.value.copy(CITY_GLOW).multiplyScalar(night);
+    hz.hzCol.value.copy(hor).multiplyScalar(0.95).add(u.glow.value);
+    hz.hzSun.value.copy(sunCol).multiplyScalar(0.45 * day * up);
+    hz.hzDir.value.set(sd[0], sd[1], sd[2]);
+    hz.hzDensity.value = HAZE_DAY + (HAZE_NIGHT - HAZE_DAY) * night;
     this.leaf.glow.value.copy(sunCol).multiplyScalar(this.sun.intensity * 0.22);
-    // the lamps and the windows come on as the light goes
+    // the lamps, the cars' lights and the windows come on as the light goes
     const lights = Math.min(1, Math.max(0, 1.25 - day * 1.6));
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
+    this.carLight.night.value = lights;
+    this.lampLight.lampNight.value = lights;
     const sk = Math.round(hour * 20);
     if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
   }
@@ -234,6 +265,11 @@ export class OutsideView {
     c.setViewOffset(fw, fh, rx, ry, rw, rh);
     c.updateMatrixWorld();
     this.dome.position.copy(c.position);
+    // the traffic on to the frame's clock, each car placed for this eye, the signals lit
+    const dt = this.ran < 0 ? 0.1 : this.clock - this.ran;
+    this.ran = this.clock;
+    this.fleet.update(Math.max(0, dt), c.position.x, c.position.z);
+    this.signals.update(this.traffic.t);
     // the leaves' light from behind, in the camera's frame
     const sd = sunDir(this.key / 30);
     this.leaf.sunView.value.set(sd[0], sd[1], sd[2]).transformDirection(c.matrixWorldInverse);
@@ -258,6 +294,9 @@ export class OutsideView {
     this.target?.dispose();
     this.env.dispose();
     this.sun.shadow.map?.dispose();
+    this.fleet.dispose();
+    this.signals.mesh.dispose();
+    (this.signals.mesh.material as Material).dispose();
     this.scene.traverse((o) => { if ((o as Mesh).isMesh) (o as Mesh).geometry.dispose(); });
     this.sky.dispose();
     for (const m of this.disposables) m.dispose();

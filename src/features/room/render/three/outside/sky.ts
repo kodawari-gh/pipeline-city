@@ -1,6 +1,7 @@
 // The sky over the street (`view.ts`): a dome round the camera, drawn first, whose shader paints the hour's sky. The horizon's colour low down
 // and the zenith's overhead (`skyAt`), the sun's wide glow and its disc, a layer of clouds that drifts and is lit from the sun's side, the moon
-// and the stars at night. Under the horizon it is the land's haze. A small copy of the dome is what the view's environment sees (its sky light).
+// and the stars at night, the city's glow low in the sky. Under the horizon it is the land's haze. A small copy of the dome is what the view's
+// environment sees (its sky light).
 import { BackSide, Color, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
 
 const VERT = /* glsl */`
@@ -11,7 +12,7 @@ void main() {
 }`;
 
 const FRAG = /* glsl */`
-uniform vec3 top, hor, ground, sunDir, sunCol, moonDir;
+uniform vec3 top, hor, ground, sunDir, sunCol, moonDir, glow;
 uniform float night, time, clouds;
 varying vec3 vDir;
 
@@ -36,8 +37,9 @@ void main() {
   // the sun's glow: wide and stronger low down, where its light crosses more air; then a tight one round it
   c += sunCol * (0.07 * pow(cs, 5.0) * (1.0 + 2.5 * (1.0 - clamp(e * 4.0, 0.0, 1.0))) + 0.3 * pow(cs, 90.0)) * up;
   float disc = smoothstep(0.99986, 0.99993, cs);
-  // under the horizon: the haze over the land
+  // under the horizon: the haze over the land; at night the city's light in the low air, on the sky and on the haze
   c = mix(c, ground, smoothstep(0.0, -0.07, e));
+  c += glow * exp(-max(e, 0.0) * 9.0);
   // clouds: a layer high over the town, met where the ray crosses it, so they shrink and crowd toward the horizon; they drift with the wind.
   // A cloud is lit on its side toward the sun and grey beneath; with the sun behind it, its edge shines
   if (e > 0.0) {
@@ -62,10 +64,10 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
-/** The sky's uniforms: its colours (linear), the sun's direction and its light, the moon's direction, the night's share, the clock, the clouds' cover. */
+/** The sky's uniforms: its colours (linear), the sun's direction and its light, the moon's direction, the city's glow low down, the night's share, the clock, the clouds' cover. */
 export interface SkyUniforms {
   top: { value: Color }; hor: { value: Color }; ground: { value: Color }; sunDir: { value: Vector3 }; sunCol: { value: Color };
-  moonDir: { value: Vector3 }; night: { value: number }; time: { value: number }; clouds: { value: number };
+  moonDir: { value: Vector3 }; glow: { value: Color }; night: { value: number }; time: { value: number }; clouds: { value: number };
 }
 
 /** Where the moon hangs at night: low, a little west of the side street, so the window's overview has it over the town. */
@@ -74,7 +76,7 @@ export const MOON_DIR = new Vector3(-0.235, 0.075, -0.97).normalize();
 export function skyMaterial(): ShaderMaterial {
   const uniforms: SkyUniforms = {
     top: { value: new Color() }, hor: { value: new Color() }, ground: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) },
-    sunCol: { value: new Color() }, moonDir: { value: MOON_DIR.clone() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
+    sunCol: { value: new Color() }, moonDir: { value: MOON_DIR.clone() }, glow: { value: new Color() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
   };
   return new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: uniforms as unknown as ShaderMaterial['uniforms'], side: BackSide, depthWrite: false, depthTest: false, fog: false });
 }
