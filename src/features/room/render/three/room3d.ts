@@ -24,7 +24,7 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
-import { STRIP_W, bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, print, shelfStrips, type Lantern } from './furniture3d';
+import { STRIP_W, bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, pictureLight, print, sconce, shelfStrips, type Lantern } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
@@ -79,6 +79,10 @@ const nits = (cd: number): number => cd * LUX_K;
 const DESK_LM = 500, LANTERN_LM = 800, SCREEN_NITS = 120;
 /** A shelf's LED strip, lumens a metre (a soft strip behind a diffuser); its face's level spreads them over its width, out of one side. */
 const STRIP_LM_M = 450, STRIP_NITS = STRIP_LM_M / (Math.PI * STRIP_W / M);
+/** The picture light's slot (spread over its face as the strips are), and each of the door sconce's two spots (up, down). */
+const PICTURE_LM = 220, SCONCE_LM = 450;
+/** The print over the bed: its frame (2D y down) on the back wall. */
+const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -205,6 +209,9 @@ export class Room3D {
   private floorLight = new PointLight(LANTERN, 0, 0, 2);
   /** The warm strips under the bookcase's boards and the east shelf (`shelfStrips`): their lines and their lights. */
   private strips = shelfStrips();
+  /** The picture light over the print and the sconce by the door (they come on as night falls). */
+  private picture = pictureLight(PRINT, 0);
+  private sconce = sconce();
   /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
   private ledGlow: MeshStandardMaterial;
   private ledUnder: RectAreaLight;
@@ -321,7 +328,7 @@ export class Room3D {
     Object.assign(this.floorLight.shadow.camera, { near: 200, far: 130000 }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight, this.strips.root);
-    R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
+    R.add(print(PRINT, 0), this.picture.root, this.sconce.root);
 
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
     // unit at the east end, a cable tray under its back edge ----
@@ -670,6 +677,13 @@ export class Room3D {
     // (the shelves' strips with it)
     for (const l of this.strips.lights) l.intensity = dusk * nits(STRIP_NITS);
     this.strips.glow.emissiveIntensity = dusk * 1.6;
+    // (the picture light and the door's sconce with the bedside lantern)
+    const pl = this.picture.light;
+    pl.intensity = bedside * nits(PICTURE_LM / (Math.PI * pl.width * pl.height / (M * M)));
+    this.picture.glow.emissiveIntensity = bedside * 1.6;
+    this.sconce.up.intensity = bedside * lumens(SCONCE_LM, this.sconce.up.angle);
+    this.sconce.down.intensity = bedside * lumens(SCONCE_LM, this.sconce.down.angle);
+    this.sconce.glow.emissiveIntensity = bedside * 2;
     this.shade.emissiveIntensity = bedside * 1.1;
     this.bulbGlow.emissiveIntensity = bedside * 4;
     this.ledGlow.emissiveIntensity = led * 3;

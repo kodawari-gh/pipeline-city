@@ -43,6 +43,8 @@ export const BED = { x: 19500, w: 26500, z0: 500, z1: 38000, head: 600, headTop:
 export const NIGHTSTAND = { x: 11400, w: 7200, z0: 0, z1: 6800, top: FLOOR_Y - 9300, h: 3200, lamp: { dx: 2400, dz: -300, r: 1950, h: 3800 } };
 export const BOOKCASE = { x: WEST_X, w: 5600, z0: 8000, z1: 24000, top: FLOOR_Y - 34000 };
 export const DOOR = { z0: 46000, z1: 62000, top: FLOOR_Y - 38500 };
+/** The wall sconce on the west wall north of the door, clear of its architrave: its middle along the wall (z) and its middle at eye height (2D y down). */
+export const SCONCE = { z: 43300, y: FLOOR_Y - 31800 } as const;
 /** The rug beside the bed, under its west side (clear of the desk chair's castors), and its thickness. */
 export const RUG = { x0: -8000, x1: 27000, z0: 15000, z1: 41000, h: 300 };
 /** Is the floor point (x, z) on the rug? (A thing standing there stands on its top.) */

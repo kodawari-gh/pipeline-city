@@ -1,13 +1,13 @@
 // The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
 // (`shelfStrips`). The bed against the back wall
-// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door, the ceiling light, the print
-// over the bed, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
+// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door and the sconce
+// beside it, the ceiling light, the print over the bed and its picture light, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
 // (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
 // nothing answers a click.
 import {
   BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, TorusGeometry, Vector2, type Material, type Texture,
+  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
@@ -17,7 +17,7 @@ import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
 import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin } from './palette';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
+import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SCONCE, SHELF, WEST_X, onRug } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -544,6 +544,49 @@ export function print(r: { x: number; y: number; w: number; h: number }, z: numb
   face.position.set(r.x + r.w / 2, -(r.y + r.h / 2), z + 392);
   g.add(face);
   return g;
+}
+
+/**
+ * A picture light over a framed print (`r` the frame, `z` the wall): a slim black bar on a short arm from a wall plate over the frame, a warm
+ * slot under it; its area light (3000 K) shines down and back onto the print.
+ */
+export function pictureLight(r: { x: number; y: number; w: number; h: number }, z: number): { root: Group; glow: MeshStandardMaterial; light: RectAreaLight } {
+  const g = new Group(), black = mat(0x1d1e20, { metalness: 0.4, roughness: 0.4 }), cx = r.x + r.w / 2, len = r.w * 0.6, by = r.y - 900, bz = z + 2600;
+  // the wall plate, the arm out from it and down to the bar, the bar (`by` its underside)
+  g.add(softBox({ x: cx - 900, y: by - 1300, w: 1800, h: 900 }, z, z + 120, black, 30));
+  g.add(rectBox({ x: cx - 90, y: by - 940, w: 180, h: 180 }, z + 120, bz, black), rectBox({ x: cx - 90, y: by - 940, w: 180, h: 500 }, bz - 90, bz + 90, black));
+  g.add(softBox({ x: cx - len / 2, y: by - 450, w: len, h: 450 }, bz - 260, bz + 260, black, 60));
+  const glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(3000)), emissiveIntensity: 0 });
+  g.add(rectBox({ x: cx - len / 2 + 200, y: by, w: len - 400, h: 70 }, bz - 150, bz + 150, glow));
+  // (tilted back toward the wall, onto the print's middle)
+  const light = new RectAreaLight(kelvin(3000), 0, len - 400, 300);
+  light.position.set(cx, -by - 80, bz);
+  light.rotation.x = -Math.PI / 2 + 0.45;
+  g.add(light);
+  return { root: g, glow, light };
+}
+
+/**
+ * The wall sconce north of the door (`SCONCE`): a slim black box off the west wall on a plate, open at both ends; a warm glow in each opening
+ * and the two spots (2700 K) it stands for, one up and one down the plaster.
+ */
+export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLight; down: SpotLight } {
+  const g = new Group(), { z, y } = SCONCE, xs = WEST_X, h = 4200, w = 1500, d = 1500, x0 = xs + 700, black = mat(0x1d1e20, { metalness: 0.3, roughness: 0.5 });
+  // (in the wall's plane: 2D y down, z along the wall; x out of the wall into the room)
+  g.add(softBox({ x: xs, y: y - 900, w: 120, h: 1800 }, z - 500, z + 500, black, 30), rectBox({ x: xs + 120, y: y - 200, w: x0 - xs - 120, h: 400 }, z - 200, z + 200, black));
+  g.add(softBox({ x: x0, y: y - h / 2, w: d, h }, z - w / 2, z + w / 2, black, 60));
+  const glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
+  for (const gy of [y - h / 2 - 10, y + h / 2 - 10]) g.add(rectBox({ x: x0 + 160, y: gy, w: d - 320, h: 20 }, z - w / 2 + 160, z + w / 2 - 160, glow));
+  // the two spots, each out of its opening along the wall: a cone up to the ceiling, a wider one down, its head turned a little to the door
+  // (`lean`: along z, a part of the way down)
+  const spot = (dy: number, angle: number, lean: number) => {
+    const s = new SpotLight(kelvin(2700), 0, 0, angle, 0.6, 2), sy = -(y + dy);
+    s.position.set(x0 + d / 2, sy, z);
+    s.target.position.set(x0 + d / 2, sy - Math.sign(dy) * 20000, z + lean * 20000);
+    g.add(s, s.target);
+    return s;
+  };
+  return { root: g, glow, up: spot(-h / 2 - 100, 0.5, 0), down: spot(h / 2 + 100, 0.6, 0.3) };
 }
 
 /**
