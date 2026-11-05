@@ -1,18 +1,19 @@
 // The 3D room: a bedroom in a high-rise flat round the desk, modern and minimal, dark to sit with the game's interface (slate walls, smoked oak,
-// black-brown flat-pack furniture, cyan LED light at night; tones in `palette.ts`). A closed box at real sizes (`roomplan.ts`): a smoked-oak slat
-// panel behind the desk, a deep window west of it onto the city in 3D (`outside/view.ts`), oak planks and a rug, the bed and its bedside drawer
-// east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, tea cup,
-// architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's
-// things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
+// black-brown flat-pack furniture, cyan LED light at night; tones in `palette.ts`). A closed box at real sizes (`roomplan.ts`): a glass wall
+// behind the desk, floor to ceiling, onto the city in 3D (`outside/view.ts`; the glass looks north and is tinted, so the day stays soft), the
+// building's column in it, a stone bench along it; oak planks and a rug, the bed and its bedside drawer east of the desk, a bookcase and the door
+// on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, tea cup, architect lamp, the key stand; on the
+// column: the digital clock, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's things come from
+// the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  SpotLight, type Material, type PerspectiveCamera, type RectAreaLight, type Texture, type WebGLRenderer,
+  RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
 import { hung } from '@/features/board/render/three/wires3d';
-import { disposeTree, drum, instanced, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
+import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
 import { boxEnv, boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
@@ -22,15 +23,15 @@ import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/pr
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { OutsideView } from './outside/view';
-import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, oak, print } from './furniture3d';
+import { bed, bookcase, ceilingLight, door, eastWall, nightstand, oak, print } from './furniture3d';
 import { deskChair } from './chair3d';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, FELT, LANTERN, NEON, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
+import { CEILING, LANTERN, NEON, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
 import {
-  BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, LEDGE, MONITOR_Z, PED, RUG, SLATS_X0, SLATS_X1, SLAT_W, TRAY, WALL_T,
-  WEST_X, WINDOW,
-  daylight, slatRuns, sunDir, wallAround,
+  BED, BENCH, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
+  WALL_T, WEST_X, WINDOW,
+  daylight, sunDir, wallAround,
 } from './roomplan';
 
 const KEY_W = 230;
@@ -58,32 +59,13 @@ const SUN_D = 90000;
 const PLASTER_TILE = 8000;
 /** The sky's fill colour at noon (the night's is a deep blue). */
 const NOON_SKY = new Color(0xe4ecff);
+/** The share of the day's light the tinted glass holds back at noon (`OutsideView.setTint` darkens the view as much). */
+const TINT_CUT = 0.35;
+
+const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
-
-/** Wood: fine grain along the board (vertical or horizontal), optional plank seams. */
-function woodTex(base: string, line: string, o: { planks?: boolean; across?: boolean; repeat?: [number, number] } = {}): Texture | null {
-  return paint(512, 512, (c, w, h) => {
-    c.fillStyle = base; c.fillRect(0, 0, w, h);
-    c.save();
-    if (o.across) { c.translate(w, 0); c.rotate(Math.PI / 2); }
-    c.strokeStyle = line;
-    for (let i = 0; i < 90; i++) {
-      c.globalAlpha = 0.04 + rnd() * 0.09; c.lineWidth = 1 + rnd() * 2.5;
-      const x = rnd() * w;
-      c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + rnd() * 20 - 10, h * 0.33, x + rnd() * 20 - 10, h * 0.66, x + rnd() * 12 - 6, h); c.stroke();
-    }
-    c.restore();
-    if (o.planks) {
-      for (let k = 0; k < 6; k++) { c.globalAlpha = 0.05 + (k % 3) * 0.035; c.fillStyle = k % 2 ? '#fff3dc' : '#3b2412'; c.fillRect(0, k * h / 6, w, h / 6); }
-      c.globalAlpha = 0.45; c.strokeStyle = '#4a2e18'; c.lineWidth = 2;
-      for (let y = 0; y <= h; y += h / 6) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
-      for (let k = 0; k < 6; k++) { const x = ((k * 0.43 + 0.17) % 1) * w; c.beginPath(); c.moveTo(x, k * h / 6); c.lineTo(x, (k + 1) * h / 6); c.stroke(); }
-    }
-    c.globalAlpha = 1;
-  }, o.repeat);
-}
 
 /**
  * Plaster: a flat paint over a hand-trowelled wall. A soft cloud of light and shade (smooth noise over three scales, seamless across the
@@ -189,7 +171,7 @@ export class Room3D {
   private bedLight = new PointLight(LANTERN, 0, 42000, 1);
   private screenLight = new PointLight(0xa8cfff, 0, 9000, 0);
   private outside: OutsideView;
-  private blind = new Mesh();
+  private blinds: Mesh[] = [];
   private blindK = 0;
   private sunKey = -1;
   private keysKey = '';
@@ -203,6 +185,8 @@ export class Room3D {
   private ledGlow: MeshStandardMaterial;
   private ledUnder: RectAreaLight;
   private ledHalo: RectAreaLight;
+  /** The LED strip under the desk's front edge, the same light. */
+  private deskLed = new RectAreaLight(NEON, 0, 1, 1);
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envMats = new Set<MeshStandardMaterial>();
   private probe = false;
@@ -224,14 +208,10 @@ export class Room3D {
     const plaster = mat(0xffffff, { map: plasterTex(WALL, [1, 1]), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
     const W = WINDOW;
 
-    // ---- the back wall: plaster round the window and east of the desk, the slatted panel behind the desk (its slats flush with the plaster) ----
-    for (const r of wallAround(WEST_X, SLATS_X0, CEIL_Y, fl, W)) R.add(wall(r, -WALL_T, 0));
-    R.add(wall({ x: SLATS_X1, y: CEIL_Y, w: EAST_X - SLATS_X1, h: H }, -WALL_T, 0));
-    R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(FELT, { roughness: 0.95 })));
-    const slatM = mat(0xffffff, { map: woodTex(OAK, OAK_GRAIN), roughness: 0.7 });
-    const runs = slatRuns(SLATS_X0 + 120, SLATS_X1 - 120, CEIL_Y, fl, { x: 0, y: 0, w: 0, h: 0 });
-    R.add(instanced(new BoxGeometry(1, 1, 1), slatM, runs.map((s) => ({ x: s.x + SLAT_W / 2, y: -(s.y0 + s.y1) / 2, z: -70, sx: SLAT_W, sy: s.y1 - s.y0, sz: 140 }))));
-    for (const x of [SLATS_X0 - 120, SLATS_X1 - 120]) R.add(softBox({ x, y: CEIL_Y, w: 240, h: H }, -160, 80, slatM, 40));
+    // ---- the back wall: plaster round the glass (a slot over it, a low upstand under it, the corner to the west, the bed's wall to the east)
+    // and the building's column in it, which carries the things on the wall ----
+    for (const r of wallAround(WEST_X, EAST_X, CEIL_Y, fl, W)) R.add(wall(r, -WALL_T, 0));
+    R.add(wall({ x: PIER.x0, y: W.y, w: PIER.x1 - PIER.x0, h: W.h }, -WALL_T, 0));
 
     // ---- the other walls, the ceiling (they take light, they cast no shadow: the eye is always inside) ----
     const shell = (m: Mesh) => { m.castShadow = false; return m; };
@@ -266,35 +246,33 @@ export class Room3D {
     rug.castShadow = false;
     R.add(rug);
 
-    // ---- the window: a tall black aluminium frame set back in its reveal, a fixed pane and a tilt-turn sash, a deep stone ledge, the roller blind ----
-    const winG = tag(new Group(), 'blind'), bar = 380, mull = 300, mullX = W.x + W.w * 0.45;
-    const fz0 = FRAME_Z - 700, sashZ = FRAME_Z - 150, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.38 });
-    const frame: Rect[] = [
-      { x: W.x, y: W.y, w: W.w, h: bar }, { x: W.x, y: W.y + W.h - bar, w: W.w, h: bar },
-      { x: W.x, y: W.y, w: bar, h: W.h }, { x: W.x + W.w - bar, y: W.y, w: bar, h: W.h },
-      { x: mullX - mull / 2, y: W.y + bar, w: mull, h: W.h - 2 * bar },
-    ];
-    for (const r of frame) winG.add(softBox(r, fz0, FRAME_Z, alu, 30));
-    // the tilt-turn sash east of the mullion: a slim frame of its own, its handle on the side away from the hinges
-    const sx0 = mullX + mull / 2, sw = W.x + W.w - bar - sx0, sy0 = W.y + bar, sh = W.h - 2 * bar, sash = 260;
-    for (const r of [{ x: sx0, y: sy0, w: sw, h: sash }, { x: sx0, y: sy0 + sh - sash, w: sw, h: sash }, { x: sx0, y: sy0, w: sash, h: sh }, { x: sx0 + sw - sash, y: sy0, w: sash, h: sh }]) winG.add(softBox(r, sashZ - 400, sashZ, alu, 25));
-    winG.add(softBox({ x: sx0 + 60, y: sy0 + sh * 0.55 - 120, w: 140, h: 240 }, sashZ, sashZ + 120, alu, 40));
-    winG.add(softBox({ x: sx0 + 90, y: sy0 + sh * 0.55 - 100, w: 80, h: 1100 }, sashZ + 120, sashZ + 230, alu, 35));
+    // ---- the glass wall: slim black aluminium frames set back in the reveal, a pane a bay (the column parts two bays, a mullion parts the west
+    // one), one picture of the city behind them all; a roller blind in each bay, its cassette at the top of the reveal ----
+    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.38 });
+    const bays = [{ x0: W.x, x1: PIER.x0 }, { x0: PIER.x1, x1: W.x + W.w }];
+    for (const b of bays) {
+      const w = b.x1 - b.x0;
+      for (const r of [{ x: b.x0, y: W.y, w, h: bar }, { x: b.x0, y: W.y + W.h - bar, w, h: bar }, { x: b.x0, y: W.y, w: bar, h: W.h }, { x: b.x1 - bar, y: W.y, w: bar, h: W.h }]) winG.add(softBox(r, fz0, FRAME_Z, alu, 30));
+    }
+    winG.add(softBox({ x: MULLION_X - bar / 2, y: W.y + bar, w: bar, h: W.h - 2 * bar }, fz0, FRAME_Z, alu, 30));
     const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
     this.outside = new OutsideView(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
     winG.add(this.outside.mesh, glass);
-    // the ledge: a deep slab of dark stone at seat height, on a plain plinth in the trim's tone to the floor (the heating runs under the floor)
-    const sillY = W.y + W.h, stone = mat(STONE, { roughness: 0.3 });
-    winG.add(softBox({ x: LEDGE.x0, y: sillY, w: LEDGE.x1 - LEDGE.x0, h: 600 }, fz0 - 200, LEDGE.z, stone, 60));
-    winG.add(softBox({ x: W.x - 400, y: sillY + 600, w: W.w + 800, h: fl - sillY - 600 }, -WALL_T, LEDGE.z - 400, trim, 40));
-    // the roller blind: its cassette at the top of the reveal, its cloth comes down in front of the frame
-    winG.add(softBox({ x: W.x + 150, y: W.y, w: W.w - 300, h: 900 }, -900, -150, mat(0x2a2d33, { roughness: 0.5 }), 120));
-    this.blind = place(new Mesh(new BoxGeometry(W.w - 500, 1, 40), mat(0xffffff, { map: plasterTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide })));
-    this.blind.position.set(W.x + W.w / 2, -(W.y + 900), -500);
-    winG.add(this.blind);
+    const cassette = mat(0x2a2d33, { roughness: 0.5 }), screen = mat(0xffffff, { map: plasterTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
+    for (const b of bays) {
+      winG.add(softBox({ x: b.x0 + 150, y: W.y, w: b.x1 - b.x0 - 300, h: 900 }, -900, -150, cassette, 120));
+      const blind = place(new Mesh(new BoxGeometry(b.x1 - b.x0 - 500, 1, 40), screen));
+      blind.position.set((b.x0 + b.x1) / 2, -(W.y + 900), -500);
+      this.blinds.push(blind);
+      winG.add(blind);
+    }
     R.add(winG);
-    R.add(aloe(W.x + W.w - 2600, sillY, 600), curtains());
+    // the bench along the glass west of the desk: a slab of dark stone at seat height on a plinth set in, in the trim's tone; the aloe on it
+    const B = BENCH, stone = mat(STONE, { roughness: 0.3 });
+    R.add(softBox({ x: B.x0, y: B.top, w: B.x1 - B.x0, h: 600 }, B.z0, B.z1, stone, 60));
+    R.add(softBox({ x: B.x0 + 500, y: B.top + 600, w: B.x1 - B.x0 - 1000, h: fl - B.top - 600 }, B.z0 + 300, B.z1 - 700, trim, 40));
+    R.add(aloe(B.x1 - 2600, B.top, (B.z0 + B.z1) / 2));
 
     // ---- the furniture: the bed and its LED strips, the bedside drawer and its lantern, the bookcase, the door, the ceiling light, a print over
     // the bed, plants ----
@@ -334,6 +312,14 @@ export class Room3D {
     R.add(softBox({ x: t.x0, y: ty + t.h - 60, w: t.x1 - t.x0, h: 60 }, t.z0, t.z1, steel, 20));
     for (const x of [t.x0, t.x1 - 60]) R.add(softBox({ x, y: ty, w: 60, h: t.h }, t.z0, t.z1, steel, 20));
     for (const x of [t.x0 + 1500, t.x1 - 1500]) R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
+    // a cyan LED strip under the top's front edge, as round the bed: at night the desk floats on its glow. Its area light is a narrow band
+    // along the strip (a wide one would show as a bright box in the glass behind the desk)
+    const knee0 = g.desk.x0 + 600, knee1 = ped.x - 200;
+    R.add(rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow));
+    this.deskLed.width = knee1 - knee0; this.deskLed.height = 1600;
+    this.deskLed.position.set((knee0 + knee1) / 2, -under - 200, DESK_D - 1400);
+    this.deskLed.rotation.x = -Math.PI / 2;
+    R.add(this.deskLed);
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, a tea cup on its saucer, a notebook ----
     this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
@@ -354,7 +340,7 @@ export class Room3D {
     R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, 24), post(grommet.x, under + 300, grommet.z, 300, 300, cap, 20));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
-    // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the sill
+    // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
     R.add(mess(ped.x, under, grommet));
     // (the tea in the gap between the mat and the case)
     this.cup = teaCup((matEnd + CASE.x) / 2, ys, MONITOR_Z + 3200);
@@ -370,16 +356,28 @@ export class Room3D {
     this.lampLight.castShadow = true; this.lampLight.shadow.mapSize.set(1024, 1024); this.lampLight.shadow.bias = -0.0005; this.lampLight.shadow.radius = 6;
     R.add(this.lampLight, this.lampLight.target);
 
-    // ---- on the wall: the clock, the key rack, the router on its shelf, the letterbox, the plates ----
-    this.clock = new DigitalClock(g.clock);
+    // ---- on the building's column: the clock over the router on its shelf, the letterbox, the plates ----
+    this.clock = new DigitalClock({ ...g.clock, x: (PIER.x0 + PIER.x1) / 2 - g.clock.w / 2, y: CLOCK_Y });
     R.add(this.clock.root);
-    const rack = tag(new Group(), 'tray');
+    // ---- the key stand on the desk west of the monitor: the 2D rack's two rows of hooks on a black steel frame, two uprights on feet. It is
+    // the rack moved off the wall (`standAt`), so the keys keep their 2D places in it; the lowest key hangs clear of the desk ----
+    const rack = tag(new Group(), 'tray'), kr = g.keyRack, bar1 = kr.x + kr.w + 210;
+    const low = Math.max(...[5, 6, 7, 8, 9].map((i) => trayKeyCentre(i).y)) + KEY_LEN / 2, foot = low + 300;
     for (let row = 0; row < 2; row++) {
       const y = trayHook(row * 5).y;
-      rack.add(softBox({ x: g.keyRack.x + 120, y: y - 110, w: g.keyRack.w - 240 + row * 330, h: 220 }, 0, 200, dark, 40));
+      rack.add(softBox({ x: kr.x + 120, y: y - 110, w: kr.w - 240 + row * 330, h: 220 }, 0, 200, dark, 40));
       for (let col = 0; col < 5; col++) { const h = trayHook(row * 5 + col); rack.add(drum(h.x, h.y, 200, 420, 40, chrome, 10)); }
     }
-    R.add(rack, this.keys);
+    const rackTop = trayHook(0).y - 300;
+    for (const x of [kr.x - 60, bar1]) {
+      rack.add(softBox({ x, y: rackTop, w: 180, h: foot - rackTop }, -40, 240, steel, 40));
+      rack.add(softBox({ x: x - 40, y: foot - 140, w: 260, h: 140 }, -900, 1300, steel, 40));
+    }
+    // (a new key's letter comes to the stand: it is in `keys`, so it floats in beside the rack as on the 2D wall)
+    const stand = new Group();
+    stand.position.set(KEY_STAND.x - kr.x, foot - ys, KEY_STAND.z);
+    stand.add(rack, this.keys);
+    R.add(stand);
     R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
     // the router: black, as the other things on the wall
     const router = tag(new Group(), 'router');
@@ -430,8 +428,8 @@ export class Room3D {
     this.fill.target.position.set(cx, deskTop, 0);
     R.add(this.fill, this.fill.target);
     const wc = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const;
-    // up and out behind the window, a little west of it: the sky's light comes down through the opening and rakes east over the desk
-    this.key.position.set(wc[0] - 2500, wc[1] + 6000, -WALL_T - 5000);
+    // high and far out behind the glass's middle: the north sky's light comes down through the whole glass wall onto the desk
+    this.key.position.set(wc[0], wc[1] + 12000, -WALL_T - 20000);
     this.key.target.position.set(cx - 4000, deskTop - 2000, DESK_D + 4000);
     this.key.castShadow = true;
     this.key.shadow.mapSize.set(4096, 4096);
@@ -597,12 +595,16 @@ export class Room3D {
     }
     this.blindK += ((f.blind ? 1 : 0) - this.blindK) * (1 - Math.pow(0.02, dt));
     const wh = WINDOW.h - 900, bh = Math.max(1, this.blindK * wh);
-    this.blind.scale.y = bh; this.blind.position.y = -(WINDOW.y + 900) - bh / 2;
+    for (const b of this.blinds) { b.scale.y = bh; b.position.y = -(WINDOW.y + 900) - bh / 2; }
     const open = 1 - this.blindK * 0.85;
     // the day comes in by the window, the sky's light and the sun; the rest of the room has what bounces (the probe). At night a dim blue
     // moonlight: the lamps, the screen and the machine carry the room
-    this.sun.intensity = (day * 4.2 + night * 0.25) * open;
-    this.key.intensity = (0.05 + day * 2.2) * open * KEY_REF ** KEY_DECAY;
+    // (the glass looks north: the sun comes in only low, at the day's two ends, from the side it stands to; the tint takes its share of the sky)
+    const sunIn = smooth(0.02, 0.12, -sunDir(f.hour)[2]), clear = 1 - day * TINT_CUT;
+    this.outside.setTint(day);
+    this.sun.intensity = (day * 4.2 * sunIn + night * 0.25) * open * clear;
+    // (at night the lit city's glow through the whole glass wall: a soft blue light over the desk)
+    this.key.intensity = (0.05 + night * 0.7 + day * 2.2) * open * clear * KEY_REF ** KEY_DECAY;
     this.fill.intensity = 0.03 + day * 0.45;
     this.hemi.intensity = 0.06 + day * 0.45;
     this.hemi.color.set(0x5d6fae).lerp(NOON_SKY, day);
@@ -620,6 +622,7 @@ export class Room3D {
     this.ledGlow.emissiveIntensity = led * 3;
     this.ledUnder.intensity = led * 6;
     this.ledHalo.intensity = led * 10;
+    this.deskLed.intensity = led * 18;
     this.screenLight.intensity = f.screen.powered ? 0.3 + night * 0.7 : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}`;
     this.monitor.set(f.screen, f.hour);

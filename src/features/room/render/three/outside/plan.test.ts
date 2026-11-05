@@ -13,7 +13,8 @@ describe('outside plan', () => {
     expect(toOutside(0, -FLOOR_Y, 0)[1]).toBeCloseTo(FLOOR_UP);
     expect(toOutside(0, 0, -WALL_T)[2]).toBeCloseTo(0);
     expect(toOutside(M, 0, 0)[0]).toBeCloseTo(1);
-    expect(toOutside(0, -(WINDOW.y + WINDOW.h), 0)[1]).toBeGreaterThan(45.3);
+    // (the glass starts on a low upstand over the floor)
+    expect(toOutside(0, -(WINDOW.y + WINDOW.h), 0)[1]).toBeGreaterThan(FLOOR_UP);
   });
 
   it('lays the grid: our street under the window, blocks between the streets and avenues', () => {

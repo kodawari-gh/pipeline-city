@@ -112,9 +112,9 @@ export function mountBoard3d(host: HTMLElement) {
 
   // ---- camera ----
   const aspect = () => W / H;
-  // the reference's framing: front on, a little from above, the window to the drawers, from over the window to the desk's drawers
+  // the reference's framing: front on, a little from above, from the glass west of the desk to the drawers, from the old window head to the desk's drawers
   const roomRect = (): Box => {
-    const g = room!.geo, x0 = WINDOW.x - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, VIEW_TOP) - 1200;
+    const g = room!.geo, x0 = Math.max(WINDOW.x, g.desk.x0 - 12500) - 1200, y0 = Math.min(TRAY.y, ROUTER_SPOT.y, g.clock.y, VIEW_TOP) - 1200;
     return { x: x0, y: y0, w: Math.max(g.desk.x1, CASE.x + CASE.w) + 1200 - x0, h: g.ys + 7000 - y0 };
   };
   /**

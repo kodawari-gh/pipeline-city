@@ -1,21 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { distanceOf, eyeOf, keepInside, reach, type OrbitView, type Room } from '@/core/render/three/camera';
+import { MONITOR, OUTBOX, ROUTER_SPOT, WALL_PLATE } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
-import { BED, CURTAIN, EAST_X, FLOOR_Y, FRONT_Z, LEDGE, SLAT_W, WEST_X, WINDOW, daylight, eyeBlocks, eyeRoom, slatRuns, sunDir, wallAround } from './roomplan';
+import { BED, BENCH, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, PIER, WEST_X, WINDOW, daylight, eyeBlocks, eyeRoom, sunDir, wallAround } from './roomplan';
 
 const HOLE = { x: 1000, y: 200, w: 1000, h: 400 };
 
 describe('3D room plan', () => {
-  it('cuts the slats round the window', () => {
-    const runs = slatRuns(0, 4000, 0, 1000, HOLE);
-    for (const r of runs) {
-      const overlapsX = r.x < HOLE.x + HOLE.w && r.x + SLAT_W > HOLE.x, overlapsY = r.y0 < HOLE.y + HOLE.h && r.y1 > HOLE.y;
-      expect(overlapsX && overlapsY).toBe(false);
-    }
-    expect(runs.some((r) => r.y1 === HOLE.y)).toBe(true);
-    expect(runs.some((r) => r.y0 === HOLE.y + HOLE.h)).toBe(true);
-  });
-
   it('builds a wall that covers everything but the hole', () => {
     const area = wallAround(0, 4000, 0, 1000, HOLE).reduce((a, r) => a + r.w * r.h, 0);
     expect(area).toBe(4000 * 1000 - HOLE.w * HOLE.h);
@@ -29,8 +20,9 @@ describe('3D room plan', () => {
     expect(daylight(7)).toBeLessThan(1);
   });
 
-  it('keeps the sun behind the back wall, high at midday and low in the west at dusk', () => {
-    for (const h of [6, 9, 12, 14.2, 18, 20.5]) expect(sunDir(h)[2]).toBeLessThan(0);
+  it('keeps the sun behind the room through the day (the glass looks north), high at midday and low in the west at dusk', () => {
+    for (const h of [9, 12, 14.2, 18]) expect(sunDir(h)[2]).toBeGreaterThan(0);
+    for (const h of [6, 20.5]) expect(sunDir(h)[2]).toBeLessThan(0);
     expect(sunDir(13)[1]).toBeGreaterThan(0.6);
     expect(sunDir(20.5)[0]).toBeLessThan(0);
     expect(sunDir(20.5)[1]).toBeLessThan(0.05);
@@ -92,9 +84,19 @@ describe('3D room plan', () => {
       expect(points(v).some((p) => blocks.some((b) => inside(p, b)))).toBe(false);
     });
 
-    it('hangs the curtains clear of the ledge and the desk', () => {
-      expect(CURTAIN.z - 0.98 * CURTAIN.wave).toBeGreaterThan(LEDGE.z);
-      expect(CURTAIN.x3).toBeLessThan(roomGeo().desk.x0);
-    });
+  });
+
+  it('sets the glass wall round the desk: the column behind the things on the wall, the bench clear of the desk, the key stand on it', () => {
+    const g = roomGeo();
+    for (const r of [ROUTER_SPOT, OUTBOX, g.socket.plate, WALL_PLATE]) {
+      expect(r.x).toBeGreaterThanOrEqual(PIER.x0);
+      expect(r.x + r.w).toBeLessThanOrEqual(PIER.x1);
+    }
+    expect(PIER.x0).toBeGreaterThan(WINDOW.x);
+    expect(PIER.x1).toBeLessThan(WINDOW.x + WINDOW.w);
+    expect(BENCH.x0).toBeGreaterThan(WINDOW.x);
+    expect(BENCH.x1).toBeLessThan(g.desk.x0);
+    expect(KEY_STAND.x).toBeGreaterThan(g.desk.x0);
+    expect(KEY_STAND.x + g.keyRack.w + 400).toBeLessThan(MONITOR.x);
   });
 });

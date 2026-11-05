@@ -25,8 +25,11 @@ const SHADOW_LEVELS = [0, 1024, 2048, 2048, 4096];
 const SHADOW_HALF = 420, SHADOW_AT = new Vector3(GRID.av0, 0, -380);
 /** The lamps whose light is drawn (the nearest to where the window looks, down the avenue); the rest only glow. */
 const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
-/** The window's picture over what the room's light makes of it: 1 is the outside's own exposure. */
-const GAIN = 1;
+/**
+ * The glass's tint at noon (`setTint`): smart glass that darkens with the day, so the bright city keeps to the room's exposure, a little cool. At
+ * night it is clear (1 is the outside's own exposure).
+ */
+const TINT = new Color(0.42, 0.46, 0.52);
 
 const QUAD_VERT = /* glsl */`
 varying vec3 vWorld;
@@ -40,14 +43,15 @@ const QUAD_FRAG = /* glsl */`
 uniform sampler2D tOut;
 uniform samplerCube tEnv;
 uniform vec2 off, inv;
-uniform float live, gain;
+uniform float live;
+uniform vec3 tint;
 varying vec3 vWorld;
 const float CAP = 4.0;
 void main() {
   vec3 c = live > 0.5 ? texture2D(tOut, (gl_FragCoord.xy - off) * inv).rgb : textureCube(tEnv, normalize(vWorld - cameraPosition)).rgb;
   // the sun's glints off cars and panes held to a glow: the room's bloom would spread a pixel of them over the street
   c *= min(1.0, CAP / max(max(c.r, c.g), max(c.b, 1e-4)));
-  gl_FragColor = vec4(c * gain, 1.0);
+  gl_FragColor = vec4(c * tint, 1.0);
 }`;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -86,7 +90,7 @@ export class OutsideView {
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
     this.quad = new ShaderMaterial({
       vertexShader: QUAD_VERT, fragmentShader: QUAD_FRAG,
-      uniforms: { tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, gain: { value: GAIN } },
+      uniforms: { tOut: { value: null }, tEnv: { value: this.env.texture }, off: { value: new Vector2() }, inv: { value: new Vector2(1, 1) }, live: { value: 0 }, tint: { value: new Color(1, 1, 1) } },
     });
     this.mesh = new Mesh(new PlaneGeometry(w, h), this.quad);
     this.mesh.position.set(cx, cy, z);
@@ -144,6 +148,9 @@ export class OutsideView {
     sh.radius = 2;
     this.sunMoved = true;
   }
+
+  /** The glass's tint for the day's light `day` (0 night, 1 day): clear at night, `TINT` at noon. */
+  setTint(day: number): void { (this.quad.uniforms.tint!.value as Color).setRGB(1, 1, 1).lerp(TINT, day); }
 
   /** The hour's sky and light (a few times a game hour), the clouds' drift and the wind every frame. */
   frame(hour: number, t: number): void {

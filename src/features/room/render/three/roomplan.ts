@@ -1,4 +1,4 @@
-// The 3D room's plan (pure): depths and the runs of the wood-slat wall. The x and y of everything come from the 2D layout (`roomGeo`, `layout.ts`), z is the distance out of the back wall.
+// The 3D room's plan (pure): depths, the glass wall and its column, the sun's path. The x and y of everything come from the 2D layout (`roomGeo`, `layout.ts`), z is the distance out of the back wall.
 import type { Room } from '@/core/render/three/camera';
 import type { Rect } from '@/features/board/render/layout/layout';
 
@@ -9,9 +9,7 @@ export const CASE_Z = 2200, CASE_D = 4200, BOARD_Z = CASE_Z + 260;
 export const MONITOR_Z = 3200;
 export const ROOM_D = 26000;
 
-/** The wall's slats: thin and dense, like an acoustic panel wall. */
-export const SLAT_W = 170, SLAT_PITCH = 250;
-/** The 3D room's clock starts in the early afternoon (the reference look is a sunny day). */
+/** The 3D room's clock starts in the early afternoon. */
 export const START_HOUR_3D = 14.2;
 
 // ---- the bedroom round the desk: real sizes at the monitor's scale (about 18,700 units a metre; the 2D floor is far closer than a real one) ----
@@ -19,13 +17,23 @@ export const START_HOUR_3D = 14.2;
 export const FLOOR_Y = 20000, CEIL_Y = -26800;
 /** The side walls and the wall behind the viewer (the room is 4.8 m wide and 3.7 m deep). */
 export const WEST_X = -40000, EAST_X = 50000, FRONT_Z = 70000;
-/** The back wall's thickness at the window (its reveal), and the window's opening in it (2D y down): a tall window west of the desk, from a low ledge (40 cm) almost to the ceiling. */
+/**
+ * The back wall's thickness (its reveal), and the glass wall in it (2D y down): floor-to-ceiling glazing from near the west corner to past the
+ * case, from a slot under the ceiling (the blinds' pocket) down to a low upstand (10 cm). The city fills the view behind the desk.
+ */
 export const WALL_T = 2600;
-export const WINDOW: Rect = { x: -32600, y: CEIL_Y + 700, w: 11000, h: FLOOR_Y - 7480 - (CEIL_Y + 700) };
-/** The top of the room view's framing: the old window head, so the taller window does not pull the camera back. */
+export const WINDOW: Rect = { x: WEST_X + 2400, y: CEIL_Y + 900, w: 10400 - (WEST_X + 2400), h: FLOOR_Y - 1900 - (CEIL_Y + 900) };
+/**
+ * The building's column in the glass wall, behind the monitor's east end: plaster, the whole height. The things of the 2D wall stay on it at
+ * their 2D places (the router's shelf, the letterbox, the network and power plates); the clock moves onto it (`CLOCK_Y`).
+ */
+export const PIER = { x0: -8400, x1: -2700 };
+/** The glazing's mullion: the bay west of the column is cut in two. */
+export const MULLION_X = (WINDOW.x + PIER.x0) / 2;
+/** The clock's top on the column (2D y down): over the router's antennas. */
+export const CLOCK_Y = -7900;
+/** The top of the room view's framing: the old window head, so the tall glass does not pull the camera back. */
 export const VIEW_TOP = -14000;
-/** The slatted accent panel behind the desk; plaster elsewhere. */
-export const SLATS_X0 = -20000, SLATS_X1 = 9000;
 /**
  * The bed (its headboard just off the back wall, east of the desk: `head` deep, its top `headTop`; `top`: the mattress's top, 2D y down), the
  * bedside drawer floating on the wall beside it (its top about the mattress's height, `h` tall; the lantern on it, `lamp.dx` in from its west
@@ -41,10 +49,10 @@ export const RUG = { x0: -8000, x1: 27000, z0: 15000, z1: 41000, h: 300 };
 export const onRug = (x: number, z: number): boolean => x > RUG.x0 && x < RUG.x1 && z > RUG.z0 && z < RUG.z1;
 /** The fig in its pot on the floor by the west wall (its leaves reach about 5000 round it). */
 export const FIG_AT = { x: WEST_X + 5800, z: 31500 } as const;
-/** The curtain track on the ceiling, out from the wall clear of the window ledge, and the two panels' ends (x): the east one stops short of the desk. */
-export const CURTAIN = { z: 3900, x0: WINDOW.x - 3000, x1: WINDOW.x + 1400, x2: WINDOW.x + WINDOW.w - 1000, x3: WINDOW.x + WINDOW.w + 900, wave: 800 };
-/** The window ledge's front (z) and its ends. */
-export const LEDGE = { z: 2600, x0: WINDOW.x - 500, x1: WINDOW.x + WINDOW.w + 500 };
+/** The low bench along the glass west of the desk (a stone top at seat height, 40 cm): its ends (x), its back and front (z), its top (2D y down). */
+export const BENCH = { x0: WINDOW.x + 1200, x1: -24600, z0: 400, z1: 5600, top: FLOOR_Y - 7480 };
+/** The key stand on the desk west of the monitor: where the rack's west end stands (x) and its hooks' plane (z). */
+export const KEY_STAND = { x: -19800, z: 5600 };
 /** The cable tray hung under the desk top's back edge, behind the monitor: its ends (x), its back and front (z), its top `drop` under the top, `h` deep. */
 export const TRAY = { x0: -16000, x1: -5000, z0: 400, z1: 2600, drop: 400, h: 1500 };
 /** The drawer unit under the desk's east end: its west side `in` from the desk's east end, `w` wide. */
@@ -63,14 +71,14 @@ export function eyeRoom(): Room {
  * top in three tiers (the duvet falls out past the frame, more toward its hem), its headboard with the pillows; the bedside drawer with the
  * book on it, the lantern; the bookcase
  * with the pothos trailing off it; the fig's leaves; the east shelf with its speaker, plant and vines; the desk's top, its drawer unit and the
- * backpack against it; the two curtains. `geo`: the 2D desk's ends and top (`roomGeo`). Not the chair (it stands in the views of the desk),
- * nor the case and the monitor (the views are of them).
+ * backpack against it; the bench with the aloe on it. `geo`: the 2D desk's ends and top (`roomGeo`). Not the chair (it stands in the views of
+ * the desk), nor the case and the monitor (the views are of them).
  */
 export function eyeBlocks(geo: { desk: { x0: number; x1: number }; ys: number }): Room[] {
   // a box from 2D: its ends (x), its top and bottom (2D y down), its back and front (z)
   const box = (x0: number, x1: number, top: number, bottom: number, z0: number, z1: number): Room => ({ x0, x1, y0: -bottom, y1: -top, z0, z1 });
   const fl = FLOOR_Y, { x, w, z0, z1 } = BED, duvet = BED.top - 1700, ns = NIGHTSTAND, lamp = ns.lamp;
-  const lx = ns.x + lamp.dx, lz = (ns.z0 + ns.z1) / 2 + lamp.dz, ped = geo.desk.x1 - PED.in, under = geo.ys + DESK_TOP, c = CURTAIN;
+  const lx = ns.x + lamp.dx, lz = (ns.z0 + ns.z1) / 2 + lamp.dz, ped = geo.desk.x1 - PED.in, under = geo.ys + DESK_TOP, b = BENCH;
   return [
     box(x - 400, x + w + 400, duvet, fl - 8500, z0 - 100, z1 + 400),
     box(x - 1400, x + w + 1400, fl - 8500, fl - 6500, z0 - 100, z1 + 700),
@@ -85,32 +93,19 @@ export function eyeBlocks(geo: { desk: { x0: number; x1: number }; ys: number })
     box(geo.desk.x0, geo.desk.x1, geo.ys, under, 0, DESK_D),
     box(ped, ped + PED.w, under, fl, 300, DESK_D - 280),
     box(ped - 5000, ped, fl - 9200, fl, 5000, 11000),
-    box(c.x0, c.x1, CEIL_Y, fl, c.z - c.wave - 100, c.z + c.wave + 100),
-    box(c.x2, c.x3, CEIL_Y, fl, c.z - c.wave - 100, c.z + c.wave + 100),
+    // (the aloe stands up to 6,000 over the bench's top)
+    box(b.x0 - 400, b.x1 + 400, b.top - 6000, fl, b.z0 - 100, b.z1 + 400),
   ];
 }
 
 /**
- * The sun's direction (world, y up, z out of the wall toward the viewer) at an hour: it rises far to the east (+x) behind the wall, climbs to
- * about 50 degrees and sets low in the west, where the window looks: at dusk it sinks into the skyline in the window's view.
+ * The sun's direction (world, y up, z out of the wall toward the viewer) at an hour. The glass looks north: the sun rises in the east (+x), a
+ * little toward the glass, passes south behind the room (+z), about 50 degrees up at noon, and sets in the west. It never shines in; it lights
+ * the faces of the city that look at us, and low in the evening it rakes across them from the west.
  */
 export function sunDir(hour: number): [number, number, number] {
-  const f = Math.min(1, Math.max(0, (hour - 6) / 14.5)), az = 1.3 - 1.7 * f, el = 0.85 * Math.sin(Math.PI * f) - 0.04;
-  return [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)];
-}
-
-export interface Run { x: number; y0: number; y1: number }
-
-/** The wall's vertical slats from x0 to x1, y0 to y1 (y down), cut round the hole (the window with its frame). */
-export function slatRuns(x0: number, x1: number, y0: number, y1: number, hole: Rect): Run[] {
-  const out: Run[] = [];
-  for (let x = x0; x + SLAT_W <= x1; x += SLAT_PITCH) {
-    const clear = x + SLAT_W <= hole.x || x >= hole.x + hole.w;
-    if (clear) { out.push({ x, y0, y1 }); continue; }
-    if (hole.y > y0) out.push({ x, y0, y1: hole.y });
-    if (hole.y + hole.h < y1) out.push({ x, y0: hole.y + hole.h, y1 });
-  }
-  return out;
+  const f = Math.min(1, Math.max(0, (hour - 6) / 14.5)), az = 1.75 - 3.5 * f, el = 0.85 * Math.sin(Math.PI * f) - 0.04;
+  return [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
 }
 
 /** The four pieces of a wall from x0 to x1, y0 to y1, with a hole in it. */

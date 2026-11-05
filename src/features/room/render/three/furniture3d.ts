@@ -1,6 +1,6 @@
 // The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night. The bed against the back wall
-// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall, the curtains, the door, the ceiling light, the print
+// east of the desk, the bedside drawer and its lantern, the bookcase on the west wall, the door, the ceiling light, the print
 // over the bed, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
 // (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
 // nothing answers a click.
@@ -14,9 +14,9 @@ import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox } from
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
-import { DUVET, LANTERN, LINEN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN } from './palette';
+import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN } from './palette';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, CEIL_Y, CURTAIN, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
+import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -389,52 +389,6 @@ export function bookcase(): Group {
   // a pothos on the top, trailing over the front edge
   g.add(pothos(x + w / 2 + 300, top, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
   g.add(floorShadow(x + w / 2, (z0 + z1) / 2, w * 1.6, (z1 - z0) * 1.1, 0.7));
-  return g;
-}
-
-// ---------------------------------------------------------------- the window's furnishings
-/** Curtain linen: a fine weave with slubs along the weft, the heading tape across its top (the track's end) and the turned hem across its foot. */
-function curtainTex(base: string): Texture | null {
-  return paint(256, 1024, (c, w, h) => {
-    c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.04 + rnd() * 0.05})`; c.fillRect(i, 0, 1, h); }
-    for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(0,0,0,${0.03 + rnd() * 0.04})`; c.fillRect(0, i, w, 1); }
-    for (let k = 0; k < 220; k++) { c.fillStyle = `rgba(255,255,255,${0.04 + rnd() * 0.05})`; c.fillRect(rnd() * w, rnd() * h, 10 + rnd() * 40, 1); }
-    const stitch = (y: number) => { c.fillStyle = 'rgba(0,0,0,0.3)'; for (let x = 0; x < w; x += 8) c.fillRect(x, y, 5, 1.5); };
-    // the heading tape: a paler band, stitched along both edges, a shadow line under it
-    c.fillStyle = 'rgba(255,255,255,0.07)'; c.fillRect(0, 0, w, 40);
-    stitch(6); stitch(34);
-    c.fillStyle = 'rgba(0,0,0,0.2)'; c.fillRect(0, 40, w, 3);
-    // the hem: a doubled band, a little darker, its stitch line
-    c.fillStyle = 'rgba(0,0,0,0.08)'; c.fillRect(0, h - 70, w, 70);
-    c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(0, h - 72, w, 2);
-    stitch(h - 60);
-  }, [3, 1]);
-}
-
-/**
- * Floor-length charcoal linen curtains, drawn open to each side of the window: each panel hangs from a slim black track on the ceiling in soft,
- * even wave folds (a little deeper toward the hem), its hem just clear of the floor. The track stands out from the wall far enough that the
- * deepest fold clears the window ledge (`CURTAIN`, `LEDGE`).
- */
-export function curtains(): Group {
-  const g = new Group(), { z, x0, x1, x2, x3, wave } = CURTAIN, top = CEIL_Y + 260, h = FLOOR_Y - 180 - top;
-  g.add(softBox({ x: x0 - 300, y: CEIL_Y, w: x3 - x0 + 600, h: 260 }, z - 260, z + 260, mat(STEEL, { roughness: 0.5 }), 40));
-  const linen = cloth(0xffffff, { map: curtainTex(LINEN), roughness: 0.95, side: DoubleSide });
-  const panel = (a: number, b: number, seed: number) => {
-    const w = b - a, geo = new PlaneGeometry(w, h, 96, 24), p = geo.attributes.position!;
-    for (let i = 0; i < p.count; i++) {
-      const u = p.getX(i) / w + 0.5, v = 0.5 - p.getY(i) / h;
-      // the wave: an even pleat from the track's carriers, deeper as it falls, the hem's sway: at most 0.98 of `wave` off the track
-      p.setZ(i, Math.sin(((u * w) / 1500) * Math.PI * 2 + seed) * (0.65 + 0.15 * v) * wave + Math.sin(u * 9 + v * 2.2 + seed * 1.3) * 0.18 * v * wave);
-    }
-    geo.computeVertexNormals();
-    const o = place(new Mesh(geo, linen));
-    o.position.set((a + b) / 2, -(top + h / 2), z);
-    g.add(seeThrough(o));
-  };
-  panel(x0, x1, 0.7);
-  panel(x2, x3, 2.9);
   return g;
 }
 

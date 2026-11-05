@@ -4,7 +4,7 @@ import type { Room } from '@/core/render/three/camera';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import { bed, bookcase, curtains, eastWall, nightstand } from './furniture3d';
+import { bed, bookcase, eastWall, nightstand } from './furniture3d';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
 import { BED, DESK_TOP, EAST_X, FIG_AT, FLOOR_Y, MONITOR_Z, PED, RUG, WEST_X, eyeBlocks, eyeRoom } from './roomplan';
@@ -54,7 +54,7 @@ describe('3D furniture', () => {
     const kx = MONITOR.x + MONITOR.w / 2, kz = MONITOR_Z + 3600;
     const pack = mess(g.desk.x1 - PED.in, g.ys + DESK_TOP, { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }).getObjectByName('backpack')!;
     const pieces: Record<string, Object3D> = {
-      bed: bed().root, nightstand: nightstand().root, bookcase: bookcase(), fig: floorPlant(FIG_AT.x, FIG_AT.z), shelf: eastWall(), curtains: curtains(), backpack: pack,
+      bed: bed().root, nightstand: nightstand().root, bookcase: bookcase(), fig: floorPlant(FIG_AT.x, FIG_AT.z), shelf: eastWall(), backpack: pack,
     };
     for (const [name, o] of Object.entries(pieces)) {
       const loose = vertices(o, 2).filter((p) => inBox(p, r, reach) && !blocks.some((b) => inBox(p, b, 1)));

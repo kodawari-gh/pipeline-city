@@ -1,6 +1,6 @@
 // The room's plants in 3D (docs/LOWPOLY_STYLE.md "Look decision"): each leaf a curved blade (its outline, a crease down the midrib, a curl, a
 // wavy edge) painted with its veins, on a petiole off a tapered stem: a fiddle-leaf fig in a ribbed pot on the floor, pothos trailing off the
-// shelves, succulent rosettes in small pots, an aloe on the sill. The builders take layout points (2D y down) and return world meshes (y up).
+// shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
 // All the leaves of a kind share a few materials, so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
 import { BufferGeometry, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, LatheGeometry, Matrix4, Mesh, Vector2, Vector3, type Material, type Texture } from 'three';
 import { paint, place, post, rod } from '@/core/render/three/geometry';
@@ -260,7 +260,7 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
   return g;
 }
 
-/** An aloe in a stoneware pot on the sill at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
+/** An aloe in a stoneware pot on the bench at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
 export function aloe(x: number, y: number, z: number): Group {
   const g = new Group();
   // the pot: a plain cylinder a little tapered to its foot, its rim rounded over

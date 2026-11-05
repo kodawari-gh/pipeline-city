@@ -1,12 +1,12 @@
 // The room's few things about in 3D, kept tidy: a backpack set down against the desk's drawer unit, the power strip in the cable tray under the
-// desk (its leads up through the grommet, its own lead down the wall to a socket), two books on the window ledge. Plain scenery at real sizes
+// desk (its leads up through the grommet, its own lead down the column to a socket), two books on the bench by the glass. Plain scenery at real sizes
 // (layout x and y, y down from the ceiling side; z out of the back wall), nothing answers a click.
 import { Box3, Group, Mesh, Vector3, type Material } from 'three';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 import { drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { weave } from './furniture3d';
-import { FLOOR_Y, TRAY, WINDOW } from './roomplan';
+import { BENCH, FLOOR_Y, PIER, TRAY } from './roomplan';
 
 /** Room units per millimetre. */
 const MM = 18.7;
@@ -96,15 +96,16 @@ export function mess(ped: number, under: number, grommet: { x: number; z: number
     g.add(tube([[cx, -top, mid], [cx + (grommet.x - cx) * 0.5, -(top - 160), (mid + grommet.z) / 2], [grommet.x + (k - 1.5) * 80, -(under + 200), grommet.z]], 60, lead, 6));
   }
   // (2D y down here; the lead runs on the tray's floor, up its back wall's inside, over its top under the desk, down between it and the wall)
-  const wx = t.x0 + 1000, sockY = fl - 3000, ry = under + t.drop - 200;
+  // (its socket is on the building's column: the glass is behind the rest of the desk)
+  const wx = PIER.x0 + 1000, sockY = fl - 3000, ry = under + t.drop - 200;
   const path: [number, number, number][] = [[sx, base - sh / 2, mid], [sx - 600, base - 75, mid], [wx, base - 75, t.z0 + 260], [wx, ry, t.z0 + 260], [wx, ry, 200], [wx, sockY - 1000, 200], [wx, sockY - 400, 380]];
   g.add(tube(rounded(path.map(([x, y, z]) => [x, -y, z] as const), 250), 70, lead, 6));
   // the socket: a flat plate on the wall, its outlet, the plug in it
   g.add(softBox({ x: wx - 700, y: sockY - 700, w: 1400, h: 1400 }, 0, 80, mat(0x23262b, { roughness: 0.3 }), 40), drum(wx, sockY, 80, 100, 380, mat(0x15161a, { roughness: 0.6 }), 20));
   g.add(softBox({ x: wx - 300, y: sockY - 400, w: 600, h: 800 }, 100, 660, shell, 100));
 
-  // ---- books: two on the ledge ----
-  g.add(pile(WINDOW.x + 1800, WINDOW.y + WINDOW.h, 1200, [[200, 24, 135, 0x26303d, -0.1], [190, 16, 130, 0xd9d6cf, 0.08]]));
+  // ---- books: two on the bench by the glass ----
+  g.add(pile(BENCH.x0 + 1800, BENCH.top, (BENCH.z0 + BENCH.z1) / 2, [[200, 24, 135, 0x26303d, -0.1], [190, 16, 130, 0xd9d6cf, 0.08]]));
 
   return g;
 }
