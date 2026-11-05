@@ -19,6 +19,8 @@ export const RUG_WOOL = '#3b3d42', RUG_LINE = '#7a7c82', STONE = 0x4a4c51;
 export const STONEWARE = '#3d3e40', SPECKLE = '205,198,184';
 /** What glows in tech (the LED strips, the clock's digits, the router's lights: the game's own cyan) and the paper lantern's warm glow. */
 export const NEON = 0x3be3ff, LANTERN = 0xffc98a;
+/** The light the LED strips cast on what is round them: their cyan, paler, so it reads as an accent and not a flood (the strip itself keeps `NEON`). */
+export const NEON_WASH = 0x8fd9e6;
 
 /** A `#rrggbb` tone as [r, g, b] (0 to 255). */
 export const rgbOf = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];

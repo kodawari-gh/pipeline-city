@@ -28,7 +28,7 @@ import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, LANTERN, NEON, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
+import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
 import {
   BED, BENCH, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
   WALL_T, WEST_X, WINDOW,
@@ -190,7 +190,7 @@ export class Room3D {
   private ledUnder: RectAreaLight;
   private ledHalo: RectAreaLight;
   /** The LED strip under the desk's front edge, the same light. */
-  private deskLed = new RectAreaLight(NEON, 0, 1, 1);
+  private deskLed = new RectAreaLight(NEON_WASH, 0, 1, 1);
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
   private envs: RoomEnv;
   private probe = false;
@@ -283,6 +283,8 @@ export class Room3D {
     // the bed, plants ----
     const bd = bed(), ns = nightstand();
     this.ledGlow = bd.glow; this.ledUnder = bd.under; this.ledHalo = bd.halo;
+    // (every strip casts the one pale wash, the desk's too)
+    this.ledUnder.color.setHex(NEON_WASH); this.ledHalo.color.setHex(NEON_WASH);
     this.shade = ns.shade;
     this.bulbGlow = ns.glow;
     this.bedLight.position.set(...ns.bulb);
@@ -322,11 +324,12 @@ export class Room3D {
     for (const x of [t.x0, t.x1 - 60]) R.add(softBox({ x, y: ty, w: 60, h: t.h }, t.z0, t.z1, steel, 20));
     for (const x of [t.x0 + 1500, t.x1 - 1500]) R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
     // a cyan LED strip under the top's front edge, as round the bed: at night the desk floats on its glow. Its area light is a narrow band
-    // along the strip (a wide one would show as a bright box in the glass behind the desk)
-    const knee0 = g.desk.x0 + 600, knee1 = ped.x - 200;
+    // along the strip (a wide one would show as a bright box in the glass behind the desk), stopping short of the drawer unit so its side
+    // does not catch the light at point-blank range (a hard bright edge)
+    const knee0 = g.desk.x0 + 600, knee1 = ped.x - 200, lit1 = ped.x - 2200;
     R.add(rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow));
-    this.deskLed.width = knee1 - knee0; this.deskLed.height = 1600;
-    this.deskLed.position.set((knee0 + knee1) / 2, -under - 200, DESK_D - 1400);
+    this.deskLed.width = lit1 - knee0; this.deskLed.height = 1600;
+    this.deskLed.position.set((knee0 + lit1) / 2, -under - 200, DESK_D - 1400);
     this.deskLed.rotation.x = -Math.PI / 2;
     R.add(this.deskLed);
 
