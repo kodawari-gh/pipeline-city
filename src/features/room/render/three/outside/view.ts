@@ -14,6 +14,7 @@ import { mergeStatic } from '@/core/render/three/merge';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
+import { withCanyon } from './canyon';
 import { land } from './city';
 import { CityGlow } from './glow';
 import { withHaze, type HazeUniforms } from './haze';
@@ -27,7 +28,7 @@ import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
 
 /** The sun's shadow map at each level of the graphics settings (0: none). */
-const SHADOW_LEVELS = [0, 1024, 2048, 2048, 4096];
+const SHADOW_LEVELS = [0, 1024, 2048, 4096, 4096];
 /** The sun's shadow covers this square round the near blocks (m), as seen from the sun. */
 const SHADOW_HALF = 420, SHADOW_AT = new Vector3(GRID.av0, 0, -380);
 /** The lamps whose light is drawn (the nearest to where the window looks, down the avenue); the rest only glow. */
@@ -41,6 +42,16 @@ const TINT = new Color(0.42, 0.46, 0.52);
 const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.3;
+/**
+ * How far west the sun out here stands of the room's at the same hour (radians). The room's own, nearly behind the window through the
+ * afternoon, would light the faces the window sees head on, flat. Turned, it rakes them, one face bright and one in shade, the shadows
+ * lie across the streets, and it sets in the view.
+ */
+const SUN_TURN = 0.7;
+const sunOutside = (hour: number): [number, number, number] => {
+  const [x, y, z] = sunDir(hour), c = Math.cos(SUN_TURN), s = Math.sin(SUN_TURN);
+  return [x * c - z * s, y, x * s + z * c];
+};
 
 const QUAD_VERT = /* glsl */`
 varying vec3 vWorld;
@@ -153,6 +164,7 @@ export class OutsideView {
     this.disposables.push(facade.mat);
     // the lamps' pools on the ground, the haze on every material in place of fog
     for (const m of [k.asphalt, k.paving, k.kerb]) withLampLight(m, this.lampLight);
+    for (const m of [k.asphalt, k.paving, k.kerb, k.paint, k.yellow]) withCanyon(m);
     this.scene.traverse((o) => { for (const m of [(o as Mesh).material ?? []].flat()) withHaze(m, this.haze); });
 
     // the lights: the sun (its shadow over the near blocks), our tower's light thrown back, the lamps the window looks at
@@ -198,7 +210,7 @@ export class OutsideView {
     if (key === this.key) return;
     this.key = key;
     this.envDirty = true;
-    const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunDir(hour), lift = 1 + 0.1 * day;
+    const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day;
     const top = new Color(s.top).multiplyScalar(lift), hor = new Color(s.hor).multiplyScalar(lift);
     u.top.value.copy(top);
     u.hor.value.copy(hor);
@@ -228,6 +240,9 @@ export class OutsideView {
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
+    this.facade.sun.value.set(sd[0], sd[1], sd[2]);
+    this.facade.sunCol.value.copy(sunCol).multiplyScalar(day * up);
+    this.facade.hor.value.copy(hor);
     this.leaf.night.value = lights;
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
@@ -286,7 +301,7 @@ export class OutsideView {
     this.fleet.update(Math.max(0, dt), c.position.x, c.position.z);
     this.signals.update(this.traffic.t);
     // the leaves' light from behind, in the camera's frame
-    const sd = sunDir(this.key / 30);
+    const sd = sunOutside(this.key / 30);
     this.leaf.sunView.value.set(sd[0], sd[1], sd[2]).transformDirection(c.matrixWorldInverse);
     if (this.envDirty) { this.envDirty = false; this.envCam.update(renderer, this.envScene); this.env.texture.needsPMREMUpdate = true; }
     const was = renderer.getRenderTarget();

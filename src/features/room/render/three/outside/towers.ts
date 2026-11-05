@@ -1,20 +1,25 @@
 // The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
-// shader (`facadeMaterial`): its windows in bays and storeys, the glass a mirror of the sky over a room seen in depth (interior mapping) with
-// its blind or curtains, the frame each floor a touch different, rooms lit at night (an office in zones along a floor, a home room by room);
-// far away each pattern fades to its average where its scale is under a pixel, so it does not shimmer. A flat block near the window has its balconies. On the roofs: a parapet,
-// gravel, a stair and lift bulkhead, plant boxes, a row of air-conditioning units; the towers' masts, spires, lit lanterns and plant screens,
-// their LED bands, the red beacons blinking at night.
-import { BufferGeometry, Color, ConeGeometry, Float32BufferAttribute, MeshStandardMaterial } from 'three';
+// shader (`facadeMaterial`): its windows in bays and storeys on slim mullions, the glass over a room seen in depth (interior mapping) with its
+// blind or curtains, mirroring the sky and the street's far side, the walls in panels and tiles with their joints, slab edges and stains, rooms
+// lit at night (an office in zones along a floor, a home room by room); far away each pattern fades to its average where its scale is under a
+// pixel, so it does not shimmer. The sky's light falls off down a wall toward the street. A flat block near the window has its balconies. On
+// the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its door, plant boxes, water tanks, solar panels,
+// skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant screens, their LED bands, the red beacons
+// blinking at night.
+import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial, Vector3 } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 
-/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room). */
-const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6 }
+/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel. */
+const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7 }
 
 /** The towers' LED bands: cyan, warm white, amber (the room's accent families), and how often each is picked. */
 const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
 
-/** A parapet's height over its roof (m), and how far from the window a roof gets its plant and tanks. */
-const PARAPET = 1.1, CLUTTER = 900;
+/** A parapet's height over its roof (m), how far from the window a roof gets its plant and tanks, and its smallest things. */
+const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
+
+/** A water tank and its lid, a vent pipe and its cap, centred on their own middles. */
+const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16), TANK_LID = new ConeGeometry(1.3, 0.4, 16), VENT = new CylinderGeometry(0.14, 0.14, 0.8, 8), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, 8);
 
 type V3 = readonly [number, number, number];
 
@@ -102,24 +107,98 @@ class Mass {
 const inset = (r: Rect, k: number): Rect => ({ x0: r.x0 + k, x1: r.x1 - k, z0: r.z0 + k, z1: r.z1 - k });
 const sized = (x: number, z: number, w: number, d: number): Rect => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
 
-/** What stands on a roof: a bulkhead, plant boxes, a row of air-conditioning units on their rail. */
-function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number): void {
+/** A field of solar panels in rows, tilted to the south (+z) on dark frames. */
+function solar(m: Mass, r: Rect, y: number): void {
+  const dep = 1.7, rise = 0.5, foot = 0.22, l = Math.hypot(dep, rise), n: V3 = [0, dep / l, rise / l];
+  for (let z1 = r.z1; z1 - dep >= r.z0; z1 -= dep + 1.1) {
+    const z0 = z1 - dep;
+    m.set(0x40444a, 0, Kind.Plain).box({ x0: r.x0 + 0.1, x1: r.x1 - 0.1, z0: z0 + 0.1, z1: z1 - 0.1 }, y, y + foot + rise * 0.4, false);
+    m.set(0, 0, Kind.Solar).quad([r.x0, y + foot, z1], [r.x1, y + foot, z1], [r.x1, y + foot + rise, z0], [r.x0, y + foot + rise, z0], n, [r.x0, 0], [r.x1, 0], [r.x1, l], [r.x0, l]);
+  }
+}
+
+/**
+ * What stands on a roof, the largest first, each where the others leave room: a bulkhead with its door and a paved way to it, solar panels, plant
+ * boxes, a water tank on its stand, a row of air-conditioning units on their rail, skylights, vent pipes. `fine`: near enough for the small things.
+ */
+function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, fine: boolean): void {
   const w = r.x1 - r.x0, d = r.z1 - r.z0;
   if (w < 10 || d < 10) return;
-  const at = () => [r.x0 + 3 + rand() * (w - 6), r.z0 + 3 + rand() * (d - 6)] as const;
+  const used: Rect[] = [];
+  /** A free place on the roof for pw by pd, away from the parapet and what stands there already. */
+  const place = (pw: number, pd: number): Rect | null => {
+    if (pw > w - 2.4 || pd > d - 2.4) return null;
+    for (let i = 0; i < 8; i++) {
+      const q = sized(r.x0 + 1.2 + pw / 2 + rand() * (w - 2.4 - pw), r.z0 + 1.2 + pd / 2 + rand() * (d - 2.4 - pd), pw, pd);
+      if (used.every((u) => q.x1 + 0.7 < u.x0 || q.x0 - 0.7 > u.x1 || q.z1 + 0.7 < u.z0 || q.z0 - 0.7 > u.z1)) { used.push(q); return q; }
+    }
+    return null;
+  };
   const shade = new Color(b.frame).lerp(new Color(0x9a968e), 0.6);
-  const [bx, bz] = at(), bw = 4 + rand() * 4, bd = 4 + rand() * 3;
-  m.set(shade, 0, Kind.Plain).box(sized(bx, bz, Math.min(bw, w - 4), Math.min(bd, d - 4)), y, y + 3.4 + rand() * 1.5, true);
-  for (let i = 0, n = 1 + Math.floor(rand() * 3); i < n; i++) {
-    const [x, z] = at(), s = 1.6 + rand() * 1.8;
-    m.set(0x8d9196, 0, Kind.Plain).box(sized(x, z, s * 1.4, s), y, y + 1.2 + rand() * 0.8, true);
+  const head = place(4 + rand() * 4, 4 + rand() * 3);
+  if (head) {
+    const cx = (head.x0 + head.x1) / 2, cz = (head.z0 + head.z1) / 2;
+    m.set(shade, 0, Kind.Plain).box(head, y, y + 3.4 + rand() * 1.5, true);
+    m.set(shade.clone().multiplyScalar(1.1), 0, Kind.Plain).ring(inset(head, -0.12), 0.12, y + 3.42);
+    if (fine) {
+      m.set(0x24272a, 0, Kind.Plain).box({ x0: cx - 0.55, x1: cx + 0.55, z0: head.z1, z1: head.z1 + 0.05 }, y, y + 2.15, true);
+      m.set(0xa39f96, 0, Kind.Plain).box(rand() < 0.5 ? { x0: r.x0 + 0.3, x1: head.x0, z0: cz - 0.5, z1: cz + 0.5 } : { x0: cx - 0.5, x1: cx + 0.5, z0: head.z1, z1: r.z1 - 0.3 }, y, y + 0.07, true);
+    }
+  }
+  // a roof's share of things grows with its size
+  const large = Math.floor((w * d) / 350);
+  for (let i = 0, n = (rand() < 0.5 ? 1 : 0) + Math.min(1, large); i < n; i++) {
+    const q = place(Math.min(w - 3, 7 + rand() * 16), Math.min(d - 3, 6 + rand() * 12));
+    if (q) solar(m, q, y);
+  }
+  // a duct along the roof, on a plant box at its end
+  for (let i = 0, n = Math.floor(rand() * 2) + Math.min(2, large); i < n; i++) {
+    const along = rand() < 0.5, l = (along ? w : d) * (0.25 + rand() * 0.4), q = along ? place(l, 0.5) : place(0.5, l);
+    if (q) {
+      m.set(0x9a9ea2, 0, Kind.Plain).box(q, y + 0.15, y + 0.6, true);
+      const e = sized(along ? q.x1 : (q.x0 + q.x1) / 2, along ? (q.z0 + q.z1) / 2 : q.z1, 1.5, 1.5);
+      m.set(0x7d8186, 0, Kind.Plain).box(e, y, y + 1.3, true);
+    }
+  }
+  for (let i = 0, n = 1 + Math.floor(rand() * 3) + Math.min(3, large); i < n; i++) {
+    const s = 1.6 + rand() * 1.8, q = place(s * 1.4, s);
+    if (q) m.set(0x8d9196, 0, Kind.Plain).box(q, y, y + 1.2 + rand() * 0.8, true);
+  }
+  if (rand() < 0.35) {
+    const q = place(2.8, 2.8);
+    if (q) {
+      const x = (q.x0 + q.x1) / 2, z = (q.z0 + q.z1) / 2, tint = rand() < 0.5 ? 0xa8acae : 0x6d7a80;
+      m.set(0x303336, 0, Kind.Plain).box(sized(x, z, 1.9, 1.9), y, y + 1.1, true);
+      m.set(tint, 0, Kind.Plain).shape(TANK, x, y + 2.3, z);
+      m.shape(TANK_LID, x, y + 3.7, z);
+    }
   }
   if (rand() < 0.7) {
     // the outdoor units in a row, pale grey boxes on a dark rail
-    const [x, z] = at(), n = 3 + Math.floor(rand() * 5), run = Math.min(n * 1.25, w - 6);
-    m.set(0x3a3d40, 0, Kind.Plain).box(sized(x, z, run + 0.4, 1.0), y, y + 0.25, true);
-    m.set(0xc7c9c8, 0, Kind.Plain);
-    for (let i = 0; i < n && (i + 1) * 1.25 <= run + 0.01; i++) m.box(sized(x - run / 2 + 0.62 + i * 1.25, z, 0.95, 0.42), y + 0.25, y + 0.95, true);
+    const n = 3 + Math.floor(rand() * 5), run = Math.min(n * 1.25, w - 6), q = place(run + 0.4, 1.0);
+    if (q) {
+      const x = (q.x0 + q.x1) / 2, z = (q.z0 + q.z1) / 2;
+      m.set(0x3a3d40, 0, Kind.Plain).box(q, y, y + 0.25, true);
+      m.set(0xc7c9c8, 0, Kind.Plain);
+      for (let i = 0; i < n && (i + 1) * 1.25 <= run + 0.01; i++) m.box(sized(x - run / 2 + 0.62 + i * 1.25, z, 0.95, 0.42), y + 0.25, y + 0.95, true);
+    }
+  }
+  if (!fine) return;
+  // the skylights over a stairwell or a top floor's rooms, a little warm at night
+  if (rand() < 0.45) for (let i = 0, n = 1 + Math.floor(rand() * 3); i < n; i++) {
+    const q = place(1.7, 2.8);
+    if (q) {
+      m.set(0x40444a, 0, Kind.Plain).box(inset(q, -0.1), y, y + 0.3, false);
+      m.set(0xb9915f, 0, Kind.Crown, b.seed % 991, [0.85, y, 1, 0]).box(q, y + 0.3, y + 0.55, true);
+    }
+  }
+  for (let i = 0, n = Math.floor(rand() * 6); i < n; i++) {
+    const q = place(0.5, 0.5);
+    if (q) {
+      const x = (q.x0 + q.x1) / 2, z = (q.z0 + q.z1) / 2;
+      m.set(0x6a6e72, 0, Kind.Plain).shape(VENT, x, y + 0.4, z);
+      m.shape(VENT_CAP, x, y + 0.84, z);
+    }
   }
 }
 
@@ -185,7 +264,7 @@ function leds(m: Mass, b: Building): void {
 export function massGeometry(bs: readonly Building[]): BufferGeometry {
   const m = new Mass();
   for (const b of bs) {
-    const s = STYLES[b.style], rand = rng(b.seed), near = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1) < CLUTTER;
+    const s = STYLES[b.style], rand = rng(b.seed), away = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1), near = away < CLUTTER;
     b.tiers.forEach((t, i) => {
       // the walls: each wall's bays stretched to fit it whole
       const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
@@ -196,7 +275,8 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
       m.set(frame, 0, Kind.Plain).box(t, t.y1, t.y1 + PARAPET, false);
       m.box(inset(t, 0.3), t.y1, t.y1 + PARAPET, false, true);
       m.set(frame.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.3, t.y1 + PARAPET);
-      m.set(0x8a8780, 0, Kind.Roof, b.seed % 991).top(inset(t, 0.3), t.y1);
+      const floor = inset(t, 0.3);
+      m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [floor.x0, floor.x1, floor.z0, floor.z1]).top(floor, t.y1);
       // an office grid's stone cap under its parapet's top and its string course over the shop fronts; any other's slim metal cap
       if (b.style === 'grid') {
         const stone = new Color(b.frame).multiplyScalar(1.06), out = 0.25;
@@ -215,7 +295,7 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
       if (near && b.style === 'band' && b.tiers.length === 1) balconies(m, t, s.storey, b);
       if (near) {
         const free = next ? { ...t, z0: next.z1 + 1 } : t;
-        if (free.z1 - free.z0 > 10) clutter(m, free, t.y1, b, rand);
+        if (free.z1 - free.z0 > 10) clutter(m, free, t.y1, b, rand, away < FINE);
       }
     });
     crown(m, b, rand);
@@ -224,22 +304,26 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
   return m.geometry();
 }
 
-/** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons. */
-export interface FacadeUniforms { night: { value: number }; time: { value: number } }
+/** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons, the sun (direction, colour) and the horizon's colour, for what the glass mirrors and the shadows on a wall. */
+export interface FacadeUniforms { night: { value: number }; time: { value: number }; sun: { value: Vector3 }; sunCol: { value: Color }; hor: { value: Color } }
 
 /** The buildings' material: a standard one whose colour, roughness, metalness and glow the facade's shader paints. */
 export function facadeMaterial(): { mat: MeshStandardMaterial; u: FacadeUniforms } {
-  const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 } };
+  const u: FacadeUniforms = { night: { value: 0 }, time: { value: 0 }, sun: { value: new Vector3(0, 1, 0) }, sunCol: { value: new Color(0, 0, 0) }, hor: { value: new Color(0, 0, 0) } };
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.fNight = u.night;
     sh.uniforms.fTime = u.time;
+    sh.uniforms.fSun = u.sun;
+    sh.uniforms.fSunCol = u.sunCol;
+    sh.uniforms.fHor = u.hor;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 fuv;\nattribute vec4 look;\nattribute vec3 tint;\nattribute vec3 aux;\nvarying vec2 vFuv;\nflat varying vec4 vLook;\nvarying vec3 vTint;\nflat varying vec3 vAux;\nvarying vec3 vFW;\nvarying vec3 vFN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFuv = fuv; vLook = look; vTint = tint; vAux = aux;\nvFW = (modelMatrix * vec4(transformed, 1.0)).xyz; vFN = normalize(mat3(modelMatrix) * normal);');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float fNight, fTime;
+uniform vec3 fSun, fSunCol, fHor;
 varying vec2 vFuv;
 // flat: a wall's seed interpolated comes out a hair different from pixel to pixel, and any hash of it a different number, in specks
 flat varying vec4 vLook;
@@ -256,9 +340,11 @@ float fNoise(vec2 p) {
 /** A band from a to b across x, its edges softened by the pixel's width w. */
 float fBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w, x) - smoothstep(b - w, b + w, x); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-float fRough = 0.85, fMetal = 0.0;
+float fRough = 0.85, fMetal = 0.0, fVis = 1.0, fSpec = 1.0;
 vec3 fGlow = vec3(0.0), fTilt = vec3(0.0);
 int fKind = int(vAux.y + 0.5);
+// the sky's light falls off down a wall: at the street's level the blocks across hide most of it
+float fAo = 0.4 + 0.6 * smoothstep(0.0, 26.0, vFW.y);
 if (fKind == 0 || fKind == 6) {
   vec2 g = vFuv / vLook.xy, id = floor(g), f = fract(g), fw = fwidth(g);
   float home = fKind == 6 ? 1.0 : 0.0, seed = vAux.x, refl = vAux.z;
@@ -274,6 +360,11 @@ if (fKind == 0 || fKind == 6) {
   vec2 e = mix(smoothstep(lo - fw, lo + fw, f) - smoothstep(hi - fw, hi + fw, f), win, vec2(cx, cy));
   float m = e.x * e.y;
   vec2 o = clamp((f - lo) / win, 0.0, 1.0), ow = fw / win;
+  // a wide window's lites on slim dark mullions, a metre or so apart
+  float wm = win.x * vLook.x, lite = wm / max(1.0, floor(wm / 1.2 + 0.5)), mpx = fw.x * vLook.x;
+  float mull = smoothstep(0.035 + mpx, 0.035 - mpx, (0.5 - abs(fract(o.x * wm / lite) - 0.5)) * lite);
+  mull = mix(mull, 0.07 / lite, smoothstep(0.1, 0.35, mpx / lite)) * m;
+  m -= mull;
   // who is in. Each building has its share of lit rooms: an office is lit in zones of a few bays along a floor (its floors from empty to
   // full), most bays of a lit zone on; a home room by room, a room one or two bays
   float share = 0.08 + 0.4 * fHash(vec2(seed * 0.731, 5.3));
@@ -346,12 +437,30 @@ if (fKind == 0 || fKind == 6) {
   vec3 glass = mix(room, vTint, refl) * (1.0 - mix(reveal, 0.1, cf) * 0.6 * deep);
   // the frame: each floor a touch different, rain streaks down it, a little grime toward the street
   vec3 fr = vColor.rgb * (0.92 + 0.14 * mix(fHash(vec2(id.y, seed)), 0.5, cy)) * (0.84 + 0.16 * smoothstep(0.0, 20.0, vFuv.y));
-  fr *= 0.9 + 0.14 * fNoise(vec2(vFuv.x * 0.45, vFuv.y * 0.03 + seed));
+  fr *= 0.86 + 0.22 * fNoise(vec2(vFuv.x * 0.45, vFuv.y * 0.03 + seed));
+  // a wall's own make, anything but a curtain wall's: panels a bay wide and a storey high, each a little off, their joints; a stone
+  // office's piers paler than its spandrels; a tiled front's courses; a slab's edge at each floor, the stain under each sill. Each goes where a
+  // pixel covers it
+  float solid = 1.0 - smoothstep(0.6, 0.8, refl), trim = 1.0 - step(0.2, refl), stone = fBand(0.3, 0.4, refl, 0.001), pxm = max(fw.x * vLook.x, fw.y * vLook.y);
+  float fade = smoothstep(0.08, 0.3, pxm), tiled = trim * (1.0 - smoothstep(0.04, 0.12, pxm));
+  float grain = fNoise(vFuv * vec2(1.7, 3.1) + seed);
+  float joint = mix(smoothstep(0.03 + mpx, 0.03 - mpx, min(f.x, 1.0 - f.x) * vLook.x), 0.06 / vLook.x, cx);
+  float pier = mix(1.0 - fBand(lo.x, hi.x, f.x, fw.x), 1.0 - win.x, cx);
+  vec2 tq = vec2(vFuv.x / 0.42 + 0.5 * mod(floor(vFuv.y / 0.21), 2.0), vFuv.y / 0.21), tf = abs(fract(tq) - 0.5);
+  float drip = fBand(lo.x, hi.x, f.x, fw.x) * (1.0 - step(lo.y, f.y)) * smoothstep(0.0, lo.y, f.y) * fNoise(vec2(vFuv.x * 4.3 + seed, id.y * 3.1));
+  fr *= 1.0 + (grain - 0.5) * 0.14 * (1.0 - fade) + solid * (1.0 - trim) * (mix(h, 0.5, cf) - 0.5) * 0.14;
+  fr *= 1.0 - solid * joint * 0.3 * (1.0 - trim);
+  fr *= 1.0 + stone * (pier * 0.18 - 0.08);
+  fr *= mix(1.0, (0.88 + 0.24 * fHash(floor(tq) + seed)) * (1.0 - 0.3 * max(smoothstep(0.42, 0.5, tf.x), smoothstep(0.38, 0.5, tf.y))), tiled);
+  fr *= 1.0 - solid * mix(drip * 0.42, 0.04, cf);
+  fr *= 1.0 + solid * 0.16 * mix(fBand(-0.01, 0.045, f.y, fw.y), 0.045, cy);
+  // the sun's shadow under a slab's edge, as deep as the sun is high against this wall
+  float under = 0.16 * max(fSun.y, 0.0) / max(dot(fSun, vFN), 0.08) / vLook.y;
+  fVis = 1.0 - solid * mix(fBand(1.0 - min(under, 0.5), 1.1, f.y, fw.y), min(under, 0.5), cy);
   // a tiled front's stone sills and lintels
-  float trim = 1.0 - step(0.2, refl);
   float sill = fBand(lo.x - 0.04, hi.x + 0.04, f.x, fw.x) * (fBand(lo.y - 0.07, lo.y, f.y, fw.y) + fBand(hi.y, hi.y + 0.08, f.y, fw.y));
   fr = mix(fr, vec3(0.62, 0.58, 0.51) * (0.9 + 0.2 * mix(h, 0.5, cf)), mix(sill, 0.08, cf) * trim * (1.0 - shop));
-  diffuseColor.rgb = mix(fr, glass, m);
+  diffuseColor.rgb = mix(mix(fr, vec3(0.03, 0.033, 0.036), mull / max(1.0 - m, 1e-3)), glass, m);
   fRough = mix(0.8, 0.05 + 0.12 * mix(h, 0.5, max(cf, fNight)) * refl + 0.12 * (1.0 - refl), m);
   fMetal = mix(0.0, refl * 0.9, m);
   // by day a curtain wall's panes each a little out of true, so the sky they mirror breaks up pane by pane; at night they lie flat, or the
@@ -362,14 +471,67 @@ if (fKind == 0 || fKind == 6) {
   fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl) * (fNight * 2.6 + 0.02);
   fGlow += fr * lamp * lit * 0.06 * fNight * (1.0 - m);
   fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
+  // what the pane mirrors under the sky, where the sky's cube knows nothing: the eye's ray goes on, turned by the glass, to the far side of the
+  // street, to a roof line that wanders along it. Under that line it meets the walls across (in shade or in the sun, as they face), their
+  // windows, lit at night, or the road. Each pane is a little out of true, so the picture breaks at its edges
+  vec3 fV = normalize(vFW - cameraPosition), fR = reflect(fV, vFN);
+  float rn = max(dot(fR, vFN), 0.1);
+  vec2 rs = vec2(dot(fR, vec3(vFN.z, 0.0, -vFN.x)), fR.y) / rn + (vec2(h, h2) - 0.5) * (0.01 + 0.025 * refl) * (1.0 - cf);
+  vec2 rp = vec2(vFuv.x, vFW.y) + rs * (abs(vFN.x) > 0.5 ? 32.0 : 24.0), rg = rp / vec2(3.0, 3.4), rc2 = fract(rg);
+  float rtop = 13.0 + 32.0 * fNoise(vec2(rp.x / 34.0, seed * 0.37)), hit = 1.0 - smoothstep(rtop - 0.7, rtop + 0.7, rp.y);
+  float road = 1.0 - smoothstep(-0.4, 0.4, rp.y), pane = mix(fBand(0.18, 0.82, rc2.x, 0.1) * fBand(0.22, 0.78, rc2.y, 0.1), 0.34, cf);
+  vec3 across = (fHor * 0.3 + fSunCol * max(dot(fSun, -vFN), 0.0) * 0.26) * (1.0 - 0.3 * pane);
+  across += vec3(1.0, 0.76, 0.5) * pane * mix(step(0.74, fHash(floor(rg) + seed)), 0.26, cf) * 0.55 * fNight;
+  vec3 mirrorK = mix(mix(vec3(0.1 + 0.09 * h), vTint, refl * 0.9), vec3(1.0), pow(1.0 - clamp(-dot(fV, vFN), 0.0, 1.0), 5.0));
+  fGlow += mirrorK * hit * mix(across, fHor * 0.09, road) * m;
+  fSpec = 1.0 - hit * m;
 } else if (fKind == 5) {
   // a lit band of LEDs: a thin line by day, a bright one at night
   diffuseColor.rgb = vec3(0.04);
   fRough = 0.3;
   fGlow = vColor.rgb * (0.12 + fNight * 2.1);
 } else if (fKind == 1) {
-  diffuseColor.rgb = vColor.rgb * (0.82 + 0.22 * fHash(floor(vFuv * 0.6) + vAux.x));
-  fRough = 0.96;
+  // a roof, each of its own make: a pale membrane in lapped sheets, gravel, a sedum garden inside a gravel margin, or dark bitumen with its
+  // pavers. Water marks over them all, grime and the sky's shade along the parapet. Vlook: the roof's rect
+  vec2 g = vFuv, gw = fwidth(g);
+  float px = max(gw.x, gw.y), seed = vAux.x, make = fHash(vec2(seed, 3.3)), rr = fHash(vec2(seed, 6.1));
+  float edge = min(min(g.x - vLook.x, vLook.y - g.x), min(g.y - vLook.z, vLook.w - g.y));
+  float sheetF = 1.0 - smoothstep(0.25, 0.8, px), grainF = 1.0 - smoothstep(0.1, 0.4, px);
+  float big = mix(fNoise(g * 0.09 + seed), 0.5, smoothstep(2.0, 8.0, px)), mid = mix(fNoise(g * 0.41 + seed * 1.7), 0.5, smoothstep(0.5, 2.0, px));
+  float grit = mix(fNoise(g * 3.7 + seed) * 0.6 + fNoise(g * 11.0) * 0.4, 0.5, grainF < 0.01 ? 1.0 : 1.0 - grainF);
+  vec3 c;
+  if (make < 0.42) {
+    vec2 s = rr < 0.5 ? g : g.yx;
+    float q = s.x / 2.0, l = fract(q), lap = mix(smoothstep(0.08 + px * 0.5, 0.0, min(l, 1.0 - l) * 2.0), 0.05, 1.0 - sheetF);
+    c = mix(vec3(0.27, 0.285, 0.29), vec3(0.42, 0.42, 0.405), rr) * (0.96 + 0.12 * mix(fHash(vec2(floor(q), seed)), 0.5, 1.0 - sheetF)) * (1.0 - 0.42 * lap);
+    c *= 0.66 + 0.52 * smoothstep(0.25, 0.7, big * 0.6 + mid * 0.4);
+  } else if (make < 0.74) {
+    c = vColor.rgb * (0.66 + 0.6 * big) * (0.74 + 0.52 * grit);
+  } else if (make < 0.9) {
+    float bloom = smoothstep(0.34, 0.66, mid * 0.6 + big * 0.4);
+    c = mix(vec3(0.06, 0.082, 0.035), vec3(0.135, 0.115, 0.05), bloom) * (0.65 + 0.7 * grit);
+    c = mix(vColor.rgb * (0.74 + 0.52 * grit), c, smoothstep(0.85, 1.15, edge));
+  } else {
+    vec2 pv = g / vec2(1.2, 0.8), pf = abs(fract(pv) - 0.5);
+    float slab = mix(smoothstep(0.5, 0.44, max(pf.x, pf.y)), 0.8, 1.0 - sheetF);
+    c = mix(vec3(0.05), vec3(0.19, 0.185, 0.17) * (0.88 + 0.24 * mix(fHash(floor(pv) + seed), 0.5, 1.0 - sheetF)), slab * step(make, 0.95));
+    c *= 0.8 + 0.4 * big;
+  }
+  diffuseColor.rgb = c * (0.78 + 0.22 * smoothstep(0.0, 3.0, edge));
+  fRough = 0.94;
+  fAo = 0.45 + 0.55 * smoothstep(0.0, 1.5, edge);
+} else if (fKind == 7) {
+  // a solar panel: dark blue cells on fine silver lines, smooth enough to mirror the sky
+  vec2 g = vFuv * 2.0, gw = fwidth(g), d = abs(fract(g) - 0.5);
+  float l = mix(max(smoothstep(0.44 - gw.x, 0.44 + gw.x, d.x), smoothstep(0.44 - gw.y, 0.44 + gw.y, d.y)), 0.2, smoothstep(0.2, 0.6, max(gw.x, gw.y)));
+  diffuseColor.rgb = mix(vec3(0.012, 0.022, 0.06), vec3(0.3, 0.32, 0.34), l * 0.6);
+  fRough = 0.16 + 0.3 * l;
+  fMetal = 0.3 * (1.0 - l);
+  fAo = 1.0;
+} else if (fKind == 2) {
+  // plain metal and cement, weathered a little
+  diffuseColor.rgb *= 0.88 + 0.24 * fNoise(vFW.xz * 0.4 + vFW.y * 0.7);
+  fAo = max(fAo, 0.72);
 } else if (fKind == 3) {
   diffuseColor.rgb = vColor.rgb;
   fGlow = vec3(1.0, 0.06, 0.03) * 9.0 * step(0.55, fract(fTime * 0.45 + vAux.x)) * fNight;
@@ -384,7 +546,9 @@ if (fKind == 0 || fKind == 6) {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fRough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = fMetal;')
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + fTilt);')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += fGlow;');
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += fGlow;')
+      // the sky's light, a little less blue than the sky: the clouds and the city's own walls send some of it
+      .replace('#include <aomap_fragment>', 'reflectedLight.directDiffuse *= fVis;\nreflectedLight.indirectDiffuse = mix(reflectedLight.indirectDiffuse, vec3(dot(reflectedLight.indirectDiffuse, vec3(0.3, 0.55, 0.15))), 0.45) * fAo;\nreflectedLight.indirectSpecular *= fAo * fSpec;\n#include <aomap_fragment>');
   };
   mat.customProgramCacheKey = () => 'outside-facade';
   return { mat, u };

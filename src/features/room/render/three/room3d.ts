@@ -248,7 +248,8 @@ export class Room3D {
 
     // ---- the glass wall: slim black aluminium frames set back in the reveal, a pane a bay (the column parts two bays, a mullion parts the west
     // one), one picture of the city behind them all; a roller blind in each bay, its cassette at the top of the reveal ----
-    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.38 });
+    // (matt enough that the sky light's one spot, a large light in truth, leaves no glint on a frame's rounded edge for the bloom to spread)
+    const winG = tag(new Group(), 'blind'), bar = 300, fz0 = FRAME_Z - 700, alu = mat(0x1e1f22, { metalness: 0.5, roughness: 0.6 });
     const bays = [{ x0: W.x, x1: PIER.x0 }, { x0: PIER.x1, x1: W.x + W.w }];
     for (const b of bays) {
       const w = b.x1 - b.x0;

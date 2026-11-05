@@ -1,8 +1,8 @@
 // The street's trees (`plan.ts` places them): planes along the avenues, limes along the streets, planes, limes and shrubs in the parks.
-// A tree is its trunk and limbs, tapered tubes in bark, and its crown: a soft lump of leaves round each limb's end, solid, so a crown is a
-// clean mass like the buildings' and does not glitter. The lumps take normals bent toward the crown's own, so a crown shades as one mass,
-// darker inside and under; the sun behind it shines through its edge (`leafShader`), and the wind stirs them. All the trees are two meshes:
-// the bark, the leaves.
+// A tree is its trunk and limbs, tapered tubes in bark, and its crown: a soft lump of leaves round each limb's end, near the window with sprays
+// of smaller lumps on it, dark in the creases between them. The lumps take normals bent toward the crown's own, so a crown shades as one mass,
+// darker inside and under. The shader (`leafShader`) breaks the mass up: clumps of leaves in their own greens, its outline bitten away leaf by
+// leaf; the sun behind it shines through its edge, and the wind stirs them. All the trees are two meshes: the bark, the leaves.
 import { BufferGeometry, Color, Float32BufferAttribute, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { taperTube } from '@/core/render/three/loft';
@@ -44,9 +44,12 @@ const BALLS = [1, 2].map((d) => {
   return { pos: g.attributes.position!.array as ArrayLike<number>, idx: g.index!.array as ArrayLike<number> };
 });
 
-/** The leaf lumps of every crown in one geometry: places, normals (bent toward the crown's), a colour (its green, darker inside), the wind's swing and phase. */
+/** How many sprays of leaves stand on each lump of a near crown. */
+const SPRAYS = 4;
+
+/** The leaf lumps of every crown in one geometry: places, normals (bent toward the crown's), a colour (its green, darker inside), the wind's swing and phase, the lump's own normal (for its outline). */
 class Lumps {
-  pos: number[] = []; nor: number[] = []; col: number[] = []; wind: number[] = []; idx: number[] = [];
+  pos: number[] = []; nor: number[] = []; col: number[] = []; wind: number[] = []; lump: number[] = []; idx: number[] = [];
 
   /** A lump round `p`, `r` across, uneven by `bumps`: `shade` gives each vertex its normal and colour from its place and its own normal. */
   add(p: V3, r: number, bumps: number, fine: boolean, seed: number, shade: (q: V3, n: V3) => [V3, V3], swing: number, phase: number): void {
@@ -55,7 +58,7 @@ class Lumps {
       const d: V3 = [b.pos[i]!, b.pos[i + 1]!, b.pos[i + 2]!];
       const k = r * (1 + bumps * Math.sin(d[0] * f[0]! + seed) * Math.sin(d[1] * f[1]! + seed * 1.3) * Math.sin(d[2] * f[2]! + seed * 0.7) * 2.2);
       const q = add(p, d, k), [n, c] = shade(q, d);
-      this.pos.push(...q); this.nor.push(...n); this.col.push(...c); this.wind.push(swing, phase);
+      this.pos.push(...q); this.nor.push(...n); this.col.push(...c); this.wind.push(swing, phase); this.lump.push(...d);
     }
     for (let i = 0; i < b.idx.length; i++) this.idx.push(base + b.idx[i]!);
   }
@@ -66,6 +69,7 @@ class Lumps {
     g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
     g.setAttribute('color', new Float32BufferAttribute(this.col, 3));
     g.setAttribute('wind', new Float32BufferAttribute(this.wind, 2));
+    g.setAttribute('lump', new Float32BufferAttribute(this.lump, 3));
     g.setIndex(this.idx);
     return g;
   }
@@ -86,19 +90,26 @@ interface Cluster { p: V3; r: number }
 
 /**
  * A crown's lumps, one round each cluster. `o` and `rad`: the crown's ellipsoid, for the normals (its own outward normal there, bent toward
- * the lump's) and the shade (dark deep inside, darker under, a lump's underside darker still). A far tree's lumps are coarser.
+ * the lump's) and the shade (dark deep inside, darker under, a lump's underside darker still). A near tree's lumps carry sprays, smaller
+ * lumps mostly on the side out of the crown, each dark where it meets its lump, so the mass has creases; a far tree's are coarser, and bare.
  */
 function crown(c: Lumps, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint: V3, height: number, far: boolean, r: () => number): void {
   for (const k of cl) {
     const phase = r() * 6.28, tone = 0.88 + r() * 0.24, hue = (r() - 0.5) * 0.16, seed = r() * 100;
-    const shade = (p: V3, d: V3): [V3, V3] => {
+    const shade = (p: V3, d: V3, crease = 1): [V3, V3] => {
       const q: V3 = [(p[0] - o[0]) / rad[0], (p[1] - o[1]) / rad[1], (p[2] - o[2]) / rad[2]], e = len(q);
       const nrm = unit(add(unit([q[0] / rad[0], q[1] / rad[1], q[2] / rad[2]]), d, 0.55));
-      const ao = (0.35 + 0.65 * smooth(0.3, 1.0, e)) * (0.7 + 0.3 * clamp01(q[1] * 0.5 + 0.5)) * (0.8 + 0.2 * (d[1] * 0.5 + 0.5)) * tone;
+      const ao = (0.35 + 0.65 * smooth(0.3, 1.0, e)) * (0.7 + 0.3 * clamp01(q[1] * 0.5 + 0.5)) * (0.8 + 0.2 * (d[1] * 0.5 + 0.5)) * tone * crease;
       return [nrm, [tint[0] * ao * (1 + hue), tint[1] * ao, tint[2] * ao * (1 - hue)]];
     };
     const swing = 0.02 + 0.05 * clamp01((k.p[1] - CURB) / height);
-    c.add(k.p, k.r * 1.02, h.bumps, !far, seed, shade, swing, phase);
+    if (far) { c.add(k.p, k.r * 1.02, h.bumps, true, seed, shade, swing, phase); continue; }
+    c.add(k.p, k.r * 1.02, h.bumps, false, seed, (p, d) => shade(p, d, 0.72), swing, phase);
+    const out = unit([(k.p[0] - o[0]) / rad[0], (k.p[1] - o[1]) / rad[1], (k.p[2] - o[2]) / rad[2]]);
+    for (let i = 0; i < SPRAYS; i++) {
+      const dir = unit(add(anyDir(r), out, 0.8)), sr = k.r * (0.34 + r() * 0.18), at = add(k.p, dir, k.r * 0.86), own = 0.9 + r() * 0.24;
+      c.add(at, sr, h.bumps * 1.6, false, r() * 100, (p, d) => shade(p, d, own * (0.55 + 0.45 * smooth(0.92, 1.28, len([p[0] - k.p[0], p[1] - k.p[1], p[2] - k.p[2]]) / k.r))), swing * 1.2, phase + i * 1.3);
+    }
   }
 }
 
@@ -154,8 +165,10 @@ export interface LeafUniforms { time: { value: number }; sunView: { value: Vecto
 /**
  * The leaf material's own shading: the lumps keep the crown's bent normals (the normal map's chunk would take the face's), the wind sways
  * them (more toward the crown's top), and the sun behind them shines through: the side of a crown away from the sun glows green, the more
- * as the eye looks toward the sun; the sun's glint off the leaves is kept faint. At night the street's lamps light a crown from under and
- * the city's glow its top, so it stays a soft mass and not a black hole in the view.
+ * as the eye looks toward the sun; the sun's glint off the leaves is kept faint. Noise fixed to the tree makes its clumps of leaves: their
+ * colour (the outer ones yellower, the deep ones bluer), a tilt of the normal, and bites out of a lump's outline, where it turns away from
+ * the eye. Each scale fades to its average where a pixel covers it, so a far tree stays clean. At night the street's lamps light a crown from
+ * under and the city's glow its top, so it stays a soft mass and not a black hole in the view.
  */
 export function leafShader(m: MeshStandardMaterial): LeafUniforms {
   const u: LeafUniforms = { time: { value: 0 }, sunView: { value: new Vector3(0, 1, 0) }, glow: { value: new Color(0, 0, 0) }, night: { value: 0 } };
@@ -165,13 +178,43 @@ export function leafShader(m: MeshStandardMaterial): LeafUniforms {
     sh.uniforms.leafGlow = u.glow;
     sh.uniforms.leafNight = u.night;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 wind;\nuniform float leafTime;')
+      .replace('#include <common>', '#include <common>\nattribute vec2 wind;\nattribute vec3 lump;\nuniform float leafTime;\nvarying vec3 vLeafP;\nvarying vec3 vLeafN;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vLeafP = position;
+        vLeafN = normalMatrix * lump;
         float sway = sin(leafTime * 1.3 + wind.y) * 0.7 + sin(leafTime * 3.1 + wind.y * 2.7) * 0.3;
         transformed += vec3(0.8, 0.2, 0.55) * sway * wind.x;`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 leafSun;\nuniform vec3 leafGlow;\nuniform float leafNight;')
-      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize(vNormal);\n  nonPerturbedNormal = normal;')
+      .replace('#include <common>', `#include <common>
+uniform vec3 leafSun;
+uniform vec3 leafGlow;
+uniform float leafNight;
+varying vec3 vLeafP;
+varying vec3 vLeafN;
+float leafHash(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float leafNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(leafHash(i), leafHash(i + vec3(1.0, 0.0, 0.0)), f.x), mix(leafHash(i + vec3(0.0, 1.0, 0.0)), leafHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(leafHash(i + vec3(0.0, 0.0, 1.0)), leafHash(i + vec3(1.0, 0.0, 1.0)), f.x), mix(leafHash(i + vec3(0.0, 1.0, 1.0)), leafHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float leafPx = length(fwidth(vLeafP));
+        float leafA = 1.0 - smoothstep(0.3, 1.0, leafPx), leafB = 1.0 - smoothstep(0.07, 0.28, leafPx);
+        vec3 leafQ1 = vLeafP * 1.1, leafQ2 = vLeafP * 3.7 + 11.0;
+        float leafN1 = leafNoise(leafQ1), leafN2 = leafNoise(leafQ2), leafN3 = leafNoise(vLeafP * 11.0 + 5.0);
+        float leafV = mix(0.5, leafN1, leafA) * 0.45 + mix(0.5, leafN2, leafA) * 0.35 + mix(0.5, leafN3, leafB) * 0.2;
+        diffuseColor.rgb *= mix(vec3(0.6, 0.66, 0.78), vec3(1.42, 1.32, 1.0), smoothstep(0.3, 0.7, leafV));
+        if ((leafN2 * 0.6 + leafN3 * 0.4) < smoothstep(0.42, 0.95, 1.0 - abs(dot(normalize(vLeafN), normalize(vViewPosition)))) * 0.8 * leafA) discard;`)
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+        normal = normalize(vNormal);
+        nonPerturbedNormal = normal;
+        if (leafA > 0.001) {
+          vec3 leafG = vec3(leafNoise(leafQ1 + vec3(0.25, 0.0, 0.0)) - leafN1, leafNoise(leafQ1 + vec3(0.0, 0.25, 0.0)) - leafN1, leafNoise(leafQ1 + vec3(0.0, 0.0, 0.25)) - leafN1)
+            + vec3(leafNoise(leafQ2 + vec3(0.25, 0.0, 0.0)) - leafN2, leafNoise(leafQ2 + vec3(0.0, 0.25, 0.0)) - leafN2, leafNoise(leafQ2 + vec3(0.0, 0.0, 0.25)) - leafN2);
+          normal = normalize(normal - mat3(viewMatrix) * leafG * 2.2 * leafA);
+        }`)
       // a crown is no mirror: the sun's glint off its cards, seen against the light, would frost it white
       .replace('#include <aomap_fragment>', 'reflectedLight.directSpecular *= 0.15;\n#include <aomap_fragment>')
       .replace('#include <opaque_fragment>', `
