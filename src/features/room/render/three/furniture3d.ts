@@ -1,5 +1,6 @@
 // The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
-// Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night. The bed against the back wall
+// Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
+// (`shelfStrips`). The bed against the back wall
 // east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door, the ceiling light, the print
 // over the bed, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
 // (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
@@ -14,7 +15,7 @@ import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox } from
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
-import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN } from './palette';
+import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin } from './palette';
 import { pothos, succulent } from './plants3d';
 import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SHELF, WEST_X, onRug } from './roomplan';
 
@@ -373,6 +374,36 @@ function shelvedBooks(books: readonly Book[]): Group {
   return g;
 }
 
+/** The bookcase's sides' and boards' thickness, and how many shelves of books it holds (a board over each, one under the last). */
+const CASE_BOARDS = { side: 450, board: 400, n: 5 } as const;
+
+/** A shelf strip's width (units; about 1 cm), its line's and its light's. */
+export const STRIP_W = 200;
+
+/** A warm LED strip's line under a board, along z: `x` its front's x, `y` the board's underside (2D y down). */
+function stripLine(x: number, y: number, z0: number, z1: number, glow: Material): Mesh { return rectBox({ x: x - STRIP_W, y, w: STRIP_W, h: 110 }, z0, z1, glow); }
+
+/**
+ * The warm LED strips (2700 K) under the bookcase's boards, one over each shelf of books at its front edge, and under the east wall's shelf:
+ * each a thin glowing line and the area light it stands for, shining down. Their light comes on with the evening (the room sets it).
+ */
+export function shelfStrips(): { root: Group; glow: MeshStandardMaterial; lights: RectAreaLight[] } {
+  const g = new Group(), lights: RectAreaLight[] = [], glow = mat(0x16130f, { roughness: 0.6, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
+  // (each at its board's front edge, its light tilted `tilt` back toward the books, or toward the wall: a strip in an angled profile)
+  const add = (x: number, y: number, z0: number, z1: number, tilt: number) => {
+    g.add(stripLine(x, y, z0, z1, glow));
+    const l = new RectAreaLight(kelvin(2700), 0, STRIP_W, z1 - z0);
+    l.position.set(x - STRIP_W / 2, -y - 120, (z0 + z1) / 2);
+    l.rotation.set(-Math.PI / 2, tilt, 0);
+    lights.push(l);
+  };
+  const { x, w, z0, z1, top } = BOOKCASE, { side, board, n } = CASE_BOARDS, gap = (FLOOR_Y - top - 1400) / n;
+  for (let s = 0; s < n; s++) add(x + w - 120, top + s * gap + board, z0 + side + 200, z1 - side - 200, 0.6);
+  add(EAST_X - SHELF.d + STRIP_W + 120, SHELF.y + 900, SHELF.z0 + 400, SHELF.z1 - 400, -0.6);
+  g.add(...lights);
+  return { root: g, glow, lights };
+}
+
 /**
  * A plain flat-pack bookcase in black-brown on the west wall, facing the room: square sides, a flat top flush between them, a plain back, a
  * set-back plinth; five shelves of books (upright, leaning, stacked), a plant, a box, a bookend, a pothos on top.
@@ -380,7 +411,7 @@ function shelvedBooks(books: readonly Book[]): Group {
 export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
   const wood = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 });
-  const side = 450, shelf = 400;
+  const { side, board: shelf } = CASE_BOARDS;
   g.add(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, wood, 50), softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, wood, 50));
   // the back: one plain board in the same finish, between the sides
   g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, wood));
@@ -389,7 +420,7 @@ export function bookcase(): Group {
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
   const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
   g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
-  const n = 5, gap = (fl - top - 1400) / n;
+  const { n } = CASE_BOARDS, gap = (fl - top - 1400) / n;
   // the bindings: neutrals, slate blues, a sage, a sand, and the room's terracotta as the one warm colour
   const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x3a3f47];
   const books: Book[] = [];

@@ -76,10 +76,10 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
 | Arc floor lamp | its base on the rug in front of the case (about z 20000), its arm over the desk's front | spot, dome shade, down and back onto the desk and the case's glass side at about 45 degrees | 3000 | yes | new: the board's main light at night |
 | Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
-| Bookcase shelf lights | under each shelf of the bookcase | strips (area) | 2700 | no | new: the books and the west wall read |
+| Bookcase shelf lights | under each board's front edge, tilted back to the books (`shelfStrips`) | strips (area), 450 lm/m | 2700 | no | built in T174: on at dusk; the books' face L .021 at 23:00 |
 | Picture light | on the print over the bed | strip (area), down onto the print | 3000 | no | new |
 | Door sconce | west wall, north of the door (z about 43500, eye height) | up and down wash on the plaster | 2700 | no | new: the door and the corner read; the plaster's grain shows (T162) |
-| East shelf light | under the east wall's shelf (`SHELF`) | strip (area) | 2700 | no | new: the east wall and the bed's foot |
+| East shelf light | under the east wall's shelf (`SHELF`), tilted to the wall | strip (area), 450 lm/m | 2700 | no | built in T174: a wash down the east wall |
 | Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
 
 At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once: the floor lantern and the shelf lights at dusk, the lantern and the sconce as night falls (as the bedside lantern does today). The desk lamp stays on the player's toggle.
