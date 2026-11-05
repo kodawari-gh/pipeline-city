@@ -52,6 +52,21 @@ export function rectBox(r: RectLike, z0: number, z1: number, m: Material): Mesh 
   return place(o);
 }
 
+/**
+ * Give a box's faces uvs from where they are, `tile` units to a texture's width, not 0 to 1 a face: the texture keeps one size on boxes of
+ * every size and runs on across boxes that meet. Each face takes the two axes along it. For a mesh that is moved, not turned or scaled.
+ */
+export function worldUv<T extends Mesh>(o: T, tile: number): T {
+  const g = o.geometry, p = g.getAttribute('position'), n = g.getAttribute('normal'), uv = g.getAttribute('uv'), at = o.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) + at.x, y = p.getY(i) + at.y, z = p.getZ(i) + at.z, ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    const [u, v] = ax >= ay && ax >= az ? [z, y] : ay >= az ? [x, z] : [x, y];
+    uv.setXY(i, u / tile, v / tile);
+  }
+  uv.needsUpdate = true;
+  return o;
+}
+
 /** The same box with soft edges: the room's stylised look (a low segment count keeps the triangles down). */
 export function softBox(r: RectLike, z0: number, z1: number, m: Material, radius = 40): Mesh {
   const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01);

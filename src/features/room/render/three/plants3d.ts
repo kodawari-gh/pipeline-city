@@ -7,6 +7,7 @@ import { paint, place, post, rod } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
 import { floorShadow } from './furniture3d';
+import { SPECKLE, STONEWARE } from './palette';
 import { FLOOR_Y } from './roomplan';
 
 type V3 = [number, number, number];
@@ -115,6 +116,18 @@ function lathePot(x: number, y: number, z: number, profile: readonly (readonly [
   return place(pot);
 }
 
+let stonewareM: Material | null = null;
+/** Every pot's dark stoneware: a matt glaze speckled with pale grog and dark iron. */
+function stoneware(): Material {
+  return stonewareM ??= mat(0xffffff, {
+    map: paint(128, 64, (c, w, h) => {
+      c.fillStyle = STONEWARE; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(${SPECKLE},${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
+    }, [2, 1]),
+    roughness: 0.75,
+  });
+}
+
 let soilTex: Texture | null = null;
 /** Potting soil: dark crumbs, a fleck of perlite. */
 function soil(): Material {
@@ -127,14 +140,13 @@ function soil(): Material {
 }
 
 // ---------------------------------------------------------------- the fiddle-leaf fig
-/** A fiddle-leaf fig in a ribbed ceramic pot on its saucer, standing on the floor at (x, z): a tapered trunk, two branches, big glossy leaves. */
+/** A fiddle-leaf fig in a ribbed stoneware pot on its saucer, standing on the floor at (x, z): a tapered trunk, two branches, big glossy leaves. */
 export function floorPlant(x: number, z: number): Group {
-  const g = new Group(), fl = FLOOR_Y;
-  const ceramic = mat(0xe8e1d4, { roughness: 0.45 });
+  const g = new Group(), fl = FLOOR_Y, ware = stoneware();
   // the pot: a foot, a ribbed body swelling to a rolled rim, the rim's lip turned in
   const potH = 4500, profile = [[0, 0], [1500, 0], [1620, 60], [1700, 260], [2050, 600], [2280, 3700], [2440, 4300], [2500, 4440], [2450, 4520], [2330, 4500], [2260, 4380], [2200, 4200]] as const;
-  g.add(lathePot(x, fl, z, profile, ceramic, { ribs: 24, from: 600, to: 3700 }));
-  g.add(post(x, fl, z, 1950, 200, mat(0xd8cfbf, { roughness: 0.5 }), 32, 2150), post(x, fl - 200, z, 1980, 60, mat(0xcfc5b3, { roughness: 0.5 }), 32));
+  g.add(lathePot(x, fl, z, profile, ware, { ribs: 24, from: 600, to: 3700 }));
+  g.add(post(x, fl, z, 1950, 200, ware, 32, 2150), post(x, fl - 200, z, 1980, 60, ware, 32));
   const top = -fl + potH - 250;
   g.add(post(x, fl - potH + 250, z, 2210, 40, soil(), 28), mulch(x, top + 40, z, 1800, 12));
   const bark = mat(0x70584a, { roughness: 0.85 });
@@ -197,7 +209,7 @@ function pothosLeaves(): Material[] {
 /** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room (+x). */
 export function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {
   const g = new Group(), leaves = pothosLeaves(), stem = mat(0x6f9442, { roughness: 0.6 });
-  g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], mat(0xe3ddd2, { roughness: 0.4 })));
+  g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], stoneware()));
   g.add(post(x, y - 1560, z, 905, 40, soil(), 20));
   const heart = [0, 1, 2].map((k) => leafBlade(1, 0.78, 'heart', { fold: 0.18 + k * 0.08, curl: 0.1 + k * 0.05, wave: 0.2 }));
   // a tuft out of the pot: leaves on long petioles arching up and out, to the room and the sides, none back into the wall behind it (-x)
@@ -226,10 +238,10 @@ export function pothos(x: number, y: number, z: number, edge: number, vines: rea
 }
 
 // ---------------------------------------------------------------- succulents
-/** A small succulent rosette in a white pot standing on the layout point (x, y): three rings of fleshy leaves, blushed at their tips. */
+/** A small succulent rosette in a stoneware pot standing on the layout point (x, y): three rings of fleshy leaves, blushed at their tips. */
 export function succulent(x: number, y: number, z: number, r: number): Group {
   const g = new Group();
-  g.add(lathePot(x, y, z, [[0, 0], [r * 0.82, 0], [r * 0.9, r * 0.08], [r * 1.0, r * 1.1], [r * 1.08, r * 1.2], [r * 1.0, r * 1.22], [r * 0.95, r * 1.12]], mat(0xe9e4da, { roughness: 0.4 }), { ribs: 12, from: r * 0.1, to: r * 1.05 }));
+  g.add(lathePot(x, y, z, [[0, 0], [r * 0.82, 0], [r * 0.9, r * 0.08], [r * 1.0, r * 1.1], [r * 1.08, r * 1.2], [r * 1.0, r * 1.22], [r * 0.95, r * 1.12]], stoneware(), { ribs: 12, from: r * 0.1, to: r * 1.05 }));
   g.add(post(x, y - r * 1.1, z, r * 0.96, r * 0.04, soil(), 16));
   const tex = leafTex('#86a893', '#a9c4b0', 0, (c, w, h) => {
     const b = c.createLinearGradient(0, 0, 0, h * 0.35);
@@ -251,12 +263,8 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
 /** An aloe in a stoneware pot on the sill at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
 export function aloe(x: number, y: number, z: number): Group {
   const g = new Group();
-  // the pot: dark stoneware, speckled, a plain cylinder a little tapered to its foot, its rim rounded over
-  const speckle = paint(128, 64, (c, w, h) => {
-    c.fillStyle = '#3d3e40'; c.fillRect(0, 0, w, h);
-    for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(205,198,184,${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
-  }, [2, 1]);
-  g.add(lathePot(x, y, z, [[0, 0], [880, 0], [950, 40], [1000, 200], [1050, 1300], [1062, 1420], [1032, 1462], [992, 1452], [972, 1350]], mat(0xffffff, { map: speckle, roughness: 0.75 })));
+  // the pot: a plain cylinder a little tapered to its foot, its rim rounded over
+  g.add(lathePot(x, y, z, [[0, 0], [880, 0], [950, 40], [1000, 200], [1050, 1300], [1062, 1420], [1032, 1462], [992, 1452], [972, 1350]], stoneware()));
   g.add(post(x, y - 1280, z, 970, 40, soil(), 20));
   const tex = leafTex('#5c9656', '#8fbf7f', 0, (c, w, h) => {
     for (let k = 0; k < 70; k++) { c.fillStyle = `rgba(232,240,214,${0.4 + rnd() * 0.3})`; c.beginPath(); c.ellipse(w * (0.15 + rnd() * 0.7), h * rnd(), 2.4, 1.4, 0, 0, Math.PI * 2); c.fill(); }

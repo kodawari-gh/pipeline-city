@@ -20,7 +20,7 @@ import { builtinTheme, type Theme } from '@/core/render/theme';
 import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
 import { disposeTree, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
-import { PALETTE, PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
+import { PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
@@ -117,7 +117,8 @@ export class Machine3D {
   /** How much the camera is in the room (0 at the board view and closer, 1 at the room's overview): `setRoomLight`. */
   private roomK = 1;
   private leds: { on: MeshStandardMaterial; err: MeshStandardMaterial; disk: MeshStandardMaterial } | null = null;
-  private hue = 0;
+  /** The RGB's one colour: the case's accent (`caseModel`), so the fans, the strips and the light out through the glass match its trim. */
+  private accent = new Color(0x8b5cff);
   /** The art is always the dark theme's: the reference's black board under neon. */
   private readonly T = builtinTheme(true);
   private bakers: ArtBaker[] = [];
@@ -214,6 +215,7 @@ export class Machine3D {
     // the case of this tier, one of four (case3d.ts): its body stays, its outer side panel and glass fade as the camera comes in
     const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer', cm = caseModel(kind, this.T), shell = cm.root;
     this.caseRgb = cm.rgb;
+    this.accent.setHex(cm.accent);
     this.strip = cm.strip;
     for (const s of cm.spins) this.spin(s);
     // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
@@ -221,7 +223,7 @@ export class Machine3D {
     shell.add(shroud(this.plan, cm.shroud), cage(this.plan));
     // light strips along the inside of the top and the front: RGB in the gaming case, a cold white in the showcase, none in the plain cases
     if (cm.rgb) for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
-      const m = glowMat(PALETTE.rgb);
+      const m = glowMat(cm.accent);
       this.root.add(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
       this.spin(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
     }
@@ -823,8 +825,7 @@ export class Machine3D {
     this.ramMap?.update(s?.ram ?? null, performance.now());
     if (s) for (const d of s.devices) this.skins.get(d.id)?.set(stateOf(s, d));
     for (const sk of this.skins.values()) sk.frame(dt);
-    this.hue = (this.hue + dt * 0.05) % 1;
-    const rgb = new Color().setHSL(this.hue, 1, 0.5);
+    const rgb = this.accent;
     for (const f of this.fans) {
       const want = live && (!f.needs || !!s?.cables.some((c) => c.id === f.needs && c.connected)) ? 1 : 0;
       f.speed += (want - f.speed) * (1 - Math.pow(want ? 0.3 : 0.6, dt)); // spins up quicker than it coasts down

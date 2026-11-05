@@ -12,7 +12,7 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import type { KeySnap } from '@/worker/game/types';
 import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PLATE, type Rect } from '@/features/board/render/layout/layout';
 import { hung } from '@/features/board/render/three/wires3d';
-import { disposeTree, drum, instanced, paint, place, post, rectBox, rod, softBox, tube } from '@/core/render/three/geometry';
+import { disposeTree, drum, instanced, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
 import { boxEnv, boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
@@ -26,9 +26,7 @@ import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, oak,
 import { deskChair } from './chair3d';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import {
-  CEILING, FELT, LANTERN, OAK, OAK_GRAIN, PLANK, PLANK_GRAIN, RUG_LINE, RUG_WOOL, SLAT, SLAT_GRAIN, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, WALL_BED,
-} from './palette';
+import { CEILING, FELT, LANTERN, NEON, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
 import {
   BED, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, LEDGE, MONITOR_Z, PED, RUG, SLATS_X0, SLATS_X1, SLAT_W, TRAY, WALL_T,
   WEST_X, WINDOW,
@@ -56,6 +54,8 @@ const SHADOW_TURN_MS = 400;
 const FRAME_Z = -1000, GLASS_Z = -1500;
 /** The sun is a spot this far out along its direction from the window: its cone covers the opening, its shadow the reveal and the frame. */
 const SUN_D = 90000;
+/** The plaster texture's size on the walls (units; about 43 cm). */
+const PLASTER_TILE = 8000;
 /** The sky's fill colour at noon (the night's is a deep blue). */
 const NOON_SKY = new Color(0xe4ecff);
 
@@ -119,7 +119,7 @@ function plasterTex(base: string, repeat: [number, number]): Texture | null {
  * lines up.
  */
 function planksTex(): Texture | null {
-  const [pr, pg, pb] = PLANK;
+  const [pr, pg, pb] = rgbOf(OAK), grain = `rgba(${rgbOf(OAK_GRAIN).join(',')},`;
   return paint(1024, 1024, (c, w, h) => {
     const rows = 8, ph = h / rows;
     for (let r = 0; r < rows; r++) {
@@ -137,7 +137,7 @@ function planksTex(): Texture | null {
           // the grain along the board, waved a little; a few lighter streaks
           for (let i = 0; i < 16; i++) {
             const gy = y0 + rnd() * ph, amp = 2 + rnd() * 5;
-            c.strokeStyle = rnd() < 0.8 ? `${PLANK_GRAIN}${0.14 + rnd() * 0.18})` : `rgba(255,236,205,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
+            c.strokeStyle = rnd() < 0.8 ? `${grain}${0.14 + rnd() * 0.18})` : `rgba(255,236,205,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
             c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp); c.stroke();
           }
           // a knot: dark heart, rings stretched along the board
@@ -220,25 +220,24 @@ export class Room3D {
     const graphite = mat(0x23262b, { roughness: 0.3 }), trim = mat(TRIM, { roughness: 0.5 });
     const chrome = mat(0xc9cdd2, { metalness: 0.85, roughness: 0.25 });
     const dark = mat(0x2a2c31, { roughness: 0.5 });
-    const plaster = mat(0xffffff, { map: plasterTex(WALL, [10, 5]), roughness: 0.92 });
-    const bedWall = mat(0xffffff, { map: plasterTex(WALL_BED, [6, 5]), roughness: 0.92 });
+    // one plaster on every wall, its texture at one size on each piece and running on across the pieces (`worldUv`)
+    const plaster = mat(0xffffff, { map: plasterTex(WALL, [1, 1]), roughness: 0.92 }), wall = (r: Rect, z0: number, z1: number) => worldUv(rectBox(r, z0, z1, plaster), PLASTER_TILE);
     const W = WINDOW;
 
-    // ---- the back wall: plaster round the window, the slatted panel behind the desk (its slats flush with the plaster), a deeper slate wall behind the bed ----
-    for (const r of wallAround(WEST_X, SLATS_X0, CEIL_Y, fl, W)) R.add(rectBox(r, -WALL_T, 0, plaster));
-    R.add(rectBox({ x: SLATS_X1, y: CEIL_Y, w: BED.x - 3000 - SLATS_X1, h: H }, -WALL_T, 0, plaster));
-    R.add(rectBox({ x: BED.x - 3000, y: CEIL_Y, w: EAST_X - BED.x + 3000, h: H }, -WALL_T, 0, bedWall));
+    // ---- the back wall: plaster round the window and east of the desk, the slatted panel behind the desk (its slats flush with the plaster) ----
+    for (const r of wallAround(WEST_X, SLATS_X0, CEIL_Y, fl, W)) R.add(wall(r, -WALL_T, 0));
+    R.add(wall({ x: SLATS_X1, y: CEIL_Y, w: EAST_X - SLATS_X1, h: H }, -WALL_T, 0));
     R.add(rectBox({ x: SLATS_X0, y: CEIL_Y, w: SLATS_X1 - SLATS_X0, h: H }, -WALL_T, -140, mat(FELT, { roughness: 0.95 })));
-    const slatM = mat(0xffffff, { map: woodTex(SLAT, SLAT_GRAIN), roughness: 0.7 });
+    const slatM = mat(0xffffff, { map: woodTex(OAK, OAK_GRAIN), roughness: 0.7 });
     const runs = slatRuns(SLATS_X0 + 120, SLATS_X1 - 120, CEIL_Y, fl, { x: 0, y: 0, w: 0, h: 0 });
     R.add(instanced(new BoxGeometry(1, 1, 1), slatM, runs.map((s) => ({ x: s.x + SLAT_W / 2, y: -(s.y0 + s.y1) / 2, z: -70, sx: SLAT_W, sy: s.y1 - s.y0, sz: 140 }))));
     for (const x of [SLATS_X0 - 120, SLATS_X1 - 120]) R.add(softBox({ x, y: CEIL_Y, w: 240, h: H }, -160, 80, slatM, 40));
 
     // ---- the other walls, the ceiling (they take light, they cast no shadow: the eye is always inside) ----
     const shell = (m: Mesh) => { m.castShadow = false; return m; };
-    R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200, plaster)));
-    R.add(shell(rectBox({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200, plaster)));
-    R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200, plaster)));
+    R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
+    R.add(shell(wall({ x: EAST_X, y: CEIL_Y, w: 1200, h: H }, -WALL_T, FRONT_Z + 1200)));
+    R.add(shell(wall({ x: WEST_X - 1200, y: CEIL_Y, w: EAST_X - WEST_X + 2400, h: H }, FRONT_Z, FRONT_Z + 1200)));
     R.add(shell(rectBox({ x: WEST_X - 1200, y: CEIL_Y - 1200, w: EAST_X - WEST_X + 2400, h: 1200 }, -WALL_T, FRONT_Z + 1200, mat(CEILING, { roughness: 0.95 }))));
     // a low flush skirting, square-edged, and a shadow gap where the walls meet the ceiling (no cornice); the door breaks the skirting on the west wall
     const skirt = (r: Rect, z0: number, z1: number, m: Material = trim) => R.add(shell(softBox(r, z0, z1, m, 20)));
@@ -308,8 +307,8 @@ export class Room3D {
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight);
     R.add(print({ x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 }, 0));
 
-    // ---- the desk: an oak-effect top on two round black steel legs at the west end and a black-brown drawer unit at the east end, a cable tray
-    // under its back edge ----
+    // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
+    // unit at the east end, a cable tray under its back edge ----
     const dw = g.desk.x1 - g.desk.x0, legH = fl - ys - DESK_TOP;
     R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, mat(0xffffff, { map: oak(OAK, OAK_GRAIN, [2, 1]), roughness: 0.45 }), 60));
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
@@ -382,15 +381,16 @@ export class Room3D {
     }
     R.add(rack, this.keys);
     R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
+    // the router: black, as the other things on the wall
     const router = tag(new Group(), 'router');
-    router.add(softBox(ROUTER_SPOT, 300, 1400, mat(0xeceef0, { roughness: 0.4 }), 80));
-    router.add(softBox({ x: ROUTER_SPOT.x, y: ROUTER_SPOT.y, w: ROUTER_SPOT.w, h: 120 }, 300, 1400, mat(0xb9bec4, { roughness: 0.4 }), 40));
-    // its front: a dark strip with the status lights, vents over its top, two antennas on hinges at the back
+    router.add(softBox(ROUTER_SPOT, 300, 1400, mat(STEEL, { roughness: 0.4 }), 80));
+    router.add(softBox({ x: ROUTER_SPOT.x, y: ROUTER_SPOT.y, w: ROUTER_SPOT.w, h: 120 }, 300, 1400, mat(0x2a2c30, { roughness: 0.4 }), 40));
+    // its front: a darker strip with the status lights, vents over its top, two antennas on hinges at the back
     const rs = ROUTER_SPOT, ledY = rs.y + rs.h * 0.6;
-    router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, 1395, 1410, mat(0x1d2024, { roughness: 0.5 }), 30));
-    const led = mat(0x111111, { emissive: new Color(0x58e08a), emissiveIntensity: 1.8 });
+    router.add(softBox({ x: rs.x + 250, y: ledY - 70, w: 1250, h: 140 }, 1395, 1410, mat(0x0d0e10, { roughness: 0.5 }), 30));
+    const led = mat(0x111111, { emissive: new Color(NEON), emissiveIntensity: 1.8 });
     for (let k = 0; k < 4; k++) router.add(drum(rs.x + 420 + k * 280, ledY, 1405, 1425, 36, led, 8));
-    for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x8d9399, { roughness: 0.6 })));
+    for (let k = 0; k < 6; k++) router.add(rectBox({ x: rs.x + 500 + k * 220, y: rs.y - 4, w: 90, h: 8 }, 600, 1100, mat(0x08090a, { roughness: 0.8 })));
     const aerial = mat(0x2a2d31, { roughness: 0.45 });
     for (const [ax, lean] of [[rs.x + 260, -0.12], [rs.x + rs.w - 260, 0.12]] as const) {
       const base: [number, number, number] = [ax, -rs.y + 60, 450], tip: [number, number, number] = [ax + Math.sin(lean) * 3000, -rs.y + 60 + Math.cos(lean) * 3000, 300];
@@ -406,13 +406,14 @@ export class Room3D {
       { r: 40, base: '#8cc3e0', accent: null }, { planes: [{ n: [0, 0, 1], d: 40 }, { n: [0, 1, 0], d: -ys }], solids: [{ min: [CASE.x, -(CASE.y + CASE.h), CASE_Z], max: [CASE.x + CASE.w, -CASE.y, CASE_Z + CASE_D] }] },
       { slack: 1.1, extra: 600, stiff: 0.35, n: 30 }));
     R.add(lan);
+    // the letterbox: powder-coated black steel, as the other things on the wall
     const box = tag(new Group(), 'mail');
-    box.add(softBox(OUTBOX, 0, 700, mat(0xb8342c, { roughness: 0.45 }), 70));
-    box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, dark));
+    box.add(softBox(OUTBOX, 0, 700, mat(STEEL, { roughness: 0.45 }), 70));
+    box.add(rectBox({ x: OUTBOX.x + 180, y: OUTBOX.y - 10, w: OUTBOX.w - 360, h: 30 }, 200, 500, mat(0x08090a, { roughness: 0.8 })));
     // its front door (a panel in a fine seam), a name plate, the lock
-    const ob = OUTBOX, red = mat(0xa82f28, { roughness: 0.45 });
-    box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x4a1512, { roughness: 0.6 })));
-    box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, red, 20));
+    const ob = OUTBOX, front = mat(0x232428, { roughness: 0.45 });
+    box.add(rectBox({ x: ob.x + 70, y: ob.y + 150, w: ob.w - 140, h: ob.h - 220 }, 700, 704, mat(0x08090a, { roughness: 0.6 })));
+    box.add(softBox({ x: ob.x + 85, y: ob.y + 165, w: ob.w - 170, h: ob.h - 250 }, 700, 730, front, 20));
     box.add(softBox({ x: ob.x + 260, y: ob.y + 260, w: ob.w - 520, h: 130 }, 730, 742, mat(0xefe7d4, { roughness: 0.6 }), 10));
     box.add(drum(ob.x + ob.w - 200, ob.y + ob.h - 220, 730, 760, 55, chrome, 12), rectBox({ x: ob.x + ob.w - 212, y: ob.y + ob.h - 250, w: 24, h: 60 }, 760, 764, dark));
     R.add(box);

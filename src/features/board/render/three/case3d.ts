@@ -59,6 +59,8 @@ export interface CaseModel {
   strip: MeshStandardMaterial;
   /** Whether the inside has RGB (the case fans' rings, the light strips, the coloured fill). */
   rgb: boolean;
+  /** The case's accent colour: its lit trim, and the RGB's one colour. */
+  accent: number;
   /** The inside's tone (the tray) and the shroud's (its print's ink). */
   inner: number;
   shroud: { body: number; ink: string };
@@ -299,7 +301,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   door.position.set(px, 0, FRONT);
   side.position.set(-px, 0, -FRONT);
   door.add(side);
-  return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, inner: L.inner, shroud: L.shroud };
+  return { root, side, door, px, hit, screws, glass, power: ctl.power, leds: ctl.leds, spins, strip, rgb: L.rgb, accent: acc, inner: L.inner, shroud: L.shroud };
 
   /** Splayed feet along the case's depth (a dark wedge, a lit top line), on a silver plate for the showcase. */
   function feet(g: Group, fw: number, tone: number, plate: Material | null) {

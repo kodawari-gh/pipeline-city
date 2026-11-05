@@ -341,7 +341,8 @@ export function bookcase(): Group {
   const hole = new CylinderGeometry(70, 70, 24, 8); hole.rotateX(Math.PI / 2);
   g.add(instanced(hole, mat(0x0c0c0d, { roughness: 0.9 }), pins));
   const n = 5, gap = (fl - top - 1400) / n;
-  const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x9c3b3b];
+  // the bindings: neutrals, slate blues, a sage, a sand, and the room's terracotta as the one warm colour
+  const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x3a3f47];
   const books: Book[] = [];
   const steel = mat(0x3a3c40, { metalness: 0.6, roughness: 0.4 });
   for (let s = 0; s <= n; s++) {

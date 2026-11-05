@@ -12,22 +12,28 @@ import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { oak } from './furniture3d';
+import { NEON, STEEL } from './palette';
 
 type V3 = [number, number, number];
+/** The clock's digits: the cyan of what glows in tech. */
+const CLOCK_INK = `#${NEON.toString(16).padStart(6, '0')}`;
 
 // ------------------------------------------------------------------ lamp
 export interface Lamp { root: Group; bulb: MeshStandardMaterial; inner: MeshStandardMaterial; mouth: V3; dir: [number, number] }
 
-/** An architect lamp: a round weighted base, paired lower arms with a spring, an elbow, paired upper arms, a cone shade pointing down at the desk. */
+/**
+ * An architect lamp in black powder-coated steel: a round weighted base, paired lower arms with a spring, an elbow, paired upper arms, a cone
+ * shade pointing down at the desk, warm white inside.
+ */
 export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: number }, head: { x: number; y: number }, mouthXY: { x: number; y: number }, z: number): Lamp {
-  const white = mat(0xf2f0eb, { roughness: 0.35 }), joint = mat(0xc9ccd1, { metalness: 0.6, roughness: 0.3 });
+  const coat = mat(STEEL, { roughness: 0.4, metalness: 0.3 }), joint = mat(0x6d7178, { metalness: 0.6, roughness: 0.3 });
   const g = tag(new Group(), 'lamp');
-  g.add(post(base.x, base.y, z, 950, 150, white, 40, 880));
-  g.add(post(base.x, base.y - 150, z, 230, 280, white, 20, 200));
+  g.add(post(base.x, base.y, z, 950, 150, coat, 40, 880));
+  g.add(post(base.x, base.y - 150, z, 230, 280, coat, 20, 200));
   const b0: V3 = [base.x, -(base.y - 400), z], el: V3 = [elbowXY.x, -elbowXY.y, z], hd: V3 = [head.x, -head.y, z];
   for (const dz of [-90, 90]) {
-    g.add(rod([b0[0], b0[1], z + dz], [el[0], el[1], z + dz], 55, white));
-    g.add(rod([el[0], el[1], z + dz], [hd[0], hd[1], z + dz], 50, white));
+    g.add(rod([b0[0], b0[1], z + dz], [el[0], el[1], z + dz], 55, coat));
+    g.add(rod([el[0], el[1], z + dz], [hd[0], hd[1], z + dz], 50, coat));
   }
   g.add(rod([b0[0] + 160, b0[1] + 250, z], [el[0] + 180, el[1] - 200, z], 22, joint, 6)); // the spring
   for (const p of [b0, el, hd]) { const j = place(new Mesh(new CylinderGeometry(120, 120, 300, 16), joint)); j.rotation.x = Math.PI / 2; j.position.set(...p); g.add(j); }
@@ -36,13 +42,13 @@ export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: nu
   const shade = new Group(), L = 1500;
   shade.position.set(...hd);
   shade.rotation.z = Math.atan2(ux, -uy);
-  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, 32, 1, true), white));
+  const outer = place(new Mesh(new CylinderGeometry(300, 820, L, 32, 1, true), coat));
   const inner = mat(0xfff4dc, { roughness: 0.6, side: BackSide, emissive: new Color(0xffd9a0), emissiveIntensity: 0 });
   const innerM = new Mesh(new CylinderGeometry(296, 812, L, 32, 1, true), inner);
-  const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), white));
+  const cap = place(new Mesh(new SphereGeometry(300, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), coat));
   outer.position.y = innerM.position.y = -L / 2; cap.position.y = 0;
   // the mouth's rolled lip, the head's knob that sets the shade's tilt
-  const lip = place(new Mesh(new TorusGeometry(816, 40, 8, 48), white));
+  const lip = place(new Mesh(new TorusGeometry(816, 40, 8, 48), coat));
   lip.rotation.x = Math.PI / 2; lip.position.y = -L;
   const knob = place(new Mesh(new CylinderGeometry(150, 150, 220, 18), joint));
   knob.rotation.z = Math.PI / 2; knob.position.set(0, 120, 0);
@@ -140,7 +146,7 @@ export class DigitalClock {
   private shown = '';
 
   constructor(r: RectLike) {
-    this.root.add(softBox(r, 0, 260, mat(0xd9cdb8, { roughness: 0.5 }), 50));
+    this.root.add(softBox(r, 0, 260, mat(STEEL, { roughness: 0.45, metalness: 0.3 }), 50));
     this.root.add(rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x121212, { roughness: 0.3 })));
     if (typeof document !== 'undefined') {
       this.canvas = document.createElement('canvas'); this.canvas.width = 512; this.canvas.height = 160;
@@ -158,8 +164,8 @@ export class DigitalClock {
     const c = this.canvas.getContext('2d')!;
     c.fillStyle = '#000'; c.fillRect(0, 0, 512, 160);
     c.font = 'bold 128px "Courier New", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = 'rgba(255,140,40,0.12)'; c.fillText('88:88', 256, 86);
-    c.fillStyle = '#ffa043'; c.fillText(t, 256, 86);
+    c.fillStyle = 'rgba(59,227,255,0.1)'; c.fillText('88:88', 256, 86);
+    c.fillStyle = CLOCK_INK; c.fillText(t, 256, 86);
     if (this.tex) this.tex.needsUpdate = true;
   }
 }
