@@ -31,6 +31,20 @@ export function place<T extends Object3D>(o: T, shadow = true): T {
   return o;
 }
 
+/**
+ * Give a grid surface's closed rows (where it comes to a point, `cols` vertices a row) the normals of the row next to them: a parametric
+ * surface gets a zero normal there, and a zero normal turns the whole frame black (it is NaN in the shader, and the post passes spread it).
+ */
+export function healNormals<T extends BufferGeometry>(g: T, cols: number): T {
+  const n = g.attributes.normal!, ok = (i: number) => i >= 0 && i < n.count && Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) > 0.5;
+  for (let i = 0; i < n.count; i++) {
+    if (ok(i)) continue;
+    const j = ok(i - cols) ? i - cols : i + cols;
+    if (ok(j)) n.setXYZ(i, n.getX(j), n.getY(j), n.getZ(j));
+  }
+  return g;
+}
+
 /** A sharp box over a layout rect, from depth z0 to z1. */
 export function rectBox(r: RectLike, z0: number, z1: number, m: Material): Mesh {
   const g = new BoxGeometry(r.w, r.h, z1 - z0), o = new Mesh(g, m);
