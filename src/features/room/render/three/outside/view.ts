@@ -45,7 +45,7 @@ const CITY_GLOW = new Color(0.055, 0.036, 0.042), HAZE_DAY = 1.5e-4, HAZE_NIGHT 
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.3;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
-const MIRROR = 80, MIRROR_FROM = 0.55;
+const MIRROR = 65, MIRROR_FROM = 0.55;
 /**
  * How far west the sun out here stands of the room's at the same hour (radians). The room's own, nearly behind the window through the
  * afternoon, would light the faces the window sees head on, flat. Turned, it rakes them, one face bright and one in shade, the shadows

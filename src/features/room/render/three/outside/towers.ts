@@ -5,15 +5,18 @@
 // pixel, so it does not shimmer. The sky's light falls off down a wall toward the street. A flat block near the window has its balconies. On
 // the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its door, plant boxes, water tanks, solar panels,
 // skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant screens, their LED bands, the red beacons
-// blinking at night.
+// blinking at night. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts each in its own light.
 import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial, Vector3 } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 
-/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel. */
-const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7 }
+/** What a vertex is: an office's facade, a roof, a plain surface, a beacon, a lit crown, a band of LEDs, a home's facade (lit room by room), a solar panel, a sign. */
+const enum Kind { Facade = 0, Roof = 1, Plain = 2, Beacon = 3, Crown = 4, Led = 5, Home = 6, Solar = 7, Sign = 8 }
 
 /** The towers' LED bands: cyan, warm white, amber (the room's accent families), and how often each is picked. */
 const LEDS = [0x4fd6ff, 0x4fd6ff, 0xffd8a6, 0xffd8a6, 0xffa64a] as const;
+
+/** The signs' colours: cyan, amber, terracotta red (the room's accents) and a rare magenta, and how far from the window a low block has any, a tower. */
+const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3f9e] as const, SIGN_FAR = 1500, SIGN_TOWER = 3400;
 
 /** A parapet's height over its roof (m), how far from the window a roof gets its plant and tanks, and its smallest things. */
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
@@ -260,6 +263,55 @@ function leds(m: Mass, b: Building): void {
   for (const [x, z] of [[s.x0, s.z0], [s.x1, s.z0], [s.x1, s.z1], [s.x0, s.z1]] as const) m.box(sized(x, z, 0.36, 0.36), s.y0, b.tiers[b.tiers.length - 1]!.y1 - 0.9, false);
 }
 
+/** A sign's board, its glyphs on its south face (and its north one if `both`), its other faces a dark case. `lit`: a lit box with dark glyphs, not neon on a dark board. */
+function board(m: Mass, r: Rect, y0: number, y1: number, colour: number, seed: number, lit: boolean, both: boolean): void {
+  const look: [number, number, number, number] = [r.x1 - r.x0, y1 - y0, y0, lit ? 1 : 0];
+  let wall = 0;
+  m.set(colour, 0, Kind.Sign, seed);
+  m.box(r, y0, y1, true, false, () => { m.lk = wall === 0 || (both && wall === 2) ? look : [1, 1, 0, -1]; wall++; });
+}
+
+/**
+ * A building's signs, seen from the window up its street, nearest the most: a tall one out from a wall over an avenue, one flat on a south
+ * wall over a street, a board on legs on the roof's south edge, a tower's tall board high on its shaft. Quiet: most have none. Its own generator:
+ * the others' draws stay as they were.
+ */
+function signs(m: Mass, b: Building, away: number): void {
+  const t = b.tiers[0]!, r = rng(b.seed ^ 0x51a6), share = away < 700 ? 1 : 0.5, storey = STYLES[b.style].storey;
+  const colour = (): number => SIGNS[Math.floor(r() * SIGNS.length)]!, seed = (): number => Math.floor(r() * 991) + 0.37;
+  if (away < SIGN_TOWER && topOf(b) >= 60 && b.style !== 'tile' && r() < 0.11) {
+    const s = b.tiers[Math.min(1, b.tiers.length - 1)]!, w = 3.5 + r() * 3, h = Math.min((s.y1 - s.y0) * 0.7, w * (4 + Math.floor(r() * 6))), x = s.x0 + w + r() * (s.x1 - s.x0 - 2 * w), y1 = s.y1 - 2 - r() * (s.y1 - s.y0 - h - 2);
+    board(m, { x0: x - w / 2, x1: x + w / 2, z0: s.z1 + 0.1, z1: s.z1 + 0.5 }, y1 - h, y1, colour(), seed(), r() < 0.3, false);
+  }
+  if (away > SIGN_FAR || t.y1 < 9) return;
+  const onGrid = (v: number, pitch: number): boolean => Math.abs(v / pitch - Math.round(v / pitch)) < 1e-6;
+  const y0 = storey + 0.6, tall = (w: number): number => Math.min(t.y1 - y0 - 0.8, w * (3 + Math.floor(r() * 6)));
+  for (const [on, x, out] of [[onGrid(t.x1 - GRID.av0 + GRID.avenue / 2, GRID.px), t.x1, 1], [onGrid(t.x0 - GRID.av0 - GRID.avenue / 2, GRID.px), t.x0, -1]] as const) {
+    if (!on || r() > 0.5 * share) continue;
+    const w = 1.9 + r() * 1, h = tall(w), z = t.z0 + 2 + r() * (t.z1 - t.z0 - 4), near = x + out * 0.2, far = near + out * w;
+    if (h < w * 2) continue;
+    board(m, { x0: Math.min(near, far), x1: Math.max(near, far), z0: z - 0.14, z1: z + 0.14 }, y0, y0 + h, colour(), seed(), r() < 0.25, true);
+    m.set(0x26282b, 0, Kind.Plain);
+    for (const y of [y0 + 0.4, y0 + h - 0.6]) m.box({ x0: Math.min(x, near), x1: Math.max(x, near), z0: z - 0.05, z1: z + 0.05 }, y, y + 0.14, true);
+  }
+  const south = onGrid(-t.z1 - GRID.street, GRID.pz), width = t.x1 - t.x0;
+  if (south && b.tiers.length === 1 && b.style !== 'band' && r() < 0.28 * share) {
+    const w = 1.9 + r() * 1, h = tall(w), x = t.x0 + w + r() * (width - 2 * w);
+    if (h >= w * 2) board(m, { x0: x - w / 2, x1: x + w / 2, z0: t.z1 + 0.06, z1: t.z1 + 0.34 }, y0, y0 + h, colour(), seed(), r() < 0.25, false);
+  }
+  if (south && b.tiers.length === 1 && t.y1 < 45 && width > 9 && r() < 0.18 * share) {
+    const w = Math.min(width - 3, 5 + r() * 10), h = Math.max(1.6, w / (3 + Math.floor(r() * 3))), x = t.x0 + 1.5 + w / 2 + r() * (width - 3 - w);
+    const z = t.z1 - 1, foot = t.y1, up = foot + PARAPET + 0.5;
+    m.set(0x303336, 0, Kind.Plain);
+    for (let k = 0, n = Math.max(2, Math.round(w / 3.5)); k < n; k++) {
+      const lx = x - w / 2 + 0.3 + ((w - 0.6) * k) / (n - 1);
+      m.box(sized(lx, z - 0.12, 0.12, 0.12), foot, up + h - 0.2, false);
+      m.box(sized(lx, z - 1.1, 0.1, 0.1), foot, up + h * 0.4, false);
+    }
+    board(m, { x0: x - w / 2, x1: x + w / 2, z0: z - 0.06, z1: z + 0.16 }, up, up + h, colour(), seed(), r() < 0.4, false);
+  }
+}
+
 /** Every building in one geometry. */
 export function massGeometry(bs: readonly Building[]): BufferGeometry {
   const m = new Mass();
@@ -300,6 +352,7 @@ export function massGeometry(bs: readonly Building[]): BufferGeometry {
     });
     crown(m, b, rand);
     leds(m, b);
+    signs(m, b, away);
   }
   return m.geometry();
 }
@@ -338,7 +391,17 @@ float fNoise(vec2 p) {
   return mix(mix(fHash(i), fHash(i + vec2(1.0, 0.0)), f.x), mix(fHash(i + vec2(0.0, 1.0)), fHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 /** A band from a to b across x, its edges softened by the pixel's width w. */
-float fBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w, x) - smoothstep(b - w, b + w, x); }`)
+float fBand(float a, float b, float x, float w) { return smoothstep(a - w, a + w, x) - smoothstep(b - w, b + w, x); }
+/** How far a point in a sign's glyph's box (0 to 1) is from the nearest stroke: up to three across and three up, each whole or part way. No real letters. */
+float fGlyph(vec2 c, float gh) {
+  float d = 9.0;
+  for (int k = 0; k < 3; k++) {
+    float fk = float(k), a = fHash(vec2(gh, fk + 0.5)), b = fHash(vec2(gh, fk + 3.5));
+    if (fHash(vec2(gh, fk + 6.5)) > 0.35) d = min(d, length(max(abs(c - vec2(a < 0.5 ? 0.5 : a < 0.75 ? 0.28 : 0.72, 0.5 * fk)) - vec2(a < 0.5 ? 0.5 : 0.28, 0.0), 0.0)));
+    if (fHash(vec2(gh, fk + 9.5)) > 0.45) d = min(d, length(max(abs(c - vec2(0.5 * fk, b < 0.5 ? 0.5 : b < 0.75 ? 0.28 : 0.72)) - vec2(0.0, b < 0.5 ? 0.5 : 0.28), 0.0)));
+  }
+  return d;
+}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 float fRough = 0.85, fMetal = 0.0, fVis = 1.0, fSpec = 1.0;
 vec3 fGlow = vec3(0.0), fTilt = vec3(0.0);
@@ -353,10 +416,10 @@ if (fKind == 0 || fKind == 6) {
   // pattern fades to its average where its scale is under the pixel, so the far city does not shimmer
   float cx = smoothstep(0.1, 0.35, fw.x), cy = smoothstep(0.1, 0.35, fw.y), cf = max(cx, cy);
   float fine = smoothstep(0.05, 0.18, max(fw.x, fw.y));
-  // the window; the ground floor's shop windows are taller and wider, and more of them lit
+  // the window; the ground floor's shop windows are wider and down to the pavement, a fascia over them, and more of them lit
   float shop = 1.0 - step(0.5, id.y);
-  vec2 win = mix(vLook.zw, vec2(0.92, 0.8), shop);
-  vec2 lo = vec2(0.5 - 0.5 * win.x, (1.0 - win.y) * 0.6), hi = lo + win;
+  vec2 win = mix(vLook.zw, vec2(0.94, 0.66), shop);
+  vec2 lo = vec2(0.5 - 0.5 * win.x, mix((1.0 - win.y) * 0.6, 0.05, shop)), hi = lo + win;
   vec2 e = mix(smoothstep(lo - fw, lo + fw, f) - smoothstep(hi - fw, hi + fw, f), win, vec2(cx, cy));
   float m = e.x * e.y;
   vec2 o = clamp((f - lo) / win, 0.0, 1.0), ow = fw / win;
@@ -374,14 +437,18 @@ if (fKind == 0 || fKind == 6) {
   float occ = home > 0.5 ? share : min(1.0, share * 2.6 * rf * rf);
   float lit = mix(mix(step(hz, occ), occ, cz), share * mix(0.86, 1.0, home), cy);
   lit *= mix(mix(step(h3, 0.9), 0.9, cx), 1.0, home);
-  lit = mix(lit, mix(step(h3, 0.8), 0.8, cx), shop);
+  // a shop, a few bays wide: open or shut as one, in its own light, most of them warm, some the city's neon
+  float sw = 1.0 + floor(3.0 * fHash(vec2(seed, 13.7))), sid = floor(id.x / sw), hs = fHash(vec2(sid + seed * 2.3, 11.3)), sOpen = step(fHash(vec2(sid + seed, 17.1)), 0.8);
+  vec3 sCol = hs < 0.5 ? vec3(1.0, 0.8, 0.58) : hs < 0.64 ? vec3(0.3, 0.8, 1.0) : hs < 0.78 ? vec3(1.0, 0.58, 0.2) : hs < 0.92 ? vec3(1.0, 0.32, 0.2) : vec3(1.0, 0.26, 0.64);
+  sCol = mix(sCol, vec3(1.0, 0.7, 0.5), cx);
+  lit = mix(lit, mix(sOpen, 0.8, cx), shop);
   // the light: an office's cool white, many warmer, a few a fluorescent green; a home's warm lamp, some paler, a few a screen's blue. A
   // curtain wall's glass tints it
   float hc = fHash(vec2(zone + seed * 3.1, id.y + 9.2)), kz = mix(0.75 + 0.4 * fHash(vec2(hc, 3.7)), 1.0, cr);
   vec3 cool = hc < 0.55 ? vec3(0.62, 0.85, 1.0) : hc < 0.92 ? vec3(1.0, 0.8, 0.55) : vec3(0.6, 1.0, 0.8);
   vec3 warm = hc < 0.6 ? vec3(1.0, 0.6, 0.3) : hc < 0.9 ? vec3(1.0, 0.74, 0.48) : vec3(0.42, 0.56, 1.0);
   vec3 lamp = mix(mix(cool, warm, home), mix(vec3(0.76, 0.84, 0.82), vec3(0.94, 0.64, 0.42), home), cr);
-  lamp = mix(lamp, vec3(1.0, 0.82, 0.62), shop) * mix(vec3(1.0), vTint / max(max(vTint.r, vTint.g), max(vTint.b, 1e-3)), refl * 0.5);
+  lamp = mix(lamp, sCol, shop) * mix(vec3(1.0), vTint / max(max(vTint.r, vTint.g), max(vTint.b, 1e-3)), refl * 0.5 * (1.0 - shop));
   // the room behind the pane in depth (interior mapping): the eye's ray goes on into a box the room's size (its bays wide, a storey high, a
   // few metres deep) and meets its back wall, a side wall, the floor or the ceiling, an office's desks, a home's sofa or its lamp's shade.
   // Its colour by day (dark, lit from the window), its light at night (where the room's lamps put it); far off, their averages
@@ -461,6 +528,9 @@ if (fKind == 0 || fKind == 6) {
   float sill = fBand(lo.x - 0.04, hi.x + 0.04, f.x, fw.x) * (fBand(lo.y - 0.07, lo.y, f.y, fw.y) + fBand(hi.y, hi.y + 0.08, f.y, fw.y));
   fr = mix(fr, vec3(0.62, 0.58, 0.51) * (0.9 + 0.2 * mix(h, 0.5, cf)), mix(sill, 0.08, cf) * trim * (1.0 - shop));
   diffuseColor.rgb = mix(mix(fr, vec3(0.03, 0.033, 0.036), mull / max(1.0 - m, 1e-3)), glass, m);
+  // a shop's fascia over its window, the whole of its width: painted in its colour, lit when it is open
+  float fasc = shop * mix(fBand(hi.y + 0.03, 0.9, f.y, fw.y), 0.17, cy) * mix(fBand(0.04 / sw, 1.0 - 0.04 / sw, (mod(id.x, sw) + f.x) / sw, fw.x / sw), 1.0, cx);
+  diffuseColor.rgb = mix(diffuseColor.rgb, sCol * 0.3 + 0.015, fasc);
   fRough = mix(0.8, 0.05 + 0.12 * mix(h, 0.5, max(cf, fNight)) * refl + 0.12 * (1.0 - refl), m);
   fMetal = mix(0.0, refl * 0.9, m);
   // by day a curtain wall's panes each a little out of true, so the sky they mirror breaks up pane by pane; at night they lie flat, or the
@@ -468,7 +538,8 @@ if (fKind == 0 || fKind == 6) {
   fTilt = (vec3(h, h2, h3) - 0.5) * 0.09 * m * refl * (1.0 - cf) * (1.0 - fNight);
   // the night: the lit rooms' light through their glass (a mirror glass lets less through), the frame round a lit window catching a
   // little of it, the street lamps' warm light washing the lowest floors' walls
-  fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl) * (fNight * 2.6 + 0.02);
+  fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl * (1.0 - shop)) * (fNight * mix(2.6, 4.2, shop) + 0.02);
+  fGlow += sCol * fasc * mix(sOpen, 0.8, cx) * 0.7 * fNight;
   fGlow += fr * lamp * lit * 0.06 * fNight * (1.0 - m);
   fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
   // what the pane mirrors under the sky, where the sky's cube knows nothing: the eye's ray goes on, turned by the glass, to the far side of the
@@ -542,6 +613,25 @@ if (fKind == 0 || fKind == 6) {
   diffuseColor.rgb = vec3(0.32, 0.34, 0.36);
   fRough = 0.15; fMetal = 0.6;
   fGlow = vColor.rgb * pane * (0.2 + 0.9 * exp(-3.0 * clamp((vFuv.y - vLook.y) / max(vLook.z, 1.0), 0.0, 1.0))) * fNight;
+} else if (fKind == 8) {
+  // a sign: its glyphs in a stack or a row, neon tubes on a dark board (a white core, a halo on the board), or dark on a lit box. A few
+  // stutter, a few glyphs are dead. By day they are paint. Far off, their average. vLook: its size, its foot, lit or not (under 0: its case)
+  diffuseColor.rgb = vec3(0.022, 0.024, 0.027);
+  fRough = 0.45;
+  if (vLook.w > -0.5) {
+    vec2 sz = vLook.xy, p = vec2(vFuv.x, vFuv.y - vLook.z), pw = fwidth(p);
+    float seed = vAux.x, cell = min(sz.x, sz.y), box = vLook.w;
+    vec2 cnt = floor(sz / cell + 0.001), q = (p - (sz - cnt * cell) * 0.5) / cell, gid = clamp(floor(q), vec2(0.0), cnt - 1.0), c = (q - gid - 0.15) / 0.7;
+    float px = max(pw.x, pw.y) / (cell * 0.7), far = smoothstep(0.12, 0.45, px), d = fGlyph(c, fHash(gid + seed * 1.31));
+    float dead = step(0.94, fHash(gid * 3.7 + seed)), stutter = 1.0 - step(fHash(vec2(seed, 31.7)), 0.16) * 0.65 * step(0.7, fHash(vec2(floor(fTime * 9.0), seed)));
+    float th = mix(0.05, 0.085, box), tube = mix(smoothstep(th + px, th - px, d), 0.3, far), halo = mix(exp(-d * d * 30.0), 0.55, far) * (1.0 - tube);
+    float edge = min(min(p.x, sz.x - p.x), min(p.y, sz.y - p.y)), rim = smoothstep(0.05 - pw.x, 0.05 + pw.x, edge);
+    vec3 col = vColor.rgb, neon = (col * 1.75 + vec3(0.22)) * tube * (1.0 - dead) + col * 0.3 * halo * (1.0 - dead);
+    vec3 boxed = col * 0.72 * (1.0 - tube) * (0.72 + 0.28 * smoothstep(0.0, cell * 0.5, edge));
+    diffuseColor.rgb = mix(mix(diffuseColor.rgb, col * 0.5, tube * (1.0 - dead)), mix(col * 0.62 + 0.1, vec3(0.03), tube), box) * mix(0.3, 1.0, rim);
+    fGlow = mix(neon, boxed, box) * rim * stutter * fNight;
+    fRough = mix(0.5, 0.3, box);
+  }
 }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fRough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = fMetal;')
