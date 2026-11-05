@@ -72,6 +72,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 |---|---|---|---|---|---|
 | Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
+| Arc floor lamp | its base on the rug in front of the case (about z 20000), its arm over the desk's front | spot, dome shade, down and back onto the desk and the case's glass side at about 45 degrees | 3000 | yes | new: the board's main light at night |
 | Floor lantern | west wall, between the bookcase and the fig (about x -37000, z 27500) | point, tall paper column | 2700 | yes: the fig's leaves on the west wall | new |
 | Bookcase shelf lights | under each shelf of the bookcase | strips (area) | 2700 | no | new: the books and the west wall read |
 | Picture light | on the print over the bed | strip (area), down onto the print | 3000 | no | new |
@@ -93,11 +94,13 @@ Accents outside the palette (the case's purple next to the room's cyan) are the 
 
 ### How the case reads at night
 
-Nothing outside the case lights the board but what really comes in through its glass: the desk lamp's cone (aim its edge to graze the glass side), the screen's light, the floor lantern from across the room. Inside, the case has its own real lights:
+The owner (T154, 2026-11-06): "We need an option that works for the basic non RGB cases too. All the required for legibility lights need to come from outside." So the case gets no light of its own for the board to read by. The case's RGB is decoration only: a basic case without it reads just as well.
 
-- A case light strip along the inside top edge, front to back, facing down onto the board (`RectAreaLight`): the accent colour, mixed half toward warm white (many cases ship such a strip). It replaces the work light `fill`.
-- The fans' rings as small lights in the accent colour.
-- The silkscreen and the parts read by these alone (the target above). Then T149 removes `EnvMix`, `ENV_BAND`, the work light and `ART_LIGHT`.
+- **The arc floor lamp** is the board's main light at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open).
+- **The desk lamp's cone**: its edge grazes the case's glass side.
+- **The room's bounce**: the machine takes the room's probe, so the lit walls and the rug light the parts softly through the glass.
+- **The screen's light** adds a little cool light from the west.
+- The silkscreen and the parts read by these alone (the target above), with the case's RGB off. Then T149 removes `EnvMix`, `ENV_BAND`, the work light `fill` and `ART_LIGHT`.
 
 ### Offline bakes
 
@@ -116,16 +119,16 @@ A second UV set (`uv1`) on the large static meshes, packed into one atlas per gr
 
 The lightmap carries the occlusion of the large pieces. The small ones take the chair's vertex AO (`_ao`, `bakedao.ts`): the desk's props (the keyboard, the monitor, the lamp, the clock, the router), the plants, the books if they are not merged into the bookcase's lightmap.
 
-### Task split (for the owner to approve, T154)
+### Task split (the owner approved it, T154, 2026-11-06; the bake engine is Blender's Cycles)
 
-In order. Each is one commit; each is checked with shots against the targets.
+In order. Each is one commit; each is checked with shots against the targets. The tasks are T172 to T181 in `docs/TODO.md`.
 
 1. **Units, white point, glass.** `kelvin()` and one white point; every room light to decay 2 in metres from lumens; one constant glass tint for the view and the light; the day look at 14:00 holds, the wall gets lighter.
 2. **The floor lantern** (mesh, glow, point light, shadow).
 3. **The bookcase's shelf lights and the east shelf light.**
 4. **The picture light and the door sconce.**
 5. **The monitor's bias light**; the lamps' evening sequence.
-6. **The case's light strip and fan rings**; the case reads at 23:00 by them and the room. Then T149 (remove the studio blend, the work light, the art's studio light).
+6. **The arc floor lamp**; the desk lamp aimed to graze the case; the board reads at 23:00 by the room's light alone, the case's RGB off. Then T149 (remove the studio blend, the work light, the art's studio light).
 7. **Vertex AO** on the props and the plants.
 8. **The bake tool**: export, xatlas UVs, Cycles bake of each group, HDR output (needs Blender).
 9. **`LightmapMix`** and the material patch; remove `fill` and `hemi`.
