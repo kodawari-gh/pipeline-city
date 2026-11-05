@@ -2,7 +2,7 @@
 // as left after use. A five-star base on twin-wheel castors, a gas lift, a fabric seat and a mesh back in a black frame, two armrests, and a
 // hoodie the chair wears (the room is lived in). Built in its own frame (millimetres, y up from the floor, the sitter facing -z), then set on the
 // floor and turned. Pure scenery: nothing answers a click; the room merges its still parts by material (`mergeStatic`).
-import { CylinderGeometry, DoubleSide, Group, Mesh, type Material } from 'three';
+import { CylinderGeometry, DoubleSide, Group, Mesh, type Material, type Object3D } from 'three';
 import { bakedAo } from '@/core/render/three/bakedao';
 import { paint, rod, softBox, tube } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
@@ -31,9 +31,9 @@ const ribs = (base: string) => paint(64, 64, (c, w, h) => {
 /**
  * The hoodie the chair wears, folded over its back: the body down behind it, the hood over its front, the sleeves down the sides. Added to
  * `c` once the model loads (the chair stands bare until then, and when it fails); not while `alive` is false. The knit and the rib take the
- * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair).
+ * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair). `loaded` gets it once it is in.
  */
-function hoodie(c: Group, alive: () => boolean): void {
+function hoodie(c: Group, alive: () => boolean, loaded?: (o: Object3D) => void): void {
   void loadModel(HOODIE_MODEL).then((m) => {
     if (!m || !alive()) return;
     const knit = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
@@ -48,6 +48,7 @@ function hoodie(c: Group, alive: () => boolean): void {
     });
     o.scale.setScalar(MM);
     c.add(o);
+    loaded?.(o);
   });
 }
 
@@ -69,8 +70,8 @@ function can(x: number, y: number, z: number, r: number, h: number, m: Material,
   return o;
 }
 
-/** The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk. */
-export function deskChair(x: number, z: number, turn: number): Group {
+/** The chair, its seat's middle over the floor point (x, z) in room units, turned `turn` radians from square to the desk; `loaded` gets the hoodie. */
+export function deskChair(x: number, z: number, turn: number, loaded?: (o: Object3D) => void): Group {
   const root = new Group(), c = new Group();
   const black = mat(0x1d1f22, { roughness: 0.45 }), steel = mat(0xb9bdc2, { metalness: 0.9, roughness: 0.28 });
   const seatCloth = cloth(0xffffff, { map: weave('#4a4d52', { repeat: [3, 3] }) }), mesh = cloth(0xffffff, { map: weave('#2c2f33', { repeat: [10, 12] }), sheenColor: 0x6a6e74 });
@@ -129,7 +130,7 @@ export function deskChair(x: number, z: number, turn: number): Group {
     c.add(slab(s * 268, 662, 0, 72, 28, 250, black, 12));
   }
 
-  hoodie(c, () => !!root.parent);
+  hoodie(c, () => !!root.parent, loaded);
 
   c.rotation.y = turn;
   c.position.set(x, -FLOOR_Y, z);

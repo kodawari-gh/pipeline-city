@@ -15,7 +15,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
-import { boxEnv, boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
+import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
@@ -25,6 +25,7 @@ import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam
 import { OutsideView } from './outside/view';
 import { bed, bookcase, ceilingLight, door, eastWall, nightstand, oak, print } from './furniture3d';
 import { deskChair } from './chair3d';
+import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
 import { CEILING, LANTERN, NEON, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, rgbOf } from './palette';
@@ -188,7 +189,7 @@ export class Room3D {
   /** The LED strip under the desk's front edge, the same light. */
   private deskLed = new RectAreaLight(NEON, 0, 1, 1);
   /** The room's materials that take the environment's reflections: the studio's, dimmed at night, until the probe has the room's own. */
-  private envMats = new Set<MeshStandardMaterial>();
+  private envs: RoomEnv;
   private probe = false;
   /** The room's box for the probe's reflections (boxenv.ts): on once the probe holds the room. */
   private box: BoxEnv;
@@ -335,12 +336,12 @@ export class Room3D {
     });
     const matEnd = kx + 4800;
     R.add(softBox({ x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
-    R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200), notebook(-16600, ys, 10000, 0.22));
+    R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200, (o) => this.envs.adopt(o)), notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
     R.add(post(grommet.x, ys, grommet.z, 420, 20, cap, 24), post(grommet.x, under + 300, grommet.z, 300, 300, cap, 20));
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
-    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
+    R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
     R.add(mess(ped.x, under, grommet));
     // (the tea in the gap between the mat and the case)
@@ -446,13 +447,11 @@ export class Room3D {
     R.add(this.screenLight);
     this.probeAt = [cx, deskTop + 3500, DESK_D + 5000];
 
-    // the room's own reflections: the studio's environment at first, set on each of its materials so the evening can dim them, then the probe's
-    if (env) R.traverse((o) => {
-      const m = (o as Mesh).material;
-      for (const x of Array.isArray(m) ? m : m ? [m] : []) if ((x as MeshStandardMaterial).isMeshStandardMaterial && !(x as MeshStandardMaterial).envMap) { (x as MeshStandardMaterial).envMap = env; this.envMats.add(x as MeshStandardMaterial); }
-    });
+    // the room's own reflections: the studio's environment at first, set on each of its materials so the evening can dim them, then the probe's;
+    // a model that loads late (the mouse, the hoodie) joins them
     this.box = boxEnv([WEST_X, -FLOOR_Y, 0], [EAST_X, -CEIL_Y, FRONT_Z], this.probeAt);
-    for (const m of this.envMats) boxProjected(m, this.box);
+    this.envs = new RoomEnv(env, this.box);
+    this.envs.adopt(R);
     // the still scenery in few draws
     mergeStatic(R);
   }
@@ -472,7 +471,7 @@ export class Room3D {
   setProbe(t: Texture): void {
     this.probe = true;
     this.box.on.value = 1;
-    for (const m of this.envMats) m.envMap = t;
+    this.envs.setMap(t);
   }
 
   /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
@@ -610,7 +609,7 @@ export class Room3D {
     this.hemi.intensity = 0.06 + day * 0.45;
     this.hemi.color.set(0x5d6fae).lerp(NOON_SKY, day);
     const env = this.probe ? PROBE_K : 0.35 * (0.16 + 0.84 * day);
-    for (const m of this.envMats) m.envMapIntensity = env;
+    this.envs.setStrength(env);
     this.lampLight.intensity = f.lamp ? 1.8 + night * 1.2 : 0;
     this.lamp.bulb.emissiveIntensity = f.lamp ? 3 : 0.05;
     this.lamp.inner.emissiveIntensity = f.lamp ? 0.6 : 0;

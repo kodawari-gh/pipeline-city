@@ -3,7 +3,7 @@
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, LatheGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  NoColorSpace, PlaneGeometry, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Texture,
+  NoColorSpace, PlaneGeometry, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Object3D, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
@@ -364,9 +364,10 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
 
 /**
  * A soft white mouse on the mat: the owner's model, scaled to the shell's length and set on its flat base. Until it loads, and when it fails, the
- * primitive shell stays: a palm-high shell on a flat base, a scroll wheel between its two buttons.
+ * primitive shell stays: a palm-high shell on a flat base, a scroll wheel between its two buttons. `loaded` gets the model once it is in (the
+ * room gives it its reflections).
  */
-export function mouse(x: number, deskY: number, z: number): Group {
+export function mouse(x: number, deskY: number, z: number, loaded?: (o: Object3D) => void): Group {
   const g = new Group(), prim = new Group(), shell = mat(0x9d9b96, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, 28, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
@@ -402,6 +403,7 @@ export function mouse(x: number, deskY: number, z: number): Group {
     model.traverse((o) => { if (o instanceof Mesh) { o.material = skin; place(o); } });
     g.add(model);
     prim.visible = false;
+    loaded?.(model);
   });
   return g;
 }
