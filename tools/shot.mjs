@@ -6,6 +6,9 @@
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
 //   --3d                  the Three.js renderer (opens the game with `?3d`); --view also takes `room` there
+//   --hour h              (dev server, --3d) pin the room's hour (`roomDebug.hour`), e.g. 23 or 14.2
+//   --look x,y,z,yaw,pitch,height  (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
+//                         Measure the picture with `node tools/lum.mjs <png> x,y,w,h ...`
 //   env: PORT (5199), CHROME_PATH (default: the installed Chrome), SOFTWARE=1
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -56,12 +59,14 @@ try {
   if (PROD) await p.waitForSelector('canvas', { timeout: 20000 });
   else await p.waitForFunction(() => !!window.__board, null, { timeout: 20000 });
   await p.waitForTimeout(2500);
+  if (flag('hour', '')) await p.evaluate(async (h) => { const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.hour = h; }, Number(flag('hour', '')));
   const view = flag('view', '');
   if (PROD && (view === 'cpu' || view === 'board')) await p.keyboard.press(view === 'cpu' ? 'f' : 'b');
   else if (view === 'cpu') await p.evaluate(() => window.__board.flyToCpu());
   else if (view === 'board') await p.evaluate(() => window.__board.flyToBoard());
   else if (view === 'room') await p.evaluate(() => window.__board.flyToRoom?.());
   else if (view.includes(',')) { const [x, y, z] = view.split(',').map(Number); await p.evaluate(([x, y, z]) => window.__board.camera.set({ x, y, z }), [x, y, z]); }
+  if (flag('look', '')) await p.evaluate((v) => window.__board.lookAt(...v), flag('look', '').split(',').map(Number));
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
   for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
   // --eval "js": run this in the page (dev server only: `await import('/src/app/store.ts')` is the live store, e.g. `.powerButton()` to switch the machine on)
