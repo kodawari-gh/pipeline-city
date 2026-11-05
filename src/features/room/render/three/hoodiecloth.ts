@@ -1,16 +1,14 @@
-// The hoodie the desk chair wears, as a cloth bake (docs/render/cloth.md; `npm run bake:cloth -- src/features/room/render/three/hoodiecloth.ts`
+// The hoodie thrown over the desk chair, as a cloth bake (docs/render/cloth.md; `npm run bake:cloth -- src/features/room/render/three/hoodiecloth.ts`
 // writes `public/models/hoodie.glb`). A pullover cut as a tailor cuts one: front, back, two sleeves, a hood in two halves, a rib hem and rib
-// cuffs. It is sewn over the chair's back; then it is let down: the hood falls down the back, the sleeves fall to the sides and the body
-// hangs over the frame. The chair's stand-in solids follow `chair3d.ts`. Millimetres in the chair's frame (y up from the floor, the sitter
-// facing -z).
+// cuffs. It is sewn face up over the back's top bar; then it is let down: it folds over the bar, the body hangs low behind the back, the
+// hood and the chest hang over the back's front (the seat side) and the sleeves fall to the sides. The chair's stand-in solids follow `chair3d.ts`. Millimetres in the
+// chair's frame (y up from the floor, the sitter facing -z).
 import type { ClothBake } from '@/core/render/three/cloth/bake';
 import { curve, curve3, pointAt, polyLength, type Garment, type P2, type P3, type Piece } from '@/core/render/three/cloth/pattern';
 import { capsule, floor, slab, slabAt, union, type Sdf } from '@/core/render/three/cloth/solid';
 
 // ---- the chair (chair3d.ts): the back group at (0, 540, 255), leaning back 0.16 rad (its top away from the sitter) ----
 const LEAN = 0.16, CL = Math.cos(LEAN), SL = Math.sin(LEAN), BY = 540, BZ = 255;
-/** A point in the back's frame (y up along the back, z out behind it) in the chair's frame. */
-const fromBack = (x: number, y: number, z: number): P3 => [x, BY + y * CL - z * SL, BZ + y * SL + z * CL];
 
 /** The backrest in its own frame: the frame ring (a squircle on a 13 mm tube, wider at the top, bowed back at its sides), the mesh in it, the lumbar pad. */
 function backrest(x: number, y: number, z: number): number {
@@ -41,11 +39,20 @@ export const CHAIR: Sdf = union(
 const HW = 280, PIT = 440, TOP = 700, SHO: P2 = [235, 676], NK = 92, BAND = 62;
 const CUFF = 100, BIC = 205, UA = 520, CAP = 615, CUFF_H = 70;
 /**
- * The pieces start near their seams, so sewing is a short pull: the body a stadium round the back (its faces `R` off its middle `ZC`) closed
- * along the shoulders, the sleeves hanging with their caps laid on the armholes, the hood's halves rising off the neckline and leaning
- * together. The shoulders' high point `NECK` is 300 mm over the back's top (453), so the hem clears the seat; the sewn hoodie is let down.
+ * The pieces start near their seams, so sewing is a short pull. Each is placed in the garment's own frame (x across, y up the body from the
+ * hem, z out of its back): the body a flat tube (its faces `R` off its middle) closed along the shoulders, the sleeves along its sides with
+ * their caps laid on the armholes, the hood's halves rising off the neckline and leaning together. `lay` sets that frame face up over the
+ * back's top bar, `FOLD` up the body on the bar and the neck toward the seat; let down, the body hangs behind the back and the hood and
+ * the chest over its front. A larger `FOLD` moves more of the body to the back.
  */
-const R = 58, F = HW - (Math.PI * R) / 2, ZC = 15, NECK = 792;
+const R = 58, F = HW - (Math.PI * R) / 2, FOLD = 570;
+/** The top bar's top in the chair's frame (453 up the back's middle), and the height of the tube's middle as it starts (40 mm over the bar). */
+const BAR_Y = BY + 453 * CL, BAR_Z = BZ + 453 * SL, LIFT = BAR_Y + 40 + R;
+/** The garment's frame in the chair's: z out of its back runs down (face up), up the body runs toward the seat (-z), x turns (a rotation). */
+const lay = ([x, y, z]: P3): P3 => [-x, LIFT - z, BAR_Z - (y - FOLD)];
+/** A piece with its place in the garment's frame (`place` is that, laid). */
+type Cut = Piece & { local: (x: number, y: number) => P3 };
+const cut = (p: Omit<Piece, 'place'>, local: Cut['local']): Cut => ({ ...p, local, place: (x, y) => lay(local(x, y)) });
 const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
 const edgeOf = (p: Piece, name: string) => p.edges.find((e) => e.name === name)!.pts;
 
@@ -59,8 +66,8 @@ const rib = (h: number) => ({ material: (_x: number, y: number) => (y < h ? 1 : 
 const topAt = (ax: number) => (ax >= NK ? TOP + ((SHO[1] - TOP) * Math.min(1, (ax - NK) / (SHO[0] - NK))) : TOP + 0.8 * (NK - ax));
 
 /** Front (side -1, toward the sitter) or back (+1): its neckline `drop` deep; the rib band along its hem. */
-function body(name: string, side: -1 | 1, drop: number): Piece {
-  return {
+function body(name: string, side: -1 | 1, drop: number): Cut {
+  return cut({
     name,
     edges: [
       { name: 'hem', pts: [[-HW, 0], [HW, 0]] },
@@ -74,13 +81,12 @@ function body(name: string, side: -1 | 1, drop: number): Piece {
       { name: 'sideL', pts: [[-HW, PIT], [-HW, 0]] },
     ],
     ...rib(BAND),
+  }, (x, y) => {
     // shallower toward the top, so front and back meet along the shoulders
-    place: (x, y) => {
-      const ax = Math.abs(x), a = Math.max(0, (ax - F) / R), k = smooth((topAt(ax) - y) / 130);
-      const px = ax > F ? Math.sign(x) * (F + R * Math.sin(a)) : x, pz = side * R * k * (ax > F ? Math.cos(a) : 1);
-      return fromBack(px, y - TOP + NECK, ZC + pz);
-    },
-  };
+    const ax = Math.abs(x), a = Math.max(0, (ax - F) / R), k = smooth((topAt(ax) - y) / 130);
+    const px = ax > F ? Math.sign(x) * (F + R * Math.sin(a)) : x, pz = side * R * k * (ax > F ? Math.cos(a) : 1);
+    return [px, y, pz];
+  });
 }
 
 /** The sleeve cap's front half, underarm to top (its back half is its mirror); as long as the armhole, so the seam sews flat. */
@@ -99,14 +105,14 @@ function capAt(ax: number): { y: number; u: number } {
   return { y: CAP, u: 1 };
 }
 /** The armhole of `p` on side `sx`, `u` of the way from the armpit to the shoulder. */
-const armhole = (p: Piece, sx: number, u: number): P3 => { const [x, y] = pointAt(edgeOf(p, sx > 0 ? 'armR' : 'armL'), sx > 0 ? u : 1 - u); return p.place(x, y); };
+const armhole = (p: Cut, sx: number, u: number): P3 => { const [x, y] = pointAt(edgeOf(p, sx > 0 ? 'armR' : 'armL'), sx > 0 ? u : 1 - u); return p.local(x, y); };
 
 /**
- * A sleeve (`sx` its side): a tube round an arm hanging down beside the back, its top bent over the last 260 mm onto the armhole of the
- * front (the cap's front half `capF`, x > 0) and the back.
+ * A sleeve (`sx` its side): a tube round an arm down the body's side, its top bent over the last 260 mm onto the armhole of the front (the
+ * cap's front half `capF`, x > 0) and the back.
  */
-function sleeve(name: string, sx: -1 | 1, front: Piece, back: Piece): Piece {
-  const top = fromBack(sx * 312, NECK - 22, ZC), foot = fromBack(sx * 330, NECK - 22 - CAP, ZC + 15);
+function sleeve(name: string, sx: -1 | 1, front: Cut, back: Cut): Cut {
+  const top: P3 = [sx * 312, TOP - 22, 0], foot: P3 = [sx * 330, TOP - 22 - CAP, 15];
   const u = norm([top[0] - foot[0], top[1] - foot[1], top[2] - foot[2]]);
   const out = norm(less([sx, 0, 0], u)), fwd = norm(less(less([0, 0, -1], u), out));
   const tube = (x: number, y: number): P3 => {
@@ -114,7 +120,7 @@ function sleeve(name: string, sx: -1 | 1, front: Piece, back: Piece): Piece {
     const c = Math.cos(f) * r, s = Math.sin(f) * r;
     return [0, 1, 2].map((k) => foot[k]! + (top[k]! - foot[k]!) * t + out[k]! * c + fwd[k]! * s) as P3;
   };
-  return {
+  return cut({
     name,
     edges: [
       { name: 'cuff', pts: [[-CUFF, 0], [CUFF, 0]] },
@@ -124,30 +130,29 @@ function sleeve(name: string, sx: -1 | 1, front: Piece, back: Piece): Piece {
       { name: 'seamL', pts: [[-BIC, UA], [-CUFF, 0]] },
     ],
     ...rib(CUFF_H),
-    place: (x, y) => {
-      const cap = capAt(Math.abs(x)), w = smooth((y - cap.y + 260) / 260), at = tube(x, y);
-      if (w === 0) return at;
-      const seam = tube(x, cap.y), to = armhole(x >= 0 ? front : back, sx, cap.u);
-      return [0, 1, 2].map((k) => at[k]! + w * (to[k]! - seam[k]!)) as P3;
-    },
-  };
+  }, (x, y) => {
+    const cap = capAt(Math.abs(x)), w = smooth((y - cap.y + 260) / 260), at = tube(x, y);
+    if (w === 0) return at;
+    const seam = tube(x, cap.y), to = armhole(x >= 0 ? front : back, sx, cap.u);
+    return [0, 1, 2].map((k) => at[k]! + w * (to[k]! - seam[k]!)) as P3;
+  });
 }
 
 /** Where the hoodR half's neck is sewn at `x` from the face's edge: along the front's neckline to its side, the back's to its middle, then on back. */
-function neckAt(x: number, front: Piece, back: Piece): P3 {
+function neckAt(x: number, front: Cut, back: Cut): P3 {
   const fl = polyLength(edgeOf(front, 'neckR')), bl = polyLength(edgeOf(back, 'neckR'));
-  if (x <= fl) { const [a, b] = pointAt(edgeOf(front, 'neckR'), 1 - x / fl); return front.place(a, b); }
-  const [a, b] = pointAt(edgeOf(back, 'neckR'), (x - fl) / bl), p = back.place(a, b), past = Math.max(0, x - fl - bl);
-  return [p[0], p[1] - past * SL, p[2] + past * CL];
+  if (x <= fl) { const [a, b] = pointAt(edgeOf(front, 'neckR'), 1 - x / fl); return front.local(a, b); }
+  const [a, b] = pointAt(edgeOf(back, 'neckR'), (x - fl) / bl), p = back.local(a, b);
+  return [p[0], p[1], p[2] + Math.max(0, x - fl - bl)];
 }
 
 /**
  * A hood half (`sx` its side): x from the face's edge back, y up from the neck; it rises off the neckline, leaning in to meet the other.
  * Its neck is as long as the front's and the back's necklines.
  */
-function hood(name: string, sx: -1 | 1, front: Piece, back: Piece): Piece {
+function hood(name: string, sx: -1 | 1, front: Cut, back: Cut): Cut {
   const fl = polyLength(edgeOf(front, 'neckR')), nb = fl + polyLength(edgeOf(back, 'neckR'));
-  return {
+  return cut({
     name,
     edges: [
       { name: 'neckF', pts: [[0, 0], [fl, 4]] },
@@ -155,11 +160,10 @@ function hood(name: string, sx: -1 | 1, front: Piece, back: Piece): Piece {
       { name: 'crown', pts: curve3([nb, 12], [278, 175], [255, 362], [70, 368]) },
       { name: 'face', pts: curve([70, 368], [24, 190], [0, 0]) },
     ],
-    place: (x, y) => {
-      const n = neckAt(x, front, back);
-      return [sx * Math.max(Math.abs(n[0]) * (1 - y / 400), 6), n[1] + 0.97 * y * CL, n[2] + 0.97 * y * SL];
-    },
-  };
+  }, (x, y) => {
+    const n = neckAt(x, front, back);
+    return [sx * Math.max(Math.abs(n[0]) * (1 - y / 400), 6), n[1] + 0.97 * y, n[2]];
+  });
 }
 
 type V = [number, number, number];
@@ -196,16 +200,18 @@ export const bake: ClothBake = {
   name: 'hoodie',
   garment: HOODIE,
   h: 15,
-  params: { rate: 1500, thickness: 3, self: 11, stretch: 1e-7, bend: 2e-4, friction: [0.6, 0.4] },
+  // the layers lie close (`self`), so they touch and do not look puffed; knit grips the chair's mesh, so the long side does not creep down
+  params: { rate: 1500, thickness: 2, self: 8, stretch: 1e-7, bend: 2e-4, friction: [0.8, 0.6] },
   tile: 100,
   rim: 3.5,
   smooth: 3,
+  ao: 60,
   phases: [
     // a short pull: the pieces start near their seams
     { label: 'sew', time: 1.5, gravity: 0, solid: CHAIR, sew: Infinity, keep: 0 },
-    // let down onto the frame, slowly (the hood leans back with the back, so it falls behind)
-    { label: 'drop', time: 1.2, gravity: G, solid: CHAIR, sew: Infinity, keep: 0.05 },
-    { label: 'hang', time: 2, gravity: G, solid: CHAIR, sew: Infinity, keep: 0.2 },
+    // let down onto the bar, slowly: it folds over it, a side falling each way
+    { label: 'drop', time: 2.5, gravity: G, solid: CHAIR, sew: Infinity, keep: 0.005 },
+    { label: 'hang', time: 2, gravity: G, solid: CHAIR, sew: Infinity, keep: 0.05 },
     { label: 'settle', time: 1, gravity: G, solid: CHAIR, sew: Infinity, keep: 0.01 },
   ],
 };

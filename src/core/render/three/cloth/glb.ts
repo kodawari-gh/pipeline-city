@@ -1,9 +1,14 @@
 // A minimal binary glTF writer for baked meshes (docs/render/cloth.md): one node, one mesh, a primitive per material with its position,
-// normal, uv and indices. The materials carry only their names: the game puts its own on them by name. Pure: bytes in, bytes out.
+// normal, uv, indices and any custom attributes. The materials carry only their names: the game puts its own on them by name. Pure: bytes
+// in, bytes out.
 
-export interface GlbPrimitive { material: string; position: Float32Array; normal: Float32Array; uv: Float32Array; index: Uint32Array }
+/** A custom attribute: `size` floats a vertex. glTF wants its name to start with `_`; three's loader reads it in lower case (`_AO` is `_ao`). */
+export interface GlbExtra { name: string; size: number; data: Float32Array }
+
+export interface GlbPrimitive { material: string; position: Float32Array; normal: Float32Array; uv: Float32Array; index: Uint32Array; extra?: readonly GlbExtra[] }
 
 const pad4 = (n: number): number => (n + 3) & ~3;
+const TYPE = ['', 'SCALAR', 'VEC2', 'VEC3', 'VEC4'];
 
 export function writeGlb(name: string, prims: readonly GlbPrimitive[]): Uint8Array {
   const views: { offset: number; length: number; target: number }[] = [], accessors: Record<string, unknown>[] = [], chunks: Uint8Array[] = [];
@@ -28,7 +33,8 @@ export function writeGlb(name: string, prims: readonly GlbPrimitive[]): Uint8Arr
   const materials = [...new Set(prims.map((p) => p.material))];
   const primitives = prims.map((p) => {
     const small = p.position.length / 3 < 65536, idx = small ? Uint16Array.from(p.index) : p.index;
-    const attributes = { POSITION: vec(p.position, 3, 'VEC3', true), NORMAL: vec(p.normal, 3, 'VEC3'), TEXCOORD_0: vec(p.uv, 2, 'VEC2') };
+    const attributes: Record<string, number> = { POSITION: vec(p.position, 3, 'VEC3', true), NORMAL: vec(p.normal, 3, 'VEC3'), TEXCOORD_0: vec(p.uv, 2, 'VEC2') };
+    for (const x of p.extra ?? []) attributes[x.name] = vec(x.data, x.size, TYPE[x.size]!);
     const view = add(new Uint8Array(idx.buffer, idx.byteOffset, idx.byteLength), 34963);
     accessors.push({ bufferView: view, componentType: small ? 5123 : 5125, count: idx.length, type: 'SCALAR' });
     return { attributes, indices: accessors.length - 1, material: materials.indexOf(p.material) };

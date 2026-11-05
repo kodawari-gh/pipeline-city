@@ -3,6 +3,7 @@
 // hoodie the chair wears (the room is lived in). Built in its own frame (millimetres, y up from the floor, the sitter facing -z), then set on the
 // floor and turned. Pure scenery: nothing answers a click; the room merges its still parts by material (`mergeStatic`).
 import { CylinderGeometry, DoubleSide, Group, Mesh, type Material } from 'three';
+import { bakedAo } from '@/core/render/three/bakedao';
 import { paint, rod, softBox, tube } from '@/core/render/three/geometry';
 import { loadModel } from '@/core/render/three/gltf';
 import { cloth, mat } from '@/core/render/three/materials';
@@ -28,14 +29,16 @@ const ribs = (base: string) => paint(64, 64, (c, w, h) => {
 }, [TILE / 12, 1]);
 
 /**
- * The hoodie the chair wears, hung over its back: the hood fallen behind, the sleeves down the sides. Added to `c` once the model loads
- * (the chair stands bare until then, and when it fails); not while `alive` is false. The knit and the rib take the bake's materials by name.
+ * The hoodie the chair wears, folded over its back: the body down behind it, the hood over its front, the sleeves down the sides. Added to
+ * `c` once the model loads (the chair stands bare until then, and when it fails); not while `alive` is false. The knit and the rib take the
+ * bake's materials by name, and its occlusion (dark in the folds and where it lies on the chair).
  */
 function hoodie(c: Group, alive: () => boolean): void {
   void loadModel(HOODIE_MODEL).then((m) => {
     if (!m || !alive()) return;
     const knit = cloth(0xffffff, { map: weave('#4b5443', { knit: true, repeat: [1, 1] }), side: DoubleSide });
     const rib = cloth(0xffffff, { map: ribs('#434b3a'), side: DoubleSide });
+    bakedAo(knit); bakedAo(rib);
     const o = m.clone(true);
     o.traverse((x) => {
       if (!(x as Mesh).isMesh) return;

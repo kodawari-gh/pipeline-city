@@ -9,14 +9,17 @@ Code: `src/core/render/three/cloth/` (pure TypeScript, no DOM, no Three; a test 
 | `pattern.ts` | pieces (an outline of named edges in mm, `place` puts each flat point in 3D), seams (two edges sewn point to point, `flip` when they run opposite ways), `assemble`: meshes each piece (a jittered triangle lattice, Delaunay), gives both edges of a seam the same points, welds sewn points, winds the faces one way, sets rest lengths from the flat pieces. Helpers: `curve`, `curve3`, `resample`, `pointAt`, `polyLength` |
 | `solid.ts` | the colliders as signed distances in mm: `sphere`, `capsule`, `slab` / `slabAt` (rounded slabs), `floor`, `union`, `gradient` |
 | `solver.ts` | `Cloth`: extended position-based dynamics in small steps (`rate` steps a second, one pass a step): seams pull shut, stretch (compliance `stretch`), soft bending (`bend`), self-collision on a hash grid with friction between layers, the solids with friction. `run(phase)`, `stats()` |
-| `bake.ts` | `ClothBake` and `bakeCloth`: runs the phases, logs a line each, welds the seams, smooths, adds a rolled rim along every free edge (hems, cuffs, the hood's opening), writes one primitive per material |
-| `glb.ts` | a minimal GLB writer: one node and one mesh named by the bake, materials that carry only a name |
+| `bake.ts` | `ClothBake` and `bakeCloth`: runs the phases, logs a line each, welds the seams, smooths, adds a rolled rim along every free edge (hems, cuffs, the hood's opening), bakes the occlusion (`ao`), writes one primitive per material |
+| `occlusion.ts` | baked ambient occlusion: for each point, how open it is on each of its two sides to 48 rays out to `ao` mm. The cloth's triangles and the last phase's solid block them. Cloth nearer than `skin` (the bake passes `self / 2`) does not count |
+| `glb.ts` | a minimal GLB writer: one node and one mesh named by the bake, materials that carry only a name, extra vertex attributes (the occlusion is `_AO`, two values a vertex) |
+
+In the game, `bakedAo(material)` (`src/core/render/three/bakedao.ts`) reads `_AO`. It takes the front face's value or the back face's, and darkens the indirect light, the sheen and the reflections by it, and the direct light by half of it.
 
 ## Make a bake
 
 1. Write a module that exports `bake: ClothBake` (example: `src/features/room/render/three/hoodiecloth.ts`). Units are mm in the frame of the piece of furniture the cloth lies on.
-2. Run `npm run bake:cloth -- <module.ts>`. It writes `public/models/<name>.glb` and logs each phase: the widest open seam, the most stretched side, the fastest point. A settled bake ends with the seams near 0 mm open and the fastest point well under 1,000 mm/s. The hoodie (6,700 points) takes about 30 s.
-3. In the game, `loadModel` the file, put the game's own materials on the meshes by material name, and scale it by `MM` (see `hoodie` in `chair3d.ts`). The uvs are the flat cloth in mm over `tile`, so a knit texture keeps its size over every piece.
+2. Run `npm run bake:cloth -- <module.ts>`. It writes `public/models/<name>.glb` and logs each phase: the widest open seam, the most stretched side, the fastest point. A settled bake ends with the seams near 0 mm open and the fastest point well under 1,000 mm/s. The hoodie (6,700 points) takes about 36 s, of which the occlusion takes 2 s.
+3. In the game, `loadModel` the file, put the game's own materials on the meshes by material name, call `bakedAo` on them, and scale it by `MM` (see `hoodie` in `chair3d.ts`). The uvs are the flat cloth in mm over `tile`, so a knit texture keeps its size over every piece.
 4. Commit the module and the `.glb`. Bake again after a change to the pattern, the phases or the furniture's sizes: the model does not follow them by itself.
 
 The phases: first `sew` with no gravity (`sew: Infinity, keep: 0`), then gravity phases that let the cloth down (a low `keep` is a slow, damped fall), then a short `settle` with `keep` near 0.
@@ -28,6 +31,8 @@ The phases: first `sew` with no gravity (`sew: Infinity, keep: 0`), then gravity
 - **A flat piece that never stills.** A flat piece pushed together along its own plane cannot buckle. The solver starts every point `JITTER` (1 mm) off its place so that it does.
 - **Spikes at the seams.** Welded points where many pieces meet (an armpit) poke out. `smooth` (Taubin passes; the hoodie uses 3) takes them off, and the points then go back `thickness` off the last phase's solid.
 - **Cloth through the furniture.** The solids are stand-ins: make them a little rounder and fuller than the meshes they stand for, and check from close up.
+- **A long side that creeps down.** Cloth hung over a bar slides and swings and never settles. Give the solids a high friction (the hoodie uses `friction: [0.8, 0.6]`, static and moving) and let the cloth down slowly (`keep: 0.005`).
+- **Puffed or interleaved layers.** Self-collision keeps points `self` mm apart, so a larger `self` makes the layers stand off each other and look puffed. A triangle's middle is about `h / √3` from its corners, so with `self` below that, two pressed layers can settle into each other's gaps. That does not show in the shape, but it would show as dark flecks in the occlusion: the occlusion's `skin` hides it. A finer `h` can make the cloth shiver. The hoodie uses `h: 15` and `self: 8`.
 
 ## Look at it
 

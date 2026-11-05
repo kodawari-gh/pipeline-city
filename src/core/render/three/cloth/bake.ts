@@ -1,8 +1,9 @@
 // A cloth bake (docs/render/cloth.md): a garment is meshed, sewn and dropped through its phases once, offline, and the cloth as it lies is
 // written out as a glTF model the game loads (`tools/bake-cloth.mjs`). Sewn points are welded, the normals run smooth over the seams, the
 // pieces keep their own flat uvs, and a rolled rim runs along every free edge (a hem, a cuff, a hood's opening) so the single sheet reads thick.
-// Pure: no DOM.
+// Each vertex carries its baked occlusion (`_AO`: its normal's side, the other side) for the game's material (`bakedAo`). Pure: no DOM.
 import { writeGlb, type GlbPrimitive } from './glb';
+import { occlusion } from './occlusion';
 import { assemble, type ClothMesh, type Garment } from './pattern';
 import { gradient, type Sdf } from './solid';
 import { Cloth, type ClothParams, type Phase } from './solver';
@@ -21,7 +22,12 @@ export interface ClothBake {
   rim: number;
   /** Smoothing passes over the cloth as it lies (0: none): they take off the spikes a seam or a pinch leaves, not its folds. */
   smooth: number;
+  /** How far the baked occlusion looks (mm; 0: none): a fold or the solid nearer than that darkens the cloth, the more the nearer. */
+  ao: number;
 }
+
+/** Rays cast on each side of a point for its occlusion. */
+const RAYS = 48;
 
 /**
  * Taubin smoothing over the welded points (`sum` holds each weld group's position at its root): each pass moves every point toward the
@@ -126,8 +132,10 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
     const s = cloth.stats();
     log(`  ${ph.label}: seam gap ${s.seam.toFixed(1)} mm, stretch ${(100 * s.stretch).toFixed(1)}%, fastest ${s.speed.toFixed(0)} mm/s (${Date.now() - t} ms)`);
   }
-  const { pos, nrm } = surface(m, cloth.p, b.smooth, b.phases[b.phases.length - 1]!.solid, b.params.thickness), mats = b.garment.materials;
-  const parts = mats.map(() => ({ position: [] as number[], normal: [] as number[], uv: [] as number[], index: [] as number[], map: new Map<number, number>() }));
+  const solid = b.phases[b.phases.length - 1]!.solid, { pos, nrm } = surface(m, cloth.p, b.smooth, solid, b.params.thickness), mats = b.garment.materials;
+  const t1 = Date.now(), ao = b.ao > 0 ? occlusion(pos, nrm, m.tris, m.weld, solid, RAYS, b.ao, b.params.self / 2) : null;
+  if (ao) log(`  occlusion: ${RAYS} rays a side out to ${b.ao} mm (${Date.now() - t1} ms)`);
+  const parts = mats.map(() => ({ position: [] as number[], normal: [] as number[], uv: [] as number[], ao: [] as number[], index: [] as number[], map: new Map<number, number>() }));
   for (let t = 0; t < m.tris.length; t += 3) {
     const part = parts[m.triMat[t / 3]!]!;
     for (let e = 0; e < 3; e++) {
@@ -139,6 +147,7 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
         part.position.push(pos[3 * i]!, pos[3 * i + 1]!, pos[3 * i + 2]!);
         part.normal.push(nrm[3 * i]!, nrm[3 * i + 1]!, nrm[3 * i + 2]!);
         part.uv.push(m.flat[2 * i]! / b.tile, m.flat[2 * i + 1]! / b.tile);
+        if (ao) part.ao.push(ao[2 * i]!, ao[2 * i + 1]!);
       }
       part.index.push(j);
     }
@@ -159,12 +168,15 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
         const dn = nx * tx + ny * ty + nz * tz; nx -= dn * tx; ny -= dn * ty; nz -= dn * tz;
         const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
         const bx = ty * nz - tz * ny, by = tz * nx - tx * nz, bz = tx * ny - ty * nx;
+        // the rim rolls round both sides: their mean occlusion all round
+        const shade = ao ? (ao[(2 * c) / 3]! + ao[(2 * c) / 3 + 1]!) / 2 : 1;
         for (let s = 0; s <= sides; s++) {
           const ang = (2 * Math.PI * s) / sides, cs = Math.cos(ang), sn = Math.sin(ang);
           const ox = cs * nx + sn * bx, oy = cs * ny + sn * by, oz = cs * nz + sn * bz;
           part.position.push(pos[c]! + b.rim * ox, pos[c + 1]! + b.rim * oy, pos[c + 2]! + b.rim * oz);
           part.normal.push(ox, oy, oz);
           part.uv.push(run / b.tile, s / sides);
+          if (ao) part.ao.push(shade, shade);
         }
       }
       const segs = loop.closed ? L : L - 1;
@@ -176,6 +188,7 @@ export function bakeCloth(b: ClothBake, log: (line: string) => void = () => {}):
   }
   const prims: GlbPrimitive[] = parts.flatMap((p, i) => p.index.length ? [{
     material: mats[i]!, position: Float32Array.from(p.position), normal: Float32Array.from(p.normal), uv: Float32Array.from(p.uv), index: Uint32Array.from(p.index),
+    ...(ao ? { extra: [{ name: '_AO', size: 2, data: Float32Array.from(p.ao) }] } : {}),
   }] : []);
   log(`  done in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   return writeGlb(b.name, prims);
