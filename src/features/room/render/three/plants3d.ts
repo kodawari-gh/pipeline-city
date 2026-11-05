@@ -151,7 +151,7 @@ export function floorPlant(x: number, z: number): Group {
     // the fig's gloss: a few broad pale smears
     for (let k = 0; k < 6; k++) { c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.ellipse(w * (0.25 + rnd() * 0.5), h * rnd(), w * 0.25, h * 0.08, 0, 0, Math.PI * 2); c.fill(); }
   });
-  const leaves = leafMats(tex, 0.36), stalk = mat(0x6d8a46, { roughness: 0.6 });
+  const leaves = leafMats(tex, 0.36), stalk = mat(0x6d8a46, { roughness: 0.6 }), knob = new IcosahedronGeometry(1, 1);
   const shapes = [0, 1, 2, 3].map((k) => leafBlade(1, 0.62, 'fig', { fold: 0.2 + k * 0.04, curl: 0.06 + k * 0.04, wave: 0.3 + k * 0.12, nu: 14 }));
   let n = 0;
   const along = (pts: V3[], from: number, count: number, size: number) => {
@@ -162,8 +162,12 @@ export function floorPlant(x: number, z: number): Group {
       // away from the wall at its back: the west wall is close
       if (out.x < 0) out.x *= 0.35;
       out.normalize();
-      const stalkEnd = p.clone().addScaledVector(out, 420).addScaledVector(UP, 260 + 200 * rise);
-      g.add(rod([p.x, p.y, p.z], [stalkEnd.x, stalkEnd.y, stalkEnd.z], 55, stalk, 6));
+      // the petiole: out of a small swollen node, arching out and up, thinning to the blade
+      const stalkEnd = p.clone().addScaledVector(out, 420).addScaledVector(UP, 260 + 200 * rise), bend = p.clone().addScaledVector(out, 260).addScaledVector(UP, 60 + 90 * rise);
+      g.add(place(new Mesh(taperTube([p, bend, stalkEnd].map((q) => [q.x, q.y, q.z] as V3), 58, 26, 7), stalk)));
+      const node = place(new Mesh(knob, bark));
+      node.position.copy(p); node.scale.setScalar(95);
+      g.add(node);
       const len = size * (1.1 - 0.35 * rise) * (0.9 + rnd() * 0.2), el = -0.25 + 1.1 * rise + (rnd() - 0.5) * 0.3;
       const dir = out.clone().multiplyScalar(Math.cos(el)).addScaledVector(UP, Math.sin(el));
       const geo = shapes[n % shapes.length]!.clone().scale(len, len, len);
@@ -244,11 +248,16 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
   return g;
 }
 
-/** An aloe in a terracotta pot on the sill at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
+/** An aloe in a stoneware pot on the sill at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
 export function aloe(x: number, y: number, z: number): Group {
-  const g = new Group(), terracotta = mat(0xb8643a, { roughness: 0.8 });
-  g.add(lathePot(x, y, z, [[0, 0], [700, 0], [760, 60], [960, 1150], [1120, 1180], [1130, 1450], [1060, 1460], [1000, 1300]], terracotta));
-  g.add(post(x, y - 1280, z, 990, 40, soil(), 20));
+  const g = new Group();
+  // the pot: dark stoneware, speckled, a plain cylinder a little tapered to its foot, its rim rounded over
+  const speckle = paint(128, 64, (c, w, h) => {
+    c.fillStyle = '#3d3e40'; c.fillRect(0, 0, w, h);
+    for (let k = 0; k < 500; k++) { c.fillStyle = rnd() < 0.7 ? `rgba(205,198,184,${0.25 + rnd() * 0.35})` : 'rgba(20,18,16,0.5)'; c.fillRect(rnd() * w, rnd() * h, 0.6 + rnd(), 0.6 + rnd()); }
+  }, [2, 1]);
+  g.add(lathePot(x, y, z, [[0, 0], [880, 0], [950, 40], [1000, 200], [1050, 1300], [1062, 1420], [1032, 1462], [992, 1452], [972, 1350]], mat(0xffffff, { map: speckle, roughness: 0.75 })));
+  g.add(post(x, y - 1280, z, 970, 40, soil(), 20));
   const tex = leafTex('#5c9656', '#8fbf7f', 0, (c, w, h) => {
     for (let k = 0; k < 70; k++) { c.fillStyle = `rgba(232,240,214,${0.4 + rnd() * 0.3})`; c.beginPath(); c.ellipse(w * (0.15 + rnd() * 0.7), h * rnd(), 2.4, 1.4, 0, 0, Math.PI * 2); c.fill(); }
   });

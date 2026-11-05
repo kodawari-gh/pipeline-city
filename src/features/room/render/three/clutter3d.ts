@@ -1,14 +1,31 @@
 // The room's few things about in 3D, kept tidy: a backpack set down against the desk's drawer unit, the power strip in the cable tray under the
 // desk (its leads up through the grommet, its own lead down the wall to a socket), two books on the window ledge. Plain scenery at real sizes
 // (layout x and y, y down from the ceiling side; z out of the back wall), nothing answers a click.
-import { Box3, Group, Mesh, type Material } from 'three';
-import { drum, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
+import { Box3, Group, Mesh, Vector3, type Material } from 'three';
+import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
+import { drum, healNormals, place, rectBox, rounded, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
-import { pillow, weave } from './furniture3d';
+import { weave } from './furniture3d';
 import { FLOOR_Y, TRAY, WINDOW } from './roomplan';
 
 /** Room units per millimetre. */
 const MM = 18.7;
+
+/** A soft bag's form in mm: half its width, its height, how far its front and its back stand off its middle, how far its top flops forward. */
+interface BagForm { w: number; h: number; front: number; back: number; sag: number }
+const bag = (f: BagForm): BagForm => f;
+/** |c|^e, the sign kept: the superellipse's way round. */
+const sp = (c: number, e: number): number => Math.sign(c) * Math.abs(c) ** e;
+/**
+ * A point on a bag at `t` round it (0 at +x, the front at +z) and `p` up it (-π/2 its base, π/2 its top): a boxy superellipsoid (flat base,
+ * square shoulders, rounded edges), a little narrower at the top, its front fuller in the middle, with soft creases in the front's cloth.
+ */
+function bagAt(f: BagForm, t: number, p: number, out: Vector3): Vector3 {
+  const cp = sp(Math.cos(p), 0.3), y = (f.h / 2) * (1 + sp(Math.sin(p), 0.3)), k = y / f.h, st = sp(Math.sin(t), 0.45);
+  const x = f.w * (1 - 0.08 * k) * cp * sp(Math.cos(t), 0.45), d = st > 0 ? f.front * (0.72 + 0.28 * Math.sin(Math.PI * k)) : f.back;
+  const crease = st > 0 ? 2.2 * Math.sin(x / 26 + 1.3) * Math.sin(y / 41 + 0.6) * st * cp : 0;
+  return out.set(x, y, d * cp * st + crease + f.sag * k * k);
+}
 
 /** A book lying flat, its bottom at layout height `y`: a cloth cover and the page block showing on three sides; turned `turn` about its middle. */
 function flatBook(x: number, y: number, z: number, w: number, h: number, d: number, cover: Material, pages: Material, turn: number): Group {
@@ -39,20 +56,24 @@ function pile(x: number, y: number, z: number, books: readonly (readonly [number
 export function mess(ped: number, under: number, grommet: { x: number; z: number }): Group {
   const g = new Group(), fl = FLOOR_Y;
 
-  // ---- the backpack: set down by the drawer unit, its back to it, leant back on it; a front pocket, a grab loop, the shoulder straps on its
-  // back from the top to the bottom corners ----
-  const pack = new Group(), canvas = cloth(0xffffff, { map: weave('#2b313b', { repeat: [3, 4] }) }), black = mat(0x141517, { roughness: 0.6 });
-  const body = place(new Mesh(pillow(300 * MM, 150 * MM, 430 * MM, { pinch: 0.06, lumps: 0.18, seed: 2 }), canvas));
-  body.rotation.x = Math.PI / 2;
-  body.position.set(0, 215 * MM, 0);
-  const pocket = place(new Mesh(pillow(240 * MM, 70 * MM, 200 * MM, { pinch: 0.08, lumps: 0.1, seed: 4 }), canvas));
-  pocket.rotation.x = Math.PI / 2;
-  pocket.position.set(0, 130 * MM, 80 * MM);
-  pack.add(body, pocket);
-  pack.add(tube([[-50, 425, -10], [-30, 470, 0], [30, 470, 0], [50, 425, -10]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 9 * MM, black, 6));
+  // ---- the backpack: set down by the drawer unit, its back to it, leant back on it; a front pocket, the zips round the top and across the
+  // pocket, a grab loop, the shoulder straps on its back from the top to the bottom corners ----
+  const pack = new Group(), canvas = cloth(0xffffff, { map: weave('#343b47', { repeat: [3, 4] }) }), black = mat(0x141517, { roughness: 0.6 });
+  const body = bag({ w: 150, h: 430, front: 85, back: 55, sag: 14 }), pocket = bag({ w: 110, h: 190, front: 38, back: 5, sag: 0 });
+  const sewn = (f: BagForm) => { const o = place(new Mesh(healNormals(new ParametricGeometry((u: number, v: number, out: Vector3) => bagAt(f, u * Math.PI * 2, -Math.PI / 2 + Math.PI * v, out), 48, 32), 49), canvas)); o.scale.setScalar(MM); return o; };
+  const front = sewn(pocket);
+  front.position.set(0, 55 * MM, 70 * MM);
+  pack.add(sewn(body), front);
+  // the zips: the main one up one side, over the top and down the other, near the front; the pocket's across its top
+  const zip = (f: BagForm, pts: [number, number][], dy: number, dz: number) => tube(pts.map(([t, p]) => { const q = bagAt(f, t, p, new Vector3()); return [q.x * 1.015 * MM, (q.y * 1.006 + dy) * MM, (q.z * 1.03 + dz) * MM] as const; }), 4 * MM, black, 5);
+  const side = (t: number, from: number) => Array.from({ length: 12 }, (_, k) => [t, from + ((Math.PI / 2 - 0.02 - from) * k) / 11] as [number, number]);
+  pack.add(zip(body, [...side(0.55, -0.7), ...side(Math.PI - 0.55, -0.7).reverse()], 0, 0));
+  pack.add(zip(pocket, Array.from({ length: 12 }, (_, k) => [0.4 + ((Math.PI - 0.8) * k) / 11, 0.85] as [number, number]), 55, 70));
+  pack.add(tube([[-50, 418, -10], [-30, 462, 0], [30, 462, 0], [50, 418, -10]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 9 * MM, black, 6));
   // a zip pull on each zip: a small dark tab
-  pack.add(rectBox({ x: 70 * MM, y: -175 * MM, w: 12 * MM, h: 40 * MM }, 116 * MM, 122 * MM, black), rectBox({ x: -100 * MM, y: -380 * MM, w: 12 * MM, h: 40 * MM }, 74 * MM, 80 * MM, black));
-  for (const s of [-1, 1]) pack.add(tube([[s * 40, 410, -70], [s * 100, 300, -95], [s * 120, 150, -95], [s * 130, 40, -70]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 14 * MM, black, 6));
+  const pull = (q: Vector3, dy: number, dz: number) => rectBox({ x: (q.x - 6) * MM, y: -(q.y + dy) * MM, w: 12 * MM, h: 40 * MM }, (q.z + dz) * MM, (q.z + dz + 6) * MM, black);
+  pack.add(pull(bagAt(body, 0.55, 0.9, new Vector3()), 0, 4), pull(bagAt(pocket, 1.1, 0.8, new Vector3()), 55, 74));
+  for (const s of [-1, 1]) pack.add(tube([[s * 40, 410, -62], [s * 100, 300, -82], [s * 120, 150, -82], [s * 130, 40, -62]].map(([a, b, c]) => [a! * MM, b! * MM, c! * MM] as const), 14 * MM, black, 6));
   // tilted back about its own width, turned so its back faces the drawer unit (+x); then set down on the floor and moved against the unit's
   // side: it touches both, it goes into neither
   pack.rotation.set(-0.12, -Math.PI / 2 + 0.1, 0, 'YXZ');
