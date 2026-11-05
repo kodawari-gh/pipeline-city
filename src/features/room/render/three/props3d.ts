@@ -1,9 +1,9 @@
 // The room's props in 3D, modelled on the owner's reference image (docs/LOWPOLY_STYLE.md "Look decision"): the architect lamp, the monitor with its
-// standby screen, the digital clock, the mug with its steam on a cork coaster, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
+// standby screen, the digital clock, a tea cup steaming on its saucer, the keyboard, the mouse and a notebook (the sill's aloe: `plants3d.ts`).
 // Each builder returns a group in world units (x and y from the 2D layout, y flipped; z out of the wall) and keeps what `frame` animates.
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry,
-  SRGBColorSpace, SphereGeometry, Sprite, SpriteMaterial, TorusGeometry, Vector3, type BufferGeometry, type Texture,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, DoubleSide, CanvasTexture, Color, CylinderGeometry, Group, LatheGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial,
+  NoColorSpace, PlaneGeometry, SRGBColorSpace, SphereGeometry, SplineCurve, Sprite, SpriteMaterial, TorusGeometry, Vector2, Vector3, type BufferGeometry, type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { anisotropy, instanced, paint, place, post, rectBox, rod, softBox, tube, type RectLike } from '@/core/render/three/geometry';
@@ -11,6 +11,7 @@ import { loadModel } from '@/core/render/three/gltf';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
+import { oak } from './furniture3d';
 
 type V3 = [number, number, number];
 
@@ -163,40 +164,112 @@ export class DigitalClock {
   }
 }
 
-// ------------------------------------------------------------------ mug
-export interface Mug { root: Group; puffs: Sprite[]; top: V3 }
+// ------------------------------------------------------------------ tea cup
+export interface Cup { root: Group; wisps: Sprite[]; top: V3 }
 
-export function mug(x: number, deskY: number, z: number): Mug {
-  const g = new Group();
-  const decal = paint(512, 128, (c, w, h) => {
-    c.fillStyle = '#f4f2ee'; c.fillRect(0, 0, w, h);
-    c.fillStyle = '#c8302a'; c.fillRect(w * 0.25 - 46, h * 0.22, 92, 72);
-    c.fillStyle = '#fff'; c.font = 'bold 38px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PC', w * 0.25, h * 0.22 + 36);
-  });
-  const ceramic = mat(0xf4f2ee, { roughness: 0.3, map: decal });
-  // it stands on a cork coaster
-  const cork = 60, y0 = -deskY + cork;
-  g.add(post(x, deskY, z, 560, cork, mat(0xffffff, { map: paint(64, 64, (c, w, h) => { c.fillStyle = '#b48d5e'; c.fillRect(0, 0, w, h); for (let i = 0; i < 300; i++) { c.fillStyle = (i % 2 ? 'rgba(70,45,20,0.25)' : 'rgba(255,235,200,0.2)'); c.fillRect((i * 37) % w, (i * 53) % h, 1 + (i % 3), 1 + (i % 2)); } }), roughness: 0.95 }), 28));
-  const body = place(new Mesh(new CylinderGeometry(390, 360, 950, 32, 1, false, -Math.PI / 2), [ceramic, mat(0xf4f2ee, { roughness: 0.3 }), mat(0xf4f2ee)]));
-  body.position.set(x, y0 + 475, z);
-  const coffee = new Mesh(new CylinderGeometry(355, 355, 10, 32), mat(0x3a2214, { roughness: 0.15 }));
-  coffee.position.set(x, y0 + 900, z);
-  const handle = place(new Mesh(new TorusGeometry(230, 62, 10, 20, Math.PI * 1.15), mat(0xf4f2ee, { roughness: 0.3 })));
-  handle.rotation.z = -Math.PI * 0.575; handle.position.set(x + 400, y0 + 500, z);
-  g.add(body, coffee, handle);
-  const puffTex = paint(64, 64, (c, w) => { const gr = c.createRadialGradient(w / 2, w / 2, 2, w / 2, w / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, w); });
-  const puffs = Array.from({ length: 6 }, () => { const s = new Sprite(new SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0 })); g.add(seeThrough(s)); return s; });
-  return { root: g, puffs, top: [x, y0 + 950, z] };
+/** Room units per millimetre. */
+const MM = 18.7;
+/** Where the glaze stops on the cup's outside (mm up from its foot) round it (`a`, radians): a wavy line, a few drips running lower. */
+const DRIPS: readonly (readonly [number, number, number])[] = [[0.6, 0.09, 7], [1.9, 0.06, 5], [2.7, 0.11, 8.5], [4.1, 0.07, 4], [5.2, 0.1, 6.5]];
+function glazeEdge(a: number): number {
+  let y = 19 + 1.6 * Math.sin(3 * a + 1) + 0.9 * Math.sin(7 * a + 0.4);
+  for (const [at, w, len] of DRIPS) {
+    const d = Math.atan2(Math.sin(a - at), Math.cos(a - at)) / w;
+    if (Math.abs(d) < 1) y -= len * Math.sqrt(1 - d * d);
+  }
+  return y;
 }
 
-/** The steam at game time t (s): puffs rise, widen and fade, each on its own phase. */
-export function steam(m: Mug, t: number): void {
-  m.puffs.forEach((p, i) => {
-    const life = ((t / 4.5 + i / m.puffs.length) % 1), sway = Math.sin(t * 0.8 + i * 1.7) * 160 * life;
-    p.position.set(m.top[0] + sway, m.top[1] + 100 + life * 1900, m.top[2]);
-    const s = 260 + life * 700;
-    p.scale.set(s, s, 1);
-    (p.material as SpriteMaterial).opacity = 0.32 * Math.sin(life * Math.PI);
+/**
+ * The yunomi's side, a lathe profile in mm: the recess under the foot and the foot ring (unglazed), the wall turned up from it (a full
+ * belly, throwing rings on it), the rounded lip, the inside down to its floor. `outer` is the wall's first and last index (for the glaze map).
+ */
+function cupProfile(): { pts: Vector2[]; outer: [number, number] } {
+  const pts = [[0, 3], [17.5, 3], [18.6, 2.2], [19.3, 0.6], [20.2, 0], [23, 0], [23.9, 0.6], [24.2, 2]].map(([r, y]) => new Vector2(r, y));
+  const wall = new SplineCurve([[24.2, 5.2], [26.6, 6.9], [29.6, 9.6], [32, 14], [33.3, 22], [34, 34], [34.2, 46], [33.9, 60], [33.4, 72], [33.3, 77]].map(([r, y]) => new Vector2(r, y)));
+  const first = pts.length;
+  for (const p of wall.getPoints(56)) pts.push(new Vector2(p.x + (p.y > 13 && p.y < 75 ? 0.2 * Math.sin((2 * Math.PI * p.y) / 6.5) : 0), p.y));
+  const last = pts.length - 1;
+  for (const [r, y] of [[33.1, 78], [32.5, 78.7], [31.7, 78.8], [31, 78.2], [30.6, 77]]) pts.push(new Vector2(r, y));
+  const inside = new SplineCurve([[30.6, 76], [30.9, 66], [31.1, 52], [30.8, 38], [29.8, 26], [27.6, 17], [23.5, 12.2], [15, 10.4], [0, 10]].map(([r, y]) => new Vector2(r, y)));
+  pts.push(...inside.getPoints(30));
+  return { pts, outer: [first, last] };
+}
+
+/** A walnut chataku under the cup: a shallow well for its foot, a broad flat, a raised rim, a foot ring under it. In mm. */
+const SAUCER = [[0, 4.5], [24.8, 4.5], [25.6, 5.2], [26.2, 6.6], [27.5, 7.2], [40, 7.6], [43.4, 8.6], [45, 9.1], [45.8, 8.6], [46, 7], [45.4, 4], [44, 2.6], [41.5, 2.2], [40.6, 1], [40, 0], [0, 0]];
+
+/**
+ * A Japanese tea cup (a yunomi, 68 mm across, 79 tall) of green tea on a walnut saucer: an ash glaze, oatmeal white, pooling blue-grey where
+ * it ran thick at its edge and thinning brown at the lip, the toasted clay bare under it; the tea steaming faintly. Real sizes.
+ */
+export function teaCup(x: number, deskY: number, z: number): Cup {
+  const g = new Group(), { pts, outer } = cupProfile(), n = pts.length - 1;
+  // the glaze map, painted down the profile (v: a point's index along it) and round (u), and its roughness map the same way (glaze glossy,
+  // the pooled glaze glassier, the bare clay rough)
+  const vAt = (y: number): number => {
+    let i = outer[0];
+    while (i < outer[1] && pts[i + 1]!.y < y) i++;
+    const a = pts[i]!, b = pts[Math.min(outer[1], i + 1)]!;
+    return (i + Math.min(1, Math.max(0, (y - a.y) / Math.max(1e-6, b.y - a.y)))) / n;
+  };
+  const glazeMap = (rough: boolean) => (c: CanvasRenderingContext2D, w: number, h: number) => {
+    const row = (v: number) => (1 - v) * h;
+    c.fillStyle = rough ? '#2e2e2e' : '#d6cfbf'; c.fillRect(0, 0, w, h);
+    for (let px = 0; px < w; px++) {
+      const ye = glazeEdge(((px + 0.5) / w) * Math.PI * 2), top = row(vAt(ye));
+      c.fillStyle = rough ? '#e6e6e6' : '#7b5237'; c.fillRect(px, top, 1, h - top);
+      // the pooled glaze over its edge: thick, blue-grey, a deeper line where it stopped
+      const pool = row(vAt(ye + 4));
+      const gr = c.createLinearGradient(0, pool, 0, top);
+      gr.addColorStop(0, rough ? 'rgba(30,30,30,0)' : 'rgba(110,128,136,0)'); gr.addColorStop(0.7, rough ? 'rgba(22,22,22,0.9)' : 'rgba(110,128,136,0.85)'); gr.addColorStop(1, rough ? 'rgba(22,22,22,1)' : 'rgba(78,92,100,1)');
+      c.fillStyle = gr; c.fillRect(px, pool, 1, top - pool);
+    }
+    if (rough) return;
+    // the lip, where the glaze thins over the edge, and the iron in the clay speckling through
+    const lip0 = row(vAt(74)), lip1 = row((outer[1] + 6) / n), lg = c.createLinearGradient(0, lip0, 0, lip1);
+    lg.addColorStop(0, 'rgba(138,104,74,0)'); lg.addColorStop(0.6, 'rgba(138,104,74,0.55)'); lg.addColorStop(1, 'rgba(138,104,74,0.2)');
+    c.fillStyle = lg; c.fillRect(0, lip1, w, lip0 - lip1);
+    for (let k = 0; k < 260; k++) { c.fillStyle = `rgba(70,48,30,${0.25 + 0.4 * Math.abs(Math.sin(k * 7.3))})`; const s = 0.6 + Math.abs(Math.sin(k * 3.1)) * 1.4; c.fillRect(Math.abs(Math.sin(k * 12.9898)) * w, Math.abs(Math.sin(k * 78.233)) * h * 0.92, s, s); }
+  };
+  const map = paint(512, 256, glazeMap(false)), roughMap = paint(512, 256, glazeMap(true));
+  if (roughMap) roughMap.colorSpace = NoColorSpace;
+  const glaze = mat(0xffffff, { map, roughnessMap: roughMap, roughness: 1 });
+  const cup = place(new Mesh(new LatheGeometry(pts, 56), glaze));
+  // (thrown by hand: a touch out of round)
+  cup.scale.set(1.012, 1, 0.99);
+  cup.rotation.y = 2.1;
+  cup.position.y = 4.5;
+  const tea = new Mesh(new CylinderGeometry(30.6, 30.6, 0.4, 40), mat(0x8d8a34, { roughness: 0.04 }));
+  tea.position.y = 4.5 + 70;
+  // the saucer, its grain straight across it
+  const walnut = mat(0xffffff, { map: oak('#5a3f2c', '#2a1b11'), roughness: 0.45 }), sg = new LatheGeometry(SAUCER.map(([r, y]) => new Vector2(r, y)), 48);
+  const sp = sg.attributes.position!, suv = sg.attributes.uv!;
+  // (the grain runs along x; up the rim's side it climbs across the grain, as on a turned block)
+  for (let i = 0; i < sp.count; i++) suv.setXY(i, sp.getX(i) / 92 + 0.5, sp.getZ(i) / 92 + 0.5 + sp.getY(i) / 40);
+  const saucer = place(new Mesh(sg, walnut));
+  const held = new Group();
+  held.add(cup, tea, saucer);
+  held.scale.setScalar(MM);
+  held.position.set(x, -deskY, z);
+  g.add(held);
+  // the steam: thin wisps, faint (tea, not a boiling kettle)
+  const wispTex = paint(32, 96, (c, w, h) => {
+    const gr = c.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+    gr.addColorStop(0, 'rgba(255,255,255,0.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.setTransform(1, 0, 0, h / w, 0, 0); c.fillStyle = gr; c.fillRect(0, 0, w, w);
+  });
+  const wisps = Array.from({ length: 9 }, (_, i) => { const s = new Sprite(new SpriteMaterial({ map: wispTex, transparent: true, depthWrite: false, opacity: 0, rotation: (i % 3 - 1) * 0.35 })); g.add(seeThrough(s)); return s; });
+  return { root: g, wisps, top: [x, -deskY + (4.5 + 76) * MM, z] };
+}
+
+/** The steam at game time t (s): wisps rise slowly from the tea, lean and widen as they go, and fade, each on its own phase. */
+export function steam(m: Cup, t: number): void {
+  m.wisps.forEach((p, i) => {
+    const life = (t / 6 + i / m.wisps.length) % 1, sway = Math.sin(t * 0.6 + i * 2.3) * 220 * life + Math.cos(i * 1.9) * 160;
+    p.position.set(m.top[0] + sway, m.top[1] + 150 + life * 1700, m.top[2] + Math.sin(i * 3.1) * 140);
+    p.scale.set(160 + life * 380, 480 + life * 700, 1);
+    (p.material as SpriteMaterial).opacity = 0.13 * Math.sin(life * Math.PI) ** 1.5;
   });
 }
 
@@ -288,7 +361,7 @@ const MOUSE_MODEL = `${import.meta.env.BASE_URL}models/mouse.glb`, MOUSE_LEN = 1
  * primitive shell stays: a palm-high shell on a flat base, a scroll wheel between its two buttons.
  */
 export function mouse(x: number, deskY: number, z: number): Group {
-  const g = new Group(), prim = new Group(), shell = mat(0xe9e8e4, { roughness: 0.35 }), dark = mat(0x2a2d32, { roughness: 0.5 });
+  const g = new Group(), prim = new Group(), shell = mat(0x9d9b96, { roughness: 0.6 }), dark = mat(0x2a2d32, { roughness: 0.5 });
   const geo = new SphereGeometry(1, 28, 16), p = geo.attributes.position!;
   // the shell's height: flat underneath, higher at the palm (+z, toward the room) than at the nose
   const lift = (y: number, zz: number) => (y < -0.1 ? -0.1 + (y + 0.1) * 0.15 : y) * (1 + 0.18 * zz);

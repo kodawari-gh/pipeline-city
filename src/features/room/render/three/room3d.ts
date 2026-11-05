@@ -1,7 +1,7 @@
 // The 3D room: a bedroom in a high-rise flat round the desk, modern and minimal, dark to sit with the game's interface (slate walls, smoked oak,
 // black-brown flat-pack furniture, cyan LED light at night; tones in `palette.ts`). A closed box at real sizes (`roomplan.ts`): a smoked-oak slat
 // panel behind the desk, a deep window west of it onto the city in 3D (`outside/view.ts`), oak planks and a rug, the bed and its bedside drawer
-// east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, mug,
+// east of the desk, a bookcase and the door on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, tea cup,
 // architect lamp, digital clock, the key rack, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's
 // things come from the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
 import {
@@ -20,7 +20,7 @@ import { seeThrough, tag } from '@/core/render/three/pick';
 import { KEY_LEN, lanyardColour, trayHook, trayKeyCentre } from '../desk/props/props';
 import { ENV_H, ENV_W, MAIL_S, keyPose, letterPose, mailStage } from '../desk/props/mail';
 import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
-import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, mug, notebook, steam, type Lamp, type Mug, type Screen } from './props3d';
+import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { OutsideView } from './outside/view';
 import { bed, bookcase, ceilingLight, curtains, door, eastWall, nightstand, oak, print } from './furniture3d';
 import { deskChair } from './chair3d';
@@ -196,7 +196,7 @@ export class Room3D {
   private lamp: Lamp;
   private monitor: Monitor;
   private clock: DigitalClock;
-  private mug: Mug;
+  private cup: Cup;
   private shade: MeshStandardMaterial;
   private bulbGlow: MeshStandardMaterial;
   /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
@@ -336,7 +336,7 @@ export class Room3D {
     for (const x of [t.x0, t.x1 - 60]) R.add(softBox({ x, y: ty, w: 60, h: t.h }, t.z0, t.z1, steel, 20));
     for (const x of [t.x0 + 1500, t.x1 - 1500]) R.add(softBox({ x: x - 200, y: under, w: 400, h: t.drop }, t.z1 - 400, t.z1, steel, 20));
 
-    // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, the mug on its coaster, a notebook ----
+    // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, a tea cup on its saucer, a notebook ----
     this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
     R.add(this.monitor.root);
     const kx = MONITOR.x + MONITOR.w / 2, kz = MONITOR_Z + 3600;
@@ -347,7 +347,8 @@ export class Room3D {
       c.strokeStyle = 'rgba(30,32,36,0.8)'; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, h - 4);
       c.strokeStyle = 'rgba(205,200,190,0.55)'; c.lineWidth = 1.5; c.setLineDash([6, 4]); c.strokeRect(9, 9, w - 18, h - 18);
     });
-    R.add(softBox({ x: kx - 5200, y: ys - 40, w: 11200, h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
+    const matEnd = kx + 4800;
+    R.add(softBox({ x: kx - 5200, y: ys - 40, w: matEnd - (kx - 5200), h: 40 }, kz - 2100, kz + 2100, mat(0xffffff, { map: felt, roughness: 0.97 }), 20));
     R.add(keyboard(kx, ys, kz), mouse(kx + 4100, ys, kz + 200), notebook(-16600, ys, 10000, 0.22));
     // the grommet the keyboard's cable goes down through, near the wall: a black cap on the top, its sleeve under it, over the tray
     const grommet = { x: kx + KEY_LEAD[0], z: kz + KEY_LEAD[1] }, cap = mat(0x111214, { roughness: 0.6 });
@@ -356,8 +357,9 @@ export class Room3D {
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the sill
     R.add(mess(ped.x, under, grommet));
-    this.mug = mug(g.mug, ys, MONITOR_Z + 3200);
-    R.add(this.mug.root);
+    // (the tea in the gap between the mat and the case)
+    this.cup = teaCup((matEnd + CASE.x) / 2, ys, MONITOR_Z + 3200);
+    R.add(this.cup.root);
 
     // ---- the architect lamp ----
     const lx = g.lamp.x;
@@ -621,6 +623,6 @@ export class Room3D {
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);
-    steam(this.mug, f.t);
+    steam(this.cup, f.t);
   }
 }
