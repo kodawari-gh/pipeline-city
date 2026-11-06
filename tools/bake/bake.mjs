@@ -7,6 +7,7 @@
 //   --only a,b    bake again only these groups, on the last bake's room and atlas (the work dir); the others' files stay
 //   --fast        64 samples and no denoiser: to try the tool
 //   --preview     also render each group's lightmap on the room (`preview-<group>.png` in the work dir): look at it
+//   --pack        no Blender: write the lightmap files again from the last bake's light (the work dir), for a change to their format
 //   env: BLENDER (default: Steam's Blender 5.2), PORT (5199), CHROME_PATH
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,13 +20,13 @@ import { runnerImport } from 'vite';
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
 const FAST = args.includes('--fast'), SAMPLES = Number(flag('samples', FAST ? 64 : 16384)), TEXELS = Number(flag('texels', 50)), PADDING = 4;
-const ONLY = flag('only', '').split(',').filter(Boolean);
+const ONLY = flag('only', '').split(',').filter(Boolean), PACK = args.includes('--pack');
 const BLENDER = process.env.BLENDER || 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe';
 const root = fileURLToPath(new URL('../..', import.meta.url)), out = join(root, 'public/bake/room'), work = join(tmpdir(), 'pipeline-city-bake');
 const config = { configFile: false, logLevel: 'warn', resolve: { alias: { '@': join(root, 'src') } } };
 const { module: atlasLib } = await runnerImport(join(root, 'tools/bake/atlas.ts'), config);
 const { module: rgbm } = await runnerImport(join(root, 'tools/bake/rgbm.ts'), config);
-if (!existsSync(BLENDER)) { console.log(`no Blender at ${BLENDER} (set BLENDER)`); process.exit(1); }
+if (!PACK && !existsSync(BLENDER)) { console.log(`no Blender at ${BLENDER} (set BLENDER)`); process.exit(1); }
 mkdirSync(work, { recursive: true });
 mkdirSync(out, { recursive: true });
 const t0 = Date.now(), secs = () => `${((Date.now() - t0) / 1000).toFixed(0)} s`;
@@ -106,13 +107,13 @@ function blender(only) {
 }
 
 let manifest, groups;
-if (ONLY.length) {
-  if (!existsSync(join(work, 'scene.json')) || !existsSync(join(out, 'manifest.json'))) { console.log('--only needs a full bake first'); process.exit(1); }
+if (ONLY.length || PACK) {
+  if (!existsSync(join(work, 'scene.json')) || !existsSync(join(out, 'manifest.json'))) { console.log(`--${PACK ? 'pack' : 'only'} needs a full bake first`); process.exit(1); }
   const cfg = JSON.parse(readFileSync(join(work, 'scene.json'), 'utf8'));
   manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
-  groups = cfg.groups.filter((g) => ONLY.includes(g.id));
-  if (groups.length !== ONLY.length) { console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id))}`); process.exit(1); }
-  if (cfg.samples !== SAMPLES || cfg.denoise === FAST) { cfg.samples = SAMPLES; cfg.denoise = !FAST; writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
+  groups = cfg.groups.filter((g) => !ONLY.length || ONLY.includes(g.id));
+  if (ONLY.length && groups.length !== ONLY.length) { console.log(`no such group in the last bake: ${ONLY.filter((id) => !groups.some((g) => g.id === id))}`); process.exit(1); }
+  if (!PACK && (cfg.samples !== SAMPLES || cfg.denoise === FAST)) { cfg.samples = SAMPLES; cfg.denoise = !FAST; writeFileSync(join(work, 'scene.json'), JSON.stringify(cfg)); }
 } else {
   const scene = await exportScene();
   const receivers = scene.meshes.filter((m) => m.receiver);
@@ -137,17 +138,18 @@ if (ONLY.length) {
   };
 }
 
-await blender([...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
+if (!PACK) await blender([...ONLY, ...(args.includes('--preview') ? ['--preview'] : [])]);
 if (args.includes('--preview')) console.log(`previews: ${work}`);
+const uvBytes = readFileSync(join(out, 'meshes.bin')), keep = atlasLib.chartTexels(new Uint16Array(uvBytes.buffer.slice(uvBytes.byteOffset, uvBytes.byteOffset + uvBytes.byteLength)), manifest.width, manifest.height, PADDING / 2);
 for (const g of groups) {
   const f = readFileSync(join(work, `${g.id}.f32`)), rgb = new Float32Array(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength));
-  const scale = rgbm.scaleOf(rgb), file = rgbm.png(rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }), manifest.width, manifest.height);
+  const scale = rgbm.scaleOf(rgb), file = rgbm.png(rgbm.encode({ width: manifest.width, height: manifest.height, rgb, scale }, keep), manifest.width, manifest.height);
   writeFileSync(join(out, `${g.id}.png`), file);
   const entry = { id: g.id, kind: g.kind, file: `${g.id}.png`, scale, ...(g.kind === 'lamp' ? { lead: g.lights[0].intensity } : {}), ...(g.kind === 'sun' ? { hour: g.hour } : {}) };
   const k = manifest.groups.findIndex((e) => e.id === g.id);
   if (k < 0) manifest.groups.push(entry); else manifest.groups[k] = entry;
   console.log(`${g.id}.png: ${(file.length / 1024).toFixed(0)} KB, scale ${scale.toPrecision(3)}`);
 }
-manifest.samples = SAMPLES;
+if (!PACK) manifest.samples = SAMPLES;
 writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 1));
 console.log(`wrote ${resolve(out)} (${secs()})`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAtlas, weld } from './atlas';
+import { buildAtlas, chartTexels, weld } from './atlas';
 
 /** A box from `a` to `b` as loose triangles (no index), as `mergeStatic` leaves a merged mesh. */
 function box(a: [number, number, number], b: [number, number, number]): Float32Array {
@@ -24,6 +24,26 @@ describe('weld', () => {
     const w = weld(box([0, 0, 0], [1, 1, 1]), null);
     expect(w.pos.length / 3).toBe(8);
     expect(w.index.length).toBe(36);
+  });
+});
+
+describe('chartTexels', () => {
+  // a triangle over the atlas's bottom left, 8 x 8 of 16 x 16 texels (v up: the bottom rows are the last)
+  const uv = new Uint16Array([0, 0, 32768, 0, 0, 32768]);
+
+  it('marks the texels under a triangle, rows from the top', () => {
+    const k = chartTexels(uv, 16, 16, 0);
+    expect(k[15 * 16 + 1]).toBe(1);
+    expect(k[1]).toBe(0);
+    expect(k[15 * 16 + 14]).toBe(0);
+  });
+
+  it('grows by the filter\'s reach, and no farther', () => {
+    const k = chartTexels(uv, 16, 16, 2), row = (y: number) => [...k.subarray(y * 16, y * 16 + 16)];
+    expect(row(15)[9]).toBe(1);
+    expect(row(15)[11]).toBe(0);
+    expect(row(6)[0]).toBe(1);
+    expect(row(5)[0]).toBe(0);
   });
 });
 

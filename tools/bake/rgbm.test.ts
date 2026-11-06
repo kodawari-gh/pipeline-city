@@ -24,6 +24,13 @@ describe('RGBM', () => {
     const out = encode({ width: 1, height: 1, rgb: new Float32Array(3), scale: 1 });
     expect(decode(out, 1, 1, 1)).toEqual(new Float32Array(3));
   });
+
+  it('blanks a texel nothing reads, and leaves the others as they are', () => {
+    const rgb = new Float32Array([1, 1, 1, 0.5, 0.25, 0.1]), light = { width: 1, height: 2, rgb, scale: 1 };
+    const all = encode(light), kept = encode(light, new Uint8Array([1, 0]));
+    expect([...kept.subarray(0, 4)]).toEqual([...all.subarray(0, 4)]);
+    expect([...kept.subarray(4)]).toEqual([0, 0, 0, 1]);
+  });
 });
 
 describe('png', () => {

@@ -28,6 +28,29 @@ export function weld(pos: Float32Array, index: Uint32Array | null): { pos: Float
   return { pos: new Float32Array(out), index: idx };
 }
 
+/**
+ * The texels the receivers can read (1, rows from the top): those under a triangle or within `grow` texels of one, for the bilinear filter's
+ * reach. `uv` holds two Uint16 a corner (`meshes.bin`: v up), three corners a triangle.
+ */
+export function chartTexels(uv: Uint16Array, width: number, height: number, grow: number): Uint8Array {
+  const out = new Uint8Array(width * height), X = (u: number) => (u / 65535) * width, Y = (v: number) => (1 - v / 65535) * height;
+  const near = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+    const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+    return (ax + t * dx - px) ** 2 + (ay + t * dy - py) ** 2 <= grow * grow;
+  };
+  for (let i = 0; i + 5 < uv.length; i += 6) {
+    const ax = X(uv[i]!), ay = Y(uv[i + 1]!), bx = X(uv[i + 2]!), by = Y(uv[i + 3]!), cx = X(uv[i + 4]!), cy = Y(uv[i + 5]!);
+    const x1 = Math.min(width - 1, Math.ceil(Math.max(ax, bx, cx) + grow)), y1 = Math.min(height - 1, Math.ceil(Math.max(ay, by, cy) + grow));
+    for (let y = Math.max(0, Math.floor(Math.min(ay, by, cy) - grow - 1)); y <= y1; y++) for (let x = Math.max(0, Math.floor(Math.min(ax, bx, cx) - grow - 1)); x <= x1; x++) {
+      const k = y * width + x, px = x + 0.5, py = y + 0.5;
+      if (out[k]) continue;
+      const w0 = (bx - ax) * (py - ay) - (by - ay) * (px - ax), w1 = (cx - bx) * (py - by) - (cy - by) * (px - bx), w2 = (ax - cx) * (py - cy) - (ay - cy) * (px - cx);
+      if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0) || near(px, py, ax, ay, bx, by) || near(px, py, bx, by, cx, cy) || near(px, py, cx, cy, ax, ay)) out[k] = 1;
+    }
+  }
+  return out;
+}
+
 /** The atlas of the receivers at `texelsPerMetre`, `padding` texels round each chart. */
 export async function buildAtlas(meshes: AtlasInput[], texelsPerMetre: number, padding: number): Promise<Atlas> {
   const xatlas = await createXAtlas(), atlas = xatlas.createAtlas();

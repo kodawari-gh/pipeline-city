@@ -2,7 +2,7 @@
 // files in the repository). RGBM over the square root: a texel's light v (linear, 0 to the map's `scale`) is e = sqrt(v / scale), stored as
 // rgb = e / m and alpha = m, m the largest of e's channels rounded up. The game decodes v = scale * (rgb * alpha)²: 16 stops, finest in the
 // dark. Node only (`bake.mjs`).
-import { deflateSync, inflateSync } from 'node:zlib';
+import { constants, deflateSync, inflateSync } from 'node:zlib';
 
 /** The light at each texel, linear RGB, rows from the bottom (as Blender writes them), and the scale it is stored to. */
 export interface Light { width: number; height: number; rgb: Float32Array; scale: number }
@@ -14,11 +14,15 @@ export function scaleOf(rgb: Float32Array): number {
   return s || 1;
 }
 
-/** RGBM bytes, rows from the top (as a PNG holds them). */
-export function encode({ width, height, rgb, scale }: Light): Uint8Array {
+/**
+ * RGBM bytes, rows from the top (as a PNG holds them). A texel `keep` (rows from the top) marks 0 is black: nothing reads it, and the noise
+ * the bake leaves there is a third of a file (`chartTexels`).
+ */
+export function encode({ width, height, rgb, scale }: Light, keep?: Uint8Array): Uint8Array {
   const out = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const i = 3 * (y * width + x), o = 4 * ((height - 1 - y) * width + x);
+    const i = 3 * (y * width + x), t = (height - 1 - y) * width + x, o = 4 * t;
+    if (keep && !keep[t]) { out[o + 3] = 1; continue; }
     const e = [0, 1, 2].map((k) => Math.sqrt(Math.min(1, Math.max(0, rgb[i + k]! / scale))));
     const m = Math.max(1, Math.ceil(Math.max(e[0]!, e[1]!, e[2]!) * 255));
     for (let k = 0; k < 3; k++) out[o + k] = Math.min(255, Math.round((e[k]! * 255 * 255) / m));
@@ -67,7 +71,7 @@ export function png(rgba: Uint8Array, width: number, height: number): Uint8Array
   }
   const head = new Uint8Array(13), v = new DataView(head.buffer);
   v.setUint32(0, width); v.setUint32(4, height); head[8] = 8; head[9] = 6;
-  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', new Uint8Array())];
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw, { level: 9, memLevel: 9, strategy: constants.Z_FILTERED })), chunk('IEND', new Uint8Array())];
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
