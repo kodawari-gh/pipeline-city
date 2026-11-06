@@ -166,3 +166,24 @@ In order. Each is one commit; each is checked with shots against the targets. Th
 9. **`LightmapMix`** and the material patch; remove `fill` and `hemi`.
 10. **The night city** at its target (with T155), then a last check of every target at 07:00, 14:00, 19:00 and 23:00.
 
+## What the city costs a frame
+
+- **Detail by distance.** Far from the window, trees (`detailAt` in `outside/trees.ts`) and parked cars lose detail that the eye cannot see. The frame's triangles went from about 9.2 M to 3.6 M.
+- **Cells.** The buildings (`CELL_NEAR`, `CELL_FAR`) and the trees (`TREE_CELL`) sit in grid cells, so the window's crop culls them.
+- **The hidden city.** `outside/sight.ts` asks the GPU if the eye sees the window's quad (an occlusion query). While the eye stands still and the window is hidden, the city is not drawn.
+- **The room in the glass.** `outside/mirror.ts` draws only what glows, and a plain black in place of each mesh that only hides what is behind it. With a still eye it draws every `MIRROR_EVERY` frames (`view.ts`).
+- **The frame limit.** The default is 60 fps. After 30 s with no input, or with no focus, it is 30 fps (`AWAY_FPS`, `graphics.ts`).
+
+Mean frame in ms, 2026-11-07, Chrome, ANGLE D3D11, RTX 5080, 1920x1080, no frame limit, the code before this work (5bb20d2) and after it in one sitting:
+
+| View | Hour | Before | After | With no city draw |
+|---|---|---|---|---|
+| Room | 12:00 | 14.3 | 13.8 | 11.4 |
+| Board | 12:00 | 12.0 | 12.3 | 9.7 |
+| CPU | 12:00 | 8.5 | 4.6 | 4.6 |
+| Room | 00:00 | 25.8 | 15.5 | 10.9 |
+| Board | 00:00 | 21.5 | 13.7 | 11.8 |
+| CPU | 00:00 | 10.1 | 4.8 | 4.9 |
+
+At noon the triangles do not limit this card, so the room and the board did not change. A weaker GPU was not measured. The largest cost left is on the CPU: the main pass of the room, with about 1100 to 1300 draw calls, takes about 11 ms.
+
