@@ -1,6 +1,6 @@
 // The city's buildings (`plan.ts` places them) in one mesh on one material. A building is its tiers' walls, each wall's facade painted by the
 // shader (`facadeMaterial`): its windows in bays and storeys on slim mullions, the glass over a room seen in depth (interior mapping) with its
-// blind or curtains, mirroring the sky, the street's far side and the city's skyline beyond, with the sun's glare and a pane's flash on it; the
+// blind or curtains, mirroring the sky, the street's far side and the city's skyline beyond, with the sun's glare and a rare pane's short glint (under the bloom's threshold) on it; the
 // walls in panels and tiles with their joints, slab edges and stains. At night its rooms are lit by each building's own habit (whole floors, zones,
 // desks or stacks; a home room by room), gathered in patches, each in its lamp's colour, and some turn on or off as the night goes. Far away each
 // pattern fades to its average where its scale is under a pixel, so it does not shimmer. The sky's light falls off down a wall toward the street.
@@ -766,13 +766,14 @@ if (fKind == 0 || fKind == 6) {
   vec4 cityIn = fCityMirrored(normalize(fR + fTilt * 2.0), max(length(fwidth(fR)), 0.0012));
   fGlow += mirrorK * (1.0 - hit) * cityIn.a * cityIn.rgb * m;
   fSpec = (1.0 - max(hit, cityIn.a) * m) * mix(1.0, mix(2.0, 0.7, fNight), refl * m);
-  // the sun on the glass: panes bow a little, so its image spreads to a wide glare over a wall turned toward it, broken pane by pane; a few
-  // panes, opened or set out of true, each flash in turn as the eye or the sun moves
+  // the sun on the glass: panes bow a little, so its image spreads to a wide glare over a wall turned toward it, broken pane by pane; one pane
+  // in twenty-five, opened or set out of true, glints in turn as the eye or the sun moves: short, in the sun's colour, at most 0.6 over the
+  // pane, so it stays under the bloom's threshold (1.2) and never reads as a white pane
   float sunFace = smoothstep(0.0, 0.15, dot(vFN, fSun));
   if (sunFace > 0.0 && refl > 0.2) {
     float gS = max(dot(reflect(fV, normalize(vFN + (vec3(h, h2, h3) - 0.5) * 0.16 * (1.0 - cf))), fSun), 0.0);
-    float flash = step(0.9, h3) * step(0.6, refl) * pow(abs(fract(h2 * 17.0 + fTime * 0.02 + (cameraPosition.x + cameraPosition.y) * 0.013) * 2.0 - 1.0), 8.0);
-    fGlow += fSunCol * m * sunFace * (refl * (0.16 * pow(gS, 10.0) + 1.2 * pow(gS, 90.0)) + (1.0 - cf) * 3.0 * flash * (0.25 + 0.75 * o.y * o.y));
+    float flash = step(0.96, h3) * step(0.6, refl) * pow(abs(fract(h2 * 17.0 + fTime * 0.02 + (cameraPosition.x + cameraPosition.y) * 0.013) * 2.0 - 1.0), 40.0);
+    fGlow += fSunCol * m * sunFace * (refl * (0.16 * pow(gS, 10.0) + 1.2 * pow(gS, 90.0)) + (1.0 - cf) * 0.6 * flash * (0.25 + 0.75 * o.y * o.y));
   }
 } else if (fKind == 5) {
   // a lit band of LEDs: a thin dark line by day, a bright one at night. On a spire's metal (vAux.z) it is that metal by day
