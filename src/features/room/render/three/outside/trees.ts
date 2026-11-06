@@ -3,7 +3,7 @@
 // of smaller lumps on it, dark in the creases between them. The lumps take normals bent toward the crown's own, so a crown shades as one mass,
 // darker inside and under. The shader (`leafShader`) breaks the mass up: clumps of leaves in their own greens, its outline bitten away leaf by
 // leaf; the sun behind it shines through its edge, and the wind stirs them. All the trees are two meshes: the bark, the leaves.
-import { BufferGeometry, Color, Float32BufferAttribute, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, Color, IcosahedronGeometry, Mesh, Vector3, type MeshStandardMaterial } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { taperTube } from '@/core/render/three/loft';
 import type { Kit } from './kit';
@@ -59,27 +59,44 @@ const TREE_CELL = 200;
 
 /** The leaf lumps of every crown in one geometry: places, normals (bent toward the crown's), a colour (its green, darker inside), the wind's swing and phase, the lump's own normal (for its outline). */
 class Lumps {
-  pos: number[] = []; nor: number[] = []; col: number[] = []; wind: number[] = []; lump: number[] = []; idx: number[] = [];
+  /** The vertices so far, and how many the arrays hold before they grow. */
+  private n = 0; private room = 4096;
+  private pos = new Float32Array(3 * this.room); private nor = new Float32Array(3 * this.room); private col = new Float32Array(3 * this.room);
+  private wind = new Float32Array(2 * this.room); private lump = new Float32Array(3 * this.room);
+  private idx: number[] = [];
+
+  private grow(): void {
+    const more = (a: Float32Array<ArrayBuffer>): Float32Array<ArrayBuffer> => { const b = new Float32Array(2 * a.length); b.set(a); return b; };
+    this.room *= 2;
+    this.pos = more(this.pos); this.nor = more(this.nor); this.col = more(this.col); this.wind = more(this.wind); this.lump = more(this.lump);
+  }
 
   /** A lump round `p`, `r` across, uneven by `bumps`: `shade` gives each vertex its normal and colour from its place and its own normal. */
   add(p: V3, r: number, bumps: number, fine: boolean, seed: number, shade: (q: V3, n: V3) => [V3, V3], swing: number, phase: number): void {
-    const b = BALLS[fine ? 1 : 0]!, base = this.pos.length / 3, f = [5.1 + seed % 1.7, 4.3 + (seed * 7) % 1.9, 6.2 + (seed * 3) % 1.3];
+    const b = BALLS[fine ? 1 : 0]!, base = this.n, f = [5.1 + seed % 1.7, 4.3 + (seed * 7) % 1.9, 6.2 + (seed * 3) % 1.3];
+    while (base + b.pos.length / 3 > this.room) this.grow();
+    const { pos, nor, col, wind, lump } = this;
     for (let i = 0; i < b.pos.length; i += 3) {
       const d: V3 = [b.pos[i]!, b.pos[i + 1]!, b.pos[i + 2]!];
       const k = r * (1 + bumps * Math.sin(d[0] * f[0]! + seed) * Math.sin(d[1] * f[1]! + seed * 1.3) * Math.sin(d[2] * f[2]! + seed * 0.7) * 2.2);
-      const q = add(p, d, k), [n, c] = shade(q, d);
-      this.pos.push(q[0], q[1], q[2]); this.nor.push(n[0], n[1], n[2]); this.col.push(c[0], c[1], c[2]); this.wind.push(swing, phase); this.lump.push(d[0], d[1], d[2]);
+      const q = add(p, d, k), [n, c] = shade(q, d), at = base + i / 3;
+      pos[3 * at] = q[0]; pos[3 * at + 1] = q[1]; pos[3 * at + 2] = q[2];
+      nor[3 * at] = n[0]; nor[3 * at + 1] = n[1]; nor[3 * at + 2] = n[2];
+      col[3 * at] = c[0]; col[3 * at + 1] = c[1]; col[3 * at + 2] = c[2];
+      wind[2 * at] = swing; wind[2 * at + 1] = phase;
+      lump[3 * at] = d[0]; lump[3 * at + 1] = d[1]; lump[3 * at + 2] = d[2];
     }
+    this.n += b.pos.length / 3;
     for (let i = 0; i < b.idx.length; i++) this.idx.push(base + b.idx[i]!);
   }
 
   geometry(): BufferGeometry {
-    const g = new BufferGeometry();
-    g.setAttribute('position', new Float32BufferAttribute(this.pos, 3));
-    g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
-    g.setAttribute('color', new Float32BufferAttribute(this.col, 3));
-    g.setAttribute('wind', new Float32BufferAttribute(this.wind, 2));
-    g.setAttribute('lump', new Float32BufferAttribute(this.lump, 3));
+    const g = new BufferGeometry(), at = (a: Float32Array, k: number) => new BufferAttribute(a.slice(0, k * this.n), k);
+    g.setAttribute('position', at(this.pos, 3));
+    g.setAttribute('normal', at(this.nor, 3));
+    g.setAttribute('color', at(this.col, 3));
+    g.setAttribute('wind', at(this.wind, 2));
+    g.setAttribute('lump', at(this.lump, 3));
     g.setIndex(this.idx);
     return g;
   }
