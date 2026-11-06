@@ -44,12 +44,17 @@ const LIT_LAMPS = 8, LAMPS_AT = new Vector3(GRID.av0, 0, -70);
  * city is as dim through it as the day's. The room's light from outside (the sky's, the sun's) takes the same share (`room3d.ts`).
  */
 export const GLASS_T = 0.47;
+/*
+ * The night out here is in the room's units (`nits` in `room3d.ts`: a unit is about 700 cd/m2): the sky's glow, the haze and the mist over a
+ * city are a few cd/m2, the moon's light far less, all far below the room's lamps. So at night the room is the picture and the city the dark
+ * behind it, its lit windows and signs its brightest parts (`light.md` "Targets": at 23:00 the city is half the room's mean or less).
+ */
 /** The city's light in the low sky and the haze at night (linear), the haze's density (per m) by day and at night, its fall with height (per m). */
-const CITY_GLOW = new Color(0.062, 0.036, 0.05), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
+const CITY_GLOW = new Color(0.0062, 0.0036, 0.005), HAZE_DAY = 1.5e-4, HAZE_NIGHT = 2.4e-4, HAZE_FALL = 1 / 320;
 /** The low mist at night (`haze.ts`): its colour, lit from below by the streets (linear), and its density at the street (per m). */
-const MIST = new Color(0.105, 0.07, 0.105), MIST_DENSITY = 4e-4;
-/** The sky at full night (linear) overhead and low down, a navy the room's own `skyAt` does not need to be. */
-const NIGHT_TOP = new Color(0.0035, 0.007, 0.032), NIGHT_HOR = new Color(0.011, 0.014, 0.05);
+const MIST = new Color(0.0105, 0.007, 0.0105), MIST_DENSITY = 4e-4;
+/** The sky at full night (linear) overhead and low down, a navy the room's own `skyAt` does not need to be. The moon's light at full night. */
+const NIGHT_TOP = new Color(0.00035, 0.0007, 0.0032), NIGHT_HOR = new Color(0.0011, 0.0014, 0.005), MOON = 0.035;
 /** The sun's light low down, where it has crossed the most air. */
 const SUN_LOW = new Color(1, 0.2, 0.045), STEAM_LOW = new Color(0.2, 0.125, 0.1), HOR_CLEAR = new Color(0xc2e7ff), BOUNCE_LATE = new Color(0xffc48f);
 /** The haze toward a low sun: the rose over the ember, so the far towers fade rose in front of the fire on the horizon. */
@@ -286,7 +291,7 @@ export class OutsideView {
     const late = smooth(14.5, 16.5, hour) * (1 - smooth(18.5, 20, hour));
     this.bounce.color.set(0xfff1e2).lerp(BOUNCE_LATE, late);
     this.bounce.intensity = (0.55 + 0.85 * late) * day * up;
-    this.moon.intensity = 0.35 * night;
+    this.moon.intensity = MOON * night;
     this.scene.environmentIntensity = 1;
     // the haze: the horizon's colour by day (at the warm hour the sky's own low down, the view's way), the sun's light in it toward the sun, the
     // city's glow at night, the low mist lit by the streets as the lamps come on

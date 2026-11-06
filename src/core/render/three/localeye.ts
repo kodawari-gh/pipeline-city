@@ -14,7 +14,10 @@ import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
 export const CELL = 32, DOWN = 4;
 /** The grid's bins: one a stop, from `LO` (2^-18, a black) to `LO + BINS - 1` (2^5, a bulb). */
 export const LO = -18, BINS = 24;
-/** The base's distance from middle grey keeps this share below it (the dark is lifted) and above it (the bright is held back). */
+/**
+ * The base's distance from middle grey keeps this share below it (the dark is lifted) and above it (the bright is held back). Above it by
+ * day: the bright glass held back; at night the eye keeps more of it (`LocalEye.high`).
+ */
 export const SHADOW_C = 0.18, HIGH_C = 0.4;
 /** At most this many stops up or down. */
 export const MAX_UP = 9, MAX_DOWN = 3;
@@ -26,11 +29,11 @@ export const gridSize = (w: number, h: number): [number, number] => [Math.max(1,
 
 /**
  * The stops a pixel whose base is `base` (log2 luminance) is lifted (or lowered, below 0) at exposure `exposure`, the eye adapted to `key`
- * (`LocalEye.key`): the shader's own sum.
+ * (`LocalEye.key`) and keeping `high` of the bright (`LocalEye.high`): the shader's own sum.
  */
-export function lift(base: number, exposure: number, key = MID): number {
+export function lift(base: number, exposure: number, key = MID, high = HIGH_C): number {
   const d = base - Math.log2(key / exposure);
-  return Math.min(MAX_UP, Math.max(-MAX_DOWN, -d * (1 - (d < 0 ? SHADOW_C : HIGH_C))));
+  return Math.min(MAX_UP, Math.max(-MAX_DOWN, -d * (1 - (d < 0 ? SHADOW_C : high))));
 }
 
 const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -117,6 +120,8 @@ export class LocalEye extends Pass {
    * picture low-key (the room at night), and the metered eye's key keeps the mean where the meter put it (`board3d.ts`).
    */
   key = MID;
+  /** The share of the base's distance above the key it keeps: `HIGH_C` by day; more at night, so the lamps' pools stand out of the dark. */
+  high = HIGH_C;
   /** 0: off; 1: the whole lift. */
   strength = 1;
   private lum = target(1, 1, NearestFilter);
@@ -161,6 +166,7 @@ export class LocalEye extends Pass {
     const a = this.apply.uniforms;
     a.tDiffuse!.value = read.texture;
     a.midLog!.value = Math.log2(this.key / this.exposure);
+    (a.keep!.value as number[])[1] = this.high;
     a.strength!.value = this.strength;
     step(this.apply, this.renderToScreen ? null : write);
   }

@@ -14,7 +14,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { pixelRatio, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE } from './init';
-import { LocalEye, MID } from './localeye';
+import { HIGH_C, LocalEye, MID } from './localeye';
 
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
 class ScenePass extends RenderPass {
@@ -232,10 +232,11 @@ export class Post {
     this.ao.updatePdMaterial({ radius: 4 + k * 16 });
   }
 
-  /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, and the local eye's `key`. */
-  setEye(k: number, key = MID): void {
+  /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, the local eye's `key` and `high`. */
+  setEye(k: number, key = MID, high = HIGH_C): void {
     this.eye = k;
     this.local.key = key;
+    this.local.high = high;
     this.expose();
   }
 

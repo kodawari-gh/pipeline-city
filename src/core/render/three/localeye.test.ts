@@ -24,6 +24,13 @@ describe("the eye's local adaptation", () => {
     expect(lift(wall, 2.2) - lift(wall, 2.2, MID / 4)).toBeCloseTo(2 * (1 - SHADOW_C));
   });
 
+  it('keeps more of the bright with a higher share (the night), and the dark as it was', () => {
+    const mid = Math.log2(MID / 2.2);
+    expect(lift(mid + 3, 2.2, MID, 0.8)).toBeCloseTo(-3 * 0.2);
+    expect(lift(mid + 3, 2.2, MID, 0.8)).toBeGreaterThan(lift(mid + 3, 2.2));
+    expect(lift(mid - 3, 2.2, MID, 0.8)).toBeCloseTo(lift(mid - 3, 2.2));
+  });
+
   it('sizes its grid to the picture, a bin a stop in each cell', () => {
     const eye = new LocalEye(1920, 1080);
     const grid = (eye as unknown as { grid: { width: number; height: number } }).grid;

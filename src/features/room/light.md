@@ -34,7 +34,7 @@ The light is realistic. No studio map and no work light make the machine read. I
 Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 
 - 14:00: the sky in the glass is 70 times the wall (L .33 against .0047). The band at the foot of the glass is .36, the wall beside it .0055. The door, the east wall and the bookcase almost vanish. Fixed in T180: see "The eye".
-- 23:00: the room is black (0 to 1 in sRGB) between the lamps' pools. Fixed in T180. The city keeps 65% of its day level, so it outshines the room (T181).
+- 23:00: the room is black (0 to 1 in sRGB) between the lamps' pools. Fixed in T180. The city keeps 65% of its day level, so it outshines the room. Fixed in T181: the night out there is in the room's units.
 - `fill` (a directional light from the viewer's side) and `hemi` light faces from nowhere. The style guide forbids that. Removed in T180.
 - The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass.
 - The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint.
@@ -43,21 +43,23 @@ Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 
 ### Targets
 
-All measured with `tools/lum.mjs` on `--view room` at 1920x1080, ACES (the rows before 2026-11-06 at one fixed exposure, `BASE_EXPOSURE` 1.1; see "The eye"). Today: after T180 (the bake, the local eye). The rects: the sky 700,60,250,150; the wall beside the glass (the column) 1100,100,160,180; the bookcase 20,100,130,400; the east wall 1700,300,200,180; the city 250,250,350,150; the door's leaf 860,300,200,500 and the sconce's scallop 1070,120,90,200 at `--look -38000,4000,50000,1.1,0.08,46000`:
+All measured with `tools/lum.mjs` on `--view room` at 1920x1080, ACES (the rows before 2026-11-06 at one fixed exposure, `BASE_EXPOSURE` 1.1; see "The eye"). Measured after T181 (the bake, the local eye, the night city). The rects: the sky 700,60,250,150; the wall beside the glass (the column) 1100,100,160,180; the bookcase 20,100,130,400; the east wall 1700,300,200,180; the city 250,250,350,150; the room's mean, the room's parts of the frame (0,0,180,800, 1700,0,220,800 and 0,800,1920,280, by area); the door's leaf 860,300,200,500 and the sconce's scallop 1070,120,90,200 at `--look -38000,4000,50000,1.1,0.08,46000`; the board's middle 900,480,120,120 at `--view board`. A target holds at the hours in its first column; a dash: it does not apply (the sconce is off by day, the city is sunlit); a value in brackets: measured, not a target at that hour. 07:00 and 19:00 have the same daylight (.65), so the room reads alike at both.
 
-| Hour | Measure | Target | Today |
-|---|---|---|---|
-| 14:00 | sky in the glass / the wall beside the glass | 8 or less | 6.8 (.27 / .040) |
-| 14:00 | the wall beside the glass | .04 or more | .040 |
-| 14:00 | the door, the east wall, the bookcase's face | .012 or more | .023, .034, .050 |
-| 23:00 | a wall in a lamp's pool | .05 to .15 | .030 (the sconce's scallop) |
-| 23:00 | the darkest wall between pools | .006 or more (no black) | .0067 (the column, the east wall) |
-| 23:00 | the door's charcoal leaf | .003 or more | .0078 |
-| 23:00 | the city in the glass / the room's mean | 0.5 or less | about 1.2 (.036 / .031, the frame's mean) (T181) |
-| 23:00 | the city / the city at 14:00 | .25 or less | .18 |
-| 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | .042 at the board view (the local eye is off there) |
+| Hours | Measure | Target | 07:00 | 14:00 | 19:00 | 23:00 |
+|---|---|---|---|---|---|---|
+| all | sky in the glass / the wall beside the glass | 8 or less | 6.1 | 6.8 (.27 / .040) | 5.7 | 5.7 |
+| 14:00 | the wall beside the glass | .04 or more | (.021) | .040 | (.021) | (.0064) |
+| day | the door, the east wall, the bookcase's face | .012 or more | .015, .018, .052 | .023, .034, .050 | .015, .018, .052 | — |
+| 23:00 | a wall in a lamp's pool (the sconce's scallop) | .05 to .15 | — | — | — (on by 20:00: .051) | .053 |
+| all | the darkest wall (the column, the east wall) | .006 or more (no black) | .021, .018 | .040, .034 | .021, .018 | .0064, .0067 |
+| all | the door's charcoal leaf | .003 or more | .015 | .023 | .015 | .0078 |
+| 23:00 | the city in the glass / the room's mean | 0.5 or less | — | — | — | .47 (.033 / .069) |
+| 23:00 | the city / the city at 14:00 | .25 or less | — | — | — | .16 (.033 / .20) |
+| 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | — | .038 | — | .045 (the local eye is off there) |
 
-The lights and the bake meet the targets. The light never changes with the camera; only the eye does.
+The lights and the bake meet the targets. The light never changes with the camera; only the eye does. The city at dusk (T155): its lights come on from 17:00, building by building; at 18:36 it reads L .082, at 20:00 .050.
+
+Done (T181): the night out there was far brighter than a real one in the room's units (a scene unit is about 700 cd/m2, `nits` in `room3d.ts`). Its sky, its haze's glow, its mist and the moon were about 100 times a real city's night; a lit window about 670 cd/m2. Both came down (`outside/view.ts`, `outside/towers.ts`): the sky's glow and the mist to a tenth, a lit window to about 150 cd/m2 and a shop's to 300. The local eye lifted most of that back, so it also keeps more of the bright at night (`NIGHT_HIGH`, see "The eye"): the lamps' pools stand out, and the room's mean rose past the city's.
 
 ### The eye
 
@@ -66,7 +68,7 @@ The owner (2026-11-06): "the room needs to feel less dark", and the board must r
 - **The room's views**: a set exposure. `BASE_EXPOSURE` is 2.2 (it was 1.1), and by night it rises by `NIGHT_EYE` (1.4): the room has only its lamps.
 - **From the board view in**: metered (`Post.meter`). A 16 x 9 grid of the scene's log luminance before the exposure, weighted to the middle, read back every fourth frame. The exposure shows the mean at `EYE_KEY`, within `EYE_RANGE` of the base, and eases there over about half a second. The two blend in log over the zoom (`roomness`).
 - Measured (the meter's mean, then the eye's factor): the open case at 23:00 (`--look ...,8000`) .0016, 11.3; at 14:00 .0077, 2.4; the CPU die at 23:00 .018, 1.0 (the art as it was tuned); the board view at 23:00 .0020, 9.0. The board's middle (rect 900,480,120,120) then reads L .063 at 23:00 and .043 at 14:00; the die .055.
-- **The local eye** (T180, `localeye.ts`, a pass of `post.ts` before the tone mapping). The bake gave the room its real light, and the room still read black: its paint is near black (walls .05, furniture .01 to .03), so its bounce is about a thousandth of the sky. A brighter wall at 14:00 by light alone needed about 160 times more. The owner (2026-11-06) kept the dark palette and the real light, and chose an eye that adapts locally, as a person's eye does in a dark room by a bright window, or a phone's HDR photo: the dark parts are lifted and the bright ones held back, each part's own detail kept. A bilateral grid (cells of 32 pixels, a bin a stop) gives each pixel its base, the broad light round it among the pixels of about its brightness, so no halo forms at an edge. The base's distance from the key keeps `SHADOW_C` (.18) of it below and `HIGH_C` (.4) above, at most 9 stops up and 3 down. The key is middle grey by day (`MID`) and `NIGHT_KEY` (.03) at night (`board3d.ts`): at night the room stays low-key, pools of lamp light with the dark between them. The local eye fades out toward the board view with `roomness`, as the grade does: from the board view in, the metered eye alone adapts and the board keeps its tuned look.
+- **The local eye** (T180, `localeye.ts`, a pass of `post.ts` before the tone mapping). The bake gave the room its real light, and the room still read black: its paint is near black (walls .05, furniture .01 to .03), so its bounce is about a thousandth of the sky. A brighter wall at 14:00 by light alone needed about 160 times more. The owner (2026-11-06) kept the dark palette and the real light, and chose an eye that adapts locally, as a person's eye does in a dark room by a bright window, or a phone's HDR photo: the dark parts are lifted and the bright ones held back, each part's own detail kept. A bilateral grid (cells of 32 pixels, a bin a stop) gives each pixel its base, the broad light round it among the pixels of about its brightness, so no halo forms at an edge. The base's distance from the key keeps `SHADOW_C` (.18) of it below and `HIGH_C` (.4) above, at most 9 stops up and 3 down. The key is middle grey by day (`MID`) and `NIGHT_KEY` (.03) at night (`board3d.ts`): at night the room stays low-key, pools of lamp light with the dark between them. Above the key the eye keeps `HIGH_C` (.4) by day, so the bright glass is held back, and `NIGHT_HIGH` (.8) at night (T181, `LocalEye.high`), so the pools stand out of the dark: with .4 the sconce's scallop read L .030 and the city outshone the room. The local eye fades out toward the board view with `roomness`, as the grade does: from the board view in, the metered eye alone adapts and the board keeps its tuned look.
 
 ### Units and one white balance
 
