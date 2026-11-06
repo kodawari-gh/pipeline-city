@@ -43,7 +43,7 @@ Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 
 ### Targets
 
-All measured with `tools/lum.mjs` on `--view room` at 1920x1080, one fixed exposure (`BASE_EXPOSURE`, ACES):
+All measured with `tools/lum.mjs` on `--view room` at 1920x1080, ACES (the rows before 2026-11-06 at one fixed exposure, `BASE_EXPOSURE` 1.1; see "The eye"):
 
 | Hour | Measure | Target | Today |
 |---|---|---|---|
@@ -56,13 +56,21 @@ All measured with `tools/lum.mjs` on `--view room` at 1920x1080, one fixed expos
 | 23:00 | the city / the city at 14:00 | .25 or less | .65 |
 | 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | .048, 6:1 (T149) |
 
-One exposure at every hour. The lights and the bake meet the targets, not the camera. A curve of exposure by the hour (one stop at most, from a table, never metered live) is the last resort, only if the targets fail after all the tasks below.
+The lights and the bake meet the targets. The light never changes with the camera; only the eye does.
+
+### The eye
+
+The owner (2026-11-06): "the room needs to feel less dark", and the board must read zoomed into the open case, by a cozy overhead light that is "not super bright". They chose an eye that adapts. So the exposure moves, as a camera's does; the lamps do not (`board3d.ts`, `Post.setEye`):
+
+- **The room's views**: a set exposure. `BASE_EXPOSURE` is 2.2 (it was 1.1), and by night it rises by `NIGHT_EYE` (1.4): the room has only its lamps.
+- **From the board view in**: metered (`Post.meter`). A 16 x 9 grid of the scene's log luminance before the exposure, weighted to the middle, read back every fourth frame. The exposure shows the mean at `EYE_KEY`, within `EYE_RANGE` of the base, and eases there over about half a second. The two blend in log over the zoom (`roomness`).
+- Measured (the meter's mean, then the eye's factor): the open case at 23:00 (`--look ...,8000`) .0016, 11.3; at 14:00 .0077, 2.4; the CPU die at 23:00 .018, 1.0 (the art as it was tuned); the board view at 23:00 .0020, 9.0. The board's middle (rect 900,480,120,120) then reads L .063 at 23:00 and .043 at 14:00; the die .055.
 
 ### Units and one white balance
 
 Built in T172:
 
-- **Real falloff.** Every lamp has decay 2 (inverse square) in metres (`M`, 18,700 units a metre, `outside/plan.ts`). Its level comes from its lumens over its cone (`lumens(lm, cone)` in `room3d.ts`), and one lux on a face is `LUX_K` of the scene's light: the camera's exposure for the room. The desk lamp is 500 lm, the bedside lantern 800 lm (a 60 W-equivalent bulb). The screen is an area light on its face at 120 nits (`nits(cd)`), so it lights only what is in front of it. A lamp is as bright by day as at night: the camera does not adapt. An offline bake uses inverse square, so the live lamps now match it. Two lights keep their own falloff: the sun (it is at infinity) and the sky's light `key` (it stands for the whole window, a wide source, until the bake). The area lights (the LED strips) have no decay: their light falls with the solid angle they fill, so it has no units.
+- **Real falloff.** Every lamp has decay 2 (inverse square) in metres (`M`, 18,700 units a metre, `outside/plan.ts`). Its level comes from its lumens over its cone (`lumens(lm, cone)` in `room3d.ts`), and one lux on a face is `LUX_K` of the scene's light: the camera's exposure for the room. The desk lamp is 500 lm, the bedside lantern 800 lm (a 60 W-equivalent bulb). The screen is an area light on its face at 120 nits (`nits(cd)`), so it lights only what is in front of it. A lamp is as bright by day as at night: only the eye adapts (see "The eye"). An offline bake uses inverse square, so the live lamps now match it. Two lights keep their own falloff: the sun (it is at infinity) and the sky's light `key` (it stands for the whole window, a wide source, until the bake). The area lights (the LED strips) have no decay: their light falls with the solid angle they fill, so it has no units.
 - **One white point**, 4500 K (`WHITE_K`), for every lamp. `kelvin(k)` in `palette.ts` gives a black body's colour against it: 2700 K is a clear amber (the lantern, `LANTERN`), 3000 K a soft warm white (the desk lamp), the noon sky (about 6500 K) a pale blue. Every new lamp takes its colour from `kelvin`. The sky's light (`key`) keeps the sky's colour, paler: that is about the colour a 9000 K sky shows against 4500 K.
 - **One glass.** The glass has one neutral tint at every hour (`GLASS_T`, 0.47, in `outside/view.ts`). The view, the key and the sun take it at every hour; `TINT`, `setTint(day)` and `TINT_CUT` are gone. The night city is now as dim through it as the day's, and the room's mirror in the glass (`mirror.ts`, T159) shows more as the outside gets darker than the room.
 
@@ -74,7 +82,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 |---|---|---|---|---|---|
 | Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle. It keeps its aim on the keyboard: aimed to graze the case (T177), the monitor shades the case and the desk's pool halves |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
-| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome 1 m in front of the case (`arcLamp`) | spot, 3200 lm (T149; 1600 in T177), half-angle 0.42, down and back onto the board's middle at about 30 degrees (steeper, the case's top shades the board's upper half) | 3000 | yes: the case's frame, the board's parts | built in T177; on at every hour since T149 (the glass looks north and the case faces away from it: by day the board had only the bounce, L .004); its mouth shows in the glass at night |
+| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome hung level over the desk's front edge, east of the case's middle and west of its hinge (`arcLamp`) | the desk's overhead cozy light: a wide spot straight down (half-angle 1.25, a soft edge), 1600 lm (a 100 W-equivalent behind the paper) | 2700 | yes: the case's frame, the board's parts | built in T177; on at every hour since T149 (the glass looks north and the case faces away from it: by day the board had only the bounce, L .004). Level since 2026-11-06 (the owner: "just keep it as an overhead cozy light, not super bright"); 75 cm over the desk and 80 cm out from the case's glass, so the case's top shades only the board's top edge and the glass does not mirror it in the views |
 | Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
 | Bookcase shelf lights | under each board's front edge, tilted back to the books (`shelfStrips`) | strips (area), 450 lm/m | 2700 | no | built in T174: on at dusk; the books' face L .021 at 23:00 |
 | Picture light | a black bar on an arm over the print (`pictureLight`) | strip (area), 220 lm, down and back onto the print | 3000 | no | built in T175: the print L .031 at 23:00 |
@@ -98,13 +106,13 @@ Accents outside the palette (the case's purple next to the room's cyan) are the 
 
 The owner (T154, 2026-11-06): "We need an option that works for the basic non RGB cases too. All the required for legibility lights need to come from outside." So the case gets no light of its own for the board to read by. The case's RGB is decoration only: a basic case without it reads just as well.
 
-- **The arc floor lamp** is the board's main light, by day and at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open). The case's top shades the board's top edge.
+- **The arc floor lamp** is the board's main light, by day and at night: the wide edge of its overhead pool, warm, from above and in front, through the glass side (or straight onto the board when the side is open). It is far out from the case, so the case's top shades only the board's top edge. Its light on the board is about a twentieth of the old aimed spot's: the eye adapts to it from the board view in (see "The eye").
 - **The desk lamp** does not reach the board: the monitor stands between them.
 - **The room's bounce**: the machine takes the room's probe, so the lit walls and the rug light the parts softly through the glass.
 - **The screen's light** adds a little cool light from the west.
 - **The case's glass** adds only its reflections (`glassMat` in `case3d.ts`). Its pale colour once caught the arc lamp as a milky veil over the board, and the board darkened by 3 as the side opened.
-- T149 removed the studio blend (`EnvMix`, `ENV_BAND`), the work light `fill` and the art's studio light (`ART_LIGHT`): the machine and the dies' art take the room's probe at every zoom (`board3d.ts`). The light does not change with the camera's height.
-- Measured after T149 at `--look 2000,-1000,4000,-0.15,0.1,12000`, rect 700,250,520,600: 23:00 L .048 with the case's RGB off, .056 with it on; a silkscreen label 6:1 against the board. The board's middle (rect 900,480,120,120) on a zoom from 30000 to 8000: .016 to .029 at 23:00, .020 to .036 at 14:00 (it steps up a little as the side opens).
+- T149 removed the studio blend (`EnvMix`, `ENV_BAND`), the work light `fill` and the art's studio light (`ART_LIGHT`): the machine and the dies' art take the room's probe at every zoom (`board3d.ts`). The light does not change with the camera's height; the eye does.
+- Measured after the level lamp and the eye: see "The eye". Measured after T149 (the aimed spot, one exposure) at `--look 2000,-1000,4000,-0.15,0.1,12000`, rect 700,250,520,600: 23:00 L .048 with the case's RGB off, .056 with it on; a silkscreen label 6:1 against the board. The board's middle (rect 900,480,120,120) on a zoom from 30000 to 8000: .016 to .029 at 23:00, .020 to .036 at 14:00 (it steps up a little as the side opens).
 
 ### Offline bakes
 

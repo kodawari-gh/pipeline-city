@@ -591,16 +591,16 @@ export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLig
 
 /**
  * The arc floor lamp east of the desk (`ARC_LAMP`): a round slab of dark stone on the rug, a black steel stem straight up from it that arcs over
- * and down onto a knuckle over a washi dome on bamboo ribs (the lanterns' paper), its mouth in front of the desk, turned down and back to `aim`
- * (world: the board behind the case's glass). A warm diffuser in its mouth, the paper glowing with it; the spot it stands for (3000 K) casts
- * the case's frame and the board's parts.
+ * and down onto a knuckle over a washi dome on bamboo ribs (the lanterns' paper), hung level over the desk east of the case, its mouth down.
+ * A warm diffuser in its mouth, the paper glowing with it; the wide spot it stands for (2700 K) is an overhead cozy light: a soft pool on the
+ * desk, the case's top and its open side.
  */
-export function arcLamp(aim: V3): { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; light: SpotLight } {
+export function arcLamp(): { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; light: SpotLight } {
   const g = new Group(), { x, z, head } = ARC_LAMP, on = onRug(x, z), fl = FLOOR_Y - (on ? RUG.h : 0), R = 2600, H = 1900;
   const black = mat(0x1a1b1e, { metalness: 0.5, roughness: 0.4 }), stone = mat(0x26272a, { roughness: 0.3 });
   g.add(post(x, fl, z, 2600, 800, stone, 48), post(x, fl - 800, z, 360, 600, black, 20), floorShadow(x, z, 7000, 7000, 0.4, on ? RUG.h + 140 : 140));
-  // the dome: its mouth, its axis to the aim, its crown behind; the arc comes down onto a knuckle over the crown
-  const mouth = new Vector3(aim[0], -head.y, head.z), axis = new Vector3(...aim).sub(mouth).normalize();
+  // the dome: its mouth, its axis straight down, its crown over it; the arc comes down onto a knuckle over the crown
+  const mouth = new Vector3(head.x, -head.y, head.z), axis = new Vector3(0, -1, 0);
   const crown = mouth.clone().addScaledVector(axis, -H), knuckle = crown.clone().add(new Vector3(0, 900, 0));
   // (a cubic curve: straight up out of the base, straight down onto the knuckle, its top about 2.1 m over the floor)
   const b0 = new Vector3(x, -fl + 1400, z), b1 = new Vector3(x, 28000, z), b2 = new Vector3(knuckle.x, 28000, knuckle.z), arc: V3[] = [];
@@ -620,18 +620,18 @@ export function arcLamp(aim: V3): { root: Group; shade: MeshStandardMaterial; gl
   const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
   const rim = new Mesh(new TorusGeometry(R, 30, 6, 48), black);
   rim.rotation.x = Math.PI / 2;
-  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(3000)), emissiveIntensity: 0 });
+  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(2700)), emissiveIntensity: 0 });
   const disc = new Mesh(new CircleGeometry(R * 0.8, 40), glow);
   disc.rotation.x = Math.PI / 2;
   disc.position.y = 500;
   // (the paper lets the light through: it casts no shadow)
   dome.add(new Mesh(new LatheGeometry(prof, 48), shade), place(rim), seeThrough(disc));
   dome.position.copy(mouth);
-  dome.quaternion.setFromUnitVectors(new Vector3(0, -1, 0), axis);
   g.add(dome);
-  const light = new SpotLight(kelvin(3000), 0, 0, 0.42, 0.4, 2);
+  // (the bulb sits just inside the mouth: the paper lets it light nearly a half sphere, fading out to its edge)
+  const light = new SpotLight(kelvin(2700), 0, 0, 1.25, 0.3, 2);
   light.position.copy(mouth).addScaledVector(axis, -300);
-  light.target.position.set(...aim);
+  light.target.position.copy(mouth).addScaledVector(axis, 20000);
   g.add(light, light.target);
   return { root: g, shade, glow, light };
 }

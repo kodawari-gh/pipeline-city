@@ -1,7 +1,7 @@
 // The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
 // the picked part, LOWPOLY_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), then tone mapping. The outline runs only while something is picked.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
-import { DepthTexture, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
+import { DepthTexture, FloatType, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
@@ -119,6 +119,26 @@ const GRADE = {
     }`,
 };
 
+/** The light meter's grid (`Post.meter`): each cell the mean log luminance of its block of the scene, from 8 x 8 taps. */
+const METER_W = 16, METER_H = 9;
+const METER = {
+  name: 'Meter',
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: GRADE.vertexShader,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec2 cell = vec2(${(1 / METER_W).toFixed(6)}, ${(1 / METER_H).toFixed(6)}), o = vUv - 0.5 * cell;
+      float s = 0.0;
+      for (int j = 0; j < 8; j++) for (int i = 0; i < 8; i++) {
+        vec3 c = texture2D(tDiffuse, o + (vec2(float(i), float(j)) + 0.5) / 8.0 * cell).rgb;
+        s += log(max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-5));
+      }
+      gl_FragColor = vec4(s / 64.0, 0.0, 0.0, 1.0);
+    }`,
+};
+
 /** The ambient occlusion's samples at each level (0: the pass is off; 16 is the pass's own default). */
 const AO_LEVELS = [0, 8, 16, 32];
 /** The bloom's strength at each level (0: the pass is off). */
@@ -132,6 +152,12 @@ export class Post {
   private bloom: UnrealBloomPass;
   private grade = new ShaderPass(GRADE);
   private reach = 900;
+  private brightness = 1;
+  private eye = 1;
+  private meterTarget = new WebGLRenderTarget(METER_W, METER_H, { type: FloatType, depthBuffer: false });
+  private meterQuad = new FullScreenQuad(new ShaderMaterial({ ...METER, uniforms: UniformsUtils.clone(METER.uniforms) }));
+  private meterCells = new Float32Array(METER_W * METER_H * 4);
+  private meterFrame = 0;
 
   constructor(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, w: number, h: number) {
     this.composer = new EffectComposer(renderer, new WebGLRenderTarget(w, h, { type: HalfFloatType, depthBuffer: false }));
@@ -166,7 +192,8 @@ export class Post {
     const t = this.scene.target;
     if (t.samples !== g.msaa) { t.samples = g.msaa; t.dispose(); }
     const ratio = pixelRatio(g.scale);
-    renderer.toneMappingExposure = BASE_EXPOSURE * g.brightness;
+    this.brightness = g.brightness;
+    renderer.toneMappingExposure = BASE_EXPOSURE * g.brightness * this.eye;
     if (ratio === renderer.getPixelRatio()) return;
     renderer.setPixelRatio(ratio);
     this.composer.setPixelRatio(ratio);
@@ -190,6 +217,33 @@ export class Post {
     this.ao.updateGtaoMaterial({ radius: r, thickness: 600 + k * 1200, distanceExponent: 1.4 - k * 0.4 });
     this.ao.gtaoMaterial.uniforms.distanceFallOff!.value = 1 - k * 0.6;
     this.ao.updatePdMaterial({ radius: 4 + k * 16 });
+  }
+
+  /** The eye's adaptation (`board3d.ts`): the exposure's factor over the base and the player's brightness. */
+  setEye(k: number): void {
+    this.eye = k;
+    this.composer.renderer.toneMappingExposure = BASE_EXPOSURE * this.brightness * k;
+  }
+
+  /**
+   * The last frame's mean luminance, before the exposure: log-averaged over the picture, weighted to its middle, as a camera's meter. It reads
+   * every fourth frame (null between, and always where a float target cannot be read back).
+   */
+  meter(): number | null {
+    const r = this.composer.renderer;
+    if (++this.meterFrame % 4 || !r.extensions.has('EXT_color_buffer_float')) return null;
+    const was = r.getRenderTarget();
+    (this.meterQuad.material as ShaderMaterial).uniforms.tDiffuse!.value = this.scene.target.texture;
+    r.setRenderTarget(this.meterTarget);
+    this.meterQuad.render(r);
+    r.setRenderTarget(was);
+    r.readRenderTargetPixels(this.meterTarget, 0, 0, METER_W, METER_H, this.meterCells);
+    let s = 0, w = 0;
+    for (let j = 0; j < METER_H; j++) for (let i = 0; i < METER_W; i++) {
+      const dx = (i + 0.5) / METER_W - 0.5, dy = (j + 0.5) / METER_H - 0.5, k = Math.exp(-(dx * dx + dy * dy) / 0.08);
+      s += k * this.meterCells[4 * (i + METER_W * j)]!; w += k;
+    }
+    return Math.exp(s / w);
   }
 
   setOutlined(objects: Object3D[]): void {

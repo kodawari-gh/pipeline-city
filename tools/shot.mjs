@@ -69,8 +69,12 @@ try {
   if (flag('look', '')) await p.evaluate((v) => window.__board.lookAt(...v), flag('look', '').split(',').map(Number));
   // --click "text" (repeatable by "a|b"): click these in order after the view is set, e.g. the menu and then its OS entry
   for (const t of flag('click', '').split('|').filter(Boolean)) { await p.click(t.startsWith('[') || t.includes('=') ? t : `text=${t}`); await p.waitForTimeout(400); }
-  // --eval "js": run this in the page (dev server only: `await import('/src/app/store.ts')` is the live store, e.g. `.powerButton()` to switch the machine on)
-  if (flag('eval', '')) await p.evaluate((code) => (0, eval)(`(async () => { ${code} })()`), flag('eval', ''));
+  // --eval "js": run this in the page (dev server only: `await import('/src/app/store.ts')` is the live store, e.g. `.powerButton()` to switch the machine on);
+  // what it returns is printed
+  if (flag('eval', '')) {
+    const out = await p.evaluate((code) => (0, eval)(`(async () => { ${code} })()`), flag('eval', ''));
+    if (out !== undefined) console.log('eval:', JSON.stringify(out));
+  }
   // --keys "a" (comma list): press these keys after the clicks, e.g. `a` for the airflow lens
   for (const k of flag('keys', '').split(',').filter(Boolean)) { await p.keyboard.press(k); await p.waitForTimeout(300); }
   // --hover "x,y": rest the pointer here (screen pixels), e.g. to see a part's outline

@@ -13,15 +13,15 @@ import { highlight } from '@/app/interaction';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
-import { createRenderContext } from '@/core/render/three/init';
+import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView, type Room } from '@/core/render/three/camera';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
-import { Post } from '@/core/render/three/post';
+import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
 import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
-import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
+import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
@@ -49,6 +49,13 @@ const TEXTURE_LEVELS = [0.5, 0.75, 1, 1.5];
 const PARTICLE_LEVELS = [0, 0.5, 1];
 /** The room's probe is captured again at most this often (ms) while its light changes (the sun moves a step every few seconds). */
 const PROBE_MS = 1500;
+/**
+ * The eye adapts, as a camera's exposure does (`src/features/room/light.md`); the light itself does not change. In the room's views the
+ * exposure is set: by night `NIGHT_EYE` times the day's (the room has only its lamps). From the board view in it is metered (`Post.meter`):
+ * the exposure that shows the scene's mean luminance at `EYE_KEY`, within `EYE_RANGE` of the base. The case's dark inside, lit by the room's
+ * lamps alone, then reads, and a die's bright art does not burn out.
+ */
+const NIGHT_EYE = 1.4, EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -68,6 +75,8 @@ export function mountBoard3d(host: HTMLElement) {
   const probe = new Probe(200, 400000), pmrem = new PMREMGenerator(renderer);
   let roomEnv: WebGLCubeRenderTarget | null = null;
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
+  // the metered eye: the meter's last reading, the exposure's factor it asks for, and where the eye stands on its way to it
+  let reading = 0, metered = 1, seen = 1;
 
   // the dies alive: the 2D die views, kept across rebuilds (chips3d.ts)
   const chips = new Chips3D();
@@ -319,8 +328,14 @@ export function mountBoard3d(host: HTMLElement) {
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
     post.setReach(view.height);
+    // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
+    const near = 1 - roomness(view.height);
+    post.setEye((NIGHT_EYE ** (1 - daylight(hour))) ** (1 - near) * seen ** near);
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
+    const lum = near > 0 ? post.meter() : null;
+    if (lum !== null) { reading = lum; metered = Math.min(EYE_RANGE[1], Math.max(EYE_RANGE[0], EYE_KEY / (BASE_EXPOSURE * lum))); }
+    seen *= (metered / seen) ** (1 - Math.pow(0.01, dt));
     // the probe takes a face a frame, between the draw and the shadows' scan, so it uses no shadow redraw of the next frame's
     if (room) {
       const key = `${room.lightKey}|${!!s?.powered}`;
@@ -346,6 +361,8 @@ export function mountBoard3d(host: HTMLElement) {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),
     // the frame's parts as they stand (tools/bench3d.mjs times them)
     parts: () => ({ post, machine, room, chips, fx, lens, bakes, shadows, hand, probe }),
+    // the metered eye (the meter's reading, the exposure's factor it asks for, and where it stands now)
+    eye: () => ({ reading, metered, seen }),
     idAt: (x: number, y: number, raw = false) => idAt({ clientX: x, clientY: y }, raw),
     // the client point of an object's middle (tests drive the pointer there)
     screenOf: (id: string) => {

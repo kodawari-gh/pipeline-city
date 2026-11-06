@@ -5,8 +5,11 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement }
 
-/** The tone mapping's exposure at 100 % brightness (the graphics settings multiply it, `Post.apply`). */
-export const BASE_EXPOSURE = 1.1;
+/**
+ * The tone mapping's exposure at 100 % brightness, by day (the graphics settings multiply it, `Post.apply`, and so does the eye's adaptation,
+ * `Post.setEye`).
+ */
+export const BASE_EXPOSURE = 2.2;
 
 export function createRenderContext(host: HTMLElement, background: string): RenderContext {
   const renderer = new WebGLRenderer({ antialias: false, powerPreference: new URLSearchParams(location.search).has('lowpower') ? 'low-power' : 'high-performance' }); // the composer's target does the antialiasing
