@@ -1,7 +1,8 @@
 // The room's reflections on its materials (`room3d.ts`): the studio's environment at first, dimmed at night, then the room's probe. One register,
 // so a material that comes after the room is built (a model that loads late: the mouse, the hoodie) takes the same map, the same strength for the
-// hour and the same box projection as the rest. Before it, the mouse kept the studio's map at full strength and shone at night.
-import type { Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
+// hour and the same box projection as the rest. Before it, the mouse kept the studio's map at full strength and shone at night. A mesh with the
+// baked bounce (`lightmapmix.ts`) takes only the reflections from it: its light map is its indirect diffuse light.
+import type { Material, Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
 import { boxProjected, type BoxEnv } from '@/core/render/three/boxenv';
 
 export class RoomEnv {
@@ -31,6 +32,18 @@ export class RoomEnv {
         this.mats.add(s);
       }
     });
+  }
+
+  /**
+   * A copy of one of its materials (the baked bounce copies one for the meshes it lights, `applyLightmap`): it has the source's patches
+   * already, so it joins as it is and takes the room's map and strength with the rest.
+   */
+  twin(src: Material, copy: Material): void {
+    if (!this.mats.has(src as MeshStandardMaterial)) return;
+    const c = copy as MeshStandardMaterial;
+    c.envMap = this.map;
+    c.envMapIntensity = this.k;
+    this.mats.add(c);
   }
 
   /** The room's probe in place of the studio's map. */

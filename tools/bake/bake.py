@@ -1,7 +1,8 @@
 # The light bake's Blender side (`src/features/room/light.md`, "Offline bakes"; T179). `bake.mjs` runs it:
 #   blender -b --factory-startup -P tools/bake/bake.py -- <work dir> [group ...]
-# It reads the room that `bake.mjs` wrote (`scene.json`, `scene.bin`), bakes each light group's indirect light into one float lightmap with
-# Cycles (the receivers share one atlas), denoises it, and writes `<group>.f32` (RGB float32, rows from the bottom) back into the work dir.
+# It reads the room that `bake.mjs` wrote (`scene.json`, `scene.bin`), bakes each light group's indirect light (the window's sky and city:
+# all their light) into one float lightmap with Cycles (the receivers share one atlas), denoises it, and writes `<group>.f32` (RGB float32,
+# rows from the bottom) back into the work dir.
 # The light reaches the lightmaps in the game's units: the irradiance its shader adds (a lamp's: what its real-time light would give once it
 # bounced; the sky's and the city's: for a radiance of 1 in their half of the sky; the sun's: for an irradiance of 1). A first bake of one
 # lit plane measures what each kind of Blender light gives (`calibrate`).
@@ -390,7 +391,9 @@ def main():
             for ob in obs:
                 ob.hide_render = k != g['id']
         world(g['kind'], math.pi / cal['sky'])
-        bake(receivers, {'INDIRECT'})
+        # the window (its sky and its city) has no live light on the still meshes (the game's `key` stands in for it only on what moves): it
+        # is baked whole, direct and bounced; a lamp's and the sun's direct light is live, so only their bounce is baked
+        bake(receivers, {'DIRECT', 'INDIRECT'} if g['kind'] in ('sky', 'city') else {'INDIRECT'})
         raw = pixels(lm)
         out = denoise(dn, ins, lm) if CFG['denoise'] else raw
         out[..., :3].astype('<f4').tofile(os.path.join(WORK, f"{g['id']}.f32"))

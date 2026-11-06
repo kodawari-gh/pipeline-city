@@ -10,82 +10,82 @@
    "id": "desk",
    "kind": "lamp",
    "file": "desk.png",
-   "scale": 0.9815987944602966,
+   "scale": 0.9660610556602478,
    "lead": 223047328.25021774
   },
   {
    "id": "arc",
    "kind": "lamp",
    "file": "arc.png",
-   "scale": 0.25413861870765686,
+   "scale": 0.2526308298110962,
    "lead": 182081247.20955753
   },
   {
    "id": "floor",
    "kind": "lamp",
    "file": "floor.png",
-   "scale": 0.3145369291305542,
+   "scale": 0.39147403836250305,
    "lead": 31166739.54789073
   },
   {
    "id": "bedside",
    "kind": "lamp",
    "file": "bedside.png",
-   "scale": 3.345134735107422,
+   "scale": 3.3371546268463135,
    "lead": 31166739.54789073
   },
   {
    "id": "strips",
    "kind": "lamp",
    "file": "strips.png",
-   "scale": 1.0532047748565674,
+   "scale": 0.7504954934120178,
    "lead": 18.750043845656187
   },
   {
    "id": "picture",
    "kind": "lamp",
    "file": "picture.png",
-   "scale": 0.15730920433998108,
+   "scale": 0.15466763079166412,
    "lead": 13.105280390932647
   },
   {
    "id": "sconce",
    "kind": "lamp",
    "file": "sconce.png",
-   "scale": 0.4102207124233246,
+   "scale": 0.40543076395988464,
    "lead": 286418197.70789385
   },
   {
    "id": "led",
    "kind": "lamp",
    "file": "led.png",
-   "scale": 0.49826836585998535,
+   "scale": 0.5065216422080994,
    "lead": 6
   },
   {
    "id": "screen",
    "kind": "lamp",
    "file": "screen.png",
-   "scale": 0.0657283142209053,
+   "scale": 0.06368079036474228,
    "lead": 0.168
   },
   {
    "id": "sky",
    "kind": "sky",
    "file": "sky.png",
-   "scale": 0.25200051069259644
+   "scale": 7.354127407073975
   },
   {
    "id": "city",
    "kind": "city",
    "file": "city.png",
-   "scale": 0.3720659613609314
+   "scale": 11.073288917541504
   },
   {
    "id": "sun-20",
    "kind": "sun",
    "file": "sun-20.png",
-   "scale": 0.03203989192843437,
+   "scale": 0.03333793580532074,
    "hour": 20
   }
  ],
@@ -100,13 +100,13 @@
  ],
  "meshes": [
   {
-   "name": "mesh-4a4f59-24",
+   "name": "mesh-4a4f59-36",
    "hash": "24-ce211089",
    "corners": 36,
    "offset": 0
   },
   {
-   "name": "mesh-ffffff-map-4",
+   "name": "mesh-ffffff-map-6",
    "hash": "4-773f1fc8",
    "corners": 6,
    "offset": 36
@@ -202,25 +202,25 @@
    "offset": 12642
   },
   {
-   "name": "duvet-ffffff-map-17342",
+   "name": "duvet-ffffff-map-99744",
    "hash": "17342-f34eaaee",
    "corners": 99744,
    "offset": 15558
   },
   {
-   "name": "runner-ffffff-map-3876",
+   "name": "runner-ffffff-map-20700",
    "hash": "3876-65ff6383",
    "corners": 20700,
    "offset": 115302
   },
   {
-   "name": "mesh-0b0b0c-24",
+   "name": "mesh-0b0b0c-36",
    "hash": "24-332b3c09",
    "corners": 36,
    "offset": 136002
   },
   {
-   "name": "mesh-e9e1cf-24",
+   "name": "mesh-e9e1cf-36",
    "hash": "24-de7e34b9",
    "corners": 36,
    "offset": 136038
@@ -250,7 +250,7 @@
    "offset": 138774
   },
   {
-   "name": "mesh-0e0f11-24",
+   "name": "mesh-0e0f11-36",
    "hash": "24-0c5d82b9",
    "corners": 36,
    "offset": 139674
@@ -268,13 +268,13 @@
    "offset": 140610
   },
   {
-   "name": "mesh-0e0f11-388",
+   "name": "mesh-0e0f11-768",
    "hash": "388-6f9335c5",
    "corners": 768,
    "offset": 141510
   },
   {
-   "name": "mesh-2a2d33-388",
+   "name": "mesh-2a2d33-768",
    "hash": "388-7d524d75",
    "corners": 768,
    "offset": 142278
@@ -298,7 +298,7 @@
    "offset": 144846
   },
   {
-   "name": "mesh-2a2b2e-196",
+   "name": "mesh-2a2b2e-384",
    "hash": "196-29a839b5",
    "corners": 384,
    "offset": 145746
@@ -310,7 +310,7 @@
    "offset": 146130
   },
   {
-   "name": "mesh-ffffff-map-4-1",
+   "name": "mesh-ffffff-map-6-1",
    "hash": "4-f26d5e40",
    "corners": 6,
    "offset": 147030
@@ -322,13 +322,13 @@
    "offset": 147036
   },
   {
-   "name": "mesh-ffffff-map-4-2",
+   "name": "mesh-ffffff-map-6-2",
    "hash": "4-d4bd8020",
    "corners": 6,
    "offset": 147936
   },
   {
-   "name": "mesh-26272a-292",
+   "name": "mesh-26272a-576",
    "hash": "292-4f83f155",
    "corners": 576,
    "offset": 147942
@@ -346,25 +346,25 @@
    "offset": 149418
   },
   {
-   "name": "mesh-f0e9d8-24",
+   "name": "mesh-f0e9d8-36",
    "hash": "24-573c95d9",
    "corners": 36,
    "offset": 150318
   },
   {
-   "name": "mesh-ffffff-map-462",
+   "name": "mesh-ffffff-map-2160",
    "hash": "462-6041e23a",
    "corners": 2160,
    "offset": 150354
   },
   {
-   "name": "mesh-ffffff-map-462-1",
+   "name": "mesh-ffffff-map-2160-1",
    "hash": "462-838a35db",
    "corners": 2160,
    "offset": 152514
   },
   {
-   "name": "mesh-ffffff-map-5757",
+   "name": "mesh-ffffff-map-33600",
    "hash": "5757-52867564",
    "corners": 33600,
    "offset": 154674
@@ -443,7 +443,7 @@
   },
   {
    "name": "merged-3a3c40-72",
-   "hash": "72-8f2bcdd5",
+   "hash": "72-40243ee5",
    "corners": 72,
    "offset": 242166
   },

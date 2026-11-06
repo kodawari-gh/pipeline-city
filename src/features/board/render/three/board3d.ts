@@ -18,6 +18,7 @@ import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zo
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
 import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
+import { MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
 import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
@@ -56,6 +57,12 @@ const PROBE_MS = 1500;
  * lamps alone, then reads, and a die's bright art does not burn out.
  */
 const NIGHT_EYE = 1.4, EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
+/**
+ * The local eye's key in the room's views (`LocalEye.key`; it fades out toward the board view, `Post.setReach`): the light it adapts each part
+ * of the picture toward. By day middle grey (`MID`): the walls by the bright glass read. At night lower: the room stays low-key, its pools of
+ * lamp light and the dark between them.
+ */
+const NIGHT_KEY = 0.03;
 
 export function mountBoard3d(host: HTMLElement) {
   let T = readTheme();
@@ -330,7 +337,8 @@ export function mountBoard3d(host: HTMLElement) {
     post.setReach(view.height);
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
     const near = 1 - roomness(view.height);
-    post.setEye((NIGHT_EYE ** (1 - daylight(hour))) ** (1 - near) * seen ** near);
+    const day = daylight(hour);
+    post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day));
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
     const lum = near > 0 ? post.meter() : null;

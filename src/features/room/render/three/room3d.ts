@@ -7,10 +7,14 @@
 // the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The lamps are real lamps (lumens, kelvin) and the
 // evening turns them on in steps: the floor lantern and the shelves' strips at dusk, the bed's cyan strips, then the bedside lantern, the
 // picture light and the door's sconce; the arc lamp stays on at every hour (the desk's overhead light, through the case's glass: the board
-// reads by the room's light, a case needs none of its own); the desk lamp is the player's, the monitor's bias light is on with its screen. The sim knows nothing of it.
+// reads by the room's light, a case needs none of its own); the desk lamp is the player's, the monitor's bias light is on with its screen. The
+// lamps and the sun light directly, with their shadows; their bounce on the still meshes is baked (`npm run bake`, `LightmapMix`). The window
+// (its sky, by day the sunlit city below it, at night the city's glow) is a wide light: the bake holds all of it on the still meshes, and the
+// `key` stands in for it on what moves. The room's probe is the bounce on all that moves. No light fills from nowhere; the eye adapts to the
+// dark (`localeye.ts`). The sim knows nothing of it.
 import {
-  BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
-  RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+  BoxGeometry, Color, DoubleSide, Group, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
+  RectAreaLight, SpotLight, type Light, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
 } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import type { KeySnap } from '@/worker/game/types';
@@ -18,6 +22,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
+import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
@@ -51,8 +56,11 @@ const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
 ];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
 const SHADOW_SOFT = [14, 5, 6, 5, 5, 4];
-/** The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. */
-const KEY_DECAY = 0.8;
+/**
+ * The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. It marks the key as
+ * the window's stand-in: a mesh with the baked light skips it (`STAND_IN_DECAY`).
+ */
+const KEY_DECAY = STAND_IN_DECAY;
 /** The sky light's level is as set at this distance from its source (about the desk's middle). */
 const KEY_REF = 24000;
 /**
@@ -68,8 +76,15 @@ const FRAME_Z = -1000, GLASS_Z = -1500;
 const SUN_D = 90000;
 /** The plaster texture's size on the walls (units; about 43 cm). */
 const PLASTER_TILE = 8000;
-/** The sky's fill colour at noon (the night's is a deep blue). */
-const NOON_SKY = new Color(0xe4ecff);
+/** The sun's key frames for the bake (hours, `tools/bake/`): the baked bounce blends the two round the hour (the owner, 2026-11-06). */
+export const SUN_HOURS = [6, 8, 10, 12, 14, 16, 18, 20];
+/**
+ * The bake's sky and city (a radiance of 1 over their half of the window) against the window's light (`key`): its level at the desk stands
+ * for a window's worth of sky, so the radiance is about that level times this.
+ */
+const SKY_K = 1;
+/** By day the city below the horizon is sunlit (its walls, roofs and streets): its light against the sky's, about what a city's ground throws back. */
+const CITY_DAY = 0.3;
 /**
  * The lamps are real lamps: their light falls off as the square of the distance in metres (decay 2, `M` units a metre), a lamp's level is its
  * lumens over the cone it lights, and a lux on a face is `LUX_K` of the scene's light (the camera's exposure for the room: a task lamp's
@@ -96,6 +111,11 @@ const ARC_LM = 1600;
 const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** The room's light bake (`public/bake/room/`), loaded once a page: null when there is none or it cannot be read. */
+let bakeLoad: Promise<Bake | null> | null = null;
+const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
+  : loadBake(`${import.meta.env.BASE_URL}bake/room/`).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
 
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -197,9 +217,15 @@ export class Room3D {
   private sun = new SpotLight(0xfff0d8, 0, 0, 0.17, 0.35, 0);
   /** The sky's light through the window: a wide soft spot out behind it, so the wall's shadow lets it in by the opening only. */
   private key = new SpotLight(0xd4e2ff, 0, 0, 1.05, 0.9, KEY_DECAY);
-  /** A faint light from the viewer's side, for the fronts the window does not see (no shadow). */
-  private fill = new DirectionalLight(0xfff4e6, 0);
-  private hemi = new HemisphereLight(0xe4ecff, 0xe2d6c6, 1);
+  /** The window's light at the desk from the sky and from the lit city, and the sun's that comes in (the bake's levels: `mixLight`). */
+  private skyK = 0;
+  private cityK = 0;
+  private sunK = 0;
+  private hour = 12;
+  /** The baked bounce once its files are in, and the light it was last summed for. */
+  private lightmap: LightmapMix | null = null;
+  private mixKey = '';
+  private gone = false;
   private lampLight = new SpotLight(kelvin(3000), 0, 0, 0.6, 0.7, 2);
   private bedLight = new PointLight(LANTERN, 0, 0, 2);
   /** The screen's glow on the keyboard and the desk: an area light on its face, lighting only what is in front of it. */
@@ -486,12 +512,9 @@ export class Room3D {
     R.add(socket, tag(softBox(WALL_PLATE, 0, 80, graphite, 30), 'wall'));
 
     // ---- light: the window carries the day (the sky's soft light and the sun, both let in by the opening alone, so the room is lit from one
-    // side and falls off away from it); the room's bounce is its probe (`setProbe`); a faint fill from the viewer's side, the lamps, the screen ----
-    R.add(this.hemi);
+    // side and falls off away from it); the room's bounce is baked on the still meshes (`takeBake`) and its probe on the rest (`setProbe`);
+    // the lamps, the screen ----
     const cx = (g.desk.x0 + g.desk.x1) / 2;
-    this.fill.position.set(cx - 6000, deskTop + 16000, DESK_D + 30000);
-    this.fill.target.position.set(cx, deskTop, 0);
-    R.add(this.fill, this.fill.target);
     const wc = [W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z] as const;
     // high and far out behind the glass's middle: the north sky's light comes down through the whole glass wall onto the desk
     this.key.position.set(wc[0], wc[1] + 12000, -WALL_T - 20000);
@@ -521,6 +544,44 @@ export class Room3D {
     // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
     vertexAo(R);
     mergeStatic(R);
+    // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's
+    void roomBake().then((b) => { if (b && !this.gone) this.takeBake(b); });
+  }
+
+  /**
+   * The baked bounce's light groups: the lights the room scales by one value (a switch, a step of the evening). `tools/bake/` bakes each at
+   * its lights' full power, and the mix scales it by its first light's intensity over the one baked.
+   */
+  lightGroups(): { id: string; lights: Light[] }[] {
+    return [
+      { id: 'desk', lights: [this.lampLight] }, { id: 'arc', lights: [this.arc.light] }, { id: 'floor', lights: [this.floorLight] }, { id: 'bedside', lights: [this.bedLight] },
+      { id: 'strips', lights: this.strips.lights }, { id: 'picture', lights: [this.picture.light] }, { id: 'sconce', lights: [this.sconce.up, this.sconce.down] },
+      { id: 'led', lights: [this.ledUnder, this.ledHalo, this.deskLed] }, { id: 'screen', lights: [this.screenLight, this.monitor.bias] },
+    ];
+  }
+
+  /** The bake's lightmap on the meshes it knows. The others keep the probe; the dev build names them (the bake is older than the room). */
+  private takeBake(b: Bake): void {
+    const mix = new LightmapMix(b), blinds = new Set<Object3D>(this.blinds);
+    const lit = applyLightmap(this.root, b, mix.texture, { metre: M, skip: (o) => blinds.has(o), twin: (src, c) => this.envs.twin(src, c) });
+    if (import.meta.env.DEV && (lit.missing.length || lit.stale)) {
+      console.warn(`the room light bake is old (run \`npm run bake\`): ${lit.meshes.length} meshes lit, ${lit.stale} baked ones not found, none for: ${lit.missing.join(', ')}`);
+    }
+    this.lightmap = mix;
+    this.mixKey = '';
+  }
+
+  /** The baked bounce for the light as it stands, summed again only when that light changes (`lightKey`). */
+  private mixLight(renderer: WebGLRenderer): void {
+    const lm = this.lightmap;
+    if (!lm || this.mixKey === this.lightKey) return;
+    this.mixKey = this.lightKey;
+    const levels = new Map<string, number | Color>();
+    for (const g of this.lightGroups()) levels.set(g.id, g.lights[0]!.intensity);
+    levels.set('sky', this.key.color.clone().multiplyScalar(this.skyK * SKY_K));
+    levels.set('city', this.key.color.clone().multiplyScalar(this.cityK * SKY_K));
+    for (const [h, w] of keyFrames(this.hour, SUN_HOURS)) levels.set(`sun-${h}`, this.sun.color.clone().multiplyScalar(this.sunK * w));
+    lm.mix(renderer, levels);
   }
 
   /** The sun at an hour: a spot far out along its direction, aimed through the window's middle. Its shadow is drawn again when it moves. */
@@ -560,11 +621,17 @@ export class Room3D {
     });
   }
 
-  /** The window's view for this frame's camera (before the frame's draw); `scene`: the one the room stands in; `samples`: the scene target's multisampling. */
-  drawOutside(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, samples: number): void { this.outside.draw(renderer, scene, camera, samples); }
+  /**
+   * The window's view for this frame's camera, and the baked bounce for this frame's light (before the frame's draw); `scene`: the one the room
+   * stands in; `samples`: the scene target's multisampling.
+   */
+  drawOutside(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, samples: number): void {
+    this.mixLight(renderer);
+    this.outside.draw(renderer, scene, camera, samples);
+  }
 
-  /** Free what is not under the root: the outside's scene and its targets. */
-  dispose(): void { this.outside.dispose(); }
+  /** Free what is not under the root: the outside's scene and its targets, the baked bounce's target. */
+  dispose(): void { this.gone = true; this.outside.dispose(); this.lightmap?.dispose(); }
 
   private shadowTurn = 0;
   private shadowAt = 0;
@@ -672,12 +739,13 @@ export class Room3D {
     // (the glass looks north: the sun comes in only low, at the day's two ends, from the side it stands to; the glass takes its share of all
     // of it, `GLASS_T`, at every hour)
     const sunIn = smooth(0.02, 0.12, -sunDir(f.hour)[2]);
-    this.sun.intensity = (day * 5.8 * sunIn + night * 0.25) * open * GLASS_T;
-    // (at night the lit city's glow through the whole glass wall: a soft blue light over the desk)
-    this.key.intensity = (0.05 + night * 0.7 + day * 3) * open * GLASS_T * KEY_REF ** KEY_DECAY;
-    this.fill.intensity = 0.03 + day * 0.45;
-    this.hemi.intensity = 0.06 + day * 0.45;
-    this.hemi.color.set(0x5d6fae).lerp(NOON_SKY, day);
+    this.hour = f.hour;
+    this.sunK = day * 5.8 * sunIn * open * GLASS_T;
+    this.sun.intensity = this.sunK + night * 0.25 * open * GLASS_T;
+    // (the sky's light, and the city's through the whole glass wall: by day its sunlit blocks, at night its glow, a soft blue light over the desk)
+    this.skyK = (0.05 + day * 3) * open * GLASS_T;
+    this.cityK = (day * 3 * CITY_DAY + night * 0.7) * open * GLASS_T;
+    this.key.intensity = (this.skyK + this.cityK) * KEY_REF ** KEY_DECAY;
     const env = this.probe ? PROBE_K : 0.35 * (0.16 + 0.84 * day);
     this.envs.setStrength(env);
     // (a lamp is as bright by day as by night: the camera does not adapt)

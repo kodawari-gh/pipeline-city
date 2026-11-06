@@ -1,5 +1,6 @@
 // The post chain: the scene, ambient occlusion (contact shadows in every corner and under every part), the selection outline (a yellow edge round
-// the picked part, LOWPOLY_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), then tone mapping. The outline runs only while something is picked.
+// the picked part, LOWPOLY_STYLE.md "Outline"), bloom (the RGB, the screen, the lamp glow), the room's grade, the eye's local adaptation (`localeye.ts`:
+// the dark lifted, the bright held back), then tone mapping. The outline runs only while something is picked.
 // The scene is drawn once a frame: the passes after it read its depth. A stock GTAOPass and OutlinePass each draw the whole scene again, shadow maps included.
 import { DepthTexture, FloatType, HalfFloatType, InstancedMesh, Mesh, NoBlending, Scene, ShaderMaterial, UniformsUtils, Vector2, WebGLRenderTarget, type Object3D, type PerspectiveCamera, type WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -13,6 +14,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { pixelRatio, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE } from './init';
+import { LocalEye, MID } from './localeye';
 
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
 class ScenePass extends RenderPass {
@@ -151,6 +153,7 @@ export class Post {
   private ao: GTAOPass;
   private bloom: UnrealBloomPass;
   private grade = new ShaderPass(GRADE);
+  private local: LocalEye;
   private reach = 900;
   private brightness = 1;
   private eye = 1;
@@ -178,7 +181,14 @@ export class Post {
     this.bloom = new UnrealBloomPass(new Vector2(w, h), 0.5, 0.4, 1.2);
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.grade);
+    this.local = new LocalEye(w, h);
+    this.composer.addPass(this.local);
     this.composer.addPass(new OutputPass());
+  }
+
+  /** The exposure the tone mapping applies: the base, the player's brightness and the eye's adaptation. The local eye's middle grey follows it. */
+  private expose(): void {
+    this.composer.renderer.toneMappingExposure = this.local.exposure = BASE_EXPOSURE * this.brightness * this.eye;
   }
 
   /** The graphics settings (`app/graphics.ts`): the passes, the multisampling and the pixels drawn. A new sample count frees the targets, so it costs a frame; the same one costs nothing. */
@@ -193,7 +203,7 @@ export class Post {
     if (t.samples !== g.msaa) { t.samples = g.msaa; t.dispose(); }
     const ratio = pixelRatio(g.scale);
     this.brightness = g.brightness;
-    renderer.toneMappingExposure = BASE_EXPOSURE * g.brightness * this.eye;
+    this.expose();
     if (ratio === renderer.getPixelRatio()) return;
     renderer.setPixelRatio(ratio);
     this.composer.setPixelRatio(ratio);
@@ -203,11 +213,14 @@ export class Post {
 
   /**
    * The occlusion's reach for a view `height` world units tall: a board part's 900 up to the board view, then wider with the view, so a room
-   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out).
+   * view darkens its corners, the floor under the bed and the desk (4000, about 20 cm, from the room's overview out). The grade and the local
+   * eye fade out on the way in: from the board view in, the metered eye alone adapts (`board3d.ts`), and the board keeps its tuned look.
    */
   setReach(height: number): void {
     const k = roomness(height), r = Math.round(900 + k * 3100);
     this.grade.uniforms.k!.value = k;
+    this.local.strength = k;
+    this.local.enabled = k > 0;
     if (this.reach === r) return;
     this.reach = r;
     // a wide reach samples evenly out to its edge (a room corner fades over its whole width), a part's stays weighted to the contact. Only
@@ -219,10 +232,11 @@ export class Post {
     this.ao.updatePdMaterial({ radius: 4 + k * 16 });
   }
 
-  /** The eye's adaptation (`board3d.ts`): the exposure's factor over the base and the player's brightness. */
-  setEye(k: number): void {
+  /** The eye's adaptation (`board3d.ts`): the exposure's factor `k` over the base and the player's brightness, and the local eye's `key`. */
+  setEye(k: number, key = MID): void {
     this.eye = k;
-    this.composer.renderer.toneMappingExposure = BASE_EXPOSURE * this.brightness * k;
+    this.local.key = key;
+    this.expose();
   }
 
   /**

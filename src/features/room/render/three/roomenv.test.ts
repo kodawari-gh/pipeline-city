@@ -31,6 +31,23 @@ describe('the room\'s reflections', () => {
     expect(e.mats.has(skin)).toBe(true);
   });
 
+  it("a copy for the baked bounce joins with the source's patch, once, and follows the probe", () => {
+    const e = fresh(), wall = new MeshStandardMaterial();
+    e.adopt(room(wall));
+    e.setStrength(0.5);
+    const lit = wall.clone();
+    lit.onBeforeCompile = wall.onBeforeCompile;
+    lit.customProgramCacheKey = wall.customProgramCacheKey;
+    e.twin(wall, lit);
+    e.adopt(room(lit));
+    e.setMap(probe);
+    expect(lit.envMap).toBe(probe);
+    expect(lit.envMapIntensity).toBe(0.5);
+    expect(lit.customProgramCacheKey().split('|box').length).toBe(2);
+    e.twin(new MeshStandardMaterial(), new MeshStandardMaterial());
+    expect(e.mats.size).toBe(2);
+  });
+
   it('a map of its own stays; a material is patched once however often it is adopted', () => {
     const e = fresh(), own = new Texture(), mirror = new MeshStandardMaterial({ envMap: own }), plain = new MeshStandardMaterial();
     const g = room(mirror, plain);

@@ -111,8 +111,9 @@ Emissive: 0x000000 (overridden by state: powered, active, throttled, burnt)
 
 The room is lit from its window, as a real room is (`GRAPHICS_3D_OVERHAUL.md` "Light"):
 
-- **Key:** the sky's light and the sun come in by the window only, with shadows. The room falls off away from it.
-- **Bounce:** a light probe of the room is the ambient light and the reflections. No flat fill lights a face from nowhere.
+- **Key:** the sky's light and the sun come in by the window only, with shadows. The room falls off away from it. On the still meshes the window's light is baked whole (`tools/bake/`); a live spot stands in for it only on what moves.
+- **Bounce:** the bake's lightmaps (`LightmapMix`, each light group by its live level) on the still meshes; a light probe of the room on what moves, and the reflections. No flat fill lights a face from nowhere.
+- **The eye:** it adapts to the room, as a person's eye does (`src/features/room/light.md` "The eye"): the exposure, and a local adaptation that lifts the dark parts and holds back the window. The light itself stays real.
 - **One rule:** in the room view every part takes the same light, the machine and the dies' art too. Only real emitters glow (the screen, the lamps, the RGB), and they light what is near them.
 - **Lamps:** at night many warm lamps (2700 to 3000 K) and a few cyan accents light the room, as a cozy lit room in a photograph (the owner, 2026-11-05). The plan: `src/features/room/light.md` "3D room light".
 - **Board view:** the same light as the room. The case's own lights and the room's lamps make the parts read at night; no studio light (T149 removes the one there is now).

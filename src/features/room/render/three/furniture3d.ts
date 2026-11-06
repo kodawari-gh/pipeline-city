@@ -425,6 +425,8 @@ export function bookcase(): Group {
   const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x3a3f47];
   const books: Book[] = [];
   const steel = mat(0x3a3c40, { metalness: 0.6, roughness: 0.4 });
+  // (the same books in every room built: the light bake finds the bookend by where it stands, `lightmapmix.ts`)
+  seedN = 11;
   for (let s = 0; s <= n; s++) {
     const y = top + s * gap, base = y + gap;
     g.add(softBox({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, wood, 40));
