@@ -33,7 +33,8 @@ export function makeKit(): Kit {
   const lantern = glowing(0xf4f6f8, 0xfff0d8, 0.2);
   const leafMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
   return {
-    stone: surf(st, 0xd2cbbb, { roughness: 0.85 }),
+    // (the sill under our window, 2 m from the eye in full sun: smooth and no paler than the roofs across the street, no stucco grain)
+    stone: plain(0x8e8a83, 0.9),
     asphalt: surf(P.asphalt(), 0xffffff, { roughness: 0.95 }), paving: surf(P.paving(), 0xc9c5bd), kerb: surf(st, 0x8f8c86, { roughness: 0.9 }),
     grass: surf(P.grass(), 0xffffff, { roughness: 1 }), soil: plain(0x3b2e24, 1),
     paint: plain(0xe6e4dc, 0.7), yellow: plain(0xd9a92e, 0.7), iron: plain(0x2b2b2d, 0.55, 0.6), post: plain(0x4a4f55, 0.45, 0.6), lantern,
