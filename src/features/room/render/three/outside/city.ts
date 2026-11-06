@@ -1,9 +1,33 @@
 // The land round the city (`view.ts` sees it past the last blocks): flat and grey under the city's edge, suburbs and fields beyond, hills
-// rising from five kilometres to wooded ridges at nine to eleven, hazed by the fog. One mesh in vertex colours.
-import { BufferGeometry, Color, Float32BufferAttribute, Mesh } from 'three';
+// rising from five kilometres to wooded ridges at nine to eleven, hazed by the fog. One mesh in vertex colours. Over the haze the far land takes
+// the air's colour by distance and height (`AIR`): each nearer ridge stands as a shape, its foot pale, and the last fades into the sky.
+import { BufferGeometry, Color, Float32BufferAttribute, Mesh, type Object3D, type ShaderMaterial } from 'three';
 import type { Kit } from './kit';
+import type { SkyUniforms } from './sky';
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/**
+ * The air over the far land (aerial perspective), on top of the haze (`haze.ts`, whose uniforms it reads): from the hills' feet it takes the
+ * haze's colour by distance, less on the high ridges, so each ridge stands as a shape. Its colour is the sky's own just over the horizon
+ * (`sky.ts`: the haze's, going to the zenith's with height, except in the warm hour), so the last ridge fades into the sky behind it.
+ */
+const AIR = /* glsl */`{
+  vec3 airR = vHzW - cameraPosition, airV = normalize(airR);
+  float far = smoothstep(4500.0, 12000.0, length(airR.xz)), air = far * (0.97 - 0.6 * (1.0 - far) * smoothstep(60.0, 420.0, vHzW.y));
+  vec3 airC = mix(hzCol, airTop, pow(clamp(airV.y, 0.0, 1.0), 0.3) * (1.0 - airDusk)) + hzSun * pow(max(dot(airV, hzDir), 0.0), 8.0);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, airC, air);
+}`;
+
+/** The sky's uniforms, from the dome in the scene (null if it has none). */
+function skyIn(scene: Object3D): SkyUniforms | null {
+  let u: SkyUniforms | null = null;
+  scene.traverse((o) => {
+    const m = (o as Mesh).material as ShaderMaterial | undefined;
+    if (!u && m?.uniforms?.top && m.uniforms.duskK) u = m.uniforms as unknown as SkyUniforms;
+  });
+  return u;
+}
 
 /** The land: a polar heightfield round the view, from the city's edge out to 11 km, coloured by height and patch. */
 export function land(k: Kit): Mesh {
@@ -38,5 +62,19 @@ export function land(k: Kit): Mesh {
   g.setAttribute('color', new Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
-  return new Mesh(g, k.land);
+  // after the haze (`withHaze` runs this first, then puts its own lines in place of the includes, ahead of these); with no sky, the haze's colour
+  const mesh = new Mesh(g, k.land), airTop = { value: new Color() }, airDusk = { value: 1 };
+  let sky: SkyUniforms | null | undefined;
+  k.land.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { airTop, airDusk });
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec3 airTop;\nuniform float airDusk;')
+      .replace('#include <fog_fragment>', `#include <fog_fragment>\n${AIR}`);
+  };
+  k.land.customProgramCacheKey = () => 'land-air';
+  mesh.onBeforeRender = (_r, scene) => {
+    if (sky === undefined) sky = skyIn(scene);
+    if (sky) { airTop.value.copy(sky.top.value); airDusk.value = sky.dusk.value; }
+  };
+  return mesh;
 }
