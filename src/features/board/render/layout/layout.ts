@@ -274,6 +274,18 @@ export const nicRect = (i: number, visual: string): Rect => ({ x: nicJack(i).x, 
 export let WORLD: Rect = { x: MONITOR.x - 80, y: -3140, w: 5300 - (MONITOR.x - 80), h: 7540 };
 /** Fit margin for the overview (`fit(WORLD, OVERVIEW_MARGIN)`): the content fills the free area, with a small border. */
 export const OVERVIEW_MARGIN = 0.96;
+/** A free area narrower than this (width over height) is a phone held upright: the overview frames the case alone (`overviewFrame`). */
+export const PORTRAIT_ASPECT = 0.8;
+/**
+ * What the overview frames in a free area of this aspect (width over height). A wide or square area gets the whole scene (`WORLD`), down
+ * to the foot of the wall plate under the desk (it shows the internet plan and is where the cable goes). A tall one (under
+ * `PORTRAIT_ASPECT`) gets the case alone, from its top to the desk: the whole scene would be a thin strip there. The player pans west to
+ * the monitor and the key tray (the camera's bounds are the room).
+ */
+export function overviewFrame(aspect: number): Rect {
+  if (aspect < PORTRAIT_ASPECT) return { x: CASE.x - 200, y: CASE.y - 200, w: CASE.w + 400, h: DESK_Y - CASE.y + 400 };
+  return { x: WORLD.x, y: WORLD.y, w: WORLD.w, h: Math.max(WORLD.h, WALL_PLATE.y + WALL_PLATE.h + 200 - WORLD.y) };
+}
 
 // ---- hover region list (ids are the contract with the UI); only the regions the tier has ----
 const REGION_IDS: [string, RegionId][] = [

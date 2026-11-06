@@ -33,7 +33,7 @@ import { drawStrip, exteriorArt, exteriorFrame, stripModeOf } from '../../room/r
 import { box, clear, dashed, label } from '@/core/render/ink';
 import {
   BAY, BD, CASE_GLASS, REAR_FAN, REAR_FAN_FITTED, boardBakeFrame, BR, CASE, OUTBOX, CASE_IN, CASE_PANEL, COOLER, CPU_S, DIE, DIMM_H, offBoard, onBoard, DIMM_W, DIMM_X, DIMM_Y, HDMI_PORT, MONITOR, PCIE_RAILS, PKG, PSU, PSU_PANEL,
-  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, RAM_SINK, WALL_PLATE, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
+  LAYOUT_CASE, LAYOUT_TIER, OVERVIEW_MARGIN, overviewFrame, RAM_SINK, REGIONS, SCREEN, TRAY, USB_PORT, VRM_SINK, WORLD, gpuPort, nicJack, nicRect, nicY, setLayoutTier, type Rect,
 } from './layout/layout';
 import { buildLetter, carryAx, keyPose, letterPose, mailOutStage, mailStage, MAIL_OUT_S, MAIL_S, outboxSlot, POSTING_FROM, outKeyPose, outLetterPose, setLetter, swayAngle, swayStep, type Letter, type SwayState } from '../../room/render/desk/props/mail';
 import { drawKeyCue, drawPowerLeds, pluggedKeyArt, powerArt, trayArt, trayHook, urgencyOf, type PowerState, type PropObj, type PropsArt, type TrayMode } from '../../room/render/desk/props/props';
@@ -104,10 +104,8 @@ let interactRef: Interact | null = null;
 /** 0..1 how much the exterior case covers the interior (set by applyLod). Interior ids are hidden above 0.5, as in hit testing. */
 let exteriorCover = 0;
 export function flyToCpu() { cameraRef?.flyTo(cameraRef.fit({ x: DIE.x - 40, y: DIE.y - 40, w: DIE.w + 80, h: DIE.h + 80 }, 0.9)); }
-/** The overview: the whole scene fitted to the free area (`WORLD`, `OVERVIEW_MARGIN`). */
-/** What the overview frames: the machine and the monitor (`WORLD`), down to the foot of the wall plate under the desk (it shows the internet plan and is where the cable goes), which the HUD's bottom pills would otherwise cover. */
-const overviewRect = (): Rect => ({ x: WORLD.x, y: WORLD.y, w: WORLD.w, h: Math.max(WORLD.h, WALL_PLATE.y + WALL_PLATE.h + 200 - WORLD.y) });
-const overviewFit = (c: Camera): View => c.clampView(c.fit(overviewRect(), c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
+/** The overview: the whole scene (the case alone on a tall phone screen, `overviewFrame`) fitted to the free area (`OVERVIEW_MARGIN`). */
+const overviewFit = (c: Camera): View => c.clampView(c.fit(overviewFrame(c.fitArea.w / c.fitArea.h), c.w < 600 ? 0.95 : Math.min(OVERVIEW_MARGIN, ROOM_MARGIN)));
 /** How far the camera may zoom out: where the room box (`roomBox`: the desk, a little wall beyond it, from just above the clock to just under the desk) fills the free area, but never short of `LOD.capK` of the overview, so a wide or tall screen still gets there (the wall and the desk run on past the box). */
 const capZoom = (c: Camera, overview: View): number => {
   const aw = Math.max(50, c.w - c.inset.left - c.inset.right), ah = Math.max(50, c.h - c.inset.top - c.inset.bottom), box = c.bounds ?? roomBox();

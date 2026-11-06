@@ -237,10 +237,15 @@ export class Camera {
 
   private clampZ(z: number) { return Math.min(this.maxZ, Math.max(this.minZ, z)); }
 
+  /** The free area for the target inset (CSS px): what `fit` frames into. */
+  get fitArea(): { w: number; h: number } {
+    return { w: Math.max(50, this.w - this.inset.left - this.inset.right), h: Math.max(50, this.h - this.inset.top - this.inset.bottom) };
+  }
+
   /** View that fits a world rectangle with some margin (uses the target inset). */
   fit(r: Rect, margin = 0.92): View {
-    const aw = Math.max(50, this.w - this.inset.left - this.inset.right), ah = Math.max(50, this.h - this.inset.top - this.inset.bottom);
-    return { x: r.x + r.w / 2, y: r.y + r.h / 2, z: Math.min(aw / r.w, ah / r.h) * margin };
+    const a = this.fitArea;
+    return { x: r.x + r.w / 2, y: r.y + r.h / 2, z: Math.min(a.w / r.w, a.h / r.h) * margin };
   }
 
   /**
