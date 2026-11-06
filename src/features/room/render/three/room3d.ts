@@ -35,7 +35,7 @@ import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
 import {
-  OAK_TILE, STRIP_W, arcLamp, bed, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
+  OAK_TILE, STRIP_W, arcLamp, bed, board, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
   smokedOak, type Lantern,
 } from './furniture3d';
 import { deskChair } from './chair3d';
@@ -250,9 +250,25 @@ export function oakFloor(): Mesh {
   return floor;
 }
 
-/** The desk's top: one slab of the floor's smoked oak, its grain along the desk. */
+/** The desk's top: one slab of the floor's smoked oak, its grain along the desk, its edges rounded as all the furniture's (`board`). */
 export function deskSlab(g: RoomGeo): Mesh {
-  return grainUv(softBox({ x: g.desk.x0, y: g.ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, smokedOak(), 60), OAK_TILE);
+  return grainUv(board({ x: g.desk.x0, y: g.ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, smokedOak()), OAK_TILE);
+}
+
+/**
+ * The drawer unit under the desk's east end: a black-brown carcass from the floor to the top, five fronts with a dark gap round each, a grip
+ * cut along each top edge. The carcass and the fronts are `board`s (the furniture's round edges).
+ */
+export function drawerUnit(g: RoomGeo): Mesh[] {
+  const ped = { x: g.desk.x1 - PED.in, y: g.ys + DESK_TOP, w: PED.w, h: FLOOR_Y - g.ys - DESK_TOP };
+  const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x0c0c0d, { roughness: 0.9 });
+  const out = [board(ped, 300, DESK_D - 400, alex), rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot)];
+  const dh = (ped.h - 160 - 4 * 90) / 5;
+  for (let k = 0; k < 5; k++) {
+    const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
+    out.push(board(d, DESK_D - 520, DESK_D - 300, alex), rectBox({ x: d.x + d.w / 2 - 1500, y: d.y, w: 3000, h: 220 }, DESK_D - 310, DESK_D - 290, slot));
+  }
+  return out;
 }
 
 /** A flat-woven wool rug: charcoal, a fine herringbone of light and dark rows, a pale line inside a plain edge; a fleck of pile (its bump too). */
@@ -442,17 +458,9 @@ export class Room3D {
       R.add(post(tx, fl - 200, z, 280, legH - 200, steel, 24), post(tx, fl, z, 300, 200, mat(0x111214, { roughness: 0.8 }), 24));
       R.add(softBox({ x: tx - 600, y: ys + DESK_TOP, w: 1200, h: 60 }, z - 600, z + 600, steel, 20));
     }
-    // the drawer unit: a black-brown carcass from the floor to the top, five fronts with a dark gap round each, a grip cut along each top edge
-    const ped = { x: g.desk.x1 - PED.in, y: ys + DESK_TOP, w: PED.w, h: legH };
-    const alex = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 }), slot = mat(0x0c0c0d, { roughness: 0.9 });
-    R.add(softBox(ped, 300, DESK_D - 400, alex, 40));
-    R.add(rectBox({ x: ped.x + 260, y: ped.y + 40, w: ped.w - 520, h: ped.h - 80 }, DESK_D - 400, DESK_D - 380, slot));
-    const dh = (ped.h - 160 - 4 * 90) / 5;
-    for (let k = 0; k < 5; k++) {
-      const d = { x: ped.x + 300, y: ped.y + 80 + k * (dh + 90), w: ped.w - 600, h: dh };
-      R.add(softBox(d, DESK_D - 520, DESK_D - 300, alex, 50));
-      R.add(rectBox({ x: d.x + d.w / 2 - 1500, y: d.y, w: 3000, h: 220 }, DESK_D - 310, DESK_D - 290, slot));
-    }
+    // the drawer unit at the east end
+    R.add(...drawerUnit(g));
+    const pedX = g.desk.x1 - PED.in;
     // the cable tray: a black steel trough hung under the top's back edge (the power strip lies in it, `clutter3d.ts`) on two brackets
     const t = TRAY, under = ys + DESK_TOP, ty = under + t.drop;
     for (const [z0, z1] of [[t.z0, t.z0 + 60], [t.z1 - 60, t.z1]] as const) R.add(softBox({ x: t.x0, y: ty, w: t.x1 - t.x0, h: t.h }, z0, z1, steel, 20));
@@ -462,7 +470,7 @@ export class Room3D {
     // a cyan LED strip under the top's front edge, as round the bed: at night the desk floats on its glow. Its area light is a narrow band
     // along the strip (a wide one would show as a bright box in the glass behind the desk), stopping short of the drawer unit so its side
     // does not catch the light at point-blank range (a hard bright edge)
-    const knee0 = g.desk.x0 + 600, knee1 = ped.x - 200, lit1 = ped.x - 2200;
+    const knee0 = g.desk.x0 + 600, knee1 = pedX - 200, lit1 = pedX - 2200;
     R.add(rectBox({ x: knee0, y: under, w: knee1 - knee0, h: 120 }, DESK_D - 700, DESK_D - 540, this.ledGlow));
     this.deskLed.width = lit1 - knee0; this.deskLed.height = 1600;
     this.deskLed.position.set((knee0 + lit1) / 2, -under - 200, DESK_D - 1400);
@@ -489,7 +497,7 @@ export class Room3D {
     // the chair, half under the desk west of the keyboard, turned toward the window as left after use
     R.add(deskChair(kx - 7500, DESK_D + 2600, -0.3, (o) => this.envs.adopt(o)));
     // the things about: a backpack against the drawer unit, the power strip in the tray and its leads, books on the bench
-    R.add(mess(ped.x, under, grommet));
+    R.add(mess(pedX, under, grommet));
     // (the tea in the gap between the mat and the case)
     this.cup = teaCup((matEnd + CASE.x) / 2, ys, MONITOR_Z + 3200);
     R.add(this.cup.root);

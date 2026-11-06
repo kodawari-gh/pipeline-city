@@ -4,11 +4,11 @@ import type { Room } from '@/core/render/three/camera';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import { OAK_ROUGH, OAK_TILE, PILLOW_WELT, SPINE_ROUND, bed, bookcase, eastWall, nightstand, pillow } from './furniture3d';
+import { EDGE_R, OAK_ROUGH, OAK_TILE, PILLOW_WELT, SPINE_ROUND, bed, bookcase, eastWall, nightstand, pillow } from './furniture3d';
 import { OAK } from './palette';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
-import { deskSlab, oakFloor } from './room3d';
+import { deskSlab, drawerUnit, oakFloor } from './room3d';
 import { BED, BOOKCASE, DESK_TOP, EAST_X, FIG_AT, FLOOR_Y, MONITOR_Z, PED, RUG, WEST_X, eyeBlocks, eyeRoom } from './roomplan';
 
 /** A decal (a contact shadow on the floor): drawn over what is under it, not a thing. */
@@ -180,6 +180,40 @@ describe('3D furniture', () => {
         expect(depth(books[i]!, books[j]!), `book ${i} in book ${j}`).toBeLessThan(5);
       }
     });
+  });
+
+  it('rounds the furniture\'s edges: the bookcase, the desk top, the drawer unit, the bed frame, the bedside drawer', () => {
+    // a box's round on its +x +y edge: from how far out its farthest point along that diagonal lies (a square edge: 0), and how many
+    // normals turn it (each a step of the round)
+    const round = (m: Mesh) => {
+      const g = m.geometry, p = g.attributes.position!, n = g.attributes.normal!, steps = new Set<number>();
+      g.computeBoundingBox();
+      const c = g.boundingBox!.getCenter(new Vector3()), h = g.boundingBox!.getSize(new Vector3()).multiplyScalar(0.5);
+      let far = -Infinity;
+      for (let i = 0; i < p.count; i++) {
+        far = Math.max(far, p.getX(i) - c.x + p.getY(i) - c.y);
+        if (Math.abs(n.getZ(i)) < 0.01 && n.getX(i) > 0.01 && n.getY(i) > 0.01) steps.add(Math.round(Math.atan2(n.getY(i), n.getX(i)) * 1000));
+      }
+      return { r: (h.x + h.y - far) / (2 - Math.SQRT2), steps: steps.size, thin: Math.min(h.x, h.y, h.z) };
+    };
+    const b = bed().root, named = (n: string) => b.children.find((c) => c.name === n) as Mesh;
+    const biggest = (o: Object3D) => {
+      const ms: Mesh[] = [];
+      o.traverse((c) => { if ((c as Mesh).isMesh && !(c as InstancedMesh).isInstancedMesh) ms.push(c as Mesh); });
+      const vol = (m: Mesh) => { const s = new Box3().setFromBufferAttribute(m.geometry.attributes.position as never).getSize(new Vector3()); return s.x * s.y * s.z; };
+      return ms.sort((p, q) => vol(q) - vol(p))[0]!;
+    };
+    const cases: [string, Mesh][] = [['desk top', deskSlab(roomGeo())], ['drawer unit', drawerUnit(roomGeo())[0]!], ['headboard', named('headboard')], ['platform', named('platform')], ['bedside drawer', biggest(nightstand().root)]];
+    bookcase().traverse((o) => {
+      const s = new Box3().setFromObject(o, true).getSize(new Vector3());
+      if ((o as Mesh).isMesh && !(o as InstancedMesh).isInstancedMesh && !decal(o as Mesh) && (s.y > 0.8 * (FLOOR_Y - BOOKCASE.top) || s.z > 0.8 * (BOOKCASE.z1 - BOOKCASE.z0))) cases.push(['a bookcase board', o as Mesh]);
+    });
+    for (const [name, m] of cases) {
+      const { r, steps, thin } = round(m);
+      expect(r, name).toBeCloseTo(Math.min(EDGE_R, (2 * thin) / 2.01), -1);
+      // four steps each side of the diagonal (two read as a hard corner)
+      expect(steps, name).toBeGreaterThanOrEqual(7);
+    }
   });
 
   it('makes the floor, the desk top and the bookcase of the palette\'s one oak, its grain along each board', () => {

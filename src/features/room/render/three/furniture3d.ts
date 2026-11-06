@@ -1,4 +1,5 @@
-// The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, the bookcase in the
+// The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, every board's edges
+// rounded alike (`board`, `EDGE_R`: a few pixels at a room's distance, so they catch the light as the machine case's do), the bookcase in the
 // room's one smoked oak (`smokedOak`: the floor's and the desk top's wood, its grain along each board) with real books on it (round
 // spines with two or three quiet bands, no letters; a gap here and there and a book leant over into it, `leanInto`), cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
@@ -14,7 +15,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
-import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
+import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
@@ -129,6 +130,21 @@ export function grainUv<T extends Mesh>(o: T, tile: number): T {
   return o;
 }
 
+/**
+ * The furniture's edge round (the bookcase, the desk top, the drawer unit, the bed frame, the bedside drawer, the east wall's shelf): about
+ * 6 mm, so that at a room's distance each edge is a few pixels wide and catches the light as a thin line, as the machine case's edges do.
+ */
+export const EDGE_R = 120;
+/** How many steps turn the round (`softBox`'s two read as a hard corner and a flat chamfer at this size). */
+const EDGE_STEPS = 4;
+
+/** A furniture board over a layout rect, from depth z0 to z1: every edge rounded `EDGE_R` (less on a thin board) in `EDGE_STEPS` steps. */
+export function board(r: RectLike, z0: number, z1: number, m: Material, radius = EDGE_R): Mesh {
+  const rad = Math.min(radius, r.w / 2.01, r.h / 2.01, (z1 - z0) / 2.01), o = new Mesh(new RoundedBoxGeometry(r.w, r.h, z1 - z0, EDGE_STEPS, rad), m);
+  o.position.set(r.x + r.w / 2, -(r.y + r.h / 2), (z0 + z1) / 2);
+  return place(o);
+}
+
 // ---------------------------------------------------------------- shapes
 /** A cushion or pillow: a box whose faces puff out, thick in the middle and thin at the seams. */
 export function cushion(w: number, h: number, d: number, puff = 1): BufferGeometry {
@@ -192,7 +208,7 @@ export function bed(): Bed {
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN, [3, 1]), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.8 });
   // the frame (2D y down): the platform's top board down to `under`; the apron, set back `set` from its edges, down to `apron`
   const plat = fl - 4600, under = fl - 3000, apron = fl - 1100, set = 2200;
-  const headboard = softBox({ x, y: headTop, w, h: under - headTop }, z0, z0 + hd, veneer, 40), platform = softBox({ x, y: plat, w, h: under - plat }, z0 + hd, z1, veneer, 60);
+  const headboard = board({ x, y: headTop, w, h: under - headTop }, z0, z0 + hd, veneer), platform = board({ x, y: plat, w, h: under - plat }, z0 + hd, z1, veneer);
   headboard.name = 'headboard'; platform.name = 'platform';
   g.add(headboard, platform);
   g.add(softBox({ x: x + set, y: under, w: w - 2 * set, h: apron - under }, z0 + hd + 600, z1 - set, black, 30));
@@ -315,9 +331,9 @@ export function nightstand(): Bedside {
   const g = new Group(), { x, w, z0, z1, top, h, lamp } = NIGHTSTAND, fl = FLOOR_Y, cx = x + w / 2, cz = (z0 + z1) / 2;
   const veneer = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 }), black = mat(STEEL, { roughness: 0.45, metalness: 0.3 });
   // the box on the wall, the drawer's front nearly flush in it, a dark gap round the front
-  g.add(softBox({ x, y: top, w, h }, z0, z1, veneer, 40));
+  g.add(board({ x, y: top, w, h }, z0, z1, veneer));
   g.add(rectBox({ x: x + 180, y: top + 180, w: w - 360, h: h - 360 }, z1 - 40, z1 + 6, mat(0x0b0b0c, { roughness: 0.9 })));
-  g.add(softBox({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer, 25));
+  g.add(board({ x: x + 210, y: top + 210, w: w - 420, h: h - 420 }, z1 - 40, z1 + 10, veneer));
   // the lantern: a paper round on bamboo ribs, open top and bottom (a black wire ring at each), on a wire stand of three legs; it glows from
   // the bulb inside
   const lx = x + lamp.dx, lz = cz + lamp.dz, legH = 300, sh = lamp.h - legH, R = lamp.r, rb = 0.5 * R, rt = 0.42 * R;
@@ -501,9 +517,9 @@ export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
   const oakMat = smokedOak(), wood = (m: Mesh) => grainUv(m, OAK_TILE);
   const { side, board: shelf } = CASE_BOARDS;
-  g.add(wood(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, oakMat, 50)), wood(softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, oakMat, 50)));
+  g.add(wood(board({ x, y: top, w, h: fl - top }, z0, z0 + side, oakMat)), wood(board({ x, y: top, w, h: fl - top }, z1 - side, z1, oakMat)));
   // the back: one plain board in the same finish, between the sides
-  g.add(wood(rectBox({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, oakMat)));
+  g.add(wood(board({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, oakMat)));
   // the shelf-pin holes up the inside of each side, two rows (front and back)
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
@@ -521,7 +537,7 @@ export function bookcase(): Group {
   const gapRnd = () => ((gapN = (gapN * 16807) % 2147483647) / 2147483647);
   for (let s = 0; s <= n; s++) {
     const y = top + s * gap, base = y + gap;
-    g.add(wood(softBox({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, oakMat, 40)));
+    g.add(wood(board({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, oakMat)));
     if (s === n) continue;
     // upright books along the shelf (spines to the room); some shelves leave room for a thing or two
     let z = z0 + side + 160;
@@ -568,7 +584,7 @@ export function bookcase(): Group {
   }
   g.add(shelvedBooks(books));
   // the plinth, set back under the bottom shelf (a shadow line along the floor)
-  g.add(wood(softBox({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, oakMat, 40)));
+  g.add(wood(board({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, oakMat)));
   // a pothos on the top, trailing over the front edge
   g.add(pothos(x + w / 2 + 300, top, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
   g.add(floorShadow(x + w / 2, (z0 + z1) / 2, w * 1.6, (z1 - z0) * 1.1, 0.7));
@@ -748,7 +764,7 @@ export function eastWall(): Group {
   const g = new Group(), wall = new Group(), wood = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.5 });
   // (a layout x here runs along the east wall from its back corner: x = the room's z)
   const sx = SHELF.z0, sw = SHELF.z1 - SHELF.z0, sy = SHELF.y, sd = SHELF.d;
-  wall.add(softBox({ x: sx, y: sy, w: sw, h: 900 }, 0, sd, wood, 70));
+  wall.add(board({ x: sx, y: sy, w: sw, h: 900 }, 0, sd, wood));
   let y = sy;
   ([0xd9d6cf, 0x26303d] as const).forEach((c, k) => {
     const t = 480 - k * 60;
