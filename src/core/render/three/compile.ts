@@ -56,7 +56,8 @@ export function startPassPrograms(r: WebGLRenderer, passes: readonly object[]): 
     else if (v instanceof FullScreenQuad && v.material) mats.add(v.material);
   };
   for (const p of passes) for (const v of Object.values(p)) if (Array.isArray(v)) v.forEach(add); else add(v);
-  const quad = new Mesh(new PlaneGeometry(2, 2)), cam = new OrthographicCamera(), out: Program[] = [];
+  // (no normals, as `FullScreenQuad`'s triangle has none: three makes another program for a geometry with them, and that one would be drawn unlinked)
+  const quad = new Mesh(new PlaneGeometry(2, 2).deleteAttribute('normal')), cam = new OrthographicCamera(), out: Program[] = [];
   for (const m of mats) { quad.material = m; out.push(...startPrograms(r, quad, cam)); }
   quad.geometry.dispose();
   return out;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Material, Mesh, Scene, type WebGLRenderer } from 'three';
-import { linked, startPrograms, whenLinked, type Program } from './compile';
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { linked, startPassPrograms, startPrograms, whenLinked, type Program } from './compile';
 
 /** A program that links after `n` looks. */
 const after = (n: number): Program => ({ isReady: () => n-- <= 0 });
@@ -62,5 +63,19 @@ describe('startPrograms', () => {
     expect(startPrograms(r, root, null as never, { fades: [lid] })).toHaveLength(2);
     expect(seen).toEqual([false, true]);
     expect(lid.material.transparent).toBe(false);
+  });
+});
+
+describe('startPassPrograms', () => {
+  it('links for the attributes a pass draws with: three makes another program for a quad with others', () => {
+    const seen: string[] = [], material = new Material();
+    const r = {
+      getRenderTarget: () => null, setRenderTarget: () => {},
+      compile: (root: Mesh) => { seen.push(...Object.keys(root.geometry.attributes)); return new Set(); },
+      properties: { get: () => ({}) },
+    } as unknown as WebGLRenderer;
+    startPassPrograms(r, [{ material }]);
+    const drawn = (new FullScreenQuad(material) as unknown as { _mesh: Mesh })._mesh.geometry;
+    expect(seen.sort()).toEqual(Object.keys(drawn.attributes).sort());
   });
 });

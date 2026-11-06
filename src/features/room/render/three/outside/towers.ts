@@ -11,7 +11,7 @@
 // screens, their LED bands, the red beacons blinking at night. The tall landmarks wear their own light after dark (a floodlit head, lit edges, a
 // lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
-import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, Float32BufferAttribute, MeshStandardMaterial, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, MeshStandardMaterial, Vector3 } from 'three';
 import { GRID, STYLES, rng, topOf, type Building, type Rect, type Tier } from './plan';
 import type { SignWash } from './signlight';
 
@@ -30,14 +30,18 @@ const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
 
 /** A water tank and its lid, a vent pipe and its cap, the boot that seals a pipe to the membrane, a mushroom vent and its hood, centred on their own middles. */
-const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16), TANK_LID = new ConeGeometry(1.3, 0.4, 16), VENT = new CylinderGeometry(0.14, 0.14, 0.8, 8), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, 8);
-const BOOT = new CylinderGeometry(0.2, 0.27, 0.14, 8), MUSH = new CylinderGeometry(0.26, 0.3, 0.42, 10), MUSH_CAP = new ConeGeometry(0.5, 0.24, 10);
+const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16).toNonIndexed(), TANK_LID = new ConeGeometry(1.3, 0.4, 16).toNonIndexed(), VENT = new CylinderGeometry(0.14, 0.14, 0.8, 8).toNonIndexed(), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, 8).toNonIndexed();
+const BOOT = new CylinderGeometry(0.2, 0.27, 0.14, 8).toNonIndexed(), MUSH = new CylinderGeometry(0.26, 0.3, 0.42, 10).toNonIndexed(), MUSH_CAP = new ConeGeometry(0.5, 0.24, 10).toNonIndexed();
 
 type V3 = readonly [number, number, number];
 
 /** The buildings' geometry: each vertex's place, normal, facade uv (m), frame colour, facade look (bay, storey, window share across and up), glass tint, (seed, kind, reflection), and a head's floodlight (colour, and the heights it runs between). */
 class Mass {
-  pos: number[] = []; nor: number[] = []; fuv: number[] = []; col: number[] = []; look: number[] = []; tint: number[] = []; aux: number[] = []; wash: number[] = []; washY: number[] = [];
+  /** The vertices so far, and how many the arrays hold before they grow (the city has millions: plain arrays took most of its build). */
+  private n = 0; private room = 4096;
+  private pos = new Float32Array(3 * this.room); private nor = new Float32Array(3 * this.room); private fuv = new Float32Array(2 * this.room);
+  private col = new Float32Array(3 * this.room); private look = new Float32Array(4 * this.room); private tint = new Float32Array(3 * this.room);
+  private aux = new Float32Array(3 * this.room); private wash = new Float32Array(3 * this.room); private washY = new Float32Array(2 * this.room);
   private c = new Color(); private t = new Color();
   /** The look the next vertices take: its bay is stretched per wall (`box`'s `fit`). */
   lk: [number, number, number, number] = [1, 1, 0, 0];
@@ -57,16 +61,31 @@ class Mass {
     return this;
   }
 
+  private grow(): void {
+    const more = (a: Float32Array<ArrayBuffer>): Float32Array<ArrayBuffer> => { const b = new Float32Array(2 * a.length); b.set(a); return b; };
+    this.room *= 2;
+    this.pos = more(this.pos); this.nor = more(this.nor); this.fuv = more(this.fuv); this.col = more(this.col); this.look = more(this.look);
+    this.tint = more(this.tint); this.aux = more(this.aux); this.wash = more(this.wash); this.washY = more(this.washY);
+  }
+
   private vert(p: V3, n: V3, u: number, v: number): void {
-    this.pos.push(p[0], p[1], p[2]); this.nor.push(n[0], n[1], n[2]); this.fuv.push(u, v);
-    this.col.push(this.c.r, this.c.g, this.c.b); this.tint.push(this.t.r, this.t.g, this.t.b);
-    this.look.push(...this.lk); this.aux.push(...this.ax); this.wash.push(...this.fl); this.washY.push(...this.flY);
+    if (this.n === this.room) this.grow();
+    const i = this.n++, i2 = 2 * i, i3 = 3 * i, i4 = 4 * i, { pos, nor, fuv, col, tint, look, aux, wash, washY, c, t, lk, ax, fl, flY } = this;
+    pos[i3] = p[0]; pos[i3 + 1] = p[1]; pos[i3 + 2] = p[2];
+    nor[i3] = n[0]; nor[i3 + 1] = n[1]; nor[i3 + 2] = n[2];
+    fuv[i2] = u; fuv[i2 + 1] = v;
+    col[i3] = c.r; col[i3 + 1] = c.g; col[i3 + 2] = c.b;
+    tint[i3] = t.r; tint[i3 + 1] = t.g; tint[i3 + 2] = t.b;
+    look[i4] = lk[0]; look[i4 + 1] = lk[1]; look[i4 + 2] = lk[2]; look[i4 + 3] = lk[3];
+    aux[i3] = ax[0]; aux[i3 + 1] = ax[1]; aux[i3 + 2] = ax[2];
+    wash[i3] = fl[0]; wash[i3 + 1] = fl[1]; wash[i3 + 2] = fl[2];
+    washY[i2] = flY[0]; washY[i2 + 1] = flY[1];
   }
 
   /** A quad a, b, c, d (counter-clockwise seen from its front) and its uvs, as two triangles. */
   quad(a: V3, b: V3, c: V3, d: V3, n: V3, ua: [number, number], ub: [number, number], uc: [number, number], ud: [number, number]): void {
-    this.vert(a, n, ...ua); this.vert(b, n, ...ub); this.vert(c, n, ...uc);
-    this.vert(a, n, ...ua); this.vert(c, n, ...uc); this.vert(d, n, ...ud);
+    this.vert(a, n, ua[0], ua[1]); this.vert(b, n, ub[0], ub[1]); this.vert(c, n, uc[0], uc[1]);
+    this.vert(a, n, ua[0], ua[1]); this.vert(c, n, uc[0], uc[1]); this.vert(d, n, ud[0], ud[1]);
   }
 
   /** A box's walls from y0 to y1 (outward, or inward for a parapet's inner face) and its top if `top`. Each wall's u runs along it from its left. */
@@ -101,9 +120,9 @@ class Mass {
     this.quad([r.x0, y, r.z0], [r.x0, y, r.z1], [i.x0, y, i.z1], [i.x0, y, i.z0], up, o, o, o, o);
   }
 
-  /** Any geometry (a cylinder, a cone) at (x, y, z), every vertex as `set` gave. */
+  /** A geometry with no index (a cylinder, a cone) at (x, y, z), every vertex as `set` gave. */
   shape(g: BufferGeometry, x: number, y: number, z: number): void {
-    const s = g.index ? g.toNonIndexed() : g, p = s.attributes.position!, n = s.attributes.normal!;
+    const p = g.attributes.position!, n = g.attributes.normal!;
     for (let i = 0; i < p.count; i++) this.vert([p.getX(i) + x, p.getY(i) + y, p.getZ(i) + z], [n.getX(i), n.getY(i), n.getZ(i)], 0, 0);
   }
 
@@ -129,16 +148,16 @@ class Mass {
   }
 
   geometry(): BufferGeometry {
-    const g = new BufferGeometry();
-    g.setAttribute('position', new Float32BufferAttribute(this.pos, 3));
-    g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
-    g.setAttribute('fuv', new Float32BufferAttribute(this.fuv, 2));
-    g.setAttribute('color', new Float32BufferAttribute(this.col, 3));
-    g.setAttribute('look', new Float32BufferAttribute(this.look, 4));
-    g.setAttribute('tint', new Float32BufferAttribute(this.tint, 3));
-    g.setAttribute('aux', new Float32BufferAttribute(this.aux, 3));
-    g.setAttribute('wash', new Float32BufferAttribute(this.wash, 3));
-    g.setAttribute('washY', new Float32BufferAttribute(this.washY, 2));
+    const g = new BufferGeometry(), at = (a: Float32Array, k: number) => new BufferAttribute(a.slice(0, k * this.n), k);
+    g.setAttribute('position', at(this.pos, 3));
+    g.setAttribute('normal', at(this.nor, 3));
+    g.setAttribute('fuv', at(this.fuv, 2));
+    g.setAttribute('color', at(this.col, 3));
+    g.setAttribute('look', at(this.look, 4));
+    g.setAttribute('tint', at(this.tint, 3));
+    g.setAttribute('aux', at(this.aux, 3));
+    g.setAttribute('wash', at(this.wash, 3));
+    g.setAttribute('washY', at(this.washY, 2));
     g.computeBoundingSphere();
     return g;
   }

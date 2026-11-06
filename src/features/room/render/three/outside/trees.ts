@@ -68,7 +68,7 @@ class Lumps {
       const d: V3 = [b.pos[i]!, b.pos[i + 1]!, b.pos[i + 2]!];
       const k = r * (1 + bumps * Math.sin(d[0] * f[0]! + seed) * Math.sin(d[1] * f[1]! + seed * 1.3) * Math.sin(d[2] * f[2]! + seed * 0.7) * 2.2);
       const q = add(p, d, k), [n, c] = shade(q, d);
-      this.pos.push(...q); this.nor.push(...n); this.col.push(...c); this.wind.push(swing, phase); this.lump.push(...d);
+      this.pos.push(q[0], q[1], q[2]); this.nor.push(n[0], n[1], n[2]); this.col.push(c[0], c[1], c[2]); this.wind.push(swing, phase); this.lump.push(d[0], d[1], d[2]);
     }
     for (let i = 0; i < b.idx.length; i++) this.idx.push(base + b.idx[i]!);
   }
