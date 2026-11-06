@@ -25,6 +25,14 @@ let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
 
 // ---------------------------------------------------------------- materials
+/** How deep a weave's threads are (`relief`, in its texels). */
+const WEAVE_DEPTH = 2.5;
+/** Woven cloth: a weave (`weave`) as its map, and its threads' relief from the same texture as its normal map, so the light rakes them. */
+export function woven(base: string, o: { knit?: boolean; repeat?: [number, number] } = {}): { map: Texture | null; normalMap: Texture | null } {
+  const map = weave(base, o);
+  return { map, normalMap: relief(map, WEAVE_DEPTH) };
+}
+
 /** Cloth: a fine weave with a slub here and there. */
 export function weave(base: string, o: { knit?: boolean; repeat?: [number, number] } = {}): Texture | null {
   return paint(256, 256, (c, w, h) => {
@@ -135,22 +143,29 @@ export function cushion(w: number, h: number, d: number, puff = 1): BufferGeomet
 }
 
 /**
- * A stuffed pillow: two cloth panels sewn round their edge. Thick and round in the middle, down to a thin welt at the seam; each edge drawn in
- * between its corners (the stuffing pulls the cloth); the top a little lumpy, `seed` setting where. `w` across (x), `d` deep (z), `h` thick (y).
+ * A stuffed pillow: two cloth panels sewn round their edge. Thick and round in the middle, each panel curving down to the seam, where the two
+ * meet at an angle on a thin piped welt (`PILLOW_WELT`: no flat band round the edge); the corners rounded (the square's to a superellipse's),
+ * each edge drawn in a little between them (the stuffing pulls the cloth); the top a little lumpy, `seed` setting where. `w` across (x), `d`
+ * deep (z), `h` thick (y). The grid is closer toward the seam, where the cloth bends most.
  */
 export function pillow(w: number, h: number, d: number, o: { pinch?: number; lumps?: number; seed?: number } = {}): BufferGeometry {
   const g = new BoxGeometry(2, 2, 2, 24, 2, 18), p = g.attributes.position!;
-  const pinch = o.pinch ?? 0.11, lumps = o.lumps ?? 0.06, s = o.seed ?? 0;
+  const pinch = o.pinch ?? 0.06, lumps = o.lumps ?? 0.06, s = o.seed ?? 0;
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const fill = Math.pow(Math.max(0, (1 - x * x) * (1 - z * z)), 0.3);
-    const lump = 1 + lumps * (Math.sin(x * 2.3 + s) * Math.sin(z * 1.9 + s * 1.7) + 0.5 * Math.sin(x * 4.1 - z * 3.3 + s * 2.3)) * fill;
-    const px = x * (1 - pinch * (1 - z * z)), pz = z * (1 - pinch * (1 - x * x));
-    p.setXYZ(i, (px * w) / 2, (y * (0.14 + 0.86 * fill) * lump * h) / 2, (pz * d) / 2);
+    const x = Math.sin((p.getX(i) * Math.PI) / 2), y = p.getY(i), z = Math.sin((p.getZ(i) * Math.PI) / 2);
+    // the panel's rise from the seam: steep at first, then flat over the middle
+    const fill = (1 - x * x) * (1 - z * z), rise = 1 - Math.pow(1 - fill, 2.2);
+    const lump = 1 + lumps * (Math.sin(x * 2.3 + s) * Math.sin(z * 1.9 + s * 1.7) + 0.5 * Math.sin(x * 4.1 - z * 3.3 + s * 2.3)) * rise;
+    const r = Math.max(Math.abs(x), Math.abs(z)), round = r > 0 ? r / Math.pow(x ** 4 + z ** 4, 0.25) : 1;
+    const px = x * round * (1 - pinch * (1 - z * z)), pz = z * round * (1 - pinch * (1 - x * x));
+    p.setXYZ(i, (px * w) / 2, (y * (PILLOW_WELT + (1 - PILLOW_WELT) * rise) * lump * h) / 2, (pz * d) / 2);
   }
   g.computeVertexNormals();
   return g;
 }
+
+/** A pillow's thickness at its seam, a share of its middle's: the piped welt the two panels are sewn on. */
+export const PILLOW_WELT = 0.05;
 
 /** A soft dark patch on the floor under a thing, `lift` over it (more to lie over the rug): a baked contact shadow. */
 export function floorShadow(x: number, z: number, w: number, d: number, k = 1, lift = 140): Mesh {
@@ -197,7 +212,7 @@ export function bed(): Bed {
   g.add(underL, halo);
 
   // the mattress (its top 9000 over the floor, its edges rounded) in its fitted sheet, set in from the platform's edges
-  const sheet = cloth(0xffffff, { map: weave(SHEET), roughness: 0.92 });
+  const sheet = cloth(0xffffff, { ...woven(SHEET), roughness: 0.92 });
   const mTop = BED.top, mr = 700, inset = 1100, mx0 = x + inset, mx1 = x1 - inset, mz0 = z0 + hd + 60, mz1 = z1 - inset, mw = mx1 - mx0;
   const mattress = place(new Mesh(new RoundedBoxGeometry(mw, plat - mTop, mz1 - mz0, 4, mr), sheet));
   mattress.position.set(cx, -(mTop + plat) / 2, (mz0 + mz1) / 2);
@@ -214,11 +229,11 @@ export function bed(): Bed {
   const grid = (xs: number[], add: number[]) => [...new Set([...xs, ...add])].sort((a, b) => a - b);
   const us = grid(breaks(-A, A, 500, 260, [[-A, -A + D + 1500], [A - D - 1500, A]]), [-Ar, Ar]);
   const vs = grid(breaks(v0, V, 500, 240, [[v0, v0 + band + 800], [V - D - 1500, V]]), [rv0, rv1]);
-  const duvet = slab((u, v) => cover.at(u, v), us, vs, tD, 6000, cloth(0xffffff, { map: weave(DUVET, { repeat: [1, 1] }), roughness: 0.9 }));
+  const duvet = slab((u, v) => cover.at(u, v), us, vs, tD, 6000, cloth(0xffffff, { ...woven(DUVET, { repeat: [1, 1] }), roughness: 0.9 }));
   const lift = (u: number, v: number) => tD(u, v) + 50 + 70 * (1 + Math.sin(u / 1300 + v / 900));
   const runner = slab((u, v) => { const { p, n } = cover.at(u, v), k = lift(u, v); return { p: [p[0] + n[0] * k, p[1] + n[1] * k, p[2] + n[2] * k], n }; },
     us.filter((u) => Math.abs(u) <= Ar), vs.filter((v) => v >= rv0 && v <= rv1),
-    (u, v) => 260 * (0.6 + 0.4 * smooth(0, 700, Math.min(Ar - Math.abs(u), v - rv0, rv1 - v))), 4000, cloth(0xffffff, { map: weave(RUNNER, { repeat: [1, 1] }), roughness: 0.94 }));
+    (u, v) => 260 * (0.6 + 0.4 * smooth(0, 700, Math.min(Ar - Math.abs(u), v - rv0, rv1 - v))), 4000, cloth(0xffffff, { ...woven(RUNNER, { repeat: [1, 1] }), roughness: 0.94 }));
   duvet.name = 'duvet'; runner.name = 'runner'; mattress.name = 'mattress';
   g.add(duvet, runner);
 
@@ -237,7 +252,7 @@ export function bed(): Bed {
     return o;
   };
   // two in the duvet's cover stood against the headboard, leaning back; two pale ones lying in front, their backs up on them
-  const sham = cloth(0xffffff, { map: weave(DUVET, { repeat: [3, 3] }), roughness: 0.92 }), pale = cloth(0xffffff, { map: weave(SHEET, { repeat: [3, 3] }), roughness: 0.9 });
+  const sham = cloth(0xffffff, { ...woven(DUVET, { repeat: [3, 3] }), roughness: 0.92 }), pale = cloth(0xffffff, { ...woven(SHEET, { repeat: [3, 3] }), roughness: 0.9 });
   const shams = [-1, 1].map((s, i) => lay(pillow(mw * 0.48, 2500, 7600, { seed: i * 2.1 }), sham, [cx + s * mw * 0.255, -mTop + 4500, z0 + hd + 3000], -Math.PI / 2 - 0.2, s * 0.02, 'YXZ'));
   for (const o of shams) back.add(o.geometry);
   ([[-1, 0.03, 0.7], [1, -0.04, 3.3]] as const).forEach(([s, turn, seed]) => lay(pillow(mw * 0.45, 3000, 7200, { seed, lumps: 0.08 }), pale, [cx + s * mw * 0.245, -mTop + 2500, z0 + hd + 9000], 0.42, turn, 'XYZ'));

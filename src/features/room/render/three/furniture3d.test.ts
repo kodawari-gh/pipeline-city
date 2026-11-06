@@ -4,7 +4,7 @@ import type { Room } from '@/core/render/three/camera';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import { OAK_ROUGH, OAK_TILE, bed, bookcase, eastWall, nightstand } from './furniture3d';
+import { OAK_ROUGH, OAK_TILE, PILLOW_WELT, bed, bookcase, eastWall, nightstand, pillow } from './furniture3d';
 import { OAK } from './palette';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
@@ -114,6 +114,19 @@ describe('3D furniture', () => {
       // the front ones lean back on the back ones: they touch
       for (const [f, k] of [[2, 0], [3, 1]] as const) expect(box(pillows[f]!).min.z).toBeLessThan(box(pillows[k]!).max.z);
     });
+  });
+
+  it('sews a pillow soft: round corners, its panels down to a thin welt at the seam, no flat band round it', () => {
+    const w = 14000, h = 3000, d = 7200, p = pillow(w, h, d).attributes.position!;
+    let corner = 0;
+    for (let i = 0; i < p.count; i++) {
+      const x = Math.abs(p.getX(i)) / (w / 2), y = Math.abs(p.getY(i)), z = Math.abs(p.getZ(i)) / (d / 2);
+      // a square corner reaches x + z = 2
+      corner = Math.max(corner, x + z);
+      // at the outline (the ends and the sides) it is no thicker than the welt
+      if (x > 0.985 || z > 0.985) expect(y, `${x.toFixed(3)},${z.toFixed(3)}`).toBeLessThanOrEqual((PILLOW_WELT * h) / 2 + 1);
+    }
+    expect(corner).toBeLessThan(1.75);
   });
 
   it('makes the floor, the desk top and the bookcase of the palette\'s one oak, its grain along each board', () => {
