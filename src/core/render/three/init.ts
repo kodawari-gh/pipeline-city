@@ -2,6 +2,7 @@
 // mapping carry the warm room look (docs/LOWPOLY_STYLE.md).
 import { ACESFilmicToneMapping, Color, HalfFloatType, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, WebGLCubeRenderTarget, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import './arealoop';
 
 /** `pmrem`: a prefilter for environment maps, its programs linked. */
 export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement; pmrem: PMREMGenerator }

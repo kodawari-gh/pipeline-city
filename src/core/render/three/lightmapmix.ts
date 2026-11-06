@@ -9,6 +9,7 @@ import {
   PlaneGeometry, Scene, ShaderChunk, ShaderMaterial, Texture, Vector3, WebGLRenderTarget,
   type BufferGeometry, type Material, type MeshStandardMaterial, type Object3D, type WebGLProgramParametersWithUniforms, type WebGLRenderer,
 } from 'three';
+import './arealoop';
 
 /** A receiver has at least this much surface (m²): a smaller thing only blocks light (a key, a cup's handle). */
 export const MIN_AREA = 0.02;
