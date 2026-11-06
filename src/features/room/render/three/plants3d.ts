@@ -1,12 +1,12 @@
 // The room's plants in 3D (docs/LOWPOLY_STYLE.md "Look decision"): each leaf a curved blade (its outline, a crease down the midrib, a curl, a
-// wavy edge) painted with its veins, on a petiole off a tapered stem: a fiddle-leaf fig in a ribbed pot on the floor, pothos trailing off the
+// wavy edge), its veins a faint relief and a shade paler (`leafTex`: never a bright drawn line), on a petiole off a tapered stem: a fiddle-leaf fig in a ribbed pot on the floor, pothos trailing off the
 // shelves, succulent rosettes in small pots, an aloe on the bench. The builders take layout points (2D y down) and return world meshes (y up).
 // All the leaves of a kind share a few materials, so the room's merge (`mergeStatic`) draws each plant in a handful of calls. Pure scenery.
 import { BufferGeometry, CatmullRomCurve3, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, LatheGeometry, Matrix4, Mesh, Vector2, Vector3, type Material, type Texture } from 'three';
 import { paint, place, post, rod } from '@/core/render/three/geometry';
 import { taperTube } from '@/core/render/three/loft';
 import { mat } from '@/core/render/three/materials';
-import { floorShadow } from './furniture3d';
+import { floorShadow, relief } from './furniture3d';
 import { SPECKLE, STONEWARE } from './palette';
 import { FLOOR_Y } from './roomplan';
 
@@ -54,33 +54,43 @@ export function leafBlade(len: number, wid: number, shape: LeafShape, o: { fold?
   return g;
 }
 
-/** A leaf's painted face (the canvas's top is its tip): the ground, a pale midrib, side veins curving to the edge, `extra` on top. */
-function leafTex(ground: string, vein: string, veins: number, extra?: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture | null {
-  return paint(128, 256, (c, w, h) => {
+/** How deep a leaf's veins sink into its blade (`relief`, in the texture's texels): a faint relief that only a grazing light picks out. */
+const VEIN_DEPTH = 2;
+
+/** A leaf's midrib and its side veins curving to the edge, in `col`: the side veins at `side` opacity, the midrib at `mid`. */
+function ribs(c: CanvasRenderingContext2D, w: number, h: number, col: string, veins: number, side: number, mid: number): void {
+  c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round'; c.lineWidth = 2;
+  c.globalAlpha = side;
+  for (let k = 1; k <= veins; k++) {
+    const y = h - (k / (veins + 1)) * h * 0.95;
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(w / 2, y); c.quadraticCurveTo(w / 2 + s * w * 0.25, y - h * 0.02, w / 2 + s * w * 0.5, y - h * 0.09); c.stroke(); }
+  }
+  c.globalAlpha = mid;
+  c.beginPath(); c.moveTo(w / 2 - 3, h); c.lineTo(w / 2 + 3, h); c.lineTo(w / 2 + 0.5, 0); c.lineTo(w / 2 - 0.5, 0); c.closePath(); c.fill();
+  c.globalAlpha = 1;
+}
+
+/**
+ * A leaf's painted face (the canvas's top is its tip) and its relief: the ground, its midrib and side veins a shade toward `vein` (a small change
+ * of colour, not a drawn line), `extra` on top; the veins sunk into the blade in the normal map.
+ */
+function leafTex(ground: string, vein: string, veins: number, extra?: (c: CanvasRenderingContext2D, w: number, h: number) => void): { map: Texture | null; normalMap: Texture | null } {
+  const map = paint(128, 256, (c, w, h) => {
     c.fillStyle = ground; c.fillRect(0, 0, w, h);
     // a soft sheen down the middle of each half, the edge a little darker
     const g = c.createLinearGradient(0, 0, w, 0);
     g.addColorStop(0, 'rgba(0,0,0,0.16)'); g.addColorStop(0.28, 'rgba(255,255,255,0.06)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(0.72, 'rgba(255,255,255,0.06)'); g.addColorStop(1, 'rgba(0,0,0,0.16)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
-    c.strokeStyle = vein; c.lineCap = 'round';
-    for (let k = 1; k <= veins; k++) {
-      const y = h - (k / (veins + 1)) * h * 0.95;
-      for (const s of [-1, 1]) {
-        c.globalAlpha = 0.55; c.lineWidth = 2;
-        c.beginPath(); c.moveTo(w / 2, y); c.quadraticCurveTo(w / 2 + s * w * 0.25, y - h * 0.02, w / 2 + s * w * 0.5, y - h * 0.09); c.stroke();
-      }
-    }
-    c.globalAlpha = 0.9;
-    c.beginPath(); c.moveTo(w / 2 - 3, h); c.lineTo(w / 2 + 3, h); c.lineTo(w / 2 + 0.5, 0); c.lineTo(w / 2 - 0.5, 0); c.closePath();
-    c.fillStyle = vein; c.fill();
-    c.globalAlpha = 1;
+    ribs(c, w, h, vein, veins, 0.12, 0.25);
     extra?.(c, w, h);
   });
+  const height = paint(128, 256, (c, w, h) => { c.fillStyle = '#808080'; c.fillRect(0, 0, w, h); ribs(c, w, h, '#000000', veins, 0.45, 0.6); });
+  return { map, normalMap: relief(height, VEIN_DEPTH) };
 }
 
 /** Three tones of one leaf material (light, mid, deep): the leaves of a plant take turns. */
-function leafMats(tex: Texture | null, roughness: number): Material[] {
-  return [0xffffff, 0xd7e4c9, 0xaebb9f].map((c) => mat(c, { map: tex, roughness, side: DoubleSide }));
+function leafMats(tex: { map: Texture | null; normalMap: Texture | null }, roughness: number): Material[] {
+  return [0xffffff, 0xd7e4c9, 0xaebb9f].map((c) => mat(c, { ...tex, roughness, side: DoubleSide }));
 }
 
 /** A leaf from base point `at` along `dir`, its face turned toward `face` (and rolled about its midrib by `roll`). */
@@ -196,13 +206,13 @@ export function floorPlant(x: number, z: number): Group {
 }
 
 // ---------------------------------------------------------------- pothos
-/** Golden pothos: heart leaves, green streaked with cream along the veins. */
+/** Golden pothos: heart leaves, green marbled with a soft cream along the veins (broad and faint: a streak, not a line). */
 let pothosM: Material[] | null = null;
 function pothosLeaves(): Material[] {
   return pothosM ??= leafMats(leafTex('#4c8a3a', '#9cc77c', 6, (c, w, h) => {
     for (let k = 0; k < 14; k++) {
       const x = w * (0.2 + rnd() * 0.6), y = h * rnd();
-      c.strokeStyle = `rgba(226,214,140,${0.35 + rnd() * 0.35})`; c.lineWidth = 2 + rnd() * 5;
+      c.strokeStyle = `rgba(226,214,140,${(0.35 + rnd() * 0.35) * 0.3})`; c.lineWidth = (2 + rnd() * 5) * 2.5;
       c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (rnd() - 0.5) * 30, y - 20, x + (x < w / 2 ? -1 : 1) * (10 + rnd() * 30), y - 40 - rnd() * 30); c.stroke();
     }
   }), 0.45);
