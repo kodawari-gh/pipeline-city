@@ -5,7 +5,9 @@
 // desks or stacks; a home room by room), gathered in patches, each in its lamp's colour, and some turn on or off as the night goes. Far away each
 // pattern fades to its average where its scale is under a pixel, so it does not shimmer. The sky's light falls off down a wall toward the street.
 // A flat block near the window has its balconies. On the roofs: a parapet, a membrane, gravel, sedum or pavers, a stair and lift bulkhead with its
-// door, plant boxes, water tanks, solar panels, skylights, vents, air-conditioning units; the towers' masts, spires, lit lanterns and plant
+// door, plant boxes, water tanks, solar panels, skylights, vents, air-conditioning units. The near roofs have the room's detail: the membrane's
+// seams and its flashing up the parapet, the rain's ponds and grime, a framed steel door on a step with a lamp and a canopy over it, plant boxes
+// on kerbs with their grilles, vent pipes in their boots and mushroom vents; the towers' masts, spires, lit lanterns and plant
 // screens, their LED bands, the red beacons blinking at night. The tall landmarks wear their own light after dark (a floodlit head, lit edges, a
 // lit crown; the tallest's a stepped spire), so the skyline is known by its shapes. A quiet few signs of abstract glyphs (no real words), neon or lit boxes, and shop fronts
 // each in its own light. A thin lit thing keeps a pixel's width far off, or it would flash as the view moves.
@@ -27,8 +29,9 @@ const SIGNS = [0x4fd6ff, 0x4fd6ff, 0xffb15a, 0xffb15a, 0xff5a3c, 0xff5a3c, 0xff3
 /** A parapet's height over its roof (m), how far from the window a roof gets its plant and tanks, and its smallest things. */
 const PARAPET = 1.1, CLUTTER = 900, FINE = 420;
 
-/** A water tank and its lid, a vent pipe and its cap, centred on their own middles. */
+/** A water tank and its lid, a vent pipe and its cap, the boot that seals a pipe to the membrane, a mushroom vent and its hood, centred on their own middles. */
 const TANK = new CylinderGeometry(1.25, 1.25, 2.4, 16), TANK_LID = new ConeGeometry(1.3, 0.4, 16), VENT = new CylinderGeometry(0.14, 0.14, 0.8, 8), VENT_CAP = new CylinderGeometry(0.24, 0.24, 0.1, 8);
+const BOOT = new CylinderGeometry(0.2, 0.27, 0.14, 8), MUSH = new CylinderGeometry(0.26, 0.3, 0.42, 10), MUSH_CAP = new ConeGeometry(0.5, 0.24, 10);
 
 type V3 = readonly [number, number, number];
 
@@ -154,19 +157,28 @@ function solar(m: Mass, r: Rect, y: number): void {
   }
 }
 
+/** A roof's membrane turned up the inner face of the rect r's walls (`out`: up the outer face) to h over y, under a metal bar: its flashing. */
+function flashing(m: Mass, r: Rect, y: number, h: number, out = false): void {
+  const k = out ? -0.04 : 0.04, face = inset(r, k), bar = inset(r, k * 1.25);
+  m.set(0x505356, 0, Kind.Plain).box(face, y, y + h, false, !out);
+  m.set(0x9fa3a6, 0, Kind.Plain).box(bar, y + h, y + h + 0.05, false, !out);
+  if (out) m.ring(bar, -k * 1.25, y + h + 0.05); else m.ring(r, k * 1.25, y + h + 0.05);
+}
+
 /**
  * What stands on a roof, the largest first, each where the others leave room: a bulkhead with its door and a paved way to it, solar panels, plant
- * boxes, a water tank on its stand, a row of air-conditioning units on their rail, skylights, vent pipes. `fine`: near enough for the small things.
+ * boxes, a water tank on its stand, a row of air-conditioning units on their rail, skylights, vent pipes. `fine`: near enough for the small things:
+ * then the bulkhead has its flashing, a framed door on a step, a lamp over it under a canopy, and the roof its mushroom vents.
  */
 function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, fine: boolean): void {
   const w = r.x1 - r.x0, d = r.z1 - r.z0;
   if (w < 10 || d < 10) return;
   const used: Rect[] = [];
-  /** A free place on the roof for pw by pd, away from the parapet and what stands there already. */
-  const place = (pw: number, pd: number): Rect | null => {
+  /** A free place on the roof for pw by pd, away from the parapet and what stands there already (placed by `pick`, by default the roof's own stream). */
+  const place = (pw: number, pd: number, pick = rand): Rect | null => {
     if (pw > w - 2.4 || pd > d - 2.4) return null;
     for (let i = 0; i < 8; i++) {
-      const q = sized(r.x0 + 1.2 + pw / 2 + rand() * (w - 2.4 - pw), r.z0 + 1.2 + pd / 2 + rand() * (d - 2.4 - pd), pw, pd);
+      const q = sized(r.x0 + 1.2 + pw / 2 + pick() * (w - 2.4 - pw), r.z0 + 1.2 + pd / 2 + pick() * (d - 2.4 - pd), pw, pd);
       if (used.every((u) => q.x1 + 0.7 < u.x0 || q.x0 - 0.7 > u.x1 || q.z1 + 0.7 < u.z0 || q.z0 - 0.7 > u.z1)) { used.push(q); return q; }
     }
     return null;
@@ -178,8 +190,17 @@ function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, f
     m.set(shade, 0, Kind.Plain).box(head, y, y + 3.4 + rand() * 1.5, true);
     m.set(shade.clone().multiplyScalar(1.1), 0, Kind.Plain).ring(inset(head, -0.12), 0.12, y + 3.42);
     if (fine) {
-      m.set(0x24272a, 0, Kind.Plain).box({ x0: cx - 0.55, x1: cx + 0.55, z0: head.z1, z1: head.z1 + 0.05 }, y, y + 2.15, true);
-      m.set(0xa39f96, 0, Kind.Plain).box(rand() < 0.5 ? { x0: r.x0 + 0.3, x1: head.x0, z0: cz - 0.5, z1: cz + 0.5 } : { x0: cx - 0.5, x1: cx + 0.5, z0: head.z1, z1: r.z1 - 0.3 }, y, y + 0.07, true);
+      // the steel door over the flashing's sill, in a frame, its lever; a step up to it; a lamp over it, warm at night, under a canopy
+      const at = (x0: number, x1: number, out: number): Rect => ({ x0: cx + x0, x1: cx + x1, z0: head.z1, z1: head.z1 + out });
+      flashing(m, head, y, 0.28, true);
+      m.set(0x74787c, 0, Kind.Plain).box(at(-0.66, 0.66, 0.07), y + 0.26, y + 2.5, true);
+      m.set(0x2b3033, 0, Kind.Plain).box(at(-0.52, 0.52, 0.1), y + 0.33, y + 2.4, true);
+      m.set(0xb5b8ba, 0, Kind.Plain).box({ x0: cx + 0.26, x1: cx + 0.42, z0: head.z1 + 0.1, z1: head.z1 + 0.16 }, y + 1.22, y + 1.27, true);
+      m.set(0x9c9890, 0, Kind.Plain).box(at(-0.8, 0.8, 0.62), y, y + 0.18, true);
+      m.set(0x3a3d40, 0, Kind.Plain).box(at(-0.15, 0.15, 0.13), y + 2.6, y + 2.84, true);
+      m.set(0xffd8a6, 0, Kind.Led, 0, [0, 0, 0, 0], 0.85).box({ x0: cx - 0.11, x1: cx + 0.11, z0: head.z1 + 0.13, z1: head.z1 + 0.145 }, y + 2.63, y + 2.81, false);
+      m.set(0x7d8186, 0, Kind.Plain).box(at(-0.9, 0.9, 0.6), y + 2.94, y + 3.02, true);
+      m.set(0xa39f96, 0, Kind.Plain).box(rand() < 0.5 ? { x0: r.x0 + 0.3, x1: head.x0, z0: cz - 0.5, z1: cz + 0.5 } : { x0: cx - 0.5, x1: cx + 0.5, z0: head.z1 + 0.62, z1: r.z1 - 0.3 }, y, y + 0.07, true);
     }
   }
   // a roof's share of things grows with its size
@@ -199,7 +220,16 @@ function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, f
   }
   for (let i = 0, n = 1 + Math.floor(rand() * 3) + Math.min(3, large); i < n; i++) {
     const s = 1.6 + rand() * 1.8, q = place(s * 1.4, s);
-    if (q) m.set(0x8d9196, 0, Kind.Plain).box(q, y, y + 1.2 + rand() * 0.8, true);
+    if (!q) continue;
+    const top = y + 1.2 + rand() * 0.8;
+    m.set(0x8d9196, 0, Kind.Plain).box(q, y + (fine ? 0.16 : 0), top, true);
+    if (fine) {
+      // near, a plant box stands on a dark kerb, its intake grille on the window's side, its fan's grille on top
+      const cx = (q.x0 + q.x1) / 2, cz = (q.z0 + q.z1) / 2, fan = Math.min(q.x1 - q.x0, q.z1 - q.z0) * 0.3;
+      m.set(0x3d4043, 0, Kind.Plain).box(inset(q, 0.08), y, y + 0.16, false);
+      m.set(0x4a4e52, 0, Kind.Plain).box({ x0: q.x0 + 0.18, x1: q.x1 - 0.18, z0: q.z1, z1: q.z1 + 0.025 }, y + 0.4, top - 0.22, true);
+      m.box(sized(cx, cz, fan * 2, fan * 2), top, top + 0.05, true);
+    }
   }
   if (rand() < 0.35) {
     const q = place(2.8, 2.8);
@@ -235,6 +265,18 @@ function clutter(m: Mass, r: Rect, y: number, b: Building, rand: () => number, f
       const x = (q.x0 + q.x1) / 2, z = (q.z0 + q.z1) / 2;
       m.set(0x6a6e72, 0, Kind.Plain).shape(VENT, x, y + 0.4, z);
       m.shape(VENT_CAP, x, y + 0.84, z);
+      m.set(0x3d4043, 0, Kind.Plain).shape(BOOT, x, y + 0.07, z);
+    }
+  }
+  // the mushroom vents, from their own stream, so all that stands before them keeps its place
+  const more = rng(b.seed * 31 + 7);
+  for (let i = 0, n = 2 + Math.floor(more() * 3); i < n; i++) {
+    const q = place(1, 1, more);
+    if (q) {
+      const x = (q.x0 + q.x1) / 2, z = (q.z0 + q.z1) / 2;
+      m.set(0x3d4043, 0, Kind.Plain).shape(BOOT, x, y + 0.07, z);
+      m.set(0x8e9296, 0, Kind.Plain).shape(MUSH, x, y + 0.35, z);
+      m.shape(MUSH_CAP, x, y + 0.68, z);
     }
   }
 }
@@ -477,6 +519,7 @@ export function massGeometry(bs: readonly Building[], washes: SignWash[] = []): 
       m.set(frame.clone().multiplyScalar(1.15), 0, Kind.Plain).ring(t, 0.3, t.y1 + PARAPET);
       const floor = inset(t, 0.3);
       m.set(0x8a8780, 0, Kind.Roof, b.seed % 991, [floor.x0, floor.x1, floor.z0, floor.z1]).top(floor, t.y1);
+      if (near) flashing(m, floor, t.y1, 0.32);
       // an office grid's stone cap under its parapet's top and its string course over the shop fronts; any other's slim metal cap
       if (b.style === 'grid') {
         const stone = new Color(b.frame).multiplyScalar(1.06), out = 0.25;
@@ -796,9 +839,12 @@ if (fKind == 0 || fKind == 6) {
   float grit = mix(fNoise(g * 3.7 + seed) * 0.6 + fNoise(g * 11.0) * 0.4, 0.5, grainF < 0.01 ? 1.0 : 1.0 - grainF);
   vec3 c;
   if (make < 0.42) {
+    // sheets two metres wide, each row's ends lapped where the rolls ran out; a welded seam is a dark line with its lip's bright edge beside it
     vec2 s = rr < 0.5 ? g : g.yx;
-    float q = s.x / 2.0, l = fract(q), lap = mix(smoothstep(0.08 + px * 0.5, 0.0, min(l, 1.0 - l) * 2.0), 0.05, 1.0 - sheetF);
-    c = mix(vec3(0.27, 0.285, 0.29), vec3(0.42, 0.42, 0.405), rr) * (0.96 + 0.12 * mix(fHash(vec2(floor(q), seed)), 0.5, 1.0 - sheetF)) * (1.0 - 0.42 * lap);
+    float q = s.x / 2.0, l = fract(q), row = floor(q), roll = 7.0 + 5.0 * fHash(vec2(row, seed * 1.3)), e = fract(s.y / roll + fHash(vec2(row, seed + 2.7)));
+    float sd = min(min(l, 1.0 - l) * 2.0, min(e, 1.0 - e) * roll);
+    float lap = mix(smoothstep(0.08 + px * 0.5, 0.0, sd), 0.05, 1.0 - sheetF), lip = mix(smoothstep(0.05 + px * 0.5, 0.0, abs(sd - 0.12)), 0.0, 1.0 - sheetF);
+    c = mix(vec3(0.27, 0.285, 0.29), vec3(0.42, 0.42, 0.405), rr) * (0.96 + 0.12 * mix(fHash(vec2(row, seed)), 0.5, 1.0 - sheetF)) * (1.0 - 0.42 * lap + 0.12 * lip);
     c *= 0.66 + 0.52 * smoothstep(0.25, 0.7, big * 0.6 + mid * 0.4);
   } else if (make < 0.74) {
     c = vColor.rgb * (0.66 + 0.6 * big) * (0.74 + 0.52 * grit);
@@ -812,6 +858,11 @@ if (fKind == 0 || fKind == 6) {
     c = mix(vec3(0.05), vec3(0.19, 0.185, 0.17) * (0.88 + 0.24 * mix(fHash(floor(pv) + seed), 0.5, 1.0 - sheetF)), slab * step(make, 0.95));
     c *= 0.8 + 0.4 * big;
   }
+  // where the rain lies after a storm: a pond a little darker, its tide line darker still; streaks of grime run from it
+  float pond = fNoise(g * 0.13 + seed * 2.9), pw = fwidth(pond);
+  float tide = mix(smoothstep(0.012 + pw, 0.0, abs(pond - 0.63)), 0.0, 1.0 - sheetF), wet = smoothstep(0.62, 0.64, pond);
+  float grime = mix(smoothstep(0.55, 0.8, fNoise(vec2(g.x * 1.6, g.y * 0.09) + seed * 4.3)), 0.25, 1.0 - sheetF) * smoothstep(0.45, 0.6, pond);
+  c *= (1.0 - 0.14 * wet) * (1.0 - 0.3 * tide) * (1.0 - 0.18 * grime);
   diffuseColor.rgb = c * (0.78 + 0.22 * smoothstep(0.0, 3.0, edge));
   fRough = 0.94;
   fAo = 0.45 + 0.55 * smoothstep(0.0, 1.5, edge);
