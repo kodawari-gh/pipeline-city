@@ -13,6 +13,7 @@
     "bench:speed": "node tools/bench-speed.mjs",
     "bench:3d": "node tools/bench3d.mjs",
     "shot": "node tools/shot.mjs",
+    "bake": "node tools/bake/bake.mjs",
     "bake:cloth": "node tools/bake-cloth.mjs",
     "e2e:tutorial": "node e2e/tutorial.e2e.mjs",
     "typecheck": "tsc --noEmit"
@@ -29,6 +30,7 @@
     "playwright-core": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "xatlas-wasm": "^0.1.3"
   }
 }
