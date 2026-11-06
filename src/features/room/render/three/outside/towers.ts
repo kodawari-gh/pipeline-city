@@ -498,12 +498,17 @@ function signs(m: Mass, b: Building, away: number): void {
   }
 }
 
-/** Every building in one geometry. `washes` takes the signs that light a wall (`signlight.ts`). */
-export function massGeometry(bs: readonly Building[], washes: SignWash[] = []): BufferGeometry {
-  const m = new Mass();
-  m.washes = washes;
+/** The grid's cell of the buildings' geometries (m), near the window (within `CLUTTER`) and past it: what the window's box does not see is not drawn. */
+const CELL_NEAR = 300, CELL_FAR = 800;
+
+/** The buildings, one geometry for each cell of the grid. `washes` takes the signs that light a wall (`signlight.ts`). */
+export function massGeometries(bs: readonly Building[], washes: SignWash[] = []): BufferGeometry[] {
+  const cells = new Map<string, Mass>();
   for (const b of bs) {
-    const s = STYLES[b.style], rand = rng(b.seed), away = Math.hypot(((b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2 - GRID.av0), b.tiers[0]!.z1), near = away < CLUTTER, head = headLight(b);
+    const s = STYLES[b.style], rand = rng(b.seed), mx = (b.tiers[0]!.x0 + b.tiers[0]!.x1) / 2, away = Math.hypot(mx - GRID.av0, b.tiers[0]!.z1), near = away < CLUTTER, head = headLight(b);
+    const size = near ? CELL_NEAR : CELL_FAR, key = `${size},${Math.floor(mx / size)},${Math.floor(b.tiers[0]!.z1 / size)}`;
+    let m = cells.get(key)!;
+    if (!m) { cells.set(key, (m = new Mass())); m.washes = washes; }
     b.tiers.forEach((t, i) => {
       // the walls: each wall's bays stretched to fit it whole
       const home = b.style === 'tile' || (b.style === 'band' && topOf(b) < 60);
@@ -545,7 +550,7 @@ export function massGeometry(bs: readonly Building[], washes: SignWash[] = []): 
     leds(m, b);
     signs(m, b, away);
   }
-  return m.geometry();
+  return [...cells.values()].map((m) => m.geometry());
 }
 
 /** The facade's light by the hour: the lit rooms' share of their full glow at night, the clock for the beacons, the sun (direction, colour) and the horizon's colour, for what the glass mirrors and the shadows on a wall; and a picture's pixel in metres for each metre away. */

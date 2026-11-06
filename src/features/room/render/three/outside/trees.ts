@@ -47,6 +47,16 @@ const BALLS = [1, 2].map((d) => {
 /** How many sprays of leaves stand on each lump of a near crown. */
 const SPRAYS = 4;
 
+/**
+ * How a tree is built at its distance from the window, so the triangles follow the pixels: `Sprayed` lumps with sprays and all its wood; `Round`
+ * finer bare lumps; `Coarse` coarser ones, and of its wood only the trunk (the crown hides the limbs); `Sparse` also no lump on the small
+ * branches, the limbs' lumps grown to fill for them.
+ */
+const enum Detail { Sprayed, Round, Coarse, Sparse }
+const detailAt = (away: number): Detail => (away < 160 ? Detail.Sprayed : away < 250 ? Detail.Round : away < 500 ? Detail.Coarse : Detail.Sparse);
+/** The grid's cell of the trees' meshes (m): what the window's box does not see is not drawn. */
+const TREE_CELL = 200;
+
 /** The leaf lumps of every crown in one geometry: places, normals (bent toward the crown's), a colour (its green, darker inside), the wind's swing and phase, the lump's own normal (for its outline). */
 class Lumps {
   pos: number[] = []; nor: number[] = []; col: number[] = []; wind: number[] = []; lump: number[] = []; idx: number[] = [];
@@ -91,9 +101,9 @@ interface Cluster { p: V3; r: number }
 /**
  * A crown's lumps, one round each cluster. `o` and `rad`: the crown's ellipsoid, for the normals (its own outward normal there, bent toward
  * the lump's) and the shade (dark deep inside, darker under, a lump's underside darker still). A near tree's lumps carry sprays, smaller
- * lumps mostly on the side out of the crown, each dark where it meets its lump, so the mass has creases; a far tree's are coarser, and bare.
+ * lumps mostly on the side out of the crown, each dark where it meets its lump, so the mass has creases; a far tree's are bare (`Detail`).
  */
-function crown(c: Lumps, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint: V3, height: number, far: boolean, r: () => number): void {
+function crown(c: Lumps, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint: V3, height: number, detail: Detail, r: () => number): void {
   for (const k of cl) {
     const phase = r() * 6.28, tone = 0.88 + r() * 0.24, hue = (r() - 0.5) * 0.16, seed = r() * 100;
     const shade = (p: V3, d: V3, crease = 1): [V3, V3] => {
@@ -103,7 +113,7 @@ function crown(c: Lumps, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint:
       return [nrm, [tint[0] * ao * (1 + hue), tint[1] * ao, tint[2] * ao * (1 - hue)]];
     };
     const swing = 0.02 + 0.05 * clamp01((k.p[1] - CURB) / height);
-    if (far) { c.add(k.p, k.r * 1.02, h.bumps, true, seed, shade, swing, phase); continue; }
+    if (detail !== Detail.Sprayed) { c.add(k.p, k.r * 1.02, h.bumps, detail === Detail.Round, seed, shade, swing, phase); continue; }
     c.add(k.p, k.r * 1.02, h.bumps, false, seed, (p, d) => shade(p, d, 0.72), swing, phase);
     const out = unit([(k.p[0] - o[0]) / rad[0], (k.p[1] - o[1]) / rad[1], (k.p[2] - o[2]) / rad[2]]);
     for (let i = 0; i < SPRAYS; i++) {
@@ -114,20 +124,20 @@ function crown(c: Lumps, cl: readonly Cluster[], o: V3, rad: V3, h: Habit, tint:
 }
 
 /** One tree: its bark into `bark`, its leaves into the lumps. */
-function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], far: boolean): void {
-  const h = HABIT[t.kind], r = rng(t.seed), H = t.h, R = H * h.spread, v = () => 0.94 + r() * 0.12;
+function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], detail: Detail): void {
+  const h = HABIT[t.kind], r = rng(t.seed), H = t.h, R = H * h.spread, v = () => 0.94 + r() * 0.12, wood = detail < Detail.Coarse;
   const tint: V3 = [h.tint[0] * v(), h.tint[1] * v(), h.tint[2] * v()];
   if (t.kind === 'shrub') {
     // a bush: a few clusters round its middle, on the ground
     const o: V3 = [t.x, CURB + H * 0.48, t.z], rad: V3 = [R, H * 0.5, R], cl: Cluster[] = [];
     for (let i = 0; i < 4; i++) { const d = anyDir(r); cl.push({ p: add(o, [d[0] * R * 0.4, Math.abs(d[1]) * H * 0.15, d[2] * R * 0.4]), r: R * 0.62 }); }
-    crown(cards, cl, o, rad, h, tint, H, far, r);
+    crown(cards, cl, o, rad, h, tint, H, detail, r);
     return;
   }
   const foot: V3 = [t.x, CURB - 0.05, t.z], bole = H * h.bole, r0 = 0.05 + H * h.girth;
   const top = add(foot, unit([(r() - 0.5) * 0.12, 1, (r() - 0.5) * 0.12]), bole + 0.05 * H);
   const lead = h.leader ? add(top, unit([(r() - 0.5) * 0.15, 1, (r() - 0.5) * 0.15]), (H - bole) * 0.82) : top;
-  bark.push(h.leader ? limb([foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead], r0, 0.035, 10, 16) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 10, 8));
+  bark.push(!wood ? limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 6, 2) : h.leader ? limb([foot, lerp(foot, top, 0.5), top, lerp(top, lead, 0.5), lead], r0, 0.035, 10, 16) : limb([foot, lerp(foot, top, 0.5), top], r0, r0 * 0.72, 10, 8));
   // the crown's ellipsoid over the bole (a little larger than the limbs' reach, as the clusters stand out round their ends)
   const o: V3 = [top[0], CURB + bole + (H - bole) * 0.52, top[2]], rad: V3 = [R * 1.15, (H - bole) * 0.55, R * 1.15], cl: Cluster[] = [];
   for (let i = 0; i < h.limbs; i++) {
@@ -144,19 +154,19 @@ function grow(t: Tree, cards: Lumps, bark: BufferGeometry[], far: boolean): void
       end = [o[0] + out[0] * R * (0.55 + r() * 0.3), o[1] + rad[1] * (-0.15 + r() * 0.7), o[2] + out[2] * R * (0.55 + r() * 0.3)];
     }
     const span = len([end[0] - from[0], end[1] - from[1], end[2] - from[2]]), mid = add(lerp(from, end, 0.45), [0, span * 0.14, 0]);
-    bark.push(limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, 6, 8));
-    cl.push({ p: end, r: R * 0.42 });
+    if (wood) bark.push(limb([from, mid, end], r0 * (h.leader ? 0.38 : 0.55), 0.03, 6, 8));
+    cl.push({ p: end, r: R * (detail === Detail.Sparse ? 0.52 : 0.42) });
     // its branches, off its outer half, each fanned a little from it and up
     for (let j = 0, m = 2 + (r() < 0.5 ? 1 : 0); j < m; j++) {
       const a = az + (r() < 0.5 ? -1 : 1) * (0.4 + r() * 0.5), f = 0.4 + r() * 0.45, s = f < 0.5 ? lerp(from, mid, f * 2) : lerp(mid, end, f * 2 - 1);
       const tip = add(add(s, [Math.cos(a), 0, Math.sin(a)], R * (0.3 + r() * 0.2)), [0, R * (0.12 + r() * 0.2), 0]);
-      bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, 5, 4));
-      cl.push({ p: tip, r: R * 0.36 });
+      if (wood) bark.push(limb([s, lerp(s, tip, 0.5), tip], 0.05, 0.015, 5, 4));
+      if (detail !== Detail.Sparse) cl.push({ p: tip, r: R * 0.36 });
     }
   }
   // the crown's top, and a fill in its middle so it is not seen through between the lumps
   cl.push({ p: h.leader ? lead : add(o, [0, rad[1] * 0.55, 0]), r: R * 0.48 }, { p: o, r: R * 0.6 });
-  crown(cards, cl, o, rad, h, tint, H, far, r);
+  crown(cards, cl, o, rad, h, tint, H, detail, r);
 }
 
 /** The leaves' wind and their light: the clock (s), the sun's direction in the camera's frame, the sunlight they let through, the street's light at night (0 to 1). */
@@ -228,13 +238,20 @@ float leafNoise(vec3 p) {
   return u;
 }
 
-/** The trees' meshes (bark, leaves; each casts and takes shadows) and their leaves' uniforms. Far from the window they are sparser. */
+/** The trees' meshes (for each cell of the grid: bark, leaves; each casts and takes shadows) and their leaves' uniforms. Far from the window they are sparser (`Detail`). */
 export function plantTrees(list: readonly Tree[], k: Kit): { meshes: Mesh[]; leaf: LeafUniforms } {
-  const cards = new Lumps(), wood: BufferGeometry[] = [];
-  for (const t of list) grow(t, cards, wood, Math.hypot(t.x - GRID.av0, t.z) > 160);
+  const cells = new Map<string, { cards: Lumps; wood: BufferGeometry[] }>();
+  for (const t of list) {
+    const key = `${Math.floor(t.x / TREE_CELL)},${Math.floor(t.z / TREE_CELL)}`;
+    let c = cells.get(key);
+    if (!c) cells.set(key, (c = { cards: new Lumps(), wood: [] }));
+    grow(t, c.cards, c.wood, detailAt(Math.hypot(t.x - GRID.av0, t.z)));
+  }
   const meshes: Mesh[] = [];
-  if (wood.length) meshes.push(new Mesh(mergeGeometries(wood, false)!, k.bark));
-  meshes.push(new Mesh(cards.geometry(), k.leaves));
+  for (const { cards, wood } of cells.values()) {
+    if (wood.length) meshes.push(new Mesh(mergeGeometries(wood, false)!, k.bark));
+    meshes.push(new Mesh(cards.geometry(), k.leaves));
+  }
   for (const m of meshes) m.castShadow = m.receiveShadow = true;
   return { meshes, leaf: leafShader(k.leaves) };
 }

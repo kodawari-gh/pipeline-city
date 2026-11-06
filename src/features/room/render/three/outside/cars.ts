@@ -10,7 +10,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HAZE_FN, withHaze, type HazeUniforms } from './haze';
-import { CAR_COLOURS, rng, type Car } from './plan';
+import { CAR_COLOURS, GRID, rng, type Car } from './plan';
 import { MODELS, type Traffic } from './traffic';
 
 /** A wheel's radius and its arch's, the sill's height (m). */
@@ -240,21 +240,21 @@ export class Fleet {
   private shadeMat: ShaderMaterial;
 
   constructor(private traffic: Traffic, parked: readonly Car[], light: CarLight, haze: HazeUniforms) {
-    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i));
+    const mat = this.mat = carMaterial(light), n = traffic.cars.length, geos = MODELS.map((_, i) => carGeometry(i)), box = farGeometry();
     withHaze(mat, haze);
-    // the parked cars: each model's in one mesh, their lamps dark, casting their shadows
-    const byModel = MODELS.map(() => [] as Car[]);
-    for (const c of parked) byModel[Math.floor(rng(c.seed)() * MODELS.length)]!.push(c);
-    byModel.forEach((cs, k) => {
+    // the parked cars: each model's in one mesh, the box past `NEAR` of the window as for a moving car, their lamps dark, casting their shadows
+    const byModel = MODELS.map(() => [] as Car[]), boxed: Car[] = [];
+    for (const c of parked) (Math.hypot(c.x - GRID.av0, c.z) < NEAR ? byModel[Math.floor(rng(c.seed)() * MODELS.length)]! : boxed).push(c);
+    [...byModel, boxed].forEach((cs, k) => {
       if (!cs.length) return;
-      const im = fleetMesh(geos[k]!, mat, cs.length, false), a = im.instanceMatrix.array as Float32Array;
+      const im = fleetMesh(geos[k] ?? box, mat, cs.length, false), a = im.instanceMatrix.array as Float32Array;
       cs.forEach((c, i) => { place(a, i, c.x, c.z, c.rot); im.setColorAt(i, PAINT[c.colour]!); });
       im.castShadow = im.receiveShadow = true;
       this.group.add(im);
     });
     // the moving ones: each model near, the box far off
     this.near = geos.map((g) => fleetMesh(g, mat, n, true));
-    this.far = fleetMesh(farGeometry(), mat, n, true);
+    this.far = fleetMesh(box, mat, n, true);
     for (const im of [...this.near, this.far]) { im.receiveShadow = true; this.group.add(im); }
     // their pools of light, and the shadows under every car
     this.poolMat = new ShaderMaterial({

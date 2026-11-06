@@ -30,7 +30,7 @@ import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from '.
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
-import { facadeMaterial, massGeometry, type FacadeUniforms } from './towers';
+import { facadeMaterial, massGeometries, type FacadeUniforms } from './towers';
 import { Traffic } from './traffic';
 import { plantTrees, type LeafUniforms } from './trees';
 
@@ -197,17 +197,17 @@ export class OutsideView {
     this.mesh.castShadow = this.mesh.receiveShadow = false;
     this.mesh.onBeforeRender = (_r, _s, camera) => { this.quad.uniforms.live!.value = camera === this.live && this.target ? 1 : 0; };
 
-    // the streets merged by material; the buildings in one mesh on their facade's material, the trees and the land in their own
+    // the streets merged by material; the buildings on their facade's material, cell by cell, the trees and the land in their own
     const k = this.kit = makeKit(), ts = trees();
     const still = new Group(), st = street(k, ts);
     still.add(st.group);
     mergeStatic(still);
-    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), mass = new Mesh(massGeometry(blocks, washes), facade.mat), steam = roofSteam(blocks, this.haze);
+    const blocks = buildings(), washes: SignWash[] = [], facade = facadeMaterial(), steam = roofSteam(blocks, this.haze);
+    const mass = massGeometries(blocks, washes).map((g) => { const m = new Mesh(g, facade.mat); m.castShadow = m.receiveShadow = true; return m; });
     const signLight = signWashes(washes, this.haze, facade.u.night);
-    mass.castShadow = mass.receiveShadow = true;
     this.facade = facade.u;
     this.steam = steam.u;
-    this.scene.add(still, mass, land(k), steam.mesh, signLight);
+    this.scene.add(still, ...mass, land(k), steam.mesh, signLight);
     const plants = plantTrees(ts, k);
     this.leaf = plants.leaf;
     this.scene.add(...plants.meshes);
