@@ -23,6 +23,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
+import type { Program } from '@/core/render/three/compile';
 import { LightmapMix, STAND_IN_DECAY, applyLightmap, keyFrames, loadBake, type Bake } from '@/core/render/three/lightmapmix';
 import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
@@ -120,6 +121,20 @@ const smooth = (a: number, b: number, v: number): number => { const t = Math.min
 let bakeLoad: Promise<Bake | null> | null = null;
 const roomBake = (): Promise<Bake | null> => (bakeLoad ??= typeof createImageBitmap === 'undefined' ? Promise.resolve(null)
   : loadBake(`${import.meta.env.BASE_URL}bake/room/`).catch((e: unknown) => { if (import.meta.env.DEV) console.warn('the room light bake did not load:', e); return null; }));
+/** Starts loading the room's light bake now, before the room is built (its files load while the build holds the page). */
+export const preloadRoomBake = (): void => { void roomBake(); };
+/** The city in the window, one for every room (a case of another tier is a new room, but the same view): it takes seconds to build. */
+let city: OutsideView | null = null;
+const theCity = (): OutsideView => (city ??= new OutsideView(WINDOW.x + WINDOW.w / 2, -(WINDOW.y + WINDOW.h / 2), WINDOW.w, WINDOW.h, GLASS_Z));
+/**
+ * Builds the city in the window before the room, its sun's shadow at `shadows` of the graphics settings, and starts linking its programs
+ * (`compile.ts`): the driver links them while the page builds the room.
+ */
+export function prepareCity(r: WebGLRenderer, shadows: number): void {
+  const c = theCity();
+  c.setShadows(shadows);
+  c.startPrograms(r);
+}
 
 let seedN = 1;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -347,6 +362,11 @@ export class Room3D {
   private box: BoxEnv;
   /** Where the room's probe sees from (world): over the desk's front, in the room's middle height. */
   readonly probeAt: [number, number, number];
+  /**
+   * Resolves once the bake's lightmap is on the meshes (or there is none): it changes their programs, so they are linked after it
+   * (`docs/render/load.md`). The bake's files load once a page.
+   */
+  readonly ready: Promise<void>;
   /** What the room's light depends on, coarsely: a new value asks for a new capture of the probe. */
   lightKey = '';
 
@@ -407,7 +427,7 @@ export class Room3D {
     winG.add(softBox({ x: MULLION_X - bar / 2, y: W.y + bar, w: bar, h: W.h - 2 * bar }, fz0, FRAME_Z, alu, 30));
     const glass = seeThrough(new Mesh(new PlaneGeometry(W.w, W.h), new MeshStandardMaterial({ color: 0xdbeaff, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0.2, depthWrite: false })));
     glass.position.set(W.x + W.w / 2, -(W.y + W.h / 2), GLASS_Z + 100);
-    this.outside = new OutsideView(W.x + W.w / 2, -(W.y + W.h / 2), W.w, W.h, GLASS_Z);
+    this.outside = theCity();
     winG.add(this.outside.mesh, glass);
     const cassette = mat(0x2a2d33, { roughness: 0.5 }), screen = mat(0xffffff, { map: screenTex('#4b5059', [2, 4]), roughness: 0.9, side: DoubleSide });
     for (const b of bays) {
@@ -482,7 +502,7 @@ export class Room3D {
 
     // ---- on the desk: the monitor, the keyboard on its felt mat, the mouse, a tea cup on its saucer, a notebook ----
     this.monitor = new Monitor(MONITOR, SCREEN, ys, MONITOR_Z);
-    R.add(this.monitor.root);
+    R.add(this.monitor.root, this.monitor.bias);
     const kx = MONITOR.x + MONITOR.w / 2, kz = MONITOR_Z + 3600;
     const felt = paint(512, 192, (c, w, h) => {
       c.fillStyle = '#5b6168'; c.fillRect(0, 0, w, h);
@@ -616,8 +636,14 @@ export class Room3D {
     vertexAo(R);
     mergeStatic(R);
     // the baked bounce once its files are in; until then, and on a mesh the bake does not know, the probe's
-    void roomBake().then((b) => { if (b && !this.gone) this.takeBake(b); });
+    this.ready = roomBake().then((b) => { if (b && !this.gone) this.takeBake(b); });
   }
+
+  /**
+   * Starts linking the programs the window's view draws with (`compile.ts`): the room's own come with the scene it stands in. Call it after a
+   * first `frame`, so its lights stand as they will be drawn.
+   */
+  startPrograms(r: WebGLRenderer): Program[] { return this.outside.startPrograms(r); }
 
   /**
    * The baked bounce's light groups: the lights the room scales by one value (a switch, a step of the evening). `tools/bake/` bakes each at
@@ -701,8 +727,8 @@ export class Room3D {
     this.outside.draw(renderer, scene, camera, samples);
   }
 
-  /** Free what is not under the root: the outside's scene and its targets, the baked bounce's target. */
-  dispose(): void { this.gone = true; this.outside.dispose(); this.lightmap?.dispose(); }
+  /** Free what is not under the root: the baked bounce's target. The city stays for the next room: call it before the root is freed. */
+  dispose(): void { this.gone = true; this.outside.mesh.removeFromParent(); this.lightmap?.dispose(); }
 
   private shadowTurn = 0;
   private shadowAt = 0;
@@ -850,9 +876,11 @@ export class Room3D {
     this.ledUnder.intensity = led * 6;
     this.ledHalo.intensity = led * 10;
     this.deskLed.intensity = led * 18;
-    this.screenLight.intensity = f.screen.powered ? nits(SCREEN_NITS) : 0;
+    // (both stay in the scene at 0 without a monitor: the count of lights does not change)
+    const lit = f.screen.installed && f.screen.powered;
+    this.screenLight.intensity = lit ? nits(SCREEN_NITS) : 0;
     const bias = this.monitor.bias;
-    bias.intensity = f.screen.powered ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
+    bias.intensity = lit ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);

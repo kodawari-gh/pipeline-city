@@ -1,6 +1,7 @@
 import './ui.css';
 import { useEffect, useState } from 'preact/hooks';
 import { selected, viewInset } from '../../app/hover';
+import { booted } from '../../app/boot';
 import { highlight } from '../../app/interaction';
 import {
   autosaveOffer, exportSave, importSave, lastRunSpeed, setSpeed, snapshot, speed, startSim, toggleZoomSlow, togglePause, zoomSlowOn, zoomSlowdown,
@@ -83,7 +84,15 @@ function StartPrompt() {
       </div>
     );
   }
-  return <div class="card prompt mute">starting...</div>;
+  return null;
+}
+
+/**
+ * The game's name over the live board before a game, where the boot screen had it (index.html): it stays as that screen fades. It fades out
+ * as the game starts, and stays in the page for that (the HUD keeps the same element).
+ */
+function Title({ on }: { on: boolean }) {
+  return <div class={`title ${on ? '' : 'gone'}`} aria-hidden={!on}>Pipeline City</div>;
 }
 
 /** Space pauses and resumes. It leaves text fields and sliders alone, and an open dialog keeps Space for its own buttons. */
@@ -251,10 +260,12 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
 
 export function Hud() {
   const s = snapshot.value;
-  if (!s) return <><StartPrompt /><NewGameDialog /></>;
+  // (the menu waits for the boot screen, app/boot.ts)
+  if (!s) return booted.value ? <><Title on /><StartPrompt /><NewGameDialog /></> : null;
   const dark = theme.value === 'dark';
   return (
     <>
+      <Title on={false} />
       <InsetReporter />
       <PauseKey />
       <header class="hud">

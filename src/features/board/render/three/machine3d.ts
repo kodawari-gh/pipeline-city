@@ -168,7 +168,7 @@ export class Machine3D {
   /** The case's accent strip on the front rim, and whether the inside has RGB (`caseModel`). */
   private strip: MeshStandardMaterial | null = null;
   private caseRgb = true;
-  /** What fades as the camera comes in (`fadeTree`): the lids, the coolers, the spreaders, the cards (`warmPrograms`). */
+  /** What fades as the camera comes in (`fadeTree`): the lids, the coolers, the spreaders, the cards (`startPrograms`). */
   readonly fades: Object3D[] = [];
   /** The parts with a detailed view, which hold the camera on rails up close (`rails.ts`). A new part with a detailed view adds its own (`rail`). */
   readonly rails: Rail[] = [];

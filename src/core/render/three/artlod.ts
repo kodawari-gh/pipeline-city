@@ -4,8 +4,8 @@
 // need them. A shared queue bakes a few per frame, the most wanted first. `fadeTree` fades a lid or a shroud away to show what is under it.
 // The baking itself is the caller's (`Bake`): this file knows only three.
 import {
-  Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, NoColorSpace, PlaneGeometry, Vector3, WebGLRenderTarget,
-  type Camera, type Material, type Object3D, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
+  Box3, CanvasTexture, Frustum, Group, Matrix4, Mesh, MeshStandardMaterial, NoColorSpace, PlaneGeometry, Vector3,
+  type Material, type Object3D, type PerspectiveCamera, type Texture,
 } from 'three';
 import { anisotropy } from './geometry';
 
@@ -88,32 +88,6 @@ export function fadeTree(o: Object3D, a: number): void {
       mm.depthWrite = clear ? false : base.depthWrite;
     }
   });
-}
-
-/**
- * Link ahead of need the programs the scene draws with: its parts as they stand, the hidden ones too (the die under its lid), and the see-through
- * variant of each opaque material under `fades` (`fadeTree` makes it transparent: another program). A program first used in a frame holds that
- * frame 100 ms or more on ANGLE D3D11; linked here, it links in the background (KHR_parallel_shader_compile). The scene draws into the
- * composer's target (linear, not tone mapped), so the programs are made for a target too. A fade must hold no light: compiled against the
- * scene, its own lights would count twice and make programs no frame uses.
- */
-export function warmPrograms(r: WebGLRenderer, scene: Scene, cam: Camera, fades: Object3D[]): void {
-  const flip = new Set<Material>();
-  for (const f of fades) f.traverse((x) => {
-    const m = (x as Mesh).material as Material | Material[] | undefined;
-    if (m) for (const mm of Array.isArray(m) ? m : [m]) if (!mm.transparent) flip.add(mm);
-  });
-  const was = r.getRenderTarget(), rt = new WebGLRenderTarget(1, 1);
-  r.setRenderTarget(rt);
-  try {
-    r.compile(scene, cam);
-    for (const m of flip) { m.transparent = true; m.needsUpdate = true; }
-    for (const f of fades) r.compile(f, cam, scene);
-  } finally {
-    for (const m of flip) { m.transparent = false; m.needsUpdate = true; }
-    r.setRenderTarget(was);
-    rt.dispose();
-  }
 }
 
 /** Is `o` drawn (it and every parent visible)? */

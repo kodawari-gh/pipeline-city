@@ -4,7 +4,7 @@
 // The die's blocks hover and click (`Chips3D.hitAt`), the lenses lie over the view (`Lens3D`, keys P and A). The room's materials take its probe
 // at every height (`RoomEnv`), and so does the machine: it reads at night by the room's lamps alone, at every zoom (`src/features/room/light.md`).
 import { effect } from '@preact/signals';
-import { Box3, PMREMGenerator, Vector3, type Object3D, type WebGLCubeRenderTarget } from 'three';
+import { Box3, Vector3, type Object3D, type WebGLCubeRenderTarget } from 'three';
 import { snapshot, speed, powerButton, plugKey, ejectKey, zoomSlowOn, zoomSlowdown } from '@/app/store';
 import { worldPace, zoomSlow } from '@/core/render/lod/lod';
 import { CYCLES_PER_SEC } from '@/features/cpu/render/die/diemotion';
@@ -24,14 +24,16 @@ import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pi
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
-import { PROBE_K, Room3D } from '@/features/room/render/three/room3d';
+import { linked, startPrograms, type Program } from '@/core/render/three/compile';
+import { bootDone, bootStage } from '@/app/boot';
+import { PROBE_K, Room3D, prepareCity, preloadRoomBake } from '@/features/room/render/three/room3d';
 import { BOARD_Z, CASE_D, CASE_Z, START_HOUR_3D, VIEW_TOP, WINDOW, daylight, eyeBlocks, eyeRoom } from '@/features/room/render/three/roomplan';
 import { DAY_S, START_HOUR, hourAt, roomClick, roomDebug, roomState } from '@/features/room/render/shell/room';
 import { CASE, CASE_IN, DIE, LAYOUT_CASE, LAYOUT_TIER, ROUTER_SPOT, TRAY, setLayoutTier } from '../layout/layout';
 import { Chips3D, LIVE_LEVELS } from './chips3d';
 import { Machine3D, machineKey } from './machine3d';
 import { RAM_LEAN } from './ram3d';
-import { BakeQueue, warmPrograms } from '@/core/render/three/artlod';
+import { BakeQueue } from '@/core/render/three/artlod';
 import { cardOrigin } from '@/core/render/accelart';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
 import { getSpec } from '@/features/board/sim/specs';
@@ -74,8 +76,22 @@ const NIGHT_EYE = 1.4, EYE_KEY = 0.04, EYE_RANGE = [0.3, 14] as const;
  * reads L .05 or more, `light.md` "Targets"), where by day it holds back the glass.
  */
 const NIGHT_KEY = 0.03, NIGHT_HIGH = 0.8;
+/** Before a game (the title over the live room): the overview turns this far (rad) each side of its own, slowly, round its target, once in `MENU_S` × 2π s. */
+const MENU_SWAY = 0.07, MENU_S = 9;
+/** The boot screen goes at the latest this long (ms) after the programs have linked, if the room's light has not settled by then. */
+const REVEAL_MS = 4000;
 
-export function mountBoard3d(host: HTMLElement) {
+/** After the page's next paint: the boot screen shows its stage before the work that holds the page. */
+const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+
+/**
+ * Mounts the 3D world behind the boot screen (docs/render/load.md): it builds the room and the machine, waits for the room's light bake, links
+ * every program on the driver's threads while the page still draws, lets the room's light settle, then ends the boot screen.
+ */
+export async function mountBoard3d(host: HTMLElement): Promise<void> {
+  bootStage('Starting the renderer', 0.1);
+  preloadRoomBake();
+  await nextPaint();
   let T = readTheme();
   const ctx = createRenderContext(host, T.bg);
   const { scene, camera, renderer, canvas } = ctx;
@@ -90,7 +106,7 @@ export function mountBoard3d(host: HTMLElement) {
   const studio = scene.environment!;
   // the room's own light, the window's and the lamps' as they bounce off its walls (probe.ts): captured again when that light changes, and
   // a few times over for a new room, as each capture holds the bounce of the one before; prefiltered, it is the scene's light at every zoom
-  const probe = new Probe(200, 400000), pmrem = new PMREMGenerator(renderer);
+  const probe = new Probe(200, 400000), { pmrem } = ctx;
   let roomEnv: WebGLCubeRenderTarget | null = null;
   let probeKey = '', probeAt = -Infinity, bounces = 0, probed = false;
   // the metered eye: the meter's last reading, the exposure's factor it asks for, and where the eye stands on its way to it
@@ -102,12 +118,28 @@ export function mountBoard3d(host: HTMLElement) {
   const fx = new Particles3D(scene);
   let room: Room3D | null = null, machine: Machine3D | null = null;
   let roomKey = '', machKey = '';
+  /** A new machine whose programs still link (`compile.ts`): the old one shows meanwhile, and the frame swaps them once they have linked. */
+  let next: { m: Machine3D; programs: Program[] } | null = null;
+  /**
+   * The programs of a new picture (the first, a new room, new graphics settings), started on its first frame (`warmed`): until they have
+   * linked the frame draws nothing, and the canvas keeps its last picture.
+   */
+  let linking: Program[] | null = null, warmed = false;
   /** The furniture the eye keeps out of (`eyeBlocks`), for the room as built. */
   let blocks: Room[] = [];
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
   /** The rail that holds the view (`rails.ts`) and how far a pan pulls past its part's edge; the rail the player last pulled off (it does not take the view again until the view leaves its part). */
   let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
+  /** Puts `m` in the scene in the machine's place. */
+  const install = (m: Machine3D) => {
+    if (machine) { scene.remove(machine.root); machine.dispose(); }
+    machine = m;
+    scene.add(m.root);
+    // the rail that holds the view stays if its part is still there
+    const held = rail && m.rails.find((x) => x.id === rail!.r.id);
+    rail = held ? { r: held, pull: NO_PULL } : null;
+  };
   const rebuild = () => {
     const live = snapshot.peek();
     const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
@@ -116,7 +148,7 @@ export function mountBoard3d(host: HTMLElement) {
     if (rk !== roomKey || !room) {
       roomKey = rk;
       setLayoutTier(tier, caseTier);
-      if (room) { scene.remove(room.root); disposeTree(room.root); room.dispose(); }
+      if (room) { scene.remove(room.root); room.dispose(); disposeTree(room.root); }
       room = new Room3D(studio);
       blocks = eyeBlocks(room.geo);
       probe.at(...room.probeAt);
@@ -125,22 +157,33 @@ export function mountBoard3d(host: HTMLElement) {
       shadows.reset();
       scene.add(room.root);
       machKey = '';
+      // (the frame links the new room's programs before it draws it)
+      warmed = false;
     }
     const mk = machineKey(s);
     if (mk !== machKey || !machine) {
       machKey = mk;
-      if (machine) { scene.remove(machine.root); machine.dispose(); }
-      machine = new Machine3D(s, room.geo, bakes, chips);
-      scene.add(machine.root);
-      warmPrograms(renderer, scene, camera, machine.fades);
-      // the rail that holds the view stays if its part is still there
-      const held = rail && machine.rails.find((x) => x.id === rail!.r.id);
-      rail = held ? { r: held, pull: NO_PULL } : null;
-    } else if (s) machine.syncCables(s, room.geo); // a plug in or out: only its cable hangs again
+      // a machine that still links is out of date
+      next?.m.dispose();
+      next = null;
+      const m = new Machine3D(s, room.geo, bakes, chips);
+      if (!machine || !warmed) install(m);
+      else {
+        // its programs link while the old machine shows (hidden meanwhile, the old one's lights do not count twice)
+        machine.root.visible = false;
+        const programs = startPrograms(renderer, m.root, camera, { scene, fades: m.fades });
+        machine.root.visible = true;
+        if (linked(programs)) install(m); else next = { m, programs };
+      }
+    } else if (s) (next?.m ?? machine).syncCables(s, room.geo); // a plug in or out: only its cable hangs again
 
     chips.update(s);
     room.setKeys(s?.tray ?? []);
   };
+  // the city in the window first: its programs link on the driver's threads while the room is built (no paint between: it would wait for them)
+  bootStage('Building the world', 0.14);
+  await nextPaint();
+  prepareCity(renderer, effective.peek().shadows);
   rebuild();
 
   // ---- camera ----
@@ -164,10 +207,15 @@ export function mountBoard3d(host: HTMLElement) {
     return v;
   };
   const overview = (): OrbitView => inRoom(fitRect(roomRect(), LOOK_Z, aspect(), ROOM_ANGLE, 0.9));
+  /** Before a game (the title over the live room): the overview, turning slowly a little way each side round its target. */
+  const sway = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : MENU_SWAY;
+  const menuView = (t: number): OrbitView => { const o = overview(); return inRoom({ ...o, yaw: o.yaw + sway * Math.sin(t / MENU_S) }); };
   const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
   // close enough that the cooler and the lid have faded (`DEVICE_LOD.die.fade`) and the die's names read
   const cpuView = (): OrbitView => fitRect(DIE, BOARD_Z + 200, aspect(), FLAT, 0.95);
-  let view = overview(), goal = view;
+  /** The title shows (no game yet): the view turns over the room (`menuView`); the game's start flies it to the overview. */
+  let menu = !snapshot.peek();
+  let view = menu ? menuView(performance.now() / 1000) : overview(), goal = view;
   /** How far into the case a view is (`nearness`), by the height it shows on the board's plane: 0 from twice the board view's out, 1 from the board view in. */
   const inCase = (v: OrbitView): number => { const b = boardView().height; return nearness(heightAt(v, BOARD_Z), b, 2 * b); };
   /** The angles the goal may take now: none past head on on a rail, else by `inCase`; `held`: while the player turns it. */
@@ -351,6 +399,8 @@ export function mountBoard3d(host: HTMLElement) {
   const applyGraphics = (g: Graphics) => {
     post.apply(g, renderer, W, H);
     room?.setShadows(g.shadows);
+    // (a shadow map more or less makes every lit program again: the frame links them before it draws)
+    warmed = false;
     shadows.reset();
     chips.live = LIVE_LEVELS[g.live] ?? LIVE_LEVELS[2];
     fx.density = PARTICLE_LEVELS[g.particles] ?? 1;
@@ -363,9 +413,29 @@ export function mountBoard3d(host: HTMLElement) {
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
+  /** The boot screen has gone (`onShown` ends the mount's wait); when the last programs linked. */
+  let revealed = false, linkedAt = 0, onShown = () => {};
+  const shown = new Promise<void>((done) => { onShown = done; });
+  /** The new picture's programs have linked: it draws from this frame on. */
+  const drawn = (now: number) => {
+    linking = null;
+    linkedAt = now;
+    watch.reset(now);
+    if (!revealed) bootStage('Lighting the room', 0.92);
+  };
   const frame = (now: number) => {
     const g = effective.peek();
     if (!gate.ready(now, g.fps)) { requestAnimationFrame(frame); return; }
+    // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
+    if (linking) {
+      if (!linked(linking)) {
+        if (!revealed) bootStage('Preparing the shaders', 0.38 + (0.52 * linking.filter((p) => p.isReady()).length) / linking.length);
+        last = now;
+        requestAnimationFrame(frame);
+        return;
+      }
+      drawn(now);
+    }
     // a weak GPU: when the frames stay slow, auto-adjust takes the next step down and stays there (`lowered`)
     if (graphics.peek().auto && document.visibilityState === 'visible' && watch.tick((now - last) / 1000, now, g.fps)) {
       const step = nextStep(graphics.peek(), autoStep.peek());
@@ -374,7 +444,11 @@ export function mountBoard3d(host: HTMLElement) {
     const dt = Math.min(0.1, (now - last) / 1000), ratio = renderer.getPixelRatio();
     last = now;
     gt += dt * 1000 * speed.value;
+    // a new machine whose programs have linked takes the old one's place
+    if (next && linked(next.programs)) { install(next.m); next = null; }
     const s = snapshot.peek();
+    if (!s) goal = menuView(now / 1000); else if (menu) flyToRoom();
+    menu = !s;
     view = inRoom(stepView(view, goal, dt), false);
     // over a part that stands edge-on to the glass (the RAM sticks), the camera leans to see its face, round a pivot lifted to its middle
     lean += ((machine?.lean(view.x, -view.y, H / view.height) ?? 0) - lean) * (1 - Math.pow(0.02, dt));
@@ -407,6 +481,13 @@ export function mountBoard3d(host: HTMLElement) {
     const near = 1 - roomness(seenH);
     const day = daylight(hour);
     post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
+    // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
+    if (!warmed) {
+      warmed = true;
+      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...(room?.startPrograms(renderer) ?? []), ...post.startPrograms(renderer)];
+      if (!linked(linking)) { requestAnimationFrame(frame); return; }
+      drawn(now);
+    }
     room?.drawOutside(renderer, scene, camera, g.msaa);
     post.render();
     const lum = near > 0 ? post.meter() : null;
@@ -429,9 +510,17 @@ export function mountBoard3d(host: HTMLElement) {
     // a new case is a new room: frame it again
     const tierNow = `${LAYOUT_TIER}|${LAYOUT_CASE}`;
     if (tierNow !== wasTier) { wasTier = tierNow; flyToRoom(); }
+    // the boot screen goes once the room's light has settled (the probe's bounces), or at the latest `REVEAL_MS` after the link
+    if (!revealed && ((probed && bounces === 0 && !probe.busy) || now - linkedAt > REVEAL_MS)) { revealed = true; watch.reset(now); onShown(); }
     requestAnimationFrame(frame);
   };
+  // the light bake's lightmap changes the room's programs: they link after it
+  bootStage('Loading the light', 0.36);
+  await (room as Room3D | null)?.ready;
+  bootStage('Preparing the shaders', 0.38);
   requestAnimationFrame(frame);
+  await shown;
+  bootDone();
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__board = {
     three: true, scene, renderer, chips, quality: () => autoStep.peek(),

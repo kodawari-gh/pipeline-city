@@ -101,7 +101,7 @@ At night the warm lamps make overlapping pools: no wall is black, and the light 
 Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
 
 - The bed's strips (under the frame, behind the headboard) and the desk's strip: they exist.
-- A bias light behind the monitor (built in T176, `Monitor.bias`): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
+- A bias light behind the monitor (built in T176, `Monitor.bias`; the room holds it, at 0 without a monitor, so the count of lights stays, [load.md](../../docs/render/load.md)): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
 - The case's RGB (`rgb`, `spill` in `machine3d.ts`): its accent colour, its spill through the glass on the desk and the wall.
 
 Accents outside the palette (the case's purple next to the room's cyan) are the owner's call in T170.

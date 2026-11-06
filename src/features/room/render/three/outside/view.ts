@@ -14,6 +14,7 @@ import {
   Vector2, Vector3, Vector4, WebGLCubeRenderTarget, WebGLRenderTarget, type Camera, type Material, type WebGLRenderer,
 } from 'three';
 import { mergeStatic } from '@/core/render/three/merge';
+import { startPrograms, type Program } from '@/core/render/three/compile';
 import { skyAt } from '../../shell/room';
 import { daylight, sunDir } from '../roomplan';
 import { Fleet, type CarLight } from './cars';
@@ -415,6 +416,11 @@ export class OutsideView {
     this.quad.uniforms.ss!.value = ss;
     this.quad.uniforms.inv!.value.set(1 / t.width, 1 / t.height);
     this.live = camera;
+  }
+
+  /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's. */
+  startPrograms(r: WebGLRenderer): Program[] {
+    return [...startPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam)];
   }
 
   dispose(): void {

@@ -14,6 +14,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { pixelRatio, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE } from './init';
+import { startPassPrograms, type Program } from './compile';
 import { HIGH_C, LocalEye, MID } from './localeye';
 
 /** Draws the scene into a target of its own: the multisampling and the depth stay here, so the screen passes after it pay for neither. */
@@ -268,4 +269,13 @@ export class Post {
 
   setSize(w: number, h: number): void { this.composer.setSize(w, h); }
   render(): void { this.composer.render(); }
+
+  /**
+   * Starts linking the passes' programs (`compile.ts`): the AO's alone takes seconds on ANGLE D3D11. The outline's too, though it runs only
+   * once something is picked; not the output's, which sets its defines as it draws (a short one).
+   */
+  startPrograms(r: WebGLRenderer): Program[] {
+    const on = this.composer.passes.filter((p) => !(p instanceof OutputPass) && (p.enabled || p === this.outline));
+    return startPassPrograms(r, [...on, { meter: this.meterQuad }]);
+  }
 }

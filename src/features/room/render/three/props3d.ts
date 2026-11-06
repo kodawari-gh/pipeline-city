@@ -74,7 +74,8 @@ export class Monitor {
   private led = mat(0x111111, { emissive: new Color(0x4cff8a), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
-   * column); the room sets its level while the screen is on.
+   * column); the room sets its level while the screen is on. The room holds it, not this root: hidden with an absent monitor, it would change
+   * the count of lights, and with it every lit program (`docs/render/load.md`).
    */
   readonly bias: RectAreaLight;
 
@@ -87,7 +88,6 @@ export class Monitor {
     R.add(softBox(hump, z0 - 380, z0, back, 160));
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
     this.bias.position.set(cx, -(m.y + m.h / 2), z0 - 20);
-    R.add(this.bias);
     R.add(softBox({ x: cx - 330, y: m.y + m.h * 0.55, w: 660, h: deskY - m.y - m.h * 0.55 - 90 }, z0 - 560, z0 - 300, shell, 80));
     R.add(softBox({ x: cx - 1700, y: deskY - 90, w: 3400, h: 90 }, z0 - 1500, z0 + 700, shell, 40));
     // the maker's mark on the chin, vents across the back, the cable's hole through the neck

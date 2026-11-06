@@ -8,11 +8,31 @@
     <!-- Theme tokens and UI styles live in src/core/ui/ui.css. -->
     <style>
       html, body { margin: 0; height: 100%; background: #0b0f14; }
+      /* The boot screen (src/app/boot.ts, docs/render/load.md): up from the first paint, before any script; it fades out over the live
+         picture once the board can be seen. Its title stands where the menu's does (.title in ui.css). Sizes in vmin: ui.css sets the rem later. */
+      #boot {
+        position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; gap: 2.4vmin; padding-top: 14vh;
+        box-sizing: border-box; background: radial-gradient(ellipse 70% 60% at 50% 62%, #141c30 0%, #0b0f14 72%) #0b0f14; color: #e2eaff;
+        font-family: system-ui, 'Segoe UI', sans-serif; transition: opacity .9s ease; --boot: .04;
+      }
+      #boot.done { opacity: 0; pointer-events: none; }
+      .boot-title { font-size: 6vmin; line-height: 1.15; font-weight: 750; letter-spacing: .04em; text-shadow: 0 0.2vmin 2.4vmin rgba(2, 6, 18, .6); }
+      .boot-bar { position: relative; width: 34vmin; height: .45vmin; border-radius: .3vmin; overflow: hidden; background: rgba(150, 170, 255, .14); }
+      .boot-bar i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--boot)); background: linear-gradient(90deg, #8b5cff, #3be3ff); transition: transform .5s ease; }
+      .boot-bar::after { content: ''; position: absolute; inset: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent); animation: boot-sweep 1.8s ease-in-out infinite; }
+      .boot-stage { font-size: 1.6vmin; letter-spacing: .14em; text-transform: uppercase; color: #8fa0cc; }
+      @keyframes boot-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+      @media (prefers-reduced-motion: reduce) { #boot, .boot-bar i { transition: none; } .boot-bar::after { display: none; } }
     </style>
   </head>
   <body>
     <div id="board"></div>
     <div id="hud"></div>
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-title">Pipeline City</div>
+      <div class="boot-bar"><i></i></div>
+      <div class="boot-stage">Loading</div>
+    </div>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>
 </html>

@@ -70,7 +70,6 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .time { font-weight: 500; color: var(--mute); font-size: 0.733rem; }
 
 .card { padding: 0.533rem 0.667rem; }
-.prompt { position: fixed; top: 0.8rem; left: 0.8rem; padding: 0.4rem 0.7rem; display: flex; flex-direction: column; gap: 0.4rem; max-width: calc(100vw - 1.6rem); }
 .big { font-size: 1rem; font-weight: 700; }
 
 /* HUD bar: one row of the few numbers that matter, the rest sits in the menu. */
@@ -528,6 +527,18 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(0.6rem) scale(.97); } to { opacity: 1; transform: none; } }
 
+/* The title over the live board before a game (Hud.tsx `Title`, docs/render/load.md): where the boot screen had it, in its vmin sizes
+   (index.html), so it stays put as that screen fades. It fades out as the game starts, and the HUD comes in. */
+.title {
+  position: fixed; top: 14vh; left: 0; right: 0; z-index: 85; text-align: center; pointer-events: none;
+  font: 750 6vmin/1.15 var(--ui); letter-spacing: .04em; color: #e2eaff; text-shadow: 0 0.2vmin 2.4vmin rgba(2, 6, 18, .6); transition: opacity .8s ease;
+}
+.title.gone { opacity: 0; }
+/* Before a game the dialogs dim the room less: it is the title screen's picture. */
+.title:not(.gone) ~ .ng-back, .title:not(.gone) ~ .modal-back { background: radial-gradient(ellipse 80% 70% at 50% 58%, rgba(4, 8, 24, .12), rgba(4, 8, 24, .6)); }
+.hud, .stack { animation: hud-in .7s ease .25s both; }
+@keyframes hud-in { from { opacity: 0; } to { opacity: 1; } }
+
 .hide-narrow { }
 
 /* Tall screens (portrait tablets and up): the inventory docks at the right edge, tiles in a grid. */
@@ -669,7 +680,7 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 
 /* Reduced motion: glides and pointer animation become jumps (the JS side snaps too). */
 @media (prefers-reduced-motion: reduce) {
-  .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i { transition: none !important; animation: none !important; }
+  .picker, .tut, .tut-text, .dlg-arrow, .inv, .tile, .modal, .modal-back, .pk-content, .pointer, .ms, .lvlup, .lvl-card, .lvl-hero *, .lvl-pop, .lvl-bar i, .title, .hud, .stack { transition: none !important; animation: none !important; }
   .ptr-line, .ptr-dot { animation: none !important; }
 }
 .kv b.warn { color: var(--warn); }

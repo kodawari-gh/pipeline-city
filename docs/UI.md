@@ -137,6 +137,8 @@ A player who finished the first twelve flags before the OS lesson existed is not
 
 Left to right: **money** (with game time next to it), **rep** (reputation; demand in its tooltip), **machine chip** (`statusChip`: Off, POST, Loading, Running, Writing, `Job done: remove key` or `No boot media` for the halted phase, `POST error: <reason>` for a missing part, `Error: <reason>` for run-time faults, the OS texts, and Tripped), then, on the right, the **Inventory** button with its count, the sandbox chip (sandbox games), the **speed control** (pause/play plus the current speed; hover, focus or tap opens 0.25x, 0.5x, 1x, 2x, 3x. 1x is the designed pace of 4 ticks a second, so the sim's `Speed` 1, 2, 4, 8, 12 read as 0.25x to 3x), the **theme** toggle and the **menu** (`...`): Stats, Export game, Import game, Replay tutorial, Skip tutorial (while active), Show hints again, New game (opens the Campaign or Sandbox dialog; asks again before discarding a running game).
 
+**Before a game.** `index.html` has a boot screen (`#boot`, driven by `app/boot.ts`) over everything until the 3D world is ready; `Hud` renders nothing until `booted`. Then the menu: `.title` over the live room, and the welcome back or new game dialog. The title fades out as the game starts, and the HUD fades in (`hud-in`). See [render/load.md](render/load.md).
+
 **Refusals.** A refused action sets `lastError` in the store. `Notice` shows it in plain words ("Not now: Power the machine off first.") and clears itself after 6 s or on the x. Clearing sets `lastError` back to null so the same refusal shows again next time.
 
 ## Hints (`logic.ts`, `state.ts`)

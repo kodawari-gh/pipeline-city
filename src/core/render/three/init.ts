@@ -1,9 +1,10 @@
 // The Three.js context: renderer, scene, camera (docs/THREE_SETUP.md). Soft shadows, a studio environment for image-based light and filmic tone
 // mapping carry the warm room look (docs/LOWPOLY_STYLE.md).
-import { ACESFilmicToneMapping, Color, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Color, HalfFloatType, PCFShadowMap, PMREMGenerator, PerspectiveCamera, SRGBColorSpace, Scene, WebGLCubeRenderTarget, WebGLRenderer } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement }
+/** `pmrem`: a prefilter for environment maps, its programs linked. */
+export interface RenderContext { scene: Scene; camera: PerspectiveCamera; renderer: WebGLRenderer; canvas: HTMLCanvasElement; pmrem: PMREMGenerator }
 
 /**
  * The tone mapping's exposure at 100 % brightness, by day (the graphics settings multiply it, `Post.apply`, and so does the eye's adaptation,
@@ -27,7 +28,13 @@ export function createRenderContext(host: HTMLElement, background: string): Rend
   const pmrem = new PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.35;
-  pmrem.dispose();
+  // the generator stays, a cube already prefiltered: its programs linked now, while the driver has nothing else to link. The renderer's own
+  // (a cube target as a scene's environment, the city's sky) shares them; first linked behind the 3D's batch, one held the page for seconds
+  // (docs/render/load.md)
+  const cube = new WebGLCubeRenderTarget(16, { type: HalfFloatType });
+  renderer.initRenderTarget(cube);
+  pmrem.fromCubemap(cube.texture).dispose();
+  cube.dispose();
   const camera = new PerspectiveCamera(30, host.clientWidth / Math.max(1, host.clientHeight), 50, 200000);
-  return { scene, camera, renderer, canvas: renderer.domElement };
+  return { scene, camera, renderer, canvas: renderer.domElement, pmrem };
 }
