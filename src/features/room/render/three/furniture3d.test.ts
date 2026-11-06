@@ -1,13 +1,15 @@
-import { Box3, DoubleSide, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3, type InstancedMesh, type Object3D } from 'three';
+import { Box3, DoubleSide, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3, type InstancedMesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Room } from '@/core/render/three/camera';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import { bed, bookcase, eastWall, nightstand } from './furniture3d';
+import { OAK_ROUGH, OAK_TILE, bed, bookcase, eastWall, nightstand } from './furniture3d';
+import { OAK } from './palette';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
-import { BED, DESK_TOP, EAST_X, FIG_AT, FLOOR_Y, MONITOR_Z, PED, RUG, WEST_X, eyeBlocks, eyeRoom } from './roomplan';
+import { deskSlab, oakFloor } from './room3d';
+import { BED, BOOKCASE, DESK_TOP, EAST_X, FIG_AT, FLOOR_Y, MONITOR_Z, PED, RUG, WEST_X, eyeBlocks, eyeRoom } from './roomplan';
 
 /** A decal (a contact shadow on the floor): drawn over what is under it, not a thing. */
 const decal = (m: Mesh) => [m.material].flat().every((x) => x.depthWrite === false);
@@ -112,5 +114,31 @@ describe('3D furniture', () => {
       // the front ones lean back on the back ones: they touch
       for (const [f, k] of [[2, 0], [3, 1]] as const) expect(box(pillows[f]!).min.z).toBeLessThan(box(pillows[k]!).max.z);
     });
+  });
+
+  it('makes the floor, the desk top and the bookcase of the palette\'s one oak, its grain along each board', () => {
+    const oak = (m: Mesh) => { const s = m.material as MeshStandardMaterial; return s.color.getHexString() === OAK.slice(1) && s.roughness === OAK_ROUGH; };
+    // how far u runs over the face whose normal is along `axis` (0 x, 1 y, 2 z)
+    const span = (m: Mesh, axis: number) => {
+      const { uv, normal } = m.geometry.attributes, us: number[] = [];
+      for (let i = 0; i < uv!.count; i++) if (Math.abs(normal!.getComponent(i, axis)) > 0.99) us.push(uv!.getX(i));
+      return Math.max(...us) - Math.min(...us);
+    };
+    const g = roomGeo(), desk = deskSlab(g);
+    expect(oak(oakFloor()), 'the floor').toBe(true);
+    expect(oak(desk), 'the desk top').toBe(true);
+    // the grain runs the desk's length
+    expect(span(desk, 1)).toBeCloseTo((g.desk.x1 - g.desk.x0) / OAK_TILE, 1);
+    // the bookcase's boards: its sides, its back, its shelves and its plinth (all that runs most of its height or its width)
+    const tall = BOOKCASE.z1 - BOOKCASE.z0, high = FLOOR_Y - BOOKCASE.top, boards: Mesh[] = [];
+    bookcase().traverse((o) => {
+      const s = new Box3().setFromObject(o, true).getSize(new Vector3());
+      if ((o as Mesh).isMesh && !(o as InstancedMesh).isInstancedMesh && !decal(o as Mesh) && (s.y > 0.8 * high || s.z > 0.8 * tall)) boards.push(o as Mesh);
+    });
+    expect(boards.length).toBeGreaterThanOrEqual(10);
+    for (const b of boards) expect(oak(b), `a board of the bookcase, ${b.geometry.type}`).toBe(true);
+    // a side's grain stands up it
+    const side = boards.find((b) => new Box3().setFromObject(b).getSize(new Vector3()).z < 1000)!;
+    expect(span(side, 2)).toBeCloseTo(high / OAK_TILE, 1);
   });
 });

@@ -34,12 +34,15 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
-import { STRIP_W, arcLamp, bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, pictureLight, print, sconce, shelfStrips, type Lantern } from './furniture3d';
+import {
+  OAK_TILE, STRIP_W, arcLamp, bed, bookcase, ceilingLight, door, eastWall, floorLantern, grainUv, nightstand, oak, pictureLight, print, sconce, shelfStrips,
+  smokedOak, type Lantern,
+} from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
 import { FIG_AT, aloe, floorPlant } from './plants3d';
-import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf } from './palette';
+import { CEILING, LANTERN, NEON, NEON_WASH, OAK, OAK_GRAIN, RUG_LINE, RUG_WOOL, STEEL, STONE, TRIM, VENEER, VENEER_GRAIN, WALL, kelvin, rgbOf, shadeOf } from './palette';
 import {
   BED, BENCH, BOARD_Z, CASE_D, CASE_Z, CEIL_Y, CLOCK_Y, DESK_D, DESK_TOP, DOOR, EAST_X, FLOOR_Y, FRONT_Z, KEY_STAND, MONITOR_Z, MULLION_X, PED, PIER, RUG, TRAY,
   WALL_T, WEST_X, WINDOW,
@@ -196,12 +199,12 @@ function screenTex(base: string, repeat: [number, number]): Texture | null {
 }
 
 /**
- * Smoked oak floor planks running east-west: each board its own tone and grain, a knot here and there, staggered butt joints, the joints dark
- * with a lit edge (an eased bevel). A tile is eight boards; the board that crosses the tile's edge carries on in the next tile, so no joint
- * lines up.
+ * Smoked oak floor planks running east-west, as a shade of the oak (`smokedOak` gives them its colour and their relief): each board its own
+ * tone and grain, a knot here and there, staggered butt joints, the joints dark with a lit edge (an eased bevel). A tile is eight boards; the
+ * board that crosses the tile's edge carries on in the next tile, so no joint lines up.
  */
 function planksTex(): Texture | null {
-  const [pr, pg, pb] = rgbOf(OAK), grain = `rgba(${rgbOf(OAK_GRAIN).join(',')},`;
+  const grain = `rgba(${rgbOf(shadeOf(OAK_GRAIN, OAK)).join(',')},`;
   return paint(1024, 1024, (c, w, h) => {
     const rows = 8, ph = h / rows;
     for (let r = 0; r < rows; r++) {
@@ -211,21 +214,22 @@ function planksTex(): Texture | null {
       // the boards of this row: between the cuts, and the one through the tile's edge (drawn in two parts, the same board)
       const boards: [number, number][][] = cuts.map((x, k) => (k + 1 < cuts.length ? [[x, cuts[k + 1]!]] : [[x, w], [0, cuts[0]!]]));
       for (const parts of boards) {
-        const f = 0.84 + rnd() * 0.3, warm = rnd() * 10 - 5, seed = seedN;
+        // (a board a few shades from the next, a hair warmer or cooler: one wood, not a patchwork)
+        const f = 0.86 + rnd() * 0.14, warm = rnd() * 6, seed = seedN;
         for (const [x0, x1] of parts) {
           seedN = seed;
           c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, ph); c.clip();
-          c.fillStyle = `rgb(${Math.min(255, pr * f + warm)},${Math.min(255, pg * f)},${pb * f - warm})`; c.fillRect(0, y0, w, ph);
+          c.fillStyle = `rgb(${255 * f},${255 * f - warm},${255 * f - 2 * warm})`; c.fillRect(0, y0, w, ph);
           // the grain along the board, waved a little; a few lighter streaks
           for (let i = 0; i < 16; i++) {
             const gy = y0 + rnd() * ph, amp = 2 + rnd() * 5;
-            c.strokeStyle = rnd() < 0.8 ? `${grain}${0.14 + rnd() * 0.18})` : `rgba(255,236,205,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
+            c.strokeStyle = rnd() < 0.8 ? `${grain}${0.14 + rnd() * 0.18})` : `rgba(255,255,255,${0.04 + rnd() * 0.05})`; c.lineWidth = 0.8 + rnd() * 1.8;
             c.beginPath(); c.moveTo(0, gy); for (let x = 0; x <= w; x += 64) c.lineTo(x, gy + Math.sin(x / 90 + i) * amp); c.stroke();
           }
           // a knot: dark heart, rings stretched along the board
           if (rnd() < 0.4) {
             const kx = x0 + (0.2 + rnd() * 0.6) * (x1 - x0), ky = y0 + ph * (0.3 + rnd() * 0.4);
-            for (let k = 4; k >= 0; k--) { c.fillStyle = `rgba(${40 + k * 12},${26 + k * 9},${16 + k * 6},${0.06 + (4 - k) * 0.05})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
+            for (let k = 4; k >= 0; k--) { c.fillStyle = `${grain}${0.1 + (4 - k) * 0.08})`; c.beginPath(); c.ellipse(kx, ky, 5 + k * 7, 3 + k * 2.2, 0, 0, Math.PI * 2); c.fill(); }
           }
           c.restore();
         }
@@ -236,6 +240,19 @@ function planksTex(): Texture | null {
       for (const x of cuts) { c.fillStyle = 'rgba(22,14,8,0.7)'; c.fillRect(x - 1, y0, 2.5, ph); }
     }
   }, [2.4, 3.2]);
+}
+
+/** The floor: long smoked oak planks east-west (`planksTex`), wall to wall. */
+export function oakFloor(): Mesh {
+  const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), smokedOak(planksTex()));
+  floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -FLOOR_Y, FRONT_Z / 2);
+  floor.receiveShadow = true;
+  return floor;
+}
+
+/** The desk's top: one slab of the floor's smoked oak, its grain along the desk. */
+export function deskSlab(g: RoomGeo): Mesh {
+  return grainUv(softBox({ x: g.desk.x0, y: g.ys, w: g.desk.x1 - g.desk.x0, h: DESK_TOP }, 0, DESK_D, smokedOak(), 60), OAK_TILE);
 }
 
 /** A flat-woven wool rug: charcoal, a fine herringbone of light and dark rows, a pale line inside a plain edge; a fleck of pile (its bump too). */
@@ -353,11 +370,7 @@ export class Room3D {
     skirt({ x: EAST_X - 40, y: CEIL_Y, w: 40, h: 220 }, 0, FRONT_Z, gap);
 
     // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
-    const planks = planksTex();
-    const floor = new Mesh(new PlaneGeometry(EAST_X - WEST_X, FRONT_Z), mat(0xffffff, { map: planks, bumpMap: planks, bumpScale: 0.9, roughness: 0.36 }));
-    floor.rotation.x = -Math.PI / 2; floor.position.set((WEST_X + EAST_X) / 2, -fl, FRONT_Z / 2);
-    floor.receiveShadow = true;
-    R.add(floor);
+    R.add(oakFloor());
     const pile = rugTex();
     const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
     rug.castShadow = false;
@@ -422,7 +435,7 @@ export class Room3D {
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
     // unit at the east end, a cable tray under its back edge ----
     const dw = g.desk.x1 - g.desk.x0, legH = fl - ys - DESK_TOP;
-    R.add(softBox({ x: g.desk.x0, y: ys, w: dw, h: DESK_TOP }, 0, DESK_D, mat(0xffffff, { map: oak(OAK, OAK_GRAIN, [2, 1]), roughness: 0.45 }), 60));
+    R.add(deskSlab(g));
     // the legs: round steel tubes screwed into plates under the top, a plastic foot on each
     const steel = mat(STEEL, { roughness: 0.45, metalness: 0.4 }), tx = g.desk.x0 + 1000;
     for (const z of [1000, DESK_D - 1000]) {

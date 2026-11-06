@@ -1,4 +1,5 @@
-// The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, cloth in muted tones, a
+// The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, the bookcase in the
+// room's one smoked oak (`smokedOak`: the floor's and the desk top's wood, its grain along each board), cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
 // (`shelfStrips`). The bed against the back wall
 // east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door and the sconce
@@ -7,7 +8,8 @@
 // nothing answers a click.
 import {
   BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, Vector3, type Material, type Texture,
+  MeshStandardMaterial, NoColorSpace, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, Vector3, type Material,
+  type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
@@ -15,7 +17,7 @@ import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube 
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
-import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin } from './palette';
+import { DUVET, LANTERN, NEON, OAK, OAK_GRAIN, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin, shadeOf } from './palette';
 import { pothos, succulent } from './plants3d';
 import { ARC_LAMP, BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SCONCE, SHELF, WEST_X, onRug } from './roomplan';
 
@@ -40,17 +42,82 @@ export function weave(base: string, o: { knit?: boolean; repeat?: [number, numbe
   }, o.repeat ?? [6, 6]);
 }
 
-/** Wood veneer: a close straight grain (pale oak by default). */
-export function oak(base = '#c49a6c', line = '#8a6440', repeat: [number, number] = [1, 1]): Texture | null {
-  return paint(256, 256, (c, w, h) => {
+/** Wood veneer: a close straight grain along the texture's u (pale oak by default). `size` texels a side, the grain as close at every size. */
+export function oak(base = '#c49a6c', line = '#8a6440', repeat: [number, number] = [1, 1], size = 256): Texture | null {
+  return paint(size, size, (c, w, h) => {
     c.fillStyle = base; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 70; i++) {
-      c.strokeStyle = line; c.globalAlpha = 0.05 + rnd() * 0.12; c.lineWidth = 0.6 + rnd() * 1.6;
-      const y = rnd() * h;
-      c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(w * 0.3, y + rnd() * 8 - 4, w * 0.6, y + rnd() * 8 - 4, w, y + rnd() * 6 - 3); c.stroke();
+    const k = size / 256;
+    for (let i = 0; i < 70 * k; i++) {
+      c.strokeStyle = line; c.globalAlpha = 0.05 + rnd() * 0.12; c.lineWidth = (0.6 + rnd() * 1.6) * Math.sqrt(k);
+      // a line that waves and comes back to its height at the tile's edge, drawn again a tile up and down: the tile repeats with no seam
+      const y = rnd() * h, c1 = (rnd() * 8 - 4) * k, c2 = (rnd() * 8 - 4 + rnd() * 6 - 3) * k;
+      for (const dy of [0, -h, h]) { c.beginPath(); c.moveTo(0, y + dy); c.bezierCurveTo(w * 0.3, y + dy + c1, w * 0.6, y + dy + c2, w, y + dy); c.stroke(); }
     }
     c.globalAlpha = 1;
   }, repeat);
+}
+
+/**
+ * A normal map from a painted map's shade: its dark strokes (the grain's pores, a joint) are grooves, a full stroke `depth` deep (in the
+ * map's own texels). It wraps and repeats as the map does. Null with no canvas.
+ */
+export function relief(map: Texture | null, depth: number): Texture | null {
+  const src = map?.image as HTMLCanvasElement | undefined;
+  if (!map || !src?.getContext) return null;
+  const w = src.width, h = src.height, d = src.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const at = (x: number, y: number) => { const i = (((y + h) % h) * w + ((x + w) % w)) * 4; return (d[i]! * 0.3 + d[i + 1]! * 0.59 + d[i + 2]! * 0.11) / 255; };
+  const t = paint(w, h, (c) => {
+    const img = c.createImageData(w, h), o = img.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      // the slope by central differences; the canvas runs down, the texture's v up
+      const nx = -(at(x + 1, y) - at(x - 1, y)) * depth, ny = (at(x, y + 1) - at(x, y - 1)) * depth, l = Math.hypot(nx, ny, 1), i = (y * w + x) * 4;
+      o[i] = 128 + 127 * (nx / l); o[i + 1] = 128 + 127 * (ny / l); o[i + 2] = 128 + 127 / l; o[i + 3] = 255;
+    }
+    c.putImageData(img, 0, 0);
+  })!;
+  t.colorSpace = NoColorSpace;
+  t.wrapS = map.wrapS; t.wrapT = map.wrapT; t.repeat.copy(map.repeat);
+  return t;
+}
+
+/** Smoked oak's finish: oiled, a soft sheen (rough enough that the window's bars leave no streaks in it). */
+export const OAK_ROUGH = 0.68;
+/** World units to one width of the oak's grain (`smokedOak`): 60 cm. */
+export const OAK_TILE = 11200;
+/** How deep the oak's grain is (`relief`). */
+const OAK_DEPTH = 3;
+
+/**
+ * Smoked oak, the room's one wood (`OAK`): the floor, the desk top, the bookcase. The palette's oak is the material's colour; its map only
+ * shades it (white, with the grain in `OAK_GRAIN`'s share of `OAK`), so the planks and every board read as one wood in every light; the
+ * grain's relief is a normal map from the same strokes (`relief`). The map is a board's close straight grain by default (lay it along each
+ * board with `grainUv`); the floor passes its planks. The grain is the same in every room built: its own stream of random numbers.
+ */
+export function smokedOak(map?: Texture | null): MeshStandardMaterial {
+  if (map === undefined) {
+    const keep = seedN;
+    seedN = 7919; map = oak('#ffffff', shadeOf(OAK_GRAIN, OAK), [1, 1], 512); seedN = keep;
+  }
+  return mat(new Color(OAK).getHex(), { map, normalMap: relief(map, OAK_DEPTH), roughness: OAK_ROUGH });
+}
+
+/**
+ * Lay the grain along each board: as `worldUv`, uvs from where the faces are, `tile` units to the texture's width, but each face's u runs
+ * along the longer of its two sides (the grain runs along u), so it stands up a bookcase's side and runs the length of a shelf.
+ */
+export function grainUv<T extends Mesh>(o: T, tile: number): T {
+  const g = o.geometry, at = o.position.toArray(), p = g.getAttribute('position'), n = g.getAttribute('normal'), uv = g.getAttribute('uv');
+  g.computeBoundingBox();
+  const size = g.boundingBox!.getSize(new Vector3()).toArray();
+  for (let i = 0; i < p.count; i++) {
+    const q = [p.getX(i) + at[0]!, p.getY(i) + at[1]!, p.getZ(i) + at[2]!], ax = [Math.abs(n.getX(i)), Math.abs(n.getY(i)), Math.abs(n.getZ(i))];
+    // the face's two axes, the longer first
+    const [a, b] = ax[0]! >= ax[1]! && ax[0]! >= ax[2]! ? [1, 2] : ax[1]! >= ax[2]! ? [0, 2] : [0, 1];
+    const [u, v] = size[a!]! >= size[b!]! ? [a!, b!] : [b!, a!];
+    uv.setXY(i, q[u]! / tile, q[v]! / tile);
+  }
+  uv.needsUpdate = true;
+  return o;
 }
 
 // ---------------------------------------------------------------- shapes
@@ -405,16 +472,16 @@ export function shelfStrips(): { root: Group; glow: MeshStandardMaterial; lights
 }
 
 /**
- * A plain flat-pack bookcase in black-brown on the west wall, facing the room: square sides, a flat top flush between them, a plain back, a
+ * A plain flat-pack bookcase in smoked oak on the west wall, facing the room: square sides, a flat top flush between them, a plain back, a
  * set-back plinth; five shelves of books (upright, leaning, stacked), a plant, a box, a bookend, a pothos on top.
  */
 export function bookcase(): Group {
   const g = new Group(), { x, w, z0, z1, top } = BOOKCASE, fl = FLOOR_Y, xf = x + w;
-  const wood = mat(0xffffff, { map: oak(VENEER, VENEER_GRAIN), roughness: 0.55 });
+  const oakMat = smokedOak(), wood = (m: Mesh) => grainUv(m, OAK_TILE);
   const { side, board: shelf } = CASE_BOARDS;
-  g.add(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, wood, 50), softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, wood, 50));
+  g.add(wood(softBox({ x, y: top, w, h: fl - top }, z0, z0 + side, oakMat, 50)), wood(softBox({ x, y: top, w, h: fl - top }, z1 - side, z1, oakMat, 50)));
   // the back: one plain board in the same finish, between the sides
-  g.add(rectBox({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, wood));
+  g.add(wood(rectBox({ x, y: top, w: 300, h: fl - top }, z0 + side, z1 - side, oakMat)));
   // the shelf-pin holes up the inside of each side, two rows (front and back)
   const pins: { x: number; y: number; z: number }[] = [];
   for (const pz of [z0 + side, z1 - side]) for (const px of [x + 1300, xf - 900]) for (let py = top + 1200; py < fl - 1600; py += 640) pins.push({ x: px, y: -py, z: pz });
@@ -429,7 +496,7 @@ export function bookcase(): Group {
   seedN = 11;
   for (let s = 0; s <= n; s++) {
     const y = top + s * gap, base = y + gap;
-    g.add(softBox({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, wood, 40));
+    g.add(wood(softBox({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, oakMat, 40)));
     if (s === n) continue;
     // upright books along the shelf (spines to the room); some shelves leave room for a thing or two
     let z = z0 + side + 160;
@@ -467,7 +534,7 @@ export function bookcase(): Group {
   }
   g.add(shelvedBooks(books));
   // the plinth, set back under the bottom shelf (a shadow line along the floor)
-  g.add(softBox({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, wood, 40));
+  g.add(wood(softBox({ x: x + 300, y: fl - 1000, w: w - 700, h: 1000 }, z0 + side, z1 - side, oakMat, 40)));
   // a pothos on the top, trailing over the front edge
   g.add(pothos(x + w / 2 + 300, top, z1 - 2200, xf + 80, [{ dz: 600, len: 9000 }, { dz: -900, len: 5200 }, { dz: 1500, len: 13000 }]));
   g.add(floorShadow(x + w / 2, (z0 + z1) / 2, w * 1.6, (z1 - z0) * 1.1, 0.7));

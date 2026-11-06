@@ -1,14 +1,18 @@
-// The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one smoked oak for the floor and the desk
-// top, black-brown flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
+// The 3D room's tones (sRGB), dark to sit with the game's dark interface: one slate for the walls, one smoked oak for the floor, the desk
+// top and the bookcase (one material, `smokedOak` in `furniture3d.ts`: the palette's oak as its colour, its maps only shade it, so the warm
+// lamps and the window light the three as one wood), black-brown flat-pack furniture, dark stoneware pots, muted cloth. The accents are one family each: terracotta for
 // things (the runner, the keyboard's accent keys, the print's sun), cyan for what glows in tech (the LED strips, the clock, the router's
 // lights), a warm amber for lamp light. Modern and plain: the builders take their colours from here.
 
 /** The walls' paint (their plaster texture is painted over this), the ceiling's, and the trim's (skirting, door, plinth). */
 export const WALL = '#3a404c', CEILING = 0x4a4f59, TRIM = 0x3d424c;
-/** Black-brown ash veneer (the bed, the bedside drawer, the bookcase, the shelf, the drawer unit): its ground and its grain. */
+/** Black-brown ash veneer (the bed, the bedside drawer, the shelf, the drawer unit): its ground and its grain. */
 export const VENEER = '#2f2a26', VENEER_GRAIN = '#1c1815';
-/** Smoked oak, the room's one wood (the floor's planks, the desk top): its mean colour and its grain. */
-export const OAK = '#6a5240', OAK_GRAIN = '#3a2a1c';
+/**
+ * Smoked oak, the room's one wood (the floor's planks, the desk top, the bookcase): its colour and its grain. A yellow brown: the 2700 K
+ * lamps pull it to red (a redder oak reads orange-red under them), and the window's cool light needs its colour to read it as wood.
+ */
+export const OAK = '#665540', OAK_GRAIN = '#38291c';
 /** Powder-coated steel (legs, frames, the key stand, the desk lamp, the clock, the router) and black plastic. */
 export const STEEL = 0x1c1d20;
 /** Bedding: the fitted sheet and the front pillows, the duvet and the back pillows, the runner across the foot. */
@@ -48,3 +52,14 @@ export const NEON_WASH = 0x8fd9e6;
 
 /** A `#rrggbb` tone as [r, g, b] (0 to 255). */
 export const rgbOf = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+
+/**
+ * `tone` as a shade of `over` (both `#rrggbb`), as `#rrggbb`: what a map holds where a material of colour `over` shows `tone` (the light
+ * multiplies in linear, so the ratio is taken there). Each channel at most white.
+ */
+export function shadeOf(tone: string, over: string): string {
+  const lin = (v: number) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const enc = (v: number) => Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055));
+  const o = rgbOf(over);
+  return `#${rgbOf(tone).map((v, i) => enc(Math.min(1, lin(v) / Math.max(1e-4, lin(o[i]!)))).toString(16).padStart(2, '0')).join('')}`;
+}
