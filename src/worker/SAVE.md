@@ -12,7 +12,7 @@ Programs are regenerated from `template + seed + scale` on load. About 1.5 KB.
 
 ## Not preserved
 
-Powered state and phase (the game always loads **powered off**), raw disk bytes and statistics (the boot image is rebuilt from `os` on load, dataset bytes from their seeds; `bytesRead/Written` restart; the ledger, wear and bad groups ARE saved, see "Disks and contracts" below), the kernel's job table, pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures, the VRM temperature and burn-damage accumulators (temperatures restart at ambient; the board's burnt flag is saved), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). Fast-model calibration cache does not exist yet.
+Powered state and phase (the game always loads **powered off**), raw disk bytes and statistics (the boot image is rebuilt from `os` on load, dataset bytes from their seeds; `bytesRead/Written` restart; the ledger, wear and bad groups ARE saved, see "Disks and contracts" below), the kernel's job table, pipeline/registers/RAM/display contents, PCH register state, cache state, engine counters, clock-scheduler phase, device temperatures, the VRM temperature and burn-damage accumulators (temperatures restart at ambient; the board's burnt flag is saved), the event log, the economy config (the loader uses the build's `ECONOMY`; tests pass overrides). The fast-model calibration cache does not exist yet (design: "Fast model" below).
 
 ## Load semantics
 
@@ -24,7 +24,7 @@ The machine loads powered off with the phase `off`, wherever it was. A **plugged
 
 Saved while **halted with no key plugged**: load, press power once on both sides, and the games match exactly on money, tick, counters, reputation, tray, inventory, cables, progress, PRNG state and board over 500 ticks (tested). Saved with a job in flight: money, tray, counters, PRNG state and board match at the load instant; the job then finishes later than it would have (it restarts), so later values diverge. Loading the same save twice gives identical runs. Saved while hot (near `throttleC`): the machine restarts cool.
 
-There is no offline progress: while the game is closed nothing runs, because without automation nothing happens unless the player plugs and removes keys.
+There is no offline progress: while the game is closed nothing runs, because without automation nothing happens unless the player plugs and removes keys. The design for a machine with an OS and a linked network is "Fast model" below (not built).
 
 ## Versioning
 
@@ -61,3 +61,94 @@ The worker ticks every 100 ms of wall time: `advance` adds `elapsed x speed` bas
 ## Main thread (`src/app/store.ts`)
 
 Signals `snapshot`, `speed`, `lastError`, `autosaveOffer`. Actions: `purchase`, `install`, `uninstall`, `connectCable`, `disconnectCable`, `powerButton`, `plugKey`, `ejectKey`, `setSpeed`, `setCpuClock`, `powerCycle`. `exportSave()` downloads `pipeline-city-<tick>.json`; `importSave(file)` validates (and migrates) on the main thread and restarts the worker with it. Every 10 s the latest save goes to `localStorage` (`pipeline-city.autosave`, in try/catch); on startup a valid autosave (any supported version) is offered (Continue / New game) before the sim starts.
+
+## Fast model (design, T87; not built)
+
+Status: a design for the owner to approve (T54 builds it). Nothing below is in the code. Background: `docs/ARCHITECTURE.md` "Fidelity tiers" and "Calibration cache", `src/features/gpu/GPU.md` §9, `src/features/gpu/ACCEL.md` task 10, `src/features/cpu/MULTICORE.md`, `src/features/network/NETWORK.md` "Jobs over the network".
+
+**One use: offline catch-up.** The live game always runs the detailed sim (tier 1), as today. The fast model only fills the time the game was closed. It applies only to the automated pipeline: an OS, a linked network and the machine on. Without them no job arrives on its own (`src/features/cpu/ASSEMBLY.md`), so nothing is caught up.
+
+**Rule: conservative.** Where the model must guess, it guesses slower and poorer than the live game. Offline play never pays more than the same time played live.
+
+### What is calibrated
+
+The live sim measures each job that it runs to delivery. The fast model keeps the mean per **entry**:
+
+- `run`: ticks from the job's first run to its result (`Key.ranAt` to `doneAt`, JOBS.md "The log"). This covers all threads and the work on a card, because it is wall ticks.
+- `load`: ticks of the spool ingest (download end to first run), taken only from jobs that found the kernel queue empty. It needs a new stamp at the download's end.
+- `work`: the instructions of the job, the `work` that `payout` reads.
+- `n` (samples, capped at 16, then a running mean with weight 1/16) and `used` (the base tick of the last sample, for eviction).
+
+Only time and work are kept. CPI, stalls and misses stay in the job log: the fast model needs how long, not why. Transfer times are not measured: they come from the job sizes and the bandwidth at catch-up time (NETWORK.md "Job sizes", "Effective bandwidth").
+
+These samples do not count: a `reloaded` job, a job with no counter window (the machine restarted), the first job after a power-on (cold caches), and every job of a sandbox game.
+
+### Key
+
+An entry's key is `class | hw`. This differs from ARCHITECTURE.md "Calibration cache" (program seed + hardware hash): an offline job has a seed that never ran, so a key per seed would never match. The entry is the mean over the seeds the class drew, at the class's template and scale.
+
+`hw` is a short hash (FNV-1a, 8 hex digits) of the sorted `slot=spec@clock` parts that can change the class's time. Each class has a **mask**: the parts it reads.
+
+| part | in the mask of |
+|---|---|
+| CPU (spec, so the core count) and its clock setting | every class |
+| RAM modules (spec, slot) and the memory clock setting | every class |
+| OS spec (its `programSlots`) and the OS drive's spec | every class (every network job goes through the spool) |
+| board tier and cooling: cooler, radiators, the fans that are plugged | every class (they set the clock the CPU and the cards can hold) |
+| data drives (spec, slot, RAID) | `db` |
+| TPM spec (fixed `tpm` domain, no clock setting) | `secure` |
+| each working GPU: spec, slot and the clock setting of its domain (`pcie0`, `pcie1`) | `gpu`, `npu` (the NPU's fallback is the GPU) |
+| each working NPU: spec, slot and its domain's clock setting | `npu` |
+
+A card is **working** when the sim would launch on it (`Game.onCard`: fitted, not burnt, `pcie` lead plugged). A card that does not work is left out, so its key is the key of the CPU path. So a GPU swap changes the `gpu` and `npu` keys and keeps the `cli` entries (ACCEL.md task 10). The network is not in any key: its limits are read at catch-up time. Cloud-storage contracts are not jobs and have no entry.
+
+### When an entry stops counting
+
+- **A part or a clock setting changes:** nothing is deleted. The key changes, so the old entries stop matching. They stay, in case the player puts the part back.
+- **Too few samples:** an entry with `n` under 3 is not used.
+- **Eviction:** the cache holds at most 48 entries; a new one evicts the entry with the oldest `used`.
+- **The engine's timing changes:** a constant `SIM_VERSION` is saved with the cache. A build with a different value drops the whole cache on load. Bump it when a change can move tick counts (the CPU engine, caches, the kernel, the GPU engine, transfer rules). A change of pay or prices does not: pay is computed at catch-up time with the build's `ECONOMY`.
+
+### Save fields (optional, no version bump)
+
+- `fastModel { v, entries: [{ cls, hw, run, load, work, n, used }] }`. About 3 KB at the cap.
+- `savedAt`: wall time of the save (ms since 1970), from the main thread.
+- `running`: `true` when the save was made with the machine on, the OS up and the link up. The load still starts the machine powered off, as today.
+
+A save without them loads as today, with no catch-up. `parseSave` validates them; a bad cache is dropped, not an error.
+
+### Offline catch-up
+
+The main thread passes `now` with the save (`init {save, now}`), so the worker stays deterministic. On load:
+
+1. **When.** Only if the save has `running`, a linked network with a plan, an OS, and is not a sandbox game. Elapsed `e = now - savedAt` in seconds; one base tick is one second (speed 1x). Nothing happens if `e` is under 60 s or negative (a clock moved back).
+2. **Cap.** `e` is cut to `OFFLINE_CAP` (8 hours, 28,800 ticks; a placeholder for T56). The summary says when the cap cut it.
+3. **Rates at the saved level.** Arrivals per tick: `demandRate(cfg, rep, demandMul)` (its mean, not a draw), split by the level's mix after the network's renormalisation (NETWORK.md "Arrival channels"). Only classes with a usable entry and met needs count. The arrivals of the other classes are left out: they neither pay nor expire, so a missing sample never costs reputation.
+4. **Capacity.** For class `c` with share `p_c`: `down_c` and `up_c` are its sizes over `downMbps` and `upMbps`, `cpu_c = load_c + run_c` from its entry. The machine serves at most `mu = min(1 / sum(p_c down_c), programSlots / sum(p_c cpu_c), 1 / sum(p_c up_c), slots / sum(p_c (down_c + cpu_c + up_c)))` jobs a tick. `slots` is the spool's capacity (NETWORK.md "Spool"): a job holds its slot from its download's start to its upload's end. The done rate is `r = min(lambda, mu)`. The rest, `lambda - r`, expire.
+5. **Turnaround and pay.** Load `rho = lambda / mu`. `T_c = min(deadline_c, (down_c + cpu_c + up_c) / (1 - rho))`, and `T_c = deadline_c` when `rho >= 1` (a full queue). Each done job pays `payout(cfg, work_c, T_c, late, levelPay)` (`slaFactor` for `web`), at the reputation of the window's start.
+6. **Apply, job by job.** The window gives whole counts per class (floor). They go through the live rules one job at a time: money, `completed`, `expired`, the reputation's `avgTurnaround`, `clientBase` and the level. One source of truth: no closed form. A few thousand steps cost little.
+7. **Level-ups.** The window is cut at each level-up and the rates are found again for the rest. `levelTicks` gets the tick of the cut. A class that unlocks inside the window has no entry yet, so it is left out.
+8. **What the window takes.** The saved offers and spool are the first arrivals of the window: done if the window can serve them, else expired. They are then cleared, so the new session starts with an empty offer list. A tray key with its deadline inside the window expires, as it would. A plugged key stays plugged. `baseTick` moves forward by the window, so ramps and patience run on.
+9. **Contracts.** Cloud-storage contracts move on by the window with every read served (the machine was up); a term that ends inside it settles as `completed`.
+10. **What does not happen offline:** no wear, no heat, no throttle events, no burns, no PSU trip, no bad blocks, no PRNG draws. The PRNG state stays as saved, so the same save and the same `now` give the same result.
+
+After the load, a **While you were away** panel shows the time (and "capped at 8 h" when cut), the jobs done and expired by class, the money earned and a level change.
+
+### Proposed task split (for the owner to approve)
+
+Each line is meant as one TODO entry, in dependency order:
+
+1. **Samples and entries:** stamp the download's end; at delivery, add the job to its entry (`run`, `load`, `work`, `n`, `used`), with the skip rules. Pure sim. Tests: the same job on the same machine gives the same entry; `reloaded` and sandbox jobs add nothing.
+2. **Hardware key and masks:** `hwKey(game, cls)`. Tests: a GPU swap keeps `cli` entries and changes `gpu` and `npu`; a CPU clock change moves every class; a TPM changes only `secure`; an unplugged `pcie` lead gives the CPU-path key.
+3. **Save fields:** `fastModel`, `savedAt`, `running`; validation, the 48-entry cap, the `SIM_VERSION` drop. Tests in `save.test.ts`: a round trip, an old save without them, a bad cache dropped.
+4. **Steady-state model:** a pure function from the entries, the mix, the rates and the network limits to done and expired rates and `T_c` per class. Tests: CPU-bound and link-bound cases, arrivals under capacity all done, arrivals over capacity expire, a class with no entry left out.
+5. **Catch-up on load:** `init {save, now}`, the conditions, the cap, the job-by-job apply, level cuts, offers, spool, tray, contracts. Tests: the cap; no catch-up without an OS, a link, `running`, or in a sandbox; the same save loaded twice gives the same game; the PRNG state is unchanged; offline pay is never above the live sim's over the same window (a bot test).
+6. **While you were away panel** [visual].
+7. **Docs:** this section to "built", ARCHITECTURE.md "Calibration cache" (key per class, not per seed), GPU.md §9, ACCEL.md task 10.
+
+Open points for the owner:
+
+- The cap: 8 hours per load? A daily cap as well?
+- Full rate offline, or a discount (many idle games pay less while away)?
+- The machine loads powered off after a catch-up, as today. Or should it load on?
+- A hidden tab loses time today (the host drops the backlog over 128 ticks a call). The same catch-up could fill that gap when over 60 s are dropped. A later task?

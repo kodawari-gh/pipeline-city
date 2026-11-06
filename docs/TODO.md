@@ -27,7 +27,6 @@ From the 2026-11-05 survey of the `?3d` room. The owner's goal: uniformity above
 
 ## Design notes (no code)
 
-- [ ] T87 [auto] {opus} Fast model and offline catch-up design note. Cover what is calibrated and how it is keyed (including installed accelerators and their clocks), when a cache entry is invalidated, how offline catch-up is computed and capped, and a task split. Files: `src/worker/SAVE.md` (new section). Docs: `src/worker/SAVE.md`, `src/features/gpu/ACCEL.md`. Done when: a "Fast model" section exists, covers those points and ends with a task split for the owner to approve.
 
 ## Deferred until the UI pass is done (owner)
 
