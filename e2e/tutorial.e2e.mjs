@@ -241,7 +241,7 @@ for (let i = 0; i < 1500; i++) {
       if (it?.freeSlots[0]) await dragPart(it.id, it.freeSlots[0]);
       break; }
     case 'cables': {
-      const next = ['atx', 'cpu', 'video'].find((k) => !s.cables.find((c) => c.id === k)?.connected);
+      const next = ['atx', 'cpu', 'cpufan', 'video'].find((k) => !s.cables.find((c) => c.id === k)?.connected);
       if (next) await dragCable(next);
       break; }
     case 'wall': {
