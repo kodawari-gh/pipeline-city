@@ -1,5 +1,6 @@
 // The bedroom's furniture in 3D, round the desk: plain modern flat-pack pieces in black-brown veneer and black steel, the bookcase in the
-// room's one smoked oak (`smokedOak`: the floor's and the desk top's wood, its grain along each board), cloth in muted tones, a
+// room's one smoked oak (`smokedOak`: the floor's and the desk top's wood, its grain along each board) with real books on it (round
+// spines with two or three quiet bands, no letters; a gap here and there and a book leant over into it, `leanInto`), cloth in muted tones, a
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
 // (`shelfStrips`). The bed against the back wall
 // east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door and the sconce
@@ -395,8 +396,10 @@ export function floorLantern(): Lantern {
 
 // ---------------------------------------------------------------- the bookcase
 /**
- * A book's spine: a pale cloth ground (each book's own colour tints it) with bands near its ends and a title running up it. Four modern designs:
- * fine rules and a dark label, broad dark ends and a light label, plain with fine rules, a paperback (a long dark title, a white logo at its foot).
+ * A book's spine: a pale cloth ground (each book's own colour tints it) and two or three quiet bands across it, a shade lighter or darker than
+ * the cloth: no letters (at a reading distance a title is a soft band, and drawn letter by letter it reads as a barcode). Four modern designs:
+ * a dark label and a rule at the foot; darker head and foot with a light label; plain with a rule at each end; a paperback (a long light title
+ * band, a small mark at its foot).
  */
 const SPINES = 4;
 function spineTex(kind: number): Texture | null {
@@ -404,27 +407,31 @@ function spineTex(kind: number): Texture | null {
     c.fillStyle = '#d2d2d2'; c.fillRect(0, 0, w, h);
     for (let i = 0; i < 260; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)'; c.fillRect(rnd() * w, rnd() * h, 1, 2 + rnd() * 6); }
     const band = (y: number, t: number, col: string) => { c.fillStyle = col; c.fillRect(0, y, w, t); };
-    if (kind === 3) {
-      band(0, 18, '#f4f4f4');
-      c.fillStyle = '#3a3a3a';
-      for (let y = 60; y < h - 120;) { const lh = 9 + rnd() * 7; c.fillRect(w / 2 - 9, y, 18, lh); y += lh + 3 + (rnd() < 0.12 ? 14 : 0); }
-      c.fillStyle = '#ffffff'; c.fillRect(w / 2 - 12, h - 80, 24, 30);
-      return;
-    }
-    if (kind === 0) { band(30, 7, '#fff'); band(43, 3, '#fff'); band(h - 46, 3, '#fff'); band(h - 37, 7, '#fff'); }
-    else if (kind === 1) { band(0, 64, '#6e6e6e'); band(h - 64, 64, '#6e6e6e'); band(64, 3, '#fff'); band(h - 67, 3, '#fff'); }
-    else { band(54, 2, '#fff'); band(h - 56, 2, '#fff'); }
-    const ty = kind === 1 ? 140 : 110, th = kind === 1 ? 200 : 250;
-    if (kind !== 2) { c.fillStyle = kind === 0 ? '#565656' : '#f6f6f6'; c.fillRect(9, ty, w - 18, th); }
-    // the title's letters, up the spine, and the publisher's mark at its foot
-    c.fillStyle = kind === 1 ? '#4a4a4a' : '#ffffff';
-    for (let y = ty + 16; y < ty + th - 18;) { const lh = 7 + rnd() * 5; c.fillRect(w / 2 - 6, y, 12, lh); y += lh + 4 + (rnd() < 0.18 ? 10 : 0); }
-    c.fillStyle = '#ffffff'; c.fillRect(w / 2 - 7, h - 112, 14, 22);
+    const light = 'rgba(255,255,255,0.3)', dark = 'rgba(0,0,0,0.22)';
+    if (kind === 0) { band(100, 210, dark); band(h - 52, 6, light); }
+    else if (kind === 1) { band(0, 70, dark); band(h - 70, 70, dark); band(130, 170, light); }
+    else if (kind === 2) { band(46, 5, light); band(h - 51, 5, light); }
+    else { band(50, 300, light); c.fillStyle = light; c.fillRect(w / 2 - 10, h - 78, 20, 24); }
   });
 }
 
+/** How far a spine's round stands out of its book, a share of the book's depth (about 1 cm). */
+export const SPINE_ROUND = 0.045;
+
 /** A book on a shelf: its centre, its depth into the shelf (sx), height (sy) and thickness (sz), its lean round x, its colour and spine design. */
 interface Book { x: number; y: number; z: number; sx: number; sy: number; sz: number; lean: number; tone: number; kind: number }
+
+/**
+ * `b` leant over into the gap on its `dir` side (+1: toward +z) about its foot's edge there, until it rests on `n`, the upright book across the
+ * gap: its top corner on `n`'s face, or its face on `n`'s top corner when `n` is the shorter. It stays on the shelf and out of `n`.
+ */
+function leanInto(b: Book, n: Book, dir: 1 | -1): void {
+  const gap = (dir > 0 ? n.z - n.sz / 2 - (b.z + b.sz / 2) : b.z - b.sz / 2 - (n.z + n.sz / 2)) - 10;
+  const a = Math.max(Math.asin(Math.min(1, gap / b.sy)), Math.atan(gap / n.sy)), foot = b.y - b.sy / 2, pz = b.z + (dir * b.sz) / 2;
+  b.lean = dir * a;
+  b.y = foot + (b.sy / 2) * Math.cos(a) + (b.sz / 2) * Math.sin(a);
+  b.z = pz + dir * ((b.sy / 2) * Math.sin(a) - (b.sz / 2) * Math.cos(a));
+}
 
 /**
  * The books of a bookcase in four draws: per spine design one instanced box (spine and boards in the book's colour, no top: the page block shows
@@ -432,9 +439,9 @@ interface Book { x: number; y: number; z: number; sx: number; sy: number; sz: nu
  */
 function shelvedBooks(books: readonly Book[]): Group {
   const g = new Group(), box = new BoxGeometry(1, 1, 1), d = new Object3D(), col = new Color();
-  // the cover: its spine (+x) rounded across the book's thickness, as a bound book's back is
-  const cover = new BoxGeometry(1, 1, 1, 1, 1, 8), cp = cover.attributes.position!;
-  for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + 0.035 * (1 - 4 * cp.getZ(i) ** 2));
+  // the cover: its spine (+x) rounded across the book's thickness, as a bound book's back is, steepest where it meets the boards
+  const cover = new BoxGeometry(1, 1, 1, 1, 1, 12), cp = cover.attributes.position!;
+  for (let i = 0; i < cp.count; i++) if (cp.getX(i) > 0.49) cp.setX(i, 0.5 + SPINE_ROUND * Math.sqrt(Math.max(0, 1 - 4 * cp.getZ(i) ** 2)));
   cover.computeVertexNormals();
   const board = mat(0xd2d2d2, { roughness: 0.75 }), hidden = new MeshBasicMaterial({ visible: false });
   const pages = paint(128, 128, (c, w, h) => { c.fillStyle = '#efe7d4'; c.fillRect(0, 0, w, h); for (let i = 0; i < h; i += 2) { c.fillStyle = `rgba(120,100,70,${0.05 + rnd() * 0.08})`; c.fillRect(0, i, w, 1); } });
@@ -507,8 +514,11 @@ export function bookcase(): Group {
   const tones = [0x1f2023, 0xd9d6cf, 0x5b6470, 0x2f4a63, 0xb5532f, 0x8a8f96, 0x3c4a3e, 0xc9b28a, 0x26303d, 0x3a3f47];
   const books: Book[] = [];
   const steel = mat(0x3a3c40, { metalness: 0.6, roughness: 0.4 });
-  // (the same books in every room built: the light bake finds the bookend by where it stands, `lightmapmix.ts`)
+  // (the same books in every room built: the light bake finds the bookend by where it stands, `lightmapmix.ts`; the gaps draw from their own
+  // numbers, so the runs and the bookend stand where they did)
   seedN = 11;
+  let gapN = 4241;
+  const gapRnd = () => ((gapN = (gapN * 16807) % 2147483647) / 2147483647);
   for (let s = 0; s <= n; s++) {
     const y = top + s * gap, base = y + gap;
     g.add(wood(softBox({ x, y, w, h: shelf }, z0 + side - 10, z1 - side + 10, oakMat, 40)));
@@ -517,13 +527,22 @@ export function bookcase(): Group {
     let z = z0 + side + 160;
     const end = z1 - side - (s % 2 ? 4200 : s === 0 ? 5900 : s === 2 ? 2700 : 400);
     let last = 0;
+    const run: Book[] = [];
     while (z < end) {
       const bw = 380 + rnd() * 560, bh = gap * (0.6 + rnd() * 0.3) * (s === n - 1 ? 1.08 : 1), bd = 2900 + rnd() * 1300;
       if (z + bw > end) break;
-      books.push({ x: x + 360 + bd / 2, y: -base + bh / 2, z: z + bw / 2, sx: bd, sy: bh, sz: bw, lean: 0, tone: tones[Math.floor(rnd() * tones.length)]!, kind: Math.floor(rnd() * SPINES) });
+      run.push({ x: x + 360 + bd / 2, y: -base + bh / 2, z: z + bw / 2, sx: bd, sy: bh, sz: bw, lean: 0, tone: tones[Math.floor(rnd() * tones.length)]!, kind: Math.floor(rnd() * SPINES) });
       z += bw + 15 + (rnd() < 0.12 ? 120 : 0);
       last = bh;
     }
+    // a gap or two in the run (a book taken out), and a book beside each gap leant over into it (the bottom run stays tight on its bookend)
+    if (s < n - 1) for (let k = 0; k < (run.length > 14 ? 2 : 1); k++) {
+      const i = 2 + k * 7 + Math.floor(gapRnd() * 4);
+      if (i > run.length - 3) break;
+      run.splice(i, 1);
+      if (gapRnd() < 0.5) leanInto(run[i - 1]!, run[i]!, 1); else leanInto(run[i]!, run[i - 1]!, -1);
+    }
+    books.push(...run);
     if (s === 0) {
       // a stack lying flat at the end, the biggest at the bottom
       let sy = base;

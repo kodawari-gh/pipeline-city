@@ -1,10 +1,10 @@
-import { Box3, DoubleSide, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3, type InstancedMesh, type MeshStandardMaterial, type Object3D } from 'three';
+import { Box3, DoubleSide, Matrix4, Mesh, MeshBasicMaterial, Quaternion, Raycaster, Vector3, type InstancedMesh, type MeshStandardMaterial, type Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import type { Room } from '@/core/render/three/camera';
 import { MONITOR } from '@/features/board/render/layout/layout';
 import { roomGeo } from '../shell/room';
 import { mess } from './clutter3d';
-import { OAK_ROUGH, OAK_TILE, PILLOW_WELT, bed, bookcase, eastWall, nightstand, pillow } from './furniture3d';
+import { OAK_ROUGH, OAK_TILE, PILLOW_WELT, SPINE_ROUND, bed, bookcase, eastWall, nightstand, pillow } from './furniture3d';
 import { OAK } from './palette';
 import { floorPlant } from './plants3d';
 import { KEY_LEAD } from './props3d';
@@ -127,6 +127,59 @@ describe('3D furniture', () => {
       if (x > 0.985 || z > 0.985) expect(y, `${x.toFixed(3)},${z.toFixed(3)}`).toBeLessThanOrEqual((PILLOW_WELT * h) / 2 + 1);
     }
     expect(corner).toBeLessThan(1.75);
+  });
+
+  describe('the books', () => {
+    // the covers: one instanced draw per spine design, the spine's map and the boards (an array of materials; the page blocks have one). (Built
+    // in the tests, not here: the plants draw from one stream of numbers, and a bookcase built first would change the vines the tests above see.)
+    const covers = () => {
+      const out: InstancedMesh[] = [];
+      bookcase().traverse((o) => { if ((o as InstancedMesh).isInstancedMesh && Array.isArray((o as InstancedMesh).material)) out.push(o as InstancedMesh); });
+      return out;
+    };
+    // each book as a rectangle across the shelf (z along it, y up): its centre, half sizes and its lean round x
+    type B = { z: number; y: number; hz: number; hy: number; lean: number };
+    const shelved = (): B[] => covers().flatMap((m) => Array.from({ length: m.count }, (_, i) => {
+      const at = new Matrix4(), p = new Vector3(), q = new Quaternion(), s = new Vector3();
+      m.getMatrixAt(i, at); at.decompose(p, q, s);
+      return { z: p.z, y: p.y, hz: s.z / 2, hy: s.y / 2, lean: 2 * Math.atan2(q.x, q.w) };
+    }));
+    // the book's own axes in (z, y): its thickness and its height
+    const axes = (b: B) => [[Math.cos(b.lean), -Math.sin(b.lean)], [Math.sin(b.lean), Math.cos(b.lean)]] as const;
+    const reach = (b: B, u: readonly number[]) => { const [t, h] = axes(b); return b.hz * Math.abs(t[0] * u[0]! + t[1] * u[1]!) + b.hy * Math.abs(h[0] * u[0]! + h[1] * u[1]!); };
+    /** How deep two books go into each other (separating axes; 0 or less: apart). */
+    const depth = (a: B, b: B) => Math.min(...[...axes(a), ...axes(b)].map((u) => {
+      const ca = a.z * u[0] + a.y * u[1], cb = b.z * u[0] + b.y * u[1];
+      return Math.min(ca + reach(a, u), cb + reach(b, u)) - Math.max(ca - reach(a, u), cb - reach(b, u));
+    }));
+    const foot = (b: B) => b.y - reach(b, [0, 1]);
+
+    it('rounds each spine across the book: from the boards to its middle, an even arc', () => {
+      const p = covers()[0]!.geometry.attributes.position!, arc = new Map<number, number>();
+      for (let i = 0; i < p.count; i++) if (p.getX(i) > 0.49) arc.set(Math.round(p.getZ(i) * 1e4) / 1e4, p.getX(i) - 0.5);
+      const pts = [...arc].sort((a, b) => a[0] - b[0]);
+      expect(pts.length).toBeGreaterThanOrEqual(9);
+      expect(pts[0]![1]).toBeCloseTo(0, 4);
+      expect(pts.at(-1)![1]).toBeCloseTo(0, 4);
+      expect(Math.max(...pts.map((v) => v[1]))).toBeCloseTo(SPINE_ROUND, 4);
+      // convex: it rises steepest at the boards and flattens toward the middle
+      for (let i = 2; i < pts.length; i++) {
+        const s0 = (pts[i - 1]![1] - pts[i - 2]![1]) / (pts[i - 1]![0] - pts[i - 2]![0]), s1 = (pts[i]![1] - pts[i - 1]![1]) / (pts[i]![0] - pts[i - 1]![0]);
+        expect(s1).toBeLessThan(s0);
+      }
+    });
+
+    it('leans a few books a little into the gaps, each on its shelf and none in another', () => {
+      const books = shelved(), upright = books.filter((b) => Math.abs(b.lean) < 1e-6), leant = books.filter((b) => Math.abs(b.lean) > 1e-6 && Math.abs(b.lean) < 1);
+      expect(leant.length).toBeGreaterThanOrEqual(4);
+      for (const b of leant) expect(Math.abs(b.lean)).toBeLessThan(0.35);
+      // a leant book's foot stands on a shelf, as the upright ones do
+      const shelves = upright.map(foot);
+      for (const b of leant) expect(Math.min(...shelves.map((y) => Math.abs(foot(b) - y)))).toBeLessThan(1);
+      for (let i = 0; i < books.length; i++) for (let j = i + 1; j < books.length; j++) {
+        expect(depth(books[i]!, books[j]!), `book ${i} in book ${j}`).toBeLessThan(5);
+      }
+    });
   });
 
   it('makes the floor, the desk top and the bookcase of the palette\'s one oak, its grain along each board', () => {
