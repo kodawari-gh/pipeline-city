@@ -271,17 +271,20 @@ export function drawerUnit(g: RoomGeo): Mesh[] {
   return out;
 }
 
-/** A flat-woven wool rug: charcoal, a fine herringbone of light and dark rows, a pale line inside a plain edge; a fleck of pile (its bump too). */
+/**
+ * A flat-woven wool rug: charcoal, a faint weave of light and dark rows, a thin quiet line inside a plain edge; a fleck of pile (its bump too).
+ * One quiet field: the weave and the line stay well under the floor's grain and the bed's cloth.
+ */
 function rugTex(): Texture | null {
   return paint(1024, 768, (c, w, h) => {
     c.fillStyle = RUG_WOOL; c.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 12) for (let y = 0; y < h; y += 6) {
-      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.1)';
+      c.fillStyle = (Math.floor(x / 12) + Math.floor(y / 6)) % 2 ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.03)';
       c.fillRect(x, y, 12, 3);
     }
     for (let k = 0; k < 14000; k++) { c.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${0.03 + rnd() * 0.05})` : `rgba(0,0,0,${0.05 + rnd() * 0.08})`; c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
     const m = 54;
-    c.strokeStyle = RUG_LINE; c.lineWidth = 5; c.strokeRect(m, m, w - 2 * m, h - 2 * m);
+    c.globalAlpha = 0.35; c.strokeStyle = RUG_LINE; c.lineWidth = 2; c.strokeRect(m, m, w - 2 * m, h - 2 * m); c.globalAlpha = 1;
   });
 }
 
@@ -388,7 +391,7 @@ export class Room3D {
     // ---- the floor: long smoked oak planks; a flat charcoal rug under the bed's west side (`RUG`) ----
     R.add(oakFloor());
     const pile = rugTex();
-    const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 2, roughness: 0.97 }), 140);
+    const rug = softBox({ x: RUG.x0, y: fl - RUG.h, w: RUG.x1 - RUG.x0, h: RUG.h }, RUG.z0, RUG.z1, cloth(0xffffff, { map: pile, bumpMap: pile, bumpScale: 1, roughness: 0.97 }), 140);
     rug.castShadow = false;
     R.add(rug);
 
