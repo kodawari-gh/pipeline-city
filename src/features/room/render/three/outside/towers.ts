@@ -736,10 +736,12 @@ if (fKind == 0 || fKind == 6) {
   // street lamps' glints would scatter over them in specks
   fTilt = (vec3(h, h2, h3) - 0.5) * 0.09 * m * refl * (1.0 - cf) * (1.0 - fNight);
   // the night: the lit rooms' light through their glass (a mirror glass lets less through), the frame round a lit window catching a
-  // little of it, the street lamps' warm light washing the lowest floors' walls
-  fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl * (1.0 - shop)) * (fNight * mix(2.6, 4.2, shop) + 0.02);
+  // little of it, the street lamps' warm light washing the lowest floors' walls. A building's rooms come on at its own time as the night
+  // comes (its place in the ramp: one early, one late), a shop with the street
+  float bNight = mix(smoothstep(0.0, 0.2, fNight - 0.8 * fHash(vec2(floor(seed) * 0.29, 51.3))), fNight, shop);
+  fGlow = lamp * kz * lit * through * m * (1.0 - 0.5 * refl * (1.0 - shop)) * (bNight * mix(2.6, 4.2, shop) + 0.02);
   fGlow += sCol * fasc * mix(sOpen, 0.8, cx) * 0.7 * fNight;
-  fGlow += fr * lamp * lit * 0.06 * fNight * (1.0 - m);
+  fGlow += fr * lamp * lit * 0.06 * bNight * (1.0 - m);
   fGlow += fr * vec3(1.0, 0.72, 0.45) * 0.45 * exp(-vFuv.y / 6.0) * fNight * (1.0 - m);
   // a tall tower's head in its floodlights: brightest under its crown, fading down the wall, the walls taking more of it than the glass
   if (vWashY.y > 0.0) {

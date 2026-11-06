@@ -3,7 +3,8 @@
 // screen pixel its block's average, so the perspective is the room camera's own: the street below, the roofs of the blocks across, the avenue
 // down to the downtown towers, the hills. Its light: the hour's sky (`sky.ts`, also the environment its materials take as sky light and
 // reflections, so the glass towers mirror it), the sun with its shadows, the light our own tower throws back, the lamps, the lit windows at
-// night (the moon's light is the night sky's), each sign's light on its wall (`signlight.ts`), the soft glow round every bright thing at night
+// night (the moon's light is the night sky's; the lights follow the sky's dark from 17:00, not the room's daylight, and each building's
+// windows come on at their own time, `lightsAt`), each sign's light on its wall (`signlight.ts`), the soft glow round every bright thing at night
 // (`glow.ts`), and the haze over it all, with a lit mist under it at night (`haze.ts`). At the warm hour the air takes the sky's bands. The traffic
 // moves on each frame (`traffic.ts`, drawn by `cars.ts`), the signals with it, steam rises off a few roofs (`steam.ts`). As the light goes the room
 // itself shows faintly in the glass (`mirror.ts`), only its lit screen and lamps over the dark city.
@@ -57,6 +58,12 @@ const DUSK_ROSE = new Color(0.56, 0.2, 0.25);
 const duskShare = (h: number): number => Math.max(smooth(17.2, 18.9, h) * (1 - smooth(20.1, 21.4, h)), smooth(4.7, 5.7, h) * (1 - smooth(6.6, 8, h)));
 const duskLight = (h: number): number => 1 - 0.7 * smooth(19, 20.9, h) - 0.65 * (1 - smooth(4.7, 6, h));
 const DUSK_HAZE = 0.6;
+/**
+ * The city's lights at an hour (0 to 1): they come on as its sky darkens, evenly from 17:00 to 20:00 (the room's daylight is still about .76
+ * at 18:30, under a purple sky), and go off with the dawn. Each building has its own time in the ramp (`towers.ts`), so they come on one by
+ * one: a few at 17:30, about half at 18:30, all by 20:00.
+ */
+const lightsAt = (h: number): number => (h < 12 ? 1 - smooth(5.2, 7.4, h) : Math.min(1, Math.max(0, (h - 17) / 3)));
 /** How much of the soft glow round the lights (`glow.ts`) the picture takes at night. */
 const GLOW = 0.3;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
@@ -258,7 +265,7 @@ export class OutsideView {
     this.key = key;
     this.envDirty = true;
     const s = skyAt(hour), day = daylight(hour), night = 1 - day, sd = sunOutside(hour), lift = 1 + 0.1 * day, dusk = duskShare(hour), duskK = duskLight(hour);
-    const dark = smooth(0.6, 1, night);
+    const dark = smooth(0.6, 1, night), gone = Math.min(1, Math.max(0, 1.25 - day * 1.6));
     // the room's table warms its horizon for hours round the warm hour; out here the bands see to that, and until they come the air stays clear
     const clear = smooth(6.4, 8, hour) * (1 - smooth(17.6, 19, hour));
     const top = new Color(s.top).multiplyScalar(lift).lerp(NIGHT_TOP, dark), hor = new Color(s.hor).lerp(HOR_CLEAR, clear * 0.9).multiplyScalar(lift).lerp(NIGHT_HOR, dark);
@@ -290,14 +297,14 @@ export class OutsideView {
     hz.hzSun.value.copy(sunCol).multiplyScalar(0.45 * day * up);
     hz.hzDir.value.set(sd[0], sd[1], sd[2]);
     hz.hzDensity.value = HAZE_DAY + (HAZE_NIGHT - HAZE_DAY) * night;
-    const mist = smooth(0.35, 1, 1.25 - day * 1.6);
+    const mist = smooth(0.35, 1, gone);
     hz.hzMist.value.copy(MIST);
     hz.hzMistD.value = MIST_DENSITY * mist;
     u.mist.value.copy(MIST).multiplyScalar(mist);
     u.ground.value.copy(hor).lerp(new Color(0x4a5242), 0.55).multiplyScalar(0.45).lerp(hz.hzCol.value, dusk);
     this.leaf.glow.value.copy(sunCol).multiplyScalar(this.sun.intensity * 0.22);
-    // the lamps, the cars' lights and the windows come on as the light goes
-    const lights = Math.min(1, Math.max(0, 1.25 - day * 1.6));
+    // the lamps, the cars' lights and the windows come on as the sky darkens; the room shows in the glass only once the daylight has gone
+    const lights = lightsAt(hour);
     for (const l of this.lamps) l.intensity = 70 * lights;
     for (const n of this.kit.night) n.mat.emissiveIntensity = n.k * lights;
     this.facade.night.value = lights;
@@ -311,7 +318,7 @@ export class OutsideView {
     this.carLight.night.value = lights;
     this.lampLight.lampNight.value = lights;
     this.quad.uniforms.glowK!.value = GLOW * lights * lights;
-    this.mirrorAt = MIRROR * smooth(MIRROR_FROM, 1, lights);
+    this.mirrorAt = MIRROR * smooth(MIRROR_FROM, 1, gone);
     const sk = Math.round(hour * 20);
     if (sk !== this.sunKey) { this.sunKey = sk; this.sunMoved = true; }
   }
