@@ -25,7 +25,7 @@ import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
-import { EARTH_SHADOW, skyDome, skyMaterial, type SkyUniforms } from './sky';
+import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
 import { Signals, street } from './street';
@@ -277,6 +277,7 @@ export class OutsideView {
     u.top.value.copy(top);
     u.hor.value.copy(hor);
     u.sunDir.value.set(sd[0], sd[1], sd[2]);
+    u.moonDir.value.copy(moonDir(hour));
     u.night.value = night;
     u.dusk.value = dusk;
     u.duskK.value = duskK;

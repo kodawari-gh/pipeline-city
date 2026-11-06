@@ -2,7 +2,8 @@
 // and the zenith's overhead (`skyAt`), at the warm hour bands of ember, rose and violet under a deep blue, brightest toward the sun with the
 // earth's shadow opposite it; the sun's wide glow and its disc, a layer of clouds that drifts and is lit from the sun's side, or from below at
 // dusk and by the city at night, the moon's face and the stars, a few far aircraft's lights, the city's glow low in the sky. Under the horizon it
-// is the land's haze. A small copy of the dome is what the view's environment sees (its sky light).
+// is the land's haze. A small copy of the dome is what the view's environment sees (its sky light). The moon moves with the hour (`moonDir`,
+// set by `view.ts`): it rises in the east in the evening, is over the town near midnight and low in the west at dawn.
 import { BackSide, Color, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
 
 /** The warm hour's sky low down (linear): the ember toward the sun, and the earth's shadow away from it. `view.ts` gives the haze the same. */
@@ -115,13 +116,29 @@ export interface SkyUniforms {
   dusk: { value: number }; duskK: { value: number };
 }
 
-/** Where the moon hangs at night: low, a little west of the side street, so the window's overview has it over the town. */
-export const MOON_DIR = new Vector3(-0.235, 0.075, -0.97).normalize();
+/**
+ * The moon's night (hours; past midnight they count on from 24): it rises in the east at `MOON_RISE` and sets in the west at `MOON_SET`.
+ * Its side to side (radians from north, east positive) and its height at the top of its arc.
+ */
+export const MOON_RISE = 18, MOON_SET = 32;
+const MOON_EAST = 0.6, MOON_WEST = -0.308, MOON_HIGH = 0.122;
+
+/**
+ * Where the moon is at an hour (north is -z, east +x). Its path is drawn for the window, not the sky's real one, which would take it behind
+ * the room: it rises in the east, crosses the north low over the town, highest past midnight, and is low in the west at dawn. It moves
+ * fastest just after it rises. Under the horizon outside its night.
+ */
+export function moonDir(hour: number): Vector3 {
+  const h = hour < 12 ? hour + 24 : hour, u = Math.min(1, Math.max(0, (h - MOON_RISE) / (MOON_SET - MOON_RISE)));
+  const az = MOON_EAST + (MOON_WEST - MOON_EAST) * (1 - (1 - u) ** 2.75);
+  const el = u > 0 && u < 1 ? MOON_HIGH * Math.sqrt(Math.sin(u * Math.PI)) : -0.2;
+  return new Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+}
 
 export function skyMaterial(): ShaderMaterial {
   const uniforms: SkyUniforms = {
     top: { value: new Color() }, hor: { value: new Color() }, ground: { value: new Color() }, sunDir: { value: new Vector3(0, 1, 0) },
-    sunCol: { value: new Color() }, moonDir: { value: MOON_DIR.clone() }, glow: { value: new Color() }, mist: { value: new Color() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
+    sunCol: { value: new Color() }, moonDir: { value: moonDir(23) }, glow: { value: new Color() }, mist: { value: new Color() }, night: { value: 0 }, time: { value: 0 }, clouds: { value: 0.75 },
     dusk: { value: 0 }, duskK: { value: 1 },
   };
   return new ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: uniforms as unknown as ShaderMaterial['uniforms'], side: BackSide, depthWrite: false, depthTest: false, fog: false });
