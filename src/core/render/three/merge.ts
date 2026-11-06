@@ -17,11 +17,14 @@ function still(o: Object3D, root: Object3D): o is Mesh {
   return true;
 }
 
-/** The geometry in the root's frame, unindexed, with only a position, a normal and a uv (so every kind merges with every other). */
-function prepared(m: Mesh, toRoot: Matrix4): BufferGeometry {
+/**
+ * The geometry in the root's frame, unindexed, with only a position, a normal and a uv (so every kind merges with every other), and its baked
+ * occlusion when the whole set has one (`vertexao.ts`).
+ */
+function prepared(m: Mesh, toRoot: Matrix4, ao: boolean): BufferGeometry {
   let g = m.geometry.clone().applyMatrix4(new Matrix4().multiplyMatrices(toRoot, m.matrixWorld));
   if (g.index) g = g.toNonIndexed();
-  for (const k of Object.keys(g.attributes)) if (!KEEP.has(k)) g.deleteAttribute(k);
+  for (const k of Object.keys(g.attributes)) if (!KEEP.has(k) && !(ao && k === '_ao')) g.deleteAttribute(k);
   if (!g.attributes.normal) g.computeVertexNormals();
   if (!g.attributes.uv) g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(g.attributes.position!.count * 2), 2));
   g.clearGroups();
@@ -47,7 +50,8 @@ export function mergeStatic(root: Object3D): number {
   let n = 0;
   for (const s of sets.values()) {
     if (s.meshes.length < 2) continue;
-    const g = mergeGeometries(s.meshes.map((m) => prepared(m, toRoot)), false);
+    const ao = s.meshes.every((m) => !!m.geometry.attributes._ao);
+    const g = mergeGeometries(s.meshes.map((m) => prepared(m, toRoot, ao)), false);
     if (!g) continue;
     for (const m of s.meshes) m.parent?.remove(m);
     const out = new Mesh(g, s.m);

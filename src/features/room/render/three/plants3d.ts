@@ -143,6 +143,8 @@ function soil(): Material {
 /** A fiddle-leaf fig in a ribbed stoneware pot on its saucer, standing on the floor at (x, z): a tapered trunk, two branches, big glossy leaves. */
 export function floorPlant(x: number, z: number): Group {
   const g = new Group(), fl = FLOOR_Y, ware = stoneware();
+  // (its baked occlusion, 8 cm out: the inner leaves under the outer ones, the stems among them; `vertexao.ts`)
+  g.userData.ao = 1500;
   // the pot: a foot, a ribbed body swelling to a rolled rim, the rim's lip turned in
   const potH = 4500, profile = [[0, 0], [1500, 0], [1620, 60], [1700, 260], [2050, 600], [2280, 3700], [2440, 4300], [2500, 4440], [2450, 4520], [2330, 4500], [2260, 4380], [2200, 4200]] as const;
   g.add(lathePot(x, fl, z, profile, ware, { ribs: 24, from: 600, to: 3700 }));
@@ -209,6 +211,8 @@ function pothosLeaves(): Material[] {
 /** A pothos in a small pot standing at (x, y, z) (y its base, 2D down), its vines trailing over an edge at x `edge` and down toward the room (+x). */
 export function pothos(x: number, y: number, z: number, edge: number, vines: readonly { dz: number; len: number }[]): Group {
   const g = new Group(), leaves = pothosLeaves(), stem = mat(0x6f9442, { roughness: 0.6 });
+  // (its baked occlusion, 6 cm out: the tuft's inner leaves, the vines against the shelf's edge)
+  g.userData.ao = 1120;
   g.add(lathePot(x, y, z, [[0, 0], [760, 0], [820, 80], [900, 1500], [990, 1620], [1000, 1720], [930, 1720], [900, 1600]], stoneware()));
   g.add(post(x, y - 1560, z, 905, 40, soil(), 20));
   const heart = [0, 1, 2].map((k) => leafBlade(1, 0.78, 'heart', { fold: 0.18 + k * 0.08, curl: 0.1 + k * 0.05, wave: 0.2 }));
@@ -241,6 +245,8 @@ export function pothos(x: number, y: number, z: number, edge: number, vines: rea
 /** A small succulent rosette in a stoneware pot standing on the layout point (x, y): three rings of fleshy leaves, blushed at their tips. */
 export function succulent(x: number, y: number, z: number, r: number): Group {
   const g = new Group();
+  // (its baked occlusion: the rosette's heart under its outer rings)
+  g.userData.ao = r * 0.6;
   g.add(lathePot(x, y, z, [[0, 0], [r * 0.82, 0], [r * 0.9, r * 0.08], [r * 1.0, r * 1.1], [r * 1.08, r * 1.2], [r * 1.0, r * 1.22], [r * 0.95, r * 1.12]], stoneware(), { ribs: 12, from: r * 0.1, to: r * 1.05 }));
   g.add(post(x, y - r * 1.1, z, r * 0.96, r * 0.04, soil(), 16));
   const tex = leafTex('#86a893', '#a9c4b0', 0, (c, w, h) => {
@@ -263,6 +269,8 @@ export function succulent(x: number, y: number, z: number, r: number): Group {
 /** An aloe in a stoneware pot on the bench at the layout point (x, y): long spotted blades fanning out of the soil, arching over. */
 export function aloe(x: number, y: number, z: number): Group {
   const g = new Group();
+  // (its baked occlusion, 6 cm out: the blades' bases in the fan)
+  g.userData.ao = 1120;
   // the pot: a plain cylinder a little tapered to its foot, its rim rounded over
   g.add(lathePot(x, y, z, [[0, 0], [880, 0], [950, 40], [1000, 200], [1050, 1300], [1062, 1420], [1032, 1462], [992, 1452], [972, 1350]], stoneware()));
   g.add(post(x, y - 1280, z, 970, 40, soil(), 20));

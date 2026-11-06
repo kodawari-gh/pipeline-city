@@ -17,4 +17,13 @@ describe('baked occlusion', () => {
     expect(sh.fragmentShader).toContain('reflectedLight.directDiffuse *= mix( 1.0, bakedAo, 0.400 );');
     expect(m.customProgramCacheKey()).toContain('|ao0.4');
   });
+
+  it('patches a material once (a room built again shares its pots)', () => {
+    const m = new MeshPhysicalMaterial();
+    bakedAo(m); bakedAo(m);
+    const sh = { vertexShader: ShaderLib.physical.vertexShader, fragmentShader: ShaderLib.physical.fragmentShader, uniforms: {} } as unknown as WebGLProgramParametersWithUniforms;
+    m.onBeforeCompile(sh, {} as WebGLRenderer);
+    expect(sh.vertexShader.split('attribute vec2 _ao;').length).toBe(2);
+    expect(m.customProgramCacheKey().split('|ao').length).toBe(2);
+  });
 });

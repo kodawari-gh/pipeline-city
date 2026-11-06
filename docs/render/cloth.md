@@ -10,10 +10,12 @@ Code: `src/core/render/three/cloth/` (pure TypeScript, no DOM, no Three; a test 
 | `solid.ts` | the colliders as signed distances in mm: `sphere`, `capsule`, `slab` / `slabAt` (rounded slabs), `floor`, `union`, `gradient` |
 | `solver.ts` | `Cloth`: extended position-based dynamics in small steps (`rate` steps a second, one pass a step): seams pull shut, stretch (compliance `stretch`), soft bending (`bend`), self-collision on a hash grid with friction between layers, the solids with friction. `run(phase)`, `stats()` |
 | `bake.ts` | `ClothBake` and `bakeCloth`: runs the phases, logs a line each, welds the seams, smooths, adds a rolled rim along every free edge (hems, cuffs, the hood's opening), bakes the occlusion (`ao`), writes one primitive per material |
-| `occlusion.ts` | baked ambient occlusion: for each point, how open it is on each of its two sides to 48 rays out to `ao` mm. The cloth's triangles and the last phase's solid block them. Cloth nearer than `skin` (the bake passes `self / 2`) does not count |
+| `occlusion.ts` | baked ambient occlusion: for each point, how open it is on each of its two sides to 48 rays out to `ao` mm. The cloth's triangles and the last phase's solid block them. Cloth nearer than `skin` (the bake passes `self / 2`) does not count. Only the first `cast` points are cast (the rest only block); a point marked in `one` casts only its normal's side |
 | `glb.ts` | a minimal GLB writer: one node and one mesh named by the bake, materials that carry only a name, extra vertex attributes (the occlusion is `_AO`, two values a vertex) |
 
-In the game, `bakedAo(material)` (`src/core/render/three/bakedao.ts`) reads `_AO`. It takes the front face's value or the back face's, and darkens the indirect light, the sheen and the reflections by it, and the direct light by half of it.
+In the game, `bakedAo(material)` (`src/core/render/three/bakedao.ts`) reads `_AO`. It takes the front face's value or the back face's, and darkens the indirect light, the sheen and the reflections by it, and the direct light by half of it. A material is patched once (a room built again shares it).
+
+Hard things take the same `_ao` with no file: `vertexAo(root)` (`src/core/render/three/vertexao.ts`) casts it once when the room is built, before `mergeStatic` (which keeps `_ao` when all its meshes have it). A group asks for it by `userData.ao`, its reach in world units: the desk's props and the plants (T178). Its opaque meshes take it; every opaque mesh near them blocks the rays (the desk under the keyboard, the wall behind the clock). It casts 24 rays a side, one side for a one-sided material, and takes about 1 s for the room.
 
 ## Make a bake
 

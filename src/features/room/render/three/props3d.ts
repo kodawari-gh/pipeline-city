@@ -28,6 +28,8 @@ export interface Lamp { root: Group; bulb: MeshStandardMaterial; inner: MeshStan
 export function lamp(base: { x: number; y: number }, elbowXY: { x: number; y: number }, head: { x: number; y: number }, mouthXY: { x: number; y: number }, z: number): Lamp {
   const coat = mat(STEEL, { roughness: 0.4, metalness: 0.3 }), joint = mat(0x6d7178, { metalness: 0.6, roughness: 0.3 });
   const g = tag(new Group(), 'lamp');
+  // (its baked occlusion: the joints between the paired arms, the base under them; `vertexao.ts`)
+  g.userData.ao = 30 * MM;
   g.add(post(base.x, base.y, z, 950, 150, coat, 40, 880));
   g.add(post(base.x, base.y - 150, z, 230, 280, coat, 20, 200));
   const b0: V3 = [base.x, -(base.y - 400), z], el: V3 = [elbowXY.x, -elbowXY.y, z], hd: V3 = [head.x, -head.y, z];
@@ -79,6 +81,8 @@ export class Monitor {
   constructor(m: RectLike, screen: RectLike, deskY: number, z0: number) {
     const shell = mat(0x2d3137, { roughness: 0.45, metalness: 0.2 }), back = mat(0x24272c, { roughness: 0.6 });
     const R = this.root, cx = m.x + m.w / 2, hump = { x: m.x + m.w * 0.18, y: m.y + m.h * 0.12, w: m.w * 0.64, h: m.h * 0.66 };
+    // (its baked occlusion: the neck into the back, the foot on the desk; `vertexao.ts`)
+    R.userData.ao = 40 * MM;
     R.add(softBox(m, z0, z0 + 180, shell, 50));
     R.add(softBox(hump, z0 - 380, z0, back, 160));
     this.bias = new RectAreaLight(NEON_WASH, 0, m.w - 400, m.h - 400);
@@ -154,6 +158,8 @@ export class DigitalClock {
   private shown = '';
 
   constructor(r: RectLike) {
+    // (its baked occlusion: the bezel round the face, the case against the column; `vertexao.ts`)
+    this.root.userData.ao = 20 * MM;
     this.root.add(softBox(r, 0, 260, mat(STEEL, { roughness: 0.45, metalness: 0.3 }), 50));
     this.root.add(rectBox({ x: r.x + 90, y: r.y + 90, w: r.w - 180, h: r.h - 180 }, 260, 270, mat(0x121212, { roughness: 0.3 })));
     if (typeof document !== 'undefined') {
@@ -320,6 +326,8 @@ export const KEY_LEAD = [-2650, -6100] as const;
  */
 export function keyboard(cx: number, deskY: number, z: number): Group {
   const g = new Group(), board = new Group(), U = KEY_U, W = 15 * U, D = 6.25 * U;
+  // (its baked occlusion: the gaps between the caps, the plate inside the rim; `vertexao.ts`)
+  g.userData.ao = 25 * MM;
   const caseM = mat(0x2b2f35, { roughness: 0.4, metalness: 0.3 }), rim = 180;
   board.add(softBox({ x: -W / 2 - rim, y: -200, w: W + 2 * rim, h: 200 }, -D / 2 - rim, D / 2 + rim, caseM, 70));
   for (const r of [{ x: -W / 2 - rim, w: rim + 20 }, { x: W / 2 - 20, w: rim + 20 }] as const) board.add(softBox({ x: r.x, y: -300, w: r.w, h: 300 }, -D / 2 - rim, D / 2 + rim, caseM, 50));

@@ -38,7 +38,7 @@ Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 - `fill` (a directional light from the viewer's side) and `hemi` light faces from nowhere. The style guide forbids that.
 - The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass.
 - The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint.
-- Baked AO is only on the chair, the hoodie and the city.
+- Baked AO is only on the chair, the hoodie and the city. Fixed in T178 for the desk's props and the plants (`vertexao.ts`).
 - The machine read at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). Fixed in T149: see "How the case reads".
 
 ### Targets
@@ -130,6 +130,8 @@ A second UV set (`uv1`) on the large static meshes, packed into one atlas per gr
 ### AO for the furniture
 
 The lightmap carries the occlusion of the large pieces. The small ones take the chair's vertex AO (`_ao`, `bakedao.ts`): the desk's props (the keyboard, the monitor, the lamp, the clock, the router), the plants, the books if they are not merged into the bookcase's lightmap.
+
+Done (T178): `vertexAo` (`src/core/render/three/vertexao.ts`, `docs/render/cloth.md`) casts it when the room is built, for each group with `userData.ao` (its reach: the keyboard 25 mm, the monitor 40 mm, the lamp 30 mm, the clock 20 mm, the router 30 mm, the fig 8 cm, the small plants 3 to 6 cm). At 14:00 the keys' gaps and sides are about 40% darker than without it, the aloe's inner leaves about 25%. The black lamp barely shows it.
 
 ### Task split (the owner approved it, T154, 2026-11-06; the bake engine is Blender's Cycles)
 

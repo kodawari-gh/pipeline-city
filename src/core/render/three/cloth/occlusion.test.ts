@@ -56,6 +56,19 @@ describe('cloth occlusion', () => {
     expect(ao[2 * mid(0)]).toBeCloseTo(1, 5);
   });
 
+  it('casts only the first points; the rest only block', () => {
+    const s = sheets([500, 505]), all = occlusion(s.pos, s.nrm, s.tris, s.weld, far, 32, 40), some = occlusion(s.pos, s.nrm, s.tris, s.weld, far, 32, 40, 0, 81);
+    expect(some.length).toBe(2 * 81);
+    expect(some[2 * mid(0)]).toBe(all[2 * mid(0)]);
+    expect(some[2 * mid(0)]).toBeLessThan(0.2);
+  });
+
+  it('leaves the back of a one-sided point open', () => {
+    const s = sheets([500, 505]), ao = occlusion(s.pos, s.nrm, s.tris, s.weld, far, 32, 40, 0, 162, new Uint8Array(162).fill(1));
+    expect(ao[2 * mid(0)]).toBeLessThan(0.2);
+    expect(ao[2 * mid(1) + 1]).toBe(1);
+  });
+
   it('gives welded points one value', () => {
     const s = sheets([500, 505]);
     s.weld[mid(1)] = mid(0);

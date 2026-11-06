@@ -18,6 +18,7 @@ import { CASE, ETH0_RECT, MONITOR, OUTBOX, ROUTER_SPOT, SCREEN, SHELF_Y, WALL_PL
 import { hung } from '@/features/board/render/three/wires3d';
 import { disposeTree, drum, paint, place, post, rectBox, rod, softBox, tube, worldUv } from '@/core/render/three/geometry';
 import { mergeStatic } from '@/core/render/three/merge';
+import { vertexAo } from '@/core/render/three/vertexao';
 import { boxEnv, type BoxEnv } from '@/core/render/three/boxenv';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
@@ -443,6 +444,8 @@ export class Room3D {
     R.add(softBox({ x: ROUTER_SPOT.x - 300, y: SHELF_Y, w: ROUTER_SPOT.w + 600, h: 140 }, 0, 1700, dark, 30));
     // the router: black, as the other things on the wall
     const router = tag(new Group(), 'router');
+    // (its baked occlusion, 3 cm out: the antennas' hinges, its foot on the shelf; `vertexao.ts`)
+    router.userData.ao = 560;
     router.add(softBox(ROUTER_SPOT, 300, 1400, mat(STEEL, { roughness: 0.4 }), 80));
     router.add(softBox({ x: ROUTER_SPOT.x, y: ROUTER_SPOT.y, w: ROUTER_SPOT.w, h: 120 }, 300, 1400, mat(0x2a2c30, { roughness: 0.4 }), 40));
     // its front: a darker strip with the status lights, vents over its top, two antennas on hinges at the back
@@ -515,7 +518,8 @@ export class Room3D {
     this.box = boxEnv([WEST_X, -FLOOR_Y, 0], [EAST_X, -CEIL_Y, FRONT_Z], this.probeAt);
     this.envs = new RoomEnv(env, this.box);
     this.envs.adopt(R);
-    // the still scenery in few draws
+    // the props' and the plants' baked occlusion (cast once here), then the still scenery in few draws
+    vertexAo(R);
     mergeStatic(R);
   }
 

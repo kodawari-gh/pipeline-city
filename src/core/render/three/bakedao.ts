@@ -16,8 +16,10 @@ reflectedLight.directDiffuse *= mix( 1.0, bakedAo, ${direct.toFixed(3)} );
 #endif
 `;
 
-/** Patches `m` to darken by its mesh's `_ao` attribute; keeps an `onBeforeCompile` it already has. */
+/** Patches `m` to darken by its mesh's `_ao` attribute; keeps an `onBeforeCompile` it already has. A material patched before stays as it is. */
 export function bakedAo(m: Material, direct = 0.5): void {
+  if (m.userData.bakedAo) return;
+  m.userData.bakedAo = true;
   const prev = m.onBeforeCompile.bind(m), key = `${m.customProgramCacheKey()}|ao${direct}`;
   m.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms, r: WebGLRenderer) => {
     prev(sh, r);

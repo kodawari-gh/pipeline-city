@@ -6,19 +6,17 @@ import type { Sdf } from './solid';
 /** A uniform grid of the triangles: each cell's first entry in `items` (counting sort), the triangles by cell. */
 interface Grid { x0: number; y0: number; z0: number; inv: number; nx: number; ny: number; nz: number; start: Int32Array; items: Int32Array }
 
-function triangleGrid(pos: Float32Array, tris: Uint32Array, cell: number): Grid {
-  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
-  for (let k = 0; k < pos.length; k += 3) {
-    x0 = Math.min(x0, pos[k]!); x1 = Math.max(x1, pos[k]!); y0 = Math.min(y0, pos[k + 1]!); y1 = Math.max(y1, pos[k + 1]!); z0 = Math.min(z0, pos[k + 2]!); z1 = Math.max(z1, pos[k + 2]!);
-  }
+/** The grid over the box [x0, y0, z0, x1, y1, z1]: a triangle that reaches out of it is kept only in its cells inside, one wholly out not at all. */
+function triangleGrid(pos: Float32Array, tris: Uint32Array, cell: number, box: readonly number[]): Grid {
+  const [x0, y0, z0, x1, y1, z1] = box as [number, number, number, number, number, number];
   const inv = 1 / cell, nx = Math.floor((x1 - x0) * inv) + 1, ny = Math.floor((y1 - y0) * inv) + 1, nz = Math.floor((z1 - z0) * inv) + 1;
   const g: Grid = { x0, y0, z0, inv, nx, ny, nz, start: new Int32Array(nx * ny * nz + 1), items: new Int32Array(0) };
   // each triangle goes in every cell its box touches: count, then place
   const each = (t: number, f: (c: number) => void) => {
     const a = 3 * tris[3 * t]!, b = 3 * tris[3 * t + 1]!, c = 3 * tris[3 * t + 2]!;
-    const lo = (o: number, m: number) => Math.floor((Math.min(pos[a + o]!, pos[b + o]!, pos[c + o]!) - m) * inv);
-    const hi = (o: number, m: number) => Math.floor((Math.max(pos[a + o]!, pos[b + o]!, pos[c + o]!) - m) * inv);
-    for (let k = lo(2, z0); k <= hi(2, z0); k++) for (let j = lo(1, y0); j <= hi(1, y0); j++) for (let i = lo(0, x0); i <= hi(0, x0); i++) f(i + nx * (j + ny * k));
+    const lo = (o: number, m: number) => Math.max(0, Math.floor((Math.min(pos[a + o]!, pos[b + o]!, pos[c + o]!) - m) * inv));
+    const hi = (o: number, m: number, n: number) => Math.min(n - 1, Math.floor((Math.max(pos[a + o]!, pos[b + o]!, pos[c + o]!) - m) * inv));
+    for (let k = lo(2, z0); k <= hi(2, z0, nz); k++) for (let j = lo(1, y0); j <= hi(1, y0, ny); j++) for (let i = lo(0, x0); i <= hi(0, x0, nx); i++) f(i + nx * (j + ny * k));
   };
   const m = tris.length / 3;
   for (let t = 0; t < m; t++) each(t, (c) => g.start[c]!++);
@@ -48,11 +46,16 @@ function hitTriangle(pos: Float32Array, tris: Uint32Array, t: number, o: readonl
  * rays a side out to `reach` mm; a hit counts less the farther off it is. A point never blocks itself through the triangles on it (`weld`:
  * the welded id of each point), nor through cloth nearer than `skin` mm: layers that close are one sheet (the solver keeps layers its
  * `self` apart, but two pressed together can settle in each other's gaps, and their faces would show as dark flecks). `pos` and `nrm` hold
- * three values a point.
+ * three values a point. Only the first `cast` points are cast (the rest only block: the things round a mesh, `vertexao.ts`). A point marked
+ * in `one` is seen from its normal's side only: the other is not cast and stays open.
  */
-export function occlusion(pos: Float32Array, nrm: Float32Array, tris: Uint32Array, weld: Int32Array, solid: Sdf, rays: number, reach: number, skin = 0): Float32Array {
-  const n = pos.length / 3, out = new Float32Array(2 * n), g = triangleGrid(pos, tris, Math.max(8, reach / 6));
-  const seen = new Int32Array(tris.length / 3).fill(-1), mine = new Set<number>(), first = new Int32Array(n).fill(-1);
+export function occlusion(pos: Float32Array, nrm: Float32Array, tris: Uint32Array, weld: Int32Array, solid: Sdf, rays: number, reach: number, skin = 0, cast = pos.length / 3, one?: Uint8Array): Float32Array {
+  // the grid need only reach as far as a cast ray goes
+  const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < 3 * cast; k++) { box[k % 3] = Math.min(box[k % 3]!, pos[k]!); box[3 + (k % 3)] = Math.max(box[3 + (k % 3)]!, pos[k]!); }
+  for (let a = 0; a < 3; a++) { box[a] = box[a]! - reach; box[3 + a] = box[3 + a]! + reach; }
+  const n = cast, out = new Float32Array(2 * n), g = triangleGrid(pos, tris, Math.max(8, reach / 6), box);
+  const seen = new Int32Array(tris.length / 3).fill(-1), mine = new Set<number>(), first = new Int32Array(pos.length / 3).fill(-1);
   // which triangles hold each welded point, so its own are skipped
   const around = new Map<number, number[]>();
   for (let t = 0; t < tris.length / 3; t++) for (let e = 0; e < 3; e++) {
@@ -83,7 +86,8 @@ export function occlusion(pos: Float32Array, nrm: Float32Array, tris: Uint32Arra
     const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
     const bx = ny0 * tz - nz0 * ty, by = nz0 * tx - nx0 * tz, bz = nx0 * ty - ny0 * tx;
     const turn = (Math.sin(i * 12.9898) * 43758.5453) % (2 * Math.PI), ct = Math.cos(turn), st = Math.sin(turn);
-    for (let side = 0; side < 2; side++) {
+    out[2 * i + 1] = 1;
+    for (let side = 0; side < (one?.[i] ? 1 : 2); side++) {
       const sg = side ? -1 : 1;
       let shut = 0;
       for (const [lx0, ly0, lz] of dirs) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BoxGeometry, CylinderGeometry, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial } from 'three';
 import { mergeStatic } from './merge';
 import { seeThrough, tag } from './pick';
 
@@ -19,6 +19,16 @@ describe('mergeStatic', () => {
     const bb = merged[0]!.geometry.boundingBox!;
     expect(bb.max.x).toBeCloseTo(1005);
     expect(bb.max.y).toBeCloseTo(55);
+  });
+
+  it('keeps the baked occlusion when every mesh of a set has it', () => {
+    const root = new Group(), m = new MeshStandardMaterial(), bare = new MeshStandardMaterial();
+    const baked = (g: BoxGeometry) => g.setAttribute('_ao', new Float32BufferAttribute(new Float32Array(2 * g.attributes.position!.count).fill(0.5), 2));
+    root.add(new Mesh(baked(new BoxGeometry()), m), new Mesh(baked(new BoxGeometry()), m), new Mesh(baked(new BoxGeometry()), bare), new Mesh(new BoxGeometry(), bare));
+    expect(mergeStatic(root)).toBe(4);
+    const [a, b] = root.children.filter((c) => c.name === 'merged') as Mesh[];
+    expect(a!.geometry.attributes._ao!.count).toBe(72);
+    expect(b!.geometry.attributes._ao).toBeUndefined();
   });
 
   it('leaves picked, see-through, transparent and lone meshes as they are', () => {
