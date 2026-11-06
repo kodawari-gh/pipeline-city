@@ -41,7 +41,7 @@ body { font: 0.8rem/1.35 var(--ui); }
 #board { position: fixed; inset: 0; }
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > *, #hud .hud-side, #hud .dock, #hud .picker { pointer-events: auto; }
-#hud > .stack, #hud > .pointer-layer { pointer-events: none; }
+#hud > .stack, #hud > .pointer-layer, #hud > .title { pointer-events: none; }
 
 /* Glass: every panel and bar. Translucent, blurred, hairline border, no shadow. */
 .card, .hud-side, .dock, .picker, .tut, .inv, .menu-pop, .notice, .toast {
