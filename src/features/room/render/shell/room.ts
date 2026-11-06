@@ -140,8 +140,8 @@ export function roomGeo(): RoomGeo {
 export interface RoomState { lamp: boolean; blind: boolean }
 const KEY = 'pipeline-city.room';
 export const roomState: RoomState = { lamp: true, blind: false };
-/** Dev and tests: pin the hour of the day (null follows the game clock). */
-export const roomDebug: { hour: number | null } = { hour: null };
+/** Dev and tests: pin the hour of the day (null follows the game clock) and the machine's room light, 0 studio to 1 room (null follows the camera's height). */
+export const roomDebug: { hour: number | null; light: number | null } = { hour: null, light: null };
 try {
   const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
   if (raw) { const o = JSON.parse(raw) as Partial<RoomState>; roomState.lamp = o.lamp ?? true; roomState.blind = o.blind ?? false; }

@@ -56,6 +56,12 @@ export const FIG_AT = { x: WEST_X + 5800, z: 31500 } as const;
  * by the fig it would stand in front of the bookcase): its middle, its paper's radius and height, its legs' height (about 1.25 m in all).
  */
 export const FLOOR_LANTERN = { x: -30500, z: 8400, r: 2300, h: 20600, legs: 2800 } as const;
+/**
+ * The arc floor lamp east of the desk (it lights the case's board at night from the room: `light.md`): its base on the rug (x, z), clear of
+ * the bed; its dome's mouth in front of the desk (2D y down, z): over the views of the case, low enough that the case's top shades only the
+ * board's top edge.
+ */
+export const ARC_LAMP = { x: 14000, z: 26000, head: { y: -8000, z: 18000 } } as const;
 /** The low bench along the glass west of the desk (a stone top at seat height, 40 cm): its ends (x), its back and front (z), its top (2D y down). */
 export const BENCH = { x0: WINDOW.x + 1200, x1: -24600, z0: 400, z1: 5600, top: FLOOR_Y - 7480 };
 /** The key stand on the desk west of the monitor: where the rack's west end stands (x) and its hooks' plane (z). */

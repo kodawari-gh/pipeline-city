@@ -72,9 +72,9 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 
 | Lamp | Where (`roomplan.ts`) | Kind | K | Shadow | State |
 |---|---|---|---|---|---|
-| Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle |
+| Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle. It keeps its aim on the keyboard: aimed to graze the case (T177), the monitor shades the case and the desk's pool halves |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
-| Arc floor lamp | its base on the rug in front of the case (about z 20000), its arm over the desk's front | spot, dome shade, down and back onto the desk and the case's glass side at about 45 degrees | 3000 | yes | new: the board's main light at night |
+| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome 1 m in front of the case (`arcLamp`) | spot, 1600 lm, half-angle 0.42, down and back onto the board's middle at about 30 degrees (steeper, the case's top shades the board's upper half) | 3000 | yes: the case's frame, the board's parts | built in T177: on at dusk; the board L .026 at 23:00 with the room's light alone, a silkscreen label 4.4:1; its mouth shows in the glass at night |
 | Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
 | Bookcase shelf lights | under each board's front edge, tilted back to the books (`shelfStrips`) | strips (area), 450 lm/m | 2700 | no | built in T174: on at dusk; the books' face L .021 at 23:00 |
 | Picture light | a black bar on an arm over the print (`pictureLight`) | strip (area), 220 lm, down and back onto the print | 3000 | no | built in T175: the print L .031 at 23:00 |
@@ -82,7 +82,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | East shelf light | under the east wall's shelf (`SHELF`), tilted to the wall | strip (area), 450 lm/m | 2700 | no | built in T174: a wash down the east wall |
 | Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
 
-At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle. Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. The bounce of the bake (T180) has to lift them to the .006 target.
+At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern, the shelf lights and the arc lamp (T177) at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle. Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. The bounce of the bake (T180) has to lift them to the .006 target.
 
 ### RGB accents
 
@@ -98,11 +98,12 @@ Accents outside the palette (the case's purple next to the room's cyan) are the 
 
 The owner (T154, 2026-11-06): "We need an option that works for the basic non RGB cases too. All the required for legibility lights need to come from outside." So the case gets no light of its own for the board to read by. The case's RGB is decoration only: a basic case without it reads just as well.
 
-- **The arc floor lamp** is the board's main light at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open).
-- **The desk lamp's cone**: its edge grazes the case's glass side.
+- **The arc floor lamp** is the board's main light at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open). The case's top shades the board's top edge.
+- **The desk lamp** does not reach the board: the monitor stands between them.
 - **The room's bounce**: the machine takes the room's probe, so the lit walls and the rug light the parts softly through the glass.
 - **The screen's light** adds a little cool light from the west.
 - The silkscreen and the parts read by these alone (the target above), with the case's RGB off. Then T149 removes `EnvMix`, `ENV_BAND`, the work light `fill` and `ART_LIGHT`.
+- To check it while the studio blend is in: `roomDebug.light = 1` (`shell/room.ts`) holds the machine's light at the room's end, e.g. `npm run shot -- out.png --3d --hour 23 --look 2000,-1000,4000,-0.15,0.1,12000 --eval "const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.light = 1"`. Measured after T177: the board L .026 (L .0004 before).
 
 ### Offline bakes
 

@@ -327,7 +327,7 @@ export function mountBoard3d(host: HTMLElement) {
     // one light for all in the room: the machine and the dies' art take the room's light there (its probe, the hour's), and their own
     // studio light back toward the board view, where a part must read at any hour; the two fade over a band of heights, with no switch
     // (the room's own materials keep its probe at every height: `RoomEnv`)
-    const k = roomness(view.height);
+    const k = roomDebug.light ?? roomness(view.height);
     machine?.setRoomLight(k);
     ART_LIGHT.value = 1 + (0.12 + 0.88 * daylight(hour) - 1) * k;
     env.apply(scene, smooth(ENV_BAND[0], ENV_BAND[1], k));

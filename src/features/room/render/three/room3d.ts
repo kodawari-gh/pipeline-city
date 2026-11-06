@@ -5,8 +5,9 @@
 // on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, tea cup, architect lamp, the key stand; on the
 // column: the digital clock, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's things come from
 // the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The lamps are real lamps (lumens, kelvin) and the
-// evening turns them on in steps: the floor lantern and the shelves' strips at dusk, the bed's cyan strips, then the bedside lantern, the
-// picture light and the door's sconce; the desk lamp is the player's, the monitor's bias light is on with its screen. The sim knows nothing of it.
+// evening turns them on in steps: the floor lantern, the shelves' strips and the arc lamp at dusk (its spot through the case's glass: the board
+// reads at night by the room's light, a case needs none of its own), the bed's cyan strips, then the bedside lantern, the picture light and the
+// door's sconce; the desk lamp is the player's, the monitor's bias light is on with its screen. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
   RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
@@ -26,7 +27,7 @@ import { roomGeo, skyAt, type RoomGeo } from '../shell/room';
 import { DigitalClock, KEY_LEAD, Monitor, keyboard, lamp, mouse, notebook, steam, teaCup, type Cup, type Lamp, type Screen } from './props3d';
 import { GLASS_T, OutsideView } from './outside/view';
 import { M } from './outside/plan';
-import { STRIP_W, bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, pictureLight, print, sconce, shelfStrips, type Lantern } from './furniture3d';
+import { STRIP_W, arcLamp, bed, bookcase, ceilingLight, door, eastWall, floorLantern, nightstand, oak, pictureLight, print, sconce, shelfStrips, type Lantern } from './furniture3d';
 import { deskChair } from './chair3d';
 import { RoomEnv } from './roomenv';
 import { mess } from './clutter3d';
@@ -42,13 +43,13 @@ const KEY_W = 230;
 
 /**
  * The shadow map sizes at each level of the graphics settings (the window's sky light, the sun, the lamp, the bedside lantern, the floor
- * lantern: a lantern's is a cube of six faces this size); 0 has no shadows, 3 is the tuned look.
+ * lantern: a lantern's is a cube of six faces this size; the arc lamp, whose shadows are the board's parts); 0 has no shadows, 3 is the tuned look.
  */
 const SHADOW_LEVELS: readonly (readonly number[] | null)[] = [
-  null, [1024, 1024, 512, 256, 256], [2048, 1024, 1024, 512, 512], [4096, 2048, 1024, 1024, 1024], [8192, 4096, 2048, 2048, 2048],
+  null, [1024, 1024, 512, 256, 256, 512], [2048, 1024, 1024, 512, 512, 1024], [4096, 2048, 1024, 1024, 1024, 2048], [8192, 4096, 2048, 2048, 2048, 4096],
 ];
 /** Each light's softness at level 3. It is in map texels, so a map of another size takes its share and the shadow's edge stays as wide. */
-const SHADOW_SOFT = [14, 5, 6, 5, 5];
+const SHADOW_SOFT = [14, 5, 6, 5, 5, 4];
 /** The window's sky light falls off as its distance to this power: a window is a wide source, gentler than a bulb's square. */
 const KEY_DECAY = 0.8;
 /** The sky light's level is as set at this distance from its source (about the desk's middle). */
@@ -85,6 +86,8 @@ const STRIP_LM_M = 450, STRIP_NITS = STRIP_LM_M / (Math.PI * STRIP_W / M);
 const PICTURE_LM = 220, SCONCE_LM = 450;
 /** The monitor's cyan bias strip round its back: about 2 m of RGB strip at cyan (its green and blue: about half its white's lumens). */
 const BIAS_LM = 400;
+/** The arc lamp's spot (a 100 W-equivalent bulb behind its diffuser): it carries the board's legibility at night, through the case's glass. */
+const ARC_LM = 1600;
 /** The print over the bed: its frame (2D y down) on the back wall. */
 const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
 
@@ -216,6 +219,8 @@ export class Room3D {
   /** The picture light over the print and the sconce by the door (they come on as night falls). */
   private picture = pictureLight(PRINT, 0);
   private sconce = sconce();
+  /** The arc lamp over the desk's front: its spot onto the board's middle, behind the case's glass (it comes on at dusk). */
+  private arc = arcLamp([CASE.x + CASE.w / 2, -(CASE.y + CASE.h / 2), BOARD_Z]);
   /** The bed's LED strips, and the area lights they stand for (the floor round the bed, the wall over the headboard). */
   private ledGlow: MeshStandardMaterial;
   private ledUnder: RectAreaLight;
@@ -332,7 +337,10 @@ export class Room3D {
     Object.assign(this.floorLight.shadow.camera, { near: 200, far: 130000 }); this.floorLight.shadow.bias = -0.002; this.floorLight.shadow.normalBias = 20;
     const top = ceilingLight(4000, CEIL_Y, 30000);
     R.add(bd.root, ns.root, bookcase(), door(), top.root, floorPlant(FIG_AT.x, FIG_AT.z), eastWall(), this.bedLight, this.floorLamp.root, this.floorLight, this.strips.root);
-    R.add(print(PRINT, 0), this.picture.root, this.sconce.root);
+    R.add(print(PRINT, 0), this.picture.root, this.sconce.root, this.arc.root);
+    // (the arc lamp's shadow reaches from its dome to the case's back panel)
+    const al = this.arc.light;
+    Object.assign(al.shadow.camera, { near: 300, far: 60000 }); al.shadow.bias = -0.0005; al.shadow.normalBias = 10;
 
     // ---- the desk: a smoked oak top (the floor's and the slats' wood) on two round black steel legs at the west end and a black-brown drawer
     // unit at the east end, a cable tray under its back edge ----
@@ -527,7 +535,7 @@ export class Room3D {
   }
 
   /** The lights that cast shadows, in `SHADOW_LEVELS`' order. */
-  private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight]; }
+  private get casters(): (SpotLight | PointLight)[] { return [this.key, this.sun, this.lampLight, this.bedLight, this.floorLight, this.arc.light]; }
 
   /** The shadow maps at `level` of the graphics settings. A new map is drawn on the next frame; no shadows frees them. */
   setShadows(level: number): void {
@@ -679,6 +687,9 @@ export class Room3D {
     this.floorLamp.glow.emissiveIntensity = dusk * 4;
     for (const l of this.strips.lights) l.intensity = dusk * nits(STRIP_NITS);
     this.strips.glow.emissiveIntensity = dusk * 1.6;
+    this.arc.light.intensity = dusk * lumens(ARC_LM, this.arc.light.angle);
+    this.arc.glow.emissiveIntensity = dusk * 4;
+    this.arc.shade.emissiveIntensity = dusk * 0.8;
     this.bedLight.intensity = bedside * lumens(LANTERN_LM);
     const pl = this.picture.light;
     pl.intensity = bedside * nits(PICTURE_LM / (Math.PI * pl.width * pl.height / (M * M)));

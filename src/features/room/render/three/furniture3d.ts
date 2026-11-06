@@ -2,22 +2,22 @@
 // Japanese lean (a low platform bed, a paper lantern, an ink-wash print), cyan LED strips that light at night, warm ones under the shelves
 // (`shelfStrips`). The bed against the back wall
 // east of the desk, the bedside drawer and its lantern, the bookcase on the west wall and a tall paper lantern by it, the door and the sconce
-// beside it, the ceiling light, the print over the bed and its picture light, the shelf on the east wall. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
+// beside it, the ceiling light, the print over the bed and its picture light, the shelf on the east wall, the arc lamp over the desk's front. Every builder takes the room plan (`roomplan.ts`, 2D y down; z out of the back wall) and its tones
 // (`palette.ts`) and returns world meshes, each part its own mesh: the room merges the still ones by material (`mergeStatic`). Pure scenery:
 // nothing answers a click.
 import {
-  BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
-  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, type Material, type Texture,
+  BoxGeometry, BufferGeometry, CircleGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LatheGeometry, Mesh, MeshBasicMaterial,
+  MeshStandardMaterial, Object3D, PlaneGeometry, RectAreaLight, SphereGeometry, SpotLight, TorusGeometry, Vector2, Vector3, type Material, type Texture,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { DepthMap, bake, type V3 } from '@/core/render/three/contact';
-import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox } from '@/core/render/three/geometry';
+import { instanced, paint, place, post, rectBox, rod, shadowBlob, softBox, tube } from '@/core/render/three/geometry';
 import { cloth, mat } from '@/core/render/three/materials';
 import { seeThrough } from '@/core/render/three/pick';
 import { Drape, breaks, settlePillow, slab, smooth, type BedForm } from './bedding3d';
 import { DUVET, LANTERN, NEON, RUNNER, SHEET, STEEL, TRIM, VENEER, VENEER_GRAIN, kelvin } from './palette';
 import { pothos, succulent } from './plants3d';
-import { BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SCONCE, SHELF, WEST_X, onRug } from './roomplan';
+import { ARC_LAMP, BED, BOOKCASE, DOOR, EAST_X, FLOOR_LANTERN, FLOOR_Y, NIGHTSTAND, RUG, SCONCE, SHELF, WEST_X, onRug } from './roomplan';
 
 let seedN = 11;
 const rnd = () => ((seedN = (seedN * 16807) % 2147483647) / 2147483647);
@@ -587,6 +587,53 @@ export function sconce(): { root: Group; glow: MeshStandardMaterial; up: SpotLig
     return s;
   };
   return { root: g, glow, up: spot(-h / 2 - 100, 0.5, 0), down: spot(h / 2 + 100, 0.6, 0.3) };
+}
+
+/**
+ * The arc floor lamp east of the desk (`ARC_LAMP`): a round slab of dark stone on the rug, a black steel stem straight up from it that arcs over
+ * and down onto a knuckle over a washi dome on bamboo ribs (the lanterns' paper), its mouth in front of the desk, turned down and back to `aim`
+ * (world: the board behind the case's glass). A warm diffuser in its mouth, the paper glowing with it; the spot it stands for (3000 K) casts
+ * the case's frame and the board's parts.
+ */
+export function arcLamp(aim: V3): { root: Group; shade: MeshStandardMaterial; glow: MeshStandardMaterial; light: SpotLight } {
+  const g = new Group(), { x, z, head } = ARC_LAMP, on = onRug(x, z), fl = FLOOR_Y - (on ? RUG.h : 0), R = 2600, H = 1900;
+  const black = mat(0x1a1b1e, { metalness: 0.5, roughness: 0.4 }), stone = mat(0x26272a, { roughness: 0.3 });
+  g.add(post(x, fl, z, 2600, 800, stone, 48), post(x, fl - 800, z, 360, 600, black, 20), floorShadow(x, z, 7000, 7000, 0.4, on ? RUG.h + 140 : 140));
+  // the dome: its mouth, its axis to the aim, its crown behind; the arc comes down onto a knuckle over the crown
+  const mouth = new Vector3(aim[0], -head.y, head.z), axis = new Vector3(...aim).sub(mouth).normalize();
+  const crown = mouth.clone().addScaledVector(axis, -H), knuckle = crown.clone().add(new Vector3(0, 900, 0));
+  // (a cubic curve: straight up out of the base, straight down onto the knuckle, its top about 2.1 m over the floor)
+  const b0 = new Vector3(x, -fl + 1400, z), b1 = new Vector3(x, 28000, z), b2 = new Vector3(knuckle.x, 28000, knuckle.z), arc: V3[] = [];
+  for (let k = 0; k <= 16; k++) {
+    const t = k / 16, u = 1 - t, p = b0.clone().multiplyScalar(u * u * u).addScaledVector(b1, 3 * u * u * t).addScaledVector(b2, 3 * u * t * t).addScaledVector(knuckle, t * t * t);
+    arc.push([p.x, p.y, p.z]);
+  }
+  g.add(tube(arc, 200, black, 12), rod([knuckle.x, knuckle.y, knuckle.z], [crown.x, crown.y, crown.z], 110, black, 8));
+  const ball = new Mesh(new SphereGeometry(280, 16, 10), black);
+  ball.position.copy(knuckle);
+  g.add(place(ball));
+  // (the paper's side, mouth to crown: a quarter round, a little flattened, a small hole at the crown for the stem; the paper glows most near
+  // the bulb, a little in from its mouth; a black wire ring round the mouth)
+  const dome = new Group(), prof: Vector2[] = [];
+  for (let k = 0; k <= RIBS * 2; k++) { const t = (k / (RIBS * 2)) * (Math.PI / 2 - 0.12); prof.push(new Vector2(R * Math.cos(t), H * Math.sin(t))); }
+  const paper = washiTex(undefined, stream(53)), lit = washiTex((v) => 0.45 + 0.55 * Math.exp(-(((v - 0.3) / 0.4) ** 2)), stream(53));
+  const shade = mat(0xffffff, { map: paper, roughness: 0.9, side: DoubleSide, emissive: new Color(LANTERN), emissiveMap: lit, emissiveIntensity: 0 });
+  const rim = new Mesh(new TorusGeometry(R, 30, 6, 48), black);
+  rim.rotation.x = Math.PI / 2;
+  const glow = mat(0xfff3dc, { roughness: 0.4, emissive: new Color(kelvin(3000)), emissiveIntensity: 0 });
+  const disc = new Mesh(new CircleGeometry(R * 0.8, 40), glow);
+  disc.rotation.x = Math.PI / 2;
+  disc.position.y = 500;
+  // (the paper lets the light through: it casts no shadow)
+  dome.add(new Mesh(new LatheGeometry(prof, 48), shade), place(rim), seeThrough(disc));
+  dome.position.copy(mouth);
+  dome.quaternion.setFromUnitVectors(new Vector3(0, -1, 0), axis);
+  g.add(dome);
+  const light = new SpotLight(kelvin(3000), 0, 0, 0.42, 0.4, 2);
+  light.position.copy(mouth).addScaledVector(axis, -300);
+  light.target.position.set(...aim);
+  g.add(light, light.target);
+  return { root: g, shade, glow, light };
 }
 
 /**
