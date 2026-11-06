@@ -5,7 +5,10 @@
 // silver pillars and rails, a lit edge round the glass, lit slots in the pillars and over the top fans, hex mesh, two name plates).
 // The body (`root`: top, floor, the rear and front walls, the back sheet, feet, controls) stays; the outer side panel (`side`: the sheet, its
 // window, trim and lights) hangs in `door`, which machine3d.ts swings open (`doorPose`, casedoor.ts). The working details are in casedetail3d.ts.
-import { BoxGeometry, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, PlaneGeometry, Shape, ShapeGeometry, Vector2, type Material } from 'three';
+import {
+  AddEquation, BoxGeometry, CustomBlending, ExtrudeGeometry, Group, Mesh, MeshStandardMaterial, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Shape, ShapeGeometry, Vector2,
+  type Material,
+} from 'three';
 import { drum, instanced, place, post, rectBox, rod, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { seeThrough, tag } from '@/core/render/three/pick';
@@ -23,13 +26,27 @@ import { controls, drumX, frontWall, hinges, psuFilter, rearWall, trayDetail, ty
 
 export { outlinePts, SIDE_T } from './casekit3d';
 
-/** Each kind's materials and shape: the body's colour and finish, the inside's tone, how round the body is, the glass, the shroud's print. */
-const LOOKS: Record<CaseKind, { body: number; rough: number; metal: number; inner: number; rad: number; glass: { color: number; opacity: number } | null; shroud: { body: number; ink: string }; rgb: boolean }> = {
+/**
+ * Each kind's materials and shape: the body's colour and finish, the inside's tone, how round the body is, the glass (the share of the light
+ * through it that its tint takes), the shroud's print.
+ */
+const LOOKS: Record<CaseKind, { body: number; rough: number; metal: number; inner: number; rad: number; glass: { tint: number } | null; shroud: { body: number; ink: string }; rgb: boolean }> = {
   oem: { body: 0xdcd4b5, rough: 0.6, metal: 0.04, inner: 0xcbc2a1, rad: 30, glass: null, shroud: { body: 0xcfc6a5, ink: '#5c5642' }, rgb: false },
-  matte: { body: 0x17181c, rough: 0.88, metal: 0.08, inner: 0x111215, rad: 80, glass: { color: 0x1c2330, opacity: 0.5 }, shroud: { body: 0x15161a, ink: '#5d626d' }, rgb: false },
-  gamer: { body: 0x1d2232, rough: 0.38, metal: 0.55, inner: 0x121621, rad: 56, glass: { color: 0x9fb4c4, opacity: 0.12 }, shroud: { body: 0x1b2030, ink: '#c9ced6' }, rgb: true },
-  show: { body: 0x0c0d10, rough: 0.32, metal: 0.6, inner: 0x0c0d10, rad: 0, glass: { color: 0xb8c6d2, opacity: 0.09 }, shroud: { body: 0x1a1c21, ink: '#d8dce4' }, rgb: true },
+  matte: { body: 0x17181c, rough: 0.88, metal: 0.08, inner: 0x111215, rad: 80, glass: { tint: 0.5 }, shroud: { body: 0x15161a, ink: '#5d626d' }, rgb: false },
+  gamer: { body: 0x1d2232, rough: 0.38, metal: 0.55, inner: 0x121621, rad: 56, glass: { tint: 0.12 }, shroud: { body: 0x1b2030, ink: '#c9ced6' }, rgb: true },
+  show: { body: 0x0c0d10, rough: 0.32, metal: 0.6, inner: 0x0c0d10, rad: 0, glass: { tint: 0.09 }, shroud: { body: 0x1a1c21, ink: '#d8dce4' }, rgb: true },
 };
+
+/**
+ * A window's glass: clear, so it adds no light of its own (a pale glass lit by a lamp hung a milky veil over the board), only its reflections
+ * (a glass's 4 %, more toward grazing); its tint takes `tint` of the light through it. The reflections add whole (they are not the tint's share).
+ */
+function glassMat(tint: number): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: 0x000000, roughness: 0.03, metalness: 0, transparent: true, opacity: tint, depthWrite: false,
+    blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneMinusSrcAlphaFactor,
+  });
+}
 /** The gaming case's top front corner is cut at 45 degrees and carries a mesh cap. */
 const GAMER_CAP = 360;
 /** The Mini's plastic front: how far it reaches back over the side, from the front edge. */
@@ -111,7 +128,7 @@ export function caseModel(kind: CaseKind, T: Theme): CaseModel {
   side.add(slab(shapeOf(sheet, winPts ? [winPts] : []), z1, FRONT, kind === 'show' ? mat(0x111216, { roughness: 0.3, metalness: 0.55 }) : body, 14));
   let glass: Mesh | null = null;
   if (win && winPts && L.glass) {
-    glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), new MeshStandardMaterial({ color: L.glass.color, transparent: true, opacity: L.glass.opacity, roughness: 0.03, metalness: 0.6, envMapIntensity: 2.5, depthWrite: false }));
+    glass = new Mesh(new ShapeGeometry(shapeOf(winPts), 6), glassMat(L.glass.tint));
     glass.position.z = FRONT - SIDE_T / 2;
     glass.castShadow = false;
     // (no painted streaks, as the 2D has: the glass shows the room's own light, the window by day, the lamps and the city at night)

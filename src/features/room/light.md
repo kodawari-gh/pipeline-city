@@ -23,7 +23,7 @@ Every animation that belongs to the machine runs on one **game clock** (`gt` in 
 
 ## 3D room light
 
-A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, `EnvMix`), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/LOWPOLY_STYLE.md` "Lighting Setup".
+A design note (T153, 2026-11-05). It is the plan, not yet the code. Code today: `room3d.ts` (the room's lights and their hours), `outside/view.ts` (the city, its own lights, the glass's tint), `machine3d.ts` (the case's lights), `board3d.ts` (the probe, the machine's light), `roomenv.ts`, `src/core/render/three/bakedao.ts`. Style rules: `docs/LOWPOLY_STYLE.md` "Lighting Setup".
 
 ### The owner's call
 
@@ -39,7 +39,7 @@ Shots at 1920x1080, `node tools/lum.mjs` (mean linear luminance L of a rect):
 - The day city is cold and hard-lit; the room is warm and dim. Two white balances meet at the glass.
 - The glass's tint (`TINT`) clears at night and `TINT_CUT` cuts the light only by day. Real glass has one tint.
 - Baked AO is only on the chair, the hoodie and the city.
-- The machine reads at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). T149 removes these after the lamps below are in.
+- The machine read at night only by its studio blend (`EnvMix`, `ENV_BAND`), its work light (`fill` in `machine3d.ts`) and the art's own light (`ART_LIGHT`). Fixed in T149: see "How the case reads".
 
 ### Targets
 
@@ -54,7 +54,7 @@ All measured with `tools/lum.mjs` on `--view room` at 1920x1080, one fixed expos
 | 23:00 | the darkest wall between pools | .006 or more (no black) | 0 |
 | 23:00 | the city in the glass / the room's mean | 0.5 or less | above 1 |
 | 23:00 | the city / the city at 14:00 | .25 or less | .65 |
-| 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | studio only |
+| 23:00 | the board in the case (T149 look) | .02 or more, silkscreen 3:1 against the board | .048, 6:1 (T149) |
 
 One exposure at every hour. The lights and the bake meet the targets, not the camera. A curve of exposure by the hour (one stop at most, from a table, never metered live) is the last resort, only if the targets fail after all the tasks below.
 
@@ -74,7 +74,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 |---|---|---|---|---|---|
 | Desk lamp | on the desk (`lamp` in `props3d.ts`) | spot, task | 3000 | yes | exists; on the player's toggle. It keeps its aim on the keyboard: aimed to graze the case (T177), the monitor shades the case and the desk's pool halves |
 | Bedside lantern | on the nightstand | point, paper globe | 2700 | yes (T151) | exists |
-| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome 1 m in front of the case (`arcLamp`) | spot, 1600 lm, half-angle 0.42, down and back onto the board's middle at about 30 degrees (steeper, the case's top shades the board's upper half) | 3000 | yes: the case's frame, the board's parts | built in T177: on at dusk; the board L .026 at 23:00 with the room's light alone, a silkscreen label 4.4:1; its mouth shows in the glass at night |
+| Arc floor lamp | its base on the rug east of the case (`ARC_LAMP`, z 26000), its washi dome 1 m in front of the case (`arcLamp`) | spot, 3200 lm (T149; 1600 in T177), half-angle 0.42, down and back onto the board's middle at about 30 degrees (steeper, the case's top shades the board's upper half) | 3000 | yes: the case's frame, the board's parts | built in T177; on at every hour since T149 (the glass looks north and the case faces away from it: by day the board had only the bounce, L .004); its mouth shows in the glass at night |
 | Floor lantern | in front of the glass by the bench, near the bookcase's end (`FLOOR_LANTERN`; by the fig, as first planned, it stood in front of the bookcase in the room's view) | point, tall paper column, its glow brightest at the bulb | 2700 | yes: the bookcase's end, the bench, the chair | built (T173): the books' spines read at night; it shows in the glass at night |
 | Bookcase shelf lights | under each board's front edge, tilted back to the books (`shelfStrips`) | strips (area), 450 lm/m | 2700 | no | built in T174: on at dusk; the books' face L .021 at 23:00 |
 | Picture light | a black bar on an arm over the print (`pictureLight`) | strip (area), 220 lm, down and back onto the print | 3000 | no | built in T175: the print L .031 at 23:00 |
@@ -82,7 +82,7 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | East shelf light | under the east wall's shelf (`SHELF`), tilted to the wall | strip (area), 450 lm/m | 2700 | no | built in T174: a wash down the east wall |
 | Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
 
-At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern, the shelf lights and the arc lamp (T177) at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle. Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. The bounce of the bake (T180) has to lift them to the .006 target.
+At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle; the arc lamp stays on at every hour (T149). Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. The bounce of the bake (T180) has to lift them to the .006 target.
 
 ### RGB accents
 
@@ -98,12 +98,13 @@ Accents outside the palette (the case's purple next to the room's cyan) are the 
 
 The owner (T154, 2026-11-06): "We need an option that works for the basic non RGB cases too. All the required for legibility lights need to come from outside." So the case gets no light of its own for the board to read by. The case's RGB is decoration only: a basic case without it reads just as well.
 
-- **The arc floor lamp** is the board's main light at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open). The case's top shades the board's top edge.
+- **The arc floor lamp** is the board's main light, by day and at night: warm, from above and in front, into the glass side (or straight onto the board when the side is open). The case's top shades the board's top edge.
 - **The desk lamp** does not reach the board: the monitor stands between them.
 - **The room's bounce**: the machine takes the room's probe, so the lit walls and the rug light the parts softly through the glass.
 - **The screen's light** adds a little cool light from the west.
-- The silkscreen and the parts read by these alone (the target above), with the case's RGB off. Then T149 removes `EnvMix`, `ENV_BAND`, the work light `fill` and `ART_LIGHT`.
-- To check it while the studio blend is in: `roomDebug.light = 1` (`shell/room.ts`) holds the machine's light at the room's end, e.g. `npm run shot -- out.png --3d --hour 23 --look 2000,-1000,4000,-0.15,0.1,12000 --eval "const { roomDebug } = await import('/src/features/room/render/shell/room.ts'); roomDebug.light = 1"`. Measured after T177: the board L .026 (L .0004 before).
+- **The case's glass** adds only its reflections (`glassMat` in `case3d.ts`). Its pale colour once caught the arc lamp as a milky veil over the board, and the board darkened by 3 as the side opened.
+- T149 removed the studio blend (`EnvMix`, `ENV_BAND`), the work light `fill` and the art's studio light (`ART_LIGHT`): the machine and the dies' art take the room's probe at every zoom (`board3d.ts`). The light does not change with the camera's height.
+- Measured after T149 at `--look 2000,-1000,4000,-0.15,0.1,12000`, rect 700,250,520,600: 23:00 L .048 with the case's RGB off, .056 with it on; a silkscreen label 6:1 against the board. The board's middle (rect 900,480,120,120) on a zoom from 30000 to 8000: .016 to .029 at 23:00, .020 to .036 at 14:00 (it steps up a little as the side opens).
 
 ### Offline bakes
 
@@ -111,7 +112,7 @@ The owner prefers offline bakes. The bake gives the bounce (the indirect light);
 
 - **Light groups.** Light is linear: a bake of each group at unit power, scaled by that group's live power, sums to the bake of them all. The groups: the sky through the glass (one bake, tinted by the hour's sky colour), the sun (a key frame for each hour it comes in: the glass looks north, so only near the day's two ends, about six frames), the city's night glow (the lower part of the glass as an emitter), each lamp, each strip. About 15 bakes.
 - **The tool** (`tools/bake/`): export the room's static meshes (glTF, with a stable name and a geometry hash per mesh) from headless Chrome; make the lightmap UVs; bake each group's indirect light in Blender's Cycles (`blender -b -P bake.py`); write HDR lightmaps to `public/bake/room/`. A geometry hash that does not match at run time (the room's code changed, the bake is old) falls back to the probe for that mesh and warns in dev. Blender on the owner's machine is a new dependency: the owner approves it.
-- **At run time** a `LightmapMix` (the same pattern as `EnvMix`) sums the groups by their live powers into one lightmap, only when `lightKey` changes. A material patch (like `bakedao.ts`) adds it to the static meshes' indirect diffuse. The probe stays for the reflections and for everything that moves.
+- **At run time** a `LightmapMix` (the pattern of the removed `EnvMix`: `git show b6430ea:src/core/render/three/envmix.ts`) sums the groups by their live powers into one lightmap, only when `lightKey` changes. A material patch (like `bakedao.ts`) adds it to the static meshes' indirect diffuse. The probe stays for the reflections and for everything that moves.
 - **What replaces `fill` and `hemi`:** the baked bounce on the static meshes, and the room's probe (already there) for what moves. Both lights go when the bake is in. Later, if the moving things need it: a grid of baked probes (spherical harmonics per cell) from the same groups.
 
 ### Lightmap UVs
