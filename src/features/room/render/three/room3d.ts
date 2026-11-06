@@ -4,7 +4,9 @@
 // building's column in it, a stone bench along it; oak planks and a rug, the bed and its bedside drawer east of the desk, a bookcase and the door
 // on the west wall (`furniture3d.ts`). On and over the desk: the monitor, keyboard, mouse, tea cup, architect lamp, the key stand; on the
 // column: the digital clock, the router on its shelf, the letterbox and the wall plates (`props3d.ts`). x and y of the desk's things come from
-// the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The sim knows nothing of it.
+// the 2D layout (`roomGeo`, `layout.ts`, y flipped), z is the distance out of the back wall. The lamps are real lamps (lumens, kelvin) and the
+// evening turns them on in steps: the floor lantern and the shelves' strips at dusk, the bed's cyan strips, then the bedside lantern, the
+// picture light and the door's sconce; the desk lamp is the player's, the monitor's bias light is on with its screen. The sim knows nothing of it.
 import {
   BoxGeometry, Color, DirectionalLight, DoubleSide, Group, HemisphereLight, Mesh, MeshStandardMaterial, PlaneGeometry, PointLight, Shape, ShapeGeometry, SphereGeometry,
   RectAreaLight, SpotLight, type Material, type PerspectiveCamera, type Scene, type Texture, type WebGLRenderer,
@@ -81,6 +83,8 @@ const DESK_LM = 500, LANTERN_LM = 800, SCREEN_NITS = 120;
 const STRIP_LM_M = 450, STRIP_NITS = STRIP_LM_M / (Math.PI * STRIP_W / M);
 /** The picture light's slot (spread over its face as the strips are), and each of the door sconce's two spots (up, down). */
 const PICTURE_LM = 220, SCONCE_LM = 450;
+/** The monitor's cyan bias strip round its back: about 2 m of RGB strip at cyan (its green and blue: about half its white's lumens). */
+const BIAS_LM = 400;
 /** The print over the bed: its frame (2D y down) on the back wall. */
 const PRINT = { x: BED.x + BED.w / 2 - 7600, y: -15800, w: 15200, h: 10800 };
 
@@ -665,19 +669,17 @@ export class Room3D {
     this.lampLight.intensity = f.lamp ? lumens(DESK_LM, this.lampLight.angle) : 0;
     this.lamp.bulb.emissiveIntensity = f.lamp ? 3 : 0.05;
     this.lamp.inner.emissiveIntensity = f.lamp ? 0.6 : 0;
-    // the bedside lantern lights itself as the evening comes: a warm pool round the bed, its bulb glowing through the paper; the bed's LED
-    // strips come on a little before it, a cyan glow on the floor round the bed and on the wall over the headboard
-    const bedside = Math.min(1, Math.max(0, (night - 0.35) / 0.3)), led = Math.min(1, Math.max(0, (night - 0.2) / 0.4));
-    this.bedLight.intensity = bedside * lumens(LANTERN_LM);
-    // the floor lantern comes on first, as the light goes
-    const dusk = Math.min(1, Math.max(0, (night - 0.1) / 0.3));
+    // the evening comes on in three steps (the ceiling light stays off): at dusk the floor lantern and the shelves' strips; then the bed's
+    // cyan LED strips (the floor round the bed, the wall over the headboard, the desk's underside); as night falls the bedside lantern (a warm
+    // pool round the bed, its bulb glowing through the paper), the picture light and the door's sconce
+    const ramp = (a: number, b: number) => Math.min(1, Math.max(0, (night - a) / (b - a)));
+    const dusk = ramp(0.1, 0.4), led = ramp(0.2, 0.6), bedside = ramp(0.35, 0.65);
     this.floorLight.intensity = dusk * lumens(LANTERN_LM);
     this.floorLamp.shade.emissiveIntensity = dusk * 1.1;
     this.floorLamp.glow.emissiveIntensity = dusk * 4;
-    // (the shelves' strips with it)
     for (const l of this.strips.lights) l.intensity = dusk * nits(STRIP_NITS);
     this.strips.glow.emissiveIntensity = dusk * 1.6;
-    // (the picture light and the door's sconce with the bedside lantern)
+    this.bedLight.intensity = bedside * lumens(LANTERN_LM);
     const pl = this.picture.light;
     pl.intensity = bedside * nits(PICTURE_LM / (Math.PI * pl.width * pl.height / (M * M)));
     this.picture.glow.emissiveIntensity = bedside * 1.6;
@@ -691,6 +693,8 @@ export class Room3D {
     this.ledHalo.intensity = led * 10;
     this.deskLed.intensity = led * 18;
     this.screenLight.intensity = f.screen.powered ? nits(SCREEN_NITS) : 0;
+    const bias = this.monitor.bias;
+    bias.intensity = f.screen.powered ? nits(BIAS_LM / (Math.PI * bias.width * bias.height / (M * M))) : 0;
     this.lightKey = `${this.sunKey >> 1}|${f.lamp}|${Math.round(this.blindK * 6)}|${f.screen.powered}|${Math.round(bedside * 4)}|${Math.round(led * 4)}|${Math.round(dusk * 4)}`;
     this.monitor.set(f.screen, f.hour);
     this.clock.set(f.hour);

@@ -82,14 +82,14 @@ Warm light is the room's main light at night. Each lamp is a real fixture with a
 | East shelf light | under the east wall's shelf (`SHELF`), tilted to the wall | strip (area), 450 lm/m | 2700 | no | built in T174: a wash down the east wall |
 | Ceiling fixture | `ceilingLight` | — | — | — | stays off: no overhead light, as a cozy room at night |
 
-At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once: the floor lantern and the shelf lights at dusk, the lantern and the sconce as night falls (as the bedside lantern does today). The desk lamp stays on the player's toggle.
+At night the warm lamps make overlapping pools: no wall is black, and the light still falls off between them. The lamps come on with the evening, not all at once (built in T176, one `ramp` of the night in `room3d.ts`): the floor lantern and the shelf lights at dusk (18:30), the bed's cyan strips, then the bedside lantern, the picture light and the sconce as night falls (by 20:00). The desk lamp stays on the player's toggle. Measured at 23:00 after T176: the walls between the pools (the column above the monitor, the bed's wall) are still L 0 to .001; with direct light only, a dark wall 15 cm from a lamp's side gets too little. The bounce of the bake (T180) has to lift them to the .006 target.
 
 ### RGB accents
 
 Cyan (`NEON`, `NEON_WASH`) only on tech, and few: quietly cyberpunk, not a club.
 
 - The bed's strips (under the frame, behind the headboard) and the desk's strip: they exist.
-- A bias light behind the monitor (new): a cyan wash on the column behind it.
+- A bias light behind the monitor (built in T176, `Monitor.bias`): a cyan strip round its back (400 lm), on with the screen; a faint cyan wash on the column behind its east end and the router.
 - The case's RGB (`rgb`, `spill` in `machine3d.ts`): its accent colour, its spill through the glass on the desk and the wall.
 
 Accents outside the palette (the case's purple next to the room's cyan) are the owner's call in T170.
