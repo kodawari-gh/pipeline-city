@@ -47,7 +47,8 @@ import { ArtBaker } from './bake';
 import { FAN_MAX, FAN_ZC, coolerModel, hose, hoseEnds, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
 import { caseFan, glowMat, light, squareFan, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
-import { card3d, slotCover, type Card3D } from './card3d';
+import { HINGE_Z, card3d, slotCover, type Card3D } from './card3d';
+import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
 import { caseModel, stripLight, type CaseModel } from './case3d';
 import { GROMMETS, ioShield, type GrommetStyle } from './casedetail3d';
@@ -169,6 +170,8 @@ export class Machine3D {
   private caseRgb = true;
   /** What fades as the camera comes in (`fadeTree`): the lids, the coolers, the spreaders, the cards (`warmPrograms`). */
   readonly fades: Object3D[] = [];
+  /** The parts with a detailed view, which hold the camera on rails up close (`rails.ts`). A new part with a detailed view adds its own (`rail`). */
+  readonly rails: Rail[] = [];
 
   /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. */
   constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null) {
@@ -184,6 +187,8 @@ export class Machine3D {
       if (this.ram && this.ramSticks.length) {
         const map = this.ramMap = new RamMap3D(this.ramSticks, this.T);
         this.reveal(this.ram, BOARD_Z + 200, (z) => map.show(smooth(RAM_FADE[0], RAM_FADE[1], z)), false, true);
+        // the bank is one rail: the camera leans along it (`lean`)
+        this.rail('ram', this.ram, BOARD_Z + 200, RAM_IN[1]);
       }
       this.root.updateMatrixWorld(true);
       for (const o of this.obstacles) {
@@ -276,6 +281,16 @@ export class Machine3D {
    */
   private reveal(r: RectLike, z: number, apply: (z: number) => void, anywhere = false, area = false) {
     this.reveals.push({ at: new Vector3(r.x + r.w / 2, -(r.y + r.h / 2), z), apply, anywhere, ...(area ? { area: r } : {}) });
+  }
+
+  /** A part's detailed view: its face `r` at depth `z`, its detail all in from `zoom` (screen pixels per world unit: the end of its fade, so no lid
+   * half covers it); the camera's rails hold the view on it. */
+  private rail(id: string, r: RectLike, z: number, zoom: number) { this.rails.push({ id, rect: { x: r.x, y: r.y, w: r.w, h: r.h }, z, zoom }); }
+
+  /** The same for a built object: its box as seen from the glass, its face the box's front. */
+  private railOf(id: string, o: Object3D, zoom: number) {
+    const b = new Box3().setFromObject(o);
+    if (!b.isEmpty()) this.rail(id, { x: b.min.x, y: -b.max.y, w: b.max.x - b.min.x, h: b.max.y - b.min.y }, b.max.z, zoom);
   }
 
   // ------------------------------------------------------------------ board
@@ -441,6 +456,7 @@ export class Machine3D {
         g.add(ihs);
         this.fades.push(ihs);
         this.reveal(DIE, BOARD_Z + 200, (z) => { const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z * CPU_S); fadeTree(ihs, 1 - a); die.root.visible = a > 0.01; });
+        this.rail(d.id, DIE, BOARD_Z + 150, DEVICE_LOD.die.fade[1] / CPU_S);
         this.skin(d.id, ihsM);
         break;
       }
@@ -486,6 +502,8 @@ export class Machine3D {
         this.obstacles.push(c.root);
         this.fades.push(c.root);
         this.reveal(c.at, BOARD_Z + 300, c.pose, false, true);
+        // (flat, the card's face lies on the hinge's plane)
+        if (kind !== 'nic') this.rail(d.id, chipRect(kind, visual, i), HINGE_Z, DEVICE_LOD[kind].fade[1]);
         this.cards.set(d.slot, c);
         this.softSkin(d.id, ...c.skin);
         break;
@@ -496,7 +514,7 @@ export class Machine3D {
         if (r && h && art) tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel = 0) => {
           const top = this.raised(parent, art, rr, z0, z1, s, undefined, LV_RAISED, bevel);
           // the module's lid: its die and its commands run on it (chips3d.ts)
-          if (rr === r) this.chips?.face(top, 'tpm', r, z1 + 2, d.slot);
+          if (rr === r) { this.chips?.face(top, 'tpm', r, z1 + 2, d.slot); this.rail(d.id, r, z1, DEVICE_LOD.tpm.lid); }
           return top;
         });
         break;
@@ -519,12 +537,14 @@ export class Machine3D {
         });
         // an M.2 stick lies on its socket and standoff; a SATA drive is built at its 2D body and moved into its bay in the basement's cage
         const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
-        if (kind === 'ssd-nvme') { this.skin(d.id, nvmeStick(g, slotRect(d.slot), b, raise)); break; }
+        if (kind === 'ssd-nvme') { this.skin(d.id, nvmeStick(g, slotRect(d.slot), b, raise)); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
         const bay = this.plan.bays[idx(d.slot)], drive = new Group();
         this.skin(d.id, sataDrive(drive, kind === 'hdd', b, 0, raise));
         if (bay) {
           const placed = intoBay(drive, b, driveDepth(kind), bay), k = bay.k, mid = driveDepth(kind) * 0.42;
           g.add(placed);
+          // (the drive is its 2D body drawn at k of its size: its detail shows k times closer)
+          this.railOf(d.id, placed, DEVICE_LOD.disk.fade[1] / k);
           // the sockets on its west end (`sataDrive`): power over data
           const w = (y: number): V3 => [placed.position.x + k * (b.x - 22), placed.position.y - k * (b.y + b.h * y), placed.position.z + k * mid];
           this.driveSockets.set(d.slot, { power: w(0.35), data: w(0.68) });

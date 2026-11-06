@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, clampView, distanceOf, eyeOf, fitHeight, fitRect, keepInside, orbitBy, panBy, reach, sight, stepView, zoomAt, type OrbitView, type Room } from './camera';
+import {
+  LIMITS, TILT, clampTilt, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, reach, retarget, sight, stepView, tiltRange, zoomAt,
+  zoomOn, type OrbitView, type Room,
+} from './camera';
 
 const V: OrbitView = { x: 100, y: 200, z: 300, yaw: 0, pitch: 0, height: 1000, fov: 30 };
 
@@ -44,6 +47,71 @@ describe('3D camera', () => {
     const p = panBy({ ...V, yaw: Math.PI / 2 }, 10, 0);
     expect(p.x).toBeCloseTo(V.x);
     expect(p.z).toBeCloseTo(V.z - 10);
+  });
+
+  describe('the target on the surface the player looks at', () => {
+    // the screen point of a world point, on a screen 1 tall (y up, -0.5 to 0.5 at the target's distance)
+    const onScreen = (v: OrbitView, p: { x: number; y: number; z: number }) => {
+      const e = eyeOf(v), s = (e.z - p.z) * 2 * Math.tan((v.fov * Math.PI) / 360);
+      return { x: (p.x - e.x) / s, y: (p.y - e.y) / s };
+    };
+
+    it('reads the height a view shows on any plane, whatever its target', () => {
+      expect(heightAt(V, V.z)).toBeCloseTo(V.height);
+      // a plane further back shows more
+      expect(heightAt(V, V.z - 500)).toBeCloseTo(V.height + 500 * 2 * Math.tan((V.fov * Math.PI) / 360));
+      const turned = { ...V, yaw: 0.3, pitch: 0.2 };
+      expect(heightAt(retarget(turned, -400), 1000)).toBeCloseTo(heightAt(turned, 1000));
+    });
+
+    it('slides the target onto a plane and keeps the picture', () => {
+      for (const v of [V, { ...V, yaw: 0.4, pitch: 0.25 }]) {
+        const r = retarget(v, -2000), a = eyeOf(v), b = eyeOf(r);
+        expect(r.z).toBeCloseTo(-2000);
+        expect([b.x, b.y, b.z].map((n, i) => n - [a.x, a.y, a.z][i]!).every((d) => Math.abs(d) < 1e-6)).toBe(true);
+      }
+    });
+
+    it('zooms on the surface under the pointer: it stays there, and each notch takes the same share of the way', () => {
+      // the target floats 2500 in front of the surface the pointer is on (the overview's, over the board)
+      const v = { ...V, x: 0, y: 0, z: 5000, height: 4000, fov: 26 }, p = { x: 300, y: -150, z: 2500 };
+      let z = v;
+      const gap = [heightAt(z, p.z)];
+      for (let i = 0; i < 20; i++) { z = zoomOn(z, p, 0.8); gap.push(heightAt(z, p.z)); }
+      const a = onScreen(v, p), b = onScreen(z, p);
+      expect(b.x).toBeCloseTo(a.x, 6);
+      expect(b.y).toBeCloseTo(a.y, 6);
+      expect(z.z).toBeCloseTo(p.z);
+      for (let i = 1; i < 18; i++) expect(gap[i]! / gap[i - 1]!).toBeCloseTo(0.8);
+      // the closest look is reached at the surface, not short of it
+      for (let i = 0; i < 60; i++) z = zoomOn(z, p, 0.8);
+      expect(heightAt(z, p.z)).toBeCloseTo(LIMITS.heightMin);
+    });
+  });
+
+  describe('head on in the case', () => {
+    it('turns freely in the room, and only a little way in the case', () => {
+      expect(tiltRange(0, false)).toEqual({ yaw: LIMITS.yaw, pitchMin: LIMITS.pitchMin, pitchMax: LIMITS.pitchMax });
+      expect(tiltRange(0, true)).toEqual(tiltRange(0, false));
+      const held = tiltRange(1, true), rest = tiltRange(1, false);
+      expect([held.yaw, -held.pitchMin, held.pitchMax].map((x) => +x.toFixed(6))).toEqual([TILT, TILT, TILT]);
+      expect([rest.yaw, rest.pitchMin, rest.pitchMax].every((x) => Math.abs(x) < 1e-9)).toBe(true);
+    });
+
+    it('springs back to head on when let go, and closes in on it on the way in', () => {
+      const turned = clampTilt({ ...V, yaw: 0.6, pitch: 0.5 }, tiltRange(1, true));
+      expect([turned.yaw, turned.pitch]).toEqual([TILT, TILT]);
+      expect(clampTilt(turned, tiltRange(1, false))).toMatchObject({ yaw: 0, pitch: 0 });
+      let last = Infinity;
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) { const r = tiltRange(t, false); expect(r.pitchMax).toBeLessThan(last + 1e-9); last = r.pitchMax; }
+    });
+
+    it('measures how near a view is between two heights, smoothly', () => {
+      expect(nearness(9000, 4000, 8000)).toBe(0);
+      expect(nearness(4000, 4000, 8000)).toBe(1);
+      expect(nearness(1000, 4000, 8000)).toBe(1);
+      expect(nearness(Math.sqrt(4000 * 8000), 4000, 8000)).toBeCloseTo(0.5);
+    });
   });
 
   describe('kept inside a room', () => {

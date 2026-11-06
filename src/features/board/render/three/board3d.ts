@@ -14,10 +14,13 @@ import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
 import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
-import { applyView, clampView, fitRect, keepInside, orbitBy, panBy, stepView, zoomAt, type Box, type OrbitView, type Room } from '@/core/render/three/camera';
+import {
+  applyView, clampTilt, clampView, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+} from '@/core/render/three/camera';
+import { NO_PULL, holdOn, keeps, over, pullOn, railUnder, type Pull, type Rail } from '@/core/render/three/rails';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
 import { ShadowCache } from '@/core/render/three/shadows';
-import { findById, idOf, ownerOf, pick } from '@/core/render/three/pick';
+import { findById, idOf, ownerOf, pick, pickPoint } from '@/core/render/three/pick';
 import { HIGH_C, MID } from '@/core/render/three/localeye';
 import { Post, roomness } from '@/core/render/three/post';
 import { Probe } from '@/core/render/three/probe';
@@ -42,6 +45,13 @@ import type { DeviceSnap } from '@/worker/game/types';
 
 const ROOM_ANGLE = { yaw: 0, pitch: 0.09, fov: 26 };
 const FLAT = { yaw: 0, pitch: 0, fov: 14 };
+/**
+ * The overview's target depth (in the case, in front of the board). The room's look reads how near the eye is by the height a view shows there
+ * (`roomness`), whatever its target: the target follows the surface the player zooms to, and the look must not change with it.
+ */
+const LOOK_Z = 5000;
+/** A target may lie this far back (behind the back wall: the view out of the window). */
+const TARGET_Z0 = -3000;
 /** The machine's ids that are reached from outside the case (a tutorial target among them leaves the side panel shut). */
 const OUTSIDE = new Set(['case', 'case.side', 'power', 'usb', 'io', 'cable.video', 'cable.lan', 'cable.pcmains', 'cable.monmains']);
 /** The art's density at each level of the graphics settings, as a share of what the screen needs (`ArtSurface.update`); level 2 is the tuned look. */
@@ -96,6 +106,8 @@ export function mountBoard3d(host: HTMLElement) {
   let blocks: Room[] = [];
   /** Dev only (`__board.previewCase`): show this board and case tier, empty, whatever the game holds. */
   let preview: { board: number; case: number } | null = null;
+  /** The rail that holds the view (`rails.ts`) and how far a pan pulls past its part's edge; the rail the player last pulled off (it does not take the view again until the view leaves its part). */
+  let rail: { r: Rail; pull: Pull } | null = null, skip: string | null = null;
   const rebuild = () => {
     const live = snapshot.peek();
     const s = preview && live ? { ...live, boardTier: preview.board, caseTier: preview.case, devices: [], cables: [], plugged: null } : live;
@@ -121,6 +133,9 @@ export function mountBoard3d(host: HTMLElement) {
       machine = new Machine3D(s, room.geo, bakes, chips);
       scene.add(machine.root);
       warmPrograms(renderer, scene, camera, machine.fades);
+      // the rail that holds the view stays if its part is still there
+      const held = rail && machine.rails.find((x) => x.id === rail!.r.id);
+      rail = held ? { r: held, pull: NO_PULL } : null;
     } else if (s) machine.syncCables(s, room.geo); // a plug in or out: only its cable hangs again
 
     chips.update(s);
@@ -139,7 +154,7 @@ export function mountBoard3d(host: HTMLElement) {
    * A view with its eye in the room (the walls hide all outside it) and out of the furniture: a goal may narrow its fov back (`restore`), the
    * eased view only widens.
    */
-  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: -3000, fovBase: ROOM_ANGLE.fov, restore, blocks });
+  const inRoom = (v: OrbitView, restore = true): OrbitView => keepInside(v, eyeRoom(), { targetZ0: TARGET_Z0, fovBase: ROOM_ANGLE.fov, restore, blocks });
   /** A pan that would push the eye through a wall or into the furniture slides along it (one axis), or stops. */
   const panIn = (v: OrbitView, dx: number, dy: number): OrbitView => {
     for (const [a, b] of [[dx, dy], [dx, 0], [0, dy]] as const) {
@@ -148,12 +163,38 @@ export function mountBoard3d(host: HTMLElement) {
     }
     return v;
   };
-  const overview = (): OrbitView => inRoom(fitRect(roomRect(), 5000, aspect(), ROOM_ANGLE, 0.9));
+  const overview = (): OrbitView => inRoom(fitRect(roomRect(), LOOK_Z, aspect(), ROOM_ANGLE, 0.9));
   const boardView = (): OrbitView => fitRect(CASE_IN, BOARD_Z, aspect(), FLAT, 0.95);
   // close enough that the cooler and the lid have faded (`DEVICE_LOD.die.fade`) and the die's names read
   const cpuView = (): OrbitView => fitRect(DIE, BOARD_Z + 200, aspect(), FLAT, 0.95);
   let view = overview(), goal = view;
-  const flyTo = (v: OrbitView) => { goal = inRoom(clampView(v)); };
+  /** How far into the case a view is (`nearness`), by the height it shows on the board's plane: 0 from twice the board view's out, 1 from the board view in. */
+  const inCase = (v: OrbitView): number => { const b = boardView().height; return nearness(heightAt(v, BOARD_Z), b, 2 * b); };
+  /** The angles the goal may take now: none past head on on a rail, else by `inCase`; `held`: while the player turns it. */
+  const tilt = (v: OrbitView, held: boolean) => clampTilt(v, tiltRange(rail ? 1 : inCase(v), held));
+  /**
+   * After the player moves the goal (a zoom, the end of a pan or a turn, a key): a rail lets go as the zoom falls past it, a part with a detailed
+   * view under the centre takes the goal onto its rail (`rails.ts`), and in the case the goal turns back toward head on.
+   */
+  const settle = () => {
+    const rails = machine?.rails ?? [], a = aspect();
+    if (rail && !keeps(goal, rail.r, H, a)) rail = null;
+    const was = skip && rails.find((x) => x.id === skip);
+    if (!was || !over(goal, was) || !keeps(goal, was, H, a)) skip = null;
+    const r = rail?.r ?? railUnder(goal, rails, H, a, skip);
+    // (a pull past the edge springs back)
+    rail = r ? { r, pull: NO_PULL } : null;
+    goal = tilt(goal, false);
+    if (r) {
+      goal = holdOn(goal, r, a);
+      // (the same picture with its target on the part: the view eases onto the goal without a wobble)
+      view = retarget(view, r.z);
+    }
+    goal = inRoom(goal);
+  };
+  const flyTo = (v: OrbitView) => { goal = inRoom(clampView(v)); settle(); };
+  /** Dev only (the shot tool): show this view at once, as it is (no rail takes it, its angles stay until the player moves it). */
+  const jump = (v: OrbitView) => { view = goal = inRoom(v); rail = null; };
   const flyToRoom = () => flyTo(overview());
   const flyToBoard = () => flyTo(boardView());
   const flyToCpu = () => flyTo(cpuView());
@@ -179,6 +220,11 @@ export function mountBoard3d(host: HTMLElement) {
     if (machine) out.push(machine.root);
     return out;
   };
+  /** The surface under a client point (world), if a target may lie there (not on a wall or the floor, not out of the window): a zoom and a pan go at its depth. */
+  const anchor = (e: { clientX: number; clientY: number }) => {
+    const { nx, ny } = ndc(e), p = pickPoint(roots(), camera, nx, ny), r = eyeRoom();
+    return p && p.z >= TARGET_Z0 && p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1 ? p : null;
+  };
   /** The id under a client point; `raw`: the backdrops too (the board, the case), which hover nothing but take a dropped plug. */
   const idAt = (e: { clientX: number; clientY: number }, raw = false): string | null => {
     const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
@@ -189,7 +235,8 @@ export function mountBoard3d(host: HTMLElement) {
   scene.add(hand.root);
   const lift = new Drag3D((cx, cy, raw) => idAt({ clientX: cx, clientY: cy }, raw), canvas, (id) => !!machine && (!!findById(machine.root, id) || (id.includes('.') && !id.startsWith('cable.'))), hand); // (a die's block is `cpu.fetch`: not an object of its own)
   setPartDragHandler((invId, e) => lift.beginPart(invId, e));
-  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string } | null = null;
+  /** A press: where, how far it has moved, whether it turns; the part, cable or key it lifts; for a pan, the depth of the surface it grabbed. */
+  let drag: { x: number; y: number; moved: number; orbit: boolean; dev?: DeviceSnap; grab?: string; depth?: number } | null = null;
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
@@ -197,8 +244,10 @@ export function mountBoard3d(host: HTMLElement) {
     // a press on an installed part, a cable or a key lifts it once the pointer moves; on anything else it pans
     // a plug seated in its socket is the socket to the ray: pulling on the socket pulls its cable
     const seated = id === 'atx' ? 'atx' : id === 'cpw' ? 'cpu' : null, plugged = seated && snapshot.peek()?.cables.some((c) => c.id === seated && c.connected);
-    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : plugged ? 'cable.' + seated : undefined, dev = id && !grab ? deviceOf(id, snapshot.peek()) : null;
-    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}), ...(grab ? { grab } : {}) };
+    // (on a rail the view reads a part up close: a press on a part pans over it, and the parts lift from further out)
+    const grab = id && (id.startsWith('cable.') || id.startsWith('key:')) ? id : plugged ? 'cable.' + seated : undefined, dev = id && !grab && !rail ? deviceOf(id, snapshot.peek()) : null;
+    const at = !orbit && !dev && !grab ? anchor(e) : null;
+    drag = { x: e.clientX, y: e.clientY, moved: 0, orbit, ...(dev ? { dev } : {}), ...(grab ? { grab } : {}), ...(at ? { depth: at.z } : {}) };
   });
   canvas.addEventListener('pointermove', (e) => {
     if (lift.busy) return;
@@ -218,11 +267,20 @@ export function mountBoard3d(host: HTMLElement) {
       }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-      if (drag.orbit) goal = inRoom(orbitBy(goal, -dx * 0.004, dy * 0.004));
+      // in the case a turn goes only a little way from head on (`tilt`; let go, it eases back)
+      if (drag.orbit) goal = inRoom(tilt({ ...goal, yaw: goal.yaw - dx * 0.004, pitch: goal.pitch + dy * 0.004 }, true));
       else {
-        const k = view.height / H, was = goal;
-        goal = panIn(goal, -dx * k, dy * k);
+        // the grabbed surface follows the pointer: the pan goes at its depth
+        const k = (drag.depth === undefined ? view.height : heightAt(view, drag.depth)) / H, was = goal;
+        if (rail) {
+          // on a rail the view keeps to the part; a pull past its edge gives, then lets go
+          const p = pullOn(goal, rail.r, aspect(), rail.pull, -dx * k, dy * k);
+          if (p.free) { skip = rail.r.id; rail = null; } else rail.pull = p.pull;
+          goal = inRoom(p.view);
+        } else goal = panIn(goal, -dx * k, dy * k);
         view = { ...view, x: view.x + goal.x - was.x, y: view.y + goal.y - was.y, z: view.z + goal.z - was.z };
+        // a part with a detailed view that comes under the centre takes the view onto its rail
+        if (!rail) settle();
       }
       return;
     }
@@ -233,18 +291,25 @@ export function mountBoard3d(host: HTMLElement) {
   canvas.addEventListener('pointerup', (e) => {
     const d = drag;
     drag = null;
-    if (!d || d.moved > 5) return;
+    if (!d) return;
+    // the end of a pan or a turn: a pull past a part's edge springs back, a turn in the case eases back toward head on
+    if (d.moved > 5) { settle(); return; }
     click(idAt(e));
   });
   canvas.addEventListener('pointerleave', () => { if (!drag) hover.value = null; });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const { nx, ny } = ndc(e);
+    const { nx, ny } = ndc(e), a = aspect();
+    // the zoom goes toward the surface under the pointer, which stays under it (`zoomOn`): each notch takes the same share of the way to it
+    // (a line or a page of a wheel that counts them is about 40 or 800 pixels)
+    const p = anchor(e), base = p ? retarget(goal, p.z) : goal, by = (k: number) => (p ? zoomOn(base, p, k) : zoomAt(base, k, nx, ny, a));
+    const dy = Math.max(-300, Math.min(300, e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1)));
     // out against the walls the zoom stops, and in against the furniture: then the point under the pointer moves only as far as the zoom that
     // was allowed (not at all if no closer look was)
-    const z = zoomAt(goal, Math.exp(e.deltaY * 0.0012), nx, ny, aspect()), c = inRoom(z);
-    const cut = Math.abs(c.height - z.height) >= 1 && (c.height < z.height || z.height < goal.height);
-    goal = !cut ? c : c.height < z.height || c.height < goal.height ? inRoom(zoomAt(goal, c.height / goal.height, nx, ny, aspect())) : goal;
+    const z = by(Math.exp(dy * 0.0012)), c = inRoom(z);
+    const cut = Math.abs(c.height - z.height) >= 1 && (c.height < z.height || z.height < base.height);
+    goal = !cut ? c : c.height < z.height || c.height < base.height ? inRoom(by(c.height / base.height)) : goal;
+    settle();
   }, { passive: false });
 
   /** The same quick actions as the 2D renderer's click (`Interact.click`): the room's props, the power button, a key; anything else opens its card. */
@@ -335,9 +400,11 @@ export function mountBoard3d(host: HTMLElement) {
     const picked: Object3D[] = [];
     for (const id of ids) for (const r of roots()) { const o = findById(r, id); if (o) { picked.push(ownerOf(o)!); break; } }
     post.setOutlined(picked);
-    post.setReach(view.height);
+    // (how near the eye is, by the height shown at `LOOK_Z`: the same picture reads the same whatever its target)
+    const seenH = heightAt(view, LOOK_Z);
+    post.setReach(seenH);
     // (the set eye and the metered one blend in log over the zoom; the metered one eases toward its reading over about half a second)
-    const near = 1 - roomness(view.height);
+    const near = 1 - roomness(seenH);
     const day = daylight(hour);
     post.setEye((NIGHT_EYE ** (1 - day)) ** (1 - near) * seen ** near, MID ** day * NIGHT_KEY ** (1 - day), HIGH_C + (NIGHT_HIGH - HIGH_C) * (1 - day));
     room?.drawOutside(renderer, scene, camera, g.msaa);
@@ -388,16 +455,18 @@ export function mountBoard3d(host: HTMLElement) {
         if (nx > -1 && nx < 1 && ny > -1 && ny < 1 && hit(nx, ny)) return at(nx, ny);
       }
       return at(mid.x, mid.y);
-    }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, bakes: () => bakes.size,
+    }, flyToCpu, flyToGpu, flyToBoard, flyToRoom, view: () => view, goal: () => goal, bakes: () => bakes.size,
+    // the rail that holds the view (its part's id), and the parts' rails
+    rail: () => rail?.r.id ?? null, rails: () => machine?.rails ?? [],
     orbit: (yaw: number, pitch: number) => { goal = inRoom(orbitBy(goal, yaw, pitch)); },
     // the case of tier `c` (board tier `b`, default the same), empty; null goes back to the game's
     previewCase: (c: number | null, b = c ?? 0) => { preview = c === null ? null : { board: b, case: c }; rebuild(); wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`; },
-    // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above
-    lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => { view = goal = inRoom(clampView({ x, y: -y, z, yaw, pitch, fov: 26, height })); },
+    // a close look at a layout point (x, y) at depth z, `height` world units tall, turned by `yaw`, from `pitch` above (no rail holds it)
+    lookAt: (x: number, y: number, z: number, yaw: number, pitch: number, height: number) => jump(clampView({ x, y: -y, z, yaw, pitch, fov: 26, height })),
     toggleDoor: () => machine?.toggleDoor(),
     // the whole case from the side, turned by `yaw` and seen from `pitch` above
-    caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => { view = goal = inRoom(fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin)); },
+    caseView: (yaw = 0, pitch = 0.09, margin = 0.85) => jump(fitRect(CASE, CASE_Z + CASE_D / 2, aspect(), { yaw, pitch, fov: 26 }, margin)),
     // the shot tool's `--view x,y,z`: a layout point and a zoom in screen pixels per unit, seen flat
-    camera: { set: (v: { x: number; y: number; z: number }) => { view = goal = inRoom(clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z })); } },
+    camera: { set: (v: { x: number; y: number; z: number }) => jump(clampView({ ...FLAT, x: v.x, y: -v.y, z: BOARD_Z, height: H / v.z })) },
   };
 }

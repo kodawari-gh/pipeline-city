@@ -150,6 +150,50 @@ export function orbitBy(v: OrbitView, dYaw: number, dPitch: number): OrbitView {
   return clampView({ ...v, yaw: v.yaw + dYaw, pitch: v.pitch + dPitch });
 }
 
+/** The eye's distance to the plane at depth z along its line of sight (to the target's own plane: `distanceOf`). */
+const sightTo = (v: OrbitView, z: number): number => distanceOf(v) + (v.z - z) / (Math.cos(v.yaw) * Math.cos(v.pitch));
+
+/** The world height a view shows at depth z, where its line of sight meets that plane: it depends on the picture only, not on the target. */
+export const heightAt = (v: OrbitView, z: number): number => Math.max(1e-6, sightTo(v, z)) * 2 * Math.tan((v.fov * Math.PI) / 360);
+
+/** The same picture with its target slid along the line of sight onto the plane at depth z (the eye stays): a zoom or a turn then keeps that plane still. */
+export function retarget(v: OrbitView, z: number): OrbitView {
+  const k = distanceOf(v) - sightTo(v, z), c = Math.cos(v.pitch);
+  return { ...v, x: v.x + k * Math.sin(v.yaw) * c, y: v.y + k * Math.sin(v.pitch), z, height: heightAt(v, z) };
+}
+
+/**
+ * Zoom by `k` (under 1 closer) about the world point p (the surface under the pointer): the eye moves straight toward p, so p stays where it is
+ * on the screen, and the target comes onto p's depth. The height limits hold there, at the surface: a target that floats in front of it would
+ * stop the zoom short of it, and slow it down on the way.
+ */
+export function zoomOn(v: OrbitView, p: { x: number; y: number; z: number }, k: number): OrbitView {
+  const r = retarget(v, p.z), height = clamp(r.height * k, LIMITS.heightMin, LIMITS.heightMax), s = height / r.height;
+  return { ...r, x: p.x + (r.x - p.x) * s, y: p.y + (r.y - p.y) * s, height };
+}
+
+/** How far a view in the case may turn from head on (rad, each way) while the player turns it; let go, it eases back (`tiltRange`). */
+export const TILT = 0.17;
+
+export interface TiltRange { yaw: number; pitchMin: number; pitchMax: number }
+
+/**
+ * The angles a view may take at `near` (0 out in the room, 1 in the case: `nearness`). In the room `LIMITS`; toward the case they close in on
+ * head on: at rest to none at all, while the player holds the turn (`held`) to `TILT` each way.
+ */
+export function tiltRange(near: number, held: boolean): TiltRange {
+  const t = clamp(near, 0, 1), k = 1 - t, e = held ? TILT * t : 0;
+  return { yaw: LIMITS.yaw * k + e, pitchMin: LIMITS.pitchMin * k - e, pitchMax: LIMITS.pitchMax * k + e };
+}
+
+export const clampTilt = (v: OrbitView, r: TiltRange): OrbitView => ({ ...v, yaw: clamp(v.yaw, -r.yaw, r.yaw), pitch: clamp(v.pitch, r.pitchMin, r.pitchMax) });
+
+/** How near a view is by the height it shows: 0 at `far` or more, 1 at `near` or less, smooth over the ratio between. */
+export function nearness(height: number, near: number, far: number): number {
+  const u = clamp(Math.log(height / near) / Math.log(far / near), 0, 1);
+  return 1 - u * u * (3 - 2 * u);
+}
+
 /** One frame of easing toward `goal`. Height eases by ratio, so a long zoom feels even. Independent of the frame rate. */
 export function stepView(v: OrbitView, goal: OrbitView, dt: number): OrbitView {
   const t = 1 - Math.pow(EASE_LEFT, Math.max(0, dt)), mix = (a: number, b: number) => a + (b - a) * t;
