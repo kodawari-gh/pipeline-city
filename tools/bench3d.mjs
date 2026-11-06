@@ -33,6 +33,8 @@ const stop = async () => { await browser.close().catch(() => {}); try { server?.
 // ---- in the page: times the frame's parts without changing them ----
 const installProbe = () => {
   const B = window.__board, now = () => performance.now();
+  // (a long run has no input: the frame limit for a player who is away must not time it)
+  setInterval(() => window.dispatchEvent(new Event('pointermove')), 5000);
   let rec = null, prev = 0;
   const add = (map, k, v) => { map[k] = (map[k] ?? 0) + v; };
   const fresh = () => ({ frames: [], cpu: {}, gpu: {}, scenes: 0, shadows: 0, drawn: 0, calls: 0, tris: 0, rebuilds: 0, long: [], programs: 0 });
@@ -168,6 +170,7 @@ try {
   const page = await (await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: Number(flag('dpr', 1)) })).newPage(), p = page;
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
+  await p.addInitScript(() => localStorage.setItem('pipeline-city.graphics', JSON.stringify({ fps: 0 })));
   // a cold server transforms every module on the first load and may reload the page for a new dependency: warm it, then start clean
   await p.goto(url);
   await p.waitForFunction(() => !!window.__board, null, { timeout: 180000 });

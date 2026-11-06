@@ -643,7 +643,7 @@ export class Room3D {
    * Starts linking the programs the window's view draws with (`compile.ts`): the room's own come with the scene it stands in. Call it after a
    * first `frame`, so its lights stand as they will be drawn.
    */
-  startPrograms(r: WebGLRenderer): Program[] { return this.outside.startPrograms(r); }
+  startPrograms(r: WebGLRenderer, scene: Scene): Program[] { return this.outside.startPrograms(r, scene); }
 
   /**
    * The baked bounce's light groups: the lights the room scales by one value (a switch, a step of the evening). `tools/bake/` bakes each at

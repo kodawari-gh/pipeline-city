@@ -61,7 +61,7 @@ export const PRESETS: Record<Preset, PresetOptions> = {
 };
 export const PRESET_NAMES: readonly (readonly [Preset, string])[] = [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra']];
 
-export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 0, brightness: 1, auto: true };
+export const DEFAULTS: Graphics = { ...PRESETS.high, fps: 60, brightness: 1, auto: true };
 
 const presetKeys = Object.keys(PRESETS.high) as (keyof PresetOptions)[];
 
@@ -168,6 +168,23 @@ export class FrameGate {
     // (a frame inside the slack owes its share of a step to the next one)
     this.last = !Number.isFinite(gone) ? now : gone < step ? this.last + step : now - ((gone - step) % step);
     return true;
+  }
+}
+
+/** The frame limit while the player is away, and how long without input (ms) means away. */
+const AWAY_FPS = 30, AWAY_AFTER_MS = 30000;
+
+/** Lowers the frame limit while the player is away: the page has lost the focus, or no input came for a while and nothing moves that they started. The GPU and its fans rest. */
+export class AwayWatch {
+  private at = 0;
+
+  /** The player did something at `now`. */
+  input(now: number) { this.at = now; }
+
+  /** The frame limit at `now`, from the player's own `fps`. `busy`: the view or the player's hand is on its way, so frames still count. */
+  limit(fps: number, now: number, focused: boolean, busy: boolean): number {
+    if (focused && (busy || now - this.at < AWAY_AFTER_MS)) return fps;
+    return fps && fps < AWAY_FPS ? fps : AWAY_FPS;
   }
 }
 

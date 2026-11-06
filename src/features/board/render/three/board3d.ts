@@ -12,10 +12,10 @@ import { airflowLens, hover, powerLens, selected, INERT_REGIONS } from '@/app/ho
 import { highlight } from '@/app/interaction';
 import { deviceOfPart } from '@/core/render/interact';
 import { readTheme, onThemeChange } from '@/core/render/theme';
-import { autoStep, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
+import { autoStep, AwayWatch, effective, FrameGate, FrameMeter, graphics, nextStep, SlowWatch, type Graphics } from '@/app/graphics';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
 import {
-  applyView, clampTilt, clampView, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
+  applyView, clampTilt, clampView, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, retarget, settled, stepView, tiltRange, zoomAt, zoomOn, type Box, type OrbitView, type Room,
 } from '@/core/render/three/camera';
 import { NO_PULL, holdOn, keeps, over, pullOn, railUnder, type Pull, type Rail } from '@/core/render/three/rails';
 import { anisotropy, disposeTree, refilter } from '@/core/render/three/geometry';
@@ -407,9 +407,10 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (g.filtering !== anisotropy) refilter(scene, g.filtering);
   };
   effect(() => applyGraphics(effective.value));
-  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch();
+  const gate = new FrameGate(), meter = new FrameMeter(), watch = new SlowWatch(), away = new AwayWatch();
   // a new choice of the player's starts the watch over, as a new picture bakes and compiles its way in
   effect(() => { graphics.value; watch.reset(performance.now()); });
+  for (const e of ['pointerdown', 'pointermove', 'wheel', 'keydown']) window.addEventListener(e, () => away.input(performance.now()), { passive: true, capture: true });
 
   // ---- the frame ----
   let gt = (((START_HOUR_3D - START_HOUR + 24) % 24) / 24) * DAY_S * 1000, last = performance.now(), wasTier = `${LAYOUT_TIER}|${LAYOUT_CASE}`, lean = 0;
@@ -424,8 +425,8 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     if (!revealed) bootStage('Lighting the room', 0.92);
   };
   const frame = (now: number) => {
-    const g = effective.peek();
-    if (!gate.ready(now, g.fps)) { requestAnimationFrame(frame); return; }
+    const g = effective.peek(), fps = away.limit(g.fps, now, document.hasFocus(), menu || lift.busy || !!hand.kind || !settled(view, goal));
+    if (!gate.ready(now, fps)) { requestAnimationFrame(frame); return; }
     // a new picture's programs still link: nothing is drawn (the canvas keeps its last picture; the boot screen covers the first)
     if (linking) {
       if (!linked(linking)) {
@@ -437,7 +438,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
       drawn(now);
     }
     // a weak GPU: when the frames stay slow, auto-adjust takes the next step down and stays there (`lowered`)
-    if (graphics.peek().auto && document.visibilityState === 'visible' && watch.tick((now - last) / 1000, now, g.fps)) {
+    if (graphics.peek().auto && document.visibilityState === 'visible' && watch.tick((now - last) / 1000, now, fps)) {
       const step = nextStep(graphics.peek(), autoStep.peek());
       if (step !== null) autoStep.value = step;
     }
@@ -484,7 +485,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     // the first frame of a new picture: its programs start to link, its lights as they stand now (`compile.ts`)
     if (!warmed) {
       warmed = true;
-      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...(room?.startPrograms(renderer) ?? []), ...post.startPrograms(renderer)];
+      linking = [...startPrograms(renderer, scene, camera, { fades: machine?.fades ?? [] }), ...(room?.startPrograms(renderer, scene) ?? []), ...post.startPrograms(renderer)];
       if (!linked(linking)) { requestAnimationFrame(frame); return; }
       drawn(now);
     }

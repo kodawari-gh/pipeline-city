@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LIMITS, TILT, clampTilt, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, reach, retarget, sight, stepView, tiltRange, zoomAt,
+  LIMITS, TILT, clampTilt, clampView, distanceOf, eyeOf, fitHeight, fitRect, heightAt, keepInside, nearness, orbitBy, panBy, reach, retarget, settled, sight, stepView, tiltRange, zoomAt,
   zoomOn, type OrbitView, type Room,
 } from './camera';
 
@@ -221,5 +221,15 @@ describe('3D camera', () => {
     expect(a.x).toBeCloseTo(b.x, 3);
     expect(a.height).toBeCloseTo(b.height, 2);
     expect(a.x).toBeGreaterThan(495);
+  });
+
+  it('calls a view settled once the ease has as good as ended', () => {
+    const goal = { ...V, x: 500, height: 4000 };
+    let a = V;
+    expect(settled(a, goal)).toBe(false);
+    for (let i = 0; i < 60; i++) a = stepView(a, goal, 1 / 60);
+    expect(settled(a, goal)).toBe(false);
+    for (let i = 0; i < 120; i++) a = stepView(a, goal, 1 / 60);
+    expect(settled(a, goal)).toBe(true);
   });
 });

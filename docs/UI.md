@@ -188,7 +188,8 @@ Pure logic in `netui.ts` (+ `netui.test.ts`) and the words in `netdesc.ts`; ever
 A drawer and not a modal: the picture stays in view and each change applies at once, with no Apply button. It shares the docks' side with the stats and network drawers, so opening one closes the others (`state.ts`). The menu's Graphics entry opens it, Escape and the x close it. The numbers at the top are the running FPS, frame time and drawn size (`frameStats`).
 
 - **Presets**: Low, Medium, High, Ultra (`PRESETS`). High is the tuned look and the default. A change to an option in a preset's list shows the short Custom line under the buttons.
-- **Options outside the presets**: frame limit, brightness, auto-adjust. A preset leaves them alone.
+- **Options outside the presets**: frame limit (60 by default), brightness, auto-adjust. A preset leaves them alone.
+- **Away** (3D): the limit drops to 30 while the page has lost the focus, or after 30 s without input while the view and the hand stand still (`AwayWatch`). The next input lifts it. It is not a setting.
 - **Two renderers**: only the running renderer's options show (`rendererKind`). The 2D view has render scale and frame limit; its anti-aliasing is fixed at start.
 - **Auto-adjust** (3D): when the frames stay under 30 FPS (`SlowWatch`, scaled by the frame limit) it takes one step down (`lowered`, `nextStep`). The step sits on top of the player's settings in `effective` and is never saved. The panel names what it lowered and offers Try again (`retryPicture`). Any change of the player's clears it.
 - **Saved** per viewer in localStorage (`pipeline-city.graphics`), not in the game's save. `parseGraphics` clamps what it reads, so a stale value cannot break the picture.

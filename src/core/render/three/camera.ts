@@ -203,6 +203,13 @@ export function stepView(v: OrbitView, goal: OrbitView, dt: number): OrbitView {
   };
 }
 
+/** Has the view as good as reached its goal? (`stepView`'s ease never quite ends.) */
+export function settled(v: OrbitView, goal: OrbitView): boolean {
+  const far = goal.height * 1e-3;
+  return Math.abs(v.x - goal.x) < far && Math.abs(v.y - goal.y) < far && Math.abs(v.z - goal.z) < far && Math.abs(v.height - goal.height) < far
+    && Math.abs(v.yaw - goal.yaw) < 1e-3 && Math.abs(v.pitch - goal.pitch) < 1e-3 && Math.abs(v.fov - goal.fov) < 1e-2;
+}
+
 export function applyView(camera: PerspectiveCamera, v: OrbitView, aspect: number): void {
   const eye = eyeOf(v), d = distanceOf(v);
   camera.position.set(eye.x, eye.y, eye.z);

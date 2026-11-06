@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  autoStep, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, presetOf, PRESETS, PRESET_NAMES, resetGraphics, setGraphic, setPreset, SlowWatch,
+  autoStep, AwayWatch, CHOICES, DEFAULTS, effective, FrameGate, graphics, lowered, nextStep, parseGraphics, presetOf, PRESETS, PRESET_NAMES, resetGraphics, setGraphic, setPreset, SlowWatch,
 } from './graphics';
 
 describe('presets', () => {
   it('the default is High with nothing else set', () => {
     expect(presetOf(DEFAULTS)).toBe('high');
-    expect(DEFAULTS).toMatchObject({ fps: 0, brightness: 1, auto: true });
+    expect(DEFAULTS).toMatchObject({ fps: 60, brightness: 1, auto: true });
   });
 
   it('every preset value is on offer, and no preset is cheaper than the one before', () => {
@@ -65,10 +65,10 @@ describe('the settings signal', () => {
   beforeEach(() => resetGraphics());
 
   it('a preset keeps the frame limit, the brightness and auto-adjust', () => {
-    setGraphic('fps', 60);
+    setGraphic('fps', 120);
     setGraphic('brightness', 1.2);
     setPreset('low');
-    expect(graphics.value).toMatchObject({ ...PRESETS.low, fps: 60, brightness: 1.2, auto: true });
+    expect(graphics.value).toMatchObject({ ...PRESETS.low, fps: 120, brightness: 1.2, auto: true });
   });
 
   it('any change hands the picture back to the player', () => {
@@ -103,6 +103,34 @@ describe('FrameGate', () => {
     expect(drawn(144, 60)).toBeLessThanOrEqual(61);
     expect(drawn(240, 30)).toBeLessThanOrEqual(31);
   });
+});
+
+describe('AwayWatch', () => {
+  it('keeps the limit while the player is there', () => {
+    const w = new AwayWatch();
+    w.input(1000);
+    expect(w.limit(60, 20000, true, false)).toBe(60);
+    expect(w.limit(0, 20000, true, false)).toBe(0);
+  });
+
+  it('holds to 30 after a while without input, until the next', () => {
+    const w = new AwayWatch();
+    w.input(1000);
+    expect(w.limit(60, 40000, true, false)).toBe(30);
+    expect(w.limit(0, 40000, true, false)).toBe(30);
+    w.input(40000);
+    expect(w.limit(60, 40001, true, false)).toBe(60);
+  });
+
+  it('holds to 30 without the focus, at once', () => {
+    const w = new AwayWatch();
+    w.input(1000);
+    expect(w.limit(120, 1001, false, false)).toBe(30);
+    expect(w.limit(120, 1001, false, true)).toBe(30);
+  });
+
+  it('does not hold while something moves', () => expect(new AwayWatch().limit(60, 99000, true, true)).toBe(60));
+  it('never raises a lower limit', () => expect(new AwayWatch().limit(24, 99000, false, false)).toBe(24));
 });
 
 describe('SlowWatch', () => {

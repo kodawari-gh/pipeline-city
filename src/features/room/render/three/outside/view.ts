@@ -26,6 +26,7 @@ import { disposeKit, makeKit, type Kit } from './kit';
 import { withLampLight, type LampUniforms } from './lamplight';
 import { GlassMirror } from './mirror';
 import { GRID, M, buildings, parked, toOutside, trees } from './plan';
+import { Sight, type QueryGL } from './sight';
 import { EARTH_SHADOW, moonDir, skyDome, skyMaterial, type SkyUniforms } from './sky';
 import { signWashes, type SignWash } from './signlight';
 import { roofSteam, type SteamUniforms } from './steam';
@@ -74,6 +75,8 @@ const lightsAt = (h: number): number => (h < 12 ? 1 - smooth(5.2, 7.4, h) : Math
 const GLOW = 0.3;
 /** How far the room's picture in the glass (`mirror.ts`) is lifted at full night: the room is far darker than the screen's exposure shows it. From what share of the night's lights it starts. */
 const MIRROR = 65, MIRROR_FROM = 0.55;
+/** With the eye still, that picture is drawn each this many frames: its LEDs and its screen a few frames late do not show in so faint a ghost. */
+const MIRROR_EVERY = 4;
 /**
  * How far west the sun out here stands of the room's at the same hour (radians). The room's own, nearly behind the window through the
  * afternoon, would light the faces the window sees head on, flat. Turned, it rakes them, one face bright and one in shade, the shadows
@@ -136,6 +139,8 @@ void main() {
 }`;
 
 const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** Two views the same to the eye: a view that has settled still creeps by far less than this (its ease never quite ends), a move soon adds up past it. */
+const nearly = (a: Matrix4, b: Matrix4): boolean => a.elements.every((x, i) => Math.abs(x - b.elements[i]!) < 1e-4);
 
 export class OutsideView {
   /** The quad in the window's opening (room units). */
@@ -182,6 +187,14 @@ export class OutsideView {
   private sunMoved = true;
   /** The camera the window's picture is drawn for this frame: the quad shows the picture only to it. */
   private live: Camera | null = null;
+  /** Whether the eye sees the window; the eye (its whole view and the frame's size) at the last draw. */
+  private sight = new Sight();
+  private eye = new Matrix4();
+  private eyeNow = new Matrix4();
+  private eyeFrame = '';
+  /** Frames since the room's picture in the glass was drawn, and whether it shows. */
+  private mirrorAge = 0;
+  private mirrorShown = false;
 
   /** The window's quad (room units: its middle, its size, the depth of the glass). */
   constructor(cx: number, cy: number, w: number, h: number, z: number) {
@@ -195,7 +208,14 @@ export class OutsideView {
     this.mesh = new Mesh(new PlaneGeometry(w, h), this.quad);
     this.mesh.position.set(cx, cy, z);
     this.mesh.castShadow = this.mesh.receiveShadow = false;
-    this.mesh.onBeforeRender = (_r, _s, camera) => { this.quad.uniforms.live!.value = camera === this.live && this.target ? 1 : 0; };
+    // (after what stands before it, so the query in `Sight` sees what hides it)
+    this.mesh.renderOrder = 1;
+    this.mesh.onBeforeRender = (r, _s, camera) => {
+      const live = camera === this.live && this.target;
+      this.quad.uniforms.live!.value = live ? 1 : 0;
+      if (live) this.sight.begin(r.getContext() as QueryGL);
+    };
+    this.mesh.onAfterRender = (r) => this.sight.end(r.getContext() as QueryGL);
 
     // the streets merged by material; the buildings on their facade's material, cell by cell, the trees and the land in their own
     const k = this.kit = makeKit(), ts = trees();
@@ -336,11 +356,17 @@ export class OutsideView {
    * the multisampling of the frame's scene target.
    */
   draw(renderer: WebGLRenderer, room: Scene, camera: PerspectiveCamera, samples: number): void {
-    this.live = null;
-    if (!this.mesh.parent) return;
+    if (!this.mesh.parent) { this.live = null; return; }
     camera.updateMatrixWorld();
     this.mesh.updateWorldMatrix(true, false);
     const size = renderer.getDrawingBufferSize(new Vector2()), fw = size.x, fh = size.y;
+    this.eyeNow.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const frame = `${fw}x${fh}x${samples}`, moved = frame !== this.eyeFrame || !nearly(this.eyeNow, this.eye);
+    if (moved) { this.eye.copy(this.eyeNow); this.eyeFrame = frame; }
+    this.sight.frame(renderer.getContext() as QueryGL, moved);
+    // the eye sees no window, and has not moved: the picture stands as it is, ready when something moves off the window
+    if (this.sight.hidden && this.live === camera) return;
+    this.live = null;
     // the window's box on screen, and how near its nearest corner is
     const p = (this.mesh.geometry as PlaneGeometry).parameters, v = new Vector3(), view = new Vector4();
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, nearest = Infinity, behind = false;
@@ -397,18 +423,23 @@ export class OutsideView {
       this.glow.run(renderer, t, rw, rh);
       this.quad.uniforms.tGlow!.value = this.glow.texture;
     }
-    // the room in the glass (it does not see the window's own quad, whose back is to it)
-    const qu = this.quad.uniforms, n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
-    // the window itself out of that picture: it samples the picture, and the glass does not mirror what lies past it
-    this.mesh.visible = false;
-    const shown = this.mirrorAt > 0 && this.mirror.draw(renderer, room, camera, this.mesh.getWorldPosition(v), n, fw, fh);
-    this.mesh.visible = true;
-    qu.mirrorK!.value = shown ? this.mirrorAt : 0;
-    if (shown) {
-      qu.tMirror!.value = this.mirror.target!.texture;
-      (qu.mirrorOf!.value as Matrix4).copy(this.mirror.uvOf);
-      (qu.mirrorPx!.value as Vector2).set(1 / this.mirror.target!.width, 1 / this.mirror.target!.height);
+    // the room in the glass (it does not see the window's own quad, whose back is to it); the eye still, only each few frames: it is a faint ghost
+    const qu = this.quad.uniforms;
+    if (this.mirrorAt <= 0) this.mirrorShown = false;
+    else if (moved || !this.mirrorShown || ++this.mirrorAge >= MIRROR_EVERY) {
+      this.mirrorAge = 0;
+      const n = (qu.glassN!.value as Vector3).set(0, 0, 1).transformDirection(this.mesh.matrixWorld);
+      // the window itself out of that picture: it samples the picture, and the glass does not mirror what lies past it
+      this.mesh.visible = false;
+      this.mirrorShown = this.mirror.draw(renderer, room, camera, this.mesh.getWorldPosition(v), n, fw, fh);
+      this.mesh.visible = true;
+      if (this.mirrorShown) {
+        qu.tMirror!.value = this.mirror.target!.texture;
+        (qu.mirrorOf!.value as Matrix4).copy(this.mirror.uvOf);
+        (qu.mirrorPx!.value as Vector2).set(1 / this.mirror.target!.width, 1 / this.mirror.target!.height);
+      }
     }
+    qu.mirrorK!.value = this.mirrorShown ? this.mirrorAt : 0;
     renderer.setRenderTarget(was);
     this.sun.shadow.autoUpdate = false;
     this.sunMoved = false;
@@ -418,9 +449,9 @@ export class OutsideView {
     this.live = camera;
   }
 
-  /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's. */
-  startPrograms(r: WebGLRenderer): Program[] {
-    return [...startPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam)];
+  /** Starts linking the programs the view draws with (`compile.ts`): its city's and its sky's, and with the `room` it stands in, its glass's. */
+  startPrograms(r: WebGLRenderer, room?: Scene): Program[] {
+    return [...startPrograms(r, this.scene, this.cam), ...startPrograms(r, this.envScene, this.cam), ...(room ? this.mirror.startPrograms(r, room) : [])];
   }
 
   dispose(): void {
