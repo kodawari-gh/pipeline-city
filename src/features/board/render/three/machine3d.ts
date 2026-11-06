@@ -58,8 +58,9 @@ import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor
 import { stripModeOf } from '@/features/room/render/shell/exterior';
 import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, psuUnit, shroud } from './basement3d';
 import {
-  TRAY_Z, at, atxPlug, atxSocket, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, sataPort, type Env, type Look,
+  TRAY_Z, at, atxPlug, atxSocket, cableMesh, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, sataPort, type Env, type Look,
 } from './wires3d';
+import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { rigStatic, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
 import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
@@ -701,7 +702,8 @@ export class Machine3D {
   }
 
   /**
-   * The cords out of the case, over the room: the video cable drapes from the board's HDMI port over the desk into the monitor's back; the mains
+   * The cords out of the case, over the room: the video cable runs from the board's HDMI port through the desk and up behind the monitor's stand
+   * into its back (never across the desk in front of the stand); the mains
    * cords (the PC's from the PSU's inlet in the case's rear wall, the monitor's from its back) drop through the desk's grommet to the wall
    * socket. A cord that is out lies loose from its device.
    */
@@ -718,12 +720,21 @@ export class Machine3D {
     const dg = { x: CASE.x - 900, z: 1300 };
     this.wires.add(post(dg.x, geo.ys, dg.z, 150, 14, mat(0x26272c, { roughness: 0.6, metalness: 0.3 }), 32), post(dg.x, geo.ys - 1, dg.z, 112, 16, mat(0x050506, { roughness: 0.9 }), 32));
     if (has('video')) {
+      // combed out of sight: from the HDMI port down through the desk's grommet, along under the top (over the tray), up through the keyboard's
+      // grommet by the wall (room3d.ts: the keyboard sits at MONITOR_Z + 3600) and behind the monitor's stand into its back. The rig holds only
+      // the length out of the keyboard's grommet: a plug out of the monitor lies by that grommet.
       const g = tag(new Group(), 'cable.video'), y = VIDEO_Y, z = BOARD_Z + 520, a: RopeEnd = { at: [CASE.x - 150, -y, z], dir: [-1, 0, 0] };
-      const seat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] }, o = { slack: 1.12, extra: 400, stiff: 0.45, n: 34 };
-      g.add(plug(CASE.x, y, z, 150));
+      const vz = dg.z + 80, kg = { x: m.x + m.w / 2 + KEY_LEAD[0] + 160, z: mz + 3600 + KEY_LEAD[1] - 150 }, low = under - 340;
+      const run: V3[] = [[dg.x, deskTop, vz], [dg.x, low, vz], [dg.x - 500, low, vz], [dg.x - 1500, low, kg.z], [kg.x, low, kg.z], [kg.x, deskTop, kg.z]];
+      g.add(plug(CASE.x, y, z, 150), cableMesh([...hangPts(a, { at: [dg.x, deskTop + 10, vz], dir: [0, 1, 0] }, video, room, { natural: true, n: 30 }), ...rounded(run, 250)], video));
+      // the stand's neck and foot (props3d.ts `Monitor`): the cable runs behind them
+      const cx = m.x + m.w / 2, neck = box({ x: cx - 330, y: m.y + m.h * 0.55, w: 660, h: geo.ys - m.y - m.h * 0.55 }, mz - 560, mz - 300);
+      const stand: Env = { planes: room.planes, solids: [...room.solids, neck, box({ x: cx - 1700, y: geo.ys - 90, w: 3400, h: 90 }, mz - 1500, mz + 700)] };
+      const up: RopeEnd = { at: [kg.x, deskTop + 10, kg.z], dir: [0, 1, 0] }, o = { natural: true, handle: 0.4, stiff: 0.45, n: 34 };
+      const seat: Seat = { at: [VIDEO_SOCKET.x, -(VIDEO_SOCKET.y - 160), mz - 20], axis: [0, -0.6, -0.8] };
       this.addRig(g, {
-        id: 'video', name: 'the monitor', target: 'monitor', look: video, env: room, fixed: [a], model: () => straightPlug(seat, 90, 60, 140, '#3a3d44'), seat, canSeat: true, engage: 120,
-        seated: (ex) => [hangPts(a, ex[0]!, video, room, o)], deck, n: o.n, stiff: o.stiff, lead: video.r * 2.5,
+        id: 'video', name: 'the monitor', target: 'monitor', look: video, env: stand, fixed: [up], model: () => straightPlug(seat, 90, 60, 140, '#3a3d44'), seat, canSeat: true, engage: 120,
+        seated: (ex) => [hangPts(up, ex[0]!, video, stand, o)], deck, n: o.n, stiff: o.stiff, lead: video.r * 2.5,
       }, on('video'));
       this.wires.add(g);
     }
