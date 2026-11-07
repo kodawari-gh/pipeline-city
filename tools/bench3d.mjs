@@ -15,7 +15,7 @@ const has = (n) => args.includes('--' + n);
 const out = args.find((a, i) => a.endsWith('.json') && !(args[i - 1] ?? '').startsWith('--'));
 const [W, H] = flag('size', '1920x1080').split('x').map(Number);
 const TWO = has('2d'), LOW = has('lowpower'), TOP = Number(flag('top', 6)), only = flag('only', '').split(',').filter(Boolean);
-const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/${TWO ? '' : `?3d${LOW ? '&lowpower' : ''}`}`;
+const PORT = Number(process.env.PORT || 5197), url = `http://localhost:${PORT}/${TWO ? '?2d' : `?3d${LOW ? '&lowpower' : ''}`}`;
 
 const up = async () => { try { return (await fetch(url)).ok; } catch { return false; } };
 let server = null;

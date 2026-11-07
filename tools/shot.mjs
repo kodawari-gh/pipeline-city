@@ -5,7 +5,8 @@
 //   --clip hud            only the top bar (the pause / speed / slow-motion controls)
 //   --prod                build first (`npm run build`) and shoot the optimized build through `vite preview` (what players run); the dev-only `window.__board`
 //                         is absent there, so --view takes cpu or board (the F / B keys), not x,y,z
-//   --3d                  the Three.js renderer (opens the game with `?3d`); --view also takes `room` there
+//   (default)             the Three.js renderer, the game's view; --view also takes `room` there
+//   --2d                  the hidden 2D Pixi board (opens the game with `?2d`)
 //   --hour h              (dev server, --3d) pin the room's hour (`roomDebug.hour`), e.g. 23 or 14.2
 //   --look x,y,z,yaw,pitch,height  (dev server, --3d) an exact 3D view (`window.__board.lookAt`); the room may move the eye to keep it inside.
 //                         Measure the picture with `node tools/lum.mjs <png> x,y,w,h ...`
@@ -49,7 +50,7 @@ try {
   p.on('pageerror', (e) => errors.push(e.message));
   // --console: print the page's console errors and warnings too (a shader that fails to compile is only logged)
   if (args.includes('--console')) p.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 2000)); });
-  await p.goto(args.includes('--3d') ? url + '?3d' : url);
+  await p.goto(args.includes('--2d') ? url + '?2d' : url);
   await p.waitForTimeout(1500);
   const renderer = await p.evaluate(() => { const g = document.createElement('canvas').getContext('webgl2'); const e = g?.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; });
   console.log('GL renderer:', renderer);

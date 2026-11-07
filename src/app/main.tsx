@@ -8,10 +8,12 @@ import { openNewGame } from '../core/ui/panels/NewGame';
 
 // If an autosave exists the HUD offers it; otherwise the New game dialog (Campaign or Sandbox) opens. The sim only starts once the player chooses.
 if (!loadAutosaveOffer()) openNewGame();
-// The 3D renderer (docs/GRAPHICS_3D_OVERHAUL.md) is behind a flag: `VITE_3D_GRAPHICS=1` at build time, or `?3d` in the address. Its code loads only then.
+// The 3D renderer (docs/GRAPHICS_3D_OVERHAUL.md) is the game's view. The 2D board stays as a hidden fallback: `?2d` in the address, or `VITE_3D_GRAPHICS=0` at build time.
+// Only the chosen renderer's code loads.
 // The boot screen stays until the board can be seen (docs/render/load.md): the 3D mount ends it, the 2D board at once.
 const host = document.getElementById('board')!;
-rendererKind.value = import.meta.env.VITE_3D_GRAPHICS === '1' || new URLSearchParams(location.search).has('3d') ? '3d' : '2d';
+const q = new URLSearchParams(location.search);
+rendererKind.value = q.has('2d') || (import.meta.env.VITE_3D_GRAPHICS === '0' && !q.has('3d')) ? '2d' : '3d';
 if (rendererKind.value === '3d') {
   bootStage('Loading the 3D world', 0.08);
   void import('../features/board/render/three/board3d').then((m) => m.mountBoard3d(host)).catch((e: unknown) => { bootDone(); throw e; });
