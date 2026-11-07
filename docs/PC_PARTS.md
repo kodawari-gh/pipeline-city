@@ -9,23 +9,23 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | Part | Specs | Model (file) | Model | Fit | Graph | Anim |
 |---|---|---|---|---|---|---|
 | Case (4 tiers) | `case0..3` | `case3d.ts`, `casedetail3d.ts` | [~] | [x] | [x] | [x] side panel swings; a swap lifts the case shell, door, lights and fans as pieces, the board stays |
-| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [~] | [x] | [x] | [x] a swap lifts the board with its fixed parts, not the case |
+| Motherboard (4 tiers) | `board-*` | `machine3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] a swap lifts the board with its fixed parts, not the case |
 | CPU (17 specs) | `cpu0..4w` | `chips3d.ts`, `showcase.ts` | [~] | [x] | [x] | [x] |
 | CPU cooler: stock, tower | `cooler0`, `cooler1` | `cooler3d.ts` | [~] | [x] | [x] | [x] |
-| Liquid loop: pump and radiator | `cooler2`, `rad1..3` | `cooler3d.ts`, `fans3d.ts` | [~] | [x] | [x] | [x] |
-| RAM sticks (SDR to DDR5 ECC) | `ram0..5` | `ram3d.ts` | [~] | [x] | [x] | [x] |
+| Liquid loop: pump and radiator | `cooler2`, `rad1..3` | `cooler3d.ts`, `fans3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] |
+| RAM sticks (SDR to DDR5 ECC) | `ram0..5` | `ram3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] |
 | Power supply | `psu0..4` | `basement3d.ts` | [~] | [x] | [x] | [x] |
 | Graphics cards | `gpu1..3` | `card3d.ts` | [~] | [x] | [x] | [x] |
 | AI cards | `npu1..2` | `card3d.ts` | [~] | [x] | [x] | [x] |
 | Network cards | `nic1..3` | `card3d.ts` | [x] controller with pins, capacitors, resistors, crystal added (the face was a bare slab) | [x] | [x] | [x] |
 | Drives: HDD, SATA SSD | `hdd0`, `ssd1` | `parts3d.ts`, `basement3d.ts` | [~] | [x] | [x] | [x] |
-| Drives: NVMe, RAID 1 | `nvme2`, `raid2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
+| Drives: NVMe, RAID 1 | `nvme2`, `raid2` | `parts3d.ts` | [x] close-up review 2026-11-07, no defect | [x] | [x] | [x] |
 | TPM module | `tpm1..2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
 | VRM heat sinks | `vsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | RAM VRM heat sinks | `rsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | Monitor | `display0..1` | stage proxy in `buildmode3d.ts` | [~] | [x] | [x] | [x] lifts off its desk spot, cables first |
 | Case fans | per case | `fans3d.ts` | [~] | [x] | [x] fan cable first | [x] "Swap" in the machine list |
-| Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [~] | n/a | n/a | n/a (soldered) |
+| Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [x] close-up review 2026-11-07, no defect | n/a | n/a | n/a (soldered) |
 
 ## Cables (graph nodes `cable:<id>`)
 
@@ -41,7 +41,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 ## Known visual defects
 
-- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). A second step: `perfMat` fades the sheet to a solid, darker average once a hole is under about 6 to 18 texels per pixel, because no filter draws a sub-pixel hole steadily. Measured (2026-11-07, dev server, front view with the grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): Full case 12.93 % before, 10.72 % after the coverage mask, 6.53 % after the fade (3.52 % with the maps stripped, the floor of real motion); views with no grille are equal (0.637 and 1.965 %). Mid case (Mid board and Mid tower fitted in the stage): front 0.79 %, top 0.40 %, side 0.48 %. A 2x texture (10.70 %) and a blended alpha (11.82 %) did not help; both were dropped. The Mid number has no "before" run. The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
+- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). A second step: `perfMat` fades the sheet to a solid, darker average once a hole is under about 6 to 18 texels per pixel, because no filter draws a sub-pixel hole steadily. Measured (2026-11-07, dev server, front view with the grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): Full case 12.93 % before, 10.72 % after the coverage mask, 6.53 % after the fade (3.52 % with the maps stripped, the floor of real motion); views with no grille are equal (0.637 and 1.965 %). Mid case (Mid board and Mid tower fitted in the stage): front 0.79 %, top 0.40 %, side 0.48 %. A 2x texture (10.70 %) and a blended alpha (11.82 %) did not help; both were dropped. The residual shares are camera motion, not flicker: the same view gives 0 % with the camera still, 1.12 % at 0.0004 rad per frame, 6.5 % at 0.0015 and 15.3 % at 0.006, so they scale with the step. At the slow step (legit motion is tiny) the old material (alpha cut, no coverage, no bias, no fade, rebuilt in the page) against the new one: Full front 3.15 % -> 1.12 %, Mid front 2.44 % -> 0.13 %, other views equal within 0.1 point. The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
 - [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
 - [x] Second pass (same day): the NPU over the NIC (it covers the next slot, as `COVERS` says), the TPM header, the HDD in the cage (platter, SATA sockets), the Mini case with its panel open and a CPU and stick fitted. No defect found; the Mini's panel swings where the 3D notes say it slides (a motion difference, not a fit one).
 

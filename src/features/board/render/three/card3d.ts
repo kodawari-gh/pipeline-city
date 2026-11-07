@@ -119,7 +119,7 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
 /** The case's cover over the back-wall opening of a slot no card fills: a vented steel strip as tall as a card stands (a card's bracket takes its place). */
 export function slotCover(slot: number): Group {
   const g = new Group(), y0 = nicY(slot), z0 = BOARD_Z + 80, z1 = HINGE_Z + STAND.gpu;
-  g.add(rectBox({ x: NIC_BRACKET_X, y: y0 - 60, w: BRACKET_T, h: 600 }, z0, z1, mat(0xa0a6ae, { metalness: 0.55, roughness: 0.4 })));
+  g.add(rectBox({ x: NIC_BRACKET_X, y: y0 - 60, w: BRACKET_T, h: 600 }, z0, z1, mat(0x646b78, { metalness: 0.5, roughness: 0.5 })));
   const vents = [];
   for (let z = z0 + 140; z < z1 - 120; z += 72) vents.push({ x: NIC_BRACKET_X + BRACKET_T, y: -(y0 + 240), z, sx: 2, sy: 320, sz: 26 });
   g.add(instanced(new BoxGeometry(1, 1, 1), mat(0x07090d, { roughness: 0.6 }), vents));

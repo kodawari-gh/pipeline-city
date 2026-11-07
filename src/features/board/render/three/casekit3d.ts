@@ -168,7 +168,7 @@ export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: n
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       #ifdef USE_MAP
       { float tpp = max(length(dFdx(vMapUv * vec2(128.0))), length(dFdy(vMapUv * vec2(128.0))));
-        float far = smoothstep(6.0, 18.0, tpp);
+        float far = smoothstep(2.5, 9.0, tpp);
         diffuseColor.a = mix(diffuseColor.a, 1.0, far);
         diffuseColor.rgb *= mix(1.0, 0.55, far); }
       #endif`);
