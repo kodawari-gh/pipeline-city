@@ -295,13 +295,14 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
   const idAt = (e: { clientX: number; clientY: number }, raw = false, grab = false): string | null => {
     const { nx, ny } = ndc(e), id = chips.hitAt(camera, H, nx, ny) ?? idOf(pick(roots(), camera, nx, ny));
     // a loose plug is small and lies among parts: one within a thumb's reach of the pointer is the one meant (not for a drop's raw id)
-    if (grab && !raw && !id?.startsWith('cable.')) { const p = looseNear(e.clientX, e.clientY); if (p) return p; }
+    // on a cable hit the nearest seat still wins: fan headers lie 11 px apart, the ray may hit the neighbour
+    if (grab && !raw) { const p = looseNear(e.clientX, e.clientY, id?.startsWith('cable.') ? SEATED_PX : GRAB_PX); if (p) return p; }
     return id && (raw || !INERT_REGIONS.has(id)) ? id : null;
   };
   /** The loose plugs' screen centres, measured again after a moment (they fall and the camera moves). */
   let plugs = { at: -Infinity, key: '', list: [] as { id: string; x: number; y: number; reach?: number }[] };
   const GRAB_PX = 22, SEATED_PX = 12;
-  const looseNear = (x: number, y: number): string | null => {
+  const looseNear = (x: number, y: number, maxPx = GRAB_PX): string | null => {
     const now = performance.now();
     if (now - plugs.at > 120 || plugs.key !== revKey) {
       const loose = (snapshot.peek()?.cables ?? []).filter((c) => !c.connected);
@@ -315,7 +316,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
         if (q.z < 1 && Math.abs(q.x) < 1 && Math.abs(q.y) < 1) plugs.list.push({ id: 'cable.' + c.id, x: r.left + ((q.x + 1) / 2) * r.width, y: r.top + ((1 - q.y) / 2) * r.height, reach: SEATED_PX });
       }
     }
-    let best: string | null = null, d = GRAB_PX;
+    let best: string | null = null, d = maxPx;
     for (const p of plugs.list) { const k = Math.hypot(p.x - x, p.y - y); if (k <= Math.min(d, p.reach ?? GRAB_PX)) { d = k; best = p.id; } }
     return best;
   };
