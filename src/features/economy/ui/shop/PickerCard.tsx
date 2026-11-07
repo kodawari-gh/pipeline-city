@@ -147,7 +147,7 @@ function ClockDial({ s, cpu }: { s: Snapshot; cpu: NonNullable<PickerModel['devi
       />
       <div class="drow">
         <span class={`zchip ${zone}`}>{ZONE_WORD[zone]}</span>
-        <span class="readout" title="Estimated steady temperature"><Icon name="flame" size={12} /> ~{est.toFixed(0)} C</span>
+        <span class="readout" title="Estimated steady temperature"><Icon name="flame" size={12} /> ~{est.toFixed(0)} °C</span>
         <span class="value">{fmtClock(c.value)}</span>
       </div>
     </div>
@@ -180,7 +180,7 @@ function RamClockDial({ s, dev }: { s: Snapshot; dev: NonNullable<PickerModel['d
       />
       <div class="drow">
         <span class={`zchip ${zone}`}>{ZONE_WORD[zone]}</span>
-        <span class="readout" title="Estimated steady temperature of the stick"><Icon name="flame" size={12} /> ~{est.toFixed(0)} C</span>
+        <span class="readout" title="Estimated steady temperature of the stick"><Icon name="flame" size={12} /> ~{est.toFixed(0)} °C</span>
         <span class="value">{fmtClock(value)}</span>
       </div>
     </div>
@@ -214,7 +214,7 @@ function VrmBlock({ v, s }: { v: VrmReadout; s: Snapshot }) {
       </div>
       <div class="chips">
         <span class={`chip ${v.tempLevel}`} title={`Temperature. Throttles at ${v.throttleC} C, unstable at ${v.unstableC} C, burns at ${v.damageC} C.`}>
-          <Icon name="flame" size={12} /> {v.tempC.toFixed(0)} C
+          <Icon name="flame" size={12} /> {v.tempC.toFixed(0)} °C
         </span>
         <span class="chip" title={tip('vrm.efficiency')}><Icon name="eff" size={12} /> {Math.round(v.efficiency * 100)}%</span>
         <span class={`chip ${v.throttle < 1 ? 'warn' : ''}`} title={`Throttle: the regulator's heat holds the ${v.rail === 'ram' ? 'memory' : 'processor'} back by this much (100% is none).`}>
@@ -294,9 +294,9 @@ function Readings({ dev }: { dev: NonNullable<PickerModel['device']> }) {
   if (dev.burnt) return <div class="chips"><span class="chip bad"><Icon name="warn" size={12} /> burnt out</span></div>;
   return (
     <div class="chips">
-      <span class="chip" title="Temperature right now, in degrees Celsius. Too hot and the part slows down (throttles), then becomes unstable."><Icon name="flame" size={12} /> {dev.tempC.toFixed(0)} C</span>
+      <span class="chip" title="Temperature right now, in degrees Celsius. Too hot and the part slows down (throttles), then becomes unstable."><Icon name="flame" size={12} /> {dev.tempC.toFixed(0)} °C</span>
       <span class="chip" title="Power it is drawing right now, in watts. All parts together must stay under the power supply's capacity."><Icon name="bolt" size={12} /> {dev.powerW.toFixed(1)} W</span>
-      <span class="chip" title="Speed it is really running at compared with its stock clock (1.00x). Above 1 is overclocked, below 1 is throttled by heat."><Icon name="clock" size={12} /> {dev.effectiveClock.toFixed(2)}x</span>
+      <span class="chip" title="Speed it is really running at compared with its stock clock (1.00x). Above 1 is overclocked, below 1 is throttled by heat."><Icon name="clock" size={12} /> {dev.effectiveClock.toFixed(2)}x clock</span>
       {dev.throttle < 1 && <span class="chip warn" title="Throttled: too hot, running slower than asked"><Icon name="warn" size={12} /> slow</span>}
       {dev.unstable && <span class="chip bad" title="Unstable: errors restart the job"><Icon name="warn" size={12} /> unstable</span>}
     </div>

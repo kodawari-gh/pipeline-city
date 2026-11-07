@@ -79,8 +79,8 @@ export function Stats() {
           </div>
           <div class="bar-row" title={`Temperature. Throttles at ${vrm.throttleC} C, unstable at ${vrm.unstableC} C, burns at ${vrm.damageC} C.`}>
             <span>temp</span>
-            <Meter value={vrm.tempC} max={vrm.damageC} mark={vrm.throttleC} level={vrm.tempLevel} label="VRM temperature" text={`${vrm.tempC.toFixed(0)} C`} />
-            <b>{vrm.tempC.toFixed(0)} C</b>
+            <Meter value={vrm.tempC} max={vrm.damageC} mark={vrm.throttleC} level={vrm.tempLevel} label="VRM temperature" text={`${vrm.tempC.toFixed(0)} °C`} />
+            <b>{vrm.tempC.toFixed(0)} °C</b>
           </div>
           <div class="kv" title={describeId('vrm.efficiency', s)?.plain}><span>efficiency</span><b>{Math.round(vrm.efficiency * 100)}%</b></div>
           <div class="kv" title="Throttle: the regulator's heat holds the processor back by this much (100% is none)."><span>throttle</span><b>{Math.round(vrm.throttle * 100)}%</b></div>
@@ -110,8 +110,8 @@ export function Stats() {
               <div class="kv"><span>{d.name}</span><b>{d.burnt ? 'burnt' : `${d.effectiveClock.toFixed(2)}x`}</b></div>
               <div class="bar-row" title={spec ? `Throttles at ${spec.thermal.throttleC} C, unstable at ${spec.thermal.unstableC} C, burns at ${spec.thermal.damageC} C` : ''}>
                 <span>temp</span>
-                <Meter value={d.tempC} max={max} mark={spec?.thermal.throttleC} level={d.burnt ? 'bad' : tempLevel(d.tempC, spec)} label={`${d.name} temperature`} text={`${d.tempC.toFixed(0)} C`} />
-                <b>{d.tempC.toFixed(0)} C</b>
+                <Meter value={d.tempC} max={max} mark={spec?.thermal.throttleC} level={d.burnt ? 'bad' : tempLevel(d.tempC, spec)} label={`${d.name} temperature`} text={`${d.tempC.toFixed(0)} °C`} />
+                <b>{d.tempC.toFixed(0)} °C</b>
               </div>
               <div class="kv sub"><span>power</span><b>{d.powerW.toFixed(1)} W</b></div>
             </div>

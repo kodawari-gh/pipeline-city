@@ -88,6 +88,7 @@ function Monitor() {
           {s.powered && b && <span>{b.text}</span>}
         </div>
         {cur && <Detail r={cur} />}
+        {!s.powered && <p class="mute os-offhint">Press Power at the bottom to switch the machine on. The graphs fill in as it works: the processor first, then memory, drives and the network. The bar above names what holds it back.</p>}
       </div>
     </div>
   );
