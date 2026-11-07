@@ -1,64 +1,51 @@
 // The machine in 3D (docs/GRAPHICS_3D_OVERHAUL.md, phases 2 to 4): the glass-side case, the motherboard with its sockets, every installed part, the
 // fans the player fitted, the power cables and the wall cords. Shapes over the 2D layout (`layout.ts`, y flipped), z out of the wall.
-// The faces wear the 2D renderer's own art (`ArtSurface` + `ArtBaker`): the board from `buildBoard`, each part from its art function, raised
-// parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
+// Each part is its shared builder's model (`boardModel`, `cpuModel`, `cardModel`...: the gallery and Build my PC show the same); the faces wear
+// the 2D renderer's own art through one `ArtSet`, raised parts carry the art of their own rect on their top. Level of detail (`lod`): the textures sharpen tile by tile as the camera comes in, the
 // cooler, the CPU's lid and a card's shroud fade away over the 2D bands (`DEVICE_LOD`) to show the die, and small parts stand up only up close.
 // The dies run on their faces as in 2D (`Chips3D`, chips3d.ts).
 // Rebuilt when the parts change (`machineKey`); a plug in or out rebuilds only its own cable (`syncCables`, `setCable`). Between rebuilds `frame`
 // only moves the fans and eases the state looks.
-import {
-  Box3, Color, CylinderGeometry, Frustum, Group, Mesh, MeshStandardMaterial, Path, PointLight, BoxGeometry, Shape, Vector3, type Material, type Object3D,
-  type PerspectiveCamera,
-} from 'three';
-import { Container, Graphics } from 'pixi.js';
+import { Box3, Color, Frustum, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type Object3D, type PerspectiveCamera } from 'three';
 import type { DeviceSnap, Snapshot } from '@/worker/game/types';
-import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, type CpuSpec, type FanSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { netPropsVisible } from '@/features/network/render/netvis';
-import { cardArt, cardOrigin, headerRect, tpmArt, tpmHeader, tpmRect } from '@/core/render/accelart';
-import { box } from '@/core/render/ink';
+import { cardOrigin } from '@/core/render/accelart';
 import { DEVICE_LOD, seenZoom, smooth } from '@/core/render/lod/lod';
-import { builtinTheme, type Theme } from '@/core/render/theme';
-import { ArtSurface, FINISH, fadeTree, frustumOf, screenPx, type BakeQueue, type Finish } from '@/core/render/three/artlod';
-import { disposeTree, extrude, instanced, place, post, rectBox, rod, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
+import { builtinTheme } from '@/core/render/theme';
+import { fadeTree, frustumOf, screenPx, type BakeQueue } from '@/core/render/three/artlod';
+import { disposeTree, place, post, rectBox, rounded, softBox, type RectLike } from '@/core/render/three/geometry';
 import type { RopeEnd, Plane as RopePlane, Solid as RopeSolid, V3 } from '@/core/render/three/rope';
-import { PartSkin, lerpHex, mat, type PartState } from '@/core/render/three/materials';
-import { seeThrough, tag } from '@/core/render/three/pick';
-import { dieFar, dieNear, planOf } from '@/features/cpu/render/die/dieart';
+import { PartSkin, mat, type PartState } from '@/core/render/three/materials';
+import { tag } from '@/core/render/three/pick';
 import { gpuPlan, moveRect } from '@/features/gpu/render/gpulayout';
-import { npuFar, npuNear } from '@/features/npu/render/npuart';
 import { npuGeo } from '@/features/npu/render/npulayout';
-import { nicArt } from '@/features/network/render/net';
-import { driveArt, driveBody, driveKindOf, drawDriveLive, slotRect } from '@/features/storage/render/drives';
+import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/drives';
 import { fanMounts, hubHeaders, radiatorSpan, type FanMount } from '@/features/room/render/desk/props/case';
 import { BOARD_Z, CASE_FRONT as FRONT, CASE_Z, DESK_TOP, FAN_MAX, FAN_ZC, MONITOR_Z, REAR_ZC } from '@/features/room/render/three/roomplan';
 import type { RoomGeo } from '@/features/room/render/shell/room';
 import {
   BD, CASE, CASE_GLASS, CASE_IN, COOLER, CPU_S, DIE, DIE_PLAN, DIMM_H, DIMM_W, DIMM_X, DIMM_Y, FAN_HUB, FAN_SLOT, FOOT, GEO, M2_SLOTS, MONITOR,
-  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, PKG, RAM_SINK, WALL_T, SOCKET_E, USB_PORT, VIDEO_SOCKET, VIDEO_Y, VRM_SINK, nicY,
+  LAYOUT_CASE, MONITOR_POWER, ETH0_RECT, ROUTER_SPOT, PCIE_RAILS, USB_PORT, VIDEO_SOCKET, VIDEO_Y, nicY,
 } from '../layout/layout';
-import { IO_PORTS } from '../layout/boardlayout';
 import { fanHost } from '../../sim/board';
 import { assignLeads } from '../../sim/cables';
-import { buildBoard } from '../boardArt';
-import type { Solid } from '../boardParts';
 import { radiatorFit, radiatorGrade } from '../cooler';
-import { ACCENT, cpuArt, sinkFanRect } from '../devices';
+import { ACCENT } from '../devices';
 import { fanCordPlans } from '../wiring/fancords';
 import { isPcieKind } from '../wiring/routes';
-import { LV_BOARD, LV_RAISED } from './artset3d';
-import { ArtBaker } from './bake';
+import { ArtSet } from './artset3d';
+import { boardModel } from './boardmodel3d';
+import { CPU_Z, cpuModel } from './cpu3d';
 import { coolerFanBox, coolerModel, hose, hoseEnds, radiatorFanSpot, radiatorModel, type Model, type RadiatorAt } from './cooler3d';
-import { caseFan, fanPart, glowMat, light, type FanFit, type Spin } from './fans3d';
+import { caseFan, fanPart, type FanFit, type Spin } from './fans3d';
 import { standingPlug } from './cables3d';
-import { HINGE_Z, card3d, gpuVideoAt, slotBlank, type Card3D } from './card3d';
+import { HINGE_Z, card3d, cardModel, gpuVideoAt, slotBlank, type Card3D } from './card3d';
 import type { Rail } from '@/core/render/three/rails';
 import type { Chips3D } from './chips3d';
-import { caseModel, stripLight, type CaseModel } from './case3d';
-import { GROMMETS, ioShield, rearFanScrews, SLOT_BLANK } from './casedetail3d';
-import { brushed, outlinePts, shapeOf, slab, tiled } from './casekit3d';
-import { ioCover, slotHardware } from './boardhw3d';
+import { caseModel, innerStrips, stripLight, type CaseModel } from './case3d';
+import { GROMMETS, rearFanScrews, SLOT_BLANK } from './casedetail3d';
 import { sinkBody } from './sink3d';
-import { hexNum, skinOf, slotArmour } from '../skins';
 import { DOOR_SECONDS, doorPose } from './casedoor';
 import { CASE_KIND, type CaseKind } from '@/features/room/render/shell/casedecor';
 import { stripModeOf } from '@/features/room/render/shell/exterior';
@@ -66,7 +53,7 @@ import { basementPlan, bayHit, cage, cageBack, driveDepth, intoBay, mainsInlet, 
 import { fanHub } from './fanhub3d';
 import { frontPanelLeads } from './casetray3d';
 import {
-  TRAY_Z, at, atxPlug, atxSocket, cableMesh, epsPlug, epsSocket, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, sataPort, type Env, type GrommetStyle, type Look,
+  TRAY_Z, at, atxPlug, cableMesh, epsPlug, fanPlug, fromSlot, grommet, hangPts, hung, sataPlug, type Env, type GrommetStyle, type Look,
 } from './wires3d';
 import { KEY_LEAD } from '@/features/room/render/three/props3d';
 import { rigStatic, straightPlug, type CableRig, type Rest, type Seat } from './cablerig3d';
@@ -74,10 +61,9 @@ import { sleeveOf } from '@/core/render/cable';
 import { useModel } from '@/core/render/three/gltf';
 import { modelOf } from './models3d';
 import { slotRects } from './slots3d';
-import { chipset, coinCell, m2Standoff, nvmeStick, sataDrive, tpmModule, type Raise } from './parts3d';
-import { RAM_LEAN, SLOT_H, dimmSlot, ramStick } from './ram3d';
+import { driveRaise, nvmeStick, sataDrive, tpmModel } from './parts3d';
+import { RAM_LEAN, SLOT_H, ramStick } from './ram3d';
 import { RamMap3D } from './rammap3d';
-import { CHIP_H, buildSolids } from './solids3d';
 
 const RUNNING = new Set(['loading', 'running', 'writing', 'ingesting', 'running-os', 'flashing', 'booting-os', 'posting', 'mounting']);
 const grow = (r: RectLike, e: number): RectLike => ({ x: r.x - e, y: r.y - e, w: r.w + 2 * e, h: r.h + 2 * e });
@@ -134,8 +120,8 @@ export class Machine3D {
   private accent = new Color(0x8b5cff);
   /** The art is always the dark theme's: the reference's black board under neon. */
   private readonly T = builtinTheme(true);
-  private bakers: ArtBaker[] = [];
-  private surfaces: ArtSurface[] = [];
+  /** The 2D art the parts wear, baked on the view's queue. */
+  private readonly art: ArtSet;
   /** What changes with the camera: a point and what to do with the zoom seen there (`seenZoom`, the 2D bands' unit). */
   private reveals: { at: Vector3; apply: (z: number) => void; anywhere: boolean; area?: RectLike }[] = [];
   private frustum = new Frustum();
@@ -193,12 +179,13 @@ export class Machine3D {
   readonly rails: Rail[] = [];
 
   /** `chips`: the live dies (they outlive a rebuild); the CPU's and the cards' faces show them. `inRoom`: false on the Build my PC stage, which has no router. */
-  constructor(s: Snapshot | null, geo: RoomGeo, private q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true) {
+  constructor(s: Snapshot | null, geo: RoomGeo, q: BakeQueue, private chips: Chips3D | null = null, private inRoom = true) {
+    this.art = new ArtSet(q);
     chips?.setScene(s);
     const radDev = s?.devices.find((d) => d.kind === 'radiator'), span = radDev ? radiatorSpan(radDev.slot === 'rad-front' ? 'front' : 'top') : null;
     if (span) this.rad = { fit: radiatorFit(span, COOLER.x + COOLER.w / 2), count: span.ids.length, span };
     this.devs = s?.devices ?? [];
-    this.buildCase(s);
+    this.buildCase();
     this.buildBoard(s);
     if (s) {
       this.rects = slotRects(s);
@@ -226,7 +213,7 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ case
-  private buildCase(s: Snapshot | null) {
+  private buildCase() {
     // the case of this tier, one of four (case3d.ts): its body stays, its outer side panel and glass fade as the camera comes in
     const kind = CASE_KIND[LAYOUT_CASE] ?? 'gamer', cm = caseModel(kind, this.T), shell = cm.root;
     this.caseRgb = cm.rgb;
@@ -236,17 +223,12 @@ export class Machine3D {
     // the basement: the shroud (its panel over the power supply printed with the reference's "PIPELINE CITY", open over the drive cage) and the
     // stepped cage the drives stand in (`basement3d.ts`)
     shell.add(shroud(this.plan, cm.shroud, cm.rivet, cm.screw), cage(this.plan, kind));
-    // light strips along the inside of the top and the front: RGB in the gaming case, a cold white in the showcase, none in the plain cases
-    if (cm.rgb) for (const r of [{ x: CASE_GLASS.x + 200, y: CASE_GLASS.y + 40, w: CASE_GLASS.w - 400, h: 50 }, { x: CASE_GLASS.x + CASE_GLASS.w - 90, y: CASE_GLASS.y + 300, w: 50, h: CASE_GLASS.h - 600 }]) {
-      const m = glowMat(cm.accent);
-      const strip = seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m));
-      this.root.add(strip);
-      this.caseRoots.push(strip);
-      this.spin(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
-    }
+    // light strips along the inside of the top and the front (`innerStrips`)
+    const strips = innerStrips(kind, cm);
+    for (const m of strips.roots) this.root.add(m);
+    this.caseRoots.push(...strips.roots);
+    for (const l of strips.spins) this.spin(l);
     shell.add(fanHub());
-    // the board's I/O shield in the rear wall, with the ports the board has, in the board's style
-    shell.add(ioShield(s?.board.features ?? { ethernetMbps: 1000, usbPorts: 4, displayPorts: 2 }, GEO.tier));
     this.root.add(shell, cm.door);
     this.caseRoots.push(shell, cm.door);
     this.grommets = GROMMETS[kind];
@@ -296,29 +278,6 @@ export class Machine3D {
   }
 
   // ------------------------------------------------------------------ art
-  private baker(build: () => Container): ArtBaker {
-    const b = new ArtBaker(build);
-    this.bakers.push(b);
-    return b;
-  }
-
-  /** A flat face at depth `z` over `r` that wears the art of `b`. */
-  private surface(parent: Object3D, b: Pick<ArtBaker, 'bake'>, r: RectLike, z: number, levels: readonly number[], finish: Finish = FINISH.board): ArtSurface {
-    const s = new ArtSurface(r, z, b.bake, this.q, { levels, finish });
-    this.surfaces.push(s);
-    parent.add(s.root);
-    return s;
-  }
-
-  /** A box whose top wears the 2D art of its own rect: the flat drawing stood up into a part. `id` tags it for picking; `bevel` rounds its edges (a moulded package). */
-  private raised(parent: Object3D, b: ArtBaker, r: RectLike, z0: number, z1: number, side: Material, id?: string, levels = LV_RAISED, bevel = 0): Group {
-    const g = new Group();
-    g.add(bevel > 0 ? softBox(r, z0, z1, side, bevel) : rectBox(r, z0, z1, side));
-    this.surface(g, b, r, z1, levels);
-    parent.add(id ? tag(g, id) : g);
-    return g;
-  }
-
   /**
    * Run `apply` every frame with the zoom seen at the centre of `r` (depth `z`). `anywhere`: the camera zoom there, wherever the view centre is.
    * `area`: the zoom seen at the point of `r` nearest the view's centre instead (a long card: the view may hold only one end of it).
@@ -339,79 +298,27 @@ export class Machine3D {
 
   // ------------------------------------------------------------------ board
   private buildBoard(s: Snapshot | null) {
-    // the tier's skin (skins.ts): the slots' plastic, the sinks' finish, the mask the board's edge shows
-    const T = this.T, sk = skinOf(GEO.tier), slot = mat(hexNum(sk.slot), { roughness: 0.5 }), socket = mat(0x1a1d24, { roughness: 0.5 }), chip = mat(0x14161b, { roughness: 0.5 });
+    // the board of this tier (boardmodel3d.ts: the same model the gallery shows); an empty socket is tagged for picking, its lights follow the power
     const filled = new Set(s?.devices.map((d) => d.slot) ?? []);
-    const emptyId = (id: string) => (filled.has(id) ? undefined : id);
-    // the board: the 2D renderer's own drawing (traces, pours, silkscreen, every footprint), sharper as the camera comes in; while it draws, the
-    // drawers report the parts they could stand up (`Solid`)
-    const solids: Solid[] = [];
-    const art = this.baker(() => buildBoard(T, GEO.tier, (x) => solids.push(x)).root), far = this.baker(() => buildBoard(T, GEO.tier, undefined, true).root);
-    this.root.add(tag(rectBox(BD, BOARD_Z - 60, BOARD_Z, mat(lerpHex(hexNum(sk.mask[T.dark ? 0 : 1]), 0x000000, 0.35), { roughness: 0.6 })), 'board'));    tag(this.surface(this.root, { bake: (f, px) => (px < LV_BOARD[1]! ? far : art).bake(f, px) }, BD, BOARD_Z, LV_BOARD).root, 'board'); // (the coarsest level is the far picture: thin traces would be lost)
-    // the rear I/O inside the case, by the skin (skins.ts); it starts inside the rear wall (the wall and the I/O shield are the outside)
-    const ioc = ioCover(s?.board.features);
-    if (ioc.glow) this.spin(light(ioc.glow));
-    this.root.add(tag(ioc.root, 'io'));
-    // the sockets and connectors stand up off it, each topped with its own drawing
-    this.raised(this.root, art, grow(PKG, SOCKET_E), BOARD_Z, BOARD_Z + 70, socket, emptyId('cpu0'));
-    // the memory sockets are modelled (`dimmSlot`): the stick stands in the groove; an empty one is picked by an unseen box over its 2D rect
+    const b = boardModel(this.art, this.T, GEO.tier, { filled, ...(s ? { feat: s.board.features } : {}) });
+    for (const [id, o] of b.sockets) if (!filled.has(id)) tag(o, id);
+    for (const l of b.lights) this.spin(l);
+    this.root.add(b.root);
+    // far out the flat drawing is enough: the small parts stand up only up close
+    this.reveal(BD, BOARD_Z, (z) => { b.small.visible = z > DEVICE_LOD.labels.board; });
+    // an empty memory socket, M.2 slot, header or seat is picked by an unseen box over its rect; the USB port by one in front of the cover, where a key is dropped
     const unseen = mat(0, { transparent: true, opacity: 0, depthWrite: false });
     const pickBox = (r: RectLike, z0: number, z1: number, id: string) => { const o = tag(rectBox(r, z0, z1, unseen), id); o.castShadow = o.receiveShadow = false; this.root.add(o); };
-    // the USB port: an unseen box in front of the cover, where a key is dropped
     pickBox(grow(USB_PORT, 60), BOARD_Z, BOARD_Z + 1400, 'usb');
-    GEO.dimm.forEach((d, i) => {
-      const id = emptyId(`dimm${i}`), s = dimmSlot(d.rect, !!id, hexNum(sk.slot), hexNum(sk.latch));
-      this.root.add(id ? tag(s.housing, id) : s.housing, s.latches);
-      if (id) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, id);
-    });
-    PCIE_RAILS.forEach((r, i) => this.raised(this.root, art, r, BOARD_Z, BOARD_Z + 140, slot, emptyId(`pcie${i}`)));
-    // the back wall's slot covers, where no card's bracket stands
-    const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
-    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotBlank(nicY(i), blank)); });
-    // an M.2 slot is its connector at the west end and a standoff at the east end, the stick lies between them (`nvmeStick`)
-    M2_SLOTS.forEach((m, i) => {
-      const id = emptyId(`m2${i}`);
-      this.raised(this.root, art, { x: m.x + 8, y: m.y + 70, w: 120, h: m.h - 140 }, BOARD_Z, BOARD_Z + 70, chip, id, LV_RAISED, 6);
-      this.root.add(m2Standoff(m));
-      if (id) pickBox(m, BOARD_Z, BOARD_Z + 40, id);
-    });
-    // an empty bay is picked by an unseen plate over its mouth
-    for (const b of this.plan.bays) if (!filled.has(`sata${b.slot}`)) this.root.add(tag(bayHit(b), `sata${b.slot}`));
-    const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
-    const pch = chipset(GEO.chip, GEO.tier, raise);
-    this.root.add(tag(pch.root, 'chipset'));
-    if (pch.glow) this.spin(light(pch.glow));
-    // the power sockets, modelled with their cavities (wires3d.ts): the 24-pin's mouth faces east, the CPU's 8-pin faces the glass
-    this.root.add(tag(atxSocket(GEO.atx), 'atx'), tag(epsSocket(GEO.cpw), 'cpw'));
-    for (const r of GEO.sata) this.root.add(sataPort(r));
-    this.root.add(tag(coinCell(GEO.bat), 'bat'));
-    // the regulators: each phase's choke and power stage stand up with their own drawing on top, its capacitors and passives are solids (below)
-    const vrm = tag(new Group(), 'vrm'), vrm2 = tag(new Group(), 'vrm2'), choke = mat(0x2b2f38, { metalness: 0.35, roughness: 0.45 });
-    const inside = (rs: readonly RectLike[], x: number, y: number) => rs.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
-    for (const p of solids) if (p.kind === 'choke' || p.kind === 'stage') {
-      const at = inside(GEO.vrmPhases, p.x, p.y) ? vrm : inside(GEO.dPhases, p.x, p.y) ? vrm2 : this.root;
-      const ch = p.kind === 'choke';
-      this.raised(at, art, { x: p.x - p.w / 2, y: p.y - p.h / 2, w: p.w, h: p.h }, BOARD_Z, BOARD_Z + (ch ? 150 : 40), ch ? choke : chip, undefined, LV_RAISED, ch ? 14 : 6);
-    }
-    this.root.add(vrm, vrm2);
-    this.buildSlots();
-    // the other empty sockets (the module's header, the cooler's seat, the heatsink pads) are picked by an unseen box over their rect
+    GEO.dimm.forEach((d, i) => { if (!filled.has(`dimm${i}`)) pickBox(d.rect, BOARD_Z, BOARD_Z + SLOT_H, `dimm${i}`); });
+    M2_SLOTS.forEach((m, i) => { if (!filled.has(`m2${i}`)) pickBox(m, BOARD_Z, BOARD_Z + 40, `m2${i}`); });
     if (s) for (const [id, r] of slotRects(s)) if (/^(tpm|cooler|vrm-sink|ram-sink)\d+$/.test(id) && !filled.has(id)) pickBox(r, BOARD_Z, BOARD_Z + 40, id); // (low: the cooler's seat is round the CPU socket, which stands above it and wins the ray)
     if (s) this.fanPicks(s, filled, pickBox);
-    // the small parts (controllers, crystals, headers, SATA ports, the solids) stand up only up close; far out the flat drawing is enough
-    const small = new Group();
-    for (const r of [GEO.pwm, GEO.dpwm, GEO.bios, GEO.sio, GEO.codec, GEO.hub, GEO.phy, GEO.xtalCpu, GEO.xtalPch]) if (r) this.raised(small, art, r, BOARD_Z, BOARD_Z + CHIP_H, chip, undefined, LV_RAISED, 8);
-    for (const h of GEO.hdrs) this.raised(small, art, headerRect(h), BOARD_Z, BOARD_Z + 140, slot);
-    small.add(buildSolids(solids, !filled.has('cpu0'), sk.capSleeve));
-    this.root.add(small);
-    this.reveal(BD, BOARD_Z, (z) => { small.visible = z > DEVICE_LOD.labels.board; });
+    // the back wall's slot covers, where no card's bracket stands; an empty bay is picked by an unseen plate over its mouth
+    const blank = SLOT_BLANK[CASE_KIND[LAYOUT_CASE] ?? 'gamer'];
+    PCIE_RAILS.forEach((_, i) => { if (!filled.has(`pcie${i}`)) this.root.add(slotBlank(nicY(i), blank)); });
+    for (const bay of this.plan.bays) if (!filled.has(`sata${bay.slot}`)) this.root.add(tag(bayHit(bay), `sata${bay.slot}`));
   }
-
-  /**
-   * The hardware round the sockets that the flat drawing cannot show (the memory sockets' latches are `dimmSlot`'s): a steel armour round the
-   * PCIe slots the skin armours (`slotArmour`), the retention latch at each slot's far end, and the CPU socket's load frame and lever.
-   */
-  private buildSlots() { this.root.add(slotHardware()); }
 
   // ------------------------------------------------------------------ parts
   private skin(id: string, ...mats: MeshStandardMaterial[]) { this.skins.set(id, new PartSkin(mats)); }
@@ -426,32 +333,15 @@ export class Machine3D {
     const T = this.T;
     switch (spec.kind) {
       case 'cpu': {
-        // the package wears `cpuArt` (pins, capacitors, the die's far floorplan); the die above it wears the die view's floorplan with every name
-        const cs = spec as CpuSpec, plan = planOf(cs);
-        g.add(rectBox(PKG, BOARD_Z + 70, BOARD_Z + 150, mat(0x111a33, { roughness: 0.6 })));
-        this.surface(g, this.baker(() => cpuArt(T, cs).root), PKG, BOARD_Z + 150, LV_PART);
-        // the die in its own frame (`DIE_PLAN`), drawn at `CPU_S` about the socket: its art, its live face and their hits read that frame's
-        // zoom (the faces' views carry their parent's transform, as a card's do)
-        const dieArt = this.baker(() => {
-          const c = new Container(), gg = new Graphics();
-          box(gg, DIE_PLAN.x, DIE_PLAN.y, DIE_PLAN.w, DIE_PLAN.h, 14, { fill: T.die });
-          dieFar(gg, T, plan);
-          c.addChild(gg, dieNear(T, plan).root);
-          return c;
-        });
-        const frame = new Group();
-        frame.position.z = BOARD_Z + 150;
-        frame.scale.setScalar(CPU_S);
-        g.add(frame);
-        const die = this.surface(frame, dieArt, DIE_PLAN, 2 / CPU_S, LV_DIE, FINISH.die);
-        this.chips?.face(die.root, 'die', DIE_PLAN, 4 / CPU_S);
-        // the lid (satin nickel, as a real heat spreader) fades away over the die view's band, and the die shows through
-        const ihsM = mat(0xb4b9bf, { metalness: 0.75, roughness: 0.38 }), ihs = softBox(grow(DIE, 60), BOARD_Z + 150, BOARD_Z + 260, ihsM, 40);
-        g.add(ihs);
-        this.fades.push(ihs);
-        this.reveal(DIE, BOARD_Z + 200, (z) => { const a = smooth(DEVICE_LOD.die.fade[0], DEVICE_LOD.die.fade[1], z * CPU_S); fadeTree(ihs, 1 - a); die.root.visible = a > 0.01; });
-        this.rail(d.id, DIE, BOARD_Z + 150, DEVICE_LOD.die.fade[1] / CPU_S);
-        this.skin(d.id, ihsM);
+        // the package, its die and its lid (`cpuModel`); the live die runs on the die's face, in the die's own frame (the faces' views carry
+        // their parent's transform, as a card's do); the lid fades away over the die view's band
+        const c = cpuModel(this.art, T, spec as CpuSpec);
+        g.add(c.root);
+        this.chips?.face(c.die.root, 'die', DIE_PLAN, c.die.z);
+        this.fades.push(c.lid);
+        this.reveal(DIE, CPU_Z.top - 60, c.lod);
+        this.rail(d.id, DIE, CPU_Z.die, DEVICE_LOD.die.fade[1] / CPU_S);
+        this.skin(d.id, ...c.skin);
         break;
       }
       case 'cooler': {
@@ -484,12 +374,7 @@ export class Machine3D {
         // the card stands in its slot (`card3d`); up close its cooler fades and it swings down flat to show its 2D face: the GPU's the shop
         // picture's art (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its board art; the dies run on it
         const i = idx(d.slot), kind = spec.kind;
-        const art = this.baker(() => (kind === 'nic' ? nicArt(T, visual, i) : kind === 'npu' ? npuFace(T, visual, i) : cardArt(T, visual, i, false)));
-        const c = card3d(kind, visual, i, (parent, r, z) => {
-          const face = this.surface(parent, art, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
-          if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot);
-          return face;
-        });
+        const c = cardModel(this.art, T, kind, visual, i, (face, z) => { if (kind !== 'nic') this.chips?.face(face, kind, chipRect(kind, visual, i), z + 2, d.slot); });
         this.model(g, c);
         // standing until the camera says otherwise: the cables go round it standing
         c.pose(0);
@@ -504,13 +389,8 @@ export class Machine3D {
       }
       case 'tpm': {
         // the module on its header: a female connector over the pins, the module's PCB on it
-        const r = tpmRect(GEO.tier), h = tpmHeader(GEO.tier), art = h && this.baker(() => tpmArt(T, visual, h));
-        if (r && h && art) tpmModule(g, r, headerRect(h), (parent, rr, z0, z1, s, bevel = 0) => {
-          const top = this.raised(parent, art, rr, z0, z1, s, undefined, LV_RAISED, bevel);
-          // the module's lid: its die and its commands run on it (chips3d.ts)
-          if (rr === r) { this.chips?.face(top, 'tpm', r, z1 + 2, d.slot); this.rail(d.id, r, z1, DEVICE_LOD.tpm.lid); }
-          return top;
-        });
+        // (the module's lid: its die and its commands run on it, chips3d.ts)
+        tpmModel(g, this.art, T, visual, (top, r, z) => { this.chips?.face(top, 'tpm', r, z + 2, d.slot); this.rail(d.id, r, z, DEVICE_LOD.tpm.lid); });
         break;
       }
       case 'psu': {
@@ -523,14 +403,8 @@ export class Machine3D {
       }
       case 'storage': {
         const kind = driveKindOf(visual), b = driveBody(kind, d.slot);
-        const art = this.baker(() => {
-          const c = new Container(), live = new Graphics();
-          drawDriveLive(live, T, kind, d.slot, { spin: 0.4, head: 0.35, led: 0, burnt: false });
-          c.addChild(driveArt(T, kind, d.slot, spec.name, `${Math.round(((spec as { capacityBytes?: number }).capacityBytes ?? 0) / 1024)}K`), live);
-          return c;
-        });
         // an M.2 stick lies on its socket and standoff; a SATA drive is built at its 2D body and moved into its bay in the basement's cage
-        const raise: Raise = (parent, r, z0, z1, side, bevel = 0) => this.raised(parent, art, r, z0, z1, side, undefined, LV_RAISED, bevel);
+        const raise = driveRaise(this.art, T, kind, d.slot, spec.name, (spec as StorageSpec).capacityBytes);
         if (kind === 'ssd-nvme') { this.skin(d.id, nvmeStick(g, slotRect(d.slot), b, raise)); this.railOf(d.id, g, DEVICE_LOD.disk.fade[1]); break; }
         const bay = this.plan.bays[idx(d.slot)], drive = new Group();
         this.skin(d.id, sataDrive(drive, kind === 'hdd', b, 0, raise));
@@ -916,7 +790,7 @@ export class Machine3D {
       const p = LOD_AT.copy(at).project(cam), focus = r.anywhere ? 1 : p.z > 1 ? 0 : Math.max(0, 1 - Math.hypot(p.x, p.y) / 1.2);
       r.apply(seenZoom(screenPx(cam.position.distanceTo(at), cam.fov, H), focus));
     }
-    for (const s of this.surfaces) s.update(cam, this.frustum, H, dpr, now);
+    this.art.update(cam, this.frustum, H, dpr, now);
   }
 
   /**
@@ -956,8 +830,7 @@ export class Machine3D {
 
   /** Take it down: the meshes, the texture tiles, the bake jobs and the 2D art behind them. */
   dispose(): void {
-    for (const s of this.surfaces) s.dispose();
-    for (const b of this.bakers) b.dispose();
+    this.art.dispose();
     this.ramMap?.dispose();
     disposeTree(this.root);
   }
@@ -967,19 +840,6 @@ export class Machine3D {
 function chipRect(kind: 'gpu' | 'npu', visual: string, i: number): RectLike {
   const o = cardOrigin(i, visual);
   return kind === 'gpu' ? grow(moveRect(gpuPlan(visual).body, o), 40) : grow(moveRect(npuGeo(visual).die, o), 30);
-}
-
-/**
- * An AI card's face: the board's card with its die and every name and no lid (standing, the blower is the lid), as the 2D shows the card once its
- * lid has faded; the die runs over it (`Chips3D`).
- */
-function npuFace(T: Theme, visual: string, i: number): Container {
-  const root = cardArt(T, visual, i, true), geo = npuGeo(visual), o = cardOrigin(i, visual), die = new Container(), plate = new Graphics();
-  die.position.set(o.x + geo.origin.x, o.y + geo.origin.y);
-  npuFar(plate, T, geo.plan);
-  die.addChild(plate, npuNear(T, geo.plan).root);
-  root.addChild(die);
-  return root;
 }
 
 const LOD_AT = new Vector3(), LOD_DIR = new Vector3(), NEAREST = new Vector3();

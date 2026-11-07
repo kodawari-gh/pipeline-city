@@ -13,6 +13,12 @@ Part of the renderer docs; the hub is [`RENDER.md`](../RENDER.md). Code: `src/fe
 | `routes.ts` | orderly routing: bundles of parallel lanes (0/45/90 degrees) that **land on pins** (`land`, `bundleOn`: a bundle changes its lane pitch only on a 45 degree leg right before its pads), every board bus of the current tier (one straight memory bundle per DIMM, the VRM rails, the 8-pin comb), the hops, the PSU and video cables with their plugs |
 | `boardArt.ts` | static motherboard (plate, ground plane, thin traces under the mask, VRMs, connectors, rear I/O, sockets, a little quiet decoration); with `far`, the picture for the far textures |
 | `stitch.ts` | the ground stitching (pure geometry): small vias on a grid through the free plane, off the parts, the holes and every lane on any layer |
+| `three/boardmodel3d.ts` | the board in 3D (`boardModel`): one model for the case, Build my PC and the gallery. It returns the sockets (the case tags an empty one for picking), the small parts (shown only up close) and the lights |
+| `three/cpu3d.ts` | the CPU in 3D (`cpuModel`), one model everywhere, see CPU below |
+
+## CPU
+
+`cpuModel` (`three/cpu3d.ts`) builds the processor on its socket. The substrate wears `cpuArt` (the pad rows, the capacitor ring, the die's far floorplan); its capacitors stand up at `cpuCaps`, the rects the art draws. The die is a block of silicon; its top wears the die view's floorplan in the die's own frame, drawn at `CPU_S`, where the live die runs (`Chips3D.face`). The lid is satin nickel on a black sealant bead: plain and flat for tiers 0 and 1, a flange under a plateau from tier 2. A laser etching names the model, its cores and threads, a lot number and a matrix code (both from a hash of the spec id). The lid fades over the die view's band (`DEVICE_LOD.die`), as the 2D lid does. Its top stays at `CPU_Z.top`: the cooler's plate rests there.
 
 ## Routing
 

@@ -4,7 +4,7 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { effect, signal } from '@preact/signals';
-import { AmbientLight, Box3, BoxGeometry, CanvasTexture, SRGBColorSpace, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
+import { AmbientLight, Box3, Vector3, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
 import { effective, FrameGate } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
@@ -22,7 +22,8 @@ import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
 import { startBaker } from './bake';
-import { CASE as CASE_RECT, LAYOUT_CASE, LAYOUT_TIER, setLayoutTier } from '../layout/layout';
+import { Monitor } from '@/features/room/render/three/props3d';
+import { CASE as CASE_RECT, DESK_Y, LAYOUT_CASE, LAYOUT_TIER, MONITOR, SCREEN, setLayoutTier } from '../layout/layout';
 import { DOOR_SECONDS } from './casedoor';
 import { PSU_BODY, PSU_COVER } from './basement3d';
 import { motionFor, motionSeconds, poseAt } from './buildmotion';
@@ -159,33 +160,16 @@ export class BuildStage {
   }
 
   private monitor: Group | null = null;
-  /** A plain monitor on the stage when the machine has one (the room's own stands in the room): a stand, a bezel and a lit screen, tagged for the animation. */
+  /** The room's own monitor (`Monitor`, props3d.ts) on the stage when the machine has one, its screen on standby, tagged for the animation. */
   private syncMonitor(on: boolean): void {
     const { scene } = this.ctx;
-    if (this.monitor) { scene.remove(this.monitor); (this.monitor.userData.shot as CanvasTexture | undefined)?.dispose(); disposeTree(this.monitor); this.monitor = null; }
+    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor, true); this.monitor = null; }
     if (!on) return;
-    const g = tag(new Group(), 'monitor'), dark = new MeshStandardMaterial({ color: 0x14171e, roughness: 0.45, metalness: 0.5 });
-    const box = (w: number, h: number, d: number, m: MeshStandardMaterial, x: number, y: number, z: number) => { const o = new Mesh(new BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); };
-    // the screen shows a console: a title bar, a few lines and a prompt, so the panel reads as a working display and not as a blue slab
-    const cv = document.createElement('canvas');
-    cv.width = 1024; cv.height = 560;
-    const c = cv.getContext('2d')!;
-    c.fillStyle = '#07101e'; c.fillRect(0, 0, 1024, 560);
-    c.fillStyle = '#16345a'; c.fillRect(0, 0, 1024, 54);
-    c.fillStyle = '#9fd0ff'; c.font = '600 28px monospace'; c.fillText('pipeline-city  ::  console', 24, 37);
-    c.font = '26px monospace';
-    ['boot ........................ ok', 'memory check ................. ok', 'storage ...................... ok', 'network ...................... link up', 'cpu: running'].forEach((t, i) => { c.fillStyle = i === 4 ? '#8bffb0' : '#6aa6d8'; c.fillText(t, 24, 110 + i * 44); });
-    c.fillStyle = '#d7ecff'; c.fillText('> _', 24, 110 + 5 * 44 + 20);
-    c.strokeStyle = 'rgba(120,180,255,0.07)'; c.lineWidth = 1;
-    for (let y = 0; y < 560; y += 4) { c.beginPath(); c.moveTo(0, y); c.lineTo(1024, y); c.stroke(); }
-    const shot = new CanvasTexture(cv);
-    shot.colorSpace = SRGBColorSpace;
-    g.userData.shot = shot;
-    const screen = new MeshStandardMaterial({ color: 0x0b1626, emissive: 0xffffff, emissiveMap: shot, emissiveIntensity: 0.8, roughness: 0.2 });
-    box(2600, 140, 1500, dark, 0, 70, 0);
-    box(420, 1400, 260, dark, 0, 840, -200);
-    box(6200, 3500, 240, dark, 0, 2900, 0);
-    box(5900, 3200, 40, screen, 0, 2900, 130);
+    // (built where the room puts it, then moved so its foot's middle stands on the stage's origin, beside the case and turned to the camera)
+    const g = tag(new Group(), 'monitor'), m = new Monitor(MONITOR, SCREEN, DESK_Y, 0);
+    m.set({ installed: true, powered: true, live: false, text: '' }, 12);
+    m.root.position.set(-(MONITOR.x + MONITOR.w / 2), DESK_Y, 400);
+    g.add(m.root);
     g.position.set(CASE_RECT.x - 5200, -(CASE_RECT.y + CASE_RECT.h), BOARD_Z + 1800);
     g.rotation.y = 0.5;
     scene.add(g);

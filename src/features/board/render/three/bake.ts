@@ -8,9 +8,9 @@ import { initThumbs } from '../thumbs';
 let renderer: Renderer | null = null;
 let starting = false;
 
-/** Start the offscreen renderer (once). Bakes return null until it is ready. */
+/** Start the offscreen renderer (once). Bakes return null until it is ready (and always without a document: the tests in Node). */
 export function startBaker(): void {
-  if (renderer || starting) return;
+  if (renderer || starting || typeof document === 'undefined') return;
   starting = true;
   void autoDetectRenderer({ preference: 'webgl', width: 64, height: 64, backgroundAlpha: 0, antialias: true }).then((r) => {
     renderer = r;

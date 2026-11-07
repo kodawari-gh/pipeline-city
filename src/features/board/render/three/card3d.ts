@@ -5,14 +5,20 @@
 // PCB, the backplate over it) and stood up by a hinge along the slot. Up close (`pose`, the card's 2D band) the cooler, the backplate and the
 // bracket fade, then the card swings down flat and shows its exact 2D face; it stands up again on the way out.
 import { BoxGeometry, CylinderGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
-import { CARD_LEN, cardPlugs, cardRect, PLUG_BLOCK } from '@/core/render/accelart';
-import { fadeTree } from '@/core/render/three/artlod';
+import { Container, Graphics } from 'pixi.js';
+import { CARD_LEN, cardArt, cardOrigin, cardPlugs, cardRect, PLUG_BLOCK } from '@/core/render/accelart';
+import type { Theme } from '@/core/render/theme';
+import { FINISH, fadeTree } from '@/core/render/three/artlod';
 import { extrude, instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
 import { DEVICE_LOD, smooth } from '@/core/render/lod/lod';
 import { gpuFanCount } from '@/features/gpu/render/gpulayout';
+import { nicArt } from '@/features/network/render/net';
+import { npuFar, npuNear } from '@/features/npu/render/npuart';
+import { npuGeo } from '@/features/npu/render/npulayout';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { BD, NIC_BRACKET_X, NIC_LEN, PCIE_RAILS, nicRect, nicY } from '../layout/layout';
+import { LV_PART, LV_RAISED, type ArtSet } from './artset3d';
 import { glowMat, partFan, type Spin } from './fans3d';
 import { tex, wallX, type Span } from './casekit3d';
 
@@ -129,6 +135,33 @@ export function card3d(kind: CardKind, visual: string, slot: number, face: (pare
       art.visible = s > 0.02;
     },
   };
+}
+
+/**
+ * An AI card's face: the board's card with its die and every name and no lid (standing, the blower is the lid), as the 2D shows the card once its
+ * lid has faded; the die runs over it (`Chips3D`).
+ */
+function npuFace(T: Theme, visual: string, i: number): Container {
+  const root = cardArt(T, visual, i, true), geo = npuGeo(visual), o = cardOrigin(i, visual), die = new Container(), plate = new Graphics();
+  die.position.set(o.x + geo.origin.x, o.y + geo.origin.y);
+  npuFar(plate, T, geo.plan);
+  die.addChild(plate, npuNear(T, geo.plan).root);
+  root.addChild(die);
+  return root;
+}
+
+/**
+ * The card in its slot with its 2D face (`card3d`), one model for the case, Build my PC and the gallery: the GPU's face is the shop picture's art
+ * (the die with its floorplan), the NPU's its die without the lid (`npuFace`), the NIC's its board art. `onFace`: the face, at depth `z` (the
+ * machine runs the dies on it).
+ */
+export function cardModel(art: ArtSet, T: Theme, kind: CardKind, visual: string, slot: number, onFace?: (face: Object3D, z: number) => void): Card3D {
+  const b = art.baker(() => (kind === 'nic' ? nicArt(T, visual, slot) : kind === 'npu' ? npuFace(T, visual, slot) : cardArt(T, visual, slot, false)));
+  return card3d(kind, visual, slot, (parent, r, z) => {
+    const face = art.surface(parent, b.bake, r, z, kind === 'nic' ? LV_RAISED : LV_PART, kind === 'nic' ? FINISH.board : FINISH.card).root;
+    onFace?.(face, z);
+    return face;
+  });
 }
 
 /**

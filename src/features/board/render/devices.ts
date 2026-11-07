@@ -58,6 +58,14 @@ export function blades(g: Graphics, n: number, r0: number, r1: number, fill: str
 }
 
 // ---------------------------------------------------------------- CPU
+/** The package's decoupling capacitors, in a ring between the pad rows and the die (the 3D stands them up where the art draws them). */
+export function cpuCaps(): Rect[] {
+  const k = PKG, cin = 84, cout = 98, out: Rect[] = [];
+  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) for (const y of [k.y + cin, k.y + k.h - cout]) out.push({ x, y, w: 28, h: 14 });
+  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) for (const x of [k.x + cin, k.x + k.w - cout]) out.push({ x, y, w: 14, h: 28 });
+  return out;
+}
+
 export function cpuArt(T: Theme, spec: CpuSpec): Part {
   const root = new Container(), labels = new Container();
   const g = new Graphics();
@@ -73,13 +81,11 @@ export function cpuArt(T: Theme, spec: CpuSpec): Part {
   }
   g.fill({ color: T.pin, alpha: 0.85 });
   g.poly([k.x + 20, k.y + 20, k.x + 62, k.y + 20, k.x + 20, k.y + 62]).fill({ color: T.pin, alpha: 0.85 });
-  // decoupling capacitors in a ring between the pad rows and the die
-  const cin = 84, cout = 98;
-  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) for (const y of [k.y + cin, k.y + k.h - cout]) { g.rect(x, y, 28, 14); }
-  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) for (const x of [k.x + cin, k.x + k.w - cout]) { g.rect(x, y, 14, 28); }
+  // decoupling capacitors in a ring between the pad rows and the die, a pad at each end
+  const caps = cpuCaps();
+  for (const c of caps) g.rect(c.x, c.y, c.w, c.h);
   g.fill({ color: T.line });
-  for (let x = k.x + 110; x <= k.x + k.w - 110; x += 46) for (const y of [k.y + cin, k.y + k.h - cout]) { g.rect(x, y, 5, 14); g.rect(x + 23, y, 5, 14); }
-  for (let y = k.y + 110; y <= k.y + k.h - 110; y += 46) for (const x of [k.x + cin, k.x + k.w - cout]) { g.rect(x, y, 14, 5); g.rect(x, y + 23, 14, 5); }
+  for (const c of caps) if (c.w > c.h) { g.rect(c.x, c.y, 5, c.h); g.rect(c.x + c.w - 5, c.y, 5, c.h); } else { g.rect(c.x, c.y, c.w, 5); g.rect(c.x, c.y + c.h - 5, c.w, 5); }
   g.fill({ color: T.pin });
   // die
   box(g, d.x, d.y, d.w, d.h, 10, { fill: T.die, stroke: accent, lw: 3 });

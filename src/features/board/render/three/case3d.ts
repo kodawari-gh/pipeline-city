@@ -102,6 +102,17 @@ export function stripLight(m: MeshStandardMaterial, mode: StripMode, wall: numbe
 }
 const STRIP_T = builtinTheme(true);
 
+/** The light strips along the inside of the top and the front: RGB in the gaming case (the accent), a cold white in the showcase, none in the plain cases. */
+export function innerStrips(kind: CaseKind, cm: Pick<CaseModel, 'rgb' | 'accent'>): { roots: Mesh[]; spins: Spin[] } {
+  const roots: Mesh[] = [], spins: Spin[] = [], gl = CASE_GLASS;
+  if (cm.rgb) for (const r of [{ x: gl.x + 200, y: gl.y + 40, w: gl.w - 400, h: 50 }, { x: gl.x + gl.w - 90, y: gl.y + 300, w: 50, h: gl.h - 600 }]) {
+    const m = glowMat(cm.accent);
+    roots.push(seeThrough(rectBox(r, FRONT - 400, FRONT - 340, m)));
+    spins.push(kind === 'show' ? light(m, 0x9fd8ff, 2) : light(m));
+  }
+  return { roots, spins };
+}
+
 // ---------------------------------------------------------------- the case
 
 /** The opening in the top over the top fans (layout x and depth), or null: the case has none there. */
