@@ -39,6 +39,7 @@ function Dialogue({ text, onEnd }: { text: string; onEnd?: (atEnd: boolean) => v
         <span>{cur.slice(0, n)}</span><span class="dlg-rest">{cur.slice(n)}</span>
       </span>
       <span class={`dlg-arrow ${done ? (more ? 'more' : 'end') : ''}`} aria-hidden="true" />
+      {done && more && <span class="dlg-next" aria-hidden="true">Click to continue</span>}
     </button>
   );
 }
