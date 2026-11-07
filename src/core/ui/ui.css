@@ -12,7 +12,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #04060f; --board: #081628; --trace: #1e4270; --sub: #0d1636; --die: #111b46; --pin: #d4af5f;
-  --tile: #18245c; --ink: #e2eaff; --mute: #8fa0cc; --line: #2a366a; --dot: #18214a;
+  --tile: #18245c; --ink: #e2eaff; --mute: #a6b4da; --line: #2a366a; --dot: #18214a;
   --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
   --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
   --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
@@ -22,7 +22,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #04060f; --board: #081628; --trace: #1e4270; --sub: #0d1636; --die: #111b46; --pin: #d4af5f;
-    --tile: #18245c; --ink: #e2eaff; --mute: #8fa0cc; --line: #2a366a; --dot: #18214a;
+    --tile: #18245c; --ink: #e2eaff; --mute: #a6b4da; --line: #2a366a; --dot: #18214a;
     --alu: #3be3ff; --mul: #a68bff; --ld: #ffc247; --st: #6dffa6; --br: #ff55dc; --on: #08102a;
     --accent: #3be3ff; --ok: #6dffa6; --warn: #ffc247; --bad: #ff5a78;
     --panel: rgba(8, 12, 30, .52); --glass-line: rgba(150, 170, 255, .16); --glass-hi: rgba(255, 255, 255, .05);
@@ -63,7 +63,7 @@ button.link { border: 0; padding: 1px 0.2rem; color: var(--accent); font-weight:
 button.bad { border-color: var(--bad); color: var(--bad); }
 .ico { flex: none; display: inline-block; vertical-align: -0.133rem; }
 .mute, .sub { color: var(--mute); }
-.sub { font-size: 0.733rem; }
+.sub { font-size: 0.8rem; }
 .row { display: flex; align-items: center; gap: 0.4rem; }
 .grow { flex: 1; }
 .value, .time { font-family: var(--mono); font-weight: 700; }
@@ -85,7 +85,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .speedctl .speeds > button:not(.on) { display: none; }
 .speedctl:hover .speeds > button, .speedctl:focus-within .speeds > button, .speedctl.open .speeds > button { display: inline-block; animation: fade-in .15s ease both; }
 .hud-center { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
-@media (max-width: 62em) { .hud-center { top: calc(var(--bar-h, 2.667rem) + 0.533rem); } }
+@media (max-width: 82em) { .hud-center { top: calc(var(--bar-h, 2.667rem) + 0.533rem); } }
 .money { font: 700 1.133rem var(--mono); color: var(--accent); letter-spacing: .01em; }
 .stat { display: inline-flex; align-items: center; gap: 0.267rem; white-space: nowrap; }
 .stat .label { font-size: 0.633rem; text-transform: uppercase; letter-spacing: .09em; color: var(--mute); }
@@ -112,6 +112,7 @@ button.bad { border-color: var(--bad); color: var(--bad); }
 .scale-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.45rem; font-size: 0.75rem; }
 .scale-row input { flex: 1; min-width: 5rem; accent-color: var(--accent); }
 .scale-row .value { min-width: 2.6rem; text-align: right; }
+.menu-h { font: 600 0.633rem var(--ui); text-transform: uppercase; letter-spacing: .09em; color: var(--mute); padding: 0.4rem 0.467rem 0.133rem; }
 .menu-pop hr { width: 100%; border: 0; border-top: 1px solid var(--glass-line); margin: 0.2rem 0; }
 .invbtn { position: relative; padding: 0.2rem 0.533rem; }
 .invbtn .count { font: 700 0.7rem var(--mono); padding: 0 0.333rem; min-width: 1.067rem; text-align: center; border-radius: 99rem; background: var(--accent); color: var(--on); line-height: 1rem; }
@@ -828,6 +829,9 @@ button.buy { padding: 0.133rem 0.4rem; font: 700 0.7rem var(--mono); }
 .shop { background: var(--bg); backdrop-filter: none; display: flex; flex-direction: column; overflow: hidden; width: min(100%, 64rem); height: min(100%, 44rem); padding: 0.8rem 0.9rem; gap: 0.6rem; animation: pop-in .25s ease both; }
 .shop-head { position: relative; display: flex; align-items: center; gap: 0.7rem; padding-right: 2rem; flex-wrap: wrap; }
 .shop-head .close { position: absolute; right: 0; top: 0; border: 0; padding: 0.2rem 0.33rem; line-height: 0; }
+.shop-chips { flex: 1 0 100%; gap: 0.25rem; }
+.inv-chips button.ic { line-height: 1.2; display: inline-flex; align-items: center; gap: 0.25rem; }
+.inv-chips button.ic span { font-size: 0.667rem; }
 .shop-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; font-size: 1rem; }
 .shop-body { display: flex; gap: 0.9rem; min-height: 0; flex: 1; }
 .shop-list { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.9rem; scrollbar-width: thin; padding-right: 0.3rem; }

@@ -223,11 +223,19 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
       </button>
       {open && (
         <div class="card menu-pop" role="menu">
+          <div class="menu-h">Tools</div>
           <button role="menuitem" onClick={() => { toggleStats(); close(); }}><Icon name="stats" size={13} /> {statsOpen.value ? 'Hide stats' : 'Stats'}</button>
-          <button role="menuitem" onClick={() => { toggleOs(); close(); }} title="Resource monitor, job queue and apps of the operating system"><Icon name="layers" size={13} /> {osOpen.value ? 'Hide OS' : 'OS'}</button>
           <button role="menuitem" onClick={() => { toggleTrace(); close(); }} title="Watch what the CPU and the OS do, event by event, and step the paused machine"><Icon name="wave" size={13} /> {traceOpen.value ? 'Hide trace' : 'Trace'}</button>
           <button role="menuitem" onClick={() => { openMilestones(); close(); }} title="All the levels and what they unlock"><Icon name="gauge" size={13} /> Levels</button>
+          <div class="menu-h">View</div>
           <button role="menuitem" onClick={() => { toggleGraphics(); close(); }} title="Presets and detailed settings for the picture"><Icon name="screen" size={13} /> {graphicsOpen.value ? 'Hide graphics' : 'Graphics'}</button>
+          <label class="scale-row" title="Make the whole interface smaller or larger">
+            <span>UI size</span>
+            <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
+              onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
+            <b class="value">{Math.round(uiScale.value * 100)}%</b>
+          </label>
+          <div class="menu-h">Game</div>
           <button role="menuitem" onClick={() => { exportSave(); close(); }} title="Download your game as a file"><Icon name="export" size={13} /> Export game</button>
           <label class="menuitem" title="Load a game file">
             <Icon name="import" size={13} /> Import game
@@ -241,13 +249,6 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
               }}
             />
           </label>
-          <label class="scale-row" title="Make the whole interface smaller or larger">
-            <span>UI size</span>
-            <input type="range" min={UI_SCALE_MIN} max={UI_SCALE_MAX} step={0.05} value={uiScale.value} aria-label="UI size"
-              onInput={(e) => setUiScale(Number(e.currentTarget.value))} />
-            <b class="value">{Math.round(uiScale.value * 100)}%</b>
-          </label>
-          <hr />
           <button role="menuitem" onClick={() => { replayTutorial(s); close(); }}>Replay tutorial</button>
           {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }}>Skip tutorial</button>}
           <button role="menuitem" onClick={() => { resetHints(); close(); }}>Show hints again</button>

@@ -32,12 +32,12 @@ export function Shop({ s }: { s: Snapshot }) {
         <header class="shop-head">
           <span class="shop-title"><Icon name="shop" size={16} /> Shop</span>
           <span class="chip" title="Your money"><Icon name="dollar" size={12} /> {s.sandbox ? 'free' : fmtMoney(s.money)}</span>
-          <span class="inv-chips" role="group" aria-label="Category">
+          <span class="inv-chips shop-chips" role="group" aria-label="Category">
             <button class={!kind ? 'on' : ''} aria-pressed={!kind} title="Everything" onClick={() => { setKind(null); setPicked(null); }}>All</button>
             {all.map((x) => (
               <button key={x.kind} class={`ic ${kind === x.kind ? 'on' : ''}`} aria-pressed={kind === x.kind} aria-label={x.label} title={x.label}
                 onClick={() => { setKind(kind === x.kind ? null : x.kind); setPicked(null); }}>
-                <Icon name={x.icon} size={14} />
+                <Icon name={x.icon} size={12} /> <span>{x.label}</span>
               </button>
             ))}
           </span>

@@ -1232,7 +1232,9 @@ export async function mountBoard(host: HTMLElement) {
   interact.onHeld = (k) => { held = k; if (lastSnap || k === null) syncCables(lastSnap, true); };
   interact.onLanHeld = (h) => { lanHeld = h; syncNet(lastSnap, true); };
   interact.onCordHeld = (kind, at) => { cordHeld = at ? { kind, at } : null; syncCords(lastSnap, true); };
+  let hoverPt: { x: number; y: number } | null = null; // the resting pointer: the view moving under it must re-pick (a flight left a stale tooltip)
   camera.onHover = (p) => {
+    hoverPt = p;
     if (interact.busy) { if (hover.peek()) hover.value = null; return; }
     if (!p) { if (hover.peek()) hover.value = null; interact.setHover(null); return; }
     const hit = hitAt(p.x, p.y);
@@ -1434,7 +1436,10 @@ export async function mountBoard(host: HTMLElement) {
     // anchors: one cameraRev bump per frame, and only when the view (incl. canvas offset and inset as drawn) or the layout changed
     const fr = camera.freeRect();
     const vk = [camera.x, camera.y, camera.z, camera.cx, camera.cy, camera.w, camera.h, fr.x, fr.y, fr.w, fr.h, exteriorCover > 0.5].join('|');
-    if (sceneDirty || vk !== lastViewKey) { sceneDirty = false; lastViewKey = vk; cameraRev.value += 1; }
+    if (sceneDirty || vk !== lastViewKey) {
+      sceneDirty = false; lastViewKey = vk; cameraRev.value += 1;
+      if (hoverPt) camera.onHover(hoverPt);
+    }
     meter.tick(now, app.canvas.width, app.canvas.height);
   });
 

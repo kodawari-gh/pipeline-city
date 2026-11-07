@@ -655,6 +655,7 @@ export class Interact {
     const s = this.snap();
 
     // ---- hover amounts (lift, scale, outline) ----
+    const hoverCol = this.T.dark ? '#eef3ff' : '#0f1830'; // neutral: cyan is selection, yellow is the tutorial target
     const k = 1 - Math.exp(-dt * 14);
     const ids = new Set<string>([...this.amt.keys()]);
     if (this.hoverId) ids.add(this.hoverId);
@@ -670,10 +671,10 @@ export class Interact {
         const r = this.scene.rects.get(id) ?? o?.rect, e = 5 + 7 * a, lift = o ? 10 * a : 0;
         // one thin outline, no halo: hovering only hints, it must not shout. A thing with a silhouette is traced; the rest get a box round the rect
         const trace = this.scene.shapes.get(id)?.outline(Math.max(e, lw * 0.9));
-        if (trace) for (const poly of trace) { g.poly(poly.flatMap(([x, y]) => [x, y - lift]), true).stroke({ width: lw, color: T.alu, alpha: 0.55 * a, join: 'round' }); }
+        if (trace) for (const poly of trace) { g.poly(poly.flatMap(([x, y]) => [x, y - lift]), true).stroke({ width: lw, color: hoverCol, alpha: 0.8 * a, join: 'round' }); }
         else if (r) {
           const rr = e; // a rectangle grown by e has corners of radius e: the true offset, so the ring hugs the edge
-          box(g, r.x - e, r.y - e - lift, r.w + 2 * e, r.h + 2 * e, rr, { stroke: T.alu, lw, sa: 0.55 * a });
+          box(g, r.x - e, r.y - e - lift, r.w + 2 * e, r.h + 2 * e, rr, { stroke: hoverCol, lw, sa: 0.8 * a });
         }
       }
     }
