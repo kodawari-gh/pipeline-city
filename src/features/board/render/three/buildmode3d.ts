@@ -4,13 +4,13 @@
 // every part that stands in the way (in the graph's order), does the job, then puts those parts back in reverse order.
 // The case's shell and the board are one piece here: swapping either plays the whole machine lifting away (the parts in it come out first).
 import { signal } from '@preact/signals';
-import { AmbientLight, CircleGeometry, Color, DirectionalLight, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
+import { AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, MeshStandardMaterial, PointLight, type Object3D } from 'three';
 import { effective } from '@/app/graphics';
 import { BakeQueue } from '@/core/render/three/artlod';
 import { applyView, fitRect, heightAt, orbitBy, panBy, settled, stepView, zoomAt, type OrbitView } from '@/core/render/three/camera';
 import { disposeTree } from '@/core/render/three/geometry';
 import { BASE_EXPOSURE, createRenderContext } from '@/core/render/three/init';
-import { findById } from '@/core/render/three/pick';
+import { findById, tag } from '@/core/render/three/pick';
 import { Post } from '@/core/render/three/post';
 import { roomGeo } from '@/features/room/render/shell/room';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -18,7 +18,7 @@ import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { accessBlockers, buildGraph, BOARD, CASE, cableNode, devNode, isCableNode, isDevNode, nodeKind, removalPlan, removalPlanAll, SIDE } from '@/features/board/sim/removal';
 import { boardSlots, deviceSpec, freeSlots, slotAccepts, slotFitsWidth, type Board } from '@/features/board/sim/board';
 import { cableBlocked, cableNeeded, cablesOf, type Cables } from '@/features/board/sim/cables';
-import { BOARD_TIERS, CASE_TIERS, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
+import { BOARD_TIERS, CASE_TIERS, caseMounts, getSpec, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import type { Snapshot } from '@/worker/protocol';
 import type { Game } from '@/worker/game/game';
 import { startBaker } from './bake';
@@ -117,6 +117,7 @@ export class BuildStage {
     const s = new BuildStage(host);
     s.game = new Game({ seed: 1, sandbox: true, preassembled: true, maxed: true });
     s.rebuild();
+    if (import.meta.env.DEV) (window as unknown as { __build?: BuildStage }).__build = s;
     s.last = performance.now();
     s.raf = requestAnimationFrame(s.frame);
     return s;
@@ -141,9 +142,29 @@ export class BuildStage {
     this.machine = new Machine3D(s, roomGeo(), this.bakes, null);
     scene.add(this.machine.root);
     this.stage(caseTier);
+    this.syncMonitor(s.devices.some((d) => d.kind === 'display'));
     if (refit) this.view = this.goal = this.frameView();
     const st = this.status.peek();
     this.status.value = { ...st, rev: st.rev + 1 };
+  }
+
+  private monitor: Group | null = null;
+  /** A plain monitor on the stage when the machine has one (the room's own stands in the room): a stand, a bezel and a lit screen, tagged for the animation. */
+  private syncMonitor(on: boolean): void {
+    const { scene } = this.ctx;
+    if (this.monitor) { scene.remove(this.monitor); disposeTree(this.monitor); this.monitor = null; }
+    if (!on) return;
+    const g = tag(new Group(), 'monitor'), dark = new MeshStandardMaterial({ color: 0x14171e, roughness: 0.45, metalness: 0.5 });
+    const box = (w: number, h: number, d: number, m: MeshStandardMaterial, x: number, y: number, z: number) => { const o = new Mesh(new BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); };
+    const screen = new MeshStandardMaterial({ color: 0x0b1626, emissive: 0x16345a, emissiveIntensity: 0.9, roughness: 0.2 });
+    box(2600, 140, 1500, dark, 0, 70, 0);
+    box(420, 1400, 260, dark, 0, 840, -200);
+    box(6200, 3500, 240, dark, 0, 2900, 0);
+    box(5900, 3200, 40, screen, 0, 2900, 130);
+    g.position.set(CASE_RECT.x - 5200, -(CASE_RECT.y + CASE_RECT.h), BOARD_Z + 1800);
+    g.rotation.y = 0.5;
+    scene.add(g);
+    this.monitor = g;
   }
 
   private floor: Mesh | null = null;
@@ -235,14 +256,20 @@ export class BuildStage {
 
   resetView(): void { this.goal = this.frameView(); }
 
+  /** Dev and checks: put the camera exactly here (the flicker check nudges it a pixel at a time). */
+  jump(v: Partial<OrbitView>): void { this.view = this.goal = { ...this.view, ...v }; }
+  get orbit(): OrbitView { return this.view; }
+
   // ------------------------------------------------------------------ the steps
   /** The scene object that stands for a node, or null (the monitor stands in the room, not in the machine). */
   private objectOf(node: string): Object3D | null {
     const root = this.machine.root;
     if (isCableNode(node)) return findById(root, 'cable.' + node.slice(6));
+    if (node.startsWith('fan:')) return findById(root, 'case:' + node.slice(4));
     if (isDevNode(node)) {
       const d = this.board.devices.find((x) => devNode(x.id) === node);
       if (!d) return null;
+      if (deviceSpec(d).kind === 'display') return this.monitor;
       return findById(root, d.id) ?? (deviceSpec(d).kind === 'psu' ? findById(root, 'psu') : null);
     }
     return null;
@@ -377,6 +404,24 @@ export class BuildStage {
       }
       for (const u of undo.reverse()) await this.putBack(u);
       await this.plugNeeded();
+    });
+  }
+
+  /** The case fans that can be swapped (the mounts a radiator covers have none). */
+  fanMounts(): string[] { return caseMounts(this.board.caseTier).filter((m) => !!findById(this.machine.root, 'case:' + m)); }
+
+  /** Swap a case fan: unplug its cable, unscrew and lift it out, put it back, plug it in. */
+  serviceFan(mount: string): Promise<void> {
+    return this.job(async () => {
+      const id = `fan:${mount}`, plugged = !!this.cables[id];
+      await this.door(true);
+      this.note(`Unplug the fan cable (${mount})`);
+      if (plugged) { await this.play(cableNode(id), 'cable', 'out'); this.game.disconnectCable(id); this.rebuild(); }
+      this.note(`Take out the fan (${mount})`);
+      await this.play('fan:' + mount, 'fan', 'out');
+      this.note(`Put the fan back (${mount})`);
+      await this.play('fan:' + mount, 'fan', 'in');
+      if (plugged) { this.game.connectCable(id); this.rebuild(); await this.play(cableNode(id), 'cable', 'in'); this.note(`Plug in the fan cable (${mount})`); }
     });
   }
 

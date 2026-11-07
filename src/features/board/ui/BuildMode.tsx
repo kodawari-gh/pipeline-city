@@ -89,6 +89,9 @@ export function BuildMode() {
             </li>
           ))}
           {devices.length === 0 && <li class="mute">Nothing fitted yet.</li>}
+          {(stage?.fanMounts() ?? []).map((m) => (
+            <li key={m}><span class="bld-name">Case fan<span class="mute"> {m}</span></span><button disabled={busy} title="Unplug, lift out and put back" onClick={() => stage?.serviceFan(m)}>Swap</button></li>
+          ))}
         </ul>
         <div class="bld-h bld-h2">What was done</div>
         <ol class="bld-log">{(st?.log ?? []).slice(-12).map((l, i) => <li key={i}>{l}</li>)}</ol>

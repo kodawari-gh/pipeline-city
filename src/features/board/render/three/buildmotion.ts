@@ -45,7 +45,8 @@ const MOTIONS: Record<string, Motion> = {
   'vrm-sink': { keys: [hold(0.4, 'Undo the push pins', 'Press the push pins in'), k([0, 0, 260], 0.45, 'Lift the heat sink off', 'Press the heat sink on'), k([0, 0, 2400], 0.65, 'Take the heat sink away', 'Bring the heat sink over the VRM')] },
   'ram-sink': { keys: [hold(0.4, 'Undo the push pins', 'Press the push pins in'), k([0, 0, 260], 0.45, 'Lift the heat sink off', 'Press the heat sink on'), k([0, 0, 2400], 0.65, 'Take the heat sink away', 'Bring the heat sink over the VRM')] },
   psu: { keys: [hold(0.5, 'Undo the four rear screws', 'Tighten the four rear screws'), k([700, 0, 0], 0.7, 'Slide the supply toward the cage', 'Slide the supply into its corner'), k([700, 0, 2800], 0.9, 'Lift the supply out of the case', 'Lower the supply into the case')] },
-  display: { keys: [k([0, 0, 1500], 0.8, 'Lift the monitor off its stand', 'Set the monitor on its stand')] },
+  fan: { keys: [hold(0.4, 'Undo the four fan screws', 'Tighten the four fan screws'), k([0, 0, 420], 0.5, 'Pull the fan off its mount', 'Press the fan onto its mount'), k([0, 0, 3000], 0.8, 'Lift the fan away', 'Bring the fan over its mount')] },
+  display: { keys: [hold(0.3, 'Switch the monitor off', 'Switch the monitor on'), k([0, 600, 0], 0.5, 'Lift the monitor off the desk', 'Set the monitor on the desk'), k([0, 600, 3400], 0.9, 'Carry the monitor away', 'Bring the monitor over the desk')] },
   board: { keys: [hold(0.6, 'Undo the nine board screws', 'Tighten the nine board screws'), k([0, 0, 800], 0.8, 'Lift the board off its standoffs', 'Lower the board onto its standoffs'), k([0, 0, 4200], 1.0, 'Take the board away', 'Bring the board over the tray')] },
   case: { keys: [k([0, 0, 0], 0.4, 'Set the case aside', 'Set the case down'), k([0, 0, 5200], 1.1, 'Take the case away', 'Bring the case over the desk')] },
 };

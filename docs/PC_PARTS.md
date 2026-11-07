@@ -23,8 +23,8 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | TPM module | `tpm1..2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
 | VRM heat sinks | `vsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
 | RAM VRM heat sinks | `rsink0..2` | `machine3d.ts` | [~] | [x] | [x] | [x] |
-| Monitor | `display0..1` | `room3d` props | [~] | [x] | [x] | [ ] stands in the room, not on the stage |
-| Case fans | per case | `fans3d.ts` | [~] | [x] | [ ] | [ ] stay with the case |
+| Monitor | `display0..1` | stage proxy in `buildmode3d.ts` | [~] | [x] | [x] | [x] lifts off its desk spot, cables first |
+| Case fans | per case | `fans3d.ts` | [~] | [x] | [x] fan cable first | [x] "Swap" in the machine list |
 | Chipset, battery, VRM chokes | board | `parts3d.ts`, `solids3d.ts` | [~] | n/a | n/a | n/a (soldered) |
 
 ## Cables (graph nodes `cable:<id>`)
@@ -41,9 +41,9 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 ## Known visual defects
 
-- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Checked only by reading the shots: a still cannot show flicker, so watch the Mid and Full cases in motion.
+- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Measured (2026-11-07, dev server, Full case, front view with the hex grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): 12.93 % before, 10.72 % after; views with no grille are equal (0.637 and 1.965 %). The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
 - [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
-- [ ] Second pass per part: the NIC and AI card faces, the TPM, the HDD and SATA SSD in the cage, the Micro and Mini cases with a part lifted.
+- [x] Second pass (same day): the NPU over the NIC (it covers the next slot, as `COVERS` says), the TPM header, the HDD in the cage (platter, SATA sockets), the Mini case with its panel open and a CPU and stick fitted. No defect found; the Mini's panel swings where the 3D notes say it slides (a motion difference, not a fit one).
 
 ## Build my PC mode
 
@@ -53,5 +53,5 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 - Fit: pick a part from the bin, press Fit. Blocks come out, the part goes in, the blocks go back.
 - Animation per kind: `render/three/buildmotion.ts` (keyframes, out and in: fitting plays the removal backwards with its own wording).
 - Rules from the game stay in force: a cooler cannot go back without its CPU, a part needs a free socket that fits, the PSU must carry the load. A refusal shows in "What was done".
-- Limits: the monitor and the case fans do not animate; a board or case swap lifts the whole machine as one piece (the parts come out one by one first).
+- Limits: the stage monitor is a plain stand-in for the room's; a board or case swap lifts the whole machine as one piece (the parts come out one by one first).
 - Tests: `sim/removal.test.ts` (graph), `sim/removal.game.test.ts` (plans run on the real game), `render/three/fit.test.ts` (rules vs geometry), `render/three/buildmotion.test.ts`.
