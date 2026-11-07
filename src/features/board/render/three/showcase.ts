@@ -5,7 +5,7 @@ import { Box3, Group, Mesh, Path, Shape, Vector3, type Material, type Object3D }
 import { readTheme, type Theme } from '@/core/render/theme';
 import { extrude, place, rectBox, softBox } from '@/core/render/three/geometry';
 import { mat } from '@/core/render/three/materials';
-import { getSpec, specsOfKind, type CardSpec, type FanSpec, type NicSpec, type PsuSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
+import { BOARD_TIERS, getSpec, specsOfKind, type CardSpec, type FanSpec, type NicSpec, type PsuSpec, type RamSpec, type StorageSpec } from '@/features/board/sim/specs';
 import { headerRect, tpmHeader, tpmRect } from '@/core/render/accelart';
 import { Monitor } from '@/features/room/render/three/props3d';
 import { CASE_KIND } from '@/features/room/render/shell/casedecor';
@@ -13,6 +13,7 @@ import { driveBody, driveKindOf, slotRect } from '@/features/storage/render/driv
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
 import { DESK_Y, DIE, FAN_W, GEO, LAYOUT_CASE, LAYOUT_TIER, MONITOR, PKG, SCREEN, fanLen, setLayoutTier } from '../layout/layout';
 import { kitFit, radiatorGrade } from '../cooler';
+import { boardModel } from './boardmodel3d';
 import { card3d } from './card3d';
 import { basementPlan, cage, psuUnit, shroud } from './basement3d';
 import { caseModel } from './case3d';
@@ -90,7 +91,7 @@ function cpuModel(): Group {
   return g;
 }
 
-const CASE_ID = /^case(\d)$/;
+const CASE_ID = /^case(\d)$/, BOARD_ID = /^board(\d)$/;
 
 
 /** The showcase model of a shop item, or null where there is none (a kind without a 3D builder). */
@@ -106,6 +107,8 @@ export function buildShowcaseModel(specId: string, T: Theme = readTheme()): Obje
       return g;
     }, tier));
   }
+  const b = BOARD_ID.exec(specId);
+  if (b) return Number(b[1]) < BOARD_TIERS.length ? upright(withLayout(() => boardModel(T, Number(b[1])), Number(b[1]))) : null;
   const spec = getSpec(specId);
   if (!spec) return null;
   switch (spec.kind) {

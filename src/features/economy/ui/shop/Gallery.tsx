@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { CASE_TIERS, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
+import { BOARD_TIERS, CASE_TIERS, specsOfKind, type DeviceKind } from '@/features/board/sim/specs';
 import { galleryOpen } from '@/core/ui/state';
 import { Icon } from '@/core/ui/kit/Icons';
 import { Showcase } from './Showcase';
@@ -17,6 +17,7 @@ const KINDS: DeviceKind[] = ['cpu', 'cooler', 'fan', 'radiator', 'ram', 'psu', '
 /** Every part the showcase can build, by category (cases first, as the shop lists them). */
 function groups(): Group[] {
   const out: Group[] = [{ key: 'case', kind: 'case', items: CASE_TIERS.map((c) => ({ id: `case${c.tier}`, name: c.name, note: `${c.form} case` })) }];
+  out.push({ key: 'board', kind: 'board', items: BOARD_TIERS.map((b) => ({ id: `board${b.tier}`, name: b.name, note: 'motherboard' })) });
   for (const k of KINDS) out.push({ key: k, kind: k, items: specsOfKind(k).map((s) => ({ id: s.id, name: s.name, note: `tier ${s.tier}` })) });
   return out.filter((g) => g.items.length > 0);
 }
