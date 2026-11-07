@@ -603,6 +603,7 @@ export async function mountBoard3d(host: HTMLElement): Promise<void> {
     fx.frame(s, dt * worldPace(speed.peek()));
     if (room) lens.frame(camera, H, s, room.geo, dt * worldPace(speed.peek()), ratio);
     boardLive.frame(camera, H, s, gt, dt * pace, speed.peek() <= 0, ratio, !!machine);
+    room?.setScreenImage(boardLive.screen);
     bakes.run(6);
     const display = !!s?.devices.some((d) => d.kind === 'display'), hour = roomDebug.hour ?? hourAt(gt);
     room?.frame({ hour, lamp: roomState.lamp, blind: roomState.blind, screen: { installed: display, powered: !!s?.monitorPowered, live: !!s?.monitorLive && !!s.monitorPowered && !!s.powered && !!s.display, text: s?.display ?? '' }, router: s ? Number(/\d+$/.exec(s.net?.router?.id ?? '')?.[0] ?? 0) : 1, t: gt / 1000 }, dt);

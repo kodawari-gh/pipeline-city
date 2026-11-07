@@ -816,6 +816,9 @@ export class Room3D {
     this.known = new Set(tray.map((k) => k.id));
   }
 
+  /** The monitor's screen as the 2D game's `Live` draws it, or null for the plain picture (props3d.ts `Monitor.useLive`). */
+  setScreenImage(img: { canvas: HTMLCanvasElement; w: number; h: number } | null): void { this.monitor.useLive(img); }
+
   frame(f: RoomFrame, dt: number): void {
     // the mail, on the game's clock (it stops with the pause)
     const stage = mailStage();

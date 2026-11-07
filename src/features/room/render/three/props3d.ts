@@ -71,6 +71,8 @@ export class Monitor {
   private canvas: HTMLCanvasElement | null = null;
   private tex: Texture | null = null;
   private key = '';
+  private faceMat: MeshBasicMaterial | null = null;
+  private liveTex: Texture | null = null;
   private led = mat(0x111111, { emissive: new Color(0x4cff8a), emissiveIntensity: 0 });
   /**
    * The bias light: a cyan strip round the back's edge (`NEON_WASH`), as one area light the back's size facing the wall (its east end over the
@@ -107,6 +109,7 @@ export class Monitor {
       this.tex.anisotropy = anisotropy;
     }
     const face = new Mesh(new BoxGeometry(screen.w, screen.h, 4), Object.assign(new MeshBasicMaterial({ map: this.tex, toneMapped: false }), { defines: { ...DECODE_SRGB } }));
+    this.faceMat = face.material as MeshBasicMaterial;
     face.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 182);
     // the panel's glass: no colour of its own, only what it mirrors (the window, the lamp, the room), added over the picture. The lights'
     // own glints are left out: the screen's light stands just in front of it and would shine back as a white spot in its middle
@@ -115,6 +118,21 @@ export class Monitor {
     const glass = new Mesh(new PlaneGeometry(screen.w, screen.h), glassM);
     glass.position.set(screen.x + screen.w / 2, -(screen.y + screen.h / 2), z0 + 186);
     R.add(face, seeThrough(glass));
+  }
+
+  /**
+   * The screen drawn by the 2D game's own `Live` (boardlive3d.ts: the text rows, the OS rows, the dashboard of the graphics display, what a GPU
+   * draws, the boot and no-signal screens) in place of the plain picture; null brings that back. `w` x `h` is the drawn part of `canvas`.
+   */
+  useLive(img: { canvas: HTMLCanvasElement; w: number; h: number } | null): void {
+    const m = this.faceMat;
+    if (!m) return;
+    if (!img) { if (m.map !== this.tex) { m.map = this.tex; m.needsUpdate = true; } return; }
+    if (!this.liveTex || this.liveTex.image !== img.canvas) { this.liveTex?.dispose(); this.liveTex = rawSrgb(img.canvas); this.liveTex.anisotropy = this.tex?.anisotropy ?? 1; }
+    this.liveTex.repeat.set(img.w / img.canvas.width, img.h / img.canvas.height);
+    this.liveTex.offset.set(0, 1 - img.h / img.canvas.height);
+    this.liveTex.needsUpdate = true;
+    if (m.map !== this.liveTex) { m.map = this.liveTex; m.needsUpdate = true; }
   }
 
   set(s: Screen, hour: number): void {

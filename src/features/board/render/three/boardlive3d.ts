@@ -10,7 +10,8 @@ import { Live } from '@/core/render/live';
 import { DECODE_SRGB, rawSrgb } from '@/core/render/three/artlod';
 import { seeThrough } from '@/core/render/three/pick';
 import { BOARD_Z } from '@/features/room/render/three/roomplan';
-import { BD, LAYOUT_CASE, LAYOUT_TIER } from '../layout/layout';
+import { getSpec } from '@/features/board/sim/specs';
+import { BD, LAYOUT_CASE, LAYOUT_TIER, SCREEN } from '../layout/layout';
 import { buildBuses } from '../wiring/routes';
 import { bakeRenderer, drawLive } from './bake';
 import { liveCrop, livePx, viewOn } from './chips3d';
@@ -43,7 +44,8 @@ export class BoardLive3D {
     if (!r) return;
     this.live ??= new Live(r, this.T.dark);
     const dimms = s.devices.filter((d) => d.kind === 'ram').map((d) => idx(d.slot));
-    this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: s.devices.some((d) => d.kind === 'display'), gfx: false });
+    const disp = s.devices.find((d) => d.kind === 'display');
+    this.live.setScene(this.T, [], buildBuses(), [], [], [], dimms, { psu: s.devices.some((d) => d.kind === 'psu'), display: !!disp, gfx: !!(getSpec(disp?.spec ?? '') as { graphics?: boolean } | undefined)?.graphics });
     this.live.setConnected(new Set(s.cables.filter((c) => c.connected).map((c) => c.id)) as never);
     this.sceneKey = this.keyOf(s);
   }
@@ -52,7 +54,7 @@ export class BoardLive3D {
 
   /** Per frame (after the camera): advance the board's animation and draw it over the part of the board in view. `gt` the game clock (ms), `gdt` its step (s). */
   frame(cam: PerspectiveCamera, H: number, s: Snapshot | null, gt: number, gdt: number, paused: boolean, dpr: number, on: boolean): void {
-    if (!s || !on) { this.mesh.visible = false; return; }
+    if (!s || !on) { this.mesh.visible = false; this.screen = null; return; }
     if (!this.live || this.sceneKey !== this.keyOf(s)) this.build(s);
     const live = this.live;
     if (!live) { this.mesh.visible = false; return; }
@@ -63,6 +65,7 @@ export class BoardLive3D {
     live.setInterior(!!crop);
     if (this.lastSnap !== s) { live.update(s, gt); live.setPlugged(!!s.plugged); this.lastSnap = s; }
     live.frame(gdt, gt, paused);
+    this.drawScreen(live, s);
     if (!crop) { this.mesh.visible = false; return; }
     const now = performance.now();
     if (now - this.at < 33) { this.mesh.visible = true; return; }
@@ -85,6 +88,21 @@ export class BoardLive3D {
     this.mesh.position.set(crop.x + crop.w / 2, -(crop.y + crop.h / 2), Z);
     this.mesh.scale.set(crop.w, crop.h, 1);
     this.mesh.visible = true;
+  }
+
+  /** The monitor's screen, drawn by `Live` at the screen's own resolution (about 15 times a second), or null while the monitor is off or absent. */
+  screen: { canvas: HTMLCanvasElement; w: number; h: number } | null = null;
+  private screenCanvas: HTMLCanvasElement | null = null;
+  private screenAt = -Infinity;
+
+  private drawScreen(live: Live, s: Snapshot): void {
+    if (!s.monitorPowered || !s.devices.some((d) => d.kind === 'display')) { this.screen = null; return; }
+    const now = performance.now();
+    if (this.screen && now - this.screenAt < 66) return;
+    const canvas = (this.screenCanvas ??= document.createElement('canvas'));
+    const got = drawLive(live.ext, SCREEN, 1280 / SCREEN.w, canvas);
+    this.screen = got ? { canvas, ...got } : null;
+    this.screenAt = now;
   }
 
   dispose(): void {
