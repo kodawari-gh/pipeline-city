@@ -782,7 +782,12 @@ export class Machine3D {
       const g = tag(new Group(), 'cable.' + id), hole: V3 = [dg.x + dx, deskTop + 10, dg.z], low: RopeEnd = { at: [dg.x + dx, under - 10, dg.z], dir: [0, -1, 0] };
       const seat: Seat = { at: [socket.x, -socket.y, 100], axis: [0, 0, 1] }, o = { slack: 1.1, extra: 700, stiff: 0.4, n: 30 };
       const floor: Env = { planes: [{ n: [0, 1, 0], d: -geo.floor }, { n: [0, 0, 1], d: 40 }, { n: [0, -1, 0], d: -under }], solids: [] }, ground = floor.planes[0]!;
-      g.add(cableMesh(hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, { slack: 1.1, extra: 500, stiff: 0.4, n: 30 }), cord));
+      const run = hangPts(from, { at: hole, dir: [0, 1, 0] }, cord, room, { slack: 1.1, extra: 500, stiff: 0.4, n: 30 });
+      g.add(cableMesh(run, cord));
+      // (a thin cord seen from afar is a pixel wide: an unseen sleeve three times as thick round it is what the pointer finds)
+      const grab = cableMesh(run, { ...cord, r: cord.r * 3 });
+      grab.material = mat(0, { transparent: true, opacity: 0, depthWrite: false }); grab.castShadow = grab.receiveShadow = false;
+      g.add(grab);
       this.addRig(g, {
         id, name: 'the wall socket', target: 'socket', look: cord, env: floor, fixed: [low], model: () => straightPlug(seat, 140, 90, 180, '#3a3d44'), seat, canSeat: true,
         engage: 320, seated: (ex) => [hangPts(low, ex[0]!, cord, floor, o)],
