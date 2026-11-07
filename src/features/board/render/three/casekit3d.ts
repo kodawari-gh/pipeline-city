@@ -162,7 +162,19 @@ export function perfMat(kind: Perf, w: number, h: number, pitch: number, tone: n
   const t = tiled(perforation(kind), w / pitch, h / (pitch * (kind === 'mesh' || kind === 'slot' ? 1 : 1.73)));
   // The holes are alpha-tested. A hard cut on mip-averaged alpha shimmers when the view moves: the coverage mask (the scene is multisampled) smooths it.
   // The sheet is pulled forward in depth, so the dark backing a few units behind it never wins a pixel at a far zoom (the hole flicker).
-  return mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  // Once a hole is smaller than a few pixels no filter can draw it steadily: the sheet fades to a solid, darker average (the holes' mean look).
+  const m = mat(tone, { map: t, alphaTest: 0.5, alphaToCoverage: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, metalness: o.metal ?? 0.3, roughness: o.rough ?? 0.5 });
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      #ifdef USE_MAP
+      { float tpp = max(length(dFdx(vMapUv * vec2(128.0))), length(dFdy(vMapUv * vec2(128.0))));
+        float far = smoothstep(6.0, 18.0, tpp);
+        diffuseColor.a = mix(diffuseColor.a, 1.0, far);
+        diffuseColor.rgb *= mix(1.0, 0.55, far); }
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'perf-fade';
+  return m;
 }
 
 /** A perforated plate over `r` at depth z on a dark backing (the holes show the dark), `pitch` units per hole. */

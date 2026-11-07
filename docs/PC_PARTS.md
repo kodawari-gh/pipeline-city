@@ -17,7 +17,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 | Power supply | `psu0..4` | `basement3d.ts` | [~] | [x] | [x] | [x] |
 | Graphics cards | `gpu1..3` | `card3d.ts` | [~] | [x] | [x] | [x] |
 | AI cards | `npu1..2` | `card3d.ts` | [~] | [x] | [x] | [x] |
-| Network cards | `nic1..3` | `card3d.ts` | [~] | [x] | [x] | [x] |
+| Network cards | `nic1..3` | `card3d.ts` | [x] controller with pins, capacitors, resistors, crystal added (the face was a bare slab) | [x] | [x] | [x] |
 | Drives: HDD, SATA SSD | `hdd0`, `ssd1` | `parts3d.ts`, `basement3d.ts` | [~] | [x] | [x] | [x] |
 | Drives: NVMe, RAID 1 | `nvme2`, `raid2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
 | TPM module | `tpm1..2` | `parts3d.ts` | [~] | [x] | [x] | [x] |
@@ -41,7 +41,7 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 
 ## Known visual defects
 
-- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). Measured (2026-11-07, dev server, Full case, front view with the hex grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): 12.93 % before, 10.72 % after; views with no grille are equal (0.637 and 1.965 %). With the perforation maps stripped the same view gives 3.52 %, so the grille still adds about 7 points. A 2x texture (10.70 %) and a blended alpha (11.82 %) did not help; both were dropped. The Mid case is not measured. The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
+- [x] Holes flickered: the perforated sheets (case mesh, hex and slot grilles, the Mid's top cap) were hard alpha cuts on mipped textures, with the dark backing a few units behind. Now alpha-to-coverage plus a depth bias (`casekit3d.ts` `perfMat`, `case3d.ts`), and the same for the art tiles (`artlod.ts`). A second step: `perfMat` fades the sheet to a solid, darker average once a hole is under about 6 to 18 texels per pixel, because no filter draws a sub-pixel hole steadily. Measured (2026-11-07, dev server, front view with the grille, 11 frames each a 0.0015 rad turn apart, share of pixels changed by more than 90/765 between neighbours): Full case 12.93 % before, 10.72 % after the coverage mask, 6.53 % after the fade (3.52 % with the maps stripped, the floor of real motion); views with no grille are equal (0.637 and 1.965 %). Mid case (Mid board and Mid tower fitted in the stage): front 0.79 %, top 0.40 %, side 0.48 %. A 2x texture (10.70 %) and a blended alpha (11.82 %) did not help; both were dropped. The Mid number has no "before" run. The `__build` dev hook (`BuildStage.jump`) lets a script repeat it.
 - [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
 - [x] Second pass (same day): the NPU over the NIC (it covers the next slot, as `COVERS` says), the TPM header, the HDD in the cage (platter, SATA sockets), the Mini case with its panel open and a CPU and stick fitted. No defect found; the Mini's panel swings where the 3D notes say it slides (a motion difference, not a fit one).
 

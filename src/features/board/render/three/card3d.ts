@@ -4,7 +4,7 @@
 // The 2D draws the card lying flat over the board, face up. So the card is built in that pose (the 2D rect and its art, the cooler under the
 // PCB, the backplate over it) and stood up by a hinge along the slot. Up close (`pose`, the card's 2D band) the cooler, the backplate and the
 // bracket fade, then the card swings down flat and shows its exact 2D face; it stands up again on the way out.
-import { BoxGeometry, ExtrudeGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
+import { BoxGeometry, CylinderGeometry, ExtrudeGeometry, Group, Mesh, Path, Shape, type MeshStandardMaterial, type Object3D } from 'three';
 import { CARD_LEN, cardPlugs, cardRect, PLUG_BLOCK } from '@/core/render/accelart';
 import { fadeTree } from '@/core/render/three/artlod';
 import { instanced, place, rectBox, rounded, softBox, tube, type RectLike } from '@/core/render/three/geometry';
@@ -207,6 +207,19 @@ function nic(g: Group, visual: string, f: ReturnType<typeof frame>, black: MeshS
   const plates = [];
   for (let x = x0 + 534; x < x0 + 520 + w - 10; x += 28) plates.push({ x, y: -(ya + yb) / 2, z: Z - 70, sx: 8, sy: yb - ya, sz: 92 });
   g.add(instanced(new BoxGeometry(1, 1, 1), fin, plates));
+  // the PCB's face (the side that looks up, standing): the controller, a row of capacitors, resistors and a crystal, so the card is not a bare slab
+  const chipM = mat(0x0b0e14, { roughness: 0.4, metalness: 0.2 }), capM = mat(0x1c2c4c, { metalness: 0.3, roughness: 0.45 });
+  const cx = x0 + 300, cy = y0 + 200 + (big ? 80 : 0), cs = big ? 260 : 190;
+  g.add(rectBox({ x: cx, y: cy, w: cs, h: cs }, Z, Z + 20, chipM), rectBox({ x: cx + 18, y: cy + 18, w: cs - 36, h: cs - 36 }, Z + 20, Z + 22, mat(0x2a3140, { roughness: 0.3, metalness: 0.5 })));
+  const pins = [];
+  for (let k = 0; k < 9; k++) { const t = cx + 16 + k * ((cs - 32) / 8); pins.push({ x: t, y: -(cy - 10), z: Z + 6, sx: 10, sy: 22, sz: 4 }, { x: t, y: -(cy + cs + 10), z: Z + 6, sx: 10, sy: 22, sz: 4 });
+    pins.push({ x: cx - 10, y: -(cy + 16 + k * ((cs - 32) / 8)), z: Z + 6, sx: 22, sy: 10, sz: 4 }, { x: cx + cs + 10, y: -(cy + 16 + k * ((cs - 32) / 8)), z: Z + 6, sx: 22, sy: 10, sz: 4 }); }
+  g.add(instanced(new BoxGeometry(1, 1, 1), steel, pins));
+  const caps = [], smd = [];
+  for (let k = 0; k < 6; k++) caps.push({ x: cx + cs + 150 + k * 90, y: -(cy + 40), z: Z + 40, sx: 56, sy: 56, sz: 80 });
+  for (let k = 0; k < 14; k++) smd.push({ x: cx - 40 + (k % 7) * 60, y: -(cy + cs + 90 + Math.floor(k / 7) * 46), z: Z + 5, sx: 36, sy: 20, sz: 10 });
+  g.add(instanced(new CylinderGeometry(0.5, 0.5, 1, 16).rotateX(Math.PI / 2), capM, caps), instanced(new BoxGeometry(1, 1, 1), mat(0x20242c, { roughness: 0.5 }), smd));
+  g.add(rectBox({ x: cx + cs + 160, y: cy + 150, w: 120, h: 50 }, Z, Z + 26, steel));
   // the jacks: their bodies on the PCB, their mouths through the bracket; one per port, two lights each
   const ports = big ? 2 : 1;
   for (let k = 0; k < ports; k++) {
