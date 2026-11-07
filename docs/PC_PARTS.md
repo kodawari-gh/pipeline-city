@@ -45,6 +45,8 @@ Legend: `[x]` done and checked, `[ ]` open, `[~]` partly. Columns: **Model** the
 - [x] First review pass (2026-11-07, close-up shots in Build my PC): CPU socket and cooler, RAM bank, M.2 row, PCIe row, chipset, no clipping or gaps found. Cards read flat at that zoom by design.
 - [x] Second pass (same day): the NPU over the NIC (it covers the next slot, as `COVERS` says), the TPM header, the HDD in the cage (platter, SATA sockets), the Mini case with its panel open and a CPU and stick fitted. No defect found; the Mini's panel swings where the 3D notes say it slides (a motion difference, not a fit one).
 
+- [x] The "floating hex sheet" over the Full case's roof (2026-11-07): it is the roof's own vent panel, inset flush in the solid roof over the radiator mount, with its white trim. It looked like a sheet only in close-ups from above. Not a defect.
+
 ## Build my PC mode
 
 - Entry: main menu, "Build my PC". Code: `render/three/buildmode3d.ts`, `board/ui/BuildMode.tsx`.
