@@ -105,8 +105,8 @@ export function stateOf(s: Snapshot, d: DeviceSnap): PartState {
 
 type Fan = Spin & { speed: number };
 
-/** What the video cable's PC end depends on: the port it is in and the cards and display that offer ports (it is built again when these change). */
-const videoKey = (s: Snapshot) => `${s.videoPort}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display').map((d) => `${d.spec}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
+/** What the video and LAN cables' PC ends depend on: the port each is in and the cards and display that offer ports (they are built again when these change). */
+const videoKey = (s: Snapshot) => `${s.videoPort}|${s.net?.port.kind}${s.net?.port.deviceId ?? ''}|${s.devices.filter((d) => d.kind === 'gpu' || d.kind === 'display' || d.kind === 'nic').map((d) => `${d.id}@${d.slot}${d.burnt ? 'x' : ''}`).join(',')}`;
 
 export class Machine3D {
   readonly root = new Group();
@@ -790,9 +790,13 @@ export class Machine3D {
       // the LAN lead: fixed at the router's port, its plug lies on the desk and goes into the network jack on the case's rear panel
       const g = tag(new Group(), 'cable.lan'), ly = ETH0_RECT.y + ETH0_RECT.h / 2, lz = BOARD_Z + 300, look: Look = { r: 40, base: '#8cc3e0', accent: null };
       const from: RopeEnd = { at: [ROUTER_SPOT.x + ROUTER_SPOT.w, -(ROUTER_SPOT.y + ROUTER_SPOT.h * 0.6), 800], dir: [1, 0, 0] };
-      const seat: Seat = { at: [CASE.x, -ly, lz], axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
+      // its ports: the board's jack, and each network card's (the 2D game's `eth0`, `eth1`...); the plug stands in the one the sim has it in
+      const jacks = [{ port: 'board', at: [CASE.x, -ly, lz] as V3 }, ...s.devices.filter((d) => d.kind === 'nic' && !d.burnt).map((d) => ({ port: d.id, at: [CASE.x, -nicY(Number(/\d+$/.exec(d.slot)?.[0] ?? 0)), lz] as V3 }))];
+      const now = (s.net?.port.kind === 'nic' && jacks.find((j) => j.port === s.net!.port.deviceId)) || jacks[0]!;
+      const seat: Seat = { at: now.at, axis: [-1, 0, 0] }, env: Env = { planes: room.planes, solids: [caseBox] }, o = { slack: 1.1, extra: 600, stiff: 0.35, n: 30 };
       this.addRig(g, {
         id: 'lan', name: 'the network port', target: 'io', look, env, fixed: [from], model: () => straightPlug(seat, 110, 80, 150, '#8cc3e0'), seat, canSeat: true, engage: 300,
+        port: now.port, alts: jacks.filter((j) => j !== now),
         seated: (ex) => [hangPts(from, ex[0]!, look, env, o)], deck, n: o.n, stiff: o.stiff, lead: look.r * 2.5,
       }, on('lan'));
       this.wires.add(g);
