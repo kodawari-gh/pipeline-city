@@ -89,6 +89,9 @@ export const toggleShop = () => { shopOpen.value = !shopOpen.value; };
 /** The gallery (main menu): every part as a 3D model. */
 export const galleryOpen = signal(false);
 
+/** Build my PC (main menu): the machine alone on a stage, to build it and swap its parts (features/board/ui/BuildMode.tsx). */
+export const buildOpen = signal(false);
+
 export const milestones = signal<{ focus: number | null } | null>(null);
 export const openMilestones = (focus: number | null = null) => { milestones.value = { focus }; };
 export const closeMilestones = () => { milestones.value = null; };

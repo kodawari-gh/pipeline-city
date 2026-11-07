@@ -5,6 +5,7 @@ import { Icon } from '@/core/ui/kit/Icons';
 import { Rung } from './PickerCard';
 import { Showcase } from './Showcase';
 export { Gallery } from './Gallery';
+export { BuildMode } from '@/features/board/ui/BuildMode';
 import { StatCard } from './StatCard';
 import { kindOf } from './picker';
 import { closeShop, shopFocus, shopOpen } from '@/core/ui/state';
