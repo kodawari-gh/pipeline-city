@@ -249,10 +249,11 @@ function Menu({ s }: { s: NonNullable<typeof snapshot.value> }) {
               }}
             />
           </label>
-          <button role="menuitem" onClick={() => { replayTutorial(s); close(); }}>Replay tutorial</button>
-          {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }}>Skip tutorial</button>}
-          <button role="menuitem" onClick={() => { resetHints(); close(); }}>Show hints again</button>
-          <button role="menuitem" onClick={() => { close(); openNewGame(); }}>New game</button>
+          <button class="danger" role="menuitem" onClick={() => { close(); openNewGame(); }} title="Start a fresh game (asks first)"><Icon name="warn" size={13} /> New game</button>
+          <div class="menu-h">Help</div>
+          <button role="menuitem" onClick={() => { replayTutorial(s); close(); }} title="Run the tutorial again from the start"><Icon name="play" size={13} /> Replay tutorial</button>
+          {active && <button role="menuitem" onClick={() => { skipTutorial(); close(); }} title="Stop the tutorial"><Icon name="check" size={13} /> Skip tutorial</button>}
+          <button role="menuitem" onClick={() => { resetHints(); close(); }} title="Show the hints you have dismissed"><Icon name="star" size={13} /> Show hints again</button>
         </div>
       )}
     </div>
